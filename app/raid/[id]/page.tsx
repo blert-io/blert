@@ -305,8 +305,8 @@ const fakeRaidData: RaidStats = {
   },
 };
 
-const MAIDEN_X = 3159;
-const MAIDEN_Y = 4434;
+const MAIDEN_X = 3160;
+const MAIDEN_Y = 4435;
 const MAIDEN_WIDTH = 28;
 const MAIDEN_HEIGHT = 24;
 const maidenBaseTiles = require('./maiden.json');
@@ -330,7 +330,7 @@ export default function Raid({ params }: { params: RaidParams }) {
   const [playing, setPlaying] = useState(false);
 
   const maidenEvents = fakeRaidData.rooms.maiden!.events;
-  const eventsForTick = maidenEvents.filter((evt) => evt.tick === tick);
+  const eventsForTick = maidenEvents.filter((evt: any) => evt.tick === tick);
 
   useEffect(() => {
     if (playing) {
@@ -344,8 +344,8 @@ export default function Raid({ params }: { params: RaidParams }) {
   }, [tick, playing]);
 
   const players = eventsForTick
-    .filter((evt) => evt.type === EventType.PLAYER)
-    .map((evt) => new PlayerEntity(evt.xCoord, evt.yCoord, evt.player.name));
+    .filter((evt: any) => evt.type === EventType.PLAYER)
+    .map((evt: any) => new PlayerEntity(evt.xCoord, evt.yCoord, evt.player.name));
 
   return (
     <div style={{ margin: '1em' }}>

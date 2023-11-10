@@ -36,6 +36,8 @@ function Tile(props: TileProps) {
   return (
     <div
       className="blert-map-tile"
+      data-x={props.tile.x}
+      data-y={props.tile.y}
       style={{
         backgroundColor: props.tile.color,
         display: 'inline-block',
