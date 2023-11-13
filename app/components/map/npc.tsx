@@ -1,26 +1,48 @@
 import { Entity, EntityType } from './entity';
 import { SkillLevel } from '../../raid/stats';
 
-export class PlayerEntity implements Entity {
+// TODO(frolv): This belongs elsewhere.
+const MAIDEN = { name: 'The Maiden of Sugadinti', size: 6 };
+const TOB_NPCS: { [id: number]: any } = {
+  [8360]: MAIDEN,
+  [8361]: MAIDEN,
+  [8362]: MAIDEN,
+  [8363]: MAIDEN,
+  [8364]: MAIDEN,
+  [8365]: MAIDEN,
+  [8366]: { name: 'Nylocas Matomenos', size: 2 },
+  [8367]: { name: 'Blood spawn', size: 1 },
+};
+
+export class NpcEntity implements Entity {
   x: number;
   y: number;
-  type: EntityType = EntityType.PLAYER;
-  size = 1;
-  outlineColor: string = '#979695';
+  type: EntityType = EntityType.NPC;
+  size: number;
+  outlineColor: string = '#3d3dd5';
   interactable: boolean = true;
 
-  name: string;
+  id: number;
+  roomId: number;
   hitpoints?: SkillLevel;
 
-  constructor(x: number, y: number, name: string, hitpoints?: SkillLevel) {
+  constructor(
+    x: number,
+    y: number,
+    id: number,
+    roomId: number,
+    hitpoints?: SkillLevel,
+  ) {
     this.x = x;
     this.y = y;
-    this.name = name;
+    this.size = TOB_NPCS[id]?.size ?? 1;
+    this.id = id;
+    this.roomId = roomId;
     this.hitpoints = hitpoints;
   }
 
   getUniqueId(): string {
-    return `${this.type}-${this.name}`;
+    return `${this.type}-${this.roomId}`;
   }
 
   renderContents(): React.ReactNode {
@@ -36,9 +58,10 @@ export class PlayerEntity implements Entity {
           color: '#fff',
           fontSize: '12px',
           textShadow: '3px 3px 2px rgba(0, 0, 0, 1)',
+          textAlign: 'center',
         }}
       >
-        {this.name}
+        {TOB_NPCS[this.id]?.name ?? this.id}
         {this.hitpoints !== undefined && (
           <div>
             {this.hitpoints.current}/{this.hitpoints.base}

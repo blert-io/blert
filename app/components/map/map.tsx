@@ -1,70 +1,29 @@
-import { Entity } from './entity';
+import { Entity, MapEntity } from './entity';
+import Tile, { TileData } from './tile';
 
-type Tile = {
+import styles from './style.module.css';
+import { OverlayEntity } from './overlay';
+
+type BaseTile = {
   x: number;
   y: number;
   color?: string;
-  entities: Entity[];
 };
-
-type TileProps = {
-  tile: Tile;
-  size: number;
-};
-
-function Tile(props: TileProps) {
-  let children = [];
-
-  for (const entity of props.tile.entities) {
-    children.push(
-      <div
-        style={{
-          height: props.size * entity.size,
-          width: props.size * entity.size,
-          position: 'absolute',
-          border: '1px solid #979695',
-          boxSizing: 'border-box',
-          bottom: 0, // An entity's position corresponds to its southwest tile.
-          zIndex: 10,
-        }}
-      >
-        {entity.renderContents()}
-      </div>,
-    );
-  }
-
-  return (
-    <div
-      className="blert-map-tile"
-      data-x={props.tile.x}
-      data-y={props.tile.y}
-      style={{
-        backgroundColor: props.tile.color,
-        display: 'inline-block',
-        position: 'relative',
-        height: props.size,
-        width: props.size,
-      }}
-    >
-      {...children}
-    </div>
-  );
-}
 
 type MapProps = {
   x: number;
   y: number;
   width: number;
   height: number;
-  baseTiles?: any;
+  baseTiles?: BaseTile[];
   tileSize: number;
   entities: Entity[];
 };
 
 export default function Map(props: MapProps) {
-  let tiles: Tile[][] = [];
+  let tiles: TileData[][] = [];
   for (let y = props.y; y < props.y + props.height; y++) {
-    let row: Tile[] = [];
+    let row: TileData[] = [];
     for (let x = props.x; x < props.x + props.width; x++) {
       row.push({ x, y, entities: [] });
     }
@@ -86,48 +45,68 @@ export default function Map(props: MapProps) {
     return tiles[relY][relX];
   };
 
-  if (props.baseTiles) {
-    for (const baseTile of props.baseTiles) {
-      let tile = getTileForCoords(baseTile.x, baseTile.y);
-      if (tile === null) {
-        console.error(
-          `base tile (${baseTile.x},${baseTile.y}) is out-of-bounds`,
-        );
-        continue;
-      }
+  const baseTiles = props.baseTiles ?? [];
+  for (const baseTile of baseTiles) {
+    let tile = getTileForCoords(baseTile.x, baseTile.y);
+    if (tile === null) {
+      console.error(`base tile (${baseTile.x},${baseTile.y}) is out-of-bounds`);
+      continue;
+    }
 
-      if (baseTile.color) {
-        tile.color = baseTile.color;
-      }
+    if (baseTile.color) {
+      tile.color = baseTile.color;
     }
   }
 
+  // Tiles containing more than a single entity.
+  let packedTiles = [];
+
   for (const entity of props.entities) {
+    if (!entity.interactable) {
+      continue;
+    }
+
     let tile = getTileForCoords(entity.x, entity.y);
     if (tile !== null) {
+      if (tile.entities.length === 1) {
+        packedTiles.push(tile);
+      }
       tile.entities.push(entity);
     }
   }
+
+  let mapEntities = [...props.entities];
+
+  packedTiles.forEach((tile) => {
+    const entityCount = (
+      <div className={styles.countOverlay}>
+        <div className={styles.count}>{tile.entities.length}</div>
+      </div>
+    );
+    mapEntities.push(new OverlayEntity(tile.x, tile.y, entityCount));
+  });
 
   // The y coordinate goes from bottom to top, but we have to render from top to
   // bottom.
   tiles.reverse();
 
   return (
-    <div
-      className="blert-map"
-      style={{
-        display: 'inline-flex',
-        flexDirection: 'column',
-        border: '2px solid #ccc',
-      }}
-    >
+    <div className={styles.map}>
       {tiles.map((row, i) => (
-        <div key={i} className="blert-map-row" style={{ display: 'flex' }}>
+        <div key={i} className={styles.mapRow}>
           {row.map((tile) => (
             <Tile key={tile.x} size={props.tileSize} tile={tile} />
           ))}
         </div>
+      ))}
+      {mapEntities.map((entity) => (
+        <MapEntity
+          key={entity.getUniqueId()}
+          baseX={props.x}
+          baseY={props.y}
+          entity={entity}
+          tileSize={props.tileSize}
+        />
       ))}
     </div>
   );

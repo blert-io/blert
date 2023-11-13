@@ -1,7 +1,3 @@
-export const enum EventType {
-  PLAYER = 'PLAYER',
-}
-
 export const enum RaidStatus {
   IN_PROGRESS = 'IN_PROGRESS',
   COMPLETED = 'COMPLETED',
@@ -33,5 +29,58 @@ export type RaidStats = {
 };
 
 export interface RoomStats {
-  events: any[];
+  events: Event[];
 }
+
+export const enum Room {
+  MAIDEN = 'MAIDEN',
+  BLOAT = 'BLOAT',
+  NYLOCAS = 'NYLOCAS',
+  SOTETSEG = 'SOTETSEG',
+  XARPUS = 'XARPUS',
+  VERZIK = 'VERZIK',
+}
+
+export const enum EventType {
+  PLAYER_UPDATE = 'PLAYER_UPDATE',
+  NPC_UPDATE = 'NPC_UPDATE',
+}
+
+export interface Event {
+  type: EventType;
+  room?: Room;
+  tick: number;
+  xCoord: number;
+  yCoord: number;
+}
+
+export interface PlayerUpdateEvent extends Event {
+  type: EventType.PLAYER_UPDATE;
+  player: Player;
+}
+
+export interface NpcUpdateEvent extends Event {
+  type: EventType.NPC_UPDATE;
+  npc: Npc;
+}
+
+export type Player = {
+  name: string;
+  hitpoints?: SkillLevel;
+};
+
+export type Npc = {
+  id: number;
+  roomId: number;
+  hitpoints?: SkillLevel;
+};
+
+export const enum Skill {
+  HITPOINTS,
+}
+
+export type SkillLevel = {
+  skill: Skill,
+  current: number;
+  base: number;
+};
