@@ -1,0 +1,62 @@
+.raid {
+  margin: 1em 2em;
+
+  .details {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    h1 {
+      font-weight: 600;
+      font-size: 1.5rem;
+      margin-bottom: 0.75em;
+    }
+
+    .navbar {
+      display: inline-flex;
+      margin-bottom: 2em;
+
+      .link {
+        display: block;
+        padding: 0.5em 1em;
+        border-bottom: 1px solid rgb(100, 100, 100);
+        text-align: center;
+        color: rgb(214, 227, 233);
+
+        &.active {
+          color: #fff;
+          border-color: var(--blert-blue);
+          cursor: default;
+        }
+
+        &:not(&.active):hover {
+          opacity: 0.8;
+        }
+      }
+    }
+
+    .icons {
+      display: flex;
+      margin-bottom: 0.75em;
+
+      .icon {
+        display: flex;
+
+        &:not(:last-child) {
+          margin-right: 1.5em;
+        }
+
+        .text {
+          font-weight: 500;
+          margin-left: 0.4rem;
+        }
+      }
+    }
+  }
+
+  .content {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+}

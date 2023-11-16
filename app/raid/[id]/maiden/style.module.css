@@ -1,0 +1,96 @@
+.maiden {
+  display: flex;
+  margin: 0 auto;
+
+  .map {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    .playback {
+      margin: 1em 0;
+    }
+
+    .timer {
+      margin-bottom: 1em;
+    }
+  }
+
+  .info {
+    margin-left: 3em;
+    min-width: 240px;
+
+    & > h2 {
+      font-weight: 700;
+      font-size: 1.2rem;
+      text-shadow: 3px 3px 2px rgb(34, 34, 34);
+    }
+
+    .event {
+      margin-top: 0.75em;
+
+      & > button {
+        width: 100%;
+        display: flex;
+        align-items: center;
+
+        &:hover {
+          opacity: 0.8;
+        }
+      }
+
+      .icon {
+        display: inline-block;
+        margin-right: 1em;
+      }
+
+      .title {
+        color: #e7e7e7;
+        font-weight: 600;
+      }
+
+      .time {
+        display: inline-block;
+        margin: 0 0.5em;
+        width: 60px;
+        text-align: right;
+      }
+
+      .addendum {
+        margin-left: 0.5em;
+        font-size: 0.8rem;
+        font-style: italic;
+        color: rgb(143, 153, 151);
+      }
+
+      & > table {
+        margin-top: 0.5em;
+      }
+
+      thead td {
+        text-align: center;
+        font-weight: 500;
+        font-size: 14px;
+      }
+
+      tbody td {
+        font-size: 14px;
+        text-align: center;
+        vertical-align: top;
+        padding: 0 0.25rem;
+      }
+    }
+
+    .spawn {
+      tbody td {
+        text-align: left;
+        font-size: 12px;
+        width: 36px;
+      }
+
+      tbody td:last-child {
+        text-align: right;
+      }
+    }
+  }
+}
