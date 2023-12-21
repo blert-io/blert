@@ -1,6 +1,5 @@
 .maiden {
   display: flex;
-  margin: 0 auto;
 
   .map {
     display: flex;
@@ -16,80 +15,134 @@
     }
   }
 
-  .info {
-    margin-left: 3em;
-    min-width: 240px;
+  .container {
+    flex-grow: 1;
+    align-self: start;
+    display: flex;
+    flex-wrap: wrap;
+    margin-left: 5vw;
+    gap: 2em;
 
-    & > h2 {
-      font-weight: 700;
-      font-size: 1.2rem;
-      text-shadow: 3px 3px 2px rgb(34, 34, 34);
+    .info {
+      min-width: 240px;
+
+      & > h2 {
+        font-weight: 700;
+        font-size: 1.2rem;
+        text-shadow: 3px 3px 2px rgb(34, 34, 34);
+      }
     }
 
-    .event {
-      margin-top: 0.75em;
+    .events {
+      .event {
+        margin-top: 0.75em;
 
-      & > button {
-        width: 100%;
-        display: flex;
-        align-items: center;
+        & > button {
+          width: 100%;
+          display: flex;
+          align-items: center;
 
-        &:hover {
-          opacity: 0.8;
+          &:hover {
+            opacity: 0.8;
+          }
+        }
+
+        .icon {
+          display: inline-block;
+          margin-right: 1em;
+        }
+
+        .title {
+          color: #e7e7e7;
+          font-weight: 600;
+        }
+
+        .time {
+          display: inline-block;
+          margin: 0 0.5em;
+          width: 60px;
+          text-align: right;
+        }
+
+        .addendum {
+          margin-left: 0.5em;
+          font-size: 0.8rem;
+          font-style: italic;
+          color: rgb(143, 153, 151);
+        }
+
+        & > table {
+          margin-top: 0.5em;
+        }
+
+        thead td {
+          text-align: center;
+          font-weight: 500;
+          font-size: 14px;
+        }
+
+        tbody td {
+          font-size: 14px;
+          text-align: center;
+          vertical-align: top;
+          padding: 0 0.25rem;
         }
       }
 
-      .icon {
-        display: inline-block;
-        margin-right: 1em;
-      }
+      .spawn {
+        tbody td {
+          text-align: left;
+          font-size: 12px;
+          width: 36px;
+        }
 
-      .title {
-        color: #e7e7e7;
-        font-weight: 600;
-      }
-
-      .time {
-        display: inline-block;
-        margin: 0 0.5em;
-        width: 60px;
-        text-align: right;
-      }
-
-      .addendum {
-        margin-left: 0.5em;
-        font-size: 0.8rem;
-        font-style: italic;
-        color: rgb(143, 153, 151);
-      }
-
-      & > table {
-        margin-top: 0.5em;
-      }
-
-      thead td {
-        text-align: center;
-        font-weight: 500;
-        font-size: 14px;
-      }
-
-      tbody td {
-        font-size: 14px;
-        text-align: center;
-        vertical-align: top;
-        padding: 0 0.25rem;
+        tbody td:last-child {
+          text-align: right;
+        }
       }
     }
 
-    .spawn {
-      tbody td {
-        text-align: left;
-        font-size: 12px;
-        width: 36px;
-      }
+    .players {
+      flex-grow: 1;
 
-      tbody td:last-child {
-        text-align: right;
+      .player {
+        display: flex;
+        flex-wrap: wrap;
+        border: 1px solid #5a5b62;
+        padding: 0.5em 1em;
+        margin-top: 0.75em;
+        border-radius: 5px;
+        min-width: 100%;
+        text-align: left;
+
+        &.selected {
+          border-color: var(--blert-blue);
+        }
+
+        &:hover {
+          cursor: pointer;
+          background-color: rgb(101, 103, 110, 0.25);
+        }
+
+        .name {
+          color: #fff;
+          min-width: 100px;
+        }
+
+        .stats {
+          display: flex;
+          margin-left: auto;
+
+          .stat {
+            display: flex;
+            align-items: center;
+
+            span {
+              margin-left: 0.5em;
+              font-size: 14px;
+            }
+          }
+        }
       }
     }
   }

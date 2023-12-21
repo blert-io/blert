@@ -8,12 +8,17 @@ export class MarkerEntity implements Entity {
   y: number;
   type: EntityType = EntityType.HIGHLIGHT;
   size: number = 1;
-  outlineColor: string = '#626262';
+  name: string;
+  outlineColor: string;
   interactable: boolean = false;
 
-  constructor(x: number, y: number) {
+  private static DEFAULT_OUTLINE_COLOR: string = '#626262';
+
+  constructor(x: number, y: number, color?: string) {
     this.x = x;
     this.y = y;
+    this.name = `Tile (${this.x},${this.y})`;
+    this.outlineColor = color ?? MarkerEntity.DEFAULT_OUTLINE_COLOR;
   }
 
   getUniqueId(): string {

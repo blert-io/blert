@@ -1387,7 +1387,7 @@
   {
     "type": "MAIDEN_CRAB_SPAWN",
     "room": "MAIDEN",
-    "tick": 35,
+    "tick": 36,
     "xCoord": 3173,
     "yCoord": 4456,
     "maidenEntity": { "crab": { "spawn": "SEVENTIES", "position": "N1" } }
@@ -1395,7 +1395,7 @@
   {
     "type": "MAIDEN_CRAB_SPAWN",
     "room": "MAIDEN",
-    "tick": 35,
+    "tick": 36,
     "xCoord": 3177,
     "yCoord": 4456,
     "maidenEntity": { "crab": { "spawn": "SEVENTIES", "position": "N2" } }
@@ -1403,7 +1403,7 @@
   {
     "type": "MAIDEN_CRAB_SPAWN",
     "room": "MAIDEN",
-    "tick": 35,
+    "tick": 36,
     "xCoord": 3181,
     "yCoord": 4456,
     "maidenEntity": { "crab": { "spawn": "SEVENTIES", "position": "N3" } }
@@ -1411,7 +1411,7 @@
   {
     "type": "MAIDEN_CRAB_SPAWN",
     "room": "MAIDEN",
-    "tick": 35,
+    "tick": 36,
     "xCoord": 0,
     "yCoord": 0,
     "maidenEntity": { "crab": { "spawn": "SEVENTIES", "position": "S4_INNER" } }
@@ -1419,7 +1419,7 @@
   {
     "type": "MAIDEN_CRAB_SPAWN",
     "room": "MAIDEN",
-    "tick": 35,
+    "tick": 36,
     "xCoord": 3185,
     "yCoord": 4454,
     "maidenEntity": { "crab": { "spawn": "SEVENTIES", "position": "N4_INNER" } }
@@ -1427,7 +1427,7 @@
   {
     "type": "MAIDEN_CRAB_SPAWN",
     "room": "MAIDEN",
-    "tick": 35,
+    "tick": 36,
     "xCoord": 3185,
     "yCoord": 4456,
     "maidenEntity": { "crab": { "spawn": "SEVENTIES", "position": "N4_OUTER" } }
@@ -4349,7 +4349,7 @@
   {
     "type": "MAIDEN_CRAB_SPAWN",
     "room": "MAIDEN",
-    "tick": 65,
+    "tick": 66,
     "xCoord": 0,
     "yCoord": 0,
     "maidenEntity": { "crab": { "spawn": "FIFTIES", "position": "S1" } }
@@ -4357,7 +4357,7 @@
   {
     "type": "MAIDEN_CRAB_SPAWN",
     "room": "MAIDEN",
-    "tick": 65,
+    "tick": 66,
     "xCoord": 0,
     "yCoord": 0,
     "maidenEntity": { "crab": { "spawn": "FIFTIES", "position": "S3" } }
@@ -4365,7 +4365,7 @@
   {
     "type": "MAIDEN_CRAB_SPAWN",
     "room": "MAIDEN",
-    "tick": 65,
+    "tick": 66,
     "xCoord": 0,
     "yCoord": 0,
     "maidenEntity": { "crab": { "spawn": "FIFTIES", "position": "S2" } }
@@ -4373,7 +4373,7 @@
   {
     "type": "MAIDEN_CRAB_SPAWN",
     "room": "MAIDEN",
-    "tick": 65,
+    "tick": 66,
     "xCoord": 3181,
     "yCoord": 4456,
     "maidenEntity": { "crab": { "spawn": "FIFTIES", "position": "N3" } }
@@ -4381,7 +4381,7 @@
   {
     "type": "MAIDEN_CRAB_SPAWN",
     "room": "MAIDEN",
-    "tick": 65,
+    "tick": 66,
     "xCoord": 0,
     "yCoord": 0,
     "maidenEntity": { "crab": { "spawn": "FIFTIES", "position": "S4_OUTER" } }
@@ -4389,7 +4389,7 @@
   {
     "type": "MAIDEN_CRAB_SPAWN",
     "room": "MAIDEN",
-    "tick": 65,
+    "tick": 66,
     "xCoord": 3185,
     "yCoord": 4454,
     "maidenEntity": { "crab": { "spawn": "FIFTIES", "position": "N4_INNER" } }
@@ -10815,7 +10815,7 @@
   {
     "type": "MAIDEN_CRAB_SPAWN",
     "room": "MAIDEN",
-    "tick": 135,
+    "tick": 136,
     "xCoord": 0,
     "yCoord": 0,
     "maidenEntity": { "crab": { "spawn": "THIRTIES", "position": "S1" } }
@@ -10823,7 +10823,7 @@
   {
     "type": "MAIDEN_CRAB_SPAWN",
     "room": "MAIDEN",
-    "tick": 135,
+    "tick": 136,
     "xCoord": 3173,
     "yCoord": 4456,
     "maidenEntity": { "crab": { "spawn": "THIRTIES", "position": "N1" } }
@@ -10831,7 +10831,7 @@
   {
     "type": "MAIDEN_CRAB_SPAWN",
     "room": "MAIDEN",
-    "tick": 135,
+    "tick": 136,
     "xCoord": 3181,
     "yCoord": 4456,
     "maidenEntity": { "crab": { "spawn": "THIRTIES", "position": "N3" } }
@@ -10839,7 +10839,7 @@
   {
     "type": "MAIDEN_CRAB_SPAWN",
     "room": "MAIDEN",
-    "tick": 135,
+    "tick": 136,
     "xCoord": 3177,
     "yCoord": 4456,
     "maidenEntity": { "crab": { "spawn": "THIRTIES", "position": "N2" } }
@@ -10847,7 +10847,7 @@
   {
     "type": "MAIDEN_CRAB_SPAWN",
     "room": "MAIDEN",
-    "tick": 135,
+    "tick": 136,
     "xCoord": 0,
     "yCoord": 0,
     "maidenEntity": { "crab": { "spawn": "THIRTIES", "position": "S4_INNER" } }
@@ -10855,7 +10855,7 @@
   {
     "type": "MAIDEN_CRAB_SPAWN",
     "room": "MAIDEN",
-    "tick": 135,
+    "tick": 136,
     "xCoord": 3185,
     "yCoord": 4454,
     "maidenEntity": { "crab": { "spawn": "THIRTIES", "position": "N4_INNER" } }

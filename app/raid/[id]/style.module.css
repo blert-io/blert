@@ -1,27 +1,59 @@
 .raid {
-  margin: 1em 2em;
+  margin: 1em auto;
+  max-width: 80vw;
 
   .details {
     display: flex;
     flex-direction: column;
-    align-items: center;
 
-    h1 {
-      font-weight: 600;
-      font-size: 1.5rem;
-      margin-bottom: 0.75em;
+    .basic {
+      display: flex;
+      margin-bottom: 1.5em;
+
+      .id {
+        h1 {
+          color: #fff;
+          font-weight: 700;
+          font-size: 1.5rem;
+          margin-bottom: 0.25em;
+        }
+
+        p {
+          font-style: italic;
+          font-size: 14px;
+        }
+      }
+
+      .icons {
+        display: flex;
+        align-items: flex-end;
+
+        .icon {
+          display: flex;
+          margin-left: 2.5em;
+
+          .text {
+            font-weight: 500;
+            margin-left: 0.4rem;
+          }
+        }
+      }
     }
 
     .navbar {
+      --navbar-border-color: rgba(101, 103, 110, 0.8);
+
+      width: 100%;
       display: inline-flex;
       margin-bottom: 2em;
+      border-bottom: 1px solid var(--navbar-border-color);
 
       .link {
         display: block;
-        padding: 0.5em 1em;
-        border-bottom: 1px solid rgb(100, 100, 100);
+        margin-bottom: -1px;
+        padding: 0.5em 1.25em;
+        border-bottom: 1px solid var(--navbar-border-color);
         text-align: center;
-        color: rgb(214, 227, 233);
 
         &.active {
           color: #fff;
@@ -31,24 +63,6 @@
 
         &:not(&.active):hover {
           opacity: 0.8;
-        }
-      }
-    }
-
-    .icons {
-      display: flex;
-      margin-bottom: 0.75em;
-
-      .icon {
-        display: flex;
-
-        &:not(:last-child) {
-          margin-right: 1.5em;
-        }
-
-        .text {
-          font-weight: 500;
-          margin-left: 0.4rem;
         }
       }
     }

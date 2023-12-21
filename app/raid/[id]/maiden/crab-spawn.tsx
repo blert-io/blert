@@ -20,6 +20,10 @@ const SPAWN_STRING = {
   [MaidenCrabSpawn.THIRTIES]: '30s',
 };
 
+export function spawnString(spawn: MaidenCrabSpawn): string {
+  return SPAWN_STRING[spawn];
+}
+
 export function CrabSpawn({ crabs, tickDiff }: CrabSpawnProps) {
   const [open, setOpen] = useState(false);
 

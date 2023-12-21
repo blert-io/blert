@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Image from 'next/image';
 
 import Map, {
   Entity,
@@ -9,9 +10,11 @@ import Map, {
   NpcEntity,
   PlayerEntity,
 } from '../../../components/map';
+import ProgressBar from '../../../components/progress-bar';
 import {
   Event,
   EventType,
+  MaidenBloodSplatsEvent,
   MaidenCrabSpawn,
   MaidenCrabSpawnEvent,
   NpcUpdateEvent,
@@ -19,11 +22,11 @@ import {
 } from '../../stats';
 import { TICK_MS, ticksToFormattedSeconds } from '../../tick';
 
-import { CrabSpawn } from './crab-spawn';
+import { CrabSpawn, spawnString } from './crab-spawn';
 import styles from './style.module.css';
-
 import maidenBaseTiles from './maiden.json';
 import testEventData from '../../../../testdata/maiden/50s_misclick_wipe.json';
+
 const maidenEvents = testEventData as Event[];
 
 const MAIDEN_X = 3160;
@@ -31,19 +34,7 @@ const MAIDEN_Y = 4435;
 const MAIDEN_WIDTH = 28;
 const MAIDEN_HEIGHT = 24;
 
-// TODO(frolv): Added for test purposes only, remove when no longer needed.
-const DEBUG_TILES_TO_MARK: [number, number][] = [
-  [3174, 4457],
-  [3178, 4457],
-  [3182, 4457],
-  [3186, 4457],
-  [3186, 4455],
-  [3174, 4436],
-  [3178, 4436],
-  [3182, 4436],
-  [3186, 4436],
-  [3186, 4438],
-];
+const BLOOD_SPLAT_COLOR = '#b93e3e';
 
 type EventTickMap = { [key: number]: Event[] };
 type EventTypeMap = { [key: string]: Event[] };
@@ -103,7 +94,7 @@ function RoomInfo({ eventsByType, tick, playback }: RoomInfoProps) {
   const showThirties = showFifties && shouldShowSpawn(thirties);
 
   return (
-    <div className={styles.info}>
+    <div className={`${styles.info} ${styles.events}`}>
       <h2>Room events</h2>
       {showSeventies && <CrabSpawn crabs={seventies} />}
       {showFifties && (
@@ -128,6 +119,8 @@ export default function Maiden() {
 
   const [tick, setTick] = useState(requestedTick || 1);
   const [playback, setPlayback] = useState(Playback.STOPPED);
+  const [hoveredPlayer, setHoveredPlayer] = useState('');
+  const [selectedEntity, setSelectedEntity] = useState('');
 
   const events = maidenEvents;
 
@@ -179,44 +172,100 @@ export default function Maiden() {
     }
   }, [playback, isLastTick]);
 
-  let entities: Entity[] = [];
-  for (const evt of eventsForTick) {
-    switch (evt.type) {
-      case EventType.PLAYER_UPDATE: {
-        const e = evt as PlayerUpdateEvent;
-        entities.push(
-          new PlayerEntity(
+  const onTickSelected = useCallback(
+    (tick: number) => {
+      clearTimeout();
+      setTick(tick);
+      if (playback === Playback.STOPPED) {
+        setPlayback(Playback.PAUSED);
+      }
+    },
+    [playback],
+  );
+
+  const [entities, players] = useMemo(() => {
+    const entities: Entity[] = [];
+    const players: PlayerEntity[] = [];
+    for (const evt of eventsForTick) {
+      switch (evt.type) {
+        case EventType.PLAYER_UPDATE: {
+          const e = evt as PlayerUpdateEvent;
+          const player = new PlayerEntity(
             e.xCoord,
             e.yCoord,
             e.player.name,
             e.player.hitpoints,
-          ),
-        );
-        break;
-      }
-      case EventType.NPC_UPDATE: {
-        const e = evt as NpcUpdateEvent;
-        entities.push(
-          new NpcEntity(
-            e.xCoord,
-            e.yCoord,
-            e.npc.id,
-            e.npc.roomId,
-            e.npc.hitpoints,
-          ),
-        );
-        break;
+          );
+          player.setHighlight(
+            player.getUniqueId() === selectedEntity ||
+              player.getUniqueId() === hoveredPlayer,
+          );
+          entities.push(player);
+          players.push(player);
+          break;
+        }
+        case EventType.NPC_UPDATE: {
+          const e = evt as NpcUpdateEvent;
+          entities.push(
+            new NpcEntity(
+              e.xCoord,
+              e.yCoord,
+              e.npc.id,
+              e.npc.roomId,
+              e.npc.hitpoints,
+            ),
+          );
+          break;
+        }
+        case EventType.MAIDEN_BLOOD_SPLATS:
+          const e = evt as MaidenBloodSplatsEvent;
+          for (const coord of e.maidenEntity.bloodSplats ?? []) {
+            entities.push(
+              new MarkerEntity(coord.x, coord.y, BLOOD_SPLAT_COLOR),
+            );
+          }
       }
     }
-  }
+    return [entities, players];
+  }, [tick, selectedEntity, hoveredPlayer]);
 
-  const debugTiles = DEBUG_TILES_TO_MARK.map(
-    ([x, y]: [number, number]) => new MarkerEntity(x, y),
+  const onEntitySelected = (selected: Entity) => {
+    const entity = entities.find(
+      (e) => e.getUniqueId() === selected.getUniqueId(),
+    );
+    if (entity) {
+      setSelectedEntity(entity.getUniqueId());
+    }
+  };
+
+  const spawnTicks = eventsByType[EventType.MAIDEN_CRAB_SPAWN]?.reduce(
+    (accum, evt) => {
+      const spawn = (evt as MaidenCrabSpawnEvent).maidenEntity.crab!.spawn;
+      return {
+        ...accum,
+        [spawn]: {
+          label: spawnString(spawn),
+          tick: evt.tick,
+        },
+      };
+    },
+    {},
   );
+
+  const MAP_TILE_SIZE = 35;
+  const PROGRESS_BAR_WIDTH = MAIDEN_WIDTH * MAP_TILE_SIZE;
 
   return (
     <div className={styles.maiden}>
       <div className={styles.map}>
+        <ProgressBar
+          milestones={Object.values(spawnTicks)}
+          onTickSelected={onTickSelected}
+          tick={tick}
+          totalTicks={lastTick}
+          height={35}
+          width={PROGRESS_BAR_WIDTH}
+        />
         <div className={styles.playback}>
           <button
             className="rounded-l disabled:opacity-50"
@@ -291,11 +340,47 @@ export default function Maiden() {
           width={MAIDEN_WIDTH}
           height={MAIDEN_HEIGHT}
           baseTiles={maidenBaseTiles}
-          tileSize={36}
-          entities={entities.concat(debugTiles)}
+          tileSize={MAP_TILE_SIZE}
+          entities={entities}
+          onEntityClicked={onEntitySelected}
         />
       </div>
-      <RoomInfo eventsByType={eventsByType} playback={playback} tick={tick} />
+      <div className={styles.container}>
+        <RoomInfo eventsByType={eventsByType} playback={playback} tick={tick} />
+        <div className={`${styles.info} ${styles.players}`}>
+          <h2>Party</h2>
+          {players.map((p) => (
+            <button
+              key={p.getUniqueId()}
+              className={`${styles.player} ${
+                p.getUniqueId() === selectedEntity ? styles.selected : ''
+              }`}
+              onClick={() =>
+                setSelectedEntity(
+                  p.getUniqueId() === selectedEntity ? '' : p.getUniqueId(),
+                )
+              }
+              onMouseEnter={() => setHoveredPlayer(p.getUniqueId())}
+              onMouseLeave={() => setHoveredPlayer('')}
+            >
+              <div className={styles.name}>{p.name}</div>
+              <div className={styles.stats}>
+                {p.hitpoints && (
+                  <div className={styles.stat}>
+                    <Image
+                      alt="hitpoints"
+                      src="/skills/hitpoints.png"
+                      height={16}
+                      width={16}
+                    />
+                    <span>{p.hitpoints.current}</span>
+                  </div>
+                )}
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

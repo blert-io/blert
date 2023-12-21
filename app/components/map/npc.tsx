@@ -19,6 +19,7 @@ export class NpcEntity implements Entity {
   y: number;
   type: EntityType = EntityType.NPC;
   size: number;
+  name: string;
   outlineColor: string = '#3d3dd5';
   interactable: boolean = true;
 
@@ -36,6 +37,7 @@ export class NpcEntity implements Entity {
     this.x = x;
     this.y = y;
     this.size = TOB_NPCS[id]?.size ?? 1;
+    this.name = TOB_NPCS[id]?.name ?? `NPC ${id}`;
     this.id = id;
     this.roomId = roomId;
     this.hitpoints = hitpoints;

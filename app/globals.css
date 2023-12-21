@@ -7,9 +7,10 @@
 
   --blert-red: rgb(239, 68, 68);
   --blert-blue: rgb(59, 130, 246);
+  --blert-text-color: #c3c7c9;
 }
 
 body {
-  color: #c3c7c9;
+  color: var(--blert-text-color);
   background-color: #2b2d31;
 }

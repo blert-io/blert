@@ -1,3 +1,4 @@
+import { MouseEvent } from 'react';
 import styles from './style.module.css';
 
 export const enum EntityType {
@@ -26,6 +27,9 @@ export interface Entity {
   /** Entity's size in tiles. */
   readonly size: number;
 
+  /** User-facing name of the entity. */
+  readonly name: string;
+
   /** Color with which the entity's map position should be outlined.  */
   readonly outlineColor: string | null;
 
@@ -42,6 +46,21 @@ export interface Entity {
   getUniqueId(): string;
 }
 
+export function entityTypeString(type: EntityType) {
+  switch (type) {
+    case EntityType.OVERLAY:
+      return 'overlay';
+    case EntityType.PLAYER:
+      return 'player';
+    case EntityType.NPC:
+      return 'npc';
+    case EntityType.HIGHLIGHT:
+      return 'highlight';
+    case EntityType.CUSTOM:
+      return 'custom';
+  }
+}
+
 function entityZIndex(type: EntityType): number {
   const BASE_Z_INDEX: number = 10;
   return BASE_Z_INDEX - type;
@@ -52,6 +71,7 @@ type MapEntityProps = {
   baseY: number;
   entity: Entity;
   tileSize: number;
+  onSelect?: (entity: Entity) => void;
 };
 
 export function MapEntity(props: MapEntityProps) {
@@ -68,14 +88,25 @@ export function MapEntity(props: MapEntityProps) {
       ? `1px solid ${entity.outlineColor}`
       : undefined;
 
+  const canClick = entity.interactable && props.onSelect;
+  let onClick = undefined;
+  if (canClick) {
+    onClick = (e: MouseEvent) => {
+      e.stopPropagation();
+      props.onSelect!(entity);
+    };
+  }
+
   return (
     <div
       className={styles.entity}
       data-type={entity.type}
       data-x={entity.x}
       data-y={entity.y}
+      onClick={onClick}
       style={{
         border,
+        cursor: canClick ? 'pointer' : 'default',
         left,
         bottom,
         height: size,

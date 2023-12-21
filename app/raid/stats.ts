@@ -46,6 +46,7 @@ export const enum EventType {
   PLAYER_UPDATE = 'PLAYER_UPDATE',
   NPC_UPDATE = 'NPC_UPDATE',
   MAIDEN_CRAB_SPAWN = 'MAIDEN_CRAB_SPAWN',
+  MAIDEN_BLOOD_SPLATS = 'MAIDEN_BLOOD_SPLATS',
 }
 
 export interface Event {
@@ -72,6 +73,11 @@ export interface NpcUpdateEvent extends Event {
 }
 
 export interface MaidenCrabSpawnEvent extends Event {
+  type: EventType.MAIDEN_CRAB_SPAWN;
+  maidenEntity: MaidenEntity;
+}
+
+export interface MaidenBloodSplatsEvent extends Event {
   type: EventType.MAIDEN_CRAB_SPAWN;
   maidenEntity: MaidenEntity;
 }
@@ -103,7 +109,13 @@ export type SkillLevel = {
   base: number;
 };
 
+export type Coords = {
+  x: number;
+  y: number;
+};
+
 export type MaidenEntity ={
+  bloodSplats?: Coords[];
   crab?: MaidenCrab;
 };
 
