@@ -71,9 +71,8 @@ type RoomInfoProps = {
 };
 
 function RoomInfo({ eventsByType, tick, playback }: RoomInfoProps) {
-  const crabSpawns = eventsByType[
-    EventType.MAIDEN_CRAB_SPAWN
-  ] as MaidenCrabSpawnEvent[];
+  const crabSpawns = (eventsByType[EventType.MAIDEN_CRAB_SPAWN] ||
+    []) as MaidenCrabSpawnEvent[];
 
   const seventies = crabSpawns.filter(
     (evt) => evt.maidenEntity.crab?.spawn === MaidenCrabSpawn.SEVENTIES,
@@ -238,19 +237,17 @@ export default function Maiden() {
     }
   };
 
-  const spawnTicks = eventsByType[EventType.MAIDEN_CRAB_SPAWN]?.reduce(
-    (accum, evt) => {
-      const spawn = (evt as MaidenCrabSpawnEvent).maidenEntity.crab!.spawn;
-      return {
-        ...accum,
-        [spawn]: {
-          label: spawnString(spawn),
-          tick: evt.tick,
-        },
-      };
-    },
-    {},
-  );
+  const spawns = eventsByType[EventType.MAIDEN_CRAB_SPAWN] || [];
+  const spawnTicks = spawns.reduce((accum, evt) => {
+    const spawn = (evt as MaidenCrabSpawnEvent).maidenEntity.crab!.spawn;
+    return {
+      ...accum,
+      [spawn]: {
+        label: spawnString(spawn),
+        tick: evt.tick,
+      },
+    };
+  }, {});
 
   const MAP_TILE_SIZE = 35;
   const PROGRESS_BAR_WIDTH = MAIDEN_WIDTH * MAP_TILE_SIZE;

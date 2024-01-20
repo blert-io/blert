@@ -91,6 +91,21 @@ export const enum RoomStatus {
 export type Player = {
   name: string;
   hitpoints?: SkillLevel;
+  equipment?: EquipmentMap;
+};
+
+export type Item = {
+  id: number;
+  name: string;
+  quantity: number;
+};
+
+export const enum EquipmentSlot {
+  HEAD = 'HEAD',
+}
+
+export type EquipmentMap = {
+  [key in EquipmentSlot]: Item;
 };
 
 export type Npc = {
