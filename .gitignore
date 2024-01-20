@@ -15,6 +15,7 @@ web/out/
 
 # production
 web/build
+**/dist
 
 # misc
 .DS_Store

@@ -2,6 +2,7 @@
   "name": "blert-io",
   "version": "0.1.0",
   "workspaces": [
+    "event-server/",
     "web/"
   ],
   "devDependencies": {
