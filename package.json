@@ -1,7 +1,8 @@
 {
-  "name": "blert-io",
+  "name": "blert",
   "version": "0.1.0",
   "workspaces": [
+    "common/",
     "event-server/",
     "web/"
   ],

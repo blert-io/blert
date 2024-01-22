@@ -1,5 +1,6 @@
+import { SkillLevel } from '@blert/common';
+
 import { Entity, EntityType } from './entity';
-import { SkillLevel } from '../../raid/stats';
 
 // TODO(frolv): This belongs elsewhere.
 const MAIDEN = { name: 'The Maiden of Sugadinti', size: 6 };

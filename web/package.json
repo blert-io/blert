@@ -1,5 +1,5 @@
 {
-  "name": "blert",
+  "name": "@blert/web",
   "version": "0.1.0",
   "description": "blert wep app",
   "private": true,
@@ -11,6 +11,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@blert/common": "file:../common",
     "next": "14.0.1",
     "react": "^18",
     "react-dom": "^18"

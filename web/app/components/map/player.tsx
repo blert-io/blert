@@ -1,5 +1,6 @@
+import { SkillLevel } from '@blert/common';
+
 import { Entity, EntityType } from './entity';
-import { SkillLevel } from '../../raid/stats';
 
 export class PlayerEntity implements Entity {
   x: number;

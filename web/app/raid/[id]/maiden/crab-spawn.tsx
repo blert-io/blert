@@ -1,10 +1,10 @@
-import { useState } from 'react';
-
 import {
   MaidenCrabPosition,
   MaidenCrabSpawn,
   MaidenCrabSpawnEvent,
-} from '../../stats';
+} from '@blert/common';
+import { useState } from 'react';
+
 import { ticksToFormattedSeconds } from '../../tick';
 
 import styles from './style.module.css';

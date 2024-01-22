@@ -1,5 +1,14 @@
 'use client';
 
+import {
+  Event,
+  EventType,
+  MaidenBloodSplatsEvent,
+  MaidenCrabSpawn,
+  MaidenCrabSpawnEvent,
+  NpcUpdateEvent,
+  PlayerUpdateEvent,
+} from '@blert/common';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
@@ -11,21 +20,12 @@ import Map, {
   PlayerEntity,
 } from '../../../components/map';
 import ProgressBar from '../../../components/progress-bar';
-import {
-  Event,
-  EventType,
-  MaidenBloodSplatsEvent,
-  MaidenCrabSpawn,
-  MaidenCrabSpawnEvent,
-  NpcUpdateEvent,
-  PlayerUpdateEvent,
-} from '../../stats';
 import { TICK_MS, ticksToFormattedSeconds } from '../../tick';
 
 import { CrabSpawn, spawnString } from './crab-spawn';
 import styles from './style.module.css';
 import maidenBaseTiles from './maiden.json';
-import testEventData from '../../../../testdata/maiden/50s_misclick_wipe.json';
+import testEventData from '../../../../testdata/maiden/bad-trio-kill.json';
 
 const maidenEvents = testEventData as Event[];
 

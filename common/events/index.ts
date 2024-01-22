@@ -1,4 +1,6 @@
-export const enum RaidStatus {
+// TODO(frolv): Split this file up.
+
+export enum RaidStatus {
   IN_PROGRESS = 'IN_PROGRESS',
   COMPLETED = 'COMPLETED',
   MAIDEN_RESET = 'MAIDEN_RESET',
@@ -32,7 +34,7 @@ export interface RoomStats {
   events: Event[];
 }
 
-export const enum Room {
+export enum Room {
   MAIDEN = 'MAIDEN',
   BLOAT = 'BLOAT',
   NYLOCAS = 'NYLOCAS',
@@ -41,7 +43,9 @@ export const enum Room {
   VERZIK = 'VERZIK',
 }
 
-export const enum EventType {
+export enum EventType {
+  RAID_START = 'RAID_START',
+  RAID_END = 'RAID_END',
   ROOM_STATUS = 'ROOM_STATUS',
   PLAYER_UPDATE = 'PLAYER_UPDATE',
   NPC_UPDATE = 'NPC_UPDATE',
@@ -51,10 +55,16 @@ export const enum EventType {
 
 export interface Event {
   type: EventType;
+  raidId?: string;
   room?: Room;
   tick: number;
   xCoord: number;
   yCoord: number;
+}
+
+export interface RaidStartEvent extends Event {
+  type: EventType.RAID_START;
+  raidInfo: RaidInfo;
 }
 
 export interface RoomStatusEvent extends Event {
@@ -82,11 +92,22 @@ export interface MaidenBloodSplatsEvent extends Event {
   maidenEntity: MaidenEntity;
 }
 
-export const enum RoomStatus {
+export enum Mode {
+  ENTRY = 'ENTRY',
+  REGULAR = 'REGULAR',
+  HARD = 'HARD',
+}
+
+export type RaidInfo = {
+  party: string[];
+  mode?: Mode;
+};
+
+export enum RoomStatus {
   STARTED = 'STARTED',
   COMPLETED = 'COMPLETED',
   WIPED = 'WIPED',
-};
+}
 
 export type Player = {
   name: string;
@@ -100,7 +121,7 @@ export type Item = {
   quantity: number;
 };
 
-export const enum EquipmentSlot {
+export enum EquipmentSlot {
   HEAD = 'HEAD',
 }
 
@@ -114,12 +135,12 @@ export type Npc = {
   hitpoints?: SkillLevel;
 };
 
-export const enum Skill {
+export enum Skill {
   HITPOINTS,
 }
 
 export type SkillLevel = {
-  skill: Skill,
+  skill: Skill;
   current: number;
   base: number;
 };
@@ -129,24 +150,24 @@ export type Coords = {
   y: number;
 };
 
-export type MaidenEntity ={
+export type MaidenEntity = {
   bloodSplats?: Coords[];
   crab?: MaidenCrab;
 };
 
-export type MaidenCrab ={
+export type MaidenCrab = {
   spawn: MaidenCrabSpawn;
   position: MaidenCrabPosition;
   scuffed: boolean;
 };
 
-export const enum MaidenCrabSpawn {
+export enum MaidenCrabSpawn {
   SEVENTIES = 'SEVENTIES',
   FIFTIES = 'FIFTIES',
   THIRTIES = 'THIRTIES',
-};
+}
 
-export const enum MaidenCrabPosition {
+export enum MaidenCrabPosition {
   N1 = 'N1',
   N2 = 'N2',
   N3 = 'N3',
@@ -157,4 +178,4 @@ export const enum MaidenCrabPosition {
   S3 = 'S3',
   S4_INNER = 'S4_INNER',
   S4_OUTER = 'S4_OUTER',
-};
+}

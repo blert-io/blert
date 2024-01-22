@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "es6",
+    "outDir": "dist",
+    "lib": ["esnext"],
+    "allowJs": false,
+    "strict": true,
+    "esModuleInterop": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "isolatedModules": true,
+    "incremental": true,
+    "declaration": true
+  },
+  "include": ["**/*.ts"],
+  "exclude": [
+    "dist/**/*",
+    "node_modules"
+  ]
+}
