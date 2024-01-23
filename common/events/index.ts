@@ -46,6 +46,7 @@ export enum Room {
 export enum EventType {
   RAID_START = 'RAID_START',
   RAID_END = 'RAID_END',
+  RAID_UPDATE = 'RAID_UPDATE',
   ROOM_STATUS = 'ROOM_STATUS',
   PLAYER_UPDATE = 'PLAYER_UPDATE',
   NPC_UPDATE = 'NPC_UPDATE',
@@ -64,6 +65,11 @@ export interface Event {
 
 export interface RaidStartEvent extends Event {
   type: EventType.RAID_START;
+  raidInfo: RaidInfo;
+}
+
+export interface RaidUpdateEvent extends Event {
+  type: EventType.RAID_UPDATE;
   raidInfo: RaidInfo;
 }
 

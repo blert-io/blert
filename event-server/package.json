@@ -5,7 +5,7 @@
   "license": "MIT",
   "scripts": {
     "build": "tsc",
-    "dev": "tsc-watch --noClear -p ./tsconfig.json --onSuccess \"node ./dist/event-server/app.js\""
+    "dev": "tsc-watch --noClear -p ./tsconfig.json --onSuccess \"node ./dist/app.js\""
   },
   "dependencies": {
     "@blert/common": "file:../common",

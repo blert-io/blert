@@ -2,16 +2,12 @@ import { v4 as uuidv4 } from 'uuid';
 
 import Client from './client';
 import Raid, { raidPartyKey } from './raid';
-
-type PendingRaid = {
-  raid: Raid;
-  startTimestamp: number;
-};
+import { Mode } from '@blert/common';
 
 export default class RaidManager {
   private raidsById: { [id: string]: Raid };
   private raidsByPartyKey: { [key: string]: Raid };
-  private pendingRaids: PendingRaid[];
+  private pendingRaids: Raid[];
 
   /**
    * How long to wait for every client in a raid session to connect following
@@ -35,23 +31,30 @@ export default class RaidManager {
    * @param partyMembers Ordered list of members in the raid party.
    * @returns The ID of the raid session.
    */
-  public startOrJoinRaid(client: Client, partyMembers: string[]): string {
+  public startOrJoinRaid(
+    client: Client,
+    mode: Mode | null,
+    partyMembers: string[],
+  ): string {
     const partyKey = raidPartyKey(partyMembers);
 
     let raid = this.pendingRaids.find(
-      (pending) => pending.raid.getPartyKey() === partyKey,
-    )?.raid;
+      (pending) => pending.getPartyKey() === partyKey,
+    );
 
     if (!raid) {
       const raidId = uuidv4();
-      raid = new Raid(raidId, partyMembers);
+      raid = new Raid(raidId, partyMembers, mode, Date.now());
 
       this.raidsById[raidId] = raid;
       this.raidsByPartyKey[partyKey] = raid;
-      this.pendingRaids.push({ raid, startTimestamp: Date.now() });
+      this.pendingRaids.push(raid);
 
       console.log(`Started new raid ${raidId}`);
     } else {
+      if (mode != null) {
+        raid.setMode(mode);
+      }
       console.log(`Found existing raid ${raid.getId()}`);
     }
 
@@ -79,7 +82,7 @@ export default class RaidManager {
       return;
     }
 
-    if (this.pendingRaids.find((pending) => pending.raid.getId() === id)) {
+    if (this.pendingRaids.find((pending) => pending.getId() === id)) {
       // Pending raids should be kept around the end of their joining period.
       return;
     }
@@ -97,6 +100,8 @@ export default class RaidManager {
   }
 
   private endRaid(raid: Raid): void {
+    raid.finish();
+
     delete this.raidsById[raid.getId()];
     delete this.raidsByPartyKey[raid.getPartyKey()];
 
@@ -109,11 +114,11 @@ export default class RaidManager {
 
     let pendingRaids = [];
     for (const pending of this.pendingRaids) {
-      if (pending.startTimestamp >= cutoff) {
+      if (pending.getStartTime() >= cutoff) {
         pendingRaids.push(pending);
-      } else if (!pending.raid.hasClients()) {
+      } else if (!pending.hasClients()) {
         // No clients connected during the raid's joining period. Delete it.
-        this.endRaid(pending.raid);
+        this.endRaid(pending);
       }
     }
 
