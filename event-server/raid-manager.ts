@@ -31,11 +31,11 @@ export default class RaidManager {
    * @param partyMembers Ordered list of members in the raid party.
    * @returns The ID of the raid session.
    */
-  public startOrJoinRaid(
+  public async startOrJoinRaid(
     client: Client,
     mode: Mode | null,
     partyMembers: string[],
-  ): string {
+  ): Promise<string> {
     const partyKey = raidPartyKey(partyMembers);
 
     let raid = this.pendingRaids.find(
@@ -51,6 +51,10 @@ export default class RaidManager {
       this.pendingRaids.push(raid);
 
       console.log(`Started new raid ${raidId}`);
+
+      // TODO(frolv): This doesn't belong here; should wait for multiple clients
+      // to connect first.
+      await raid.start();
     } else {
       if (mode != null) {
         raid.setMode(mode);
@@ -71,7 +75,7 @@ export default class RaidManager {
    * @param client The client leaving the raid.
    * @param id ID of the raid the client is leaving.
    */
-  public leaveRaid(client: Client, id: string): void {
+  public async leaveRaid(client: Client, id: string): Promise<void> {
     const raid = this.raidsById[id];
     if (raid === undefined) {
       return;
@@ -87,7 +91,7 @@ export default class RaidManager {
       return;
     }
 
-    this.endRaid(raid);
+    await this.endRaid(raid);
   }
 
   /**
@@ -99,8 +103,8 @@ export default class RaidManager {
     return this.raidsById[id];
   }
 
-  private endRaid(raid: Raid): void {
-    raid.finish();
+  private async endRaid(raid: Raid): Promise<void> {
+    await raid.finish();
 
     delete this.raidsById[raid.getId()];
     delete this.raidsByPartyKey[raid.getPartyKey()];
@@ -118,6 +122,7 @@ export default class RaidManager {
         pendingRaids.push(pending);
       } else if (!pending.hasClients()) {
         // No clients connected during the raid's joining period. Delete it.
+        console.log(`No clients connected to raid ${pending.getId()}`);
         this.endRaid(pending);
       }
     }

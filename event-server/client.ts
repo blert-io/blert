@@ -1,13 +1,17 @@
-import { RawData, WebSocket } from 'ws';
+import { Event } from '@blert/common';
+import { WebSocket } from 'ws';
 
 import EventHandler from './event-handler';
 import Raid from './raid';
+
+type SingleOrArray<T> = T | T[];
 
 export default class Client {
   private sessionId: number;
   private socket: WebSocket;
   private eventHandler: EventHandler;
   private activeRaid: Raid | null;
+  private messages: SingleOrArray<Event>[];
 
   private closeCallbacks: (() => void)[];
 
@@ -17,9 +21,17 @@ export default class Client {
     this.eventHandler = eventHandler;
     this.activeRaid = null;
     this.closeCallbacks = [];
+    this.messages = [];
 
     socket.on('close', () => this.cleanup());
-    socket.on('message', (message) => this.processMessage(message));
+
+    // Messages received through the socket are pushed into a message queue
+    // where they are processed synchronously through `processMessages`.
+    socket.on('message', (message) => {
+      this.messages.push(JSON.parse(message.toString()));
+    });
+
+    setTimeout(() => this.processMessages(), 20);
   }
 
   /**
@@ -55,13 +67,20 @@ export default class Client {
     this.closeCallbacks.push(callback);
   }
 
-  private processMessage(message: RawData): void {
-    const events = JSON.parse(message.toString());
-    if (Array.isArray(events)) {
-      events.forEach((evt) => this.eventHandler.handleEvent(this, evt));
-    } else {
-      this.eventHandler.handleEvent(this, events);
+  private async processMessages(): Promise<void> {
+    if (this.messages.length > 0) {
+      const message = this.messages.shift()!;
+      if (Array.isArray(message)) {
+        for (const evt of message) {
+          await this.eventHandler.handleEvent(this, evt);
+        }
+      } else {
+        await this.eventHandler.handleEvent(this, message);
+      }
     }
+
+    // Keep running forever.
+    setTimeout(() => this.processMessages(), 20);
   }
 
   private cleanup(): void {

@@ -8,7 +8,7 @@ import {
 import Client from './client';
 import RaidManager from './raid-manager';
 
-type EventSink = (event: Event) => void;
+type EventSink = (event: Event) => Promise<void>;
 
 /**
  * An event aggregator collects events coming from different sources and merges
@@ -21,9 +21,9 @@ class EventAggregator {
     this.sink = sink;
   }
 
-  public process(event: Event): void {
+  public async process(event: Event): Promise<void> {
     // TODO(frolv): Just send directly to the sink for now.
-    this.sink(event);
+    await this.sink(event);
   }
 }
 
@@ -36,20 +36,23 @@ export default class EventHandler {
     this.eventAggregators = {};
   }
 
-  public handleEvent(client: Client, event: Event) {
+  public async handleEvent(client: Client, event: Event): Promise<void> {
     switch (event.type) {
       case EventType.RAID_START:
         const raidStartEvent = event as RaidStartEvent;
 
-        const raidId = this.raidManager.startOrJoinRaid(
+        const raidId = await this.raidManager.startOrJoinRaid(
           client,
           raidStartEvent.raidInfo.mode || null,
           raidStartEvent.raidInfo.party,
         );
 
-        this.eventAggregators[raidId] = new EventAggregator((evt) =>
-          this.raidManager.getRaid(raidId)?.processEvent(evt),
-        );
+        this.eventAggregators[raidId] = new EventAggregator(async (evt) => {
+          const raid = this.raidManager.getRaid(raidId);
+          if (raid) {
+            await raid.processEvent(evt);
+          }
+        });
 
         // TODO(frolv): Temporary. Server messages need to be standardized.
         client.sendMessage({ type: 'RAID_START_RESPONSE', raidId });
@@ -70,17 +73,25 @@ export default class EventHandler {
         if (raidUpdateEvent.raidId && raidUpdateEvent.raidInfo.mode) {
           const raid = this.raidManager.getRaid(raidUpdateEvent.raidId);
           if (raid) {
-            raid.setMode(raidUpdateEvent.raidInfo.mode);
+            await raid.setMode(raidUpdateEvent.raidInfo.mode);
           } else {
             console.error(
               `Received ${event.type} event for nonexistent raid ${event.raidId}`,
             );
           }
         }
+        break;
 
       default:
-        if (event.raidId) {
-          this.eventAggregators[event.raidId].process(event);
+        if (!event.raidId) {
+          return;
+        }
+
+        const aggregator = this.eventAggregators[event.raidId];
+        if (aggregator) {
+          await aggregator.process(event);
+        } else {
+          console.error(`Received event for unknown raid ${event.raidId}`);
         }
     }
   }

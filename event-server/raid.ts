@@ -7,6 +7,7 @@ import {
   RoomStatus,
   RoomStatusEvent,
 } from '@blert/common';
+import { Raid as RaidModel, RoomEvent } from '@blert/common';
 
 import Client from './client';
 
@@ -18,6 +19,8 @@ export function raidPartyKey(partyMembers: string[]) {
 
 enum State {
   STARTING,
+  IN_PROGRESS,
+  ENDING,
 }
 
 function roomResetStatus(room: Room): RaidStatus {
@@ -63,10 +66,11 @@ export default class Raid {
   private mode: Mode | null;
   private party: string[];
   private startTime: number;
-  private room: Room;
   private raidStatus: RaidStatus;
 
-  private eventsForRoom: { [room in Room]?: Event[] };
+  private room: Room;
+  private roomTick: number;
+  private roomEvents: Event[];
 
   public constructor(
     id: string,
@@ -82,10 +86,11 @@ export default class Raid {
     this.mode = mode;
     this.party = party;
     this.startTime = startTime;
-    this.room = Room.MAIDEN;
     this.raidStatus = RaidStatus.IN_PROGRESS;
 
-    this.eventsForRoom = {};
+    this.room = Room.MAIDEN;
+    this.roomTick = 0;
+    this.roomEvents = [];
   }
 
   public getId(): string {
@@ -104,23 +109,61 @@ export default class Raid {
     return this.startTime;
   }
 
-  public setMode(mode: Mode) {
+  public async setMode(mode: Mode): Promise<void> {
     this.mode = mode;
+    await this.updateDatabaseFields((record) => {
+      record.mode = this.mode;
+    });
   }
 
   public hasClients(): boolean {
     return this.clients.length > 0;
   }
 
-  public finish(): void {}
+  public async start(): Promise<void> {
+    this.state = State.IN_PROGRESS;
 
-  public processEvent(event: Event): void {
+    const record = new RaidModel({
+      _id: this.id,
+      mode: this.mode,
+      status: this.raidStatus,
+      startTime: this.startTime,
+      party: this.party,
+    });
+    await record.save();
+  }
+
+  public async finish(): Promise<void> {
+    await this.updateDatabaseFields((record) => {
+      record.status = this.raidStatus;
+    });
+  }
+
+  public async processEvent(event: Event): Promise<void> {
     switch (event.type) {
       case EventType.ROOM_STATUS:
-        this.handleRoomStatusUpdate(event as RoomStatusEvent);
+        await this.handleRoomStatusUpdate(event as RoomStatusEvent);
         break;
       default:
-        this.eventsForRoom[this.room]?.push(event);
+        if (event.room !== this.room) {
+          console.error(
+            `Raid ${this.id} got event ${event.type} for room ${event.room} but is in room ${this.room}`,
+          );
+          return;
+        }
+
+        // Batch and flush events once per tick to reduce database writes.
+        if (event.tick == this.roomTick) {
+          this.roomEvents.push(event);
+        } else if (event.tick > this.roomTick) {
+          await this.flushRoomEvents();
+          this.roomEvents.push(event);
+          this.roomTick = event.tick;
+        } else {
+          console.error(
+            `Raid ${this.id} got event ${event.type} for tick ${event.tick} (current=${this.roomTick})`,
+          );
+        }
         break;
     }
   }
@@ -147,6 +190,10 @@ export default class Raid {
     return false;
   }
 
+  /**
+   * Removes a client from being an event source for the raid.
+   * @param client The client.
+   */
   public removeClient(client: Client): void {
     if (client.getActiveRaid() == this) {
       this.clients = this.clients.filter((c) => c != client);
@@ -158,7 +205,7 @@ export default class Raid {
     }
   }
 
-  private handleRoomStatusUpdate(event: RoomStatusEvent): void {
+  private async handleRoomStatusUpdate(event: RoomStatusEvent): Promise<void> {
     if (!event.room) {
       return;
     }
@@ -166,7 +213,8 @@ export default class Raid {
     switch (event.roomStatus) {
       case RoomStatus.STARTED:
         this.room = event.room;
-        this.eventsForRoom[this.room] = [];
+        this.roomEvents = [];
+        this.roomTick = 0;
         break;
 
       case RoomStatus.WIPED:
@@ -178,10 +226,29 @@ export default class Raid {
             ? roomWipeStatus(event.room)
             : roomResetStatus(event.room);
 
-        if (this.eventsForRoom[this.room]) {
-          delete this.eventsForRoom[this.room];
-        }
+        await Promise.all([
+          this.updateDatabaseFields((record) => {
+            record.totalRoomTicks += event.tick;
+          }),
+          this.flushRoomEvents(),
+        ]);
+
         break;
     }
+  }
+
+  private async updateDatabaseFields(updateCallback: (document: any) => void) {
+    const record = await RaidModel.findOne({ _id: this.id });
+    if (record !== null) {
+      updateCallback(record);
+      record.save();
+    }
+  }
+
+  private async flushRoomEvents(): Promise<void> {
+    if (this.roomEvents.length > 0) {
+      RoomEvent.insertMany(this.roomEvents);
+    }
+    this.roomEvents = [];
   }
 }
