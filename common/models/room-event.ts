@@ -1,4 +1,7 @@
-import { Schema, model } from 'mongoose';
+import { Schema, model, models } from 'mongoose';
+
+import { Event, EventType } from '../event';
+import { Room } from '../raid-definitions';
 
 const SkillLevel = {
   skill: String,
@@ -7,6 +10,7 @@ const SkillLevel = {
 };
 
 const Coords = {
+  _id: false,
   x: Number,
   y: Number,
 };
@@ -56,4 +60,5 @@ const roomEventSchema = new Schema({
   },
 });
 
-export const RoomEvent = model('RoomEvent', roomEventSchema);
+export const RoomEvent =
+  models?.RoomEvent ?? model('RoomEvent', roomEventSchema);

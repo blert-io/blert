@@ -8,11 +8,13 @@ import {
   MaidenCrabSpawnEvent,
   NpcUpdateEvent,
   PlayerUpdateEvent,
+  Room,
 } from '@blert/common';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 
+import { loadEventsForRoom } from '../../../actions/raid';
 import Map, {
   Entity,
   MarkerEntity,
@@ -25,9 +27,6 @@ import { TICK_MS, ticksToFormattedSeconds } from '../../tick';
 import { CrabSpawn, spawnString } from './crab-spawn';
 import styles from './style.module.css';
 import maidenBaseTiles from './maiden.json';
-import testEventData from '../../../../testdata/maiden/bad-trio-kill.json';
-
-const maidenEvents = testEventData as Event[];
 
 const MAIDEN_X = 3160;
 const MAIDEN_Y = 4435;
@@ -112,16 +111,25 @@ function RoomInfo({ eventsByType, tick, playback }: RoomInfoProps) {
   );
 }
 
-export default function Maiden() {
+export default function Maiden({ params: { id } }: { params: { id: string } }) {
   const searchParams = useSearchParams();
   const requestedTick = Number.parseInt(searchParams.get('tick') || '1', 10);
+
+  const [events, setEvents] = useState<Event[]>([]);
+
+  useEffect(() => {
+    const getEvents = async () => {
+      const evts = await loadEventsForRoom(id, Room.MAIDEN);
+      setEvents(evts);
+    };
+
+    getEvents();
+  }, []);
 
   const [tick, setTick] = useState(requestedTick || 1);
   const [playback, setPlayback] = useState(Playback.STOPPED);
   const [hoveredPlayer, setHoveredPlayer] = useState('');
   const [selectedEntity, setSelectedEntity] = useState('');
-
-  const events = maidenEvents;
 
   let tickTimeout = useRef<number | undefined>(undefined);
   const clearTimeout = () => {
@@ -136,7 +144,7 @@ export default function Maiden() {
 
   const eventsForTick = eventsByTick[tick] || [];
 
-  const lastTick = events[events.length - 1].tick;
+  const lastTick = events[events.length - 1]?.tick ?? 0;
   const isLastTick = tick >= lastTick;
 
   useEffect(() => {

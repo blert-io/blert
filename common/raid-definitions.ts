@@ -1,3 +1,19 @@
+export type Raid = {
+  _id: string;
+  status: RaidStatus;
+  mode: Mode;
+  startTime: Date;
+  party: string[];
+  totalRoomTicks: number;
+  rooms: {
+    [room in Room]?: RoomOverview;
+  };
+};
+
+export type RoomOverview = {
+  roomTicks: number;
+};
+
 export enum Room {
   MAIDEN = 'MAIDEN',
   BLOAT = 'BLOAT',

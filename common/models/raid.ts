@@ -1,4 +1,9 @@
-import { Schema, model } from 'mongoose';
+import { Schema, model, models } from 'mongoose';
+
+const RoomOverview = {
+  _id: false,
+  roomTicks: Number,
+};
 
 const raidSchema = new Schema({
   _id: String,
@@ -7,6 +12,14 @@ const raidSchema = new Schema({
   startTime: { type: Date },
   party: { type: [String], index: true },
   totalRoomTicks: { type: Number, default: 0 },
+  rooms: {
+    MAIDEN: RoomOverview,
+    BLOAT: RoomOverview,
+    NYLOCAS: RoomOverview,
+    SOTETSEG: RoomOverview,
+    XARPUS: RoomOverview,
+    VERZIK: RoomOverview,
+  },
 });
 
-export const Raid = model('Raid', raidSchema);
+export const RaidModel = models?.Raid ?? model('Raid', raidSchema);

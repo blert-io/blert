@@ -7,7 +7,7 @@ import {
   RoomStatus,
   RoomStatusEvent,
 } from '@blert/common';
-import { Raid as RaidModel, RoomEvent } from '@blert/common';
+import { RaidModel, RoomEvent } from '@blert/common';
 
 import Client from './client';
 
@@ -229,6 +229,7 @@ export default class Raid {
         await Promise.all([
           this.updateDatabaseFields((record) => {
             record.totalRoomTicks += event.tick;
+            record.rooms[event.room!] = { roomTicks: event.tick };
           }),
           this.flushRoomEvents(),
         ]);

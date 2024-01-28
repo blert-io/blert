@@ -30,7 +30,12 @@
 
         .icon {
           display: flex;
-          margin-left: 2.5em;
+          justify-content: center;
+          width: 100px;
+
+          &:first-child {
+            width: 180px;
+          }
 
           .text {
             font-weight: 500;

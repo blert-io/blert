@@ -1,4 +1,4 @@
-export { Raid } from './models/raid';
+export { RaidModel } from './models/raid';
 export { RoomEvent } from './models/room-event';
 
 export type {
@@ -13,7 +13,7 @@ export type {
 } from './event';
 export { EventType } from './event';
 
-export type { SkillLevel } from './raid-definitions';
+export type { Raid, RoomOverview, SkillLevel } from './raid-definitions';
 export {
   MaidenCrabPosition,
   MaidenCrabSpawn,

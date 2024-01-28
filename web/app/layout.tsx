@@ -1,10 +1,14 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+import Image from 'next/image';
+import Link from 'next/link';
+
+import connectToDatabase from './actions/db';
 
 import './globals.css';
 import styles from './styles.module.css';
-import Link from 'next/link';
-import Image from 'next/image';
+
+connectToDatabase();
 
 const inter = Inter({ subsets: ['latin'] });
 
