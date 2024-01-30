@@ -9,6 +9,7 @@ import RaidNavbar from './navbar';
 
 import styles from './style.module.css';
 import { ticksToFormattedSeconds } from '../tick';
+import { RaidContext } from '../context';
 
 type RaidParams = {
   id: string;
@@ -157,7 +158,9 @@ export default function RaidLayout(props: RaidLayoutProps) {
         </div>
         <RaidNavbar id={id} />
       </div>
-      <div className={styles.content}>{props.children}</div>
+      <RaidContext.Provider value={raid}>
+        <div className={styles.content}>{props.children}</div>
+      </RaidContext.Provider>
     </div>
   );
 }
