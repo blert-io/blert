@@ -16,6 +16,7 @@ const Coords = {
 };
 
 const Item = {
+  _id: false,
   id: Number,
   quantity: Number,
   name: String,
@@ -44,11 +45,20 @@ const roomEventSchema = new Schema({
       BOOTS: Item,
       RING: Item,
     },
+    offCooldownTick: Number,
   },
   npc: {
     id: Number,
     roomId: Number,
     hitpoints: SkillLevel,
+  },
+  attack: {
+    type: { type: String },
+    weapon: Item,
+    target: {
+      id: Number,
+      roomId: Number,
+    },
   },
   maidenEntity: {
     bloodSplats: [Coords],

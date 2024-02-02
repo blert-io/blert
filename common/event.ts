@@ -5,6 +5,7 @@ import {
   SkillLevel,
   Room,
   RoomStatus,
+  PlayerAttack,
 } from './raid-definitions';
 
 export enum EventType {
@@ -13,6 +14,7 @@ export enum EventType {
   RAID_UPDATE = 'RAID_UPDATE',
   ROOM_STATUS = 'ROOM_STATUS',
   PLAYER_UPDATE = 'PLAYER_UPDATE',
+  PLAYER_ATTACK = 'PLAYER_ATTACK',
   NPC_UPDATE = 'NPC_UPDATE',
   MAIDEN_CRAB_SPAWN = 'MAIDEN_CRAB_SPAWN',
   MAIDEN_BLOOD_SPLATS = 'MAIDEN_BLOOD_SPLATS',
@@ -47,6 +49,12 @@ export interface PlayerUpdateEvent extends Event {
   player: Player;
 }
 
+export interface PlayerAttackEvent extends Event {
+  type: EventType.PLAYER_ATTACK;
+  player: Player;
+  attack: Attack;
+}
+
 export interface NpcUpdateEvent extends Event {
   type: EventType.NPC_UPDATE;
   npc: Npc;
@@ -69,6 +77,7 @@ export type RaidInfo = {
 
 export type Player = {
   name: string;
+  offCooldownTick: number;
   hitpoints?: SkillLevel;
   equipment?: EquipmentMap;
 };
@@ -81,6 +90,16 @@ export type Item = {
 
 export enum EquipmentSlot {
   HEAD = 'HEAD',
+  CAPE = 'CAPE',
+  AMULET = 'AMULET',
+  AMMO = 'AMMO',
+  WEAPON = 'WEAPON',
+  TORSO = 'TORSO',
+  SHIELD = 'SHIELD',
+  LEGS = 'LEGS',
+  GLOVES = 'GLOVES',
+  BOOTS = 'BOOTS',
+  RING = 'RING',
 }
 
 export type EquipmentMap = {
@@ -91,6 +110,12 @@ export type Npc = {
   id: number;
   roomId: number;
   hitpoints?: SkillLevel;
+};
+
+export type Attack = {
+  type: PlayerAttack;
+  weapon: Item;
+  target: Npc;
 };
 
 export type Coords = {
