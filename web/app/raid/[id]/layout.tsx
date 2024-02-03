@@ -7,7 +7,7 @@ import TimeAgo from 'react-timeago';
 import { loadRaid } from '../../actions/raid';
 import RaidNavbar from './navbar';
 
-import styles from './style.module.css';
+import styles from './style.module.scss';
 import { ticksToFormattedSeconds } from '../tick';
 import { RaidContext } from '../context';
 

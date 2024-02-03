@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-import styles from './style.module.css';
+import styles from './style.module.scss';
 
 export default function RaidNavbar({ id }: { id: string }) {
   const pathname = usePathname();
