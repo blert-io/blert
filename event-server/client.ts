@@ -7,6 +7,7 @@ import Raid from './raid';
 type SingleOrArray<T> = T | T[];
 
 export default class Client {
+  private userId: number;
   private sessionId: number;
   private socket: WebSocket;
   private eventHandler: EventHandler;
@@ -15,7 +16,8 @@ export default class Client {
 
   private closeCallbacks: (() => void)[];
 
-  constructor(socket: WebSocket, eventHandler: EventHandler) {
+  constructor(socket: WebSocket, eventHandler: EventHandler, userId: number) {
+    this.userId = userId;
     this.sessionId = -1;
     this.socket = socket;
     this.eventHandler = eventHandler;

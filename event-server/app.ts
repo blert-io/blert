@@ -1,6 +1,6 @@
-import express from 'express';
+import express, { Request } from 'express';
 import { connect } from 'mongoose';
-import { WebSocketServer } from 'ws';
+import { WebSocket, WebSocketServer } from 'ws';
 
 import Client from './client';
 import ConnectionManager from './connection-manager';
@@ -34,7 +34,30 @@ async function main(): Promise<void> {
     console.log(`blert server started on port ${port}`);
   });
 
-  const wss = new WebSocketServer({ server, path: '/ws' });
+  const wss = new WebSocketServer({ noServer: true });
+
+  server.on('upgrade', async (request, socket, head) => {
+    console.log('New websocket authentication request');
+
+    try {
+      const auth = request.headers.authorization?.split(' ') || [];
+      if (auth.length != 2 || auth[0] != 'Basic') {
+        throw { message: 'Missing token' };
+      }
+
+      const token = Buffer.from(auth[1], 'base64').toString();
+      const userId = await connectionManager.authenticate(token);
+
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        const client = new Client(ws, eventHandler, userId);
+        wss.emit('connection', ws, request, client);
+      });
+    } catch (e: any) {
+      console.log(`Failed to authenticate: ${e.message}`);
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+    }
+  });
 
   const connectionManager = new ConnectionManager();
   const raidManager = new RaidManager();
@@ -44,8 +67,7 @@ async function main(): Promise<void> {
     res.send('pong');
   });
 
-  wss.on('connection', (ws, req) => {
-    const client = new Client(ws, eventHandler);
+  wss.on('connection', (ws: WebSocket, req: Request, client: Client) => {
     connectionManager.addClient(client);
   });
 }

@@ -10,6 +10,24 @@ export default class ConnectionManager {
   }
 
   /**
+   * Checks whether an API key is valid.
+   *
+   * @param token The API key.
+   * @returns ID of the user to which the key belongs.
+   * @throws Error if the key is invalid.
+   */
+  public async authenticate(token: string): Promise<number> {
+    // TODO(frolv): When accounts are added, check the token against the
+    // database and return the actual ID of the account;
+    if (token !== process.env.BLERT_DEVELOPMENT_API_KEY) {
+      throw { message: 'Invalid token' };
+    }
+
+    const userId = 123;
+    return userId;
+  }
+
+  /**
    * Registers a new client connection.
    * @param client The connected client.
    */
