@@ -4,9 +4,11 @@ services:
     ports:
       - 33033:27017
     environment:
+      MONGO_INITDB_DATABASE: blert
       MONGO_INITDB_ROOT_USERNAME: blert
       MONGO_INITDB_ROOT_PASSWORD: blert
     volumes:
+      - ./test_data/user.js:/docker-entrypoint-initdb.d/user.js:ro
       - mongodata:/data/db
       - ./test_data:/docker-entrypoint-initdb.d
 

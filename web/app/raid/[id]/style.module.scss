@@ -1,0 +1,81 @@
+.raid {
+  margin: 1em auto;
+  max-width: 80vw;
+
+  .details {
+    display: flex;
+    flex-direction: column;
+
+    .basic {
+      display: flex;
+      margin-bottom: 1.5em;
+
+      .id {
+        h1 {
+          color: #fff;
+          font-weight: 700;
+          font-size: 1.5rem;
+          margin-bottom: 0.25em;
+        }
+
+        p {
+          font-style: italic;
+          font-size: 14px;
+        }
+      }
+
+      .icons {
+        display: flex;
+        align-items: flex-end;
+
+        .icon {
+          display: flex;
+          justify-content: center;
+          width: 100px;
+
+          &:first-child {
+            width: 180px;
+          }
+
+          .text {
+            font-weight: 500;
+            margin-left: 0.4rem;
+          }
+        }
+      }
+    }
+
+    .navbar {
+      --navbar-border-color: rgba(101, 103, 110, 0.8);
+
+      width: 100%;
+      display: inline-flex;
+      margin-bottom: 2em;
+      border-bottom: 1px solid var(--navbar-border-color);
+
+      .link {
+        display: block;
+        margin-bottom: -1px;
+        padding: 0.5em 1.25em;
+        border-bottom: 1px solid var(--navbar-border-color);
+        text-align: center;
+
+        &.active {
+          color: #fff;
+          border-color: var(--blert-blue);
+          cursor: default;
+        }
+
+        &:not(&.active):hover {
+          opacity: 0.8;
+        }
+      }
+    }
+  }
+
+  .content {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+}

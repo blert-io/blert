@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700;800&display=swap');
+
+:root {
+  --topbar-height: 60px;
+
+  --blert-red: rgb(239, 68, 68);
+  --blert-blue: rgb(59, 130, 246);
+  --blert-text-color: #c3c7c9;
+
+  --nav-bg: #171821;
+  --page-bg: #171821;
+  --content-area-bg: #292a33;
+  --panel-bg: #1b1c25;
+
+  --font-color-nav: #5e6288;
+  --font-color-nav-active: #acafc6;
+  --font-color-nav-divider: #4b4e6d;
+
+  --font-size-title: 25px;
+  --font-color-title: #000;
+
+  --font-size-subtitle: 20px;
+  --font-color-subtitle: #fff;
+
+  --font-size-normal: 15px;
+  --font-color-normal: #000;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  font-family: 'Inter', sans-serif;
+  font-family: 'Roboto', sans-serif;
+}
+
+body {
+  color: var(--blert-text-color);
+  background-color: var(--page-bg);
+  display: flex;
+}
