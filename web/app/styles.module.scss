@@ -13,10 +13,19 @@
   overflow-y: scroll;
   -ms-overflow-style: none;
   scrollbar-width: none;
+  z-index: 50;
+
+  box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.5);
+  transition: all 300ms ease;
   &::-webkit-scrollbar {
     display: none;
   }
+
+  &:hover {
+    box-shadow: none;
+  }
 }
+
 .leftNav__logo {
   padding-top: 20px;
   display: flex;
@@ -46,13 +55,14 @@
   display: flex;
   flex-direction: row;
   height: 50px;
-  width: 235px;
+  width: 215px;
   align-items: center;
   padding: 0 0 0 10px;
   border-top-left-radius: 5px;
   border-bottom-left-radius: 5px;
   background-color: var(--nav-bg);
   transition: all 150ms ease;
+  position: relative;
 
   span {
     user-select: none;
@@ -61,7 +71,7 @@
     font-size: 18px;
     line-height: 44px;
     position: relative;
-    padding: 0 0 0 5px;
+    padding: 0 0 0 15px;
     color: var(--font-color-nav);
 
     &.active {
@@ -100,13 +110,23 @@
   top: -3px;
 }
 
-.leftNav__menuDivider {
+@mixin leftMenuDivider {
   height: 2px;
   align-self: center;
   width: 80%;
   background-color: var(--content-area-bg);
   margin: 0;
   padding: 0;
+}
+
+.leftNav__menuDivider {
+  @include leftMenuDivider;
+  margin: 10px 0 10px 0;
+}
+
+.leftNav__menuDividerTwo {
+  @include leftMenuDivider;
+  margin: 5px 0 15px 0;
 }
 
 .leftNav__externalLinks {
@@ -135,14 +155,89 @@
   }
 }
 
-// .leftNav__menuDividerTitle {
-//   align-self: left;
-//   padding: 15px 0 0 35px;
-//   font-weight: bold;
-//   color: var(--font-color-nav-divider);
-// }
-
 .pageParentContent {
   flex-grow: 1;
   background-color: var(--content-area-bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 20px;
+}
+
+@mixin panel {
+  display: flex;
+  background-color: var(--panel-bg);
+  border-radius: 5px;
+  // subtle outer box shadow
+  box-shadow: 0 0 5px 0 rgba(0, 0, 0, 0.5);
+}
+
+.raid__Title {
+  @include panel;
+  width: 900px;
+  padding: 20px 20px 10px 20px;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  margin-bottom: 20px;
+}
+
+.raid__bulletpointDetails {
+  display: flex;
+  flex-direction: row;
+  margin-top: 10px;
+  justify-content: space-evenly;
+}
+
+.raid__bulletpointDetail {
+  padding: 10px;
+  width: 150px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+
+  i {
+    width: 20px;
+    margin-right: 5px;
+  }
+}
+
+.raid__Boss {
+  @include panel;
+  width: 900px;
+  height: 125px;
+  padding: 20px 20px 10px 20px;
+  justify-content: flex-start;
+  align-items: center;
+  flex-direction: row;
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+
+.raid__BossImg {
+  width: 200px;
+}
+
+.raid__RoomDetails {
+  margin-right: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  height: 100px;
+  width: 100%;
+  position: relative;
+}
+
+.raid__BossName {
+  font-size: 36px;
+  margin: 0;
+  padding: 0;
+  color: var(--font-color-nav);
+}
+
+.raid__RoomBadges {
+}
+
+.raid__RoomBadge {
 }
