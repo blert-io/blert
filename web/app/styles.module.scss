@@ -11,8 +11,12 @@
   background-color: var(--nav-bg);
   flex-direction: column;
   overflow-y: scroll;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
-
 .leftNav__logo {
   padding-top: 20px;
   display: flex;
