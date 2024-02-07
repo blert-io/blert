@@ -2,13 +2,13 @@
 
 import { useContext } from 'react';
 import { RaidContext } from '../../context';
-import { RaidBossesOverview } from '../../../components/raid-bosses-overview/raid-bosses-overview';
-import { RaidLogo } from '../../../components/raid-logo/raid-logo-details';
-import { RaidQuickDetails } from '../../../components/raid-quick-details/raid-quick-details';
+import { RaidBossesOverview } from '../../../../components/raid-bosses-overview/raid-bosses-overview';
+import { RaidLogo } from '../../../../components/raid-logo/raid-logo-details';
+import { RaidQuickDetails } from '../../../../components/raid-quick-details/raid-quick-details';
 import {
   RaidTeamPanel,
   PrimaryMeleeGear,
-} from '../../../components/raid-team/raid-team';
+} from '../../../../components/raid-team/raid-team';
 import styles from './style.module.scss';
 
 export default function Overview() {
@@ -37,7 +37,7 @@ export default function Overview() {
         startTime={raid.startTime}
       />
       <RaidTeamPanel players={playersWithDummyGear} />
-      <RaidBossesOverview rooms={raid.rooms} />
+      <RaidBossesOverview rooms={raid.rooms} raidId={raid._id} />
     </div>
   );
 }

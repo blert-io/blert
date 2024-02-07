@@ -3,7 +3,7 @@
 import { Mode, Raid, RaidStatus } from '@blert/common';
 import { useEffect, useState } from 'react';
 
-import { loadRaid } from '../../actions/raid';
+import { loadRaid } from '../../../actions/raid';
 
 import styles from './style.module.scss';
 import { RaidContext } from '../context';

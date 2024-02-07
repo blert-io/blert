@@ -5,9 +5,8 @@ import {
 } from '@blert/common';
 import { useState } from 'react';
 
-import { ticksToFormattedSeconds } from '../../tick';
-
 import styles from './style.module.css';
+import { ticksToFormattedSeconds } from '../../../../utils/tick';
 
 type CrabSpawnProps = {
   crabs: MaidenCrabSpawnEvent[];

@@ -1,9 +1,9 @@
 import Image from 'next/image';
 
 import styles from './style.module.scss';
-import { ticksToFormattedSeconds } from '../../raid/tick';
 import { Mode, RaidStatus } from '@blert/common';
 import TimeAgo from 'react-timeago';
+import { ticksToFormattedSeconds } from '../../utils/tick';
 
 const completionToColor = (raidStatus: RaidStatus) => {
   switch (raidStatus) {

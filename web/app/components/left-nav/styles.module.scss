@@ -1,0 +1,146 @@
+@import '../../mixins.scss';
+
+.leftNav {
+  @include hideTheFuckingScrollbarsJesusChrist;
+  display: flex;
+  width: 240px;
+  background-color: var(--nav-bg);
+  flex-direction: column;
+  overflow-y: scroll;
+  z-index: 50;
+  box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.5);
+  transition: all 300ms ease;
+  &:hover {
+    box-shadow: none;
+  }
+}
+
+.leftNav__logo {
+  padding-top: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 30px;
+}
+
+.leftNav__menu {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  margin: 0;
+}
+
+.leftNav__menuItem {
+  display: flex;
+  align-items: center;
+  height: 60px;
+  justify-content: right;
+  flex-direction: row;
+  margin: 0;
+  padding: 0;
+}
+
+.leftNav__menuItemInner {
+  display: flex;
+  flex-direction: row;
+  height: 50px;
+  width: 215px;
+  align-items: center;
+  padding: 0 0 0 10px;
+  border-top-left-radius: 5px;
+  border-bottom-left-radius: 5px;
+  background-color: var(--nav-bg);
+  transition: all 150ms ease;
+  position: relative;
+
+  span {
+    user-select: none;
+    display: flex;
+    font-family: 'Inter', sans-serif;
+    font-size: 18px;
+    line-height: 44px;
+    position: relative;
+    padding: 0 0 0 15px;
+    color: var(--font-color-nav);
+    font-weight: bold;
+
+    &.active {
+      color: var(--font-color-nav-active);
+    }
+  }
+
+  &:hover {
+    background-color: var(--content-area-bg);
+
+    span {
+      color: var(--font-color-nav-active);
+    }
+  }
+}
+
+.leftNav__menuItemIcon {
+  width: 50px;
+  height: 50px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  margin: 5px;
+
+  i {
+    font-size: 22px;
+    text-align: center;
+    color: var(--font-color-nav);
+  }
+}
+
+.leftNav__playerIcon {
+  position: relative;
+  transform: scale(0.8);
+  top: -3px;
+}
+
+@mixin leftMenuDivider {
+  height: 2px;
+  align-self: center;
+  width: 80%;
+  background-color: var(--content-area-bg);
+  margin: 0;
+  padding: 0;
+}
+
+.leftNav__menuDivider {
+  @include leftMenuDivider;
+  margin: 10px 0 10px 0;
+}
+
+.leftNav__menuDividerTwo {
+  @include leftMenuDivider;
+  margin: 5px 0 15px 0;
+}
+
+.leftNav__externalLinks {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-evenly;
+  margin: auto 0 20px 0;
+  padding: 0;
+}
+
+.leftNav__externalLink {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 26px;
+  height: 50px;
+  width: 50px;
+  border: 1px solid #acafc6;
+  color: #acafc6;
+  border-radius: 5px;
+  //   cursor: pointer;
+  transition: all 150ms ease;
+
+  &:hover {
+    background-color: var(--content-area-bg);
+  }
+}
