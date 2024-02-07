@@ -18,6 +18,10 @@ type TeamPanelProps = {
   players: TeamPanelPlayer[];
 };
 
+interface RaidBossesOverviewProps {
+  rooms: string[];
+}
+
 export function RaidTeamPanel(props: TeamPanelProps) {
   const { players } = props;
 

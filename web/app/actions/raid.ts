@@ -11,6 +11,7 @@ import { cache } from 'react';
  */
 export async function loadRaid(id: string): Promise<Raid | null> {
   const raid = await RaidModel.findOne({ _id: id }).lean();
+
   return raid ? (raid as Raid) : null;
 }
 

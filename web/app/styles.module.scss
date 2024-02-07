@@ -69,6 +69,7 @@
     position: relative;
     padding: 0 0 0 15px;
     color: var(--font-color-nav);
+    font-weight: bold;
 
     &.active {
       color: var(--font-color-nav-active);

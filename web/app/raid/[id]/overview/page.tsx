@@ -14,37 +14,30 @@ import styles from './style.module.scss';
 export default function Overview() {
   const raid = useContext(RaidContext);
 
-  console.log(raid);
+  if (raid === null || raid === undefined) {
+    return <div>Loading...</div>;
+  }
+
+  const playersWithDummyGear = raid.party.map((player) => {
+    return {
+      name: player,
+      primaryMeleeGear: PrimaryMeleeGear.Blorva,
+    };
+  });
 
   return (
     <div className={styles.raid__Overview}>
       <RaidLogo />
-      <RaidQuickDetails />
-      <RaidTeamPanel
-        players={[
-          {
-            name: 'Sacolyn',
-            primaryMeleeGear: PrimaryMeleeGear.EliteVoid,
-          },
-          {
-            name: '1Ogp',
-            primaryMeleeGear: PrimaryMeleeGear.Blorva,
-          },
-          {
-            name: '715',
-            primaryMeleeGear: PrimaryMeleeGear.Blorva,
-          },
-          {
-            name: 'NACHOCUPOFT',
-            primaryMeleeGear: PrimaryMeleeGear.Blorva,
-          },
-          {
-            name: 'Verzik Melee',
-            primaryMeleeGear: PrimaryMeleeGear.Blorva,
-          },
-        ]}
+      <RaidQuickDetails
+        raidStatus={raid.status}
+        raidDifficulty={raid.mode}
+        totalRaidTicks={raid.totalRoomTicks}
+        deaths={0} // raid.totalDeaths
+        partySize={raid.party.length}
+        startTime={raid.startTime}
       />
-      <RaidBossesOverview />
+      <RaidTeamPanel players={playersWithDummyGear} />
+      <RaidBossesOverview rooms={raid.rooms} />
     </div>
   );
 }

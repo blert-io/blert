@@ -14,17 +14,6 @@ import './globals.scss';
 
 import styles from './styles.module.scss';
 
-import {
-  RaidTeamPanel,
-  PrimaryMeleeGear,
-} from './components/raid-team/raid-team';
-
-import { RaidLogo } from './components/raid-logo/raid-logo-details';
-
-import { RaidBossesOverview } from './components/raid-bosses-overview/raid-bosses-overview';
-
-import { RaidQuickDetails } from './components/raid-quick-details/raid-quick-details';
-
 connectToDatabase();
 
 const inter = Inter({ subsets: ['latin'] });
