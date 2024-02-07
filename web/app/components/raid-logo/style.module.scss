@@ -1,0 +1,17 @@
+@import '../../mixins.scss';
+
+.raid__Title {
+  padding: 20px 20px 10px 20px;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  display: flex;
+  margin-bottom: 10px;
+}
+
+.raid__Logo {
+  @include panel;
+  padding: 20px 60px;
+  width: 450px;
+  justify-self: center;
+}

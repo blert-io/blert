@@ -1,0 +1,25 @@
+@import '../../mixins.scss';
+
+.raid__bulletpointDetails {
+  @include panel;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-evenly;
+  padding-left: 12px;
+  margin-bottom: 20px;
+  width: 900px;
+}
+
+.raid__bulletpointDetail {
+  padding: 10px;
+  width: 150px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+
+  i {
+    width: 20px;
+    margin-right: 5px;
+  }
+}

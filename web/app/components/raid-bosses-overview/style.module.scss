@@ -1,0 +1,76 @@
+@import '../../mixins.scss';
+
+.raid__Bosses {
+  position: relative;
+}
+
+.raid__Boss {
+  @include panel;
+  width: 1200px;
+  height: 125px;
+  padding: 20px 20px 10px 20px;
+  justify-content: flex-start;
+  align-items: center;
+  flex-direction: row;
+  margin-bottom: 20px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 50ms linear;
+  transform-origin: center center;
+
+  &:hover {
+    background-color: #21222d;
+    box-shadow: 0 0 5px 0 rgba(255, 255, 255, 0.3);
+    transform: scale(1.02);
+  }
+}
+
+.raid__BossImg {
+  width: 200px;
+}
+
+.raid__Divider {
+  width: 3px;
+  height: 100%;
+  background-color: var(--content-area-bg);
+  margin: 0;
+  padding: 0;
+  position: relative;
+  top: -4px;
+  margin: 0 0 0 35px;
+}
+
+.raid__RoomDetails {
+  margin-right: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  height: 100px;
+  width: 100%;
+  position: relative;
+  padding-left: 30px;
+  top: -10px;
+  flex-direction: column;
+}
+
+.raid__BossName {
+  font-size: 24px;
+  margin: 0;
+  padding: 0;
+  color: var(--font-color-nav);
+  //   color: var(--blert-text-color);
+  font-weight: bold;
+}
+
+.raid__RoomBadges {
+  display: flex;
+  flex-direction: row;
+}
+
+.raid__RoomBadge {
+  border: 1px solid #99a0a3;
+  padding: 2px 12px;
+  margin: 5px;
+  border-radius: 5px;
+  background-color: #2a2c3a;
+}

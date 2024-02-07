@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
+
 import { Inter } from 'next/font/google';
+
 import Image from 'next/image';
+
 import Link from 'next/link';
 
 import playerImg from '/public/player.png';
@@ -8,7 +11,19 @@ import playerImg from '/public/player.png';
 import connectToDatabase from './actions/db';
 
 import './globals.scss';
+
 import styles from './styles.module.scss';
+
+import {
+  RaidTeamPanel,
+  PrimaryMeleeGear,
+} from './components/raid-team/raid-team';
+
+import { RaidLogo } from './components/raid-logo/raid-logo-details';
+
+import { RaidBossesOverview } from './components/raid-bosses-overview/raid-bosses-overview';
+
+import { RaidQuickDetails } from './components/raid-quick-details/raid-quick-details';
 
 connectToDatabase();
 
@@ -176,148 +191,7 @@ export default function RootLayout({
             </div>
           </div>
 
-          <div className={styles.pageParentContent}>
-            <div className={styles.raid__Title}>
-              <Image
-                src="/logo_tob.webp"
-                alt="tob icon"
-                height={200}
-                width={200}
-              />
-
-              <div className={styles.raid__bulletpointDetails}>
-                <div className={styles.raid__bulletpointDetail}>
-                  <i
-                    className="fa-solid fa-trophy"
-                    style={{ position: 'relative', left: '-3px' }}
-                  ></i>{' '}
-                  Normal
-                </div>
-                <div className={styles.raid__bulletpointDetail}>
-                  <i
-                    className="fa-solid fa-check"
-                    style={{ fontSize: '21px' }}
-                  ></i>
-                  Completion
-                </div>
-                <div className={styles.raid__bulletpointDetail}>
-                  <i
-                    className="fa-solid fa-hourglass"
-                    style={{ position: 'relative', left: '4px' }}
-                  ></i>
-                  21:14.4
-                </div>
-                <div className={styles.raid__bulletpointDetail}>
-                  <i className="fa-solid fa-skull"></i> 3 Deaths
-                </div>
-                <div className={styles.raid__bulletpointDetail}>
-                  <i
-                    className="fa-solid fa-users"
-                    style={{ position: 'relative', left: '-2px' }}
-                  ></i>{' '}
-                  4 Raiders
-                </div>
-              </div>
-            </div>
-
-            {/* <div className={styles.raid__Boss}>
-              <div className={styles.raid__BossImg}>
-                <Image
-                  src="/maiden.webp"
-                  alt="maiden"
-                  height={130}
-                  width={130}
-                  style={{ position: 'relative', top: '20px', left: '40px' }}
-                />
-              </div>
-              <div className={styles.raid__RoomDetails}>
-                <h4 className={styles.raid__BossName}>
-                  The Maiden of Sugadinti
-                </h4>
-              </div>
-            </div>
-
-            <div className={styles.raid__Boss}>
-              <div className={styles.raid__BossImg}>
-                <Image
-                  src="/bloat.webp"
-                  alt="bloat"
-                  height={145}
-                  width={145}
-                  style={{ position: 'relative', top: '35px', left: '30px' }}
-                />
-              </div>
-              <div className={styles.raid__RoomDetails}>
-                <h4 className={styles.raid__BossName}>Pestilent Bloat</h4>
-              </div>
-            </div>
-
-            <div className={styles.raid__Boss}>
-              <div className={styles.raid__BossImg}>
-                <Image
-                  src="/nyloking.webp"
-                  alt="nyloking"
-                  height={155}
-                  width={155}
-                  style={{ position: 'relative', left: '15px' }}
-                />
-              </div>
-              <div className={styles.raid__RoomDetails}>
-                <h4 className={styles.raid__BossName}>The Nylocas</h4>
-              </div>
-            </div>
-
-            <div className={styles.raid__Boss}>
-              <div className={styles.raid__BossImg}>
-                <Image
-                  src="/sote.webp"
-                  alt="sotetseg"
-                  height={170}
-                  width={170}
-                  style={{ position: 'relative', left: '5px' }}
-                />
-              </div>
-              <div className={styles.raid__RoomDetails}>
-                <h4 className={styles.raid__BossName}>Sotetseg</h4>
-              </div>
-            </div>
-
-            <div className={styles.raid__Boss}>
-              <div className={styles.raid__BossImg}>
-                <Image
-                  src="/xarpus.webp"
-                  alt="xarpus"
-                  height={185}
-                  width={185}
-                  style={{ position: 'relative', left: '10px' }}
-                />
-              </div>
-              <div className={styles.raid__RoomDetails}>
-                <h4 className={styles.raid__BossName}>Xarpus</h4>
-              </div>
-            </div> */}
-
-            <div className={styles.raid__Boss}>
-              <div className={styles.raid__BossImg}>
-                <Image
-                  src="/verzik.webp"
-                  alt="verzik"
-                  height={180}
-                  width={180}
-                />
-              </div>
-              <div className={styles.raid__RoomDetails}>
-                <h4 className={styles.raid__BossName}>Verzik Vitur</h4>
-                <div className={styles.raid__RoomBadges}>
-                  <div className={styles.raid__RoomBadge}></div>
-                  <div className={styles.raid__RoomBadge}></div>
-                  <div className={styles.raid__RoomBadge}></div>
-                  <div className={styles.raid__RoomBadge}></div>
-                </div>
-              </div>
-            </div>
-            {/* {children} */}
-          </div>
+          <div className={styles.pageParentContent}>{children}</div>
         </div>
       </body>
     </html>

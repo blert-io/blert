@@ -1,0 +1,14 @@
+@mixin panel {
+  display: flex;
+  background-color: var(--panel-bg);
+  box-shadow: 0 0 5px 0 rgba(0, 0, 0, 0.5);
+  border-radius: 5px;
+}
+
+@mixin hideTheFuckingScrollbarsJesusChrist {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
