@@ -48,7 +48,7 @@
   padding: 0;
   position: relative;
   left: 30px;
-  background-color: #15161e;
+  background-color: #0f1015;
   border-radius: 5px;
 }
 
@@ -61,6 +61,12 @@
   font-size: 17px;
   border-radius: 5px;
   margin-bottom: 5px;
+}
+
+.leftNav__subMenuItem:hover,
+.leftNav__subMenuItemActive {
+  background-color: var(--content-area-bg);
+  color: var(--font-color-nav-active);
 }
 
 .leftNav__menuItemInner {

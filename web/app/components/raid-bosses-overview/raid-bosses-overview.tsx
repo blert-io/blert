@@ -1,19 +1,31 @@
 import Image from 'next/image';
 
 import styles from './style.module.scss';
-import { Room, RoomOverview } from '@blert/common';
+import {
+  BloatOverview,
+  MaidenCrabSpawn,
+  MaidenOverview,
+  NyloOverview,
+  Room,
+  RoomOverview,
+  Rooms,
+  SoteOverview,
+  VerzikOverview,
+  XarpusOverview,
+} from '@blert/common';
 import Link from 'next/link';
 import { ticksToFormattedSeconds } from '../../utils/tick';
+import { getOrdinal } from '../../utils/path-util';
 
 interface RaidBossesOverviewProps {
   raidId: string;
-  rooms: {
-    [room in Room]?: RoomOverview;
-  };
+  rooms: Rooms;
 }
 
 export function RaidBossesOverview(props: RaidBossesOverviewProps) {
-  const { rooms, raidId } = props;
+  const { /*rooms,*/ raidId } = props;
+
+  let rooms = props.rooms;
 
   const maidenDataExists = rooms[Room.MAIDEN] !== null;
   const bloatDataExists = rooms[Room.BLOAT] !== null;
@@ -24,8 +36,50 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
 
   console.log(rooms);
 
+  let maiden = maidenDataExists
+    ? (rooms[Room.MAIDEN] as MaidenOverview)
+    : undefined;
+  let bloat = bloatDataExists
+    ? (rooms[Room.BLOAT] as BloatOverview)
+    : undefined;
+  let nylo = nyloDataExists ? (rooms[Room.NYLOCAS] as NyloOverview) : undefined;
+  let sote = soteDataExists
+    ? (rooms[Room.SOTETSEG] as SoteOverview)
+    : undefined;
+  let xarpus = xarpusDataExists
+    ? (rooms[Room.XARPUS] as XarpusOverview)
+    : undefined;
+  let verzik = verzikDataExists
+    ? (rooms[Room.VERZIK] as VerzikOverview)
+    : undefined;
+
+  let bloatDowns = undefined;
+
+  if (bloatDataExists) {
+    bloatDowns = bloat!.splits.downTicks.map((split, index) => {
+      return (
+        <div
+          key={`bloat-split-${split + 1}`}
+          className={styles.raid__RoomBadge}
+        >
+          <strong>
+            <i
+              className="fa-solid fa-hourglass"
+              style={{ paddingRight: '5px' }}
+            ></i>
+            {getOrdinal(index + 1)} Down:
+          </strong>{' '}
+          {ticksToFormattedSeconds(split)}
+        </div>
+      );
+    });
+  }
+
   return (
     <div className={styles.raid__Bosses}>
+      {/*************************/
+      /*  Maiden */
+      /*************************/}
       {maidenDataExists && (
         <Link href={`/raids/tob//${raidId}/maiden`}>
           <div className={styles.raid__Boss}>
@@ -59,42 +113,57 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                 {ticksToFormattedSeconds(rooms[Room.MAIDEN]!.roomTicks)}
               </h4>
               <div className={styles.raid__RoomBadges}>
-                <div className={styles.raid__RoomBadge}>
-                  <strong>
-                    <i
-                      className="fa-solid fa-hourglass"
-                      style={{ paddingRight: '5px' }}
-                    ></i>
-                    70s:
-                  </strong>{' '}
-                  {ticksToFormattedSeconds(5)}
-                </div>
-                <div className={styles.raid__RoomBadge}>
-                  <strong>
-                    <i
-                      className="fa-solid fa-hourglass"
-                      style={{ paddingRight: '5px' }}
-                    ></i>
-                    50s:
-                  </strong>{' '}
-                  {ticksToFormattedSeconds(5)}
-                </div>
-                <div className={styles.raid__RoomBadge}>
-                  <strong>
-                    <i
-                      className="fa-solid fa-hourglass"
-                      style={{ paddingRight: '5px' }}
-                    ></i>
-                    30s:
-                  </strong>{' '}
-                  {ticksToFormattedSeconds(5)}
-                </div>
+                {maiden.splits[MaidenCrabSpawn.SEVENTIES] !== 0 && (
+                  <div className={styles.raid__RoomBadge}>
+                    <strong>
+                      <i
+                        className="fa-solid fa-hourglass"
+                        style={{ paddingRight: '5px' }}
+                      ></i>
+                      70s:
+                    </strong>{' '}
+                    {ticksToFormattedSeconds(
+                      maiden.splits[MaidenCrabSpawn.SEVENTIES],
+                    )}
+                  </div>
+                )}
+                {maiden.splits[MaidenCrabSpawn.FIFTIES] !== 0 && (
+                  <div className={styles.raid__RoomBadge}>
+                    <strong>
+                      <i
+                        className="fa-solid fa-hourglass"
+                        style={{ paddingRight: '5px' }}
+                      ></i>
+                      50s:
+                    </strong>{' '}
+                    {ticksToFormattedSeconds(
+                      maiden.splits[MaidenCrabSpawn.FIFTIES],
+                    )}
+                  </div>
+                )}
+                {maiden.splits[MaidenCrabSpawn.THIRTIES] !== 0 && (
+                  <div className={styles.raid__RoomBadge}>
+                    <strong>
+                      <i
+                        className="fa-solid fa-hourglass"
+                        style={{ paddingRight: '5px' }}
+                      ></i>
+                      30s:
+                    </strong>{' '}
+                    {ticksToFormattedSeconds(
+                      maiden.splits[MaidenCrabSpawn.THIRTIES],
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </Link>
       )}
 
+      {/*************************/
+      /*  Bloat */
+      /*************************/}
       {bloatDataExists && (
         <Link href={`/raids/tob//${raidId}/bloat`}>
           <div className={styles.raid__Boss}>
@@ -122,53 +191,15 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                 ></i>
                 {ticksToFormattedSeconds(rooms[Room.BLOAT]!.roomTicks)}
               </h4>
-              <div className={styles.raid__RoomBadges}>
-                <div className={styles.raid__RoomBadge}>
-                  <strong>
-                    <i
-                      className="fa-solid fa-hourglass"
-                      style={{ paddingRight: '5px' }}
-                    ></i>
-                    1st Down:
-                  </strong>{' '}
-                  {ticksToFormattedSeconds(Math.floor(Math.random() * 100))}
-                </div>
-                <div className={styles.raid__RoomBadge}>
-                  <strong>
-                    <i
-                      className="fa-solid fa-hourglass"
-                      style={{ paddingRight: '5px' }}
-                    ></i>
-                    2nd Down:
-                  </strong>{' '}
-                  {ticksToFormattedSeconds(Math.floor(Math.random() * 200))}
-                </div>
-                <div className={styles.raid__RoomBadge}>
-                  <strong>
-                    <i
-                      className="fa-solid fa-hourglass"
-                      style={{ paddingRight: '5px' }}
-                    ></i>
-                    3rd Down:
-                  </strong>{' '}
-                  {ticksToFormattedSeconds(Math.floor(Math.random() * 200))}
-                </div>
-                <div className={styles.raid__RoomBadge}>
-                  <strong>
-                    <i
-                      className="fa-solid fa-hourglass"
-                      style={{ paddingRight: '5px' }}
-                    ></i>
-                    4th Down:
-                  </strong>{' '}
-                  {ticksToFormattedSeconds(Math.floor(Math.random() * 200))}
-                </div>
-              </div>
+              <div className={styles.raid__RoomBadges}>{bloatDowns}</div>
             </div>
           </div>
         </Link>
       )}
 
+      {/*************************/
+      /*  Nylos */
+      /*************************/}
       {nyloDataExists && (
         <Link href={`/raids/tob//${raidId}/nylocas`}>
           <div className={styles.raid__Boss}>
@@ -205,8 +236,9 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     ></i>
                     Cap:
                   </strong>{' '}
-                  {ticksToFormattedSeconds(Math.floor(Math.random() * 100))}
+                  {ticksToFormattedSeconds(nylo.splits.capIncrease)}
                 </div>
+
                 <div className={styles.raid__RoomBadge}>
                   <strong>
                     <i
@@ -215,8 +247,9 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     ></i>
                     Waves:
                   </strong>{' '}
-                  {ticksToFormattedSeconds(Math.floor(Math.random() * 200))}
+                  {ticksToFormattedSeconds(nylo.splits.waves)}
                 </div>
+
                 <div className={styles.raid__RoomBadge}>
                   <strong>
                     <i
@@ -225,8 +258,9 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     ></i>
                     Cleanup:
                   </strong>{' '}
-                  {ticksToFormattedSeconds(Math.floor(Math.random() * 300))}
+                  {ticksToFormattedSeconds(nylo.splits.cleanup)}
                 </div>
+
                 <div className={styles.raid__RoomBadge}>
                   <strong>
                     <i
@@ -235,7 +269,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     ></i>
                     Boss:
                   </strong>{' '}
-                  {ticksToFormattedSeconds(Math.floor(Math.random() * 300))}
+                  {ticksToFormattedSeconds(nylo.splits.boss)}
                 </div>
               </div>
             </div>
@@ -243,6 +277,9 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
         </Link>
       )}
 
+      {/*************************/
+      /*  Sote */
+      /*************************/}
       {soteDataExists && (
         <Link href={`/raids/tob//${raidId}/sotetseg`}>
           <div className={styles.raid__Boss}>
@@ -283,7 +320,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     ></i>
                     66%:
                   </strong>{' '}
-                  {ticksToFormattedSeconds(Math.floor(Math.random() * 100))}
+                  {ticksToFormattedSeconds(sote.splits.MAZE_66)}
                 </div>
                 <div className={styles.raid__RoomBadge}>
                   <strong>
@@ -293,7 +330,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     ></i>
                     33%:
                   </strong>{' '}
-                  {ticksToFormattedSeconds(Math.floor(Math.random() * 200))}
+                  {ticksToFormattedSeconds(sote.splits.MAZE_33)}
                 </div>
               </div>
             </div>
@@ -301,6 +338,9 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
         </Link>
       )}
 
+      {/*************************/
+      /*  Xarpus */
+      /*************************/}
       {xarpusDataExists && (
         <Link href={`/raids/tob//${raidId}/xarpus`}>
           <div className={styles.raid__Boss}>
@@ -341,7 +381,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     ></i>
                     Exhumeds:
                   </strong>{' '}
-                  {ticksToFormattedSeconds(Math.floor(Math.random() * 100))}
+                  {ticksToFormattedSeconds(xarpus.splits.exhumes)}
                 </div>
                 <div className={styles.raid__RoomBadge}>
                   <strong>
@@ -351,7 +391,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     ></i>
                     Screech:
                   </strong>{' '}
-                  {ticksToFormattedSeconds(Math.floor(Math.random() * 200))}
+                  {ticksToFormattedSeconds(xarpus.splits.screech)}
                 </div>
               </div>
             </div>
@@ -359,6 +399,9 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
         </Link>
       )}
 
+      {/*************************/
+      /*  Verzik */
+      /*************************/}
       {verzikDataExists && (
         <Link href={`/raids/tob//${raidId}/verzik`}>
           <div className={styles.raid__Boss}>
@@ -399,7 +442,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     ></i>
                     P1:
                   </strong>{' '}
-                  {ticksToFormattedSeconds(Math.floor(Math.random() * 100))}
+                  {ticksToFormattedSeconds(verzik.splits.p1)}
                 </div>
                 <div className={styles.raid__RoomBadge}>
                   <strong>
@@ -409,7 +452,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     ></i>
                     Reds:
                   </strong>{' '}
-                  {ticksToFormattedSeconds(Math.floor(Math.random() * 200))}
+                  {ticksToFormattedSeconds(verzik.splits.reds)}
                 </div>
                 <div className={styles.raid__RoomBadge}>
                   <strong>
@@ -417,9 +460,9 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                       className="fa-solid fa-hourglass"
                       style={{ paddingRight: '5px' }}
                     ></i>
-                    P3:
+                    P2:
                   </strong>{' '}
-                  {ticksToFormattedSeconds(Math.floor(Math.random() * 300))}
+                  {ticksToFormattedSeconds(verzik.splits.p2)}
                 </div>
               </div>
             </div>

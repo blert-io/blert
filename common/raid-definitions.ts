@@ -6,14 +6,16 @@ export type Raid = {
   party: string[];
   totalRoomTicks: number;
   totalDeaths: number;
-  rooms: {
-    [Room.MAIDEN]: MaidenOverview | null;
-    [Room.BLOAT]: BloatOverview | null;
-    [Room.NYLOCAS]: NyloOverview | null;
-    [Room.SOTETSEG]: SoteOverview | null;
-    [Room.XARPUS]: XarpusOverview | null;
-    [Room.VERZIK]: VerzikOverview | null;
-  };
+  rooms: Rooms;
+};
+
+export type Rooms = {
+  [Room.MAIDEN]: MaidenOverview | null;
+  [Room.BLOAT]: BloatOverview | null;
+  [Room.NYLOCAS]: NyloOverview | null;
+  [Room.SOTETSEG]: SoteOverview | null;
+  [Room.XARPUS]: XarpusOverview | null;
+  [Room.VERZIK]: VerzikOverview | null;
 };
 
 export interface RoomOverview {

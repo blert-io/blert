@@ -30,6 +30,7 @@ export type {
   SoteOverview,
   SoteSplits,
   Raid,
+  Rooms,
   RoomOverview,
   SkillLevel,
   VerzikOverview,

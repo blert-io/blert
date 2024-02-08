@@ -78,22 +78,46 @@ export function LeftNav() {
         {viewingTob && (
           <li className={styles.leftNav__subMenu}>
             <Link href={currentPathForRaid + '/maiden'}>
-              <div className={styles.leftNav__subMenuItem}>Maiden</div>
+              <div
+                className={`${styles.leftNav__subMenuItem} ${currentPath.includes('/maiden') && styles.leftNav__subMenuItemActive}`}
+              >
+                Maiden
+              </div>
             </Link>
             <Link href={currentPathForRaid + '/bloat'}>
-              <div className={styles.leftNav__subMenuItem}>Blert</div>
+              <div
+                className={`${styles.leftNav__subMenuItem} ${currentPath.includes('/bloat') && styles.leftNav__subMenuItemActive}`}
+              >
+                Blert
+              </div>
             </Link>
             <Link href={currentPathForRaid + '/nylocas'}>
-              <div className={styles.leftNav__subMenuItem}>Nylocas</div>
+              <div
+                className={`${styles.leftNav__subMenuItem} ${currentPath.includes('/nylocas') && styles.leftNav__subMenuItemActive}`}
+              >
+                Nylocas
+              </div>
             </Link>
             <Link href={currentPathForRaid + '/sotetseg'}>
-              <div className={styles.leftNav__subMenuItem}>Sotetseg</div>
+              <div
+                className={`${styles.leftNav__subMenuItem} ${currentPath.includes('/sotetseg') && styles.leftNav__subMenuItemActive}`}
+              >
+                Sotetseg
+              </div>
             </Link>
             <Link href={currentPathForRaid + '/xarpus'}>
-              <div className={styles.leftNav__subMenuItem}>Xarpus</div>
+              <div
+                className={`${styles.leftNav__subMenuItem} ${currentPath.includes('/xarpus') && styles.leftNav__subMenuItemActive}`}
+              >
+                Xarpus
+              </div>
             </Link>
             <Link href={currentPathForRaid + '/verzik'}>
-              <div className={styles.leftNav__subMenuItem}>Verzik</div>
+              <div
+                className={`${styles.leftNav__subMenuItem} ${currentPath.includes('/verzik') && styles.leftNav__subMenuItemActive}`}
+              >
+                Verzik
+              </div>
             </Link>
           </li>
         )}
@@ -137,7 +161,7 @@ export function LeftNav() {
         <div className={styles.leftNav__menuDividerTwo}></div>
 
         {/* Players */}
-        <li className={styles.leftNav__menuItem}>
+        {/* <li className={styles.leftNav__menuItem}>
           <Link className={`${styles.leftNav__menuItemInner}`} href="/players">
             <div className={styles.leftNav__menuItemIcon}>
               <Image
@@ -149,7 +173,7 @@ export function LeftNav() {
 
             <span className="active">Players</span>
           </Link>
-        </li>
+        </li> */}
 
         {/* Trends */}
         <li className={styles.leftNav__menuItem}>

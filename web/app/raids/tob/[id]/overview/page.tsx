@@ -32,7 +32,7 @@ export default function Overview() {
         raidStatus={raid.status}
         raidDifficulty={raid.mode}
         totalRaidTicks={raid.totalRoomTicks}
-        deaths={0} // raid.totalDeaths
+        deaths={raid.totalDeaths}
         partySize={raid.party.length}
         startTime={raid.startTime}
       />

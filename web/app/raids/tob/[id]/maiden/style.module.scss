@@ -1,0 +1,55 @@
+@import '../../../../mixins.scss';
+
+.bossPage {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  width: var(--width);
+  align-items: center;
+  padding-top: 20px;
+}
+
+.bossPage__Inner {
+  width: 900px;
+}
+
+.bossPage__Overview {
+  border: 1px solid red;
+  //   height: 150px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: row;
+}
+
+.bossPage__BossPic {
+  border: 1px solid blue;
+}
+
+.bossPage__KeyDetails {
+  border: 1px solid green;
+}
+
+.bossPage__Controls {
+  @include panel;
+  height: 150px;
+  margin-bottom: 20px;
+}
+
+.bossPage__AttackTimeline {
+  @include panel;
+  height: 150px;
+  margin-bottom: 20px;
+}
+
+.bossPage__Replay {
+  @include panel;
+  height: 150px;
+  margin-bottom: 20px;
+}
+
+.bossPage__Graffs {
+  @include panel;
+  height: 150px;
+  margin-bottom: 20px;
+}

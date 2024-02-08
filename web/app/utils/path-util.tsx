@@ -13,3 +13,11 @@ export function Pathname({ children }) {
     </div>
   );
 }
+
+// Definitely not copied from somebody elses codebase by proxy
+// from the cursed AI that is making intellectual property ownership a thing of the past
+export function getOrdinal(n: number): string {
+  let s = ['th', 'st', 'nd', 'rd'],
+    v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
