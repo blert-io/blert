@@ -1,11 +1,28 @@
 import {
+  BloatSplits,
   Event,
   EventType,
+  MaidenCrabSpawn,
+  MaidenCrabSpawnEvent,
+  MaidenSplits,
+  Maze,
   Mode,
+  NyloSplits,
+  NyloWaveSpawnEvent,
+  PlayerDeathEvent,
   RaidStatus,
   Room,
   RoomStatus,
   RoomStatusEvent,
+  SoteMazeProcEvent,
+  SoteSplits,
+  VerzikPhase,
+  VerzikPhaseEvent,
+  VerzikRedsSpawnEvent,
+  VerzikSplits,
+  XarpusPhase,
+  XarpusPhaseEvent,
+  XarpusSplits,
 } from '@blert/common';
 import { RaidModel, RoomEvent } from '@blert/common';
 
@@ -71,6 +88,16 @@ export default class Raid {
   private room: Room;
   private roomTick: number;
   private roomEvents: Event[];
+  private deathsInRoom: string[];
+
+  private maidenSplits: MaidenSplits;
+  private bloatSplits: BloatSplits;
+  private nyloSplits: NyloSplits;
+  private soteSplits: SoteSplits;
+  private xarpusSplits: XarpusSplits;
+  private verzikSplits: VerzikSplits;
+
+  private verzikRedSpawns: number;
 
   public constructor(
     id: string,
@@ -91,6 +118,20 @@ export default class Raid {
     this.room = Room.MAIDEN;
     this.roomTick = 0;
     this.roomEvents = [];
+    this.deathsInRoom = [];
+
+    this.maidenSplits = {
+      [MaidenCrabSpawn.SEVENTIES]: 0,
+      [MaidenCrabSpawn.FIFTIES]: 0,
+      [MaidenCrabSpawn.THIRTIES]: 0,
+    };
+    this.bloatSplits = { downTicks: [] };
+    this.nyloSplits = { capIncrease: 0, waves: 0, cleanup: 0, boss: 0 };
+    this.soteSplits = { [Maze.MAZE_66]: 0, [Maze.MAZE_33]: 0 };
+    this.xarpusSplits = { exhumes: 0, screech: 0 };
+    this.verzikSplits = { p1: 0, reds: 0, p2: 0 };
+
+    this.verzikRedSpawns = 0;
   }
 
   public getId(): string {
@@ -151,6 +192,8 @@ export default class Raid {
           );
           return;
         }
+
+        await this.updateRaidStatus(event);
 
         // Batch and flush events once per tick to reduce database writes.
         if (event.tick == this.roomTick) {
@@ -215,6 +258,7 @@ export default class Raid {
         this.room = event.room;
         this.roomEvents = [];
         this.roomTick = 0;
+        this.deathsInRoom = [];
         break;
 
       case RoomStatus.WIPED:
@@ -229,11 +273,105 @@ export default class Raid {
         await Promise.all([
           this.updateDatabaseFields((record) => {
             record.totalRoomTicks += event.tick;
-            record.rooms[event.room!] = { roomTicks: event.tick };
+            record.totalDeaths += this.deathsInRoom.length;
+            record.rooms[event.room!] = {
+              roomTicks: event.tick,
+              deaths: this.deathsInRoom,
+            };
+
+            switch (this.room) {
+              case Room.MAIDEN:
+                record.rooms[Room.MAIDEN].splits = this.maidenSplits;
+                break;
+              case Room.BLOAT:
+                record.rooms[Room.BLOAT].splits = this.bloatSplits;
+                break;
+              case Room.NYLOCAS:
+                record.rooms[Room.NYLOCAS].splits = this.nyloSplits;
+                break;
+              case Room.SOTETSEG:
+                record.rooms[Room.SOTETSEG].splits = this.soteSplits;
+                break;
+              case Room.XARPUS:
+                record.rooms[Room.XARPUS].splits = this.xarpusSplits;
+                break;
+              case Room.VERZIK:
+                record.rooms[Room.VERZIK].splits = this.verzikSplits;
+                record.rooms[Room.VERZIK].redCrabSpawns = this.verzikRedSpawns;
+                break;
+            }
           }),
           this.flushRoomEvents(),
         ]);
 
+        break;
+    }
+  }
+
+  private async updateRaidStatus(event: Event): Promise<void> {
+    switch (event.type) {
+      case EventType.PLAYER_DEATH:
+        this.deathsInRoom.push((event as PlayerDeathEvent).player.name);
+        break;
+
+      case EventType.MAIDEN_CRAB_SPAWN:
+        const maidenCrabSpawnEvent = event as MaidenCrabSpawnEvent;
+        const spawn = maidenCrabSpawnEvent.maidenEntity.crab!.spawn;
+        if (this.maidenSplits[spawn] == 0) {
+          this.maidenSplits[spawn] = event.tick;
+        }
+        break;
+
+      case EventType.BLOAT_DOWN:
+        this.bloatSplits.downTicks.push(event.tick);
+        break;
+
+      case EventType.NYLO_WAVE_SPAWN:
+        const nyloWaveSpawnEvent = event as NyloWaveSpawnEvent;
+        if (nyloWaveSpawnEvent.nyloWave.wave === 20) {
+          this.nyloSplits.capIncrease = event.tick;
+        } else if (nyloWaveSpawnEvent.nyloWave.wave === 31) {
+          this.nyloSplits.waves = event.tick;
+        }
+        break;
+
+      case EventType.NYLO_CLEANUP_END:
+        this.nyloSplits.cleanup = event.tick;
+        break;
+
+      case EventType.NYLO_BOSS_SPAWN:
+        this.nyloSplits.boss = event.tick;
+        break;
+
+      case EventType.SOTE_MAZE_PROC:
+        const mazeProcEvent = event as SoteMazeProcEvent;
+        this.soteSplits[mazeProcEvent.soteMaze.maze] = event.tick;
+        break;
+
+      case EventType.XARPUS_PHASE:
+        const xarpusPhaseEvent = event as XarpusPhaseEvent;
+        if (xarpusPhaseEvent.xarpusPhase === XarpusPhase.P2) {
+          this.xarpusSplits.exhumes = event.tick;
+        } else if (xarpusPhaseEvent.xarpusPhase === XarpusPhase.P3) {
+          this.xarpusSplits.screech = event.tick;
+        }
+        break;
+
+      case EventType.VERZIK_PHASE:
+        const verzikPhaseEvent = event as VerzikPhaseEvent;
+        if (verzikPhaseEvent.verzikPhase === VerzikPhase.P2) {
+          this.verzikSplits.p1 = event.tick;
+        } else if (verzikPhaseEvent.verzikPhase === VerzikPhase.P3) {
+          this.verzikSplits.p2 = event.tick;
+        }
+        break;
+
+      case EventType.VERZIK_REDS_SPAWN:
+        this.verzikRedSpawns++;
+        if (this.verzikRedSpawns == 1) {
+          // First red spawn is recorded as a room split.
+          this.verzikSplits.reds = event.tick;
+        }
         break;
     }
   }
