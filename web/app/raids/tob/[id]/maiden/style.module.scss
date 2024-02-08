@@ -15,7 +15,7 @@
 }
 
 .bossPage__Overview {
-  border: 1px solid red;
+  //   border: 1px solid red;
   //   height: 150px;
   margin-bottom: 20px;
   display: flex;
@@ -23,11 +23,20 @@
 }
 
 .bossPage__BossPic {
-  border: 1px solid blue;
+  //   border: 1px solid blue;
 }
 
 .bossPage__KeyDetails {
-  border: 1px solid green;
+  //   border: 1px solid green;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+
+  h2 {
+    font-size: 35px;
+    margin: 0 20px;
+    border-bottom: 2px solid grey;
+  }
 }
 
 .bossPage__Controls {

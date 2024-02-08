@@ -36,11 +36,13 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
             <Image
               src="/maiden.webp"
               alt="Maiden of Sugadinti"
-              width={200}
-              height={200}
+              width={250}
+              height={250}
             />
           </div>
-          <div className={styles.bossPage__KeyDetails}></div>
+          <div className={styles.bossPage__KeyDetails}>
+            <h2>The Maiden of Sugondeez</h2>
+          </div>
         </div>
         <div className={styles.bossPage__Controls}></div>
         <div className={styles.bossPage__AttackTimeline}></div>
