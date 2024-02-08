@@ -68,6 +68,19 @@ const roomEventSchema = new Schema({
       scuffed: Boolean,
     },
   },
+  bloatStatus: {
+    walkTime: Number,
+  },
+  nyloWave: {
+    wave: Number,
+    nylosAlive: Number,
+    roomCap: Number,
+  },
+  soteMaze: {
+    maze: String,
+  },
+  xarpusPhase: String,
+  verzikPhase: String,
 });
 
 export const RoomEvent =

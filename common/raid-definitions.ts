@@ -5,13 +5,75 @@ export type Raid = {
   startTime: Date;
   party: string[];
   totalRoomTicks: number;
+  totalDeaths: number;
   rooms: {
-    [room in Room]?: RoomOverview;
+    [Room.MAIDEN]: MaidenOverview | null;
+    [Room.BLOAT]: BloatOverview | null;
+    [Room.NYLOCAS]: NyloOverview | null;
+    [Room.SOTETSEG]: SoteOverview | null;
+    [Room.XARPUS]: XarpusOverview | null;
+    [Room.VERZIK]: VerzikOverview | null;
   };
 };
 
-export type RoomOverview = {
+export interface RoomOverview {
   roomTicks: number;
+  deaths: string[];
+}
+
+export interface MaidenOverview extends RoomOverview {
+  splits: MaidenSplits;
+}
+
+export interface BloatOverview extends RoomOverview {
+  splits: BloatSplits;
+}
+
+export interface NyloOverview extends RoomOverview {
+  splits: NyloSplits;
+}
+
+export interface SoteOverview extends RoomOverview {
+  splits: SoteSplits;
+}
+
+export interface XarpusOverview extends RoomOverview {
+  splits: XarpusSplits;
+}
+
+export interface VerzikOverview extends RoomOverview {
+  redCrabSpawns: number;
+  splits: VerzikSplits;
+}
+
+export type MaidenSplits = {
+  [spawn in MaidenCrabSpawn]: number;
+};
+
+export type BloatSplits = {
+  downTicks: number[];
+};
+
+export type NyloSplits = {
+  capIncrease: number;
+  waves: number;
+  cleanup: number;
+  boss: number;
+};
+
+export type SoteSplits = {
+  [maze in Maze]: number;
+};
+
+export type XarpusSplits = {
+  exhumes: number;
+  screech: number;
+};
+
+export type VerzikSplits = {
+  p1: number;
+  reds: number;
+  p2: number;
 };
 
 export enum Room {
@@ -114,4 +176,25 @@ export enum MaidenCrabPosition {
   S3 = 'S3',
   S4_INNER = 'S4_INNER',
   S4_OUTER = 'S4_OUTER',
+}
+
+export enum Maze {
+  MAZE_66 = 'MAZE_66',
+  MAZE_33 = 'MAZE_33',
+}
+
+export enum XarpusPhase {
+  /** Exhumes */
+  P1 = 'P1',
+  /** Spitting acid */
+  P2 = 'P2',
+  /** Post screech staring */
+  P3 = 'P3',
+}
+
+export enum VerzikPhase {
+  IDLE = 'IDLE',
+  P1 = 'P1',
+  P2 = 'P2',
+  P3 = 'P3',
 }

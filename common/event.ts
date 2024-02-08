@@ -6,6 +6,9 @@ import {
   Room,
   RoomStatus,
   PlayerAttack,
+  Maze,
+  XarpusPhase,
+  VerzikPhase,
 } from './raid-definitions';
 
 export enum EventType {
@@ -15,9 +18,22 @@ export enum EventType {
   ROOM_STATUS = 'ROOM_STATUS',
   PLAYER_UPDATE = 'PLAYER_UPDATE',
   PLAYER_ATTACK = 'PLAYER_ATTACK',
+  PLAYER_DEATH = 'PLAYER_DEATH',
   NPC_UPDATE = 'NPC_UPDATE',
   MAIDEN_CRAB_SPAWN = 'MAIDEN_CRAB_SPAWN',
+  MAIDEN_CRAB_LEAK = 'MAIDEN_CRAB_LEAK',
   MAIDEN_BLOOD_SPLATS = 'MAIDEN_BLOOD_SPLATS',
+  BLOAT_DOWN = 'BLOAT_DOWN',
+  BLOAT_UP = 'BLOAT_UP',
+  NYLO_WAVE_SPAWN = 'NYLO_WAVE_SPAWN',
+  NYLO_WAVE_STALL = 'NYLO_WAVE_STALL',
+  NYLO_CLEANUP_END = 'NYLO_CLEANUP_END',
+  NYLO_BOSS_SPAWN = 'NYLO_BOSS_SPAWN',
+  SOTE_MAZE_PROC = 'SOTE_MAZE_PROC',
+  SOTE_MAZE_PATH = 'SOTE_MAZE_PATH',
+  VERZIK_PHASE = 'VERZIK_PHASE',
+  VERZIK_REDS_SPAWN = 'VERZIK_REDS_SPAWN',
+  XARPUS_PHASE = 'XARPUS_PHASE',
 }
 
 export interface Event {
@@ -55,6 +71,11 @@ export interface PlayerAttackEvent extends Event {
   attack: Attack;
 }
 
+export interface PlayerDeathEvent extends Event {
+  type: EventType.PLAYER_UPDATE;
+  player: Player;
+}
+
 export interface NpcUpdateEvent extends Event {
   type: EventType.NPC_UPDATE;
   npc: Npc;
@@ -68,6 +89,41 @@ export interface MaidenCrabSpawnEvent extends Event {
 export interface MaidenBloodSplatsEvent extends Event {
   type: EventType.MAIDEN_CRAB_SPAWN;
   maidenEntity: MaidenEntity;
+}
+
+export interface BloatDownEvent extends Event {
+  type: EventType.BLOAT_DOWN;
+  bloatStatus: BloatStatus;
+}
+
+export interface NyloWaveSpawnEvent extends Event {
+  type: EventType.NYLO_WAVE_SPAWN;
+  nyloWave: NyloWave;
+}
+
+export interface NyloWaveStallEvent extends Event {
+  type: EventType.NYLO_WAVE_SPAWN;
+  nyloWave: NyloWave;
+}
+
+export interface SoteMazeProcEvent extends Event {
+  type: EventType.NYLO_WAVE_SPAWN;
+  soteMaze: SoteMaze;
+}
+
+export interface XarpusPhaseEvent extends Event {
+  type: EventType.XARPUS_PHASE;
+  xarpusPhase: XarpusPhase;
+}
+
+export interface VerzikPhaseEvent extends Event {
+  type: EventType.VERZIK_PHASE;
+  verzikPhase: VerzikPhase;
+}
+
+export interface VerzikRedsSpawnEvent extends Event {
+  type: EventType.VERZIK_REDS_SPAWN;
+  verzikPhase: VerzikPhase;
 }
 
 export type RaidInfo = {
@@ -132,4 +188,18 @@ export type MaidenCrab = {
   spawn: MaidenCrabSpawn;
   position: MaidenCrabPosition;
   scuffed: boolean;
+};
+
+export type BloatStatus = {
+  walkTime: number;
+};
+
+export type NyloWave = {
+  wave: number;
+  nylosAlive: number;
+  roomCap: number;
+};
+
+export type SoteMaze = {
+  maze: Maze;
 };
