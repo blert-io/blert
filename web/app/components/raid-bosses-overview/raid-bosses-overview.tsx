@@ -22,10 +22,12 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
   const xarpusDataExists = rooms[Room.XARPUS] !== null;
   const verzikDataExists = rooms[Room.VERZIK] !== null;
 
+  console.log(rooms);
+
   return (
     <div className={styles.raid__Bosses}>
       {maidenDataExists && (
-        <Link href={`/raids/tob/${raidId}/maiden`}>
+        <Link href={`/raids/tob//${raidId}/maiden`}>
           <div className={styles.raid__Boss}>
             <div className={styles.raid__BossImg}>
               <Image
@@ -33,7 +35,12 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                 alt="maiden"
                 height={130}
                 width={130}
-                style={{ position: 'relative', top: '30px', left: '22px' }}
+                style={{
+                  position: 'relative',
+                  top: '120px',
+                  left: '50px',
+                  transform: 'scale(2)',
+                }}
               />
             </div>
             <div className={styles.raid__Divider}></div>
@@ -60,7 +67,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     ></i>
                     70s:
                   </strong>{' '}
-                  {ticksToFormattedSeconds(Math.floor(Math.random() * 100))}
+                  {ticksToFormattedSeconds(5)}
                 </div>
                 <div className={styles.raid__RoomBadge}>
                   <strong>
@@ -70,7 +77,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     ></i>
                     50s:
                   </strong>{' '}
-                  {ticksToFormattedSeconds(Math.floor(Math.random() * 200))}
+                  {ticksToFormattedSeconds(5)}
                 </div>
                 <div className={styles.raid__RoomBadge}>
                   <strong>
@@ -80,7 +87,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     ></i>
                     30s:
                   </strong>{' '}
-                  {ticksToFormattedSeconds(Math.floor(Math.random() * 300))}
+                  {ticksToFormattedSeconds(5)}
                 </div>
               </div>
             </div>
@@ -89,7 +96,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
       )}
 
       {bloatDataExists && (
-        <Link href={`/raids/tob/${raidId}/bloat`}>
+        <Link href={`/raids/tob//${raidId}/bloat`}>
           <div className={styles.raid__Boss}>
             <div className={styles.raid__BossImg}>
               <Image
@@ -163,7 +170,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
       )}
 
       {nyloDataExists && (
-        <Link href={`/raids/tob/${raidId}/nylocas`}>
+        <Link href={`/raids/tob//${raidId}/nylocas`}>
           <div className={styles.raid__Boss}>
             <div className={styles.raid__BossImg}>
               <Image
@@ -237,7 +244,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
       )}
 
       {soteDataExists && (
-        <Link href={`/raids/tob/${raidId}/sotetseg`}>
+        <Link href={`/raids/tob//${raidId}/sotetseg`}>
           <div className={styles.raid__Boss}>
             <div className={styles.raid__BossImg}>
               <Image
@@ -295,7 +302,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
       )}
 
       {xarpusDataExists && (
-        <Link href={`/raids/tob/${raidId}/xarpus`}>
+        <Link href={`/raids/tob//${raidId}/xarpus`}>
           <div className={styles.raid__Boss}>
             <div className={styles.raid__BossImg}>
               <Image
@@ -353,7 +360,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
       )}
 
       {verzikDataExists && (
-        <Link href={`/raids/tob/${raidId}/verzik`}>
+        <Link href={`/raids/tob//${raidId}/verzik`}>
           <div className={styles.raid__Boss}>
             <div className={styles.raid__BossImg}>
               <Image

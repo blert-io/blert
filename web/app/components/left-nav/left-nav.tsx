@@ -13,7 +13,11 @@ import { usePathname } from 'next/navigation';
 export function LeftNav() {
   const currentPath = usePathname();
 
-  console.log('@@@', currentPath);
+  // viewingTob is determined by if the current path matches the following: /raids/tob/{a guid}
+  const viewingTob = currentPath.match(/\/raids\/tob\/[a-zA-Z0-9-]+/);
+
+  // now grab just that portion of the path into a new string
+  const currentPathForRaid = currentPath.split('/').slice(0, 4).join('/');
 
   return (
     <div className={styles.leftNav}>
@@ -29,6 +33,7 @@ export function LeftNav() {
       </div>
 
       <ul className={styles.leftNav__menu}>
+        {/* Home */}
         <li className={styles.leftNav__menuItem}>
           <Link className={`${styles.leftNav__menuItemInner}`} href="/raids">
             <div className={styles.leftNav__menuItemIcon}>
@@ -39,6 +44,7 @@ export function LeftNav() {
           </Link>
         </li>
 
+        {/* Search */}
         <li className={styles.leftNav__menuItem}>
           <Link className={`${styles.leftNav__menuItemInner}`} href="/raids">
             <div className={styles.leftNav__menuItemIcon}>
@@ -51,9 +57,10 @@ export function LeftNav() {
 
         <div className={styles.leftNav__menuDivider}></div>
 
+        {/* ToB */}
         <li className={styles.leftNav__menuItem}>
           <Link
-            className={`${styles.leftNav__menuItemInner}`}
+            className={`${styles.leftNav__menuItemInner} ${viewingTob && styles.leftNav__menuItemInnerActive}`}
             href="/raids/tob"
           >
             <div className={styles.leftNav__menuItemIcon}>
@@ -68,6 +75,30 @@ export function LeftNav() {
           </Link>
         </li>
 
+        {viewingTob && (
+          <li className={styles.leftNav__subMenu}>
+            <Link href={currentPathForRaid + '/maiden'}>
+              <div className={styles.leftNav__subMenuItem}>Maiden</div>
+            </Link>
+            <Link href={currentPathForRaid + '/bloat'}>
+              <div className={styles.leftNav__subMenuItem}>Blert</div>
+            </Link>
+            <Link href={currentPathForRaid + '/nylocas'}>
+              <div className={styles.leftNav__subMenuItem}>Nylocas</div>
+            </Link>
+            <Link href={currentPathForRaid + '/sotetseg'}>
+              <div className={styles.leftNav__subMenuItem}>Sotetseg</div>
+            </Link>
+            <Link href={currentPathForRaid + '/xarpus'}>
+              <div className={styles.leftNav__subMenuItem}>Xarpus</div>
+            </Link>
+            <Link href={currentPathForRaid + '/verzik'}>
+              <div className={styles.leftNav__subMenuItem}>Verzik</div>
+            </Link>
+          </li>
+        )}
+
+        {/* CoX */}
         <li className={styles.leftNav__menuItem}>
           <Link
             className={`${styles.leftNav__menuItemInner}`}
@@ -85,6 +116,7 @@ export function LeftNav() {
           </Link>
         </li>
 
+        {/* ToA */}
         <li className={styles.leftNav__menuItem}>
           <Link
             className={`${styles.leftNav__menuItemInner}`}
@@ -104,6 +136,7 @@ export function LeftNav() {
 
         <div className={styles.leftNav__menuDividerTwo}></div>
 
+        {/* Players */}
         <li className={styles.leftNav__menuItem}>
           <Link className={`${styles.leftNav__menuItemInner}`} href="/players">
             <div className={styles.leftNav__menuItemIcon}>
@@ -118,6 +151,7 @@ export function LeftNav() {
           </Link>
         </li>
 
+        {/* Trends */}
         <li className={styles.leftNav__menuItem}>
           <Link className={`${styles.leftNav__menuItemInner}`} href="/trends">
             <div className={styles.leftNav__menuItemIcon}>
@@ -128,6 +162,7 @@ export function LeftNav() {
           </Link>
         </li>
 
+        {/* Account */}
         <li className={styles.leftNav__menuItem}>
           <Link className={`${styles.leftNav__menuItemInner}`} href="/account">
             <div className={styles.leftNav__menuItemIcon}>
