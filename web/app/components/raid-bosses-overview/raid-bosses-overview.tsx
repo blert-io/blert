@@ -85,15 +85,15 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
           <div className={styles.raid__Boss}>
             <div className={styles.raid__BossImg}>
               <Image
+                className={styles.raid__BossImgActual}
                 src="/maiden.webp"
                 alt="maiden"
-                height={130}
-                width={130}
+                fill
                 style={{
-                  position: 'relative',
-                  top: '120px',
-                  left: '50px',
-                  transform: 'scale(2)',
+                  transform: 'scale(3)',
+                  objectFit: 'contain',
+                  top: '100px',
+                  left: '30px',
                 }}
               />
             </div>
@@ -171,9 +171,13 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
               <Image
                 src="/bloat.webp"
                 alt="bloat"
-                height={145}
-                width={145}
-                style={{ position: 'relative', top: '35px', left: '10px' }}
+                fill
+                style={{
+                  transform: 'scale(2)',
+                  objectFit: 'contain',
+                  top: '50px',
+                  left: '10px',
+                }}
               />
             </div>
             <div className={styles.raid__Divider}></div>
@@ -207,9 +211,13 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
               <Image
                 src="/nyloking.webp"
                 alt="nyloking"
-                height={155}
-                width={155}
-                style={{ position: 'relative', left: '5px' }}
+                fill
+                style={{
+                  transform: 'scale(2)',
+                  objectFit: 'contain',
+                  top: '10px',
+                  left: '5px',
+                }}
               />
             </div>
             <div className={styles.raid__Divider}></div>
@@ -287,12 +295,12 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
               <Image
                 src="/sote.webp"
                 alt="sotetseg"
-                height={190}
-                width={190}
+                fill
                 style={{
-                  position: 'relative',
+                  transform: 'scale(1.25)',
+                  objectFit: 'contain',
+                  top: '0px',
                   left: '5px',
-                  transform: `scale(1.2)`,
                 }}
               />
             </div>
@@ -348,12 +356,12 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
               <Image
                 src="/xarpus.webp"
                 alt="xarpus"
-                height={185}
-                width={185}
+                fill
                 style={{
-                  position: 'relative',
-                  left: '12px',
-                  transform: `scale(1.2)`,
+                  transform: 'scale(1.5)',
+                  objectFit: 'contain',
+                  top: '0px',
+                  left: '15px',
                 }}
               />
             </div>
@@ -409,12 +417,12 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
               <Image
                 src="/verzik.webp"
                 alt="verzik"
-                height={180}
-                width={180}
+                fill
                 style={{
-                  transform: `scale(1.15)`,
-                  position: 'relative',
-                  left: '8px',
+                  transform: 'scale(1.65)',
+                  objectFit: 'contain',
+                  top: '10px',
+                  left: '10px',
                 }}
               />
             </div>

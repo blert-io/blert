@@ -1,0 +1,96 @@
+@import '../../mixins.scss';
+
+.controls {
+  @include panel;
+  display: flex;
+  margin: 10px 0;
+  transform: scale(1.1);
+  padding: 10px 20px;
+  margin-bottom: 30px;
+}
+
+@mixin controlBtn {
+  font-size: 35px;
+  height: 40px;
+  width: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 15px;
+  border: none;
+  outline: none;
+  border-radius: 5px;
+  background: none;
+  opacity: 0.7;
+  box-shadow: 0 0 2px 0 rgba(195, 199, 201, 0.5);
+  cursor: pointer;
+  transition: all 100ms ease;
+
+  &:hover {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+
+  &:active {
+    transform: scale(1);
+  }
+
+  &:disabled {
+    transform: scale(1);
+    opacity: 0.25;
+    cursor: default;
+  }
+}
+
+.controls_BtnIcon {
+  color: var(--blert-text-color);
+}
+
+.controls__tickInput {
+  outline: none !important;
+  background-color: #0f1015;
+  color: rgba(195, 199, 201, 1);
+  outline: none;
+  border: none;
+  border-radius: 5px;
+  margin-right: 20px;
+  width: 75px;
+  font-size: 26px;
+  text-align: center;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.controls__tickInputLabel {
+  width: 145px;
+  font-size: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.controls__tickInput::-webkit-outer-spin-button,
+.controls__tickInput::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.controls__playButton {
+  @include controlBtn;
+}
+
+.controls__pauseButton {
+  @include controlBtn;
+}
+
+.controls__restartButton {
+  @include controlBtn;
+}
+
+.controls__roomActor {
+  width: 150px;
+  border: 1px solid red;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

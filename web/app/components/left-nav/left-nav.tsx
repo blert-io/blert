@@ -22,12 +22,15 @@ export function LeftNav() {
   return (
     <div className={styles.leftNav}>
       <div className={styles.leftNav__logo}>
-        <Link href="/">
+        <Link
+          href="/"
+          style={{ width: '200px', position: 'relative', height: '150px' }}
+        >
           <Image
             src="/blert-topbar.png"
             alt="blert logo"
-            height={200}
-            width={200}
+            fill
+            style={{ objectFit: 'contain' }}
           />
         </Link>
       </div>
@@ -36,8 +39,20 @@ export function LeftNav() {
         {/* Home */}
         <li className={styles.leftNav__menuItem}>
           <Link className={`${styles.leftNav__menuItemInner}`} href="/raids">
-            <div className={styles.leftNav__menuItemIcon}>
-              <Image src="/home.webp" alt="home icon" height={35} width={35} />
+            <div
+              className={styles.leftNav__menuItemIcon}
+              style={{
+                width: '40px',
+                position: 'relative',
+                height: '40px',
+              }}
+            >
+              <Image
+                src="/home.webp"
+                alt="home icon"
+                fill
+                style={{ objectFit: 'contain' }}
+              />
             </div>
 
             <span className="active">Home</span>
@@ -63,12 +78,19 @@ export function LeftNav() {
             className={`${styles.leftNav__menuItemInner} ${viewingTob && styles.leftNav__menuItemInnerActive}`}
             href="/raids/tob"
           >
-            <div className={styles.leftNav__menuItemIcon}>
+            <div
+              className={styles.leftNav__menuItemIcon}
+              style={{
+                width: '40px',
+                position: 'relative',
+                height: '40px',
+              }}
+            >
               <Image
                 src="/logo_tob.webp"
                 alt="tob icon"
-                height={40}
-                width={40}
+                fill
+                style={{ objectFit: 'contain' }}
               />
             </div>
             <span className="active">ToB</span>
@@ -128,12 +150,19 @@ export function LeftNav() {
             className={`${styles.leftNav__menuItemInner}`}
             href="/raids/cox"
           >
-            <div className={styles.leftNav__menuItemIcon}>
+            <div
+              className={styles.leftNav__menuItemIcon}
+              style={{
+                width: '40px',
+                position: 'relative',
+                height: '40px',
+              }}
+            >
               <Image
                 src="/logo_cox.webp"
                 alt="cox icon"
-                height={40}
-                width={40}
+                fill
+                style={{ objectFit: 'contain' }}
               />
             </div>
             <span className="active">CoX</span>
@@ -146,12 +175,19 @@ export function LeftNav() {
             className={`${styles.leftNav__menuItemInner}`}
             href="/raids/toa"
           >
-            <div className={styles.leftNav__menuItemIcon}>
+            <div
+              className={styles.leftNav__menuItemIcon}
+              style={{
+                width: '40px',
+                position: 'relative',
+                height: '40px',
+              }}
+            >
               <Image
                 src="/logo_toa.webp"
                 alt="toa icon"
-                height={40}
-                width={40}
+                fill
+                style={{ objectFit: 'contain' }}
               />
             </div>
             <span className="active">ToA</span>
@@ -159,21 +195,6 @@ export function LeftNav() {
         </li>
 
         <div className={styles.leftNav__menuDividerTwo}></div>
-
-        {/* Players */}
-        {/* <li className={styles.leftNav__menuItem}>
-          <Link className={`${styles.leftNav__menuItemInner}`} href="/players">
-            <div className={styles.leftNav__menuItemIcon}>
-              <Image
-                className={styles.leftNav__playerIcon}
-                src={playerImg}
-                alt="player icon"
-              />
-            </div>
-
-            <span className="active">Players</span>
-          </Link>
-        </li> */}
 
         {/* Trends */}
         <li className={styles.leftNav__menuItem}>

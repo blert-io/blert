@@ -67,20 +67,21 @@ export interface RoomStatusEvent extends Event {
   roomStatus: RoomStatus;
 }
 
-export interface PlayerUpdateEvent extends Event {
-  type: EventType.PLAYER_UPDATE;
+export interface PlayerEvent extends Event {
   player: Player;
 }
 
-export interface PlayerAttackEvent extends Event {
+export interface PlayerUpdateEvent extends PlayerEvent {
+  type: EventType.PLAYER_UPDATE;
+}
+
+export interface PlayerAttackEvent extends PlayerEvent {
   type: EventType.PLAYER_ATTACK;
-  player: Player;
   attack: Attack;
 }
 
-export interface PlayerDeathEvent extends Event {
+export interface PlayerDeathEvent extends PlayerEvent {
   type: EventType.PLAYER_UPDATE;
-  player: Player;
 }
 
 export interface NpcSpawnEvent extends Event {

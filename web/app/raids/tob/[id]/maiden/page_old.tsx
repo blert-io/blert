@@ -134,12 +134,6 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
   const [hoveredPlayer, setHoveredPlayer] = useState('');
   const [selectedEntity, setSelectedEntity] = useState('');
 
-  let tickTimeout = useRef<number | undefined>(undefined);
-  const clearTimeout = () => {
-    window.clearTimeout(tickTimeout.current);
-    tickTimeout.current = undefined;
-  };
-
   const [eventsByTick, eventsByType] = useMemo(
     () => buildEventMaps(events),
     [events],
@@ -149,38 +143,6 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
 
   const lastTick = events[events.length - 1]?.tick ?? 0;
   const isLastTick = tick >= lastTick;
-
-  useEffect(() => {
-    if (playback === Playback.PLAYING) {
-      if (tick < lastTick) {
-        tickTimeout.current = window.setTimeout(
-          () => setTick(tick + 1),
-          TICK_MS,
-        );
-      } else {
-        clearTimeout();
-        setPlayback(Playback.STOPPED);
-      }
-    }
-  }, [tick, lastTick, playback]);
-
-  // onclick handler for the play/pause button.
-  const onPlayPauseClick = useCallback(() => {
-    switch (playback) {
-      case Playback.PLAYING:
-        clearTimeout();
-        setPlayback(Playback.PAUSED);
-        break;
-      case Playback.STOPPED:
-        if (isLastTick) {
-          setTick(1);
-        }
-      // fallthrough
-      case Playback.PAUSED:
-        setPlayback(Playback.PLAYING);
-        break;
-    }
-  }, [playback, isLastTick]);
 
   const onTickSelected = useCallback(
     (tick: number) => {

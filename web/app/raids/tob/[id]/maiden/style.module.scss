@@ -8,10 +8,13 @@
   width: var(--width);
   align-items: center;
   padding-top: 20px;
+  margin-bottom: 1000px;
 }
 
 .bossPage__Inner {
   width: 900px;
+  display: flex;
+  flex-direction: column;
 }
 
 .bossPage__Overview {
@@ -23,7 +26,10 @@
 }
 
 .bossPage__BossPic {
-  //   border: 1px solid blue;
+  height: 200px;
+  width: 240px;
+  position: relative;
+  margin: 20px;
 }
 
 .bossPage__KeyDetails {

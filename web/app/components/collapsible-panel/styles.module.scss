@@ -1,0 +1,46 @@
+@import '../../mixins.scss';
+
+.collapsiblePanel {
+  @include panel;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 20px;
+}
+
+.collapsiblePanelHeader {
+  border-top-left-radius: 5px;
+  border-top-right-radius: 5px;
+  background-color: #23242f;
+  cursor: pointer;
+}
+
+.collapsiblePanelTitle {
+  font-size: 24px;
+  padding: 5px 15px;
+  user-select: none;
+}
+
+.collapsiblePanelIcon {
+  padding: 5px 10px 10px 10px;
+  transition: transform 300ms ease;
+  transform-origin: center center;
+}
+
+.collapsiblePanelIcon.collapsiblePanelIconExpanded {
+  transform: rotate(180deg);
+}
+
+.collapsiblePanelIcon.collapsiblePanelIconCollapsed {
+  transform: rotate(0deg);
+}
+
+.collapsiblePanelContents {
+  transition: max-height 300ms ease;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.collapsiblePanelContents.collapsiblePanelContentsCollapsed {
+  max-height: 0;
+}

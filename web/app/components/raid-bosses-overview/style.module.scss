@@ -2,6 +2,7 @@
 
 .raid__Bosses {
   position: relative;
+  padding-bottom: 100px;
 }
 
 .raid__Boss {
@@ -27,6 +28,12 @@
 
 .raid__BossImg {
   width: 200px;
+  position: relative;
+  height: 100px;
+}
+
+.raid__BossImgActual {
+  position: relative;
 }
 
 .raid__Divider {

@@ -9,8 +9,8 @@ export function RaidLogo() {
         className={styles.raid__Logo}
         src="/logo_tob.webp"
         alt="tob icon"
-        height={200}
-        width={200}
+        fill
+        style={{ objectFit: 'cover' }}
       />
     </div>
   );
