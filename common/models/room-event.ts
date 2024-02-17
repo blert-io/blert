@@ -1,18 +1,10 @@
 import { Schema, model, models } from 'mongoose';
-
-import { Event, EventType } from '../event';
-import { Room } from '../raid-definitions';
+import { Coords, MaidenCrabProperties, NyloProperties } from './raid';
 
 const SkillLevel = {
   skill: String,
   base: Number,
   current: Number,
-};
-
-const Coords = {
-  _id: false,
-  x: Number,
-  y: Number,
 };
 
 const Item = {
@@ -48,9 +40,18 @@ const roomEventSchema = new Schema({
     offCooldownTick: Number,
   },
   npc: {
+    type: { type: String },
     id: Number,
     roomId: Number,
     hitpoints: SkillLevel,
+    maidenCrab: {
+      type: MaidenCrabProperties,
+      default: undefined,
+    },
+    nylo: {
+      type: NyloProperties,
+      default: undefined,
+    },
   },
   attack: {
     type: { type: String },
@@ -60,13 +61,9 @@ const roomEventSchema = new Schema({
       roomId: Number,
     },
   },
-  maidenEntity: {
-    bloodSplats: [Coords],
-    crab: {
-      spawn: String,
-      position: String,
-      scuffed: Boolean,
-    },
+  maidenBloodSplats: {
+    type: [Coords],
+    default: undefined,
   },
   bloatStatus: {
     walkTime: Number,

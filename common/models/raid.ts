@@ -1,9 +1,52 @@
 import { Schema, model, models } from 'mongoose';
 
+export const Coords = {
+  _id: false,
+  x: Number,
+  y: Number,
+};
+
+export const MaidenCrabProperties = {
+  _id: false,
+  spawn: String,
+  position: String,
+  scuffed: Boolean,
+};
+
+export const NyloProperties = {
+  _id: false,
+  parentRoomId: Number,
+  wave: Number,
+  style: String,
+  spawnType: String,
+};
+
+const RoomNpc = {
+  type: { type: String },
+  roomId: Number,
+  spawnNpcId: Number,
+  spawnTick: Number,
+  spawnPoint: Coords,
+  deathTick: Number,
+  deathPoint: Coords,
+  maidenCrab: {
+    type: MaidenCrabProperties,
+    default: undefined,
+  },
+  nylo: {
+    type: NyloProperties,
+    default: undefined,
+  },
+};
+
 const RoomOverview = {
   _id: false,
   roomTicks: Number,
   deaths: [String],
+  npcs: {
+    type: Map,
+    of: RoomNpc,
+  },
 };
 
 const raidSchema = new Schema({

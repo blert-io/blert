@@ -1,7 +1,7 @@
 import {
   MaidenCrabPosition,
   MaidenCrabSpawn,
-  MaidenCrabSpawnEvent,
+  NpcSpawnEvent,
 } from '@blert/common';
 import { useState } from 'react';
 
@@ -9,7 +9,7 @@ import styles from './style.module.css';
 import { ticksToFormattedSeconds } from '../../../../utils/tick';
 
 type CrabSpawnProps = {
-  crabs: MaidenCrabSpawnEvent[];
+  crabs: NpcSpawnEvent[];
   tickDiff?: number;
 };
 
@@ -29,13 +29,13 @@ export function CrabSpawn({ crabs, tickDiff }: CrabSpawnProps) {
   const spawns: { [spawn: string]: boolean } = crabs.reduce(
     (prev, crab) => ({
       ...prev,
-      [crab.maidenEntity.crab?.position as string]: true,
+      [crab.npc.maidenCrab!.position as string]: true,
     }),
     {},
   );
 
-  const spawn = crabs[0].maidenEntity.crab!.spawn;
-  const scuffed = crabs[0].maidenEntity.crab!.scuffed;
+  const spawn = crabs[0].npc.maidenCrab!.spawn;
+  const scuffed = crabs[0].npc.maidenCrab!.scuffed;
 
   return (
     <div className={styles.event}>

@@ -1,3 +1,5 @@
+import { Coords } from './event';
+
 export type Raid = {
   _id: string;
   status: RaidStatus;
@@ -21,6 +23,7 @@ export type Rooms = {
 export interface RoomOverview {
   roomTicks: number;
   deaths: string[];
+  npcs: Map<String, RoomNpc>;
 }
 
 export interface MaidenOverview extends RoomOverview {
@@ -110,10 +113,69 @@ export enum RaidStatus {
 }
 
 export enum RoomStatus {
+  ENTERED = 'ENTERED',
   STARTED = 'STARTED',
   COMPLETED = 'COMPLETED',
   WIPED = 'WIPED',
 }
+
+export enum RoomNpcType {
+  BASIC = 'BASIC',
+  MAIDEN_CRAB = 'MAIDEN_CRAB',
+  NYLO = 'NYLO',
+}
+
+export interface RoomNpc {
+  /** Unique identifier for the NPC within its room. */
+  roomId: number;
+
+  /**
+   * Runescape NPC ID of the NPC at the time that it spawned.
+   * The NPC ID may change throughout an NPC's lifetime; `NPC_UPDATE` events for
+   * this NPC's `roomId` will reflect this.
+   */
+  spawnNpcId: number;
+
+  spawnTick: number;
+  spawnPoint: Coords;
+  deathTick: number;
+  deathPoint: Coords;
+
+  type: RoomNpcType;
+}
+
+export interface MaidenCrab extends RoomNpc {
+  type: RoomNpcType.MAIDEN_CRAB;
+  maidenCrab: MaidenCrabProperties;
+}
+
+export type MaidenCrabProperties = {
+  spawn: MaidenCrabSpawn;
+  position: MaidenCrabPosition;
+  scuffed: boolean;
+};
+
+export interface Nylo extends RoomNpc {
+  type: RoomNpcType.NYLO;
+  nylo: NyloProperties;
+}
+
+export type NyloProperties = {
+  /**
+   * Room ID of the big nylo which spawned this nylo split, or 0 if this nylo
+   * is a spawn.
+   */
+  parentRoomId: number;
+
+  /** Wave on which the nylo spawned. */
+  wave: number;
+
+  /** Attack style of the nylo when it spawned. */
+  style: NyloStyle;
+
+  /** Spawn location of the nylo. */
+  spawnType: NyloSpawn;
+};
 
 export enum Skill {
   HITPOINTS,
@@ -151,6 +213,7 @@ export enum PlayerAttack {
   SHADOW = 'SHADOW',
   SHADOW_BARRAGE = 'SHADOW_BARRAGE',
   SWIFT = 'SWIFT',
+  TENT_WHIP = 'TENT_WHIP',
   TOXIC_TRIDENT = 'TOXIC_TRIDENT',
   TOXIC_TRIDENT_BARRAGE = 'TOXIC_TRIDENT_BARRAGE',
   TOXIC_STAFF_BARRAGE = 'TOXIC_STAFF_BARRAGE',
@@ -178,6 +241,19 @@ export enum MaidenCrabPosition {
   S3 = 'S3',
   S4_INNER = 'S4_INNER',
   S4_OUTER = 'S4_OUTER',
+}
+
+export enum NyloStyle {
+  MELEE = 'MELEE',
+  RANGE = 'RANGE',
+  MAGE = 'MAGE',
+}
+
+export enum NyloSpawn {
+  EAST = 'EAST',
+  SOUTH = 'SOUTH',
+  WEST = 'WEST',
+  SPLIT = 'SPLIT',
 }
 
 export enum Maze {

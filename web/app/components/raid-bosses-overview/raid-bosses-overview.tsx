@@ -113,7 +113,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                 {ticksToFormattedSeconds(rooms[Room.MAIDEN]!.roomTicks)}
               </h4>
               <div className={styles.raid__RoomBadges}>
-                {maiden.splits[MaidenCrabSpawn.SEVENTIES] !== 0 && (
+                {maiden!.splits[MaidenCrabSpawn.SEVENTIES] !== 0 && (
                   <div className={styles.raid__RoomBadge}>
                     <strong>
                       <i
@@ -123,11 +123,11 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                       70s:
                     </strong>{' '}
                     {ticksToFormattedSeconds(
-                      maiden.splits[MaidenCrabSpawn.SEVENTIES],
+                      maiden!.splits[MaidenCrabSpawn.SEVENTIES],
                     )}
                   </div>
                 )}
-                {maiden.splits[MaidenCrabSpawn.FIFTIES] !== 0 && (
+                {maiden!.splits[MaidenCrabSpawn.FIFTIES] !== 0 && (
                   <div className={styles.raid__RoomBadge}>
                     <strong>
                       <i
@@ -137,11 +137,11 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                       50s:
                     </strong>{' '}
                     {ticksToFormattedSeconds(
-                      maiden.splits[MaidenCrabSpawn.FIFTIES],
+                      maiden!.splits[MaidenCrabSpawn.FIFTIES],
                     )}
                   </div>
                 )}
-                {maiden.splits[MaidenCrabSpawn.THIRTIES] !== 0 && (
+                {maiden!.splits[MaidenCrabSpawn.THIRTIES] !== 0 && (
                   <div className={styles.raid__RoomBadge}>
                     <strong>
                       <i
@@ -151,7 +151,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                       30s:
                     </strong>{' '}
                     {ticksToFormattedSeconds(
-                      maiden.splits[MaidenCrabSpawn.THIRTIES],
+                      maiden!.splits[MaidenCrabSpawn.THIRTIES],
                     )}
                   </div>
                 )}
@@ -236,7 +236,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     ></i>
                     Cap:
                   </strong>{' '}
-                  {ticksToFormattedSeconds(nylo.splits.capIncrease)}
+                  {ticksToFormattedSeconds(nylo!.splits.capIncrease)}
                 </div>
 
                 <div className={styles.raid__RoomBadge}>
@@ -247,7 +247,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     ></i>
                     Waves:
                   </strong>{' '}
-                  {ticksToFormattedSeconds(nylo.splits.waves)}
+                  {ticksToFormattedSeconds(nylo!.splits.waves)}
                 </div>
 
                 <div className={styles.raid__RoomBadge}>
@@ -258,7 +258,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     ></i>
                     Cleanup:
                   </strong>{' '}
-                  {ticksToFormattedSeconds(nylo.splits.cleanup)}
+                  {ticksToFormattedSeconds(nylo!.splits.cleanup)}
                 </div>
 
                 <div className={styles.raid__RoomBadge}>
@@ -269,7 +269,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     ></i>
                     Boss:
                   </strong>{' '}
-                  {ticksToFormattedSeconds(nylo.splits.boss)}
+                  {ticksToFormattedSeconds(nylo!.splits.boss)}
                 </div>
               </div>
             </div>
@@ -320,7 +320,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     ></i>
                     66%:
                   </strong>{' '}
-                  {ticksToFormattedSeconds(sote.splits.MAZE_66)}
+                  {ticksToFormattedSeconds(sote!.splits.MAZE_66)}
                 </div>
                 <div className={styles.raid__RoomBadge}>
                   <strong>
@@ -330,7 +330,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     ></i>
                     33%:
                   </strong>{' '}
-                  {ticksToFormattedSeconds(sote.splits.MAZE_33)}
+                  {ticksToFormattedSeconds(sote!.splits.MAZE_33)}
                 </div>
               </div>
             </div>
@@ -370,7 +370,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     fontSize: '18px',
                   }}
                 ></i>
-                {ticksToFormattedSeconds(rooms[Room.XARPUS]!.roomTicks)}
+                {ticksToFormattedSeconds(xarpus!.roomTicks)}
               </h4>
               <div className={styles.raid__RoomBadges}>
                 <div className={styles.raid__RoomBadge}>
@@ -381,7 +381,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     ></i>
                     Exhumeds:
                   </strong>{' '}
-                  {ticksToFormattedSeconds(xarpus.splits.exhumes)}
+                  {ticksToFormattedSeconds(xarpus!.splits.exhumes)}
                 </div>
                 <div className={styles.raid__RoomBadge}>
                   <strong>
@@ -391,7 +391,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     ></i>
                     Screech:
                   </strong>{' '}
-                  {ticksToFormattedSeconds(xarpus.splits.screech)}
+                  {ticksToFormattedSeconds(xarpus!.splits.screech)}
                 </div>
               </div>
             </div>
@@ -431,7 +431,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     fontSize: '18px',
                   }}
                 ></i>
-                {ticksToFormattedSeconds(rooms[Room.VERZIK]!.roomTicks)}
+                {ticksToFormattedSeconds(verzik!.roomTicks)}
               </h4>
               <div className={styles.raid__RoomBadges}>
                 <div className={styles.raid__RoomBadge}>
@@ -442,7 +442,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     ></i>
                     P1:
                   </strong>{' '}
-                  {ticksToFormattedSeconds(verzik.splits.p1)}
+                  {ticksToFormattedSeconds(verzik!.splits.p1)}
                 </div>
                 <div className={styles.raid__RoomBadge}>
                   <strong>
@@ -452,7 +452,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     ></i>
                     Reds:
                   </strong>{' '}
-                  {ticksToFormattedSeconds(verzik.splits.reds)}
+                  {ticksToFormattedSeconds(verzik!.splits.reds)}
                 </div>
                 <div className={styles.raid__RoomBadge}>
                   <strong>
@@ -462,7 +462,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     ></i>
                     P2:
                   </strong>{' '}
-                  {ticksToFormattedSeconds(verzik.splits.p2)}
+                  {ticksToFormattedSeconds(verzik!.splits.p2)}
                 </div>
               </div>
             </div>

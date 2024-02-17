@@ -4,11 +4,13 @@ import {
   Event,
   EventType,
   MaidenBloodSplatsEvent,
+  MaidenCrab,
   MaidenCrabSpawn,
-  MaidenCrabSpawnEvent,
+  NpcSpawnEvent,
   NpcUpdateEvent,
   PlayerUpdateEvent,
   Room,
+  RoomNpcType,
 } from '@blert/common';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -70,20 +72,21 @@ type RoomInfoProps = {
 };
 
 function RoomInfo({ eventsByType, tick, playback }: RoomInfoProps) {
-  const crabSpawns = (eventsByType[EventType.MAIDEN_CRAB_SPAWN] ||
-    []) as MaidenCrabSpawnEvent[];
+  const crabSpawns = (
+    (eventsByType[EventType.NPC_SPAWN] || []) as NpcSpawnEvent[]
+  ).filter((evt) => evt.npc.type === RoomNpcType.MAIDEN_CRAB);
 
   const seventies = crabSpawns.filter(
-    (evt) => evt.maidenEntity.crab?.spawn === MaidenCrabSpawn.SEVENTIES,
+    (evt) => evt.npc.maidenCrab?.spawn === MaidenCrabSpawn.SEVENTIES,
   );
   const fifties = crabSpawns.filter(
-    (evt) => evt.maidenEntity.crab?.spawn === MaidenCrabSpawn.FIFTIES,
+    (evt) => evt.npc.maidenCrab?.spawn === MaidenCrabSpawn.FIFTIES,
   );
   const thirties = crabSpawns.filter(
-    (evt) => evt.maidenEntity.crab?.spawn === MaidenCrabSpawn.THIRTIES,
+    (evt) => evt.npc.maidenCrab?.spawn === MaidenCrabSpawn.THIRTIES,
   );
 
-  const shouldShowSpawn = (spawn: MaidenCrabSpawnEvent[]) =>
+  const shouldShowSpawn = (spawn: NpcSpawnEvent[]) =>
     spawn.length > 0 &&
     (playback === Playback.STOPPED || spawn[0].tick <= tick);
 
@@ -226,7 +229,7 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
         }
         case EventType.MAIDEN_BLOOD_SPLATS:
           const e = evt as MaidenBloodSplatsEvent;
-          for (const coord of e.maidenEntity.bloodSplats ?? []) {
+          for (const coord of e.maidenBloodSplats ?? []) {
             entities.push(
               new MarkerEntity(coord.x, coord.y, BLOOD_SPLAT_COLOR),
             );
@@ -245,9 +248,12 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
     }
   };
 
-  const spawns = eventsByType[EventType.MAIDEN_CRAB_SPAWN] || [];
+  const spawns = (
+    (eventsByType[EventType.NPC_SPAWN] as NpcSpawnEvent[]) || []
+  ).filter((evt) => evt.npc.type === RoomNpcType.MAIDEN_CRAB);
+
   const spawnTicks = spawns.reduce((accum, evt) => {
-    const spawn = (evt as MaidenCrabSpawnEvent).maidenEntity.crab!.spawn;
+    const spawn = evt.npc.maidenCrab!.spawn;
     return {
       ...accum,
       [spawn]: {

@@ -2,16 +2,21 @@ import {
   BloatSplits,
   Event,
   EventType,
+  MaidenCrab,
   MaidenCrabSpawn,
-  MaidenCrabSpawnEvent,
   MaidenSplits,
   Maze,
   Mode,
+  NpcDeathEvent,
+  NpcSpawnEvent,
+  Nylo,
   NyloSplits,
   NyloWaveSpawnEvent,
   PlayerDeathEvent,
   RaidStatus,
   Room,
+  RoomNpc,
+  RoomNpcType,
   RoomStatus,
   RoomStatusEvent,
   SoteMazeProcEvent,
@@ -86,6 +91,7 @@ export default class Raid {
   private raidStatus: RaidStatus;
 
   private room: Room;
+  private roomStatus: RoomStatus;
   private roomTick: number;
   private roomEvents: Event[];
   private deathsInRoom: string[];
@@ -97,6 +103,7 @@ export default class Raid {
   private xarpusSplits: XarpusSplits;
   private verzikSplits: VerzikSplits;
 
+  private npcs: Map<String, RoomNpc>;
   private verzikRedSpawns: number;
 
   public constructor(
@@ -116,6 +123,7 @@ export default class Raid {
     this.raidStatus = RaidStatus.IN_PROGRESS;
 
     this.room = Room.MAIDEN;
+    this.roomStatus = RoomStatus.ENTERED;
     this.roomTick = 0;
     this.roomEvents = [];
     this.deathsInRoom = [];
@@ -131,6 +139,7 @@ export default class Raid {
     this.xarpusSplits = { exhumes: 0, screech: 0 };
     this.verzikSplits = { p1: 0, reds: 0, p2: 0 };
 
+    this.npcs = new Map();
     this.verzikRedSpawns = 0;
   }
 
@@ -196,7 +205,7 @@ export default class Raid {
         await this.updateRaidStatus(event);
 
         // Batch and flush events once per tick to reduce database writes.
-        if (event.tick == this.roomTick) {
+        if (event.tick === this.roomTick) {
           this.roomEvents.push(event);
         } else if (event.tick > this.roomTick) {
           await this.flushRoomEvents();
@@ -255,10 +264,19 @@ export default class Raid {
 
     switch (event.roomStatus) {
       case RoomStatus.STARTED:
+        if (this.roomStatus === RoomStatus.ENTERED) {
+          // A transition from ENTERED -> STARTED has already reset the room.
+          // Don't clear any data received afterwards.
+          break;
+        }
+      // A transition from any other state to STARTED should fall through
+      // and reset all room data.
+      case RoomStatus.ENTERED:
         this.room = event.room;
         this.roomEvents = [];
         this.roomTick = 0;
         this.deathsInRoom = [];
+        this.npcs.clear();
         break;
 
       case RoomStatus.WIPED:
@@ -277,6 +295,7 @@ export default class Raid {
             record.rooms[event.room!] = {
               roomTicks: event.tick,
               deaths: this.deathsInRoom,
+              npcs: this.npcs,
             };
 
             switch (this.room) {
@@ -306,6 +325,8 @@ export default class Raid {
 
         break;
     }
+
+    this.roomStatus = event.roomStatus;
   }
 
   private async updateRaidStatus(event: Event): Promise<void> {
@@ -314,11 +335,16 @@ export default class Raid {
         this.deathsInRoom.push((event as PlayerDeathEvent).player.name);
         break;
 
-      case EventType.MAIDEN_CRAB_SPAWN:
-        const maidenCrabSpawnEvent = event as MaidenCrabSpawnEvent;
-        const spawn = maidenCrabSpawnEvent.maidenEntity.crab!.spawn;
-        if (this.maidenSplits[spawn] == 0) {
-          this.maidenSplits[spawn] = event.tick;
+      case EventType.NPC_SPAWN:
+        await this.handleNpcSpawn(event as NpcSpawnEvent);
+        break;
+
+      case EventType.NPC_DEATH:
+        const npcDeathEvent = event as NpcDeathEvent;
+        let npc = this.npcs.get(npcDeathEvent.npc.roomId.toString());
+        if (npc !== undefined) {
+          npc.deathTick = event.tick;
+          npc.deathPoint = { x: event.xCoord, y: event.yCoord };
         }
         break;
 
@@ -373,6 +399,47 @@ export default class Raid {
           this.verzikSplits.reds = event.tick;
         }
         break;
+    }
+  }
+
+  /**
+   * Creates a `RoomNpc` entry in the NPC map for a newly-spawned NPC.
+   *
+   * @param event The spawn event.
+   */
+  private async handleNpcSpawn(event: NpcSpawnEvent): Promise<void> {
+    const { id, roomId, type } = event.npc;
+
+    const npcCommon = {
+      type,
+      spawnNpcId: id,
+      roomId,
+      spawnTick: event.tick,
+      spawnPoint: { x: event.xCoord, y: event.yCoord },
+      deathTick: 0,
+      deathPoint: { x: 0, y: 0 },
+    };
+
+    if (event.npc.maidenCrab !== undefined) {
+      const spawn = event.npc.maidenCrab.spawn;
+      if (this.maidenSplits[spawn] == 0) {
+        this.maidenSplits[spawn] = event.tick;
+      }
+      const crab: MaidenCrab = {
+        ...npcCommon,
+        type: RoomNpcType.MAIDEN_CRAB,
+        maidenCrab: event.npc.maidenCrab,
+      };
+      this.npcs.set(event.npc.roomId.toString(), crab);
+    } else if (event.npc.nylo !== undefined) {
+      const nylo: Nylo = {
+        ...npcCommon,
+        type: RoomNpcType.NYLO,
+        nylo: event.npc.nylo,
+      };
+      this.npcs.set(event.npc.roomId.toString(), nylo);
+    } else {
+      this.npcs.set(event.npc.roomId.toString(), npcCommon);
     }
   }
 

@@ -9,6 +9,11 @@ import {
   Maze,
   XarpusPhase,
   VerzikPhase,
+  NyloStyle,
+  NyloSpawn,
+  RoomNpcType,
+  NyloProperties,
+  MaidenCrabProperties,
 } from './raid-definitions';
 
 export enum EventType {
@@ -19,8 +24,9 @@ export enum EventType {
   PLAYER_UPDATE = 'PLAYER_UPDATE',
   PLAYER_ATTACK = 'PLAYER_ATTACK',
   PLAYER_DEATH = 'PLAYER_DEATH',
+  NPC_SPAWN = 'NPC_SPAWN',
   NPC_UPDATE = 'NPC_UPDATE',
-  MAIDEN_CRAB_SPAWN = 'MAIDEN_CRAB_SPAWN',
+  NPC_DEATH = 'NPC_DEATH',
   MAIDEN_CRAB_LEAK = 'MAIDEN_CRAB_LEAK',
   MAIDEN_BLOOD_SPLATS = 'MAIDEN_BLOOD_SPLATS',
   BLOAT_DOWN = 'BLOAT_DOWN',
@@ -76,19 +82,24 @@ export interface PlayerDeathEvent extends Event {
   player: Player;
 }
 
-export interface NpcUpdateEvent extends Event {
-  type: EventType.NPC_UPDATE;
-  npc: Npc;
+export interface NpcSpawnEvent extends Event {
+  type: EventType.NPC_SPAWN;
+  npc: EventNpc;
 }
 
-export interface MaidenCrabSpawnEvent extends Event {
-  type: EventType.MAIDEN_CRAB_SPAWN;
-  maidenEntity: MaidenEntity;
+export interface NpcUpdateEvent extends Event {
+  type: EventType.NPC_UPDATE;
+  npc: EventNpc;
+}
+
+export interface NpcDeathEvent extends Event {
+  type: EventType.NPC_DEATH;
+  npc: EventNpc;
 }
 
 export interface MaidenBloodSplatsEvent extends Event {
-  type: EventType.MAIDEN_CRAB_SPAWN;
-  maidenEntity: MaidenEntity;
+  type: EventType.MAIDEN_BLOOD_SPLATS;
+  maidenBloodSplats: Coords[];
 }
 
 export interface BloatDownEvent extends Event {
@@ -162,32 +173,27 @@ export type EquipmentMap = {
   [key in EquipmentSlot]: Item;
 };
 
-export type Npc = {
+export interface BasicEventNpc {
   id: number;
   roomId: number;
-  hitpoints?: SkillLevel;
-};
+}
+
+export interface EventNpc extends BasicEventNpc {
+  type: RoomNpcType;
+  hitpoints: SkillLevel;
+  maidenCrab?: MaidenCrabProperties;
+  nylo?: NyloProperties;
+}
 
 export type Attack = {
   type: PlayerAttack;
   weapon: Item;
-  target: Npc;
+  target: BasicEventNpc;
 };
 
 export type Coords = {
   x: number;
   y: number;
-};
-
-export type MaidenEntity = {
-  bloodSplats?: Coords[];
-  crab?: MaidenCrab;
-};
-
-export type MaidenCrab = {
-  spawn: MaidenCrabSpawn;
-  position: MaidenCrabPosition;
-  scuffed: boolean;
 };
 
 export type BloatStatus = {
