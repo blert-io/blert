@@ -1,5 +1,10 @@
 import { Schema, model, models } from 'mongoose';
-import { Coords, MaidenCrabProperties, NyloProperties } from './raid';
+import {
+  Coords,
+  MaidenCrabProperties,
+  NyloProperties,
+  VerzikCrabProperties,
+} from './raid';
 
 const SkillLevel = {
   skill: String,
@@ -50,6 +55,10 @@ const roomEventSchema = new Schema({
     },
     nylo: {
       type: NyloProperties,
+      default: undefined,
+    },
+    verzikCrab: {
+      type: VerzikCrabProperties,
       default: undefined,
     },
   },

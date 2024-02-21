@@ -123,6 +123,7 @@ export enum RoomNpcType {
   BASIC = 'BASIC',
   MAIDEN_CRAB = 'MAIDEN_CRAB',
   NYLO = 'NYLO',
+  VERZIK_CRAB = 'VERZIK_CRAB',
 }
 
 export interface RoomNpc {
@@ -160,6 +161,11 @@ export interface Nylo extends RoomNpc {
   nylo: NyloProperties;
 }
 
+export interface VerzikCrab extends RoomNpc {
+  type: RoomNpcType.VERZIK_CRAB;
+  verzikCrab: VerzikCrabProperties;
+}
+
 export type NyloProperties = {
   /**
    * Room ID of the big nylo which spawned this nylo split, or 0 if this nylo
@@ -175,6 +181,11 @@ export type NyloProperties = {
 
   /** Spawn location of the nylo. */
   spawnType: NyloSpawn;
+};
+
+export type VerzikCrabProperties = {
+  phase: VerzikPhase;
+  spawn: VerzikCrabSpawn;
 };
 
 export enum Skill {
@@ -275,4 +286,16 @@ export enum VerzikPhase {
   P1 = 'P1',
   P2 = 'P2',
   P3 = 'P3',
+}
+
+export enum VerzikCrabSpawn {
+  NORTH = 'NORTH',
+  NORTHEAST = 'NORTHEAST',
+  NORTHWEST = 'NORTHWEST',
+  EAST = 'EAST',
+  SOUTH = 'SOUTH',
+  SOUTHEAST = 'SOUTHEAST',
+  SOUTHWEST = 'SOUTHWEST',
+  WEST = 'WEST',
+  UNKNOWN = 'UNKNOWN',
 }

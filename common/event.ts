@@ -14,6 +14,7 @@ import {
   RoomNpcType,
   NyloProperties,
   MaidenCrabProperties,
+  VerzikCrabProperties,
 } from './raid-definitions';
 
 export enum EventType {
@@ -183,6 +184,7 @@ export interface EventNpc extends BasicEventNpc {
   hitpoints: SkillLevel;
   maidenCrab?: MaidenCrabProperties;
   nylo?: NyloProperties;
+  verzikCrab?: VerzikCrabProperties;
 }
 
 export type Attack = {

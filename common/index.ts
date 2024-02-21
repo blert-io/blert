@@ -38,6 +38,7 @@ export type {
   RoomNpc,
   RoomOverview,
   SkillLevel,
+  VerzikCrab,
   VerzikOverview,
   VerzikSplits,
   XarpusOverview,
@@ -55,6 +56,7 @@ export {
   Room,
   RoomNpcType,
   RoomStatus,
-  XarpusPhase,
+  VerzikCrabSpawn,
   VerzikPhase,
+  XarpusPhase,
 } from './raid-definitions';

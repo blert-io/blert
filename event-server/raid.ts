@@ -21,9 +21,9 @@ import {
   RoomStatusEvent,
   SoteMazeProcEvent,
   SoteSplits,
+  VerzikCrab,
   VerzikPhase,
   VerzikPhaseEvent,
-  VerzikRedsSpawnEvent,
   VerzikSplits,
   XarpusPhase,
   XarpusPhaseEvent,
@@ -438,6 +438,13 @@ export default class Raid {
         nylo: event.npc.nylo,
       };
       this.npcs.set(event.npc.roomId.toString(), nylo);
+    } else if (event.npc.verzikCrab !== undefined) {
+      const crab: VerzikCrab = {
+        ...npcCommon,
+        type: RoomNpcType.VERZIK_CRAB,
+        verzikCrab: event.npc.verzikCrab,
+      };
+      this.npcs.set(event.npc.roomId.toString(), crab);
     } else {
       this.npcs.set(event.npc.roomId.toString(), npcCommon);
     }

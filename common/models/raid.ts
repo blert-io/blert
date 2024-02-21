@@ -21,6 +21,12 @@ export const NyloProperties = {
   spawnType: String,
 };
 
+export const VerzikCrabProperties = {
+  _id: false,
+  phase: String,
+  spawn: String,
+};
+
 const RoomNpc = {
   type: { type: String },
   roomId: Number,
@@ -35,6 +41,10 @@ const RoomNpc = {
   },
   nylo: {
     type: NyloProperties,
+    default: undefined,
+  },
+  verzikCrab: {
+    type: VerzikCrabProperties,
     default: undefined,
   },
 };
