@@ -45,8 +45,6 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
 
   const attackTimelineRef = useRef<HTMLDivElement>(null);
 
-  console.warn('@@@', roomEvents);
-
   const raidData = useContext(RaidContext);
 
   if (raidData === null || roomEvents.length === 0 || roomEvents == null) {
@@ -90,10 +88,6 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
       className={styles.attackTimeline}
     >
       <div className={styles.attackTimeline__Inner} ref={attackTimelineRef}>
-        <div
-          className={styles.attackTimeline__ColumnActiveIndicator}
-          style={{ left: currentTick * 75 - 57 }}
-        ></div>
         {attackTimelineColumnElements}
       </div>
     </CollapsiblePanel>

@@ -146,6 +146,7 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
 
   const onTickSelected = useCallback(
     (tick: number) => {
+      // @ts-ignore
       clearTimeout();
       setTick(tick);
       if (playback === Playback.STOPPED) {

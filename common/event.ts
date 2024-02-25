@@ -43,6 +43,14 @@ export enum EventType {
   XARPUS_PHASE = 'XARPUS_PHASE',
 }
 
+export const IsPlayerEvent = (event: Event): boolean => {
+  return (
+    event.type === EventType.PLAYER_UPDATE ||
+    event.type === EventType.PLAYER_ATTACK ||
+    event.type === EventType.PLAYER_DEATH
+  );
+};
+
 export interface Event {
   type: EventType;
   raidId?: string;

@@ -8,7 +8,7 @@ import {
   PlayerUpdateEvent,
   Room,
 } from '@blert/common';
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 
 import { loadEventsForRoom } from '../../../../actions/raid';
@@ -24,6 +24,30 @@ import { TICK_MS } from '../../../../utils/tick';
 import { clamp } from '../../../../utils/math';
 import { PlayerEvent } from '@blert/common/dist/event';
 
+type EventTickMap = { [key: number]: Event[] };
+type EventTypeMap = { [key: string]: Event[] };
+
+const maidenNPCIds = [8360, 8361, 8362, 8363, 8364, 8365];
+
+function buildEventMaps(events: Event[]): [EventTickMap, EventTypeMap] {
+  let byTick: EventTickMap = {};
+  let byType: EventTypeMap = {};
+
+  for (const event of events) {
+    if (byTick[event.tick] === undefined) {
+      byTick[event.tick] = [];
+    }
+    byTick[event.tick].push(event);
+
+    if (byType[event.type] === undefined) {
+      byType[event.type] = [];
+    }
+    byType[event.type].push(event);
+  }
+
+  return [byTick, byType];
+}
+
 export const maidenControlsContext = createContext({
   requestedTick: 1,
 });
@@ -32,6 +56,7 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
   const searchParams = useSearchParams();
   const raidData = useContext(RaidContext);
 
+  // #region stfu
   const [currentTick, updateTickOnPage] = useState(1);
 
   const totalTicks = raidData?.rooms[Room.MAIDEN]!.roomTicks!;
@@ -86,85 +111,141 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
   useEffect(() => {
     const getEvents = async () => {
       const evts = await loadEventsForRoom(id, Room.MAIDEN);
+
+      console.log('Events:', evts);
+
       setEvents(evts);
     };
 
     getEvents();
   }, [id]);
 
+  // #endregion
+
+  const [eventsByTick, eventsByType] = useMemo(
+    () => buildEventMaps(events),
+    [events],
+  );
+
   if (raidData === null || events === null) {
     return <>Loading...</>;
   }
 
-  // #region todo
-  const maidenNPCIds = [8360, 8361, 8362, 8363, 8364, 8365];
-  const justMaidenNPCEvents = events
-    .filter((event) => {
-      if (event.type !== EventType.NPC_UPDATE) return;
+  console.log('Total room ticks:', totalTicks);
 
-      const eventAsNpcEvent = event as NpcUpdateEvent;
+  // console.log('ligma');
+  // console.log(raidData);
+  // console.log(eventsByTick, eventsByType);
 
-      return (
-        event.type === EventType.NPC_UPDATE &&
-        maidenNPCIds.includes(eventAsNpcEvent.npc.id)
+  for (const partyMember of raidData!.party) {
+    const partyMembersAttackTimeline = {};
+
+    for (let i = 0; i < totalTicks; i++) {
+      const eventsForThisTick = eventsByTick[i];
+
+      const justThisPlayersEvents = eventsForThisTick.filter(
+        (event) => (event as PlayerEvent).player.name === partyMember,
       );
-    })
-    .sort((a, b) => a.tick - b.tick);
 
-  console.log('Just maiden npc events:', justMaidenNPCEvents);
+      console.log(
+        `Events for player ${partyMember} on tick ${i}:`,
+        eventsForThisTick,
+      );
+    }
+
+    const thisMembersPlayerUpdates = eventsByType[
+      EventType.PLAYER_UPDATE
+    ].filter(
+      (event) => (event as PlayerUpdateEvent).player.name === partyMember,
+    );
+
+    if (thisMembersPlayerUpdates.length === 0) continue;
+
+    console.log(
+      `All player update events for ${partyMember}:`,
+      thisMembersPlayerUpdates,
+    );
+
+    const thisMembersAttackEvents = eventsByType[
+      EventType.PLAYER_ATTACK
+    ].filter((event) => (event as PlayerEvent).player.name === partyMember);
+
+    if (thisMembersAttackEvents.length === 0) continue;
+
+    console.log(
+      `All attack events for ${partyMember}:`,
+      thisMembersAttackEvents,
+    );
+  }
+
+  // #region todo
+  // const justMaidenNPCEvents = events
+  //   .filter((event) => {
+  //     if (event.type !== EventType.NPC_UPDATE) return;
+
+  //     const eventAsNpcEvent = event as NpcUpdateEvent;
+
+  //     return (
+  //       event.type === EventType.NPC_UPDATE &&
+  //       maidenNPCIds.includes(eventAsNpcEvent.npc.id)
+  //     );
+  //   })
+  //   .sort((a, b) => a.tick - b.tick);
+
+  // console.log('Just maiden npc events:', justMaidenNPCEvents);
 
   // for (const partyMember of raidData!.party) {
 
-  const partyMember = 'NACHOCUPOFT';
+  // const partyMember = 'NACHOCUPOFT';
 
-  let justNachosEventsNormalized = [];
+  // let justNachosEventsNormalized = [];
 
-  for (let i = 0; i < totalTicks; i++) {
-    const tick = i + 1;
-    const eventsForThisTick = events.filter((event: Event) => {
-      if (
-        [
-          EventType.PLAYER_ATTACK,
-          EventType.PLAYER_DEATH,
-          EventType.PLAYER_UPDATE,
-        ].includes(event.type) === false
-      )
-        return;
+  // for (let i = 0; i < totalTicks; i++) {
+  //   const tick = i + 1;
+  //   const eventsForThisTick = events.filter((event: Event) => {
+  //     if (
+  //       [
+  //         EventType.PLAYER_ATTACK,
+  //         EventType.PLAYER_DEATH,
+  //         EventType.PLAYER_UPDATE,
+  //       ].includes(event.type) === false
+  //     )
+  //       return;
 
-      const eventTyped = event as PlayerEvent;
+  //     const eventTyped = event as PlayerEvent;
 
-      // And only for this tick
-      if (eventTyped.tick !== tick) return;
+  //     // And only for this tick
+  //     if (eventTyped.tick !== tick) return;
 
-      // And only for this party member
-      if (eventTyped.player.name !== partyMember) return;
+  //     // And only for this party member
+  //     if (eventTyped.player.name !== partyMember) return;
 
-      return eventTyped;
-    });
+  //     return eventTyped;
+  //   });
 
-    if (eventsForThisTick.length > 1) {
-      for (const event of eventsForThisTick) {
-        if (event.type === EventType.PLAYER_ATTACK) {
-          justNachosEventsNormalized.push(event);
-        }
-      }
-    } else {
-      justNachosEventsNormalized.push(eventsForThisTick[0]);
-    }
-  }
+  //   if (eventsForThisTick.length > 1) {
+  //     for (const event of eventsForThisTick) {
+  //       if (event.type === EventType.PLAYER_ATTACK) {
+  //         justNachosEventsNormalized.push(event);
+  //       }
+  //     }
+  //   } else {
+  //     justNachosEventsNormalized.push(eventsForThisTick[0]);
+  //   }
+  // }
 
-  const arrayOfStrings = [];
+  // const arrayOfStrings = [];
 
-  for (let i = 0; i < justNachosEventsNormalized.length; i++) {
-    if (justNachosEventsNormalized[i] !== undefined) {
-      console.log(justNachosEventsNormalized[i]);
-      arrayOfStrings.push(
-        `NACHOCUPOFT Tick: ${justNachosEventsNormalized[i].tick}, ACTION: ${justNachosEventsNormalized[i].type}`,
-      );
-    }
-  }
+  // for (let i = 0; i < justNachosEventsNormalized.length; i++) {
+  //   if (justNachosEventsNormalized[i] !== undefined) {
+  //     // console.log(justNachosEventsNormalized[i]);
+  //     arrayOfStrings.push(
+  //       `NACHOCUPOFT Tick: ${justNachosEventsNormalized[i].tick}, ACTION: ${justNachosEventsNormalized[i].type}`,
+  //     );
+  //   }
+  // }
 
-  console.log('Just nachos events:', arrayOfStrings);
+  // console.log('Just nachos events:', arrayOfStrings);
   // }
 
   // const maidensHealthOverTime = justMaidenNPCEvents
