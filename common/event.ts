@@ -89,7 +89,7 @@ export interface PlayerAttackEvent extends PlayerEvent {
 }
 
 export interface PlayerDeathEvent extends PlayerEvent {
-  type: EventType.PLAYER_UPDATE;
+  type: EventType.PLAYER_DEATH;
 }
 
 export interface NpcSpawnEvent extends Event {
