@@ -1,5 +1,6 @@
 import { MouseEvent } from 'react';
-import styles from './style.module.css';
+
+import styles from './style.module.scss';
 
 export const enum EntityType {
   OVERLAY,

@@ -24,11 +24,14 @@ export function BossPageControls(props: BossControlsProps) {
     updateSlowMoState,
   } = props;
 
+  // The value of the tick input field. Tracked separately to `currentTick` to
+  // allow users to clear the input.
+  const [value, setValue] = useState(currentTick.toString());
+
   // get how far down the window this element is
   const [position, setPosition] = useState(0);
   useEffect(() => {
     const handleScroll = () => {
-      console.log('page scrolled');
       setPosition(window.scrollY);
     };
 
@@ -94,18 +97,20 @@ export function BossPageControls(props: BossControlsProps) {
           updatePlayingState(false);
         }}
         onChange={(event) => {
-          console.log('input changed');
           try {
-            const newValue = parseInt(event.target.value);
+            let newValue = parseInt(event.target.value);
+            if (Number.isNaN(newValue)) {
+              newValue = 1;
+            }
             const clampedValue = clamp(newValue, 1, totalTicks);
             updateTick(clampedValue);
+            setValue(event.target.value);
           } catch (e) {
-            console.log('error', e);
-            updateTick(0);
+            updateTick(1);
           }
         }}
         max={totalTicks}
-        value={currentTick}
+        value={value}
       />
 
       <div className={styles.controls__roomActor}>

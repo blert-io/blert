@@ -25,6 +25,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 0;
 
     &:hover {
       background-color: rgba(255, 255, 255, 0.1);
@@ -61,10 +62,12 @@
     white-space: nowrap;
 
     button {
+      color: var(--blert-text-color);
       text-align: left;
 
       &:hover {
         color: #fff;
+        cursor: pointer;
       }
 
       .type {

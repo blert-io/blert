@@ -1,11 +1,11 @@
 import { Entity, MapEntity, entityTypeString } from './entity';
 import Tile, { TileData } from './tile';
 
-import styles from './style.module.css';
+import styles from './style.module.scss';
 import { OverlayEntity } from './overlay';
 import { useState } from 'react';
 
-type BaseTile = {
+export type BaseTile = {
   x: number;
   y: number;
   color?: string;
@@ -24,6 +24,7 @@ type MapProps = {
 
 export default function Map(props: MapProps) {
   const [selectedTile, setSelectedTile] = useState<TileData | null>(null);
+  const widthPx = props.tileSize * props.width;
 
   let tiles: TileData[][] = [];
   for (let y = props.y; y < props.y + props.height; y++) {
@@ -143,7 +144,11 @@ export default function Map(props: MapProps) {
   tiles.reverse();
 
   return (
-    <div className={styles.map} onClick={() => setSelectedTile(null)}>
+    <div
+      className={styles.map}
+      style={{ width: widthPx }}
+      onClick={() => setSelectedTile(null)}
+    >
       {tiles.map((row, i) => (
         <div key={i} className={styles.mapRow}>
           {row.map((tile) => (

@@ -43,7 +43,6 @@ body {
   height: 100%;
   width: 100%;
   font-family: 'Inter', sans-serif;
-  font-family: 'Roboto', sans-serif;
 }
 
 body {
@@ -55,4 +54,11 @@ body {
 a {
   text-decoration: none;
   color: var(--blert-text-color);
+}
+
+button {
+  color: var(--blert-text-color);
+  background: none;
+  border: none;
+  font-family: 'Inter', sans-serif;
 }

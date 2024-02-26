@@ -49,6 +49,7 @@ export class PlayerEntity implements Entity {
           alignItems: 'center',
           justifyContent: 'center',
           flexDirection: 'column',
+          textAlign: 'center',
           color: '#fff',
           fontSize: '12px',
           fontWeight: this.highlight ? 700 : 400,

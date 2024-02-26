@@ -4,8 +4,11 @@ import Image from 'next/image';
 import {
   Event,
   EventType,
+  MaidenBloodSplatsEvent,
+  NpcUpdateEvent,
   PlayerAttackEvent,
   PlayerEvent,
+  PlayerUpdateEvent,
   Room,
   isPlayerEvent,
 } from '@blert/common';
@@ -14,19 +17,36 @@ import { useSearchParams } from 'next/navigation';
 
 import { loadEventsForRoom } from '../../../../actions/raid';
 
-import styles from './style.module.scss';
 import { BossPageAttackTimeline } from '../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
 import { BossPageControls } from '../../../../components/boss-page-controls/boss-page-controls';
-import { BossPageReplay } from '../../../../components/boss-page-replay/boss-page-replay';
+import BossPageReplay from '../../../../components/boss-page-replay';
 import { BossPageDPSTimeline } from '../../../../components/boss-page-dps-timeine/boss-page-dps-timeline';
 import { RaidContext } from '../../context';
 import { TICK_MS } from '../../../../utils/tick';
 import { clamp } from '../../../../utils/math';
 
+import maidenBaseTiles from './maiden.json';
+import styles from './style.module.scss';
+import {
+  Entity,
+  MarkerEntity,
+  NpcEntity,
+  PlayerEntity,
+} from '../../../../components/map';
+
 type EventTickMap = { [key: number]: Event[] };
 type EventTypeMap = { [key: string]: Event[] };
 
 const maidenNPCIds = [8360, 8361, 8362, 8363, 8364, 8365];
+
+const MAIDEN_MAP_DEFINITION = {
+  baseX: 3160,
+  baseY: 4435,
+  width: 28,
+  height: 24,
+  baseTiles: maidenBaseTiles,
+};
+const BLOOD_SPLAT_COLOR = '#b93e3e';
 
 const eventBelongsToPlayer = (event: Event, playerName: string): boolean => {
   if (!isPlayerEvent(event)) return false;
@@ -196,6 +216,46 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
 
   console.log(raidData);
 
+  const eventsForCurrentTick = eventsByTick[currentTick] ?? [];
+
+  const entities: Entity[] = [];
+  const players: PlayerEntity[] = [];
+
+  for (const evt of eventsForCurrentTick) {
+    switch (evt.type) {
+      case EventType.PLAYER_UPDATE: {
+        const e = evt as PlayerUpdateEvent;
+        const player = new PlayerEntity(
+          e.xCoord,
+          e.yCoord,
+          e.player.name,
+          e.player.hitpoints,
+        );
+        entities.push(player);
+        players.push(player);
+        break;
+      }
+      case EventType.NPC_UPDATE: {
+        const e = evt as NpcUpdateEvent;
+        entities.push(
+          new NpcEntity(
+            e.xCoord,
+            e.yCoord,
+            e.npc.id,
+            e.npc.roomId,
+            e.npc.hitpoints,
+          ),
+        );
+        break;
+      }
+      case EventType.MAIDEN_BLOOD_SPLATS:
+        const e = evt as MaidenBloodSplatsEvent;
+        for (const coord of e.maidenBloodSplats ?? []) {
+          entities.push(new MarkerEntity(coord.x, coord.y, BLOOD_SPLAT_COLOR));
+        }
+    }
+  }
+
   return (
     <div className={styles.bossPage}>
       <div className={styles.bossPage__Inner}>
@@ -203,7 +263,7 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
           <div className={styles.bossPage__BossPic}>
             <Image
               src="/maiden.webp"
-              alt="Maiden of Sugadinti"
+              alt="The Maiden of Sugadinti"
               fill
               style={{ objectFit: 'contain' }}
             />
@@ -228,7 +288,7 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
           attackTimelines={attackTimelines}
         />
 
-        <BossPageReplay />
+        <BossPageReplay entities={entities} mapDef={MAIDEN_MAP_DEFINITION} />
 
         <BossPageDPSTimeline />
       </div>
