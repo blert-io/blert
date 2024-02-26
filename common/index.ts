@@ -9,6 +9,7 @@ export type {
   MaidenBloodSplatsEvent,
   NpcAttackEvent,
   NpcDeathEvent,
+  NpcEvent,
   NpcSpawnEvent,
   NpcUpdateEvent,
   NyloWaveSpawnEvent,

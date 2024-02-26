@@ -5,7 +5,7 @@ import {
   Event,
   EventType,
   MaidenBloodSplatsEvent,
-  NpcUpdateEvent,
+  NpcEvent,
   PlayerAttackEvent,
   PlayerEvent,
   PlayerUpdateEvent,
@@ -24,15 +24,15 @@ import { BossPageDPSTimeline } from '../../../../components/boss-page-dps-timein
 import { RaidContext } from '../../context';
 import { TICK_MS } from '../../../../utils/tick';
 import { clamp } from '../../../../utils/math';
-
-import maidenBaseTiles from './maiden.json';
-import styles from './style.module.scss';
 import {
   Entity,
   MarkerEntity,
   NpcEntity,
   PlayerEntity,
 } from '../../../../components/map';
+
+import maidenBaseTiles from './maiden.json';
+import styles from './style.module.scss';
 
 type EventTickMap = { [key: number]: Event[] };
 type EventTypeMap = { [key: string]: Event[] };
@@ -236,8 +236,9 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
         players.push(player);
         break;
       }
+      case EventType.NPC_SPAWN:
       case EventType.NPC_UPDATE: {
-        const e = evt as NpcUpdateEvent;
+        const e = evt as NpcEvent;
         entities.push(
           new NpcEntity(
             e.xCoord,

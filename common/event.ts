@@ -92,19 +92,20 @@ export interface PlayerDeathEvent extends PlayerEvent {
   type: EventType.PLAYER_DEATH;
 }
 
-export interface NpcSpawnEvent extends Event {
+export interface NpcEvent extends Event {
+  npc: EventNpc;
+}
+
+export interface NpcSpawnEvent extends NpcEvent {
   type: EventType.NPC_SPAWN;
-  npc: EventNpc;
 }
 
-export interface NpcUpdateEvent extends Event {
+export interface NpcUpdateEvent extends NpcEvent {
   type: EventType.NPC_UPDATE;
-  npc: EventNpc;
 }
 
-export interface NpcDeathEvent extends Event {
+export interface NpcDeathEvent extends NpcEvent {
   type: EventType.NPC_DEATH;
-  npc: EventNpc;
 }
 
 export interface NpcAttackEvent extends Event {
