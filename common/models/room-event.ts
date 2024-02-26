@@ -70,6 +70,10 @@ const roomEventSchema = new Schema({
       roomId: Number,
     },
   },
+  npcAttack: {
+    attack: String,
+    target: String,
+  },
   maidenBloodSplats: {
     type: [Coords],
     default: undefined,
@@ -87,6 +91,10 @@ const roomEventSchema = new Schema({
   },
   xarpusPhase: String,
   verzikPhase: String,
+  verzikAttack: {
+    style: String,
+    npcAttackTick: Number,
+  },
 });
 
 export const RoomEvent =

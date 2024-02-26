@@ -11,6 +11,7 @@ import {
   NyloProperties,
   MaidenCrabProperties,
   VerzikCrabProperties,
+  NpcAttack,
 } from './raid-definitions';
 
 export enum EventType {
@@ -24,6 +25,7 @@ export enum EventType {
   NPC_SPAWN = 'NPC_SPAWN',
   NPC_UPDATE = 'NPC_UPDATE',
   NPC_DEATH = 'NPC_DEATH',
+  NPC_ATTACK = 'NPC_ATTACK',
   MAIDEN_CRAB_LEAK = 'MAIDEN_CRAB_LEAK',
   MAIDEN_BLOOD_SPLATS = 'MAIDEN_BLOOD_SPLATS',
   BLOAT_DOWN = 'BLOAT_DOWN',
@@ -34,9 +36,10 @@ export enum EventType {
   NYLO_BOSS_SPAWN = 'NYLO_BOSS_SPAWN',
   SOTE_MAZE_PROC = 'SOTE_MAZE_PROC',
   SOTE_MAZE_PATH = 'SOTE_MAZE_PATH',
+  XARPUS_PHASE = 'XARPUS_PHASE',
   VERZIK_PHASE = 'VERZIK_PHASE',
   VERZIK_REDS_SPAWN = 'VERZIK_REDS_SPAWN',
-  XARPUS_PHASE = 'XARPUS_PHASE',
+  VERZIK_ATTACK_STYLE = 'VERZIK_ATTACK_STYLE',
 }
 
 export const isPlayerEvent = (event: Event): boolean => {
@@ -104,6 +107,12 @@ export interface NpcDeathEvent extends Event {
   npc: EventNpc;
 }
 
+export interface NpcAttackEvent extends Event {
+  type: EventType.NPC_ATTACK;
+  npc: BasicEventNpc;
+  npcAttack: NpcAttackDesc;
+}
+
 export interface MaidenBloodSplatsEvent extends Event {
   type: EventType.MAIDEN_BLOOD_SPLATS;
   maidenBloodSplats: Coords[];
@@ -142,6 +151,14 @@ export interface VerzikPhaseEvent extends Event {
 export interface VerzikRedsSpawnEvent extends Event {
   type: EventType.VERZIK_REDS_SPAWN;
   verzikPhase: VerzikPhase;
+}
+
+export interface VerzikAttackStyleEvent extends Event {
+  type: EventType.VERZIK_ATTACK_STYLE;
+  verzikAttack: {
+    style: VerzikAttackStyle;
+    npcAttackTick: number;
+  };
 }
 
 export type RaidInfo = {
@@ -202,6 +219,13 @@ export type Attack = {
   target: BasicEventNpc;
 };
 
+export type NpcAttackDesc = {
+  /** Style of the attack. */
+  attack: NpcAttack;
+  /** Username of the player the attack targets. Undefined if no target. */
+  target?: string;
+};
+
 export type Coords = {
   x: number;
   y: number;
@@ -220,3 +244,9 @@ export type NyloWave = {
 export type SoteMaze = {
   maze: Maze;
 };
+
+export enum VerzikAttackStyle {
+  MELEE = 'MELEE',
+  RANGE = 'RANGE',
+  MAGE = 'MAGE',
+}

@@ -4,9 +4,10 @@ export { RoomEvent } from './models/room-event';
 export type {
   Event,
   MaidenBloodSplatsEvent,
+  NpcAttackEvent,
+  NpcDeathEvent,
   NpcSpawnEvent,
   NpcUpdateEvent,
-  NpcDeathEvent,
   NyloWaveSpawnEvent,
   NyloWaveStallEvent,
   PlayerAttackEvent,
@@ -17,11 +18,12 @@ export type {
   RaidUpdateEvent,
   RoomStatusEvent,
   SoteMazeProcEvent,
+  VerzikAttackStyleEvent,
   VerzikPhaseEvent,
   VerzikRedsSpawnEvent,
   XarpusPhaseEvent,
 } from './event';
-export { EventType, isPlayerEvent } from './event';
+export { EventType, VerzikAttackStyle, isPlayerEvent } from './event';
 
 export type {
   BloatOverview,
@@ -52,6 +54,8 @@ export {
   Mode,
   NyloSpawn,
   NyloStyle,
+  NpcAttack,
+  PlayerAttack,
   Skill,
   RaidStatus,
   Room,

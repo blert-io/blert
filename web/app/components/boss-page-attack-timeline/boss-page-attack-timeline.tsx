@@ -120,7 +120,7 @@ const buildTickColumn = (
     for (let j = 0; j < playerTimeline.length; j++) {
       const event = playerTimeline[j];
 
-      if (event.tick === columnTick) {
+      if (event?.tick === columnTick) {
         cellEvents.push(event);
         break;
       }

@@ -69,6 +69,9 @@ function buildAttackTimelines(
 
     for (let i = 0; i < totalTicks; i++) {
       const eventsForThisTick = eventsByTick[i];
+      if (eventsForThisTick === undefined) {
+        continue;
+      }
 
       const combinedEventsForThisTick = eventsForThisTick
         .filter((event) => eventBelongsToPlayer(event, partyMember))
@@ -169,9 +172,6 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
   useEffect(() => {
     const getEvents = async () => {
       const evts = await loadEventsForRoom(id, Room.MAIDEN);
-
-      // console.log('Events:', evts);
-
       setEvents(evts);
     };
 
@@ -184,13 +184,13 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
   );
 
   const attackTimelines = useMemo(() => {
-    if (raidData !== null) {
+    if (raidData !== null && events.length !== 0) {
       return buildAttackTimelines(raidData.party, totalTicks, eventsByTick);
     }
     return new Map();
   }, [raidData, events]);
 
-  if (raidData === null || events === null) {
+  if (raidData === null || events.length === 0) {
     return <>Loading...</>;
   }
 

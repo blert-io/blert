@@ -7,6 +7,7 @@ import {
   MaidenSplits,
   Maze,
   Mode,
+  NpcAttack,
   NpcDeathEvent,
   NpcSpawnEvent,
   Nylo,
@@ -21,6 +22,8 @@ import {
   RoomStatusEvent,
   SoteMazeProcEvent,
   SoteSplits,
+  VerzikAttackStyle,
+  VerzikAttackStyleEvent,
   VerzikCrab,
   VerzikPhase,
   VerzikPhaseEvent,
@@ -202,14 +205,18 @@ export default class Raid {
           return;
         }
 
-        await this.updateRaidStatus(event);
+        const writeToDb = await this.updateRaidStatus(event);
 
         // Batch and flush events once per tick to reduce database writes.
         if (event.tick === this.roomTick) {
-          this.roomEvents.push(event);
+          if (writeToDb) {
+            this.roomEvents.push(event);
+          }
         } else if (event.tick > this.roomTick) {
           await this.flushRoomEvents();
-          this.roomEvents.push(event);
+          if (writeToDb) {
+            this.roomEvents.push(event);
+          }
           this.roomTick = event.tick;
         } else {
           console.error(
@@ -329,7 +336,13 @@ export default class Raid {
     this.roomStatus = event.roomStatus;
   }
 
-  private async updateRaidStatus(event: Event): Promise<void> {
+  /**
+   * Updates the state of the raid from a received event.
+   *
+   * @param event The event that occurred.
+   * @returns true if the event should be written to the database, false if not.
+   */
+  private async updateRaidStatus(event: Event): Promise<boolean> {
     switch (event.type) {
       case EventType.PLAYER_DEATH:
         this.deathsInRoom.push((event as PlayerDeathEvent).player.name);
@@ -399,7 +412,39 @@ export default class Raid {
           this.verzikSplits.reds = event.tick;
         }
         break;
+
+      case EventType.VERZIK_ATTACK_STYLE:
+        // Update the previously-written NPC_ATTACK event.
+        const verzikAttackStyle = event as VerzikAttackStyleEvent;
+
+        const record = await RoomEvent.findOne({
+          raidId: this.id,
+          type: EventType.NPC_ATTACK,
+          tick: verzikAttackStyle.verzikAttack.npcAttackTick,
+          room: Room.VERZIK,
+          'npcAttack.attack': NpcAttack.VERZIK_P3_AUTO,
+        });
+
+        if (record !== null) {
+          switch (verzikAttackStyle.verzikAttack.style) {
+            case VerzikAttackStyle.MELEE:
+              record.npcAttack.attack = NpcAttack.VERZIK_P3_MELEE;
+              break;
+            case VerzikAttackStyle.RANGE:
+              record.npcAttack.attack = NpcAttack.VERZIK_P3_RANGE;
+              break;
+            case VerzikAttackStyle.MAGE:
+              record.npcAttack.attack = NpcAttack.VERZIK_P3_MAGE;
+              break;
+          }
+          record.save();
+        }
+
+        // The VERZIK_ATTACK_STYLE event should not be written.
+        return false;
     }
+
+    return true;
   }
 
   /**
