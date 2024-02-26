@@ -246,7 +246,6 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
             disabled={playback === Playback.STOPPED}
             style={{ border: '1px solid grey', borderRight: 'none' }}
             onClick={() => {
-              clearTimeout();
               setPlayback(Playback.STOPPED);
               setTick(1);
             }}
@@ -270,7 +269,6 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
           <button
             className="rounded-r disabled:opacity-50"
             style={{ border: '1px solid grey' }}
-            onClick={onPlayPauseClick}
           >
             {playback === Playback.PLAYING ? (
               <svg

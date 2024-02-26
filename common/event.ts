@@ -1,6 +1,4 @@
 import {
-  MaidenCrabPosition,
-  MaidenCrabSpawn,
   Mode,
   SkillLevel,
   Room,
@@ -9,8 +7,6 @@ import {
   Maze,
   XarpusPhase,
   VerzikPhase,
-  NyloStyle,
-  NyloSpawn,
   RoomNpcType,
   NyloProperties,
   MaidenCrabProperties,
@@ -43,7 +39,7 @@ export enum EventType {
   XARPUS_PHASE = 'XARPUS_PHASE',
 }
 
-export const IsPlayerEvent = (event: Event): boolean => {
+export const isPlayerEvent = (event: Event): boolean => {
   return (
     event.type === EventType.PLAYER_UPDATE ||
     event.type === EventType.PLAYER_ATTACK ||
@@ -76,11 +72,12 @@ export interface RoomStatusEvent extends Event {
 }
 
 export interface PlayerEvent extends Event {
-  player: Player;
+  player: BasicPlayer;
 }
 
 export interface PlayerUpdateEvent extends PlayerEvent {
   type: EventType.PLAYER_UPDATE;
+  player: Player;
 }
 
 export interface PlayerAttackEvent extends PlayerEvent {
@@ -152,12 +149,15 @@ export type RaidInfo = {
   mode?: Mode;
 };
 
-export type Player = {
+export interface BasicPlayer {
   name: string;
+}
+
+export interface Player extends BasicPlayer {
   offCooldownTick: number;
   hitpoints?: SkillLevel;
   equipment?: EquipmentMap;
-};
+}
 
 export type Item = {
   id: number;

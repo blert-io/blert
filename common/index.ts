@@ -10,6 +10,7 @@ export type {
   NyloWaveSpawnEvent,
   NyloWaveStallEvent,
   PlayerAttackEvent,
+  PlayerEvent,
   PlayerDeathEvent,
   PlayerUpdateEvent,
   RaidStartEvent,
@@ -20,7 +21,7 @@ export type {
   VerzikRedsSpawnEvent,
   XarpusPhaseEvent,
 } from './event';
-export { EventType } from './event';
+export { EventType, isPlayerEvent } from './event';
 
 export type {
   BloatOverview,

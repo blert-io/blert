@@ -4,9 +4,10 @@ import Image from 'next/image';
 import {
   Event,
   EventType,
-  NpcUpdateEvent,
-  PlayerUpdateEvent,
+  PlayerAttackEvent,
+  PlayerEvent,
   Room,
+  isPlayerEvent,
 } from '@blert/common';
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -18,15 +19,9 @@ import { BossPageAttackTimeline } from '../../../../components/boss-page-attack-
 import { BossPageControls } from '../../../../components/boss-page-controls/boss-page-controls';
 import { BossPageReplay } from '../../../../components/boss-page-replay/boss-page-replay';
 import { BossPageDPSTimeline } from '../../../../components/boss-page-dps-timeine/boss-page-dps-timeline';
-import { createContext } from 'vm';
 import { RaidContext } from '../../context';
 import { TICK_MS } from '../../../../utils/tick';
 import { clamp } from '../../../../utils/math';
-import {
-  IsPlayerEvent,
-  PlayerAttackEvent,
-  PlayerEvent,
-} from '@blert/common/dist/event';
 
 type EventTickMap = { [key: number]: Event[] };
 type EventTypeMap = { [key: string]: Event[] };
@@ -34,7 +29,7 @@ type EventTypeMap = { [key: string]: Event[] };
 const maidenNPCIds = [8360, 8361, 8362, 8363, 8364, 8365];
 
 const eventBelongsToPlayer = (event: Event, playerName: string): boolean => {
-  if (IsPlayerEvent(event) === false) return false;
+  if (!isPlayerEvent(event)) return false;
 
   const eventAsPlayerEvent = event as PlayerEvent;
 
@@ -60,15 +55,66 @@ function buildEventMaps(events: Event[]): [EventTickMap, EventTypeMap] {
   return [byTick, byType];
 }
 
-export const maidenControlsContext = createContext({
-  requestedTick: 1,
-});
+function buildAttackTimelines(
+  party: string[],
+  totalTicks: number,
+  eventsByTick: EventTickMap,
+) {
+  let attackTimelines: Map<string, any[]> = new Map();
+
+  for (const partyMember of party) {
+    attackTimelines.set(partyMember, new Array(totalTicks));
+
+    let isDead = false;
+
+    for (let i = 0; i < totalTicks; i++) {
+      const eventsForThisTick = eventsByTick[i];
+
+      const combinedEventsForThisTick = eventsForThisTick
+        .filter((event) => eventBelongsToPlayer(event, partyMember))
+        .reduce((acc, event) => {
+          if (event.type === EventType.PLAYER_DEATH) {
+            if (isDead === false) {
+              isDead = true;
+            }
+
+            return { ...acc, diedThisTick: isDead };
+          }
+
+          if (event.type === EventType.PLAYER_UPDATE) {
+            const { type, room, raidId, ...rest } = event;
+            return { ...acc, ...rest, isDead };
+          }
+
+          if (event.type === EventType.PLAYER_ATTACK) {
+            return { ...acc, attack: (event as PlayerAttackEvent).attack };
+          }
+
+          return acc;
+        }, {});
+
+      attackTimelines.get(partyMember)![i] = combinedEventsForThisTick;
+    }
+  }
+
+  if (
+    Array.from(attackTimelines.values()).every(
+      (value) => value.length === totalTicks,
+    )
+  ) {
+    // console.log(`All timelines are ${totalTicks} ticks long (good!)`);
+  } else {
+    console.error('Not all timelines are the same length, this is bad.');
+    window.location.href = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+  }
+
+  return attackTimelines;
+}
 
 export default function Maiden({ params: { id } }: { params: { id: string } }) {
   const searchParams = useSearchParams();
   const raidData = useContext(RaidContext);
 
-  // #region stfu
   const [currentTick, updateTickOnPage] = useState(1);
 
   const totalTicks = raidData?.rooms[Room.MAIDEN]!.roomTicks!;
@@ -132,65 +178,20 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
     getEvents();
   }, [id]);
 
-  // #endregion
-
   const [eventsByTick, eventsByType] = useMemo(
     () => buildEventMaps(events),
     [events],
   );
 
+  const attackTimelines = useMemo(() => {
+    if (raidData !== null) {
+      return buildAttackTimelines(raidData.party, totalTicks, eventsByTick);
+    }
+    return new Map();
+  }, [raidData, events]);
+
   if (raidData === null || events === null) {
     return <>Loading...</>;
-  }
-
-  let attackTimelines: Map<string, any[]> = new Map();
-
-  for (const partyMember of raidData!.party) {
-    attackTimelines.set(partyMember, new Array(totalTicks));
-
-    let isDead = false;
-
-    for (let i = 0; i < totalTicks; i++) {
-      const eventsForThisTick = eventsByTick[i];
-
-      const combinedEventsForThisTick = eventsForThisTick
-        .filter(IsPlayerEvent)
-        .filter((event: Event) => {
-          return eventBelongsToPlayer(event, partyMember);
-        })
-        .reduce((acc, event) => {
-          if (event.type === EventType.PLAYER_DEATH) {
-            if (isDead === false) {
-              isDead = true;
-            }
-
-            return { ...acc, DiedThisTick: isDead };
-          }
-
-          if (event.type === EventType.PLAYER_UPDATE) {
-            return { ...acc, ...event, isDead };
-          }
-
-          if (event.type === EventType.PLAYER_ATTACK) {
-            return { ...acc, attack: (event as PlayerAttackEvent).attack };
-          }
-
-          return acc;
-        }, {});
-
-      attackTimelines.get(partyMember)![i] = combinedEventsForThisTick;
-    }
-  }
-
-  if (
-    Array.from(attackTimelines.values()).every(
-      (value) => value.length === totalTicks,
-    )
-  ) {
-    // console.log(`All timelines are ${totalTicks} ticks long (good!)`);
-  } else {
-    console.error('Not all timelines are the same length, this is bad.');
-    window.location.href = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
   }
 
   console.log(raidData);

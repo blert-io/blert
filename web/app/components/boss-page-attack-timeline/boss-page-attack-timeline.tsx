@@ -85,8 +85,6 @@ const getLigmaFromPlayerAttackEvent = (event: PlayerAttackEvent): string => {
 };
 
 const buildTickCell = (event: Event) => {
-  console.log('Info for this cell', event);
-
   // @ts-ignore
   const attackedThisTick = event.attack !== undefined;
 
