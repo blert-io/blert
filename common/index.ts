@@ -1,3 +1,6 @@
+export { NpcId, getNpcDefinition } from './npcs';
+export type { NpcDefinition } from './npcs';
+
 export { RaidModel } from './models/raid';
 export { RoomEvent } from './models/room-event';
 

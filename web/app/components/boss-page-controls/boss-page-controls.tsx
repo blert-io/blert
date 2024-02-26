@@ -28,6 +28,12 @@ export function BossPageControls(props: BossControlsProps) {
   // allow users to clear the input.
   const [value, setValue] = useState(currentTick.toString());
 
+  useEffect(() => {
+    if (currentlyPlaying) {
+      setValue(currentTick.toString());
+    }
+  }, [currentlyPlaying, currentTick]);
+
   // get how far down the window this element is
   const [position, setPosition] = useState(0);
   useEffect(() => {
@@ -92,6 +98,7 @@ export function BossPageControls(props: BossControlsProps) {
         className={styles.controls__tickInput}
         type="number"
         name="tick"
+        disabled={currentlyPlaying}
         min={1}
         onBlur={(e) => {
           updatePlayingState(false);

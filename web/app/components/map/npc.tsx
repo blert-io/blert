@@ -1,19 +1,6 @@
-import { SkillLevel } from '@blert/common';
+import { SkillLevel, getNpcDefinition } from '@blert/common';
 
 import { Entity, EntityType } from './entity';
-
-// TODO(frolv): This belongs elsewhere.
-const MAIDEN = { name: 'The Maiden of Sugadinti', size: 6 };
-const TOB_NPCS: { [id: number]: any } = {
-  [8360]: MAIDEN,
-  [8361]: MAIDEN,
-  [8362]: MAIDEN,
-  [8363]: MAIDEN,
-  [8364]: MAIDEN,
-  [8365]: MAIDEN,
-  [8366]: { name: 'Nylocas Matomenos', size: 2 },
-  [8367]: { name: 'Blood spawn', size: 1 },
-};
 
 export class NpcEntity implements Entity {
   x: number;
@@ -35,10 +22,12 @@ export class NpcEntity implements Entity {
     roomId: number,
     hitpoints?: SkillLevel,
   ) {
+    const npcDefinition = getNpcDefinition(id);
+
     this.x = x;
     this.y = y;
-    this.size = TOB_NPCS[id]?.size ?? 1;
-    this.name = TOB_NPCS[id]?.name ?? `NPC ${id}`;
+    this.size = npcDefinition?.size ?? 1;
+    this.name = npcDefinition?.name ?? `NPC ${id}`;
     this.id = id;
     this.roomId = roomId;
     this.hitpoints = hitpoints;
@@ -49,6 +38,9 @@ export class NpcEntity implements Entity {
   }
 
   renderContents(): React.ReactNode {
+    const displayHitpoints =
+      this.hitpoints !== undefined && this.hitpoints.base !== 0;
+
     return (
       <div
         style={{
@@ -64,10 +56,10 @@ export class NpcEntity implements Entity {
           textAlign: 'center',
         }}
       >
-        {TOB_NPCS[this.id]?.name ?? this.id}
-        {this.hitpoints !== undefined && (
+        {this.name}
+        {displayHitpoints && (
           <div>
-            {this.hitpoints.current}/{this.hitpoints.base}
+            {this.hitpoints!.current}/{this.hitpoints!.base}
           </div>
         )}
       </div>

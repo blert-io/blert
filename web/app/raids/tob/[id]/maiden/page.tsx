@@ -140,7 +140,7 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
 
   const [currentTick, updateTickOnPage] = useState(1);
 
-  const totalTicks = raidData?.rooms[Room.MAIDEN]!.roomTicks!;
+  const totalTicks = raidData?.rooms[Room.MAIDEN]!.roomTicks! ?? 1;
 
   const tickParam = searchParams.get('tick');
   let parsedTickParam = 0;
@@ -153,6 +153,7 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
       parsedTickParam = 1;
     }
   }
+
   const finalParsedTickParam = clamp(Math.abs(parsedTickParam), 1, totalTicks);
 
   useEffect(() => {
