@@ -1,5 +1,6 @@
-export { NpcId, getNpcDefinition } from './npcs';
-export type { NpcDefinition } from './npcs';
+export { NpcId } from './npcs/npc-id';
+export { getNpcDefinition } from './npcs/npc-definitions';
+export type { NpcDefinition } from './npcs/npc-definitions';
 export { RaidModel } from './models/raid';
 export { RoomEvent } from './models/room-event';
 
