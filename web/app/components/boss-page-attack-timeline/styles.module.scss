@@ -27,8 +27,8 @@
 
 .attackTimeline__Column {
   margin-right: 5px;
-  width: 70px;
-  height: 250px;
+  width: 50px;
+  height: 210px;
   flex-shrink: 0;
   // border: 1px solid red;
   display: flex;
@@ -53,7 +53,8 @@
 }
 
 .attackTimeline__Cell {
-  border: 1px solid blue;
+  background-color: #23242f;
+  border-radius: 3px;
   height: 50px;
   width: 50px;
   display: flex;
@@ -63,4 +64,7 @@
   color: white;
   font-weight: bold;
   text-align: center;
+}
+
+.attackTimeline__CellImage {
 }

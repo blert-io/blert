@@ -4,94 +4,40 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import { RaidContext } from '../../raids/tob/context';
 import { CollapsiblePanel } from '../collapsible-panel/collapsible-panel';
 import styles from './styles.module.scss';
-import { PlayerAttack, Room } from '@blert/common/dist/raid-definitions';
+import { PlayerAttack, Room } from '@blert/common/raid-definitions';
 import { Event, PlayerAttackEvent } from '@blert/common';
+import Item from '../item';
+import { Attack } from '@blert/common/event';
 
-const getLigmaFromPlayerAttackEvent = (event: PlayerAttackEvent): string => {
-  switch (event.attack.type) {
-    case PlayerAttack.SCYTHE:
-      return 'S';
-    case PlayerAttack.BGS_SMACK:
-      return '💩';
-    case PlayerAttack.BGS_SPEC:
-      return 'BGS';
-    case PlayerAttack.BLOWPIPE:
-      return 'BP';
-    case PlayerAttack.CHALLY_SPEC:
-      return 'Ch';
-    case PlayerAttack.CHIN_BLACK:
-      return '🦔';
-    case PlayerAttack.CHIN_GREY:
-      return '💩';
-    case PlayerAttack.CHIN_RED:
-      return '💩';
-    case PlayerAttack.CLAW_SCRATCH:
-      return '💩';
-    case PlayerAttack.CLAW_SPEC:
-      return '👋🏼';
-    case PlayerAttack.DAWN_SPEC:
-      return '🧙';
-    case PlayerAttack.FANG:
-      return '💩';
-    case PlayerAttack.HAMMER_BOP:
-      return '💩';
-    case PlayerAttack.HAMMER_SPEC:
-      return '🛡️';
-    case PlayerAttack.HAM_JOINT:
-      return '🐷';
-    case PlayerAttack.KODAI_BARRAGE:
-      return '🧊';
-    case PlayerAttack.KODAI_BASH:
-      return '💩';
-    case PlayerAttack.SAELDOR:
-      return '💩';
-    case PlayerAttack.SANG:
-      return '🩸';
-    case PlayerAttack.SANG_BARRAGE:
-      return '🧀';
-    case PlayerAttack.SCEPTRE_BARRAGE:
-      return '🧊';
-    case PlayerAttack.SCYTHE:
-      return 'S';
-    case PlayerAttack.SCYTHE_UNCHARGED:
-      return '💩';
-    case PlayerAttack.SHADOW:
-      return '💩';
-    case PlayerAttack.SHADOW_BARRAGE:
-      return '💩';
-    case PlayerAttack.SWIFT:
-      return '🏃‍♂️';
-    case PlayerAttack.TENT_WHIP:
-      return '💩';
-    case PlayerAttack.TOXIC_TRIDENT:
-      return '💩';
-    case PlayerAttack.TOXIC_TRIDENT_BARRAGE:
-      return '💩';
-    case PlayerAttack.TOXIC_STAFF_BARRAGE:
-      return '🐍';
-    case PlayerAttack.TOXIC_STAFF_SWIPE:
-      return '💩';
-    case PlayerAttack.TRIDENT:
-      return '💩';
-    case PlayerAttack.TRIDENT_BARRAGE:
-      return '💩';
-    case PlayerAttack.TWISTED_BOW:
-      return 'TB';
-    case PlayerAttack.ZCB:
-      return 'Z';
+const makeCellImage = (playerAttack: Attack) => {
+  let weaponImage;
+  let infoIcon;
+
+  switch (playerAttack) {
     default:
-      return '';
   }
+
+  return (
+    <span className={styles.attackTimeline__CellImage}>
+      <h2>
+        <Item name={playerAttack.weapon.name} quantity={1} />
+      </h2>
+    </span>
+  );
 };
 
 const buildTickCell = (event: Event) => {
   // @ts-ignore
   const attackedThisTick = event.attack !== undefined;
 
-  let letterToDisplay: string = '';
+  let cellImage;
 
-  if (attackedThisTick) {
-    letterToDisplay = getLigmaFromPlayerAttackEvent(event as PlayerAttackEvent);
+  if ((event as PlayerAttackEvent).attack) {
+    cellImage = attackedThisTick ? (
+      makeCellImage((event as PlayerAttackEvent).attack)
+    ) : (
+      <></>
+    );
   }
 
   return (
@@ -99,7 +45,7 @@ const buildTickCell = (event: Event) => {
       className={styles.attackTimeline__Cell}
       key={`cell-${Math.floor(Math.random() * 100000)}`}
     >
-      {letterToDisplay}
+      {cellImage}
     </div>
   );
 };
@@ -150,8 +96,6 @@ interface AttackTimelineProps {
 
 export function BossPageAttackTimeline(props: AttackTimelineProps) {
   const { currentTick, playing, attackTimelines } = props;
-
-  console.log('attackTimelines', attackTimelines);
 
   const attackTimelineRef = useRef<HTMLDivElement>(null);
 
