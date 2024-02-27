@@ -4,9 +4,8 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import { RaidContext } from '../../raids/tob/context';
 import { CollapsiblePanel } from '../collapsible-panel/collapsible-panel';
 import styles from './styles.module.scss';
-import { PlayerAttack, Room } from '@blert/common/raid-definitions';
-import { Event, PlayerAttackEvent } from '@blert/common';
 import Item from '../item';
+import { PlayerAttackEvent, Room } from '@blert/common';
 import { Attack } from '@blert/common/event';
 
 const makeCellImage = (playerAttack: Attack) => {
@@ -20,7 +19,7 @@ const makeCellImage = (playerAttack: Attack) => {
   return (
     <span className={styles.attackTimeline__CellImage}>
       <h2>
-        <Item name={playerAttack.weapon.name} quantity={1} />
+        <Item name={playerAttack} quantity={1} />
       </h2>
     </span>
   );
