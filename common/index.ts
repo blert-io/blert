@@ -4,6 +4,7 @@ export { RaidModel } from './models/raid';
 export { RoomEvent } from './models/room-event';
 
 export type {
+  Attack,
   Event,
   MaidenBloodSplatsEvent,
   NpcAttackEvent,

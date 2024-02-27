@@ -1,15 +1,15 @@
 'use client';
 
 import { useContext, useEffect, useRef, useState } from 'react';
+import { Attack, Event, PlayerAttackEvent, Room } from '@blert/common';
+
 import { RaidContext } from '../../raids/tob/context';
 import { CollapsiblePanel } from '../collapsible-panel/collapsible-panel';
-import styles from './styles.module.scss';
 import Item from '../item';
-import { PlayerAttackEvent, Room } from '@blert/common';
-import { Attack } from '@blert/common/event';
+
+import styles from './styles.module.scss';
 
 const makeCellImage = (playerAttack: Attack) => {
-  let weaponImage;
   let infoIcon;
 
   switch (playerAttack) {
@@ -17,11 +17,12 @@ const makeCellImage = (playerAttack: Attack) => {
   }
 
   return (
-    <span className={styles.attackTimeline__CellImage}>
-      <h2>
-        <Item name={playerAttack} quantity={1} />
-      </h2>
-    </span>
+    <div
+      className={styles.attackTimeline__CellImage}
+      style={{ height: 50, width: 50 }}
+    >
+      <Item name={playerAttack.weapon.name} quantity={1} />
+    </div>
   );
 };
 
