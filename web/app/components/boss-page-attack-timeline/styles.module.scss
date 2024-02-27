@@ -15,20 +15,19 @@
   position: relative;
 }
 
-// .attackTimeline__ColumnActiveIndicator {
-//   position: absolute;
-//   width: 75px;
-//   border: 2px solid yellow;
-//   height: 255px;
-//   top: 17px;
-//   border-radius: 5px;
-//   transition: left 0.6s linear;
-// }
+.attackTimeline__ColumnActiveIndicator {
+  position: absolute;
+  height: 100%;
+  width: 110%;
+  top: -5px;
+  border: 3px solid var(--blert-text-color);
+  border-radius: 5px;
+  opacity: 0.5;
+}
 
 .attackTimeline__Column {
-  margin-right: 5px;
   width: 50px;
-  height: 210px;
+  height: 320px;
   flex-shrink: 0;
   // border: 1px solid red;
   display: flex;
@@ -36,13 +35,9 @@
   align-items: center;
   justify-content: space-between;
   padding-bottom: 10px;
-  border: 3px solid rgba(0, 0, 0, 0);
+  // border: 3px solid rgba(0, 0, 0, 0);
   position: relative;
-}
-
-.attackTimeline__ColumnActive {
-  border: 3px solid grey;
-  border-radius: 10px;
+  margin-right: 5px;
 }
 
 .attackTimeline__TickHeader {
@@ -62,7 +57,36 @@
   color: white;
   font-weight: bold;
   text-align: center;
+  height: 50px;
+  width: 50px;
+  opacity: 0.3;
+  cursor: pointer;
+
+  &:hover {
+    border: 1px solid var(--blert-text-color);
+    opacity: 0.7;
+  }
+
+  &.attackTimeline__CellOffCooldown {
+    opacity: 1;
+
+    &:hover {
+      opacity: 0.8;
+    }
+  }
 }
 
 .attackTimeline__CellImage {
+  display: flex;
+  height: 100%;
+  width: 100%;
+
+  img {
+    image-rendering: crisp-edges;
+  }
+}
+
+.attackTimeline__Nothing {
+  height: 100%;
+  width: 100%;
 }

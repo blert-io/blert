@@ -1,7 +1,14 @@
 'use client';
 
-import { useContext, useEffect, useRef, useState } from 'react';
-import { Attack, Event, PlayerAttackEvent, Room } from '@blert/common';
+import { useContext, useRef } from 'react';
+import {
+  Attack,
+  Event,
+  PlayerAttack,
+  PlayerAttackEvent,
+  PlayerUpdateEvent,
+  Room,
+} from '@blert/common';
 
 import { RaidContext } from '../../raids/tob/context';
 import { CollapsiblePanel } from '../collapsible-panel/collapsible-panel';
@@ -9,41 +16,46 @@ import Item from '../item';
 
 import styles from './styles.module.scss';
 
-const makeCellImage = (playerAttack: Attack) => {
+const makeCellImage = (playerAttack: Attack, playerIsOffCooldown: boolean) => {
   let infoIcon;
 
-  switch (playerAttack) {
-    default:
+  switch (playerAttack.type) {
+    case PlayerAttack.BGS_SMACK:
+      infoIcon = <span className={styles.ligma}></span>;
+      break;
   }
 
   return (
-    <div
-      className={styles.attackTimeline__CellImage}
-      style={{ height: 50, width: 50 }}
-    >
+    <div className={styles.attackTimeline__CellImage}>
       <Item name={playerAttack.weapon.name} quantity={1} />
     </div>
   );
 };
 
+const FUCKING_MAGIC = 55;
+
 const buildTickCell = (event: Event) => {
+  const playerIsOffCooldown =
+    (event as PlayerUpdateEvent).player.offCooldownTick <= event.tick;
+
   // @ts-ignore
   const attackedThisTick = event.attack !== undefined;
 
   let cellImage;
 
-  if ((event as PlayerAttackEvent).attack) {
-    cellImage = attackedThisTick ? (
-      makeCellImage((event as PlayerAttackEvent).attack)
-    ) : (
-      <></>
+  if (attackedThisTick) {
+    cellImage = makeCellImage(
+      (event as PlayerAttackEvent).attack,
+      playerIsOffCooldown,
     );
+  } else {
+    cellImage = <span className={styles.attackTimeline__Nothing}></span>;
   }
 
   return (
     <div
-      className={styles.attackTimeline__Cell}
-      key={`cell-${Math.floor(Math.random() * 100000)}`}
+      className={`${styles.attackTimeline__Cell} ${playerIsOffCooldown && styles.attackTimeline__CellOffCooldown}`}
+      key={`cell-${Math.floor(Math.random() * 1000000)}`}
     >
       {cellImage}
     </div>
@@ -80,8 +92,11 @@ const buildTickColumn = (
   return (
     <div
       key={`attackTimeline__${columnTick}`}
-      className={`${styles.attackTimeline__Column} ${currentPlaybackTick === columnTick ? styles.attackTimeline__ColumnActive : ''}`}
+      className={styles.attackTimeline__Column}
     >
+      {currentPlaybackTick === columnTick && (
+        <div className={styles.attackTimeline__ColumnActiveIndicator}></div>
+      )}
       <div className={styles.attackTimeline__TickHeader}>{columnTick}</div>
       {tickCells}
     </div>
@@ -107,13 +122,14 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
 
   if (attackTimelineRef.current !== null) {
     if (playing) {
-      if (currentTick * 75 < 525) {
+      if (currentTick * FUCKING_MAGIC < 525) {
         attackTimelineRef.current.scrollLeft = 0;
       } else {
-        attackTimelineRef.current.scrollLeft = (currentTick - 1) * 75 - 380;
+        attackTimelineRef.current.scrollLeft =
+          (currentTick - 1) * FUCKING_MAGIC - 380;
       }
     } else {
-      if (currentTick * 75 < 525) {
+      if (currentTick * FUCKING_MAGIC < 525) {
         attackTimelineRef.current.scrollLeft = 0;
       }
     }

@@ -233,6 +233,7 @@ export enum PlayerAttack {
   TRIDENT_BARRAGE = 'TRIDENT_BARRAGE',
   TWISTED_BOW = 'TWISTED_BOW',
   ZCB = 'ZCB',
+  UNKNOWN = 'UNKNOWN',
 }
 
 export enum NpcAttack {

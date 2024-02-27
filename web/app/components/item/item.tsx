@@ -36,8 +36,13 @@ export default function Item(props: ItemProps) {
   const quantityColor = 'yellow';
 
   return (
-    <div className={styles.image} style={{ width: 29, height: 30 }}>
-      <Image src={imageUrl} alt={props.name} fill />
+    <div className={styles.image}>
+      <Image
+        src={imageUrl}
+        alt={props.name}
+        fill
+        style={{ objectFit: 'contain' }}
+      />
       {props.quantity > 1 && (
         <div className={styles.quantity} style={{ color: quantityColor }}>
           {props.quantity}
