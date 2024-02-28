@@ -4,17 +4,51 @@ import { useContext, useRef } from 'react';
 import {
   Attack,
   Event,
+  EventType,
+  NpcAttack,
+  NpcAttackEvent,
   PlayerAttack,
   PlayerAttackEvent,
   PlayerUpdateEvent,
   Room,
+  getNpcDefinition,
 } from '@blert/common';
+import Image from 'next/image';
 
 import { RaidContext } from '../../raids/tob/context';
 import { CollapsiblePanel } from '../collapsible-panel/collapsible-panel';
 import Item from '../item';
 
 import styles from './styles.module.scss';
+
+const getCellImageForBossAttack = (attack: NpcAttack) => {
+  let imageUrl = '';
+
+  switch (attack) {
+    case NpcAttack.MAIDEN_AUTO:
+      imageUrl = '/maiden_auto.png';
+      break;
+    case NpcAttack.MAIDEN_BLOOD_THROW:
+      imageUrl = '/maiden_blood_throw.png';
+      break;
+    default:
+      imageUrl = '/huh.png';
+      break;
+  }
+
+  return (
+    <div className={styles.attackTimeline__CellImage}>
+      <div className={styles.attackTimeline__CellImage__BossAtk}>
+        <Image
+          src={imageUrl}
+          alt="Boss Attack - Maiden"
+          fill
+          style={{ objectFit: 'contain' }}
+        />
+      </div>
+    </div>
+  );
+};
 
 const makeCellImage = (playerAttack: Attack, playerIsOffCooldown: boolean) => {
   let infoIcon;
@@ -34,35 +68,69 @@ const makeCellImage = (playerAttack: Attack, playerIsOffCooldown: boolean) => {
 
 const FUCKING_MAGIC = 55;
 
-const buildTickCell = (event: Event) => {
-  const playerIsOffCooldown =
-    (event as PlayerUpdateEvent).player.offCooldownTick <= event.tick;
-
+const buildTickCell = (event: Event | null) => {
   // @ts-ignore
-  const attackedThisTick = event.attack !== undefined;
+  // console.log(event);
 
-  let cellImage;
-
-  if (attackedThisTick) {
-    cellImage = makeCellImage(
-      (event as PlayerAttackEvent).attack,
-      playerIsOffCooldown,
+  if (event === null) {
+    return (
+      <div
+        className={`${styles.attackTimeline__Cell}`}
+        key={`boss-cooldown-cell`}
+      >
+        <span className={styles.attackTimeline__Nothing}></span>
+      </div>
     );
-  } else {
-    cellImage = <span className={styles.attackTimeline__Nothing}></span>;
   }
 
-  return (
-    <div
-      className={`${styles.attackTimeline__Cell} ${playerIsOffCooldown && styles.attackTimeline__CellOffCooldown}`}
-      key={`cell-${Math.floor(Math.random() * 1000000)}`}
-    >
-      {cellImage}
-    </div>
-  );
+  // @ts-ignore
+  if (event.npcAttack !== undefined) {
+    // console.log('Creating tick cell for boss attack');
+
+    let cellImage = getCellImageForBossAttack(
+      (event as NpcAttackEvent).npcAttack.attack,
+    );
+
+    return (
+      <div
+        className={`${styles.attackTimeline__Cell} ${styles.attackTimeline__CellOffCooldown}`}
+        key={`boss-cell-${event.tick}`}
+      >
+        {cellImage}
+      </div>
+    );
+    // @ts-ignore
+  } else if (event.player) {
+    const playerIsOffCooldown =
+      (event as PlayerUpdateEvent).player.offCooldownTick <= event.tick;
+
+    // @ts-ignore
+    const attackedThisTick = event.attack !== undefined;
+
+    let cellImage;
+
+    if (attackedThisTick) {
+      cellImage = makeCellImage(
+        (event as PlayerAttackEvent).attack,
+        playerIsOffCooldown,
+      );
+    } else {
+      cellImage = <span className={styles.attackTimeline__Nothing}></span>;
+    }
+
+    return (
+      <div
+        className={`${styles.attackTimeline__Cell}${playerIsOffCooldown ? ` ${styles.attackTimeline__CellOffCooldown}` : ''}`}
+        key={`player-cell-${(event as PlayerUpdateEvent).player.name}-${event.tick}`}
+      >
+        {cellImage}
+      </div>
+    );
+  }
 };
 
 const buildTickColumn = (
+  bossAttackTimeline: NpcAttackEvent[],
   attackTimeline: Map<string, Event[]>,
   columnTick: number,
   currentPlaybackTick: number,
@@ -71,6 +139,19 @@ const buildTickColumn = (
   const cellEvents = [];
 
   const allPlayersTimelines = Array.from(attackTimeline.values());
+
+  for (let i = 0; i < bossAttackTimeline.length; i++) {
+    const bossEvent = bossAttackTimeline[i];
+
+    if (bossEvent.tick === columnTick) {
+      cellEvents.push(bossEvent);
+      break;
+    }
+  }
+
+  if (cellEvents.length === 0) {
+    cellEvents.push(null);
+  }
 
   for (let i = 0; i < allPlayersTimelines.length; i++) {
     const playerTimeline = allPlayersTimelines[i];
@@ -106,11 +187,19 @@ const buildTickColumn = (
 interface AttackTimelineProps {
   currentTick: number;
   playing: boolean;
-  attackTimelines: Map<string, Event[]>;
+  playerAttackTimelines: Map<string, Event[]>;
+  bossAttackTimeline: NpcAttackEvent[];
 }
 
 export function BossPageAttackTimeline(props: AttackTimelineProps) {
-  const { currentTick, playing, attackTimelines } = props;
+  const { currentTick, playing, playerAttackTimelines, bossAttackTimeline } =
+    props;
+
+  let npcName = getNpcDefinition(bossAttackTimeline[0].npc.id)!.name;
+
+  if (npcName.includes('The')) {
+    npcName = 'Maiden';
+  }
 
   const attackTimelineRef = useRef<HTMLDivElement>(null);
 
@@ -145,12 +234,35 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
   for (let i = 0; i < numberOfAttackTimelineTicks; i++) {
     const tick = i + 1;
 
-    const bossEventsForTick = raidData.rooms[Room.MAIDEN]!;
-
     attackTimelineColumnElements.push(
-      buildTickColumn(attackTimelines, tick, currentTick),
+      buildTickColumn(
+        bossAttackTimeline,
+        playerAttackTimelines,
+        tick,
+        currentTick,
+      ),
     );
   }
+
+  const attackTimelineParticipants = [
+    npcName,
+    ...Array.from(playerAttackTimelines.keys()),
+  ];
+
+  const attackTLLegendElements = [];
+
+  for (let i = 0; i < attackTimelineParticipants.length; i++) {
+    attackTLLegendElements.push(
+      <div
+        className={styles.attackTimeline__LegendParticipant}
+        key={`attack-tl-participant-${attackTimelineParticipants[i]}`}
+      >
+        {attackTimelineParticipants[i]}
+      </div>,
+    );
+  }
+
+  console.log('Attack timeline participants', attackTimelineParticipants);
 
   return (
     <CollapsiblePanel
@@ -159,8 +271,16 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
       defaultExpanded={true}
       className={styles.attackTimeline}
     >
-      <div className={styles.attackTimeline__Inner} ref={attackTimelineRef}>
-        {attackTimelineColumnElements}
+      <div className={styles.attackTimeline__Inner}>
+        <div className={styles.attackTimeline__Legend}>
+          {attackTLLegendElements}
+        </div>
+        <div
+          className={styles.attackTimeline__Scrollable}
+          ref={attackTimelineRef}
+        >
+          {attackTimelineColumnElements}
+        </div>
       </div>
     </CollapsiblePanel>
   );

@@ -5,6 +5,7 @@ import {
   Event,
   EventType,
   MaidenBloodSplatsEvent,
+  NpcAttackEvent,
   NpcEvent,
   PlayerAttackEvent,
   PlayerEvent,
@@ -204,12 +205,15 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
     [events],
   );
 
-  const attackTimelines = useMemo(() => {
+  const playerAttackTimelines = useMemo(() => {
     if (raidData !== null && events.length !== 0) {
       return buildAttackTimelines(raidData.party, totalTicks, eventsByTick);
     }
     return new Map();
-  }, [raidData, events]);
+  }, [raidData, events.length, totalTicks, eventsByTick]);
+
+  const bossAttackTimeline =
+    (eventsByType[EventType.NPC_ATTACK] as NpcAttackEvent[]) || [];
 
   if (raidData === null || events.length === 0) {
     return <>Loading...</>;
@@ -287,7 +291,8 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
         <BossPageAttackTimeline
           currentTick={currentTick}
           playing={playing}
-          attackTimelines={attackTimelines}
+          playerAttackTimelines={playerAttackTimelines}
+          bossAttackTimeline={bossAttackTimeline}
         />
 
         <BossPageReplay entities={entities} mapDef={MAIDEN_MAP_DEFINITION} />
