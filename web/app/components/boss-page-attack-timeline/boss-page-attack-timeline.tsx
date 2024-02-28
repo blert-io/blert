@@ -4,7 +4,6 @@ import { useContext, useRef } from 'react';
 import {
   Attack,
   Event,
-  EventType,
   NpcAttack,
   NpcAttackEvent,
   PlayerAttack,
@@ -50,7 +49,7 @@ const getCellImageForBossAttack = (attack: NpcAttack) => {
   );
 };
 
-const makeCellImage = (playerAttack: Attack, playerIsOffCooldown: boolean) => {
+const makeCellImage = (playerAttack: Attack) => {
   let infoIcon;
 
   switch (playerAttack.type) {
@@ -85,8 +84,6 @@ const buildTickCell = (event: Event | null) => {
 
   // @ts-ignore
   if (event.npcAttack !== undefined) {
-    // console.log('Creating tick cell for boss attack');
-
     let cellImage = getCellImageForBossAttack(
       (event as NpcAttackEvent).npcAttack.attack,
     );
@@ -106,21 +103,42 @@ const buildTickCell = (event: Event | null) => {
 
     // @ts-ignore
     const attackedThisTick = event.attack !== undefined;
+    // @ts-ignore
+    const diedThisTick = event.diedThisTick ?? false;
+    // @ts-ignore
+    const playerIsDead = event.isDead ?? false;
 
     let cellImage;
 
     if (attackedThisTick) {
-      cellImage = makeCellImage(
-        (event as PlayerAttackEvent).attack,
-        playerIsOffCooldown,
+      cellImage = makeCellImage((event as PlayerAttackEvent).attack);
+    } else if (diedThisTick) {
+      cellImage = (
+        <div className={styles.attackTimeline__CellImage}>
+          <div className={styles.attackTimeline__CellImage__BossAtk}>
+            <Image
+              src="/skull.webp"
+              alt="Player died"
+              fill
+              style={{ objectFit: 'contain' }}
+            />
+          </div>
+        </div>
       );
     } else {
       cellImage = <span className={styles.attackTimeline__Nothing}></span>;
     }
 
+    let className = styles.attackTimeline__Cell;
+    if (playerIsOffCooldown || diedThisTick) {
+      className += ` ${styles.attackTimeline__CellOffCooldown}`;
+    } else if (playerIsDead) {
+      className += ` ${styles.cellDead}`;
+    }
+
     return (
       <div
-        className={`${styles.attackTimeline__Cell}${playerIsOffCooldown ? ` ${styles.attackTimeline__CellOffCooldown}` : ''}`}
+        className={className}
         key={`player-cell-${(event as PlayerUpdateEvent).player.name}-${event.tick}`}
       >
         {cellImage}

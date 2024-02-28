@@ -94,15 +94,23 @@ function buildAttackTimelines(
         continue;
       }
 
-      const combinedEventsForThisTick = eventsForThisTick
-        .filter((event) => eventBelongsToPlayer(event, partyMember))
-        .reduce((acc, event) => {
-          if (event.type === EventType.PLAYER_DEATH) {
-            if (isDead === false) {
-              isDead = true;
-            }
+      const eventsForThisPlayer = eventsForThisTick.filter((event) =>
+        eventBelongsToPlayer(event, partyMember),
+      );
+      let combinedEventsForThisTick = {};
 
-            return { ...acc, diedThisTick: isDead };
+      if (eventsForThisPlayer.length > 0) {
+        combinedEventsForThisTick = eventsForThisPlayer.reduce((acc, event) => {
+          if (event.type === EventType.PLAYER_DEATH) {
+            isDead = true;
+
+            return {
+              ...acc,
+              tick: i,
+              player: { username: partyMember },
+              diedThisTick: isDead,
+              isDead,
+            };
           }
 
           if (event.type === EventType.PLAYER_UPDATE) {
@@ -116,6 +124,13 @@ function buildAttackTimelines(
 
           return acc;
         }, {});
+      } else if (isDead) {
+        combinedEventsForThisTick = {
+          tick: i,
+          player: { username: partyMember },
+          isDead: true,
+        };
+      }
 
       attackTimelines.get(partyMember)![i] = combinedEventsForThisTick;
     }
