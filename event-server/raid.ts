@@ -13,7 +13,10 @@ import {
   Nylo,
   NyloSplits,
   NyloWaveSpawnEvent,
+  PlayerAttack,
+  PlayerAttackEvent,
   PlayerDeathEvent,
+  PlayerModel,
   RaidStatus,
   Room,
   RoomNpc,
@@ -31,10 +34,13 @@ import {
   XarpusPhase,
   XarpusPhaseEvent,
   XarpusSplits,
+  isMaidenMatomenosNpcId,
 } from '@blert/common';
 import { RaidModel, RoomEvent } from '@blert/common';
 
 import Client from './client';
+import { Players } from './players';
+import { priceTracker } from './price-tracker';
 
 export function raidPartyKey(partyMembers: string[]) {
   return partyMembers
@@ -176,6 +182,8 @@ export default class Raid {
   public async start(): Promise<void> {
     this.state = State.IN_PROGRESS;
 
+    const documentsToCreate: Promise<void>[] = [];
+
     const record = new RaidModel({
       _id: this.id,
       mode: this.mode,
@@ -183,13 +191,54 @@ export default class Raid {
       startTime: this.startTime,
       party: this.party,
     });
-    await record.save();
+    documentsToCreate.push(record.save());
+
+    for (const username of this.party) {
+      documentsToCreate.push(Players.startNewRaid(username));
+    }
+
+    await Promise.all(documentsToCreate);
   }
 
   public async finish(): Promise<void> {
-    await this.updateDatabaseFields((record) => {
-      record.status = this.raidStatus;
-    });
+    let promises: Promise<void>[] = [];
+
+    promises.push(
+      this.updateDatabaseFields((record) => {
+        record.status = this.raidStatus;
+      }),
+    );
+
+    for (const username of this.party) {
+      promises.push(
+        Players.updateStats(username, (stats) => {
+          switch (this.raidStatus) {
+            case RaidStatus.COMPLETED:
+              stats.completions += 1;
+              break;
+
+            case RaidStatus.MAIDEN_RESET:
+            case RaidStatus.BLOAT_RESET:
+            case RaidStatus.NYLO_RESET:
+            case RaidStatus.SOTE_RESET:
+            case RaidStatus.XARPUS_RESET:
+              stats.resets += 1;
+              break;
+
+            case RaidStatus.MAIDEN_WIPE:
+            case RaidStatus.BLOAT_WIPE:
+            case RaidStatus.NYLO_WIPE:
+            case RaidStatus.SOTE_WIPE:
+            case RaidStatus.XARPUS_WIPE:
+            case RaidStatus.VERZIK_WIPE:
+              stats.wipes += 1;
+              break;
+          }
+        }),
+      );
+    }
+
+    await Promise.all(promises);
   }
 
   public async processEvent(event: Event): Promise<void> {
@@ -345,7 +394,15 @@ export default class Raid {
   private async updateRaidStatus(event: Event): Promise<boolean> {
     switch (event.type) {
       case EventType.PLAYER_DEATH:
-        this.deathsInRoom.push((event as PlayerDeathEvent).player.name);
+        const deathEvent = event as PlayerDeathEvent;
+        this.deathsInRoom.push(deathEvent.player.name);
+        Players.updateStats(deathEvent.player.name, (stats) => {
+          stats.deaths += 1;
+        });
+        break;
+
+      case EventType.PLAYER_ATTACK:
+        await this.handlePlayerAttack(event as PlayerAttackEvent);
         break;
 
       case EventType.NPC_SPAWN:
@@ -445,6 +502,62 @@ export default class Raid {
     }
 
     return true;
+  }
+
+  private async handlePlayerAttack(event: PlayerAttackEvent): Promise<void> {
+    const username = event.player.name;
+    const attack = event.attack;
+
+    switch (attack.type) {
+      case PlayerAttack.BGS_SMACK:
+        await Players.updateStats(username, (stats) => {
+          stats.bgsSmacks += 1;
+        });
+        break;
+
+      case PlayerAttack.CHIN_BLACK:
+      case PlayerAttack.CHIN_GREY:
+      case PlayerAttack.CHIN_RED:
+        let chinPrice: number;
+        try {
+          chinPrice = await priceTracker.getPrice(attack.weapon.id);
+        } catch (e) {
+          chinPrice = 0;
+        }
+
+        const isWrongThrowDistance =
+          attack.distanceToTarget !== -1 &&
+          (attack.distanceToTarget < 4 || attack.distanceToTarget > 6);
+
+        await Players.updateStats(username, (stats) => {
+          stats.chinsThrown += 1;
+          stats.chinsThrownValue += chinPrice;
+
+          if (attack.target !== undefined && isWrongThrowDistance) {
+            // Only consider incorrect throw distances on Maiden crabs.
+            if (isMaidenMatomenosNpcId(attack.target.id)) {
+              stats.chinsThrownWrongDistance += 1;
+            }
+          }
+        });
+        break;
+
+      case PlayerAttack.HAMMER_BOP:
+        await Players.updateStats(username, (stats) => {
+          stats.hammerBops += 1;
+        });
+        break;
+
+      case PlayerAttack.SANG_BARRAGE:
+      case PlayerAttack.SHADOW_BARRAGE:
+      case PlayerAttack.TOXIC_TRIDENT_BARRAGE:
+      case PlayerAttack.TRIDENT_BARRAGE:
+      case PlayerAttack.UNKNOWN_BARRAGE:
+        await Players.updateStats(username, (stats) => {
+          stats.barragesWithoutProperWeapon += 1;
+        });
+        break;
+    }
   }
 
   /**

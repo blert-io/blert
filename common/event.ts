@@ -217,7 +217,8 @@ export interface EventNpc extends BasicEventNpc {
 export type Attack = {
   type: PlayerAttack;
   weapon: Item;
-  target: BasicEventNpc;
+  target?: BasicEventNpc;
+  distanceToTarget: number;
 };
 
 export type NpcAttackDesc = {

@@ -1,6 +1,13 @@
-export { NpcId } from './npcs/npc-id';
+export { NpcId, isMaidenMatomenosNpcId } from './npcs/npc-id';
 export { getNpcDefinition } from './npcs/npc-definitions';
 // export type { NpcDefinition } from './npcs/npc-definitions';
+
+export type { Player, PlayerStats } from './player';
+
+export {
+  Player as PlayerModel,
+  PlayerStats as PlayerStatsModel,
+} from './models/player';
 export { RaidModel } from './models/raid';
 export { RoomEvent } from './models/room-event';
 

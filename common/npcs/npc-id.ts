@@ -75,3 +75,11 @@ export function isMaidenNpcId(npcId: number): boolean {
     isMaidenHardNpcId(npcId)
   );
 }
+
+export function isMaidenMatomenosNpcId(npcId: number): boolean {
+  return (
+    npcId === NpcId.MAIDEN_MATOMENOS_ENTRY ||
+    npcId === NpcId.MAIDEN_MATOMENOS_REGULAR ||
+    npcId === NpcId.MAIDEN_MATOMENOS_HARD
+  );
+}

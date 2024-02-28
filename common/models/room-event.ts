@@ -19,6 +19,19 @@ const Item = {
   name: String,
 };
 
+const attackSchema = new Schema(
+  {
+    type: String,
+    weapon: Item,
+    target: {
+      id: Number,
+      roomId: Number,
+    },
+    distanceToTarget: Number,
+  },
+  { _id: false },
+);
+
 const roomEventSchema = new Schema({
   raidId: { type: String, index: true },
   type: String,
@@ -62,14 +75,7 @@ const roomEventSchema = new Schema({
       default: undefined,
     },
   },
-  attack: {
-    type: { type: String },
-    weapon: Item,
-    target: {
-      id: Number,
-      roomId: Number,
-    },
-  },
+  attack: attackSchema,
   npcAttack: {
     attack: String,
     target: String,
