@@ -1,6 +1,6 @@
 'use client';
 
-import { useContext, useRef } from 'react';
+import { useContext, useEffect, useRef } from 'react';
 import {
   Attack,
   Event,
@@ -220,6 +220,21 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
   }
 
   const attackTimelineRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const div = attackTimelineRef.current;
+    if (div === null) {
+      return () => {};
+    }
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      div.scrollLeft += e.deltaY;
+    };
+
+    div.addEventListener('wheel', handleWheel, { passive: false });
+    return () => div.removeEventListener('wheel', handleWheel);
+  }, [attackTimelineRef.current]);
 
   const raidData = useContext(RaidContext);
 
