@@ -2,64 +2,65 @@ import { NpcId } from './npc-id';
 import { Mode } from '../raid-definitions';
 
 export type NpcDefinition = {
-  name: string;
+  fullName: string;
+  shortName: string;
+  canonicalId: number;
   size: number;
   mode: Mode;
 };
 
-const MAIDEN_ENTRY: NpcDefinition = {
-  name: 'The Maiden of Sugadinti',
+/**
+ * Creates a copy of the given NPC definition for each raid mode.
+ *
+ * @param definition The NPC definition to copy.
+ * @returns A tuple containing the NPC definition for each raid mode,
+ *   in the order [entry, regular, hard].
+ */
+const defineForAllModes = (
+  definition: Omit<NpcDefinition, 'mode'>,
+): [NpcDefinition, NpcDefinition, NpcDefinition] => {
+  return [
+    { ...definition, mode: Mode.ENTRY },
+    { ...definition, mode: Mode.REGULAR },
+    { ...definition, mode: Mode.HARD },
+  ];
+};
+
+const [MAIDEN_ENTRY, MAIDEN_REGULAR, MAIDEN_HARD] = defineForAllModes({
+  fullName: 'The Maiden of Sugadinti',
+  shortName: 'Maiden',
+  canonicalId: NpcId.MAIDEN_REGULAR,
   size: 6,
-  mode: Mode.ENTRY,
-};
+});
 
-const MAIDEN_REGULAR: NpcDefinition = {
-  name: 'The Maiden of Sugadinti',
-  size: 6,
-  mode: Mode.REGULAR,
-};
-
-const MAIDEN_HARD: NpcDefinition = {
-  name: 'The Maiden of Sugadinti',
-  size: 6,
-  mode: Mode.HARD,
-};
-
-const MAIDEN_MATOMENOS_ENTRY: NpcDefinition = {
-  name: 'Nylocas Matomenos',
+const [
+  MAIDEN_MATOMENOS_ENTRY,
+  MAIDEN_MATOMENOS_REGULAR,
+  MAIDEN_MATOMENOS_HARD,
+] = defineForAllModes({
+  fullName: 'Nylocas Matomenos',
+  shortName: 'Crab',
+  canonicalId: NpcId.MAIDEN_MATOMENOS_REGULAR,
   size: 2,
-  mode: Mode.ENTRY,
-};
+});
 
-const MAIDEN_MATOMENOS_REGULAR: NpcDefinition = {
-  name: 'Nylocas Matomenos',
-  size: 2,
-  mode: Mode.REGULAR,
-};
-
-const MAIDEN_MATOMENOS_HARD: NpcDefinition = {
-  name: 'Nylocas Matomenos',
-  size: 2,
-  mode: Mode.HARD,
-};
-
-const MAIDEN_BLOOD_SPAWN_ENTRY: NpcDefinition = {
-  name: 'Blood spawn',
+const [
+  MAIDEN_BLOOD_SPAWN_ENTRY,
+  MAIDEN_BLOOD_SPAWN_REGULAR,
+  MAIDEN_BLOOD_SPAWN_HARD,
+] = defineForAllModes({
+  fullName: 'Blood spawn',
+  shortName: 'Blood spawn',
+  canonicalId: NpcId.MAIDEN_BLOOD_SPAWN_REGULAR,
   size: 1,
-  mode: Mode.ENTRY,
-};
+});
 
-const MAIDEN_BLOOD_SPAWN_REGULAR: NpcDefinition = {
-  name: 'Blood spawn',
-  size: 1,
-  mode: Mode.REGULAR,
-};
-
-const MAIDEN_BLOOD_SPAWN_HARD: NpcDefinition = {
-  name: 'Blood spawn',
-  size: 1,
-  mode: Mode.HARD,
-};
+const [BLOAT_ENTRY, BLOAT_REGULAR, BLOAT_HARD] = defineForAllModes({
+  fullName: 'The Pestilent Bloat',
+  shortName: 'Bloat',
+  canonicalId: NpcId.BLOAT_REGULAR,
+  size: 5,
+});
 
 const NPC_DEFINITIONS: { [id: number]: NpcDefinition } = {
   // All Maiden NPCs.
@@ -91,6 +92,11 @@ const NPC_DEFINITIONS: { [id: number]: NpcDefinition } = {
   [NpcId.MAIDEN_BLOOD_SPAWN_ENTRY]: MAIDEN_BLOOD_SPAWN_ENTRY,
   [NpcId.MAIDEN_BLOOD_SPAWN_REGULAR]: MAIDEN_BLOOD_SPAWN_REGULAR,
   [NpcId.MAIDEN_BLOOD_SPAWN_HARD]: MAIDEN_BLOOD_SPAWN_HARD,
+
+  // Pestilent Bloat.
+  [NpcId.BLOAT_ENTRY]: BLOAT_ENTRY,
+  [NpcId.BLOAT_REGULAR]: BLOAT_REGULAR,
+  [NpcId.BLOAT_HARD]: BLOAT_HARD,
 };
 
 export function getNpcDefinition(npcId: number): NpcDefinition | null {

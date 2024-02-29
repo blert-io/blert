@@ -27,7 +27,7 @@ export class NpcEntity implements Entity {
     this.x = x;
     this.y = y;
     this.size = npcDefinition?.size ?? 1;
-    this.name = npcDefinition?.name ?? `NPC ${id}`;
+    this.name = npcDefinition?.fullName ?? `NPC ${id}`;
     this.id = id;
     this.roomId = roomId;
     this.hitpoints = hitpoints;

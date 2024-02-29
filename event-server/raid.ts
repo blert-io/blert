@@ -7,6 +7,7 @@ import {
   MaidenSplits,
   Maze,
   Mode,
+  Npc,
   NpcAttack,
   NpcDeathEvent,
   NpcSpawnEvent,
@@ -16,7 +17,6 @@ import {
   PlayerAttack,
   PlayerAttackEvent,
   PlayerDeathEvent,
-  PlayerModel,
   RaidStatus,
   Room,
   RoomNpc,
@@ -34,7 +34,6 @@ import {
   XarpusPhase,
   XarpusPhaseEvent,
   XarpusSplits,
-  isMaidenMatomenosNpcId,
 } from '@blert/common';
 import { RaidModel, RoomEvent } from '@blert/common';
 
@@ -535,7 +534,7 @@ export default class Raid {
 
           if (attack.target !== undefined && isWrongThrowDistance) {
             // Only consider incorrect throw distances on Maiden crabs.
-            if (isMaidenMatomenosNpcId(attack.target.id)) {
+            if (Npc.isMaidenMatomenos(attack.target.id)) {
               stats.chinsThrownWrongDistance += 1;
             }
           }

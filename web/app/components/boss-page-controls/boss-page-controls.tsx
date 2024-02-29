@@ -11,7 +11,6 @@ interface BossControlsProps {
   currentTick: number;
   updateTick: (tick: number) => void;
   updatePlayingState: (isPlaying: boolean) => void;
-  updateSlowMoState: (isSlowMo: boolean) => void;
 }
 
 export function BossPageControls(props: BossControlsProps) {
@@ -21,7 +20,6 @@ export function BossPageControls(props: BossControlsProps) {
     currentTick,
     updateTick,
     updatePlayingState,
-    updateSlowMoState,
   } = props;
 
   // The value of the tick input field. Tracked separately to `currentTick` to

@@ -1,6 +1,6 @@
 'use client';
 
-import { useContext, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import {
   Attack,
   Event,
@@ -9,12 +9,10 @@ import {
   PlayerAttack,
   PlayerAttackEvent,
   PlayerUpdateEvent,
-  Room,
   getNpcDefinition,
 } from '@blert/common';
 import Image from 'next/image';
 
-import { RaidContext } from '../../raids/tob/context';
 import { CollapsiblePanel } from '../collapsible-panel/collapsible-panel';
 import Item from '../item';
 
@@ -40,7 +38,7 @@ const getCellImageForBossAttack = (attack: NpcAttack) => {
       <div className={styles.attackTimeline__CellImage__BossAtk}>
         <Image
           src={imageUrl}
-          alt="Boss Attack - Maiden"
+          alt={`Boss Attack: ${attack}`}
           fill
           style={{ objectFit: 'contain' }}
         />
@@ -178,7 +176,6 @@ const FUCKING_MAGIC = 55;
 
 const buildTickCell = (event: Event | null, inventoryTags: boolean) => {
   // @ts-ignore
-  // console.log(event);
 
   if (event === null) {
     return (
@@ -320,16 +317,23 @@ interface AttackTimelineProps {
   playing: boolean;
   playerAttackTimelines: Map<string, Event[]>;
   bossAttackTimeline: NpcAttackEvent[];
+  timelineTicks: number;
   inventoryTags?: boolean;
 }
 
 export function BossPageAttackTimeline(props: AttackTimelineProps) {
-  const { currentTick, playing, playerAttackTimelines, bossAttackTimeline } =
-    props;
+  const {
+    currentTick,
+    playing,
+    playerAttackTimelines,
+    bossAttackTimeline,
+    timelineTicks,
+  } = props;
 
   const inventoryTags = props.inventoryTags ?? false;
 
-  let npcName = getNpcDefinition(bossAttackTimeline[0].npc.id)!.name;
+  let npcName =
+    getNpcDefinition(bossAttackTimeline[0].npc.id)?.shortName ?? 'Unknown';
 
   if (npcName.includes('The')) {
     npcName = 'Maiden';
@@ -352,12 +356,6 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
     return () => div.removeEventListener('wheel', handleWheel);
   }, [attackTimelineRef.current]);
 
-  const raidData = useContext(RaidContext);
-
-  if (raidData === null) {
-    return <>Loading...</>;
-  }
-
   if (attackTimelineRef.current !== null) {
     if (playing) {
       if (currentTick * FUCKING_MAGIC < 525) {
@@ -373,14 +371,9 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
     }
   }
 
-  const { rooms } = raidData;
-  const maiden = rooms[Room.MAIDEN];
-
-  const numberOfAttackTimelineTicks = maiden!.roomTicks;
-
   const attackTimelineColumnElements = [];
 
-  for (let i = 0; i < numberOfAttackTimelineTicks; i++) {
+  for (let i = 0; i < timelineTicks; i++) {
     const tick = i + 1;
 
     attackTimelineColumnElements.push(

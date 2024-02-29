@@ -27,6 +27,10 @@ export enum NpcId {
   MAIDEN_BLOOD_SPAWN_ENTRY = 10821,
   MAIDEN_BLOOD_SPAWN_REGULAR = 8367,
   MAIDEN_BLOOD_SPAWN_HARD = 10829,
+
+  BLOAT_ENTRY = 10812,
+  BLOAT_REGULAR = 8359,
+  BLOAT_HARD = 10813,
 }
 
 const MAIDEN_ENTRY_IDS = [
@@ -56,30 +60,48 @@ const MAIDEN_HARD_IDS = [
   NpcId.MAIDEN_HARD_10827,
 ];
 
-export function isMaidenEntryNpcId(npcId: number) {
-  return MAIDEN_ENTRY_IDS.includes(npcId);
-}
+export class Npc {
+  static isMaidenEntry(npcId: number): boolean {
+    return MAIDEN_ENTRY_IDS.includes(npcId);
+  }
 
-export function isMaidenRegularNpcId(npcId: number) {
-  return MAIDEN_REGULAR_IDS.includes(npcId);
-}
+  static isMaidenRegular(npcId: number): boolean {
+    return MAIDEN_REGULAR_IDS.includes(npcId);
+  }
 
-export function isMaidenHardNpcId(npcId: number) {
-  return MAIDEN_HARD_IDS.includes(npcId);
-}
+  static isMaidenHard(npcId: number): boolean {
+    return MAIDEN_HARD_IDS.includes(npcId);
+  }
 
-export function isMaidenNpcId(npcId: number): boolean {
-  return (
-    isMaidenEntryNpcId(npcId) ||
-    isMaidenRegularNpcId(npcId) ||
-    isMaidenHardNpcId(npcId)
-  );
-}
+  static isMaiden(npcId: number): boolean {
+    return (
+      Npc.isMaidenEntry(npcId) ||
+      Npc.isMaidenRegular(npcId) ||
+      Npc.isMaidenHard(npcId)
+    );
+  }
 
-export function isMaidenMatomenosNpcId(npcId: number): boolean {
-  return (
-    npcId === NpcId.MAIDEN_MATOMENOS_ENTRY ||
-    npcId === NpcId.MAIDEN_MATOMENOS_REGULAR ||
-    npcId === NpcId.MAIDEN_MATOMENOS_HARD
-  );
+  static isMaidenMatomenos(npcId: number): boolean {
+    return (
+      npcId === NpcId.MAIDEN_MATOMENOS_ENTRY ||
+      npcId === NpcId.MAIDEN_MATOMENOS_REGULAR ||
+      npcId === NpcId.MAIDEN_MATOMENOS_HARD
+    );
+  }
+
+  static isMaidenBloodSpawn(npcId: number): boolean {
+    return (
+      npcId === NpcId.MAIDEN_BLOOD_SPAWN_ENTRY ||
+      npcId === NpcId.MAIDEN_BLOOD_SPAWN_REGULAR ||
+      npcId === NpcId.MAIDEN_BLOOD_SPAWN_HARD
+    );
+  }
+
+  static isBloat(npcId: number): boolean {
+    return (
+      npcId === NpcId.BLOAT_ENTRY ||
+      npcId === NpcId.BLOAT_REGULAR ||
+      npcId === NpcId.BLOAT_HARD
+    );
+  }
 }
