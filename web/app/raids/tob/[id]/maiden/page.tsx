@@ -170,6 +170,9 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
     }
   }
 
+  const memesToApply = searchParams.get('memes')?.split(',') ?? [];
+  const inventoryTags = memesToApply.includes('invtags');
+
   const finalParsedTickParam = clamp(Math.abs(parsedTickParam), 1, totalTicks);
 
   useEffect(() => {
@@ -308,6 +311,7 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
           playing={playing}
           playerAttackTimelines={playerAttackTimelines}
           bossAttackTimeline={bossAttackTimeline}
+          inventoryTags={inventoryTags}
         />
 
         <BossPageReplay entities={entities} mapDef={MAIDEN_MAP_DEFINITION} />

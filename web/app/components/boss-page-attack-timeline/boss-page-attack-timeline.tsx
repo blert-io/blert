@@ -49,7 +49,57 @@ const getCellImageForBossAttack = (attack: NpcAttack) => {
   );
 };
 
-const makeCellImage = (playerAttack: Attack) => {
+function inventoryTagColor(playerAttack: PlayerAttack): string | undefined {
+  switch (playerAttack) {
+    case PlayerAttack.SCYTHE:
+    case PlayerAttack.SCYTHE_UNCHARGED:
+    case PlayerAttack.FANG:
+    case PlayerAttack.HAM_JOINT:
+    case PlayerAttack.SAELDOR:
+    case PlayerAttack.SWIFT:
+    case PlayerAttack.TENT_WHIP:
+      return 'red';
+
+    case PlayerAttack.BLOWPIPE:
+    case PlayerAttack.CHIN_BLACK:
+    case PlayerAttack.CHIN_GREY:
+    case PlayerAttack.CHIN_RED:
+    case PlayerAttack.TWISTED_BOW:
+    case PlayerAttack.ZCB:
+      return 'green';
+
+    case PlayerAttack.BGS_SMACK:
+    case PlayerAttack.BGS_SPEC:
+    case PlayerAttack.CHALLY_SPEC:
+    case PlayerAttack.CLAW_SCRATCH:
+    case PlayerAttack.CLAW_SPEC:
+    case PlayerAttack.DAWN_SPEC:
+    case PlayerAttack.DINHS_SPEC:
+    case PlayerAttack.HAMMER_BOP:
+    case PlayerAttack.HAMMER_SPEC:
+      return 'yellow';
+
+    case PlayerAttack.KODAI_BARRAGE:
+    case PlayerAttack.KODAI_BASH:
+    case PlayerAttack.SANG:
+    case PlayerAttack.SANG_BARRAGE:
+    case PlayerAttack.SCEPTRE_BARRAGE:
+    case PlayerAttack.SHADOW:
+    case PlayerAttack.SHADOW_BARRAGE:
+    case PlayerAttack.STAFF_OF_LIGHT_BARRAGE:
+    case PlayerAttack.STAFF_OF_LIGHT_SWIPE:
+    case PlayerAttack.TOXIC_TRIDENT:
+    case PlayerAttack.TOXIC_TRIDENT_BARRAGE:
+    case PlayerAttack.TOXIC_STAFF_BARRAGE:
+    case PlayerAttack.TOXIC_STAFF_SWIPE:
+    case PlayerAttack.TRIDENT:
+    case PlayerAttack.TRIDENT_BARRAGE:
+      return 'blue';
+  }
+  return undefined;
+}
+
+const makeCellImage = (playerAttack: Attack, inventoryTags: boolean) => {
   let infoIcon;
 
   switch (playerAttack.type) {
@@ -58,16 +108,24 @@ const makeCellImage = (playerAttack: Attack) => {
       break;
   }
 
+  let outline = inventoryTags
+    ? inventoryTagColor(playerAttack.type)
+    : undefined;
+
   return (
     <div className={styles.attackTimeline__CellImage}>
-      <Item name={playerAttack.weapon.name} quantity={1} />
+      <Item
+        name={playerAttack.weapon.name}
+        quantity={1}
+        outlineColor={outline}
+      />
     </div>
   );
 };
 
 const FUCKING_MAGIC = 55;
 
-const buildTickCell = (event: Event | null) => {
+const buildTickCell = (event: Event | null, inventoryTags: boolean) => {
   // @ts-ignore
   // console.log(event);
 
@@ -111,7 +169,10 @@ const buildTickCell = (event: Event | null) => {
     let cellImage;
 
     if (attackedThisTick) {
-      cellImage = makeCellImage((event as PlayerAttackEvent).attack);
+      cellImage = makeCellImage(
+        (event as PlayerAttackEvent).attack,
+        inventoryTags,
+      );
     } else if (diedThisTick) {
       cellImage = (
         <div className={styles.attackTimeline__CellImage}>
@@ -152,6 +213,7 @@ const buildTickColumn = (
   attackTimeline: Map<string, Event[]>,
   columnTick: number,
   currentPlaybackTick: number,
+  inventoryTags: boolean,
 ) => {
   const tickCells = [];
   const cellEvents = [];
@@ -185,7 +247,7 @@ const buildTickColumn = (
   }
 
   for (let i = 0; i < cellEvents.length; i++) {
-    tickCells.push(buildTickCell(cellEvents[i]));
+    tickCells.push(buildTickCell(cellEvents[i], inventoryTags));
   }
 
   return (
@@ -207,11 +269,14 @@ interface AttackTimelineProps {
   playing: boolean;
   playerAttackTimelines: Map<string, Event[]>;
   bossAttackTimeline: NpcAttackEvent[];
+  inventoryTags?: boolean;
 }
 
 export function BossPageAttackTimeline(props: AttackTimelineProps) {
   const { currentTick, playing, playerAttackTimelines, bossAttackTimeline } =
     props;
+
+  const inventoryTags = props.inventoryTags ?? false;
 
   let npcName = getNpcDefinition(bossAttackTimeline[0].npc.id)!.name;
 
@@ -273,6 +338,7 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
         playerAttackTimelines,
         tick,
         currentTick,
+        inventoryTags,
       ),
     );
   }

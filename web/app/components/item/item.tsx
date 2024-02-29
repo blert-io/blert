@@ -5,6 +5,7 @@ import styles from './style.module.scss';
 type ItemProps = {
   name: string;
   quantity: number;
+  outlineColor?: string;
 };
 
 const WIKI_IMAGE_BASE_URL: string = 'https://oldschool.runescape.wiki/images';
@@ -35,14 +36,16 @@ export default function Item(props: ItemProps) {
 
   const quantityColor = 'yellow';
 
+  let imageStyle: React.CSSProperties = { objectFit: 'contain' };
+  if (props.outlineColor) {
+    imageStyle.filter =
+      `drop-shadow(1px 2px 0 ${props.outlineColor})` +
+      ` drop-shadow(-1px -1px 0 ${props.outlineColor})`;
+  }
+
   return (
     <div className={styles.image}>
-      <Image
-        src={imageUrl}
-        alt={props.name}
-        fill
-        style={{ objectFit: 'contain' }}
-      />
+      <Image src={imageUrl} alt={props.name} fill style={imageStyle} />
       {props.quantity > 1 && (
         <div className={styles.quantity} style={{ color: quantityColor }}>
           {props.quantity}
