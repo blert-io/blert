@@ -22,9 +22,6 @@ import { BossPageAttackTimeline } from '../../../../components/boss-page-attack-
 import { BossPageControls } from '../../../../components/boss-page-controls/boss-page-controls';
 import BossPageReplay from '../../../../components/boss-page-replay';
 import { BossPageDPSTimeline } from '../../../../components/boss-page-dps-timeine/boss-page-dps-timeline';
-import { RaidContext } from '../../context';
-import { TICK_MS } from '../../../../utils/tick';
-import { clamp } from '../../../../utils/math';
 import {
   Entity,
   MarkerEntity,
@@ -32,13 +29,15 @@ import {
   PlayerEntity,
 } from '../../../../components/map';
 
+import { clamp } from '../../../../utils/math';
+import { RaidContext } from '../../context';
+import { usePlayingState } from '../../boss-room-state';
+
 import maidenBaseTiles from './maiden.json';
 import styles from './style.module.scss';
 
 type EventTickMap = { [key: number]: Event[] };
 type EventTypeMap = { [key: string]: Event[] };
-
-const maidenNPCIds = [8360, 8361, 8362, 8363, 8364, 8365];
 
 const MAIDEN_MAP_DEFINITION = {
   baseX: 3160,
@@ -154,9 +153,10 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
   const searchParams = useSearchParams();
   const raidData = useContext(RaidContext);
 
-  const [currentTick, updateTickOnPage] = useState(1);
-
   const totalTicks = raidData?.rooms[Room.MAIDEN]!.roomTicks! ?? 1;
+
+  const { currentTick, updateTickOnPage, playing, setPlaying } =
+    usePlayingState(totalTicks);
 
   const tickParam = searchParams.get('tick');
   let parsedTickParam = 0;
@@ -179,35 +179,7 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
     updateTickOnPage(finalParsedTickParam);
   }, [finalParsedTickParam]);
 
-  const [playing, setPlaying] = useState(false);
-  const [slowMode, setSlowMode] = useState(false);
-
   const [events, setEvents] = useState<Event[]>([]);
-
-  let tickTimeout = useRef<number | undefined>(undefined);
-
-  const clearTimeout = () => {
-    window.clearTimeout(tickTimeout.current);
-    tickTimeout.current = undefined;
-  };
-
-  const lastTick = events[events.length - 1]?.tick ?? 0;
-
-  useEffect(() => {
-    if (playing === true) {
-      if (currentTick < lastTick) {
-        tickTimeout.current = window.setTimeout(() => {
-          updateTickOnPage(currentTick + 1);
-        }, TICK_MS);
-      } else {
-        setPlaying(false);
-        clearTimeout();
-        updateTickOnPage(1);
-      }
-    } else {
-      clearTimeout();
-    }
-  }, [currentTick, lastTick, playing]);
 
   useEffect(() => {
     const getEvents = async () => {
@@ -303,7 +275,6 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
           currentTick={currentTick}
           updateTick={updateTickOnPage}
           updatePlayingState={setPlaying}
-          updateSlowMoState={setSlowMode}
         />
 
         <BossPageAttackTimeline
@@ -311,6 +282,7 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
           playing={playing}
           playerAttackTimelines={playerAttackTimelines}
           bossAttackTimeline={bossAttackTimeline}
+          timelineTicks={totalTicks}
           inventoryTags={inventoryTags}
         />
 
