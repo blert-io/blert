@@ -5,18 +5,12 @@ import {
   Event,
   EventType,
   MaidenBloodSplatsEvent,
-  NpcAttackEvent,
   NpcEvent,
-  PlayerAttackEvent,
-  PlayerEvent,
   PlayerUpdateEvent,
   Room,
-  isPlayerEvent,
 } from '@blert/common';
-import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-
-import { loadEventsForRoom } from '../../../../actions/raid';
 
 import { BossPageAttackTimeline } from '../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
 import { BossPageControls } from '../../../../components/boss-page-controls/boss-page-controls';
@@ -30,14 +24,10 @@ import {
 } from '../../../../components/map';
 
 import { clamp } from '../../../../utils/math';
-import { RaidContext } from '../../context';
-import { usePlayingState } from '../../boss-room-state';
+import { usePlayingState, useRoomEvents } from '../../boss-room-state';
 
 import maidenBaseTiles from './maiden.json';
 import styles from './style.module.scss';
-
-type EventTickMap = { [key: number]: Event[] };
-type EventTypeMap = { [key: string]: Event[] };
 
 const MAIDEN_MAP_DEFINITION = {
   baseX: 3160,
@@ -48,112 +38,18 @@ const MAIDEN_MAP_DEFINITION = {
 };
 const BLOOD_SPLAT_COLOR = '#b93e3e';
 
-const eventBelongsToPlayer = (event: Event, playerName: string): boolean => {
-  if (!isPlayerEvent(event)) return false;
-
-  const eventAsPlayerEvent = event as PlayerEvent;
-
-  return eventAsPlayerEvent.player.name === playerName;
-};
-
-function buildEventMaps(events: Event[]): [EventTickMap, EventTypeMap] {
-  let byTick: EventTickMap = {};
-  let byType: EventTypeMap = {};
-
-  for (const event of events) {
-    if (byTick[event.tick] === undefined) {
-      byTick[event.tick] = [];
-    }
-    byTick[event.tick].push(event);
-
-    if (byType[event.type] === undefined) {
-      byType[event.type] = [];
-    }
-    byType[event.type].push(event);
-  }
-
-  return [byTick, byType];
-}
-
-function buildAttackTimelines(
-  party: string[],
-  totalTicks: number,
-  eventsByTick: EventTickMap,
-) {
-  let attackTimelines: Map<string, any[]> = new Map();
-
-  for (const partyMember of party) {
-    attackTimelines.set(partyMember, new Array(totalTicks));
-
-    let isDead = false;
-
-    for (let i = 0; i < totalTicks; i++) {
-      const eventsForThisTick = eventsByTick[i];
-      if (eventsForThisTick === undefined) {
-        continue;
-      }
-
-      const eventsForThisPlayer = eventsForThisTick.filter((event) =>
-        eventBelongsToPlayer(event, partyMember),
-      );
-      let combinedEventsForThisTick = {};
-
-      if (eventsForThisPlayer.length > 0) {
-        combinedEventsForThisTick = eventsForThisPlayer.reduce((acc, event) => {
-          if (event.type === EventType.PLAYER_DEATH) {
-            isDead = true;
-
-            return {
-              ...acc,
-              tick: i,
-              player: { username: partyMember },
-              diedThisTick: isDead,
-              isDead,
-            };
-          }
-
-          if (event.type === EventType.PLAYER_UPDATE) {
-            const { type, room, raidId, ...rest } = event;
-            return { ...acc, ...rest, isDead };
-          }
-
-          if (event.type === EventType.PLAYER_ATTACK) {
-            return { ...acc, attack: (event as PlayerAttackEvent).attack };
-          }
-
-          return acc;
-        }, {});
-      } else if (isDead) {
-        combinedEventsForThisTick = {
-          tick: i,
-          player: { username: partyMember },
-          isDead: true,
-        };
-      }
-
-      attackTimelines.get(partyMember)![i] = combinedEventsForThisTick;
-    }
-  }
-
-  if (
-    Array.from(attackTimelines.values()).every(
-      (value) => value.length === totalTicks,
-    )
-  ) {
-    // console.log(`All timelines are ${totalTicks} ticks long (good!)`);
-  } else {
-    console.error('Not all timelines are the same length, this is bad.');
-    window.location.href = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
-  }
-
-  return attackTimelines;
-}
-
 export default function Maiden({ params: { id } }: { params: { id: string } }) {
   const searchParams = useSearchParams();
-  const raidData = useContext(RaidContext);
 
-  const totalTicks = raidData?.rooms[Room.MAIDEN]!.roomTicks! ?? 1;
+  const {
+    raidData,
+    events,
+    totalTicks,
+    eventsByTick,
+    eventsByType,
+    bossAttackTimeline,
+    playerAttackTimelines,
+  } = useRoomEvents(Room.MAIDEN);
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
@@ -178,32 +74,6 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
   useEffect(() => {
     updateTickOnPage(finalParsedTickParam);
   }, [finalParsedTickParam]);
-
-  const [events, setEvents] = useState<Event[]>([]);
-
-  useEffect(() => {
-    const getEvents = async () => {
-      const evts = await loadEventsForRoom(id, Room.MAIDEN);
-      setEvents(evts);
-    };
-
-    getEvents();
-  }, [id]);
-
-  const [eventsByTick, eventsByType] = useMemo(
-    () => buildEventMaps(events),
-    [events],
-  );
-
-  const playerAttackTimelines = useMemo(() => {
-    if (raidData !== null && events.length !== 0) {
-      return buildAttackTimelines(raidData.party, totalTicks, eventsByTick);
-    }
-    return new Map();
-  }, [raidData, events.length, totalTicks, eventsByTick]);
-
-  const bossAttackTimeline =
-    (eventsByType[EventType.NPC_ATTACK] as NpcAttackEvent[]) || [];
 
   if (raidData === null || events.length === 0) {
     return <>Loading...</>;
@@ -249,6 +119,7 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
         for (const coord of e.maidenBloodSplats ?? []) {
           entities.push(new MarkerEntity(coord.x, coord.y, BLOOD_SPLAT_COLOR));
         }
+        break;
     }
   }
 

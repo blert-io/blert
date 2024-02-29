@@ -9,7 +9,6 @@ import {
   PlayerAttack,
   PlayerAttackEvent,
   PlayerUpdateEvent,
-  Room,
   getNpcDefinition,
 } from '@blert/common';
 import Image from 'next/image';
@@ -39,7 +38,7 @@ const getCellImageForBossAttack = (attack: NpcAttack) => {
       <div className={styles.attackTimeline__CellImage__BossAtk}>
         <Image
           src={imageUrl}
-          alt="Boss Attack - Maiden"
+          alt={`Boss Attack: ${attack}`}
           fill
           style={{ objectFit: 'contain' }}
         />
@@ -333,7 +332,8 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
 
   const inventoryTags = props.inventoryTags ?? false;
 
-  let npcName = getNpcDefinition(bossAttackTimeline[0].npc.id)!.name;
+  let npcName =
+    getNpcDefinition(bossAttackTimeline[0].npc.id)?.shortName ?? 'Unknown';
 
   if (npcName.includes('The')) {
     npcName = 'Maiden';
