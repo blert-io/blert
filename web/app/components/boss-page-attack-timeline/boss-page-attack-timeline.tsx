@@ -100,11 +100,61 @@ function inventoryTagColor(playerAttack: PlayerAttack): string | undefined {
 }
 
 const makeCellImage = (playerAttack: Attack, inventoryTags: boolean) => {
+  let blunderIcon;
+
+  switch (true) {
+    case true:
+      blunderIcon = (
+        <Image
+          className={styles.attackTimeline__CellImage__blunderIcon}
+          src={'/spec.png'}
+          alt="Special Attack"
+          height={25}
+          width={25}
+        />
+      );
+      break;
+  }
+
   let infoIcon;
 
   switch (playerAttack.type) {
-    case PlayerAttack.BGS_SMACK:
-      infoIcon = <span className={styles.ligma}></span>;
+    case PlayerAttack.BGS_SPEC:
+    case PlayerAttack.HAMMER_SPEC:
+    case PlayerAttack.CHALLY_SPEC:
+    case PlayerAttack.DAWN_SPEC:
+    case PlayerAttack.DINHS_SPEC:
+    case PlayerAttack.CLAW_SPEC:
+    case PlayerAttack.HAMMER_SPEC:
+    case PlayerAttack.HAMMER_SPEC:
+      infoIcon = (
+        <Image
+          className={styles.attackTimeline__CellImage__InfoIcon}
+          src={'/spec.png'}
+          alt="Special Attack"
+          height={25}
+          width={25}
+        />
+      );
+      break;
+    case PlayerAttack.SANG_BARRAGE:
+    case PlayerAttack.SHADOW_BARRAGE:
+    case PlayerAttack.STAFF_OF_LIGHT_BARRAGE:
+    case PlayerAttack.TOXIC_TRIDENT_BARRAGE:
+    case PlayerAttack.TOXIC_STAFF_BARRAGE:
+    case PlayerAttack.TRIDENT_BARRAGE:
+    case PlayerAttack.KODAI_BARRAGE:
+    case PlayerAttack.SCEPTRE_BARRAGE:
+    case PlayerAttack.UNKNOWN_BARRAGE:
+      infoIcon = (
+        <Image
+          className={styles.attackTimeline__CellImage__InfoIcon}
+          src={'/barrage.png'}
+          alt="Barrage"
+          height={25}
+          width={25}
+        />
+      );
       break;
   }
 
@@ -114,6 +164,7 @@ const makeCellImage = (playerAttack: Attack, inventoryTags: boolean) => {
 
   return (
     <div className={styles.attackTimeline__CellImage}>
+      {infoIcon && infoIcon}
       <Item
         name={playerAttack.weapon.name}
         quantity={1}
@@ -148,7 +199,7 @@ const buildTickCell = (event: Event | null, inventoryTags: boolean) => {
 
     return (
       <div
-        className={`${styles.attackTimeline__Cell} ${styles.attackTimeline__CellOffCooldown}`}
+        className={`${styles.attackTimeline__Cell} ${styles.attackTimeline__BossCooldown}`}
         key={`boss-cell-${event.tick}`}
       >
         {cellImage}
@@ -353,7 +404,7 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
   for (let i = 0; i < attackTimelineParticipants.length; i++) {
     attackTLLegendElements.push(
       <div
-        className={styles.attackTimeline__LegendParticipant}
+        className={`${styles.attackTimeline__LegendParticipant}${i === 0 ? ` ${styles.attackTimeline__LegendParticipant__Boss}` : ''}`}
         key={`attack-tl-participant-${attackTimelineParticipants[i]}`}
       >
         {attackTimelineParticipants[i]}

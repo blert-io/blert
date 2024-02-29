@@ -13,7 +13,7 @@
 }
 
 .attackTimeline__Scrollable {
-  padding: 20px 20px 20px 5px;
+  padding: 10px 10px 3px 12px;
   overflow-x: scroll;
   width: 100%;
   display: flex;
@@ -22,24 +22,24 @@
 
 .attackTimeline__ColumnActiveIndicator {
   position: absolute;
-  height: 100%;
-  width: 110%;
-  top: -5px;
+  height: 98%;
+  width: 60px;
+  top: -4px;
   border: 3px solid var(--blert-text-color);
   border-radius: 5px;
   opacity: 0.5;
+  left: -8px;
 }
 
 .attackTimeline__Column,
 .attackTimeline__Legend {
   width: 50px;
-  height: 370px;
+  // height: 370px;
   flex-shrink: 0;
   // border: 1px solid red;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: space-between;
   padding-bottom: 10px;
   // border: 3px solid rgba(0, 0, 0, 0);
   position: relative;
@@ -49,9 +49,10 @@
 .attackTimeline__Legend {
   position: relative;
   padding-top: 35px;
-  top: 20px;
-  width: 70px;
+  top: 4px;
+  width: 134px;
   margin-right: 0;
+  align-items: flex-end !important;
 }
 
 .attackTimeline__LegendParticipant {
@@ -60,14 +61,19 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 17px;
+  font-size: 18px;
   color: white;
   font-weight: bold;
   text-align: center;
   height: 50px;
-  width: 50px;
+  width: 125px;
   opacity: 1;
   cursor: pointer;
+  margin: 0 5px 5px 0;
+
+  &.attackTimeline__LegendParticipant__Boss {
+    background-color: #3f040494;
+  }
 }
 
 .attackTimeline__TickHeader {
@@ -75,6 +81,9 @@
   width: 100%;
   text-align: center;
   // border: 1px solid grey;
+  position: relative;
+  left: -3px;
+  top: -3px;
 }
 
 .attackTimeline__Cell {
@@ -91,10 +100,19 @@
   width: 50px;
   opacity: 0.3;
   cursor: pointer;
+  margin: 0 5px 5px 0;
 
   &:hover {
     border: 1px solid var(--blert-text-color);
     opacity: 0.7;
+  }
+
+  &.attackTimeline__BossCooldown {
+    opacity: 1;
+
+    &:hover {
+      opacity: 0.8;
+    }
   }
 
   &.attackTimeline__CellOffCooldown {
@@ -115,11 +133,20 @@
   display: flex;
   height: 100%;
   width: 100%;
+  position: relative;
 
   img {
     image-rendering: crisp-edges;
     image-rendering: -webkit-optimize-contrast;
   }
+}
+
+.attackTimeline__CellImage__InfoIcon {
+  z-index: 9999;
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  cursor: pointer;
 }
 
 .attackTimeline__CellImage__BossAtk {
