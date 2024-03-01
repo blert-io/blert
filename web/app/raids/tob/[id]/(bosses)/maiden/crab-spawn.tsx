@@ -6,7 +6,7 @@ import {
 import { useState } from 'react';
 
 import styles from './style.module.css';
-import { ticksToFormattedSeconds } from '../../../../utils/tick';
+import { ticksToFormattedSeconds } from '../../../../../utils/tick';
 
 type CrabSpawnProps = {
   crabs: NpcSpawnEvent[];

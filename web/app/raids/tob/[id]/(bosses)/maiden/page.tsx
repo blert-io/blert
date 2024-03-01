@@ -2,7 +2,6 @@
 
 import Image from 'next/image';
 import {
-  Event,
   EventType,
   MaidenBloodSplatsEvent,
   NpcEvent,
@@ -12,19 +11,19 @@ import {
 import { useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 
-import { BossPageAttackTimeline } from '../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
-import { BossPageControls } from '../../../../components/boss-page-controls/boss-page-controls';
-import BossPageReplay from '../../../../components/boss-page-replay';
-import { BossPageDPSTimeline } from '../../../../components/boss-page-dps-timeine/boss-page-dps-timeline';
+import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
+import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
+import BossPageReplay from '../../../../../components/boss-page-replay';
+import { BossPageDPSTimeline } from '../../../../../components/boss-page-dps-timeine/boss-page-dps-timeline';
 import {
   Entity,
   MarkerEntity,
   NpcEntity,
   PlayerEntity,
-} from '../../../../components/map';
+} from '../../../../../components/map';
 
-import { clamp } from '../../../../utils/math';
-import { usePlayingState, useRoomEvents } from '../../boss-room-state';
+import { clamp } from '../../../../../utils/math';
+import { usePlayingState, useRoomEvents } from '../../../boss-room-state';
 
 import maidenBaseTiles from './maiden.json';
 import styles from './style.module.scss';
@@ -124,43 +123,42 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
   }
 
   return (
-    <div className={styles.bossPage}>
-      <div className={styles.bossPage__Inner}>
-        <div className={styles.bossPage__Overview}>
-          <div className={styles.bossPage__BossPic}>
-            <Image
-              src="/maiden.webp"
-              alt="The Maiden of Sugadinti"
-              fill
-              style={{ objectFit: 'contain' }}
-            />
-          </div>
-          <div className={styles.bossPage__KeyDetails}>
-            <h2>The Maiden of Sugondeez</h2>
-          </div>
+    <>
+      <div className={styles.bossPage__Overview}>
+        <div className={styles.bossPage__BossPic}>
+          <Image
+            src="/maiden.webp"
+            alt="The Maiden of Sugadinti"
+            fill
+            style={{ objectFit: 'contain' }}
+          />
         </div>
-
-        <BossPageControls
-          currentlyPlaying={playing}
-          totalTicks={totalTicks}
-          currentTick={currentTick}
-          updateTick={updateTickOnPage}
-          updatePlayingState={setPlaying}
-        />
-
-        <BossPageAttackTimeline
-          currentTick={currentTick}
-          playing={playing}
-          playerAttackTimelines={playerAttackTimelines}
-          bossAttackTimeline={bossAttackTimeline}
-          timelineTicks={totalTicks}
-          inventoryTags={inventoryTags}
-        />
-
-        <BossPageReplay entities={entities} mapDef={MAIDEN_MAP_DEFINITION} />
-
-        <BossPageDPSTimeline />
+        <div className={styles.bossPage__KeyDetails}>
+          <h2>The Maiden of Sugondeez</h2>
+        </div>
       </div>
-    </div>
+
+      <BossPageControls
+        currentlyPlaying={playing}
+        totalTicks={totalTicks}
+        currentTick={currentTick}
+        updateTick={updateTickOnPage}
+        updatePlayingState={setPlaying}
+      />
+
+      <BossPageAttackTimeline
+        currentTick={currentTick}
+        playing={playing}
+        playerAttackTimelines={playerAttackTimelines}
+        bossAttackTimeline={bossAttackTimeline}
+        timelineTicks={totalTicks}
+        updateTickOnPage={updateTickOnPage}
+        inventoryTags={inventoryTags}
+      />
+
+      <BossPageReplay entities={entities} mapDef={MAIDEN_MAP_DEFINITION} />
+
+      <BossPageDPSTimeline />
+    </>
   );
 }

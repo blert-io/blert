@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { clamp } from '../../utils/math';
 import styles from './styles.module.scss';
 import Image from 'next/image';
+import { set } from 'mongoose';
 
 interface BossControlsProps {
   currentlyPlaying: boolean;
@@ -25,12 +26,13 @@ export function BossPageControls(props: BossControlsProps) {
   // The value of the tick input field. Tracked separately to `currentTick` to
   // allow users to clear the input.
   const [value, setValue] = useState(currentTick.toString());
+  const [inputFocused, setInputFocused] = useState(false);
 
   useEffect(() => {
-    if (currentlyPlaying) {
+    if (!inputFocused) {
       setValue(currentTick.toString());
     }
-  }, [currentlyPlaying, currentTick]);
+  }, [currentTick, inputFocused]);
 
   // get how far down the window this element is
   const [position, setPosition] = useState(0);
@@ -98,7 +100,8 @@ export function BossPageControls(props: BossControlsProps) {
         name="tick"
         disabled={currentlyPlaying}
         min={1}
-        onBlur={(e) => {
+        onBlur={() => {
+          setInputFocused(false);
           updatePlayingState(false);
         }}
         onChange={(event) => {
@@ -114,6 +117,7 @@ export function BossPageControls(props: BossControlsProps) {
             updateTick(1);
           }
         }}
+        onFocus={() => setInputFocused(true)}
         max={totalTicks}
         value={value}
       />

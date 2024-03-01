@@ -16,19 +16,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 
-import { loadEventsForRoom } from '../../../../actions/raid';
+import { loadEventsForRoom } from '../../../../../actions/raid';
 import Map, {
   Entity,
   MarkerEntity,
   NpcEntity,
   PlayerEntity,
-} from '../../../../components/map';
-import ProgressBar from '../../../../components/progress-bar';
+} from '../../../../../components/map';
+import ProgressBar from '../../../../../components/progress-bar';
 
 import { CrabSpawn, spawnString } from './crab-spawn';
 import styles from './style.module.css';
 import maidenBaseTiles from './maiden.json';
-import { TICK_MS, ticksToFormattedSeconds } from '../../../../utils/tick';
+import { TICK_MS, ticksToFormattedSeconds } from '../../../../../utils/tick';
 
 const MAIDEN_X = 3160;
 const MAIDEN_Y = 4435;

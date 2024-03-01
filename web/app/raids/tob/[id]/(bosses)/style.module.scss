@@ -1,0 +1,15 @@
+.bossPage {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 20px;
+  margin-bottom: 1000px;
+
+  .inner {
+    width: 1200px;
+    display: flex;
+    flex-direction: column;
+  }
+}

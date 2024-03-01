@@ -285,6 +285,7 @@ const buildTickColumn = (
   attackTimeline: Map<string, Event[]>,
   columnTick: number,
   currentPlaybackTick: number,
+  updateTickOnPage: (tick: number) => void,
   inventoryTags: boolean,
 ) => {
   const tickCells = [];
@@ -330,7 +331,12 @@ const buildTickColumn = (
       {currentPlaybackTick === columnTick && (
         <div className={styles.attackTimeline__ColumnActiveIndicator}></div>
       )}
-      <div className={styles.attackTimeline__TickHeader}>{columnTick}</div>
+      <button
+        className={styles.attackTimeline__TickHeader}
+        onClick={() => updateTickOnPage(columnTick)}
+      >
+        {columnTick}
+      </button>
       {tickCells}
     </div>
   );
@@ -343,6 +349,7 @@ interface AttackTimelineProps {
   bossAttackTimeline: NpcAttackEvent[];
   timelineTicks: number;
   inventoryTags?: boolean;
+  updateTickOnPage: (tick: number) => void;
 }
 
 export function BossPageAttackTimeline(props: AttackTimelineProps) {
@@ -351,6 +358,7 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
     playing,
     playerAttackTimelines,
     bossAttackTimeline,
+    updateTickOnPage,
     timelineTicks,
   } = props;
 
@@ -358,10 +366,6 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
 
   let npcName =
     getNpcDefinition(bossAttackTimeline[0].npc.id)?.shortName ?? 'Unknown';
-
-  if (npcName.includes('The')) {
-    npcName = 'Maiden';
-  }
 
   const attackTimelineRef = useRef<HTMLDivElement>(null);
 
@@ -406,6 +410,7 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
         playerAttackTimelines,
         tick,
         currentTick,
+        updateTickOnPage,
         inventoryTags,
       ),
     );
@@ -428,8 +433,6 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
       </div>,
     );
   }
-
-  console.log('Attack timeline participants', attackTimelineParticipants);
 
   return (
     <CollapsiblePanel

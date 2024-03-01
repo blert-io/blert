@@ -1,19 +1,22 @@
 'use client';
 
 import { EventType, NpcEvent, PlayerUpdateEvent, Room } from '@blert/common';
+import Image from 'next/image';
 
-import { usePlayingState, useRoomEvents } from '../../boss-room-state';
-import { BossPageControls } from '../../../../components/boss-page-controls/boss-page-controls';
-import { BossPageAttackTimeline } from '../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
-import BossPageReplay from '../../../../components/boss-page-replay';
+import { usePlayingState, useRoomEvents } from '../../../boss-room-state';
+import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
+import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
+import BossPageReplay from '../../../../../components/boss-page-replay';
 import {
   Entity,
   MarkerEntity,
   NpcEntity,
   PlayerEntity,
-} from '../../../../components/map';
+} from '../../../../../components/map';
 
 import bloatBaseTiles from './bloat-tiles.json';
+
+import styles from './style.module.scss';
 
 const BLOAT_MAP_DEFINITION = {
   baseX: 3288,
@@ -81,7 +84,21 @@ export default function BloatPage() {
   }
 
   return (
-    <div>
+    <>
+      <div className={styles.bossPage__Overview}>
+        <div className={styles.bossPage__BossPic}>
+          <Image
+            src="/bloat.webp"
+            alt="The Pestilent Bloat"
+            fill
+            style={{ objectFit: 'contain' }}
+          />
+        </div>
+        <div className={styles.bossPage__KeyDetails}>
+          <h2>The Pestilent Bloat</h2>
+        </div>
+      </div>
+
       <BossPageControls
         currentlyPlaying={playing}
         totalTicks={totalTicks}
@@ -96,10 +113,11 @@ export default function BloatPage() {
         playerAttackTimelines={playerAttackTimelines}
         bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
+        updateTickOnPage={updateTickOnPage}
         inventoryTags={inventoryTags}
       />
 
       <BossPageReplay entities={entities} mapDef={BLOAT_MAP_DEFINITION} />
-    </div>
+    </>
   );
 }

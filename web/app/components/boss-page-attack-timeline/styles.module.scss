@@ -80,10 +80,15 @@
   font-size: 24px;
   width: 100%;
   text-align: center;
-  // border: 1px solid grey;
+  padding: 0;
+  cursor: pointer;
   position: relative;
   left: -3px;
   top: -3px;
+
+  &:hover {
+    color: white;
+  }
 }
 
 .attackTimeline__Cell {
