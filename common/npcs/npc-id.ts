@@ -31,6 +31,27 @@ export enum NpcId {
   BLOAT_ENTRY = 10812,
   BLOAT_REGULAR = 8359,
   BLOAT_HARD = 10813,
+
+  VERZIK_P1_ENTRY = 10831,
+  VERZIK_P1_ENTRY_10832 = 10832,
+  VERZIK_P1_REGULAR = 8370,
+  VERZIK_P1_REGULAR_8371 = 8371,
+  VERZIK_P1_HARD = 10848,
+  VERZIK_P1_HARD_10849 = 10849,
+
+  VERZIK_P2_ENTRY = 10833,
+  VERZIK_P2_ENTRY_10834 = 10834,
+  VERZIK_P2_REGULAR = 8372,
+  VERZIK_P2_REGULAR_8373 = 8373,
+  VERZIK_P2_HARD = 10850,
+  VERZIK_P2_HARD_10851 = 10851,
+
+  VERZIK_P3_ENTRY = 10835,
+  VERZIK_P3_ENTRY_10836 = 10836,
+  VERZIK_P3_REGULAR = 8374,
+  VERZIK_P3_REGULAR_8375 = 8375,
+  VERZIK_P3_HARD = 10852,
+  VERZIK_P3_HARD_10853 = 10853,
 }
 
 const MAIDEN_ENTRY_IDS = [
@@ -102,6 +123,45 @@ export class Npc {
       npcId === NpcId.BLOAT_ENTRY ||
       npcId === NpcId.BLOAT_REGULAR ||
       npcId === NpcId.BLOAT_HARD
+    );
+  }
+
+  static isVerzikP1(npcId: number): boolean {
+    return (
+      npcId === NpcId.VERZIK_P1_ENTRY ||
+      npcId === NpcId.VERZIK_P1_ENTRY_10832 ||
+      npcId === NpcId.VERZIK_P1_REGULAR ||
+      npcId === NpcId.VERZIK_P1_REGULAR_8371 ||
+      npcId === NpcId.VERZIK_P1_HARD ||
+      npcId === NpcId.VERZIK_P1_HARD_10849
+    );
+  }
+
+  static isVerzikP2(npcId: number): boolean {
+    return (
+      npcId === NpcId.VERZIK_P2_ENTRY ||
+      npcId === NpcId.VERZIK_P2_ENTRY_10834 ||
+      npcId === NpcId.VERZIK_P2_REGULAR ||
+      npcId === NpcId.VERZIK_P2_REGULAR_8373 ||
+      npcId === NpcId.VERZIK_P2_HARD ||
+      npcId === NpcId.VERZIK_P2_HARD_10851
+    );
+  }
+
+  static isVerzikP3(npcId: number): boolean {
+    return (
+      npcId === NpcId.VERZIK_P3_ENTRY ||
+      npcId === NpcId.VERZIK_P3_ENTRY_10836 ||
+      npcId === NpcId.VERZIK_P3_REGULAR ||
+      npcId === NpcId.VERZIK_P3_REGULAR_8375 ||
+      npcId === NpcId.VERZIK_P3_HARD ||
+      npcId === NpcId.VERZIK_P3_HARD_10853
+    );
+  }
+
+  static isVerzik(npcId: number): boolean {
+    return (
+      Npc.isVerzikP1(npcId) || Npc.isVerzikP2(npcId) || Npc.isVerzikP3(npcId)
     );
   }
 }

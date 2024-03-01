@@ -28,6 +28,30 @@ const getCellImageForBossAttack = (attack: NpcAttack) => {
     case NpcAttack.MAIDEN_BLOOD_THROW:
       imageUrl = '/maiden_blood_throw.png';
       break;
+    case NpcAttack.XARPUS_SPIT:
+      imageUrl = '/xarpus_spit.png';
+      break;
+    case NpcAttack.VERZIK_P1_AUTO:
+      imageUrl = '/verzik_p1_auto.png';
+      break;
+    case NpcAttack.VERZIK_P2_BOUNCE:
+      imageUrl = '/verzik_p2_bounce.png';
+      break;
+    case NpcAttack.VERZIK_P2_CABBAGE:
+      imageUrl = '/verzik_p2_cabbage.png';
+      break;
+    case NpcAttack.VERZIK_P2_PURPLE:
+      imageUrl = '/verzik_p2_purple.png';
+      break;
+    case NpcAttack.VERZIK_P2_ZAP:
+      imageUrl = '/verzik_p2_zap.png';
+      break;
+    case NpcAttack.VERZIK_P3_WEBS:
+      imageUrl = '/verzik_p3_webs.png';
+      break;
+    case NpcAttack.VERZIK_P3_MELEE:
+      imageUrl = '/verzik_p3_melee.png';
+      break;
     default:
       imageUrl = '/huh.png';
       break;

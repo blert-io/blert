@@ -62,6 +62,27 @@ const [BLOAT_ENTRY, BLOAT_REGULAR, BLOAT_HARD] = defineForAllModes({
   size: 5,
 });
 
+const [VERZIK_P1_ENTRY, VERZIK_P1_REGULAR, VERZIK_P1_HARD] = defineForAllModes({
+  fullName: 'Verzik Vitur',
+  shortName: 'Verzik',
+  canonicalId: NpcId.VERZIK_P1_REGULAR,
+  size: 6,
+});
+
+const [VERZIK_P2_ENTRY, VERZIK_P2_REGULAR, VERZIK_P2_HARD] = defineForAllModes({
+  fullName: 'Verzik Vitur',
+  shortName: 'Verzik',
+  canonicalId: NpcId.VERZIK_P2_REGULAR,
+  size: 6,
+});
+
+const [VERZIK_P3_ENTRY, VERZIK_P3_REGULAR, VERZIK_P3_HARD] = defineForAllModes({
+  fullName: 'Verzik Vitur',
+  shortName: 'Verzik',
+  canonicalId: NpcId.VERZIK_P3_REGULAR,
+  size: 6,
+});
+
 const NPC_DEFINITIONS: { [id: number]: NpcDefinition } = {
   // All Maiden NPCs.
   [NpcId.MAIDEN_ENTRY]: MAIDEN_ENTRY,
@@ -97,6 +118,28 @@ const NPC_DEFINITIONS: { [id: number]: NpcDefinition } = {
   [NpcId.BLOAT_ENTRY]: BLOAT_ENTRY,
   [NpcId.BLOAT_REGULAR]: BLOAT_REGULAR,
   [NpcId.BLOAT_HARD]: BLOAT_HARD,
+
+  // Verzik Vitur.
+  [NpcId.VERZIK_P1_ENTRY]: VERZIK_P1_ENTRY,
+  [NpcId.VERZIK_P1_ENTRY_10832]: VERZIK_P1_ENTRY,
+  [NpcId.VERZIK_P1_REGULAR]: VERZIK_P1_REGULAR,
+  [NpcId.VERZIK_P1_REGULAR_8371]: VERZIK_P1_REGULAR,
+  [NpcId.VERZIK_P1_HARD]: VERZIK_P1_HARD,
+  [NpcId.VERZIK_P1_HARD_10849]: VERZIK_P1_HARD,
+
+  [NpcId.VERZIK_P2_ENTRY]: VERZIK_P2_ENTRY,
+  [NpcId.VERZIK_P2_ENTRY_10834]: VERZIK_P2_ENTRY,
+  [NpcId.VERZIK_P2_REGULAR]: VERZIK_P2_REGULAR,
+  [NpcId.VERZIK_P2_REGULAR_8373]: VERZIK_P2_REGULAR,
+  [NpcId.VERZIK_P2_HARD]: VERZIK_P2_HARD,
+  [NpcId.VERZIK_P2_HARD_10851]: VERZIK_P2_HARD,
+
+  [NpcId.VERZIK_P3_ENTRY]: VERZIK_P3_ENTRY,
+  [NpcId.VERZIK_P3_ENTRY_10836]: VERZIK_P3_ENTRY,
+  [NpcId.VERZIK_P3_REGULAR]: VERZIK_P3_REGULAR,
+  [NpcId.VERZIK_P3_REGULAR_8375]: VERZIK_P3_REGULAR,
+  [NpcId.VERZIK_P3_HARD]: VERZIK_P3_HARD,
+  [NpcId.VERZIK_P3_HARD_10853]: VERZIK_P3_HARD,
 };
 
 export function getNpcDefinition(npcId: number): NpcDefinition | null {
