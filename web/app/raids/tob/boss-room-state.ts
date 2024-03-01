@@ -155,7 +155,7 @@ function buildAttackTimelines(
             return {
               ...acc,
               tick: i,
-              player: { username: partyMember },
+              player: { name: partyMember },
               diedThisTick: isDead,
               isDead,
             };
@@ -175,7 +175,7 @@ function buildAttackTimelines(
       } else if (isDead) {
         combinedEventsForThisTick = {
           tick: i,
-          player: { username: partyMember },
+          player: { name: partyMember },
           isDead: true,
         };
       }
