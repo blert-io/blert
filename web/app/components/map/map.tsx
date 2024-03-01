@@ -63,24 +63,26 @@ export default function Map(props: MapProps) {
     }
   }
 
+  let mapEntities = [];
+
   // Tiles containing more than a single entity.
   let packedTiles = [];
 
   for (const entity of props.entities) {
-    if (!entity.interactable) {
-      continue;
-    }
-
     let tile = getTileForCoords(entity.x, entity.y);
     if (tile !== null) {
+      mapEntities.push(entity);
+
+      if (!entity.interactable) {
+        continue;
+      }
+
       if (tile.entities.length === 1) {
         packedTiles.push(tile);
       }
       tile.entities.push(entity);
     }
   }
-
-  let mapEntities = [...props.entities];
 
   packedTiles.forEach((tile) => {
     if (
