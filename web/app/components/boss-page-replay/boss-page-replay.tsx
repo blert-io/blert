@@ -2,6 +2,7 @@
 
 import CollapsiblePanel from '../collapsible-panel';
 import Map, { Entity, MapDefinition } from '../map';
+
 import styles from './styles.module.scss';
 
 const MAP_TILE_SIZE = 35;
@@ -26,6 +27,7 @@ export default function BossPageReplay({ entities, mapDef }: BossReplayProps) {
           width={mapDef.width}
           height={mapDef.height}
           baseTiles={mapDef.baseTiles}
+          faceSouth={mapDef.faceSouth}
           tileSize={MAP_TILE_SIZE}
           entities={entities}
           // onEntityClicked={onEntitySelected}

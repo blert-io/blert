@@ -2,13 +2,15 @@ import { SkillLevel, getNpcDefinition } from '@blert/common';
 
 import { Entity, EntityType } from './entity';
 
+const DEFAULT_OUTLINE_COLOR = '#3d3dd5';
+
 export class NpcEntity implements Entity {
   x: number;
   y: number;
   type: EntityType = EntityType.NPC;
   size: number;
   name: string;
-  outlineColor: string = '#3d3dd5';
+  outlineColor: string;
   interactable: boolean = true;
 
   id: number;
@@ -21,6 +23,7 @@ export class NpcEntity implements Entity {
     id: number,
     roomId: number,
     hitpoints?: SkillLevel,
+    outlineColor?: string,
   ) {
     const npcDefinition = getNpcDefinition(id);
 
@@ -31,6 +34,7 @@ export class NpcEntity implements Entity {
     this.id = id;
     this.roomId = roomId;
     this.hitpoints = hitpoints;
+    this.outlineColor = outlineColor ?? DEFAULT_OUTLINE_COLOR;
   }
 
   getUniqueId(): string {

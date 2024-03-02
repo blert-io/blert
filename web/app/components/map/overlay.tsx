@@ -7,16 +7,23 @@ export class OverlayEntity implements Entity {
   type: EntityType = EntityType.OVERLAY;
   size: number = 1;
   outlineColor: string | null = null;
-  interactable: boolean = true;
+  interactable: boolean;
 
   name: string;
   contents: React.ReactNode;
 
-  constructor(x: number, y: number, name: string, contents: React.ReactNode) {
+  constructor(
+    x: number,
+    y: number,
+    name: string,
+    contents: React.ReactNode,
+    interactable: boolean = true,
+  ) {
     this.x = x;
     this.y = y;
     this.name = name;
     this.contents = contents;
+    this.interactable = interactable;
   }
 
   getUniqueId(): string {

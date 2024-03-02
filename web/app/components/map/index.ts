@@ -11,6 +11,7 @@ export type MapDefinition = {
   baseY: number;
   width: number;
   height: number;
+  faceSouth?: boolean;
   baseTiles: BaseTile[];
 };
 

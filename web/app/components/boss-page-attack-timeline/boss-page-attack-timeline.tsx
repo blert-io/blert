@@ -28,6 +28,15 @@ const getCellImageForBossAttack = (attack: NpcAttack) => {
     case NpcAttack.MAIDEN_BLOOD_THROW:
       imageUrl = '/maiden_blood_throw.png';
       break;
+    case NpcAttack.NYLO_BOSS_MELEE:
+      imageUrl = '/nylo_boss_melee.png';
+      break;
+    case NpcAttack.NYLO_BOSS_RANGE:
+      imageUrl = '/nylo_boss_range.png';
+      break;
+    case NpcAttack.NYLO_BOSS_MAGE:
+      imageUrl = '/nylo_boss_mage.png';
+      break;
     case NpcAttack.XARPUS_SPIT:
       imageUrl = '/xarpus_spit.png';
       break;
@@ -364,8 +373,9 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
 
   const inventoryTags = props.inventoryTags ?? false;
 
-  let npcName =
-    getNpcDefinition(bossAttackTimeline[0].npc.id)?.shortName ?? 'Unknown';
+  const nextBossAttackNpcId =
+    bossAttackTimeline.find((evt) => evt.tick > currentTick)?.npc.id ?? 0;
+  const npcName = getNpcDefinition(nextBossAttackNpcId)?.shortName ?? 'Unknown';
 
   const attackTimelineRef = useRef<HTMLDivElement>(null);
 

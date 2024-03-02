@@ -1,3 +1,4 @@
+// 98% of this file was AI generated. Thanks AI.
 export enum NpcId {
   MAIDEN_ENTRY = 10814,
   MAIDEN_ENTRY_10815 = 10815,
@@ -31,6 +32,66 @@ export enum NpcId {
   BLOAT_ENTRY = 10812,
   BLOAT_REGULAR = 8359,
   BLOAT_HARD = 10813,
+
+  NYLOCAS_ISCHYROS_SMALL_ENTRY = 10774,
+  NYLOCAS_ISCHYROS_SMALL_REGULAR = 8342,
+  NYLOCAS_ISCHYROS_SMALL_HARD = 10791,
+  NYLOCAS_ISCHYROS_SMALL_AGGRO_ENTRY = 10780,
+  NYLOCAS_ISCHYROS_SMALL_AGGRO_REGULAR = 8348,
+  NYLOCAS_ISCHYROS_SMALL_AGGRO_HARD = 10797,
+
+  NYLOCAS_ISCHYROS_BIG_ENTRY = 10777,
+  NYLOCAS_ISCHYROS_BIG_REGULAR = 8345,
+  NYLOCAS_ISCHYROS_BIG_HARD = 10794,
+  NYLOCAS_ISCHYROS_BIG_AGGRO_ENTRY = 10783,
+  NYLOCAS_ISCHYROS_BIG_AGGRO_REGULAR = 8351,
+  NYLOCAS_ISCHYROS_BIG_AGGRO_HARD = 10800,
+
+  NYLOCAS_TOXOBOLOS_SMALL_ENTRY = 10775,
+  NYLOCAS_TOXOBOLOS_SMALL_REGULAR = 8343,
+  NYLOCAS_TOXOBOLOS_SMALL_HARD = 10792,
+  NYLOCAS_TOXOBOLOS_SMALL_AGGRO_ENTRY = 10781,
+  NYLOCAS_TOXOBOLOS_SMALL_AGGRO_REGULAR = 8349,
+  NYLOCAS_TOXOBOLOS_SMALL_AGGRO_HARD = 10798,
+
+  NYLOCAS_TOXOBOLOS_BIG_ENTRY = 10778,
+  NYLOCAS_TOXOBOLOS_BIG_REGULAR = 8346,
+  NYLOCAS_TOXOBOLOS_BIG_HARD = 10795,
+  NYLOCAS_TOXOBOLOS_BIG_AGGRO_ENTRY = 10784,
+  NYLOCAS_TOXOBOLOS_BIG_AGGRO_REGULAR = 8352,
+  NYLOCAS_TOXOBOLOS_BIG_AGGRO_HARD = 10801,
+
+  NYLOCAS_HAGIOS_SMALL_ENTRY = 10776,
+  NYLOCAS_HAGIOS_SMALL_REGULAR = 8344,
+  NYLOCAS_HAGIOS_SMALL_HARD = 10793,
+  NYLOCAS_HAGIOS_SMALL_AGGRO_ENTRY = 10782,
+  NYLOCAS_HAGIOS_SMALL_AGGRO_REGULAR = 8350,
+  NYLOCAS_HAGIOS_SMALL_AGGRO_HARD = 10799,
+
+  NYLOCAS_HAGIOS_BIG_ENTRY = 10779,
+  NYLOCAS_HAGIOS_BIG_REGULAR = 8347,
+  NYLOCAS_HAGIOS_BIG_HARD = 10796,
+  NYLOCAS_HAGIOS_BIG_AGGRO_ENTRY = 10785,
+  NYLOCAS_HAGIOS_BIG_AGGRO_REGULAR = 8353,
+  NYLOCAS_HAGIOS_BIG_AGGRO_HARD = 10802,
+
+  NYLOCAS_PRINKIPAS_DROPPING = 10803,
+  NYLOCAS_PRINKIPAS_MELEE = 10804,
+  NYLOCAS_PRINKIPAS_MAGE = 10805,
+  NYLOCAS_PRINKIPAS_RANGE = 10806,
+
+  NYLOCAS_VASILIAS_DROPPING_ENTRY = 10787,
+  NYLOCAS_VASILIAS_MELEE_ENTRY = 10788,
+  NYLOCAS_VASILIAS_MAGE_ENTRY = 10789,
+  NYLOCAS_VASILIAS_RANGE_ENTRY = 10790,
+  NYLOCAS_VASILIAS_DROPPING_REGULAR = 8354,
+  NYLOCAS_VASILIAS_MELEE_REGULAR = 8355,
+  NYLOCAS_VASILIAS_MAGE_REGULAR = 8356,
+  NYLOCAS_VASILIAS_RANGE_REGULAR = 8357,
+  NYLOCAS_VASILIAS_DROPPING_HARD = 10807,
+  NYLOCAS_VASILIAS_MELEE_HARD = 10808,
+  NYLOCAS_VASILIAS_MAGE_HARD = 10809,
+  NYLOCAS_VASILIAS_RANGE_HARD = 10810,
 
   VERZIK_P1_ENTRY = 10831,
   VERZIK_P1_ENTRY_10832 = 10832,
@@ -81,6 +142,27 @@ const MAIDEN_HARD_IDS = [
   NpcId.MAIDEN_HARD_10827,
 ];
 
+const NYLOCAS_VASILIAS_ENTRY_IDS = [
+  NpcId.NYLOCAS_VASILIAS_DROPPING_ENTRY,
+  NpcId.NYLOCAS_VASILIAS_MELEE_ENTRY,
+  NpcId.NYLOCAS_VASILIAS_RANGE_ENTRY,
+  NpcId.NYLOCAS_VASILIAS_MAGE_ENTRY,
+];
+
+const NYLOCAS_VASILIAS_REGULAR_IDS = [
+  NpcId.NYLOCAS_VASILIAS_DROPPING_REGULAR,
+  NpcId.NYLOCAS_VASILIAS_MELEE_REGULAR,
+  NpcId.NYLOCAS_VASILIAS_RANGE_REGULAR,
+  NpcId.NYLOCAS_VASILIAS_MAGE_REGULAR,
+];
+
+const NYLOCAS_VASILIAS_HARD_IDS = [
+  NpcId.NYLOCAS_VASILIAS_DROPPING_HARD,
+  NpcId.NYLOCAS_VASILIAS_MELEE_HARD,
+  NpcId.NYLOCAS_VASILIAS_RANGE_HARD,
+  NpcId.NYLOCAS_VASILIAS_MAGE_HARD,
+];
+
 export class Npc {
   static isMaidenEntry(npcId: number): boolean {
     return MAIDEN_ENTRY_IDS.includes(npcId);
@@ -123,6 +205,123 @@ export class Npc {
       npcId === NpcId.BLOAT_ENTRY ||
       npcId === NpcId.BLOAT_REGULAR ||
       npcId === NpcId.BLOAT_HARD
+    );
+  }
+
+  static isNylocasIschyrosSmall(npcId: number): boolean {
+    return (
+      npcId === NpcId.NYLOCAS_ISCHYROS_SMALL_ENTRY ||
+      npcId === NpcId.NYLOCAS_ISCHYROS_SMALL_REGULAR ||
+      npcId === NpcId.NYLOCAS_ISCHYROS_SMALL_HARD ||
+      npcId === NpcId.NYLOCAS_ISCHYROS_SMALL_AGGRO_ENTRY ||
+      npcId === NpcId.NYLOCAS_ISCHYROS_SMALL_AGGRO_REGULAR ||
+      npcId === NpcId.NYLOCAS_ISCHYROS_SMALL_AGGRO_HARD
+    );
+  }
+
+  static isNylocasIschyrosBig(npcId: number): boolean {
+    return (
+      npcId === NpcId.NYLOCAS_ISCHYROS_BIG_ENTRY ||
+      npcId === NpcId.NYLOCAS_ISCHYROS_BIG_REGULAR ||
+      npcId === NpcId.NYLOCAS_ISCHYROS_BIG_HARD ||
+      npcId === NpcId.NYLOCAS_ISCHYROS_BIG_AGGRO_ENTRY ||
+      npcId === NpcId.NYLOCAS_ISCHYROS_BIG_AGGRO_REGULAR ||
+      npcId === NpcId.NYLOCAS_ISCHYROS_BIG_AGGRO_HARD
+    );
+  }
+
+  static isNylocasIschyros(npcId: number): boolean {
+    return Npc.isNylocasIschyrosSmall(npcId) || Npc.isNylocasIschyrosBig(npcId);
+  }
+
+  static isNylocasToxobolosSmall(npcId: number): boolean {
+    return (
+      npcId === NpcId.NYLOCAS_TOXOBOLOS_SMALL_ENTRY ||
+      npcId === NpcId.NYLOCAS_TOXOBOLOS_SMALL_REGULAR ||
+      npcId === NpcId.NYLOCAS_TOXOBOLOS_SMALL_HARD ||
+      npcId === NpcId.NYLOCAS_TOXOBOLOS_SMALL_AGGRO_ENTRY ||
+      npcId === NpcId.NYLOCAS_TOXOBOLOS_SMALL_AGGRO_REGULAR ||
+      npcId === NpcId.NYLOCAS_TOXOBOLOS_SMALL_AGGRO_HARD
+    );
+  }
+
+  static isNylocasToxobolosBig(npcId: number): boolean {
+    return (
+      npcId === NpcId.NYLOCAS_TOXOBOLOS_BIG_ENTRY ||
+      npcId === NpcId.NYLOCAS_TOXOBOLOS_BIG_REGULAR ||
+      npcId === NpcId.NYLOCAS_TOXOBOLOS_BIG_HARD ||
+      npcId === NpcId.NYLOCAS_TOXOBOLOS_BIG_AGGRO_ENTRY ||
+      npcId === NpcId.NYLOCAS_TOXOBOLOS_BIG_AGGRO_REGULAR ||
+      npcId === NpcId.NYLOCAS_TOXOBOLOS_BIG_AGGRO_HARD
+    );
+  }
+
+  static isNylocasToxobolos(npcId: number): boolean {
+    return (
+      Npc.isNylocasToxobolosSmall(npcId) || Npc.isNylocasToxobolosBig(npcId)
+    );
+  }
+
+  static isNylocasHagiosSmall(npcId: number): boolean {
+    return (
+      npcId === NpcId.NYLOCAS_HAGIOS_SMALL_ENTRY ||
+      npcId === NpcId.NYLOCAS_HAGIOS_SMALL_REGULAR ||
+      npcId === NpcId.NYLOCAS_HAGIOS_SMALL_HARD ||
+      npcId === NpcId.NYLOCAS_HAGIOS_SMALL_AGGRO_ENTRY ||
+      npcId === NpcId.NYLOCAS_HAGIOS_SMALL_AGGRO_REGULAR ||
+      npcId === NpcId.NYLOCAS_HAGIOS_SMALL_AGGRO_HARD
+    );
+  }
+
+  static isNylocasHagiosBig(npcId: number): boolean {
+    return (
+      npcId === NpcId.NYLOCAS_HAGIOS_BIG_ENTRY ||
+      npcId === NpcId.NYLOCAS_HAGIOS_BIG_REGULAR ||
+      npcId === NpcId.NYLOCAS_HAGIOS_BIG_HARD ||
+      npcId === NpcId.NYLOCAS_HAGIOS_BIG_AGGRO_ENTRY ||
+      npcId === NpcId.NYLOCAS_HAGIOS_BIG_AGGRO_REGULAR ||
+      npcId === NpcId.NYLOCAS_HAGIOS_BIG_AGGRO_HARD
+    );
+  }
+
+  static isNylocasHagios(npcId: number): boolean {
+    return Npc.isNylocasHagiosSmall(npcId) || Npc.isNylocasHagiosBig(npcId);
+  }
+
+  static isNylocas(npcId: number): boolean {
+    return (
+      Npc.isNylocasIschyros(npcId) ||
+      Npc.isNylocasToxobolos(npcId) ||
+      Npc.isNylocasHagios(npcId)
+    );
+  }
+
+  static isNylocasPrinkipas(npcId: number): boolean {
+    return (
+      npcId === NpcId.NYLOCAS_PRINKIPAS_DROPPING ||
+      npcId === NpcId.NYLOCAS_PRINKIPAS_MELEE ||
+      npcId === NpcId.NYLOCAS_PRINKIPAS_MAGE ||
+      npcId === NpcId.NYLOCAS_PRINKIPAS_RANGE
+    );
+  }
+
+  static isNylocasVasiliasEntry(npcId: number): boolean {
+    return NYLOCAS_VASILIAS_ENTRY_IDS.includes(npcId);
+  }
+
+  static isNylocasVasiliasRegular(npcId: number): boolean {
+    return NYLOCAS_VASILIAS_REGULAR_IDS.includes(npcId);
+  }
+
+  static isNylocasVasiliasHard(npcId: number): boolean {
+    return NYLOCAS_VASILIAS_HARD_IDS.includes(npcId);
+  }
+
+  static isNylocasVasilias(npcId: number): boolean {
+    return (
+      Npc.isNylocasVasiliasEntry(npcId) ||
+      Npc.isNylocasVasiliasRegular(npcId) ||
+      Npc.isNylocasVasiliasHard(npcId)
     );
   }
 

@@ -20,6 +20,7 @@ type MapProps = {
   tileSize: number;
   entities: Entity[];
   onEntityClicked?: (entity: Entity) => void;
+  faceSouth?: boolean;
 };
 
 export default function Map(props: MapProps) {
@@ -141,9 +142,16 @@ export default function Map(props: MapProps) {
     );
   }
 
-  // The y coordinate goes from bottom to top, but we have to render from top to
-  // bottom.
-  tiles.reverse();
+  const faceSouth = props.faceSouth ?? false;
+  if (faceSouth) {
+    for (let i = 0; i < tiles.length; i++) {
+      tiles[i].reverse();
+    }
+  } else {
+    // The y coordinate goes from bottom to top, but we have to render from top to
+    // bottom.
+    tiles.reverse();
+  }
 
   return (
     <div
@@ -152,7 +160,7 @@ export default function Map(props: MapProps) {
       onClick={() => setSelectedTile(null)}
     >
       {tiles.map((row, i) => (
-        <div key={i} className={styles.mapRow}>
+        <div key={row[0].y} className={styles.mapRow} data-row-y={row[0].y}>
           {row.map((tile) => (
             <Tile key={tile.x} size={props.tileSize} tile={tile} />
           ))}
@@ -165,6 +173,7 @@ export default function Map(props: MapProps) {
           baseY={props.y}
           entity={entity}
           onSelect={selectedTile === null ? props.onEntityClicked : undefined}
+          faceSouth={faceSouth}
           tileSize={props.tileSize}
         />
       ))}

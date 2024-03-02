@@ -72,17 +72,13 @@ type MapEntityProps = {
   baseY: number;
   entity: Entity;
   tileSize: number;
+  faceSouth: boolean;
   onSelect?: (entity: Entity) => void;
 };
 
 export function MapEntity(props: MapEntityProps) {
   const entity = props.entity;
-
   const size = entity.size * props.tileSize;
-
-  // Position the entity based on its southwest corner tile.
-  const left = (entity.x - props.baseX) * props.tileSize;
-  const bottom = (entity.y - props.baseY) * props.tileSize;
 
   const border =
     entity.outlineColor !== null
@@ -98,6 +94,27 @@ export function MapEntity(props: MapEntityProps) {
     };
   }
 
+  let entityStyle: React.CSSProperties = {
+    border,
+    cursor: canClick ? 'pointer' : 'default',
+    height: size,
+    width: size,
+    zIndex: entityZIndex(entity.type),
+  };
+
+  if (!entity.interactable) {
+    entityStyle.pointerEvents = 'none';
+  }
+
+  if (props.faceSouth) {
+    entityStyle.right = (entity.x - props.baseX) * props.tileSize - 2;
+    entityStyle.top = (entity.y - props.baseY) * props.tileSize;
+  } else {
+    // Position the entity based on its southwest corner tile.
+    entityStyle.left = (entity.x - props.baseX) * props.tileSize;
+    entityStyle.bottom = (entity.y - props.baseY) * props.tileSize;
+  }
+
   return (
     <div
       className={styles.entity}
@@ -105,15 +122,7 @@ export function MapEntity(props: MapEntityProps) {
       data-x={entity.x}
       data-y={entity.y}
       onClick={onClick}
-      style={{
-        border,
-        cursor: canClick ? 'pointer' : 'default',
-        left,
-        bottom,
-        height: size,
-        width: size,
-        zIndex: entityZIndex(entity.type),
-      }}
+      style={entityStyle}
     >
       {entity.renderContents()}
     </div>
