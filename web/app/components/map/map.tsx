@@ -23,9 +23,11 @@ type MapProps = {
   faceSouth?: boolean;
 };
 
+const MAP_BORDER_PX = 2;
+
 export default function Map(props: MapProps) {
   const [selectedTile, setSelectedTile] = useState<TileData | null>(null);
-  const widthPx = props.tileSize * props.width;
+  const widthPx = props.tileSize * props.width + 2 * MAP_BORDER_PX;
 
   let tiles: TileData[][] = [];
   for (let y = props.y; y < props.y + props.height; y++) {
@@ -148,8 +150,8 @@ export default function Map(props: MapProps) {
       tiles[i].reverse();
     }
   } else {
-    // The y coordinate goes from bottom to top, but we have to render from top to
-    // bottom.
+    // The y coordinate goes from bottom to top, but we have to render from
+    // top to bottom.
     tiles.reverse();
   }
 

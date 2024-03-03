@@ -16,7 +16,7 @@ export default function BossPageReplay({ entities, mapDef }: BossReplayProps) {
   return (
     <CollapsiblePanel
       panelTitle="Room Replay"
-      maxPanelHeight={1000}
+      maxPanelHeight={1100}
       defaultExpanded={true}
       className={styles.replay}
     >

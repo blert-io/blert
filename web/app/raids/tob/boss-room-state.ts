@@ -7,14 +7,21 @@ import {
   Room,
   isPlayerEvent,
 } from '@blert/common';
-import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { TICK_MS } from '../../utils/tick';
 import { RaidContext } from './context';
 import { loadEventsForRoom } from '../../actions/raid';
 
 export const usePlayingState = (totalTicks: number) => {
-  const [currentTick, updateTickOnPage] = useState(1);
+  const [currentTick, setTick] = useState(1);
   const [playing, setPlaying] = useState(false);
 
   const tickTimeout = useRef<number | undefined>(undefined);
@@ -24,8 +31,13 @@ export const usePlayingState = (totalTicks: number) => {
     tickTimeout.current = undefined;
   };
 
+  const updateTickOnPage = useCallback((tick: number) => {
+    clearTimeout();
+    setTick(tick);
+  }, []);
+
   useEffect(() => {
-    if (playing === true) {
+    if (playing) {
       if (currentTick < totalTicks) {
         tickTimeout.current = window.setTimeout(() => {
           updateTickOnPage(currentTick + 1);
@@ -69,7 +81,14 @@ export const useRoomEvents = (room: Room) => {
     getEvents();
   }, [raidData, room]);
 
-  const totalTicks = raidData?.rooms[room]?.roomTicks ?? 1;
+  let totalTicks = raidData?.rooms[room]?.roomTicks ?? -1;
+  if (totalTicks === -1) {
+    if (events.length > 0) {
+      totalTicks = events[events.length - 1].tick;
+    } else {
+      totalTicks = 1;
+    }
+  }
 
   const [eventsByTick, eventsByType] = useMemo(
     () => buildEventMaps(events),

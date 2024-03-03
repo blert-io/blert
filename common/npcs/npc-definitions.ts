@@ -147,6 +147,13 @@ const [
   size: 4,
 });
 
+const [SOTETSEG_ENTRY, SOTETSEG_REGULAR, SOTETSEG_HARD] = defineForAllModes({
+  fullName: 'Sotetseg',
+  shortName: 'Sotetseg',
+  canonicalId: NpcId.SOTETSEG_REGULAR,
+  size: 5,
+});
+
 const [VERZIK_P1_ENTRY, VERZIK_P1_REGULAR, VERZIK_P1_HARD] = defineForAllModes({
   fullName: 'Verzik Vitur',
   shortName: 'Verzik',
@@ -266,6 +273,14 @@ const NPC_DEFINITIONS: { [id: number]: NpcDefinition } = {
   [NpcId.NYLOCAS_VASILIAS_MELEE_HARD]: NYLOCAS_VASILIAS_HARD,
   [NpcId.NYLOCAS_VASILIAS_RANGE_HARD]: NYLOCAS_VASILIAS_HARD,
   [NpcId.NYLOCAS_VASILIAS_MAGE_HARD]: NYLOCAS_VASILIAS_HARD,
+
+  // Sotetseg.
+  [NpcId.SOTETSEG_IDLE_ENTRY]: SOTETSEG_ENTRY,
+  [NpcId.SOTETSEG_ENTRY]: SOTETSEG_ENTRY,
+  [NpcId.SOTETSEG_IDLE_REGULAR]: SOTETSEG_REGULAR,
+  [NpcId.SOTETSEG_REGULAR]: SOTETSEG_REGULAR,
+  [NpcId.SOTETSEG_IDLE_HARD]: SOTETSEG_HARD,
+  [NpcId.SOTETSEG_HARD]: SOTETSEG_HARD,
 
   // Verzik Vitur.
   [NpcId.VERZIK_P1_ENTRY]: VERZIK_P1_ENTRY,

@@ -37,6 +37,15 @@ const getCellImageForBossAttack = (attack: NpcAttack) => {
     case NpcAttack.NYLO_BOSS_MAGE:
       imageUrl = '/nylo_boss_mage.png';
       break;
+    case NpcAttack.SOTE_BALL:
+      imageUrl = '/sote_ball.png';
+      break;
+    case NpcAttack.SOTE_MELEE:
+      imageUrl = '/sote_melee.png';
+      break;
+    case NpcAttack.SOTE_DEATH_BALL:
+      imageUrl = '/sote_death_ball.png';
+      break;
     case NpcAttack.XARPUS_SPIT:
       imageUrl = '/xarpus_spit.png';
       break;
@@ -302,7 +311,7 @@ const buildTickColumn = (
 
   const allPlayersTimelines = Array.from(attackTimeline.values());
 
-  const bossEvent = bossAttackTimeline.find(
+  const bossEvent = bossAttackTimeline.findLast(
     (event) => event.tick === columnTick,
   );
   cellEvents.push(bossEvent ?? null);

@@ -93,6 +93,13 @@ export enum NpcId {
   NYLOCAS_VASILIAS_MAGE_HARD = 10809,
   NYLOCAS_VASILIAS_RANGE_HARD = 10810,
 
+  SOTETSEG_IDLE_ENTRY = 10864,
+  SOTETSEG_IDLE_REGULAR = 8387,
+  SOTETSEG_IDLE_HARD = 10867,
+  SOTETSEG_ENTRY = 10865,
+  SOTETSEG_REGULAR = 8388,
+  SOTETSEG_HARD = 10868,
+
   VERZIK_P1_ENTRY = 10831,
   VERZIK_P1_ENTRY_10832 = 10832,
   VERZIK_P1_REGULAR = 8370,
@@ -322,6 +329,17 @@ export class Npc {
       Npc.isNylocasVasiliasEntry(npcId) ||
       Npc.isNylocasVasiliasRegular(npcId) ||
       Npc.isNylocasVasiliasHard(npcId)
+    );
+  }
+
+  static isSotetseg(npcId: number): boolean {
+    return (
+      npcId === NpcId.SOTETSEG_IDLE_ENTRY ||
+      npcId === NpcId.SOTETSEG_IDLE_REGULAR ||
+      npcId === NpcId.SOTETSEG_IDLE_HARD ||
+      npcId === NpcId.SOTETSEG_ENTRY ||
+      npcId === NpcId.SOTETSEG_REGULAR ||
+      npcId === NpcId.SOTETSEG_HARD
     );
   }
 
