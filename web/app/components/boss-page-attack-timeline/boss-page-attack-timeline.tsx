@@ -302,30 +302,15 @@ const buildTickColumn = (
 
   const allPlayersTimelines = Array.from(attackTimeline.values());
 
-  for (let i = 0; i < bossAttackTimeline.length; i++) {
-    const bossEvent = bossAttackTimeline[i];
-
-    if (bossEvent.tick === columnTick) {
-      cellEvents.push(bossEvent);
-      break;
-    }
-  }
-
-  if (cellEvents.length === 0) {
-    cellEvents.push(null);
-  }
+  const bossEvent = bossAttackTimeline.find(
+    (event) => event.tick === columnTick,
+  );
+  cellEvents.push(bossEvent ?? null);
 
   for (let i = 0; i < allPlayersTimelines.length; i++) {
     const playerTimeline = allPlayersTimelines[i];
-
-    for (let j = 0; j < playerTimeline.length; j++) {
-      const event = playerTimeline[j];
-
-      if (event?.tick === columnTick) {
-        cellEvents.push(event);
-        break;
-      }
-    }
+    const event = playerTimeline.find((event) => event.tick === columnTick);
+    cellEvents.push(event ?? null);
   }
 
   for (let i = 0; i < cellEvents.length; i++) {
