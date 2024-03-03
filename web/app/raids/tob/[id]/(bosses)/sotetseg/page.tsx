@@ -2,16 +2,22 @@
 
 import { EventType, NpcEvent, PlayerUpdateEvent, Room } from '@blert/common';
 import Image from 'next/image';
+import { useContext } from 'react';
 
 import { usePlayingState, useRoomEvents } from '../../../boss-room-state';
 import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
 import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
 import BossPageReplay from '../../../../../components/boss-page-replay';
-import { Entity, NpcEntity, PlayerEntity } from '../../../../../components/map';
+import {
+  Entity,
+  NpcEntity,
+  OverlayEntity,
+  PlayerEntity,
+} from '../../../../../components/map';
+import { MemeContext } from '../../../../meme-context';
 
 import styles from './style.module.scss';
 import soteBaseTiles from './sote-tiles.json';
-import { OverlayEntity } from '../../../../../components/map/overlay';
 
 const SOTETSEG_MAP_DEFINITION = {
   baseX: 3272,
@@ -39,6 +45,8 @@ export default function SotetsegPage() {
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
+
+  const memes = useContext(MemeContext);
 
   if (raidData === null || events.length === 0) {
     return <>Loading...</>;
@@ -94,8 +102,6 @@ export default function SotetsegPage() {
     }
   }
 
-  const inventoryTags = false;
-
   return (
     <>
       <div className={styles.bossPage__Overview}>
@@ -127,7 +133,7 @@ export default function SotetsegPage() {
         bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
-        inventoryTags={inventoryTags}
+        inventoryTags={memes.inventoryTags}
       />
 
       <BossPageReplay entities={entities} mapDef={SOTETSEG_MAP_DEFINITION} />

@@ -8,7 +8,7 @@ import {
   PlayerUpdateEvent,
   Room,
 } from '@blert/common';
-import { useEffect } from 'react';
+import { useContext, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 
 import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
@@ -21,9 +21,9 @@ import {
   NpcEntity,
   PlayerEntity,
 } from '../../../../../components/map';
-
-import { clamp } from '../../../../../utils/math';
 import { usePlayingState, useRoomEvents } from '../../../boss-room-state';
+import { MemeContext } from '../../../../meme-context';
+import { clamp } from '../../../../../utils/math';
 
 import maidenBaseTiles from './maiden.json';
 import styles from './style.module.scss';
@@ -39,6 +39,7 @@ const BLOOD_SPLAT_COLOR = '#b93e3e';
 
 export default function Maiden({ params: { id } }: { params: { id: string } }) {
   const searchParams = useSearchParams();
+  const memes = useContext(MemeContext);
 
   const {
     raidData,
@@ -64,9 +65,6 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
       parsedTickParam = 1;
     }
   }
-
-  const memesToApply = searchParams.get('memes')?.split(',') ?? [];
-  const inventoryTags = memesToApply.includes('invtags');
 
   const finalParsedTickParam = clamp(Math.abs(parsedTickParam), 1, totalTicks);
 
@@ -153,7 +151,7 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
         bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
-        inventoryTags={inventoryTags}
+        inventoryTags={memes.inventoryTags}
       />
 
       <BossPageReplay entities={entities} mapDef={MAIDEN_MAP_DEFINITION} />

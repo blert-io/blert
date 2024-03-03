@@ -11,6 +11,7 @@ import {
   NpcId,
 } from '@blert/common';
 import Image from 'next/image';
+import { useContext } from 'react';
 
 import { usePlayingState, useRoomEvents } from '../../../boss-room-state';
 import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
@@ -23,6 +24,7 @@ import {
   PlayerEntity,
 } from '../../../../../components/map';
 import { OverlayEntity } from '../../../../../components/map/overlay';
+import { MemeContext } from '../../../../meme-context';
 
 import styles from './style.module.scss';
 import nyloBaseTiles from './nylo-tiles.json';
@@ -142,11 +144,12 @@ export default function NylocasPage() {
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
 
+  const memes = useContext(MemeContext);
+
   if (raidData === null || events.length === 0) {
     return <>Loading...</>;
   }
 
-  const inventoryTags = false;
   const eventsForCurrentTick = eventsByTick[currentTick] ?? [];
 
   const entities: Entity[] = [
@@ -258,7 +261,7 @@ export default function NylocasPage() {
         bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
-        inventoryTags={inventoryTags}
+        inventoryTags={memes.inventoryTags}
       />
 
       <BossPageReplay entities={entities} mapDef={NYLOCAS_MAP_DEFINITION} />

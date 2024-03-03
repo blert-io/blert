@@ -5,6 +5,7 @@ export { EntityType } from './entity';
 export { MarkerEntity } from './marker';
 export { NpcEntity } from './npc';
 export { PlayerEntity } from './player';
+export { OverlayEntity } from './overlay';
 
 export type MapDefinition = {
   baseX: number;

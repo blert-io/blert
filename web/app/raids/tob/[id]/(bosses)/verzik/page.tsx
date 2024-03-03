@@ -2,10 +2,12 @@
 
 import { Room } from '@blert/common';
 import Image from 'next/image';
+import { useContext } from 'react';
 
 import { usePlayingState, useRoomEvents } from '../../../boss-room-state';
 import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
 import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
+import { MemeContext } from '../../../../meme-context';
 
 import styles from './style.module.scss';
 
@@ -23,11 +25,11 @@ export default function VerzikPage() {
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
 
+  const memes = useContext(MemeContext);
+
   if (raidData === null || events.length === 0) {
     return <>Loading...</>;
   }
-
-  const inventoryTags = false;
 
   return (
     <>
@@ -60,7 +62,7 @@ export default function VerzikPage() {
         bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
-        inventoryTags={inventoryTags}
+        inventoryTags={memes.inventoryTags}
       />
     </>
   );

@@ -13,10 +13,12 @@ import {
   NpcEntity,
   PlayerEntity,
 } from '../../../../../components/map';
+import { MemeContext } from '../../../../meme-context';
 
 import bloatBaseTiles from './bloat-tiles.json';
 
 import styles from './style.module.scss';
+import { useContext } from 'react';
 
 const BLOAT_MAP_DEFINITION = {
   baseX: 3288,
@@ -42,11 +44,12 @@ export default function BloatPage() {
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
 
+  const memes = useContext(MemeContext);
+
   if (raidData === null || events.length === 0) {
     return <>Loading...</>;
   }
 
-  const inventoryTags = false;
   const eventsForCurrentTick = eventsByTick[currentTick] ?? [];
 
   const entities: Entity[] = [BLOAT_PILLAR_OUTLINE];
@@ -114,7 +117,7 @@ export default function BloatPage() {
         bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
-        inventoryTags={inventoryTags}
+        inventoryTags={memes.inventoryTags}
       />
 
       <BossPageReplay entities={entities} mapDef={BLOAT_MAP_DEFINITION} />
