@@ -49,6 +49,9 @@ const getCellImageForBossAttack = (attack: NpcAttack) => {
     case NpcAttack.XARPUS_SPIT:
       imageUrl = '/xarpus_spit.png';
       break;
+    case NpcAttack.XARPUS_TURN:
+      imageUrl = '/xarpus_turn.webp';
+      break;
     case NpcAttack.VERZIK_P1_AUTO:
       imageUrl = '/verzik_p1_auto.png';
       break;
@@ -205,25 +208,41 @@ const makeCellImage = (playerAttack: Attack, inventoryTags: boolean) => {
   return (
     <div className={styles.attackTimeline__CellImage}>
       {infoIcon && infoIcon}
-      <Item
-        name={playerAttack.weapon.name}
-        quantity={1}
-        outlineColor={outline}
-      />
+      {(playerAttack.weapon && (
+        <Item
+          name={playerAttack.weapon.name}
+          quantity={1}
+          outlineColor={outline}
+        />
+      )) || (
+        <div className={styles.attackTimeline__CellImage__BossAtk}>
+          <Image
+            src="/huh.png"
+            alt="Unknown attack"
+            fill
+            style={{ objectFit: 'contain' }}
+          />
+        </div>
+      )}
     </div>
   );
 };
 
 const FUCKING_MAGIC = 55;
 
-const buildTickCell = (event: Event | null, inventoryTags: boolean) => {
+const buildTickCell = (
+  event: Event | null,
+  tick: number,
+  actorIndex: number,
+  inventoryTags: boolean,
+) => {
   // @ts-ignore
 
   if (event === null) {
     return (
       <div
         className={`${styles.attackTimeline__Cell}`}
-        key={`boss-cooldown-cell`}
+        key={`empty-cell-${tick}-${actorIndex}`}
       >
         <span className={styles.attackTimeline__Nothing}></span>
       </div>
@@ -323,7 +342,7 @@ const buildTickColumn = (
   }
 
   for (let i = 0; i < cellEvents.length; i++) {
-    tickCells.push(buildTickCell(cellEvents[i], inventoryTags));
+    tickCells.push(buildTickCell(cellEvents[i], columnTick, i, inventoryTags));
   }
 
   return (

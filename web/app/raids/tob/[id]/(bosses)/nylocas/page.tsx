@@ -201,8 +201,9 @@ export default function NylocasPage() {
     eventsByType[EventType.NYLO_WAVE_SPAWN] as NyloWaveSpawnEvent[]
   )?.findLast((evt) => evt.tick <= currentTick)?.nyloWave;
 
+  const cleanupEvent = eventsByType[EventType.NYLO_CLEANUP_END]?.at(0);
   const cleanupEnded =
-    eventsByType[EventType.NYLO_CLEANUP_END][0]?.tick <= currentTick;
+    cleanupEvent !== undefined && cleanupEvent.tick <= currentTick;
 
   if (currentWave !== undefined && currentWave.wave > 0 && !cleanupEnded) {
     const wave = currentWave.wave;

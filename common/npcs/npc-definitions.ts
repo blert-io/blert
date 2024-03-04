@@ -154,6 +154,21 @@ const [SOTETSEG_ENTRY, SOTETSEG_REGULAR, SOTETSEG_HARD] = defineForAllModes({
   size: 5,
 });
 
+const [XARPUS_IDLE_ENTRY, XARPUS_IDLE_REGULAR, XARPUS_IDLE_HARD] =
+  defineForAllModes({
+    fullName: 'Xarpus',
+    shortName: 'Xarpus',
+    canonicalId: NpcId.XARPUS_IDLE_REGULAR,
+    size: 3,
+  });
+
+const [XARPUS_ENTRY, XARPUS_REGULAR, XARPUS_HARD] = defineForAllModes({
+  fullName: 'Xarpus',
+  shortName: 'Xarpus',
+  canonicalId: NpcId.XARPUS_REGULAR,
+  size: 5,
+});
+
 const [VERZIK_P1_ENTRY, VERZIK_P1_REGULAR, VERZIK_P1_HARD] = defineForAllModes({
   fullName: 'Verzik Vitur',
   shortName: 'Verzik',
@@ -281,6 +296,17 @@ const NPC_DEFINITIONS: { [id: number]: NpcDefinition } = {
   [NpcId.SOTETSEG_REGULAR]: SOTETSEG_REGULAR,
   [NpcId.SOTETSEG_IDLE_HARD]: SOTETSEG_HARD,
   [NpcId.SOTETSEG_HARD]: SOTETSEG_HARD,
+
+  // Xarpus.
+  [NpcId.XARPUS_IDLE_ENTRY]: XARPUS_IDLE_ENTRY,
+  [NpcId.XARPUS_P1_ENTRY]: XARPUS_IDLE_ENTRY,
+  [NpcId.XARPUS_IDLE_REGULAR]: XARPUS_IDLE_REGULAR,
+  [NpcId.XARPUS_P1_REGULAR]: XARPUS_IDLE_REGULAR,
+  [NpcId.XARPUS_IDLE_HARD]: XARPUS_IDLE_HARD,
+  [NpcId.XARPUS_P1_HARD]: XARPUS_IDLE_HARD,
+  [NpcId.XARPUS_ENTRY]: XARPUS_ENTRY,
+  [NpcId.XARPUS_REGULAR]: XARPUS_REGULAR,
+  [NpcId.XARPUS_HARD]: XARPUS_HARD,
 
   // Verzik Vitur.
   [NpcId.VERZIK_P1_ENTRY]: VERZIK_P1_ENTRY,

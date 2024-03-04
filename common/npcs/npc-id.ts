@@ -100,6 +100,16 @@ export enum NpcId {
   SOTETSEG_REGULAR = 8388,
   SOTETSEG_HARD = 10868,
 
+  XARPUS_IDLE_ENTRY = 10766,
+  XARPUS_IDLE_REGULAR = 8338,
+  XARPUS_IDLE_HARD = 10770,
+  XARPUS_P1_ENTRY = 10767,
+  XARPUS_P1_REGULAR = 8339,
+  XARPUS_P1_HARD = 10771,
+  XARPUS_ENTRY = 10768,
+  XARPUS_REGULAR = 8340,
+  XARPUS_HARD = 10772,
+
   VERZIK_P1_ENTRY = 10831,
   VERZIK_P1_ENTRY_10832 = 10832,
   VERZIK_P1_REGULAR = 8370,
@@ -340,6 +350,38 @@ export class Npc {
       npcId === NpcId.SOTETSEG_ENTRY ||
       npcId === NpcId.SOTETSEG_REGULAR ||
       npcId === NpcId.SOTETSEG_HARD
+    );
+  }
+
+  static isXarpusEntry(npcId: number): boolean {
+    return (
+      npcId === NpcId.XARPUS_IDLE_ENTRY ||
+      npcId === NpcId.XARPUS_P1_ENTRY ||
+      npcId === NpcId.XARPUS_ENTRY
+    );
+  }
+
+  static isXarpusRegular(npcId: number): boolean {
+    return (
+      npcId === NpcId.XARPUS_IDLE_REGULAR ||
+      npcId === NpcId.XARPUS_P1_REGULAR ||
+      npcId === NpcId.XARPUS_REGULAR
+    );
+  }
+
+  static isXarpusHard(npcId: number): boolean {
+    return (
+      npcId === NpcId.XARPUS_IDLE_HARD ||
+      npcId === NpcId.XARPUS_P1_HARD ||
+      npcId === NpcId.XARPUS_HARD
+    );
+  }
+
+  static isXarpus(npcId: number): boolean {
+    return (
+      Npc.isXarpusEntry(npcId) ||
+      Npc.isXarpusRegular(npcId) ||
+      Npc.isXarpusHard(npcId)
     );
   }
 
