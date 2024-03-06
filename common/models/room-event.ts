@@ -34,7 +34,7 @@ const attackSchema = new Schema(
 
 const roomEventSchema = new Schema({
   raidId: { type: String, index: true },
-  type: String,
+  type: { type: String, index: true },
   room: String,
   tick: Number,
   xCoord: Number,
