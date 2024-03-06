@@ -10,7 +10,7 @@ import {
 } from '@blert/common';
 import { useContext, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-
+import { MAIDEN } from '../../../../../bosses/tob';
 import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
 import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
 import BossPageReplay from '../../../../../components/boss-page-replay';
@@ -142,6 +142,8 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
         currentTick={currentTick}
         updateTick={updateTickOnPage}
         updatePlayingState={setPlaying}
+        bossImage={MAIDEN.imageSrc}
+        bossName={MAIDEN.bossName}
       />
 
       <BossPageAttackTimeline

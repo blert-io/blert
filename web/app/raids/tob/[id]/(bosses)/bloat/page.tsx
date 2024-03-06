@@ -2,7 +2,7 @@
 
 import { EventType, NpcEvent, PlayerUpdateEvent, Room } from '@blert/common';
 import Image from 'next/image';
-
+import { BLOAT } from '../../../../../bosses/tob';
 import { usePlayingState, useRoomEvents } from '../../../boss-room-state';
 import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
 import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
@@ -108,6 +108,8 @@ export default function BloatPage() {
         currentTick={currentTick}
         updateTick={updateTickOnPage}
         updatePlayingState={setPlaying}
+        bossImage={BLOAT.imageSrc}
+        bossName={BLOAT.bossName}
       />
 
       <BossPageAttackTimeline
