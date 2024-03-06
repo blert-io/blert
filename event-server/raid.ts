@@ -397,6 +397,20 @@ export default class Raid {
         this.deathsInRoom.push(deathEvent.player.name);
         Players.updateStats(deathEvent.player.name, (stats) => {
           stats.deaths += 1;
+
+          if (event.room === Room.MAIDEN) {
+            stats.deathsMaiden += 1;
+          } else if (event.room === Room.BLOAT) {
+            stats.deathsBloat += 1;
+          } else if (event.room === Room.NYLOCAS) {
+            stats.deathsNylocas += 1;
+          } else if (event.room === Room.SOTETSEG) {
+            stats.deathsSotetseg += 1;
+          } else if (event.room === Room.XARPUS) {
+            stats.deathsXarpus += 1;
+          } else if (event.room === Room.VERZIK) {
+            stats.deathsVerzik += 1;
+          }
         });
         break;
 
@@ -532,6 +546,20 @@ export default class Raid {
           stats.chinsThrown += 1;
           stats.chinsThrownValue += chinPrice;
 
+          if (event.room === Room.MAIDEN) {
+            stats.chinsThrownMaiden += 1;
+          } else if (event.room === Room.NYLOCAS) {
+            stats.chinsThrownNylocas += 1;
+          }
+
+          if (attack.type === PlayerAttack.CHIN_BLACK) {
+            stats.chinsThrownBlack += 1;
+          } else if (attack.type === PlayerAttack.CHIN_RED) {
+            stats.chinsThrownRed += 1;
+          } else if (attack.type === PlayerAttack.CHIN_GREY) {
+            stats.chinsThrownGrey += 1;
+          }
+
           if (attack.target !== undefined && isWrongThrowDistance) {
             // Only consider incorrect throw distances on Maiden crabs.
             if (Npc.isMaidenMatomenos(attack.target.id)) {
@@ -544,6 +572,12 @@ export default class Raid {
       case PlayerAttack.HAMMER_BOP:
         await Players.updateStats(username, (stats) => {
           stats.hammerBops += 1;
+        });
+        break;
+
+      case PlayerAttack.SCYTHE_UNCHARGED:
+        await Players.updateStats(username, (stats) => {
+          stats.unchargedScytheSwings += 1;
         });
         break;
 
