@@ -99,6 +99,13 @@ export function LeftNav() {
 
         {viewingTob && (
           <li className={styles.leftNav__subMenu}>
+            <Link href={currentPathForRaid + '/overview'}>
+              <div
+                className={`${styles.leftNav__subMenuItem} ${currentPath.includes('/overview') && styles.leftNav__subMenuItemActive}`}
+              >
+                Overview
+              </div>
+            </Link>
             <Link href={currentPathForRaid + '/maiden'}>
               <div
                 className={`${styles.leftNav__subMenuItem} ${currentPath.includes('/maiden') && styles.leftNav__subMenuItemActive}`}

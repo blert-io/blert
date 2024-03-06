@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { clamp } from '../../utils/math';
-import styles from './styles.module.scss';
 import Image from 'next/image';
-import { set } from 'mongoose';
+import { useEffect, useState } from 'react';
+
+import { clamp } from '../../utils/math';
+import { ticksToFormattedSeconds } from '../../utils/tick';
+
+import styles from './styles.module.scss';
 
 interface BossControlsProps {
   currentlyPlaying: boolean;

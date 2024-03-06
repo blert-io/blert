@@ -130,6 +130,26 @@ export enum NpcId {
   VERZIK_P3_REGULAR_8375 = 8375,
   VERZIK_P3_HARD = 10852,
   VERZIK_P3_HARD_10853 = 10853,
+
+  VERZIK_PILLAR = 8379,
+
+  VERZIK_NYLOCAS_ISCHYROS_ENTRY = 10841,
+  VERZIK_NYLOCAS_ISCHYROS_REGULAR = 8381,
+  VERZIK_NYLOCAS_ISCHYROS_HARD = 10858,
+  VERZIK_NYLOCAS_TOXOBOLOS_ENTRY = 10842,
+  VERZIK_NYLOCAS_TOXOBOLOS_REGULAR = 8382,
+  VERZIK_NYLOCAS_TOXOBOLOS_HARD = 10859,
+  VERZIK_NYLOCAS_HAGIOS_ENTRY = 10843,
+  VERZIK_NYLOCAS_HAGIOS_REGULAR = 8383,
+  VERZIK_NYLOCAS_HAGIOS_HARD = 10860,
+
+  VERZIK_ATHANATOS_ENTRY = 10844,
+  VERZIK_ATHANATOS_REGULAR = 8384,
+  VERZIK_ATHANATOS_HARD = 10861,
+
+  VERZIK_MATOMENOS_ENTRY = 10845,
+  VERZIK_MATOMENOS_REGULAR = 8385,
+  VERZIK_MATOMENOS_HARD = 10862,
 }
 
 const MAIDEN_ENTRY_IDS = [
@@ -421,6 +441,54 @@ export class Npc {
   static isVerzik(npcId: number): boolean {
     return (
       Npc.isVerzikP1(npcId) || Npc.isVerzikP2(npcId) || Npc.isVerzikP3(npcId)
+    );
+  }
+
+  static isVerzikIschyros(npcId: number): boolean {
+    return (
+      npcId === NpcId.VERZIK_NYLOCAS_ISCHYROS_ENTRY ||
+      npcId === NpcId.VERZIK_NYLOCAS_ISCHYROS_REGULAR ||
+      npcId === NpcId.VERZIK_NYLOCAS_ISCHYROS_HARD
+    );
+  }
+
+  static isVerzikToxobolos(npcId: number): boolean {
+    return (
+      npcId === NpcId.VERZIK_NYLOCAS_TOXOBOLOS_ENTRY ||
+      npcId === NpcId.VERZIK_NYLOCAS_TOXOBOLOS_REGULAR ||
+      npcId === NpcId.VERZIK_NYLOCAS_TOXOBOLOS_HARD
+    );
+  }
+
+  static isVerzikHagios(npcId: number): boolean {
+    return (
+      npcId === NpcId.VERZIK_NYLOCAS_HAGIOS_ENTRY ||
+      npcId === NpcId.VERZIK_NYLOCAS_HAGIOS_REGULAR ||
+      npcId === NpcId.VERZIK_NYLOCAS_HAGIOS_HARD
+    );
+  }
+
+  static isVerzikNylocas(npcId: number): boolean {
+    return (
+      Npc.isVerzikIschyros(npcId) ||
+      Npc.isVerzikToxobolos(npcId) ||
+      Npc.isVerzikHagios(npcId)
+    );
+  }
+
+  static isVerzikAthanatos(npcId: number): boolean {
+    return (
+      npcId === NpcId.VERZIK_ATHANATOS_ENTRY ||
+      npcId === NpcId.VERZIK_ATHANATOS_REGULAR ||
+      npcId === NpcId.VERZIK_ATHANATOS_HARD
+    );
+  }
+
+  static isVerzikMatomenos(npcId: number): boolean {
+    return (
+      npcId === NpcId.VERZIK_MATOMENOS_ENTRY ||
+      npcId === NpcId.VERZIK_MATOMENOS_REGULAR ||
+      npcId === NpcId.VERZIK_MATOMENOS_HARD
     );
   }
 }

@@ -5,7 +5,7 @@ export class OverlayEntity implements Entity {
   x: number;
   y: number;
   type: EntityType = EntityType.OVERLAY;
-  size: number = 1;
+  size: number;
   outlineColor: string | null = null;
   interactable: boolean;
 
@@ -18,10 +18,12 @@ export class OverlayEntity implements Entity {
     name: string,
     contents: React.ReactNode,
     interactable: boolean = true,
+    size: number = 1,
   ) {
     this.x = x;
     this.y = y;
     this.name = name;
+    this.size = size;
     this.contents = contents;
     this.interactable = interactable;
   }

@@ -8,6 +8,7 @@ import {
   isPlayerEvent,
 } from '@blert/common';
 import {
+  SetStateAction,
   useCallback,
   useContext,
   useEffect,
@@ -31,10 +32,13 @@ export const usePlayingState = (totalTicks: number) => {
     tickTimeout.current = undefined;
   };
 
-  const updateTickOnPage = useCallback((tick: number) => {
-    clearTimeout();
-    setTick(tick);
-  }, []);
+  const updateTickOnPage = useCallback(
+    (tick: number | SetStateAction<number>) => {
+      clearTimeout();
+      setTick(tick);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (playing) {
@@ -51,6 +55,21 @@ export const usePlayingState = (totalTicks: number) => {
       clearTimeout();
     }
   }, [currentTick, totalTicks, playing]);
+
+  useEffect(() => {
+    const listener = (e: any) => {
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        updateTickOnPage((tick) => Math.max(1, tick - 1));
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        updateTickOnPage((tick) => Math.min(totalTicks, tick + 1));
+      }
+    };
+
+    window.addEventListener('keydown', listener);
+    return () => window.removeEventListener('keydown', listener);
+  }, [totalTicks, updateTickOnPage]);
 
   return {
     currentTick,

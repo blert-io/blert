@@ -173,21 +173,84 @@ const [VERZIK_P1_ENTRY, VERZIK_P1_REGULAR, VERZIK_P1_HARD] = defineForAllModes({
   fullName: 'Verzik Vitur',
   shortName: 'Verzik',
   canonicalId: NpcId.VERZIK_P1_REGULAR,
-  size: 6,
+  size: 5,
 });
 
 const [VERZIK_P2_ENTRY, VERZIK_P2_REGULAR, VERZIK_P2_HARD] = defineForAllModes({
   fullName: 'Verzik Vitur',
   shortName: 'Verzik',
   canonicalId: NpcId.VERZIK_P2_REGULAR,
-  size: 6,
+  size: 3,
 });
 
 const [VERZIK_P3_ENTRY, VERZIK_P3_REGULAR, VERZIK_P3_HARD] = defineForAllModes({
   fullName: 'Verzik Vitur',
   shortName: 'Verzik',
   canonicalId: NpcId.VERZIK_P3_REGULAR,
-  size: 6,
+  size: 7,
+});
+
+const VERZIK_PILLAR = {
+  fullName: 'Pillar',
+  shortName: 'Pillar',
+  canonicalId: NpcId.VERZIK_PILLAR,
+  size: 3,
+  mode: Mode.REGULAR,
+};
+
+const [
+  VERZIK_NYLOCAS_ISCHYROS_ENTRY,
+  VERZIK_NYLOCAS_ISCHYROS_REGULAR,
+  VERZIK_NYLOCAS_ISCHYROS_HARD,
+] = defineForAllModes({
+  fullName: 'Nylocas Ischyros',
+  shortName: 'Melee crab',
+  canonicalId: NpcId.VERZIK_NYLOCAS_ISCHYROS_REGULAR,
+  size: 2,
+});
+
+const [
+  VERZIK_NYLOCAS_TOXOBOLOS_ENTRY,
+  VERZIK_NYLOCAS_TOXOBOLOS_REGULAR,
+  VERZIK_NYLOCAS_TOXOBOLOS_HARD,
+] = defineForAllModes({
+  fullName: 'Nylocas Toxobolos',
+  shortName: 'Range crab',
+  canonicalId: NpcId.VERZIK_NYLOCAS_TOXOBOLOS_REGULAR,
+  size: 2,
+});
+
+const [
+  VERZIK_NYLOCAS_HAGIOS_ENTRY,
+  VERZIK_NYLOCAS_HAGIOS_REGULAR,
+  VERZIK_NYLOCAS_HAGIOS_HARD,
+] = defineForAllModes({
+  fullName: 'Nylocas Hagios',
+  shortName: 'Mage crab',
+  canonicalId: NpcId.VERZIK_NYLOCAS_HAGIOS_REGULAR,
+  size: 2,
+});
+
+const [
+  VERZIK_ATHANATOS_ENTRY,
+  VERZIK_ATHANATOS_REGULAR,
+  VERZIK_ATHANATOS_HARD,
+] = defineForAllModes({
+  fullName: 'Nylocas Athanatos',
+  shortName: 'Purple crab',
+  canonicalId: NpcId.VERZIK_ATHANATOS_REGULAR,
+  size: 2,
+});
+
+const [
+  VERZIK_MATOMENOS_ENTRY,
+  VERZIK_MATOMENOS_REGULAR,
+  VERZIK_MATOMENOS_HARD,
+] = defineForAllModes({
+  fullName: 'Nylocas Matomenos',
+  shortName: 'Red crab',
+  canonicalId: NpcId.VERZIK_MATOMENOS_REGULAR,
+  size: 2,
 });
 
 const NPC_DEFINITIONS: { [id: number]: NpcDefinition } = {
@@ -317,18 +380,41 @@ const NPC_DEFINITIONS: { [id: number]: NpcDefinition } = {
   [NpcId.VERZIK_P1_HARD_10849]: VERZIK_P1_HARD,
 
   [NpcId.VERZIK_P2_ENTRY]: VERZIK_P2_ENTRY,
-  [NpcId.VERZIK_P2_ENTRY_10834]: VERZIK_P2_ENTRY,
   [NpcId.VERZIK_P2_REGULAR]: VERZIK_P2_REGULAR,
-  [NpcId.VERZIK_P2_REGULAR_8373]: VERZIK_P2_REGULAR,
   [NpcId.VERZIK_P2_HARD]: VERZIK_P2_HARD,
-  [NpcId.VERZIK_P2_HARD_10851]: VERZIK_P2_HARD,
 
   [NpcId.VERZIK_P3_ENTRY]: VERZIK_P3_ENTRY,
+  [NpcId.VERZIK_P2_ENTRY_10834]: VERZIK_P3_ENTRY,
   [NpcId.VERZIK_P3_ENTRY_10836]: VERZIK_P3_ENTRY,
   [NpcId.VERZIK_P3_REGULAR]: VERZIK_P3_REGULAR,
+  [NpcId.VERZIK_P2_REGULAR_8373]: VERZIK_P3_REGULAR,
   [NpcId.VERZIK_P3_REGULAR_8375]: VERZIK_P3_REGULAR,
   [NpcId.VERZIK_P3_HARD]: VERZIK_P3_HARD,
+  [NpcId.VERZIK_P2_HARD_10851]: VERZIK_P3_HARD,
   [NpcId.VERZIK_P3_HARD_10853]: VERZIK_P3_HARD,
+
+  [NpcId.VERZIK_PILLAR]: VERZIK_PILLAR,
+
+  // Nylos at Verzik.
+  [NpcId.VERZIK_NYLOCAS_ISCHYROS_ENTRY]: VERZIK_NYLOCAS_ISCHYROS_ENTRY,
+  [NpcId.VERZIK_NYLOCAS_ISCHYROS_REGULAR]: VERZIK_NYLOCAS_ISCHYROS_REGULAR,
+  [NpcId.VERZIK_NYLOCAS_ISCHYROS_HARD]: VERZIK_NYLOCAS_ISCHYROS_HARD,
+  [NpcId.VERZIK_NYLOCAS_TOXOBOLOS_ENTRY]: VERZIK_NYLOCAS_TOXOBOLOS_ENTRY,
+  [NpcId.VERZIK_NYLOCAS_TOXOBOLOS_REGULAR]: VERZIK_NYLOCAS_TOXOBOLOS_REGULAR,
+  [NpcId.VERZIK_NYLOCAS_TOXOBOLOS_HARD]: VERZIK_NYLOCAS_TOXOBOLOS_HARD,
+  [NpcId.VERZIK_NYLOCAS_HAGIOS_ENTRY]: VERZIK_NYLOCAS_HAGIOS_ENTRY,
+  [NpcId.VERZIK_NYLOCAS_HAGIOS_REGULAR]: VERZIK_NYLOCAS_HAGIOS_REGULAR,
+  [NpcId.VERZIK_NYLOCAS_HAGIOS_HARD]: VERZIK_NYLOCAS_HAGIOS_HARD,
+
+  // Purple crab at Verzik.
+  [NpcId.VERZIK_ATHANATOS_ENTRY]: VERZIK_ATHANATOS_ENTRY,
+  [NpcId.VERZIK_ATHANATOS_REGULAR]: VERZIK_ATHANATOS_REGULAR,
+  [NpcId.VERZIK_ATHANATOS_HARD]: VERZIK_ATHANATOS_HARD,
+
+  // Red crabs at Verzik.
+  [NpcId.VERZIK_MATOMENOS_ENTRY]: VERZIK_MATOMENOS_ENTRY,
+  [NpcId.VERZIK_MATOMENOS_REGULAR]: VERZIK_MATOMENOS_REGULAR,
+  [NpcId.VERZIK_MATOMENOS_HARD]: VERZIK_MATOMENOS_HARD,
 };
 
 export function getNpcDefinition(npcId: number): NpcDefinition | null {
