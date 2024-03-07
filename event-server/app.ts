@@ -4,7 +4,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 
 import Client from './client';
 import ConnectionManager from './connection-manager';
-import EventHandler from './event-handler';
+import EventHandler from './message-handler';
 import RaidManager from './raid-manager';
 
 async function connectToDatabase() {

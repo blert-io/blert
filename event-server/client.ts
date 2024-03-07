@@ -1,26 +1,24 @@
-import { Event } from '@blert/common';
 import { WebSocket } from 'ws';
 
-import EventHandler from './event-handler';
+import MessageHandler from './message-handler';
 import Raid from './raid';
-
-type SingleOrArray<T> = T | T[];
+import { ServerMessage } from './server-message';
 
 export default class Client {
   private userId: number;
   private sessionId: number;
   private socket: WebSocket;
-  private eventHandler: EventHandler;
+  private messageHandler: MessageHandler;
   private activeRaid: Raid | null;
-  private messages: SingleOrArray<Event>[];
+  private messages: ServerMessage[];
 
   private closeCallbacks: (() => void)[];
 
-  constructor(socket: WebSocket, eventHandler: EventHandler, userId: number) {
+  constructor(socket: WebSocket, eventHandler: MessageHandler, userId: number) {
     this.userId = userId;
     this.sessionId = -1;
     this.socket = socket;
-    this.eventHandler = eventHandler;
+    this.messageHandler = eventHandler;
     this.activeRaid = null;
     this.closeCallbacks = [];
     this.messages = [];
@@ -56,7 +54,7 @@ export default class Client {
     this.activeRaid = raid;
   }
 
-  public sendMessage(message: Object): void {
+  public sendMessage(message: ServerMessage): void {
     const payload = JSON.stringify(message);
     this.socket.send(payload);
   }
@@ -72,13 +70,7 @@ export default class Client {
   private async processMessages(): Promise<void> {
     if (this.messages.length > 0) {
       const message = this.messages.shift()!;
-      if (Array.isArray(message)) {
-        for (const evt of message) {
-          await this.eventHandler.handleEvent(this, evt);
-        }
-      } else {
-        await this.eventHandler.handleEvent(this, message);
-      }
+      await this.messageHandler.handleMessage(this, message);
     }
 
     // Keep running forever.

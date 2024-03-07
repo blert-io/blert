@@ -7,6 +7,12 @@ import {
 
 import Client from './client';
 import RaidManager from './raid-manager';
+import {
+  RaidEventsMessage,
+  RaidStartResponseMessage,
+  ServerMessage,
+  ServerMessageType,
+} from './server-message';
 
 type EventSink = (event: Event) => Promise<void>;
 
@@ -27,7 +33,7 @@ class EventAggregator {
   }
 }
 
-export default class EventHandler {
+export default class MessageHandler {
   private raidManager: RaidManager;
   private eventAggregators: { [raidId: string]: EventAggregator };
 
@@ -36,7 +42,29 @@ export default class EventHandler {
     this.eventAggregators = {};
   }
 
-  public async handleEvent(client: Client, event: Event): Promise<void> {
+  public async handleMessage(
+    client: Client,
+    message: ServerMessage,
+  ): Promise<void> {
+    switch (message.type) {
+      case ServerMessageType.RAID_EVENTS:
+        const raidEventsMessage = message as RaidEventsMessage;
+        if (Array.isArray(raidEventsMessage.events)) {
+          for (const event of raidEventsMessage.events) {
+            await this.handleRaidEvent(client, event);
+          }
+        } else {
+          await this.handleRaidEvent(client, raidEventsMessage.events);
+        }
+        break;
+
+      default:
+        console.error(`Unknown message type: ${message.type}`);
+        break;
+    }
+  }
+
+  public async handleRaidEvent(client: Client, event: Event): Promise<void> {
     switch (event.type) {
       case EventType.RAID_START:
         const raidStartEvent = event as RaidStartEvent;
@@ -54,8 +82,11 @@ export default class EventHandler {
           }
         });
 
-        // TODO(frolv): Temporary. Server messages need to be standardized.
-        client.sendMessage({ type: 'RAID_START_RESPONSE', raidId });
+        const response: RaidStartResponseMessage = {
+          type: ServerMessageType.RAID_START_RESPONSE,
+          raidId,
+        };
+        client.sendMessage(response);
         break;
 
       case EventType.RAID_END:
