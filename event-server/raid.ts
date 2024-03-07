@@ -245,6 +245,7 @@ export default class Raid {
       case EventType.ROOM_STATUS:
         await this.handleRoomStatusUpdate(event as RoomStatusEvent);
         break;
+
       default:
         if (event.room !== this.room) {
           console.error(
@@ -321,8 +322,10 @@ export default class Raid {
       case RoomStatus.STARTED:
         if (this.roomStatus === RoomStatus.ENTERED) {
           // A transition from ENTERED -> STARTED has already reset the room.
-          // Don't clear any data received afterwards.
-          break;
+          // Don't clear any data received afterwards, unless the room is new.
+          if (this.room === event.room) {
+            break;
+          }
         }
       // A transition from any other state to STARTED should fall through
       // and reset all room data.
