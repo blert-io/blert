@@ -346,7 +346,7 @@ const buildTickColumn = (
 
   for (let i = 0; i < allPlayersTimelines.length; i++) {
     const playerTimeline = allPlayersTimelines[i];
-    const event = playerTimeline.find((event) => event.tick === columnTick);
+    const event = playerTimeline.find((event) => event?.tick === columnTick);
     cellEvents.push(event ?? null);
   }
 

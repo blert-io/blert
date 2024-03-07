@@ -183,7 +183,7 @@ function buildAttackTimelines(
       const eventsForThisPlayer = eventsForThisTick.filter((event) =>
         eventBelongsToPlayer(event, partyMember),
       );
-      let combinedEventsForThisTick = {};
+      let combinedEventsForThisTick = null;
 
       if (eventsForThisPlayer.length > 0) {
         combinedEventsForThisTick = eventsForThisPlayer.reduce((acc, event) => {
@@ -205,7 +205,11 @@ function buildAttackTimelines(
           }
 
           if (event.type === EventType.PLAYER_ATTACK) {
-            return { ...acc, attack: (event as PlayerAttackEvent).attack };
+            return {
+              ...acc,
+              tick: i,
+              attack: (event as PlayerAttackEvent).attack,
+            };
           }
 
           return acc;
