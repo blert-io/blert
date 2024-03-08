@@ -14,6 +14,8 @@ interface BossControlsProps {
   currentTick: number;
   updateTick: (tick: number) => void;
   updatePlayingState: (isPlaying: boolean) => void;
+  bossImage: string;
+  bossName: string;
 }
 
 export function BossPageControls(props: BossControlsProps) {
@@ -23,6 +25,8 @@ export function BossPageControls(props: BossControlsProps) {
     currentTick,
     updateTick,
     updatePlayingState,
+    bossImage,
+    bossName,
   } = props;
 
   // The value of the tick input field. Tracked separately to `currentTick` to
@@ -126,8 +130,8 @@ export function BossPageControls(props: BossControlsProps) {
 
       <div className={styles.controls__roomActor}>
         <Image
-          src="/maiden.webp"
-          alt="Maiden of Sugadinti"
+          src={bossImage}
+          alt={bossName}
           width={35}
           height={35}
         />
