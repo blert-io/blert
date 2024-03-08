@@ -1,5 +1,6 @@
 import {
   BloatSplits,
+  EquipmentSlot,
   Event,
   EventType,
   MaidenCrab,
@@ -17,6 +18,9 @@ import {
   PlayerAttack,
   PlayerAttackEvent,
   PlayerDeathEvent,
+  PlayerInfo,
+  PlayerUpdateEvent,
+  PrimaryMeleeGear,
   RaidStatus,
   RecordedRaidModel,
   RecordingType,
@@ -89,6 +93,12 @@ function roomWipeStatus(room: Room): RaidStatus {
   }
 }
 
+const BLORVA_PLATEBODY_ID = 28256;
+const TORVA_PLATEBODY_ID = 26384;
+const BANDOS_CHESTPLATE_ID = 11832;
+const VOID_MELEE_HELM_ID = 11665;
+const VOID_MELEE_HELM_OR_ID = 26477;
+
 export default class Raid {
   private id: string;
   private partyKey: string;
@@ -97,8 +107,11 @@ export default class Raid {
   private state: State;
   private mode: Mode | null;
   private party: string[];
+  private partyInfo: PlayerInfo[];
   private startTime: number;
   private raidStatus: RaidStatus;
+
+  private playerInfoUpdated: Set<string>;
 
   private room: Room;
   private roomStatus: RoomStatus;
@@ -129,8 +142,11 @@ export default class Raid {
     this.state = State.STARTING;
     this.mode = mode;
     this.party = party;
+    this.partyInfo = this.party.map((_) => ({ gear: PrimaryMeleeGear.BLORVA }));
     this.startTime = startTime;
     this.raidStatus = RaidStatus.IN_PROGRESS;
+
+    this.playerInfoUpdated = new Set();
 
     this.room = Room.MAIDEN;
     this.roomStatus = RoomStatus.ENTERED;
@@ -183,7 +199,7 @@ export default class Raid {
   public async start(): Promise<void> {
     this.state = State.IN_PROGRESS;
 
-    const documentsToCreate: Promise<void>[] = [];
+    const documentsToCreate: Promise<any>[] = [];
 
     const record = new RaidModel({
       _id: this.id,
@@ -191,6 +207,8 @@ export default class Raid {
       status: this.raidStatus,
       startTime: this.startTime,
       party: this.party,
+      partyInfo: this.partyInfo,
+      totalRoomTicks: 0,
     });
     documentsToCreate.push(record.save());
 
@@ -358,6 +376,7 @@ export default class Raid {
 
         await Promise.all([
           this.updateDatabaseFields((record) => {
+            record.partyInfo = this.partyInfo;
             record.totalRoomTicks += event.tick;
             record.totalDeaths += this.deathsInRoom.length;
             record.rooms[event.room!] = {
@@ -405,6 +424,13 @@ export default class Raid {
    */
   private async updateRaidStatus(event: Event): Promise<boolean> {
     switch (event.type) {
+      case EventType.PLAYER_UPDATE:
+        const updateEvent = event as PlayerUpdateEvent;
+        if (!this.playerInfoUpdated.has(updateEvent.player.name)) {
+          this.tryDetermineGear(updateEvent);
+        }
+        return true;
+
       case EventType.PLAYER_DEATH:
         const deathEvent = event as PlayerDeathEvent;
         this.deathsInRoom.push(deathEvent.player.name);
@@ -651,6 +677,42 @@ export default class Raid {
       this.npcs.set(event.npc.roomId.toString(), crab);
     } else {
       this.npcs.set(event.npc.roomId.toString(), npcCommon);
+    }
+  }
+
+  private async tryDetermineGear(event: PlayerUpdateEvent): Promise<void> {
+    const equipment = event.player.equipment;
+    if (equipment === undefined) {
+      return;
+    }
+
+    const torso = equipment[EquipmentSlot.TORSO];
+    const helm = equipment[EquipmentSlot.HEAD];
+    let gear: PrimaryMeleeGear | null = null;
+
+    if (torso !== undefined) {
+      switch (torso.id) {
+        case BLORVA_PLATEBODY_ID:
+          gear = PrimaryMeleeGear.BLORVA;
+          break;
+        case TORVA_PLATEBODY_ID:
+          gear = PrimaryMeleeGear.TORVA;
+          break;
+        case BANDOS_CHESTPLATE_ID:
+          gear = PrimaryMeleeGear.BANDOS;
+          break;
+      }
+    }
+    if (
+      helm !== undefined &&
+      (helm.id === VOID_MELEE_HELM_ID || helm.id === VOID_MELEE_HELM_OR_ID)
+    ) {
+      gear = PrimaryMeleeGear.ELITE_VOID;
+    }
+
+    if (gear !== null) {
+      this.playerInfoUpdated.add(event.player.name);
+      this.partyInfo[this.party.indexOf(event.player.name)].gear = gear;
     }
   }
 

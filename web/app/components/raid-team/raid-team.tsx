@@ -1,13 +1,7 @@
+import { PrimaryMeleeGear } from '@blert/common';
 import Image from 'next/image';
 
 import styles from './style.module.scss';
-
-export enum PrimaryMeleeGear {
-  EliteVoid,
-  Bandos,
-  Torva,
-  Blorva,
-}
 
 interface TeamPanelPlayer {
   name: string;
