@@ -39,7 +39,12 @@ export type {
   VerzikRedsSpawnEvent,
   XarpusPhaseEvent,
 } from './event';
-export { EventType, VerzikAttackStyle, isPlayerEvent } from './event';
+export {
+  EventType,
+  EquipmentSlot,
+  VerzikAttackStyle,
+  isPlayerEvent,
+} from './event';
 
 export type {
   BloatOverview,
@@ -47,6 +52,7 @@ export type {
   MaidenCrab,
   MaidenOverview,
   MaidenSplits,
+  PlayerInfo,
   Nylo,
   NyloOverview,
   NyloSplits,
@@ -72,6 +78,7 @@ export {
   NyloStyle,
   NpcAttack,
   PlayerAttack,
+  PrimaryMeleeGear,
   Skill,
   RaidStatus,
   Room,

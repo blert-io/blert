@@ -28,6 +28,9 @@ const getCellImageForBossAttack = (attack: NpcAttack) => {
     case NpcAttack.MAIDEN_BLOOD_THROW:
       imageUrl = '/maiden_blood_throw.png';
       break;
+    case NpcAttack.BLOAT_STOMP:
+      imageUrl = '/bloat_stomp.webp';
+      break;
     case NpcAttack.NYLO_BOSS_MELEE:
       imageUrl = '/nylo_boss_melee.png';
       break;
@@ -71,16 +74,22 @@ const getCellImageForBossAttack = (attack: NpcAttack) => {
       imageUrl = '/verzik_p2_mage.webp';
       break;
     case NpcAttack.VERZIK_P3_WEBS:
-      imageUrl = '/verzik_p3_webs.png';
+      imageUrl = '/verzik_p3_webs.webp';
       break;
     case NpcAttack.VERZIK_P3_MELEE:
-      imageUrl = '/verzik_p3_melee.png';
+      imageUrl = '/verzik_p3_melee.webp';
       break;
     case NpcAttack.VERZIK_P3_RANGE:
       imageUrl = '/verzik_p3_range.webp';
       break;
     case NpcAttack.VERZIK_P3_MAGE:
       imageUrl = '/verzik_p3_mage.webp';
+      break;
+    case NpcAttack.VERZIK_P3_YELLOWS:
+      imageUrl = '/verzik_p3_yellow.webp';
+      break;
+    case NpcAttack.VERZIK_P3_BALL:
+      imageUrl = '/verzik_p3_ball.webp';
       break;
     default:
       imageUrl = '/huh.png';
@@ -339,7 +348,7 @@ const buildTickColumn = (
 
   const allPlayersTimelines = Array.from(attackTimeline.values());
 
-  const bossEvent = bossAttackTimeline.findLast(
+  const bossEvent = bossAttackTimeline.find(
     (event) => event.tick === columnTick,
   );
   cellEvents.push(bossEvent ?? null);

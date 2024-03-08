@@ -155,7 +155,7 @@ export function RaidQuickDetails(props: RaidQuickDetailsProps) {
       </div>
       <div
         className={styles.raid__bulletpointDetail}
-        style={{ marginRight: '25px', minWidth: '120px' }}
+        style={{ marginRight: '25px', minWidth: '160px' }}
       >
         <i className="fa-solid fa-clock"></i> <TimeAgo date={startTime} />
       </div>

@@ -1,4 +1,5 @@
-import { Schema, model, models } from 'mongoose';
+import { Model, Schema, model, models } from 'mongoose';
+import { Raid } from '../raid-definitions';
 
 export const Coords = {
   _id: false,
@@ -59,12 +60,18 @@ const RoomOverview = {
   },
 };
 
-const raidSchema = new Schema({
+const PlayerInfo = {
+  _id: false,
+  gear: Number,
+};
+
+const raidSchema = new Schema<Raid>({
   _id: String,
   status: String,
   mode: String,
   startTime: { type: Date },
   party: { type: [String], index: true },
+  partyInfo: { type: [PlayerInfo], default: null },
   totalRoomTicks: { type: Number, default: 0 },
   totalDeaths: { type: Number, default: 0 },
   rooms: {
@@ -135,4 +142,5 @@ const raidSchema = new Schema({
   },
 });
 
-export const RaidModel = models?.Raid ?? model('Raid', raidSchema);
+export const RaidModel =
+  (models?.Raid as Model<Raid>) ?? model<Raid>('Raid', raidSchema);

@@ -6,6 +6,7 @@ export type Raid = {
   mode: Mode;
   startTime: Date;
   party: string[];
+  partyInfo: PlayerInfo[];
   totalRoomTicks: number;
   totalDeaths: number;
   rooms: Rooms;
@@ -335,3 +336,14 @@ export enum VerzikCrabSpawn {
   WEST = 'WEST',
   UNKNOWN = 'UNKNOWN',
 }
+
+export enum PrimaryMeleeGear {
+  ELITE_VOID,
+  BANDOS,
+  TORVA,
+  BLORVA,
+}
+
+export type PlayerInfo = {
+  gear: PrimaryMeleeGear;
+};

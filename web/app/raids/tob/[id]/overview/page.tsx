@@ -6,10 +6,7 @@ import { RaidContext } from '../../context';
 import { RaidBossesOverview } from '../../../../components/raid-bosses-overview/raid-bosses-overview';
 import { RaidLogo } from '../../../../components/raid-logo/raid-logo-details';
 import { RaidQuickDetails } from '../../../../components/raid-quick-details/raid-quick-details';
-import {
-  RaidTeamPanel,
-  PrimaryMeleeGear,
-} from '../../../../components/raid-team/raid-team';
+import { RaidTeamPanel } from '../../../../components/raid-team/raid-team';
 
 import styles from './style.module.scss';
 
@@ -20,10 +17,10 @@ export default function Overview() {
     return <div>Loading...</div>;
   }
 
-  const playersWithDummyGear = raid.party.map((player) => {
+  const playersWithGear = raid.party.map((player, i) => {
     return {
       name: player,
-      primaryMeleeGear: PrimaryMeleeGear.Blorva,
+      primaryMeleeGear: raid.partyInfo[i].gear,
     };
   });
 
@@ -38,7 +35,7 @@ export default function Overview() {
         partySize={raid.party.length}
         startTime={raid.startTime}
       />
-      <RaidTeamPanel players={playersWithDummyGear} />
+      <RaidTeamPanel players={playersWithGear} />
       <RaidBossesOverview rooms={raid.rooms} raidId={raid._id} />
     </div>
   );
