@@ -62,7 +62,7 @@ export default class RaidManager {
       console.log(`Found existing raid ${raid.getId()}`);
     }
 
-    raid.registerClient(client);
+    await raid.registerClient(client);
 
     return raid.getId();
   }

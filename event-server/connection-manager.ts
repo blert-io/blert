@@ -1,4 +1,6 @@
 import Client from './client';
+import { ConnectionResponseMessage, ServerMessageType } from './server-message';
+import { BasicUser, Users } from './users';
 
 export default class ConnectionManager {
   private activeClients: { [id: number]: Client };
@@ -16,15 +18,16 @@ export default class ConnectionManager {
    * @returns ID of the user to which the key belongs.
    * @throws Error if the key is invalid.
    */
-  public async authenticate(token: string): Promise<number> {
+  public async authenticate(token: string): Promise<BasicUser> {
     // TODO(frolv): When accounts are added, check the token against the
     // database and return the actual ID of the account;
-    if (token !== process.env.BLERT_DEVELOPMENT_API_KEY) {
+    const user = await Users.findByApiKey(token);
+
+    if (user === null) {
       throw { message: 'Invalid token' };
     }
 
-    const userId = 123;
-    return userId;
+    return user;
   }
 
   /**
@@ -37,6 +40,15 @@ export default class ConnectionManager {
     client.onClose(() => this.removeClient(client));
 
     this.activeClients[sessionId] = client;
+
+    const connectionResponse: ConnectionResponseMessage = {
+      type: ServerMessageType.CONNECTION_RESPONSE,
+      user: {
+        id: client.getUserId(),
+        name: client.getUsername(),
+      },
+    };
+    client.sendMessage(connectionResponse);
   }
 
   public removeClient(client: Client) {

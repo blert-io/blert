@@ -9,10 +9,12 @@ import Client from './client';
 import RaidManager from './raid-manager';
 import {
   RaidEventsMessage,
+  RaidHistoryResponseMessage,
   RaidStartResponseMessage,
   ServerMessage,
   ServerMessageType,
 } from './server-message';
+import { Users } from './users';
 
 type EventSink = (event: Event) => Promise<void>;
 
@@ -56,6 +58,15 @@ export default class MessageHandler {
         } else {
           await this.handleRaidEvent(client, raidEventsMessage.events);
         }
+        break;
+
+      case ServerMessageType.RAID_HISTORY_REQUEST:
+        const history = await Users.getRaidHistory(client.getUserId());
+        const raidHistoryResponse: RaidHistoryResponseMessage = {
+          type: ServerMessageType.RAID_HISTORY_RESPONSE,
+          history,
+        };
+        client.sendMessage(raidHistoryResponse);
         break;
 
       default:

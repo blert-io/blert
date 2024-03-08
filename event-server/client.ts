@@ -3,9 +3,10 @@ import { WebSocket } from 'ws';
 import MessageHandler from './message-handler';
 import Raid from './raid';
 import { ServerMessage } from './server-message';
+import { BasicUser } from './users';
 
 export default class Client {
-  private userId: number;
+  private user: BasicUser;
   private sessionId: number;
   private socket: WebSocket;
   private messageHandler: MessageHandler;
@@ -14,8 +15,12 @@ export default class Client {
 
   private closeCallbacks: (() => void)[];
 
-  constructor(socket: WebSocket, eventHandler: MessageHandler, userId: number) {
-    this.userId = userId;
+  constructor(
+    socket: WebSocket,
+    eventHandler: MessageHandler,
+    user: BasicUser,
+  ) {
+    this.user = user;
     this.sessionId = -1;
     this.socket = socket;
     this.messageHandler = eventHandler;
@@ -44,6 +49,22 @@ export default class Client {
 
   public setSessionId(sessionId: number): void {
     this.sessionId = sessionId;
+  }
+
+  /**
+   * Returns the client's user ID.
+   * @returns The user ID.
+   */
+  public getUserId(): string {
+    return this.user.id;
+  }
+
+  /**
+   * Returns the username of this client's user.
+   * @returns The user's name.
+   */
+  public getUsername(): string {
+    return this.user.username;
   }
 
   public getActiveRaid(): Raid | null {

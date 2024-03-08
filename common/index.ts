@@ -2,14 +2,18 @@ export { Npc, NpcId } from './npcs/npc-id';
 export { getNpcDefinition } from './npcs/npc-definitions';
 // export type { NpcDefinition } from './npcs/npc-definitions';
 
+export type { ApiKey, RecordedRaid, User } from './user';
+export { RecordingType } from './user';
 export type { Player, PlayerStats } from './player';
 
+export { ApiKeyModel } from './models/api-key';
 export {
   Player as PlayerModel,
   PlayerStats as PlayerStatsModel,
 } from './models/player';
 export { RaidModel } from './models/raid';
 export { RoomEvent } from './models/room-event';
+export { RecordedRaidModel, UserModel } from './models/user';
 
 export type {
   Attack,
