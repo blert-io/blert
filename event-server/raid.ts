@@ -18,6 +18,8 @@ import {
   PlayerAttackEvent,
   PlayerDeathEvent,
   RaidStatus,
+  RecordedRaidModel,
+  RecordingType,
   Room,
   RoomNpc,
   RoomNpcType,
@@ -281,7 +283,7 @@ export default class Raid {
    * @param client The client.
    * @returns `true` if the client was added, `false` if not.
    */
-  public registerClient(client: Client): boolean {
+  public async registerClient(client: Client): Promise<boolean> {
     if (client.getActiveRaid() !== null) {
       console.error(
         `Client ${client.getSessionId()} attempted to join raid ${this.id}, but is already in a raid`,
@@ -289,13 +291,21 @@ export default class Raid {
       return false;
     }
 
-    if (this.clients.find((c) => c == client) === undefined) {
-      this.clients.push(client);
-      client.setActiveRaid(this);
-      return true;
+    if (this.clients.find((c) => c == client) !== undefined) {
+      return false;
     }
 
-    return false;
+    this.clients.push(client);
+    client.setActiveRaid(this);
+
+    const recordedRaid = new RecordedRaidModel({
+      recorderId: client.getUserId(),
+      raidId: this.id,
+      recordingType: RecordingType.SPECTATOR,
+    });
+    await recordedRaid.save();
+
+    return true;
   }
 
   /**

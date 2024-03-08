@@ -1,6 +1,7 @@
 'use client';
 
 import { useContext } from 'react';
+
 import { RaidContext } from '../../context';
 import { RaidBossesOverview } from '../../../../components/raid-bosses-overview/raid-bosses-overview';
 import { RaidLogo } from '../../../../components/raid-logo/raid-logo-details';
@@ -9,6 +10,7 @@ import {
   RaidTeamPanel,
   PrimaryMeleeGear,
 } from '../../../../components/raid-team/raid-team';
+
 import styles from './style.module.scss';
 
 export default function Overview() {

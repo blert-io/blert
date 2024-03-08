@@ -18,6 +18,20 @@
   width: 100%;
   display: flex;
   flex-direction: row;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: #23242f;
+    border-radius: 2px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--blert-text-color);
+    border-radius: 4px;
+  }
 }
 
 .attackTimeline__ColumnActiveIndicator {

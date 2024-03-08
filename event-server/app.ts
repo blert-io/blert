@@ -46,10 +46,10 @@ async function main(): Promise<void> {
       }
 
       const token = Buffer.from(auth[1], 'base64').toString();
-      const userId = await connectionManager.authenticate(token);
+      const user = await connectionManager.authenticate(token);
 
       wss.handleUpgrade(request, socket, head, (ws) => {
-        const client = new Client(ws, eventHandler, userId);
+        const client = new Client(ws, eventHandler, user);
         wss.emit('connection', ws, request, client);
       });
     } catch (e: any) {

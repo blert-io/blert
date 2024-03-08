@@ -1,9 +1,9 @@
-import Image from 'next/image';
-
-import styles from './style.module.scss';
 import { Mode, RaidStatus } from '@blert/common';
 import TimeAgo from 'react-timeago';
+
 import { ticksToFormattedSeconds } from '../../utils/tick';
+
+import styles from './style.module.scss';
 
 const completionToColor = (raidStatus: RaidStatus) => {
   switch (raidStatus) {
@@ -27,7 +27,7 @@ const completionToColor = (raidStatus: RaidStatus) => {
   }
 };
 
-const raidDifficultyToColor = (difficulty: Mode) => {
+const raidDifficultyToColor = (difficulty: Mode | undefined) => {
   switch (difficulty) {
     case Mode.REGULAR:
       return '#FFD700';
@@ -84,7 +84,7 @@ const getIconForStatus = (status: RaidStatus) => {
 
 interface RaidQuickDetailsProps {
   raidStatus: RaidStatus;
-  raidDifficulty: Mode;
+  raidDifficulty: Mode | undefined;
   totalRaidTicks: number;
   deaths: number;
   partySize: number;
@@ -104,7 +104,9 @@ export function RaidQuickDetails(props: RaidQuickDetailsProps) {
   const statusString = raidStatusToFriendlyRaidStatus(raidStatus);
 
   const modeString =
-    raidDifficulty.charAt(0) + raidDifficulty.slice(1).toLowerCase();
+    raidDifficulty !== undefined
+      ? raidDifficulty.charAt(0) + raidDifficulty.slice(1).toLowerCase()
+      : 'Unknown';
 
   const iconForStatus = getIconForStatus(raidStatus);
 
