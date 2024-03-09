@@ -50,6 +50,11 @@ export default function BloatPage() {
     return <>Loading...</>;
   }
 
+  const bloatData = raidData.rooms[Room.BLOAT];
+  if (bloatData === null) {
+    return <>No Bloat data for this raid</>;
+  }
+
   const eventsForCurrentTick = eventsByTick[currentTick] ?? [];
 
   const entities: Entity[] = [BLOAT_PILLAR_OUTLINE];
@@ -86,17 +91,10 @@ export default function BloatPage() {
     }
   }
 
-  const splits = [
-    {
-      tick: 5,
-      splitName: "Ligma's Split",
-      splitCustomContent: (
-        <>
-          <h1>Ligma lol</h1>
-        </>
-      ),
-    },
-  ];
+  const splits = bloatData.splits.downTicks.map((tick, i) => ({
+    tick,
+    splitName: `Down ${i + 1}`,
+  }));
 
   return (
     <>

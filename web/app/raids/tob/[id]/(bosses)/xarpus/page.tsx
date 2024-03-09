@@ -42,6 +42,11 @@ export default function XarpusPage() {
     return <>Loading...</>;
   }
 
+  const xarpusData = raidData.rooms[Room.XARPUS];
+  if (xarpusData === null) {
+    return <>No Xarpus data for this raid</>;
+  }
+
   const eventsForCurrentTick = eventsByTick[currentTick] ?? [];
 
   const entities: Entity[] = [];
@@ -78,17 +83,13 @@ export default function XarpusPage() {
     }
   }
 
-  const splits = [
-    {
-      tick: 5,
-      splitName: "Ligma's Split",
-      splitCustomContent: (
-        <>
-          <h1>Ligma lol</h1>
-        </>
-      ),
-    },
-  ];
+  let splits = [];
+  if (xarpusData.splits.exhumes > 0) {
+    splits.push({ tick: xarpusData.splits.exhumes, splitName: 'Exhumes' });
+  }
+  if (xarpusData.splits.screech > 0) {
+    splits.push({ tick: xarpusData.splits.screech, splitName: 'Screech' });
+  }
 
   return (
     <>

@@ -77,6 +77,11 @@ export default function VerzikPage() {
     return <>Loading...</>;
   }
 
+  const verzikData = raidData.rooms[Room.VERZIK];
+  if (verzikData === null) {
+    return <>No Verzik data for this raid</>;
+  }
+
   const eventsForCurrentTick = eventsByTick[currentTick] ?? [];
 
   let entities: Entity[] = [];
@@ -114,17 +119,18 @@ export default function VerzikPage() {
     }
   }
 
-  const splits = [
-    {
-      tick: 5,
-      splitName: "Ligma's Split",
-      splitCustomContent: (
-        <>
-          <h1>Ligma lol</h1>
-        </>
-      ),
-    },
-  ];
+  let splits = [];
+  if (verzikData.splits.p1 > 0) {
+    splits.push({ tick: verzikData.splits.p1, splitName: 'P1 End' });
+    splits.push({ tick: verzikData.splits.p1 + 13, splitName: 'P2' });
+  }
+  if (verzikData.splits.reds > 0) {
+    splits.push({ tick: verzikData.splits.reds, splitName: 'Reds' });
+  }
+  if (verzikData.splits.p2 > 0) {
+    splits.push({ tick: verzikData.splits.p2, splitName: 'P2 End' });
+    splits.push({ tick: verzikData.splits.p2 + 6, splitName: 'P3' });
+  }
 
   return (
     <>

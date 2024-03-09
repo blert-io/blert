@@ -77,6 +77,11 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
     return <>Loading...</>;
   }
 
+  const maidenData = raidData.rooms[Room.MAIDEN];
+  if (maidenData === null) {
+    return <>No Maiden data for raid</>;
+  }
+
   const eventsForCurrentTick = eventsByTick[currentTick] ?? [];
 
   const entities: Entity[] = [];
@@ -120,12 +125,6 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
   }
 
   const splits: TimelineSplit[] = [];
-
-  const maidenData = raidData.rooms[Room.MAIDEN];
-
-  if (maidenData === null) {
-    throw new Error('No maiden data???');
-  }
 
   if (maidenData.splits.SEVENTIES) {
     splits.push({

@@ -52,6 +52,11 @@ export default function SotetsegPage() {
     return <>Loading...</>;
   }
 
+  const soteData = raidData.rooms[Room.SOTETSEG];
+  if (soteData === null) {
+    return <>No Sotetseg data for this raid</>;
+  }
+
   const eventsForCurrentTick = eventsByTick[currentTick] ?? [];
 
   const entities: Entity[] = [];
@@ -102,17 +107,19 @@ export default function SotetsegPage() {
     }
   }
 
-  const splits = [
-    {
-      tick: 5,
-      splitName: "Ligma's Split",
-      splitCustomContent: (
-        <>
-          <h1>Ligma lol</h1>
-        </>
-      ),
-    },
-  ];
+  let splits = [];
+  if (soteData.splits.MAZE_66) {
+    splits.push({
+      tick: soteData.splits.MAZE_66,
+      splitName: '66%',
+    });
+  }
+  if (soteData.splits.MAZE_33) {
+    splits.push({
+      tick: soteData.splits.MAZE_33,
+      splitName: '33%',
+    });
+  }
 
   return (
     <>

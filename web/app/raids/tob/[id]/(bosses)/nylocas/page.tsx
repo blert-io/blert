@@ -150,6 +150,11 @@ export default function NylocasPage() {
     return <>Loading...</>;
   }
 
+  const nyloData = raidData.rooms[Room.NYLOCAS];
+  if (nyloData === null) {
+    return <>No Nylocas data for this raid</>;
+  }
+
   const eventsForCurrentTick = eventsByTick[currentTick] ?? [];
 
   const entities: Entity[] = [
@@ -231,11 +236,24 @@ export default function NylocasPage() {
     );
   }
 
-  const splits =
+  let splits =
     eventsByType[EventType.NYLO_WAVE_SPAWN]?.map((evt) => ({
       tick: evt.tick,
       splitName: `${(evt as NyloWaveSpawnEvent).nyloWave.wave}`,
     })) ?? [];
+
+  if (nyloData.splits.cleanup) {
+    splits.push({
+      tick: nyloData.splits.cleanup,
+      splitName: 'Cleanup',
+    });
+  }
+  if (nyloData.splits.boss) {
+    splits.push({
+      tick: nyloData.splits.boss,
+      splitName: 'Boss',
+    });
+  }
 
   return (
     <>
