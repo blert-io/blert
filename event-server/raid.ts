@@ -606,7 +606,7 @@ export default class Raid {
           if (attack.target !== undefined && isWrongThrowDistance) {
             // Only consider incorrect throw distances on Maiden crabs.
             if (Npc.isMaidenMatomenos(attack.target.id)) {
-              stats.chinsThrownWrongDistance += 1;
+              stats.chinsThrownIncorrectlyMaiden += 1;
             }
           }
         });

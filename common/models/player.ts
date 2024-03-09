@@ -38,7 +38,7 @@ const playerStatsSchema = new Schema({
   chinsThrownMaiden: { type: Number, default: 0 },
   chinsThrownNylocas: { type: Number, default: 0 },
   chinsThrownValue: { type: Number, default: 0 },
-  chinsThrownWrongDistance: { type: Number, default: 0 },
+  chinsThrownIncorrectlyMaiden: { type: Number, default: 0 },
 });
 
 export const PlayerStats =

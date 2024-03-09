@@ -31,5 +31,5 @@ export type PlayerStats = {
   chinsThrownMaiden: number;
   chinsThrownNylocas: number;
   chinsThrownValue: number;
-  chinsThrownWrongDistance: number;
+  chinsThrownIncorrectlyMaiden: number;
 };
