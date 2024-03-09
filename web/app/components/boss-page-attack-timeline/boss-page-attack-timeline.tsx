@@ -116,6 +116,8 @@ function inventoryTagColor(playerAttack: PlayerAttack): string | undefined {
     case PlayerAttack.SCYTHE_UNCHARGED:
     case PlayerAttack.FANG:
     case PlayerAttack.HAM_JOINT:
+    case PlayerAttack.RAPIER:
+    case PlayerAttack.SOULREAPER_AXE:
     case PlayerAttack.SAELDOR:
     case PlayerAttack.SWIFT:
     case PlayerAttack.TENT_WHIP:
@@ -186,8 +188,6 @@ const makeCellImage = (playerAttack: Attack, inventoryTags: boolean) => {
     case PlayerAttack.DAWN_SPEC:
     case PlayerAttack.DINHS_SPEC:
     case PlayerAttack.CLAW_SPEC:
-    case PlayerAttack.HAMMER_SPEC:
-    case PlayerAttack.HAMMER_SPEC:
       infoIcon = (
         <Image
           className={styles.attackTimeline__CellImage__InfoIcon}
@@ -425,20 +425,16 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
     return () => div.removeEventListener('wheel', handleWheel);
   }, [attackTimelineRef.current]);
 
-  if (attackTimelineRef.current !== null) {
-    if (playing) {
+  useEffect(() => {
+    if (attackTimelineRef.current !== null) {
       if (currentTick * FUCKING_MAGIC < 525) {
         attackTimelineRef.current.scrollLeft = 0;
       } else {
         attackTimelineRef.current.scrollLeft =
           (currentTick - 1) * FUCKING_MAGIC - 380;
       }
-    } else {
-      if (currentTick * FUCKING_MAGIC < 525) {
-        attackTimelineRef.current.scrollLeft = 0;
-      }
     }
-  }
+  }, [currentTick]);
 
   const attackTimelineColumnElements = [];
 
