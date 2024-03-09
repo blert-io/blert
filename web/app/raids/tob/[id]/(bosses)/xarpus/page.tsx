@@ -78,6 +78,18 @@ export default function XarpusPage() {
     }
   }
 
+  const splits = [
+    {
+      tick: 5,
+      splitName: "Ligma's Split",
+      splitCustomContent: (
+        <>
+          <h1>Ligma lol</h1>
+        </>
+      ),
+    },
+  ];
+
   return (
     <>
       <div className={styles.bossPage__Overview}>
@@ -112,6 +124,7 @@ export default function XarpusPage() {
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
         inventoryTags={memes.inventoryTags}
+        splits={splits}
       />
 
       <BossPageReplay entities={entities} mapDef={XARPUS_MAP_DEFINITION} />

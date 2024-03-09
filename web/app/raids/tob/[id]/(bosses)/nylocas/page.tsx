@@ -231,6 +231,12 @@ export default function NylocasPage() {
     );
   }
 
+  const splits =
+    eventsByType[EventType.NYLO_WAVE_SPAWN]?.map((evt) => ({
+      tick: evt.tick,
+      splitName: `${(evt as NyloWaveSpawnEvent).nyloWave.wave}`,
+    })) ?? [];
+
   return (
     <>
       <div className={styles.bossPage__Overview}>
@@ -265,6 +271,7 @@ export default function NylocasPage() {
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
         inventoryTags={memes.inventoryTags}
+        splits={splits}
       />
 
       <BossPageReplay entities={entities} mapDef={NYLOCAS_MAP_DEFINITION} />
