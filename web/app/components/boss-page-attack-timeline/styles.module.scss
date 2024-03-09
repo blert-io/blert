@@ -13,11 +13,12 @@
 }
 
 .attackTimeline__Scrollable {
-  padding: 10px 10px 3px 12px;
+  padding: 85px 10px 25px 12px;
   overflow-x: scroll;
   width: 100%;
   display: flex;
   flex-direction: row;
+  overflow-y: visible;
 
   &::-webkit-scrollbar {
     width: 6px;
@@ -66,6 +67,7 @@
   top: 4px;
   width: 134px;
   margin-right: 0;
+  top: 80px;
   align-items: flex-end !important;
 }
 
@@ -102,6 +104,59 @@
 
   &:hover {
     color: white;
+  }
+}
+
+.attackTimeline__RoomSplit {
+  position: absolute;
+  height: 50px;
+  width: 71px;
+  top: -55px;
+  left: -14px;
+
+  &.splitIndicatorBottom {
+    transform: rotate(180deg);
+    bottom: -40px;
+    top: unset;
+  }
+
+  span {
+    border: 1px solid var(--blert-text-color);
+    cursor: pointer;
+    background-color: #23242f;
+    border-radius: 3px;
+    padding: 0px 5px;
+    text-align: center;
+    position: absolute;
+    top: -3px;
+    left: 50%;
+    font-size: 28px;
+    transform: translateX(-50%);
+  }
+
+  div.splitIndicatorWrapper {
+    position: relative;
+    top: -8px;
+
+    .splitIndicatorPt1 {
+      position: absolute;
+      bottom: -58px;
+      height: 10px;
+      width: 100%;
+      border-left: 4px solid var(--blert-text-color);
+      border-right: 4px solid var(--blert-text-color);
+      border-top: 4px solid var(--blert-text-color);
+      border-bottom-left-radius: 5px;
+      border-bottom-right-radius: 5px;
+    }
+
+    .splitIndicatorPt2 {
+      bottom: -49px;
+      height: 5px;
+      position: absolute;
+      left: 33px;
+      border-left: 4px solid var(--blert-text-color);
+    }
   }
 }
 

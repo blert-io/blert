@@ -21,7 +21,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <div className={styles.siteParent}>
           <LeftNav />
-
+          <div id="tooltip-portal" />
           <div className={styles.pageParentContent}>{children}</div>
         </div>
       </body>

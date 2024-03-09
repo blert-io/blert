@@ -8,6 +8,7 @@ import {
   PlayerUpdateEvent,
   Room,
 } from '@blert/common';
+import { TimelineSplit } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
 import { useContext, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { MAIDEN } from '../../../../../bosses/tob';
@@ -76,8 +77,6 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
     return <>Loading...</>;
   }
 
-  console.log(raidData);
-
   const eventsForCurrentTick = eventsByTick[currentTick] ?? [];
 
   const entities: Entity[] = [];
@@ -120,6 +119,35 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
     }
   }
 
+  const splits: TimelineSplit[] = [];
+
+  const maidenData = raidData.rooms[Room.MAIDEN];
+
+  if (maidenData === null) {
+    throw new Error('No maiden data???');
+  }
+
+  if (maidenData.splits.SEVENTIES) {
+    splits.push({
+      tick: maidenData.splits.SEVENTIES,
+      splitName: '70s',
+    });
+  }
+
+  if (maidenData.splits.FIFTIES) {
+    splits.push({
+      tick: maidenData.splits.FIFTIES,
+      splitName: '50s',
+    });
+  }
+
+  if (maidenData.splits.THIRTIES) {
+    splits.push({
+      tick: maidenData.splits.THIRTIES,
+      splitName: '30s',
+    });
+  }
+
   return (
     <>
       <div className={styles.bossPage__Overview}>
@@ -154,6 +182,7 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
         inventoryTags={memes.inventoryTags}
+        splits={splits}
       />
 
       <BossPageReplay entities={entities} mapDef={MAIDEN_MAP_DEFINITION} />

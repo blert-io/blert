@@ -3,12 +3,18 @@
 import { useEffect, useRef } from 'react';
 import {
   Attack,
+  BloatSplits,
   Event,
+  MaidenSplits,
   NpcAttack,
   NpcAttackEvent,
+  NyloSplits,
   PlayerAttack,
   PlayerAttackEvent,
   PlayerUpdateEvent,
+  SoteSplits,
+  VerzikSplits,
+  XarpusSplits,
   getNpcDefinition,
 } from '@blert/common';
 import Image from 'next/image';
@@ -17,6 +23,7 @@ import { CollapsiblePanel } from '../collapsible-panel/collapsible-panel';
 import Item from '../item';
 
 import styles from './styles.module.scss';
+import { LigmaTooltip } from '../ligma-tooltip/ligma-tooltip';
 
 const getCellImageForBossAttack = (attack: NpcAttack) => {
   let imageUrl = '';
@@ -342,6 +349,7 @@ const buildTickColumn = (
   currentPlaybackTick: number,
   updateTickOnPage: (tick: number) => void,
   inventoryTags: boolean,
+  split?: TimelineSplit,
 ) => {
   const tickCells = [];
   const cellEvents = [];
@@ -363,11 +371,25 @@ const buildTickColumn = (
     tickCells.push(buildTickCell(cellEvents[i], columnTick, i, inventoryTags));
   }
 
+  const tooltipId = `atk-timeline-split-${split?.splitName}-tooltip`;
+
   return (
     <div
       key={`attackTimeline__${columnTick}`}
       className={styles.attackTimeline__Column}
     >
+      {split !== undefined && (
+        <div className={styles.attackTimeline__RoomSplit}>
+          <LigmaTooltip tooltipId={tooltipId}>
+            <h1>Hello</h1>
+          </LigmaTooltip>
+          <span data-tooltip-id={tooltipId}>{split.splitName}</span>
+          <div className={styles.splitIndicatorWrapper}>
+            <div className={styles.splitIndicatorPt1}></div>
+            <div className={styles.splitIndicatorPt2}></div>
+          </div>
+        </div>
+      )}
       {currentPlaybackTick === columnTick && (
         <div className={styles.attackTimeline__ColumnActiveIndicator}></div>
       )}
@@ -378,8 +400,23 @@ const buildTickColumn = (
         {columnTick}
       </button>
       {tickCells}
+      {split !== undefined && (
+        <div
+          className={`${styles.attackTimeline__RoomSplit} ${styles.splitIndicatorBottom}`}
+        >
+          <div className={styles.splitIndicatorWrapper}>
+            <div className={styles.splitIndicatorPt1}></div>
+          </div>
+        </div>
+      )}
     </div>
   );
+};
+
+export type TimelineSplit = {
+  tick: number;
+  splitName: string;
+  splitCustomContent?: JSX.Element;
 };
 
 interface AttackTimelineProps {
@@ -388,6 +425,7 @@ interface AttackTimelineProps {
   playerAttackTimelines: Map<string, Event[]>;
   bossAttackTimeline: NpcAttackEvent[];
   timelineTicks: number;
+  splits: TimelineSplit[];
   inventoryTags?: boolean;
   updateTickOnPage: (tick: number) => void;
 }
@@ -400,6 +438,7 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
     bossAttackTimeline,
     updateTickOnPage,
     timelineTicks,
+    splits,
   } = props;
 
   const inventoryTags = props.inventoryTags ?? false;
@@ -423,7 +462,7 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
 
     div.addEventListener('wheel', handleWheel, { passive: false });
     return () => div.removeEventListener('wheel', handleWheel);
-  }, [attackTimelineRef.current]);
+  }, []);
 
   useEffect(() => {
     if (attackTimelineRef.current !== null) {
@@ -437,9 +476,16 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
   }, [currentTick]);
 
   const attackTimelineColumnElements = [];
-
   for (let i = 0; i < timelineTicks; i++) {
     const tick = i + 1;
+
+    let potentialSplit = undefined;
+
+    for (const split of splits) {
+      if (split.tick === tick) {
+        potentialSplit = split;
+      }
+    }
 
     attackTimelineColumnElements.push(
       buildTickColumn(
@@ -449,6 +495,7 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
         currentTick,
         updateTickOnPage,
         inventoryTags,
+        potentialSplit,
       ),
     );
   }
