@@ -37,6 +37,7 @@ export interface BloatOverview extends RoomOverview {
 
 export interface NyloOverview extends RoomOverview {
   splits: NyloSplits;
+  stalledWaves: number[];
 }
 
 export interface SoteOverview extends RoomOverview {

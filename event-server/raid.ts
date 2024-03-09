@@ -46,6 +46,7 @@ import { RaidModel, RoomEvent } from '@blert/common';
 import Client from './client';
 import { Players } from './players';
 import { priceTracker } from './price-tracker';
+import { NyloWaveStallEvent } from '@blert/common';
 
 export function raidPartyKey(partyMembers: string[]) {
   return partyMembers
@@ -127,6 +128,7 @@ export default class Raid {
   private verzikSplits: VerzikSplits;
 
   private npcs: Map<String, RoomNpc>;
+  private stalledNyloWaves: number[];
   private verzikRedSpawns: number;
 
   public constructor(
@@ -166,6 +168,7 @@ export default class Raid {
     this.verzikSplits = { p1: 0, reds: 0, p2: 0 };
 
     this.npcs = new Map();
+    this.stalledNyloWaves = [];
     this.verzikRedSpawns = 0;
   }
 
@@ -398,6 +401,7 @@ export default class Raid {
                 break;
               case Room.NYLOCAS:
                 record.rooms[Room.NYLOCAS].splits = this.nyloSplits;
+                record.rooms[Room.NYLOCAS].stalledWaves = this.stalledNyloWaves;
                 break;
               case Room.SOTETSEG:
                 record.rooms[Room.SOTETSEG].splits = this.soteSplits;
@@ -485,6 +489,11 @@ export default class Raid {
         } else if (nyloWaveSpawnEvent.nyloWave.wave === 31) {
           this.nyloSplits.waves = event.tick;
         }
+        break;
+
+      case EventType.NYLO_WAVE_STALL:
+        const nyloWaveStallEvent = event as NyloWaveStallEvent;
+        this.stalledNyloWaves.push(nyloWaveStallEvent.nyloWave.wave);
         break;
 
       case EventType.NYLO_CLEANUP_END:

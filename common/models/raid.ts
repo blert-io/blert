@@ -104,6 +104,7 @@ const raidSchema = new Schema<Raid>({
           cleanup: Number,
           boss: Number,
         },
+        stalledWaves: [Number],
       },
       default: null,
     },
