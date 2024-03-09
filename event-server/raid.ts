@@ -299,9 +299,13 @@ export default class Raid {
   /**
    * Adds a new client as an event source for the raid.
    * @param client The client.
+   * @param spectator Whether the client is spectating the raid.
    * @returns `true` if the client was added, `false` if not.
    */
-  public async registerClient(client: Client): Promise<boolean> {
+  public async registerClient(
+    client: Client,
+    spectator: boolean,
+  ): Promise<boolean> {
     if (client.getActiveRaid() !== null) {
       console.error(
         `Client ${client.getSessionId()} attempted to join raid ${this.id}, but is already in a raid`,
@@ -319,7 +323,7 @@ export default class Raid {
     const recordedRaid = new RecordedRaidModel({
       recorderId: client.getUserId(),
       raidId: this.id,
-      recordingType: RecordingType.SPECTATOR,
+      recordingType: spectator ? RecordingType.SPECTATOR : RecordingType.RAIDER,
     });
     await recordedRaid.save();
 

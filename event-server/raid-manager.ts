@@ -35,6 +35,7 @@ export default class RaidManager {
     client: Client,
     mode: Mode | null,
     partyMembers: string[],
+    spectator: boolean,
   ): Promise<string> {
     const partyKey = raidPartyKey(partyMembers);
 
@@ -62,7 +63,7 @@ export default class RaidManager {
       console.log(`Found existing raid ${raid.getId()}`);
     }
 
-    await raid.registerClient(client);
+    await raid.registerClient(client, spectator);
 
     return raid.getId();
   }

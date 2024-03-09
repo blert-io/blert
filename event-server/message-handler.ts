@@ -84,6 +84,7 @@ export default class MessageHandler {
           client,
           raidStartEvent.raidInfo.mode || null,
           raidStartEvent.raidInfo.party,
+          raidStartEvent.raidInfo.isSpectator ?? false,
         );
 
         this.eventAggregators[raidId] = new EventAggregator(async (evt) => {

@@ -165,6 +165,7 @@ export interface VerzikAttackStyleEvent extends Event {
 export type RaidInfo = {
   party: string[];
   mode?: Mode;
+  isSpectator?: boolean;
 };
 
 export interface BasicPlayer {
