@@ -8,6 +8,15 @@ const nextConfig = {
                 pathname: '/images/**',
             }
         ]
+    },
+    redirects: async () => {
+        return [
+            {
+                source: '/raids/tob/:id',
+                destination: '/raids/tob/:id/overview',
+                permanent: true,
+            },
+        ]
     }
 }
 
