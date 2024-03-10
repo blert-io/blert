@@ -21,6 +21,7 @@ export function LigmaTooltip(props: LigmaTooltipProps) {
         backgroundColor: '#171821',
         borderRadius: '5px',
         boxShadow: '0px 0px 5px rgba(255, 2555, 255, 0.5)',
+        pointerEvents: 'auto',
         zIndex: 999,
       }}
     >

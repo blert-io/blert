@@ -204,6 +204,38 @@
   }
 }
 
+.bossTooltip {
+  max-width: 240px;
+  text-align: center;
+  padding: 0 10px 4px 10px;
+
+  button {
+    color: var(--blert-blue);
+    padding: 0 5px;
+
+    &:hover {
+      opacity: 0.8;
+      cursor: pointer;
+    }
+  }
+
+  .bossAttack {
+    margin-left: 4px;
+  }
+}
+
+.playerTooltip {
+  button {
+    color: var(--blert-blue);
+    margin-bottom: 1px;
+
+    &:hover {
+      opacity: 0.8;
+      cursor: pointer;
+    }
+  }
+}
+
 .attackTimeline__CellImage {
   display: flex;
   height: 100%;

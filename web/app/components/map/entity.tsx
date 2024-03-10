@@ -107,11 +107,11 @@ export function MapEntity(props: MapEntityProps) {
   }
 
   if (props.faceSouth) {
-    entityStyle.right = (entity.x - props.baseX) * props.tileSize - 2;
+    entityStyle.right = (entity.x - props.baseX) * props.tileSize + 1;
     entityStyle.top = (entity.y - props.baseY) * props.tileSize;
   } else {
     // Position the entity based on its southwest corner tile.
-    entityStyle.left = (entity.x - props.baseX) * props.tileSize;
+    entityStyle.left = (entity.x - props.baseX) * props.tileSize + 1;
     entityStyle.bottom = (entity.y - props.baseY) * props.tileSize;
   }
 

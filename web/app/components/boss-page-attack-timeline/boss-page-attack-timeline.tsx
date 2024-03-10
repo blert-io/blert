@@ -247,6 +247,72 @@ const makeCellImage = (playerAttack: Attack, inventoryTags: boolean) => {
   );
 };
 
+const bossAttackName = (attack: NpcAttack) => {
+  // A human-readable name for the attack, to be used to complete the sentence
+  // "X targeted Y with ..." or "X did ..."
+  switch (attack) {
+    case NpcAttack.MAIDEN_AUTO:
+    case NpcAttack.VERZIK_P1_AUTO:
+      return 'an auto attack';
+
+    case NpcAttack.MAIDEN_BLOOD_THROW:
+      return 'a blood throw';
+
+    case NpcAttack.BLOAT_STOMP:
+      return 'a stomp';
+
+    case NpcAttack.NYLO_BOSS_MELEE:
+    case NpcAttack.SOTE_MELEE:
+    case NpcAttack.VERZIK_P3_MELEE:
+      return 'a melee attack';
+
+    case NpcAttack.NYLO_BOSS_RANGE:
+    case NpcAttack.VERZIK_P2_CABBAGE:
+    case NpcAttack.VERZIK_P3_RANGE:
+      return 'a ranged attack';
+
+    case NpcAttack.NYLO_BOSS_MAGE:
+    case NpcAttack.VERZIK_P3_MAGE:
+    case NpcAttack.VERZIK_P2_MAGE:
+      return 'a magic attack';
+
+    case NpcAttack.SOTE_BALL:
+      return 'a ball';
+
+    case NpcAttack.SOTE_DEATH_BALL:
+      return 'a death ball';
+
+    case NpcAttack.XARPUS_SPIT:
+      return 'a poison spit';
+
+    case NpcAttack.XARPUS_TURN:
+      return 'a turn';
+
+    case NpcAttack.VERZIK_P2_BOUNCE:
+      return 'a bounce';
+
+    case NpcAttack.VERZIK_P2_ZAP:
+      return 'a zap';
+
+    case NpcAttack.VERZIK_P2_PURPLE:
+      return 'a purple crab';
+
+    case NpcAttack.VERZIK_P3_AUTO:
+      return 'an unknown attack';
+
+    case NpcAttack.VERZIK_P3_WEBS:
+      return 'webs';
+
+    case NpcAttack.VERZIK_P3_YELLOWS:
+      return 'yellow pools';
+
+    case NpcAttack.VERZIK_P3_BALL:
+      return 'a green ball';
+  }
+
+  return '';
+};
+
 const FUCKING_MAGIC = 55;
 
 const buildTickCell = (
@@ -270,23 +336,52 @@ const buildTickCell = (
     );
   }
 
+  let tooltip = undefined;
+  let tooltipId = undefined;
+
   // @ts-ignore
   if (event.npcAttack !== undefined) {
-    let cellImage = getCellImageForBossAttack(
-      (event as NpcAttackEvent).npcAttack.attack,
+    const npc = (event as NpcAttackEvent).npc;
+    const npcAttack = (event as NpcAttackEvent).npcAttack;
+    let cellImage = getCellImageForBossAttack(npcAttack.attack);
+
+    const npcName = getNpcDefinition(npc.id)?.fullName ?? 'Unknown';
+
+    tooltipId = `boss-attack-${event.tick}`;
+    tooltip = (
+      <LigmaTooltip tooltipId={tooltipId}>
+        <div className={styles.bossTooltip}>
+          <button className={styles.bossNameButton}>{npcName}</button>
+          {(npcAttack.target && (
+            <span>
+              targeted
+              <button className={styles.bossTargetNameButton}>
+                {npcAttack.target}
+              </button>
+              with
+            </span>
+          )) || <span>did</span>}
+          <span className={styles.bossAttack}>
+            {bossAttackName(npcAttack.attack)}
+          </span>
+        </div>
+      </LigmaTooltip>
     );
 
     return (
       <div
         className={`${styles.attackTimeline__Cell} ${styles.attackTimeline__BossCooldown}`}
         key={`boss-cell-${event.tick}`}
+        data-tooltip-id={tooltipId}
         style={style}
       >
         {cellImage}
+        {tooltip}
       </div>
     );
     // @ts-ignore
   } else if (event.player) {
+    const username = (event as PlayerUpdateEvent).player.name;
     const playerIsOffCooldown =
       (event as PlayerUpdateEvent).player.offCooldownTick <= event.tick;
 
@@ -305,6 +400,17 @@ const buildTickCell = (
         inventoryTags,
       );
     } else if (diedThisTick) {
+      tooltipId = `player-${username}-death`;
+
+      tooltip = (
+        <LigmaTooltip tooltipId={tooltipId}>
+          <div className={styles.playerTooltip}>
+            <button className={styles.playerNameButton}>{username}</button>
+            <span>died</span>
+          </div>
+        </LigmaTooltip>
+      );
+
       cellImage = (
         <div className={styles.attackTimeline__CellImage}>
           <div className={styles.attackTimeline__CellImage__BossAtk}>
@@ -326,15 +432,18 @@ const buildTickCell = (
       className += ` ${styles.attackTimeline__CellOffCooldown}`;
     } else if (playerIsDead) {
       className += ` ${styles.cellDead}`;
+      style.backgroundColor = undefined;
     }
 
     return (
       <div
         className={className}
         style={style}
+        data-tooltip-id={tooltipId}
         key={`player-cell-${(event as PlayerUpdateEvent).player.name}-${event.tick}`}
       >
         {cellImage}
+        {tooltip}
       </div>
     );
   }
