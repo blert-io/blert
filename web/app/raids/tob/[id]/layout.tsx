@@ -1,12 +1,13 @@
 'use client';
 
-import { Mode, Raid, RaidStatus } from '@blert/common';
+import { Raid } from '@blert/common';
+import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { loadRaid } from '../../../actions/raid';
+import { RaidContext } from '../context';
 
 import styles from './style.module.scss';
-import { RaidContext } from '../context';
 
 type RaidParams = {
   id: string;
@@ -19,6 +20,7 @@ type RaidLayoutProps = {
 
 export default function RaidLayout(props: RaidLayoutProps) {
   const id = props.params.id;
+  const pathname = usePathname();
 
   const [raid, setRaid] = useState<Raid | null>(null);
   const [error, setError] = useState(false);
@@ -34,7 +36,9 @@ export default function RaidLayout(props: RaidLayoutProps) {
     };
 
     getRaid();
-  }, [id]);
+
+    // Reload raid every time the page changes to support in-progress raids.
+  }, [id, pathname]);
 
   return (
     <div className={styles.raid}>

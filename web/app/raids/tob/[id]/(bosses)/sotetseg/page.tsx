@@ -1,6 +1,12 @@
 'use client';
 
-import { EventType, NpcEvent, PlayerUpdateEvent, Room } from '@blert/common';
+import {
+  EventType,
+  NpcEvent,
+  PlayerUpdateEvent,
+  RaidStatus,
+  Room,
+} from '@blert/common';
 import Image from 'next/image';
 import { useContext } from 'react';
 import { SOTETSEG } from '../../../../../bosses/tob';
@@ -53,7 +59,7 @@ export default function SotetsegPage() {
   }
 
   const soteData = raidData.rooms[Room.SOTETSEG];
-  if (soteData === null) {
+  if (raidData.status !== RaidStatus.IN_PROGRESS && soteData === null) {
     return <>No Sotetseg data for this raid</>;
   }
 
@@ -108,17 +114,19 @@ export default function SotetsegPage() {
   }
 
   let splits = [];
-  if (soteData.splits.MAZE_66) {
-    splits.push({
-      tick: soteData.splits.MAZE_66,
-      splitName: '66%',
-    });
-  }
-  if (soteData.splits.MAZE_33) {
-    splits.push({
-      tick: soteData.splits.MAZE_33,
-      splitName: '33%',
-    });
+  if (soteData !== null) {
+    if (soteData.splits.MAZE_66) {
+      splits.push({
+        tick: soteData.splits.MAZE_66,
+        splitName: '66%',
+      });
+    }
+    if (soteData.splits.MAZE_33) {
+      splits.push({
+        tick: soteData.splits.MAZE_33,
+        splitName: '33%',
+      });
+    }
   }
 
   return (

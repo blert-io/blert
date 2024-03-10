@@ -1,6 +1,12 @@
 'use client';
 
-import { EventType, NpcEvent, PlayerUpdateEvent, Room } from '@blert/common';
+import {
+  EventType,
+  NpcEvent,
+  PlayerUpdateEvent,
+  RaidStatus,
+  Room,
+} from '@blert/common';
 import Image from 'next/image';
 import { useContext } from 'react';
 import { XARPUS } from '../../../../../bosses/tob';
@@ -43,7 +49,7 @@ export default function XarpusPage() {
   }
 
   const xarpusData = raidData.rooms[Room.XARPUS];
-  if (xarpusData === null) {
+  if (raidData.status != RaidStatus.IN_PROGRESS && xarpusData === null) {
     return <>No Xarpus data for this raid</>;
   }
 
@@ -84,11 +90,13 @@ export default function XarpusPage() {
   }
 
   let splits = [];
-  if (xarpusData.splits.exhumes > 0) {
-    splits.push({ tick: xarpusData.splits.exhumes, splitName: 'Exhumes' });
-  }
-  if (xarpusData.splits.screech > 0) {
-    splits.push({ tick: xarpusData.splits.screech, splitName: 'Screech' });
+  if (xarpusData !== null) {
+    if (xarpusData.splits.exhumes > 0) {
+      splits.push({ tick: xarpusData.splits.exhumes, splitName: 'Exhumes' });
+    }
+    if (xarpusData.splits.screech > 0) {
+      splits.push({ tick: xarpusData.splits.screech, splitName: 'Screech' });
+    }
   }
 
   return (

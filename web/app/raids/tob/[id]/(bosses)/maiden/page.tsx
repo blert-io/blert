@@ -6,6 +6,7 @@ import {
   MaidenBloodSplatsEvent,
   NpcEvent,
   PlayerUpdateEvent,
+  RaidStatus,
   Room,
 } from '@blert/common';
 import { TimelineSplit } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
@@ -78,7 +79,7 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
   }
 
   const maidenData = raidData.rooms[Room.MAIDEN];
-  if (maidenData === null) {
+  if (raidData.status !== RaidStatus.IN_PROGRESS && maidenData === null) {
     return <>No Maiden data for raid</>;
   }
 
@@ -126,25 +127,27 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
 
   const splits: TimelineSplit[] = [];
 
-  if (maidenData.splits.SEVENTIES) {
-    splits.push({
-      tick: maidenData.splits.SEVENTIES,
-      splitName: '70s',
-    });
-  }
+  if (maidenData !== null) {
+    if (maidenData.splits.SEVENTIES) {
+      splits.push({
+        tick: maidenData.splits.SEVENTIES,
+        splitName: '70s',
+      });
+    }
 
-  if (maidenData.splits.FIFTIES) {
-    splits.push({
-      tick: maidenData.splits.FIFTIES,
-      splitName: '50s',
-    });
-  }
+    if (maidenData.splits.FIFTIES) {
+      splits.push({
+        tick: maidenData.splits.FIFTIES,
+        splitName: '50s',
+      });
+    }
 
-  if (maidenData.splits.THIRTIES) {
-    splits.push({
-      tick: maidenData.splits.THIRTIES,
-      splitName: '30s',
-    });
+    if (maidenData.splits.THIRTIES) {
+      splits.push({
+        tick: maidenData.splits.THIRTIES,
+        splitName: '30s',
+      });
+    }
   }
 
   return (

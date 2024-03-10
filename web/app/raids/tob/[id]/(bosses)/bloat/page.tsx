@@ -1,6 +1,12 @@
 'use client';
 
-import { EventType, NpcEvent, PlayerUpdateEvent, Room } from '@blert/common';
+import {
+  EventType,
+  NpcEvent,
+  PlayerUpdateEvent,
+  RaidStatus,
+  Room,
+} from '@blert/common';
 import Image from 'next/image';
 import { BLOAT } from '../../../../../bosses/tob';
 import { usePlayingState, useRoomEvents } from '../../../boss-room-state';
@@ -54,7 +60,7 @@ export default function BloatPage() {
   }
 
   const bloatData = raidData.rooms[Room.BLOAT];
-  if (bloatData === null) {
+  if (raidData.status !== RaidStatus.IN_PROGRESS && bloatData === null) {
     return <>No Bloat data for this raid</>;
   }
 
@@ -94,26 +100,28 @@ export default function BloatPage() {
     }
   }
 
-  let splits = bloatData.splits.downTicks.map((tick, i) => ({
+  const downTicks =
+    eventsByType[EventType.BLOAT_DOWN]?.map((evt) => evt.tick) ?? [];
+  let splits = downTicks.map((tick, i) => ({
     tick,
     splitName: `Down ${i + 1}`,
   }));
 
-  let backgroundColors: TimelineColor[] = [];
   const upColor = 'rgba(100, 56, 70, 0.3)';
-  if (bloatData.splits.downTicks.length > 0) {
-    backgroundColors.push({
-      tick: 0,
-      length: bloatData.splits.downTicks[0],
-      backgroundColor: upColor,
-    });
-  }
+  let backgroundColors: TimelineColor[] = [];
 
-  eventsByType[EventType.BLOAT_UP].forEach((evt) => {
+  // First up from the start of the room.
+  backgroundColors.push({
+    tick: 0,
+    length: downTicks.length > 0 ? downTicks[0] : totalTicks,
+    backgroundColor: upColor,
+  });
+
+  eventsByType[EventType.BLOAT_UP]?.forEach((evt) => {
     splits.push({ tick: evt.tick, splitName: 'Walking' });
 
     const nextDownTick =
-      bloatData.splits.downTicks.find((tick) => tick > evt.tick) ?? totalTicks;
+      downTicks.find((tick) => tick > evt.tick) ?? totalTicks;
     backgroundColors.push({
       tick: evt.tick,
       length: nextDownTick - evt.tick,

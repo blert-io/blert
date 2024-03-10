@@ -3,12 +3,9 @@
 import Image from 'next/image';
 
 import Link from 'next/link';
-
-import playerImg from '/public/player.png';
+import { usePathname } from 'next/navigation';
 
 import styles from './styles.module.scss';
-
-import { usePathname } from 'next/navigation';
 
 export function LeftNav() {
   const currentPath = usePathname();

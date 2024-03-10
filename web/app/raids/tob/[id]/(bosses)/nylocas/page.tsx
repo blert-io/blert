@@ -11,6 +11,7 @@ import {
   NpcId,
   RoomNpc,
   NyloStyle,
+  RaidStatus,
 } from '@blert/common';
 import Image from 'next/image';
 import { useContext, useMemo } from 'react';
@@ -252,7 +253,7 @@ export default function NylocasPage() {
   }
 
   const nyloData = raidData.rooms[Room.NYLOCAS];
-  if (nyloData === null) {
+  if (raidData.status !== RaidStatus.IN_PROGRESS && nyloData === null) {
     return <>No Nylocas data for this raid</>;
   }
 
@@ -343,17 +344,19 @@ export default function NylocasPage() {
       splitName: `${(evt as NyloWaveSpawnEvent).nyloWave.wave}`,
     })) ?? [];
 
-  if (nyloData.splits.cleanup) {
-    splits.push({
-      tick: nyloData.splits.cleanup,
-      splitName: 'Cleanup',
-    });
-  }
-  if (nyloData.splits.boss) {
-    splits.push({
-      tick: nyloData.splits.boss,
-      splitName: 'Boss',
-    });
+  if (nyloData !== null) {
+    if (nyloData.splits.cleanup) {
+      splits.push({
+        tick: nyloData.splits.cleanup,
+        splitName: 'Cleanup',
+      });
+    }
+    if (nyloData.splits.boss) {
+      splits.push({
+        tick: nyloData.splits.boss,
+        splitName: 'Boss',
+      });
+    }
   }
 
   return (
