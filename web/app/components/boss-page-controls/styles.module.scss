@@ -9,7 +9,10 @@
   width: 465px;
   transform: translateX(-50%);
   left: 50%;
-  position: relative;
+  position: sticky;
+  top: 5px;
+  z-index: 10000;
+  opacity: 1;
 }
 
 @mixin controlBtn {
