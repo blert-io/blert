@@ -4,9 +4,12 @@
   @include panel;
   display: flex;
   margin: 10px 0;
-  transform: scale(1.1);
   padding: 10px 20px;
   margin-bottom: 30px;
+  width: 465px;
+  transform: translateX(-50%);
+  left: 50%;
+  position: relative;
 }
 
 @mixin controlBtn {
@@ -53,7 +56,7 @@
   outline: none;
   border: none;
   border-radius: 5px;
-  margin-right: 20px;
+  // margin-right: 20px;
   width: 75px;
   font-size: 26px;
   text-align: center;
@@ -77,6 +80,7 @@
 
 .controls__playButton {
   @include controlBtn;
+  margin-left: 5px;
 }
 
 .controls__pauseButton {
@@ -88,8 +92,32 @@
 }
 
 .controls__roomActor {
-  width: 150px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  border: 1px solid rgba(195, 199, 201, 0.29);
+  width: 100px;
+  overflow: hidden;
+  position: relative;
+  margin: 0 5px;
+  border-radius: 3px;
+  cursor: pointer;
+
+  &:hover {
+    background-color: #1f202b;
+  }
+
+  img {
+    transform: scale(2);
+    position: absolute;
+    left: 0px;
+  }
+
+  &.controls__roomActorBoss {
+    position: relative;
+  }
+
+  &.controls__roomActorPlayer {
+    position: relative;
+  }
 }

@@ -1,12 +1,12 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { clamp } from '../../utils/math';
-import { ticksToFormattedSeconds } from '../../utils/tick';
 
 import styles from './styles.module.scss';
+import { PrimaryMeleeGear } from '@blert/common';
 
 interface BossControlsProps {
   currentlyPlaying: boolean;
@@ -16,6 +16,12 @@ interface BossControlsProps {
   updatePlayingState: (isPlaying: boolean) => void;
   bossImage: string;
   bossName: string;
+  players: BossPageControlsPlayer[];
+}
+
+interface BossPageControlsPlayer {
+  name: string;
+  primaryMeleeGear: PrimaryMeleeGear;
 }
 
 export function BossPageControls(props: BossControlsProps) {
@@ -128,14 +134,18 @@ export function BossPageControls(props: BossControlsProps) {
         value={value}
       />
 
-      <div className={styles.controls__roomActor}>
+      {/* <div
+        className={`${styles.controls__roomActor} ${styles.controls__roomActorBoss}`}
+      >
         <Image
           src={bossImage}
           alt={bossName}
-          width={35}
-          height={35}
+          fill
+          style={{ objectFit: 'contain', maxHeight: '30px', left: '3px' }}
         />
       </div>
+
+      {playerControls} */}
     </div>
   );
 }

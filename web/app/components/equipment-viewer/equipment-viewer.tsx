@@ -27,7 +27,7 @@ const EQUIPMENT_OFFSETS: { [key: string]: React.CSSProperties } = {
 const ITEM_SIZE = 36;
 
 export default function EquipmentViewer(props: EquipmentViewerProps) {
-  const items = Object.entries(props.equipment).map(([slot, item]) => {
+  const items = Object.entries(props.equipment).map(([slot, item], index) => {
     const style: React.CSSProperties = {
       position: 'absolute',
       width: ITEM_SIZE,
@@ -38,8 +38,8 @@ export default function EquipmentViewer(props: EquipmentViewerProps) {
     const tooltipId = `${item.name.replaceAll(/[^a-zA-Z0-9]/g, '')}-tooltip`;
 
     return (
-      <>
-        <div key={slot} style={style} data-tooltip-id={tooltipId}>
+      <span key={`${slot}-${index}`}>
+        <div style={style} data-tooltip-id={tooltipId}>
           <Image
             style={{ position: 'absolute', zIndex: 1 }}
             src="/equipment-background.png"
@@ -53,8 +53,10 @@ export default function EquipmentViewer(props: EquipmentViewerProps) {
             quantity={item.quantity}
           />
         </div>
-        <LigmaTooltip tooltipId={tooltipId}>{item.name}</LigmaTooltip>
-      </>
+        <LigmaTooltip key={`tooltip-${slot}`} tooltipId={tooltipId}>
+          {item.name}
+        </LigmaTooltip>
+      </span>
     );
   });
 

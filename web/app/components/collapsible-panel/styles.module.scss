@@ -26,6 +26,10 @@
   transform-origin: center center;
 }
 
+.collapsiblePanelContentsExpanded {
+  position: relative;
+}
+
 .collapsiblePanelIcon.collapsiblePanelIconExpanded {
   transform: rotate(180deg);
 }

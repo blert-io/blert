@@ -80,7 +80,7 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
 
   useEffect(() => {
     updateTickOnPage(finalParsedTickParam);
-  }, [finalParsedTickParam]);
+  }, [finalParsedTickParam, updateTickOnPage]);
 
   if (raidData === null || events.length === 0) {
     return <>Loading...</>;
@@ -158,6 +158,13 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
     }
   }
 
+  const controlPlayers = raidData.party.map((player, i) => {
+    return {
+      name: player,
+      primaryMeleeGear: raidData.partyInfo[i].gear,
+    };
+  });
+
   const playerDetails = getPlayerDetails(
     raidData.party,
     eventsForCurrentTick.filter(isPlayerEvent) as PlayerEvent[],
@@ -187,6 +194,7 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
         updatePlayingState={setPlaying}
         bossImage={MAIDEN.imageSrc}
         bossName={MAIDEN.bossName}
+        players={controlPlayers}
       />
 
       <BossPageAttackTimeline
