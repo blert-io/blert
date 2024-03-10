@@ -16,10 +16,10 @@ export function LigmaTooltip(props: LigmaTooltipProps) {
     <Tooltip
       id={tooltipId}
       openOnClick={true}
+      opacity={1}
       style={{
         backgroundColor: '#171821',
         borderRadius: '5px',
-        opacity: 1,
         boxShadow: '0px 0px 5px rgba(255, 2555, 255, 0.5)',
         zIndex: 999,
       }}

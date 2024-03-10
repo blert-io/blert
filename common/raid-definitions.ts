@@ -24,7 +24,7 @@ export type Rooms = {
 export interface RoomOverview {
   roomTicks: number;
   deaths: string[];
-  npcs: Map<String, RoomNpc>;
+  npcs: Map<string, RoomNpc>;
 }
 
 export interface MaidenOverview extends RoomOverview {

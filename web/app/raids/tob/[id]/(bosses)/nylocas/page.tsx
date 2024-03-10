@@ -9,13 +9,22 @@ import {
   NyloWaveSpawnEvent,
   RoomNpcType,
   NpcId,
+  RoomNpc,
+  NyloStyle,
 } from '@blert/common';
 import Image from 'next/image';
-import { useContext } from 'react';
+import { useContext, useMemo } from 'react';
 import { NYLOCAS } from '../../../../../bosses/tob';
-import { usePlayingState, useRoomEvents } from '../../../boss-room-state';
+import {
+  EventTickMap,
+  usePlayingState,
+  useRoomEvents,
+} from '../../../boss-room-state';
 import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
-import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
+import {
+  BossPageAttackTimeline,
+  TimelineColor,
+} from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
 import BossPageReplay from '../../../../../components/boss-page-replay';
 import {
   Entity,
@@ -92,42 +101,129 @@ const EAST_BARRIER = new OverlayEntity(
   /*interactable=*/ false,
 );
 
-function getNyloColor(npcId: number): string | undefined {
+/**
+ * Returns the style-based color for a Nylocas NPC.
+ *
+ * @param npcId ID of the Nylo.
+ * @param background If true, the color will be dimmed.
+ * @returns Hex color code for the Nylo.
+ */
+function getNyloColor(npcId: number, background?: boolean): string | undefined {
+  let color = undefined;
   if (Npc.isNylocasIschyros(npcId)) {
-    return GRAY_NYLO_COLOR;
-  }
-  if (Npc.isNylocasToxobolos(npcId)) {
-    return GREEN_NYLO_COLOR;
-  }
-  if (Npc.isNylocasHagios(npcId)) {
-    return BLUE_NYLO_COLOR;
+    color = GRAY_NYLO_COLOR;
+  } else if (Npc.isNylocasToxobolos(npcId)) {
+    color = GREEN_NYLO_COLOR;
+  } else if (Npc.isNylocasHagios(npcId)) {
+    color = BLUE_NYLO_COLOR;
+  } else {
+    switch (npcId) {
+      case NpcId.NYLOCAS_PRINKIPAS_DROPPING:
+      case NpcId.NYLOCAS_PRINKIPAS_MELEE:
+      case NpcId.NYLOCAS_VASILIAS_DROPPING_ENTRY:
+      case NpcId.NYLOCAS_VASILIAS_DROPPING_REGULAR:
+      case NpcId.NYLOCAS_VASILIAS_DROPPING_HARD:
+      case NpcId.NYLOCAS_VASILIAS_MELEE_ENTRY:
+      case NpcId.NYLOCAS_VASILIAS_MELEE_REGULAR:
+      case NpcId.NYLOCAS_VASILIAS_MELEE_HARD:
+        color = GRAY_NYLO_COLOR;
+        break;
+
+      case NpcId.NYLOCAS_PRINKIPAS_RANGE:
+      case NpcId.NYLOCAS_VASILIAS_RANGE_ENTRY:
+      case NpcId.NYLOCAS_VASILIAS_RANGE_REGULAR:
+      case NpcId.NYLOCAS_VASILIAS_RANGE_HARD:
+        color = GREEN_NYLO_COLOR;
+        break;
+
+      case NpcId.NYLOCAS_PRINKIPAS_MAGE:
+      case NpcId.NYLOCAS_VASILIAS_MAGE_ENTRY:
+      case NpcId.NYLOCAS_VASILIAS_MAGE_REGULAR:
+      case NpcId.NYLOCAS_VASILIAS_MAGE_HARD:
+        color = BLUE_NYLO_COLOR;
+        break;
+    }
   }
 
-  switch (npcId) {
-    case NpcId.NYLOCAS_PRINKIPAS_DROPPING:
-    case NpcId.NYLOCAS_PRINKIPAS_MELEE:
-    case NpcId.NYLOCAS_VASILIAS_DROPPING_ENTRY:
-    case NpcId.NYLOCAS_VASILIAS_DROPPING_REGULAR:
-    case NpcId.NYLOCAS_VASILIAS_DROPPING_HARD:
-    case NpcId.NYLOCAS_VASILIAS_MELEE_ENTRY:
-    case NpcId.NYLOCAS_VASILIAS_MELEE_REGULAR:
-    case NpcId.NYLOCAS_VASILIAS_MELEE_HARD:
-      return GRAY_NYLO_COLOR;
-
-    case NpcId.NYLOCAS_PRINKIPAS_RANGE:
-    case NpcId.NYLOCAS_VASILIAS_RANGE_ENTRY:
-    case NpcId.NYLOCAS_VASILIAS_RANGE_REGULAR:
-    case NpcId.NYLOCAS_VASILIAS_RANGE_HARD:
-      return GREEN_NYLO_COLOR;
-
-    case NpcId.NYLOCAS_PRINKIPAS_MAGE:
-    case NpcId.NYLOCAS_VASILIAS_MAGE_ENTRY:
-    case NpcId.NYLOCAS_VASILIAS_MAGE_REGULAR:
-    case NpcId.NYLOCAS_VASILIAS_MAGE_HARD:
-      return BLUE_NYLO_COLOR;
+  if (color !== undefined && background) {
+    // Apply an alpha value to the color to dim it.
+    color = `${color}40`;
   }
 
-  return undefined;
+  return color;
+}
+
+/**
+ * Returns an array of timeline background color ranges for the ticks at which
+ * a Nylo boss is alive.
+ *
+ * @param eventsByTick All room events, indexed by tick.
+ * @param totalTicks Total number of ticks in the room.
+ * @returns List of background colors to apply.
+ */
+function nyloBossBackgroundColors(
+  eventsByTick: EventTickMap,
+  totalTicks: number,
+): TimelineColor[] {
+  if (totalTicks === 0) {
+    return [];
+  }
+
+  let colors: TimelineColor[] = [];
+
+  let startTick: number | undefined = undefined;
+  let bossId: number | undefined = undefined;
+
+  for (let tick = 0; tick <= totalTicks; tick++) {
+    const bossEvent = eventsByTick[tick]?.find((evt) => {
+      if (
+        evt.type === EventType.NPC_SPAWN ||
+        evt.type === EventType.NPC_UPDATE
+      ) {
+        const e = evt as NpcEvent;
+        return (
+          Npc.isNylocasPrinkipas(e.npc.id) || Npc.isNylocasVasilias(e.npc.id)
+        );
+      }
+      return false;
+    });
+
+    const nyloBoss = (bossEvent as NpcEvent)?.npc;
+    if (nyloBoss === undefined || nyloBoss.hitpoints.current === 0) {
+      if (startTick !== undefined) {
+        const backgroundColor = getNyloColor(bossId!, true);
+        if (backgroundColor !== undefined) {
+          colors.push({
+            tick: startTick,
+            length: tick - startTick + 1,
+            backgroundColor,
+          });
+        }
+      }
+
+      startTick = undefined;
+      bossId = undefined;
+      continue;
+    }
+
+    if (nyloBoss.id !== bossId) {
+      if (startTick !== undefined) {
+        const backgroundColor = getNyloColor(bossId!, true);
+        if (backgroundColor !== undefined) {
+          colors.push({
+            tick: startTick,
+            length: tick - startTick,
+            backgroundColor,
+          });
+        }
+      }
+
+      startTick = tick;
+      bossId = nyloBoss.id;
+    }
+  }
+
+  return colors;
 }
 
 export default function NylocasPage() {
@@ -145,6 +241,11 @@ export default function NylocasPage() {
     usePlayingState(totalTicks);
 
   const memes = useContext(MemeContext);
+
+  const backgroundColors = useMemo(
+    () => nyloBossBackgroundColors(eventsByTick, totalTicks),
+    [eventsByTick],
+  );
 
   if (raidData === null || events.length === 0) {
     return <>Loading...</>;
@@ -290,6 +391,7 @@ export default function NylocasPage() {
         updateTickOnPage={updateTickOnPage}
         inventoryTags={memes.inventoryTags}
         splits={splits}
+        backgroundColors={backgroundColors}
       />
 
       <BossPageReplay entities={entities} mapDef={NYLOCAS_MAP_DEFINITION} />

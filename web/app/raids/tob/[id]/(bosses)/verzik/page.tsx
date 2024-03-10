@@ -3,6 +3,8 @@
 import {
   EventType,
   Npc,
+  NpcAttack,
+  NpcAttackEvent,
   NpcEvent,
   NpcId,
   PlayerUpdateEvent,
@@ -132,6 +134,13 @@ export default function VerzikPage() {
     splits.push({ tick: verzikData.splits.p2 + 6, splitName: 'P3' });
   }
 
+  const backgroundColors = eventsByType[EventType.NPC_ATTACK]
+    ?.filter(
+      (event) =>
+        (event as NpcAttackEvent).npcAttack.attack === NpcAttack.VERZIK_P1_AUTO,
+    )
+    .map((event) => ({ tick: event.tick, backgroundColor: '#512020' }));
+
   return (
     <>
       <div className={styles.bossPage__Overview}>
@@ -167,6 +176,7 @@ export default function VerzikPage() {
         updateTickOnPage={updateTickOnPage}
         inventoryTags={memes.inventoryTags}
         splits={splits}
+        backgroundColors={backgroundColors}
       />
 
       <BossPageReplay entities={entities} mapDef={VERZIK_MAP_DEFINITION} />

@@ -3,18 +3,12 @@
 import { useEffect, useRef } from 'react';
 import {
   Attack,
-  BloatSplits,
   Event,
-  MaidenSplits,
   NpcAttack,
   NpcAttackEvent,
-  NyloSplits,
   PlayerAttack,
   PlayerAttackEvent,
   PlayerUpdateEvent,
-  SoteSplits,
-  VerzikSplits,
-  XarpusSplits,
   getNpcDefinition,
 } from '@blert/common';
 import Image from 'next/image';
@@ -259,15 +253,17 @@ const buildTickCell = (
   event: Event | null,
   tick: number,
   actorIndex: number,
+  backgroundColor: string | undefined,
   inventoryTags: boolean,
 ) => {
-  // @ts-ignore
+  const style: React.CSSProperties = { backgroundColor };
 
   if (event === null) {
     return (
       <div
         className={`${styles.attackTimeline__Cell}`}
         key={`empty-cell-${tick}-${actorIndex}`}
+        style={style}
       >
         <span className={styles.attackTimeline__Nothing}></span>
       </div>
@@ -284,6 +280,7 @@ const buildTickCell = (
       <div
         className={`${styles.attackTimeline__Cell} ${styles.attackTimeline__BossCooldown}`}
         key={`boss-cell-${event.tick}`}
+        style={style}
       >
         {cellImage}
       </div>
@@ -334,6 +331,7 @@ const buildTickCell = (
     return (
       <div
         className={className}
+        style={style}
         key={`player-cell-${(event as PlayerUpdateEvent).player.name}-${event.tick}`}
       >
         {cellImage}
@@ -350,6 +348,7 @@ const buildTickColumn = (
   updateTickOnPage: (tick: number) => void,
   inventoryTags: boolean,
   split?: TimelineSplit,
+  backgroundColor?: string,
 ) => {
   const tickCells = [];
   const cellEvents = [];
@@ -368,7 +367,15 @@ const buildTickColumn = (
   }
 
   for (let i = 0; i < cellEvents.length; i++) {
-    tickCells.push(buildTickCell(cellEvents[i], columnTick, i, inventoryTags));
+    tickCells.push(
+      buildTickCell(
+        cellEvents[i],
+        columnTick,
+        i,
+        backgroundColor,
+        inventoryTags,
+      ),
+    );
   }
 
   const tooltipId = `atk-timeline-split-${split?.splitName}-tooltip`;
@@ -419,6 +426,12 @@ export type TimelineSplit = {
   splitCustomContent?: JSX.Element;
 };
 
+export type TimelineColor = {
+  tick: number;
+  length?: number;
+  backgroundColor: string;
+};
+
 interface AttackTimelineProps {
   currentTick: number;
   playing: boolean;
@@ -426,6 +439,7 @@ interface AttackTimelineProps {
   bossAttackTimeline: NpcAttackEvent[];
   timelineTicks: number;
   splits: TimelineSplit[];
+  backgroundColors?: TimelineColor[];
   inventoryTags?: boolean;
   updateTickOnPage: (tick: number) => void;
 }
@@ -438,13 +452,19 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
     bossAttackTimeline,
     updateTickOnPage,
     timelineTicks,
+    backgroundColors,
     splits,
   } = props;
 
   const inventoryTags = props.inventoryTags ?? false;
 
-  const nextBossAttackNpcId =
-    bossAttackTimeline.find((evt) => evt.tick > currentTick)?.npc.id ?? 0;
+  let nextBossAttackNpcId = bossAttackTimeline.find(
+    (evt) => evt.tick > currentTick,
+  )?.npc.id;
+  if (nextBossAttackNpcId === undefined) {
+    nextBossAttackNpcId =
+      bossAttackTimeline[bossAttackTimeline.length - 1]?.npc.id ?? 0;
+  }
   const npcName = getNpcDefinition(nextBossAttackNpcId)?.shortName ?? 'Unknown';
 
   const attackTimelineRef = useRef<HTMLDivElement>(null);
@@ -487,6 +507,11 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
       }
     }
 
+    const color = backgroundColors?.find((c) => {
+      const length = c.length ?? 1;
+      return tick >= c.tick && tick < c.tick + length;
+    })?.backgroundColor;
+
     attackTimelineColumnElements.push(
       buildTickColumn(
         bossAttackTimeline,
@@ -496,6 +521,7 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
         updateTickOnPage,
         inventoryTags,
         potentialSplit,
+        color,
       ),
     );
   }

@@ -5,7 +5,10 @@ import Image from 'next/image';
 import { BLOAT } from '../../../../../bosses/tob';
 import { usePlayingState, useRoomEvents } from '../../../boss-room-state';
 import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
-import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
+import {
+  BossPageAttackTimeline,
+  TimelineColor,
+} from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
 import BossPageReplay from '../../../../../components/boss-page-replay';
 import {
   Entity,
@@ -91,10 +94,32 @@ export default function BloatPage() {
     }
   }
 
-  const splits = bloatData.splits.downTicks.map((tick, i) => ({
+  let splits = bloatData.splits.downTicks.map((tick, i) => ({
     tick,
     splitName: `Down ${i + 1}`,
   }));
+
+  let backgroundColors: TimelineColor[] = [];
+  const upColor = 'rgba(100, 56, 70, 0.3)';
+  if (bloatData.splits.downTicks.length > 0) {
+    backgroundColors.push({
+      tick: 0,
+      length: bloatData.splits.downTicks[0],
+      backgroundColor: upColor,
+    });
+  }
+
+  eventsByType[EventType.BLOAT_UP].forEach((evt) => {
+    splits.push({ tick: evt.tick, splitName: 'Walking' });
+
+    const nextDownTick =
+      bloatData.splits.downTicks.find((tick) => tick > evt.tick) ?? totalTicks;
+    backgroundColors.push({
+      tick: evt.tick,
+      length: nextDownTick - evt.tick,
+      backgroundColor: upColor,
+    });
+  });
 
   return (
     <>
@@ -131,6 +156,7 @@ export default function BloatPage() {
         updateTickOnPage={updateTickOnPage}
         inventoryTags={memes.inventoryTags}
         splits={splits}
+        backgroundColors={backgroundColors}
       />
 
       <BossPageReplay entities={entities} mapDef={BLOAT_MAP_DEFINITION} />
