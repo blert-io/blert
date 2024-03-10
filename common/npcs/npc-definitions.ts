@@ -1,5 +1,15 @@
 import { Npc, NpcId } from './npc-id';
-import { Mode } from '../raid-definitions';
+import {
+  MaidenCrab,
+  MaidenCrabPosition,
+  MaidenCrabSpawn,
+  Mode,
+  Nylo,
+  NyloSpawn,
+  RoomNpc,
+  RoomNpcType,
+  VerzikCrab,
+} from '../raid-definitions';
 
 export type NpcDefinition = {
   fullName: string;
@@ -419,4 +429,65 @@ const NPC_DEFINITIONS: { [id: number]: NpcDefinition } = {
 
 export function getNpcDefinition(npcId: number): NpcDefinition | null {
   return NPC_DEFINITIONS[npcId] ?? null;
+}
+
+function maidenCrabSpawnString(spawn: MaidenCrabSpawn) {
+  switch (spawn) {
+    case MaidenCrabSpawn.SEVENTIES:
+      return '70s';
+    case MaidenCrabSpawn.FIFTIES:
+      return '50s';
+    case MaidenCrabSpawn.THIRTIES:
+      return '30s';
+  }
+}
+
+function maidenCrabPositionString(position: MaidenCrabPosition) {
+  switch (position) {
+    case MaidenCrabPosition.N4_INNER:
+      return 'N4 Inner';
+    case MaidenCrabPosition.N4_OUTER:
+      return 'N4 Outer';
+    case MaidenCrabPosition.S4_INNER:
+      return 'S4 Inner';
+    case MaidenCrabPosition.S4_OUTER:
+      return 'S4 Outer';
+  }
+
+  return position;
+}
+
+/**
+ * Returns a human-readable name for the given NPC, including metadata about
+ * the NPC's type.
+ *
+ * @param npc The NPC to get the friendly name for.
+ * @returns A friendly name for the NPC.
+ */
+export function npcFriendlyName(npc: RoomNpc): string {
+  switch (npc.type) {
+    case RoomNpcType.MAIDEN_CRAB:
+      const maidenCrab = (npc as MaidenCrab).maidenCrab;
+      const position = maidenCrabPositionString(maidenCrab.position);
+      const spawn = maidenCrabSpawnString(maidenCrab.spawn);
+      return `${spawn} ${position}`;
+
+    case RoomNpcType.NYLO:
+      const nylo = (npc as Nylo).nylo;
+      const style = nylo.style.toLowerCase();
+      if (nylo.spawnType === NyloSpawn.SPLIT) {
+        return `${nylo.wave} ${style} split`;
+      }
+      return `${nylo.wave} ${nylo.spawnType.toLowerCase()} ${style}`;
+
+    case RoomNpcType.VERZIK_CRAB:
+      const verzikCrab = (npc as VerzikCrab).verzikCrab;
+      return `${verzikCrab.phase} ${verzikCrab.spawn.toLowerCase()} crab`;
+
+    case RoomNpcType.BASIC:
+      // No special handling.
+      break;
+  }
+
+  return getNpcDefinition(npc.spawnNpcId)?.fullName ?? 'Unknown NPC';
 }
