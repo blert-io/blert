@@ -241,10 +241,16 @@
   height: 100%;
   width: 100%;
   position: relative;
+  align-items: center;
+  justify-content: center;
 
   img {
     image-rendering: crisp-edges;
     image-rendering: -webkit-optimize-contrast;
+  }
+
+  .letter {
+    font-size: 24px;
   }
 }
 

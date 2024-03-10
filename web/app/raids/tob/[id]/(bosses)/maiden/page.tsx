@@ -13,7 +13,7 @@ import {
   isPlayerEvent,
 } from '@blert/common';
 import { TimelineSplit } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
-import { useContext, useEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { MAIDEN } from '../../../../../bosses/tob';
 import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
@@ -31,7 +31,6 @@ import {
   usePlayingState,
   useRoomEvents,
 } from '../../../boss-room-state';
-import { MemeContext } from '../../../../meme-context';
 import { clamp } from '../../../../../utils/math';
 
 import maidenBaseTiles from './maiden.json';
@@ -48,7 +47,6 @@ const BLOOD_SPLAT_COLOR = '#b93e3e';
 
 export default function Maiden() {
   const searchParams = useSearchParams();
-  const memes = useContext(MemeContext);
 
   const {
     raidData,
@@ -218,7 +216,6 @@ export default function Maiden() {
         bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
-        inventoryTags={memes.inventoryTags}
         splits={splits}
       />
 

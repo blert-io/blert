@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useContext, useEffect, useRef } from 'react';
 import {
   Attack,
   Event,
@@ -15,9 +15,10 @@ import Image from 'next/image';
 
 import { CollapsiblePanel } from '../collapsible-panel/collapsible-panel';
 import Item from '../item';
+import { LigmaTooltip } from '../ligma-tooltip/ligma-tooltip';
+import { MemeContext } from '../../raids/meme-context';
 
 import styles from './styles.module.scss';
-import { LigmaTooltip } from '../ligma-tooltip/ligma-tooltip';
 
 const getCellImageForBossAttack = (attack: NpcAttack) => {
   let imageUrl = '';
@@ -111,59 +112,182 @@ const getCellImageForBossAttack = (attack: NpcAttack) => {
   );
 };
 
-function inventoryTagColor(playerAttack: PlayerAttack): string | undefined {
-  switch (playerAttack) {
-    case PlayerAttack.SCYTHE:
-    case PlayerAttack.SCYTHE_UNCHARGED:
-    case PlayerAttack.FANG:
-    case PlayerAttack.HAM_JOINT:
-    case PlayerAttack.RAPIER:
-    case PlayerAttack.SOULREAPER_AXE:
-    case PlayerAttack.SAELDOR:
-    case PlayerAttack.SWIFT:
-    case PlayerAttack.TENT_WHIP:
-      return 'red';
+const ATTACK_MEMES = {
+  [PlayerAttack.BGS_SMACK]: {
+    tagColor: 'yellow',
+    letter: 'bg',
+  },
+  [PlayerAttack.BGS_SPEC]: {
+    tagColor: 'yellow',
+    letter: 'BGS',
+  },
+  [PlayerAttack.BLOWPIPE]: {
+    tagColor: 'green',
+    letter: 'BP',
+  },
+  [PlayerAttack.CHALLY_SPEC]: {
+    tagColor: 'yellow',
+    letter: 'CH',
+  },
+  [PlayerAttack.CHIN_BLACK]: {
+    tagColor: 'green',
+    letter: 'CCB',
+  },
+  [PlayerAttack.CHIN_GREY]: {
+    tagColor: 'green',
+    letter: 'CCG',
+  },
+  [PlayerAttack.CHIN_RED]: {
+    tagColor: 'green',
+    letter: 'CCR',
+  },
+  [PlayerAttack.CLAW_SCRATCH]: {
+    tagColor: 'red',
+    letter: 'c',
+  },
+  [PlayerAttack.CLAW_SPEC]: {
+    tagColor: 'red',
+    letter: 'C',
+  },
+  [PlayerAttack.DAWN_SPEC]: {
+    tagColor: 'yellow',
+    letter: 'DB',
+  },
+  [PlayerAttack.DINHS_SPEC]: {
+    tagColor: 'yellow',
+    letter: 'BW',
+  },
+  [PlayerAttack.FANG]: {
+    tagColor: 'red',
+    letter: 'FNG',
+  },
+  [PlayerAttack.HAMMER_BOP]: {
+    tagColor: 'red',
+    letter: 'h',
+  },
+  [PlayerAttack.HAMMER_SPEC]: {
+    tagColor: 'red',
+    letter: 'H',
+  },
+  [PlayerAttack.KODAI_BARRAGE]: {
+    tagColor: 'blue',
+    letter: 'F',
+  },
+  [PlayerAttack.KODAI_BASH]: {
+    tagColor: 'blue',
+    letter: 'kb',
+  },
+  [PlayerAttack.RAPIER]: {
+    tagColor: 'red',
+    letter: 'R',
+  },
+  [PlayerAttack.SAELDOR]: {
+    tagColor: 'red',
+    letter: 'B',
+  },
+  [PlayerAttack.SANG]: {
+    tagColor: 'blue',
+    letter: 'T',
+  },
+  [PlayerAttack.SANG_BARRAGE]: {
+    tagColor: 'blue',
+    letter: 'F',
+  },
+  [PlayerAttack.SCEPTRE_BARRAGE]: {
+    tagColor: 'blue',
+    letter: 'F',
+  },
+  [PlayerAttack.SHADOW]: {
+    tagColor: 'blue',
+    letter: 'Sh',
+  },
+  [PlayerAttack.SHADOW_BARRAGE]: {
+    tagColor: 'blue',
+    letter: 'F',
+  },
+  [PlayerAttack.STAFF_OF_LIGHT_BARRAGE]: {
+    tagColor: 'blue',
+    letter: 'F',
+  },
+  [PlayerAttack.STAFF_OF_LIGHT_SWIPE]: {
+    tagColor: 'blue',
+    letter: 'SOL',
+  },
+  [PlayerAttack.TENT_WHIP]: {
+    tagColor: 'red',
+    letter: 'TW',
+  },
+  [PlayerAttack.TOXIC_TRIDENT]: {
+    tagColor: 'blue',
+    letter: 'T',
+  },
+  [PlayerAttack.TOXIC_TRIDENT_BARRAGE]: {
+    tagColor: 'blue',
+    letter: 'F',
+  },
+  [PlayerAttack.TOXIC_STAFF_BARRAGE]: {
+    tagColor: 'blue',
+    letter: 'F',
+  },
+  [PlayerAttack.TOXIC_STAFF_SWIPE]: {
+    tagColor: 'blue',
+    letter: 'TS',
+  },
+  [PlayerAttack.TRIDENT]: {
+    tagColor: 'blue',
+    letter: 'T',
+  },
+  [PlayerAttack.TRIDENT_BARRAGE]: {
+    tagColor: 'blue',
+    letter: 'F',
+  },
+  [PlayerAttack.TWISTED_BOW]: {
+    tagColor: 'green',
+    letter: 'TB',
+  },
+  [PlayerAttack.ZCB]: {
+    tagColor: 'green',
+    letter: 'ZC',
+  },
+  [PlayerAttack.SCYTHE]: {
+    tagColor: 'red',
+    letter: 'S',
+  },
+  [PlayerAttack.SCYTHE_UNCHARGED]: {
+    tagColor: 'red',
+    letter: 's',
+  },
+  [PlayerAttack.HAM_JOINT]: {
+    tagColor: 'red',
+    letter: 'SB',
+  },
+  [PlayerAttack.SOULREAPER_AXE]: {
+    tagColor: 'red',
+    letter: 'AXE',
+  },
+  [PlayerAttack.SWIFT]: {
+    tagColor: 'red',
+    letter: 'SB',
+  },
+  [PlayerAttack.UNKNOWN_BARRAGE]: {
+    tagColor: undefined,
+    letter: 'F',
+  },
+  [PlayerAttack.UNKNOWN_BOW]: {
+    tagColor: undefined,
+    letter: 'UNK',
+  },
+  [PlayerAttack.UNKNOWN]: {
+    tagColor: undefined,
+    letter: 'UNK',
+  },
+};
 
-    case PlayerAttack.BLOWPIPE:
-    case PlayerAttack.CHIN_BLACK:
-    case PlayerAttack.CHIN_GREY:
-    case PlayerAttack.CHIN_RED:
-    case PlayerAttack.TWISTED_BOW:
-    case PlayerAttack.ZCB:
-      return 'green';
-
-    case PlayerAttack.BGS_SMACK:
-    case PlayerAttack.BGS_SPEC:
-    case PlayerAttack.CHALLY_SPEC:
-    case PlayerAttack.CLAW_SCRATCH:
-    case PlayerAttack.CLAW_SPEC:
-    case PlayerAttack.DAWN_SPEC:
-    case PlayerAttack.DINHS_SPEC:
-    case PlayerAttack.HAMMER_BOP:
-    case PlayerAttack.HAMMER_SPEC:
-      return 'yellow';
-
-    case PlayerAttack.KODAI_BARRAGE:
-    case PlayerAttack.KODAI_BASH:
-    case PlayerAttack.SANG:
-    case PlayerAttack.SANG_BARRAGE:
-    case PlayerAttack.SCEPTRE_BARRAGE:
-    case PlayerAttack.SHADOW:
-    case PlayerAttack.SHADOW_BARRAGE:
-    case PlayerAttack.STAFF_OF_LIGHT_BARRAGE:
-    case PlayerAttack.STAFF_OF_LIGHT_SWIPE:
-    case PlayerAttack.TOXIC_TRIDENT:
-    case PlayerAttack.TOXIC_TRIDENT_BARRAGE:
-    case PlayerAttack.TOXIC_STAFF_BARRAGE:
-    case PlayerAttack.TOXIC_STAFF_SWIPE:
-    case PlayerAttack.TRIDENT:
-    case PlayerAttack.TRIDENT_BARRAGE:
-      return 'blue';
-  }
-  return undefined;
-}
-
-const makeCellImage = (playerAttack: Attack, inventoryTags: boolean) => {
+const makeCellImage = (
+  playerAttack: Attack,
+  inventoryTags: boolean,
+  capsLock: boolean,
+) => {
   let blunderIcon;
 
   switch (true) {
@@ -180,71 +304,81 @@ const makeCellImage = (playerAttack: Attack, inventoryTags: boolean) => {
       break;
   }
 
-  let infoIcon;
+  let content;
 
-  switch (playerAttack.type) {
-    case PlayerAttack.BGS_SPEC:
-    case PlayerAttack.HAMMER_SPEC:
-    case PlayerAttack.CHALLY_SPEC:
-    case PlayerAttack.DAWN_SPEC:
-    case PlayerAttack.DINHS_SPEC:
-    case PlayerAttack.CLAW_SPEC:
-      infoIcon = (
-        <Image
-          className={styles.attackTimeline__CellImage__InfoIcon}
-          src={'/spec.png'}
-          alt="Special Attack"
-          height={25}
-          width={25}
-        />
-      );
-      break;
-    case PlayerAttack.SANG_BARRAGE:
-    case PlayerAttack.SHADOW_BARRAGE:
-    case PlayerAttack.STAFF_OF_LIGHT_BARRAGE:
-    case PlayerAttack.TOXIC_TRIDENT_BARRAGE:
-    case PlayerAttack.TOXIC_STAFF_BARRAGE:
-    case PlayerAttack.TRIDENT_BARRAGE:
-    case PlayerAttack.KODAI_BARRAGE:
-    case PlayerAttack.SCEPTRE_BARRAGE:
-    case PlayerAttack.UNKNOWN_BARRAGE:
-      infoIcon = (
-        <Image
-          className={styles.attackTimeline__CellImage__InfoIcon}
-          src={'/barrage.png'}
-          alt="Barrage"
-          height={25}
-          width={25}
-        />
-      );
-      break;
+  if (!capsLock) {
+    let infoIcon = undefined;
+
+    switch (playerAttack.type) {
+      case PlayerAttack.BGS_SPEC:
+      case PlayerAttack.HAMMER_SPEC:
+      case PlayerAttack.CHALLY_SPEC:
+      case PlayerAttack.DAWN_SPEC:
+      case PlayerAttack.DINHS_SPEC:
+      case PlayerAttack.CLAW_SPEC:
+        infoIcon = (
+          <Image
+            className={styles.attackTimeline__CellImage__InfoIcon}
+            src={'/spec.png'}
+            alt="Special Attack"
+            height={25}
+            width={25}
+          />
+        );
+        break;
+      case PlayerAttack.SANG_BARRAGE:
+      case PlayerAttack.SHADOW_BARRAGE:
+      case PlayerAttack.STAFF_OF_LIGHT_BARRAGE:
+      case PlayerAttack.TOXIC_TRIDENT_BARRAGE:
+      case PlayerAttack.TOXIC_STAFF_BARRAGE:
+      case PlayerAttack.TRIDENT_BARRAGE:
+      case PlayerAttack.KODAI_BARRAGE:
+      case PlayerAttack.SCEPTRE_BARRAGE:
+      case PlayerAttack.UNKNOWN_BARRAGE:
+        infoIcon = (
+          <Image
+            className={styles.attackTimeline__CellImage__InfoIcon}
+            src={'/barrage.png'}
+            alt="Barrage"
+            height={25}
+            width={25}
+          />
+        );
+        break;
+    }
+
+    let outline = inventoryTags
+      ? ATTACK_MEMES[playerAttack.type].tagColor
+      : undefined;
+
+    content = (
+      <>
+        {infoIcon && infoIcon}
+        {(playerAttack.weapon && (
+          <Item
+            name={playerAttack.weapon.name}
+            quantity={1}
+            outlineColor={outline}
+          />
+        )) || (
+          <div className={styles.attackTimeline__CellImage__BossAtk}>
+            <Image
+              src="/huh.png"
+              alt="Unknown attack"
+              fill
+              style={{ objectFit: 'contain' }}
+            />
+          </div>
+        )}
+      </>
+    );
+  } else {
+    // In caps lock mode, only use letters.
+    const letter = ATTACK_MEMES[playerAttack.type].letter ?? 'UNK';
+    content = <div className={styles.letter}>{letter}</div>;
   }
 
-  let outline = inventoryTags
-    ? inventoryTagColor(playerAttack.type)
-    : undefined;
-
-  return (
-    <div className={styles.attackTimeline__CellImage}>
-      {infoIcon && infoIcon}
-      {(playerAttack.weapon && (
-        <Item
-          name={playerAttack.weapon.name}
-          quantity={1}
-          outlineColor={outline}
-        />
-      )) || (
-        <div className={styles.attackTimeline__CellImage__BossAtk}>
-          <Image
-            src="/huh.png"
-            alt="Unknown attack"
-            fill
-            style={{ objectFit: 'contain' }}
-          />
-        </div>
-      )}
-    </div>
-  );
+  return <div className={styles.attackTimeline__CellImage}>{content}</div>;
 };
 
 const bossAttackName = (attack: NpcAttack) => {
@@ -321,6 +455,7 @@ const buildTickCell = (
   actorIndex: number,
   backgroundColor: string | undefined,
   inventoryTags: boolean,
+  capsLock: boolean,
 ) => {
   const style: React.CSSProperties = { backgroundColor };
 
@@ -398,6 +533,7 @@ const buildTickCell = (
       cellImage = makeCellImage(
         (event as PlayerAttackEvent).attack,
         inventoryTags,
+        capsLock,
       );
     } else if (diedThisTick) {
       tooltipId = `player-${username}-death`;
@@ -456,6 +592,7 @@ const buildTickColumn = (
   currentPlaybackTick: number,
   updateTickOnPage: (tick: number) => void,
   inventoryTags: boolean,
+  capsLock: boolean,
   split?: TimelineSplit,
   backgroundColor?: string,
 ) => {
@@ -483,6 +620,7 @@ const buildTickColumn = (
         i,
         backgroundColor,
         inventoryTags,
+        capsLock,
       ),
     );
   }
@@ -549,7 +687,6 @@ interface AttackTimelineProps {
   timelineTicks: number;
   splits: TimelineSplit[];
   backgroundColors?: TimelineColor[];
-  inventoryTags?: boolean;
   updateTickOnPage: (tick: number) => void;
 }
 
@@ -565,7 +702,7 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
     splits,
   } = props;
 
-  const inventoryTags = props.inventoryTags ?? false;
+  const memes = useContext(MemeContext);
 
   let nextBossAttackNpcId = bossAttackTimeline.find(
     (evt) => evt.tick > currentTick,
@@ -628,7 +765,8 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
         tick,
         currentTick,
         updateTickOnPage,
-        inventoryTags,
+        memes.inventoryTags,
+        memes.capsLock,
         potentialSplit,
         color,
       ),
