@@ -12,12 +12,15 @@ import {
   RoomNpc,
   NyloStyle,
   RaidStatus,
+  isPlayerEvent,
+  PlayerEvent,
 } from '@blert/common';
 import Image from 'next/image';
 import { useContext, useMemo } from 'react';
 import { NYLOCAS } from '../../../../../bosses/tob';
 import {
   EventTickMap,
+  getPlayerDetails,
   usePlayingState,
   useRoomEvents,
 } from '../../../boss-room-state';
@@ -359,6 +362,11 @@ export default function NylocasPage() {
     }
   }
 
+  const playerDetails = getPlayerDetails(
+    raidData.party,
+    eventsForCurrentTick.filter(isPlayerEvent) as PlayerEvent[],
+  );
+
   return (
     <>
       <div className={styles.bossPage__Overview}>
@@ -397,7 +405,11 @@ export default function NylocasPage() {
         backgroundColors={backgroundColors}
       />
 
-      <BossPageReplay entities={entities} mapDef={NYLOCAS_MAP_DEFINITION} />
+      <BossPageReplay
+        entities={entities}
+        mapDef={NYLOCAS_MAP_DEFINITION}
+        playerDetails={playerDetails}
+      />
     </>
   );
 }

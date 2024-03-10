@@ -7,14 +7,20 @@ import {
   NpcAttackEvent,
   NpcEvent,
   NpcId,
+  PlayerEvent,
   PlayerUpdateEvent,
   RaidStatus,
   Room,
+  isPlayerEvent,
 } from '@blert/common';
 import Image from 'next/image';
 import { useContext } from 'react';
 import { VERZIK } from '../../../../../bosses/tob';
-import { usePlayingState, useRoomEvents } from '../../../boss-room-state';
+import {
+  getPlayerDetails,
+  usePlayingState,
+  useRoomEvents,
+} from '../../../boss-room-state';
 import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
 import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
 import BossPageReplay from '../../../../../components/boss-page-replay';
@@ -144,6 +150,11 @@ export default function VerzikPage() {
     )
     .map((event) => ({ tick: event.tick, backgroundColor: '#512020' }));
 
+  const playerDetails = getPlayerDetails(
+    raidData.party,
+    eventsForCurrentTick.filter(isPlayerEvent) as PlayerEvent[],
+  );
+
   return (
     <>
       <div className={styles.bossPage__Overview}>
@@ -182,7 +193,11 @@ export default function VerzikPage() {
         backgroundColors={backgroundColors}
       />
 
-      <BossPageReplay entities={entities} mapDef={VERZIK_MAP_DEFINITION} />
+      <BossPageReplay
+        entities={entities}
+        mapDef={VERZIK_MAP_DEFINITION}
+        playerDetails={playerDetails}
+      />
     </>
   );
 }

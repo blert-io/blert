@@ -17,6 +17,7 @@ export { RecordedRaidModel, UserModel } from './models/user';
 
 export type {
   Attack,
+  EquipmentMap,
   Event,
   MaidenBloodSplatsEvent,
   NpcAttackEvent,

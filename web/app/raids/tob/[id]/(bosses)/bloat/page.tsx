@@ -3,13 +3,19 @@
 import {
   EventType,
   NpcEvent,
+  PlayerEvent,
   PlayerUpdateEvent,
   RaidStatus,
   Room,
+  isPlayerEvent,
 } from '@blert/common';
 import Image from 'next/image';
 import { BLOAT } from '../../../../../bosses/tob';
-import { usePlayingState, useRoomEvents } from '../../../boss-room-state';
+import {
+  getPlayerDetails,
+  usePlayingState,
+  useRoomEvents,
+} from '../../../boss-room-state';
 import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
 import {
   BossPageAttackTimeline,
@@ -129,6 +135,11 @@ export default function BloatPage() {
     });
   });
 
+  const playerDetails = getPlayerDetails(
+    raidData.party,
+    eventsForCurrentTick.filter(isPlayerEvent) as PlayerEvent[],
+  );
+
   return (
     <>
       <div className={styles.bossPage__Overview}>
@@ -167,7 +178,11 @@ export default function BloatPage() {
         backgroundColors={backgroundColors}
       />
 
-      <BossPageReplay entities={entities} mapDef={BLOAT_MAP_DEFINITION} />
+      <BossPageReplay
+        entities={entities}
+        mapDef={BLOAT_MAP_DEFINITION}
+        playerDetails={playerDetails}
+      />
     </>
   );
 }

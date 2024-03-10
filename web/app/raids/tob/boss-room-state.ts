@@ -4,6 +4,7 @@ import {
   NpcAttackEvent,
   PlayerAttackEvent,
   PlayerEvent,
+  PlayerUpdateEvent,
   Room,
   isPlayerEvent,
 } from '@blert/common';
@@ -20,6 +21,7 @@ import {
 import { TICK_MS } from '../../utils/tick';
 import { RaidContext } from './context';
 import { loadEventsForRoom } from '../../actions/raid';
+import { PlayerDetails } from '../../components/boss-page-replay';
 
 export const usePlayingState = (totalTicks: number) => {
   const [currentTick, setTick] = useState(1);
@@ -238,4 +240,33 @@ function buildAttackTimelines(
   }
 
   return attackTimelines;
+}
+
+/**
+ * Collects information for each player in the raid at a given tick.
+ * TODO(frolv): Try to consolidate this with the code in `buildAttackTimelines`.
+ *
+ * @param playerEventsForTick All player events for a given tick.
+ * @returns Details about each player.
+ */
+export function getPlayerDetails(
+  party: string[],
+  playerEventsForTick: PlayerEvent[],
+): PlayerDetails {
+  const playerDetails: PlayerDetails = {};
+  for (const username of party) {
+    playerDetails[username] = {};
+  }
+
+  playerEventsForTick
+    .filter((evt) => evt.type === EventType.PLAYER_UPDATE)
+    .forEach((evt) => {
+      const e = evt as PlayerUpdateEvent;
+
+      playerDetails[e.player.name] = {
+        equipment: e.player.equipment ?? {},
+      };
+    });
+
+  return playerDetails;
 }

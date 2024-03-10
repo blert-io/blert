@@ -5,9 +5,11 @@ import {
   EventType,
   MaidenBloodSplatsEvent,
   NpcEvent,
+  PlayerEvent,
   PlayerUpdateEvent,
   RaidStatus,
   Room,
+  isPlayerEvent,
 } from '@blert/common';
 import { TimelineSplit } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
 import { useContext, useEffect } from 'react';
@@ -15,7 +17,9 @@ import { useSearchParams } from 'next/navigation';
 import { MAIDEN } from '../../../../../bosses/tob';
 import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
 import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
-import BossPageReplay from '../../../../../components/boss-page-replay';
+import BossPageReplay, {
+  PlayerDetails,
+} from '../../../../../components/boss-page-replay';
 import { BossPageDPSTimeline } from '../../../../../components/boss-page-dps-timeine/boss-page-dps-timeline';
 import {
   Entity,
@@ -23,7 +27,11 @@ import {
   NpcEntity,
   PlayerEntity,
 } from '../../../../../components/map';
-import { usePlayingState, useRoomEvents } from '../../../boss-room-state';
+import {
+  getPlayerDetails,
+  usePlayingState,
+  useRoomEvents,
+} from '../../../boss-room-state';
 import { MemeContext } from '../../../../meme-context';
 import { clamp } from '../../../../../utils/math';
 
@@ -150,6 +158,11 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
     }
   }
 
+  const playerDetails = getPlayerDetails(
+    raidData.party,
+    eventsForCurrentTick.filter(isPlayerEvent) as PlayerEvent[],
+  );
+
   return (
     <>
       <div className={styles.bossPage__Overview}>
@@ -187,7 +200,11 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
         splits={splits}
       />
 
-      <BossPageReplay entities={entities} mapDef={MAIDEN_MAP_DEFINITION} />
+      <BossPageReplay
+        entities={entities}
+        mapDef={MAIDEN_MAP_DEFINITION}
+        playerDetails={playerDetails}
+      />
 
       <BossPageDPSTimeline />
     </>

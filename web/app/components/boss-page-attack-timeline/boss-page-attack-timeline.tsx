@@ -349,7 +349,7 @@ const buildTickCell = (
 
     tooltipId = `boss-attack-${event.tick}`;
     tooltip = (
-      <LigmaTooltip tooltipId={tooltipId}>
+      <LigmaTooltip openOnClick tooltipId={tooltipId}>
         <div className={styles.bossTooltip}>
           <button className={styles.bossNameButton}>{npcName}</button>
           {(npcAttack.target && (
@@ -403,7 +403,7 @@ const buildTickCell = (
       tooltipId = `player-${username}-death`;
 
       tooltip = (
-        <LigmaTooltip tooltipId={tooltipId}>
+        <LigmaTooltip openOnClick tooltipId={tooltipId}>
           <div className={styles.playerTooltip}>
             <button className={styles.playerNameButton}>{username}</button>
             <span>died</span>
@@ -496,7 +496,7 @@ const buildTickColumn = (
     >
       {split !== undefined && (
         <div className={styles.attackTimeline__RoomSplit}>
-          <LigmaTooltip tooltipId={tooltipId}>
+          <LigmaTooltip openOnClick tooltipId={tooltipId}>
             <h1>Hello</h1>
           </LigmaTooltip>
           <span data-tooltip-id={tooltipId}>{split.splitName}</span>
@@ -655,7 +655,7 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
 
   return (
     <CollapsiblePanel
-      panelTitle={'Tick Timeline'}
+      panelTitle="Room Timeline"
       maxPanelHeight={500}
       defaultExpanded={true}
       className={styles.attackTimeline}

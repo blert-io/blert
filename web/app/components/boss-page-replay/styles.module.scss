@@ -2,6 +2,23 @@
 
 .replay {
   display: flex;
-  flex-direction: column;
+  justify-content: space-around;
   align-items: center;
+
+  .actors {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+
+    .actor {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 50%;
+
+      & > h2 {
+        font-size: 1.25rem;
+      }
+    }
+  }
 }

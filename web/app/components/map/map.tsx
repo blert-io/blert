@@ -1,9 +1,10 @@
+import { useState } from 'react';
+
 import { Entity, MapEntity, entityTypeString } from './entity';
+import { OverlayEntity } from './overlay';
 import Tile, { TileData } from './tile';
 
 import styles from './style.module.scss';
-import { OverlayEntity } from './overlay';
-import { useState } from 'react';
 
 export type BaseTile = {
   x: number;

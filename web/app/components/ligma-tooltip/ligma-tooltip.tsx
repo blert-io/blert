@@ -5,17 +5,18 @@ import { Tooltip } from 'react-tooltip';
 
 type LigmaTooltipProps = {
   children: React.ReactNode;
+  openOnClick?: boolean;
   tooltipId: string;
 };
 
 export function LigmaTooltip(props: LigmaTooltipProps) {
-  const { children, tooltipId } = props;
+  const { children, openOnClick, tooltipId } = props;
   const portalNode = useRef(document.getElementById('tooltip-portal'));
 
   return ReactDOM.createPortal(
     <Tooltip
       id={tooltipId}
-      openOnClick={true}
+      openOnClick={openOnClick}
       opacity={1}
       style={{
         backgroundColor: '#171821',
