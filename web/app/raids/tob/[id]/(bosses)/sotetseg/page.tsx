@@ -10,8 +10,7 @@ import {
   isPlayerEvent,
 } from '@blert/common';
 import Image from 'next/image';
-import { useContext } from 'react';
-import { SOTETSEG } from '../../../../../bosses/tob';
+
 import {
   getPlayerDetails,
   usePlayingState,
@@ -26,7 +25,6 @@ import {
   OverlayEntity,
   PlayerEntity,
 } from '../../../../../components/map';
-import { MemeContext } from '../../../../meme-context';
 
 import styles from './style.module.scss';
 import soteBaseTiles from './sote-tiles.json';
@@ -57,8 +55,6 @@ export default function SotetsegPage() {
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
-
-  const memes = useContext(MemeContext);
 
   if (raidData === null || events.length === 0) {
     return <>Loading...</>;
@@ -162,8 +158,6 @@ export default function SotetsegPage() {
         currentTick={currentTick}
         updateTick={updateTickOnPage}
         updatePlayingState={setPlaying}
-        bossImage={SOTETSEG.imageSrc}
-        bossName={SOTETSEG.bossName}
       />
 
       <BossPageAttackTimeline
@@ -173,7 +167,6 @@ export default function SotetsegPage() {
         bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
-        inventoryTags={memes.inventoryTags}
         splits={splits}
       />
 

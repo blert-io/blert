@@ -170,13 +170,6 @@ export default function Maiden() {
     }
   }
 
-  const controlPlayers = raidData.party.map((player, i) => {
-    return {
-      name: player,
-      primaryMeleeGear: raidData.partyInfo[i].gear,
-    };
-  });
-
   const playerDetails = getPlayerDetails(
     raidData.party,
     eventsForCurrentTick.filter(isPlayerEvent) as PlayerEvent[],
@@ -204,9 +197,6 @@ export default function Maiden() {
         currentTick={currentTick}
         updateTick={updateTickOnPage}
         updatePlayingState={setPlaying}
-        bossImage={MAIDEN.imageSrc}
-        bossName={MAIDEN.bossName}
-        players={controlPlayers}
       />
 
       <BossPageAttackTimeline

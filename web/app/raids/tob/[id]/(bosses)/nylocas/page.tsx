@@ -9,15 +9,12 @@ import {
   NyloWaveSpawnEvent,
   RoomNpcType,
   NpcId,
-  RoomNpc,
-  NyloStyle,
   RaidStatus,
   isPlayerEvent,
   PlayerEvent,
 } from '@blert/common';
 import Image from 'next/image';
-import { useContext, useMemo } from 'react';
-import { NYLOCAS } from '../../../../../bosses/tob';
+import { useMemo } from 'react';
 import {
   EventTickMap,
   getPlayerDetails,
@@ -30,14 +27,8 @@ import {
   TimelineColor,
 } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
 import BossPageReplay from '../../../../../components/boss-page-replay';
-import {
-  Entity,
-  MarkerEntity,
-  NpcEntity,
-  PlayerEntity,
-} from '../../../../../components/map';
+import { Entity, NpcEntity, PlayerEntity } from '../../../../../components/map';
 import { OverlayEntity } from '../../../../../components/map/overlay';
-import { MemeContext } from '../../../../meme-context';
 
 import styles from './style.module.scss';
 import nyloBaseTiles from './nylo-tiles.json';
@@ -244,8 +235,6 @@ export default function NylocasPage() {
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
 
-  const memes = useContext(MemeContext);
-
   const backgroundColors = useMemo(
     () => nyloBossBackgroundColors(eventsByTick, totalTicks),
     [eventsByTick],
@@ -389,8 +378,6 @@ export default function NylocasPage() {
         currentTick={currentTick}
         updateTick={updateTickOnPage}
         updatePlayingState={setPlaying}
-        bossImage={NYLOCAS.imageSrc}
-        bossName={NYLOCAS.bossName}
       />
 
       <BossPageAttackTimeline
@@ -400,7 +387,6 @@ export default function NylocasPage() {
         bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
-        inventoryTags={memes.inventoryTags}
         splits={splits}
         backgroundColors={backgroundColors}
       />

@@ -14,8 +14,7 @@ import {
   isPlayerEvent,
 } from '@blert/common';
 import Image from 'next/image';
-import { useContext } from 'react';
-import { VERZIK } from '../../../../../bosses/tob';
+
 import {
   getPlayerDetails,
   usePlayingState,
@@ -24,13 +23,7 @@ import {
 import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
 import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
 import BossPageReplay from '../../../../../components/boss-page-replay';
-import {
-  Entity,
-  NpcEntity,
-  OverlayEntity,
-  PlayerEntity,
-} from '../../../../../components/map';
-import { MemeContext } from '../../../../meme-context';
+import { Entity, NpcEntity, PlayerEntity } from '../../../../../components/map';
 
 import styles from './style.module.scss';
 import verzikBaseTiles from './verzik-tiles.json';
@@ -79,8 +72,6 @@ export default function VerzikPage() {
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
-
-  const memes = useContext(MemeContext);
 
   if (raidData === null || events.length === 0) {
     return <>Loading...</>;
@@ -177,8 +168,6 @@ export default function VerzikPage() {
         currentTick={currentTick}
         updateTick={updateTickOnPage}
         updatePlayingState={setPlaying}
-        bossImage={VERZIK.imageSrc}
-        bossName={VERZIK.bossName}
       />
 
       <BossPageAttackTimeline
@@ -188,7 +177,6 @@ export default function VerzikPage() {
         bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
-        inventoryTags={memes.inventoryTags}
         splits={splits}
         backgroundColors={backgroundColors}
       />

@@ -14,14 +14,6 @@ interface BossControlsProps {
   currentTick: number;
   updateTick: (tick: number) => void;
   updatePlayingState: (isPlaying: boolean) => void;
-  bossImage: string;
-  bossName: string;
-  players: BossPageControlsPlayer[];
-}
-
-interface BossPageControlsPlayer {
-  name: string;
-  primaryMeleeGear: PrimaryMeleeGear;
 }
 
 export function BossPageControls(props: BossControlsProps) {
@@ -31,8 +23,6 @@ export function BossPageControls(props: BossControlsProps) {
     currentTick,
     updateTick,
     updatePlayingState,
-    bossImage,
-    bossName,
   } = props;
 
   // The value of the tick input field. Tracked separately to `currentTick` to
@@ -133,19 +123,6 @@ export function BossPageControls(props: BossControlsProps) {
         max={totalTicks}
         value={value}
       />
-
-      {/* <div
-        className={`${styles.controls__roomActor} ${styles.controls__roomActorBoss}`}
-      >
-        <Image
-          src={bossImage}
-          alt={bossName}
-          fill
-          style={{ objectFit: 'contain', maxHeight: '30px', left: '3px' }}
-        />
-      </div>
-
-      {playerControls} */}
     </div>
   );
 }

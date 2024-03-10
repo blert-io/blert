@@ -10,7 +10,7 @@ import {
   isPlayerEvent,
 } from '@blert/common';
 import Image from 'next/image';
-import { BLOAT } from '../../../../../bosses/tob';
+
 import {
   getPlayerDetails,
   usePlayingState,
@@ -28,12 +28,9 @@ import {
   NpcEntity,
   PlayerEntity,
 } from '../../../../../components/map';
-import { MemeContext } from '../../../../meme-context';
 
 import bloatBaseTiles from './bloat-tiles.json';
-
 import styles from './style.module.scss';
-import { useContext } from 'react';
 
 const BLOAT_MAP_DEFINITION = {
   baseX: 3288,
@@ -58,8 +55,6 @@ export default function BloatPage() {
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
-
-  const memes = useContext(MemeContext);
 
   if (raidData === null || events.length === 0) {
     return <>Loading...</>;
@@ -162,8 +157,6 @@ export default function BloatPage() {
         currentTick={currentTick}
         updateTick={updateTickOnPage}
         updatePlayingState={setPlaying}
-        bossImage={BLOAT.imageSrc}
-        bossName={BLOAT.bossName}
       />
 
       <BossPageAttackTimeline
@@ -173,7 +166,6 @@ export default function BloatPage() {
         bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
-        inventoryTags={memes.inventoryTags}
         splits={splits}
         backgroundColors={backgroundColors}
       />
