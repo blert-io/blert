@@ -1,20 +1,21 @@
 'use client';
 
 import {
-  LineChart,
   CartesianGrid,
   XAxis,
   YAxis,
-  Legend,
-  Line,
   Tooltip,
   Area,
   AreaChart,
+  ReferenceLine,
 } from 'recharts';
+
 import { CollapsiblePanel } from '../collapsible-panel/collapsible-panel';
+
 import styles from './styles.module.scss';
 
 type BossPageDPSTimelineProps = {
+  currentTick: number;
   data: {
     tick: number;
     bossHealthPercentage: number;
@@ -24,17 +25,15 @@ type BossPageDPSTimelineProps = {
 export function BossPageDPSTimeline(props: BossPageDPSTimelineProps) {
   const { data } = props;
 
-  console.log('definitely working data:', data);
-
   return (
     <CollapsiblePanel
-      panelTitle={'DPS Timeline'}
-      maxPanelHeight={9000}
-      defaultExpanded={true}
-      className={styles.dpsTImeline}
+      panelTitle="DPS Timeline"
+      maxPanelHeight={1000}
+      defaultExpanded
+      className={styles.dpsTimeline}
     >
       <div className={styles.chartParent}>
-        <h3>Maidens Health Over Time</h3>
+        <h3>Maiden's Health Over Time</h3>
         <AreaChart
           width={1400}
           height={400}
@@ -48,14 +47,21 @@ export function BossPageDPSTimeline(props: BossPageDPSTimelineProps) {
         >
           <CartesianGrid strokeDasharray="1 1" />
           <XAxis dataKey="tick" />
-          <YAxis />
+          <YAxis unit="%" />
           <Area
             type="monotone"
             dataKey="bossHealthPercentage"
             stroke="#ffffff"
             fill="#532727"
           />
-          <Tooltip itemStyle={{ backgroundColor: '#000' }} />
+          <Tooltip
+            contentStyle={{ backgroundColor: '#171821' }}
+            formatter={(value: number) => {
+              return [`${value.toFixed(2)}%`, 'Health'];
+            }}
+            labelFormatter={(value: number) => `Tick: ${value}`}
+          />
+          <ReferenceLine x={props.currentTick} stroke="#ffffff" />
         </AreaChart>
       </div>
     </CollapsiblePanel>

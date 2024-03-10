@@ -6,7 +6,6 @@ import {
   MaidenBloodSplatsEvent,
   Npc,
   NpcEvent,
-  NpcUpdateEvent,
   PlayerEvent,
   PlayerUpdateEvent,
   RaidStatus,
@@ -14,14 +13,12 @@ import {
   isPlayerEvent,
 } from '@blert/common';
 import { TimelineSplit } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
-import { useContext, useEffect } from 'react';
+import { useContext, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { MAIDEN } from '../../../../../bosses/tob';
 import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
 import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
-import BossPageReplay, {
-  PlayerDetails,
-} from '../../../../../components/boss-page-replay';
+import BossPageReplay from '../../../../../components/boss-page-replay';
 import { BossPageDPSTimeline } from '../../../../../components/boss-page-dps-timeine/boss-page-dps-timeline';
 import {
   Entity,
@@ -49,7 +46,7 @@ const MAIDEN_MAP_DEFINITION = {
 };
 const BLOOD_SPLAT_COLOR = '#b93e3e';
 
-export default function Maiden({ params: { id } }: { params: { id: string } }) {
+export default function Maiden() {
   const searchParams = useSearchParams();
   const memes = useContext(MemeContext);
 
@@ -83,6 +80,21 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
   useEffect(() => {
     updateTickOnPage(finalParsedTickParam);
   }, [finalParsedTickParam, updateTickOnPage]);
+
+  const bossHealthChartData = useMemo(() => {
+    return (
+      eventsByType[EventType.NPC_UPDATE]
+        ?.filter((evt) => Npc.isMaiden((evt as NpcEvent).npc.id))
+        .map((evt) => {
+          const e = evt as NpcEvent;
+          return {
+            tick: e.tick,
+            bossHealthPercentage:
+              (e.npc.hitpoints.current / e.npc.hitpoints.base) * 100,
+          };
+        }) ?? []
+    );
+  }, [events]);
 
   if (raidData === null || events.length === 0) {
     return <>Loading...</>;
@@ -172,20 +184,6 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
     eventsForCurrentTick.filter(isPlayerEvent) as PlayerEvent[],
   );
 
-  const bossHealthChartData = eventsByType[EventType.NPC_UPDATE]
-    ?.filter((evt) => {
-      const e = evt as NpcUpdateEvent;
-      return Npc.isMaiden(e.npc.id);
-    })
-    .map((evt) => {
-      const e = evt as NpcEvent;
-      return {
-        tick: e.tick,
-        bossHealthPercentage:
-          (e.npc.hitpoints.current / e.npc.hitpoints.base) * 100,
-      };
-    });
-
   return (
     <>
       <div className={styles.bossPage__Overview}>
@@ -230,7 +228,10 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
         playerDetails={playerDetails}
       />
 
-      <BossPageDPSTimeline data={bossHealthChartData} />
+      <BossPageDPSTimeline
+        currentTick={currentTick}
+        data={bossHealthChartData}
+      />
     </>
   );
 }

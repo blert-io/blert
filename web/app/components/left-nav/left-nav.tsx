@@ -114,7 +114,7 @@ export function LeftNav() {
               <div
                 className={`${styles.leftNav__subMenuItem} ${currentPath.includes('/bloat') && styles.leftNav__subMenuItemActive}`}
               >
-                Blert
+                Bloat
               </div>
             </Link>
             <Link href={currentPathForRaid + '/nylocas'}>

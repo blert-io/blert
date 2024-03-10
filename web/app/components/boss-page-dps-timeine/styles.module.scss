@@ -6,12 +6,6 @@
   align-items: center;
 }
 
-.preview {
-  font-size: 40px;
-  text-align: center;
-  margin: 30px;
-}
-
 .dpsChart {
   margin: 50px;
 }
@@ -22,10 +16,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px 0 0 0;
+  padding: 0;
   flex-direction: column;
 
   h3 {
-    font-size: 32px;
+    font-size: 1.75rem;
   }
 }
