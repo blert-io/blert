@@ -4,7 +4,9 @@ import Image from 'next/image';
 import {
   EventType,
   MaidenBloodSplatsEvent,
+  Npc,
   NpcEvent,
+  NpcUpdateEvent,
   PlayerEvent,
   PlayerUpdateEvent,
   RaidStatus,
@@ -170,6 +172,20 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
     eventsForCurrentTick.filter(isPlayerEvent) as PlayerEvent[],
   );
 
+  const bossHealthChartData = eventsByType[EventType.NPC_UPDATE]
+    ?.filter((evt) => {
+      const e = evt as NpcUpdateEvent;
+      return Npc.isMaiden(e.npc.id);
+    })
+    .map((evt) => {
+      const e = evt as NpcEvent;
+      return {
+        tick: e.tick,
+        bossHealthPercentage:
+          (e.npc.hitpoints.current / e.npc.hitpoints.base) * 100,
+      };
+    });
+
   return (
     <>
       <div className={styles.bossPage__Overview}>
@@ -214,7 +230,7 @@ export default function Maiden({ params: { id } }: { params: { id: string } }) {
         playerDetails={playerDetails}
       />
 
-      <BossPageDPSTimeline />
+      <BossPageDPSTimeline data={bossHealthChartData} />
     </>
   );
 }

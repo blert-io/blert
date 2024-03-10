@@ -11,3 +11,21 @@
   text-align: center;
   margin: 30px;
 }
+
+.dpsChart {
+  margin: 50px;
+}
+
+.chartParent {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 0 0 0;
+  flex-direction: column;
+
+  h3 {
+    font-size: 32px;
+  }
+}
