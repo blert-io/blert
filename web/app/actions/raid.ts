@@ -30,3 +30,43 @@ async function _loadEventsForRoom(
  * @returns Array of events for the room, empty if none exist.
  */
 export const loadEventsForRoom = cache(_loadEventsForRoom);
+
+export type RaidOverview = Pick<
+  Raid,
+  | '_id'
+  | 'startTime'
+  | 'status'
+  | 'mode'
+  | 'party'
+  | 'partyInfo'
+  | 'totalRoomTicks'
+>;
+
+/**
+ * Fetches basic information about the most recently recorded raids from
+ * the database.
+ *
+ * @param limit Maximum number of raids to fetch.
+ * @returns Array of raids.
+ */
+export async function loadRecentRaidInformation(
+  limit: number,
+): Promise<RaidOverview[]> {
+  const raids = await RaidModel.find(
+    {},
+    {
+      _id: 1,
+      startTime: 1,
+      status: 1,
+      mode: 1,
+      party: 1,
+      partyInfo: 1,
+      totalRoomTicks: 1,
+    },
+  )
+    .sort({ startTime: -1 })
+    .limit(limit)
+    .lean();
+
+  return raids ? (raids as RaidOverview[]) : [];
+}
