@@ -9,7 +9,6 @@ import {
 import styles from './style.module.scss';
 import Image from 'next/image';
 import { RaidOverview, loadRecentRaidInformation } from '../../actions/raid';
-import { RaidTeamPanel } from '../../components/raid-team/raid-team';
 import { RaidQuickDetails } from '../../components/raid-quick-details/raid-quick-details';
 import Link from 'next/link';
 
@@ -25,54 +24,25 @@ export default function Page() {
     getRaids();
   }, []);
 
-  let raidElements = raids
-    .map((raid, index) => {
-      const raidEls = [];
-
-      for (let i = 0; i < 3; i++) {
-        raidEls.push(
-          // <Link
-          //   href={`/raids/tob/${raid._id}/overview`}
-          //   style={{ width: '200px', position: 'relative', height: '150px' }}
-          // >
-          <div
-            className={styles.recentRaids}
-            key={`recent-raid-${index}-${i}`}
-            onClick={() => {
-              console.log('ligma');
-              window.location.href = `/raids/tob/${raid._id}/overview`;
-            }}
-          >
-            <div className={styles.recentRaidsTeam}>
-              <span style={{ fontWeight: 'bold' }}>Players: </span>
-              {raid.party.join(', ')}
-            </div>
-            <RaidQuickDetails
-              raidStatus={raid.status}
-              raidDifficulty={raid.mode}
-              totalRaidTicks={raid.totalRoomTicks}
-              deaths={raid.totalDeaths}
-              partySize={raid.party.length}
-              startTime={raid.startTime}
-              compactView={true}
-            />
-          </div>,
-          // </Link>
-        );
-      }
-      return raidEls;
-      // return (
-      //   <div className={styles.recentRaids} key={`recent-raid-${index}`}>
-      //     <RaidTeamPanel players={playersWithGear} />
-      //   </div>
-      // );
-    })
-    .flat();
-
-  // truncate raidElements to 5 maximum
-  raidElements = [...raidElements].slice(0, 5);
-
-  console.log(raidElements);
+  let raidElements = raids.map((raid) => (
+    <Link href={`/raids/tob/${raid._id}/overview`}>
+      <div className={styles.recentRaids} key={`recent-raid-${raid._id}`}>
+        <div className={styles.recentRaidsTeam}>
+          <span style={{ fontWeight: 'bold' }}>Players: </span>
+          {raid.party.join(', ')}
+        </div>
+        <RaidQuickDetails
+          raidStatus={raid.status}
+          raidDifficulty={raid.mode}
+          totalRaidTicks={raid.totalRoomTicks}
+          deaths={raid.totalDeaths}
+          partySize={raid.party.length}
+          startTime={raid.startTime}
+          compactView={true}
+        />
+      </div>
+    </Link>
+  ));
 
   return (
     <>

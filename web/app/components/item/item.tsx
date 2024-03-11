@@ -31,13 +31,11 @@ function is1to5Item(name: string): boolean {
  */
 function normalize(name: string, quantity: number): string {
   // Treat locked items as their unlocked counterparts.
-  if (name.endsWith(' (l)')) {
-    name = name.slice(0, -4);
-  }
+  name = name.replace(/\(l\)/, '');
 
   // The basic format of wiki image filenames takes the item name as it appears
   // in game (preserving case), and replaces spaces with underscores.
-  const stem = name.replaceAll(' ', '_');
+  const stem = name.trim().replaceAll(' ', '_');
 
   if (is1to5Item(name)) {
     // Items using a different sprite from 1-5 are suffixed with their quantity
