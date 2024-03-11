@@ -10,10 +10,11 @@ interface TeamPanelPlayer {
 
 type TeamPanelProps = {
   players: TeamPanelPlayer[];
+  compactView?: boolean;
 };
 
 export function RaidTeamPanel(props: TeamPanelProps) {
-  const { players } = props;
+  const { players, compactView } = props;
 
   const playerElements = players.map((player, index) => {
     return (
@@ -34,5 +35,11 @@ export function RaidTeamPanel(props: TeamPanelProps) {
     );
   });
 
-  return <div className={styles.raid__Team}>{playerElements}</div>;
+  return (
+    <div
+      className={`${styles.raid__Team}${compactView ? ' ' + styles.raid__TeamCompactView : ''}`}
+    >
+      {playerElements}
+    </div>
+  );
 }

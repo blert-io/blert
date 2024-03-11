@@ -35,7 +35,7 @@ export function LeftNav() {
       <ul className={styles.leftNav__menu}>
         {/* Home */}
         <li className={styles.leftNav__menuItem}>
-          <Link className={`${styles.leftNav__menuItemInner}`} href="/raids">
+          <Link className={`${styles.leftNav__menuItemInner}`} href="/">
             <div
               className={styles.leftNav__menuItemIcon}
               style={{
@@ -57,7 +57,7 @@ export function LeftNav() {
         </li>
 
         {/* Search */}
-        <li className={styles.leftNav__menuItem}>
+        {/* <li className={styles.leftNav__menuItem}>
           <Link className={`${styles.leftNav__menuItemInner}`} href="/raids">
             <div className={styles.leftNav__menuItemIcon}>
               <i className="fa-solid fa-magnifying-glass"></i>
@@ -65,7 +65,7 @@ export function LeftNav() {
 
             <span className="active">Search</span>
           </Link>
-        </li>
+        </li> */}
 
         <div className={styles.leftNav__menuDivider}></div>
 
@@ -148,6 +148,56 @@ export function LeftNav() {
           </li>
         )}
 
+        {/* Fortis Colosseum */}
+        <li className={styles.leftNav__menuItem}>
+          <Link
+            className={`${styles.leftNav__menuItemInner}`}
+            href="/challenges/colosseum"
+          >
+            <div
+              className={styles.leftNav__menuItemIcon}
+              style={{
+                width: '40px',
+                position: 'relative',
+                height: '40px',
+              }}
+            >
+              <Image
+                src="/varlamore.png"
+                alt="fortis colosseum icon"
+                fill
+                style={{ objectFit: 'contain' }}
+              />
+            </div>
+            <span className="active">Colosseum</span>
+          </Link>
+        </li>
+
+        {/* Inferno */}
+        <li className={styles.leftNav__menuItem}>
+          <Link
+            className={`${styles.leftNav__menuItemInner}`}
+            href="/challenges/inferno"
+          >
+            <div
+              className={styles.leftNav__menuItemIcon}
+              style={{
+                width: '40px',
+                position: 'relative',
+                height: '40px',
+              }}
+            >
+              <Image
+                src="/inferno.png"
+                alt="fortis inferno icon"
+                fill
+                style={{ objectFit: 'contain' }}
+              />
+            </div>
+            <span className="active">Inferno</span>
+          </Link>
+        </li>
+
         {/* CoX */}
         <li className={styles.leftNav__menuItem}>
           <Link
@@ -198,10 +248,10 @@ export function LeftNav() {
           </Link>
         </li>
 
-        <div className={styles.leftNav__menuDividerTwo}></div>
+        {/* <div className={styles.leftNav__menuDividerTwo}></div> */}
 
         {/* Trends */}
-        <li className={styles.leftNav__menuItem}>
+        {/* <li className={styles.leftNav__menuItem}>
           <Link className={`${styles.leftNav__menuItemInner}`} href="/trends">
             <div className={styles.leftNav__menuItemIcon}>
               <i className="fa-solid fa-arrow-trend-up"></i>
@@ -209,10 +259,10 @@ export function LeftNav() {
 
             <span className="active">Trends</span>
           </Link>
-        </li>
+        </li> */}
 
         {/* Account */}
-        <li className={styles.leftNav__menuItem}>
+        {/* <li className={styles.leftNav__menuItem}>
           <Link className={`${styles.leftNav__menuItemInner}`} href="/account">
             <div className={styles.leftNav__menuItemIcon}>
               <i className="fa-solid fa-user-ninja"></i>
@@ -220,7 +270,7 @@ export function LeftNav() {
 
             <span className="active">Account</span>
           </Link>
-        </li>
+        </li> */}
       </ul>
 
       <div className={styles.leftNav__externalLinks}>
@@ -233,7 +283,7 @@ export function LeftNav() {
             <i className="fa-brands fa-discord"></i>
           </Link>
         </div>
-        <div className={styles.leftNav__externalLink}>
+        {/* <div className={styles.leftNav__externalLink}>
           <Link
             href="https://github.com/blert-io"
             target="_blank"
@@ -241,7 +291,7 @@ export function LeftNav() {
           >
             <i className="fa-brands fa-github"></i>
           </Link>
-        </div>
+        </div> */}
       </div>
     </div>
   );

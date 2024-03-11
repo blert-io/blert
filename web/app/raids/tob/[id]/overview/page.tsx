@@ -4,7 +4,10 @@ import { useContext } from 'react';
 
 import { RaidContext } from '../../context';
 import { RaidBossesOverview } from '../../../../components/raid-bosses-overview/raid-bosses-overview';
-import { RaidLogo } from '../../../../components/raid-logo/raid-logo-details';
+import {
+  PvMContent,
+  PvMContentLogo,
+} from '../../../../components/pvm-content-logo/pvm-content-logo';
 import { RaidQuickDetails } from '../../../../components/raid-quick-details/raid-quick-details';
 import { RaidTeamPanel } from '../../../../components/raid-team/raid-team';
 
@@ -26,7 +29,7 @@ export default function Overview() {
 
   return (
     <div className={styles.raid__Overview}>
-      <RaidLogo />
+      <PvMContentLogo pvmContent={PvMContent.TheatreOfBlood} />
       <RaidQuickDetails
         raidStatus={raid.status}
         raidDifficulty={raid.mode}

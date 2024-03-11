@@ -89,6 +89,7 @@ interface RaidQuickDetailsProps {
   deaths: number;
   partySize: number;
   startTime: Date;
+  compactView?: boolean;
 }
 
 export function RaidQuickDetails(props: RaidQuickDetailsProps) {
@@ -99,6 +100,7 @@ export function RaidQuickDetails(props: RaidQuickDetailsProps) {
     deaths,
     partySize,
     startTime,
+    compactView,
   } = props;
 
   const statusString = raidStatusToFriendlyRaidStatus(raidStatus);
@@ -113,7 +115,9 @@ export function RaidQuickDetails(props: RaidQuickDetailsProps) {
   const ticks = ticksToFormattedSeconds(totalRaidTicks);
 
   return (
-    <div className={styles.raid__bulletpointDetails}>
+    <div
+      className={`${styles.raid__bulletpointDetails}${compactView ? ' ' + styles.raid__bulletpointDetailsCompact : ''}`}
+    >
       <div
         className={styles.raid__bulletpointDetail}
         style={{
@@ -144,7 +148,8 @@ export function RaidQuickDetails(props: RaidQuickDetailsProps) {
         {ticks}
       </div>
       <div className={styles.raid__bulletpointDetail}>
-        <i className="fa-solid fa-skull"></i> {deaths} Deaths
+        <i className="fa-solid fa-skull"></i> {deaths} Death
+        {deaths !== 1 && 's'}
       </div>
       <div className={styles.raid__bulletpointDetail}>
         <i

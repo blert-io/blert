@@ -11,6 +11,30 @@
   overflow: hidden;
 }
 
+.raid__TeamCompactView {
+  box-shadow: none;
+  height: 55px;
+
+  .raid__Player {
+    height: 50px;
+    border: 1px solid red;
+    cursor: auto;
+
+    &:hover {
+      transform: scale(1);
+    }
+
+    .raid__PlayerImg {
+      transform: scale(1.25);
+      top: 26px !important;
+    }
+
+    .raid__PlayerName {
+      top: 0 !important;
+    }
+  }
+}
+
 .raid__Player {
   width: 120px;
   height: 100%;
@@ -22,6 +46,7 @@
 
   &:hover {
     transform: scale(1.1);
+    top: 0px !important;
   }
 }
 

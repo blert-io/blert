@@ -40,6 +40,7 @@ export type RaidOverview = Pick<
   | 'party'
   | 'partyInfo'
   | 'totalRoomTicks'
+  | 'totalDeaths'
 >;
 
 /**
@@ -62,6 +63,7 @@ export async function loadRecentRaidInformation(
       party: 1,
       partyInfo: 1,
       totalRoomTicks: 1,
+      totalDeaths: 1,
     },
   )
     .sort({ startTime: -1 })

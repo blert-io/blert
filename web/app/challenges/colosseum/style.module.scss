@@ -1,0 +1,30 @@
+.fortisOverview {
+  height: 300px;
+}
+
+.fortisOverviewInner {
+  padding: 20px;
+  width: 1200px;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: flex-start;
+
+  .textGreeting {
+    padding: 0 20px;
+
+    h3 {
+      margin: 0;
+      padding: 0;
+    }
+
+    p {
+      margin: 0 0 10px 0;
+      padding: 0;
+    }
+  }
+
+  img {
+    display: inline-block;
+  }
+}

@@ -7,10 +7,17 @@ interface CollapsiblePanelProps extends React.HTMLAttributes<HTMLDivElement> {
   panelTitle: string;
   maxPanelHeight: number;
   defaultExpanded: boolean;
+  disableExpansion?: boolean;
 }
 
 export function CollapsiblePanel(props: CollapsiblePanelProps) {
-  const { panelTitle, maxPanelHeight, defaultExpanded, children } = props;
+  const {
+    panelTitle,
+    maxPanelHeight,
+    defaultExpanded,
+    disableExpansion = false,
+    children,
+  } = props;
   const [expanded, setExpanded] = useState(defaultExpanded);
 
   return (
@@ -18,14 +25,17 @@ export function CollapsiblePanel(props: CollapsiblePanelProps) {
       <div
         className={styles.collapsiblePanelHeader}
         onClick={() => {
+          if (disableExpansion) return;
           setExpanded(!expanded);
         }}
       >
         <div className={styles.collapsiblePanelTitle}>
-          <i
-            className={`fa-solid fa-chevron-down ${styles.collapsiblePanelIcon} ${expanded ? styles.collapsiblePanelIconExpanded : styles.collapsiblePanelIconCollapsed}`}
-            style={{ marginRight: '15px' }}
-          ></i>
+          {disableExpansion !== true && (
+            <i
+              className={`fa-solid fa-chevron-down ${styles.collapsiblePanelIcon} ${expanded ? styles.collapsiblePanelIconExpanded : styles.collapsiblePanelIconCollapsed}`}
+              style={{ marginRight: '15px' }}
+            ></i>
+          )}
           {panelTitle}
         </div>
       </div>

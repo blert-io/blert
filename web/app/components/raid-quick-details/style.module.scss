@@ -8,6 +8,11 @@
   padding-left: 12px;
   margin-bottom: 20px;
   width: 1000px;
+
+  &.raid__bulletpointDetailsCompact {
+    box-shadow: none !important;
+    background: none !important;
+  }
 }
 
 .raid__bulletpointDetail {

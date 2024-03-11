@@ -1,0 +1,71 @@
+.tobOverview {
+  height: 300px;
+}
+
+.tobOverviewInner {
+  padding: 20px;
+  width: 1200px;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: flex-start;
+
+  .textGreeting {
+    padding: 0 20px;
+
+    h3 {
+      margin: 0;
+      padding: 0;
+    }
+
+    p {
+      margin: 0 0 10px 0;
+      padding: 0;
+    }
+  }
+
+  img {
+    display: inline-block;
+  }
+}
+
+.recentRaids {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--blert-text-color);
+  margin-bottom: 5px;
+  cursor: pointer;
+
+  &:hover {
+    background-color: lighten(#1b1c25, 4%);
+  }
+}
+.recentRaidsTeam {
+  font-size: 24px;
+  margin: 20px 0 5px 0;
+  width: 100%;
+  text-align: center;
+}
+
+.tobRecentRecordings {
+  margin-bottom: 20px;
+}
+
+.tobRecentRecordingsList {
+  width: 700px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+
+  .tobRecentRecordingsListEntry {
+    border: 2px solid red;
+    cursor: pointer;
+
+    &:hover {
+      background-color: lighten(#1b1c25, 4%);
+    }
+  }
+}
