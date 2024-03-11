@@ -13,7 +13,7 @@ import {
   isPlayerEvent,
 } from '@blert/common';
 import { TimelineSplit } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
-import { useEffect, useMemo } from 'react';
+import { useContext, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { MAIDEN } from '../../../../../bosses/tob';
 import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
@@ -32,6 +32,7 @@ import {
   useRoomEvents,
 } from '../../../boss-room-state';
 import { clamp } from '../../../../../utils/math';
+import { ActorContext } from '../../../context';
 
 import maidenBaseTiles from './maiden.json';
 import styles from './style.module.scss';
@@ -94,6 +95,8 @@ export default function Maiden() {
     );
   }, [events]);
 
+  const { selectedPlayer } = useContext(ActorContext);
+
   if (raidData === null || events.length === 0) {
     return <>Loading...</>;
   }
@@ -117,6 +120,7 @@ export default function Maiden() {
           e.yCoord,
           e.player.name,
           e.player.hitpoints,
+          /*highlight=*/ e.player.name === selectedPlayer,
         );
         entities.push(player);
         players.push(player);

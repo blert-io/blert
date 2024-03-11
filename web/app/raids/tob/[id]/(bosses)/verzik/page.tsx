@@ -27,6 +27,8 @@ import { Entity, NpcEntity, PlayerEntity } from '../../../../../components/map';
 
 import styles from './style.module.scss';
 import verzikBaseTiles from './verzik-tiles.json';
+import { useContext } from 'react';
+import { ActorContext } from '../../../context';
 
 const VERZIK_MAP_DEFINITION = {
   baseX: 3154,
@@ -72,6 +74,8 @@ export default function VerzikPage() {
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
+
+  const { selectedPlayer } = useContext(ActorContext);
 
   if (raidData === null || events.length === 0) {
     return <>Loading...</>;

@@ -12,7 +12,6 @@
     flex-direction: row;
     flex-wrap: wrap;
     width: 600px;
-    // text-align: center;
 
     .actor {
       cursor: pointer;
@@ -29,6 +28,10 @@
 
       h2 {
         margin: 5px 0;
+      }
+
+      &.selected {
+        border: 1px solid rgb(61, 143, 180);
       }
 
       &:hover {

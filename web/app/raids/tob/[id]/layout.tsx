@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { loadRaid } from '../../../actions/raid';
-import { RaidContext } from '../context';
+import { ActorContext, RaidContext } from '../context';
 
 import styles from './style.module.scss';
 
@@ -24,6 +24,8 @@ export default function RaidLayout(props: RaidLayoutProps) {
 
   const [raid, setRaid] = useState<Raid | null>(null);
   const [error, setError] = useState(false);
+  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
+  const [selectedRoomNpc, setSelectedRoomNpc] = useState<number | null>(null);
 
   useEffect(() => {
     const getRaid = async () => {
@@ -43,7 +45,16 @@ export default function RaidLayout(props: RaidLayoutProps) {
   return (
     <div className={styles.raid}>
       <RaidContext.Provider value={raid}>
-        <div className={styles.content}>{props.children}</div>
+        <ActorContext.Provider
+          value={{
+            selectedPlayer,
+            setSelectedPlayer,
+            selectedRoomNpc,
+            setSelectedRoomNpc,
+          }}
+        >
+          <div className={styles.content}>{props.children}</div>
+        </ActorContext.Provider>
       </RaidContext.Provider>
     </div>
   );
