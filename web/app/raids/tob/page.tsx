@@ -1,16 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+
 import CollapsiblePanel from '../../components/collapsible-panel';
 import {
   PvMContent,
   PvMContentLogo,
 } from '../../components/pvm-content-logo/pvm-content-logo';
-import styles from './style.module.scss';
 import Image from 'next/image';
 import { RaidOverview, loadRecentRaidInformation } from '../../actions/raid';
-import { RaidQuickDetails } from '../../components/raid-quick-details/raid-quick-details';
-import Link from 'next/link';
+import RaidHistory from '../../components/raid-history';
+
+import styles from './style.module.scss';
 
 export default function Page() {
   const [raids, setRaids] = useState<RaidOverview[]>([]);
@@ -23,29 +24,6 @@ export default function Page() {
 
     getRaids();
   }, []);
-
-  let raidElements = raids.map((raid) => (
-    <Link
-      href={`/raids/tob/${raid._id}/overview`}
-      key={`recent-raid-${raid._id}`}
-    >
-      <div className={styles.recentRaids}>
-        <div className={styles.recentRaidsTeam}>
-          <span style={{ fontWeight: 'bold' }}>Players: </span>
-          {raid.party.join(', ')}
-        </div>
-        <RaidQuickDetails
-          raidStatus={raid.status}
-          raidDifficulty={raid.mode}
-          totalRaidTicks={raid.totalRoomTicks}
-          deaths={raid.totalDeaths}
-          partySize={raid.party.length}
-          startTime={raid.startTime}
-          compactView={true}
-        />
-      </div>
-    </Link>
-  ));
 
   return (
     <>
@@ -111,7 +89,7 @@ export default function Page() {
         defaultExpanded={true}
         className={styles.tobRecentRecordings}
       >
-        {raidElements}
+        <RaidHistory raids={raids} />
       </CollapsiblePanel>
     </>
   );

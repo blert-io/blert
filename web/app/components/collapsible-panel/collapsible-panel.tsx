@@ -20,8 +20,13 @@ export function CollapsiblePanel(props: CollapsiblePanelProps) {
   } = props;
   const [expanded, setExpanded] = useState(defaultExpanded);
 
+  let className = `${styles.collapsiblePanel} ${props.className}`;
+  if (disableExpansion) {
+    className += ` ${styles.nonExpandable}`;
+  }
+
   return (
-    <div className={styles.collapsiblePanel}>
+    <div className={className}>
       <div
         className={styles.collapsiblePanelHeader}
         onClick={() => {

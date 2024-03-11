@@ -1,5 +1,6 @@
 export type Player = {
   username: string;
+  formattedUsername: string;
   totalRaidsRecorded: number;
 };
 

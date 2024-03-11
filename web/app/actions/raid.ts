@@ -1,6 +1,16 @@
 'use server';
 
-import { Event, Raid, RaidModel, Room, RoomEvent } from '@blert/common';
+import {
+  Event,
+  Player,
+  PlayerModel,
+  PlayerStats,
+  PlayerStatsModel,
+  Raid,
+  RaidModel,
+  Room,
+  RoomEvent,
+} from '@blert/common';
 import { cache } from 'react';
 
 /**
@@ -48,27 +58,63 @@ export type RaidOverview = Pick<
  * the database.
  *
  * @param limit Maximum number of raids to fetch.
+ * @param username If present, only fetch raids that the user participated in.
  * @returns Array of raids.
  */
 export async function loadRecentRaidInformation(
   limit: number,
+  username?: string,
 ): Promise<RaidOverview[]> {
-  const raids = await RaidModel.find(
-    {},
-    {
-      _id: 1,
-      startTime: 1,
-      status: 1,
-      mode: 1,
-      party: 1,
-      partyInfo: 1,
-      totalRoomTicks: 1,
-      totalDeaths: 1,
-    },
-  )
+  let query = {};
+  if (username) {
+    query = { party: username };
+  }
+  const raids = await RaidModel.find(query, {
+    _id: 1,
+    startTime: 1,
+    status: 1,
+    mode: 1,
+    party: 1,
+    partyInfo: 1,
+    totalRoomTicks: 1,
+    totalDeaths: 1,
+  })
     .sort({ startTime: -1 })
     .limit(limit)
     .lean();
 
   return raids ? (raids as RaidOverview[]) : [];
+}
+
+export type PlayerWithStats = Player & { stats: Omit<PlayerStats, 'username'> };
+
+/**
+ * Looks up a player by their username and fetches their most recent stats.
+ * @param username The player's username.
+ * @returns The player and their stats if found, `null` if not.
+ */
+export async function loadPlayerWithStats(
+  username: string,
+): Promise<PlayerWithStats | null> {
+  username = username.toLowerCase();
+  const promises = [
+    PlayerModel.findOne({ username }, { _id: 0 }).lean() as Promise<Player>,
+    PlayerStatsModel.findOne(
+      { username },
+      { _id: 0, username: 0 },
+      {
+        sort: { date: -1 },
+      },
+    ).lean(),
+  ];
+
+  const [player, stats] = (await Promise.all(promises)) as [
+    Player,
+    PlayerStats,
+  ];
+  if (player === null || stats === null) {
+    return null;
+  }
+
+  return { ...player, stats };
 }

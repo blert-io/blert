@@ -70,7 +70,16 @@ const raidSchema = new Schema<Raid>({
   status: String,
   mode: String,
   startTime: { type: Date },
-  party: { type: [String], index: true },
+  party: {
+    type: [String],
+    index: {
+      unique: false,
+      collation: {
+        locale: 'en',
+        strength: 2,
+      },
+    },
+  },
   partyInfo: { type: [PlayerInfo], default: null },
   totalRoomTicks: { type: Number, default: 0 },
   totalDeaths: { type: Number, default: 0 },

@@ -13,6 +13,7 @@ function startOfDateUtc(): Date {
 
 export class Players {
   public static async startNewRaid(username: string): Promise<void> {
+    username = username.toLowerCase();
     await PlayerModel.findOneAndUpdate(
       { username },
       { $inc: { totalRaidsRecorded: 1 } },
@@ -30,6 +31,7 @@ export class Players {
     username: string,
     callback: (stats: PlayerStatsWithoutUsernameOrDate) => void,
   ): Promise<void> {
+    username = username.toLowerCase();
     let playerStats = await PlayerStatsModel.findOne({ username })
       .sort({ date: -1 })
       .exec();
@@ -43,7 +45,7 @@ export class Players {
         playerStats.date.getTime() === startOfDay.getTime();
 
       if (!statsCreatedToday) {
-        let obj = playerStats.toObject();
+        let obj = playerStats.toObject() as any;
         delete obj._id;
         obj.date = startOfDay;
         playerStats = new PlayerStatsModel(obj);

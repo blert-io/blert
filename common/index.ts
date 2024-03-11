@@ -6,10 +6,7 @@ export { RecordingType } from './user';
 export type { Player, PlayerStats } from './player';
 
 export { ApiKeyModel } from './models/api-key';
-export {
-  Player as PlayerModel,
-  PlayerStats as PlayerStatsModel,
-} from './models/player';
+export { PlayerModel, PlayerStatsModel } from './models/player';
 export { RaidModel } from './models/raid';
 export { RoomEvent } from './models/room-event';
 export { RecordedRaidModel, UserModel } from './models/user';

@@ -1,5 +1,6 @@
 import { PrimaryMeleeGear } from '@blert/common';
 import Image from 'next/image';
+import Link from 'next/link';
 
 import styles from './style.module.scss';
 
@@ -18,7 +19,8 @@ export function RaidTeamPanel(props: TeamPanelProps) {
 
   const playerElements = players.map((player, index) => {
     return (
-      <div
+      <Link
+        href={`/players/${player.name}`}
         key={`raid-player-panel-${index}`}
         className={styles.raid__Player}
         style={{ position: 'relative' }}
@@ -31,7 +33,7 @@ export function RaidTeamPanel(props: TeamPanelProps) {
           fill
           style={{ objectFit: 'contain' }}
         />
-      </div>
+      </Link>
     );
   });
 

@@ -518,6 +518,8 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
     case PlayerAttack.UNKNOWN:
       return 'attacked';
   }
+
+  return 'attacked';
 };
 
 const FUCKING_MAGIC = 55;

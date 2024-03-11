@@ -29,24 +29,6 @@
   }
 }
 
-.recentRaids {
-  display: flex;
-  flex-direction: column;
-  border-bottom: 1px solid var(--blert-text-color);
-  margin-bottom: 5px;
-  cursor: pointer;
-
-  &:hover {
-    background-color: lighten(#1b1c25, 4%);
-  }
-}
-.recentRaidsTeam {
-  font-size: 24px;
-  margin: 20px 0 5px 0;
-  width: 100%;
-  text-align: center;
-}
-
 .tobRecentRecordings {
   margin-bottom: 20px;
 }
