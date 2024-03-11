@@ -167,6 +167,7 @@ export default function SotetsegPage() {
         bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
+        npcs={soteData?.npcs ?? {}}
         splits={splits}
       />
 

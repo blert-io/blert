@@ -181,6 +181,7 @@ export default function VerzikPage() {
         bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
+        npcs={verzikData?.npcs ?? {}}
         splits={splits}
         backgroundColors={backgroundColors}
       />

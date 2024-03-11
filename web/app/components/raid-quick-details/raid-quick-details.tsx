@@ -142,6 +142,13 @@ export function RaidQuickDetails(props: RaidQuickDetailsProps) {
       </div>
       <div className={styles.raid__bulletpointDetail}>
         <i
+          className="fa-solid fa-users"
+          style={{ position: 'relative', left: '-2px' }}
+        ></i>{' '}
+        {partySize} Raiders
+      </div>
+      <div className={styles.raid__bulletpointDetail}>
+        <i
           className="fa-solid fa-hourglass"
           style={{ position: 'relative', left: '4px' }}
         ></i>
@@ -150,13 +157,6 @@ export function RaidQuickDetails(props: RaidQuickDetailsProps) {
       <div className={styles.raid__bulletpointDetail}>
         <i className="fa-solid fa-skull"></i> {deaths} Death
         {deaths !== 1 && 's'}
-      </div>
-      <div className={styles.raid__bulletpointDetail}>
-        <i
-          className="fa-solid fa-users"
-          style={{ position: 'relative', left: '-2px' }}
-        ></i>{' '}
-        {partySize} Raiders
       </div>
       <div
         className={styles.raid__bulletpointDetail}

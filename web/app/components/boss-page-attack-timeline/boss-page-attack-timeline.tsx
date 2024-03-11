@@ -1,6 +1,5 @@
 'use client';
 
-import { useContext, useEffect, useRef } from 'react';
 import {
   Attack,
   Event,
@@ -9,14 +8,18 @@ import {
   PlayerAttack,
   PlayerAttackEvent,
   PlayerUpdateEvent,
+  RoomNpcMap,
   getNpcDefinition,
+  npcFriendlyName,
 } from '@blert/common';
 import Image from 'next/image';
+import { useContext, useEffect, useRef } from 'react';
 
 import { CollapsiblePanel } from '../collapsible-panel/collapsible-panel';
 import Item from '../item';
 import { LigmaTooltip } from '../ligma-tooltip/ligma-tooltip';
-import { MemeContext } from '../../raids/meme-context';
+import { BlertMemes, MemeContext } from '../../raids/meme-context';
+import { ActorContext, RoomActorState } from '../../raids/tob/context';
 
 import styles from './styles.module.scss';
 
@@ -283,11 +286,7 @@ const ATTACK_MEMES = {
   },
 };
 
-const makeCellImage = (
-  playerAttack: Attack,
-  inventoryTags: boolean,
-  capsLock: boolean,
-) => {
+const makeCellImage = (playerAttack: Attack, memes: BlertMemes) => {
   let blunderIcon;
 
   switch (true) {
@@ -306,7 +305,7 @@ const makeCellImage = (
 
   let content;
 
-  if (!capsLock) {
+  if (!memes.capsLock) {
     let infoIcon = undefined;
 
     switch (playerAttack.type) {
@@ -347,7 +346,7 @@ const makeCellImage = (
         break;
     }
 
-    let outline = inventoryTags
+    let outline = memes.inventoryTags
       ? ATTACK_MEMES[playerAttack.type].tagColor
       : undefined;
 
@@ -381,7 +380,7 @@ const makeCellImage = (
   return <div className={styles.attackTimeline__CellImage}>{content}</div>;
 };
 
-const bossAttackName = (attack: NpcAttack) => {
+const bossAttackName = (attack: NpcAttack): string => {
   // A human-readable name for the attack, to be used to complete the sentence
   // "X targeted Y with ..." or "X did ..."
   switch (attack) {
@@ -447,16 +446,99 @@ const bossAttackName = (attack: NpcAttack) => {
   return '';
 };
 
+const playerAttackVerb = (attack: PlayerAttack): string => {
+  switch (attack) {
+    case PlayerAttack.BGS_SMACK:
+      return 'smacked';
+    case PlayerAttack.BGS_SPEC:
+      return "BGS'd";
+    case PlayerAttack.BLOWPIPE:
+      return 'piped';
+    case PlayerAttack.CHALLY_SPEC:
+      return 'challied';
+    case PlayerAttack.CHIN_BLACK:
+    case PlayerAttack.CHIN_GREY:
+    case PlayerAttack.CHIN_RED:
+      return 'chinned';
+    case PlayerAttack.CLAW_SCRATCH:
+      return 'claw scratched';
+    case PlayerAttack.CLAW_SPEC:
+      return 'clawed';
+    case PlayerAttack.DAWN_SPEC:
+      return 'dawned';
+    case PlayerAttack.DINHS_SPEC:
+      return 'dinhsed';
+    case PlayerAttack.FANG:
+      return 'fanged';
+    case PlayerAttack.HAMMER_BOP:
+      return 'hammer bopped';
+    case PlayerAttack.HAMMER_SPEC:
+      return 'hammered';
+    case PlayerAttack.HAM_JOINT:
+      return 'hammed';
+    case PlayerAttack.KODAI_BARRAGE:
+    case PlayerAttack.SANG_BARRAGE:
+    case PlayerAttack.SCEPTRE_BARRAGE:
+    case PlayerAttack.SHADOW_BARRAGE:
+    case PlayerAttack.STAFF_OF_LIGHT_BARRAGE:
+    case PlayerAttack.TOXIC_TRIDENT_BARRAGE:
+    case PlayerAttack.TOXIC_STAFF_BARRAGE:
+    case PlayerAttack.TRIDENT_BARRAGE:
+    case PlayerAttack.UNKNOWN_BARRAGE:
+      return 'froze';
+    case PlayerAttack.KODAI_BASH:
+      return 'kodai bashed';
+    case PlayerAttack.RAPIER:
+      return 'stabbed';
+    case PlayerAttack.SAELDOR:
+      return 'slashed';
+    case PlayerAttack.SANG:
+      return 'sanged';
+    case PlayerAttack.SCYTHE:
+    case PlayerAttack.SCYTHE_UNCHARGED:
+      return 'scythed';
+    case PlayerAttack.SHADOW:
+      return 'shadowed';
+    case PlayerAttack.SOULREAPER_AXE:
+      return 'cleaved';
+    case PlayerAttack.STAFF_OF_LIGHT_SWIPE:
+    case PlayerAttack.TOXIC_STAFF_SWIPE:
+      return 'swiped';
+    case PlayerAttack.SWIFT:
+      return 'swifted';
+    case PlayerAttack.TENT_WHIP:
+      return 'whipped';
+    case PlayerAttack.TWISTED_BOW:
+    case PlayerAttack.UNKNOWN_BOW:
+      return 'bowed';
+    case PlayerAttack.ZCB:
+      return "ZCB'd";
+    case PlayerAttack.TOXIC_TRIDENT:
+    case PlayerAttack.TRIDENT:
+    case PlayerAttack.UNKNOWN:
+      return 'attacked';
+  }
+};
+
 const FUCKING_MAGIC = 55;
 
+type CellInfo = {
+  event: Event | null;
+  highlighted: boolean;
+  backgroundColor?: string;
+};
+
 const buildTickCell = (
-  event: Event | null,
+  cellInfo: CellInfo,
   tick: number,
   actorIndex: number,
-  backgroundColor: string | undefined,
-  inventoryTags: boolean,
-  capsLock: boolean,
+  npcs: RoomNpcMap,
+  actorContext: RoomActorState,
+  memes: BlertMemes,
 ) => {
+  const { setSelectedPlayer } = actorContext;
+  let { event, highlighted, backgroundColor } = cellInfo;
+
   const style: React.CSSProperties = { backgroundColor };
 
   if (event === null) {
@@ -486,11 +568,11 @@ const buildTickCell = (
     tooltip = (
       <LigmaTooltip openOnClick tooltipId={tooltipId}>
         <div className={styles.bossTooltip}>
-          <button className={styles.bossNameButton}>{npcName}</button>
-          {(npcAttack.target && (
+          <button>{npcName}</button>
+          {(npcAttack.target !== undefined && (
             <span>
               targeted
-              <button className={styles.bossTargetNameButton}>
+              <button onClick={() => setSelectedPlayer(npcAttack.target!)}>
                 {npcAttack.target}
               </button>
               with
@@ -503,9 +585,13 @@ const buildTickCell = (
       </LigmaTooltip>
     );
 
+    const className =
+      `${styles.attackTimeline__Cell} ` +
+      `${styles.attackTimeline__BossCooldown} ${styles.cellInteractable}`;
+
     return (
       <div
-        className={`${styles.attackTimeline__Cell} ${styles.attackTimeline__BossCooldown}`}
+        className={className}
         key={`boss-cell-${event.tick}`}
         data-tooltip-id={tooltipId}
         style={style}
@@ -530,10 +616,30 @@ const buildTickCell = (
     let cellImage;
 
     if (attackedThisTick) {
-      cellImage = makeCellImage(
-        (event as PlayerAttackEvent).attack,
-        inventoryTags,
-        capsLock,
+      const attackEvent = event as PlayerAttackEvent;
+      cellImage = makeCellImage(attackEvent.attack, memes);
+
+      let targetName = 'Unknown';
+      const maybeTarget = attackEvent.attack.target;
+      if (maybeTarget !== undefined) {
+        const roomNpc = npcs[maybeTarget.roomId];
+        if (roomNpc !== undefined) {
+          targetName = npcFriendlyName(roomNpc);
+        }
+      }
+
+      tooltipId = `player-${username}-attack-${event.tick}`;
+
+      tooltip = (
+        <LigmaTooltip openOnClick tooltipId={tooltipId}>
+          <div className={styles.playerTooltip}>
+            <button onClick={() => setSelectedPlayer(username)}>
+              {username}
+            </button>
+            <span>{playerAttackVerb(attackEvent.attack.type)}</span>
+            <button>{targetName}</button>
+          </div>
+        </LigmaTooltip>
       );
     } else if (diedThisTick) {
       tooltipId = `player-${username}-death`;
@@ -541,7 +647,9 @@ const buildTickCell = (
       tooltip = (
         <LigmaTooltip openOnClick tooltipId={tooltipId}>
           <div className={styles.playerTooltip}>
-            <button className={styles.playerNameButton}>{username}</button>
+            <button onClick={() => setSelectedPlayer(username)}>
+              {username}
+            </button>
             <span>died</span>
           </div>
         </LigmaTooltip>
@@ -564,6 +672,9 @@ const buildTickCell = (
     }
 
     let className = styles.attackTimeline__Cell;
+    if (tooltip !== undefined) {
+      className += ` ${styles.cellInteractable}`;
+    }
     if (playerIsOffCooldown || diedThisTick) {
       className += ` ${styles.attackTimeline__CellOffCooldown}`;
     } else if (playerIsDead) {
@@ -591,37 +702,38 @@ const buildTickColumn = (
   columnTick: number,
   currentPlaybackTick: number,
   updateTickOnPage: (tick: number) => void,
-  inventoryTags: boolean,
-  capsLock: boolean,
+  npcs: RoomNpcMap,
+  actorContext: RoomActorState,
+  memes: BlertMemes,
   split?: TimelineSplit,
   backgroundColor?: string,
 ) => {
   const tickCells = [];
-  const cellEvents = [];
+  const cellInfo: CellInfo[] = [];
 
-  const allPlayersTimelines = Array.from(attackTimeline.values());
+  const { selectedPlayer } = actorContext;
 
   const bossEvent = bossAttackTimeline.find(
     (event) => event.tick === columnTick,
   );
-  cellEvents.push(bossEvent ?? null);
+  cellInfo.push({
+    event: bossEvent ?? null,
+    highlighted: false,
+    backgroundColor,
+  });
 
-  for (let i = 0; i < allPlayersTimelines.length; i++) {
-    const playerTimeline = allPlayersTimelines[i];
+  attackTimeline.forEach((playerTimeline, playerName) => {
     const event = playerTimeline.find((event) => event?.tick === columnTick);
-    cellEvents.push(event ?? null);
-  }
+    cellInfo.push({
+      event: event ?? null,
+      highlighted: selectedPlayer === playerName,
+      backgroundColor,
+    });
+  });
 
-  for (let i = 0; i < cellEvents.length; i++) {
+  for (let i = 0; i < cellInfo.length; i++) {
     tickCells.push(
-      buildTickCell(
-        cellEvents[i],
-        columnTick,
-        i,
-        backgroundColor,
-        inventoryTags,
-        capsLock,
-      ),
+      buildTickCell(cellInfo[i], columnTick, i, npcs, actorContext, memes),
     );
   }
 
@@ -635,7 +747,7 @@ const buildTickColumn = (
       {split !== undefined && (
         <div className={styles.attackTimeline__RoomSplit}>
           <LigmaTooltip openOnClick tooltipId={tooltipId}>
-            <h1>Hello</h1>
+            {split.splitName}
           </LigmaTooltip>
           <span data-tooltip-id={tooltipId}>{split.splitName}</span>
           <div className={styles.splitIndicatorWrapper}>
@@ -688,6 +800,7 @@ interface AttackTimelineProps {
   splits: TimelineSplit[];
   backgroundColors?: TimelineColor[];
   updateTickOnPage: (tick: number) => void;
+  npcs: RoomNpcMap;
 }
 
 export function BossPageAttackTimeline(props: AttackTimelineProps) {
@@ -700,18 +813,20 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
     timelineTicks,
     backgroundColors,
     splits,
+    npcs,
   } = props;
 
   const memes = useContext(MemeContext);
+  const actorContext = useContext(ActorContext);
 
-  let nextBossAttackNpcId = bossAttackTimeline.find(
+  let nextBossAttackNpc = bossAttackTimeline.find(
     (evt) => evt.tick > currentTick,
-  )?.npc.id;
-  if (nextBossAttackNpcId === undefined) {
-    nextBossAttackNpcId =
-      bossAttackTimeline[bossAttackTimeline.length - 1]?.npc.id ?? 0;
+  )?.npc;
+  if (nextBossAttackNpc === undefined) {
+    nextBossAttackNpc = bossAttackTimeline[bossAttackTimeline.length - 1]?.npc;
   }
-  const npcName = getNpcDefinition(nextBossAttackNpcId)?.shortName ?? 'Unknown';
+  const npcName =
+    getNpcDefinition(nextBossAttackNpc?.id ?? 0)?.shortName ?? 'Unknown';
 
   const attackTimelineRef = useRef<HTMLDivElement>(null);
 
@@ -765,8 +880,9 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
         tick,
         currentTick,
         updateTickOnPage,
-        memes.inventoryTags,
-        memes.capsLock,
+        npcs,
+        actorContext,
+        memes,
         potentialSplit,
         color,
       ),
@@ -781,13 +897,35 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
   const attackTLLegendElements = [];
 
   for (let i = 0; i < attackTimelineParticipants.length; i++) {
+    const name = attackTimelineParticipants[i];
+    const isBoss = i === 0;
+
+    let className = styles.attackTimeline__LegendParticipant;
+    let onClick;
+
+    if (isBoss) {
+      onClick = () =>
+        actorContext.setSelectedRoomNpc(nextBossAttackNpc?.roomId ?? null);
+      className += ` ${styles.attackTimeline__LegendParticipant__Boss}`;
+      if (nextBossAttackNpc?.roomId === actorContext.selectedRoomNpc) {
+        // TODO(frolv): Support selected NPCs.
+        // className += ` ${styles.selected}`;
+      }
+    } else {
+      onClick = () =>
+        actorContext.setSelectedPlayer((p) => (p === name ? null : name));
+      if (name === actorContext.selectedPlayer) {
+        className += ` ${styles.selected}`;
+      }
+    }
     attackTLLegendElements.push(
-      <div
-        className={`${styles.attackTimeline__LegendParticipant}${i === 0 ? ` ${styles.attackTimeline__LegendParticipant__Boss}` : ''}`}
-        key={`attack-tl-participant-${attackTimelineParticipants[i]}`}
+      <button
+        className={className}
+        key={`attack-tl-participant-${name}`}
+        onClick={onClick}
       >
         {attackTimelineParticipants[i]}
-      </div>,
+      </button>,
     );
   }
 

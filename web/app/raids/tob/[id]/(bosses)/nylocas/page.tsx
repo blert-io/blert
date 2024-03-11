@@ -389,6 +389,7 @@ export default function NylocasPage() {
         updateTickOnPage={updateTickOnPage}
         splits={splits}
         backgroundColors={backgroundColors}
+        npcs={nyloData?.npcs ?? {}}
       />
 
       <BossPageReplay

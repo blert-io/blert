@@ -211,6 +211,7 @@ export default function Maiden() {
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
         splits={splits}
+        npcs={maidenData?.npcs ?? {}}
       />
 
       <BossPageReplay

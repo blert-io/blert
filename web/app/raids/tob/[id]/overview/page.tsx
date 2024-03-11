@@ -29,7 +29,11 @@ export default function Overview() {
 
   return (
     <div className={styles.raid__Overview}>
-      <PvMContentLogo pvmContent={PvMContent.TheatreOfBlood} />
+      <PvMContentLogo
+        pvmContent={PvMContent.TheatreOfBlood}
+        height={200}
+        width={380}
+      />
       <RaidQuickDetails
         raidStatus={raid.status}
         raidDifficulty={raid.mode}

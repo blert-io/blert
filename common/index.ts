@@ -61,6 +61,7 @@ export type {
   Raid,
   Rooms,
   RoomNpc,
+  RoomNpcMap,
   RoomOverview,
   SkillLevel,
   VerzikCrab,

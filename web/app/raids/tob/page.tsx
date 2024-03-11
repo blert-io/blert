@@ -25,8 +25,11 @@ export default function Page() {
   }, []);
 
   let raidElements = raids.map((raid) => (
-    <Link href={`/raids/tob/${raid._id}/overview`}>
-      <div className={styles.recentRaids} key={`recent-raid-${raid._id}`}>
+    <Link
+      href={`/raids/tob/${raid._id}/overview`}
+      key={`recent-raid-${raid._id}`}
+    >
+      <div className={styles.recentRaids}>
         <div className={styles.recentRaidsTeam}>
           <span style={{ fontWeight: 'bold' }}>Players: </span>
           {raid.party.join(', ')}

@@ -137,6 +137,7 @@ export default function XarpusPage() {
         bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
+        npcs={xarpusData?.npcs ?? {}}
         splits={splits}
       />
 

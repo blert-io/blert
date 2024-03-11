@@ -21,10 +21,12 @@ export type Rooms = {
   [Room.VERZIK]: VerzikOverview | null;
 };
 
+export type RoomNpcMap = { [roomId: number]: RoomNpc };
+
 export interface RoomOverview {
   roomTicks: number;
   deaths: string[];
-  npcs: Map<string, RoomNpc>;
+  npcs: RoomNpcMap;
 }
 
 export interface MaidenOverview extends RoomOverview {

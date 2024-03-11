@@ -27,7 +27,7 @@ export function BossPageDPSTimeline(props: BossPageDPSTimelineProps) {
 
   return (
     <CollapsiblePanel
-      panelTitle="DPS Timeline"
+      panelTitle="Charts"
       maxPanelHeight={1000}
       defaultExpanded
       className={styles.dpsTimeline}

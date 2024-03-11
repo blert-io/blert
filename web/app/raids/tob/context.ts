@@ -1,13 +1,13 @@
 import { Raid } from '@blert/common';
-import { createContext } from 'react';
+import { Dispatch, SetStateAction, createContext } from 'react';
 
 export const RaidContext = createContext<Raid | null>(null);
 
-type RoomActorState = {
+export type RoomActorState = {
   selectedPlayer: string | null;
-  setSelectedPlayer: (player: string | null) => void;
+  setSelectedPlayer: Dispatch<SetStateAction<string | null>>;
   selectedRoomNpc: number | null;
-  setSelectedRoomNpc: (npcId: number | null) => void;
+  setSelectedRoomNpc: Dispatch<SetStateAction<number | null>>;
 };
 
 export const ActorContext = createContext<RoomActorState>({

@@ -166,6 +166,7 @@ export default function BloatPage() {
         bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
+        npcs={bloatData?.npcs ?? {}}
         splits={splits}
         backgroundColors={backgroundColors}
       />
