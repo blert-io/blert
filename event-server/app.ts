@@ -1,3 +1,4 @@
+import cors from 'cors';
 import express, { Request } from 'express';
 import { connect } from 'mongoose';
 import { WebSocket, WebSocketServer } from 'ws';
@@ -24,6 +25,7 @@ async function main(): Promise<void> {
   const port = process.env.PORT || 3003;
 
   const app = express();
+  app.use(cors({ origin: '*', allowedHeaders: ['Authorization'] }));
   const server = app.listen(port, () => {
     console.log(`blert server started on port ${port}`);
   });
