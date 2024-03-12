@@ -3,18 +3,19 @@
 import Image from 'next/image';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 
 import styles from './styles.module.scss';
+import { usePathname, useRouter } from 'next/navigation';
 
 export function LeftNav() {
   const currentPath = usePathname();
+  const router = useRouter();
 
   // viewingTob is determined by if the current path matches the following: /raids/tob/{a guid}
-  const viewingTob = currentPath.match(/\/raids\/tob\/[a-zA-Z0-9-]+/);
+  const viewingTob = currentPath!.match(/\/raids\/tob\/[a-zA-Z0-9-]+/);
 
   // now grab just that portion of the path into a new string
-  const currentPathForRaid = currentPath.split('/').slice(0, 4).join('/');
+  const currentPathForRaid = currentPath!.split('/').slice(0, 4).join('/');
 
   return (
     <div className={styles.leftNav}>
@@ -54,6 +55,18 @@ export function LeftNav() {
 
             <span className="active">Home</span>
           </Link>
+        </li>
+
+        <li className={styles.leftNav__playerSearch}>
+          <input
+            type="text"
+            placeholder="Search for a player"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                router.push(`/players/${e.currentTarget.value}`);
+              }
+            }}
+          />
         </li>
 
         {/* Search */}
@@ -274,7 +287,7 @@ export function LeftNav() {
       </ul>
 
       <div className={styles.leftNav__externalLinks}>
-        <div className={styles.leftNav__externalLink}>
+        {/* <div className={styles.leftNav__externalLink}>
           <Link
             href="https://discord.gg/yWD6KGuG"
             target="_blank"
@@ -282,7 +295,7 @@ export function LeftNav() {
           >
             <i className="fa-brands fa-discord"></i>
           </Link>
-        </div>
+        </div> */}
         {/* <div className={styles.leftNav__externalLink}>
           <Link
             href="https://github.com/blert-io"

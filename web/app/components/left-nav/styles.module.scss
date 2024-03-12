@@ -16,6 +16,24 @@
   //   box-shadow: none;
   // }
 }
+.leftNav__playerSearch {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  input {
+    border: 1px solid var(--blert-text-color);
+    background: none;
+    font-size: 20px;
+    color: white;
+    width: 200px;
+    border-radius: 5px;
+    padding: 5px 0 5px 16px;
+    outline: none;
+    // text-align: center;
+  }
+}
 
 .leftNav__logo {
   padding-top: 20px;
