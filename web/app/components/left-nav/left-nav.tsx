@@ -287,7 +287,7 @@ export function LeftNav() {
       </ul>
 
       <div className={styles.leftNav__externalLinks}>
-        {/* <div className={styles.leftNav__externalLink}>
+        <div className={styles.leftNav__externalLink}>
           <Link
             href="https://discord.gg/yWD6KGuG"
             target="_blank"
@@ -295,8 +295,8 @@ export function LeftNav() {
           >
             <i className="fa-brands fa-discord"></i>
           </Link>
-        </div> */}
-        {/* <div className={styles.leftNav__externalLink}>
+        </div>
+        <div className={styles.leftNav__externalLink}>
           <Link
             href="https://github.com/blert-io"
             target="_blank"
@@ -304,7 +304,7 @@ export function LeftNav() {
           >
             <i className="fa-brands fa-github"></i>
           </Link>
-        </div> */}
+        </div>
       </div>
     </div>
   );
