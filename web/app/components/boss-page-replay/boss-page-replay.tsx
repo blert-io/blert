@@ -10,7 +10,7 @@ import { ActorContext } from '../../raids/tob/context';
 
 import styles from './styles.module.scss';
 
-const MAP_TILE_SIZE = 35;
+const MAP_TILE_SIZE = 30;
 
 export type PlayerDetails = {
   [username: string]: { equipment?: Partial<EquipmentMap> };
