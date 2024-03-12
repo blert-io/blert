@@ -56,7 +56,8 @@ export default function Player(props: PlayerPageProps) {
   let playersPrimaryMeleeGear;
   if (raids.length > 0) {
     pIndex = raids[0].party.findIndex((p) => p === username);
-    playersPrimaryMeleeGear = raids[0].partyInfo[pIndex].gear;
+    playersPrimaryMeleeGear =
+      raids[0].partyInfo[pIndex]?.gear ?? PrimaryMeleeGear.ELITE_VOID;
   } else {
     playersPrimaryMeleeGear = PrimaryMeleeGear.ELITE_VOID;
   }
