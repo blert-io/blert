@@ -2,10 +2,12 @@ import { WebSocket } from 'ws';
 
 import MessageHandler from './message-handler';
 import Raid from './raid';
-import { ServerMessage } from './server-message';
+import { ServerMessage, ServerMessageType } from './server-message';
 import { BasicUser } from './users';
 
 export default class Client {
+  private static HEARTBEAT_INTERVAL_MS: number = 5000;
+
   private user: BasicUser;
   private sessionId: number;
   private socket: WebSocket;
@@ -14,6 +16,8 @@ export default class Client {
   private messages: ServerMessage[];
 
   private closeCallbacks: (() => void)[];
+
+  private lastHeartbeatTime: number;
 
   constructor(
     socket: WebSocket,
@@ -27,6 +31,7 @@ export default class Client {
     this.activeRaid = null;
     this.closeCallbacks = [];
     this.messages = [];
+    this.lastHeartbeatTime = Date.now();
 
     socket.on('close', () => this.cleanup());
 
@@ -37,6 +42,7 @@ export default class Client {
     });
 
     setTimeout(() => this.processMessages(), 20);
+    setTimeout(() => this.heartbeat(), Client.HEARTBEAT_INTERVAL_MS);
   }
 
   /**
@@ -91,11 +97,22 @@ export default class Client {
   private async processMessages(): Promise<void> {
     if (this.messages.length > 0) {
       const message = this.messages.shift()!;
-      await this.messageHandler.handleMessage(this, message);
+
+      if (message.type === ServerMessageType.HEARTBEAT_PONG) {
+        this.lastHeartbeatTime = Date.now();
+      } else {
+        await this.messageHandler.handleMessage(this, message);
+      }
     }
 
     // Keep running forever.
     setTimeout(() => this.processMessages(), 20);
+  }
+
+  private async heartbeat(): Promise<void> {
+    this.sendMessage({ type: ServerMessageType.HEARTBEAT_PING });
+    // Keep running forever.
+    setTimeout(() => this.heartbeat(), Client.HEARTBEAT_INTERVAL_MS);
   }
 
   private cleanup(): void {
