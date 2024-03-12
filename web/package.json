@@ -12,6 +12,9 @@
   },
   "dependencies": {
     "@blert/common": "file:../common",
+    "@fortawesome/fontawesome-svg-core": "^6.5.1",
+    "@fortawesome/free-solid-svg-icons": "^6.5.1",
+    "@fortawesome/react-fontawesome": "^0.2.0",
     "@types/react-timeago": "^4.1.7",
     "@types/recharts": "^1.8.29",
     "mongoose": "^8.1.1",

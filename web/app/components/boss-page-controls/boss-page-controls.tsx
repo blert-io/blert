@@ -6,7 +6,9 @@ import { useEffect, useRef, useState } from 'react';
 import { clamp } from '../../utils/math';
 
 import styles from './styles.module.scss';
-import { PrimaryMeleeGear } from '@blert/common';
+
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faCheck } from '@fortawesome/free-solid-svg-icons';
 
 interface BossControlsProps {
   currentlyPlaying: boolean;
@@ -68,9 +70,11 @@ export function BossPageControls(props: BossControlsProps) {
           updatePlayingState(true);
         }}
       >
-        <i
-          className={`${styles.controls_BtnIcon} fa-regular fa-circle-play`}
-        ></i>
+        <FontAwesomeIcon
+          icon={faCheck}
+          className="fas fa-check"
+          style={{ color: 'red' }}
+        ></FontAwesomeIcon>
       </button>
       <button
         className={styles.controls__pauseButton}

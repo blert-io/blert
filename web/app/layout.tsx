@@ -4,6 +4,10 @@ import connectToDatabase from './actions/db';
 
 import './globals.scss';
 
+import '@fortawesome/fontawesome-svg-core/styles.css';
+import { config } from '@fortawesome/fontawesome-svg-core';
+config.autoAddCss = false;
+
 import styles from './styles.module.scss';
 import { LeftNav } from './components/left-nav/left-nav';
 
