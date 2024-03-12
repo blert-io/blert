@@ -7,8 +7,6 @@ import './globals.scss';
 import styles from './styles.module.scss';
 import { LeftNav } from './components/left-nav/left-nav';
 
-connectToDatabase();
-
 const inter = Inter({ subsets: ['latin'] });
 
 export default function RootLayout({

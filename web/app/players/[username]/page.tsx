@@ -71,6 +71,7 @@ export default function Player(props: PlayerPageProps) {
           <Statistic name="Wipes" value={stats.wipes} />
         </div>
         <div className={styles.stats}>
+          <Statistic name="Hammer bops" value={stats.hammerBops} />
           <div>
             {chinsThrownIncorrectlyPercentage.toFixed(2)}% chins incorrectly
             thrown xdddd

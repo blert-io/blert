@@ -28,6 +28,7 @@ export default async function connectToDatabase() {
     }
 
     const mongoUri = `mongodb://${dbAuth}${process.env.DB_HOST}`;
+    console.log('Connecting to database');
     cached.promise = mongoose.connect(mongoUri).then((mongoose) => {
       return mongoose;
     });

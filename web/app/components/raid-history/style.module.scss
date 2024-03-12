@@ -1,18 +1,27 @@
-.recentRaids {
-  display: flex;
-  flex-direction: column;
-  border-bottom: 1px solid var(--blert-text-color);
-  margin-bottom: 5px;
-  cursor: pointer;
+.history {
+  width: 1100px;
 
-  &:hover {
-    background-color: lighten(#1b1c25, 4%);
+  & > .message {
+    text-align: center;
+    padding: 1em 0;
   }
 
-  .recentRaidsTeam {
-    font-size: 24px;
-    margin: 20px 0 5px 0;
-    width: 100%;
-    text-align: center;
+  .recentRaid {
+    display: flex;
+    flex-direction: column;
+    border-bottom: 1px solid var(--blert-text-color);
+    margin-bottom: 5px;
+    cursor: pointer;
+
+    &:hover {
+      background-color: lighten(#1b1c25, 4%);
+    }
+
+    .recentRaidTeam {
+      font-size: 24px;
+      margin: 20px 0 5px 0;
+      width: 100%;
+      text-align: center;
+    }
   }
 }

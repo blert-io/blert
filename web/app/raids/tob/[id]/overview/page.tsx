@@ -16,7 +16,7 @@ import styles from './style.module.scss';
 export default function Overview() {
   const raid = useContext(RaidContext);
 
-  if (raid === null || raid === undefined) {
+  if (raid === null) {
     return <div>Loading...</div>;
   }
 

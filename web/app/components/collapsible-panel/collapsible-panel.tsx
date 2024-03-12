@@ -20,7 +20,7 @@ export function CollapsiblePanel(props: CollapsiblePanelProps) {
   } = props;
   const [expanded, setExpanded] = useState(defaultExpanded);
 
-  let className = `${styles.collapsiblePanel} ${props.className}`;
+  let className = `${styles.collapsiblePanel}`;
   if (disableExpansion) {
     className += ` ${styles.nonExpandable}`;
   }

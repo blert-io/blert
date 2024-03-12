@@ -12,14 +12,18 @@ import { RaidOverview, loadRecentRaidInformation } from '../../actions/raid';
 import RaidHistory from '../../components/raid-history';
 
 import styles from './style.module.scss';
+import { set } from 'mongoose';
 
 export default function Page() {
+  const [loading, setLoading] = useState(true);
   const [raids, setRaids] = useState<RaidOverview[]>([]);
 
   useEffect(() => {
     const getRaids = async () => {
+      setLoading(true);
       const raidResults = await loadRecentRaidInformation(5);
       setRaids(raidResults);
+      setLoading(false);
     };
 
     getRaids();
@@ -89,7 +93,7 @@ export default function Page() {
         defaultExpanded={true}
         className={styles.tobRecentRecordings}
       >
-        <RaidHistory raids={raids} />
+        <RaidHistory raids={raids} loading={loading} />
       </CollapsiblePanel>
     </>
   );
