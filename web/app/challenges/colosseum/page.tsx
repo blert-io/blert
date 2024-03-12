@@ -32,34 +32,29 @@ export default function Page() {
           />
 
           <div className={styles.textGreeting}>
-            <h3>Hello</h3>
-
-            <p>
-              Lorem ipsum dolor sit amet consectetur adipisicing elit. Molestias
-              rem, cupiditate repellendus, consequatur animi, maiores
-              necessitatibus sed voluptate doloribus quae minus fugiat? At
-              obcaecati, harum quas veritatis porro quidem illo incidunt
-              repellat consequuntur laudantium? Saepe non tempore commodi
-              maiores sequi possimus praesentium iure! Consequuntur possimus
-              voluptas, neque fugit ut consectetur.
-            </p>
-
-            <p>
-              Lorem ipsum dolor sit amet consectetur, adipisicing elit. Sequi
-              nisi quam facilis ipsum modi hic rerum rem! Dolorum incidunt
-              cumque libero nisi ratione non ducimus facere, blanditiis labore
-              quis at sequi officiis molestias. Officia minima temporibus
-              laudantium non quia praesentium ratione mollitia maxime, similique
-              omnis odio expedita asperiores dolores quod quasi placeat itaque
-              harum aliquam laborum sed illo atque! Accusantium excepturi,
-              itaque sint ipsum veritatis ea dolorem tempora incidunt temporibus
-              accusamus in, ratione eligendi nesciunt!
-            </p>
-
-            <p>
-              Lorem ipsum dolor sit amet consectetur adipisicing elit. Dolor
-              adipisci placeat officiis libero ex? Magni dicta iste fugiat
-              cupiditate porro minus quod, qui animi!
+            <p
+              style={{
+                fontSize: '26px',
+                paddingTop: '35px',
+              }}
+            >
+              We are as excited as you are to dive into the Fortis Colosseum on
+              March 20th. We will be recording the data necessary to enable
+              Fortis Colosseum analysis and visualizations on Blert while we do
+              the content ourselves for the first time. Stay tuned for updates!
+              <br />
+              <br />
+              If youd like to help out, have any feedback, or just want to chat,
+              feel free to join our{' '}
+              <a
+                href="https://discord.gg/c5Hgv3NnYe"
+                target="_blank"
+                rel="noreferrer noopener"
+                style={{ textDecoration: 'underline' }}
+              >
+                Discord Server
+              </a>
+              !
             </p>
           </div>
         </div>

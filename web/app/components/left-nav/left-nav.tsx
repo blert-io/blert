@@ -289,7 +289,7 @@ export function LeftNav() {
       <div className={styles.leftNav__externalLinks}>
         <div className={styles.leftNav__externalLink}>
           <Link
-            href="https://discord.gg/yWD6KGuG"
+            href="https://discord.gg/c5Hgv3NnYe"
             target="_blank"
             rel="noreferrer noopener"
           >
