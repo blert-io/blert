@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 
 import {
   PlayerWithStats,
@@ -41,6 +41,15 @@ export default function Player(props: PlayerPageProps) {
     loadPlayer();
   }, [username]);
 
+  useEffect(() => {
+    const name = player?.formattedUsername ?? username;
+    document.title = `${name} | Blert`;
+
+    return () => {
+      document.title = 'Blert';
+    };
+  }, [player]);
+
   if (loading) {
     return <div>Loading...</div>;
   }
@@ -66,8 +75,6 @@ export default function Player(props: PlayerPageProps) {
     stats.chinsThrownMaiden > 0
       ? (stats.chinsThrownIncorrectlyMaiden / stats.chinsThrownMaiden) * 100
       : 0;
-
-  console.log('ligma', stats);
 
   return (
     <div className={styles.playerPage}>

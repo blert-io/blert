@@ -40,9 +40,9 @@ const raidDifficultyToColor = (difficulty: Mode | undefined) => {
   }
 };
 
-const raidStatusToFriendlyRaidStatus = (status: RaidStatus) => {
+export const raidStatusToFriendlyRaidStatus = (status: RaidStatus) => {
   if (status === RaidStatus.COMPLETED) {
-    return 'Completed';
+    return 'Completion';
   }
 
   const split = status.split('_');

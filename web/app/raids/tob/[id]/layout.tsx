@@ -8,6 +8,7 @@ import { loadRaid } from '../../../actions/raid';
 import { ActorContext, RaidContext } from '../context';
 
 import styles from './style.module.scss';
+import { raidStatusToFriendlyRaidStatus } from '../../../components/raid-quick-details/raid-quick-details';
 
 type RaidParams = {
   id: string;
@@ -41,6 +42,19 @@ export default function RaidLayout(props: RaidLayoutProps) {
 
     // Reload raid every time the page changes to support in-progress raids.
   }, [id, pathname]);
+
+  useEffect(() => {
+    if (raid !== null) {
+      const status = raidStatusToFriendlyRaidStatus(raid.status);
+      document.title = `ToB ${status} | Blert`;
+    } else {
+      document.title = `Theatre of Blood | Blert`;
+    }
+
+    return () => {
+      document.title = 'Blert';
+    };
+  }, [raid]);
 
   return (
     <div className={styles.raid}>
