@@ -7,6 +7,10 @@
   width: 100%;
 }
 
+.home__Image {
+  margin: 20px 0;
+}
+
 .pageParentContent {
   flex-grow: 1;
   background-color: var(--content-area-bg);
@@ -24,8 +28,18 @@
   flex-direction: column;
   padding-top: 5em;
 
+  .homeInner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 800px;
+  }
+
   img {
     border-radius: 5px;
     box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.2);
   }
+}
+
+.homeOverview {
 }

@@ -32,34 +32,34 @@ export default function Page() {
           />
 
           <div className={styles.textGreeting}>
-            <h3>Hello</h3>
-
-            <p>
-              Lorem ipsum dolor sit amet consectetur adipisicing elit. Molestias
-              rem, cupiditate repellendus, consequatur animi, maiores
-              necessitatibus sed voluptate doloribus quae minus fugiat? At
-              obcaecati, harum quas veritatis porro quidem illo incidunt
-              repellat consequuntur laudantium? Saepe non tempore commodi
-              maiores sequi possimus praesentium iure! Consequuntur possimus
-              voluptas, neque fugit ut consectetur.
-            </p>
-
-            <p>
-              Lorem ipsum dolor sit amet consectetur, adipisicing elit. Sequi
-              nisi quam facilis ipsum modi hic rerum rem! Dolorum incidunt
-              cumque libero nisi ratione non ducimus facere, blanditiis labore
-              quis at sequi officiis molestias. Officia minima temporibus
-              laudantium non quia praesentium ratione mollitia maxime, similique
-              omnis odio expedita asperiores dolores quod quasi placeat itaque
-              harum aliquam laborum sed illo atque! Accusantium excepturi,
-              itaque sint ipsum veritatis ea dolorem tempora incidunt temporibus
-              accusamus in, ratione eligendi nesciunt!
-            </p>
-
-            <p>
-              Lorem ipsum dolor sit amet consectetur adipisicing elit. Dolor
-              adipisci placeat officiis libero ex? Magni dicta iste fugiat
-              cupiditate porro minus quod, qui animi!
+            <p
+              style={{
+                fontSize: '26px',
+                paddingTop: '40px',
+              }}
+            >
+              Here on the Blert team, we love zuk. We are aiming to add Inferno
+              support to Blert in the very near future. Stay tuned for updates!
+              <br />
+              <br />
+              If you have any question, would like to help out, have any
+              feedback, or just want to chat, feel free to join our{' '}
+              <a
+                href="https://discord.gg/c5Hgv3NnYe"
+                target="_blank"
+                rel="noreferrer noopener"
+                style={{ textDecoration: 'underline' }}
+              >
+                Discord Server
+              </a>
+              !
+              <br />
+              <br />
+              Also, read our{' '}
+              <a href="/" style={{ textDecoration: 'underline' }}>
+                FAQ
+              </a>
+              !
             </p>
           </div>
         </div>
