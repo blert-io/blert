@@ -568,7 +568,7 @@ const buildTickCell = (
 
     tooltipId = `boss-attack-${event.tick}`;
     tooltip = (
-      <LigmaTooltip openOnClick tooltipId={tooltipId}>
+      <LigmaTooltip tooltipId={tooltipId}>
         <div className={styles.bossTooltip}>
           <button>{npcName}</button>
           {(npcAttack.target !== undefined && (
@@ -633,7 +633,7 @@ const buildTickCell = (
       tooltipId = `player-${username}-attack-${event.tick}`;
 
       tooltip = (
-        <LigmaTooltip openOnClick tooltipId={tooltipId}>
+        <LigmaTooltip tooltipId={tooltipId}>
           <div className={styles.playerTooltip}>
             <button onClick={() => setSelectedPlayer(username)}>
               {username}
@@ -647,7 +647,7 @@ const buildTickCell = (
       tooltipId = `player-${username}-death`;
 
       tooltip = (
-        <LigmaTooltip openOnClick tooltipId={tooltipId}>
+        <LigmaTooltip tooltipId={tooltipId}>
           <div className={styles.playerTooltip}>
             <button onClick={() => setSelectedPlayer(username)}>
               {username}
