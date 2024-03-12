@@ -20,6 +20,8 @@ type PlayerPageProps = {
   params: { username: string };
 };
 
+const STATISTIC_WIDTH = 126;
+
 export default function Player(props: PlayerPageProps) {
   const username = decodeURIComponent(props.params.username);
 
@@ -81,7 +83,6 @@ export default function Player(props: PlayerPageProps) {
       <div className={styles.playerPreview}>
         <div className={styles.playerImgWrapper}>
           <Image
-            className={styles.raid__PlayerImg}
             src={`/${PrimaryMeleeGear[PrimaryMeleeGear.BLORVA].toLowerCase()}.webp`}
             alt={PrimaryMeleeGear[playersPrimaryMeleeGear].toLowerCase()}
             fill
@@ -96,103 +97,141 @@ export default function Player(props: PlayerPageProps) {
         defaultExpanded
         disableExpansion
       >
-        <div className={styles.stats}>
-          <Statistic
-            supplementalClassName={styles.individualStat}
-            name="Raids"
-            value={player.totalRaidsRecorded}
-          />
-          <Statistic
-            supplementalClassName={styles.individualStat}
-            name="Completions"
-            value={stats.completions}
-          />
-          <Statistic
-            supplementalClassName={styles.individualStat}
-            name="Resets"
-            value={stats.resets}
-          />
-          <Statistic
-            supplementalClassName={styles.individualStat}
-            name="Wipes"
-            value={stats.wipes}
-          />
-          <Statistic
-            supplementalClassName={styles.individualStat}
-            name="BGS Smacks"
-            value={stats.bgsSmacks}
-          />
-          <Statistic
-            supplementalClassName={styles.individualStat}
-            name="Hammer Bops"
-            value={stats.hammerBops}
-          />
-          <Statistic
-            supplementalClassName={styles.individualStat}
-            name="Uncharged Scy Swings"
-            value={stats.unchargedScytheSwings}
-          />
-          <Statistic
-            supplementalClassName={styles.individualStat}
-            name="Barrage w/o Staff"
-            value={stats.barragesWithoutProperWeapon}
-          />
-          <Statistic
-            supplementalClassName={styles.individualStat}
-            name="Total Deaths"
-            value={stats.deaths}
-          />
-          <Statistic
-            supplementalClassName={styles.individualStat}
-            name="Maiden Deaths"
-            value={stats.deathsMaiden}
-          />
-          <Statistic
-            supplementalClassName={styles.individualStat}
-            name="Blert Deaths"
-            value={stats.deathsBloat}
-          />
-          <Statistic
-            supplementalClassName={styles.individualStat}
-            name="Nylo Deaths"
-            value={stats.deathsNylocas}
-          />
-          <Statistic
-            supplementalClassName={styles.individualStat}
-            name="Sote Deaths"
-            value={stats.deathsSotetseg}
-          />
-          <Statistic
-            supplementalClassName={styles.individualStat}
-            name="Xarpus Deaths"
-            value={stats.deathsXarpus}
-          />
-          <Statistic
-            supplementalClassName={styles.individualStat}
-            name="Verzik Deaths"
-            value={stats.deathsVerzik}
-          />
-          <Statistic
-            supplementalClassName={styles.individualStat}
-            name="Chins Thrown"
-            value={stats.chinsThrown}
-          />
-          <Statistic
-            supplementalClassName={styles.individualStat}
-            name="Chins Thrown Maiden"
-            value={stats.chinsThrownMaiden}
-          />
-          <Statistic
-            supplementalClassName={styles.individualStat}
-            name="Troll Chins"
-            value={stats.chinsThrownIncorrectlyMaiden}
-          />
-          <Statistic
-            supplementalClassName={styles.individualStat}
-            name="Troll Chins %"
-            value={chinsThrownIncorrectlyPercentage.toFixed(1)}
-            showAsPercentage={true}
-          />
+        <div className={styles.statsWrapper}>
+          <h2>Raids</h2>
+          <div className={styles.stats}>
+            <Statistic
+              supplementalClassName={styles.individualStat}
+              name="Total"
+              value={player.totalRaidsRecorded}
+              width={STATISTIC_WIDTH}
+            />
+            <Statistic
+              supplementalClassName={styles.individualStat}
+              name="Completions"
+              value={stats.completions}
+              width={STATISTIC_WIDTH}
+            />
+            <Statistic
+              supplementalClassName={styles.individualStat}
+              name="Resets"
+              value={stats.resets}
+              width={STATISTIC_WIDTH}
+            />
+            <Statistic
+              supplementalClassName={styles.individualStat}
+              name="Wipes"
+              value={stats.wipes}
+              width={STATISTIC_WIDTH}
+            />
+          </div>
+          <h2>Trolls</h2>
+          <div className={styles.stats}>
+            <Statistic
+              supplementalClassName={styles.individualStat}
+              name="BGS Smacks"
+              value={stats.bgsSmacks}
+              width={STATISTIC_WIDTH}
+            />
+            <Statistic
+              supplementalClassName={styles.individualStat}
+              name="Hammer Bops"
+              value={stats.hammerBops}
+              width={STATISTIC_WIDTH}
+            />
+            <Statistic
+              supplementalClassName={styles.individualStat}
+              name="Uncharged Scy Swings"
+              value={stats.unchargedScytheSwings}
+              width={STATISTIC_WIDTH}
+            />
+            <Statistic
+              supplementalClassName={styles.individualStat}
+              name="Barrages w/o Staff"
+              value={stats.barragesWithoutProperWeapon}
+              width={STATISTIC_WIDTH}
+            />
+          </div>
+          <h2>Deaths</h2>
+          <div className={styles.stats}>
+            <Statistic
+              supplementalClassName={styles.individualStat}
+              name="Total"
+              value={stats.deaths}
+              width={STATISTIC_WIDTH}
+            />
+            <Statistic
+              supplementalClassName={styles.individualStat}
+              name="Maiden"
+              value={stats.deathsMaiden}
+              width={STATISTIC_WIDTH}
+            />
+            <Statistic
+              supplementalClassName={styles.individualStat}
+              name="Bloat"
+              value={stats.deathsBloat}
+              width={STATISTIC_WIDTH}
+            />
+            <Statistic
+              supplementalClassName={styles.individualStat}
+              name="Nylo"
+              value={stats.deathsNylocas}
+              width={STATISTIC_WIDTH}
+            />
+            <Statistic
+              supplementalClassName={styles.individualStat}
+              name="Sote"
+              value={stats.deathsSotetseg}
+              width={STATISTIC_WIDTH}
+            />
+            <Statistic
+              supplementalClassName={styles.individualStat}
+              name="Xarpus"
+              value={stats.deathsXarpus}
+              width={STATISTIC_WIDTH}
+            />
+            <Statistic
+              supplementalClassName={styles.individualStat}
+              name="Verzik"
+              value={stats.deathsVerzik}
+              width={STATISTIC_WIDTH}
+            />
+          </div>
+          <h2>Chins</h2>
+          <div className={styles.stats}>
+            <Statistic
+              supplementalClassName={styles.individualStat}
+              name="Chins Thrown"
+              value={stats.chinsThrown}
+              width={STATISTIC_WIDTH}
+            />
+            <Statistic
+              supplementalClassName={styles.individualStat}
+              name="Thrown at Maiden"
+              value={stats.chinsThrownMaiden}
+              width={STATISTIC_WIDTH}
+            />
+            <Statistic
+              supplementalClassName={styles.individualStat}
+              name="Thrown Incorrectly"
+              value={stats.chinsThrownIncorrectlyMaiden}
+              width={STATISTIC_WIDTH}
+            />
+            <Statistic
+              supplementalClassName={styles.individualStat}
+              name="Troll Chins %"
+              value={chinsThrownIncorrectlyPercentage.toFixed(1)}
+              width={STATISTIC_WIDTH}
+              unit="%"
+            />
+            <Statistic
+              supplementalClassName={styles.individualStat}
+              name="Value of Chins Thrown"
+              value={stats.chinsThrownValue}
+              width={STATISTIC_WIDTH}
+              unit="gp"
+            />
+          </div>
         </div>
       </CollapsiblePanel>
       <CollapsiblePanel
