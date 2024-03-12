@@ -36,8 +36,6 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
   const xarpusDataExists = rooms[Room.XARPUS] !== null;
   const verzikDataExists = rooms[Room.VERZIK] !== null;
 
-  console.log(rooms);
-
   let maiden = maidenDataExists
     ? (rooms[Room.MAIDEN] as MaidenOverview)
     : undefined;

@@ -17,21 +17,17 @@ export default async function connectToDatabase() {
   }
 
   if (!cached.promise) {
-    let dbAuth = '';
-    if (process.env.DB_USERNAME && process.env.DB_PASSWORD) {
-      dbAuth = `${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@`;
-    }
-
-    if (!process.env.DB_HOST) {
+    if (!process.env.DB_CONNECTION_STRING) {
       console.error('No database host is configured');
       process.exit(1);
     }
 
-    const mongoUri = `mongodb://${dbAuth}${process.env.DB_HOST}`;
     console.log('Connecting to database');
-    cached.promise = mongoose.connect(mongoUri).then((mongoose) => {
-      return mongoose;
-    });
+    cached.promise = mongoose
+      .connect(process.env.DB_CONNECTION_STRING)
+      .then((mongoose) => {
+        return mongoose;
+      });
   }
 
   cached.conn = await cached.promise;
