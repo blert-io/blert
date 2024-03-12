@@ -119,7 +119,7 @@ export default function Home() {
               <strong style={{ fontSize: '22px' }}>Do you need help?</strong>
               <br />
               <br />
-              Yes! Right now we are looking for two things primarily;
+              Yes! Right now we are looking for three things primarily;
               <ol>
                 <li>
                   <strong>Code contributors</strong>! If you know Java,
