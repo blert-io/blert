@@ -82,7 +82,7 @@ export default function Home() {
               <br />
               <br />
               Contrary to popular opinion, the developers of Blert are Sacolyn
-              (aka TobDataEgirl) and 715 (aka TobDataBoy) -- NOT CapsLock13
+              (aka TobDataEgirl) and 715 (aka TobDataBoy) -- NOT Caps Lock13
               😊... but we might have added some easter eggs pertaining to Caps
               since hes been a part of this journey.
             </p>
