@@ -48,7 +48,6 @@
 
 .attackTimeline__Column,
 .attackTimeline__Legend {
-  width: 50px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -172,8 +171,6 @@
   color: white;
   font-weight: bold;
   text-align: center;
-  height: 50px;
-  width: 50px;
   opacity: 0.3;
   margin: 0 5px 5px 0;
 

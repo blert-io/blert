@@ -111,6 +111,7 @@ export default class Raid {
   private partyInfo: PlayerInfo[];
   private startTime: number;
   private raidStatus: RaidStatus;
+  private totalRoomTicks: number;
 
   private playerInfoUpdated: Set<string>;
 
@@ -147,6 +148,7 @@ export default class Raid {
     this.partyInfo = this.party.map((_) => ({ gear: PrimaryMeleeGear.BLORVA }));
     this.startTime = startTime;
     this.raidStatus = RaidStatus.IN_PROGRESS;
+    this.totalRoomTicks = 0;
 
     this.playerInfoUpdated = new Set();
 
@@ -232,6 +234,16 @@ export default class Raid {
     );
 
     for (const username of this.party) {
+      if (this.raidStatus === RaidStatus.COMPLETED && this.mode !== null) {
+        promises.push(
+          Players.updatePersonalBest(
+            username,
+            this.mode!,
+            this.getScale(),
+            this.totalRoomTicks,
+          ),
+        );
+      }
       promises.push(
         Players.updateStats(username, (stats) => {
           switch (this.raidStatus) {
@@ -380,6 +392,7 @@ export default class Raid {
           event.roomStatus === RoomStatus.WIPED
             ? roomWipeStatus(event.room)
             : roomResetStatus(event.room);
+        this.totalRoomTicks += event.tick;
 
         await Promise.all([
           this.updateDatabaseFields((record) => {

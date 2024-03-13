@@ -23,6 +23,10 @@ import { ActorContext, RoomActorState } from '../../raids/tob/context';
 
 import styles from './styles.module.scss';
 
+const CELL_WIDTH = 50;
+const COLUMN_MARGIN = 5;
+const TOTAL_COLUMN_WIDTH = CELL_WIDTH + COLUMN_MARGIN;
+
 const getCellImageForBossAttack = (attack: NpcAttack) => {
   let imageUrl = '';
 
@@ -522,8 +526,6 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
   return 'attacked';
 };
 
-const FUCKING_MAGIC = 55;
-
 type CellInfo = {
   event: Event | null;
   highlighted: boolean;
@@ -541,7 +543,11 @@ const buildTickCell = (
   const { setSelectedPlayer } = actorContext;
   let { event, highlighted, backgroundColor } = cellInfo;
 
-  const style: React.CSSProperties = { backgroundColor };
+  const style: React.CSSProperties = {
+    backgroundColor,
+    width: CELL_WIDTH,
+    height: CELL_WIDTH,
+  };
 
   if (event === null) {
     return (
@@ -745,6 +751,7 @@ const buildTickColumn = (
     <div
       key={`attackTimeline__${columnTick}`}
       className={styles.attackTimeline__Column}
+      style={{ width: CELL_WIDTH, marginRight: COLUMN_MARGIN }}
     >
       {split !== undefined && (
         <div className={styles.attackTimeline__RoomSplit}>
@@ -849,11 +856,11 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
 
   useEffect(() => {
     if (attackTimelineRef.current !== null) {
-      if (currentTick * FUCKING_MAGIC < 525) {
+      if (currentTick * TOTAL_COLUMN_WIDTH < 525) {
         attackTimelineRef.current.scrollLeft = 0;
       } else {
         attackTimelineRef.current.scrollLeft =
-          (currentTick - 1) * FUCKING_MAGIC - 380;
+          (currentTick - 1) * TOTAL_COLUMN_WIDTH - 380;
       }
     }
   }, [currentTick]);

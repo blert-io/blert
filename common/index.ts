@@ -3,7 +3,7 @@ export { getNpcDefinition, npcFriendlyName } from './npcs/npc-definitions';
 
 export type { ApiKey, RecordedRaid, User } from './user';
 export { RecordingType } from './user';
-export type { Player, PlayerStats } from './player';
+export type { Player, PlayerStats, TobPbs } from './player';
 
 export { ApiKeyModel } from './models/api-key';
 export { PlayerModel, PlayerStatsModel } from './models/player';

@@ -67,7 +67,7 @@ const PlayerInfo = {
 
 const raidSchema = new Schema<Raid>({
   _id: String,
-  status: String,
+  status: { type: String, index: true },
   mode: String,
   startTime: { type: Date },
   party: {
@@ -81,7 +81,7 @@ const raidSchema = new Schema<Raid>({
     },
   },
   partyInfo: { type: [PlayerInfo], default: null },
-  totalRoomTicks: { type: Number, default: 0 },
+  totalRoomTicks: { type: Number, default: 0, index: true },
   totalDeaths: { type: Number, default: 0 },
   rooms: {
     MAIDEN: {
