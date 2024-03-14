@@ -27,7 +27,7 @@ const completionToColor = (raidStatus: RaidStatus) => {
   }
 };
 
-const raidDifficultyToColor = (difficulty: Mode | undefined) => {
+const raidDifficultyToColor = (difficulty: Mode | null) => {
   switch (difficulty) {
     case Mode.REGULAR:
       return '#FFD700';
@@ -84,7 +84,7 @@ const getIconForStatus = (status: RaidStatus) => {
 
 interface RaidQuickDetailsProps {
   raidStatus: RaidStatus;
-  raidDifficulty: Mode | undefined;
+  raidDifficulty: Mode | null;
   totalRaidTicks: number;
   deaths: number;
   partySize: number;
@@ -106,7 +106,7 @@ export function RaidQuickDetails(props: RaidQuickDetailsProps) {
   const statusString = raidStatusToFriendlyRaidStatus(raidStatus);
 
   const modeString =
-    raidDifficulty !== undefined
+    raidDifficulty !== null
       ? raidDifficulty.charAt(0) + raidDifficulty.slice(1).toLowerCase()
       : 'Unknown';
 

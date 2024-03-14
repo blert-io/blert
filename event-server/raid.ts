@@ -15,6 +15,7 @@ import {
   Nylo,
   NyloSplits,
   NyloWaveSpawnEvent,
+  PersonalBestType,
   PlayerAttack,
   PlayerAttackEvent,
   PlayerDeathEvent,
@@ -40,6 +41,7 @@ import {
   XarpusPhase,
   XarpusPhaseEvent,
   XarpusSplits,
+  tobPbForMode,
 } from '@blert/common';
 import { RaidModel, RoomEvent } from '@blert/common';
 
@@ -233,17 +235,16 @@ export default class Raid {
       }),
     );
 
+    if (this.raidStatus === RaidStatus.COMPLETED) {
+      promises.push(
+        this.updatePartyPbs(
+          PersonalBestType.TOB_CHALLENGE,
+          this.totalRoomTicks,
+        ),
+      );
+    }
+
     for (const username of this.party) {
-      if (this.raidStatus === RaidStatus.COMPLETED && this.mode !== null) {
-        promises.push(
-          Players.updatePersonalBest(
-            username,
-            this.mode!,
-            this.getScale(),
-            this.totalRoomTicks,
-          ),
-        );
-      }
       promises.push(
         Players.updateStats(username, (stats) => {
           switch (this.raidStatus) {
@@ -394,7 +395,7 @@ export default class Raid {
             : roomResetStatus(event.room);
         this.totalRoomTicks += event.tick;
 
-        await Promise.all([
+        const promises = [
           this.updateDatabaseFields((record) => {
             record.partyInfo = this.partyInfo;
             record.totalRoomTicks += event.tick;
@@ -429,8 +430,47 @@ export default class Raid {
             }
           }),
           this.flushRoomEvents(),
-        ]);
+        ];
 
+        if (event.roomStatus === RoomStatus.COMPLETED) {
+          let pbType;
+          switch (event.room) {
+            case Room.MAIDEN:
+              pbType = PersonalBestType.TOB_MAIDEN;
+              break;
+            case Room.BLOAT:
+              pbType = PersonalBestType.TOB_BLOAT;
+              break;
+            case Room.NYLOCAS:
+              pbType = PersonalBestType.TOB_NYLO_ROOM;
+              promises.push(
+                this.updatePartyPbs(
+                  PersonalBestType.TOB_NYLO_BOSS,
+                  event.tick - this.nyloSplits.boss,
+                ),
+              );
+              break;
+            case Room.SOTETSEG:
+              pbType = PersonalBestType.TOB_SOTETSEG;
+              break;
+            case Room.XARPUS:
+              pbType = PersonalBestType.TOB_XARPUS;
+              break;
+            case Room.VERZIK:
+              pbType = PersonalBestType.TOB_VERZIK_ROOM;
+              promises.push(
+                this.updatePartyPbs(
+                  PersonalBestType.TOB_VERZIK_P3,
+                  event.tick - (this.verzikSplits.p2 + 6),
+                ),
+              );
+              break;
+          }
+
+          promises.push(this.updatePartyPbs(pbType, event.tick));
+        }
+
+        await Promise.all(promises);
         break;
     }
 
@@ -515,6 +555,7 @@ export default class Raid {
 
       case EventType.NYLO_BOSS_SPAWN:
         this.nyloSplits.boss = event.tick;
+        await this.updatePartyPbs(PersonalBestType.TOB_NYLO_WAVES, event.tick);
         break;
 
       case EventType.SOTE_MAZE_PROC:
@@ -535,8 +576,13 @@ export default class Raid {
         const verzikPhaseEvent = event as VerzikPhaseEvent;
         if (verzikPhaseEvent.verzikPhase === VerzikPhase.P2) {
           this.verzikSplits.p1 = event.tick;
+          await this.updatePartyPbs(PersonalBestType.TOB_VERZIK_P1, event.tick);
         } else if (verzikPhaseEvent.verzikPhase === VerzikPhase.P3) {
           this.verzikSplits.p2 = event.tick;
+          await this.updatePartyPbs(
+            PersonalBestType.TOB_VERZIK_P2,
+            event.tick - (this.verzikSplits.p1 + 13),
+          );
         }
         break;
 
@@ -588,8 +634,34 @@ export default class Raid {
 
     switch (attack.type) {
       case PlayerAttack.BGS_SMACK:
+      case PlayerAttack.HAMMER_BOP:
+        if (this.room === Room.VERZIK) {
+          if (
+            attack.target !== undefined &&
+            Npc.isVerzikMatomenos(attack.target.id)
+          ) {
+            // Can 6t a red crab to tick fix; not a troll.
+            return;
+          }
+        }
+
+        if (
+          this.room === Room.NYLOCAS &&
+          this.nyloSplits.waves !== 0 &&
+          this.nyloSplits.cleanup === 0
+        ) {
+          // Ok to BGS smack during cleanup.
+          if (attack.target === undefined || Npc.isNylocas(attack.target.id)) {
+            return;
+          }
+        }
+
         await Players.updateStats(username, (stats) => {
-          stats.bgsSmacks += 1;
+          if (attack.type === PlayerAttack.BGS_SMACK) {
+            stats.bgsSmacks += 1;
+          } else {
+            stats.hammerBops += 1;
+          }
         });
         break;
 
@@ -631,12 +703,6 @@ export default class Raid {
               stats.chinsThrownIncorrectlyMaiden += 1;
             }
           }
-        });
-        break;
-
-      case PlayerAttack.HAMMER_BOP:
-        await Players.updateStats(username, (stats) => {
-          stats.hammerBops += 1;
         });
         break;
 
@@ -748,6 +814,23 @@ export default class Raid {
       updateCallback(record);
       record.save();
     }
+  }
+
+  private async updatePartyPbs(
+    type: PersonalBestType,
+    ticks: number,
+  ): Promise<void> {
+    if (this.mode === null) {
+      return;
+    }
+
+    await Players.updatePersonalBests(
+      this.party,
+      this.id,
+      tobPbForMode(type, this.mode),
+      this.getScale(),
+      ticks,
+    );
   }
 
   private async flushRoomEvents(): Promise<void> {

@@ -3,8 +3,12 @@ import {
   PlayerStatsModel,
   PlayerStats,
   Player,
-  TobPbs,
-  Mode,
+  PersonalBestType,
+  PersonalBestModel,
+  RaidModel,
+  RaidStatus,
+  tobPbForMode,
+  Room,
 } from '@blert/common';
 
 type PlayerStatsWithoutUsernameOrDate = Omit<PlayerStats, 'date' | 'username'>;
@@ -16,23 +20,6 @@ function startOfDateUtc(): Date {
   date.setUTCSeconds(0);
   date.setUTCMilliseconds(0);
   return date;
-}
-
-function pbKey(mode: Mode.REGULAR | Mode.HARD, scale: number): keyof TobPbs {
-  switch (scale) {
-    case 1:
-      return mode === Mode.REGULAR ? 'regSolo' : 'hmtSolo';
-    case 2:
-      return mode === Mode.REGULAR ? 'regDuo' : 'hmtDuo';
-    case 3:
-      return mode === Mode.REGULAR ? 'regTrio' : 'hmtTrio';
-    case 4:
-      return mode === Mode.REGULAR ? 'regFours' : 'hmtFours';
-    case 5:
-      return mode === Mode.REGULAR ? 'regFives' : 'hmtFives';
-  }
-
-  throw new Error(`Invalid scale: ${scale}`);
 }
 
 export class Players {
@@ -50,20 +37,6 @@ export class Players {
       ...initialFields,
       username: username.toLowerCase(),
       formattedUsername: username,
-      personalBests: {
-        theatreOfBlood: {
-          regSolo: null,
-          regDuo: null,
-          regTrio: null,
-          regFours: null,
-          regFives: null,
-          hmtSolo: null,
-          hmtDuo: null,
-          hmtTrio: null,
-          hmtFours: null,
-          hmtFives: null,
-        },
-      },
     });
     try {
       player.save();
@@ -85,33 +58,59 @@ export class Players {
   }
 
   /**
-   * Updates a player's personal best for a given mode and scale, if the given
-   * time is better than their current personal best.
+   * Updates players' personal bests for a given category, if the provided time
+   * is better than their current personal bests.
    *
-   * @param username The player's username.
-   * @param mode The raid mode.
-   * @param scale The raid scale.
-   * @param roomTicks Raid completion time.
+   * @param usernames The players.
+   * @param raidId ID of the raid in which the time was achieved.
+   * @param type Type of personal best.
+   * @param scale Raid scale.
+   * @param ticks The achieved time, in ticks.
    */
-  public static async updatePersonalBest(
-    username: string,
-    mode: Mode,
+  public static async updatePersonalBests(
+    usernames: string[],
+    raidId: string,
+    type: PersonalBestType,
     scale: number,
-    roomTicks: number,
+    ticks: number,
   ): Promise<void> {
-    const player = await PlayerModel.findOne({
-      username: username.toLowerCase(),
+    const users = new Set(usernames.map((u) => u.toLowerCase()));
+
+    let personalBests = await PersonalBestModel.find({
+      username: { $in: Array.from(users.values()) },
+      type,
+      scale,
     }).exec();
-    if (player === null || mode === Mode.ENTRY) {
-      return;
+
+    const promises = [];
+
+    for (const pb of personalBests) {
+      if (ticks < pb.time) {
+        console.log(
+          `Updating PB for ${pb.username} (${type}, ${scale}) to ${ticks}`,
+        );
+        pb.time = ticks;
+        pb.raidId = raidId;
+        promises.push(pb.save());
+      }
+      users.delete(pb.username);
     }
 
-    const key = pbKey(mode, scale);
-    const currentPb = player.personalBests.theatreOfBlood[key];
-    if (currentPb === null || roomTicks < currentPb) {
-      player.personalBests.theatreOfBlood[key] = roomTicks;
-      await player.save();
-    }
+    // Any remaining users are missing a personal best for this category; create
+    // one for them.
+    users.forEach((username) => {
+      console.log(`Setting PB for ${username} (${type}, ${scale}) to ${ticks}`);
+      const pb = new PersonalBestModel({
+        username,
+        type,
+        scale,
+        time: ticks,
+        raidId,
+      });
+      promises.push(pb.save());
+    });
+
+    await Promise.all(promises);
   }
 
   /**

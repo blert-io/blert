@@ -276,6 +276,10 @@ const ATTACK_MEMES = {
     tagColor: 'red',
     letter: 'SB',
   },
+  [PlayerAttack.VOLATILE_NM_BARRAGE]: {
+    tagColor: 'blue',
+    letter: 'F',
+  },
   [PlayerAttack.UNKNOWN_BARRAGE]: {
     tagColor: undefined,
     letter: 'F',
@@ -337,6 +341,7 @@ const makeCellImage = (playerAttack: Attack, memes: BlertMemes) => {
       case PlayerAttack.TRIDENT_BARRAGE:
       case PlayerAttack.KODAI_BARRAGE:
       case PlayerAttack.SCEPTRE_BARRAGE:
+      case PlayerAttack.VOLATILE_NM_BARRAGE:
       case PlayerAttack.UNKNOWN_BARRAGE:
         infoIcon = (
           <Image
@@ -488,6 +493,7 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
     case PlayerAttack.TOXIC_TRIDENT_BARRAGE:
     case PlayerAttack.TOXIC_STAFF_BARRAGE:
     case PlayerAttack.TRIDENT_BARRAGE:
+    case PlayerAttack.VOLATILE_NM_BARRAGE:
     case PlayerAttack.UNKNOWN_BARRAGE:
       return 'froze';
     case PlayerAttack.KODAI_BASH:

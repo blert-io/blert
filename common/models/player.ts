@@ -12,20 +12,6 @@ const playerSchema = new Schema<Player>({
     type: Number,
     default: 0,
   },
-  personalBests: {
-    theatreOfBlood: {
-      regSolo: { type: Number, default: null },
-      regDuo: { type: Number, default: null },
-      regTrio: { type: Number, default: null },
-      regFours: { type: Number, default: null },
-      regFives: { type: Number, default: null },
-      hmtSolo: { type: Number, default: null },
-      hmtDuo: { type: Number, default: null },
-      hmtTrio: { type: Number, default: null },
-      hmtFours: { type: Number, default: null },
-      hmtFives: { type: Number, default: null },
-    },
-  },
 });
 
 export const PlayerModel =
