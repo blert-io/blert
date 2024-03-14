@@ -4,6 +4,8 @@ import Image from 'next/image';
 import {
   EventType,
   MaidenBloodSplatsEvent,
+  MaidenCrabPosition,
+  MaidenCrabProperties,
   Npc,
   NpcEvent,
   PlayerEvent,
@@ -15,7 +17,6 @@ import {
 import { TimelineSplit } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
 import { useContext, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { MAIDEN } from '../../../../../bosses/tob';
 import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
 import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
 import BossPageReplay from '../../../../../components/boss-page-replay';
@@ -34,6 +35,7 @@ import {
 import { clamp } from '../../../../../utils/math';
 import { ActorContext } from '../../../context';
 import Loading from '../../../../../components/loading';
+import { ticksToFormattedSeconds } from '../../../../../utils/tick';
 
 import maidenBaseTiles from './maiden.json';
 import styles from './style.module.scss';
@@ -46,6 +48,122 @@ const MAIDEN_MAP_DEFINITION = {
   baseTiles: maidenBaseTiles,
 };
 const BLOOD_SPLAT_COLOR = '#b93e3e';
+
+type CrabSpawnProps = {
+  crabs: MaidenCrabProperties[];
+  name: string;
+  tick: number;
+  delta?: number;
+};
+
+const SPAWN_SIZE = 25;
+
+function CrabSpawn(props: CrabSpawnProps) {
+  const spawns = new Set(props.crabs.map((crab) => crab.position));
+  const scuffed = props.crabs.some((crab) => crab.scuffed);
+
+  const crab = (position: MaidenCrabPosition, name: string) =>
+    spawns.has(position) ? (
+      <div className={styles.presentCrab}>{name}</div>
+    ) : (
+      <div className={styles.absentCrab} />
+    );
+
+  return (
+    <div className={styles.spawn}>
+      <div className={styles.split}>
+        <span className={styles.name}>{props.name}</span> —{' '}
+        {ticksToFormattedSeconds(props.tick)}
+        {props.delta && (
+          <span className={styles.delta}>
+            (+{ticksToFormattedSeconds(props.delta)})
+          </span>
+        )}
+      </div>
+      <table>
+        <tbody>
+          <tr>
+            <td>
+              <table className={styles.spawn}>
+                <tbody>
+                  <tr>
+                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+                      {crab(MaidenCrabPosition.S1, 'S1')}
+                    </td>
+                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+                      &nbsp;
+                    </td>
+                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+                      &nbsp;
+                    </td>
+                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+                      &nbsp;
+                    </td>
+                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+                      {crab(MaidenCrabPosition.N1, 'N1')}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+                      {crab(MaidenCrabPosition.S2, 'S2')}
+                    </td>
+                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+                      &nbsp;
+                    </td>
+                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+                      &nbsp;
+                    </td>
+                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+                      &nbsp;
+                    </td>
+                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+                      {crab(MaidenCrabPosition.N2, 'N2')}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+                      {crab(MaidenCrabPosition.S3, 'S3')}
+                    </td>
+                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+                      &nbsp;
+                    </td>
+                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+                      &nbsp;
+                    </td>
+                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+                      &nbsp;
+                    </td>
+                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+                      {crab(MaidenCrabPosition.N3, 'N3')}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+                      {crab(MaidenCrabPosition.S4_OUTER, 'S4')}
+                    </td>
+                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+                      {crab(MaidenCrabPosition.S4_INNER, 'S4')}
+                    </td>
+                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+                      &nbsp;
+                    </td>
+                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+                      {crab(MaidenCrabPosition.N4_INNER, 'N4')}
+                    </td>
+                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+                      {crab(MaidenCrabPosition.N4_OUTER, 'N4')}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      {scuffed && <div className={styles.scuffed}>Scuffed</div>}
+    </div>
+  );
+}
 
 export default function Maiden() {
   const searchParams = useSearchParams();
@@ -104,7 +222,11 @@ export default function Maiden() {
   }
 
   const maidenData = raidData.rooms[Room.MAIDEN];
-  if (raidData.status !== RaidStatus.IN_PROGRESS && maidenData === null) {
+  if (raidData.status === RaidStatus.IN_PROGRESS) {
+    if (events.length === 0) {
+      return <>This raid has not yet started Maiden.</>;
+    }
+  } else if (maidenData === null) {
     return <>No Maiden data for raid</>;
   }
 
@@ -152,6 +274,7 @@ export default function Maiden() {
   }
 
   const splits: TimelineSplit[] = [];
+  const spawns: MaidenCrabProperties[][] = [];
 
   if (maidenData !== null) {
     if (maidenData.splits.SEVENTIES) {
@@ -159,6 +282,15 @@ export default function Maiden() {
         tick: maidenData.splits.SEVENTIES,
         splitName: '70s',
       });
+      spawns.push(
+        eventsByTick[maidenData.splits.SEVENTIES]
+          .filter(
+            (e) =>
+              e.type === EventType.NPC_SPAWN &&
+              (e as NpcEvent).npc.maidenCrab !== undefined,
+          )
+          .map((e) => (e as NpcEvent).npc.maidenCrab!),
+      );
     }
 
     if (maidenData.splits.FIFTIES) {
@@ -166,6 +298,15 @@ export default function Maiden() {
         tick: maidenData.splits.FIFTIES,
         splitName: '50s',
       });
+      spawns.push(
+        eventsByTick[maidenData.splits.FIFTIES]
+          .filter(
+            (e) =>
+              e.type === EventType.NPC_SPAWN &&
+              (e as NpcEvent).npc.maidenCrab !== undefined,
+          )
+          .map((e) => (e as NpcEvent).npc.maidenCrab!),
+      );
     }
 
     if (maidenData.splits.THIRTIES) {
@@ -173,6 +314,15 @@ export default function Maiden() {
         tick: maidenData.splits.THIRTIES,
         splitName: '30s',
       });
+      spawns.push(
+        eventsByTick[maidenData.splits.THIRTIES]
+          .filter(
+            (e) =>
+              e.type === EventType.NPC_SPAWN &&
+              (e as NpcEvent).npc.maidenCrab !== undefined,
+          )
+          .map((e) => (e as NpcEvent).npc.maidenCrab!),
+      );
     }
   }
 
@@ -194,6 +344,17 @@ export default function Maiden() {
         </div>
         <div className={styles.bossPage__KeyDetails}>
           <h2>The Maiden of Sugondeez</h2>
+          <div className={styles.statsWrapper}>
+            {splits.map((split, i) => (
+              <CrabSpawn
+                key={split.splitName}
+                crabs={spawns[i]}
+                name={split.splitName}
+                tick={split.tick}
+                delta={i > 0 ? split.tick - splits[i - 1].tick : undefined}
+              />
+            ))}
+          </div>
         </div>
       </div>
 

@@ -13,7 +13,6 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -105,6 +104,9 @@ export const useRoomEvents = (room: Room) => {
   });
 
   let totalTicks = raidData?.rooms[room]?.roomTicks ?? -1;
+  if (totalTicks === -1 && events.length > 0) {
+    totalTicks = events[events.length - 1].tick;
+  }
 
   useEffect(() => {
     if (raidData === null) {
@@ -116,32 +118,31 @@ export const useRoomEvents = (room: Room) => {
       const evts = await loadEventsForRoom(raidData._id, room);
       setEvents(evts);
 
-      if (totalTicks === -1) {
-        if (events.length > 0) {
-          totalTicks = events[events.length - 1].tick;
-        } else {
-          totalTicks = 1;
+      if (evts.length > 0) {
+        totalTicks = raidData.rooms[room]?.roomTicks ?? -1;
+        if (totalTicks === -1) {
+          // The room is in progress, so get the last tick from the events.
+          totalTicks = evts[evts.length - 1].tick;
         }
+
+        const [eventsByTick, eventsByType] = buildEventMaps(evts);
+        const playerAttackTimelines = buildAttackTimelines(
+          raidData.party,
+          totalTicks,
+          eventsByTick,
+        );
+
+        const eventState = {
+          eventsByTick,
+          eventsByType,
+          playerAttackTimelines,
+          bossAttackTimeline:
+            (eventsByType[EventType.NPC_ATTACK] as NpcAttackEvent[]) ?? [],
+        };
+
+        setEventState(eventState);
       }
 
-      totalTicks = raidData.rooms[room]?.roomTicks ?? -1;
-
-      const [eventsByTick, eventsByType] = buildEventMaps(evts);
-      const playerAttackTimelines = buildAttackTimelines(
-        raidData.party,
-        totalTicks,
-        eventsByTick,
-      );
-
-      const eventState = {
-        eventsByTick,
-        eventsByType,
-        playerAttackTimelines,
-        bossAttackTimeline:
-          (eventsByType[EventType.NPC_ATTACK] as NpcAttackEvent[]) ?? [],
-      };
-
-      setEventState(eventState);
       setLoading(false);
     };
 

@@ -2,23 +2,81 @@
   margin-bottom: 20px;
   display: flex;
   flex-direction: row;
-}
 
-.bossPage__BossPic {
-  height: 200px;
-  width: 240px;
-  position: relative;
-  margin: 20px;
-}
+  .bossPage__BossPic {
+    height: 200px;
+    width: 240px;
+    position: relative;
+    margin: 20px;
+  }
 
-.bossPage__KeyDetails {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
+  .bossPage__KeyDetails {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    margin-left: 20px;
 
-  h2 {
-    font-size: 35px;
-    margin: 0 20px;
-    border-bottom: 2px solid grey;
+    h2 {
+      font-size: 35px;
+      margin: 10px 0 0.5em 0;
+      border-bottom: 2px solid grey;
+    }
+
+    .statsWrapper {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      max-width: 1000px;
+
+      .spawn {
+        width: 240px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 0 20px;
+
+        .split {
+          font-size: 18px;
+          padding: 12px 0;
+
+          .name {
+            font-weight: bold;
+            color: #fff;
+          }
+
+          .delta {
+            margin-left: 8px;
+            font-size: 16px;
+            opacity: 0.8;
+          }
+        }
+      }
+
+      table {
+        font-size: 14px;
+
+        td > div {
+          height: 100%;
+          width: 100%;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+
+          &.presentCrab {
+            border: 1px solid #a80505;
+          }
+          &.absentCrab {
+            border: 1px solid #ffffff30;
+          }
+        }
+      }
+
+      .scuffed {
+        margin-top: 4px;
+        font-style: italic;
+      }
+    }
   }
 }
