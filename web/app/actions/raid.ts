@@ -2,6 +2,8 @@
 
 import {
   Event,
+  PersonalBest,
+  PersonalBestModel,
   Player,
   PlayerModel,
   PlayerStats,
@@ -131,4 +133,22 @@ export async function loadPlayerWithStats(
   }
 
   return { ...player, stats };
+}
+
+export async function loadPbsForPlayer(
+  username: string,
+): Promise<PersonalBest[]> {
+  await connectToDatabase();
+
+  // TODO(frolv): Filter by type/scale.
+  const pbs = await PersonalBestModel.find(
+    {
+      username: username.toLowerCase(),
+    },
+    { _id: 0 },
+  )
+    .lean()
+    .exec();
+
+  return pbs;
 }

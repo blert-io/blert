@@ -1,7 +1,16 @@
 .playerPage {
+  width: calc(90vw - 240px);
+  max-width: 1800px;
+
+  .pbWrapper {
+    padding: 20px;
+    display: flex;
+    justify-content: space-evenly;
+    flex-wrap: wrap;
+  }
+
   .statsWrapper {
     padding: 20px;
-    max-width: 1400px;
 
     h2 {
       width: 100%;
@@ -46,6 +55,49 @@
       width: 200px;
       display: flex;
       position: relative;
+    }
+  }
+}
+
+.pbTable {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 10px 0;
+
+  h2 {
+    text-align: center;
+    margin: 0;
+  }
+
+  .pbs {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+
+    a.pb:hover {
+      background-color: lighten(#1b1c25, 4%);
+    }
+
+    .pb {
+      border-radius: 5px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      width: 170px;
+
+      .time {
+        font-size: 32px;
+        font-weight: 700;
+        color: #fff;
+      }
+
+      .scale {
+        font-size: 20px;
+        font-weight: 500;
+        opacity: 0.8;
+      }
     }
   }
 }
