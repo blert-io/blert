@@ -8,7 +8,7 @@ interface CollapsiblePanelProps extends React.HTMLAttributes<HTMLDivElement> {
   maxPanelHeight: number;
   defaultExpanded: boolean;
   disableExpansion?: boolean;
-  panelWidth?: number;
+  panelWidth?: number | string;
 }
 
 export function CollapsiblePanel(props: CollapsiblePanelProps) {
@@ -28,10 +28,7 @@ export function CollapsiblePanel(props: CollapsiblePanelProps) {
   }
 
   return (
-    <div
-      className={className}
-      style={{ width: panelWidth ? `${panelWidth}px` : 'auto' }}
-    >
+    <div className={className} style={{ width: panelWidth ?? 'fit-content' }}>
       <div
         className={styles.collapsiblePanelHeader}
         onClick={() => {

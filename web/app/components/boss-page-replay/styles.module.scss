@@ -3,8 +3,8 @@
 .replay {
   display: flex;
   flex-direction: row;
+  align-items: center;
   justify-content: center;
-  align-items: flex-start;
   padding: 10px;
 
   .actors {

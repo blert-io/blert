@@ -22,6 +22,7 @@ import { TICK_MS } from '../../utils/tick';
 import { RaidContext } from './context';
 import { loadEventsForRoom } from '../../actions/raid';
 import { PlayerDetails } from '../../components/boss-page-replay';
+import { set } from 'mongoose';
 
 export const usePlayingState = (totalTicks: number) => {
   const [currentTick, setTick] = useState(1);
@@ -84,56 +85,75 @@ export const usePlayingState = (totalTicks: number) => {
 export type EventTickMap = { [key: number]: Event[] };
 export type EventTypeMap = { [key: string]: Event[] };
 
+type EventState = {
+  eventsByTick: EventTickMap;
+  eventsByType: EventTypeMap;
+  playerAttackTimelines: Map<string, any>;
+  bossAttackTimeline: NpcAttackEvent[];
+};
+
 export const useRoomEvents = (room: Room) => {
   const raidData = useContext(RaidContext);
 
+  const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<Event[]>([]);
+  const [eventState, setEventState] = useState<EventState>({
+    eventsByTick: {},
+    eventsByType: {},
+    playerAttackTimelines: new Map(),
+    bossAttackTimeline: [],
+  });
+
+  let totalTicks = raidData?.rooms[room]?.roomTicks ?? -1;
 
   useEffect(() => {
     if (raidData === null) {
       return;
     }
 
+    setLoading(true);
     const getEvents = async () => {
       const evts = await loadEventsForRoom(raidData._id, room);
       setEvents(evts);
+
+      if (totalTicks === -1) {
+        if (events.length > 0) {
+          totalTicks = events[events.length - 1].tick;
+        } else {
+          totalTicks = 1;
+        }
+      }
+
+      totalTicks = raidData.rooms[room]?.roomTicks ?? -1;
+
+      const [eventsByTick, eventsByType] = buildEventMaps(evts);
+      const playerAttackTimelines = buildAttackTimelines(
+        raidData.party,
+        totalTicks,
+        eventsByTick,
+      );
+
+      const eventState = {
+        eventsByTick,
+        eventsByType,
+        playerAttackTimelines,
+        bossAttackTimeline:
+          (eventsByType[EventType.NPC_ATTACK] as NpcAttackEvent[]) ?? [],
+      };
+
+      setEventState(eventState);
+      setLoading(false);
     };
 
     getEvents();
   }, [raidData, room]);
 
-  let totalTicks = raidData?.rooms[room]?.roomTicks ?? -1;
-  if (totalTicks === -1) {
-    if (events.length > 0) {
-      totalTicks = events[events.length - 1].tick;
-    } else {
-      totalTicks = 1;
-    }
-  }
-
-  const [eventsByTick, eventsByType] = useMemo(
-    () => buildEventMaps(events),
-    [events],
-  );
-
-  const playerAttackTimelines: Map<string, any> = useMemo(() => {
-    if (raidData !== null && events.length !== 0) {
-      return buildAttackTimelines(raidData.party, totalTicks, eventsByTick);
-    }
-    return new Map();
-  }, [raidData, events.length, totalTicks, eventsByTick]);
-
-  const bossAttackTimeline =
-    (eventsByType[EventType.NPC_ATTACK] as NpcAttackEvent[]) || [];
-
   return {
     raidData,
     events,
     totalTicks,
-    eventsByTick,
-    eventsByType,
-    playerAttackTimelines,
-    bossAttackTimeline,
+    loading,
+    ...eventState,
   };
 };
 

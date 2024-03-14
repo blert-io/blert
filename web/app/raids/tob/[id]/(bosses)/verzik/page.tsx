@@ -24,6 +24,7 @@ import { BossPageControls } from '../../../../../components/boss-page-controls/b
 import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
 import BossPageReplay from '../../../../../components/boss-page-replay';
 import { Entity, NpcEntity, PlayerEntity } from '../../../../../components/map';
+import Loading from '../../../../../components/loading';
 
 import styles from './style.module.scss';
 import verzikBaseTiles from './verzik-tiles.json';
@@ -64,12 +65,12 @@ function verzikNpcColor(npcId: number): string | undefined {
 export default function VerzikPage() {
   const {
     raidData,
-    events,
     totalTicks,
     eventsByTick,
     eventsByType,
     bossAttackTimeline,
     playerAttackTimelines,
+    loading,
   } = useRoomEvents(Room.VERZIK);
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
@@ -77,8 +78,8 @@ export default function VerzikPage() {
 
   const { selectedPlayer } = useContext(ActorContext);
 
-  if (raidData === null || events.length === 0) {
-    return <>Loading...</>;
+  if (loading || raidData === null) {
+    return <Loading />;
   }
 
   const verzikData = raidData.rooms[Room.VERZIK];

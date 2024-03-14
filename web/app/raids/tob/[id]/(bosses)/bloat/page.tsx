@@ -28,6 +28,7 @@ import {
   NpcEntity,
   PlayerEntity,
 } from '../../../../../components/map';
+import Loading from '../../../../../components/loading';
 
 import bloatBaseTiles from './bloat-tiles.json';
 import styles from './style.module.scss';
@@ -45,19 +46,19 @@ const BLOAT_PILLAR_OUTLINE = new MarkerEntity(3293, 4445, 'white', 6);
 export default function BloatPage() {
   const {
     raidData,
-    events,
     totalTicks,
     eventsByTick,
     eventsByType,
     bossAttackTimeline,
     playerAttackTimelines,
+    loading,
   } = useRoomEvents(Room.BLOAT);
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
 
-  if (raidData === null || events.length === 0) {
-    return <>Loading...</>;
+  if (loading || raidData === null) {
+    return <Loading />;
   }
 
   const bloatData = raidData.rooms[Room.BLOAT];

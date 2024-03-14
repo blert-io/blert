@@ -29,6 +29,7 @@ import {
 import BossPageReplay from '../../../../../components/boss-page-replay';
 import { Entity, NpcEntity, PlayerEntity } from '../../../../../components/map';
 import { OverlayEntity } from '../../../../../components/map/overlay';
+import Loading from '../../../../../components/loading';
 
 import styles from './style.module.scss';
 import nyloBaseTiles from './nylo-tiles.json';
@@ -224,12 +225,12 @@ function nyloBossBackgroundColors(
 export default function NylocasPage() {
   const {
     raidData,
-    events,
     totalTicks,
     eventsByTick,
     eventsByType,
     bossAttackTimeline,
     playerAttackTimelines,
+    loading,
   } = useRoomEvents(Room.NYLOCAS);
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
@@ -240,8 +241,8 @@ export default function NylocasPage() {
     [eventsByTick],
   );
 
-  if (raidData === null || events.length === 0) {
-    return <>Loading...</>;
+  if (loading || raidData === null) {
+    return <Loading />;
   }
 
   const nyloData = raidData.rooms[Room.NYLOCAS];

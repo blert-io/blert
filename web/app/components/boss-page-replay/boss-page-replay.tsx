@@ -47,7 +47,6 @@ export default function BossPageReplay({
       panelTitle="Room Replay"
       maxPanelHeight={1100}
       defaultExpanded={true}
-      className={styles.replay}
     >
       <div className={styles.replay}>
         <Map

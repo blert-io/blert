@@ -20,6 +20,7 @@ import { BossPageControls } from '../../../../../components/boss-page-controls/b
 import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
 import BossPageReplay from '../../../../../components/boss-page-replay';
 import { Entity, NpcEntity, PlayerEntity } from '../../../../../components/map';
+import Loading from '../../../../../components/loading';
 
 import styles from './style.module.scss';
 import xarpusBaseTiles from './xarpus-tiles.json';
@@ -35,19 +36,19 @@ const XARPUS_MAP_DEFINITION = {
 export default function XarpusPage() {
   const {
     raidData,
-    events,
     totalTicks,
     eventsByTick,
     eventsByType,
     bossAttackTimeline,
     playerAttackTimelines,
+    loading,
   } = useRoomEvents(Room.XARPUS);
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
 
-  if (raidData === null || events.length === 0) {
-    return <>Loading...</>;
+  if (loading || raidData === null) {
+    return <Loading />;
   }
 
   const xarpusData = raidData.rooms[Room.XARPUS];

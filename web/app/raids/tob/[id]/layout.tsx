@@ -4,11 +4,11 @@ import { Raid } from '@blert/common';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-import { loadRaid } from '../../../actions/raid';
 import { ActorContext, RaidContext } from '../context';
+import { raidStatusToFriendlyRaidStatus } from '../../../components/raid-quick-details/raid-quick-details';
+import Loading from '../../../components/loading';
 
 import styles from './style.module.scss';
-import { raidStatusToFriendlyRaidStatus } from '../../../components/raid-quick-details/raid-quick-details';
 
 type RaidParams = {
   id: string;
@@ -24,18 +24,23 @@ export default function RaidLayout(props: RaidLayoutProps) {
   const pathname = usePathname();
 
   const [raid, setRaid] = useState<Raid | null>(null);
-  const [error, setError] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [selectedRoomNpc, setSelectedRoomNpc] = useState<number | null>(null);
 
   useEffect(() => {
     const getRaid = async () => {
-      const raid = await loadRaid(id);
-      if (raid) {
-        setRaid(raid);
-      } else {
-        setError(true);
+      setLoading(true);
+      try {
+        const response = await fetch(`/api/v1/raids/tob/${id}`);
+        if (response.status === 404) {
+          setRaid(null);
+        }
+        setRaid(await response.json());
+      } catch (e) {
+        setRaid(null);
       }
+      setLoading(false);
     };
 
     getRaid();
@@ -55,6 +60,14 @@ export default function RaidLayout(props: RaidLayoutProps) {
       document.title = 'Blert';
     };
   }, [raid]);
+
+  if (loading) {
+    return <Loading />;
+  }
+
+  if (raid === null) {
+    return <div>Raid not found</div>;
+  }
 
   return (
     <div className={styles.raid}>

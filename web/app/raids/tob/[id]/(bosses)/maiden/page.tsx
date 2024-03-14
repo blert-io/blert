@@ -33,6 +33,7 @@ import {
 } from '../../../boss-room-state';
 import { clamp } from '../../../../../utils/math';
 import { ActorContext } from '../../../context';
+import Loading from '../../../../../components/loading';
 
 import maidenBaseTiles from './maiden.json';
 import styles from './style.module.scss';
@@ -57,6 +58,7 @@ export default function Maiden() {
     eventsByType,
     bossAttackTimeline,
     playerAttackTimelines,
+    loading,
   } = useRoomEvents(Room.MAIDEN);
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
@@ -97,8 +99,8 @@ export default function Maiden() {
 
   const { selectedPlayer } = useContext(ActorContext);
 
-  if (raidData === null || events.length === 0) {
-    return <>Loading...</>;
+  if (loading || raidData === null) {
+    return <Loading />;
   }
 
   const maidenData = raidData.rooms[Room.MAIDEN];

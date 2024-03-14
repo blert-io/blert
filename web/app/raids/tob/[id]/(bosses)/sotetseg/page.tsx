@@ -25,6 +25,7 @@ import {
   OverlayEntity,
   PlayerEntity,
 } from '../../../../../components/map';
+import Loading from '../../../../../components/loading';
 
 import styles from './style.module.scss';
 import soteBaseTiles from './sote-tiles.json';
@@ -45,19 +46,19 @@ const MAZE_HEIGHT = 15;
 export default function SotetsegPage() {
   const {
     raidData,
-    events,
     totalTicks,
     eventsByTick,
     eventsByType,
     bossAttackTimeline,
     playerAttackTimelines,
+    loading,
   } = useRoomEvents(Room.SOTETSEG);
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
 
-  if (raidData === null || events.length === 0) {
-    return <>Loading...</>;
+  if (loading || raidData === null) {
+    return <Loading />;
   }
 
   const soteData = raidData.rooms[Room.SOTETSEG];

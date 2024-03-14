@@ -20,6 +20,7 @@ import CollapsiblePanel from '../../components/collapsible-panel';
 import RaidHistory from '../../components/raid-history';
 import Statistic from '../../components/statistic';
 import { ticksToFormattedSeconds } from '../../utils/tick';
+import Loading from '../../components/loading';
 
 import styles from './style.module.scss';
 
@@ -105,7 +106,7 @@ export default function Player(props: PlayerPageProps) {
   }, [player]);
 
   if (loading) {
-    return <div>Loading...</div>;
+    return <Loading />;
   }
 
   if (player === null) {
@@ -326,6 +327,7 @@ export default function Player(props: PlayerPageProps) {
         panelTitle="Recent Raids"
         maxPanelHeight={800}
         defaultExpanded
+        className={styles.recentRaids}
       >
         <RaidHistory raids={raids} />
       </CollapsiblePanel>

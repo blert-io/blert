@@ -950,6 +950,7 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
       maxPanelHeight={500}
       defaultExpanded={true}
       className={styles.attackTimeline}
+      panelWidth="100%"
     >
       <div className={styles.attackTimeline__Inner}>
         <div className={styles.attackTimeline__Legend}>
