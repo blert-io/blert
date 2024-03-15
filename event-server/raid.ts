@@ -203,30 +203,25 @@ export default class Raid {
     return this.clients.length > 0;
   }
 
-  public async start(): Promise<void> {
-    this.state = State.IN_PROGRESS;
-
-    const documentsToCreate: Promise<any>[] = [];
-
+  public async initialize(): Promise<void> {
     const record = new RaidModel({
       _id: this.id,
       mode: this.mode,
       status: this.raidStatus,
-      startTime: this.startTime,
       party: this.party,
       partyInfo: this.partyInfo,
       totalRoomTicks: 0,
     });
-    documentsToCreate.push(record.save());
-
-    for (const username of this.party) {
-      documentsToCreate.push(Players.startNewRaid(username));
-    }
-
-    await Promise.all(documentsToCreate);
+    await record.save();
   }
 
   public async finish(): Promise<void> {
+    if (this.state === State.STARTING) {
+      console.log(`Raid ${this.id} ended before Maiden; deleting record`);
+      await RaidModel.deleteOne({ _id: this.id });
+      return;
+    }
+
     let promises: Promise<void>[] = [];
 
     promises.push(
@@ -361,6 +356,24 @@ export default class Raid {
     }
   }
 
+  private async start(): Promise<void> {
+    this.state = State.IN_PROGRESS;
+
+    const promises: Promise<any>[] = [];
+
+    promises.push(
+      this.updateDatabaseFields((record) => {
+        record.startTime = this.startTime;
+      }),
+    );
+
+    for (const username of this.party) {
+      promises.push(Players.startNewRaid(username));
+    }
+
+    await Promise.all(promises);
+  }
+
   private async handleRoomStatusUpdate(event: RoomStatusEvent): Promise<void> {
     if (!event.room) {
       return;
@@ -368,6 +381,9 @@ export default class Raid {
 
     switch (event.roomStatus) {
       case RoomStatus.STARTED:
+        if (event.room === Room.MAIDEN) {
+          await this.start();
+        }
         if (this.roomStatus === RoomStatus.ENTERED) {
           // A transition from ENTERED -> STARTED has already reset the room.
           // Don't clear any data received afterwards, unless the room is new.

@@ -51,16 +51,17 @@ export default class RaidManager {
       this.raidsByPartyKey[partyKey] = raid;
       this.pendingRaids.push(raid);
 
-      console.log(`Started new raid ${raidId}`);
-
-      // TODO(frolv): This doesn't belong here; should wait for multiple clients
-      // to connect first.
-      await raid.start();
+      console.log(
+        `Client ${client.getSessionId()} starting new raid ${raidId}`,
+      );
+      await raid.initialize();
     } else {
       if (mode != null) {
         raid.setMode(mode);
       }
-      console.log(`Found existing raid ${raid.getId()}`);
+      console.log(
+        `Client ${client.getSessionId()} joining existing raid ${raid.getId()}`,
+      );
     }
 
     await raid.registerClient(client, spectator);
