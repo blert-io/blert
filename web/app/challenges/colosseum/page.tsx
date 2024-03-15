@@ -1,10 +1,9 @@
-import CollapsiblePanel from '../../components/collapsible-panel';
-import {
-  PvMContent,
-  PvMContentLogo,
-} from '../../components/pvm-content-logo/pvm-content-logo';
-import styles from './style.module.scss';
 import Image from 'next/image';
+
+import CollapsiblePanel from '../../components/collapsible-panel';
+import PvMContentLogo, { PvMContent } from '../../components/pvm-content-logo';
+
+import styles from './style.module.scss';
 
 export default function Page() {
   return (
@@ -16,9 +15,8 @@ export default function Page() {
       />
       <CollapsiblePanel
         panelTitle="The Fortis Colosseum"
-        maxPanelHeight={500}
+        maxPanelHeight={2000}
         defaultExpanded={true}
-        className={styles.fortisOverview}
         disableExpansion={true}
       >
         <div className={styles.fortisOverviewInner}>
@@ -32,20 +30,15 @@ export default function Page() {
           />
 
           <div className={styles.textGreeting}>
-            <p
-              style={{
-                fontSize: '26px',
-                paddingTop: '35px',
-              }}
-            >
+            <p style={{ fontSize: '26px' }}>
               We are as excited as you are to dive into the Fortis Colosseum on
               March 20th. We will be recording the data necessary to enable
               Fortis Colosseum analysis and visualizations on Blert while we do
               the content ourselves for the first time. Stay tuned for updates!
               <br />
               <br />
-              If youd like to help out, have any feedback, or just want to chat,
-              feel free to join our{' '}
+              If you'd like to help out, have any feedback, or just want to
+              chat, feel free to join our{' '}
               <a
                 href="https://discord.gg/c5Hgv3NnYe"
                 target="_blank"

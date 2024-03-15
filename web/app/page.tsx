@@ -43,7 +43,7 @@ export default function Home() {
               <br />
               We believe that the OSRS PvM community is in need of a tool that
               can help players improve their performance and learn from their
-              mistakes (or call out their friends mistakes...). Our long-term
+              mistakes (or call out their friends' mistakes...). Our long-term
               goal is to be the{' '}
               <a
                 style={{ textDecoration: 'underline' }}

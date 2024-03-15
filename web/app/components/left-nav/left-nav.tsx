@@ -9,6 +9,8 @@ import { DisplayContext } from '../../display';
 import { clamp } from '../../utils/math';
 
 import styles from './styles.module.scss';
+import { act } from 'react-dom/test-utils';
+import { set } from 'mongoose';
 
 // If this is changed, also change the value in `mixins.scss`.
 export const LEFT_NAV_WIDTH = 240;
@@ -25,6 +27,7 @@ type TouchInfo = {
 
 function LeftNavWrapper({ children }: { children: React.ReactNode }) {
   const display = useContext(DisplayContext);
+  const pathname = usePathname();
 
   const [isOpen, setIsOpen] = useState(display.isFull());
   const [dragX, setDragX] = useState(0);
@@ -33,7 +36,7 @@ function LeftNavWrapper({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setIsOpen(display.isFull());
-  }, [display]);
+  }, [display, pathname]);
 
   useEffect(() => {
     if (display.isFull()) {
@@ -45,7 +48,6 @@ function LeftNavWrapper({ children }: { children: React.ReactNode }) {
         return;
       }
       activeTouch.current = { touch: e.touches[0], direction: null };
-      console.log('touch start');
     };
 
     const onTouchMove = (e: TouchEvent) => {
@@ -62,7 +64,7 @@ function LeftNavWrapper({ children }: { children: React.ReactNode }) {
         const dy = touch.clientY - activeTouch.current.touch.clientY;
         if (Math.abs(dy) > 5) {
           activeTouch.current.direction = ScrollDirection.VERTICAL;
-        } else if (dx > 5) {
+        } else if (Math.abs(dx) > 5) {
           activeTouch.current.direction = ScrollDirection.HORIZONTAL;
           document.body.style.overflow = 'hidden';
         }
@@ -93,7 +95,6 @@ function LeftNavWrapper({ children }: { children: React.ReactNode }) {
       }
       const dx =
         e.changedTouches[0].clientX - activeTouch.current.touch.clientX;
-      activeTouch.current = null;
 
       const isOpen = dx > LEFT_NAV_WIDTH / 2 - 40;
       if (isOpen) {
@@ -103,8 +104,11 @@ function LeftNavWrapper({ children }: { children: React.ReactNode }) {
         document.body.style.overflowY = 'auto';
       }
 
-      setIsOpen(isOpen);
+      if (activeTouch.current.direction === ScrollDirection.HORIZONTAL) {
+        setIsOpen(isOpen);
+      }
       setDragX(0);
+      activeTouch.current = null;
     };
     const onTouchCancel = (e: TouchEvent) => onTouchEnd(e);
 

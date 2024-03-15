@@ -1,17 +1,14 @@
-.tobOverview {
-  height: 300px;
-}
-
 .tobOverviewInner {
   padding: 20px;
-  width: 1200px;
+  max-width: 1200px;
   display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  justify-content: flex-start;
+  flex-flow: row wrap;
+  align-items: center;
+  justify-content: space-around;
 
   .textGreeting {
     padding: 0 20px;
+    max-width: 800px;
 
     h3 {
       margin: 0;
@@ -20,34 +17,11 @@
 
     p {
       margin: 0 0 10px 0;
-      padding: 0;
+      padding: 20px 0;
     }
   }
 
   img {
     display: inline-block;
-  }
-}
-
-.tobRecentRecordings {
-  margin-bottom: 20px;
-}
-
-.tobRecentRecordingsList {
-  width: 700px;
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-
-  .tobRecentRecordingsListEntry {
-    border: 2px solid red;
-    cursor: pointer;
-
-    &:hover {
-      background-color: lighten(#1b1c25, 4%);
-    }
   }
 }

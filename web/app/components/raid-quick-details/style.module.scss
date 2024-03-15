@@ -3,15 +3,13 @@
 .raid__bulletpointDetails {
   @include panel;
   display: flex;
-  flex-direction: row;
+  flex-flow: row wrap;
   justify-content: space-evenly;
-  padding-left: 12px;
   margin-bottom: 20px;
-  width: 1100px;
 
   &.raid__bulletpointDetailsCompact {
-    box-shadow: none !important;
-    background: none !important;
+    box-shadow: none;
+    background: none;
   }
 }
 

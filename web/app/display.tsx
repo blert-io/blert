@@ -13,8 +13,8 @@ export class Display {
   // If this is changed, also update `mixins.scss`.
   private static COMPACT_THRESHOLD = 940;
 
-  private static FULL = new Display(DisplayType.FULL);
-  private static COMPACT = new Display(DisplayType.COMPACT);
+  public static FULL = new Display(DisplayType.FULL);
+  public static COMPACT = new Display(DisplayType.COMPACT);
 
   constructor(type: DisplayType) {
     this.type = type;
@@ -38,8 +38,8 @@ export const DisplayContext = createContext<Display>(
 );
 
 export function DisplayWrapper({ children }: { children: React.ReactNode }) {
-  const [display, setDisplay] = useState<Display>(
-    Display.fromViewportWidth(window.innerWidth),
+  const [display, setDisplay] = useState<Display>(() =>
+    window ? Display.fromViewportWidth(window.innerWidth) : Display.FULL,
   );
 
   useEffect(() => {

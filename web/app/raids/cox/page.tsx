@@ -1,10 +1,9 @@
-import CollapsiblePanel from '../../components/collapsible-panel';
-import {
-  PvMContent,
-  PvMContentLogo,
-} from '../../components/pvm-content-logo/pvm-content-logo';
-import styles from './style.module.scss';
 import Image from 'next/image';
+
+import CollapsiblePanel from '../../components/collapsible-panel';
+import PvMContentLogo, { PvMContent } from '../../components/pvm-content-logo';
+
+import styles from './style.module.scss';
 
 export default function Page() {
   return (
@@ -16,9 +15,8 @@ export default function Page() {
       />
       <CollapsiblePanel
         panelTitle="The Chambers of Xeric"
-        maxPanelHeight={500}
+        maxPanelHeight={2000}
         defaultExpanded={true}
-        className={styles.coxOverview}
         disableExpansion={true}
       >
         <div className={styles.coxOverviewInner}>
@@ -39,9 +37,9 @@ export default function Page() {
               }}
             >
               We are adding raid recording support for the Chambers of Xeric
-              raid soon! Stay tuned for updates. If you have any question, would
-              like to help out, have any feedback, or just want to chat, feel
-              free to join our{' '}
+              raid soon! Stay tuned for updates. If you have any questions,
+              would like to help out, provide feedback, or just want to chat,
+              feel free to join our{' '}
               <a
                 href="https://discord.gg/c5Hgv3NnYe"
                 target="_blank"

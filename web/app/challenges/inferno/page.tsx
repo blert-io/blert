@@ -1,10 +1,9 @@
-import CollapsiblePanel from '../../components/collapsible-panel';
-import {
-  PvMContent,
-  PvMContentLogo,
-} from '../../components/pvm-content-logo/pvm-content-logo';
-import styles from './style.module.scss';
 import Image from 'next/image';
+
+import CollapsiblePanel from '../../components/collapsible-panel';
+import PvMContentLogo, { PvMContent } from '../../components/pvm-content-logo';
+
+import styles from './style.module.scss';
 
 export default function Page() {
   return (
@@ -16,9 +15,8 @@ export default function Page() {
       />
       <CollapsiblePanel
         panelTitle="The Inferno"
-        maxPanelHeight={500}
+        maxPanelHeight={2000}
         defaultExpanded={true}
-        className={styles.infernoOverview}
         disableExpansion={true}
       >
         <div className={styles.infernoOverviewInner}>
@@ -32,13 +30,8 @@ export default function Page() {
           />
 
           <div className={styles.textGreeting}>
-            <p
-              style={{
-                fontSize: '26px',
-                paddingTop: '40px',
-              }}
-            >
-              Here on the Blert team, we love zuk. We are aiming to add Inferno
+            <p style={{ fontSize: '26px' }}>
+              Here on the Blert team, we love Zuk. We are aiming to add Inferno
               support to Blert in the very near future. Stay tuned for updates!
               <br />
               <br />

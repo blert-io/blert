@@ -158,10 +158,7 @@ export function RaidQuickDetails(props: RaidQuickDetailsProps) {
         <i className="fa-solid fa-skull"></i> {deaths} Death
         {deaths !== 1 && 's'}
       </div>
-      <div
-        className={styles.raid__bulletpointDetail}
-        style={{ marginRight: '25px', minWidth: '160px' }}
-      >
+      <div className={styles.raid__bulletpointDetail}>
         <i className="fa-solid fa-clock"></i> <TimeAgo date={startTime} />
       </div>
     </div>

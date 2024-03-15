@@ -1,7 +1,6 @@
 @import './mixins.scss';
 
 .siteParent {
-  display: flex;
   flex-direction: column;
   width: 100vw;
 
@@ -11,11 +10,12 @@
 }
 
 .pageParentContent {
-  flex-grow: 1;
+  min-height: 100%;
   background-color: var(--content-area-bg);
   display: flex;
   flex-direction: column;
   align-items: center;
+  padding: 0 10px;
 
   @include styledScrollbar;
 }
