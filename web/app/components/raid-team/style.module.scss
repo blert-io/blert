@@ -9,28 +9,59 @@
   margin-bottom: 20px;
   align-items: center;
   overflow: hidden;
+
+  &:not(.raid__TeamCompactView) {
+    .raid__PlayerImg {
+      transform: scale(2.5);
+      top: 95px !important;
+    }
+  }
 }
 
 .raid__TeamCompactView {
+  display: flex;
+  flex-direction: column;
   box-shadow: none;
-  height: 55px;
+  height: auto;
+  width: 100%;
+  padding: 20px;
 
   .raid__Player {
-    height: 50px;
-    border: 1px solid red;
+    width: 100%;
     cursor: auto;
+    height: 60px;
+    flex-direction: row;
+    padding: 0 10%;
+    justify-content: center;
+    border: 1px solid #ffffff10;
+    border-radius: 5px;
 
     &:hover {
       transform: scale(1);
     }
 
+    &:not(:last-child) {
+      margin-bottom: 10px;
+    }
+
+    .imageWrapper {
+      position: relative;
+      width: 50px;
+      height: 50px;
+      overflow: hidden;
+    }
+
     .raid__PlayerImg {
-      transform: scale(1.25);
+      transform: scale(2);
       top: 26px !important;
     }
 
     .raid__PlayerName {
-      top: 0 !important;
+      font-weight: 700;
+      width: 200px;
+      font-size: 24px;
+      padding-left: 20px;
+      top: 0px;
     }
   }
 }
@@ -55,10 +86,4 @@
   position: relative;
   top: -10px;
   font-size: 16px;
-}
-
-.raid__PlayerImg {
-  transform: scale(2.5);
-  position: relative;
-  top: 95px !important;
 }

@@ -325,7 +325,7 @@ export default function Player(props: PlayerPageProps) {
       </CollapsiblePanel>
       <CollapsiblePanel
         panelTitle="Recent Raids"
-        maxPanelHeight={800}
+        maxPanelHeight={2000}
         defaultExpanded
         className={styles.recentRaids}
       >

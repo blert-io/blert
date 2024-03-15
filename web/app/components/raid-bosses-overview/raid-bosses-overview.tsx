@@ -1,23 +1,23 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 
-import styles from './style.module.scss';
 import {
   BloatOverview,
   MaidenCrabSpawn,
   MaidenOverview,
   NyloOverview,
   Room,
-  RoomOverview,
   Rooms,
   SoteOverview,
   VerzikOverview,
   XarpusOverview,
 } from '@blert/common';
-import Link from 'next/link';
 import { ticksToFormattedSeconds } from '../../utils/tick';
 import { getOrdinal } from '../../utils/path-util';
+
+import styles from './style.module.scss';
 
 interface RaidBossesOverviewProps {
   raidId: string;

@@ -18,6 +18,37 @@ export function RaidTeamPanel(props: TeamPanelProps) {
   const { players, compactView } = props;
 
   const playerElements = players.map((player, index) => {
+    let content;
+    if (compactView) {
+      content = (
+        <>
+          <div className={styles.imageWrapper}>
+            <Image
+              className={styles.raid__PlayerImg}
+              src={`/${PrimaryMeleeGear[player.primaryMeleeGear].toLowerCase()}.webp`}
+              alt={PrimaryMeleeGear[player.primaryMeleeGear].toLowerCase()}
+              fill
+              style={{ objectFit: 'contain' }}
+            />
+          </div>
+          <div className={styles.raid__PlayerName}>{player.name}</div>
+        </>
+      );
+    } else {
+      content = (
+        <>
+          <div className={styles.raid__PlayerName}>{player.name}</div>
+          <Image
+            className={styles.raid__PlayerImg}
+            src={`/${PrimaryMeleeGear[player.primaryMeleeGear].toLowerCase()}.webp`}
+            alt={PrimaryMeleeGear[player.primaryMeleeGear].toLowerCase()}
+            fill
+            style={{ objectFit: 'contain' }}
+          />
+        </>
+      );
+    }
+
     return (
       <Link
         href={`/players/${player.name}`}
@@ -25,14 +56,7 @@ export function RaidTeamPanel(props: TeamPanelProps) {
         className={styles.raid__Player}
         style={{ position: 'relative' }}
       >
-        <div className={styles.raid__PlayerName}>{player.name}</div>
-        <Image
-          className={styles.raid__PlayerImg}
-          src={`/${PrimaryMeleeGear[player.primaryMeleeGear].toLowerCase()}.webp`}
-          alt={PrimaryMeleeGear[player.primaryMeleeGear].toLowerCase()}
-          fill
-          style={{ objectFit: 'contain' }}
-        />
+        {content}
       </Link>
     );
   });
