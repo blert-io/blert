@@ -16,7 +16,6 @@ const Item = {
   _id: false,
   id: Number,
   quantity: Number,
-  name: String,
 };
 
 const attackSchema = new Schema(
