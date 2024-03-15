@@ -120,7 +120,7 @@ export default function BloatPage() {
   });
 
   eventsByType[EventType.BLOAT_UP]?.forEach((evt) => {
-    splits.push({ tick: evt.tick, splitName: 'Walking' });
+    splits.push({ tick: evt.tick, splitName: 'Moving' });
 
     const nextDownTick =
       downTicks.find((tick) => tick > evt.tick) ?? totalTicks;

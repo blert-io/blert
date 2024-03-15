@@ -7,20 +7,20 @@ export default function Home() {
   return (
     <div className={styles.home}>
       <div className={styles.homeInner}>
-        <Image
-          src="/tobdataegirl.png"
-          alt="Tob Data Egirl waving"
-          width={430}
-          height={410}
-          className={styles.home__Image}
-        />
+        <div className={styles.image}>
+          <Image
+            src="/tobdataegirl.png"
+            alt="Tob Data Egirl waving"
+            fill
+            style={{ objectFit: 'contain' }}
+          />
+        </div>
         <CollapsiblePanel
           panelTitle="Blert Dot Eye Oh"
           maxPanelHeight={9999}
           defaultExpanded={true}
           className={styles.homeOverview}
           disableExpansion={true}
-          panelWidth={950}
         >
           <div className={styles.homeOverviewInner} style={{ padding: '20px' }}>
             <h2 style={{ fontSize: '26px', marginTop: '0' }}>

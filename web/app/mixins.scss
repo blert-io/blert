@@ -28,3 +28,9 @@
     border-radius: 4px;
   }
 }
+
+// Keep this in sync with `display.tsx`.
+$COMPACT_WIDTH_THRESHOLD: 940px;
+
+// Keep this in sync with `left-nav.tsx`.
+$LEFT_NAV_WIDTH: 240px;
