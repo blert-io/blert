@@ -57,6 +57,7 @@ export async function loadEventsForRoom(
     _id: 0,
     __v: 0,
     raidId: 0,
+    room: 0,
   }).lean();
 
   // Item names are not stored in the database: load them from the item cache.

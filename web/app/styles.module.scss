@@ -2,14 +2,12 @@
 
 .siteParent {
   display: flex;
-  flex-direction: row;
-  height: 100%;
-  width: 100%;
-  overflow-x: hidden;
-}
+  flex-direction: column;
+  width: 100vw;
 
-.home__Image {
-  margin: 20px 0;
+  @media (min-width: $COMPACT_WIDTH_THRESHOLD) {
+    margin-left: $LEFT_NAV_WIDTH;
+  }
 }
 
 .pageParentContent {
@@ -18,7 +16,6 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  overflow-y: auto;
 
   @include styledScrollbar;
 }
@@ -29,17 +26,24 @@
   display: flex;
   align-items: center;
   flex-direction: column;
-  padding-top: 5em;
+
+  .image {
+    position: relative;
+    width: 100%;
+    max-width: 430px;
+    height: 410px;
+    margin: 3em 0;
+
+    img {
+      border-radius: 5px;
+      box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.2);
+    }
+  }
 
   .homeInner {
     display: flex;
     flex-direction: column;
     align-items: center;
-    max-width: 800px;
-  }
-
-  img {
-    border-radius: 5px;
-    box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.2);
+    max-width: 1200px;
   }
 }
