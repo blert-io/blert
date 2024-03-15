@@ -210,6 +210,7 @@ export default class Raid {
       status: this.raidStatus,
       party: this.party,
       partyInfo: this.partyInfo,
+      startTime: this.startTime,
       totalRoomTicks: 0,
     });
     await record.save();
@@ -218,7 +219,10 @@ export default class Raid {
   public async finish(): Promise<void> {
     if (this.state === State.STARTING) {
       console.log(`Raid ${this.id} ended before Maiden; deleting record`);
-      await RaidModel.deleteOne({ _id: this.id });
+      await Promise.all([
+        RaidModel.deleteOne({ _id: this.id }),
+        RecordedRaidModel.deleteMany({ raidId: this.id }),
+      ]);
       return;
     }
 
@@ -358,19 +362,7 @@ export default class Raid {
 
   private async start(): Promise<void> {
     this.state = State.IN_PROGRESS;
-
-    const promises: Promise<any>[] = [];
-
-    promises.push(
-      this.updateDatabaseFields((record) => {
-        record.startTime = this.startTime;
-      }),
-    );
-
-    for (const username of this.party) {
-      promises.push(Players.startNewRaid(username));
-    }
-
+    const promises = this.party.map(Players.startNewRaid);
     await Promise.all(promises);
   }
 
