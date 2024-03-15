@@ -75,7 +75,7 @@ export default function Page() {
 
       <CollapsiblePanel
         panelTitle="Recently Recorded Raids"
-        maxPanelHeight={800}
+        maxPanelHeight={2000}
         defaultExpanded={true}
       >
         <RaidHistory raids={raids} loading={loading} />

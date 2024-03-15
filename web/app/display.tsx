@@ -33,16 +33,18 @@ export class Display {
   }
 }
 
-export const DisplayContext = createContext<Display>(
-  new Display(DisplayType.FULL),
-);
+// The server should render a compact display by default as the way the left
+// nav is implemented makes an initial transition from compact to full display
+// unnoticeable, but not vice versa.
+export const DisplayContext = createContext<Display>(Display.COMPACT);
 
 export function DisplayWrapper({ children }: { children: React.ReactNode }) {
-  const [display, setDisplay] = useState<Display>(() =>
-    window ? Display.fromViewportWidth(window.innerWidth) : Display.FULL,
-  );
+  const [display, setDisplay] = useState<Display>(Display.COMPACT);
 
   useEffect(() => {
+    // Set the initial display type based on the viewport width.
+    setDisplay(Display.fromViewportWidth(window.innerWidth));
+
     const handleResize = () => {
       setDisplay(Display.fromViewportWidth(window.innerWidth));
     };

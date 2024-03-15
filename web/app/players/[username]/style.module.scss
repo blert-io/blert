@@ -1,5 +1,4 @@
 .playerPage {
-  width: calc(90vw - 240px);
   max-width: 1800px;
   display: flex;
   flex-direction: column;
@@ -7,9 +6,6 @@
 
   .pbWrapper {
     padding: 20px;
-    display: flex;
-    justify-content: space-evenly;
-    flex-wrap: wrap;
   }
 
   .statsWrapper {
@@ -25,7 +21,7 @@
 
     .stats {
       width: 100%;
-      padding: 20px;
+      padding: 20px 10px;
       justify-content: space-evenly;
 
       display: flex;
@@ -36,7 +32,7 @@
         text-align: center;
         border-radius: 5px;
         border: 1px solid rgba(195, 199, 201, 0.21);
-        margin: 20px;
+        margin: 16px;
         height: 126px;
       }
     }

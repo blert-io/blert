@@ -9,14 +9,17 @@ import { RaidTeamPanel } from '../../../../components/raid-team/raid-team';
 import PvMContentLogo, {
   PvMContent,
 } from '../../../../components/pvm-content-logo';
+import Loading from '../../../../components/loading';
 
 import styles from './style.module.scss';
+import { DisplayContext } from '../../../../display';
 
 export default function Overview() {
   const raid = useContext(RaidContext);
+  const display = useContext(DisplayContext);
 
   if (raid === null) {
-    return <div>Loading...</div>;
+    return <Loading />;
   }
 
   const playersWithGear = raid.party.map((player, i) => {
@@ -41,7 +44,10 @@ export default function Overview() {
         partySize={raid.party.length}
         startTime={raid.startTime}
       />
-      <RaidTeamPanel players={playersWithGear} />
+      <RaidTeamPanel
+        players={playersWithGear}
+        compactView={display.isCompact()}
+      />
       <RaidBossesOverview rooms={raid.rooms} raidId={raid._id} />
     </div>
   );

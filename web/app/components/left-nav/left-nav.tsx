@@ -9,8 +9,6 @@ import { DisplayContext } from '../../display';
 import { clamp } from '../../utils/math';
 
 import styles from './styles.module.scss';
-import { act } from 'react-dom/test-utils';
-import { set } from 'mongoose';
 
 // If this is changed, also change the value in `mixins.scss`.
 export const LEFT_NAV_WIDTH = 240;
@@ -39,10 +37,6 @@ function LeftNavWrapper({ children }: { children: React.ReactNode }) {
   }, [display, pathname]);
 
   useEffect(() => {
-    if (display.isFull()) {
-      return;
-    }
-
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) {
         return;
@@ -128,10 +122,12 @@ function LeftNavWrapper({ children }: { children: React.ReactNode }) {
   let left = isOpen ? 0 : -LEFT_NAV_WIDTH;
   left += dragX;
 
+  const shouldAnimate = display.isCompact() && activeTouch.current === null;
+
   const style: React.CSSProperties = {
     width: LEFT_NAV_WIDTH,
     left,
-    transition: activeTouch.current === null ? 'left 0.2s' : 'none',
+    transition: shouldAnimate ? 'left 0.2s' : 'none',
   };
 
   return (
