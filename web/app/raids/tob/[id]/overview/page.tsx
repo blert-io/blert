@@ -4,12 +4,11 @@ import { useContext } from 'react';
 
 import { RaidContext } from '../../context';
 import { RaidBossesOverview } from '../../../../components/raid-bosses-overview/raid-bosses-overview';
-import {
-  PvMContent,
-  PvMContentLogo,
-} from '../../../../components/pvm-content-logo/pvm-content-logo';
 import { RaidQuickDetails } from '../../../../components/raid-quick-details/raid-quick-details';
 import { RaidTeamPanel } from '../../../../components/raid-team/raid-team';
+import PvMContentLogo, {
+  PvMContent,
+} from '../../../../components/pvm-content-logo';
 
 import styles from './style.module.scss';
 

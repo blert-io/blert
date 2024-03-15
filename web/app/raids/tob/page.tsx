@@ -1,18 +1,14 @@
 'use client';
 
+import Image from 'next/image';
 import { useState, useEffect } from 'react';
 
-import CollapsiblePanel from '../../components/collapsible-panel';
-import {
-  PvMContent,
-  PvMContentLogo,
-} from '../../components/pvm-content-logo/pvm-content-logo';
-import Image from 'next/image';
 import { RaidOverview, loadRecentRaidInformation } from '../../actions/raid';
+import PvMContentLogo, { PvMContent } from '../../components/pvm-content-logo';
+import CollapsiblePanel from '../../components/collapsible-panel';
 import RaidHistory from '../../components/raid-history';
 
 import styles from './style.module.scss';
-import { set } from 'mongoose';
 
 export default function Page() {
   const [loading, setLoading] = useState(true);
@@ -38,9 +34,8 @@ export default function Page() {
       />
       <CollapsiblePanel
         panelTitle="The Theatre Of Blood"
-        maxPanelHeight={500}
+        maxPanelHeight={2000}
         defaultExpanded={true}
-        className={styles.tobOverview}
         disableExpansion={true}
       >
         <div className={styles.tobOverviewInner}>
@@ -54,17 +49,12 @@ export default function Page() {
           />
 
           <div className={styles.textGreeting}>
-            <p
-              style={{
-                fontSize: '26px',
-                paddingTop: '40px',
-              }}
-            >
+            <p style={{ fontSize: '26px' }}>
               Welcome to the Theatre of Blood data tracker!
               <br />
               <br />
               Feel free to explore some of the recently recorded raids, or
-              search for your (or a friends) RSN to see some player stats.
+              search for your (or a friend's) RSN to see some player stats.
               <br />
               <br />
               If you have any questions please feel free to reach out to us on
@@ -87,7 +77,6 @@ export default function Page() {
         panelTitle="Recently Recorded Raids"
         maxPanelHeight={800}
         defaultExpanded={true}
-        className={styles.tobRecentRecordings}
       >
         <RaidHistory raids={raids} loading={loading} />
       </CollapsiblePanel>

@@ -1,14 +1,12 @@
+'use client';
+
 import Image from 'next/image';
+import { useContext } from 'react';
+
+import { DisplayContext } from '../../display';
+import { PvMContent } from './pvm-content';
 
 import styles from './style.module.scss';
-
-export enum PvMContent {
-  TheatreOfBlood,
-  ChambersOfXeric,
-  TombsOfAmascut,
-  Inferno,
-  Colosseum,
-}
 
 interface PvMContentLogoProps {
   pvmContent: PvMContent;
@@ -33,21 +31,31 @@ const getPvMContentLogo = (pvmContent: PvMContent) => {
 };
 
 export function PvMContentLogo(props: PvMContentLogoProps) {
-  const { pvmContent, className, height = 300, width = 890 } = props;
+  const display = useContext(DisplayContext);
+
+  let { pvmContent, className, height = 300, width = 890 } = props;
+
+  if (display.isCompact()) {
+    height = Math.floor(height / 1.5);
+  }
 
   const logoSrc = getPvMContentLogo(pvmContent);
 
   return (
     <div
       className={`${styles.raid__Title}${className !== undefined ? ' ' + className : ''}`}
-      style={{ height: `${height}px`, width: `${width}px` }}
+      style={{
+        height,
+        width: '100%',
+        maxWidth: width,
+      }}
     >
       <Image
         className={styles.raid__Logo}
         src={`${logoSrc}`}
         alt="pvm content icon"
         fill
-        style={{ objectFit: 'cover' }}
+        style={{ objectFit: 'contain' }}
       />
     </div>
   );

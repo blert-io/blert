@@ -1,17 +1,15 @@
-.toaOverview {
-  height: 300px;
-}
-
 .toaOverviewInner {
   padding: 20px;
-  width: 1200px;
+  max-width: 1200px;
   display: flex;
   flex-direction: row;
-  align-items: flex-start;
-  justify-content: flex-start;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-around;
 
   .textGreeting {
     padding: 0 20px;
+    max-width: 800px;
 
     h3 {
       margin: 0;

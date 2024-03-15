@@ -1,10 +1,9 @@
-import CollapsiblePanel from '../../components/collapsible-panel';
-import {
-  PvMContent,
-  PvMContentLogo,
-} from '../../components/pvm-content-logo/pvm-content-logo';
-import styles from './style.module.scss';
 import Image from 'next/image';
+
+import CollapsiblePanel from '../../components/collapsible-panel';
+import PvMContentLogo, { PvMContent } from '../../components/pvm-content-logo';
+
+import styles from './style.module.scss';
 
 export default function Page() {
   return (
@@ -16,9 +15,8 @@ export default function Page() {
       />
       <CollapsiblePanel
         panelTitle="The Tombs of Amascut"
-        maxPanelHeight={500}
+        maxPanelHeight={2000}
         defaultExpanded={true}
-        className={styles.toaOverview}
         disableExpansion={true}
       >
         <div className={styles.toaOverviewInner}>
@@ -32,16 +30,11 @@ export default function Page() {
           />
 
           <div className={styles.textGreeting}>
-            <p
-              style={{
-                fontSize: '26px',
-                paddingTop: '70px',
-              }}
-            >
+            <p style={{ fontSize: '26px', padding: '0.5em 0' }}>
               We are adding raid recording support for the Tombs of Amascut raid
-              soon! Stay tuned for updates. If you have any question, would like
-              to help out, have any feedback, or just want to chat, feel free to
-              join our{' '}
+              soon! Stay tuned for updates. If you have any questions or, would
+              like to help out, provide feedback, or just want to chat, feel
+              free to join our{' '}
               <a
                 href="https://discord.gg/c5Hgv3NnYe"
                 target="_blank"
