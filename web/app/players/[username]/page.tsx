@@ -296,7 +296,7 @@ export default function Player(props: PlayerPageProps) {
             />
             <Statistic
               supplementalClassName={styles.individualStat}
-              name="Thrown at Maiden"
+              name="Thrown during Maiden"
               value={stats.chinsThrownMaiden}
               width={STATISTIC_WIDTH}
             />
