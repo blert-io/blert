@@ -2,6 +2,7 @@
 
 import {
   Event,
+  EventType,
   PersonalBest,
   PersonalBestModel,
   Player,
@@ -13,7 +14,8 @@ import {
   Room,
   RoomEvent,
 } from '@blert/common';
-import { cache } from 'react';
+import { FilterQuery } from 'mongoose';
+
 import connectToDatabase from './db';
 
 /**
@@ -30,23 +32,31 @@ export async function loadRaid(id: string): Promise<Raid | null> {
   return raid ? (raid as Raid) : null;
 }
 
-async function _loadEventsForRoom(
-  raidId: string,
-  room: Room,
-): Promise<Event[]> {
-  await connectToDatabase();
-
-  const roomEvents = await RoomEvent.find({ raidId, room }, { _id: 0 }).lean();
-  return roomEvents ? (roomEvents as unknown as Event[]) : [];
-}
-
 /**
  * Fetches all of the room events for a specified room in a raid.
  * @param raidId UUID of the raid.
  * @param room The room whose events to fetch.
  * @returns Array of events for the room, empty if none exist.
  */
-export const loadEventsForRoom = cache(_loadEventsForRoom);
+export async function loadEventsForRoom(
+  raidId: string,
+  room: Room,
+  type?: EventType,
+): Promise<Event[]> {
+  await connectToDatabase();
+
+  let query: FilterQuery<Event> = { raidId, room };
+  if (type !== undefined) {
+    query.type = type;
+  }
+
+  const roomEvents = await RoomEvent.find(query, {
+    _id: 0,
+    __v: 0,
+    raidId: 0,
+  }).lean();
+  return roomEvents ? (roomEvents as unknown as Event[]) : [];
+}
 
 export type RaidOverview = Pick<
   Raid,

@@ -19,9 +19,7 @@ import {
 
 import { TICK_MS } from '../../utils/tick';
 import { RaidContext } from './context';
-import { loadEventsForRoom } from '../../actions/raid';
 import { PlayerDetails } from '../../components/boss-page-replay';
-import { set } from 'mongoose';
 
 export const usePlayingState = (totalTicks: number) => {
   const [currentTick, setTick] = useState(1);
@@ -115,7 +113,18 @@ export const useRoomEvents = (room: Room) => {
 
     setLoading(true);
     const getEvents = async () => {
-      const evts = await loadEventsForRoom(raidData._id, room);
+      let evts: Event[] = [];
+
+      try {
+        evts = await fetch(
+          `/api/v1/raids/tob/${raidData._id}/events?room=${room}`,
+        ).then((res) => res.json());
+      } catch (e) {
+        setEvents([]);
+        setLoading(false);
+        return;
+      }
+
       setEvents(evts);
 
       if (evts.length > 0) {
