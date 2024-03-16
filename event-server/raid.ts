@@ -115,6 +115,7 @@ export default class Raid {
   private raidStatus: RaidStatus;
   private completedRooms: number;
   private totalRoomTicks: number;
+  private overallTicks: number;
 
   private playerInfoUpdated: Set<string>;
 
@@ -153,6 +154,7 @@ export default class Raid {
     this.raidStatus = RaidStatus.IN_PROGRESS;
     this.completedRooms = 0;
     this.totalRoomTicks = 0;
+    this.overallTicks = 0;
 
     this.playerInfoUpdated = new Set();
 
@@ -192,6 +194,10 @@ export default class Raid {
 
   public getStartTime(): number {
     return this.startTime;
+  }
+
+  public setOverallTime(time: number): void {
+    this.overallTicks = time;
   }
 
   public async setMode(mode: Mode): Promise<void> {
@@ -243,6 +249,12 @@ export default class Raid {
           this.totalRoomTicks,
         ),
       );
+
+      if (this.overallTicks !== 0) {
+        promises.push(
+          this.updatePartyPbs(PersonalBestType.TOB_OVERALL, this.overallTicks),
+        );
+      }
     }
 
     for (const username of this.party) {
@@ -679,11 +691,13 @@ export default class Raid {
       case PlayerAttack.CHIN_BLACK:
       case PlayerAttack.CHIN_GREY:
       case PlayerAttack.CHIN_RED:
-        let chinPrice: number;
-        try {
-          chinPrice = await priceTracker.getPrice(attack.weapon.id);
-        } catch (e) {
-          chinPrice = 0;
+        let chinPrice = 0;
+        if (attack.weapon !== undefined) {
+          try {
+            chinPrice = await priceTracker.getPrice(attack.weapon.id);
+          } catch (e) {
+            chinPrice = 0;
+          }
         }
 
         const isWrongThrowDistance =

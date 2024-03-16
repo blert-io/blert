@@ -17,6 +17,7 @@ export { PersonalBestModel } from './models/personal-best';
 export type {
   Attack,
   EquipmentMap,
+  CompletedRaid,
   Event,
   MaidenBloodSplatsEvent,
   NpcAttackEvent,
@@ -30,6 +31,7 @@ export type {
   PlayerEvent,
   PlayerDeathEvent,
   PlayerUpdateEvent,
+  RaidEndEvent,
   RaidStartEvent,
   RaidUpdateEvent,
   RoomStatusEvent,

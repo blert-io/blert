@@ -69,6 +69,11 @@ export interface RaidUpdateEvent extends Event {
   raidInfo: RaidInfo;
 }
 
+export interface RaidEndEvent extends Event {
+  type: EventType.RAID_END;
+  completedRaid: CompletedRaid;
+}
+
 export interface RoomStatusEvent extends Event {
   type: EventType.ROOM_STATUS;
   roomStatus: RoomStatus;
@@ -168,6 +173,10 @@ export type RaidInfo = {
   isSpectator?: boolean;
 };
 
+export type CompletedRaid = {
+  overallTime: number;
+};
+
 export interface BasicPlayer {
   name: string;
 }
@@ -217,7 +226,7 @@ export interface EventNpc extends BasicEventNpc {
 
 export type Attack = {
   type: PlayerAttack;
-  weapon: Item;
+  weapon?: Item;
   target?: BasicEventNpc;
   distanceToTarget: number;
 };

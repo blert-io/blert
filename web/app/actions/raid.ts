@@ -75,7 +75,9 @@ export async function loadEventsForRoom(
       }
     } else if (event.type === EventType.PLAYER_ATTACK) {
       const e = event as unknown as PlayerAttackEvent;
-      e.attack.weapon.name = defaultItemCache.getItemName(e.attack.weapon.id);
+      if (e.attack.weapon) {
+        e.attack.weapon.name = defaultItemCache.getItemName(e.attack.weapon.id);
+      }
     }
   }
 

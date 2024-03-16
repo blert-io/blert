@@ -1,6 +1,7 @@
 import {
   Event,
   EventType,
+  RaidEndEvent,
   RaidStartEvent,
   RaidUpdateEvent,
 } from '@blert/common';
@@ -103,6 +104,15 @@ export default class MessageHandler {
 
       case EventType.RAID_END:
         if (event.raidId) {
+          const completedRaid = (event as RaidEndEvent).completedRaid;
+          // TODO(frolv): Handle this elsewhere..
+          if (completedRaid.overallTime !== -1) {
+            const raid = this.raidManager.getRaid(event.raidId);
+            if (raid) {
+              raid.setOverallTime(completedRaid.overallTime);
+            }
+          }
+
           this.raidManager.leaveRaid(client, event.raidId);
 
           // TODO(frolv): This deletion should only occur when the raid is
