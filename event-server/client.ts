@@ -116,7 +116,9 @@ export default class Client {
   }
 
   private cleanup(): void {
-    console.log(`Client ${this.sessionId} shutting down`);
+    console.log(
+      `Client ${this.sessionId} shutting down (last ping: ${this.lastHeartbeatTime})`,
+    );
 
     if (this.activeRaid !== null) {
       this.activeRaid.removeClient(this);
