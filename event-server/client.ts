@@ -33,7 +33,14 @@ export default class Client {
     this.messages = [];
     this.lastHeartbeatTime = Date.now();
 
-    socket.on('close', () => this.cleanup());
+    socket.on('close', (code) => {
+      console.log(`Client ${this.sessionId} closed: ${code}`);
+      this.cleanup();
+    });
+    socket.on('error', (code) => {
+      console.log(`Client ${this.sessionId} error: ${code}`);
+      this.cleanup();
+    });
 
     // Messages received through the socket are pushed into a message queue
     // where they are processed synchronously through `processMessages`.
@@ -116,10 +123,6 @@ export default class Client {
   }
 
   private cleanup(): void {
-    console.log(
-      `Client ${this.sessionId} shutting down (last ping: ${this.lastHeartbeatTime})`,
-    );
-
     if (this.activeRaid !== null) {
       this.activeRaid.removeClient(this);
       this.activeRaid = null;
