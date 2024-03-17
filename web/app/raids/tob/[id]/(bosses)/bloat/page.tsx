@@ -32,6 +32,7 @@ import Loading from '../../../../../components/loading';
 
 import bloatBaseTiles from './bloat-tiles.json';
 import styles from './style.module.scss';
+import { ticksToFormattedSeconds } from '../../../../../utils/tick';
 
 const BLOAT_MAP_DEFINITION = {
   baseX: 3288,
@@ -148,7 +149,7 @@ export default function BloatPage() {
           />
         </div>
         <div className={styles.bossPage__KeyDetails}>
-          <h2>The Pestilent Bloat</h2>
+          <h2>The Pestilent Bloat ({ticksToFormattedSeconds(totalTicks)})</h2>
         </div>
       </div>
 
