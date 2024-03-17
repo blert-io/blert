@@ -159,6 +159,7 @@ export default function SotetsegPage() {
         currentTick={currentTick}
         updateTick={updateTickOnPage}
         updatePlayingState={setPlaying}
+        splits={splits}
       />
 
       <BossPageAttackTimeline

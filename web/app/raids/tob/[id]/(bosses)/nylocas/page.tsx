@@ -335,6 +335,9 @@ export default function NylocasPage() {
     eventsByType[EventType.NYLO_WAVE_SPAWN]?.map((evt) => ({
       tick: evt.tick,
       splitName: `${(evt as NyloWaveSpawnEvent).nyloWave.wave}`,
+      unimportant: ![20, 31].includes(
+        (evt as NyloWaveSpawnEvent).nyloWave.wave,
+      ),
     })) ?? [];
 
   if (nyloData !== null) {
@@ -379,6 +382,7 @@ export default function NylocasPage() {
         currentTick={currentTick}
         updateTick={updateTickOnPage}
         updatePlayingState={setPlaying}
+        splits={splits}
       />
 
       <BossPageAttackTimeline

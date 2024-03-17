@@ -127,14 +127,22 @@ export default function VerzikPage() {
   let splits = [];
   if (verzikData !== null) {
     if (verzikData.splits.p1 > 0) {
-      splits.push({ tick: verzikData.splits.p1, splitName: 'P1 End' });
+      splits.push({
+        tick: verzikData.splits.p1,
+        splitName: 'P1 End',
+        unimportant: true,
+      });
       splits.push({ tick: verzikData.splits.p1 + 13, splitName: 'P2' });
     }
     if (verzikData.splits.reds > 0) {
       splits.push({ tick: verzikData.splits.reds, splitName: 'Reds' });
     }
     if (verzikData.splits.p2 > 0) {
-      splits.push({ tick: verzikData.splits.p2, splitName: 'P2 End' });
+      splits.push({
+        tick: verzikData.splits.p2,
+        splitName: 'P2 End',
+        unimportant: true,
+      });
       splits.push({ tick: verzikData.splits.p2 + 6, splitName: 'P3' });
     }
   }
@@ -173,6 +181,7 @@ export default function VerzikPage() {
         currentTick={currentTick}
         updateTick={updateTickOnPage}
         updatePlayingState={setPlaying}
+        splits={splits}
       />
 
       <BossPageAttackTimeline

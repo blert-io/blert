@@ -158,6 +158,7 @@ export default function BloatPage() {
         currentTick={currentTick}
         updateTick={updateTickOnPage}
         updatePlayingState={setPlaying}
+        splits={splits}
       />
 
       <BossPageAttackTimeline

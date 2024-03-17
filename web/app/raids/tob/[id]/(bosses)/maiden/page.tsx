@@ -364,6 +364,7 @@ export default function Maiden() {
         currentTick={currentTick}
         updateTick={updateTickOnPage}
         updatePlayingState={setPlaying}
+        splits={splits}
       />
 
       <BossPageAttackTimeline
