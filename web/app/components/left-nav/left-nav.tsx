@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import React, { useContext, useEffect, useState } from 'react';
 
-import { DisplayContext } from '../../display';
+import { DisplayContext, NavbarContext } from '../../display';
 import { clamp } from '../../utils/math';
 
 import styles from './styles.module.scss';
@@ -25,15 +25,15 @@ type TouchInfo = {
 
 function LeftNavWrapper({ children }: { children: React.ReactNode }) {
   const display = useContext(DisplayContext);
+  const { sidebarOpen, setSidebarOpen } = useContext(NavbarContext);
   const pathname = usePathname();
 
-  const [isOpen, setIsOpen] = useState(display.isFull());
   const [dragX, setDragX] = useState(0);
 
   const activeTouch = React.useRef<TouchInfo | null>(null);
 
   useEffect(() => {
-    setIsOpen(display.isFull());
+    setSidebarOpen(display.isFull());
   }, [display, pathname]);
 
   useEffect(() => {
@@ -76,7 +76,7 @@ function LeftNavWrapper({ children }: { children: React.ReactNode }) {
           return;
       }
 
-      if (isOpen) {
+      if (sidebarOpen) {
         setDragX(clamp(dx, -LEFT_NAV_WIDTH, 0));
       } else {
         setDragX(clamp(dx, 0, LEFT_NAV_WIDTH));
@@ -99,7 +99,7 @@ function LeftNavWrapper({ children }: { children: React.ReactNode }) {
       }
 
       if (activeTouch.current.direction === ScrollDirection.HORIZONTAL) {
-        setIsOpen(isOpen);
+        setSidebarOpen(isOpen);
       }
       setDragX(0);
       activeTouch.current = null;
@@ -117,9 +117,9 @@ function LeftNavWrapper({ children }: { children: React.ReactNode }) {
       window.removeEventListener('touchend', onTouchEnd);
       window.removeEventListener('touchcancel', onTouchCancel);
     };
-  }, [display, isOpen]);
+  }, [display, sidebarOpen]);
 
-  let left = isOpen ? 0 : -LEFT_NAV_WIDTH;
+  let left = sidebarOpen ? 0 : -LEFT_NAV_WIDTH;
   left += dragX;
 
   const shouldAnimate = display.isCompact() && activeTouch.current === null;

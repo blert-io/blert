@@ -7,6 +7,10 @@
   @media (min-width: $COMPACT_WIDTH_THRESHOLD) {
     margin-left: $LEFT_NAV_WIDTH;
   }
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    margin-top: $TOPBAR_HEIGHT;
+  }
 }
 
 .pageParentContent {

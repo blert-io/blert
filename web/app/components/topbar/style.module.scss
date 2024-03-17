@@ -1,0 +1,34 @@
+@import '../../mixins.scss';
+
+.topbar {
+  position: fixed;
+  width: 100vw;
+  height: $TOPBAR_HEIGHT;
+  z-index: 48;
+  background-color: var(--nav-bg);
+  box-shadow: 0 0 5px 0 rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 10px;
+
+  .menu {
+    width: 40px;
+    height: 40px;
+
+    span {
+      font-size: 30px;
+    }
+  }
+
+  .image {
+    position: relative;
+    height: 50px;
+    width: 80px;
+  }
+
+  .placeholder {
+    width: 40px;
+    height: 40px;
+  }
+}
