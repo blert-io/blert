@@ -1,3 +1,5 @@
+@import '../../mixins.scss';
+
 .playerPage {
   max-width: 1800px;
   display: flex;
@@ -59,6 +61,23 @@
 
   .recentRaids {
     flex-grow: 0;
+  }
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    .playerPreview {
+      flex-direction: column;
+      width: 100vw;
+
+      h1 {
+        font-size: 32px;
+        padding: 0 12px;
+        width: 100%;
+        text-align: center;
+        overflow-x: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+    }
   }
 }
 

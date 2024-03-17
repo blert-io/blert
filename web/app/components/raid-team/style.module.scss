@@ -32,7 +32,7 @@
     height: 60px;
     flex-direction: row;
     padding: 0 10%;
-    justify-content: center;
+    justify-content: flex-start;
     border: 1px solid #ffffff10;
     border-radius: 5px;
 
@@ -57,11 +57,15 @@
     }
 
     .raid__PlayerName {
+      display: block;
       font-weight: 700;
-      width: 200px;
+      max-width: 240px;
       font-size: 24px;
       padding-left: 20px;
       top: 0px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
   }
 }
