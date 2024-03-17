@@ -1,6 +1,12 @@
 'use client';
 
-import { createContext, useEffect, useState } from 'react';
+import {
+  Dispatch,
+  SetStateAction,
+  createContext,
+  useEffect,
+  useState,
+} from 'react';
 
 export const enum DisplayType {
   FULL,
@@ -38,8 +44,19 @@ export class Display {
 // unnoticeable, but not vice versa.
 export const DisplayContext = createContext<Display>(Display.COMPACT);
 
+type NavbarContextType = {
+  sidebarOpen: boolean;
+  setSidebarOpen: Dispatch<SetStateAction<boolean>>;
+};
+
+export const NavbarContext = createContext<NavbarContextType>({
+  sidebarOpen: false,
+  setSidebarOpen: () => {},
+});
+
 export function DisplayWrapper({ children }: { children: React.ReactNode }) {
   const [display, setDisplay] = useState<Display>(Display.COMPACT);
+  const [sidebarOpen, setSidebarOpen] = useState(display.isFull());
 
   useEffect(() => {
     // Set the initial display type based on the viewport width.
@@ -55,7 +72,9 @@ export function DisplayWrapper({ children }: { children: React.ReactNode }) {
 
   return (
     <DisplayContext.Provider value={display}>
-      {children}
+      <NavbarContext.Provider value={{ sidebarOpen, setSidebarOpen }}>
+        {children}
+      </NavbarContext.Provider>
     </DisplayContext.Provider>
   );
 }

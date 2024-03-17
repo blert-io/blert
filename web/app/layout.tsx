@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.scss';
 
 import { LeftNav } from './components/left-nav/left-nav';
+import Topbar from './components/topbar';
 import { DisplayWrapper } from './display';
 import Styler from './styler';
 
@@ -24,6 +25,7 @@ export default function RootLayout({
       <body className={inter.className} style={{ overflowX: 'hidden' }}>
         <Styler />
         <DisplayWrapper>
+          <Topbar />
           <div className={styles.siteParent}>
             <LeftNav />
             <div id="tooltip-portal" />
