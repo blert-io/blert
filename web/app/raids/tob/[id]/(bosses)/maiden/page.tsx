@@ -343,7 +343,9 @@ export default function Maiden() {
           />
         </div>
         <div className={styles.bossPage__KeyDetails}>
-          <h2>The Maiden of Sugondeez</h2>
+          <h2>
+            The Maiden of Sugadinti ({ticksToFormattedSeconds(totalTicks)})
+          </h2>
           <div className={styles.statsWrapper}>
             {splits.map((split, i) => (
               <CrabSpawn

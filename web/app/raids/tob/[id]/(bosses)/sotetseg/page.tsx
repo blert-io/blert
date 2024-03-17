@@ -29,6 +29,7 @@ import Loading from '../../../../../components/loading';
 
 import styles from './style.module.scss';
 import soteBaseTiles from './sote-tiles.json';
+import { ticksToFormattedSeconds } from '../../../../../utils/tick';
 
 const SOTETSEG_MAP_DEFINITION = {
   baseX: 3272,
@@ -149,7 +150,7 @@ export default function SotetsegPage() {
           />
         </div>
         <div className={styles.bossPage__KeyDetails}>
-          <h2>Sotetseg</h2>
+          <h2>Sotetseg ({ticksToFormattedSeconds(totalTicks)})</h2>
         </div>
       </div>
 

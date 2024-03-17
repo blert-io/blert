@@ -30,6 +30,7 @@ import styles from './style.module.scss';
 import verzikBaseTiles from './verzik-tiles.json';
 import { useContext } from 'react';
 import { ActorContext } from '../../../context';
+import { ticksToFormattedSeconds } from '../../../../../utils/tick';
 
 const VERZIK_MAP_DEFINITION = {
   baseX: 3154,
@@ -171,7 +172,7 @@ export default function VerzikPage() {
           />
         </div>
         <div className={styles.bossPage__KeyDetails}>
-          <h2>Verzik Vitur</h2>
+          <h2>Verzik Vitur ({ticksToFormattedSeconds(totalTicks)})</h2>
         </div>
       </div>
 

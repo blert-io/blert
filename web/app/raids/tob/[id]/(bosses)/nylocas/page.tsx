@@ -33,6 +33,7 @@ import Loading from '../../../../../components/loading';
 
 import styles from './style.module.scss';
 import nyloBaseTiles from './nylo-tiles.json';
+import { ticksToFormattedSeconds } from '../../../../../utils/tick';
 
 const NYLOCAS_MAP_DEFINITION = {
   baseX: 3279,
@@ -372,7 +373,7 @@ export default function NylocasPage() {
           />
         </div>
         <div className={styles.bossPage__KeyDetails}>
-          <h2>The Nylocas</h2>
+          <h2>The Nylocas ({ticksToFormattedSeconds(totalTicks)})</h2>
         </div>
       </div>
 
