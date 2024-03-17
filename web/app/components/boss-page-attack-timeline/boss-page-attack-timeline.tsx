@@ -797,6 +797,7 @@ const buildTickColumn = (
 export type TimelineSplit = {
   tick: number;
   splitName: string;
+  unimportant?: boolean;
   splitCustomContent?: JSX.Element;
 };
 
