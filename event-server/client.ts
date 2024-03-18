@@ -88,7 +88,7 @@ export default class Client {
     this.activeRaid = raid;
   }
 
-  public sendMessage(message: ServerMessage): void {
+  public sendMessage<T extends ServerMessage>(message: T): void {
     const payload = JSON.stringify(message);
     this.socket.send(payload);
   }

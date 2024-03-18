@@ -24,6 +24,7 @@ export type Rooms = {
 export type RoomNpcMap = { [roomId: number]: RoomNpc };
 
 export interface RoomOverview {
+  firstTick: number;
   roomTicks: number;
   deaths: string[];
   npcs: RoomNpcMap;

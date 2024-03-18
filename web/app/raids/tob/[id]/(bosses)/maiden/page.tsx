@@ -217,6 +217,38 @@ export default function Maiden() {
 
   const { selectedPlayer } = useContext(ActorContext);
 
+  const { splits, spawns } = useMemo(() => {
+    const splits: TimelineSplit[] = [];
+    const spawns: MaidenCrabProperties[][] = [];
+    const maidenRoom = raidData?.rooms[Room.MAIDEN];
+
+    const addSplits = (tick: number, name: string) => {
+      if (tick !== 0) {
+        splits.push({ tick, splitName: name });
+        const tickEvents = eventsByTick[tick];
+        if (tickEvents) {
+          spawns.push(
+            tickEvents
+              .filter(
+                (e) =>
+                  e.type === EventType.NPC_SPAWN &&
+                  (e as NpcEvent).npc.maidenCrab !== undefined,
+              )
+              .map((e) => (e as NpcEvent).npc.maidenCrab!),
+          );
+        }
+      }
+    };
+
+    if (maidenRoom) {
+      addSplits(maidenRoom.splits.SEVENTIES, '70s');
+      addSplits(maidenRoom.splits.FIFTIES, '50s');
+      addSplits(maidenRoom.splits.THIRTIES, '30s');
+    }
+
+    return { splits, spawns };
+  }, [raidData, eventsByTick]);
+
   if (loading || raidData === null) {
     return <Loading />;
   }
@@ -273,63 +305,19 @@ export default function Maiden() {
     }
   }
 
-  const splits: TimelineSplit[] = [];
-  const spawns: MaidenCrabProperties[][] = [];
-
-  if (maidenData !== null) {
-    if (maidenData.splits.SEVENTIES) {
-      splits.push({
-        tick: maidenData.splits.SEVENTIES,
-        splitName: '70s',
-      });
-      spawns.push(
-        eventsByTick[maidenData.splits.SEVENTIES]
-          .filter(
-            (e) =>
-              e.type === EventType.NPC_SPAWN &&
-              (e as NpcEvent).npc.maidenCrab !== undefined,
-          )
-          .map((e) => (e as NpcEvent).npc.maidenCrab!),
-      );
-    }
-
-    if (maidenData.splits.FIFTIES) {
-      splits.push({
-        tick: maidenData.splits.FIFTIES,
-        splitName: '50s',
-      });
-      spawns.push(
-        eventsByTick[maidenData.splits.FIFTIES]
-          .filter(
-            (e) =>
-              e.type === EventType.NPC_SPAWN &&
-              (e as NpcEvent).npc.maidenCrab !== undefined,
-          )
-          .map((e) => (e as NpcEvent).npc.maidenCrab!),
-      );
-    }
-
-    if (maidenData.splits.THIRTIES) {
-      splits.push({
-        tick: maidenData.splits.THIRTIES,
-        splitName: '30s',
-      });
-      spawns.push(
-        eventsByTick[maidenData.splits.THIRTIES]
-          .filter(
-            (e) =>
-              e.type === EventType.NPC_SPAWN &&
-              (e as NpcEvent).npc.maidenCrab !== undefined,
-          )
-          .map((e) => (e as NpcEvent).npc.maidenCrab!),
-      );
-    }
-  }
-
   const playerDetails = getPlayerDetails(
     raidData.party,
     eventsForCurrentTick.filter(isPlayerEvent) as PlayerEvent[],
   );
+
+  const controlsSplits = [];
+  if (maidenData !== null && maidenData.firstTick !== 0) {
+    controlsSplits.push({
+      tick: maidenData.firstTick,
+      splitName: 'Recording start',
+    });
+  }
+  controlsSplits.push(...splits);
 
   return (
     <>
@@ -366,7 +354,7 @@ export default function Maiden() {
         currentTick={currentTick}
         updateTick={updateTickOnPage}
         updatePlayingState={setPlaying}
-        splits={splits}
+        splits={controlsSplits}
       />
 
       <BossPageAttackTimeline

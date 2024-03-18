@@ -52,6 +52,7 @@ const RoomNpc = {
 
 const RoomOverview = {
   _id: false,
+  firstTick: { type: Number, default: 0 },
   roomTicks: Number,
   deaths: [String],
   npcs: {

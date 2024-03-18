@@ -81,6 +81,18 @@ export default class MessageHandler {
       case EventType.RAID_START:
         const raidStartEvent = event as RaidStartEvent;
 
+        const partySize = raidStartEvent.raidInfo.party.length;
+        if (partySize === 0 || partySize > 5) {
+          console.error(
+            `Received ${event.type} event for raid with invalid party size: ${partySize}`,
+          );
+          client.sendMessage({
+            type: ServerMessageType.RAID_START_RESPONSE,
+            raidId: null,
+          });
+          return;
+        }
+
         const raidId = await this.raidManager.startOrJoinRaid(
           client,
           raidStartEvent.raidInfo.mode || null,

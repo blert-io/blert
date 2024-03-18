@@ -102,6 +102,11 @@ const BANDOS_CHESTPLATE_ID = 11832;
 const VOID_MELEE_HELM_ID = 11665;
 const VOID_MELEE_HELM_OR_ID = 26477;
 
+type PersonalBestUpdate = {
+  pbType: PersonalBestType;
+  pbTime: number;
+};
+
 export default class Raid {
   private id: string;
   private partyKey: string;
@@ -124,6 +129,7 @@ export default class Raid {
   private roomTick: number;
   private roomEvents: Event[];
   private deathsInRoom: string[];
+  private queuedPbUpdates: PersonalBestUpdate[];
 
   private maidenSplits: MaidenSplits;
   private bloatSplits: BloatSplits;
@@ -163,6 +169,7 @@ export default class Raid {
     this.roomTick = 0;
     this.roomEvents = [];
     this.deathsInRoom = [];
+    this.queuedPbUpdates = [];
 
     this.maidenSplits = {
       [MaidenCrabSpawn.SEVENTIES]: 0,
@@ -385,9 +392,9 @@ export default class Raid {
       return;
     }
 
-    switch (event.roomStatus) {
+    switch (event.roomStatus.status) {
       case RoomStatus.STARTED:
-        if (event.room === Room.MAIDEN) {
+        if (this.state === State.STARTING) {
           await this.start();
         }
         if (this.roomStatus === RoomStatus.ENTERED) {
@@ -404,100 +411,142 @@ export default class Raid {
         this.roomEvents = [];
         this.roomTick = 0;
         this.deathsInRoom = [];
+        this.queuedPbUpdates = [];
         this.npcs.clear();
         break;
 
       case RoomStatus.WIPED:
       case RoomStatus.COMPLETED:
-        // Set the appropriate status if the raid were to be finished at this
-        // point.
-        this.raidStatus =
-          event.roomStatus === RoomStatus.WIPED
-            ? roomWipeStatus(event.room)
-            : roomResetStatus(event.room);
-        this.completedRooms++;
-        this.totalRoomTicks += event.tick;
-
-        const promises = [
-          this.updateDatabaseFields((record) => {
-            record.partyInfo = this.partyInfo;
-            record.totalRoomTicks += event.tick;
-            record.totalDeaths += this.deathsInRoom.length;
-            record.rooms[event.room!] = {
-              roomTicks: event.tick,
-              deaths: this.deathsInRoom,
-              npcs: this.npcs,
-            };
-
-            switch (this.room) {
-              case Room.MAIDEN:
-                record.rooms[Room.MAIDEN].splits = this.maidenSplits;
-                break;
-              case Room.BLOAT:
-                record.rooms[Room.BLOAT].splits = this.bloatSplits;
-                break;
-              case Room.NYLOCAS:
-                record.rooms[Room.NYLOCAS].splits = this.nyloSplits;
-                record.rooms[Room.NYLOCAS].stalledWaves = this.stalledNyloWaves;
-                break;
-              case Room.SOTETSEG:
-                record.rooms[Room.SOTETSEG].splits = this.soteSplits;
-                break;
-              case Room.XARPUS:
-                record.rooms[Room.XARPUS].splits = this.xarpusSplits;
-                break;
-              case Room.VERZIK:
-                record.rooms[Room.VERZIK].splits = this.verzikSplits;
-                record.rooms[Room.VERZIK].redCrabSpawns = this.verzikRedSpawns;
-                break;
-            }
-          }),
-          this.flushRoomEvents(),
-        ];
-
-        if (event.roomStatus === RoomStatus.COMPLETED) {
-          let pbType;
-          switch (event.room) {
-            case Room.MAIDEN:
-              pbType = PersonalBestType.TOB_MAIDEN;
-              break;
-            case Room.BLOAT:
-              pbType = PersonalBestType.TOB_BLOAT;
-              break;
-            case Room.NYLOCAS:
-              pbType = PersonalBestType.TOB_NYLO_ROOM;
-              promises.push(
-                this.updatePartyPbs(
-                  PersonalBestType.TOB_NYLO_BOSS,
-                  event.tick - this.nyloSplits.boss,
-                ),
-              );
-              break;
-            case Room.SOTETSEG:
-              pbType = PersonalBestType.TOB_SOTETSEG;
-              break;
-            case Room.XARPUS:
-              pbType = PersonalBestType.TOB_XARPUS;
-              break;
-            case Room.VERZIK:
-              pbType = PersonalBestType.TOB_VERZIK_ROOM;
-              promises.push(
-                this.updatePartyPbs(
-                  PersonalBestType.TOB_VERZIK_P3,
-                  event.tick - (this.verzikSplits.p2 + 6),
-                ),
-              );
-              break;
-          }
-
-          promises.push(this.updatePartyPbs(pbType, event.tick));
+        if (event.room === this.room) {
+          this.handleRoomFinished(event);
+        } else {
+          console.error(
+            `Raid ${this.id} got status ${event.roomStatus} for room ${event.room} but is in room ${this.room}`,
+          );
         }
-
-        await Promise.all(promises);
         break;
     }
 
-    this.roomStatus = event.roomStatus;
+    this.roomStatus = event.roomStatus.status;
+  }
+
+  private async handleRoomFinished(event: RoomStatusEvent): Promise<void> {
+    // Set the appropriate status if the raid were to be finished at this
+    // point.
+    this.raidStatus =
+      event.roomStatus.status === RoomStatus.WIPED
+        ? roomWipeStatus(this.room)
+        : roomResetStatus(this.room);
+    this.completedRooms++;
+    this.totalRoomTicks += event.tick;
+
+    const promises = [];
+
+    let firstTick = 0;
+    if (!event.roomStatus.accurate) {
+      const missingTicks = event.tick - this.roomTick;
+      console.log(
+        `Raid ${this.id} lost ${missingTicks} ticks in room ${event.room}`,
+      );
+      firstTick = missingTicks;
+
+      this.correctRoomDataForTickOffset(missingTicks);
+
+      promises.push(
+        RoomEvent.updateMany(
+          {
+            raidId: this.id,
+            room: event.room,
+          },
+          { $inc: { tick: missingTicks } },
+        ),
+      );
+    }
+
+    promises.push(
+      this.updateDatabaseFields((record) => {
+        record.partyInfo = this.partyInfo;
+        record.totalRoomTicks += event.tick;
+        record.totalDeaths += this.deathsInRoom.length;
+        record.rooms[event.room!] = {
+          firstTick,
+          roomTicks: event.tick,
+          deaths: this.deathsInRoom,
+          npcs: this.npcs,
+        };
+
+        switch (this.room) {
+          case Room.MAIDEN:
+            record.rooms[Room.MAIDEN].splits = this.maidenSplits;
+            break;
+          case Room.BLOAT:
+            record.rooms[Room.BLOAT].splits = this.bloatSplits;
+            break;
+          case Room.NYLOCAS:
+            record.rooms[Room.NYLOCAS].splits = this.nyloSplits;
+            record.rooms[Room.NYLOCAS].stalledWaves = this.stalledNyloWaves;
+            break;
+          case Room.SOTETSEG:
+            record.rooms[Room.SOTETSEG].splits = this.soteSplits;
+            break;
+          case Room.XARPUS:
+            record.rooms[Room.XARPUS].splits = this.xarpusSplits;
+            break;
+          case Room.VERZIK:
+            record.rooms[Room.VERZIK].splits = this.verzikSplits;
+            record.rooms[Room.VERZIK].redCrabSpawns = this.verzikRedSpawns;
+            break;
+        }
+      }),
+      this.flushRoomEvents(),
+    );
+
+    if (event.roomStatus.accurate) {
+      // Only update personal bests if the room timer is accurate.
+      this.queuedPbUpdates.forEach((update) => {
+        promises.push(this.updatePartyPbs(update.pbType, update.pbTime));
+      });
+
+      if (event.roomStatus.status === RoomStatus.COMPLETED) {
+        let pbType;
+        switch (this.room) {
+          case Room.MAIDEN:
+            pbType = PersonalBestType.TOB_MAIDEN;
+            break;
+          case Room.BLOAT:
+            pbType = PersonalBestType.TOB_BLOAT;
+            break;
+          case Room.NYLOCAS:
+            pbType = PersonalBestType.TOB_NYLO_ROOM;
+            promises.push(
+              this.updatePartyPbs(
+                PersonalBestType.TOB_NYLO_BOSS,
+                event.tick - this.nyloSplits.boss,
+              ),
+            );
+            break;
+          case Room.SOTETSEG:
+            pbType = PersonalBestType.TOB_SOTETSEG;
+            break;
+          case Room.XARPUS:
+            pbType = PersonalBestType.TOB_XARPUS;
+            break;
+          case Room.VERZIK:
+            pbType = PersonalBestType.TOB_VERZIK_ROOM;
+            promises.push(
+              this.updatePartyPbs(
+                PersonalBestType.TOB_VERZIK_P3,
+                event.tick - (this.verzikSplits.p2 + 6),
+              ),
+            );
+            break;
+        }
+
+        promises.push(this.updatePartyPbs(pbType, event.tick));
+      }
+    }
+
+    await Promise.all(promises);
   }
 
   /**
@@ -578,7 +627,10 @@ export default class Raid {
 
       case EventType.NYLO_BOSS_SPAWN:
         this.nyloSplits.boss = event.tick;
-        await this.updatePartyPbs(PersonalBestType.TOB_NYLO_WAVES, event.tick);
+        this.queuedPbUpdates.push({
+          pbType: PersonalBestType.TOB_NYLO_BOSS,
+          pbTime: event.tick,
+        });
         break;
 
       case EventType.SOTE_MAZE_PROC:
@@ -599,13 +651,18 @@ export default class Raid {
         const verzikPhaseEvent = event as VerzikPhaseEvent;
         if (verzikPhaseEvent.verzikPhase === VerzikPhase.P2) {
           this.verzikSplits.p1 = event.tick;
-          await this.updatePartyPbs(PersonalBestType.TOB_VERZIK_P1, event.tick);
+          this.queuedPbUpdates.push({
+            pbType: PersonalBestType.TOB_VERZIK_P1,
+            pbTime: event.tick,
+          });
         } else if (verzikPhaseEvent.verzikPhase === VerzikPhase.P3) {
           this.verzikSplits.p2 = event.tick;
-          await this.updatePartyPbs(
-            PersonalBestType.TOB_VERZIK_P2,
-            event.tick - (this.verzikSplits.p1 + 13),
-          );
+          if (this.verzikSplits.p1 !== 0) {
+            this.queuedPbUpdates.push({
+              pbType: PersonalBestType.TOB_VERZIK_P2,
+              pbTime: event.tick - (this.verzikSplits.p1 + 13),
+            });
+          }
         }
         break;
 
@@ -830,6 +887,84 @@ export default class Raid {
     if (gear !== null) {
       this.playerInfoUpdated.add(event.player.name);
       this.partyInfo[this.party.indexOf(event.player.name)].gear = gear;
+    }
+  }
+
+  /**
+   * Corrects any recorded splits and other room information that were affected
+   * by tick loss.
+   *
+   * @param tickOffset The number of ticks lost.
+   */
+  private correctRoomDataForTickOffset(tickOffset: number): void {
+    this.npcs.forEach((npc) => {
+      npc.spawnTick += tickOffset;
+      npc.deathTick += tickOffset;
+    });
+
+    switch (this.room) {
+      case Room.MAIDEN:
+        if (this.maidenSplits.SEVENTIES !== 0) {
+          this.maidenSplits.SEVENTIES += tickOffset;
+        }
+        if (this.maidenSplits.FIFTIES !== 0) {
+          this.maidenSplits.FIFTIES += tickOffset;
+        }
+        if (this.maidenSplits.THIRTIES !== 0) {
+          this.maidenSplits.THIRTIES += tickOffset;
+        }
+        break;
+
+      case Room.BLOAT:
+        this.bloatSplits.downTicks = this.bloatSplits.downTicks.map(
+          (tick) => tick + tickOffset,
+        );
+        break;
+
+      case Room.NYLOCAS:
+        if (this.nyloSplits.capIncrease !== 0) {
+          this.nyloSplits.capIncrease += tickOffset;
+        }
+        if (this.nyloSplits.waves !== 0) {
+          this.nyloSplits.waves += tickOffset;
+        }
+        if (this.nyloSplits.cleanup !== 0) {
+          this.nyloSplits.cleanup += tickOffset;
+        }
+        if (this.nyloSplits.boss !== 0) {
+          this.nyloSplits.boss += tickOffset;
+        }
+        break;
+
+      case Room.SOTETSEG:
+        if (this.soteSplits.MAZE_66 !== 0) {
+          this.soteSplits.MAZE_66 += tickOffset;
+        }
+        if (this.soteSplits.MAZE_33 !== 0) {
+          this.soteSplits.MAZE_33 += tickOffset;
+        }
+        break;
+
+      case Room.XARPUS:
+        if (this.xarpusSplits.exhumes !== 0) {
+          this.xarpusSplits.exhumes += tickOffset;
+        }
+        if (this.xarpusSplits.screech !== 0) {
+          this.xarpusSplits.screech += tickOffset;
+        }
+        break;
+
+      case Room.VERZIK:
+        if (this.verzikSplits.p1 !== 0) {
+          this.verzikSplits.p1 += tickOffset;
+        }
+        if (this.verzikSplits.reds !== 0) {
+          this.verzikSplits.reds += tickOffset;
+        }
+        if (this.verzikSplits.p2 !== 0) {
+          this.verzikSplits.p2 += tickOffset;
+        }
+        break;
     }
   }
 

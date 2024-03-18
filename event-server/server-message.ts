@@ -10,35 +10,35 @@ export const enum ServerMessageType {
   RAID_EVENTS = 'RAID_EVENTS',
 }
 
-export type ServerMessage = {
+export interface ServerMessage {
   type: ServerMessageType;
-};
+}
 
-export type ConnectionResponseMessage = ServerMessage & {
+export interface ConnectionResponseMessage extends ServerMessage {
   type: ServerMessageType.CONNECTION_RESPONSE;
   user: {
     id: string;
     name: string;
   };
-};
+}
 
 export type PastRaid = Pick<Raid, 'status' | 'mode' | 'party'> & { id: string };
 
-export type RaidHistoryRequestMessage = ServerMessage & {
+export interface RaidHistoryRequestMessage extends ServerMessage {
   type: ServerMessageType.RAID_HISTORY_REQUEST;
-};
+}
 
-export type RaidHistoryResponseMessage = ServerMessage & {
+export interface RaidHistoryResponseMessage extends ServerMessage {
   type: ServerMessageType.RAID_HISTORY_RESPONSE;
   history: PastRaid[];
-};
+}
 
-export type RaidStartResponseMessage = ServerMessage & {
+export interface RaidStartResponseMessage extends ServerMessage {
   type: ServerMessageType.RAID_START_RESPONSE;
-  raidId: string;
-};
+  raidId: string | null;
+}
 
-export type RaidEventsMessage = ServerMessage & {
+export interface RaidEventsMessage extends ServerMessage {
   type: ServerMessageType.RAID_EVENTS;
   events: Event[];
-};
+}

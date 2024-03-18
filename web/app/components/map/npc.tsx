@@ -43,7 +43,7 @@ export class NpcEntity implements Entity {
 
   renderContents(): React.ReactNode {
     const displayHitpoints =
-      this.hitpoints !== undefined && this.hitpoints.base !== 0;
+      this.hitpoints !== undefined && this.hitpoints.base > 0;
 
     return (
       <div

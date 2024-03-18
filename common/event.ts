@@ -76,7 +76,10 @@ export interface RaidEndEvent extends Event {
 
 export interface RoomStatusEvent extends Event {
   type: EventType.ROOM_STATUS;
-  roomStatus: RoomStatus;
+  roomStatus: {
+    status: RoomStatus;
+    accurate: boolean;
+  };
 }
 
 export interface PlayerEvent extends Event {
