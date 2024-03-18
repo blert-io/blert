@@ -38,20 +38,6 @@ export function BossPageControls(props: BossControlsProps) {
     }
   }, [currentTick, inputFocused]);
 
-  // get how far down the window this element is
-  const [position, setPosition] = useState(0);
-  useEffect(() => {
-    const handleScroll = () => {
-      setPosition(window.scrollY);
-    };
-
-    window.addEventListener('scroll', handleScroll);
-
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-    };
-  }, []);
-
   if (
     totalTicks === undefined ||
     currentTick === undefined ||
@@ -61,9 +47,7 @@ export function BossPageControls(props: BossControlsProps) {
   }
 
   const scrubberSplits = splits
-    .filter((split) => {
-      return !split.unimportant;
-    })
+    .filter((split) => !split.unimportant)
     .map((split) => {
       const splitPosition = (split.tick / totalTicks) * 100;
       return (

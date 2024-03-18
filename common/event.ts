@@ -184,6 +184,12 @@ export interface BasicPlayer {
 export interface Player extends BasicPlayer {
   offCooldownTick: number;
   hitpoints?: SkillLevel;
+  prayer?: SkillLevel;
+  attack?: SkillLevel;
+  strength?: SkillLevel;
+  defence?: SkillLevel;
+  ranged?: SkillLevel;
+  magic?: SkillLevel;
   equipment?: EquipmentMap;
 }
 

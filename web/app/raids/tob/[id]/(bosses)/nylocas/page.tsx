@@ -25,6 +25,7 @@ import { BossPageControls } from '../../../../../components/boss-page-controls/b
 import {
   BossPageAttackTimeline,
   TimelineColor,
+  TimelineSplit,
 } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
 import BossPageReplay from '../../../../../components/boss-page-replay';
 import { Entity, NpcEntity, PlayerEntity } from '../../../../../components/map';
@@ -227,6 +228,7 @@ export default function NylocasPage() {
   const {
     raidData,
     totalTicks,
+    events,
     eventsByTick,
     eventsByType,
     bossAttackTimeline,
@@ -241,6 +243,43 @@ export default function NylocasPage() {
     () => nyloBossBackgroundColors(eventsByTick, totalTicks),
     [eventsByTick],
   );
+
+  const splits = useMemo(() => {
+    if (raidData === null || events.length === 0) {
+      return [];
+    }
+    let splits: TimelineSplit[] =
+      eventsByType[EventType.NYLO_WAVE_SPAWN]?.map((evt) => {
+        const wave = (evt as NyloWaveSpawnEvent).nyloWave.wave;
+        const importantWaves: { [wave: number]: string } = {
+          20: 'Cap',
+          31: 'Waves',
+        };
+
+        return {
+          tick: evt.tick,
+          splitName: importantWaves[wave] ?? wave.toString(),
+          unimportant: importantWaves[wave] === undefined,
+        };
+      }) ?? [];
+
+    const nyloData = raidData.rooms[Room.NYLOCAS];
+    if (nyloData !== null) {
+      if (nyloData.splits.cleanup) {
+        splits.push({
+          tick: nyloData.splits.cleanup,
+          splitName: 'Cleanup',
+        });
+      }
+      if (nyloData.splits.boss) {
+        splits.push({
+          tick: nyloData.splits.boss,
+          splitName: 'Boss',
+        });
+      }
+    }
+    return splits;
+  }, [events, raidData]);
 
   if (loading || raidData === null) {
     return <Loading />;
@@ -330,30 +369,6 @@ export default function NylocasPage() {
         overlay,
       ),
     );
-  }
-
-  let splits =
-    eventsByType[EventType.NYLO_WAVE_SPAWN]?.map((evt) => ({
-      tick: evt.tick,
-      splitName: `${(evt as NyloWaveSpawnEvent).nyloWave.wave}`,
-      unimportant: ![20, 31].includes(
-        (evt as NyloWaveSpawnEvent).nyloWave.wave,
-      ),
-    })) ?? [];
-
-  if (nyloData !== null) {
-    if (nyloData.splits.cleanup) {
-      splits.push({
-        tick: nyloData.splits.cleanup,
-        splitName: 'Cleanup',
-      });
-    }
-    if (nyloData.splits.boss) {
-      splits.push({
-        tick: nyloData.splits.boss,
-        splitName: 'Boss',
-      });
-    }
   }
 
   const playerDetails = getPlayerDetails(

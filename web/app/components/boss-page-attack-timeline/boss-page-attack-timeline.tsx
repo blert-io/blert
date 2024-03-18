@@ -13,7 +13,7 @@ import {
   npcFriendlyName,
 } from '@blert/common';
 import Image from 'next/image';
-import { useContext, useEffect, useRef } from 'react';
+import { SetStateAction, useContext, useEffect, useMemo, useRef } from 'react';
 
 import { CollapsiblePanel } from '../collapsible-panel/collapsible-panel';
 import Item from '../item';
@@ -714,7 +714,6 @@ const buildTickColumn = (
   bossAttackTimeline: NpcAttackEvent[],
   attackTimeline: Map<string, Event[]>,
   columnTick: number,
-  currentPlaybackTick: number,
   updateTickOnPage: (tick: number) => void,
   npcs: RoomNpcMap,
   actorContext: RoomActorState,
@@ -771,9 +770,6 @@ const buildTickColumn = (
           </div>
         </div>
       )}
-      {currentPlaybackTick === columnTick && (
-        <div className={styles.attackTimeline__ColumnActiveIndicator}></div>
-      )}
       <button
         className={styles.attackTimeline__TickHeader}
         onClick={() => updateTickOnPage(columnTick)}
@@ -793,6 +789,66 @@ const buildTickColumn = (
     </div>
   );
 };
+
+type BaseTimelineProps = {
+  timelineTicks: number;
+  splits: TimelineSplit[];
+  backgroundColors?: TimelineColor[];
+  bossAttackTimeline: NpcAttackEvent[];
+  playerAttackTimelines: Map<string, Event[]>;
+  updateTickOnPage: (tick: number) => void;
+  npcs: RoomNpcMap;
+  actorContext: RoomActorState;
+};
+
+function BaseTimeline(props: BaseTimelineProps) {
+  const {
+    timelineTicks,
+    splits,
+    backgroundColors,
+    bossAttackTimeline,
+    playerAttackTimelines,
+    updateTickOnPage,
+    npcs,
+    actorContext,
+  } = props;
+
+  const memes = useContext(MemeContext);
+
+  const attackTimelineColumnElements = [];
+  for (let i = 0; i < timelineTicks; i++) {
+    const tick = i + 1;
+
+    let potentialSplit = undefined;
+
+    for (const split of splits) {
+      if (split.tick === tick) {
+        potentialSplit = split;
+      }
+    }
+
+    const color = backgroundColors?.find((c) => {
+      const length = c.length ?? 1;
+      return tick >= c.tick && tick < c.tick + length;
+    })?.backgroundColor;
+
+    attackTimelineColumnElements.push(
+      buildTickColumn(
+        bossAttackTimeline,
+        playerAttackTimelines,
+        tick,
+        updateTickOnPage,
+        npcs,
+        actorContext,
+        memes,
+        potentialSplit,
+        color,
+      ),
+    );
+  }
+
+  return <>{attackTimelineColumnElements}</>;
+}
 
 export type TimelineSplit = {
   tick: number;
@@ -822,7 +878,6 @@ interface AttackTimelineProps {
 export function BossPageAttackTimeline(props: AttackTimelineProps) {
   const {
     currentTick,
-    playing,
     playerAttackTimelines,
     bossAttackTimeline,
     updateTickOnPage,
@@ -832,7 +887,6 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
     npcs,
   } = props;
 
-  const memes = useContext(MemeContext);
   const actorContext = useContext(ActorContext);
 
   let nextBossAttackNpc = bossAttackTimeline.find(
@@ -845,6 +899,7 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
     getNpcDefinition(nextBossAttackNpc?.id ?? 0)?.shortName ?? 'Unknown';
 
   const attackTimelineRef = useRef<HTMLDivElement>(null);
+  const currentTickColumnRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const div = attackTimelineRef.current;
@@ -862,7 +917,10 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
   }, []);
 
   useEffect(() => {
-    if (attackTimelineRef.current !== null) {
+    if (
+      attackTimelineRef.current !== null &&
+      currentTickColumnRef.current !== null
+    ) {
       if (currentTick * TOTAL_COLUMN_WIDTH < 525) {
         attackTimelineRef.current.scrollLeft = 0;
       } else {
@@ -871,39 +929,6 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
       }
     }
   }, [currentTick]);
-
-  const attackTimelineColumnElements = [];
-  for (let i = 0; i < timelineTicks; i++) {
-    const tick = i + 1;
-
-    let potentialSplit = undefined;
-
-    for (const split of splits) {
-      if (split.tick === tick) {
-        potentialSplit = split;
-      }
-    }
-
-    const color = backgroundColors?.find((c) => {
-      const length = c.length ?? 1;
-      return tick >= c.tick && tick < c.tick + length;
-    })?.backgroundColor;
-
-    attackTimelineColumnElements.push(
-      buildTickColumn(
-        bossAttackTimeline,
-        playerAttackTimelines,
-        tick,
-        currentTick,
-        updateTickOnPage,
-        npcs,
-        actorContext,
-        memes,
-        potentialSplit,
-        color,
-      ),
-    );
-  }
 
   const attackTimelineParticipants = [
     npcName,
@@ -945,6 +970,31 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
     );
   }
 
+  const memoizedBaseTimeline = useMemo(
+    () => (
+      <BaseTimeline
+        timelineTicks={timelineTicks}
+        splits={splits}
+        backgroundColors={backgroundColors}
+        bossAttackTimeline={bossAttackTimeline}
+        playerAttackTimelines={playerAttackTimelines}
+        updateTickOnPage={updateTickOnPage}
+        npcs={npcs}
+        actorContext={actorContext}
+      />
+    ),
+    [
+      timelineTicks,
+      splits,
+      backgroundColors,
+      bossAttackTimeline,
+      playerAttackTimelines,
+      updateTickOnPage,
+      npcs,
+      actorContext,
+    ],
+  );
+
   return (
     <CollapsiblePanel
       panelTitle="Room Timeline"
@@ -961,7 +1011,15 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
           className={styles.attackTimeline__Scrollable}
           ref={attackTimelineRef}
         >
-          {attackTimelineColumnElements}
+          <div
+            style={{
+              left: TOTAL_COLUMN_WIDTH * (currentTick - 1) + 5,
+              height: attackTLLegendElements.length * 55 + 40,
+            }}
+            className={styles.attackTimeline__ColumnActiveIndicator}
+            ref={currentTickColumnRef}
+          />
+          {memoizedBaseTimeline}
         </div>
       </div>
     </CollapsiblePanel>

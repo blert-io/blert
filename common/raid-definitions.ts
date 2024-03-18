@@ -194,6 +194,12 @@ export type VerzikCrabProperties = {
 
 export enum Skill {
   HITPOINTS,
+  PRAYER,
+  ATTACK,
+  STRENGTH,
+  DEFENCE,
+  RANGED,
+  MAGIC,
 }
 
 export type SkillLevel = {
