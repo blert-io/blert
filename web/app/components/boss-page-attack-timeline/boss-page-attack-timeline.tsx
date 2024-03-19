@@ -3,6 +3,7 @@
 import {
   Attack,
   Event,
+  Npc,
   NpcAttack,
   NpcAttackEvent,
   PlayerAttack,
@@ -13,7 +14,7 @@ import {
   npcFriendlyName,
 } from '@blert/common';
 import Image from 'next/image';
-import { SetStateAction, useContext, useEffect, useMemo, useRef } from 'react';
+import { useContext, useEffect, useMemo, useRef } from 'react';
 
 import { CollapsiblePanel } from '../collapsible-panel/collapsible-panel';
 import Item from '../item';
@@ -138,6 +139,11 @@ const ATTACK_METADATA = {
   [PlayerAttack.CHALLY_SPEC]: {
     tagColor: 'yellow',
     letter: 'CH',
+    ranged: false,
+  },
+  [PlayerAttack.CHALLY_SWIPE]: {
+    tagColor: 'yellow',
+    letter: 'ch',
     ranged: false,
   },
   [PlayerAttack.CHIN_BLACK]: {
@@ -382,6 +388,7 @@ const makeCellImage = (playerAttack: Attack, memes: BlertMemes) => {
           />
         );
         break;
+
       case PlayerAttack.SANG_BARRAGE:
       case PlayerAttack.SHADOW_BARRAGE:
       case PlayerAttack.STAFF_OF_LIGHT_BARRAGE:
@@ -402,8 +409,25 @@ const makeCellImage = (playerAttack: Attack, memes: BlertMemes) => {
           />
         );
         break;
+
       case PlayerAttack.BGS_SMACK:
       case PlayerAttack.HAMMER_BOP:
+        if (playerAttack.target !== undefined) {
+          const npcId = playerAttack.target.id;
+          if (!Npc.isNylocas(npcId) && !Npc.isVerzikMatomenos(npcId)) {
+            troll = true;
+          }
+        }
+        break;
+
+      case PlayerAttack.CHALLY_SWIPE:
+        if (playerAttack.target !== undefined) {
+          if (!Npc.isVerzikMatomenos(playerAttack.target.id)) {
+            troll = true;
+          }
+        }
+        break;
+
       case PlayerAttack.KODAI_BASH:
       case PlayerAttack.SCYTHE_UNCHARGED:
         troll = true;
@@ -567,6 +591,7 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
       return 'shadowed';
     case PlayerAttack.SOULREAPER_AXE:
       return 'cleaved';
+    case PlayerAttack.CHALLY_SWIPE:
     case PlayerAttack.STAFF_OF_LIGHT_SWIPE:
     case PlayerAttack.TOXIC_STAFF_SWIPE:
       return 'swiped';
