@@ -119,178 +119,221 @@ const getCellImageForBossAttack = (attack: NpcAttack) => {
   );
 };
 
-const ATTACK_MEMES = {
+const ATTACK_METADATA = {
   [PlayerAttack.BGS_SMACK]: {
     tagColor: 'yellow',
     letter: 'bg',
+    ranged: false,
   },
   [PlayerAttack.BGS_SPEC]: {
     tagColor: 'yellow',
     letter: 'BGS',
+    ranged: false,
   },
   [PlayerAttack.BLOWPIPE]: {
     tagColor: 'green',
     letter: 'BP',
+    ranged: true,
   },
   [PlayerAttack.CHALLY_SPEC]: {
     tagColor: 'yellow',
     letter: 'CH',
+    ranged: false,
   },
   [PlayerAttack.CHIN_BLACK]: {
     tagColor: 'green',
     letter: 'CCB',
+    ranged: true,
   },
   [PlayerAttack.CHIN_GREY]: {
     tagColor: 'green',
     letter: 'CCG',
+    ranged: true,
   },
   [PlayerAttack.CHIN_RED]: {
     tagColor: 'green',
     letter: 'CCR',
+    ranged: true,
   },
   [PlayerAttack.CLAW_SCRATCH]: {
     tagColor: 'red',
     letter: 'c',
+    ranged: false,
   },
   [PlayerAttack.CLAW_SPEC]: {
     tagColor: 'red',
     letter: 'C',
+    ranged: false,
   },
   [PlayerAttack.DAWN_SPEC]: {
     tagColor: 'yellow',
     letter: 'DB',
+    ranged: true,
   },
   [PlayerAttack.DINHS_SPEC]: {
     tagColor: 'yellow',
     letter: 'BW',
+    ranged: false,
   },
   [PlayerAttack.FANG]: {
     tagColor: 'red',
     letter: 'FNG',
+    ranged: false,
   },
   [PlayerAttack.HAMMER_BOP]: {
     tagColor: 'red',
     letter: 'h',
+    ranged: false,
   },
   [PlayerAttack.HAMMER_SPEC]: {
     tagColor: 'red',
     letter: 'H',
+    ranged: false,
   },
   [PlayerAttack.KODAI_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
+    ranged: true,
   },
   [PlayerAttack.KODAI_BASH]: {
     tagColor: 'blue',
     letter: 'kb',
+    ranged: false,
   },
   [PlayerAttack.RAPIER]: {
     tagColor: 'red',
     letter: 'R',
+    ranged: false,
   },
   [PlayerAttack.SAELDOR]: {
     tagColor: 'red',
     letter: 'B',
+    ranged: false,
   },
   [PlayerAttack.SANG]: {
     tagColor: 'blue',
     letter: 'T',
+    ranged: true,
   },
   [PlayerAttack.SANG_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
+    ranged: true,
   },
   [PlayerAttack.SCEPTRE_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
+    ranged: true,
   },
   [PlayerAttack.SHADOW]: {
     tagColor: 'blue',
     letter: 'Sh',
+    ranged: true,
   },
   [PlayerAttack.SHADOW_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
+    ranged: true,
   },
   [PlayerAttack.STAFF_OF_LIGHT_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
+    ranged: true,
   },
   [PlayerAttack.STAFF_OF_LIGHT_SWIPE]: {
     tagColor: 'blue',
     letter: 'SOL',
+    ranged: false,
   },
   [PlayerAttack.TENT_WHIP]: {
     tagColor: 'red',
     letter: 'TW',
+    ranged: false,
   },
   [PlayerAttack.TOXIC_TRIDENT]: {
     tagColor: 'blue',
     letter: 'T',
+    ranged: true,
   },
   [PlayerAttack.TOXIC_TRIDENT_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
+    ranged: true,
   },
   [PlayerAttack.TOXIC_STAFF_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
+    ranged: true,
   },
   [PlayerAttack.TOXIC_STAFF_SWIPE]: {
     tagColor: 'blue',
     letter: 'TS',
+    ranged: false,
   },
   [PlayerAttack.TRIDENT]: {
     tagColor: 'blue',
     letter: 'T',
+    ranged: true,
   },
   [PlayerAttack.TRIDENT_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
+    ranged: true,
   },
   [PlayerAttack.TWISTED_BOW]: {
     tagColor: 'green',
     letter: 'TB',
+    ranged: true,
   },
   [PlayerAttack.ZCB]: {
     tagColor: 'green',
     letter: 'ZC',
+    ranged: true,
   },
   [PlayerAttack.SCYTHE]: {
     tagColor: 'red',
     letter: 'S',
+    ranged: false,
   },
   [PlayerAttack.SCYTHE_UNCHARGED]: {
     tagColor: 'red',
     letter: 's',
+    ranged: false,
   },
   [PlayerAttack.HAM_JOINT]: {
     tagColor: 'red',
     letter: 'SB',
+    ranged: false,
   },
   [PlayerAttack.SOULREAPER_AXE]: {
     tagColor: 'red',
     letter: 'AXE',
+    ranged: false,
   },
   [PlayerAttack.SWIFT]: {
     tagColor: 'red',
     letter: 'SB',
+    ranged: false,
   },
   [PlayerAttack.VOLATILE_NM_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
+    ranged: true,
   },
   [PlayerAttack.UNKNOWN_BARRAGE]: {
     tagColor: undefined,
     letter: 'F',
+    ranged: true,
   },
   [PlayerAttack.UNKNOWN_BOW]: {
     tagColor: undefined,
     letter: 'UNK',
+    ranged: true,
   },
   [PlayerAttack.UNKNOWN]: {
     tagColor: undefined,
     letter: 'UNK',
+    ranged: false,
   },
 };
 
@@ -361,12 +404,14 @@ const makeCellImage = (playerAttack: Attack, memes: BlertMemes) => {
         break;
       case PlayerAttack.BGS_SMACK:
       case PlayerAttack.HAMMER_BOP:
+      case PlayerAttack.KODAI_BASH:
+      case PlayerAttack.SCYTHE_UNCHARGED:
         troll = true;
         break;
     }
 
     let outline = memes.inventoryTags
-      ? ATTACK_MEMES[playerAttack.type].tagColor
+      ? ATTACK_METADATA[playerAttack.type].tagColor
       : undefined;
 
     content = (
@@ -393,7 +438,7 @@ const makeCellImage = (playerAttack: Attack, memes: BlertMemes) => {
     );
   } else {
     // In caps lock mode, only use letters.
-    const letter = ATTACK_MEMES[playerAttack.type].letter ?? 'UNK';
+    const letter = ATTACK_METADATA[playerAttack.type].letter ?? 'UNK';
     content = <div className={styles.letter}>{letter}</div>;
   }
 
@@ -654,6 +699,8 @@ const buildTickCell = (
       }
 
       tooltipId = `player-${username}-attack-${event.tick}`;
+      const ranged = ATTACK_METADATA[attackEvent.attack.type].ranged;
+      const distance = attackEvent.attack.distanceToTarget;
 
       tooltip = (
         <LigmaTooltip tooltipId={tooltipId}>
@@ -663,6 +710,9 @@ const buildTickCell = (
             </button>
             <span>{playerAttackVerb(attackEvent.attack.type)}</span>
             <button>{targetName}</button>
+            {ranged && (
+              <span>{`from ${distance} tile${distance === 1 ? '' : 's'} away`}</span>
+            )}
           </div>
         </LigmaTooltip>
       );
