@@ -316,6 +316,12 @@ const makeCellImage = (playerAttack: Attack, memes: BlertMemes) => {
   if (!memes.capsLock) {
     let infoIcon = undefined;
 
+    const trollStyles = {
+      filter: 'drop-shadow(2px 4px 6px black)',
+      transform: 'rotate(267deg) skewX(3.78rad)',
+    };
+    let troll = false;
+
     switch (playerAttack.type) {
       case PlayerAttack.BGS_SPEC:
       case PlayerAttack.HAMMER_SPEC:
@@ -353,6 +359,10 @@ const makeCellImage = (playerAttack: Attack, memes: BlertMemes) => {
           />
         );
         break;
+      case PlayerAttack.BGS_SMACK:
+      case PlayerAttack.HAMMER_BOP:
+        troll = true;
+        break;
     }
 
     let outline = memes.inventoryTags
@@ -367,6 +377,7 @@ const makeCellImage = (playerAttack: Attack, memes: BlertMemes) => {
             name={playerAttack.weapon.name}
             quantity={1}
             outlineColor={outline}
+            style={troll ? trollStyles : undefined}
           />
         )) || (
           <div className={styles.attackTimeline__CellImage__BossAtk}>

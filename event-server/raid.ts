@@ -461,6 +461,16 @@ export default class Raid {
           { $inc: { tick: missingTicks } },
         ),
       );
+      promises.push(
+        RoomEvent.updateMany(
+          {
+            raidId: this.id,
+            room: event.room,
+            type: EventType.PLAYER_UPDATE,
+          },
+          { $inc: { 'player.offCooldownTick': missingTicks } },
+        ),
+      );
     }
 
     promises.push(
