@@ -196,6 +196,11 @@ const ATTACK_METADATA = {
     letter: 'H',
     ranged: false,
   },
+  [PlayerAttack.HAM_JOINT]: {
+    tagColor: 'red',
+    letter: 'SB',
+    ranged: false,
+  },
   [PlayerAttack.KODAI_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
@@ -231,6 +236,16 @@ const ATTACK_METADATA = {
     letter: 'F',
     ranged: true,
   },
+  [PlayerAttack.SCYTHE]: {
+    tagColor: 'red',
+    letter: 'S',
+    ranged: false,
+  },
+  [PlayerAttack.SCYTHE_UNCHARGED]: {
+    tagColor: 'red',
+    letter: 's',
+    ranged: false,
+  },
   [PlayerAttack.SHADOW]: {
     tagColor: 'blue',
     letter: 'Sh',
@@ -241,6 +256,16 @@ const ATTACK_METADATA = {
     letter: 'F',
     ranged: true,
   },
+  [PlayerAttack.SOTD_BARRAGE]: {
+    tagColor: 'blue',
+    letter: 'F',
+    ranged: true,
+  },
+  [PlayerAttack.SOULREAPER_AXE]: {
+    tagColor: 'red',
+    letter: 'AXE',
+    ranged: false,
+  },
   [PlayerAttack.STAFF_OF_LIGHT_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
@@ -249,6 +274,11 @@ const ATTACK_METADATA = {
   [PlayerAttack.STAFF_OF_LIGHT_SWIPE]: {
     tagColor: 'blue',
     letter: 'SOL',
+    ranged: false,
+  },
+  [PlayerAttack.SWIFT]: {
+    tagColor: 'red',
+    letter: 'SB',
     ranged: false,
   },
   [PlayerAttack.TENT_WHIP]: {
@@ -296,31 +326,6 @@ const ATTACK_METADATA = {
     letter: 'ZC',
     ranged: true,
   },
-  [PlayerAttack.SCYTHE]: {
-    tagColor: 'red',
-    letter: 'S',
-    ranged: false,
-  },
-  [PlayerAttack.SCYTHE_UNCHARGED]: {
-    tagColor: 'red',
-    letter: 's',
-    ranged: false,
-  },
-  [PlayerAttack.HAM_JOINT]: {
-    tagColor: 'red',
-    letter: 'SB',
-    ranged: false,
-  },
-  [PlayerAttack.SOULREAPER_AXE]: {
-    tagColor: 'red',
-    letter: 'AXE',
-    ranged: false,
-  },
-  [PlayerAttack.SWIFT]: {
-    tagColor: 'red',
-    letter: 'SB',
-    ranged: false,
-  },
   [PlayerAttack.VOLATILE_NM_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
@@ -332,7 +337,12 @@ const ATTACK_METADATA = {
     ranged: true,
   },
   [PlayerAttack.UNKNOWN_BOW]: {
-    tagColor: undefined,
+    tagColor: 'green',
+    letter: 'UNK',
+    ranged: true,
+  },
+  [PlayerAttack.UNKNOWN_POWERED_STAFF]: {
+    tagColor: 'blue',
     letter: 'UNK',
     ranged: true,
   },
@@ -397,6 +407,7 @@ const makeCellImage = (playerAttack: Attack, memes: BlertMemes) => {
       case PlayerAttack.TRIDENT_BARRAGE:
       case PlayerAttack.KODAI_BARRAGE:
       case PlayerAttack.SCEPTRE_BARRAGE:
+      case PlayerAttack.SOTD_BARRAGE:
       case PlayerAttack.VOLATILE_NM_BARRAGE:
       case PlayerAttack.UNKNOWN_BARRAGE:
         infoIcon = (
@@ -569,6 +580,7 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
     case PlayerAttack.SANG_BARRAGE:
     case PlayerAttack.SCEPTRE_BARRAGE:
     case PlayerAttack.SHADOW_BARRAGE:
+    case PlayerAttack.SOTD_BARRAGE:
     case PlayerAttack.STAFF_OF_LIGHT_BARRAGE:
     case PlayerAttack.TOXIC_TRIDENT_BARRAGE:
     case PlayerAttack.TOXIC_STAFF_BARRAGE:
@@ -606,6 +618,7 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
       return "ZCB'd";
     case PlayerAttack.TOXIC_TRIDENT:
     case PlayerAttack.TRIDENT:
+    case PlayerAttack.UNKNOWN_POWERED_STAFF:
     case PlayerAttack.UNKNOWN:
       return 'attacked';
   }
