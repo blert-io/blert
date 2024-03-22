@@ -136,6 +136,11 @@ const ATTACK_METADATA = {
     letter: 'BP',
     ranged: true,
   },
+  [PlayerAttack.BOWFA]: {
+    tagColor: 'green',
+    letter: 'BFa',
+    ranged: true,
+  },
   [PlayerAttack.CHALLY_SPEC]: {
     tagColor: 'yellow',
     letter: 'CH',
@@ -611,6 +616,7 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
       return 'swifted';
     case PlayerAttack.TENT_WHIP:
       return 'whipped';
+    case PlayerAttack.BOWFA:
     case PlayerAttack.TWISTED_BOW:
     case PlayerAttack.UNKNOWN_BOW:
       return 'bowed';

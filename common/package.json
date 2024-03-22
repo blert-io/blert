@@ -5,12 +5,14 @@
   "private": true,
   "license": "MIT",
   "scripts": {
-    "build": "tsc"
+    "generate-protos": "mkdir -p generated && grpc_tools_node_protoc -I protos protos/*.proto --plugin=protoc_gen_ts --js_out=import_style=commonjs:generated --ts_out=generated",
+    "build": "npm run generate-protos && tsc"
   },
   "main": "dist/index.js",
   "types": "dist/index",
   "files": [
-    "dist"
+    "dist",
+    "generated/*.d.ts"
   ],
   "devDependencies": {
     "typescript": "^5.3.3"

@@ -3,7 +3,7 @@
     "target": "es6",
     "outDir": "dist",
     "lib": ["esnext", "dom"],
-    "allowJs": false,
+    "allowJs": true,
     "strict": true,
     "esModuleInterop": true,
     "module": "NodeNext",
@@ -12,7 +12,7 @@
     "incremental": true,
     "declaration": true
   },
-  "include": ["**/*.ts"],
+  "include": ["**/*.ts", "generated/*_pb.js"],
   "exclude": [
     "dist/**/*",
     "node_modules"

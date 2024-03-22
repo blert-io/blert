@@ -7,12 +7,13 @@ import {
   UserModel,
 } from '@blert/common';
 import { HydratedDocument } from 'mongoose';
-import { PastRaid } from './server-message';
 
 export type BasicUser = {
   id: string;
   username: string;
 };
+
+export type PastRaid = Pick<Raid, 'status' | 'mode' | 'party'> & { id: string };
 
 export class Users {
   /**

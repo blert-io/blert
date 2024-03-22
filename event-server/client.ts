@@ -1,8 +1,9 @@
+import { ServerMessage } from '@blert/common/generated/server_message_pb';
 import { WebSocket } from 'ws';
 
 import MessageHandler from './message-handler';
 import Raid from './raid';
-import { ServerMessage, ServerMessageType } from './server-message';
+false;
 import { BasicUser } from './users';
 
 export default class Client {
@@ -13,11 +14,17 @@ export default class Client {
   private socket: WebSocket;
   private messageHandler: MessageHandler;
   private activeRaid: Raid | null;
-  private messages: ServerMessage[];
+  private messageQueue: ServerMessage[];
 
   private closeCallbacks: (() => void)[];
 
   private lastHeartbeatTime: number;
+
+  // TODO(frolv): Temporary, for debugging purposes.
+  private lastMessageLog: number;
+  private totalMessages: number;
+  private maxMessageSize: number;
+  private meanMessageSize: number;
 
   constructor(
     socket: WebSocket,
@@ -30,8 +37,15 @@ export default class Client {
     this.messageHandler = eventHandler;
     this.activeRaid = null;
     this.closeCallbacks = [];
-    this.messages = [];
+    this.messageQueue = [];
     this.lastHeartbeatTime = Date.now();
+
+    this.lastMessageLog = Date.now();
+    this.totalMessages = 0;
+    this.maxMessageSize = 0;
+    this.meanMessageSize = 0;
+
+    socket.binaryType = 'arraybuffer';
 
     socket.on('close', (code) => {
       console.log(`Client ${this.sessionId} closed: ${code}`);
@@ -44,8 +58,30 @@ export default class Client {
 
     // Messages received through the socket are pushed into a message queue
     // where they are processed synchronously through `processMessages`.
-    socket.on('message', (message) => {
-      this.messages.push(JSON.parse(message.toString()));
+    socket.on('message', (message: ArrayBuffer, isBinary) => {
+      if (isBinary) {
+        this.totalMessages++;
+        this.maxMessageSize = Math.max(this.maxMessageSize, message.byteLength);
+        this.meanMessageSize =
+          (this.meanMessageSize * (this.totalMessages - 1) +
+            message.byteLength) /
+          this.totalMessages;
+
+        const now = Date.now();
+        if (now - this.lastMessageLog > 10 * 1000) {
+          console.log(
+            `Client ${this.sessionId}: messages=${this.totalMessages} max(size)=${this.maxMessageSize} mean(size)=${this.meanMessageSize | 0}`,
+          );
+          this.lastMessageLog = now;
+        }
+
+        const serverMessage = ServerMessage.deserializeBinary(
+          new Uint8Array(message),
+        );
+        this.messageQueue.push(serverMessage);
+      } else {
+        console.log('Received unsupported text message');
+      }
     });
 
     setTimeout(() => this.processMessages(), 20);
@@ -88,9 +124,8 @@ export default class Client {
     this.activeRaid = raid;
   }
 
-  public sendMessage<T extends ServerMessage>(message: T): void {
-    const payload = JSON.stringify(message);
-    this.socket.send(payload);
+  public sendMessage(message: ServerMessage): void {
+    this.socket.send(message.serializeBinary());
   }
 
   public close(): void {
@@ -102,10 +137,10 @@ export default class Client {
   }
 
   private async processMessages(): Promise<void> {
-    if (this.messages.length > 0) {
-      const message = this.messages.shift()!;
+    if (this.messageQueue.length > 0) {
+      const message = this.messageQueue.shift()!;
 
-      if (message.type === ServerMessageType.HEARTBEAT_PONG) {
+      if (message.getType() === ServerMessage.Type.PONG) {
         this.lastHeartbeatTime = Date.now();
       } else {
         await this.messageHandler.handleMessage(this, message);
@@ -117,7 +152,10 @@ export default class Client {
   }
 
   private async heartbeat(): Promise<void> {
-    this.sendMessage({ type: ServerMessageType.HEARTBEAT_PING });
+    const ping = new ServerMessage();
+    ping.setType(ServerMessage.Type.PING);
+    this.sendMessage(ping);
+
     // Keep running forever.
     setTimeout(() => this.heartbeat(), Client.HEARTBEAT_INTERVAL_MS);
   }

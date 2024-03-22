@@ -1,20 +1,19 @@
 import {
   Event,
   EventType,
+  Mode,
   RaidEndEvent,
   RaidStartEvent,
   RaidUpdateEvent,
 } from '@blert/common';
+import {
+  ChallengeMode,
+  ChallengeModeMap,
+} from '@blert/common/generated/event_pb';
+import { ServerMessage } from '@blert/common/generated/server_message_pb';
 
 import Client from './client';
 import RaidManager from './raid-manager';
-import {
-  RaidEventsMessage,
-  RaidHistoryResponseMessage,
-  RaidStartResponseMessage,
-  ServerMessage,
-  ServerMessageType,
-} from './server-message';
 import { Users } from './users';
 
 type EventSink = (event: Event) => Promise<void>;
@@ -36,6 +35,22 @@ class EventAggregator {
   }
 }
 
+// TODO(frolv): Replace this when enums are updated in the database.
+function stringModeToProtoMode(
+  mode: Mode,
+): ChallengeModeMap[keyof ChallengeModeMap] {
+  switch (mode) {
+    case Mode.ENTRY:
+      return ChallengeMode.TOB_ENTRY;
+    case Mode.REGULAR:
+      return ChallengeMode.TOB_REGULAR;
+    case Mode.HARD:
+      return ChallengeMode.TOB_HARD;
+  }
+
+  return ChallengeMode.UNKNOWN_MODE;
+}
+
 export default class MessageHandler {
   private raidManager: RaidManager;
   private eventAggregators: { [raidId: string]: EventAggregator };
@@ -45,33 +60,45 @@ export default class MessageHandler {
     this.eventAggregators = {};
   }
 
+  /**
+   * Processes an incoming message from a client.
+   * @param client The client that sent the message.
+   * @param message The message.
+   */
   public async handleMessage(
     client: Client,
     message: ServerMessage,
   ): Promise<void> {
-    switch (message.type) {
-      case ServerMessageType.RAID_EVENTS:
-        const raidEventsMessage = message as RaidEventsMessage;
-        if (Array.isArray(raidEventsMessage.events)) {
-          for (const event of raidEventsMessage.events) {
-            await this.handleRaidEvent(client, event);
-          }
-        } else {
-          await this.handleRaidEvent(client, raidEventsMessage.events);
+    switch (message.getType()) {
+      case ServerMessage.Type.HISTORY_REQUEST:
+        const history = await Users.getRaidHistory(client.getUserId());
+
+        const historyResponse = new ServerMessage();
+        historyResponse.setType(ServerMessage.Type.HISTORY_RESPONSE);
+
+        historyResponse.setRecentRecordingsList(
+          history.map((raid) => {
+            const pastRaid = new ServerMessage.PastChallenge();
+            pastRaid.setId(raid.id);
+            pastRaid.setStatus(raid.status);
+            pastRaid.setMode(stringModeToProtoMode(raid.mode));
+            pastRaid.setPartyList(raid.party);
+            return pastRaid;
+          }),
+        );
+
+        client.sendMessage(historyResponse);
+        break;
+
+      case ServerMessage.Type.EVENT_STREAM:
+        const events = JSON.parse(message.getSerializedRaidEvents());
+        for (const event of events) {
+          await this.handleRaidEvent(client, event);
         }
         break;
 
-      case ServerMessageType.RAID_HISTORY_REQUEST:
-        const history = await Users.getRaidHistory(client.getUserId());
-        const raidHistoryResponse: RaidHistoryResponseMessage = {
-          type: ServerMessageType.RAID_HISTORY_RESPONSE,
-          history,
-        };
-        client.sendMessage(raidHistoryResponse);
-        break;
-
       default:
-        console.error(`Unknown message type: ${message.type}`);
+        console.error(`Unknown message type: ${message.getType()}`);
         break;
     }
   }
@@ -81,15 +108,17 @@ export default class MessageHandler {
       case EventType.RAID_START:
         const raidStartEvent = event as RaidStartEvent;
 
+        const response = new ServerMessage();
+
         const partySize = raidStartEvent.raidInfo.party.length;
         if (partySize === 0 || partySize > 5) {
           console.error(
             `Received ${event.type} event for raid with invalid party size: ${partySize}`,
           );
-          client.sendMessage({
-            type: ServerMessageType.RAID_START_RESPONSE,
-            raidId: null,
-          });
+
+          // TODO(frolv): Use a proper error type instead of an empty ID.
+          response.setType(ServerMessage.Type.ACTIVE_CHALLENGE_INFO);
+          client.sendMessage(response);
           return;
         }
 
@@ -107,10 +136,8 @@ export default class MessageHandler {
           }
         });
 
-        const response: RaidStartResponseMessage = {
-          type: ServerMessageType.RAID_START_RESPONSE,
-          raidId,
-        };
+        response.setType(ServerMessage.Type.ACTIVE_CHALLENGE_INFO);
+        response.setActiveChallengeId(raidId);
         client.sendMessage(response);
         break;
 

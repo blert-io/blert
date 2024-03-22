@@ -1,5 +1,6 @@
+import { ServerMessage } from '@blert/common/generated/server_message_pb';
+
 import Client from './client';
-import { ConnectionResponseMessage, ServerMessageType } from './server-message';
 import { BasicUser, Users } from './users';
 
 export default class ConnectionManager {
@@ -41,13 +42,13 @@ export default class ConnectionManager {
 
     this.activeClients[sessionId] = client;
 
-    const connectionResponse: ConnectionResponseMessage = {
-      type: ServerMessageType.CONNECTION_RESPONSE,
-      user: {
-        id: client.getUserId(),
-        name: client.getUsername(),
-      },
-    };
+    const connectionResponse = new ServerMessage();
+    connectionResponse.setType(ServerMessage.Type.CONNECTION_RESPONSE);
+    const user = new ServerMessage.User();
+    user.setId(client.getUserId());
+    user.setName(client.getUsername());
+    connectionResponse.setUser(user);
+
     client.sendMessage(connectionResponse);
   }
 
