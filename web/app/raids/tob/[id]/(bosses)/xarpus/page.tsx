@@ -1,11 +1,11 @@
 'use client';
 
 import {
+  ChallengeStatus,
   EventType,
   NpcEvent,
   PlayerEvent,
   PlayerUpdateEvent,
-  RaidStatus,
   Room,
   isPlayerEvent,
 } from '@blert/common';
@@ -52,7 +52,7 @@ export default function XarpusPage() {
   }
 
   const xarpusData = raidData.rooms[Room.XARPUS];
-  if (raidData.status != RaidStatus.IN_PROGRESS && xarpusData === null) {
+  if (raidData.status != ChallengeStatus.IN_PROGRESS && xarpusData === null) {
     return <>No Xarpus data for this raid</>;
   }
 

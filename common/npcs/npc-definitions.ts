@@ -1,9 +1,9 @@
 import { Npc, NpcId } from './npc-id';
 import {
+  ChallengeMode,
   MaidenCrab,
   MaidenCrabPosition,
   MaidenCrabSpawn,
-  Mode,
   Nylo,
   NyloSpawn,
   RoomNpc,
@@ -16,7 +16,7 @@ export type NpcDefinition = {
   shortName: string;
   canonicalId: number;
   size: number;
-  mode: Mode;
+  mode: ChallengeMode;
 };
 
 /**
@@ -30,9 +30,9 @@ const defineForAllModes = (
   definition: Omit<NpcDefinition, 'mode'>,
 ): [NpcDefinition, NpcDefinition, NpcDefinition] => {
   return [
-    { ...definition, mode: Mode.ENTRY },
-    { ...definition, mode: Mode.REGULAR },
-    { ...definition, mode: Mode.HARD },
+    { ...definition, mode: ChallengeMode.TOB_ENTRY },
+    { ...definition, mode: ChallengeMode.TOB_REGULAR },
+    { ...definition, mode: ChallengeMode.TOB_HARD },
   ];
 };
 
@@ -143,7 +143,7 @@ const NYLOCAS_PRINKIPAS = {
   shortName: 'Nylo Prince',
   canonicalId: NpcId.NYLOCAS_PRINKIPAS_MELEE,
   size: 3,
-  mode: Mode.HARD,
+  mode: ChallengeMode.TOB_HARD,
 };
 
 const [
@@ -205,7 +205,7 @@ const VERZIK_PILLAR = {
   shortName: 'Pillar',
   canonicalId: NpcId.VERZIK_PILLAR,
   size: 3,
-  mode: Mode.REGULAR,
+  mode: ChallengeMode.TOB_REGULAR,
 };
 
 const [

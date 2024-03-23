@@ -88,6 +88,7 @@ export async function loadEventsForRoom(
 export type RaidOverview = Pick<
   Raid,
   | '_id'
+  | 'stage'
   | 'startTime'
   | 'status'
   | 'mode'
@@ -123,6 +124,7 @@ export async function loadRecentRaidInformation(
       _id: 1,
       startTime: 1,
       status: 1,
+      stage: 1,
       mode: 1,
       party: 1,
       partyInfo: 1,

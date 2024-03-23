@@ -1,5 +1,5 @@
 import {
-  Mode,
+  ChallengeMode,
   SkillLevel,
   Room,
   RoomStatus,
@@ -41,6 +41,13 @@ export enum EventType {
   VERZIK_REDS_SPAWN = 'VERZIK_REDS_SPAWN',
   VERZIK_ATTACK_STYLE = 'VERZIK_ATTACK_STYLE',
 }
+
+// Renames:
+// - all enums
+// - bloatStatus -> bloatDown
+//
+// Deleted:
+// - verzikRedsSpawn
 
 export const isPlayerEvent = (event: Event): boolean => {
   return (
@@ -172,7 +179,7 @@ export interface VerzikAttackStyleEvent extends Event {
 
 export type RaidInfo = {
   party: string[];
-  mode?: Mode;
+  mode?: ChallengeMode;
   isSpectator?: boolean;
 };
 

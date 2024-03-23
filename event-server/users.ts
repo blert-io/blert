@@ -13,7 +13,9 @@ export type BasicUser = {
   username: string;
 };
 
-export type PastRaid = Pick<Raid, 'status' | 'mode' | 'party'> & { id: string };
+export type PastRaid = Pick<Raid, 'stage' | 'status' | 'mode' | 'party'> & {
+  id: string;
+};
 
 export class Users {
   /**
@@ -58,12 +60,16 @@ export class Users {
       .exec();
 
     const raidIds = recordedRaids.map((r) => r.raidId);
-    const raids = await RaidModel.find<Raid>({ _id: { $in: raidIds } }).exec();
+    const raids = await RaidModel.find<Raid>(
+      { _id: { $in: raidIds } },
+      { stage: 1, status: 1, mode: 1, party: 1, startTime: 1 },
+    ).exec();
 
     raids.sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
 
     return raids.map((r) => ({
       id: r._id,
+      stage: r.stage,
       status: r.status,
       mode: r.mode,
       party: r.party,

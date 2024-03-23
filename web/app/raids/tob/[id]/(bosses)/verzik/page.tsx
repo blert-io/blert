@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  ChallengeStatus,
   EventType,
   Npc,
   NpcAttack,
@@ -9,7 +10,6 @@ import {
   NpcId,
   PlayerEvent,
   PlayerUpdateEvent,
-  RaidStatus,
   Room,
   isPlayerEvent,
 } from '@blert/common';
@@ -84,7 +84,7 @@ export default function VerzikPage() {
   }
 
   const verzikData = raidData.rooms[Room.VERZIK];
-  if (raidData.status !== RaidStatus.IN_PROGRESS && verzikData === null) {
+  if (raidData.status !== ChallengeStatus.IN_PROGRESS && verzikData === null) {
     return <>No Verzik data for this raid</>;
   }
 

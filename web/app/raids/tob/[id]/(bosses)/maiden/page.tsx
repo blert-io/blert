@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import {
+  ChallengeStatus,
   EventType,
   MaidenBloodSplatsEvent,
   MaidenCrabPosition,
@@ -10,10 +11,10 @@ import {
   NpcEvent,
   PlayerEvent,
   PlayerUpdateEvent,
-  RaidStatus,
   Room,
   isPlayerEvent,
 } from '@blert/common';
+
 import { TimelineSplit } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
 import { useContext, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -254,7 +255,7 @@ export default function Maiden() {
   }
 
   const maidenData = raidData.rooms[Room.MAIDEN];
-  if (raidData.status === RaidStatus.IN_PROGRESS) {
+  if (raidData.status === ChallengeStatus.IN_PROGRESS) {
     if (events.length === 0) {
       return <>This raid has not yet started Maiden.</>;
     }

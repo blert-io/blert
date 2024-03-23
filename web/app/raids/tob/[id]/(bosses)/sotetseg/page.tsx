@@ -1,11 +1,11 @@
 'use client';
 
 import {
+  ChallengeStatus,
   EventType,
   NpcEvent,
   PlayerEvent,
   PlayerUpdateEvent,
-  RaidStatus,
   Room,
   isPlayerEvent,
 } from '@blert/common';
@@ -63,7 +63,7 @@ export default function SotetsegPage() {
   }
 
   const soteData = raidData.rooms[Room.SOTETSEG];
-  if (raidData.status !== RaidStatus.IN_PROGRESS && soteData === null) {
+  if (raidData.status !== ChallengeStatus.IN_PROGRESS && soteData === null) {
     return <>No Sotetseg data for this raid</>;
   }
 

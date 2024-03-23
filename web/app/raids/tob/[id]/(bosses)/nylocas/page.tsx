@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  ChallengeStatus,
   EventType,
   PlayerUpdateEvent,
   NpcEvent,
@@ -9,9 +10,8 @@ import {
   NyloWaveSpawnEvent,
   RoomNpcType,
   NpcId,
-  RaidStatus,
-  isPlayerEvent,
   PlayerEvent,
+  isPlayerEvent,
 } from '@blert/common';
 import Image from 'next/image';
 import { useMemo } from 'react';
@@ -286,7 +286,7 @@ export default function NylocasPage() {
   }
 
   const nyloData = raidData.rooms[Room.NYLOCAS];
-  if (raidData.status !== RaidStatus.IN_PROGRESS && nyloData === null) {
+  if (raidData.status !== ChallengeStatus.IN_PROGRESS && nyloData === null) {
     return <>No Nylocas data for this raid</>;
   }
 

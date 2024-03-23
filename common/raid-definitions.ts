@@ -1,9 +1,16 @@
 import { Coords } from './event';
+import {
+  ChallengeMode as ChallengeModeProto,
+  Stage as StageProto,
+} from './generated/event_pb';
 
 export type Raid = {
   _id: string;
-  status: RaidStatus;
-  mode: Mode;
+  status: ChallengeStatus;
+  stage: Stage;
+  statusString: string; // TODO: delete
+  mode: ChallengeMode;
+  modeString: string; // TODO: delete
   startTime: Date;
   party: string[];
   partyInfo: PlayerInfo[];
@@ -13,12 +20,12 @@ export type Raid = {
 };
 
 export type Rooms = {
-  [Room.MAIDEN]: MaidenOverview | null;
-  [Room.BLOAT]: BloatOverview | null;
-  [Room.NYLOCAS]: NyloOverview | null;
-  [Room.SOTETSEG]: SoteOverview | null;
-  [Room.XARPUS]: XarpusOverview | null;
-  [Room.VERZIK]: VerzikOverview | null;
+  MAIDEN: MaidenOverview | null;
+  BLOAT: BloatOverview | null;
+  NYLOCAS: NyloOverview | null;
+  SOTETSEG: SoteOverview | null;
+  XARPUS: XarpusOverview | null;
+  VERZIK: VerzikOverview | null;
 };
 
 export type RoomNpcMap = { [roomId: number]: RoomNpc };
@@ -86,6 +93,61 @@ export type VerzikSplits = {
   p2: number;
 };
 
+export enum ChallengeStatus {
+  IN_PROGRESS = 0,
+  COMPLETED = 1,
+  RESET = 2,
+  WIPED = 3,
+}
+
+export enum Stage {
+  UNKNOWN = StageProto.UNKNOWN_STAGE,
+
+  TOB_MAIDEN = StageProto.TOB_MAIDEN,
+  TOB_BLOAT = StageProto.TOB_BLOAT,
+  TOB_NYLOCAS = StageProto.TOB_NYLOCAS,
+  TOB_SOTETSEG = StageProto.TOB_SOTETSEG,
+  TOB_XARPUS = StageProto.TOB_XARPUS,
+  TOB_VERZIK = StageProto.TOB_VERZIK,
+
+  COX_TEKTON = StageProto.COX_TEKTON,
+  COX_CRABS = StageProto.COX_CRABS,
+  COX_ICE_DEMON = StageProto.COX_ICE_DEMON,
+  COX_SHAMANS = StageProto.COX_SHAMANS,
+  COX_VANGUARDS = StageProto.COX_VANGUARDS,
+  COX_THIEVING = StageProto.COX_THIEVING,
+  COX_VESPULA = StageProto.COX_VESPULA,
+  COX_TIGHTROPE = StageProto.COX_TIGHTROPE,
+  COX_GUARDIANS = StageProto.COX_GUARDIANS,
+  COX_VASA = StageProto.COX_VASA,
+  COX_MYSTICS = StageProto.COX_MYSTICS,
+  COX_MUTTADILE = StageProto.COX_MUTTADILE,
+  COX_OLM = StageProto.COX_OLM,
+
+  TOA_APMEKEN = StageProto.TOA_APMEKEN,
+  TOA_BABA = StageProto.TOA_BABA,
+  TOA_SCABARAS = StageProto.TOA_SCABARAS,
+  TOA_KEPHRI = StageProto.TOA_KEPHRI,
+  TOA_HET = StageProto.TOA_HET,
+  TOA_AKKHA = StageProto.TOA_AKKHA,
+  TOA_CRONDIS = StageProto.TOA_CRONDIS,
+  TOA_ZEBAK = StageProto.TOA_ZEBAK,
+  TOA_WARDENS = StageProto.TOA_WARDENS,
+
+  COLOSSEUM_WAVE_1 = StageProto.COLOSSEUM_WAVE_1,
+  COLOSSEUM_WAVE_2 = StageProto.COLOSSEUM_WAVE_2,
+  COLOSSEUM_WAVE_3 = StageProto.COLOSSEUM_WAVE_3,
+  COLOSSEUM_WAVE_4 = StageProto.COLOSSEUM_WAVE_4,
+  COLOSSEUM_WAVE_5 = StageProto.COLOSSEUM_WAVE_5,
+  COLOSSEUM_WAVE_6 = StageProto.COLOSSEUM_WAVE_6,
+  COLOSSEUM_WAVE_7 = StageProto.COLOSSEUM_WAVE_7,
+  COLOSSEUM_WAVE_8 = StageProto.COLOSSEUM_WAVE_8,
+  COLOSSEUM_WAVE_9 = StageProto.COLOSSEUM_WAVE_9,
+  COLOSSEUM_WAVE_10 = StageProto.COLOSSEUM_WAVE_10,
+  COLOSSEUM_WAVE_11 = StageProto.COLOSSEUM_WAVE_11,
+  COLOSSEUM_WAVE_12 = StageProto.COLOSSEUM_WAVE_12,
+}
+
 export enum Room {
   MAIDEN = 'MAIDEN',
   BLOAT = 'BLOAT',
@@ -95,26 +157,12 @@ export enum Room {
   VERZIK = 'VERZIK',
 }
 
-export enum Mode {
-  ENTRY = 'ENTRY',
-  REGULAR = 'REGULAR',
-  HARD = 'HARD',
-}
+export enum ChallengeMode {
+  NO_MODE = ChallengeModeProto.NO_MODE,
 
-export enum RaidStatus {
-  IN_PROGRESS = 'IN_PROGRESS',
-  COMPLETED = 'COMPLETED',
-  MAIDEN_RESET = 'MAIDEN_RESET',
-  MAIDEN_WIPE = 'MAIDEN_WIPE',
-  BLOAT_RESET = 'BLOAT_RESET',
-  BLOAT_WIPE = 'BLOAT_WIPE',
-  NYLO_RESET = 'NYLO_RESET',
-  NYLO_WIPE = 'NYLO_WIPE',
-  SOTE_RESET = 'SOTE_RESET',
-  SOTE_WIPE = 'SOTE_WIPE',
-  XARPUS_RESET = 'XARPUS_RESET',
-  XARPUS_WIPE = 'XARPUS_WIPE',
-  VERZIK_WIPE = 'VERZIK_WIPE',
+  TOB_ENTRY = ChallengeModeProto.TOB_ENTRY,
+  TOB_REGULAR = ChallengeModeProto.TOB_REGULAR,
+  TOB_HARD = ChallengeModeProto.TOB_HARD,
 }
 
 export enum RoomStatus {

@@ -68,8 +68,11 @@ const PlayerInfo = {
 
 const raidSchema = new Schema<Raid>({
   _id: String,
-  status: { type: String, index: true },
-  mode: String,
+  status: { type: Number, index: true },
+  stage: { type: Number, index: true },
+  statusString: { type: String },
+  mode: Number,
+  modeString: String,
   startTime: { type: Date },
   party: {
     type: [String],

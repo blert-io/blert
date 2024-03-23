@@ -1,5 +1,7 @@
 import {
   BloatSplits,
+  ChallengeMode,
+  ChallengeStatus,
   EquipmentSlot,
   Event,
   EventType,
@@ -7,7 +9,6 @@ import {
   MaidenCrabSpawn,
   MaidenSplits,
   Maze,
-  Mode,
   Npc,
   NpcAttack,
   NpcDeathEvent,
@@ -15,6 +16,7 @@ import {
   Nylo,
   NyloSplits,
   NyloWaveSpawnEvent,
+  NyloWaveStallEvent,
   PersonalBestType,
   PlayerAttack,
   PlayerAttackEvent,
@@ -22,7 +24,6 @@ import {
   PlayerInfo,
   PlayerUpdateEvent,
   PrimaryMeleeGear,
-  RaidStatus,
   RecordedRaidModel,
   RecordingType,
   Room,
@@ -32,6 +33,7 @@ import {
   RoomStatusEvent,
   SoteMazeProcEvent,
   SoteSplits,
+  Stage,
   VerzikAttackStyle,
   VerzikAttackStyleEvent,
   VerzikCrab,
@@ -48,7 +50,6 @@ import { RaidModel, RoomEvent } from '@blert/common';
 import Client from './client';
 import { Players } from './players';
 import { priceTracker } from './price-tracker';
-import { NyloWaveStallEvent } from '@blert/common';
 
 export function raidPartyKey(partyMembers: string[]) {
   return partyMembers
@@ -60,40 +61,6 @@ enum State {
   STARTING,
   IN_PROGRESS,
   ENDING,
-}
-
-function roomResetStatus(room: Room): RaidStatus {
-  switch (room) {
-    case Room.MAIDEN:
-      return RaidStatus.MAIDEN_RESET;
-    case Room.BLOAT:
-      return RaidStatus.BLOAT_RESET;
-    case Room.NYLOCAS:
-      return RaidStatus.NYLO_RESET;
-    case Room.SOTETSEG:
-      return RaidStatus.SOTE_RESET;
-    case Room.XARPUS:
-      return RaidStatus.XARPUS_RESET;
-    case Room.VERZIK:
-      return RaidStatus.COMPLETED;
-  }
-}
-
-function roomWipeStatus(room: Room): RaidStatus {
-  switch (room) {
-    case Room.MAIDEN:
-      return RaidStatus.MAIDEN_WIPE;
-    case Room.BLOAT:
-      return RaidStatus.BLOAT_WIPE;
-    case Room.NYLOCAS:
-      return RaidStatus.NYLO_WIPE;
-    case Room.SOTETSEG:
-      return RaidStatus.SOTE_WIPE;
-    case Room.XARPUS:
-      return RaidStatus.XARPUS_WIPE;
-    case Room.VERZIK:
-      return RaidStatus.VERZIK_WIPE;
-  }
 }
 
 const BLORVA_PLATEBODY_ID = 28256;
@@ -113,18 +80,19 @@ export default class Raid {
   private clients: Client[];
 
   private state: State;
-  private mode: Mode | null;
+  private mode: ChallengeMode | null;
   private party: string[];
   private partyInfo: PlayerInfo[];
   private startTime: number;
-  private raidStatus: RaidStatus;
+  private challengeStatus: ChallengeStatus;
   private completedRooms: number;
   private totalRoomTicks: number;
   private overallTicks: number;
 
   private playerInfoUpdated: Set<string>;
 
-  private room: Room;
+  private stage: Stage;
+  private room: Room; // TODO(frolv): Replace with stage.
   private roomStatus: RoomStatus;
   private roomTick: number;
   private roomEvents: Event[];
@@ -145,7 +113,7 @@ export default class Raid {
   public constructor(
     id: string,
     party: string[],
-    mode: Mode | null,
+    mode: ChallengeMode,
     startTime: number,
   ) {
     this.id = id;
@@ -157,13 +125,14 @@ export default class Raid {
     this.party = party;
     this.partyInfo = this.party.map((_) => ({ gear: PrimaryMeleeGear.BLORVA }));
     this.startTime = startTime;
-    this.raidStatus = RaidStatus.IN_PROGRESS;
+    this.challengeStatus = ChallengeStatus.IN_PROGRESS;
     this.completedRooms = 0;
     this.totalRoomTicks = 0;
     this.overallTicks = 0;
 
     this.playerInfoUpdated = new Set();
 
+    this.stage = Stage.TOB_MAIDEN;
     this.room = Room.MAIDEN;
     this.roomStatus = RoomStatus.ENTERED;
     this.roomTick = 0;
@@ -207,7 +176,7 @@ export default class Raid {
     this.overallTicks = time;
   }
 
-  public async setMode(mode: Mode): Promise<void> {
+  public async setMode(mode: ChallengeMode): Promise<void> {
     this.mode = mode;
     await this.updateDatabaseFields((record) => {
       record.mode = this.mode;
@@ -222,7 +191,8 @@ export default class Raid {
     const record = new RaidModel({
       _id: this.id,
       mode: this.mode,
-      status: this.raidStatus,
+      stage: this.stage,
+      status: this.challengeStatus,
       party: this.party,
       partyInfo: this.partyInfo,
       startTime: this.startTime,
@@ -245,11 +215,14 @@ export default class Raid {
 
     promises.push(
       this.updateDatabaseFields((record) => {
-        record.status = this.raidStatus;
+        record.status = this.challengeStatus;
       }),
     );
 
-    if (this.raidStatus === RaidStatus.COMPLETED && this.completedRooms === 6) {
+    if (
+      this.challengeStatus === ChallengeStatus.COMPLETED &&
+      this.completedRooms === 6
+    ) {
       promises.push(
         this.updatePartyPbs(
           PersonalBestType.TOB_CHALLENGE,
@@ -267,25 +240,14 @@ export default class Raid {
     for (const username of this.party) {
       promises.push(
         Players.updateStats(username, (stats) => {
-          switch (this.raidStatus) {
-            case RaidStatus.COMPLETED:
+          switch (this.challengeStatus) {
+            case ChallengeStatus.COMPLETED:
               stats.completions += 1;
               break;
-
-            case RaidStatus.MAIDEN_RESET:
-            case RaidStatus.BLOAT_RESET:
-            case RaidStatus.NYLO_RESET:
-            case RaidStatus.SOTE_RESET:
-            case RaidStatus.XARPUS_RESET:
+            case ChallengeStatus.RESET:
               stats.resets += 1;
               break;
-
-            case RaidStatus.MAIDEN_WIPE:
-            case RaidStatus.BLOAT_WIPE:
-            case RaidStatus.NYLO_WIPE:
-            case RaidStatus.SOTE_WIPE:
-            case RaidStatus.XARPUS_WIPE:
-            case RaidStatus.VERZIK_WIPE:
+            case ChallengeStatus.WIPED:
               stats.wipes += 1;
               break;
           }
@@ -392,6 +354,8 @@ export default class Raid {
       return;
     }
 
+    this.roomStatus = event.roomStatus.status;
+
     switch (event.roomStatus.status) {
       case RoomStatus.STARTED:
         if (this.state === State.STARTING) {
@@ -413,6 +377,10 @@ export default class Raid {
         this.deathsInRoom = [];
         this.queuedPbUpdates = [];
         this.npcs.clear();
+
+        await this.updateDatabaseFields((record) => {
+          record.stage = this.stage;
+        });
         break;
 
       case RoomStatus.WIPED:
@@ -426,17 +394,15 @@ export default class Raid {
         }
         break;
     }
-
-    this.roomStatus = event.roomStatus.status;
   }
 
   private async handleRoomFinished(event: RoomStatusEvent): Promise<void> {
     // Set the appropriate status if the raid were to be finished at this
     // point.
-    this.raidStatus =
+    this.challengeStatus =
       event.roomStatus.status === RoomStatus.WIPED
-        ? roomWipeStatus(this.room)
-        : roomResetStatus(this.room);
+        ? ChallengeStatus.WIPED
+        : ChallengeStatus.RESET;
     this.completedRooms++;
     this.totalRoomTicks += event.tick;
 
@@ -1009,4 +975,70 @@ export default class Raid {
     }
     this.roomEvents = [];
   }
+
+  public static async migrateRaids() {
+    await RaidModel.updateMany(
+      {},
+      { $rename: { mode: 'modeString', status: 'statusString' } },
+    );
+
+    const raids = await RaidModel.find();
+    raids.forEach(async (raid) => {
+      const [stage, status] = updateStatus(raid.statusString);
+      raid.mode = updateMode(raid.modeString);
+      raid.stage = stage;
+      raid.status = status;
+      await raid.save();
+      console.log(`Updated raid ${raid._id}`);
+    });
+
+    await RaidModel.updateMany(
+      {},
+      { $unset: { modeString: 1, statusString: 1 } },
+    );
+  }
+}
+
+export function updateMode(old: string): ChallengeMode {
+  switch (old) {
+    case 'ENTRY':
+      return ChallengeMode.TOB_ENTRY;
+    case 'REGULAR':
+      return ChallengeMode.TOB_REGULAR;
+    case 'HARD':
+      return ChallengeMode.TOB_HARD;
+  }
+  return ChallengeMode.NO_MODE;
+}
+
+function updateStatus(old: string): [Stage, ChallengeStatus] {
+  switch (old) {
+    case 'IN_PROGRESS':
+      return [Stage.TOB_MAIDEN, ChallengeStatus.IN_PROGRESS];
+    case 'COMPLETED':
+      return [Stage.TOB_VERZIK, ChallengeStatus.COMPLETED];
+    case 'MAIDEN_RESET':
+      return [Stage.TOB_MAIDEN, ChallengeStatus.RESET];
+    case 'BLOAT_RESET':
+      return [Stage.TOB_BLOAT, ChallengeStatus.RESET];
+    case 'NYLO_RESET':
+      return [Stage.TOB_NYLOCAS, ChallengeStatus.RESET];
+    case 'SOTE_RESET':
+      return [Stage.TOB_SOTETSEG, ChallengeStatus.RESET];
+    case 'XARPUS_RESET':
+      return [Stage.TOB_XARPUS, ChallengeStatus.RESET];
+    case 'MAIDEN_WIPE':
+      return [Stage.TOB_MAIDEN, ChallengeStatus.WIPED];
+    case 'BLOAT_WIPE':
+      return [Stage.TOB_BLOAT, ChallengeStatus.WIPED];
+    case 'NYLO_WIPE':
+      return [Stage.TOB_NYLOCAS, ChallengeStatus.WIPED];
+    case 'SOTE_WIPE':
+      return [Stage.TOB_SOTETSEG, ChallengeStatus.WIPED];
+    case 'XARPUS_WIPE':
+      return [Stage.TOB_XARPUS, ChallengeStatus.WIPED];
+    case 'VERZIK_WIPE':
+      return [Stage.TOB_VERZIK, ChallengeStatus.WIPED];
+  }
+  return [Stage.TOB_MAIDEN, ChallengeStatus.IN_PROGRESS];
 }

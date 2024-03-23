@@ -1,11 +1,11 @@
 'use client';
 
 import {
+  ChallengeStatus,
   EventType,
   NpcEvent,
   PlayerEvent,
   PlayerUpdateEvent,
-  RaidStatus,
   Room,
   isPlayerEvent,
 } from '@blert/common';
@@ -63,7 +63,7 @@ export default function BloatPage() {
   }
 
   const bloatData = raidData.rooms[Room.BLOAT];
-  if (raidData.status !== RaidStatus.IN_PROGRESS && bloatData === null) {
+  if (raidData.status !== ChallengeStatus.IN_PROGRESS && bloatData === null) {
     return <>No Bloat data for this raid</>;
   }
 

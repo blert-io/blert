@@ -1,4 +1,4 @@
-import { Mode } from './raid-definitions';
+import { ChallengeMode } from './raid-definitions';
 
 export enum PersonalBestType {
   // Theatre of Blood records.
@@ -99,7 +99,7 @@ const genericTobPbTypes = [
  */
 export function tobPbForMode(
   genericTobPb: PersonalBestType,
-  mode: Mode,
+  mode: ChallengeMode,
 ): PersonalBestType {
   if (process.env.NODE_ENV !== 'production') {
     if (!genericTobPbTypes.includes(genericTobPb)) {
@@ -109,7 +109,12 @@ export function tobPbForMode(
     }
   }
 
-  const offset = mode === Mode.ENTRY ? 0 : mode === Mode.REGULAR ? 1 : 2;
+  const offset =
+    mode === ChallengeMode.TOB_ENTRY
+      ? 0
+      : mode === ChallengeMode.TOB_REGULAR
+        ? 1
+        : 2;
   return genericTobPb + offset;
 }
 
