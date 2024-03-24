@@ -1,13 +1,16 @@
-import { Schema, model, models } from 'mongoose';
+import { Model, Schema, model, models } from 'mongoose';
+
 import {
   Coords,
   MaidenCrabProperties,
   NyloProperties,
   VerzikCrabProperties,
 } from './raid';
+import { MergedEvent } from '../event';
 
 const SkillLevel = {
-  skill: String,
+  _id: false,
+  skill: String, // TODO: delete
   base: Number,
   current: Number,
 };
@@ -20,7 +23,8 @@ const Item = {
 
 const attackSchema = new Schema(
   {
-    type: String,
+    type: { type: Number, index: true },
+    typeString: String,
     weapon: Item,
     target: {
       id: Number,
@@ -31,10 +35,14 @@ const attackSchema = new Schema(
   { _id: false },
 );
 
-const roomEventSchema = new Schema({
+const roomEventSchema = new Schema<MergedEvent>({
   raidId: { type: String, index: true },
-  type: { type: String, index: true },
+  cId: { type: String, index: true },
+  type: { type: Number, index: true },
+  typeString: String,
+  stage: { type: Number, index: true },
   room: String,
+  roomString: String,
   tick: Number,
   xCoord: Number,
   yCoord: Number,
@@ -57,7 +65,8 @@ const roomEventSchema = new Schema({
     offCooldownTick: Number,
   },
   npc: {
-    type: { type: String },
+    type: { type: Number },
+    typeString: String,
     id: Number,
     roomId: Number,
     hitpoints: SkillLevel,
@@ -76,7 +85,8 @@ const roomEventSchema = new Schema({
   },
   attack: attackSchema,
   npcAttack: {
-    attack: String,
+    attack: { type: Number, index: true },
+    attackString: String,
     target: String,
   },
   maidenBloodSplats: {
@@ -86,21 +96,29 @@ const roomEventSchema = new Schema({
   bloatStatus: {
     walkTime: Number,
   },
+  bloatDown: {
+    downNumber: Number,
+    walkTime: Number,
+  },
   nyloWave: {
     wave: Number,
     nylosAlive: Number,
     roomCap: Number,
   },
   soteMaze: {
-    maze: String,
+    maze: Number,
+    mazeString: String,
   },
-  xarpusPhase: String,
-  verzikPhase: String,
+  xarpusPhase: Number,
+  xarpusPhaseString: String,
+  verzikPhase: Number,
+  verzikPhaseString: String,
   verzikAttack: {
-    style: String,
+    style: Number,
+    styleString: String,
     npcAttackTick: Number,
   },
 });
 
-export const RoomEvent =
+export const RoomEvent: Model<MergedEvent> =
   models?.RoomEvent ?? model('RoomEvent', roomEventSchema);

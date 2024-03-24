@@ -6,9 +6,11 @@ import {
   MaidenCrabSpawn,
   Nylo,
   NyloSpawn,
+  NyloStyle,
   RoomNpc,
   RoomNpcType,
   VerzikCrab,
+  VerzikCrabSpawn,
 } from '../raid-definitions';
 
 export type NpcDefinition = {
@@ -457,6 +459,53 @@ function maidenCrabPositionString(position: MaidenCrabPosition) {
   return position;
 }
 
+function nyloStyleToString(style: NyloStyle): string {
+  switch (style) {
+    case NyloStyle.MELEE:
+      return 'melee';
+    case NyloStyle.RANGE:
+      return 'range';
+    case NyloStyle.MAGE:
+      return 'mage';
+  }
+}
+
+function nyloSpawnToString(spawn: NyloSpawn): string {
+  switch (spawn) {
+    case NyloSpawn.EAST:
+      return 'east';
+    case NyloSpawn.WEST:
+      return 'west';
+    case NyloSpawn.SOUTH:
+      return 'south';
+    case NyloSpawn.SPLIT:
+      return 'split';
+  }
+}
+
+function verzikSpawnToString(spawn: VerzikCrabSpawn): string {
+  switch (spawn) {
+    case VerzikCrabSpawn.UNKNOWN:
+      return 'unknown';
+    case VerzikCrabSpawn.NORTH:
+      return 'north';
+    case VerzikCrabSpawn.NORTHEAST:
+      return 'northeast';
+    case VerzikCrabSpawn.NORTHWEST:
+      return 'northwest';
+    case VerzikCrabSpawn.EAST:
+      return 'east';
+    case VerzikCrabSpawn.SOUTH:
+      return 'south';
+    case VerzikCrabSpawn.SOUTHEAST:
+      return 'southeast';
+    case VerzikCrabSpawn.SOUTHWEST:
+      return 'southwest';
+    case VerzikCrabSpawn.WEST:
+      return 'west';
+  }
+}
+
 /**
  * Returns a human-readable name for the given NPC, including metadata about
  * the NPC's type.
@@ -474,15 +523,15 @@ export function npcFriendlyName(npc: RoomNpc): string {
 
     case RoomNpcType.NYLO:
       const nylo = (npc as Nylo).nylo;
-      const style = nylo.style.toLowerCase();
+      const style = nyloStyleToString(nylo.style);
       if (nylo.spawnType === NyloSpawn.SPLIT) {
         return `${nylo.wave} ${style} split`;
       }
-      return `${nylo.wave} ${nylo.spawnType.toLowerCase()} ${style}`;
+      return `${nylo.wave} ${nyloSpawnToString(nylo.spawnType)} ${style}`;
 
     case RoomNpcType.VERZIK_CRAB:
       const verzikCrab = (npc as VerzikCrab).verzikCrab;
-      return `${verzikCrab.phase} ${verzikCrab.spawn.toLowerCase()} crab`;
+      return `${verzikCrab.phase} ${verzikSpawnToString(verzikCrab.spawn)} crab`;
 
     case RoomNpcType.BASIC:
       // No special handling.

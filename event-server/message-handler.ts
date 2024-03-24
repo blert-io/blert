@@ -8,6 +8,7 @@ import { ServerMessage } from '@blert/common/generated/server_message_pb';
 import Client from './client';
 import RaidManager from './raid-manager';
 import { Users } from './users';
+import Raid from './raid';
 
 type EventSink = (event: Event) => Promise<void>;
 
@@ -70,7 +71,9 @@ export default class MessageHandler {
         );
 
         client.sendMessage(historyResponse);
-        // Raid.migrateRaids();
+        await Raid.migrateRaids();
+        await Raid.migrateRoomEvents();
+        console.log('complete!');
         break;
 
       case ServerMessage.Type.EVENT_STREAM:

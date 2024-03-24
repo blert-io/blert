@@ -10,7 +10,7 @@ import {
   NpcId,
   PlayerEvent,
   PlayerUpdateEvent,
-  Room,
+  Stage,
   isPlayerEvent,
 } from '@blert/common';
 import Image from 'next/image';
@@ -28,7 +28,7 @@ import Loading from '../../../../../components/loading';
 
 import styles from './style.module.scss';
 import verzikBaseTiles from './verzik-tiles.json';
-import { useContext } from 'react';
+import { useContext, useMemo } from 'react';
 import { ActorContext } from '../../../context';
 import { ticksToFormattedSeconds } from '../../../../../utils/tick';
 
@@ -72,18 +72,54 @@ export default function VerzikPage() {
     bossAttackTimeline,
     playerAttackTimelines,
     loading,
-  } = useRoomEvents(Room.VERZIK);
+  } = useRoomEvents(Stage.TOB_VERZIK);
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
 
   const { selectedPlayer } = useContext(ActorContext);
 
+  const [splits, backgroundColors] = useMemo(() => {
+    let splits = [];
+    const verzik = raidData?.rooms.verzik;
+    if (verzik) {
+      if (verzik.splits.p1 > 0) {
+        splits.push({
+          tick: verzik.splits.p1,
+          splitName: 'P1 End',
+          unimportant: true,
+        });
+        splits.push({ tick: verzik.splits.p1 + 13, splitName: 'P2' });
+      }
+      if (verzik.splits.reds > 0) {
+        splits.push({ tick: verzik.splits.reds, splitName: 'Reds' });
+      }
+      if (verzik.splits.p2 > 0) {
+        splits.push({
+          tick: verzik.splits.p2,
+          splitName: 'P2 End',
+          unimportant: true,
+        });
+        splits.push({ tick: verzik.splits.p2 + 6, splitName: 'P3' });
+      }
+    }
+
+    const backgroundColors = eventsByType[EventType.NPC_ATTACK]
+      ?.filter(
+        (event) =>
+          (event as NpcAttackEvent).npcAttack.attack ===
+          NpcAttack.TOB_VERZIK_P1_AUTO,
+      )
+      .map((event) => ({ tick: event.tick, backgroundColor: '#512020' }));
+
+    return [splits, backgroundColors];
+  }, [raidData, eventsByType]);
+
   if (loading || raidData === null) {
     return <Loading />;
   }
 
-  const verzikData = raidData.rooms[Room.VERZIK];
+  const verzikData = raidData.rooms.verzik;
   if (raidData.status !== ChallengeStatus.IN_PROGRESS && verzikData === null) {
     return <>No Verzik data for this raid</>;
   }
@@ -124,36 +160,6 @@ export default function VerzikPage() {
       }
     }
   }
-
-  let splits = [];
-  if (verzikData !== null) {
-    if (verzikData.splits.p1 > 0) {
-      splits.push({
-        tick: verzikData.splits.p1,
-        splitName: 'P1 End',
-        unimportant: true,
-      });
-      splits.push({ tick: verzikData.splits.p1 + 13, splitName: 'P2' });
-    }
-    if (verzikData.splits.reds > 0) {
-      splits.push({ tick: verzikData.splits.reds, splitName: 'Reds' });
-    }
-    if (verzikData.splits.p2 > 0) {
-      splits.push({
-        tick: verzikData.splits.p2,
-        splitName: 'P2 End',
-        unimportant: true,
-      });
-      splits.push({ tick: verzikData.splits.p2 + 6, splitName: 'P3' });
-    }
-  }
-
-  const backgroundColors = eventsByType[EventType.NPC_ATTACK]
-    ?.filter(
-      (event) =>
-        (event as NpcAttackEvent).npcAttack.attack === NpcAttack.VERZIK_P1_AUTO,
-    )
-    .map((event) => ({ tick: event.tick, backgroundColor: '#512020' }));
 
   const playerDetails = getPlayerDetails(
     raidData.party,

@@ -12,6 +12,7 @@ import {
   PlayerEvent,
   PlayerUpdateEvent,
   Room,
+  Stage,
   isPlayerEvent,
 } from '@blert/common';
 
@@ -178,7 +179,7 @@ export default function Maiden() {
     bossAttackTimeline,
     playerAttackTimelines,
     loading,
-  } = useRoomEvents(Room.MAIDEN);
+  } = useRoomEvents(Stage.TOB_MAIDEN);
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
@@ -221,7 +222,7 @@ export default function Maiden() {
   const { splits, spawns } = useMemo(() => {
     const splits: TimelineSplit[] = [];
     const spawns: MaidenCrabProperties[][] = [];
-    const maidenRoom = raidData?.rooms[Room.MAIDEN];
+    const maidenRoom = raidData?.rooms.maiden;
 
     const addSplits = (tick: number, name: string) => {
       if (tick !== 0) {
@@ -254,7 +255,7 @@ export default function Maiden() {
     return <Loading />;
   }
 
-  const maidenData = raidData.rooms[Room.MAIDEN];
+  const maidenData = raidData.rooms.maiden;
   if (raidData.status === ChallengeStatus.IN_PROGRESS) {
     if (events.length === 0) {
       return <>This raid has not yet started Maiden.</>;
@@ -297,7 +298,7 @@ export default function Maiden() {
         );
         break;
       }
-      case EventType.MAIDEN_BLOOD_SPLATS:
+      case EventType.TOB_MAIDEN_BLOOD_SPLATS:
         const e = evt as MaidenBloodSplatsEvent;
         for (const coord of e.maidenBloodSplats ?? []) {
           entities.push(new MarkerEntity(coord.x, coord.y, BLOOD_SPLAT_COLOR));

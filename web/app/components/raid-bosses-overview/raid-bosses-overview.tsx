@@ -5,10 +5,8 @@ import Link from 'next/link';
 
 import {
   BloatOverview,
-  MaidenCrabSpawn,
   MaidenOverview,
   NyloOverview,
-  Room,
   Rooms,
   SoteOverview,
   VerzikOverview,
@@ -29,29 +27,19 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
 
   let rooms = props.rooms;
 
-  const maidenDataExists = rooms[Room.MAIDEN] !== null;
-  const bloatDataExists = rooms[Room.BLOAT] !== null;
-  const nyloDataExists = rooms[Room.NYLOCAS] !== null;
-  const soteDataExists = rooms[Room.SOTETSEG] !== null;
-  const xarpusDataExists = rooms[Room.XARPUS] !== null;
-  const verzikDataExists = rooms[Room.VERZIK] !== null;
+  const maidenDataExists = rooms.maiden !== null;
+  const bloatDataExists = rooms.bloat !== null;
+  const nyloDataExists = rooms.nylocas !== null;
+  const soteDataExists = rooms.sotetseg !== null;
+  const xarpusDataExists = rooms.xarpus !== null;
+  const verzikDataExists = rooms.verzik !== null;
 
-  let maiden = maidenDataExists
-    ? (rooms[Room.MAIDEN] as MaidenOverview)
-    : undefined;
-  let bloat = bloatDataExists
-    ? (rooms[Room.BLOAT] as BloatOverview)
-    : undefined;
-  let nylo = nyloDataExists ? (rooms[Room.NYLOCAS] as NyloOverview) : undefined;
-  let sote = soteDataExists
-    ? (rooms[Room.SOTETSEG] as SoteOverview)
-    : undefined;
-  let xarpus = xarpusDataExists
-    ? (rooms[Room.XARPUS] as XarpusOverview)
-    : undefined;
-  let verzik = verzikDataExists
-    ? (rooms[Room.VERZIK] as VerzikOverview)
-    : undefined;
+  let maiden = maidenDataExists ? (rooms.maiden as MaidenOverview) : undefined;
+  let bloat = bloatDataExists ? (rooms.bloat as BloatOverview) : undefined;
+  let nylo = nyloDataExists ? (rooms.nylocas as NyloOverview) : undefined;
+  let sote = soteDataExists ? (rooms.sotetseg as SoteOverview) : undefined;
+  let xarpus = xarpusDataExists ? (rooms.xarpus as XarpusOverview) : undefined;
+  let verzik = verzikDataExists ? (rooms.verzik as VerzikOverview) : undefined;
 
   let bloatDowns = undefined;
 
@@ -110,10 +98,10 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     fontSize: '18px',
                   }}
                 ></i>
-                {ticksToFormattedSeconds(rooms[Room.MAIDEN]!.roomTicks)}
+                {ticksToFormattedSeconds(maiden!.roomTicks)}
               </h4>
               <div className={styles.raid__RoomBadges}>
-                {maiden!.splits[MaidenCrabSpawn.SEVENTIES] !== 0 && (
+                {maiden!.splits.SEVENTIES !== 0 && (
                   <div className={styles.raid__RoomBadge}>
                     <strong>
                       <i
@@ -122,12 +110,10 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                       ></i>
                       70s:
                     </strong>{' '}
-                    {ticksToFormattedSeconds(
-                      maiden!.splits[MaidenCrabSpawn.SEVENTIES],
-                    )}
+                    {ticksToFormattedSeconds(maiden!.splits.SEVENTIES)}
                   </div>
                 )}
-                {maiden!.splits[MaidenCrabSpawn.FIFTIES] !== 0 && (
+                {maiden!.splits.FIFTIES !== 0 && (
                   <div className={styles.raid__RoomBadge}>
                     <strong>
                       <i
@@ -136,12 +122,10 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                       ></i>
                       50s:
                     </strong>{' '}
-                    {ticksToFormattedSeconds(
-                      maiden!.splits[MaidenCrabSpawn.FIFTIES],
-                    )}
+                    {ticksToFormattedSeconds(maiden!.splits.FIFTIES)}
                   </div>
                 )}
-                {maiden!.splits[MaidenCrabSpawn.THIRTIES] !== 0 && (
+                {maiden!.splits.THIRTIES !== 0 && (
                   <div className={styles.raid__RoomBadge}>
                     <strong>
                       <i
@@ -150,9 +134,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                       ></i>
                       30s:
                     </strong>{' '}
-                    {ticksToFormattedSeconds(
-                      maiden!.splits[MaidenCrabSpawn.THIRTIES],
-                    )}
+                    {ticksToFormattedSeconds(maiden!.splits.THIRTIES)}
                   </div>
                 )}
               </div>
@@ -193,7 +175,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     fontSize: '18px',
                   }}
                 ></i>
-                {ticksToFormattedSeconds(rooms[Room.BLOAT]!.roomTicks)}
+                {ticksToFormattedSeconds(bloat!.roomTicks)}
               </h4>
               <div className={styles.raid__RoomBadges}>{bloatDowns}</div>
             </div>
@@ -233,7 +215,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     fontSize: '18px',
                   }}
                 ></i>
-                {ticksToFormattedSeconds(rooms[Room.NYLOCAS]!.roomTicks)}
+                {ticksToFormattedSeconds(nylo!.roomTicks)}
               </h4>
               <div className={styles.raid__RoomBadges}>
                 <div className={styles.raid__RoomBadge}>
@@ -317,7 +299,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     fontSize: '18px',
                   }}
                 ></i>
-                {ticksToFormattedSeconds(rooms[Room.SOTETSEG]!.roomTicks)}
+                {ticksToFormattedSeconds(sote!.roomTicks)}
               </h4>
               <div className={styles.raid__RoomBadges}>
                 <div className={styles.raid__RoomBadge}>

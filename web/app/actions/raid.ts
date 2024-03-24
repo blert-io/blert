@@ -13,8 +13,8 @@ import {
   PlayerUpdateEvent,
   Raid,
   RaidModel,
-  Room,
   RoomEvent,
+  Stage,
 } from '@blert/common';
 import { FilterQuery } from 'mongoose';
 
@@ -36,19 +36,19 @@ export async function loadRaid(id: string): Promise<Raid | null> {
 }
 
 /**
- * Fetches all of the room events for a specified room in a raid.
- * @param raidId UUID of the raid.
- * @param room The room whose events to fetch.
- * @returns Array of events for the room, empty if none exist.
+ * Fetches all of the room events for a specified stage in a challenge.
+ * @param challengeId UUID of the challenge.
+ * @param stage The stage whose events to fetch.
+ * @returns Array of events for the stage, empty if none exist.
  */
-export async function loadEventsForRoom(
-  raidId: string,
-  room: Room,
+export async function loadEventsForStage(
+  challengeId: string,
+  stage: Stage,
   type?: EventType,
 ): Promise<Event[]> {
   await connectToDatabase();
 
-  let query: FilterQuery<Event> = { raidId, room };
+  let query: FilterQuery<Event> = { cId: challengeId, stage };
   if (type !== undefined) {
     query.type = type;
   }
@@ -56,9 +56,11 @@ export async function loadEventsForRoom(
   const roomEvents = await RoomEvent.find(query, {
     _id: 0,
     __v: 0,
-    raidId: 0,
-    room: 0,
-  }).lean();
+    cId: 0,
+    stage: 0,
+  })
+    .lean()
+    .exec();
 
   // Item names are not stored in the database: load them from the item cache.
   // TODO(frolv): This doesn't have to be done here either, as it results in a

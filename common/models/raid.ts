@@ -9,8 +9,10 @@ export const Coords = {
 
 export const MaidenCrabProperties = {
   _id: false,
-  spawn: String,
-  position: String,
+  spawn: Number,
+  spawnString: String,
+  position: Number,
+  positionString: String,
   scuffed: Boolean,
 };
 
@@ -18,18 +20,23 @@ export const NyloProperties = {
   _id: false,
   parentRoomId: Number,
   wave: Number,
-  style: String,
-  spawnType: String,
+  style: Number,
+  styleString: String,
+  spawnType: Number,
+  spawnTypeString: String,
 };
 
 export const VerzikCrabProperties = {
   _id: false,
-  phase: String,
-  spawn: String,
+  phase: Number,
+  phaseString: String,
+  spawn: Number,
+  spawnString: String,
 };
 
 const RoomNpc = {
-  type: { type: String },
+  type: { type: Number },
+  typeString: String,
   roomId: Number,
   spawnNpcId: Number,
   spawnTick: Number,

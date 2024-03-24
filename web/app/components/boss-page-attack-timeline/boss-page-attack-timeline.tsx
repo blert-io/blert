@@ -32,73 +32,73 @@ const getCellImageForBossAttack = (attack: NpcAttack) => {
   let imageUrl = '';
 
   switch (attack) {
-    case NpcAttack.MAIDEN_AUTO:
+    case NpcAttack.TOB_MAIDEN_AUTO:
       imageUrl = '/maiden_auto.png';
       break;
-    case NpcAttack.MAIDEN_BLOOD_THROW:
+    case NpcAttack.TOB_MAIDEN_BLOOD_THROW:
       imageUrl = '/maiden_blood_throw.png';
       break;
-    case NpcAttack.BLOAT_STOMP:
+    case NpcAttack.TOB_BLOAT_STOMP:
       imageUrl = '/bloat_stomp.webp';
       break;
-    case NpcAttack.NYLO_BOSS_MELEE:
+    case NpcAttack.TOB_NYLO_BOSS_MELEE:
       imageUrl = '/nylo_boss_melee.png';
       break;
-    case NpcAttack.NYLO_BOSS_RANGE:
+    case NpcAttack.TOB_NYLO_BOSS_RANGE:
       imageUrl = '/nylo_boss_range.png';
       break;
-    case NpcAttack.NYLO_BOSS_MAGE:
+    case NpcAttack.TOB_NYLO_BOSS_MAGE:
       imageUrl = '/nylo_boss_mage.png';
       break;
-    case NpcAttack.SOTE_BALL:
+    case NpcAttack.TOB_SOTE_BALL:
       imageUrl = '/sote_ball.png';
       break;
-    case NpcAttack.SOTE_MELEE:
+    case NpcAttack.TOB_SOTE_MELEE:
       imageUrl = '/sote_melee.png';
       break;
-    case NpcAttack.SOTE_DEATH_BALL:
+    case NpcAttack.TOB_SOTE_DEATH_BALL:
       imageUrl = '/sote_death_ball.png';
       break;
-    case NpcAttack.XARPUS_SPIT:
+    case NpcAttack.TOB_XARPUS_SPIT:
       imageUrl = '/xarpus_spit.png';
       break;
-    case NpcAttack.XARPUS_TURN:
+    case NpcAttack.TOB_XARPUS_TURN:
       imageUrl = '/xarpus_turn.webp';
       break;
-    case NpcAttack.VERZIK_P1_AUTO:
+    case NpcAttack.TOB_VERZIK_P1_AUTO:
       imageUrl = '/verzik_p1_auto.png';
       break;
-    case NpcAttack.VERZIK_P2_BOUNCE:
+    case NpcAttack.TOB_VERZIK_P2_BOUNCE:
       imageUrl = '/verzik_p2_bounce.png';
       break;
-    case NpcAttack.VERZIK_P2_CABBAGE:
+    case NpcAttack.TOB_VERZIK_P2_CABBAGE:
       imageUrl = '/verzik_p2_cabbage.png';
       break;
-    case NpcAttack.VERZIK_P2_PURPLE:
+    case NpcAttack.TOB_VERZIK_P2_PURPLE:
       imageUrl = '/verzik_p2_purple.png';
       break;
-    case NpcAttack.VERZIK_P2_ZAP:
+    case NpcAttack.TOB_VERZIK_P2_ZAP:
       imageUrl = '/verzik_p2_zap.png';
       break;
-    case NpcAttack.VERZIK_P2_MAGE:
+    case NpcAttack.TOB_VERZIK_P2_MAGE:
       imageUrl = '/verzik_p2_mage.webp';
       break;
-    case NpcAttack.VERZIK_P3_WEBS:
+    case NpcAttack.TOB_VERZIK_P3_WEBS:
       imageUrl = '/verzik_p3_webs.webp';
       break;
-    case NpcAttack.VERZIK_P3_MELEE:
+    case NpcAttack.TOB_VERZIK_P3_MELEE:
       imageUrl = '/verzik_p3_melee.webp';
       break;
-    case NpcAttack.VERZIK_P3_RANGE:
+    case NpcAttack.TOB_VERZIK_P3_RANGE:
       imageUrl = '/verzik_p3_range.webp';
       break;
-    case NpcAttack.VERZIK_P3_MAGE:
+    case NpcAttack.TOB_VERZIK_P3_MAGE:
       imageUrl = '/verzik_p3_mage.webp';
       break;
-    case NpcAttack.VERZIK_P3_YELLOWS:
+    case NpcAttack.TOB_VERZIK_P3_YELLOWS:
       imageUrl = '/verzik_p3_yellow.webp';
       break;
-    case NpcAttack.VERZIK_P3_BALL:
+    case NpcAttack.TOB_VERZIK_P3_BALL:
       imageUrl = '/verzik_p3_ball.webp';
       break;
     default:
@@ -186,7 +186,7 @@ const ATTACK_METADATA = {
     letter: 'BW',
     ranged: false,
   },
-  [PlayerAttack.FANG]: {
+  [PlayerAttack.FANG_STAB]: {
     tagColor: 'red',
     letter: 'FNG',
     ranged: false,
@@ -281,7 +281,7 @@ const ATTACK_METADATA = {
     letter: 'SOL',
     ranged: false,
   },
-  [PlayerAttack.SWIFT]: {
+  [PlayerAttack.SWIFT_BLADE]: {
     tagColor: 'red',
     letter: 'SB',
     ranged: false,
@@ -326,7 +326,7 @@ const ATTACK_METADATA = {
     letter: 'TB',
     ranged: true,
   },
-  [PlayerAttack.ZCB]: {
+  [PlayerAttack.ZCB_SPEC]: {
     tagColor: 'green',
     letter: 'ZC',
     ranged: true,
@@ -489,62 +489,62 @@ const bossAttackName = (attack: NpcAttack): string => {
   // A human-readable name for the attack, to be used to complete the sentence
   // "X targeted Y with ..." or "X did ..."
   switch (attack) {
-    case NpcAttack.MAIDEN_AUTO:
-    case NpcAttack.VERZIK_P1_AUTO:
+    case NpcAttack.TOB_MAIDEN_AUTO:
+    case NpcAttack.TOB_VERZIK_P1_AUTO:
       return 'an auto attack';
 
-    case NpcAttack.MAIDEN_BLOOD_THROW:
+    case NpcAttack.TOB_MAIDEN_BLOOD_THROW:
       return 'a blood throw';
 
-    case NpcAttack.BLOAT_STOMP:
+    case NpcAttack.TOB_BLOAT_STOMP:
       return 'a stomp';
 
-    case NpcAttack.NYLO_BOSS_MELEE:
-    case NpcAttack.SOTE_MELEE:
-    case NpcAttack.VERZIK_P3_MELEE:
+    case NpcAttack.TOB_NYLO_BOSS_MELEE:
+    case NpcAttack.TOB_SOTE_MELEE:
+    case NpcAttack.TOB_VERZIK_P3_MELEE:
       return 'a melee attack';
 
-    case NpcAttack.NYLO_BOSS_RANGE:
-    case NpcAttack.VERZIK_P2_CABBAGE:
-    case NpcAttack.VERZIK_P3_RANGE:
+    case NpcAttack.TOB_NYLO_BOSS_RANGE:
+    case NpcAttack.TOB_VERZIK_P2_CABBAGE:
+    case NpcAttack.TOB_VERZIK_P3_RANGE:
       return 'a ranged attack';
 
-    case NpcAttack.NYLO_BOSS_MAGE:
-    case NpcAttack.VERZIK_P3_MAGE:
-    case NpcAttack.VERZIK_P2_MAGE:
+    case NpcAttack.TOB_NYLO_BOSS_MAGE:
+    case NpcAttack.TOB_VERZIK_P3_MAGE:
+    case NpcAttack.TOB_VERZIK_P2_MAGE:
       return 'a magic attack';
 
-    case NpcAttack.SOTE_BALL:
+    case NpcAttack.TOB_SOTE_BALL:
       return 'a ball';
 
-    case NpcAttack.SOTE_DEATH_BALL:
+    case NpcAttack.TOB_SOTE_DEATH_BALL:
       return 'a death ball';
 
-    case NpcAttack.XARPUS_SPIT:
+    case NpcAttack.TOB_XARPUS_SPIT:
       return 'a poison spit';
 
-    case NpcAttack.XARPUS_TURN:
+    case NpcAttack.TOB_XARPUS_TURN:
       return 'a turn';
 
-    case NpcAttack.VERZIK_P2_BOUNCE:
+    case NpcAttack.TOB_VERZIK_P2_BOUNCE:
       return 'a bounce';
 
-    case NpcAttack.VERZIK_P2_ZAP:
+    case NpcAttack.TOB_VERZIK_P2_ZAP:
       return 'a zap';
 
-    case NpcAttack.VERZIK_P2_PURPLE:
+    case NpcAttack.TOB_VERZIK_P2_PURPLE:
       return 'a purple crab';
 
-    case NpcAttack.VERZIK_P3_AUTO:
+    case NpcAttack.TOB_VERZIK_P3_AUTO:
       return 'an unknown attack';
 
-    case NpcAttack.VERZIK_P3_WEBS:
+    case NpcAttack.TOB_VERZIK_P3_WEBS:
       return 'webs';
 
-    case NpcAttack.VERZIK_P3_YELLOWS:
+    case NpcAttack.TOB_VERZIK_P3_YELLOWS:
       return 'yellow pools';
 
-    case NpcAttack.VERZIK_P3_BALL:
+    case NpcAttack.TOB_VERZIK_P3_BALL:
       return 'a green ball';
   }
 
@@ -573,7 +573,7 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
       return 'dawned';
     case PlayerAttack.DINHS_SPEC:
       return 'dinhsed';
-    case PlayerAttack.FANG:
+    case PlayerAttack.FANG_STAB:
       return 'fanged';
     case PlayerAttack.HAMMER_BOP:
       return 'hammer bopped';
@@ -612,7 +612,7 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
     case PlayerAttack.STAFF_OF_LIGHT_SWIPE:
     case PlayerAttack.TOXIC_STAFF_SWIPE:
       return 'swiped';
-    case PlayerAttack.SWIFT:
+    case PlayerAttack.SWIFT_BLADE:
       return 'swifted';
     case PlayerAttack.TENT_WHIP:
       return 'whipped';
@@ -620,7 +620,7 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
     case PlayerAttack.TWISTED_BOW:
     case PlayerAttack.UNKNOWN_BOW:
       return 'bowed';
-    case PlayerAttack.ZCB:
+    case PlayerAttack.ZCB_SPEC:
       return "ZCB'd";
     case PlayerAttack.TOXIC_TRIDENT:
     case PlayerAttack.TRIDENT:

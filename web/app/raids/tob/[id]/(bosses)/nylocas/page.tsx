@@ -6,12 +6,12 @@ import {
   PlayerUpdateEvent,
   NpcEvent,
   Npc,
-  Room,
   NyloWaveSpawnEvent,
   RoomNpcType,
   NpcId,
   PlayerEvent,
   isPlayerEvent,
+  Stage,
 } from '@blert/common';
 import Image from 'next/image';
 import { useMemo } from 'react';
@@ -234,7 +234,7 @@ export default function NylocasPage() {
     bossAttackTimeline,
     playerAttackTimelines,
     loading,
-  } = useRoomEvents(Room.NYLOCAS);
+  } = useRoomEvents(Stage.TOB_NYLOCAS);
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
@@ -249,7 +249,7 @@ export default function NylocasPage() {
       return [];
     }
     let splits: TimelineSplit[] =
-      eventsByType[EventType.NYLO_WAVE_SPAWN]?.map((evt) => {
+      eventsByType[EventType.TOB_NYLO_WAVE_SPAWN]?.map((evt) => {
         const wave = (evt as NyloWaveSpawnEvent).nyloWave.wave;
         const importantWaves: { [wave: number]: string } = {
           20: 'Cap',
@@ -263,7 +263,7 @@ export default function NylocasPage() {
         };
       }) ?? [];
 
-    const nyloData = raidData.rooms[Room.NYLOCAS];
+    const nyloData = raidData.rooms.nylocas;
     if (nyloData !== null) {
       if (nyloData.splits.cleanup) {
         splits.push({
@@ -285,7 +285,7 @@ export default function NylocasPage() {
     return <Loading />;
   }
 
-  const nyloData = raidData.rooms[Room.NYLOCAS];
+  const nyloData = raidData.rooms.nylocas;
   if (raidData.status !== ChallengeStatus.IN_PROGRESS && nyloData === null) {
     return <>No Nylocas data for this raid</>;
   }
@@ -338,10 +338,10 @@ export default function NylocasPage() {
   }
 
   const currentWave = (
-    eventsByType[EventType.NYLO_WAVE_SPAWN] as NyloWaveSpawnEvent[]
+    eventsByType[EventType.TOB_NYLO_WAVE_SPAWN] as NyloWaveSpawnEvent[]
   )?.findLast((evt) => evt.tick <= currentTick)?.nyloWave;
 
-  const cleanupEvent = eventsByType[EventType.NYLO_CLEANUP_END]?.at(0);
+  const cleanupEvent = eventsByType[EventType.TOB_NYLO_CLEANUP_END]?.at(0);
   const cleanupEnded =
     cleanupEvent !== undefined && cleanupEvent.tick <= currentTick;
 

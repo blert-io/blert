@@ -6,6 +6,7 @@ import {
   Event,
   EventType,
   MaidenCrab,
+  MaidenCrabPosition,
   MaidenCrabSpawn,
   MaidenSplits,
   Maze,
@@ -14,7 +15,9 @@ import {
   NpcDeathEvent,
   NpcSpawnEvent,
   Nylo,
+  NyloSpawn,
   NyloSplits,
+  NyloStyle,
   NyloWaveSpawnEvent,
   NyloWaveStallEvent,
   PersonalBestType,
@@ -29,14 +32,15 @@ import {
   Room,
   RoomNpc,
   RoomNpcType,
-  RoomStatus,
-  RoomStatusEvent,
   SoteMazeProcEvent,
   SoteSplits,
   Stage,
+  StageStatus,
+  StageUpdateEvent,
   VerzikAttackStyle,
   VerzikAttackStyleEvent,
   VerzikCrab,
+  VerzikCrabSpawn,
   VerzikPhase,
   VerzikPhaseEvent,
   VerzikSplits,
@@ -93,7 +97,7 @@ export default class Raid {
 
   private stage: Stage;
   private room: Room; // TODO(frolv): Replace with stage.
-  private roomStatus: RoomStatus;
+  private stageStatus: StageStatus;
   private roomTick: number;
   private roomEvents: Event[];
   private deathsInRoom: string[];
@@ -108,7 +112,7 @@ export default class Raid {
 
   private npcs: Map<String, RoomNpc>;
   private stalledNyloWaves: number[];
-  private verzikRedSpawns: number;
+  private verzikRedSpawns: number[];
 
   public constructor(
     id: string,
@@ -134,26 +138,26 @@ export default class Raid {
 
     this.stage = Stage.TOB_MAIDEN;
     this.room = Room.MAIDEN;
-    this.roomStatus = RoomStatus.ENTERED;
+    this.stageStatus = StageStatus.ENTERED;
     this.roomTick = 0;
     this.roomEvents = [];
     this.deathsInRoom = [];
     this.queuedPbUpdates = [];
 
     this.maidenSplits = {
-      [MaidenCrabSpawn.SEVENTIES]: 0,
-      [MaidenCrabSpawn.FIFTIES]: 0,
-      [MaidenCrabSpawn.THIRTIES]: 0,
+      SEVENTIES: 0,
+      FIFTIES: 0,
+      THIRTIES: 0,
     };
     this.bloatSplits = { downTicks: [] };
     this.nyloSplits = { capIncrease: 0, waves: 0, cleanup: 0, boss: 0 };
-    this.soteSplits = { [Maze.MAZE_66]: 0, [Maze.MAZE_33]: 0 };
+    this.soteSplits = { MAZE_66: 0, MAZE_33: 0 };
     this.xarpusSplits = { exhumes: 0, screech: 0 };
     this.verzikSplits = { p1: 0, reds: 0, p2: 0 };
 
     this.npcs = new Map();
     this.stalledNyloWaves = [];
-    this.verzikRedSpawns = 0;
+    this.verzikRedSpawns = [];
   }
 
   public getId(): string {
@@ -260,8 +264,8 @@ export default class Raid {
 
   public async processEvent(event: Event): Promise<void> {
     switch (event.type) {
-      case EventType.ROOM_STATUS:
-        await this.handleRoomStatusUpdate(event as RoomStatusEvent);
+      case EventType.STAGE_UPDATE:
+        await this.handleRoomStatusUpdate(event as StageUpdateEvent);
         break;
 
       default:
@@ -349,19 +353,17 @@ export default class Raid {
     await Promise.all(promises);
   }
 
-  private async handleRoomStatusUpdate(event: RoomStatusEvent): Promise<void> {
+  private async handleRoomStatusUpdate(event: StageUpdateEvent): Promise<void> {
     if (!event.room) {
       return;
     }
 
-    this.roomStatus = event.roomStatus.status;
-
-    switch (event.roomStatus.status) {
-      case RoomStatus.STARTED:
+    switch (event.stageUpdate.status) {
+      case StageStatus.STARTED:
         if (this.state === State.STARTING) {
           await this.start();
         }
-        if (this.roomStatus === RoomStatus.ENTERED) {
+        if (this.stageStatus === StageStatus.ENTERED) {
           // A transition from ENTERED -> STARTED has already reset the room.
           // Don't clear any data received afterwards, unless the room is new.
           if (this.room === event.room) {
@@ -370,7 +372,7 @@ export default class Raid {
         }
       // A transition from any other state to STARTED should fall through
       // and reset all room data.
-      case RoomStatus.ENTERED:
+      case StageStatus.ENTERED:
         this.room = event.room;
         this.roomEvents = [];
         this.roomTick = 0;
@@ -383,24 +385,27 @@ export default class Raid {
         });
         break;
 
-      case RoomStatus.WIPED:
-      case RoomStatus.COMPLETED:
+      case StageStatus.WIPED:
+      case StageStatus.COMPLETED:
         if (event.room === this.room) {
           this.handleRoomFinished(event);
         } else {
           console.error(
-            `Raid ${this.id} got status ${event.roomStatus} for room ${event.room} but is in room ${this.room}`,
+            `Raid ${this.id} got status ${event.stageUpdate.status} for room ` +
+              `${event.room} but is in room ${this.room}`,
           );
         }
         break;
     }
+
+    this.stageStatus = event.stageUpdate.status;
   }
 
-  private async handleRoomFinished(event: RoomStatusEvent): Promise<void> {
+  private async handleRoomFinished(event: StageUpdateEvent): Promise<void> {
     // Set the appropriate status if the raid were to be finished at this
     // point.
     this.challengeStatus =
-      event.roomStatus.status === RoomStatus.WIPED
+      event.stageUpdate.status === StageStatus.WIPED
         ? ChallengeStatus.WIPED
         : ChallengeStatus.RESET;
     this.completedRooms++;
@@ -409,7 +414,7 @@ export default class Raid {
     const promises = [];
 
     let firstTick = 0;
-    if (!event.roomStatus.accurate) {
+    if (!event.stageUpdate.accurate) {
       const missingTicks = event.tick - this.roomTick;
       console.log(
         `Raid ${this.id} lost ${missingTicks} ticks in room ${event.room}`,
@@ -470,20 +475,21 @@ export default class Raid {
             break;
           case Room.VERZIK:
             record.rooms[Room.VERZIK].splits = this.verzikSplits;
-            record.rooms[Room.VERZIK].redCrabSpawns = this.verzikRedSpawns;
+            record.rooms[Room.VERZIK].redCrabSpawns =
+              this.verzikRedSpawns.length;
             break;
         }
       }),
       this.flushRoomEvents(),
     );
 
-    if (event.roomStatus.accurate) {
+    if (event.stageUpdate.accurate) {
       // Only update personal bests if the room timer is accurate.
       this.queuedPbUpdates.forEach((update) => {
         promises.push(this.updatePartyPbs(update.pbType, update.pbTime));
       });
 
-      if (event.roomStatus.status === RoomStatus.COMPLETED) {
+      if (event.stageUpdate.status === StageStatus.COMPLETED) {
         let pbType;
         switch (this.room) {
           case Room.MAIDEN:
@@ -579,11 +585,11 @@ export default class Raid {
         }
         break;
 
-      case EventType.BLOAT_DOWN:
+      case EventType.TOB_BLOAT_DOWN:
         this.bloatSplits.downTicks.push(event.tick);
         break;
 
-      case EventType.NYLO_WAVE_SPAWN:
+      case EventType.TOB_NYLO_WAVE_SPAWN:
         const nyloWaveSpawnEvent = event as NyloWaveSpawnEvent;
         if (nyloWaveSpawnEvent.nyloWave.wave === 20) {
           this.nyloSplits.capIncrease = event.tick;
@@ -592,16 +598,16 @@ export default class Raid {
         }
         break;
 
-      case EventType.NYLO_WAVE_STALL:
+      case EventType.TOB_NYLO_WAVE_STALL:
         const nyloWaveStallEvent = event as NyloWaveStallEvent;
         this.stalledNyloWaves.push(nyloWaveStallEvent.nyloWave.wave);
         break;
 
-      case EventType.NYLO_CLEANUP_END:
+      case EventType.TOB_NYLO_CLEANUP_END:
         this.nyloSplits.cleanup = event.tick;
         break;
 
-      case EventType.NYLO_BOSS_SPAWN:
+      case EventType.TOB_NYLO_BOSS_SPAWN:
         this.nyloSplits.boss = event.tick;
         this.queuedPbUpdates.push({
           pbType: PersonalBestType.TOB_NYLO_BOSS,
@@ -609,12 +615,16 @@ export default class Raid {
         });
         break;
 
-      case EventType.SOTE_MAZE_PROC:
+      case EventType.TOB_SOTE_MAZE_PROC:
         const mazeProcEvent = event as SoteMazeProcEvent;
-        this.soteSplits[mazeProcEvent.soteMaze.maze] = event.tick;
+        if (mazeProcEvent.soteMaze.maze === Maze.MAZE_66) {
+          this.soteSplits.MAZE_66 = event.tick;
+        } else {
+          this.soteSplits.MAZE_33 = event.tick;
+        }
         break;
 
-      case EventType.XARPUS_PHASE:
+      case EventType.TOB_XARPUS_PHASE:
         const xarpusPhaseEvent = event as XarpusPhaseEvent;
         if (xarpusPhaseEvent.xarpusPhase === XarpusPhase.P2) {
           this.xarpusSplits.exhumes = event.tick;
@@ -623,7 +633,7 @@ export default class Raid {
         }
         break;
 
-      case EventType.VERZIK_PHASE:
+      case EventType.TOB_VERZIK_PHASE:
         const verzikPhaseEvent = event as VerzikPhaseEvent;
         if (verzikPhaseEvent.verzikPhase === VerzikPhase.P2) {
           this.verzikSplits.p1 = event.tick;
@@ -642,15 +652,7 @@ export default class Raid {
         }
         break;
 
-      case EventType.VERZIK_REDS_SPAWN:
-        this.verzikRedSpawns++;
-        if (this.verzikRedSpawns == 1) {
-          // First red spawn is recorded as a room split.
-          this.verzikSplits.reds = event.tick;
-        }
-        break;
-
-      case EventType.VERZIK_ATTACK_STYLE:
+      case EventType.TOB_VERZIK_ATTACK_STYLE:
         // Update the previously-written NPC_ATTACK event.
         const verzikAttackStyle = event as VerzikAttackStyleEvent;
 
@@ -659,19 +661,19 @@ export default class Raid {
           type: EventType.NPC_ATTACK,
           tick: verzikAttackStyle.verzikAttack.npcAttackTick,
           room: Room.VERZIK,
-          'npcAttack.attack': NpcAttack.VERZIK_P3_AUTO,
+          'npcAttack.attack': NpcAttack.TOB_VERZIK_P3_AUTO,
         });
 
         if (record !== null) {
           switch (verzikAttackStyle.verzikAttack.style) {
             case VerzikAttackStyle.MELEE:
-              record.npcAttack.attack = NpcAttack.VERZIK_P3_MELEE;
+              record.npcAttack.attack = NpcAttack.TOB_VERZIK_P3_MELEE;
               break;
             case VerzikAttackStyle.RANGE:
-              record.npcAttack.attack = NpcAttack.VERZIK_P3_RANGE;
+              record.npcAttack.attack = NpcAttack.TOB_VERZIK_P3_RANGE;
               break;
             case VerzikAttackStyle.MAGE:
-              record.npcAttack.attack = NpcAttack.VERZIK_P3_MAGE;
+              record.npcAttack.attack = NpcAttack.TOB_VERZIK_P3_MAGE;
               break;
           }
           record.save();
@@ -800,10 +802,30 @@ export default class Raid {
       deathPoint: { x: 0, y: 0 },
     };
 
+    if (Npc.isVerzikMatomenos(id)) {
+      if (this.verzikRedSpawns.length === 0) {
+        // First red spawn is recorded as a room split.
+        this.verzikSplits.reds = event.tick;
+        this.verzikRedSpawns.push(event.tick);
+      } else if (
+        this.verzikRedSpawns[this.verzikRedSpawns.length - 1] !== event.tick
+      ) {
+        // A new spawn occurred.
+        this.verzikRedSpawns.push(event.tick);
+      }
+    }
+
     if (event.npc.maidenCrab !== undefined) {
-      const spawn = event.npc.maidenCrab.spawn;
-      if (this.maidenSplits[spawn] == 0) {
-        this.maidenSplits[spawn] = event.tick;
+      switch (event.npc.maidenCrab.spawn) {
+        case MaidenCrabSpawn.SEVENTIES:
+          this.maidenSplits.SEVENTIES = event.tick;
+          break;
+        case MaidenCrabSpawn.FIFTIES:
+          this.maidenSplits.FIFTIES = event.tick;
+          break;
+        case MaidenCrabSpawn.THIRTIES:
+          this.maidenSplits.THIRTIES = event.tick;
+          break;
       }
       const crab: MaidenCrab = {
         ...npcCommon,
@@ -979,7 +1001,18 @@ export default class Raid {
   public static async migrateRaids() {
     await RaidModel.updateMany(
       {},
-      { $rename: { mode: 'modeString', status: 'statusString' } },
+      {
+        $rename: {
+          mode: 'modeString',
+          status: 'statusString',
+          'rooms.MAIDEN': 'rooms.maiden',
+          'rooms.BLOAT': 'rooms.bloat',
+          'rooms.NYLOCAS': 'rooms.nylocas',
+          'rooms.SOTETSEG': 'rooms.sotetseg',
+          'rooms.XARPUS': 'rooms.xarpus',
+          'rooms.VERZIK': 'rooms.verzik',
+        },
+      },
     );
 
     const raids = await RaidModel.find();
@@ -988,6 +1021,87 @@ export default class Raid {
       raid.mode = updateMode(raid.modeString);
       raid.stage = stage;
       raid.status = status;
+
+      const maidenNpcs = raid.rooms.MAIDEN?.npcs as unknown as Map<string, any>;
+      if (maidenNpcs) {
+        const npcs = Array.from(maidenNpcs.values());
+        maidenNpcs.clear();
+        npcs.forEach((npc) => {
+          npc.type = updateNpcType(npc.type);
+
+          if (npc.type === RoomNpcType.MAIDEN_CRAB) {
+            npc.maidenCrab.spawn = updateMaidenCrabSpawn(npc.maidenCrab.spawn);
+            npc.maidenCrab.position = updateMaidenCrabPosition(
+              npc.maidenCrab.position,
+            );
+          }
+
+          maidenNpcs.set(npc.roomId.toString(), npc);
+        });
+      }
+
+      const bloatNpcs = raid.rooms.BLOAT?.npcs as unknown as Map<string, any>;
+      if (bloatNpcs) {
+        const npcs = Array.from(bloatNpcs.values());
+        bloatNpcs.clear();
+        npcs.forEach((npc) => {
+          npc.type = updateNpcType(npc.type);
+          bloatNpcs.set(npc.roomId.toString(), npc);
+        });
+      }
+
+      const nyloNpcs = raid.rooms.NYLOCAS?.npcs as unknown as Map<string, any>;
+      if (nyloNpcs) {
+        const npcs = Array.from(nyloNpcs.values());
+        nyloNpcs.clear();
+        npcs.forEach((npc) => {
+          npc.type = updateNpcType(npc.type);
+
+          if (npc.type === RoomNpcType.NYLO) {
+            npc.nylo.style = updateNyloStyle(npc.nylo.style);
+            npc.nylo.spawnType = updateNyloSpawnType(npc.nylo.spawnType);
+          }
+
+          nyloNpcs.set(npc.roomId.toString(), npc);
+        });
+      }
+
+      const soteNpcs = raid.rooms.SOTETSEG?.npcs as unknown as Map<string, any>;
+      if (soteNpcs) {
+        const npcs = Array.from(soteNpcs.values());
+        soteNpcs.clear();
+        npcs.forEach((npc) => {
+          npc.type = updateNpcType(npc.type);
+          soteNpcs.set(npc.roomId.toString(), npc);
+        });
+      }
+
+      const xarpusNpcs = raid.rooms.XARPUS?.npcs as unknown as Map<string, any>;
+      if (xarpusNpcs) {
+        const npcs = Array.from(xarpusNpcs.values());
+        xarpusNpcs.clear();
+        npcs.forEach((npc) => {
+          npc.type = updateNpcType(npc.type);
+          xarpusNpcs.set(npc.roomId.toString(), npc);
+        });
+      }
+
+      const verzikNpcs = raid.rooms.VERZIK?.npcs as unknown as Map<string, any>;
+      if (verzikNpcs) {
+        const npcs = Array.from(verzikNpcs.values());
+        verzikNpcs.clear();
+        npcs.forEach((npc) => {
+          npc.type = updateNpcType(npc.type);
+
+          if (npc.type === RoomNpcType.VERZIK_CRAB) {
+            npc.verzikCrab.phase = updateVerzikPhase(npc.verzikCrab.phase);
+            npc.verzikCrab.spawn = updateVerzikCrabSpawn(npc.verzikCrab.spawn);
+          }
+
+          verzikNpcs.set(npc.roomId.toString(), npc);
+        });
+      }
+
       await raid.save();
       console.log(`Updated raid ${raid._id}`);
     });
@@ -996,6 +1110,172 @@ export default class Raid {
       {},
       { $unset: { modeString: 1, statusString: 1 } },
     );
+  }
+
+  public static async migrateRoomEvents() {
+    console.log('Migrating room events...');
+    let startTime = Date.now();
+    try {
+      await RoomEvent.updateMany(
+        {},
+        {
+          $rename: {
+            raidId: 'cId',
+            type: 'typeString',
+            room: 'roomString',
+            bloatStatus: 'bloatDown',
+            'attack.type': 'attack.typeString',
+            'npc.type': 'npc.typeString',
+            'npc.maidenCrab.spawn': 'npc.maidenCrab.spawnString',
+            'npc.maidenCrab.position': 'npc.maidenCrab.positionString',
+            'npc.nylo.style': 'npc.nylo.styleString',
+            'npc.nylo.spawnType': 'npc.nylo.spawnTypeString',
+            'npc.verzikCrab.phase': 'npc.verzikCrab.phaseString',
+            'npc.verzikCrab.spawn': 'npc.verzikCrab.spawnString',
+            'npcAttack.attack': 'npcAttack.attackString',
+            'soteMaze.maze': 'soteMaze.mazeString',
+            xarpusPhase: 'xarpusPhaseString',
+            verzikPhase: 'verzikPhaseString',
+            'verzikAttack.style': 'verzikAttack.styleString',
+          },
+        },
+      ).exec();
+    } catch (e: any) {
+      console.error(e.message);
+      return;
+    }
+    console.log(`Renamed events in ${(Date.now() - startTime) / 1000}s`);
+
+    try {
+      await RoomEvent.deleteMany({ typeString: 'VERZIK_REDS_SPAWN' }).exec();
+    } catch (e: any) {
+      console.log(e);
+      console.error('Failed to delete VERZIK_REDS_SPAWN events');
+      return;
+    }
+
+    let eventsUpdated = 0;
+    startTime = Date.now();
+
+    const dummy = await RoomEvent.findOne();
+    const dummyArray = [dummy!];
+    let currentDocs: typeof dummyArray = [];
+
+    const process = async () => {
+      const promises = [];
+
+      for (let doc of currentDocs) {
+        doc.type = updateEventType(doc.typeString);
+        doc.stage = roomToStage(doc.roomString as Room);
+
+        switch (doc.type) {
+          case EventType.PLAYER_ATTACK:
+            doc.attack.type = updatePlayerAttack(doc.attack.typeString);
+            break;
+
+          case EventType.NPC_SPAWN:
+          case EventType.NPC_UPDATE:
+          case EventType.NPC_DEATH:
+            doc.npc.type = updateNpcType(doc.npc.typeString);
+            if (doc.npc.type === RoomNpcType.MAIDEN_CRAB) {
+              doc.npc.maidenCrab!.spawn = updateMaidenCrabSpawn(
+                doc.npc.maidenCrab!.spawnString,
+              );
+              doc.npc.maidenCrab!.position = updateMaidenCrabPosition(
+                doc.npc.maidenCrab!.positionString,
+              );
+            }
+            if (doc.npc.type === RoomNpcType.NYLO) {
+              doc.npc.nylo!.style = updateNyloStyle(doc.npc.nylo!.styleString);
+              doc.npc.nylo!.spawnType = updateNyloSpawnType(
+                doc.npc.nylo!.spawnTypeString,
+              );
+            }
+            if (doc.npc.type === RoomNpcType.VERZIK_CRAB) {
+              doc.npc.verzikCrab!.phase = updateVerzikPhase(
+                doc.npc.verzikCrab!.phaseString,
+              );
+              doc.npc.verzikCrab!.spawn = updateVerzikCrabSpawn(
+                doc.npc.verzikCrab!.spawnString,
+              );
+            }
+            break;
+
+          case EventType.NPC_ATTACK:
+            doc.npcAttack.attack = updateNpcAttack(doc.npcAttack.attackString);
+            break;
+
+          case EventType.TOB_SOTE_MAZE_PROC:
+            doc.soteMaze.maze = updateSoteMaze(doc.soteMaze.mazeString);
+            break;
+
+          case EventType.TOB_XARPUS_PHASE:
+            doc.xarpusPhase = updateXarpusPhase(doc.xarpusPhaseString);
+            break;
+
+          case EventType.TOB_VERZIK_PHASE:
+            doc.verzikPhase = updateVerzikPhase(doc.verzikPhaseString);
+            break;
+
+          case EventType.TOB_VERZIK_ATTACK_STYLE:
+            console.log('Found a VERZIK_ATTACK_STYLE event, very strange');
+            break;
+        }
+
+        promises.push(doc.save());
+      }
+
+      await Promise.all(promises);
+    };
+
+    const cur = RoomEvent.find().cursor();
+    for (let doc = await cur.next(); doc != null; doc = await cur.next()) {
+      currentDocs.push(doc);
+      eventsUpdated++;
+
+      if (currentDocs.length === 100) {
+        await process();
+        currentDocs = [];
+      }
+
+      if (eventsUpdated % 1000 === 0) {
+        console.log(
+          `Updated ${eventsUpdated} events (${(Date.now() - startTime) / 1000}s)`,
+        );
+      }
+    }
+
+    if (currentDocs.length > 0) {
+      await process();
+    }
+
+    await RoomEvent.updateMany(
+      {},
+      {
+        $unset: {
+          typeString: 1,
+          room: 1,
+          roomString: 1,
+          'player.hitpoints.skill': 1,
+          'attack.typeString': 1,
+          'npc.typeString': 1,
+          'npc.hitpoints.skill': 1,
+          'npc.maidenCrab.spawnString': 1,
+          'npc.maidenCrab.positionString': 1,
+          'npc.nylo.styleString': 1,
+          'npc.nylo.spawnTypeString': 1,
+          'npc.verzikCrab.phaseString': 1,
+          'npc.verzikCrab.spawnString': 1,
+          'npcAttack.attackString': 1,
+          'soteMaze.mazeString': 1,
+          'xarpusPhase.phaseString': 1,
+          'verzikPhase.phaseString': 1,
+          'verzikAttack.styleString': 1,
+        },
+      },
+    );
+
+    console.log(`Migration complete (${eventsUpdated} events)`);
   }
 }
 
@@ -1041,4 +1321,368 @@ function updateStatus(old: string): [Stage, ChallengeStatus] {
       return [Stage.TOB_VERZIK, ChallengeStatus.WIPED];
   }
   return [Stage.TOB_MAIDEN, ChallengeStatus.IN_PROGRESS];
+}
+
+function updateEventType(old: string): EventType {
+  switch (old) {
+    case 'RAID_START':
+      return EventType.CHALLENGE_START;
+    case 'RAID_END':
+      return EventType.CHALLENGE_END;
+    case 'RAID_UPDATE':
+      return EventType.CHALLENGE_UPDATE;
+    case 'ROOM_STATUS':
+      return EventType.STAGE_UPDATE;
+    case 'PLAYER_UPDATE':
+      return EventType.PLAYER_UPDATE;
+    case 'PLAYER_ATTACK':
+      return EventType.PLAYER_ATTACK;
+    case 'PLAYER_DEATH':
+      return EventType.PLAYER_DEATH;
+    case 'NPC_SPAWN':
+      return EventType.NPC_SPAWN;
+    case 'NPC_UPDATE':
+      return EventType.NPC_UPDATE;
+    case 'NPC_DEATH':
+      return EventType.NPC_DEATH;
+    case 'NPC_ATTACK':
+      return EventType.NPC_ATTACK;
+    case 'MAIDEN_CRAB_LEAK':
+      return EventType.TOB_MAIDEN_CRAB_LEAK;
+    case 'MAIDEN_BLOOD_SPLATS':
+      return EventType.TOB_MAIDEN_BLOOD_SPLATS;
+    case 'BLOAT_DOWN':
+      return EventType.TOB_BLOAT_DOWN;
+    case 'BLOAT_UP':
+      return EventType.TOB_BLOAT_UP;
+    case 'NYLO_WAVE_SPAWN':
+      return EventType.TOB_NYLO_WAVE_SPAWN;
+    case 'NYLO_WAVE_STALL':
+      return EventType.TOB_NYLO_WAVE_STALL;
+    case 'NYLO_CLEANUP_END':
+      return EventType.TOB_NYLO_CLEANUP_END;
+    case 'NYLO_BOSS_SPAWN':
+      return EventType.TOB_NYLO_BOSS_SPAWN;
+    case 'SOTE_MAZE_PROC':
+      return EventType.TOB_SOTE_MAZE_PROC;
+    case 'SOTE_MAZE_PATH':
+      return EventType.TOB_SOTE_MAZE_PATH;
+    case 'XARPUS_PHASE':
+      return EventType.TOB_XARPUS_PHASE;
+    case 'VERZIK_PHASE':
+      return EventType.TOB_VERZIK_PHASE;
+    case 'VERZIK_ATTACK_STYLE':
+      return EventType.TOB_VERZIK_ATTACK_STYLE;
+  }
+
+  return EventType.TOB_VERZIK_ATTACK_STYLE;
+}
+
+function roomToStage(room: Room): Stage {
+  switch (room) {
+    case Room.MAIDEN:
+      return Stage.TOB_MAIDEN;
+    case Room.BLOAT:
+      return Stage.TOB_BLOAT;
+    case Room.NYLOCAS:
+      return Stage.TOB_NYLOCAS;
+    case Room.SOTETSEG:
+      return Stage.TOB_SOTETSEG;
+    case Room.XARPUS:
+      return Stage.TOB_XARPUS;
+    case Room.VERZIK:
+      return Stage.TOB_VERZIK;
+  }
+  return Stage.UNKNOWN;
+}
+
+function updatePlayerAttack(old: string) {
+  switch (old) {
+    case 'BGS_SMACK':
+      return PlayerAttack.BGS_SMACK;
+    case 'BGS_SPEC':
+      return PlayerAttack.BGS_SPEC;
+    case 'BLOWPIPE':
+      return PlayerAttack.BLOWPIPE;
+    case 'BOWFA':
+      return PlayerAttack.BOWFA;
+    case 'CHALLY_SPEC':
+      return PlayerAttack.CHALLY_SPEC;
+    case 'CHALLY_SWIPE':
+      return PlayerAttack.CHALLY_SWIPE;
+    case 'CHIN_BLACK':
+      return PlayerAttack.CHIN_BLACK;
+    case 'CHIN_GREY':
+      return PlayerAttack.CHIN_GREY;
+    case 'CHIN_RED':
+      return PlayerAttack.CHIN_RED;
+    case 'CLAW_SCRATCH':
+      return PlayerAttack.CLAW_SCRATCH;
+    case 'CLAW_SPEC':
+      return PlayerAttack.CLAW_SPEC;
+    case 'DAWN_SPEC':
+      return PlayerAttack.DAWN_SPEC;
+    case 'DINHS_SPEC':
+      return PlayerAttack.DINHS_SPEC;
+    case 'FANG':
+      return PlayerAttack.FANG_STAB;
+    case 'HAMMER_BOP':
+      return PlayerAttack.HAMMER_BOP;
+    case 'HAMMER_SPEC':
+      return PlayerAttack.HAMMER_SPEC;
+    case 'HAM_JOINT':
+      return PlayerAttack.HAM_JOINT;
+    case 'KODAI_BARRAGE':
+      return PlayerAttack.KODAI_BARRAGE;
+    case 'KODAI_BASH':
+      return PlayerAttack.KODAI_BASH;
+    case 'RAPIER':
+      return PlayerAttack.RAPIER;
+    case 'SAELDOR':
+      return PlayerAttack.SAELDOR;
+    case 'SANG':
+      return PlayerAttack.SANG;
+    case 'SANG_BARRAGE':
+      return PlayerAttack.SANG_BARRAGE;
+    case 'SCEPTRE_BARRAGE':
+      return PlayerAttack.SCEPTRE_BARRAGE;
+    case 'SCYTHE':
+      return PlayerAttack.SCYTHE;
+    case 'SCYTHE_UNCHARGED':
+      return PlayerAttack.SCYTHE_UNCHARGED;
+    case 'SHADOW':
+      return PlayerAttack.SHADOW;
+    case 'SHADOW_BARRAGE':
+      return PlayerAttack.SHADOW_BARRAGE;
+    case 'SOTD_BARRAGE':
+      return PlayerAttack.SOTD_BARRAGE;
+    case 'SOULREAPER_AXE':
+      return PlayerAttack.SOULREAPER_AXE;
+    case 'STAFF_OF_LIGHT_BARRAGE':
+      return PlayerAttack.STAFF_OF_LIGHT_BARRAGE;
+    case 'STAFF_OF_LIGHT_SWIPE':
+      return PlayerAttack.STAFF_OF_LIGHT_SWIPE;
+    case 'SWIFT':
+      return PlayerAttack.SWIFT_BLADE;
+    case 'TENT_WHIP':
+      return PlayerAttack.TENT_WHIP;
+    case 'TOXIC_TRIDENT':
+      return PlayerAttack.TOXIC_TRIDENT;
+    case 'TOXIC_TRIDENT_BARRAGE':
+      return PlayerAttack.TOXIC_TRIDENT_BARRAGE;
+    case 'TOXIC_STAFF_BARRAGE':
+      return PlayerAttack.TOXIC_STAFF_BARRAGE;
+    case 'TOXIC_STAFF_SWIPE':
+      return PlayerAttack.TOXIC_STAFF_SWIPE;
+    case 'TRIDENT':
+      return PlayerAttack.TRIDENT;
+    case 'TRIDENT_BARRAGE':
+      return PlayerAttack.TRIDENT_BARRAGE;
+    case 'TWISTED_BOW':
+      return PlayerAttack.TWISTED_BOW;
+    case 'VOLATILE_NM_BARRAGE':
+      return PlayerAttack.VOLATILE_NM_BARRAGE;
+    case 'ZCB':
+      return PlayerAttack.ZCB_SPEC;
+
+    case 'UNKNOWN_BARRAGE':
+      return PlayerAttack.UNKNOWN_BARRAGE;
+    case 'UNKNOWN_BOW':
+      return PlayerAttack.UNKNOWN_BOW;
+    case 'UNKNOWN_POWERED_STAFF':
+      return PlayerAttack.UNKNOWN_POWERED_STAFF;
+    case 'UNKNOWN':
+      return PlayerAttack.UNKNOWN;
+  }
+
+  return PlayerAttack.UNKNOWN;
+}
+
+function updateNpcType(old: string): RoomNpcType {
+  switch (old) {
+    case 'MAIDEN_CRAB':
+      return RoomNpcType.MAIDEN_CRAB;
+    case 'NYLO':
+      return RoomNpcType.NYLO;
+    case 'VERZIK_CRAB':
+      return RoomNpcType.VERZIK_CRAB;
+    default:
+      return RoomNpcType.BASIC;
+  }
+}
+
+function updateMaidenCrabSpawn(old: string): MaidenCrabSpawn {
+  switch (old) {
+    case 'SEVENTIES':
+      return MaidenCrabSpawn.SEVENTIES;
+    case 'FIFTIES':
+      return MaidenCrabSpawn.FIFTIES;
+    case 'THIRTIES':
+    default:
+      return MaidenCrabSpawn.THIRTIES;
+  }
+}
+
+function updateMaidenCrabPosition(old: string): MaidenCrabPosition {
+  switch (old) {
+    case 'S1':
+      return MaidenCrabPosition.S1;
+    case 'S2':
+      return MaidenCrabPosition.S2;
+    case 'S3':
+      return MaidenCrabPosition.S3;
+    case 'S4_INNER':
+      return MaidenCrabPosition.S4_INNER;
+    case 'S4_OUTER':
+      return MaidenCrabPosition.S4_OUTER;
+    case 'N1':
+      return MaidenCrabPosition.N1;
+    case 'N2':
+      return MaidenCrabPosition.N2;
+    case 'N3':
+      return MaidenCrabPosition.N3;
+    case 'N4_INNER':
+      return MaidenCrabPosition.N4_INNER;
+    case 'N4_OUTER':
+      return MaidenCrabPosition.N4_OUTER;
+  }
+
+  return MaidenCrabPosition.S1;
+}
+
+function updateNyloStyle(old: string): NyloStyle {
+  switch (old) {
+    case 'MELEE':
+      return NyloStyle.MELEE;
+    case 'RANGE':
+      return NyloStyle.RANGE;
+    case 'MAGE':
+      return NyloStyle.MAGE;
+  }
+
+  return NyloStyle.MELEE;
+}
+
+function updateNyloSpawnType(old: string): NyloSpawn {
+  switch (old) {
+    case 'WEST':
+      return NyloSpawn.WEST;
+    case 'EAST':
+      return NyloSpawn.EAST;
+    case 'SOUTH':
+      return NyloSpawn.SOUTH;
+  }
+
+  return NyloSpawn.SPLIT;
+}
+
+function updateVerzikPhase(old: string): VerzikPhase {
+  switch (old) {
+    case 'P1':
+      return VerzikPhase.P1;
+    case 'P2':
+      return VerzikPhase.P2;
+    case 'P3':
+      return VerzikPhase.P3;
+  }
+
+  return VerzikPhase.IDLE;
+}
+
+function updateVerzikCrabSpawn(old: string): VerzikCrabSpawn {
+  switch (old) {
+    case 'NORTH':
+      return VerzikCrabSpawn.NORTH;
+    case 'NORTHEAST':
+      return VerzikCrabSpawn.NORTHEAST;
+    case 'NORTHWEST':
+      return VerzikCrabSpawn.NORTHWEST;
+    case 'EAST':
+      return VerzikCrabSpawn.EAST;
+    case 'SOUTH':
+      return VerzikCrabSpawn.SOUTH;
+    case 'SOUTHEAST':
+      return VerzikCrabSpawn.SOUTHEAST;
+    case 'SOUTHWEST':
+      return VerzikCrabSpawn.SOUTHWEST;
+    case 'WEST':
+      return VerzikCrabSpawn.WEST;
+  }
+
+  return VerzikCrabSpawn.UNKNOWN;
+}
+
+function updateNpcAttack(old: string): NpcAttack {
+  switch (old) {
+    case 'MAIDEN_AUTO':
+      return NpcAttack.TOB_MAIDEN_AUTO;
+    case 'MAIDEN_BLOOD_THROW':
+      return NpcAttack.TOB_MAIDEN_BLOOD_THROW;
+    case 'BLOAT_STOMP':
+      return NpcAttack.TOB_BLOAT_STOMP;
+    case 'NYLO_BOSS_MELEE':
+      return NpcAttack.TOB_NYLO_BOSS_MELEE;
+    case 'NYLO_BOSS_RANGE':
+      return NpcAttack.TOB_NYLO_BOSS_RANGE;
+    case 'NYLO_BOSS_MAGE':
+      return NpcAttack.TOB_NYLO_BOSS_MAGE;
+    case 'SOTE_MELEE':
+      return NpcAttack.TOB_SOTE_MELEE;
+    case 'SOTE_BALL':
+      return NpcAttack.TOB_SOTE_BALL;
+    case 'SOTE_DEATH_BALL':
+      return NpcAttack.TOB_SOTE_DEATH_BALL;
+    case 'XARPUS_SPIT':
+      return NpcAttack.TOB_XARPUS_SPIT;
+    case 'XARPUS_TURN':
+      return NpcAttack.TOB_XARPUS_TURN;
+    case 'VERZIK_P1_AUTO':
+      return NpcAttack.TOB_VERZIK_P1_AUTO;
+    case 'VERZIK_P2_BOUNCE':
+      return NpcAttack.TOB_VERZIK_P2_BOUNCE;
+    case 'VERZIK_P2_CABBAGE':
+      return NpcAttack.TOB_VERZIK_P2_CABBAGE;
+    case 'VERZIK_P2_ZAP':
+      return NpcAttack.TOB_VERZIK_P2_ZAP;
+    case 'VERZIK_P2_PURPLE':
+      return NpcAttack.TOB_VERZIK_P2_PURPLE;
+    case 'VERZIK_P2_MAGE':
+      return NpcAttack.TOB_VERZIK_P2_MAGE;
+    case 'VERZIK_P3_AUTO':
+      return NpcAttack.TOB_VERZIK_P3_AUTO;
+    case 'VERZIK_P3_MELEE':
+      return NpcAttack.TOB_VERZIK_P3_MELEE;
+    case 'VERZIK_P3_RANGE':
+      return NpcAttack.TOB_VERZIK_P3_RANGE;
+    case 'VERZIK_P3_MAGE':
+      return NpcAttack.TOB_VERZIK_P3_MAGE;
+    case 'VERZIK_P3_WEBS':
+      return NpcAttack.TOB_VERZIK_P3_WEBS;
+    case 'VERZIK_P3_YELLOWS':
+      return NpcAttack.TOB_VERZIK_P3_YELLOWS;
+    case 'VERZIK_P3_BALL':
+      return NpcAttack.TOB_VERZIK_P3_BALL;
+  }
+
+  return NpcAttack.UNKNOWN;
+}
+
+function updateSoteMaze(old: string): Maze {
+  switch (old) {
+    case 'MAZE_33':
+      return Maze.MAZE_33;
+    default:
+      return Maze.MAZE_66;
+  }
+}
+
+function updateXarpusPhase(old: string): XarpusPhase {
+  switch (old) {
+    case 'P1':
+      return XarpusPhase.P1;
+    case 'P2':
+      return XarpusPhase.P2;
+    default:
+      return XarpusPhase.P3;
+  }
 }

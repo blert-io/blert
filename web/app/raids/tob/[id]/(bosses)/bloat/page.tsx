@@ -6,7 +6,7 @@ import {
   NpcEvent,
   PlayerEvent,
   PlayerUpdateEvent,
-  Room,
+  Stage,
   isPlayerEvent,
 } from '@blert/common';
 import Image from 'next/image';
@@ -33,6 +33,7 @@ import Loading from '../../../../../components/loading';
 import bloatBaseTiles from './bloat-tiles.json';
 import styles from './style.module.scss';
 import { ticksToFormattedSeconds } from '../../../../../utils/tick';
+import { useMemo } from 'react';
 
 const BLOAT_MAP_DEFINITION = {
   baseX: 3288,
@@ -53,16 +54,50 @@ export default function BloatPage() {
     bossAttackTimeline,
     playerAttackTimelines,
     loading,
-  } = useRoomEvents(Room.BLOAT);
+  } = useRoomEvents(Stage.TOB_BLOAT);
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
+
+  const [splits, backgroundColors] = useMemo(() => {
+    const downTicks =
+      eventsByType[EventType.TOB_BLOAT_DOWN]?.map((evt) => evt.tick) ?? [];
+
+    let splits = downTicks.map((tick, i) => ({
+      tick,
+      splitName: `Down ${i + 1}`,
+    }));
+
+    const upColor = 'rgba(100, 56, 70, 0.3)';
+    let backgroundColors: TimelineColor[] = [];
+
+    // First up from the start of the room.
+    backgroundColors.push({
+      tick: 0,
+      length: downTicks.length > 0 ? downTicks[0] : totalTicks,
+      backgroundColor: upColor,
+    });
+
+    eventsByType[EventType.TOB_BLOAT_UP]?.forEach((evt) => {
+      splits.push({ tick: evt.tick, splitName: 'Moving' });
+
+      const nextDownTick =
+        downTicks.find((tick) => tick > evt.tick) ?? totalTicks;
+      backgroundColors.push({
+        tick: evt.tick,
+        length: nextDownTick - evt.tick,
+        backgroundColor: upColor,
+      });
+    });
+
+    return [splits, backgroundColors];
+  }, [eventsByType]);
 
   if (loading || raidData === null) {
     return <Loading />;
   }
 
-  const bloatData = raidData.rooms[Room.BLOAT];
+  const bloatData = raidData.rooms.bloat;
   if (raidData.status !== ChallengeStatus.IN_PROGRESS && bloatData === null) {
     return <>No Bloat data for this raid</>;
   }
@@ -102,35 +137,6 @@ export default function BloatPage() {
       }
     }
   }
-
-  const downTicks =
-    eventsByType[EventType.BLOAT_DOWN]?.map((evt) => evt.tick) ?? [];
-  let splits = downTicks.map((tick, i) => ({
-    tick,
-    splitName: `Down ${i + 1}`,
-  }));
-
-  const upColor = 'rgba(100, 56, 70, 0.3)';
-  let backgroundColors: TimelineColor[] = [];
-
-  // First up from the start of the room.
-  backgroundColors.push({
-    tick: 0,
-    length: downTicks.length > 0 ? downTicks[0] : totalTicks,
-    backgroundColor: upColor,
-  });
-
-  eventsByType[EventType.BLOAT_UP]?.forEach((evt) => {
-    splits.push({ tick: evt.tick, splitName: 'Moving' });
-
-    const nextDownTick =
-      downTicks.find((tick) => tick > evt.tick) ?? totalTicks;
-    backgroundColors.push({
-      tick: evt.tick,
-      length: nextDownTick - evt.tick,
-      backgroundColor: upColor,
-    });
-  });
 
   const playerDetails = getPlayerDetails(
     raidData.party,

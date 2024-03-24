@@ -5,7 +5,8 @@ import {
   PlayerAttackEvent,
   PlayerEvent,
   PlayerUpdateEvent,
-  Room,
+  Rooms,
+  Stage,
   isPlayerEvent,
 } from '@blert/common';
 import {
@@ -89,7 +90,7 @@ type EventState = {
   bossAttackTimeline: NpcAttackEvent[];
 };
 
-export const useRoomEvents = (room: Room) => {
+export const useRoomEvents = (stage: Stage) => {
   const raidData = useContext(RaidContext);
 
   const [loading, setLoading] = useState(true);
@@ -100,6 +101,28 @@ export const useRoomEvents = (room: Room) => {
     playerAttackTimelines: new Map(),
     bossAttackTimeline: [],
   });
+
+  let room: keyof Rooms = 'maiden';
+  switch (stage) {
+    case Stage.TOB_MAIDEN:
+      room = 'maiden';
+      break;
+    case Stage.TOB_BLOAT:
+      room = 'bloat';
+      break;
+    case Stage.TOB_NYLOCAS:
+      room = 'nylocas';
+      break;
+    case Stage.TOB_SOTETSEG:
+      room = 'sotetseg';
+      break;
+    case Stage.TOB_XARPUS:
+      room = 'xarpus';
+      break;
+    case Stage.TOB_VERZIK:
+      room = 'verzik';
+      break;
+  }
 
   let totalTicks = raidData?.rooms[room]?.roomTicks ?? -1;
   if (totalTicks === -1 && events.length > 0) {
@@ -117,7 +140,7 @@ export const useRoomEvents = (room: Room) => {
 
       try {
         evts = await fetch(
-          `/api/v1/raids/tob/${raidData._id}/events?room=${room}`,
+          `/api/v1/raids/tob/${raidData._id}/events?stage=${stage}`,
         ).then((res) => res.json());
       } catch (e) {
         setEvents([]);
@@ -156,7 +179,7 @@ export const useRoomEvents = (room: Room) => {
     };
 
     getEvents();
-  }, [raidData, room]);
+  }, [raidData, stage]);
 
   return {
     raidData,
