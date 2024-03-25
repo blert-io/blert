@@ -41,10 +41,6 @@ export enum EventType {
   TOB_VERZIK_ATTACK_STYLE = EventProto.Type.TOB_VERZIK_ATTACK_STYLE,
 }
 
-// Renames:
-// - all enums
-// - bloatStatus -> bloatDown
-
 export const isPlayerEvent = (event: Event): boolean => {
   return (
     event.type === EventType.PLAYER_UPDATE ||

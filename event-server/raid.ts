@@ -346,6 +346,9 @@ export default class Raid {
         if (this.state === State.STARTING) {
           await this.start();
         }
+        await this.updateDatabaseFields((record) => {
+          record.stage = this.stage;
+        });
         if (this.stageStatus === StageStatus.ENTERED) {
           // A transition from ENTERED -> STARTED has already reset the stage.
           // Don't clear any data received afterwards, unless the stage is new.
@@ -362,10 +365,6 @@ export default class Raid {
         this.deathsInRoom = [];
         this.queuedPbUpdates = [];
         this.npcs.clear();
-
-        await this.updateDatabaseFields((record) => {
-          record.stage = this.stage;
-        });
         break;
 
       case StageStatus.WIPED:

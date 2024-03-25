@@ -76,9 +76,9 @@ export default class MessageHandler {
         const events = message
           .getChallengeEventsList()
           .sort((a, b) => a.getTick() - b.getTick());
-        events.forEach(async (event) => {
+        for (const event of events) {
           await this.handleRaidEvent(client, event);
-        });
+        }
         break;
 
       default:
