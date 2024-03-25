@@ -1,54 +1,42 @@
 import {
   BloatSplits,
-  EquipmentSlot,
-  Event,
+  ChallengeMode,
+  ChallengeStatus,
   EventType,
   MaidenCrab,
   MaidenCrabSpawn,
   MaidenSplits,
   Maze,
-  Mode,
   Npc,
   NpcAttack,
-  NpcDeathEvent,
-  NpcSpawnEvent,
   Nylo,
   NyloSplits,
-  NyloWaveSpawnEvent,
   PersonalBestType,
   PlayerAttack,
-  PlayerAttackEvent,
-  PlayerDeathEvent,
   PlayerInfo,
-  PlayerUpdateEvent,
   PrimaryMeleeGear,
-  RaidStatus,
   RecordedRaidModel,
   RecordingType,
-  Room,
   RoomNpc,
   RoomNpcType,
-  RoomStatus,
-  RoomStatusEvent,
-  SoteMazeProcEvent,
   SoteSplits,
+  Stage,
+  StageStatus,
   VerzikAttackStyle,
-  VerzikAttackStyleEvent,
   VerzikCrab,
   VerzikPhase,
-  VerzikPhaseEvent,
   VerzikSplits,
   XarpusPhase,
-  XarpusPhaseEvent,
   XarpusSplits,
   tobPbForMode,
 } from '@blert/common';
 import { RaidModel, RoomEvent } from '@blert/common';
+import { Event } from '@blert/common/generated/event_pb';
 
 import Client from './client';
 import { Players } from './players';
 import { priceTracker } from './price-tracker';
-import { NyloWaveStallEvent } from '@blert/common';
+import { protoToEvent } from './proto';
 
 export function raidPartyKey(partyMembers: string[]) {
   return partyMembers
@@ -60,40 +48,6 @@ enum State {
   STARTING,
   IN_PROGRESS,
   ENDING,
-}
-
-function roomResetStatus(room: Room): RaidStatus {
-  switch (room) {
-    case Room.MAIDEN:
-      return RaidStatus.MAIDEN_RESET;
-    case Room.BLOAT:
-      return RaidStatus.BLOAT_RESET;
-    case Room.NYLOCAS:
-      return RaidStatus.NYLO_RESET;
-    case Room.SOTETSEG:
-      return RaidStatus.SOTE_RESET;
-    case Room.XARPUS:
-      return RaidStatus.XARPUS_RESET;
-    case Room.VERZIK:
-      return RaidStatus.COMPLETED;
-  }
-}
-
-function roomWipeStatus(room: Room): RaidStatus {
-  switch (room) {
-    case Room.MAIDEN:
-      return RaidStatus.MAIDEN_WIPE;
-    case Room.BLOAT:
-      return RaidStatus.BLOAT_WIPE;
-    case Room.NYLOCAS:
-      return RaidStatus.NYLO_WIPE;
-    case Room.SOTETSEG:
-      return RaidStatus.SOTE_WIPE;
-    case Room.XARPUS:
-      return RaidStatus.XARPUS_WIPE;
-    case Room.VERZIK:
-      return RaidStatus.VERZIK_WIPE;
-  }
 }
 
 const BLORVA_PLATEBODY_ID = 28256;
@@ -113,21 +67,21 @@ export default class Raid {
   private clients: Client[];
 
   private state: State;
-  private mode: Mode | null;
+  private mode: ChallengeMode;
   private party: string[];
   private partyInfo: PlayerInfo[];
   private startTime: number;
-  private raidStatus: RaidStatus;
+  private challengeStatus: ChallengeStatus;
   private completedRooms: number;
-  private totalRoomTicks: number;
+  private totalTicks: number;
   private overallTicks: number;
 
   private playerInfoUpdated: Set<string>;
 
-  private room: Room;
-  private roomStatus: RoomStatus;
-  private roomTick: number;
-  private roomEvents: Event[];
+  private stage: Stage;
+  private stageStatus: StageStatus;
+  private stageTick: number;
+  private stageEvents: Event[];
   private deathsInRoom: string[];
   private queuedPbUpdates: PersonalBestUpdate[];
 
@@ -140,12 +94,12 @@ export default class Raid {
 
   private npcs: Map<String, RoomNpc>;
   private stalledNyloWaves: number[];
-  private verzikRedSpawns: number;
+  private verzikRedSpawns: number[];
 
   public constructor(
     id: string,
     party: string[],
-    mode: Mode | null,
+    mode: ChallengeMode,
     startTime: number,
   ) {
     this.id = id;
@@ -157,34 +111,34 @@ export default class Raid {
     this.party = party;
     this.partyInfo = this.party.map((_) => ({ gear: PrimaryMeleeGear.BLORVA }));
     this.startTime = startTime;
-    this.raidStatus = RaidStatus.IN_PROGRESS;
+    this.challengeStatus = ChallengeStatus.IN_PROGRESS;
     this.completedRooms = 0;
-    this.totalRoomTicks = 0;
+    this.totalTicks = 0;
     this.overallTicks = 0;
 
     this.playerInfoUpdated = new Set();
 
-    this.room = Room.MAIDEN;
-    this.roomStatus = RoomStatus.ENTERED;
-    this.roomTick = 0;
-    this.roomEvents = [];
+    this.stage = Stage.TOB_MAIDEN;
+    this.stageStatus = StageStatus.ENTERED;
+    this.stageTick = 0;
+    this.stageEvents = [];
     this.deathsInRoom = [];
     this.queuedPbUpdates = [];
 
     this.maidenSplits = {
-      [MaidenCrabSpawn.SEVENTIES]: 0,
-      [MaidenCrabSpawn.FIFTIES]: 0,
-      [MaidenCrabSpawn.THIRTIES]: 0,
+      SEVENTIES: 0,
+      FIFTIES: 0,
+      THIRTIES: 0,
     };
     this.bloatSplits = { downTicks: [] };
     this.nyloSplits = { capIncrease: 0, waves: 0, cleanup: 0, boss: 0 };
-    this.soteSplits = { [Maze.MAZE_66]: 0, [Maze.MAZE_33]: 0 };
+    this.soteSplits = { MAZE_66: 0, MAZE_33: 0 };
     this.xarpusSplits = { exhumes: 0, screech: 0 };
     this.verzikSplits = { p1: 0, reds: 0, p2: 0 };
 
     this.npcs = new Map();
     this.stalledNyloWaves = [];
-    this.verzikRedSpawns = 0;
+    this.verzikRedSpawns = [];
   }
 
   public getId(): string {
@@ -207,7 +161,10 @@ export default class Raid {
     this.overallTicks = time;
   }
 
-  public async setMode(mode: Mode): Promise<void> {
+  public async setMode(mode: ChallengeMode): Promise<void> {
+    if (this.mode === mode) {
+      return;
+    }
     this.mode = mode;
     await this.updateDatabaseFields((record) => {
       record.mode = this.mode;
@@ -222,11 +179,12 @@ export default class Raid {
     const record = new RaidModel({
       _id: this.id,
       mode: this.mode,
-      status: this.raidStatus,
+      stage: this.stage,
+      status: this.challengeStatus,
       party: this.party,
       partyInfo: this.partyInfo,
       startTime: this.startTime,
-      totalRoomTicks: 0,
+      totalTicks: 0,
     });
     await record.save();
   }
@@ -236,7 +194,7 @@ export default class Raid {
       console.log(`Raid ${this.id} ended before Maiden; deleting record`);
       await Promise.all([
         RaidModel.deleteOne({ _id: this.id }),
-        RecordedRaidModel.deleteMany({ raidId: this.id }),
+        RecordedRaidModel.deleteMany({ cId: this.id }),
       ]);
       return;
     }
@@ -245,16 +203,16 @@ export default class Raid {
 
     promises.push(
       this.updateDatabaseFields((record) => {
-        record.status = this.raidStatus;
+        record.status = this.challengeStatus;
       }),
     );
 
-    if (this.raidStatus === RaidStatus.COMPLETED && this.completedRooms === 6) {
+    if (
+      this.challengeStatus === ChallengeStatus.COMPLETED &&
+      this.completedRooms === 6
+    ) {
       promises.push(
-        this.updatePartyPbs(
-          PersonalBestType.TOB_CHALLENGE,
-          this.totalRoomTicks,
-        ),
+        this.updatePartyPbs(PersonalBestType.TOB_CHALLENGE, this.totalTicks),
       );
 
       if (this.overallTicks !== 0) {
@@ -267,25 +225,14 @@ export default class Raid {
     for (const username of this.party) {
       promises.push(
         Players.updateStats(username, (stats) => {
-          switch (this.raidStatus) {
-            case RaidStatus.COMPLETED:
+          switch (this.challengeStatus) {
+            case ChallengeStatus.COMPLETED:
               stats.completions += 1;
               break;
-
-            case RaidStatus.MAIDEN_RESET:
-            case RaidStatus.BLOAT_RESET:
-            case RaidStatus.NYLO_RESET:
-            case RaidStatus.SOTE_RESET:
-            case RaidStatus.XARPUS_RESET:
+            case ChallengeStatus.RESET:
               stats.resets += 1;
               break;
-
-            case RaidStatus.MAIDEN_WIPE:
-            case RaidStatus.BLOAT_WIPE:
-            case RaidStatus.NYLO_WIPE:
-            case RaidStatus.SOTE_WIPE:
-            case RaidStatus.XARPUS_WIPE:
-            case RaidStatus.VERZIK_WIPE:
+            case ChallengeStatus.WIPED:
               stats.wipes += 1;
               break;
           }
@@ -297,15 +244,16 @@ export default class Raid {
   }
 
   public async processEvent(event: Event): Promise<void> {
-    switch (event.type) {
-      case EventType.ROOM_STATUS:
-        await this.handleRoomStatusUpdate(event as RoomStatusEvent);
+    switch (event.getType()) {
+      case Event.Type.STAGE_UPDATE:
+        await this.handleStageUpdate(event);
         break;
 
       default:
-        if (event.room !== this.room) {
+        if (event.getStage() !== this.stage) {
           console.error(
-            `Raid ${this.id} got event ${event.type} for room ${event.room} but is in room ${this.room}`,
+            `Raid ${this.id} got event ${event.getType()} for stage ` +
+              `${event.getStage()} but is at stage ${this.stage}`,
           );
           return;
         }
@@ -313,19 +261,19 @@ export default class Raid {
         const writeToDb = await this.updateRaidStatus(event);
 
         // Batch and flush events once per tick to reduce database writes.
-        if (event.tick === this.roomTick) {
+        if (event.getTick() === this.stageTick) {
           if (writeToDb) {
-            this.roomEvents.push(event);
+            this.stageEvents.push(event);
           }
-        } else if (event.tick > this.roomTick) {
+        } else if (event.getTick() > this.stageTick) {
           await this.flushRoomEvents();
           if (writeToDb) {
-            this.roomEvents.push(event);
+            this.stageEvents.push(event);
           }
-          this.roomTick = event.tick;
+          this.stageTick = event.getTick();
         } else {
           console.error(
-            `Raid ${this.id} got event ${event.type} for tick ${event.tick} (current=${this.roomTick})`,
+            `Raid ${this.id} got event ${event.getType()} for tick ${event.getTick()} (current=${this.stageTick})`,
           );
         }
         break;
@@ -387,66 +335,79 @@ export default class Raid {
     await Promise.all(promises);
   }
 
-  private async handleRoomStatusUpdate(event: RoomStatusEvent): Promise<void> {
-    if (!event.room) {
+  private async handleStageUpdate(event: Event): Promise<void> {
+    const stageUpdate = event.getStageUpdate();
+    if (event.getStage() === Stage.UNKNOWN || stageUpdate === undefined) {
       return;
     }
 
-    switch (event.roomStatus.status) {
-      case RoomStatus.STARTED:
+    switch (stageUpdate.getStatus()) {
+      case StageStatus.STARTED:
         if (this.state === State.STARTING) {
           await this.start();
         }
-        if (this.roomStatus === RoomStatus.ENTERED) {
-          // A transition from ENTERED -> STARTED has already reset the room.
-          // Don't clear any data received afterwards, unless the room is new.
-          if (this.room === event.room) {
+        if (this.stageStatus === StageStatus.ENTERED) {
+          // A transition from ENTERED -> STARTED has already reset the stage.
+          // Don't clear any data received afterwards, unless the stage is new.
+          if (this.stage === event.getStage()) {
             break;
           }
         }
       // A transition from any other state to STARTED should fall through
-      // and reset all room data.
-      case RoomStatus.ENTERED:
-        this.room = event.room;
-        this.roomEvents = [];
-        this.roomTick = 0;
+      // and reset all stage data.
+      case StageStatus.ENTERED:
+        this.stage = event.getStage();
+        this.stageEvents = [];
+        this.stageTick = 0;
         this.deathsInRoom = [];
         this.queuedPbUpdates = [];
         this.npcs.clear();
+
+        await this.updateDatabaseFields((record) => {
+          record.stage = this.stage;
+        });
         break;
 
-      case RoomStatus.WIPED:
-      case RoomStatus.COMPLETED:
-        if (event.room === this.room) {
-          this.handleRoomFinished(event);
+      case StageStatus.WIPED:
+      case StageStatus.COMPLETED:
+        if (event.getStage() === this.stage) {
+          this.handleStageFinished(event, stageUpdate);
         } else {
           console.error(
-            `Raid ${this.id} got status ${event.roomStatus} for room ${event.room} but is in room ${this.room}`,
+            `Raid ${this.id} got status ${stageUpdate.getStatus()} for stage ` +
+              `${event.getStage()} but is at stage ${this.stage}`,
           );
         }
         break;
     }
 
-    this.roomStatus = event.roomStatus.status;
+    this.stageStatus = stageUpdate.getStatus();
   }
 
-  private async handleRoomFinished(event: RoomStatusEvent): Promise<void> {
+  private async handleStageFinished(
+    event: Event,
+    stageUpdate: Event.StageUpdate,
+  ): Promise<void> {
     // Set the appropriate status if the raid were to be finished at this
     // point.
-    this.raidStatus =
-      event.roomStatus.status === RoomStatus.WIPED
-        ? roomWipeStatus(this.room)
-        : roomResetStatus(this.room);
+    if (stageUpdate.getStatus() === StageStatus.WIPED) {
+      this.challengeStatus = ChallengeStatus.WIPED;
+    } else if (this.stage === Stage.TOB_VERZIK) {
+      this.challengeStatus = ChallengeStatus.COMPLETED;
+    } else {
+      this.challengeStatus = ChallengeStatus.RESET;
+    }
+
     this.completedRooms++;
-    this.totalRoomTicks += event.tick;
+    this.totalTicks += event.getTick();
 
     const promises = [];
 
     let firstTick = 0;
-    if (!event.roomStatus.accurate) {
-      const missingTicks = event.tick - this.roomTick;
+    if (!stageUpdate.getAccurate()) {
+      const missingTicks = event.getTick() - this.stageTick;
       console.log(
-        `Raid ${this.id} lost ${missingTicks} ticks in room ${event.room}`,
+        `Raid ${this.id} lost ${missingTicks} ticks at stage ${event.getStage()}`,
       );
       firstTick = missingTicks;
 
@@ -455,8 +416,8 @@ export default class Raid {
       promises.push(
         RoomEvent.updateMany(
           {
-            raidId: this.id,
-            room: event.room,
+            cId: this.id,
+            stage: event.getStage(),
           },
           { $inc: { tick: missingTicks } },
         ),
@@ -464,8 +425,8 @@ export default class Raid {
       promises.push(
         RoomEvent.updateMany(
           {
-            raidId: this.id,
-            room: event.room,
+            cId: this.id,
+            stage: event.getStage(),
             type: EventType.PLAYER_UPDATE,
           },
           { $inc: { 'player.offCooldownTick': missingTicks } },
@@ -476,83 +437,106 @@ export default class Raid {
     promises.push(
       this.updateDatabaseFields((record) => {
         record.partyInfo = this.partyInfo;
-        record.totalRoomTicks += event.tick;
+        record.totalTicks += event.getTick();
         record.totalDeaths += this.deathsInRoom.length;
-        record.rooms[event.room!] = {
+
+        let roomKey = 'maiden';
+        switch (event.getStage()) {
+          case Stage.TOB_MAIDEN:
+            roomKey = 'maiden';
+            break;
+          case Stage.TOB_BLOAT:
+            roomKey = 'bloat';
+            break;
+          case Stage.TOB_NYLOCAS:
+            roomKey = 'nylocas';
+            break;
+          case Stage.TOB_SOTETSEG:
+            roomKey = 'sotetseg';
+            break;
+          case Stage.TOB_XARPUS:
+            roomKey = 'xarpus';
+            break;
+          case Stage.TOB_VERZIK:
+            roomKey = 'verzik';
+            break;
+        }
+
+        record.rooms[roomKey] = {
           firstTick,
-          roomTicks: event.tick,
+          roomTicks: event.getTick(),
           deaths: this.deathsInRoom,
           npcs: this.npcs,
         };
 
-        switch (this.room) {
-          case Room.MAIDEN:
-            record.rooms[Room.MAIDEN].splits = this.maidenSplits;
+        switch (this.stage) {
+          case Stage.TOB_MAIDEN:
+            record.rooms.maiden.splits = this.maidenSplits;
             break;
-          case Room.BLOAT:
-            record.rooms[Room.BLOAT].splits = this.bloatSplits;
+          case Stage.TOB_BLOAT:
+            record.rooms.bloat.splits = this.bloatSplits;
             break;
-          case Room.NYLOCAS:
-            record.rooms[Room.NYLOCAS].splits = this.nyloSplits;
-            record.rooms[Room.NYLOCAS].stalledWaves = this.stalledNyloWaves;
+          case Stage.TOB_NYLOCAS:
+            record.rooms.nylocas.splits = this.nyloSplits;
+            record.rooms.nylocas.stalledWaves = this.stalledNyloWaves;
             break;
-          case Room.SOTETSEG:
-            record.rooms[Room.SOTETSEG].splits = this.soteSplits;
+          case Stage.TOB_SOTETSEG:
+            record.rooms.sotetseg.splits = this.soteSplits;
             break;
-          case Room.XARPUS:
-            record.rooms[Room.XARPUS].splits = this.xarpusSplits;
+          case Stage.TOB_XARPUS:
+            record.rooms.xarpus.splits = this.xarpusSplits;
             break;
-          case Room.VERZIK:
-            record.rooms[Room.VERZIK].splits = this.verzikSplits;
-            record.rooms[Room.VERZIK].redCrabSpawns = this.verzikRedSpawns;
+          case Stage.TOB_VERZIK:
+            record.rooms.verzik.splits = this.verzikSplits;
+            record.rooms.verzik.redCrabSpawns = this.verzikRedSpawns.length;
             break;
         }
       }),
       this.flushRoomEvents(),
     );
 
-    if (event.roomStatus.accurate) {
-      // Only update personal bests if the room timer is accurate.
+    if (stageUpdate.getAccurate()) {
+      // Only update personal bests if the stage timer is accurate.
       this.queuedPbUpdates.forEach((update) => {
         promises.push(this.updatePartyPbs(update.pbType, update.pbTime));
       });
 
-      if (event.roomStatus.status === RoomStatus.COMPLETED) {
+      if (stageUpdate.getStatus() === StageStatus.COMPLETED) {
         let pbType;
-        switch (this.room) {
-          case Room.MAIDEN:
+        switch (this.stage) {
+          case Stage.TOB_MAIDEN:
             pbType = PersonalBestType.TOB_MAIDEN;
             break;
-          case Room.BLOAT:
+          case Stage.TOB_BLOAT:
             pbType = PersonalBestType.TOB_BLOAT;
             break;
-          case Room.NYLOCAS:
+          case Stage.TOB_NYLOCAS:
             pbType = PersonalBestType.TOB_NYLO_ROOM;
             promises.push(
               this.updatePartyPbs(
                 PersonalBestType.TOB_NYLO_BOSS,
-                event.tick - this.nyloSplits.boss,
+                event.getTick() - this.nyloSplits.boss,
               ),
             );
             break;
-          case Room.SOTETSEG:
+          case Stage.TOB_SOTETSEG:
             pbType = PersonalBestType.TOB_SOTETSEG;
             break;
-          case Room.XARPUS:
+          case Stage.TOB_XARPUS:
             pbType = PersonalBestType.TOB_XARPUS;
             break;
-          case Room.VERZIK:
+          case Stage.TOB_VERZIK:
             pbType = PersonalBestType.TOB_VERZIK_ROOM;
             promises.push(
               this.updatePartyPbs(
                 PersonalBestType.TOB_VERZIK_P3,
-                event.tick - (this.verzikSplits.p2 + 6),
+                event.getTick() - (this.verzikSplits.p2 + 6),
               ),
             );
             break;
         }
 
-        promises.push(this.updatePartyPbs(pbType, event.tick));
+        promises.push(this.updatePartyPbs(pbType!, event.getTick()));
       }
     }
 
@@ -566,146 +550,141 @@ export default class Raid {
    * @returns true if the event should be written to the database, false if not.
    */
   private async updateRaidStatus(event: Event): Promise<boolean> {
-    switch (event.type) {
-      case EventType.PLAYER_UPDATE:
-        const updateEvent = event as PlayerUpdateEvent;
-        if (!this.playerInfoUpdated.has(updateEvent.player.name)) {
-          this.tryDetermineGear(updateEvent);
+    switch (event.getType()) {
+      case Event.Type.PLAYER_UPDATE:
+        const updatedPlayer = event.getPlayer()!;
+        if (!this.playerInfoUpdated.has(updatedPlayer.getName())) {
+          this.tryDetermineGear(updatedPlayer);
         }
         return true;
 
-      case EventType.PLAYER_DEATH:
-        const deathEvent = event as PlayerDeathEvent;
-        this.deathsInRoom.push(deathEvent.player.name);
-        Players.updateStats(deathEvent.player.name, (stats) => {
+      case Event.Type.PLAYER_DEATH:
+        const deadPlayer = event.getPlayer()!;
+        this.deathsInRoom.push(deadPlayer.getName());
+        Players.updateStats(deadPlayer.getName(), (stats) => {
           stats.deaths += 1;
 
-          if (event.room === Room.MAIDEN) {
+          if (event.getStage() === Stage.TOB_MAIDEN) {
             stats.deathsMaiden += 1;
-          } else if (event.room === Room.BLOAT) {
+          } else if (event.getStage() === Stage.TOB_BLOAT) {
             stats.deathsBloat += 1;
-          } else if (event.room === Room.NYLOCAS) {
+          } else if (event.getStage() === Stage.TOB_NYLOCAS) {
             stats.deathsNylocas += 1;
-          } else if (event.room === Room.SOTETSEG) {
+          } else if (event.getStage() === Stage.TOB_SOTETSEG) {
             stats.deathsSotetseg += 1;
-          } else if (event.room === Room.XARPUS) {
+          } else if (event.getStage() === Stage.TOB_XARPUS) {
             stats.deathsXarpus += 1;
-          } else if (event.room === Room.VERZIK) {
+          } else if (event.getStage() === Stage.TOB_VERZIK) {
             stats.deathsVerzik += 1;
           }
         });
         break;
 
       case EventType.PLAYER_ATTACK:
-        await this.handlePlayerAttack(event as PlayerAttackEvent);
+        await this.handlePlayerAttack(event);
         break;
 
       case EventType.NPC_SPAWN:
-        await this.handleNpcSpawn(event as NpcSpawnEvent);
+        await this.handleNpcSpawn(event);
         break;
 
       case EventType.NPC_DEATH:
-        const npcDeathEvent = event as NpcDeathEvent;
-        let npc = this.npcs.get(npcDeathEvent.npc.roomId.toString());
+        let npc = this.npcs.get(event.getNpc()!.getRoomId().toString());
         if (npc !== undefined) {
-          npc.deathTick = event.tick;
-          npc.deathPoint = { x: event.xCoord, y: event.yCoord };
+          npc.deathTick = event.getTick();
+          npc.deathPoint = { x: event.getXCoord(), y: event.getYCoord() };
         }
         break;
 
-      case EventType.BLOAT_DOWN:
-        this.bloatSplits.downTicks.push(event.tick);
+      case EventType.TOB_BLOAT_DOWN:
+        this.bloatSplits.downTicks.push(event.getTick());
         break;
 
-      case EventType.NYLO_WAVE_SPAWN:
-        const nyloWaveSpawnEvent = event as NyloWaveSpawnEvent;
-        if (nyloWaveSpawnEvent.nyloWave.wave === 20) {
-          this.nyloSplits.capIncrease = event.tick;
-        } else if (nyloWaveSpawnEvent.nyloWave.wave === 31) {
-          this.nyloSplits.waves = event.tick;
+      case EventType.TOB_NYLO_WAVE_SPAWN:
+        const spawnedWave = event.getNyloWave()!.getWave();
+        if (spawnedWave === 20) {
+          this.nyloSplits.capIncrease = event.getTick();
+        } else if (spawnedWave === 31) {
+          this.nyloSplits.waves = event.getTick();
         }
         break;
 
-      case EventType.NYLO_WAVE_STALL:
-        const nyloWaveStallEvent = event as NyloWaveStallEvent;
-        this.stalledNyloWaves.push(nyloWaveStallEvent.nyloWave.wave);
+      case EventType.TOB_NYLO_WAVE_STALL:
+        const stalledWave = event.getNyloWave()!.getWave();
+        this.stalledNyloWaves.push(stalledWave);
         break;
 
-      case EventType.NYLO_CLEANUP_END:
-        this.nyloSplits.cleanup = event.tick;
+      case EventType.TOB_NYLO_CLEANUP_END:
+        this.nyloSplits.cleanup = event.getTick();
         break;
 
-      case EventType.NYLO_BOSS_SPAWN:
-        this.nyloSplits.boss = event.tick;
+      case EventType.TOB_NYLO_BOSS_SPAWN:
+        this.nyloSplits.boss = event.getTick();
         this.queuedPbUpdates.push({
           pbType: PersonalBestType.TOB_NYLO_BOSS,
-          pbTime: event.tick,
+          pbTime: event.getTick(),
         });
         break;
 
-      case EventType.SOTE_MAZE_PROC:
-        const mazeProcEvent = event as SoteMazeProcEvent;
-        this.soteSplits[mazeProcEvent.soteMaze.maze] = event.tick;
-        break;
-
-      case EventType.XARPUS_PHASE:
-        const xarpusPhaseEvent = event as XarpusPhaseEvent;
-        if (xarpusPhaseEvent.xarpusPhase === XarpusPhase.P2) {
-          this.xarpusSplits.exhumes = event.tick;
-        } else if (xarpusPhaseEvent.xarpusPhase === XarpusPhase.P3) {
-          this.xarpusSplits.screech = event.tick;
+      case EventType.TOB_SOTE_MAZE_PROC:
+        const maze = event.getSoteMaze()!.getMaze();
+        if (maze === Maze.MAZE_66) {
+          this.soteSplits.MAZE_66 = event.getTick();
+        } else {
+          this.soteSplits.MAZE_33 = event.getTick();
         }
         break;
 
-      case EventType.VERZIK_PHASE:
-        const verzikPhaseEvent = event as VerzikPhaseEvent;
-        if (verzikPhaseEvent.verzikPhase === VerzikPhase.P2) {
-          this.verzikSplits.p1 = event.tick;
+      case EventType.TOB_XARPUS_PHASE:
+        const xarpusPhase = event.getXarpusPhase();
+        if (xarpusPhase === XarpusPhase.P2) {
+          this.xarpusSplits.exhumes = event.getTick();
+        } else if (xarpusPhase === XarpusPhase.P3) {
+          this.xarpusSplits.screech = event.getTick();
+        }
+        break;
+
+      case EventType.TOB_VERZIK_PHASE:
+        const verzikPhase = event.getVerzikPhase();
+        if (verzikPhase === VerzikPhase.P2) {
+          this.verzikSplits.p1 = event.getTick();
           this.queuedPbUpdates.push({
             pbType: PersonalBestType.TOB_VERZIK_P1,
-            pbTime: event.tick,
+            pbTime: event.getTick(),
           });
-        } else if (verzikPhaseEvent.verzikPhase === VerzikPhase.P3) {
-          this.verzikSplits.p2 = event.tick;
+        } else if (verzikPhase === VerzikPhase.P3) {
+          this.verzikSplits.p2 = event.getTick();
           if (this.verzikSplits.p1 !== 0) {
             this.queuedPbUpdates.push({
               pbType: PersonalBestType.TOB_VERZIK_P2,
-              pbTime: event.tick - (this.verzikSplits.p1 + 13),
+              pbTime: event.getTick() - (this.verzikSplits.p1 + 13),
             });
           }
         }
         break;
 
-      case EventType.VERZIK_REDS_SPAWN:
-        this.verzikRedSpawns++;
-        if (this.verzikRedSpawns == 1) {
-          // First red spawn is recorded as a room split.
-          this.verzikSplits.reds = event.tick;
-        }
-        break;
-
-      case EventType.VERZIK_ATTACK_STYLE:
+      case EventType.TOB_VERZIK_ATTACK_STYLE:
         // Update the previously-written NPC_ATTACK event.
-        const verzikAttackStyle = event as VerzikAttackStyleEvent;
+        const verzikAttackStyle = event.getVerzikAttackStyle()!;
 
         const record = await RoomEvent.findOne({
-          raidId: this.id,
+          cId: this.id,
           type: EventType.NPC_ATTACK,
-          tick: verzikAttackStyle.verzikAttack.npcAttackTick,
-          room: Room.VERZIK,
-          'npcAttack.attack': NpcAttack.VERZIK_P3_AUTO,
+          tick: verzikAttackStyle.getNpcAttackTick(),
+          stage: Stage.TOB_VERZIK,
+          'npcAttack.attack': NpcAttack.TOB_VERZIK_P3_AUTO,
         });
 
         if (record !== null) {
-          switch (verzikAttackStyle.verzikAttack.style) {
+          switch (verzikAttackStyle.getStyle()) {
             case VerzikAttackStyle.MELEE:
-              record.npcAttack.attack = NpcAttack.VERZIK_P3_MELEE;
+              record.npcAttack.attack = NpcAttack.TOB_VERZIK_P3_MELEE;
               break;
             case VerzikAttackStyle.RANGE:
-              record.npcAttack.attack = NpcAttack.VERZIK_P3_RANGE;
+              record.npcAttack.attack = NpcAttack.TOB_VERZIK_P3_RANGE;
               break;
             case VerzikAttackStyle.MAGE:
-              record.npcAttack.attack = NpcAttack.VERZIK_P3_MAGE;
+              record.npcAttack.attack = NpcAttack.TOB_VERZIK_P3_MAGE;
               break;
           }
           record.save();
@@ -718,36 +697,40 @@ export default class Raid {
     return true;
   }
 
-  private async handlePlayerAttack(event: PlayerAttackEvent): Promise<void> {
-    const username = event.player.name;
-    const attack = event.attack;
+  private async handlePlayerAttack(event: Event): Promise<void> {
+    const username = event.getPlayer()?.getName();
+    const attack = event.getPlayerAttack();
 
-    switch (attack.type) {
+    if (username === undefined || attack === undefined) {
+      return;
+    }
+
+    const target = attack.getTarget();
+    const weapon = attack.getWeapon();
+
+    switch (attack.getType()) {
       case PlayerAttack.BGS_SMACK:
       case PlayerAttack.HAMMER_BOP:
-        if (this.room === Room.VERZIK) {
-          if (
-            attack.target !== undefined &&
-            Npc.isVerzikMatomenos(attack.target.id)
-          ) {
+        if (this.stage === Stage.TOB_VERZIK) {
+          if (target !== undefined && Npc.isVerzikMatomenos(target.getId())) {
             // Can 6t a red crab to tick fix; not a troll.
             return;
           }
         }
 
         if (
-          this.room === Room.NYLOCAS &&
+          this.stage === Stage.TOB_NYLOCAS &&
           this.nyloSplits.waves !== 0 &&
           this.nyloSplits.cleanup === 0
         ) {
           // Ok to BGS smack during cleanup.
-          if (attack.target === undefined || Npc.isNylocas(attack.target.id)) {
+          if (target === undefined || Npc.isNylocas(target.getId())) {
             return;
           }
         }
 
         await Players.updateStats(username, (stats) => {
-          if (attack.type === PlayerAttack.BGS_SMACK) {
+          if (attack.getType() === PlayerAttack.BGS_SMACK) {
             stats.bgsSmacks += 1;
           } else {
             stats.hammerBops += 1;
@@ -759,39 +742,40 @@ export default class Raid {
       case PlayerAttack.CHIN_GREY:
       case PlayerAttack.CHIN_RED:
         let chinPrice = 0;
-        if (attack.weapon !== undefined) {
+        if (weapon !== undefined) {
           try {
-            chinPrice = await priceTracker.getPrice(attack.weapon.id);
+            chinPrice = await priceTracker.getPrice(weapon.getId());
           } catch (e) {
             chinPrice = 0;
           }
         }
 
         const isWrongThrowDistance =
-          attack.distanceToTarget !== -1 &&
-          (attack.distanceToTarget < 4 || attack.distanceToTarget > 6);
+          attack.getDistanceToTarget() !== -1 &&
+          (attack.getDistanceToTarget() < 4 ||
+            attack.getDistanceToTarget() > 6);
 
         await Players.updateStats(username, (stats) => {
           stats.chinsThrown += 1;
           stats.chinsThrownValue += chinPrice;
 
-          if (event.room === Room.MAIDEN) {
+          if (event.getStage() === Stage.TOB_MAIDEN) {
             stats.chinsThrownMaiden += 1;
-          } else if (event.room === Room.NYLOCAS) {
+          } else if (event.getStage() === Stage.TOB_NYLOCAS) {
             stats.chinsThrownNylocas += 1;
           }
 
-          if (attack.type === PlayerAttack.CHIN_BLACK) {
+          if (attack.getType() === PlayerAttack.CHIN_BLACK) {
             stats.chinsThrownBlack += 1;
-          } else if (attack.type === PlayerAttack.CHIN_RED) {
+          } else if (attack.getType() === PlayerAttack.CHIN_RED) {
             stats.chinsThrownRed += 1;
-          } else if (attack.type === PlayerAttack.CHIN_GREY) {
+          } else if (attack.getType() === PlayerAttack.CHIN_GREY) {
             stats.chinsThrownGrey += 1;
           }
 
-          if (attack.target !== undefined && isWrongThrowDistance) {
+          if (target !== undefined && isWrongThrowDistance) {
             // Only consider incorrect throw distances on Maiden crabs.
-            if (Npc.isMaidenMatomenos(attack.target.id)) {
+            if (Npc.isMaidenMatomenos(target.getId())) {
               stats.chinsThrownIncorrectlyMaiden += 1;
             }
           }
@@ -821,61 +805,100 @@ export default class Raid {
    *
    * @param event The spawn event.
    */
-  private async handleNpcSpawn(event: NpcSpawnEvent): Promise<void> {
-    const { id, roomId, type } = event.npc;
+  private async handleNpcSpawn(event: Event): Promise<void> {
+    const npc = event.getNpc();
+    if (npc === undefined) {
+      return;
+    }
+
+    let type = RoomNpcType.BASIC;
+    if (npc.hasMaidenCrab()) {
+      type = RoomNpcType.MAIDEN_CRAB;
+    } else if (npc.hasNylo()) {
+      type = RoomNpcType.NYLO;
+    } else if (npc.hasVerzikCrab()) {
+      type = RoomNpcType.VERZIK_CRAB;
+    }
 
     const npcCommon = {
       type,
-      spawnNpcId: id,
-      roomId,
-      spawnTick: event.tick,
-      spawnPoint: { x: event.xCoord, y: event.yCoord },
+      spawnNpcId: npc.getId(),
+      roomId: npc.getRoomId(),
+      spawnTick: event.getTick(),
+      spawnPoint: { x: event.getXCoord(), y: event.getYCoord() },
       deathTick: 0,
       deathPoint: { x: 0, y: 0 },
     };
 
-    if (event.npc.maidenCrab !== undefined) {
-      const spawn = event.npc.maidenCrab.spawn;
-      if (this.maidenSplits[spawn] == 0) {
-        this.maidenSplits[spawn] = event.tick;
+    if (Npc.isVerzikMatomenos(npc.getId())) {
+      if (this.verzikRedSpawns.length === 0) {
+        // First red spawn is recorded as a stage split.
+        this.verzikSplits.reds = event.getTick();
+        this.verzikRedSpawns.push(event.getTick());
+      } else if (
+        this.verzikRedSpawns[this.verzikRedSpawns.length - 1] !==
+        event.getTick()
+      ) {
+        // A new spawn occurred.
+        this.verzikRedSpawns.push(event.getTick());
+      }
+    }
+
+    const { maidenCrab, nylo, verzikCrab } = npc.toObject();
+
+    if (maidenCrab !== undefined) {
+      switch (maidenCrab.spawn) {
+        case MaidenCrabSpawn.SEVENTIES:
+          this.maidenSplits.SEVENTIES = event.getTick();
+          break;
+        case MaidenCrabSpawn.FIFTIES:
+          this.maidenSplits.FIFTIES = event.getTick();
+          break;
+        case MaidenCrabSpawn.THIRTIES:
+          this.maidenSplits.THIRTIES = event.getTick();
+          break;
       }
       const crab: MaidenCrab = {
         ...npcCommon,
         type: RoomNpcType.MAIDEN_CRAB,
-        maidenCrab: event.npc.maidenCrab,
+        maidenCrab,
       };
-      this.npcs.set(event.npc.roomId.toString(), crab);
-    } else if (event.npc.nylo !== undefined) {
-      const nylo: Nylo = {
+      this.npcs.set(npc.getRoomId().toString(), crab);
+    } else if (nylo !== undefined) {
+      const nyloDesc: Nylo = {
         ...npcCommon,
         type: RoomNpcType.NYLO,
-        nylo: event.npc.nylo,
+        nylo,
       };
-      this.npcs.set(event.npc.roomId.toString(), nylo);
-    } else if (event.npc.verzikCrab !== undefined) {
+      this.npcs.set(npc.getRoomId().toString(), nyloDesc);
+    } else if (verzikCrab !== undefined) {
       const crab: VerzikCrab = {
         ...npcCommon,
         type: RoomNpcType.VERZIK_CRAB,
-        verzikCrab: event.npc.verzikCrab,
+        verzikCrab,
       };
-      this.npcs.set(event.npc.roomId.toString(), crab);
+      this.npcs.set(npc.getRoomId().toString(), crab);
     } else {
-      this.npcs.set(event.npc.roomId.toString(), npcCommon);
+      this.npcs.set(npc.getRoomId().toString(), npcCommon);
     }
   }
 
-  private async tryDetermineGear(event: PlayerUpdateEvent): Promise<void> {
-    const equipment = event.player.equipment;
-    if (equipment === undefined) {
+  private async tryDetermineGear(player: Event.Player): Promise<void> {
+    const equipment = player.getEquipmentList();
+    if (equipment.length === 0) {
       return;
     }
 
-    const torso = equipment[EquipmentSlot.TORSO];
-    const helm = equipment[EquipmentSlot.HEAD];
+    const torso = equipment.find(
+      (item) => item.getSlot() === Event.Player.EquipmentSlot.TORSO,
+    );
+    const helm = equipment.find(
+      (item) => item.getSlot() === Event.Player.EquipmentSlot.HEAD,
+    );
     let gear: PrimaryMeleeGear | null = null;
 
     if (torso !== undefined) {
-      switch (torso.id) {
+      switch (torso.getId()) {
         case BLORVA_PLATEBODY_ID:
           gear = PrimaryMeleeGear.BLORVA;
           break;
@@ -889,19 +912,20 @@ export default class Raid {
     }
     if (
       helm !== undefined &&
-      (helm.id === VOID_MELEE_HELM_ID || helm.id === VOID_MELEE_HELM_OR_ID)
+      (helm.getId() === VOID_MELEE_HELM_ID ||
+        helm.getId() === VOID_MELEE_HELM_OR_ID)
     ) {
       gear = PrimaryMeleeGear.ELITE_VOID;
     }
 
     if (gear !== null) {
-      this.playerInfoUpdated.add(event.player.name);
-      this.partyInfo[this.party.indexOf(event.player.name)].gear = gear;
+      this.playerInfoUpdated.add(player.getName());
+      this.partyInfo[this.party.indexOf(player.getName())].gear = gear;
     }
   }
 
   /**
-   * Corrects any recorded splits and other room information that were affected
+   * Corrects any recorded splits and other stage information that were affected
    * by tick loss.
    *
    * @param tickOffset The number of ticks lost.
@@ -912,8 +936,8 @@ export default class Raid {
       npc.deathTick += tickOffset;
     });
 
-    switch (this.room) {
-      case Room.MAIDEN:
+    switch (this.stage) {
+      case Stage.TOB_MAIDEN:
         if (this.maidenSplits.SEVENTIES !== 0) {
           this.maidenSplits.SEVENTIES += tickOffset;
         }
@@ -925,13 +949,13 @@ export default class Raid {
         }
         break;
 
-      case Room.BLOAT:
+      case Stage.TOB_BLOAT:
         this.bloatSplits.downTicks = this.bloatSplits.downTicks.map(
           (tick) => tick + tickOffset,
         );
         break;
 
-      case Room.NYLOCAS:
+      case Stage.TOB_NYLOCAS:
         if (this.nyloSplits.capIncrease !== 0) {
           this.nyloSplits.capIncrease += tickOffset;
         }
@@ -946,7 +970,7 @@ export default class Raid {
         }
         break;
 
-      case Room.SOTETSEG:
+      case Stage.TOB_SOTETSEG:
         if (this.soteSplits.MAZE_66 !== 0) {
           this.soteSplits.MAZE_66 += tickOffset;
         }
@@ -955,7 +979,7 @@ export default class Raid {
         }
         break;
 
-      case Room.XARPUS:
+      case Stage.TOB_XARPUS:
         if (this.xarpusSplits.exhumes !== 0) {
           this.xarpusSplits.exhumes += tickOffset;
         }
@@ -964,7 +988,7 @@ export default class Raid {
         }
         break;
 
-      case Room.VERZIK:
+      case Stage.TOB_VERZIK:
         if (this.verzikSplits.p1 !== 0) {
           this.verzikSplits.p1 += tickOffset;
         }
@@ -990,7 +1014,7 @@ export default class Raid {
     type: PersonalBestType,
     ticks: number,
   ): Promise<void> {
-    if (this.mode === null) {
+    if (this.mode === ChallengeMode.NO_MODE) {
       return;
     }
 
@@ -1004,9 +1028,9 @@ export default class Raid {
   }
 
   private async flushRoomEvents(): Promise<void> {
-    if (this.roomEvents.length > 0) {
-      RoomEvent.insertMany(this.roomEvents);
+    if (this.stageEvents.length > 0) {
+      RoomEvent.insertMany(this.stageEvents.map(protoToEvent));
     }
-    this.roomEvents = [];
+    this.stageEvents = [];
   }
 }

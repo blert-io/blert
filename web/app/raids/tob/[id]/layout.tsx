@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { ActorContext, RaidContext } from '../context';
-import { raidStatusToFriendlyRaidStatus } from '../../../components/raid-quick-details/raid-quick-details';
+import { raidStatusNameAndColor } from '../../../components/raid-quick-details/raid-quick-details';
 import Loading from '../../../components/loading';
 
 import styles from './style.module.scss';
@@ -50,7 +50,7 @@ export default function RaidLayout(props: RaidLayoutProps) {
 
   useEffect(() => {
     if (raid !== null) {
-      const status = raidStatusToFriendlyRaidStatus(raid.status);
+      const [status] = raidStatusNameAndColor(raid.status, raid.stage);
       document.title = `ToB ${status} | Blert`;
     } else {
       document.title = `Theatre of Blood | Blert`;

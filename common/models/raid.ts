@@ -9,8 +9,8 @@ export const Coords = {
 
 export const MaidenCrabProperties = {
   _id: false,
-  spawn: String,
-  position: String,
+  spawn: Number,
+  position: Number,
   scuffed: Boolean,
 };
 
@@ -18,18 +18,18 @@ export const NyloProperties = {
   _id: false,
   parentRoomId: Number,
   wave: Number,
-  style: String,
-  spawnType: String,
+  style: Number,
+  spawnType: Number,
 };
 
 export const VerzikCrabProperties = {
   _id: false,
-  phase: String,
-  spawn: String,
+  phase: Number,
+  spawn: Number,
 };
 
 const RoomNpc = {
-  type: { type: String },
+  type: { type: Number },
   roomId: Number,
   spawnNpcId: Number,
   spawnTick: Number,
@@ -68,8 +68,9 @@ const PlayerInfo = {
 
 const raidSchema = new Schema<Raid>({
   _id: String,
-  status: { type: String, index: true },
-  mode: String,
+  status: { type: Number, index: true },
+  stage: { type: Number, index: true },
+  mode: Number,
   startTime: { type: Date },
   party: {
     type: [String],
@@ -82,10 +83,10 @@ const raidSchema = new Schema<Raid>({
     },
   },
   partyInfo: { type: [PlayerInfo], default: null },
-  totalRoomTicks: { type: Number, default: 0, index: true },
+  totalTicks: { type: Number, default: 0, index: true },
   totalDeaths: { type: Number, default: 0 },
   rooms: {
-    MAIDEN: {
+    maiden: {
       type: {
         ...RoomOverview,
         splits: {
@@ -96,7 +97,7 @@ const raidSchema = new Schema<Raid>({
       },
       default: null,
     },
-    BLOAT: {
+    bloat: {
       type: {
         ...RoomOverview,
         splits: {
@@ -105,7 +106,7 @@ const raidSchema = new Schema<Raid>({
       },
       default: null,
     },
-    NYLOCAS: {
+    nylocas: {
       type: {
         ...RoomOverview,
         splits: {
@@ -118,7 +119,7 @@ const raidSchema = new Schema<Raid>({
       },
       default: null,
     },
-    SOTETSEG: {
+    sotetseg: {
       type: {
         ...RoomOverview,
         splits: {
@@ -128,7 +129,7 @@ const raidSchema = new Schema<Raid>({
       },
       default: null,
     },
-    XARPUS: {
+    xarpus: {
       type: {
         ...RoomOverview,
         splits: {
@@ -138,7 +139,7 @@ const raidSchema = new Schema<Raid>({
       },
       default: null,
     },
-    VERZIK: {
+    verzik: {
       type: {
         ...RoomOverview,
         redCrabSpawns: Number,

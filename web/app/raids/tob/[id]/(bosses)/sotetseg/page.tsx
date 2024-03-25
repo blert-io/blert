@@ -1,12 +1,12 @@
 'use client';
 
 import {
+  ChallengeStatus,
   EventType,
   NpcEvent,
   PlayerEvent,
   PlayerUpdateEvent,
-  RaidStatus,
-  Room,
+  Stage,
   isPlayerEvent,
 } from '@blert/common';
 import Image from 'next/image';
@@ -30,6 +30,7 @@ import Loading from '../../../../../components/loading';
 import styles from './style.module.scss';
 import soteBaseTiles from './sote-tiles.json';
 import { ticksToFormattedSeconds } from '../../../../../utils/tick';
+import { useMemo } from 'react';
 
 const SOTETSEG_MAP_DEFINITION = {
   baseX: 3272,
@@ -53,17 +54,37 @@ export default function SotetsegPage() {
     bossAttackTimeline,
     playerAttackTimelines,
     loading,
-  } = useRoomEvents(Room.SOTETSEG);
+  } = useRoomEvents(Stage.TOB_SOTETSEG);
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
+
+  const splits = useMemo(() => {
+    const sote = raidData?.rooms.sotetseg;
+    const splits = [];
+    if (sote) {
+      if (sote.splits.MAZE_66) {
+        splits.push({
+          tick: sote.splits.MAZE_66,
+          splitName: '66%',
+        });
+      }
+      if (sote.splits.MAZE_33) {
+        splits.push({
+          tick: sote.splits.MAZE_33,
+          splitName: '33%',
+        });
+      }
+    }
+    return splits;
+  }, [raidData?.rooms.sotetseg]);
 
   if (loading || raidData === null) {
     return <Loading />;
   }
 
-  const soteData = raidData.rooms[Room.SOTETSEG];
-  if (raidData.status !== RaidStatus.IN_PROGRESS && soteData === null) {
+  const soteData = raidData.rooms.sotetseg;
+  if (raidData.status !== ChallengeStatus.IN_PROGRESS && soteData === null) {
     return <>No Sotetseg data for this raid</>;
   }
 
@@ -114,22 +135,6 @@ export default function SotetsegPage() {
       entities.push(
         new OverlayEntity(x, y, `maze-tile-${x}-${y}`, mazeTileOverlay, false),
       );
-    }
-  }
-
-  let splits = [];
-  if (soteData !== null) {
-    if (soteData.splits.MAZE_66) {
-      splits.push({
-        tick: soteData.splits.MAZE_66,
-        splitName: '66%',
-      });
-    }
-    if (soteData.splits.MAZE_33) {
-      splits.push({
-        tick: soteData.splits.MAZE_33,
-        splitName: '33%',
-      });
     }
   }
 

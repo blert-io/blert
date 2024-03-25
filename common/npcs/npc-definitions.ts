@@ -1,14 +1,16 @@
 import { Npc, NpcId } from './npc-id';
 import {
+  ChallengeMode,
   MaidenCrab,
   MaidenCrabPosition,
   MaidenCrabSpawn,
-  Mode,
   Nylo,
   NyloSpawn,
+  NyloStyle,
   RoomNpc,
   RoomNpcType,
   VerzikCrab,
+  VerzikCrabSpawn,
 } from '../raid-definitions';
 
 export type NpcDefinition = {
@@ -16,7 +18,7 @@ export type NpcDefinition = {
   shortName: string;
   canonicalId: number;
   size: number;
-  mode: Mode;
+  mode: ChallengeMode;
 };
 
 /**
@@ -30,9 +32,9 @@ const defineForAllModes = (
   definition: Omit<NpcDefinition, 'mode'>,
 ): [NpcDefinition, NpcDefinition, NpcDefinition] => {
   return [
-    { ...definition, mode: Mode.ENTRY },
-    { ...definition, mode: Mode.REGULAR },
-    { ...definition, mode: Mode.HARD },
+    { ...definition, mode: ChallengeMode.TOB_ENTRY },
+    { ...definition, mode: ChallengeMode.TOB_REGULAR },
+    { ...definition, mode: ChallengeMode.TOB_HARD },
   ];
 };
 
@@ -143,7 +145,7 @@ const NYLOCAS_PRINKIPAS = {
   shortName: 'Nylo Prince',
   canonicalId: NpcId.NYLOCAS_PRINKIPAS_MELEE,
   size: 3,
-  mode: Mode.HARD,
+  mode: ChallengeMode.TOB_HARD,
 };
 
 const [
@@ -205,7 +207,7 @@ const VERZIK_PILLAR = {
   shortName: 'Pillar',
   canonicalId: NpcId.VERZIK_PILLAR,
   size: 3,
-  mode: Mode.REGULAR,
+  mode: ChallengeMode.TOB_REGULAR,
 };
 
 const [
@@ -444,6 +446,18 @@ function maidenCrabSpawnString(spawn: MaidenCrabSpawn) {
 
 function maidenCrabPositionString(position: MaidenCrabPosition) {
   switch (position) {
+    case MaidenCrabPosition.S1:
+      return 'S1';
+    case MaidenCrabPosition.N1:
+      return 'N1';
+    case MaidenCrabPosition.S2:
+      return 'S2';
+    case MaidenCrabPosition.N2:
+      return 'N2';
+    case MaidenCrabPosition.S3:
+      return 'S3';
+    case MaidenCrabPosition.N3:
+      return 'N3';
     case MaidenCrabPosition.N4_INNER:
       return 'N4 Inner';
     case MaidenCrabPosition.N4_OUTER:
@@ -453,8 +467,53 @@ function maidenCrabPositionString(position: MaidenCrabPosition) {
     case MaidenCrabPosition.S4_OUTER:
       return 'S4 Outer';
   }
+}
 
-  return position;
+function nyloStyleToString(style: NyloStyle): string {
+  switch (style) {
+    case NyloStyle.MELEE:
+      return 'melee';
+    case NyloStyle.RANGE:
+      return 'range';
+    case NyloStyle.MAGE:
+      return 'mage';
+  }
+}
+
+function nyloSpawnToString(spawn: NyloSpawn): string {
+  switch (spawn) {
+    case NyloSpawn.EAST:
+      return 'east';
+    case NyloSpawn.WEST:
+      return 'west';
+    case NyloSpawn.SOUTH:
+      return 'south';
+    case NyloSpawn.SPLIT:
+      return 'split';
+  }
+}
+
+function verzikSpawnToString(spawn: VerzikCrabSpawn): string {
+  switch (spawn) {
+    case VerzikCrabSpawn.UNKNOWN:
+      return 'unknown';
+    case VerzikCrabSpawn.NORTH:
+      return 'north';
+    case VerzikCrabSpawn.NORTHEAST:
+      return 'northeast';
+    case VerzikCrabSpawn.NORTHWEST:
+      return 'northwest';
+    case VerzikCrabSpawn.EAST:
+      return 'east';
+    case VerzikCrabSpawn.SOUTH:
+      return 'south';
+    case VerzikCrabSpawn.SOUTHEAST:
+      return 'southeast';
+    case VerzikCrabSpawn.SOUTHWEST:
+      return 'southwest';
+    case VerzikCrabSpawn.WEST:
+      return 'west';
+  }
 }
 
 /**
@@ -474,15 +533,15 @@ export function npcFriendlyName(npc: RoomNpc): string {
 
     case RoomNpcType.NYLO:
       const nylo = (npc as Nylo).nylo;
-      const style = nylo.style.toLowerCase();
+      const style = nyloStyleToString(nylo.style);
       if (nylo.spawnType === NyloSpawn.SPLIT) {
         return `${nylo.wave} ${style} split`;
       }
-      return `${nylo.wave} ${nylo.spawnType.toLowerCase()} ${style}`;
+      return `${nylo.wave} ${nyloSpawnToString(nylo.spawnType)} ${style}`;
 
     case RoomNpcType.VERZIK_CRAB:
       const verzikCrab = (npc as VerzikCrab).verzikCrab;
-      return `${verzikCrab.phase} ${verzikCrab.spawn.toLowerCase()} crab`;
+      return `${verzikCrab.phase} ${verzikSpawnToString(verzikCrab.spawn)} crab`;
 
     case RoomNpcType.BASIC:
       // No special handling.

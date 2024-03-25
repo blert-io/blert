@@ -1,8 +1,7 @@
+import { Event as EventProto } from './generated/event_pb';
 import {
-  Mode,
   SkillLevel,
-  Room,
-  RoomStatus,
+  StageStatus,
   PlayerAttack,
   Maze,
   XarpusPhase,
@@ -12,35 +11,39 @@ import {
   MaidenCrabProperties,
   VerzikCrabProperties,
   NpcAttack,
+  Stage,
 } from './raid-definitions';
 
 export enum EventType {
-  RAID_START = 'RAID_START',
-  RAID_END = 'RAID_END',
-  RAID_UPDATE = 'RAID_UPDATE',
-  ROOM_STATUS = 'ROOM_STATUS',
-  PLAYER_UPDATE = 'PLAYER_UPDATE',
-  PLAYER_ATTACK = 'PLAYER_ATTACK',
-  PLAYER_DEATH = 'PLAYER_DEATH',
-  NPC_SPAWN = 'NPC_SPAWN',
-  NPC_UPDATE = 'NPC_UPDATE',
-  NPC_DEATH = 'NPC_DEATH',
-  NPC_ATTACK = 'NPC_ATTACK',
-  MAIDEN_CRAB_LEAK = 'MAIDEN_CRAB_LEAK',
-  MAIDEN_BLOOD_SPLATS = 'MAIDEN_BLOOD_SPLATS',
-  BLOAT_DOWN = 'BLOAT_DOWN',
-  BLOAT_UP = 'BLOAT_UP',
-  NYLO_WAVE_SPAWN = 'NYLO_WAVE_SPAWN',
-  NYLO_WAVE_STALL = 'NYLO_WAVE_STALL',
-  NYLO_CLEANUP_END = 'NYLO_CLEANUP_END',
-  NYLO_BOSS_SPAWN = 'NYLO_BOSS_SPAWN',
-  SOTE_MAZE_PROC = 'SOTE_MAZE_PROC',
-  SOTE_MAZE_PATH = 'SOTE_MAZE_PATH',
-  XARPUS_PHASE = 'XARPUS_PHASE',
-  VERZIK_PHASE = 'VERZIK_PHASE',
-  VERZIK_REDS_SPAWN = 'VERZIK_REDS_SPAWN',
-  VERZIK_ATTACK_STYLE = 'VERZIK_ATTACK_STYLE',
+  CHALLENGE_START = EventProto.Type.CHALLENGE_START,
+  CHALLENGE_END = EventProto.Type.CHALLENGE_END,
+  CHALLENGE_UPDATE = EventProto.Type.CHALLENGE_UPDATE,
+  STAGE_UPDATE = EventProto.Type.STAGE_UPDATE,
+  PLAYER_UPDATE = EventProto.Type.PLAYER_UPDATE,
+  PLAYER_ATTACK = EventProto.Type.PLAYER_ATTACK,
+  PLAYER_DEATH = EventProto.Type.PLAYER_DEATH,
+  NPC_SPAWN = EventProto.Type.NPC_SPAWN,
+  NPC_UPDATE = EventProto.Type.NPC_UPDATE,
+  NPC_DEATH = EventProto.Type.NPC_DEATH,
+  NPC_ATTACK = EventProto.Type.NPC_ATTACK,
+  TOB_MAIDEN_CRAB_LEAK = EventProto.Type.TOB_MAIDEN_CRAB_LEAK,
+  TOB_MAIDEN_BLOOD_SPLATS = EventProto.Type.TOB_MAIDEN_BLOOD_SPLATS,
+  TOB_BLOAT_DOWN = EventProto.Type.TOB_BLOAT_DOWN,
+  TOB_BLOAT_UP = EventProto.Type.TOB_BLOAT_UP,
+  TOB_NYLO_WAVE_SPAWN = EventProto.Type.TOB_NYLO_WAVE_SPAWN,
+  TOB_NYLO_WAVE_STALL = EventProto.Type.TOB_NYLO_WAVE_STALL,
+  TOB_NYLO_CLEANUP_END = EventProto.Type.TOB_NYLO_CLEANUP_END,
+  TOB_NYLO_BOSS_SPAWN = EventProto.Type.TOB_NYLO_BOSS_SPAWN,
+  TOB_SOTE_MAZE_PROC = EventProto.Type.TOB_SOTE_MAZE_PROC,
+  TOB_SOTE_MAZE_PATH = EventProto.Type.TOB_SOTE_MAZE_PATH,
+  TOB_XARPUS_PHASE = EventProto.Type.TOB_XARPUS_PHASE,
+  TOB_VERZIK_PHASE = EventProto.Type.TOB_VERZIK_PHASE,
+  TOB_VERZIK_ATTACK_STYLE = EventProto.Type.TOB_VERZIK_ATTACK_STYLE,
 }
+
+// Renames:
+// - all enums
+// - bloatStatus -> bloatDown
 
 export const isPlayerEvent = (event: Event): boolean => {
   return (
@@ -51,33 +54,18 @@ export const isPlayerEvent = (event: Event): boolean => {
 };
 
 export interface Event {
+  cId: string;
   type: EventType;
-  raidId?: string;
-  room?: Room;
+  stage: Stage;
   tick: number;
   xCoord: number;
   yCoord: number;
 }
 
-export interface RaidStartEvent extends Event {
-  type: EventType.RAID_START;
-  raidInfo: RaidInfo;
-}
-
-export interface RaidUpdateEvent extends Event {
-  type: EventType.RAID_UPDATE;
-  raidInfo: RaidInfo;
-}
-
-export interface RaidEndEvent extends Event {
-  type: EventType.RAID_END;
-  completedRaid: CompletedRaid;
-}
-
-export interface RoomStatusEvent extends Event {
-  type: EventType.ROOM_STATUS;
-  roomStatus: {
-    status: RoomStatus;
+export interface StageUpdateEvent extends Event {
+  type: EventType.STAGE_UPDATE;
+  stageUpdate: {
+    status: StageStatus;
     accurate: boolean;
   };
 }
@@ -123,62 +111,66 @@ export interface NpcAttackEvent extends Event {
 }
 
 export interface MaidenBloodSplatsEvent extends Event {
-  type: EventType.MAIDEN_BLOOD_SPLATS;
+  type: EventType.TOB_MAIDEN_BLOOD_SPLATS;
   maidenBloodSplats: Coords[];
 }
 
 export interface BloatDownEvent extends Event {
-  type: EventType.BLOAT_DOWN;
-  bloatStatus: BloatStatus;
+  type: EventType.TOB_BLOAT_DOWN;
+  bloatDown: BloatDown;
+  bloatStatus: BloatDown; // TODO: delete
 }
 
 export interface NyloWaveSpawnEvent extends Event {
-  type: EventType.NYLO_WAVE_SPAWN;
+  type: EventType.TOB_NYLO_WAVE_SPAWN;
   nyloWave: NyloWave;
 }
 
 export interface NyloWaveStallEvent extends Event {
-  type: EventType.NYLO_WAVE_SPAWN;
+  type: EventType.TOB_NYLO_WAVE_SPAWN;
   nyloWave: NyloWave;
 }
 
 export interface SoteMazeProcEvent extends Event {
-  type: EventType.NYLO_WAVE_SPAWN;
+  type: EventType.TOB_NYLO_WAVE_SPAWN;
   soteMaze: SoteMaze;
 }
 
 export interface XarpusPhaseEvent extends Event {
-  type: EventType.XARPUS_PHASE;
+  type: EventType.TOB_XARPUS_PHASE;
   xarpusPhase: XarpusPhase;
 }
 
 export interface VerzikPhaseEvent extends Event {
-  type: EventType.VERZIK_PHASE;
-  verzikPhase: VerzikPhase;
-}
-
-export interface VerzikRedsSpawnEvent extends Event {
-  type: EventType.VERZIK_REDS_SPAWN;
+  type: EventType.TOB_VERZIK_PHASE;
   verzikPhase: VerzikPhase;
 }
 
 export interface VerzikAttackStyleEvent extends Event {
-  type: EventType.VERZIK_ATTACK_STYLE;
+  type: EventType.TOB_VERZIK_ATTACK_STYLE;
   verzikAttack: {
     style: VerzikAttackStyle;
     npcAttackTick: number;
   };
 }
 
-export type RaidInfo = {
-  party: string[];
-  mode?: Mode;
-  isSpectator?: boolean;
-};
-
-export type CompletedRaid = {
-  overallTime: number;
-};
+export type MergedEvent = Event &
+  Omit<StageUpdateEvent, 'type'> &
+  Omit<PlayerUpdateEvent, 'type'> &
+  Omit<PlayerAttackEvent, 'type'> &
+  Omit<PlayerDeathEvent, 'type'> &
+  Omit<NpcSpawnEvent, 'type'> &
+  Omit<NpcUpdateEvent, 'type'> &
+  Omit<NpcDeathEvent, 'type'> &
+  Omit<NpcAttackEvent, 'type'> &
+  Omit<MaidenBloodSplatsEvent, 'type'> &
+  Omit<BloatDownEvent, 'type'> &
+  Omit<NyloWaveSpawnEvent, 'type'> &
+  Omit<NyloWaveStallEvent, 'type'> &
+  Omit<SoteMazeProcEvent, 'type'> &
+  Omit<XarpusPhaseEvent, 'type'> &
+  Omit<VerzikPhaseEvent, 'type'> &
+  Omit<VerzikAttackStyleEvent, 'type'>;
 
 export interface BasicPlayer {
   name: string;
@@ -217,7 +209,7 @@ export enum EquipmentSlot {
 }
 
 export type EquipmentMap = {
-  [key in EquipmentSlot]: Item;
+  [key in EquipmentSlot]?: Item;
 };
 
 export interface BasicEventNpc {
@@ -252,7 +244,8 @@ export type Coords = {
   y: number;
 };
 
-export type BloatStatus = {
+export type BloatDown = {
+  downNumber: number;
   walkTime: number;
 };
 
@@ -267,7 +260,7 @@ export type SoteMaze = {
 };
 
 export enum VerzikAttackStyle {
-  MELEE = 'MELEE',
-  RANGE = 'RANGE',
-  MAGE = 'MAGE',
+  MELEE = EventProto.VerzikAttackStyle.Style.MELEE,
+  RANGE = EventProto.VerzikAttackStyle.Style.RANGE,
+  MAGE = EventProto.VerzikAttackStyle.Style.MAGE,
 }

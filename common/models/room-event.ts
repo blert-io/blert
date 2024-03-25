@@ -1,13 +1,15 @@
-import { Schema, model, models } from 'mongoose';
+import { Model, Schema, model, models } from 'mongoose';
+
 import {
   Coords,
   MaidenCrabProperties,
   NyloProperties,
   VerzikCrabProperties,
 } from './raid';
+import { MergedEvent } from '../event';
 
 const SkillLevel = {
-  skill: String,
+  _id: false,
   base: Number,
   current: Number,
 };
@@ -20,7 +22,7 @@ const Item = {
 
 const attackSchema = new Schema(
   {
-    type: String,
+    type: { type: Number, index: true },
     weapon: Item,
     target: {
       id: Number,
@@ -31,10 +33,10 @@ const attackSchema = new Schema(
   { _id: false },
 );
 
-const roomEventSchema = new Schema({
-  raidId: { type: String, index: true },
-  type: { type: String, index: true },
-  room: String,
+const roomEventSchema = new Schema<MergedEvent>({
+  cId: { type: String, index: true },
+  type: { type: Number, index: true },
+  stage: { type: Number, index: true },
   tick: Number,
   xCoord: Number,
   yCoord: Number,
@@ -57,7 +59,7 @@ const roomEventSchema = new Schema({
     offCooldownTick: Number,
   },
   npc: {
-    type: { type: String },
+    type: { type: Number },
     id: Number,
     roomId: Number,
     hitpoints: SkillLevel,
@@ -76,7 +78,7 @@ const roomEventSchema = new Schema({
   },
   attack: attackSchema,
   npcAttack: {
-    attack: String,
+    attack: { type: Number, index: true },
     target: String,
   },
   maidenBloodSplats: {
@@ -86,21 +88,25 @@ const roomEventSchema = new Schema({
   bloatStatus: {
     walkTime: Number,
   },
+  bloatDown: {
+    downNumber: Number,
+    walkTime: Number,
+  },
   nyloWave: {
     wave: Number,
     nylosAlive: Number,
     roomCap: Number,
   },
   soteMaze: {
-    maze: String,
+    maze: Number,
   },
-  xarpusPhase: String,
-  verzikPhase: String,
+  xarpusPhase: Number,
+  verzikPhase: Number,
   verzikAttack: {
-    style: String,
+    style: Number,
     npcAttackTick: Number,
   },
 });
 
-export const RoomEvent =
+export const RoomEvent: Model<MergedEvent> =
   models?.RoomEvent ?? model('RoomEvent', roomEventSchema);

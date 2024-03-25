@@ -1,72 +1,70 @@
-import { Mode, RaidStatus } from '@blert/common';
+import { ChallengeMode, ChallengeStatus, Stage } from '@blert/common';
 import TimeAgo from 'react-timeago';
 
 import { ticksToFormattedSeconds } from '../../utils/tick';
 
 import styles from './style.module.scss';
 
-const completionToColor = (raidStatus: RaidStatus) => {
-  switch (raidStatus) {
-    case RaidStatus.COMPLETED:
-      return '#73AD70';
-    case RaidStatus.MAIDEN_WIPE:
-    case RaidStatus.BLOAT_WIPE:
-    case RaidStatus.NYLO_WIPE:
-    case RaidStatus.SOTE_WIPE:
-    case RaidStatus.XARPUS_WIPE:
-    case RaidStatus.VERZIK_WIPE:
-      return '#B30000';
-    case RaidStatus.MAIDEN_RESET:
-    case RaidStatus.BLOAT_RESET:
-    case RaidStatus.NYLO_RESET:
-    case RaidStatus.SOTE_RESET:
-    case RaidStatus.XARPUS_RESET:
-      return '#B9BBB6';
-    default:
-      return '#FFFFFF';
-  }
-};
-
-const raidDifficultyToColor = (difficulty: Mode | null) => {
+const raidDifficultyNameAndColor = (difficulty: ChallengeMode) => {
   switch (difficulty) {
-    case Mode.REGULAR:
-      return '#FFD700';
-    case Mode.HARD:
-      return '#D100CC';
-    case Mode.ENTRY:
-      return '#B9BBB6';
+    case ChallengeMode.TOB_REGULAR:
+      return ['Regular', '#FFD700'];
+    case ChallengeMode.TOB_HARD:
+      return ['Hard', '#D100CC'];
+    case ChallengeMode.TOB_ENTRY:
+      return ['Entry', '#B9BBB6'];
     default:
-      return '#FFD700';
+      return ['Unknown', '#FFD700'];
   }
 };
 
-export const raidStatusToFriendlyRaidStatus = (status: RaidStatus) => {
-  if (status === RaidStatus.COMPLETED) {
-    return 'Completion';
+export const raidStatusNameAndColor = (
+  status: ChallengeStatus,
+  stage: Stage,
+) => {
+  if (status === ChallengeStatus.IN_PROGRESS) {
+    return ['In Progress', '#FFFFFF'];
+  }
+  if (status === ChallengeStatus.COMPLETED) {
+    return ['Completion', '#73AD70'];
   }
 
-  const split = status.split('_');
-  const boss = split[0].charAt(0) + split[0].slice(1).toLowerCase();
-  const action = split[1].charAt(0) + split[1].slice(1).toLowerCase();
-  return `${boss} ${action}`;
+  let boss = 'Unknown';
+
+  switch (stage) {
+    case Stage.TOB_MAIDEN:
+      boss = 'Maiden';
+      break;
+    case Stage.TOB_BLOAT:
+      boss = 'Bloat';
+      break;
+    case Stage.TOB_NYLOCAS:
+      boss = 'Nylocas';
+      break;
+    case Stage.TOB_SOTETSEG:
+      boss = 'Sotetseg';
+      break;
+    case Stage.TOB_XARPUS:
+      boss = 'Xarpus';
+      break;
+    case Stage.TOB_VERZIK:
+      boss = 'Verzik';
+      break;
+  }
+
+  if (status === ChallengeStatus.RESET) {
+    return [`${boss} Reset`, '#B9BBB6'];
+  }
+  return [`${boss} Wipe`, '#B30000'];
 };
 
-const getIconForStatus = (status: RaidStatus) => {
+const getIconForStatus = (status: ChallengeStatus) => {
   switch (status) {
-    case RaidStatus.COMPLETED:
+    case ChallengeStatus.COMPLETED:
       return <i className="fa-solid fa-check" style={{ fontSize: '21px' }}></i>;
-    case RaidStatus.MAIDEN_WIPE:
-    case RaidStatus.BLOAT_WIPE:
-    case RaidStatus.NYLO_WIPE:
-    case RaidStatus.SOTE_WIPE:
-    case RaidStatus.XARPUS_WIPE:
-    case RaidStatus.VERZIK_WIPE:
+    case ChallengeStatus.WIPED:
       return <i className="fa-solid fa-x" style={{ fontSize: '21px' }}></i>;
-    case RaidStatus.MAIDEN_RESET:
-    case RaidStatus.BLOAT_RESET:
-    case RaidStatus.NYLO_RESET:
-    case RaidStatus.SOTE_RESET:
-    case RaidStatus.XARPUS_RESET:
+    case ChallengeStatus.RESET:
       return (
         <i
           className="fa-solid fa-undo"
@@ -83,8 +81,9 @@ const getIconForStatus = (status: RaidStatus) => {
 };
 
 interface RaidQuickDetailsProps {
-  raidStatus: RaidStatus;
-  raidDifficulty: Mode | null;
+  stage: Stage;
+  raidStatus: ChallengeStatus;
+  raidDifficulty: ChallengeMode;
   totalRaidTicks: number;
   deaths: number;
   partySize: number;
@@ -94,6 +93,7 @@ interface RaidQuickDetailsProps {
 
 export function RaidQuickDetails(props: RaidQuickDetailsProps) {
   const {
+    stage,
     raidStatus,
     raidDifficulty,
     totalRaidTicks,
@@ -103,15 +103,9 @@ export function RaidQuickDetails(props: RaidQuickDetailsProps) {
     compactView,
   } = props;
 
-  const statusString = raidStatusToFriendlyRaidStatus(raidStatus);
-
-  const modeString =
-    raidDifficulty !== null
-      ? raidDifficulty.charAt(0) + raidDifficulty.slice(1).toLowerCase()
-      : 'Unknown';
-
+  const [statusString, statusColor] = raidStatusNameAndColor(raidStatus, stage);
+  const [modeString, modeColor] = raidDifficultyNameAndColor(raidDifficulty);
   const iconForStatus = getIconForStatus(raidStatus);
-
   const ticks = ticksToFormattedSeconds(totalRaidTicks);
 
   return (
@@ -120,9 +114,7 @@ export function RaidQuickDetails(props: RaidQuickDetailsProps) {
     >
       <div
         className={styles.raid__bulletpointDetail}
-        style={{
-          color: raidDifficultyToColor(raidDifficulty),
-        }}
+        style={{ color: modeColor }}
       >
         <i
           className="fa-solid fa-trophy"
@@ -132,9 +124,7 @@ export function RaidQuickDetails(props: RaidQuickDetailsProps) {
       </div>
       <div
         className={styles.raid__bulletpointDetail}
-        style={{
-          color: completionToColor(raidStatus),
-        }}
+        style={{ color: statusColor }}
       >
         {iconForStatus}
 

@@ -1,14 +1,7 @@
 import {
-  Event,
-  EventType,
-  Mode,
-  RaidEndEvent,
-  RaidStartEvent,
-  RaidUpdateEvent,
-} from '@blert/common';
-import {
-  ChallengeMode,
   ChallengeModeMap,
+  Event,
+  StageMap,
 } from '@blert/common/generated/event_pb';
 import { ServerMessage } from '@blert/common/generated/server_message_pb';
 
@@ -17,6 +10,8 @@ import RaidManager from './raid-manager';
 import { Users } from './users';
 
 type EventSink = (event: Event) => Promise<void>;
+
+type Proto<E> = E[keyof E];
 
 /**
  * An event aggregator collects events coming from different sources and merges
@@ -33,22 +28,6 @@ class EventAggregator {
     // TODO(frolv): Just send directly to the sink for now.
     await this.sink(event);
   }
-}
-
-// TODO(frolv): Replace this when enums are updated in the database.
-function stringModeToProtoMode(
-  mode: Mode,
-): ChallengeModeMap[keyof ChallengeModeMap] {
-  switch (mode) {
-    case Mode.ENTRY:
-      return ChallengeMode.TOB_ENTRY;
-    case Mode.REGULAR:
-      return ChallengeMode.TOB_REGULAR;
-    case Mode.HARD:
-      return ChallengeMode.TOB_HARD;
-  }
-
-  return ChallengeMode.UNKNOWN_MODE;
 }
 
 export default class MessageHandler {
@@ -80,8 +59,11 @@ export default class MessageHandler {
           history.map((raid) => {
             const pastRaid = new ServerMessage.PastChallenge();
             pastRaid.setId(raid.id);
-            pastRaid.setStatus(raid.status);
-            pastRaid.setMode(stringModeToProtoMode(raid.mode));
+            pastRaid.setStatus(
+              raid.status as Proto<ServerMessage.PastChallenge.StatusMap>,
+            );
+            pastRaid.setStage(raid.stage as Proto<StageMap>);
+            pastRaid.setMode(raid.mode as Proto<ChallengeModeMap>);
             pastRaid.setPartyList(raid.party);
             return pastRaid;
           }),
@@ -91,10 +73,12 @@ export default class MessageHandler {
         break;
 
       case ServerMessage.Type.EVENT_STREAM:
-        const events = JSON.parse(message.getSerializedRaidEvents());
-        for (const event of events) {
+        const events = message
+          .getChallengeEventsList()
+          .sort((a, b) => a.getTick() - b.getTick());
+        events.forEach(async (event) => {
           await this.handleRaidEvent(client, event);
-        }
+        });
         break;
 
       default:
@@ -104,16 +88,15 @@ export default class MessageHandler {
   }
 
   public async handleRaidEvent(client: Client, event: Event): Promise<void> {
-    switch (event.type) {
-      case EventType.RAID_START:
-        const raidStartEvent = event as RaidStartEvent;
-
+    switch (event.getType()) {
+      case Event.Type.CHALLENGE_START:
         const response = new ServerMessage();
 
-        const partySize = raidStartEvent.raidInfo.party.length;
+        const challengeInfo = event.getChallengeInfo()!;
+        const partySize = challengeInfo.getPartyList().length;
         if (partySize === 0 || partySize > 5) {
           console.error(
-            `Received ${event.type} event for raid with invalid party size: ${partySize}`,
+            `Received CHALLENGE_START event for with invalid party size: ${partySize}`,
           );
 
           // TODO(frolv): Use a proper error type instead of an empty ID.
@@ -124,9 +107,9 @@ export default class MessageHandler {
 
         const raidId = await this.raidManager.startOrJoinRaid(
           client,
-          raidStartEvent.raidInfo.mode || null,
-          raidStartEvent.raidInfo.party,
-          raidStartEvent.raidInfo.isSpectator ?? false,
+          challengeInfo.getMode(),
+          challengeInfo.getPartyList(),
+          challengeInfo.getSpectator(),
         );
 
         this.eventAggregators[raidId] = new EventAggregator(async (evt) => {
@@ -141,49 +124,62 @@ export default class MessageHandler {
         client.sendMessage(response);
         break;
 
-      case EventType.RAID_END:
-        if (event.raidId) {
-          const completedRaid = (event as RaidEndEvent).completedRaid;
-          // TODO(frolv): Handle this elsewhere..
-          if (completedRaid.overallTime !== -1) {
-            const raid = this.raidManager.getRaid(event.raidId);
+      case Event.Type.CHALLENGE_END:
+        if (event.getChallengeId() !== '') {
+          const challenge = event.getCompletedChallenge()!;
+          // TODO(frolv): Handle this elsewhere...
+          if (challenge.getOverallTimeTicks() !== -1) {
+            const raid = this.raidManager.getRaid(event.getChallengeId());
             if (raid) {
-              raid.setOverallTime(completedRaid.overallTime);
+              raid.setOverallTime(challenge.getOverallTimeTicks());
             }
           }
 
-          this.raidManager.leaveRaid(client, event.raidId);
+          this.raidManager.leaveRaid(client, event.getChallengeId());
 
           // TODO(frolv): This deletion should only occur when the raid is
           // actually finished, but we only have one active client right now.
-          delete this.eventAggregators[event.raidId];
+          delete this.eventAggregators[event.getChallengeId()];
         }
         break;
 
-      case EventType.RAID_UPDATE:
-        const raidUpdateEvent = event as RaidUpdateEvent;
-        if (raidUpdateEvent.raidId && raidUpdateEvent.raidInfo.mode) {
-          const raid = this.raidManager.getRaid(raidUpdateEvent.raidId);
+      case Event.Type.CHALLENGE_UPDATE:
+        if (
+          event.getChallengeId() !== '' &&
+          event.getChallengeInfo()?.getMode()
+        ) {
+          const raid = this.raidManager.getRaid(event.getChallengeId());
           if (raid) {
-            await raid.setMode(raidUpdateEvent.raidInfo.mode);
+            await raid.setMode(event.getChallengeInfo()!.getMode());
           } else {
             console.error(
-              `Received ${event.type} event for nonexistent raid ${event.raidId}`,
+              'Received CHALLENGE_UPDATE event for nonexistent raid',
+              event.getChallengeId(),
             );
           }
         }
         break;
 
       default:
-        if (!event.raidId) {
+        if (event.getChallengeId() == '') {
           return;
         }
 
-        const aggregator = this.eventAggregators[event.raidId];
+        if (event.getChallengeId() !== client.getActiveRaid()?.getId()) {
+          console.error(
+            `Client ${client.getSessionId()} sent event for challenge ` +
+              `${event.getChallengeId()}, but is not in it.`,
+          );
+          return;
+        }
+
+        const aggregator = this.eventAggregators[event.getChallengeId()];
         if (aggregator) {
           await aggregator.process(event);
         } else {
-          console.error(`Received event for unknown raid ${event.raidId}`);
+          console.error(
+            `No aggregator for challenge ${event.getChallengeId()}`,
+          );
         }
     }
   }

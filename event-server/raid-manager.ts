@@ -1,8 +1,8 @@
+import { ChallengeMode } from '@blert/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import Client from './client';
 import Raid, { raidPartyKey } from './raid';
-import { Mode } from '@blert/common';
 
 export default class RaidManager {
   private raidsById: { [id: string]: Raid };
@@ -33,7 +33,7 @@ export default class RaidManager {
    */
   public async startOrJoinRaid(
     client: Client,
-    mode: Mode | null,
+    mode: ChallengeMode,
     partyMembers: string[],
     spectator: boolean,
   ): Promise<string> {

@@ -1,24 +1,32 @@
 import { Coords } from './event';
+import {
+  Event as EventProto,
+  ChallengeMode as ChallengeModeProto,
+  PlayerAttack as PlayerAttackProto,
+  NpcAttack as NpcAttackProto,
+  Stage as StageProto,
+} from './generated/event_pb';
 
 export type Raid = {
   _id: string;
-  status: RaidStatus;
-  mode: Mode;
+  status: ChallengeStatus;
+  stage: Stage;
+  mode: ChallengeMode;
   startTime: Date;
   party: string[];
   partyInfo: PlayerInfo[];
-  totalRoomTicks: number;
+  totalTicks: number;
   totalDeaths: number;
   rooms: Rooms;
 };
 
 export type Rooms = {
-  [Room.MAIDEN]: MaidenOverview | null;
-  [Room.BLOAT]: BloatOverview | null;
-  [Room.NYLOCAS]: NyloOverview | null;
-  [Room.SOTETSEG]: SoteOverview | null;
-  [Room.XARPUS]: XarpusOverview | null;
-  [Room.VERZIK]: VerzikOverview | null;
+  maiden: MaidenOverview | null;
+  bloat: BloatOverview | null;
+  nylocas: NyloOverview | null;
+  sotetseg: SoteOverview | null;
+  xarpus: XarpusOverview | null;
+  verzik: VerzikOverview | null;
 };
 
 export type RoomNpcMap = { [roomId: number]: RoomNpc };
@@ -57,7 +65,9 @@ export interface VerzikOverview extends RoomOverview {
 }
 
 export type MaidenSplits = {
-  [spawn in MaidenCrabSpawn]: number;
+  SEVENTIES: number;
+  FIFTIES: number;
+  THIRTIES: number;
 };
 
 export type BloatSplits = {
@@ -72,7 +82,8 @@ export type NyloSplits = {
 };
 
 export type SoteSplits = {
-  [maze in Maze]: number;
+  MAZE_66: number;
+  MAZE_33: number;
 };
 
 export type XarpusSplits = {
@@ -86,49 +97,81 @@ export type VerzikSplits = {
   p2: number;
 };
 
-export enum Room {
-  MAIDEN = 'MAIDEN',
-  BLOAT = 'BLOAT',
-  NYLOCAS = 'NYLOCAS',
-  SOTETSEG = 'SOTETSEG',
-  XARPUS = 'XARPUS',
-  VERZIK = 'VERZIK',
+export enum ChallengeStatus {
+  IN_PROGRESS = 0,
+  COMPLETED = 1,
+  RESET = 2,
+  WIPED = 3,
 }
 
-export enum Mode {
-  ENTRY = 'ENTRY',
-  REGULAR = 'REGULAR',
-  HARD = 'HARD',
+export enum Stage {
+  UNKNOWN = StageProto.UNKNOWN_STAGE,
+
+  TOB_MAIDEN = StageProto.TOB_MAIDEN,
+  TOB_BLOAT = StageProto.TOB_BLOAT,
+  TOB_NYLOCAS = StageProto.TOB_NYLOCAS,
+  TOB_SOTETSEG = StageProto.TOB_SOTETSEG,
+  TOB_XARPUS = StageProto.TOB_XARPUS,
+  TOB_VERZIK = StageProto.TOB_VERZIK,
+
+  COX_TEKTON = StageProto.COX_TEKTON,
+  COX_CRABS = StageProto.COX_CRABS,
+  COX_ICE_DEMON = StageProto.COX_ICE_DEMON,
+  COX_SHAMANS = StageProto.COX_SHAMANS,
+  COX_VANGUARDS = StageProto.COX_VANGUARDS,
+  COX_THIEVING = StageProto.COX_THIEVING,
+  COX_VESPULA = StageProto.COX_VESPULA,
+  COX_TIGHTROPE = StageProto.COX_TIGHTROPE,
+  COX_GUARDIANS = StageProto.COX_GUARDIANS,
+  COX_VASA = StageProto.COX_VASA,
+  COX_MYSTICS = StageProto.COX_MYSTICS,
+  COX_MUTTADILE = StageProto.COX_MUTTADILE,
+  COX_OLM = StageProto.COX_OLM,
+
+  TOA_APMEKEN = StageProto.TOA_APMEKEN,
+  TOA_BABA = StageProto.TOA_BABA,
+  TOA_SCABARAS = StageProto.TOA_SCABARAS,
+  TOA_KEPHRI = StageProto.TOA_KEPHRI,
+  TOA_HET = StageProto.TOA_HET,
+  TOA_AKKHA = StageProto.TOA_AKKHA,
+  TOA_CRONDIS = StageProto.TOA_CRONDIS,
+  TOA_ZEBAK = StageProto.TOA_ZEBAK,
+  TOA_WARDENS = StageProto.TOA_WARDENS,
+
+  COLOSSEUM_WAVE_1 = StageProto.COLOSSEUM_WAVE_1,
+  COLOSSEUM_WAVE_2 = StageProto.COLOSSEUM_WAVE_2,
+  COLOSSEUM_WAVE_3 = StageProto.COLOSSEUM_WAVE_3,
+  COLOSSEUM_WAVE_4 = StageProto.COLOSSEUM_WAVE_4,
+  COLOSSEUM_WAVE_5 = StageProto.COLOSSEUM_WAVE_5,
+  COLOSSEUM_WAVE_6 = StageProto.COLOSSEUM_WAVE_6,
+  COLOSSEUM_WAVE_7 = StageProto.COLOSSEUM_WAVE_7,
+  COLOSSEUM_WAVE_8 = StageProto.COLOSSEUM_WAVE_8,
+  COLOSSEUM_WAVE_9 = StageProto.COLOSSEUM_WAVE_9,
+  COLOSSEUM_WAVE_10 = StageProto.COLOSSEUM_WAVE_10,
+  COLOSSEUM_WAVE_11 = StageProto.COLOSSEUM_WAVE_11,
+  COLOSSEUM_WAVE_12 = StageProto.COLOSSEUM_WAVE_12,
 }
 
-export enum RaidStatus {
-  IN_PROGRESS = 'IN_PROGRESS',
-  COMPLETED = 'COMPLETED',
-  MAIDEN_RESET = 'MAIDEN_RESET',
-  MAIDEN_WIPE = 'MAIDEN_WIPE',
-  BLOAT_RESET = 'BLOAT_RESET',
-  BLOAT_WIPE = 'BLOAT_WIPE',
-  NYLO_RESET = 'NYLO_RESET',
-  NYLO_WIPE = 'NYLO_WIPE',
-  SOTE_RESET = 'SOTE_RESET',
-  SOTE_WIPE = 'SOTE_WIPE',
-  XARPUS_RESET = 'XARPUS_RESET',
-  XARPUS_WIPE = 'XARPUS_WIPE',
-  VERZIK_WIPE = 'VERZIK_WIPE',
+export enum ChallengeMode {
+  NO_MODE = ChallengeModeProto.NO_MODE,
+
+  TOB_ENTRY = ChallengeModeProto.TOB_ENTRY,
+  TOB_REGULAR = ChallengeModeProto.TOB_REGULAR,
+  TOB_HARD = ChallengeModeProto.TOB_HARD,
 }
 
-export enum RoomStatus {
-  ENTERED = 'ENTERED',
-  STARTED = 'STARTED',
-  COMPLETED = 'COMPLETED',
-  WIPED = 'WIPED',
+export enum StageStatus {
+  ENTERED = EventProto.StageUpdate.Status.ENTERED,
+  STARTED = EventProto.StageUpdate.Status.STARTED,
+  COMPLETED = EventProto.StageUpdate.Status.COMPLETED,
+  WIPED = EventProto.StageUpdate.Status.WIPED,
 }
 
 export enum RoomNpcType {
-  BASIC = 'BASIC',
-  MAIDEN_CRAB = 'MAIDEN_CRAB',
-  NYLO = 'NYLO',
-  VERZIK_CRAB = 'VERZIK_CRAB',
+  BASIC = 0,
+  MAIDEN_CRAB = 1,
+  NYLO = 2,
+  VERZIK_CRAB = 3,
 }
 
 export interface RoomNpc {
@@ -181,6 +224,9 @@ export type NyloProperties = {
   /** Wave on which the nylo spawned. */
   wave: number;
 
+  /** Whether the nylo is a big. */
+  big: boolean;
+
   /** Attack style of the nylo when it spawned. */
   style: NyloStyle;
 
@@ -204,152 +250,153 @@ export enum Skill {
 }
 
 export type SkillLevel = {
-  skill: Skill;
   current: number;
   base: number;
 };
 
 export enum PlayerAttack {
-  BGS_SMACK = 'BGS_SMACK',
-  BGS_SPEC = 'BGS_SPEC',
-  BLOWPIPE = 'BLOWPIPE',
-  BOWFA = 'BOWFA',
-  CHALLY_SPEC = 'CHALLY_SPEC',
-  CHALLY_SWIPE = 'CHALLY_SWIPE',
-  CHIN_BLACK = 'CHIN_BLACK',
-  CHIN_GREY = 'CHIN_GREY',
-  CHIN_RED = 'CHIN_RED',
-  CLAW_SCRATCH = 'CLAW_SCRATCH',
-  CLAW_SPEC = 'CLAW_SPEC',
-  DAWN_SPEC = 'DAWN_SPEC',
-  DINHS_SPEC = 'DINHS_SPEC',
-  FANG = 'FANG',
-  HAMMER_BOP = 'HAMMER_BOP',
-  HAMMER_SPEC = 'HAMMER_SPEC',
-  HAM_JOINT = 'HAM_JOINT',
-  KODAI_BARRAGE = 'KODAI_BARRAGE',
-  KODAI_BASH = 'KODAI_BASH',
-  RAPIER = 'RAPIER',
-  SAELDOR = 'SAELDOR',
-  SANG = 'SANG',
-  SANG_BARRAGE = 'SANG_BARRAGE',
-  SCEPTRE_BARRAGE = 'SCEPTRE_BARRAGE',
-  SCYTHE = 'SCYTHE',
-  SCYTHE_UNCHARGED = 'SCYTHE_UNCHARGED',
-  SHADOW = 'SHADOW',
-  SHADOW_BARRAGE = 'SHADOW_BARRAGE',
-  SOTD_BARRAGE = 'SOTD_BARRAGE',
-  SOULREAPER_AXE = 'SOULREAPER_AXE',
-  STAFF_OF_LIGHT_BARRAGE = 'STAFF_OF_LIGHT_BARRAGE',
-  STAFF_OF_LIGHT_SWIPE = 'STAFF_OF_LIGHT_SWIPE',
-  SWIFT = 'SWIFT',
-  TENT_WHIP = 'TENT_WHIP',
-  TOXIC_TRIDENT = 'TOXIC_TRIDENT',
-  TOXIC_TRIDENT_BARRAGE = 'TOXIC_TRIDENT_BARRAGE',
-  TOXIC_STAFF_BARRAGE = 'TOXIC_STAFF_BARRAGE',
-  TOXIC_STAFF_SWIPE = 'TOXIC_STAFF_SWIPE',
-  TRIDENT = 'TRIDENT',
-  TRIDENT_BARRAGE = 'TRIDENT_BARRAGE',
-  TWISTED_BOW = 'TWISTED_BOW',
-  VOLATILE_NM_BARRAGE = 'VOLATILE_NM_BARRAGE',
-  ZCB = 'ZCB',
+  BGS_SMACK = PlayerAttackProto.BGS_SMACK,
+  BGS_SPEC = PlayerAttackProto.BGS_SPEC,
+  BLOWPIPE = PlayerAttackProto.BLOWPIPE,
+  BOWFA = PlayerAttackProto.BOWFA,
+  CHALLY_SPEC = PlayerAttackProto.CHALLY_SPEC,
+  CHALLY_SWIPE = PlayerAttackProto.CHALLY_SWIPE,
+  CHIN_BLACK = PlayerAttackProto.CHIN_BLACK,
+  CHIN_GREY = PlayerAttackProto.CHIN_GREY,
+  CHIN_RED = PlayerAttackProto.CHIN_RED,
+  CLAW_SCRATCH = PlayerAttackProto.CLAW_SCRATCH,
+  CLAW_SPEC = PlayerAttackProto.CLAW_SPEC,
+  DAWN_SPEC = PlayerAttackProto.DAWN_SPEC,
+  DINHS_SPEC = PlayerAttackProto.DINHS_SPEC,
+  FANG_STAB = PlayerAttackProto.FANG_STAB,
+  HAMMER_BOP = PlayerAttackProto.HAMMER_BOP,
+  HAMMER_SPEC = PlayerAttackProto.HAMMER_SPEC,
+  HAM_JOINT = PlayerAttackProto.HAM_JOINT,
+  KODAI_BARRAGE = PlayerAttackProto.KODAI_BARRAGE,
+  KODAI_BASH = PlayerAttackProto.KODAI_BASH,
+  RAPIER = PlayerAttackProto.RAPIER,
+  SAELDOR = PlayerAttackProto.SAELDOR,
+  SANG = PlayerAttackProto.SANG,
+  SANG_BARRAGE = PlayerAttackProto.SANG_BARRAGE,
+  SCEPTRE_BARRAGE = PlayerAttackProto.SCEPTRE_BARRAGE,
+  SCYTHE = PlayerAttackProto.SCYTHE,
+  SCYTHE_UNCHARGED = PlayerAttackProto.SCYTHE_UNCHARGED,
+  SHADOW = PlayerAttackProto.SHADOW,
+  SHADOW_BARRAGE = PlayerAttackProto.SHADOW_BARRAGE,
+  SOTD_BARRAGE = PlayerAttackProto.SOTD_BARRAGE,
+  SOULREAPER_AXE = PlayerAttackProto.SOULREAPER_AXE,
+  STAFF_OF_LIGHT_BARRAGE = PlayerAttackProto.STAFF_OF_LIGHT_BARRAGE,
+  STAFF_OF_LIGHT_SWIPE = PlayerAttackProto.STAFF_OF_LIGHT_SWIPE,
+  SWIFT_BLADE = PlayerAttackProto.SWIFT_BLADE,
+  TENT_WHIP = PlayerAttackProto.TENT_WHIP,
+  TOXIC_TRIDENT = PlayerAttackProto.TOXIC_TRIDENT,
+  TOXIC_TRIDENT_BARRAGE = PlayerAttackProto.TOXIC_TRIDENT_BARRAGE,
+  TOXIC_STAFF_BARRAGE = PlayerAttackProto.TOXIC_STAFF_BARRAGE,
+  TOXIC_STAFF_SWIPE = PlayerAttackProto.TOXIC_STAFF_SWIPE,
+  TRIDENT = PlayerAttackProto.TRIDENT,
+  TRIDENT_BARRAGE = PlayerAttackProto.TRIDENT_BARRAGE,
+  TWISTED_BOW = PlayerAttackProto.TWISTED_BOW,
+  VOLATILE_NM_BARRAGE = PlayerAttackProto.VOLATILE_NM_BARRAGE,
+  ZCB_SPEC = PlayerAttackProto.ZCB_SPEC,
 
-  UNKNOWN_BARRAGE = 'UNKNOWN_BARRAGE',
-  UNKNOWN_BOW = 'UNKNOWN_BOW',
-  UNKNOWN_POWERED_STAFF = 'UNKNOWN_POWERED_STAFF',
-  UNKNOWN = 'UNKNOWN',
+  UNKNOWN_BARRAGE = PlayerAttackProto.UNKNOWN_BARRAGE,
+  UNKNOWN_BOW = PlayerAttackProto.UNKNOWN_BOW,
+  UNKNOWN_POWERED_STAFF = PlayerAttackProto.UNKNOWN_POWERED_STAFF,
+  UNKNOWN = PlayerAttackProto.UNKNOWN,
 }
 
 export enum NpcAttack {
-  MAIDEN_AUTO = 'MAIDEN_AUTO',
-  MAIDEN_BLOOD_THROW = 'MAIDEN_BLOOD_THROW',
-  BLOAT_STOMP = 'BLOAT_STOMP',
-  NYLO_BOSS_MELEE = 'NYLO_BOSS_MELEE',
-  NYLO_BOSS_RANGE = 'NYLO_BOSS_RANGE',
-  NYLO_BOSS_MAGE = 'NYLO_BOSS_MAGE',
-  SOTE_MELEE = 'SOTE_MELEE',
-  SOTE_BALL = 'SOTE_BALL',
-  SOTE_DEATH_BALL = 'SOTE_DEATH_BALL',
-  XARPUS_SPIT = 'XARPUS_SPIT',
-  XARPUS_TURN = 'XARPUS_TURN',
-  VERZIK_P1_AUTO = 'VERZIK_P1_AUTO',
-  VERZIK_P2_BOUNCE = 'VERZIK_P2_BOUNCE',
-  VERZIK_P2_CABBAGE = 'VERZIK_P2_CABBAGE',
-  VERZIK_P2_ZAP = 'VERZIK_P2_ZAP',
-  VERZIK_P2_PURPLE = 'VERZIK_P2_PURPLE',
-  VERZIK_P2_MAGE = 'VERZIK_P2_MAGE',
-  VERZIK_P3_AUTO = 'VERZIK_P3_AUTO',
-  VERZIK_P3_MELEE = 'VERZIK_P3_MELEE',
-  VERZIK_P3_RANGE = 'VERZIK_P3_RANGE',
-  VERZIK_P3_MAGE = 'VERZIK_P3_MAGE',
-  VERZIK_P3_WEBS = 'VERZIK_P3_WEBS',
-  VERZIK_P3_YELLOWS = 'VERZIK_P3_YELLOWS',
-  VERZIK_P3_BALL = 'VERZIK_P3_BALL',
+  UNKNOWN = NpcAttackProto.UNKNOWN_NPC_ATTACK,
+
+  TOB_MAIDEN_AUTO = NpcAttackProto.TOB_MAIDEN_AUTO,
+  TOB_MAIDEN_BLOOD_THROW = NpcAttackProto.TOB_MAIDEN_BLOOD_THROW,
+  TOB_BLOAT_STOMP = NpcAttackProto.TOB_BLOAT_STOMP,
+  TOB_NYLO_BOSS_MELEE = NpcAttackProto.TOB_NYLO_BOSS_MELEE,
+  TOB_NYLO_BOSS_RANGE = NpcAttackProto.TOB_NYLO_BOSS_RANGE,
+  TOB_NYLO_BOSS_MAGE = NpcAttackProto.TOB_NYLO_BOSS_MAGE,
+  TOB_SOTE_MELEE = NpcAttackProto.TOB_SOTE_MELEE,
+  TOB_SOTE_BALL = NpcAttackProto.TOB_SOTE_BALL,
+  TOB_SOTE_DEATH_BALL = NpcAttackProto.TOB_SOTE_DEATH_BALL,
+  TOB_XARPUS_SPIT = NpcAttackProto.TOB_XARPUS_SPIT,
+  TOB_XARPUS_TURN = NpcAttackProto.TOB_XARPUS_TURN,
+  TOB_VERZIK_P1_AUTO = NpcAttackProto.TOB_VERZIK_P1_AUTO,
+  TOB_VERZIK_P2_BOUNCE = NpcAttackProto.TOB_VERZIK_P2_BOUNCE,
+  TOB_VERZIK_P2_CABBAGE = NpcAttackProto.TOB_VERZIK_P2_CABBAGE,
+  TOB_VERZIK_P2_ZAP = NpcAttackProto.TOB_VERZIK_P2_ZAP,
+  TOB_VERZIK_P2_PURPLE = NpcAttackProto.TOB_VERZIK_P2_PURPLE,
+  TOB_VERZIK_P2_MAGE = NpcAttackProto.TOB_VERZIK_P2_MAGE,
+  TOB_VERZIK_P3_AUTO = NpcAttackProto.TOB_VERZIK_P3_AUTO,
+  TOB_VERZIK_P3_MELEE = NpcAttackProto.TOB_VERZIK_P3_MELEE,
+  TOB_VERZIK_P3_RANGE = NpcAttackProto.TOB_VERZIK_P3_RANGE,
+  TOB_VERZIK_P3_MAGE = NpcAttackProto.TOB_VERZIK_P3_MAGE,
+  TOB_VERZIK_P3_WEBS = NpcAttackProto.TOB_VERZIK_P3_WEBS,
+  TOB_VERZIK_P3_YELLOWS = NpcAttackProto.TOB_VERZIK_P3_YELLOWS,
+  TOB_VERZIK_P3_BALL = NpcAttackProto.TOB_VERZIK_P3_BALL,
 }
 
 export enum MaidenCrabSpawn {
-  SEVENTIES = 'SEVENTIES',
-  FIFTIES = 'FIFTIES',
-  THIRTIES = 'THIRTIES',
+  SEVENTIES = EventProto.Npc.MaidenCrab.Spawn.SEVENTIES,
+  FIFTIES = EventProto.Npc.MaidenCrab.Spawn.FIFTIES,
+  THIRTIES = EventProto.Npc.MaidenCrab.Spawn.THIRTIES,
 }
 
 export enum MaidenCrabPosition {
-  N1 = 'N1',
-  N2 = 'N2',
-  N3 = 'N3',
-  N4_INNER = 'N4_INNER',
-  N4_OUTER = 'N4_OUTER',
-  S1 = 'S1',
-  S2 = 'S2',
-  S3 = 'S3',
-  S4_INNER = 'S4_INNER',
-  S4_OUTER = 'S4_OUTER',
+  N1 = EventProto.Npc.MaidenCrab.Position.N1,
+  N2 = EventProto.Npc.MaidenCrab.Position.N2,
+  N3 = EventProto.Npc.MaidenCrab.Position.N3,
+  N4_INNER = EventProto.Npc.MaidenCrab.Position.N4_INNER,
+  N4_OUTER = EventProto.Npc.MaidenCrab.Position.N4_OUTER,
+  S1 = EventProto.Npc.MaidenCrab.Position.S1,
+  S2 = EventProto.Npc.MaidenCrab.Position.S2,
+  S3 = EventProto.Npc.MaidenCrab.Position.S3,
+  S4_INNER = EventProto.Npc.MaidenCrab.Position.S4_INNER,
+  S4_OUTER = EventProto.Npc.MaidenCrab.Position.S4_OUTER,
 }
 
 export enum NyloStyle {
-  MELEE = 'MELEE',
-  RANGE = 'RANGE',
-  MAGE = 'MAGE',
+  MELEE = EventProto.Npc.Nylo.Style.MELEE,
+  RANGE = EventProto.Npc.Nylo.Style.RANGE,
+  MAGE = EventProto.Npc.Nylo.Style.MAGE,
 }
 
 export enum NyloSpawn {
-  EAST = 'EAST',
-  SOUTH = 'SOUTH',
-  WEST = 'WEST',
-  SPLIT = 'SPLIT',
+  EAST = EventProto.Npc.Nylo.SpawnType.EAST,
+  SOUTH = EventProto.Npc.Nylo.SpawnType.SOUTH,
+  WEST = EventProto.Npc.Nylo.SpawnType.WEST,
+  SPLIT = EventProto.Npc.Nylo.SpawnType.SPLIT,
+}
+
+export enum VerzikCrabSpawn {
+  UNKNOWN = EventProto.Npc.VerzikCrab.Spawn.UNKNOWN,
+  NORTH = EventProto.Npc.VerzikCrab.Spawn.NORTH,
+  NORTHEAST = EventProto.Npc.VerzikCrab.Spawn.NORTHEAST,
+  NORTHWEST = EventProto.Npc.VerzikCrab.Spawn.NORTHWEST,
+  EAST = EventProto.Npc.VerzikCrab.Spawn.EAST,
+  SOUTH = EventProto.Npc.VerzikCrab.Spawn.SOUTH,
+  SOUTHEAST = EventProto.Npc.VerzikCrab.Spawn.SOUTHEAST,
+  SOUTHWEST = EventProto.Npc.VerzikCrab.Spawn.SOUTHWEST,
+  WEST = EventProto.Npc.VerzikCrab.Spawn.WEST,
 }
 
 export enum Maze {
-  MAZE_66 = 'MAZE_66',
-  MAZE_33 = 'MAZE_33',
+  MAZE_66 = EventProto.SoteMaze.Maze.MAZE_66,
+  MAZE_33 = EventProto.SoteMaze.Maze.MAZE_33,
 }
 
 export enum XarpusPhase {
   /** Exhumes */
-  P1 = 'P1',
+  P1 = EventProto.XarpusPhase.XARPUS_P1,
   /** Spitting acid */
-  P2 = 'P2',
+  P2 = EventProto.XarpusPhase.XARPUS_P2,
   /** Post screech staring */
-  P3 = 'P3',
+  P3 = EventProto.XarpusPhase.XARPUS_P3,
 }
 
 export enum VerzikPhase {
-  IDLE = 'IDLE',
-  P1 = 'P1',
-  P2 = 'P2',
-  P3 = 'P3',
-}
-
-export enum VerzikCrabSpawn {
-  NORTH = 'NORTH',
-  NORTHEAST = 'NORTHEAST',
-  NORTHWEST = 'NORTHWEST',
-  EAST = 'EAST',
-  SOUTH = 'SOUTH',
-  SOUTHEAST = 'SOUTHEAST',
-  SOUTHWEST = 'SOUTHWEST',
-  WEST = 'WEST',
-  UNKNOWN = 'UNKNOWN',
+  IDLE = EventProto.VerzikPhase.VERZIK_IDLE,
+  P1 = EventProto.VerzikPhase.VERZIK_P1,
+  P2 = EventProto.VerzikPhase.VERZIK_P2,
+  P3 = EventProto.VerzikPhase.VERZIK_P3,
 }
 
 export enum PrimaryMeleeGear {

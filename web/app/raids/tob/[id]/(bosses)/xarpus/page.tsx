@@ -1,12 +1,12 @@
 'use client';
 
 import {
+  ChallengeStatus,
   EventType,
   NpcEvent,
   PlayerEvent,
   PlayerUpdateEvent,
-  RaidStatus,
-  Room,
+  Stage,
   isPlayerEvent,
 } from '@blert/common';
 import Image from 'next/image';
@@ -24,6 +24,7 @@ import Loading from '../../../../../components/loading';
 
 import styles from './style.module.scss';
 import xarpusBaseTiles from './xarpus-tiles.json';
+import { useMemo } from 'react';
 
 const XARPUS_MAP_DEFINITION = {
   baseX: 3163,
@@ -42,17 +43,31 @@ export default function XarpusPage() {
     bossAttackTimeline,
     playerAttackTimelines,
     loading,
-  } = useRoomEvents(Room.XARPUS);
+  } = useRoomEvents(Stage.TOB_XARPUS);
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
+
+  const splits = useMemo(() => {
+    const splits = [];
+    const xarpus = raidData?.rooms.xarpus;
+    if (xarpus) {
+      if (xarpus.splits.exhumes > 0) {
+        splits.push({ tick: xarpus.splits.exhumes, splitName: 'Exhumes' });
+      }
+      if (xarpus.splits.screech > 0) {
+        splits.push({ tick: xarpus.splits.screech, splitName: 'Screech' });
+      }
+    }
+    return splits;
+  }, [raidData]);
 
   if (loading || raidData === null) {
     return <Loading />;
   }
 
-  const xarpusData = raidData.rooms[Room.XARPUS];
-  if (raidData.status != RaidStatus.IN_PROGRESS && xarpusData === null) {
+  const xarpusData = raidData.rooms.xarpus;
+  if (raidData.status != ChallengeStatus.IN_PROGRESS && xarpusData === null) {
     return <>No Xarpus data for this raid</>;
   }
 
@@ -92,15 +107,7 @@ export default function XarpusPage() {
     }
   }
 
-  let splits = [];
-  if (xarpusData !== null) {
-    if (xarpusData.splits.exhumes > 0) {
-      splits.push({ tick: xarpusData.splits.exhumes, splitName: 'Exhumes' });
-    }
-    if (xarpusData.splits.screech > 0) {
-      splits.push({ tick: xarpusData.splits.screech, splitName: 'Screech' });
-    }
-  }
+  console.log(bossAttackTimeline);
 
   const playerDetails = getPlayerDetails(
     raidData.party,
