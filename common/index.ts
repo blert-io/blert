@@ -83,7 +83,6 @@ export {
   NpcAttack,
   PlayerAttack,
   PrimaryMeleeGear,
-  Room,
   RoomNpcType,
   Skill,
   Stage,

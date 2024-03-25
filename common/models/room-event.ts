@@ -10,7 +10,6 @@ import { MergedEvent } from '../event';
 
 const SkillLevel = {
   _id: false,
-  skill: String, // TODO: delete
   base: Number,
   current: Number,
 };
@@ -24,7 +23,6 @@ const Item = {
 const attackSchema = new Schema(
   {
     type: { type: Number, index: true },
-    typeString: String,
     weapon: Item,
     target: {
       id: Number,
@@ -36,13 +34,9 @@ const attackSchema = new Schema(
 );
 
 const roomEventSchema = new Schema<MergedEvent>({
-  raidId: { type: String, index: true },
   cId: { type: String, index: true },
   type: { type: Number, index: true },
-  typeString: String,
   stage: { type: Number, index: true },
-  room: String,
-  roomString: String,
   tick: Number,
   xCoord: Number,
   yCoord: Number,
@@ -66,7 +60,6 @@ const roomEventSchema = new Schema<MergedEvent>({
   },
   npc: {
     type: { type: Number },
-    typeString: String,
     id: Number,
     roomId: Number,
     hitpoints: SkillLevel,
@@ -86,7 +79,6 @@ const roomEventSchema = new Schema<MergedEvent>({
   attack: attackSchema,
   npcAttack: {
     attack: { type: Number, index: true },
-    attackString: String,
     target: String,
   },
   maidenBloodSplats: {
@@ -107,15 +99,11 @@ const roomEventSchema = new Schema<MergedEvent>({
   },
   soteMaze: {
     maze: Number,
-    mazeString: String,
   },
   xarpusPhase: Number,
-  xarpusPhaseString: String,
   verzikPhase: Number,
-  verzikPhaseString: String,
   verzikAttack: {
     style: Number,
-    styleString: String,
     npcAttackTick: Number,
   },
 });

@@ -10,9 +10,7 @@ export const Coords = {
 export const MaidenCrabProperties = {
   _id: false,
   spawn: Number,
-  spawnString: String,
   position: Number,
-  positionString: String,
   scuffed: Boolean,
 };
 
@@ -21,22 +19,17 @@ export const NyloProperties = {
   parentRoomId: Number,
   wave: Number,
   style: Number,
-  styleString: String,
   spawnType: Number,
-  spawnTypeString: String,
 };
 
 export const VerzikCrabProperties = {
   _id: false,
   phase: Number,
-  phaseString: String,
   spawn: Number,
-  spawnString: String,
 };
 
 const RoomNpc = {
   type: { type: Number },
-  typeString: String,
   roomId: Number,
   spawnNpcId: Number,
   spawnTick: Number,
@@ -77,9 +70,7 @@ const raidSchema = new Schema<Raid>({
   _id: String,
   status: { type: Number, index: true },
   stage: { type: Number, index: true },
-  statusString: { type: String },
   mode: Number,
-  modeString: String,
   startTime: { type: Date },
   party: {
     type: [String],
@@ -92,7 +83,6 @@ const raidSchema = new Schema<Raid>({
     },
   },
   partyInfo: { type: [PlayerInfo], default: null },
-  totalRoomTicks: { type: Number, index: true },
   totalTicks: { type: Number, default: 0, index: true },
   totalDeaths: { type: Number, default: 0 },
   rooms: {

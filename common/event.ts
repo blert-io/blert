@@ -1,7 +1,6 @@
 import { Event as EventProto } from './generated/event_pb';
 import {
   SkillLevel,
-  Room,
   StageStatus,
   PlayerAttack,
   Maze,
@@ -57,11 +56,7 @@ export const isPlayerEvent = (event: Event): boolean => {
 export interface Event {
   cId: string;
   type: EventType;
-  typeString?: string; // TODO: delete
-  raidId?: string; // TODO: delete
   stage: Stage;
-  roomString?: string; // TODO: delete
-  room?: Room; // TODO: delete
   tick: number;
   xCoord: number;
   yCoord: number;
@@ -144,20 +139,17 @@ export interface SoteMazeProcEvent extends Event {
 export interface XarpusPhaseEvent extends Event {
   type: EventType.TOB_XARPUS_PHASE;
   xarpusPhase: XarpusPhase;
-  xarpusPhaseString: string; // TODO: delete
 }
 
 export interface VerzikPhaseEvent extends Event {
   type: EventType.TOB_VERZIK_PHASE;
   verzikPhase: VerzikPhase;
-  verzikPhaseString: string; // TODO: delete
 }
 
 export interface VerzikAttackStyleEvent extends Event {
   type: EventType.TOB_VERZIK_ATTACK_STYLE;
   verzikAttack: {
     style: VerzikAttackStyle;
-    sylteString: string; // TODO: delete
     npcAttackTick: number;
   };
 }
@@ -227,7 +219,6 @@ export interface BasicEventNpc {
 
 export interface EventNpc extends BasicEventNpc {
   type: RoomNpcType;
-  typeString?: string; // TODO: delete
   hitpoints: SkillLevel;
   maidenCrab?: MaidenCrabProperties;
   nylo?: NyloProperties;
@@ -236,7 +227,6 @@ export interface EventNpc extends BasicEventNpc {
 
 export type Attack = {
   type: PlayerAttack;
-  typeString?: string; // TODO: delete
   weapon?: Item;
   target?: BasicEventNpc;
   distanceToTarget: number;
@@ -245,7 +235,6 @@ export type Attack = {
 export type NpcAttackDesc = {
   /** Style of the attack. */
   attack: NpcAttack;
-  attackString?: string; // TODO: delete
   /** Username of the player the attack targets. Undefined if no target. */
   target?: string;
 };
@@ -268,7 +257,6 @@ export type NyloWave = {
 
 export type SoteMaze = {
   maze: Maze;
-  mazeString?: string; // TODO: delete
 };
 
 export enum VerzikAttackStyle {

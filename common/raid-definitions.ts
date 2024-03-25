@@ -11,30 +11,21 @@ export type Raid = {
   _id: string;
   status: ChallengeStatus;
   stage: Stage;
-  statusString: string; // TODO: delete
   mode: ChallengeMode;
-  modeString: string; // TODO: delete
   startTime: Date;
   party: string[];
   partyInfo: PlayerInfo[];
-  totalRoomTicks?: number;
   totalTicks: number;
   totalDeaths: number;
   rooms: Rooms;
 };
 
 export type Rooms = {
-  MAIDEN: MaidenOverview | null;
   maiden: MaidenOverview | null;
-  BLOAT: BloatOverview | null;
   bloat: BloatOverview | null;
-  NYLOCAS: NyloOverview | null;
   nylocas: NyloOverview | null;
-  SOTETSEG: SoteOverview | null;
   sotetseg: SoteOverview | null;
-  XARPUS: XarpusOverview | null;
   xarpus: XarpusOverview | null;
-  VERZIK: VerzikOverview | null;
   verzik: VerzikOverview | null;
 };
 
@@ -161,15 +152,6 @@ export enum Stage {
   COLOSSEUM_WAVE_12 = StageProto.COLOSSEUM_WAVE_12,
 }
 
-export enum Room {
-  MAIDEN = 'MAIDEN',
-  BLOAT = 'BLOAT',
-  NYLOCAS = 'NYLOCAS',
-  SOTETSEG = 'SOTETSEG',
-  XARPUS = 'XARPUS',
-  VERZIK = 'VERZIK',
-}
-
 export enum ChallengeMode {
   NO_MODE = ChallengeModeProto.NO_MODE,
 
@@ -218,9 +200,7 @@ export interface MaidenCrab extends RoomNpc {
 
 export type MaidenCrabProperties = {
   spawn: MaidenCrabSpawn;
-  spawnString?: string; // TODO: delete
   position: MaidenCrabPosition;
-  positionString?: string; // TODO: delete
   scuffed: boolean;
 };
 
@@ -249,18 +229,14 @@ export type NyloProperties = {
 
   /** Attack style of the nylo when it spawned. */
   style: NyloStyle;
-  styleString?: string; // TODO: delete
 
   /** Spawn location of the nylo. */
   spawnType: NyloSpawn;
-  spawnTypeString?: string; // TODO: delete
 };
 
 export type VerzikCrabProperties = {
   phase: VerzikPhase;
-  phaseString?: string; // TODO: delete
   spawn: VerzikCrabSpawn;
-  spawnString?: string; // TODO: delete
 };
 
 export enum Skill {
@@ -274,7 +250,6 @@ export enum Skill {
 }
 
 export type SkillLevel = {
-  skill?: Skill;
   current: number;
   base: number;
 };

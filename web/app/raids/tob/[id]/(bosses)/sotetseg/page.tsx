@@ -6,7 +6,6 @@ import {
   NpcEvent,
   PlayerEvent,
   PlayerUpdateEvent,
-  Room,
   Stage,
   isPlayerEvent,
 } from '@blert/common';
