@@ -21,6 +21,12 @@ function is1to5Item(name: string): boolean {
   return name.match(ONE_TO_FIVE_REGEX) !== null;
 }
 
+const BARROWS_REGEX = /^(Ahrim's|Dharok's|Guthan's|Karil's|Torag's|Verac's)/;
+
+function isBarrowsItem(name: string): boolean {
+  return name.match(BARROWS_REGEX) !== null;
+}
+
 /**
  * Converts an in-game item name to the filename of its image on the wiki.
  * Handles special cases like items whose sprites change based on quantity.
@@ -33,9 +39,17 @@ function normalize(name: string, quantity: number): string {
   // Treat locked items as their unlocked counterparts.
   name = name.replace(/\(l\)/, '');
 
+  const words = name.trim().split(' ');
+  if (isBarrowsItem(name)) {
+    // Ignore the degradation state of Barrows items.
+    if (!Number.isNaN(Number.parseInt(words[words.length - 1]))) {
+      words.pop();
+    }
+  }
+
   // The basic format of wiki image filenames takes the item name as it appears
   // in game (preserving case), and replaces spaces with underscores.
-  const stem = name.trim().replaceAll(' ', '_');
+  const stem = words.join('_');
 
   if (is1to5Item(name)) {
     // Items using a different sprite from 1-5 are suffixed with their quantity
