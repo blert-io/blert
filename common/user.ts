@@ -16,8 +16,8 @@ export enum RecordingType {
   RAIDER = 'RAIDER',
 }
 
-export type RecordedRaid = {
-  raidId: string;
+export type RecordedChallenge = {
+  cId: string;
   recorderId: Types.ObjectId;
   recordingType: RecordingType;
 };

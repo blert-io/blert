@@ -15,7 +15,7 @@ import {
   PlayerAttack,
   PlayerInfo,
   PrimaryMeleeGear,
-  RecordedRaidModel,
+  RecordedChallengeModel,
   RecordingType,
   RoomNpc,
   RoomNpcType,
@@ -194,7 +194,7 @@ export default class Raid {
       console.log(`Raid ${this.id} ended before Maiden; deleting record`);
       await Promise.all([
         RaidModel.deleteOne({ _id: this.id }),
-        RecordedRaidModel.deleteMany({ cId: this.id }),
+        RecordedChallengeModel.deleteMany({ cId: this.id }),
       ]);
       return;
     }
@@ -304,9 +304,9 @@ export default class Raid {
     this.clients.push(client);
     client.setActiveRaid(this);
 
-    const recordedRaid = new RecordedRaidModel({
+    const recordedRaid = new RecordedChallengeModel({
       recorderId: client.getUserId(),
-      raidId: this.id,
+      cId: this.id,
       recordingType: spectator ? RecordingType.SPECTATOR : RecordingType.RAIDER,
     });
     await recordedRaid.save();

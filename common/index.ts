@@ -1,7 +1,7 @@
 export { Npc, NpcId } from './npcs/npc-id';
 export { getNpcDefinition, npcFriendlyName } from './npcs/npc-definitions';
 
-export type { ApiKey, RecordedRaid, User } from './user';
+export type { ApiKey, RecordedChallenge, User } from './user';
 export { RecordingType } from './user';
 export type { Player, PlayerStats } from './player';
 export { PersonalBestType, tobPbForMode } from './personal-best';
@@ -11,7 +11,7 @@ export { ApiKeyModel } from './models/api-key';
 export { PlayerModel, PlayerStatsModel } from './models/player';
 export { RaidModel } from './models/raid';
 export { RoomEvent } from './models/room-event';
-export { RecordedRaidModel, UserModel } from './models/user';
+export { RecordedChallengeModel, UserModel } from './models/user';
 export { PersonalBestModel } from './models/personal-best';
 
 export type {

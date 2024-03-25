@@ -50,7 +50,7 @@ export default class MessageHandler {
   ): Promise<void> {
     switch (message.getType()) {
       case ServerMessage.Type.HISTORY_REQUEST:
-        const history = await Users.getRaidHistory(client.getUserId());
+        const history = await Users.getChallengeHistory(client.getUserId());
 
         const historyResponse = new ServerMessage();
         historyResponse.setType(ServerMessage.Type.HISTORY_RESPONSE);

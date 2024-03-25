@@ -3,7 +3,7 @@ import {
   ApiKeyModel,
   Raid,
   RaidModel,
-  RecordedRaidModel,
+  RecordedChallengeModel,
   UserModel,
 } from '@blert/common';
 import { HydratedDocument } from 'mongoose';
@@ -13,7 +13,10 @@ export type BasicUser = {
   username: string;
 };
 
-export type PastRaid = Pick<Raid, 'stage' | 'status' | 'mode' | 'party'> & {
+export type PastChallenge = Pick<
+  Raid,
+  'stage' | 'status' | 'mode' | 'party'
+> & {
   id: string;
 };
 
@@ -41,33 +44,33 @@ export class Users {
   }
 
   /**
-   * Retrieves the most recent raids recorded by a user.
+   * Retrieves the most recent challenges recorded by a user.
    *
    * @param userId ID of the user to look up.
-   * @param limit Maximum number of raids to return.
-   * @returns List of raids, ordered by most recent first.
+   * @param limit Maximum number of challenges to return.
+   * @returns List of challenges, ordered by most recent first.
    */
-  static async getRaidHistory(
+  static async getChallengeHistory(
     userId: string,
     limit: number = 10,
-  ): Promise<PastRaid[]> {
-    const recordedRaids = await RecordedRaidModel.find(
+  ): Promise<PastChallenge[]> {
+    const recordedChallenges = await RecordedChallengeModel.find(
       { recorderId: userId },
-      { _id: false, raidId: true },
+      { _id: 0, cId: 1 },
     )
       .sort({ _id: -1 })
       .limit(limit)
       .exec();
 
-    const raidIds = recordedRaids.map((r) => r.raidId);
-    const raids = await RaidModel.find<Raid>(
-      { _id: { $in: raidIds } },
+    const challengeIds = recordedChallenges.map((r) => r.cId);
+    const challenges = await RaidModel.find<Raid>(
+      { _id: { $in: challengeIds } },
       { stage: 1, status: 1, mode: 1, party: 1, startTime: 1 },
     ).exec();
 
-    raids.sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
+    challenges.sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
 
-    return raids.map((r) => ({
+    return challenges.map((r) => ({
       id: r._id,
       stage: r.stage,
       status: r.status,
