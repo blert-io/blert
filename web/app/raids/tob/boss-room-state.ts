@@ -255,7 +255,7 @@ function buildAttackTimelines(
           }
 
           if (event.type === EventType.PLAYER_UPDATE) {
-            const { type, room, raidId, ...rest } = event;
+            const { type, stage, ...rest } = event;
             return { ...acc, ...rest, isDead };
           }
 

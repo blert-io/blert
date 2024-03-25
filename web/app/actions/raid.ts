@@ -36,7 +36,7 @@ export async function loadRaid(id: string): Promise<Raid | null> {
 }
 
 /**
- * Fetches all of the room events for a specified stage in a challenge.
+ * Fetches all of the events for a specified stage in a challenge.
  * @param challengeId UUID of the challenge.
  * @param stage The stage whose events to fetch.
  * @returns Array of events for the stage, empty if none exist.
@@ -96,7 +96,7 @@ export type RaidOverview = Pick<
   | 'mode'
   | 'party'
   | 'partyInfo'
-  | 'totalRoomTicks'
+  | 'totalTicks'
   | 'totalDeaths'
 >;
 
@@ -130,7 +130,7 @@ export async function loadRecentRaidInformation(
       mode: 1,
       party: 1,
       partyInfo: 1,
-      totalRoomTicks: 1,
+      totalTicks: 1,
       totalDeaths: 1,
     })
     .sort({ startTime: -1 })

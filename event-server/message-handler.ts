@@ -71,13 +71,16 @@ export default class MessageHandler {
         );
 
         client.sendMessage(historyResponse);
-        await Raid.migrateRaids();
-        await Raid.migrateRoomEvents();
-        console.log('complete!');
+        // await Raid.migrateRaids();
+        // await Raid.migrateRoomEvents();
+        // console.log('complete!');
         break;
 
       case ServerMessage.Type.EVENT_STREAM:
-        message.getChallengeEventsList().forEach(async (event) => {
+        const events = message
+          .getChallengeEventsList()
+          .sort((a, b) => a.getTick() - b.getTick());
+        events.forEach(async (event) => {
           await this.handleRaidEvent(client, event);
         });
         break;
@@ -116,7 +119,7 @@ export default class MessageHandler {
         this.eventAggregators[raidId] = new EventAggregator(async (evt) => {
           const raid = this.raidManager.getRaid(raidId);
           if (raid) {
-            // await raid.processEvent(evt);
+            await raid.processEvent(evt);
           }
         });
 

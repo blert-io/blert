@@ -446,6 +446,18 @@ function maidenCrabSpawnString(spawn: MaidenCrabSpawn) {
 
 function maidenCrabPositionString(position: MaidenCrabPosition) {
   switch (position) {
+    case MaidenCrabPosition.S1:
+      return 'S1';
+    case MaidenCrabPosition.N1:
+      return 'N1';
+    case MaidenCrabPosition.S2:
+      return 'S2';
+    case MaidenCrabPosition.N2:
+      return 'N2';
+    case MaidenCrabPosition.S3:
+      return 'S3';
+    case MaidenCrabPosition.N3:
+      return 'N3';
     case MaidenCrabPosition.N4_INNER:
       return 'N4 Inner';
     case MaidenCrabPosition.N4_OUTER:
@@ -455,8 +467,6 @@ function maidenCrabPositionString(position: MaidenCrabPosition) {
     case MaidenCrabPosition.S4_OUTER:
       return 'S4 Outer';
   }
-
-  return position;
 }
 
 function nyloStyleToString(style: NyloStyle): string {

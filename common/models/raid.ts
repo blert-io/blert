@@ -92,10 +92,11 @@ const raidSchema = new Schema<Raid>({
     },
   },
   partyInfo: { type: [PlayerInfo], default: null },
-  totalRoomTicks: { type: Number, default: 0, index: true },
+  totalRoomTicks: { type: Number, index: true },
+  totalTicks: { type: Number, default: 0, index: true },
   totalDeaths: { type: Number, default: 0 },
   rooms: {
-    MAIDEN: {
+    maiden: {
       type: {
         ...RoomOverview,
         splits: {
@@ -106,7 +107,7 @@ const raidSchema = new Schema<Raid>({
       },
       default: null,
     },
-    BLOAT: {
+    bloat: {
       type: {
         ...RoomOverview,
         splits: {
@@ -115,7 +116,7 @@ const raidSchema = new Schema<Raid>({
       },
       default: null,
     },
-    NYLOCAS: {
+    nylocas: {
       type: {
         ...RoomOverview,
         splits: {
@@ -128,7 +129,7 @@ const raidSchema = new Schema<Raid>({
       },
       default: null,
     },
-    SOTETSEG: {
+    sotetseg: {
       type: {
         ...RoomOverview,
         splits: {
@@ -138,7 +139,7 @@ const raidSchema = new Schema<Raid>({
       },
       default: null,
     },
-    XARPUS: {
+    xarpus: {
       type: {
         ...RoomOverview,
         splits: {
@@ -148,7 +149,7 @@ const raidSchema = new Schema<Raid>({
       },
       default: null,
     },
-    VERZIK: {
+    verzik: {
       type: {
         ...RoomOverview,
         redCrabSpawns: Number,

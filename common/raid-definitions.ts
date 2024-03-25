@@ -17,7 +17,8 @@ export type Raid = {
   startTime: Date;
   party: string[];
   partyInfo: PlayerInfo[];
-  totalRoomTicks: number;
+  totalRoomTicks?: number;
+  totalTicks: number;
   totalDeaths: number;
   rooms: Rooms;
 };
@@ -217,9 +218,9 @@ export interface MaidenCrab extends RoomNpc {
 
 export type MaidenCrabProperties = {
   spawn: MaidenCrabSpawn;
-  spawnString: string; // TODO: delete
+  spawnString?: string; // TODO: delete
   position: MaidenCrabPosition;
-  positionString: string; // TODO: delete
+  positionString?: string; // TODO: delete
   scuffed: boolean;
 };
 
@@ -248,18 +249,18 @@ export type NyloProperties = {
 
   /** Attack style of the nylo when it spawned. */
   style: NyloStyle;
-  styleString: string; // TODO: delete
+  styleString?: string; // TODO: delete
 
   /** Spawn location of the nylo. */
   spawnType: NyloSpawn;
-  spawnTypeString: string; // TODO: delete
+  spawnTypeString?: string; // TODO: delete
 };
 
 export type VerzikCrabProperties = {
   phase: VerzikPhase;
-  phaseString: string; // TODO: delete
+  phaseString?: string; // TODO: delete
   spawn: VerzikCrabSpawn;
-  spawnString: string; // TODO: delete
+  spawnString?: string; // TODO: delete
 };
 
 export enum Skill {
@@ -273,7 +274,7 @@ export enum Skill {
 }
 
 export type SkillLevel = {
-  skill: Skill;
+  skill?: Skill;
   current: number;
   base: number;
 };

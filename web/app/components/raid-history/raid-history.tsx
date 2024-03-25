@@ -32,7 +32,7 @@ export default function RaidHistory(props: RaidHistoryProps) {
             stage={raid.stage}
             raidStatus={raid.status}
             raidDifficulty={raid.mode}
-            totalRaidTicks={raid.totalRoomTicks}
+            totalRaidTicks={raid.totalTicks}
             deaths={raid.totalDeaths}
             partySize={raid.party.length}
             startTime={raid.startTime}
