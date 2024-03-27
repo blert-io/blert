@@ -30,9 +30,26 @@ import { defaultItemCache } from '../utils/item-cache';
 export async function loadRaid(id: string): Promise<Raid | null> {
   await connectToDatabase();
 
-  const raid = await RaidModel.findOne({ _id: id }).lean();
+  const raid = await RaidModel.findOne({ _id: id }).lean().exec();
+  if (raid === null) {
+    return null;
+  }
 
-  return raid ? (raid as Raid) : null;
+  const players = await PlayerModel.find(
+    { _id: { $in: raid.partyIds } },
+    { username: 1 },
+  )
+    .lean()
+    .exec();
+
+  // Add each player's current username to enable linking to their profile.
+  raid.party.forEach((_, i) => {
+    const player = players.find((pl) => pl._id.equals(raid.partyIds[i]));
+    raid.partyInfo[i].currentUsername =
+      player !== undefined ? player.username : '';
+  });
+
+  return raid;
 }
 
 /**
@@ -117,10 +134,19 @@ export async function loadRecentRaidInformation(
   let query = RaidModel.find();
 
   if (username) {
-    query = query
-      .where({ party: username })
-      .collation({ locale: 'en', strength: 2 });
+    const player = await PlayerModel.findOne({ username }).exec();
+    if (player !== null) {
+      query = query.where({ partyIds: player._id });
+    } else {
+      // This shouldn't happen, but fallback to username search if the player
+      // isn't found for some reason.
+      console.error(`loadRecentRaidInformation: Player not found: ${username}`);
+      query = query
+        .where({ party: username })
+        .collation({ locale: 'en', strength: 2 });
+    }
   }
+
   const raids = await query
     .select({
       _id: 1,

@@ -25,6 +25,7 @@ export default function Overview() {
   const playersWithGear = raid.party.map((player, i) => {
     return {
       name: player,
+      currentUsername: raid.partyInfo[i].currentUsername,
       primaryMeleeGear: raid.partyInfo[i].gear,
     };
   });

@@ -29,7 +29,7 @@ export class Players {
   public static async create(
     username: string,
     initialFields?: Partial<Player>,
-  ): Promise<boolean> {
+  ): Promise<Types.ObjectId | null> {
     const player = new PlayerModel({
       ...initialFields,
       username: username.toLowerCase(),
@@ -37,21 +37,25 @@ export class Players {
     });
     try {
       player.save();
-      return true;
+      return player._id;
     } catch (e) {
-      return false;
+      return null;
     }
   }
 
-  public static async startNewRaid(username: string): Promise<void> {
+  public static async startNewRaid(
+    username: string,
+  ): Promise<Types.ObjectId | null> {
     const player = await PlayerModel.findOneAndUpdate(
       { username: username.toLowerCase() },
       { $inc: { totalRaidsRecorded: 1 } },
     ).exec();
 
-    if (player === null) {
-      await Players.create(username, { totalRaidsRecorded: 1 });
+    if (player !== null) {
+      return player._id;
     }
+
+    return await Players.create(username, { totalRaidsRecorded: 1 });
   }
 
   /**

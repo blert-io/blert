@@ -1,3 +1,5 @@
+import { Types } from 'mongoose';
+
 import { Coords } from './event';
 import {
   Event as EventProto,
@@ -14,6 +16,7 @@ export type Raid = {
   mode: ChallengeMode;
   startTime: Date;
   party: string[];
+  partyIds: Types.ObjectId[];
   partyInfo: PlayerInfo[];
   totalTicks: number;
   totalDeaths: number;
@@ -407,5 +410,6 @@ export enum PrimaryMeleeGear {
 }
 
 export type PlayerInfo = {
+  currentUsername: string;
   gear: PrimaryMeleeGear;
 };

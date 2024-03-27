@@ -61,6 +61,8 @@ type PersonalBestUpdate = {
   pbTime: number;
 };
 
+type PlayerInfoWithoutUsername = Omit<PlayerInfo, 'currentUsername'>;
+
 export default class Raid {
   private id: string;
   private partyKey: string;
@@ -69,7 +71,7 @@ export default class Raid {
   private state: State;
   private mode: ChallengeMode;
   private party: string[];
-  private partyInfo: PlayerInfo[];
+  private partyInfo: PlayerInfoWithoutUsername[];
   private startTime: number;
   private challengeStatus: ChallengeStatus;
   private completedRooms: number;
@@ -330,9 +332,22 @@ export default class Raid {
   }
 
   private async start(): Promise<void> {
-    this.state = State.IN_PROGRESS;
     const promises = this.party.map(Players.startNewRaid);
-    await Promise.all(promises);
+    const playerIds = await Promise.all(promises);
+
+    if (playerIds.some((id) => id === null)) {
+      console.error(
+        `Raid ${this.id} failed to start; could not find or create all players`,
+      );
+      this.finish();
+      return;
+    }
+
+    await this.updateDatabaseFields((record) => {
+      record.partyIds = playerIds;
+    });
+
+    this.state = State.IN_PROGRESS;
   }
 
   private async handleStageUpdate(event: Event): Promise<void> {

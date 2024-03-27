@@ -6,6 +6,7 @@ import styles from './style.module.scss';
 
 interface TeamPanelPlayer {
   name: string;
+  currentUsername: string;
   primaryMeleeGear: PrimaryMeleeGear;
 }
 
@@ -51,7 +52,7 @@ export function RaidTeamPanel(props: TeamPanelProps) {
 
     return (
       <Link
-        href={`/players/${player.name}`}
+        href={`/players/${player.currentUsername}`}
         key={`raid-player-panel-${index}`}
         className={styles.raid__Player}
         style={{ position: 'relative' }}

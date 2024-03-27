@@ -82,6 +82,7 @@ const raidSchema = new Schema<Raid>({
       },
     },
   },
+  partyIds: { type: [Schema.Types.ObjectId], index: true },
   partyInfo: { type: [PlayerInfo], default: null },
   totalTicks: { type: Number, default: 0, index: true },
   totalDeaths: { type: Number, default: 0 },

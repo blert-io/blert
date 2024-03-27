@@ -85,7 +85,7 @@ export default function Player(props: PlayerPageProps) {
       setLoading(true);
       const [player, raids, pbs] = await Promise.all([
         loadPlayerWithStats(username),
-        loadRecentRaidInformation(5, username),
+        loadRecentRaidInformation(10, username),
         loadPbsForPlayer(username),
       ]);
       setLoading(false);
