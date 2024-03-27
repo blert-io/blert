@@ -6,8 +6,9 @@ import {
   PersonalBestType,
   PersonalBestModel,
 } from '@blert/common';
+import { Types } from 'mongoose';
 
-type PlayerStatsWithoutUsernameOrDate = Omit<PlayerStats, 'date' | 'username'>;
+type PlayerStatsWithoutPlayerOrDate = Omit<PlayerStats, 'date' | 'playerId'>;
 
 function startOfDateUtc(): Date {
   let date = new Date();
@@ -58,22 +59,28 @@ export class Players {
    * is better than their current personal bests.
    *
    * @param usernames The players.
-   * @param raidId ID of the raid in which the time was achieved.
+   * @param challengeId ID of the raid in which the time was achieved.
    * @param type Type of personal best.
    * @param scale Raid scale.
    * @param ticks The achieved time, in ticks.
    */
   public static async updatePersonalBests(
     usernames: string[],
-    raidId: string,
+    challengeId: string,
     type: PersonalBestType,
     scale: number,
     ticks: number,
   ): Promise<void> {
-    const users = new Set(usernames.map((u) => u.toLowerCase()));
+    usernames = usernames.map((u) => u.toLowerCase());
+    const players = await PlayerModel.find(
+      { username: { $in: usernames } },
+      { _id: 1, username: 1 },
+    ).exec();
+    const playersById = new Map<string, string>();
+    players.forEach((p) => playersById.set(p._id.toString(), p.username));
 
     let personalBests = await PersonalBestModel.find({
-      username: { $in: Array.from(users.values()) },
+      playerId: { $in: Array.from(playersById.keys()) },
       type,
       scale,
     }).exec();
@@ -81,27 +88,44 @@ export class Players {
     const promises = [];
 
     for (const pb of personalBests) {
+      const username = playersById.get(pb.playerId.toString());
+      if (username === undefined) {
+        // A missing username indicates that the player already had a PB in the
+        // list and was deleted from the map in a previous iteration. Somehow,
+        // the player has multiple PBs for the same category. Correct this.
+        console.log(
+          `Duplicate PB (${type}, ${scale}) for ${pb.playerId.toString()}; deleting.`,
+        );
+        await pb.deleteOne().exec();
+        continue;
+      }
+
       if (ticks < pb.time) {
         console.log(
-          `Updating PB for ${pb.username} (${type}, ${scale}) to ${ticks}`,
+          `Updating PB for ${username} (${type}, ${scale}) to ${ticks}`,
         );
         pb.time = ticks;
-        pb.raidId = raidId;
+        pb.cId = challengeId;
         promises.push(pb.save());
+      } else {
+        console.log(
+          `PB for ${username} (${type}, ${scale}) is already better: ${pb.time}`,
+        );
       }
-      users.delete(pb.username);
+
+      playersById.delete(pb.playerId.toString());
     }
 
     // Any remaining users are missing a personal best for this category; create
     // one for them.
-    users.forEach((username) => {
+    playersById.forEach((username, id) => {
       console.log(`Setting PB for ${username} (${type}, ${scale}) to ${ticks}`);
       const pb = new PersonalBestModel({
-        username,
+        playerId: id,
         type,
+        cId: challengeId,
         scale,
         time: ticks,
-        raidId,
       });
       promises.push(pb.save());
     });
@@ -117,10 +141,16 @@ export class Players {
    */
   public static async updateStats(
     username: string,
-    callback: (stats: PlayerStatsWithoutUsernameOrDate) => void,
+    callback: (stats: PlayerStatsWithoutPlayerOrDate) => void,
   ): Promise<void> {
     username = username.toLowerCase();
-    let playerStats = await PlayerStatsModel.findOne({ username })
+    const player = await PlayerModel.findOne({ username }, { _id: 1 }).exec();
+    if (player === null) {
+      console.error(`Failed to update stats for missing player ${username}`);
+      return;
+    }
+
+    let playerStats = await PlayerStatsModel.findOne({ playerId: player._id })
       .sort({ date: -1 })
       .exec();
 
@@ -140,7 +170,10 @@ export class Players {
       }
     } else {
       // No object exists, create a new one.
-      playerStats = new PlayerStatsModel({ username, date: startOfDay });
+      playerStats = new PlayerStatsModel({
+        playerId: player._id,
+        date: startOfDay,
+      });
     }
 
     callback(playerStats);

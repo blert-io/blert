@@ -149,10 +149,10 @@ export default function Player(props: PlayerPageProps) {
   for (const pb of personalBests) {
     if (pb.type === PersonalBestType.TOB_REG_CHALLENGE) {
       regPbs[pb.scale - 1].time = pb.time;
-      regPbs[pb.scale - 1].raidId = pb.raidId;
+      regPbs[pb.scale - 1].raidId = pb.cId;
     } else if (pb.type === PersonalBestType.TOB_HM_CHALLENGE) {
       hmtPbs[pb.scale - 1].time = pb.time;
-      hmtPbs[pb.scale - 1].raidId = pb.raidId;
+      hmtPbs[pb.scale - 1].raidId = pb.cId;
     }
   }
 

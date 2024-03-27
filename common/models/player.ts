@@ -18,7 +18,7 @@ export const PlayerModel =
   (models?.Player as Model<Player>) ?? model<Player>('Player', playerSchema);
 
 const playerStatsSchema = new Schema<PlayerStats>({
-  username: { type: String, index: true },
+  playerId: { type: Schema.Types.ObjectId, ref: 'Player', index: true },
   date: { type: Date, index: true },
 
   completions: { type: Number, default: 0 },

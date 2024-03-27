@@ -68,7 +68,7 @@ export default class Client {
           this.totalMessages;
 
         const now = Date.now();
-        if (now - this.lastMessageLog > 10 * 1000) {
+        if (now - this.lastMessageLog > 45 * 1000) {
           console.log(
             `Client ${this.sessionId}: messages=${this.totalMessages} max(size)=${this.maxMessageSize} mean(size)=${this.meanMessageSize | 0}`,
           );

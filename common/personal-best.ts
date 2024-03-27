@@ -1,3 +1,4 @@
+import { Types } from 'mongoose';
 import { ChallengeMode } from './raid-definitions';
 
 export enum PersonalBestType {
@@ -120,8 +121,8 @@ export function tobPbForMode(
 
 export type PersonalBest = {
   type: PersonalBestType;
-  username: string;
+  playerId: Types.ObjectId;
+  cId: string;
   scale: number;
   time: number;
-  raidId: string;
 };

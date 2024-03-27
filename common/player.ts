@@ -1,11 +1,14 @@
+import { Types } from 'mongoose';
+
 export type Player = {
+  _id: Types.ObjectId;
   username: string;
   formattedUsername: string;
   totalRaidsRecorded: number;
 };
 
 export type PlayerStats = {
-  username: string;
+  playerId: Types.ObjectId;
   date: Date;
 
   completions: number;

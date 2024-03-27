@@ -620,7 +620,7 @@ export default class Raid {
       case EventType.TOB_NYLO_BOSS_SPAWN:
         this.nyloSplits.boss = event.getTick();
         this.queuedPbUpdates.push({
-          pbType: PersonalBestType.TOB_NYLO_BOSS,
+          pbType: PersonalBestType.TOB_NYLO_WAVES,
           pbTime: event.getTick(),
         });
         break;

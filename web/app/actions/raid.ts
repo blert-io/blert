@@ -141,7 +141,9 @@ export async function loadRecentRaidInformation(
   return raids ? (raids as RaidOverview[]) : [];
 }
 
-export type PlayerWithStats = Player & { stats: Omit<PlayerStats, 'username'> };
+export type PlayerWithStats = Omit<Player, '_id'> & {
+  stats: Omit<PlayerStats, 'playerId'>;
+};
 
 /**
  * Looks up a player by their username and fetches their most recent stats.
@@ -154,26 +156,24 @@ export async function loadPlayerWithStats(
   await connectToDatabase();
 
   username = username.toLowerCase();
-  const promises = [
-    PlayerModel.findOne({ username }, { _id: 0 }).lean() as Promise<Player>,
-    PlayerStatsModel.findOne(
-      { username },
-      { _id: 0, username: 0 },
-      {
-        sort: { date: -1 },
-      },
-    ).lean(),
-  ];
+  const player = await PlayerModel.findOne({ username }).lean();
+  if (player === null) {
+    return null;
+  }
+  const stats = await PlayerStatsModel.findOne(
+    { playerId: player._id },
+    { _id: 0, playerId: 0 },
+    {
+      sort: { date: -1 },
+    },
+  ).lean();
 
-  const [player, stats] = (await Promise.all(promises)) as [
-    Player,
-    PlayerStats,
-  ];
-  if (player === null || stats === null) {
+  if (stats === null) {
     return null;
   }
 
-  return { ...player, stats };
+  const { _id, ...playerWithoutId } = player;
+  return { ...playerWithoutId, stats };
 }
 
 export async function loadPbsForPlayer(
@@ -181,12 +181,18 @@ export async function loadPbsForPlayer(
 ): Promise<PersonalBest[]> {
   await connectToDatabase();
 
+  const player = await PlayerModel.findOne(
+    { username: username.toLowerCase() },
+    { _id: 1 },
+  ).exec();
+  if (player === null) {
+    return [];
+  }
+
   // TODO(frolv): Filter by type/scale.
   const pbs = await PersonalBestModel.find(
-    {
-      username: username.toLowerCase(),
-    },
-    { _id: 0 },
+    { playerId: player._id },
+    { _id: 0, playerId: 0 },
   )
     .lean()
     .exec();
