@@ -10,6 +10,7 @@ export type { PersonalBest } from './personal-best';
 export { ApiKeyModel } from './models/api-key';
 export { PlayerModel, PlayerStatsModel } from './models/player';
 export { RaidModel } from './models/raid';
+export type { RaidDocument } from './models/raid';
 export { RoomEvent } from './models/room-event';
 export { RecordedChallengeModel, UserModel } from './models/user';
 export { PersonalBestModel } from './models/personal-best';
@@ -60,11 +61,12 @@ export type {
   SoteOverview,
   SoteSplits,
   Raid,
-  Rooms,
   RoomNpc,
   RoomNpcMap,
   RoomOverview,
   SkillLevel,
+  TobRaid,
+  TobRooms,
   VerzikCrab,
   VerzikCrabProperties,
   VerzikOverview,
@@ -75,6 +77,7 @@ export type {
 export {
   ChallengeMode,
   ChallengeStatus,
+  ChallengeType,
   MaidenCrabPosition,
   MaidenCrabSpawn,
   Maze,

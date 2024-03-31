@@ -263,7 +263,7 @@ export default function NylocasPage() {
         };
       }) ?? [];
 
-    const nyloData = raidData.rooms.nylocas;
+    const nyloData = raidData.tobRooms.nylocas;
     if (nyloData !== null) {
       if (nyloData.splits.cleanup) {
         splits.push({
@@ -285,7 +285,7 @@ export default function NylocasPage() {
     return <Loading />;
   }
 
-  const nyloData = raidData.rooms.nylocas;
+  const nyloData = raidData.tobRooms.nylocas;
   if (raidData.status !== ChallengeStatus.IN_PROGRESS && nyloData === null) {
     return <>No Nylocas data for this raid</>;
   }

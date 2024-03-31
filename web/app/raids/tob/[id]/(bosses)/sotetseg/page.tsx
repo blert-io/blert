@@ -60,7 +60,7 @@ export default function SotetsegPage() {
     usePlayingState(totalTicks);
 
   const splits = useMemo(() => {
-    const sote = raidData?.rooms.sotetseg;
+    const sote = raidData?.tobRooms.sotetseg;
     const splits = [];
     if (sote) {
       if (sote.splits.MAZE_66) {
@@ -77,13 +77,13 @@ export default function SotetsegPage() {
       }
     }
     return splits;
-  }, [raidData?.rooms.sotetseg]);
+  }, [raidData?.tobRooms.sotetseg]);
 
   if (loading || raidData === null) {
     return <Loading />;
   }
 
-  const soteData = raidData.rooms.sotetseg;
+  const soteData = raidData.tobRooms.sotetseg;
   if (raidData.status !== ChallengeStatus.IN_PROGRESS && soteData === null) {
     return <>No Sotetseg data for this raid</>;
   }

@@ -50,7 +50,7 @@ export default function XarpusPage() {
 
   const splits = useMemo(() => {
     const splits = [];
-    const xarpus = raidData?.rooms.xarpus;
+    const xarpus = raidData?.tobRooms.xarpus;
     if (xarpus) {
       if (xarpus.splits.exhumes > 0) {
         splits.push({ tick: xarpus.splits.exhumes, splitName: 'Exhumes' });
@@ -66,7 +66,7 @@ export default function XarpusPage() {
     return <Loading />;
   }
 
-  const xarpusData = raidData.rooms.xarpus;
+  const xarpusData = raidData.tobRooms.xarpus;
   if (raidData.status != ChallengeStatus.IN_PROGRESS && xarpusData === null) {
     return <>No Xarpus data for this raid</>;
   }

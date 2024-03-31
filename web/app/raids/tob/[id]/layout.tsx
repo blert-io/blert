@@ -1,6 +1,6 @@
 'use client';
 
-import { Raid } from '@blert/common';
+import { TobRaid } from '@blert/common';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -23,7 +23,7 @@ export default function RaidLayout(props: RaidLayoutProps) {
   const id = props.params.id;
   const pathname = usePathname();
 
-  const [raid, setRaid] = useState<Raid | null>(null);
+  const [raid, setRaid] = useState<TobRaid | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [selectedRoomNpc, setSelectedRoomNpc] = useState<number | null>(null);

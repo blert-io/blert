@@ -5,8 +5,8 @@ import {
   PlayerAttackEvent,
   PlayerEvent,
   PlayerUpdateEvent,
-  Rooms,
   Stage,
+  TobRooms,
   isPlayerEvent,
 } from '@blert/common';
 import {
@@ -102,7 +102,7 @@ export const useRoomEvents = (stage: Stage) => {
     bossAttackTimeline: [],
   });
 
-  let room: keyof Rooms = 'maiden';
+  let room: keyof TobRooms = 'maiden';
   switch (stage) {
     case Stage.TOB_MAIDEN:
       room = 'maiden';
@@ -124,7 +124,7 @@ export const useRoomEvents = (stage: Stage) => {
       break;
   }
 
-  let totalTicks = raidData?.rooms[room]?.roomTicks ?? -1;
+  let totalTicks = raidData?.tobRooms[room]?.roomTicks ?? -1;
   if (totalTicks === -1 && events.length > 0) {
     totalTicks = events[events.length - 1].tick;
   }
@@ -151,7 +151,7 @@ export const useRoomEvents = (stage: Stage) => {
       setEvents(evts);
 
       if (evts.length > 0) {
-        totalTicks = raidData.rooms[room]?.roomTicks ?? -1;
+        totalTicks = raidData.tobRooms[room]?.roomTicks ?? -1;
         if (totalTicks === -1) {
           // The room is in progress, so get the last tick from the events.
           totalTicks = evts[evts.length - 1].tick;

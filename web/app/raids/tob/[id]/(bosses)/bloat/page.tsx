@@ -97,7 +97,7 @@ export default function BloatPage() {
     return <Loading />;
   }
 
-  const bloatData = raidData.rooms.bloat;
+  const bloatData = raidData.tobRooms.bloat;
   if (raidData.status !== ChallengeStatus.IN_PROGRESS && bloatData === null) {
     return <>No Bloat data for this raid</>;
   }

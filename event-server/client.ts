@@ -2,9 +2,8 @@ import { ServerMessage } from '@blert/common/generated/server_message_pb';
 import { WebSocket } from 'ws';
 
 import MessageHandler from './message-handler';
-import Raid from './raid';
-false;
 import { BasicUser } from './users';
+import { Challenge } from './challenge';
 
 export default class Client {
   private static HEARTBEAT_INTERVAL_MS: number = 5000;
@@ -13,7 +12,7 @@ export default class Client {
   private sessionId: number;
   private socket: WebSocket;
   private messageHandler: MessageHandler;
-  private activeRaid: Raid | null;
+  private activeChallenge: Challenge | null;
   private messageQueue: ServerMessage[];
 
   private closeCallbacks: (() => void)[];
@@ -35,7 +34,7 @@ export default class Client {
     this.sessionId = -1;
     this.socket = socket;
     this.messageHandler = eventHandler;
-    this.activeRaid = null;
+    this.activeChallenge = null;
     this.closeCallbacks = [];
     this.messageQueue = [];
     this.lastHeartbeatTime = Date.now();
@@ -116,12 +115,12 @@ export default class Client {
     return this.user.username;
   }
 
-  public getActiveRaid(): Raid | null {
-    return this.activeRaid;
+  public getActiveChallenge(): Challenge | null {
+    return this.activeChallenge;
   }
 
-  public setActiveRaid(raid: Raid | null): void {
-    this.activeRaid = raid;
+  public setActiveChallenge(challenge: Challenge | null): void {
+    this.activeChallenge = challenge;
   }
 
   public sendMessage(message: ServerMessage): void {
@@ -161,9 +160,9 @@ export default class Client {
   }
 
   private cleanup(): void {
-    if (this.activeRaid !== null) {
-      this.activeRaid.removeClient(this);
-      this.activeRaid = null;
+    if (this.activeChallenge !== null) {
+      this.activeChallenge.removeClient(this);
+      this.activeChallenge = null;
     }
 
     this.closeCallbacks.forEach((callback) => {

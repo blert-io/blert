@@ -6,8 +6,9 @@ import {
 import { ServerMessage } from '@blert/common/generated/server_message_pb';
 
 import Client from './client';
-import RaidManager from './raid-manager';
+import ChallengeManager from './challenge-manager';
 import { Users } from './users';
+import { ChallengeType } from '@blert/common';
 
 type EventSink = (event: Event) => Promise<void>;
 
@@ -31,11 +32,11 @@ class EventAggregator {
 }
 
 export default class MessageHandler {
-  private raidManager: RaidManager;
+  private challengeManager: ChallengeManager;
   private eventAggregators: { [raidId: string]: EventAggregator };
 
-  public constructor(raidManager: RaidManager) {
-    this.raidManager = raidManager;
+  public constructor(raidManager: ChallengeManager) {
+    this.challengeManager = raidManager;
     this.eventAggregators = {};
   }
 
@@ -90,52 +91,21 @@ export default class MessageHandler {
   public async handleRaidEvent(client: Client, event: Event): Promise<void> {
     switch (event.getType()) {
       case Event.Type.CHALLENGE_START:
-        const response = new ServerMessage();
-
-        const challengeInfo = event.getChallengeInfo()!;
-        const partySize = challengeInfo.getPartyList().length;
-        if (partySize === 0 || partySize > 5) {
-          console.error(
-            `Received CHALLENGE_START event for with invalid party size: ${partySize}`,
-          );
-
-          // TODO(frolv): Use a proper error type instead of an empty ID.
-          response.setType(ServerMessage.Type.ACTIVE_CHALLENGE_INFO);
-          client.sendMessage(response);
-          return;
-        }
-
-        const raidId = await this.raidManager.startOrJoinRaid(
-          client,
-          challengeInfo.getMode(),
-          challengeInfo.getPartyList(),
-          challengeInfo.getSpectator(),
-        );
-
-        this.eventAggregators[raidId] = new EventAggregator(async (evt) => {
-          const raid = this.raidManager.getRaid(raidId);
-          if (raid) {
-            await raid.processEvent(evt);
-          }
-        });
-
-        response.setType(ServerMessage.Type.ACTIVE_CHALLENGE_INFO);
-        response.setActiveChallengeId(raidId);
-        client.sendMessage(response);
+        await this.handleChallengeStart(client, event);
         break;
 
       case Event.Type.CHALLENGE_END:
         if (event.getChallengeId() !== '') {
-          const challenge = event.getCompletedChallenge()!;
+          const completed = event.getCompletedChallenge()!;
           // TODO(frolv): Handle this elsewhere...
-          if (challenge.getOverallTimeTicks() !== -1) {
-            const raid = this.raidManager.getRaid(event.getChallengeId());
-            if (raid) {
-              raid.setOverallTime(challenge.getOverallTimeTicks());
+          if (completed.getOverallTimeTicks() !== -1) {
+            const challenge = this.challengeManager.get(event.getChallengeId());
+            if (challenge) {
+              challenge.setOverallTime(completed.getOverallTimeTicks());
             }
           }
 
-          this.raidManager.leaveRaid(client, event.getChallengeId());
+          this.challengeManager.leaveChallenge(client, event.getChallengeId());
 
           // TODO(frolv): This deletion should only occur when the raid is
           // actually finished, but we only have one active client right now.
@@ -148,7 +118,7 @@ export default class MessageHandler {
           event.getChallengeId() !== '' &&
           event.getChallengeInfo()?.getMode()
         ) {
-          const raid = this.raidManager.getRaid(event.getChallengeId());
+          const raid = this.challengeManager.get(event.getChallengeId());
           if (raid) {
             await raid.setMode(event.getChallengeInfo()!.getMode());
           } else {
@@ -165,7 +135,7 @@ export default class MessageHandler {
           return;
         }
 
-        if (event.getChallengeId() !== client.getActiveRaid()?.getId()) {
+        if (event.getChallengeId() !== client.getActiveChallenge()?.getId()) {
           console.error(
             `Client ${client.getSessionId()} sent event for challenge ` +
               `${event.getChallengeId()}, but is not in it.`,
@@ -182,5 +152,99 @@ export default class MessageHandler {
           );
         }
     }
+  }
+
+  /**
+   * Processes a CHALLENGE_START event, starting a new challenge if possible.
+   * @param client The client that sent the event.
+   * @param event The event.
+   */
+  private async handleChallengeStart(
+    client: Client,
+    event: Event,
+  ): Promise<void> {
+    const response = new ServerMessage();
+    const challengeInfo = event.getChallengeInfo()!;
+
+    const challenge = challengeInfo.getChallenge();
+    const partySize = challengeInfo.getPartyList().length;
+
+    const checkPartySize = (minSize: number, maxSize?: number): boolean => {
+      maxSize = maxSize ?? minSize;
+      if (partySize < minSize || partySize > maxSize) {
+        console.error(
+          `Received CHALLENGE_START event for ${challenge} with invalid party size: ${partySize}`,
+        );
+
+        // TODO(frolv): Use a proper error type instead of an empty ID.
+        response.setType(ServerMessage.Type.ACTIVE_CHALLENGE_INFO);
+        client.sendMessage(response);
+        return false;
+      }
+      return true;
+    };
+
+    switch (challenge) {
+      case ChallengeType.TOB:
+        if (!checkPartySize(1, 5)) {
+          return;
+        }
+        break;
+
+      case ChallengeType.COLOSSEUM:
+        if (process.env.TEST_COLOSSEUM !== '1') {
+          console.error(
+            'Received CHALLENGE_START event for unimplemented challenge: COLOSSEUM',
+          );
+          response.setType(ServerMessage.Type.ACTIVE_CHALLENGE_INFO);
+          client.sendMessage(response);
+          return;
+        }
+        if (!checkPartySize(1)) {
+          return;
+        }
+        break;
+
+      case ChallengeType.COX:
+      case ChallengeType.TOA:
+      case ChallengeType.INFERNO:
+        console.error(
+          `Received CHALLENGE_START event for unimplemented challenge: ${challenge}`,
+        );
+
+        // TODO(frolv): Use a proper error type instead of an empty ID.
+        response.setType(ServerMessage.Type.ACTIVE_CHALLENGE_INFO);
+        client.sendMessage(response);
+        return;
+
+      default:
+        console.error(
+          `Received CHALLENGE_START event with unknown challenge: ${challenge}`,
+        );
+
+        // TODO(frolv): Use a proper error type instead of an empty ID.
+        response.setType(ServerMessage.Type.ACTIVE_CHALLENGE_INFO);
+        client.sendMessage(response);
+        return;
+    }
+
+    const challengeId = await this.challengeManager.startOrJoin(
+      client,
+      challenge,
+      challengeInfo.getMode(),
+      challengeInfo.getPartyList(),
+      challengeInfo.getSpectator(),
+    );
+
+    this.eventAggregators[challengeId] = new EventAggregator(async (evt) => {
+      const challenge = this.challengeManager.get(challengeId);
+      if (challenge) {
+        await challenge.processEvent(evt);
+      }
+    });
+
+    response.setType(ServerMessage.Type.ACTIVE_CHALLENGE_INFO);
+    response.setActiveChallengeId(challengeId);
+    client.sendMessage(response);
   }
 }

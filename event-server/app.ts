@@ -6,7 +6,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import Client from './client';
 import ConnectionManager from './connection-manager';
 import EventHandler from './message-handler';
-import RaidManager from './raid-manager';
+import ChallengeManager from './challenge-manager';
 
 async function connectToDatabase() {
   if (!process.env.DB_CONNECTION_STRING) {
@@ -56,7 +56,7 @@ async function main(): Promise<void> {
   });
 
   const connectionManager = new ConnectionManager();
-  const raidManager = new RaidManager();
+  const raidManager = new ChallengeManager();
   const eventHandler = new EventHandler(raidManager);
 
   app.get('/ping', (_req, res) => {

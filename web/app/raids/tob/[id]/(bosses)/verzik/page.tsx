@@ -81,7 +81,7 @@ export default function VerzikPage() {
 
   const [splits, backgroundColors] = useMemo(() => {
     let splits = [];
-    const verzik = raidData?.rooms.verzik;
+    const verzik = raidData?.tobRooms.verzik;
     if (verzik) {
       if (verzik.splits.p1 > 0) {
         splits.push({
@@ -119,7 +119,7 @@ export default function VerzikPage() {
     return <Loading />;
   }
 
-  const verzikData = raidData.rooms.verzik;
+  const verzikData = raidData.tobRooms.verzik;
   if (raidData.status !== ChallengeStatus.IN_PROGRESS && verzikData === null) {
     return <>No Verzik data for this raid</>;
   }

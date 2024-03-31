@@ -2,6 +2,7 @@ import {
   BloatSplits,
   ChallengeMode,
   ChallengeStatus,
+  ChallengeType,
   EventType,
   MaidenCrab,
   MaidenCrabSpawn,
@@ -13,15 +14,14 @@ import {
   NyloSplits,
   PersonalBestType,
   PlayerAttack,
-  PlayerInfo,
-  PrimaryMeleeGear,
-  RecordedChallengeModel,
-  RecordingType,
+  RaidDocument,
+  RoomEvent,
   RoomNpc,
   RoomNpcType,
   SoteSplits,
   Stage,
   StageStatus,
+  TobRooms,
   VerzikAttackStyle,
   VerzikCrab,
   VerzikPhase,
@@ -30,57 +30,22 @@ import {
   XarpusSplits,
   tobPbForMode,
 } from '@blert/common';
-import { RaidModel, RoomEvent } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
-import Client from './client';
+import { Challenge } from './challenge';
 import { Players } from './players';
 import { priceTracker } from './price-tracker';
 import { protoToEvent } from './proto';
-
-export function raidPartyKey(partyMembers: string[]) {
-  return partyMembers
-    .map((name) => name.toLowerCase().replace(' ', '_'))
-    .join('-');
-}
-
-enum State {
-  STARTING,
-  IN_PROGRESS,
-  ENDING,
-}
-
-const BLORVA_PLATEBODY_ID = 28256;
-const TORVA_PLATEBODY_ID = 26384;
-const BANDOS_CHESTPLATE_ID = 11832;
-const VOID_MELEE_HELM_ID = 11665;
-const VOID_MELEE_HELM_OR_ID = 26477;
 
 type PersonalBestUpdate = {
   pbType: PersonalBestType;
   pbTime: number;
 };
 
-type PlayerInfoWithoutUsername = Omit<PlayerInfo, 'currentUsername'>;
-
-export default class Raid {
-  private id: string;
-  private partyKey: string;
-  private clients: Client[];
-
-  private state: State;
-  private mode: ChallengeMode;
-  private party: string[];
-  private partyInfo: PlayerInfoWithoutUsername[];
-  private startTime: number;
-  private challengeStatus: ChallengeStatus;
+export default class TheatreChallenge extends Challenge {
   private completedRooms: number;
   private totalTicks: number;
-  private overallTicks: number;
 
-  private playerInfoUpdated: Set<string>;
-
-  private stage: Stage;
   private stageStatus: StageStatus;
   private stageTick: number;
   private stageEvents: Event[];
@@ -104,23 +69,11 @@ export default class Raid {
     mode: ChallengeMode,
     startTime: number,
   ) {
-    this.id = id;
-    this.partyKey = raidPartyKey(party);
-    this.clients = [];
+    super(ChallengeType.TOB, id, mode, party, startTime, Stage.TOB_MAIDEN);
 
-    this.state = State.STARTING;
-    this.mode = mode;
-    this.party = party;
-    this.partyInfo = this.party.map((_) => ({ gear: PrimaryMeleeGear.BLORVA }));
-    this.startTime = startTime;
-    this.challengeStatus = ChallengeStatus.IN_PROGRESS;
     this.completedRooms = 0;
     this.totalTicks = 0;
-    this.overallTicks = 0;
 
-    this.playerInfoUpdated = new Set();
-
-    this.stage = Stage.TOB_MAIDEN;
     this.stageStatus = StageStatus.ENTERED;
     this.stageTick = 0;
     this.stageEvents = [];
@@ -143,91 +96,42 @@ export default class Raid {
     this.verzikRedSpawns = [];
   }
 
-  public getId(): string {
-    return this.id;
+  protected async onInitialize(document: RaidDocument): Promise<void> {
+    document.tobRooms = {
+      maiden: null,
+      bloat: null,
+      nylocas: null,
+      sotetseg: null,
+      xarpus: null,
+      verzik: null,
+    };
   }
 
-  public getPartyKey(): string {
-    return this.partyKey;
-  }
-
-  public getScale(): number {
-    return this.party.length;
-  }
-
-  public getStartTime(): number {
-    return this.startTime;
-  }
-
-  public setOverallTime(time: number): void {
-    this.overallTicks = time;
-  }
-
-  public async setMode(mode: ChallengeMode): Promise<void> {
-    if (this.mode === mode) {
-      return;
-    }
-    this.mode = mode;
-    await this.updateDatabaseFields((record) => {
-      record.mode = this.mode;
-    });
-  }
-
-  public hasClients(): boolean {
-    return this.clients.length > 0;
-  }
-
-  public async initialize(): Promise<void> {
-    const record = new RaidModel({
-      _id: this.id,
-      mode: this.mode,
-      stage: this.stage,
-      status: this.challengeStatus,
-      party: this.party,
-      partyInfo: this.partyInfo,
-      startTime: this.startTime,
-      totalTicks: 0,
-    });
-    await record.save();
-  }
-
-  public async finish(): Promise<void> {
-    if (this.state === State.STARTING) {
-      console.log(`Raid ${this.id} ended before Maiden; deleting record`);
-      await Promise.all([
-        RaidModel.deleteOne({ _id: this.id }),
-        RecordedChallengeModel.deleteMany({ cId: this.id }),
-      ]);
-      return;
-    }
-
+  protected async onFinish(): Promise<void> {
     let promises: Promise<void>[] = [];
 
-    promises.push(
-      this.updateDatabaseFields((record) => {
-        record.status = this.challengeStatus;
-      }),
-    );
-
     if (
-      this.challengeStatus === ChallengeStatus.COMPLETED &&
+      this.getChallengeStatus() === ChallengeStatus.COMPLETED &&
       this.completedRooms === 6
     ) {
       promises.push(
         this.updatePartyPbs(PersonalBestType.TOB_CHALLENGE, this.totalTicks),
       );
 
-      if (this.overallTicks !== 0) {
+      if (this.getOverallTime()) {
         promises.push(
-          this.updatePartyPbs(PersonalBestType.TOB_OVERALL, this.overallTicks),
+          this.updatePartyPbs(
+            PersonalBestType.TOB_OVERALL,
+            this.getOverallTime(),
+          ),
         );
       }
     }
 
-    for (const username of this.party) {
+    for (const username of this.getParty()) {
       promises.push(
         Players.updateStats(username, (stats) => {
-          switch (this.challengeStatus) {
+          switch (this.getChallengeStatus()) {
             case ChallengeStatus.COMPLETED:
               stats.completions += 1;
               break;
@@ -245,17 +149,17 @@ export default class Raid {
     await Promise.all(promises);
   }
 
-  public async processEvent(event: Event): Promise<void> {
+  protected async processChallengeEvent(event: Event): Promise<void> {
     switch (event.getType()) {
       case Event.Type.STAGE_UPDATE:
         await this.handleStageUpdate(event);
         break;
 
       default:
-        if (event.getStage() !== this.stage) {
+        if (event.getStage() !== this.getStage()) {
           console.error(
-            `Raid ${this.id} got event ${event.getType()} for stage ` +
-              `${event.getStage()} but is at stage ${this.stage}`,
+            `Raid ${this.getId()} got event ${event.getType()} for stage ` +
+              `${event.getStage()} but is at stage ${this.getStage()}`,
           );
           return;
         }
@@ -275,79 +179,11 @@ export default class Raid {
           this.stageTick = event.getTick();
         } else {
           console.error(
-            `Raid ${this.id} got event ${event.getType()} for tick ${event.getTick()} (current=${this.stageTick})`,
+            `Raid ${this.getId()} got event ${event.getType()} for tick ${event.getTick()} (current=${this.stageTick})`,
           );
         }
         break;
     }
-  }
-
-  /**
-   * Adds a new client as an event source for the raid.
-   * @param client The client.
-   * @param spectator Whether the client is spectating the raid.
-   * @returns `true` if the client was added, `false` if not.
-   */
-  public async registerClient(
-    client: Client,
-    spectator: boolean,
-  ): Promise<boolean> {
-    if (client.getActiveRaid() !== null) {
-      console.error(
-        `Client ${client.getSessionId()} attempted to join raid ${this.id}, but is already in a raid`,
-      );
-      return false;
-    }
-
-    if (this.clients.find((c) => c == client) !== undefined) {
-      return false;
-    }
-
-    this.clients.push(client);
-    client.setActiveRaid(this);
-
-    const recordedRaid = new RecordedChallengeModel({
-      recorderId: client.getUserId(),
-      cId: this.id,
-      recordingType: spectator ? RecordingType.SPECTATOR : RecordingType.RAIDER,
-    });
-    await recordedRaid.save();
-
-    return true;
-  }
-
-  /**
-   * Removes a client from being an event source for the raid.
-   * @param client The client.
-   */
-  public removeClient(client: Client): void {
-    if (client.getActiveRaid() == this) {
-      this.clients = this.clients.filter((c) => c != client);
-      client.setActiveRaid(null);
-    } else {
-      console.error(
-        `Client ${client.getSessionId()} tried to leave raid ${this.id}, but was not in it`,
-      );
-    }
-  }
-
-  private async start(): Promise<void> {
-    const promises = this.party.map(Players.startNewRaid);
-    const playerIds = await Promise.all(promises);
-
-    if (playerIds.some((id) => id === null)) {
-      console.error(
-        `Raid ${this.id} failed to start; could not find or create all players`,
-      );
-      this.finish();
-      return;
-    }
-
-    await this.updateDatabaseFields((record) => {
-      record.partyIds = playerIds;
-    });
-
-    this.state = State.IN_PROGRESS;
   }
 
   private async handleStageUpdate(event: Event): Promise<void> {
@@ -358,23 +194,23 @@ export default class Raid {
 
     switch (stageUpdate.getStatus()) {
       case StageStatus.STARTED:
-        if (this.state === State.STARTING) {
+        if (this.isStarting()) {
           await this.start();
         }
         await this.updateDatabaseFields((record) => {
-          record.stage = this.stage;
+          record.stage = this.getStage();
         });
         if (this.stageStatus === StageStatus.ENTERED) {
           // A transition from ENTERED -> STARTED has already reset the stage.
           // Don't clear any data received afterwards, unless the stage is new.
-          if (this.stage === event.getStage()) {
+          if (this.getStage() === event.getStage()) {
             break;
           }
         }
       // A transition from any other state to STARTED should fall through
       // and reset all stage data.
       case StageStatus.ENTERED:
-        this.stage = event.getStage();
+        this.setStage(event.getStage());
         this.stageEvents = [];
         this.stageTick = 0;
         this.deathsInRoom = [];
@@ -384,12 +220,12 @@ export default class Raid {
 
       case StageStatus.WIPED:
       case StageStatus.COMPLETED:
-        if (event.getStage() === this.stage) {
+        if (event.getStage() === this.getStage()) {
           this.handleStageFinished(event, stageUpdate);
         } else {
           console.error(
-            `Raid ${this.id} got status ${stageUpdate.getStatus()} for stage ` +
-              `${event.getStage()} but is at stage ${this.stage}`,
+            `Raid ${this.getId()} got status ${stageUpdate.getStatus()} for stage ` +
+              `${event.getStage()} but is at stage ${this.getStage()}`,
           );
         }
         break;
@@ -405,11 +241,11 @@ export default class Raid {
     // Set the appropriate status if the raid were to be finished at this
     // point.
     if (stageUpdate.getStatus() === StageStatus.WIPED) {
-      this.challengeStatus = ChallengeStatus.WIPED;
-    } else if (this.stage === Stage.TOB_VERZIK) {
-      this.challengeStatus = ChallengeStatus.COMPLETED;
+      this.setChallengeStatus(ChallengeStatus.WIPED);
+    } else if (this.getStage() === Stage.TOB_VERZIK) {
+      this.setChallengeStatus(ChallengeStatus.COMPLETED);
     } else {
-      this.challengeStatus = ChallengeStatus.RESET;
+      this.setChallengeStatus(ChallengeStatus.RESET);
     }
 
     this.completedRooms++;
@@ -421,7 +257,7 @@ export default class Raid {
     if (!stageUpdate.getAccurate()) {
       const missingTicks = event.getTick() - this.stageTick;
       console.log(
-        `Raid ${this.id} lost ${missingTicks} ticks at stage ${event.getStage()}`,
+        `Raid ${this.getId()} lost ${missingTicks} ticks at stage ${event.getStage()}`,
       );
       firstTick = missingTicks;
 
@@ -430,7 +266,7 @@ export default class Raid {
       promises.push(
         RoomEvent.updateMany(
           {
-            cId: this.id,
+            cId: this.getId(),
             stage: event.getStage(),
           },
           { $inc: { tick: missingTicks } },
@@ -439,7 +275,7 @@ export default class Raid {
       promises.push(
         RoomEvent.updateMany(
           {
-            cId: this.id,
+            cId: this.getId(),
             stage: event.getStage(),
             type: EventType.PLAYER_UPDATE,
           },
@@ -450,11 +286,12 @@ export default class Raid {
 
     promises.push(
       this.updateDatabaseFields((record) => {
-        record.partyInfo = this.partyInfo;
+        // @ts-ignore: Only partial party information is stored.
+        record.partyInfo = this.getPartyInfo();
         record.totalTicks += event.getTick();
         record.totalDeaths += this.deathsInRoom.length;
 
-        let roomKey = 'maiden';
+        let roomKey: keyof TobRooms = 'maiden';
         switch (event.getStage()) {
           case Stage.TOB_MAIDEN:
             roomKey = 'maiden';
@@ -476,33 +313,34 @@ export default class Raid {
             break;
         }
 
-        record.rooms[roomKey] = {
+        record.tobRooms[roomKey] = {
           firstTick,
           roomTicks: event.getTick(),
           deaths: this.deathsInRoom,
+          // @ts-ignore: NPCs in the database are a map.
           npcs: this.npcs,
         };
 
-        switch (this.stage) {
+        switch (this.getStage()) {
           case Stage.TOB_MAIDEN:
-            record.rooms.maiden.splits = this.maidenSplits;
+            record.tobRooms.maiden!.splits = this.maidenSplits;
             break;
           case Stage.TOB_BLOAT:
-            record.rooms.bloat.splits = this.bloatSplits;
+            record.tobRooms.bloat!.splits = this.bloatSplits;
             break;
           case Stage.TOB_NYLOCAS:
-            record.rooms.nylocas.splits = this.nyloSplits;
-            record.rooms.nylocas.stalledWaves = this.stalledNyloWaves;
+            record.tobRooms.nylocas!.splits = this.nyloSplits;
+            record.tobRooms.nylocas!.stalledWaves = this.stalledNyloWaves;
             break;
           case Stage.TOB_SOTETSEG:
-            record.rooms.sotetseg.splits = this.soteSplits;
+            record.tobRooms.sotetseg!.splits = this.soteSplits;
             break;
           case Stage.TOB_XARPUS:
-            record.rooms.xarpus.splits = this.xarpusSplits;
+            record.tobRooms.xarpus!.splits = this.xarpusSplits;
             break;
           case Stage.TOB_VERZIK:
-            record.rooms.verzik.splits = this.verzikSplits;
-            record.rooms.verzik.redCrabSpawns = this.verzikRedSpawns.length;
+            record.tobRooms.verzik!.splits = this.verzikSplits;
+            record.tobRooms.verzik!.redCrabSpawns = this.verzikRedSpawns.length;
             break;
         }
       }),
@@ -517,7 +355,7 @@ export default class Raid {
 
       if (stageUpdate.getStatus() === StageStatus.COMPLETED) {
         let pbType;
-        switch (this.stage) {
+        switch (this.getStage()) {
           case Stage.TOB_MAIDEN:
             pbType = PersonalBestType.TOB_MAIDEN;
             break;
@@ -566,10 +404,7 @@ export default class Raid {
   private async updateRaidStatus(event: Event): Promise<boolean> {
     switch (event.getType()) {
       case Event.Type.PLAYER_UPDATE:
-        const updatedPlayer = event.getPlayer()!;
-        if (!this.playerInfoUpdated.has(updatedPlayer.getName())) {
-          this.tryDetermineGear(updatedPlayer);
-        }
+        this.tryDetermineGear(event.getPlayer()!);
         return true;
 
       case Event.Type.PLAYER_DEATH:
@@ -682,7 +517,7 @@ export default class Raid {
         const verzikAttackStyle = event.getVerzikAttackStyle()!;
 
         const record = await RoomEvent.findOne({
-          cId: this.id,
+          cId: this.getId(),
           type: EventType.NPC_ATTACK,
           tick: verzikAttackStyle.getNpcAttackTick(),
           stage: Stage.TOB_VERZIK,
@@ -725,7 +560,7 @@ export default class Raid {
     switch (attack.getType()) {
       case PlayerAttack.BGS_SMACK:
       case PlayerAttack.HAMMER_BOP:
-        if (this.stage === Stage.TOB_VERZIK) {
+        if (this.getStage() === Stage.TOB_VERZIK) {
           if (target !== undefined && Npc.isVerzikMatomenos(target.getId())) {
             // Can 6t a red crab to tick fix; not a troll.
             return;
@@ -733,7 +568,7 @@ export default class Raid {
         }
 
         if (
-          this.stage === Stage.TOB_NYLOCAS &&
+          this.getStage() === Stage.TOB_NYLOCAS &&
           this.nyloSplits.waves !== 0 &&
           this.nyloSplits.cleanup === 0
         ) {
@@ -897,47 +732,6 @@ export default class Raid {
     }
   }
 
-  private async tryDetermineGear(player: Event.Player): Promise<void> {
-    const equipment = player.getEquipmentList();
-    if (equipment.length === 0) {
-      return;
-    }
-
-    const torso = equipment.find(
-      (item) => item.getSlot() === Event.Player.EquipmentSlot.TORSO,
-    );
-    const helm = equipment.find(
-      (item) => item.getSlot() === Event.Player.EquipmentSlot.HEAD,
-    );
-    let gear: PrimaryMeleeGear | null = null;
-
-    if (torso !== undefined) {
-      switch (torso.getId()) {
-        case BLORVA_PLATEBODY_ID:
-          gear = PrimaryMeleeGear.BLORVA;
-          break;
-        case TORVA_PLATEBODY_ID:
-          gear = PrimaryMeleeGear.TORVA;
-          break;
-        case BANDOS_CHESTPLATE_ID:
-          gear = PrimaryMeleeGear.BANDOS;
-          break;
-      }
-    }
-    if (
-      helm !== undefined &&
-      (helm.getId() === VOID_MELEE_HELM_ID ||
-        helm.getId() === VOID_MELEE_HELM_OR_ID)
-    ) {
-      gear = PrimaryMeleeGear.ELITE_VOID;
-    }
-
-    if (gear !== null) {
-      this.playerInfoUpdated.add(player.getName());
-      this.partyInfo[this.party.indexOf(player.getName())].gear = gear;
-    }
-  }
-
   /**
    * Corrects any recorded splits and other stage information that were affected
    * by tick loss.
@@ -950,7 +744,7 @@ export default class Raid {
       npc.deathTick += tickOffset;
     });
 
-    switch (this.stage) {
+    switch (this.getStage()) {
       case Stage.TOB_MAIDEN:
         if (this.maidenSplits.SEVENTIES !== 0) {
           this.maidenSplits.SEVENTIES += tickOffset;
@@ -1016,26 +810,18 @@ export default class Raid {
     }
   }
 
-  private async updateDatabaseFields(updateCallback: (document: any) => void) {
-    const record = await RaidModel.findOne({ _id: this.id });
-    if (record !== null) {
-      updateCallback(record);
-      record.save();
-    }
-  }
-
   private async updatePartyPbs(
     type: PersonalBestType,
     ticks: number,
   ): Promise<void> {
-    if (this.mode === ChallengeMode.NO_MODE) {
+    if (this.getMode() === ChallengeMode.NO_MODE) {
       return;
     }
 
     await Players.updatePersonalBests(
-      this.party,
-      this.id,
-      tobPbForMode(type, this.mode),
+      this.getParty(),
+      this.getId(),
+      tobPbForMode(type, this.getMode()),
       this.getScale(),
       ticks,
     );

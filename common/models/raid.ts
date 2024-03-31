@@ -1,5 +1,5 @@
-import { Model, Schema, model, models } from 'mongoose';
-import { Raid } from '../raid-definitions';
+import { Document, Model, Schema, model, models } from 'mongoose';
+import { Raid, TobRaid, TobRooms } from '../raid-definitions';
 
 export const Coords = {
   _id: false,
@@ -66,27 +66,10 @@ const PlayerInfo = {
   gear: Number,
 };
 
-const raidSchema = new Schema<Raid>({
-  _id: String,
-  status: { type: Number, index: true },
-  stage: { type: Number, index: true },
-  mode: Number,
-  startTime: { type: Date },
-  party: {
-    type: [String],
-    index: {
-      unique: false,
-      collation: {
-        locale: 'en',
-        strength: 2,
-      },
-    },
-  },
-  partyIds: { type: [Schema.Types.ObjectId], index: true },
-  partyInfo: { type: [PlayerInfo], default: null },
-  totalTicks: { type: Number, default: 0, index: true },
-  totalDeaths: { type: Number, default: 0 },
-  rooms: {
+type AllRaids = Raid & TobRaid;
+
+const tobRoomsSchema = new Schema<TobRooms>(
+  {
     maiden: {
       type: {
         ...RoomOverview,
@@ -153,7 +136,34 @@ const raidSchema = new Schema<Raid>({
       default: null,
     },
   },
+  { _id: false },
+);
+
+const raidSchema = new Schema<AllRaids>({
+  _id: String,
+  type: { type: Number, index: true },
+  status: { type: Number, index: true },
+  stage: { type: Number, index: true },
+  mode: Number,
+  startTime: { type: Date },
+  party: {
+    type: [String],
+    index: {
+      unique: false,
+      collation: {
+        locale: 'en',
+        strength: 2,
+      },
+    },
+  },
+  partyIds: { type: [Schema.Types.ObjectId], index: true },
+  partyInfo: { type: [PlayerInfo], default: null },
+  totalTicks: { type: Number, default: 0, index: true },
+  totalDeaths: { type: Number, default: 0 },
+  tobRooms: tobRoomsSchema,
 });
 
 export const RaidModel =
-  (models?.Raid as Model<Raid>) ?? model<Raid>('Raid', raidSchema);
+  (models?.Raid as Model<AllRaids>) ?? model<AllRaids>('Raid', raidSchema);
+
+export type RaidDocument = Document<unknown, {}, AllRaids> & AllRaids;

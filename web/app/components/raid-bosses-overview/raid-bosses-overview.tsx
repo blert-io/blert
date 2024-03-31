@@ -7,8 +7,8 @@ import {
   BloatOverview,
   MaidenOverview,
   NyloOverview,
-  Rooms,
   SoteOverview,
+  TobRooms,
   VerzikOverview,
   XarpusOverview,
 } from '@blert/common';
@@ -19,7 +19,7 @@ import styles from './style.module.scss';
 
 interface RaidBossesOverviewProps {
   raidId: string;
-  rooms: Rooms;
+  rooms: TobRooms;
 }
 
 export function RaidBossesOverview(props: RaidBossesOverviewProps) {

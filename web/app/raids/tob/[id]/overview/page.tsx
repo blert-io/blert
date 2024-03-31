@@ -50,7 +50,7 @@ export default function Overview() {
         players={playersWithGear}
         compactView={display.isCompact()}
       />
-      <RaidBossesOverview rooms={raid.rooms} raidId={raid._id} />
+      <RaidBossesOverview rooms={raid.tobRooms} raidId={raid._id} />
     </div>
   );
 }

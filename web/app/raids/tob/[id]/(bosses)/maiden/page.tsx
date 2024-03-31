@@ -221,7 +221,7 @@ export default function Maiden() {
   const { splits, spawns } = useMemo(() => {
     const splits: TimelineSplit[] = [];
     const spawns: MaidenCrabProperties[][] = [];
-    const maidenRoom = raidData?.rooms.maiden;
+    const maidenRoom = raidData?.tobRooms.maiden;
 
     const addSplits = (tick: number, name: string) => {
       if (tick !== 0) {
@@ -254,7 +254,7 @@ export default function Maiden() {
     return <Loading />;
   }
 
-  const maidenData = raidData.rooms.maiden;
+  const maidenData = raidData.tobRooms.maiden;
   if (raidData.status === ChallengeStatus.IN_PROGRESS) {
     if (events.length === 0) {
       return <>This raid has not yet started Maiden.</>;

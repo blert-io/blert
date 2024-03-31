@@ -2,15 +2,25 @@ import { Types } from 'mongoose';
 
 import { Coords } from './event';
 import {
-  Event as EventProto,
+  Challenge as ChallengeProto,
   ChallengeMode as ChallengeModeProto,
+  Event as EventProto,
   PlayerAttack as PlayerAttackProto,
   NpcAttack as NpcAttackProto,
   Stage as StageProto,
 } from './generated/event_pb';
 
+export enum ChallengeType {
+  TOB = ChallengeProto.TOB,
+  COX = ChallengeProto.COX,
+  TOA = ChallengeProto.TOA,
+  COLOSSEUM = ChallengeProto.COLOSSEUM,
+  INFERNO = ChallengeProto.INFERNO,
+}
+
 export type Raid = {
   _id: string;
+  type: ChallengeType;
   status: ChallengeStatus;
   stage: Stage;
   mode: ChallengeMode;
@@ -20,10 +30,13 @@ export type Raid = {
   partyInfo: PlayerInfo[];
   totalTicks: number;
   totalDeaths: number;
-  rooms: Rooms;
 };
 
-export type Rooms = {
+export type TobRaid = Raid & {
+  tobRooms: TobRooms;
+};
+
+export type TobRooms = {
   maiden: MaidenOverview | null;
   bloat: BloatOverview | null;
   nylocas: NyloOverview | null;
