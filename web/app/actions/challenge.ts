@@ -1,6 +1,7 @@
 'use server';
 
 import {
+  ChallengeType,
   Event,
   EventType,
   PersonalBest,
@@ -22,34 +23,38 @@ import connectToDatabase from './db';
 import { defaultItemCache } from '../utils/item-cache';
 
 /**
- * Fetches the raid with the specific ID from the database.
+ * Fetches the challenge with the specific ID from the database.
  *
- * @param id UUID of the raid.
- * @returns The raid object if found, `null` if not.
+ * @param type The type of the challenge.
+ * @param id UUID of the challenge.
+ * @returns The challenge object if found, `null` if not.
  */
-export async function loadRaid(id: string): Promise<Raid | null> {
+export async function loadChallenge(
+  type: ChallengeType,
+  id: string,
+): Promise<Raid | null> {
   await connectToDatabase();
 
-  const raid = await RaidModel.findOne({ _id: id }).lean().exec();
-  if (raid === null) {
+  const challenge = await RaidModel.findOne({ _id: id, type }).lean().exec();
+  if (challenge === null) {
     return null;
   }
 
   const players = await PlayerModel.find(
-    { _id: { $in: raid.partyIds } },
+    { _id: { $in: challenge.partyIds } },
     { username: 1 },
   )
     .lean()
     .exec();
 
   // Add each player's current username to enable linking to their profile.
-  raid.party.forEach((_, i) => {
-    const player = players.find((pl) => pl._id.equals(raid.partyIds[i]));
-    raid.partyInfo[i].currentUsername =
+  challenge.party.forEach((_, i) => {
+    const player = players.find((pl) => pl._id.equals(challenge.partyIds[i]));
+    challenge.partyInfo[i].currentUsername =
       player !== undefined ? player.username : '';
   });
 
-  return raid;
+  return challenge;
 }
 
 /**
@@ -104,9 +109,10 @@ export async function loadEventsForStage(
   return roomEvents ? (roomEvents as unknown as Event[]) : [];
 }
 
-export type RaidOverview = Pick<
+export type ChallengeOverview = Pick<
   Raid,
   | '_id'
+  | 'type'
   | 'stage'
   | 'startTime'
   | 'status'
@@ -118,38 +124,47 @@ export type RaidOverview = Pick<
 >;
 
 /**
- * Fetches basic information about the most recently recorded raids from
+ * Fetches basic information about the most recently recorded challenges from
  * the database.
  *
- * @param limit Maximum number of raids to fetch.
- * @param username If present, only fetch raids that the user participated in.
- * @returns Array of raids.
+ * @param limit Maximum number of challenges to fetch.
+ * @param type If set, only fetch challenges of this type.
+ * @param username If present, only fetch challenges the user participated in.
+ * @returns Array of challenges.
  */
-export async function loadRecentRaidInformation(
+export async function loadRecentChallenges(
   limit: number,
+  type?: ChallengeType,
   username?: string,
-): Promise<RaidOverview[]> {
+): Promise<ChallengeOverview[]> {
   await connectToDatabase();
 
   let query = RaidModel.find();
 
-  if (username) {
+  if (type !== undefined) {
+    query = query.where({ type });
+  }
+
+  if (username !== undefined) {
     const player = await PlayerModel.findOne({ username }).exec();
     if (player !== null) {
       query = query.where({ partyIds: player._id });
     } else {
       // This shouldn't happen, but fallback to username search if the player
       // isn't found for some reason.
-      console.error(`loadRecentRaidInformation: Player not found: ${username}`);
+      console.error(
+        `loadRecentChallengeInformation: Player not found: ${username}`,
+      );
       query = query
         .where({ party: username })
         .collation({ locale: 'en', strength: 2 });
     }
   }
 
-  const raids = await query
+  const challenges = await query
     .select({
       _id: 1,
+      type: 1,
       startTime: 1,
       status: 1,
       stage: 1,
@@ -164,7 +179,7 @@ export async function loadRecentRaidInformation(
     .lean()
     .exec();
 
-  return raids ? (raids as RaidOverview[]) : [];
+  return challenges ? (challenges as ChallengeOverview[]) : [];
 }
 
 export type PlayerWithStats = Omit<Player, '_id'> & {

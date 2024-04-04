@@ -1,3 +1,4 @@
+import { Metadata } from 'next';
 import Image from 'next/image';
 
 import CollapsiblePanel from '../../components/collapsible-panel';
@@ -63,3 +64,7 @@ export default function Page() {
     </>
   );
 }
+
+export const metadata: Metadata = {
+  title: 'Chambers of Xeric | Blert',
+};

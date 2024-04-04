@@ -12,12 +12,27 @@ const nextConfig = {
     redirects: async () => {
         return [
             {
+                source: '/challenges/colosseum/:id',
+                destination: '/challenges/colosseum/:id/overview',
+                permanent: true,
+            },
+            {
+                source: '/challenges/colosseum/:id/waves',
+                destination: '/challenges/colosseum/:id/overview',
+                permanent: true,
+            },
+            {
+                source: '/challenges/colosseum/:id/waves/:number([^0-9]+)',
+                destination: '/challenges/colosseum/:id/overview',
+                permanent: true,
+            },
+            {
                 source: '/raids/tob/:id',
                 destination: '/raids/tob/:id/overview',
                 permanent: true,
             },
         ]
     }
-}
+};
 
-module.exports = nextConfig
+module.exports = nextConfig;

@@ -1,0 +1,52 @@
+.wavePage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  .waveOverview {
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: row;
+
+    .waveImage {
+      height: 200px;
+      width: 240px;
+      position: relative;
+      margin: 20px;
+    }
+
+    .waveDetails {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      margin-left: 20px;
+
+      h2 {
+        font-size: 35px;
+        margin: 10px 0 0 0;
+        border-bottom: 2px solid grey;
+      }
+
+      .handicaps {
+        padding: 5px 0;
+
+        h3 {
+          font-size: 1rem;
+          margin: 6px 0;
+        }
+
+        ul {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+          display: flex;
+          flex-direction: row;
+
+          li {
+            padding: 0 5px;
+          }
+        }
+      }
+    }
+  }
+}

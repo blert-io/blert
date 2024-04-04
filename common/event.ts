@@ -12,6 +12,7 @@ import {
   VerzikCrabProperties,
   NpcAttack,
   Stage,
+  Handicap,
 } from './raid-definitions';
 
 export enum EventType {
@@ -39,6 +40,7 @@ export enum EventType {
   TOB_XARPUS_PHASE = EventProto.Type.TOB_XARPUS_PHASE,
   TOB_VERZIK_PHASE = EventProto.Type.TOB_VERZIK_PHASE,
   TOB_VERZIK_ATTACK_STYLE = EventProto.Type.TOB_VERZIK_ATTACK_STYLE,
+  COLOSSEUM_HANDICAP_CHOICE = EventProto.Type.COLOSSEUM_HANDICAP_CHOICE,
 }
 
 export const isPlayerEvent = (event: Event): boolean => {
@@ -150,6 +152,11 @@ export interface VerzikAttackStyleEvent extends Event {
   };
 }
 
+export interface HandicapChoiceEvent extends Event {
+  type: EventType.COLOSSEUM_HANDICAP_CHOICE;
+  handicap: Handicap;
+}
+
 export type MergedEvent = Event &
   Omit<StageUpdateEvent, 'type'> &
   Omit<PlayerUpdateEvent, 'type'> &
@@ -166,7 +173,8 @@ export type MergedEvent = Event &
   Omit<SoteMazeProcEvent, 'type'> &
   Omit<XarpusPhaseEvent, 'type'> &
   Omit<VerzikPhaseEvent, 'type'> &
-  Omit<VerzikAttackStyleEvent, 'type'>;
+  Omit<VerzikAttackStyleEvent, 'type'> &
+  Omit<HandicapChoiceEvent, 'type'>;
 
 export interface BasicPlayer {
   name: string;
@@ -181,6 +189,7 @@ export interface Player extends BasicPlayer {
   defence?: SkillLevel;
   ranged?: SkillLevel;
   magic?: SkillLevel;
+  prayerSet?: number;
   equipment?: EquipmentMap;
 }
 

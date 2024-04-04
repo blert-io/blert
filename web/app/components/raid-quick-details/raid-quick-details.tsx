@@ -1,20 +1,34 @@
-import { ChallengeMode, ChallengeStatus, Stage } from '@blert/common';
+'use client';
+
+import {
+  ChallengeMode,
+  ChallengeStatus,
+  ChallengeType,
+  Stage,
+} from '@blert/common';
 import TimeAgo from 'react-timeago';
 
 import { ticksToFormattedSeconds } from '../../utils/tick';
 
 import styles from './style.module.scss';
 
-const raidDifficultyNameAndColor = (difficulty: ChallengeMode) => {
+const modeNameAndColor = (type: ChallengeType, difficulty: ChallengeMode) => {
+  if (type === ChallengeType.COLOSSEUM) {
+    return ['Colosseum', '#33a4af'];
+  }
+  if (type === ChallengeType.INFERNO) {
+    return ['Inferno', '#a14f1a'];
+  }
+
   switch (difficulty) {
     case ChallengeMode.TOB_REGULAR:
-      return ['Regular', '#FFD700'];
+      return ['ToB Regular', '#ffd700'];
     case ChallengeMode.TOB_HARD:
-      return ['Hard', '#D100CC'];
+      return ['ToB Hard', '#d100cc'];
     case ChallengeMode.TOB_ENTRY:
-      return ['Entry', '#B9BBB6'];
+      return ['ToB Entry', '#b9bbb6'];
     default:
-      return ['Unknown', '#FFD700'];
+      return ['Unknown', '#ffd700'];
   }
 };
 
@@ -29,33 +43,50 @@ export const raidStatusNameAndColor = (
     return ['Completion', '#73AD70'];
   }
 
-  let boss = 'Unknown';
+  let stageName = 'Unknown';
 
   switch (stage) {
     case Stage.TOB_MAIDEN:
-      boss = 'Maiden';
+      stageName = 'Maiden';
       break;
     case Stage.TOB_BLOAT:
-      boss = 'Bloat';
+      stageName = 'Bloat';
       break;
     case Stage.TOB_NYLOCAS:
-      boss = 'Nylocas';
+      stageName = 'Nylocas';
       break;
     case Stage.TOB_SOTETSEG:
-      boss = 'Sotetseg';
+      stageName = 'Sotetseg';
       break;
     case Stage.TOB_XARPUS:
-      boss = 'Xarpus';
+      stageName = 'Xarpus';
       break;
     case Stage.TOB_VERZIK:
-      boss = 'Verzik';
+      stageName = 'Verzik';
+      break;
+
+    case Stage.COLOSSEUM_WAVE_1:
+    case Stage.COLOSSEUM_WAVE_2:
+    case Stage.COLOSSEUM_WAVE_3:
+    case Stage.COLOSSEUM_WAVE_4:
+    case Stage.COLOSSEUM_WAVE_5:
+    case Stage.COLOSSEUM_WAVE_6:
+    case Stage.COLOSSEUM_WAVE_7:
+    case Stage.COLOSSEUM_WAVE_8:
+    case Stage.COLOSSEUM_WAVE_9:
+    case Stage.COLOSSEUM_WAVE_10:
+    case Stage.COLOSSEUM_WAVE_11:
+      stageName = `Wave ${stage - Stage.COLOSSEUM_WAVE_1 + 1}`;
+      break;
+    case Stage.COLOSSEUM_WAVE_12:
+      stageName = 'Sol Heredit';
       break;
   }
 
   if (status === ChallengeStatus.RESET) {
-    return [`${boss} Reset`, '#B9BBB6'];
+    return [`${stageName} Reset`, '#B9BBB6'];
   }
-  return [`${boss} Wipe`, '#B30000'];
+  return [`${stageName} Wipe`, '#B30000'];
 };
 
 const getIconForStatus = (status: ChallengeStatus) => {
@@ -81,9 +112,10 @@ const getIconForStatus = (status: ChallengeStatus) => {
 };
 
 interface RaidQuickDetailsProps {
+  type: ChallengeType;
   stage: Stage;
-  raidStatus: ChallengeStatus;
-  raidDifficulty: ChallengeMode;
+  status: ChallengeStatus;
+  mode: ChallengeMode;
   totalRaidTicks: number;
   deaths: number;
   partySize: number;
@@ -93,9 +125,10 @@ interface RaidQuickDetailsProps {
 
 export function RaidQuickDetails(props: RaidQuickDetailsProps) {
   const {
+    type,
     stage,
-    raidStatus,
-    raidDifficulty,
+    status,
+    mode,
     totalRaidTicks,
     deaths,
     partySize,
@@ -103,9 +136,9 @@ export function RaidQuickDetails(props: RaidQuickDetailsProps) {
     compactView,
   } = props;
 
-  const [statusString, statusColor] = raidStatusNameAndColor(raidStatus, stage);
-  const [modeString, modeColor] = raidDifficultyNameAndColor(raidDifficulty);
-  const iconForStatus = getIconForStatus(raidStatus);
+  const [statusString, statusColor] = raidStatusNameAndColor(status, stage);
+  const [modeString, modeColor] = modeNameAndColor(type, mode);
+  const iconForStatus = getIconForStatus(status);
   const ticks = ticksToFormattedSeconds(totalRaidTicks);
 
   return (
@@ -135,7 +168,7 @@ export function RaidQuickDetails(props: RaidQuickDetailsProps) {
           className="fa-solid fa-users"
           style={{ position: 'relative', left: '-2px' }}
         ></i>{' '}
-        {partySize} Raiders
+        {partySize} Raider{partySize !== 1 && 's'}
       </div>
       <div className={styles.raid__bulletpointDetail}>
         <i

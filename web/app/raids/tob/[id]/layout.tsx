@@ -55,10 +55,6 @@ export default function RaidLayout(props: RaidLayoutProps) {
     } else {
       document.title = `Theatre of Blood | Blert`;
     }
-
-    return () => {
-      document.title = 'Blert';
-    };
   }, [raid]);
 
   if (loading) {

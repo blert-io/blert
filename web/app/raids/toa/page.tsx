@@ -1,3 +1,4 @@
+import { Metadata } from 'next';
 import Image from 'next/image';
 
 import CollapsiblePanel from '../../components/collapsible-panel';
@@ -58,3 +59,8 @@ export default function Page() {
     </>
   );
 }
+
+export const metadata: Metadata = {
+  title: 'Tombs of Amascut | Blert',
+  description: 'The Tombs of Amascut raid is coming soon!',
+};

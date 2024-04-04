@@ -63,7 +63,7 @@ export class Players {
    * is better than their current personal bests.
    *
    * @param usernames The players.
-   * @param challengeId ID of the raid in which the time was achieved.
+   * @param challengeId ID of the challenge in which the time was achieved.
    * @param type Type of personal best.
    * @param scale Raid scale.
    * @param ticks The achieved time, in ticks.

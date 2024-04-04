@@ -128,7 +128,7 @@ export default function Home() {
                 <li>UX Feedback</li>
                 <li>Feature requests</li>
               </ol>
-              If youd like to help out or if you have any questions about our
+              If you'd like to help out or if you have any questions about our
               website or plugin, please reach us on our{' '}
               <a
                 href="https://discord.gg/c5Hgv3NnYe"

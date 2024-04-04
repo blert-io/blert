@@ -1,26 +1,16 @@
-'use client';
-
-import {
-  PersonalBest,
-  PersonalBestType,
-  PrimaryMeleeGear,
-} from '@blert/common';
+import { PersonalBestType, PrimaryMeleeGear } from '@blert/common';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
 
 import {
-  PlayerWithStats,
-  RaidOverview,
   loadPbsForPlayer,
   loadPlayerWithStats,
-  loadRecentRaidInformation,
-} from '../../actions/raid';
+  loadRecentChallenges,
+} from '../../actions/challenge';
 import CollapsiblePanel from '../../components/collapsible-panel';
-import RaidHistory from '../../components/raid-history';
+import ChallengeHistory from '../../components/challenge-history';
 import Statistic from '../../components/statistic';
 import { ticksToFormattedSeconds } from '../../utils/tick';
-import Loading from '../../components/loading';
 
 import styles from './style.module.scss';
 
@@ -72,42 +62,13 @@ function PbTable({ title, pbs }: PbTableProps) {
   );
 }
 
-export default function Player(props: PlayerPageProps) {
+export default async function Player(props: PlayerPageProps) {
   const username = decodeURIComponent(props.params.username);
 
-  const [loading, setLoading] = useState(true);
-  const [player, setPlayer] = useState<PlayerWithStats | null>(null);
-  const [raids, setRaids] = useState<RaidOverview[]>([]);
-  const [personalBests, setPersonalBests] = useState<PersonalBest[]>([]);
-
-  useEffect(() => {
-    const loadPlayer = async () => {
-      setLoading(true);
-      const [player, raids, pbs] = await Promise.all([
-        loadPlayerWithStats(username),
-        loadRecentRaidInformation(10, username),
-        loadPbsForPlayer(username),
-      ]);
-      setLoading(false);
-      setPlayer(player);
-      setRaids(raids);
-      setPersonalBests(pbs);
-    };
-    loadPlayer();
-  }, [username]);
-
-  useEffect(() => {
-    const name = player?.formattedUsername ?? username;
-    document.title = `${name} | Blert`;
-
-    return () => {
-      document.title = 'Blert';
-    };
-  }, [player]);
-
-  if (loading) {
-    return <Loading />;
-  }
+  const [player, personalBests] = await Promise.all([
+    loadPlayerWithStats(username),
+    loadPbsForPlayer(username),
+  ]);
 
   if (player === null) {
     // TODO(sam): player 404 page
@@ -116,15 +77,8 @@ export default function Player(props: PlayerPageProps) {
 
   const stats = player.stats;
 
-  let pIndex;
-  let playersPrimaryMeleeGear;
-  if (raids.length > 0) {
-    pIndex = raids[0].party.findIndex((p) => p === username);
-    playersPrimaryMeleeGear =
-      raids[0].partyInfo[pIndex]?.gear ?? PrimaryMeleeGear.ELITE_VOID;
-  } else {
-    playersPrimaryMeleeGear = PrimaryMeleeGear.ELITE_VOID;
-  }
+  // TODO(frolv): Compute and store primary melee gear in the database.
+  const playersPrimaryMeleeGear = PrimaryMeleeGear.BLORVA;
 
   const chinsThrownIncorrectlyPercentage =
     stats.chinsThrownMaiden > 0
@@ -329,8 +283,19 @@ export default function Player(props: PlayerPageProps) {
         defaultExpanded
         className={styles.recentRaids}
       >
-        <RaidHistory raids={raids} />
+        <ChallengeHistory count={10} username={player.username} />
       </CollapsiblePanel>
     </div>
   );
 }
+
+export async function generateMetadata({ params }: PlayerPageProps) {
+  const username = decodeURIComponent(params.username);
+  const player = await loadPlayerWithStats(username);
+  const title = player?.formattedUsername ?? 'Player not found';
+  return {
+    title: `${title} | Blert`,
+  };
+}
+
+export const dynamic = 'force-dynamic';

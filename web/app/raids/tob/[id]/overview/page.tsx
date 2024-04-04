@@ -38,9 +38,10 @@ export default function Overview() {
         width={380}
       />
       <RaidQuickDetails
+        type={raid.type}
         stage={raid.stage}
-        raidStatus={raid.status}
-        raidDifficulty={raid.mode}
+        status={raid.status}
+        mode={raid.mode}
         totalRaidTicks={raid.totalTicks}
         deaths={raid.totalDeaths}
         partySize={raid.party.length}

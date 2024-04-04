@@ -1,30 +1,14 @@
-'use client';
-
+import { ChallengeType } from '@blert/common';
+import { Metadata } from 'next';
 import Image from 'next/image';
-import { useState, useEffect } from 'react';
 
-import { RaidOverview, loadRecentRaidInformation } from '../../actions/raid';
 import PvMContentLogo, { PvMContent } from '../../components/pvm-content-logo';
 import CollapsiblePanel from '../../components/collapsible-panel';
-import RaidHistory from '../../components/raid-history';
+import ChallengeHistory from '../../components/challenge-history';
 
 import styles from './style.module.scss';
 
-export default function Page() {
-  const [loading, setLoading] = useState(true);
-  const [raids, setRaids] = useState<RaidOverview[]>([]);
-
-  useEffect(() => {
-    const getRaids = async () => {
-      setLoading(true);
-      const raidResults = await loadRecentRaidInformation(5);
-      setRaids(raidResults);
-      setLoading(false);
-    };
-
-    getRaids();
-  }, []);
-
+export default async function Page() {
   return (
     <>
       <PvMContentLogo
@@ -78,8 +62,14 @@ export default function Page() {
         maxPanelHeight={2000}
         defaultExpanded={true}
       >
-        <RaidHistory raids={raids} loading={loading} />
+        <ChallengeHistory type={ChallengeType.TOB} count={5} />
       </CollapsiblePanel>
     </>
   );
 }
+
+export const metadata: Metadata = {
+  title: 'Theatre of Blood | Blert',
+};
+
+export const dynamic = 'force-dynamic';

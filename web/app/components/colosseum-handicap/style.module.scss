@@ -1,0 +1,23 @@
+.handicap {
+  display: flex;
+  position: relative;
+  padding: 6px;
+
+  .level {
+    position: absolute;
+    top: 0;
+    right: 0;
+    color: #fff;
+    font-size: 14px;
+  }
+
+  &.dimmed {
+    img {
+      opacity: 0.25;
+    }
+
+    .level {
+      color: #777;
+    }
+  }
+}

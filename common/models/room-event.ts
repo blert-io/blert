@@ -43,6 +43,7 @@ const roomEventSchema = new Schema<MergedEvent>({
   player: {
     name: String,
     hitpoints: SkillLevel,
+    prayerSet: Number,
     equipment: {
       HEAD: Item,
       CAPE: Item,
@@ -106,6 +107,7 @@ const roomEventSchema = new Schema<MergedEvent>({
     style: Number,
     npcAttackTick: Number,
   },
+  handicap: Number,
 });
 
 export const RoomEvent: Model<MergedEvent> =

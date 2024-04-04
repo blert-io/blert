@@ -1,11 +1,14 @@
+import { ChallengeType } from '@blert/common';
+import { Metadata } from 'next';
 import Image from 'next/image';
 
+import ChallengeHistory from '../../components/challenge-history';
 import CollapsiblePanel from '../../components/collapsible-panel';
 import PvMContentLogo, { PvMContent } from '../../components/pvm-content-logo';
 
 import styles from './style.module.scss';
 
-export default function Page() {
+export default async function Page() {
   return (
     <>
       <PvMContentLogo
@@ -52,6 +55,20 @@ export default function Page() {
           </div>
         </div>
       </CollapsiblePanel>
+
+      <CollapsiblePanel
+        panelTitle="Recent Colosseum Runs"
+        maxPanelHeight={2000}
+        defaultExpanded={true}
+      >
+        <ChallengeHistory type={ChallengeType.COLOSSEUM} count={5} />
+      </CollapsiblePanel>
     </>
   );
 }
+
+export const metadata: Metadata = {
+  title: 'Fortis Colosseum | Blert',
+};
+
+export const dynamic = 'force-dynamic';

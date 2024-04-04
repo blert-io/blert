@@ -93,6 +93,8 @@ function playerProtoToPlayer(proto: EventProto.Player): EventPlayer {
     };
   }
 
+  player.prayerSet = proto.getActivePrayers();
+
   proto.getEquipmentList().forEach((itemProto) => {
     // @ts-ignore: DB items don't have a name.
     const item: Item = {
@@ -234,6 +236,10 @@ export function protoToEvent(proto: EventProto): Partial<MergedEvent> {
 
   if (proto.hasVerzikPhase()) {
     event.verzikPhase = proto.getVerzikPhase();
+  }
+
+  if (proto.hasHandicap()) {
+    event.handicap = proto.getHandicap();
   }
 
   return event;

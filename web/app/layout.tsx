@@ -8,6 +8,7 @@ import { DisplayWrapper } from './display';
 import Styler from './styler';
 
 import styles from './styles.module.scss';
+import { Metadata } from 'next';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -20,7 +21,6 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <link rel="icon" href="/favicon.ico" sizes="any" />
-        <title>Blert</title>
       </head>
       <body className={inter.className} style={{ overflowX: 'hidden' }}>
         <Styler />
@@ -36,3 +36,8 @@ export default function RootLayout({
     </html>
   );
 }
+
+export const metadata: Metadata = {
+  title: 'Blert',
+  description: 'OSRS PvM Analytics',
+};

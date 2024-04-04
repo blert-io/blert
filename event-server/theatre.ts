@@ -35,7 +35,6 @@ import { Event } from '@blert/common/generated/event_pb';
 import { Challenge } from './challenge';
 import { Players } from './players';
 import { priceTracker } from './price-tracker';
-import { protoToEvent } from './proto';
 
 type PersonalBestUpdate = {
   pbType: PersonalBestType;
@@ -44,11 +43,7 @@ type PersonalBestUpdate = {
 
 export default class TheatreChallenge extends Challenge {
   private completedRooms: number;
-  private totalTicks: number;
 
-  private stageStatus: StageStatus;
-  private stageTick: number;
-  private stageEvents: Event[];
   private deathsInRoom: string[];
   private queuedPbUpdates: PersonalBestUpdate[];
 
@@ -72,11 +67,7 @@ export default class TheatreChallenge extends Challenge {
     super(ChallengeType.TOB, id, mode, party, startTime, Stage.TOB_MAIDEN);
 
     this.completedRooms = 0;
-    this.totalTicks = 0;
 
-    this.stageStatus = StageStatus.ENTERED;
-    this.stageTick = 0;
-    this.stageEvents = [];
     this.deathsInRoom = [];
     this.queuedPbUpdates = [];
 
@@ -96,7 +87,7 @@ export default class TheatreChallenge extends Challenge {
     this.verzikRedSpawns = [];
   }
 
-  protected async onInitialize(document: RaidDocument): Promise<void> {
+  protected override async onInitialize(document: RaidDocument): Promise<void> {
     document.tobRooms = {
       maiden: null,
       bloat: null,
@@ -107,7 +98,7 @@ export default class TheatreChallenge extends Challenge {
     };
   }
 
-  protected async onFinish(): Promise<void> {
+  protected override async onFinish(): Promise<void> {
     let promises: Promise<void>[] = [];
 
     if (
@@ -115,7 +106,10 @@ export default class TheatreChallenge extends Challenge {
       this.completedRooms === 6
     ) {
       promises.push(
-        this.updatePartyPbs(PersonalBestType.TOB_CHALLENGE, this.totalTicks),
+        this.updatePartyPbs(
+          PersonalBestType.TOB_CHALLENGE,
+          this.getTotalStageTicks(),
+        ),
       );
 
       if (this.getOverallTime()) {
@@ -149,92 +143,13 @@ export default class TheatreChallenge extends Challenge {
     await Promise.all(promises);
   }
 
-  protected async processChallengeEvent(event: Event): Promise<void> {
-    switch (event.getType()) {
-      case Event.Type.STAGE_UPDATE:
-        await this.handleStageUpdate(event);
-        break;
-
-      default:
-        if (event.getStage() !== this.getStage()) {
-          console.error(
-            `Raid ${this.getId()} got event ${event.getType()} for stage ` +
-              `${event.getStage()} but is at stage ${this.getStage()}`,
-          );
-          return;
-        }
-
-        const writeToDb = await this.updateRaidStatus(event);
-
-        // Batch and flush events once per tick to reduce database writes.
-        if (event.getTick() === this.stageTick) {
-          if (writeToDb) {
-            this.stageEvents.push(event);
-          }
-        } else if (event.getTick() > this.stageTick) {
-          await this.flushRoomEvents();
-          if (writeToDb) {
-            this.stageEvents.push(event);
-          }
-          this.stageTick = event.getTick();
-        } else {
-          console.error(
-            `Raid ${this.getId()} got event ${event.getType()} for tick ${event.getTick()} (current=${this.stageTick})`,
-          );
-        }
-        break;
-    }
+  protected override async onStageEntered(): Promise<void> {
+    this.deathsInRoom = [];
+    this.queuedPbUpdates = [];
+    this.npcs.clear();
   }
 
-  private async handleStageUpdate(event: Event): Promise<void> {
-    const stageUpdate = event.getStageUpdate();
-    if (event.getStage() === Stage.UNKNOWN || stageUpdate === undefined) {
-      return;
-    }
-
-    switch (stageUpdate.getStatus()) {
-      case StageStatus.STARTED:
-        if (this.isStarting()) {
-          await this.start();
-        }
-        await this.updateDatabaseFields((record) => {
-          record.stage = this.getStage();
-        });
-        if (this.stageStatus === StageStatus.ENTERED) {
-          // A transition from ENTERED -> STARTED has already reset the stage.
-          // Don't clear any data received afterwards, unless the stage is new.
-          if (this.getStage() === event.getStage()) {
-            break;
-          }
-        }
-      // A transition from any other state to STARTED should fall through
-      // and reset all stage data.
-      case StageStatus.ENTERED:
-        this.setStage(event.getStage());
-        this.stageEvents = [];
-        this.stageTick = 0;
-        this.deathsInRoom = [];
-        this.queuedPbUpdates = [];
-        this.npcs.clear();
-        break;
-
-      case StageStatus.WIPED:
-      case StageStatus.COMPLETED:
-        if (event.getStage() === this.getStage()) {
-          this.handleStageFinished(event, stageUpdate);
-        } else {
-          console.error(
-            `Raid ${this.getId()} got status ${stageUpdate.getStatus()} for stage ` +
-              `${event.getStage()} but is at stage ${this.getStage()}`,
-          );
-        }
-        break;
-    }
-
-    this.stageStatus = stageUpdate.getStatus();
-  }
-
-  private async handleStageFinished(
+  protected override async onStageFinished(
     event: Event,
     stageUpdate: Event.StageUpdate,
   ): Promise<void> {
@@ -249,13 +164,12 @@ export default class TheatreChallenge extends Challenge {
     }
 
     this.completedRooms++;
-    this.totalTicks += event.getTick();
 
     const promises = [];
 
     let firstTick = 0;
     if (!stageUpdate.getAccurate()) {
-      const missingTicks = event.getTick() - this.stageTick;
+      const missingTicks = event.getTick() - this.getStageTick();
       console.log(
         `Raid ${this.getId()} lost ${missingTicks} ticks at stage ${event.getStage()}`,
       );
@@ -286,9 +200,6 @@ export default class TheatreChallenge extends Challenge {
 
     promises.push(
       this.updateDatabaseFields((record) => {
-        // @ts-ignore: Only partial party information is stored.
-        record.partyInfo = this.getPartyInfo();
-        record.totalTicks += event.getTick();
         record.totalDeaths += this.deathsInRoom.length;
 
         let roomKey: keyof TobRooms = 'maiden';
@@ -344,7 +255,6 @@ export default class TheatreChallenge extends Challenge {
             break;
         }
       }),
-      this.flushRoomEvents(),
     );
 
     if (stageUpdate.getAccurate()) {
@@ -401,7 +311,9 @@ export default class TheatreChallenge extends Challenge {
    * @param event The event that occurred.
    * @returns true if the event should be written to the database, false if not.
    */
-  private async updateRaidStatus(event: Event): Promise<boolean> {
+  protected override async processChallengeEvent(
+    event: Event,
+  ): Promise<boolean> {
     switch (event.getType()) {
       case Event.Type.PLAYER_UPDATE:
         this.tryDetermineGear(event.getPlayer()!);
@@ -825,12 +737,5 @@ export default class TheatreChallenge extends Challenge {
       this.getScale(),
       ticks,
     );
-  }
-
-  private async flushRoomEvents(): Promise<void> {
-    if (this.stageEvents.length > 0) {
-      RoomEvent.insertMany(this.stageEvents.map(protoToEvent));
-    }
-    this.stageEvents = [];
   }
 }

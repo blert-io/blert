@@ -1,7 +1,13 @@
+@import '../../mixins.scss';
+
 .history {
   & > .message {
     text-align: center;
     padding: 1em 0;
+
+    @media (min-width: $COMPACT_WIDTH_THRESHOLD) {
+      min-width: 680px;
+    }
   }
 
   .recentRaid {

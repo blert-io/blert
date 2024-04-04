@@ -1,4 +1,6 @@
+import { ChallengeType } from '@blert/common';
 import {
+  ChallengeMap,
   ChallengeModeMap,
   Event,
   StageMap,
@@ -8,7 +10,6 @@ import { ServerMessage } from '@blert/common/generated/server_message_pb';
 import Client from './client';
 import ChallengeManager from './challenge-manager';
 import { Users } from './users';
-import { ChallengeType } from '@blert/common';
 
 type EventSink = (event: Event) => Promise<void>;
 
@@ -57,15 +58,16 @@ export default class MessageHandler {
         historyResponse.setType(ServerMessage.Type.HISTORY_RESPONSE);
 
         historyResponse.setRecentRecordingsList(
-          history.map((raid) => {
+          history.map((challenge) => {
             const pastRaid = new ServerMessage.PastChallenge();
-            pastRaid.setId(raid.id);
+            pastRaid.setChallenge(challenge.type as Proto<ChallengeMap>);
+            pastRaid.setId(challenge.id);
             pastRaid.setStatus(
-              raid.status as Proto<ServerMessage.PastChallenge.StatusMap>,
+              challenge.status as Proto<ServerMessage.PastChallenge.StatusMap>,
             );
-            pastRaid.setStage(raid.stage as Proto<StageMap>);
-            pastRaid.setMode(raid.mode as Proto<ChallengeModeMap>);
-            pastRaid.setPartyList(raid.party);
+            pastRaid.setStage(challenge.stage as Proto<StageMap>);
+            pastRaid.setMode(challenge.mode as Proto<ChallengeModeMap>);
+            pastRaid.setPartyList(challenge.party);
             return pastRaid;
           }),
         );

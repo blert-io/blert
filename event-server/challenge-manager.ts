@@ -30,7 +30,7 @@ export default class ChallengeManager {
     partyMembers: string[],
     spectator: boolean,
   ): Promise<string> {
-    const partyKey = challengePartyKey(partyMembers);
+    const partyKey = challengePartyKey(type, partyMembers);
 
     let challenge = this.challengesByPartyKey[partyKey];
 

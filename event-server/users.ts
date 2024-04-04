@@ -15,7 +15,7 @@ export type BasicUser = {
 
 export type PastChallenge = Pick<
   Raid,
-  'stage' | 'status' | 'mode' | 'party'
+  'type' | 'stage' | 'status' | 'mode' | 'party'
 > & {
   id: string;
 };
@@ -65,13 +65,14 @@ export class Users {
     const challengeIds = recordedChallenges.map((r) => r.cId);
     const challenges = await RaidModel.find<Raid>(
       { _id: { $in: challengeIds } },
-      { stage: 1, status: 1, mode: 1, party: 1, startTime: 1 },
+      { type: 1, stage: 1, status: 1, mode: 1, party: 1, startTime: 1 },
     ).exec();
 
     challenges.sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
 
     return challenges.map((r) => ({
       id: r._id,
+      type: r.type,
       stage: r.stage,
       status: r.status,
       mode: r.mode,

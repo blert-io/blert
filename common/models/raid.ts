@@ -1,5 +1,12 @@
 import { Document, Model, Schema, model, models } from 'mongoose';
-import { Raid, TobRaid, TobRooms } from '../raid-definitions';
+import {
+  ColosseumData,
+  ColosseumChallenge,
+  Raid,
+  TobRaid,
+  TobRooms,
+  ColosseumWave,
+} from '../raid-definitions';
 
 export const Coords = {
   _id: false,
@@ -66,7 +73,7 @@ const PlayerInfo = {
   gear: Number,
 };
 
-type AllRaids = Raid & TobRaid;
+type AllRaids = Raid & TobRaid & ColosseumChallenge;
 
 const tobRoomsSchema = new Schema<TobRooms>(
   {
@@ -139,6 +146,27 @@ const tobRoomsSchema = new Schema<TobRooms>(
   { _id: false },
 );
 
+const colosseumWaveSchema = new Schema<ColosseumWave>(
+  {
+    ticks: Number,
+    handicap: Number,
+    options: [Number],
+    npcs: {
+      type: Map,
+      of: RoomNpc,
+    },
+  },
+  { _id: false },
+);
+
+const colosseumSchema = new Schema<ColosseumData>(
+  {
+    handicaps: [Number],
+    waves: [colosseumWaveSchema],
+  },
+  { _id: false },
+);
+
 const raidSchema = new Schema<AllRaids>({
   _id: String,
   type: { type: Number, index: true },
@@ -161,6 +189,7 @@ const raidSchema = new Schema<AllRaids>({
   totalTicks: { type: Number, default: 0, index: true },
   totalDeaths: { type: Number, default: 0 },
   tobRooms: tobRoomsSchema,
+  colosseum: colosseumSchema,
 });
 
 export const RaidModel =

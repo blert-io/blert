@@ -8,18 +8,22 @@ import {
   RaidModel,
   RecordedChallengeModel,
   RecordingType,
+  RoomEvent,
   Stage,
+  StageStatus,
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 import { Types } from 'mongoose';
 
 import Client from './client';
 import { Players } from './players';
+import { protoToEvent } from './proto';
 
-export function challengePartyKey(partyMembers: string[]) {
-  return partyMembers
+export function challengePartyKey(type: ChallengeType, partyMembers: string[]) {
+  const party = partyMembers
     .map((name) => name.toLowerCase().replace(' ', '_'))
     .join('-');
+  return `${type}-${party}`;
 }
 
 type PlayerInfoWithoutUsername = Omit<PlayerInfo, 'currentUsername'>;
@@ -50,9 +54,13 @@ export abstract class Challenge {
   private mode: ChallengeMode;
   private partyInfo: PlayerInfoWithoutUsername[];
   private playerGearSet: Set<string>;
+  private totalStageTicks: number;
+  private overallTicks: number;
 
   private stage: Stage;
-  private overallTicks: number;
+  private stageStatus: StageStatus;
+  private stageTick: number;
+  private queuedEvents: Event[];
 
   constructor(
     type: ChallengeType,
@@ -65,7 +73,7 @@ export abstract class Challenge {
     this.type = type;
     this.id = id;
     this.party = party;
-    this.partyKey = challengePartyKey(party);
+    this.partyKey = challengePartyKey(type, party);
     this.startTime = startTime;
 
     this.clients = [];
@@ -75,9 +83,13 @@ export abstract class Challenge {
     this.mode = mode;
     this.partyInfo = party.map((_) => ({ gear: PrimaryMeleeGear.BLORVA }));
     this.playerGearSet = new Set();
+    this.totalStageTicks = 0;
+    this.overallTicks = 0;
 
     this.stage = initialStage;
-    this.overallTicks = 0;
+    this.stageStatus = StageStatus.ENTERED;
+    this.stageTick = 0;
+    this.queuedEvents = [];
   }
 
   /**
@@ -143,6 +155,10 @@ export abstract class Challenge {
     this.stage = stage;
   }
 
+  public getTotalStageTicks(): number {
+    return this.totalStageTicks;
+  }
+
   public getOverallTime(): number {
     return this.overallTicks;
   }
@@ -155,6 +171,10 @@ export abstract class Challenge {
     return this.partyInfo;
   }
 
+  protected getStageTick(): number {
+    return this.stageTick;
+  }
+
   /**
    * Called when the challenge is first initialized, with the database document
    * which will be created. Implementations should populate any specific fields
@@ -163,13 +183,33 @@ export abstract class Challenge {
    * @param document The challenge document, with core fields already set.
    */
   protected abstract onInitialize(document: RaidDocument): Promise<void>;
+
   protected abstract onFinish(): Promise<void>;
-  protected abstract processChallengeEvent(event: Event): Promise<void>;
 
   /**
-   * Adds a new client as an event source for the raid.
+   * Handles an event occurring during a challenge.
+   *
+   * @param event The event.
+   *
+   * @returns `true` if the event should be written to the database,
+   *   `false` if not.
+   */
+  protected abstract processChallengeEvent(event: Event): Promise<boolean>;
+
+  /**
+   * Called when a new stage is entered. Should reset any stage-specific data.
+   */
+  protected abstract onStageEntered(): Promise<void>;
+
+  protected abstract onStageFinished(
+    event: Event,
+    stageUpdate: Event.StageUpdate,
+  ): Promise<void>;
+
+  /**
+   * Adds a new client as an event source for the challenge.
    * @param client The client.
-   * @param spectator Whether the client is spectating the raid.
+   * @param spectator Whether the client is spectating the challenge.
    * @returns `true` if the client was added, `false` if not.
    */
   public async registerClient(
@@ -178,7 +218,8 @@ export abstract class Challenge {
   ): Promise<boolean> {
     if (client.getActiveChallenge() !== null) {
       console.error(
-        `Client ${client.getSessionId()} attempted to join ${this.id}, but is already in a raid`,
+        `Client ${client.getSessionId()} attempted to join ` +
+          `${this.id}, but is already in a challenge`,
       );
       return false;
     }
@@ -201,7 +242,7 @@ export abstract class Challenge {
   }
 
   /**
-   * Removes a client from being an event source for the raid.
+   * Removes a client from being an event source for the challenge.
    * @param client The client.
    */
   public removeClient(client: Client): void {
@@ -210,7 +251,8 @@ export abstract class Challenge {
       client.setActiveChallenge(null);
     } else {
       console.error(
-        `Client ${client.getSessionId()} tried to leave raid ${this.getId()}, but was not in it`,
+        `Client ${client.getSessionId()} tried to leave challenge ` +
+          `${this.getId()}, but was not in it`,
       );
     }
   }
@@ -273,17 +315,13 @@ export abstract class Challenge {
     });
   }
 
-  public async processEvent(event: Event): Promise<void> {
-    await this.processChallengeEvent(event);
-  }
-
   protected async start(): Promise<void> {
     const promises = this.getParty().map(Players.startNewRaid);
     const playerIds = await Promise.all(promises);
 
     if (playerIds.some((id) => id === null)) {
       console.error(
-        `Raid ${this.getId()} failed to start; could not find or create all players`,
+        `Challenge ${this.getId()} failed to start; could not find or create all players`,
       );
       this.finish();
       return;
@@ -296,6 +334,105 @@ export abstract class Challenge {
     this.state = State.IN_PROGRESS;
   }
 
+  public async processEvent(event: Event): Promise<void> {
+    if (event.getType() === Event.Type.STAGE_UPDATE) {
+      await this.handleStageUpdate(event);
+    } else {
+      if (event.getStage() !== this.getStage()) {
+        console.error(
+          `Challenge ${this.getId()} got event ${event.getType()} for stage ` +
+            `${event.getStage()} but is at stage ${this.getStage()}`,
+        );
+        return;
+      }
+
+      const writeToDb = await this.processChallengeEvent(event);
+
+      // Batch and flush events once per tick to reduce database writes.
+      if (event.getTick() === this.stageTick) {
+        if (writeToDb) {
+          this.queuedEvents.push(event);
+        }
+      } else if (event.getTick() > this.stageTick) {
+        await this.flushQueuedEvents();
+        if (writeToDb) {
+          this.queuedEvents.push(event);
+        }
+        this.stageTick = event.getTick();
+      } else {
+        console.error(
+          `Challenge ${this.getId()} got event ${event.getType()} for tick ` +
+            `${event.getTick()} (current=${this.stageTick})`,
+        );
+      }
+    }
+  }
+
+  private async handleStageUpdate(event: Event): Promise<void> {
+    const stageUpdate = event.getStageUpdate();
+    if (event.getStage() === Stage.UNKNOWN || stageUpdate === undefined) {
+      return;
+    }
+
+    switch (stageUpdate.getStatus()) {
+      case StageStatus.STARTED:
+        if (this.isStarting()) {
+          await this.start();
+        }
+        await this.updateDatabaseFields((record) => {
+          record.stage = event.getStage();
+        });
+        if (this.stageStatus === StageStatus.ENTERED) {
+          // A transition from ENTERED -> STARTED has already reset the stage.
+          // Don't clear any data received afterwards, unless the stage is new.
+          if (this.getStage() === event.getStage()) {
+            break;
+          }
+        }
+      // A transition from any other state to STARTED should fall through
+      // and reset all stage data.
+      case StageStatus.ENTERED:
+        this.setStage(event.getStage());
+        this.stageTick = 0;
+        this.queuedEvents = [];
+        await this.onStageEntered();
+        break;
+
+      case StageStatus.WIPED:
+      case StageStatus.COMPLETED:
+        if (event.getStage() === this.getStage()) {
+          await this.handleStageFinished(event, stageUpdate);
+        } else {
+          console.error(
+            `Challenge ${this.getId()} got status ${stageUpdate.getStatus()} ` +
+              `for stage ${event.getStage()} but is at stage ${this.getStage()}`,
+          );
+        }
+        break;
+    }
+
+    this.stageStatus = stageUpdate.getStatus();
+  }
+
+  private async handleStageFinished(
+    event: Event,
+    stageUpdate: Event.StageUpdate,
+  ): Promise<void> {
+    this.totalStageTicks += event.getTick();
+
+    const promises = [
+      this.updateDatabaseFields((record) => {
+        // @ts-ignore: Only partial party information is stored.
+        record.partyInfo = this.partyInfo;
+        record.totalTicks += event.getTick();
+      }),
+      this.onStageFinished(event, stageUpdate),
+      this.flushQueuedEvents(),
+    ];
+
+    await Promise.all(promises);
+  }
+
   protected async updateDatabaseFields(
     updateCallback: (document: RaidDocument) => void,
   ) {
@@ -304,6 +441,13 @@ export abstract class Challenge {
       updateCallback(record);
       record.save();
     }
+  }
+
+  private async flushQueuedEvents(): Promise<void> {
+    if (this.queuedEvents.length > 0) {
+      RoomEvent.insertMany(this.queuedEvents.map(protoToEvent));
+    }
+    this.queuedEvents = [];
   }
 
   protected tryDetermineGear(player: Event.Player): void {

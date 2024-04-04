@@ -36,6 +36,10 @@ export type TobRaid = Raid & {
   tobRooms: TobRooms;
 };
 
+export type ColosseumChallenge = Raid & {
+  colosseum: ColosseumData;
+};
+
 export type TobRooms = {
   maiden: MaidenOverview | null;
   bloat: BloatOverview | null;
@@ -44,6 +48,59 @@ export type TobRooms = {
   xarpus: XarpusOverview | null;
   verzik: VerzikOverview | null;
 };
+
+export type ColosseumData = {
+  handicaps: Handicap[];
+  waves: ColosseumWave[];
+};
+
+export type ColosseumWave = {
+  ticks: number;
+  handicap: Handicap;
+  options: Handicap[];
+  npcs: RoomNpcMap;
+};
+
+export const HANDICAP_LEVEL_VALUE_INCREMENT = 30;
+
+export enum Handicap {
+  DOOM_SCORPION = 0,
+  REENTRY = 1,
+  BEES = 2,
+  VOLATILITY = 3,
+  BLASPHEMY = 4,
+  RELENTLESS = 5,
+  QUARTET = 6,
+  TOTEMIC = 7,
+  DOOM = 8,
+  DYNAMIC_DUO = 9,
+  SOLARFLARE = 10,
+  MYOPIA = 11,
+  FRAILTY = 12,
+  RED_FLAG = 13,
+
+  // These are not official handicap IDs (leveled handicaps re-use the same ID)
+  // but exist for convenience. Each level's ID adds 30 to the previous level.
+  DOOM_SCORPION_2 = DOOM_SCORPION + HANDICAP_LEVEL_VALUE_INCREMENT,
+  REENTRY_2 = REENTRY + HANDICAP_LEVEL_VALUE_INCREMENT,
+  BEES_2 = BEES + HANDICAP_LEVEL_VALUE_INCREMENT,
+  VOLATILITY_2 = VOLATILITY + HANDICAP_LEVEL_VALUE_INCREMENT,
+  BLASPHEMY_2 = BLASPHEMY + HANDICAP_LEVEL_VALUE_INCREMENT,
+  RELENTLESS_2 = RELENTLESS + HANDICAP_LEVEL_VALUE_INCREMENT,
+  SOLARFLARE_2 = SOLARFLARE + HANDICAP_LEVEL_VALUE_INCREMENT,
+  MYOPIA_2 = MYOPIA + HANDICAP_LEVEL_VALUE_INCREMENT,
+  FRAILTY_2 = FRAILTY + HANDICAP_LEVEL_VALUE_INCREMENT,
+
+  DOOM_SCORPION_3 = DOOM_SCORPION_2 + HANDICAP_LEVEL_VALUE_INCREMENT,
+  REENTRY_3 = REENTRY_2 + HANDICAP_LEVEL_VALUE_INCREMENT,
+  BEES_3 = BEES_2 + HANDICAP_LEVEL_VALUE_INCREMENT,
+  VOLATILITY_3 = VOLATILITY_2 + HANDICAP_LEVEL_VALUE_INCREMENT,
+  BLASPHEMY_3 = BLASPHEMY_2 + HANDICAP_LEVEL_VALUE_INCREMENT,
+  RELENTLESS_3 = RELENTLESS_2 + HANDICAP_LEVEL_VALUE_INCREMENT,
+  SOLARFLARE_3 = SOLARFLARE_2 + HANDICAP_LEVEL_VALUE_INCREMENT,
+  MYOPIA_3 = MYOPIA_2 + HANDICAP_LEVEL_VALUE_INCREMENT,
+  FRAILTY_3 = FRAILTY_2 + HANDICAP_LEVEL_VALUE_INCREMENT,
+}
 
 export type RoomNpcMap = { [roomId: number]: RoomNpc };
 
