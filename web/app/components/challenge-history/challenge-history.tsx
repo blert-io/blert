@@ -55,26 +55,26 @@ function ChallengeList({ challenges }: { challenges: ChallengeOverview[] }) {
 export default async function ChallengeHistory(props: ChallengeHistoryProps) {
   const { count, type, username } = props;
 
-  const [challenges, setChallenges] = useState([]);
+  const [challenges, setChallenges] = useState(props.initialChallenges);
   const deferredChallenges = useDeferredValue(challenges);
 
-  // useEffect(() => {
-  //   const fetchChallenges = async () => {
-  //     const params = {
-  //       limit: count.toString(),
-  //       type: type?.toString(),
-  //       username,
-  //     };
-  //     const challenges = await fetch(
-  //       `/api/v1/challenges?${queryString(params)}`,
-  //     ).then((res) => res.json());
-  //     setChallenges(challenges);
-  //   };
+  useEffect(() => {
+    const fetchChallenges = async () => {
+      const params = {
+        limit: count.toString(),
+        type: type?.toString(),
+        username,
+      };
+      const challenges = await fetch(
+        `/api/v1/challenges?${queryString(params)}`,
+      ).then((res) => res.json());
+      setChallenges(challenges);
+    };
 
-  //   fetchChallenges();
-  //   const refetchInterval = window.setInterval(fetchChallenges, 30 * 1000);
-  //   return () => window.clearInterval(refetchInterval);
-  // }, [count, type, username]);
+    fetchChallenges();
+    const refetchInterval = window.setInterval(fetchChallenges, 30 * 1000);
+    return () => window.clearInterval(refetchInterval);
+  }, [count, type, username]);
 
   return (
     <div className={styles.history}>
