@@ -1,7 +1,9 @@
 import {
+  Attack,
   Event,
   EventType,
   NpcAttackEvent,
+  Player,
   PlayerAttackEvent,
   PlayerEvent,
   PlayerUpdateEvent,
@@ -20,7 +22,6 @@ import {
 
 import { TICK_MS } from '../../utils/tick';
 import { RaidContext } from './context';
-import { PlayerDetails } from '../../components/boss-page-replay';
 
 export const usePlayingState = (totalTicks: number) => {
   const [currentTick, setTick] = useState(1);
@@ -82,11 +83,12 @@ export const usePlayingState = (totalTicks: number) => {
 
 export type EventTickMap = { [key: number]: Event[] };
 export type EventTypeMap = { [key: string]: Event[] };
+export type PlayerStateMap = Map<string, Nullable<PlayerState>[]>;
 
 type EventState = {
   eventsByTick: EventTickMap;
   eventsByType: EventTypeMap;
-  playerAttackTimelines: Map<string, any>;
+  playerState: PlayerStateMap;
   bossAttackTimeline: NpcAttackEvent[];
 };
 
@@ -98,7 +100,7 @@ export const useRoomEvents = (stage: Stage) => {
   const [eventState, setEventState] = useState<EventState>({
     eventsByTick: {},
     eventsByType: {},
-    playerAttackTimelines: new Map(),
+    playerState: new Map(),
     bossAttackTimeline: [],
   });
 
@@ -158,7 +160,7 @@ export const useRoomEvents = (stage: Stage) => {
         }
 
         const [eventsByTick, eventsByType] = buildEventMaps(evts);
-        const playerAttackTimelines = buildAttackTimelines(
+        const playerState = computePlayerState(
           raidData.party,
           totalTicks,
           eventsByTick,
@@ -167,7 +169,7 @@ export const useRoomEvents = (stage: Stage) => {
         const eventState = {
           eventsByTick,
           eventsByType,
-          playerAttackTimelines,
+          playerState,
           bossAttackTimeline:
             (eventsByType[EventType.NPC_ATTACK] as NpcAttackEvent[]) ?? [],
         };
@@ -217,15 +219,23 @@ const eventBelongsToPlayer = (event: Event, playerName: string): boolean => {
   return eventAsPlayerEvent.player.name === playerName;
 };
 
-function buildAttackTimelines(
+export type PlayerState = Omit<PlayerUpdateEvent, 'type' | 'stage' | 'cId'> & {
+  attack?: Attack;
+  diedThisTick: boolean;
+  isDead: boolean;
+};
+
+type Nullable<T> = T | null;
+
+function computePlayerState(
   party: string[],
   totalTicks: number,
   eventsByTick: EventTickMap,
-) {
-  let attackTimelines: Map<string, any[]> = new Map();
+): Map<string, Nullable<PlayerState>[]> {
+  let playerState: Map<string, Nullable<PlayerState>[]> = new Map();
 
   for (const partyMember of party) {
-    attackTimelines.set(partyMember, new Array(totalTicks));
+    playerState.set(partyMember, new Array(totalTicks).fill(null));
 
     let isDead = false;
 
@@ -238,88 +248,50 @@ function buildAttackTimelines(
       const eventsForThisPlayer = eventsForThisTick.filter((event) =>
         eventBelongsToPlayer(event, partyMember),
       );
-      let combinedEventsForThisTick = null;
+      let playerStateThisTick: PlayerState | null = null;
 
       if (eventsForThisPlayer.length > 0) {
-        combinedEventsForThisTick = eventsForThisPlayer.reduce((acc, event) => {
+        playerStateThisTick = {
+          xCoord: 0,
+          yCoord: 0,
+          tick: i,
+          player: { name: partyMember, offCooldownTick: 0, prayerSet: 0 },
+          diedThisTick: false,
+          isDead,
+        };
+
+        eventsForThisPlayer.forEach((event) => {
           if (event.type === EventType.PLAYER_DEATH) {
             isDead = true;
-
-            return {
-              ...acc,
-              tick: i,
-              player: { name: partyMember },
-              diedThisTick: isDead,
+            playerStateThisTick = {
+              ...playerStateThisTick!,
+              diedThisTick: true,
               isDead,
             };
-          }
-
-          if (event.type === EventType.PLAYER_UPDATE) {
-            const { type, stage, ...rest } = event;
-            return { ...acc, ...rest, isDead };
-          }
-
-          if (event.type === EventType.PLAYER_ATTACK) {
-            return {
-              ...acc,
-              tick: i,
+          } else if (event.type === EventType.PLAYER_UPDATE) {
+            const { type, stage, ...rest } = event as PlayerUpdateEvent;
+            playerStateThisTick = { ...playerStateThisTick!, ...rest };
+          } else if (event.type === EventType.PLAYER_ATTACK) {
+            playerStateThisTick = {
+              ...playerStateThisTick!,
               attack: (event as PlayerAttackEvent).attack,
             };
           }
-
-          return acc;
-        }, {});
+        });
       } else if (isDead) {
-        combinedEventsForThisTick = {
+        playerStateThisTick = {
+          xCoord: 0,
+          yCoord: 0,
           tick: i,
-          player: { name: partyMember },
+          player: { name: partyMember, offCooldownTick: 0, prayerSet: 0 },
+          diedThisTick: false,
           isDead: true,
         };
       }
 
-      attackTimelines.get(partyMember)![i] = combinedEventsForThisTick;
+      playerState.get(partyMember)![i] = playerStateThisTick;
     }
   }
 
-  if (
-    Array.from(attackTimelines.values()).every(
-      (value) => value.length === totalTicks,
-    )
-  ) {
-    // console.log(`All timelines are ${totalTicks} ticks long (good!)`);
-  } else {
-    console.error('Not all timelines are the same length, this is bad.');
-    window.location.href = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
-  }
-
-  return attackTimelines;
-}
-
-/**
- * Collects information for each player in the raid at a given tick.
- * TODO(frolv): Try to consolidate this with the code in `buildAttackTimelines`.
- *
- * @param playerEventsForTick All player events for a given tick.
- * @returns Details about each player.
- */
-export function getPlayerDetails(
-  party: string[],
-  playerEventsForTick: PlayerEvent[],
-): PlayerDetails {
-  const playerDetails: PlayerDetails = {};
-  for (const username of party) {
-    playerDetails[username] = {};
-  }
-
-  playerEventsForTick
-    .filter((evt) => evt.type === EventType.PLAYER_UPDATE)
-    .forEach((evt) => {
-      const e = evt as PlayerUpdateEvent;
-
-      playerDetails[e.player.name] = {
-        equipment: e.player.equipment ?? {},
-      };
-    });
-
-  return playerDetails;
+  return playerState;
 }

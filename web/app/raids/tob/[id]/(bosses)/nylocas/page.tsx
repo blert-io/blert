@@ -9,15 +9,12 @@ import {
   NyloWaveSpawnEvent,
   RoomNpcType,
   NpcId,
-  PlayerEvent,
-  isPlayerEvent,
   Stage,
 } from '@blert/common';
 import Image from 'next/image';
 import { useMemo } from 'react';
 import {
   EventTickMap,
-  getPlayerDetails,
   usePlayingState,
   useRoomEvents,
 } from '../../../boss-room-state';
@@ -232,7 +229,7 @@ export default function NylocasPage() {
     eventsByTick,
     eventsByType,
     bossAttackTimeline,
-    playerAttackTimelines,
+    playerState,
     loading,
   } = useRoomEvents(Stage.TOB_NYLOCAS);
 
@@ -371,9 +368,12 @@ export default function NylocasPage() {
     );
   }
 
-  const playerDetails = getPlayerDetails(
-    raidData.party,
-    eventsForCurrentTick.filter(isPlayerEvent) as PlayerEvent[],
+  const playerTickState = raidData.party.reduce(
+    (acc, username) => ({
+      ...acc,
+      [username]: playerState.get(username)?.at(currentTick) ?? null,
+    }),
+    {},
   );
 
   return (
@@ -404,7 +404,7 @@ export default function NylocasPage() {
       <BossPageAttackTimeline
         currentTick={currentTick}
         playing={playing}
-        playerAttackTimelines={playerAttackTimelines}
+        playerState={playerState}
         bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
@@ -416,7 +416,7 @@ export default function NylocasPage() {
       <BossPageReplay
         entities={entities}
         mapDef={NYLOCAS_MAP_DEFINITION}
-        playerDetails={playerDetails}
+        playerTickState={playerTickState}
       />
     </>
   );

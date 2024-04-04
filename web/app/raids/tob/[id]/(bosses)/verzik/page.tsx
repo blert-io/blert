@@ -8,18 +8,12 @@ import {
   NpcAttackEvent,
   NpcEvent,
   NpcId,
-  PlayerEvent,
   PlayerUpdateEvent,
   Stage,
-  isPlayerEvent,
 } from '@blert/common';
 import Image from 'next/image';
 
-import {
-  getPlayerDetails,
-  usePlayingState,
-  useRoomEvents,
-} from '../../../boss-room-state';
+import { usePlayingState, useRoomEvents } from '../../../boss-room-state';
 import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
 import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
 import BossPageReplay from '../../../../../components/boss-page-replay';
@@ -70,7 +64,7 @@ export default function VerzikPage() {
     eventsByTick,
     eventsByType,
     bossAttackTimeline,
-    playerAttackTimelines,
+    playerState,
     loading,
   } = useRoomEvents(Stage.TOB_VERZIK);
 
@@ -161,9 +155,12 @@ export default function VerzikPage() {
     }
   }
 
-  const playerDetails = getPlayerDetails(
-    raidData.party,
-    eventsForCurrentTick.filter(isPlayerEvent) as PlayerEvent[],
+  const playerTickState = raidData.party.reduce(
+    (acc, username) => ({
+      ...acc,
+      [username]: playerState.get(username)?.at(currentTick) ?? null,
+    }),
+    {},
   );
 
   return (
@@ -194,7 +191,7 @@ export default function VerzikPage() {
       <BossPageAttackTimeline
         currentTick={currentTick}
         playing={playing}
-        playerAttackTimelines={playerAttackTimelines}
+        playerState={playerState}
         bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
@@ -206,7 +203,7 @@ export default function VerzikPage() {
       <BossPageReplay
         entities={entities}
         mapDef={VERZIK_MAP_DEFINITION}
-        playerDetails={playerDetails}
+        playerTickState={playerTickState}
       />
     </>
   );

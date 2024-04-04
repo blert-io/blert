@@ -1,4 +1,5 @@
 import { Event as EventProto } from './generated/event_pb';
+import { RawPrayerSet } from './prayer-set';
 import {
   SkillLevel,
   StageStatus,
@@ -189,7 +190,7 @@ export interface Player extends BasicPlayer {
   defence?: SkillLevel;
   ranged?: SkillLevel;
   magic?: SkillLevel;
-  prayerSet?: number;
+  prayerSet: RawPrayerSet;
   equipment?: EquipmentMap;
 }
 

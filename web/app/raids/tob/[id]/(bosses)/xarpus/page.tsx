@@ -4,18 +4,12 @@ import {
   ChallengeStatus,
   EventType,
   NpcEvent,
-  PlayerEvent,
   PlayerUpdateEvent,
   Stage,
-  isPlayerEvent,
 } from '@blert/common';
 import Image from 'next/image';
 
-import {
-  getPlayerDetails,
-  usePlayingState,
-  useRoomEvents,
-} from '../../../boss-room-state';
+import { usePlayingState, useRoomEvents } from '../../../boss-room-state';
 import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
 import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
 import BossPageReplay from '../../../../../components/boss-page-replay';
@@ -41,7 +35,7 @@ export default function XarpusPage() {
     eventsByTick,
     eventsByType,
     bossAttackTimeline,
-    playerAttackTimelines,
+    playerState,
     loading,
   } = useRoomEvents(Stage.TOB_XARPUS);
 
@@ -107,11 +101,12 @@ export default function XarpusPage() {
     }
   }
 
-  console.log(bossAttackTimeline);
-
-  const playerDetails = getPlayerDetails(
-    raidData.party,
-    eventsForCurrentTick.filter(isPlayerEvent) as PlayerEvent[],
+  const playerTickState = raidData.party.reduce(
+    (acc, username) => ({
+      ...acc,
+      [username]: playerState.get(username)?.at(currentTick) ?? null,
+    }),
+    {},
   );
 
   return (
@@ -142,7 +137,7 @@ export default function XarpusPage() {
       <BossPageAttackTimeline
         currentTick={currentTick}
         playing={playing}
-        playerAttackTimelines={playerAttackTimelines}
+        playerState={playerState}
         bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
@@ -153,7 +148,7 @@ export default function XarpusPage() {
       <BossPageReplay
         entities={entities}
         mapDef={XARPUS_MAP_DEFINITION}
-        playerDetails={playerDetails}
+        playerTickState={playerTickState}
       />
     </>
   );

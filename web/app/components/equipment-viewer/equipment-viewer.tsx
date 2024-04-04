@@ -7,7 +7,7 @@ import styles from './style.module.scss';
 import Image from 'next/image';
 
 type EquipmentViewerProps = {
-  equipment: Partial<EquipmentMap>;
+  equipment: Partial<EquipmentMap> | null;
 };
 
 const EQUIPMENT_OFFSETS: { [key: string]: React.CSSProperties } = {
@@ -27,38 +27,48 @@ const EQUIPMENT_OFFSETS: { [key: string]: React.CSSProperties } = {
 const ITEM_SIZE = 36;
 
 export default function EquipmentViewer(props: EquipmentViewerProps) {
-  const items = Object.entries(props.equipment).map(([slot, item], index) => {
-    const style: React.CSSProperties = {
-      position: 'absolute',
-      width: ITEM_SIZE,
-      height: ITEM_SIZE,
-      ...EQUIPMENT_OFFSETS[slot],
-    };
+  let items: React.ReactNode[] = [];
 
-    const tooltipId = `${item.name.replaceAll(/[^a-zA-Z0-9]/g, '')}-tooltip`;
+  if (props.equipment) {
+    items = Object.entries(props.equipment).map(([slot, item], index) => {
+      const style: React.CSSProperties = {
+        position: 'absolute',
+        width: ITEM_SIZE,
+        height: ITEM_SIZE,
+        ...EQUIPMENT_OFFSETS[slot],
+      };
 
-    return (
-      <span key={`${slot}-${index}`}>
-        <div style={style} data-tooltip-id={tooltipId}>
-          <Image
-            style={{ position: 'absolute', zIndex: 1 }}
-            src="/equipment-background.png"
-            alt=""
-            width={ITEM_SIZE}
-            height={ITEM_SIZE}
-          />
-          <Item
-            style={{ zIndex: 2 }}
-            name={item.name}
-            quantity={item.quantity}
-          />
-        </div>
-        <LigmaTooltip key={`tooltip-${slot}`} tooltipId={tooltipId}>
-          {item.name}
-        </LigmaTooltip>
-      </span>
+      const tooltipId = `${item.name.replaceAll(/[^a-zA-Z0-9]/g, '')}-tooltip`;
+
+      return (
+        <span key={`${slot}-${index}`}>
+          <div style={style} data-tooltip-id={tooltipId}>
+            <Image
+              style={{ position: 'absolute', zIndex: 1 }}
+              src="/equipment-background.png"
+              alt=""
+              width={ITEM_SIZE}
+              height={ITEM_SIZE}
+            />
+            <Item
+              style={{ zIndex: 2 }}
+              name={item.name}
+              quantity={item.quantity}
+            />
+          </div>
+          <LigmaTooltip key={`tooltip-${slot}`} tooltipId={tooltipId}>
+            {item.name}
+          </LigmaTooltip>
+        </span>
+      );
+    });
+  } else {
+    items.push(
+      <div key="empty" className={styles.empty} style={{ top: 96, left: 0 }}>
+        No equipment data available.
+      </div>,
     );
-  });
+  }
 
   return (
     <div className={styles.equipmentViewer}>

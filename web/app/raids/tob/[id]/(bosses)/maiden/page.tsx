@@ -9,10 +9,8 @@ import {
   MaidenCrabProperties,
   Npc,
   NpcEvent,
-  PlayerEvent,
   PlayerUpdateEvent,
   Stage,
-  isPlayerEvent,
 } from '@blert/common';
 
 import { TimelineSplit } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
@@ -28,11 +26,7 @@ import {
   NpcEntity,
   PlayerEntity,
 } from '../../../../../components/map';
-import {
-  getPlayerDetails,
-  usePlayingState,
-  useRoomEvents,
-} from '../../../boss-room-state';
+import { usePlayingState, useRoomEvents } from '../../../boss-room-state';
 import { clamp } from '../../../../../utils/math';
 import { ActorContext } from '../../../context';
 import Loading from '../../../../../components/loading';
@@ -176,7 +170,7 @@ export default function Maiden() {
     eventsByTick,
     eventsByType,
     bossAttackTimeline,
-    playerAttackTimelines,
+    playerState,
     loading,
   } = useRoomEvents(Stage.TOB_MAIDEN);
 
@@ -306,9 +300,12 @@ export default function Maiden() {
     }
   }
 
-  const playerDetails = getPlayerDetails(
-    raidData.party,
-    eventsForCurrentTick.filter(isPlayerEvent) as PlayerEvent[],
+  const playerTickState = raidData.party.reduce(
+    (acc, username) => ({
+      ...acc,
+      [username]: playerState.get(username)?.at(currentTick) ?? null,
+    }),
+    {},
   );
 
   const controlsSplits = [];
@@ -361,7 +358,7 @@ export default function Maiden() {
       <BossPageAttackTimeline
         currentTick={currentTick}
         playing={playing}
-        playerAttackTimelines={playerAttackTimelines}
+        playerState={playerState}
         bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
@@ -372,7 +369,7 @@ export default function Maiden() {
       <BossPageReplay
         entities={entities}
         mapDef={MAIDEN_MAP_DEFINITION}
-        playerDetails={playerDetails}
+        playerTickState={playerTickState}
       />
 
       <BossPageDPSTimeline

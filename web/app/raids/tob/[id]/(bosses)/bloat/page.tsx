@@ -4,18 +4,13 @@ import {
   ChallengeStatus,
   EventType,
   NpcEvent,
-  PlayerEvent,
   PlayerUpdateEvent,
   Stage,
-  isPlayerEvent,
 } from '@blert/common';
 import Image from 'next/image';
+import { useMemo } from 'react';
 
-import {
-  getPlayerDetails,
-  usePlayingState,
-  useRoomEvents,
-} from '../../../boss-room-state';
+import { usePlayingState, useRoomEvents } from '../../../boss-room-state';
 import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
 import {
   BossPageAttackTimeline,
@@ -29,11 +24,10 @@ import {
   PlayerEntity,
 } from '../../../../../components/map';
 import Loading from '../../../../../components/loading';
+import { ticksToFormattedSeconds } from '../../../../../utils/tick';
 
 import bloatBaseTiles from './bloat-tiles.json';
 import styles from './style.module.scss';
-import { ticksToFormattedSeconds } from '../../../../../utils/tick';
-import { useMemo } from 'react';
 
 const BLOAT_MAP_DEFINITION = {
   baseX: 3288,
@@ -52,7 +46,7 @@ export default function BloatPage() {
     eventsByTick,
     eventsByType,
     bossAttackTimeline,
-    playerAttackTimelines,
+    playerState,
     loading,
   } = useRoomEvents(Stage.TOB_BLOAT);
 
@@ -138,9 +132,12 @@ export default function BloatPage() {
     }
   }
 
-  const playerDetails = getPlayerDetails(
-    raidData.party,
-    eventsForCurrentTick.filter(isPlayerEvent) as PlayerEvent[],
+  const playerTickState = raidData.party.reduce(
+    (acc, username) => ({
+      ...acc,
+      [username]: playerState.get(username)?.at(currentTick) ?? null,
+    }),
+    {},
   );
 
   return (
@@ -171,7 +168,7 @@ export default function BloatPage() {
       <BossPageAttackTimeline
         currentTick={currentTick}
         playing={playing}
-        playerAttackTimelines={playerAttackTimelines}
+        playerState={playerState}
         bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
@@ -183,7 +180,7 @@ export default function BloatPage() {
       <BossPageReplay
         entities={entities}
         mapDef={BLOAT_MAP_DEFINITION}
-        playerDetails={playerDetails}
+        playerTickState={playerTickState}
       />
     </>
   );

@@ -78,7 +78,7 @@ export default async function ChallengeHistory(props: ChallengeHistoryProps) {
 
   return (
     <div className={styles.history}>
-      <Suspense fallback={<div>Loading...</div>}>
+      <Suspense fallback={<div className={styles.message}>Loading...</div>}>
         <ChallengeList challenges={deferredChallenges} />
       </Suspense>
     </div>

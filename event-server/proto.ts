@@ -41,6 +41,7 @@ function playerProtoToPlayer(proto: EventProto.Player): EventPlayer {
   const player: EventPlayer = {
     name: proto.getName(),
     offCooldownTick: proto.getOffCooldownTick(),
+    prayerSet: proto.getActivePrayers(),
   };
 
   if (proto.hasHitpoints()) {
@@ -92,8 +93,6 @@ function playerProtoToPlayer(proto: EventProto.Player): EventPlayer {
       current: magic.getCurrent(),
     };
   }
-
-  player.prayerSet = proto.getActivePrayers();
 
   proto.getEquipmentList().forEach((itemProto) => {
     // @ts-ignore: DB items don't have a name.

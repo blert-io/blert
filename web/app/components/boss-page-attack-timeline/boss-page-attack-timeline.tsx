@@ -2,7 +2,6 @@
 
 import {
   Attack,
-  Event,
   Npc,
   NpcAttack,
   NpcAttackEvent,
@@ -21,6 +20,7 @@ import Item from '../item';
 import { LigmaTooltip } from '../ligma-tooltip/ligma-tooltip';
 import { BlertMemes, MemeContext } from '../../raids/meme-context';
 import { ActorContext, RoomActorState } from '../../raids/tob/context';
+import { PlayerState, PlayerStateMap } from '../../raids/tob/boss-room-state';
 
 import styles from './styles.module.scss';
 
@@ -633,7 +633,8 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
 };
 
 type CellInfo = {
-  event: Event | null;
+  playerState: PlayerState | null;
+  bossEvent: NpcAttackEvent | null;
   highlighted: boolean;
   backgroundColor?: string;
 };
@@ -647,7 +648,7 @@ const buildTickCell = (
   memes: BlertMemes,
 ) => {
   const { setSelectedPlayer } = actorContext;
-  let { event, highlighted, backgroundColor } = cellInfo;
+  let { playerState, bossEvent, highlighted, backgroundColor } = cellInfo;
 
   const style: React.CSSProperties = {
     backgroundColor,
@@ -655,7 +656,7 @@ const buildTickCell = (
     height: CELL_WIDTH,
   };
 
-  if (event === null) {
+  if (playerState === null && bossEvent === null) {
     return (
       <div
         className={`${styles.attackTimeline__Cell}`}
@@ -670,15 +671,14 @@ const buildTickCell = (
   let tooltip = undefined;
   let tooltipId = undefined;
 
-  // @ts-ignore
-  if (event.npcAttack !== undefined) {
-    const npc = (event as NpcAttackEvent).npc;
-    const npcAttack = (event as NpcAttackEvent).npcAttack;
+  if (bossEvent !== null) {
+    const npc = bossEvent.npc;
+    const npcAttack = bossEvent.npcAttack;
     let cellImage = getCellImageForBossAttack(npcAttack.attack);
 
     const npcName = getNpcDefinition(npc.id)?.fullName ?? 'Unknown';
 
-    tooltipId = `boss-attack-${event.tick}`;
+    tooltipId = `boss-attack-${bossEvent.tick}`;
     tooltip = (
       <LigmaTooltip tooltipId={tooltipId}>
         <div className={styles.bossTooltip}>
@@ -706,7 +706,7 @@ const buildTickCell = (
     return (
       <div
         className={className}
-        key={`boss-cell-${event.tick}`}
+        key={`boss-cell-${bossEvent.tick}`}
         data-tooltip-id={tooltipId}
         style={style}
       >
@@ -714,27 +714,24 @@ const buildTickCell = (
         {tooltip}
       </div>
     );
-    // @ts-ignore
-  } else if (event.player) {
-    const username = (event as PlayerUpdateEvent).player.name;
-    const playerIsOffCooldown =
-      (event as PlayerUpdateEvent).player.offCooldownTick <= event.tick;
+  }
 
-    // @ts-ignore
-    const attackedThisTick = event.attack !== undefined;
-    // @ts-ignore
-    const diedThisTick = event.diedThisTick ?? false;
-    // @ts-ignore
-    const playerIsDead = event.isDead ?? false;
+  if (playerState !== null) {
+    const username = playerState.player.name;
+    const playerIsOffCooldown =
+      playerState.player.offCooldownTick <= playerState.tick;
+
+    const diedThisTick = playerState.diedThisTick;
+    const playerIsDead = playerState.isDead;
 
     let cellImage;
 
-    if (attackedThisTick) {
-      const attackEvent = event as PlayerAttackEvent;
-      cellImage = makeCellImage(attackEvent.attack, memes);
+    if (playerState.attack !== undefined) {
+      const attack = playerState.attack;
+      cellImage = makeCellImage(attack, memes);
 
       let targetName = 'Unknown';
-      const maybeTarget = attackEvent.attack.target;
+      const maybeTarget = attack.target;
       if (maybeTarget !== undefined) {
         const roomNpc = npcs[maybeTarget.roomId];
         if (roomNpc !== undefined) {
@@ -742,9 +739,9 @@ const buildTickCell = (
         }
       }
 
-      tooltipId = `player-${username}-attack-${event.tick}`;
-      const ranged = ATTACK_METADATA[attackEvent.attack.type].ranged;
-      const distance = attackEvent.attack.distanceToTarget;
+      tooltipId = `player-${username}-attack-${playerState.tick}`;
+      const ranged = ATTACK_METADATA[attack.type].ranged;
+      const distance = attack.distanceToTarget;
 
       tooltip = (
         <LigmaTooltip tooltipId={tooltipId}>
@@ -752,7 +749,7 @@ const buildTickCell = (
             <button onClick={() => setSelectedPlayer(username)}>
               {username}
             </button>
-            <span>{playerAttackVerb(attackEvent.attack.type)}</span>
+            <span>{playerAttackVerb(attack.type)}</span>
             <button>{targetName}</button>
             {ranged && (
               <span>{`from ${distance} tile${distance === 1 ? '' : 's'} away`}</span>
@@ -806,7 +803,7 @@ const buildTickCell = (
         className={className}
         style={style}
         data-tooltip-id={tooltipId}
-        key={`player-cell-${(event as PlayerUpdateEvent).player.name}-${event.tick}`}
+        key={`player-cell-${username}-${playerState.tick}`}
       >
         {cellImage}
         {tooltip}
@@ -817,7 +814,7 @@ const buildTickCell = (
 
 const buildTickColumn = (
   bossAttackTimeline: NpcAttackEvent[],
-  attackTimeline: Map<string, Event[]>,
+  playerState: PlayerStateMap,
   columnTick: number,
   updateTickOnPage: (tick: number) => void,
   npcs: RoomNpcMap,
@@ -835,15 +832,17 @@ const buildTickColumn = (
     (event) => event.tick === columnTick,
   );
   cellInfo.push({
-    event: bossEvent ?? null,
+    bossEvent: bossEvent ?? null,
+    playerState: null,
     highlighted: false,
     backgroundColor,
   });
 
-  attackTimeline.forEach((playerTimeline, playerName) => {
-    const event = playerTimeline.find((event) => event?.tick === columnTick);
+  playerState.forEach((playerTimeline, playerName) => {
+    const state = playerTimeline.find((event) => event?.tick === columnTick);
     cellInfo.push({
-      event: event ?? null,
+      bossEvent: null,
+      playerState: state ?? null,
       highlighted: selectedPlayer === playerName,
       backgroundColor,
     });
@@ -900,7 +899,7 @@ type BaseTimelineProps = {
   splits: TimelineSplit[];
   backgroundColors?: TimelineColor[];
   bossAttackTimeline: NpcAttackEvent[];
-  playerAttackTimelines: Map<string, Event[]>;
+  playerState: PlayerStateMap;
   updateTickOnPage: (tick: number) => void;
   npcs: RoomNpcMap;
   actorContext: RoomActorState;
@@ -912,7 +911,7 @@ function BaseTimeline(props: BaseTimelineProps) {
     splits,
     backgroundColors,
     bossAttackTimeline,
-    playerAttackTimelines,
+    playerState,
     updateTickOnPage,
     npcs,
     actorContext,
@@ -940,7 +939,7 @@ function BaseTimeline(props: BaseTimelineProps) {
     attackTimelineColumnElements.push(
       buildTickColumn(
         bossAttackTimeline,
-        playerAttackTimelines,
+        playerState,
         tick,
         updateTickOnPage,
         npcs,
@@ -971,7 +970,7 @@ export type TimelineColor = {
 interface AttackTimelineProps {
   currentTick: number;
   playing: boolean;
-  playerAttackTimelines: Map<string, Event[]>;
+  playerState: PlayerStateMap;
   bossAttackTimeline: NpcAttackEvent[];
   timelineTicks: number;
   splits: TimelineSplit[];
@@ -983,7 +982,7 @@ interface AttackTimelineProps {
 export function BossPageAttackTimeline(props: AttackTimelineProps) {
   const {
     currentTick,
-    playerAttackTimelines,
+    playerState,
     bossAttackTimeline,
     updateTickOnPage,
     timelineTicks,
@@ -1037,7 +1036,7 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
 
   const attackTimelineParticipants = [
     npcName,
-    ...Array.from(playerAttackTimelines.keys()),
+    ...Array.from(playerState.keys()),
   ];
 
   const attackTLLegendElements = [];
@@ -1082,7 +1081,7 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
         splits={splits}
         backgroundColors={backgroundColors}
         bossAttackTimeline={bossAttackTimeline}
-        playerAttackTimelines={playerAttackTimelines}
+        playerState={playerState}
         updateTickOnPage={updateTickOnPage}
         npcs={npcs}
         actorContext={actorContext}
@@ -1093,7 +1092,7 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
       splits,
       backgroundColors,
       bossAttackTimeline,
-      playerAttackTimelines,
+      playerState,
       updateTickOnPage,
       npcs,
       actorContext,

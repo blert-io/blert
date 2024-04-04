@@ -1,0 +1,28 @@
+.keyPrayers {
+  width: 130px;
+  padding: 10px 0;
+  display: flex;
+  flex-flow: row wrap;
+  justify-content: space-between;
+
+  .prayer {
+    width: 40px;
+    height: 40px;
+    margin: 2px 0;
+    opacity: 0.3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &.active {
+      opacity: 1;
+      border-radius: 50%;
+      background-color: #b5a16d88;
+    }
+    .wrapper {
+      position: relative;
+      width: 32px;
+      height: 32px;
+    }
+  }
+}
