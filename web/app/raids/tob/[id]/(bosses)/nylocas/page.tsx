@@ -392,15 +392,6 @@ export default function NylocasPage() {
         </div>
       </div>
 
-      <BossPageControls
-        currentlyPlaying={playing}
-        totalTicks={totalTicks}
-        currentTick={currentTick}
-        updateTick={updateTickOnPage}
-        updatePlayingState={setPlaying}
-        splits={splits}
-      />
-
       <BossPageAttackTimeline
         currentTick={currentTick}
         playing={playing}
@@ -417,6 +408,15 @@ export default function NylocasPage() {
         entities={entities}
         mapDef={NYLOCAS_MAP_DEFINITION}
         playerTickState={playerTickState}
+      />
+
+      <BossPageControls
+        currentlyPlaying={playing}
+        totalTicks={totalTicks}
+        currentTick={currentTick}
+        updateTick={updateTickOnPage}
+        updatePlayingState={setPlaying}
+        splits={splits}
       />
     </>
   );

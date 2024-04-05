@@ -1,27 +1,60 @@
 @import '../../mixins.scss';
 
 .controls {
-  @include panel;
+  position: fixed;
+  background-color: #23242f;
+  // border-top: 1px solid rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 5px 0 rgba(0, 0, 0, 0.5);
+  bottom: 0;
+  left: $LEFT_NAV_WIDTH;
+  width: calc(100% - $LEFT_NAV_WIDTH);
   display: flex;
-  margin: 10px 0;
-  padding: 10px 20px;
-  margin-bottom: 30px;
-  width: 800px;
-  position: sticky;
-  top: 5px;
-  z-index: 10000;
+  flex-direction: row;
+  align-items: center;
+  padding: 10px 30px;
+  z-index: 49;
   opacity: 1;
-  flex-direction: column;
+}
+
+.controlsPadding {
+  width: 100%;
+  height: 100px;
 }
 
 .controls__main {
   display: flex;
   flex-direction: row;
   justify-content: center;
+
+  .roomTime {
+    display: flex;
+    align-items: center;
+    font-size: 22px;
+    margin: 0 15px;
+    text-align: center;
+
+    & > * {
+      opacity: 0.75;
+    }
+
+    .time {
+      &:first-child {
+        opacity: 1;
+      }
+      width: 66px;
+    }
+
+    span {
+      font-size: 18px;
+      margin: 0 6px;
+    }
+  }
 }
 
 .controls__scrubber {
-  padding: 60px 0 45px 0;
+  padding: 34px 20px;
+  flex: 1;
+
   input {
     -webkit-appearance: none;
     appearance: none;
@@ -66,19 +99,18 @@
   width: 3px;
   border-radius: 3px;
   background-color: #c3c7c9;
-  top: 20px;
-  transform: scale(1);
+  top: 16px;
 
   &:hover {
     transform: scale(1.1);
   }
 
   &:nth-of-type(odd) {
-    top: -8px;
+    top: -4px;
 
     .controls__splitTextWrapper {
       span {
-        top: -35px;
+        top: -28px;
       }
     }
   }
@@ -86,20 +118,20 @@
 
 .controls__splitTextWrapper {
   position: relative;
-  left: -50%;
+  left: calc(-50% + 2px);
   cursor: pointer;
 
   span {
+    transform: translateX(-50%);
     position: absolute;
-    font-size: 24px;
-    padding: 5px 15px;
+    font-size: 18px;
+    padding: 4px 12px;
     border-radius: 5px;
     color: #c3c7c9;
     background-color: #c3c7c9;
     color: #23242f;
     top: 8px;
     white-space: nowrap;
-    transform: translateX(-50%);
   }
 }
 
@@ -147,7 +179,6 @@
   outline: none;
   border: none;
   border-radius: 5px;
-  // margin-right: 20px;
   width: 75px;
   font-size: 26px;
   text-align: center;

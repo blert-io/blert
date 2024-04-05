@@ -156,15 +156,6 @@ export default function BloatPage() {
         </div>
       </div>
 
-      <BossPageControls
-        currentlyPlaying={playing}
-        totalTicks={totalTicks}
-        currentTick={currentTick}
-        updateTick={updateTickOnPage}
-        updatePlayingState={setPlaying}
-        splits={splits}
-      />
-
       <BossPageAttackTimeline
         currentTick={currentTick}
         playing={playing}
@@ -181,6 +172,15 @@ export default function BloatPage() {
         entities={entities}
         mapDef={BLOAT_MAP_DEFINITION}
         playerTickState={playerTickState}
+      />
+
+      <BossPageControls
+        currentlyPlaying={playing}
+        totalTicks={totalTicks}
+        currentTick={currentTick}
+        updateTick={updateTickOnPage}
+        updatePlayingState={setPlaying}
+        splits={splits}
       />
     </>
   );

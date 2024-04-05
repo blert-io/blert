@@ -156,15 +156,6 @@ export default function SotetsegPage() {
         </div>
       </div>
 
-      <BossPageControls
-        currentlyPlaying={playing}
-        totalTicks={totalTicks}
-        currentTick={currentTick}
-        updateTick={updateTickOnPage}
-        updatePlayingState={setPlaying}
-        splits={splits}
-      />
-
       <BossPageAttackTimeline
         currentTick={currentTick}
         playing={playing}
@@ -180,6 +171,15 @@ export default function SotetsegPage() {
         entities={entities}
         mapDef={SOTETSEG_MAP_DEFINITION}
         playerTickState={playerTickState}
+      />
+
+      <BossPageControls
+        currentlyPlaying={playing}
+        totalTicks={totalTicks}
+        currentTick={currentTick}
+        updateTick={updateTickOnPage}
+        updatePlayingState={setPlaying}
+        splits={splits}
       />
     </>
   );

@@ -125,15 +125,6 @@ export default function XarpusPage() {
         </div>
       </div>
 
-      <BossPageControls
-        currentlyPlaying={playing}
-        totalTicks={totalTicks}
-        currentTick={currentTick}
-        updateTick={updateTickOnPage}
-        updatePlayingState={setPlaying}
-        splits={splits}
-      />
-
       <BossPageAttackTimeline
         currentTick={currentTick}
         playing={playing}
@@ -149,6 +140,15 @@ export default function XarpusPage() {
         entities={entities}
         mapDef={XARPUS_MAP_DEFINITION}
         playerTickState={playerTickState}
+      />
+
+      <BossPageControls
+        currentlyPlaying={playing}
+        totalTicks={totalTicks}
+        currentTick={currentTick}
+        updateTick={updateTickOnPage}
+        updatePlayingState={setPlaying}
+        splits={splits}
       />
     </>
   );

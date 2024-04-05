@@ -179,15 +179,6 @@ export default function VerzikPage() {
         </div>
       </div>
 
-      <BossPageControls
-        currentlyPlaying={playing}
-        totalTicks={totalTicks}
-        currentTick={currentTick}
-        updateTick={updateTickOnPage}
-        updatePlayingState={setPlaying}
-        splits={splits}
-      />
-
       <BossPageAttackTimeline
         currentTick={currentTick}
         playing={playing}
@@ -204,6 +195,15 @@ export default function VerzikPage() {
         entities={entities}
         mapDef={VERZIK_MAP_DEFINITION}
         playerTickState={playerTickState}
+      />
+
+      <BossPageControls
+        currentlyPlaying={playing}
+        totalTicks={totalTicks}
+        currentTick={currentTick}
+        updateTick={updateTickOnPage}
+        updatePlayingState={setPlaying}
+        splits={splits}
       />
     </>
   );
