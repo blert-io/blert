@@ -19,9 +19,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head>
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-      </head>
       <body className={inter.className} style={{ overflowX: 'hidden' }}>
         <Styler />
         <DisplayWrapper>
@@ -39,5 +36,26 @@ export default function RootLayout({
 
 export const metadata: Metadata = {
   title: 'Blert',
-  description: 'OSRS PvM Analytics',
+  description: 'Old School Runescape PvM Analytics',
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: 'https://blert.io',
+    siteName: 'Blert',
+    description: 'Old School Runescape PvM Analytics',
+    images: [
+      {
+        url: 'https://blert.io/images/blert-topbar.png',
+        width: 530,
+        height: 342,
+        alt: 'Blert',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Blert',
+    description: 'Old School Runescape PvM Analytics',
+    images: ['https://blert.io/images/blert-topbar.png'],
+  },
 };

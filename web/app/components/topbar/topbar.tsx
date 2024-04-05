@@ -22,7 +22,7 @@ export default function Topbar() {
       </button>
       <div className={styles.image}>
         <Image
-          src="/blert-topbar.png"
+          src="/images/blert-topbar.png"
           alt="Blert"
           fill
           style={{ objectFit: 'contain' }}

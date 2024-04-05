@@ -156,7 +156,7 @@ export function LeftNav() {
             style={{ width: '200px', position: 'relative', height: '150px' }}
           >
             <Image
-              src="/blert-topbar.png"
+              src="/images/blert-topbar.png"
               alt="blert logo"
               fill
               style={{ objectFit: 'contain' }}
