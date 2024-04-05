@@ -8,12 +8,6 @@ import {
 } from './raid';
 import { MergedEvent } from '../event';
 
-const SkillLevel = {
-  _id: false,
-  base: Number,
-  current: Number,
-};
-
 const Item = {
   _id: false,
   id: Number,
@@ -42,7 +36,13 @@ const roomEventSchema = new Schema<MergedEvent>({
   yCoord: Number,
   player: {
     name: String,
-    hitpoints: SkillLevel,
+    hitpoints: Number,
+    prayer: Number,
+    attack: Number,
+    strength: Number,
+    defence: Number,
+    ranged: Number,
+    magic: Number,
     prayerSet: Number,
     equipment: {
       HEAD: Item,
@@ -63,7 +63,7 @@ const roomEventSchema = new Schema<MergedEvent>({
     type: { type: Number },
     id: Number,
     roomId: Number,
-    hitpoints: SkillLevel,
+    hitpoints: Number,
     maidenCrab: {
       type: MaidenCrabProperties,
       default: undefined,

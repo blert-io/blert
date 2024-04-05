@@ -10,6 +10,7 @@ import {
   RoomNpcType,
   NpcId,
   Stage,
+  SkillLevel,
 } from '@blert/common';
 import Image from 'next/image';
 import { useMemo } from 'react';
@@ -184,7 +185,10 @@ function nyloBossBackgroundColors(
     });
 
     const nyloBoss = (bossEvent as NpcEvent)?.npc;
-    if (nyloBoss === undefined || nyloBoss.hitpoints.current === 0) {
+    if (
+      nyloBoss === undefined ||
+      SkillLevel.fromRaw(nyloBoss.hitpoints).getCurrent() === 0
+    ) {
       if (startTick !== undefined) {
         const backgroundColor = getNyloColor(bossId!, true);
         if (backgroundColor !== undefined) {
@@ -303,11 +307,14 @@ export default function NylocasPage() {
     switch (evt.type) {
       case EventType.PLAYER_UPDATE: {
         const e = evt as PlayerUpdateEvent;
+        const hitpoints = e.player.hitpoints
+          ? SkillLevel.fromRaw(e.player.hitpoints)
+          : undefined;
         const player = new PlayerEntity(
           e.xCoord,
           e.yCoord,
           e.player.name,
-          e.player.hitpoints,
+          hitpoints,
         );
         entities.push(player);
         players.push(player);
@@ -325,7 +332,7 @@ export default function NylocasPage() {
             e.yCoord,
             e.npc.id,
             e.npc.roomId,
-            e.npc.hitpoints,
+            SkillLevel.fromRaw(e.npc.hitpoints),
             getNyloColor(e.npc.id),
           ),
         );

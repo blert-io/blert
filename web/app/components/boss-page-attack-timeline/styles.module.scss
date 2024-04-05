@@ -193,6 +193,10 @@
   &.cellDead {
     background-color: #3f0404;
     opacity: 0.25;
+
+    &:hover {
+      opacity: 0.4;
+    }
   }
 }
 

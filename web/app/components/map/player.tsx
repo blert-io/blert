@@ -57,11 +57,7 @@ export class PlayerEntity implements Entity {
         }}
       >
         {this.name}
-        {this.hitpoints !== undefined && (
-          <div>
-            {this.hitpoints.current}/{this.hitpoints.base}
-          </div>
-        )}
+        {this.hitpoints !== undefined && <div>{this.hitpoints.toString()}</div>}
       </div>
     );
   }

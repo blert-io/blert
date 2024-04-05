@@ -5,6 +5,7 @@ import {
   EventType,
   NpcEvent,
   PlayerUpdateEvent,
+  SkillLevel,
   Stage,
 } from '@blert/common';
 import Image from 'next/image';
@@ -105,11 +106,14 @@ export default function BloatPage() {
     switch (evt.type) {
       case EventType.PLAYER_UPDATE: {
         const e = evt as PlayerUpdateEvent;
+        const hitpoints = e.player.hitpoints
+          ? SkillLevel.fromRaw(e.player.hitpoints)
+          : undefined;
         const player = new PlayerEntity(
           e.xCoord,
           e.yCoord,
           e.player.name,
-          e.player.hitpoints,
+          hitpoints,
         );
         entities.push(player);
         players.push(player);
@@ -124,7 +128,7 @@ export default function BloatPage() {
             e.yCoord,
             e.npc.id,
             e.npc.roomId,
-            e.npc.hitpoints,
+            SkillLevel.fromRaw(e.npc.hitpoints),
           ),
         );
         break;

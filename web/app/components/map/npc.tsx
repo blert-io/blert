@@ -15,14 +15,14 @@ export class NpcEntity implements Entity {
 
   id: number;
   roomId: number;
-  hitpoints?: SkillLevel;
+  hitpoints: SkillLevel;
 
   constructor(
     x: number,
     y: number,
     id: number,
     roomId: number,
-    hitpoints?: SkillLevel,
+    hitpoints: SkillLevel,
     outlineColor?: string,
   ) {
     const npcDefinition = getNpcDefinition(id);
@@ -42,8 +42,7 @@ export class NpcEntity implements Entity {
   }
 
   renderContents(): React.ReactNode {
-    const displayHitpoints =
-      this.hitpoints !== undefined && this.hitpoints.base > 0;
+    const displayHitpoints = this.hitpoints.getBase() > 0;
 
     return (
       <div
@@ -61,11 +60,7 @@ export class NpcEntity implements Entity {
         }}
       >
         {this.name}
-        {displayHitpoints && (
-          <div>
-            {this.hitpoints!.current}/{this.hitpoints!.base}
-          </div>
-        )}
+        {displayHitpoints && <div>{this.hitpoints.toString()}</div>}
       </div>
     );
   }

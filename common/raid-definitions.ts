@@ -322,10 +322,47 @@ export enum Skill {
   MAGIC,
 }
 
-export type SkillLevel = {
-  current: number;
-  base: number;
-};
+export type RawSkillLevel = number;
+
+/**
+ * Represents a level in a skill, with a base level and a boosted or drained
+ * current level.
+ */
+export class SkillLevel {
+  private current: number;
+  private base: number;
+
+  public static fromRaw(raw: RawSkillLevel): SkillLevel {
+    const base = raw & 0xffff;
+    const current = raw >> 16;
+    return new SkillLevel(current, base);
+  }
+
+  public constructor(current: number, base: number) {
+    this.current = Math.max(current, 0);
+    this.base = Math.max(base, 0);
+  }
+
+  public getBase(): number {
+    return this.base;
+  }
+
+  public getCurrent(): number {
+    return this.current;
+  }
+
+  public toRaw(): RawSkillLevel {
+    return (this.current << 16) | (this.base & 0xffff);
+  }
+
+  public toString(): string {
+    return `${this.current}/${this.base}`;
+  }
+
+  public percent(): number {
+    return (this.current / this.base) * 100;
+  }
+}
 
 export enum PlayerAttack {
   BGS_SMACK = PlayerAttackProto.BGS_SMACK,

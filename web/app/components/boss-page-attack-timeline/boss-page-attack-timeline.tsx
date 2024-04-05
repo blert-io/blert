@@ -793,7 +793,8 @@ const buildTickCell = (
     }
     if (playerIsOffCooldown || diedThisTick) {
       className += ` ${styles.attackTimeline__CellOffCooldown}`;
-    } else if (playerIsDead) {
+    }
+    if (playerIsDead && !diedThisTick) {
       className += ` ${styles.cellDead}`;
       style.backgroundColor = undefined;
     }

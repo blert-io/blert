@@ -1,19 +1,19 @@
 import { Event as EventProto } from './generated/event_pb';
 import { RawPrayerSet } from './prayer-set';
 import {
-  SkillLevel,
-  StageStatus,
-  PlayerAttack,
-  Maze,
-  XarpusPhase,
-  VerzikPhase,
-  RoomNpcType,
-  NyloProperties,
-  MaidenCrabProperties,
-  VerzikCrabProperties,
-  NpcAttack,
-  Stage,
   Handicap,
+  MaidenCrabProperties,
+  Maze,
+  NpcAttack,
+  NyloProperties,
+  PlayerAttack,
+  RawSkillLevel,
+  RoomNpcType,
+  Stage,
+  StageStatus,
+  VerzikCrabProperties,
+  VerzikPhase,
+  XarpusPhase,
 } from './raid-definitions';
 
 export enum EventType {
@@ -183,13 +183,13 @@ export interface BasicPlayer {
 
 export interface Player extends BasicPlayer {
   offCooldownTick: number;
-  hitpoints?: SkillLevel;
-  prayer?: SkillLevel;
-  attack?: SkillLevel;
-  strength?: SkillLevel;
-  defence?: SkillLevel;
-  ranged?: SkillLevel;
-  magic?: SkillLevel;
+  hitpoints?: RawSkillLevel;
+  prayer?: RawSkillLevel;
+  attack?: RawSkillLevel;
+  strength?: RawSkillLevel;
+  defence?: RawSkillLevel;
+  ranged?: RawSkillLevel;
+  magic?: RawSkillLevel;
   prayerSet: RawPrayerSet;
   equipment?: EquipmentMap;
 }
@@ -225,7 +225,7 @@ export interface BasicEventNpc {
 
 export interface EventNpc extends BasicEventNpc {
   type: RoomNpcType;
-  hitpoints: SkillLevel;
+  hitpoints: RawSkillLevel;
   maidenCrab?: MaidenCrabProperties;
   nylo?: NyloProperties;
   verzikCrab?: VerzikCrabProperties;

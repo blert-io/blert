@@ -10,6 +10,8 @@ import {
   Npc,
   NpcEvent,
   PlayerUpdateEvent,
+  Skill,
+  SkillLevel,
   Stage,
 } from '@blert/common';
 
@@ -203,8 +205,7 @@ export default function Maiden() {
           const e = evt as NpcEvent;
           return {
             tick: e.tick,
-            bossHealthPercentage:
-              (e.npc.hitpoints.current / e.npc.hitpoints.base) * 100,
+            bossHealthPercentage: SkillLevel.fromRaw(e.npc.hitpoints).percent(),
           };
         }) ?? []
     );
@@ -266,11 +267,14 @@ export default function Maiden() {
     switch (evt.type) {
       case EventType.PLAYER_UPDATE: {
         const e = evt as PlayerUpdateEvent;
+        const hitpoints = e.player.hitpoints
+          ? SkillLevel.fromRaw(e.player.hitpoints)
+          : undefined;
         const player = new PlayerEntity(
           e.xCoord,
           e.yCoord,
           e.player.name,
-          e.player.hitpoints,
+          hitpoints,
           /*highlight=*/ e.player.name === selectedPlayer,
         );
         entities.push(player);
@@ -286,7 +290,7 @@ export default function Maiden() {
             e.yCoord,
             e.npc.id,
             e.npc.roomId,
-            e.npc.hitpoints,
+            SkillLevel.fromRaw(e.npc.hitpoints),
           ),
         );
         break;

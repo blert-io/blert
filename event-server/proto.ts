@@ -45,53 +45,25 @@ function playerProtoToPlayer(proto: EventProto.Player): EventPlayer {
   };
 
   if (proto.hasHitpoints()) {
-    const hitpoints = proto.getHitpoints()!;
-    player.hitpoints = {
-      base: hitpoints.getBase(),
-      current: hitpoints.getCurrent(),
-    };
+    player.hitpoints = proto.getHitpoints();
   }
   if (proto.hasPrayer()) {
-    const prayer = proto.getPrayer()!;
-    player.prayer = {
-      base: prayer.getBase(),
-      current: prayer.getCurrent(),
-    };
+    player.prayer = proto.getPrayer();
   }
   if (proto.hasAttack()) {
-    const attack = proto.getAttack()!;
-    player.attack = {
-      base: attack.getBase(),
-      current: attack.getCurrent(),
-    };
+    player.attack = proto.getAttack();
   }
   if (proto.hasStrength()) {
-    const strength = proto.getStrength()!;
-    player.strength = {
-      base: strength.getBase(),
-      current: strength.getCurrent(),
-    };
+    player.strength = proto.getStrength();
   }
   if (proto.hasDefence()) {
-    const defence = proto.getDefence()!;
-    player.defence = {
-      base: defence.getBase(),
-      current: defence.getCurrent(),
-    };
+    player.defence = proto.getDefence();
   }
   if (proto.hasRanged()) {
-    const ranged = proto.getRanged()!;
-    player.ranged = {
-      base: ranged.getBase(),
-      current: ranged.getCurrent(),
-    };
+    player.ranged = proto.getRanged();
   }
   if (proto.hasMagic()) {
-    const magic = proto.getMagic()!;
-    player.magic = {
-      base: magic.getBase(),
-      current: magic.getCurrent(),
-    };
+    player.magic = proto.getMagic();
   }
 
   proto.getEquipmentList().forEach((itemProto) => {
@@ -112,15 +84,6 @@ function playerProtoToPlayer(proto: EventProto.Player): EventPlayer {
 
 function npcProtoToNpc(proto: EventProto.Npc): EventNpc {
   let base, current;
-  if (proto.hasHitpoints()) {
-    const hitpoints = proto.getHitpoints()!;
-    base = hitpoints.getBase();
-    current = hitpoints.getCurrent();
-  } else {
-    base = -1;
-    current = -1;
-  }
-
   let type = RoomNpcType.BASIC;
   if (proto.hasMaidenCrab()) {
     type = RoomNpcType.MAIDEN_CRAB;
@@ -134,7 +97,7 @@ function npcProtoToNpc(proto: EventProto.Npc): EventNpc {
     id: proto.getId(),
     roomId: proto.getRoomId(),
     type,
-    hitpoints: { base, current },
+    hitpoints: proto.getHitpoints(),
   };
 
   if (proto.hasMaidenCrab()) {
