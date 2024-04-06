@@ -2,11 +2,7 @@ import { PersonalBestType, PrimaryMeleeGear } from '@blert/common';
 import Link from 'next/link';
 import Image from 'next/image';
 
-import {
-  loadPbsForPlayer,
-  loadPlayerWithStats,
-  loadRecentChallenges,
-} from '../../actions/challenge';
+import { loadPbsForPlayer, loadPlayerWithStats } from '../../actions/challenge';
 import CollapsiblePanel from '../../components/collapsible-panel';
 import ChallengeHistory from '../../components/challenge-history';
 import Statistic from '../../components/statistic';
@@ -144,25 +140,25 @@ export default async function Player(props: PlayerPageProps) {
           <h2>Raids</h2>
           <div className={styles.stats}>
             <Statistic
-              supplementalClassName={styles.individualStat}
+              className={styles.individualStat}
               name="Total"
               value={player.totalRaidsRecorded}
               width={STATISTIC_WIDTH}
             />
             <Statistic
-              supplementalClassName={styles.individualStat}
+              className={styles.individualStat}
               name="Completions"
               value={stats.completions}
               width={STATISTIC_WIDTH}
             />
             <Statistic
-              supplementalClassName={styles.individualStat}
+              className={styles.individualStat}
               name="Resets"
               value={stats.resets}
               width={STATISTIC_WIDTH}
             />
             <Statistic
-              supplementalClassName={styles.individualStat}
+              className={styles.individualStat}
               name="Wipes"
               value={stats.wipes}
               width={STATISTIC_WIDTH}
@@ -171,25 +167,25 @@ export default async function Player(props: PlayerPageProps) {
           <h2>Trolls</h2>
           <div className={styles.stats}>
             <Statistic
-              supplementalClassName={styles.individualStat}
+              className={styles.individualStat}
               name="BGS Smacks"
               value={stats.bgsSmacks}
               width={STATISTIC_WIDTH}
             />
             <Statistic
-              supplementalClassName={styles.individualStat}
+              className={styles.individualStat}
               name="Hammer Bops"
               value={stats.hammerBops}
               width={STATISTIC_WIDTH}
             />
             <Statistic
-              supplementalClassName={styles.individualStat}
+              className={styles.individualStat}
               name="Uncharged Scy Swings"
               value={stats.unchargedScytheSwings}
               width={STATISTIC_WIDTH}
             />
             <Statistic
-              supplementalClassName={styles.individualStat}
+              className={styles.individualStat}
               name="Barrages w/o Staff"
               value={stats.barragesWithoutProperWeapon}
               width={STATISTIC_WIDTH}
@@ -198,43 +194,43 @@ export default async function Player(props: PlayerPageProps) {
           <h2>Deaths</h2>
           <div className={styles.stats}>
             <Statistic
-              supplementalClassName={styles.individualStat}
+              className={styles.individualStat}
               name="Total"
               value={stats.deaths}
               width={STATISTIC_WIDTH}
             />
             <Statistic
-              supplementalClassName={styles.individualStat}
+              className={styles.individualStat}
               name="Maiden"
               value={stats.deathsMaiden}
               width={STATISTIC_WIDTH}
             />
             <Statistic
-              supplementalClassName={styles.individualStat}
+              className={styles.individualStat}
               name="Bloat"
               value={stats.deathsBloat}
               width={STATISTIC_WIDTH}
             />
             <Statistic
-              supplementalClassName={styles.individualStat}
+              className={styles.individualStat}
               name="Nylo"
               value={stats.deathsNylocas}
               width={STATISTIC_WIDTH}
             />
             <Statistic
-              supplementalClassName={styles.individualStat}
+              className={styles.individualStat}
               name="Sote"
               value={stats.deathsSotetseg}
               width={STATISTIC_WIDTH}
             />
             <Statistic
-              supplementalClassName={styles.individualStat}
+              className={styles.individualStat}
               name="Xarpus"
               value={stats.deathsXarpus}
               width={STATISTIC_WIDTH}
             />
             <Statistic
-              supplementalClassName={styles.individualStat}
+              className={styles.individualStat}
               name="Verzik"
               value={stats.deathsVerzik}
               width={STATISTIC_WIDTH}
@@ -243,32 +239,32 @@ export default async function Player(props: PlayerPageProps) {
           <h2>Chins</h2>
           <div className={styles.stats}>
             <Statistic
-              supplementalClassName={styles.individualStat}
+              className={styles.individualStat}
               name="Chins Thrown"
               value={stats.chinsThrown}
               width={STATISTIC_WIDTH}
             />
             <Statistic
-              supplementalClassName={styles.individualStat}
+              className={styles.individualStat}
               name="Thrown during Maiden"
               value={stats.chinsThrownMaiden}
               width={STATISTIC_WIDTH}
             />
             <Statistic
-              supplementalClassName={styles.individualStat}
+              className={styles.individualStat}
               name="Thrown Incorrectly"
               value={stats.chinsThrownIncorrectlyMaiden}
               width={STATISTIC_WIDTH}
             />
             <Statistic
-              supplementalClassName={styles.individualStat}
+              className={styles.individualStat}
               name="Troll Chins %"
               value={chinsThrownIncorrectlyPercentage.toFixed(1)}
               width={STATISTIC_WIDTH}
               unit="%"
             />
             <Statistic
-              supplementalClassName={styles.individualStat}
+              className={styles.individualStat}
               name="Value of Chins Thrown"
               value={stats.chinsThrownValue}
               width={STATISTIC_WIDTH}

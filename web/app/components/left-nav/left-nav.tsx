@@ -392,18 +392,18 @@ export function LeftNav() {
             </Link>
           </li>
 
-          {/* <div className={styles.leftNav__menuDividerTwo}></div> */}
+          <div className={styles.leftNav__menuDividerTwo}></div>
 
           {/* Trends */}
-          {/* <li className={styles.leftNav__menuItem}>
-          <Link className={`${styles.leftNav__menuItemInner}`} href="/trends">
-            <div className={styles.leftNav__menuItemIcon}>
-              <i className="fa-solid fa-arrow-trend-up"></i>
-            </div>
+          <li className={styles.leftNav__menuItem}>
+            <Link className={`${styles.leftNav__menuItemInner}`} href="/trends">
+              <div className={styles.leftNav__menuItemIcon}>
+                <i className="fa-solid fa-arrow-trend-up"></i>
+              </div>
 
-            <span className="active">Trends</span>
-          </Link>
-        </li> */}
+              <span className="active">Trends</span>
+            </Link>
+          </li>
 
           {/* Account */}
           {/* <li className={styles.leftNav__menuItem}>

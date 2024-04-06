@@ -1,6 +1,7 @@
 'use server';
 
 import {
+  ChallengeStatus,
   ChallengeType,
   Event,
   EventType,
@@ -182,6 +183,53 @@ export async function loadRecentChallenges(
   return challenges ? (challenges as ChallengeOverview[]) : [];
 }
 
+export type ChallengeStats = {
+  total: number;
+  completions: number;
+  resets: number;
+  wipes: number;
+};
+
+export async function loadAggregateChallengeStats(
+  type?: ChallengeType,
+): Promise<ChallengeStats> {
+  await connectToDatabase();
+
+  const match: FilterQuery<Raid> = {
+    status: { $ne: ChallengeStatus.IN_PROGRESS },
+  };
+  if (type !== undefined) {
+    match.type = type;
+  }
+
+  const pipeline = [
+    { $match: match },
+    {
+      $group: {
+        _id: '$status',
+        amount: { $sum: 1 },
+      },
+    },
+  ];
+
+  const stats = await RaidModel.aggregate(pipeline).exec();
+
+  return stats.reduce(
+    (acc, stat) => {
+      if (stat._id === ChallengeStatus.COMPLETED) {
+        acc.completions = stat.amount;
+      } else if (stat._id === ChallengeStatus.RESET) {
+        acc.resets = stat.amount;
+      } else if (stat._id === ChallengeStatus.WIPED) {
+        acc.wipes = stat.amount;
+      }
+      acc.total += stat.amount;
+      return acc;
+    },
+    { total: 0, completions: 0, resets: 0, wipes: 0 },
+  );
+}
+
 export type PlayerWithStats = Omit<Player, '_id'> & {
   stats: Omit<PlayerStats, 'playerId'>;
 };
@@ -239,4 +287,20 @@ export async function loadPbsForPlayer(
     .exec();
 
   return pbs;
+}
+
+export async function getTotalDeathsByStage(
+  stages: Stage[],
+): Promise<Record<Stage, number>> {
+  await connectToDatabase();
+
+  const stagesWithDeaths = await RoomEvent.aggregate([
+    { $match: { type: EventType.PLAYER_DEATH, stage: { $in: stages } } },
+    { $group: { _id: '$stage', deaths: { $sum: 1 } } },
+  ]).exec();
+
+  return stagesWithDeaths.reduce((acc, stage) => {
+    acc[stage._id] = stage.deaths;
+    return acc;
+  }, {});
 }

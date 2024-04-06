@@ -125,7 +125,6 @@ export interface MaidenBloodSplatsEvent extends Event {
 export interface BloatDownEvent extends Event {
   type: EventType.TOB_BLOAT_DOWN;
   bloatDown: BloatDown;
-  bloatStatus: BloatDown; // TODO: delete
 }
 
 export interface NyloWaveSpawnEvent extends Event {
