@@ -86,9 +86,6 @@ const roomEventSchema = new Schema<MergedEvent>({
     type: [Coords],
     default: undefined,
   },
-  bloatStatus: {
-    walkTime: Number,
-  },
   bloatDown: {
     downNumber: Number,
     walkTime: Number,
