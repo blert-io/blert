@@ -14,11 +14,13 @@ import {
 } from '@blert/common';
 import Image from 'next/image';
 import { useMemo } from 'react';
+
 import {
   EventTickMap,
   usePlayingState,
   useRoomEvents,
-} from '../../../boss-room-state';
+} from '../../../../../utils/boss-room-state';
+import { RaidContext } from '../../../context';
 import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
 import {
   BossPageAttackTimeline,
@@ -29,10 +31,10 @@ import BossPageReplay from '../../../../../components/boss-page-replay';
 import { Entity, NpcEntity, PlayerEntity } from '../../../../../components/map';
 import { OverlayEntity } from '../../../../../components/map/overlay';
 import Loading from '../../../../../components/loading';
+import { ticksToFormattedSeconds } from '../../../../../utils/tick';
 
 import styles from './style.module.scss';
 import nyloBaseTiles from './nylo-tiles.json';
-import { ticksToFormattedSeconds } from '../../../../../utils/tick';
 
 const NYLOCAS_MAP_DEFINITION = {
   baseX: 3279,
@@ -227,15 +229,16 @@ function nyloBossBackgroundColors(
 
 export default function NylocasPage() {
   const {
-    raidData,
+    challenge: raidData,
     totalTicks,
     events,
     eventsByTick,
     eventsByType,
     bossAttackTimeline,
     playerState,
+    npcState,
     loading,
-  } = useRoomEvents(Stage.TOB_NYLOCAS);
+  } = useRoomEvents(RaidContext, Stage.TOB_NYLOCAS);
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
@@ -408,7 +411,7 @@ export default function NylocasPage() {
         updateTickOnPage={updateTickOnPage}
         splits={splits}
         backgroundColors={backgroundColors}
-        npcs={nyloData?.npcs ?? {}}
+        npcs={npcState}
       />
 
       <BossPageReplay

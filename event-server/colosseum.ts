@@ -19,7 +19,6 @@ export default class ColosseumChallenge extends Challenge {
   private handicapLevels: number[];
   private selectedHandicap: Handicap | null;
   private waveHandicapOptions: Handicap[];
-  private waveNpcs: Map<number, RoomNpc>;
 
   constructor(id: string, party: string[], startTime: number) {
     super(
@@ -34,7 +33,6 @@ export default class ColosseumChallenge extends Challenge {
     this.handicapLevels = Array(14).fill(0);
     this.selectedHandicap = null;
     this.waveHandicapOptions = [];
-    this.waveNpcs = new Map();
   }
 
   protected override async onInitialize(document: RaidDocument): Promise<void> {
@@ -74,8 +72,8 @@ export default class ColosseumChallenge extends Challenge {
           ticks: event.getTick(),
           handicap: this.selectedHandicap ?? 0,
           options: this.waveHandicapOptions,
-          // @ts-ignore: NPCs are a map in the database.
-          npcs: this.waveNpcs,
+          // @ts-ignore: NPCs in the database are a map.
+          npcs: this.getStageNpcs(),
         });
       }),
     );
@@ -158,6 +156,5 @@ export default class ColosseumChallenge extends Challenge {
   private resetWave(): void {
     this.selectedHandicap = null;
     this.waveHandicapOptions = [];
-    this.waveNpcs.clear();
   }
 }

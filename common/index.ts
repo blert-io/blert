@@ -44,6 +44,7 @@ export {
   EventType,
   EquipmentSlot,
   VerzikAttackStyle,
+  isNpcEvent,
   isPlayerEvent,
 } from './event';
 

@@ -6,9 +6,6 @@ import {
   NpcAttack,
   NpcAttackEvent,
   PlayerAttack,
-  PlayerAttackEvent,
-  PlayerUpdateEvent,
-  RoomNpcMap,
   getNpcDefinition,
   npcFriendlyName,
 } from '@blert/common';
@@ -20,7 +17,11 @@ import Item from '../item';
 import { LigmaTooltip } from '../ligma-tooltip/ligma-tooltip';
 import { BlertMemes, MemeContext } from '../../raids/meme-context';
 import { ActorContext, RoomActorState } from '../../raids/tob/context';
-import { PlayerState, PlayerStateMap } from '../../raids/tob/boss-room-state';
+import {
+  PlayerState,
+  PlayerStateMap,
+  RoomNpcMap,
+} from '../../utils/boss-room-state';
 
 import styles from './styles.module.scss';
 
@@ -731,11 +732,13 @@ const buildTickCell = (
       cellImage = makeCellImage(attack, memes);
 
       let targetName = 'Unknown';
+      let targetHp: number | undefined = undefined;
       const maybeTarget = attack.target;
       if (maybeTarget !== undefined) {
-        const roomNpc = npcs[maybeTarget.roomId];
+        const roomNpc = npcs.get(maybeTarget.roomId);
         if (roomNpc !== undefined) {
           targetName = npcFriendlyName(roomNpc);
+          targetHp = roomNpc.stateByTick[playerState.tick]?.hitpoints.percent();
         }
       }
 
@@ -750,7 +753,10 @@ const buildTickCell = (
               {username}
             </button>
             <span>{playerAttackVerb(attack.type)}</span>
-            <button>{targetName}</button>
+            <button>
+              {targetName}
+              {targetHp && ` (${targetHp.toFixed(2)}%)`}
+            </button>
             {ranged && (
               <span>{`from ${distance} tile${distance === 1 ? '' : 's'} away`}</span>
             )}

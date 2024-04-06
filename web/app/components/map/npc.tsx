@@ -24,13 +24,18 @@ export class NpcEntity implements Entity {
     roomId: number,
     hitpoints: SkillLevel,
     outlineColor?: string,
+    shortName: boolean = false,
   ) {
     const npcDefinition = getNpcDefinition(id);
+    if (npcDefinition !== null) {
+      this.name = shortName ? npcDefinition.shortName : npcDefinition.fullName;
+    } else {
+      this.name = `NPC ${id}`;
+    }
 
     this.x = x;
     this.y = y;
     this.size = npcDefinition?.size ?? 1;
-    this.name = npcDefinition?.fullName ?? `NPC ${id}`;
     this.id = id;
     this.roomId = roomId;
     this.hitpoints = hitpoints;

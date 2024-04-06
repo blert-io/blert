@@ -65,7 +65,7 @@ export default function RaidLayout(props: ColosseumLayoutProps) {
   }
 
   if (challenge === null) {
-    return <div>Raid not found</div>;
+    return <div>Colosseum challenge not found</div>;
   }
 
   return (

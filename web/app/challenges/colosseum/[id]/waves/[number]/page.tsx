@@ -1,17 +1,42 @@
 'use client';
 
-import { ChallengeType, HANDICAP_LEVEL_VALUE_INCREMENT } from '@blert/common';
+import {
+  ChallengeType,
+  EventType,
+  HANDICAP_LEVEL_VALUE_INCREMENT,
+  Npc,
+  NpcEvent,
+  PlayerUpdateEvent,
+  SkillLevel,
+  Stage,
+} from '@blert/common';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useContext, useEffect } from 'react';
 
+import BossPageReplay from '../../../../../components/boss-page-replay';
+import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
+import ColosseumHandicap from '../../../../../components/colosseum-handicap';
+import { Entity, NpcEntity, PlayerEntity } from '../../../../../components/map';
 import Loading from '../../../../../components/loading';
-import { ColosseumContext } from '../../../context';
+import { ActorContext, ColosseumContext } from '../../../context';
+import {
+  usePlayingState,
+  useRoomEvents,
+} from '../../../../../utils/boss-room-state';
 import { ticksToFormattedSeconds } from '../../../../../utils/tick';
 import { challengeUrl } from '../../../../../utils/url';
 
 import styles from './style.module.scss';
-import ColosseumHandicap from '../../../../../components/colosseum-handicap';
+import colosseumBaseTiles from './colosseum-tiles.json';
+
+const COLOSSEUM_MAP_DEFINITION = {
+  baseX: 1808,
+  baseY: 3090,
+  width: 34,
+  height: 34,
+  baseTiles: colosseumBaseTiles,
+};
 
 function imageForWave(waveNumber: number) {
   switch (waveNumber) {
@@ -41,19 +66,53 @@ type ColosseumWavePageProps = {
   params: { id: string; number: string };
 };
 
+function validWaveNumber(waveNumber: number) {
+  return !isNaN(waveNumber) && waveNumber >= 1 && waveNumber <= 12;
+}
+
+function npcOutlineColor(npcId: number): string | undefined {
+  if (Npc.isFremennikSeer(npcId) || Npc.isSerpentShaman(npcId)) {
+    return '#42c6d7';
+  }
+  if (Npc.isFremennikArcher(npcId)) {
+    return '#408d43';
+  }
+  if (Npc.isFremennikBerserker(npcId)) {
+    return '#8b0e10';
+  }
+  if (Npc.isJavelinColossus(npcId)) {
+    return '#24d72b';
+  }
+  if (Npc.isManticore(npcId)) {
+    return '#9c27b0';
+  }
+  if (Npc.isShockwaveColossus(npcId)) {
+    return '#3f5fff';
+  }
+
+  return '#2d270c';
+}
+
 export default function ColosseumWavePage({
   params: { id: challengeId, number },
 }: ColosseumWavePageProps) {
   const router = useRouter();
 
-  const challenge = useContext(ColosseumContext);
-
   const waveNumber = Number.parseInt(number, 10);
   useEffect(() => {
-    if (isNaN(waveNumber) || waveNumber < 1 || waveNumber > 12) {
+    if (!validWaveNumber(waveNumber)) {
       router.replace(challengeUrl(ChallengeType.COLOSSEUM, challengeId));
     }
   }, [waveNumber]);
+
+  const waveIndex = validWaveNumber(waveNumber) ? waveNumber - 1 : 0;
+  const { challenge, eventsByTick, eventsByType, playerState, totalTicks } =
+    useRoomEvents(ColosseumContext, Stage.COLOSSEUM_WAVE_1 + waveIndex);
+
+  const { selectedPlayer } = useContext(ActorContext);
+
+  const { currentTick, updateTickOnPage, playing, setPlaying } =
+    usePlayingState(totalTicks);
 
   if (challenge === null) {
     return <Loading />;
@@ -78,6 +137,64 @@ export default function ColosseumWavePage({
       handicapsSoFar.push(handicap);
     } else {
       handicapsSoFar[index] = handicap;
+    }
+  }
+
+  const eventsForCurrentTick = eventsByTick[currentTick] ?? [];
+
+  const entities: Entity[] = [];
+
+  for (const evt of eventsForCurrentTick) {
+    switch (evt.type) {
+      case EventType.PLAYER_UPDATE: {
+        const e = evt as PlayerUpdateEvent;
+        const hitpoints = e.player.hitpoints
+          ? SkillLevel.fromRaw(e.player.hitpoints)
+          : undefined;
+        const player = new PlayerEntity(
+          e.xCoord,
+          e.yCoord,
+          e.player.name,
+          hitpoints,
+          /*highlight=*/ e.player.name === selectedPlayer,
+        );
+        entities.push(player);
+        break;
+      }
+      case EventType.NPC_SPAWN:
+      case EventType.NPC_UPDATE: {
+        const e = evt as NpcEvent;
+        entities.push(
+          new NpcEntity(
+            e.xCoord,
+            e.yCoord,
+            e.npc.id,
+            e.npc.roomId,
+            SkillLevel.fromRaw(e.npc.hitpoints),
+            npcOutlineColor(e.npc.id),
+            Npc.isFremennik(e.npc.id) || Npc.isSerpentShaman(e.npc.id),
+          ),
+        );
+        break;
+      }
+    }
+  }
+
+  const username = challenge.party[0];
+  const playerTickState = {
+    [username]: playerState.get(username)?.at(currentTick) ?? null,
+  };
+
+  let timelineSplits = [];
+  if (waveNumber < 12) {
+    const reinforcementTick =
+      eventsByType[EventType.NPC_SPAWN]?.find((e) => (e as NpcEvent).tick > 1)
+        ?.tick ?? 0;
+    if (reinforcementTick > 1) {
+      timelineSplits.push({
+        tick: reinforcementTick,
+        splitName: 'Reinforcements',
+      });
     }
   }
 
@@ -121,6 +238,22 @@ export default function ColosseumWavePage({
           </div>
         </div>
       </div>
+
+      <BossPageReplay
+        entities={entities}
+        mapDef={COLOSSEUM_MAP_DEFINITION}
+        playerTickState={playerTickState}
+        tileSize={25}
+      />
+
+      <BossPageControls
+        currentlyPlaying={playing}
+        totalTicks={totalTicks}
+        currentTick={currentTick}
+        updateTick={updateTickOnPage}
+        updatePlayingState={setPlaying}
+        splits={timelineSplits}
+      />
     </div>
   );
 }

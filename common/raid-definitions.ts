@@ -33,10 +33,12 @@ export type Raid = {
 };
 
 export type TobRaid = Raid & {
+  type: ChallengeType.TOB;
   tobRooms: TobRooms;
 };
 
 export type ColosseumChallenge = Raid & {
+  type: ChallengeType.COLOSSEUM;
   colosseum: ColosseumData;
 };
 

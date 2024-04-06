@@ -73,7 +73,7 @@ const PlayerInfo = {
   gear: Number,
 };
 
-type AllRaids = Raid & TobRaid & ColosseumChallenge;
+type AllRaids = Raid & Omit<TobRaid, 'type'> & Omit<ColosseumChallenge, 'type'>;
 
 const tobRoomsSchema = new Schema<TobRooms>(
   {

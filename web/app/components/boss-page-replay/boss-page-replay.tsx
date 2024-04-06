@@ -7,22 +7,24 @@ import EquipmentViewer from '../equipment-viewer';
 import KeyPrayers from '../key-prayers';
 import Map, { Entity, EntityType, MapDefinition } from '../map';
 import { ActorContext } from '../../raids/tob/context';
-import { PlayerState } from '../../raids/tob/boss-room-state';
+import { PlayerState } from '../../utils/boss-room-state';
 
 import styles from './styles.module.scss';
 
-const MAP_TILE_SIZE = 30;
+const DEFAULT_MAP_TILE_SIZE = 30;
 
 type BossReplayProps = {
   entities: Entity[];
   mapDef: MapDefinition;
   playerTickState: Record<string, PlayerState | null>;
+  tileSize?: number;
 };
 
 export default function BossPageReplay({
   entities,
   mapDef,
   playerTickState,
+  tileSize = DEFAULT_MAP_TILE_SIZE,
 }: BossReplayProps) {
   const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
   const onEntitySelected = (entity: Entity) => {
@@ -53,7 +55,7 @@ export default function BossPageReplay({
           height={mapDef.height}
           baseTiles={mapDef.baseTiles}
           faceSouth={mapDef.faceSouth}
-          tileSize={MAP_TILE_SIZE}
+          tileSize={tileSize}
           entities={entities}
           onEntityClicked={onEntitySelected}
         />

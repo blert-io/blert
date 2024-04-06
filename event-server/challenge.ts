@@ -2,6 +2,9 @@ import {
   ChallengeMode,
   ChallengeStatus,
   ChallengeType,
+  MaidenCrab,
+  Npc,
+  Nylo,
   PlayerInfo,
   PrimaryMeleeGear,
   RaidDocument,
@@ -9,8 +12,11 @@ import {
   RecordedChallengeModel,
   RecordingType,
   RoomEvent,
+  RoomNpc,
+  RoomNpcType,
   Stage,
   StageStatus,
+  VerzikCrab,
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 import { Types } from 'mongoose';
@@ -60,6 +66,7 @@ export abstract class Challenge {
   private stage: Stage;
   private stageStatus: StageStatus;
   private stageTick: number;
+  private stageNpcs: Map<string, RoomNpc>;
   private queuedEvents: Event[];
 
   constructor(
@@ -89,6 +96,7 @@ export abstract class Challenge {
     this.stage = initialStage;
     this.stageStatus = StageStatus.ENTERED;
     this.stageTick = 0;
+    this.stageNpcs = new Map();
     this.queuedEvents = [];
   }
 
@@ -173,6 +181,10 @@ export abstract class Challenge {
 
   protected getStageTick(): number {
     return this.stageTick;
+  }
+
+  protected getStageNpcs(): Map<string, RoomNpc> {
+    return this.stageNpcs;
   }
 
   /**
@@ -346,6 +358,8 @@ export abstract class Challenge {
         return;
       }
 
+      this.updateChallengeState(event);
+
       const writeToDb = await this.processChallengeEvent(event);
 
       // Batch and flush events once per tick to reduce database writes.
@@ -394,6 +408,7 @@ export abstract class Challenge {
       case StageStatus.ENTERED:
         this.setStage(event.getStage());
         this.stageTick = 0;
+        this.stageNpcs.clear();
         this.queuedEvents = [];
         await this.onStageEntered();
         break;
@@ -431,6 +446,80 @@ export abstract class Challenge {
     ];
 
     await Promise.all(promises);
+  }
+
+  private updateChallengeState(event: Event): void {
+    switch (event.getType()) {
+      case Event.Type.NPC_SPAWN:
+        this.handleNpcSpawn(event);
+        break;
+
+      case Event.Type.NPC_DEATH:
+        let npc = this.stageNpcs.get(event.getNpc()!.getRoomId().toString());
+        if (npc !== undefined) {
+          npc.deathTick = event.getTick();
+          npc.deathPoint = { x: event.getXCoord(), y: event.getYCoord() };
+        }
+        break;
+    }
+  }
+
+  /**
+   * Creates a `RoomNpc` entry in the NPC map for a newly-spawned NPC.
+   *
+   * @param event The spawn event.
+   */
+  private handleNpcSpawn(event: Event): void {
+    const npc = event.getNpc();
+    if (npc === undefined) {
+      return;
+    }
+
+    let type = RoomNpcType.BASIC;
+    if (npc.hasMaidenCrab()) {
+      type = RoomNpcType.MAIDEN_CRAB;
+    } else if (npc.hasNylo()) {
+      type = RoomNpcType.NYLO;
+    } else if (npc.hasVerzikCrab()) {
+      type = RoomNpcType.VERZIK_CRAB;
+    }
+
+    const npcCommon = {
+      type,
+      spawnNpcId: npc.getId(),
+      roomId: npc.getRoomId(),
+      spawnTick: event.getTick(),
+      spawnPoint: { x: event.getXCoord(), y: event.getYCoord() },
+      deathTick: 0,
+      deathPoint: { x: 0, y: 0 },
+    };
+
+    const { maidenCrab, nylo, verzikCrab } = npc.toObject();
+
+    if (maidenCrab !== undefined) {
+      const crab: MaidenCrab = {
+        ...npcCommon,
+        type: RoomNpcType.MAIDEN_CRAB,
+        maidenCrab,
+      };
+      this.stageNpcs.set(npc.getRoomId().toString(), crab);
+    } else if (nylo !== undefined) {
+      const nyloDesc: Nylo = {
+        ...npcCommon,
+        type: RoomNpcType.NYLO,
+        nylo,
+      };
+      this.stageNpcs.set(npc.getRoomId().toString(), nyloDesc);
+    } else if (verzikCrab !== undefined) {
+      const crab: VerzikCrab = {
+        ...npcCommon,
+        type: RoomNpcType.VERZIK_CRAB,
+        verzikCrab,
+      };
+      this.stageNpcs.set(npc.getRoomId().toString(), crab);
+    } else {
+      this.stageNpcs.set(npc.getRoomId().toString(), npcCommon);
+    }
   }
 
   protected async updateDatabaseFields(

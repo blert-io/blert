@@ -4,26 +4,21 @@ import {
   ChallengeStatus,
   ChallengeType,
   EventType,
-  MaidenCrab,
   MaidenCrabSpawn,
   MaidenSplits,
   Maze,
   Npc,
   NpcAttack,
-  Nylo,
   NyloSplits,
   PersonalBestType,
   PlayerAttack,
   RaidDocument,
   RoomEvent,
-  RoomNpc,
-  RoomNpcType,
   SoteSplits,
   Stage,
   StageStatus,
   TobRooms,
   VerzikAttackStyle,
-  VerzikCrab,
   VerzikPhase,
   VerzikSplits,
   XarpusPhase,
@@ -54,7 +49,6 @@ export default class TheatreChallenge extends Challenge {
   private xarpusSplits: XarpusSplits;
   private verzikSplits: VerzikSplits;
 
-  private npcs: Map<String, RoomNpc>;
   private stalledNyloWaves: number[];
   private verzikRedSpawns: number[];
 
@@ -82,7 +76,6 @@ export default class TheatreChallenge extends Challenge {
     this.xarpusSplits = { exhumes: 0, screech: 0 };
     this.verzikSplits = { p1: 0, reds: 0, p2: 0 };
 
-    this.npcs = new Map();
     this.stalledNyloWaves = [];
     this.verzikRedSpawns = [];
   }
@@ -146,7 +139,6 @@ export default class TheatreChallenge extends Challenge {
   protected override async onStageEntered(): Promise<void> {
     this.deathsInRoom = [];
     this.queuedPbUpdates = [];
-    this.npcs.clear();
   }
 
   protected override async onStageFinished(
@@ -229,7 +221,7 @@ export default class TheatreChallenge extends Challenge {
           roomTicks: event.getTick(),
           deaths: this.deathsInRoom,
           // @ts-ignore: NPCs in the database are a map.
-          npcs: this.npcs,
+          npcs: this.getStageNpcs(),
         };
 
         switch (this.getStage()) {
@@ -346,14 +338,33 @@ export default class TheatreChallenge extends Challenge {
         break;
 
       case EventType.NPC_SPAWN:
-        await this.handleNpcSpawn(event);
-        break;
+        const npc = event.getNpc()!;
+        if (Npc.isVerzikMatomenos(npc.getId())) {
+          if (this.verzikRedSpawns.length === 0) {
+            // First red spawn is recorded as a stage split.
+            this.verzikSplits.reds = event.getTick();
+            this.verzikRedSpawns.push(event.getTick());
+          } else if (
+            this.verzikRedSpawns[this.verzikRedSpawns.length - 1] !==
+            event.getTick()
+          ) {
+            // A new spawn occurred.
+            this.verzikRedSpawns.push(event.getTick());
+          }
+        }
 
-      case EventType.NPC_DEATH:
-        let npc = this.npcs.get(event.getNpc()!.getRoomId().toString());
-        if (npc !== undefined) {
-          npc.deathTick = event.getTick();
-          npc.deathPoint = { x: event.getXCoord(), y: event.getYCoord() };
+        if (npc.hasMaidenCrab()) {
+          switch (npc.getMaidenCrab()!.getSpawn()) {
+            case MaidenCrabSpawn.SEVENTIES:
+              this.maidenSplits.SEVENTIES = event.getTick();
+              break;
+            case MaidenCrabSpawn.FIFTIES:
+              this.maidenSplits.FIFTIES = event.getTick();
+              break;
+            case MaidenCrabSpawn.THIRTIES:
+              this.maidenSplits.THIRTIES = event.getTick();
+              break;
+          }
         }
         break;
 
@@ -562,96 +573,13 @@ export default class TheatreChallenge extends Challenge {
   }
 
   /**
-   * Creates a `RoomNpc` entry in the NPC map for a newly-spawned NPC.
-   *
-   * @param event The spawn event.
-   */
-  private async handleNpcSpawn(event: Event): Promise<void> {
-    const npc = event.getNpc();
-    if (npc === undefined) {
-      return;
-    }
-
-    let type = RoomNpcType.BASIC;
-    if (npc.hasMaidenCrab()) {
-      type = RoomNpcType.MAIDEN_CRAB;
-    } else if (npc.hasNylo()) {
-      type = RoomNpcType.NYLO;
-    } else if (npc.hasVerzikCrab()) {
-      type = RoomNpcType.VERZIK_CRAB;
-    }
-
-    const npcCommon = {
-      type,
-      spawnNpcId: npc.getId(),
-      roomId: npc.getRoomId(),
-      spawnTick: event.getTick(),
-      spawnPoint: { x: event.getXCoord(), y: event.getYCoord() },
-      deathTick: 0,
-      deathPoint: { x: 0, y: 0 },
-    };
-
-    if (Npc.isVerzikMatomenos(npc.getId())) {
-      if (this.verzikRedSpawns.length === 0) {
-        // First red spawn is recorded as a stage split.
-        this.verzikSplits.reds = event.getTick();
-        this.verzikRedSpawns.push(event.getTick());
-      } else if (
-        this.verzikRedSpawns[this.verzikRedSpawns.length - 1] !==
-        event.getTick()
-      ) {
-        // A new spawn occurred.
-        this.verzikRedSpawns.push(event.getTick());
-      }
-    }
-
-    const { maidenCrab, nylo, verzikCrab } = npc.toObject();
-
-    if (maidenCrab !== undefined) {
-      switch (maidenCrab.spawn) {
-        case MaidenCrabSpawn.SEVENTIES:
-          this.maidenSplits.SEVENTIES = event.getTick();
-          break;
-        case MaidenCrabSpawn.FIFTIES:
-          this.maidenSplits.FIFTIES = event.getTick();
-          break;
-        case MaidenCrabSpawn.THIRTIES:
-          this.maidenSplits.THIRTIES = event.getTick();
-          break;
-      }
-      const crab: MaidenCrab = {
-        ...npcCommon,
-        type: RoomNpcType.MAIDEN_CRAB,
-        maidenCrab,
-      };
-      this.npcs.set(npc.getRoomId().toString(), crab);
-    } else if (nylo !== undefined) {
-      const nyloDesc: Nylo = {
-        ...npcCommon,
-        type: RoomNpcType.NYLO,
-        nylo,
-      };
-      this.npcs.set(npc.getRoomId().toString(), nyloDesc);
-    } else if (verzikCrab !== undefined) {
-      const crab: VerzikCrab = {
-        ...npcCommon,
-        type: RoomNpcType.VERZIK_CRAB,
-        verzikCrab,
-      };
-      this.npcs.set(npc.getRoomId().toString(), crab);
-    } else {
-      this.npcs.set(npc.getRoomId().toString(), npcCommon);
-    }
-  }
-
-  /**
    * Corrects any recorded splits and other stage information that were affected
    * by tick loss.
    *
    * @param tickOffset The number of ticks lost.
    */
   private correctRoomDataForTickOffset(tickOffset: number): void {
-    this.npcs.forEach((npc) => {
+    this.getStageNpcs().forEach((npc) => {
       npc.spawnTick += tickOffset;
       npc.deathTick += tickOffset;
     });

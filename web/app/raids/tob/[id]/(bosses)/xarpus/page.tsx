@@ -10,7 +10,11 @@ import {
 } from '@blert/common';
 import Image from 'next/image';
 
-import { usePlayingState, useRoomEvents } from '../../../boss-room-state';
+import {
+  usePlayingState,
+  useRoomEvents,
+} from '../../../../../utils/boss-room-state';
+import { RaidContext } from '../../../context';
 import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
 import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
 import BossPageReplay from '../../../../../components/boss-page-replay';
@@ -31,14 +35,15 @@ const XARPUS_MAP_DEFINITION = {
 
 export default function XarpusPage() {
   const {
-    raidData,
+    challenge: raidData,
     totalTicks,
     eventsByTick,
     eventsByType,
     bossAttackTimeline,
     playerState,
+    npcState,
     loading,
-  } = useRoomEvents(Stage.TOB_XARPUS);
+  } = useRoomEvents(RaidContext, Stage.TOB_XARPUS);
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
@@ -136,7 +141,7 @@ export default function XarpusPage() {
         bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
-        npcs={xarpusData?.npcs ?? {}}
+        npcs={npcState}
         splits={splits}
       />
 

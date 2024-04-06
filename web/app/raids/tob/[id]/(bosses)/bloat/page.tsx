@@ -11,7 +11,11 @@ import {
 import Image from 'next/image';
 import { useMemo } from 'react';
 
-import { usePlayingState, useRoomEvents } from '../../../boss-room-state';
+import {
+  usePlayingState,
+  useRoomEvents,
+} from '../../../../../utils/boss-room-state';
+import { RaidContext } from '../../../context';
 import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
 import {
   BossPageAttackTimeline,
@@ -42,14 +46,15 @@ const BLOAT_PILLAR_OUTLINE = new MarkerEntity(3293, 4445, 'white', 6);
 
 export default function BloatPage() {
   const {
-    raidData,
+    challenge: raidData,
     totalTicks,
     eventsByTick,
     eventsByType,
     bossAttackTimeline,
     playerState,
+    npcState,
     loading,
-  } = useRoomEvents(Stage.TOB_BLOAT);
+  } = useRoomEvents(RaidContext, Stage.TOB_BLOAT);
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
@@ -167,7 +172,7 @@ export default function BloatPage() {
         bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
-        npcs={bloatData?.npcs ?? {}}
+        npcs={npcState}
         splits={splits}
         backgroundColors={backgroundColors}
       />

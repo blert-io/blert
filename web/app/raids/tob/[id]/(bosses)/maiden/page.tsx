@@ -10,13 +10,12 @@ import {
   Npc,
   NpcEvent,
   PlayerUpdateEvent,
-  Skill,
   SkillLevel,
   Stage,
 } from '@blert/common';
+import { useContext, useEffect, useMemo } from 'react';
 
 import { TimelineSplit } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
-import { useContext, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
 import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
@@ -28,9 +27,13 @@ import {
   NpcEntity,
   PlayerEntity,
 } from '../../../../../components/map';
-import { usePlayingState, useRoomEvents } from '../../../boss-room-state';
+import {
+  EnhancedRoomNpc,
+  usePlayingState,
+  useRoomEvents,
+} from '../../../../../utils/boss-room-state';
 import { clamp } from '../../../../../utils/math';
-import { ActorContext } from '../../../context';
+import { ActorContext, RaidContext } from '../../../context';
 import Loading from '../../../../../components/loading';
 import { ticksToFormattedSeconds } from '../../../../../utils/tick';
 
@@ -166,15 +169,16 @@ export default function Maiden() {
   const searchParams = useSearchParams();
 
   const {
-    raidData,
+    challenge,
     events,
     totalTicks,
     eventsByTick,
     eventsByType,
     bossAttackTimeline,
     playerState,
+    npcState,
     loading,
-  } = useRoomEvents(Stage.TOB_MAIDEN);
+  } = useRoomEvents(RaidContext, Stage.TOB_MAIDEN);
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
@@ -198,25 +202,29 @@ export default function Maiden() {
   }, [finalParsedTickParam, updateTickOnPage]);
 
   const bossHealthChartData = useMemo(() => {
+    let maiden: EnhancedRoomNpc | null = null;
+    let iter = npcState.values();
+    for (let npc = iter.next(); !npc.done; npc = iter.next()) {
+      if (Npc.isMaiden(npc.value.spawnNpcId)) {
+        maiden = npcState.get(npc.value.roomId)!;
+        break;
+      }
+    }
+
     return (
-      eventsByType[EventType.NPC_UPDATE]
-        ?.filter((evt) => Npc.isMaiden((evt as NpcEvent).npc.id))
-        .map((evt) => {
-          const e = evt as NpcEvent;
-          return {
-            tick: e.tick,
-            bossHealthPercentage: SkillLevel.fromRaw(e.npc.hitpoints).percent(),
-          };
-        }) ?? []
+      maiden?.stateByTick.map((state, tick) => ({
+        tick,
+        bossHealthPercentage: state?.hitpoints.percent() ?? 0,
+      })) ?? []
     );
-  }, [events]);
+  }, [npcState]);
 
   const { selectedPlayer } = useContext(ActorContext);
 
   const { splits, spawns } = useMemo(() => {
     const splits: TimelineSplit[] = [];
     const spawns: MaidenCrabProperties[][] = [];
-    const maidenRoom = raidData?.tobRooms.maiden;
+    const maidenRoom = challenge?.tobRooms.maiden;
 
     const addSplits = (tick: number, name: string) => {
       if (tick !== 0) {
@@ -243,14 +251,14 @@ export default function Maiden() {
     }
 
     return { splits, spawns };
-  }, [raidData, eventsByTick]);
+  }, [challenge, eventsByTick]);
 
-  if (loading || raidData === null) {
+  if (loading || challenge === null) {
     return <Loading />;
   }
 
-  const maidenData = raidData.tobRooms.maiden;
-  if (raidData.status === ChallengeStatus.IN_PROGRESS) {
+  const maidenData = challenge.tobRooms.maiden;
+  if (challenge.status === ChallengeStatus.IN_PROGRESS) {
     if (events.length === 0) {
       return <>This raid has not yet started Maiden.</>;
     }
@@ -304,7 +312,7 @@ export default function Maiden() {
     }
   }
 
-  const playerTickState = raidData.party.reduce(
+  const playerTickState = challenge.party.reduce(
     (acc, username) => ({
       ...acc,
       [username]: playerState.get(username)?.at(currentTick) ?? null,
@@ -358,7 +366,7 @@ export default function Maiden() {
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
         splits={splits}
-        npcs={maidenData?.npcs ?? {}}
+        npcs={npcState}
       />
 
       <BossPageReplay

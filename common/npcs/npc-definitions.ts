@@ -1,4 +1,4 @@
-import { Npc, NpcId } from './npc-id';
+import { NpcId } from './npc-id';
 import {
   ChallengeMode,
   MaidenCrab,
@@ -265,6 +265,86 @@ const [
   size: 2,
 });
 
+const JAGUAR_WARRIOR = {
+  fullName: 'Jaguar Warrior',
+  shortName: 'Furry',
+  canonicalId: NpcId.JAGUAR_WARRIOR,
+  size: 2,
+  mode: ChallengeMode.NO_MODE,
+};
+
+const SERPENT_SHAMAN = {
+  fullName: 'Serpent Shaman',
+  shortName: 'Shaman',
+  canonicalId: NpcId.SERPENT_SHAMAN,
+  size: 1,
+  mode: ChallengeMode.NO_MODE,
+};
+
+const MINOTAUR = {
+  fullName: 'Minotaur',
+  shortName: 'Minotaur',
+  canonicalId: NpcId.MINOTAUR,
+  size: 3,
+  mode: ChallengeMode.NO_MODE,
+};
+
+const FREMENNIK_ARCHER = {
+  fullName: 'Fremennik Warband Archer',
+  shortName: 'Archer',
+  canonicalId: NpcId.FREMENNIK_ARCHER,
+  size: 1,
+  mode: ChallengeMode.NO_MODE,
+};
+
+const FREMENNIK_SEER = {
+  fullName: 'Fremennik Warband Seer',
+  shortName: 'Seer',
+  canonicalId: NpcId.FREMENNIK_SEER,
+  size: 1,
+  mode: ChallengeMode.NO_MODE,
+};
+
+const FREMENNIK_BERSERKER = {
+  fullName: 'Fremennik Warband Berserker',
+  shortName: 'Berserker',
+  canonicalId: NpcId.FREMENNIK_BERSERKER,
+  size: 1,
+  mode: ChallengeMode.NO_MODE,
+};
+
+const JAVELIN_COLOSSUS = {
+  fullName: 'Javelin Colossus',
+  shortName: 'Javelin',
+  canonicalId: NpcId.JAVELIN_COLOSSUS,
+  size: 3,
+  mode: ChallengeMode.NO_MODE,
+};
+
+const MANTICORE = {
+  fullName: 'Manticore',
+  shortName: 'Manticore',
+  canonicalId: NpcId.MANTICORE,
+  size: 3,
+  mode: ChallengeMode.NO_MODE,
+};
+
+const SHOCKWAVE_COLOSSUS = {
+  fullName: 'Shockwave Colossus',
+  shortName: 'Shockwave',
+  canonicalId: NpcId.SHOCKWAVE_COLOSSUS,
+  size: 3,
+  mode: ChallengeMode.NO_MODE,
+};
+
+const SOL_HEREDIT = {
+  fullName: 'Sol Heredit',
+  shortName: 'Sol Heredit',
+  canonicalId: NpcId.SOL_HEREDIT,
+  size: 5,
+  mode: ChallengeMode.NO_MODE,
+};
+
 const NPC_DEFINITIONS: { [id: number]: NpcDefinition } = {
   // All Maiden NPCs.
   [NpcId.MAIDEN_ENTRY]: MAIDEN_ENTRY,
@@ -427,6 +507,18 @@ const NPC_DEFINITIONS: { [id: number]: NpcDefinition } = {
   [NpcId.VERZIK_MATOMENOS_ENTRY]: VERZIK_MATOMENOS_ENTRY,
   [NpcId.VERZIK_MATOMENOS_REGULAR]: VERZIK_MATOMENOS_REGULAR,
   [NpcId.VERZIK_MATOMENOS_HARD]: VERZIK_MATOMENOS_HARD,
+
+  // Colosseum NPCs.
+  [NpcId.JAGUAR_WARRIOR]: JAGUAR_WARRIOR,
+  [NpcId.SERPENT_SHAMAN]: SERPENT_SHAMAN,
+  [NpcId.MINOTAUR]: MINOTAUR,
+  [NpcId.FREMENNIK_ARCHER]: FREMENNIK_ARCHER,
+  [NpcId.FREMENNIK_SEER]: FREMENNIK_SEER,
+  [NpcId.FREMENNIK_BERSERKER]: FREMENNIK_BERSERKER,
+  [NpcId.JAVELIN_COLOSSUS]: JAVELIN_COLOSSUS,
+  [NpcId.MANTICORE]: MANTICORE,
+  [NpcId.SHOCKWAVE_COLOSSUS]: SHOCKWAVE_COLOSSUS,
+  [NpcId.SOL_HEREDIT]: SOL_HEREDIT,
 };
 
 export function getNpcDefinition(npcId: number): NpcDefinition | null {

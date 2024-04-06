@@ -150,6 +150,18 @@ export enum NpcId {
   VERZIK_MATOMENOS_ENTRY = 10845,
   VERZIK_MATOMENOS_REGULAR = 8385,
   VERZIK_MATOMENOS_HARD = 10862,
+
+  // Colosseum NPCs.
+  JAGUAR_WARRIOR = 12810,
+  SERPENT_SHAMAN = 12811,
+  MINOTAUR = 12812,
+  FREMENNIK_ARCHER = 12814,
+  FREMENNIK_SEER = 12815,
+  FREMENNIK_BERSERKER = 12816,
+  JAVELIN_COLOSSUS = 12817,
+  MANTICORE = 12818,
+  SHOCKWAVE_COLOSSUS = 12819,
+  SOL_HEREDIT = 12821,
 }
 
 const MAIDEN_ENTRY_IDS = [
@@ -486,5 +498,53 @@ export class Npc {
       npcId === NpcId.VERZIK_MATOMENOS_REGULAR ||
       npcId === NpcId.VERZIK_MATOMENOS_HARD
     );
+  }
+
+  static isJaguarWarrior(npcId: number): boolean {
+    return npcId === NpcId.JAGUAR_WARRIOR;
+  }
+
+  static isSerpentShaman(npcId: number): boolean {
+    return npcId === NpcId.SERPENT_SHAMAN;
+  }
+
+  static isMinotaur(npcId: number): boolean {
+    return npcId === NpcId.MINOTAUR;
+  }
+
+  static isFremennikArcher(npcId: number): boolean {
+    return npcId === NpcId.FREMENNIK_ARCHER;
+  }
+
+  static isFremennikSeer(npcId: number): boolean {
+    return npcId === NpcId.FREMENNIK_SEER;
+  }
+
+  static isFremennikBerserker(npcId: number): boolean {
+    return npcId === NpcId.FREMENNIK_BERSERKER;
+  }
+
+  static isFremennik(npcId: number): boolean {
+    return (
+      Npc.isFremennikArcher(npcId) ||
+      Npc.isFremennikSeer(npcId) ||
+      Npc.isFremennikBerserker(npcId)
+    );
+  }
+
+  static isJavelinColossus(npcId: number): boolean {
+    return npcId === NpcId.JAVELIN_COLOSSUS;
+  }
+
+  static isManticore(npcId: number): boolean {
+    return npcId === NpcId.MANTICORE;
+  }
+
+  static isShockwaveColossus(npcId: number): boolean {
+    return npcId === NpcId.SHOCKWAVE_COLOSSUS;
+  }
+
+  static isSolHeredit(npcId: number): boolean {
+    return npcId === NpcId.SOL_HEREDIT;
   }
 }

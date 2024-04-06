@@ -9,8 +9,13 @@ import {
   Stage,
 } from '@blert/common';
 import Image from 'next/image';
+import { useMemo } from 'react';
 
-import { usePlayingState, useRoomEvents } from '../../../boss-room-state';
+import {
+  usePlayingState,
+  useRoomEvents,
+} from '../../../../../utils/boss-room-state';
+import { RaidContext } from '../../../context';
 import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
 import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
 import BossPageReplay from '../../../../../components/boss-page-replay';
@@ -21,11 +26,10 @@ import {
   PlayerEntity,
 } from '../../../../../components/map';
 import Loading from '../../../../../components/loading';
+import { ticksToFormattedSeconds } from '../../../../../utils/tick';
 
 import styles from './style.module.scss';
 import soteBaseTiles from './sote-tiles.json';
-import { ticksToFormattedSeconds } from '../../../../../utils/tick';
-import { useMemo } from 'react';
 
 const SOTETSEG_MAP_DEFINITION = {
   baseX: 3272,
@@ -42,14 +46,15 @@ const MAZE_HEIGHT = 15;
 
 export default function SotetsegPage() {
   const {
-    raidData,
+    challenge: raidData,
     totalTicks,
     eventsByTick,
     eventsByType,
     bossAttackTimeline,
     playerState,
+    npcState,
     loading,
-  } = useRoomEvents(Stage.TOB_SOTETSEG);
+  } = useRoomEvents(RaidContext, Stage.TOB_SOTETSEG);
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
@@ -167,7 +172,7 @@ export default function SotetsegPage() {
         bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
-        npcs={soteData?.npcs ?? {}}
+        npcs={npcState}
         splits={splits}
       />
 

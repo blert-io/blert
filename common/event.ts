@@ -44,11 +44,19 @@ export enum EventType {
   COLOSSEUM_HANDICAP_CHOICE = EventProto.Type.COLOSSEUM_HANDICAP_CHOICE,
 }
 
-export const isPlayerEvent = (event: Event): boolean => {
+export const isPlayerEvent = (event: Event): event is PlayerEvent => {
   return (
     event.type === EventType.PLAYER_UPDATE ||
     event.type === EventType.PLAYER_ATTACK ||
     event.type === EventType.PLAYER_DEATH
+  );
+};
+
+export const isNpcEvent = (event: Event): event is NpcEvent => {
+  return (
+    event.type === EventType.NPC_SPAWN ||
+    event.type === EventType.NPC_UPDATE ||
+    event.type === EventType.NPC_DEATH
   );
 };
 

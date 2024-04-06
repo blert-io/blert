@@ -24,6 +24,29 @@ export function challengeUrl(type: ChallengeType, id: string): string {
 }
 
 /**
+ * Returns the Blert API URL for the challenge with the given ID.
+ * @param type Type of challenge.
+ * @param id Challenge ID.
+ * @returns URL for the challenge's API endpoint.
+ */
+export function challengeApiUrl(type: ChallengeType, id: string): string {
+  switch (type) {
+    case ChallengeType.TOB:
+      return `/api/v1/raids/tob/${id}`;
+    case ChallengeType.COX:
+      return `/api/v1/raids/cox/${id}`;
+    case ChallengeType.TOA:
+      return `/api/v1/raids/toa/${id}`;
+    case ChallengeType.COLOSSEUM:
+      return `/api/v1/challenges/colosseum/${id}`;
+    case ChallengeType.INFERNO:
+      return `/api/v1/challenges/inferno/${id}`;
+  }
+
+  return '/api/v1';
+}
+
+/**
  * Returns a URL query string from the given parameters.
  *
  * @param params Key-value pairs to encode. Undefined values are ignored.
