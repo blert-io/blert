@@ -1,3 +1,5 @@
+'use server';
+
 import { loadRecentChallenges } from '../../actions/challenge';
 
 import ChallengeHistoryCore, {

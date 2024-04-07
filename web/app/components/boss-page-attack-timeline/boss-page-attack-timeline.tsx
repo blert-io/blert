@@ -10,7 +10,13 @@ import {
   npcFriendlyName,
 } from '@blert/common';
 import Image from 'next/image';
-import { useContext, useEffect, useMemo, useRef } from 'react';
+import {
+  useContext,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+} from 'react';
 
 import { CollapsiblePanel } from '../collapsible-panel/collapsible-panel';
 import Item from '../item';
@@ -25,11 +31,10 @@ import {
 
 import styles from './styles.module.scss';
 
-const CELL_WIDTH = 50;
+const DEFAULT_CELL_SIZE = 50;
 const COLUMN_MARGIN = 5;
-const TOTAL_COLUMN_WIDTH = CELL_WIDTH + COLUMN_MARGIN;
 
-const getCellImageForBossAttack = (attack: NpcAttack) => {
+const npcAttackImage = (attack: NpcAttack) => {
   let imageUrl = '';
 
   switch (attack) {
@@ -102,6 +107,50 @@ const getCellImageForBossAttack = (attack: NpcAttack) => {
     case NpcAttack.TOB_VERZIK_P3_BALL:
       imageUrl = '/verzik_p3_ball.webp';
       break;
+
+    case NpcAttack.COLOSSEUM_BERSERKER_AUTO:
+      imageUrl = '/images/colosseum/fremennik-berserker.webp';
+      break;
+    case NpcAttack.COLOSSEUM_SEER_AUTO:
+      imageUrl = '/images/colosseum/fremennik-seer.webp';
+      break;
+    case NpcAttack.COLOSSEUM_ARCHER_AUTO:
+      imageUrl = '/images/colosseum/fremennik-archer.webp';
+      break;
+    case NpcAttack.COLOSSEUM_SHAMAN_AUTO:
+      imageUrl = '/images/colosseum/shaman-auto.webp';
+      break;
+    case NpcAttack.COLOSSEUM_JAGUAR_AUTO:
+      imageUrl = '/images/colosseum/jaguar-auto.webp';
+      break;
+    case NpcAttack.COLOSSEUM_JAVELIN_AUTO:
+      imageUrl = '/images/colosseum/javelin-colossus.webp';
+      break;
+    case NpcAttack.COLOSSEUM_JAVELIN_TOSS:
+      imageUrl = '/images/colosseum/javelin-toss.webp';
+      break;
+    case NpcAttack.COLOSSEUM_MANTICORE_MAGE:
+      imageUrl = '/images/colosseum/manticore-mage.webp';
+      break;
+    case NpcAttack.COLOSSEUM_MANTICORE_RANGE:
+      imageUrl = '/images/colosseum/manticore-range.webp';
+      break;
+    case NpcAttack.COLOSSEUM_MANTICORE_MELEE:
+      imageUrl = '/images/colosseum/manticore-melee.webp';
+      break;
+    case NpcAttack.COLOSSEUM_SHOCKWAVE_AUTO:
+      imageUrl = '/images/colosseum/shockwave-auto.webp';
+      break;
+    case NpcAttack.COLOSSEUM_MINOTAUR_AUTO:
+      imageUrl = '/images/colosseum/minotaur-auto.webp';
+      break;
+    case NpcAttack.COLOSSEUM_HEREDIT_SLAM:
+      imageUrl = '/images/colosseum/heredit-slam.webp';
+      break;
+
+    case NpcAttack.COLOSSEUM_HEREDIT_THRUST:
+    case NpcAttack.COLOSSEUM_HEREDIT_COMBO:
+    case NpcAttack.COLOSSEUM_HEREDIT_BREAK:
     default:
       imageUrl = '/huh.png';
       break;
@@ -109,10 +158,10 @@ const getCellImageForBossAttack = (attack: NpcAttack) => {
 
   return (
     <div className={styles.attackTimeline__CellImage}>
-      <div className={styles.attackTimeline__CellImage__BossAtk}>
+      <div className={styles.npcAttackCellImage}>
         <Image
           src={imageUrl}
-          alt={`Boss Attack: ${attack}`}
+          alt={`NPC attack: ${attack}`}
           fill
           style={{ objectFit: 'contain' }}
         />
@@ -252,6 +301,16 @@ const ATTACK_METADATA = {
     letter: 's',
     ranged: false,
   },
+  [PlayerAttack.SGS_SMACK]: {
+    tagColor: 'yellow',
+    letter: 'sgs',
+    ranged: false,
+  },
+  [PlayerAttack.SGS_SPEC]: {
+    tagColor: 'yellow',
+    letter: 'SGS',
+    ranged: false,
+  },
   [PlayerAttack.SHADOW]: {
     tagColor: 'blue',
     letter: 'Sh',
@@ -327,14 +386,19 @@ const ATTACK_METADATA = {
     letter: 'TB',
     ranged: true,
   },
-  [PlayerAttack.ZCB_SPEC]: {
+  [PlayerAttack.VENATOR_BOW]: {
     tagColor: 'green',
-    letter: 'ZC',
+    letter: 'VB',
     ranged: true,
   },
   [PlayerAttack.VOLATILE_NM_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
+    ranged: true,
+  },
+  [PlayerAttack.ZCB_SPEC]: {
+    tagColor: 'green',
+    letter: 'ZC',
     ranged: true,
   },
   [PlayerAttack.UNKNOWN_BARRAGE]: {
@@ -394,6 +458,7 @@ const makeCellImage = (playerAttack: Attack, memes: BlertMemes) => {
       case PlayerAttack.DAWN_SPEC:
       case PlayerAttack.DINHS_SPEC:
       case PlayerAttack.CLAW_SPEC:
+      case PlayerAttack.SGS_SPEC:
         infoIcon = (
           <Image
             className={styles.attackTimeline__CellImage__InfoIcon}
@@ -466,7 +531,7 @@ const makeCellImage = (playerAttack: Attack, memes: BlertMemes) => {
             style={troll ? trollStyles : undefined}
           />
         )) || (
-          <div className={styles.attackTimeline__CellImage__BossAtk}>
+          <div className={styles.npcAttackCellImage}>
             <Image
               src="/huh.png"
               alt="Unknown attack"
@@ -486,7 +551,7 @@ const makeCellImage = (playerAttack: Attack, memes: BlertMemes) => {
   return <div className={styles.attackTimeline__CellImage}>{content}</div>;
 };
 
-const bossAttackName = (attack: NpcAttack): string => {
+const npcAttackName = (attack: NpcAttack): string => {
   // A human-readable name for the attack, to be used to complete the sentence
   // "X targeted Y with ..." or "X did ..."
   switch (attack) {
@@ -547,6 +612,35 @@ const bossAttackName = (attack: NpcAttack): string => {
 
     case NpcAttack.TOB_VERZIK_P3_BALL:
       return 'a green ball';
+
+    case NpcAttack.COLOSSEUM_BERSERKER_AUTO:
+    case NpcAttack.COLOSSEUM_SEER_AUTO:
+    case NpcAttack.COLOSSEUM_ARCHER_AUTO:
+    case NpcAttack.COLOSSEUM_SHAMAN_AUTO:
+    case NpcAttack.COLOSSEUM_JAGUAR_AUTO:
+    case NpcAttack.COLOSSEUM_JAVELIN_AUTO:
+    case NpcAttack.COLOSSEUM_SHOCKWAVE_AUTO:
+    case NpcAttack.COLOSSEUM_MINOTAUR_AUTO:
+      return 'an auto attack';
+
+    case NpcAttack.COLOSSEUM_JAVELIN_TOSS:
+      return 'a javelin toss';
+
+    case NpcAttack.COLOSSEUM_MANTICORE_MAGE:
+      return 'a magic attack';
+    case NpcAttack.COLOSSEUM_MANTICORE_RANGE:
+      return 'a ranged attack';
+    case NpcAttack.COLOSSEUM_MANTICORE_MELEE:
+      return 'a melee attack';
+
+    case NpcAttack.COLOSSEUM_HEREDIT_THRUST:
+      return 'a trident stab';
+    case NpcAttack.COLOSSEUM_HEREDIT_SLAM:
+      return 'a shield bash';
+    case NpcAttack.COLOSSEUM_HEREDIT_COMBO:
+      return 'a combo attack';
+    case NpcAttack.COLOSSEUM_HEREDIT_BREAK:
+      return 'a grapple attack';
   }
 
   return '';
@@ -555,6 +649,7 @@ const bossAttackName = (attack: NpcAttack): string => {
 const playerAttackVerb = (attack: PlayerAttack): string => {
   switch (attack) {
     case PlayerAttack.BGS_SMACK:
+    case PlayerAttack.SGS_SMACK:
       return 'smacked';
     case PlayerAttack.BGS_SPEC:
       return "BGS'd";
@@ -605,6 +700,8 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
     case PlayerAttack.SCYTHE:
     case PlayerAttack.SCYTHE_UNCHARGED:
       return 'scythed';
+    case PlayerAttack.SGS_SPEC:
+      return "SGS'd";
     case PlayerAttack.SHADOW:
       return 'shadowed';
     case PlayerAttack.SOULREAPER_AXE:
@@ -619,6 +716,7 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
       return 'whipped';
     case PlayerAttack.BOWFA:
     case PlayerAttack.TWISTED_BOW:
+    case PlayerAttack.VENATOR_BOW:
     case PlayerAttack.UNKNOWN_BOW:
       return 'bowed';
     case PlayerAttack.ZCB_SPEC:
@@ -635,12 +733,19 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
 
 type CellInfo = {
   playerState: PlayerState | null;
-  bossEvent: NpcAttackEvent | null;
+  npcState: {
+    npcId: number;
+    roomId: number;
+    tick: number;
+    attack: NpcAttack;
+    target: string | null;
+  } | null;
   highlighted: boolean;
   backgroundColor?: string;
 };
 
 const buildTickCell = (
+  cellSize: number,
   cellInfo: CellInfo,
   tick: number,
   actorIndex: number,
@@ -649,18 +754,18 @@ const buildTickCell = (
   memes: BlertMemes,
 ) => {
   const { setSelectedPlayer } = actorContext;
-  let { playerState, bossEvent, highlighted, backgroundColor } = cellInfo;
+  let { playerState, npcState, highlighted, backgroundColor } = cellInfo;
 
   const style: React.CSSProperties = {
     backgroundColor,
-    width: CELL_WIDTH,
-    height: CELL_WIDTH,
+    width: cellSize,
+    height: cellSize,
   };
 
-  if (playerState === null && bossEvent === null) {
+  if (playerState === null && npcState === null) {
     return (
       <div
-        className={`${styles.attackTimeline__Cell}`}
+        className={`${styles.cell}`}
         key={`empty-cell-${tick}-${actorIndex}`}
         style={style}
       >
@@ -672,42 +777,38 @@ const buildTickCell = (
   let tooltip = undefined;
   let tooltipId = undefined;
 
-  if (bossEvent !== null) {
-    const npc = bossEvent.npc;
-    const npcAttack = bossEvent.npcAttack;
-    let cellImage = getCellImageForBossAttack(npcAttack.attack);
+  if (npcState !== null) {
+    let cellImage = npcAttackImage(npcState.attack);
 
-    const npcName = getNpcDefinition(npc.id)?.fullName ?? 'Unknown';
+    const npcName = getNpcDefinition(npcState.npcId)?.fullName ?? 'Unknown';
 
-    tooltipId = `boss-attack-${bossEvent.tick}`;
+    tooltipId = `npc-${npcState.roomId}-${npcState.tick}`;
     tooltip = (
       <LigmaTooltip tooltipId={tooltipId}>
-        <div className={styles.bossTooltip}>
+        <div className={styles.npcTooltip}>
           <button>{npcName}</button>
-          {(npcAttack.target !== undefined && (
+          {(npcState.target !== null && (
             <span>
               targeted
-              <button onClick={() => setSelectedPlayer(npcAttack.target!)}>
-                {npcAttack.target}
+              <button onClick={() => setSelectedPlayer(npcState!.target)}>
+                {npcState.target}
               </button>
               with
             </span>
           )) || <span>did</span>}
-          <span className={styles.bossAttack}>
-            {bossAttackName(npcAttack.attack)}
+          <span className={styles.npcAttack}>
+            {npcAttackName(npcState.attack)}
           </span>
         </div>
       </LigmaTooltip>
     );
 
-    const className =
-      `${styles.attackTimeline__Cell} ` +
-      `${styles.attackTimeline__BossCooldown} ${styles.cellInteractable}`;
+    const className = `${styles.cell} ${styles.npcCooldown} ${styles.cellInteractable}`;
 
     return (
       <div
         className={className}
-        key={`boss-cell-${bossEvent.tick}`}
+        key={`npc-${npcState.roomId}-${npcState.tick}`}
         data-tooltip-id={tooltipId}
         style={style}
       >
@@ -743,7 +844,7 @@ const buildTickCell = (
       }
 
       tooltipId = `player-${username}-attack-${playerState.tick}`;
-      const ranged = ATTACK_METADATA[attack.type].ranged;
+      const ranged = ATTACK_METADATA[attack.type]?.ranged ?? false;
       const distance = attack.distanceToTarget;
 
       tooltip = (
@@ -779,7 +880,7 @@ const buildTickCell = (
 
       cellImage = (
         <div className={styles.attackTimeline__CellImage}>
-          <div className={styles.attackTimeline__CellImage__BossAtk}>
+          <div className={styles.npcAttackCellImage}>
             <Image
               src="/skull.webp"
               alt="Player died"
@@ -793,7 +894,7 @@ const buildTickCell = (
       cellImage = <span className={styles.attackTimeline__Nothing}></span>;
     }
 
-    let className = styles.attackTimeline__Cell;
+    let className = styles.cell;
     if (tooltip !== undefined) {
       className += ` ${styles.cellInteractable}`;
     }
@@ -820,7 +921,7 @@ const buildTickCell = (
 };
 
 const buildTickColumn = (
-  bossAttackTimeline: NpcAttackEvent[],
+  cellSize: number,
   playerState: PlayerStateMap,
   columnTick: number,
   updateTickOnPage: (tick: number) => void,
@@ -835,20 +936,33 @@ const buildTickColumn = (
 
   const { selectedPlayer } = actorContext;
 
-  const bossEvent = bossAttackTimeline.find(
-    (event) => event.tick === columnTick,
-  );
-  cellInfo.push({
-    bossEvent: bossEvent ?? null,
-    playerState: null,
-    highlighted: false,
-    backgroundColor,
+  npcs.forEach((npc, _) => {
+    if (!npc.hasAttacks) {
+      return;
+    }
+    const attack = npc.stateByTick[columnTick]?.attack ?? null;
+    let npcState = null;
+    if (attack !== null) {
+      npcState = {
+        npcId: npc.spawnNpcId,
+        roomId: npc.roomId,
+        tick: columnTick,
+        attack: attack.type,
+        target: attack.target,
+      };
+    }
+    cellInfo.push({
+      npcState,
+      playerState: null,
+      highlighted: false,
+      backgroundColor,
+    });
   });
 
   playerState.forEach((playerTimeline, playerName) => {
     const state = playerTimeline.find((event) => event?.tick === columnTick);
     cellInfo.push({
-      bossEvent: null,
+      npcState: null,
       playerState: state ?? null,
       highlighted: selectedPlayer === playerName,
       backgroundColor,
@@ -857,7 +971,15 @@ const buildTickColumn = (
 
   for (let i = 0; i < cellInfo.length; i++) {
     tickCells.push(
-      buildTickCell(cellInfo[i], columnTick, i, npcs, actorContext, memes),
+      buildTickCell(
+        cellSize,
+        cellInfo[i],
+        columnTick,
+        i,
+        npcs,
+        actorContext,
+        memes,
+      ),
     );
   }
 
@@ -867,7 +989,7 @@ const buildTickColumn = (
     <div
       key={`attackTimeline__${columnTick}`}
       className={styles.attackTimeline__Column}
-      style={{ width: CELL_WIDTH, marginRight: COLUMN_MARGIN }}
+      style={{ width: cellSize, marginRight: COLUMN_MARGIN }}
     >
       {split !== undefined && (
         <div className={styles.attackTimeline__RoomSplit}>
@@ -884,6 +1006,7 @@ const buildTickColumn = (
       <button
         className={styles.attackTimeline__TickHeader}
         onClick={() => updateTickOnPage(columnTick)}
+        style={{ fontSize: cellSize / 2 - 1 }}
       >
         {columnTick}
       </button>
@@ -905,11 +1028,11 @@ type BaseTimelineProps = {
   timelineTicks: number;
   splits: TimelineSplit[];
   backgroundColors?: TimelineColor[];
-  bossAttackTimeline: NpcAttackEvent[];
   playerState: PlayerStateMap;
   updateTickOnPage: (tick: number) => void;
   npcs: RoomNpcMap;
   actorContext: RoomActorState;
+  cellSize: number;
 };
 
 function BaseTimeline(props: BaseTimelineProps) {
@@ -917,11 +1040,11 @@ function BaseTimeline(props: BaseTimelineProps) {
     timelineTicks,
     splits,
     backgroundColors,
-    bossAttackTimeline,
     playerState,
     updateTickOnPage,
     npcs,
     actorContext,
+    cellSize,
   } = props;
 
   const memes = useContext(MemeContext);
@@ -945,7 +1068,7 @@ function BaseTimeline(props: BaseTimelineProps) {
 
     attackTimelineColumnElements.push(
       buildTickColumn(
-        bossAttackTimeline,
+        cellSize,
         playerState,
         tick,
         updateTickOnPage,
@@ -978,36 +1101,29 @@ interface AttackTimelineProps {
   currentTick: number;
   playing: boolean;
   playerState: PlayerStateMap;
-  bossAttackTimeline: NpcAttackEvent[];
   timelineTicks: number;
   splits: TimelineSplit[];
   backgroundColors?: TimelineColor[];
   updateTickOnPage: (tick: number) => void;
   npcs: RoomNpcMap;
+  cellSize?: number;
 }
 
 export function BossPageAttackTimeline(props: AttackTimelineProps) {
   const {
     currentTick,
     playerState,
-    bossAttackTimeline,
     updateTickOnPage,
     timelineTicks,
     backgroundColors,
     splits,
     npcs,
+    cellSize = DEFAULT_CELL_SIZE,
   } = props;
 
-  const actorContext = useContext(ActorContext);
+  const totalColumnWidth = cellSize + COLUMN_MARGIN;
 
-  let nextBossAttackNpc = bossAttackTimeline.find(
-    (evt) => evt.tick > currentTick,
-  )?.npc;
-  if (nextBossAttackNpc === undefined) {
-    nextBossAttackNpc = bossAttackTimeline[bossAttackTimeline.length - 1]?.npc;
-  }
-  const npcName =
-    getNpcDefinition(nextBossAttackNpc?.id ?? 0)?.shortName ?? 'Unknown';
+  const actorContext = useContext(ActorContext);
 
   const attackTimelineRef = useRef<HTMLDivElement>(null);
   const currentTickColumnRef = useRef<HTMLDivElement>(null);
@@ -1032,34 +1148,42 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
       attackTimelineRef.current !== null &&
       currentTickColumnRef.current !== null
     ) {
-      if (currentTick * TOTAL_COLUMN_WIDTH < 525) {
+      if (currentTick * totalColumnWidth < 525) {
         attackTimelineRef.current.scrollLeft = 0;
       } else {
         attackTimelineRef.current.scrollLeft =
-          (currentTick - 1) * TOTAL_COLUMN_WIDTH - 380;
+          (currentTick - 1) * totalColumnWidth - 380;
       }
     }
-  }, [currentTick]);
+  }, [currentTick, totalColumnWidth]);
 
-  const attackTimelineParticipants = [
-    npcName,
-    ...Array.from(playerState.keys()),
-  ];
+  const attackTimelineParticipants: [string, number][] = [];
+  npcs.forEach((npc, roomId) => {
+    if (npc.hasAttacks) {
+      attackTimelineParticipants.push([
+        getNpcDefinition(npc.spawnNpcId)?.shortName ?? 'Unknown',
+        roomId,
+      ]);
+    }
+  });
+  const numNpcs = attackTimelineParticipants.length;
+  playerState.forEach((_, playerName) => {
+    attackTimelineParticipants.push([playerName, 0]);
+  });
 
-  const attackTLLegendElements = [];
+  const legendElements = [];
 
   for (let i = 0; i < attackTimelineParticipants.length; i++) {
-    const name = attackTimelineParticipants[i];
-    const isBoss = i === 0;
+    const [name, id] = attackTimelineParticipants[i];
+    const isNpc = i < numNpcs;
 
-    let className = styles.attackTimeline__LegendParticipant;
+    let className = styles.legendParticipant;
     let onClick;
 
-    if (isBoss) {
-      onClick = () =>
-        actorContext.setSelectedRoomNpc(nextBossAttackNpc?.roomId ?? null);
-      className += ` ${styles.attackTimeline__LegendParticipant__Boss}`;
-      if (nextBossAttackNpc?.roomId === actorContext.selectedRoomNpc) {
+    if (isNpc) {
+      onClick = () => actorContext.setSelectedRoomNpc(id);
+      className += ` ${styles.npc}`;
+      if (id === actorContext.selectedRoomNpc) {
         // TODO(frolv): Support selected NPCs.
         // className += ` ${styles.selected}`;
       }
@@ -1070,13 +1194,14 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
         className += ` ${styles.selected}`;
       }
     }
-    attackTLLegendElements.push(
+    legendElements.push(
       <button
         className={className}
-        key={`attack-tl-participant-${name}`}
+        key={i}
         onClick={onClick}
+        style={{ height: cellSize }}
       >
-        {attackTimelineParticipants[i]}
+        {name}
       </button>,
     );
   }
@@ -1087,18 +1212,17 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
         timelineTicks={timelineTicks}
         splits={splits}
         backgroundColors={backgroundColors}
-        bossAttackTimeline={bossAttackTimeline}
         playerState={playerState}
         updateTickOnPage={updateTickOnPage}
         npcs={npcs}
         actorContext={actorContext}
+        cellSize={cellSize}
       />
     ),
     [
       timelineTicks,
       splits,
       backgroundColors,
-      bossAttackTimeline,
       playerState,
       updateTickOnPage,
       npcs,
@@ -1106,30 +1230,34 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
     ],
   );
 
+  const activeColumnIndicator = (
+    <div
+      style={{
+        left: totalColumnWidth * (currentTick - 1) + 5,
+        height: legendElements.length * totalColumnWidth + 40,
+        width: totalColumnWidth + 5,
+      }}
+      className={styles.attackTimeline__ColumnActiveIndicator}
+      ref={currentTickColumnRef}
+    />
+  );
+  const deferredColumnIndicator = useDeferredValue(activeColumnIndicator);
+
   return (
     <CollapsiblePanel
       panelTitle="Room Timeline"
-      maxPanelHeight={500}
+      maxPanelHeight={1000}
       defaultExpanded={true}
       className={styles.attackTimeline}
       panelWidth="100%"
     >
       <div className={styles.attackTimeline__Inner}>
-        <div className={styles.attackTimeline__Legend}>
-          {attackTLLegendElements}
-        </div>
+        <div className={styles.attackTimeline__Legend}>{legendElements}</div>
         <div
           className={styles.attackTimeline__Scrollable}
           ref={attackTimelineRef}
         >
-          <div
-            style={{
-              left: TOTAL_COLUMN_WIDTH * (currentTick - 1) + 5,
-              height: attackTLLegendElements.length * 55 + 40,
-            }}
-            className={styles.attackTimeline__ColumnActiveIndicator}
-            ref={currentTickColumnRef}
-          />
+          {deferredColumnIndicator}
           {memoizedBaseTimeline}
         </div>
       </div>

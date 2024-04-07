@@ -1,7 +1,14 @@
+@import '../../../../../mixins.scss';
+
 .wavePage {
   display: flex;
   flex-direction: column;
   align-items: center;
+  margin: 0 auto;
+
+  @media (min-width: $COMPACT_WIDTH_THRESHOLD) {
+    width: 96%;
+  }
 
   .waveOverview {
     margin-bottom: 20px;

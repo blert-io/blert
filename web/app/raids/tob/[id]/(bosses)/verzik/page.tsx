@@ -67,7 +67,6 @@ export default function VerzikPage() {
     totalTicks,
     eventsByTick,
     eventsByType,
-    bossAttackTimeline,
     playerState,
     npcState,
     loading,
@@ -191,7 +190,6 @@ export default function VerzikPage() {
         currentTick={currentTick}
         playing={playing}
         playerState={playerState}
-        bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
         npcs={npcState}

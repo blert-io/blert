@@ -18,6 +18,8 @@ import {
   isPlayerEvent,
   NpcEvent,
   isNpcEvent,
+  NpcAttack,
+  Npc,
 } from '@blert/common';
 import {
   Context,
@@ -75,6 +77,9 @@ export const usePlayingState = (totalTicks: number) => {
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
         updateTickOnPage((tick) => Math.min(totalTicks, tick + 1));
+      } else if (e.key === ' ') {
+        e.preventDefault();
+        setPlaying((playing) => !playing);
       }
     };
 
@@ -92,6 +97,7 @@ export const usePlayingState = (totalTicks: number) => {
 
 export type EnhancedRoomNpc = RoomNpc & {
   stateByTick: Nullable<NpcState>[];
+  hasAttacks: boolean;
 };
 
 export type EventTickMap = { [key: number]: Event[] };
@@ -104,7 +110,6 @@ type EventState = {
   eventsByType: EventTypeMap;
   playerState: PlayerStateMap;
   npcState: RoomNpcMap;
-  bossAttackTimeline: NpcAttackEvent[];
 };
 
 type Nullable<T> = T | null;
@@ -116,6 +121,7 @@ export type PlayerState = Omit<PlayerUpdateEvent, 'type' | 'stage' | 'cId'> & {
 };
 
 export type NpcState = {
+  attack: Nullable<{ type: NpcAttack; target: string | null }>;
   hitpoints: SkillLevel;
 };
 
@@ -184,7 +190,6 @@ export function useRoomEvents<T extends Raid>(
     eventsByType: {},
     playerState: new Map(),
     npcState: new Map(),
-    bossAttackTimeline: [],
   });
 
   let { ticks: totalTicks } = getStageInfo(challenge, stage);
@@ -233,8 +238,6 @@ export function useRoomEvents<T extends Raid>(
           eventsByType,
           playerState,
           npcState,
-          bossAttackTimeline:
-            (eventsByType[EventType.NPC_ATTACK] as NpcAttackEvent[]) ?? [],
         };
 
         setEventState(eventState);
@@ -362,6 +365,7 @@ function computeNpcState(
     const npc: EnhancedRoomNpc = {
       ...roomNpc,
       stateByTick: new Array(totalTicks).fill(null),
+      hasAttacks: false,
     };
 
     for (let i = roomNpc.spawnTick; i < roomNpc.deathTick; i++) {
@@ -376,13 +380,59 @@ function computeNpcState(
 
       if (eventsForThisNpc.length > 0) {
         npc.stateByTick[i] = {
+          attack: null,
           hitpoints: SkillLevel.fromRaw(eventsForThisNpc[0].npc.hitpoints),
+        };
+      }
+
+      const attackEvent = eventsForThisTick.find(
+        (e) =>
+          e.type === EventType.NPC_ATTACK &&
+          (e as NpcAttackEvent).npc.roomId === Number(roomId),
+      ) as NpcAttackEvent | undefined;
+      if (attackEvent) {
+        npc.hasAttacks = true;
+        npc.stateByTick[i]!.attack = {
+          type: attackEvent.npcAttack.attack,
+          target: attackEvent.npcAttack.target ?? null,
         };
       }
     }
 
+    postprocessNpcAttacks(npc);
     npcs.set(Number(roomId), npc);
   });
 
   return npcs;
+}
+
+function postprocessNpcAttacks(npc: EnhancedRoomNpc) {
+  if (Npc.isManticore(npc.spawnNpcId)) {
+    for (let i = 0; i < npc.stateByTick.length; i++) {
+      const state = npc.stateByTick[i];
+      if (state === null || state.attack === null) {
+        continue;
+      }
+
+      // Add the manticore's second and third attacks to the timeline.
+      i++;
+      if (i < npc.stateByTick.length && npc.stateByTick[i] !== null) {
+        const type =
+          state.attack.type === NpcAttack.COLOSSEUM_MANTICORE_MAGE
+            ? NpcAttack.COLOSSEUM_MANTICORE_RANGE
+            : NpcAttack.COLOSSEUM_MANTICORE_MAGE;
+        npc.stateByTick[i]!.attack = {
+          type,
+          target: state.attack.target,
+        };
+      }
+      i++;
+      if (i < npc.stateByTick.length && npc.stateByTick[i] !== null) {
+        npc.stateByTick[i]!.attack = {
+          type: NpcAttack.COLOSSEUM_MANTICORE_MELEE,
+          target: state.attack.target,
+        };
+      }
+    }
+  }
 }

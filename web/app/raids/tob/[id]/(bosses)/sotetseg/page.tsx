@@ -50,7 +50,6 @@ export default function SotetsegPage() {
     totalTicks,
     eventsByTick,
     eventsByType,
-    bossAttackTimeline,
     playerState,
     npcState,
     loading,
@@ -169,7 +168,6 @@ export default function SotetsegPage() {
         currentTick={currentTick}
         playing={playing}
         playerState={playerState}
-        bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
         npcs={npcState}

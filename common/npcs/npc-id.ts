@@ -162,6 +162,7 @@ export enum NpcId {
   MANTICORE = 12818,
   SHOCKWAVE_COLOSSUS = 12819,
   SOL_HEREDIT = 12821,
+  SOLARFLARE = 12826,
 }
 
 const MAIDEN_ENTRY_IDS = [
@@ -546,5 +547,9 @@ export class Npc {
 
   static isSolHeredit(npcId: number): boolean {
     return npcId === NpcId.SOL_HEREDIT;
+  }
+
+  static isSolarflare(npcId: number): boolean {
+    return npcId === NpcId.SOLARFLARE;
   }
 }

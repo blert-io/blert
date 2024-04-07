@@ -174,7 +174,6 @@ export default function Maiden() {
     totalTicks,
     eventsByTick,
     eventsByType,
-    bossAttackTimeline,
     playerState,
     npcState,
     loading,
@@ -362,7 +361,6 @@ export default function Maiden() {
         currentTick={currentTick}
         playing={playing}
         playerState={playerState}
-        bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
         splits={splits}

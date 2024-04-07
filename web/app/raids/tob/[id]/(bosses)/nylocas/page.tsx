@@ -234,7 +234,6 @@ export default function NylocasPage() {
     events,
     eventsByTick,
     eventsByType,
-    bossAttackTimeline,
     playerState,
     npcState,
     loading,
@@ -406,7 +405,6 @@ export default function NylocasPage() {
         currentTick={currentTick}
         playing={playing}
         playerState={playerState}
-        bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
         splits={splits}

@@ -345,6 +345,14 @@ const SOL_HEREDIT = {
   mode: ChallengeMode.NO_MODE,
 };
 
+const SOLARFLARE = {
+  fullName: 'Solarflare',
+  shortName: 'Solarflare',
+  canonicalId: NpcId.SOLARFLARE,
+  size: 1,
+  mode: ChallengeMode.NO_MODE,
+};
+
 const NPC_DEFINITIONS: { [id: number]: NpcDefinition } = {
   // All Maiden NPCs.
   [NpcId.MAIDEN_ENTRY]: MAIDEN_ENTRY,
@@ -519,6 +527,7 @@ const NPC_DEFINITIONS: { [id: number]: NpcDefinition } = {
   [NpcId.MANTICORE]: MANTICORE,
   [NpcId.SHOCKWAVE_COLOSSUS]: SHOCKWAVE_COLOSSUS,
   [NpcId.SOL_HEREDIT]: SOL_HEREDIT,
+  [NpcId.SOLARFLARE]: SOLARFLARE,
 };
 
 export function getNpcDefinition(npcId: number): NpcDefinition | null {

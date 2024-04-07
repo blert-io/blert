@@ -14,8 +14,9 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useContext, useEffect } from 'react';
 
-import BossPageReplay from '../../../../../components/boss-page-replay';
+import BossPageAttackTimeline from '../../../../../components/boss-page-attack-timeline';
 import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
+import BossPageReplay from '../../../../../components/boss-page-replay';
 import ColosseumHandicap from '../../../../../components/colosseum-handicap';
 import { Entity, NpcEntity, PlayerEntity } from '../../../../../components/map';
 import Loading from '../../../../../components/loading';
@@ -89,6 +90,9 @@ function npcOutlineColor(npcId: number): string | undefined {
   if (Npc.isShockwaveColossus(npcId)) {
     return '#3f5fff';
   }
+  if (Npc.isSolarflare(npcId)) {
+    return '#ff5e00';
+  }
 
   return '#2d270c';
 }
@@ -106,8 +110,14 @@ export default function ColosseumWavePage({
   }, [waveNumber]);
 
   const waveIndex = validWaveNumber(waveNumber) ? waveNumber - 1 : 0;
-  const { challenge, eventsByTick, eventsByType, playerState, totalTicks } =
-    useRoomEvents(ColosseumContext, Stage.COLOSSEUM_WAVE_1 + waveIndex);
+  const {
+    challenge,
+    eventsByTick,
+    eventsByType,
+    playerState,
+    npcState,
+    totalTicks,
+  } = useRoomEvents(ColosseumContext, Stage.COLOSSEUM_WAVE_1 + waveIndex);
 
   const { selectedPlayer } = useContext(ActorContext);
 
@@ -238,6 +248,17 @@ export default function ColosseumWavePage({
           </div>
         </div>
       </div>
+
+      <BossPageAttackTimeline
+        currentTick={currentTick}
+        playing={playing}
+        playerState={playerState}
+        timelineTicks={totalTicks}
+        updateTickOnPage={updateTickOnPage}
+        splits={timelineSplits}
+        npcs={npcState}
+        cellSize={40}
+      />
 
       <BossPageReplay
         entities={entities}

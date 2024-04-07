@@ -9,6 +9,7 @@ import {
   Stage,
 } from '@blert/common';
 import Image from 'next/image';
+import { useMemo } from 'react';
 
 import {
   usePlayingState,
@@ -23,7 +24,6 @@ import Loading from '../../../../../components/loading';
 
 import styles from './style.module.scss';
 import xarpusBaseTiles from './xarpus-tiles.json';
-import { useMemo } from 'react';
 
 const XARPUS_MAP_DEFINITION = {
   baseX: 3163,
@@ -39,7 +39,6 @@ export default function XarpusPage() {
     totalTicks,
     eventsByTick,
     eventsByType,
-    bossAttackTimeline,
     playerState,
     npcState,
     loading,
@@ -138,7 +137,6 @@ export default function XarpusPage() {
         currentTick={currentTick}
         playing={playing}
         playerState={playerState}
-        bossAttackTimeline={bossAttackTimeline}
         timelineTicks={totalTicks}
         updateTickOnPage={updateTickOnPage}
         npcs={npcState}
