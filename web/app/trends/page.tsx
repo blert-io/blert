@@ -118,13 +118,15 @@ export default function TrendsPage() {
             </div>
           )}
         </div>
-        <div className={styles.charts}>
+        <div
+          className={styles.charts}
+          style={{ padding: display.isFull() ? `0 ${20}px` : 0 }}
+        >
           <h2>Deaths by Room</h2>
           <BarChart
             data={tobDeathData}
             width={chartWidth}
             height={chartWidth / 2}
-            style={{ padding: display.isFull() ? 20 : 0 }}
           >
             <CartesianGrid strokeDasharray="2 2" />
             <Bar dataKey="deaths" fill="#62429b" />
