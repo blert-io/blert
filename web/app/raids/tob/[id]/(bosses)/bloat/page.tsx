@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  BloatDownEvent,
   ChallengeStatus,
   EventType,
   NpcEvent,
@@ -12,6 +13,7 @@ import Image from 'next/image';
 import { useMemo } from 'react';
 
 import {
+  EnhancedRoomNpc,
   usePlayingState,
   useRoomEvents,
 } from '../../../../../utils/boss-room-state';
@@ -44,6 +46,13 @@ const BLOAT_MAP_DEFINITION = {
 
 const BLOAT_PILLAR_OUTLINE = new MarkerEntity(3293, 4445, 'white', 6);
 
+type DownInfo = {
+  tick: number;
+  walkTime: number;
+  startHitpoints: SkillLevel | undefined;
+  endHitpoints: SkillLevel | undefined;
+};
+
 export default function BloatPage() {
   const {
     challenge: raidData,
@@ -58,12 +67,22 @@ export default function BloatPage() {
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
 
-  const [splits, backgroundColors] = useMemo(() => {
-    const downTicks =
-      eventsByType[EventType.TOB_BLOAT_DOWN]?.map((evt) => evt.tick) ?? [];
+  const { downInfo, splits, backgroundColors } = useMemo(() => {
+    const bloat: EnhancedRoomNpc = npcState.values().next().value ?? null;
 
-    let splits = downTicks.map((tick, i) => ({
-      tick,
+    const downInfo: DownInfo[] =
+      eventsByType[EventType.TOB_BLOAT_DOWN]?.map((evt) => {
+        const bloatDownEvent = evt as BloatDownEvent;
+        return {
+          tick: evt.tick,
+          walkTime: bloatDownEvent.bloatDown.walkTime,
+          startHitpoints: bloat.stateByTick[evt.tick]?.hitpoints,
+          endHitpoints: undefined,
+        };
+      }) ?? [];
+
+    let splits = downInfo.map((down, i) => ({
+      tick: down.tick,
       splitName: `Down ${i + 1}`,
     }));
 
@@ -73,23 +92,30 @@ export default function BloatPage() {
     // First up from the start of the room.
     backgroundColors.push({
       tick: 0,
-      length: downTicks.length > 0 ? downTicks[0] : totalTicks,
+      length: downInfo.length > 0 ? downInfo[0].tick : totalTicks,
       backgroundColor: upColor,
     });
 
-    eventsByType[EventType.TOB_BLOAT_UP]?.forEach((evt) => {
+    eventsByType[EventType.TOB_BLOAT_UP]?.forEach((evt, i) => {
       splits.push({ tick: evt.tick, splitName: 'Moving' });
 
       const nextDownTick =
-        downTicks.find((tick) => tick > evt.tick) ?? totalTicks;
+        downInfo.find((down) => down.tick > evt.tick)?.tick ?? totalTicks;
       backgroundColors.push({
         tick: evt.tick,
         length: nextDownTick - evt.tick,
         backgroundColor: upColor,
       });
+
+      downInfo[i].endHitpoints = bloat.stateByTick[evt.tick]?.hitpoints;
     });
 
-    return [splits, backgroundColors];
+    if (downInfo.length > 0) {
+      downInfo[downInfo.length - 1].endHitpoints =
+        bloat?.stateByTick[totalTicks - 1]?.hitpoints;
+    }
+
+    return { downInfo, splits, backgroundColors };
   }, [eventsByType]);
 
   if (loading || raidData === null) {
@@ -161,6 +187,45 @@ export default function BloatPage() {
         </div>
         <div className={styles.bossPage__KeyDetails}>
           <h2>The Pestilent Bloat ({ticksToFormattedSeconds(totalTicks)})</h2>
+          <div className={styles.downs}>
+            {downInfo.map((down, i) => (
+              <div key={i} className={styles.down}>
+                <h3>Down {i + 1}</h3>
+                <table>
+                  <tbody>
+                    <tr>
+                      <td>
+                        <i
+                          className="fa-solid fa-person-walking"
+                          style={{ padding: '0 7px 0 3px' }}
+                        />
+                        <span className="sr-only">Walk time</span>
+                      </td>
+                      <td>{ticksToFormattedSeconds(down.walkTime)}</td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <i
+                          className="fa-solid fa-heart"
+                          style={{ paddingRight: 10 }}
+                        />
+                        <span className="sr-only">Start hitpoints</span>
+                      </td>
+                      <td>
+                        {down.startHitpoints
+                          ? down.startHitpoints.toPercent(1)
+                          : 'Unknown'}
+                        {' -> '}
+                        {down.endHitpoints
+                          ? down.endHitpoints.toPercent(1)
+                          : 'Unknown'}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 

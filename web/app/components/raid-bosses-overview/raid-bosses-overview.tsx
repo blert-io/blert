@@ -1,8 +1,5 @@
 'use client';
 
-import Image from 'next/image';
-import Link from 'next/link';
-
 import {
   BloatOverview,
   MaidenOverview,
@@ -12,6 +9,10 @@ import {
   VerzikOverview,
   XarpusOverview,
 } from '@blert/common';
+import Image from 'next/image';
+import Link from 'next/link';
+
+import Badge from '../badge';
 import { ticksToFormattedSeconds } from '../../utils/tick';
 import { getOrdinal } from '../../utils/path-util';
 
@@ -44,23 +45,13 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
   let bloatDowns = undefined;
 
   if (bloatDataExists) {
-    bloatDowns = bloat!.splits.downTicks.map((split, index) => {
-      return (
-        <div
-          key={`bloat-split-${split + 1}`}
-          className={styles.raid__RoomBadge}
-        >
-          <strong>
-            <i
-              className="fa-solid fa-hourglass"
-              style={{ paddingRight: '5px' }}
-            ></i>
-            {getOrdinal(index + 1)} Down:
-          </strong>{' '}
-          {ticksToFormattedSeconds(split)}
-        </div>
-      );
-    });
+    bloatDowns = bloat!.splits.downTicks.map((split, index) => (
+      <Badge
+        iconClass="fa-solid fa-hourglass"
+        label={getOrdinal(index + 1) + ' Down'}
+        value={ticksToFormattedSeconds(split)}
+      />
+    ));
   }
 
   return (
@@ -102,40 +93,25 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
               </h4>
               <div className={styles.raid__RoomBadges}>
                 {maiden!.splits.SEVENTIES !== 0 && (
-                  <div className={styles.raid__RoomBadge}>
-                    <strong>
-                      <i
-                        className="fa-solid fa-hourglass"
-                        style={{ paddingRight: '5px' }}
-                      ></i>
-                      70s:
-                    </strong>{' '}
-                    {ticksToFormattedSeconds(maiden!.splits.SEVENTIES)}
-                  </div>
+                  <Badge
+                    iconClass="fa-solid fa-hourglass"
+                    label="70s"
+                    value={ticksToFormattedSeconds(maiden!.splits.SEVENTIES)}
+                  />
                 )}
                 {maiden!.splits.FIFTIES !== 0 && (
-                  <div className={styles.raid__RoomBadge}>
-                    <strong>
-                      <i
-                        className="fa-solid fa-hourglass"
-                        style={{ paddingRight: '5px' }}
-                      ></i>
-                      50s:
-                    </strong>{' '}
-                    {ticksToFormattedSeconds(maiden!.splits.FIFTIES)}
-                  </div>
+                  <Badge
+                    iconClass="fa-solid fa-hourglass"
+                    label="50s"
+                    value={ticksToFormattedSeconds(maiden!.splits.FIFTIES)}
+                  />
                 )}
                 {maiden!.splits.THIRTIES !== 0 && (
-                  <div className={styles.raid__RoomBadge}>
-                    <strong>
-                      <i
-                        className="fa-solid fa-hourglass"
-                        style={{ paddingRight: '5px' }}
-                      ></i>
-                      30s:
-                    </strong>{' '}
-                    {ticksToFormattedSeconds(maiden!.splits.THIRTIES)}
-                  </div>
+                  <Badge
+                    iconClass="fa-solid fa-hourglass"
+                    label="30s"
+                    value={ticksToFormattedSeconds(maiden!.splits.THIRTIES)}
+                  />
                 )}
               </div>
             </div>
@@ -218,49 +194,38 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                 {ticksToFormattedSeconds(nylo!.roomTicks)}
               </h4>
               <div className={styles.raid__RoomBadges}>
-                <div className={styles.raid__RoomBadge}>
-                  <strong>
-                    <i
-                      className="fa-solid fa-hourglass"
-                      style={{ paddingRight: '5px' }}
-                    ></i>
-                    Cap:
-                  </strong>{' '}
-                  {ticksToFormattedSeconds(nylo!.splits.capIncrease)}
-                </div>
-
-                <div className={styles.raid__RoomBadge}>
-                  <strong>
-                    <i
-                      className="fa-solid fa-hourglass"
-                      style={{ paddingRight: '5px' }}
-                    ></i>
-                    Waves:
-                  </strong>{' '}
-                  {ticksToFormattedSeconds(nylo!.splits.waves)}
-                </div>
-
-                <div className={styles.raid__RoomBadge}>
-                  <strong>
-                    <i
-                      className="fa-solid fa-hourglass"
-                      style={{ paddingRight: '5px' }}
-                    ></i>
-                    Cleanup:
-                  </strong>{' '}
-                  {ticksToFormattedSeconds(nylo!.splits.cleanup)}
-                </div>
-
-                <div className={styles.raid__RoomBadge}>
-                  <strong>
-                    <i
-                      className="fa-solid fa-hourglass"
-                      style={{ paddingRight: '5px' }}
-                    ></i>
-                    Boss:
-                  </strong>{' '}
-                  {ticksToFormattedSeconds(nylo!.splits.boss)}
-                </div>
+                <Badge
+                  iconClass="fa-solid fa-hourglass"
+                  label="Cap"
+                  value={ticksToFormattedSeconds(nylo!.splits.capIncrease)}
+                />
+                <Badge
+                  iconClass="fa-solid fa-hourglass"
+                  label="Waves"
+                  value={ticksToFormattedSeconds(nylo!.splits.waves)}
+                />
+                <Badge
+                  iconClass="fa-solid fa-hourglass"
+                  label="Cleanup"
+                  value={ticksToFormattedSeconds(nylo!.splits.cleanup)}
+                />
+                <Badge
+                  iconClass="fa-solid fa-hourglass"
+                  label="Boss"
+                  value={ticksToFormattedSeconds(nylo!.splits.boss)}
+                />
+              </div>
+              <div className={styles.raid__RoomBadges}>
+                <Badge
+                  iconClass="fa-solid fa-dumpster-fire"
+                  label="Pre-cap Stalls"
+                  value={nylo!.stalledWaves.filter((wave) => wave < 20).length}
+                />
+                <Badge
+                  iconClass="fa-solid fa-circle-question"
+                  label="Post-cap Stalls"
+                  value={nylo!.stalledWaves.filter((wave) => wave >= 20).length}
+                />
               </div>
             </div>
           </div>
@@ -302,26 +267,16 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                 {ticksToFormattedSeconds(sote!.roomTicks)}
               </h4>
               <div className={styles.raid__RoomBadges}>
-                <div className={styles.raid__RoomBadge}>
-                  <strong>
-                    <i
-                      className="fa-solid fa-hourglass"
-                      style={{ paddingRight: '5px' }}
-                    ></i>
-                    66%:
-                  </strong>{' '}
-                  {ticksToFormattedSeconds(sote!.splits.MAZE_66)}
-                </div>
-                <div className={styles.raid__RoomBadge}>
-                  <strong>
-                    <i
-                      className="fa-solid fa-hourglass"
-                      style={{ paddingRight: '5px' }}
-                    ></i>
-                    33%:
-                  </strong>{' '}
-                  {ticksToFormattedSeconds(sote!.splits.MAZE_33)}
-                </div>
+                <Badge
+                  iconClass="fa-solid fa-hourglass"
+                  label="66%"
+                  value={ticksToFormattedSeconds(sote!.splits.MAZE_66)}
+                />
+                <Badge
+                  iconClass="fa-solid fa-hourglass"
+                  label="33%"
+                  value={ticksToFormattedSeconds(sote!.splits.MAZE_33)}
+                />
               </div>
             </div>
           </div>
@@ -363,26 +318,16 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                 {ticksToFormattedSeconds(xarpus!.roomTicks)}
               </h4>
               <div className={styles.raid__RoomBadges}>
-                <div className={styles.raid__RoomBadge}>
-                  <strong>
-                    <i
-                      className="fa-solid fa-hourglass"
-                      style={{ paddingRight: '5px' }}
-                    ></i>
-                    Exhumeds:
-                  </strong>{' '}
-                  {ticksToFormattedSeconds(xarpus!.splits.exhumes)}
-                </div>
-                <div className={styles.raid__RoomBadge}>
-                  <strong>
-                    <i
-                      className="fa-solid fa-hourglass"
-                      style={{ paddingRight: '5px' }}
-                    ></i>
-                    Screech:
-                  </strong>{' '}
-                  {ticksToFormattedSeconds(xarpus!.splits.screech)}
-                </div>
+                <Badge
+                  iconClass="fa-solid fa-hourglass"
+                  label="Exhumes"
+                  value={ticksToFormattedSeconds(xarpus!.splits.exhumes)}
+                />
+                <Badge
+                  iconClass="fa-solid fa-hourglass"
+                  label="Screech"
+                  value={ticksToFormattedSeconds(xarpus!.splits.screech)}
+                />
               </div>
             </div>
           </div>
@@ -424,36 +369,21 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                 {ticksToFormattedSeconds(verzik!.roomTicks)}
               </h4>
               <div className={styles.raid__RoomBadges}>
-                <div className={styles.raid__RoomBadge}>
-                  <strong>
-                    <i
-                      className="fa-solid fa-hourglass"
-                      style={{ paddingRight: '5px' }}
-                    ></i>
-                    P1:
-                  </strong>{' '}
-                  {ticksToFormattedSeconds(verzik!.splits.p1)}
-                </div>
-                <div className={styles.raid__RoomBadge}>
-                  <strong>
-                    <i
-                      className="fa-solid fa-hourglass"
-                      style={{ paddingRight: '5px' }}
-                    ></i>
-                    Reds:
-                  </strong>{' '}
-                  {ticksToFormattedSeconds(verzik!.splits.reds)}
-                </div>
-                <div className={styles.raid__RoomBadge}>
-                  <strong>
-                    <i
-                      className="fa-solid fa-hourglass"
-                      style={{ paddingRight: '5px' }}
-                    ></i>
-                    P2:
-                  </strong>{' '}
-                  {ticksToFormattedSeconds(verzik!.splits.p2)}
-                </div>
+                <Badge
+                  iconClass="fa-solid fa-hourglass"
+                  label="P1"
+                  value={ticksToFormattedSeconds(verzik!.splits.p1)}
+                />
+                <Badge
+                  iconClass="fa-solid fa-hourglass"
+                  label="Reds"
+                  value={ticksToFormattedSeconds(verzik!.splits.reds)}
+                />
+                <Badge
+                  iconClass="fa-solid fa-hourglass"
+                  label="P2"
+                  value={ticksToFormattedSeconds(verzik!.splits.p2)}
+                />
               </div>
             </div>
           </div>

@@ -4,7 +4,6 @@ import {
   Attack,
   Npc,
   NpcAttack,
-  NpcAttackEvent,
   PlayerAttack,
   getNpcDefinition,
   npcFriendlyName,
@@ -731,15 +730,18 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
   return 'attacked';
 };
 
+type CellNpcState = {
+  npcId: number;
+  roomId: number;
+  tick: number;
+  attack: NpcAttack | null;
+  target: string | null;
+  label?: string;
+};
+
 type CellInfo = {
   playerState: PlayerState | null;
-  npcState: {
-    npcId: number;
-    roomId: number;
-    tick: number;
-    attack: NpcAttack;
-    target: string | null;
-  } | null;
+  npcState: CellNpcState | null;
   highlighted: boolean;
   backgroundColor?: string;
 };
@@ -778,32 +780,36 @@ const buildTickCell = (
   let tooltipId = undefined;
 
   if (npcState !== null) {
-    let cellImage = npcAttackImage(npcState.attack);
+    let cellImage;
+    let className = styles.cell;
 
-    const npcName = getNpcDefinition(npcState.npcId)?.fullName ?? 'Unknown';
+    if (npcState.attack !== null) {
+      cellImage = npcAttackImage(npcState.attack);
+      const npcName = getNpcDefinition(npcState.npcId)?.fullName ?? 'Unknown';
 
-    tooltipId = `npc-${npcState.roomId}-${npcState.tick}`;
-    tooltip = (
-      <LigmaTooltip tooltipId={tooltipId}>
-        <div className={styles.npcTooltip}>
-          <button>{npcName}</button>
-          {(npcState.target !== null && (
-            <span>
-              targeted
-              <button onClick={() => setSelectedPlayer(npcState!.target)}>
-                {npcState.target}
-              </button>
-              with
+      tooltipId = `npc-${npcState.roomId}-${npcState.tick}`;
+      tooltip = (
+        <LigmaTooltip tooltipId={tooltipId}>
+          <div className={styles.npcTooltip}>
+            <button>{npcName}</button>
+            {(npcState.target !== null && (
+              <span>
+                targeted
+                <button onClick={() => setSelectedPlayer(npcState!.target)}>
+                  {npcState.target}
+                </button>
+                with
+              </span>
+            )) || <span>did</span>}
+            <span className={styles.npcAttack}>
+              {npcAttackName(npcState.attack)}
             </span>
-          )) || <span>did</span>}
-          <span className={styles.npcAttack}>
-            {npcAttackName(npcState.attack)}
-          </span>
-        </div>
-      </LigmaTooltip>
-    );
+          </div>
+        </LigmaTooltip>
+      );
 
-    const className = `${styles.cell} ${styles.npcCooldown} ${styles.cellInteractable}`;
+      className += ` ${styles.npcCooldown} ${styles.cellInteractable}`;
+    }
 
     return (
       <div
@@ -814,6 +820,7 @@ const buildTickCell = (
       >
         {cellImage}
         {tooltip}
+        <span className={styles.label}>{npcState.label}</span>
       </div>
     );
   }
@@ -839,7 +846,8 @@ const buildTickCell = (
         const roomNpc = npcs.get(maybeTarget.roomId);
         if (roomNpc !== undefined) {
           targetName = npcFriendlyName(roomNpc);
-          targetHp = roomNpc.stateByTick[playerState.tick]?.hitpoints.percent();
+          targetHp =
+            roomNpc.stateByTick[playerState.tick]?.hitpoints.percentage();
         }
       }
 
@@ -940,17 +948,33 @@ const buildTickColumn = (
     if (!npc.hasAttacks) {
       return;
     }
+
+    let npcState: CellNpcState | null = null;
+
     const attack = npc.stateByTick[columnTick]?.attack ?? null;
-    let npcState = null;
+    const label = npc.stateByTick[columnTick]?.label;
+
+    let partialNpcState = {
+      npcId: npc.spawnNpcId,
+      roomId: npc.roomId,
+      tick: columnTick,
+      label,
+    };
+
     if (attack !== null) {
       npcState = {
-        npcId: npc.spawnNpcId,
-        roomId: npc.roomId,
-        tick: columnTick,
+        ...partialNpcState,
         attack: attack.type,
         target: attack.target,
       };
+    } else if (label !== undefined) {
+      npcState = {
+        ...partialNpcState,
+        attack: null,
+        target: null,
+      };
     }
+
     cellInfo.push({
       npcState,
       playerState: null,

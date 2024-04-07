@@ -361,8 +361,16 @@ export class SkillLevel {
     return `${this.current}/${this.base}`;
   }
 
-  public percent(): number {
+  public percentage(): number {
     return (this.current / this.base) * 100;
+  }
+
+  public toPercent(fractionDigits: number = 2): string {
+    return `${this.percentage().toFixed(fractionDigits)}%`;
+  }
+
+  public withCurrent(current: number): SkillLevel {
+    return new SkillLevel(current, this.base);
   }
 }
 

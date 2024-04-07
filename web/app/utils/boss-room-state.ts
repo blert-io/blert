@@ -4,7 +4,10 @@ import {
   ColosseumChallenge,
   Event,
   EventType,
+  Npc,
+  NpcAttack,
   NpcAttackEvent,
+  NpcEvent,
   PlayerAttackEvent,
   PlayerEvent,
   PlayerUpdateEvent,
@@ -15,11 +18,8 @@ import {
   Stage,
   TobRaid,
   TobRooms,
-  isPlayerEvent,
-  NpcEvent,
   isNpcEvent,
-  NpcAttack,
-  Npc,
+  isPlayerEvent,
 } from '@blert/common';
 import {
   Context,
@@ -123,6 +123,7 @@ export type PlayerState = Omit<PlayerUpdateEvent, 'type' | 'stage' | 'cId'> & {
 export type NpcState = {
   attack: Nullable<{ type: NpcAttack; target: string | null }>;
   hitpoints: SkillLevel;
+  label?: string;
 };
 
 type StageInfo = {
@@ -231,7 +232,12 @@ export function useRoomEvents<T extends Raid>(
           totalTicks,
           eventsByTick,
         );
-        const npcState = computeNpcState(npcs, totalTicks, eventsByTick);
+        const npcState = computeNpcState(
+          npcs,
+          totalTicks,
+          eventsByTick,
+          eventsByType,
+        );
 
         const eventState = {
           eventsByTick,
@@ -358,6 +364,7 @@ function computeNpcState(
   roomNpcs: RawRoomNpcMap,
   totalTicks: number,
   eventsByTick: EventTickMap,
+  eventsByType: EventTypeMap,
 ): RoomNpcMap {
   const npcs: RoomNpcMap = new Map();
 
@@ -399,14 +406,32 @@ function computeNpcState(
       }
     }
 
-    postprocessNpcAttacks(npc);
+    postprocessNpcs(npc, eventsByType);
     npcs.set(Number(roomId), npc);
   });
 
   return npcs;
 }
 
-function postprocessNpcAttacks(npc: EnhancedRoomNpc) {
+const BLOAT_DOWN_TICKS = 32;
+
+function postprocessNpcs(npc: EnhancedRoomNpc, eventsByType: EventTypeMap) {
+  if (Npc.isBloat(npc.spawnNpcId)) {
+    eventsByType[EventType.TOB_BLOAT_DOWN]?.forEach((event) => {
+      const lastDownTick = Math.min(
+        event.tick + BLOAT_DOWN_TICKS,
+        npc.stateByTick.length - 1,
+      );
+      for (let i = event.tick; i <= lastDownTick; i++) {
+        if (npc.stateByTick[i] !== null) {
+          const downTick = BLOAT_DOWN_TICKS - (i - event.tick);
+          npc.stateByTick[i]!.label = downTick.toString();
+        }
+      }
+    });
+    return;
+  }
+
   if (Npc.isManticore(npc.spawnNpcId)) {
     for (let i = 0; i < npc.stateByTick.length; i++) {
       const state = npc.stateByTick[i];

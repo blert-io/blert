@@ -11,10 +11,12 @@ import {
   NpcId,
   Stage,
   SkillLevel,
+  NyloWaveStallEvent,
 } from '@blert/common';
 import Image from 'next/image';
 import { useMemo } from 'react';
 
+import Badge from '../../../../../components/badge';
 import {
   EventTickMap,
   usePlayingState,
@@ -385,6 +387,11 @@ export default function NylocasPage() {
     {},
   );
 
+  const stalls =
+    eventsByType[EventType.TOB_NYLO_WAVE_STALL]?.map(
+      (e) => (e as NyloWaveStallEvent).nyloWave,
+    ) ?? [];
+
   return (
     <>
       <div className={styles.bossPage__Overview}>
@@ -398,6 +405,51 @@ export default function NylocasPage() {
         </div>
         <div className={styles.bossPage__KeyDetails}>
           <h2>The Nylocas ({ticksToFormattedSeconds(totalTicks)})</h2>
+          <div>
+            {nyloData && (
+              <div className={styles.splits}>
+                {nyloData.splits.capIncrease && (
+                  <Badge
+                    iconClass="fa-solid fa-hourglass"
+                    label="Cap"
+                    value={ticksToFormattedSeconds(nyloData.splits.capIncrease)}
+                  />
+                )}
+                {nyloData.splits.waves && (
+                  <Badge
+                    iconClass="fa-solid fa-hourglass"
+                    label="Waves"
+                    value={ticksToFormattedSeconds(nyloData.splits.waves)}
+                  />
+                )}
+                {nyloData.splits.cleanup && (
+                  <Badge
+                    iconClass="fa-solid fa-hourglass"
+                    label="Cleanup"
+                    value={ticksToFormattedSeconds(nyloData.splits.cleanup)}
+                  />
+                )}
+                {nyloData.splits.boss && (
+                  <Badge
+                    iconClass="fa-solid fa-hourglass"
+                    label="Boss"
+                    value={ticksToFormattedSeconds(nyloData.splits.boss)}
+                  />
+                )}
+              </div>
+            )}
+            <h3>Stalled Waves</h3>
+            <div className={styles.stalls}>
+              {stalls.map((stall, i) => (
+                <div key={i} className={styles.stall}>
+                  <span className={styles.wave}>{stall.wave}</span>
+                  <span className={styles.nylos}>
+                    {stall.nylosAlive}/{stall.roomCap}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 

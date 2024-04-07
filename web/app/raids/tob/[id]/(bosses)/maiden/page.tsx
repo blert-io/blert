@@ -213,7 +213,7 @@ export default function Maiden() {
     return (
       maiden?.stateByTick.map((state, tick) => ({
         tick,
-        bossHealthPercentage: state?.hitpoints.percent() ?? 0,
+        bossHealthPercentage: state?.hitpoints.percentage() ?? 0,
       })) ?? []
     );
   }, [npcState]);

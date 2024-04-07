@@ -17,6 +17,7 @@ export { PersonalBestModel } from './models/personal-best';
 
 export type {
   Attack,
+  BloatDownEvent,
   EquipmentMap,
   Event,
   HandicapChoiceEvent,
