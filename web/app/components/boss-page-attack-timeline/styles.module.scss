@@ -57,11 +57,12 @@
   align-items: flex-end !important;
 
   .legendParticipant {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     background-color: #23242f;
     border-radius: 3px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     font-size: 18px;
     color: white;
     font-weight: bold;
@@ -70,6 +71,10 @@
     opacity: 1;
     cursor: pointer;
     margin: 0 5px 5px 0;
+
+    &:hover {
+      filter: brightness(1.2);
+    }
 
     &.npc {
       background-color: #3f040494;

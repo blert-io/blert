@@ -408,28 +408,28 @@ export default function NylocasPage() {
           <div>
             {nyloData && (
               <div className={styles.splits}>
-                {nyloData.splits.capIncrease && (
+                {nyloData.splits.capIncrease > 0 && (
                   <Badge
                     iconClass="fa-solid fa-hourglass"
                     label="Cap"
                     value={ticksToFormattedSeconds(nyloData.splits.capIncrease)}
                   />
                 )}
-                {nyloData.splits.waves && (
+                {nyloData.splits.waves > 0 && (
                   <Badge
                     iconClass="fa-solid fa-hourglass"
                     label="Waves"
                     value={ticksToFormattedSeconds(nyloData.splits.waves)}
                   />
                 )}
-                {nyloData.splits.cleanup && (
+                {nyloData.splits.cleanup > 0 && (
                   <Badge
                     iconClass="fa-solid fa-hourglass"
                     label="Cleanup"
                     value={ticksToFormattedSeconds(nyloData.splits.cleanup)}
                   />
                 )}
-                {nyloData.splits.boss && (
+                {nyloData.splits.boss > 0 && (
                   <Badge
                     iconClass="fa-solid fa-hourglass"
                     label="Boss"

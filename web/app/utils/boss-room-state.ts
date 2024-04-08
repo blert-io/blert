@@ -70,7 +70,11 @@ export const usePlayingState = (totalTicks: number) => {
   }, [currentTick, totalTicks, playing]);
 
   useEffect(() => {
-    const listener = (e: any) => {
+    const listener = (e: KeyboardEvent) => {
+      if (document.activeElement?.tagName === 'INPUT') {
+        return;
+      }
+
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
         updateTickOnPage((tick) => Math.max(1, tick - 1));
@@ -375,7 +379,7 @@ function computeNpcState(
       hasAttacks: false,
     };
 
-    for (let i = roomNpc.spawnTick; i < roomNpc.deathTick; i++) {
+    for (let i = 0; i < totalTicks; i++) {
       const eventsForThisTick = eventsByTick[i];
       if (eventsForThisTick === undefined) {
         continue;

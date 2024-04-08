@@ -68,7 +68,8 @@ export default function BloatPage() {
     usePlayingState(totalTicks);
 
   const { downInfo, splits, backgroundColors } = useMemo(() => {
-    const bloat: EnhancedRoomNpc = npcState.values().next().value ?? null;
+    const bloat: EnhancedRoomNpc | null =
+      npcState.values().next().value ?? null;
 
     const downInfo: DownInfo[] =
       eventsByType[EventType.TOB_BLOAT_DOWN]?.map((evt) => {
@@ -76,7 +77,7 @@ export default function BloatPage() {
         return {
           tick: evt.tick,
           walkTime: bloatDownEvent.bloatDown.walkTime,
-          startHitpoints: bloat.stateByTick[evt.tick]?.hitpoints,
+          startHitpoints: bloat?.stateByTick[evt.tick]?.hitpoints,
           endHitpoints: undefined,
         };
       }) ?? [];
@@ -107,7 +108,7 @@ export default function BloatPage() {
         backgroundColor: upColor,
       });
 
-      downInfo[i].endHitpoints = bloat.stateByTick[evt.tick]?.hitpoints;
+      downInfo[i].endHitpoints = bloat?.stateByTick[evt.tick]?.hitpoints;
     });
 
     if (downInfo.length > 0) {

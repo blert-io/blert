@@ -3,6 +3,7 @@
   display: inline-flex;
   flex-direction: column;
   border: 2px solid #ccc;
+  overflow: hidden;
 
   .mapRow {
     display: flex;
