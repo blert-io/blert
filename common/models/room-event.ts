@@ -97,6 +97,10 @@ const roomEventSchema = new Schema<MergedEvent>({
   },
   soteMaze: {
     maze: Number,
+    activeTiles: {
+      type: [Coords],
+      default: undefined,
+    },
   },
   xarpusPhase: Number,
   verzikPhase: Number,

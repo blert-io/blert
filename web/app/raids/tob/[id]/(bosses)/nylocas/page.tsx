@@ -30,6 +30,7 @@ import {
   TimelineSplit,
 } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
 import BossPageReplay from '../../../../../components/boss-page-replay';
+import HorizontalScrollable from '../../../../../components/horizontal-scrollable';
 import { Entity, NpcEntity, PlayerEntity } from '../../../../../components/map';
 import { OverlayEntity } from '../../../../../components/map/overlay';
 import Loading from '../../../../../components/loading';
@@ -438,8 +439,8 @@ export default function NylocasPage() {
                 )}
               </div>
             )}
-            <h3>Stalled Waves</h3>
-            <div className={styles.stalls}>
+            <h3>Stalled Waves ({stalls.length})</h3>
+            <HorizontalScrollable className={styles.stalls}>
               {stalls.map((stall, i) => (
                 <div key={i} className={styles.stall}>
                   <span className={styles.wave}>{stall.wave}</span>
@@ -448,7 +449,7 @@ export default function NylocasPage() {
                   </span>
                 </div>
               ))}
-            </div>
+            </HorizontalScrollable>
           </div>
         </div>
       </div>

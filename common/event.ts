@@ -38,6 +38,7 @@ export enum EventType {
   TOB_NYLO_BOSS_SPAWN = EventProto.Type.TOB_NYLO_BOSS_SPAWN,
   TOB_SOTE_MAZE_PROC = EventProto.Type.TOB_SOTE_MAZE_PROC,
   TOB_SOTE_MAZE_PATH = EventProto.Type.TOB_SOTE_MAZE_PATH,
+  TOB_SOTE_MAZE_END = EventProto.Type.TOB_SOTE_MAZE_END,
   TOB_XARPUS_PHASE = EventProto.Type.TOB_XARPUS_PHASE,
   TOB_VERZIK_PHASE = EventProto.Type.TOB_VERZIK_PHASE,
   TOB_VERZIK_ATTACK_STYLE = EventProto.Type.TOB_VERZIK_ATTACK_STYLE,
@@ -133,13 +134,18 @@ export interface NyloWaveSpawnEvent extends Event {
 }
 
 export interface NyloWaveStallEvent extends Event {
-  type: EventType.TOB_NYLO_WAVE_SPAWN;
+  type: EventType.TOB_NYLO_WAVE_STALL;
   nyloWave: NyloWave;
 }
 
-export interface SoteMazeProcEvent extends Event {
-  type: EventType.TOB_NYLO_WAVE_SPAWN;
+export interface SoteMazeEvent extends Event {
+  type: EventType.TOB_SOTE_MAZE_PROC | EventType.TOB_SOTE_MAZE_END;
   soteMaze: SoteMaze;
+}
+
+export interface SoteMazePathEvent extends Event {
+  type: EventType.TOB_SOTE_MAZE_PATH;
+  soteMaze: SoteMazePath;
 }
 
 export interface XarpusPhaseEvent extends Event {
@@ -178,7 +184,7 @@ export type MergedEvent = Event &
   Omit<BloatDownEvent, 'type'> &
   Omit<NyloWaveSpawnEvent, 'type'> &
   Omit<NyloWaveStallEvent, 'type'> &
-  Omit<SoteMazeProcEvent, 'type'> &
+  Omit<SoteMazePathEvent, 'type'> &
   Omit<XarpusPhaseEvent, 'type'> &
   Omit<VerzikPhaseEvent, 'type'> &
   Omit<VerzikAttackStyleEvent, 'type'> &
@@ -271,6 +277,8 @@ export type NyloWave = {
 export type SoteMaze = {
   maze: Maze;
 };
+
+export type SoteMazePath = SoteMaze & { activeTiles: Coords[] };
 
 export enum VerzikAttackStyle {
   MELEE = EventProto.VerzikAttackStyle.Style.MELEE,

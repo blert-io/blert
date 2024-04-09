@@ -128,6 +128,8 @@ export interface NyloOverview extends RoomOverview {
 
 export interface SoteOverview extends RoomOverview {
   splits: SoteSplits;
+  maze66?: SoteMazeInfo;
+  maze33?: SoteMazeInfo;
 }
 
 export interface XarpusOverview extends RoomOverview {
@@ -159,6 +161,11 @@ export type NyloSplits = {
 export type SoteSplits = {
   MAZE_66: number;
   MAZE_33: number;
+};
+
+export type SoteMazeInfo = {
+  pivots: number[];
+  ticks: number;
 };
 
 export type XarpusSplits = {

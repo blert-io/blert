@@ -14,6 +14,7 @@ import {
   PlayerAttack,
   RaidDocument,
   RoomEvent,
+  SoteMazeInfo,
   SoteSplits,
   Stage,
   StageStatus,
@@ -36,6 +37,12 @@ type PersonalBestUpdate = {
   pbTime: number;
 };
 
+type SoteMazeState = {
+  info: SoteMazeInfo;
+  accuratePath: boolean;
+  partialPivots: number[];
+};
+
 export default class TheatreChallenge extends Challenge {
   private completedRooms: number;
 
@@ -50,6 +57,7 @@ export default class TheatreChallenge extends Challenge {
   private verzikSplits: VerzikSplits;
 
   private stalledNyloWaves: number[];
+  private soteMazes: SoteMazeState[];
   private verzikRedSpawns: number[];
 
   public constructor(
@@ -77,6 +85,7 @@ export default class TheatreChallenge extends Challenge {
     this.verzikSplits = { p1: 0, reds: 0, p2: 0 };
 
     this.stalledNyloWaves = [];
+    this.soteMazes = [];
     this.verzikRedSpawns = [];
   }
 
@@ -228,19 +237,37 @@ export default class TheatreChallenge extends Challenge {
           case Stage.TOB_MAIDEN:
             record.tobRooms.maiden!.splits = this.maidenSplits;
             break;
+
           case Stage.TOB_BLOAT:
             record.tobRooms.bloat!.splits = this.bloatSplits;
             break;
+
           case Stage.TOB_NYLOCAS:
             record.tobRooms.nylocas!.splits = this.nyloSplits;
             record.tobRooms.nylocas!.stalledWaves = this.stalledNyloWaves;
             break;
+
           case Stage.TOB_SOTETSEG:
             record.tobRooms.sotetseg!.splits = this.soteSplits;
+            if (this.soteMazes.length > 0) {
+              if (!this.soteMazes[0].accuratePath) {
+                this.soteMazes[0].info.pivots = [];
+              }
+              record.tobRooms.sotetseg!.maze66 = this.soteMazes[0].info;
+
+              if (this.soteMazes.length > 1) {
+                if (!this.soteMazes[1].accuratePath) {
+                  this.soteMazes[1].info.pivots = [];
+                }
+                record.tobRooms.sotetseg!.maze33 = this.soteMazes[1].info;
+              }
+            }
             break;
+
           case Stage.TOB_XARPUS:
             record.tobRooms.xarpus!.splits = this.xarpusSplits;
             break;
+
           case Stage.TOB_VERZIK:
             record.tobRooms.verzik!.splits = this.verzikSplits;
             record.tobRooms.verzik!.redCrabSpawns = this.verzikRedSpawns.length;
@@ -398,14 +425,43 @@ export default class TheatreChallenge extends Challenge {
         });
         break;
 
-      case EventType.TOB_SOTE_MAZE_PROC:
+      case EventType.TOB_SOTE_MAZE_PROC: {
         const maze = event.getSoteMaze()!.getMaze();
         if (maze === Maze.MAZE_66) {
           this.soteSplits.MAZE_66 = event.getTick();
         } else {
           this.soteSplits.MAZE_33 = event.getTick();
         }
+        this.soteMazes.push({
+          info: { pivots: [], ticks: 0 },
+          accuratePath: false,
+          partialPivots: Array(8).fill(-1),
+        });
         break;
+      }
+
+      case EventType.TOB_SOTE_MAZE_PATH: {
+        const soteMaze = event.getSoteMaze()!;
+        if (soteMaze.getOverworldTilesList().length > 0) {
+          return true;
+        }
+
+        // Update the maze path and don't write the event.
+        this.handleSoteMazePath(soteMaze);
+        return false;
+      }
+
+      case EventType.TOB_SOTE_MAZE_END: {
+        const maze = event.getSoteMaze()!.getMaze();
+        const startTick =
+          maze === Maze.MAZE_66
+            ? this.soteSplits.MAZE_66
+            : this.soteSplits.MAZE_33;
+
+        this.soteMazes[this.soteMazes.length - 1].info.ticks =
+          event.getTick() - startTick;
+        return false;
+      }
 
       case EventType.TOB_XARPUS_PHASE:
         const xarpusPhase = event.getXarpusPhase();
@@ -570,6 +626,73 @@ export default class TheatreChallenge extends Challenge {
         });
         break;
     }
+  }
+
+  private handleSoteMazePath(soteMaze: Event.SoteMaze): void {
+    const currentMaze = this.soteMazes[this.soteMazes.length - 1];
+
+    const overworldPivots = soteMaze.getOverworldPivotsList();
+    if (overworldPivots.length === 8) {
+      const pivots = overworldPivots.map((pivot) => pivot.getX());
+      if (!currentMaze.accuratePath) {
+        currentMaze.info.pivots = pivots;
+        currentMaze.accuratePath = true;
+      } else {
+        const pivotsEqual = currentMaze.info.pivots.every(
+          (pivot, index) => pivot === pivots[index],
+        );
+        if (!pivotsEqual) {
+          console.error(
+            `Raid ${this.getId()}: Overworld pivots do not match existing maze`,
+          );
+        }
+      }
+
+      return;
+    }
+
+    const underworldPivots = soteMaze.getUnderworldPivotsList();
+    if (underworldPivots.length === 0 || currentMaze.accuratePath) {
+      return;
+    }
+
+    if (underworldPivots.length === 8) {
+      currentMaze.info.pivots = underworldPivots.map((pivot) => pivot.getX());
+      currentMaze.accuratePath = true;
+      return;
+    }
+
+    // Received a partial maze path from HMT.
+    for (const pivot of underworldPivots) {
+      if (pivot.getY() % 2 !== 0) {
+        console.error(
+          `Raid ${this.getId()}: Invalid pivot on row ${pivot.getY()}`,
+        );
+        continue;
+      }
+
+      const pivotIndex = pivot.getY() / 2;
+
+      if (currentMaze.partialPivots[pivotIndex] === -1) {
+        currentMaze.partialPivots[pivotIndex] = pivot.getX();
+      } else {
+        console.error(
+          `Raid ${this.getId()}: Duplicate pivot on row ${pivot.getY()}`,
+        );
+        continue;
+      }
+
+      const mazeComplete = currentMaze.partialPivots.every((x) => x !== -1);
+      if (mazeComplete) {
+        currentMaze.info.pivots = currentMaze.partialPivots;
+        currentMaze.accuratePath = true;
+        break;
+      }
+    }
+
+    console.log(
+      `Raid ${this.getId()}: Partial maze progress: ${currentMaze.partialPivots}`,
+    );
   }
 
   /**

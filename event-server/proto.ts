@@ -189,7 +189,21 @@ export function protoToEvent(proto: EventProto): Partial<MergedEvent> {
   }
 
   if (proto.hasSoteMaze()) {
-    event.soteMaze = { maze: proto.getSoteMaze()!.getMaze() };
+    const maze = proto.getSoteMaze()!;
+    if (event.type === EventProto.Type.TOB_SOTE_MAZE_PATH) {
+      if (maze.getOverworldTilesList().length > 0) {
+        event.soteMaze = {
+          maze: maze.getMaze(),
+          activeTiles: maze.getOverworldTilesList().map((tile) => ({
+            x: tile.getX(),
+            y: tile.getY(),
+          })),
+        };
+      }
+    } else {
+      // @ts-ignore: activeTiles is optional in the database format.
+      event.soteMaze = { maze: maze.getMaze() };
+    }
   }
 
   if (proto.hasXarpusPhase()) {

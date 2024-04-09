@@ -18,6 +18,7 @@ import {
 } from 'react';
 
 import { CollapsiblePanel } from '../collapsible-panel/collapsible-panel';
+import HorizontalScrollable from '../horizontal-scrollable';
 import Item from '../item';
 import { LigmaTooltip } from '../ligma-tooltip/ligma-tooltip';
 import { BlertMemes, MemeContext } from '../../raids/meme-context';
@@ -1153,21 +1154,6 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
   const currentTickColumnRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const div = attackTimelineRef.current;
-    if (div === null) {
-      return () => {};
-    }
-
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      div.scrollLeft += e.deltaY;
-    };
-
-    div.addEventListener('wheel', handleWheel, { passive: false });
-    return () => div.removeEventListener('wheel', handleWheel);
-  }, []);
-
-  useEffect(() => {
     if (
       attackTimelineRef.current !== null &&
       currentTickColumnRef.current !== null
@@ -1277,13 +1263,13 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
     >
       <div className={styles.attackTimeline__Inner}>
         <div className={styles.attackTimeline__Legend}>{legendElements}</div>
-        <div
+        <HorizontalScrollable
           className={styles.attackTimeline__Scrollable}
-          ref={attackTimelineRef}
+          customRef={attackTimelineRef}
         >
           {deferredColumnIndicator}
           {memoizedBaseTimeline}
-        </div>
+        </HorizontalScrollable>
       </div>
     </CollapsiblePanel>
   );

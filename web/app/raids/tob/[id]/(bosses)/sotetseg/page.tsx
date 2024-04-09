@@ -6,6 +6,7 @@ import {
   NpcEvent,
   PlayerUpdateEvent,
   SkillLevel,
+  SoteMazePathEvent,
   Stage,
 } from '@blert/common';
 import Image from 'next/image';
@@ -43,6 +44,109 @@ const MAZE_START_X = 3273;
 const MAZE_START_Y = 4310;
 const MAZE_WIDTH = 14;
 const MAZE_HEIGHT = 15;
+
+type MazeProps = {
+  pivots: number[];
+  tileSize: number;
+  showPivots?: boolean;
+};
+
+function Maze({ pivots, tileSize, showPivots = false }: MazeProps) {
+  const tileSizeWithBorder = tileSize + 2;
+  const additionalTiles = showPivots ? 1 : 0;
+  if (pivots.length !== 8) {
+    return (
+      <div
+        className={`${styles.maze} ${styles.empty}`}
+        style={{
+          width: tileSizeWithBorder * (MAZE_WIDTH + additionalTiles),
+          height: tileSizeWithBorder * (MAZE_HEIGHT + additionalTiles),
+        }}
+      >
+        Not enough data.
+      </div>
+    );
+  }
+
+  const mazeTiles: boolean[][] = [];
+
+  for (let y = MAZE_HEIGHT - 1; y >= 0; --y) {
+    const row = new Array(MAZE_WIDTH).fill(false);
+
+    if (y % 2 === 0) {
+      row[pivots[y / 2]] = true;
+    } else {
+      const prevPivot = pivots[(y + 1) / 2];
+      const nextPivot = pivots[(y - 1) / 2];
+      let startX, endX;
+      if (prevPivot < nextPivot) {
+        startX = prevPivot;
+        endX = nextPivot;
+      } else {
+        startX = nextPivot;
+        endX = prevPivot;
+      }
+
+      for (let x = startX; x <= endX; ++x) {
+        row[x] = true;
+      }
+    }
+    mazeTiles.push(row);
+  }
+
+  let xAxis = undefined;
+  if (showPivots) {
+    const legend = [
+      <div
+        key="empty"
+        className={styles.coord}
+        style={{ height: tileSize, width: tileSize }}
+      />,
+    ];
+    for (let x = 0; x < MAZE_WIDTH; ++x) {
+      legend.push(
+        <div
+          key={x}
+          className={styles.coord}
+          style={{ height: tileSize, width: tileSize }}
+        >
+          {x}
+        </div>,
+      );
+    }
+
+    xAxis = <div className={styles.mazeRow}>{legend}</div>;
+  }
+
+  return (
+    <div className={styles.maze}>
+      {mazeTiles.map((row, y) => (
+        <div key={y} className={styles.mazeRow}>
+          {showPivots && (
+            <div
+              className={styles.coord}
+              style={{ height: tileSize, width: tileSize }}
+            >
+              {MAZE_HEIGHT - y - 1}
+            </div>
+          )}
+          {row.map((tile, x) => (
+            <div
+              key={x}
+              className={`${styles.mazeTile} ${tile ? styles.active : ''}`}
+              style={{ height: tileSize, width: tileSize }}
+            >
+              {(showPivots && y % 2 === 0 && tile && (
+                <span className={styles.pivot}>{x}</span>
+              )) || <div className={styles.circle} />}
+            </div>
+          ))}
+        </div>
+      ))}
+      {xAxis}
+    </div>
+  );
+}
 
 export default function SotetsegPage() {
   const {
@@ -127,15 +231,34 @@ export default function SotetsegPage() {
   }
 
   // Render tiles for the maze.
-  const mazeTileOverlay = (
-    <div className={styles.mapTile}>
+  const mazeTileOverlay = (active: boolean) => (
+    <div className={`${styles.mapTile} ${active ? styles.active : ''}`}>
       <div className={styles.circle} />
     </div>
   );
-  for (let y = MAZE_START_Y; y < MAZE_START_Y + MAZE_HEIGHT; ++y) {
-    for (let x = MAZE_START_X; x < MAZE_START_X + MAZE_WIDTH; ++x) {
+
+  const activeTiles =
+    (
+      eventsForCurrentTick.find(
+        (e) => e.type === EventType.TOB_SOTE_MAZE_PATH,
+      ) as SoteMazePathEvent
+    )?.soteMaze.activeTiles ?? [];
+
+  for (let y = 0; y < MAZE_HEIGHT; ++y) {
+    for (let x = 0; x < MAZE_WIDTH; ++x) {
+      const absX = MAZE_START_X + x;
+      const absY = MAZE_START_Y + y;
+
+      const active = activeTiles.some((tile) => tile.x === x && tile.y === y);
+
       entities.push(
-        new OverlayEntity(x, y, `maze-tile-${x}-${y}`, mazeTileOverlay, false),
+        new OverlayEntity(
+          absX,
+          absY,
+          `maze-tile-${x}-${y}`,
+          mazeTileOverlay(active),
+          false,
+        ),
       );
     }
   }
@@ -161,6 +284,40 @@ export default function SotetsegPage() {
         </div>
         <div className={styles.bossPage__KeyDetails}>
           <h2>Sotetseg ({ticksToFormattedSeconds(totalTicks)})</h2>
+          <div className={styles.mazes}>
+            {soteData?.maze66 && (
+              <div className={styles.mazeInfo}>
+                <Maze pivots={soteData.maze66.pivots} tileSize={10} />
+                <div className={styles.details}>
+                  <h3>Maze 1</h3>
+                  <div className={styles.mazeStat}>
+                    <i className="fa-solid fa-hourglass" />
+                    {ticksToFormattedSeconds(soteData.splits.MAZE_66)}
+                  </div>
+                  <div className={styles.mazeStat}>
+                    <i className="fa-solid fa-person-walking" />
+                    {ticksToFormattedSeconds(soteData.maze66.ticks)}
+                  </div>
+                </div>
+              </div>
+            )}
+            {soteData?.maze33 && (
+              <div className={styles.mazeInfo}>
+                <Maze pivots={soteData.maze33.pivots} tileSize={10} />
+                <div className={styles.details}>
+                  <h3>Maze 2</h3>
+                  <div className={styles.mazeStat}>
+                    <i className="fa-solid fa-hourglass" />
+                    {ticksToFormattedSeconds(soteData.splits.MAZE_33)}
+                  </div>
+                  <div className={styles.mazeStat}>
+                    <i className="fa-solid fa-person-walking" />
+                    {ticksToFormattedSeconds(soteData.maze33.ticks)}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

@@ -117,6 +117,14 @@ const tobRoomsSchema = new Schema<TobRooms>(
           MAZE_66: Number,
           MAZE_33: Number,
         },
+        maze66: {
+          pivots: [Number],
+          ticks: Number,
+        },
+        maze33: {
+          pivots: [Number],
+          ticks: Number,
+        },
       },
       default: null,
     },
