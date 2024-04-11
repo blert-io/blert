@@ -152,7 +152,7 @@ const npcAttackImage = (attack: NpcAttack) => {
     case NpcAttack.COLOSSEUM_HEREDIT_COMBO:
     case NpcAttack.COLOSSEUM_HEREDIT_BREAK:
     default:
-      imageUrl = '/huh.png';
+      imageUrl = '/images/huh.png';
       break;
   }
 
@@ -170,256 +170,355 @@ const npcAttackImage = (attack: NpcAttack) => {
   );
 };
 
-const ATTACK_METADATA = {
+type AttackMetadata = {
+  tagColor: string | undefined;
+  letter: string;
+  ranged: boolean;
+  special: boolean;
+};
+
+const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
   [PlayerAttack.BGS_SMACK]: {
     tagColor: 'yellow',
     letter: 'bg',
     ranged: false,
+    special: false,
   },
   [PlayerAttack.BGS_SPEC]: {
     tagColor: 'yellow',
     letter: 'BGS',
     ranged: false,
+    special: true,
   },
   [PlayerAttack.BLOWPIPE]: {
     tagColor: 'green',
     letter: 'BP',
     ranged: true,
+    special: false,
   },
   [PlayerAttack.BOWFA]: {
     tagColor: 'green',
     letter: 'BFa',
     ranged: true,
+    special: false,
   },
   [PlayerAttack.CHALLY_SPEC]: {
     tagColor: 'yellow',
     letter: 'CH',
     ranged: false,
+    special: true,
   },
   [PlayerAttack.CHALLY_SWIPE]: {
     tagColor: 'yellow',
     letter: 'ch',
     ranged: false,
+    special: false,
   },
   [PlayerAttack.CHIN_BLACK]: {
     tagColor: 'green',
     letter: 'CCB',
     ranged: true,
+    special: false,
   },
   [PlayerAttack.CHIN_GREY]: {
     tagColor: 'green',
     letter: 'CCG',
     ranged: true,
+    special: false,
   },
   [PlayerAttack.CHIN_RED]: {
     tagColor: 'green',
     letter: 'CCR',
     ranged: true,
+    special: false,
   },
   [PlayerAttack.CLAW_SCRATCH]: {
     tagColor: 'red',
     letter: 'c',
     ranged: false,
+    special: false,
   },
   [PlayerAttack.CLAW_SPEC]: {
     tagColor: 'red',
     letter: 'C',
     ranged: false,
+    special: true,
   },
   [PlayerAttack.DAWN_SPEC]: {
     tagColor: 'yellow',
     letter: 'DB',
     ranged: true,
+    special: true,
   },
   [PlayerAttack.DINHS_SPEC]: {
     tagColor: 'yellow',
     letter: 'BW',
     ranged: false,
+    special: true,
   },
   [PlayerAttack.FANG_STAB]: {
     tagColor: 'red',
     letter: 'FNG',
     ranged: false,
+    special: false,
   },
   [PlayerAttack.HAMMER_BOP]: {
     tagColor: 'red',
     letter: 'h',
     ranged: false,
+    special: false,
   },
   [PlayerAttack.HAMMER_SPEC]: {
     tagColor: 'red',
     letter: 'H',
     ranged: false,
+    special: true,
   },
   [PlayerAttack.HAM_JOINT]: {
     tagColor: 'red',
     letter: 'SB',
     ranged: false,
+    special: false,
+  },
+  [PlayerAttack.KICK]: {
+    tagColor: undefined,
+    letter: 'k',
+    ranged: false,
+    special: false,
   },
   [PlayerAttack.KODAI_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
     ranged: true,
+    special: false,
   },
   [PlayerAttack.KODAI_BASH]: {
     tagColor: 'blue',
     letter: 'kb',
     ranged: false,
+    special: false,
+  },
+  [PlayerAttack.PUNCH]: {
+    tagColor: undefined,
+    letter: 'p',
+    ranged: false,
+    special: false,
   },
   [PlayerAttack.RAPIER]: {
     tagColor: 'red',
     letter: 'R',
     ranged: false,
+    special: false,
   },
   [PlayerAttack.SAELDOR]: {
     tagColor: 'red',
     letter: 'B',
     ranged: false,
+    special: false,
   },
   [PlayerAttack.SANG]: {
     tagColor: 'blue',
     letter: 'T',
     ranged: true,
+    special: false,
   },
   [PlayerAttack.SANG_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
     ranged: true,
+    special: false,
   },
   [PlayerAttack.SCEPTRE_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
     ranged: true,
+    special: false,
   },
   [PlayerAttack.SCYTHE]: {
     tagColor: 'red',
     letter: 'S',
     ranged: false,
+    special: false,
   },
   [PlayerAttack.SCYTHE_UNCHARGED]: {
     tagColor: 'red',
     letter: 's',
     ranged: false,
+    special: false,
   },
   [PlayerAttack.SGS_SMACK]: {
     tagColor: 'yellow',
     letter: 'sgs',
     ranged: false,
+    special: false,
   },
   [PlayerAttack.SGS_SPEC]: {
     tagColor: 'yellow',
     letter: 'SGS',
     ranged: false,
+    special: true,
   },
   [PlayerAttack.SHADOW]: {
     tagColor: 'blue',
     letter: 'Sh',
     ranged: true,
+    special: false,
   },
   [PlayerAttack.SHADOW_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
     ranged: true,
+    special: false,
   },
   [PlayerAttack.SOTD_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
     ranged: true,
+    special: false,
   },
   [PlayerAttack.SOULREAPER_AXE]: {
     tagColor: 'red',
     letter: 'AXE',
     ranged: false,
+    special: false,
   },
   [PlayerAttack.STAFF_OF_LIGHT_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
     ranged: true,
+    special: false,
   },
   [PlayerAttack.STAFF_OF_LIGHT_SWIPE]: {
     tagColor: 'blue',
     letter: 'SOL',
     ranged: false,
+    special: false,
   },
   [PlayerAttack.SWIFT_BLADE]: {
     tagColor: 'red',
     letter: 'SB',
     ranged: false,
+    special: false,
   },
   [PlayerAttack.TENT_WHIP]: {
     tagColor: 'red',
     letter: 'TW',
     ranged: false,
+    special: false,
   },
   [PlayerAttack.TOXIC_TRIDENT]: {
     tagColor: 'blue',
     letter: 'T',
     ranged: true,
+    special: false,
   },
   [PlayerAttack.TOXIC_TRIDENT_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
     ranged: true,
+    special: false,
   },
   [PlayerAttack.TOXIC_STAFF_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
     ranged: true,
+    special: false,
   },
   [PlayerAttack.TOXIC_STAFF_SWIPE]: {
     tagColor: 'blue',
     letter: 'TS',
     ranged: false,
+    special: false,
   },
   [PlayerAttack.TRIDENT]: {
     tagColor: 'blue',
     letter: 'T',
     ranged: true,
+    special: false,
   },
   [PlayerAttack.TRIDENT_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
     ranged: true,
+    special: false,
+  },
+  [PlayerAttack.TONALZTICS_AUTO]: {
+    tagColor: 'green',
+    letter: 'ga',
+    ranged: true,
+    special: false,
+  },
+  [PlayerAttack.TONALZTICS_SPEC]: {
+    tagColor: 'green',
+    letter: 'G',
+    ranged: true,
+    special: true,
+  },
+  [PlayerAttack.TONALZTICS_UNCHARGED]: {
+    tagColor: 'green',
+    letter: 'g',
+    ranged: true,
+    special: true,
   },
   [PlayerAttack.TWISTED_BOW]: {
     tagColor: 'green',
     letter: 'TB',
     ranged: true,
+    special: false,
   },
   [PlayerAttack.VENATOR_BOW]: {
     tagColor: 'green',
     letter: 'VB',
     ranged: true,
+    special: false,
   },
   [PlayerAttack.VOLATILE_NM_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
     ranged: true,
+    special: false,
+  },
+  [PlayerAttack.VOLATILE_NM_BASH]: {
+    tagColor: 'blue',
+    letter: 'vnm',
+    ranged: false,
+    special: false,
+  },
+  [PlayerAttack.VOLATILE_NM_SPEC]: {
+    tagColor: 'blue',
+    letter: 'VNM',
+    ranged: true,
+    special: true,
   },
   [PlayerAttack.ZCB_SPEC]: {
     tagColor: 'green',
     letter: 'ZC',
     ranged: true,
+    special: true,
   },
   [PlayerAttack.UNKNOWN_BARRAGE]: {
     tagColor: undefined,
     letter: 'F',
     ranged: true,
+    special: false,
   },
   [PlayerAttack.UNKNOWN_BOW]: {
     tagColor: 'green',
     letter: 'UNK',
     ranged: true,
+    special: false,
   },
   [PlayerAttack.UNKNOWN_POWERED_STAFF]: {
     tagColor: 'blue',
     letter: 'UNK',
     ranged: true,
+    special: false,
   },
   [PlayerAttack.UNKNOWN]: {
     tagColor: undefined,
     letter: 'UNK',
     ranged: false,
+    special: false,
   },
 };
 
@@ -442,6 +541,9 @@ const makeCellImage = (playerAttack: Attack, memes: BlertMemes) => {
 
   let content;
 
+  const meta =
+    ATTACK_METADATA[playerAttack.type] ?? ATTACK_METADATA[PlayerAttack.UNKNOWN];
+
   if (!memes.capsLock) {
     let infoIcon = undefined;
 
@@ -451,25 +553,19 @@ const makeCellImage = (playerAttack: Attack, memes: BlertMemes) => {
     };
     let troll = false;
 
-    switch (playerAttack.type) {
-      case PlayerAttack.BGS_SPEC:
-      case PlayerAttack.HAMMER_SPEC:
-      case PlayerAttack.CHALLY_SPEC:
-      case PlayerAttack.DAWN_SPEC:
-      case PlayerAttack.DINHS_SPEC:
-      case PlayerAttack.CLAW_SPEC:
-      case PlayerAttack.SGS_SPEC:
-        infoIcon = (
-          <Image
-            className={styles.attackTimeline__CellImage__InfoIcon}
-            src={'/spec.png'}
-            alt="Special Attack"
-            height={25}
-            width={25}
-          />
-        );
-        break;
+    if (meta.special) {
+      infoIcon = (
+        <Image
+          className={styles.attackTimeline__CellImage__InfoIcon}
+          src={'/spec.png'}
+          alt="Special Attack"
+          height={25}
+          width={25}
+        />
+      );
+    }
 
+    switch (playerAttack.type) {
       case PlayerAttack.SANG_BARRAGE:
       case PlayerAttack.SHADOW_BARRAGE:
       case PlayerAttack.STAFF_OF_LIGHT_BARRAGE:
@@ -511,41 +607,61 @@ const makeCellImage = (playerAttack: Attack, memes: BlertMemes) => {
         break;
 
       case PlayerAttack.KODAI_BASH:
+      case PlayerAttack.VOLATILE_NM_BASH:
       case PlayerAttack.SCYTHE_UNCHARGED:
+      case PlayerAttack.TONALZTICS_AUTO:
+      case PlayerAttack.TONALZTICS_UNCHARGED:
         troll = true;
         break;
     }
 
-    let outline = memes.inventoryTags
-      ? ATTACK_METADATA[playerAttack.type].tagColor
-      : undefined;
+    let outline = memes.inventoryTags ? meta.tagColor : undefined;
+
+    let weaponImage;
+    if (playerAttack.weapon) {
+      weaponImage = (
+        <Item
+          name={playerAttack.weapon.name}
+          quantity={1}
+          outlineColor={outline}
+          style={troll ? trollStyles : undefined}
+        />
+      );
+    } else {
+      let customImageUrl: string;
+      switch (playerAttack.type) {
+        case PlayerAttack.PUNCH:
+          customImageUrl = '/images/combat/punch.webp';
+          break;
+        case PlayerAttack.KICK:
+          customImageUrl = '/images/combat/kick.webp';
+          break;
+        default:
+          customImageUrl = '/images/huh.png';
+          break;
+      }
+
+      weaponImage = (
+        <div className={styles.npcAttackCellImage}>
+          <Image
+            src={customImageUrl}
+            alt="Unknown attack"
+            fill
+            style={{ objectFit: 'contain' }}
+          />
+        </div>
+      );
+    }
 
     content = (
       <>
-        {infoIcon && infoIcon}
-        {(playerAttack.weapon && (
-          <Item
-            name={playerAttack.weapon.name}
-            quantity={1}
-            outlineColor={outline}
-            style={troll ? trollStyles : undefined}
-          />
-        )) || (
-          <div className={styles.npcAttackCellImage}>
-            <Image
-              src="/huh.png"
-              alt="Unknown attack"
-              fill
-              style={{ objectFit: 'contain' }}
-            />
-          </div>
-        )}
+        {infoIcon}
+        {weaponImage}
       </>
     );
   } else {
     // In caps lock mode, only use letters.
-    const letter = ATTACK_METADATA[playerAttack.type].letter ?? 'UNK';
-    content = <div className={styles.letter}>{letter}</div>;
+    content = <div className={styles.letter}>{meta.letter}</div>;
   }
 
   return <div className={styles.attackTimeline__CellImage}>{content}</div>;
@@ -677,6 +793,10 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
       return 'hammered';
     case PlayerAttack.HAM_JOINT:
       return 'hammed';
+    case PlayerAttack.KICK:
+      return 'kicked';
+    case PlayerAttack.PUNCH:
+      return 'punched';
     case PlayerAttack.KODAI_BARRAGE:
     case PlayerAttack.SANG_BARRAGE:
     case PlayerAttack.SCEPTRE_BARRAGE:
@@ -714,11 +834,20 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
       return 'swifted';
     case PlayerAttack.TENT_WHIP:
       return 'whipped';
+    case PlayerAttack.TONALZTICS_AUTO:
+    case PlayerAttack.TONALZTICS_UNCHARGED:
+      return 'glaive tossed';
+    case PlayerAttack.TONALZTICS_SPEC:
+      return 'glaived';
     case PlayerAttack.BOWFA:
     case PlayerAttack.TWISTED_BOW:
     case PlayerAttack.VENATOR_BOW:
     case PlayerAttack.UNKNOWN_BOW:
       return 'bowed';
+    case PlayerAttack.VOLATILE_NM_BASH:
+      return 'volatile bashed';
+    case PlayerAttack.VOLATILE_NM_SPEC:
+      return 'volatiled';
     case PlayerAttack.ZCB_SPEC:
       return "ZCB'd";
     case PlayerAttack.TOXIC_TRIDENT:

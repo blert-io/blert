@@ -176,7 +176,7 @@ type ColosseumHandicapProps = {
 export default function ColosseumHandicap(props: ColosseumHandicapProps) {
   const handicap = HANDICAPS[props.handicap] ?? {
     name: 'Unknown',
-    imageUrl: '/huh.png',
+    imageUrl: '/images/huh.png',
   };
 
   let className = styles.handicap;

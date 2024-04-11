@@ -631,15 +631,16 @@ export default class TheatreChallenge extends Challenge {
   private handleSoteMazePath(soteMaze: Event.SoteMaze): void {
     const currentMaze = this.soteMazes[this.soteMazes.length - 1];
 
-    const overworldPivots = soteMaze.getOverworldPivotsList();
+    const overworldPivots = soteMaze
+      .getOverworldPivotsList()
+      .map((pivot) => pivot.getX());
     if (overworldPivots.length === 8) {
-      const pivots = overworldPivots.map((pivot) => pivot.getX());
       if (!currentMaze.accuratePath) {
-        currentMaze.info.pivots = pivots;
+        currentMaze.info.pivots = overworldPivots;
         currentMaze.accuratePath = true;
       } else {
         const pivotsEqual = currentMaze.info.pivots.every(
-          (pivot, index) => pivot === pivots[index],
+          (pivot, index) => pivot === overworldPivots[index],
         );
         if (!pivotsEqual) {
           console.error(
@@ -647,8 +648,12 @@ export default class TheatreChallenge extends Challenge {
           );
         }
       }
-
       return;
+    }
+    if (overworldPivots.length > 0) {
+      console.error(
+        `Raid ${this.getId()}: Received partial overworld pivots: ${overworldPivots}`,
+      );
     }
 
     const underworldPivots = soteMaze.getUnderworldPivotsList();
