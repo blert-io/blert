@@ -3,7 +3,6 @@ import {
   ChallengeStatus,
   ChallengeType,
   MaidenCrab,
-  Npc,
   Nylo,
   PlayerInfo,
   PrimaryMeleeGear,

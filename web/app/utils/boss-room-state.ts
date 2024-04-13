@@ -435,33 +435,4 @@ function postprocessNpcs(npc: EnhancedRoomNpc, eventsByType: EventTypeMap) {
     });
     return;
   }
-
-  if (Npc.isManticore(npc.spawnNpcId)) {
-    for (let i = 0; i < npc.stateByTick.length; i++) {
-      const state = npc.stateByTick[i];
-      if (state === null || state.attack === null) {
-        continue;
-      }
-
-      // Add the manticore's second and third attacks to the timeline.
-      i++;
-      if (i < npc.stateByTick.length && npc.stateByTick[i] !== null) {
-        const type =
-          state.attack.type === NpcAttack.COLOSSEUM_MANTICORE_MAGE
-            ? NpcAttack.COLOSSEUM_MANTICORE_RANGE
-            : NpcAttack.COLOSSEUM_MANTICORE_MAGE;
-        npc.stateByTick[i]!.attack = {
-          type,
-          target: state.attack.target,
-        };
-      }
-      i++;
-      if (i < npc.stateByTick.length && npc.stateByTick[i] !== null) {
-        npc.stateByTick[i]!.attack = {
-          type: NpcAttack.COLOSSEUM_MANTICORE_MELEE,
-          target: state.attack.target,
-        };
-      }
-    }
-  }
 }

@@ -64,6 +64,7 @@ async function main(): Promise<void> {
   });
 
   wss.on('connection', (ws: WebSocket, req: Request, client: Client) => {
+    console.log(`User ${client.getUsername()} connected`);
     connectionManager.addClient(client);
   });
 }

@@ -41,19 +41,14 @@ const HANDICAPS = {
     imageUrl: '/images/colosseum/doom.webp',
     level: 'I',
   },
-  [Handicap.DOOM_SCORPION]: {
-    name: 'The Doom Scorpion',
-    imageUrl: '/images/colosseum/doom-scorpion.webp',
-    level: 'I',
-  },
-  [Handicap.DOOM_SCORPION_2]: {
-    name: 'The Doom Scorpion (II)',
-    imageUrl: '/images/colosseum/doom-scorpion-2.webp',
+  [Handicap.DOOM_2]: {
+    name: 'Doom (II)',
+    imageUrl: '/images/colosseum/doom-2.webp',
     level: 'II',
   },
-  [Handicap.DOOM_SCORPION_3]: {
-    name: 'The Doom Scorpion (III)',
-    imageUrl: '/images/colosseum/doom-scorpion-3.webp',
+  [Handicap.DOOM_3]: {
+    name: 'Doom (III)',
+    imageUrl: '/images/colosseum/doom-3.webp',
     level: 'III',
   },
   [Handicap.DYNAMIC_DUO]: {
@@ -74,6 +69,21 @@ const HANDICAPS = {
   [Handicap.FRAILTY_3]: {
     name: 'Frailty (III)',
     imageUrl: '/images/colosseum/frailty-3.webp',
+    level: 'III',
+  },
+  [Handicap.MANTIMAYHEM]: {
+    name: 'Mantimayhem',
+    imageUrl: '/images/colosseum/mantimayhem.webp',
+    level: 'I',
+  },
+  [Handicap.MANTIMAYHEM_2]: {
+    name: 'Mantimayhem (II)',
+    imageUrl: '/images/colosseum/mantimayhem-2.webp',
+    level: 'II',
+  },
+  [Handicap.MANTIMAYHEM_3]: {
+    name: 'Mantimayhem (III)',
+    imageUrl: '/images/colosseum/mantimayhem-3.png',
     level: 'III',
   },
   [Handicap.MYOPIA]: {

@@ -443,19 +443,19 @@ const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     special: false,
   },
   [PlayerAttack.TONALZTICS_AUTO]: {
-    tagColor: 'green',
+    tagColor: 'yellow',
     letter: 'ga',
     ranged: true,
     special: false,
   },
   [PlayerAttack.TONALZTICS_SPEC]: {
-    tagColor: 'green',
+    tagColor: 'yellow',
     letter: 'G',
     ranged: true,
     special: true,
   },
   [PlayerAttack.TONALZTICS_UNCHARGED]: {
-    tagColor: 'green',
+    tagColor: 'yellow',
     letter: 'g',
     ranged: true,
     special: true,
