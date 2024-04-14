@@ -328,7 +328,7 @@ export default function NylocasPage() {
       case EventType.NPC_SPAWN:
       case EventType.NPC_UPDATE: {
         const e = evt as NpcEvent;
-        if (e.npc.type === RoomNpcType.NYLO) {
+        if (Npc.isNylocas(e.npc.id)) {
           nylosAlive++;
         }
         entities.push(
