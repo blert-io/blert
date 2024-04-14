@@ -36,87 +36,55 @@ export enum Prayer {
   AUGURY = 28,
 }
 
-// Javascript bitwise operators are limited to 32 bits so this has to be
-// implemented manually.
-function shift(value: number, shift: number): number {
-  return Math.floor(value * Math.pow(2, shift));
-}
-
 export class PrayerSet {
-  /** All 32 bits of the low word represent active prayers. */
-  private lowWord: number;
-
-  /**
-   * The high word is limited to 21 bits because JS numbers are all doubles.
-   * Of these, 18 represent active prayers, and the top 3 store the prayer book.
-   */
-  private highWord: number;
-
-  private static readonly PRAYER_BOOK_SHIFT = 18;
-  private static readonly PRAYER_BOOK_MASK = 0b111;
+  private static readonly PRAYER_BOOK_SHIFT = BigInt(50);
+  private static readonly PRAYER_BOOK_MASK = BigInt(0b111);
 
   public static empty(book: PrayerBook): PrayerSet {
-    const high =
-      (book & PrayerSet.PRAYER_BOOK_MASK) << PrayerSet.PRAYER_BOOK_SHIFT;
-    return new PrayerSet(0, high);
-  }
-
-  public static fromRaw(raw: RawPrayerSet): PrayerSet {
-    const lowWord = raw | 0;
-    const highWord = shift(raw, -32);
-    return new PrayerSet(lowWord, highWord);
-  }
-
-  private constructor(low: number, high: number) {
-    this.lowWord = low;
-    this.highWord = high;
-  }
-
-  public getBook(): PrayerBook {
-    return (
-      (this.highWord >> PrayerSet.PRAYER_BOOK_SHIFT) &
-      PrayerSet.PRAYER_BOOK_MASK
+    return new PrayerSet(
+      (BigInt(book) & PrayerSet.PRAYER_BOOK_MASK) <<
+        PrayerSet.PRAYER_BOOK_SHIFT,
     );
   }
 
+  public static fromRaw(raw: RawPrayerSet): PrayerSet {
+    return new PrayerSet(BigInt(raw));
+  }
+
+  private constructor(private value: bigint) {}
+
+  public getBook(): PrayerBook {
+    const book =
+      (this.value >> PrayerSet.PRAYER_BOOK_SHIFT) & PrayerSet.PRAYER_BOOK_MASK;
+    return Number(book) as PrayerBook;
+  }
+
   public has(prayer: Prayer): boolean {
-    if (prayer < 32) {
-      return (this.lowWord & (1 << prayer)) !== 0;
-    }
-    if (prayer < 50) {
-      return (this.highWord & (1 << (prayer - 32))) !== 0;
-    }
-    return false;
+    const prayerBit = BigInt(1) << BigInt(prayer);
+    return (this.value & prayerBit) !== BigInt(0);
   }
 
   public add(prayer: Prayer): boolean {
-    if (prayer < 32) {
-      this.lowWord |= 1 << prayer;
-      return true;
+    if (prayer >= 50) {
+      return false;
     }
-    if (prayer < 50) {
-      this.highWord |= 1 << (prayer - 32);
-      return true;
-    }
-    return false;
+    const prayerBit = BigInt(1) << BigInt(prayer);
+    this.value |= prayerBit;
+    return true;
   }
 
   public prayers(): Prayer[] {
     const prayers: Prayer[] = [];
-    for (let i = 0; i < 32; i++) {
-      if ((this.lowWord & (1 << i)) !== 0) {
+    for (let i = 0; i < 50; i++) {
+      const prayer = BigInt(1) << BigInt(i);
+      if ((this.value & prayer) !== BigInt(0)) {
         prayers.push(i);
-      }
-    }
-    for (let i = 0; i < 18; i++) {
-      if ((this.highWord & (1 << i)) !== 0) {
-        prayers.push(i + 32);
       }
     }
     return prayers;
   }
 
   public getRaw(): RawPrayerSet {
-    return shift(this.highWord, 32) + this.lowWord;
+    return Number(this.value);
   }
 }

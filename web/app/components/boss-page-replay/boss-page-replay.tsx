@@ -70,7 +70,10 @@ export default function BossPageReplay({
             >
               <h2>{username}</h2>
               <KeyPrayers prayerSet={state?.player.prayerSet || 0} />
-              <EquipmentViewer equipment={state?.player.equipment ?? null} />
+              <EquipmentViewer
+                username={username}
+                equipment={state?.equipment ?? null}
+              />
             </div>
           ))}
         </div>

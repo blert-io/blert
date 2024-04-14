@@ -1,13 +1,15 @@
-import { EquipmentMap, EquipmentSlot } from '@blert/common';
+import { EquipmentSlot } from '@blert/common';
 
 import Item from '../item';
 import { LigmaTooltip } from '../ligma-tooltip/ligma-tooltip';
+import { PlayerEquipment } from '../../utils/boss-room-state';
 
 import styles from './style.module.scss';
 import Image from 'next/image';
 
 type EquipmentViewerProps = {
-  equipment: Partial<EquipmentMap> | null;
+  username: string;
+  equipment: PlayerEquipment | null;
 };
 
 const EQUIPMENT_OFFSETS: { [key: string]: React.CSSProperties } = {
@@ -31,6 +33,10 @@ export default function EquipmentViewer(props: EquipmentViewerProps) {
 
   if (props.equipment) {
     items = Object.entries(props.equipment).map(([slot, item], index) => {
+      if (item === null) {
+        return null;
+      }
+
       const style: React.CSSProperties = {
         position: 'absolute',
         width: ITEM_SIZE,
@@ -38,14 +44,14 @@ export default function EquipmentViewer(props: EquipmentViewerProps) {
         ...EQUIPMENT_OFFSETS[slot],
       };
 
-      const tooltipId = `${item.name.replaceAll(/[^a-zA-Z0-9]/g, '')}-tooltip`;
+      const tooltipId = `${props.username}-${slot}-tooltip`;
 
       return (
         <span key={`${slot}-${index}`}>
           <div style={style} data-tooltip-id={tooltipId}>
             <Image
               style={{ position: 'absolute', zIndex: 1 }}
-              src="/equipment-background.png"
+              src="/images/equipment-background.png"
               alt=""
               width={ITEM_SIZE}
               height={ITEM_SIZE}
@@ -54,6 +60,7 @@ export default function EquipmentViewer(props: EquipmentViewerProps) {
               style={{ zIndex: 2 }}
               name={item.name}
               quantity={item.quantity}
+              size={ITEM_SIZE}
             />
           </div>
           <LigmaTooltip key={`tooltip-${slot}`} tooltipId={tooltipId}>
@@ -73,10 +80,11 @@ export default function EquipmentViewer(props: EquipmentViewerProps) {
   return (
     <div className={styles.equipmentViewer}>
       <Image
-        src="/equipment.png"
+        src="/images/equipment.png"
         alt="Equipment screen"
         width={182}
         height={240}
+        priority
       />
       {items}
     </div>

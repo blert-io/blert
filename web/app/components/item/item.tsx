@@ -6,6 +6,7 @@ type ItemProps = {
   name: string;
   quantity: number;
   outlineColor?: string;
+  size: number;
   style?: React.CSSProperties;
 };
 
@@ -76,9 +77,21 @@ export default function Item(props: ItemProps) {
       ` drop-shadow(-1px -1px 0 ${props.outlineColor})`;
   }
 
+  const style = {
+    ...props.style,
+    width: props.size,
+    height: props.size,
+  };
+
   return (
-    <div className={styles.image} style={props.style}>
-      <Image src={imageUrl} alt={props.name} fill style={imageStyle} />
+    <div className={styles.image} style={style}>
+      <Image
+        src={imageUrl}
+        alt={props.name}
+        height={props.size}
+        width={props.size}
+        style={imageStyle}
+      />
       {props.quantity > 1 && (
         <div className={styles.quantity} style={{ color: quantityColor }}>
           {props.quantity}

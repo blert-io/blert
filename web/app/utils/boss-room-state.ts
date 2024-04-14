@@ -2,8 +2,10 @@ import {
   Attack,
   ChallengeType,
   ColosseumChallenge,
+  EquipmentSlot,
   Event,
   EventType,
+  ItemDelta,
   Npc,
   NpcAttack,
   NpcAttackEvent,
@@ -20,6 +22,7 @@ import {
   TobRooms,
   isNpcEvent,
   isPlayerEvent,
+  RawItemDelta,
 } from '@blert/common';
 import {
   Context,
@@ -31,6 +34,7 @@ import {
   useState,
 } from 'react';
 
+import { defaultItemCache } from './item-cache';
 import { TICK_MS } from './tick';
 import { challengeApiUrl } from './url';
 
@@ -118,10 +122,21 @@ type EventState = {
 
 type Nullable<T> = T | null;
 
+type Item = {
+  id: number;
+  name: string;
+  quantity: number;
+};
+
+export type PlayerEquipment = {
+  [slot in EquipmentSlot]: Item | null;
+};
+
 export type PlayerState = Omit<PlayerUpdateEvent, 'type' | 'stage' | 'cId'> & {
   attack?: Attack;
   diedThisTick: boolean;
   isDead: boolean;
+  equipment: PlayerEquipment;
 };
 
 export type NpcState = {
@@ -295,6 +310,20 @@ const eventBelongsToPlayer = (event: Event, playerName: string): boolean => {
   return eventAsPlayerEvent.player.name === playerName;
 };
 
+const EMPTY_EQUIPMENT: PlayerEquipment = {
+  [EquipmentSlot.HEAD]: null,
+  [EquipmentSlot.CAPE]: null,
+  [EquipmentSlot.AMULET]: null,
+  [EquipmentSlot.AMMO]: null,
+  [EquipmentSlot.WEAPON]: null,
+  [EquipmentSlot.TORSO]: null,
+  [EquipmentSlot.SHIELD]: null,
+  [EquipmentSlot.LEGS]: null,
+  [EquipmentSlot.GLOVES]: null,
+  [EquipmentSlot.BOOTS]: null,
+  [EquipmentSlot.RING]: null,
+};
+
 function computePlayerState(
   party: string[],
   totalTicks: number,
@@ -303,12 +332,13 @@ function computePlayerState(
   let playerState: Map<string, Nullable<PlayerState>[]> = new Map();
 
   for (const partyMember of party) {
-    playerState.set(partyMember, new Array(totalTicks).fill(null));
+    const state = Array(totalTicks).fill(null);
 
     let isDead = false;
+    let lastActiveTick = -1;
 
-    for (let i = 0; i < totalTicks; i++) {
-      const eventsForThisTick = eventsByTick[i];
+    for (let tick = 0; tick < totalTicks; tick++) {
+      const eventsForThisTick = eventsByTick[tick];
       if (eventsForThisTick === undefined) {
         continue;
       }
@@ -322,11 +352,16 @@ function computePlayerState(
         playerStateThisTick = {
           xCoord: 0,
           yCoord: 0,
-          tick: i,
+          tick,
           player: { name: partyMember, offCooldownTick: 0, prayerSet: 0 },
           diedThisTick: false,
           isDead,
+          equipment:
+            lastActiveTick !== -1
+              ? { ...state[lastActiveTick].equipment }
+              : { ...EMPTY_EQUIPMENT },
         };
+        lastActiveTick = tick;
 
         eventsForThisPlayer.forEach((event) => {
           if (event.type === EventType.PLAYER_DEATH) {
@@ -338,11 +373,25 @@ function computePlayerState(
             };
           } else if (event.type === EventType.PLAYER_UPDATE) {
             const { type, stage, ...rest } = event as PlayerUpdateEvent;
+
+            if (rest.player.equipmentDeltas) {
+              applyItemDeltas(
+                playerStateThisTick!.equipment,
+                rest.player.equipmentDeltas,
+              );
+            }
+
             playerStateThisTick = { ...playerStateThisTick!, ...rest };
           } else if (event.type === EventType.PLAYER_ATTACK) {
+            const attack = (event as PlayerAttackEvent).attack;
+            if (attack.weapon) {
+              attack.weapon.name = defaultItemCache.getItemName(
+                attack.weapon.id,
+              );
+            }
             playerStateThisTick = {
               ...playerStateThisTick!,
-              attack: (event as PlayerAttackEvent).attack,
+              attack,
             };
           }
         });
@@ -350,18 +399,66 @@ function computePlayerState(
         playerStateThisTick = {
           xCoord: 0,
           yCoord: 0,
-          tick: i,
+          tick,
           player: { name: partyMember, offCooldownTick: 0, prayerSet: 0 },
           diedThisTick: false,
           isDead: true,
+          equipment: { ...EMPTY_EQUIPMENT },
         };
       }
 
-      playerState.get(partyMember)![i] = playerStateThisTick;
+      state[tick] = playerStateThisTick;
     }
+
+    playerState.set(partyMember, state);
   }
 
   return playerState;
+}
+
+/**
+ * Applies the equipment changes specified by `deltas` in-place to the
+ * `equipment` object.
+ * @param equipment The equipment object to apply the deltas to.
+ * @param rawDeltas List of deltas to apply.
+ */
+function applyItemDeltas(
+  equipment: PlayerEquipment,
+  rawDeltas: RawItemDelta[],
+): void {
+  for (const rawDelta of rawDeltas) {
+    const delta = ItemDelta.fromRaw(rawDelta);
+    const previousItem = equipment[delta.getSlot()];
+
+    if (delta.isAdded()) {
+      if (previousItem === null || previousItem.id !== delta.getItemId()) {
+        const itemName = defaultItemCache.getItemName(delta.getItemId());
+        equipment[delta.getSlot()] = {
+          id: delta.getItemId(),
+          name: itemName,
+          quantity: delta.getQuantity(),
+        };
+      } else {
+        equipment[delta.getSlot()] = {
+          id: previousItem.id,
+          name: previousItem.name,
+          quantity: previousItem.quantity + delta.getQuantity(),
+        };
+      }
+    } else {
+      if (
+        previousItem !== null &&
+        previousItem!.quantity - delta.getQuantity() > 0
+      ) {
+        equipment[delta.getSlot()] = {
+          ...previousItem!,
+          quantity: previousItem!.quantity - delta.getQuantity(),
+        };
+      } else {
+        equipment[delta.getSlot()] = null;
+      }
+    }
+  }
 }
 
 function computeNpcState(

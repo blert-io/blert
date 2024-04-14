@@ -2,6 +2,7 @@ import {
   ChallengeMode,
   ChallengeStatus,
   ChallengeType,
+  ItemDelta,
   MaidenCrab,
   Nylo,
   PlayerInfo,
@@ -543,21 +544,23 @@ export abstract class Challenge {
       return;
     }
 
-    const equipment = player.getEquipmentList();
+    const equipment = player.getEquipmentDeltasList().map(ItemDelta.fromRaw);
     if (equipment.length === 0) {
       return;
     }
 
     const torso = equipment.find(
-      (item) => item.getSlot() === Event.Player.EquipmentSlot.TORSO,
+      (delta) =>
+        delta.isAdded() && delta.getSlot() === Event.Player.EquipmentSlot.TORSO,
     );
     const helm = equipment.find(
-      (item) => item.getSlot() === Event.Player.EquipmentSlot.HEAD,
+      (delta) =>
+        delta.isAdded() && delta.getSlot() === Event.Player.EquipmentSlot.HEAD,
     );
     let gear: PrimaryMeleeGear | null = null;
 
     if (torso !== undefined) {
-      switch (torso.getId()) {
+      switch (torso.getItemId()) {
         case BLORVA_PLATEBODY_ID:
           gear = PrimaryMeleeGear.BLORVA;
           break;
@@ -571,8 +574,8 @@ export abstract class Challenge {
     }
     if (
       helm !== undefined &&
-      (helm.getId() === VOID_MELEE_HELM_ID ||
-        helm.getId() === VOID_MELEE_HELM_OR_ID)
+      (helm.getItemId() === VOID_MELEE_HELM_ID ||
+        helm.getItemId() === VOID_MELEE_HELM_OR_ID)
     ) {
       gear = PrimaryMeleeGear.ELITE_VOID;
     }

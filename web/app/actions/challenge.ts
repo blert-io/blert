@@ -21,7 +21,6 @@ import {
 import { FilterQuery } from 'mongoose';
 
 import connectToDatabase from './db';
-import { defaultItemCache } from '../utils/item-cache';
 
 /**
  * Fetches the challenge with the specific ID from the database.
@@ -84,28 +83,6 @@ export async function loadEventsForStage(
   })
     .lean()
     .exec();
-
-  // Item names are not stored in the database: load them from the item cache.
-  // TODO(frolv): This doesn't have to be done here either, as it results in a
-  // ton of duplicate strings in the payload. Instead, the cache could be sent
-  // to the client and used there on demand.
-  for (const event of roomEvents) {
-    if (event.type === EventType.PLAYER_UPDATE) {
-      const e = event as unknown as PlayerUpdateEvent;
-      if (e.player.equipment) {
-        Object.values(e.player.equipment).forEach((item) => {
-          if (item) {
-            item.name = defaultItemCache.getItemName(item.id);
-          }
-        });
-      }
-    } else if (event.type === EventType.PLAYER_ATTACK) {
-      const e = event as unknown as PlayerAttackEvent;
-      if (e.attack.weapon) {
-        e.attack.weapon.name = defaultItemCache.getItemName(e.attack.weapon.id);
-      }
-    }
-  }
 
   return roomEvents ? (roomEvents as unknown as Event[]) : [];
 }

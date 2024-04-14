@@ -1,41 +1,6 @@
-import {
-  EquipmentMap,
-  EquipmentSlot,
-  EventPlayer,
-  MergedEvent,
-  RoomNpcType,
-} from '@blert/common';
+import { EventPlayer, MergedEvent, RoomNpcType } from '@blert/common';
 import { EventNpc } from '@blert/common/event';
 import { Event as EventProto } from '@blert/common/generated/event_pb';
-
-type ProtoEquipmentSlot =
-  EventProto.Player.EquipmentSlotMap[keyof EventProto.Player.EquipmentSlotMap];
-function equipmentSlotKey(slot: ProtoEquipmentSlot): keyof EquipmentMap {
-  switch (slot) {
-    case EventProto.Player.EquipmentSlot.HEAD:
-      return EquipmentSlot.HEAD;
-    case EventProto.Player.EquipmentSlot.CAPE:
-      return EquipmentSlot.CAPE;
-    case EventProto.Player.EquipmentSlot.AMULET:
-      return EquipmentSlot.AMULET;
-    case EventProto.Player.EquipmentSlot.AMMO:
-      return EquipmentSlot.AMMO;
-    case EventProto.Player.EquipmentSlot.WEAPON:
-      return EquipmentSlot.WEAPON;
-    case EventProto.Player.EquipmentSlot.TORSO:
-      return EquipmentSlot.TORSO;
-    case EventProto.Player.EquipmentSlot.SHIELD:
-      return EquipmentSlot.SHIELD;
-    case EventProto.Player.EquipmentSlot.LEGS:
-      return EquipmentSlot.LEGS;
-    case EventProto.Player.EquipmentSlot.GLOVES:
-      return EquipmentSlot.GLOVES;
-    case EventProto.Player.EquipmentSlot.BOOTS:
-      return EquipmentSlot.BOOTS;
-    case EventProto.Player.EquipmentSlot.RING:
-      return EquipmentSlot.RING;
-  }
-}
 
 function playerProtoToPlayer(proto: EventProto.Player): EventPlayer {
   const player: EventPlayer = {
@@ -66,18 +31,10 @@ function playerProtoToPlayer(proto: EventProto.Player): EventPlayer {
     player.magic = proto.getMagic();
   }
 
-  proto.getEquipmentList().forEach((itemProto) => {
-    // @ts-ignore: DB items don't have a name.
-    const item: Item = {
-      id: itemProto.getId(),
-      quantity: itemProto.getQuantity(),
-    };
-    if (player.equipment === undefined) {
-      player.equipment = {};
-    }
-    const key = equipmentSlotKey(itemProto.getSlot());
-    player.equipment[key] = item;
-  });
+  const equipmentDeltas = proto.getEquipmentDeltasList();
+  if (equipmentDeltas.length > 0) {
+    player.equipmentDeltas = equipmentDeltas;
+  }
 
   return player;
 }

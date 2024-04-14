@@ -153,15 +153,18 @@ export default function BloatPage() {
       case EventType.NPC_SPAWN:
       case EventType.NPC_UPDATE: {
         const e = evt as NpcEvent;
-        entities.push(
-          new NpcEntity(
-            e.xCoord,
-            e.yCoord,
-            e.npc.id,
-            e.npc.roomId,
-            SkillLevel.fromRaw(e.npc.hitpoints),
-          ),
+        const npc = new NpcEntity(
+          e.xCoord,
+          e.yCoord,
+          e.npc.id,
+          e.npc.roomId,
+          SkillLevel.fromRaw(e.npc.hitpoints),
         );
+        if (
+          !entities.some((entity) => entity.getUniqueId() === npc.getUniqueId())
+        ) {
+          entities.push(npc);
+        }
         break;
       }
     }

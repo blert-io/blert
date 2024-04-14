@@ -18,7 +18,6 @@ export { PersonalBestModel } from './models/personal-best';
 export type {
   Attack,
   BloatDownEvent,
-  EquipmentMap,
   Event,
   HandicapChoiceEvent,
   MaidenBloodSplatsEvent,
@@ -44,8 +43,8 @@ export type {
   XarpusPhaseEvent,
 } from './event';
 export {
-  EventType,
   EquipmentSlot,
+  EventType,
   VerzikAttackStyle,
   isNpcEvent,
   isPlayerEvent,
@@ -105,6 +104,9 @@ export {
   VerzikPhase,
   XarpusPhase,
 } from './raid-definitions';
+
+export { ItemDelta } from './item-delta';
+export type { RawItemDelta } from './item-delta';
 
 export { Prayer, PrayerBook, PrayerSet } from './prayer-set';
 export type { RawPrayerSet } from './prayer-set';

@@ -1,4 +1,5 @@
 import { Event as EventProto } from './generated/event_pb';
+import { RawItemDelta } from './item-delta';
 import { RawPrayerSet } from './prayer-set';
 import {
   Handicap,
@@ -204,7 +205,7 @@ export interface Player extends BasicPlayer {
   ranged?: RawSkillLevel;
   magic?: RawSkillLevel;
   prayerSet: RawPrayerSet;
-  equipment?: EquipmentMap;
+  equipmentDeltas?: RawItemDelta[];
 }
 
 export type Item = {
@@ -214,22 +215,18 @@ export type Item = {
 };
 
 export enum EquipmentSlot {
-  HEAD = 'HEAD',
-  CAPE = 'CAPE',
-  AMULET = 'AMULET',
-  AMMO = 'AMMO',
-  WEAPON = 'WEAPON',
-  TORSO = 'TORSO',
-  SHIELD = 'SHIELD',
-  LEGS = 'LEGS',
-  GLOVES = 'GLOVES',
-  BOOTS = 'BOOTS',
-  RING = 'RING',
+  HEAD = EventProto.Player.EquipmentSlot.HEAD,
+  CAPE = EventProto.Player.EquipmentSlot.CAPE,
+  AMULET = EventProto.Player.EquipmentSlot.AMULET,
+  AMMO = EventProto.Player.EquipmentSlot.AMMO,
+  WEAPON = EventProto.Player.EquipmentSlot.WEAPON,
+  TORSO = EventProto.Player.EquipmentSlot.TORSO,
+  SHIELD = EventProto.Player.EquipmentSlot.SHIELD,
+  LEGS = EventProto.Player.EquipmentSlot.LEGS,
+  GLOVES = EventProto.Player.EquipmentSlot.GLOVES,
+  BOOTS = EventProto.Player.EquipmentSlot.BOOTS,
+  RING = EventProto.Player.EquipmentSlot.RING,
 }
-
-export type EquipmentMap = {
-  [key in EquipmentSlot]?: Item;
-};
 
 export interface BasicEventNpc {
   id: number;

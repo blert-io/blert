@@ -34,7 +34,7 @@ import styles from './styles.module.scss';
 const DEFAULT_CELL_SIZE = 50;
 const COLUMN_MARGIN = 5;
 
-const npcAttackImage = (attack: NpcAttack) => {
+function npcAttackImage(attack: NpcAttack, size: number) {
   let imageUrl = '';
 
   switch (attack) {
@@ -158,17 +158,16 @@ const npcAttackImage = (attack: NpcAttack) => {
 
   return (
     <div className={styles.attackTimeline__CellImage}>
-      <div className={styles.npcAttackCellImage}>
-        <Image
-          src={imageUrl}
-          alt={`NPC attack: ${attack}`}
-          fill
-          style={{ objectFit: 'contain' }}
-        />
-      </div>
+      <Image
+        src={imageUrl}
+        alt={`NPC attack: ${attack}`}
+        height={size}
+        width={size}
+        style={{ objectFit: 'contain' }}
+      />
     </div>
   );
-};
+}
 
 type AttackMetadata = {
   tagColor: string | undefined;
@@ -522,7 +521,7 @@ const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
   },
 };
 
-const makeCellImage = (playerAttack: Attack, memes: BlertMemes) => {
+function makeCellImage(playerAttack: Attack, size: number, memes: BlertMemes) {
   let blunderIcon;
 
   switch (true) {
@@ -624,6 +623,7 @@ const makeCellImage = (playerAttack: Attack, memes: BlertMemes) => {
           name={playerAttack.weapon.name}
           quantity={1}
           outlineColor={outline}
+          size={size}
           style={troll ? trollStyles : undefined}
         />
       );
@@ -642,14 +642,13 @@ const makeCellImage = (playerAttack: Attack, memes: BlertMemes) => {
       }
 
       weaponImage = (
-        <div className={styles.npcAttackCellImage}>
-          <Image
-            src={customImageUrl}
-            alt="Unknown attack"
-            fill
-            style={{ objectFit: 'contain' }}
-          />
-        </div>
+        <Image
+          src={customImageUrl}
+          alt="Unknown attack"
+          height={size}
+          width={size}
+          style={{ objectFit: 'contain' }}
+        />
       );
     }
 
@@ -665,7 +664,7 @@ const makeCellImage = (playerAttack: Attack, memes: BlertMemes) => {
   }
 
   return <div className={styles.attackTimeline__CellImage}>{content}</div>;
-};
+}
 
 const npcAttackName = (attack: NpcAttack): string => {
   // A human-readable name for the attack, to be used to complete the sentence
@@ -888,6 +887,8 @@ const buildTickCell = (
   const { setSelectedPlayer } = actorContext;
   let { playerState, npcState, highlighted, backgroundColor } = cellInfo;
 
+  const imageSize = cellSize - 2;
+
   const style: React.CSSProperties = {
     backgroundColor,
     width: cellSize,
@@ -914,7 +915,7 @@ const buildTickCell = (
     let className = styles.cell;
 
     if (npcState.attack !== null) {
-      cellImage = npcAttackImage(npcState.attack);
+      cellImage = npcAttackImage(npcState.attack, imageSize);
       const npcName = getNpcDefinition(npcState.npcId)?.fullName ?? 'Unknown';
 
       tooltipId = `npc-${npcState.roomId}-${npcState.tick}`;
@@ -967,7 +968,7 @@ const buildTickCell = (
 
     if (playerState.attack !== undefined) {
       const attack = playerState.attack;
-      cellImage = makeCellImage(attack, memes);
+      cellImage = makeCellImage(attack, imageSize, memes);
 
       let targetName = 'Unknown';
       let targetHp: number | undefined = undefined;
@@ -1018,14 +1019,13 @@ const buildTickCell = (
 
       cellImage = (
         <div className={styles.attackTimeline__CellImage}>
-          <div className={styles.npcAttackCellImage}>
-            <Image
-              src="/skull.webp"
-              alt="Player died"
-              fill
-              style={{ objectFit: 'contain' }}
-            />
-          </div>
+          <Image
+            src="/skull.webp"
+            alt="Player died"
+            height={imageSize}
+            width={imageSize}
+            style={{ objectFit: 'contain' }}
+          />
         </div>
       );
     } else {
