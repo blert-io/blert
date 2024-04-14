@@ -282,12 +282,6 @@ export interface MaidenCrab extends RoomNpc {
   maidenCrab: MaidenCrabProperties;
 }
 
-export type MaidenCrabProperties = {
-  spawn: MaidenCrabSpawn;
-  position: MaidenCrabPosition;
-  scuffed: boolean;
-};
-
 export interface Nylo extends RoomNpc {
   type: RoomNpcType.NYLO;
   nylo: NyloProperties;
@@ -297,6 +291,12 @@ export interface VerzikCrab extends RoomNpc {
   type: RoomNpcType.VERZIK_CRAB;
   verzikCrab: VerzikCrabProperties;
 }
+
+export type MaidenCrabProperties = {
+  spawn: MaidenCrabSpawn;
+  position: MaidenCrabPosition;
+  scuffed: boolean;
+};
 
 export type NyloProperties = {
   /**
@@ -322,16 +322,6 @@ export type VerzikCrabProperties = {
   phase: VerzikPhase;
   spawn: VerzikCrabSpawn;
 };
-
-export enum Skill {
-  HITPOINTS,
-  PRAYER,
-  ATTACK,
-  STRENGTH,
-  DEFENCE,
-  RANGED,
-  MAGIC,
-}
 
 export type RawSkillLevel = number;
 

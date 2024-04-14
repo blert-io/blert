@@ -10,6 +10,7 @@ import {
   Npc,
   NpcEvent,
   PlayerUpdateEvent,
+  RoomNpcType,
   SkillLevel,
   Stage,
 } from '@blert/common';
@@ -28,6 +29,7 @@ import {
   PlayerEntity,
 } from '../../../../../components/map';
 import {
+  EnhancedMaidenCrab,
   EnhancedRoomNpc,
   usePlayingState,
   useRoomEvents,
@@ -228,18 +230,23 @@ export default function Maiden() {
     const addSplits = (tick: number, name: string) => {
       if (tick !== 0) {
         splits.push({ tick, splitName: name });
-        const tickEvents = eventsByTick[tick];
-        if (tickEvents) {
-          spawns.push(
-            tickEvents
-              .filter(
-                (e) =>
-                  e.type === EventType.NPC_SPAWN &&
-                  (e as NpcEvent).npc.maidenCrab !== undefined,
-              )
-              .map((e) => (e as NpcEvent).npc.maidenCrab!),
-          );
+        const tickEvents = eventsByTick[tick] ?? [];
+        const crabs: MaidenCrabProperties[] = [];
+        for (const evt of tickEvents) {
+          if (evt.type !== EventType.NPC_SPAWN) {
+            continue;
+          }
+
+          const npc = npcState.get((evt as NpcEvent).npc.roomId);
+          if (!npc) {
+            continue;
+          }
+
+          if (npc.type === RoomNpcType.MAIDEN_CRAB) {
+            crabs.push((npc as EnhancedMaidenCrab).maidenCrab);
+          }
         }
+        spawns.push(crabs);
       }
     };
 

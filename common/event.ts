@@ -3,16 +3,12 @@ import { RawItemDelta } from './item-delta';
 import { RawPrayerSet } from './prayer-set';
 import {
   Handicap,
-  MaidenCrabProperties,
   Maze,
   NpcAttack,
-  NyloProperties,
   PlayerAttack,
   RawSkillLevel,
-  RoomNpcType,
   Stage,
   StageStatus,
-  VerzikCrabProperties,
   VerzikPhase,
   XarpusPhase,
 } from './raid-definitions';
@@ -234,11 +230,7 @@ export interface BasicEventNpc {
 }
 
 export interface EventNpc extends BasicEventNpc {
-  type: RoomNpcType;
   hitpoints: RawSkillLevel;
-  maidenCrab?: MaidenCrabProperties;
-  nylo?: NyloProperties;
-  verzikCrab?: VerzikCrabProperties;
 }
 
 export type Attack = {

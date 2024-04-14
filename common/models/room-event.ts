@@ -1,11 +1,6 @@
 import { Model, Schema, model, models } from 'mongoose';
 
-import {
-  Coords,
-  MaidenCrabProperties,
-  NyloProperties,
-  VerzikCrabProperties,
-} from './raid';
+import { Coords } from './raid';
 import { MergedEvent } from '../event';
 
 const Item = {
@@ -51,22 +46,9 @@ const roomEventSchema = new Schema<MergedEvent>({
     offCooldownTick: Number,
   },
   npc: {
-    type: { type: Number },
     id: Number,
     roomId: Number,
     hitpoints: Number,
-    maidenCrab: {
-      type: MaidenCrabProperties,
-      default: undefined,
-    },
-    nylo: {
-      type: NyloProperties,
-      default: undefined,
-    },
-    verzikCrab: {
-      type: VerzikCrabProperties,
-      default: undefined,
-    },
   },
   attack: attackSchema,
   npcAttack: {

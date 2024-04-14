@@ -23,6 +23,9 @@ import {
   isNpcEvent,
   isPlayerEvent,
   RawItemDelta,
+  MaidenCrabProperties,
+  NyloProperties,
+  VerzikCrabProperties,
 } from '@blert/common';
 import {
   Context,
@@ -106,6 +109,18 @@ export const usePlayingState = (totalTicks: number) => {
 export type EnhancedRoomNpc = RoomNpc & {
   stateByTick: Nullable<NpcState>[];
   hasAttacks: boolean;
+};
+
+export type EnhancedMaidenCrab = EnhancedRoomNpc & {
+  maidenCrab: MaidenCrabProperties;
+};
+
+export type EnhancedNylo = EnhancedRoomNpc & {
+  nylo: NyloProperties;
+};
+
+export type EnhancedVerzikCrab = EnhancedRoomNpc & {
+  verzikCrab: VerzikCrabProperties;
 };
 
 export type EventTickMap = { [key: number]: Event[] };

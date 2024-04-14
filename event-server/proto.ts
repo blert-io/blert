@@ -39,35 +39,6 @@ function playerProtoToPlayer(proto: EventProto.Player): EventPlayer {
   return player;
 }
 
-function npcProtoToNpc(proto: EventProto.Npc): EventNpc {
-  let base, current;
-  let type = RoomNpcType.BASIC;
-  if (proto.hasMaidenCrab()) {
-    type = RoomNpcType.MAIDEN_CRAB;
-  } else if (proto.hasNylo()) {
-    type = RoomNpcType.NYLO;
-  } else if (proto.hasVerzikCrab()) {
-    type = RoomNpcType.VERZIK_CRAB;
-  }
-
-  const npc: EventNpc = {
-    id: proto.getId(),
-    roomId: proto.getRoomId(),
-    type,
-    hitpoints: proto.getHitpoints(),
-  };
-
-  if (proto.hasMaidenCrab()) {
-    npc.maidenCrab = proto.getMaidenCrab()!.toObject();
-  } else if (proto.hasNylo()) {
-    npc.nylo = proto.getNylo()!.toObject();
-  } else if (proto.hasVerzikCrab()) {
-    npc.verzikCrab = proto.getVerzikCrab()!.toObject();
-  }
-
-  return npc;
-}
-
 /**
  * Converts a protobuf event to database format. Only processes fields which
  * are present in the database format, ignoring others.
@@ -115,7 +86,12 @@ export function protoToEvent(proto: EventProto): Partial<MergedEvent> {
   }
 
   if (proto.hasNpc()) {
-    event.npc = npcProtoToNpc(proto.getNpc()!);
+    const protoNpc = proto.getNpc()!;
+    event.npc = {
+      id: protoNpc.getId(),
+      roomId: protoNpc.getRoomId(),
+      hitpoints: protoNpc.getHitpoints(),
+    };
   }
 
   if (proto.hasNpcAttack()) {
