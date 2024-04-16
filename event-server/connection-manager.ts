@@ -56,6 +56,16 @@ export default class ConnectionManager {
     delete this.activeClients[client.getSessionId()];
   }
 
+  public closeAllClients() {
+    for (const client of this.clients()) {
+      client.close(1001);
+    }
+  }
+
+  public clients(): readonly Client[] {
+    return Object.values(this.activeClients);
+  }
+
   private newSessionId(): number {
     // 2**53 session IDs ought to be sufficient.
     return this.nextSessionId++;

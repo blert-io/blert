@@ -10,6 +10,7 @@ import { ServerMessage } from '@blert/common/generated/server_message_pb';
 import Client from './client';
 import ChallengeManager from './challenge-manager';
 import { Users } from './users';
+import { ServerStatus, ServerStatusUpdate } from './server-manager';
 
 type EventSink = (event: Event) => Promise<void>;
 
@@ -36,10 +37,25 @@ export default class MessageHandler {
   private challengeManager: ChallengeManager;
   private eventAggregators: { [raidId: string]: EventAggregator };
 
-  public constructor(raidManager: ChallengeManager) {
-    this.challengeManager = raidManager;
+  private allowStartingChallenges: boolean;
+
+  public constructor(challengeManager: ChallengeManager) {
+    this.challengeManager = challengeManager;
     this.eventAggregators = {};
+    this.allowStartingChallenges = true;
   }
+
+  public handleServerStatusUpdate = ({ status }: ServerStatusUpdate): void => {
+    if (status === ServerStatus.SHUTDOWN_PENDING) {
+      this.allowStartingChallenges = false;
+      console.log(
+        'MessageHandler denying new challenges due to pending shutdown',
+      );
+    } else if (status === ServerStatus.SHUTDOWN_CANCELED) {
+      this.allowStartingChallenges = true;
+      console.log('MessageHandler allowing new challenges');
+    }
+  };
 
   /**
    * Processes an incoming message from a client.
@@ -139,8 +155,7 @@ export default class MessageHandler {
 
         if (event.getChallengeId() !== client.getActiveChallenge()?.getId()) {
           console.error(
-            `Client ${client.getSessionId()} sent event for challenge ` +
-              `${event.getChallengeId()}, but is not in it.`,
+            `${client} sent event for challenge ${event.getChallengeId()}, but is not in it.`,
           );
           return;
         }
@@ -166,6 +181,14 @@ export default class MessageHandler {
     event: Event,
   ): Promise<void> {
     const response = new ServerMessage();
+
+    if (!this.allowStartingChallenges) {
+      // TODO(frolv): Use a proper error type instead of an empty ID.
+      response.setType(ServerMessage.Type.ACTIVE_CHALLENGE_INFO);
+      client.sendMessage(response);
+      return;
+    }
+
     const challengeInfo = event.getChallengeInfo()!;
 
     const challenge = challengeInfo.getChallenge();

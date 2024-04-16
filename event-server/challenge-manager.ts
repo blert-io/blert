@@ -46,17 +46,13 @@ export default class ChallengeManager {
       this.challengesById[challengeId] = challenge;
       this.challengesByPartyKey[partyKey] = challenge;
 
-      console.log(
-        `Client ${client.getSessionId()} starting new raid ${challengeId}`,
-      );
+      console.log(`${client} starting new raid ${challengeId}`);
       await challenge.initialize();
     } else {
       if (mode !== ChallengeMode.NO_MODE) {
         challenge.setMode(mode);
       }
-      console.log(
-        `Client ${client.getSessionId()} joining existing raid ${challenge.getId()}`,
-      );
+      console.log(`${client} joining existing raid ${challenge.getId()}`);
     }
 
     await challenge.registerClient(client, spectator);

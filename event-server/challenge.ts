@@ -230,8 +230,7 @@ export abstract class Challenge {
   ): Promise<boolean> {
     if (client.getActiveChallenge() !== null) {
       console.error(
-        `Client ${client.getSessionId()} attempted to join ` +
-          `${this.id}, but is already in a challenge`,
+        `${client} attempted to join ${this.id}, but is already in a challenge`,
       );
       return false;
     }
@@ -263,8 +262,7 @@ export abstract class Challenge {
       client.setActiveChallenge(null);
     } else {
       console.error(
-        `Client ${client.getSessionId()} tried to leave challenge ` +
-          `${this.getId()}, but was not in it`,
+        `${client} tried to leave challenge ${this.getId()}, but was not in it`,
       );
     }
   }

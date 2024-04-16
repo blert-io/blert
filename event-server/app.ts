@@ -5,8 +5,9 @@ import { WebSocket, WebSocketServer } from 'ws';
 
 import Client from './client';
 import ConnectionManager from './connection-manager';
-import EventHandler from './message-handler';
+import MessageHandler from './message-handler';
 import ChallengeManager from './challenge-manager';
+import ServerManager, { ServerStatus } from './server-manager';
 
 async function connectToDatabase() {
   if (!process.env.DB_CONNECTION_STRING) {
@@ -19,6 +20,50 @@ async function connectToDatabase() {
   console.log(`Connecting to database at ${process.env.DB_HOST}`);
 }
 
+type ShutdownRequest = {
+  shutdownTime?: number;
+  cancel?: boolean;
+  force?: boolean;
+};
+
+async function setupHttpRoutes(
+  app: express.Express,
+  serverManager: ServerManager,
+) {
+  app.get('/ping', (_req, res) => {
+    res.send('pong');
+  });
+
+  app.use('/admin/*', (req, res, next) => {
+    if (req.headers.authorization !== process.env.ADMIN_TOKEN) {
+      res.status(401).send('Unauthorized');
+      return;
+    }
+
+    next();
+  });
+
+  app.get('/admin/status', (_req, res) => {
+    res.json(serverManager.getStatus());
+  });
+
+  app.post('/admin/shutdown', async (req, res) => {
+    const {
+      shutdownTime,
+      cancel = false,
+      force = false,
+    } = req.body as ShutdownRequest;
+    if (cancel) {
+      if (serverManager.hasPendingShutdown()) {
+        serverManager.cancelShutdown();
+      }
+    } else {
+      serverManager.scheduleShutdown(shutdownTime, force);
+    }
+    res.json(serverManager.getStatus());
+  });
+}
+
 async function main(): Promise<void> {
   await connectToDatabase();
 
@@ -26,6 +71,7 @@ async function main(): Promise<void> {
 
   const app = express();
   app.use(cors({ origin: '*', allowedHeaders: ['Authorization'] }));
+  app.use(express.json());
   const server = app.listen(port, () => {
     console.log(`blert server started on port ${port}`);
   });
@@ -45,7 +91,7 @@ async function main(): Promise<void> {
       const user = await connectionManager.authenticate(token);
 
       wss.handleUpgrade(request, socket, head, (ws) => {
-        const client = new Client(ws, eventHandler, user);
+        const client = new Client(ws, messageHandler, user);
         wss.emit('connection', ws, request, client);
       });
     } catch (e: any) {
@@ -56,18 +102,25 @@ async function main(): Promise<void> {
   });
 
   const connectionManager = new ConnectionManager();
-  const raidManager = new ChallengeManager();
-  const eventHandler = new EventHandler(raidManager);
+  const serverManager = new ServerManager(connectionManager);
+  const challengeManager = new ChallengeManager();
+  const messageHandler = new MessageHandler(challengeManager);
 
-  app.get('/ping', (_req, res) => {
-    res.send('pong');
+  serverManager.onStatusUpdate(messageHandler.handleServerStatusUpdate);
+
+  serverManager.onStatusUpdate((status) => {
+    if (status.status === ServerStatus.OFFLINE) {
+      server.close();
+      console.log('HTTP server closed.');
+    }
   });
+
+  setupHttpRoutes(app, serverManager);
 
   wss.on('connection', (ws: WebSocket, req: Request, client: Client) => {
     connectionManager.addClient(client);
-    console.log(
-      `Client ${client.getSessionId()}: user ${client.getUsername()} connected`,
-    );
+    serverManager.handleNewClient(client);
+    console.log(`${client} connected`);
   });
 }
 

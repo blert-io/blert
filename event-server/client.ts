@@ -67,9 +67,9 @@ export default class Client {
           this.totalMessages;
 
         const now = Date.now();
-        if (now - this.lastMessageLog > 45 * 1000) {
+        if (now - this.lastMessageLog > 60 * 1000) {
           console.log(
-            `Client ${this.sessionId}: messages=${this.totalMessages} max(size)=${this.maxMessageSize} mean(size)=${this.meanMessageSize | 0}`,
+            `${this}: messages=${this.totalMessages} max(size)=${this.maxMessageSize} mean(size)=${this.meanMessageSize | 0}`,
           );
           this.lastMessageLog = now;
         }
@@ -127,12 +127,16 @@ export default class Client {
     this.socket.send(message.serializeBinary());
   }
 
-  public close(): void {
-    this.socket.close();
+  public close(code?: number): void {
+    this.socket.close(code ?? 1000);
   }
 
   public onClose(callback: () => void): void {
     this.closeCallbacks.push(callback);
+  }
+
+  public toString(): string {
+    return `Client#${this.sessionId}[${this.user.username}]`;
   }
 
   private async processMessages(): Promise<void> {
