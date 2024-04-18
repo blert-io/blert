@@ -306,7 +306,14 @@ export function LeftNav() {
                 <Link className={styles.link} href="/settings">
                   Settings
                 </Link>
-                <button className={styles.link} onClick={() => signOut()}>
+                <button
+                  className={styles.link}
+                  onClick={() =>
+                    signOut({
+                      redirect: false,
+                    })
+                  }
+                >
                   Log Out
                 </button>
               </div>
