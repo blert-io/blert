@@ -16,16 +16,51 @@
   overflow-y: scroll;
   transition: all 300ms ease;
 
-  .login {
-    margin-top: auto;
-    display: flex;
-    justify-content: space-evenly;
-    padding: 10px 0;
+  .homeImage {
+    position: relative;
+    height: 150px;
+    width: 200px;
 
-    .link {
-      font-weight: 700;
-      &:hover {
-        color: #fff;
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      height: 100px;
+    }
+  }
+
+  .account {
+    margin-top: auto;
+
+    .userWrapper {
+      width: 90%;
+      margin: 0 auto;
+      border: 2px solid var(--content-area-bg);
+      border-radius: 5px;
+
+      .userInfo {
+        text-align: center;
+        margin: 10px 0;
+
+        & > span {
+          color: #fff;
+          font-weight: bold;
+        }
+      }
+    }
+
+    .links {
+      display: flex;
+      justify-content: space-evenly;
+      align-items: center;
+      padding: 10px 0;
+
+      .link {
+        font-weight: 700;
+        font-size: 16px;
+        padding: 0;
+        margin: 0;
+        &:hover {
+          cursor: pointer;
+          color: #fff;
+        }
       }
     }
   }
@@ -33,20 +68,10 @@
 
 .leftNav__playerSearch {
   margin-top: 10px;
+  padding: 0 15px;
   display: flex;
   align-items: center;
   justify-content: center;
-
-  input {
-    border: 1px solid var(--blert-text-color);
-    background: none;
-    font-size: 20px;
-    color: white;
-    width: 200px;
-    border-radius: 5px;
-    padding: 5px 0 5px 16px;
-    outline: none;
-  }
 }
 
 .leftNav__logo {
@@ -72,6 +97,10 @@
   flex-direction: row;
   margin: 0;
   padding: 0;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    height: 50px;
+  }
 }
 
 .leftNav__subMenu {
@@ -194,6 +223,10 @@
   margin: 20px 0;
   width: 100%;
   padding: 0;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    margin-top: 10px;
+  }
 }
 
 .leftNav__externalLink {
@@ -210,5 +243,11 @@
 
   &:hover {
     background-color: var(--content-area-bg);
+  }
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    font-size: 20px;
+    height: 40px;
+    width: 40px;
   }
 }

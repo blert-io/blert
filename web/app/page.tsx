@@ -115,7 +115,7 @@ export default function Home() {
               coming weeks. We are currently in the process of finalizing v1 of
               the plugin :)
             </p>
-            <p style={{ fontSize: '20px' }}>
+            <div style={{ fontSize: '20px' }}>
               <strong style={{ fontSize: '22px' }}>Do you need help?</strong>
               <br />
               <br />
@@ -139,7 +139,7 @@ export default function Home() {
                 Discord Server
               </a>
               !
-            </p>
+            </div>
           </div>
         </CollapsiblePanel>
       </div>

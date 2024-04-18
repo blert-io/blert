@@ -3,6 +3,7 @@ import styles from './style.module.scss';
 type InputProps = {
   disabled?: boolean;
   errorMessage?: string;
+  faIcon?: string;
   fluid?: boolean;
   id: string;
   invalid?: boolean;
@@ -10,6 +11,7 @@ type InputProps = {
   maxLength?: number;
   minLength?: number;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   required?: boolean;
   type?: 'email' | 'password' | 'text';
   value?: string;
@@ -30,6 +32,7 @@ export function Input(props: InputProps) {
         maxLength={props.maxLength}
         minLength={props.minLength}
         name={props.id}
+        onKeyDown={props.onKeyDown}
         onChange={props.onChange}
         placeholder=" "
         style={style}
@@ -40,6 +43,7 @@ export function Input(props: InputProps) {
       <label htmlFor={props.id}>
         {props.invalid && props.errorMessage ? props.errorMessage : props.label}
       </label>
+      {props.faIcon && <i className={`${styles.icon} ${props.faIcon}`} />}
     </div>
   );
 }

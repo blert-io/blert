@@ -2,8 +2,10 @@
 
 import { UserModel } from '@blert/common';
 import bcrypt from 'bcrypt';
+import { isRedirectError } from 'next/dist/client/components/redirect';
 import { z } from 'zod';
 
+import { signIn } from '@/auth';
 import connectToDatabase from './db';
 
 const SALT_ROUNDS = 10;
@@ -36,18 +38,38 @@ export async function userExists(username: string): Promise<boolean> {
     .then((user) => user !== null);
 }
 
-export async function login(
-  _state: string | null,
-  formData: FormData,
-): Promise<string | null> {
-  const username = formData.get('blert-username') as string;
-  const password = formData.get('blert-password') as string;
-
+export async function verifyUser(
+  username: string,
+  password: string,
+): Promise<string> {
   await connectToDatabase();
 
   const user = await UserModel.findOne({ username });
   if (user !== null) {
     const validPassword = await bcrypt.compare(password, user.password);
+    if (validPassword) {
+      return user._id.toString();
+    }
+  }
+
+  throw new Error('Invalid username or password');
+}
+
+export async function login(
+  _state: string | null,
+  formData: FormData,
+): Promise<string | null> {
+  try {
+    await signIn('credentials', {
+      username: formData.get('blert-username'),
+      password: formData.get('blert-password'),
+      redirectTo: '/',
+    });
+  } catch (e) {
+    if (isRedirectError(e)) {
+      throw e;
+    }
+    return 'Invalid username or password';
   }
 
   return 'Invalid username or password';
@@ -101,5 +123,6 @@ export async function register(
     }
   }
 
+  await signIn('credentials', { username, password, redirectTo: '/' });
   return null;
 }

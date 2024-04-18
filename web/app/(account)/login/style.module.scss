@@ -3,8 +3,9 @@
 .loginPanel {
   @include panel;
   flex-direction: column;
-  padding: 10px 20px;
-  min-width: 500px;
+  padding: 20px 25px;
+  width: 100%;
+  max-width: 550px;
 
   h1 {
     font-size: 24px;

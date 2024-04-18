@@ -3,143 +3,19 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import React, { useContext, useEffect, useState } from 'react';
+import { useSession, signOut } from 'next-auth/react';
 
-import { DisplayContext, NavbarContext } from '../../display';
-import { clamp } from '../../utils/math';
+import Input from '@/components/input';
+import { LEFT_NAV_WIDTH } from './definitions';
+import { LeftNavWrapper } from './left-nav-wrapper';
 
 import styles from './styles.module.scss';
-
-// If this is changed, also change the value in `mixins.scss`.
-export const LEFT_NAV_WIDTH = 240;
-
-const enum ScrollDirection {
-  VERTICAL,
-  HORIZONTAL,
-}
-
-type TouchInfo = {
-  touch: Touch;
-  direction: ScrollDirection | null;
-};
-
-function LeftNavWrapper({ children }: { children: React.ReactNode }) {
-  const display = useContext(DisplayContext);
-  const { sidebarOpen, setSidebarOpen } = useContext(NavbarContext);
-  const pathname = usePathname();
-
-  const [dragX, setDragX] = useState(0);
-
-  const activeTouch = React.useRef<TouchInfo | null>(null);
-
-  useEffect(() => {
-    setSidebarOpen(display.isFull());
-  }, [display, pathname]);
-
-  useEffect(() => {
-    const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length !== 1) {
-        return;
-      }
-      activeTouch.current = { touch: e.touches[0], direction: null };
-    };
-
-    const onTouchMove = (e: TouchEvent) => {
-      if (e.touches.length !== 1 || activeTouch.current === null) {
-        return;
-      }
-      const touch = e.touches[0];
-      const dx = touch.clientX - activeTouch.current.touch.clientX;
-
-      if (activeTouch.current.direction === null) {
-        // Use the initial motion of the touch to lock it to a specific scroll
-        // direction, preventing the user from both opening the nav and
-        // scrolling the page.
-        const dy = touch.clientY - activeTouch.current.touch.clientY;
-        if (Math.abs(dy) > 5) {
-          activeTouch.current.direction = ScrollDirection.VERTICAL;
-        } else if (Math.abs(dx) > 5) {
-          activeTouch.current.direction = ScrollDirection.HORIZONTAL;
-          document.body.style.overflow = 'hidden';
-        }
-
-        if (activeTouch.current.direction === null) {
-          return;
-        }
-      }
-
-      switch (activeTouch.current.direction) {
-        case ScrollDirection.HORIZONTAL:
-          e.preventDefault();
-          break;
-        case ScrollDirection.VERTICAL:
-          return;
-      }
-
-      if (sidebarOpen) {
-        setDragX(clamp(dx, -LEFT_NAV_WIDTH, 0));
-      } else {
-        setDragX(clamp(dx, 0, LEFT_NAV_WIDTH));
-      }
-    };
-
-    const onTouchEnd = (e: TouchEvent) => {
-      if (e.changedTouches.length !== 1 || activeTouch.current === null) {
-        return;
-      }
-      const dx =
-        e.changedTouches[0].clientX - activeTouch.current.touch.clientX;
-
-      const isOpen = dx > LEFT_NAV_WIDTH / 2 - 40;
-      if (isOpen) {
-        document.body.style.overflow = 'hidden';
-      } else {
-        document.body.style.overflowX = 'hidden';
-        document.body.style.overflowY = 'auto';
-      }
-
-      if (activeTouch.current.direction === ScrollDirection.HORIZONTAL) {
-        setSidebarOpen(isOpen);
-      }
-      setDragX(0);
-      activeTouch.current = null;
-    };
-    const onTouchCancel = (e: TouchEvent) => onTouchEnd(e);
-
-    window.addEventListener('touchstart', onTouchStart);
-    window.addEventListener('touchmove', onTouchMove);
-    window.addEventListener('touchend', onTouchEnd);
-    window.addEventListener('touchcancel', onTouchCancel);
-
-    return () => {
-      window.removeEventListener('touchstart', onTouchStart);
-      window.removeEventListener('touchmove', onTouchMove);
-      window.removeEventListener('touchend', onTouchEnd);
-      window.removeEventListener('touchcancel', onTouchCancel);
-    };
-  }, [display, sidebarOpen]);
-
-  let left = sidebarOpen ? 0 : -LEFT_NAV_WIDTH;
-  left += dragX;
-
-  const shouldAnimate = display.isCompact() && activeTouch.current === null;
-
-  const style: React.CSSProperties = {
-    width: LEFT_NAV_WIDTH,
-    left,
-    transition: shouldAnimate ? 'left 0.2s' : 'none',
-  };
-
-  return (
-    <div className={styles.leftNavWrapper} style={style}>
-      {children}
-    </div>
-  );
-}
 
 export function LeftNav() {
   const currentPath = usePathname();
   const router = useRouter();
+
+  const session = useSession();
 
   // viewingTob is determined by if the current path matches the following: /raids/tob/{a guid}
   const viewingTob = currentPath!.match(/\/raids\/tob\/[a-zA-Z0-9-]+/);
@@ -151,14 +27,12 @@ export function LeftNav() {
     <LeftNavWrapper>
       <div className={styles.leftNav} style={{ width: LEFT_NAV_WIDTH }}>
         <div className={styles.leftNav__logo}>
-          <Link
-            href="/"
-            style={{ width: '200px', position: 'relative', height: '150px' }}
-          >
+          <Link className={styles.homeImage} href="/">
             <Image
               src="/images/blert-topbar.png"
               alt="blert logo"
               fill
+              sizes="200px"
               style={{ objectFit: 'contain' }}
             />
           </Link>
@@ -189,14 +63,19 @@ export function LeftNav() {
           </li>
 
           <li className={styles.leftNav__playerSearch}>
-            <input
-              type="text"
-              placeholder="Search for a player"
+            <Input
+              faIcon="fa-solid fa-magnifying-glass"
+              fluid
+              id="blert-player-search"
+              label="Search for a player"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   router.push(`/players/${e.currentTarget.value}`);
+                  e.currentTarget.value = '';
+                  e.currentTarget.blur();
                 }
               }}
+              type="text"
             />
           </li>
 
@@ -417,13 +296,31 @@ export function LeftNav() {
         </li> */}
         </ul>
 
-        <div className={styles.login}>
-          <Link className={styles.link} href="/login">
-            Log In
-          </Link>
-          <Link className={styles.link} href="/register">
-            Sign Up
-          </Link>
+        <div className={styles.account}>
+          {session.status === 'authenticated' ? (
+            <div className={styles.userWrapper}>
+              <div className={styles.userInfo}>
+                Signed in as <span>{session.data.user.name || 'Unknown'}</span>
+              </div>
+              <div className={styles.links}>
+                <Link className={styles.link} href="/settings">
+                  Settings
+                </Link>
+                <button className={styles.link} onClick={() => signOut()}>
+                  Log Out
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className={styles.links}>
+              <Link className={styles.link} href="/login">
+                Log In
+              </Link>
+              <Link className={styles.link} href="/register">
+                Sign Up
+              </Link>
+            </div>
+          )}
         </div>
 
         <div className={styles.leftNav__externalLinks}>

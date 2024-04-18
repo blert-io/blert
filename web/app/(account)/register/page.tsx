@@ -1,10 +1,17 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
+import { auth } from '@/auth';
 import RegisterForm from './register-form';
 
 import styles from './style.module.scss';
 
-export default function Register() {
+export default async function Register() {
+  const session = await auth();
+  if (session !== null) {
+    redirect('/');
+  }
+
   return (
     <div className={styles.registerPanel}>
       <h1>Welcome to Blert!</h1>

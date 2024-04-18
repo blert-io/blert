@@ -2,9 +2,9 @@
 
 import { useFormState, useFormStatus } from 'react-dom';
 
-import { login } from '../../actions/users';
-import Input from '../../components/input';
-import Button from '../../components/button';
+import { login } from '@/actions/users';
+import Input from '@/components/input';
+import Button from '@/components/button';
 
 import styles from './style.module.scss';
 

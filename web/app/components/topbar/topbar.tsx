@@ -1,11 +1,11 @@
 'use client';
 
+import Image from 'next/image';
 import { useContext } from 'react';
 
 import { DisplayContext, NavbarContext } from '../../display';
 
 import styles from './style.module.scss';
-import Image from 'next/image';
 
 export default function Topbar() {
   const display = useContext(DisplayContext);

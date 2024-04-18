@@ -17,7 +17,7 @@ export class Display {
   private type: DisplayType;
 
   // If this is changed, also update `mixins.scss`.
-  private static COMPACT_THRESHOLD = 940;
+  public static COMPACT_THRESHOLD = 940;
 
   public static FULL = new Display(DisplayType.FULL);
   public static COMPACT = new Display(DisplayType.COMPACT);

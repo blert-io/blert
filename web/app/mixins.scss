@@ -29,11 +29,11 @@
   }
 }
 
-// Keep this in sync with `display.tsx`.
+// Keep this in sync with `app/display.tsx`.
 $COMPACT_WIDTH_THRESHOLD: 940px;
 
-// Keep this in sync with `left-nav.tsx`.
+// Keep this in sync with `components/left-nav/definitions.ts`.
 $LEFT_NAV_WIDTH: 240px;
 
-// Keep this in sync with `topbar.tsx`.
+// Keep this in sync with `components/topbar/topbar.tsx`.
 $TOPBAR_HEIGHT: 60px;
