@@ -52,7 +52,7 @@ function ChallengeList({ challenges }: { challenges: ChallengeOverview[] }) {
   );
 }
 
-export default async function ChallengeHistory(props: ChallengeHistoryProps) {
+export default function ChallengeHistory(props: ChallengeHistoryProps) {
   const { count, type, username } = props;
 
   const [challenges, setChallenges] = useState(props.initialChallenges);

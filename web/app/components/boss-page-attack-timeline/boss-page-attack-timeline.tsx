@@ -1366,6 +1366,7 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
       updateTickOnPage,
       npcs,
       actorContext,
+      cellSize,
     ],
   );
 

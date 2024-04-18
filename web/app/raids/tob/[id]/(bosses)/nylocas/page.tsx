@@ -247,7 +247,7 @@ export default function NylocasPage() {
 
   const backgroundColors = useMemo(
     () => nyloBossBackgroundColors(eventsByTick, totalTicks),
-    [eventsByTick],
+    [eventsByTick, totalTicks],
   );
 
   const splits = useMemo(() => {
@@ -285,7 +285,7 @@ export default function NylocasPage() {
       }
     }
     return splits;
-  }, [events, raidData]);
+  }, [events, eventsByType, raidData]);
 
   if (loading || raidData === null) {
     return <Loading />;

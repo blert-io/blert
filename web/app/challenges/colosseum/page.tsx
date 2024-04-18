@@ -40,7 +40,7 @@ export default async function Page() {
               the content ourselves for the first time. Stay tuned for updates!
               <br />
               <br />
-              If you'd like to help out, have any feedback, or just want to
+              If you&apos;d like to help out, have any feedback, or just want to
               chat, feel free to join our{' '}
               <a
                 href="https://discord.gg/c5Hgv3NnYe"

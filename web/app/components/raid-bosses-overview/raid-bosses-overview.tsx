@@ -47,6 +47,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
   if (bloatDataExists) {
     bloatDowns = bloat!.splits.downTicks.map((split, index) => (
       <Badge
+        key={index}
         iconClass="fa-solid fa-hourglass"
         label={getOrdinal(index + 1) + ' Down'}
         value={ticksToFormattedSeconds(split)}

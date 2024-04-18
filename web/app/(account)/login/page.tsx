@@ -17,7 +17,7 @@ export default async function Login() {
       <h1>Sign in to Blert</h1>
       <LoginForm />
       <Link className={styles.register} href="/register">
-        Don't have an account? Register
+        Don&apos;t have an account? Register
       </Link>
     </div>
   );

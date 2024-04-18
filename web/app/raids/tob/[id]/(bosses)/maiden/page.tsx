@@ -257,7 +257,7 @@ export default function Maiden() {
     }
 
     return { splits, spawns };
-  }, [challenge, eventsByTick]);
+  }, [challenge, eventsByTick, npcState]);
 
   if (loading || challenge === null) {
     return <Loading />;

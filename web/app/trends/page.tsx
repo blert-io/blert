@@ -144,7 +144,7 @@ export default function TrendsPage() {
               cursor={false}
               labelFormatter={(room: string) => <strong>{room}</strong>}
               formatter={(value: number) => [
-                <span style={{ color: 'var(--blert-text-color)' }}>
+                <span key="deaths" style={{ color: 'var(--blert-text-color)' }}>
                   {value} deaths
                 </span>,
               ]}

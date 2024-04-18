@@ -74,7 +74,7 @@ export const usePlayingState = (totalTicks: number) => {
     } else {
       clearTimeout();
     }
-  }, [currentTick, totalTicks, playing]);
+  }, [currentTick, totalTicks, playing, updateTickOnPage]);
 
   useEffect(() => {
     const listener = (e: KeyboardEvent) => {
@@ -254,7 +254,7 @@ export function useRoomEvents<T extends Raid>(
 
       if (evts.length > 0) {
         const { ticks, npcs } = getStageInfo(challenge, stage);
-        totalTicks = ticks;
+        let totalTicks = ticks;
         if (totalTicks === -1) {
           // The room is in progress, so get the last tick from the events.
           totalTicks = evts[evts.length - 1].tick;

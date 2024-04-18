@@ -117,7 +117,7 @@ export default function BloatPage() {
     }
 
     return { downInfo, splits, backgroundColors };
-  }, [eventsByType]);
+  }, [eventsByType, npcState, totalTicks]);
 
   if (loading || raidData === null) {
     return <Loading />;

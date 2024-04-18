@@ -43,8 +43,8 @@ export default function Home() {
               <br />
               We believe that the OSRS PvM community is in need of a tool that
               can help players improve their performance and learn from their
-              mistakes (or call out their friends' mistakes...). Our long-term
-              goal is to be the{' '}
+              mistakes (or call out their friends&apos; mistakes...). Our
+              long-term goal is to be the{' '}
               <a
                 style={{ textDecoration: 'underline' }}
                 href="https://wiseoldman.net/"
@@ -128,8 +128,8 @@ export default function Home() {
                 <li>UX Feedback</li>
                 <li>Feature requests</li>
               </ol>
-              If you'd like to help out or if you have any questions about our
-              website or plugin, please reach us on our{' '}
+              If you&apos;d like to help out or if you have any questions about
+              our website or plugin, please reach us on our{' '}
               <a
                 href="https://discord.gg/c5Hgv3NnYe"
                 target="_blank"

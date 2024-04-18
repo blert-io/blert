@@ -38,7 +38,7 @@ export default async function Page() {
               <br />
               <br />
               Feel free to explore some of the recently recorded raids, or
-              search for your (or a friend's) RSN to see some player stats.
+              search for your (or a friend&apos;s) RSN to see some player stats.
               <br />
               <br />
               If you have any questions please feel free to reach out to us on

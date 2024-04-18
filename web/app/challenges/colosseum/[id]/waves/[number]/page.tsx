@@ -107,7 +107,7 @@ export default function ColosseumWavePage({
     if (!validWaveNumber(waveNumber)) {
       router.replace(challengeUrl(ChallengeType.COLOSSEUM, challengeId));
     }
-  }, [waveNumber]);
+  }, [challengeId, waveNumber, router]);
 
   const waveIndex = validWaveNumber(waveNumber) ? waveNumber - 1 : 0;
   const {

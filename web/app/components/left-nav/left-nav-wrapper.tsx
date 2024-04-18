@@ -31,7 +31,7 @@ export function LeftNavWrapper({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setSidebarOpen(display.isFull());
-  }, [display, pathname]);
+  }, [display, pathname, setSidebarOpen]);
 
   useEffect(() => {
     const onTouchStart = (e: TouchEvent) => {
@@ -114,7 +114,7 @@ export function LeftNavWrapper({ children }: { children: React.ReactNode }) {
       window.removeEventListener('touchend', onTouchEnd);
       window.removeEventListener('touchcancel', onTouchCancel);
     };
-  }, [display, sidebarOpen]);
+  }, [display, sidebarOpen, setSidebarOpen]);
 
   let left = sidebarOpen ? 0 : -LEFT_NAV_WIDTH;
   left += dragX;

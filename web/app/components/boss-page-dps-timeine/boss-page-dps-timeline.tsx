@@ -33,7 +33,7 @@ export function BossPageDPSTimeline(props: BossPageDPSTimelineProps) {
       className={styles.dpsTimeline}
     >
       <div className={styles.chartParent}>
-        <h3>Maiden's Health Over Time</h3>
+        <h3>Maiden&apos;s Health Over Time</h3>
         <AreaChart
           width={1400}
           height={400}
