@@ -1,0 +1,35 @@
+@import '../../mixins.scss';
+
+.registerPanel {
+  @include panel;
+  flex-direction: column;
+  padding: 20px 25px;
+  width: 100%;
+  max-width: 550px;
+
+  h1 {
+    font-size: 24px;
+    margin: 0 0 0.5em 0;
+  }
+
+  .login {
+    margin-top: 1em;
+    text-align: center;
+    color: var(--blert-blue);
+  }
+}
+
+.registerForm {
+  display: flex;
+  flex-direction: column;
+
+  button {
+    margin-top: 1em;
+  }
+
+  .error {
+    color: var(--blert-red);
+    margin: 0.5em 0 0 0;
+    text-align: center;
+  }
+}

@@ -9,6 +9,8 @@ export type User = {
   id: Types.ObjectId;
   username: string;
   password: string;
+  email: string;
+  emailVerified: boolean;
 };
 
 export enum RecordingType {

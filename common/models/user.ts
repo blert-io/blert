@@ -4,6 +4,8 @@ import { RecordedChallenge, User } from '../user';
 const userSchema = new Schema<User>({
   username: { type: String, required: true, index: true },
   password: { type: String, required: true },
+  email: { type: String, required: true, index: { unique: true } },
+  emailVerified: { type: Boolean, required: true, default: false },
 });
 
 export const UserModel =

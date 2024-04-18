@@ -1,0 +1,34 @@
+@import '../../mixins.scss';
+
+.loginPanel {
+  @include panel;
+  flex-direction: column;
+  padding: 10px 20px;
+  min-width: 500px;
+
+  h1 {
+    font-size: 24px;
+    margin: 0 0 0.5em 0;
+  }
+
+  .register {
+    margin-top: 1em;
+    text-align: center;
+    color: var(--blert-blue);
+  }
+}
+
+.loginForm {
+  display: flex;
+  flex-direction: column;
+
+  button {
+    margin-top: 1em;
+  }
+
+  .error {
+    color: var(--blert-red);
+    margin: 0.5em 0 0 0;
+    text-align: center;
+  }
+}

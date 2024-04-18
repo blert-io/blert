@@ -417,6 +417,15 @@ export function LeftNav() {
         </li> */}
         </ul>
 
+        <div className={styles.login}>
+          <Link className={styles.link} href="/login">
+            Log In
+          </Link>
+          <Link className={styles.link} href="/register">
+            Sign Up
+          </Link>
+        </div>
+
         <div className={styles.leftNav__externalLinks}>
           <div className={styles.leftNav__externalLink}>
             <Link
