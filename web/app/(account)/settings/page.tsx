@@ -45,3 +45,5 @@ export const metadata = {
   title: 'Settings',
   description: 'Manage your account settings',
 };
+
+export const dynamic = 'force-dynamic';
