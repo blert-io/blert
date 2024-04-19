@@ -24,6 +24,6 @@ export default async function Register() {
 }
 
 export const metadata = {
-  title: 'Register | Blert',
+  title: 'Register',
   description: "Sign up for Old School Runescape's premium PvM analytics tool.",
 };

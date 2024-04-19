@@ -6,6 +6,7 @@ const userSchema = new Schema<User>({
   password: { type: String, required: true },
   email: { type: String, required: true, index: { unique: true } },
   emailVerified: { type: Boolean, required: true, default: false },
+  canCreateApiKey: { type: Boolean, default: false },
 });
 
 export const UserModel =

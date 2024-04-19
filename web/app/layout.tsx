@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, Roboto_Mono } from 'next/font/google';
 import { SessionProvider } from 'next-auth/react';
 
 import { LeftNav } from './components/left-nav/left-nav';
@@ -11,6 +11,10 @@ import './globals.scss';
 import styles from './styles.module.scss';
 
 const inter = Inter({ subsets: ['latin'] });
+const robotoMono = Roboto_Mono({
+  subsets: ['latin'],
+  variable: '--font-roboto-mono',
+});
 
 export default function RootLayout({
   children,
@@ -19,7 +23,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className} style={{ overflowX: 'hidden' }}>
+      <body
+        className={`${inter.className} ${robotoMono.variable}`}
+        style={{ overflowX: 'hidden' }}
+      >
         <Styler />
         <SessionProvider>
           <DisplayWrapper>
@@ -37,7 +44,10 @@ export default function RootLayout({
 }
 
 export const metadata: Metadata = {
-  title: 'Blert',
+  title: {
+    default: 'Blert',
+    template: '%s | Blert',
+  },
   description: 'Old School Runescape PvM Analytics',
   openGraph: {
     type: 'website',

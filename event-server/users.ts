@@ -1,12 +1,10 @@
 import {
-  ApiKey,
   ApiKeyModel,
   Raid,
   RaidModel,
   RecordedChallengeModel,
   UserModel,
 } from '@blert/common';
-import { HydratedDocument } from 'mongoose';
 
 export type BasicUser = {
   id: string;
@@ -28,7 +26,12 @@ export class Users {
    * @returns The user's basic information, or null if the key is invalid.
    */
   static async findByApiKey(apiKey: string): Promise<BasicUser | null> {
-    const key = await ApiKeyModel.findById<HydratedDocument<ApiKey>>(apiKey);
+    const key = await ApiKeyModel.findOneAndUpdate(
+      { key: apiKey },
+      {
+        $set: { lastUsed: new Date() },
+      },
+    );
     if (key === null) {
       return null;
     }

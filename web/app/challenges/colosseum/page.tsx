@@ -68,7 +68,7 @@ export default async function Page() {
 }
 
 export const metadata: Metadata = {
-  title: 'Fortis Colosseum | Blert',
+  title: 'Fortis Colosseum',
 };
 
 export const dynamic = 'force-dynamic';

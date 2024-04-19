@@ -69,7 +69,7 @@ export default async function Page() {
 }
 
 export const metadata: Metadata = {
-  title: 'Theatre of Blood | Blert',
+  title: 'Theatre of Blood',
 };
 
 export const dynamic = 'force-dynamic';

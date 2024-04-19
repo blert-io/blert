@@ -1,21 +1,33 @@
+'use client';
+
 import ReactDOM from 'react-dom';
-import styles from './style.module.scss';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Tooltip } from 'react-tooltip';
 
 type LigmaTooltipProps = {
   children: React.ReactNode;
+  open?: boolean;
   openOnClick?: boolean;
+  portalId?: string;
   tooltipId: string;
 };
 
 export function LigmaTooltip(props: LigmaTooltipProps) {
-  const { children, openOnClick, tooltipId } = props;
-  const portalNode = useRef(document.getElementById('tooltip-portal'));
+  const { children, open, openOnClick, portalId, tooltipId } = props;
+  const portalNode = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    portalNode.current = document.getElementById(portalId ?? 'tooltip-portal');
+  }, []);
+
+  if (!portalNode.current) {
+    return null;
+  }
 
   return ReactDOM.createPortal(
     <Tooltip
       id={tooltipId}
+      isOpen={open}
       openOnClick={openOnClick}
       opacity={1}
       style={{

@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
+import { useEffect, useRef } from 'react';
 
 import Input from '@/components/input';
 import { LEFT_NAV_WIDTH } from './definitions';
@@ -11,17 +12,31 @@ import { LeftNavWrapper } from './left-nav-wrapper';
 
 import styles from './styles.module.scss';
 
+const PROTECTED_ROUTES = ['/dashboard', '/settings'];
+
 export function LeftNav() {
   const currentPath = usePathname();
   const router = useRouter();
 
   const session = useSession();
 
+  const playerSearchRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const focusSearch = (e: KeyboardEvent) => {
+      if (e.key === 'k' && e.ctrlKey) {
+        e.preventDefault();
+        playerSearchRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', focusSearch);
+    return () => window.removeEventListener('keydown', focusSearch);
+  }, []);
+
   // viewingTob is determined by if the current path matches the following: /raids/tob/{a guid}
-  const viewingTob = currentPath!.match(/\/raids\/tob\/[a-zA-Z0-9-]+/);
+  const viewingTob = currentPath.match(/\/raids\/tob\/[a-zA-Z0-9-]+/);
 
   // now grab just that portion of the path into a new string
-  const currentPathForRaid = currentPath!.split('/').slice(0, 4).join('/');
+  const currentPathForRaid = currentPath.split('/').slice(0, 4).join('/');
 
   return (
     <LeftNavWrapper>
@@ -67,6 +82,7 @@ export function LeftNav() {
               faIcon="fa-solid fa-magnifying-glass"
               fluid
               id="blert-player-search"
+              inputRef={playerSearchRef}
               label="Search for a player"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -308,11 +324,16 @@ export function LeftNav() {
                 </Link>
                 <button
                   className={styles.link}
-                  onClick={() =>
-                    signOut({
+                  onClick={async () => {
+                    const { url } = await signOut({
                       redirect: false,
-                    })
-                  }
+                      callbackUrl: PROTECTED_ROUTES.includes(currentPath)
+                        ? '/'
+                        : currentPath,
+                    });
+                    console.log(url);
+                    router.replace(url);
+                  }}
                 >
                   Log Out
                 </button>

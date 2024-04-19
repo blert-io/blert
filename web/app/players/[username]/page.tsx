@@ -289,9 +289,7 @@ export async function generateMetadata({ params }: PlayerPageProps) {
   const username = decodeURIComponent(params.username);
   const player = await loadPlayerWithStats(username);
   const title = player?.formattedUsername ?? 'Player not found';
-  return {
-    title: `${title} | Blert`,
-  };
+  return { title };
 }
 
 export const dynamic = 'force-dynamic';

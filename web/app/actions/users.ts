@@ -1,11 +1,19 @@
 'use server';
 
-import { UserModel } from '@blert/common';
+import { randomBytes } from 'crypto';
+import {
+  ApiKey,
+  ApiKeyModel,
+  PlayerModel,
+  User,
+  UserModel,
+} from '@blert/common';
 import bcrypt from 'bcrypt';
+import { Types } from 'mongoose';
 import { isRedirectError } from 'next/dist/client/components/redirect';
 import { z } from 'zod';
 
-import { signIn } from '@/auth';
+import { auth, signIn } from '@/auth';
 import connectToDatabase from './db';
 
 const SALT_ROUNDS = 10;
@@ -125,4 +133,171 @@ export async function register(
 
   await signIn('credentials', { username, password, redirectTo: '/' });
   return null;
+}
+
+export async function getSignedInUser(): Promise<User | null> {
+  await connectToDatabase();
+
+  const session = await auth();
+  if (session === null) {
+    return null;
+  }
+
+  return UserModel.findById(session.user.id).lean().exec();
+}
+
+export type ApiKeyWithUsername = ApiKey & { rsn: string };
+
+export async function getApiKeys(): Promise<ApiKeyWithUsername[]> {
+  await connectToDatabase();
+
+  const session = await auth();
+  if (session === null) {
+    throw new Error('Not authenticated');
+  }
+
+  const keysWithPlayer = await ApiKeyModel.aggregate([
+    {
+      $match: { userId: new Types.ObjectId(session.user.id) },
+    },
+    {
+      $lookup: {
+        from: 'players',
+        localField: 'playerId',
+        foreignField: '_id',
+        as: 'player',
+      },
+    },
+    {
+      $set: {
+        rsn: { $arrayElemAt: ['$player.formattedUsername', 0] },
+      },
+    },
+    {
+      $project: {
+        userId: 0,
+        playerId: 0,
+        player: 0,
+        __v: 0,
+      },
+    },
+  ]).exec();
+
+  return keysWithPlayer;
+}
+
+const API_KEY_HEX_LENGTH = 24;
+const API_KEY_BYTE_LENGTH = API_KEY_HEX_LENGTH / 2;
+
+const MAX_API_KEYS_PER_USER = 2;
+
+export async function createApiKey(rsn: string): Promise<ApiKeyWithUsername> {
+  await connectToDatabase();
+
+  const session = await auth();
+  if (session === null) {
+    throw new Error('Not authenticated');
+  }
+
+  if (rsn.length < 1 || rsn.length > 12) {
+    throw new Error('Invalid RSN');
+  }
+
+  // TODO(frolv): This is temporary.
+  const user = await UserModel.findById(session.user.id).exec();
+  if (user === null || !user.canCreateApiKey) {
+    throw new Error('Not authorized to create API keys');
+  }
+
+  const apiKeyCount = await ApiKeyModel.countDocuments({
+    userId: session.user.id,
+  });
+  if (apiKeyCount >= MAX_API_KEYS_PER_USER) {
+    throw new Error('Maximum number of API keys reached');
+  }
+
+  let player = await PlayerModel.findOne({
+    username: rsn.toLowerCase(),
+  }).exec();
+  if (player === null) {
+    player = new PlayerModel({
+      username: rsn.toLowerCase(),
+      formattedUsername: rsn,
+      totalRaidsRecorded: 0,
+    });
+    player.save();
+  }
+
+  let apiKey;
+  while (true) {
+    const key = randomBytes(API_KEY_BYTE_LENGTH).toString('hex');
+
+    try {
+      apiKey = new ApiKeyModel({
+        userId: new Types.ObjectId(session.user.id),
+        playerId: player._id,
+        key,
+        active: true,
+        lastUsed: null,
+      });
+      await apiKey.save();
+      break;
+    } catch (e: any) {
+      if (
+        e.name === 'MongoServerError' &&
+        e.code === DUPLICATE_KEY_ERROR_CODE
+      ) {
+        // Try again if the key already exists.
+        continue;
+      }
+      throw e;
+    }
+  }
+
+  return { ...apiKey.toObject(), rsn: player.formattedUsername };
+}
+
+export async function deleteApiKey(key: string): Promise<void> {
+  await connectToDatabase();
+
+  const session = await auth();
+  if (session === null) {
+    throw new Error('Not authenticated');
+  }
+
+  await ApiKeyModel.deleteOne({ key, userId: session.user.id }).exec();
+}
+
+export type PlainApiKey = Omit<
+  ApiKeyWithUsername,
+  '_id' | 'userId' | 'playerId'
+> & {
+  _id: string;
+};
+
+export type ApiKeyFormState = {
+  apiKey?: PlainApiKey;
+  error?: string;
+};
+
+export async function submitApiKeyForm(
+  _state: ApiKeyFormState,
+  formData: FormData,
+): Promise<ApiKeyFormState> {
+  const rsn = (formData.get('blert-api-key-rsn') as string).trim();
+
+  let key;
+  try {
+    key = await createApiKey(rsn);
+  } catch (e: any) {
+    return { error: e.message };
+  }
+
+  const { _id, userId, playerId, ...rest } = key;
+  const apiKey = {
+    ...rest,
+    _id: _id.toString(),
+  };
+
+  return { apiKey };
 }

@@ -63,5 +63,5 @@ export default function Page() {
 }
 
 export const metadata: Metadata = {
-  title: 'The Inferno | Blert',
+  title: 'The Inferno',
 };

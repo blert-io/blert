@@ -1,0 +1,125 @@
+@import '../../mixins.scss';
+
+.settings {
+  width: 100%;
+
+  display: flex;
+  flex-flow: row wrap;
+  justify-content: center;
+  align-items: center;
+
+  .panel {
+    @include panel;
+    flex-direction: column;
+    align-self: flex-start;
+    padding: 10px 20px;
+    margin: 20px;
+
+    & > h2 {
+      margin: 0 0 15px 0;
+    }
+  }
+
+  .apiKeys {
+    & > h2 {
+      margin: 0;
+    }
+
+    .apiKeysList {
+      .apiKey {
+        padding: 15px 0;
+
+        &:not(:last-child) {
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .wrapper {
+          display: flex;
+          justify-content: space-between;
+        }
+
+        input {
+          resize: none;
+          width: 260px;
+          font-size: 16px;
+          background: none;
+          outline: none;
+          border: 1px solid var(--blert-text-color);
+          border-radius: 5px;
+          color: var(--blert-text-color);
+          text-align: center;
+          padding: 3px 8px 5px 8px;
+          font-family: var(--font-roboto-mono), monospace;
+          flex-grow: 1;
+        }
+
+        .actions {
+          display: flex;
+          margin-left: 10px;
+
+          button {
+            margin-left: 5px;
+            border: 1px solid var(--blert-text-color);
+            border-radius: 5px;
+            height: 34px;
+            width: 34px;
+            font-size: 18px;
+
+            &:hover {
+              background-color: var(--content-area-bg);
+              cursor: pointer;
+            }
+          }
+        }
+
+        .keyInfo {
+          margin-top: 10px;
+
+          .account {
+            display: flex;
+            align-items: center;
+
+            .accountName {
+              font-weight: 700;
+              color: #fff;
+              margin: 0 5px;
+            }
+
+            a {
+              color: var(--blert-blue);
+              margin-left: auto;
+              font-size: 14px;
+
+              &:hover {
+                cursor: pointer;
+                opacity: 0.8;
+              }
+            }
+          }
+
+          .lastUsed {
+            margin-top: 4px;
+          }
+        }
+      }
+    }
+
+    & > h3 {
+      margin-bottom: 5px;
+    }
+
+    .apiKeyForm {
+      display: flex;
+
+      .generateButton {
+        flex-grow: 1;
+        margin: 10px 0 0 10px;
+        height: 42px;
+      }
+    }
+
+    .formError {
+      color: var(--blert-red);
+    }
+  }
+}

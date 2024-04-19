@@ -24,6 +24,6 @@ export default async function Login() {
 }
 
 export const metadata = {
-  title: 'Login | Blert',
+  title: 'Login',
   description: 'Login to your Blert account',
 };

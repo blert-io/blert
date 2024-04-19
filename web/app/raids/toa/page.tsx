@@ -61,6 +61,6 @@ export default function Page() {
 }
 
 export const metadata: Metadata = {
-  title: 'Tombs of Amascut | Blert',
+  title: 'Tombs of Amascut',
   description: 'The Tombs of Amascut raid is coming soon!',
 };

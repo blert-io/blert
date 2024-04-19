@@ -66,5 +66,5 @@ export default function Page() {
 }
 
 export const metadata: Metadata = {
-  title: 'Chambers of Xeric | Blert',
+  title: 'Chambers of Xeric',
 };

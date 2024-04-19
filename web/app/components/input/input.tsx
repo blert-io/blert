@@ -6,6 +6,7 @@ type InputProps = {
   faIcon?: string;
   fluid?: boolean;
   id: string;
+  inputRef?: React.RefObject<HTMLInputElement>;
   invalid?: boolean;
   label: string;
   maxLength?: number;
@@ -36,6 +37,7 @@ export function Input(props: InputProps) {
         onChange={props.onChange}
         placeholder=" "
         style={style}
+        ref={props.inputRef}
         required={props.required}
         type={props.type ?? 'text'}
         value={props.value}
