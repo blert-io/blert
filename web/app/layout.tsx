@@ -1,6 +1,7 @@
 import { Metadata } from 'next';
 import { Inter, Roboto_Mono } from 'next/font/google';
 import { SessionProvider } from 'next-auth/react';
+import { WebSite, WithContext } from 'schema-dts';
 
 import { LeftNav } from './components/left-nav/left-nav';
 import Topbar from './components/topbar';
@@ -16,32 +17,13 @@ const robotoMono = Roboto_Mono({
   variable: '--font-roboto-mono',
 });
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <html lang="en">
-      <body
-        className={`${inter.className} ${robotoMono.variable}`}
-        style={{ overflowX: 'hidden' }}
-      >
-        <Styler />
-        <SessionProvider>
-          <DisplayWrapper>
-            <Topbar />
-            <div className={styles.siteParent}>
-              <LeftNav />
-              <div id="tooltip-portal" />
-              <div className={styles.pageParentContent}>{children}</div>
-            </div>
-          </DisplayWrapper>
-        </SessionProvider>
-      </body>
-    </html>
-  );
-}
+const jsonLd: WithContext<WebSite> = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  url: 'https://blert.io',
+  name: 'Blert',
+  description: 'Old School Runescape PvM Analytics',
+};
 
 export const metadata: Metadata = {
   title: {
@@ -71,3 +53,36 @@ export const metadata: Metadata = {
     images: ['https://blert.io/images/blert-topbar.png'],
   },
 };
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      </head>
+      <body
+        className={`${inter.className} ${robotoMono.variable}`}
+        style={{ overflowX: 'hidden' }}
+      >
+        <Styler />
+        <SessionProvider>
+          <DisplayWrapper>
+            <Topbar />
+            <div className={styles.siteParent}>
+              <LeftNav />
+              <div id="tooltip-portal" />
+              <div className={styles.pageParentContent}>{children}</div>
+            </div>
+          </DisplayWrapper>
+        </SessionProvider>
+      </body>
+    </html>
+  );
+}
