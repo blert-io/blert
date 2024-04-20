@@ -1,21 +1,20 @@
 'use client';
 
+import { TobRaid } from '@blert/common';
 import { useContext } from 'react';
 
-import { RaidContext } from '../../context';
-import { RaidBossesOverview } from '../../../../components/raid-bosses-overview/raid-bosses-overview';
-import { RaidQuickDetails } from '../../../../components/raid-quick-details/raid-quick-details';
-import { RaidTeamPanel } from '../../../../components/raid-team/raid-team';
-import PvMContentLogo, {
-  PvMContent,
-} from '../../../../components/pvm-content-logo';
-import Loading from '../../../../components/loading';
+import { DisplayContext } from '@/display';
+import { ChallengeContext } from '@/challenge-context';
+import { RaidBossesOverview } from '@/components/raid-bosses-overview/raid-bosses-overview';
+import { RaidQuickDetails } from '@/components/raid-quick-details/raid-quick-details';
+import { RaidTeamPanel } from '@/components/raid-team/raid-team';
+import PvMContentLogo, { PvMContent } from '@/components/pvm-content-logo';
+import Loading from '@/components/loading';
 
 import styles from './style.module.scss';
-import { DisplayContext } from '../../../../display';
 
 export default function Overview() {
-  const raid = useContext(RaidContext);
+  const [raid] = useContext(ChallengeContext) as [TobRaid | null, unknown];
   const display = useContext(DisplayContext);
 
   if (raid === null) {

@@ -3,8 +3,9 @@ import { Inter, Roboto_Mono } from 'next/font/google';
 import { SessionProvider } from 'next-auth/react';
 import { WebSite, WithContext } from 'schema-dts';
 
-import { LeftNav } from './components/left-nav/left-nav';
+import LeftNav from './components/left-nav';
 import Topbar from './components/topbar';
+import ChallengeProvider from './challenge-context';
 import { DisplayWrapper } from './display';
 import Styler from './styler';
 
@@ -74,12 +75,14 @@ export default function RootLayout({
         <Styler />
         <SessionProvider>
           <DisplayWrapper>
-            <Topbar />
-            <div className={styles.siteParent}>
-              <LeftNav />
-              <div id="tooltip-portal" />
-              <div className={styles.pageParentContent}>{children}</div>
-            </div>
+            <ChallengeProvider>
+              <Topbar />
+              <div className={styles.siteParent}>
+                <LeftNav />
+                <div id="tooltip-portal" />
+                <div className={styles.pageParentContent}>{children}</div>
+              </div>
+            </ChallengeProvider>
           </DisplayWrapper>
         </SessionProvider>
       </body>

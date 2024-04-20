@@ -1,6 +1,5 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
 import React, { useContext, useEffect, useState } from 'react';
 
 import { DisplayContext, NavbarContext } from '../../display';
@@ -9,6 +8,7 @@ import { clamp } from '../../utils/math';
 import { LEFT_NAV_WIDTH } from './definitions';
 
 import styles from './styles.module.scss';
+import { usePathname } from 'next/navigation';
 
 const enum ScrollDirection {
   VERTICAL,
@@ -21,9 +21,10 @@ type TouchInfo = {
 };
 
 export function LeftNavWrapper({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+
   const display = useContext(DisplayContext);
   const { sidebarOpen, setSidebarOpen } = useContext(NavbarContext);
-  const pathname = usePathname();
 
   const [dragX, setDragX] = useState(0);
 

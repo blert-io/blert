@@ -7,20 +7,17 @@ import {
   PlayerUpdateEvent,
   SkillLevel,
   Stage,
+  TobRaid,
 } from '@blert/common';
 import Image from 'next/image';
 import { useMemo } from 'react';
 
-import {
-  usePlayingState,
-  useRoomEvents,
-} from '../../../../../utils/boss-room-state';
-import { RaidContext } from '../../../context';
-import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
-import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
-import BossPageReplay from '../../../../../components/boss-page-replay';
-import { Entity, NpcEntity, PlayerEntity } from '../../../../../components/map';
-import Loading from '../../../../../components/loading';
+import { BossPageControls } from '@/components/boss-page-controls/boss-page-controls';
+import { BossPageAttackTimeline } from '@/components/boss-page-attack-timeline/boss-page-attack-timeline';
+import BossPageReplay from '@/components/boss-page-replay';
+import { Entity, NpcEntity, PlayerEntity } from '@/components/map';
+import Loading from '@/components/loading';
+import { usePlayingState, useStageEvents } from '@/utils/boss-room-state';
 
 import styles from './style.module.scss';
 import xarpusBaseTiles from './xarpus-tiles.json';
@@ -42,7 +39,7 @@ export default function XarpusPage() {
     playerState,
     npcState,
     loading,
-  } = useRoomEvents(RaidContext, Stage.TOB_XARPUS);
+  } = useStageEvents<TobRaid>(Stage.TOB_XARPUS);
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);

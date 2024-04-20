@@ -8,30 +8,30 @@ import {
   PlayerUpdateEvent,
   SkillLevel,
   Stage,
+  TobRaid,
 } from '@blert/common';
 import Image from 'next/image';
 import { useMemo } from 'react';
 
-import {
-  EnhancedRoomNpc,
-  usePlayingState,
-  useRoomEvents,
-} from '../../../../../utils/boss-room-state';
-import { RaidContext } from '../../../context';
-import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
+import { BossPageControls } from '@/components/boss-page-controls/boss-page-controls';
 import {
   BossPageAttackTimeline,
   TimelineColor,
-} from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
-import BossPageReplay from '../../../../../components/boss-page-replay';
+} from '@/components/boss-page-attack-timeline/boss-page-attack-timeline';
+import BossPageReplay from '@/components/boss-page-replay';
 import {
   Entity,
   MarkerEntity,
   NpcEntity,
   PlayerEntity,
-} from '../../../../../components/map';
-import Loading from '../../../../../components/loading';
-import { ticksToFormattedSeconds } from '../../../../../utils/tick';
+} from '@/components/map';
+import Loading from '@/components/loading';
+import {
+  EnhancedRoomNpc,
+  usePlayingState,
+  useStageEvents,
+} from '@/utils/boss-room-state';
+import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import bloatBaseTiles from './bloat-tiles.json';
 import styles from './style.module.scss';
@@ -62,7 +62,7 @@ export default function BloatPage() {
     playerState,
     npcState,
     loading,
-  } = useRoomEvents(RaidContext, Stage.TOB_BLOAT);
+  } = useStageEvents<TobRaid>(Stage.TOB_BLOAT);
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);

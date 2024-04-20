@@ -7,34 +7,33 @@ import {
   NpcEvent,
   Npc,
   NyloWaveSpawnEvent,
-  RoomNpcType,
   NpcId,
   Stage,
   SkillLevel,
   NyloWaveStallEvent,
+  TobRaid,
 } from '@blert/common';
 import Image from 'next/image';
 import { useMemo } from 'react';
 
-import Badge from '../../../../../components/badge';
+import Badge from '@/components/badge';
 import {
   EventTickMap,
   usePlayingState,
-  useRoomEvents,
-} from '../../../../../utils/boss-room-state';
-import { RaidContext } from '../../../context';
-import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
+  useStageEvents,
+} from '@/utils/boss-room-state';
+import { BossPageControls } from '@/components/boss-page-controls/boss-page-controls';
 import {
   BossPageAttackTimeline,
   TimelineColor,
   TimelineSplit,
-} from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
-import BossPageReplay from '../../../../../components/boss-page-replay';
-import HorizontalScrollable from '../../../../../components/horizontal-scrollable';
-import { Entity, NpcEntity, PlayerEntity } from '../../../../../components/map';
-import { OverlayEntity } from '../../../../../components/map/overlay';
-import Loading from '../../../../../components/loading';
-import { ticksToFormattedSeconds } from '../../../../../utils/tick';
+} from '@/components/boss-page-attack-timeline/boss-page-attack-timeline';
+import BossPageReplay from '@/components/boss-page-replay';
+import HorizontalScrollable from '@/components/horizontal-scrollable';
+import { Entity, NpcEntity, PlayerEntity } from '@/components/map';
+import { OverlayEntity } from '@/components/map/overlay';
+import Loading from '@/components/loading';
+import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import styles from './style.module.scss';
 import nyloBaseTiles from './nylo-tiles.json';
@@ -240,7 +239,7 @@ export default function NylocasPage() {
     playerState,
     npcState,
     loading,
-  } = useRoomEvents(RaidContext, Stage.TOB_NYLOCAS);
+  } = useStageEvents<TobRaid>(Stage.TOB_NYLOCAS);
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);

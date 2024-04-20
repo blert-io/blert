@@ -2,6 +2,7 @@
 
 import {
   ChallengeType,
+  ColosseumChallenge,
   EventType,
   HANDICAP_LEVEL_VALUE_INCREMENT,
   Npc,
@@ -14,19 +15,16 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useContext, useEffect } from 'react';
 
-import BossPageAttackTimeline from '../../../../../components/boss-page-attack-timeline';
-import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
-import BossPageReplay from '../../../../../components/boss-page-replay';
-import ColosseumHandicap from '../../../../../components/colosseum-handicap';
-import { Entity, NpcEntity, PlayerEntity } from '../../../../../components/map';
-import Loading from '../../../../../components/loading';
-import { ActorContext, ColosseumContext } from '../../../context';
-import {
-  usePlayingState,
-  useRoomEvents,
-} from '../../../../../utils/boss-room-state';
-import { ticksToFormattedSeconds } from '../../../../../utils/tick';
-import { challengeUrl } from '../../../../../utils/url';
+import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
+import { BossPageControls } from '@/components/boss-page-controls/boss-page-controls';
+import BossPageReplay from '@/components/boss-page-replay';
+import ColosseumHandicap from '@/components/colosseum-handicap';
+import { Entity, NpcEntity, PlayerEntity } from '@/components/map';
+import Loading from '@/components/loading';
+import { usePlayingState, useStageEvents } from '@/utils/boss-room-state';
+import { ticksToFormattedSeconds } from '@/utils/tick';
+import { challengeUrl } from '@/utils/url';
+import { ActorContext } from '../../../context';
 
 import styles from './style.module.scss';
 import colosseumBaseTiles from './colosseum-tiles.json';
@@ -117,7 +115,7 @@ export default function ColosseumWavePage({
     playerState,
     npcState,
     totalTicks,
-  } = useRoomEvents(ColosseumContext, Stage.COLOSSEUM_WAVE_1 + waveIndex);
+  } = useStageEvents<ColosseumChallenge>(Stage.COLOSSEUM_WAVE_1 + waveIndex);
 
   const { selectedPlayer } = useContext(ActorContext);
 

@@ -1,12 +1,12 @@
 'use client';
 
-import { TobRaid } from '@blert/common';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 
-import { ActorContext, RaidContext } from '../context';
-import { raidStatusNameAndColor } from '../../../components/raid-quick-details/raid-quick-details';
-import Loading from '../../../components/loading';
+import { ChallengeContext } from '@/challenge-context';
+import Loading from '@/components/loading';
+import { raidStatusNameAndColor } from '@/components/raid-quick-details/raid-quick-details';
+import { ActorContext } from '../context';
 
 import styles from './style.module.scss';
 
@@ -23,7 +23,8 @@ export default function RaidLayout(props: RaidLayoutProps) {
   const id = props.params.id;
   const pathname = usePathname();
 
-  const [raid, setRaid] = useState<TobRaid | null>(null);
+  const [raid, setRaid] = useContext(ChallengeContext);
+
   const [loading, setLoading] = useState(true);
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [selectedRoomNpc, setSelectedRoomNpc] = useState<number | null>(null);
@@ -46,7 +47,12 @@ export default function RaidLayout(props: RaidLayoutProps) {
     getRaid();
 
     // Reload raid every time the page changes to support in-progress raids.
-  }, [id, pathname]);
+  }, [id, pathname, setRaid]);
+
+  useEffect(() => {
+    // Clean up the raid when the component is unmounted.
+    return () => setRaid(null);
+  });
 
   useEffect(() => {
     if (raid !== null) {
@@ -67,18 +73,16 @@ export default function RaidLayout(props: RaidLayoutProps) {
 
   return (
     <div className={styles.raid}>
-      <RaidContext.Provider value={raid}>
-        <ActorContext.Provider
-          value={{
-            selectedPlayer,
-            setSelectedPlayer,
-            selectedRoomNpc,
-            setSelectedRoomNpc,
-          }}
-        >
-          <div className={styles.content}>{props.children}</div>
-        </ActorContext.Provider>
-      </RaidContext.Provider>
+      <ActorContext.Provider
+        value={{
+          selectedPlayer,
+          setSelectedPlayer,
+          selectedRoomNpc,
+          setSelectedRoomNpc,
+        }}
+      >
+        <div className={styles.content}>{props.children}</div>
+      </ActorContext.Provider>
     </div>
   );
 }

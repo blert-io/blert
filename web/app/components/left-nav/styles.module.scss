@@ -64,6 +64,29 @@
       }
     }
   }
+
+  .colosseumWaves {
+    display: flex;
+    flex-flow: row wrap;
+
+    &:hover {
+      background-color: #0f1015;
+    }
+
+    .wave {
+      width: 20%;
+      margin: 2px 2.5%;
+      padding: 3px 0;
+      border-radius: 5px;
+      text-align: center;
+
+      &:hover,
+      &.active {
+        background-color: var(--content-area-bg);
+        color: var(--font-color-nav-active);
+      }
+    }
+  }
 }
 
 .leftNav__playerSearch {

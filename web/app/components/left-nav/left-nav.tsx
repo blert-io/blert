@@ -1,25 +1,16 @@
-'use client';
-
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 
-import AccountStatus from './account-status';
 import { LEFT_NAV_WIDTH } from './definitions';
 import { LeftNavWrapper } from './left-nav-wrapper';
+import AccountStatus from './account-status';
+import PlayerSearch from './player-search';
+import ColosseumLinks from './colosseum-links';
+import TobLinks from './tob-links';
 
 import styles from './styles.module.scss';
-import PlayerSearch from './player-search';
 
 export function LeftNav() {
-  const currentPath = usePathname();
-
-  // viewingTob is determined by if the current path matches the following: /raids/tob/{a guid}
-  const viewingTob = currentPath.match(/\/raids\/tob\/[a-zA-Z0-9-]+/);
-
-  // now grab just that portion of the path into a new string
-  const currentPathForRaid = currentPath.split('/').slice(0, 4).join('/');
-
   return (
     <LeftNavWrapper>
       <div className={styles.leftNav} style={{ width: LEFT_NAV_WIDTH }}>
@@ -76,109 +67,8 @@ export function LeftNav() {
 
           <div className={styles.leftNav__menuDivider}></div>
 
-          {/* ToB */}
-          <li className={styles.leftNav__menuItem}>
-            <Link
-              className={`${styles.leftNav__menuItemInner} ${viewingTob && styles.leftNav__menuItemInnerActive}`}
-              href="/raids/tob"
-            >
-              <div
-                className={styles.leftNav__menuItemIcon}
-                style={{
-                  width: '40px',
-                  position: 'relative',
-                  height: '40px',
-                }}
-              >
-                <Image
-                  src="/logo_tob.webp"
-                  alt="tob icon"
-                  fill
-                  style={{ objectFit: 'contain' }}
-                />
-              </div>
-              <span className="active">ToB</span>
-            </Link>
-          </li>
-
-          {viewingTob && (
-            <li className={styles.leftNav__subMenu}>
-              <Link href={currentPathForRaid + '/overview'}>
-                <div
-                  className={`${styles.leftNav__subMenuItem} ${currentPath.includes('/overview') && styles.leftNav__subMenuItemActive}`}
-                >
-                  Overview
-                </div>
-              </Link>
-              <Link href={currentPathForRaid + '/maiden'}>
-                <div
-                  className={`${styles.leftNav__subMenuItem} ${currentPath.includes('/maiden') && styles.leftNav__subMenuItemActive}`}
-                >
-                  Maiden
-                </div>
-              </Link>
-              <Link href={currentPathForRaid + '/bloat'}>
-                <div
-                  className={`${styles.leftNav__subMenuItem} ${currentPath.includes('/bloat') && styles.leftNav__subMenuItemActive}`}
-                >
-                  Bloat
-                </div>
-              </Link>
-              <Link href={currentPathForRaid + '/nylocas'}>
-                <div
-                  className={`${styles.leftNav__subMenuItem} ${currentPath.includes('/nylocas') && styles.leftNav__subMenuItemActive}`}
-                >
-                  Nylocas
-                </div>
-              </Link>
-              <Link href={currentPathForRaid + '/sotetseg'}>
-                <div
-                  className={`${styles.leftNav__subMenuItem} ${currentPath.includes('/sotetseg') && styles.leftNav__subMenuItemActive}`}
-                >
-                  Sotetseg
-                </div>
-              </Link>
-              <Link href={currentPathForRaid + '/xarpus'}>
-                <div
-                  className={`${styles.leftNav__subMenuItem} ${currentPath.includes('/xarpus') && styles.leftNav__subMenuItemActive}`}
-                >
-                  Xarpus
-                </div>
-              </Link>
-              <Link href={currentPathForRaid + '/verzik'}>
-                <div
-                  className={`${styles.leftNav__subMenuItem} ${currentPath.includes('/verzik') && styles.leftNav__subMenuItemActive}`}
-                >
-                  Verzik
-                </div>
-              </Link>
-            </li>
-          )}
-
-          {/* Fortis Colosseum */}
-          <li className={styles.leftNav__menuItem}>
-            <Link
-              className={`${styles.leftNav__menuItemInner}`}
-              href="/challenges/colosseum"
-            >
-              <div
-                className={styles.leftNav__menuItemIcon}
-                style={{
-                  width: '40px',
-                  position: 'relative',
-                  height: '40px',
-                }}
-              >
-                <Image
-                  src="/varlamore.png"
-                  alt="fortis colosseum icon"
-                  fill
-                  style={{ objectFit: 'contain' }}
-                />
-              </div>
-              <span className="active">Colosseum</span>
-            </Link>
-          </li>
+          <TobLinks />
+          <ColosseumLinks />
 
           {/* Inferno */}
           <li className={styles.leftNav__menuItem}>

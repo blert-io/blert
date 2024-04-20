@@ -28,7 +28,6 @@ import {
   VerzikCrabProperties,
 } from '@blert/common';
 import {
-  Context,
   SetStateAction,
   useCallback,
   useContext,
@@ -37,6 +36,7 @@ import {
   useState,
 } from 'react';
 
+import { ChallengeContext } from '@/challenge-context';
 import { defaultItemCache } from './item-cache';
 import { TICK_MS } from './tick';
 import { challengeApiUrl } from './url';
@@ -212,11 +212,8 @@ function getStageInfo(challenge: Raid | null, stage: Stage): StageInfo {
   return { ticks: -1, npcs: {} };
 }
 
-export function useRoomEvents<T extends Raid>(
-  context: Context<T | null>,
-  stage: Stage,
-) {
-  const challenge = useContext(context);
+export function useStageEvents<T extends Raid>(stage: Stage) {
+  const [challenge] = useContext(ChallengeContext) as [T | null, unknown];
 
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<Event[]>([]);

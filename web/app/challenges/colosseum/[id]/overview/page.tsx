@@ -1,11 +1,14 @@
 'use client';
 
-import { ChallengeType, ColosseumWave } from '@blert/common';
+import {
+  ChallengeType,
+  ColosseumChallenge,
+  ColosseumWave,
+} from '@blert/common';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useContext } from 'react';
 
-import { ColosseumContext } from '../../context';
 import ColosseumHandicap from '../../../../components/colosseum-handicap';
 import { RaidQuickDetails } from '../../../../components/raid-quick-details/raid-quick-details';
 import { RaidTeamPanel } from '../../../../components/raid-team/raid-team';
@@ -18,6 +21,7 @@ import { ticksToFormattedSeconds } from '../../../../utils/tick';
 import { challengeUrl } from '../../../../utils/url';
 
 import styles from './style.module.scss';
+import { ChallengeContext } from '@/challenge-context';
 
 type WaveProps = {
   id: string;
@@ -65,7 +69,10 @@ function Wave(props: WaveProps) {
 }
 
 export default function Overview() {
-  const challenge = useContext(ColosseumContext);
+  const [challenge] = useContext(ChallengeContext) as [
+    ColosseumChallenge | null,
+    unknown,
+  ];
   const display = useContext(DisplayContext);
 
   if (challenge === null) {

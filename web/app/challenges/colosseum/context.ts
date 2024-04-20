@@ -1,7 +1,4 @@
-import { ColosseumChallenge } from '@blert/common';
 import { Dispatch, SetStateAction, createContext } from 'react';
-
-export const ColosseumContext = createContext<ColosseumChallenge | null>(null);
 
 export type RoomActorState = {
   selectedPlayer: string | null;

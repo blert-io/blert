@@ -39,10 +39,7 @@ export class Display {
   }
 }
 
-// The server should render a compact display by default as the way the left
-// nav is implemented makes an initial transition from compact to full display
-// unnoticeable, but not vice versa.
-export const DisplayContext = createContext<Display>(Display.COMPACT);
+export const DisplayContext = createContext<Display>(Display.FULL);
 
 type NavbarContextType = {
   sidebarOpen: boolean;
@@ -55,7 +52,7 @@ export const NavbarContext = createContext<NavbarContextType>({
 });
 
 export function DisplayWrapper({ children }: { children: React.ReactNode }) {
-  const [display, setDisplay] = useState<Display>(Display.COMPACT);
+  const [display, setDisplay] = useState<Display>(Display.FULL);
   const [sidebarOpen, setSidebarOpen] = useState(display.isFull());
 
   useEffect(() => {

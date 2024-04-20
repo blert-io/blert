@@ -1,7 +1,4 @@
-import { TobRaid } from '@blert/common';
 import { Dispatch, SetStateAction, createContext } from 'react';
-
-export const RaidContext = createContext<TobRaid | null>(null);
 
 export type RoomActorState = {
   selectedPlayer: string | null;

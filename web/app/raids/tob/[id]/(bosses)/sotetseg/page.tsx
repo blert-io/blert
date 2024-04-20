@@ -8,26 +8,23 @@ import {
   SkillLevel,
   SoteMazePathEvent,
   Stage,
+  TobRaid,
 } from '@blert/common';
 import Image from 'next/image';
 import { useMemo } from 'react';
 
-import {
-  usePlayingState,
-  useRoomEvents,
-} from '../../../../../utils/boss-room-state';
-import { RaidContext } from '../../../context';
-import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
-import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
-import BossPageReplay from '../../../../../components/boss-page-replay';
+import { BossPageControls } from '@/components/boss-page-controls/boss-page-controls';
+import { BossPageAttackTimeline } from '@/components/boss-page-attack-timeline/boss-page-attack-timeline';
+import BossPageReplay from '@/components/boss-page-replay';
 import {
   Entity,
   NpcEntity,
   OverlayEntity,
   PlayerEntity,
-} from '../../../../../components/map';
-import Loading from '../../../../../components/loading';
-import { ticksToFormattedSeconds } from '../../../../../utils/tick';
+} from '@/components/map';
+import Loading from '@/components/loading';
+import { usePlayingState, useStageEvents } from '@/utils/boss-room-state';
+import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import styles from './style.module.scss';
 import soteBaseTiles from './sote-tiles.json';
@@ -157,7 +154,7 @@ export default function SotetsegPage() {
     playerState,
     npcState,
     loading,
-  } = useRoomEvents(RaidContext, Stage.TOB_SOTETSEG);
+  } = useStageEvents<TobRaid>(Stage.TOB_SOTETSEG);
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);

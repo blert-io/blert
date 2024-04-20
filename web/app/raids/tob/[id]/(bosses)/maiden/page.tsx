@@ -13,31 +13,32 @@ import {
   RoomNpcType,
   SkillLevel,
   Stage,
+  TobRaid,
 } from '@blert/common';
+import { useSearchParams } from 'next/navigation';
 import { useContext, useEffect, useMemo } from 'react';
 
-import { TimelineSplit } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
-import { useSearchParams } from 'next/navigation';
-import { BossPageAttackTimeline } from '../../../../../components/boss-page-attack-timeline/boss-page-attack-timeline';
-import { BossPageControls } from '../../../../../components/boss-page-controls/boss-page-controls';
-import BossPageReplay from '../../../../../components/boss-page-replay';
-import { BossPageDPSTimeline } from '../../../../../components/boss-page-dps-timeine/boss-page-dps-timeline';
+import { TimelineSplit } from '@/components/boss-page-attack-timeline/boss-page-attack-timeline';
+import { BossPageAttackTimeline } from '@/components/boss-page-attack-timeline/boss-page-attack-timeline';
+import { BossPageControls } from '@/components/boss-page-controls/boss-page-controls';
+import BossPageReplay from '@/components/boss-page-replay';
+import { BossPageDPSTimeline } from '@/components/boss-page-dps-timeine/boss-page-dps-timeline';
 import {
   Entity,
   MarkerEntity,
   NpcEntity,
   PlayerEntity,
-} from '../../../../../components/map';
+} from '@/components/map';
+import Loading from '@/components/loading';
 import {
   EnhancedMaidenCrab,
   EnhancedRoomNpc,
   usePlayingState,
-  useRoomEvents,
-} from '../../../../../utils/boss-room-state';
-import { clamp } from '../../../../../utils/math';
-import { ActorContext, RaidContext } from '../../../context';
-import Loading from '../../../../../components/loading';
-import { ticksToFormattedSeconds } from '../../../../../utils/tick';
+  useStageEvents,
+} from '@/utils/boss-room-state';
+import { clamp } from '@/utils/math';
+import { ticksToFormattedSeconds } from '@/utils/tick';
+import { ActorContext } from '../../../context';
 
 import maidenBaseTiles from './maiden.json';
 import styles from './style.module.scss';
@@ -179,7 +180,7 @@ export default function Maiden() {
     playerState,
     npcState,
     loading,
-  } = useRoomEvents(RaidContext, Stage.TOB_MAIDEN);
+  } = useStageEvents<TobRaid>(Stage.TOB_MAIDEN);
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);

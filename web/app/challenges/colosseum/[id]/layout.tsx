@@ -2,11 +2,12 @@
 
 import { ColosseumChallenge } from '@blert/common';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 
-import { ActorContext, ColosseumContext } from '../context';
-import { raidStatusNameAndColor } from '../../../components/raid-quick-details/raid-quick-details';
-import Loading from '../../../components/loading';
+import { ChallengeContext } from '@/challenge-context';
+import { raidStatusNameAndColor } from '@/components/raid-quick-details/raid-quick-details';
+import Loading from '@/components/loading';
+import { ActorContext } from '../context';
 
 import styles from './style.module.scss';
 
@@ -19,11 +20,11 @@ type ColosseumLayoutProps = {
   children: React.ReactNode;
 };
 
-export default function RaidLayout(props: ColosseumLayoutProps) {
+export default function ColosseumLayout(props: ColosseumLayoutProps) {
   const id = props.params.id;
   const pathname = usePathname();
 
-  const [challenge, setChallenge] = useState<ColosseumChallenge | null>(null);
+  const [challenge, setChallenge] = useContext(ChallengeContext);
   const [loading, setLoading] = useState(true);
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [selectedRoomNpc, setSelectedRoomNpc] = useState<number | null>(null);
@@ -46,7 +47,12 @@ export default function RaidLayout(props: ColosseumLayoutProps) {
     getRaid();
 
     // Reload raid every time the page changes to support in-progress raids.
-  }, [id, pathname]);
+  }, [id, pathname, setChallenge]);
+
+  useEffect(() => {
+    // Cleanup the challenge when the component is unmounted.
+    return () => setChallenge(null);
+  });
 
   useEffect(() => {
     if (challenge !== null) {
@@ -70,18 +76,16 @@ export default function RaidLayout(props: ColosseumLayoutProps) {
 
   return (
     <div className={styles.layout}>
-      <ColosseumContext.Provider value={challenge}>
-        <ActorContext.Provider
-          value={{
-            selectedPlayer,
-            setSelectedPlayer,
-            selectedRoomNpc,
-            setSelectedRoomNpc,
-          }}
-        >
-          <div className={styles.content}>{props.children}</div>
-        </ActorContext.Provider>
-      </ColosseumContext.Provider>
+      <ActorContext.Provider
+        value={{
+          selectedPlayer,
+          setSelectedPlayer,
+          selectedRoomNpc,
+          setSelectedRoomNpc,
+        }}
+      >
+        <div className={styles.content}>{props.children}</div>
+      </ActorContext.Provider>
     </div>
   );
 }
