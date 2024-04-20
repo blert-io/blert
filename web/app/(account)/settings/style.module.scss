@@ -64,6 +64,9 @@
             height: 34px;
             width: 34px;
             font-size: 18px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
 
             &:hover {
               background-color: var(--content-area-bg);

@@ -1,12 +1,14 @@
 'use client';
 
 import { useFormState, useFormStatus } from 'react-dom';
+import { useRouter } from 'next/navigation';
 
 import { login } from '@/actions/users';
 import Input from '@/components/input';
 import Button from '@/components/button';
 
 import styles from './style.module.scss';
+import { getSession } from 'next-auth/react';
 
 function FormFields() {
   const { pending } = useFormStatus();
@@ -37,7 +39,19 @@ function FormFields() {
 }
 
 export default function LoginForm() {
-  const [error, formAction] = useFormState(login, null);
+  const router = useRouter();
+
+  const [error, formAction] = useFormState(
+    async (state: string | null, formData: FormData) => {
+      const error = await login(state, formData);
+      if (error === null) {
+        await getSession();
+        router.push('/');
+      }
+      return error;
+    },
+    null,
+  );
 
   return (
     <form action={formAction} className={styles.loginForm}>

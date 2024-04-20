@@ -71,7 +71,7 @@ export async function login(
     await signIn('credentials', {
       username: formData.get('blert-username'),
       password: formData.get('blert-password'),
-      redirectTo: '/',
+      redirect: false,
     });
   } catch (e) {
     if (isRedirectError(e)) {
@@ -80,7 +80,7 @@ export async function login(
     return 'Invalid username or password';
   }
 
-  return 'Invalid username or password';
+  return null;
 }
 
 const DUPLICATE_KEY_ERROR_CODE = 11000;

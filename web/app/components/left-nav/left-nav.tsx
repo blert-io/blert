@@ -2,35 +2,17 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useSession, signOut } from 'next-auth/react';
-import { useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 
-import Input from '@/components/input';
+import AccountStatus from './account-status';
 import { LEFT_NAV_WIDTH } from './definitions';
 import { LeftNavWrapper } from './left-nav-wrapper';
 
 import styles from './styles.module.scss';
-
-const PROTECTED_ROUTES = ['/dashboard', '/settings'];
+import PlayerSearch from './player-search';
 
 export function LeftNav() {
   const currentPath = usePathname();
-  const router = useRouter();
-
-  const session = useSession();
-
-  const playerSearchRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    const focusSearch = (e: KeyboardEvent) => {
-      if (e.key === 'k' && e.ctrlKey) {
-        e.preventDefault();
-        playerSearchRef.current?.focus();
-      }
-    };
-    window.addEventListener('keydown', focusSearch);
-    return () => window.removeEventListener('keydown', focusSearch);
-  }, []);
 
   // viewingTob is determined by if the current path matches the following: /raids/tob/{a guid}
   const viewingTob = currentPath.match(/\/raids\/tob\/[a-zA-Z0-9-]+/);
@@ -78,21 +60,7 @@ export function LeftNav() {
           </li>
 
           <li className={styles.leftNav__playerSearch}>
-            <Input
-              faIcon="fa-solid fa-magnifying-glass"
-              fluid
-              id="blert-player-search"
-              inputRef={playerSearchRef}
-              label="Search for a player"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  router.push(`/players/${e.currentTarget.value}`);
-                  e.currentTarget.value = '';
-                  e.currentTarget.blur();
-                }
-              }}
-              type="text"
-            />
+            <PlayerSearch />
           </li>
 
           {/* Search */}
@@ -312,44 +280,7 @@ export function LeftNav() {
         </li> */}
         </ul>
 
-        <div className={styles.account}>
-          {session.status === 'authenticated' ? (
-            <div className={styles.userWrapper}>
-              <div className={styles.userInfo}>
-                Signed in as <span>{session.data.user.name || 'Unknown'}</span>
-              </div>
-              <div className={styles.links}>
-                <Link className={styles.link} href="/settings">
-                  Settings
-                </Link>
-                <button
-                  className={styles.link}
-                  onClick={async () => {
-                    const { url } = await signOut({
-                      redirect: false,
-                      callbackUrl: PROTECTED_ROUTES.includes(currentPath)
-                        ? '/'
-                        : currentPath,
-                    });
-                    console.log(url);
-                    router.replace(url);
-                  }}
-                >
-                  Log Out
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className={styles.links}>
-              <Link className={styles.link} href="/login">
-                Log In
-              </Link>
-              <Link className={styles.link} href="/register">
-                Sign Up
-              </Link>
-            </div>
-          )}
-        </div>
+        <AccountStatus />
 
         <div className={styles.leftNav__externalLinks}>
           <div className={styles.leftNav__externalLink}>

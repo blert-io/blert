@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFormState } from 'react-dom';
 import Link from 'next/link';
 
@@ -25,6 +25,11 @@ function ApiKey({ apiKey, removeApiKey }: ApiKeyProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [keyVisible, setKeyVisible] = useState(false);
   const [notifyKeyCopied, setNotifyKeyCopied] = useState(false);
+  const [lastUsed, setLastUsed] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setLastUsed(apiKey.lastUsed ?? null);
+  }, [apiKey]);
 
   const copyTooltipId = `${apiKey}-tooltip`;
 
@@ -47,13 +52,7 @@ function ApiKey({ apiKey, removeApiKey }: ApiKeyProps) {
             aria-label={keyVisible ? 'Hide API key' : 'Show API key'}
             onClick={() => setKeyVisible(!keyVisible)}
           >
-            <i
-              className={`fas fa-eye${keyVisible ? '-slash' : ''}`}
-              style={{
-                position: 'relative',
-                left: keyVisible ? -1 : 0,
-              }}
-            />
+            <i className={`fas fa-eye${keyVisible ? '-slash' : ''}`} />
           </button>
           <button
             aria-label="Copy API key"
@@ -91,7 +90,7 @@ function ApiKey({ apiKey, removeApiKey }: ApiKeyProps) {
         </div>
         <div className={styles.lastUsed}>
           Last used{' '}
-          {apiKey.lastUsed?.toLocaleDateString(undefined, {
+          {lastUsed?.toLocaleDateString(undefined, {
             year: 'numeric',
             month: 'numeric',
             day: 'numeric',
