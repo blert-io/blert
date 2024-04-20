@@ -52,7 +52,7 @@ export default function ColosseumLayout(props: ColosseumLayoutProps) {
   useEffect(() => {
     // Cleanup the challenge when the component is unmounted.
     return () => setChallenge(null);
-  });
+  }, [setChallenge]);
 
   useEffect(() => {
     if (challenge !== null) {

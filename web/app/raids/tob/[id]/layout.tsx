@@ -52,7 +52,7 @@ export default function RaidLayout(props: RaidLayoutProps) {
   useEffect(() => {
     // Clean up the raid when the component is unmounted.
     return () => setRaid(null);
-  });
+  }, [setRaid]);
 
   useEffect(() => {
     if (raid !== null) {
