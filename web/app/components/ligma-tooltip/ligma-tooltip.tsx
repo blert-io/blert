@@ -18,7 +18,7 @@ export function LigmaTooltip(props: LigmaTooltipProps) {
 
   useEffect(() => {
     portalNode.current = document.getElementById(portalId ?? 'tooltip-portal');
-  }, []);
+  }, [portalId]);
 
   if (!portalNode.current) {
     return null;
