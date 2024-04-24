@@ -8,6 +8,7 @@ export { PersonalBestType, tobPbForMode } from './personal-best';
 export type { PersonalBest } from './personal-best';
 
 export { ApiKeyModel } from './models/api-key';
+export { NameChangeModel } from './models/name-change';
 export { PlayerModel, PlayerStatsModel } from './models/player';
 export { RaidModel } from './models/raid';
 export type { RaidDocument } from './models/raid';
@@ -110,3 +111,5 @@ export type { RawItemDelta } from './item-delta';
 
 export { Prayer, PrayerBook, PrayerSet } from './prayer-set';
 export type { RawPrayerSet } from './prayer-set';
+
+export { type NameChange, NameChangeStatus } from './name-change';

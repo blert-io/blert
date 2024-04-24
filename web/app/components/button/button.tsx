@@ -4,6 +4,7 @@ export type ButtonProps = {
   className?: string;
   children: React.ReactNode;
   disabled?: boolean;
+  fluid?: boolean;
   loading?: boolean;
   type?: 'button' | 'submit';
 };
@@ -16,6 +17,7 @@ export function Button(props: ButtonProps) {
     <button
       className={className}
       disabled={props.disabled || props.loading}
+      style={{ width: props.fluid ? '100%' : undefined }}
       type={props.type}
     >
       {props.loading ? (

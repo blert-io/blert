@@ -14,15 +14,13 @@ type LigmaTooltipProps = {
 
 export function LigmaTooltip(props: LigmaTooltipProps) {
   const { children, open, openOnClick, portalId, tooltipId } = props;
-  const portalNode = useRef<HTMLElement | null>(null);
+  const portalNode = useRef<HTMLElement | null>(
+    document.getElementById(portalId ?? 'tooltip-portal'),
+  );
 
   useEffect(() => {
     portalNode.current = document.getElementById(portalId ?? 'tooltip-portal');
   }, [portalId]);
-
-  if (!portalNode.current) {
-    return null;
-  }
 
   return ReactDOM.createPortal(
     <Tooltip
