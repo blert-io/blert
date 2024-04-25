@@ -9,6 +9,11 @@ const nameChangeSchema = new Schema<NameChange>({
   playerId: {
     type: Schema.Types.ObjectId,
     ref: 'Player',
+    index: true,
+  },
+  submitterId: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
     default: null,
     index: true,
   },

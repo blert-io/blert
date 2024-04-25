@@ -1,0 +1,41 @@
+@import '../../mixins.scss';
+
+.changeName {
+  @include panel;
+  flex-direction: column;
+  padding: 20px;
+  width: 100%;
+  max-width: 600px;
+
+  h2 {
+    margin: 0 0 1em 0;
+  }
+
+  p {
+    margin: 0 0 0.8em 0;
+
+    a {
+      text-decoration: underline;
+    }
+  }
+
+  form {
+    margin-top: 1em;
+
+    button {
+      margin-top: 1em;
+    }
+  }
+
+  .error {
+    margin-top: 1em;
+    color: var(--blert-red);
+    text-align: center;
+  }
+
+  .return {
+    text-align: center;
+    margin-top: 1em;
+    color: var(--blert-blue);
+  }
+}

@@ -61,20 +61,15 @@ export default function ColosseumLinks() {
           className={`${styles.leftNav__menuItemInner}`}
           href="/challenges/colosseum"
         >
-          <div
-            className={styles.leftNav__menuItemIcon}
-            style={{
-              width: '40px',
-              position: 'relative',
-              height: '40px',
-            }}
-          >
-            <Image
-              src="/varlamore.png"
-              alt="fortis colosseum icon"
-              fill
-              style={{ objectFit: 'contain' }}
-            />
+          <div className={styles.leftNav__menuItemIcon}>
+            <div className={styles.imageWrapper}>
+              <Image
+                src="/varlamore.png"
+                alt="fortis colosseum icon"
+                fill
+                style={{ objectFit: 'contain' }}
+              />
+            </div>
           </div>
           <span className="active">Colosseum</span>
         </Link>

@@ -2,6 +2,7 @@
 
 import {
   ApiKeyModel,
+  NameChange,
   NameChangeModel,
   NameChangeStatus,
   PersonalBestModel,
@@ -11,6 +12,10 @@ import {
   RaidModel,
 } from '@blert/common';
 import { Types } from 'mongoose';
+
+import { auth } from '@/auth';
+import connectToDatabase from './db';
+import { redirect } from 'next/navigation';
 
 const OSRS_HISCORES_API =
   'https://secure.runescape.com/m=hiscore_oldschool/index_lite.ws';
@@ -304,9 +309,11 @@ export async function submitNameChangeForm(
     return 'Invalid new name';
   }
 
+  const session = await auth();
+
   const player = await PlayerModel.findOne({ username: oldName.toLowerCase() });
   if (player === null) {
-    return 'No Blert player found with that name';
+    return `No Blert player found with the name ${oldName}`;
   }
 
   const nameChange = new NameChangeModel({
@@ -315,8 +322,41 @@ export async function submitNameChangeForm(
     newName,
     playerId: player._id,
   });
+
+  if (session !== null && session.user.id) {
+    nameChange.submitterId = new Types.ObjectId(session.user.id);
+  }
+
   await nameChange.save();
 
   processNameChange(nameChange._id);
-  return null;
+
+  redirect('/name-changes');
+}
+
+export type PlainNameChange = Omit<
+  NameChange,
+  '_id' | 'playerId' | 'submitterId'
+> & {
+  submittedAt: Date;
+};
+
+export async function getRecentNameChanges(
+  limit: number = 10,
+): Promise<PlainNameChange[]> {
+  await connectToDatabase();
+
+  const nameChanges = await NameChangeModel.find({})
+    .sort({ _id: -1 })
+    .limit(limit)
+    .lean()
+    .exec();
+
+  return nameChanges.map((nc) => {
+    const { _id, playerId, submitterId, ...rest } = nc;
+    return {
+      ...rest,
+      submittedAt: _id.getTimestamp(),
+    };
+  });
 }

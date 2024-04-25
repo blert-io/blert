@@ -13,6 +13,7 @@ export type NameChange = {
   oldName: string;
   newName: string;
   playerId: Types.ObjectId;
+  submitterId: Types.ObjectId | null;
   processedAt: Date | null;
   migratedDocuments: number;
 };

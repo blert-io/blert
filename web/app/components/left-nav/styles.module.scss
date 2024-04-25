@@ -124,6 +124,12 @@
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     height: 50px;
   }
+
+  &.small {
+    span {
+      font-size: 16px;
+    }
+  }
 }
 
 .leftNav__subMenu {
@@ -176,7 +182,7 @@
     font-size: 18px;
     line-height: 44px;
     position: relative;
-    padding: 0 0 0 15px;
+    padding: 0 0 0 10px;
     color: var(--font-color-nav);
     font-weight: bold;
   }
@@ -203,8 +209,12 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  position: relative;
-  margin: 5px;
+
+  .imageWrapper {
+    position: relative;
+    height: 40px;
+    width: 40px;
+  }
 
   i {
     font-size: 22px;

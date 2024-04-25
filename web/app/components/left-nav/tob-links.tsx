@@ -62,20 +62,15 @@ export default function TobLinks() {
           className={`${styles.leftNav__menuItemInner} ${raid !== null && styles.leftNav__menuItemInnerActive}`}
           href="/raids/tob"
         >
-          <div
-            className={styles.leftNav__menuItemIcon}
-            style={{
-              width: '40px',
-              position: 'relative',
-              height: '40px',
-            }}
-          >
-            <Image
-              src="/logo_tob.webp"
-              alt="tob icon"
-              fill
-              style={{ objectFit: 'contain' }}
-            />
+          <div className={styles.leftNav__menuItemIcon}>
+            <div className={styles.imageWrapper}>
+              <Image
+                src="/logo_tob.webp"
+                alt="tob icon"
+                fill
+                style={{ objectFit: 'contain' }}
+              />
+            </div>
           </div>
           <span className="active">ToB</span>
         </Link>
