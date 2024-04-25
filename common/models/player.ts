@@ -12,6 +12,10 @@ const playerSchema = new Schema<Player>({
     type: Number,
     default: 0,
   },
+  overallExperience: {
+    type: Number,
+    default: 0,
+  },
 });
 
 export const PlayerModel =

@@ -19,7 +19,7 @@ function nameChangeInfo(
 ): [string, string, string | null] {
   switch (nameChange.status) {
     case NameChangeStatus.PENDING:
-      return ['Pending', 'var(--blert-text-color', null];
+      return ['Pending', 'var(--blert-text-color)', null];
     case NameChangeStatus.ACCEPTED:
       return ['Accepted', 'var(--blert-green)', null];
     case NameChangeStatus.OLD_STILL_IN_USE:

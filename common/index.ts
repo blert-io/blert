@@ -3,7 +3,12 @@ export { getNpcDefinition, npcFriendlyName } from './npcs/npc-definitions';
 
 export type { ApiKey, RecordedChallenge, User } from './user';
 export { RecordingType } from './user';
-export type { Player, PlayerStats } from './player';
+export {
+  type Player,
+  type PlayerStats,
+  HiscoresRateLimitError,
+  hiscoreLookup,
+} from './player';
 export { PersonalBestType, tobPbForMode } from './personal-best';
 export type { PersonalBest } from './personal-best';
 

@@ -12,6 +12,13 @@ import { Types } from 'mongoose';
 import connectToDatabase from '@/actions/db';
 import { processNameChange } from '@/actions/change-name';
 
+jest.mock('@/auth', () => {
+  return {
+    __esModule: true,
+    auth: jest.fn(),
+  };
+});
+
 describe('changeName', () => {
   let _fetch = global.fetch;
   let oldPlayerId: Types.ObjectId;
@@ -32,16 +39,19 @@ describe('changeName', () => {
         username: 'old name',
         formattedUsername: 'Old Name',
         totalRaidsRecorded: 2,
+        overallExperience: 1000000,
       },
       {
         username: 'new name',
         formattedUsername: 'New Name',
         totalRaidsRecorded: 2,
+        overallExperience: 2000000,
       },
       {
         username: 'somerandom',
         formattedUsername: 'SomeRandom',
         totalRaidsRecorded: 4,
+        overallExperience: 3000000,
       },
     ]);
 
@@ -221,6 +231,8 @@ describe('changeName', () => {
         text: () => Promise.resolve('1000,2277,300000000'),
       });
 
+    const userId = new Types.ObjectId();
+
     const request = await NameChangeModel.create({
       oldName: 'Old Name',
       newName: 'New Name',
@@ -347,6 +359,7 @@ describe('changeName', () => {
     expect(updatedPlayer!.username).toBe('new name');
     expect(updatedPlayer!.formattedUsername).toBe('New Name');
     expect(updatedPlayer!.totalRaidsRecorded).toBe(4);
+    expect(updatedPlayer!.overallExperience).toBe(300000000);
 
     // All the new player's data following the change date should be deleted.
     const newPlayer = await PlayerModel.findById(newPlayerId);
@@ -581,6 +594,7 @@ describe('changeName', () => {
     expect(updatedPlayer!.username).toBe('new name');
     expect(updatedPlayer!.formattedUsername).toBe('New Name');
     expect(updatedPlayer!.totalRaidsRecorded).toBe(4);
+    expect(updatedPlayer!.overallExperience).toBe(300000000);
 
     // All the new player's data following the change date should be deleted,
     // but their earlier data should remain.
@@ -630,6 +644,7 @@ describe('changeName', () => {
     expect(updatedPlayer!.username).toBe('novel');
     expect(updatedPlayer!.formattedUsername).toBe('Novel');
     expect(updatedPlayer!.totalRaidsRecorded).toBe(2);
+    expect(updatedPlayer!.overallExperience).toBe(300000000);
 
     const updatedRequest = await NameChangeModel.findById(request._id);
     expect(updatedRequest!.status).toBe(NameChangeStatus.ACCEPTED);

@@ -2,6 +2,7 @@
 
 import {
   ApiKeyModel,
+  HiscoresRateLimitError,
   NameChange,
   NameChangeModel,
   NameChangeStatus,
@@ -10,34 +11,13 @@ import {
   PlayerStats,
   PlayerStatsModel,
   RaidModel,
+  hiscoreLookup,
 } from '@blert/common';
 import { Types } from 'mongoose';
+import { redirect } from 'next/navigation';
 
 import { auth } from '@/auth';
 import connectToDatabase from './db';
-import { redirect } from 'next/navigation';
-
-const OSRS_HISCORES_API =
-  'https://secure.runescape.com/m=hiscore_oldschool/index_lite.ws';
-
-/**
- * Looks up a player's overall experience on the OSRS hiscores.
- *
- * @param username OSRS username of the account.
- * @returns The overall experience of the account, or null if the account does
- *     not exist.
- */
-async function hiscoreLookup(username: string): Promise<number | null> {
-  const response = await fetch(`${OSRS_HISCORES_API}?player=${username}`);
-  if (response.status === 404) {
-    return null;
-  }
-
-  const text = await response.text().then((t) => t.split('\n'));
-  const overall = text[0].split(',');
-  const overallExp = parseInt(overall[2]);
-  return overallExp;
-}
 
 async function updatePlayerStats(
   oldPlayerId: Types.ObjectId,
@@ -172,28 +152,8 @@ export async function processNameChange(changeId: Types.ObjectId) {
   }
 
   console.log(
-    `Processing name change request: ${nameChange.oldName} -> ${nameChange.newName}`,
+    `Processing name change request ${changeId}: ${nameChange.oldName} -> ${nameChange.newName}`,
   );
-
-  const [expOld, expNew] = await Promise.all([
-    hiscoreLookup(nameChange.oldName),
-    hiscoreLookup(nameChange.newName),
-  ]);
-
-  if (expOld !== null) {
-    nameChange.status = NameChangeStatus.OLD_STILL_IN_USE;
-  } else if (expNew === null) {
-    nameChange.status = NameChangeStatus.NEW_DOES_NOT_EXIST;
-  }
-
-  // TODO(frolv): Implement experience check.
-
-  if (nameChange.status !== NameChangeStatus.PENDING) {
-    nameChange.processedAt = new Date();
-    await nameChange.save();
-    console.log(`Name change failed: ${nameChange.status}`);
-    return;
-  }
 
   const player = await PlayerModel.findById(nameChange.playerId);
   if (player === null) {
@@ -201,6 +161,52 @@ export async function processNameChange(changeId: Types.ObjectId) {
       `Player for name change does not exist: ${nameChange.oldName}`,
     );
     nameChange.deleteOne();
+    return;
+  }
+
+  let oldExperience: number | null = null;
+  let newExperience: number | null = null;
+
+  try {
+    const [expOld, expNew] = await Promise.all([
+      hiscoreLookup(nameChange.oldName),
+      hiscoreLookup(nameChange.newName),
+    ]);
+    oldExperience = expOld;
+    newExperience = expNew;
+  } catch (e: any) {
+    if (e instanceof HiscoresRateLimitError) {
+      console.log('Hiscores rate limit reached, retrying later');
+      setTimeout(() => processNameChange(changeId), 1000 * 60 * 5);
+      return;
+    }
+
+    console.error(`Failed to look up experience for name change ${changeId}`);
+    console.error(e);
+    setTimeout(() => processNameChange(changeId), 1000 * 60 * 15);
+    return;
+  }
+
+  if (oldExperience !== null) {
+    nameChange.status = NameChangeStatus.OLD_STILL_IN_USE;
+  } else if (newExperience === null) {
+    nameChange.status = NameChangeStatus.NEW_DOES_NOT_EXIST;
+  } else {
+    if (player.overallExperience !== null) {
+      if (newExperience < player.overallExperience) {
+        nameChange.status = NameChangeStatus.DECREASED_EXPERIENCE;
+      }
+    } else {
+      console.log(
+        `Player ${player.username} has no recorded experience; skipping experience check`,
+      );
+    }
+  }
+
+  if (nameChange.status !== NameChangeStatus.PENDING) {
+    nameChange.processedAt = new Date();
+    await nameChange.save();
+    console.log(`Name change failed ${changeId}: ${nameChange.status}`);
     return;
   }
 
@@ -284,9 +290,14 @@ export async function processNameChange(changeId: Types.ObjectId) {
 
   player.username = nameChange.newName.toLowerCase();
   player.formattedUsername = nameChange.newName;
+  if (newExperience !== null) {
+    player.overallExperience = newExperience;
+  }
+
   nameChange.status = NameChangeStatus.ACCEPTED;
   nameChange.processedAt = new Date();
   nameChange.migratedDocuments = migratedDocuments;
+
   await Promise.all([player.save(), nameChange.save()]);
   console.log(
     `Name change accepted: ${nameChange.oldName} -> ${nameChange.newName}`,

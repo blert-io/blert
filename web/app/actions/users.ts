@@ -7,6 +7,7 @@ import {
   PlayerModel,
   User,
   UserModel,
+  hiscoreLookup,
 } from '@blert/common';
 import bcrypt from 'bcrypt';
 import { Types } from 'mongoose';
@@ -220,10 +221,23 @@ export async function createApiKey(rsn: string): Promise<ApiKeyWithUsername> {
     username: rsn.toLowerCase(),
   }).exec();
   if (player === null) {
+    let experience;
+    try {
+      experience = await hiscoreLookup(rsn);
+    } catch (e: any) {
+      throw new Error(
+        'Unable to create API key at this time, please try again later',
+      );
+    }
+    if (experience === null) {
+      throw new Error('Player does not exist on Hiscores');
+    }
+
     player = new PlayerModel({
       username: rsn.toLowerCase(),
       formattedUsername: rsn,
       totalRaidsRecorded: 0,
+      overallExperience: experience,
     });
     player.save();
   }
