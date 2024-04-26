@@ -20,6 +20,13 @@ function startOfDateUtc(): Date {
 }
 
 export class Players {
+  public static async findById(
+    id: Types.ObjectId,
+    projection?: { [field in keyof Player]?: number },
+  ): Promise<Player | null> {
+    return PlayerModel.findById(id, projection).exec();
+  }
+
   /**
    * Creates a new player in the database.
    * @param username The in-game username of the player.

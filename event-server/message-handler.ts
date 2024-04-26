@@ -11,6 +11,7 @@ import Client from './client';
 import ChallengeManager from './challenge-manager';
 import { Users } from './users';
 import { ServerStatus, ServerStatusUpdate } from './server-manager';
+import { Players } from './players';
 
 type EventSink = (event: Event) => Promise<void>;
 
@@ -89,6 +90,32 @@ export default class MessageHandler {
         );
 
         client.sendMessage(historyResponse);
+        break;
+
+      case ServerMessage.Type.GAME_STATE:
+        const gameState = message.getGameState()!;
+        if (gameState.getState() === ServerMessage.GameState.State.LOGGED_IN) {
+          const rsn = gameState.getUsername().toLowerCase();
+          const player = await Players.findById(client.getLinkedPlayerId(), {
+            username: 1,
+            formattedUsername: 1,
+          });
+
+          if (player === null) {
+            client.sendUnauthenticatedAndClose();
+            return;
+          }
+
+          if (rsn !== player.username) {
+            const message = new ServerMessage();
+            message.setType(ServerMessage.Type.ERROR);
+            const rsnError = new ServerMessage.Error();
+            rsnError.setType(ServerMessage.Error.Type.USERNAME_MISMATCH);
+            rsnError.setUsername(player.formattedUsername);
+            message.setError(rsnError);
+            client.sendMessage(message);
+          }
+        }
         break;
 
       case ServerMessage.Type.EVENT_STREAM:
@@ -186,6 +213,16 @@ export default class MessageHandler {
       // TODO(frolv): Use a proper error type instead of an empty ID.
       response.setType(ServerMessage.Type.ACTIVE_CHALLENGE_INFO);
       client.sendMessage(response);
+      return;
+    }
+
+    const player = await Players.findById(client.getLinkedPlayerId(), {
+      username: 1,
+    });
+
+    if (player === null) {
+      console.log(`${client} is not linked to a player; closing`);
+      client.sendUnauthenticatedAndClose();
       return;
     }
 

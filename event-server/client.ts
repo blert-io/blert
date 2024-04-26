@@ -4,6 +4,7 @@ import { WebSocket } from 'ws';
 import MessageHandler from './message-handler';
 import { BasicUser } from './users';
 import { Challenge } from './challenge';
+import { Types } from 'mongoose';
 
 export default class Client {
   private static HEARTBEAT_INTERVAL_MS: number = 5000;
@@ -115,6 +116,14 @@ export default class Client {
     return this.user.username;
   }
 
+  /**
+   * Returns ID of the Blert player linked to this client's API key.
+   * @returns Player ID.
+   */
+  public getLinkedPlayerId(): Types.ObjectId {
+    return this.user.linkedPlayerId;
+  }
+
   public getActiveChallenge(): Challenge | null {
     return this.activeChallenge;
   }
@@ -125,6 +134,17 @@ export default class Client {
 
   public sendMessage(message: ServerMessage): void {
     this.socket.send(message.serializeBinary());
+  }
+
+  public sendUnauthenticatedAndClose(): void {
+    const message = new ServerMessage();
+    message.setType(ServerMessage.Type.ERROR);
+    const error = new ServerMessage.Error();
+    error.setType(ServerMessage.Error.Type.UNAUTHENTICATED);
+    message.setError(error);
+    this.sendMessage(message);
+
+    setTimeout(() => this.close(), 1000);
   }
 
   public close(code?: number): void {

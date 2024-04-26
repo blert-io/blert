@@ -1,14 +1,17 @@
 import {
   ApiKeyModel,
+  PlayerModel,
   Raid,
   RaidModel,
   RecordedChallengeModel,
   UserModel,
 } from '@blert/common';
+import { Types } from 'mongoose';
 
 export type BasicUser = {
   id: string;
   username: string;
+  linkedPlayerId: Types.ObjectId;
 };
 
 export type PastChallenge = Pick<
@@ -43,7 +46,20 @@ export class Users {
       return null;
     }
 
-    return { id: user._id.toString(), username: user.username };
+    const player = await PlayerModel.findOne(
+      { _id: key.playerId },
+      { username: 1 },
+    );
+    if (player === null) {
+      console.error(`API key ${apiKey} does not belong to a player`);
+      return null;
+    }
+
+    return {
+      id: user._id.toString(),
+      username: user.username,
+      linkedPlayerId: player._id,
+    };
   }
 
   /**
