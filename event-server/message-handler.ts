@@ -95,7 +95,8 @@ export default class MessageHandler {
       case ServerMessage.Type.GAME_STATE:
         const gameState = message.getGameState()!;
         if (gameState.getState() === ServerMessage.GameState.State.LOGGED_IN) {
-          const rsn = gameState.getUsername().toLowerCase();
+          const playerInfo = gameState.getPlayerInfo()!;
+          const rsn = playerInfo.getUsername().toLowerCase();
           const player = await Players.findById(client.getLinkedPlayerId(), {
             username: 1,
             formattedUsername: 1,
@@ -114,6 +115,10 @@ export default class MessageHandler {
             rsnError.setUsername(player.formattedUsername);
             message.setError(rsnError);
             client.sendMessage(message);
+          } else {
+            player.formattedUsername = playerInfo.getUsername();
+            player.overallExperience = playerInfo.getOverallExperience();
+            await player.save();
           }
         }
         break;

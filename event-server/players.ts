@@ -6,7 +6,7 @@ import {
   PersonalBestType,
   PersonalBestModel,
 } from '@blert/common';
-import { Types } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 
 type PlayerStatsWithoutPlayerOrDate = Omit<PlayerStats, 'date' | 'playerId'>;
 
@@ -23,7 +23,7 @@ export class Players {
   public static async findById(
     id: Types.ObjectId,
     projection?: { [field in keyof Player]?: number },
-  ): Promise<Player | null> {
+  ): Promise<HydratedDocument<Player> | null> {
     return PlayerModel.findById(id, projection).exec();
   }
 
