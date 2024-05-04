@@ -16,7 +16,7 @@ const WIKI_IMAGE_BASE_URL: string = 'https://oldschool.runescape.wiki/images';
 // 1 to 5. A lot of range ammo falls into this category. This regex attempts to
 // match as many of these items as possible.
 const ONE_TO_FIVE_REGEX =
-  /(arrow(\(p\+*\)|tips|heads)?|bolts( ?\((unf|e|p\+*)\))?)$/;
+  /(arrow(\(p\+*\)|tips|heads| \(lit\))?|bolts( ?\((unf|e|p\+*)\))?)$/;
 
 function is1to5Item(name: string): boolean {
   return name.match(ONE_TO_FIVE_REGEX) !== null;

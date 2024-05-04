@@ -192,7 +192,7 @@ export async function processNameChange(changeId: Types.ObjectId) {
   } else if (newExperience === null) {
     nameChange.status = NameChangeStatus.NEW_DOES_NOT_EXIST;
   } else {
-    if (player.overallExperience !== null) {
+    if (player.overallExperience > 0) {
       if (newExperience < player.overallExperience) {
         nameChange.status = NameChangeStatus.DECREASED_EXPERIENCE;
       }
