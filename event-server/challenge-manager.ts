@@ -28,8 +28,7 @@ export default class ChallengeManager {
     type: ChallengeType,
     mode: ChallengeMode,
     partyMembers: string[],
-    spectator: boolean,
-  ): Promise<string> {
+  ): Promise<Challenge> {
     const partyKey = challengePartyKey(type, partyMembers);
 
     let challenge = this.challengesByPartyKey[partyKey];
@@ -55,31 +54,7 @@ export default class ChallengeManager {
       console.log(`${client} joining existing raid ${challenge.getId()}`);
     }
 
-    await challenge.registerClient(client, spectator);
-
-    return challenge.getId();
-  }
-
-  /**
-   * Ends the participation of a client in a challenge. If the client is the
-   * last remaining client streaming data for the challenge, it is considered
-   * complete.
-   *
-   * @param client The client leaving the challenge.
-   * @param id ID of the challenge the client is leaving.
-   */
-  public async leaveChallenge(client: Client, id: string): Promise<void> {
-    const challenge = this.challengesById[id];
-    if (challenge === undefined) {
-      return;
-    }
-
-    challenge.removeClient(client);
-    if (challenge.hasClients()) {
-      return;
-    }
-
-    await this.endChallenge(challenge);
+    return challenge;
   }
 
   /**
@@ -91,7 +66,7 @@ export default class ChallengeManager {
     return this.challengesById[id];
   }
 
-  private async endChallenge(challenge: Challenge): Promise<void> {
+  public async endChallenge(challenge: Challenge): Promise<void> {
     await challenge.finish();
 
     delete this.challengesById[challenge.getId()];

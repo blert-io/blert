@@ -10,7 +10,6 @@ import {
   RaidDocument,
   RaidModel,
   RecordedChallengeModel,
-  RecordingType,
   RoomEvent,
   RoomNpc,
   RoomNpcType,
@@ -21,7 +20,6 @@ import {
 import { Event } from '@blert/common/generated/event_pb';
 import { Types } from 'mongoose';
 
-import Client from './client';
 import { Players } from './players';
 import { protoToEvent } from './proto';
 
@@ -53,8 +51,6 @@ export abstract class Challenge {
   private readonly partyKey: string;
   private readonly startTime: number;
 
-  private clients: Client[];
-
   private state: State;
   private challengeStatus: ChallengeStatus;
   private mode: ChallengeMode;
@@ -82,8 +78,6 @@ export abstract class Challenge {
     this.party = party;
     this.partyKey = challengePartyKey(type, party);
     this.startTime = startTime;
-
-    this.clients = [];
 
     this.state = State.STARTING;
     this.challengeStatus = ChallengeStatus.IN_PROGRESS;
@@ -127,10 +121,6 @@ export abstract class Challenge {
 
   public getStartTime(): number {
     return this.startTime;
-  }
-
-  public hasClients(): boolean {
-    return this.clients.length > 0;
   }
 
   public getChallengeStatus(): ChallengeStatus {
@@ -217,55 +207,6 @@ export abstract class Challenge {
     event: Event,
     stageUpdate: Event.StageUpdate,
   ): Promise<void>;
-
-  /**
-   * Adds a new client as an event source for the challenge.
-   * @param client The client.
-   * @param spectator Whether the client is spectating the challenge.
-   * @returns `true` if the client was added, `false` if not.
-   */
-  public async registerClient(
-    client: Client,
-    spectator: boolean,
-  ): Promise<boolean> {
-    if (client.getActiveChallenge() !== null) {
-      console.error(
-        `${client} attempted to join ${this.id}, but is already in a challenge`,
-      );
-      return false;
-    }
-
-    if (this.clients.find((c) => c == client) !== undefined) {
-      return false;
-    }
-
-    this.clients.push(client);
-    client.setActiveChallenge(this);
-
-    const recordedChallenge = new RecordedChallengeModel({
-      recorderId: client.getUserId(),
-      cId: this.getId(),
-      recordingType: spectator ? RecordingType.SPECTATOR : RecordingType.RAIDER,
-    });
-    await recordedChallenge.save();
-
-    return true;
-  }
-
-  /**
-   * Removes a client from being an event source for the challenge.
-   * @param client The client.
-   */
-  public removeClient(client: Client): void {
-    if (client.getActiveChallenge() == this) {
-      this.clients = this.clients.filter((c) => c != client);
-      client.setActiveChallenge(null);
-    } else {
-      console.error(
-        `${client} tried to leave challenge ${this.getId()}, but was not in it`,
-      );
-    }
-  }
 
   public async initialize(): Promise<void> {
     const record = new RaidModel({

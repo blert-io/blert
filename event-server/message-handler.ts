@@ -1,4 +1,8 @@
-import { ChallengeType } from '@blert/common';
+import {
+  ChallengeType,
+  RecordedChallengeModel,
+  RecordingType,
+} from '@blert/common';
 import {
   ChallengeMap,
   ChallengeModeMap,
@@ -7,42 +11,232 @@ import {
 } from '@blert/common/generated/event_pb';
 import { ServerMessage } from '@blert/common/generated/server_message_pb';
 
-import Client from './client';
+import { Challenge } from './challenge';
 import ChallengeManager from './challenge-manager';
+import Client from './client';
+import { Players } from './players';
 import { Users } from './users';
 import { ServerStatus, ServerStatusUpdate } from './server-manager';
-import { Players } from './players';
-
-type EventSink = (event: Event) => Promise<void>;
 
 type Proto<E> = E[keyof E];
 
-/**
- * An event aggregator collects events coming from different sources and merges
- * them into a single source of truth.
- */
-class EventAggregator {
-  private sink: EventSink;
+type ConnectedClient = {
+  client: Client;
+  active: boolean;
+  primary: boolean;
+  hasFinished: boolean;
+};
 
-  public constructor(sink: EventSink) {
-    this.sink = sink;
+class ChallengeStreamAggregator {
+  private challengeManager: ChallengeManager;
+  private challenge: Challenge;
+  private clients: ConnectedClient[];
+
+  private cleanupTimer: NodeJS.Timeout | null;
+
+  public constructor(challengeManager: ChallengeManager, challenge: Challenge) {
+    this.challengeManager = challengeManager;
+    this.challenge = challenge;
+    this.clients = [];
+    this.cleanupTimer = null;
   }
 
-  public async process(event: Event): Promise<void> {
-    // TODO(frolv): Just send directly to the sink for now.
-    await this.sink(event);
+  /**
+   * Registers a client as an event stream for the challenge. If there is no
+   * existing primary client, the new client will be marked as primary.
+   *
+   * The client cannot already be in a challenge.
+   *
+   * @param client The new client.
+   */
+  public addClient(client: Client): void {
+    if (client.getActiveChallenge() !== null) {
+      console.error(
+        `${client} is already in challenge ${client.getActiveChallenge()!.getId()}`,
+      );
+      return;
+    }
+
+    if (this.clients.find((c) => c.client === client)) {
+      console.error(`${client} is already streaming to ${this}`);
+      return;
+    }
+
+    client.setActiveChallenge(this.challenge);
+    client.onClose(() => this.removeClient(client));
+
+    const hasPrimaryClient = this.clients.some((c) => c.primary);
+
+    this.clients.push({
+      client,
+      active: true,
+      primary: !hasPrimaryClient,
+      hasFinished: false,
+    });
+
+    this.stopCleanupTimer();
+  }
+
+  /**
+   * Removes a client from the event stream. If the client was the primary
+   * client, a new primary client will be selected from the remaining clients.
+   *
+   * If the challenge has no clients remaining, it will be cleaned up after a
+   * short period.
+   *
+   * @param client The client to remove.
+   */
+  public removeClient(client: Client): void {
+    const connectedClient = this.clients.find((c) => c.client === client);
+    if (!connectedClient) {
+      return;
+    }
+
+    client.setActiveChallenge(null);
+
+    if (this.clients.length === 1) {
+      this.clients = [];
+      // Challenges without clients are kept alive for a short period to allow
+      // for reconnection.
+      if (!this.isComplete()) {
+        this.startCleanupTimer();
+      }
+      return;
+    }
+
+    this.clients = this.clients.filter((c) => c.client !== client);
+
+    if (connectedClient.primary) {
+      const newPrimary = this.clients.find((c) => c.active);
+      if (newPrimary !== undefined) {
+        newPrimary.primary = true;
+      } else {
+        console.error(
+          `${this} cannot set a new primary client: no active clients`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Marks a registered client as active, allowing its events to be processed.
+   *
+   * @param client The active client.
+   */
+  public setClientActive(client: Client): void {
+    const connectedClient = this.clients.find((c) => c.client === client);
+    if (!connectedClient) {
+      console.error(`${client} is not connected ${this}`);
+      return;
+    }
+
+    connectedClient.active = true;
+  }
+
+  /**
+   * Marks a registered client as inactive, preventing its events from being
+   * processed.
+   *
+   * @param client The inactive client.
+   */
+  public setClientInactive(client: Client): void {
+    const connectedClient = this.clients.find((c) => c.client === client);
+    if (!connectedClient) {
+      console.error(`${client} is not connected to ${this}`);
+      return;
+    }
+
+    connectedClient.active = false;
+  }
+
+  /**
+   * Handles an incoming event from a registered client.
+   *
+   * @param client The client that sent the event.
+   * @param event The event.
+   */
+  public async process(client: Client, event: Event): Promise<void> {
+    const connectedClient = this.clients.find((c) => c.client === client);
+    if (!connectedClient) {
+      console.error(`${client} is not connected to ${this}`);
+      return;
+    }
+
+    // TODO(frolv): For now, the primary client's event are used directly.
+    // This should be updated to collect and merge events from all clients.
+    if (connectedClient.primary) {
+      await this.challenge.processEvent(event);
+    }
+  }
+
+  /**
+   * Indicates that a client has completed the challenge. Once all clients have
+   * notified completion, the challenge will be finished and cleaned up.
+   *
+   * @param client The client that completed the challenge.
+   * @param overallTicks The client's overall completion time in ticks.
+   */
+  public markCompletion(client: Client, overallTicks: number): void {
+    const connectedClient = this.clients.find((c) => c.client === client);
+    if (!connectedClient) {
+      console.error(`${client} is not connected to ${this}`);
+      return;
+    }
+
+    connectedClient.hasFinished = true;
+
+    if (connectedClient.primary && overallTicks > 0) {
+      this.challenge.setOverallTime(overallTicks);
+    }
+
+    if (this.isComplete()) {
+      this.stopCleanupTimer();
+      this.finishChallenge();
+    }
+  }
+
+  public isComplete(): boolean {
+    return this.clients.every((c) => c.hasFinished);
+  }
+
+  public toString(): string {
+    return `ChallengeStreamAggregator[${this.challenge.getId()}]`;
+  }
+
+  private startCleanupTimer(): void {
+    this.cleanupTimer = setTimeout(
+      () => {
+        if (this.clients.length === 0) {
+          console.log(`Cleaning up challenge ${this.challenge.getId()}`);
+          this.finishChallenge();
+        }
+      },
+      1000 * 60 * 5,
+    );
+  }
+
+  private finishChallenge(): void {
+    this.challengeManager.endChallenge(this.challenge);
+    this.clients.forEach((c) => c.client.setActiveChallenge(null));
+  }
+
+  private stopCleanupTimer(): void {
+    if (this.cleanupTimer !== null) {
+      clearTimeout(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
   }
 }
 
 export default class MessageHandler {
   private challengeManager: ChallengeManager;
-  private eventAggregators: { [raidId: string]: EventAggregator };
+  private challengeAggregators: { [raidId: string]: ChallengeStreamAggregator };
 
   private allowStartingChallenges: boolean;
 
   public constructor(challengeManager: ChallengeManager) {
     this.challengeManager = challengeManager;
-    this.eventAggregators = {};
+    this.challengeAggregators = {};
     this.allowStartingChallenges = true;
   }
 
@@ -92,8 +286,9 @@ export default class MessageHandler {
         client.sendMessage(historyResponse);
         break;
 
-      case ServerMessage.Type.GAME_STATE:
+      case ServerMessage.Type.GAME_STATE: {
         const gameState = message.getGameState()!;
+
         if (gameState.getState() === ServerMessage.GameState.State.LOGGED_IN) {
           const playerInfo = gameState.getPlayerInfo()!;
           const rsn = playerInfo.getUsername().toLowerCase();
@@ -115,20 +310,47 @@ export default class MessageHandler {
             rsnError.setUsername(player.formattedUsername);
             message.setError(rsnError);
             client.sendMessage(message);
-          } else {
+          } else if (
+            playerInfo.getUsername() !== '' &&
+            playerInfo.getOverallExperience() > 0
+          ) {
             player.formattedUsername = playerInfo.getUsername();
             player.overallExperience = playerInfo.getOverallExperience();
             await player.save();
           }
         }
+
+        const challenge = client.getActiveChallenge();
+        if (challenge !== null) {
+          const aggregator = this.challengeAggregators[challenge.getId()];
+          if (aggregator !== undefined) {
+            switch (gameState.getState()) {
+              case ServerMessage.GameState.State.LOGGED_IN:
+                aggregator.setClientActive(client);
+                break;
+
+              case ServerMessage.GameState.State.LOGGED_OUT:
+                aggregator.setClientInactive(client);
+                break;
+
+              default:
+                console.error(
+                  `Unknown game state: ${gameState.getState()} for ${client}`,
+                );
+                break;
+            }
+          }
+        }
+
         break;
+      }
 
       case ServerMessage.Type.EVENT_STREAM:
         const events = message
           .getChallengeEventsList()
           .sort((a, b) => a.getTick() - b.getTick());
         for (const event of events) {
-          await this.handleRaidEvent(client, event);
+          await this.handleChallengeEvent(client, event);
         }
         break;
 
@@ -138,30 +360,38 @@ export default class MessageHandler {
     }
   }
 
-  public async handleRaidEvent(client: Client, event: Event): Promise<void> {
+  private async handleChallengeEvent(
+    client: Client,
+    event: Event,
+  ): Promise<void> {
     switch (event.getType()) {
       case Event.Type.CHALLENGE_START:
         await this.handleChallengeStart(client, event);
         break;
 
-      case Event.Type.CHALLENGE_END:
-        if (event.getChallengeId() !== '') {
-          const completed = event.getCompletedChallenge()!;
-          // TODO(frolv): Handle this elsewhere...
-          if (completed.getOverallTimeTicks() !== -1) {
-            const challenge = this.challengeManager.get(event.getChallengeId());
-            if (challenge) {
-              challenge.setOverallTime(completed.getOverallTimeTicks());
-            }
-          }
+      case Event.Type.CHALLENGE_END: {
+        if (event.getChallengeId() === '') {
+          return;
+        }
 
-          this.challengeManager.leaveChallenge(client, event.getChallengeId());
+        const aggregator = this.challengeAggregators[event.getChallengeId()];
+        if (aggregator === undefined) {
+          console.error(
+            `No aggregator for challenge ${event.getChallengeId()}`,
+          );
+          return;
+        }
 
-          // TODO(frolv): This deletion should only occur when the raid is
-          // actually finished, but we only have one active client right now.
-          delete this.eventAggregators[event.getChallengeId()];
+        const completed = event.getCompletedChallenge()!;
+        const overallTicks = completed.getOverallTimeTicks();
+
+        aggregator.markCompletion(client, overallTicks);
+
+        if (aggregator.isComplete()) {
+          delete this.challengeAggregators[event.getChallengeId()];
         }
         break;
+      }
 
       case Event.Type.CHALLENGE_UPDATE:
         if (
@@ -192,9 +422,9 @@ export default class MessageHandler {
           return;
         }
 
-        const aggregator = this.eventAggregators[event.getChallengeId()];
+        const aggregator = this.challengeAggregators[event.getChallengeId()];
         if (aggregator) {
-          await aggregator.process(event);
+          await aggregator.process(client, event);
         } else {
           console.error(
             `No aggregator for challenge ${event.getChallengeId()}`,
@@ -233,14 +463,14 @@ export default class MessageHandler {
 
     const challengeInfo = event.getChallengeInfo()!;
 
-    const challenge = challengeInfo.getChallenge();
+    const challengeType = challengeInfo.getChallenge();
     const partySize = challengeInfo.getPartyList().length;
 
     const checkPartySize = (minSize: number, maxSize?: number): boolean => {
       maxSize = maxSize ?? minSize;
       if (partySize < minSize || partySize > maxSize) {
         console.error(
-          `Received CHALLENGE_START event for ${challenge} with invalid party size: ${partySize}`,
+          `Received CHALLENGE_START event for ${challengeType} with invalid party size: ${partySize}`,
         );
 
         // TODO(frolv): Use a proper error type instead of an empty ID.
@@ -251,7 +481,7 @@ export default class MessageHandler {
       return true;
     };
 
-    switch (challenge) {
+    switch (challengeType) {
       case ChallengeType.TOB:
         if (!checkPartySize(1, 5)) {
           return;
@@ -276,7 +506,7 @@ export default class MessageHandler {
       case ChallengeType.TOA:
       case ChallengeType.INFERNO:
         console.error(
-          `Received CHALLENGE_START event for unimplemented challenge: ${challenge}`,
+          `Received CHALLENGE_START event for unimplemented challenge: ${challengeType}`,
         );
 
         // TODO(frolv): Use a proper error type instead of an empty ID.
@@ -286,7 +516,7 @@ export default class MessageHandler {
 
       default:
         console.error(
-          `Received CHALLENGE_START event with unknown challenge: ${challenge}`,
+          `Received CHALLENGE_START event with unknown challenge: ${challengeType}`,
         );
 
         // TODO(frolv): Use a proper error type instead of an empty ID.
@@ -295,23 +525,30 @@ export default class MessageHandler {
         return;
     }
 
-    const challengeId = await this.challengeManager.startOrJoin(
+    const challenge = await this.challengeManager.startOrJoin(
       client,
-      challenge,
+      challengeType,
       challengeInfo.getMode(),
       challengeInfo.getPartyList(),
-      challengeInfo.getSpectator(),
     );
 
-    this.eventAggregators[challengeId] = new EventAggregator(async (evt) => {
-      const challenge = this.challengeManager.get(challengeId);
-      if (challenge) {
-        await challenge.processEvent(evt);
-      }
-    });
-
     response.setType(ServerMessage.Type.ACTIVE_CHALLENGE_INFO);
-    response.setActiveChallengeId(challengeId);
+    response.setActiveChallengeId(challenge.getId());
     client.sendMessage(response);
+
+    if (!this.challengeAggregators[challenge.getId()]) {
+      this.challengeAggregators[challenge.getId()] =
+        new ChallengeStreamAggregator(this.challengeManager, challenge);
+    }
+    this.challengeAggregators[challenge.getId()].addClient(client);
+
+    const recordedChallenge = new RecordedChallengeModel({
+      recorderId: client.getUserId(),
+      cId: challenge.getId(),
+      recordingType: challengeInfo.getSpectator()
+        ? RecordingType.SPECTATOR
+        : RecordingType.PARTICIPANT,
+    });
+    await recordedChallenge.save();
   }
 }

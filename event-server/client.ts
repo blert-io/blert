@@ -8,6 +8,7 @@ import { Types } from 'mongoose';
 
 export default class Client {
   private static HEARTBEAT_INTERVAL_MS: number = 5000;
+  private static HEARTBEAT_DISCONNECT_THRESHOLD: number = 6;
 
   private user: BasicUser;
   private sessionId: number;
@@ -15,10 +16,15 @@ export default class Client {
   private messageHandler: MessageHandler;
   private activeChallenge: Challenge | null;
   private messageQueue: ServerMessage[];
+  private isOpen: boolean;
 
   private closeCallbacks: (() => void)[];
 
-  private lastHeartbeatTime: number;
+  private heartbeatAcknowledged: boolean;
+  private missedHeartbeats: number;
+
+  private processTimeout: NodeJS.Timeout;
+  private heartbeatTimeout: NodeJS.Timeout;
 
   // TODO(frolv): Temporary, for debugging purposes.
   private lastMessageLog: number;
@@ -38,7 +44,10 @@ export default class Client {
     this.activeChallenge = null;
     this.closeCallbacks = [];
     this.messageQueue = [];
-    this.lastHeartbeatTime = Date.now();
+    this.isOpen = true;
+
+    this.heartbeatAcknowledged = true;
+    this.missedHeartbeats = 0;
 
     this.lastMessageLog = Date.now();
     this.totalMessages = 0;
@@ -80,12 +89,15 @@ export default class Client {
         );
         this.messageQueue.push(serverMessage);
       } else {
-        console.log('Received unsupported text message');
+        console.log(`${this} received unsupported text message`);
       }
     });
 
-    setTimeout(() => this.processMessages(), 20);
-    setTimeout(() => this.heartbeat(), Client.HEARTBEAT_INTERVAL_MS);
+    this.processTimeout = setTimeout(() => this.processMessages(), 20);
+    this.heartbeatTimeout = setTimeout(
+      () => this.heartbeat(),
+      Client.HEARTBEAT_INTERVAL_MS,
+    );
   }
 
   /**
@@ -129,14 +141,23 @@ export default class Client {
   }
 
   public setActiveChallenge(challenge: Challenge | null): void {
+    console.log(
+      `${this}: active challenge set to ${challenge ? challenge.getId() : 'null'}`,
+    );
     this.activeChallenge = challenge;
   }
 
   public sendMessage(message: ServerMessage): void {
-    this.socket.send(message.serializeBinary());
+    if (this.isOpen) {
+      this.socket.send(message.serializeBinary());
+    }
   }
 
   public sendUnauthenticatedAndClose(): void {
+    if (!this.isOpen) {
+      return;
+    }
+
     const message = new ServerMessage();
     message.setType(ServerMessage.Type.ERROR);
     const error = new ServerMessage.Error();
@@ -164,14 +185,17 @@ export default class Client {
       const message = this.messageQueue.shift()!;
 
       if (message.getType() === ServerMessage.Type.PONG) {
-        this.lastHeartbeatTime = Date.now();
+        this.heartbeatAcknowledged = true;
+        this.missedHeartbeats = 0;
       } else {
         await this.messageHandler.handleMessage(this, message);
       }
     }
 
     // Keep running forever.
-    setTimeout(() => this.processMessages(), 20);
+    if (this.isOpen) {
+      this.processTimeout = setTimeout(() => this.processMessages(), 20);
+    }
   }
 
   private async heartbeat(): Promise<void> {
@@ -179,15 +203,33 @@ export default class Client {
     ping.setType(ServerMessage.Type.PING);
     this.sendMessage(ping);
 
+    if (!this.heartbeatAcknowledged) {
+      this.missedHeartbeats++;
+
+      if (this.missedHeartbeats >= Client.HEARTBEAT_DISCONNECT_THRESHOLD) {
+        console.log(`${this} is unresponsive, closing connection`);
+        this.isOpen = false;
+        this.close();
+        return;
+      }
+    }
+
+    this.heartbeatAcknowledged = false;
+
     // Keep running forever.
-    setTimeout(() => this.heartbeat(), Client.HEARTBEAT_INTERVAL_MS);
+    if (this.isOpen) {
+      this.heartbeatTimeout = setTimeout(
+        () => this.heartbeat(),
+        Client.HEARTBEAT_INTERVAL_MS,
+      );
+    }
   }
 
   private cleanup(): void {
-    if (this.activeChallenge !== null) {
-      this.activeChallenge.removeClient(this);
-      this.activeChallenge = null;
-    }
+    this.isOpen = false;
+
+    clearTimeout(this.processTimeout);
+    clearTimeout(this.heartbeatTimeout);
 
     this.closeCallbacks.forEach((callback) => {
       callback();
@@ -195,5 +237,6 @@ export default class Client {
 
     this.sessionId = -1;
     this.closeCallbacks = [];
+    this.activeChallenge = null;
   }
 }

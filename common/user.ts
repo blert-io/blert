@@ -21,8 +21,8 @@ export type User = {
 };
 
 export enum RecordingType {
-  SPECTATOR = 'SPECTATOR',
-  RAIDER = 'RAIDER',
+  SPECTATOR = 0,
+  PARTICIPANT = 1,
 }
 
 export type RecordedChallenge = {

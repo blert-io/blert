@@ -15,7 +15,7 @@ export const UserModel =
 const recordedChallengeSchema = new Schema<RecordedChallenge>({
   cId: { type: String, required: true, index: true },
   recorderId: { type: Schema.Types.ObjectId, required: true, index: true },
-  recordingType: { type: String, required: true },
+  recordingType: { type: Number, required: true },
 });
 
 export const RecordedChallengeModel =
