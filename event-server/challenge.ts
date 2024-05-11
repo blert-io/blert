@@ -24,8 +24,8 @@ import { Players } from './players';
 import { protoToEvent } from './proto';
 
 export function challengePartyKey(type: ChallengeType, partyMembers: string[]) {
-  partyMembers.sort();
-  const party = partyMembers
+  const sorted = [...partyMembers].sort();
+  const party = sorted
     .map((name) => name.toLowerCase().replace(' ', '_'))
     .join('-');
   return `${type}-${party}`;
@@ -102,6 +102,13 @@ export abstract class Challenge {
    */
   public getId(): string {
     return this.id;
+  }
+
+  /**
+   * @returns Type of the challenge.
+   */
+  public getType(): ChallengeType {
+    return this.type;
   }
 
   /**
