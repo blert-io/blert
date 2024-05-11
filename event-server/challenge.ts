@@ -24,6 +24,7 @@ import { Players } from './players';
 import { protoToEvent } from './proto';
 
 export function challengePartyKey(type: ChallengeType, partyMembers: string[]) {
+  partyMembers.sort();
   const party = partyMembers
     .map((name) => name.toLowerCase().replace(' ', '_'))
     .join('-');
@@ -54,6 +55,7 @@ export abstract class Challenge {
   private state: State;
   private challengeStatus: ChallengeStatus;
   private mode: ChallengeMode;
+  private completedPlayers: Set<string>;
   private partyInfo: PlayerInfoWithoutUsername[];
   private playerGearSet: Set<string>;
   private totalStageTicks: number;
@@ -82,6 +84,7 @@ export abstract class Challenge {
     this.state = State.STARTING;
     this.challengeStatus = ChallengeStatus.IN_PROGRESS;
     this.mode = mode;
+    this.completedPlayers = new Set();
     this.partyInfo = party.map((_) => ({ gear: PrimaryMeleeGear.BLORVA }));
     this.playerGearSet = new Set();
     this.totalStageTicks = 0;
@@ -163,6 +166,14 @@ export abstract class Challenge {
 
   public setOverallTime(time: number): void {
     this.overallTicks = time;
+  }
+
+  public playerHasCompleted(player: string): boolean {
+    return this.completedPlayers.has(player);
+  }
+
+  public markPlayerCompleted(player: string): void {
+    this.completedPlayers.add(player);
   }
 
   protected getPartyInfo(): PlayerInfoWithoutUsername[] {

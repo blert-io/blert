@@ -278,11 +278,13 @@ export default class TheatreChallenge extends Challenge {
 
     if (stageUpdate.getAccurate()) {
       // Only update personal bests if the stage timer is accurate.
-      this.queuedPbUpdates.forEach((update) => {
-        promises.push(this.updatePartyPbs(update.pbType, update.pbTime));
-      });
-
       if (stageUpdate.getStatus() === StageStatus.COMPLETED) {
+        // TODO(frolv): Currently, stage accuracy is only verified for completed
+        // stages. This should be extended to wipes and resets.
+        this.queuedPbUpdates.forEach((update) => {
+          promises.push(this.updatePartyPbs(update.pbType, update.pbTime));
+        });
+
         let pbType;
         switch (this.getStage()) {
           case Stage.TOB_MAIDEN:

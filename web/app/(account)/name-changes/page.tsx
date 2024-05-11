@@ -28,3 +28,5 @@ export default async function NameChanges() {
     </div>
   );
 }
+
+export const dynamic = 'force-dynamic';

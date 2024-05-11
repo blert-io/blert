@@ -22,6 +22,7 @@ type Proto<E> = E[keyof E];
 
 type ConnectedClient = {
   client: Client;
+  type: RecordingType;
   active: boolean;
   primary: boolean;
   hasFinished: boolean;
@@ -49,7 +50,7 @@ class ChallengeStreamAggregator {
    *
    * @param client The new client.
    */
-  public addClient(client: Client): void {
+  public addClient(client: Client, type: RecordingType): void {
     if (client.getActiveChallenge() !== null) {
       console.error(
         `${client} is already in challenge ${client.getActiveChallenge()!.getId()}`,
@@ -63,12 +64,12 @@ class ChallengeStreamAggregator {
     }
 
     client.setActiveChallenge(this.challenge);
-    client.onClose(() => this.removeClient(client));
 
     const hasPrimaryClient = this.clients.some((c) => c.primary);
 
     this.clients.push({
       client,
+      type,
       active: true,
       primary: !hasPrimaryClient,
       hasFinished: false,
@@ -87,8 +88,8 @@ class ChallengeStreamAggregator {
    * @param client The client to remove.
    */
   public removeClient(client: Client): void {
-    const connectedClient = this.clients.find((c) => c.client === client);
-    if (!connectedClient) {
+    const clientToRemove = this.clients.find((c) => c.client === client);
+    if (!clientToRemove) {
       return;
     }
 
@@ -106,15 +107,8 @@ class ChallengeStreamAggregator {
 
     this.clients = this.clients.filter((c) => c.client !== client);
 
-    if (connectedClient.primary) {
-      const newPrimary = this.clients.find((c) => c.active);
-      if (newPrimary !== undefined) {
-        newPrimary.primary = true;
-      } else {
-        console.error(
-          `${this} cannot set a new primary client: no active clients`,
-        );
-      }
+    if (clientToRemove.primary) {
+      this.updatePrimaryClient();
     }
   }
 
@@ -131,6 +125,11 @@ class ChallengeStreamAggregator {
     }
 
     connectedClient.active = true;
+
+    const hasPrimaryClient = this.clients.some((c) => c.primary);
+    connectedClient.primary = !hasPrimaryClient;
+
+    this.stopCleanupTimer();
   }
 
   /**
@@ -147,6 +146,9 @@ class ChallengeStreamAggregator {
     }
 
     connectedClient.active = false;
+    if (connectedClient.primary) {
+      this.updatePrimaryClient();
+    }
   }
 
   /**
@@ -185,7 +187,13 @@ class ChallengeStreamAggregator {
 
     connectedClient.hasFinished = true;
 
-    if (connectedClient.primary && overallTicks > 0) {
+    if (connectedClient.type === RecordingType.PARTICIPANT) {
+      this.challenge.markPlayerCompleted(client.getLoggedInRsn()!);
+    }
+
+    const shouldUpdateOverallTime =
+      connectedClient.primary || this.challenge.getOverallTime() === 0;
+    if (shouldUpdateOverallTime && overallTicks > 0) {
       this.challenge.setOverallTime(overallTicks);
     }
 
@@ -201,6 +209,21 @@ class ChallengeStreamAggregator {
 
   public toString(): string {
     return `ChallengeStreamAggregator[${this.challenge.getId()}]`;
+  }
+
+  private updatePrimaryClient(): void {
+    const newPrimary = this.clients.find((c) => c.active && !c.hasFinished);
+    if (newPrimary !== undefined) {
+      newPrimary.primary = true;
+      console.log(`${this}: primary client set to ${newPrimary.client}`);
+    } else {
+      console.error(
+        `${this}: cannot set a new primary client: no active clients`,
+      );
+      if (!this.isComplete()) {
+        this.startCleanupTimer();
+      }
+    }
   }
 
   private startCleanupTimer(): void {
@@ -238,6 +261,13 @@ export default class MessageHandler {
     this.challengeManager = challengeManager;
     this.challengeAggregators = {};
     this.allowStartingChallenges = true;
+  }
+
+  public closeClient(client: Client): void {
+    const challenge = client.getActiveChallenge();
+    if (challenge !== null) {
+      this.challengeAggregators[challenge.getId()]?.removeClient(client);
+    }
   }
 
   public handleServerStatusUpdate = ({ status }: ServerStatusUpdate): void => {
@@ -302,6 +332,8 @@ export default class MessageHandler {
             return;
           }
 
+          client.setLoggedInRsn(rsn);
+
           if (rsn !== player.username) {
             const message = new ServerMessage();
             message.setType(ServerMessage.Type.ERROR);
@@ -318,6 +350,8 @@ export default class MessageHandler {
             player.overallExperience = playerInfo.getOverallExperience();
             await player.save();
           }
+        } else {
+          client.setLoggedInRsn(null);
         }
 
         const challenge = client.getActiveChallenge();
@@ -536,18 +570,23 @@ export default class MessageHandler {
     response.setActiveChallengeId(challenge.getId());
     client.sendMessage(response);
 
+    const recordingType = challengeInfo.getSpectator()
+      ? RecordingType.SPECTATOR
+      : RecordingType.PARTICIPANT;
+
     if (!this.challengeAggregators[challenge.getId()]) {
       this.challengeAggregators[challenge.getId()] =
         new ChallengeStreamAggregator(this.challengeManager, challenge);
     }
-    this.challengeAggregators[challenge.getId()].addClient(client);
+    this.challengeAggregators[challenge.getId()].addClient(
+      client,
+      recordingType,
+    );
 
     const recordedChallenge = new RecordedChallengeModel({
       recorderId: client.getUserId(),
       cId: challenge.getId(),
-      recordingType: challengeInfo.getSpectator()
-        ? RecordingType.SPECTATOR
-        : RecordingType.PARTICIPANT,
+      recordingType,
     });
     await recordedChallenge.save();
   }

@@ -488,6 +488,8 @@ function computeNpcState(
       hasAttacks: false,
     };
 
+    let lastActiveTick = -1;
+
     for (let i = 0; i < totalTicks; i++) {
       const eventsForThisTick = eventsByTick[i];
       if (eventsForThisTick === undefined) {
@@ -503,6 +505,7 @@ function computeNpcState(
           attack: null,
           hitpoints: SkillLevel.fromRaw(eventsForThisNpc[0].npc.hitpoints),
         };
+        lastActiveTick = i;
       }
 
       const attackEvent = eventsForThisTick.find(
@@ -510,7 +513,18 @@ function computeNpcState(
           e.type === EventType.NPC_ATTACK &&
           (e as NpcAttackEvent).npc.roomId === Number(roomId),
       ) as NpcAttackEvent | undefined;
-      if (attackEvent) {
+      if (attackEvent !== undefined) {
+        if (npc.stateByTick[i] === null) {
+          const hitpoints =
+            lastActiveTick !== -1
+              ? npc.stateByTick[lastActiveTick]!.hitpoints
+              : new SkillLevel(0, 1);
+          npc.stateByTick[i] = {
+            attack: null,
+            hitpoints,
+          };
+        }
+
         npc.hasAttacks = true;
         npc.stateByTick[i]!.attack = {
           type: attackEvent.npcAttack.attack,

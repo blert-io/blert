@@ -7,12 +7,12 @@ import TheatreChallenge from './theatre';
 import ColosseumChallenge from './colosseum';
 
 export default class ChallengeManager {
-  private challengesById: { [id: string]: Challenge };
-  private challengesByPartyKey: { [key: string]: Challenge };
+  private challengesById: Map<string, Challenge>;
+  private challengesByPartyKey: Map<string, Challenge[]>;
 
   constructor() {
-    this.challengesById = {};
-    this.challengesByPartyKey = {};
+    this.challengesById = new Map();
+    this.challengesByPartyKey = new Map();
   }
 
   /**
@@ -31,9 +31,12 @@ export default class ChallengeManager {
   ): Promise<Challenge> {
     const partyKey = challengePartyKey(type, partyMembers);
 
-    let challenge = this.challengesByPartyKey[partyKey];
+    let challenge = this.getLastChallengeForParty(partyKey);
 
-    if (challenge === undefined) {
+    const hasAlreadyCompleted =
+      challenge?.playerHasCompleted(client.getLoggedInRsn()!) ?? false;
+
+    if (challenge === undefined || hasAlreadyCompleted) {
       const challengeId = uuidv4();
       challenge = this.constructChallengeType(
         type,
@@ -42,10 +45,21 @@ export default class ChallengeManager {
         partyMembers,
       );
 
-      this.challengesById[challengeId] = challenge;
-      this.challengesByPartyKey[partyKey] = challenge;
+      this.challengesById.set(challengeId, challenge);
 
-      console.log(`${client} starting new raid ${challengeId}`);
+      if (!this.challengesByPartyKey.has(partyKey)) {
+        this.challengesByPartyKey.set(partyKey, []);
+      }
+      this.challengesByPartyKey.get(partyKey)!.push(challenge);
+
+      if (hasAlreadyCompleted) {
+        console.log(
+          `${client} attempted to join challenge with party ${partyKey} ` +
+            `but has already completed it; assuming a new challenge instead.`,
+        );
+      } else {
+        console.log(`${client} starting new raid ${challengeId}`);
+      }
       await challenge.initialize();
     } else {
       if (mode !== ChallengeMode.NO_MODE) {
@@ -63,16 +77,26 @@ export default class ChallengeManager {
    * @returns The raid if found.
    */
   public get(id: string): Challenge | undefined {
-    return this.challengesById[id];
+    return this.challengesById.get(id);
   }
 
   public async endChallenge(challenge: Challenge): Promise<void> {
     await challenge.finish();
 
-    delete this.challengesById[challenge.getId()];
-    delete this.challengesByPartyKey[challenge.getPartyKey()];
+    this.challengesById.delete(challenge.getId());
 
-    console.log(`Ended raid ${challenge.getId()}`);
+    const byKey = this.challengesByPartyKey.get(challenge.getPartyKey())!;
+    this.challengesByPartyKey.set(
+      challenge.getPartyKey(),
+      byKey.filter((c) => c !== challenge),
+    );
+
+    console.log(`Ended challenge ${challenge.getId()}`);
+  }
+
+  private getLastChallengeForParty(partyKey: string): Challenge | undefined {
+    const challenges = this.challengesByPartyKey.get(partyKey);
+    return challenges?.[challenges.length - 1];
   }
 
   private constructChallengeType(

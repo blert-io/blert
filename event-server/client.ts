@@ -1,10 +1,10 @@
 import { ServerMessage } from '@blert/common/generated/server_message_pb';
+import { Types } from 'mongoose';
 import { WebSocket } from 'ws';
 
 import MessageHandler from './message-handler';
 import { BasicUser } from './users';
 import { Challenge } from './challenge';
-import { Types } from 'mongoose';
 
 export default class Client {
   private static HEARTBEAT_INTERVAL_MS: number = 5000;
@@ -32,6 +32,8 @@ export default class Client {
   private maxMessageSize: number;
   private meanMessageSize: number;
 
+  private loggedInRsn: string | null;
+
   constructor(
     socket: WebSocket,
     eventHandler: MessageHandler,
@@ -53,6 +55,8 @@ export default class Client {
     this.totalMessages = 0;
     this.maxMessageSize = 0;
     this.meanMessageSize = 0;
+
+    this.loggedInRsn = null;
 
     socket.binaryType = 'arraybuffer';
 
@@ -147,6 +151,14 @@ export default class Client {
     this.activeChallenge = challenge;
   }
 
+  public getLoggedInRsn(): string | null {
+    return this.loggedInRsn;
+  }
+
+  public setLoggedInRsn(rsn: string | null): void {
+    this.loggedInRsn = rsn;
+  }
+
   public sendMessage(message: ServerMessage): void {
     if (this.isOpen) {
       this.socket.send(message.serializeBinary());
@@ -234,6 +246,8 @@ export default class Client {
     this.closeCallbacks.forEach((callback) => {
       callback();
     });
+
+    this.messageHandler.closeClient(this);
 
     this.sessionId = -1;
     this.closeCallbacks = [];
