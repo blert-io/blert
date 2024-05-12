@@ -9,6 +9,7 @@ import Statistic from '../../components/statistic';
 import { ticksToFormattedSeconds } from '../../utils/tick';
 
 import styles from './style.module.scss';
+import { ResolvingMetadata } from 'next';
 
 type PlayerPageProps = {
   params: { username: string };
@@ -285,11 +286,32 @@ export default async function Player(props: PlayerPageProps) {
   );
 }
 
-export async function generateMetadata({ params }: PlayerPageProps) {
+export async function generateMetadata(
+  { params }: PlayerPageProps,
+  parent: ResolvingMetadata,
+) {
   const username = decodeURIComponent(params.username);
-  const player = await loadPlayerWithStats(username);
-  const title = player?.formattedUsername ?? 'Player not found';
-  return { title };
+  const [player, metadata] = await Promise.all([
+    loadPlayerWithStats(username),
+    parent,
+  ]);
+
+  if (player === null) {
+    return { title: 'Player not found' };
+  }
+
+  const description = `View ${player.formattedUsername}'s statistics on Blert, Old School RuneScape's premier PvM tracker.`;
+
+  return {
+    title: player.formattedUsername,
+    description,
+    openGraph: { ...metadata.openGraph, description },
+    twitter: {
+      ...metadata.twitter,
+      title: `${player.formattedUsername} | Blert`,
+      description,
+    },
+  };
 }
 
 export const dynamic = 'force-dynamic';

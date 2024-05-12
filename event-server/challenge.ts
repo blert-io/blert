@@ -176,11 +176,11 @@ export abstract class Challenge {
   }
 
   public playerHasCompleted(player: string): boolean {
-    return this.completedPlayers.has(player);
+    return this.completedPlayers.has(player.toLowerCase());
   }
 
   public markPlayerCompleted(player: string): void {
-    this.completedPlayers.add(player);
+    this.completedPlayers.add(player.toLowerCase());
   }
 
   protected getPartyInfo(): PlayerInfoWithoutUsername[] {

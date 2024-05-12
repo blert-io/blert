@@ -14,7 +14,7 @@ import { ServerMessage } from '@blert/common/generated/server_message_pb';
 import { Challenge } from './challenge';
 import ChallengeManager from './challenge-manager';
 import Client from './client';
-import { Players } from './players';
+import { PlayerManager, Players } from './players';
 import { Users } from './users';
 import { ServerStatus, ServerStatusUpdate } from './server-manager';
 
@@ -30,16 +30,26 @@ type ConnectedClient = {
 
 class ChallengeStreamAggregator {
   private challengeManager: ChallengeManager;
+  private playerManager: PlayerManager;
   private challenge: Challenge;
   private clients: ConnectedClient[];
 
   private cleanupTimer: NodeJS.Timeout | null;
 
-  public constructor(challengeManager: ChallengeManager, challenge: Challenge) {
+  public constructor(
+    challengeManager: ChallengeManager,
+    playerManager: PlayerManager,
+    challenge: Challenge,
+  ) {
     this.challengeManager = challengeManager;
+    this.playerManager = playerManager;
     this.challenge = challenge;
     this.clients = [];
     this.cleanupTimer = null;
+  }
+
+  public getChallenge(): Challenge {
+    return this.challenge;
   }
 
   /**
@@ -51,6 +61,10 @@ class ChallengeStreamAggregator {
    * @param client The new client.
    */
   public addClient(client: Client, type: RecordingType): void {
+    if (client.getActiveChallenge() === this.challenge) {
+      return;
+    }
+
     if (client.getActiveChallenge() !== null) {
       console.error(
         `${client} is already in challenge ${client.getActiveChallenge()!.getId()}`,
@@ -99,9 +113,7 @@ class ChallengeStreamAggregator {
       this.clients = [];
       // Challenges without clients are kept alive for a short period to allow
       // for reconnection.
-      if (!this.isComplete()) {
-        this.startCleanupTimer();
-      }
+      this.startCleanupTimer();
       return;
     }
 
@@ -189,6 +201,10 @@ class ChallengeStreamAggregator {
 
     if (connectedClient.type === RecordingType.PARTICIPANT) {
       this.challenge.markPlayerCompleted(client.getLoggedInRsn()!);
+      this.playerManager.setPlayerInactive(
+        client.getLoggedInRsn()!,
+        this.challenge.getId(),
+      );
     }
 
     const shouldUpdateOverallTime =
@@ -253,12 +269,17 @@ class ChallengeStreamAggregator {
 
 export default class MessageHandler {
   private challengeManager: ChallengeManager;
+  private playerManager: PlayerManager;
   private challengeAggregators: { [raidId: string]: ChallengeStreamAggregator };
 
   private allowStartingChallenges: boolean;
 
-  public constructor(challengeManager: ChallengeManager) {
+  public constructor(
+    challengeManager: ChallengeManager,
+    playerManager: PlayerManager,
+  ) {
     this.challengeManager = challengeManager;
+    this.playerManager = playerManager;
     this.challengeAggregators = {};
     this.allowStartingChallenges = true;
   }
@@ -316,66 +337,54 @@ export default class MessageHandler {
         client.sendMessage(historyResponse);
         break;
 
-      case ServerMessage.Type.GAME_STATE: {
-        const gameState = message.getGameState()!;
+      case ServerMessage.Type.GAME_STATE:
+        await this.handleGameStateUpdate(client, message.getGameState()!);
+        break;
 
-        if (gameState.getState() === ServerMessage.GameState.State.LOGGED_IN) {
-          const playerInfo = gameState.getPlayerInfo()!;
-          const rsn = playerInfo.getUsername().toLowerCase();
-          const player = await Players.findById(client.getLinkedPlayerId(), {
-            username: 1,
-            formattedUsername: 1,
-          });
+      case ServerMessage.Type.CHALLENGE_STATE_CONFIRMATION: {
+        // A client's response to a previous CHALLENGE_STATE_CONFIRMATION
+        // request. If the challenge state is not valid, the player has left the
+        // challenge, so remove them.
+        const confirmation = message.getChallengeStateConfirmation()!;
+        const rsn = confirmation.getUsername().toLowerCase();
 
-          if (player === null) {
-            client.sendUnauthenticatedAndClose();
-            return;
-          }
+        if (confirmation.getIsValid()) {
+          if (client.getActiveChallenge() === null) {
+            const aggregator =
+              this.challengeAggregators[message.getActiveChallengeId()];
+            if (aggregator !== undefined) {
+              const isParticipant = aggregator
+                .getChallenge()
+                .getParty()
+                .some((p) => p.toLowerCase() === rsn);
+              aggregator.addClient(
+                client,
+                isParticipant
+                  ? RecordingType.PARTICIPANT
+                  : RecordingType.SPECTATOR,
+              );
+            }
 
-          client.setLoggedInRsn(rsn);
-
-          if (rsn !== player.username) {
-            const message = new ServerMessage();
-            message.setType(ServerMessage.Type.ERROR);
-            const rsnError = new ServerMessage.Error();
-            rsnError.setType(ServerMessage.Error.Type.USERNAME_MISMATCH);
-            rsnError.setUsername(player.formattedUsername);
-            message.setError(rsnError);
-            client.sendMessage(message);
-          } else if (
-            playerInfo.getUsername() !== '' &&
-            playerInfo.getOverallExperience() > 0
-          ) {
-            player.formattedUsername = playerInfo.getUsername();
-            player.overallExperience = playerInfo.getOverallExperience();
-            await player.save();
+            console.log(
+              `${client}: player ${rsn} rejoining challenge ${message.getActiveChallengeId()}`,
+            );
           }
         } else {
-          client.setLoggedInRsn(null);
-        }
-
-        const challenge = client.getActiveChallenge();
-        if (challenge !== null) {
-          const aggregator = this.challengeAggregators[challenge.getId()];
-          if (aggregator !== undefined) {
-            switch (gameState.getState()) {
-              case ServerMessage.GameState.State.LOGGED_IN:
-                aggregator.setClientActive(client);
-                break;
-
-              case ServerMessage.GameState.State.LOGGED_OUT:
-                aggregator.setClientInactive(client);
-                break;
-
-              default:
-                console.error(
-                  `Unknown game state: ${gameState.getState()} for ${client}`,
-                );
-                break;
-            }
+          const challenge = this.challengeManager.get(
+            message.getActiveChallengeId(),
+          );
+          if (challenge !== undefined) {
+            challenge.markPlayerCompleted(rsn);
           }
-        }
+          this.playerManager.setPlayerInactive(
+            rsn,
+            message.getActiveChallengeId(),
+          );
 
+          console.log(
+            `${client}: player ${rsn} is no longer in challenge ${message.getActiveChallengeId()}`,
+          );
+        }
         break;
       }
 
@@ -576,7 +585,11 @@ export default class MessageHandler {
 
     if (!this.challengeAggregators[challenge.getId()]) {
       this.challengeAggregators[challenge.getId()] =
-        new ChallengeStreamAggregator(this.challengeManager, challenge);
+        new ChallengeStreamAggregator(
+          this.challengeManager,
+          this.playerManager,
+          challenge,
+        );
     }
     this.challengeAggregators[challenge.getId()].addClient(
       client,
@@ -589,5 +602,99 @@ export default class MessageHandler {
       recordingType,
     });
     await recordedChallenge.save();
+  }
+
+  private async handleGameStateUpdate(
+    client: Client,
+    gameState: ServerMessage.GameState,
+  ): Promise<void> {
+    if (gameState.getState() === ServerMessage.GameState.State.LOGGED_IN) {
+      const playerInfo = gameState.getPlayerInfo()!;
+      const rsn = playerInfo.getUsername().toLowerCase();
+      const player = await Players.findById(client.getLinkedPlayerId(), {
+        username: 1,
+        formattedUsername: 1,
+      });
+
+      if (player === null) {
+        client.sendUnauthenticatedAndClose();
+        return;
+      }
+
+      client.setLoggedInRsn(rsn);
+
+      if (rsn !== player.username) {
+        const error = new ServerMessage();
+        error.setType(ServerMessage.Type.ERROR);
+        const rsnError = new ServerMessage.Error();
+        rsnError.setType(ServerMessage.Error.Type.USERNAME_MISMATCH);
+        rsnError.setUsername(player.formattedUsername);
+        error.setError(rsnError);
+        client.sendMessage(error);
+      } else {
+        // When a player logs in, request a confirmation of their active
+        // challenge state to synchronize with the server.
+        this.requestChallengeStateConfirmation(client, rsn);
+
+        if (
+          playerInfo.getUsername() !== '' &&
+          playerInfo.getOverallExperience() > 0
+        ) {
+          player.formattedUsername = playerInfo.getUsername();
+          player.overallExperience = playerInfo.getOverallExperience();
+          await player.save();
+        }
+      }
+    } else {
+      // Client has logged out.
+      client.setLoggedInRsn(null);
+    }
+
+    const challenge = client.getActiveChallenge();
+    if (challenge !== null) {
+      const aggregator = this.challengeAggregators[challenge.getId()];
+      if (aggregator !== undefined) {
+        switch (gameState.getState()) {
+          case ServerMessage.GameState.State.LOGGED_IN:
+            aggregator.setClientActive(client);
+            break;
+
+          case ServerMessage.GameState.State.LOGGED_OUT:
+            aggregator.setClientInactive(client);
+            break;
+
+          default:
+            console.error(
+              `${client}: Unknown game state: ${gameState.getState()}`,
+            );
+            break;
+        }
+      }
+    }
+  }
+
+  private requestChallengeStateConfirmation(client: Client, rsn: string): void {
+    const challengeId = this.playerManager.getCurrentChallengeId(rsn);
+    if (challengeId === undefined) {
+      return;
+    }
+
+    const activeChallenge = this.challengeManager.get(challengeId);
+    if (activeChallenge === undefined) {
+      return;
+    }
+
+    const message = new ServerMessage();
+    message.setType(ServerMessage.Type.CHALLENGE_STATE_CONFIRMATION);
+    message.setActiveChallengeId(challengeId);
+    const request = new ServerMessage.ChallengeStateConfirmation();
+    request.setUsername(rsn);
+    request.setChallenge(activeChallenge.getType() as Proto<ChallengeMap>);
+    request.setMode(activeChallenge.getMode() as Proto<ChallengeModeMap>);
+    request.setStage(activeChallenge.getStage() as Proto<StageMap>);
+    request.setPartyList(activeChallenge.getParty());
+    message.setChallengeStateConfirmation(request);
+
+    client.sendMessage(message);
   }
 }

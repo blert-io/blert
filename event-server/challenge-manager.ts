@@ -3,16 +3,20 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { Challenge, challengePartyKey } from './challenge';
 import Client from './client';
-import TheatreChallenge from './theatre';
 import ColosseumChallenge from './colosseum';
+import TheatreChallenge from './theatre';
+import { PlayerManager } from './players';
 
 export default class ChallengeManager {
   private challengesById: Map<string, Challenge>;
   private challengesByPartyKey: Map<string, Challenge[]>;
 
-  constructor() {
+  private playerManager: PlayerManager;
+
+  constructor(playerManager: PlayerManager) {
     this.challengesById = new Map();
     this.challengesByPartyKey = new Map();
+    this.playerManager = playerManager;
   }
 
   /**
@@ -45,6 +49,10 @@ export default class ChallengeManager {
         partyMembers,
       );
 
+      partyMembers.forEach((member) =>
+        this.playerManager.setPlayerActive(member, challengeId),
+      );
+
       this.challengesById.set(challengeId, challenge);
 
       if (!this.challengesByPartyKey.has(partyKey)) {
@@ -58,14 +66,14 @@ export default class ChallengeManager {
             `but has already completed it; assuming a new challenge instead.`,
         );
       } else {
-        console.log(`${client} starting new raid ${challengeId}`);
+        console.log(`${client} starting new challenge ${challengeId}`);
       }
       await challenge.initialize();
     } else {
       if (mode !== ChallengeMode.NO_MODE) {
         challenge.setMode(mode);
       }
-      console.log(`${client} joining existing raid ${challenge.getId()}`);
+      console.log(`${client} joining existing challenge ${challenge.getId()}`);
     }
 
     return challenge;
@@ -90,6 +98,12 @@ export default class ChallengeManager {
       challenge.getPartyKey(),
       byKey.filter((c) => c !== challenge),
     );
+
+    challenge
+      .getParty()
+      .forEach((member) =>
+        this.playerManager.setPlayerInactive(member, challenge.getId()),
+      );
 
     console.log(`Ended challenge ${challenge.getId()}`);
   }

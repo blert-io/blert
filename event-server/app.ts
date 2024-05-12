@@ -8,6 +8,7 @@ import ConnectionManager from './connection-manager';
 import MessageHandler from './message-handler';
 import ChallengeManager from './challenge-manager';
 import ServerManager, { ServerStatus } from './server-manager';
+import { PlayerManager } from './players';
 
 async function connectToDatabase() {
   if (!process.env.DB_CONNECTION_STRING) {
@@ -103,8 +104,9 @@ async function main(): Promise<void> {
 
   const connectionManager = new ConnectionManager();
   const serverManager = new ServerManager(connectionManager);
-  const challengeManager = new ChallengeManager();
-  const messageHandler = new MessageHandler(challengeManager);
+  const playerManager = new PlayerManager();
+  const challengeManager = new ChallengeManager(playerManager);
+  const messageHandler = new MessageHandler(challengeManager, playerManager);
 
   serverManager.onStatusUpdate(messageHandler.handleServerStatusUpdate);
 

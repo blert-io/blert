@@ -8,6 +8,9 @@ import {
 } from '@blert/common';
 import { HydratedDocument, Types } from 'mongoose';
 
+import { Challenge } from './challenge';
+import ChallengeManager from './challenge-manager';
+
 type PlayerStatsWithoutPlayerOrDate = Omit<PlayerStats, 'date' | 'playerId'>;
 
 function startOfDateUtc(): Date {
@@ -190,5 +193,75 @@ export class Players {
     callback(playerStats);
 
     playerStats.save();
+  }
+}
+
+type ActivePlayer = {
+  challengeId: string;
+};
+
+type PlayerStatusCallback = (challengeId: string | null) => void;
+
+export class PlayerManager {
+  private activePlayers = new Map<string, ActivePlayer>();
+
+  private statusUpdateListeners = new Map<string, PlayerStatusCallback[]>();
+
+  public setPlayerActive(username: string, challengeId: string): void {
+    this.activePlayers.set(username.toLowerCase(), { challengeId });
+    this.statusUpdateListeners
+      .get(username.toLowerCase())
+      ?.forEach((cb) => cb(challengeId));
+  }
+
+  public setPlayerInactive(username: string, challengeId: string): void {
+    username = username.toLowerCase();
+    const activePlayer = this.activePlayers.get(username);
+    if (activePlayer === undefined) {
+      return;
+    }
+    if (activePlayer.challengeId !== challengeId) {
+      console.error(
+        `Tried to remove ${username} from challenge ${challengeId}, ` +
+          `but they are in ${activePlayer.challengeId}`,
+      );
+      return;
+    }
+    this.activePlayers.delete(username);
+    this.statusUpdateListeners
+      .get(username.toLowerCase())
+      ?.forEach((cb) => cb(null));
+  }
+
+  public getCurrentChallengeId(username: string): string | undefined {
+    return this.activePlayers.get(username.toLowerCase())?.challengeId;
+  }
+
+  public subscribeToPlayer(
+    username: string,
+    callback: PlayerStatusCallback,
+  ): void {
+    username = username.toLowerCase();
+    if (!this.statusUpdateListeners.has(username)) {
+      this.statusUpdateListeners.set(username, []);
+    }
+
+    this.statusUpdateListeners.get(username)!.push(callback);
+  }
+
+  public unsubscribeFromPlayer(
+    username: string,
+    callback: PlayerStatusCallback,
+  ): void {
+    username = username.toLowerCase();
+    if (!this.statusUpdateListeners.has(username)) {
+      return;
+    }
+
+    const listeners = this.statusUpdateListeners.get(username)!;
+    const index = listeners.indexOf(callback);
+    if (index !== -1) {
+      listeners.splice(index, 1);
+    }
   }
 }
