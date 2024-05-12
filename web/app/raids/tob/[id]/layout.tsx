@@ -1,14 +1,13 @@
-'use client';
+import { ChallengeStatus, ChallengeType, stageName } from '@blert/common';
+import { ResolvingMetadata } from 'next';
 
-import { usePathname } from 'next/navigation';
-import { useContext, useEffect, useState } from 'react';
+import { TobContextProvider } from '../context';
 
-import { ChallengeContext } from '@/challenge-context';
-import Loading from '@/components/loading';
-import { raidStatusNameAndColor } from '@/components/raid-quick-details/raid-quick-details';
-import { ActorContext } from '../context';
+import { loadChallenge } from '@/actions/challenge';
+import { raidStatusNameAndColor } from '@/components/raid-quick-details';
 
 import styles from './style.module.scss';
+import { challengePageDescription } from '@/utils/challenge-description';
 
 type RaidParams = {
   id: string;
@@ -20,69 +19,41 @@ type RaidLayoutProps = {
 };
 
 export default function RaidLayout(props: RaidLayoutProps) {
-  const id = props.params.id;
-  const pathname = usePathname();
-
-  const [raid, setRaid] = useContext(ChallengeContext);
-
-  const [loading, setLoading] = useState(true);
-  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
-  const [selectedRoomNpc, setSelectedRoomNpc] = useState<number | null>(null);
-
-  useEffect(() => {
-    const getRaid = async () => {
-      setLoading(true);
-      try {
-        const response = await fetch(`/api/v1/raids/tob/${id}`);
-        if (response.status === 404) {
-          setRaid(null);
-        }
-        setRaid(await response.json());
-      } catch (e) {
-        setRaid(null);
-      }
-      setLoading(false);
-    };
-
-    getRaid();
-
-    // Reload raid every time the page changes to support in-progress raids.
-  }, [id, pathname, setRaid]);
-
-  useEffect(() => {
-    // Clean up the raid when the component is unmounted.
-    return () => setRaid(null);
-  }, [setRaid]);
-
-  useEffect(() => {
-    if (raid !== null) {
-      const [status] = raidStatusNameAndColor(raid.status, raid.stage);
-      document.title = `ToB ${status} | Blert`;
-    } else {
-      document.title = `Theatre of Blood | Blert`;
-    }
-  }, [raid]);
-
-  if (loading) {
-    return <Loading />;
-  }
-
-  if (raid === null) {
-    return <div>Raid not found</div>;
-  }
-
   return (
     <div className={styles.raid}>
-      <ActorContext.Provider
-        value={{
-          selectedPlayer,
-          setSelectedPlayer,
-          selectedRoomNpc,
-          setSelectedRoomNpc,
-        }}
-      >
+      <TobContextProvider raidId={props.params.id}>
         <div className={styles.content}>{props.children}</div>
-      </ActorContext.Provider>
+      </TobContextProvider>
     </div>
   );
+}
+
+export async function generateMetadata(
+  { params }: RaidLayoutProps,
+  parent: ResolvingMetadata,
+) {
+  const [raid, metadata] = await Promise.all([
+    loadChallenge(ChallengeType.TOB, params.id),
+    parent,
+  ]);
+
+  if (raid === null) {
+    return { title: 'Not Found' };
+  }
+
+  const [overallStatus] = raidStatusNameAndColor(raid.status, raid.stage);
+
+  const title = `ToB ${overallStatus}`;
+  const description = challengePageDescription(raid);
+
+  return {
+    title,
+    description,
+    openGraph: { ...metadata.openGraph, description },
+    twitter: {
+      ...metadata.twitter,
+      title,
+      description,
+    },
+  };
 }

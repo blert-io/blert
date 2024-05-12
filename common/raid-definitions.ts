@@ -556,3 +556,90 @@ export type PlayerInfo = {
   currentUsername: string;
   gear: PrimaryMeleeGear;
 };
+
+export function challengeName(type: ChallengeType): string {
+  switch (type) {
+    case ChallengeType.TOB:
+      return 'Theatre of Blood';
+    case ChallengeType.COX:
+      return 'Chambers of Xeric';
+    case ChallengeType.TOA:
+      return 'Tombs of Amascut';
+    case ChallengeType.COLOSSEUM:
+      return 'Colosseum';
+    case ChallengeType.INFERNO:
+      return 'Inferno';
+  }
+}
+
+export function stageName(stage: Stage): string {
+  switch (stage) {
+    case Stage.TOB_MAIDEN:
+      return 'Maiden';
+    case Stage.TOB_BLOAT:
+      return 'Bloat';
+    case Stage.TOB_NYLOCAS:
+      return 'Nylocas';
+    case Stage.TOB_SOTETSEG:
+      return 'Sotetseg';
+    case Stage.TOB_XARPUS:
+      return 'Xarpus';
+    case Stage.TOB_VERZIK:
+      return 'Verzik';
+
+    case Stage.COLOSSEUM_WAVE_12:
+      return 'Sol Heredit';
+
+    case Stage.TOA_APMEKEN:
+      return 'Apmeken';
+    case Stage.TOA_BABA:
+      return 'Baba';
+    case Stage.TOA_CRONDIS:
+      return 'Crondis';
+    case Stage.TOA_ZEBAK:
+      return 'Zebak';
+    case Stage.TOA_HET:
+      return 'Het';
+    case Stage.TOA_AKKHA:
+      return 'Akkha';
+    case Stage.TOA_SCABARAS:
+      return 'Scabaras';
+    case Stage.TOA_KEPHRI:
+      return 'Kephri';
+    case Stage.TOA_WARDENS:
+      return 'Wardens';
+
+    case Stage.COX_TEKTON:
+      return 'Tekton';
+    case Stage.COX_CRABS:
+      return 'Crabs';
+    case Stage.COX_ICE_DEMON:
+      return 'Ice Demon';
+    case Stage.COX_SHAMANS:
+      return 'Shamans';
+    case Stage.COX_VANGUARDS:
+      return 'Vanguards';
+    case Stage.COX_THIEVING:
+      return 'Thieving';
+    case Stage.COX_VESPULA:
+      return 'Vespula';
+    case Stage.COX_TIGHTROPE:
+      return 'Tightrope';
+    case Stage.COX_GUARDIANS:
+      return 'Guardians';
+    case Stage.COX_VASA:
+      return 'Vasa';
+    case Stage.COX_MYSTICS:
+      return 'Mystics';
+    case Stage.COX_MUTTADILE:
+      return 'Muttadile';
+    case Stage.COX_OLM:
+      return 'Olm';
+  }
+
+  if (stage >= Stage.COLOSSEUM_WAVE_1 && stage <= Stage.COLOSSEUM_WAVE_11) {
+    return `Wave ${stage - Stage.COLOSSEUM_WAVE_1 + 1}`;
+  }
+
+  return 'Unknown';
+}

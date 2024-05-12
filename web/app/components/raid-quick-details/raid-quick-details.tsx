@@ -10,6 +10,8 @@ import TimeAgo from 'react-timeago';
 
 import { ticksToFormattedSeconds } from '../../utils/tick';
 
+import { raidStatusNameAndColor } from './status';
+
 import styles from './style.module.scss';
 
 const modeNameAndColor = (type: ChallengeType, difficulty: ChallengeMode) => {
@@ -30,63 +32,6 @@ const modeNameAndColor = (type: ChallengeType, difficulty: ChallengeMode) => {
     default:
       return ['Unknown', '#ffd700'];
   }
-};
-
-export const raidStatusNameAndColor = (
-  status: ChallengeStatus,
-  stage: Stage,
-) => {
-  if (status === ChallengeStatus.IN_PROGRESS) {
-    return ['In Progress', '#FFFFFF'];
-  }
-  if (status === ChallengeStatus.COMPLETED) {
-    return ['Completion', '#73AD70'];
-  }
-
-  let stageName = 'Unknown';
-
-  switch (stage) {
-    case Stage.TOB_MAIDEN:
-      stageName = 'Maiden';
-      break;
-    case Stage.TOB_BLOAT:
-      stageName = 'Bloat';
-      break;
-    case Stage.TOB_NYLOCAS:
-      stageName = 'Nylocas';
-      break;
-    case Stage.TOB_SOTETSEG:
-      stageName = 'Sotetseg';
-      break;
-    case Stage.TOB_XARPUS:
-      stageName = 'Xarpus';
-      break;
-    case Stage.TOB_VERZIK:
-      stageName = 'Verzik';
-      break;
-
-    case Stage.COLOSSEUM_WAVE_1:
-    case Stage.COLOSSEUM_WAVE_2:
-    case Stage.COLOSSEUM_WAVE_3:
-    case Stage.COLOSSEUM_WAVE_4:
-    case Stage.COLOSSEUM_WAVE_5:
-    case Stage.COLOSSEUM_WAVE_6:
-    case Stage.COLOSSEUM_WAVE_7:
-    case Stage.COLOSSEUM_WAVE_8:
-    case Stage.COLOSSEUM_WAVE_9:
-    case Stage.COLOSSEUM_WAVE_10:
-    case Stage.COLOSSEUM_WAVE_11:
-      stageName = `Wave ${stage - Stage.COLOSSEUM_WAVE_1 + 1}`;
-      break;
-    case Stage.COLOSSEUM_WAVE_12:
-      stageName = 'Sol Heredit';
-      break;
-  }
-
-  if (status === ChallengeStatus.RESET) {
-    return [`${stageName} Reset`, '#B9BBB6'];
-  }
-  return [`${stageName} Wipe`, '#B30000'];
 };
 
 const getIconForStatus = (status: ChallengeStatus) => {

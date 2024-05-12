@@ -109,6 +109,8 @@ export {
   VerzikCrabSpawn,
   VerzikPhase,
   XarpusPhase,
+  challengeName,
+  stageName,
 } from './raid-definitions';
 
 export { ItemDelta } from './item-delta';
