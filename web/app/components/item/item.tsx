@@ -17,9 +17,10 @@ const WIKI_IMAGE_BASE_URL: string = 'https://oldschool.runescape.wiki/images';
 // match as many of these items as possible.
 const ONE_TO_FIVE_REGEX =
   /(arrow(\(p\+*\)|tips|heads| \(lit\))?|bolts( ?\((unf|e|p\+*)\))?)$/;
+const ONE_TO_FIVE_ITEMS = new Set(['Atlatl dart']);
 
 function is1to5Item(name: string): boolean {
-  return name.match(ONE_TO_FIVE_REGEX) !== null;
+  return ONE_TO_FIVE_ITEMS.has(name) || name.match(ONE_TO_FIVE_REGEX) !== null;
 }
 
 const BARROWS_REGEX = /^(Ahrim's|Dharok's|Guthan's|Karil's|Torag's|Verac's)/;

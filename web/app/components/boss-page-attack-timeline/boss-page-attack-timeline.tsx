@@ -177,11 +177,29 @@ type AttackMetadata = {
 };
 
 const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
-  [PlayerAttack.BGS_SMACK]: {
-    tagColor: 'yellow',
-    letter: 'bg',
+  [PlayerAttack.ABYSSAL_BLUDGEON]: {
+    tagColor: 'red',
+    letter: 'BLD',
     ranged: false,
     special: false,
+  },
+  [PlayerAttack.AGS_SPEC]: {
+    tagColor: 'yellow',
+    letter: 'AGS',
+    ranged: false,
+    special: true,
+  },
+  [PlayerAttack.ATLATL_AUTO]: {
+    tagColor: 'green',
+    letter: 'atl',
+    ranged: true,
+    special: false,
+  },
+  [PlayerAttack.ATLATL_SPEC]: {
+    tagColor: 'green',
+    letter: 'ATL',
+    ranged: true,
+    special: true,
   },
   [PlayerAttack.BGS_SPEC]: {
     tagColor: 'yellow',
@@ -194,6 +212,12 @@ const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     letter: 'BP',
     ranged: true,
     special: false,
+  },
+  [PlayerAttack.BLOWPIPE_SPEC]: {
+    tagColor: 'green',
+    letter: 'BPs',
+    ranged: true,
+    special: true,
   },
   [PlayerAttack.BOWFA]: {
     tagColor: 'green',
@@ -243,10 +267,34 @@ const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: true,
   },
+  [PlayerAttack.DAWN_AUTO]: {
+    tagColor: 'yellow',
+    letter: 'db',
+    ranged: true,
+    special: false,
+  },
   [PlayerAttack.DAWN_SPEC]: {
     tagColor: 'yellow',
     letter: 'DB',
     ranged: true,
+    special: true,
+  },
+  [PlayerAttack.DART]: {
+    tagColor: 'green',
+    letter: 'D',
+    ranged: true,
+    special: false,
+  },
+  [PlayerAttack.DDS_POKE]: {
+    tagColor: 'yellow',
+    letter: 'dds',
+    ranged: false,
+    special: false,
+  },
+  [PlayerAttack.DDS_SPEC]: {
+    tagColor: 'yellow',
+    letter: 'DDS',
+    ranged: false,
     special: true,
   },
   [PlayerAttack.DINHS_SPEC]: {
@@ -255,9 +303,39 @@ const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: true,
   },
+  [PlayerAttack.DUAL_MACUAHUITL]: {
+    tagColor: 'red',
+    letter: 'DMC',
+    ranged: false,
+    special: false,
+  },
+  [PlayerAttack.ELDER_MAUL]: {
+    tagColor: 'red',
+    letter: 'eld',
+    ranged: false,
+    special: false,
+  },
+  [PlayerAttack.ELDER_MAUL_SPEC]: {
+    tagColor: 'red',
+    letter: 'ELD',
+    ranged: false,
+    special: true,
+  },
   [PlayerAttack.FANG_STAB]: {
     tagColor: 'red',
     letter: 'FNG',
+    ranged: false,
+    special: false,
+  },
+  [PlayerAttack.GODSWORD_SMACK]: {
+    tagColor: 'yellow',
+    letter: 'gs',
+    ranged: false,
+    special: false,
+  },
+  [PlayerAttack.HAM_JOINT]: {
+    tagColor: 'red',
+    letter: 'HAM',
     ranged: false,
     special: false,
   },
@@ -273,9 +351,9 @@ const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: true,
   },
-  [PlayerAttack.HAM_JOINT]: {
+  [PlayerAttack.INQUISITORS_MACE]: {
     tagColor: 'red',
-    letter: 'SB',
+    letter: 'IM',
     ranged: false,
     special: false,
   },
@@ -342,12 +420,6 @@ const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
   [PlayerAttack.SCYTHE_UNCHARGED]: {
     tagColor: 'red',
     letter: 's',
-    ranged: false,
-    special: false,
-  },
-  [PlayerAttack.SGS_SMACK]: {
-    tagColor: 'yellow',
-    letter: 'sgs',
     ranged: false,
     special: false,
   },
@@ -471,6 +543,18 @@ const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
   },
+  [PlayerAttack.VOIDWAKER_AUTO]: {
+    tagColor: 'yellow',
+    letter: 'vw',
+    ranged: false,
+    special: false,
+  },
+  [PlayerAttack.VOIDWAKER_SPEC]: {
+    tagColor: 'yellow',
+    letter: 'VW',
+    ranged: false,
+    special: true,
+  },
   [PlayerAttack.VOLATILE_NM_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
@@ -489,11 +573,47 @@ const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: true,
   },
-  [PlayerAttack.ZCB_SPEC]: {
+  [PlayerAttack.WEBWEAVER_AUTO]: {
     tagColor: 'green',
-    letter: 'ZC',
+    letter: 'ww',
+    ranged: true,
+    special: false,
+  },
+  [PlayerAttack.WEBWEAVER_SPEC]: {
+    tagColor: 'green',
+    letter: 'WW',
     ranged: true,
     special: true,
+  },
+  [PlayerAttack.XGS_SPEC]: {
+    tagColor: 'yellow',
+    letter: 'XGS',
+    ranged: false,
+    special: true,
+  },
+  [PlayerAttack.ZCB_AUTO]: {
+    tagColor: 'green',
+    letter: 'zcb',
+    ranged: true,
+    special: false,
+  },
+  [PlayerAttack.ZCB_SPEC]: {
+    tagColor: 'green',
+    letter: 'ZCB',
+    ranged: true,
+    special: true,
+  },
+  [PlayerAttack.ZGS_SPEC]: {
+    tagColor: 'yellow',
+    letter: 'ZGS',
+    ranged: false,
+    special: true,
+  },
+  [PlayerAttack.ZOMBIE_AXE]: {
+    tagColor: 'red',
+    letter: 'ZMB',
+    ranged: false,
+    special: false,
   },
   [PlayerAttack.UNKNOWN_BARRAGE]: {
     tagColor: undefined,
@@ -587,7 +707,7 @@ function makeCellImage(playerAttack: Attack, size: number, memes: BlertMemes) {
         );
         break;
 
-      case PlayerAttack.BGS_SMACK:
+      case PlayerAttack.GODSWORD_SMACK:
       case PlayerAttack.HAMMER_BOP:
         if (playerAttack.target !== undefined) {
           const npcId = playerAttack.target.id;
@@ -598,6 +718,7 @@ function makeCellImage(playerAttack: Attack, size: number, memes: BlertMemes) {
         break;
 
       case PlayerAttack.CHALLY_SWIPE:
+      case PlayerAttack.TONALZTICS_AUTO:
         if (playerAttack.target !== undefined) {
           if (!Npc.isVerzikMatomenos(playerAttack.target.id)) {
             troll = true;
@@ -608,7 +729,6 @@ function makeCellImage(playerAttack: Attack, size: number, memes: BlertMemes) {
       case PlayerAttack.KODAI_BASH:
       case PlayerAttack.VOLATILE_NM_BASH:
       case PlayerAttack.SCYTHE_UNCHARGED:
-      case PlayerAttack.TONALZTICS_AUTO:
       case PlayerAttack.TONALZTICS_UNCHARGED:
         troll = true;
         break;
@@ -763,12 +883,17 @@ const npcAttackName = (attack: NpcAttack): string => {
 
 const playerAttackVerb = (attack: PlayerAttack): string => {
   switch (attack) {
-    case PlayerAttack.BGS_SMACK:
-    case PlayerAttack.SGS_SMACK:
-      return 'smacked';
+    case PlayerAttack.ABYSSAL_BLUDGEON:
+      return 'bludgeoned';
+    case PlayerAttack.AGS_SPEC:
+      return "AGS'd";
+    case PlayerAttack.ATLATL_AUTO:
+    case PlayerAttack.ATLATL_SPEC:
+      return 'atlatled';
     case PlayerAttack.BGS_SPEC:
       return "BGS'd";
     case PlayerAttack.BLOWPIPE:
+    case PlayerAttack.BLOWPIPE_SPEC:
       return 'piped';
     case PlayerAttack.CHALLY_SPEC:
       return 'challied';
@@ -780,18 +905,34 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
       return 'claw scratched';
     case PlayerAttack.CLAW_SPEC:
       return 'clawed';
+    case PlayerAttack.DAWN_AUTO:
     case PlayerAttack.DAWN_SPEC:
       return 'dawned';
+    case PlayerAttack.DART:
+      return 'threw a dart at';
+    case PlayerAttack.DDS_POKE:
+      return 'poked';
+    case PlayerAttack.DDS_SPEC:
+      return 'DDSed';
     case PlayerAttack.DINHS_SPEC:
       return 'dinhsed';
+    case PlayerAttack.DUAL_MACUAHUITL:
+      return 'pummeled';
+    case PlayerAttack.ELDER_MAUL:
+    case PlayerAttack.ELDER_MAUL_SPEC:
+      return 'mauled';
     case PlayerAttack.FANG_STAB:
       return 'fanged';
+    case PlayerAttack.GODSWORD_SMACK:
+      return 'smacked';
     case PlayerAttack.HAMMER_BOP:
       return 'hammer bopped';
     case PlayerAttack.HAMMER_SPEC:
       return 'hammered';
     case PlayerAttack.HAM_JOINT:
       return 'hammed';
+    case PlayerAttack.INQUISITORS_MACE:
+      return 'bashed';
     case PlayerAttack.KICK:
       return 'kicked';
     case PlayerAttack.PUNCH:
@@ -813,6 +954,7 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
     case PlayerAttack.RAPIER:
       return 'stabbed';
     case PlayerAttack.SAELDOR:
+    case PlayerAttack.VOIDWAKER_AUTO:
       return 'slashed';
     case PlayerAttack.SANG:
       return 'sanged';
@@ -824,7 +966,8 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
     case PlayerAttack.SHADOW:
       return 'shadowed';
     case PlayerAttack.SOULREAPER_AXE:
-      return 'cleaved';
+    case PlayerAttack.ZOMBIE_AXE:
+      return 'hacked at';
     case PlayerAttack.CHALLY_SWIPE:
     case PlayerAttack.STAFF_OF_LIGHT_SWIPE:
     case PlayerAttack.TOXIC_STAFF_SWIPE:
@@ -841,14 +984,24 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
     case PlayerAttack.BOWFA:
     case PlayerAttack.TWISTED_BOW:
     case PlayerAttack.VENATOR_BOW:
+    case PlayerAttack.WEBWEAVER_AUTO:
     case PlayerAttack.UNKNOWN_BOW:
       return 'bowed';
+    case PlayerAttack.VOIDWAKER_SPEC:
+      return 'voidwakered';
     case PlayerAttack.VOLATILE_NM_BASH:
       return 'volatile bashed';
     case PlayerAttack.VOLATILE_NM_SPEC:
       return 'volatiled';
+    case PlayerAttack.WEBWEAVER_SPEC:
+      return 'webweavered';
+    case PlayerAttack.XGS_SPEC:
+      return "XGS'd";
+    case PlayerAttack.ZCB_AUTO:
     case PlayerAttack.ZCB_SPEC:
       return "ZCB'd";
+    case PlayerAttack.ZGS_SPEC:
+      return "ZGS'd";
     case PlayerAttack.TOXIC_TRIDENT:
     case PlayerAttack.TRIDENT:
     case PlayerAttack.UNKNOWN_POWERED_STAFF:

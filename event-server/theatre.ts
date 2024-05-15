@@ -539,7 +539,7 @@ export default class TheatreChallenge extends Challenge {
     const weapon = attack.getWeapon();
 
     switch (attack.getType()) {
-      case PlayerAttack.BGS_SMACK:
+      case PlayerAttack.GODSWORD_SMACK:
       case PlayerAttack.HAMMER_BOP:
         if (this.getStage() === Stage.TOB_VERZIK) {
           if (target !== undefined && Npc.isVerzikMatomenos(target.getId())) {
@@ -560,7 +560,7 @@ export default class TheatreChallenge extends Challenge {
         }
 
         await Players.updateStats(username, (stats) => {
-          if (attack.getType() === PlayerAttack.BGS_SMACK) {
+          if (attack.getType() === PlayerAttack.GODSWORD_SMACK) {
             stats.bgsSmacks += 1;
           } else {
             stats.hammerBops += 1;
