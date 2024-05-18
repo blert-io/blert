@@ -1,4 +1,5 @@
 import cors from 'cors';
+import { readFile } from 'fs/promises';
 import express, { Request } from 'express';
 import { connect } from 'mongoose';
 import { WebSocket, WebSocketServer } from 'ws';
@@ -68,6 +69,17 @@ async function setupHttpRoutes(
 async function main(): Promise<void> {
   await connectToDatabase();
 
+  let validPluginRevisions: Set<string> = new Set();
+  if (process.env.BLERT_REVISIONS_FILE) {
+    try {
+      const data = await readFile(process.env.BLERT_REVISIONS_FILE, 'utf8');
+      validPluginRevisions = new Set(data.split('\n').filter((x) => x));
+    } catch (e: any) {
+      console.error(`Failed to read ${process.env.BLERT_REVISIONS_FILE}:`, e);
+      process.exit(1);
+    }
+  }
+
   const port = process.env.PORT || 3003;
 
   const app = express();
@@ -79,8 +91,11 @@ async function main(): Promise<void> {
 
   const wss = new WebSocketServer({ noServer: true });
 
+  let requestId = 0;
+
   server.on('upgrade', async (request, socket, head) => {
-    console.log('New websocket authentication request');
+    ++requestId;
+    console.log(`[${requestId}] New websocket authentication request`);
 
     try {
       const auth = request.headers.authorization?.split(' ') || [];
@@ -91,12 +106,25 @@ async function main(): Promise<void> {
       const token = Buffer.from(auth[1], 'base64').toString();
       const user = await connectionManager.authenticate(token);
 
+      const validRevision = verifyRevision(
+        validPluginRevisions,
+        request.headers['blert-revision'] as string | undefined,
+      );
+      if (!validRevision) {
+        console.log(
+          `[${requestId}] Invalid plugin revision: ${request.headers['blert-revision']}`,
+        );
+        socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+
       wss.handleUpgrade(request, socket, head, (ws) => {
         const client = new Client(ws, messageHandler, user);
         wss.emit('connection', ws, request, client);
       });
     } catch (e: any) {
-      console.log(`Failed to authenticate: ${e.message}`);
+      console.log(`[${requestId}] Failed to authenticate: ${e.message}`);
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
       socket.destroy();
     }
@@ -124,6 +152,25 @@ async function main(): Promise<void> {
     serverManager.handleNewClient(client);
     console.log(`${client} connected`);
   });
+}
+
+function verifyRevision(
+  validRevisions: Set<string>,
+  revision: string | undefined,
+): boolean {
+  if (!process.env.BLERT_REVISIONS_FILE) {
+    return true;
+  }
+
+  if (revision === undefined) {
+    return false;
+  }
+  revision = revision.split(':')[0];
+  if (revision === undefined) {
+    return false;
+  }
+
+  return validRevisions.has(revision);
 }
 
 main();
