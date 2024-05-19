@@ -248,6 +248,10 @@ class ChallengeStreamAggregator {
   }
 
   private updatePrimaryClient(): void {
+    // Because only a single primary client is supported, a switch between
+    // primaries necessarily loses data.
+    this.challenge.markStageTimeInaccurate();
+
     const newPrimary = this.clients.find((c) => c.active && !c.hasFinished);
     if (newPrimary !== undefined) {
       newPrimary.primary = true;

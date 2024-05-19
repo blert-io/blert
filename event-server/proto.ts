@@ -60,6 +60,7 @@ export function protoToEvent(proto: EventProto): Partial<MergedEvent> {
     tick: proto.getTick(),
     xCoord: proto.getXCoord(),
     yCoord: proto.getYCoord(),
+    acc: true,
   };
 
   if (proto.hasPlayer()) {

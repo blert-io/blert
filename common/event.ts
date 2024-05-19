@@ -65,6 +65,7 @@ export interface Event {
   tick: number;
   xCoord: number;
   yCoord: number;
+  acc: boolean;
 }
 
 export interface StageUpdateEvent extends Event {

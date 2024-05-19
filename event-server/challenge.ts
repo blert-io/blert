@@ -66,6 +66,7 @@ export abstract class Challenge {
   private stageStatus: StageStatus;
   private stageTick: number;
   private stageNpcs: Map<string, RoomNpc>;
+  private stageTimeInaccurate: boolean;
   private queuedEvents: Event[];
 
   constructor(
@@ -96,6 +97,7 @@ export abstract class Challenge {
     this.stageStatus = StageStatus.ENTERED;
     this.stageTick = 0;
     this.stageNpcs = new Map();
+    this.stageTimeInaccurate = false;
     this.queuedEvents = [];
   }
 
@@ -183,6 +185,10 @@ export abstract class Challenge {
 
   public markPlayerCompleted(player: string): void {
     this.completedPlayers.add(player.toLowerCase());
+  }
+
+  public markStageTimeInaccurate(): void {
+    this.stageTimeInaccurate = true;
   }
 
   protected getPartyInfo(): PlayerInfoWithoutUsername[] {
@@ -386,6 +392,7 @@ export abstract class Challenge {
         this.setStage(event.getStage());
         this.stageTick = 0;
         this.stageNpcs.clear();
+        this.stageTimeInaccurate = false;
         this.queuedEvents = [];
         await this.onStageEntered();
         break;
@@ -411,8 +418,10 @@ export abstract class Challenge {
     stageUpdate: Event.StageUpdate,
   ): Promise<void> {
     this.totalStageTicks += event.getTick();
+    this.stageTimeInaccurate =
+      this.stageTimeInaccurate || !stageUpdate.getAccurate();
 
-    const promises = [
+    const promises: Promise<any>[] = [
       this.updateDatabaseFields((record) => {
         // @ts-ignore: Only partial party information is stored.
         record.partyInfo = this.partyInfo;
@@ -421,6 +430,15 @@ export abstract class Challenge {
       this.onStageFinished(event, stageUpdate),
       this.flushQueuedEvents(),
     ];
+
+    if (this.stageTimeInaccurate) {
+      promises.push(
+        RoomEvent.updateMany(
+          { cId: this.getId(), stage: this.getStage() },
+          { $set: { acc: false } },
+        ),
+      );
+    }
 
     await Promise.all(promises);
   }

@@ -29,6 +29,7 @@ const roomEventSchema = new Schema<MergedEvent>({
   tick: Number,
   xCoord: Number,
   yCoord: Number,
+  acc: { type: Boolean, default: true, index: true },
   player: {
     source: {
       type: Number,
