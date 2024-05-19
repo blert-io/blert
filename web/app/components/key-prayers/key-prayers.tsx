@@ -1,10 +1,11 @@
-import { Prayer, PrayerSet, RawPrayerSet } from '@blert/common';
+import { DataSource, Prayer, PrayerSet, RawPrayerSet } from '@blert/common';
+import Image from 'next/image';
 
 import styles from './style.module.scss';
-import Image from 'next/image';
 
 type KeyPrayersProps = {
   prayerSet: RawPrayerSet;
+  source?: DataSource;
 };
 
 type PrayerDescriptor = { name: string; imageUrl: string };
@@ -36,7 +37,10 @@ const KEY_PRAYERS: [Prayer, PrayerDescriptor][] = [
   [Prayer.AUGURY, { name: 'Augury', imageUrl: '/images/prayers/augury.png' }],
 ];
 
-export default function KeyPrayers({ prayerSet: raw }: KeyPrayersProps) {
+export default function KeyPrayers({
+  prayerSet: raw,
+  source = DataSource.SECONDARY,
+}: KeyPrayersProps) {
   const prayers = PrayerSet.fromRaw(raw);
 
   return (
@@ -56,6 +60,9 @@ export default function KeyPrayers({ prayerSet: raw }: KeyPrayersProps) {
           </div>
         </div>
       ))}
+      {source === DataSource.SECONDARY && (
+        <div className={styles.secondary}>No data</div>
+      )}
     </div>
   );
 }

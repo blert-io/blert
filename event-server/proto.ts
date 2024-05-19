@@ -1,13 +1,19 @@
-import { EventPlayer, MergedEvent, RoomNpcType } from '@blert/common';
-import { EventNpc } from '@blert/common/event';
+import { EventPlayer, MergedEvent } from '@blert/common';
 import { Event as EventProto } from '@blert/common/generated/event_pb';
 
-function playerProtoToPlayer(proto: EventProto.Player): EventPlayer {
-  const player: EventPlayer = {
+function playerProtoToPlayer(
+  proto: EventProto.Player,
+  type: number,
+): EventPlayer {
+  const player: Partial<EventPlayer> = {
     name: proto.getName(),
     offCooldownTick: proto.getOffCooldownTick(),
     prayerSet: proto.getActivePrayers(),
   };
+
+  if (type === EventProto.Type.PLAYER_UPDATE) {
+    player.source = proto.getDataSource();
+  }
 
   if (proto.hasHitpoints()) {
     player.hitpoints = proto.getHitpoints();
@@ -36,7 +42,7 @@ function playerProtoToPlayer(proto: EventProto.Player): EventPlayer {
     player.equipmentDeltas = equipmentDeltas;
   }
 
-  return player;
+  return player as EventPlayer;
 }
 
 /**
@@ -57,7 +63,7 @@ export function protoToEvent(proto: EventProto): Partial<MergedEvent> {
   };
 
   if (proto.hasPlayer()) {
-    event.player = playerProtoToPlayer(proto.getPlayer()!);
+    event.player = playerProtoToPlayer(proto.getPlayer()!, proto.getType());
   }
 
   if (proto.hasPlayerAttack()) {

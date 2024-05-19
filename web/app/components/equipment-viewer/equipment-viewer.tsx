@@ -1,15 +1,16 @@
-import { EquipmentSlot } from '@blert/common';
+import { DataSource, EquipmentSlot } from '@blert/common';
+import Image from 'next/image';
 
 import Item from '../item';
 import { LigmaTooltip } from '../ligma-tooltip/ligma-tooltip';
 import { PlayerEquipment } from '../../utils/boss-room-state';
 
 import styles from './style.module.scss';
-import Image from 'next/image';
 
 type EquipmentViewerProps = {
   username: string;
   equipment: PlayerEquipment | null;
+  source?: DataSource;
 };
 
 const EQUIPMENT_OFFSETS: { [key: string]: React.CSSProperties } = {
@@ -29,10 +30,11 @@ const EQUIPMENT_OFFSETS: { [key: string]: React.CSSProperties } = {
 const ITEM_SIZE = 36;
 
 export default function EquipmentViewer(props: EquipmentViewerProps) {
+  const { equipment, username, source = DataSource.SECONDARY } = props;
   let items: React.ReactNode[] = [];
 
-  if (props.equipment) {
-    items = Object.entries(props.equipment).map(([slot, item], index) => {
+  if (equipment) {
+    items = Object.entries(equipment).map(([slot, item], index) => {
       if (item === null) {
         return null;
       }
@@ -44,7 +46,7 @@ export default function EquipmentViewer(props: EquipmentViewerProps) {
         ...EQUIPMENT_OFFSETS[slot],
       };
 
-      const tooltipId = `${props.username}-${slot}-tooltip`;
+      const tooltipId = `${username}-${slot}-tooltip`;
 
       return (
         <span key={`${slot}-${index}`}>
@@ -69,6 +71,37 @@ export default function EquipmentViewer(props: EquipmentViewerProps) {
         </span>
       );
     });
+
+    if (source === DataSource.SECONDARY) {
+      items.push(
+        <div
+          className={styles.missing}
+          key={`${username}-${EquipmentSlot.AMMO}`}
+          style={{
+            position: 'absolute',
+            height: ITEM_SIZE + 7,
+            width: ITEM_SIZE + 8,
+            top: 49,
+            left: 120,
+          }}
+        >
+          No data
+        </div>,
+        <div
+          className={styles.missing}
+          key={`${username}-${EquipmentSlot.RING}`}
+          style={{
+            position: 'absolute',
+            height: ITEM_SIZE + 7,
+            width: ITEM_SIZE + 8,
+            top: 197,
+            left: 139,
+          }}
+        >
+          No data
+        </div>,
+      );
+    }
   } else {
     items.push(
       <div key="empty" className={styles.empty} style={{ top: 96, left: 0 }}>

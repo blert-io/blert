@@ -50,6 +50,7 @@ export type {
   XarpusPhaseEvent,
 } from './event';
 export {
+  DataSource,
   EquipmentSlot,
   EventType,
   VerzikAttackStyle,

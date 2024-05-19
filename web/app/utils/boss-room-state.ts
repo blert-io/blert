@@ -26,6 +26,7 @@ import {
   MaidenCrabProperties,
   NyloProperties,
   VerzikCrabProperties,
+  DataSource,
 } from '@blert/common';
 import {
   SetStateAction,
@@ -365,7 +366,12 @@ function computePlayerState(
           xCoord: 0,
           yCoord: 0,
           tick,
-          player: { name: partyMember, offCooldownTick: 0, prayerSet: 0 },
+          player: {
+            source: DataSource.SECONDARY,
+            name: partyMember,
+            offCooldownTick: 0,
+            prayerSet: 0,
+          },
           diedThisTick: false,
           isDead,
           equipment:
@@ -412,7 +418,12 @@ function computePlayerState(
           xCoord: 0,
           yCoord: 0,
           tick,
-          player: { name: partyMember, offCooldownTick: 0, prayerSet: 0 },
+          player: {
+            source: DataSource.SECONDARY,
+            name: partyMember,
+            offCooldownTick: 0,
+            prayerSet: 0,
+          },
           diedThisTick: false,
           isDead: true,
           equipment: { ...EMPTY_EQUIPMENT },

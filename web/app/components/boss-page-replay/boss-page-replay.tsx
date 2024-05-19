@@ -69,10 +69,14 @@ export default function BossPageReplay({
               onClick={() => toggleSelectedPlayer(username)}
             >
               <h2>{username}</h2>
-              <KeyPrayers prayerSet={state?.player.prayerSet || 0} />
+              <KeyPrayers
+                prayerSet={state?.player.prayerSet || 0}
+                source={state?.player.source}
+              />
               <EquipmentViewer
                 username={username}
                 equipment={state?.equipment ?? null}
+                source={state?.player.source}
               />
             </div>
           ))}

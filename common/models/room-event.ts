@@ -30,6 +30,11 @@ const roomEventSchema = new Schema<MergedEvent>({
   xCoord: Number,
   yCoord: Number,
   player: {
+    source: {
+      type: Number,
+      enum: [0, 1],
+      default: undefined,
+    },
     name: String,
     hitpoints: Number,
     prayer: Number,

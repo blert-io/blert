@@ -10,4 +10,15 @@
     box-shadow: 0 0 5px 0 rgba(216, 216, 216, 0.2);
     padding: 6px;
   }
+
+  .missing {
+    background: rgba(0, 0, 0, 0.4);
+    color: #fff;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 11px;
+  }
 }

@@ -187,11 +187,17 @@ export type MergedEvent = Event &
   Omit<VerzikAttackStyleEvent, 'type'> &
   Omit<HandicapChoiceEvent, 'type'>;
 
+export enum DataSource {
+  PRIMARY = EventProto.Player.DataSource.PRIMARY,
+  SECONDARY = EventProto.Player.DataSource.SECONDARY,
+}
+
 export interface BasicPlayer {
   name: string;
 }
 
 export interface Player extends BasicPlayer {
+  source: DataSource;
   offCooldownTick: number;
   hitpoints?: RawSkillLevel;
   prayer?: RawSkillLevel;
