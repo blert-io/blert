@@ -9,7 +9,10 @@ export {
   HiscoresRateLimitError,
   hiscoreLookup,
 } from './player';
-export { PersonalBestType, tobPbForMode } from './personal-best';
+export {
+  LegacyPersonalBestType as PersonalBestType,
+  tobPbForMode,
+} from './personal-best';
 export type { PersonalBest } from './personal-best';
 
 export { ApiKeyModel } from './models/api-key';

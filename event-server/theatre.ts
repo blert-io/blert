@@ -422,7 +422,7 @@ export default class TheatreChallenge extends Challenge {
       case EventType.TOB_NYLO_BOSS_SPAWN:
         this.nyloSplits.boss = event.getTick();
         this.queuedPbUpdates.push({
-          pbType: PersonalBestType.TOB_NYLO_WAVES,
+          pbType: PersonalBestType.TOB_NYLO_BOSS_SPAWN,
           pbTime: event.getTick(),
         });
         break;

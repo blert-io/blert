@@ -6,7 +6,8 @@
   "license": "MIT",
   "scripts": {
     "generate-protos": "mkdir -p generated && grpc_tools_node_protoc -I protos protos/*.proto --plugin=protoc_gen_ts --js_out=import_style=commonjs:generated --ts_out=generated",
-    "build": "npm run generate-protos && tsc"
+    "build": "npm run generate-protos && tsc",
+    "migration:run": "tsc && node dist/migrations/migrate.js"
   },
   "main": "dist/index.js",
   "types": "dist/index",
@@ -18,6 +19,7 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "mongoose": "^8.1.0"
+    "mongoose": "^8.1.0",
+    "postgres": "^3.4.4"
   }
 }
