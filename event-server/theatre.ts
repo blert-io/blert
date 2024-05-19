@@ -29,7 +29,7 @@ import {
 import { Event } from '@blert/common/generated/event_pb';
 
 import { Challenge } from './challenge';
-import { Players } from './players';
+import { PlayerStatsWithoutPlayerOrDate, Players } from './players';
 import { priceTracker } from './price-tracker';
 
 type PersonalBestUpdate = {
@@ -126,7 +126,7 @@ export default class TheatreChallenge extends Challenge {
 
     for (const username of this.getParty()) {
       promises.push(
-        Players.updateStats(username, (stats) => {
+        this.updateStats(username, (stats) => {
           switch (this.getChallengeStatus()) {
             case ChallengeStatus.COMPLETED:
               stats.completions += 1;
@@ -343,7 +343,7 @@ export default class TheatreChallenge extends Challenge {
       case Event.Type.PLAYER_DEATH:
         const deadPlayer = event.getPlayer()!;
         this.deathsInRoom.push(deadPlayer.getName());
-        Players.updateStats(deadPlayer.getName(), (stats) => {
+        this.updateStats(deadPlayer.getName(), (stats) => {
           stats.deaths += 1;
 
           if (event.getStage() === Stage.TOB_MAIDEN) {
@@ -559,7 +559,7 @@ export default class TheatreChallenge extends Challenge {
           }
         }
 
-        await Players.updateStats(username, (stats) => {
+        await this.updateStats(username, (stats) => {
           if (attack.getType() === PlayerAttack.GODSWORD_SMACK) {
             stats.bgsSmacks += 1;
           } else {
@@ -585,7 +585,7 @@ export default class TheatreChallenge extends Challenge {
           (attack.getDistanceToTarget() < 4 ||
             attack.getDistanceToTarget() > 6);
 
-        await Players.updateStats(username, (stats) => {
+        await this.updateStats(username, (stats) => {
           stats.chinsThrown += 1;
           stats.chinsThrownValue += chinPrice;
 
@@ -613,7 +613,7 @@ export default class TheatreChallenge extends Challenge {
         break;
 
       case PlayerAttack.SCYTHE_UNCHARGED:
-        await Players.updateStats(username, (stats) => {
+        await this.updateStats(username, (stats) => {
           stats.unchargedScytheSwings += 1;
         });
         break;
@@ -623,7 +623,7 @@ export default class TheatreChallenge extends Challenge {
       case PlayerAttack.TOXIC_TRIDENT_BARRAGE:
       case PlayerAttack.TRIDENT_BARRAGE:
       case PlayerAttack.UNKNOWN_BARRAGE:
-        await Players.updateStats(username, (stats) => {
+        await this.updateStats(username, (stats) => {
           stats.barragesWithoutProperWeapon += 1;
         });
         break;
@@ -795,5 +795,14 @@ export default class TheatreChallenge extends Challenge {
       this.getScale(),
       ticks,
     );
+  }
+
+  public async updateStats(
+    username: string,
+    callback: (stats: PlayerStatsWithoutPlayerOrDate) => void,
+  ): Promise<void> {
+    if (this.getMode() !== ChallengeMode.TOB_ENTRY) {
+      await Players.updateStats(username, callback);
+    }
   }
 }

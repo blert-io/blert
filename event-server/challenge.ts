@@ -51,6 +51,7 @@ export abstract class Challenge {
   private readonly party: string[];
   private readonly partyKey: string;
   private readonly startTime: number;
+  private readonly initialStage: Stage;
 
   private state: State;
   private challengeStatus: ChallengeStatus;
@@ -80,6 +81,7 @@ export abstract class Challenge {
     this.party = party;
     this.partyKey = challengePartyKey(type, party);
     this.startTime = startTime;
+    this.initialStage = initialStage;
 
     this.state = State.STARTING;
     this.challengeStatus = ChallengeStatus.IN_PROGRESS;
@@ -266,6 +268,24 @@ export abstract class Challenge {
     );
 
     promises.push(this.onFinish());
+
+    await Promise.all(promises);
+  }
+
+  /**
+   * Prematurely ends the challenge, deleting all recorded data.
+   */
+  public async terminate(): Promise<void> {
+    this.queuedEvents = [];
+
+    const promises: Promise<any>[] = [
+      RaidModel.deleteOne({ _id: this.id }),
+      RecordedChallengeModel.deleteMany({ cId: this.id }),
+    ];
+
+    for (let stage = this.initialStage; stage <= this.getStage(); stage++) {
+      promises.push(RoomEvent.deleteMany({ cId: this.id, stage }));
+    }
 
     await Promise.all(promises);
   }

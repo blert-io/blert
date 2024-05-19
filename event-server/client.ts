@@ -2,9 +2,9 @@ import { ServerMessage } from '@blert/common/generated/server_message_pb';
 import { Types } from 'mongoose';
 import { WebSocket } from 'ws';
 
+import { Challenge } from './challenge';
 import MessageHandler from './message-handler';
 import { BasicUser } from './users';
-import { Challenge } from './challenge';
 
 export default class Client {
   private static HEARTBEAT_INTERVAL_MS: number = 5000;

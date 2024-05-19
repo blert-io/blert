@@ -8,10 +8,10 @@ import {
 } from '@blert/common';
 import { HydratedDocument, Types } from 'mongoose';
 
-import { Challenge } from './challenge';
-import ChallengeManager from './challenge-manager';
-
-type PlayerStatsWithoutPlayerOrDate = Omit<PlayerStats, 'date' | 'playerId'>;
+export type PlayerStatsWithoutPlayerOrDate = Omit<
+  PlayerStats,
+  'date' | 'playerId'
+>;
 
 function startOfDateUtc(): Date {
   let date = new Date();

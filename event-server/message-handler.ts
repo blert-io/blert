@@ -5,6 +5,7 @@ import {
 } from '@blert/common';
 import {
   ChallengeMap,
+  ChallengeMode,
   ChallengeModeMap,
   Event,
   StageMap,
@@ -223,6 +224,25 @@ class ChallengeStreamAggregator {
     return this.clients.every((c) => c.hasFinished);
   }
 
+  /**
+   * Forcefully ends the challenge and deletes all associated data.
+   */
+  public async terminateAndPurgeChallenge(): Promise<void> {
+    const errorMessage = new ServerMessage();
+    errorMessage.setType(ServerMessage.Type.ERROR);
+    const error = new ServerMessage.Error();
+    error.setType(ServerMessage.Error.Type.CHALLENGE_RECORDING_ENDED);
+    errorMessage.setError(error);
+
+    this.clients.forEach((c) => {
+      c.client.setActiveChallenge(null);
+      c.client.sendMessage(errorMessage);
+    });
+
+    this.clients = [];
+    await this.challengeManager.terminateChallenge(this.challenge);
+  }
+
   public toString(): string {
     return `ChallengeStreamAggregator[${this.challenge.getId()}]`;
   }
@@ -437,13 +457,19 @@ export default class MessageHandler {
       }
 
       case Event.Type.CHALLENGE_UPDATE:
-        if (
-          event.getChallengeId() !== '' &&
-          event.getChallengeInfo()?.getMode()
-        ) {
-          const raid = this.challengeManager.get(event.getChallengeId());
-          if (raid) {
-            await raid.setMode(event.getChallengeInfo()!.getMode());
+        const challengeInfo = event.getChallengeInfo()!;
+        if (event.getChallengeId() !== '' && challengeInfo?.getMode()) {
+          const aggregator = this.challengeAggregators[event.getChallengeId()];
+          if (aggregator) {
+            if (challengeInfo.getMode() === ChallengeMode.TOB_ENTRY) {
+              // TODO(frolv): At some point in the future, allow entry mode
+              // raids to be recorded.
+              console.log(`Terminating ToB entry mode raid ${aggregator}`);
+              delete this.challengeAggregators[event.getChallengeId()];
+              await aggregator.terminateAndPurgeChallenge();
+            } else {
+              await aggregator.getChallenge().setMode(challengeInfo.getMode());
+            }
           } else {
             console.error(
               'Received CHALLENGE_UPDATE event for nonexistent raid',
@@ -486,10 +512,10 @@ export default class MessageHandler {
     event: Event,
   ): Promise<void> {
     const response = new ServerMessage();
+    response.setType(ServerMessage.Type.ACTIVE_CHALLENGE_INFO);
 
     if (!this.allowStartingChallenges) {
       // TODO(frolv): Use a proper error type instead of an empty ID.
-      response.setType(ServerMessage.Type.ACTIVE_CHALLENGE_INFO);
       client.sendMessage(response);
       return;
     }
@@ -517,7 +543,6 @@ export default class MessageHandler {
         );
 
         // TODO(frolv): Use a proper error type instead of an empty ID.
-        response.setType(ServerMessage.Type.ACTIVE_CHALLENGE_INFO);
         client.sendMessage(response);
         return false;
       }
@@ -529,17 +554,14 @@ export default class MessageHandler {
         if (!checkPartySize(1, 5)) {
           return;
         }
-        break;
-
-      case ChallengeType.COLOSSEUM:
-        if (process.env.TEST_COLOSSEUM !== '1') {
-          console.error(
-            'Received CHALLENGE_START event for unimplemented challenge: COLOSSEUM',
-          );
-          response.setType(ServerMessage.Type.ACTIVE_CHALLENGE_INFO);
+        if (challengeInfo.getMode() === ChallengeMode.TOB_ENTRY) {
+          console.log(`${client}: denying ToB entry mode raid`);
           client.sendMessage(response);
           return;
         }
+        break;
+
+      case ChallengeType.COLOSSEUM:
         if (!checkPartySize(1)) {
           return;
         }
@@ -553,7 +575,6 @@ export default class MessageHandler {
         );
 
         // TODO(frolv): Use a proper error type instead of an empty ID.
-        response.setType(ServerMessage.Type.ACTIVE_CHALLENGE_INFO);
         client.sendMessage(response);
         return;
 
@@ -563,7 +584,6 @@ export default class MessageHandler {
         );
 
         // TODO(frolv): Use a proper error type instead of an empty ID.
-        response.setType(ServerMessage.Type.ACTIVE_CHALLENGE_INFO);
         client.sendMessage(response);
         return;
     }
@@ -575,7 +595,6 @@ export default class MessageHandler {
       challengeInfo.getPartyList(),
     );
 
-    response.setType(ServerMessage.Type.ACTIVE_CHALLENGE_INFO);
     response.setActiveChallengeId(challenge.getId());
     client.sendMessage(response);
 

@@ -90,22 +90,14 @@ export default class ChallengeManager {
 
   public async endChallenge(challenge: Challenge): Promise<void> {
     await challenge.finish();
-
-    this.challengesById.delete(challenge.getId());
-
-    const byKey = this.challengesByPartyKey.get(challenge.getPartyKey())!;
-    this.challengesByPartyKey.set(
-      challenge.getPartyKey(),
-      byKey.filter((c) => c !== challenge),
-    );
-
-    challenge
-      .getParty()
-      .forEach((member) =>
-        this.playerManager.setPlayerInactive(member, challenge.getId()),
-      );
-
+    this.cleanupChallenge(challenge);
     console.log(`Ended challenge ${challenge.getId()}`);
+  }
+
+  public async terminateChallenge(challenge: Challenge): Promise<void> {
+    await challenge.terminate();
+    this.cleanupChallenge(challenge);
+    console.log(`Terminated challenge ${challenge.getId()}`);
   }
 
   private getLastChallengeForParty(partyKey: string): Challenge | undefined {
@@ -131,5 +123,21 @@ export default class ChallengeManager {
       default:
         throw new Error(`Unimplemented challenge type: ${type}`);
     }
+  }
+
+  private cleanupChallenge(challenge: Challenge): void {
+    this.challengesById.delete(challenge.getId());
+
+    const byKey = this.challengesByPartyKey.get(challenge.getPartyKey())!;
+    this.challengesByPartyKey.set(
+      challenge.getPartyKey(),
+      byKey.filter((c) => c !== challenge),
+    );
+
+    challenge
+      .getParty()
+      .forEach((member) =>
+        this.playerManager.setPlayerInactive(member, challenge.getId()),
+      );
   }
 }
