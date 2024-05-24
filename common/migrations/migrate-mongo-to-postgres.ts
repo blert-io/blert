@@ -1,5 +1,7 @@
-import mongoose, { HydratedDocument, Types, get } from 'mongoose';
+import mongoose, { HydratedDocument, Types } from 'mongoose';
 import postgres from 'postgres';
+import { mkdir, writeFile } from 'fs/promises';
+import { Empty as EmptyProto } from 'google-protobuf/google/protobuf/empty_pb';
 
 import { ApiKeyModel } from '../models/api-key';
 import { PlayerModel } from '../models/player';
@@ -38,12 +40,32 @@ import {
   BloatDownEvent,
   Event,
   EventType,
+  HandicapChoiceEvent,
+  MaidenBloodSplatsEvent,
   NpcAttackEvent,
   NpcEvent,
+  NyloWaveSpawnEvent,
   NyloWaveStallEvent,
   PlayerAttackEvent,
+  PlayerDeathEvent,
+  PlayerUpdateEvent,
+  SoteMazeEvent,
+  SoteMazePathEvent,
+  VerzikPhaseEvent,
+  XarpusPhaseEvent,
 } from '../event';
 import { NameChangeModel } from '../models/name-change';
+import {
+  Coords as CoordsProto,
+  Event as EventProto,
+  NpcAttackMap,
+  PlayerAttackMap,
+  StageMap,
+} from '../generated/event_pb';
+import {
+  ChallengeData as ChallengeDataProto,
+  ChallengeEvents as ChallengeEventsProto,
+} from '../generated/challenge_storage_pb';
 
 type PersonalBest = {
   type: SplitType;
@@ -1168,6 +1190,11 @@ async function migrateRoomEvents(
   for (const [challenge, challengeId] of challenges.values()) {
     ++i;
 
+    const partyIndex: Record<string, number> = {};
+    challenge.party.forEach((name, i) => {
+      partyIndex[name] = i;
+    });
+
     const getPlayerId = (username: string): number | null => {
       const index = challenge.party.indexOf(username);
       if (index === -1) {
@@ -1182,7 +1209,7 @@ async function migrateRoomEvents(
       roomId: number,
       stage: Stage,
     ): number | null => {
-      if (npcId < Math.pow(2, 15)) {
+      if (npcId >= 0 && npcId < Math.pow(2, 15)) {
         return npcId;
       }
 
@@ -1192,118 +1219,128 @@ async function migrateRoomEvents(
 
     const roomEvents = await RoomEvent.find({
       cId: challenge._id,
-      acc: true,
     }).exec();
 
     const events: QueryableEvent[] = [];
 
+    const protoChallengeEvents = new Map<Stage, EventProto[]>();
+
     for (const event of roomEvents) {
-      let evt = null;
+      if (event.acc) {
+        let evt = null;
 
-      switch (event.type) {
-        case EventType.PLAYER_ATTACK: {
-          const e = event as PlayerAttackEvent;
-          evt = getBasicEventFields(challenge, challengeId, event);
-          evt.player_id = getPlayerId(event.player.name);
-          evt.subtype = e.attack.type;
-          if (e.attack.target) {
-            evt.npc_id = e.attack.target.id;
+        switch (event.type) {
+          case EventType.PLAYER_ATTACK: {
+            const e = event as PlayerAttackEvent;
+            evt = getBasicEventFields(challenge, challengeId, event);
+            evt.player_id = getPlayerId(event.player.name);
+            evt.subtype = e.attack.type;
+            if (e.attack.target) {
+              evt.npc_id = e.attack.target.id;
+            }
+            if (e.attack.weapon && e.attack.weapon.id) {
+              evt.custom_int_1 = e.attack.weapon.id;
+            }
+            evt.custom_short_1 = e.attack.distanceToTarget;
+            break;
           }
-          if (e.attack.weapon && e.attack.weapon.id) {
-            evt.custom_int_1 = e.attack.weapon.id;
+          case EventType.PLAYER_DEATH: {
+            evt = getBasicEventFields(challenge, challengeId, event);
+            evt.player_id = getPlayerId(event.player.name);
+            break;
           }
-          evt.custom_short_1 = e.attack.distanceToTarget;
-          break;
-        }
-        case EventType.PLAYER_DEATH: {
-          evt = getBasicEventFields(challenge, challengeId, event);
-          evt.player_id = getPlayerId(event.player.name);
-          break;
-        }
-        case EventType.NPC_SPAWN: {
-          const e = event as NpcEvent;
-          evt = getBasicEventFields(challenge, challengeId, event);
-          evt.npc_id = e.npc.id;
-          break;
-        }
-        case EventType.NPC_DEATH: {
-          const e = event as NpcEvent;
-          evt = getBasicEventFields(challenge, challengeId, event);
-          evt.npc_id = getNpcId(e.npc.id, e.npc.roomId, event.stage);
-          break;
-        }
-        case EventType.NPC_ATTACK: {
-          const e = event as NpcAttackEvent;
-          evt = getBasicEventFields(challenge, challengeId, event);
-          evt.subtype = e.npcAttack.attack;
-          evt.npc_id = getNpcId(e.npc.id, e.npc.roomId, event.stage);
-          if (e.npcAttack.target) {
-            evt.player_id = getPlayerId(e.npcAttack.target);
+          case EventType.NPC_SPAWN: {
+            const e = event as NpcEvent;
+            evt = getBasicEventFields(challenge, challengeId, event);
+            evt.npc_id = e.npc.id;
+            break;
           }
-          break;
-        }
-        case EventType.TOB_MAIDEN_CRAB_LEAK: {
-          const e = event as NpcEvent;
-          const hitpoints = SkillLevel.fromRaw(e.npc.hitpoints);
-          evt = getBasicEventFields(challenge, challengeId, event);
-          evt.npc_id = e.npc.id;
-          const roomNpc = npcsForStage(challenge, event.stage).get(
-            e.npc.roomId.toString(),
-          );
-          if (roomNpc && roomNpc.type === RoomNpcType.MAIDEN_CRAB) {
-            const maidenCrab = (roomNpc as MaidenCrab).maidenCrab;
-            evt.custom_int_1 = maidenCrab.spawn;
-            evt.custom_int_2 = maidenCrab.position;
+          case EventType.NPC_DEATH: {
+            const e = event as NpcEvent;
+            evt = getBasicEventFields(challenge, challengeId, event);
+            evt.npc_id = getNpcId(e.npc.id, e.npc.roomId, event.stage);
+            break;
           }
-          evt.custom_short_1 = hitpoints.getCurrent();
-          evt.custom_short_2 = hitpoints.getBase();
-          break;
-        }
-        case EventType.TOB_BLOAT_DOWN: {
-          const e = event as BloatDownEvent;
-          evt = getBasicEventFields(challenge, challengeId, event);
-          if (e.bloatDown.downNumber) {
-            evt.custom_short_1 = e.bloatDown.downNumber;
-          } else {
-            evt.custom_short_1 = assumeBloatDownNumber(e.tick);
+          case EventType.NPC_ATTACK: {
+            const e = event as NpcAttackEvent;
+            evt = getBasicEventFields(challenge, challengeId, event);
+            evt.subtype = e.npcAttack.attack;
+            evt.npc_id = getNpcId(e.npc.id, e.npc.roomId, event.stage);
+            if (e.npcAttack.target) {
+              evt.player_id = getPlayerId(e.npcAttack.target);
+            }
+            break;
           }
-          evt.custom_short_2 = e.bloatDown.walkTime;
-          break;
-        }
-        case EventType.TOB_NYLO_WAVE_STALL: {
-          const e = event as NyloWaveStallEvent;
-          evt = getBasicEventFields(challenge, challengeId, event);
-          evt.custom_short_1 = e.nyloWave.wave;
-          evt.custom_short_2 = e.nyloWave.nylosAlive;
-          break;
+          case EventType.TOB_MAIDEN_CRAB_LEAK: {
+            const e = event as NpcEvent;
+            const hitpoints = SkillLevel.fromRaw(e.npc.hitpoints);
+            evt = getBasicEventFields(challenge, challengeId, event);
+            evt.npc_id = e.npc.id;
+            const roomNpc = npcsForStage(challenge, event.stage).get(
+              e.npc.roomId.toString(),
+            );
+            if (roomNpc && roomNpc.type === RoomNpcType.MAIDEN_CRAB) {
+              const maidenCrab = (roomNpc as MaidenCrab).maidenCrab;
+              evt.custom_int_1 = maidenCrab.spawn;
+              evt.custom_int_2 = maidenCrab.position;
+            }
+            evt.custom_short_1 = hitpoints.getCurrent();
+            evt.custom_short_2 = hitpoints.getBase();
+            break;
+          }
+          case EventType.TOB_BLOAT_DOWN: {
+            const e = event as BloatDownEvent;
+            evt = getBasicEventFields(challenge, challengeId, event);
+            if (e.bloatDown.downNumber) {
+              evt.custom_short_1 = e.bloatDown.downNumber;
+            } else {
+              evt.custom_short_1 = assumeBloatDownNumber(e.tick);
+            }
+            evt.custom_short_2 = e.bloatDown.walkTime;
+            break;
+          }
+          case EventType.TOB_NYLO_WAVE_STALL: {
+            const e = event as NyloWaveStallEvent;
+            evt = getBasicEventFields(challenge, challengeId, event);
+            evt.custom_short_1 = e.nyloWave.wave;
+            evt.custom_short_2 = e.nyloWave.nylosAlive;
+            break;
+          }
+
+          case EventType.CHALLENGE_START:
+          case EventType.CHALLENGE_END:
+          case EventType.CHALLENGE_UPDATE:
+          case EventType.STAGE_UPDATE:
+          case EventType.PLAYER_UPDATE:
+          case EventType.NPC_UPDATE:
+          case EventType.TOB_MAIDEN_BLOOD_SPLATS:
+          case EventType.TOB_BLOAT_UP:
+          case EventType.TOB_NYLO_WAVE_SPAWN:
+          case EventType.TOB_NYLO_CLEANUP_END:
+          case EventType.TOB_NYLO_BOSS_SPAWN:
+          case EventType.TOB_SOTE_MAZE_PROC:
+          case EventType.TOB_SOTE_MAZE_PATH:
+          case EventType.TOB_SOTE_MAZE_END:
+          case EventType.TOB_XARPUS_PHASE:
+          case EventType.TOB_VERZIK_PHASE:
+          case EventType.TOB_VERZIK_ATTACK_STYLE:
+          case EventType.COLOSSEUM_HANDICAP_CHOICE:
+            // Not written to the database.
+            ++eventsSkipped;
+            break;
         }
 
-        case EventType.CHALLENGE_START:
-        case EventType.CHALLENGE_END:
-        case EventType.CHALLENGE_UPDATE:
-        case EventType.STAGE_UPDATE:
-        case EventType.PLAYER_UPDATE:
-        case EventType.NPC_UPDATE:
-        case EventType.TOB_MAIDEN_BLOOD_SPLATS:
-        case EventType.TOB_BLOAT_UP:
-        case EventType.TOB_NYLO_WAVE_SPAWN:
-        case EventType.TOB_NYLO_CLEANUP_END:
-        case EventType.TOB_NYLO_BOSS_SPAWN:
-        case EventType.TOB_SOTE_MAZE_PROC:
-        case EventType.TOB_SOTE_MAZE_PATH:
-        case EventType.TOB_SOTE_MAZE_END:
-        case EventType.TOB_XARPUS_PHASE:
-        case EventType.TOB_VERZIK_PHASE:
-        case EventType.TOB_VERZIK_ATTACK_STYLE:
-        case EventType.COLOSSEUM_HANDICAP_CHOICE:
-          // Not written to the database.
-          ++eventsSkipped;
-          break;
+        if (evt !== null) {
+          events.push(evt);
+        }
       }
 
-      if (evt !== null) {
-        events.push(evt);
+      if (!protoChallengeEvents.has(event.stage)) {
+        protoChallengeEvents.set(event.stage, []);
       }
+      protoChallengeEvents
+        .get(event.stage)!
+        .push(buildEventProto(event, partyIndex, getNpcId));
     }
 
     const broken = events.find((evt) => {
@@ -1367,6 +1404,50 @@ async function migrateRoomEvents(
       `;
     }
 
+    const subdir = challenge._id.toString().slice(0, 2);
+    const remainder = challenge._id.toString().slice(2).replaceAll('-', '');
+    const challengeDir = `${process.env.BLERT_OUT_DIR}/${subdir}/${remainder}`;
+    await mkdir(challengeDir, { recursive: true });
+
+    const challengeProto = buildChallengeProto(challenge);
+    await writeFile(
+      `${challengeDir}/challenge`,
+      challengeProto.serializeBinary(),
+    );
+
+    protoChallengeEvents.forEach(async (events, stage) => {
+      let filename;
+      switch (stage) {
+        case Stage.TOB_MAIDEN:
+          filename = 'maiden';
+          break;
+        case Stage.TOB_BLOAT:
+          filename = 'bloat';
+          break;
+        case Stage.TOB_NYLOCAS:
+          filename = 'nylocas';
+          break;
+        case Stage.TOB_SOTETSEG:
+          filename = 'sotetseg';
+          break;
+        case Stage.TOB_XARPUS:
+          filename = 'xarpus';
+          break;
+        case Stage.TOB_VERZIK:
+          filename = 'verzik';
+          break;
+      }
+
+      const eventsProto = new ChallengeEventsProto();
+      eventsProto.setStage(stage as Proto<StageMap>);
+      eventsProto.setEventsList(events);
+
+      await writeFile(
+        `${challengeDir}/${filename}`,
+        eventsProto.serializeBinary(),
+      );
+    });
+
     totalEventsMigrated += events.length;
     console.log(
       `Migrated ${events.length} events for challenge ${challenge._id} [${i}/${challenges.size}]`,
@@ -1376,6 +1457,389 @@ async function migrateRoomEvents(
   console.log(
     `Migrated ${totalEventsMigrated}, skipped ${eventsSkipped} total events`,
   );
+}
+
+type Proto<E> = E[keyof E];
+
+function buildStageNpcsProto(
+  npcs: Map<string, RoomNpc>,
+): ChallengeDataProto.StageNpc[] {
+  const stageNpcs: ChallengeDataProto.StageNpc[] = [];
+
+  npcs.forEach((npc) => {
+    const protoNpc = new ChallengeDataProto.StageNpc();
+    protoNpc.setSpawnNpcId(npc.spawnNpcId);
+    protoNpc.setRoomId(npc.roomId);
+    protoNpc.setSpawnTick(npc.spawnTick);
+    protoNpc.setDeathTick(npc.deathTick);
+
+    const spawnPoint = new CoordsProto();
+    spawnPoint.setX(npc.spawnPoint.x);
+    spawnPoint.setY(npc.spawnPoint.y);
+    protoNpc.setSpawnPoint(spawnPoint);
+    const deathPoint = new CoordsProto();
+    deathPoint.setX(npc.deathPoint.x);
+    deathPoint.setY(npc.deathPoint.y);
+    protoNpc.setDeathPoint(deathPoint);
+
+    switch (npc.type) {
+      case RoomNpcType.BASIC:
+        protoNpc.setBasic(new EmptyProto());
+        break;
+      case RoomNpcType.MAIDEN_CRAB: {
+        const crab = (npc as MaidenCrab).maidenCrab;
+        const maidenCrab = new EventProto.Npc.MaidenCrab();
+        maidenCrab.setSpawn(
+          crab.spawn as Proto<EventProto.Npc.MaidenCrab.SpawnMap>,
+        );
+        maidenCrab.setPosition(
+          crab.position as Proto<EventProto.Npc.MaidenCrab.PositionMap>,
+        );
+        maidenCrab.setScuffed(crab.scuffed);
+        protoNpc.setMaidenCrab(maidenCrab);
+        break;
+      }
+      case RoomNpcType.NYLO: {
+        const nylo = (npc as Nylo).nylo;
+        const nyloProto = new EventProto.Npc.Nylo();
+        nyloProto.setWave(nylo.wave);
+        nyloProto.setParentRoomId(nylo.parentRoomId);
+        nyloProto.setBig(nylo.big);
+        nyloProto.setStyle(nylo.style as Proto<EventProto.Npc.Nylo.StyleMap>);
+        nyloProto.setSpawnType(
+          nylo.spawnType as Proto<EventProto.Npc.Nylo.SpawnTypeMap>,
+        );
+        protoNpc.setNylo(nyloProto);
+        break;
+      }
+      case RoomNpcType.VERZIK_CRAB: {
+        const crab = (npc as VerzikCrab).verzikCrab;
+        const verzikCrab = new EventProto.Npc.VerzikCrab();
+        verzikCrab.setPhase(crab.phase as Proto<EventProto.VerzikPhaseMap>);
+        verzikCrab.setSpawn(
+          crab.spawn as Proto<EventProto.Npc.VerzikCrab.SpawnMap>,
+        );
+        break;
+      }
+    }
+
+    stageNpcs.push(protoNpc);
+  });
+
+  return stageNpcs;
+}
+
+function buildChallengeProto(challenge: Raid): ChallengeDataProto {
+  const proto = new ChallengeDataProto();
+
+  proto.setChallengeId(challenge._id.toString());
+
+  if (challenge.type === ChallengeType.TOB) {
+    const raid = challenge as TobRaid;
+    const tobRooms = new ChallengeDataProto.TobRooms();
+
+    if (raid.tobRooms.maiden !== null) {
+      const maiden = new ChallengeDataProto.TobRoom();
+      maiden.setStage(Stage.TOB_MAIDEN as Proto<StageMap>);
+      maiden.setTicksLost(raid.tobRooms.maiden.firstTick);
+      maiden.setDeathsList(raid.tobRooms.maiden.deaths);
+      maiden.setNpcsList(buildStageNpcsProto(raid.tobRooms.maiden.npcs as any));
+      tobRooms.setMaiden(maiden);
+    }
+    if (raid.tobRooms.bloat !== null) {
+      const bloat = new ChallengeDataProto.TobRoom();
+      bloat.setStage(Stage.TOB_BLOAT as Proto<StageMap>);
+      bloat.setTicksLost(raid.tobRooms.bloat.firstTick);
+      bloat.setDeathsList(raid.tobRooms.bloat.deaths);
+      bloat.setNpcsList(buildStageNpcsProto(raid.tobRooms.bloat.npcs as any));
+      bloat.setBloatDownTicksList(raid.tobRooms.bloat.splits.downTicks);
+      tobRooms.setBloat(bloat);
+    }
+    if (raid.tobRooms.nylocas !== null) {
+      const nylocas = new ChallengeDataProto.TobRoom();
+      nylocas.setStage(Stage.TOB_NYLOCAS as Proto<StageMap>);
+      nylocas.setTicksLost(raid.tobRooms.nylocas.firstTick);
+      nylocas.setDeathsList(raid.tobRooms.nylocas.deaths);
+      nylocas.setNpcsList(
+        buildStageNpcsProto(raid.tobRooms.nylocas.npcs as any),
+      );
+      nylocas.setNyloWavesStalledList(raid.tobRooms.nylocas.stalledWaves);
+      tobRooms.setNylocas(nylocas);
+    }
+    if (raid.tobRooms.sotetseg !== null) {
+      const sotetseg = new ChallengeDataProto.TobRoom();
+      sotetseg.setStage(Stage.TOB_SOTETSEG as Proto<StageMap>);
+      sotetseg.setTicksLost(raid.tobRooms.sotetseg.firstTick);
+      sotetseg.setDeathsList(raid.tobRooms.sotetseg.deaths);
+      sotetseg.setNpcsList(
+        buildStageNpcsProto(raid.tobRooms.sotetseg.npcs as any),
+      );
+      if (raid.tobRooms.sotetseg.maze66) {
+        sotetseg.setSotetsegMaze1PivotsList(
+          raid.tobRooms.sotetseg.maze66.pivots,
+        );
+      }
+      if (raid.tobRooms.sotetseg.maze33) {
+        sotetseg.setSotetsegMaze2PivotsList(
+          raid.tobRooms.sotetseg.maze33.pivots,
+        );
+      }
+      tobRooms.setSotetseg(sotetseg);
+    }
+    if (raid.tobRooms.xarpus !== null) {
+      const xarpus = new ChallengeDataProto.TobRoom();
+      xarpus.setStage(Stage.TOB_XARPUS as Proto<StageMap>);
+      xarpus.setTicksLost(raid.tobRooms.xarpus.firstTick);
+      xarpus.setDeathsList(raid.tobRooms.xarpus.deaths);
+      xarpus.setNpcsList(buildStageNpcsProto(raid.tobRooms.xarpus.npcs as any));
+      tobRooms.setXarpus(xarpus);
+    }
+    if (raid.tobRooms.verzik !== null) {
+      const verzik = new ChallengeDataProto.TobRoom();
+      verzik.setStage(Stage.TOB_VERZIK as Proto<StageMap>);
+      verzik.setTicksLost(raid.tobRooms.verzik.firstTick);
+      verzik.setDeathsList(raid.tobRooms.verzik.deaths);
+      verzik.setNpcsList(buildStageNpcsProto(raid.tobRooms.verzik.npcs as any));
+      verzik.setVerzikRedsCount(raid.tobRooms.verzik.redCrabSpawns);
+      tobRooms.setVerzik(verzik);
+    }
+
+    proto.setTobRooms(tobRooms);
+  } else {
+    const colo = challenge as ColosseumChallenge;
+    const colosseum = new ChallengeDataProto.Colosseum();
+    colo.colosseum.waves.forEach((waveData, i) => {
+      const wave = new ChallengeDataProto.ColosseumWave();
+      wave.setStage((Stage.COLOSSEUM_WAVE_1 + i) as Proto<StageMap>);
+      wave.setTicksLost(0);
+      wave.setHandicapChosen(waveData.handicap);
+      wave.setHandicapOptionsList(waveData.options);
+      wave.setNpcsList(buildStageNpcsProto(waveData.npcs as any));
+      colosseum.addWaves(wave);
+    });
+    proto.setColosseum(colosseum);
+  }
+
+  return proto;
+}
+
+function buildEventProto(
+  event: Event,
+  partyIndex: Record<string, number>,
+  getNpcId: (npcId: number, roomId: number, stage: Stage) => number | null,
+): EventProto {
+  const proto = new EventProto();
+  proto.setType(event.type as Proto<EventProto.TypeMap>);
+  proto.setXCoord(event.xCoord);
+  proto.setYCoord(event.yCoord);
+  proto.setTick(event.tick);
+
+  switch (event.type) {
+    case EventType.PLAYER_UPDATE: {
+      const e = event as PlayerUpdateEvent;
+      const player = new EventProto.Player();
+      player.setPartyIndex(partyIndex[e.player.name]);
+      player.setOffCooldownTick(e.player.offCooldownTick);
+      if (e.player.hitpoints !== undefined) {
+        player.setHitpoints(e.player.hitpoints);
+      }
+      if (e.player.prayer !== undefined) {
+        player.setPrayer(e.player.prayer);
+      }
+      if (e.player.attack !== undefined) {
+        player.setAttack(e.player.attack);
+      }
+      if (e.player.strength !== undefined) {
+        player.setStrength(e.player.strength);
+      }
+      if (e.player.defence !== undefined) {
+        player.setDefence(e.player.defence);
+      }
+      if (e.player.ranged !== undefined) {
+        player.setRanged(e.player.ranged);
+      }
+      if (e.player.magic !== undefined) {
+        player.setMagic(e.player.magic);
+      }
+      if (e.player.equipmentDeltas) {
+        player.setEquipmentDeltasList(e.player.equipmentDeltas);
+      }
+      player.setActivePrayers(e.player.prayerSet);
+      player.setDataSource(e.player.source as 0 | 1);
+      proto.setPlayer(player);
+      break;
+    }
+
+    case EventType.PLAYER_ATTACK: {
+      const e = event as PlayerAttackEvent;
+      const player = new EventProto.Player();
+      player.setPartyIndex(partyIndex[e.player.name]);
+      proto.setPlayer(player);
+      const attack = new EventProto.Attack();
+      attack.setType(e.attack.type as Proto<PlayerAttackMap>);
+      attack.setDistanceToTarget(e.attack.distanceToTarget);
+      if (e.attack.weapon) {
+        const weapon = new EventProto.Player.EquippedItem();
+        weapon.setSlot(EventProto.Player.EquipmentSlot.WEAPON);
+        weapon.setId(e.attack.weapon.id);
+        weapon.setQuantity(e.attack.weapon.quantity);
+      }
+      if (e.attack.target) {
+        const target = new EventProto.Npc();
+        try {
+          const npcId =
+            getNpcId(e.attack.target.id, e.attack.target.roomId, event.stage) ??
+            0;
+          target.setId(npcId);
+        } catch (err) {
+          console.log(e);
+          throw new Error('Failed to get npcId');
+        }
+        target.setRoomId(e.attack.target.roomId);
+      }
+      break;
+    }
+
+    case EventType.PLAYER_DEATH: {
+      const e = event as PlayerDeathEvent;
+      const player = new EventProto.Player();
+      player.setPartyIndex(partyIndex[e.player.name]);
+      proto.setPlayer(player);
+      break;
+    }
+
+    case EventType.NPC_SPAWN:
+    case EventType.NPC_DEATH:
+    case EventType.NPC_UPDATE: {
+      const e = event as NpcEvent;
+      const npc = new EventProto.Npc();
+      const npcId = getNpcId(e.npc.id, e.npc.roomId, event.stage) ?? 0;
+      npc.setId(npcId);
+      npc.setRoomId(e.npc.roomId);
+      npc.setHitpoints(e.npc.hitpoints);
+      proto.setNpc(npc);
+      break;
+    }
+
+    case EventType.NPC_ATTACK: {
+      const e = event as NpcAttackEvent;
+
+      const npc = new EventProto.Npc();
+      const npcId = getNpcId(e.npc.id, e.npc.roomId, event.stage) ?? 0;
+      npc.setId(npcId);
+      npc.setRoomId(e.npc.roomId);
+      proto.setNpc(npc);
+
+      const npcAttack = new EventProto.NpcAttacked();
+      npcAttack.setAttack(e.npcAttack.attack as Proto<NpcAttackMap>);
+      proto.setNpcAttack(npcAttack);
+
+      if (e.npcAttack.target) {
+        const player = new EventProto.Player();
+        player.setPartyIndex(partyIndex[e.npcAttack.target]);
+        proto.setPlayer(player);
+      }
+      break;
+    }
+
+    case EventType.TOB_MAIDEN_CRAB_LEAK: {
+      const e = event as NpcEvent;
+      const npc = new EventProto.Npc();
+      const npcId = getNpcId(e.npc.id, e.npc.roomId, event.stage) ?? 0;
+      npc.setId(npcId);
+      npc.setRoomId(e.npc.roomId);
+      npc.setHitpoints(e.npc.hitpoints);
+      proto.setNpc(npc);
+      break;
+    }
+
+    case EventType.TOB_MAIDEN_BLOOD_SPLATS: {
+      const e = event as MaidenBloodSplatsEvent;
+      const splats = e.maidenBloodSplats.map((splat) => {
+        const coords = new CoordsProto();
+        coords.setX(splat.x);
+        coords.setY(splat.y);
+        return coords;
+      });
+      proto.setMaidenBloodSplatsList(splats);
+    }
+
+    case EventType.TOB_BLOAT_DOWN: {
+      const e = event as BloatDownEvent;
+      const bloatDown = new EventProto.BloatDown();
+      if (e.bloatDown.downNumber === undefined) {
+        bloatDown.setDownNumber(assumeBloatDownNumber(e.tick));
+      } else {
+        bloatDown.setDownNumber(e.bloatDown.downNumber);
+      }
+      bloatDown.setWalkTime(e.bloatDown.walkTime);
+      proto.setBloatDown(bloatDown);
+      break;
+    }
+
+    case EventType.TOB_NYLO_WAVE_SPAWN:
+    case EventType.TOB_NYLO_WAVE_STALL: {
+      const e = event as NyloWaveStallEvent | NyloWaveSpawnEvent;
+      const nyloWave = new EventProto.NyloWave();
+      nyloWave.setWave(e.nyloWave.wave);
+      nyloWave.setNylosAlive(e.nyloWave.nylosAlive);
+      nyloWave.setRoomCap(e.nyloWave.roomCap);
+      proto.setNyloWave(nyloWave);
+      break;
+    }
+
+    case EventType.TOB_NYLO_CLEANUP_END:
+    case EventType.TOB_NYLO_BOSS_SPAWN:
+      // No extra data.
+      break;
+
+    case EventType.TOB_SOTE_MAZE_PROC:
+    case EventType.TOB_SOTE_MAZE_END: {
+      const e = event as SoteMazeEvent;
+      const maze = new EventProto.SoteMaze();
+      maze.setMaze(e.soteMaze.maze as Proto<EventProto.SoteMaze.MazeMap>);
+      proto.setSoteMaze(maze);
+      break;
+    }
+
+    case EventType.TOB_SOTE_MAZE_PATH: {
+      const e = event as SoteMazePathEvent;
+      const maze = new EventProto.SoteMaze();
+      maze.setMaze(e.soteMaze.maze as Proto<EventProto.SoteMaze.MazeMap>);
+      maze.setOverworldTilesList(
+        e.soteMaze.activeTiles.map((tile) => {
+          const coords = new CoordsProto();
+          coords.setX(tile.x);
+          coords.setY(tile.y);
+          return coords;
+        }),
+      );
+      proto.setSoteMaze(maze);
+      break;
+    }
+
+    case EventType.TOB_XARPUS_PHASE: {
+      const e = event as XarpusPhaseEvent;
+      proto.setXarpusPhase(e.xarpusPhase as Proto<EventProto.XarpusPhaseMap>);
+      break;
+    }
+
+    case EventType.TOB_VERZIK_PHASE: {
+      const e = event as VerzikPhaseEvent;
+      proto.setVerzikPhase(e.verzikPhase as Proto<EventProto.VerzikPhaseMap>);
+      break;
+    }
+
+    case EventType.CHALLENGE_START:
+    case EventType.CHALLENGE_END:
+    case EventType.CHALLENGE_UPDATE:
+    case EventType.STAGE_UPDATE:
+    case EventType.TOB_VERZIK_ATTACK_STYLE:
+    case EventType.COLOSSEUM_HANDICAP_CHOICE:
+      break;
+  }
+
+  return proto;
 }
 
 async function main() {
@@ -1423,6 +1887,10 @@ async function main() {
 
   if (process.argv.length !== 2) {
     throw new Error('usage: migrate-mongo-to-postgres [find-broken|fix]');
+  }
+
+  if (!process.env.BLERT_OUT_DIR) {
+    throw new Error('BLERT_OUT_DIR environment variable is required');
   }
 
   const users = await migrateUsers(sql);
