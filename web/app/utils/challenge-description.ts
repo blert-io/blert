@@ -1,16 +1,22 @@
-import { ChallengeStatus, Raid, challengeName, stageName } from '@blert/common';
+import {
+  Challenge,
+  ChallengeStatus,
+  challengeName,
+  stageName,
+} from '@blert/common';
 
-export function challengePageDescription(challenge: Raid): string {
+export function challengePageDescription(challenge: Challenge): string {
+  const partyNames = challenge.party.map((p) => p.username);
   let party;
-  if (challenge.party.length === 1) {
-    party = challenge.party[0];
-  } else if (challenge.party.length === 2) {
-    party = challenge.party.join(' and ');
+  if (partyNames.length === 1) {
+    party = partyNames[0];
+  } else if (partyNames.length === 2) {
+    party = partyNames.join(' and ');
   } else {
     party =
-      challenge.party.slice(0, challenge.party.length - 1).join(', ') +
+      partyNames.slice(0, partyNames.length - 1).join(', ') +
       ', and ' +
-      challenge.party[challenge.party.length - 1];
+      partyNames[challenge.party.length - 1];
   }
 
   let stem;

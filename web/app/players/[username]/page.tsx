@@ -1,4 +1,5 @@
-import { PersonalBestType, PrimaryMeleeGear } from '@blert/common';
+import { PrimaryMeleeGear, SplitType } from '@blert/common';
+import { ResolvingMetadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -9,7 +10,6 @@ import Statistic from '../../components/statistic';
 import { ticksToFormattedSeconds } from '../../utils/tick';
 
 import styles from './style.module.scss';
-import { ResolvingMetadata } from 'next';
 
 type PlayerPageProps = {
   params: { username: string };
@@ -98,12 +98,12 @@ export default async function Player(props: PlayerPageProps) {
   ];
 
   for (const pb of personalBests) {
-    if (pb.type === PersonalBestType.TOB_REG_CHALLENGE) {
-      regPbs[pb.scale - 1].time = pb.time;
-      regPbs[pb.scale - 1].raidId = pb.cId;
-    } else if (pb.type === PersonalBestType.TOB_HM_CHALLENGE) {
-      hmtPbs[pb.scale - 1].time = pb.time;
-      hmtPbs[pb.scale - 1].raidId = pb.cId;
+    if (pb.type === SplitType.TOB_REG_CHALLENGE) {
+      regPbs[pb.scale - 1].time = pb.ticks;
+      regPbs[pb.scale - 1].raidId = pb.cid;
+    } else if (pb.type === SplitType.TOB_HM_CHALLENGE) {
+      hmtPbs[pb.scale - 1].time = pb.ticks;
+      hmtPbs[pb.scale - 1].raidId = pb.cid;
     }
   }
 

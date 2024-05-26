@@ -12,6 +12,7 @@ import {
   SkillLevel,
   NyloWaveStallEvent,
   TobRaid,
+  SplitType,
 } from '@blert/common';
 import Image from 'next/image';
 import { useMemo } from 'react';
@@ -268,20 +269,17 @@ export default function NylocasPage() {
         };
       }) ?? [];
 
-    const nyloData = raidData.tobRooms.nylocas;
-    if (nyloData !== null) {
-      if (nyloData.splits.cleanup) {
-        splits.push({
-          tick: nyloData.splits.cleanup,
-          splitName: 'Cleanup',
-        });
-      }
-      if (nyloData.splits.boss) {
-        splits.push({
-          tick: nyloData.splits.boss,
-          splitName: 'Boss',
-        });
-      }
+    if (raidData.splits[SplitType.TOB_NYLO_CLEANUP]) {
+      splits.push({
+        tick: raidData.splits[SplitType.TOB_NYLO_CLEANUP],
+        splitName: 'Cleanup',
+      });
+    }
+    if (raidData.splits[SplitType.TOB_NYLO_BOSS_SPAWN]) {
+      splits.push({
+        tick: raidData.splits[SplitType.TOB_NYLO_BOSS_SPAWN],
+        splitName: 'Boss',
+      });
     }
     return splits;
   }, [events, eventsByType, raidData]);
@@ -380,7 +378,7 @@ export default function NylocasPage() {
   }
 
   const playerTickState = raidData.party.reduce(
-    (acc, username) => ({
+    (acc, { username }) => ({
       ...acc,
       [username]: playerState.get(username)?.at(currentTick) ?? null,
     }),
@@ -406,38 +404,44 @@ export default function NylocasPage() {
         <div className={styles.bossPage__KeyDetails}>
           <h2>The Nylocas ({ticksToFormattedSeconds(totalTicks)})</h2>
           <div>
-            {nyloData && (
-              <div className={styles.splits}>
-                {nyloData.splits.capIncrease > 0 && (
-                  <Badge
-                    iconClass="fa-solid fa-hourglass"
-                    label="Cap"
-                    value={ticksToFormattedSeconds(nyloData.splits.capIncrease)}
-                  />
-                )}
-                {nyloData.splits.waves > 0 && (
-                  <Badge
-                    iconClass="fa-solid fa-hourglass"
-                    label="Waves"
-                    value={ticksToFormattedSeconds(nyloData.splits.waves)}
-                  />
-                )}
-                {nyloData.splits.cleanup > 0 && (
-                  <Badge
-                    iconClass="fa-solid fa-hourglass"
-                    label="Cleanup"
-                    value={ticksToFormattedSeconds(nyloData.splits.cleanup)}
-                  />
-                )}
-                {nyloData.splits.boss > 0 && (
-                  <Badge
-                    iconClass="fa-solid fa-hourglass"
-                    label="Boss"
-                    value={ticksToFormattedSeconds(nyloData.splits.boss)}
-                  />
-                )}
-              </div>
-            )}
+            <div className={styles.splits}>
+              {raidData.splits[SplitType.TOB_NYLO_CAP] && (
+                <Badge
+                  iconClass="fa-solid fa-hourglass"
+                  label="Cap"
+                  value={ticksToFormattedSeconds(
+                    raidData.splits[SplitType.TOB_NYLO_CAP],
+                  )}
+                />
+              )}
+              {raidData.splits[SplitType.TOB_NYLO_WAVES] && (
+                <Badge
+                  iconClass="fa-solid fa-hourglass"
+                  label="Waves"
+                  value={ticksToFormattedSeconds(
+                    raidData.splits[SplitType.TOB_NYLO_WAVES],
+                  )}
+                />
+              )}
+              {raidData.splits[SplitType.TOB_NYLO_CLEANUP] && (
+                <Badge
+                  iconClass="fa-solid fa-hourglass"
+                  label="Cleanup"
+                  value={ticksToFormattedSeconds(
+                    raidData.splits[SplitType.TOB_NYLO_CLEANUP],
+                  )}
+                />
+              )}
+              {raidData.splits[SplitType.TOB_NYLO_BOSS_SPAWN] && (
+                <Badge
+                  iconClass="fa-solid fa-hourglass"
+                  label="Boss"
+                  value={ticksToFormattedSeconds(
+                    raidData.splits[SplitType.TOB_NYLO_BOSS_SPAWN],
+                  )}
+                />
+              )}
+            </div>
             <h3>Stalled Waves ({stalls.length})</h3>
             <HorizontalScrollable className={styles.stalls}>
               {stalls.map((stall, i) => (

@@ -26,8 +26,8 @@ function ChallengeList({ challenges }: { challenges: ChallengeOverview[] }) {
     <>
       {challenges.map((challenge) => (
         <Link
-          href={challengeUrl(challenge.type, challenge._id)}
-          key={challenge._id}
+          href={challengeUrl(challenge.type, challenge.uuid)}
+          key={challenge.uuid}
         >
           <div className={styles.recentRaid}>
             <div className={styles.recentRaidTeam}>
@@ -39,7 +39,7 @@ function ChallengeList({ challenges }: { challenges: ChallengeOverview[] }) {
               stage={challenge.stage}
               status={challenge.status}
               mode={challenge.mode}
-              totalRaidTicks={challenge.totalTicks}
+              totalRaidTicks={challenge.challengeTicks}
               deaths={challenge.totalDeaths}
               partySize={challenge.party.length}
               startTime={challenge.startTime}

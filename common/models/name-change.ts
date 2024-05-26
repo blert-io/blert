@@ -1,8 +1,15 @@
-import { Model, Schema, model, models } from 'mongoose';
+import { Model, Schema, Types, model, models } from 'mongoose';
 
 import { NameChange } from '../name-change';
 
-const nameChangeSchema = new Schema<NameChange>({
+export type NameChangeSchema = NameChange & {
+  _id: Types.ObjectId;
+  playerId: Types.ObjectId;
+  submitterId: Types.ObjectId | null;
+  migratedDocuments: number;
+};
+
+const nameChangeSchema = new Schema<NameChangeSchema>({
   status: { type: Number, index: true, required: true },
   oldName: { type: String, required: true },
   newName: { type: String, required: true },
@@ -21,5 +28,5 @@ const nameChangeSchema = new Schema<NameChange>({
   migratedDocuments: { type: Number, default: 0 },
 });
 
-export const NameChangeModel: Model<NameChange> =
+export const NameChangeModel: Model<NameChangeSchema> =
   models?.NameChange ?? model('NameChange', nameChangeSchema);

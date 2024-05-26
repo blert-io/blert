@@ -1,21 +1,20 @@
 'use client';
 
-import { NameChangeStatus } from '@blert/common';
+import { NameChange, NameChangeStatus } from '@blert/common';
 import { useEffect, useState } from 'react';
 import TimeAgo from 'react-timeago';
 
-import { PlainNameChange } from '@/actions/change-name';
 import LigmaTooltip from '@/components/ligma-tooltip';
 
 import styles from './style.module.scss';
 
 type NameChangeProps = {
-  nameChange: PlainNameChange;
+  nameChange: NameChange;
   id: number;
 };
 
 function nameChangeInfo(
-  nameChange: PlainNameChange,
+  nameChange: NameChange,
 ): [string, string, string | null] {
   switch (nameChange.status) {
     case NameChangeStatus.PENDING:

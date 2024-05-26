@@ -1,5 +1,3 @@
-import { Types } from 'mongoose';
-
 export enum NameChangeStatus {
   PENDING,
   ACCEPTED,
@@ -12,8 +10,6 @@ export type NameChange = {
   status: NameChangeStatus;
   oldName: string;
   newName: string;
-  playerId: Types.ObjectId;
-  submitterId: Types.ObjectId | null;
+  submittedAt: Date;
   processedAt: Date | null;
-  migratedDocuments: number;
 };

@@ -1,5 +1,6 @@
 import {
   Attack,
+  Challenge,
   ChallengeType,
   ColosseumChallenge,
   EquipmentSlot,
@@ -13,7 +14,6 @@ import {
   PlayerAttackEvent,
   PlayerEvent,
   PlayerUpdateEvent,
-  Raid,
   RoomNpc,
   RoomNpcMap as RawRoomNpcMap,
   SkillLevel,
@@ -27,6 +27,7 @@ import {
   NyloProperties,
   VerzikCrabProperties,
   DataSource,
+  SplitType,
 } from '@blert/common';
 import {
   SetStateAction,
@@ -166,7 +167,7 @@ type StageInfo = {
   npcs: RawRoomNpcMap;
 };
 
-function getStageInfo(challenge: Raid | null, stage: Stage): StageInfo {
+function getStageInfo(challenge: Challenge | null, stage: Stage): StageInfo {
   if (challenge === null) {
     return { ticks: -1, npcs: {} };
   }
@@ -174,29 +175,36 @@ function getStageInfo(challenge: Raid | null, stage: Stage): StageInfo {
   if (challenge.type === ChallengeType.TOB) {
     const raid = challenge as TobRaid;
     let room: keyof TobRooms = 'maiden';
+    let split: SplitType;
     switch (stage) {
       case Stage.TOB_MAIDEN:
         room = 'maiden';
+        split = SplitType.TOB_MAIDEN;
         break;
       case Stage.TOB_BLOAT:
         room = 'bloat';
+        split = SplitType.TOB_BLOAT;
         break;
       case Stage.TOB_NYLOCAS:
         room = 'nylocas';
+        split = SplitType.TOB_NYLO_ROOM;
         break;
       case Stage.TOB_SOTETSEG:
         room = 'sotetseg';
+        split = SplitType.TOB_SOTETSEG;
         break;
       case Stage.TOB_XARPUS:
         room = 'xarpus';
+        split = SplitType.TOB_XARPUS;
         break;
       case Stage.TOB_VERZIK:
         room = 'verzik';
+        split = SplitType.TOB_VERZIK_ROOM;
         break;
     }
 
     return {
-      ticks: raid.tobRooms[room]?.roomTicks ?? -1,
+      ticks: challenge.splits[split!] ?? -1,
       npcs: raid.tobRooms[room]?.npcs ?? {},
     };
   }
@@ -204,8 +212,9 @@ function getStageInfo(challenge: Raid | null, stage: Stage): StageInfo {
   if (challenge.type === ChallengeType.COLOSSEUM) {
     const colosseum = challenge as ColosseumChallenge;
     const waveIndex = stage - Stage.COLOSSEUM_WAVE_1;
+    const split: SplitType = SplitType.COLOSSEUM_WAVE_1 + waveIndex;
     return {
-      ticks: colosseum.colosseum.waves[waveIndex]?.ticks ?? -1,
+      ticks: challenge.splits[split] ?? -1,
       npcs: colosseum.colosseum.waves[waveIndex]?.npcs ?? {},
     };
   }
@@ -213,7 +222,7 @@ function getStageInfo(challenge: Raid | null, stage: Stage): StageInfo {
   return { ticks: -1, npcs: {} };
 }
 
-export function useStageEvents<T extends Raid>(stage: Stage) {
+export function useStageEvents<T extends Challenge>(stage: Stage) {
   const [challenge] = useContext(ChallengeContext) as [T | null, unknown];
 
   const [loading, setLoading] = useState(true);
@@ -240,7 +249,7 @@ export function useStageEvents<T extends Raid>(stage: Stage) {
       let evts: Event[] = [];
 
       try {
-        const url = `${challengeApiUrl(challenge.type, challenge._id)}/events?stage=${stage}`;
+        const url = `${challengeApiUrl(challenge.type, challenge.uuid)}/events?stage=${stage}`;
         evts = await fetch(url).then((res) => res.json());
       } catch (e) {
         setEvents([]);
@@ -260,7 +269,7 @@ export function useStageEvents<T extends Raid>(stage: Stage) {
 
         const [eventsByTick, eventsByType] = buildEventMaps(evts);
         const playerState = computePlayerState(
-          challenge.party,
+          challenge.party.map((p) => p.username),
           totalTicks,
           eventsByTick,
         );

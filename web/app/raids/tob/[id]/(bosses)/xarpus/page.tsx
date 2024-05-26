@@ -6,6 +6,7 @@ import {
   NpcEvent,
   PlayerUpdateEvent,
   SkillLevel,
+  SplitType,
   Stage,
   TobRaid,
 } from '@blert/common';
@@ -45,15 +46,22 @@ export default function XarpusPage() {
     usePlayingState(totalTicks);
 
   const splits = useMemo(() => {
+    if (raidData === null) {
+      return [];
+    }
+
     const splits = [];
-    const xarpus = raidData?.tobRooms.xarpus;
-    if (xarpus) {
-      if (xarpus.splits.exhumes > 0) {
-        splits.push({ tick: xarpus.splits.exhumes, splitName: 'Exhumes' });
-      }
-      if (xarpus.splits.screech > 0) {
-        splits.push({ tick: xarpus.splits.screech, splitName: 'Screech' });
-      }
+    if (raidData.splits[SplitType.TOB_XARPUS_EXHUMES]) {
+      splits.push({
+        tick: raidData.splits[SplitType.TOB_XARPUS_EXHUMES],
+        splitName: 'Exhumes',
+      });
+    }
+    if (raidData.splits[SplitType.TOB_XARPUS_SCREECH]) {
+      splits.push({
+        tick: raidData.splits[SplitType.TOB_XARPUS_SCREECH],
+        splitName: 'Screech',
+      });
     }
     return splits;
   }, [raidData]);
@@ -107,7 +115,7 @@ export default function XarpusPage() {
   }
 
   const playerTickState = raidData.party.reduce(
-    (acc, username) => ({
+    (acc, { username }) => ({
       ...acc,
       [username]: playerState.get(username)?.at(currentTick) ?? null,
     }),

@@ -1,7 +1,9 @@
-import { Model, Schema, model, models } from 'mongoose';
+import { Model, Schema, Types, model, models } from 'mongoose';
 import { RecordedChallenge, User } from '../user';
 
-const userSchema = new Schema<User>({
+export type UserSchema = User & { _id: Types.ObjectId; password: string };
+
+const userSchema = new Schema<UserSchema>({
   username: { type: String, required: true, index: true },
   password: { type: String, required: true },
   email: { type: String, required: true, index: { unique: true } },
@@ -10,7 +12,7 @@ const userSchema = new Schema<User>({
 });
 
 export const UserModel =
-  (models?.User as Model<User>) ?? model<User>('User', userSchema);
+  (models?.User as Model<UserSchema>) ?? model<UserSchema>('User', userSchema);
 
 const recordedChallengeSchema = new Schema<RecordedChallenge>({
   cId: { type: String, required: true, index: true },

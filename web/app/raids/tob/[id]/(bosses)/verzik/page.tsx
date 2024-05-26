@@ -10,6 +10,7 @@ import {
   NpcId,
   PlayerUpdateEvent,
   SkillLevel,
+  SplitType,
   Stage,
   TobRaid,
 } from '@blert/common';
@@ -76,28 +77,38 @@ export default function VerzikPage() {
   const { selectedPlayer } = useContext(ActorContext);
 
   const [splits, backgroundColors] = useMemo(() => {
-    let splits = [];
-    const verzik = raidData?.tobRooms.verzik;
-    if (verzik) {
-      if (verzik.splits.p1 > 0) {
-        splits.push({
-          tick: verzik.splits.p1,
-          splitName: 'P1 End',
-          unimportant: true,
-        });
-        splits.push({ tick: verzik.splits.p1 + 13, splitName: 'P2' });
-      }
-      if (verzik.splits.reds > 0) {
-        splits.push({ tick: verzik.splits.reds, splitName: 'Reds' });
-      }
-      if (verzik.splits.p2 > 0) {
-        splits.push({
-          tick: verzik.splits.p2,
-          splitName: 'P2 End',
-          unimportant: true,
-        });
-        splits.push({ tick: verzik.splits.p2 + 6, splitName: 'P3' });
-      }
+    if (raidData === null) {
+      return [[], []];
+    }
+
+    const splits = [];
+    if (raidData.splits[SplitType.TOB_VERZIK_P1_END]) {
+      splits.push({
+        tick: raidData.splits[SplitType.TOB_VERZIK_P1_END],
+        splitName: 'P1 End',
+        unimportant: true,
+      });
+      splits.push({
+        tick: raidData.splits[SplitType.TOB_VERZIK_P1_END] + 13,
+        splitName: 'P2',
+      });
+    }
+    if (raidData.splits[SplitType.TOB_VERZIK_REDS]) {
+      splits.push({
+        tick: raidData.splits[SplitType.TOB_VERZIK_REDS],
+        splitName: 'Reds',
+      });
+    }
+    if (raidData.splits[SplitType.TOB_VERZIK_P2_END]) {
+      splits.push({
+        tick: raidData.splits[SplitType.TOB_VERZIK_P2_END],
+        splitName: 'P2 End',
+        unimportant: true,
+      });
+      splits.push({
+        tick: raidData.splits[SplitType.TOB_VERZIK_P2_END] + 6,
+        splitName: 'P3',
+      });
     }
 
     const backgroundColors = eventsByType[EventType.NPC_ATTACK]
@@ -161,7 +172,7 @@ export default function VerzikPage() {
   }
 
   const playerTickState = raidData.party.reduce(
-    (acc, username) => ({
+    (acc, { username }) => ({
       ...acc,
       [username]: playerState.get(username)?.at(currentTick) ?? null,
     }),

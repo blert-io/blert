@@ -6,14 +6,17 @@ export { RecordingType } from './user';
 export {
   type Player,
   type PlayerStats,
+  type PlayerExperience,
   HiscoresRateLimitError,
   hiscoreLookup,
 } from './player';
 export {
-  LegacyPersonalBestType as PersonalBestType,
+  generalizeSplit,
   tobPbForMode,
+  LegacyPersonalBestType as PersonalBestType,
+  type PersonalBest,
+  SplitType,
 } from './personal-best';
-export type { PersonalBest } from './personal-best';
 
 export { ApiKeyModel } from './models/api-key';
 export { NameChangeModel } from './models/name-change';
@@ -64,7 +67,10 @@ export {
 export type {
   BloatOverview,
   BloatSplits,
+  Challenge,
+  ChallengePlayer,
   ColosseumChallenge,
+  ColosseumData,
   ColosseumWave,
   MaidenCrab,
   MaidenCrabProperties,
@@ -75,6 +81,7 @@ export type {
   NyloOverview,
   NyloProperties,
   NyloSplits,
+  OldTobRooms,
   Raid,
   RawSkillLevel,
   RoomNpc,
@@ -107,6 +114,7 @@ export {
   PlayerAttack,
   PrimaryMeleeGear,
   RoomNpcType,
+  Skill,
   SkillLevel,
   Stage,
   StageStatus,

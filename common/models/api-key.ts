@@ -1,7 +1,13 @@
 import { ApiKey } from '../user';
-import { Model, Schema, model, models } from 'mongoose';
+import { Model, Schema, Types, model, models } from 'mongoose';
 
-const apiKeySchema = new Schema<ApiKey>({
+export type ApiKeySchema = ApiKey & {
+  _id: Types.ObjectId;
+  playerId: Types.ObjectId;
+  userId: Types.ObjectId;
+};
+
+const apiKeySchema = new Schema<ApiKeySchema>({
   userId: {
     type: Schema.Types.ObjectId,
     ref: 'User',
@@ -20,4 +26,5 @@ const apiKeySchema = new Schema<ApiKey>({
 });
 
 export const ApiKeyModel =
-  (models?.ApiKey as Model<ApiKey>) ?? model<ApiKey>('ApiKey', apiKeySchema);
+  (models?.ApiKey as Model<ApiKeySchema>) ??
+  model<ApiKeySchema>('ApiKey', apiKeySchema);

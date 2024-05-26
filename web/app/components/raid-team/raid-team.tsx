@@ -1,17 +1,11 @@
-import { PrimaryMeleeGear } from '@blert/common';
+import { ChallengePlayer, PrimaryMeleeGear } from '@blert/common';
 import Image from 'next/image';
 import Link from 'next/link';
 
 import styles from './style.module.scss';
 
-interface TeamPanelPlayer {
-  name: string;
-  currentUsername: string;
-  primaryMeleeGear: PrimaryMeleeGear;
-}
-
 type TeamPanelProps = {
-  players: TeamPanelPlayer[];
+  players: ChallengePlayer[];
   compactView?: boolean;
 };
 
@@ -26,23 +20,23 @@ export function RaidTeamPanel(props: TeamPanelProps) {
           <div className={styles.imageWrapper}>
             <Image
               className={styles.raid__PlayerImg}
-              src={`/${PrimaryMeleeGear[player.primaryMeleeGear].toLowerCase()}.webp`}
-              alt={PrimaryMeleeGear[player.primaryMeleeGear].toLowerCase()}
+              src={`/${PrimaryMeleeGear[player.primaryGear].toLowerCase()}.webp`}
+              alt={PrimaryMeleeGear[player.primaryGear].toLowerCase()}
               fill
               style={{ objectFit: 'contain' }}
             />
           </div>
-          <div className={styles.raid__PlayerName}>{player.name}</div>
+          <div className={styles.raid__PlayerName}>{player.username}</div>
         </>
       );
     } else {
       content = (
         <>
-          <div className={styles.raid__PlayerName}>{player.name}</div>
+          <div className={styles.raid__PlayerName}>{player.username}</div>
           <Image
             className={styles.raid__PlayerImg}
-            src={`/${PrimaryMeleeGear[player.primaryMeleeGear].toLowerCase()}.webp`}
-            alt={PrimaryMeleeGear[player.primaryMeleeGear].toLowerCase()}
+            src={`/${PrimaryMeleeGear[player.primaryGear].toLowerCase()}.webp`}
+            alt={PrimaryMeleeGear[player.primaryGear].toLowerCase()}
             fill
             style={{ objectFit: 'contain' }}
           />

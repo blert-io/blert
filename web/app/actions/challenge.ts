@@ -1,26 +1,38 @@
 'use server';
 
 import {
+  Challenge,
+  ChallengeMode,
   ChallengeStatus,
   ChallengeType,
+  ColosseumChallenge,
   Event,
   EventType,
   PersonalBest,
-  PersonalBestModel,
   Player,
-  PlayerAttackEvent,
   PlayerModel,
   PlayerStats,
   PlayerStatsModel,
-  PlayerUpdateEvent,
-  Raid,
-  RaidModel,
-  RoomEvent,
+  SplitType,
   Stage,
+  TobRaid,
+  generalizeSplit,
 } from '@blert/common';
-import { FilterQuery } from 'mongoose';
+import postgres from 'postgres';
 
-import connectToDatabase from './db';
+import connectToDatabase, { sql } from './db';
+import {
+  buildColosseumData,
+  buildTobRooms,
+  loadChallengeData,
+  loadStageEventsData,
+} from './data-files';
+
+function where(conditions: postgres.Fragment[]): postgres.Fragment {
+  return conditions.length > 0
+    ? sql`WHERE ${conditions.flatMap((c, i) => (i > 0 ? [sql`AND`, c] : c))}`
+    : sql``;
+}
 
 /**
  * Fetches the challenge with the specific ID from the database.
@@ -32,74 +44,84 @@ import connectToDatabase from './db';
 export async function loadChallenge(
   type: ChallengeType,
   id: string,
-): Promise<Raid | null> {
-  await connectToDatabase();
-
-  const challenge = await RaidModel.findOne({ _id: id, type }).lean().exec();
-  if (challenge === null) {
+): Promise<Challenge | null> {
+  const rawChallenge = await sql`
+    SELECT * from challenges WHERE uuid = ${id} AND type = ${type}
+  `;
+  if (rawChallenge.length === 0) {
     return null;
   }
 
-  const players = await PlayerModel.find(
-    { _id: { $in: challenge.partyIds } },
-    { username: 1 },
-  )
-    .lean()
-    .exec();
+  const playersQuery = sql`
+    SELECT
+      challenge_players.username,
+      challenge_players.primary_gear,
+      players.username as current_username
+    FROM
+      challenge_players JOIN players ON challenge_players.player_id = players.id
+    WHERE challenge_id = ${rawChallenge[0].id}
+    ORDER BY orb
+  `;
 
-  // Add each player's current username to enable linking to their profile.
-  challenge.party.forEach((_, i) => {
-    const player = players.find((pl) => pl._id.equals(challenge.partyIds[i]));
-    challenge.partyInfo[i].currentUsername =
-      player !== undefined ? player.username : '';
+  const splitsQuery = sql`
+    SELECT type, ticks
+    FROM challenge_splits
+    WHERE challenge_id = ${rawChallenge[0].id}
+  `;
+
+  const [players, splits, challengeData] = await Promise.all([
+    playersQuery,
+    splitsQuery,
+    loadChallengeData(id),
+  ]);
+
+  const splitsMap: Partial<Record<SplitType, number>> = {};
+  splits.forEach((split) => {
+    splitsMap[generalizeSplit(split.type)] = split.ticks;
   });
+
+  const challenge: Challenge = {
+    uuid: rawChallenge[0].uuid,
+    type: rawChallenge[0].type,
+    stage: rawChallenge[0].stage,
+    startTime: rawChallenge[0].start_time,
+    status: rawChallenge[0].status,
+    mode: rawChallenge[0].mode,
+    challengeTicks: rawChallenge[0].challenge_ticks,
+    overallTicks: rawChallenge[0].overall_ticks,
+    totalDeaths: rawChallenge[0].total_deaths,
+    party: players.map((p) => ({
+      username: p.username,
+      currentUsername: p.current_username,
+      primaryGear: p.primary_gear,
+    })),
+    splits: splitsMap,
+  };
+
+  switch (challenge.type) {
+    case ChallengeType.TOB:
+      (challenge as TobRaid).tobRooms = buildTobRooms(challengeData);
+      break;
+    case ChallengeType.COLOSSEUM:
+      (challenge as ColosseumChallenge).colosseum =
+        buildColosseumData(challengeData);
+      break;
+  }
 
   return challenge;
 }
 
-/**
- * Fetches all of the events for a specified stage in a challenge.
- * @param challengeId UUID of the challenge.
- * @param stage The stage whose events to fetch.
- * @returns Array of events for the stage, empty if none exist.
- */
-export async function loadEventsForStage(
-  challengeId: string,
-  stage: Stage,
-  type?: EventType,
-): Promise<Event[]> {
-  await connectToDatabase();
-
-  let query: FilterQuery<Event> = { cId: challengeId, stage };
-  if (type !== undefined) {
-    query.type = type;
-  }
-
-  const roomEvents = await RoomEvent.find(query, {
-    _id: 0,
-    __v: 0,
-    cId: 0,
-    stage: 0,
-  })
-    .lean()
-    .exec();
-
-  return roomEvents ? (roomEvents as unknown as Event[]) : [];
-}
-
 export type ChallengeOverview = Pick<
-  Raid,
-  | '_id'
+  Challenge,
+  | 'uuid'
   | 'type'
   | 'stage'
   | 'startTime'
   | 'status'
   | 'mode'
-  | 'party'
-  | 'partyInfo'
-  | 'totalTicks'
+  | 'challengeTicks'
   | 'totalDeaths'
->;
+> & { party: string[] };
 
 /**
  * Fetches basic information about the most recently recorded challenges from
@@ -115,49 +137,83 @@ export async function loadRecentChallenges(
   type?: ChallengeType,
   username?: string,
 ): Promise<ChallengeOverview[]> {
-  await connectToDatabase();
-
-  let query = RaidModel.find();
-
-  if (type !== undefined) {
-    query = query.where({ type });
-  }
+  let tables;
+  let conditions = [];
 
   if (username !== undefined) {
-    const player = await PlayerModel.findOne({ username }).exec();
-    if (player !== null) {
-      query = query.where({ partyIds: player._id });
-    } else {
-      // This shouldn't happen, but fallback to username search if the player
-      // isn't found for some reason.
-      console.error(
-        `loadRecentChallengeInformation: Player not found: ${username}`,
-      );
-      query = query
-        .where({ party: username })
-        .collation({ locale: 'en', strength: 2 });
-    }
+    tables = sql`challenges
+      JOIN challenge_players ON challenges.id = challenge_players.challenge_id 
+      JOIN players ON challenge_players.player_id = players.id
+    `;
+    conditions.push(sql`lower(players.username) = ${username}`);
+  } else {
+    tables = sql`challenges`;
   }
 
-  const challenges = await query
-    .select({
-      _id: 1,
-      type: 1,
-      startTime: 1,
-      status: 1,
-      stage: 1,
-      mode: 1,
-      party: 1,
-      partyInfo: 1,
-      totalTicks: 1,
-      totalDeaths: 1,
-    })
-    .sort({ startTime: -1 })
-    .limit(limit)
-    .lean()
-    .exec();
+  if (type !== undefined) {
+    conditions.push(sql`challenges.type = ${type}`);
+  }
 
-  return challenges ? (challenges as ChallengeOverview[]) : [];
+  const rawChallenges = await sql`
+    SELECT
+      challenges.id,
+      challenges.uuid,
+      challenges.type,
+      challenges.start_time,
+      challenges.status,
+      challenges.stage,
+      challenges.mode,
+      challenges.challenge_ticks,
+      challenges.total_deaths
+    FROM ${tables}
+    ${where(conditions)}
+    ORDER BY challenges.start_time DESC
+    LIMIT ${limit}
+  `;
+  const players = await sql`
+    SELECT challenge_id, username, primary_gear, orb
+    FROM challenge_players
+    WHERE challenge_id = ANY(${rawChallenges.map((c) => c.id)})
+    ORDER BY orb
+  `;
+
+  const challenges = rawChallenges.map((c): ChallengeOverview => {
+    const party = players
+      .filter((p) => p.challenge_id === c.id)
+      .map((p) => p.username);
+    return {
+      uuid: c.uuid,
+      type: c.type,
+      startTime: c.start_time,
+      status: c.status,
+      stage: c.stage,
+      mode: c.mode,
+      challengeTicks: c.challenge_ticks,
+      totalDeaths: c.total_deaths,
+      party,
+    };
+  });
+
+  return challenges as ChallengeOverview[];
+}
+
+/**
+ * Fetches all of the events for a specified stage in a challenge.
+ * @param challengeId UUID of the challenge.
+ * @param stage The stage whose events to fetch.
+ * @returns Array of events for the stage, empty if none exist.
+ */
+export async function loadEventsForStage(
+  challengeId: string,
+  stage: Stage,
+  type?: EventType,
+): Promise<Event[]> {
+  const events = await loadStageEventsData(challengeId, stage);
+  if (type !== undefined) {
+    return events.filter((e) => e.type === type);
+  }
+
+  return events;
 }
 
 export type ChallengeStats = {
@@ -169,38 +225,36 @@ export type ChallengeStats = {
 
 export async function loadAggregateChallengeStats(
   type?: ChallengeType,
+  mode?: ChallengeMode,
 ): Promise<ChallengeStats> {
-  await connectToDatabase();
+  const conditions = [sql`status != ${ChallengeStatus.IN_PROGRESS}`];
 
-  const match: FilterQuery<Raid> = {
-    status: { $ne: ChallengeStatus.IN_PROGRESS },
-  };
   if (type !== undefined) {
-    match.type = type;
+    conditions.push(sql`type = ${type}`);
+  }
+  if (mode !== undefined) {
+    conditions.push(sql`mode = ${mode}`);
   }
 
-  const pipeline = [
-    { $match: match },
-    {
-      $group: {
-        _id: '$status',
-        amount: { $sum: 1 },
-      },
-    },
-  ];
-
-  const stats = await RaidModel.aggregate(pipeline).exec();
+  const stats: postgres.RowList<Array<{ status: number; amount: string }>> =
+    await sql`
+      SELECT status, COUNT(*) as amount
+      FROM challenges
+      ${where(conditions)}
+      GROUP BY status
+    `;
 
   return stats.reduce(
     (acc, stat) => {
-      if (stat._id === ChallengeStatus.COMPLETED) {
-        acc.completions = stat.amount;
-      } else if (stat._id === ChallengeStatus.RESET) {
-        acc.resets = stat.amount;
-      } else if (stat._id === ChallengeStatus.WIPED) {
-        acc.wipes = stat.amount;
+      const amount = parseInt(stat.amount);
+      if (stat.status === ChallengeStatus.COMPLETED) {
+        acc.completions = amount;
+      } else if (stat.status === ChallengeStatus.RESET) {
+        acc.resets = amount;
+      } else if (stat.status === ChallengeStatus.WIPED) {
+        acc.wipes = amount;
       }
-      acc.total += stat.amount;
+      acc.total += amount;
       return acc;
     },
     { total: 0, completions: 0, resets: 0, wipes: 0 },
@@ -245,23 +299,18 @@ export async function loadPlayerWithStats(
 export async function loadPbsForPlayer(
   username: string,
 ): Promise<PersonalBest[]> {
-  await connectToDatabase();
-
-  const player = await PlayerModel.findOne(
-    { username: username.toLowerCase() },
-    { _id: 1 },
-  ).exec();
-  if (player === null) {
-    return [];
-  }
-
-  // TODO(frolv): Filter by type/scale.
-  const pbs = await PersonalBestModel.find(
-    { playerId: player._id },
-    { _id: 0, playerId: 0 },
-  )
-    .lean()
-    .exec();
+  const pbs: postgres.RowList<Array<PersonalBest>> = await sql`
+    SELECT
+      challenges.uuid as cid,
+      challenge_splits.type,
+      challenge_splits.scale,
+      challenge_splits.ticks
+    FROM personal_bests
+    JOIN challenge_splits ON personal_bests.challenge_split_id = challenge_splits.id
+    JOIN players ON personal_bests.player_id = players.id
+    JOIN challenges ON challenge_splits.challenge_id = challenges.id
+    WHERE lower(players.username) = ${username.toLowerCase()}
+  `;
 
   return pbs;
 }
@@ -269,15 +318,14 @@ export async function loadPbsForPlayer(
 export async function getTotalDeathsByStage(
   stages: Stage[],
 ): Promise<Record<Stage, number>> {
-  await connectToDatabase();
-
-  const stagesWithDeaths = await RoomEvent.aggregate([
-    { $match: { type: EventType.PLAYER_DEATH, stage: { $in: stages } } },
-    { $group: { _id: '$stage', deaths: { $sum: 1 } } },
-  ]).exec();
-
-  return stagesWithDeaths.reduce((acc, stage) => {
-    acc[stage._id] = stage.deaths;
+  const stagesAndDeaths = await sql`
+    SELECT stage, COUNT(*) as deaths
+    FROM queryable_events
+    WHERE event_type = ${EventType.PLAYER_DEATH} AND stage = ANY(${stages})
+    GROUP BY stage
+  `;
+  return stagesAndDeaths.reduce((acc, stage) => {
+    acc[stage.stage] = parseInt(stage.deaths);
     return acc;
   }, {});
 }
