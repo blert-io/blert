@@ -1,8 +1,13 @@
-import { Model, Schema, model, models } from 'mongoose';
+import { Model, Schema, Types, model, models } from 'mongoose';
 
 import { Player, PlayerStats } from '../player';
 
-const playerSchema = new Schema<Player>({
+type PlayerSchema = Player & {
+  formattedUsername: string;
+  totalRaidsRecorded: number;
+};
+
+const playerSchema = new Schema<PlayerSchema>({
   username: {
     type: String,
     index: { unique: true },
@@ -19,9 +24,20 @@ const playerSchema = new Schema<Player>({
 });
 
 export const PlayerModel =
-  (models?.Player as Model<Player>) ?? model<Player>('Player', playerSchema);
+  (models?.Player as Model<PlayerSchema>) ??
+  model<PlayerSchema>('Player', playerSchema);
 
-const playerStatsSchema = new Schema<PlayerStats>({
+type PlayerStatsSchema = PlayerStats & {
+  playerId: Types.ObjectId;
+  completions: number;
+  wipes: number;
+  resets: number;
+  deaths: number;
+  barragesWithoutProperWeapon: number;
+};
+
+const playerStatsSchema = new Schema<PlayerStatsSchema>({
+  // @ts-ignore
   playerId: { type: Schema.Types.ObjectId, ref: 'Player', index: true },
   date: { type: Date, index: true },
 
@@ -53,5 +69,5 @@ const playerStatsSchema = new Schema<PlayerStats>({
 });
 
 export const PlayerStatsModel =
-  (models?.PlayerStats as Model<PlayerStats>) ??
-  model<PlayerStats>('PlayerStats', playerStatsSchema);
+  (models?.PlayerStats as Model<PlayerStatsSchema>) ??
+  model<PlayerStatsSchema>('PlayerStats', playerStatsSchema);

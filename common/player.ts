@@ -1,24 +1,31 @@
-import { Types } from 'mongoose';
-
 import { Skill } from './raid-definitions';
 
 export type Player = {
-  _id: Types.ObjectId;
   username: string;
-  formattedUsername: string;
-  totalRaidsRecorded: number;
+  totalRecordings: number;
   overallExperience: number;
+  attackExperience: number;
+  defenceExperience: number;
+  strengthExperience: number;
+  hitpointsExperience: number;
+  rangedExperience: number;
+  prayerExperience: number;
+  magicExperience: number;
 };
 
 export type PlayerStats = {
-  playerId: Types.ObjectId;
+  playerId: number;
   date: Date;
 
-  completions: number;
-  wipes: number;
-  resets: number;
+  tobCompletions: number;
+  tobWipes: number;
+  tobResets: number;
 
-  deaths: number;
+  colosseumCompletions: number;
+  colosseumWipes: number;
+  colosseumResets: number;
+
+  deathsTotal: number;
   deathsMaiden: number;
   deathsBloat: number;
   deathsNylocas: number;
@@ -28,10 +35,16 @@ export type PlayerStats = {
 
   bgsSmacks: number;
   hammerBops: number;
+  challyPokes: number;
   unchargedScytheSwings: number;
-  barragesWithoutProperWeapon: number;
+  ralosAutos: number;
+  elderMaulSmacks: number;
 
-  chinsThrown: number;
+  tobBarragesWithoutProperWeapon: number;
+  tobVerzikP1TrollSpecs: number;
+  tobVerzikP3Melees: number;
+
+  chinsThrownTotal: number;
   chinsThrownBlack: number;
   chinsThrownRed: number;
   chinsThrownGrey: number;
