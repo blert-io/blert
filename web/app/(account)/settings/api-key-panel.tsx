@@ -6,7 +6,7 @@ import Link from 'next/link';
 
 import {
   ApiKeyFormState,
-  PlainApiKey,
+  ApiKeyWithUsername,
   deleteApiKey,
   submitApiKeyForm,
 } from '@/actions/users';
@@ -17,7 +17,7 @@ import LigmaTooltip from '@/components/ligma-tooltip';
 import styles from './style.module.scss';
 
 type ApiKeyProps = {
-  apiKey: PlainApiKey;
+  apiKey: ApiKeyWithUsername;
   removeApiKey: (key: string) => void;
 };
 
@@ -102,7 +102,7 @@ function ApiKey({ apiKey, removeApiKey }: ApiKeyProps) {
 }
 
 type ApiKeyPanelProps = {
-  initialApiKeys: PlainApiKey[];
+  initialApiKeys: ApiKeyWithUsername[];
 };
 
 export default function ApiKeyPanel({ initialApiKeys }: ApiKeyPanelProps) {

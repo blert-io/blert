@@ -1,21 +1,13 @@
 'use server';
 
 import { randomBytes } from 'crypto';
-import {
-  ApiKey,
-  ApiKeyModel,
-  PlayerModel,
-  User,
-  UserModel,
-  hiscoreLookup,
-} from '@blert/common';
+import { ApiKey, Skill, User, hiscoreLookup } from '@blert/common';
 import bcrypt from 'bcrypt';
-import { Types } from 'mongoose';
 import { isRedirectError } from 'next/dist/client/components/redirect';
 import { z } from 'zod';
 
 import { auth, signIn } from '@/auth';
-import connectToDatabase from './db';
+import { sql } from './db';
 
 const SALT_ROUNDS = 10;
 
@@ -40,24 +32,28 @@ const formSchema = z.object({
  * @returns Promise resolving to true if the user exists, false otherwise.
  */
 export async function userExists(username: string): Promise<boolean> {
-  await connectToDatabase();
-
-  return UserModel.findOne({ username }, { _id: 1 })
-    .exec()
-    .then((user) => user !== null);
+  const result = await sql`
+    SELECT 1 FROM users
+    WHERE lower(username) = ${username.toLowerCase()}
+    LIMIT 1
+  `;
+  return result.length > 0;
 }
 
 export async function verifyUser(
   username: string,
   password: string,
 ): Promise<string> {
-  await connectToDatabase();
+  const user = await sql`
+    SELECT id, password FROM users
+    WHERE lower(username) = ${username.toLowerCase()}
+    LIMIT 1
+  `;
 
-  const user = await UserModel.findOne({ username });
-  if (user !== null) {
-    const validPassword = await bcrypt.compare(password, user.password);
+  if (user.length > 0) {
+    const validPassword = await bcrypt.compare(password, user[0].password);
     if (validPassword) {
-      return user._id.toString();
+      return user[0].id.toString();
     }
   }
 
@@ -84,7 +80,7 @@ export async function login(
   return null;
 }
 
-const DUPLICATE_KEY_ERROR_CODE = 11000;
+const POSTGRES_UNIQUE_VIOLATION_CODE = '23505';
 
 export type RegistrationErrors = {
   username?: string[];
@@ -120,16 +116,19 @@ export async function register(
   }
 
   try {
-    await UserModel.create({
-      username,
-      password: hash,
-      email,
-      emailVerified: false,
-    });
+    await sql`
+    INSERT INTO users (username, password, email)
+    VALUES (${username}, ${hash}, ${email.toLowerCase()})
+    RETURNING id
+  `;
   } catch (e: any) {
-    if (e.name === 'MongoServerError' && e.code === DUPLICATE_KEY_ERROR_CODE) {
+    if (
+      e.name === 'PostgresError' &&
+      e.code === POSTGRES_UNIQUE_VIOLATION_CODE
+    ) {
       return { email: ['Email address is already in use'] };
     }
+    return { overall: 'An error occurred while creating your account' };
   }
 
   await signIn('credentials', { username, password, redirectTo: '/' });
@@ -137,54 +136,53 @@ export async function register(
 }
 
 export async function getSignedInUser(): Promise<User | null> {
-  await connectToDatabase();
-
   const session = await auth();
-  if (session === null) {
+  if (session === null || session.user.id === undefined) {
     return null;
   }
 
-  return UserModel.findById(session.user.id).lean().exec();
+  const [user] = await sql`SELECT * from users WHERE id = ${session.user.id}`;
+  if (!user) {
+    return null;
+  }
+
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    createdAt: user.created_at,
+    emailVerified: user.email_verified,
+    canCreateApiKey: user.can_create_api_key,
+  };
 }
 
 export type ApiKeyWithUsername = ApiKey & { rsn: string };
 
 export async function getApiKeys(): Promise<ApiKeyWithUsername[]> {
-  await connectToDatabase();
-
   const session = await auth();
-  if (session === null) {
+  if (session === null || session.user.id === undefined) {
     throw new Error('Not authenticated');
   }
 
-  const keysWithPlayer = await ApiKeyModel.aggregate([
-    {
-      $match: { userId: new Types.ObjectId(session.user.id) },
-    },
-    {
-      $lookup: {
-        from: 'players',
-        localField: 'playerId',
-        foreignField: '_id',
-        as: 'player',
-      },
-    },
-    {
-      $set: {
-        rsn: { $arrayElemAt: ['$player.formattedUsername', 0] },
-      },
-    },
-    {
-      $project: {
-        userId: 0,
-        playerId: 0,
-        player: 0,
-        __v: 0,
-      },
-    },
-  ]).exec();
+  const keysWithPlayer = await sql`
+    SELECT
+      api_keys.id,
+      api_keys.key,
+      api_keys.active,
+      api_keys.last_used,
+      players.username as rsn
+    FROM api_keys
+    JOIN players ON api_keys.player_id = players.id
+    WHERE api_keys.user_id = ${session.user.id}
+  `;
 
-  return keysWithPlayer;
+  return keysWithPlayer.map((key) => ({
+    id: key.id,
+    key: key.key,
+    active: key.active,
+    lastUsed: key.last_used,
+    rsn: key.rsn,
+  }));
 }
 
 const API_KEY_HEX_LENGTH = 24;
@@ -193,10 +191,8 @@ const API_KEY_BYTE_LENGTH = API_KEY_HEX_LENGTH / 2;
 const MAX_API_KEYS_PER_USER = 2;
 
 export async function createApiKey(rsn: string): Promise<ApiKeyWithUsername> {
-  await connectToDatabase();
-
   const session = await auth();
-  if (session === null) {
+  if (session === null || session.user.id === undefined) {
     throw new Error('Not authenticated');
   }
 
@@ -205,22 +201,27 @@ export async function createApiKey(rsn: string): Promise<ApiKeyWithUsername> {
   }
 
   // TODO(frolv): This is temporary.
-  const user = await UserModel.findById(session.user.id).exec();
-  if (user === null || !user.canCreateApiKey) {
+  const canCreate = await sql`
+    SELECT can_create_api_key FROM users WHERE id = ${session.user.id}
+  `;
+  if (canCreate.length === 0 || !canCreate[0].can_create_api_key) {
     throw new Error('Not authorized to create API keys');
   }
 
-  const apiKeyCount = await ApiKeyModel.countDocuments({
-    userId: session.user.id,
-  });
-  if (apiKeyCount >= MAX_API_KEYS_PER_USER) {
+  const [apiKeyCount] = await sql`
+    SELECT COUNT(*) FROM api_keys WHERE user_id = ${session.user.id}
+  `;
+  if (parseInt(apiKeyCount.count) >= MAX_API_KEYS_PER_USER) {
     throw new Error('Maximum number of API keys reached');
   }
 
-  let player = await PlayerModel.findOne({
-    username: rsn.toLowerCase(),
-  }).exec();
-  if (player === null) {
+  let [player] = await sql`
+    SELECT id, username
+    FROM players
+    WHERE lower(username) = ${rsn.toLowerCase()}
+  `;
+
+  if (!player) {
     let experience;
     try {
       experience = await hiscoreLookup(rsn);
@@ -233,64 +234,81 @@ export async function createApiKey(rsn: string): Promise<ApiKeyWithUsername> {
       throw new Error('Player does not exist on Hiscores');
     }
 
-    player = new PlayerModel({
-      username: rsn.toLowerCase(),
-      formattedUsername: rsn,
-      totalRaidsRecorded: 0,
-      overallExperience: experience,
-    });
-    player.save();
+    const [{ id }] = await sql`
+      INSERT INTO players (
+        username,
+        overall_experience,
+        attack_experience,
+        defence_experience,
+        strength_experience,
+        hitpoints_experience,
+        ranged_experience,
+        prayer_experience,
+        magic_experience,
+        last_updated
+      ) VALUES (
+        ${rsn},
+        ${experience[Skill.OVERALL]},
+        ${experience[Skill.ATTACK]},
+        ${experience[Skill.DEFENCE]},
+        ${experience[Skill.STRENGTH]},
+        ${experience[Skill.HITPOINTS]},
+        ${experience[Skill.RANGED]},
+        ${experience[Skill.PRAYER]},
+        ${experience[Skill.MAGIC]},
+        NOW()
+      ) RETURNING id
+    `;
+    player = { id, username: rsn };
   }
 
-  let apiKey;
+  let apiKey: ApiKey;
   while (true) {
     const key = randomBytes(API_KEY_BYTE_LENGTH).toString('hex');
 
     try {
-      apiKey = new ApiKeyModel({
-        userId: new Types.ObjectId(session.user.id),
-        playerId: player._id,
+      let [{ keyId }] = await sql`
+        INSERT INTO api_keys (user_id, player_id, key)
+        VALUES (${session.user.id}, ${player.id}, ${key})
+        RETURNING id
+      `;
+      apiKey = {
+        id: keyId,
         key,
-        active: true,
         lastUsed: null,
-      });
-      await apiKey.save();
+        active: true,
+      };
       break;
     } catch (e: any) {
       if (
-        e.name === 'MongoServerError' &&
-        e.code === DUPLICATE_KEY_ERROR_CODE
+        e.name === 'PostgresError' &&
+        e.code === POSTGRES_UNIQUE_VIOLATION_CODE
       ) {
         // Try again if the key already exists.
         continue;
       }
-      throw e;
+      console.error(e);
+      throw new Error('Failed to create API key');
     }
   }
 
-  return { ...apiKey.toObject(), rsn: player.formattedUsername };
+  return { ...apiKey, rsn: player.username };
 }
 
 export async function deleteApiKey(key: string): Promise<void> {
-  await connectToDatabase();
-
   const session = await auth();
-  if (session === null) {
+  if (session === null || session.user.id === undefined) {
     throw new Error('Not authenticated');
   }
 
-  await ApiKeyModel.deleteOne({ key, userId: session.user.id }).exec();
+  await sql`
+    DELETE FROM api_keys
+    WHERE key = ${key} AND user_id = ${session.user.id}
+  `;
 }
 
-export type PlainApiKey = Omit<
-  ApiKeyWithUsername,
-  '_id' | 'userId' | 'playerId'
-> & {
-  _id: string;
-};
-
 export type ApiKeyFormState = {
-  apiKey?: PlainApiKey;
+  apiKey?: ApiKeyWithUsername;
   error?: string;
 };
 
@@ -300,18 +318,12 @@ export async function submitApiKeyForm(
 ): Promise<ApiKeyFormState> {
   const rsn = (formData.get('blert-api-key-rsn') as string).trim();
 
-  let key;
+  let apiKey;
   try {
-    key = await createApiKey(rsn);
+    apiKey = await createApiKey(rsn);
   } catch (e: any) {
     return { error: e.message };
   }
-
-  const { _id, userId, playerId, ...rest } = key;
-  const apiKey = {
-    ...rest,
-    _id: _id.toString(),
-  };
 
   return { apiKey };
 }

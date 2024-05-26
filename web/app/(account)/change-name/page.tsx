@@ -1,4 +1,3 @@
-import { getRecentNameChanges } from '@/actions/change-name';
 import { ChangeNameForm } from './change-name-form';
 
 import styles from './style.module.scss';

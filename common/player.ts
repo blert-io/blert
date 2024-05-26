@@ -1,5 +1,7 @@
 import { Types } from 'mongoose';
 
+import { Skill } from './raid-definitions';
+
 export type Player = {
   _id: Types.ObjectId;
   username: string;
@@ -42,6 +44,8 @@ export type PlayerStats = {
 const OSRS_HISCORES_API =
   'https://secure.runescape.com/m=hiscore_oldschool/index_lite.ws';
 
+export type PlayerExperience = Record<Skill, number>;
+
 /**
  * Looks up a player's overall experience on the OSRS hiscores.
  *
@@ -49,7 +53,9 @@ const OSRS_HISCORES_API =
  * @returns The overall experience of the account, or null if the account does
  *     not exist.
  */
-export async function hiscoreLookup(username: string): Promise<number | null> {
+export async function hiscoreLookup(
+  username: string,
+): Promise<PlayerExperience | null> {
   const response = await fetch(`${OSRS_HISCORES_API}?player=${username}`);
   if (response.status === 404) {
     return null;
@@ -61,8 +67,24 @@ export async function hiscoreLookup(username: string): Promise<number | null> {
 
   const text = await response.text().then((t) => t.split('\n'));
   const overall = text[0].split(',');
-  const overallExp = parseInt(overall[2]);
-  return overallExp;
+  const attack = text[1].split(',');
+  const defence = text[2].split(',');
+  const strength = text[3].split(',');
+  const hitpoints = text[4].split(',');
+  const ranged = text[5].split(',');
+  const prayer = text[6].split(',');
+  const magic = text[7].split(',');
+
+  return {
+    [Skill.OVERALL]: parseInt(overall[2]),
+    [Skill.ATTACK]: parseInt(attack[2]),
+    [Skill.DEFENCE]: parseInt(defence[2]),
+    [Skill.STRENGTH]: parseInt(strength[2]),
+    [Skill.HITPOINTS]: parseInt(hitpoints[2]),
+    [Skill.RANGED]: parseInt(ranged[2]),
+    [Skill.PRAYER]: parseInt(prayer[2]),
+    [Skill.MAGIC]: parseInt(magic[2]),
+  };
 }
 
 export class HiscoresRateLimitError extends Error {

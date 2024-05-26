@@ -21,14 +21,6 @@ export default function Overview() {
     return <Loading />;
   }
 
-  const playersWithGear = raid.party.map((player, i) => {
-    return {
-      name: player,
-      currentUsername: raid.partyInfo[i].currentUsername,
-      primaryMeleeGear: raid.partyInfo[i].gear,
-    };
-  });
-
   return (
     <div className={styles.raid__Overview}>
       <PvMContentLogo
@@ -41,16 +33,17 @@ export default function Overview() {
         stage={raid.stage}
         status={raid.status}
         mode={raid.mode}
-        totalRaidTicks={raid.totalTicks}
+        totalRaidTicks={raid.challengeTicks}
         deaths={raid.totalDeaths}
         partySize={raid.party.length}
         startTime={raid.startTime}
       />
-      <RaidTeamPanel
-        players={playersWithGear}
-        compactView={display.isCompact()}
+      <RaidTeamPanel players={raid.party} compactView={display.isCompact()} />
+      <RaidBossesOverview
+        rooms={raid.tobRooms}
+        raidId={raid.uuid}
+        splits={raid.splits}
       />
-      <RaidBossesOverview rooms={raid.tobRooms} raidId={raid._id} />
     </div>
   );
 }

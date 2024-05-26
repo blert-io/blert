@@ -1,14 +1,6 @@
 'use client';
 
-import {
-  BloatOverview,
-  MaidenOverview,
-  NyloOverview,
-  SoteOverview,
-  TobRooms,
-  VerzikOverview,
-  XarpusOverview,
-} from '@blert/common';
+import { SplitType, TobRooms } from '@blert/common';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -21,31 +13,16 @@ import styles from './style.module.scss';
 interface RaidBossesOverviewProps {
   raidId: string;
   rooms: TobRooms;
+  splits: Partial<Record<SplitType, number>>;
 }
 
 export function RaidBossesOverview(props: RaidBossesOverviewProps) {
-  const { /*rooms,*/ raidId } = props;
-
-  let rooms = props.rooms;
-
-  const maidenDataExists = rooms.maiden !== null;
-  const bloatDataExists = rooms.bloat !== null;
-  const nyloDataExists = rooms.nylocas !== null;
-  const soteDataExists = rooms.sotetseg !== null;
-  const xarpusDataExists = rooms.xarpus !== null;
-  const verzikDataExists = rooms.verzik !== null;
-
-  let maiden = maidenDataExists ? (rooms.maiden as MaidenOverview) : undefined;
-  let bloat = bloatDataExists ? (rooms.bloat as BloatOverview) : undefined;
-  let nylo = nyloDataExists ? (rooms.nylocas as NyloOverview) : undefined;
-  let sote = soteDataExists ? (rooms.sotetseg as SoteOverview) : undefined;
-  let xarpus = xarpusDataExists ? (rooms.xarpus as XarpusOverview) : undefined;
-  let verzik = verzikDataExists ? (rooms.verzik as VerzikOverview) : undefined;
+  const { rooms, raidId, splits } = props;
 
   let bloatDowns = undefined;
 
-  if (bloatDataExists) {
-    bloatDowns = bloat!.splits.downTicks.map((split, index) => (
+  if (rooms.bloat) {
+    bloatDowns = rooms.bloat.downTicks.map((split, index) => (
       <Badge
         key={index}
         iconClass="fa-solid fa-hourglass"
@@ -60,7 +37,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
       {/*************************/
       /*  Maiden */
       /*************************/}
-      {maidenDataExists && (
+      {rooms.maiden && (
         <Link href={`/raids/tob//${raidId}/maiden`}>
           <div className={styles.raid__Boss}>
             <div className={styles.raid__BossImg}>
@@ -90,28 +67,34 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     fontSize: '18px',
                   }}
                 ></i>
-                {ticksToFormattedSeconds(maiden!.roomTicks)}
+                {ticksToFormattedSeconds(splits[SplitType.TOB_MAIDEN] ?? 0)}
               </h4>
               <div className={styles.raid__RoomBadges}>
-                {maiden!.splits.SEVENTIES !== 0 && (
+                {splits[SplitType.TOB_MAIDEN_70S] && (
                   <Badge
                     iconClass="fa-solid fa-hourglass"
                     label="70s"
-                    value={ticksToFormattedSeconds(maiden!.splits.SEVENTIES)}
+                    value={ticksToFormattedSeconds(
+                      splits[SplitType.TOB_MAIDEN_70S],
+                    )}
                   />
                 )}
-                {maiden!.splits.FIFTIES !== 0 && (
+                {splits[SplitType.TOB_MAIDEN_50S] && (
                   <Badge
                     iconClass="fa-solid fa-hourglass"
                     label="50s"
-                    value={ticksToFormattedSeconds(maiden!.splits.FIFTIES)}
+                    value={ticksToFormattedSeconds(
+                      splits[SplitType.TOB_MAIDEN_50S],
+                    )}
                   />
                 )}
-                {maiden!.splits.THIRTIES !== 0 && (
+                {splits[SplitType.TOB_MAIDEN_30S] && (
                   <Badge
                     iconClass="fa-solid fa-hourglass"
                     label="30s"
-                    value={ticksToFormattedSeconds(maiden!.splits.THIRTIES)}
+                    value={ticksToFormattedSeconds(
+                      splits[SplitType.TOB_MAIDEN_30S],
+                    )}
                   />
                 )}
               </div>
@@ -123,7 +106,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
       {/*************************/
       /*  Bloat */
       /*************************/}
-      {bloatDataExists && (
+      {rooms.bloat && (
         <Link href={`/raids/tob//${raidId}/bloat`}>
           <div className={styles.raid__Boss}>
             <div className={styles.raid__BossImg}>
@@ -152,7 +135,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     fontSize: '18px',
                   }}
                 ></i>
-                {ticksToFormattedSeconds(bloat!.roomTicks)}
+                {ticksToFormattedSeconds(splits[SplitType.TOB_BLOAT] ?? 0)}
               </h4>
               <div className={styles.raid__RoomBadges}>{bloatDowns}</div>
             </div>
@@ -163,7 +146,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
       {/*************************/
       /*  Nylos */
       /*************************/}
-      {nyloDataExists && (
+      {rooms.nylocas && (
         <Link href={`/raids/tob//${raidId}/nylocas`}>
           <div className={styles.raid__Boss}>
             <div className={styles.raid__BossImg}>
@@ -192,40 +175,62 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     fontSize: '18px',
                   }}
                 ></i>
-                {ticksToFormattedSeconds(nylo!.roomTicks)}
+                {ticksToFormattedSeconds(splits[SplitType.TOB_NYLO_ROOM] ?? 0)}
               </h4>
               <div className={styles.raid__RoomBadges}>
-                <Badge
-                  iconClass="fa-solid fa-hourglass"
-                  label="Cap"
-                  value={ticksToFormattedSeconds(nylo!.splits.capIncrease)}
-                />
-                <Badge
-                  iconClass="fa-solid fa-hourglass"
-                  label="Waves"
-                  value={ticksToFormattedSeconds(nylo!.splits.waves)}
-                />
-                <Badge
-                  iconClass="fa-solid fa-hourglass"
-                  label="Cleanup"
-                  value={ticksToFormattedSeconds(nylo!.splits.cleanup)}
-                />
-                <Badge
-                  iconClass="fa-solid fa-hourglass"
-                  label="Boss"
-                  value={ticksToFormattedSeconds(nylo!.splits.boss)}
-                />
+                {splits[SplitType.TOB_NYLO_CAP] && (
+                  <Badge
+                    iconClass="fa-solid fa-hourglass"
+                    label="Cap"
+                    value={ticksToFormattedSeconds(
+                      splits[SplitType.TOB_NYLO_CAP],
+                    )}
+                  />
+                )}
+                {splits[SplitType.TOB_NYLO_WAVES] && (
+                  <Badge
+                    iconClass="fa-solid fa-hourglass"
+                    label="Waves"
+                    value={ticksToFormattedSeconds(
+                      splits[SplitType.TOB_NYLO_WAVES],
+                    )}
+                  />
+                )}
+                {splits[SplitType.TOB_NYLO_CLEANUP] && (
+                  <Badge
+                    iconClass="fa-solid fa-hourglass"
+                    label="Cleanup"
+                    value={ticksToFormattedSeconds(
+                      splits[SplitType.TOB_NYLO_CLEANUP],
+                    )}
+                  />
+                )}
+                {splits[SplitType.TOB_NYLO_BOSS_SPAWN] && (
+                  <Badge
+                    iconClass="fa-solid fa-hourglass"
+                    label="Boss"
+                    value={ticksToFormattedSeconds(
+                      splits[SplitType.TOB_NYLO_BOSS_SPAWN],
+                    )}
+                  />
+                )}
               </div>
               <div className={styles.raid__RoomBadges}>
                 <Badge
                   iconClass="fa-solid fa-dumpster-fire"
                   label="Pre-cap Stalls"
-                  value={nylo!.stalledWaves.filter((wave) => wave < 20).length}
+                  value={
+                    rooms.nylocas.stalledWaves.filter((wave) => wave < 20)
+                      .length
+                  }
                 />
                 <Badge
                   iconClass="fa-solid fa-circle-question"
                   label="Post-cap Stalls"
-                  value={nylo!.stalledWaves.filter((wave) => wave >= 20).length}
+                  value={
+                    rooms.nylocas.stalledWaves.filter((wave) => wave >= 20)
+                      .length
+                  }
                 />
               </div>
             </div>
@@ -236,7 +241,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
       {/*************************/
       /*  Sote */
       /*************************/}
-      {soteDataExists && (
+      {rooms.sotetseg && (
         <Link href={`/raids/tob//${raidId}/sotetseg`}>
           <div className={styles.raid__Boss}>
             <div className={styles.raid__BossImg}>
@@ -265,19 +270,27 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     fontSize: '18px',
                   }}
                 ></i>
-                {ticksToFormattedSeconds(sote!.roomTicks)}
+                {ticksToFormattedSeconds(splits[SplitType.TOB_SOTETSEG] ?? 0)}
               </h4>
               <div className={styles.raid__RoomBadges}>
-                <Badge
-                  iconClass="fa-solid fa-hourglass"
-                  label="66%"
-                  value={ticksToFormattedSeconds(sote!.splits.MAZE_66)}
-                />
-                <Badge
-                  iconClass="fa-solid fa-hourglass"
-                  label="33%"
-                  value={ticksToFormattedSeconds(sote!.splits.MAZE_33)}
-                />
+                {splits[SplitType.TOB_SOTETSEG_66] && (
+                  <Badge
+                    iconClass="fa-solid fa-hourglass"
+                    label="66%"
+                    value={ticksToFormattedSeconds(
+                      splits[SplitType.TOB_SOTETSEG_66],
+                    )}
+                  />
+                )}
+                {splits[SplitType.TOB_SOTETSEG_33] && (
+                  <Badge
+                    iconClass="fa-solid fa-hourglass"
+                    label="33%"
+                    value={ticksToFormattedSeconds(
+                      splits[SplitType.TOB_SOTETSEG_33],
+                    )}
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -287,7 +300,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
       {/*************************/
       /*  Xarpus */
       /*************************/}
-      {xarpusDataExists && (
+      {rooms.xarpus && (
         <Link href={`/raids/tob//${raidId}/xarpus`}>
           <div className={styles.raid__Boss}>
             <div className={styles.raid__BossImg}>
@@ -316,19 +329,27 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     fontSize: '18px',
                   }}
                 ></i>
-                {ticksToFormattedSeconds(xarpus!.roomTicks)}
+                {ticksToFormattedSeconds(splits[SplitType.TOB_XARPUS] ?? 0)}
               </h4>
               <div className={styles.raid__RoomBadges}>
-                <Badge
-                  iconClass="fa-solid fa-hourglass"
-                  label="Exhumes"
-                  value={ticksToFormattedSeconds(xarpus!.splits.exhumes)}
-                />
-                <Badge
-                  iconClass="fa-solid fa-hourglass"
-                  label="Screech"
-                  value={ticksToFormattedSeconds(xarpus!.splits.screech)}
-                />
+                {splits[SplitType.TOB_XARPUS_EXHUMES] && (
+                  <Badge
+                    iconClass="fa-solid fa-hourglass"
+                    label="Exhumes"
+                    value={ticksToFormattedSeconds(
+                      splits[SplitType.TOB_XARPUS_EXHUMES],
+                    )}
+                  />
+                )}
+                {splits[SplitType.TOB_XARPUS_SCREECH] && (
+                  <Badge
+                    iconClass="fa-solid fa-hourglass"
+                    label="Screech"
+                    value={ticksToFormattedSeconds(
+                      splits[SplitType.TOB_XARPUS_SCREECH],
+                    )}
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -338,7 +359,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
       {/*************************/
       /*  Verzik */
       /*************************/}
-      {verzikDataExists && (
+      {rooms.verzik && (
         <Link href={`/raids/tob//${raidId}/verzik`}>
           <div className={styles.raid__Boss}>
             <div className={styles.raid__BossImg}>
@@ -367,24 +388,38 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                     fontSize: '18px',
                   }}
                 ></i>
-                {ticksToFormattedSeconds(verzik!.roomTicks)}
+                {ticksToFormattedSeconds(
+                  splits[SplitType.TOB_VERZIK_ROOM] ?? 0,
+                )}
               </h4>
               <div className={styles.raid__RoomBadges}>
-                <Badge
-                  iconClass="fa-solid fa-hourglass"
-                  label="P1"
-                  value={ticksToFormattedSeconds(verzik!.splits.p1)}
-                />
-                <Badge
-                  iconClass="fa-solid fa-hourglass"
-                  label="Reds"
-                  value={ticksToFormattedSeconds(verzik!.splits.reds)}
-                />
-                <Badge
-                  iconClass="fa-solid fa-hourglass"
-                  label="P2"
-                  value={ticksToFormattedSeconds(verzik!.splits.p2)}
-                />
+                {splits[SplitType.TOB_VERZIK_P1_END] && (
+                  <Badge
+                    iconClass="fa-solid fa-hourglass"
+                    label="P1"
+                    value={ticksToFormattedSeconds(
+                      splits[SplitType.TOB_VERZIK_P1_END],
+                    )}
+                  />
+                )}
+                {splits[SplitType.TOB_VERZIK_REDS] && (
+                  <Badge
+                    iconClass="fa-solid fa-hourglass"
+                    label="Reds"
+                    value={ticksToFormattedSeconds(
+                      splits[SplitType.TOB_VERZIK_REDS],
+                    )}
+                  />
+                )}
+                {splits[SplitType.TOB_VERZIK_P2_END] && (
+                  <Badge
+                    iconClass="fa-solid fa-hourglass"
+                    label="P2"
+                    value={ticksToFormattedSeconds(
+                      splits[SplitType.TOB_VERZIK_P2_END],
+                    )}
+                  />
+                )}
               </div>
             </div>
           </div>

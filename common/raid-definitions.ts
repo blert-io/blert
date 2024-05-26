@@ -9,6 +9,9 @@ import {
   NpcAttack as NpcAttackProto,
   Stage as StageProto,
 } from './generated/event_pb';
+import { SplitType } from './personal-best';
+
+type Nullable<T> = T | null;
 
 export enum ChallengeType {
   TOB = ChallengeProto.TOB,
@@ -32,9 +35,52 @@ export type Raid = {
   totalDeaths: number;
 };
 
-export type TobRaid = Raid & {
+export interface Challenge {
+  uuid: string;
+  type: ChallengeType;
+  status: ChallengeStatus;
+  stage: Stage;
+  mode: ChallengeMode;
+  startTime: Date;
+  party: ChallengePlayer[];
+  challengeTicks: number;
+  overallTicks: number | null;
+  totalDeaths: number;
+  splits: Partial<Record<SplitType, number>>;
+}
+
+export type ChallengePlayer = {
+  username: string;
+  currentUsername: string;
+  primaryGear: PrimaryMeleeGear;
+};
+
+export interface TobRaid extends Challenge {
   type: ChallengeType.TOB;
   tobRooms: TobRooms;
+}
+
+export type TobRooms = {
+  maiden: Nullable<TobRoom>;
+  bloat: Nullable<TobRoom & { downTicks: number[] }>;
+  nylocas: Nullable<TobRoom & { stalledWaves: number[] }>;
+  sotetseg: Nullable<
+    TobRoom & { maze1Pivots: number[]; maze2Pivots: number[] }
+  >;
+  xarpus: Nullable<TobRoom>;
+  verzik: Nullable<TobRoom & { redsSpawnCount: number }>;
+};
+
+type TobRoom = {
+  stage: Stage;
+  ticksLost: number;
+  deaths: string[];
+  npcs: RoomNpcMap;
+};
+
+export type OldTobRaid = Raid & {
+  type: ChallengeType.TOB;
+  tobRooms: OldTobRooms;
 };
 
 export type ColosseumChallenge = Raid & {
@@ -42,7 +88,7 @@ export type ColosseumChallenge = Raid & {
   colosseum: ColosseumData;
 };
 
-export type TobRooms = {
+export type OldTobRooms = {
   maiden: MaidenOverview | null;
   bloat: BloatOverview | null;
   nylocas: NyloOverview | null;
@@ -322,6 +368,17 @@ export type VerzikCrabProperties = {
   phase: VerzikPhase;
   spawn: VerzikCrabSpawn;
 };
+
+export enum Skill {
+  OVERALL = 0,
+  ATTACK = 1,
+  DEFENCE = 2,
+  STRENGTH = 3,
+  HITPOINTS = 4,
+  RANGED = 5,
+  PRAYER = 6,
+  MAGIC = 7,
+}
 
 export type RawSkillLevel = number;
 

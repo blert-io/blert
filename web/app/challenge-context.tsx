@@ -1,9 +1,12 @@
 'use client';
 
-import { Raid } from '@blert/common';
+import { Challenge } from '@blert/common';
 import { Dispatch, SetStateAction, createContext, useState } from 'react';
 
-type ChallengeState = [Raid | null, Dispatch<SetStateAction<Raid | null>>];
+type ChallengeState = [
+  Challenge | null,
+  Dispatch<SetStateAction<Challenge | null>>,
+];
 export const ChallengeContext = createContext<ChallengeState>([null, () => {}]);
 
 export default function ChallengeProvider({
@@ -11,7 +14,7 @@ export default function ChallengeProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const challengeState = useState<Raid | null>(null);
+  const challengeState = useState<Challenge | null>(null);
   return (
     <ChallengeContext.Provider value={challengeState}>
       {children}

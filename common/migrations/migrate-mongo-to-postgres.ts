@@ -25,8 +25,8 @@ import {
   RoomNpcType,
   SkillLevel,
   Stage,
-  TobRaid,
-  TobRooms,
+  OldTobRaid,
+  OldTobRooms,
   VerzikCrab,
   VerzikCrabSpawn,
   VerzikPhase,
@@ -40,7 +40,6 @@ import {
   BloatDownEvent,
   Event,
   EventType,
-  HandicapChoiceEvent,
   MaidenBloodSplatsEvent,
   NpcAttackEvent,
   NpcEvent,
@@ -86,8 +85,21 @@ async function migrateUsers(sql: postgres.Sql): Promise<Map<string, number>> {
 
   for (const user of users) {
     const users = await sql`
-        INSERT INTO users (username, password, email, email_verified, can_create_api_key)
-        VALUES (${user.username}, ${user.password}, ${user.email}, ${user.emailVerified || false}, ${user.canCreateApiKey || false})
+        INSERT INTO users (
+          username,
+          password,
+          email,
+          created_at,
+          email_verified,
+          can_create_api_key
+        ) VALUES (
+          ${user.username},
+          ${user.password},
+          ${user.email},
+          ${user._id.getTimestamp()},
+          ${user.emailVerified || false},
+          ${user.canCreateApiKey || false}
+        )
         RETURNING id;
     `;
 
@@ -306,7 +318,7 @@ function legacyPersonalBestToSplitType(pb: LegacyPersonalBestType): SplitType {
   throw new Error(`Invalid personal best type ${pb}`);
 }
 
-function getMaidenSplits(raid: TobRaid, raidId: number): Split[] {
+function getMaidenSplits(raid: OldTobRaid, raidId: number): Split[] {
   const maidenSplits = [];
   const scale = raid.party.length;
 
@@ -389,7 +401,7 @@ function getMaidenSplits(raid: TobRaid, raidId: number): Split[] {
   return maidenSplits;
 }
 
-function getBloatSplits(raid: TobRaid, raidId: number): Split[] {
+function getBloatSplits(raid: OldTobRaid, raidId: number): Split[] {
   const bloatSplits = [];
   const scale = raid.party.length;
 
@@ -412,7 +424,7 @@ function getBloatSplits(raid: TobRaid, raidId: number): Split[] {
   return bloatSplits;
 }
 
-function getNylocasSplits(raid: TobRaid, raidId: number): Split[] {
+function getNylocasSplits(raid: OldTobRaid, raidId: number): Split[] {
   const nylocasSplits = [];
   const scale = raid.party.length;
 
@@ -488,7 +500,7 @@ function getNylocasSplits(raid: TobRaid, raidId: number): Split[] {
   return nylocasSplits;
 }
 
-function getSotetsegSplits(raid: TobRaid, raidId: number): Split[] {
+function getSotetsegSplits(raid: OldTobRaid, raidId: number): Split[] {
   const sotetsegSplits = [];
   const scale = raid.party.length;
 
@@ -579,7 +591,7 @@ function getSotetsegSplits(raid: TobRaid, raidId: number): Split[] {
   return sotetsegSplits;
 }
 
-function getXarpusSplits(raid: TobRaid, raidId: number): Split[] {
+function getXarpusSplits(raid: OldTobRaid, raidId: number): Split[] {
   const xarpusSplits = [];
   const scale = raid.party.length;
 
@@ -642,7 +654,7 @@ function getXarpusSplits(raid: TobRaid, raidId: number): Split[] {
   return xarpusSplits;
 }
 
-function getVerzikSplits(raid: TobRaid, raidId: number): Split[] {
+function getVerzikSplits(raid: OldTobRaid, raidId: number): Split[] {
   const verzikSplits = [];
   const scale = raid.party.length;
 
@@ -726,7 +738,7 @@ async function createChallengeSplits(
   const splits: Split[] = [];
 
   if (challenge.type === ChallengeType.TOB) {
-    const raid = challenge as TobRaid;
+    const raid = challenge as OldTobRaid;
 
     splits.push(...getMaidenSplits(raid, id));
     splits.push(...getBloatSplits(raid, id));
@@ -820,48 +832,6 @@ async function createChallengeSplits(
   });
 }
 
-type ChallengeNpc = {
-  challenge_id: number;
-  stage: Stage;
-  room_id: number;
-  spawn_npc_id: number;
-  type: RoomNpcType;
-  spawn_tick: number;
-  death_tick: number;
-  spawn_x: number;
-  spawn_y: number;
-  death_x: number;
-  death_y: number;
-  custom_data: any;
-};
-
-function translateNpcs(
-  stage: Stage,
-  npcs: Map<number, RoomNpc>,
-): ChallengeNpc[] {
-  return Array.from(npcs.values()).map((npc) => ({
-    challenge_id: -1,
-    stage,
-    room_id: npc.roomId,
-    spawn_npc_id: npc.spawnNpcId,
-    type: npc.type,
-    spawn_tick: npc.spawnTick,
-    death_tick: npc.deathTick,
-    spawn_x: npc.spawnPoint.x,
-    spawn_y: npc.spawnPoint.y,
-    death_x: npc.deathPoint.x,
-    death_y: npc.deathPoint.y,
-    custom_data:
-      npc.type === RoomNpcType.MAIDEN_CRAB
-        ? (npc as MaidenCrab).maidenCrab
-        : npc.type === RoomNpcType.NYLO
-          ? (npc as Nylo).nylo
-          : npc.type === RoomNpcType.VERZIK_CRAB
-            ? (npc as VerzikCrab).verzikCrab
-            : null,
-  }));
-}
-
 async function migrateChallenges(
   sql: postgres.Sql,
   players: Map<string, PlayerInfo>,
@@ -886,19 +856,15 @@ async function migrateChallenges(
     }
 
     let customData: any = null;
-    const npcs: ChallengeNpc[] = [];
 
     if (challenge.type === ChallengeType.TOB) {
-      const tob = challenge as TobRaid;
+      const tob = challenge as OldTobRaid;
       customData = {};
       if (tob.tobRooms.maiden) {
         customData.maiden = {
           firstTick: tob.tobRooms.maiden.firstTick,
           deaths: tob.tobRooms.maiden.deaths,
         };
-        npcs.push(
-          ...translateNpcs(Stage.TOB_MAIDEN, tob.tobRooms.maiden.npcs as any),
-        );
       }
       if (tob.tobRooms.bloat) {
         customData.bloat = {
@@ -906,9 +872,6 @@ async function migrateChallenges(
           deaths: tob.tobRooms.bloat.deaths,
           splits: tob.tobRooms.bloat.splits,
         };
-        npcs.push(
-          ...translateNpcs(Stage.TOB_BLOAT, tob.tobRooms.bloat.npcs as any),
-        );
       }
       if (tob.tobRooms.nylocas) {
         customData.nylocas = {
@@ -916,9 +879,6 @@ async function migrateChallenges(
           deaths: tob.tobRooms.nylocas.deaths,
           stalls: tob.tobRooms.nylocas.stalledWaves,
         };
-        npcs.push(
-          ...translateNpcs(Stage.TOB_NYLOCAS, tob.tobRooms.nylocas.npcs as any),
-        );
       }
       if (tob.tobRooms.sotetseg) {
         customData.sotetseg = {
@@ -927,21 +887,12 @@ async function migrateChallenges(
           maze66: tob.tobRooms.sotetseg.maze66?.pivots ?? null,
           maze33: tob.tobRooms.sotetseg.maze33?.pivots ?? null,
         };
-        npcs.push(
-          ...translateNpcs(
-            Stage.TOB_SOTETSEG,
-            tob.tobRooms.sotetseg.npcs as any,
-          ),
-        );
       }
       if (tob.tobRooms.xarpus) {
         customData.xarpus = {
           firstTick: tob.tobRooms.xarpus.firstTick,
           deaths: tob.tobRooms.xarpus.deaths,
         };
-        npcs.push(
-          ...translateNpcs(Stage.TOB_XARPUS, tob.tobRooms.xarpus.npcs as any),
-        );
       }
       if (tob.tobRooms.verzik) {
         customData.verzik = {
@@ -949,9 +900,6 @@ async function migrateChallenges(
           deaths: tob.tobRooms.verzik.deaths,
           reds: tob.tobRooms.verzik.redCrabSpawns,
         };
-        npcs.push(
-          ...translateNpcs(Stage.TOB_VERZIK, tob.tobRooms.verzik.npcs as any),
-        );
       }
     } else {
       const colo = challenge as ColosseumChallenge;
@@ -962,12 +910,6 @@ async function migrateChallenges(
           options: wave.options,
         })),
       };
-
-      colo.colosseum.waves.forEach((wave, i) => {
-        npcs.push(
-          ...translateNpcs(Stage.COLOSSEUM_WAVE_1 + i, wave.npcs as any),
-        );
-      });
     }
 
     const challenges = await sql`
@@ -1154,7 +1096,7 @@ function assumeBloatDownNumber(tick: number): number {
 
 function npcsForStage(challenge: Raid, stage: Stage): Map<string, RoomNpc> {
   if (challenge.type === ChallengeType.TOB) {
-    const raid = challenge as TobRaid;
+    const raid = challenge as OldTobRaid;
     switch (stage) {
       case Stage.TOB_MAIDEN:
         return raid.tobRooms.maiden!.npcs as unknown as Map<string, RoomNpc>;
@@ -1405,8 +1347,8 @@ async function migrateRoomEvents(
     }
 
     const subdir = challenge._id.toString().slice(0, 2);
-    const remainder = challenge._id.toString().slice(2).replaceAll('-', '');
-    const challengeDir = `${process.env.BLERT_OUT_DIR}/${subdir}/${remainder}`;
+    const uuid = challenge._id.toString().replaceAll('-', '');
+    const challengeDir = `${process.env.BLERT_OUT_DIR}/${subdir}/${uuid}`;
     await mkdir(challengeDir, { recursive: true });
 
     const challengeProto = buildChallengeProto(challenge);
@@ -1415,7 +1357,8 @@ async function migrateRoomEvents(
       challengeProto.serializeBinary(),
     );
 
-    protoChallengeEvents.forEach(async (events, stage) => {
+    const entries = Array.from(protoChallengeEvents.entries());
+    for (const [stage, evts] of entries) {
       let filename;
       switch (stage) {
         case Stage.TOB_MAIDEN:
@@ -1436,17 +1379,32 @@ async function migrateRoomEvents(
         case Stage.TOB_VERZIK:
           filename = 'verzik';
           break;
+        case Stage.COLOSSEUM_WAVE_1:
+        case Stage.COLOSSEUM_WAVE_2:
+        case Stage.COLOSSEUM_WAVE_3:
+        case Stage.COLOSSEUM_WAVE_4:
+        case Stage.COLOSSEUM_WAVE_5:
+        case Stage.COLOSSEUM_WAVE_6:
+        case Stage.COLOSSEUM_WAVE_7:
+        case Stage.COLOSSEUM_WAVE_8:
+        case Stage.COLOSSEUM_WAVE_9:
+        case Stage.COLOSSEUM_WAVE_10:
+        case Stage.COLOSSEUM_WAVE_11:
+        case Stage.COLOSSEUM_WAVE_12:
+          filename = `wave-${stage - Stage.COLOSSEUM_WAVE_1 + 1}`;
+          break;
       }
 
       const eventsProto = new ChallengeEventsProto();
       eventsProto.setStage(stage as Proto<StageMap>);
-      eventsProto.setEventsList(events);
+      eventsProto.setPartyNamesList(challenge.party);
+      eventsProto.setEventsList(evts);
 
       await writeFile(
         `${challengeDir}/${filename}`,
         eventsProto.serializeBinary(),
       );
-    });
+    }
 
     totalEventsMigrated += events.length;
     console.log(
@@ -1535,7 +1493,7 @@ function buildChallengeProto(challenge: Raid): ChallengeDataProto {
   proto.setChallengeId(challenge._id.toString());
 
   if (challenge.type === ChallengeType.TOB) {
-    const raid = challenge as TobRaid;
+    const raid = challenge as OldTobRaid;
     const tobRooms = new ChallengeDataProto.TobRooms();
 
     if (raid.tobRooms.maiden !== null) {
@@ -1683,6 +1641,7 @@ function buildEventProto(
         weapon.setSlot(EventProto.Player.EquipmentSlot.WEAPON);
         weapon.setId(e.attack.weapon.id);
         weapon.setQuantity(e.attack.weapon.quantity);
+        attack.setWeapon(weapon);
       }
       if (e.attack.target) {
         const target = new EventProto.Npc();
@@ -1696,7 +1655,9 @@ function buildEventProto(
           throw new Error('Failed to get npcId');
         }
         target.setRoomId(e.attack.target.roomId);
+        attack.setTarget(target);
       }
+      proto.setPlayerAttack(attack);
       break;
     }
 
@@ -1762,6 +1723,7 @@ function buildEventProto(
         return coords;
       });
       proto.setMaidenBloodSplatsList(splats);
+      break;
     }
 
     case EventType.TOB_BLOAT_DOWN: {
@@ -1934,7 +1896,7 @@ async function findBrokenRaids(): Promise<Map<string, Stage[]>> {
   const brokenRaids: Map<string, Stage[]> = new Map();
 
   for (const raid of raids) {
-    const rooms: Array<[keyof TobRooms, Stage]> = [
+    const rooms: Array<[keyof OldTobRooms, Stage]> = [
       ['maiden', Stage.TOB_MAIDEN],
       ['bloat', Stage.TOB_BLOAT],
       ['nylocas', Stage.TOB_NYLOCAS],
@@ -2188,7 +2150,6 @@ async function fixChallenge(challengeId: string, stage: number, ticks: number) {
       }
     });
 
-    console.log(npcs);
     return modified;
   };
 

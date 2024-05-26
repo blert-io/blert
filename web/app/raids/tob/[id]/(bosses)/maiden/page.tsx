@@ -12,6 +12,7 @@ import {
   PlayerUpdateEvent,
   RoomNpcType,
   SkillLevel,
+  SplitType,
   Stage,
   TobRaid,
 } from '@blert/common';
@@ -226,7 +227,6 @@ export default function Maiden() {
   const { splits, spawns } = useMemo(() => {
     const splits: TimelineSplit[] = [];
     const spawns: MaidenCrabProperties[][] = [];
-    const maidenRoom = challenge?.tobRooms.maiden;
 
     const addSplits = (tick: number, name: string) => {
       if (tick !== 0) {
@@ -251,10 +251,10 @@ export default function Maiden() {
       }
     };
 
-    if (maidenRoom) {
-      addSplits(maidenRoom.splits.SEVENTIES, '70s');
-      addSplits(maidenRoom.splits.FIFTIES, '50s');
-      addSplits(maidenRoom.splits.THIRTIES, '30s');
+    if (challenge) {
+      addSplits(challenge.splits[SplitType.TOB_MAIDEN_70S] ?? 0, '70s');
+      addSplits(challenge.splits[SplitType.TOB_MAIDEN_50S] ?? 0, '50s');
+      addSplits(challenge.splits[SplitType.TOB_MAIDEN_30S] ?? 0, '30s');
     }
 
     return { splits, spawns };
@@ -320,7 +320,7 @@ export default function Maiden() {
   }
 
   const playerTickState = challenge.party.reduce(
-    (acc, username) => ({
+    (acc, { username }) => ({
       ...acc,
       [username]: playerState.get(username)?.at(currentTick) ?? null,
     }),
@@ -328,9 +328,9 @@ export default function Maiden() {
   );
 
   const controlsSplits = [];
-  if (maidenData !== null && maidenData.firstTick !== 0) {
+  if (maidenData !== null && maidenData.ticksLost !== 0) {
     controlsSplits.push({
-      tick: maidenData.firstTick,
+      tick: maidenData.ticksLost,
       splitName: 'Recording start',
     });
   }

@@ -7,6 +7,7 @@ import {
   PlayerUpdateEvent,
   SkillLevel,
   SoteMazePathEvent,
+  SplitType,
   Stage,
   TobRaid,
 } from '@blert/common';
@@ -160,21 +161,22 @@ export default function SotetsegPage() {
     usePlayingState(totalTicks);
 
   const splits = useMemo(() => {
-    const sote = raidData?.tobRooms.sotetseg;
+    if (!raidData) {
+      return [];
+    }
+
     const splits = [];
-    if (sote) {
-      if (sote.splits.MAZE_66) {
-        splits.push({
-          tick: sote.splits.MAZE_66,
-          splitName: '66%',
-        });
-      }
-      if (sote.splits.MAZE_33) {
-        splits.push({
-          tick: sote.splits.MAZE_33,
-          splitName: '33%',
-        });
-      }
+    if (raidData.splits[SplitType.TOB_SOTETSEG_66]) {
+      splits.push({
+        tick: raidData.splits[SplitType.TOB_SOTETSEG_66],
+        splitName: '66%',
+      });
+    }
+    if (raidData.splits[SplitType.TOB_SOTETSEG_33]) {
+      splits.push({
+        tick: raidData.splits[SplitType.TOB_SOTETSEG_33],
+        splitName: '33%',
+      });
     }
     return splits;
   }, [raidData?.tobRooms.sotetseg]);
@@ -261,7 +263,7 @@ export default function SotetsegPage() {
   }
 
   const playerTickState = raidData.party.reduce(
-    (acc, username) => ({
+    (acc, { username }) => ({
       ...acc,
       [username]: playerState.get(username)?.at(currentTick) ?? null,
     }),
@@ -282,34 +284,42 @@ export default function SotetsegPage() {
         <div className={styles.bossPage__KeyDetails}>
           <h2>Sotetseg ({ticksToFormattedSeconds(totalTicks)})</h2>
           <div className={styles.mazes}>
-            {soteData?.maze66 && (
+            {soteData?.maze1Pivots && (
               <div className={styles.mazeInfo}>
-                <Maze pivots={soteData.maze66.pivots} tileSize={10} />
+                <Maze pivots={soteData.maze1Pivots} tileSize={10} />
                 <div className={styles.details}>
                   <h3>Maze 1</h3>
                   <div className={styles.mazeStat}>
                     <i className="fa-solid fa-hourglass" />
-                    {ticksToFormattedSeconds(soteData.splits.MAZE_66)}
+                    {ticksToFormattedSeconds(
+                      raidData.splits[SplitType.TOB_SOTETSEG_66] ?? 0,
+                    )}
                   </div>
                   <div className={styles.mazeStat}>
                     <i className="fa-solid fa-person-walking" />
-                    {ticksToFormattedSeconds(soteData.maze66.ticks)}
+                    {ticksToFormattedSeconds(
+                      raidData.splits[SplitType.TOB_SOTETSEG_MAZE_1] ?? 0,
+                    )}
                   </div>
                 </div>
               </div>
             )}
-            {soteData?.maze33 && (
+            {soteData?.maze2Pivots && (
               <div className={styles.mazeInfo}>
-                <Maze pivots={soteData.maze33.pivots} tileSize={10} />
+                <Maze pivots={soteData.maze2Pivots} tileSize={10} />
                 <div className={styles.details}>
                   <h3>Maze 2</h3>
                   <div className={styles.mazeStat}>
                     <i className="fa-solid fa-hourglass" />
-                    {ticksToFormattedSeconds(soteData.splits.MAZE_33)}
+                    {ticksToFormattedSeconds(
+                      raidData.splits[SplitType.TOB_SOTETSEG_33] ?? 0,
+                    )}
                   </div>
                   <div className={styles.mazeStat}>
                     <i className="fa-solid fa-person-walking" />
-                    {ticksToFormattedSeconds(soteData.maze33.ticks)}
+                    {ticksToFormattedSeconds(
+                      raidData.splits[SplitType.TOB_SOTETSEG_MAZE_2] ?? 0,
+                    )}
                   </div>
                 </div>
               </div>

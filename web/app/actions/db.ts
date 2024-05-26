@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import postgres from 'postgres';
 
 declare global {
   namespace globalThis {
@@ -33,3 +34,13 @@ export default async function connectToDatabase() {
   cached.conn = await cached.promise;
   return cached.conn;
 }
+
+let connectionOptions: postgres.Options<{}> | undefined = undefined;
+
+if (['development'].includes(process.env.NODE_ENV)) {
+  connectionOptions = {
+    debug: (_, query, params) => console.log(query, params),
+  };
+}
+
+export const sql = postgres(process.env.BLERT_DATABASE_URI!, connectionOptions);

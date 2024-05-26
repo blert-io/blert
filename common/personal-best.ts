@@ -190,6 +190,7 @@ export enum SplitType {
   TOB_HM_VERZIK_P3 = 101,
   TOB_VERZIK_P3 = TOB_ENTRY_VERZIK_P3,
 
+  // Colosseum wave times.
   COLOSSEUM_CHALLENGE = 150,
   COLOSSEUM_OVERALL = 151,
   COLOSSEUM_WAVE_1 = 152,
@@ -340,11 +341,10 @@ export function tobPbForMode(
 }
 
 export type PersonalBest = {
-  type: LegacyPersonalBestType;
-  playerId: Types.ObjectId;
-  cId: string;
+  type: SplitType;
+  cid: string;
   scale: number;
-  time: number;
+  ticks: number;
 };
 
 const genericTobSplits = [
@@ -417,4 +417,17 @@ export function tobSplitForMode(
         ? 1
         : 2;
   return genericTobSplit + offset;
+}
+
+/**
+ * Returns the generic version of a mode-specific split type.
+ * @param split The mode-specific split type.
+ * @returns The generic split type.
+ */
+export function generalizeSplit(split: SplitType): SplitType {
+  if (split >= SplitType.TOB_CHALLENGE && split <= SplitType.TOB_HM_VERZIK_P3) {
+    return split - (split % 3);
+  }
+
+  return split;
 }

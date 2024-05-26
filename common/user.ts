@@ -1,18 +1,16 @@
 import { Types } from 'mongoose';
 
 export type ApiKey = {
-  _id: Types.ObjectId;
-  userId: Types.ObjectId;
-  playerId: Types.ObjectId;
+  id: number;
   key: string;
   lastUsed: Date | null;
   active: boolean;
 };
 
 export type User = {
-  _id: Types.ObjectId;
+  id: number;
   username: string;
-  password: string;
+  createdAt: Date;
   email: string;
   emailVerified: boolean;
 

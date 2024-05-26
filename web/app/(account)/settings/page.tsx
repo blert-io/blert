@@ -21,7 +21,7 @@ export default async function Settings() {
         <div>{user.username}</div>
         <div>
           Member since{' '}
-          {user._id.getTimestamp().toLocaleDateString(undefined, {
+          {user.createdAt.toLocaleDateString(undefined, {
             year: 'numeric',
             month: 'numeric',
             day: 'numeric',
@@ -30,12 +30,7 @@ export default async function Settings() {
       </div>
 
       <div className={`${styles.panel} ${styles.apiKeys}`}>
-        <ApiKeyPanel
-          initialApiKeys={apiKeys.map((apiKey) => {
-            const { _id, ...rest } = apiKey;
-            return { ...rest, _id: _id.toString() };
-          })}
-        />
+        <ApiKeyPanel initialApiKeys={apiKeys} />
       </div>
     </div>
   );

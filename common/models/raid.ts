@@ -2,9 +2,9 @@ import { Document, Model, Schema, model, models } from 'mongoose';
 import {
   ColosseumData,
   ColosseumChallenge,
-  Raid,
-  TobRaid,
-  TobRooms,
+  Challenge,
+  OldTobRaid,
+  OldTobRooms,
   ColosseumWave,
 } from '../raid-definitions';
 
@@ -73,9 +73,11 @@ const PlayerInfo = {
   gear: Number,
 };
 
-type AllRaids = Raid & Omit<TobRaid, 'type'> & Omit<ColosseumChallenge, 'type'>;
+type AllRaids = Challenge &
+  Omit<OldTobRaid, 'type'> &
+  Omit<ColosseumChallenge, 'type'>;
 
-const tobRoomsSchema = new Schema<TobRooms>(
+const tobRoomsSchema = new Schema<OldTobRooms>(
   {
     maiden: {
       type: {

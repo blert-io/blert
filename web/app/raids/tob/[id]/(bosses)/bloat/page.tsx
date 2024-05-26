@@ -171,7 +171,7 @@ export default function BloatPage() {
   }
 
   const playerTickState = raidData.party.reduce(
-    (acc, username) => ({
+    (acc, { username }) => ({
       ...acc,
       [username]: playerState.get(username)?.at(currentTick) ?? null,
     }),

@@ -19,9 +19,17 @@ async function createUsersTable(sql: Sql) {
       username VARCHAR(30) NOT NULL,
       password VARCHAR(100) NOT NULL,
       email VARCHAR(128) NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       email_verified BOOLEAN NOT NULL DEFAULT FALSE,
       can_create_api_key BOOLEAN NOT NULL DEFAULT FALSE
     );
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX uix_users_username ON users (lower(username));
+  `;
+  await sql`
+    CREATE UNIQUE INDEX uix_users_email ON users (email);
   `;
 }
 
@@ -52,8 +60,8 @@ async function createApiKeysTable(sql: Sql) {
   await sql`
     CREATE TABLE api_keys (
       id INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-      user_id INT NOT NULL REFERENCES users (id),
-      player_id INT NOT NULL REFERENCES players (id),
+      user_id INT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+      player_id INT NOT NULL REFERENCES players (id) ON DELETE CASCADE,
       key VARCHAR(32) NOT NULL,
       active BOOLEAN NOT NULL DEFAULT TRUE,
       last_used TIMESTAMP
@@ -72,8 +80,8 @@ async function createNameChangesTable(sql: Sql) {
   await sql`
     CREATE TABLE name_changes (
       id INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-      player_id INT NOT NULL REFERENCES players (id),
-      submitter_id INT REFERENCES users (id),
+      player_id INT NOT NULL REFERENCES players (id) ON DELETE CASCADE,
+      submitter_id INT REFERENCES users (id) ON DELETE CASCADE,
       old_name VARCHAR(12) NOT NULL,
       new_name VARCHAR(12) NOT NULL,
       status SMALLINT NOT NULL,
@@ -110,8 +118,8 @@ async function createChallengesTables(sql: Sql) {
 
   await sql`
     CREATE TABLE challenge_players (
-      challenge_id INT NOT NULL REFERENCES challenges (id),
-      player_id INT NOT NULL REFERENCES players (id),
+      challenge_id INT NOT NULL REFERENCES challenges (id) ON DELETE CASCADE,
+      player_id INT NOT NULL REFERENCES players (id) ON DELETE CASCADE,
       username VARCHAR(12) NOT NULL,
       orb SMALLINT NOT NULL,
       primary_gear SMALLINT NOT NULL
@@ -121,7 +129,7 @@ async function createChallengesTables(sql: Sql) {
   await sql`
     CREATE TABLE challenge_splits (
       id INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-      challenge_id INT NOT NULL REFERENCES challenges (id),
+      challenge_id INT NOT NULL REFERENCES challenges (id) ON DELETE CASCADE,
       type SMALLINT NOT NULL,
       scale SMALLINT NOT NULL,
       ticks INT NOT NULL,
@@ -157,8 +165,8 @@ async function createChallengesTables(sql: Sql) {
 async function createPersonalBestsTable(sql: Sql) {
   await sql`
     CREATE TABLE personal_bests (
-      player_id INT NOT NULL REFERENCES players (id),
-      challenge_split_id INT NOT NULL REFERENCES challenge_splits (id),
+      player_id INT NOT NULL REFERENCES players (id) ON DELETE CASCADE,
+      challenge_split_id INT NOT NULL REFERENCES challenge_splits (id) ON DELETE CASCADE,
       PRIMARY KEY (player_id, challenge_split_id)
     );
   `;
@@ -172,8 +180,8 @@ async function createRecordedChallengesTable(sql: Sql) {
   await sql`
     CREATE TABLE recorded_challenges (
       id INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-      challenge_id INT NOT NULL REFERENCES challenges (id),
-      recorder_id INT NOT NULL REFERENCES users (id),
+      challenge_id INT NOT NULL REFERENCES challenges (id) ON DELETE CASCADE,
+      recorder_id INT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
       recording_type SMALLINT NOT NULL
     );
   `;
@@ -187,7 +195,7 @@ async function createPlayerStatsTable(sql: Sql) {
   await sql`
     CREATE TABLE player_stats (
       id INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-      player_id INT NOT NULL REFERENCES players (id),
+      player_id INT NOT NULL REFERENCES players (id) ON DELETE CASCADE,
       date DATE NOT NULL,
 
       tob_completions INT DEFAULT 0,
@@ -227,7 +235,7 @@ async function createPlayerStatsTable(sql: Sql) {
 async function createQueryableEventsTable(sql: Sql) {
   await sql`
     CREATE TABLE queryable_events (
-      challenge_id INT NOT NULL REFERENCES challenges (id),
+      challenge_id INT NOT NULL REFERENCES challenges (id) ON DELETE CASCADE,
       event_type SMALLINT NOT NULL,
       stage SMALLINT NOT NULL,
       mode SMALLINT DEFAULT 0,
@@ -235,7 +243,7 @@ async function createQueryableEventsTable(sql: Sql) {
       x_coord SMALLINT NOT NULL,
       y_coord SMALLINT NOT NULL,
       subtype SMALLINT,
-      player_id INT REFERENCES players (id),
+      player_id INT REFERENCES players (id) ON DELETE CASCADE,
       npc_id INT,
       custom_int_1 INT,
       custom_int_2 INT,
