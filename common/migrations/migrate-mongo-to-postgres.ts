@@ -12,7 +12,6 @@ import {
   ChallengeMode,
   ChallengeStatus,
   ChallengeType,
-  ColosseumChallenge,
   MaidenCrab,
   MaidenCrabPosition,
   MaidenCrabSpawn,
@@ -25,6 +24,7 @@ import {
   RoomNpcType,
   SkillLevel,
   Stage,
+  OldColosseumChallenge,
   OldTobRaid,
   OldTobRooms,
   VerzikCrab,
@@ -735,13 +735,14 @@ async function createChallengeSplits(
       });
     }
   } else if (challenge.type === ChallengeType.COLOSSEUM) {
-    const colo = challenge as ColosseumChallenge;
+    const colo = challenge as OldColosseumChallenge;
     splits.push(
       ...colo.colosseum.waves.map((wave, i) => ({
         name: `Wave ${i + 1}`,
         challenge_id: id,
         type: SplitType.COLOSSEUM_WAVE_1 + i,
         scale: 1,
+        // @ts-ignore
         ticks: wave.ticks,
         accurate: true,
       })),
@@ -830,63 +831,6 @@ async function migrateChallenges(
       continue;
     } else {
       console.log(`Migrating challenge ${challenge._id}`);
-    }
-
-    let customData: any = null;
-
-    if (challenge.type === ChallengeType.TOB) {
-      const tob = challenge as OldTobRaid;
-      customData = {};
-      if (tob.tobRooms.maiden) {
-        customData.maiden = {
-          firstTick: tob.tobRooms.maiden.firstTick,
-          deaths: tob.tobRooms.maiden.deaths,
-        };
-      }
-      if (tob.tobRooms.bloat) {
-        customData.bloat = {
-          firstTick: tob.tobRooms.bloat.firstTick,
-          deaths: tob.tobRooms.bloat.deaths,
-          splits: tob.tobRooms.bloat.splits,
-        };
-      }
-      if (tob.tobRooms.nylocas) {
-        customData.nylocas = {
-          firstTick: tob.tobRooms.nylocas.firstTick,
-          deaths: tob.tobRooms.nylocas.deaths,
-          stalls: tob.tobRooms.nylocas.stalledWaves,
-        };
-      }
-      if (tob.tobRooms.sotetseg) {
-        customData.sotetseg = {
-          firstTick: tob.tobRooms.sotetseg.firstTick,
-          deaths: tob.tobRooms.sotetseg.deaths,
-          maze66: tob.tobRooms.sotetseg.maze66?.pivots ?? null,
-          maze33: tob.tobRooms.sotetseg.maze33?.pivots ?? null,
-        };
-      }
-      if (tob.tobRooms.xarpus) {
-        customData.xarpus = {
-          firstTick: tob.tobRooms.xarpus.firstTick,
-          deaths: tob.tobRooms.xarpus.deaths,
-        };
-      }
-      if (tob.tobRooms.verzik) {
-        customData.verzik = {
-          firstTick: tob.tobRooms.verzik.firstTick,
-          deaths: tob.tobRooms.verzik.deaths,
-          reds: tob.tobRooms.verzik.redCrabSpawns,
-        };
-      }
-    } else {
-      const colo = challenge as ColosseumChallenge;
-      customData = {
-        handicaps: colo.colosseum.handicaps,
-        waves: colo.colosseum.waves.map((wave) => ({
-          handicap: wave.handicap,
-          options: wave.options,
-        })),
-      };
     }
 
     const challenges = await sql`
@@ -1107,7 +1051,7 @@ function npcsForStage(challenge: Raid, stage: Stage): Map<string, RoomNpc> {
         return raid.tobRooms.verzik.npcs as unknown as Map<string, RoomNpc>;
     }
   } else {
-    const colo = challenge as ColosseumChallenge;
+    const colo = challenge as OldColosseumChallenge;
     return colo.colosseum.waves[stage - Stage.COLOSSEUM_WAVE_1]
       .npcs as unknown as Map<string, RoomNpc>;
   }
@@ -1790,8 +1734,9 @@ function buildChallengeProto(challenge: Raid): ChallengeDataProto {
 
     proto.setTobRooms(tobRooms);
   } else {
-    const colo = challenge as ColosseumChallenge;
+    const colo = challenge as OldColosseumChallenge;
     const colosseum = new ChallengeDataProto.Colosseum();
+    colosseum.setAllHandicapsList(colo.colosseum.handicaps);
     colo.colosseum.waves.forEach((waveData, i) => {
       const wave = new ChallengeDataProto.ColosseumWave();
       wave.setStage((Stage.COLOSSEUM_WAVE_1 + i) as Proto<StageMap>);

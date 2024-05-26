@@ -9,6 +9,7 @@ import {
   NpcEvent,
   PlayerUpdateEvent,
   SkillLevel,
+  SplitType,
   Stage,
 } from '@blert/common';
 import Image from 'next/image';
@@ -188,7 +189,7 @@ export default function ColosseumWavePage({
     }
   }
 
-  const username = challenge.party[0];
+  const username = challenge.party[0].username;
   const playerTickState = {
     [username]: playerState.get(username)?.at(currentTick) ?? null,
   };
@@ -219,7 +220,13 @@ export default function ColosseumWavePage({
         </div>
         <div className={styles.waveDetails}>
           <h2>
-            {title} ({ticksToFormattedSeconds(waveInfo.ticks)})
+            {title} (
+            {ticksToFormattedSeconds(
+              challenge.splits[
+                (SplitType.COLOSSEUM_WAVE_1 + waveIndex) as SplitType
+              ] ?? 0,
+            )}
+            )
           </h2>
           <div className={styles.handicaps}>
             <h3>Handicaps This Wave</h3>
