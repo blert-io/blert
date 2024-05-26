@@ -118,7 +118,7 @@ export default async function Player(props: PlayerPageProps) {
             style={{ objectFit: 'contain' }}
           />
         </div>
-        <h1>{player.formattedUsername}</h1>
+        <h1>{player.username}</h1>
       </div>
       <CollapsiblePanel
         panelTitle="Personal bests"
@@ -138,30 +138,30 @@ export default async function Player(props: PlayerPageProps) {
         disableExpansion
       >
         <div className={styles.statsWrapper}>
-          <h2>Raids</h2>
+          <h2>Theatre of Blood</h2>
           <div className={styles.stats}>
             <Statistic
               className={styles.individualStat}
               name="Total"
-              value={player.totalRaidsRecorded}
+              value={stats.tobCompletions + stats.tobResets + stats.tobWipes}
               width={STATISTIC_WIDTH}
             />
             <Statistic
               className={styles.individualStat}
               name="Completions"
-              value={stats.completions}
+              value={stats.tobCompletions}
               width={STATISTIC_WIDTH}
             />
             <Statistic
               className={styles.individualStat}
               name="Resets"
-              value={stats.resets}
+              value={stats.tobResets}
               width={STATISTIC_WIDTH}
             />
             <Statistic
               className={styles.individualStat}
               name="Wipes"
-              value={stats.wipes}
+              value={stats.tobWipes}
               width={STATISTIC_WIDTH}
             />
           </div>
@@ -181,14 +181,26 @@ export default async function Player(props: PlayerPageProps) {
             />
             <Statistic
               className={styles.individualStat}
-              name="Uncharged Scy Swings"
+              name="Chally Pokes"
+              value={stats.challyPokes}
+              width={STATISTIC_WIDTH}
+            />
+            <Statistic
+              className={styles.individualStat}
+              name="Uncharged Scythes"
               value={stats.unchargedScytheSwings}
               width={STATISTIC_WIDTH}
             />
             <Statistic
               className={styles.individualStat}
-              name="Barrages w/o Staff"
-              value={stats.barragesWithoutProperWeapon}
+              name="Ralos Autos"
+              value={stats.ralosAutos}
+              width={STATISTIC_WIDTH}
+            />
+            <Statistic
+              className={styles.individualStat}
+              name="Barrages w/o 15% weapon"
+              value={stats.tobBarragesWithoutProperWeapon}
               width={STATISTIC_WIDTH}
             />
           </div>
@@ -197,7 +209,7 @@ export default async function Player(props: PlayerPageProps) {
             <Statistic
               className={styles.individualStat}
               name="Total"
-              value={stats.deaths}
+              value={stats.deathsTotal}
               width={STATISTIC_WIDTH}
             />
             <Statistic
@@ -214,13 +226,13 @@ export default async function Player(props: PlayerPageProps) {
             />
             <Statistic
               className={styles.individualStat}
-              name="Nylo"
+              name="Nylocas"
               value={stats.deathsNylocas}
               width={STATISTIC_WIDTH}
             />
             <Statistic
               className={styles.individualStat}
-              name="Sote"
+              name="Sotetseg"
               value={stats.deathsSotetseg}
               width={STATISTIC_WIDTH}
             />
@@ -242,18 +254,18 @@ export default async function Player(props: PlayerPageProps) {
             <Statistic
               className={styles.individualStat}
               name="Chins Thrown"
-              value={stats.chinsThrown}
+              value={stats.chinsThrownTotal}
               width={STATISTIC_WIDTH}
             />
             <Statistic
               className={styles.individualStat}
-              name="Thrown during Maiden"
+              name="During Maiden"
               value={stats.chinsThrownMaiden}
               width={STATISTIC_WIDTH}
             />
             <Statistic
               className={styles.individualStat}
-              name="Thrown Incorrectly"
+              name="Wrong Distance"
               value={stats.chinsThrownIncorrectlyMaiden}
               width={STATISTIC_WIDTH}
             />
@@ -266,7 +278,7 @@ export default async function Player(props: PlayerPageProps) {
             />
             <Statistic
               className={styles.individualStat}
-              name="Value of Chins Thrown"
+              name="Thrown Value"
               value={stats.chinsThrownValue}
               width={STATISTIC_WIDTH}
               unit="gp"
@@ -300,15 +312,15 @@ export async function generateMetadata(
     return { title: 'Player not found' };
   }
 
-  const description = `View ${player.formattedUsername}'s statistics on Blert, Old School RuneScape's premier PvM tracker.`;
+  const description = `View ${player.username}'s statistics on Blert, Old School RuneScape's premier PvM tracker.`;
 
   return {
-    title: player.formattedUsername,
+    title: player.username,
     description,
     openGraph: { ...metadata.openGraph, description },
     twitter: {
       ...metadata.twitter,
-      title: `${player.formattedUsername} | Blert`,
+      title: `${player.username} | Blert`,
       description,
     },
   };

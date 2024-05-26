@@ -8,7 +8,7 @@ export async function migrate(sql: Sql) {
   await createChallengesTables(sql);
   await createRecordedChallengesTable(sql);
   await createPersonalBestsTable(sql);
-  // TODO player stats
+  await createPlayerStatsTable(sql);
   await createQueryableEventsTable(sql);
 }
 
@@ -19,7 +19,7 @@ async function createUsersTable(sql: Sql) {
       username VARCHAR(30) NOT NULL,
       password VARCHAR(100) NOT NULL,
       email VARCHAR(128) NOT NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       email_verified BOOLEAN NOT NULL DEFAULT FALSE,
       can_create_api_key BOOLEAN NOT NULL DEFAULT FALSE
     );
@@ -47,7 +47,7 @@ async function createPlayersTable(sql: Sql) {
       magic_experience INT DEFAULT 0,
       prayer_experience INT DEFAULT 0,
       hitpoints_experience INT DEFAULT 0,
-      last_updated TIMESTAMP
+      last_updated TIMESTAMPTZ
     );
   `;
 
@@ -64,7 +64,7 @@ async function createApiKeysTable(sql: Sql) {
       player_id INT NOT NULL REFERENCES players (id) ON DELETE CASCADE,
       key VARCHAR(32) NOT NULL,
       active BOOLEAN NOT NULL DEFAULT TRUE,
-      last_used TIMESTAMP
+      last_used TIMESTAMPTZ
     );
   `;
 
@@ -85,8 +85,8 @@ async function createNameChangesTable(sql: Sql) {
       old_name VARCHAR(12) NOT NULL,
       new_name VARCHAR(12) NOT NULL,
       status SMALLINT NOT NULL,
-      submitted_at TIMESTAMP NOT NULL,
-      processed_at TIMESTAMP,
+      submitted_at TIMESTAMPTZ NOT NULL,
+      processed_at TIMESTAMPTZ,
       migrated_documents INT DEFAULT 0
     );
   `;
@@ -109,7 +109,7 @@ async function createChallengesTables(sql: Sql) {
       stage SMALLINT DEFAULT 0,
       mode SMALLINT DEFAULT 0,
       scale SMALLINT NOT NULL,
-      start_time TIMESTAMP,
+      start_time TIMESTAMPTZ,
       challenge_ticks INT DEFAULT 0,
       overall_ticks INT,
       total_deaths INT DEFAULT 0
@@ -196,7 +196,7 @@ async function createPlayerStatsTable(sql: Sql) {
     CREATE TABLE player_stats (
       id INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
       player_id INT NOT NULL REFERENCES players (id) ON DELETE CASCADE,
-      date DATE NOT NULL,
+      date TIMESTAMPTZ NOT NULL,
 
       tob_completions INT DEFAULT 0,
       tob_wipes INT DEFAULT 0,
@@ -206,6 +206,7 @@ async function createPlayerStatsTable(sql: Sql) {
       colosseum_wipes INT DEFAULT 0,
       colosseum_resets INT DEFAULT 0,
 
+      deaths_total INT DEFAULT 0,
       deaths_maiden INT DEFAULT 0,
       deaths_bloat INT DEFAULT 0,
       deaths_nylocas INT DEFAULT 0,
@@ -217,8 +218,12 @@ async function createPlayerStatsTable(sql: Sql) {
       bgs_smacks INT DEFAULT 0,
       chally_pokes INT DEFAULT 0,
       uncharged_scythe_swings INT DEFAULT 0,
-      barrages_without_proper_weapon INT DEFAULT 0,
-      troll_p1_specs INT DEFAULT 0,
+      ralos_autos INT DEFAULT 0,
+      elder_maul_smacks INT DEFAULT 0,
+
+      tob_barrages_without_proper_weapon INT DEFAULT 0,
+      tob_verzik_p1_troll_specs INT DEFAULT 0,
+      tob_verzik_p3_melees INT DEFAULT 0,
 
       chins_thrown_total INT DEFAULT 0,
       chins_thrown_black INT DEFAULT 0,
@@ -229,6 +234,10 @@ async function createPlayerStatsTable(sql: Sql) {
       chins_thrown_value INT DEFAULT 0,
       chins_thrown_incorrectly_maiden INT DEFAULT 0
     );
+  `;
+
+  await sql`
+    CREATE INDEX idx_player_stats_player_id_date ON player_stats (player_id, date);
   `;
 }
 

@@ -303,40 +303,41 @@ describe('processNameChange', () => {
     ];
     await sql`INSERT INTO personal_bests ${sql(personalBests)}`;
 
-    // await PlayerStatsModel.insertMany([
-    //   {
-    //     playerId: oldPlayer._id,
-    //     date: new Date('2024-04-20'),
-    //     completions: 5,
-    //     wipes: 1,
-    //     deaths: 8,
-    //     hammerBops: 9,
-    //   },
-    //   {
-    //     playerId: oldPlayer._id,
-    //     date: new Date('2024-04-21'),
-    //     completions: 7,
-    //     wipes: 2,
-    //     deaths: 12,
-    //     hammerBops: 10,
-    //   },
-    //   {
-    //     playerId: newPlayer._id,
-    //     date: new Date('2024-04-22'),
-    //     completions: 2,
-    //     wipes: 0,
-    //     deaths: 1,
-    //     hammerBops: 1,
-    //   },
-    //   {
-    //     playerId: newPlayer._id,
-    //     date: new Date('2024-04-23'),
-    //     completions: 5,
-    //     wipes: 2,
-    //     deaths: 4,
-    //     hammerBops: 1,
-    //   },
-    // ]);
+    const playerStats = [
+      {
+        player_id: oldPlayerId,
+        date: new Date('2024-04-20'),
+        tob_completions: 5,
+        tob_wipes: 1,
+        deaths_total: 8,
+        hammer_bops: 9,
+      },
+      {
+        player_id: oldPlayerId,
+        date: new Date('2024-04-21'),
+        tob_completions: 7,
+        tob_wipes: 2,
+        deaths_total: 12,
+        hammer_bops: 10,
+      },
+      {
+        player_id: newPlayerId,
+        date: new Date('2024-04-22'),
+        tob_completions: 2,
+        tob_wipes: 0,
+        deaths_total: 1,
+        hammer_bops: 1,
+      },
+      {
+        player_id: newPlayerId,
+        date: new Date('2024-04-23'),
+        tob_completions: 5,
+        tob_wipes: 2,
+        deaths_total: 4,
+        hammer_bops: 1,
+      },
+    ];
+    await sql`INSERT INTO player_stats ${sql(playerStats)}`;
   });
 
   afterEach(async () => {
@@ -347,7 +348,7 @@ describe('processNameChange', () => {
     await sql`DELETE FROM challenge_players`;
     await sql`DELETE FROM challenges`;
     await sql`DELETE FROM api_keys`;
-    // sql`DELETE FROM player_stats`;
+    await sql`DELETE FROM player_stats`;
     await sql`DELETE FROM players`;
   });
 
@@ -397,49 +398,53 @@ describe('processNameChange', () => {
 
     expect(updatedChallengeParties).toEqual(expectedPartiesById);
 
-    //   // Stats accumulated by the new player should be migrated to the old player.
-    //   const expectedStats = [
-    //     {
-    //       playerId: oldPlayerId,
-    //       date: new Date('2024-04-20'),
-    //       completions: 5,
-    //       wipes: 1,
-    //       deaths: 8,
-    //       hammerBops: 9,
-    //     },
-    //     {
-    //       playerId: oldPlayerId,
-    //       date: new Date('2024-04-21'),
-    //       completions: 7,
-    //       wipes: 2,
-    //       deaths: 12,
-    //       hammerBops: 10,
-    //     },
-    //     {
-    //       playerId: oldPlayerId,
-    //       date: new Date('2024-04-22'),
-    //       completions: 9,
-    //       wipes: 2,
-    //       deaths: 13,
-    //       hammerBops: 11,
-    //     },
-    //     {
-    //       playerId: oldPlayerId,
-    //       date: new Date('2024-04-23'),
-    //       completions: 12,
-    //       wipes: 4,
-    //       deaths: 16,
-    //       hammerBops: 11,
-    //     },
-    //   ];
-    //   const updatedPlayerStats = await PlayerStatsModel.find({}, undefined, {
-    //     sort: { date: 1 },
-    //   })
-    //     .lean()
-    //     .exec();
-    //   updatedPlayerStats.forEach((stats, index) => {
-    //     expect(stats).toMatchObject(expectedStats[index]);
-    //   });
+    // Stats accumulated by the new player should be migrated to the old player.
+    const expectedStats = [
+      {
+        player_id: oldPlayerId,
+        date: new Date('2024-04-20'),
+        tob_completions: 5,
+        tob_wipes: 1,
+        deaths_total: 8,
+        hammer_bops: 9,
+      },
+      {
+        player_id: oldPlayerId,
+        date: new Date('2024-04-21'),
+        tob_completions: 7,
+        tob_wipes: 2,
+        deaths_total: 12,
+        hammer_bops: 10,
+      },
+      {
+        player_id: oldPlayerId,
+        date: new Date('2024-04-22'),
+        tob_completions: 9,
+        tob_wipes: 2,
+        deaths_total: 13,
+        hammer_bops: 11,
+      },
+      {
+        player_id: oldPlayerId,
+        date: new Date('2024-04-23'),
+        tob_completions: 12,
+        tob_wipes: 4,
+        deaths_total: 16,
+        hammer_bops: 11,
+      },
+    ];
+    const updatedPlayerStats = await sql`
+        SELECT
+          player_id,
+          date,
+          tob_completions,
+          tob_wipes,
+          deaths_total,
+          hammer_bops
+        FROM player_stats
+        ORDER BY date
+      `;
+    expect(updatedPlayerStats).toEqual(expectedStats);
 
     const expectedApiKeys = [
       { player_id: oldPlayerId, key: 'old-key' },
@@ -481,20 +486,19 @@ describe('processNameChange', () => {
       SELECT 1 FROM players WHERE id = ${newPlayerId}
     `;
     expect(newPlayerExists).toBeUndefined();
-    //   const newPlayerStats = await PlayerStatsModel.countDocuments({
-    //     playerId: newPlayerId,
-    //   });
-    //   expect(newPlayerStats).toBe(0);
-    const [newPlayerChallengesCount] = await sql`
+    const [newPlayerStats] = await sql`
+      SELECT COUNT(*) FROM player_stats WHERE player_id = ${newPlayerId}
+    `;
+    expect(parseInt(newPlayerStats.count)).toBe(0);
+    const [newPlayerChallenges] = await sql`
       SELECT COUNT(*) FROM challenge_players WHERE player_id = ${newPlayerId}
     `;
-    expect(parseInt(newPlayerChallengesCount.count)).toBe(0);
+    expect(parseInt(newPlayerChallenges.count)).toBe(0);
 
     const updatedRequest = await loadNameChangeRequest(id);
     expect(updatedRequest!.status).toBe(NameChangeStatus.ACCEPTED);
     expect(updatedRequest!.processedAt).not.toBeNull();
-    // expect(updatedRequest!.migratedDocuments).toBe(10);
-    expect(updatedRequest!.migratedDocuments).toBe(8);
+    expect(updatedRequest!.migratedDocuments).toBe(10);
   });
 
   it('succeeds when a player has previously existed with the new name', async () => {
@@ -540,24 +544,18 @@ describe('processNameChange', () => {
       INSERT INTO personal_bests (player_id, challenge_split_id)
       VALUES (${newPlayerId}, ${splitIds[0]})
     `;
-    //   await PlayerStatsModel.insertMany([
-    //     {
-    //       playerId: newPlayerId,
-    //       date: new Date('2024-03-20'),
-    //       completions: 1,
-    //       wipes: 0,
-    //       deaths: 0,
-    //       hammerBops: 0,
-    //     },
-    //     {
-    //       playerId: newPlayerId,
-    //       date: new Date('2024-03-21'),
-    //       completions: 2,
-    //       wipes: 0,
-    //       deaths: 1,
-    //       hammerBops: 1,
-    //     },
-    //   ]);
+    await sql`
+      INSERT INTO player_stats (
+        player_id,
+        date,
+        tob_completions,
+        tob_wipes,
+        deaths_total,
+        hammer_bops
+      ) VALUES
+        (${newPlayerId}, ${new Date('2024-03-20')}, 1, 0, 0, 0),
+        (${newPlayerId}, ${new Date('2024-03-21')}, 2, 0, 1, 1)
+    `;
 
     // Mock the OSRS Hiscores API responses.
     // First response (old player): doesn't exist.
@@ -610,64 +608,68 @@ describe('processNameChange', () => {
     expect(updatedChallengeParties).toEqual(expectedPartiesById);
 
     // Stats accumulated by the new player should be migrated to the old player.
-    //   const expectedStats = [
-    //     {
-    //       playerId: newPlayerId,
-    //       date: new Date('2024-03-20'),
-    //       completions: 1,
-    //       wipes: 0,
-    //       deaths: 0,
-    //       hammerBops: 0,
-    //     },
-    //     {
-    //       playerId: newPlayerId,
-    //       date: new Date('2024-03-21'),
-    //       completions: 2,
-    //       wipes: 0,
-    //       deaths: 1,
-    //       hammerBops: 1,
-    //     },
-    //     {
-    //       playerId: oldPlayerId,
-    //       date: new Date('2024-04-20'),
-    //       completions: 5,
-    //       wipes: 1,
-    //       deaths: 8,
-    //       hammerBops: 9,
-    //     },
-    //     {
-    //       playerId: oldPlayerId,
-    //       date: new Date('2024-04-21'),
-    //       completions: 7,
-    //       wipes: 2,
-    //       deaths: 12,
-    //       hammerBops: 10,
-    //     },
-    //     {
-    //       playerId: oldPlayerId,
-    //       date: new Date('2024-04-22'),
-    //       completions: 7,
-    //       wipes: 2,
-    //       deaths: 12,
-    //       hammerBops: 10,
-    //     },
-    //     {
-    //       playerId: oldPlayerId,
-    //       date: new Date('2024-04-23'),
-    //       completions: 10,
-    //       wipes: 4,
-    //       deaths: 15,
-    //       hammerBops: 10,
-    //     },
-    //   ];
-    //   const updatedPlayerStats = await PlayerStatsModel.find({}, undefined, {
-    //     sort: { date: 1 },
-    //   })
-    //     .lean()
-    //     .exec();
-    //   updatedPlayerStats.forEach((stats, index) => {
-    //     expect(stats).toMatchObject(expectedStats[index]);
-    //   });
+    const expectedStats = [
+      {
+        player_id: newPlayerId,
+        date: new Date('2024-03-20'),
+        tob_completions: 1,
+        tob_wipes: 0,
+        deaths_total: 0,
+        hammer_bops: 0,
+      },
+      {
+        player_id: newPlayerId,
+        date: new Date('2024-03-21'),
+        tob_completions: 2,
+        tob_wipes: 0,
+        deaths_total: 1,
+        hammer_bops: 1,
+      },
+      {
+        player_id: oldPlayerId,
+        date: new Date('2024-04-20'),
+        tob_completions: 5,
+        tob_wipes: 1,
+        deaths_total: 8,
+        hammer_bops: 9,
+      },
+      {
+        player_id: oldPlayerId,
+        date: new Date('2024-04-21'),
+        tob_completions: 7,
+        tob_wipes: 2,
+        deaths_total: 12,
+        hammer_bops: 10,
+      },
+      {
+        player_id: oldPlayerId,
+        date: new Date('2024-04-22'),
+        tob_completions: 7,
+        tob_wipes: 2,
+        deaths_total: 12,
+        hammer_bops: 10,
+      },
+      {
+        player_id: oldPlayerId,
+        date: new Date('2024-04-23'),
+        tob_completions: 10,
+        tob_wipes: 4,
+        deaths_total: 15,
+        hammer_bops: 10,
+      },
+    ];
+    const updatedPlayerStats = await sql`
+        SELECT
+          player_id,
+          date,
+          tob_completions,
+          tob_wipes,
+          deaths_total,
+          hammer_bops
+        FROM player_stats
+        ORDER BY date
+      `;
+    expect(updatedPlayerStats).toEqual(expectedStats);
 
     const expectedApiKeys = [
       { player_id: oldPlayerId, key: 'new-key' },
@@ -721,20 +723,19 @@ describe('processNameChange', () => {
     expect(newPlayer.total_recordings).toBe(2);
     expect(BigInt(newPlayer.overall_experience)).toBe(BigInt(0));
 
-    //   const newPlayerStats = await PlayerStatsModel.countDocuments({
-    //     playerId: newPlayerId,
-    //   });
-    //   expect(newPlayerStats).toBe(2);
-    //   const newPlayerChallenges = await RaidModel.countDocuments({
-    //     partyIds: newPlayerId,
-    //   });
-    //   expect(newPlayerChallenges).toBe(2);
+    const [newPlayerStats] = await sql`
+      SELECT COUNT(*) FROM player_stats WHERE player_id = ${newPlayerId}
+    `;
+    expect(parseInt(newPlayerStats.count)).toBe(2);
+    const [newPlayerChallenges] = await sql`
+      SELECT COUNT(*) FROM challenge_players WHERE player_id = ${newPlayerId}
+    `;
+    expect(parseInt(newPlayerChallenges.count)).toBe(2);
 
     const updatedRequest = await loadNameChangeRequest(id);
     expect(updatedRequest.status).toBe(NameChangeStatus.ACCEPTED);
     expect(updatedRequest.processedAt).not.toBeNull();
-    // expect(updatedRequest.migratedDocuments).toBe(11);
-    expect(updatedRequest.migratedDocuments).toBe(9);
+    expect(updatedRequest.migratedDocuments).toBe(11);
   });
 
   it('updates name without any migration if the new player has no data', async () => {

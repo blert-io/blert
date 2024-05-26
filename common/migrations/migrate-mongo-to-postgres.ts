@@ -4,7 +4,7 @@ import { mkdir, writeFile } from 'fs/promises';
 import { Empty as EmptyProto } from 'google-protobuf/google/protobuf/empty_pb';
 
 import { ApiKeyModel } from '../models/api-key';
-import { PlayerModel } from '../models/player';
+import { PlayerModel, PlayerStatsModel } from '../models/player';
 import { RaidModel } from '../models/raid';
 import { RoomEvent } from '../models/room-event';
 import { RecordedChallengeModel, UserModel } from '../models/user';
@@ -30,13 +30,12 @@ import {
   VerzikCrab,
   VerzikCrabSpawn,
   VerzikPhase,
+  PlayerAttack,
+  NpcAttack,
 } from '../raid-definitions';
+import { SplitType, tobSplitForMode } from '../personal-best';
 import {
-  LegacyPersonalBestType,
-  SplitType,
-  tobSplitForMode,
-} from '../personal-best';
-import {
+  BasicEventNpc,
   BloatDownEvent,
   Event,
   EventType,
@@ -65,6 +64,7 @@ import {
   ChallengeData as ChallengeDataProto,
   ChallengeEvents as ChallengeEventsProto,
 } from '../generated/challenge_storage_pb';
+import { Npc } from '../npcs/npc-id';
 
 type PersonalBest = {
   type: SplitType;
@@ -77,7 +77,96 @@ type PlayerInfo = {
   id: number;
   totalRecordings: number;
   personalBests: PersonalBest[];
+  stats: PlayerStatsRow[];
 };
+
+type PlayerStatsRow = {
+  player_id: number;
+  date: Date;
+
+  tob_completions: number;
+  tob_wipes: number;
+  tob_resets: number;
+
+  colosseum_completions: number;
+  colosseum_wipes: number;
+  colosseum_resets: number;
+
+  deaths_total: number;
+  deaths_maiden: number;
+  deaths_bloat: number;
+  deaths_nylocas: number;
+  deaths_sotetseg: number;
+  deaths_xarpus: number;
+  deaths_verzik: number;
+
+  hammer_bops: number;
+  bgs_smacks: number;
+  chally_pokes: number;
+  uncharged_scythe_swings: number;
+  ralos_autos: number;
+  elder_maul_smacks: number;
+
+  tob_barrages_without_proper_weapon: number;
+  tob_verzik_p1_troll_specs: number;
+  tob_verzik_p3_melees: number;
+
+  chins_thrown_total: number;
+  chins_thrown_black: number;
+  chins_thrown_red: number;
+  chins_thrown_grey: number;
+  chins_thrown_maiden: number;
+  chins_thrown_nylocas: number;
+  chins_thrown_value: number;
+  chins_thrown_incorrectly_maiden: number;
+};
+
+function newPlayerStatsRow(
+  playerId: number,
+  date: Date,
+  previous?: PlayerStatsRow,
+): PlayerStatsRow {
+  if (previous !== undefined) {
+    return {
+      ...previous,
+      date: startOfDateUtc(date),
+    };
+  }
+  return {
+    player_id: playerId,
+    date: startOfDateUtc(date),
+    tob_completions: 0,
+    tob_wipes: 0,
+    tob_resets: 0,
+    colosseum_completions: 0,
+    colosseum_wipes: 0,
+    colosseum_resets: 0,
+    deaths_total: 0,
+    deaths_maiden: 0,
+    deaths_bloat: 0,
+    deaths_nylocas: 0,
+    deaths_sotetseg: 0,
+    deaths_xarpus: 0,
+    deaths_verzik: 0,
+    hammer_bops: 0,
+    bgs_smacks: 0,
+    chally_pokes: 0,
+    uncharged_scythe_swings: 0,
+    ralos_autos: 0,
+    elder_maul_smacks: 0,
+    tob_barrages_without_proper_weapon: 0,
+    tob_verzik_p1_troll_specs: 0,
+    tob_verzik_p3_melees: 0,
+    chins_thrown_total: 0,
+    chins_thrown_black: 0,
+    chins_thrown_red: 0,
+    chins_thrown_grey: 0,
+    chins_thrown_maiden: 0,
+    chins_thrown_nylocas: 0,
+    chins_thrown_value: 0,
+    chins_thrown_incorrectly_maiden: 0,
+  };
+}
 
 async function migrateUsers(sql: postgres.Sql): Promise<Map<string, number>> {
   const users = await UserModel.find({}, {}, { sort: { _id: 1 } }).exec();
@@ -126,6 +215,7 @@ async function migratePlayers(
       id: players[0].id,
       totalRecordings: 0,
       personalBests: [],
+      stats: [],
     });
   }
 
@@ -204,119 +294,6 @@ type Split = {
   ticks: number;
   accurate?: boolean;
 };
-
-function legacyPersonalBestToSplitType(pb: LegacyPersonalBestType): SplitType {
-  switch (pb) {
-    case LegacyPersonalBestType.TOB_ENTRY_CHALLENGE:
-      return SplitType.TOB_ENTRY_CHALLENGE;
-    case LegacyPersonalBestType.TOB_REG_CHALLENGE:
-      return SplitType.TOB_REG_CHALLENGE;
-    case LegacyPersonalBestType.TOB_HM_CHALLENGE:
-      return SplitType.TOB_HM_CHALLENGE;
-    case LegacyPersonalBestType.TOB_ENTRY_OVERALL:
-      return SplitType.TOB_ENTRY_OVERALL;
-    case LegacyPersonalBestType.TOB_REG_OVERALL:
-      return SplitType.TOB_REG_OVERALL;
-    case LegacyPersonalBestType.TOB_HM_OVERALL:
-      return SplitType.TOB_HM_OVERALL;
-    case LegacyPersonalBestType.TOB_ENTRY_MAIDEN:
-      return SplitType.TOB_ENTRY_MAIDEN;
-    case LegacyPersonalBestType.TOB_REG_MAIDEN:
-      return SplitType.TOB_REG_MAIDEN;
-    case LegacyPersonalBestType.TOB_HM_MAIDEN:
-      return SplitType.TOB_HM_MAIDEN;
-    case LegacyPersonalBestType.TOB_ENTRY_BLOAT:
-      return SplitType.TOB_ENTRY_BLOAT;
-    case LegacyPersonalBestType.TOB_REG_BLOAT:
-      return SplitType.TOB_REG_BLOAT;
-    case LegacyPersonalBestType.TOB_HM_BLOAT:
-      return SplitType.TOB_HM_BLOAT;
-    case LegacyPersonalBestType.TOB_ENTRY_NYLO_ROOM:
-      return SplitType.TOB_ENTRY_NYLO_ROOM;
-    case LegacyPersonalBestType.TOB_REG_NYLO_ROOM:
-      return SplitType.TOB_REG_NYLO_ROOM;
-    case LegacyPersonalBestType.TOB_HM_NYLO_ROOM:
-      return SplitType.TOB_HM_NYLO_ROOM;
-    case LegacyPersonalBestType.TOB_ENTRY_NYLO_BOSS_SPAWN:
-      return SplitType.TOB_ENTRY_NYLO_BOSS_SPAWN;
-    case LegacyPersonalBestType.TOB_REG_NYLO_BOSS_SPAWN:
-      return SplitType.TOB_REG_NYLO_BOSS_SPAWN;
-    case LegacyPersonalBestType.TOB_HM_NYLO_BOSS_SPAWN:
-      return SplitType.TOB_HM_NYLO_BOSS_SPAWN;
-    case LegacyPersonalBestType.TOB_ENTRY_NYLO_BOSS:
-      return SplitType.TOB_ENTRY_NYLO_BOSS;
-    case LegacyPersonalBestType.TOB_REG_NYLO_BOSS:
-      return SplitType.TOB_REG_NYLO_BOSS;
-    case LegacyPersonalBestType.TOB_HM_NYLO_BOSS:
-      return SplitType.TOB_HM_NYLO_BOSS;
-    case LegacyPersonalBestType.TOB_ENTRY_SOTETSEG:
-      return SplitType.TOB_ENTRY_SOTETSEG;
-    case LegacyPersonalBestType.TOB_REG_SOTETSEG:
-      return SplitType.TOB_REG_SOTETSEG;
-    case LegacyPersonalBestType.TOB_HM_SOTETSEG:
-      return SplitType.TOB_HM_SOTETSEG;
-    case LegacyPersonalBestType.TOB_ENTRY_XARPUS:
-      return SplitType.TOB_ENTRY_XARPUS;
-    case LegacyPersonalBestType.TOB_REG_XARPUS:
-      return SplitType.TOB_REG_XARPUS;
-    case LegacyPersonalBestType.TOB_HM_XARPUS:
-      return SplitType.TOB_HM_XARPUS;
-    case LegacyPersonalBestType.TOB_ENTRY_VERZIK_ROOM:
-      return SplitType.TOB_ENTRY_VERZIK_ROOM;
-    case LegacyPersonalBestType.TOB_REG_VERZIK_ROOM:
-      return SplitType.TOB_REG_VERZIK_ROOM;
-    case LegacyPersonalBestType.TOB_HM_VERZIK_ROOM:
-      return SplitType.TOB_HM_VERZIK_ROOM;
-    case LegacyPersonalBestType.TOB_ENTRY_VERZIK_P1:
-      return SplitType.TOB_ENTRY_VERZIK_P1;
-    case LegacyPersonalBestType.TOB_REG_VERZIK_P1:
-      return SplitType.TOB_REG_VERZIK_P1;
-    case LegacyPersonalBestType.TOB_HM_VERZIK_P1:
-      return SplitType.TOB_HM_VERZIK_P1;
-    case LegacyPersonalBestType.TOB_ENTRY_VERZIK_P2:
-      return SplitType.TOB_ENTRY_VERZIK_P2;
-    case LegacyPersonalBestType.TOB_REG_VERZIK_P2:
-      return SplitType.TOB_REG_VERZIK_P2;
-    case LegacyPersonalBestType.TOB_HM_VERZIK_P2:
-      return SplitType.TOB_HM_VERZIK_P2;
-    case LegacyPersonalBestType.TOB_ENTRY_VERZIK_P3:
-      return SplitType.TOB_ENTRY_VERZIK_P3;
-    case LegacyPersonalBestType.TOB_REG_VERZIK_P3:
-      return SplitType.TOB_REG_VERZIK_P3;
-    case LegacyPersonalBestType.TOB_HM_VERZIK_P3:
-      return SplitType.TOB_HM_VERZIK_P3;
-    case LegacyPersonalBestType.COLOSSEUM_CHALLENGE:
-      return SplitType.COLOSSEUM_CHALLENGE;
-    case LegacyPersonalBestType.COLOSSEUM_OVERALL:
-      return SplitType.COLOSSEUM_OVERALL;
-    case LegacyPersonalBestType.COLOSSEUM_WAVE_1:
-      return SplitType.COLOSSEUM_WAVE_1;
-    case LegacyPersonalBestType.COLOSSEUM_WAVE_2:
-      return SplitType.COLOSSEUM_WAVE_2;
-    case LegacyPersonalBestType.COLOSSEUM_WAVE_3:
-      return SplitType.COLOSSEUM_WAVE_3;
-    case LegacyPersonalBestType.COLOSSEUM_WAVE_4:
-      return SplitType.COLOSSEUM_WAVE_4;
-    case LegacyPersonalBestType.COLOSSEUM_WAVE_5:
-      return SplitType.COLOSSEUM_WAVE_5;
-    case LegacyPersonalBestType.COLOSSEUM_WAVE_6:
-      return SplitType.COLOSSEUM_WAVE_6;
-    case LegacyPersonalBestType.COLOSSEUM_WAVE_7:
-      return SplitType.COLOSSEUM_WAVE_7;
-    case LegacyPersonalBestType.COLOSSEUM_WAVE_8:
-      return SplitType.COLOSSEUM_WAVE_8;
-    case LegacyPersonalBestType.COLOSSEUM_WAVE_9:
-      return SplitType.COLOSSEUM_WAVE_9;
-    case LegacyPersonalBestType.COLOSSEUM_WAVE_10:
-      return SplitType.COLOSSEUM_WAVE_10;
-    case LegacyPersonalBestType.COLOSSEUM_WAVE_11:
-      return SplitType.COLOSSEUM_WAVE_11;
-    case LegacyPersonalBestType.COLOSSEUM_WAVE_12:
-      return SplitType.COLOSSEUM_WAVE_12;
-  }
-
-  throw new Error(`Invalid personal best type ${pb}`);
-}
 
 function getMaidenSplits(raid: OldTobRaid, raidId: number): Split[] {
   const maidenSplits = [];
@@ -1099,17 +1076,35 @@ function npcsForStage(challenge: Raid, stage: Stage): Map<string, RoomNpc> {
     const raid = challenge as OldTobRaid;
     switch (stage) {
       case Stage.TOB_MAIDEN:
-        return raid.tobRooms.maiden!.npcs as unknown as Map<string, RoomNpc>;
+        if (!raid.tobRooms.maiden) {
+          return new Map();
+        }
+        return raid.tobRooms.maiden.npcs as unknown as Map<string, RoomNpc>;
       case Stage.TOB_BLOAT:
-        return raid.tobRooms.bloat!.npcs as unknown as Map<string, RoomNpc>;
+        if (!raid.tobRooms.bloat) {
+          return new Map();
+        }
+        return raid.tobRooms.bloat.npcs as unknown as Map<string, RoomNpc>;
       case Stage.TOB_NYLOCAS:
-        return raid.tobRooms.nylocas!.npcs as unknown as Map<string, RoomNpc>;
+        if (!raid.tobRooms.nylocas) {
+          return new Map();
+        }
+        return raid.tobRooms.nylocas.npcs as unknown as Map<string, RoomNpc>;
       case Stage.TOB_SOTETSEG:
-        return raid.tobRooms.sotetseg!.npcs as unknown as Map<string, RoomNpc>;
+        if (!raid.tobRooms.sotetseg) {
+          return new Map();
+        }
+        return raid.tobRooms.sotetseg.npcs as unknown as Map<string, RoomNpc>;
       case Stage.TOB_XARPUS:
-        return raid.tobRooms.xarpus!.npcs as unknown as Map<string, RoomNpc>;
+        if (!raid.tobRooms.xarpus) {
+          return new Map();
+        }
+        return raid.tobRooms.xarpus.npcs as unknown as Map<string, RoomNpc>;
       case Stage.TOB_VERZIK:
-        return raid.tobRooms.verzik!.npcs as unknown as Map<string, RoomNpc>;
+        if (!raid.tobRooms.verzik) {
+          return new Map();
+        }
+        return raid.tobRooms.verzik.npcs as unknown as Map<string, RoomNpc>;
     }
   } else {
     const colo = challenge as ColosseumChallenge;
@@ -1118,6 +1113,121 @@ function npcsForStage(challenge: Raid, stage: Stage): Map<string, RoomNpc> {
   }
 
   return new Map();
+}
+
+function startOfDateUtc(date: Date = new Date()): Date {
+  date.setUTCHours(0);
+  date.setUTCMinutes(0);
+  date.setUTCSeconds(0);
+  date.setUTCMilliseconds(0);
+  return date;
+}
+
+function updateStatsForPlayerAttack(
+  event: PlayerAttackEvent,
+  stats: PlayerStatsRow,
+  npcs: Map<string, RoomNpc>,
+): void {
+  function isNyloOrTickFix(target?: BasicEventNpc): boolean {
+    if (!target) {
+      return false;
+    }
+
+    if (Npc.isVerzikMatomenos(target.id)) {
+      return true;
+    }
+
+    const roomNpc = npcs.get(target.roomId.toString());
+    if (roomNpc !== undefined && roomNpc.type === RoomNpcType.NYLO) {
+      const nylo = roomNpc as Nylo;
+      return nylo.nylo.wave > 26;
+    }
+
+    return false;
+  }
+
+  switch (event.attack.type) {
+    case PlayerAttack.HAMMER_BOP:
+      if (!isNyloOrTickFix(event.attack.target)) {
+        stats.hammer_bops++;
+      }
+      break;
+
+    case PlayerAttack.GODSWORD_SMACK:
+      if (!isNyloOrTickFix(event.attack.target)) {
+        stats.bgs_smacks++;
+      }
+      break;
+
+    case PlayerAttack.CHALLY_SWIPE:
+      if (!isNyloOrTickFix(event.attack.target)) {
+        stats.chally_pokes++;
+      }
+      break;
+
+    case PlayerAttack.SCYTHE_UNCHARGED:
+      stats.uncharged_scythe_swings++;
+      break;
+
+    case PlayerAttack.TONALZTICS_AUTO:
+      if (!isNyloOrTickFix(event.attack.target)) {
+        stats.ralos_autos++;
+      }
+      break;
+
+    case PlayerAttack.SANG_BARRAGE:
+    case PlayerAttack.SHADOW_BARRAGE:
+    case PlayerAttack.TOXIC_TRIDENT_BARRAGE:
+    case PlayerAttack.TRIDENT_BARRAGE:
+    case PlayerAttack.UNKNOWN_BARRAGE:
+      stats.tob_barrages_without_proper_weapon++;
+      break;
+
+    case PlayerAttack.CLAW_SPEC:
+    case PlayerAttack.BGS_SPEC:
+    case PlayerAttack.DINHS_SPEC:
+    case PlayerAttack.CHALLY_SPEC:
+    case PlayerAttack.HAMMER_SPEC:
+    case PlayerAttack.VOIDWAKER_SPEC:
+    case PlayerAttack.ELDER_MAUL_SPEC:
+    case PlayerAttack.TONALZTICS_SPEC:
+    case PlayerAttack.VOLATILE_NM_SPEC:
+      if (event.attack.target && Npc.isVerzikP1(event.attack.target.id)) {
+        stats.tob_verzik_p1_troll_specs++;
+      }
+      break;
+
+    case PlayerAttack.CHIN_BLACK:
+    case PlayerAttack.CHIN_GREY:
+    case PlayerAttack.CHIN_RED:
+      const isWrongThrowDistance =
+        event.attack.distanceToTarget !== -1 &&
+        (event.attack.distanceToTarget < 4 ||
+          event.attack.distanceToTarget > 6);
+
+      stats.chins_thrown_total += 1;
+
+      if (event.stage === Stage.TOB_MAIDEN) {
+        stats.chins_thrown_maiden += 1;
+      } else if (event.stage === Stage.TOB_NYLOCAS) {
+        stats.chins_thrown_nylocas += 1;
+      }
+
+      if (event.attack.type === PlayerAttack.CHIN_BLACK) {
+        stats.chins_thrown_black += 1;
+      } else if (event.attack.type === PlayerAttack.CHIN_RED) {
+        stats.chins_thrown_red += 1;
+      } else if (event.attack.type === PlayerAttack.CHIN_GREY) {
+        stats.chins_thrown_grey += 1;
+      }
+
+      if (event.attack.target !== undefined && isWrongThrowDistance) {
+        if (Npc.isMaidenMatomenos(event.attack.target.id)) {
+          stats.chins_thrown_incorrectly_maiden += 1;
+        }
+      }
+      break;
+  }
 }
 
 async function migrateRoomEvents(
@@ -1132,9 +1242,56 @@ async function migrateRoomEvents(
   for (const [challenge, challengeId] of challenges.values()) {
     ++i;
 
+    const statsForPlayer: Record<string, PlayerStatsRow> = {};
+
     const partyIndex: Record<string, number> = {};
     challenge.party.forEach((name, i) => {
       partyIndex[name] = i;
+
+      const player = players.get(challenge.partyIds[i].toString())!;
+      const statsForDay = player.stats.find(
+        (s) =>
+          s.date.getTime() === startOfDateUtc(challenge.startTime).getTime(),
+      );
+      if (statsForDay !== undefined) {
+        statsForPlayer[name.toLowerCase()] = statsForDay;
+      } else {
+        const previousStats =
+          player.stats.length > 0
+            ? player.stats[player.stats.length - 1]
+            : undefined;
+        const stats = newPlayerStatsRow(
+          player.id,
+          challenge.startTime,
+          previousStats,
+        );
+        player.stats.push(stats);
+        statsForPlayer[name.toLowerCase()] = stats;
+      }
+
+      switch (challenge.status) {
+        case ChallengeStatus.COMPLETED:
+          if (challenge.type === ChallengeType.TOB) {
+            statsForPlayer[name.toLowerCase()].tob_completions++;
+          } else {
+            statsForPlayer[name.toLowerCase()].colosseum_completions++;
+          }
+          break;
+        case ChallengeStatus.RESET:
+          if (challenge.type === ChallengeType.TOB) {
+            statsForPlayer[name.toLowerCase()].tob_resets++;
+          } else {
+            statsForPlayer[name.toLowerCase()].colosseum_resets++;
+          }
+          break;
+        case ChallengeStatus.WIPED:
+          if (challenge.type === ChallengeType.TOB) {
+            statsForPlayer[name.toLowerCase()].tob_wipes++;
+          } else {
+            statsForPlayer[name.toLowerCase()].colosseum_wipes++;
+          }
+          break;
+      }
     });
 
     const getPlayerId = (username: string): number | null => {
@@ -1163,118 +1320,160 @@ async function migrateRoomEvents(
       cId: challenge._id,
     }).exec();
 
-    const events: QueryableEvent[] = [];
+    const queryableEvents: QueryableEvent[] = [];
 
     const protoChallengeEvents = new Map<Stage, EventProto[]>();
 
     for (const event of roomEvents) {
-      if (event.acc) {
-        let evt = null;
+      let evt = null;
 
-        switch (event.type) {
-          case EventType.PLAYER_ATTACK: {
-            const e = event as PlayerAttackEvent;
-            evt = getBasicEventFields(challenge, challengeId, event);
-            evt.player_id = getPlayerId(event.player.name);
-            evt.subtype = e.attack.type;
-            if (e.attack.target) {
-              evt.npc_id = e.attack.target.id;
-            }
-            if (e.attack.weapon && e.attack.weapon.id) {
-              evt.custom_int_1 = e.attack.weapon.id;
-            }
-            evt.custom_short_1 = e.attack.distanceToTarget;
-            break;
+      switch (event.type) {
+        case EventType.PLAYER_ATTACK: {
+          const e = event as PlayerAttackEvent;
+          evt = getBasicEventFields(challenge, challengeId, event);
+          evt.player_id = getPlayerId(event.player.name);
+          evt.subtype = e.attack.type;
+          if (e.attack.target) {
+            evt.npc_id = e.attack.target.id;
           }
-          case EventType.PLAYER_DEATH: {
-            evt = getBasicEventFields(challenge, challengeId, event);
-            evt.player_id = getPlayerId(event.player.name);
-            break;
+          if (e.attack.weapon && e.attack.weapon.id) {
+            evt.custom_int_1 = e.attack.weapon.id;
           }
-          case EventType.NPC_SPAWN: {
-            const e = event as NpcEvent;
-            evt = getBasicEventFields(challenge, challengeId, event);
-            evt.npc_id = e.npc.id;
-            break;
-          }
-          case EventType.NPC_DEATH: {
-            const e = event as NpcEvent;
-            evt = getBasicEventFields(challenge, challengeId, event);
-            evt.npc_id = getNpcId(e.npc.id, e.npc.roomId, event.stage);
-            break;
-          }
-          case EventType.NPC_ATTACK: {
-            const e = event as NpcAttackEvent;
-            evt = getBasicEventFields(challenge, challengeId, event);
-            evt.subtype = e.npcAttack.attack;
-            evt.npc_id = getNpcId(e.npc.id, e.npc.roomId, event.stage);
-            if (e.npcAttack.target) {
-              evt.player_id = getPlayerId(e.npcAttack.target);
-            }
-            break;
-          }
-          case EventType.TOB_MAIDEN_CRAB_LEAK: {
-            const e = event as NpcEvent;
-            const hitpoints = SkillLevel.fromRaw(e.npc.hitpoints);
-            evt = getBasicEventFields(challenge, challengeId, event);
-            evt.npc_id = e.npc.id;
-            const roomNpc = npcsForStage(challenge, event.stage).get(
-              e.npc.roomId.toString(),
+          evt.custom_short_1 = e.attack.distanceToTarget;
+
+          if (e.player.name) {
+            updateStatsForPlayerAttack(
+              e,
+              statsForPlayer[e.player.name.toLowerCase()],
+              npcsForStage(challenge, event.stage),
             );
-            if (roomNpc && roomNpc.type === RoomNpcType.MAIDEN_CRAB) {
-              const maidenCrab = (roomNpc as MaidenCrab).maidenCrab;
-              evt.custom_int_1 = maidenCrab.spawn;
-              evt.custom_int_2 = maidenCrab.position;
-            }
-            evt.custom_short_1 = hitpoints.getCurrent();
-            evt.custom_short_2 = hitpoints.getBase();
-            break;
           }
-          case EventType.TOB_BLOAT_DOWN: {
-            const e = event as BloatDownEvent;
-            evt = getBasicEventFields(challenge, challengeId, event);
-            if (e.bloatDown.downNumber) {
-              evt.custom_short_1 = e.bloatDown.downNumber;
-            } else {
-              evt.custom_short_1 = assumeBloatDownNumber(e.tick);
-            }
-            evt.custom_short_2 = e.bloatDown.walkTime;
-            break;
-          }
-          case EventType.TOB_NYLO_WAVE_STALL: {
-            const e = event as NyloWaveStallEvent;
-            evt = getBasicEventFields(challenge, challengeId, event);
-            evt.custom_short_1 = e.nyloWave.wave;
-            evt.custom_short_2 = e.nyloWave.nylosAlive;
-            break;
-          }
-
-          case EventType.CHALLENGE_START:
-          case EventType.CHALLENGE_END:
-          case EventType.CHALLENGE_UPDATE:
-          case EventType.STAGE_UPDATE:
-          case EventType.PLAYER_UPDATE:
-          case EventType.NPC_UPDATE:
-          case EventType.TOB_MAIDEN_BLOOD_SPLATS:
-          case EventType.TOB_BLOAT_UP:
-          case EventType.TOB_NYLO_WAVE_SPAWN:
-          case EventType.TOB_NYLO_CLEANUP_END:
-          case EventType.TOB_NYLO_BOSS_SPAWN:
-          case EventType.TOB_SOTE_MAZE_PROC:
-          case EventType.TOB_SOTE_MAZE_PATH:
-          case EventType.TOB_SOTE_MAZE_END:
-          case EventType.TOB_XARPUS_PHASE:
-          case EventType.TOB_VERZIK_PHASE:
-          case EventType.TOB_VERZIK_ATTACK_STYLE:
-          case EventType.COLOSSEUM_HANDICAP_CHOICE:
-            // Not written to the database.
-            ++eventsSkipped;
-            break;
+          break;
         }
 
-        if (evt !== null) {
-          events.push(evt);
+        case EventType.PLAYER_DEATH: {
+          evt = getBasicEventFields(challenge, challengeId, event);
+          evt.player_id = getPlayerId(event.player.name);
+
+          const name = event.player.name.toLowerCase();
+          statsForPlayer[name].deaths_total++;
+          switch (event.stage) {
+            case Stage.TOB_MAIDEN:
+              statsForPlayer[name].deaths_maiden++;
+              break;
+            case Stage.TOB_BLOAT:
+              statsForPlayer[name].deaths_bloat++;
+              break;
+            case Stage.TOB_NYLOCAS:
+              statsForPlayer[name].deaths_nylocas++;
+              break;
+            case Stage.TOB_SOTETSEG:
+              statsForPlayer[name].deaths_sotetseg++;
+              break;
+            case Stage.TOB_XARPUS:
+              statsForPlayer[name].deaths_xarpus++;
+              break;
+            case Stage.TOB_VERZIK:
+              statsForPlayer[name].deaths_verzik++;
+              break;
+          }
+
+          break;
         }
+
+        case EventType.NPC_SPAWN: {
+          const e = event as NpcEvent;
+          evt = getBasicEventFields(challenge, challengeId, event);
+          evt.npc_id = e.npc.id;
+          break;
+        }
+
+        case EventType.NPC_DEATH: {
+          const e = event as NpcEvent;
+          evt = getBasicEventFields(challenge, challengeId, event);
+          evt.npc_id = getNpcId(e.npc.id, e.npc.roomId, event.stage);
+          break;
+        }
+
+        case EventType.NPC_ATTACK: {
+          const e = event as NpcAttackEvent;
+          evt = getBasicEventFields(challenge, challengeId, event);
+          evt.subtype = e.npcAttack.attack;
+          evt.npc_id = getNpcId(e.npc.id, e.npc.roomId, event.stage);
+          if (e.npcAttack.target) {
+            evt.player_id = getPlayerId(e.npcAttack.target);
+
+            if (e.npcAttack.attack === NpcAttack.TOB_VERZIK_P3_MELEE) {
+              statsForPlayer[e.npcAttack.target.toLowerCase()]
+                .tob_verzik_p3_melees++;
+            }
+          }
+          break;
+        }
+
+        case EventType.TOB_MAIDEN_CRAB_LEAK: {
+          const e = event as NpcEvent;
+          const hitpoints = SkillLevel.fromRaw(e.npc.hitpoints);
+          evt = getBasicEventFields(challenge, challengeId, event);
+          evt.npc_id = e.npc.id;
+          const roomNpc = npcsForStage(challenge, event.stage).get(
+            e.npc.roomId.toString(),
+          );
+          if (roomNpc && roomNpc.type === RoomNpcType.MAIDEN_CRAB) {
+            const maidenCrab = (roomNpc as MaidenCrab).maidenCrab;
+            evt.custom_int_1 = maidenCrab.spawn;
+            evt.custom_int_2 = maidenCrab.position;
+          }
+          evt.custom_short_1 = hitpoints.getCurrent();
+          evt.custom_short_2 = hitpoints.getBase();
+          break;
+        }
+
+        case EventType.TOB_BLOAT_DOWN: {
+          const e = event as BloatDownEvent;
+          evt = getBasicEventFields(challenge, challengeId, event);
+          if (e.bloatDown.downNumber) {
+            evt.custom_short_1 = e.bloatDown.downNumber;
+          } else {
+            evt.custom_short_1 = assumeBloatDownNumber(e.tick);
+          }
+          evt.custom_short_2 = e.bloatDown.walkTime;
+          break;
+        }
+
+        case EventType.TOB_NYLO_WAVE_STALL: {
+          const e = event as NyloWaveStallEvent;
+          evt = getBasicEventFields(challenge, challengeId, event);
+          evt.custom_short_1 = e.nyloWave.wave;
+          evt.custom_short_2 = e.nyloWave.nylosAlive;
+          break;
+        }
+
+        case EventType.CHALLENGE_START:
+        case EventType.CHALLENGE_END:
+        case EventType.CHALLENGE_UPDATE:
+        case EventType.STAGE_UPDATE:
+        case EventType.PLAYER_UPDATE:
+        case EventType.NPC_UPDATE:
+        case EventType.TOB_MAIDEN_BLOOD_SPLATS:
+        case EventType.TOB_BLOAT_UP:
+        case EventType.TOB_NYLO_WAVE_SPAWN:
+        case EventType.TOB_NYLO_CLEANUP_END:
+        case EventType.TOB_NYLO_BOSS_SPAWN:
+        case EventType.TOB_SOTE_MAZE_PROC:
+        case EventType.TOB_SOTE_MAZE_PATH:
+        case EventType.TOB_SOTE_MAZE_END:
+        case EventType.TOB_XARPUS_PHASE:
+        case EventType.TOB_VERZIK_PHASE:
+        case EventType.TOB_VERZIK_ATTACK_STYLE:
+        case EventType.COLOSSEUM_HANDICAP_CHOICE:
+          // Not written to the database.
+          ++eventsSkipped;
+          break;
+      }
+
+      if (event.acc && evt !== null) {
+        queryableEvents.push(evt);
       }
 
       if (!protoChallengeEvents.has(event.stage)) {
@@ -1285,7 +1484,7 @@ async function migrateRoomEvents(
         .push(buildEventProto(event, partyIndex, getNpcId));
     }
 
-    const broken = events.find((evt) => {
+    const broken = queryableEvents.find((evt) => {
       if (
         Object.keys(evt).some(
           (key) => evt[key as keyof QueryableEvent] === undefined,
@@ -1324,10 +1523,10 @@ async function migrateRoomEvents(
       throw new Error('Broken event');
     }
 
-    if (events.length > 0) {
+    if (queryableEvents.length > 0) {
       await sql`
         INSERT INTO queryable_events ${sql(
-          events,
+          queryableEvents,
           'challenge_id',
           'event_type',
           'stage',
@@ -1406,15 +1605,42 @@ async function migrateRoomEvents(
       );
     }
 
-    totalEventsMigrated += events.length;
+    totalEventsMigrated += queryableEvents.length;
     console.log(
-      `Migrated ${events.length} events for challenge ${challenge._id} [${i}/${challenges.size}]`,
+      `Migrated ${queryableEvents.length} events for challenge ${challenge._id} [${i}/${challenges.size}]`,
     );
   }
 
   console.log(
     `Migrated ${totalEventsMigrated}, skipped ${eventsSkipped} total events`,
   );
+}
+
+async function migratePlayerStats(
+  sql: postgres.Sql,
+  players: Map<string, PlayerInfo>,
+) {
+  const playerStats = await PlayerStatsModel.find({}).exec();
+
+  playerStats.forEach((stats) => {
+    const player = players.get(stats.playerId.toString());
+    if (player === undefined) {
+      return;
+    }
+    const statsForDay = player.stats.find(
+      (s) => s.date.getTime() === stats.date.getTime(),
+    );
+    if (statsForDay !== undefined) {
+      statsForDay.chins_thrown_value = stats.chinsThrownValue;
+    }
+  });
+
+  const allPlayers = Array.from(players.values());
+  for (const player of allPlayers) {
+    if (player.stats.length > 0) {
+      await sql`INSERT INTO player_stats ${sql(player.stats)}`;
+    }
+  }
 }
 
 type Proto<E> = E[keyof E];
@@ -1877,6 +2103,7 @@ async function main() {
   );
 
   await migrateRoomEvents(sql, challenges, players);
+  await migratePlayerStats(sql, players);
 }
 
 main()

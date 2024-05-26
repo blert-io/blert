@@ -8,72 +8,60 @@ import {
 
 import { sql } from './db';
 
-// async function updatePlayerStats(
-//   oldPlayerId: Types.ObjectId,
-//   newPlayerId: Types.ObjectId,
-//   fromDate: Date,
-// ): Promise<number> {
-//   const lastStats = await PlayerStatsModel.findOne({
-//     playerId: oldPlayerId,
-//     date: { $lte: fromDate },
-//   })
-//     .sort({ date: -1 })
-//     .lean()
-//     .exec();
+async function updatePlayerStats(
+  oldPlayerId: number,
+  newPlayerId: number,
+  fromDate: Date,
+): Promise<number> {
+  const [lastStats] = await sql`
+    SELECT *
+    FROM player_stats
+    WHERE player_id = ${oldPlayerId}
+    AND date <= ${fromDate}
+    ORDER BY date DESC
+    LIMIT 1
+  `;
 
-//   const newPlayerLastStats = await PlayerStatsModel.findOne({
-//     playerId: newPlayerId,
-//     date: { $lte: fromDate },
-//   })
-//     .sort({ date: -1 })
-//     .lean()
-//     .exec();
+  const [newPlayerLastStats] = await sql`
+    SELECT *
+    FROM player_stats
+    WHERE player_id = ${newPlayerId}
+    AND date <= ${fromDate}
+    ORDER BY date DESC
+    LIMIT 1
+  `;
 
-//   const statsToMigrate = await PlayerStatsModel.find({
-//     playerId: newPlayerId,
-//     date: { $gt: fromDate },
-//   }).exec();
+  const statsToMigrate = await sql`
+    SELECT *
+    FROM player_stats
+    WHERE player_id = ${newPlayerId}
+    AND date > ${fromDate}
+  `;
 
-//   const migrations: Array<Promise<any>> = [];
+  // Reassign the new player's stats to the old player, adjusting the values by
+  // the difference accumulated since the fromDate.
+  for (const stats of statsToMigrate) {
+    const newStats: Record<string, number> = {
+      player_id: oldPlayerId,
+    };
 
-//   // Reassign the new player's stats to the old player, adjusting the values by
-//   // the difference accumulated since the fromDate.
-//   statsToMigrate.forEach((stats) => {
-//     const asObject = stats.toObject();
-//     const newStats: Record<string, number> = {};
+    Object.entries(stats).forEach(([key, value]) => {
+      if (key === 'id' || key === 'player_id' || typeof value !== 'number') {
+        return;
+      }
+      const base = newPlayerLastStats?.[key] ?? 0;
+      const delta = value - base;
+      const old = lastStats?.[key] ?? 0;
+      newStats[key] = old + delta;
+    });
 
-//     Object.entries(asObject).forEach(([k, value]) => {
-//       const key = k as keyof PlayerStats;
-//       if (typeof value !== 'number') {
-//         return;
-//       }
+    await sql`
+      UPDATE player_stats SET ${sql(newStats)} WHERE id = ${stats.id}
+    `;
+  }
 
-//       const base = (newPlayerLastStats?.[key] as number | undefined) ?? 0;
-//       const delta = value - base;
-//       const old = (lastStats?.[key] as number | undefined) ?? 0;
-//       newStats[key] = old + delta;
-//     });
-
-//     migrations.push(
-//       PlayerStatsModel.updateOne(
-//         { _id: stats._id },
-//         {
-//           $set: {
-//             ...newStats,
-//             playerId: oldPlayerId,
-//           },
-//         },
-//       ).exec(),
-//     );
-//   });
-
-//   const { deletedCount } = await PlayerStatsModel.deleteMany({
-//     playerId: newPlayerId,
-//     date: { $gt: fromDate },
-//   });
-
-//   return statsToMigrate.length + deletedCount;
-// }
+  return statsToMigrate.length;
+}
 
 async function updateApiKeys(
   oldPlayerId: number,
@@ -396,15 +384,9 @@ export async function processNameChange(changeId: number) {
           challengesToUpdate,
           newPlayerPreviouslyExisted,
         ),
+        updatePlayerStats(playerId, newPlayer.id, updateFrom),
       ]);
 
-      //   const modifiedDocuments = await Promise.all([
-      //     updatePlayerStats(
-      //       playerId,
-      //       newPlayer.id,
-      //       lastRecordedChallenge.startTime,
-      //     ),
-      //   ]);
       challengesUpdated = challengesToUpdate.length;
       migratedDocuments += modifiedDocuments.reduce((a, b) => a + b, 0);
     }
@@ -510,14 +492,16 @@ class NameChangeProcessor {
       LIMIT ${NameChangeProcessor.NAME_CHANGES_PER_BATCH}
     `;
 
+    console.log(`Processing ${ids.length} name change requests`);
+
     for (const { id } of ids) {
       await processNameChange(id);
     }
 
-    // this.timeout = setTimeout(
-    //   () => this.processNameChangeBatch(),
-    //   NameChangeProcessor.NAME_CHANGE_PERIOD,
-    // );
+    this.timeout = setTimeout(
+      () => this.processNameChangeBatch(),
+      NameChangeProcessor.NAME_CHANGE_PERIOD,
+    );
   }
 }
 

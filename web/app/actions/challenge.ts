@@ -10,9 +10,7 @@ import {
   EventType,
   PersonalBest,
   Player,
-  PlayerModel,
   PlayerStats,
-  PlayerStatsModel,
   SplitType,
   Stage,
   TobRaid,
@@ -20,7 +18,7 @@ import {
 } from '@blert/common';
 import postgres from 'postgres';
 
-import connectToDatabase, { sql } from './db';
+import { sql } from './db';
 import {
   buildColosseumData,
   buildTobRooms,
@@ -145,7 +143,7 @@ export async function loadRecentChallenges(
       JOIN challenge_players ON challenges.id = challenge_players.challenge_id 
       JOIN players ON challenge_players.player_id = players.id
     `;
-    conditions.push(sql`lower(players.username) = ${username}`);
+    conditions.push(sql`lower(players.username) = ${username.toLowerCase()}`);
   } else {
     tables = sql`challenges`;
   }
@@ -261,8 +259,8 @@ export async function loadAggregateChallengeStats(
   );
 }
 
-export type PlayerWithStats = Omit<Player, '_id'> & {
-  stats: Omit<PlayerStats, 'playerId'>;
+export type PlayerWithStats = Pick<Player, 'username' | 'totalRecordings'> & {
+  stats: Omit<PlayerStats, 'playerId' | 'date'>;
 };
 
 /**
@@ -273,27 +271,60 @@ export type PlayerWithStats = Omit<Player, '_id'> & {
 export async function loadPlayerWithStats(
   username: string,
 ): Promise<PlayerWithStats | null> {
-  await connectToDatabase();
+  const [playerWithStats] = await sql`
+    SELECT
+      players.username,
+      players.total_recordings,
+      player_stats.*
+    FROM players
+    JOIN player_stats ON players.id = player_stats.player_id
+    WHERE lower(players.username) = ${username.toLowerCase()}
+    ORDER BY player_stats.date DESC
+    LIMIT 1
+  `;
 
-  username = username.toLowerCase();
-  const player = await PlayerModel.findOne({ username }).lean();
-  if (player === null) {
+  if (!playerWithStats) {
     return null;
   }
-  const stats = await PlayerStatsModel.findOne(
-    { playerId: player._id },
-    { _id: 0, playerId: 0 },
-    {
-      sort: { date: -1 },
+
+  return {
+    username: playerWithStats.username,
+    totalRecordings: playerWithStats.total_recordings,
+    stats: {
+      tobCompletions: playerWithStats.tob_completions,
+      tobWipes: playerWithStats.tob_wipes,
+      tobResets: playerWithStats.tob_resets,
+      colosseumCompletions: playerWithStats.colosseum_completions,
+      colosseumWipes: playerWithStats.colosseum_wipes,
+      colosseumResets: playerWithStats.colosseum_resets,
+      deathsTotal: playerWithStats.deaths_total,
+      deathsMaiden: playerWithStats.deaths_maiden,
+      deathsBloat: playerWithStats.deaths_bloat,
+      deathsNylocas: playerWithStats.deaths_nylocas,
+      deathsSotetseg: playerWithStats.deaths_sotetseg,
+      deathsXarpus: playerWithStats.deaths_xarpus,
+      deathsVerzik: playerWithStats.deaths_verzik,
+      bgsSmacks: playerWithStats.bgs_smacks,
+      hammerBops: playerWithStats.hammer_bops,
+      challyPokes: playerWithStats.chally_pokes,
+      unchargedScytheSwings: playerWithStats.uncharged_scythe_swings,
+      ralosAutos: playerWithStats.ralos_autos,
+      elderMaulSmacks: playerWithStats.elder_maul_smacks,
+      tobBarragesWithoutProperWeapon:
+        playerWithStats.tob_barrages_without_proper_weapon,
+      tobVerzikP1TrollSpecs: playerWithStats.tob_verzik_p1_troll_specs,
+      tobVerzikP3Melees: playerWithStats.tob_verzik_p3_melees,
+      chinsThrownTotal: playerWithStats.chins_thrown_total,
+      chinsThrownBlack: playerWithStats.chins_thrown_black,
+      chinsThrownRed: playerWithStats.chins_thrown_red,
+      chinsThrownGrey: playerWithStats.chins_thrown_grey,
+      chinsThrownMaiden: playerWithStats.chins_thrown_maiden,
+      chinsThrownNylocas: playerWithStats.chins_thrown_nylocas,
+      chinsThrownValue: playerWithStats.chins_thrown_value,
+      chinsThrownIncorrectlyMaiden:
+        playerWithStats.chins_thrown_incorrectly_maiden,
     },
-  ).lean();
-
-  if (stats === null) {
-    return null;
-  }
-
-  const { _id, ...playerWithoutId } = player;
-  return { ...playerWithoutId, stats };
+  };
 }
 
 export async function loadPbsForPlayer(
