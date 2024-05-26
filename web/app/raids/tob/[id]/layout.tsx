@@ -1,13 +1,12 @@
-import { ChallengeStatus, ChallengeType, stageName } from '@blert/common';
+import { ChallengeType } from '@blert/common';
 import { ResolvingMetadata } from 'next';
-
-import { TobContextProvider } from '../context';
 
 import { loadChallenge } from '@/actions/challenge';
 import { raidStatusNameAndColor } from '@/components/raid-quick-details';
+import { challengePageDescription } from '@/utils/challenge-description';
+import { TobContextProvider } from '../context';
 
 import styles from './style.module.scss';
-import { challengePageDescription } from '@/utils/challenge-description';
 
 type RaidParams = {
   id: string;

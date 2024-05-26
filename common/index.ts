@@ -81,6 +81,8 @@ export type {
   NyloOverview,
   NyloProperties,
   NyloSplits,
+  OldColosseumChallenge,
+  OldTobRaid,
   OldTobRooms,
   Raid,
   RawSkillLevel,

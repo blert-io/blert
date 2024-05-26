@@ -4,6 +4,7 @@ import {
   ChallengeType,
   ColosseumChallenge,
   ColosseumWave,
+  SplitType,
 } from '@blert/common';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -26,6 +27,7 @@ import { ChallengeContext } from '@/challenge-context';
 type WaveProps = {
   id: string;
   number: number;
+  ticks: number;
   wave: ColosseumWave;
 };
 
@@ -46,7 +48,7 @@ function Wave(props: WaveProps) {
           className="fa-solid fa-hourglass"
           style={{ position: 'relative', left: '4px' }}
         />
-        {ticksToFormattedSeconds(props.wave.ticks)}
+        {ticksToFormattedSeconds(props.ticks)}
       </span>
       <ul className={styles.handicapOptions}>
         {props.wave.options.map((option) => (
@@ -79,14 +81,6 @@ export default function Overview() {
     return <Loading />;
   }
 
-  const playersWithGear = challenge.party.map((player, i) => {
-    return {
-      name: player,
-      currentUsername: challenge.partyInfo[i].currentUsername,
-      primaryMeleeGear: challenge.partyInfo[i].gear,
-    };
-  });
-
   return (
     <div className={styles.colosseum}>
       <PvMContentLogo
@@ -99,7 +93,7 @@ export default function Overview() {
         stage={challenge.stage}
         status={challenge.status}
         mode={challenge.mode}
-        totalRaidTicks={challenge.totalTicks}
+        totalRaidTicks={challenge.challengeTicks}
         deaths={challenge.totalDeaths}
         partySize={challenge.party.length}
         startTime={challenge.startTime}
@@ -114,12 +108,20 @@ export default function Overview() {
         </ul>
       </div>
       <RaidTeamPanel
-        players={playersWithGear}
+        players={challenge.party}
         compactView={display.isCompact()}
       />
       <div className={styles.waves}>
         {challenge.colosseum.waves.map((wave, i) => (
-          <Wave key={i} id={challenge._id} number={i + 1} wave={wave} />
+          <Wave
+            key={i}
+            id={challenge.uuid}
+            number={i + 1}
+            wave={wave}
+            ticks={
+              challenge.splits[(SplitType.COLOSSEUM_WAVE_1 + i) as SplitType]!
+            }
+          />
         ))}
       </div>
     </div>

@@ -200,10 +200,28 @@ export function buildTobRooms(data: ChallengeData): TobRooms {
 }
 
 export function buildColosseumData(data: ChallengeData): ColosseumData {
-  return {
+  const colosseumData: ColosseumData = {
     handicaps: [],
     waves: [],
   };
+
+  if (data.hasColosseum()) {
+    const colo = data.getColosseum()!;
+
+    colosseumData.handicaps = colo.getAllHandicapsList();
+
+    colosseumData.waves = colo.getWavesList().map((wave) => ({
+      stage: wave.getStage(),
+      ticksLost: wave.getTicksLost(),
+      handicap: wave.getHandicapChosen(),
+      options: wave.getHandicapOptionsList(),
+      npcs: buildNpcsMap(wave.getNpcsList()),
+    }));
+
+    colosseumData.waves.sort((a, b) => a.stage - b.stage);
+  }
+
+  return colosseumData;
 }
 
 /**

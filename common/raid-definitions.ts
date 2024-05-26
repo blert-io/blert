@@ -60,6 +60,17 @@ export interface TobRaid extends Challenge {
   tobRooms: TobRooms;
 }
 
+export interface ColosseumChallenge extends Challenge {
+  type: ChallengeType.COLOSSEUM;
+  colosseum: ColosseumData;
+}
+
+interface StageData {
+  stage: Stage;
+  ticksLost: number;
+  npcs: RoomNpcMap;
+}
+
 export type TobRooms = {
   maiden: Nullable<TobRoom>;
   bloat: Nullable<TobRoom & { downTicks: number[] }>;
@@ -71,19 +82,16 @@ export type TobRooms = {
   verzik: Nullable<TobRoom & { redsSpawnCount: number }>;
 };
 
-type TobRoom = {
-  stage: Stage;
-  ticksLost: number;
+interface TobRoom extends StageData {
   deaths: string[];
-  npcs: RoomNpcMap;
-};
+}
 
 export type OldTobRaid = Raid & {
   type: ChallengeType.TOB;
   tobRooms: OldTobRooms;
 };
 
-export type ColosseumChallenge = Raid & {
+export type OldColosseumChallenge = Raid & {
   type: ChallengeType.COLOSSEUM;
   colosseum: ColosseumData;
 };
@@ -102,12 +110,10 @@ export type ColosseumData = {
   waves: ColosseumWave[];
 };
 
-export type ColosseumWave = {
-  ticks: number;
+export interface ColosseumWave extends StageData {
   handicap: Handicap;
   options: Handicap[];
-  npcs: RoomNpcMap;
-};
+}
 
 export const HANDICAP_LEVEL_VALUE_INCREMENT = 30;
 

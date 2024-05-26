@@ -1,7 +1,7 @@
 import { Document, Model, Schema, model, models } from 'mongoose';
 import {
   ColosseumData,
-  ColosseumChallenge,
+  OldColosseumChallenge,
   Challenge,
   OldTobRaid,
   OldTobRooms,
@@ -75,7 +75,7 @@ const PlayerInfo = {
 
 type AllRaids = Challenge &
   Omit<OldTobRaid, 'type'> &
-  Omit<ColosseumChallenge, 'type'>;
+  Omit<OldColosseumChallenge, 'type'>;
 
 const tobRoomsSchema = new Schema<OldTobRooms>(
   {
@@ -156,7 +156,9 @@ const tobRoomsSchema = new Schema<OldTobRooms>(
   { _id: false },
 );
 
-const colosseumWaveSchema = new Schema<ColosseumWave>(
+type ColosseumWaveSchema = ColosseumWave & { ticks: number };
+
+const colosseumWaveSchema = new Schema<ColosseumWaveSchema>(
   {
     ticks: Number,
     handicap: Number,
