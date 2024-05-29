@@ -709,6 +709,7 @@ function makeCellImage(playerAttack: Attack, size: number, memes: BlertMemes) {
 
       case PlayerAttack.GODSWORD_SMACK:
       case PlayerAttack.HAMMER_BOP:
+      case PlayerAttack.ELDER_MAUL:
         if (playerAttack.target !== undefined) {
           const npcId = playerAttack.target.id;
           if (!Npc.isNylocas(npcId) && !Npc.isVerzikMatomenos(npcId)) {

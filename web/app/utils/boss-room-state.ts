@@ -363,6 +363,7 @@ function computePlayerState(
 
       if (eventsForThisPlayer.length > 0) {
         playerStateThisTick = {
+          acc: true,
           xCoord: 0,
           yCoord: 0,
           tick,
@@ -415,6 +416,7 @@ function computePlayerState(
         });
       } else if (isDead) {
         playerStateThisTick = {
+          acc: true,
           xCoord: 0,
           yCoord: 0,
           tick,
