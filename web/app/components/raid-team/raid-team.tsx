@@ -20,7 +20,7 @@ export function RaidTeamPanel(props: TeamPanelProps) {
           <div className={styles.imageWrapper}>
             <Image
               className={styles.raid__PlayerImg}
-              src={`/${PrimaryMeleeGear[player.primaryGear].toLowerCase()}.webp`}
+              src={`/images/gear/${PrimaryMeleeGear[player.primaryGear].toLowerCase()}.webp`}
               alt={PrimaryMeleeGear[player.primaryGear].toLowerCase()}
               fill
               style={{ objectFit: 'contain' }}
@@ -35,7 +35,7 @@ export function RaidTeamPanel(props: TeamPanelProps) {
           <div className={styles.raid__PlayerName}>{player.username}</div>
           <Image
             className={styles.raid__PlayerImg}
-            src={`/${PrimaryMeleeGear[player.primaryGear].toLowerCase()}.webp`}
+            src={`/images/gear/${PrimaryMeleeGear[player.primaryGear].toLowerCase()}.webp`}
             alt={PrimaryMeleeGear[player.primaryGear].toLowerCase()}
             fill
             style={{ objectFit: 'contain' }}

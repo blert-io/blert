@@ -1,8 +1,4 @@
-import {
-  ChallengeType,
-  RecordedChallengeModel,
-  RecordingType,
-} from '@blert/common';
+import { ChallengeType, RecordingType } from '@blert/common';
 import {
   ChallengeMap,
   ChallengeMode,
@@ -524,11 +520,9 @@ export default class MessageHandler {
       return;
     }
 
-    const player = await Players.findById(client.getLinkedPlayerId(), {
-      username: 1,
-    });
+    const username = await Players.lookupUsername(client.getLinkedPlayerId());
 
-    if (player === null) {
+    if (username === null) {
       console.log(`${client} is not linked to a player; closing`);
       client.sendUnauthenticatedAndClose();
       return;
@@ -619,12 +613,11 @@ export default class MessageHandler {
       recordingType,
     );
 
-    const recordedChallenge = new RecordedChallengeModel({
-      recorderId: client.getUserId(),
-      cId: challenge.getId(),
+    await Users.addRecordedChallenge(
+      client.getUserId(),
+      challenge.getDatabaseId(),
       recordingType,
-    });
-    await recordedChallenge.save();
+    );
   }
 
   private async handleGameStateUpdate(
@@ -634,39 +627,28 @@ export default class MessageHandler {
     if (gameState.getState() === ServerMessage.GameState.State.LOGGED_IN) {
       const playerInfo = gameState.getPlayerInfo()!;
       const rsn = playerInfo.getUsername().toLowerCase();
-      const player = await Players.findById(client.getLinkedPlayerId(), {
-        username: 1,
-        formattedUsername: 1,
-      });
+      const username = await Players.lookupUsername(client.getLinkedPlayerId());
 
-      if (player === null) {
+      if (username === null) {
         client.sendUnauthenticatedAndClose();
         return;
       }
 
       client.setLoggedInRsn(rsn);
 
-      if (rsn !== player.username) {
+      if (rsn !== username.toLowerCase()) {
         const error = new ServerMessage();
         error.setType(ServerMessage.Type.ERROR);
         const rsnError = new ServerMessage.Error();
         rsnError.setType(ServerMessage.Error.Type.USERNAME_MISMATCH);
-        rsnError.setUsername(player.formattedUsername);
+        rsnError.setUsername(username);
         error.setError(rsnError);
         client.sendMessage(error);
       } else {
         // When a player logs in, request a confirmation of their active
         // challenge state to synchronize with the server.
         this.requestChallengeStateConfirmation(client, rsn);
-
-        if (
-          playerInfo.getUsername() !== '' &&
-          playerInfo.getOverallExperience() > 0
-        ) {
-          player.formattedUsername = playerInfo.getUsername();
-          player.overallExperience = playerInfo.getOverallExperience();
-          await player.save();
-        }
+        await Players.updateExperience(rsn, playerInfo.toObject());
       }
     } else {
       // Client has logged out.

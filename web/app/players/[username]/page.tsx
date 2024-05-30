@@ -112,7 +112,7 @@ export default async function Player(props: PlayerPageProps) {
       <div className={styles.playerPreview}>
         <div className={styles.playerImgWrapper}>
           <Image
-            src={`/${PrimaryMeleeGear[PrimaryMeleeGear.BLORVA].toLowerCase()}.webp`}
+            src={`/images/gear/${PrimaryMeleeGear[playersPrimaryMeleeGear].toLowerCase()}.webp`}
             alt={PrimaryMeleeGear[playersPrimaryMeleeGear].toLowerCase()}
             fill
             style={{ objectFit: 'contain' }}
@@ -181,20 +181,26 @@ export default async function Player(props: PlayerPageProps) {
             />
             <Statistic
               className={styles.individualStat}
+              name="Maul Bonks"
+              value={stats.elderMaulSmacks}
+              width={STATISTIC_WIDTH}
+            />
+            <Statistic
+              className={styles.individualStat}
               name="Chally Pokes"
               value={stats.challyPokes}
               width={STATISTIC_WIDTH}
             />
             <Statistic
               className={styles.individualStat}
-              name="Uncharged Scythes"
-              value={stats.unchargedScytheSwings}
+              name="Ralos Autos"
+              value={stats.ralosAutos}
               width={STATISTIC_WIDTH}
             />
             <Statistic
               className={styles.individualStat}
-              name="Ralos Autos"
-              value={stats.ralosAutos}
+              name="Uncharged Scythes"
+              value={stats.unchargedScytheSwings}
               width={STATISTIC_WIDTH}
             />
             <Statistic

@@ -1,26 +1,16 @@
+import { DataRepository } from '@blert/common';
 import cors from 'cors';
+import dotenv from 'dotenv';
 import { readFile } from 'fs/promises';
 import express, { Request } from 'express';
-import { connect } from 'mongoose';
 import { WebSocket, WebSocketServer } from 'ws';
 
+import ChallengeManager from './challenge-manager';
 import Client from './client';
 import ConnectionManager from './connection-manager';
 import MessageHandler from './message-handler';
-import ChallengeManager from './challenge-manager';
-import ServerManager, { ServerStatus } from './server-manager';
 import { PlayerManager } from './players';
-
-async function connectToDatabase() {
-  if (!process.env.DB_CONNECTION_STRING) {
-    console.error('No database host is configured');
-    process.exit(1);
-  }
-
-  await connect(process.env.DB_CONNECTION_STRING);
-
-  console.log(`Connecting to database at ${process.env.DB_HOST}`);
-}
+import ServerManager, { ServerStatus } from './server-manager';
 
 type ShutdownRequest = {
   shutdownTime?: number;
@@ -67,7 +57,7 @@ async function setupHttpRoutes(
 }
 
 async function main(): Promise<void> {
-  await connectToDatabase();
+  dotenv.config({ path: ['.env.local', `.env.${process.env.NODE_ENV}`] });
 
   let validPluginRevisions: Set<string> = new Set();
   if (process.env.BLERT_REVISIONS_FILE) {
@@ -86,7 +76,7 @@ async function main(): Promise<void> {
   app.use(cors({ origin: '*', allowedHeaders: ['Authorization'] }));
   app.use(express.json());
   const server = app.listen(port, () => {
-    console.log(`blert server started on port ${port}`);
+    console.log(`Blert webserver started on port ${port}`);
   });
 
   const wss = new WebSocketServer({ noServer: true });
@@ -130,10 +120,24 @@ async function main(): Promise<void> {
     }
   });
 
+  let repositoryBackend: DataRepository.Backend;
+  if (!process.env.BLERT_DATA_REPOSITORY) {
+    console.error('BLERT_DATA_REPOSITORY is not set');
+    process.exit(1);
+  } else if (process.env.BLERT_DATA_REPOSITORY.startsWith('file://')) {
+    const root = process.env.BLERT_DATA_REPOSITORY.slice('file://'.length);
+    console.log(`DataRepository using filesystem backend at ${root}`);
+    repositoryBackend = new DataRepository.FilesystemBackend(root);
+  } else {
+    throw new Error('Unimplemented');
+  }
+
+  const repository = new DataRepository(repositoryBackend);
+
   const connectionManager = new ConnectionManager();
   const serverManager = new ServerManager(connectionManager);
   const playerManager = new PlayerManager();
-  const challengeManager = new ChallengeManager(playerManager);
+  const challengeManager = new ChallengeManager(playerManager, repository);
   const messageHandler = new MessageHandler(challengeManager, playerManager);
 
   serverManager.onStatusUpdate(messageHandler.handleServerStatusUpdate);

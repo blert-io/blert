@@ -1,17 +1,14 @@
 import {
-  PlayerModel,
-  PlayerStatsModel,
   PlayerStats,
   Player,
-  PersonalBestType,
-  PersonalBestModel,
+  camelToSnakeObject,
+  CamelToSnakeCase,
+  camelToSnake,
 } from '@blert/common';
-import { HydratedDocument, Types } from 'mongoose';
 
-export type PlayerStatsWithoutPlayerOrDate = Omit<
-  PlayerStats,
-  'date' | 'playerId'
->;
+import sql from './db';
+
+export type ModifiablePlayerStats = Omit<PlayerStats, 'date' | 'playerId'>;
 
 function startOfDateUtc(): Date {
   let date = new Date();
@@ -22,12 +19,55 @@ function startOfDateUtc(): Date {
   return date;
 }
 
+type Experience = Pick<
+  Player,
+  | 'overallExperience'
+  | 'attackExperience'
+  | 'defenceExperience'
+  | 'strengthExperience'
+  | 'hitpointsExperience'
+  | 'rangedExperience'
+  | 'prayerExperience'
+  | 'magicExperience'
+>;
+
 export class Players {
-  public static async findById(
-    id: Types.ObjectId,
-    projection?: { [field in keyof Player]?: number },
-  ): Promise<HydratedDocument<Player> | null> {
-    return PlayerModel.findById(id, projection).exec();
+  public static async lookupUsername(id: number): Promise<string | null> {
+    const [player] = await sql`SELECT username FROM players WHERE id = ${id}`;
+    return player?.username ?? null;
+  }
+
+  /**
+   * Finds player IDs corresponding to usernames.
+   *
+   * @param usernames The usernames to look up.
+   * @returns The IDs of the players, in the same order as the input usernames.
+   */
+  public static async lookupIds(usernames: string[]): Promise<number[]> {
+    const rows = await sql`
+      SELECT id, username
+      FROM players
+      WHERE lower(username) = ANY(${usernames.map((u) => u.toLowerCase())})
+    `;
+    const result: number[] = [];
+    for (const username of usernames) {
+      const row = rows.find((r) => r.username === username);
+      if (row !== undefined) {
+        result.push(row.id);
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Finds the ID of a player by their username.
+   *
+   * @param username The player's username.
+   * @returns The player's ID, or null if the player does not exist.
+   */
+  public static async lookupId(username: string): Promise<number | null> {
+    const [id] = await Players.lookupIds([username]);
+    return id ?? null;
   }
 
   /**
@@ -39,160 +79,111 @@ export class Players {
   public static async create(
     username: string,
     initialFields?: Partial<Player>,
-  ): Promise<Types.ObjectId | null> {
-    const player = new PlayerModel({
-      ...initialFields,
-      username: username.toLowerCase(),
-      formattedUsername: username,
-    });
-    try {
-      player.save();
-      return player._id;
-    } catch (e) {
-      return null;
+  ): Promise<number | null> {
+    let fields: CamelToSnakeCase<Partial<Player>> = {};
+
+    if (initialFields !== undefined) {
+      fields = camelToSnakeObject(initialFields);
     }
+
+    fields.username = username;
+
+    const [player]: [{ id: number }?] = await sql`
+      INSERT INTO players ${sql(fields)} RETURNING id;
+    `;
+
+    return player?.id ?? null;
   }
 
-  public static async startNewRaid(
+  public static async startChallenge(username: string): Promise<number | null> {
+    const [player]: [{ id: number }?] = await sql`
+      UPDATE players
+      SET total_recordings = total_recordings + 1
+      WHERE lower(username) = ${username.toLowerCase()}
+      RETURNING id;
+    `;
+
+    if (player !== undefined) {
+      return player.id;
+    }
+
+    return await Players.create(username, { totalRecordings: 1 });
+  }
+
+  public static async updateExperience(
     username: string,
-  ): Promise<Types.ObjectId | null> {
-    const player = await PlayerModel.findOneAndUpdate(
-      { username: username.toLowerCase() },
-      { $inc: { totalRaidsRecorded: 1 } },
-    ).exec();
-
-    if (player !== null) {
-      return player._id;
-    }
-
-    return await Players.create(username, { totalRaidsRecorded: 1 });
-  }
-
-  /**
-   * Updates players' personal bests for a given category, if the provided time
-   * is better than their current personal bests.
-   *
-   * @param usernames The players.
-   * @param challengeId ID of the challenge in which the time was achieved.
-   * @param type Type of personal best.
-   * @param scale Raid scale.
-   * @param ticks The achieved time, in ticks.
-   */
-  public static async updatePersonalBests(
-    usernames: string[],
-    challengeId: string,
-    type: PersonalBestType,
-    scale: number,
-    ticks: number,
-  ): Promise<void> {
-    usernames = usernames.map((u) => u.toLowerCase());
-    const players = await PlayerModel.find(
-      { username: { $in: usernames } },
-      { _id: 1, username: 1 },
-    ).exec();
-    const playersById = new Map<string, string>();
-    players.forEach((p) => playersById.set(p._id.toString(), p.username));
-
-    let personalBests = await PersonalBestModel.find({
-      playerId: { $in: Array.from(playersById.keys()) },
-      type,
-      scale,
-    }).exec();
-
-    const promises = [];
-
-    for (const pb of personalBests) {
-      const username = playersById.get(pb.playerId.toString());
-      if (username === undefined) {
-        // A missing username indicates that the player already had a PB in the
-        // list and was deleted from the map in a previous iteration. Somehow,
-        // the player has multiple PBs for the same category. Correct this.
-        console.log(
-          `Duplicate PB (${type}, ${scale}) for ${pb.playerId.toString()}; deleting.`,
-        );
-        await pb.deleteOne().exec();
-        continue;
+    experience: Experience,
+  ) {
+    const updates: Partial<CamelToSnakeCase<Experience>> = {};
+    Object.keys(experience).forEach((key) => {
+      if (key.endsWith('Experience')) {
+        if (experience[key as keyof Experience] > 0) {
+          const k = camelToSnake(key) as keyof CamelToSnakeCase<Experience>;
+          updates[k] = experience[key as keyof Experience];
+        }
       }
-
-      if (ticks < pb.time) {
-        console.log(
-          `Updating PB for ${username} (${type}, ${scale}) to ${ticks}`,
-        );
-        pb.time = ticks;
-        pb.cId = challengeId;
-        promises.push(pb.save());
-      } else {
-        console.log(
-          `PB for ${username} (${type}, ${scale}) is already better: ${pb.time}`,
-        );
-      }
-
-      playersById.delete(pb.playerId.toString());
-    }
-
-    // Any remaining users are missing a personal best for this category; create
-    // one for them.
-    playersById.forEach((username, id) => {
-      console.log(`Setting PB for ${username} (${type}, ${scale}) to ${ticks}`);
-      const pb = new PersonalBestModel({
-        playerId: id,
-        type,
-        cId: challengeId,
-        scale,
-        time: ticks,
-      });
-      promises.push(pb.save());
     });
 
-    await Promise.all(promises);
+    await sql`
+      UPDATE players
+      SET ${sql(updates)}, last_updated = NOW()
+      WHERE lower(username) = ${username.toLowerCase()}
+    `;
   }
 
   /**
    * Modifies a player's stats in the database.
    *
-   * @param username The player whose stats to update.
-   * @param callback Updater function which modifies the stats in-place.
+   * @param playerId The ID of the player whose stats to update.
+   * @param statsIncrements The changes to apply to the player's stats.
    */
   public static async updateStats(
-    username: string,
-    callback: (stats: PlayerStatsWithoutPlayerOrDate) => void,
+    playerId: number,
+    statsIncrements: Partial<ModifiablePlayerStats>,
   ): Promise<void> {
-    username = username.toLowerCase();
-    const player = await PlayerModel.findOne({ username }, { _id: 1 }).exec();
-    if (player === null) {
-      console.error(`Failed to update stats for missing player ${username}`);
+    const startOfDay = startOfDateUtc();
+    const [lastStats] = await sql`
+      SELECT * FROM player_stats
+      WHERE player_id = ${playerId}
+      ORDER BY date DESC
+      LIMIT 1
+    `;
+
+    let insert = null;
+    if (lastStats === undefined) {
+      insert = {
+        ...camelToSnakeObject(statsIncrements),
+        date: startOfDay,
+        player_id: playerId,
+      };
+    } else if (lastStats.date.getTime() !== startOfDay.getTime()) {
+      delete lastStats.id;
+      const insert = {
+        ...(lastStats as CamelToSnakeCase<PlayerStats>),
+        date: startOfDay,
+      };
+
+      for (const key in statsIncrements) {
+        const k = camelToSnake(
+          key,
+        ) as keyof CamelToSnakeCase<ModifiablePlayerStats>;
+        insert[k] += statsIncrements[key as keyof ModifiablePlayerStats]!;
+      }
+    } else {
+      const updates = camelToSnakeObject(statsIncrements);
+      for (const key in updates) {
+        const k = key as keyof CamelToSnakeCase<ModifiablePlayerStats>;
+        updates[k] += lastStats[k];
+      }
+      await sql`
+        UPDATE player_stats SET ${sql(updates)} WHERE id = ${lastStats.id}
+      `;
       return;
     }
 
-    let playerStats = await PlayerStatsModel.findOne({ playerId: player._id })
-      .sort({ date: -1 })
-      .exec();
-
-    const startOfDay = startOfDateUtc();
-
-    if (playerStats !== null) {
-      // A new player stats object should be created each day. If the found
-      // object is from a previous date, create a new one, copying all fields.
-      const statsCreatedToday =
-        playerStats.date.getTime() === startOfDay.getTime();
-
-      if (!statsCreatedToday) {
-        let obj = playerStats.toObject() as any;
-        delete obj._id;
-        obj.date = startOfDay;
-        playerStats = new PlayerStatsModel(obj);
-      }
-    } else {
-      // No object exists, create a new one.
-      playerStats = new PlayerStatsModel({
-        playerId: player._id,
-        date: startOfDay,
-      });
+    if (insert !== null) {
+      await sql`INSERT INTO player_stats ${sql(insert)}`;
     }
-
-    callback(playerStats);
-
-    playerStats.save();
   }
 }
 
