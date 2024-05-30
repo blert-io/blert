@@ -1,4 +1,4 @@
-import { ChallengeMode, ChallengeType } from '@blert/common';
+import { ChallengeMode, ChallengeType, DataRepository } from '@blert/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import { Challenge, challengePartyKey } from './challenge';
@@ -12,11 +12,13 @@ export default class ChallengeManager {
   private challengesByPartyKey: Map<string, Challenge[]>;
 
   private playerManager: PlayerManager;
+  private dataRepository: DataRepository;
 
-  constructor(playerManager: PlayerManager) {
+  constructor(playerManager: PlayerManager, dataRepository: DataRepository) {
     this.challengesById = new Map();
     this.challengesByPartyKey = new Map();
     this.playerManager = playerManager;
+    this.dataRepository = dataRepository;
   }
 
   /**
@@ -115,10 +117,21 @@ export default class ChallengeManager {
 
     switch (type) {
       case ChallengeType.TOB:
-        return new TheatreChallenge(id, party, mode, startTime);
+        return new TheatreChallenge(
+          this.dataRepository,
+          id,
+          party,
+          mode,
+          startTime,
+        );
 
       case ChallengeType.COLOSSEUM:
-        return new ColosseumChallenge(id, party, startTime);
+        return new ColosseumChallenge(
+          this.dataRepository,
+          id,
+          party,
+          startTime,
+        );
 
       default:
         throw new Error(`Unimplemented challenge type: ${type}`);

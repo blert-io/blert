@@ -2,26 +2,32 @@ import {
   ChallengeMode,
   ChallengeStatus,
   ChallengeType,
+  ColosseumData,
+  DataRepository,
   HANDICAP_LEVEL_VALUE_INCREMENT,
   Handicap,
-  PersonalBestType,
-  RaidDocument,
-  RoomNpc,
+  SplitType,
   Stage,
   StageStatus,
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
 import { Challenge } from './challenge';
-import { Players } from './players';
 
 export default class ColosseumChallenge extends Challenge {
+  private colosseumData: ColosseumData;
   private handicapLevels: number[];
   private selectedHandicap: Handicap | null;
   private waveHandicapOptions: Handicap[];
 
-  constructor(id: string, party: string[], startTime: number) {
+  constructor(
+    dataRepository: DataRepository,
+    id: string,
+    party: string[],
+    startTime: number,
+  ) {
     super(
+      dataRepository,
       ChallengeType.COLOSSEUM,
       id,
       ChallengeMode.NO_MODE,
@@ -30,30 +36,25 @@ export default class ColosseumChallenge extends Challenge {
       Stage.COLOSSEUM_WAVE_1,
     );
 
+    this.colosseumData = {
+      waves: [],
+      handicaps: [],
+    };
     this.handicapLevels = Array(14).fill(0);
     this.selectedHandicap = null;
     this.waveHandicapOptions = [];
   }
 
-  protected override async onInitialize(document: RaidDocument): Promise<void> {
-    document.colosseum = {
-      handicaps: [],
-      waves: [],
-    };
+  protected override async onInitialize(): Promise<void> {
+    await this.getDataRepository().saveColosseumChallengeData(
+      this.getId(),
+      this.colosseumData,
+    );
   }
 
   protected override async onFinish(): Promise<void> {
     console.log(`Colosseum challenge ${this.getId()} finished`);
-
-    if (this.getChallengeStatus() === ChallengeStatus.COMPLETED) {
-      Players.updatePersonalBests(
-        this.getParty(),
-        this.getId(),
-        PersonalBestType.COLOSSEUM_CHALLENGE,
-        this.getStage(),
-        this.getTotalStageTicks(),
-      );
-    }
+    this.setSplit(SplitType.COLOSSEUM_CHALLENGE, this.getTotalStageTicks());
   }
 
   protected override async onStageEntered(): Promise<void> {
@@ -64,29 +65,27 @@ export default class ColosseumChallenge extends Challenge {
     event: Event,
     stageUpdate: Event.StageUpdate,
   ): Promise<void> {
-    const promises = [];
+    this.colosseumData.waves.push({
+      stage: this.getStage(),
+      // TODO(frolv): Track tick loss.
+      ticksLost: 0,
+      handicap: this.selectedHandicap ?? 0,
+      options: this.waveHandicapOptions,
+      npcs: Object.fromEntries(this.getStageNpcs()),
+    });
 
-    promises.push(
-      this.updateDatabaseFields((document) => {
-        document.colosseum.waves.push({
-          ticks: event.getTick(),
-          handicap: this.selectedHandicap ?? 0,
-          options: this.waveHandicapOptions,
-          // @ts-ignore: NPCs in the database are a map.
-          npcs: this.getStageNpcs(),
-        });
-      }),
-    );
+    const promises: Promise<any>[] = [
+      this.getDataRepository().saveColosseumChallengeData(
+        this.getId(),
+        this.colosseumData,
+      ),
+    ];
 
     // Set the status if the challenge were to be finished at this point.
     if (stageUpdate.getStatus() === StageStatus.WIPED) {
       this.setChallengeStatus(ChallengeStatus.WIPED);
-      // TODO(frolv): Handle deaths generally.
-      promises.push(
-        this.updateDatabaseFields((document) => {
-          document.totalDeaths = 1;
-        }),
-      );
+      // TODO(frolv): Send PLAYER_DEATH events in colosseum.
+      promises.push(this.updateChallenge({ totalDeaths: 1 }));
     } else if (this.getStage() === Stage.COLOSSEUM_WAVE_12) {
       this.setChallengeStatus(ChallengeStatus.COMPLETED);
     } else {
@@ -94,16 +93,9 @@ export default class ColosseumChallenge extends Challenge {
     }
 
     if (stageUpdate.getStatus() === StageStatus.COMPLETED) {
-      const stagePb = PersonalBestType.COLOSSEUM_WAVE_1 + this.getWaveIndex();
-
-      promises.push(
-        Players.updatePersonalBests(
-          this.getParty(),
-          this.getId(),
-          stagePb,
-          1,
-          event.getTick(),
-        ),
+      this.setSplit(
+        SplitType.COLOSSEUM_WAVE_1 + this.getWaveIndex(),
+        event.getTick(),
       );
     }
 
@@ -124,18 +116,20 @@ export default class ColosseumChallenge extends Challenge {
 
       this.handicapLevels[handicap]++;
 
-      await this.updateDatabaseFields((document) => {
-        const index = document.colosseum.handicaps.indexOf(
-          (this.selectedHandicap as number) - HANDICAP_LEVEL_VALUE_INCREMENT,
-        );
-        if (index !== -1) {
-          document.colosseum.handicaps[index] += HANDICAP_LEVEL_VALUE_INCREMENT;
-        } else {
-          document.colosseum.handicaps.push(handicap);
-        }
-      });
+      const index = this.colosseumData.handicaps.indexOf(
+        (this.selectedHandicap as number) - HANDICAP_LEVEL_VALUE_INCREMENT,
+      );
+      if (index !== -1) {
+        this.colosseumData.handicaps[index] += HANDICAP_LEVEL_VALUE_INCREMENT;
+      } else {
+        this.colosseumData.handicaps.push(handicap);
+      }
     }
     return true;
+  }
+
+  protected override hasFullyCompletedChallenge(): boolean {
+    return this.colosseumData.waves.length === 12;
   }
 
   /**

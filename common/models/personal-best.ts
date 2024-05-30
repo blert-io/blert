@@ -1,8 +1,8 @@
 import { model, models, Model, Schema, Types } from 'mongoose';
 
-import { PersonalBest } from '../personal-best';
-
-type PbSchema = PersonalBest & {
+type PbSchema = {
+  type: number;
+  scale: number;
   playerId: Types.ObjectId;
   cId: string;
   time: number;

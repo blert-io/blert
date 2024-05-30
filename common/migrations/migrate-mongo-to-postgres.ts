@@ -8,6 +8,7 @@ import { PlayerModel, PlayerStatsModel } from '../models/player';
 import { RaidModel } from '../models/raid';
 import { RoomEvent } from '../models/room-event';
 import { RecordedChallengeModel, UserModel } from '../models/user';
+import { QueryableEventField } from '../db/queryable-event';
 import {
   ChallengeMode,
   ChallengeStatus,
@@ -33,7 +34,7 @@ import {
   PlayerAttack,
   NpcAttack,
 } from '../raid-definitions';
-import { SplitType, tobSplitForMode } from '../personal-best';
+import { SplitType, adjustSplitForMode } from '../split';
 import {
   BasicEventNpc,
   BloatDownEvent,
@@ -308,7 +309,7 @@ function getMaidenSplits(raid: OldTobRaid, raidId: number): Split[] {
     maidenSplits.push({
       name: 'Maiden room time',
       challenge_id: raidId,
-      type: tobSplitForMode(SplitType.TOB_MAIDEN, raid.mode),
+      type: adjustSplitForMode(SplitType.TOB_MAIDEN, raid.mode),
       scale,
       ticks: maidenData.roomTicks,
       accurate: accurateMaidenData,
@@ -318,7 +319,7 @@ function getMaidenSplits(raid: OldTobRaid, raidId: number): Split[] {
       maidenSplits.push({
         name: 'Maiden 70s',
         challenge_id: raidId,
-        type: tobSplitForMode(SplitType.TOB_MAIDEN_70S, raid.mode),
+        type: adjustSplitForMode(SplitType.TOB_MAIDEN_70S, raid.mode),
         scale,
         ticks: maidenData.splits.SEVENTIES,
         accurate: accurateMaidenData,
@@ -328,7 +329,7 @@ function getMaidenSplits(raid: OldTobRaid, raidId: number): Split[] {
         maidenSplits.push({
           name: 'Maiden 50s',
           challenge_id: raidId,
-          type: tobSplitForMode(SplitType.TOB_MAIDEN_50S, raid.mode),
+          type: adjustSplitForMode(SplitType.TOB_MAIDEN_50S, raid.mode),
           scale,
           ticks: maidenData.splits.FIFTIES,
           accurate: accurateMaidenData,
@@ -337,7 +338,7 @@ function getMaidenSplits(raid: OldTobRaid, raidId: number): Split[] {
         maidenSplits.push({
           name: 'Maiden 70s-50s',
           challenge_id: raidId,
-          type: tobSplitForMode(SplitType.TOB_MAIDEN_70S_50S, raid.mode),
+          type: adjustSplitForMode(SplitType.TOB_MAIDEN_70S_50S, raid.mode),
           scale,
           ticks: maidenData.splits.FIFTIES - maidenData.splits.SEVENTIES,
           accurate: accurateMaidenData,
@@ -347,7 +348,7 @@ function getMaidenSplits(raid: OldTobRaid, raidId: number): Split[] {
           maidenSplits.push({
             name: 'Maiden 30s',
             challenge_id: raidId,
-            type: tobSplitForMode(SplitType.TOB_MAIDEN_30S, raid.mode),
+            type: adjustSplitForMode(SplitType.TOB_MAIDEN_30S, raid.mode),
             scale,
             ticks: maidenData.splits.THIRTIES,
             accurate: accurateMaidenData,
@@ -356,7 +357,7 @@ function getMaidenSplits(raid: OldTobRaid, raidId: number): Split[] {
           maidenSplits.push({
             name: 'Maiden 50s-30s',
             challenge_id: raidId,
-            type: tobSplitForMode(SplitType.TOB_MAIDEN_50S_30S, raid.mode),
+            type: adjustSplitForMode(SplitType.TOB_MAIDEN_50S_30S, raid.mode),
             scale,
             ticks: maidenData.splits.THIRTIES - maidenData.splits.FIFTIES,
             accurate: accurateMaidenData,
@@ -365,7 +366,7 @@ function getMaidenSplits(raid: OldTobRaid, raidId: number): Split[] {
           maidenSplits.push({
             name: 'Maiden 30s-end',
             challenge_id: raidId,
-            type: tobSplitForMode(SplitType.TOB_MAIDEN_30S_END, raid.mode),
+            type: adjustSplitForMode(SplitType.TOB_MAIDEN_30S_END, raid.mode),
             scale,
             ticks: maidenData.roomTicks - maidenData.splits.THIRTIES,
             accurate: accurateMaidenData,
@@ -391,7 +392,7 @@ function getBloatSplits(raid: OldTobRaid, raidId: number): Split[] {
     bloatSplits.push({
       name: 'Bloat room time',
       challenge_id: raidId,
-      type: tobSplitForMode(SplitType.TOB_BLOAT, raid.mode),
+      type: adjustSplitForMode(SplitType.TOB_BLOAT, raid.mode),
       scale,
       ticks: bloatData.roomTicks,
       accurate: accurateBloatData,
@@ -414,7 +415,7 @@ function getNylocasSplits(raid: OldTobRaid, raidId: number): Split[] {
     nylocasSplits.push({
       name: 'Nylocas room time',
       challenge_id: raidId,
-      type: tobSplitForMode(SplitType.TOB_NYLO_ROOM, raid.mode),
+      type: adjustSplitForMode(SplitType.TOB_NYLO_ROOM, raid.mode),
       scale,
       ticks: nylocasData.roomTicks,
       accurate: accurateNylocasData,
@@ -424,7 +425,7 @@ function getNylocasSplits(raid: OldTobRaid, raidId: number): Split[] {
       nylocasSplits.push({
         name: 'Nylocas cap increase',
         challenge_id: raidId,
-        type: tobSplitForMode(SplitType.TOB_NYLO_CAP, raid.mode),
+        type: adjustSplitForMode(SplitType.TOB_NYLO_CAP, raid.mode),
         scale,
         ticks: nylocasData.splits.capIncrease,
         accurate: accurateNylocasData,
@@ -435,7 +436,7 @@ function getNylocasSplits(raid: OldTobRaid, raidId: number): Split[] {
       nylocasSplits.push({
         name: 'Nylocas waves',
         challenge_id: raidId,
-        type: tobSplitForMode(SplitType.TOB_NYLO_WAVES, raid.mode),
+        type: adjustSplitForMode(SplitType.TOB_NYLO_WAVES, raid.mode),
         scale,
         ticks: nylocasData.splits.waves,
         accurate: accurateNylocasData,
@@ -446,7 +447,7 @@ function getNylocasSplits(raid: OldTobRaid, raidId: number): Split[] {
       nylocasSplits.push({
         name: 'Nylocas cleanup',
         challenge_id: raidId,
-        type: tobSplitForMode(SplitType.TOB_NYLO_CLEANUP, raid.mode),
+        type: adjustSplitForMode(SplitType.TOB_NYLO_CLEANUP, raid.mode),
         scale,
         ticks: nylocasData.splits.cleanup,
         accurate: accurateNylocasData,
@@ -457,7 +458,7 @@ function getNylocasSplits(raid: OldTobRaid, raidId: number): Split[] {
       nylocasSplits.push({
         name: 'Nylocas waves',
         challenge_id: raidId,
-        type: tobSplitForMode(SplitType.TOB_NYLO_BOSS_SPAWN, raid.mode),
+        type: adjustSplitForMode(SplitType.TOB_NYLO_BOSS_SPAWN, raid.mode),
         scale,
         ticks: nylocasData.splits.boss,
         accurate: accurateNylocasData,
@@ -466,7 +467,7 @@ function getNylocasSplits(raid: OldTobRaid, raidId: number): Split[] {
       nylocasSplits.push({
         name: 'Nylocas boss',
         challenge_id: raidId,
-        type: tobSplitForMode(SplitType.TOB_NYLO_BOSS, raid.mode),
+        type: adjustSplitForMode(SplitType.TOB_NYLO_BOSS, raid.mode),
         scale,
         ticks: nylocasData.roomTicks - nylocasData.splits.boss,
         accurate: accurateNylocasData,
@@ -490,7 +491,7 @@ function getSotetsegSplits(raid: OldTobRaid, raidId: number): Split[] {
     sotetsegSplits.push({
       name: 'Sotetseg room time',
       challenge_id: raidId,
-      type: tobSplitForMode(SplitType.TOB_SOTETSEG, raid.mode),
+      type: adjustSplitForMode(SplitType.TOB_SOTETSEG, raid.mode),
       scale,
       ticks: sotetsegData.roomTicks,
       accurate: accurateSotetsegData,
@@ -500,7 +501,7 @@ function getSotetsegSplits(raid: OldTobRaid, raidId: number): Split[] {
       sotetsegSplits.push({
         name: 'Sotetseg maze 66',
         challenge_id: raidId,
-        type: tobSplitForMode(SplitType.TOB_SOTETSEG_66, raid.mode),
+        type: adjustSplitForMode(SplitType.TOB_SOTETSEG_66, raid.mode),
         scale,
         ticks: sotetsegData.splits.MAZE_66,
         accurate: accurateSotetsegData,
@@ -510,7 +511,7 @@ function getSotetsegSplits(raid: OldTobRaid, raidId: number): Split[] {
         sotetsegSplits.push({
           name: 'Sotetseg maze 1',
           challenge_id: raidId,
-          type: tobSplitForMode(SplitType.TOB_SOTETSEG_MAZE_1, raid.mode),
+          type: adjustSplitForMode(SplitType.TOB_SOTETSEG_MAZE_1, raid.mode),
           scale,
           ticks: sotetsegData.maze66.ticks,
           accurate: accurateSotetsegData,
@@ -521,7 +522,7 @@ function getSotetsegSplits(raid: OldTobRaid, raidId: number): Split[] {
         sotetsegSplits.push({
           name: 'Sotetseg maze 33',
           challenge_id: raidId,
-          type: tobSplitForMode(SplitType.TOB_SOTETSEG_33, raid.mode),
+          type: adjustSplitForMode(SplitType.TOB_SOTETSEG_33, raid.mode),
           scale,
           ticks: sotetsegData.splits.MAZE_33,
           accurate: accurateSotetsegData,
@@ -533,7 +534,7 @@ function getSotetsegSplits(raid: OldTobRaid, raidId: number): Split[] {
           sotetsegSplits.push({
             name: 'Sotetseg P2',
             challenge_id: raidId,
-            type: tobSplitForMode(SplitType.TOB_SOTETSEG_P2, raid.mode),
+            type: adjustSplitForMode(SplitType.TOB_SOTETSEG_P2, raid.mode),
             scale,
             ticks: sotetsegData.splits.MAZE_33 - maze1End,
             accurate: accurateSotetsegData,
@@ -544,7 +545,7 @@ function getSotetsegSplits(raid: OldTobRaid, raidId: number): Split[] {
           sotetsegSplits.push({
             name: 'Sotetseg maze 2',
             challenge_id: raidId,
-            type: tobSplitForMode(SplitType.TOB_SOTETSEG_MAZE_2, raid.mode),
+            type: adjustSplitForMode(SplitType.TOB_SOTETSEG_MAZE_2, raid.mode),
             scale,
             ticks: sotetsegData.maze33.ticks,
             accurate: accurateSotetsegData,
@@ -555,7 +556,7 @@ function getSotetsegSplits(raid: OldTobRaid, raidId: number): Split[] {
           sotetsegSplits.push({
             name: 'Sotetseg P3',
             challenge_id: raidId,
-            type: tobSplitForMode(SplitType.TOB_SOTETSEG_P3, raid.mode),
+            type: adjustSplitForMode(SplitType.TOB_SOTETSEG_P3, raid.mode),
             scale,
             ticks: sotetsegData.roomTicks - maze2End,
             accurate: accurateSotetsegData,
@@ -581,7 +582,7 @@ function getXarpusSplits(raid: OldTobRaid, raidId: number): Split[] {
     xarpusSplits.push({
       name: 'Xarpus room time',
       challenge_id: raidId,
-      type: tobSplitForMode(SplitType.TOB_XARPUS, raid.mode),
+      type: adjustSplitForMode(SplitType.TOB_XARPUS, raid.mode),
       scale,
       ticks: xarpusData.roomTicks,
       accurate: accurateXarpusData,
@@ -591,7 +592,7 @@ function getXarpusSplits(raid: OldTobRaid, raidId: number): Split[] {
       xarpusSplits.push({
         name: 'Xarpus exhumes',
         challenge_id: raidId,
-        type: tobSplitForMode(SplitType.TOB_XARPUS_EXHUMES, raid.mode),
+        type: adjustSplitForMode(SplitType.TOB_XARPUS_EXHUMES, raid.mode),
         scale,
         ticks: xarpusData.splits.exhumes,
         accurate: accurateXarpusData,
@@ -602,7 +603,7 @@ function getXarpusSplits(raid: OldTobRaid, raidId: number): Split[] {
       xarpusSplits.push({
         name: 'Xarpus screech',
         challenge_id: raidId,
-        type: tobSplitForMode(SplitType.TOB_XARPUS_SCREECH, raid.mode),
+        type: adjustSplitForMode(SplitType.TOB_XARPUS_SCREECH, raid.mode),
         scale,
         ticks: xarpusData.splits.screech,
         accurate: accurateXarpusData,
@@ -611,7 +612,7 @@ function getXarpusSplits(raid: OldTobRaid, raidId: number): Split[] {
       xarpusSplits.push({
         name: 'Xarpus P2',
         challenge_id: raidId,
-        type: tobSplitForMode(SplitType.TOB_XARPUS_P2, raid.mode),
+        type: adjustSplitForMode(SplitType.TOB_XARPUS_P2, raid.mode),
         scale,
         ticks: xarpusData.splits.screech - xarpusData.splits.exhumes,
         accurate: accurateXarpusData,
@@ -620,7 +621,7 @@ function getXarpusSplits(raid: OldTobRaid, raidId: number): Split[] {
       xarpusSplits.push({
         name: 'Xarpus P3',
         challenge_id: raidId,
-        type: tobSplitForMode(SplitType.TOB_XARPUS_P3, raid.mode),
+        type: adjustSplitForMode(SplitType.TOB_XARPUS_P3, raid.mode),
         scale,
         ticks: xarpusData.roomTicks - xarpusData.splits.screech,
         accurate: accurateXarpusData,
@@ -645,7 +646,7 @@ function getVerzikSplits(raid: OldTobRaid, raidId: number): Split[] {
     verzikSplits.push({
       name: 'Verzik room time',
       challenge_id: raidId,
-      type: tobSplitForMode(SplitType.TOB_VERZIK_ROOM, raid.mode),
+      type: adjustSplitForMode(SplitType.TOB_VERZIK_ROOM, raid.mode),
       scale,
       ticks: verzikData.roomTicks,
       accurate: accurateVerzikData,
@@ -655,7 +656,7 @@ function getVerzikSplits(raid: OldTobRaid, raidId: number): Split[] {
       verzikSplits.push({
         name: 'Verzik P1',
         challenge_id: raidId,
-        type: tobSplitForMode(SplitType.TOB_VERZIK_P1_END, raid.mode),
+        type: adjustSplitForMode(SplitType.TOB_VERZIK_P1_END, raid.mode),
         scale,
         ticks: verzikData.splits.p1,
         accurate: accurateVerzikData,
@@ -665,7 +666,7 @@ function getVerzikSplits(raid: OldTobRaid, raidId: number): Split[] {
         verzikSplits.push({
           name: 'Verzik reds',
           challenge_id: raidId,
-          type: tobSplitForMode(SplitType.TOB_VERZIK_REDS, raid.mode),
+          type: adjustSplitForMode(SplitType.TOB_VERZIK_REDS, raid.mode),
           scale,
           ticks: verzikData.splits.reds,
           accurate: accurateVerzikData,
@@ -675,7 +676,7 @@ function getVerzikSplits(raid: OldTobRaid, raidId: number): Split[] {
           verzikSplits.push({
             name: 'Verzik P2 end',
             challenge_id: raidId,
-            type: tobSplitForMode(SplitType.TOB_VERZIK_P2_END, raid.mode),
+            type: adjustSplitForMode(SplitType.TOB_VERZIK_P2_END, raid.mode),
             scale,
             ticks: verzikData.splits.p2,
             accurate: accurateVerzikData,
@@ -684,7 +685,7 @@ function getVerzikSplits(raid: OldTobRaid, raidId: number): Split[] {
           verzikSplits.push({
             name: 'Verzik P2',
             challenge_id: raidId,
-            type: tobSplitForMode(SplitType.TOB_VERZIK_P2, raid.mode),
+            type: adjustSplitForMode(SplitType.TOB_VERZIK_P2, raid.mode),
             scale,
             ticks: verzikData.splits.p2 - (verzikData.splits.p1 + 13),
             accurate: accurateVerzikData,
@@ -693,7 +694,7 @@ function getVerzikSplits(raid: OldTobRaid, raidId: number): Split[] {
           verzikSplits.push({
             name: 'Verzik P3',
             challenge_id: raidId,
-            type: tobSplitForMode(SplitType.TOB_VERZIK_P3, raid.mode),
+            type: adjustSplitForMode(SplitType.TOB_VERZIK_P3, raid.mode),
             scale,
             ticks: verzikData.roomTicks - (verzikData.splits.p2 + 6),
             accurate: accurateVerzikData,
@@ -728,7 +729,7 @@ async function createChallengeSplits(
       splits.push({
         name: 'Challenge',
         challenge_id: id,
-        type: tobSplitForMode(SplitType.TOB_CHALLENGE, raid.mode),
+        type: adjustSplitForMode(SplitType.TOB_CHALLENGE, raid.mode),
         scale: raid.party.length,
         ticks: raid.totalTicks,
         accurate: true,
@@ -864,7 +865,10 @@ async function migrateChallenges(
       player_id: players.get(challenge.partyIds[i].toString())!.id,
       username: player,
       orb: i,
-      primary_gear: challenge.partyInfo[i]?.gear ?? PrimaryMeleeGear.BLORVA,
+      primary_gear:
+        challenge.partyInfo[i] !== undefined
+          ? challenge.partyInfo[i].gear + 1
+          : PrimaryMeleeGear.UNKNOWN,
     }));
 
     await sql`
@@ -1109,6 +1113,12 @@ function updateStatsForPlayerAttack(
       }
       break;
 
+    case PlayerAttack.ELDER_MAUL:
+      if (!isNyloOrTickFix(event.attack.target)) {
+        stats.elder_maul_smacks++;
+      }
+      break;
+
     case PlayerAttack.SCYTHE_UNCHARGED:
       stats.uncharged_scythe_swings++;
       break;
@@ -1281,9 +1291,10 @@ async function migrateRoomEvents(
             evt.npc_id = e.attack.target.id;
           }
           if (e.attack.weapon && e.attack.weapon.id) {
-            evt.custom_int_1 = e.attack.weapon.id;
+            evt[QueryableEventField.PLAYER_ATTACK_WEAPON] = e.attack.weapon.id;
           }
-          evt.custom_short_1 = e.attack.distanceToTarget;
+          evt[QueryableEventField.PLAYER_ATTACK_DISTANCE] =
+            e.attack.distanceToTarget;
 
           if (e.player.name) {
             updateStatsForPlayerAttack(
@@ -1365,11 +1376,15 @@ async function migrateRoomEvents(
           );
           if (roomNpc && roomNpc.type === RoomNpcType.MAIDEN_CRAB) {
             const maidenCrab = (roomNpc as MaidenCrab).maidenCrab;
-            evt.custom_int_1 = maidenCrab.spawn;
-            evt.custom_int_2 = maidenCrab.position;
+            evt[QueryableEventField.TOB_MAIDEN_CRAB_LEAK_SPAWN] =
+              maidenCrab.spawn;
+            evt[QueryableEventField.TOB_MAIDEN_CRAB_LEAK_POSITION] =
+              maidenCrab.position;
           }
-          evt.custom_short_1 = hitpoints.getCurrent();
-          evt.custom_short_2 = hitpoints.getBase();
+          evt[QueryableEventField.TOB_MAIDEN_CRAB_LEAK_CURRENT_HP] =
+            hitpoints.getCurrent();
+          evt[QueryableEventField.TOB_MAIDEN_CRAB_LEAK_BASE_HP] =
+            hitpoints.getBase();
           break;
         }
 
@@ -1377,19 +1392,23 @@ async function migrateRoomEvents(
           const e = event as BloatDownEvent;
           evt = getBasicEventFields(challenge, challengeId, event);
           if (e.bloatDown.downNumber) {
-            evt.custom_short_1 = e.bloatDown.downNumber;
+            evt[QueryableEventField.TOB_BLOAT_DOWN_NUMBER] =
+              e.bloatDown.downNumber;
           } else {
-            evt.custom_short_1 = assumeBloatDownNumber(e.tick);
+            evt[QueryableEventField.TOB_BLOAT_DOWN_NUMBER] =
+              assumeBloatDownNumber(e.tick);
           }
-          evt.custom_short_2 = e.bloatDown.walkTime;
+          evt[QueryableEventField.TOB_BLOAT_DOWN_WALK_TIME] =
+            e.bloatDown.walkTime;
           break;
         }
 
         case EventType.TOB_NYLO_WAVE_STALL: {
           const e = event as NyloWaveStallEvent;
           evt = getBasicEventFields(challenge, challengeId, event);
-          evt.custom_short_1 = e.nyloWave.wave;
-          evt.custom_short_2 = e.nyloWave.nylosAlive;
+          evt[QueryableEventField.TOB_NYLO_WAVE_NUMBER] = e.nyloWave.wave;
+          evt[QueryableEventField.TOB_NYLO_WAVE_NYLO_COUNT] =
+            e.nyloWave.nylosAlive;
           break;
         }
 

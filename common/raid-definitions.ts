@@ -9,7 +9,7 @@ import {
   NpcAttack as NpcAttackProto,
   Stage as StageProto,
 } from './generated/event_pb';
-import { SplitType } from './personal-best';
+import { SplitType } from './split';
 
 type Nullable<T> = T | null;
 
@@ -82,7 +82,7 @@ export type TobRooms = {
   verzik: Nullable<TobRoom & { redsSpawnCount: number }>;
 };
 
-interface TobRoom extends StageData {
+export interface TobRoom extends StageData {
   deaths: string[];
 }
 
@@ -629,10 +629,11 @@ export enum VerzikPhase {
 }
 
 export enum PrimaryMeleeGear {
-  ELITE_VOID,
-  BANDOS,
-  TORVA,
-  BLORVA,
+  UNKNOWN = 0,
+  ELITE_VOID = 1,
+  BANDOS = 2,
+  TORVA = 3,
+  BLORVA = 4,
 }
 
 export type PlayerInfo = {

@@ -6,9 +6,9 @@ import {
   ChallengeStatus,
   ChallengeType,
   ColosseumChallenge,
+  DataRepository,
   Event,
   EventType,
-  PersonalBest,
   Player,
   PlayerStats,
   SplitType,
@@ -19,12 +19,7 @@ import {
 import postgres from 'postgres';
 
 import { sql } from './db';
-import {
-  buildColosseumData,
-  buildTobRooms,
-  loadChallengeData,
-  loadStageEventsData,
-} from './data-files';
+import dataRepository from './data-repository';
 
 function where(conditions: postgres.Fragment[]): postgres.Fragment {
   return conditions.length > 0
@@ -67,11 +62,7 @@ export async function loadChallenge(
     WHERE challenge_id = ${rawChallenge[0].id}
   `;
 
-  const [players, splits, challengeData] = await Promise.all([
-    playersQuery,
-    splitsQuery,
-    loadChallengeData(id),
-  ]);
+  const [players, splits] = await Promise.all([playersQuery, splitsQuery]);
 
   const splitsMap: Partial<Record<SplitType, number>> = {};
   splits.forEach((split) => {
@@ -96,13 +87,14 @@ export async function loadChallenge(
     splits: splitsMap,
   };
 
-  switch (challenge.type) {
+  switch (rawChallenge[0].type) {
     case ChallengeType.TOB:
-      (challenge as TobRaid).tobRooms = buildTobRooms(challengeData);
+      (challenge as TobRaid).tobRooms =
+        await dataRepository.loadTobChallengeData(id);
       break;
     case ChallengeType.COLOSSEUM:
       (challenge as ColosseumChallenge).colosseum =
-        buildColosseumData(challengeData);
+        await dataRepository.loadColosseumChallengeData(id);
       break;
   }
 
@@ -206,7 +198,7 @@ export async function loadEventsForStage(
   stage: Stage,
   type?: EventType,
 ): Promise<Event[]> {
-  const events = await loadStageEventsData(challengeId, stage);
+  const events = await dataRepository.loadStageEvents(challengeId, stage);
   if (type !== undefined) {
     return events.filter((e) => e.type === type);
   }
@@ -326,6 +318,13 @@ export async function loadPlayerWithStats(
     },
   };
 }
+
+export type PersonalBest = {
+  type: SplitType;
+  cid: string;
+  scale: number;
+  ticks: number;
+};
 
 export async function loadPbsForPlayer(
   username: string,

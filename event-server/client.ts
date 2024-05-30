@@ -120,7 +120,7 @@ export default class Client {
    * Returns the client's user ID.
    * @returns The user ID.
    */
-  public getUserId(): string {
+  public getUserId(): number {
     return this.user.id;
   }
 
@@ -136,7 +136,7 @@ export default class Client {
    * Returns ID of the Blert player linked to this client's API key.
    * @returns Player ID.
    */
-  public getLinkedPlayerId(): Types.ObjectId {
+  public getLinkedPlayerId(): number {
     return this.user.linkedPlayerId;
   }
 

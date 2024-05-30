@@ -5,7 +5,7 @@
   "private": true,
   "license": "MIT",
   "scripts": {
-    "generate-protos": "mkdir -p generated && grpc_tools_node_protoc -I protos protos/*.proto --plugin=protoc_gen_ts --js_out=import_style=commonjs:generated --ts_out=generated",
+    "generate-protos": "mkdir -p generated dist/generated && grpc_tools_node_protoc -I protos protos/*.proto --plugin=protoc_gen_ts --js_out=import_style=commonjs:generated --ts_out=generated && cp generated/*.d.ts dist/generated",
     "build": "npm run generate-protos && tsc",
     "migration:run": "tsc && node dist/migrations/migrate.js"
   },

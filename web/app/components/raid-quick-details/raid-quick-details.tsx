@@ -8,7 +8,8 @@ import {
 } from '@blert/common';
 import TimeAgo from 'react-timeago';
 
-import { ticksToFormattedSeconds } from '../../utils/tick';
+import { useClientOnly } from '@/hooks/client-only';
+import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import { raidStatusNameAndColor } from './status';
 
@@ -81,6 +82,8 @@ export function RaidQuickDetails(props: RaidQuickDetailsProps) {
     compactView,
   } = props;
 
+  const isClient = useClientOnly();
+
   const [statusString, statusColor] = raidStatusNameAndColor(status, stage);
   const [modeString, modeColor] = modeNameAndColor(type, mode);
   const iconForStatus = getIconForStatus(status);
@@ -127,7 +130,8 @@ export function RaidQuickDetails(props: RaidQuickDetailsProps) {
         {deaths !== 1 && 's'}
       </div>
       <div className={styles.raid__bulletpointDetail}>
-        <i className="fa-solid fa-clock"></i> <TimeAgo date={startTime} />
+        <i className="fa-solid fa-clock" />
+        {isClient && <TimeAgo date={startTime} />}
       </div>
     </div>
   );
