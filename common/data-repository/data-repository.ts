@@ -68,6 +68,17 @@ export class DataRepository {
     );
   }
 
+  public async saveChallengeDataProto(
+    uuid: string,
+    data: ChallengeData,
+  ): Promise<void> {
+    await this.backend.saveChallengeFile(
+      uuid,
+      DataRepository.CHALLENGE_FILE,
+      data,
+    );
+  }
+
   public async deleteChallenge(uuid: string): Promise<void> {
     return this.backend.deleteAllChallengeFiles(uuid);
   }
