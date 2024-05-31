@@ -712,7 +712,11 @@ function makeCellImage(playerAttack: Attack, size: number, memes: BlertMemes) {
       case PlayerAttack.ELDER_MAUL:
         if (playerAttack.target !== undefined) {
           const npcId = playerAttack.target.id;
-          if (!Npc.isNylocas(npcId) && !Npc.isVerzikMatomenos(npcId)) {
+          if (
+            !Npc.isNylocas(npcId) &&
+            !Npc.isVerzikMatomenos(npcId) &&
+            !Npc.isFremennikArcher(npcId)
+          ) {
             troll = true;
           }
         }

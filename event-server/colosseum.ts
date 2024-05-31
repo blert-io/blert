@@ -74,33 +74,24 @@ export default class ColosseumChallenge extends Challenge {
       npcs: Object.fromEntries(this.getStageNpcs()),
     });
 
-    const promises: Promise<any>[] = [
-      this.getDataRepository().saveColosseumChallengeData(
-        this.getId(),
-        this.colosseumData,
-      ),
-    ];
-
     // Set the status if the challenge were to be finished at this point.
     if (stageUpdate.getStatus() === StageStatus.WIPED) {
       this.setChallengeStatus(ChallengeStatus.WIPED);
-      // TODO(frolv): Send PLAYER_DEATH events in colosseum.
-      promises.push(this.updateChallenge({ totalDeaths: 1 }));
     } else if (this.getStage() === Stage.COLOSSEUM_WAVE_12) {
       this.setChallengeStatus(ChallengeStatus.COMPLETED);
     } else {
       this.setChallengeStatus(ChallengeStatus.RESET);
     }
 
-    if (stageUpdate.getStatus() === StageStatus.COMPLETED) {
-      this.setSplit(
-        SplitType.COLOSSEUM_WAVE_1 + this.getWaveIndex(),
-        event.getTick(),
-      );
-    }
+    this.setSplit(
+      SplitType.COLOSSEUM_WAVE_1 + this.getWaveIndex(),
+      event.getTick(),
+    );
 
-    await Promise.all(promises);
-    return;
+    await this.getDataRepository().saveColosseumChallengeData(
+      this.getId(),
+      this.colosseumData,
+    );
   }
 
   protected override async processChallengeEvent(
