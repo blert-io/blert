@@ -586,12 +586,19 @@ export default class MessageHandler {
         return;
     }
 
-    const challenge = await this.challengeManager.startOrJoin(
-      client,
-      challengeType,
-      challengeInfo.getMode(),
-      challengeInfo.getPartyList(),
-    );
+    let challenge: Challenge;
+    try {
+      challenge = await this.challengeManager.startOrJoin(
+        client,
+        challengeType,
+        challengeInfo.getMode(),
+        challengeInfo.getPartyList(),
+      );
+    } catch (e: any) {
+      console.error(`Failed to start or join challenge: ${e}`);
+      client.sendMessage(response);
+      return;
+    }
 
     response.setActiveChallengeId(challenge.getId());
     client.sendMessage(response);

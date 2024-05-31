@@ -1,3 +1,4 @@
+import { S3Client } from '@aws-sdk/client-s3';
 import { DataRepository } from '@blert/common';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -54,6 +55,39 @@ async function setupHttpRoutes(
     }
     res.json(serverManager.getStatus());
   });
+}
+
+/**
+ * Initializes the repository for Blert's static challenge data files, with a
+ * backend set based on the BLERT_DATA_REPOSITORY environment variable.
+ * @returns The initialized data repository.
+ */
+function initiliazeDataRepository(): DataRepository {
+  let repositoryBackend: DataRepository.Backend;
+  if (!process.env.BLERT_DATA_REPOSITORY) {
+    console.error('BLERT_DATA_REPOSITORY is not set');
+    process.exit(1);
+  } else if (process.env.BLERT_DATA_REPOSITORY.startsWith('file://')) {
+    const root = process.env.BLERT_DATA_REPOSITORY.slice('file://'.length);
+    console.log(`DataRepository using filesystem backend at ${root}`);
+    repositoryBackend = new DataRepository.FilesystemBackend(root);
+  } else if (process.env.BLERT_DATA_REPOSITORY.startsWith('s3://')) {
+    const s3Client = new S3Client({
+      forcePathStyle: false,
+      region: process.env.BLERT_REGION,
+      endpoint: process.env.BLERT_ENDPOINT,
+      credentials: {
+        accessKeyId: process.env.BLERT_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.BLERT_SECRET_ACCESS_KEY!,
+      },
+    });
+    const bucket = process.env.BLERT_DATA_REPOSITORY.slice('s3://'.length);
+    repositoryBackend = new DataRepository.S3Backend(s3Client, bucket);
+  } else {
+    throw new Error('Unknown repository backend');
+  }
+
+  return new DataRepository(repositoryBackend);
 }
 
 async function main(): Promise<void> {
@@ -120,19 +154,7 @@ async function main(): Promise<void> {
     }
   });
 
-  let repositoryBackend: DataRepository.Backend;
-  if (!process.env.BLERT_DATA_REPOSITORY) {
-    console.error('BLERT_DATA_REPOSITORY is not set');
-    process.exit(1);
-  } else if (process.env.BLERT_DATA_REPOSITORY.startsWith('file://')) {
-    const root = process.env.BLERT_DATA_REPOSITORY.slice('file://'.length);
-    console.log(`DataRepository using filesystem backend at ${root}`);
-    repositoryBackend = new DataRepository.FilesystemBackend(root);
-  } else {
-    throw new Error('Unimplemented');
-  }
-
-  const repository = new DataRepository(repositoryBackend);
+  const repository = initiliazeDataRepository();
 
   const connectionManager = new ConnectionManager();
   const serverManager = new ServerManager(connectionManager);

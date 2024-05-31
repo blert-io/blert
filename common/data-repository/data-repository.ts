@@ -1,3 +1,10 @@
+import {
+  DeleteObjectsCommand,
+  GetObjectCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { mkdir, readFile, rm, writeFile } from 'fs/promises';
 import { dirname } from 'path';
 import jspb from 'google-protobuf';
@@ -448,7 +455,7 @@ export namespace DataRepository {
   export class FilesystemBackend extends Backend {
     private root: string;
 
-    constructor(rootPath: string) {
+    public constructor(rootPath: string) {
       super();
       this.root = rootPath;
     }
@@ -476,6 +483,86 @@ export namespace DataRepository {
     }
   }
 
+  export class S3Backend extends Backend {
+    private client: S3Client;
+    private bucket: string;
+
+    public constructor(client: S3Client, bucket: string) {
+      super();
+      this.client = client;
+      this.bucket = bucket;
+    }
+
+    protected async read(relativePath: string): Promise<Uint8Array> {
+      const params = {
+        Bucket: this.bucket,
+        Key: relativePath,
+      };
+
+      try {
+        const response = await this.client.send(new GetObjectCommand(params));
+        if (response.Body === undefined) {
+          throw new DataRepository.NotFound(relativePath);
+        }
+        return await response.Body.transformToByteArray();
+      } catch (e: any) {
+        if (e.name === 'NoSuchKey') {
+          throw new DataRepository.NotFound(relativePath);
+        }
+        console.error(`Failed to read from S3: ${e}`);
+        throw new DataRepository.BackendError();
+      }
+    }
+
+    protected async write(
+      relativePath: string,
+      data: Uint8Array,
+    ): Promise<void> {
+      const params = {
+        Bucket: this.bucket,
+        Key: relativePath,
+        Body: data,
+      };
+
+      try {
+        await this.client.send(new PutObjectCommand(params));
+      } catch (e) {
+        console.error(`Failed to write to S3: ${e}`);
+        throw new DataRepository.BackendError();
+      }
+    }
+
+    protected async deleteDir(relativePath: string): Promise<void> {
+      const params = {
+        Bucket: this.bucket,
+        Prefix: relativePath,
+      };
+
+      try {
+        const response = await this.client.send(
+          new ListObjectsV2Command(params),
+        );
+        if (response.Contents === undefined) {
+          return;
+        }
+
+        const objects = response.Contents.map((obj) => ({ Key: obj.Key }));
+
+        if (objects.length > 0) {
+          await this.client.send(
+            new DeleteObjectsCommand({
+              Bucket: this.bucket,
+              Delete: { Objects: objects },
+            }),
+          );
+        }
+      } catch (e) {
+        console.error(`Failed to delete from S3: ${e}`);
+        throw new DataRepository.BackendError();
+      }
+    }
+  }
+
   export class NotFound extends Error {
     constructor(which: string) {
       super(`No challenge data found for ${which}`);
@@ -485,6 +572,12 @@ export namespace DataRepository {
   export class InvalidType extends Error {
     constructor() {
       super('Invalid challenge type');
+    }
+  }
+
+  export class BackendError extends Error {
+    constructor() {
+      super('Failed to read/write challenge data');
     }
   }
 }
