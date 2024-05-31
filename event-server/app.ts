@@ -62,11 +62,10 @@ async function setupHttpRoutes(
  * backend set based on the BLERT_DATA_REPOSITORY environment variable.
  * @returns The initialized data repository.
  */
-function initiliazeDataRepository(): DataRepository {
+function initializeDataRepository(): DataRepository {
   let repositoryBackend: DataRepository.Backend;
   if (!process.env.BLERT_DATA_REPOSITORY) {
-    console.error('BLERT_DATA_REPOSITORY is not set');
-    process.exit(1);
+    throw new Error('BLERT_DATA_REPOSITORY is not set');
   } else if (process.env.BLERT_DATA_REPOSITORY.startsWith('file://')) {
     const root = process.env.BLERT_DATA_REPOSITORY.slice('file://'.length);
     console.log(`DataRepository using filesystem backend at ${root}`);
@@ -154,7 +153,7 @@ async function main(): Promise<void> {
     }
   });
 
-  const repository = initiliazeDataRepository();
+  const repository = initializeDataRepository();
 
   const connectionManager = new ConnectionManager();
   const serverManager = new ServerManager(connectionManager);

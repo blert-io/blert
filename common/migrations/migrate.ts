@@ -1,44 +1,126 @@
 import fs from 'fs';
+import path from 'path';
 import postgres from 'postgres';
 
+async function ensureMigrationsTable(sql: postgres.Sql) {
+  try {
+    await sql`SELECT * FROM migrations LIMIT 1;`;
+  } catch (e: any) {
+    await sql`
+      CREATE TABLE migrations (name TEXT PRIMARY KEY, run_at TIMESTAMPTZ)
+    `;
+  }
+}
+
 async function migrateFile(sql: postgres.Sql, path: string, name: string) {
-  console.log(`Running migration "${name}"`);
   const { migrate } = await import(path);
   await migrate(sql);
 }
 
+const MIGRATION_TEMPLATE = `import { Sql } from 'postgres';
+
+export async function migrate(sql: Sql) {
+  // Write your migration here
+}
+`;
+
+function distToSrc(dir: string): string {
+  return dir
+    .split(path.sep)
+    .filter((p) => p !== 'dist')
+    .join(path.sep);
+}
+
+function distToSrcFile(file: string): string {
+  const dirname = path.dirname(file);
+  const basename = path.basename(file);
+  return `${distToSrc(dirname)}/${basename.replace(/\.js$/, '.ts')}`;
+}
+
+function createMigration(dir: string, name: string) {
+  const date = new Date();
+  let timestamp = date.getUTCFullYear().toString();
+  timestamp += (date.getUTCMonth() + 1).toString().padStart(2, '0');
+  timestamp += date.getUTCDate().toString().padStart(2, '0');
+  timestamp += date.getUTCHours().toString().padStart(2, '0');
+  timestamp += date.getUTCMinutes().toString().padStart(2, '0');
+  timestamp += date.getUTCSeconds().toString().padStart(2, '0');
+
+  const migrationName = `${timestamp}-${name}`;
+
+  const sourceFile = path.join(distToSrc(dir), `${migrationName}.ts`);
+
+  fs.writeFileSync(sourceFile, MIGRATION_TEMPLATE);
+
+  console.log(`Created migration ${migrationName} at ${sourceFile}`);
+}
+
 async function main() {
+  const migrationsDir = __dirname;
+
+  if (process.argv[2] === 'create') {
+    if (process.argv.length !== 4) {
+      throw new Error(`Usage: ${process.argv[1]} create <migration-name>`);
+    }
+    createMigration(migrationsDir, process.argv[3]);
+    return;
+  }
+
   if (!process.env.BLERT_DATABASE_URI) {
     throw new Error('BLERT_DATABASE_URI environment variable is required');
   }
 
   const sql = postgres(process.env.BLERT_DATABASE_URI);
 
-  const migrationsDir = __dirname;
-  const migrationFileRegex = /^\d{14}-([a-zA-Z0-9\-]+)\.js$/;
+  await ensureMigrationsTable(sql);
+  const [latestMigration] = await sql`
+    SELECT name FROM migrations ORDER BY name DESC LIMIT 1
+  `;
 
-  let migrationsRun = 0;
+  const migrationFileRegex = /^(\d{14}-[a-zA-Z0-9\-]+)\.js$/;
 
+  const migrationsToRun: Array<{ name: string; path: string }> = [];
   const files = fs.readdirSync(migrationsDir);
+
   for (const file of files) {
     const match = migrationFileRegex.exec(file);
     if (match === null) {
       continue;
     }
 
-    migrationsRun++;
-    const path = `${migrationsDir}/${file}`;
-    const migrationName = match[1];
+    const fullPath = path.join(migrationsDir, file);
+    if (!fs.existsSync(distToSrcFile(fullPath))) {
+      continue;
+    }
 
-    await migrateFile(sql, path, migrationName);
+    const migrationName = match![1];
+    if (latestMigration === undefined || migrationName > latestMigration.name) {
+      migrationsToRun.push({ name: migrationName, path: fullPath });
+    }
   }
 
-  console.log(`Ran ${migrationsRun} migrations`);
+  if (migrationsToRun.length === 0) {
+    console.log('No migrations to run');
+    return;
+  }
+
+  migrationsToRun.sort();
+
+  await sql.begin(async (sql) => {
+    let i = 0;
+    for (const { name, path } of migrationsToRun) {
+      ++i;
+      console.log(`Running migration ${name} [${i}/${migrationsToRun.length}]`);
+
+      await migrateFile(sql, path, name);
+      await sql`INSERT INTO migrations (name, run_at) VALUES (${name}, NOW())`;
+    }
+  });
 }
 
 main()
   .catch((err) => {
-    console.error(err);
+    console.error(err.message);
     process.exit(1);
   })
   .then(() => process.exit(0));

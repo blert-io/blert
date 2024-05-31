@@ -1,6 +1,6 @@
+import { S3Client } from '@aws-sdk/client-s3';
 import mongoose, { HydratedDocument, Types } from 'mongoose';
 import postgres from 'postgres';
-import { mkdir, writeFile } from 'fs/promises';
 import { Empty as EmptyProto } from 'google-protobuf/google/protobuf/empty_pb';
 
 import { ApiKeyModel } from '../models/api-key';
@@ -66,6 +66,7 @@ import {
   ChallengeEvents as ChallengeEventsProto,
 } from '../generated/challenge_storage_pb';
 import { Npc } from '../npcs/npc-id';
+import { DataRepository } from '../data-repository/data-repository';
 
 type PersonalBest = {
   type: SplitType;
@@ -811,6 +812,8 @@ async function createChallengeSplits(
   });
 }
 
+const knownBrokenChallenges = new Set(['bb433a29-79c1-4544-a551-054bac0119c6']);
+
 async function migrateChallenges(
   sql: postgres.Sql,
   players: Map<string, PlayerInfo>,
@@ -826,7 +829,10 @@ async function migrateChallenges(
   let skipped = 0;
 
   for (const challenge of mongoChallenges) {
-    if (challenge.status === ChallengeStatus.IN_PROGRESS) {
+    if (
+      challenge.status === ChallengeStatus.IN_PROGRESS ||
+      knownBrokenChallenges.has(challenge._id)
+    ) {
       console.log(`Skipping in-progress challenge ${challenge._id}`);
       ++skipped;
       continue;
@@ -1186,6 +1192,7 @@ function updateStatsForPlayerAttack(
 
 async function migrateRoomEvents(
   sql: postgres.Sql,
+  dataRepository: DataRepository,
   challenges: Map<string, [HydratedDocument<Raid>, number]>,
   players: Map<string, PlayerInfo>,
 ) {
@@ -1444,7 +1451,7 @@ async function migrateRoomEvents(
       }
       protoChallengeEvents
         .get(event.stage)!
-        .push(buildEventProto(event, partyIndex, getNpcId));
+        .push(buildEventProto(event, getNpcId));
     }
 
     const broken = queryableEvents.find((evt) => {
@@ -1508,63 +1515,16 @@ async function migrateRoomEvents(
       `;
     }
 
-    const subdir = challenge._id.toString().slice(0, 2);
-    const uuid = challenge._id.toString().replaceAll('-', '');
-    const challengeDir = `${process.env.BLERT_OUT_DIR}/${subdir}/${uuid}`;
-    await mkdir(challengeDir, { recursive: true });
-
     const challengeProto = buildChallengeProto(challenge);
-    await writeFile(
-      `${challengeDir}/challenge`,
-      challengeProto.serializeBinary(),
-    );
+    await dataRepository.saveChallengeDataProto(challenge._id, challengeProto);
 
     const entries = Array.from(protoChallengeEvents.entries());
     for (const [stage, evts] of entries) {
-      let filename;
-      switch (stage) {
-        case Stage.TOB_MAIDEN:
-          filename = 'maiden';
-          break;
-        case Stage.TOB_BLOAT:
-          filename = 'bloat';
-          break;
-        case Stage.TOB_NYLOCAS:
-          filename = 'nylocas';
-          break;
-        case Stage.TOB_SOTETSEG:
-          filename = 'sotetseg';
-          break;
-        case Stage.TOB_XARPUS:
-          filename = 'xarpus';
-          break;
-        case Stage.TOB_VERZIK:
-          filename = 'verzik';
-          break;
-        case Stage.COLOSSEUM_WAVE_1:
-        case Stage.COLOSSEUM_WAVE_2:
-        case Stage.COLOSSEUM_WAVE_3:
-        case Stage.COLOSSEUM_WAVE_4:
-        case Stage.COLOSSEUM_WAVE_5:
-        case Stage.COLOSSEUM_WAVE_6:
-        case Stage.COLOSSEUM_WAVE_7:
-        case Stage.COLOSSEUM_WAVE_8:
-        case Stage.COLOSSEUM_WAVE_9:
-        case Stage.COLOSSEUM_WAVE_10:
-        case Stage.COLOSSEUM_WAVE_11:
-        case Stage.COLOSSEUM_WAVE_12:
-          filename = `wave-${stage - Stage.COLOSSEUM_WAVE_1 + 1}`;
-          break;
-      }
-
-      const eventsProto = new ChallengeEventsProto();
-      eventsProto.setStage(stage as Proto<StageMap>);
-      eventsProto.setPartyNamesList(challenge.party);
-      eventsProto.setEventsList(evts);
-
-      await writeFile(
-        `${challengeDir}/${filename}`,
-        eventsProto.serializeBinary(),
+      await dataRepository.saveProtoStageEvents(
+        challenge._id,
+        stage,
+        challenge.party,
+        evts,
       );
     }
 
@@ -1773,7 +1733,6 @@ function buildChallengeProto(challenge: Raid): ChallengeDataProto {
 
 function buildEventProto(
   event: Event,
-  partyIndex: Record<string, number>,
   getNpcId: (npcId: number, roomId: number, stage: Stage) => number | null,
 ): EventProto {
   const proto = new EventProto();
@@ -1786,7 +1745,7 @@ function buildEventProto(
     case EventType.PLAYER_UPDATE: {
       const e = event as PlayerUpdateEvent;
       const player = new EventProto.Player();
-      player.setPartyIndex(partyIndex[e.player.name]);
+      player.setName(e.player.name);
       player.setOffCooldownTick(e.player.offCooldownTick);
       if (e.player.hitpoints !== undefined) {
         player.setHitpoints(e.player.hitpoints);
@@ -1821,7 +1780,7 @@ function buildEventProto(
     case EventType.PLAYER_ATTACK: {
       const e = event as PlayerAttackEvent;
       const player = new EventProto.Player();
-      player.setPartyIndex(partyIndex[e.player.name]);
+      player.setName(e.player.name);
       proto.setPlayer(player);
       const attack = new EventProto.Attack();
       attack.setType(e.attack.type as Proto<PlayerAttackMap>);
@@ -1854,7 +1813,7 @@ function buildEventProto(
     case EventType.PLAYER_DEATH: {
       const e = event as PlayerDeathEvent;
       const player = new EventProto.Player();
-      player.setPartyIndex(partyIndex[e.player.name]);
+      player.setName(e.player.name);
       proto.setPlayer(player);
       break;
     }
@@ -1886,9 +1845,7 @@ function buildEventProto(
       proto.setNpcAttack(npcAttack);
 
       if (e.npcAttack.target) {
-        const player = new EventProto.Player();
-        player.setPartyIndex(partyIndex[e.npcAttack.target]);
-        proto.setPlayer(player);
+        npcAttack.setTarget(e.npcAttack.target);
       }
       break;
     }
@@ -2041,9 +1998,7 @@ async function main() {
     throw new Error('usage: migrate-mongo-to-postgres [find-broken|fix]');
   }
 
-  if (!process.env.BLERT_OUT_DIR) {
-    throw new Error('BLERT_OUT_DIR environment variable is required');
-  }
+  const dataRepository = initializeDataRepository();
 
   const users = await migrateUsers(sql);
   const players = await migratePlayers(sql);
@@ -2066,7 +2021,7 @@ async function main() {
     ),
   );
 
-  await migrateRoomEvents(sql, challenges, players);
+  await migrateRoomEvents(sql, dataRepository, challenges, players);
   await migratePlayerStats(sql, players);
 }
 
@@ -2118,6 +2073,34 @@ async function findBrokenRaids(): Promise<Map<string, Stage[]>> {
   }
 
   return brokenRaids;
+}
+
+function initializeDataRepository(): DataRepository {
+  let repositoryBackend: DataRepository.Backend;
+  if (!process.env.BLERT_DATA_REPOSITORY) {
+    throw new Error('BLERT_DATA_REPOSITORY is not set');
+  } else if (process.env.BLERT_DATA_REPOSITORY.startsWith('file://')) {
+    const root = process.env.BLERT_DATA_REPOSITORY.slice('file://'.length);
+    console.log(`DataRepository using filesystem backend at ${root}`);
+    repositoryBackend = new DataRepository.FilesystemBackend(root);
+  } else if (process.env.BLERT_DATA_REPOSITORY.startsWith('s3://')) {
+    const bucket = process.env.BLERT_DATA_REPOSITORY.slice('s3://'.length);
+    console.log(`DataRepository using S3 backend bucket ${bucket}`);
+    const s3Client = new S3Client({
+      forcePathStyle: false,
+      region: process.env.BLERT_REGION,
+      endpoint: process.env.BLERT_ENDPOINT,
+      credentials: {
+        accessKeyId: process.env.BLERT_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.BLERT_SECRET_ACCESS_KEY!,
+      },
+    });
+    repositoryBackend = new DataRepository.S3Backend(s3Client, bucket);
+  } else {
+    throw new Error('Unknown repository backend');
+  }
+
+  return new DataRepository(repositoryBackend);
 }
 
 async function fixChallenge(challengeId: string, stage: number, ticks: number) {
