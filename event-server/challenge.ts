@@ -805,6 +805,10 @@ export abstract class Challenge {
   private async createChallengeSplits(
     accurate: boolean,
   ): Promise<ChallengeSplitWithId[]> {
+    if (this.splits.size === 0) {
+      return [];
+    }
+
     const splitsToInsert: Array<ChallengeSplit & { challenge_id: number }> = [];
 
     this.splits.forEach((ticks, split) => {
