@@ -46,7 +46,7 @@ function nameChangeInfo(
   }
 }
 
-export default function NameChange({ nameChange, id }: NameChangeProps) {
+export default function NameChangeRow({ nameChange, id }: NameChangeProps) {
   const [loaded, setLoaded] = useState(false);
   const [statusString, statusColor, reason] = nameChangeInfo(nameChange);
 

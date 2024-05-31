@@ -23,4 +23,5 @@ if (!process.env.BLERT_DATA_REPOSITORY) {
   throw new Error('Unknown repository backend');
 }
 
-export default new DataRepository(repositoryBackend);
+const repository = new DataRepository(repositoryBackend);
+export default repository;

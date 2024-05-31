@@ -1,5 +1,3 @@
-import { Types } from 'mongoose';
-
 export type ApiKey = {
   id: number;
   key: string;
@@ -24,7 +22,7 @@ export enum RecordingType {
 }
 
 export type RecordedChallenge = {
-  cId: string;
-  recorderId: Types.ObjectId;
+  challengeId: string;
+  recorderId: number;
   recordingType: RecordingType;
 };

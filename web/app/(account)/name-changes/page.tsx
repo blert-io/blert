@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 import { getRecentNameChanges } from '@/actions/change-name';
-import NameChange from './name-change';
+import NameChangeRow from './name-change-row';
 
 import styles from './style.module.scss';
 
@@ -19,7 +19,7 @@ export default async function NameChanges() {
       {nameChanges.length > 0 ? (
         <div className={styles.table}>
           {nameChanges.map((nameChange, i) => (
-            <NameChange key={i} id={i} nameChange={nameChange} />
+            <NameChangeRow key={i} id={i} nameChange={nameChange} />
           ))}
         </div>
       ) : (

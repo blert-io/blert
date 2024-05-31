@@ -60,10 +60,6 @@ export type {
   PlayerInfo,
   Nylo,
   NyloProperties,
-  OldColosseumChallenge,
-  OldTobRaid,
-  OldTobRooms,
-  Raid,
   RawSkillLevel,
   RoomNpc,
   RoomNpcMap,
@@ -71,7 +67,7 @@ export type {
   TobRooms,
   VerzikCrab,
   VerzikCrabProperties,
-} from './raid-definitions';
+} from './challenge';
 export {
   ChallengeMode,
   ChallengeStatus,
@@ -96,7 +92,7 @@ export {
   XarpusPhase,
   challengeName,
   stageName,
-} from './raid-definitions';
+} from './challenge';
 
 export { ItemDelta } from './item-delta';
 export type { RawItemDelta } from './item-delta';

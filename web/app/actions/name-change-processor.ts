@@ -505,4 +505,5 @@ class NameChangeProcessor {
   }
 }
 
-export default new NameChangeProcessor();
+const processor = new NameChangeProcessor();
+export default processor;

@@ -1,4 +1,4 @@
-import { Skill } from './raid-definitions';
+import { Skill } from './challenge';
 
 export type Player = {
   username: string;

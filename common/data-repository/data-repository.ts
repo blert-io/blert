@@ -30,7 +30,7 @@ import {
   TobRoom,
   TobRooms,
   VerzikCrab,
-} from '../raid-definitions';
+} from '../challenge';
 import {
   BloatDownEvent,
   Event,

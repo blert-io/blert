@@ -11,7 +11,7 @@ import {
   RoomNpcType,
   VerzikCrab,
   VerzikCrabSpawn,
-} from '../raid-definitions';
+} from '../challenge';
 
 export type NpcDefinition = {
   fullName: string;
