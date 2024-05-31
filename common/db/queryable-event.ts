@@ -1,5 +1,5 @@
 import { EventType } from '../event';
-import { ChallengeMode, Stage } from '../raid-definitions';
+import { ChallengeMode, Stage } from '../challenge';
 import { CamelToSnakeCase } from '../translate';
 
 export type QueryableEvent = {

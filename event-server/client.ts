@@ -1,5 +1,4 @@
 import { ServerMessage } from '@blert/common/generated/server_message_pb';
-import { Types } from 'mongoose';
 import { WebSocket } from 'ws';
 
 import { Challenge } from './challenge';

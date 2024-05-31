@@ -179,7 +179,7 @@ export default function SotetsegPage() {
       });
     }
     return splits;
-  }, [raidData?.tobRooms.sotetseg]);
+  }, [raidData]);
 
   if (loading || raidData === null) {
     return <Loading />;

@@ -1,5 +1,3 @@
-import { Types } from 'mongoose';
-
 import { Coords } from './event';
 import {
   Challenge as ChallengeProto,
@@ -20,20 +18,6 @@ export enum ChallengeType {
   COLOSSEUM = ChallengeProto.COLOSSEUM,
   INFERNO = ChallengeProto.INFERNO,
 }
-
-export type Raid = {
-  _id: string;
-  type: ChallengeType;
-  status: ChallengeStatus;
-  stage: Stage;
-  mode: ChallengeMode;
-  startTime: Date;
-  party: string[];
-  partyIds: Types.ObjectId[];
-  partyInfo: PlayerInfo[];
-  totalTicks: number;
-  totalDeaths: number;
-};
 
 export interface Challenge {
   uuid: string;
@@ -85,25 +69,6 @@ export type TobRooms = {
 export interface TobRoom extends StageData {
   deaths: string[];
 }
-
-export type OldTobRaid = Raid & {
-  type: ChallengeType.TOB;
-  tobRooms: OldTobRooms;
-};
-
-export type OldColosseumChallenge = Raid & {
-  type: ChallengeType.COLOSSEUM;
-  colosseum: ColosseumData;
-};
-
-export type OldTobRooms = {
-  maiden: MaidenOverview | null;
-  bloat: BloatOverview | null;
-  nylocas: NyloOverview | null;
-  sotetseg: SoteOverview | null;
-  xarpus: XarpusOverview | null;
-  verzik: VerzikOverview | null;
-};
 
 export type ColosseumData = {
   handicaps: Handicap[];

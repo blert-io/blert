@@ -11,7 +11,7 @@ import {
   StageStatus,
   VerzikPhase,
   XarpusPhase,
-} from './raid-definitions';
+} from './challenge';
 
 export enum EventType {
   CHALLENGE_START = EventProto.Type.CHALLENGE_START,

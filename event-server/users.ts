@@ -1,4 +1,4 @@
-import { Raid, RecordingType, camelToSnakeObject } from '@blert/common';
+import { Challenge, RecordingType } from '@blert/common';
 
 import sql from './db';
 import { Players } from './players';
@@ -10,10 +10,11 @@ export type BasicUser = {
 };
 
 export type PastChallenge = Pick<
-  Raid,
-  'type' | 'stage' | 'status' | 'mode' | 'party'
+  Challenge,
+  'type' | 'stage' | 'status' | 'mode'
 > & {
   id: string;
+  party: string[];
 };
 
 export class Users {
@@ -106,7 +107,7 @@ export class Users {
       ORDER BY challenge_id, orb ASC
     `;
 
-    const parties = players.reduce((acc, player) => {
+    const parties: Record<number, string[]> = players.reduce((acc, player) => {
       if (acc[player.challenge_id] === undefined) {
         acc[player.challenge_id] = [];
       }

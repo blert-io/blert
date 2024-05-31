@@ -1,4 +1,4 @@
-import { ChallengeMode } from './raid-definitions';
+import { ChallengeMode } from './challenge';
 
 export enum SplitType {
   // Theatre of Blood splits.
