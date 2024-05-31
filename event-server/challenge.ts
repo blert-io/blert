@@ -337,7 +337,20 @@ export abstract class Challenge {
   ): Promise<void>;
 
   public async initialize(): Promise<void> {
-    await Promise.all(this.getParty().map(Players.startChallenge));
+    const playerIds = await Promise.all(
+      this.getParty().map(Players.startChallenge),
+    );
+    if (playerIds.length !== this.party.length) {
+      throw new Error('Failed to find all player IDs');
+    }
+
+    playerIds.forEach((id, i) => {
+      if (id === null) {
+        throw new Error(`Failed to find player ID for ${this.party[i]}`);
+      }
+      this.players[i].playerId = id;
+    });
+
     await this.createChallenge();
     await this.onInitialize();
   }
@@ -713,15 +726,6 @@ export abstract class Challenge {
   }
 
   private async createChallenge(): Promise<void> {
-    const playerIds = await Players.lookupIds(this.party);
-    if (playerIds.length !== this.party.length) {
-      throw new Error('Failed to find all player IDs');
-    }
-
-    playerIds.forEach((id, i) => {
-      this.players[i].playerId = id;
-    });
-
     this.databaseId = await sql.begin(async (sql) => {
       const [{ id }] = await sql`
         INSERT INTO challenges (uuid, type, mode, scale, stage, status, start_time)
@@ -739,7 +743,7 @@ export abstract class Challenge {
 
       const challengePlayers = this.party.map((name, i) => ({
         challenge_id: id,
-        player_id: playerIds[i],
+        player_id: this.players[i].playerId,
         username: name,
         orb: i,
         primary_gear: PrimaryMeleeGear.UNKNOWN,
