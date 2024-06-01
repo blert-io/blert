@@ -31,7 +31,7 @@ import {
 
 import styles from './styles.module.scss';
 
-const DEFAULT_CELL_SIZE = 50;
+const DEFAULT_CELL_SIZE = 45;
 const COLUMN_MARGIN = 5;
 
 function npcAttackImage(attack: NpcAttack, size: number) {

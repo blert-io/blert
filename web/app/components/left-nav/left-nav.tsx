@@ -18,9 +18,9 @@ export function LeftNav() {
           <Link className={styles.homeImage} href="/">
             <Image
               src="/images/blert-topbar.png"
-              alt="blert logo"
+              alt="Blert logo"
               fill
-              sizes="200px"
+              sizes="150px"
               style={{ objectFit: 'contain' }}
             />
           </Link>
@@ -139,7 +139,7 @@ export function LeftNav() {
           </li>
 
           {/* Name changes */}
-          <li className={`${styles.leftNav__menuItem} ${styles.small}`}>
+          <li className={styles.leftNav__menuItem}>
             <Link
               className={`${styles.leftNav__menuItemInner}`}
               href="/name-changes"

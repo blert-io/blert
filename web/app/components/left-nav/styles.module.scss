@@ -18,11 +18,11 @@
 
   .homeImage {
     position: relative;
-    height: 150px;
+    height: 100px;
     width: 200px;
 
     @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-      height: 100px;
+      height: 70px;
     }
   }
 
@@ -127,20 +127,14 @@
 .leftNav__menuItem {
   display: flex;
   align-items: center;
-  height: 60px;
+  height: 55px;
   justify-content: right;
   flex-direction: row;
   margin: 0;
   padding: 0;
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    height: 50px;
-  }
-
-  &.small {
-    span {
-      font-size: 16px;
-    }
+    height: 45px;
   }
 }
 
@@ -161,8 +155,8 @@
   padding: 0;
   text-align: left;
   width: 190px;
-  padding: 5px 10px;
-  font-size: 17px;
+  padding: 3px 10px;
+  font-size: 16px;
   border-radius: 5px;
   margin-bottom: 5px;
   margin-top: 5px;
@@ -177,7 +171,7 @@
 .leftNav__menuItemInner {
   display: flex;
   flex-direction: row;
-  height: 50px;
+  height: 100%;
   width: 215px;
   align-items: center;
   padding: 0 0 0 10px;
@@ -191,7 +185,7 @@
     user-select: none;
     display: flex;
     font-family: 'Inter', sans-serif;
-    font-size: 18px;
+    font-size: 16px;
     line-height: 44px;
     position: relative;
     padding: 0 0 0 10px;

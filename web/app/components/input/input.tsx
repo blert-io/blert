@@ -28,6 +28,13 @@ export function Input(props: InputProps) {
 
   const className = styles.input + (props.invalid ? ` ${styles.invalid}` : '');
 
+  let icon = undefined;
+  if (props.customIcon) {
+    icon = <div className={styles.icon}>{props.customIcon}</div>;
+  } else if (props.faIcon) {
+    icon = props.faIcon && <i className={`${styles.icon} ${props.faIcon}`} />;
+  }
+
   return (
     <div className={className}>
       <input
@@ -48,10 +55,7 @@ export function Input(props: InputProps) {
       <label htmlFor={props.id} style={{ background: labelBackground }}>
         {props.invalid && props.errorMessage ? props.errorMessage : props.label}
       </label>
-      {props.customIcon && (
-        <div className={styles.icon}>{props.customIcon}</div>
-      )}
-      {props.faIcon && <i className={`${styles.icon} ${props.faIcon}`} />}
+      {icon}
     </div>
   );
 }

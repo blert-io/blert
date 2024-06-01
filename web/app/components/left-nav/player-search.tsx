@@ -1,10 +1,11 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 
 import Input from '@/components/input';
 import Spinner from '@/components/spinner';
+import { DisplayContext } from '@/display';
 
 import styles from './styles.module.scss';
 
@@ -13,6 +14,7 @@ export default function PlayerSearch() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  const display = useContext(DisplayContext);
 
   useEffect(() => setLoading(false), [pathname]);
 
@@ -30,16 +32,17 @@ export default function PlayerSearch() {
 
   const customIcon = loading ? (
     <Spinner />
-  ) : (
+  ) : display.isFull() ? (
     <div className={styles.shortcut}>
       <span>Ctrl</span>-<span>K</span>
     </div>
-  );
+  ) : undefined;
 
   return (
     <Input
       customIcon={customIcon}
       disabled={loading}
+      faIcon={display.isCompact() ? 'fa-solid fa-search' : undefined}
       fluid
       id="blert-player-search"
       inputRef={playerSearchRef}
