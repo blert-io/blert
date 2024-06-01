@@ -17,7 +17,7 @@ import {
   useRef,
 } from 'react';
 
-import { CollapsiblePanel } from '../collapsible-panel/collapsible-panel';
+import CollapsiblePanel from '../collapsible-panel';
 import HorizontalScrollable from '../horizontal-scrollable';
 import Item from '../item';
 import { LigmaTooltip } from '../ligma-tooltip/ligma-tooltip';
@@ -1546,7 +1546,6 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
       panelTitle="Room Timeline"
       maxPanelHeight={1000}
       defaultExpanded={true}
-      className={styles.attackTimeline}
       panelWidth="100%"
     >
       <div className={styles.attackTimeline__Inner}>
