@@ -191,19 +191,27 @@ export async function loadRecentChallenges(
  * Fetches all of the events for a specified stage in a challenge.
  * @param challengeId UUID of the challenge.
  * @param stage The stage whose events to fetch.
- * @returns Array of events for the stage, empty if none exist.
+ * @returns Array of events for the stage, or `null` if the stage does not
+ * exist.
+ * @throws Any error that occurs while fetching the events.
  */
 export async function loadEventsForStage(
   challengeId: string,
   stage: Stage,
   type?: EventType,
-): Promise<Event[]> {
-  const events = await dataRepository.loadStageEvents(challengeId, stage);
-  if (type !== undefined) {
-    return events.filter((e) => e.type === type);
+): Promise<Event[] | null> {
+  try {
+    const events = await dataRepository.loadStageEvents(challengeId, stage);
+    if (type !== undefined) {
+      return events.filter((e) => e.type === type);
+    }
+    return events;
+  } catch (e) {
+    if (e instanceof DataRepository.NotFound) {
+      return null;
+    }
+    throw e;
   }
-
-  return events;
 }
 
 export type ChallengeStats = {

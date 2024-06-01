@@ -21,6 +21,13 @@ export async function GET(request: NextRequest, { params }: Params) {
 
   const type = parseIntParam<EventType>(searchParams, 'type');
 
-  const events = await loadEventsForStage(params.id, stage, type);
-  return Response.json(events);
+  try {
+    const events = await loadEventsForStage(params.id, stage, type);
+    if (events === null) {
+      return new Response(null, { status: 404 });
+    }
+    return Response.json(events);
+  } catch (e) {
+    return new Response(null, { status: 500 });
+  }
 }
