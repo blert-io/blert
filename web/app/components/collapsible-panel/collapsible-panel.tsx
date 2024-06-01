@@ -6,7 +6,7 @@ import styles from './styles.module.scss';
 interface CollapsiblePanelProps extends React.HTMLAttributes<HTMLDivElement> {
   panelTitle: string;
   maxPanelHeight: number;
-  defaultExpanded: boolean;
+  defaultExpanded?: boolean;
   disableExpansion?: boolean;
   panelWidth?: number | string;
 }
@@ -15,12 +15,12 @@ export function CollapsiblePanel(props: CollapsiblePanelProps) {
   const {
     panelTitle,
     maxPanelHeight,
-    defaultExpanded,
+    defaultExpanded = false,
     disableExpansion = false,
     panelWidth,
     children,
   } = props;
-  const [expanded, setExpanded] = useState(defaultExpanded);
+  const [expanded, setExpanded] = useState(defaultExpanded || disableExpansion);
 
   let className = `${styles.collapsiblePanel}`;
   if (disableExpansion) {

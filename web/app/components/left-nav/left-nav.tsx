@@ -41,7 +41,9 @@ export function LeftNav() {
                 </div>
               </div>
 
-              <span className="active">Home</span>
+              <span className="active" style={{ top: 1 }}>
+                Home
+              </span>
             </Link>
           </li>
 
@@ -121,11 +123,29 @@ export function LeftNav() {
                   />
                 </div>
               </div>
-              <span className="active">ToA</span>
+              <span className="active" style={{ top: -1 }}>
+                ToA
+              </span>
             </Link>
           </li>
 
           <div className={styles.leftNav__menuDividerTwo}></div>
+
+          {/* Leaderboards */}
+          <li className={styles.leftNav__menuItem}>
+            <Link
+              className={`${styles.leftNav__menuItemInner}`}
+              href="/leaderboards/tob"
+            >
+              <div className={styles.leftNav__menuItemIcon}>
+                <i className="fa-solid fa-trophy"></i>
+              </div>
+
+              <span className="active" style={{ top: -1 }}>
+                Leaderboards
+              </span>
+            </Link>
+          </li>
 
           {/* Trends */}
           <li className={styles.leftNav__menuItem}>
@@ -134,7 +154,9 @@ export function LeftNav() {
                 <i className="fa-solid fa-arrow-trend-up"></i>
               </div>
 
-              <span className="active">Trends</span>
+              <span className="active" style={{ top: -1 }}>
+                Trends
+              </span>
             </Link>
           </li>
 

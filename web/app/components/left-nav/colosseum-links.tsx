@@ -71,7 +71,9 @@ export default function ColosseumLinks() {
               />
             </div>
           </div>
-          <span className="active">Colosseum</span>
+          <span className="active" style={{ top: -1 }}>
+            Colosseum
+          </span>
         </Link>
       </li>
       {viewingColosseum && (

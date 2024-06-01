@@ -10,7 +10,12 @@ export {
   HiscoresRateLimitError,
   hiscoreLookup,
 } from './player';
-export { adjustSplitForMode, generalizeSplit, SplitType } from './split';
+export {
+  SplitType,
+  adjustSplitForMode,
+  generalizeSplit,
+  splitName,
+} from './split';
 
 export type {
   Attack,

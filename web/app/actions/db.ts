@@ -5,6 +5,8 @@ let connectionOptions: postgres.Options<{}> | undefined = undefined;
 if (['development', 'test'].includes(process.env.NODE_ENV)) {
   connectionOptions = {
     debug: (_, query, params) => console.log(query, params),
+    idle_timeout: 15,
+    max_lifetime: 1,
   };
 }
 if (process.env.NODE_ENV === 'production') {

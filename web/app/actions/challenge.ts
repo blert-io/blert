@@ -188,6 +188,31 @@ export async function loadRecentChallenges(
 }
 
 /**
+ * Returns the party members for each challenge in the list.
+ * @param challengeIds List of challenge IDs to look up.
+ * @returns Object mapping challenge IDs to an array of party members.
+ */
+async function loadChallengeParties(
+  challengeIds: number[],
+): Promise<Record<number, string[]>> {
+  const players = await sql`
+    SELECT challenge_id, username
+    FROM challenge_players
+    WHERE challenge_id = ANY(${challengeIds})
+    ORDER BY orb
+  `;
+
+  return players.reduce((acc, player) => {
+    if (acc[player.challenge_id] === undefined) {
+      acc[player.challenge_id] = [player.username];
+    } else {
+      acc[player.challenge_id].push(player.username);
+    }
+    return acc;
+  }, []);
+}
+
+/**
  * Fetches all of the events for a specified stage in a challenge.
  * @param challengeId UUID of the challenge.
  * @param stage The stage whose events to fetch.
@@ -366,4 +391,83 @@ export async function getTotalDeathsByStage(
     acc[stage.stage] = parseInt(stage.deaths);
     return acc;
   }, {});
+}
+
+export type RankedSplit = {
+  uuid: string;
+  date: Date;
+  ticks: number;
+  party: string[];
+};
+
+/**
+ * Returns the top `numRanks` split times for each split type and scale.
+ *
+ * The returned split times are unique. If multiple challenges have the same
+ * time, the earliest one recorded is returned.
+ *
+ * @param types The split types to fetch.
+ * @param scale The challenge scale.
+ * @param numRanks How many split times to fetch for each split type.
+ * @returns Object mapping split types to an array of ranked split times.
+ */
+export async function findBestSplitTimes(
+  types: SplitType[],
+  scale: number,
+  numRanks: number,
+): Promise<{ [split in SplitType]?: RankedSplit[] }> {
+  const rankedSplits: { [split in SplitType]?: RankedSplit[] } = {};
+  const partiesToUpdate: Array<[number, any]> = [];
+
+  await Promise.all(
+    types.map(async (type) => {
+      const results: Array<{
+        id: number;
+        uuid: string;
+        start_time: Date;
+        type: SplitType;
+        scale: number;
+        ticks: number;
+      }> = await sql`
+        SELECT DISTINCT ON (ticks)
+          challenges.id,
+          challenges.uuid,
+          challenges.start_time,
+          challenge_splits.type,
+          challenge_splits.scale,
+          challenge_splits.ticks
+        FROM challenge_splits
+        JOIN challenges ON challenge_splits.challenge_id = challenges.id
+        WHERE
+          challenge_splits.accurate
+          AND challenge_splits.type = ${type}
+          AND challenge_splits.scale = ${scale}
+        ORDER BY challenge_splits.ticks, challenges.start_time
+        LIMIT ${numRanks};
+      `;
+
+      results.forEach((r) => {
+        if (rankedSplits[type] === undefined) {
+          rankedSplits[type] = [];
+        }
+
+        const rankedSplit = {
+          uuid: r.uuid,
+          date: r.start_time,
+          ticks: r.ticks,
+          party: [],
+        };
+
+        rankedSplits[type]!.push(rankedSplit);
+        partiesToUpdate.push([r.id, rankedSplit]);
+      });
+    }),
+  );
+
+  const parties = await loadChallengeParties(partiesToUpdate.map((p) => p[0]));
+  for (const [id, desc] of partiesToUpdate) {
+    desc.party = parties[id];
+  }
+
+  return rankedSplits;
 }

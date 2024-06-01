@@ -1,0 +1,51 @@
+.radioGroup {
+  $selectedColor: rgb(46, 38, 77);
+
+  display: flex;
+  width: 100%;
+
+  &:not(:last-child) {
+    margin-bottom: 10px;
+  }
+
+  .radioOption {
+    flex-grow: 1;
+    flex-basis: 0;
+    background: var(--nav-bg);
+    border-radius: 5px;
+    overflow: hidden;
+
+    label {
+      display: block;
+      padding: 10px;
+      text-align: center;
+
+      &:hover {
+        color: white;
+        cursor: pointer;
+        background: rgba($selectedColor, 0.4);
+      }
+    }
+
+    &:not(:last-child) {
+      margin-right: 4px;
+    }
+
+    input {
+      position: absolute;
+      visibility: hidden;
+      height: 0;
+      width: 0;
+    }
+
+    input:checked + label {
+      background: $selectedColor;
+      color: white;
+      font-weight: bold;
+
+      &:hover {
+        cursor: default;
+      }
+    }
+  }
+}

@@ -286,3 +286,84 @@ export function generalizeSplit(split: SplitType): SplitType {
 
   return split;
 }
+
+export function splitName(split: SplitType): string {
+  switch (generalizeSplit(split)) {
+    case SplitType.TOB_CHALLENGE:
+      return 'Challenge Time';
+    case SplitType.TOB_OVERALL:
+      return 'Overall Time';
+    case SplitType.TOB_MAIDEN:
+      return 'Maiden';
+    case SplitType.TOB_MAIDEN_70S:
+      return 'Maiden 70s';
+    case SplitType.TOB_MAIDEN_50S:
+      return 'Maiden 50s';
+    case SplitType.TOB_MAIDEN_30S:
+      return 'Maiden 30s';
+    case SplitType.TOB_MAIDEN_70S_50S:
+      return 'Maiden 70s-50s';
+    case SplitType.TOB_MAIDEN_50S_30S:
+      return 'Maiden 50s-30s';
+    case SplitType.TOB_MAIDEN_30S_END:
+      return 'Maiden 30s-End';
+    case SplitType.TOB_BLOAT:
+      return 'Bloat';
+    case SplitType.TOB_NYLO_ROOM:
+      return 'Nylocas';
+    case SplitType.TOB_NYLO_CAP:
+      return 'Nylocas Cap';
+    case SplitType.TOB_NYLO_WAVES:
+      return 'Nylocas Waves';
+    case SplitType.TOB_NYLO_CLEANUP:
+      return 'Nylocas Cleanup';
+    case SplitType.TOB_NYLO_BOSS_SPAWN:
+      return 'Nylocas Boss Spawn';
+    case SplitType.TOB_NYLO_BOSS:
+      return 'Nylocas Boss';
+    case SplitType.TOB_SOTETSEG:
+      return 'Sotetseg';
+    case SplitType.TOB_SOTETSEG_66:
+      return 'Sotetseg 66%';
+    case SplitType.TOB_SOTETSEG_33:
+      return 'Sotetseg 33%';
+    case SplitType.TOB_SOTETSEG_MAZE_1:
+      return 'Sotetseg Maze 1';
+    case SplitType.TOB_SOTETSEG_MAZE_2:
+      return 'Sotetseg Maze 2';
+    case SplitType.TOB_SOTETSEG_P1:
+      return 'Sotetseg P1';
+    case SplitType.TOB_SOTETSEG_P2:
+      return 'Sotetseg P2';
+    case SplitType.TOB_SOTETSEG_P3:
+      return 'Sotetseg P3';
+    case SplitType.TOB_XARPUS:
+      return 'Xarpus';
+    case SplitType.TOB_XARPUS_EXHUMES:
+      return 'Xarpus Exhumes';
+    case SplitType.TOB_XARPUS_SCREECH:
+      return 'Xarpus Screech';
+    case SplitType.TOB_XARPUS_P1:
+      return 'Xarpus P1';
+    case SplitType.TOB_XARPUS_P2:
+      return 'Xarpus P2';
+    case SplitType.TOB_XARPUS_P3:
+      return 'Xarpus P3';
+    case SplitType.TOB_VERZIK_ROOM:
+      return 'Verzik';
+    case SplitType.TOB_VERZIK_P1_END:
+      return 'Verzik P1';
+    case SplitType.TOB_VERZIK_REDS:
+      return 'Verzik Reds';
+    case SplitType.TOB_VERZIK_P2_END:
+      return 'Verzik P2 End';
+    case SplitType.TOB_VERZIK_P1:
+      return 'Verzik P1';
+    case SplitType.TOB_VERZIK_P2:
+      return 'Verzik P2';
+    case SplitType.TOB_VERZIK_P3:
+      return 'Verzik P3';
+    default:
+      return 'Unknown Split';
+  }
+}
