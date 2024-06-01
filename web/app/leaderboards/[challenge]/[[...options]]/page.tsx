@@ -243,17 +243,22 @@ export async function generateMetadata(
 
   switch (challengeType) {
     case ChallengeType.TOB: {
-      mode =
-        options![0] === 'hard'
-          ? ChallengeMode.TOB_HARD
-          : ChallengeMode.TOB_REGULAR;
-      scale = parseInt(options![1]);
+      if (options === undefined || options.length !== 2) {
+        title = 'Theatre of Blood Leaderboards';
+        description = `View the best recorded times for the Theatre of Blood raids on Blert, Old School RuneScape's premier PvM tracker.`;
+      } else {
+        mode =
+          options![0] === 'hard'
+            ? ChallengeMode.TOB_HARD
+            : ChallengeMode.TOB_REGULAR;
+        scale = parseInt(options![1]);
 
-      title = `Theatre of Blood (${scaleName(scale)} ${modeName(mode)}) Leaderboards`;
-      description =
-        `View the best recorded times for Theatre of Blood ` +
-        `${modeName(mode)} Mode ${scaleName(scale)} ` +
-        `raids on Blert, Old School RuneScape's premier PvM tracker.`;
+        title = `Theatre of Blood (${scaleName(scale)} ${modeName(mode)}) Leaderboards`;
+        description =
+          `View the best recorded times for Theatre of Blood ` +
+          `${modeName(mode)} Mode ${scaleName(scale)} ` +
+          `raids on Blert, Old School RuneScape's premier PvM tracker.`;
+      }
       break;
     }
   }
