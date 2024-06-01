@@ -3,14 +3,14 @@
 .nameChanges {
   @include panel;
   flex-direction: column;
-  padding: 20px;
+  padding: 20px 0;
 
   .heading {
     display: flex;
     justify-content: space-between;
     align-items: center;
     border-bottom: 2px solid var(--content-area-bg);
-    padding-bottom: 0.5em;
+    padding: 0 1em 1em 1em;
     margin-bottom: 1em;
 
     h2 {
@@ -34,6 +34,10 @@
   .nameChange {
     display: flex;
     padding: 1em 0;
+
+    &:nth-child(even) {
+      background: var(--nav-bg);
+    }
 
     .name {
       color: #fff;
@@ -72,7 +76,7 @@
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     height: 96%;
-    width: 96%;
+    width: 100%;
     overflow-y: auto;
 
     .heading {
@@ -91,12 +95,8 @@
       flex-wrap: wrap;
       padding: 1em 0;
 
-      &:not(:first-child) {
-        border-top: 1px solid var(--content-area-bg);
-      }
-
       .name {
-        width: 150px;
+        width: calc((100% - 45px) / 2);
         font-size: 14px;
         padding-bottom: 0.5em;
       }
