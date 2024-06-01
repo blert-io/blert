@@ -6,7 +6,6 @@
   label {
     position: absolute;
     padding: 0 5px;
-    background: var(--panel-bg);
     top: 20px;
     left: 10px;
     transition:
@@ -38,8 +37,9 @@
       top: 2px;
     }
 
+    &:not(:placeholder-shown) ~ .icon,
     &:focus ~ .icon {
-      color: #fff;
+      visibility: hidden;
     }
 
     &:disabled {

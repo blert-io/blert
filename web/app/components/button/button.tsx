@@ -1,3 +1,5 @@
+import Spinner from '../spinner';
+
 import styles from './style.module.scss';
 
 export type ButtonProps = {
@@ -20,16 +22,7 @@ export function Button(props: ButtonProps) {
       style={{ width: props.fluid ? '100%' : undefined }}
       type={props.type}
     >
-      {props.loading ? (
-        <div className={styles.spinner}>
-          <div />
-          <div />
-          <div />
-          <div />
-        </div>
-      ) : (
-        props.children
-      )}
+      {props.loading ? <Spinner /> : props.children}
     </button>
   );
 }
