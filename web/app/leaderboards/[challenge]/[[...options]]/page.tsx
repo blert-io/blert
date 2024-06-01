@@ -5,7 +5,9 @@ import {
   adjustSplitForMode,
   splitName,
 } from '@blert/common';
+import { ResolvingMetadata } from 'next';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
 import { RankedSplit, findBestSplitTimes } from '@/actions/challenge';
 import CollapsiblePanel from '@/components/collapsible-panel';
@@ -13,7 +15,6 @@ import { ticksToFormattedSeconds } from '@/utils/tick';
 import { challengeUrl } from '@/utils/url';
 
 import styles from './style.module.scss';
-import { redirect } from 'next/navigation';
 
 function scaleName(scale: number) {
   switch (scale) {
@@ -61,6 +62,7 @@ type LeaderboardProps = {
 function Leaderboard({ challengeType, split, ranks }: LeaderboardProps) {
   return (
     <CollapsiblePanel
+      className={styles.boardPanel}
       panelTitle={splitName(split)}
       maxPanelHeight={2000}
       disableExpansion
@@ -133,11 +135,19 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
         redirect('/leaderboards/tob/regular/5');
       }
 
+      scale = parseInt(options[1]);
+      if (
+        (options[0] !== 'regular' && options[0] !== 'hard') ||
+        scale < 1 ||
+        scale > 5
+      ) {
+        redirect('/leaderboards/tob/regular/5');
+      }
+
       mode =
         options[0] === 'hard'
           ? ChallengeMode.TOB_HARD
           : ChallengeMode.TOB_REGULAR;
-      scale = parseInt(options[1]);
       break;
     }
   }
@@ -212,4 +222,52 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
       </div>
     </div>
   );
+}
+
+export async function generateMetadata(
+  { params }: LeaderboardsPageProps,
+  parent: ResolvingMetadata,
+) {
+  const { challenge, options } = params;
+  const challengeType = challenge === 'tob' ? ChallengeType.TOB : null;
+
+  if (challengeType === null) {
+    return { title: 'Not Found' };
+  }
+
+  let mode = ChallengeMode.NO_MODE;
+  let scale = 1;
+
+  let title = 'Leaderboards';
+  let description = '';
+
+  switch (challengeType) {
+    case ChallengeType.TOB: {
+      mode =
+        options![0] === 'hard'
+          ? ChallengeMode.TOB_HARD
+          : ChallengeMode.TOB_REGULAR;
+      scale = parseInt(options![1]);
+
+      title = `Theatre of Blood (${scaleName(scale)} ${modeName(mode)}) Leaderboards`;
+      description =
+        `View the best recorded times for Theatre of Blood ` +
+        `${modeName(mode)} Mode ${scaleName(scale)} ` +
+        `raids on Blert, Old School RuneScape's premier PvM tracker.`;
+      break;
+    }
+  }
+
+  const metadata = await parent;
+
+  return {
+    title,
+    description,
+    openGraph: { ...metadata.openGraph, description },
+    twitter: {
+      ...metadata.twitter,
+      title,
+      description,
+    },
+  };
 }

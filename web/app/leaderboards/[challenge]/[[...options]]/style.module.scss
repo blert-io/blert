@@ -19,12 +19,16 @@
     width: 430px;
 
     @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-      width: 96%;
+      width: 100%;
     }
 
     h1 {
       font-size: 1.5rem;
       margin-top: 0;
+
+      @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+        font-size: 1.25rem;
+      }
     }
 
     .options {
@@ -77,6 +81,14 @@
     justify-content: space-around;
     max-width: 1400px;
 
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      width: 100%;
+
+      .boardPanel {
+        width: 100% !important;
+      }
+    }
+
     &:not(:last-child) {
       margin-bottom: 40px;
 
@@ -87,12 +99,12 @@
   }
 
   .board {
-    max-width: 430px;
+    width: 430px;
     display: flex;
     flex-flow: row wrap;
 
     @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-      width: 96%;
+      width: 100%;
     }
 
     .entry {

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import styles from './styles.module.scss';
 
 interface CollapsiblePanelProps extends React.HTMLAttributes<HTMLDivElement> {
+  className?: string;
   panelTitle: string;
   maxPanelHeight: number;
   defaultExpanded?: boolean;
@@ -25,6 +26,9 @@ export function CollapsiblePanel(props: CollapsiblePanelProps) {
   let className = `${styles.collapsiblePanel}`;
   if (disableExpansion) {
     className += ` ${styles.nonExpandable}`;
+  }
+  if (props.className) {
+    className += ` ${props.className}`;
   }
 
   return (
