@@ -158,7 +158,7 @@ export class Players {
       };
     } else if (lastStats.date.getTime() !== startOfDay.getTime()) {
       delete lastStats.id;
-      const insert = {
+      insert = {
         ...(lastStats as CamelToSnakeCase<PlayerStats>),
         date: startOfDay,
       };
