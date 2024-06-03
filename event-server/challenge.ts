@@ -767,7 +767,9 @@ export abstract class Challenge {
   private async deleteChallenge(): Promise<void> {
     const [result] = await Promise.all([
       sql`DELETE FROM challenges WHERE id = ${this.databaseId}`,
-      this.dataRepository.deleteChallenge(this.id),
+      this.dataRepository.deleteChallenge(this.id).catch((e) => {
+        console.error(`${this.id}: Failed to delete challenge data:`, e);
+      }),
     ]);
 
     if (result.count > 0) {

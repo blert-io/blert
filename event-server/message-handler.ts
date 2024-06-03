@@ -413,7 +413,11 @@ export default class MessageHandler {
           .getChallengeEventsList()
           .sort((a, b) => a.getTick() - b.getTick());
         for (const event of events) {
-          await this.handleChallengeEvent(client, event);
+          try {
+            await this.handleChallengeEvent(client, event);
+          } catch (e) {
+            console.error(`${client} Failed to handle event: ${e}`);
+          }
         }
         break;
 

@@ -87,10 +87,14 @@ export default class Client {
           this.lastMessageLog = now;
         }
 
-        const serverMessage = ServerMessage.deserializeBinary(
-          new Uint8Array(message),
-        );
-        this.messageQueue.push(serverMessage);
+        try {
+          const serverMessage = ServerMessage.deserializeBinary(
+            new Uint8Array(message),
+          );
+          this.messageQueue.push(serverMessage);
+        } catch (e) {
+          console.log(`${this} received invalid protobuf message: ${e}`);
+        }
       } else {
         console.log(`${this} received unsupported text message`);
       }
