@@ -287,6 +287,25 @@ export function generalizeSplit(split: SplitType): SplitType {
   return split;
 }
 
+/**
+ * Given a split, returns every mode of the split.
+ *
+ * For example, if the split is `TOB_CHALLENGE`, this will return
+ * `[TOB_ENTRY_CHALLENGE, TOB_REG_CHALLENGE, TOB_HM_CHALLENGE]`.
+ * May be called with either a generic or mode-specific split.
+ *
+ * @param split The split.
+ * @returns Array containing each mode of the split.
+ */
+export function allSplitModes(split: SplitType): SplitType[] {
+  split = generalizeSplit(split);
+  if (genericTobSplits.includes(split)) {
+    return [split, split + 1, split + 2];
+  }
+
+  return [split];
+}
+
 export function splitName(split: SplitType): string {
   switch (generalizeSplit(split)) {
     case SplitType.TOB_CHALLENGE:

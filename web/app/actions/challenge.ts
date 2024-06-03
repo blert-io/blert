@@ -14,18 +14,17 @@ import {
   SplitType,
   Stage,
   TobRaid,
+  adjustSplitForMode,
+  allSplitModes,
+  camelToSnake,
   generalizeSplit,
 } from '@blert/common';
 import postgres from 'postgres';
 
 import { sql } from './db';
 import dataRepository from './data-repository';
-
-function where(conditions: postgres.Fragment[]): postgres.Fragment {
-  return conditions.length > 0
-    ? sql`WHERE ${conditions.flatMap((c, i) => (i > 0 ? [sql`AND`, c] : c))}`
-    : sql``;
-}
+import { InvalidQueryError } from './errors';
+import { Comparator, Join, join, operator, where } from './query';
 
 /**
  * Fetches the challenge with the specific ID from the database.
@@ -113,51 +112,162 @@ export type ChallengeOverview = Pick<
   | 'totalDeaths'
 > & { party: string[] };
 
+export type SortQuery<T> = `${'+' | '-'}${keyof T & string}`;
+
+export type ChallengeQuery = {
+  type?: ChallengeType;
+  mode?: ChallengeMode;
+  status?: ChallengeStatus;
+  scale?: number;
+  party?: string[];
+  splits?: Array<Comparator<SplitType, number>>;
+  sort?: SortQuery<Omit<ChallengeOverview, 'party'>>;
+};
+
+const DEFAULT_CHALLENGE_LIMIT = 10;
+const DEFAULT_CHALLENGE_QUERY: ChallengeQuery = {
+  sort: '-startTime',
+};
+
+function fieldToTable(field: string): string {
+  switch (field) {
+    case 'uuid':
+    case 'type':
+    case 'start_time':
+    case 'status':
+    case 'stage':
+    case 'scale':
+    case 'mode':
+    case 'challenge_ticks':
+    case 'total_deaths':
+      return 'challenges';
+
+    default:
+      throw new InvalidQueryError(`Unknown field: ${field}`);
+  }
+}
+
 /**
  * Fetches basic information about the most recently recorded challenges from
  * the database.
  *
  * @param limit Maximum number of challenges to fetch.
- * @param type If set, only fetch challenges of this type.
- * @param username If present, only fetch challenges the user participated in.
- * @returns Array of challenges.
+ * @param query Options to filter the challenges.
+ * @returns Array of matching challenges.
+ * @throws One of the following errors:
+ * - `InvalidQueryError` if any parameters in the query are invalid.
  */
-export async function loadRecentChallenges(
-  limit: number,
-  type?: ChallengeType,
-  username?: string,
+export async function findChallenges(
+  limit: number = DEFAULT_CHALLENGE_LIMIT,
+  query?: ChallengeQuery,
 ): Promise<ChallengeOverview[]> {
-  let tables;
-  let conditions = [];
+  const searchQuery = { ...DEFAULT_CHALLENGE_QUERY, ...query };
 
-  if (username !== undefined) {
-    tables = sql`challenges
-      JOIN challenge_players ON challenges.id = challenge_players.challenge_id 
-      JOIN players ON challenge_players.player_id = players.id
-    `;
-    conditions.push(sql`lower(players.username) = ${username.toLowerCase()}`);
-  } else {
-    tables = sql`challenges`;
+  let challengeTable = 'challenges';
+
+  let baseTable = sql`challenges`;
+  const joins: Join[] = [];
+  const conditions = [];
+
+  if (searchQuery.party !== undefined) {
+    if (searchQuery.party.length === 0) {
+      return [];
+    }
+
+    if (searchQuery.party.length === 1) {
+      const username = searchQuery.party[0];
+      joins.push(
+        {
+          table: sql`challenge_players`,
+          on: sql`challenges.id = challenge_players.challenge_id`,
+        },
+        {
+          table: sql`players`,
+          on: sql`challenge_players.player_id = players.id`,
+        },
+      );
+      conditions.push(sql`lower(players.username) = ${username.toLowerCase()}`);
+    } else {
+      baseTable = sql`(
+        SELECT challenges.*
+        FROM challenges
+        JOIN challenge_players ON challenges.id = challenge_players.challenge_id
+        JOIN players ON challenge_players.player_id = players.id
+        WHERE lower(players.username) = ANY(${searchQuery.party.map((u) => u.toLowerCase())})
+        GROUP BY challenges.id
+        HAVING COUNT(*) = ${searchQuery.party.length}
+      ) partied_challenges`;
+      challengeTable = 'partied_challenges';
+    }
   }
 
-  if (type !== undefined) {
-    conditions.push(sql`challenges.type = ${type}`);
+  const sqlChallenges = sql(challengeTable);
+
+  if (searchQuery.splits !== undefined && searchQuery.splits.length > 0) {
+    const splitConditions = searchQuery.splits.map(([type, op, value]) => {
+      let types: SplitType[];
+      if (searchQuery.mode !== undefined) {
+        types = [adjustSplitForMode(generalizeSplit(type), searchQuery.mode)];
+      } else {
+        types = allSplitModes(type);
+      }
+      return sql`(type = ANY(${types}) AND ticks ${operator(op)} ${value})`;
+    });
+
+    joins.push({
+      table: sql`(
+        SELECT challenge_id
+        FROM challenge_splits
+        ${where(splitConditions, 'or')} AND accurate
+        GROUP BY challenge_id
+        HAVING COUNT(*) = ${searchQuery.splits.length}
+      ) filtered_splits`,
+      on: sql`${sqlChallenges}.id = filtered_splits.challenge_id`,
+    });
+  }
+
+  if (searchQuery.type !== undefined) {
+    conditions.push(sql`${sqlChallenges}.type = ${searchQuery.type}`);
+  }
+  if (searchQuery.mode !== undefined) {
+    conditions.push(sql`${sqlChallenges}.mode = ${searchQuery.mode}`);
+  }
+  if (searchQuery.status !== undefined) {
+    conditions.push(sql`${sqlChallenges}.status = ${searchQuery.status}`);
+  }
+  if (searchQuery.scale !== undefined) {
+    conditions.push(sql`${sqlChallenges}.scale = ${searchQuery.scale}`);
+  }
+
+  let order;
+  if (searchQuery.sort !== undefined) {
+    const field = camelToSnake(searchQuery.sort.slice(1));
+    const table = fieldToTable(field);
+    const sqlTable = table === 'challenges' ? sqlChallenges : sql(table);
+    if (searchQuery.sort.startsWith('-')) {
+      order = sql`${sqlTable}.${sql(field)} DESC`;
+    } else {
+      order = sql`${sqlTable}.${sql(field)} ASC`;
+    }
+  } else {
+    order = sql`${sqlChallenges}.start_time DESC`;
   }
 
   const rawChallenges = await sql`
     SELECT
-      challenges.id,
-      challenges.uuid,
-      challenges.type,
-      challenges.start_time,
-      challenges.status,
-      challenges.stage,
-      challenges.mode,
-      challenges.challenge_ticks,
-      challenges.total_deaths
-    FROM ${tables}
+      ${sqlChallenges}.id,
+      ${sqlChallenges}.uuid,
+      ${sqlChallenges}.type,
+      ${sqlChallenges}.start_time,
+      ${sqlChallenges}.status,
+      ${sqlChallenges}.stage,
+      ${sqlChallenges}.mode,
+      ${sqlChallenges}.challenge_ticks,
+      ${sqlChallenges}.total_deaths
+    FROM ${baseTable}
+    ${join(joins)}
     ${where(conditions)}
-    ORDER BY challenges.start_time DESC
+    ORDER BY ${order}
     LIMIT ${limit}
   `;
   const players = await sql`

@@ -13,6 +13,7 @@ export {
 export {
   SplitType,
   adjustSplitForMode,
+  allSplitModes,
   generalizeSplit,
   splitName,
 } from './split';

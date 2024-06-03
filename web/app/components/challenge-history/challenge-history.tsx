@@ -63,7 +63,7 @@ export default function ChallengeHistory(props: ChallengeHistoryProps) {
       const params = {
         limit: count.toString(),
         type: type?.toString(),
-        username,
+        party: username ? [username] : undefined,
       };
       const challenges = await fetch(
         `/api/v1/challenges?${queryString(params)}`,
@@ -71,7 +71,6 @@ export default function ChallengeHistory(props: ChallengeHistoryProps) {
       setChallenges(challenges);
     };
 
-    fetchChallenges();
     const refetchInterval = window.setInterval(fetchChallenges, 30 * 1000);
     return () => window.clearInterval(refetchInterval);
   }, [count, type, username]);
