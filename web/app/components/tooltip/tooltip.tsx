@@ -2,33 +2,46 @@
 
 import ReactDOM from 'react-dom';
 import { useEffect, useRef, useState } from 'react';
-import { Tooltip } from 'react-tooltip';
+import { Tooltip as ReactTooltip } from 'react-tooltip';
 
-type LigmaTooltipProps = {
+type TooltipProps = {
   children: React.ReactNode;
   maxWidth?: string | number;
   open?: boolean;
   openOnClick?: boolean;
-  portalId?: string;
   tooltipId: string;
 };
 
-export function LigmaTooltip(props: LigmaTooltipProps) {
-  const { children, maxWidth, open, openOnClick, portalId, tooltipId } = props;
+export function Tooltip(props: TooltipProps) {
+  const { children, maxWidth, open, openOnClick, tooltipId } = props;
   const [ready, setReady] = useState(false);
   const portalNode = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    portalNode.current = document.getElementById(portalId ?? 'tooltip-portal');
+    const root = document.getElementById('portal-root');
+
+    const tooltipPortal = document.createElement('div');
+    tooltipPortal.classList.add(`${tooltipId}-portal`);
+    root?.appendChild(tooltipPortal);
+    portalNode.current = tooltipPortal;
+
     setReady(true);
-  }, [portalId]);
+
+    return () => {
+      if (portalNode.current !== null) {
+        document
+          .getElementById('portal-root')
+          ?.removeChild(portalNode.current!);
+      }
+    };
+  }, [tooltipId]);
 
   if (portalNode.current === null || !ready) {
     return null;
   }
 
   return ReactDOM.createPortal(
-    <Tooltip
+    <ReactTooltip
       id={tooltipId}
       isOpen={open}
       openOnClick={openOnClick}
@@ -43,7 +56,7 @@ export function LigmaTooltip(props: LigmaTooltipProps) {
       }}
     >
       {children}
-    </Tooltip>,
-    portalNode.current!,
+    </ReactTooltip>,
+    portalNode.current,
   );
 }

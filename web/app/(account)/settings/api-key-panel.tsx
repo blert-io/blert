@@ -12,7 +12,7 @@ import {
 } from '@/actions/users';
 import { SubmitButton } from '@/components/button';
 import Input from '@/components/input';
-import LigmaTooltip from '@/components/ligma-tooltip';
+import Tooltip from '@/components/tooltip';
 
 import styles from './style.module.scss';
 
@@ -35,9 +35,9 @@ function ApiKey({ apiKey, removeApiKey }: ApiKeyProps) {
 
   return (
     <div className={styles.apiKey}>
-      <LigmaTooltip open={notifyKeyCopied} tooltipId={copyTooltipId}>
+      <Tooltip open={notifyKeyCopied} tooltipId={copyTooltipId}>
         API key copied to clipboard
-      </LigmaTooltip>
+      </Tooltip>
       <div className={styles.wrapper}>
         <input
           onBlur={() => window.getSelection()?.removeAllRanges()}

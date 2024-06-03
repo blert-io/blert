@@ -1,9 +1,9 @@
 import { DataSource, EquipmentSlot } from '@blert/common';
 import Image from 'next/image';
 
-import Item from '../item';
-import { LigmaTooltip } from '../ligma-tooltip/ligma-tooltip';
-import { PlayerEquipment } from '../../utils/boss-room-state';
+import Item from '@/components/item';
+import Tooltip from '@/components/tooltip';
+import { PlayerEquipment } from '@/utils/boss-room-state';
 
 import styles from './style.module.scss';
 
@@ -46,7 +46,7 @@ export default function EquipmentViewer(props: EquipmentViewerProps) {
         ...EQUIPMENT_OFFSETS[slot],
       };
 
-      const tooltipId = `${username}-${slot}-tooltip`;
+      const tooltipId = `${username.replace(/[^a-zA-Z0-9_-]/g, '')}-${slot}-tooltip`;
 
       return (
         <span key={`${slot}-${index}`}>
@@ -65,9 +65,9 @@ export default function EquipmentViewer(props: EquipmentViewerProps) {
               size={ITEM_SIZE}
             />
           </div>
-          <LigmaTooltip key={`tooltip-${slot}`} tooltipId={tooltipId}>
+          <Tooltip key={`tooltip-${slot}`} tooltipId={tooltipId}>
             {item.name}
-          </LigmaTooltip>
+          </Tooltip>
         </span>
       );
     });

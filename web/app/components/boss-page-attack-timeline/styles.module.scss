@@ -1,278 +1,29 @@
 @import '../../mixins.scss';
 
-.attackTimeline {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.attackTimeline__Inner {
-  display: flex;
-  flex-direction: row;
-  position: relative;
-}
-
-.attackTimeline__Scrollable {
-  position: relative;
-  padding: 75px 10px 50px 12px;
-  overflow-x: scroll;
-  width: 100%;
-  display: flex;
-  flex-direction: row;
-  overflow-y: visible;
-
-  @include styledScrollbar;
-}
-
-.attackTimeline__ColumnActiveIndicator {
-  position: absolute;
-  height: 96%;
-  top: 67px;
-  border: 3px solid var(--blert-text-color);
-  border-radius: 5px;
-  opacity: 0.5;
-  left: -8px;
-  z-index: 20;
-  pointer-events: none;
-}
-
-.attackTimeline__Column,
-.attackTimeline__Legend {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding-bottom: 10px;
-  position: relative;
-  margin-right: 5px;
-}
-
-.attackTimeline__Legend {
-  position: relative;
-  padding-top: 24px;
-  top: 4px;
-  width: 134px;
-  margin-right: 0;
-  top: 80px;
-  align-items: flex-end !important;
-
-  .legendParticipant {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    background-color: #23242f;
-    border-radius: 3px;
+.attackTimelinePanel {
+  .expandButton {
+    margin: 8px 0 0 auto;
+    text-align: center;
+    width: 110px;
     font-size: 16px;
-    color: white;
-    font-weight: 600;
-    text-align: center;
-    width: 125px;
-    opacity: 1;
-    cursor: pointer;
-    margin: 0 5px 5px 0;
 
     &:hover {
-      filter: brightness(1.2);
-    }
-
-    &.npc {
-      background-color: #3f040494;
-    }
-
-    &.selected {
-      background-color: var(--blert-blue);
-    }
-  }
-}
-
-.attackTimeline__TickHeader {
-  height: 30px;
-  width: 100%;
-  text-align: center;
-  padding: 0;
-  cursor: pointer;
-  position: relative;
-  left: -3px;
-  top: -3px;
-
-  &:hover {
-    color: white;
-  }
-}
-
-.attackTimeline__RoomSplit {
-  position: absolute;
-  height: 50px;
-  width: 71px;
-  top: -55px;
-  left: -14px;
-
-  &.splitIndicatorBottom {
-    transform: rotate(180deg);
-    bottom: -40px;
-    top: unset;
-  }
-
-  span {
-    border: 1px solid var(--blert-text-color);
-    cursor: pointer;
-    background-color: #23242f;
-    border-radius: 3px;
-    padding: 0px 5px;
-    text-align: center;
-    position: absolute;
-    white-space: nowrap;
-    top: -3px;
-    left: 50%;
-    font-size: 28px;
-    transform: translateX(-50%);
-  }
-
-  div.splitIndicatorWrapper {
-    position: relative;
-    top: -8px;
-
-    .splitIndicatorPt1 {
-      position: absolute;
-      bottom: -58px;
-      height: 10px;
-      width: 100%;
-      border-left: 4px solid var(--blert-text-color);
-      border-right: 4px solid var(--blert-text-color);
-      border-top: 4px solid var(--blert-text-color);
-      border-bottom-left-radius: 5px;
-      border-bottom-right-radius: 5px;
-    }
-
-    .splitIndicatorPt2 {
-      bottom: -49px;
-      height: 5px;
-      position: absolute;
-      left: 33px;
-      border-left: 4px solid var(--blert-text-color);
-    }
-  }
-}
-
-.cell {
-  background-color: #23242f;
-  border-radius: 3px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 45px;
-  color: white;
-  font-weight: bold;
-  text-align: center;
-  opacity: 0.3;
-  margin: 0 5px 5px 0;
-  position: relative;
-
-  &:hover {
-    border: 1px solid var(--blert-text-color);
-    opacity: 0.7;
-  }
-
-  &.npcCooldown {
-    opacity: 1;
-
-    &:hover {
-      opacity: 0.8;
-    }
-  }
-
-  &.attackTimeline__CellOffCooldown {
-    opacity: 1;
-
-    &:hover {
-      opacity: 0.8;
-    }
-  }
-
-  &.cellInteractable {
-    cursor: pointer;
-  }
-
-  &.cellDead {
-    background-color: #3f0404;
-    opacity: 0.25;
-
-    &:hover {
-      opacity: 0.4;
-    }
-  }
-
-  .label {
-    font-size: 12px;
-    position: absolute;
-    bottom: 0;
-    right: 0;
-    padding: 2px 4px;
-    border-radius: 3px;
-    color: white;
-  }
-}
-
-.npcTooltip {
-  max-width: 240px;
-  text-align: center;
-  padding: 0 10px 4px 10px;
-
-  button {
-    color: var(--blert-blue);
-    padding: 0 5px;
-
-    &:hover {
-      opacity: 0.8;
       cursor: pointer;
+      color: #fff;
     }
-  }
 
-  .npcAttack {
-    margin-left: 4px;
-  }
-}
-
-.playerTooltip {
-  button {
-    color: var(--blert-blue);
-    margin-bottom: 1px;
-
-    &:hover {
-      opacity: 0.8;
-      cursor: pointer;
+    i {
+      margin-right: 5px;
     }
   }
 }
 
-.attackTimeline__CellImage {
-  display: flex;
-  height: 100%;
+.timelineModal {
+  @include styledScrollbar;
+
   width: 100%;
-  position: relative;
-  align-items: center;
-  justify-content: center;
-
-  img {
-    image-rendering: crisp-edges;
-    image-rendering: -webkit-optimize-contrast;
-  }
-
-  .letter {
-    font-size: 24px;
-  }
-}
-
-.attackTimeline__CellImage__InfoIcon {
-  z-index: 10;
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  cursor: pointer;
-}
-
-.attackTimeline__Nothing {
-  height: 100%;
-  width: 100%;
+  padding: 20px 30px;
+  max-height: 90vh;
+  overflow-y: auto;
+  overflow-x: hidden;
 }

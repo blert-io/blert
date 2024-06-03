@@ -79,7 +79,7 @@ export default function RootLayout({
               <Topbar />
               <div className={styles.siteParent}>
                 <LeftNav />
-                <div id="tooltip-portal" />
+                <div id="portal-root" />
                 <div className={styles.pageParentContent}>{children}</div>
               </div>
             </ChallengeProvider>

@@ -8,6 +8,7 @@ import {
   NyloSpawn,
   NyloStyle,
   RoomNpc,
+  RoomNpcMap,
   RoomNpcType,
   VerzikCrab,
   VerzikCrabSpawn,
@@ -622,9 +623,14 @@ function verzikSpawnToString(spawn: VerzikCrabSpawn): string {
  * the NPC's type.
  *
  * @param npc The NPC to get the friendly name for.
+ * @param allNpcs An optional map of all NPCs in the room, used for resolving
+ *   any NPCs referenced by the given NPC.
  * @returns A friendly name for the NPC.
  */
-export function npcFriendlyName(npc: RoomNpc): string {
+export function npcFriendlyName(
+  npc: RoomNpc,
+  allNpcs?: Map<number, RoomNpc>,
+): string {
   switch (npc.type) {
     case RoomNpcType.MAIDEN_CRAB:
       const maidenCrab = (npc as MaidenCrab).maidenCrab;
@@ -632,13 +638,30 @@ export function npcFriendlyName(npc: RoomNpc): string {
       const spawn = maidenCrabSpawnString(maidenCrab.spawn);
       return `${spawn} ${position}`;
 
-    case RoomNpcType.NYLO:
+    case RoomNpcType.NYLO: {
       const nylo = (npc as Nylo).nylo;
+
       const style = nyloStyleToString(nylo.style);
+
       if (nylo.spawnType === NyloSpawn.SPLIT) {
-        return `${nylo.wave} ${style} split`;
+        let name = `${nylo.wave} ${style} split`;
+
+        if (allNpcs !== undefined) {
+          const parent = allNpcs.get(nylo.parentRoomId);
+          if (parent !== undefined) {
+            const parentName = npcFriendlyName(parent, allNpcs);
+            name += ` (from ${parentName})`;
+          }
+        }
+        return name;
       }
-      return `${nylo.wave} ${nyloSpawnToString(nylo.spawnType)} ${style}`;
+
+      let name = `${nylo.wave} ${nyloSpawnToString(nylo.spawnType)} ${style}`;
+      if (nylo.big) {
+        name += ' big';
+      }
+      return name;
+    }
 
     case RoomNpcType.VERZIK_CRAB:
       const verzikCrab = (npc as VerzikCrab).verzikCrab;

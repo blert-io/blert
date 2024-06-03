@@ -13,11 +13,9 @@ import {
 import Image from 'next/image';
 import { useMemo } from 'react';
 
+import { TimelineColor } from '@/components/attack-timeline';
+import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
 import { BossPageControls } from '@/components/boss-page-controls/boss-page-controls';
-import {
-  BossPageAttackTimeline,
-  TimelineColor,
-} from '@/components/boss-page-attack-timeline/boss-page-attack-timeline';
 import BossPageReplay from '@/components/boss-page-replay';
 import {
   Entity,

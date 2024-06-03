@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react';
 
-import { TimelineSplit } from '../boss-page-attack-timeline/boss-page-attack-timeline';
-import { clamp } from '../../utils/math';
-import { ticksToFormattedSeconds } from '../../utils/tick';
+import { TimelineSplit } from '@/components/attack-timeline';
+import { clamp } from '@/utils/math';
+import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import styles from './styles.module.scss';
 

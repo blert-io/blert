@@ -4,7 +4,7 @@ import { NameChange, NameChangeStatus } from '@blert/common';
 import { useEffect, useState } from 'react';
 import TimeAgo from 'react-timeago';
 
-import LigmaTooltip from '@/components/ligma-tooltip';
+import Tooltip from '@/components/tooltip';
 
 import styles from './style.module.scss';
 
@@ -77,9 +77,9 @@ export default function NameChangeRow({ nameChange, id }: NameChangeProps) {
         {statusString}
         {reason !== null && (
           <>
-            <LigmaTooltip tooltipId={tooltipId}>
+            <Tooltip tooltipId={tooltipId}>
               <span className={styles.tooltip}>{reason}</span>
-            </LigmaTooltip>
+            </Tooltip>
             <i className={`fa fa-info-circle`} data-tooltip-id={tooltipId} />
             <span className="sr-only">{reason}</span>
           </>

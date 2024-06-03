@@ -19,8 +19,8 @@ import {
 import { useSearchParams } from 'next/navigation';
 import { useContext, useEffect, useMemo } from 'react';
 
-import { TimelineSplit } from '@/components/boss-page-attack-timeline/boss-page-attack-timeline';
-import { BossPageAttackTimeline } from '@/components/boss-page-attack-timeline/boss-page-attack-timeline';
+import { TimelineSplit } from '@/components/attack-timeline';
+import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
 import { BossPageControls } from '@/components/boss-page-controls/boss-page-controls';
 import BossPageReplay from '@/components/boss-page-replay';
 import { BossPageDPSTimeline } from '@/components/boss-page-dps-timeine/boss-page-dps-timeline';
@@ -39,7 +39,7 @@ import {
 } from '@/utils/boss-room-state';
 import { clamp } from '@/utils/math';
 import { ticksToFormattedSeconds } from '@/utils/tick';
-import { ActorContext } from '../../../context';
+import { ActorContext } from '@/raids/tob/context';
 
 import maidenBaseTiles from './maiden.json';
 import styles from './style.module.scss';

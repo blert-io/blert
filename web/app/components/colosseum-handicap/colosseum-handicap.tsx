@@ -1,7 +1,7 @@
 import { Handicap } from '@blert/common';
 import Image from 'next/image';
 
-import { LigmaTooltip } from '../ligma-tooltip/ligma-tooltip';
+import Tooltip from '@/components/tooltip';
 
 import styles from './style.module.scss';
 
@@ -207,7 +207,7 @@ export default function ColosseumHandicap(props: ColosseumHandicapProps) {
       {handicap.level !== 'I' && (
         <span className={styles.level}>{handicap.level}</span>
       )}
-      <LigmaTooltip tooltipId={tooltipId}>{handicap.name}</LigmaTooltip>
+      <Tooltip tooltipId={tooltipId}>{handicap.name}</Tooltip>
     </div>
   );
 }

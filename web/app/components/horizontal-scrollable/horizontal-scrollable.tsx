@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 
 type HorizontalScrollableProps = React.HTMLAttributes<HTMLDivElement> & {
   customRef?: React.MutableRefObject<HTMLDivElement | null>;
+  disable?: boolean;
 };
 
 export function HorizontalScrollable(props: HorizontalScrollableProps) {
@@ -25,13 +26,15 @@ export function HorizontalScrollable(props: HorizontalScrollableProps) {
     }
 
     const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      div.scrollLeft += e.deltaY;
+      if (!props.disable) {
+        e.preventDefault();
+        div.scrollLeft += e.deltaY;
+      }
     };
 
     div.addEventListener('wheel', handleWheel, { passive: false });
     return () => div.removeEventListener('wheel', handleWheel);
-  }, []);
+  }, [props.disable]);
 
   return (
     <div ref={setRefs} {...divProps}>

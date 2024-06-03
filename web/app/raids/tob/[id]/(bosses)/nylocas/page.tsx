@@ -23,12 +23,9 @@ import {
   usePlayingState,
   useStageEvents,
 } from '@/utils/boss-room-state';
+import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
+import { TimelineColor, TimelineSplit } from '@/components/attack-timeline';
 import { BossPageControls } from '@/components/boss-page-controls/boss-page-controls';
-import {
-  BossPageAttackTimeline,
-  TimelineColor,
-  TimelineSplit,
-} from '@/components/boss-page-attack-timeline/boss-page-attack-timeline';
 import BossPageReplay from '@/components/boss-page-replay';
 import HorizontalScrollable from '@/components/horizontal-scrollable';
 import { Entity, NpcEntity, PlayerEntity } from '@/components/map';
