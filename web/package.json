@@ -34,7 +34,7 @@
     "react-error-boundary": "^4.0.13",
     "react-timeago": "^7.2.0",
     "react-tooltip": "^5.26.3",
-    "recharts": "^2.12.2",
+    "recharts": "^2.13.0-alpha.4",
     "sass": "^1.71.1",
     "schema-dts": "^1.1.2",
     "sharp": "^0.33.2",

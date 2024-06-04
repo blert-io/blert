@@ -1,13 +1,16 @@
 'use client';
 
+import { Skill } from '@blert/common';
 import { useContext } from 'react';
 
-import CollapsiblePanel from '../collapsible-panel';
-import EquipmentViewer from '../equipment-viewer';
-import KeyPrayers from '../key-prayers';
-import Map, { Entity, EntityType, MapDefinition } from '../map';
-import { ActorContext } from '../../raids/tob/context';
-import { PlayerState } from '../../utils/boss-room-state';
+import CollapsiblePanel from '@/components/collapsible-panel';
+import EquipmentViewer from '@/components/equipment-viewer';
+import KeyPrayers from '@/components/key-prayers';
+import Map, { Entity, EntityType, MapDefinition } from '@/components/map';
+import PlayerSkill from '@/components/player-skill';
+import { ActorContext } from '@/raids/tob/context';
+import { PlayerState } from '@/utils/boss-room-state';
+import { BoostType, maxBoostedLevel } from '@/utils/combat';
 
 import styles from './styles.module.scss';
 
@@ -40,6 +43,11 @@ export default function BossPageReplay({
       setSelectedPlayer(username);
     }
   };
+
+  const combatThresholds = (boost: BoostType, level: number) => ({
+    high: maxBoostedLevel(boost, level),
+    low: level,
+  });
 
   return (
     <CollapsiblePanel
@@ -78,6 +86,86 @@ export default function BossPageReplay({
                 equipment={state?.equipment ?? null}
                 source={state?.player.source}
               />
+              <div className={styles.skills}>
+                {state?.skills[Skill.HITPOINTS] && (
+                  <PlayerSkill
+                    className={styles.skill}
+                    skill={Skill.HITPOINTS}
+                    level={state.skills[Skill.HITPOINTS]}
+                    thresholds={{
+                      high: Math.floor(
+                        state.skills[Skill.HITPOINTS].getBase() * 0.8,
+                      ),
+                      low: Math.floor(
+                        state.skills[Skill.HITPOINTS].getBase() * 0.4,
+                      ),
+                    }}
+                  />
+                )}
+                {state?.skills[Skill.ATTACK] && (
+                  <PlayerSkill
+                    className={styles.skill}
+                    skill={Skill.ATTACK}
+                    level={state.skills[Skill.ATTACK]}
+                    thresholds={combatThresholds(
+                      BoostType.SUPER_COMBAT,
+                      state.skills[Skill.ATTACK].getBase(),
+                    )}
+                  />
+                )}
+                {state?.skills[Skill.RANGED] && (
+                  <PlayerSkill
+                    className={styles.skill}
+                    skill={Skill.RANGED}
+                    level={state.skills[Skill.RANGED]}
+                    thresholds={combatThresholds(
+                      BoostType.RANGING_POTION,
+                      state.skills[Skill.RANGED].getBase(),
+                    )}
+                  />
+                )}
+                {state?.skills[Skill.PRAYER] && (
+                  <PlayerSkill
+                    className={styles.skill}
+                    skill={Skill.PRAYER}
+                    level={state.skills[Skill.PRAYER]}
+                  />
+                )}
+                {state?.skills[Skill.STRENGTH] && (
+                  <PlayerSkill
+                    className={styles.skill}
+                    skill={Skill.STRENGTH}
+                    level={state.skills[Skill.STRENGTH]}
+                    thresholds={combatThresholds(
+                      BoostType.SUPER_COMBAT,
+                      state.skills[Skill.STRENGTH].getBase(),
+                    )}
+                  />
+                )}
+                {state?.skills[Skill.MAGIC] && (
+                  <PlayerSkill
+                    className={styles.skill}
+                    skill={Skill.MAGIC}
+                    level={state.skills[Skill.MAGIC]}
+                    thresholds={combatThresholds(
+                      BoostType.SATURATED_HEART,
+                      state.skills[Skill.MAGIC].getBase(),
+                    )}
+                  />
+                )}
+                <div className={styles.skill} />
+                {state?.skills[Skill.DEFENCE] && (
+                  <PlayerSkill
+                    className={styles.skill}
+                    skill={Skill.DEFENCE}
+                    level={state.skills[Skill.DEFENCE]}
+                    thresholds={combatThresholds(
+                      BoostType.SUPER_COMBAT,
+                      state.skills[Skill.DEFENCE].getBase(),
+                    )}
+                  />
+                )}
+              </div>
             </div>
           ))}
         </div>

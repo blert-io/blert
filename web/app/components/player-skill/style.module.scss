@@ -1,0 +1,23 @@
+.skill {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 14px;
+  padding: 4px 0;
+
+  img {
+    margin-right: 8px;
+  }
+
+  &.high {
+    color: var(--blert-green);
+  }
+
+  &.medium {
+    color: var(--blert-yellow);
+  }
+
+  &.low {
+    color: var(--blert-red);
+  }
+}

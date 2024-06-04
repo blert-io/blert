@@ -28,6 +28,7 @@ import {
   VerzikCrabProperties,
   DataSource,
   SplitType,
+  Skill,
 } from '@blert/common';
 import {
   SetStateAction,
@@ -154,6 +155,7 @@ export type PlayerState = Omit<PlayerUpdateEvent, 'type' | 'stage' | 'cId'> & {
   diedThisTick: boolean;
   isDead: boolean;
   equipment: PlayerEquipment;
+  skills: { [key in Skill]?: SkillLevel };
 };
 
 export type NpcState = {
@@ -388,6 +390,7 @@ function computePlayerState(
             lastActiveTick !== -1
               ? { ...state[lastActiveTick].equipment }
               : { ...EMPTY_EQUIPMENT },
+          skills: {},
         };
         lastActiveTick = tick;
 
@@ -406,6 +409,42 @@ function computePlayerState(
               applyItemDeltas(
                 playerStateThisTick!.equipment,
                 rest.player.equipmentDeltas,
+              );
+            }
+
+            if (rest.player.attack !== undefined) {
+              playerStateThisTick!.skills[Skill.ATTACK] = SkillLevel.fromRaw(
+                rest.player.attack,
+              );
+            }
+            if (rest.player.defence !== undefined) {
+              playerStateThisTick!.skills[Skill.DEFENCE] = SkillLevel.fromRaw(
+                rest.player.defence,
+              );
+            }
+            if (rest.player.strength !== undefined) {
+              playerStateThisTick!.skills[Skill.STRENGTH] = SkillLevel.fromRaw(
+                rest.player.strength,
+              );
+            }
+            if (rest.player.hitpoints !== undefined) {
+              playerStateThisTick!.skills[Skill.HITPOINTS] = SkillLevel.fromRaw(
+                rest.player.hitpoints,
+              );
+            }
+            if (rest.player.prayer !== undefined) {
+              playerStateThisTick!.skills[Skill.PRAYER] = SkillLevel.fromRaw(
+                rest.player.prayer,
+              );
+            }
+            if (rest.player.ranged !== undefined) {
+              playerStateThisTick!.skills[Skill.RANGED] = SkillLevel.fromRaw(
+                rest.player.ranged,
+              );
+            }
+            if (rest.player.magic !== undefined) {
+              playerStateThisTick!.skills[Skill.MAGIC] = SkillLevel.fromRaw(
+                rest.player.magic,
               );
             }
 
@@ -438,6 +477,7 @@ function computePlayerState(
           diedThisTick: false,
           isDead: true,
           equipment: { ...EMPTY_EQUIPMENT },
+          skills: {},
         };
       }
 
