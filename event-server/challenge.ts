@@ -92,7 +92,6 @@ export abstract class Challenge {
   private state: State;
   private challengeStatus: ChallengeStatus;
   private mode: ChallengeMode;
-  private allStagesAccurate: boolean;
   private totalStageTicks: number;
   private totalDeaths: number;
   private overallTicks: number;
@@ -133,7 +132,6 @@ export abstract class Challenge {
     this.state = State.STARTING;
     this.challengeStatus = ChallengeStatus.IN_PROGRESS;
     this.mode = mode;
-    this.allStagesAccurate = true;
     this.totalStageTicks = 0;
     this.totalDeaths = 0;
     this.overallTicks = 0;
@@ -381,7 +379,6 @@ export abstract class Challenge {
 
     const timesAccurate =
       this.hasFullyCompletedChallenge() &&
-      this.allStagesAccurate &&
       this.challengeStatus === ChallengeStatus.COMPLETED;
     const overallSplits = await this.createChallengeSplits(timesAccurate);
     if (timesAccurate) {
@@ -500,10 +497,6 @@ export abstract class Challenge {
     this.totalStageTicks += event.getTick();
     this.stageTimeInaccurate =
       this.stageTimeInaccurate || !stageUpdate.getAccurate();
-
-    if (this.stageTimeInaccurate) {
-      this.allStagesAccurate = false;
-    }
 
     await Promise.all([
       this.updateChallenge({
