@@ -972,8 +972,33 @@ export abstract class Challenge {
 
         case EventType.NPC_SPAWN:
         case EventType.NPC_DEATH: {
+          const npc = event.getNpc()!;
           const e = baseQueryableEvent(event);
-          e.npc_id = event.getNpc()!.getId();
+          const roomNpc = this.stageNpcs.get(npc.getRoomId().toString());
+          e.npc_id = npc.getId();
+          if (roomNpc !== undefined) {
+            e.subtype = roomNpc.type;
+            switch (roomNpc.type) {
+              case RoomNpcType.BASIC:
+                break;
+              case RoomNpcType.MAIDEN_CRAB:
+                const maidenCrab = (roomNpc as MaidenCrab).maidenCrab;
+                e[QueryableEventField.NPC_MAIDEN_CRAB_SPAWN] = maidenCrab.spawn;
+                e[QueryableEventField.NPC_MAIDEN_CRAB_POSITION] =
+                  maidenCrab.position;
+                break;
+              case RoomNpcType.NYLO:
+                const nylo = (roomNpc as Nylo).nylo;
+                e[QueryableEventField.NPC_NYLO_SPAWN_TYPE] = nylo.spawnType;
+                e[QueryableEventField.NPC_NYLO_STYLE] = nylo.style;
+                break;
+              case RoomNpcType.VERZIK_CRAB:
+                const verzikCrab = (roomNpc as VerzikCrab).verzikCrab;
+                e[QueryableEventField.NPC_VERZIK_CRAB_PHASE] = verzikCrab.phase;
+                e[QueryableEventField.NPC_VERZIK_CRAB_SPAWN] = verzikCrab.spawn;
+                break;
+            }
+          }
           queryableEvents.push(e);
           break;
         }

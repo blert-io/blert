@@ -81,6 +81,7 @@ function initializeDataRepository(): DataRepository {
       },
     });
     const bucket = process.env.BLERT_DATA_REPOSITORY.slice('s3://'.length);
+    console.log(`DataRepository using S3 backend bucket ${bucket}`);
     repositoryBackend = new DataRepository.S3Backend(s3Client, bucket);
   } else {
     throw new Error('Unknown repository backend');
