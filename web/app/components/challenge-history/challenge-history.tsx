@@ -71,6 +71,9 @@ export default function ChallengeHistory(props: ChallengeHistoryProps) {
       setChallenges(challenges);
     };
 
+    // TODO(frolv): Fetch immediately due to Next's aggressive caching. This
+    // will be fixed in a future version of Next.
+    fetchChallenges();
     const refetchInterval = window.setInterval(fetchChallenges, 30 * 1000);
     return () => window.clearInterval(refetchInterval);
   }, [count, type, username]);

@@ -326,6 +326,12 @@ const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
   },
+  [PlayerAttack.GOBLIN_PAINT_CANNON]: {
+    tagColor: 'red',
+    letter: 'GPC',
+    ranged: false,
+    special: false,
+  },
   [PlayerAttack.GODSWORD_SMACK]: {
     tagColor: 'yellow',
     letter: 'gs',
@@ -371,6 +377,18 @@ const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
   [PlayerAttack.KODAI_BASH]: {
     tagColor: 'blue',
     letter: 'kb',
+    ranged: false,
+    special: false,
+  },
+  [PlayerAttack.NM_STAFF_BARRAGE]: {
+    tagColor: 'blue',
+    letter: 'F',
+    ranged: true,
+    special: false,
+  },
+  [PlayerAttack.NM_STAFF_BASH]: {
+    tagColor: 'blue',
+    letter: 'vnm',
     ranged: false,
     special: false,
   },
@@ -554,18 +572,6 @@ const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: true,
   },
-  [PlayerAttack.VOLATILE_NM_BARRAGE]: {
-    tagColor: 'blue',
-    letter: 'F',
-    ranged: true,
-    special: false,
-  },
-  [PlayerAttack.VOLATILE_NM_BASH]: {
-    tagColor: 'blue',
-    letter: 'vnm',
-    ranged: false,
-    special: false,
-  },
   [PlayerAttack.VOLATILE_NM_SPEC]: {
     tagColor: 'blue',
     letter: 'VNM',
@@ -684,16 +690,16 @@ function makeCellImage(playerAttack: Attack, size: number, memes: BlertMemes) {
     }
 
     switch (playerAttack.type) {
+      case PlayerAttack.KODAI_BARRAGE:
+      case PlayerAttack.NM_STAFF_BARRAGE:
       case PlayerAttack.SANG_BARRAGE:
+      case PlayerAttack.SCEPTRE_BARRAGE:
       case PlayerAttack.SHADOW_BARRAGE:
+      case PlayerAttack.SOTD_BARRAGE:
       case PlayerAttack.STAFF_OF_LIGHT_BARRAGE:
       case PlayerAttack.TOXIC_TRIDENT_BARRAGE:
       case PlayerAttack.TOXIC_STAFF_BARRAGE:
       case PlayerAttack.TRIDENT_BARRAGE:
-      case PlayerAttack.KODAI_BARRAGE:
-      case PlayerAttack.SCEPTRE_BARRAGE:
-      case PlayerAttack.SOTD_BARRAGE:
-      case PlayerAttack.VOLATILE_NM_BARRAGE:
       case PlayerAttack.UNKNOWN_BARRAGE:
         infoIcon = (
           <Image
@@ -731,7 +737,7 @@ function makeCellImage(playerAttack: Attack, size: number, memes: BlertMemes) {
         break;
 
       case PlayerAttack.KODAI_BASH:
-      case PlayerAttack.VOLATILE_NM_BASH:
+      case PlayerAttack.NM_STAFF_BASH:
       case PlayerAttack.SCYTHE_UNCHARGED:
       case PlayerAttack.TONALZTICS_UNCHARGED:
         troll = true;
@@ -942,6 +948,7 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
     case PlayerAttack.PUNCH:
       return 'punched';
     case PlayerAttack.KODAI_BARRAGE:
+    case PlayerAttack.NM_STAFF_BARRAGE:
     case PlayerAttack.SANG_BARRAGE:
     case PlayerAttack.SCEPTRE_BARRAGE:
     case PlayerAttack.SHADOW_BARRAGE:
@@ -950,7 +957,6 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
     case PlayerAttack.TOXIC_TRIDENT_BARRAGE:
     case PlayerAttack.TOXIC_STAFF_BARRAGE:
     case PlayerAttack.TRIDENT_BARRAGE:
-    case PlayerAttack.VOLATILE_NM_BARRAGE:
     case PlayerAttack.UNKNOWN_BARRAGE:
       return 'froze';
     case PlayerAttack.KODAI_BASH:
@@ -993,8 +999,8 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
       return 'bowed';
     case PlayerAttack.VOIDWAKER_SPEC:
       return 'voidwakered';
-    case PlayerAttack.VOLATILE_NM_BASH:
-      return 'volatile bashed';
+    case PlayerAttack.NM_STAFF_BASH:
+      return 'nightmare bashed';
     case PlayerAttack.VOLATILE_NM_SPEC:
       return 'volatiled';
     case PlayerAttack.WEBWEAVER_SPEC:
