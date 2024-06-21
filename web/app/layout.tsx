@@ -48,7 +48,7 @@ export const metadata: Metadata = {
     ],
   },
   twitter: {
-    card: 'summary_large_image',
+    card: 'summary',
     title: 'Blert',
     description: 'Old School Runescape PvM Analytics',
     images: ['https://blert.io/images/blert-topbar.png'],

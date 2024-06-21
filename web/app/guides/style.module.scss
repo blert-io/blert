@@ -1,0 +1,61 @@
+@import '../mixins.scss';
+
+.guides {
+  .guidesHeader {
+    margin: 2em auto;
+
+    h1 {
+      margin: 0 0 10px 0;
+    }
+  }
+
+  .links {
+    display: flex;
+    flex-flow: row wrap;
+    justify-content: center;
+
+    .guideLink {
+      width: 340px;
+
+      &:hover {
+        transform: scale(1.05);
+      }
+    }
+  }
+}
+
+.guidePanel {
+  @include panel;
+  flex-direction: column;
+  padding: 10px 20px;
+
+  h2 {
+    margin-top: 0;
+  }
+
+  a {
+    text-decoration: underline;
+  }
+}
+
+.tags {
+  margin: 1em 0;
+  padding: 0.5em 0;
+  display: flex;
+  border-radius: 5px;
+  background: var(--nav-bg);
+  width: fit-content;
+
+  .tag {
+    user-select: none;
+    padding: 0 12px;
+
+    &:not(:first-child) {
+      border-left: 2px solid var(--content-area-bg);
+    }
+
+    i {
+      margin-right: 8px;
+    }
+  }
+}

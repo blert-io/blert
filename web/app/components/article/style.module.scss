@@ -1,0 +1,187 @@
+@import '../../mixins.scss';
+
+$CONTENT_WIDTH_NORMAL: 1000px;
+$CONTENT_WIDTH_SMALL: 750px;
+$CONTENT_WIDTH_SMALLER: 600px;
+$FIXED_TOC_WIDTH: 220px;
+$FIXED_TOC_MARGIN: 40px;
+
+.wrapper {
+  margin: 2em 0;
+  width: $CONTENT_WIDTH_NORMAL + $FIXED_TOC_MARGIN + $FIXED_TOC_WIDTH;
+
+  @media (max-width: 1520px) {
+    width: $CONTENT_WIDTH_SMALL + $FIXED_TOC_MARGIN + $FIXED_TOC_WIDTH;
+  }
+
+  @media (max-width: 1280px) {
+    width: $CONTENT_WIDTH_SMALLER + $FIXED_TOC_MARGIN + $FIXED_TOC_WIDTH;
+  }
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    width: 100%;
+  }
+}
+
+.article {
+  @include panel;
+  display: flex;
+  flex-direction: column;
+  padding: 1em 30px;
+  width: $CONTENT_WIDTH_NORMAL;
+
+  @media (max-width: 1520px) {
+    width: $CONTENT_WIDTH_SMALL;
+  }
+
+  @media (max-width: 1280px) {
+    width: $CONTENT_WIDTH_SMALLER;
+  }
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    width: 100%;
+    padding: 1em 10px;
+    align-items: center;
+  }
+
+  * {
+    user-select: text;
+  }
+
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  p,
+  ul {
+    width: 100%;
+  }
+
+  h1 {
+    font-size: 2rem;
+    margin: 0.5em 0;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+    margin: 1em 0 0.5em 0;
+  }
+
+  h3 {
+    font-size: 1.33rem;
+    margin: 0.8em 0 0.5em 0;
+  }
+
+  h4 {
+    font-size: 1.1rem;
+    margin: 0.5em 0 0.5em 0;
+  }
+
+  p {
+    margin: 0.5em 0;
+  }
+
+  *:not(h1, h2, h3, h4, h5, h6) a {
+    text-decoration: underline;
+  }
+
+  img {
+    display: block;
+    align-self: center;
+    margin: 0.5em 0;
+    user-select: none;
+  }
+
+  pre {
+    margin: 0.5em 0;
+    max-width: 100%;
+    overflow: auto hidden;
+    padding: 5px;
+    background: var(--content-area-bg);
+    border-radius: 5px;
+  }
+
+  code {
+    font-size: 1rem;
+    line-height: 1rem;
+    color: #fff;
+  }
+
+  .tooltip {
+    position: relative;
+    padding-right: 10px;
+
+    i {
+      font-size: 10px;
+      position: absolute;
+      top: 0;
+      right: 2px;
+    }
+  }
+
+  .heading {
+    position: relative;
+
+    i {
+      position: absolute;
+      font-size: 14px;
+      left: -22px;
+      top: 50%;
+      transform: translateY(-50%);
+      visibility: hidden;
+    }
+
+    &:hover {
+      i {
+        visibility: visible;
+      }
+    }
+  }
+}
+
+.tableOfContents {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin: 1em 0;
+
+  @media (min-width: $COMPACT_WIDTH_THRESHOLD) {
+    @include panel;
+    position: fixed;
+    margin: 0;
+    padding: 10px 15px;
+    top: 2em;
+    right: 0;
+    width: $FIXED_TOC_WIDTH;
+  }
+
+  * {
+    user-select: none;
+  }
+
+  .title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 0.8em;
+  }
+
+  .heading {
+    padding: 4px 0;
+    width: 200px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+
+    &.active {
+      font-weight: 500;
+      color: #fff;
+    }
+
+    &:hover {
+      color: var(--blert-blue);
+      cursor: pointer;
+    }
+  }
+}

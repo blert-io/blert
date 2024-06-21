@@ -30,12 +30,12 @@ export default function Home() {
               <strong style={{ fontSize: '22px' }}>What is blert?</strong>
               <br />
               <br />
-              Blert (name TBD) is a RuneLite plugin, data analysis pipeline, and
-              web tool that we have been developing for several months now. It
-              originally started as a plugin to track and visualize Theatre of
-              Blood raid data but its scope has since expanded to encompass
-              any-and-all endgame PvM content (of nontrivial difficulty) that
-              exists in OSRS.
+              Blert is a RuneLite plugin, data analysis pipeline, and web tool
+              that we have been developing for several months now. It originally
+              started as a plugin to track and visualize Theatre of Blood raid
+              data but its scope has since expanded to encompass any-and-all
+              endgame PvM content (of nontrivial difficulty) that exists in
+              OSRS.
             </p>
             <p style={{ fontSize: '20px' }}>
               <strong style={{ fontSize: '22px' }}>Why?</strong>

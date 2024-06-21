@@ -1,0 +1,11 @@
+@import '../../mixins.scss';
+
+.group {
+  display: flex;
+  flex-flow: row wrap;
+  justify-content: center;
+
+  &:not(:last-child) {
+    margin-bottom: 20px;
+  }
+}
