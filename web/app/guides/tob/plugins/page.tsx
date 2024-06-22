@@ -1,7 +1,9 @@
+import { ResolvingMetadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 
 import Article from '@/components/article';
+import { basicMetadata } from '@/utils/metadata';
 
 export default function PluginGuide() {
   return (
@@ -195,8 +197,9 @@ export default function PluginGuide() {
   );
 }
 
-export const metadata = {
-  title: 'Theatre of Blood Plugins Guide',
-  description:
-    'Discover the best Runelite plugins to enhance your Theatre of Blood raids.',
-};
+export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
+  return basicMetadata(await parent, {
+    title: 'Theatre of Blood Guides',
+    description: 'Browse top-tier guides for the Theatre of Blood.',
+  });
+}

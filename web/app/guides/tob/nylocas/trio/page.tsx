@@ -1,8 +1,10 @@
 import { ChallengeType } from '@blert/common';
+import { ResolvingMetadata } from 'next';
 import Link from 'next/link';
 
 import Article from '@/components/article';
 import GuideTags from '@/guides/guide-tags';
+import { basicMetadata } from '@/utils/metadata';
 
 function Mage({ children }: { children: React.ReactNode }) {
   return <span style={{ color: '#42c6d7' }}>{children}</span>;
@@ -487,8 +489,9 @@ export default function TrioNylo() {
   );
 }
 
-export const metadata = {
-  title: 'Nylocas Trio Guide',
-  description:
-    'Learn optimal Nylocas waves rotations for a Theatre of Blood trio.',
-};
+export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
+  return basicMetadata(await parent, {
+    title: 'Theatre of Blood Guides',
+    description: 'Browse top-tier guides for the Theatre of Blood.',
+  });
+}

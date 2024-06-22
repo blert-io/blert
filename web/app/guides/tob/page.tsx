@@ -1,5 +1,8 @@
+import { ResolvingMetadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
+
+import { basicMetadata } from '@/utils/metadata';
 
 import guideStyles from '../style.module.scss';
 import styles from './style.module.scss';
@@ -40,7 +43,9 @@ export default function TobGuides() {
   );
 }
 
-export const metadata = {
-  title: 'Theatre of Blood Guides',
-  description: 'Browse top-tier guides for the Theatre of Blood.',
-};
+export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
+  return basicMetadata(await parent, {
+    title: 'Theatre of Blood Guides',
+    description: 'Browse top-tier guides for the Theatre of Blood.',
+  });
+}

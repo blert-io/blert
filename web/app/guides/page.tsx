@@ -1,5 +1,8 @@
+import { ResolvingMetadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
+
+import { basicMetadata } from '@/utils/metadata';
 
 import styles from './style.module.scss';
 
@@ -38,7 +41,9 @@ export default function GuidesPage() {
   );
 }
 
-export const metadata = {
-  title: 'Guides',
-  description: 'Browse top-tier guides for Old School RuneScape PvM content.',
-};
+export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
+  return basicMetadata(await parent, {
+    title: 'Guides',
+    description: 'Browse top-tier guides for Old School RuneScape PvM content.',
+  });
+}
