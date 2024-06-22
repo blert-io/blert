@@ -19,3 +19,9 @@ export default function Page() {
     </div>
   );
 }
+
+export const metadata = {
+  title: 'Hard Mode Theatre of Blood Guide',
+  description:
+    'The ultimate, most comprehensive guide to conquering Hard Mode in the Theatre of Blood, targeted at only the most elite PvMers.',
+};
