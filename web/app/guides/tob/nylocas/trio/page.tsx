@@ -30,17 +30,28 @@ export default function TrioNylo() {
       <p>
         This guide is targeted at players learning max-eff trio moneys or
         speedruns, and assumes a base understanding of the Nylocas room
-        mechanics. Teams following these rotations should consistently be
-        getting boss spawns below 3:04.8, with 2:57.6 being a good target to
-        demonstrate proficiency in a role.
+        mechanics.
       </p>
-      {/*<Article.Heading level={3} text="Team priorities" />
+      <Article.Heading level={3} text="Team goals" />
       <p>
-        In cleanup, the melee starts south while the mage and ranger start
-        north. Everyone should prioritize Nylos of their style, then assist
-        their teammates with Nylos of other styles in different areas of the
-        room.
-      </p>*/}
+        In trio waves, you are aiming for 2:55.2 or 2:57.6 boss spawn. The goal
+        is to:
+      </p>
+      <ol>
+        <li>Avoid stalling at all until at least wave 28.</li>
+        <li>
+          Allow all the existing Nylos in the room to auto-pop once wave 28/29
+          spawns.
+        </li>
+        <li>
+          Kill all new Nylos after the wave 28 spawn (not including wave 28, but
+          the Nylos that spawn afterwards&mdash;both splits and waves 29/30/31).
+        </li>
+      </ol>
+      <p>
+        With no mistakes, you should be able to avoid stalling until at least
+        wave 28 almost 100% of the time.
+      </p>
       <Article.Heading level={3} text="Plugins" />
       <p>
         Refer to the <Link href="/guides/tob/plugins">Plugins guide</Link> for
@@ -53,15 +64,18 @@ export default function TrioNylo() {
         time thresholds.
       </p>
       <p>
-        Dimming when wave 23 spawns will hide Nylos expiring before the wave 28
-        check. If playing for 2:55 or 2:57 boss spawns, dim on wave 28 to know
-        which Nylos to ignore during cleanup.
+        Dimming on the wave 22 spawn (1:45.6 room time) is recommended, as wave
+        22 and older Nylos will explode naturally before the stall check on 28,
+        whereas killing Nylos spawning after 22 will help reduce stalls on the
+        last few waves. You should also dim when wave 28 spawns (2:14.4 room
+        time without previous stalls) to help make clear which Nylos you need to
+        kill during cleanup and which can be left to blow up naturally.
       </p>
 
       {/*
        * MAGE ROTATION
        */}
-      <Article.Heading level={2} text="Mage" />
+      <Article.Heading level={2} text="Mage Waves" />
       <Article.Heading level={3} idPrefix="mage" text="Pre-cap" />
       <Article.Heading level={4} idPrefix="mage" text="Waves 1-3" />
       <p>
@@ -221,7 +235,7 @@ export default function TrioNylo() {
       {/*
        * RANGER ROTATION
        */}
-      <Article.Heading level={2} text="Ranger" />
+      <Article.Heading level={2} text="Ranger Waves" />
       <Article.Heading level={3} idPrefix="ranger" text="Pre-cap" />
       <Article.Heading level={4} idPrefix="ranger" text="Waves 1-3" />
       <p>
@@ -351,7 +365,7 @@ export default function TrioNylo() {
       {/*
        * MELEE ROTATION
        */}
-      <Article.Heading level={2} text="Melee" />
+      <Article.Heading level={2} text="Melee Waves" />
       <Article.Heading level={3} idPrefix="melee" text="Pre-cap" />
       <Article.Heading level={4} idPrefix="melee" text="Waves 1-5" />
       <p>
@@ -491,7 +505,8 @@ export default function TrioNylo() {
 
 export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
   return basicMetadata(await parent, {
-    title: 'Theatre of Blood Guides',
-    description: 'Browse top-tier guides for the Theatre of Blood.',
+    title: 'Trio Nylocas Waves Guide',
+    description:
+      'Learn how to handle the Nylocas waves in a Theatre of Blood trio, with optimal rotations for each role.',
   });
 }

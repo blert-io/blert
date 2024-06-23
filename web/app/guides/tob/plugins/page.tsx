@@ -199,7 +199,8 @@ export default function PluginGuide() {
 
 export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
   return basicMetadata(await parent, {
-    title: 'Theatre of Blood Guides',
-    description: 'Browse top-tier guides for the Theatre of Blood.',
+    title: 'Theatre of Blood Plugins Guide',
+    description:
+      'Learn about the best Runelite plugins to enhance your Theatre of Blood raids.',
   });
 }
