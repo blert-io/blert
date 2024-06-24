@@ -1,3 +1,4 @@
+import { GoogleAnalytics } from '@next/third-parties/google';
 import { Metadata } from 'next';
 import { Inter, Roboto_Mono } from 'next/font/google';
 import { SessionProvider } from 'next-auth/react';
@@ -86,6 +87,7 @@ export default function RootLayout({
           </DisplayWrapper>
         </SessionProvider>
       </body>
+      <GoogleAnalytics gaId="G-5W75H2B3LF" />
     </html>
   );
 }
