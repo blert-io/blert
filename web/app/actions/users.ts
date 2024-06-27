@@ -188,7 +188,7 @@ export async function getApiKeys(): Promise<ApiKeyWithUsername[]> {
 const API_KEY_HEX_LENGTH = 24;
 const API_KEY_BYTE_LENGTH = API_KEY_HEX_LENGTH / 2;
 
-const MAX_API_KEYS_PER_USER = 2;
+const MAX_API_KEYS_PER_USER = 1;
 
 export async function createApiKey(rsn: string): Promise<ApiKeyWithUsername> {
   const session = await auth();

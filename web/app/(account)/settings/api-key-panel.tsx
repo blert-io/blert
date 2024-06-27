@@ -31,7 +31,7 @@ function ApiKey({ apiKey, removeApiKey }: ApiKeyProps) {
     setLastUsed(apiKey.lastUsed ?? null);
   }, [apiKey]);
 
-  const copyTooltipId = `${apiKey}-tooltip`;
+  const copyTooltipId = `${apiKey.key}-tooltip`;
 
   return (
     <div className={styles.apiKey}>
