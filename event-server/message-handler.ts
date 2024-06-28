@@ -43,7 +43,7 @@ class ChallengeStreamAggregator {
    * How long to wait before attempting to clean up a challenge not
    * receiving events.
    */
-  private static readonly MAX_INACTIVITY_PERIOD = 1000 * 60 * 6;
+  private static readonly MAX_INACTIVITY_PERIOD = 1000 * 60 * 15;
 
   public constructor(
     challengeManager: ChallengeManager,
@@ -309,7 +309,6 @@ class ChallengeStreamAggregator {
 
   private watchdog(): void {
     const now = Date.now();
-    console.log(`${this}: watchdog ${now}`);
 
     if (
       now - this.lastEventTimestamp >
