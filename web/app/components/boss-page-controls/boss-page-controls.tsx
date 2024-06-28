@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Dispatch, SetStateAction, useEffect, useRef, useState } from 'react';
 
 import { TimelineSplit } from '@/components/attack-timeline';
 import { clamp } from '@/utils/math';
@@ -12,7 +12,7 @@ interface BossControlsProps {
   currentlyPlaying: boolean;
   totalTicks: number;
   currentTick: number;
-  updateTick: (tick: number) => void;
+  updateTick: Dispatch<SetStateAction<number>>;
   updatePlayingState: (isPlaying: boolean) => void;
   splits: TimelineSplit[];
 }
@@ -31,6 +31,25 @@ export function BossPageControls(props: BossControlsProps) {
   // allow users to clear the input.
   const [value, setValue] = useState(currentTick.toString());
   const [inputFocused, setInputFocused] = useState(false);
+  const scrubber = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onWheel = (event: WheelEvent) => {
+      if (scrubber.current) {
+        event.preventDefault();
+        if (event.deltaY > 0) {
+          updateTick((tick) => clamp(tick + 1, 1, totalTicks));
+        } else {
+          updateTick((tick) => clamp(tick - 1, 1, totalTicks));
+        }
+      }
+    };
+
+    scrubber.current?.addEventListener('wheel', onWheel);
+    return () => {
+      scrubber.current?.removeEventListener('wheel', onWheel);
+    };
+  }, [scrubber.current]);
 
   useEffect(() => {
     if (!inputFocused) {
@@ -147,7 +166,7 @@ export function BossPageControls(props: BossControlsProps) {
             </div>
           </div>
         </div>
-        <div className={styles.controls__scrubber}>
+        <div className={styles.controls__scrubber} ref={scrubber}>
           <div className={styles.controls__scrubber__splits}>
             {scrubberSplits}
           </div>
