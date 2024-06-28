@@ -45,11 +45,12 @@ export function BossPageControls(props: BossControlsProps) {
       }
     };
 
-    scrubber.current?.addEventListener('wheel', onWheel);
+    const current = scrubber.current;
+    current?.addEventListener('wheel', onWheel);
     return () => {
-      scrubber.current?.removeEventListener('wheel', onWheel);
+      current?.removeEventListener('wheel', onWheel);
     };
-  }, [scrubber.current]);
+  }, [scrubber.current, totalTicks, updateTick]);
 
   useEffect(() => {
     if (!inputFocused) {

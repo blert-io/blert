@@ -5,6 +5,43 @@ import { Challenge } from './challenge';
 import MessageHandler from './message-handler';
 import { BasicUser } from './users';
 
+type Stats = {
+  total: number;
+  maxSize: number;
+  meanSize: number;
+};
+
+class MessageStats {
+  public in: Stats;
+  public out: Stats;
+
+  constructor() {
+    this.in = { total: 0, maxSize: 0, meanSize: 0 };
+    this.out = { total: 0, maxSize: 0, meanSize: 0 };
+  }
+
+  public recordIn(size: number): void {
+    this.updateStats(this.in, size);
+  }
+
+  public recordOut(size: number): void {
+    this.updateStats(this.out, size);
+  }
+
+  public logString(): string {
+    return (
+      `in=${this.in.total} max(size)=${this.in.maxSize} mean(size)=${this.in.meanSize | 0} | ` +
+      `out=${this.out.total} max(size)=${this.out.maxSize} mean(size)=${this.out.meanSize | 0}`
+    );
+  }
+
+  private updateStats(stats: Stats, size: number) {
+    stats.total++;
+    stats.maxSize = Math.max(stats.maxSize, size);
+    stats.meanSize = (stats.meanSize * (stats.total - 1) + size) / stats.total;
+  }
+}
+
 export default class Client {
   private static HEARTBEAT_INTERVAL_MS: number = 5000;
   private static HEARTBEAT_DISCONNECT_THRESHOLD: number = 6;
@@ -25,11 +62,8 @@ export default class Client {
   private processTimeout: NodeJS.Timeout;
   private heartbeatTimeout: NodeJS.Timeout;
 
-  // TODO(frolv): Temporary, for debugging purposes.
   private lastMessageLog: number;
-  private totalMessages: number;
-  private maxMessageSize: number;
-  private meanMessageSize: number;
+  private stats: MessageStats;
 
   private loggedInRsn: string | null;
 
@@ -51,20 +85,18 @@ export default class Client {
     this.missedHeartbeats = 0;
 
     this.lastMessageLog = Date.now();
-    this.totalMessages = 0;
-    this.maxMessageSize = 0;
-    this.meanMessageSize = 0;
+    this.stats = new MessageStats();
 
     this.loggedInRsn = null;
 
     socket.binaryType = 'arraybuffer';
 
     socket.on('close', (code) => {
-      console.log(`Client ${this.sessionId} closed: ${code}`);
+      console.log(`${this} closed: ${code}`);
       this.cleanup();
     });
     socket.on('error', (code) => {
-      console.log(`Client ${this.sessionId} error: ${code}`);
+      console.log(`${this} error: ${code}`);
       this.cleanup();
     });
 
@@ -72,18 +104,11 @@ export default class Client {
     // where they are processed synchronously through `processMessages`.
     socket.on('message', (message: ArrayBuffer, isBinary) => {
       if (isBinary) {
-        this.totalMessages++;
-        this.maxMessageSize = Math.max(this.maxMessageSize, message.byteLength);
-        this.meanMessageSize =
-          (this.meanMessageSize * (this.totalMessages - 1) +
-            message.byteLength) /
-          this.totalMessages;
+        this.stats.recordIn(message.byteLength);
 
         const now = Date.now();
         if (now - this.lastMessageLog > 60 * 1000) {
-          console.log(
-            `${this}: messages=${this.totalMessages} max(size)=${this.maxMessageSize} mean(size)=${this.meanMessageSize | 0}`,
-          );
+          console.log(`${this}: ${this.stats.logString()}`);
           this.lastMessageLog = now;
         }
 
@@ -164,7 +189,9 @@ export default class Client {
 
   public sendMessage(message: ServerMessage): void {
     if (this.isOpen) {
-      this.socket.send(message.serializeBinary());
+      const serialized = message.serializeBinary();
+      this.stats.recordOut(serialized.length);
+      this.socket.send(serialized);
     }
   }
 

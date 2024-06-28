@@ -29,20 +29,37 @@ class ChallengeStreamAggregator {
   private challengeManager: ChallengeManager;
   private playerManager: PlayerManager;
   private challenge: Challenge;
+  private onCompletion: () => void;
   private clients: ConnectedClient[];
 
-  private cleanupTimer: NodeJS.Timeout | null;
+  private lastEventTimestamp: number;
+  private reconnectionTimestamp: number | null;
+  private watchdogTimer: NodeJS.Timeout;
+
+  /** How long to wait before cleaning up a challenge with no clients. */
+  private static readonly MAX_RECONNECTION_PERIOD = 1000 * 60 * 5;
+
+  /**
+   * How long to wait before attempting to clean up a challenge not
+   * receiving events.
+   */
+  private static readonly MAX_INACTIVITY_PERIOD = 1000 * 60 * 6;
 
   public constructor(
     challengeManager: ChallengeManager,
     playerManager: PlayerManager,
     challenge: Challenge,
+    onCompletion: () => void,
   ) {
     this.challengeManager = challengeManager;
     this.playerManager = playerManager;
     this.challenge = challenge;
+    this.onCompletion = onCompletion;
     this.clients = [];
-    this.cleanupTimer = null;
+
+    this.watchdogTimer = setInterval(() => this.watchdog(), 1000 * 60);
+    this.reconnectionTimestamp = null;
+    this.lastEventTimestamp = Date.now();
   }
 
   public getChallenge(): Challenge {
@@ -86,7 +103,7 @@ class ChallengeStreamAggregator {
       hasFinished: false,
     });
 
-    this.stopCleanupTimer();
+    this.stopReconnectionTimer();
   }
 
   /**
@@ -110,7 +127,7 @@ class ChallengeStreamAggregator {
       this.clients = [];
       // Challenges without clients are kept alive for a short period to allow
       // for reconnection.
-      this.startCleanupTimer();
+      this.startReconnectionTimer();
       return;
     }
 
@@ -129,7 +146,7 @@ class ChallengeStreamAggregator {
   public setClientActive(client: Client): void {
     const connectedClient = this.clients.find((c) => c.client === client);
     if (!connectedClient) {
-      console.error(`${client} is not connected ${this}`);
+      console.error(`setClientActive: ${client} is not connected to ${this}`);
       return;
     }
 
@@ -138,7 +155,7 @@ class ChallengeStreamAggregator {
     const hasPrimaryClient = this.clients.some((c) => c.primary);
     connectedClient.primary = !hasPrimaryClient;
 
-    this.stopCleanupTimer();
+    this.stopReconnectionTimer();
   }
 
   /**
@@ -150,7 +167,7 @@ class ChallengeStreamAggregator {
   public setClientInactive(client: Client): void {
     const connectedClient = this.clients.find((c) => c.client === client);
     if (!connectedClient) {
-      console.error(`${client} is not connected to ${this}`);
+      console.error(`setClientInactive: ${client} is not connected to ${this}`);
       return;
     }
 
@@ -169,9 +186,11 @@ class ChallengeStreamAggregator {
   public async process(client: Client, event: Event): Promise<void> {
     const connectedClient = this.clients.find((c) => c.client === client);
     if (!connectedClient) {
-      console.error(`${client} is not connected to ${this}`);
+      console.error(`process: ${client} is not connected to ${this}`);
       return;
     }
+
+    this.lastEventTimestamp = Date.now();
 
     // TODO(frolv): For now, the primary client's event are used directly.
     // This should be updated to collect and merge events from all clients.
@@ -187,10 +206,16 @@ class ChallengeStreamAggregator {
    * @param client The client that completed the challenge.
    * @param overallTicks The client's overall completion time in ticks.
    */
-  public markCompletion(client: Client, overallTicks: number): void {
+  public async markCompletion(
+    client: Client,
+    overallTicks: number,
+  ): Promise<void> {
     const connectedClient = this.clients.find((c) => c.client === client);
     if (!connectedClient) {
-      console.error(`${client} is not connected to ${this}`);
+      console.error(`markCompletion: ${client} is not connected to ${this}`);
+      return;
+    }
+    if (connectedClient.hasFinished) {
       return;
     }
 
@@ -211,8 +236,8 @@ class ChallengeStreamAggregator {
     }
 
     if (this.isComplete()) {
-      this.stopCleanupTimer();
-      this.finishChallenge();
+      this.stopReconnectionTimer();
+      await this.finish();
     }
   }
 
@@ -226,6 +251,7 @@ class ChallengeStreamAggregator {
   public async terminateAndPurgeChallenge(): Promise<void> {
     const errorMessage = new ServerMessage();
     errorMessage.setType(ServerMessage.Type.ERROR);
+    errorMessage.setActiveChallengeId(this.challenge.getId());
     const error = new ServerMessage.Error();
     error.setType(ServerMessage.Error.Type.CHALLENGE_RECORDING_ENDED);
     errorMessage.setError(error);
@@ -257,32 +283,77 @@ class ChallengeStreamAggregator {
         `${this}: cannot set a new primary client: no active clients`,
       );
       if (!this.isComplete()) {
-        this.startCleanupTimer();
+        this.startReconnectionTimer();
       }
     }
   }
 
-  private startCleanupTimer(): void {
-    this.cleanupTimer = setTimeout(
-      () => {
-        if (this.clients.length === 0) {
-          console.log(`Cleaning up challenge ${this.challenge.getId()}`);
-          this.finishChallenge();
-        }
-      },
-      1000 * 60 * 5,
-    );
+  private startReconnectionTimer(): void {
+    if (this.reconnectionTimestamp === null) {
+      this.reconnectionTimestamp = Date.now();
+    }
   }
 
-  private finishChallenge(): void {
-    this.challengeManager.endChallenge(this.challenge);
+  private stopReconnectionTimer(): void {
+    if (this.reconnectionTimestamp !== null) {
+      this.reconnectionTimestamp = null;
+    }
+  }
+
+  private async finish(): Promise<void> {
+    clearInterval(this.watchdogTimer);
+    await this.challengeManager.endChallenge(this.challenge);
     this.clients.forEach((c) => c.client.setActiveChallenge(null));
+    this.onCompletion();
   }
 
-  private stopCleanupTimer(): void {
-    if (this.cleanupTimer !== null) {
-      clearTimeout(this.cleanupTimer);
-      this.cleanupTimer = null;
+  private watchdog(): void {
+    const now = Date.now();
+    console.log(`${this}: watchdog ${now}`);
+
+    if (
+      now - this.lastEventTimestamp >
+      ChallengeStreamAggregator.MAX_INACTIVITY_PERIOD
+    ) {
+      const activeClients = this.clients.filter(
+        (c) => c.active && !c.hasFinished,
+      );
+      if (activeClients.length > 0) {
+        console.log(`${this}: clients not sending events; querying state`);
+      }
+
+      activeClients.forEach((c) => {
+        const message = new ServerMessage();
+        message.setType(ServerMessage.Type.CHALLENGE_STATE_CONFIRMATION);
+        message.setActiveChallengeId(this.challenge.getId());
+        const request = new ServerMessage.ChallengeStateConfirmation();
+        request.setUsername(c.client.getLoggedInRsn()!);
+        request.setChallenge(this.challenge.getType() as Proto<ChallengeMap>);
+        request.setMode(this.challenge.getMode() as Proto<ChallengeModeMap>);
+        request.setStage(this.challenge.getStage() as Proto<StageMap>);
+        request.setPartyList(this.challenge.getParty());
+        message.setChallengeStateConfirmation(request);
+
+        c.client.sendMessage(message);
+      });
+    }
+
+    const hasActiveClients = this.clients.some(
+      (c) => c.active && !c.hasFinished,
+    );
+    if (
+      this.reconnectionTimestamp !== null &&
+      now - this.reconnectionTimestamp >
+        ChallengeStreamAggregator.MAX_RECONNECTION_PERIOD
+    ) {
+      if (!hasActiveClients) {
+        console.log(`${this}: ending due to reconnection timeout`);
+        this.finish();
+      } else {
+        this.reconnectionTimestamp = null;
+      }
+    } else if (!hasActiveClients) {
+      this.startReconnectionTimer();
     }
   }
 }
@@ -368,10 +439,11 @@ export default class MessageHandler {
         const confirmation = message.getChallengeStateConfirmation()!;
         const rsn = confirmation.getUsername().toLowerCase();
 
+        const aggregator =
+          this.challengeAggregators[message.getActiveChallengeId()];
+
         if (confirmation.getIsValid()) {
           if (client.getActiveChallenge() === null) {
-            const aggregator =
-              this.challengeAggregators[message.getActiveChallengeId()];
             if (aggregator !== undefined) {
               const isParticipant = aggregator
                 .getChallenge()
@@ -390,6 +462,11 @@ export default class MessageHandler {
             );
           }
         } else {
+          if (aggregator !== undefined) {
+            await aggregator.markCompletion(client, 0);
+            aggregator.removeClient(client);
+          }
+
           const challenge = this.challengeManager.get(
             message.getActiveChallengeId(),
           );
@@ -404,6 +481,14 @@ export default class MessageHandler {
           console.log(
             `${client}: player ${rsn} is no longer in challenge ${message.getActiveChallengeId()}`,
           );
+
+          const errorMessage = new ServerMessage();
+          errorMessage.setType(ServerMessage.Type.ERROR);
+          errorMessage.setActiveChallengeId(message.getActiveChallengeId());
+          const error = new ServerMessage.Error();
+          error.setType(ServerMessage.Error.Type.CHALLENGE_RECORDING_ENDED);
+          errorMessage.setError(error);
+          client.sendMessage(errorMessage);
         }
         break;
       }
@@ -452,11 +537,7 @@ export default class MessageHandler {
         const completed = event.getCompletedChallenge()!;
         const overallTicks = completed.getOverallTimeTicks();
 
-        aggregator.markCompletion(client, overallTicks);
-
-        if (aggregator.isComplete()) {
-          delete this.challengeAggregators[event.getChallengeId()];
-        }
+        await aggregator.markCompletion(client, overallTicks);
         break;
       }
 
@@ -611,18 +692,22 @@ export default class MessageHandler {
       ? RecordingType.SPECTATOR
       : RecordingType.PARTICIPANT;
 
-    if (!this.challengeAggregators[challenge.getId()]) {
-      this.challengeAggregators[challenge.getId()] =
-        new ChallengeStreamAggregator(
-          this.challengeManager,
-          this.playerManager,
-          challenge,
-        );
+    const challengeId = challenge.getId();
+
+    if (!this.challengeAggregators[challengeId]) {
+      const onChallengeCompletion = () => {
+        console.log(`MessageHandler cleaning up challenge ${challengeId}`);
+        delete this.challengeAggregators[challengeId];
+      };
+
+      this.challengeAggregators[challengeId] = new ChallengeStreamAggregator(
+        this.challengeManager,
+        this.playerManager,
+        challenge,
+        onChallengeCompletion,
+      );
     }
-    this.challengeAggregators[challenge.getId()].addClient(
-      client,
-      recordingType,
-    );
+    this.challengeAggregators[challengeId].addClient(client, recordingType);
 
     await Users.addRecordedChallenge(
       client.getUserId(),
