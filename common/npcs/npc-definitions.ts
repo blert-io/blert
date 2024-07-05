@@ -8,7 +8,6 @@ import {
   NyloSpawn,
   NyloStyle,
   RoomNpc,
-  RoomNpcMap,
   RoomNpcType,
   VerzikCrab,
   VerzikCrabSpawn,
@@ -18,6 +17,7 @@ export type NpcDefinition = {
   fullName: string;
   shortName: string;
   canonicalId: number;
+  semanticId: boolean;
   size: number;
   mode: ChallengeMode;
 };
@@ -43,6 +43,7 @@ const [MAIDEN_ENTRY, MAIDEN_REGULAR, MAIDEN_HARD] = defineForAllModes({
   fullName: 'The Maiden of Sugadinti',
   shortName: 'Maiden',
   canonicalId: NpcId.MAIDEN_REGULAR,
+  semanticId: false,
   size: 6,
 });
 
@@ -54,6 +55,7 @@ const [
   fullName: 'Nylocas Matomenos',
   shortName: 'Crab',
   canonicalId: NpcId.MAIDEN_MATOMENOS_REGULAR,
+  semanticId: false,
   size: 2,
 });
 
@@ -65,6 +67,7 @@ const [
   fullName: 'Blood spawn',
   shortName: 'Blood spawn',
   canonicalId: NpcId.MAIDEN_BLOOD_SPAWN_REGULAR,
+  semanticId: false,
   size: 1,
 });
 
@@ -72,6 +75,7 @@ const [BLOAT_ENTRY, BLOAT_REGULAR, BLOAT_HARD] = defineForAllModes({
   fullName: 'The Pestilent Bloat',
   shortName: 'Bloat',
   canonicalId: NpcId.BLOAT_REGULAR,
+  semanticId: false,
   size: 5,
 });
 
@@ -83,6 +87,7 @@ const [
   fullName: 'Nylocas Ischyros',
   shortName: 'Melee small',
   canonicalId: NpcId.NYLOCAS_ISCHYROS_SMALL_REGULAR,
+  semanticId: false,
   size: 1,
 });
 
@@ -94,6 +99,7 @@ const [
   fullName: 'Nylocas Ischyros',
   shortName: 'Melee big',
   canonicalId: NpcId.NYLOCAS_ISCHYROS_BIG_REGULAR,
+  semanticId: false,
   size: 2,
 });
 
@@ -105,6 +111,7 @@ const [
   fullName: 'Nylocas Toxobolos',
   shortName: 'Range small',
   canonicalId: NpcId.NYLOCAS_TOXOBOLOS_SMALL_REGULAR,
+  semanticId: false,
   size: 1,
 });
 
@@ -116,6 +123,7 @@ const [
   fullName: 'Nylocas Toxobolos',
   shortName: 'Range big',
   canonicalId: NpcId.NYLOCAS_TOXOBOLOS_BIG_REGULAR,
+  semanticId: false,
   size: 2,
 });
 
@@ -127,6 +135,7 @@ const [
   fullName: 'Nylocas Hagios',
   shortName: 'Mage small',
   canonicalId: NpcId.NYLOCAS_HAGIOS_SMALL_REGULAR,
+  semanticId: false,
   size: 1,
 });
 
@@ -138,6 +147,7 @@ const [
   fullName: 'Nylocas Hagios',
   shortName: 'Mage big',
   canonicalId: NpcId.NYLOCAS_HAGIOS_BIG_REGULAR,
+  semanticId: false,
   size: 2,
 });
 
@@ -145,6 +155,7 @@ const NYLOCAS_PRINKIPAS = {
   fullName: 'Nylocas Prinkipas',
   shortName: 'Nylo Prince',
   canonicalId: NpcId.NYLOCAS_PRINKIPAS_MELEE,
+  semanticId: true,
   size: 3,
   mode: ChallengeMode.TOB_HARD,
 };
@@ -157,6 +168,7 @@ const [
   fullName: 'Nylocas Vasilias',
   shortName: 'Nylo King',
   canonicalId: NpcId.NYLOCAS_VASILIAS_MELEE_REGULAR,
+  semanticId: true,
   size: 4,
 });
 
@@ -164,6 +176,7 @@ const [SOTETSEG_ENTRY, SOTETSEG_REGULAR, SOTETSEG_HARD] = defineForAllModes({
   fullName: 'Sotetseg',
   shortName: 'Sotetseg',
   canonicalId: NpcId.SOTETSEG_REGULAR,
+  semanticId: false,
   size: 5,
 });
 
@@ -172,6 +185,7 @@ const [XARPUS_IDLE_ENTRY, XARPUS_IDLE_REGULAR, XARPUS_IDLE_HARD] =
     fullName: 'Xarpus',
     shortName: 'Xarpus',
     canonicalId: NpcId.XARPUS_IDLE_REGULAR,
+    semanticId: false,
     size: 3,
   });
 
@@ -179,6 +193,7 @@ const [XARPUS_ENTRY, XARPUS_REGULAR, XARPUS_HARD] = defineForAllModes({
   fullName: 'Xarpus',
   shortName: 'Xarpus',
   canonicalId: NpcId.XARPUS_REGULAR,
+  semanticId: false,
   size: 5,
 });
 
@@ -186,6 +201,7 @@ const [VERZIK_P1_ENTRY, VERZIK_P1_REGULAR, VERZIK_P1_HARD] = defineForAllModes({
   fullName: 'Verzik Vitur',
   shortName: 'Verzik',
   canonicalId: NpcId.VERZIK_P1_REGULAR,
+  semanticId: false,
   size: 5,
 });
 
@@ -193,6 +209,7 @@ const [VERZIK_P2_ENTRY, VERZIK_P2_REGULAR, VERZIK_P2_HARD] = defineForAllModes({
   fullName: 'Verzik Vitur',
   shortName: 'Verzik',
   canonicalId: NpcId.VERZIK_P2_REGULAR,
+  semanticId: false,
   size: 3,
 });
 
@@ -200,6 +217,7 @@ const [VERZIK_P3_ENTRY, VERZIK_P3_REGULAR, VERZIK_P3_HARD] = defineForAllModes({
   fullName: 'Verzik Vitur',
   shortName: 'Verzik',
   canonicalId: NpcId.VERZIK_P3_REGULAR,
+  semanticId: false,
   size: 7,
 });
 
@@ -207,6 +225,7 @@ const VERZIK_PILLAR = {
   fullName: 'Pillar',
   shortName: 'Pillar',
   canonicalId: NpcId.VERZIK_PILLAR,
+  semanticId: false,
   size: 3,
   mode: ChallengeMode.TOB_REGULAR,
 };
@@ -219,6 +238,7 @@ const [
   fullName: 'Nylocas Ischyros',
   shortName: 'Melee crab',
   canonicalId: NpcId.VERZIK_NYLOCAS_ISCHYROS_REGULAR,
+  semanticId: false,
   size: 2,
 });
 
@@ -230,6 +250,7 @@ const [
   fullName: 'Nylocas Toxobolos',
   shortName: 'Range crab',
   canonicalId: NpcId.VERZIK_NYLOCAS_TOXOBOLOS_REGULAR,
+  semanticId: false,
   size: 2,
 });
 
@@ -241,6 +262,7 @@ const [
   fullName: 'Nylocas Hagios',
   shortName: 'Mage crab',
   canonicalId: NpcId.VERZIK_NYLOCAS_HAGIOS_REGULAR,
+  semanticId: false,
   size: 2,
 });
 
@@ -252,6 +274,7 @@ const [
   fullName: 'Nylocas Athanatos',
   shortName: 'Purple crab',
   canonicalId: NpcId.VERZIK_ATHANATOS_REGULAR,
+  semanticId: false,
   size: 2,
 });
 
@@ -263,6 +286,7 @@ const [
   fullName: 'Nylocas Matomenos',
   shortName: 'Red crab',
   canonicalId: NpcId.VERZIK_MATOMENOS_REGULAR,
+  semanticId: false,
   size: 2,
 });
 
@@ -270,6 +294,7 @@ const JAGUAR_WARRIOR = {
   fullName: 'Jaguar Warrior',
   shortName: 'Furry',
   canonicalId: NpcId.JAGUAR_WARRIOR,
+  semanticId: false,
   size: 2,
   mode: ChallengeMode.NO_MODE,
 };
@@ -278,6 +303,7 @@ const SERPENT_SHAMAN = {
   fullName: 'Serpent Shaman',
   shortName: 'Shaman',
   canonicalId: NpcId.SERPENT_SHAMAN,
+  semanticId: false,
   size: 1,
   mode: ChallengeMode.NO_MODE,
 };
@@ -286,6 +312,7 @@ const MINOTAUR = {
   fullName: 'Minotaur',
   shortName: 'Minotaur',
   canonicalId: NpcId.MINOTAUR,
+  semanticId: false,
   size: 3,
   mode: ChallengeMode.NO_MODE,
 };
@@ -294,6 +321,7 @@ const FREMENNIK_ARCHER = {
   fullName: 'Fremennik Warband Archer',
   shortName: 'Archer',
   canonicalId: NpcId.FREMENNIK_ARCHER,
+  semanticId: false,
   size: 1,
   mode: ChallengeMode.NO_MODE,
 };
@@ -302,6 +330,7 @@ const FREMENNIK_SEER = {
   fullName: 'Fremennik Warband Seer',
   shortName: 'Seer',
   canonicalId: NpcId.FREMENNIK_SEER,
+  semanticId: false,
   size: 1,
   mode: ChallengeMode.NO_MODE,
 };
@@ -310,6 +339,7 @@ const FREMENNIK_BERSERKER = {
   fullName: 'Fremennik Warband Berserker',
   shortName: 'Berserker',
   canonicalId: NpcId.FREMENNIK_BERSERKER,
+  semanticId: false,
   size: 1,
   mode: ChallengeMode.NO_MODE,
 };
@@ -318,6 +348,7 @@ const JAVELIN_COLOSSUS = {
   fullName: 'Javelin Colossus',
   shortName: 'Javelin',
   canonicalId: NpcId.JAVELIN_COLOSSUS,
+  semanticId: false,
   size: 3,
   mode: ChallengeMode.NO_MODE,
 };
@@ -326,6 +357,7 @@ const MANTICORE = {
   fullName: 'Manticore',
   shortName: 'Manticore',
   canonicalId: NpcId.MANTICORE,
+  semanticId: false,
   size: 3,
   mode: ChallengeMode.NO_MODE,
 };
@@ -334,6 +366,7 @@ const SHOCKWAVE_COLOSSUS = {
   fullName: 'Shockwave Colossus',
   shortName: 'Shockwave',
   canonicalId: NpcId.SHOCKWAVE_COLOSSUS,
+  semanticId: false,
   size: 3,
   mode: ChallengeMode.NO_MODE,
 };
@@ -342,6 +375,7 @@ const SOL_HEREDIT = {
   fullName: 'Sol Heredit',
   shortName: 'Sol Heredit',
   canonicalId: NpcId.SOL_HEREDIT,
+  semanticId: false,
   size: 5,
   mode: ChallengeMode.NO_MODE,
 };
@@ -350,6 +384,7 @@ const SOLARFLARE = {
   fullName: 'Solarflare',
   shortName: 'Solarflare',
   canonicalId: NpcId.SOLARFLARE,
+  semanticId: false,
   size: 1,
   mode: ChallengeMode.NO_MODE,
 };

@@ -1,6 +1,7 @@
 import { SkillLevel, getNpcDefinition } from '@blert/common';
 
 import { Entity, EntityType } from './entity';
+import Image from 'next/image';
 
 const DEFAULT_OUTLINE_COLOR = '#3d3dd5';
 
@@ -16,6 +17,7 @@ export class NpcEntity implements Entity {
   id: number;
   roomId: number;
   hitpoints: SkillLevel;
+  imageUrl: string;
 
   constructor(
     x: number,
@@ -29,8 +31,12 @@ export class NpcEntity implements Entity {
     const npcDefinition = getNpcDefinition(id);
     if (npcDefinition !== null) {
       this.name = shortName ? npcDefinition.shortName : npcDefinition.fullName;
+
+      const imageId = npcDefinition.semanticId ? id : npcDefinition.canonicalId;
+      this.imageUrl = `/images/npcs/${imageId}.webp`;
     } else {
       this.name = `NPC ${id}`;
+      this.imageUrl = '/images/huh.png';
     }
 
     this.x = x;
@@ -46,7 +52,7 @@ export class NpcEntity implements Entity {
     return `${this.type}-${this.roomId}`;
   }
 
-  renderContents(): React.ReactNode {
+  renderContents(tileSize: number): React.ReactNode {
     const displayHitpoints = this.hitpoints.getBase() > 0;
 
     return (
@@ -56,7 +62,7 @@ export class NpcEntity implements Entity {
           width: '100%',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent: 'flex-start',
           flexDirection: 'column',
           color: '#fff',
           fontSize: '12px',
@@ -64,7 +70,13 @@ export class NpcEntity implements Entity {
           textAlign: 'center',
         }}
       >
-        {this.name}
+        <Image
+          src={this.imageUrl}
+          alt={this.name}
+          width={tileSize * this.size - 2}
+          height={tileSize * this.size - 2}
+          style={{ objectFit: 'contain' }}
+        />
         {displayHitpoints && <div>{this.hitpoints.toString()}</div>}
       </div>
     );

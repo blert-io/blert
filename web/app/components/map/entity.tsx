@@ -38,7 +38,7 @@ export interface Entity {
   readonly interactable: boolean;
 
   /** Renders the internal contents of an entity displayed on a map. */
-  renderContents(): React.ReactNode;
+  renderContents(tileSize?: number): React.ReactNode;
 
   /**
    * Returns an identifier for this entity sufficiently unique to distinguish
@@ -124,7 +124,7 @@ export function MapEntity(props: MapEntityProps) {
       onClick={onClick}
       style={entityStyle}
     >
-      {entity.renderContents()}
+      {entity.renderContents(props.tileSize)}
     </div>
   );
 }
