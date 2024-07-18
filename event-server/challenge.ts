@@ -22,6 +22,7 @@ import {
   VerzikCrab,
   adjustSplitForMode,
   camelToSnakeObject,
+  getNpcDefinition,
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 import postgres from 'postgres';
@@ -94,7 +95,9 @@ export abstract class Challenge {
   private mode: ChallengeMode;
   private totalStageTicks: number;
   private totalDeaths: number;
-  private overallTicks: number;
+
+  private reportedOverallTicks: number;
+  private reportedChallengeTicks: number;
 
   private stage: Stage;
   private stageStatus: StageStatus;
@@ -134,7 +137,9 @@ export abstract class Challenge {
     this.mode = mode;
     this.totalStageTicks = 0;
     this.totalDeaths = 0;
-    this.overallTicks = 0;
+
+    this.reportedChallengeTicks = 0;
+    this.reportedOverallTicks = 0;
 
     this.stage = initialStage;
     this.stageStatus = StageStatus.ENTERED;
@@ -212,6 +217,13 @@ export abstract class Challenge {
     return this.stage;
   }
 
+  /**
+   * @returns True if the challenge is currently in a stage.
+   */
+  public hasActiveStage(): boolean {
+    return this.stageStatus === StageStatus.STARTED;
+  }
+
   protected setStage(stage: Stage): void {
     this.stage = stage;
   }
@@ -221,11 +233,20 @@ export abstract class Challenge {
   }
 
   public getOverallTime(): number {
-    return this.overallTicks;
+    return this.reportedOverallTicks;
   }
 
-  public setOverallTime(time: number): void {
-    this.overallTicks = time;
+  public areTimesConfirmed(): boolean {
+    return this.reportedChallengeTicks > 0 || this.reportedOverallTicks > 0;
+  }
+
+  public setReportedTimes(challengeTicks: number, overallTicks: number): void {
+    if (challengeTicks > 0) {
+      this.reportedChallengeTicks = challengeTicks;
+    }
+    if (overallTicks > 0) {
+      this.reportedOverallTicks = overallTicks;
+    }
   }
 
   public playerHasCompleted(player: string): boolean {
@@ -357,12 +378,17 @@ export abstract class Challenge {
    * Completes the challenge, finalizing its recorded state.
    */
   public async finish(): Promise<void> {
-    if (this.isStarting()) {
+    if (this.isStarting() || this.totalStageTicks === 0) {
       console.log(
-        `Challenge ${this.id} closed before starting; deleting record`,
+        `Challenge ${this.id} ended without any data; deleting record`,
       );
       await this.deleteChallenge();
       return;
+    }
+
+    if (this.stageStatus === StageStatus.STARTED) {
+      console.log(`Challenge ${this.id} finished with stage still in progress`);
+      this.challengeStatus = ChallengeStatus.ABANDONED;
     }
 
     // Clear the last stage's splits and stats to allow implementations to set
@@ -372,8 +398,18 @@ export abstract class Challenge {
       player.statsUpdates = {};
     });
 
+    if (this.reportedChallengeTicks > this.totalStageTicks) {
+      console.log(
+        `Challenge time mismatch: recorded ${this.totalStageTicks}, reported ${this.reportedChallengeTicks}`,
+      );
+      this.totalStageTicks = this.reportedChallengeTicks;
+    }
+
     await Promise.all([
-      this.updateChallenge({ status: this.challengeStatus }),
+      this.updateChallenge({
+        status: this.challengeStatus,
+        challengeTicks: this.totalStageTicks,
+      }),
       this.onFinish(),
     ]);
 
@@ -595,6 +631,11 @@ export abstract class Challenge {
       this.stageNpcs.set(npc.getRoomId().toString(), crab);
     } else {
       this.stageNpcs.set(npc.getRoomId().toString(), npcCommon);
+    }
+
+    const npcDefinition = getNpcDefinition(npc.getId());
+    if (npcDefinition !== null) {
+      this.setMode(npcDefinition.mode);
     }
   }
 

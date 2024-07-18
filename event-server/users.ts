@@ -1,4 +1,4 @@
-import { Challenge, RecordingType } from '@blert/common';
+import { Challenge, ChallengeStatus, RecordingType } from '@blert/common';
 
 import sql from './db';
 import { Players } from './players';
@@ -96,6 +96,7 @@ export class Users {
       FROM challenges
       JOIN recorded_challenges ON challenges.id = recorded_challenges.challenge_id
       WHERE recorded_challenges.recorder_id = ${userId}
+        AND challenges.status != ${ChallengeStatus.ABANDONED}
       ORDER BY challenges.start_time DESC
       LIMIT ${limit}
     `;

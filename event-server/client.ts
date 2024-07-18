@@ -44,7 +44,7 @@ class MessageStats {
 
 export default class Client {
   private static HEARTBEAT_INTERVAL_MS: number = 5000;
-  private static HEARTBEAT_DISCONNECT_THRESHOLD: number = 6;
+  private static HEARTBEAT_DISCONNECT_THRESHOLD: number = 10;
 
   private user: BasicUser;
   private sessionId: number;

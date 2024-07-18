@@ -1,4 +1,9 @@
-import { ChallengeMode, ChallengeType, DataRepository } from '@blert/common';
+import {
+  ChallengeMode,
+  ChallengeType,
+  DataRepository,
+  Stage,
+} from '@blert/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import { Challenge, challengePartyKey } from './challenge';
@@ -34,15 +39,38 @@ export default class ChallengeManager {
     type: ChallengeType,
     mode: ChallengeMode,
     partyMembers: string[],
+    stage: Stage,
   ): Promise<Challenge> {
     const partyKey = challengePartyKey(type, partyMembers);
 
     let challenge = this.getLastChallengeForParty(partyKey);
 
+    let startNewChallenge = challenge === undefined;
+
     const hasAlreadyCompleted =
       challenge?.playerHasCompleted(client.getLoggedInRsn()!) ?? false;
+    if (hasAlreadyCompleted) {
+      startNewChallenge = true;
+      console.log(
+        `${client} attempted to join challenge with party ${partyKey} ` +
+          `but has already completed it; assuming a new challenge instead.`,
+      );
+    }
 
-    if (challenge === undefined || hasAlreadyCompleted) {
+    if (
+      challenge !== undefined &&
+      stage !== Stage.UNKNOWN &&
+      stage < challenge.getStage()
+    ) {
+      startNewChallenge = true;
+      console.log(
+        `${client} joined challenge with key ${partyKey} at stage ${stage} ` +
+          `while the existing challenge is at stage ${challenge.getStage()}; ` +
+          'assuming a new challenge instead.',
+      );
+    }
+
+    if (startNewChallenge) {
       const challengeId = uuidv4();
       challenge = this.constructChallengeType(
         type,
@@ -62,23 +90,16 @@ export default class ChallengeManager {
       }
       this.challengesByPartyKey.get(partyKey)!.push(challenge);
 
-      if (hasAlreadyCompleted) {
-        console.log(
-          `${client} attempted to join challenge with party ${partyKey} ` +
-            `but has already completed it; assuming a new challenge instead.`,
-        );
-      } else {
-        console.log(`${client} starting new challenge ${challengeId}`);
-      }
+      console.log(`${client} starting new challenge ${challengeId}`);
       await challenge.initialize();
     } else {
       if (mode !== ChallengeMode.NO_MODE) {
-        challenge.setMode(mode);
+        challenge!.setMode(mode);
       }
-      console.log(`${client} joining existing challenge ${challenge.getId()}`);
+      console.log(`${client} joining existing challenge ${challenge!.getId()}`);
     }
 
-    return challenge;
+    return challenge!;
   }
 
   /**

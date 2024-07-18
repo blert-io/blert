@@ -1,4 +1,4 @@
-import { ChallengeType, RecordingType } from '@blert/common';
+import { ChallengeType, RecordingType, Stage } from '@blert/common';
 import {
   ChallengeMap,
   ChallengeMode,
@@ -205,18 +205,20 @@ class ChallengeStreamAggregator {
    *
    * @param client The client that completed the challenge.
    * @param overallTicks The client's overall completion time in ticks.
+   * @returns Whether the challenge is now complete.
    */
   public async markCompletion(
     client: Client,
+    challengeTicks: number,
     overallTicks: number,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const connectedClient = this.clients.find((c) => c.client === client);
     if (!connectedClient) {
       console.error(`markCompletion: ${client} is not connected to ${this}`);
-      return;
+      return false;
     }
     if (connectedClient.hasFinished) {
-      return;
+      return this.isComplete();
     }
 
     connectedClient.hasFinished = true;
@@ -229,16 +231,27 @@ class ChallengeStreamAggregator {
       );
     }
 
-    const shouldUpdateOverallTime =
-      connectedClient.primary || this.challenge.getOverallTime() === 0;
-    if (shouldUpdateOverallTime && overallTicks > 0) {
-      this.challenge.setOverallTime(overallTicks);
+    const shouldUpdateTimes =
+      connectedClient.primary || !this.challenge.areTimesConfirmed();
+    if (shouldUpdateTimes) {
+      this.challenge.setReportedTimes(challengeTicks, overallTicks);
     }
 
     if (this.isComplete()) {
+      if (this.challenge.hasActiveStage()) {
+        console.log(
+          `${this}: All clients left before ending stage; starting abandonment timer`,
+        );
+        this.startReconnectionTimer();
+        return false;
+      }
+
       this.stopReconnectionTimer();
       await this.finish();
+      return true;
     }
+
+    return false;
   }
 
   public isComplete(): boolean {
@@ -462,7 +475,7 @@ export default class MessageHandler {
           }
         } else {
           if (aggregator !== undefined) {
-            await aggregator.markCompletion(client, 0);
+            await aggregator.markCompletion(client, 0, 0);
             aggregator.removeClient(client);
           }
 
@@ -535,8 +548,18 @@ export default class MessageHandler {
 
         const completed = event.getCompletedChallenge()!;
         const overallTicks = completed.getOverallTimeTicks();
+        const challengeTicks = completed.getChallengeTimeTicks();
 
-        await aggregator.markCompletion(client, overallTicks);
+        const isFinished = await aggregator.markCompletion(
+          client,
+          challengeTicks,
+          overallTicks,
+        );
+        if (!isFinished) {
+          // Set a short delay before removing the client to allow any other
+          // clients' completion events to be processed.
+          setTimeout(() => aggregator.removeClient(client), 1500);
+        }
         break;
       }
 
@@ -670,6 +693,8 @@ export default class MessageHandler {
         return;
     }
 
+    const stage = event.getStage() as Stage;
+
     let challenge: Challenge;
     try {
       challenge = await this.challengeManager.startOrJoin(
@@ -677,6 +702,7 @@ export default class MessageHandler {
         challengeType,
         challengeInfo.getMode(),
         challengeInfo.getPartyList(),
+        stage,
       );
     } catch (e: any) {
       console.error(`Failed to start or join challenge: ${e}`);

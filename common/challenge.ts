@@ -203,6 +203,7 @@ export enum ChallengeStatus {
   COMPLETED = 1,
   RESET = 2,
   WIPED = 3,
+  ABANDONED = 4,
 }
 
 export enum Stage {

@@ -52,6 +52,13 @@ const getIconForStatus = (status: ChallengeStatus) => {
           }}
         ></i>
       );
+    case ChallengeStatus.IN_PROGRESS:
+      return (
+        <i
+          className="fa-solid fa-ellipsis"
+          style={{ fontSize: '21px', marginTop: 2 }}
+        ></i>
+      );
     default:
       return <i className="fa-solid fa-x" style={{ fontSize: '21px' }}></i>;
   }

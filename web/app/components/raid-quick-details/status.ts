@@ -7,6 +7,9 @@ export function raidStatusNameAndColor(status: ChallengeStatus, stage: Stage) {
   if (status === ChallengeStatus.COMPLETED) {
     return ['Completion', '#73AD70'];
   }
+  if (status === ChallengeStatus.ABANDONED) {
+    return ['Abandoned', '#B9BBB6'];
+  }
 
   let name = stageName(stage);
 

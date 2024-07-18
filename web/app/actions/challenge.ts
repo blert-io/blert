@@ -232,11 +232,17 @@ export async function findChallenges(
   if (searchQuery.mode !== undefined) {
     conditions.push(sql`${sqlChallenges}.mode = ${searchQuery.mode}`);
   }
-  if (searchQuery.status !== undefined) {
-    conditions.push(sql`${sqlChallenges}.status = ${searchQuery.status}`);
-  }
   if (searchQuery.scale !== undefined) {
     conditions.push(sql`${sqlChallenges}.scale = ${searchQuery.scale}`);
+  }
+
+  if (searchQuery.status !== undefined) {
+    conditions.push(sql`${sqlChallenges}.status = ${searchQuery.status}`);
+  } else {
+    // Exclude abandoned challenges by default.
+    conditions.push(
+      sql`${sqlChallenges}.status != ${ChallengeStatus.ABANDONED}`,
+    );
   }
 
   let order;
