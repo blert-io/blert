@@ -11,12 +11,19 @@
 
   .controls {
     @include panel;
-
     align-items: center;
     flex-direction: column;
-    margin: 20px 0 40px 0;
-    padding: 20px 30px;
     width: 430px;
+
+    &.challenge {
+      margin: 10px 0;
+      padding: 10px 30px;
+    }
+
+    &.scale {
+      margin: 20px 0 40px 0;
+      padding: 20px 30px;
+    }
 
     @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
       width: 100%;

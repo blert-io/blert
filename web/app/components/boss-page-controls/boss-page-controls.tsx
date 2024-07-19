@@ -50,7 +50,7 @@ export function BossPageControls(props: BossControlsProps) {
     return () => {
       current?.removeEventListener('wheel', onWheel);
     };
-  }, [scrubber.current, totalTicks, updateTick]);
+  }, [totalTicks, updateTick]);
 
   useEffect(() => {
     if (!inputFocused) {

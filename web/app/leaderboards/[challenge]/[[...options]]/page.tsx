@@ -6,6 +6,7 @@ import {
   splitName,
 } from '@blert/common';
 import { ResolvingMetadata } from 'next';
+import Image from 'next/image';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
@@ -100,16 +101,6 @@ function Leaderboard({ challengeType, split, ranks }: LeaderboardProps) {
   );
 }
 
-const DEFAULT_SPLITS = [
-  SplitType.TOB_CHALLENGE,
-  SplitType.TOB_MAIDEN,
-  SplitType.TOB_BLOAT,
-  SplitType.TOB_NYLO_ROOM,
-  SplitType.TOB_SOTETSEG,
-  SplitType.TOB_XARPUS,
-  SplitType.TOB_VERZIK_ROOM,
-];
-
 type LeaderboardsPageProps = {
   params: {
     challenge: string;
@@ -120,17 +111,19 @@ type LeaderboardsPageProps = {
 export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
   const { challenge, options } = props.params;
 
-  const challengeType = challenge === 'tob' ? ChallengeType.TOB : null;
-
-  if (challengeType === null) {
-    return 'Not Found';
-  }
-
+  let challengeType: ChallengeType;
   let mode = ChallengeMode.NO_MODE;
   let scale = 1;
 
-  switch (challengeType) {
-    case ChallengeType.TOB: {
+  let heading;
+  let splits: SplitType[] = [];
+
+  const linkClass = (active: boolean) =>
+    `${styles.option} ${active ? styles.active : ''}`;
+
+  switch (challenge) {
+    case 'tob': {
+      challengeType = ChallengeType.TOB;
       if (options === undefined || options.length !== 2) {
         redirect('/leaderboards/tob/regular/5');
       }
@@ -148,67 +141,128 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
         options[0] === 'hard'
           ? ChallengeMode.TOB_HARD
           : ChallengeMode.TOB_REGULAR;
+
+      heading = (
+        <>
+          <h1>
+            Theatre of Blood ({scaleName(scale)} {modeName(mode)})
+          </h1>
+          <div className={styles.options}>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Link
+                className={linkClass(scale === i + 1)}
+                href={`/leaderboards/tob/${modeName(mode).toLowerCase()}/${i + 1}`}
+                key={i}
+              >
+                {scaleName(i + 1)}
+              </Link>
+            ))}
+          </div>
+          <div className={styles.options}>
+            <Link
+              className={linkClass(mode === ChallengeMode.TOB_REGULAR)}
+              href={`/leaderboards/tob/regular/${scale}`}
+            >
+              <i
+                className={`far fa-circle${mode === ChallengeMode.TOB_REGULAR ? '-check' : ''}`}
+                style={{ marginRight: 8, color: '#ffd700' }}
+              />
+              Regular
+            </Link>
+            <Link
+              className={linkClass(mode === ChallengeMode.TOB_HARD)}
+              href={`/leaderboards/tob/hard/${scale}`}
+            >
+              <i
+                className={`far fa-circle${mode === ChallengeMode.TOB_HARD ? '-check' : ''}`}
+                style={{ marginRight: 8, color: '#d100cc' }}
+              />
+              Hard
+            </Link>
+          </div>
+        </>
+      );
+
+      splits = [
+        SplitType.TOB_CHALLENGE,
+        SplitType.TOB_MAIDEN,
+        SplitType.TOB_BLOAT,
+        SplitType.TOB_NYLO_ROOM,
+        SplitType.TOB_SOTETSEG,
+        SplitType.TOB_XARPUS,
+        SplitType.TOB_VERZIK_ROOM,
+      ].map((split) => adjustSplitForMode(split, mode));
       break;
     }
+
+    case 'colosseum': {
+      challengeType = ChallengeType.COLOSSEUM;
+      heading = (
+        <>
+          <h1>Fortis Colosseum</h1>
+          <Image
+            src="/images/colosseum/smol-heredit.webp"
+            alt="Colosseum"
+            height={90}
+            width={160}
+            style={{ objectFit: 'contain' }}
+          />
+        </>
+      );
+      splits = [
+        SplitType.COLOSSEUM_CHALLENGE,
+        SplitType.COLOSSEUM_WAVE_1,
+        SplitType.COLOSSEUM_WAVE_2,
+        SplitType.COLOSSEUM_WAVE_3,
+        SplitType.COLOSSEUM_WAVE_4,
+        SplitType.COLOSSEUM_WAVE_5,
+        SplitType.COLOSSEUM_WAVE_6,
+        SplitType.COLOSSEUM_WAVE_7,
+        SplitType.COLOSSEUM_WAVE_8,
+        SplitType.COLOSSEUM_WAVE_9,
+        SplitType.COLOSSEUM_WAVE_10,
+        SplitType.COLOSSEUM_WAVE_11,
+        SplitType.COLOSSEUM_WAVE_12,
+      ];
+      break;
+    }
+
+    default:
+      return 'Not Found';
   }
 
-  const adjustedSplits = DEFAULT_SPLITS.map((s) => adjustSplitForMode(s, mode));
-  const rankedSplits = await findBestSplitTimes(adjustedSplits, scale, 3);
-
-  const linkClass = (active: boolean) =>
-    `${styles.option} ${active ? styles.active : ''}`;
+  const rankedSplits = await findBestSplitTimes(splits, scale, 3);
 
   return (
     <div className={styles.leaderboards}>
-      <div className={styles.controls}>
-        <h1>
-          Theatre of Blood ({scaleName(scale)} {modeName(mode)})
-        </h1>
-        <div className={styles.options}>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Link
-              className={linkClass(scale === i + 1)}
-              href={`/leaderboards/tob/${modeName(mode).toLowerCase()}/${i + 1}`}
-              key={i}
-            >
-              {scaleName(i + 1)}
-            </Link>
-          ))}
-        </div>
+      <div className={`${styles.controls} ${styles.challenge}`}>
         <div className={styles.options}>
           <Link
-            className={linkClass(mode === ChallengeMode.TOB_REGULAR)}
-            href={`/leaderboards/tob/regular/${scale}`}
+            className={linkClass(challengeType === ChallengeType.TOB)}
+            href={`/leaderboards/tob/regular/5`}
           >
-            <i
-              className={`far fa-circle${mode === ChallengeMode.TOB_REGULAR ? '-check' : ''}`}
-              style={{ marginRight: 8, color: '#ffd700' }}
-            />
-            Regular
+            Theatre of Blood
           </Link>
           <Link
-            className={linkClass(mode === ChallengeMode.TOB_HARD)}
-            href={`/leaderboards/tob/hard/${scale}`}
+            className={linkClass(challengeType === ChallengeType.COLOSSEUM)}
+            href={`/leaderboards/colosseum`}
           >
-            <i
-              className={`far fa-circle${mode === ChallengeMode.TOB_HARD ? '-check' : ''}`}
-              style={{ marginRight: 8, color: '#d100cc' }}
-            />
-            Hard
+            Colosseum
           </Link>
         </div>
       </div>
+      <div className={`${styles.controls} ${styles.scale}`}>{heading}</div>
       <div className={styles.boardGroup}>
-        {rankedSplits[adjustedSplits[0]] !== undefined && (
+        {rankedSplits[splits[0]] !== undefined && (
           <Leaderboard
             challengeType={challengeType}
-            split={adjustedSplits[0]}
-            ranks={rankedSplits[adjustedSplits[0]]!}
+            split={splits[0]}
+            ranks={rankedSplits[splits[0]]!}
           />
         )}
       </div>
       <div className={styles.boardGroup}>
-        {adjustedSplits
+        {splits
           .slice(1)
           .filter((split) => rankedSplits[split] !== undefined)
           .map((split) => (
@@ -229,20 +283,14 @@ export async function generateMetadata(
   parent: ResolvingMetadata,
 ) {
   const { challenge, options } = params;
-  const challengeType = challenge === 'tob' ? ChallengeType.TOB : null;
-
-  if (challengeType === null) {
-    return { title: 'Not Found' };
-  }
-
-  let mode = ChallengeMode.NO_MODE;
-  let scale = 1;
 
   let title = 'Leaderboards';
   let description = '';
 
-  switch (challengeType) {
-    case ChallengeType.TOB: {
+  switch (challenge) {
+    case 'tob': {
+      let mode = ChallengeMode.NO_MODE;
+      let scale = 1;
       if (options === undefined || options.length !== 2) {
         title = 'Theatre of Blood Leaderboards';
         description = `View the best recorded times for the Theatre of Blood raids on Blert, Old School RuneScape's premier PvM tracker.`;
@@ -261,6 +309,17 @@ export async function generateMetadata(
       }
       break;
     }
+
+    case 'colosseum': {
+      title = 'Fortis Colosseum Leaderboards';
+      description =
+        `View the best recorded times for the Fortis Colosseum on Blert, ` +
+        `Old School RuneScape's premier PvM tracker.`;
+      break;
+    }
+
+    default:
+      return { title: 'Not Found' };
   }
 
   const metadata = await parent;

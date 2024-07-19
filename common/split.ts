@@ -382,6 +382,34 @@ export function splitName(split: SplitType): string {
       return 'Verzik P2';
     case SplitType.TOB_VERZIK_P3:
       return 'Verzik P3';
+    case SplitType.COLOSSEUM_CHALLENGE:
+      return 'Challenge Time';
+    case SplitType.COLOSSEUM_OVERALL:
+      return 'Overall Time';
+    case SplitType.COLOSSEUM_WAVE_1:
+      return 'Wave 1';
+    case SplitType.COLOSSEUM_WAVE_2:
+      return 'Wave 2';
+    case SplitType.COLOSSEUM_WAVE_3:
+      return 'Wave 3';
+    case SplitType.COLOSSEUM_WAVE_4:
+      return 'Wave 4';
+    case SplitType.COLOSSEUM_WAVE_5:
+      return 'Wave 5';
+    case SplitType.COLOSSEUM_WAVE_6:
+      return 'Wave 6';
+    case SplitType.COLOSSEUM_WAVE_7:
+      return 'Wave 7';
+    case SplitType.COLOSSEUM_WAVE_8:
+      return 'Wave 8';
+    case SplitType.COLOSSEUM_WAVE_9:
+      return 'Wave 9';
+    case SplitType.COLOSSEUM_WAVE_10:
+      return 'Wave 10';
+    case SplitType.COLOSSEUM_WAVE_11:
+      return 'Wave 11';
+    case SplitType.COLOSSEUM_WAVE_12:
+      return 'Sol Heredit';
     default:
       return 'Unknown Split';
   }
