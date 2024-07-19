@@ -410,6 +410,8 @@ export enum PlayerAttack {
   BGS_SPEC = PlayerAttackProto.BGS_SPEC,
   BLOWPIPE = PlayerAttackProto.BLOWPIPE,
   BLOWPIPE_SPEC = PlayerAttackProto.BLOWPIPE_SPEC,
+  BURNING_CLAW_SCRATCH = PlayerAttackProto.BURNING_CLAW_SCRATCH,
+  BURNING_CLAW_SPEC = PlayerAttackProto.BURNING_CLAW_SPEC,
   BOWFA = PlayerAttackProto.BOWFA,
   CHALLY_SPEC = PlayerAttackProto.CHALLY_SPEC,
   CHALLY_SWIPE = PlayerAttackProto.CHALLY_SWIPE,

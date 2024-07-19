@@ -224,6 +224,18 @@ const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
   },
+  [PlayerAttack.BURNING_CLAW_SCRATCH]: {
+    tagColor: 'red',
+    letter: 'bc',
+    ranged: false,
+    special: false,
+  },
+  [PlayerAttack.BURNING_CLAW_SPEC]: {
+    tagColor: 'red',
+    letter: 'BC',
+    ranged: false,
+    special: true,
+  },
   [PlayerAttack.CHALLY_SPEC]: {
     tagColor: 'yellow',
     letter: 'CH',
@@ -911,8 +923,10 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
     case PlayerAttack.CHIN_GREY:
     case PlayerAttack.CHIN_RED:
       return 'chinned';
+    case PlayerAttack.BURNING_CLAW_SCRATCH:
     case PlayerAttack.CLAW_SCRATCH:
       return 'claw scratched';
+    case PlayerAttack.BURNING_CLAW_SPEC:
     case PlayerAttack.CLAW_SPEC:
       return 'clawed';
     case PlayerAttack.DAWN_AUTO:
