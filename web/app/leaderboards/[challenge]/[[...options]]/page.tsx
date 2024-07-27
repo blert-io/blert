@@ -117,6 +117,7 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
 
   let heading;
   let splits: SplitType[] = [];
+  let numHighlightedSplits = 1;
 
   const linkClass = (active: boolean) =>
     `${styles.option} ${active ? styles.active : ''}`;
@@ -185,6 +186,7 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
 
       splits = [
         SplitType.TOB_CHALLENGE,
+        SplitType.TOB_OVERALL,
         SplitType.TOB_MAIDEN,
         SplitType.TOB_BLOAT,
         SplitType.TOB_NYLO_ROOM,
@@ -192,6 +194,7 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
         SplitType.TOB_XARPUS,
         SplitType.TOB_VERZIK_ROOM,
       ].map((split) => adjustSplitForMode(split, mode));
+      numHighlightedSplits = 2;
       break;
     }
 
@@ -253,17 +256,21 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
       </div>
       <div className={`${styles.controls} ${styles.scale}`}>{heading}</div>
       <div className={styles.boardGroup}>
-        {rankedSplits[splits[0]] !== undefined && (
-          <Leaderboard
-            challengeType={challengeType}
-            split={splits[0]}
-            ranks={rankedSplits[splits[0]]!}
-          />
-        )}
+        {splits
+          .slice(0, numHighlightedSplits)
+          .filter((split) => rankedSplits[split] !== undefined)
+          .map((split) => (
+            <Leaderboard
+              key={split}
+              challengeType={challengeType}
+              split={split}
+              ranks={rankedSplits[split]!}
+            />
+          ))}
       </div>
       <div className={styles.boardGroup}>
         {splits
-          .slice(1)
+          .slice(numHighlightedSplits)
           .filter((split) => rankedSplits[split] !== undefined)
           .map((split) => (
             <Leaderboard
