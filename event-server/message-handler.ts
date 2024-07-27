@@ -153,7 +153,9 @@ class ChallengeStreamAggregator {
     connectedClient.active = true;
 
     const hasPrimaryClient = this.clients.some((c) => c.primary);
-    connectedClient.primary = !hasPrimaryClient;
+    if (!hasPrimaryClient) {
+      this.updatePrimaryClient();
+    }
 
     this.stopReconnectionTimer();
   }
@@ -173,6 +175,7 @@ class ChallengeStreamAggregator {
 
     connectedClient.active = false;
     if (connectedClient.primary) {
+      connectedClient.primary = false;
       this.updatePrimaryClient();
     }
   }
@@ -283,9 +286,11 @@ class ChallengeStreamAggregator {
   }
 
   private updatePrimaryClient(): void {
-    // Because only a single primary client is supported, a switch between
-    // primaries necessarily loses data.
-    this.challenge.markStageTimeInaccurate();
+    if (this.challenge.hasActiveStage()) {
+      // Because only a single primary client is supported, a switch between
+      // primaries necessarily loses data.
+      this.challenge.markStageTimeInaccurate();
+    }
 
     const newPrimary = this.clients.find((c) => c.active && !c.hasFinished);
     if (newPrimary !== undefined) {
