@@ -332,6 +332,14 @@ export class DataRepository {
     return tobRooms;
   }
 
+  public async saveRaw(path: string, contents: Uint8Array): Promise<void> {
+    await this.backend.write(path, contents);
+  }
+
+  public async loadRaw(path: string): Promise<Uint8Array> {
+    return this.backend.read(path);
+  }
+
   private parseColosseumData(data: ChallengeData): ColosseumData {
     const colosseumData: ColosseumData = {
       handicaps: [],
@@ -436,13 +444,13 @@ export namespace DataRepository {
      * Reads the raw contents of the file at the specified path.
      * @param relativePath The path, relative to the backend's root.
      */
-    protected abstract read(relativePath: string): Promise<Uint8Array>;
+    public abstract read(relativePath: string): Promise<Uint8Array>;
 
     /**
      * Writes the raw contents of a file to the specified path.
      * @param relativePath The path, relative to the backend's root.
      */
-    protected abstract write(
+    public abstract write(
       relativePath: string,
       data: Uint8Array,
     ): Promise<void>;
@@ -451,7 +459,7 @@ export namespace DataRepository {
      * Recursively deletes content of a directory at the specified path.
      * @param relativePath The path, relative to the backend's root.
      */
-    protected abstract deleteDir(relativePath: string): Promise<void>;
+    public abstract deleteDir(relativePath: string): Promise<void>;
 
     private relativePath(uuid: string, file?: string): string {
       const subdir = uuid.slice(0, 2);
@@ -471,7 +479,7 @@ export namespace DataRepository {
       this.root = rootPath;
     }
 
-    protected override read(relativePath: string): Promise<Uint8Array> {
+    public override read(relativePath: string): Promise<Uint8Array> {
       try {
         return readFile(`${this.root}/${relativePath}`);
       } catch (e) {
@@ -479,7 +487,7 @@ export namespace DataRepository {
       }
     }
 
-    protected override async write(
+    public override async write(
       relativePath: string,
       data: Uint8Array,
     ): Promise<void> {
@@ -488,7 +496,7 @@ export namespace DataRepository {
       return writeFile(fullPath, data);
     }
 
-    protected override async deleteDir(relativePath: string): Promise<void> {
+    public override async deleteDir(relativePath: string): Promise<void> {
       const dir = `${this.root}/${relativePath}`;
       return rm(dir, { recursive: true, force: true });
     }
@@ -504,7 +512,7 @@ export namespace DataRepository {
       this.bucket = bucket;
     }
 
-    protected async read(relativePath: string): Promise<Uint8Array> {
+    public override async read(relativePath: string): Promise<Uint8Array> {
       const params = {
         Bucket: this.bucket,
         Key: relativePath,
@@ -525,7 +533,7 @@ export namespace DataRepository {
       }
     }
 
-    protected async write(
+    public override async write(
       relativePath: string,
       data: Uint8Array,
     ): Promise<void> {
@@ -543,7 +551,7 @@ export namespace DataRepository {
       }
     }
 
-    protected async deleteDir(relativePath: string): Promise<void> {
+    public override async deleteDir(relativePath: string): Promise<void> {
       const params = {
         Bucket: this.bucket,
         Prefix: relativePath,

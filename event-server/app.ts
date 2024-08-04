@@ -62,15 +62,19 @@ async function setupHttpRoutes(
  * backend set based on the BLERT_DATA_REPOSITORY environment variable.
  * @returns The initialized data repository.
  */
-function initializeDataRepository(): DataRepository {
+function initializeDataRepository(envVar: string): DataRepository {
   let repositoryBackend: DataRepository.Backend;
-  if (!process.env.BLERT_DATA_REPOSITORY) {
-    throw new Error('BLERT_DATA_REPOSITORY is not set');
-  } else if (process.env.BLERT_DATA_REPOSITORY.startsWith('file://')) {
-    const root = process.env.BLERT_DATA_REPOSITORY.slice('file://'.length);
+  if (!process.env[envVar]) {
+    throw new Error(`${envVar} is not set`);
+  }
+
+  const repositoryUri = process.env[envVar]!;
+
+  if (repositoryUri.startsWith('file://')) {
+    const root = repositoryUri.slice('file://'.length);
     console.log(`DataRepository using filesystem backend at ${root}`);
     repositoryBackend = new DataRepository.FilesystemBackend(root);
-  } else if (process.env.BLERT_DATA_REPOSITORY.startsWith('s3://')) {
+  } else if (repositoryUri.startsWith('s3://')) {
     const s3Client = new S3Client({
       forcePathStyle: false,
       region: process.env.BLERT_REGION,
@@ -80,11 +84,11 @@ function initializeDataRepository(): DataRepository {
         secretAccessKey: process.env.BLERT_SECRET_ACCESS_KEY!,
       },
     });
-    const bucket = process.env.BLERT_DATA_REPOSITORY.slice('s3://'.length);
+    const bucket = repositoryUri.slice('s3://'.length);
     console.log(`DataRepository using S3 backend bucket ${bucket}`);
     repositoryBackend = new DataRepository.S3Backend(s3Client, bucket);
   } else {
-    throw new Error('Unknown repository backend');
+    throw new Error(`Unknown repository backend type: ${repositoryUri}`);
   }
 
   return new DataRepository(repositoryBackend);
@@ -154,13 +158,20 @@ async function main(): Promise<void> {
     }
   });
 
-  const repository = initializeDataRepository();
+  const repository = initializeDataRepository('BLERT_DATA_REPOSITORY');
+  const clientRepository = initializeDataRepository(
+    'BLERT_CLIENT_DATA_REPOSITORY',
+  );
 
   const connectionManager = new ConnectionManager();
   const serverManager = new ServerManager(connectionManager);
   const playerManager = new PlayerManager();
   const challengeManager = new ChallengeManager(playerManager, repository);
-  const messageHandler = new MessageHandler(challengeManager, playerManager);
+  const messageHandler = new MessageHandler(
+    challengeManager,
+    playerManager,
+    clientRepository,
+  );
 
   serverManager.onStatusUpdate(messageHandler.handleServerStatusUpdate);
 

@@ -1,4 +1,9 @@
-import { ChallengeType, RecordingType, Stage } from '@blert/common';
+import {
+  ChallengeType,
+  DataRepository,
+  RecordingType,
+  Stage,
+} from '@blert/common';
 import {
   ChallengeMap,
   ChallengeMode,
@@ -7,6 +12,7 @@ import {
   StageMap,
 } from '@blert/common/generated/event_pb';
 import { ServerMessage } from '@blert/common/generated/server_message_pb';
+import { ChallengeEvents } from '@blert/common/generated/challenge_storage_pb';
 
 import { Challenge } from './challenge';
 import ChallengeManager from './challenge-manager';
@@ -23,6 +29,8 @@ type ConnectedClient = {
   active: boolean;
   primary: boolean;
   hasFinished: boolean;
+  activeStage: Stage | null;
+  sentEvents: Event[];
 };
 
 class ChallengeStreamAggregator {
@@ -35,6 +43,9 @@ class ChallengeStreamAggregator {
   private lastEventTimestamp: number;
   private reconnectionTimestamp: number | null;
   private watchdogTimer: NodeJS.Timeout;
+
+  private clientDataRepository: DataRepository;
+  private saveClientEventData: boolean;
 
   /** How long to wait before cleaning up a challenge with no clients. */
   private static readonly MAX_RECONNECTION_PERIOD = 1000 * 60 * 5;
@@ -50,6 +61,8 @@ class ChallengeStreamAggregator {
     playerManager: PlayerManager,
     challenge: Challenge,
     onCompletion: () => void,
+    clientDataRepository: DataRepository,
+    saveClientEventData: boolean = false,
   ) {
     this.challengeManager = challengeManager;
     this.playerManager = playerManager;
@@ -60,6 +73,9 @@ class ChallengeStreamAggregator {
     this.watchdogTimer = setInterval(() => this.watchdog(), 1000 * 60);
     this.reconnectionTimestamp = null;
     this.lastEventTimestamp = Date.now();
+
+    this.clientDataRepository = clientDataRepository;
+    this.saveClientEventData = saveClientEventData;
   }
 
   public getChallenge(): Challenge {
@@ -101,6 +117,8 @@ class ChallengeStreamAggregator {
       active: true,
       primary: !hasPrimaryClient,
       hasFinished: false,
+      activeStage: null,
+      sentEvents: [],
     });
 
     this.stopReconnectionTimer();
@@ -194,6 +212,40 @@ class ChallengeStreamAggregator {
     }
 
     this.lastEventTimestamp = Date.now();
+
+    if (event.getType() === Event.Type.STAGE_UPDATE) {
+      switch (event.getStageUpdate()!.getStatus()) {
+        case Event.StageUpdate.Status.STARTED:
+          connectedClient.activeStage = event.getStage();
+          if (this.saveClientEventData) {
+            console.log(`${this}: ${client} started stage ${event.getStage()}`);
+          }
+          break;
+        case Event.StageUpdate.Status.COMPLETED:
+        case Event.StageUpdate.Status.WIPED:
+          connectedClient.activeStage = null;
+          if (this.saveClientEventData) {
+            console.log(`${this}: ${client} ended stage ${event.getStage()}`);
+            if (this.clients.length > 1) {
+              console.log(
+                `${this}: saving ${connectedClient.sentEvents.length} raw events for ${client}`,
+              );
+              const path = `${this.challenge.getId()}/${event.getStage()}/${client.getUserId()}`;
+              const message = new ChallengeEvents();
+              message.setEventsList(connectedClient.sentEvents);
+              message.setStage(event.getStage());
+              this.clientDataRepository.saveRaw(
+                path,
+                message.serializeBinary(),
+              );
+              connectedClient.sentEvents = [];
+            }
+          }
+          break;
+      }
+    } else if (connectedClient.activeStage !== null) {
+      connectedClient.sentEvents.push(event);
+    }
 
     // TODO(frolv): For now, the primary client's event are used directly.
     // This should be updated to collect and merge events from all clients.
@@ -379,16 +431,19 @@ export default class MessageHandler {
   private challengeManager: ChallengeManager;
   private playerManager: PlayerManager;
   private challengeAggregators: { [raidId: string]: ChallengeStreamAggregator };
+  private clientDataRepository: DataRepository;
 
   private allowStartingChallenges: boolean;
 
   public constructor(
     challengeManager: ChallengeManager,
     playerManager: PlayerManager,
+    clientDataRepository: DataRepository,
   ) {
     this.challengeManager = challengeManager;
     this.playerManager = playerManager;
     this.challengeAggregators = {};
+    this.clientDataRepository = clientDataRepository;
     this.allowStartingChallenges = true;
   }
 
@@ -730,11 +785,23 @@ export default class MessageHandler {
         delete this.challengeAggregators[challengeId];
       };
 
+      // Collect data from all clients for a percentage of challenges for
+      // testing purposes.
+      const shouldSaveClientEventData =
+        Math.random() < 0.15 && challengeType === ChallengeType.TOB;
+      if (shouldSaveClientEventData) {
+        console.log(
+          `Selected challenge ${challengeId} for client data recording`,
+        );
+      }
+
       this.challengeAggregators[challengeId] = new ChallengeStreamAggregator(
         this.challengeManager,
         this.playerManager,
         challenge,
         onChallengeCompletion,
+        this.clientDataRepository,
+        shouldSaveClientEventData,
       );
     }
     this.challengeAggregators[challengeId].addClient(client, recordingType);
