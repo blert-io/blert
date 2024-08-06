@@ -32,6 +32,8 @@ type Experience = Pick<
 >;
 
 export class Players {
+  private static readonly USERNAME_REGEX = /^[a-zA-Z0-9 _-]{1,12}$/;
+
   public static async lookupUsername(id: number): Promise<string | null> {
     const [player] = await sql`SELECT username FROM players WHERE id = ${id}`;
     return player?.username ?? null;
@@ -84,6 +86,10 @@ export class Players {
 
     if (initialFields !== undefined) {
       fields = camelToSnakeObject(initialFields);
+    }
+
+    if (!Players.USERNAME_REGEX.test(username)) {
+      throw new Error(`Invalid RuneScape username: ${username}`);
     }
 
     fields.username = username;
