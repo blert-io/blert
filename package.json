@@ -2,6 +2,7 @@
   "name": "blert",
   "version": "0.1.0",
   "workspaces": [
+    "challenge-server/",
     "common/",
     "event-server/",
     "web/"
