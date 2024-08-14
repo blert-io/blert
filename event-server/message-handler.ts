@@ -221,9 +221,12 @@ class ChallengeStreamAggregator {
             console.log(`${this}: ${client} started stage ${event.getStage()}`);
           }
           break;
+
         case Event.StageUpdate.Status.COMPLETED:
         case Event.StageUpdate.Status.WIPED:
+          connectedClient.sentEvents.push(event);
           connectedClient.activeStage = null;
+
           if (this.saveClientEventData) {
             console.log(`${this}: ${client} ended stage ${event.getStage()}`);
             if (this.clients.length > 1) {
@@ -238,9 +241,9 @@ class ChallengeStreamAggregator {
                 path,
                 message.serializeBinary(),
               );
-              connectedClient.sentEvents = [];
             }
           }
+          connectedClient.sentEvents = [];
           break;
       }
     } else if (connectedClient.activeStage !== null) {
