@@ -5,7 +5,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
-import { mkdir, readFile, rm, writeFile } from 'fs/promises';
+import { mkdir, readFile, readdir, rm, writeFile } from 'fs/promises';
 import { dirname } from 'path';
 import jspb from 'google-protobuf';
 import { Empty as EmptyProto } from 'google-protobuf/google/protobuf/empty_pb';
@@ -340,6 +340,15 @@ export class DataRepository {
     return this.backend.read(path);
   }
 
+  /**
+   * Recursively lists the contents of a directory.
+   * @param path Path to the directory to read.
+   * @returns A list of filenames within the directory.
+   */
+  public async listFiles(path: string): Promise<string[]> {
+    return this.backend.listDir(path);
+  }
+
   private parseColosseumData(data: ChallengeData): ColosseumData {
     const colosseumData: ColosseumData = {
       handicaps: [],
@@ -461,6 +470,14 @@ export namespace DataRepository {
      */
     public abstract deleteDir(relativePath: string): Promise<void>;
 
+    /**
+     * Recursively lists the contents of a directory at the specified path.
+     * @param relativePath The path, relative to the backend's root.
+     * @returns A list of filenames in the directory, prefixed by the relative
+     *   path.
+     */
+    public abstract listDir(relativePath: string): Promise<string[]>;
+
     private relativePath(uuid: string, file?: string): string {
       const subdir = uuid.slice(0, 2);
       const challengeDir = `${subdir}/${uuid.replaceAll('-', '')}`;
@@ -499,6 +516,28 @@ export namespace DataRepository {
     public override async deleteDir(relativePath: string): Promise<void> {
       const dir = `${this.root}/${relativePath}`;
       return rm(dir, { recursive: true, force: true });
+    }
+
+    public override async listDir(relativePath: string): Promise<string[]> {
+      const dir = `${this.root}/${relativePath}`;
+      try {
+        const entries = await readdir(dir, {
+          withFileTypes: true,
+          recursive: true,
+        });
+        return entries
+          .filter((entry) => entry.isFile())
+          .map(
+            (entry) =>
+              entry.path.slice(this.root.length + 1) + '/' + entry.name,
+          );
+      } catch (e: any) {
+        if (e.code === 'ENOENT') {
+          return [];
+        }
+        console.error(`Failed to list directory: ${e}`);
+        throw new DataRepository.BackendError();
+      }
     }
   }
 
@@ -552,6 +591,21 @@ export namespace DataRepository {
     }
 
     public override async deleteDir(relativePath: string): Promise<void> {
+      const objects = await this.listDir(relativePath).then((files) =>
+        files.map((file) => ({ Key: file })),
+      );
+
+      if (objects.length > 0) {
+        await this.client.send(
+          new DeleteObjectsCommand({
+            Bucket: this.bucket,
+            Delete: { Objects: objects },
+          }),
+        );
+      }
+    }
+
+    public override async listDir(relativePath: string): Promise<string[]> {
       const params = {
         Bucket: this.bucket,
         Prefix: relativePath,
@@ -562,21 +616,12 @@ export namespace DataRepository {
           new ListObjectsV2Command(params),
         );
         if (response.Contents === undefined) {
-          return;
+          return [];
         }
 
-        const objects = response.Contents.map((obj) => ({ Key: obj.Key }));
-
-        if (objects.length > 0) {
-          await this.client.send(
-            new DeleteObjectsCommand({
-              Bucket: this.bucket,
-              Delete: { Objects: objects },
-            }),
-          );
-        }
+        return response.Contents.map((obj) => obj.Key ?? '');
       } catch (e) {
-        console.error(`Failed to delete from S3: ${e}`);
+        console.error(`Failed to list objects in S3: ${e}`);
         throw new DataRepository.BackendError();
       }
     }
