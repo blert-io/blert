@@ -1,0 +1,62 @@
+@import '../../../../mixins.scss';
+
+.roleLinks {
+  margin: 0.5em 0;
+  display: flex;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--nav-bg);
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    width: 100%;
+    flex-flow: row wrap;
+  }
+
+  .link {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 4px 12px;
+    width: 25%;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 20px;
+    text-align: center;
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      width: 50%;
+
+      &:nth-child(even) {
+        border-left: 2px solid var(--content-area-bg);
+      }
+
+      &:nth-child(-n + 2) {
+        border-bottom: 2px solid var(--content-area-bg);
+      }
+    }
+
+    @media (min-width: $COMPACT_WIDTH_THRESHOLD) {
+      &:not(:last-child) {
+        border-right: 2px solid var(--content-area-bg);
+      }
+    }
+
+    &.active {
+      background: var(--nav-bg-darkened);
+      color: #fff;
+
+      &:hover {
+        cursor: default;
+      }
+    }
+
+    &:not(.active):hover {
+      background: var(--nav-bg-lightened);
+      color: #fff;
+    }
+
+    img {
+      margin-right: 10px;
+    }
+  }
+}

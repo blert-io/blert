@@ -6,17 +6,7 @@ import Article from '@/components/article';
 import GuideTags from '@/guides/guide-tags';
 import { basicMetadata } from '@/utils/metadata';
 
-function Mage({ children }: { children: React.ReactNode }) {
-  return <span style={{ color: '#42c6d7' }}>{children}</span>;
-}
-
-function Range({ children }: { children: React.ReactNode }) {
-  return <span style={{ color: '#408d43' }}>{children}</span>;
-}
-
-function Melee({ children }: { children: React.ReactNode }) {
-  return <span style={{ color: '#fff' }}>{children}</span>;
-}
+import { Mage, Melee, Range } from '../nylos';
 
 export default function TrioNylo() {
   return (
