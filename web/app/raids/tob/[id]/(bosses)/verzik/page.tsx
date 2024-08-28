@@ -20,6 +20,7 @@ import { useContext, useMemo } from 'react';
 import { usePlayingState, useStageEvents } from '@/utils/boss-room-state';
 import { BossPageControls } from '@/components/boss-page-controls/boss-page-controls';
 import { BossPageAttackTimeline } from '@/components/boss-page-attack-timeline/boss-page-attack-timeline';
+import { TimelineColor } from '@/components/attack-timeline';
 import BossPageReplay from '@/components/boss-page-replay';
 import { Entity, NpcEntity, PlayerEntity } from '@/components/map';
 import Loading from '@/components/loading';
@@ -36,6 +37,8 @@ const VERZIK_MAP_DEFINITION = {
   height: 25,
   baseTiles: verzikBaseTiles,
 };
+
+const VERZIK_ATTACK_BACKGROUND = '#391717';
 
 function verzikNpcColor(npcId: number): string | undefined {
   if (Npc.isVerzikIschyros(npcId)) {
@@ -93,12 +96,6 @@ export default function VerzikPage() {
         splitName: 'P2',
       });
     }
-    if (raidData.splits[SplitType.TOB_VERZIK_REDS]) {
-      splits.push({
-        tick: raidData.splits[SplitType.TOB_VERZIK_REDS],
-        splitName: 'Reds',
-      });
-    }
     if (raidData.splits[SplitType.TOB_VERZIK_P2_END]) {
       splits.push({
         tick: raidData.splits[SplitType.TOB_VERZIK_P2_END],
@@ -111,13 +108,50 @@ export default function VerzikPage() {
       });
     }
 
-    const backgroundColors = eventsByType[EventType.NPC_ATTACK]
-      ?.filter(
-        (event) =>
-          (event as NpcAttackEvent).npcAttack.attack ===
-          NpcAttack.TOB_VERZIK_P1_AUTO,
-      )
-      .map((event) => ({ tick: event.tick, backgroundColor: '#512020' }));
+    const redsTicks: number[] = [];
+    eventsByType[EventType.NPC_SPAWN]?.forEach((event) => {
+      if (Npc.isVerzikMatomenos((event as NpcEvent).npc.id)) {
+        if (!redsTicks.includes(event.tick)) {
+          redsTicks.push(event.tick);
+        }
+      }
+    });
+    for (const tick of redsTicks) {
+      splits.push({
+        tick,
+        splitName: 'Reds',
+        unimportant: tick !== raidData.splits[SplitType.TOB_VERZIK_REDS],
+      });
+
+      splits.push({
+        tick: tick + 10,
+        splitName: 'Attackable',
+        unimportant: true,
+      });
+    }
+
+    const backgroundColors: TimelineColor[] = [];
+    eventsByType[EventType.NPC_ATTACK]?.forEach((event) => {
+      switch ((event as NpcAttackEvent).npcAttack.attack) {
+        case NpcAttack.TOB_VERZIK_P1_AUTO:
+          backgroundColors.push({
+            tick: event.tick,
+            backgroundColor: VERZIK_ATTACK_BACKGROUND,
+          });
+          break;
+        case NpcAttack.TOB_VERZIK_P2_BOUNCE:
+        case NpcAttack.TOB_VERZIK_P2_CABBAGE:
+        case NpcAttack.TOB_VERZIK_P2_MAGE:
+        case NpcAttack.TOB_VERZIK_P2_PURPLE:
+        case NpcAttack.TOB_VERZIK_P2_ZAP:
+          // Highlight the P2 danger tick, which is the tick before her attacks.
+          backgroundColors.push({
+            tick: event.tick - 1,
+            backgroundColor: VERZIK_ATTACK_BACKGROUND,
+          });
+          break;
+      }
+    });
 
     return [splits, backgroundColors];
   }, [raidData, eventsByType]);
