@@ -16,7 +16,7 @@ export default function MeleeFreezeNyloGuide() {
     <Article.Page>
       <Article.Heading level={1} text="4s Nylocas Melee Freeze Waves" />
       <em>
-        Contributed by the{' '}
+        Written by Alex (StillRemains) and contributed by the{' '}
         <Link
           href="https://discord.gg/u6yXPrFFsf"
           target="_blank"

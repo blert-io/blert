@@ -11,12 +11,12 @@ import { basicMetadata } from '@/utils/metadata';
 import { Mage, Melee, Range } from '../../nylos';
 import RoleLinks from '../role-links';
 
-export default function MageNyloGuide() {
+export default function MeleeNyloGuide() {
   return (
     <Article.Page>
       <Article.Heading level={1} text="4s Nylocas Melee Waves" />
       <em>
-        Contributed by the{' '}
+        Written by Tiikzu and contributed by the{' '}
         <Link
           href="https://discord.gg/u6yXPrFFsf"
           target="_blank"

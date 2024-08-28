@@ -27,14 +27,63 @@
 .guidePanel {
   @include panel;
   flex-direction: column;
-  padding: 10px 20px;
+  padding: 10px 30px;
 
   h2 {
     margin-top: 0;
   }
 
+  h3 {
+    margin: 0.8em 0 0.4em 0;
+  }
+
   a {
     text-decoration: underline;
+  }
+
+  & > ul {
+    padding: 0;
+    margin: 0.25em 0;
+    list-style: none;
+
+    & > li {
+      line-height: 2em;
+
+      ul {
+        list-style: none;
+        padding-left: 1.5em;
+      }
+
+      li {
+        position: relative;
+
+        &:before {
+          position: absolute;
+          left: -15px;
+          top: 0px;
+          content: '';
+          display: block;
+          border-left: 1px solid var(--font-color-nav-divider);
+          height: 1em;
+          border-bottom: 1px solid var(--font-color-nav-divider);
+          width: 10px;
+        }
+
+        &:after {
+          position: absolute;
+          left: -15px;
+          bottom: -7px;
+          content: '';
+          display: block;
+          border-left: 1px solid var(--font-color-nav-divider);
+          height: 100%;
+        }
+
+        &:last-child:after {
+          display: none;
+        }
+      }
+    }
   }
 }
 
