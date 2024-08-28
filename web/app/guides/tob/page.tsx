@@ -36,7 +36,32 @@ export default function TobGuides() {
             style={{ objectFit: 'contain' }}
           />
           <h3>Nylocas waves</h3>
-          <Link href="/guides/tob/nylocas/trio">Trio Waves Guide</Link>
+          <ul>
+            <li>
+              <Link href="/guides/tob/nylocas/trio">
+                Trio Waves Guide (All Roles)
+              </Link>
+            </li>
+            <li>
+              <Link href="/guides/tob/nylocas/4s">4s Waves Guide</Link>
+              <ul>
+                <li>
+                  <Link href="/guides/tob/nylocas/4s/mage">Mage</Link>
+                </li>
+                <li>
+                  <Link href="/guides/tob/nylocas/4s/melee-freeze">
+                    Melee Freeze
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/guides/tob/nylocas/4s/ranger">Ranger</Link>
+                </li>
+                <li>
+                  <Link href="/guides/tob/nylocas/4s/melee">Melee</Link>
+                </li>
+              </ul>
+            </li>
+          </ul>
         </div>
       </div>
     </div>
