@@ -11,29 +11,9 @@ import TimeAgo from 'react-timeago';
 import { useClientOnly } from '@/hooks/client-only';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
-import { raidStatusNameAndColor } from './status';
+import { modeNameAndColor, statusNameAndColor } from './status';
 
 import styles from './style.module.scss';
-
-const modeNameAndColor = (type: ChallengeType, difficulty: ChallengeMode) => {
-  if (type === ChallengeType.COLOSSEUM) {
-    return ['Colosseum', '#33a4af'];
-  }
-  if (type === ChallengeType.INFERNO) {
-    return ['Inferno', '#a14f1a'];
-  }
-
-  switch (difficulty) {
-    case ChallengeMode.TOB_REGULAR:
-      return ['ToB Regular', '#ffd700'];
-    case ChallengeMode.TOB_HARD:
-      return ['ToB Hard', '#d100cc'];
-    case ChallengeMode.TOB_ENTRY:
-      return ['ToB Entry', '#b9bbb6'];
-    default:
-      return ['Unknown', '#ffd700'];
-  }
-};
 
 const getIconForStatus = (status: ChallengeStatus) => {
   switch (status) {
@@ -91,7 +71,7 @@ export function RaidQuickDetails(props: RaidQuickDetailsProps) {
 
   const isClient = useClientOnly();
 
-  const [statusString, statusColor] = raidStatusNameAndColor(status, stage);
+  const [statusString, statusColor] = statusNameAndColor(status, stage);
   const [modeString, modeColor] = modeNameAndColor(type, mode);
   const iconForStatus = getIconForStatus(status);
   const ticks = ticksToFormattedSeconds(totalRaidTicks);

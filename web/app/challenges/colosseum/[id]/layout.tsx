@@ -4,7 +4,7 @@ import { ColosseumContextProvider } from '../context';
 import styles from './style.module.scss';
 import { loadChallenge } from '@/actions/challenge';
 import { ChallengeType } from '@blert/common';
-import { raidStatusNameAndColor } from '@/components/raid-quick-details';
+import { statusNameAndColor } from '@/components/raid-quick-details';
 import { challengePageDescription } from '@/utils/challenge-description';
 
 type ColosseumParams = {
@@ -39,10 +39,7 @@ export async function generateMetadata(
     return { title: 'Not Found' };
   }
 
-  const [overallStatus] = raidStatusNameAndColor(
-    challenge.status,
-    challenge.stage,
-  );
+  const [overallStatus] = statusNameAndColor(challenge.status, challenge.stage);
 
   const title = `Colosseum ${overallStatus}`;
   const description = challengePageDescription(challenge);

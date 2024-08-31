@@ -65,8 +65,9 @@ export function where(
 }
 
 export type Join = {
-  table: postgres.Fragment;
+  table: postgres.Fragment | postgres.Helper<string>;
   on: postgres.Fragment;
+  tableName: string;
 };
 
 export function join(joins: Join[]) {

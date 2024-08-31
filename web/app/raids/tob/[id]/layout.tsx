@@ -2,7 +2,7 @@ import { ChallengeType } from '@blert/common';
 import { ResolvingMetadata } from 'next';
 
 import { loadChallenge } from '@/actions/challenge';
-import { raidStatusNameAndColor } from '@/components/raid-quick-details';
+import { statusNameAndColor } from '@/components/raid-quick-details';
 import { challengePageDescription } from '@/utils/challenge-description';
 import { TobContextProvider } from '../context';
 
@@ -40,7 +40,7 @@ export async function generateMetadata(
     return { title: 'Not Found' };
   }
 
-  const [overallStatus] = raidStatusNameAndColor(raid.status, raid.stage);
+  const [overallStatus] = statusNameAndColor(raid.status, raid.stage);
 
   const title = `ToB ${overallStatus}`;
   const description = challengePageDescription(raid);

@@ -9,7 +9,7 @@ type OptionProps = {
   id: string;
   label: string | JSX.Element;
   privateName?: string;
-  privateOnClick?: () => void;
+  privateOnChange?: () => void;
   privateReadOnly?: boolean;
   value: number | string;
 };
@@ -21,7 +21,7 @@ export function Option(props: OptionProps) {
         checked={props.checked}
         defaultChecked={props.defaultChecked}
         id={props.id}
-        onClick={props.privateOnClick}
+        onChange={props.privateOnChange}
         name={props.privateName}
         readOnly={props.privateReadOnly}
         type="radio"
@@ -45,7 +45,7 @@ export function Group(props: GroupProps) {
       {React.Children.map(props.children, (child) =>
         React.cloneElement<OptionProps>(child, {
           privateName: props.name,
-          privateOnClick: () => props.onChange?.(child.props.value),
+          privateOnChange: () => props.onChange?.(child.props.value),
           privateReadOnly: props.readOnly,
         }),
       )}

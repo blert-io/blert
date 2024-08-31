@@ -14,10 +14,10 @@ export function parseIntParam<Enum>(
 export function parseArrayParam<Enum>(
   searchParams: URLSearchParams,
   key: string,
-): Enum[] {
+): Enum[] | undefined {
   const value = searchParams.get(key);
   if (value === null) {
-    return [];
+    return undefined;
   }
 
   return value

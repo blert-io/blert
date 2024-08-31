@@ -7,7 +7,7 @@ import {
 import { NextRequest } from 'next/server';
 
 import { ChallengeQuery, findChallenges } from '@/actions/challenge';
-import { parseIntParam } from '@/utils/params';
+import { parseArrayParam, parseIntParam } from '@/utils/params';
 import { Comparator, Operator } from '@/actions/query';
 
 const DEFAULT_LIMIT = 10;
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
   const query: ChallengeQuery = {
     type: parseIntParam<ChallengeType>(searchParams, 'type'),
     mode: parseIntParam<ChallengeMode>(searchParams, 'mode'),
-    status: parseIntParam<ChallengeStatus>(searchParams, 'status'),
+    status: parseArrayParam<ChallengeStatus>(searchParams, 'status'),
     scale: parseIntParam<number>(searchParams, 'scale'),
     party,
     splits,

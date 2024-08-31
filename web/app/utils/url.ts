@@ -53,16 +53,21 @@ export function challengeApiUrl(type: ChallengeType, id: string): string {
  * @returns A URL query string.
  */
 export function queryString(
-  params: Record<string, string | string[] | undefined>,
+  params: Record<string, string | string[] | number[] | undefined>,
 ): string {
   const searchParams = new URLSearchParams();
   for (let [key, value] of Object.entries(params)) {
-    if (value !== undefined) {
-      if (Array.isArray(value)) {
-        value = value.join(',');
-      }
-      searchParams.set(key, value);
+    if (value === undefined) {
+      continue;
     }
+
+    if (Array.isArray(value)) {
+      if (value.length === 0) {
+        continue;
+      }
+      value = value.join(',');
+    }
+    searchParams.set(key, value);
   }
   return searchParams.toString();
 }

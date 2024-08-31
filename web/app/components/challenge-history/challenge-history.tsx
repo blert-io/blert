@@ -1,6 +1,6 @@
 'use client';
 
-import { ChallengeType } from '@blert/common';
+import { ChallengeMode, ChallengeStatus, ChallengeType } from '@blert/common';
 import Link from 'next/link';
 import { Suspense, useDeferredValue, useEffect, useState } from 'react';
 
@@ -12,9 +12,12 @@ import styles from './style.module.scss';
 
 export type ChallengeHistoryProps = {
   count: number;
+  initialChallenges?: ChallengeOverview[];
+  mode?: ChallengeMode;
   type?: ChallengeType;
+  scale?: number;
+  status?: ChallengeStatus | ChallengeStatus[];
   username?: string;
-  initialChallenges: ChallengeOverview[];
 };
 
 function ChallengeList({ challenges }: { challenges: ChallengeOverview[] }) {
@@ -43,7 +46,7 @@ function ChallengeList({ challenges }: { challenges: ChallengeOverview[] }) {
               deaths={challenge.totalDeaths}
               partySize={challenge.party.length}
               startTime={challenge.startTime}
-              compactView={true}
+              compactView
             />
           </div>
         </Link>
@@ -53,9 +56,17 @@ function ChallengeList({ challenges }: { challenges: ChallengeOverview[] }) {
 }
 
 export default function ChallengeHistory(props: ChallengeHistoryProps) {
-  const { count, type, username } = props;
+  const {
+    count,
+    type,
+    mode,
+    scale,
+    username,
+    initialChallenges = [],
+    status,
+  } = props;
 
-  const [challenges, setChallenges] = useState(props.initialChallenges);
+  const [challenges, setChallenges] = useState(initialChallenges);
   const deferredChallenges = useDeferredValue(challenges);
 
   useEffect(() => {
@@ -64,6 +75,13 @@ export default function ChallengeHistory(props: ChallengeHistoryProps) {
         limit: count.toString(),
         type: type?.toString(),
         party: username ? [username] : undefined,
+        scale: scale?.toString(),
+        mode: mode?.toString(),
+        status: status
+          ? Array.isArray(status)
+            ? status
+            : [status]
+          : undefined,
       };
       const challenges = await fetch(
         `/api/v1/challenges?${queryString(params)}`,
@@ -71,12 +89,10 @@ export default function ChallengeHistory(props: ChallengeHistoryProps) {
       setChallenges(challenges);
     };
 
-    // TODO(frolv): Fetch immediately due to Next's aggressive caching. This
-    // will be fixed in a future version of Next.
     fetchChallenges();
     const refetchInterval = window.setInterval(fetchChallenges, 30 * 1000);
     return () => window.clearInterval(refetchInterval);
-  }, [count, type, username]);
+  }, [count, type, username, scale, mode, status]);
 
   return (
     <div className={styles.history}>

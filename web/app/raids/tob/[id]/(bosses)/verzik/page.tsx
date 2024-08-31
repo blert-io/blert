@@ -116,10 +116,10 @@ export default function VerzikPage() {
         }
       }
     });
-    for (const tick of redsTicks) {
+    redsTicks.forEach((tick, i) => {
       splits.push({
         tick,
-        splitName: 'Reds',
+        splitName: i === 0 ? 'Reds' : `Reds ${i + 1}`,
         unimportant: tick !== raidData.splits[SplitType.TOB_VERZIK_REDS],
       });
 
@@ -128,7 +128,7 @@ export default function VerzikPage() {
         splitName: 'Attackable',
         unimportant: true,
       });
-    }
+    });
 
     const backgroundColors: TimelineColor[] = [];
     eventsByType[EventType.NPC_ATTACK]?.forEach((event) => {

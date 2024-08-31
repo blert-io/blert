@@ -1,13 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useContext, useState } from 'react';
+
+import { DisplayContext } from '@/display';
+
 import styles from './styles.module.scss';
 
 interface CollapsiblePanelProps extends React.HTMLAttributes<HTMLDivElement> {
   className?: string;
   panelTitle: string;
   maxPanelHeight: number;
-  defaultExpanded?: boolean;
+  defaultExpanded?: boolean | 'fullDisplay';
   disableExpansion?: boolean;
   panelWidth?: number | string;
 }
@@ -21,7 +24,17 @@ export function CollapsiblePanel(props: CollapsiblePanelProps) {
     panelWidth,
     children,
   } = props;
-  const [expanded, setExpanded] = useState(defaultExpanded || disableExpansion);
+  let startExpanded = false;
+
+  const display = useContext(DisplayContext);
+
+  if (defaultExpanded === 'fullDisplay') {
+    startExpanded = display.isFull();
+  } else {
+    startExpanded = defaultExpanded;
+  }
+
+  const [expanded, setExpanded] = useState(startExpanded || disableExpansion);
 
   let className = `${styles.collapsiblePanel}`;
   if (disableExpansion) {
