@@ -55,7 +55,7 @@ export default async function Page() {
   const playerQuery = aggregateChallenges(
     { from: today },
     { '*': 'count' },
-    { limit: 10 },
+    { limit: 10, sort: '-count' },
     'username',
   );
 

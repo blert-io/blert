@@ -112,7 +112,8 @@ export type ChallengeOverview = Pick<
   | 'totalDeaths'
 > & { party: string[] };
 
-export type SortQuery<T> = `${'+' | '-'}${keyof T & string}`;
+export type SortQuery<T> =
+  `${'+' | '-'}${T extends object ? keyof T & string : T extends string ? T : never}`;
 
 export type ChallengeQuery = {
   type?: ChallengeType;
@@ -128,11 +129,13 @@ export type ChallengeQuery = {
 
 export type QueryOptions = {
   limit?: number;
+  sort?: SortQuery<Omit<ChallengeOverview, 'party'> | Aggregation>;
 };
 
 const DEFAULT_CHALLENGE_LIMIT = 10;
+const DEFAULT_SORT = '-startTime';
 const DEFAULT_CHALLENGE_QUERY: ChallengeQuery = {
-  sort: '-startTime',
+  sort: DEFAULT_SORT,
 };
 
 function fieldToTable(field: string): string {
@@ -154,6 +157,26 @@ function fieldToTable(field: string): string {
     default:
       throw new InvalidQueryError(`Unknown field: ${field}`);
   }
+}
+
+function order(
+  sort: string,
+  challengesTable?: postgres.Helper<string>,
+): postgres.Fragment {
+  const field = camelToSnake(sort.slice(1));
+
+  if (challengesTable !== undefined) {
+    const table = fieldToTable(field);
+    const sqlTable = table === 'challenges' ? challengesTable : sql(table);
+    if (sort.startsWith('-')) {
+      return sql`${sqlTable}.${sql(field)} DESC`;
+    }
+    return sql`${sqlTable}.${sql(field)} ASC`;
+  }
+
+  return sort.startsWith('-')
+    ? sql`${sql(field)} DESC`
+    : sql`${sql(field)} ASC`;
 }
 
 type QueryComponents = {
@@ -288,20 +311,6 @@ export async function findChallenges(
 
   const { baseTable, queryTable, joins, conditions } = components;
 
-  let order;
-  if (searchQuery.sort !== undefined) {
-    const field = camelToSnake(searchQuery.sort.slice(1));
-    const table = fieldToTable(field);
-    const sqlTable = table === 'challenges' ? queryTable : sql(table);
-    if (searchQuery.sort.startsWith('-')) {
-      order = sql`${sqlTable}.${sql(field)} DESC`;
-    } else {
-      order = sql`${sqlTable}.${sql(field)} ASC`;
-    }
-  } else {
-    order = sql`${queryTable}.start_time DESC`;
-  }
-
   const rawChallenges = await sql`
     SELECT
       ${queryTable}.id,
@@ -316,7 +325,7 @@ export async function findChallenges(
     FROM ${baseTable}
     ${join(joins)}
     ${where(conditions)}
-    ORDER BY ${order}
+    ORDER BY ${order(searchQuery.sort ?? DEFAULT_SORT, queryTable)}
     LIMIT ${limit}
   `;
   const players = await sql`
@@ -474,7 +483,7 @@ export async function aggregateChallenges<
           'Cannot aggregate all fields with non-count aggregation',
         );
       }
-      return sql`COUNT(*) as total`;
+      return sql`COUNT(*) as count`;
     }
 
     if (!Array.isArray(aggs)) {
@@ -526,6 +535,7 @@ export async function aggregateChallenges<
     ${join(joins)}
     ${where(conditions)}
     ${grouping ? sql`GROUP BY ${sql(groupFields)}` : sql``}
+    ${options.sort ? sql`ORDER BY ${order(options.sort)}` : sql``}
     ${options.limit ? sql`LIMIT ${options.limit}` : sql``}
   `;
 
@@ -538,7 +548,7 @@ export async function aggregateChallenges<
 
     const row = rows[0];
     Object.entries(row).forEach(([key, value]) => {
-      if (key === 'total') {
+      if (key === 'count') {
         result['*'] = { count: parseInt(value) };
         return;
       }
@@ -561,12 +571,12 @@ export async function aggregateChallenges<
     let groupResult = {} as any;
 
     Object.entries(row).forEach(([key, value]) => {
-      if (groupFields.includes(key)) {
+      if (key === 'count') {
+        groupResult['*'] = { count: parseInt(value) };
         return;
       }
 
-      if (key === 'total') {
-        groupResult['*'] = { count: parseInt(value) };
+      if (groupFields.includes(key)) {
         return;
       }
 
