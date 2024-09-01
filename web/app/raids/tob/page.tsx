@@ -1,4 +1,4 @@
-import { ChallengeMode, ChallengeStatus } from '@blert/common';
+import { ChallengeMode, ChallengeStatus, ChallengeType } from '@blert/common';
 import { Metadata } from 'next';
 import Image from 'next/image';
 
@@ -25,35 +25,35 @@ export default async function Page() {
   const today = startOfDateUtc();
 
   const statsQuery = aggregateChallenges(
-    { from: today },
+    { type: ChallengeType.TOB, from: today },
     {
       '*': 'count',
-      challengeTicks: ['sum', 'avg'],
-      totalDeaths: ['sum', 'max'],
+      challengeTicks: 'sum',
+      totalDeaths: 'sum',
     },
     {},
   );
 
   const raidStatusQuery = aggregateChallenges(
-    { from: today },
+    { type: ChallengeType.TOB, from: today },
     { '*': 'count' },
     {},
     'status',
   );
   const raidModesQuery = aggregateChallenges(
-    { from: today },
+    { type: ChallengeType.TOB, from: today },
     { '*': 'count' },
     {},
     'mode',
   );
   const raidScaleQuery = aggregateChallenges(
-    { from: today },
+    { type: ChallengeType.TOB, from: today },
     { '*': 'count' },
     {},
     'scale',
   );
   const playerQuery = aggregateChallenges(
-    { from: today },
+    { type: ChallengeType.TOB, from: today },
     { '*': 'count' },
     { limit: 10, sort: '-count' },
     'username',
