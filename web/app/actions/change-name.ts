@@ -64,6 +64,7 @@ export async function getRecentNameChanges(
       submitted_at,
       processed_at
     FROM name_changes
+    WHERE hidden = FALSE
     ORDER BY id DESC
     LIMIT ${limit}
   `;

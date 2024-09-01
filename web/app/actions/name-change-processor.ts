@@ -217,6 +217,7 @@ type NameChangeQueryResult = {
   old_name: string;
   new_name: string;
   player_id: number;
+  skip_checks: boolean;
   overall_experience: string;
   attack_experience: number;
   defence_experience: number;
@@ -234,6 +235,7 @@ export async function processNameChange(changeId: number) {
       name_changes.old_name,
       name_changes.new_name,
       name_changes.player_id,
+      name_changes.skip_checks,
       players.overall_experience,
       players.attack_experience,
       players.defence_experience,
@@ -315,12 +317,19 @@ export async function processNameChange(changeId: number) {
   }
 
   if (nameChangeStatus !== NameChangeStatus.PENDING) {
-    await sql`
-      UPDATE name_changes
-      SET status = ${nameChangeStatus}, processed_at = ${new Date()}
-      WHERE id = ${changeId}
-    `;
-    return;
+    if (!nameChange.skip_checks) {
+      await sql`
+        UPDATE name_changes
+        SET status = ${nameChangeStatus}, processed_at = ${new Date()}
+        WHERE id = ${changeId}
+      `;
+      return;
+    }
+
+    nameChangeStatus = NameChangeStatus.ACCEPTED;
+    console.log(
+      `Name change ${changeId} ignoring rejection status ${nameChangeStatus} due to skip_checks`,
+    );
   }
 
   let migratedDocuments = 0;
