@@ -2,28 +2,34 @@ import {
   DataSource,
   EquipmentSlot,
   ItemDelta,
-  SkillLevel,
+  Stage,
   StageStatus,
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
 import logger from './log';
-import { ChallengeInfo } from './merge';
-import { stat } from 'fs';
+import { ChallengeInfo, PlayerState, TickState } from './merge';
 
 export class ClientEvents {
+  private readonly clientId: number;
+  private readonly challenge: ChallengeInfo;
+  private readonly stage: Stage;
+  private readonly inGameTicks: number | null;
   private readonly finalTick: number;
   private readonly tickState: TickState[];
-  private readonly accurate: boolean;
   private readonly primaryPlayer: string | null;
+  private accurate: boolean;
 
   public static fromRawEvents(
+    clientId: number,
     challenge: ChallengeInfo,
+    stage: Stage,
     rawEvents: Event[],
   ): ClientEvents {
     const events = [...rawEvents].sort((a, b) => a.getTick() - b.getTick());
     const lastTick = events[events.length - 1].getTick();
     let accurate = false;
+    let inGameTicks = null;
 
     const primaryPlayers = new Set<string>();
 
@@ -36,6 +42,7 @@ export class ClientEvents {
           stageUpdate.getStatus() === StageStatus.WIPED;
         if (isEnd) {
           accurate = stageUpdate.getAccurate();
+          inGameTicks = event.getTick();
         }
       } else {
         if (
@@ -79,7 +86,29 @@ export class ClientEvents {
         ),
     );
 
-    return new ClientEvents(tickState, accurate, primaryPlayer);
+    return new ClientEvents(
+      clientId,
+      challenge,
+      stage,
+      inGameTicks,
+      tickState,
+      accurate,
+      primaryPlayer,
+    );
+  }
+
+  /**
+   * @returns The ID of the client that recorded these events.
+   */
+  public getId(): number {
+    return this.clientId;
+  }
+
+  /**
+   * @returns The number of ticks reported by the game server, if known.
+   */
+  public getInGameTicks(): number | null {
+    return this.inGameTicks;
   }
 
   /**
@@ -92,8 +121,12 @@ export class ClientEvents {
   /**
    * @returns Whether the recorded ticks of the client's events are accurate.
    */
-  public areAccurate(): boolean {
+  public isAccurate(): boolean {
     return this.accurate;
+  }
+
+  public setAccurate(accurate: boolean): void {
+    this.accurate = accurate;
   }
 
   /**
@@ -112,11 +145,82 @@ export class ClientEvents {
     return this.primaryPlayer === null;
   }
 
+  public toString(): string {
+    return `Client#${this.clientId}`;
+  }
+
+  /**
+   * Performs a cursory check for consistency in the client's recorded events,
+   * looking for obvious indications of tick loss.
+   * @returns `false` if any major inconsistencies are found, `true` otherwise.
+   */
+  public checkForConsistency(): boolean {
+    const lastPlayerStates: Record<
+      string,
+      (PlayerState & { tick: number }) | null
+    > = this.challenge.party.reduce(
+      (acc, player) => ({
+        ...acc,
+        [player]: null,
+      }),
+      {},
+    );
+
+    let ok = true;
+    const potentialLostTicks = new Set<number>();
+
+    for (let tick = 0; tick <= this.finalTick; tick++) {
+      for (const player of this.challenge.party) {
+        const playerState = this.tickState[tick].getPlayerState(player);
+        if (playerState === null) {
+          continue;
+        }
+
+        if (lastPlayerStates[player] !== null) {
+          const last = lastPlayerStates[player]!;
+          const ticksSinceLast = tick - last.tick;
+
+          // Players can move at most 2 tiles per tick -- anything more is a
+          // likely indication of tick loss.
+          const dx = playerState.x - last.x;
+          const dy = playerState.y - last.y;
+
+          const maxDistance = 2 * ticksSinceLast;
+          const invalidMove =
+            (Math.abs(dx) > maxDistance || Math.abs(dy) > maxDistance) &&
+            !isSpecialTeleport(this.stage, last, playerState, ticksSinceLast);
+
+          if (invalidMove) {
+            logger.debug(
+              `Client#${this.clientId} consistency issue: ` +
+                `player ${player} moved (${dx}, ${dy}) in ${ticksSinceLast} ticks`,
+            );
+
+            ok = false;
+            potentialLostTicks.add(tick - 1);
+          }
+        }
+
+        lastPlayerStates[player] = { ...playerState, tick };
+      }
+    }
+
+    return ok;
+  }
+
   private constructor(
+    clientId: number,
+    challenge: ChallengeInfo,
+    stage: Stage,
+    inGameTicks: number | null,
     tickState: TickState[],
     accurate: boolean,
     primaryPlayer: string | null,
   ) {
+    this.clientId = clientId;
+    this.challenge = challenge;
+    this.stage = stage;
+    this.inGameTicks = inGameTicks;
     this.tickState = tickState;
     this.finalTick = tickState.length - 1;
     this.accurate = accurate;
@@ -136,44 +240,57 @@ export class ClientEvents {
       let isDead = false;
 
       for (let tick = 0; tick < eventsByTick.length; tick++) {
-        let state: PlayerState = {
-          username: player,
-          x: lastState?.x ?? 0,
-          y: lastState?.y ?? 0,
-          isDead,
-          equipment: lastState?.equipment ?? {
-            [EquipmentSlot.HEAD]: null,
-            [EquipmentSlot.CAPE]: null,
-            [EquipmentSlot.AMULET]: null,
-            [EquipmentSlot.AMMO]: null,
-            [EquipmentSlot.WEAPON]: null,
-            [EquipmentSlot.TORSO]: null,
-            [EquipmentSlot.SHIELD]: null,
-            [EquipmentSlot.LEGS]: null,
-            [EquipmentSlot.GLOVES]: null,
-            [EquipmentSlot.BOOTS]: null,
-            [EquipmentSlot.RING]: null,
-          },
-        };
+        const tickEvents = eventsByTick[tick];
+        if (!tickEvents) {
+          continue;
+        }
 
-        const events = eventsByTick[tick]?.filter(
+        eventsByTick[tick] = tickEvents;
+
+        const playerEvents = tickEvents.filter(
           (event) =>
             (event.getType() === Event.Type.PLAYER_UPDATE ||
+              event.getType() === Event.Type.PLAYER_ATTACK ||
               event.getType() === Event.Type.PLAYER_DEATH) &&
             event.getPlayer()?.getName() === player,
         );
 
-        if (!events || events.length === 0) {
+        if (playerEvents.length === 0) {
           continue;
         }
 
-        events.forEach((event) => {
+        let state: PlayerState = {
+          source: DataSource.SECONDARY,
+          username: player,
+          x: lastState?.x ?? 0,
+          y: lastState?.y ?? 0,
+          isDead,
+          equipment: lastState?.equipment
+            ? { ...lastState.equipment }
+            : {
+                [EquipmentSlot.HEAD]: null,
+                [EquipmentSlot.CAPE]: null,
+                [EquipmentSlot.AMULET]: null,
+                [EquipmentSlot.AMMO]: null,
+                [EquipmentSlot.WEAPON]: null,
+                [EquipmentSlot.TORSO]: null,
+                [EquipmentSlot.SHIELD]: null,
+                [EquipmentSlot.LEGS]: null,
+                [EquipmentSlot.GLOVES]: null,
+                [EquipmentSlot.BOOTS]: null,
+                [EquipmentSlot.RING]: null,
+              },
+        };
+
+        playerEvents.forEach((event) => {
           switch (event.getType()) {
             case Event.Type.PLAYER_UPDATE: {
+              const player = event.getPlayer()!;
+
+              state.source = player.getDataSource();
               state.x = event.getXCoord();
               state.y = event.getYCoord();
 
-              const player = event.getPlayer()!;
               player.getEquipmentDeltasList().forEach((rawDelta) => {
                 const delta = ItemDelta.fromRaw(rawDelta);
                 const previous = state.equipment[delta.getSlot()];
@@ -185,12 +302,19 @@ export class ClientEvents {
                       quantity: delta.getQuantity(),
                     };
                   } else {
-                    previous.quantity += delta.getQuantity();
+                    state.equipment[delta.getSlot()] = {
+                      id: delta.getItemId(),
+                      quantity: previous.quantity + delta.getQuantity(),
+                    };
                   }
                 } else {
                   if (previous !== null && previous.id === delta.getItemId()) {
-                    previous.quantity -= delta.getQuantity();
-                    if (previous.quantity <= 0) {
+                    if (delta.getQuantity() < previous.quantity) {
+                      state.equipment[delta.getSlot()] = {
+                        id: delta.getItemId(),
+                        quantity: previous.quantity - delta.getQuantity(),
+                      };
+                    } else {
                       state.equipment[delta.getSlot()] = null;
                     }
                   } else {
@@ -219,83 +343,50 @@ export class ClientEvents {
   }
 }
 
-type NpcState = {
-  x: number;
-  y: number;
-  hitpoints: number;
-};
+// The tiles to which players are teleported at the start of Sotetseg's maze.
+const SOTETSEG_OVERWORLD_MAZE_START_TILE = { x: 3274, y: 4307 };
+const SOTETSEG_UNDERWORLD_MAZE_START_TILE = { x: 3360, y: 4309 };
+const SOTETSEG_ROOM_AREA = { x: 3271, y: 4304, width: 17, height: 30 };
 
-type EquippedItem = {
-  id: number;
-  quantity: number;
-};
+/**
+ * Checks if a player's movement between two positions is a special teleport
+ * within a specific boss fight.
+ *
+ * @param stage The challenge stage the player is in.
+ * @param last Player's last known state.
+ * @param current Player's current state.
+ * @param ticks Number of ticks between the two states.
+ * @returns Whether the player's movement between the two states is a teleport.
+ */
+function isSpecialTeleport(
+  stage: Stage,
+  last: PlayerState,
+  current: PlayerState,
+  ticks: number,
+): boolean {
+  if (stage === Stage.TOB_SOTETSEG) {
+    // Sotetseg's maze teleports players from their location in the room to a
+    // specific start tile in the overworld or underworld.
+    if (ticks !== 1) {
+      return false;
+    }
 
-type PlayerState = {
-  username: string;
-  x: number;
-  y: number;
-  isDead: boolean;
-  equipment: {
-    [slot in EquipmentSlot]: EquippedItem | null;
-  };
-};
+    const isTargetTile =
+      (current.x === SOTETSEG_OVERWORLD_MAZE_START_TILE.x &&
+        current.y === SOTETSEG_OVERWORLD_MAZE_START_TILE.y) ||
+      (current.x === SOTETSEG_UNDERWORLD_MAZE_START_TILE.x &&
+        current.y === SOTETSEG_UNDERWORLD_MAZE_START_TILE.y);
+    if (!isTargetTile) {
+      return false;
+    }
 
-export class TickState {
-  private readonly tick: number;
-  private readonly events: Event[];
-  private readonly npcs: Map<number, NpcState>;
-  private readonly playerStates: Record<string, PlayerState | null>;
-
-  public constructor(
-    tick: number,
-    events: Event[],
-    playerStates: Record<string, PlayerState | null>,
-  ) {
-    this.tick = tick;
-    this.events = events;
-    this.playerStates = playerStates;
-
-    this.npcs = new Map();
-
-    events
-      .filter(
-        (event) =>
-          event.getType() === Event.Type.NPC_SPAWN ||
-          event.getType() === Event.Type.NPC_UPDATE,
-      )
-      .forEach((event) => {
-        const npc = event.getNpc()!;
-
-        this.npcs.set(npc.getRoomId(), {
-          x: event.getXCoord(),
-          y: event.getYCoord(),
-          hitpoints: SkillLevel.fromRaw(npc.getHitpoints()).getCurrent(),
-        });
-      });
+    return (
+      last.x >= SOTETSEG_ROOM_AREA.x &&
+      last.x <= SOTETSEG_ROOM_AREA.x + SOTETSEG_ROOM_AREA.width &&
+      last.y >= SOTETSEG_ROOM_AREA.y &&
+      last.y <= SOTETSEG_ROOM_AREA.y + SOTETSEG_ROOM_AREA.height
+    );
   }
 
-  /**
-   * @returns The tick whose state is represented.
-   */
-  public getTick(): number {
-    return this.tick;
-  }
-
-  /**
-   * @returns Whether there are events recorded on this tick.
-   */
-  public hasEvents(): boolean {
-    return this.events.length > 0;
-  }
-
-  /**
-   * @returns All events recorded on this tick.
-   */
-  public getEvents(): Event[] {
-    return this.events;
-  }
-
-  public getPlayerState(player: string): PlayerState | null {
-    return this.playerStates[player] ?? null;
-  }
+  return false;
 }

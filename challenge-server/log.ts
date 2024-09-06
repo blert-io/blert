@@ -1,8 +1,9 @@
 import winston from 'winston';
 
 const logger = winston.createLogger({
-  level: 'info',
+  level: process.env.BLERT_LOG_LEVEL ?? 'info',
   format: winston.format.combine(
+    winston.format.splat(),
     winston.format.timestamp(),
     winston.format.json(),
   ),

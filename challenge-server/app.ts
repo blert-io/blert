@@ -1,5 +1,5 @@
 import { S3Client } from '@aws-sdk/client-s3';
-import { DataRepository } from '@blert/common';
+import { DataRepository, Stage, TobRooms } from '@blert/common';
 import { ChallengeEvents } from '@blert/common/generated/challenge_storage_pb';
 import dotenv from 'dotenv';
 import express from 'express';
@@ -7,7 +7,7 @@ import express from 'express';
 import { ClientEvents } from './client-events';
 import sql from './db';
 import logger from './log';
-import { ChallengeInfo } from './merge';
+import { ChallengeInfo, Merger } from './merge';
 
 /**
  * Initializes the repository for Blert's static challenge data files, with a
@@ -52,6 +52,9 @@ async function main() {
   const app = express();
   const port = process.env.PORT || 3009;
 
+  const challengeDataRepository = initializeDataRepository(
+    'BLERT_DATA_REPOSITORY',
+  );
   const testDataRepository = initializeDataRepository(
     'BLERT_CLIENT_DATA_REPOSITORY',
   );
@@ -110,7 +113,9 @@ async function main() {
             .set(
               clientId,
               ClientEvents.fromRawEvents(
+                Number.parseInt(clientId),
                 challengeInfo as ChallengeInfo,
+                Number.parseInt(stage),
                 events.getEventsList(),
               ),
             );
@@ -118,7 +123,73 @@ async function main() {
       ),
     );
 
-    console.log(streamsByStage);
+    const fakeTobRooms: TobRooms = {
+      maiden: null,
+      bloat: null,
+      nylocas: null,
+      sotetseg: null,
+      xarpus: null,
+      verzik: null,
+    };
+
+    for (const [stageStr, streams] of streamsByStage) {
+      const stage = Number.parseInt(stageStr) as Stage;
+
+      const merger = new Merger(
+        challengeInfo as ChallengeInfo,
+        stage,
+        Array.from(streams.values()),
+      );
+
+      const result = merger.merge();
+      if (result !== null) {
+        // Temporarily write directly to the data repository for debugging.
+        // TODO(frolv): Merged events should be forwarded to a `Challenge` for
+        // processing.
+        challengeDataRepository.saveProtoStageEvents(
+          challengeId,
+          stage,
+          challengeInfo.party,
+          Array.from(result.events),
+        );
+
+        const fakeStageData = (additionalFields?: any) => ({
+          stage,
+          deaths: [],
+          npcs: [],
+          ticksLost: result.events.missingTicks(),
+          ...additionalFields,
+        });
+
+        switch (stage) {
+          case Stage.TOB_MAIDEN:
+            fakeTobRooms.maiden = fakeStageData();
+            break;
+          case Stage.TOB_BLOAT:
+            fakeTobRooms.bloat = fakeStageData({ downTicks: [] });
+            break;
+          case Stage.TOB_NYLOCAS:
+            fakeTobRooms.nylocas = fakeStageData({ stalledWaves: [] });
+            break;
+          case Stage.TOB_SOTETSEG:
+            fakeTobRooms.sotetseg = fakeStageData({
+              maze1Pivots: [],
+              maze2Pivots: [],
+            });
+            break;
+          case Stage.TOB_XARPUS:
+            fakeTobRooms.xarpus = fakeStageData();
+            break;
+          case Stage.TOB_VERZIK:
+            fakeTobRooms.verzik = fakeStageData({ redsSpawnCount: 1 });
+            break;
+        }
+      } else {
+        logger.error(`Failed to merge events for stage ${stage}`);
+      }
+    }
+
+    challengeDataRepository.saveTobChallengeData(challengeId, fakeTobRooms);
 
     res.status(200).send();
   });
