@@ -1,5 +1,7 @@
 import postgres from 'postgres';
 
+import logger from './log';
+
 let connectionOptions: postgres.Options<{}> | undefined = undefined;
 
 if (['development', 'test'].includes(process.env.NODE_ENV!)) {
@@ -9,7 +11,7 @@ if (['development', 'test'].includes(process.env.NODE_ENV!)) {
 }
 
 if (process.env.BLERT_DATABASE_URI === undefined) {
-  console.error('BLERT_DATABASE_URI must be set');
+  logger.error('BLERT_DATABASE_URI must be set');
   process.exit(1);
 }
 
