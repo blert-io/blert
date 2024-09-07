@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc",
     "start": "node ./dist/app.js",
-    "dev": "NODE_ENV=development tsc-watch --noClear -p ./tsconfig.json --onSuccess \"node ./dist/app.js\""
+    "dev": "NODE_ENV=development tsc-watch --noClear -p ./tsconfig.json --onSuccess \"node ./dist/app.js\"",
+    "test": "jest"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.587.0",
@@ -19,7 +20,10 @@
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.12",
     "@types/node": "^20.11.5",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
     "tsc-watch": "^6.0.4"
   }
 }
