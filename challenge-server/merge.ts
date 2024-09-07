@@ -7,8 +7,9 @@ import {
   RawItemDelta,
   SkillLevel,
   Stage,
+  StageStatus,
 } from '@blert/common';
-import { Event } from '@blert/common/generated/event_pb';
+import { Event, StageMap } from '@blert/common/generated/event_pb';
 
 import { ClientEvents } from './client-events';
 import logger from './log';
@@ -52,6 +53,11 @@ export class Merger {
   }
 
   public merge(): MergeResult | null {
+    if (this.clients.length === 0) {
+      logger.warn('No clients to merge');
+      return null;
+    }
+
     logger.info(
       `Merging events for stage ${this.stage} from ${this.clients.length} clients`,
     );
@@ -477,19 +483,28 @@ export class TickState {
 }
 
 class MergedEvents {
+  private readonly stage: Stage;
+  private readonly status: StageStatus;
   private ticks: Array<TickState | null>;
   private accurate: boolean;
 
   constructor(base: ClientEvents) {
     const tickCount = base.getInGameTicks() ?? base.getFinalTick();
 
+    this.stage = base.getStage();
+    this.status = base.getStatus();
     this.accurate = base.isAccurate();
     this.ticks = Array(tickCount + 1).fill(null);
     this.initializeBaseTicks(base);
   }
 
   public events(): EventIterator {
-    return new EventIterator(this.ticks);
+    return new EventIterator(
+      this.stage,
+      this.status,
+      this.ticks,
+      this.accurate,
+    );
   }
 
   [Symbol.iterator](): EventIterator {
@@ -525,30 +540,34 @@ class MergedEvents {
   private initializeBaseTicks(base: ClientEvents): void {
     if (base.isAccurate()) {
       logger.debug('Base client is accurate; using all events');
-      for (let i = 0; i < this.ticks.length; i++) {
-        this.ticks[i] = base.getTickState(i).clone();
+      for (let i = 0; i <= base.getFinalTick(); i++) {
+        this.ticks[i] = base.getTickState(i)?.clone() ?? null;
       }
     } else if (base.getInGameTicks() !== null) {
       // If the base client is not accurate but has reported an in-game tick
       // count, it has completed the stage, so it is initially assumed that its
       // events are offset from the end of the stage.
+      const offset = base.getInGameTicks()! - base.getFinalTick();
+      console.log(base);
       logger.debug(
         'Base client is not accurate but has in-game tick count; ' +
-          'assuming events from end of stage',
+          `assuming events from end of stage with a ${offset} tick offset`,
       );
-      const offset = base.getFinalTick() - base.getInGameTicks()!;
-      for (let i = offset; i < this.ticks.length; i++) {
-        const tickState = base.getTickState(i).clone();
-        tickState.setTick(i + offset);
-        this.ticks[i] = tickState;
+      for (let i = 0; i <= base.getFinalTick(); i++) {
+        const state = base.getTickState(i);
+        if (state !== null) {
+          const tickState = state.clone();
+          tickState.setTick(i + offset);
+          this.ticks[i + offset] = tickState;
+        }
       }
     } else {
       logger.debug(
         'Base client is not accurate and has no in-game tick count; ' +
           'assuming events from start',
       );
-      for (let i = 0; i < this.ticks.length; i++) {
-        this.ticks[i] = base.getTickState(i).clone();
+      for (let i = 0; i <= base.getFinalTick(); i++) {
+        this.ticks[i] = base.getTickState(i)?.clone() ?? null;
       }
     }
   }
@@ -578,17 +597,33 @@ class MergedEvents {
 }
 
 class EventIterator implements Iterator<Event, Event | null> {
-  private ticks: Array<TickState | null>;
+  private readonly stage: Stage;
+  private readonly status: StageStatus;
+  private readonly ticks: Array<TickState | null>;
+  private readonly accurate: boolean;
   private tick: number;
   private eventIndex: number;
 
-  constructor(ticks: Array<TickState | null>) {
+  constructor(
+    stage: Stage,
+    status: StageStatus,
+    ticks: Array<TickState | null>,
+    accurate: boolean,
+  ) {
+    this.stage = stage;
+    this.status = status;
     this.ticks = ticks;
-    this.tick = 0;
+    this.accurate = accurate;
+    this.tick = -1;
     this.eventIndex = 0;
   }
 
   public next(): IteratorResult<Event, Event | null> {
+    if (this.tick == -1) {
+      this.tick = 0;
+      return { done: false, value: this.stageStartEvent() };
+    }
+
     for (; this.tick < this.ticks.length; this.tick++) {
       if (this.ticks[this.tick] === null) {
         this.eventIndex = 0;
@@ -606,7 +641,37 @@ class EventIterator implements Iterator<Event, Event | null> {
       this.eventIndex = 0;
     }
 
+    if (this.tick == this.ticks.length) {
+      this.tick++;
+      return { done: false, value: this.stageEndEvent() };
+    }
+
     return { done: true, value: null };
+  }
+
+  private stageStartEvent(): Event {
+    const event = new Event();
+    event.setType(Event.Type.STAGE_UPDATE);
+    event.setStage(this.stage as StageMap[keyof StageMap]);
+    const stageUpdate = new Event.StageUpdate();
+    stageUpdate.setStatus(Event.StageUpdate.Status.STARTED);
+    event.setStageUpdate(stageUpdate);
+    return event;
+  }
+
+  private stageEndEvent(): Event {
+    const event = new Event();
+    event.setType(Event.Type.STAGE_UPDATE);
+    event.setStage(this.stage as StageMap[keyof StageMap]);
+    event.setTick(this.ticks.length - 1);
+    const stageUpdate = new Event.StageUpdate();
+    stageUpdate.setStatus(
+      this
+        .status as Event.StageUpdate.StatusMap[keyof Event.StageUpdate.StatusMap],
+    );
+    stageUpdate.setAccurate(this.accurate);
+    event.setStageUpdate(stageUpdate);
+    return event;
   }
 }
 

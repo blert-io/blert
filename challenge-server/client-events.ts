@@ -15,9 +15,10 @@ export class ClientEvents {
   private readonly challenge: ChallengeInfo;
   private readonly stage: Stage;
   private readonly inGameTicks: number | null;
-  private readonly finalTick: number;
+  private readonly lastRecordedTick: number;
   private readonly tickState: TickState[];
   private readonly primaryPlayer: string | null;
+  private status: StageStatus;
   private accurate: boolean;
 
   public static fromRawEvents(
@@ -27,7 +28,8 @@ export class ClientEvents {
     rawEvents: Event[],
   ): ClientEvents {
     const events = [...rawEvents].sort((a, b) => a.getTick() - b.getTick());
-    const lastTick = events[events.length - 1].getTick();
+    const lastTick = events[events.length - 1].getTick() ?? 0;
+    let status: StageStatus = StageStatus.WIPED;
     let accurate = false;
     let inGameTicks = null;
 
@@ -41,8 +43,11 @@ export class ClientEvents {
           stageUpdate.getStatus() === StageStatus.COMPLETED ||
           stageUpdate.getStatus() === StageStatus.WIPED;
         if (isEnd) {
+          status = stageUpdate.getStatus();
           accurate = stageUpdate.getAccurate();
-          inGameTicks = event.getTick();
+          if (stageUpdate.hasInGameTicks()) {
+            inGameTicks = stageUpdate.getInGameTicks();
+          }
         }
       } else {
         if (
@@ -92,6 +97,7 @@ export class ClientEvents {
       stage,
       inGameTicks,
       tickState,
+      status,
       accurate,
       primaryPlayer,
     );
@@ -112,10 +118,24 @@ export class ClientEvents {
   }
 
   /**
+   * @returns The stage of the challenge that these events were recorded in.
+   */
+  public getStage(): Stage {
+    return this.stage;
+  }
+
+  /**
+   * @returns The status of the stage at the time of the last recorded event.
+   */
+  public getStatus(): StageStatus {
+    return this.status;
+  }
+
+  /**
    * @returns The highest recorded tick in the client events.
    */
   public getFinalTick(): number {
-    return this.finalTick;
+    return this.lastRecordedTick;
   }
 
   /**
@@ -134,7 +154,10 @@ export class ClientEvents {
    * @param tick The tick whose events to retrieve.
    * @returns Possibly empty array of events that were recorded.
    */
-  public getTickState(tick: number): TickState {
+  public getTickState(tick: number): TickState | null {
+    if (tick < 0 || tick > this.lastRecordedTick) {
+      return null;
+    }
     return this.tickState[tick];
   }
 
@@ -169,7 +192,7 @@ export class ClientEvents {
     let ok = true;
     const potentialLostTicks = new Set<number>();
 
-    for (let tick = 0; tick <= this.finalTick; tick++) {
+    for (let tick = 0; tick <= this.lastRecordedTick; tick++) {
       for (const player of this.challenge.party) {
         const playerState = this.tickState[tick].getPlayerState(player);
         if (playerState === null) {
@@ -214,6 +237,7 @@ export class ClientEvents {
     stage: Stage,
     inGameTicks: number | null,
     tickState: TickState[],
+    status: StageStatus,
     accurate: boolean,
     primaryPlayer: string | null,
   ) {
@@ -222,7 +246,8 @@ export class ClientEvents {
     this.stage = stage;
     this.inGameTicks = inGameTicks;
     this.tickState = tickState;
-    this.finalTick = tickState.length - 1;
+    this.lastRecordedTick = tickState.length - 1;
+    this.status = status;
     this.accurate = accurate;
     this.primaryPlayer = primaryPlayer;
   }
