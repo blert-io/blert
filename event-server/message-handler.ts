@@ -338,6 +338,9 @@ class ChallengeStreamAggregator {
    * Forcefully ends the challenge and deletes all associated data.
    */
   public async terminateAndPurgeChallenge(): Promise<void> {
+    clearInterval(this.watchdogTimer);
+    this.stopReconnectionTimer();
+
     const errorMessage = new ServerMessage();
     errorMessage.setType(ServerMessage.Type.ERROR);
     errorMessage.setActiveChallengeId(this.challenge.getId());
@@ -352,6 +355,8 @@ class ChallengeStreamAggregator {
 
     this.clients = [];
     await this.challengeManager.terminateChallenge(this.challenge);
+
+    this.onCompletion();
   }
 
   public toString(): string {
@@ -653,7 +658,6 @@ export default class MessageHandler {
               // TODO(frolv): At some point in the future, allow entry mode
               // raids to be recorded.
               console.log(`Terminating ToB entry mode raid ${aggregator}`);
-              delete this.challengeAggregators[event.getChallengeId()];
               await aggregator.terminateAndPurgeChallenge();
             } else {
               await aggregator.getChallenge().setMode(challengeInfo.getMode());
