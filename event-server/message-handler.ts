@@ -233,12 +233,30 @@ class ChallengeStreamAggregator {
               console.log(
                 `${this}: saving ${connectedClient.sentEvents.length} raw events for ${client}`,
               );
-              const path = `${this.challenge.getId()}/${event.getStage()}/${client.getUserId()}`;
+              const basePath = `${this.challenge.getId()}/${event.getStage()}`;
+
+              if (connectedClient.primary) {
+                const jsonMetadata = JSON.stringify({
+                  stage: event.getStage(),
+                  clients: this.clients.map((c) => ({
+                    userId: c.client.getUserId(),
+                    username: c.client.getUsername(),
+                    rsn: c.client.getLoggedInRsn(),
+                    spectator: c.type === RecordingType.SPECTATOR,
+                  })),
+                });
+                this.clientDataRepository.saveRaw(
+                  `${basePath}/metadata.json`,
+                  Buffer.from(jsonMetadata),
+                );
+              }
+
               const message = new ChallengeEvents();
               message.setEventsList(connectedClient.sentEvents);
               message.setStage(event.getStage());
+
               this.clientDataRepository.saveRaw(
-                path,
+                `${basePath}/${client.getUserId()}`,
                 message.serializeBinary(),
               );
             }
@@ -791,7 +809,9 @@ export default class MessageHandler {
       // Collect data from all clients for a percentage of challenges for
       // testing purposes.
       const shouldSaveClientEventData =
-        Math.random() < 0.15 && challengeType === ChallengeType.TOB;
+        challengeType === ChallengeType.TOB &&
+        (Math.random() < 0.15 ||
+          client.getLoggedInRsn()?.toLowerCase() === 'sacolyn');
       if (shouldSaveClientEventData) {
         console.log(
           `Selected challenge ${challengeId} for client data recording`,

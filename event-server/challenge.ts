@@ -530,6 +530,12 @@ export abstract class Challenge {
     event: Event,
     stageUpdate: Event.StageUpdate,
   ): Promise<void> {
+    console.log(
+      `${this.id}: stage ${this.stage} finished: ` +
+        `recorded ticks ${this.stageTick}, last tick ${event.getTick()}, ` +
+        `game server ticks ${stageUpdate.hasInGameTicks() ? stageUpdate.getInGameTicks() : 'unknown'}`,
+    );
+
     this.totalStageTicks += event.getTick();
     this.stageTimeInaccurate =
       this.stageTimeInaccurate || !stageUpdate.getAccurate();
