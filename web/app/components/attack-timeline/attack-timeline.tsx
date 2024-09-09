@@ -404,6 +404,12 @@ const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
   },
+  [PlayerAttack.NOXIOUS_HALBERD]: {
+    tagColor: 'red',
+    letter: 'NH',
+    ranged: false,
+    special: false,
+  },
   [PlayerAttack.PUNCH]: {
     tagColor: undefined,
     letter: 'p',
@@ -959,6 +965,8 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
       return 'bashed';
     case PlayerAttack.KICK:
       return 'kicked';
+    case PlayerAttack.NOXIOUS_HALBERD:
+      return 'hallied';
     case PlayerAttack.PUNCH:
       return 'punched';
     case PlayerAttack.KODAI_BARRAGE:
@@ -1002,9 +1010,12 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
       return 'whipped';
     case PlayerAttack.TONALZTICS_AUTO:
     case PlayerAttack.TONALZTICS_UNCHARGED:
-      return 'glaive tossed';
+      return 'ralos tossed';
     case PlayerAttack.TONALZTICS_SPEC:
-      return 'glaived';
+      return 'ralosed';
+    case PlayerAttack.TOXIC_TRIDENT:
+    case PlayerAttack.TRIDENT:
+      return 'tridented';
     case PlayerAttack.BOWFA:
     case PlayerAttack.TWISTED_BOW:
     case PlayerAttack.VENATOR_BOW:
@@ -1026,8 +1037,6 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
       return "ZCB'd";
     case PlayerAttack.ZGS_SPEC:
       return "ZGS'd";
-    case PlayerAttack.TOXIC_TRIDENT:
-    case PlayerAttack.TRIDENT:
     case PlayerAttack.UNKNOWN_POWERED_STAFF:
     case PlayerAttack.UNKNOWN:
       return 'attacked';

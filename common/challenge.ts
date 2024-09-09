@@ -441,6 +441,7 @@ export enum PlayerAttack {
   KODAI_BASH = PlayerAttackProto.KODAI_BASH,
   NM_STAFF_BARRAGE = PlayerAttackProto.NM_STAFF_BARRAGE,
   NM_STAFF_BASH = PlayerAttackProto.NM_STAFF_BASH,
+  NOXIOUS_HALBERD = PlayerAttackProto.NOXIOUS_HALBERD,
   PUNCH = PlayerAttackProto.PUNCH,
   RAPIER = PlayerAttackProto.RAPIER,
   SAELDOR = PlayerAttackProto.SAELDOR,
