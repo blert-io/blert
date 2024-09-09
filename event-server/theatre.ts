@@ -99,7 +99,8 @@ export default class TheatreChallenge extends Challenge {
   protected override async onStageEntered(): Promise<void> {}
 
   protected override async onStageFinished(
-    event: Event,
+    stage: Stage,
+    stageTicks: number,
     stageUpdate: Event.StageUpdate,
   ): Promise<void> {
     // Set the appropriate status if the raid were to be finished at this
@@ -114,20 +115,20 @@ export default class TheatreChallenge extends Challenge {
 
     let ticksLost = 0;
     if (!stageUpdate.getAccurate()) {
-      const missingTicks = event.getTick() - this.getStageTick();
-      console.log(
-        `Raid ${this.getId()} lost ${missingTicks} ticks at stage ${event.getStage()}`,
-      );
+      const missingTicks = stageTicks - this.getStageTick();
       ticksLost = missingTicks;
 
       if (missingTicks > 0) {
+        console.log(
+          `Raid ${this.getId()} lost ${missingTicks} ticks at stage ${stage}`,
+        );
         // TODO(frolv): This should be handled outside of the challenge itself,
         // instead of assuming tick loss at the start.
         // this.correctRoomDataForTickOffset(missingTicks);
       }
     }
 
-    switch (event.getStage()) {
+    switch (stage) {
       case Stage.TOB_MAIDEN:
         this.rooms.maiden = {
           stage: Stage.TOB_MAIDEN,
@@ -190,10 +191,7 @@ export default class TheatreChallenge extends Challenge {
         stageSplit = SplitType.TOB_MAIDEN;
         const thirties = this.getSplit(SplitType.TOB_MAIDEN_30S);
         if (thirties !== undefined) {
-          this.setSplit(
-            SplitType.TOB_MAIDEN_30S_END,
-            event.getTick() - thirties,
-          );
+          this.setSplit(SplitType.TOB_MAIDEN_30S_END, stageTicks - thirties);
         }
         break;
 
@@ -205,7 +203,7 @@ export default class TheatreChallenge extends Challenge {
         stageSplit = SplitType.TOB_NYLO_ROOM;
         const bossSpawn = this.getSplit(SplitType.TOB_NYLO_BOSS_SPAWN);
         if (bossSpawn !== undefined) {
-          this.setSplit(SplitType.TOB_NYLO_BOSS, event.getTick() - bossSpawn);
+          this.setSplit(SplitType.TOB_NYLO_BOSS, stageTicks - bossSpawn);
         }
         break;
 
@@ -214,7 +212,7 @@ export default class TheatreChallenge extends Challenge {
         if (this.soteMazes.length == 2) {
           this.setSplit(
             SplitType.TOB_SOTETSEG_P3,
-            event.getTick() - this.soteMazes[1].endTick,
+            stageTicks - this.soteMazes[1].endTick,
           );
         }
         break;
@@ -222,7 +220,7 @@ export default class TheatreChallenge extends Challenge {
         stageSplit = SplitType.TOB_XARPUS;
         const p3Start = this.getSplit(SplitType.TOB_XARPUS_SCREECH);
         if (p3Start !== undefined) {
-          this.setSplit(SplitType.TOB_XARPUS_P3, event.getTick() - p3Start);
+          this.setSplit(SplitType.TOB_XARPUS_P3, stageTicks - p3Start);
         }
         break;
       case Stage.TOB_VERZIK:
@@ -232,13 +230,13 @@ export default class TheatreChallenge extends Challenge {
           const P2_TRANSITION_TICKS = 6;
           this.setSplit(
             SplitType.TOB_VERZIK_P3,
-            event.getTick() - (p2End + P2_TRANSITION_TICKS),
+            stageTicks - (p2End + P2_TRANSITION_TICKS),
           );
         }
         break;
     }
 
-    this.setSplit(stageSplit!, event.getTick());
+    this.setSplit(stageSplit!, stageTicks);
 
     await this.getDataRepository().saveTobChallengeData(
       this.getId(),

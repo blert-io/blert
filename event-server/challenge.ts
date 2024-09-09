@@ -351,7 +351,8 @@ export abstract class Challenge {
   protected abstract hasFullyCompletedChallenge(): boolean;
 
   protected abstract onStageFinished(
-    event: Event,
+    stage: Stage,
+    stageTicks: number,
     stageUpdate: Event.StageUpdate,
   ): Promise<void>;
 
@@ -536,7 +537,11 @@ export abstract class Challenge {
         `game server ticks ${stageUpdate.hasInGameTicks() ? stageUpdate.getInGameTicks() : 'unknown'}`,
     );
 
-    this.totalStageTicks += event.getTick();
+    const stageTicks = stageUpdate.hasInGameTicks()
+      ? stageUpdate.getInGameTicks()
+      : event.getTick();
+
+    this.totalStageTicks += stageTicks;
     this.stageTimeInaccurate =
       this.stageTimeInaccurate || !stageUpdate.getAccurate();
 
@@ -545,7 +550,7 @@ export abstract class Challenge {
         challengeTicks: this.totalStageTicks,
         totalDeaths: this.totalDeaths,
       }),
-      this.onStageFinished(event, stageUpdate),
+      this.onStageFinished(event.getStage(), stageTicks, stageUpdate),
       this.writeStageEvents(),
     ]);
 

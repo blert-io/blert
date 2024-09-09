@@ -62,7 +62,8 @@ export default class ColosseumChallenge extends Challenge {
   }
 
   protected override async onStageFinished(
-    event: Event,
+    _stage: Stage,
+    stageTicks: number,
     stageUpdate: Event.StageUpdate,
   ): Promise<void> {
     this.colosseumData.waves.push({
@@ -83,10 +84,7 @@ export default class ColosseumChallenge extends Challenge {
       this.setChallengeStatus(ChallengeStatus.RESET);
     }
 
-    this.setSplit(
-      SplitType.COLOSSEUM_WAVE_1 + this.getWaveIndex(),
-      event.getTick(),
-    );
+    this.setSplit(SplitType.COLOSSEUM_WAVE_1 + this.getWaveIndex(), stageTicks);
 
     await this.getDataRepository().saveColosseumChallengeData(
       this.getId(),

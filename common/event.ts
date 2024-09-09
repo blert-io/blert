@@ -73,6 +73,7 @@ export interface StageUpdateEvent extends Event {
   stageUpdate: {
     status: StageStatus;
     accurate: boolean;
+    inGameTicks?: number;
   };
 }
 
