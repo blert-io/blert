@@ -1,16 +1,65 @@
 services:
-  mongo:
-    image: mongo
+  postgres:
+    image: postgres:16
     ports:
-      - 33033:27017
-    environment:
-      MONGO_INITDB_DATABASE: blert
-      MONGO_INITDB_ROOT_USERNAME: blert
-      MONGO_INITDB_ROOT_PASSWORD: blert
+      - "5433:5432"
     volumes:
-      - ./test_data/user.js:/docker-entrypoint-initdb.d/user.js:ro
-      - mongodata:/data/db
-      - ./test_data:/docker-entrypoint-initdb.d
+      - postgresdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: blert
+      POSTGRES_PASSWORD: blert
+      POSTGRES_DB: blert
+
+  redis:
+    image: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - rediscache:/data
+
+  event-server:
+    image: node:22
+    depends_on:
+      - redis
+      - postgres
+      - challenge-server
+    ports:
+      - "3003:3003"
+    links:
+      - redis
+      - postgres
+    volumes:
+      - .:/app
+    environment:
+      NODE_ENV: development
+      BLERT_DATABASE_URI: postgres://blert:blert@postgres:5432/blert
+      BLERT_DATA_REPOSITORY: file:///app/.data/challenges
+      BLERT_CLIENT_DATA_REPOSITORY: file:///app/.data/testing_data
+    working_dir: /app
+    command: npm run -w event-server dev
+
+  challenge-server:
+    image: node:22
+    depends_on:
+      - redis
+      - postgres
+    ports:
+      - "3009:3003"
+    links:
+      - redis
+      - postgres
+    volumes:
+      - .:/app
+    environment:
+      NODE_ENV: development
+      BLERT_DATABASE_URI: postgres://blert:blert@postgres:5432/blert
+      BLERT_DATA_REPOSITORY: file:///app/.data/challenges
+      BLERT_CLIENT_DATA_REPOSITORY: file:///app/.data/testing_data
+    working_dir: /app
+    command: npm run -w challenge-server dev
 
 volumes:
-  mongodata:
+  rediscache:
+    driver: local
+  postgresdata:
+    driver: local

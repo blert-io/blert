@@ -50,7 +50,7 @@ async function main() {
   dotenv.config({ path: ['.env.local', `.env.${process.env.NODE_ENV}`] });
 
   const app = express();
-  const port = process.env.PORT || 3009;
+  const port = process.env.PORT || 3003;
 
   const challengeDataRepository = initializeDataRepository(
     'BLERT_DATA_REPOSITORY',
@@ -72,6 +72,7 @@ async function main() {
     const challengeId = req.params.challengeId;
     const challengeFiles = await testDataRepository.listFiles(challengeId);
     if (challengeFiles.length === 0) {
+      logger.error(`No test data found for challenge ${challengeId}`);
       res.status(404).send();
       return;
     }
@@ -82,6 +83,7 @@ async function main() {
       WHERE uuid = ${challengeId}
     `;
     if (!challengeInfo) {
+      logger.error(`Challenge ${challengeId} does not exist`);
       res.status(404).send();
       return;
     }
