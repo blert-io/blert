@@ -64,6 +64,8 @@
   }
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    width: 100%;
+
     .playerPreview {
       flex-direction: column;
       width: 100vw;

@@ -173,18 +173,21 @@ export default async function Player(props: PlayerPageProps) {
               value={stats.bgsSmacks}
               width={STATISTIC_WIDTH}
             />
-            <Statistic
-              className={styles.individualStat}
-              name="Hammer Bops"
-              value={stats.hammerBops}
-              width={STATISTIC_WIDTH}
-            />
-            <Statistic
-              className={styles.individualStat}
-              name="Maul Bonks"
-              value={stats.elderMaulSmacks}
-              width={STATISTIC_WIDTH}
-            />
+            {stats.hammerBops > stats.elderMaulSmacks ? (
+              <Statistic
+                className={styles.individualStat}
+                name="Hammer Bops"
+                value={stats.hammerBops}
+                width={STATISTIC_WIDTH}
+              />
+            ) : (
+              <Statistic
+                className={styles.individualStat}
+                name="Maul Bonks"
+                value={stats.elderMaulSmacks}
+                width={STATISTIC_WIDTH}
+              />
+            )}
             <Statistic
               className={styles.individualStat}
               name="Chally Pokes"
