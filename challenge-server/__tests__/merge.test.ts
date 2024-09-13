@@ -28,18 +28,6 @@ function createEvent(
   evt.setYCoord(event.yCoord ?? 0);
   evt.setStage(event.stage as Proto<StageMap>);
 
-  if (event.stageUpdate) {
-    const stageUpdate = new ProtoEvent.StageUpdate();
-    stageUpdate.setStatus(
-      event.stageUpdate.status as Proto<ProtoEvent.StageUpdate.StatusMap>,
-    );
-    stageUpdate.setAccurate(event.stageUpdate.accurate ?? false);
-    if (event.stageUpdate.inGameTicks !== undefined) {
-      stageUpdate.setInGameTicks(event.stageUpdate.inGameTicks);
-    }
-    evt.setStageUpdate(stageUpdate);
-  }
-
   if (event.player) {
     const player = new ProtoEvent.Player();
     player.setName(event.player.name);
@@ -128,32 +116,6 @@ const client1Events = [
   }),
 ];
 
-const client1Inaccurate = [
-  ...client1Events,
-  createEvent({
-    type: EventType.STAGE_UPDATE,
-    tick: 2,
-    stage: Stage.TOB_MAIDEN,
-    stageUpdate: {
-      status: StageStatus.WIPED,
-      accurate: false,
-    },
-  }),
-];
-
-const client1Accurate = [
-  ...client1Events,
-  createEvent({
-    type: EventType.STAGE_UPDATE,
-    tick: 2,
-    stage: Stage.TOB_MAIDEN,
-    stageUpdate: {
-      status: StageStatus.COMPLETED,
-      accurate: true,
-    },
-  }),
-];
-
 describe('Merger', () => {
   const fakeChallenge = {
     id: 99,
@@ -173,8 +135,14 @@ describe('Merger', () => {
     const client1 = ClientEvents.fromRawEvents(
       1,
       fakeChallenge,
-      Stage.TOB_MAIDEN,
-      client1Inaccurate,
+      {
+        stage: Stage.TOB_MAIDEN,
+        status: StageStatus.WIPED,
+        accurate: false,
+        recordedTicks: 0,
+        serverTicks: null,
+      },
+      client1Events,
     );
     const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [client1]);
     const result = merger.merge();
@@ -186,18 +154,10 @@ describe('Merger', () => {
     const events = result!.events;
     expect(events.missingTicks()).toBe(0);
     const allEvents = Array.from(events);
-    expect(allEvents.length).toBe(6);
+    expect(allEvents.length).toBe(4);
 
-    const [startEvent, ...otherEvents] = allEvents;
-    expect(startEvent.toObject()).toMatchObject({
-      type: EventType.STAGE_UPDATE,
-      tick: 0,
-      stage: Stage.TOB_MAIDEN,
-      stageUpdate: { status: StageStatus.STARTED },
-    });
-
-    expect(otherEvents.map((e) => e.toObject())).toEqual(
-      client1Inaccurate.map((e) => e.toObject()),
+    expect(allEvents.map((e) => e.toObject())).toEqual(
+      client1Events.map((e) => e.toObject()),
     );
   });
 
@@ -205,8 +165,14 @@ describe('Merger', () => {
     const client1 = ClientEvents.fromRawEvents(
       1,
       fakeChallenge,
-      Stage.TOB_MAIDEN,
-      client1Accurate,
+      {
+        stage: Stage.TOB_MAIDEN,
+        status: StageStatus.COMPLETED,
+        accurate: true,
+        recordedTicks: 2,
+        serverTicks: 2,
+      },
+      client1Events,
     );
     const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [client1]);
     const result = merger.merge();
@@ -218,43 +184,27 @@ describe('Merger', () => {
     const events = result!.events;
     expect(events.missingTicks()).toBe(0);
     const allEvents = Array.from(events);
-    expect(allEvents.length).toBe(6);
+    expect(allEvents.length).toBe(4);
 
-    const [startEvent, ...otherEvents] = allEvents;
-    expect(startEvent.toObject()).toMatchObject({
-      type: EventType.STAGE_UPDATE,
-      tick: 0,
-      stage: Stage.TOB_MAIDEN,
-      stageUpdate: { status: StageStatus.STARTED },
-    });
-
-    expect(otherEvents.map((e) => e.toObject())).toEqual(
-      client1Accurate.map((e) => e.toObject()),
+    expect(allEvents.map((e) => e.toObject())).toEqual(
+      client1Events.map((e) => e.toObject()),
     );
   });
 
   it('offsets ticks for an inaccurate client with a reported stage update', () => {
     const MISSING_TICKS = 8;
 
-    const eventsWithLaterStageUpdate = [...client1Events];
-    eventsWithLaterStageUpdate.push(
-      createEvent({
-        type: EventType.STAGE_UPDATE,
-        tick: 2,
-        stage: Stage.TOB_MAIDEN,
-        stageUpdate: {
-          status: StageStatus.WIPED,
-          accurate: false,
-          inGameTicks: 2 + MISSING_TICKS,
-        },
-      }),
-    );
-
     const client1 = ClientEvents.fromRawEvents(
       1,
       fakeChallenge,
-      Stage.TOB_MAIDEN,
-      eventsWithLaterStageUpdate,
+      {
+        stage: Stage.TOB_MAIDEN,
+        status: StageStatus.WIPED,
+        accurate: false,
+        recordedTicks: 2,
+        serverTicks: 2 + MISSING_TICKS,
+      },
+      client1Events,
     );
     const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [client1]);
     const result = merger.merge();
@@ -266,18 +216,10 @@ describe('Merger', () => {
     const events = result!.events;
     expect(events.missingTicks()).toBe(MISSING_TICKS);
     const allEvents = Array.from(events);
-    expect(allEvents.length).toBe(6);
+    expect(allEvents.length).toBe(4);
 
-    const [startEvent, ...otherEvents] = allEvents;
-    expect(startEvent.toObject()).toMatchObject({
-      type: EventType.STAGE_UPDATE,
-      tick: 0,
-      stage: Stage.TOB_MAIDEN,
-      stageUpdate: { status: StageStatus.STARTED },
-    });
-
-    expect(otherEvents.map((e) => e.toObject())).toEqual(
-      client1Inaccurate.map((e) => {
+    expect(allEvents.map((e) => e.toObject())).toEqual(
+      client1Events.map((e) => {
         const obj = e.toObject();
         obj.tick += MISSING_TICKS;
         if (obj.player) {

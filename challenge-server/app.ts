@@ -1,10 +1,10 @@
 import { S3Client } from '@aws-sdk/client-s3';
-import { DataRepository, Stage, TobRooms } from '@blert/common';
+import { DataRepository, Stage, StageStatus, TobRooms } from '@blert/common';
 import { ChallengeEvents } from '@blert/common/generated/challenge_storage_pb';
 import dotenv from 'dotenv';
 import express from 'express';
 
-import { ClientEvents } from './client-events';
+import { ClientEvents, StageInfo } from './client-events';
 import sql from './db';
 import logger from './log';
 import { ChallengeInfo, Merger } from './merge';
@@ -110,17 +110,41 @@ async function main() {
             streamsByStage.set(stage, new Map());
           }
 
-          streamsByStage
-            .get(stage)!
-            .set(
-              clientId,
-              ClientEvents.fromRawEvents(
-                Number.parseInt(clientId),
-                challengeInfo as ChallengeInfo,
-                Number.parseInt(stage),
-                events.getEventsList(),
-              ),
-            );
+          let stageInfo: StageInfo = {
+            stage: Number.parseInt(stage),
+            status: StageStatus.WIPED,
+            accurate: false,
+            recordedTicks: 0,
+            serverTicks: null,
+          };
+
+          // The test event data has legacy STAGE_UPDATE events that need to be
+          // processed to determine the stage status.
+          const update = events.getEventsList().find((e) => e.hasStageUpdate());
+          if (update) {
+            const stageUpdate = update.getStageUpdate()!;
+            const isEnd =
+              stageUpdate.getStatus() === StageStatus.COMPLETED ||
+              stageUpdate.getStatus() === StageStatus.WIPED;
+            if (isEnd) {
+              stageInfo.status = stageUpdate.getStatus();
+              stageInfo.accurate = stageUpdate.getAccurate();
+              stageInfo.recordedTicks = update.getTick();
+              if (stageUpdate.hasInGameTicks()) {
+                stageInfo.serverTicks = stageUpdate.getInGameTicks();
+              }
+            }
+          }
+
+          streamsByStage.get(stage)!.set(
+            clientId,
+            ClientEvents.fromRawEvents(
+              Number.parseInt(clientId),
+              challengeInfo as ChallengeInfo,
+              stageInfo,
+              events.getEventsList().filter((e) => !e.hasStageUpdate()),
+            ),
+          );
         }),
       ),
     );

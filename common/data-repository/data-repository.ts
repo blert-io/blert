@@ -942,10 +942,6 @@ function eventFromProto(evt: EventProto, eventData: ChallengeEvents): Event {
       break;
     }
 
-    case EventType.CHALLENGE_START:
-    case EventType.CHALLENGE_END:
-    case EventType.CHALLENGE_UPDATE:
-    case EventType.STAGE_UPDATE:
     case EventType.TOB_VERZIK_ATTACK_STYLE:
     case EventType.COLOSSEUM_HANDICAP_CHOICE:
       // These events are not serialized to the file.
