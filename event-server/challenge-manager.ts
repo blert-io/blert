@@ -1,177 +1,127 @@
 import {
   ChallengeMode,
+  ChallengeStatus,
   ChallengeType,
-  DataRepository,
+  RecordingType,
   Stage,
 } from '@blert/common';
-import { v4 as uuidv4 } from 'uuid';
+import { Event } from '@blert/common/generated/event_pb';
 
-import { Challenge, challengePartyKey } from './challenge';
+import { StageUpdate } from './challenge';
 import Client from './client';
-import ColosseumChallenge from './colosseum';
-import TheatreChallenge from './theatre';
-import { PlayerManager } from './players';
 
-export default class ChallengeManager {
-  private challengesById: Map<string, Challenge>;
-  private challengesByPartyKey: Map<string, Challenge[]>;
+export type RecordedTimes = {
+  challenge: number;
+  overall: number;
+};
 
-  private playerManager: PlayerManager;
-  private dataRepository: DataRepository;
+export const enum ClientStatus {
+  ACTIVE,
+  IDLE,
+  DISCONNECTED,
+}
 
-  constructor(playerManager: PlayerManager, dataRepository: DataRepository) {
-    this.challengesById = new Map();
-    this.challengesByPartyKey = new Map();
-    this.playerManager = playerManager;
-    this.dataRepository = dataRepository;
-  }
+export type ChallengeUpdate = {
+  mode: ChallengeMode;
+  stage?: StageUpdate;
+};
 
+export type ChallengeInfo = {
+  type: ChallengeType;
+  mode: ChallengeMode;
+  status: ChallengeStatus;
+  stage: Stage;
+  party: string[];
+};
+
+export default abstract class ChallengeManager {
   /**
    * Attempts to start a new challenge session with the given party members, or
    * or joins an existing session for the party.
    *
    * @param client The client initiating the challenge.
-   * @param partyMembers Ordered list of members in the challenge party.
-   * @returns The ID of the challenge session.
+   * @param challengeType The type of challenge the client is entering.
+   * @param mode The reported mode of the challenge.
+   * @param party List of players in the challenge party.
+   * @param stage The stage at which the challenge is starting.
+   * @param recordingType Whether the client is a participant or spectator.
+   * @returns UUID of the challenge recording.
    */
-  public async startOrJoin(
+  public abstract startOrJoin(
     client: Client,
-    type: ChallengeType,
-    mode: ChallengeMode,
-    partyMembers: string[],
-    stage: Stage,
-  ): Promise<Challenge> {
-    const partyKey = challengePartyKey(type, partyMembers);
-
-    let challenge = this.getLastChallengeForParty(partyKey);
-
-    let startNewChallenge = challenge === undefined;
-
-    const hasAlreadyCompleted =
-      challenge?.playerHasCompleted(client.getLoggedInRsn()!) ?? false;
-    if (hasAlreadyCompleted) {
-      startNewChallenge = true;
-      console.log(
-        `${client} attempted to join challenge with party ${partyKey} ` +
-          `but has already completed it; assuming a new challenge instead.`,
-      );
-    }
-
-    if (
-      challenge !== undefined &&
-      stage !== Stage.UNKNOWN &&
-      stage < challenge.getStage()
-    ) {
-      startNewChallenge = true;
-      console.log(
-        `${client} joined challenge with key ${partyKey} at stage ${stage} ` +
-          `while the existing challenge is at stage ${challenge.getStage()}; ` +
-          'assuming a new challenge instead.',
-      );
-    }
-
-    if (startNewChallenge) {
-      const challengeId = uuidv4();
-      challenge = this.constructChallengeType(
-        type,
-        challengeId,
-        mode,
-        partyMembers,
-      );
-
-      partyMembers.forEach((member) =>
-        this.playerManager.setPlayerActive(member, challengeId),
-      );
-
-      this.challengesById.set(challengeId, challenge);
-
-      if (!this.challengesByPartyKey.has(partyKey)) {
-        this.challengesByPartyKey.set(partyKey, []);
-      }
-      this.challengesByPartyKey.get(partyKey)!.push(challenge);
-
-      console.log(`${client} starting new challenge ${challengeId}`);
-      await challenge.initialize();
-    } else {
-      if (mode !== ChallengeMode.NO_MODE) {
-        challenge!.setMode(mode);
-      }
-      console.log(`${client} joining existing challenge ${challenge!.getId()}`);
-    }
-
-    return challenge!;
-  }
-
-  /**
-   * Looks up an active raid session by its ID.
-   * @param id ID of the raid.
-   * @returns The raid if found.
-   */
-  public get(id: string): Challenge | undefined {
-    return this.challengesById.get(id);
-  }
-
-  public async endChallenge(challenge: Challenge): Promise<void> {
-    await challenge.finish();
-    this.cleanupChallenge(challenge);
-    console.log(`Ended challenge ${challenge.getId()}`);
-  }
-
-  public async terminateChallenge(challenge: Challenge): Promise<void> {
-    await challenge.terminate();
-    this.cleanupChallenge(challenge);
-    console.log(`Terminated challenge ${challenge.getId()}`);
-  }
-
-  private getLastChallengeForParty(partyKey: string): Challenge | undefined {
-    const challenges = this.challengesByPartyKey.get(partyKey);
-    return challenges?.[challenges.length - 1];
-  }
-
-  private constructChallengeType(
-    type: ChallengeType,
-    id: string,
+    challengeType: ChallengeType,
     mode: ChallengeMode,
     party: string[],
-  ): Challenge {
-    const startTime = Date.now();
+    stage: Stage,
+    recordingType: RecordingType,
+  ): Promise<string>;
 
-    switch (type) {
-      case ChallengeType.TOB:
-        return new TheatreChallenge(
-          this.dataRepository,
-          id,
-          party,
-          mode,
-          startTime,
-        );
+  /**
+   * Indicates that a client has completed and left a challenge.
+   * @param client The client that is leaving.
+   * @param challengeId The ID of the challenge.
+   * @param times The client's recorded overall challenge times.
+   */
+  public abstract completeChallenge(
+    client: Client,
+    challengeId: string,
+    times: RecordedTimes | null,
+  ): Promise<void>;
 
-      case ChallengeType.COLOSSEUM:
-        return new ColosseumChallenge(
-          this.dataRepository,
-          id,
-          party,
-          startTime,
-        );
+  /**
+   * Updates the state of a challenge.
+   * @param client The client making the update.
+   * @param challengeId The ID of the challenge.
+   * @param update New state of the challenge reported by the client.
+   */
+  public abstract updateChallenge(
+    client: Client,
+    challengeId: string,
+    update: ChallengeUpdate,
+  ): Promise<void>;
 
-      default:
-        throw new Error(`Unimplemented challenge type: ${type}`);
-    }
-  }
+  /**
+   * Returns information about an active challenge.
+   * @param challengeId The ID of the challenge.
+   * @returns Information about the challenge, or null if the challenge
+   *   is not found.
+   */
+  public abstract getChallengeInfo(
+    challengeId: string,
+  ): Promise<ChallengeInfo | null>;
 
-  private cleanupChallenge(challenge: Challenge): void {
-    this.challengesById.delete(challenge.getId());
+  /**
+   * Handles a batch of challenge events from a client.
+   * @param client The client that sent the events.
+   * @param challengeId The ID of the challenge.
+   * @param events The events to process.
+   */
+  public abstract processEvents(
+    client: Client,
+    challengeId: string,
+    events: Event[],
+  ): Promise<void>;
 
-    const byKey = this.challengesByPartyKey.get(challenge.getPartyKey())!;
-    this.challengesByPartyKey.set(
-      challenge.getPartyKey(),
-      byKey.filter((c) => c !== challenge),
-    );
+  /**
+   * Adds a client to an existing challenge.
+   * @param client The client to add.
+   * @param challengeId ID of the challenge.
+   * @param recordingType Whether the client is a participant or spectator.
+   * @returns True if the client was added, false if the challenge is not found.
+   */
+  public abstract addClient(
+    client: Client,
+    challengeId: string,
+    recordingType: RecordingType,
+  ): boolean;
 
-    challenge
-      .getParty()
-      .forEach((member) =>
-        this.playerManager.setPlayerInactive(member, challenge.getId()),
-      );
-  }
+  /**
+   * Changes the connection status of a client.
+   * @param client The client.
+   * @param status The new status of the client.
+   */
+  public abstract updateClientStatus(
+    client: Client,
+    status: ClientStatus,
+  ): void;
 }

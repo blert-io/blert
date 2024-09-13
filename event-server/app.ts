@@ -9,6 +9,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import ChallengeManager from './challenge-manager';
 import Client from './client';
 import ConnectionManager from './connection-manager';
+import LocalChallengeManager from './local-challenge-manager';
 import MessageHandler from './message-handler';
 import { PlayerManager } from './players';
 import ServerManager, { ServerStatus } from './server-manager';
@@ -166,12 +167,12 @@ async function main(): Promise<void> {
   const connectionManager = new ConnectionManager();
   const serverManager = new ServerManager(connectionManager);
   const playerManager = new PlayerManager();
-  const challengeManager = new ChallengeManager(playerManager, repository);
-  const messageHandler = new MessageHandler(
-    challengeManager,
+  const challengeManager = new LocalChallengeManager(
     playerManager,
+    repository,
     clientRepository,
   );
+  const messageHandler = new MessageHandler(challengeManager, playerManager);
 
   serverManager.onStatusUpdate(messageHandler.handleServerStatusUpdate);
 
