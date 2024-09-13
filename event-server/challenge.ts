@@ -35,7 +35,10 @@ export type StageUpdate = {
   status: StageStatus;
   accurate: boolean;
   recordedTicks: number;
-  serverTicks: number | null;
+  serverTicks: {
+    count: number;
+    precise: boolean;
+  } | null;
 };
 
 export function challengePartyKey(type: ChallengeType, partyMembers: string[]) {
@@ -546,10 +549,14 @@ export abstract class Challenge {
     console.log(
       `${this.id}: stage ${this.stage} finished: ` +
         `recorded ticks ${this.stageTick}, last tick ${update.recordedTicks}, ` +
-        `game server ticks ${update.serverTicks !== null ? update.serverTicks : 'unknown'}`,
+        `game server ticks ${
+          update.serverTicks !== null
+            ? `${update.serverTicks.count} (${update.serverTicks.precise ? 'precise' : 'inaccurate'})`
+            : 'unknown'
+        }`,
     );
 
-    const stageTicks = update.serverTicks ?? update.recordedTicks;
+    const stageTicks = update.serverTicks?.count ?? update.recordedTicks;
 
     this.totalStageTicks += stageTicks;
     this.stageTimeInaccurate = this.stageTimeInaccurate || !update.accurate;
