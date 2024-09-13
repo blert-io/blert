@@ -452,34 +452,46 @@ export abstract class Challenge {
   public async processEvent(event: Event): Promise<void> {
     if (event.getType() === Event.Type.STAGE_UPDATE) {
       await this.handleStageUpdate(event);
-    } else {
-      if (event.getStage() !== this.getStage()) {
+      return;
+    }
+
+    if (event.getStage() !== this.getStage()) {
+      console.error(
+        `Challenge ${this.getId()} got event ${event.getType()} for stage ` +
+          `${event.getStage()} but is at stage ${this.getStage()}`,
+      );
+      return;
+    }
+
+    if (event.hasPlayer()) {
+      const player = event.getPlayer()!;
+      if (!this.party.includes(player.getName())) {
         console.error(
-          `Challenge ${this.getId()} got event ${event.getType()} for stage ` +
-            `${event.getStage()} but is at stage ${this.getStage()}`,
+          `Challenge ${this.getId()} received event type ${event.getType()} ` +
+            `referencing unknown player ${player.getName()}`,
         );
         return;
       }
+    }
 
-      this.updateChallengeState(event);
+    this.updateChallengeState(event);
 
-      const saveEvent = await this.processChallengeEvent(event);
+    const saveEvent = await this.processChallengeEvent(event);
 
-      if (event.getTick() === this.stageTick) {
-        if (saveEvent) {
-          this.addStageEvent(event);
-        }
-      } else if (event.getTick() > this.stageTick) {
-        if (saveEvent) {
-          this.addStageEvent(event);
-        }
-        this.stageTick = event.getTick();
-      } else {
-        console.error(
-          `Challenge ${this.getId()} got event ${event.getType()} for tick ` +
-            `${event.getTick()} (current=${this.stageTick})`,
-        );
+    if (event.getTick() === this.stageTick) {
+      if (saveEvent) {
+        this.addStageEvent(event);
       }
+    } else if (event.getTick() > this.stageTick) {
+      if (saveEvent) {
+        this.addStageEvent(event);
+      }
+      this.stageTick = event.getTick();
+    } else {
+      console.error(
+        `Challenge ${this.getId()} got event ${event.getType()} for tick ` +
+          `${event.getTick()} (current=${this.stageTick})`,
+      );
     }
   }
 
@@ -701,6 +713,10 @@ export abstract class Challenge {
 
   protected tryDetermineGear(player: Event.Player): void {
     const playerIndex = this.getParty().indexOf(player.getName());
+    if (playerIndex === -1) {
+      return;
+    }
+
     if (this.players[playerIndex].gear !== PrimaryMeleeGear.UNKNOWN) {
       return;
     }
