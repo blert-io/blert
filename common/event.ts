@@ -8,16 +8,11 @@ import {
   PlayerAttack,
   RawSkillLevel,
   Stage,
-  StageStatus,
   VerzikPhase,
   XarpusPhase,
 } from './challenge';
 
 export enum EventType {
-  CHALLENGE_START = EventProto.Type.CHALLENGE_START,
-  CHALLENGE_END = EventProto.Type.CHALLENGE_END,
-  CHALLENGE_UPDATE = EventProto.Type.CHALLENGE_UPDATE,
-  STAGE_UPDATE = EventProto.Type.STAGE_UPDATE,
   PLAYER_UPDATE = EventProto.Type.PLAYER_UPDATE,
   PLAYER_ATTACK = EventProto.Type.PLAYER_ATTACK,
   PLAYER_DEATH = EventProto.Type.PLAYER_DEATH,
@@ -66,15 +61,6 @@ export interface Event {
   xCoord: number;
   yCoord: number;
   acc?: boolean;
-}
-
-export interface StageUpdateEvent extends Event {
-  type: EventType.STAGE_UPDATE;
-  stageUpdate: {
-    status: StageStatus;
-    accurate: boolean;
-    inGameTicks?: number;
-  };
 }
 
 export interface PlayerEvent extends Event {
@@ -171,7 +157,6 @@ export interface HandicapChoiceEvent extends Event {
 }
 
 export type MergedEvent = Event &
-  Omit<StageUpdateEvent, 'type'> &
   Omit<PlayerUpdateEvent, 'type'> &
   Omit<PlayerAttackEvent, 'type'> &
   Omit<PlayerDeathEvent, 'type'> &

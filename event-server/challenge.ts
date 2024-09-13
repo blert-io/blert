@@ -30,6 +30,14 @@ import postgres from 'postgres';
 import sql from './db';
 import { Players } from './players';
 
+export type StageUpdate = {
+  stage: Stage;
+  status: StageStatus;
+  accurate: boolean;
+  recordedTicks: number;
+  serverTicks: number | null;
+};
+
 export function challengePartyKey(type: ChallengeType, partyMembers: string[]) {
   const sorted = [...partyMembers].sort();
   const party = sorted
@@ -351,9 +359,8 @@ export abstract class Challenge {
   protected abstract hasFullyCompletedChallenge(): boolean;
 
   protected abstract onStageFinished(
-    stage: Stage,
+    stageUpdate: StageUpdate,
     stageTicks: number,
-    stageUpdate: Event.StageUpdate,
   ): Promise<void>;
 
   public async initialize(): Promise<void> {
@@ -449,12 +456,52 @@ export abstract class Challenge {
     }
   }
 
-  public async processEvent(event: Event): Promise<void> {
-    if (event.getType() === Event.Type.STAGE_UPDATE) {
-      await this.handleStageUpdate(event);
+  public async updateStage(update: StageUpdate): Promise<void> {
+    const { stage, status } = update;
+
+    if (stage === Stage.UNKNOWN) {
       return;
     }
 
+    switch (update.status) {
+      case StageStatus.STARTED:
+        if (this.isStarting()) {
+          this.state = State.IN_PROGRESS;
+        }
+
+        await this.updateChallenge({ stage });
+
+        if (this.stageStatus === StageStatus.ENTERED) {
+          // A transition from ENTERED -> STARTED has already reset the stage.
+          // Don't clear any data received afterwards, unless the stage is new.
+          if (this.getStage() === stage) {
+            break;
+          }
+        }
+      // A transition from any other state to STARTED should fall through
+      // and reset all stage data.
+      case StageStatus.ENTERED:
+        this.resetForNewStage(stage);
+        await this.onStageEntered();
+        break;
+
+      case StageStatus.WIPED:
+      case StageStatus.COMPLETED:
+        if (stage === this.getStage()) {
+          await this.handleStageFinished(update);
+        } else {
+          console.error(
+            `Challenge ${this.getId()} got status ${status} ` +
+              `for stage ${stage} but is at stage ${this.getStage()}`,
+          );
+        }
+        break;
+    }
+
+    this.stageStatus = status;
+  }
+
+  public async processEvent(event: Event): Promise<void> {
     if (event.getStage() !== this.getStage()) {
       console.error(
         `Challenge ${this.getId()} got event ${event.getType()} for stage ` +
@@ -495,80 +542,29 @@ export abstract class Challenge {
     }
   }
 
-  private async handleStageUpdate(event: Event): Promise<void> {
-    const stageUpdate = event.getStageUpdate();
-    if (event.getStage() === Stage.UNKNOWN || stageUpdate === undefined) {
-      return;
-    }
-
-    switch (stageUpdate.getStatus()) {
-      case StageStatus.STARTED:
-        if (this.isStarting()) {
-          this.state = State.IN_PROGRESS;
-        }
-
-        await this.updateChallenge({ stage: event.getStage() });
-
-        if (this.stageStatus === StageStatus.ENTERED) {
-          // A transition from ENTERED -> STARTED has already reset the stage.
-          // Don't clear any data received afterwards, unless the stage is new.
-          if (this.getStage() === event.getStage()) {
-            break;
-          }
-        }
-      // A transition from any other state to STARTED should fall through
-      // and reset all stage data.
-      case StageStatus.ENTERED:
-        this.resetForNewStage(event.getStage());
-        await this.onStageEntered();
-        break;
-
-      case StageStatus.WIPED:
-      case StageStatus.COMPLETED:
-        if (event.getStage() === this.getStage()) {
-          await this.handleStageFinished(event, stageUpdate);
-        } else {
-          console.error(
-            `Challenge ${this.getId()} got status ${stageUpdate.getStatus()} ` +
-              `for stage ${event.getStage()} but is at stage ${this.getStage()}`,
-          );
-        }
-        break;
-    }
-
-    this.stageStatus = stageUpdate.getStatus();
-  }
-
-  private async handleStageFinished(
-    event: Event,
-    stageUpdate: Event.StageUpdate,
-  ): Promise<void> {
+  private async handleStageFinished(update: StageUpdate): Promise<void> {
     console.log(
       `${this.id}: stage ${this.stage} finished: ` +
-        `recorded ticks ${this.stageTick}, last tick ${event.getTick()}, ` +
-        `game server ticks ${stageUpdate.hasInGameTicks() ? stageUpdate.getInGameTicks() : 'unknown'}`,
+        `recorded ticks ${this.stageTick}, last tick ${update.recordedTicks}, ` +
+        `game server ticks ${update.serverTicks !== null ? update.serverTicks : 'unknown'}`,
     );
 
-    const stageTicks = stageUpdate.hasInGameTicks()
-      ? stageUpdate.getInGameTicks()
-      : event.getTick();
+    const stageTicks = update.serverTicks ?? update.recordedTicks;
 
     this.totalStageTicks += stageTicks;
-    this.stageTimeInaccurate =
-      this.stageTimeInaccurate || !stageUpdate.getAccurate();
+    this.stageTimeInaccurate = this.stageTimeInaccurate || !update.accurate;
 
     await Promise.all([
       this.updateChallenge({
         challengeTicks: this.totalStageTicks,
         totalDeaths: this.totalDeaths,
       }),
-      this.onStageFinished(event.getStage(), stageTicks, stageUpdate),
+      this.onStageFinished(update, stageTicks),
       this.writeStageEvents(),
     ]);
 
     const splitsAccurate =
-      !this.stageTimeInaccurate &&
-      stageUpdate.getStatus() === StageStatus.COMPLETED;
+      !this.stageTimeInaccurate && update.status === StageStatus.COMPLETED;
 
     const createdSplits = await this.createChallengeSplits(splitsAccurate);
     if (splitsAccurate) {

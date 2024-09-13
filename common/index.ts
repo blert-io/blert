@@ -41,7 +41,6 @@ export type {
   SoteMazeEvent,
   SoteMazePath,
   SoteMazePathEvent,
-  StageUpdateEvent,
   VerzikAttackStyleEvent,
   VerzikPhaseEvent,
   XarpusPhaseEvent,

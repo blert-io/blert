@@ -19,7 +19,7 @@ import {
 } from '@blert/common';
 import { Event, NpcAttackMap } from '@blert/common/generated/event_pb';
 
-import { Challenge } from './challenge';
+import { Challenge, StageUpdate } from './challenge';
 import { priceTracker } from './price-tracker';
 
 type Proto<T> = T[keyof T];
@@ -99,13 +99,12 @@ export default class TheatreChallenge extends Challenge {
   protected override async onStageEntered(): Promise<void> {}
 
   protected override async onStageFinished(
-    stage: Stage,
+    update: StageUpdate,
     stageTicks: number,
-    stageUpdate: Event.StageUpdate,
   ): Promise<void> {
     // Set the appropriate status if the raid were to be finished at this
     // point.
-    if (stageUpdate.getStatus() === StageStatus.WIPED) {
+    if (update.status === StageStatus.WIPED) {
       this.setChallengeStatus(ChallengeStatus.WIPED);
     } else if (this.getStage() === Stage.TOB_VERZIK) {
       this.setChallengeStatus(ChallengeStatus.COMPLETED);
@@ -114,13 +113,13 @@ export default class TheatreChallenge extends Challenge {
     }
 
     let ticksLost = 0;
-    if (!stageUpdate.getAccurate()) {
+    if (!update.accurate) {
       const missingTicks = stageTicks - this.getStageTick();
       ticksLost = missingTicks;
 
       if (missingTicks > 0) {
         console.log(
-          `Raid ${this.getId()} lost ${missingTicks} ticks at stage ${stage}`,
+          `Raid ${this.getId()} lost ${missingTicks} ticks at stage ${update.stage}`,
         );
         // TODO(frolv): This should be handled outside of the challenge itself,
         // instead of assuming tick loss at the start.
@@ -128,7 +127,7 @@ export default class TheatreChallenge extends Challenge {
       }
     }
 
-    switch (stage) {
+    switch (update.stage) {
       case Stage.TOB_MAIDEN:
         this.rooms.maiden = {
           stage: Stage.TOB_MAIDEN,

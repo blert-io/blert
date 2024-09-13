@@ -10,58 +10,47 @@ import { Event } from '@blert/common/generated/event_pb';
 import logger from './log';
 import { ChallengeInfo, PlayerState, TickState } from './merge';
 
+export type StageInfo = {
+  stage: Stage;
+  status: StageStatus;
+  accurate: boolean;
+  recordedTicks: number;
+  serverTicks: number | null;
+};
+
 export class ClientEvents {
   private readonly clientId: number;
   private readonly challenge: ChallengeInfo;
-  private readonly stage: Stage;
-  private readonly inGameTicks: number | null;
-  private readonly lastRecordedTick: number;
+  private readonly stageInfo: StageInfo;
   private readonly tickState: TickState[];
   private readonly primaryPlayer: string | null;
-  private status: StageStatus;
-  private accurate: boolean;
 
   public static fromRawEvents(
     clientId: number,
     challenge: ChallengeInfo,
-    stage: Stage,
+    stageInfo: StageInfo,
     rawEvents: Event[],
   ): ClientEvents {
     const events = [...rawEvents].sort((a, b) => a.getTick() - b.getTick());
-    const lastTick = events[events.length - 1].getTick() ?? 0;
-    let status: StageStatus = StageStatus.WIPED;
-    let accurate = false;
-    let inGameTicks = null;
+
+    if (stageInfo.recordedTicks === 0) {
+      stageInfo.recordedTicks = events[events.length - 1].getTick() ?? 0;
+    }
 
     const primaryPlayers = new Set<string>();
 
-    const eventsByTick: Array<Event[]> = Array(lastTick + 1).fill([]);
+    const eventsByTick: Array<Event[]> = Array(
+      stageInfo.recordedTicks + 1,
+    ).fill([]);
     events.forEach((event) => {
-      if (event.getType() === Event.Type.STAGE_UPDATE) {
-        const stageUpdate = event.getStageUpdate()!;
-        const isEnd =
-          stageUpdate.getStatus() === StageStatus.COMPLETED ||
-          stageUpdate.getStatus() === StageStatus.WIPED;
-        if (isEnd) {
-          status = stageUpdate.getStatus();
-          accurate = stageUpdate.getAccurate();
-          if (stageUpdate.hasInGameTicks()) {
-            inGameTicks = stageUpdate.getInGameTicks();
-          }
-        }
-      } else {
-        if (
-          event.getType() === Event.Type.PLAYER_UPDATE &&
-          event.getPlayer()!.getDataSource() === DataSource.PRIMARY
-        ) {
-          primaryPlayers.add(event.getPlayer()!.getName());
-        }
-
-        eventsByTick[event.getTick()] = [
-          ...eventsByTick[event.getTick()],
-          event,
-        ];
+      if (
+        event.getType() === Event.Type.PLAYER_UPDATE &&
+        event.getPlayer()!.getDataSource() === DataSource.PRIMARY
+      ) {
+        primaryPlayers.add(event.getPlayer()!.getName());
       }
+
+      eventsByTick[event.getTick()] = [...eventsByTick[event.getTick()], event];
     });
 
     if (primaryPlayers.size > 1) {
@@ -94,11 +83,8 @@ export class ClientEvents {
     return new ClientEvents(
       clientId,
       challenge,
-      stage,
-      inGameTicks,
+      stageInfo,
       tickState,
-      status,
-      accurate,
       primaryPlayer,
     );
   }
@@ -113,40 +99,40 @@ export class ClientEvents {
   /**
    * @returns The number of ticks reported by the game server, if known.
    */
-  public getInGameTicks(): number | null {
-    return this.inGameTicks;
+  public getServerTicks(): number | null {
+    return this.stageInfo.serverTicks;
   }
 
   /**
    * @returns The stage of the challenge that these events were recorded in.
    */
   public getStage(): Stage {
-    return this.stage;
+    return this.stageInfo.stage;
   }
 
   /**
    * @returns The status of the stage at the time of the last recorded event.
    */
   public getStatus(): StageStatus {
-    return this.status;
+    return this.stageInfo.status;
   }
 
   /**
    * @returns The highest recorded tick in the client events.
    */
   public getFinalTick(): number {
-    return this.lastRecordedTick;
+    return this.stageInfo.recordedTicks;
   }
 
   /**
    * @returns Whether the recorded ticks of the client's events are accurate.
    */
   public isAccurate(): boolean {
-    return this.accurate;
+    return this.stageInfo.accurate;
   }
 
   public setAccurate(accurate: boolean): void {
-    this.accurate = accurate;
+    this.stageInfo.accurate = accurate;
   }
 
   /**
@@ -155,7 +141,7 @@ export class ClientEvents {
    * @returns Possibly empty array of events that were recorded.
    */
   public getTickState(tick: number): TickState | null {
-    if (tick < 0 || tick > this.lastRecordedTick) {
+    if (tick < 0 || tick > this.stageInfo.recordedTicks) {
       return null;
     }
     return this.tickState[tick];
@@ -192,7 +178,7 @@ export class ClientEvents {
     let ok = true;
     const potentialLostTicks = new Set<number>();
 
-    for (let tick = 0; tick <= this.lastRecordedTick; tick++) {
+    for (let tick = 0; tick <= this.stageInfo.recordedTicks; tick++) {
       for (const player of this.challenge.party) {
         const playerState = this.tickState[tick].getPlayerState(player);
         if (playerState === null) {
@@ -211,7 +197,12 @@ export class ClientEvents {
           const maxDistance = 2 * ticksSinceLast;
           const invalidMove =
             (Math.abs(dx) > maxDistance || Math.abs(dy) > maxDistance) &&
-            !isSpecialTeleport(this.stage, last, playerState, ticksSinceLast);
+            !isSpecialTeleport(
+              this.stageInfo.stage,
+              last,
+              playerState,
+              ticksSinceLast,
+            );
 
           if (invalidMove) {
             logger.debug(
@@ -234,21 +225,14 @@ export class ClientEvents {
   private constructor(
     clientId: number,
     challenge: ChallengeInfo,
-    stage: Stage,
-    inGameTicks: number | null,
+    stageInfo: StageInfo,
     tickState: TickState[],
-    status: StageStatus,
-    accurate: boolean,
     primaryPlayer: string | null,
   ) {
     this.clientId = clientId;
     this.challenge = challenge;
-    this.stage = stage;
-    this.inGameTicks = inGameTicks;
+    this.stageInfo = stageInfo;
     this.tickState = tickState;
-    this.lastRecordedTick = tickState.length - 1;
-    this.status = status;
-    this.accurate = accurate;
     this.primaryPlayer = primaryPlayer;
   }
 

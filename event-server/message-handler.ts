@@ -11,8 +11,12 @@ import {
   Event,
   StageMap,
 } from '@blert/common/generated/event_pb';
-import { ServerMessage } from '@blert/common/generated/server_message_pb';
-import { ChallengeEvents } from '@blert/common/generated/challenge_storage_pb';
+import {
+  ChallengeStartRequest,
+  ChallengeEndRequest,
+  ServerMessage,
+  ChallengeUpdate,
+} from '@blert/common/generated/server_message_pb';
 
 import { Challenge } from './challenge';
 import ChallengeManager from './challenge-manager';
@@ -199,6 +203,63 @@ class ChallengeStreamAggregator {
   }
 
   /**
+   * Handles an incoming challenge update.
+   * @param client The client that sent the update.
+   * @param update The update.
+   */
+  public async updateChallenge(
+    client: Client,
+    update: ChallengeUpdate,
+  ): Promise<void> {
+    const connectedClient = this.clients.find((c) => c.client === client);
+    if (!connectedClient) {
+      console.error(`updateChallenge: ${client} is not connected to ${this}`);
+      return;
+    }
+
+    if (update.getMode() !== ChallengeMode.NO_MODE) {
+      if (update.getMode() === ChallengeMode.TOB_ENTRY) {
+        // TODO(frolv): At some point in the future, allow entry mode
+        // raids to be recorded.
+        console.log(`Terminating ToB entry mode raid ${this}`);
+        await this.terminateAndPurgeChallenge();
+        return;
+      }
+
+      await this.challenge.setMode(update.getMode());
+    }
+
+    if (update.hasStageUpdate()) {
+      const stageUpdate = update.getStageUpdate()!;
+      const stage = stageUpdate.getStage();
+
+      switch (stageUpdate.getStatus()) {
+        case ChallengeUpdate.StageUpdate.Status.STARTED:
+          connectedClient.activeStage = stage;
+          break;
+
+        case ChallengeUpdate.StageUpdate.Status.COMPLETED:
+        case ChallengeUpdate.StageUpdate.Status.WIPED:
+          connectedClient.activeStage = null;
+          connectedClient.sentEvents = [];
+          break;
+      }
+
+      if (connectedClient.primary) {
+        await this.challenge.updateStage({
+          stage: stageUpdate.getStage(),
+          status: stageUpdate.getStatus(),
+          accurate: stageUpdate.getAccurate(),
+          recordedTicks: stageUpdate.getRecordedTicks(),
+          serverTicks: stageUpdate.hasGameServerTicks()
+            ? stageUpdate.getGameServerTicks()
+            : null,
+        });
+      }
+    }
+  }
+
+  /**
    * Handles an incoming event from a registered client.
    *
    * @param client The client that sent the event.
@@ -213,58 +274,7 @@ class ChallengeStreamAggregator {
 
     this.lastEventTimestamp = Date.now();
 
-    if (event.getType() === Event.Type.STAGE_UPDATE) {
-      switch (event.getStageUpdate()!.getStatus()) {
-        case Event.StageUpdate.Status.STARTED:
-          connectedClient.activeStage = event.getStage();
-          if (this.saveClientEventData) {
-            console.log(`${this}: ${client} started stage ${event.getStage()}`);
-          }
-          break;
-
-        case Event.StageUpdate.Status.COMPLETED:
-        case Event.StageUpdate.Status.WIPED:
-          connectedClient.sentEvents.push(event);
-          connectedClient.activeStage = null;
-
-          if (this.saveClientEventData) {
-            console.log(`${this}: ${client} ended stage ${event.getStage()}`);
-            if (this.clients.length > 1) {
-              console.log(
-                `${this}: saving ${connectedClient.sentEvents.length} raw events for ${client}`,
-              );
-              const basePath = `${this.challenge.getId()}/${event.getStage()}`;
-
-              if (connectedClient.primary) {
-                const jsonMetadata = JSON.stringify({
-                  stage: event.getStage(),
-                  clients: this.clients.map((c) => ({
-                    userId: c.client.getUserId(),
-                    username: c.client.getUsername(),
-                    rsn: c.client.getLoggedInRsn(),
-                    spectator: c.type === RecordingType.SPECTATOR,
-                  })),
-                });
-                this.clientDataRepository.saveRaw(
-                  `${basePath}/metadata.json`,
-                  Buffer.from(jsonMetadata),
-                );
-              }
-
-              const message = new ChallengeEvents();
-              message.setEventsList(connectedClient.sentEvents);
-              message.setStage(event.getStage());
-
-              this.clientDataRepository.saveRaw(
-                `${basePath}/${client.getUserId()}`,
-                message.serializeBinary(),
-              );
-            }
-          }
-          connectedClient.sentEvents = [];
-          break;
-      }
-    } else if (connectedClient.activeStage !== null) {
+    if (connectedClient.activeStage !== null) {
       connectedClient.sentEvents.push(event);
     }
 
@@ -591,7 +601,35 @@ export default class MessageHandler {
         break;
       }
 
-      case ServerMessage.Type.EVENT_STREAM:
+      case ServerMessage.Type.CHALLENGE_START_REQUEST:
+        this.handleChallengeStart(
+          client,
+          message,
+          message.getChallengeStartRequest()!,
+        );
+        break;
+
+      case ServerMessage.Type.CHALLENGE_END_REQUEST:
+        this.handleChallengeEnd(
+          client,
+          message,
+          message.getChallengeEndRequest()!,
+        );
+        break;
+
+      case ServerMessage.Type.CHALLENGE_UPDATE:
+        if (message.getActiveChallengeId() !== '') {
+          this.handleChallengeUpdate(
+            client,
+            message.getActiveChallengeId(),
+            message.getChallengeUpdate()!,
+          );
+        } else {
+          console.error('Received CHALLENGE_UPDATE event with no challenge ID');
+        }
+        break;
+
+      case ServerMessage.Type.EVENT_STREAM: {
         const events = message
           .getChallengeEventsList()
           .sort((a, b) => a.getTick() - b.getTick());
@@ -603,6 +641,7 @@ export default class MessageHandler {
           }
         }
         break;
+      }
 
       default:
         console.error(`Unknown message type: ${message.getType()}`);
@@ -614,97 +653,39 @@ export default class MessageHandler {
     client: Client,
     event: Event,
   ): Promise<void> {
-    switch (event.getType()) {
-      case Event.Type.CHALLENGE_START:
-        await this.handleChallengeStart(client, event);
-        break;
+    if (event.getChallengeId() == '') {
+      return;
+    }
 
-      case Event.Type.CHALLENGE_END: {
-        if (event.getChallengeId() === '') {
-          return;
-        }
+    if (event.getChallengeId() !== client.getActiveChallenge()?.getId()) {
+      console.error(
+        `${client} sent event for challenge ${event.getChallengeId()}, but is not in it.`,
+      );
+      return;
+    }
 
-        const aggregator = this.challengeAggregators[event.getChallengeId()];
-        if (aggregator === undefined) {
-          console.error(
-            `No aggregator for challenge ${event.getChallengeId()}`,
-          );
-          return;
-        }
-
-        const completed = event.getCompletedChallenge()!;
-        const overallTicks = completed.getOverallTimeTicks();
-        const challengeTicks = completed.getChallengeTimeTicks();
-
-        const isFinished = await aggregator.markCompletion(
-          client,
-          challengeTicks,
-          overallTicks,
-        );
-        if (!isFinished) {
-          // Set a short delay before removing the client to allow any other
-          // clients' completion events to be processed.
-          setTimeout(() => aggregator.removeClient(client), 1500);
-        }
-        break;
-      }
-
-      case Event.Type.CHALLENGE_UPDATE:
-        const challengeInfo = event.getChallengeInfo()!;
-        if (event.getChallengeId() !== '' && challengeInfo?.getMode()) {
-          const aggregator = this.challengeAggregators[event.getChallengeId()];
-          if (aggregator) {
-            if (challengeInfo.getMode() === ChallengeMode.TOB_ENTRY) {
-              // TODO(frolv): At some point in the future, allow entry mode
-              // raids to be recorded.
-              console.log(`Terminating ToB entry mode raid ${aggregator}`);
-              await aggregator.terminateAndPurgeChallenge();
-            } else {
-              await aggregator.getChallenge().setMode(challengeInfo.getMode());
-            }
-          } else {
-            console.error(
-              'Received CHALLENGE_UPDATE event for nonexistent raid',
-              event.getChallengeId(),
-            );
-          }
-        }
-        break;
-
-      default:
-        if (event.getChallengeId() == '') {
-          return;
-        }
-
-        if (event.getChallengeId() !== client.getActiveChallenge()?.getId()) {
-          console.error(
-            `${client} sent event for challenge ${event.getChallengeId()}, but is not in it.`,
-          );
-          return;
-        }
-
-        const aggregator = this.challengeAggregators[event.getChallengeId()];
-        if (aggregator) {
-          await aggregator.process(client, event);
-        } else {
-          console.error(
-            `No aggregator for challenge ${event.getChallengeId()}`,
-          );
-        }
+    const aggregator = this.challengeAggregators[event.getChallengeId()];
+    if (aggregator) {
+      await aggregator.process(client, event);
+    } else {
+      console.error(`No aggregator for challenge ${event.getChallengeId()}`);
     }
   }
 
   /**
-   * Processes a CHALLENGE_START event, starting a new challenge if possible.
-   * @param client The client that sent the event.
-   * @param event The event.
+   * Processes a CHALLENGE_START_REQUEST, starting a new challenge if possible.
+   * @param client The client that sent the request.
+   * @param message The server message containing the request.
+   * @param request The challenge start request.
    */
   private async handleChallengeStart(
     client: Client,
-    event: Event,
+    message: ServerMessage,
+    request: ChallengeStartRequest,
   ): Promise<void> {
     const response = new ServerMessage();
-    response.setType(ServerMessage.Type.ACTIVE_CHALLENGE_INFO);
+    response.setType(ServerMessage.Type.CHALLENGE_START_RESPONSE);
+    response.setRequestId(message.getRequestId());
 
     if (!this.allowStartingChallenges) {
       // TODO(frolv): Use a proper error type instead of an empty ID.
@@ -720,16 +701,15 @@ export default class MessageHandler {
       return;
     }
 
-    const challengeInfo = event.getChallengeInfo()!;
-
-    const challengeType = challengeInfo.getChallenge();
-    const partySize = challengeInfo.getPartyList().length;
+    const challengeType = request.getChallenge();
+    const partySize = request.getPartyList().length;
 
     const checkPartySize = (minSize: number, maxSize?: number): boolean => {
       maxSize = maxSize ?? minSize;
       if (partySize < minSize || partySize > maxSize) {
         console.error(
-          `Received CHALLENGE_START event for ${challengeType} with invalid party size: ${partySize}`,
+          `Received CHALLENGE_START_REQUEST for type ${challengeType} ` +
+            `with invalid party size: ${partySize}`,
         );
 
         // TODO(frolv): Use a proper error type instead of an empty ID.
@@ -744,7 +724,7 @@ export default class MessageHandler {
         if (!checkPartySize(1, 5)) {
           return;
         }
-        if (challengeInfo.getMode() === ChallengeMode.TOB_ENTRY) {
+        if (request.getMode() === ChallengeMode.TOB_ENTRY) {
           console.log(`${client}: denying ToB entry mode raid`);
           client.sendMessage(response);
           return;
@@ -761,7 +741,7 @@ export default class MessageHandler {
       case ChallengeType.TOA:
       case ChallengeType.INFERNO:
         console.error(
-          `Received CHALLENGE_START event for unimplemented challenge: ${challengeType}`,
+          `Received CHALLENGE_START_REQUEST for unimplemented type: ${challengeType}`,
         );
 
         // TODO(frolv): Use a proper error type instead of an empty ID.
@@ -770,7 +750,7 @@ export default class MessageHandler {
 
       default:
         console.error(
-          `Received CHALLENGE_START event with unknown challenge: ${challengeType}`,
+          `Received CHALLENGE_START_REQUEST for unknown type: ${challengeType}`,
         );
 
         // TODO(frolv): Use a proper error type instead of an empty ID.
@@ -778,15 +758,15 @@ export default class MessageHandler {
         return;
     }
 
-    const stage = event.getStage() as Stage;
+    const stage = request.getStage() as Stage;
 
     let challenge: Challenge;
     try {
       challenge = await this.challengeManager.startOrJoin(
         client,
         challengeType,
-        challengeInfo.getMode(),
-        challengeInfo.getPartyList(),
+        request.getMode(),
+        request.getPartyList(),
         stage,
       );
     } catch (e: any) {
@@ -798,7 +778,7 @@ export default class MessageHandler {
     response.setActiveChallengeId(challenge.getId());
     client.sendMessage(response);
 
-    const recordingType = challengeInfo.getSpectator()
+    const recordingType = request.getSpectator()
       ? RecordingType.SPECTATOR
       : RecordingType.PARTICIPANT;
 
@@ -838,6 +818,69 @@ export default class MessageHandler {
       challenge.getDatabaseId(),
       recordingType,
     );
+  }
+
+  private async handleChallengeEnd(
+    client: Client,
+    message: ServerMessage,
+    request: ChallengeEndRequest,
+  ) {
+    if (message.getActiveChallengeId() === '') {
+      return;
+    }
+
+    const aggregator =
+      this.challengeAggregators[message.getActiveChallengeId()];
+    if (aggregator === undefined) {
+      console.error(
+        `No aggregator for challenge ${message.getActiveChallengeId()}`,
+      );
+      return;
+    }
+
+    const overallTicks = request.getOverallTimeTicks();
+    const challengeTicks = request.getChallengeTimeTicks();
+
+    const isFinished = await aggregator.markCompletion(
+      client,
+      challengeTicks,
+      overallTicks,
+    );
+    if (!isFinished) {
+      // Set a short delay before removing the client to allow any other
+      // clients' completion events to be processed.
+      setTimeout(() => aggregator.removeClient(client), 1500);
+    }
+
+    const response = new ServerMessage();
+    response.setType(ServerMessage.Type.CHALLENGE_END_RESPONSE);
+    response.setRequestId(message.getRequestId());
+    client.sendMessage(response);
+  }
+
+  private async handleChallengeUpdate(
+    client: Client,
+    challengeId: string,
+    update: ChallengeUpdate,
+  ) {
+    if (challengeId !== client.getActiveChallenge()?.getId()) {
+      console.error(
+        `${client} sent CHALLENGE_UPDATE event for challenge ${challengeId}, ` +
+          'but is not in it.',
+      );
+      return;
+    }
+
+    const aggregator = this.challengeAggregators[challengeId];
+    if (aggregator === undefined) {
+      console.error(
+        'Received CHALLENGE_UPDATE event for nonexistent raid',
+        challengeId,
+      );
+      return;
+    }
+
+    await aggregator.updateChallenge(client, update);
   }
 
   private async handleGameStateUpdate(

@@ -150,10 +150,10 @@ export class Merger {
       // `this.clients` is sorted by decreasing tick count. Use the client with
       // the most recorded ticks as the base client, but prioritize clients
       // which have reported in-game tick counts.
-      const ref = this.clients.find((c) => c.getInGameTicks() !== null);
+      const ref = this.clients.find((c) => c.getServerTicks() !== null);
       if (ref !== undefined) {
         base = ref;
-        stageTicks = ref.getInGameTicks()!;
+        stageTicks = ref.getServerTicks()!;
       } else {
         base = this.clients[0];
         stageTicks = base.getFinalTick();
@@ -483,28 +483,19 @@ export class TickState {
 }
 
 class MergedEvents {
-  private readonly stage: Stage;
-  private readonly status: StageStatus;
   private ticks: Array<TickState | null>;
   private accurate: boolean;
 
   constructor(base: ClientEvents) {
-    const tickCount = base.getInGameTicks() ?? base.getFinalTick();
+    const tickCount = base.getServerTicks() ?? base.getFinalTick();
 
-    this.stage = base.getStage();
-    this.status = base.getStatus();
     this.accurate = base.isAccurate();
     this.ticks = Array(tickCount + 1).fill(null);
     this.initializeBaseTicks(base);
   }
 
   public events(): EventIterator {
-    return new EventIterator(
-      this.stage,
-      this.status,
-      this.ticks,
-      this.accurate,
-    );
+    return new EventIterator(this.ticks);
   }
 
   [Symbol.iterator](): EventIterator {
@@ -543,12 +534,11 @@ class MergedEvents {
       for (let i = 0; i <= base.getFinalTick(); i++) {
         this.ticks[i] = base.getTickState(i)?.clone() ?? null;
       }
-    } else if (base.getInGameTicks() !== null) {
+    } else if (base.getServerTicks() !== null) {
       // If the base client is not accurate but has reported an in-game tick
       // count, it has completed the stage, so it is initially assumed that its
       // events are offset from the end of the stage.
-      const offset = base.getInGameTicks()! - base.getFinalTick();
-      console.log(base);
+      const offset = base.getServerTicks()! - base.getFinalTick();
       logger.debug(
         'Base client is not accurate but has in-game tick count; ' +
           `assuming events from end of stage with a ${offset} tick offset`,
@@ -597,33 +587,17 @@ class MergedEvents {
 }
 
 class EventIterator implements Iterator<Event, Event | null> {
-  private readonly stage: Stage;
-  private readonly status: StageStatus;
   private readonly ticks: Array<TickState | null>;
-  private readonly accurate: boolean;
   private tick: number;
   private eventIndex: number;
 
-  constructor(
-    stage: Stage,
-    status: StageStatus,
-    ticks: Array<TickState | null>,
-    accurate: boolean,
-  ) {
-    this.stage = stage;
-    this.status = status;
+  constructor(ticks: Array<TickState | null>) {
     this.ticks = ticks;
-    this.accurate = accurate;
-    this.tick = -1;
+    this.tick = 0;
     this.eventIndex = 0;
   }
 
   public next(): IteratorResult<Event, Event | null> {
-    if (this.tick == -1) {
-      this.tick = 0;
-      return { done: false, value: this.stageStartEvent() };
-    }
-
     for (; this.tick < this.ticks.length; this.tick++) {
       if (this.ticks[this.tick] === null) {
         this.eventIndex = 0;
@@ -641,37 +615,7 @@ class EventIterator implements Iterator<Event, Event | null> {
       this.eventIndex = 0;
     }
 
-    if (this.tick == this.ticks.length) {
-      this.tick++;
-      return { done: false, value: this.stageEndEvent() };
-    }
-
     return { done: true, value: null };
-  }
-
-  private stageStartEvent(): Event {
-    const event = new Event();
-    event.setType(Event.Type.STAGE_UPDATE);
-    event.setStage(this.stage as StageMap[keyof StageMap]);
-    const stageUpdate = new Event.StageUpdate();
-    stageUpdate.setStatus(Event.StageUpdate.Status.STARTED);
-    event.setStageUpdate(stageUpdate);
-    return event;
-  }
-
-  private stageEndEvent(): Event {
-    const event = new Event();
-    event.setType(Event.Type.STAGE_UPDATE);
-    event.setStage(this.stage as StageMap[keyof StageMap]);
-    event.setTick(this.ticks.length - 1);
-    const stageUpdate = new Event.StageUpdate();
-    stageUpdate.setStatus(
-      this
-        .status as Event.StageUpdate.StatusMap[keyof Event.StageUpdate.StatusMap],
-    );
-    stageUpdate.setAccurate(this.accurate);
-    event.setStageUpdate(stageUpdate);
-    return event;
   }
 }
 

@@ -12,7 +12,7 @@ import {
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
-import { Challenge } from './challenge';
+import { Challenge, StageUpdate } from './challenge';
 
 export default class ColosseumChallenge extends Challenge {
   private colosseumData: ColosseumData;
@@ -62,9 +62,8 @@ export default class ColosseumChallenge extends Challenge {
   }
 
   protected override async onStageFinished(
-    _stage: Stage,
+    update: StageUpdate,
     stageTicks: number,
-    stageUpdate: Event.StageUpdate,
   ): Promise<void> {
     this.colosseumData.waves.push({
       stage: this.getStage(),
@@ -76,7 +75,7 @@ export default class ColosseumChallenge extends Challenge {
     });
 
     // Set the status if the challenge were to be finished at this point.
-    if (stageUpdate.getStatus() === StageStatus.WIPED) {
+    if (update.status === StageStatus.WIPED) {
       this.setChallengeStatus(ChallengeStatus.WIPED);
     } else if (this.getStage() === Stage.COLOSSEUM_WAVE_12) {
       this.setChallengeStatus(ChallengeStatus.COMPLETED);
