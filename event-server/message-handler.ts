@@ -1,4 +1,9 @@
-import { ChallengeType, RecordingType, Stage } from '@blert/common';
+import {
+  ChallengeType,
+  ClientStatus,
+  RecordingType,
+  Stage,
+} from '@blert/common';
 import {
   ChallengeMap,
   ChallengeMode,
@@ -12,10 +17,7 @@ import {
   ChallengeUpdate as ChallengeUpdateProto,
 } from '@blert/common/generated/server_message_pb';
 
-import ChallengeManager, {
-  ChallengeUpdate,
-  ClientStatus,
-} from './challenge-manager';
+import ChallengeManager, { ChallengeUpdate } from './challenge-manager';
 import Client from './client';
 import { PlayerManager, Players } from './players';
 import { Users } from './users';
@@ -335,7 +337,7 @@ export default class MessageHandler {
     challengeId: string,
     update: ChallengeUpdateProto,
   ) {
-    if (challengeId !== client.getActiveChallenge()?.getId()) {
+    if (challengeId !== client.getActiveChallenge()) {
       console.error(
         `${client} sent CHALLENGE_UPDATE event for challenge ${challengeId}, ` +
           'but is not in it.',
@@ -364,7 +366,15 @@ export default class MessageHandler {
       };
     }
 
-    this.challengeManager.updateChallenge(client, challengeId, challengeUpdate);
+    try {
+      this.challengeManager.updateChallenge(
+        client,
+        challengeId,
+        challengeUpdate,
+      );
+    } catch (e) {
+      console.error(`${client} Failed to update challenge: ${e}`);
+    }
   }
 
   private async handleGameStateUpdate(

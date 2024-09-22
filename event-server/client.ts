@@ -50,7 +50,7 @@ export default class Client {
   private sessionId: number;
   private socket: WebSocket;
   private messageHandler: MessageHandler;
-  private activeChallenge: Challenge | null;
+  private activeChallenge: string | null;
   private messageQueue: ServerMessage[];
   private isOpen: boolean;
 
@@ -168,15 +168,13 @@ export default class Client {
     return this.user.linkedPlayerId;
   }
 
-  public getActiveChallenge(): Challenge | null {
+  public getActiveChallenge(): string | null {
     return this.activeChallenge;
   }
 
-  public setActiveChallenge(challenge: Challenge | null): void {
-    console.log(
-      `${this}: active challenge set to ${challenge ? challenge.getId() : 'null'}`,
-    );
-    this.activeChallenge = challenge;
+  public setActiveChallenge(challengeId: string | null): void {
+    console.log(`${this}: active challenge set to ${challengeId ?? 'null'}`);
+    this.activeChallenge = challengeId;
   }
 
   public getLoggedInRsn(): string | null {
