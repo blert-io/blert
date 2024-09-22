@@ -121,3 +121,17 @@ export {
   type QueryableEventRow,
   QueryableEventField,
 } from './db/queryable-event';
+
+export {
+  CHALLENGE_UPDATES_PUBSUB_KEY,
+  type ChallengeServerUpdate,
+  ChallengeUpdateAction,
+  CLIENT_EVENTS_KEY,
+  type ClientEvent,
+  ClientEventType,
+  ClientStatus,
+  type ClientStatusEvent,
+  challengesKey,
+  clientChallengesKey,
+  partyKeyChallengeList,
+} from './db/redis';

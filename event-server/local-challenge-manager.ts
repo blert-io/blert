@@ -1,6 +1,7 @@
 import {
   ChallengeMode,
   ChallengeType,
+  ClientStatus,
   DataRepository,
   RecordingType,
   Stage,
@@ -19,7 +20,6 @@ import { Challenge, challengePartyKey } from './challenge';
 import ChallengeManager, {
   ChallengeInfo,
   ChallengeUpdate,
-  ClientStatus,
   RecordedTimes,
 } from './challenge-manager';
 import Client from './client';
@@ -177,7 +177,7 @@ export default class LocalChallengeManager extends ChallengeManager {
     challengeId: string,
     events: Event[],
   ): Promise<void> {
-    if (challengeId !== client.getActiveChallenge()?.getId()) {
+    if (challengeId !== client.getActiveChallenge()) {
       console.error(
         `${client} sent events for challenge ${challengeId}, but is not in it.`,
       );
@@ -213,7 +213,7 @@ export default class LocalChallengeManager extends ChallengeManager {
     client: Client,
     status: ClientStatus,
   ): void {
-    const challengeId = client.getActiveChallenge()?.getId() ?? null;
+    const challengeId = client.getActiveChallenge();
     if (challengeId === null) {
       return;
     }
@@ -442,13 +442,13 @@ class ChallengeStreamAggregator {
    * @param client The new client.
    */
   public addClient(client: Client, type: RecordingType): void {
-    if (client.getActiveChallenge() === this.challenge) {
+    if (client.getActiveChallenge() === this.challenge.getId()) {
       return;
     }
 
     if (client.getActiveChallenge() !== null) {
       console.error(
-        `${client} is already in challenge ${client.getActiveChallenge()!.getId()}`,
+        `${client} is already in challenge ${client.getActiveChallenge()}`,
       );
       return;
     }
@@ -458,7 +458,7 @@ class ChallengeStreamAggregator {
       return;
     }
 
-    client.setActiveChallenge(this.challenge);
+    client.setActiveChallenge(this.challenge.getId());
 
     const hasPrimaryClient = this.clients.some((c) => c.primary);
 

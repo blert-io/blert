@@ -2,8 +2,9 @@ import { S3Client } from '@aws-sdk/client-s3';
 import { DataRepository } from '@blert/common';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { readFile } from 'fs/promises';
 import express, { Request } from 'express';
+import { readFile } from 'fs/promises';
+import { RedisClientType, createClient } from 'redis';
 import { WebSocket, WebSocketServer } from 'ws';
 
 import ChallengeManager from './challenge-manager';
@@ -13,6 +14,7 @@ import LocalChallengeManager from './local-challenge-manager';
 import MessageHandler from './message-handler';
 import { PlayerManager } from './players';
 import ServerManager, { ServerStatus } from './server-manager';
+import { RemoteChallengeManager } from './remote-challenge-manager';
 
 type ShutdownRequest = {
   shutdownTime?: number;
@@ -95,6 +97,25 @@ function initializeDataRepository(envVar: string): DataRepository {
   return new DataRepository(repositoryBackend);
 }
 
+async function initializeRemoteChallengeManager(): Promise<ChallengeManager> {
+  if (!process.env.BLERT_CHALLENGE_SERVER_URI) {
+    throw new Error('BLERT_CHALLENGE_SERVER_URI is not set');
+  }
+  if (!process.env.BLERT_REDIS_URI) {
+    throw new Error('BLERT_REDIS_URI is not set');
+  }
+
+  const redisClient: RedisClientType = createClient({
+    url: process.env.BLERT_REDIS_URI,
+  });
+  await redisClient.connect();
+
+  return new RemoteChallengeManager(
+    process.env.BLERT_CHALLENGE_SERVER_URI,
+    redisClient,
+  );
+}
+
 async function main(): Promise<void> {
   dotenv.config({ path: ['.env.local', `.env.${process.env.NODE_ENV}`] });
 
@@ -167,11 +188,19 @@ async function main(): Promise<void> {
   const connectionManager = new ConnectionManager();
   const serverManager = new ServerManager(connectionManager);
   const playerManager = new PlayerManager();
-  const challengeManager = new LocalChallengeManager(
-    playerManager,
-    repository,
-    clientRepository,
-  );
+
+  let challengeManager: ChallengeManager;
+
+  if (false) {
+    challengeManager = new LocalChallengeManager(
+      playerManager,
+      repository,
+      clientRepository,
+    );
+  } else {
+    challengeManager = await initializeRemoteChallengeManager();
+  }
+
   const messageHandler = new MessageHandler(challengeManager, playerManager);
 
   serverManager.onStatusUpdate(messageHandler.handleServerStatusUpdate);

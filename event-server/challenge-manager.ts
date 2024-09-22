@@ -2,6 +2,7 @@ import {
   ChallengeMode,
   ChallengeStatus,
   ChallengeType,
+  ClientStatus,
   RecordingType,
   Stage,
 } from '@blert/common';
@@ -14,12 +15,6 @@ export type RecordedTimes = {
   challenge: number;
   overall: number;
 };
-
-export const enum ClientStatus {
-  ACTIVE,
-  IDLE,
-  DISCONNECTED,
-}
 
 export type ChallengeUpdate = {
   mode: ChallengeMode;
