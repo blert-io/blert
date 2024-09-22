@@ -275,7 +275,7 @@ const [
   shortName: 'Purple crab',
   canonicalId: NpcId.VERZIK_ATHANATOS_REGULAR,
   semanticId: false,
-  size: 2,
+  size: 3,
 });
 
 const [
