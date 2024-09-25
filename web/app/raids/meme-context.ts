@@ -10,11 +10,13 @@ import {
 export type BlertMemes = {
   inventoryTags: boolean;
   capsLock: boolean;
+  cursed: boolean;
 };
 
 export const DEFAULT_MEMES: BlertMemes = {
   inventoryTags: false,
   capsLock: false,
+  cursed: false,
 };
 
 export const MemeContext = createContext<BlertMemes>(DEFAULT_MEMES);
@@ -46,6 +48,7 @@ export function MemeContextUpdater({ setMemes }: MemeContextUpdaterProps) {
     let memes: BlertMemes = {
       inventoryTags: false,
       capsLock: thirteenCapsLockPresses,
+      cursed: Math.random() < 0.005,
     };
 
     for (const meme of memesToApply) {
@@ -53,6 +56,9 @@ export function MemeContextUpdater({ setMemes }: MemeContextUpdaterProps) {
         case 'invtags':
         case 'tags':
           memes.inventoryTags = true;
+          break;
+        case 'cursed':
+          memes.cursed = true;
           break;
       }
     }

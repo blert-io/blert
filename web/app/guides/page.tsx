@@ -32,7 +32,7 @@ export default function GuidesPage() {
             src="/logo_tob.webp"
             alt="Theatre of Blood"
             height={200}
-            width={300}
+            width={280}
             style={{ objectFit: 'contain' }}
           />
         </Link>
