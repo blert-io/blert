@@ -3,11 +3,17 @@
 :root {
   --topbar-height: 60px;
 
-  --blert-red: rgb(239, 68, 68);
-  --blert-blue: rgb(59, 130, 246);
-  --blert-green: rgb(45, 199, 112);
-  --blert-yellow: rgb(222, 200, 88);
-  --blert-text-color: rgb(195, 199, 201);
+  --blert-red-base: 239, 68, 68;
+  --blert-blue-base: 59, 130, 246;
+  --blert-green-base: 45, 199, 112;
+  --blert-yellow-base: 222, 200, 88;
+  --blert-text-color-base: 195, 199, 201;
+
+  --blert-red: rgb(var(--blert-red-base));
+  --blert-blue: rgb(var(--blert-blue-base));
+  --blert-green: rgb(var(--blert-green-base));
+  --blert-yellow: rgb(var(--blert-yellow-base));
+  --blert-text-color: rgb(var(--blert-text-color-base));
 
   --nav-bg: #171821;
   --nav-bg-darkened: #111118;

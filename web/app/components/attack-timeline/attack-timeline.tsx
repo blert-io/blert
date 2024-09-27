@@ -5,6 +5,8 @@ import {
   Npc,
   NpcAttack,
   PlayerAttack,
+  Skill,
+  SkillLevel,
   getNpcDefinition,
   npcFriendlyName,
 } from '@blert/common';
@@ -27,6 +29,7 @@ import {
   PlayerStateMap,
   RoomNpcMap,
 } from '@/utils/boss-room-state';
+import { BoostType, maxBoostedLevel } from '@/utils/combat';
 
 import styles from './style.module.scss';
 
@@ -168,11 +171,18 @@ function npcAttackImage(attack: NpcAttack, size: number) {
   );
 }
 
+const enum CombatStyle {
+  MELEE,
+  RANGED,
+  MAGIC,
+}
+
 type AttackMetadata = {
   tagColor: string | undefined;
   letter: string;
   ranged: boolean;
   special: boolean;
+  style: CombatStyle | null;
 };
 
 const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
@@ -181,486 +191,567 @@ const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     letter: 'BLD',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.AGS_SPEC]: {
     tagColor: 'yellow',
     letter: 'AGS',
     ranged: false,
     special: true,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.ATLATL_AUTO]: {
     tagColor: 'green',
     letter: 'atl',
     ranged: true,
     special: false,
+    style: CombatStyle.RANGED,
   },
   [PlayerAttack.ATLATL_SPEC]: {
     tagColor: 'green',
     letter: 'ATL',
     ranged: true,
     special: true,
+    style: CombatStyle.RANGED,
   },
   [PlayerAttack.BGS_SPEC]: {
     tagColor: 'yellow',
     letter: 'BGS',
     ranged: false,
     special: true,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.BLOWPIPE]: {
     tagColor: 'green',
     letter: 'BP',
     ranged: true,
     special: false,
+    style: CombatStyle.RANGED,
   },
   [PlayerAttack.BLOWPIPE_SPEC]: {
     tagColor: 'green',
     letter: 'BPs',
     ranged: true,
     special: true,
+    style: CombatStyle.RANGED,
   },
   [PlayerAttack.BOWFA]: {
     tagColor: 'green',
     letter: 'BFa',
     ranged: true,
     special: false,
+    style: CombatStyle.RANGED,
   },
   [PlayerAttack.BURNING_CLAW_SCRATCH]: {
     tagColor: 'red',
     letter: 'bc',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.BURNING_CLAW_SPEC]: {
     tagColor: 'red',
     letter: 'BC',
     ranged: false,
     special: true,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.CHALLY_SPEC]: {
     tagColor: 'yellow',
     letter: 'CH',
     ranged: false,
     special: true,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.CHALLY_SWIPE]: {
     tagColor: 'yellow',
     letter: 'ch',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.CHIN_BLACK]: {
     tagColor: 'green',
     letter: 'CCB',
     ranged: true,
     special: false,
+    style: CombatStyle.RANGED,
   },
   [PlayerAttack.CHIN_GREY]: {
     tagColor: 'green',
     letter: 'CCG',
     ranged: true,
     special: false,
+    style: CombatStyle.RANGED,
   },
   [PlayerAttack.CHIN_RED]: {
     tagColor: 'green',
     letter: 'CCR',
     ranged: true,
     special: false,
+    style: CombatStyle.RANGED,
   },
   [PlayerAttack.CLAW_SCRATCH]: {
     tagColor: 'red',
     letter: 'c',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.CLAW_SPEC]: {
     tagColor: 'red',
     letter: 'C',
     ranged: false,
     special: true,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.DAWN_AUTO]: {
     tagColor: 'yellow',
     letter: 'db',
     ranged: true,
     special: false,
+    style: CombatStyle.MAGIC,
   },
   [PlayerAttack.DAWN_SPEC]: {
     tagColor: 'yellow',
     letter: 'DB',
     ranged: true,
     special: true,
+    style: CombatStyle.MAGIC,
   },
   [PlayerAttack.DART]: {
     tagColor: 'green',
     letter: 'D',
     ranged: true,
     special: false,
+    style: CombatStyle.RANGED,
   },
   [PlayerAttack.DDS_POKE]: {
     tagColor: 'yellow',
     letter: 'dds',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.DDS_SPEC]: {
     tagColor: 'yellow',
     letter: 'DDS',
     ranged: false,
     special: true,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.DINHS_SPEC]: {
     tagColor: 'yellow',
     letter: 'BW',
     ranged: false,
     special: true,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.DUAL_MACUAHUITL]: {
     tagColor: 'red',
     letter: 'DMC',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.ELDER_MAUL]: {
     tagColor: 'red',
     letter: 'eld',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.ELDER_MAUL_SPEC]: {
     tagColor: 'red',
     letter: 'ELD',
     ranged: false,
     special: true,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.FANG_STAB]: {
     tagColor: 'red',
     letter: 'FNG',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.GOBLIN_PAINT_CANNON]: {
     tagColor: 'red',
     letter: 'GPC',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.GODSWORD_SMACK]: {
     tagColor: 'yellow',
     letter: 'gs',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.HAM_JOINT]: {
     tagColor: 'red',
     letter: 'HAM',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.HAMMER_BOP]: {
     tagColor: 'red',
     letter: 'h',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.HAMMER_SPEC]: {
     tagColor: 'red',
     letter: 'H',
     ranged: false,
     special: true,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.INQUISITORS_MACE]: {
     tagColor: 'red',
     letter: 'IM',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.KICK]: {
     tagColor: undefined,
     letter: 'k',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.KODAI_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
     ranged: true,
     special: false,
+    style: CombatStyle.MAGIC,
   },
   [PlayerAttack.KODAI_BASH]: {
     tagColor: 'blue',
     letter: 'kb',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.NM_STAFF_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
     ranged: true,
     special: false,
+    style: CombatStyle.MAGIC,
   },
   [PlayerAttack.NM_STAFF_BASH]: {
     tagColor: 'blue',
     letter: 'vnm',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.NOXIOUS_HALBERD]: {
     tagColor: 'red',
     letter: 'NH',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.PUNCH]: {
     tagColor: undefined,
     letter: 'p',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.RAPIER]: {
     tagColor: 'red',
     letter: 'R',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.SAELDOR]: {
     tagColor: 'red',
     letter: 'B',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.SANG]: {
     tagColor: 'blue',
     letter: 'T',
     ranged: true,
     special: false,
+    style: CombatStyle.MAGIC,
   },
   [PlayerAttack.SANG_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
     ranged: true,
     special: false,
+    style: CombatStyle.MAGIC,
   },
   [PlayerAttack.SCEPTRE_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
     ranged: true,
     special: false,
+    style: CombatStyle.MAGIC,
   },
   [PlayerAttack.SCYTHE]: {
     tagColor: 'red',
     letter: 'S',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.SCYTHE_UNCHARGED]: {
     tagColor: 'red',
     letter: 's',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.SGS_SPEC]: {
     tagColor: 'yellow',
     letter: 'SGS',
     ranged: false,
     special: true,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.SHADOW]: {
     tagColor: 'blue',
     letter: 'Sh',
     ranged: true,
     special: false,
+    style: CombatStyle.MAGIC,
   },
   [PlayerAttack.SHADOW_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
     ranged: true,
     special: false,
+    style: CombatStyle.MAGIC,
   },
   [PlayerAttack.SOTD_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
     ranged: true,
     special: false,
+    style: CombatStyle.MAGIC,
   },
   [PlayerAttack.SOULREAPER_AXE]: {
     tagColor: 'red',
     letter: 'AXE',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.STAFF_OF_LIGHT_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
     ranged: true,
     special: false,
+    style: CombatStyle.MAGIC,
   },
   [PlayerAttack.STAFF_OF_LIGHT_SWIPE]: {
     tagColor: 'blue',
     letter: 'SOL',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.SWIFT_BLADE]: {
     tagColor: 'red',
     letter: 'SB',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.TENT_WHIP]: {
     tagColor: 'red',
     letter: 'TW',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.TOXIC_TRIDENT]: {
     tagColor: 'blue',
     letter: 'T',
     ranged: true,
     special: false,
+    style: CombatStyle.MAGIC,
   },
   [PlayerAttack.TOXIC_TRIDENT_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
     ranged: true,
     special: false,
+    style: CombatStyle.MAGIC,
   },
   [PlayerAttack.TOXIC_STAFF_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
     ranged: true,
     special: false,
+    style: CombatStyle.MAGIC,
   },
   [PlayerAttack.TOXIC_STAFF_SWIPE]: {
     tagColor: 'blue',
     letter: 'TS',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.TRIDENT]: {
     tagColor: 'blue',
     letter: 'T',
     ranged: true,
     special: false,
+    style: CombatStyle.MAGIC,
   },
   [PlayerAttack.TRIDENT_BARRAGE]: {
     tagColor: 'blue',
     letter: 'F',
     ranged: true,
     special: false,
+    style: CombatStyle.MAGIC,
   },
   [PlayerAttack.TONALZTICS_AUTO]: {
     tagColor: 'yellow',
     letter: 'ga',
     ranged: true,
     special: false,
+    style: CombatStyle.RANGED,
   },
   [PlayerAttack.TONALZTICS_SPEC]: {
     tagColor: 'yellow',
     letter: 'G',
     ranged: true,
     special: true,
+    style: CombatStyle.RANGED,
   },
   [PlayerAttack.TONALZTICS_UNCHARGED]: {
     tagColor: 'yellow',
     letter: 'g',
     ranged: true,
     special: true,
+    style: CombatStyle.RANGED,
   },
   [PlayerAttack.TWISTED_BOW]: {
     tagColor: 'green',
     letter: 'TB',
     ranged: true,
     special: false,
+    style: CombatStyle.RANGED,
   },
   [PlayerAttack.VENATOR_BOW]: {
     tagColor: 'green',
     letter: 'VB',
     ranged: true,
     special: false,
+    style: CombatStyle.RANGED,
   },
   [PlayerAttack.VOIDWAKER_AUTO]: {
     tagColor: 'yellow',
     letter: 'vw',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.VOIDWAKER_SPEC]: {
     tagColor: 'yellow',
     letter: 'VW',
     ranged: false,
     special: true,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.VOLATILE_NM_SPEC]: {
     tagColor: 'blue',
     letter: 'VNM',
     ranged: true,
     special: true,
+    style: CombatStyle.MAGIC,
   },
   [PlayerAttack.WEBWEAVER_AUTO]: {
     tagColor: 'green',
     letter: 'ww',
     ranged: true,
     special: false,
+    style: CombatStyle.RANGED,
   },
   [PlayerAttack.WEBWEAVER_SPEC]: {
     tagColor: 'green',
     letter: 'WW',
     ranged: true,
     special: true,
+    style: CombatStyle.RANGED,
   },
   [PlayerAttack.XGS_SPEC]: {
     tagColor: 'yellow',
     letter: 'XGS',
     ranged: false,
     special: true,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.ZCB_AUTO]: {
     tagColor: 'green',
     letter: 'zcb',
     ranged: true,
     special: false,
+    style: CombatStyle.RANGED,
   },
   [PlayerAttack.ZCB_SPEC]: {
     tagColor: 'green',
     letter: 'ZCB',
     ranged: true,
     special: true,
+    style: CombatStyle.RANGED,
   },
   [PlayerAttack.ZGS_SPEC]: {
     tagColor: 'yellow',
     letter: 'ZGS',
     ranged: false,
     special: true,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.ZOMBIE_AXE]: {
     tagColor: 'red',
     letter: 'ZMB',
     ranged: false,
     special: false,
+    style: CombatStyle.MELEE,
   },
   [PlayerAttack.UNKNOWN_BARRAGE]: {
     tagColor: undefined,
     letter: 'F',
     ranged: true,
     special: false,
+    style: CombatStyle.MAGIC,
   },
   [PlayerAttack.UNKNOWN_BOW]: {
     tagColor: 'green',
     letter: 'UNK',
     ranged: true,
     special: false,
+    style: CombatStyle.RANGED,
   },
   [PlayerAttack.UNKNOWN_POWERED_STAFF]: {
     tagColor: 'blue',
     letter: 'UNK',
     ranged: true,
     special: false,
+    style: CombatStyle.MAGIC,
   },
   [PlayerAttack.UNKNOWN]: {
     tagColor: undefined,
     letter: 'UNK',
     ranged: false,
     special: false,
+    style: null,
   },
 };
 
@@ -1170,7 +1261,9 @@ const buildTickCell = (
       }
 
       tooltipId = `player-${tooltipUsername}-attack-${playerState.tick}`;
-      const ranged = ATTACK_METADATA[attack.type]?.ranged ?? false;
+
+      const meta =
+        ATTACK_METADATA[attack.type] ?? ATTACK_METADATA[PlayerAttack.UNKNOWN];
       const distance = attack.distanceToTarget;
 
       tooltip = (
@@ -1189,12 +1282,47 @@ const buildTickCell = (
                 </span>
               )}
             </button>
-            {ranged && (
+            {meta.ranged && (
               <span>{`from ${distance} tile${distance === 1 ? '' : 's'} away`}</span>
             )}
           </div>
         </Tooltip>
       );
+
+      let combatSkill: SkillLevel | undefined = undefined;
+      let boostType: BoostType;
+
+      switch (meta.style) {
+        case CombatStyle.MELEE:
+          combatSkill = playerState.skills[Skill.STRENGTH];
+          boostType = BoostType.SUPER_COMBAT;
+          break;
+        case CombatStyle.RANGED:
+          combatSkill = playerState.skills[Skill.RANGED];
+          boostType = BoostType.RANGING_POTION;
+          break;
+        case CombatStyle.MAGIC:
+          combatSkill = playerState.skills[Skill.MAGIC];
+          boostType = BoostType.SATURATED_HEART;
+          break;
+        default:
+          break;
+      }
+
+      if (combatSkill !== undefined) {
+        if (
+          combatSkill.getCurrent() ===
+          maxBoostedLevel(boostType!, combatSkill.getBase())
+        ) {
+          style.outline = '1px solid rgba(var(--blert-green-base), 0.25)';
+        } else if (combatSkill.getCurrent() > combatSkill.getBase()) {
+          style.outline = '1px solid rgba(var(--blert-yellow-base), 0.5)';
+        } else {
+          style.outline = '1px solid rgba(var(--blert-red-base), 0.5)';
+        }
+      } else {
+        style.outline = '1px solid rgba(var(--blert-text-color-base), 0.2)';
+      }
     } else if (diedThisTick) {
       tooltipId = `player-${tooltipUsername}-death`;
 
