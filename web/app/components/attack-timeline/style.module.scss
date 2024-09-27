@@ -225,20 +225,29 @@
   }
 }
 
+.tooltip {
+  font-size: 0.9rem;
+
+  button {
+    font-size: 0.9rem;
+    color: rgba(var(--blert-blue-base), 0.9);
+    margin-bottom: 1px;
+
+    &.npc {
+      color: rgba(var(--blert-red-base), 0.9);
+    }
+
+    &:hover {
+      text-decoration: underline;
+      cursor: pointer;
+    }
+  }
+}
+
 .npcTooltip {
   max-width: 240px;
   text-align: center;
   padding: 0 10px 4px 10px;
-
-  button {
-    color: var(--blert-blue);
-    padding: 0 5px;
-
-    &:hover {
-      opacity: 0.8;
-      cursor: pointer;
-    }
-  }
 
   .npcAttack {
     margin-left: 4px;
@@ -246,21 +255,33 @@
 }
 
 .playerTooltip {
-  button {
-    color: var(--blert-blue);
-    margin-bottom: 1px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 0.9rem;
 
-    &:hover {
-      opacity: 0.8;
-      cursor: pointer;
+  .message {
+    .hitpoints {
+      margin-left: 8px;
+      text-decoration: none;
+
+      i {
+        margin-right: 2px;
+      }
     }
   }
 
-  .hitpoints {
-    margin-left: 8px;
-    i {
-      margin-right: 2px;
-    }
+  .divider {
+    width: 90%;
+    height: 1px;
+    background-color: var(--panel-bg);
+    margin: 0.8em 0;
+  }
+
+  .stats {
+    display: flex;
+    justify-content: space-between;
+    width: 100px;
   }
 }
 
