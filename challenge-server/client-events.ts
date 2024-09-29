@@ -1,9 +1,12 @@
 import {
+  ClientStageStream,
   DataSource,
   EquipmentSlot,
   ItemDelta,
   Stage,
   StageStatus,
+  StageStreamEnd,
+  StageStreamType,
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
@@ -24,6 +27,43 @@ export class ClientEvents {
   private readonly stageInfo: StageInfo;
   private readonly tickState: TickState[];
   private readonly primaryPlayer: string | null;
+
+  public static fromClientStream(
+    clientId: number,
+    challenge: ChallengeInfo,
+    stage: Stage,
+    events: ClientStageStream[],
+  ): ClientEvents {
+    const stageInfo: StageInfo = {
+      stage,
+      status: StageStatus.STARTED,
+      accurate: false,
+      recordedTicks: 0,
+      serverTicks: null,
+    };
+
+    for (const event of events) {
+      if (event.type === StageStreamType.STAGE_END) {
+        const update = (event as StageStreamEnd).update;
+        stageInfo.status = update.status;
+        stageInfo.accurate = update.accurate;
+        stageInfo.recordedTicks = update.recordedTicks;
+        // TODO(frolv): Do something about server tick precision.
+        stageInfo.serverTicks = update.serverTicks?.count ?? null;
+      }
+    }
+
+    const tickState = Array(stageInfo.recordedTicks + 1).fill(null);
+    const primaryPlayer = null;
+
+    return new ClientEvents(
+      clientId,
+      challenge,
+      stageInfo,
+      tickState,
+      primaryPlayer,
+    );
+  }
 
   public static fromRawEvents(
     clientId: number,
@@ -180,7 +220,8 @@ export class ClientEvents {
 
     for (let tick = 0; tick <= this.stageInfo.recordedTicks; tick++) {
       for (const player of this.challenge.party) {
-        const playerState = this.tickState[tick].getPlayerState(player);
+        const playerState =
+          this.tickState[tick]?.getPlayerState(player) ?? null;
         if (playerState === null) {
           continue;
         }

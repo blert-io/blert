@@ -7,12 +7,15 @@ import {
   StageStatus,
 } from '@blert/common';
 
-import ChallengeProcessor, { InitializedFields } from './challenge-processor';
+import ChallengeProcessor, {
+  type ChallengeState,
+  InitializedFields,
+  type ReportedTimes,
+} from './challenge-processor';
 import ColosseumProcessor from './colosseum';
-import sql from '../db';
 import TheatreProcessor from './theatre';
 
-export { ChallengeProcessor };
+export { ChallengeProcessor, ChallengeState, ReportedTimes };
 
 export function newChallengeProcessor(
   dataRepository: DataRepository,
@@ -58,36 +61,30 @@ export function newChallengeProcessor(
 
 export async function loadChallengeProcessor(
   dataRepository: DataRepository,
-  uuid: string,
-  challengeStatus: ChallengeStatus = ChallengeStatus.IN_PROGRESS,
-  stageStatus: StageStatus = StageStatus.ENTERED,
-): Promise<ChallengeProcessor | null> {
-  const [challenge] = await sql`SELECT * FROM challenges WHERE uuid = ${uuid}`;
-  if (!challenge) {
-    return null;
-  }
+  state: ChallengeState,
+): Promise<ChallengeProcessor> {
+  const reportedTimes =
+    state.reportedChallengeTicks !== null && state.reportedOverallTicks !== null
+      ? {
+          challenge: state.reportedChallengeTicks,
+          overall: state.reportedOverallTicks,
+        }
+      : null;
 
-  const players = await sql`
-      SELECT player_id, username
-      FROM challenge_players
-      WHERE challenge_id = ${challenge.id}
-      ORDER BY orb ASC
-    `;
-
-  const party = players.map((player) => player.username);
   return newChallengeProcessor(
     dataRepository,
-    challenge.uuid,
-    challenge.type,
-    challenge.mode,
-    challenge.stage,
-    stageStatus,
-    party,
+    state.uuid,
+    state.type,
+    state.mode,
+    state.stage,
+    state.stageStatus,
+    state.party,
     {
-      databaseId: challenge.id,
-      challengeStatus,
-      playerIds: players.map((player) => player.player_id),
-      totalChallengeTicks: challenge.challenge_ticks,
+      totalDeaths: state.totalDeaths,
+      challengeStatus: state.status,
+      totalChallengeTicks: state.challengeTicks,
+      customData: state.customData,
+      reportedTimes,
     },
   );
 }

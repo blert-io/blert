@@ -9,7 +9,9 @@ import {
 import { ChallengeEvents } from '@blert/common/generated/challenge_storage_pb';
 import { Application, Request, Response } from 'express';
 
+import { ChallengeUpdate, StageUpdate } from './challenge-store';
 import { ClientEvents, StageInfo } from './client-events';
+import { ReportedTimes } from './event-processing';
 import logger from './log';
 import sql from './db';
 import { ChallengeInfo, Merger } from './merge';
@@ -20,6 +22,7 @@ export function registerApiRoutes(app: Application): void {
   });
 
   app.post('/challenges/new', newChallenge);
+  app.post('/challenges/:challengeId', updateChallenge);
   app.post('/challenges/:challengeId/finish', finishChallenge);
   app.post('/test/:challengeId', mergeTestEvents);
 }
@@ -43,6 +46,7 @@ async function newChallenge(req: Request, res: Response): Promise<void> {
       request.mode,
       request.stage,
       request.party,
+      request.recordingType,
     );
     res.json({ challengeId });
   } catch (e) {
@@ -51,9 +55,32 @@ async function newChallenge(req: Request, res: Response): Promise<void> {
   }
 }
 
+type UpdateChallengeRequest = {
+  userId: number;
+  update: ChallengeUpdate;
+};
+
+async function updateChallenge(req: Request, res: Response): Promise<void> {
+  try {
+    const challengeId = req.params.challengeId;
+    const request = req.body as UpdateChallengeRequest;
+
+    const ok = await res.locals.challengeStore.update(
+      challengeId,
+      request.userId,
+      request.update,
+    );
+    const status = ok ? 200 : 409;
+    res.status(status).send();
+  } catch (e) {
+    logger.error(`Failed to update challenge: ${e}`);
+    res.status(500).send();
+  }
+}
+
 type FinishChallengeRequest = {
   userId: number;
-  // times: RecordedTimes | null;
+  times: ReportedTimes | null;
 };
 
 async function finishChallenge(req: Request, res: Response): Promise<void> {
@@ -61,7 +88,11 @@ async function finishChallenge(req: Request, res: Response): Promise<void> {
   const request = req.body as FinishChallengeRequest;
 
   try {
-    await res.locals.challengeStore.finish(challengeId, request.userId);
+    await res.locals.challengeStore.finish(
+      challengeId,
+      request.userId,
+      request.times,
+    );
     res.status(200).send();
   } catch (e) {
     logger.error(`Failed to finish challenge: ${e}`);
@@ -170,11 +201,7 @@ async function mergeTestEvents(req: Request, res: Response): Promise<void> {
   for (const [stageStr, streams] of streamsByStage) {
     const stage = Number.parseInt(stageStr) as Stage;
 
-    const merger = new Merger(
-      challengeInfo as ChallengeInfo,
-      stage,
-      Array.from(streams.values()),
-    );
+    const merger = new Merger(stage, Array.from(streams.values()));
 
     const result = merger.merge();
     if (result !== null) {
@@ -192,7 +219,7 @@ async function mergeTestEvents(req: Request, res: Response): Promise<void> {
         stage,
         deaths: [],
         npcs: [],
-        ticksLost: result.events.missingTicks(),
+        ticksLost: result.events.getMissingTickCount(),
         ...additionalFields,
       });
 

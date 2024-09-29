@@ -127,7 +127,7 @@ describe('Merger', () => {
   };
 
   it('fails when there are no clients to merge', () => {
-    const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, []);
+    const merger = new Merger(Stage.TOB_MAIDEN, []);
     expect(merger.merge()).toBeNull();
   });
 
@@ -144,7 +144,7 @@ describe('Merger', () => {
       },
       client1Events,
     );
-    const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [client1]);
+    const merger = new Merger(Stage.TOB_MAIDEN, [client1]);
     const result = merger.merge();
 
     expect(result).not.toBeNull();
@@ -152,7 +152,8 @@ describe('Merger', () => {
     expect(result!.unmergedClients).toEqual([]);
 
     const events = result!.events;
-    expect(events.missingTicks()).toBe(0);
+    expect(events.isAccurate()).toBe(false);
+    expect(events.getMissingTickCount()).toBe(0);
     const allEvents = Array.from(events);
     expect(allEvents.length).toBe(4);
 
@@ -174,7 +175,7 @@ describe('Merger', () => {
       },
       client1Events,
     );
-    const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [client1]);
+    const merger = new Merger(Stage.TOB_MAIDEN, [client1]);
     const result = merger.merge();
 
     expect(result).not.toBeNull();
@@ -182,7 +183,8 @@ describe('Merger', () => {
     expect(result!.unmergedClients).toEqual([]);
 
     const events = result!.events;
-    expect(events.missingTicks()).toBe(0);
+    expect(events.isAccurate()).toBe(true);
+    expect(events.getMissingTickCount()).toBe(0);
     const allEvents = Array.from(events);
     expect(allEvents.length).toBe(4);
 
@@ -206,7 +208,7 @@ describe('Merger', () => {
       },
       client1Events,
     );
-    const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [client1]);
+    const merger = new Merger(Stage.TOB_MAIDEN, [client1]);
     const result = merger.merge();
 
     expect(result).not.toBeNull();
@@ -214,7 +216,8 @@ describe('Merger', () => {
     expect(result!.unmergedClients).toEqual([]);
 
     const events = result!.events;
-    expect(events.missingTicks()).toBe(MISSING_TICKS);
+    expect(events.isAccurate()).toBe(false);
+    expect(events.getMissingTickCount()).toBe(MISSING_TICKS);
     const allEvents = Array.from(events);
     expect(allEvents.length).toBe(4);
 

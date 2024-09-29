@@ -1,4 +1,4 @@
-import { ChallengeType } from '../challenge';
+import { ChallengeType, Stage, StageStatus } from '../challenge';
 
 function challengePartyKey(type: ChallengeType, partyMembers: string[]) {
   const party = partyMembers
@@ -73,3 +73,68 @@ export type ClientStatusEvent = ClientEvent & {
   type: ClientEventType.STATUS;
   status: ClientStatus;
 };
+
+export type StageUpdate = {
+  stage: Stage;
+  status: StageStatus;
+  accurate: boolean;
+  recordedTicks: number;
+  serverTicks: {
+    count: number;
+    precise: boolean;
+  } | null;
+};
+
+export enum StageStreamType {
+  STAGE_EVENTS,
+  STAGE_END,
+}
+
+export interface ClientStageStream {
+  type: StageStreamType;
+  clientId: number;
+}
+
+export interface StageStreamEnd extends ClientStageStream {
+  type: StageStreamType.STAGE_END;
+  update: StageUpdate;
+}
+
+export function challengeStageStreamKey(uuid: string, stage: Stage) {
+  return `challenge-events:${uuid}:${stage}`;
+}
+
+export function stageStreamToRecord(
+  event: ClientStageStream,
+): Record<string, string> {
+  const evt: Record<string, string> = {
+    type: event.type.toString(),
+    clientId: event.clientId.toString(),
+  };
+
+  switch (event.type) {
+    case StageStreamType.STAGE_END:
+      evt.update = JSON.stringify((event as StageStreamEnd).update);
+      break;
+  }
+
+  return evt;
+}
+
+export function stageStreamFromRecord(
+  event: Record<string, string>,
+): ClientStageStream {
+  const type = Number.parseInt(event.type) as StageStreamType;
+  const clientId = Number.parseInt(event.clientId);
+
+  switch (type) {
+    case StageStreamType.STAGE_END:
+      return {
+        type,
+        clientId,
+        update: JSON.parse(event.update),
+      } as StageStreamEnd;
+    default:
+      return { type, clientId };
+  }
+}
