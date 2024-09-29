@@ -16,54 +16,112 @@ import {
   ClientEventType,
   ClientStatusEvent,
   ClientStatus,
+  RecordingType,
+  challengeStageStreamKey,
+  stageStreamFromRecord,
+  ClientStageStream,
 } from '@blert/common';
 import { RedisClientType, WatchError } from 'redis';
 import { v4 as uuidv4 } from 'uuid';
 
+import { ClientEvents } from './client-events';
+import sql from './db';
 import {
+  ChallengeProcessor,
+  ChallengeState,
+  ReportedTimes,
   loadChallengeProcessor,
   newChallengeProcessor,
 } from './event-processing';
 import logger from './log';
+import { Merger } from './merge';
 
-type ChallengeState = {
-  id: string;
-  type: ChallengeType;
-  mode: ChallengeMode;
-  stage: Stage;
-  status: ChallengeStatus;
-  stageStatus: StageStatus;
-  party: string[];
-  totalStageTicks: number;
+type ExtendedChallengeState = ChallengeState & {
   active: boolean;
   connectedClients: number;
   activeClients: number;
 };
 
-type RedisChallengeState<T = string> = Record<keyof ChallengeState, string | T>;
+type RedisChallengeState = Record<keyof ExtendedChallengeState, string>;
 
-function toRedis(state: ChallengeState): RedisChallengeState<number> {
-  return {
-    ...state,
-    active: state.active ? '1' : '0',
-    party: state.party.join(','),
-  };
+/** A client connected to an active challenge. */
+type ChallengeClient = {
+  userId: number;
+  type: RecordingType;
+  active: boolean;
+  stage: Stage;
+  stageStatus: StageStatus;
+};
+
+function toRedis(state: ExtendedChallengeState): Partial<RedisChallengeState> {
+  let result: Partial<RedisChallengeState> = {};
+
+  for (const key in state) {
+    const k = key as keyof ChallengeState;
+    const value = state[k];
+    if (value === null) {
+      continue;
+    }
+
+    if (Array.isArray(value)) {
+      result[k] = value.join(',');
+    } else if (typeof value === 'object') {
+      result[k] = JSON.stringify(value);
+    } else if (typeof value === 'boolean') {
+      result[k] = value ? '1' : '0';
+    } else {
+      result[k] = value.toString();
+    }
+  }
+
+  return result;
 }
 
-function fromRedis(state: RedisChallengeState): ChallengeState {
+function fromRedis(state: RedisChallengeState): ExtendedChallengeState {
   return {
-    id: state.id,
+    uuid: state.uuid,
     type: Number.parseInt(state.type) as ChallengeType,
     mode: Number.parseInt(state.mode) as ChallengeMode,
     stage: Number.parseInt(state.stage) as Stage,
     status: Number.parseInt(state.status) as ChallengeStatus,
     stageStatus: Number.parseInt(state.stageStatus) as StageStatus,
     party: state.party.split(','),
-    totalStageTicks: Number.parseInt(state.totalStageTicks),
+    totalDeaths: Number.parseInt(state.totalDeaths),
+    challengeTicks: Number.parseInt(state.challengeTicks),
     active: state.active === '1',
+    reportedChallengeTicks: state.reportedChallengeTicks
+      ? Number.parseInt(state.reportedChallengeTicks)
+      : null,
+    reportedOverallTicks: state.reportedOverallTicks
+      ? Number.parseInt(state.reportedOverallTicks)
+      : null,
     connectedClients: Number.parseInt(state.connectedClients),
     activeClients: Number.parseInt(state.activeClients),
+    customData: state.customData ? JSON.parse(state.customData) : null,
   };
+}
+
+export type SimpleStageUpdate = {
+  stage: Stage;
+  status: StageStatus;
+};
+
+export type StageUpdate = SimpleStageUpdate & {
+  accurate: boolean;
+  recordedTicks: number;
+  serverTicks: {
+    count: number;
+    precise: boolean;
+  } | null;
+};
+
+export type ChallengeUpdate = {
+  mode: ChallengeMode;
+  stage?: SimpleStageUpdate;
+};
+
+function challengeClientsKey(challengeId: string): string {
+  return `challenge:${challengeId}:clients`;
 }
 
 export default class ChallengeStore {
@@ -116,11 +174,12 @@ export default class ChallengeStore {
     mode: ChallengeMode,
     stage: Stage,
     party: string[],
+    recordingType: RecordingType,
   ): Promise<string> {
     const partyMembers = party.join(',');
     const partyKeyList = partyKeyChallengeList(type, party);
 
-    let challengeId: string = '';
+    let processor: ChallengeProcessor | null = null;
 
     // Requests from multiple clients in the same party may arrive around the
     // same time, so we need to ensure that only one challenge is created for
@@ -129,6 +188,7 @@ export default class ChallengeStore {
       await client.watch(partyKeyList);
       const multi = client.multi();
 
+      let challengeId = '';
       let createNewChallenge = false;
 
       const lastChallengeForParty = await client.lIndex(partyKeyList, -1);
@@ -169,9 +229,11 @@ export default class ChallengeStore {
             logger.info(
               `User ${userId} joining existing challenge for ${partyMembers}`,
             );
+
             multi.hIncrBy(key, 'connectedClients', 1);
             multi.hIncrBy(key, 'activeClients', 1);
             multi.set(clientChallengesKey(userId), lastChallengeForParty);
+
             challengeId = lastChallengeForParty;
           }
         }
@@ -187,25 +249,9 @@ export default class ChallengeStore {
         const startTime = new Date();
 
         multi.rPush(partyKeyList, challengeId);
-        multi.hSet(
-          challengesKey(challengeId),
-          toRedis({
-            id: challengeId,
-            type,
-            mode,
-            stage,
-            status: ChallengeStatus.IN_PROGRESS,
-            stageStatus: StageStatus.ENTERED,
-            party,
-            totalStageTicks: 0,
-            active: true,
-            connectedClients: 1,
-            activeClients: 1,
-          }),
-        );
         multi.set(clientChallengesKey(userId), challengeId);
 
-        const challenge = newChallengeProcessor(
+        processor = newChallengeProcessor(
           this.challengeDataRepository,
           challengeId,
           type,
@@ -214,13 +260,61 @@ export default class ChallengeStore {
           StageStatus.ENTERED,
           party,
         );
-        await challenge.createNew(startTime);
+
+        multi.hSet(
+          challengesKey(challengeId),
+          toRedis({
+            ...processor.getState(),
+            active: true,
+            connectedClients: 1,
+            activeClients: 1,
+          }),
+        );
+
+        await processor.createNew(startTime);
+      } else {
+        const challenge = await this.loadChallenge(challengeId, client);
+        processor = await loadChallengeProcessor(
+          this.challengeDataRepository,
+          challenge!,
+        );
       }
+
+      const challengeClient: ChallengeClient = {
+        userId,
+        type: recordingType,
+        active: true,
+        stage,
+        stageStatus: StageStatus.ENTERED,
+      };
+
+      multi.hSet(
+        challengeClientsKey(challengeId),
+        userId,
+        JSON.stringify(challengeClient),
+      );
 
       return multi.exec();
     });
 
-    return challengeId;
+    if (processor === null) {
+      // This should never happen as processor is set in every branch, but log
+      // some basic debugging information just in case.
+      logger.error(
+        'Failed to start challenge for user %d: type=%d, stage=%d, party=%s',
+        userId,
+        type,
+        stage,
+        party.join(','),
+      );
+      throw new Error('Failed to start challenge');
+    }
+
+    // @ts-ignore: `processor` is set within the transaction callback.
+    const p: ChallengeProcessor = processor;
+
+    p.addRecorder(userId, recordingType);
+    return p.getUuid();
   }
 
   /**
@@ -228,7 +322,11 @@ export default class ChallengeStore {
    * @param challengeId The challenge ID.
    * @param userId ID of the challenge client.
    */
-  public async finish(challengeId: string, userId: number): Promise<void> {
+  public async finish(
+    challengeId: string,
+    userId: number,
+    reportedTimes: ReportedTimes | null = null,
+  ): Promise<void> {
     const currentChallenge = await this.client.get(clientChallengesKey(userId));
     if (currentChallenge !== challengeId) {
       logger.warn(
@@ -274,12 +372,156 @@ export default class ChallengeStore {
       multi.hIncrBy(challengeKey, 'activeClients', -1);
       multi.hIncrBy(challengeKey, 'connectedClients', -1);
 
+      // TODO(frolv): Collect and cross-check reported times from all clients.
+      if (reportedTimes !== null) {
+        multi.hSet(
+          challengeKey,
+          'reportedChallengeTicks',
+          reportedTimes.challenge,
+        );
+        multi.hSet(challengeKey, 'reportedOverallTicks', reportedTimes.overall);
+      }
+
       return multi.exec();
     });
 
     if (allClientsFinished) {
       await this.cleanupChallenge(challengeId, null);
     }
+  }
+
+  public async update(
+    challengeId: string,
+    userId: number,
+    update: ChallengeUpdate,
+  ): Promise<boolean> {
+    const currentChallenge = await this.client.get(clientChallengesKey(userId));
+    if (currentChallenge !== challengeId) {
+      if (currentChallenge === null) {
+        logger.warn(
+          `User ${userId} attempted to update challenge ${challengeId} ` +
+            'but is not currently in a challenge',
+        );
+      } else {
+        logger.warn(
+          `User ${userId} attempted to update challenge ${challengeId} ` +
+            `but is currently in challenge ${currentChallenge}`,
+        );
+      }
+      return false;
+    }
+
+    const challenge = await this.loadChallenge(challengeId);
+    if (challenge === null) {
+      logger.warn(
+        `Player ${userId} attempted to update non-existent challenge`,
+      );
+      return false;
+    }
+
+    const processor = await loadChallengeProcessor(
+      this.challengeDataRepository,
+      challenge,
+    );
+    if (processor === null) {
+      logger.warn(
+        `Player ${userId} attempted to update non-existent challenge`,
+      );
+      return false;
+    }
+
+    if (update.mode !== ChallengeMode.NO_MODE) {
+      processor.setMode(update.mode);
+    }
+
+    if (update.stage !== undefined) {
+      const stageUpdate = update.stage;
+      if (stageUpdate.stage < challenge.stage) {
+        logger.warn(
+          `User ${userId} attempted to update challenge ${challengeId} ` +
+            `to stage ${stageUpdate.stage}, but it is at later stage ` +
+            `${challenge.stage}`,
+        );
+        return false;
+      }
+
+      let finishStage: Stage | null = null;
+
+      await this.watchTransaction(async (client) => {
+        client.watch(challengeClientsKey(challengeId));
+        const multi = client.multi();
+
+        const clients = await this.loadChallengeClients(challengeId, client);
+
+        const us = clients.find((c) => c.userId === userId);
+        if (us === undefined) {
+          logger.warn(
+            `User ${userId} attempted to update challenge ${challengeId} ` +
+              'but is not currently in the challenge',
+          );
+          return multi.exec();
+        }
+
+        us.stage = stageUpdate.stage;
+        us.stageStatus = stageUpdate.status;
+        us.active = true;
+
+        const isFinished = (s: StageStatus) =>
+          s === StageStatus.COMPLETED || s === StageStatus.WIPED;
+
+        if (isFinished(stageUpdate.status)) {
+          // The client has finished the stage. If all clients have finished,
+          // the challenge stage can be finalized. Otherwise, wait for other
+          // clients to complete the stage up to a maximum deadline.
+
+          const numFinishedClients = clients.reduce(
+            (acc, c) =>
+              c.stage > challenge.stage || isFinished(c.stageStatus)
+                ? acc + 1
+                : acc,
+            0,
+          );
+
+          logger.debug(
+            `${challengeId}: client ${userId} finished stage ${stageUpdate.stage} ` +
+              `[${numFinishedClients}/${clients.length}]`,
+          );
+
+          if (numFinishedClients === clients.length) {
+            finishStage = stageUpdate.stage;
+          } else if (us.type === RecordingType.PARTICIPANT) {
+            // TODO(frolv): Start a timeout to allow other clients to finish the
+            // stage, after which the stage will forcefully complete.
+          }
+        } else {
+          // Entering a new stage.
+          processor.setStage(stageUpdate.stage);
+        }
+
+        multi.hSet(
+          challengeClientsKey(challengeId),
+          userId,
+          JSON.stringify(us),
+        );
+
+        return multi.exec();
+      });
+
+      if (finishStage !== null) {
+        setTimeout(
+          () => this.loadAndCompleteChallengeStage(challengeId, finishStage!),
+          0,
+        );
+      }
+    }
+
+    const updates = await processor.finalizeUpdates();
+    await this.client.hSet(
+      challengesKey(challengeId),
+      toRedis({ ...challenge, ...updates }),
+    );
+
+    return true;
   }
 
   private async processEvents() {
@@ -338,6 +580,7 @@ export default class ChallengeStore {
 
       multi.hIncrBy(challenge, 'connectedClients', -1);
       multi.hIncrBy(challenge, 'activeClients', -1);
+      multi.hDel(challengeClientsKey(challengeId), id.toString());
 
       if (connected === '1') {
         const timeout: ChallengeTimeout = {
@@ -370,6 +613,89 @@ export default class ChallengeStore {
     challengeId: string,
   ): Promise<void> {
     const challenge = challengesKey(challengeId);
+  }
+
+  private async loadAndCompleteChallengeStage(
+    challengeId: string,
+    stage: Stage,
+  ): Promise<void> {
+    const streamKey = challengeStageStreamKey(challengeId, stage);
+
+    const challenge = await this.loadChallenge(challengeId);
+    if (challenge === null) {
+      await this.client.del(streamKey);
+      return;
+    }
+
+    const processor = await loadChallengeProcessor(
+      this.challengeDataRepository,
+      challenge,
+    );
+    if (processor === null) {
+      await this.client.del(streamKey);
+      return;
+    }
+
+    return this.completeChallengeStage(challenge, processor, stage);
+  }
+
+  private async completeChallengeStage(
+    challenge: ExtendedChallengeState,
+    processor: ChallengeProcessor,
+    stage: Stage,
+  ): Promise<void> {
+    const stageEvents = await this.client
+      .xRange(challengeStageStreamKey(challenge.uuid, stage), '-', '+')
+      .then((res) => res.map((s) => stageStreamFromRecord(s.message)));
+
+    if (stageEvents.length === 0) {
+      await this.client.del(challengeStageStreamKey(challenge.uuid, stage));
+      return;
+    }
+
+    const eventsByClient = new Map<number, ClientStageStream[]>();
+    for (const evt of stageEvents) {
+      if (!eventsByClient.has(evt.clientId)) {
+        eventsByClient.set(evt.clientId, []);
+      }
+      eventsByClient.get(evt.clientId)!.push(evt);
+    }
+
+    const challengeInfo = {
+      uuid: challenge.uuid,
+      type: challenge.type,
+      party: challenge.party,
+    };
+
+    const clients: ClientEvents[] = [];
+
+    for (const [clientId, events] of eventsByClient) {
+      clients.push(
+        ClientEvents.fromClientStream(clientId, challengeInfo, stage, events),
+      );
+    }
+
+    const merger = new Merger(stage, clients);
+    const result = merger.merge();
+    if (result !== null) {
+      logger.info(
+        '%s: stage %d finished with status %s in %d ticks; %d clients merged, %d unmerged',
+        challenge.uuid,
+        stage,
+        result.events.getStatus(),
+        result.events.getLastTick(),
+        result.mergedClients.length,
+        result.unmergedClients.length,
+      );
+
+      const updates = await processor.processStage(stage, result.events);
+      await this.client.hSet(
+        challengesKey(challenge.uuid),
+        toRedis({ ...challenge, ...updates }),
+      );
+    }
+
+    await this.client.del(challengeStageStreamKey(challenge.uuid, stage));
   }
 
   /**
@@ -434,11 +760,15 @@ export default class ChallengeStore {
     if (challenge !== null) {
       const processor = await loadChallengeProcessor(
         this.challengeDataRepository,
-        challengeId,
-        challenge.status,
-        challenge.stageStatus,
+        challenge,
       );
       if (processor !== null) {
+        // Handle any outstanding stage events.
+        await this.completeChallengeStage(
+          challenge,
+          processor,
+          challenge.stage,
+        );
         await processor.finish();
       }
 
@@ -470,31 +800,54 @@ export default class ChallengeStore {
     type?: ChallengeType,
     party?: string[],
   ): Promise<void> {
-    const promises = [
-      this.client.del(challengesKey(id)),
-      // TODO Remove any client challenge mappings.
-      this.client.hDel(ChallengeStore.CHALLENGE_TIMEOUT_KEY, id),
-    ];
+    const multi = this.client.multi();
+    multi.del(challengesKey(id));
+    multi.del(challengeClientsKey(id));
+    multi.hDel(ChallengeStore.CHALLENGE_TIMEOUT_KEY, id);
 
     if (type !== undefined && party !== undefined) {
-      promises.push(
-        this.client.lRem(partyKeyChallengeList(type, party), 1, id),
-      );
+      multi.lRem(partyKeyChallengeList(type, party), 1, id);
     }
 
-    await Promise.all(promises);
+    await multi.exec();
   }
 
+  /**
+   * Fetches the state of a challenge from Redis.
+   * @param challengeId ID of the challenge.
+   * @param client Optional Redis client to use for the operation. Defaults to
+   *   the store's primary client.
+   * @returns Current state of the challenge, or null if the challenge does not
+   *   exist.
+   */
   private async loadChallenge(
     challengeId: string,
     client?: RedisClientType,
-  ): Promise<ChallengeState | null> {
+  ): Promise<ExtendedChallengeState | null> {
     const c = client ?? this.client;
     const state = await c.hGetAll(challengesKey(challengeId));
     if (Object.keys(state).length === 0) {
       return null;
     }
     return fromRedis(state as RedisChallengeState);
+  }
+
+  /**
+   * Returns all of the clients connected to a challenge.
+   * @param challengeId ID of the challenge.
+   * @param client Optional Redis client to use for the operation. Defaults to
+   *   the store's primary client.
+   * @returns List of connected clients.
+   */
+  private async loadChallengeClients(
+    challengeId: string,
+    client?: RedisClientType,
+  ): Promise<ChallengeClient[]> {
+    const c = client ?? this.client;
+    const clients = await c.hGetAll(challengeClientsKey(challengeId));
+    return Object.values(clients).map(
+      (client) => JSON.parse(client) as ChallengeClient,
+    );
   }
 
   private async processChallengeTimeouts() {

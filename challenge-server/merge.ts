@@ -1,5 +1,4 @@
 import {
-  ChallengeStatus,
   ChallengeType,
   DataSource,
   EquipmentSlot,
@@ -9,17 +8,14 @@ import {
   Stage,
   StageStatus,
 } from '@blert/common';
-import { Event, StageMap } from '@blert/common/generated/event_pb';
+import { Event } from '@blert/common/generated/event_pb';
 
 import { ClientEvents } from './client-events';
 import logger from './log';
 
 export type ChallengeInfo = {
-  id: number;
   uuid: string;
   type: ChallengeType;
-  status: ChallengeStatus;
-  stage: Stage;
   party: string[];
 };
 
@@ -36,16 +32,10 @@ type MergeResult = {
 };
 
 export class Merger {
-  private readonly challenge: ChallengeInfo;
   private readonly stage: Stage;
   private readonly clients: ClientEvents[];
 
-  public constructor(
-    challenge: ChallengeInfo,
-    stage: Stage,
-    clients: ClientEvents[],
-  ) {
-    this.challenge = challenge;
+  public constructor(stage: Stage, clients: ClientEvents[]) {
     this.stage = stage;
     this.clients = clients.toSorted(
       (a, b) => b.getFinalTick() - a.getFinalTick(),
@@ -482,13 +472,15 @@ export class TickState {
   }
 }
 
-class MergedEvents {
+export class MergedEvents {
   private ticks: Array<TickState | null>;
+  private readonly status: StageStatus;
   private accurate: boolean;
 
   constructor(base: ClientEvents) {
     const tickCount = base.getServerTicks() ?? base.getFinalTick();
 
+    this.status = base.getStatus();
     this.accurate = base.isAccurate();
     this.ticks = Array(tickCount + 1).fill(null);
     this.initializeBaseTicks(base);
@@ -502,7 +494,19 @@ class MergedEvents {
     return this.events();
   }
 
-  public missingTicks(): number {
+  public isAccurate(): boolean {
+    return this.accurate;
+  }
+
+  public getStatus(): StageStatus {
+    return this.status;
+  }
+
+  public getLastTick(): number {
+    return this.ticks.length - 1;
+  }
+
+  public getMissingTickCount(): number {
     return this.ticks.filter((tick) => tick === null).length;
   }
 

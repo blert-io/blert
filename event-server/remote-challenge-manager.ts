@@ -8,8 +8,14 @@ import {
   ClientEventType,
   ClientStatus,
   ClientStatusEvent,
-  Stage,
   RecordingType,
+  Stage,
+  StageStatus,
+  challengeStageStreamKey,
+  ClientStageStream,
+  StageStreamType,
+  StageStreamEnd,
+  stageStreamToRecord,
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 import { ServerMessage } from '@blert/common/generated/server_message_pb';
@@ -72,8 +78,19 @@ export class RemoteChallengeManager extends ChallengeManager {
   public override async completeChallenge(
     client: Client,
     challengeId: string,
-    times: RecordedTimes | null,
+    inGameTimes: RecordedTimes | null,
   ): Promise<void> {
+    // The plugin uses -1 to indicate that a time was not reported. Also, it is
+    // unlikely that one of of the two times would be captured and not the other
+    // so only send the times if both are present to simplify the server logic.
+    //
+    // TODO(frolv): The behavior of the plugin should be made consistent with
+    // the logic below so that its times can be sent directly.
+    let times = null;
+    if (inGameTimes && inGameTimes.challenge > 0 && inGameTimes.overall > 0) {
+      times = inGameTimes;
+    }
+
     try {
       const res = await fetch(
         `${this.serverUrl}/challenges/${challengeId}/finish`,
@@ -103,12 +120,43 @@ export class RemoteChallengeManager extends ChallengeManager {
     this.removeClientFromChallenge(client);
   }
 
-  public updateChallenge(
+  public override async updateChallenge(
     client: Client,
     challengeId: string,
     update: ChallengeUpdate,
   ): Promise<void> {
-    throw new Error('Method not implemented.');
+    try {
+      if (update.stage !== undefined) {
+        if (
+          update.stage.status === StageStatus.COMPLETED ||
+          update.stage.status === StageStatus.WIPED
+        ) {
+          const endEvent: StageStreamEnd = {
+            type: StageStreamType.STAGE_END,
+            clientId: client.getUserId(),
+            update: update.stage,
+          };
+          await this.redisClient.xAdd(
+            challengeStageStreamKey(challengeId, update.stage.stage),
+            '*',
+            stageStreamToRecord(endEvent),
+          );
+        }
+      }
+
+      const res = await fetch(`${this.serverUrl}/challenges/${challengeId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: client.getUserId(),
+          update,
+        }),
+      });
+    } catch (e) {
+      console.log('Failed to update challenge:', e);
+    }
   }
 
   public getChallengeInfo(challengeId: string): Promise<ChallengeInfo | null> {
