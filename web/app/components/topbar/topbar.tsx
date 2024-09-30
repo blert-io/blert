@@ -3,7 +3,8 @@
 import Image from 'next/image';
 import { useContext } from 'react';
 
-import { DisplayContext, NavbarContext } from '../../display';
+import { DisplayContext, NavbarContext } from '@/display';
+import { MAIN_LOGO } from '@/logo';
 
 import styles from './style.module.scss';
 
@@ -22,7 +23,7 @@ export default function Topbar() {
       </button>
       <div className={styles.image}>
         <Image
-          src="/images/blert-topbar.png"
+          src={MAIN_LOGO}
           alt="Blert"
           fill
           style={{ objectFit: 'contain' }}

@@ -8,6 +8,7 @@ import LeftNav from './components/left-nav';
 import Topbar from './components/topbar';
 import ChallengeProvider from './challenge-context';
 import { DisplayWrapper } from './display';
+import { MAIN_LOGO } from './logo';
 import Styler from './styler';
 
 import './globals.scss';
@@ -41,7 +42,7 @@ export const metadata: Metadata = {
     description: 'Old School Runescape PvM Analytics',
     images: [
       {
-        url: 'https://blert.io/images/blert-topbar.png',
+        url: `https://blert.io/${MAIN_LOGO}`,
         width: 530,
         height: 342,
         alt: 'Blert',
@@ -52,7 +53,7 @@ export const metadata: Metadata = {
     card: 'summary',
     title: 'Blert',
     description: 'Old School Runescape PvM Analytics',
-    images: ['https://blert.io/images/blert-topbar.png'],
+    images: [`https://blert.io/${MAIN_LOGO}`],
   },
 };
 

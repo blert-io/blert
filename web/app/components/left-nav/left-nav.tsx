@@ -1,6 +1,8 @@
 import Image from 'next/image';
 import Link from 'next/link';
 
+import { MAIN_LOGO } from '@/logo';
+
 import { LEFT_NAV_WIDTH } from './definitions';
 import { LeftNavWrapper } from './left-nav-wrapper';
 import AccountStatus from './account-status';
@@ -17,7 +19,7 @@ export function LeftNav() {
         <div className={styles.leftNav__logo}>
           <Link className={styles.homeImage} href="/">
             <Image
-              src="/images/blert-topbar.png"
+              src={MAIN_LOGO}
               alt="Blert logo"
               fill
               sizes="150px"
