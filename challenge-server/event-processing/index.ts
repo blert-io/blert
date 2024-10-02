@@ -3,6 +3,7 @@ import {
   ChallengeStatus,
   ChallengeType,
   DataRepository,
+  PriceTracker,
   Stage,
   StageStatus,
 } from '@blert/common';
@@ -19,6 +20,7 @@ export { ChallengeProcessor, ChallengeState, ReportedTimes };
 
 export function newChallengeProcessor(
   dataRepository: DataRepository,
+  priceTracker: PriceTracker,
   uuid: string,
   type: ChallengeType,
   mode: ChallengeMode,
@@ -31,6 +33,7 @@ export function newChallengeProcessor(
     case ChallengeType.COLOSSEUM:
       return new ColosseumProcessor(
         dataRepository,
+        priceTracker,
         uuid,
         mode,
         stage,
@@ -41,6 +44,7 @@ export function newChallengeProcessor(
     case ChallengeType.TOB:
       return new TheatreProcessor(
         dataRepository,
+        priceTracker,
         uuid,
         mode,
         stage,
@@ -61,6 +65,7 @@ export function newChallengeProcessor(
 
 export async function loadChallengeProcessor(
   dataRepository: DataRepository,
+  priceTracker: PriceTracker,
   state: ChallengeState,
 ): Promise<ChallengeProcessor> {
   const reportedTimes =
@@ -73,6 +78,7 @@ export async function loadChallengeProcessor(
 
   return newChallengeProcessor(
     dataRepository,
+    priceTracker,
     state.uuid,
     state.type,
     state.mode,
@@ -80,6 +86,8 @@ export async function loadChallengeProcessor(
     state.stageStatus,
     state.party,
     {
+      databaseId: state.id,
+      players: state.players,
       totalDeaths: state.totalDeaths,
       challengeStatus: state.status,
       totalChallengeTicks: state.challengeTicks,

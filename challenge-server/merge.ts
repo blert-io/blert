@@ -140,16 +140,26 @@ export class Merger {
       // `this.clients` is sorted by decreasing tick count. Use the client with
       // the most recorded ticks as the base client, but prioritize clients
       // which have reported in-game tick counts.
-      const ref = this.clients.find((c) => c.getServerTicks() !== null);
+      const ref = this.clients.find(
+        (c) => c.getServerTicks()?.precise === true,
+      );
       if (ref !== undefined) {
         base = ref;
-        stageTicks = ref.getServerTicks()!;
+        stageTicks = ref.getServerTicks()!.count;
       } else {
-        base = this.clients[0];
-        stageTicks = base.getFinalTick();
-        logger.debug(
-          `Assuming ${stageTicks} ticks from most active client ${base}`,
-        );
+        // If there is no client with a precise in-game tick count, use any
+        // which has an imprecise count.
+        const ref = this.clients.find((c) => c.getServerTicks() !== null);
+        if (ref !== undefined) {
+          base = ref;
+          stageTicks = base.getServerTicks()!.count;
+        } else {
+          base = this.clients[0];
+          stageTicks = base.getFinalTick();
+          logger.debug(
+            `Assuming ${stageTicks} ticks from most active client ${base}`,
+          );
+        }
       }
     }
 
@@ -478,7 +488,10 @@ export class MergedEvents {
   private accurate: boolean;
 
   constructor(base: ClientEvents) {
-    const tickCount = base.getServerTicks() ?? base.getFinalTick();
+    const tickCount =
+      base.getServerTicks() !== null
+        ? base.getServerTicks()!.count
+        : base.getFinalTick();
 
     this.status = base.getStatus();
     this.accurate = base.isAccurate();
@@ -508,6 +521,10 @@ export class MergedEvents {
 
   public getMissingTickCount(): number {
     return this.ticks.filter((tick) => tick === null).length;
+  }
+
+  public eventsForTick(tick: number): Event[] {
+    return this.ticks[tick]?.getEvents() ?? [];
   }
 
   public mergeEvents(client: ClientEvents): boolean {
@@ -542,7 +559,7 @@ export class MergedEvents {
       // If the base client is not accurate but has reported an in-game tick
       // count, it has completed the stage, so it is initially assumed that its
       // events are offset from the end of the stage.
-      const offset = base.getServerTicks()! - base.getFinalTick();
+      const offset = base.getServerTicks()!.count - base.getFinalTick();
       logger.debug(
         'Base client is not accurate but has in-game tick count; ' +
           `assuming events from end of stage with a ${offset} tick offset`,

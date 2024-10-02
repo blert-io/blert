@@ -11,13 +11,14 @@ import {
   RecordingType,
   Stage,
   StageStatus,
-  challengeStageStreamKey,
-  ClientStageStream,
-  StageStreamType,
   StageStreamEnd,
+  StageStreamEvents,
   stageStreamToRecord,
+  StageStreamType,
+  challengeStageStreamKey,
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
+import { ChallengeEvents } from '@blert/common/generated/challenge_storage_pb';
 import { ServerMessage } from '@blert/common/generated/server_message_pb';
 import { RedisClientType } from 'redis';
 
@@ -163,12 +164,42 @@ export class RemoteChallengeManager extends ChallengeManager {
     throw new Error('Method not implemented.');
   }
 
-  public processEvents(
+  public async processEvents(
     client: Client,
     challengeId: string,
     events: Event[],
   ): Promise<void> {
-    throw new Error('Method not implemented.');
+    const eventsByStage = new Map<Stage, Event[]>();
+    for (const event of events) {
+      const stage = event.getStage();
+      if (!eventsByStage.has(stage)) {
+        eventsByStage.set(stage, []);
+      }
+
+      eventsByStage.get(stage)!.push(event);
+    }
+
+    const writes = [];
+
+    for (const [stage, stageEvents] of eventsByStage) {
+      const eventsMessage = new ChallengeEvents();
+      eventsMessage.setEventsList(stageEvents);
+
+      const eventsStream: StageStreamEvents = {
+        type: StageStreamType.STAGE_EVENTS,
+        clientId: client.getUserId(),
+        events: eventsMessage.serializeBinary(),
+      };
+      writes.push(
+        this.redisClient.xAdd(
+          challengeStageStreamKey(challengeId, stage),
+          '*',
+          stageStreamToRecord(eventsStream),
+        ),
+      );
+    }
+
+    await Promise.all(writes);
   }
 
   public addClient(

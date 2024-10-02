@@ -95,6 +95,11 @@ export interface ClientStageStream {
   clientId: number;
 }
 
+export interface StageStreamEvents extends ClientStageStream {
+  type: StageStreamType.STAGE_EVENTS;
+  events: Uint8Array;
+}
+
 export interface StageStreamEnd extends ClientStageStream {
   type: StageStreamType.STAGE_END;
   update: StageUpdate;
@@ -106,13 +111,16 @@ export function challengeStageStreamKey(uuid: string, stage: Stage) {
 
 export function stageStreamToRecord(
   event: ClientStageStream,
-): Record<string, string> {
-  const evt: Record<string, string> = {
+): Record<string, string | Buffer> {
+  const evt: Record<string, string | Buffer> = {
     type: event.type.toString(),
     clientId: event.clientId.toString(),
   };
 
   switch (event.type) {
+    case StageStreamType.STAGE_EVENTS:
+      evt.events = Buffer.from((event as StageStreamEvents).events);
+      break;
     case StageStreamType.STAGE_END:
       evt.update = JSON.stringify((event as StageStreamEnd).update);
       break;
@@ -122,18 +130,26 @@ export function stageStreamToRecord(
 }
 
 export function stageStreamFromRecord(
-  event: Record<string, string>,
+  event: Record<string, string | Buffer>,
 ): ClientStageStream {
-  const type = Number.parseInt(event.type) as StageStreamType;
-  const clientId = Number.parseInt(event.clientId);
+  const type = Number.parseInt(event.type.toString()) as StageStreamType;
+  const clientId = Number.parseInt(event.clientId.toString());
 
   switch (type) {
+    case StageStreamType.STAGE_EVENTS:
+      return {
+        type,
+        clientId,
+        events: event.events,
+      } as StageStreamEvents;
+
     case StageStreamType.STAGE_END:
       return {
         type,
         clientId,
-        update: JSON.parse(event.update),
+        update: JSON.parse(event.update.toString()),
       } as StageStreamEnd;
+
     default:
       return { type, clientId };
   }
