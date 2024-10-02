@@ -5,27 +5,27 @@ import {
   ChallengeType,
   ChallengeServerUpdate,
   ChallengeUpdateAction,
-  DataRepository,
-  Stage,
-  StageStatus,
-  challengesKey,
-  clientChallengesKey,
-  partyKeyChallengeList,
   CLIENT_EVENTS_KEY,
   ClientEvent,
   ClientEventType,
+  ClientStageStream,
   ClientStatusEvent,
   ClientStatus,
+  DataRepository,
+  PriceTracker,
   RecordingType,
+  Stage,
+  StageStatus,
   challengeStageStreamKey,
+  challengesKey,
+  clientChallengesKey,
+  partyKeyChallengeList,
   stageStreamFromRecord,
-  ClientStageStream,
 } from '@blert/common';
-import { RedisClientType, WatchError } from 'redis';
+import { RedisClientType, WatchError, commandOptions } from 'redis';
 import { v4 as uuidv4 } from 'uuid';
 
 import { ClientEvents } from './client-events';
-import sql from './db';
 import {
   ChallengeProcessor,
   ChallengeState,
@@ -63,7 +63,9 @@ function toRedis(state: ExtendedChallengeState): Partial<RedisChallengeState> {
       continue;
     }
 
-    if (Array.isArray(value)) {
+    if (k === 'players') {
+      result[k] = JSON.stringify(value);
+    } else if (Array.isArray(value)) {
       result[k] = value.join(',');
     } else if (typeof value === 'object') {
       result[k] = JSON.stringify(value);
@@ -79,6 +81,7 @@ function toRedis(state: ExtendedChallengeState): Partial<RedisChallengeState> {
 
 function fromRedis(state: RedisChallengeState): ExtendedChallengeState {
   return {
+    id: Number.parseInt(state.id),
     uuid: state.uuid,
     type: Number.parseInt(state.type) as ChallengeType,
     mode: Number.parseInt(state.mode) as ChallengeMode,
@@ -86,6 +89,7 @@ function fromRedis(state: RedisChallengeState): ExtendedChallengeState {
     status: Number.parseInt(state.status) as ChallengeStatus,
     stageStatus: Number.parseInt(state.stageStatus) as StageStatus,
     party: state.party.split(','),
+    players: JSON.parse(state.players),
     totalDeaths: Number.parseInt(state.totalDeaths),
     challengeTicks: Number.parseInt(state.challengeTicks),
     active: state.active === '1',
@@ -126,6 +130,7 @@ function challengeClientsKey(challengeId: string): string {
 
 export default class ChallengeStore {
   private challengeDataRepository: DataRepository;
+  private priceTracker: PriceTracker;
   private client: RedisClientType;
   private eventClient: RedisClientType;
   private eventQueueActive: boolean;
@@ -151,6 +156,7 @@ export default class ChallengeStore {
     manageTimeouts: boolean,
   ) {
     this.challengeDataRepository = challengeDataRepository;
+    this.priceTracker = new PriceTracker();
     this.client = client;
     this.eventClient = client.duplicate();
     this.eventQueueActive = true;
@@ -253,6 +259,7 @@ export default class ChallengeStore {
 
         processor = newChallengeProcessor(
           this.challengeDataRepository,
+          this.priceTracker,
           challengeId,
           type,
           mode,
@@ -260,6 +267,8 @@ export default class ChallengeStore {
           StageStatus.ENTERED,
           party,
         );
+
+        await processor.createNew(startTime);
 
         multi.hSet(
           challengesKey(challengeId),
@@ -270,12 +279,11 @@ export default class ChallengeStore {
             activeClients: 1,
           }),
         );
-
-        await processor.createNew(startTime);
       } else {
         const challenge = await this.loadChallenge(challengeId, client);
         processor = await loadChallengeProcessor(
           this.challengeDataRepository,
+          this.priceTracker,
           challenge!,
         );
       }
@@ -421,6 +429,7 @@ export default class ChallengeStore {
 
     const processor = await loadChallengeProcessor(
       this.challengeDataRepository,
+      this.priceTracker,
       challenge,
     );
     if (processor === null) {
@@ -629,6 +638,7 @@ export default class ChallengeStore {
 
     const processor = await loadChallengeProcessor(
       this.challengeDataRepository,
+      this.priceTracker,
       challenge,
     );
     if (processor === null) {
@@ -645,7 +655,12 @@ export default class ChallengeStore {
     stage: Stage,
   ): Promise<void> {
     const stageEvents = await this.client
-      .xRange(challengeStageStreamKey(challenge.uuid, stage), '-', '+')
+      .xRange(
+        commandOptions({ returnBuffers: true }),
+        challengeStageStreamKey(challenge.uuid, stage),
+        '-',
+        '+',
+      )
       .then((res) => res.map((s) => stageStreamFromRecord(s.message)));
 
     if (stageEvents.length === 0) {
@@ -760,6 +775,7 @@ export default class ChallengeStore {
     if (challenge !== null) {
       const processor = await loadChallengeProcessor(
         this.challengeDataRepository,
+        this.priceTracker,
         challenge,
       );
       if (processor !== null) {

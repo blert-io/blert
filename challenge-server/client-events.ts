@@ -6,19 +6,26 @@ import {
   Stage,
   StageStatus,
   StageStreamEnd,
+  StageStreamEvents,
   StageStreamType,
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
 import logger from './log';
 import { ChallengeInfo, PlayerState, TickState } from './merge';
+import { ChallengeEvents } from '@blert/common/generated/challenge_storage_pb';
+
+type ServerTicks = {
+  count: number;
+  precise: boolean;
+};
 
 export type StageInfo = {
   stage: Stage;
   status: StageStatus;
   accurate: boolean;
   recordedTicks: number;
-  serverTicks: number | null;
+  serverTicks: ServerTicks | null;
 };
 
 export class ClientEvents {
@@ -28,11 +35,20 @@ export class ClientEvents {
   private readonly tickState: TickState[];
   private readonly primaryPlayer: string | null;
 
+  /**
+   * Initializes challenge events for a client from its stage event stream.
+   *
+   * @param clientId ID of the client that recorded these events.
+   * @param challenge The challenge to which the events belong.
+   * @param stage The stage whose events are recorded.
+   * @param streamEvents Raw stream of client events.
+   * @returns Structured client events.
+   */
   public static fromClientStream(
     clientId: number,
     challenge: ChallengeInfo,
     stage: Stage,
-    events: ClientStageStream[],
+    streamEvents: ClientStageStream[],
   ): ClientEvents {
     const stageInfo: StageInfo = {
       stage,
@@ -42,19 +58,69 @@ export class ClientEvents {
       serverTicks: null,
     };
 
-    for (const event of events) {
-      if (event.type === StageStreamType.STAGE_END) {
-        const update = (event as StageStreamEnd).update;
+    const events: Event[] = [];
+
+    for (const stream of streamEvents) {
+      if (stream.type === StageStreamType.STAGE_END) {
+        const update = (stream as StageStreamEnd).update;
         stageInfo.status = update.status;
         stageInfo.accurate = update.accurate;
         stageInfo.recordedTicks = update.recordedTicks;
-        // TODO(frolv): Do something about server tick precision.
-        stageInfo.serverTicks = update.serverTicks?.count ?? null;
+        stageInfo.serverTicks = update.serverTicks;
+      } else if (stream.type === StageStreamType.STAGE_EVENTS) {
+        const message = ChallengeEvents.deserializeBinary(
+          (stream as StageStreamEvents).events,
+        );
+        events.push(...message.getEventsList());
       }
     }
 
-    const tickState = Array(stageInfo.recordedTicks + 1).fill(null);
-    const primaryPlayer = null;
+    events.sort((a, b) => a.getTick() - b.getTick());
+    if (stageInfo.recordedTicks === 0) {
+      stageInfo.recordedTicks = events[events.length - 1].getTick() ?? 0;
+    }
+
+    const primaryPlayers = new Set<string>();
+
+    const eventsByTick: Array<Event[]> = Array(
+      stageInfo.recordedTicks + 1,
+    ).fill([]);
+    events.forEach((event) => {
+      if (
+        event.getType() === Event.Type.PLAYER_UPDATE &&
+        event.getPlayer()!.getDataSource() === DataSource.PRIMARY
+      ) {
+        primaryPlayers.add(event.getPlayer()!.getName());
+      }
+
+      eventsByTick[event.getTick()] = [...eventsByTick[event.getTick()], event];
+    });
+
+    if (primaryPlayers.size > 1) {
+      logger.warn(
+        `Client reported multiple primary players: ${Array.from(primaryPlayers).join(', ')}`,
+      );
+      logger.warn(
+        'Treating client as a spectator (ignoring primary player data)',
+      );
+      primaryPlayers.clear();
+    }
+
+    const primaryPlayer =
+      primaryPlayers.size === 1 ? primaryPlayers.values().next().value : null;
+
+    const playerStates = this.buildPlayerStates(eventsByTick, challenge.party);
+    const tickState = eventsByTick.map(
+      (evts, tick) =>
+        new TickState(
+          tick,
+          evts,
+          challenge.party.reduce(
+            (acc, player) => ({ ...acc, [player]: playerStates[player][tick] }),
+            {},
+          ),
+        ),
+    );
 
     return new ClientEvents(
       clientId,
@@ -139,7 +205,7 @@ export class ClientEvents {
   /**
    * @returns The number of ticks reported by the game server, if known.
    */
-  public getServerTicks(): number | null {
+  public getServerTicks(): ServerTicks | null {
     return this.stageInfo.serverTicks;
   }
 

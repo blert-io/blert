@@ -171,7 +171,10 @@ async function mergeTestEvents(req: Request, res: Response): Promise<void> {
             stageInfo.accurate = stageUpdate.getAccurate();
             stageInfo.recordedTicks = update.getTick();
             if (stageUpdate.hasInGameTicks()) {
-              stageInfo.serverTicks = stageUpdate.getInGameTicks();
+              stageInfo.serverTicks = {
+                count: stageUpdate.getInGameTicks(),
+                precise: true,
+              };
             }
           }
         }
