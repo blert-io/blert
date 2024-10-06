@@ -63,11 +63,11 @@ export function newChallengeProcessor(
   }
 }
 
-export async function loadChallengeProcessor(
+export function loadChallengeProcessor(
   dataRepository: DataRepository,
   priceTracker: PriceTracker,
   state: ChallengeState,
-): Promise<ChallengeProcessor> {
+) {
   const reportedTimes =
     state.reportedChallengeTicks !== null && state.reportedOverallTicks !== null
       ? {
