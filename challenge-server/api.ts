@@ -9,7 +9,12 @@ import {
 import { ChallengeEvents } from '@blert/common/generated/challenge_storage_pb';
 import { Application, Request, Response } from 'express';
 
-import { ChallengeUpdate, StageUpdate } from './challenge-store';
+import {
+  ChallengeError,
+  ChallengeErrorType,
+  ChallengeUpdate,
+  StageUpdate,
+} from './challenge-store';
 import { ClientEvents, StageInfo } from './client-events';
 import { ReportedTimes } from './event-processing';
 import logger from './log';
@@ -25,6 +30,18 @@ export function registerApiRoutes(app: Application): void {
   app.post('/challenges/:challengeId', updateChallenge);
   app.post('/challenges/:challengeId/finish', finishChallenge);
   app.post('/test/:challengeId', mergeTestEvents);
+}
+
+function errorStatus(e: Error): number {
+  if (e instanceof ChallengeError) {
+    const err = e as ChallengeError;
+    switch (err.type) {
+      case ChallengeErrorType.UNSUPPORTED:
+        return 422;
+    }
+  }
+
+  return 500;
 }
 
 type NewChallengeRequest = {
@@ -49,9 +66,9 @@ async function newChallenge(req: Request, res: Response): Promise<void> {
       request.recordingType,
     );
     res.json({ challengeId });
-  } catch (e) {
+  } catch (e: any) {
     logger.error(`Failed to create challenge: ${e}`);
-    res.status(500).send();
+    res.status(errorStatus(e)).send();
   }
 }
 
@@ -72,9 +89,9 @@ async function updateChallenge(req: Request, res: Response): Promise<void> {
     );
     const status = ok ? 200 : 409;
     res.status(status).send();
-  } catch (e) {
+  } catch (e: any) {
     logger.error(`Failed to update challenge: ${e}`);
-    res.status(500).send();
+    res.status(errorStatus(e)).send();
   }
 }
 
@@ -94,9 +111,9 @@ async function finishChallenge(req: Request, res: Response): Promise<void> {
       request.times,
     );
     res.status(200).send();
-  } catch (e) {
+  } catch (e: any) {
     logger.error(`Failed to finish challenge: ${e}`);
-    res.status(500).send();
+    res.status(errorStatus(e)).send();
   }
 }
 

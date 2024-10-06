@@ -36,6 +36,19 @@ import {
 import logger from './log';
 import { Merger } from './merge';
 
+export const enum ChallengeErrorType {
+  UNSUPPORTED,
+}
+
+export class ChallengeError extends Error {
+  public readonly type: ChallengeErrorType;
+
+  public constructor(type: ChallengeErrorType, message: string) {
+    super(message);
+    this.type = type;
+  }
+}
+
 enum TimeoutState {
   NONE = 0,
   STAGE_END = 1,
@@ -197,6 +210,13 @@ export default class ChallengeStore {
     party: string[],
     recordingType: RecordingType,
   ): Promise<string> {
+    if (mode === ChallengeMode.TOB_ENTRY) {
+      throw new ChallengeError(
+        ChallengeErrorType.UNSUPPORTED,
+        'ToB entry mode challenges are not supported',
+      );
+    }
+
     const partyMembers = party.join(',');
     const partyKeyList = partyKeyChallengeList(type, party);
 
@@ -452,6 +472,13 @@ export default class ChallengeStore {
     );
 
     if (update.mode !== ChallengeMode.NO_MODE) {
+      // Entry mode tracking is currently disabled.
+      if (update.mode === ChallengeMode.TOB_ENTRY) {
+        logger.info(`Ending ToB entry mode challenge ${challengeId}`);
+        await this.cleanupChallenge(challengeId, null);
+        return true;
+      }
+
       processor.setMode(update.mode);
     }
 
@@ -763,7 +790,7 @@ export default class ChallengeStore {
 
   /**
    * Cleans up an active challenge. By default, the challenge is only cleaned up
-   * if no clients are connected. This can be overridden via the `force` flag.
+   * if no clients are connected.
    *
    * @param challengeId The ID of the challenge to clean up.
    * @param timeout If set, the challenge's cleanup timeout parameters, which
