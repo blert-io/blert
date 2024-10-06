@@ -36,10 +36,17 @@ import {
 import logger from './log';
 import { Merger } from './merge';
 
+enum TimeoutState {
+  NONE = 0,
+  STAGE_END = 1,
+  CLEANUP = 2,
+}
+
 type ExtendedChallengeState = ChallengeState & {
   active: boolean;
   connectedClients: number;
   activeClients: number;
+  timeoutState: TimeoutState;
 };
 
 type RedisChallengeState = Record<keyof ExtendedChallengeState, string>;
@@ -51,6 +58,7 @@ type ChallengeClient = {
   active: boolean;
   stage: Stage;
   stageStatus: StageStatus;
+  lastCompletedStage: Stage;
 };
 
 function toRedis(state: ExtendedChallengeState): Partial<RedisChallengeState> {
@@ -101,6 +109,7 @@ function fromRedis(state: RedisChallengeState): ExtendedChallengeState {
       : null,
     connectedClients: Number.parseInt(state.connectedClients),
     activeClients: Number.parseInt(state.activeClients),
+    timeoutState: Number.parseInt(state.timeoutState) as TimeoutState,
     customData: state.customData ? JSON.parse(state.customData) : null,
   };
 }
@@ -139,7 +148,7 @@ export default class ChallengeStore {
   private timeoutTaskTimer: NodeJS.Timeout | null;
 
   private static readonly CHALLENGE_TIMEOUT_KEY = 'expiring-challenges';
-  private static readonly CHALLENGE_TIMEOUT_INTERVAL = 1000;
+  private static readonly CHALLENGE_TIMEOUT_INTERVAL = 500;
 
   /** How long to wait before cleaning up a challenge with no clients. */
   private static readonly MAX_RECONNECTION_PERIOD = 1000 * 60 * 5;
@@ -149,6 +158,12 @@ export default class ChallengeStore {
    * receiving events.
    */
   private static readonly MAX_INACTIVITY_PERIOD = 1000 * 60 * 15;
+
+  /**
+   * Maximum time to wait for every client in a challenge to send their stage
+   * end event following the first client's completion.
+   */
+  private static readonly STAGE_END_TIMEOUT = 1500;
 
   public constructor(
     challengeDataRepository: DataRepository,
@@ -277,11 +292,12 @@ export default class ChallengeStore {
             active: true,
             connectedClients: 1,
             activeClients: 1,
+            timeoutState: TimeoutState.NONE,
           }),
         );
       } else {
         const challenge = await this.loadChallenge(challengeId, client);
-        processor = await loadChallengeProcessor(
+        processor = loadChallengeProcessor(
           this.challengeDataRepository,
           this.priceTracker,
           challenge!,
@@ -294,6 +310,7 @@ export default class ChallengeStore {
         active: true,
         stage,
         stageStatus: StageStatus.ENTERED,
+        lastCompletedStage: Stage.UNKNOWN,
       };
 
       multi.hSet(
@@ -370,6 +387,7 @@ export default class ChallengeStore {
           maxRetryAttempts: 1,
           retryIntervalMs: 1500,
         };
+        multi.hSet(challengeKey, 'timeoutState', TimeoutState.CLEANUP);
         multi.hSet(
           ChallengeStore.CHALLENGE_TIMEOUT_KEY,
           challengeId,
@@ -427,17 +445,11 @@ export default class ChallengeStore {
       return false;
     }
 
-    const processor = await loadChallengeProcessor(
+    const processor = loadChallengeProcessor(
       this.challengeDataRepository,
       this.priceTracker,
       challenge,
     );
-    if (processor === null) {
-      logger.warn(
-        `Player ${userId} attempted to update non-existent challenge`,
-      );
-      return false;
-    }
 
     if (update.mode !== ChallengeMode.NO_MODE) {
       processor.setMode(update.mode);
@@ -482,6 +494,7 @@ export default class ChallengeStore {
           // The client has finished the stage. If all clients have finished,
           // the challenge stage can be finalized. Otherwise, wait for other
           // clients to complete the stage up to a maximum deadline.
+          us.lastCompletedStage = stageUpdate.stage;
 
           const numFinishedClients = clients.reduce(
             (acc, c) =>
@@ -498,9 +511,22 @@ export default class ChallengeStore {
 
           if (numFinishedClients === clients.length) {
             finishStage = stageUpdate.stage;
-          } else if (us.type === RecordingType.PARTICIPANT) {
-            // TODO(frolv): Start a timeout to allow other clients to finish the
-            // stage, after which the stage will forcefully complete.
+          } else if (challenge.timeoutState !== TimeoutState.STAGE_END) {
+            const timeout: ChallengeTimeout = {
+              timestamp: Date.now() + ChallengeStore.STAGE_END_TIMEOUT,
+              maxRetryAttempts: 0,
+              retryIntervalMs: 0,
+            };
+            multi.hSet(
+              challengesKey(challengeId),
+              'timeoutState',
+              TimeoutState.STAGE_END,
+            );
+            multi.hSet(
+              ChallengeStore.CHALLENGE_TIMEOUT_KEY,
+              challengeId,
+              JSON.stringify(timeout),
+            );
           }
         } else {
           // Entering a new stage.
@@ -570,7 +596,9 @@ export default class ChallengeStore {
     this.eventClient.disconnect();
   }
 
-  private async addClient(): Promise<void> {}
+  private async addClient(): Promise<void> {
+    // TODO(frolv)
+  }
 
   private async removeClient(id: number, challengeId: string): Promise<void> {
     const challenge = challengesKey(challengeId);
@@ -598,6 +626,11 @@ export default class ChallengeStore {
           retryIntervalMs: ChallengeStore.MAX_RECONNECTION_PERIOD,
         };
         multi.hSet(
+          challengesKey(challengeId),
+          'timeoutState',
+          TimeoutState.CLEANUP,
+        );
+        multi.hSet(
           ChallengeStore.CHALLENGE_TIMEOUT_KEY,
           challengeId,
           JSON.stringify(timeout),
@@ -615,19 +648,27 @@ export default class ChallengeStore {
   private async setClientActive(
     id: number,
     challengeId: string,
-  ): Promise<void> {}
+  ): Promise<void> {
+    const challenge = challengesKey(challengeId);
+    // TODO(frolv)
+  }
 
   private async setClientInactive(
     id: number,
     challengeId: string,
   ): Promise<void> {
     const challenge = challengesKey(challengeId);
+    // TODO(frolv)
   }
 
   private async loadAndCompleteChallengeStage(
     challengeId: string,
     stage: Stage,
   ): Promise<void> {
+    if (stage === Stage.UNKNOWN) {
+      return;
+    }
+
     const streamKey = challengeStageStreamKey(challengeId, stage);
 
     const challenge = await this.loadChallenge(challengeId);
@@ -636,15 +677,11 @@ export default class ChallengeStore {
       return;
     }
 
-    const processor = await loadChallengeProcessor(
+    const processor = loadChallengeProcessor(
       this.challengeDataRepository,
       this.priceTracker,
       challenge,
     );
-    if (processor === null) {
-      await this.client.del(streamKey);
-      return;
-    }
 
     return this.completeChallengeStage(challenge, processor, stage);
   }
@@ -654,6 +691,17 @@ export default class ChallengeStore {
     processor: ChallengeProcessor,
     stage: Stage,
   ): Promise<void> {
+    if (challenge.timeoutState === TimeoutState.STAGE_END) {
+      const multi = this.client.multi();
+      multi.hSet(
+        challengesKey(challenge.uuid),
+        'timeoutState',
+        TimeoutState.NONE,
+      );
+      multi.hDel(ChallengeStore.CHALLENGE_TIMEOUT_KEY, challenge.uuid);
+      await multi.exec();
+    }
+
     const stageEvents = await this.client
       .xRange(
         commandOptions({ returnBuffers: true }),
@@ -773,20 +821,15 @@ export default class ChallengeStore {
     const challenge = await this.loadChallenge(challengeId);
 
     if (challenge !== null) {
-      const processor = await loadChallengeProcessor(
+      const processor = loadChallengeProcessor(
         this.challengeDataRepository,
         this.priceTracker,
         challenge,
       );
-      if (processor !== null) {
-        // Handle any outstanding stage events.
-        await this.completeChallengeStage(
-          challenge,
-          processor,
-          challenge.stage,
-        );
-        await processor.finish();
-      }
+
+      // Handle any outstanding stage events.
+      await this.completeChallengeStage(challenge, processor, challenge.stage);
+      await processor.finish();
 
       await this.deleteRedisChallengeData(
         challengeId,
@@ -870,34 +913,71 @@ export default class ChallengeStore {
     this.timeoutTaskTimer = null;
 
     while (true) {
-      const challenges = await this.client.hGetAll(
-        ChallengeStore.CHALLENGE_TIMEOUT_KEY,
-      );
+      let challenges: Record<string, string>;
+      try {
+        challenges = await this.client.hGetAll(
+          ChallengeStore.CHALLENGE_TIMEOUT_KEY,
+        );
+      } catch (e) {
+        logger.error(`Failed to fetch challenge timeouts: ${e}`);
+        break;
+      }
 
       const now = Date.now();
-      let challengeToCleanup: string | null = null;
-      let cleanupTimeout: ChallengeTimeout | null = null;
+      let timedOutChallenge: string | null = null;
+      let timeoutInfo: ChallengeTimeout | null = null;
 
       for (const challengeId in challenges) {
         const timeout = JSON.parse(challenges[challengeId]) as ChallengeTimeout;
         if (timeout.timestamp <= now) {
-          challengeToCleanup = challengeId;
-          cleanupTimeout = timeout;
+          timedOutChallenge = challengeId;
+          timeoutInfo = timeout;
           break;
         }
       }
 
-      if (challengeToCleanup === null) {
-        // Wait until the next timeout check for more challenges.
-        break;
+      if (timedOutChallenge !== null) {
+        const state = await this.client
+          .hGet(challengesKey(timedOutChallenge), 'timeoutState')
+          .then((s) =>
+            s === null || s === undefined
+              ? null
+              : (Number.parseInt(s) as TimeoutState),
+          );
+
+        if (state === TimeoutState.CLEANUP) {
+          logger.info(`Cleaning up expired challenge ${timedOutChallenge}`);
+          await this.cleanupChallenge(timedOutChallenge, timeoutInfo);
+        } else if (state === TimeoutState.STAGE_END) {
+          const clients = await this.loadChallengeClients(timedOutChallenge);
+          const stage = clients.reduce(
+            (acc, c) => Math.max(acc, c.lastCompletedStage),
+            Stage.UNKNOWN,
+          );
+          const uncompletedClients = clients.filter(
+            (c) => c.lastCompletedStage < stage,
+          );
+
+          logger.debug(
+            `Forcing stage ${stage} end for challenge ${timedOutChallenge} ` +
+              `after timeout (${uncompletedClients.length} uncompleted clients)`,
+          );
+          await this.loadAndCompleteChallengeStage(timedOutChallenge, stage);
+        } else {
+          logger.warn(
+            `Timed-out challenge ${timedOutChallenge} has unknown timeout state ` +
+              `${state}; ignoring`,
+          );
+          await this.client.hDel(
+            ChallengeStore.CHALLENGE_TIMEOUT_KEY,
+            timedOutChallenge,
+          );
+          // Try to find another timed-out challenge.
+          continue;
+        }
       }
 
-      logger.info(`Cleaning up expired challenge ${challengeToCleanup}`);
-      await this.cleanupChallenge(challengeToCleanup, cleanupTimeout);
-
-      if (true) {
-        break;
-      }
+      break;
     }
 
     if (this.manageTimeouts) {
