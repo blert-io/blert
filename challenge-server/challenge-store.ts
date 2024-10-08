@@ -58,7 +58,6 @@ enum TimeoutState {
 type ExtendedChallengeState = ChallengeState & {
   active: boolean;
   connectedClients: number;
-  activeClients: number;
   timeoutState: TimeoutState;
 };
 
@@ -121,7 +120,6 @@ function fromRedis(state: RedisChallengeState): ExtendedChallengeState {
       ? Number.parseInt(state.reportedOverallTicks)
       : null,
     connectedClients: Number.parseInt(state.connectedClients),
-    activeClients: Number.parseInt(state.activeClients),
     timeoutState: Number.parseInt(state.timeoutState) as TimeoutState,
     customData: state.customData ? JSON.parse(state.customData) : null,
   };
@@ -259,7 +257,7 @@ export default class ChallengeStore {
                 'has completed; starting new one',
             );
             createNewChallenge = true;
-          } else if (stage < lastStage) {
+          } else if (stage !== Stage.UNKNOWN && stage < lastStage) {
             logger.info(
               `Request to start challenge for party ${partyMembers} ` +
                 `at stage ${stage} is earlier than the previous stage ` +
@@ -272,7 +270,6 @@ export default class ChallengeStore {
             );
 
             multi.hIncrBy(key, 'connectedClients', 1);
-            multi.hIncrBy(key, 'activeClients', 1);
             multi.set(clientChallengesKey(userId), lastChallengeForParty);
 
             challengeId = lastChallengeForParty;
@@ -311,7 +308,6 @@ export default class ChallengeStore {
             ...processor.getState(),
             active: true,
             connectedClients: 1,
-            activeClients: 1,
             timeoutState: TimeoutState.NONE,
           }),
         );
@@ -398,15 +394,45 @@ export default class ChallengeStore {
         return multi.exec();
       }
 
-      allClientsFinished = challenge.activeClients === 1;
+      const self = await client
+        .hGet(challengeClientsKey(challengeId), userId.toString())
+        .then((s) => (s ? (JSON.parse(s) as ChallengeClient) : null));
+      if (self === null) {
+        logger.warn(
+          `User ${userId} attempted to finish challenge ${challengeId} ` +
+            'but is not in the challenge',
+        );
+        return multi.exec();
+      }
+
+      allClientsFinished = challenge.connectedClients === 1;
       if (!allClientsFinished) {
-        // If there are still clients connected, set a short timeout to allow
+        // If there are still clients connected, set a timeout to allow
         // their own finish requests to complete.
-        const timeout: ChallengeTimeout = {
-          timestamp: Date.now() + 1500,
-          maxRetryAttempts: 1,
-          retryIntervalMs: 1500,
-        };
+        //
+        // However, spectators may just leave a challenge early before it has
+        // actually finished, so don't count their end times as definitive.
+        // Instead, start a longer cleanup timer which will end the challenge
+        // unless other activity is detected.
+        const hasDefinitelyFinished =
+          self.type === RecordingType.PARTICIPANT || reportedTimes !== null;
+
+        let timeout: ChallengeTimeout;
+
+        if (hasDefinitelyFinished) {
+          timeout = {
+            timestamp: Date.now() + 1500,
+            maxRetryAttempts: 1,
+            retryIntervalMs: 1500,
+          };
+        } else {
+          timeout = {
+            timestamp: Date.now() + ChallengeStore.MAX_RECONNECTION_PERIOD,
+            maxRetryAttempts: 1,
+            retryIntervalMs: ChallengeStore.MAX_RECONNECTION_PERIOD,
+          };
+        }
+
         multi.hSet(challengeKey, 'timeoutState', TimeoutState.CLEANUP);
         multi.hSet(
           ChallengeStore.CHALLENGE_TIMEOUT_KEY,
@@ -415,8 +441,8 @@ export default class ChallengeStore {
         );
       }
 
-      multi.hIncrBy(challengeKey, 'activeClients', -1);
       multi.hIncrBy(challengeKey, 'connectedClients', -1);
+      multi.hDel(challengeClientsKey(challengeId), userId.toString());
 
       // TODO(frolv): Collect and cross-check reported times from all clients.
       if (reportedTimes !== null) {
@@ -643,7 +669,6 @@ export default class ChallengeStore {
       }
 
       multi.hIncrBy(challenge, 'connectedClients', -1);
-      multi.hIncrBy(challenge, 'activeClients', -1);
       multi.hDel(challengeClientsKey(challengeId), id.toString());
 
       if (connected === '1') {
@@ -676,16 +701,123 @@ export default class ChallengeStore {
     id: number,
     challengeId: string,
   ): Promise<void> {
-    const challenge = challengesKey(challengeId);
-    // TODO(frolv)
+    if ((await this.client.get(clientChallengesKey(id))) !== challengeId) {
+      return;
+    }
+
+    const clientsKey = challengeClientsKey(challengeId);
+
+    await this.watchTransaction(async (client) => {
+      await client.watch(clientsKey);
+      const multi = client.multi();
+
+      const [challenge, clients] = await Promise.all([
+        this.loadChallenge(challengeId, client),
+        this.loadChallengeClients(challengeId, client),
+      ]);
+
+      if (challenge === null) {
+        multi.hDel(clientsKey, id.toString());
+        multi.del(clientChallengesKey(id));
+        return multi.exec();
+      }
+
+      const us = clients.find((c) => c.userId === id);
+      if (us === undefined) {
+        logger.warn(
+          `setClientActive: client ${id} not in challenge ${challengeId}`,
+        );
+        multi.del(clientChallengesKey(id));
+        return multi.exec();
+      }
+
+      if (us.active) {
+        return multi.exec();
+      }
+
+      logger.debug(`${challengeId}: client ${id} reconnected`);
+      us.active = true;
+
+      multi.hSet(clientsKey, id, JSON.stringify(us));
+      if (challenge.timeoutState === TimeoutState.CLEANUP) {
+        multi.hSet(
+          challengesKey(challengeId),
+          'timeoutState',
+          TimeoutState.NONE,
+        );
+        multi.hDel(ChallengeStore.CHALLENGE_TIMEOUT_KEY, challengeId);
+      }
+
+      return multi.exec();
+    });
   }
 
   private async setClientInactive(
     id: number,
     challengeId: string,
   ): Promise<void> {
-    const challenge = challengesKey(challengeId);
-    // TODO(frolv)
+    if ((await this.client.get(clientChallengesKey(id))) !== challengeId) {
+      return;
+    }
+
+    const clientsKey = challengeClientsKey(challengeId);
+
+    await this.watchTransaction(async (client) => {
+      await client.watch(clientsKey);
+      const multi = client.multi();
+
+      const [challenge, clients] = await Promise.all([
+        this.loadChallenge(challengeId, client),
+        this.loadChallengeClients(challengeId, client),
+      ]);
+
+      if (challenge === null) {
+        multi.hDel(clientsKey, id.toString());
+        multi.del(clientChallengesKey(id));
+        return multi.exec();
+      }
+
+      const us = clients.find((c) => c.userId === id);
+      if (us === undefined) {
+        logger.warn(
+          `setClientInactive: client ${id} not in challenge ${challengeId}`,
+        );
+        multi.del(clientChallengesKey(id));
+        return multi.exec();
+      }
+
+      if (!us.active) {
+        return multi.exec();
+      }
+
+      logger.debug(`${challengeId}: client ${id} disconnected`);
+      us.active = false;
+      multi.hSet(clientsKey, id, JSON.stringify(us));
+
+      const allInactive = clients.every((c) => !c.active);
+      if (allInactive && challenge.timeoutState === TimeoutState.NONE) {
+        logger.info(
+          `${challengeId}: all clients inactive; starting reconnection timer`,
+        );
+        const timeout: ChallengeTimeout = {
+          timestamp: Date.now() + ChallengeStore.MAX_INACTIVITY_PERIOD,
+          maxRetryAttempts: 3,
+          retryIntervalMs: ChallengeStore.MAX_INACTIVITY_PERIOD,
+        };
+        multi.hSet(
+          ChallengeStore.CHALLENGE_TIMEOUT_KEY,
+          challengeId,
+          JSON.stringify(timeout),
+        );
+        multi.hSet(
+          challengesKey(challengeId),
+          'timeoutState',
+          TimeoutState.CLEANUP,
+        );
+      }
+
+      return multi.exec();
+    });
   }
 
   private async loadAndCompleteChallengeStage(
@@ -786,6 +918,23 @@ export default class ChallengeStore {
     }
 
     await this.client.del(challengeStageStreamKey(challenge.uuid, stage));
+  }
+
+  private async handleStageEndTimeout(uuid: string): Promise<void> {
+    const clients = await this.loadChallengeClients(uuid);
+    const stage = clients.reduce(
+      (acc, c) => Math.max(acc, c.lastCompletedStage),
+      Stage.UNKNOWN,
+    );
+    const uncompletedClients = clients.filter(
+      (c) => c.lastCompletedStage < stage,
+    );
+
+    logger.debug(
+      `Forcing stage ${stage} end for challenge ${uuid} ` +
+        `after timeout (${uncompletedClients.length} uncompleted clients)`,
+    );
+    await this.loadAndCompleteChallengeStage(uuid, stage);
   }
 
   /**
@@ -936,6 +1085,49 @@ export default class ChallengeStore {
     );
   }
 
+  private async checkForActiveClients(challengeId: string): Promise<void> {
+    await this.watchTransaction(async (client) => {
+      await client.watch(challengeClientsKey(challengeId));
+      await client.watch(challengesKey(challengeId));
+      await client.watch(ChallengeStore.CHALLENGE_TIMEOUT_KEY);
+
+      const multi = client.multi();
+      const clients = await this.loadChallengeClients(challengeId, client);
+
+      const hasTimeout = await client.hExists(
+        ChallengeStore.CHALLENGE_TIMEOUT_KEY,
+        challengeId,
+      );
+      if (hasTimeout) {
+        return multi.exec();
+      }
+
+      const activeClients = clients.filter((c) => c.active);
+      if (activeClients.length === 0) {
+        logger.info(
+          `${challengeId} has no active clients; starting reconnection timer`,
+        );
+        const timeout: ChallengeTimeout = {
+          timestamp: Date.now() + ChallengeStore.MAX_RECONNECTION_PERIOD,
+          maxRetryAttempts: 3,
+          retryIntervalMs: ChallengeStore.MAX_RECONNECTION_PERIOD,
+        };
+        multi.hSet(
+          challengesKey(challengeId),
+          'timeoutState',
+          TimeoutState.CLEANUP,
+        );
+        multi.hSet(
+          ChallengeStore.CHALLENGE_TIMEOUT_KEY,
+          challengeId,
+          JSON.stringify(timeout),
+        );
+      }
+
+      return multi.exec();
+    });
+  }
+
   private async processChallengeTimeouts() {
     this.timeoutTaskTimer = null;
 
@@ -976,20 +1168,8 @@ export default class ChallengeStore {
           logger.info(`Cleaning up expired challenge ${timedOutChallenge}`);
           await this.cleanupChallenge(timedOutChallenge, timeoutInfo);
         } else if (state === TimeoutState.STAGE_END) {
-          const clients = await this.loadChallengeClients(timedOutChallenge);
-          const stage = clients.reduce(
-            (acc, c) => Math.max(acc, c.lastCompletedStage),
-            Stage.UNKNOWN,
-          );
-          const uncompletedClients = clients.filter(
-            (c) => c.lastCompletedStage < stage,
-          );
-
-          logger.debug(
-            `Forcing stage ${stage} end for challenge ${timedOutChallenge} ` +
-              `after timeout (${uncompletedClients.length} uncompleted clients)`,
-          );
-          await this.loadAndCompleteChallengeStage(timedOutChallenge, stage);
+          await this.handleStageEndTimeout(timedOutChallenge);
+          await this.checkForActiveClients(timedOutChallenge);
         } else {
           logger.warn(
             `Timed-out challenge ${timedOutChallenge} has unknown timeout state ` +
