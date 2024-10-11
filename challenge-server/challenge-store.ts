@@ -1,11 +1,11 @@
 import {
   CHALLENGE_UPDATES_PUBSUB_KEY,
+  CLIENT_EVENTS_KEY,
   ChallengeMode,
   ChallengeStatus,
   ChallengeType,
   ChallengeServerUpdate,
   ChallengeUpdateAction,
-  CLIENT_EVENTS_KEY,
   ClientEvent,
   ClientEventType,
   ClientStageStream,
@@ -18,6 +18,7 @@ import {
   StageStatus,
   activePlayerKey,
   challengeStageStreamKey,
+  challengeStreamsSetKey,
   challengesKey,
   clientChallengesKey,
   partyKeyChallengeList,
@@ -1071,6 +1072,15 @@ export default class ChallengeStore {
 
     const challenge = await this.loadChallenge(challengeId);
 
+    const update: ChallengeServerUpdate = {
+      id: challengeId,
+      action: ChallengeUpdateAction.FINISH,
+    };
+    await this.client.publish(
+      CHALLENGE_UPDATES_PUBSUB_KEY,
+      JSON.stringify(update),
+    );
+
     if (challenge !== null) {
       const processor = loadChallengeProcessor(
         this.challengeDataRepository,
@@ -1090,15 +1100,6 @@ export default class ChallengeStore {
     } else {
       await this.deleteRedisChallengeData(challengeId);
     }
-
-    const update: ChallengeServerUpdate = {
-      id: challengeId,
-      action: ChallengeUpdateAction.FINISH,
-    };
-    await this.client.publish(
-      CHALLENGE_UPDATES_PUBSUB_KEY,
-      JSON.stringify(update),
-    );
   }
 
   /**
@@ -1115,6 +1116,14 @@ export default class ChallengeStore {
       multi.del(challengesKey(id));
       multi.del(challengeClientsKey(id));
       multi.hDel(ChallengeStore.CHALLENGE_TIMEOUT_KEY, id);
+
+      const streamsSetKey = challengeStreamsSetKey(id);
+      await client.watch(streamsSetKey);
+      const streams = await client.sMembers(streamsSetKey);
+      for (const stream of streams) {
+        multi.del(stream);
+      }
+      multi.del(streamsSetKey);
 
       if (type !== undefined && party !== undefined) {
         multi.lRem(partyKeyChallengeList(type, party), 1, id);
