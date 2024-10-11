@@ -18,6 +18,7 @@ import {
   challengeStageStreamKey,
   challengesKey,
   ChallengeStatus,
+  challengeStreamsSetKey,
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 import { ChallengeEvents } from '@blert/common/generated/challenge_storage_pb';
@@ -201,7 +202,7 @@ export class RemoteChallengeManager extends ChallengeManager {
       eventsByStage.get(stage)!.push(event);
     }
 
-    const writes = [];
+    const multi = this.redisClient.multi();
 
     for (const [stage, stageEvents] of eventsByStage) {
       const eventsMessage = new ChallengeEvents();
@@ -212,16 +213,18 @@ export class RemoteChallengeManager extends ChallengeManager {
         clientId: client.getUserId(),
         events: eventsMessage.serializeBinary(),
       };
-      writes.push(
-        this.redisClient.xAdd(
-          challengeStageStreamKey(challengeId, stage),
-          '*',
-          stageStreamToRecord(eventsStream),
-        ),
+      multi.xAdd(
+        challengeStageStreamKey(challengeId, stage),
+        '*',
+        stageStreamToRecord(eventsStream),
+      );
+      multi.sAdd(
+        challengeStreamsSetKey(challengeId),
+        challengeStageStreamKey(challengeId, stage),
       );
     }
 
-    await Promise.all(writes);
+    await multi.exec();
   }
 
   public async addClient(

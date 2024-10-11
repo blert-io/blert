@@ -106,8 +106,22 @@ export interface StageStreamEnd extends ClientStageStream {
   update: StageUpdate;
 }
 
+/**
+ * Returns the Redis key for the stream of events for a challenge stage.
+ * @param uuid ID of the challenge.
+ * @param stage Stage of the challenge.
+ * @returns Key for the challenge stage's event stream.
+ */
 export function challengeStageStreamKey(uuid: string, stage: Stage) {
   return `challenge-events:${uuid}:${stage}`;
+}
+
+/**
+ * Returns the Redis key for the set of stage stream keys for a challenge.
+ * @param uuid ID of the challenge.
+ */
+export function challengeStreamsSetKey(uuid: string) {
+  return `challenge-streams:${uuid}`;
 }
 
 export function stageStreamToRecord(
