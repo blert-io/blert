@@ -102,8 +102,8 @@ export default class MessageHandler {
         const rsn = confirmation.getUsername().toLowerCase();
 
         if (confirmation.getIsValid()) {
-          if (client.getActiveChallenge() === null) {
-            this.challengeManager.addClient(
+          if (client.getActiveChallenge() !== message.getActiveChallengeId()) {
+            const added = await this.challengeManager.addClient(
               client,
               message.getActiveChallengeId(),
               confirmation.getSpectator()
@@ -111,9 +111,15 @@ export default class MessageHandler {
                 : RecordingType.PARTICIPANT,
             );
 
-            console.log(
-              `${client}: player ${rsn} rejoining challenge ${message.getActiveChallengeId()}`,
-            );
+            if (added) {
+              console.log(
+                `${client}: player ${rsn} rejoining challenge ${message.getActiveChallengeId()}`,
+              );
+            } else {
+              console.error(
+                `${client}: failed to rejoin challenge ${message.getActiveChallengeId()}`,
+              );
+            }
           }
         } else {
           await this.challengeManager.completeChallenge(
@@ -433,8 +439,8 @@ export default class MessageHandler {
     client: Client,
     rsn: string,
   ): Promise<void> {
-    const challengeId = this.playerManager.getCurrentChallengeId(rsn);
-    if (challengeId === undefined) {
+    const challengeId = await this.playerManager.getCurrentChallengeId(rsn);
+    if (challengeId === null) {
       return;
     }
 

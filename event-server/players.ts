@@ -1,10 +1,12 @@
 import {
   PlayerStats,
   Player,
+  activePlayerKey,
   camelToSnakeObject,
   CamelToSnakeCase,
   camelToSnake,
 } from '@blert/common';
+import { RedisClientType } from 'redis';
 
 import sql from './db';
 
@@ -200,9 +202,14 @@ type ActivePlayer = {
 type PlayerStatusCallback = (challengeId: string | null) => void;
 
 export class PlayerManager {
+  private redisClient: RedisClientType | null;
   private activePlayers = new Map<string, ActivePlayer>();
 
   private statusUpdateListeners = new Map<string, PlayerStatusCallback[]>();
+
+  public constructor(redisClient: RedisClientType | null) {
+    this.redisClient = redisClient;
+  }
 
   public setPlayerActive(username: string, challengeId: string): void {
     this.activePlayers.set(username.toLowerCase(), { challengeId });
@@ -230,8 +237,12 @@ export class PlayerManager {
       ?.forEach((cb) => cb(null));
   }
 
-  public getCurrentChallengeId(username: string): string | undefined {
-    return this.activePlayers.get(username.toLowerCase())?.challengeId;
+  public async getCurrentChallengeId(username: string): Promise<string | null> {
+    if (this.redisClient !== null) {
+      const challengeId = await this.redisClient.get(activePlayerKey(username));
+      return challengeId ?? null;
+    }
+    return this.activePlayers.get(username.toLowerCase())?.challengeId ?? null;
   }
 
   public subscribeToPlayer(

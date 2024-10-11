@@ -1,10 +1,11 @@
 import { ChallengeType, Stage, StageStatus } from '../challenge';
 
+function normalizeUsername(username: string): string {
+  return username.toLowerCase().replaceAll(' ', '_');
+}
+
 function challengePartyKey(type: ChallengeType, partyMembers: string[]) {
-  const party = partyMembers
-    .toSorted()
-    .map((name) => name.toLowerCase().replaceAll(' ', '_'))
-    .join('-');
+  const party = partyMembers.toSorted().map(normalizeUsername).join('-');
   return `${type}-${party}`;
 }
 
@@ -153,4 +154,14 @@ export function stageStreamFromRecord(
     default:
       return { type, clientId };
   }
+}
+
+/**
+ * Returns the Redis key storing information about the OSRS player with the
+ * given username.
+ * @param username Username of the player.
+ * @returns Key for the player's information.
+ */
+export function activePlayerKey(username: string) {
+  return `player:${normalizeUsername(username)}`;
 }

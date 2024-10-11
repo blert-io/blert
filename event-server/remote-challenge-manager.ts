@@ -16,6 +16,8 @@ import {
   stageStreamToRecord,
   StageStreamType,
   challengeStageStreamKey,
+  challengesKey,
+  ChallengeStatus,
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 import { ChallengeEvents } from '@blert/common/generated/challenge_storage_pb';
@@ -160,8 +162,28 @@ export class RemoteChallengeManager extends ChallengeManager {
     }
   }
 
-  public getChallengeInfo(challengeId: string): Promise<ChallengeInfo | null> {
-    throw new Error('Method not implemented.');
+  public async getChallengeInfo(
+    challengeId: string,
+  ): Promise<ChallengeInfo | null> {
+    const challenge = await this.redisClient.hGetAll(
+      challengesKey(challengeId),
+    );
+    if (Object.keys(challenge).length === 0) {
+      return null;
+    }
+
+    try {
+      return {
+        type: Number.parseInt(challenge.type) as ChallengeType,
+        mode: Number.parseInt(challenge.mode) as ChallengeMode,
+        status: Number.parseInt(challenge.status) as ChallengeStatus,
+        stage: Number.parseInt(challenge.stage) as Stage,
+        party: challenge.party.split(','),
+      };
+    } catch (e) {
+      console.log('Failed to parse challenge info:', e);
+      return null;
+    }
   }
 
   public async processEvents(
@@ -202,12 +224,36 @@ export class RemoteChallengeManager extends ChallengeManager {
     await Promise.all(writes);
   }
 
-  public addClient(
+  public async addClient(
     client: Client,
     challengeId: string,
     recordingType: RecordingType,
-  ): boolean {
-    throw new Error('Method not implemented.');
+  ): Promise<boolean> {
+    try {
+      const res = await fetch(
+        `${this.serverUrl}/challenges/${challengeId}/join`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: client.getUserId(),
+            recordingType,
+          }),
+        },
+      );
+
+      if (res.status !== 200) {
+        console.log(`Challenge join request failed with status ${res.status}`);
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      console.log('Failed to join challenge:', e);
+      return false;
+    }
   }
 
   public updateClientStatus(client: Client, status: ClientStatus): void {
