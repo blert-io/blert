@@ -798,19 +798,82 @@ export async function loadPbsForPlayer(
   return pbs;
 }
 
+function stageToStatsField(stage: Stage): string | null {
+  switch (stage) {
+    case Stage.TOB_MAIDEN:
+      return 'deaths_maiden';
+    case Stage.TOB_BLOAT:
+      return 'deaths_bloat';
+    case Stage.TOB_NYLOCAS:
+      return 'deaths_nylocas';
+    case Stage.TOB_SOTETSEG:
+      return 'deaths_sotetseg';
+    case Stage.TOB_XARPUS:
+      return 'deaths_xarpus';
+    case Stage.TOB_VERZIK:
+      return 'deaths_verzik';
+    default:
+      return null;
+  }
+}
+
 export async function getTotalDeathsByStage(
   stages: Stage[],
 ): Promise<Record<Stage, number>> {
-  const stagesAndDeaths = await sql`
-    SELECT stage, COUNT(*) as deaths
-    FROM queryable_events
-    WHERE event_type = ${EventType.PLAYER_DEATH} AND stage = ANY(${stages})
-    GROUP BY stage
-  `;
-  return stagesAndDeaths.reduce((acc, stage) => {
-    acc[stage.stage] = parseInt(stage.deaths);
-    return acc;
-  }, {});
+  const statsFields: Array<[Stage, string]> = [];
+  const otherStages: Stage[] = [];
+
+  for (const stage of stages) {
+    const field = stageToStatsField(stage);
+    if (field !== null) {
+      statsFields.push([stage, field]);
+    } else {
+      otherStages.push(stage);
+    }
+  }
+
+  const deathsByStage = {} as Record<Stage, number>;
+  const promises = [];
+
+  if (statsFields.length > 0) {
+    const baseColumns = statsFields.map(([, field]) => field);
+    const aggregateColumns = statsFields.flatMap(([stage, field], i) => {
+      const sum = sql`SUM(${sql(field)}) AS ${sql(stage.toString())}`;
+      return i > 0 ? [sql`, `, sum] : sum;
+    });
+
+    promises.push(
+      await sql`
+      SELECT ${aggregateColumns} FROM (
+        SELECT DISTINCT ON (player_id) ${sql(baseColumns)}
+        FROM player_stats
+        ORDER BY player_id, date DESC
+      );
+    `.then(([stagesAndDeaths]) => {
+        Object.entries(stagesAndDeaths).forEach(([stage, deaths]) => {
+          deathsByStage[parseInt(stage)] = parseInt(deaths);
+        });
+      }),
+    );
+  }
+
+  if (otherStages.length > 0) {
+    promises.push(
+      await sql`
+      SELECT stage, COUNT(*) as deaths
+      FROM queryable_events
+      WHERE event_type = ${EventType.PLAYER_DEATH} AND stage = ANY(${otherStages})
+      GROUP BY stage
+    `.then((stagesAndDeaths) => {
+        for (const row of stagesAndDeaths) {
+          deathsByStage[row.stage] = parseInt(row.deaths);
+        }
+      }),
+    );
+  }
+
+  await Promise.all(promises);
+  return deathsByStage;
 }
 
 export type RankedSplit = {
