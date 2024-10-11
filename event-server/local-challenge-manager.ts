@@ -198,15 +198,15 @@ export default class LocalChallengeManager extends ChallengeManager {
     client: Client,
     challengeId: string,
     recordingType: RecordingType,
-  ): boolean {
+  ): Promise<boolean> {
     const aggregator = this.challengeAggregators[challengeId];
     if (aggregator === undefined) {
       console.error(`No aggregator for challenge ${challengeId}`);
-      return false;
+      return Promise.resolve(false);
     }
 
     aggregator.addClient(client, recordingType);
-    return true;
+    return Promise.resolve(true);
   }
 
   public override updateClientStatus(

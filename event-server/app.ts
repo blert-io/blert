@@ -97,7 +97,9 @@ function initializeDataRepository(envVar: string): DataRepository {
   return new DataRepository(repositoryBackend);
 }
 
-async function initializeRemoteChallengeManager(): Promise<ChallengeManager> {
+async function initializeRemoteChallengeManager(): Promise<
+  [ChallengeManager, PlayerManager]
+> {
   if (!process.env.BLERT_CHALLENGE_SERVER_URI) {
     throw new Error('BLERT_CHALLENGE_SERVER_URI is not set');
   }
@@ -110,10 +112,17 @@ async function initializeRemoteChallengeManager(): Promise<ChallengeManager> {
   });
   await redisClient.connect();
 
-  return new RemoteChallengeManager(
+  const challengeManager = new RemoteChallengeManager(
     process.env.BLERT_CHALLENGE_SERVER_URI,
     redisClient,
   );
+
+  const playerClient = redisClient.duplicate();
+  await playerClient.connect();
+
+  const playerManager = new PlayerManager(playerClient);
+
+  return [challengeManager, playerManager];
 }
 
 async function main(): Promise<void> {
@@ -187,18 +196,21 @@ async function main(): Promise<void> {
 
   const connectionManager = new ConnectionManager();
   const serverManager = new ServerManager(connectionManager);
-  const playerManager = new PlayerManager();
 
   let challengeManager: ChallengeManager;
+  let playerManager: PlayerManager;
 
   if (false) {
+    playerManager = new PlayerManager(null);
     challengeManager = new LocalChallengeManager(
       playerManager,
       repository,
       clientRepository,
     );
   } else {
-    challengeManager = await initializeRemoteChallengeManager();
+    const [cm, pm] = await initializeRemoteChallengeManager();
+    challengeManager = cm;
+    playerManager = pm;
   }
 
   const messageHandler = new MessageHandler(challengeManager, playerManager);

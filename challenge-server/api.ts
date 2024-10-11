@@ -29,6 +29,7 @@ export function registerApiRoutes(app: Application): void {
   app.post('/challenges/new', newChallenge);
   app.post('/challenges/:challengeId', updateChallenge);
   app.post('/challenges/:challengeId/finish', finishChallenge);
+  app.post('/challenges/:challengeId/join', joinChallenge);
   app.post('/test/:challengeId', mergeTestEvents);
 }
 
@@ -36,6 +37,8 @@ function errorStatus(e: Error): number {
   if (e instanceof ChallengeError) {
     const err = e as ChallengeError;
     switch (err.type) {
+      case ChallengeErrorType.FAILED_PRECONDITION:
+        return 400;
       case ChallengeErrorType.UNSUPPORTED:
         return 422;
     }
@@ -109,6 +112,28 @@ async function finishChallenge(req: Request, res: Response): Promise<void> {
       challengeId,
       request.userId,
       request.times,
+    );
+    res.status(200).send();
+  } catch (e: any) {
+    logger.error(`Failed to finish challenge: ${e}`);
+    res.status(errorStatus(e)).send();
+  }
+}
+
+type JoinChallengeRequest = {
+  userId: number;
+  recordingType: RecordingType;
+};
+
+async function joinChallenge(req: Request, res: Response): Promise<void> {
+  const challengeId = req.params.challengeId;
+  const request = req.body as JoinChallengeRequest;
+
+  try {
+    await res.locals.challengeStore.addClient(
+      challengeId,
+      request.userId,
+      request.recordingType,
     );
     res.status(200).send();
   } catch (e: any) {

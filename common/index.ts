@@ -136,6 +136,7 @@ export {
   type StageStreamEnd,
   type StageStreamEvents,
   type StageUpdate,
+  activePlayerKey,
   challengeStageStreamKey,
   challengesKey,
   clientChallengesKey,

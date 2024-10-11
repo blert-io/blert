@@ -108,7 +108,7 @@ export default abstract class ChallengeManager {
     client: Client,
     challengeId: string,
     recordingType: RecordingType,
-  ): boolean;
+  ): Promise<boolean>;
 
   /**
    * Changes the connection status of a client.
