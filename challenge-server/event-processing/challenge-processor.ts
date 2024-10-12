@@ -295,6 +295,8 @@ export default abstract class ChallengeProcessor {
       } else {
         this.challengeStatus = ChallengeStatus.RESET;
       }
+    } else if (events.getStatus() === StageStatus.STARTED) {
+      this.challengeStatus = ChallengeStatus.ABANDONED;
     } else {
       this.challengeStatus = ChallengeStatus.WIPED;
     }
