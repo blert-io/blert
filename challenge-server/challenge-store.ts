@@ -55,7 +55,8 @@ export class ChallengeError extends Error {
 enum TimeoutState {
   NONE = 0,
   STAGE_END = 1,
-  CLEANUP = 2,
+  CHALLENGE_END = 2,
+  CLEANUP = 3,
 }
 
 type ExtendedChallengeState = ChallengeState & {
@@ -236,11 +237,13 @@ export default class ChallengeStore {
         const key = challengesKey(lastChallengeForParty);
         await client.watch(key);
 
-        const [active, statusValue, stageValue] = await client.hmGet(key, [
-          'active',
-          'status',
-          'stage',
-        ]);
+        const [active, statusValue, stageValue, timeoutStateValue] =
+          await client.hmGet(key, [
+            'active',
+            'status',
+            'stage',
+            'timeoutState',
+          ]);
 
         if (active !== '1' || statusValue === null || stageValue === null) {
           logger.warn(
@@ -250,9 +253,15 @@ export default class ChallengeStore {
           createNewChallenge = true;
         } else {
           const status = Number.parseInt(statusValue) as ChallengeStatus;
+          const timeoutState = Number.parseInt(
+            timeoutStateValue,
+          ) as TimeoutState;
           const lastStage = Number.parseInt(stageValue) as Stage;
 
-          if (status !== ChallengeStatus.IN_PROGRESS) {
+          if (
+            status === ChallengeStatus.COMPLETED ||
+            timeoutState === TimeoutState.CHALLENGE_END
+          ) {
             logger.info(
               `Previous challenge for party ${partyMembers} ` +
                 'has completed; starting new one',
@@ -426,15 +435,16 @@ export default class ChallengeStore {
             maxRetryAttempts: 1,
             retryIntervalMs: 1500,
           };
+          multi.hSet(challengeKey, 'timeoutState', TimeoutState.CHALLENGE_END);
         } else {
           timeout = {
             timestamp: Date.now() + ChallengeStore.MAX_RECONNECTION_PERIOD,
             maxRetryAttempts: 1,
             retryIntervalMs: ChallengeStore.MAX_RECONNECTION_PERIOD,
           };
+          multi.hSet(challengeKey, 'timeoutState', TimeoutState.CLEANUP);
         }
 
-        multi.hSet(challengeKey, 'timeoutState', TimeoutState.CLEANUP);
         multi.hSet(
           ChallengeStore.CHALLENGE_TIMEOUT_KEY,
           challengeId,
@@ -1268,6 +1278,9 @@ export default class ChallengeStore {
 
         if (state === TimeoutState.CLEANUP) {
           logger.info(`Cleaning up expired challenge ${timedOutChallenge}`);
+          await this.cleanupChallenge(timedOutChallenge, timeoutInfo);
+        } else if (state === TimeoutState.CHALLENGE_END) {
+          logger.info(`Finishing challenge ${timedOutChallenge} after timeout`);
           await this.cleanupChallenge(timedOutChallenge, timeoutInfo);
         } else if (state === TimeoutState.STAGE_END) {
           await this.handleStageEndTimeout(timedOutChallenge);
