@@ -456,11 +456,6 @@ export default abstract class ChallengeProcessor {
     } else {
       stageState.npcs.set(npc.getRoomId().toString(), npcCommon);
     }
-
-    const npcDefinition = getNpcDefinition(npc.getId());
-    if (npcDefinition !== null) {
-      this.setMode(npcDefinition.mode);
-    }
   }
 
   private async updateChallenge(

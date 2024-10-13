@@ -152,7 +152,7 @@ function challengeClientsKey(challengeId: string): string {
   return `challenge:${challengeId}:clients`;
 }
 
-export default class ChallengeStore {
+export default class ChallengeManager {
   private challengeDataRepository: DataRepository;
   private priceTracker: PriceTracker;
   private client: RedisClientType;
@@ -195,7 +195,7 @@ export default class ChallengeStore {
     if (this.manageTimeouts) {
       this.timeoutTaskTimer = setTimeout(
         () => this.processChallengeTimeouts(),
-        ChallengeStore.CHALLENGE_TIMEOUT_INTERVAL,
+        ChallengeManager.CHALLENGE_TIMEOUT_INTERVAL,
       );
     } else {
       this.timeoutTaskTimer = null;
@@ -447,15 +447,15 @@ export default class ChallengeStore {
           multi.hSet(challengeKey, 'timeoutState', TimeoutState.CHALLENGE_END);
         } else {
           timeout = {
-            timestamp: Date.now() + ChallengeStore.MAX_RECONNECTION_PERIOD,
+            timestamp: Date.now() + ChallengeManager.MAX_RECONNECTION_PERIOD,
             maxRetryAttempts: 1,
-            retryIntervalMs: ChallengeStore.MAX_RECONNECTION_PERIOD,
+            retryIntervalMs: ChallengeManager.MAX_RECONNECTION_PERIOD,
           };
           multi.hSet(challengeKey, 'timeoutState', TimeoutState.CLEANUP);
         }
 
         multi.hSet(
-          ChallengeStore.CHALLENGE_TIMEOUT_KEY,
+          ChallengeManager.CHALLENGE_TIMEOUT_KEY,
           challengeId,
           JSON.stringify(timeout),
         );
@@ -607,7 +607,7 @@ export default class ChallengeStore {
             );
           } else if (challenge.timeoutState !== TimeoutState.STAGE_END) {
             const timeout: ChallengeTimeout = {
-              timestamp: Date.now() + ChallengeStore.STAGE_END_TIMEOUT,
+              timestamp: Date.now() + ChallengeManager.STAGE_END_TIMEOUT,
               maxRetryAttempts: 0,
               retryIntervalMs: 0,
             };
@@ -617,7 +617,7 @@ export default class ChallengeStore {
               TimeoutState.STAGE_END,
             );
             multi.hSet(
-              ChallengeStore.CHALLENGE_TIMEOUT_KEY,
+              ChallengeManager.CHALLENGE_TIMEOUT_KEY,
               challengeId,
               JSON.stringify(timeout),
             );
@@ -722,7 +722,7 @@ export default class ChallengeStore {
           'timeoutState',
           TimeoutState.NONE,
         );
-        multi.hDel(ChallengeStore.CHALLENGE_TIMEOUT_KEY, challengeId);
+        multi.hDel(ChallengeManager.CHALLENGE_TIMEOUT_KEY, challengeId);
       }
 
       multi.set(clientChallengesKey(userId), challengeId);
@@ -788,9 +788,9 @@ export default class ChallengeStore {
 
       if (clients.length <= 1) {
         const timeout: ChallengeTimeout = {
-          timestamp: Date.now() + ChallengeStore.MAX_RECONNECTION_PERIOD,
+          timestamp: Date.now() + ChallengeManager.MAX_RECONNECTION_PERIOD,
           maxRetryAttempts: 3,
-          retryIntervalMs: ChallengeStore.MAX_RECONNECTION_PERIOD,
+          retryIntervalMs: ChallengeManager.MAX_RECONNECTION_PERIOD,
         };
         multi.hSet(
           challengesKey(challengeId),
@@ -798,7 +798,7 @@ export default class ChallengeStore {
           TimeoutState.CLEANUP,
         );
         multi.hSet(
-          ChallengeStore.CHALLENGE_TIMEOUT_KEY,
+          ChallengeManager.CHALLENGE_TIMEOUT_KEY,
           challengeId,
           JSON.stringify(timeout),
         );
@@ -860,7 +860,7 @@ export default class ChallengeStore {
           'timeoutState',
           TimeoutState.NONE,
         );
-        multi.hDel(ChallengeStore.CHALLENGE_TIMEOUT_KEY, challengeId);
+        multi.hDel(ChallengeManager.CHALLENGE_TIMEOUT_KEY, challengeId);
       }
 
       return multi.exec();
@@ -915,12 +915,12 @@ export default class ChallengeStore {
           `${challengeId}: all clients inactive; starting reconnection timer`,
         );
         const timeout: ChallengeTimeout = {
-          timestamp: Date.now() + ChallengeStore.MAX_INACTIVITY_PERIOD,
+          timestamp: Date.now() + ChallengeManager.MAX_INACTIVITY_PERIOD,
           maxRetryAttempts: 0,
-          retryIntervalMs: ChallengeStore.MAX_INACTIVITY_PERIOD,
+          retryIntervalMs: ChallengeManager.MAX_INACTIVITY_PERIOD,
         };
         multi.hSet(
-          ChallengeStore.CHALLENGE_TIMEOUT_KEY,
+          ChallengeManager.CHALLENGE_TIMEOUT_KEY,
           challengeId,
           JSON.stringify(timeout),
         );
@@ -972,7 +972,7 @@ export default class ChallengeStore {
         'timeoutState',
         TimeoutState.NONE,
       );
-      multi.hDel(ChallengeStore.CHALLENGE_TIMEOUT_KEY, challenge.uuid);
+      multi.hDel(ChallengeManager.CHALLENGE_TIMEOUT_KEY, challenge.uuid);
       await multi.exec();
     }
 
@@ -1106,7 +1106,7 @@ export default class ChallengeStore {
           retryIntervalMs: timeout.retryIntervalMs,
         };
         multi.hSet(
-          ChallengeStore.CHALLENGE_TIMEOUT_KEY,
+          ChallengeManager.CHALLENGE_TIMEOUT_KEY,
           challengeId,
           JSON.stringify(nextTimeout),
         );
@@ -1167,7 +1167,7 @@ export default class ChallengeStore {
       const multi = client.multi();
       multi.del(challengesKey(id));
       multi.del(challengeClientsKey(id));
-      multi.hDel(ChallengeStore.CHALLENGE_TIMEOUT_KEY, id);
+      multi.hDel(ChallengeManager.CHALLENGE_TIMEOUT_KEY, id);
 
       const streamsSetKey = challengeStreamsSetKey(id);
       await client.watch(streamsSetKey);
@@ -1243,13 +1243,13 @@ export default class ChallengeStore {
     await this.watchTransaction(async (client) => {
       await client.watch(challengeClientsKey(challengeId));
       await client.watch(challengesKey(challengeId));
-      await client.watch(ChallengeStore.CHALLENGE_TIMEOUT_KEY);
+      await client.watch(ChallengeManager.CHALLENGE_TIMEOUT_KEY);
 
       const multi = client.multi();
       const clients = await this.loadChallengeClients(challengeId, client);
 
       const hasTimeout = await client.hExists(
-        ChallengeStore.CHALLENGE_TIMEOUT_KEY,
+        ChallengeManager.CHALLENGE_TIMEOUT_KEY,
         challengeId,
       );
       if (hasTimeout) {
@@ -1262,9 +1262,9 @@ export default class ChallengeStore {
           `${challengeId} has no active clients; starting reconnection timer`,
         );
         const timeout: ChallengeTimeout = {
-          timestamp: Date.now() + ChallengeStore.MAX_RECONNECTION_PERIOD,
+          timestamp: Date.now() + ChallengeManager.MAX_RECONNECTION_PERIOD,
           maxRetryAttempts: 3,
-          retryIntervalMs: ChallengeStore.MAX_RECONNECTION_PERIOD,
+          retryIntervalMs: ChallengeManager.MAX_RECONNECTION_PERIOD,
         };
         multi.hSet(
           challengesKey(challengeId),
@@ -1272,7 +1272,7 @@ export default class ChallengeStore {
           TimeoutState.CLEANUP,
         );
         multi.hSet(
-          ChallengeStore.CHALLENGE_TIMEOUT_KEY,
+          ChallengeManager.CHALLENGE_TIMEOUT_KEY,
           challengeId,
           JSON.stringify(timeout),
         );
@@ -1289,7 +1289,7 @@ export default class ChallengeStore {
       let challenges: Record<string, string>;
       try {
         challenges = await this.client.hGetAll(
-          ChallengeStore.CHALLENGE_TIMEOUT_KEY,
+          ChallengeManager.CHALLENGE_TIMEOUT_KEY,
         );
       } catch (e) {
         logger.error(`Failed to fetch challenge timeouts: ${e}`);
@@ -1335,7 +1335,7 @@ export default class ChallengeStore {
             );
           }
           await this.client.hDel(
-            ChallengeStore.CHALLENGE_TIMEOUT_KEY,
+            ChallengeManager.CHALLENGE_TIMEOUT_KEY,
             timedOutChallenge,
           );
           // Try to find another timed-out challenge.
@@ -1349,7 +1349,7 @@ export default class ChallengeStore {
     if (this.manageTimeouts) {
       this.timeoutTaskTimer = setTimeout(
         () => this.processChallengeTimeouts(),
-        ChallengeStore.CHALLENGE_TIMEOUT_INTERVAL,
+        ChallengeManager.CHALLENGE_TIMEOUT_INTERVAL,
       );
     }
   }
