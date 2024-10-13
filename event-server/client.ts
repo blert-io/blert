@@ -107,7 +107,7 @@ export default class Client {
         this.stats.recordIn(message.byteLength);
 
         const now = Date.now();
-        if (now - this.lastMessageLog > 60 * 1000) {
+        if (now - this.lastMessageLog > 2 * 60 * 1000) {
           console.log(`${this}: ${this.stats.logString()}`);
           this.lastMessageLog = now;
         }

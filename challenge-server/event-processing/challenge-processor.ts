@@ -143,10 +143,22 @@ export default abstract class ChallengeProcessor {
   }
 
   public setMode(mode: ChallengeMode): void {
-    if (mode !== this.mode) {
-      this.mode = mode;
-      this.updates.mode = mode;
+    if (mode === this.mode) {
+      return;
     }
+
+    if (
+      this.mode === ChallengeMode.TOB_HARD &&
+      mode === ChallengeMode.TOB_REGULAR
+    ) {
+      logger.debug(
+        `${this.uuid}: Ignoring invalid mode change from TOB_HARD to TOB_REGULAR`,
+      );
+      return;
+    }
+
+    this.mode = mode;
+    this.updates.mode = mode;
   }
 
   public setStage(stage: Stage): void {
