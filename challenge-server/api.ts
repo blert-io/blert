@@ -13,12 +13,11 @@ import {
   ChallengeError,
   ChallengeErrorType,
   ChallengeUpdate,
-  StageUpdate,
-} from './challenge-store';
+} from './challenge-manager';
 import { ClientEvents, StageInfo } from './client-events';
+import sql from './db';
 import { ReportedTimes } from './event-processing';
 import logger from './log';
-import sql from './db';
 import { ChallengeInfo, Merger } from './merge';
 
 export function registerApiRoutes(app: Application): void {
@@ -60,7 +59,7 @@ async function newChallenge(req: Request, res: Response): Promise<void> {
   const request = req.body as NewChallengeRequest;
 
   try {
-    const challengeId = await res.locals.challengeStore.getOrCreate(
+    const challengeId = await res.locals.challengeManager.getOrCreate(
       request.userId,
       request.type,
       request.mode,
@@ -85,7 +84,7 @@ async function updateChallenge(req: Request, res: Response): Promise<void> {
     const challengeId = req.params.challengeId;
     const request = req.body as UpdateChallengeRequest;
 
-    const ok = await res.locals.challengeStore.update(
+    const ok = await res.locals.challengeManager.update(
       challengeId,
       request.userId,
       request.update,
@@ -108,7 +107,7 @@ async function finishChallenge(req: Request, res: Response): Promise<void> {
   const request = req.body as FinishChallengeRequest;
 
   try {
-    await res.locals.challengeStore.finish(
+    await res.locals.challengeManager.finish(
       challengeId,
       request.userId,
       request.times,
@@ -130,7 +129,7 @@ async function joinChallenge(req: Request, res: Response): Promise<void> {
   const request = req.body as JoinChallengeRequest;
 
   try {
-    await res.locals.challengeStore.addClient(
+    await res.locals.challengeManager.addClient(
       challengeId,
       request.userId,
       request.recordingType,

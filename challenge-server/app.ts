@@ -5,7 +5,7 @@ import express from 'express';
 import { RedisClientType, createClient } from 'redis';
 
 import { registerApiRoutes } from './api';
-import ChallengeStore from './challenge-store';
+import ChallengeManager from './challenge-manager';
 import logger from './log';
 
 /**
@@ -64,7 +64,7 @@ async function main() {
     'BLERT_CLIENT_DATA_REPOSITORY',
   );
 
-  const challengeStore = new ChallengeStore(
+  const challengeManager = new ChallengeManager(
     challengeDataRepository,
     redisClient,
     true,
@@ -89,7 +89,7 @@ async function main() {
 
   app.use((_req, res, next) => {
     res.locals.challengeDataRepository = challengeDataRepository;
-    res.locals.challengeStore = challengeStore;
+    res.locals.challengeManager = challengeManager;
     res.locals.testDataRepository = testDataRepository;
     next();
   });
