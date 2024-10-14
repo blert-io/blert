@@ -54,7 +54,10 @@ async function main() {
 
   const redisClient: RedisClientType = createClient({
     url: process.env.BLERT_REDIS_URI,
+    pingInterval: 3 * 60 * 1000,
   });
+  redisClient.on('connect', () => logger.info('Connected to Redis'));
+  redisClient.on('error', (err) => logger.error('Redis error:', err));
   await redisClient.connect();
 
   const challengeDataRepository = initializeDataRepository(
