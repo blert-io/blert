@@ -61,11 +61,12 @@ async function main() {
     'BLERT_DATA_REPOSITORY',
   );
   const testDataRepository = initializeDataRepository(
-    'BLERT_CLIENT_DATA_REPOSITORY',
+    'BLERT_TEST_DATA_REPOSITORY',
   );
 
   const challengeManager = new ChallengeManager(
     challengeDataRepository,
+    testDataRepository,
     redisClient,
     true,
   );

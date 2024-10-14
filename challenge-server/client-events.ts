@@ -15,7 +15,7 @@ import logger from './log';
 import { ChallengeInfo, PlayerState, TickState } from './merge';
 import { ChallengeEvents } from '@blert/common/generated/challenge_storage_pb';
 
-type ServerTicks = {
+export type ServerTicks = {
   count: number;
   precise: boolean;
 };
