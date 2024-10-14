@@ -1341,7 +1341,7 @@ export default class ChallengeManager {
           await this.cleanupChallenge(timedOutChallenge, timeoutInfo);
         } else if (state === TimeoutState.CHALLENGE_END) {
           logger.info(`Finishing challenge ${timedOutChallenge} after timeout`);
-          await this.cleanupChallenge(timedOutChallenge, timeoutInfo);
+          await this.cleanupChallenge(timedOutChallenge, null);
         } else if (state === TimeoutState.STAGE_END) {
           await this.handleStageEndTimeout(timedOutChallenge);
           await this.checkForActiveClients(timedOutChallenge);
