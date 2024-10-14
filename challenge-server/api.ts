@@ -1,10 +1,11 @@
 import {
   ChallengeMode,
   ChallengeType,
+  ClientStageStream,
+  DataRepository,
   RecordingType,
   Stage,
-  StageStatus,
-  TobRooms,
+  StageStreamType,
 } from '@blert/common';
 import { ChallengeEvents } from '@blert/common/generated/challenge_storage_pb';
 import { Application, Request, Response } from 'express';
@@ -13,12 +14,14 @@ import {
   ChallengeError,
   ChallengeErrorType,
   ChallengeUpdate,
+  UnmergedEventData,
+  unmergedEventsFile,
 } from './challenge-manager';
-import { ClientEvents, StageInfo } from './client-events';
+import { ClientEvents } from './client-events';
 import sql from './db';
 import { ReportedTimes } from './event-processing';
 import logger from './log';
-import { ChallengeInfo, Merger } from './merge';
+import { Merger } from './merge';
 
 export function registerApiRoutes(app: Application): void {
   app.get('/ping', (_req, res) => {
@@ -29,7 +32,7 @@ export function registerApiRoutes(app: Application): void {
   app.post('/challenges/:challengeId', updateChallenge);
   app.post('/challenges/:challengeId/finish', finishChallenge);
   app.post('/challenges/:challengeId/join', joinChallenge);
-  app.post('/test/:challengeId', mergeTestEvents);
+  app.post('/test/merge/:challengeId/:stage', mergeTestEvents);
 }
 
 function errorStatus(e: Error): number {
@@ -148,13 +151,39 @@ async function mergeTestEvents(req: Request, res: Response): Promise<void> {
   // stores the raw recorded events for each client as serialized protobuf
   // files.
   const challengeId = req.params.challengeId;
+  const stage = Number.parseInt(req.params.stage);
 
-  const { challengeDataRepository, testDataRepository } = res.locals;
+  const { testDataRepository } = res.locals;
 
-  const challengeFiles = await testDataRepository.listFiles(challengeId);
-  if (challengeFiles.length === 0) {
-    logger.error(`No test data found for challenge ${challengeId}`);
-    res.status(404).send();
+  let mergeData: UnmergedEventData;
+
+  try {
+    const data = await testDataRepository.loadRaw(
+      unmergedEventsFile(challengeId, stage),
+    );
+    const raw = JSON.parse(data.toString());
+    mergeData = {
+      ...raw,
+      rawEvents: raw.rawEvents.map((e: any) => {
+        if (e.type === StageStreamType.STAGE_EVENTS) {
+          return {
+            ...e,
+            events: Buffer.from(e.events.data),
+          };
+        }
+
+        return e;
+      }),
+    };
+  } catch (e) {
+    if (e instanceof DataRepository.NotFound) {
+      logger.error(`No unmerged event data for ${challengeId}:${stage}`);
+      res.status(404).send();
+      return;
+    }
+
+    logger.error(`Failed to load test data for challenge ${challengeId}: ${e}`);
+    res.status(500).send();
     return;
   }
 
@@ -169,133 +198,45 @@ async function mergeTestEvents(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const party = await sql`
-      SELECT challenge_players.username
-      FROM challenges
-      JOIN challenge_players ON challenges.id = challenge_players.challenge_id
-      WHERE uuid = ${challengeId}
-      ORDER BY challenge_players.orb
-    `.then((rows) => rows.map((row) => row.username));
-
-  challengeInfo.party = party;
-
-  const streamsByStage = new Map<string, Map<string, ClientEvents>>();
-
-  await Promise.all(
-    challengeFiles.map((file) =>
-      testDataRepository.loadRaw(file).then((data) => {
-        const events = ChallengeEvents.deserializeBinary(data);
-        const [_uuid, stage, clientId] = file.split('/');
-
-        if (!streamsByStage.has(stage)) {
-          streamsByStage.set(stage, new Map());
-        }
-
-        let stageInfo: StageInfo = {
-          stage: Number.parseInt(stage),
-          status: StageStatus.WIPED,
-          accurate: false,
-          recordedTicks: 0,
-          serverTicks: null,
-        };
-
-        // The test event data has legacy STAGE_UPDATE events that need to be
-        // processed to determine the stage status.
-        const update = events.getEventsList().find((e) => e.hasStageUpdate());
-        if (update) {
-          const stageUpdate = update.getStageUpdate()!;
-          const isEnd =
-            stageUpdate.getStatus() === StageStatus.COMPLETED ||
-            stageUpdate.getStatus() === StageStatus.WIPED;
-          if (isEnd) {
-            stageInfo.status = stageUpdate.getStatus();
-            stageInfo.accurate = stageUpdate.getAccurate();
-            stageInfo.recordedTicks = update.getTick();
-            if (stageUpdate.hasInGameTicks()) {
-              stageInfo.serverTicks = {
-                count: stageUpdate.getInGameTicks(),
-                precise: true,
-              };
-            }
-          }
-        }
-
-        streamsByStage.get(stage)!.set(
-          clientId,
-          ClientEvents.fromRawEvents(
-            Number.parseInt(clientId),
-            challengeInfo as ChallengeInfo,
-            stageInfo,
-            events.getEventsList().filter((e) => !e.hasStageUpdate()),
-          ),
-        );
-      }),
-    ),
-  );
-
-  const fakeTobRooms: TobRooms = {
-    maiden: null,
-    bloat: null,
-    nylocas: null,
-    sotetseg: null,
-    xarpus: null,
-    verzik: null,
-  };
-
-  for (const [stageStr, streams] of streamsByStage) {
-    const stage = Number.parseInt(stageStr) as Stage;
-
-    const merger = new Merger(stage, Array.from(streams.values()));
-
-    const result = merger.merge();
-    if (result !== null) {
-      // Temporarily write directly to the data repository for debugging.
-      // TODO(frolv): Merged events should be forwarded to a `Challenge` for
-      // processing.
-      challengeDataRepository.saveProtoStageEvents(
-        challengeId,
-        stage,
-        challengeInfo.party,
-        Array.from(result.events),
-      );
-
-      const fakeStageData = (additionalFields?: any) => ({
-        stage,
-        deaths: [],
-        npcs: [],
-        ticksLost: result.events.getMissingTickCount(),
-        ...additionalFields,
-      });
-
-      switch (stage) {
-        case Stage.TOB_MAIDEN:
-          fakeTobRooms.maiden = fakeStageData();
-          break;
-        case Stage.TOB_BLOAT:
-          fakeTobRooms.bloat = fakeStageData({ downTicks: [] });
-          break;
-        case Stage.TOB_NYLOCAS:
-          fakeTobRooms.nylocas = fakeStageData({ stalledWaves: [] });
-          break;
-        case Stage.TOB_SOTETSEG:
-          fakeTobRooms.sotetseg = fakeStageData({
-            maze1Pivots: [],
-            maze2Pivots: [],
-          });
-          break;
-        case Stage.TOB_XARPUS:
-          fakeTobRooms.xarpus = fakeStageData();
-          break;
-        case Stage.TOB_VERZIK:
-          fakeTobRooms.verzik = fakeStageData({ redsSpawnCount: 1 });
-          break;
-      }
-    } else {
-      logger.error(`Failed to merge events for stage ${stage}`);
+  const eventsByClient = new Map<number, ClientStageStream[]>();
+  for (const evt of mergeData.rawEvents) {
+    if (!eventsByClient.has(evt.clientId)) {
+      eventsByClient.set(evt.clientId, []);
     }
+    eventsByClient.get(evt.clientId)!.push(evt);
   }
 
-  challengeDataRepository.saveTobChallengeData(challengeId, fakeTobRooms);
+  const clients: ClientEvents[] = [];
 
-  res.status(200).send();
+  for (const [clientId, events] of eventsByClient) {
+    clients.push(
+      ClientEvents.fromClientStream(
+        clientId,
+        mergeData.challengeInfo,
+        mergeData.stage,
+        events,
+      ),
+    );
+  }
+
+  const merger = new Merger(stage, clients);
+  const result = merger.merge();
+  if (result === null) {
+    res.status(500).send();
+    return;
+  }
+
+  logger.info(
+    `Merged clients: ${result.mergedClients.map((c) => c.getId()).join(', ')}`,
+  );
+  logger.info(
+    `Unmerged clients: ${result.unmergedClients.map((c) => c.getId()).join(', ')}`,
+  );
+
+  const mergedEvents = new ChallengeEvents();
+  mergedEvents.setEventsList(Array.from(result.events));
+
+  res
+    .status(200)
+    .send(Buffer.from(mergedEvents.serializeBinary()).toString('base64'));
 }

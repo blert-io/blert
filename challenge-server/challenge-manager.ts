@@ -27,7 +27,7 @@ import {
 import { RedisClientType, WatchError, commandOptions } from 'redis';
 import { v4 as uuidv4 } from 'uuid';
 
-import { ClientEvents } from './client-events';
+import { ClientEvents, ServerTicks } from './client-events';
 import {
   ChallengeProcessor,
   ChallengeState,
@@ -36,7 +36,7 @@ import {
   newChallengeProcessor,
 } from './event-processing';
 import logger from './log';
-import { Merger } from './merge';
+import { ChallengeInfo, MergeResult, Merger } from './merge';
 
 export const enum ChallengeErrorType {
   FAILED_PRECONDITION,
@@ -154,6 +154,7 @@ function challengeClientsKey(challengeId: string): string {
 
 export default class ChallengeManager {
   private challengeDataRepository: DataRepository;
+  private testDataRepository: DataRepository;
   private priceTracker: PriceTracker;
   private client: RedisClientType;
   private eventClient: RedisClientType;
@@ -182,10 +183,12 @@ export default class ChallengeManager {
 
   public constructor(
     challengeDataRepository: DataRepository,
+    testDataRepository: DataRepository,
     client: RedisClientType,
     manageTimeouts: boolean,
   ) {
     this.challengeDataRepository = challengeDataRepository;
+    this.testDataRepository = testDataRepository;
     this.priceTracker = new PriceTracker();
     this.client = client;
     this.eventClient = client.duplicate();
@@ -622,8 +625,7 @@ export default class ChallengeManager {
               JSON.stringify(timeout),
             );
           }
-        } else {
-          // Entering a new stage.
+        } else if (stageUpdate.status === StageStatus.STARTED) {
           processor.setStage(stageUpdate.stage);
         }
 
@@ -1030,6 +1032,22 @@ export default class ChallengeManager {
         challengesKey(challenge.uuid),
         toRedis({ ...challenge, ...updates }),
       );
+
+      if (result.unmergedClients.length > 0) {
+        const shouldSave = Math.random() < UNMERGED_EVENT_SAVE_RATE;
+        if (shouldSave) {
+          setTimeout(
+            () =>
+              this.saveUnmergedEvents(
+                challengeInfo,
+                stage,
+                stageEvents,
+                result,
+              ),
+            0,
+          );
+        }
+      }
     }
 
     await this.client.del(challengeStageStreamKey(challenge.uuid, stage));
@@ -1377,6 +1395,68 @@ export default class ChallengeManager {
       }
     }
   }
+
+  private async saveUnmergedEvents(
+    challenge: ChallengeInfo,
+    stage: Stage,
+    events: ClientStageStream[],
+    result: MergeResult,
+  ): Promise<void> {
+    logger.info(
+      `Merge failure: saving all client events for unmerged stage ${stage} of ${challenge.uuid}`,
+    );
+
+    // Save all event data as a single JSON file. This is inefficient as the
+    // files are quite large, but it's simple to work with and debug. Ideally,
+    // the amount of merge failures should reduce over time, making this less
+    // of a concern :)
+    const stageEventData: UnmergedEventData = {
+      challengeInfo: challenge,
+      stage,
+      mergedClients: result.mergedClients.map((c) => ({
+        id: c.getId(),
+        ticks: c.getFinalTick(),
+        serverTicks: c.getServerTicks(),
+        accurate: c.isAccurate(),
+        spectator: c.isSpectator(),
+      })),
+      unmergedClients: result.unmergedClients.map((c) => ({
+        id: c.getId(),
+        ticks: c.getFinalTick(),
+        serverTicks: c.getServerTicks(),
+        accurate: c.isAccurate(),
+        spectator: c.isSpectator(),
+      })),
+      rawEvents: events,
+    };
+
+    await this.testDataRepository.saveRaw(
+      unmergedEventsFile(challenge.uuid, stage),
+      Buffer.from(JSON.stringify(stageEventData)),
+    );
+  }
+}
+
+type ClientMetadata = {
+  id: number;
+  ticks: number;
+  serverTicks: ServerTicks | null;
+  accurate: boolean;
+  spectator: boolean;
+};
+
+export type UnmergedEventData = {
+  challengeInfo: ChallengeInfo;
+  stage: Stage;
+  mergedClients: ClientMetadata[];
+  unmergedClients: ClientMetadata[];
+  rawEvents: ClientStageStream[];
+};
+
+const UNMERGED_EVENT_SAVE_RATE = 0.1;
+const UNMERGED_EVENTS_DIR = 'unmerged-events';
+export function unmergedEventsFile(challengeId: string, stage: Stage): string {
+  return `${UNMERGED_EVENTS_DIR}/${challengeId}:${stage}_events.json`;
 }
 
 type ChallengeTimeout = {

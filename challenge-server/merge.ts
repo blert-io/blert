@@ -25,7 +25,7 @@ type MergeClients = {
   partial: ClientEvents[];
 };
 
-type MergeResult = {
+export type MergeResult = {
   events: MergedEvents;
   mergedClients: ClientEvents[];
   unmergedClients: ClientEvents[];

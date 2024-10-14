@@ -57,7 +57,7 @@ services:
       NODE_ENV: development
       BLERT_DATABASE_URI: postgres://blert:blert@postgres:5432/blert
       BLERT_DATA_REPOSITORY: file:///app/.data/challenges
-      BLERT_CLIENT_DATA_REPOSITORY: file:///app/.data/testing_data
+      BLERT_TEST_DATA_REPOSITORY: file:///app/.data/testing_data
       BLERT_LOG_LEVEL: debug
       BLERT_REDIS_URI: redis://redis:6379
     working_dir: /app
