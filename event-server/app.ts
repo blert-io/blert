@@ -107,6 +107,10 @@ async function initializeRemoteChallengeManager(): Promise<
     throw new Error('BLERT_REDIS_URI is not set');
   }
 
+  console.log(
+    `Using remote challenge manager at ${process.env.BLERT_CHALLENGE_SERVER_URI}`,
+  );
+
   const redisClient: RedisClientType = createClient({
     url: process.env.BLERT_REDIS_URI,
   });
@@ -200,17 +204,18 @@ async function main(): Promise<void> {
   let challengeManager: ChallengeManager;
   let playerManager: PlayerManager;
 
-  if (false) {
+  if (process.env.BLERT_CHALLENGE_SERVER_URI !== undefined) {
+    const [cm, pm] = await initializeRemoteChallengeManager();
+    challengeManager = cm;
+    playerManager = pm;
+  } else {
+    console.log('Using local challenge manager');
     playerManager = new PlayerManager(null);
     challengeManager = new LocalChallengeManager(
       playerManager,
       repository,
       clientRepository,
     );
-  } else {
-    const [cm, pm] = await initializeRemoteChallengeManager();
-    challengeManager = cm;
-    playerManager = pm;
   }
 
   const messageHandler = new MessageHandler(challengeManager, playerManager);
