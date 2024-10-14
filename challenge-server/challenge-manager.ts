@@ -734,11 +734,15 @@ export default class ChallengeManager {
   }
 
   private async processEvents() {
+    this.eventClient.on('error', (err) => {
+      logger.error(`Event queue error: ${err}`);
+    });
     await this.eventClient.connect();
 
     while (this.eventQueueActive) {
-      const res = await this.eventClient.blPop(CLIENT_EVENTS_KEY, 0);
+      const res = await this.eventClient.blPop(CLIENT_EVENTS_KEY, 60);
       if (res === null) {
+        // Hit the timeout; simply try again.
         continue;
       }
 
@@ -1300,9 +1304,7 @@ export default class ChallengeManager {
     });
   }
 
-  private async processChallengeTimeouts() {
-    this.timeoutTaskTimer = null;
-
+  private async processOneChallengeTimeout(): Promise<void> {
     while (true) {
       let challenges: Record<string, string>;
       try {
@@ -1362,6 +1364,16 @@ export default class ChallengeManager {
       }
 
       break;
+    }
+  }
+
+  private async processChallengeTimeouts() {
+    this.timeoutTaskTimer = null;
+
+    try {
+      await this.processOneChallengeTimeout();
+    } catch (e) {
+      logger.error(`Error processing challenge timeout: ${e}`);
     }
 
     if (this.manageTimeouts) {
