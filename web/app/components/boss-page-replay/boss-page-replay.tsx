@@ -14,7 +14,7 @@ import { BoostType, maxBoostedLevel } from '@/utils/combat';
 
 import styles from './styles.module.scss';
 
-const DEFAULT_MAP_TILE_SIZE = 30;
+const DEFAULT_MAP_TILE_SIZE = 25;
 
 type BossReplayProps = {
   entities: Entity[];

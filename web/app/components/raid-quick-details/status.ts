@@ -29,29 +29,45 @@ export function modeNameAndColor(
   type: ChallengeType,
   difficulty: ChallengeMode,
   prefix: boolean = true,
+  short: boolean = false,
 ) {
   if (type === ChallengeType.COLOSSEUM) {
-    return ['Colosseum', '#33a4af'];
+    return [short ? 'COL' : 'Colosseum', '#33a4af'];
   }
   if (type === ChallengeType.INFERNO) {
-    return ['Inferno', '#a14f1a'];
+    return [short ? 'INF' : 'Inferno', '#a14f1a'];
   }
 
   switch (difficulty) {
     case ChallengeMode.TOB_REGULAR: {
-      const name = prefix ? 'ToB Regular' : 'Regular';
-      return [name, '#ffd700'];
+      let name;
+      if (short) {
+        name = 'TOB';
+      } else {
+        name = prefix ? 'ToB Regular' : 'Regular';
+      }
+      return [name, '#d4ba2b'];
     }
     case ChallengeMode.TOB_HARD: {
-      const name = prefix ? 'ToB Hard' : 'Hard';
-      return [name, '#d100cc'];
+      let name;
+      if (short) {
+        name = 'HMT';
+      } else {
+        name = prefix ? 'ToB Hard' : 'Hard';
+      }
+      return [name, '#ae24ab'];
     }
     case ChallengeMode.TOB_ENTRY: {
-      const name = prefix ? 'ToB Entry' : 'Entry';
+      let name;
+      if (short) {
+        name = 'ENT';
+      } else {
+        name = prefix ? 'ToB Entry' : 'Entry';
+      }
       return [name, '#b9bbb6'];
     }
 
     default:
-      return ['Unknown', '#ffd700'];
+      return [short ? 'UNK' : 'Unknown', '#c3c7c9'];
   }
 }

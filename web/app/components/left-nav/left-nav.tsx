@@ -53,17 +53,6 @@ export function LeftNav() {
             <PlayerSearch />
           </li>
 
-          {/* Search */}
-          {/* <li className={styles.leftNav__menuItem}>
-          <Link className={`${styles.leftNav__menuItemInner}`} href="/raids">
-            <div className={styles.leftNav__menuItemIcon}>
-              <i className="fa-solid fa-magnifying-glass"></i>
-            </div>
-
-            <span className="active">Search</span>
-          </Link>
-        </li> */}
-
           <div className={styles.leftNav__menuDivider}></div>
 
           <TobLinks />
@@ -128,6 +117,17 @@ export function LeftNav() {
               <span className="active" style={{ top: -1 }}>
                 ToA
               </span>
+            </Link>
+          </li>
+
+          {/* Search */}
+          <li className={styles.leftNav__menuItem}>
+            <Link className={`${styles.leftNav__menuItemInner}`} href="/search">
+              <div className={styles.leftNav__menuItemIcon}>
+                <i className="fa-solid fa-magnifying-glass"></i>
+              </div>
+
+              <span className="active">Search</span>
             </Link>
           </li>
 

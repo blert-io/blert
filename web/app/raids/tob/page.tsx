@@ -3,6 +3,7 @@ import { Metadata } from 'next';
 import Image from 'next/image';
 
 import { aggregateChallenges } from '@/actions/challenge';
+import { Comparator } from '@/actions/query';
 import CollapsiblePanel from '@/components/collapsible-panel';
 import Statistic from '@/components/statistic';
 import { ticksToFormattedSeconds } from '@/utils/tick';
@@ -21,11 +22,13 @@ function startOfDateUtc(): Date {
   return date;
 }
 
+const TYPE_TOB: Comparator<ChallengeType> = ['==', ChallengeType.TOB];
+
 export default async function Page() {
-  const today = startOfDateUtc();
+  const fromToday: Comparator<Date> = ['>=', startOfDateUtc()];
 
   const statsQuery = aggregateChallenges(
-    { type: ChallengeType.TOB, from: today },
+    { type: TYPE_TOB, startTime: fromToday },
     {
       '*': 'count',
       challengeTicks: 'sum',
@@ -35,25 +38,25 @@ export default async function Page() {
   );
 
   const raidStatusQuery = aggregateChallenges(
-    { type: ChallengeType.TOB, from: today },
+    { type: TYPE_TOB, startTime: fromToday },
     { '*': 'count' },
     {},
     'status',
   );
   const raidModesQuery = aggregateChallenges(
-    { type: ChallengeType.TOB, from: today },
+    { type: TYPE_TOB, startTime: fromToday },
     { '*': 'count' },
     {},
     'mode',
   );
   const raidScaleQuery = aggregateChallenges(
-    { type: ChallengeType.TOB, from: today },
+    { type: TYPE_TOB, startTime: fromToday },
     { '*': 'count' },
     {},
     'scale',
   );
   const playerQuery = aggregateChallenges(
-    { type: ChallengeType.TOB, from: today },
+    { type: TYPE_TOB, startTime: fromToday },
     { '*': 'count' },
     { limit: 10, sort: '-count' },
     'username',
