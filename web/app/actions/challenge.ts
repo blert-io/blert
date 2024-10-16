@@ -24,7 +24,16 @@ import postgres from 'postgres';
 import { sql } from './db';
 import dataRepository from './data-repository';
 import { InvalidQueryError } from './errors';
-import { Comparator, Join, join, operator, where } from './query';
+import {
+  Comparator,
+  Condition,
+  InComparator,
+  Join,
+  RangeComparator,
+  join,
+  operator,
+  where,
+} from './query';
 
 /**
  * Fetches the challenge with the specific ID from the database.
@@ -109,22 +118,28 @@ export type ChallengeOverview = Pick<
   | 'status'
   | 'mode'
   | 'challengeTicks'
+  | 'overallTicks'
   | 'totalDeaths'
 > & { party: string[] };
 
 export type SortQuery<T> =
   `${'+' | '-'}${T extends object ? keyof T & string : T extends string ? T : never}`;
 
+export type SortableFields = keyof Omit<ChallengeOverview, 'party'>;
+
+type SingleOrArray<T> = T | T[];
+
 export type ChallengeQuery = {
-  type?: ChallengeType;
+  type?: Comparator<ChallengeType>;
   mode?: ChallengeMode;
-  status?: ChallengeStatus | ChallengeStatus[];
-  scale?: number;
+  status?: Comparator<ChallengeStatus>;
+  scale?: Comparator<number>;
   party?: string[];
-  splits?: Array<Comparator<SplitType, number>>;
-  sort?: SortQuery<Omit<ChallengeOverview, 'party'>>;
-  from?: Date;
-  until?: Date;
+  splits?: Map<SplitType, Comparator<number>>;
+  sort?: SingleOrArray<SortQuery<SortableFields>>;
+  startTime?: Comparator<Date>;
+  challengeTicks?: Comparator<number>;
+  customConditions?: Condition[];
 };
 
 export type QueryOptions = {
@@ -159,24 +174,81 @@ function fieldToTable(field: string): string {
   }
 }
 
-function order(
-  sort: string,
-  challengesTable?: postgres.Helper<string>,
+function comparatorToSql(
+  table: postgres.Helper<string>,
+  column: string,
+  comparator: Comparator<any>,
 ): postgres.Fragment {
-  const field = camelToSnake(sort.slice(1));
-
-  if (challengesTable !== undefined) {
-    const table = fieldToTable(field);
-    const sqlTable = table === 'challenges' ? challengesTable : sql(table);
-    if (sort.startsWith('-')) {
-      return sql`${sqlTable}.${sql(field)} DESC`;
-    }
-    return sql`${sqlTable}.${sql(field)} ASC`;
+  if (comparator[0] === 'in') {
+    const c = comparator as InComparator<any>;
+    return sql`${table}.${sql(column)} = ANY(${c[1]})`;
   }
 
-  return sort.startsWith('-')
-    ? sql`${sql(field)} DESC`
-    : sql`${sql(field)} ASC`;
+  if (comparator[0] === 'range') {
+    const c = comparator as RangeComparator<any>;
+    const [start, end] = c[1];
+    return sql`${table}.${sql(column)} >= ${start} AND ${table}.${sql(column)} < ${end}`;
+  }
+
+  const op = operator(comparator[0]);
+  return sql`${table}.${sql(column)} ${op} ${comparator[1]}`;
+}
+
+function conditionToSql(
+  queryTable: postgres.Helper<string>,
+  conditions: Condition,
+): postgres.Fragment {
+  const columnOrLiteral = (operand: string | number) => {
+    if (typeof operand === 'string') {
+      const field = camelToSnake(operand);
+      return sql`${queryTable}.${sql(field)}`;
+    }
+    return sql`${operand}`;
+  };
+
+  return sql`(
+    ${
+      Array.isArray(conditions[0])
+        ? sql`${conditionToSql(queryTable, conditions[0])}`
+        : sql`${columnOrLiteral(conditions[0])}`
+    }
+    ${operator(conditions[1])}
+    ${
+      Array.isArray(conditions[2])
+        ? sql`${conditionToSql(queryTable, conditions[2])}`
+        : sql`${columnOrLiteral(conditions[2])}`
+    }
+  )`;
+}
+
+function order(
+  sort: SingleOrArray<string>,
+  challengesTable?: postgres.Helper<string>,
+): postgres.Fragment {
+  const fragments = [];
+
+  const sorts = Array.isArray(sort) ? sort : [sort];
+  for (const sort of sorts) {
+    const field = camelToSnake(sort.slice(1));
+
+    if (challengesTable !== undefined) {
+      const table = fieldToTable(field);
+      const sqlTable = table === 'challenges' ? challengesTable : sql(table);
+      if (sort.startsWith('-')) {
+        fragments.push(sql`${sqlTable}.${sql(field)} DESC`);
+      } else {
+        fragments.push(sql`${sqlTable}.${sql(field)} ASC`);
+      }
+    } else {
+      fragments.push(
+        sort.startsWith('-') ? sql`${sql(field)} DESC` : sql`${sql(field)} ASC`,
+      );
+    }
+  }
+
+  return sql`
+    ORDER BY ${fragments.flatMap((f, i) => (i === 0 ? f : [sql`, `, f]))}
+  `;
 }
 
 type QueryComponents = {
@@ -229,16 +301,25 @@ function applyFilters(query: ChallengeQuery): QueryComponents | null {
 
   const sqlChallenges = sql(challengeTable);
 
-  if (query.splits !== undefined && query.splits.length > 0) {
-    const splitConditions = query.splits.map(([type, op, value]) => {
+  if (query.splits !== undefined && query.splits.size > 0) {
+    const splitConditions: postgres.Fragment[] = [];
+    for (const [type, comparator] of query.splits) {
       let types: SplitType[];
       if (query.mode !== undefined) {
         types = [adjustSplitForMode(generalizeSplit(type), query.mode)];
       } else {
-        types = allSplitModes(type);
+        types = allSplitModes(generalizeSplit(type));
       }
-      return sql`(type = ANY(${types}) AND ticks ${operator(op)} ${value})`;
-    });
+
+      const condition = comparatorToSql(
+        sql('challenge_splits'),
+        'ticks',
+        comparator,
+      );
+      splitConditions.push(
+        sql`(challenge_splits.type = ANY(${types}) AND ${condition})`,
+      );
+    }
 
     joins.push({
       table: sql`(
@@ -246,7 +327,7 @@ function applyFilters(query: ChallengeQuery): QueryComponents | null {
         FROM challenge_splits
         ${where(splitConditions, 'or')} AND accurate
         GROUP BY challenge_id
-        HAVING COUNT(*) = ${query.splits.length}
+        HAVING COUNT(*) = ${splitConditions.length}
       ) filtered_splits`,
       on: sql`${sqlChallenges}.id = filtered_splits.challenge_id`,
       tableName: 'challenges_with_splits',
@@ -254,18 +335,17 @@ function applyFilters(query: ChallengeQuery): QueryComponents | null {
   }
 
   if (query.type !== undefined) {
-    conditions.push(sql`${sqlChallenges}.type = ${query.type}`);
+    conditions.push(comparatorToSql(sqlChallenges, 'type', query.type));
   }
   if (query.mode !== undefined) {
     conditions.push(sql`${sqlChallenges}.mode = ${query.mode}`);
   }
   if (query.scale !== undefined) {
-    conditions.push(sql`${sqlChallenges}.scale = ${query.scale}`);
+    conditions.push(comparatorToSql(sqlChallenges, 'scale', query.scale));
   }
 
   if (query.status !== undefined) {
-    const status = Array.isArray(query.status) ? query.status : [query.status];
-    conditions.push(sql`${sqlChallenges}.status = ANY(${status})`);
+    conditions.push(comparatorToSql(sqlChallenges, 'status', query.status));
   } else {
     // Exclude abandoned challenges by default.
     conditions.push(
@@ -273,11 +353,22 @@ function applyFilters(query: ChallengeQuery): QueryComponents | null {
     );
   }
 
-  if (query.until !== undefined) {
-    conditions.push(sql`${sqlChallenges}.start_time < ${query.until}`);
+  if (query.startTime !== undefined) {
+    conditions.push(
+      comparatorToSql(sqlChallenges, 'start_time', query.startTime),
+    );
   }
-  if (query.from !== undefined) {
-    conditions.push(sql`${sqlChallenges}.start_time >= ${query.from}`);
+
+  if (query.challengeTicks !== undefined) {
+    conditions.push(
+      comparatorToSql(sqlChallenges, 'challenge_ticks', query.challengeTicks),
+    );
+  }
+
+  if (query.customConditions !== undefined) {
+    for (const condition of query.customConditions) {
+      conditions.push(conditionToSql(sqlChallenges, condition));
+    }
   }
 
   return {
@@ -301,41 +392,62 @@ function applyFilters(query: ChallengeQuery): QueryComponents | null {
 export async function findChallenges(
   limit: number = DEFAULT_CHALLENGE_LIMIT,
   query?: ChallengeQuery,
-): Promise<ChallengeOverview[]> {
+  count: boolean = true,
+): Promise<[ChallengeOverview[], number | null]> {
   const searchQuery = { ...DEFAULT_CHALLENGE_QUERY, ...query };
 
   const components = applyFilters(searchQuery);
   if (components === null) {
-    return [];
+    return [[], null];
   }
 
   const { baseTable, queryTable, joins, conditions } = components;
 
-  const rawChallenges = await sql`
-    SELECT
-      ${queryTable}.id,
-      ${queryTable}.uuid,
-      ${queryTable}.type,
-      ${queryTable}.start_time,
-      ${queryTable}.status,
-      ${queryTable}.stage,
-      ${queryTable}.mode,
-      ${queryTable}.challenge_ticks,
-      ${queryTable}.total_deaths
-    FROM ${baseTable}
-    ${join(joins)}
-    ${where(conditions)}
-    ORDER BY ${order(searchQuery.sort ?? DEFAULT_SORT, queryTable)}
-    LIMIT ${limit}
-  `;
+  const promises: Promise<any>[] = [
+    sql`
+      SELECT
+        ${queryTable}.id,
+        ${queryTable}.uuid,
+        ${queryTable}.type,
+        ${queryTable}.start_time,
+        ${queryTable}.status,
+        ${queryTable}.stage,
+        ${queryTable}.mode,
+        ${queryTable}.challenge_ticks,
+        ${queryTable}.overall_ticks,
+        ${queryTable}.total_deaths
+      FROM ${baseTable}
+      ${join(joins)}
+      ${where(conditions)}
+      ${order(searchQuery.sort ?? DEFAULT_SORT, queryTable)}
+      LIMIT ${limit}
+    `,
+  ];
+
+  let total: number | null = null;
+  if (count) {
+    promises.push(
+      sql`
+        SELECT COUNT(*)
+        FROM ${baseTable}
+        ${join(joins)}
+        ${where(conditions)}
+      `.then(([row]) => {
+        total = parseInt(row.count);
+      }),
+    );
+  }
+
+  const [rawChallenges] = await Promise.all(promises);
+
   const players = await sql`
     SELECT challenge_id, username, primary_gear, orb
     FROM challenge_players
-    WHERE challenge_id = ANY(${rawChallenges.map((c) => c.id)})
+    WHERE challenge_id = ANY(${rawChallenges.map((c: any) => c.id)})
     ORDER BY orb
   `;
 
-  const challenges = rawChallenges.map((c): ChallengeOverview => {
+  const challenges = rawChallenges.map((c: any): ChallengeOverview => {
     const party = players
       .filter((p) => p.challenge_id === c.id)
       .map((p) => p.username);
@@ -347,12 +459,13 @@ export async function findChallenges(
       stage: c.stage,
       mode: c.mode,
       challengeTicks: c.challenge_ticks,
+      overallTicks: c.overall_ticks,
       totalDeaths: c.total_deaths,
       party,
     };
   });
 
-  return challenges as ChallengeOverview[];
+  return [challenges as ChallengeOverview[], total];
 }
 
 type Aggregation = 'count' | 'sum' | 'avg' | 'min' | 'max';
@@ -414,6 +527,37 @@ type NestedGroupedAggregationResult<
 export async function aggregateChallenges<F extends AggregationQuery>(
   query: ChallengeQuery,
   fields: F,
+): Promise<AggregationResult<F> | null>;
+
+/**
+ * Aggregates data from fields of challenges based on the specified query.
+ *
+ * For example, the following query returns the total number of challenges
+ * recorded since 2021/01/01 alongside the sum and average of their ticks:
+ *
+ * ```typescript
+ * const results = await aggregateChallenges(
+ *  { from: new Date('2021-01-01') },
+ *  { '*': 'count', challengeTicks: ['sum', 'avg'] },
+ * );
+ *
+ * // {
+ * //   '*': { count: 10 },
+ * //   challengeTicks: { sum: 1234, avg: 123.4 },
+ * // }
+ * console.log(results);
+ * ```
+ *
+ * @param query Filters to apply to the challenges.
+ * @param fields Fields to aggregate and the aggregations to apply.
+ * @param options Additional options to apply to the query.
+ * @returns Object mapping fields to their aggregated values. `null` if no
+ *   challenges match the query.
+ * @throws `InvalidQueryError` if the query is invalid.
+ */
+export async function aggregateChallenges<F extends AggregationQuery>(
+  query: ChallengeQuery,
+  fields: F,
   options: QueryOptions,
 ): Promise<AggregationResult<F> | null>;
 
@@ -463,7 +607,7 @@ export async function aggregateChallenges<
 >(
   query: ChallengeQuery,
   fields: F,
-  options: QueryOptions,
+  options: QueryOptions = {},
   grouping?: G,
 ): Promise<AggregationResult<F> | GroupedAggregationResult<F, G> | null> {
   const components = applyFilters(query);
@@ -535,7 +679,7 @@ export async function aggregateChallenges<
     ${join(joins)}
     ${where(conditions)}
     ${grouping ? sql`GROUP BY ${sql(groupFields)}` : sql``}
-    ${options.sort ? sql`ORDER BY ${order(options.sort)}` : sql``}
+    ${options.sort ? order(options.sort) : sql``}
     ${options.limit ? sql`LIMIT ${options.limit}` : sql``}
   `;
 

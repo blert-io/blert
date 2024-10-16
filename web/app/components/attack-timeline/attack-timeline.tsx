@@ -36,7 +36,7 @@ import styles from './style.module.scss';
 import PlayerSkill from '../player-skill';
 import KeyPrayers from '../key-prayers';
 
-const DEFAULT_CELL_SIZE = 45;
+const DEFAULT_CELL_SIZE = 35;
 const COLUMN_MARGIN = 5;
 
 function npcAttackImage(attack: NpcAttack, size: number) {

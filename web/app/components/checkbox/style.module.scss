@@ -1,5 +1,7 @@
 .checkbox {
-  padding: 4px;
+  &:has(input[type='checkbox']:disabled) {
+    opacity: 0.9;
+  }
 
   &.button {
     padding: 12px;
@@ -46,6 +48,10 @@
   }
 
   &:hover {
+    &:has(input[type='checkbox']:disabled) {
+      cursor: not-allowed;
+    }
+
     cursor: pointer;
 
     input[type='checkbox'] {

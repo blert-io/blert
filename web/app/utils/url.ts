@@ -46,15 +46,19 @@ export function challengeApiUrl(type: ChallengeType, id: string): string {
   return '/api/v1';
 }
 
+type SingleOrArray<T> = T | T[];
+export type UrlParams = Record<
+  string,
+  SingleOrArray<string | number> | undefined
+>;
+
 /**
  * Returns a URL query string from the given parameters.
  *
  * @param params Key-value pairs to encode. Undefined values are ignored.
  * @returns A URL query string.
  */
-export function queryString(
-  params: Record<string, string | string[] | number[] | undefined>,
-): string {
+export function queryString(params: UrlParams): string {
   const searchParams = new URLSearchParams();
   for (let [key, value] of Object.entries(params)) {
     if (value === undefined) {
@@ -67,7 +71,7 @@ export function queryString(
       }
       value = value.join(',');
     }
-    searchParams.set(key, value);
+    searchParams.set(key, value.toString());
   }
   return searchParams.toString();
 }

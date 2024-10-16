@@ -46,7 +46,7 @@ export default function PlayerSearch() {
       fluid
       id="blert-player-search"
       inputRef={playerSearchRef}
-      label="Search players"
+      label="Find a player"
       labelBg="var(--nav-bg)"
       maxLength={12}
       onChange={(e) => setUsername(e.currentTarget.value)}
