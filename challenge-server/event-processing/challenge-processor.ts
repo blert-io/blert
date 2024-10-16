@@ -23,7 +23,6 @@ import {
   VerzikCrab,
   adjustSplitForMode,
   camelToSnakeObject,
-  getNpcDefinition,
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 import postgres from 'postgres';
@@ -47,6 +46,10 @@ type ModifiableChallengeFields = Pick<
   ApiChallenge,
   'challengeTicks' | 'mode' | 'stage' | 'status' | 'totalDeaths'
 >;
+
+type DatabaseChallengeFields = ModifiableChallengeFields & {
+  overallTicks: number | null;
+};
 
 type CustomData = {
   players: PlayerInfo[];
@@ -224,6 +227,7 @@ export default abstract class ChallengeProcessor {
       this.updateChallenge({
         status: this.challengeStatus,
         challengeTicks: this.totalChallengeTicks,
+        overallTicks: this.reportedTimes?.overall ?? null,
       }),
       this.onFinish(),
     ]);
@@ -447,7 +451,7 @@ export default abstract class ChallengeProcessor {
   }
 
   private async updateChallenge(
-    updates: Partial<ModifiableChallengeFields>,
+    updates: Partial<DatabaseChallengeFields>,
   ): Promise<void> {
     const translated = camelToSnakeObject(updates);
     await sql`
