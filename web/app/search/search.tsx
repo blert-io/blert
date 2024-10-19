@@ -46,7 +46,7 @@ export default function Search({
   const offset = stats.count - remaining;
 
   const page = Math.floor(offset / resultsPerPage) + 1;
-  const totalPages = stats ? Math.ceil(stats.count / resultsPerPage) : null;
+  const totalPages = Math.ceil(stats.count / resultsPerPage);
 
   const fetchChallenges = async (action: FetchAction = FetchAction.LOAD) => {
     let allParams = filtersToUrlParams(context.filters);
@@ -167,8 +167,9 @@ export default function Search({
   return (
     <>
       <CollapsiblePanel
-        panelTitle="Filters"
+        contentClassName={styles.filtersWrapper}
         defaultExpanded
+        panelTitle="Filters"
         maxPanelHeight={2000}
       >
         <Filters context={context} setContext={setContext} loading={loading} />
@@ -189,7 +190,7 @@ export default function Search({
           <div className={styles.pagination}>
             <div className={styles.controls}>
               <button
-                disabled={loading || page === 1}
+                disabled={loading || page <= 1}
                 onClick={() => fetchChallenges(FetchAction.BACK)}
               >
                 <i className="fas fa-chevron-left" />
@@ -197,10 +198,10 @@ export default function Search({
               </button>
               <p>
                 Page {page}
-                {totalPages && ` of ${totalPages}`}
+                {totalPages > 0 && ` of ${totalPages}`}
               </p>
               <button
-                disabled={loading || page === totalPages}
+                disabled={loading || page >= totalPages}
                 onClick={() => fetchChallenges(FetchAction.FORWARD)}
               >
                 <i className="fas fa-chevron-right" />

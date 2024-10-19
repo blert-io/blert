@@ -1,0 +1,30 @@
+.wrapper {
+  position: relative;
+  width: fit-content;
+
+  .suggestions {
+    position: absolute;
+    top: calc(100% - 16px);
+    width: 100%;
+    z-index: 100;
+    background: var(--panel-bg);
+    border: 1px solid #fff;
+    border-radius: 0 0 5px 5px;
+    border-top: none;
+    padding-top: 6px;
+    overflow: hidden;
+
+    .suggestion {
+      padding: 2px 12px;
+
+      &.selected {
+        background: var(--highlight-bg);
+        color: white;
+      }
+
+      &:last-child {
+        padding-bottom: 6px;
+      }
+    }
+  }
+}

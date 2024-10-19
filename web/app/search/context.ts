@@ -4,9 +4,10 @@ import { SortQuery, SortableFields } from '@/actions/challenge';
 import { UrlParams } from '@/utils/url';
 
 export type SearchFilters = {
-  type: ChallengeType[];
+  party: string[];
   scale: number[];
   status: ChallengeStatus[];
+  type: ChallengeType[];
 };
 
 export type SearchContext = {
@@ -22,9 +23,10 @@ export type SearchContext = {
  */
 export function filtersToUrlParams(filters: SearchFilters): UrlParams {
   const params: UrlParams = {
-    type: filters.type,
+    party: filters.party,
     scale: filters.scale,
     status: filters.status,
+    type: filters.type,
   };
 
   return params;

@@ -6,8 +6,8 @@ import { MAIN_LOGO } from '@/logo';
 import { LEFT_NAV_WIDTH } from './definitions';
 import { LeftNavWrapper } from './left-nav-wrapper';
 import AccountStatus from './account-status';
-import PlayerSearch from './player-search';
 import ColosseumLinks from './colosseum-links';
+import NavPlayerSearch from './nav-player-search';
 import TobLinks from './tob-links';
 
 import styles from './styles.module.scss';
@@ -50,7 +50,7 @@ export function LeftNav() {
           </li>
 
           <li className={styles.leftNav__playerSearch}>
-            <PlayerSearch />
+            <NavPlayerSearch />
           </li>
 
           <div className={styles.leftNav__menuDivider}></div>

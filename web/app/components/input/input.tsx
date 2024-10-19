@@ -1,26 +1,29 @@
+import { forwardRef } from 'react';
+
 import styles from './style.module.scss';
 
-type InputProps = {
+export type InputProps = {
   customIcon?: React.ReactNode;
   disabled?: boolean;
   errorMessage?: string;
   faIcon?: string;
   fluid?: boolean;
   id: string;
-  inputRef?: React.RefObject<HTMLInputElement>;
   invalid?: boolean;
   label: string;
   labelBg?: string;
   maxLength?: number;
   minLength?: number;
+  onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void;
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   required?: boolean;
   type?: 'email' | 'password' | 'text';
   value?: string;
 };
 
-export function Input(props: InputProps) {
+export const Input = forwardRef<HTMLInputElement, InputProps>((props, ref) => {
   const labelBackground = props.labelBg ?? 'var(--panel-bg)';
   const style = {
     width: props.fluid ? '100%' : undefined,
@@ -43,11 +46,13 @@ export function Input(props: InputProps) {
         maxLength={props.maxLength}
         minLength={props.minLength}
         name={props.id}
-        onKeyDown={props.onKeyDown}
+        onBlur={props.onBlur}
         onChange={props.onChange}
+        onFocus={props.onFocus}
+        onKeyDown={props.onKeyDown}
         placeholder=" "
         style={style}
-        ref={props.inputRef}
+        ref={ref}
         required={props.required}
         type={props.type ?? 'text'}
         value={props.value}
@@ -58,4 +63,4 @@ export function Input(props: InputProps) {
       {icon}
     </div>
   );
-}
+});

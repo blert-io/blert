@@ -15,13 +15,14 @@ import styles from './style.module.scss';
 
 export default async function SearchPage() {
   const initialFilters: SearchFilters = {
-    type: [],
+    party: [],
     scale: [],
     status: [
       ChallengeStatus.COMPLETED,
       ChallengeStatus.RESET,
       ChallengeStatus.WIPED,
     ],
+    type: [],
   };
   const initialContext: SearchContext = {
     filters: initialFilters,
