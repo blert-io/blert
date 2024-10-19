@@ -8,6 +8,7 @@ import styles from './styles.module.scss';
 
 interface CollapsiblePanelProps extends React.HTMLAttributes<HTMLDivElement> {
   className?: string;
+  contentClassName?: string;
   panelTitle: string;
   maxPanelHeight: number;
   defaultExpanded?: boolean | 'fullDisplay';
@@ -44,6 +45,16 @@ export function CollapsiblePanel(props: CollapsiblePanelProps) {
     className += ` ${props.className}`;
   }
 
+  let contentClassName = `${styles.collapsiblePanelContents}`;
+  if (props.contentClassName) {
+    contentClassName += ` ${props.contentClassName}`;
+  }
+  if (expanded) {
+    contentClassName += ` ${styles.collapsiblePanelContentsExpanded}`;
+  } else {
+    contentClassName += ` ${styles.collapsiblePanelContentsCollapsed}`;
+  }
+
   return (
     <div className={className} style={{ width: panelWidth ?? 'fit-content' }}>
       <div
@@ -64,7 +75,7 @@ export function CollapsiblePanel(props: CollapsiblePanelProps) {
         </div>
       </div>
       <div
-        className={`${styles.collapsiblePanelContents} ${expanded ? styles.collapsiblePanelContentsExpanded : styles.collapsiblePanelContentsCollapsed}`}
+        className={contentClassName}
         style={{
           maxHeight: expanded ? `${maxPanelHeight}px` : '0px',
         }}

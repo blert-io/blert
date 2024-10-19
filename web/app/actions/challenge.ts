@@ -3,6 +3,7 @@
 import {
   Challenge,
   ChallengeMode,
+  ChallengePlayer,
   ChallengeStatus,
   ChallengeType,
   ColosseumChallenge,
@@ -120,7 +121,7 @@ export type ChallengeOverview = Pick<
   | 'challengeTicks'
   | 'overallTicks'
   | 'totalDeaths'
-> & { party: string[] };
+> & { party: ChallengePlayer[] };
 
 export type SortQuery<T> =
   `${'+' | '-'}${T extends object ? keyof T & string : T extends string ? T : never}`;
@@ -441,16 +442,26 @@ export async function findChallenges(
   const [rawChallenges] = await Promise.all(promises);
 
   const players = await sql`
-    SELECT challenge_id, username, primary_gear, orb
+    SELECT
+      challenge_id,
+      challenge_players.username AS username,
+      players.username AS current_username,
+      primary_gear,
+      orb
     FROM challenge_players
+    JOIN players ON challenge_players.player_id = players.id
     WHERE challenge_id = ANY(${rawChallenges.map((c: any) => c.id)})
     ORDER BY orb
   `;
 
   const challenges = rawChallenges.map((c: any): ChallengeOverview => {
-    const party = players
+    const party: ChallengePlayer[] = players
       .filter((p) => p.challenge_id === c.id)
-      .map((p) => p.username);
+      .map((p) => ({
+        username: p.username,
+        currentUsername: p.current_username,
+        primaryGear: p.primary_gear,
+      }));
     return {
       uuid: c.uuid,
       type: c.type,

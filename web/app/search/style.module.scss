@@ -56,7 +56,7 @@
         }
 
         &.selectedChallenge {
-          background-color: #303349;
+          background-color: var(--highlight-bg);
         }
       }
     }
@@ -145,6 +145,10 @@
   }
 }
 
+.filtersWrapper {
+  overflow: visible;
+}
+
 .filters {
   padding: 10px 1em;
   display: flex;
@@ -181,13 +185,16 @@
       flex-wrap: wrap;
       justify-content: space-between;
     }
+
+    .item {
+      margin: 8px 12px;
+    }
   }
 
   .checkGroup {
     display: flex;
     flex-direction: column;
     width: 130px;
-    margin: 8px 12px;
 
     .checkbox {
       padding: 4px 0;

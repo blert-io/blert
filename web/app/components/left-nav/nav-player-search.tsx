@@ -3,20 +3,23 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useContext, useEffect, useRef, useState } from 'react';
 
-import Input from '@/components/input';
 import Spinner from '@/components/spinner';
+import PlayerSearch from '@/components/player-search';
 import { DisplayContext } from '@/display';
 
 import styles from './styles.module.scss';
 
-export default function PlayerSearch() {
-  const [username, setUsername] = useState('');
-  const [loading, setLoading] = useState(false);
+export default function NavPlayerSearch() {
+  const display = useContext(DisplayContext);
   const router = useRouter();
   const pathname = usePathname();
-  const display = useContext(DisplayContext);
 
-  useEffect(() => setLoading(false), [pathname]);
+  const [username, setUsername] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setLoading(false);
+  }, [pathname]);
 
   const playerSearchRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -39,27 +42,31 @@ export default function PlayerSearch() {
   ) : undefined;
 
   return (
-    <Input
+    <PlayerSearch
       customIcon={customIcon}
       disabled={loading}
       faIcon={display.isCompact() ? 'fa-solid fa-search' : undefined}
       fluid
       id="blert-player-search"
-      inputRef={playerSearchRef}
       label="Find a player"
       labelBg="var(--nav-bg)"
       maxLength={12}
-      onChange={(e) => setUsername(e.currentTarget.value)}
+      onChange={(e) => {
+        setUsername(e.currentTarget.value);
+      }}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          router.push(`/players/${username}`);
-          setLoading(true);
-          setUsername('');
+        if (e.key === 'Escape') {
           e.currentTarget.blur();
         }
       }}
+      onSelection={(username) => {
+        router.push(`/players/${username}`);
+        setLoading(true);
+        setUsername('');
+        playerSearchRef.current?.blur();
+      }}
+      ref={playerSearchRef}
       value={username}
-      type="text"
     />
   );
 }

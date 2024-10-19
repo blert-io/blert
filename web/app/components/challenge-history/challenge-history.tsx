@@ -35,7 +35,7 @@ function ChallengeList({ challenges }: { challenges: ChallengeOverview[] }) {
           <div className={styles.recentRaid}>
             <div className={styles.recentRaidTeam}>
               <span style={{ fontWeight: 'bold' }}>Players: </span>
-              {challenge.party.join(', ')}
+              {challenge.party.map((p) => p.username).join(', ')}
             </div>
             <RaidQuickDetails
               type={challenge.type}

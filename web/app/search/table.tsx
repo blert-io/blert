@@ -72,6 +72,7 @@ const COLUMNS: { [key in Column]: ColumnInfo } = {
         {challenge.uuid.substring(0, 6)}
       </Link>
     ),
+    width: 80,
   },
   [Column.DATE]: {
     name: 'Date',
@@ -112,7 +113,7 @@ const COLUMNS: { [key in Column]: ColumnInfo } = {
   },
   [Column.PARTY]: {
     name: 'Party',
-    renderer: (challenge) => challenge.party.join(', '),
+    renderer: (challenge) => challenge.party.map((p) => p.username).join(', '),
     width: 400,
   },
   [Column.CHALLENGE_TIME]: {
@@ -274,7 +275,11 @@ export default function Table(props: TableProps) {
                 }
 
                 return (
-                  <th key={c} data-context={`heading:${c}`}>
+                  <th
+                    key={c}
+                    data-context={`heading:${c}`}
+                    style={{ width: column.width }}
+                  >
                     {column.name}
                     {suffix}
                   </th>
@@ -406,7 +411,7 @@ function ContextMenu({
           )
         }
       >
-        Copy ID
+        Copy IDs
       </button>,
     );
   }
@@ -496,7 +501,7 @@ function ContextMenu({
           className={`${styles.entry} ${styles.inactive} ${styles.info}`}
           key="party-list"
         >
-          {challenge.party.join(', ')}
+          {challenge.party.map((p) => p.username).join(', ')}
         </div>,
       );
       entries.push(divider());
@@ -519,8 +524,9 @@ function ContextMenu({
             ...prev,
             filters: {
               ...prev.filters,
-              type: [challenge.type],
+              party: challenge.party.map((p) => p.currentUsername),
               scale: [challenge.party.length],
+              type: [challenge.type],
             },
           }))
         }
