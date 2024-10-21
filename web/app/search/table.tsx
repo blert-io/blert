@@ -1,10 +1,26 @@
 'use client';
 
+import { SplitType } from '@blert/common';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Dispatch, SetStateAction, useEffect, useRef, useState } from 'react';
+import {
+  Dispatch,
+  SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
-import { ChallengeOverview, SortableFields } from '@/actions/challenge';
+import {
+  ChallengeOverview,
+  ExtraChallengeFields,
+  SortableFields,
+} from '@/actions/challenge';
+import Button from '@/components/button';
+import Input from '@/components/input';
+import Modal from '@/components/modal';
 import {
   modeNameAndColor,
   statusNameAndColor,
@@ -26,14 +42,50 @@ const enum Column {
   CHALLENGE_TIME,
   OVERALL_TIME,
   TOTAL_DEATHS,
+
+  // Split columns.
+  MAIDEN_ROOM,
+  MAIDEN_70S,
+  MAIDEN_50S,
+  MAIDEN_30S,
+  BLOAT_ROOM,
+  NYLOCAS_ROOM,
+  NYLOCAS_BOSS_SPAWN,
+  NYLOCAS_BOSS,
+  SOTETSEG_ROOM,
+  SOTETSEG_66,
+  SOTETSEG_33,
+  XARPUS_ROOM,
+  XARPUS_SCREECH,
+  VERZIK_ROOM,
+  VERZIK_P1,
+  VERZIK_P2,
+  VERZIK_P3,
+  COLOSSEUM_WAVE_1,
+  COLOSSEUM_WAVE_2,
+  COLOSSEUM_WAVE_3,
+  COLOSSEUM_WAVE_4,
+  COLOSSEUM_WAVE_5,
+  COLOSSEUM_WAVE_6,
+  COLOSSEUM_WAVE_7,
+  COLOSSEUM_WAVE_8,
+  COLOSSEUM_WAVE_9,
+  COLOSSEUM_WAVE_10,
+  COLOSSEUM_WAVE_11,
+  COLOSSEUM_WAVE_12,
 }
 
 type ColumnRenderer = (challenge: ChallengeOverview) => React.ReactNode;
+type ColumnExtraFieldsToggler = (
+  existing: ExtraChallengeFields,
+  add: boolean,
+) => ExtraChallengeFields;
 
 type ColumnInfo = {
   name: string;
   fullName?: string;
   renderer: ColumnRenderer;
+  toggleFields?: ColumnExtraFieldsToggler;
   align?: 'left' | 'right' | 'center';
   width?: number;
   sortKey?: SortableFields;
@@ -42,7 +94,7 @@ type ColumnInfo = {
 type PickType<T, U> = Pick<
   T,
   {
-    [K in keyof T]: T[K] extends U ? K : never;
+    [K in keyof Required<T>]: T[K] extends U ? K : never;
   }[keyof T]
 >;
 
@@ -61,6 +113,30 @@ function ticksRenderer(
       : '-';
 }
 
+function splitsRenderer(type: SplitType): ColumnRenderer {
+  return (challenge) => {
+    const split = challenge.splits?.[type];
+    if (split === undefined) {
+      return '-';
+    }
+    const ticks = ticksToFormattedSeconds(split.ticks);
+    return `${!split.accurate ? '*' : ''}${ticks}`;
+  };
+}
+
+function toggleSplitField(type: SplitType): ColumnExtraFieldsToggler {
+  return (fields, add) => {
+    const splits = fields.splits ?? [];
+    if (add) {
+      if (splits.includes(type)) {
+        return fields;
+      }
+      return { ...fields, splits: [...splits, type] };
+    }
+    return { ...fields, splits: splits.filter((s) => s !== type) };
+  };
+}
+
 const COLUMNS: { [key in Column]: ColumnInfo } = {
   [Column.UUID]: {
     name: '', // Intentionally empty.
@@ -72,7 +148,7 @@ const COLUMNS: { [key in Column]: ColumnInfo } = {
         {challenge.uuid.substring(0, 6)}
       </Link>
     ),
-    width: 80,
+    width: 75,
   },
   [Column.DATE]: {
     name: 'Date',
@@ -122,17 +198,245 @@ const COLUMNS: { [key in Column]: ColumnInfo } = {
     align: 'right',
     renderer: ticksRenderer('challengeTicks'),
     sortKey: 'challengeTicks',
+    width: 120,
   },
   [Column.OVERALL_TIME]: {
     name: 'Overall',
     fullName: 'Overall Time',
     align: 'right',
     renderer: ticksRenderer('overallTicks'),
+    sortKey: 'overallTicks',
+    width: 100,
   },
   [Column.TOTAL_DEATHS]: {
     name: 'Deaths',
+    fullName: 'Total Deaths',
     align: 'right',
     renderer: valueRenderer('totalDeaths'),
+  },
+  [Column.MAIDEN_ROOM]: {
+    name: 'Maiden',
+    fullName: 'Maiden Time',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.TOB_MAIDEN),
+    toggleFields: toggleSplitField(SplitType.TOB_MAIDEN),
+    width: 100,
+  },
+  [Column.MAIDEN_70S]: {
+    name: 'Maiden - 70s',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.TOB_MAIDEN_70S),
+    toggleFields: toggleSplitField(SplitType.TOB_MAIDEN_70S),
+    width: 130,
+  },
+  [Column.MAIDEN_50S]: {
+    name: 'Maiden - 50s',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.TOB_MAIDEN_50S),
+    toggleFields: toggleSplitField(SplitType.TOB_MAIDEN_50S),
+    width: 130,
+  },
+  [Column.MAIDEN_30S]: {
+    name: 'Maiden - 30s',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.TOB_MAIDEN_30S),
+    toggleFields: toggleSplitField(SplitType.TOB_MAIDEN_30S),
+    width: 130,
+  },
+  [Column.BLOAT_ROOM]: {
+    name: 'Bloat',
+    fullName: 'Bloat Time',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.TOB_BLOAT),
+    toggleFields: toggleSplitField(SplitType.TOB_BLOAT),
+    width: 100,
+  },
+  [Column.NYLOCAS_ROOM]: {
+    name: 'Nylocas',
+    fullName: 'Nylocas Time',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.TOB_NYLO_ROOM),
+    toggleFields: toggleSplitField(SplitType.TOB_NYLO_ROOM),
+    width: 100,
+  },
+  [Column.NYLOCAS_BOSS_SPAWN]: {
+    name: 'Nylo - Boss Spawn',
+    fullName: 'Nylocas - Boss Spawn',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.TOB_NYLO_BOSS_SPAWN),
+    toggleFields: toggleSplitField(SplitType.TOB_NYLO_BOSS_SPAWN),
+    width: 170,
+  },
+  [Column.NYLOCAS_BOSS]: {
+    name: 'Nylo - Boss Time',
+    fullName: 'Nylocas - Boss Time',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.TOB_NYLO_BOSS),
+    toggleFields: toggleSplitField(SplitType.TOB_NYLO_BOSS),
+    width: 120,
+  },
+  [Column.SOTETSEG_ROOM]: {
+    name: 'Sotetseg',
+    fullName: 'Sotetseg Time',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.TOB_SOTETSEG),
+    toggleFields: toggleSplitField(SplitType.TOB_SOTETSEG),
+    width: 100,
+  },
+  [Column.SOTETSEG_66]: {
+    name: 'Sotetseg - 66%',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.TOB_SOTETSEG_66),
+    toggleFields: toggleSplitField(SplitType.TOB_SOTETSEG_66),
+    width: 120,
+  },
+  [Column.SOTETSEG_33]: {
+    name: 'Sotetseg - 33%',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.TOB_SOTETSEG_33),
+    toggleFields: toggleSplitField(SplitType.TOB_SOTETSEG_33),
+    width: 120,
+  },
+  [Column.XARPUS_ROOM]: {
+    name: 'Xarpus',
+    fullName: 'Xarpus Time',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.TOB_XARPUS),
+    toggleFields: toggleSplitField(SplitType.TOB_XARPUS),
+    width: 100,
+  },
+  [Column.XARPUS_SCREECH]: {
+    name: 'Xarp - Screech',
+    fullName: 'Xarpus - Screech',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.TOB_XARPUS_SCREECH),
+    toggleFields: toggleSplitField(SplitType.TOB_XARPUS_SCREECH),
+    width: 150,
+  },
+  [Column.VERZIK_ROOM]: {
+    name: 'Verzik',
+    fullName: 'Verzik Time',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.TOB_VERZIK_ROOM),
+    toggleFields: toggleSplitField(SplitType.TOB_VERZIK_ROOM),
+    width: 100,
+  },
+  [Column.VERZIK_P1]: {
+    name: 'Verzik - P1',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.TOB_VERZIK_P1),
+    toggleFields: toggleSplitField(SplitType.TOB_VERZIK_P1),
+    width: 120,
+  },
+  [Column.VERZIK_P2]: {
+    name: 'Verzik - P2',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.TOB_VERZIK_P2),
+    toggleFields: toggleSplitField(SplitType.TOB_VERZIK_P2),
+    width: 120,
+  },
+  [Column.VERZIK_P3]: {
+    name: 'Verzik - P3',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.TOB_VERZIK_P3),
+    toggleFields: toggleSplitField(SplitType.TOB_VERZIK_P3),
+    width: 120,
+  },
+  [Column.COLOSSEUM_WAVE_1]: {
+    name: 'Colo - W1',
+    fullName: 'Colosseum - Wave 1',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.COLOSSEUM_WAVE_1),
+    toggleFields: toggleSplitField(SplitType.COLOSSEUM_WAVE_1),
+    width: 100,
+  },
+  [Column.COLOSSEUM_WAVE_2]: {
+    name: 'Colo - W2',
+    fullName: 'Colosseum - Wave 2',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.COLOSSEUM_WAVE_2),
+    toggleFields: toggleSplitField(SplitType.COLOSSEUM_WAVE_2),
+    width: 100,
+  },
+  [Column.COLOSSEUM_WAVE_3]: {
+    name: 'Colo - W3',
+    fullName: 'Colosseum - Wave 3',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.COLOSSEUM_WAVE_3),
+    toggleFields: toggleSplitField(SplitType.COLOSSEUM_WAVE_3),
+    width: 100,
+  },
+  [Column.COLOSSEUM_WAVE_4]: {
+    name: 'Colo - W4',
+    fullName: 'Colosseum - Wave 4',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.COLOSSEUM_WAVE_4),
+    toggleFields: toggleSplitField(SplitType.COLOSSEUM_WAVE_4),
+    width: 100,
+  },
+  [Column.COLOSSEUM_WAVE_5]: {
+    name: 'Colo - W5',
+    fullName: 'Colosseum - Wave 5',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.COLOSSEUM_WAVE_5),
+    toggleFields: toggleSplitField(SplitType.COLOSSEUM_WAVE_5),
+    width: 100,
+  },
+  [Column.COLOSSEUM_WAVE_6]: {
+    name: 'Colo - W6',
+    fullName: 'Colosseum - Wave 6',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.COLOSSEUM_WAVE_6),
+    toggleFields: toggleSplitField(SplitType.COLOSSEUM_WAVE_6),
+    width: 100,
+  },
+  [Column.COLOSSEUM_WAVE_7]: {
+    name: 'Colo - W7',
+    fullName: 'Colosseum - Wave 7',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.COLOSSEUM_WAVE_7),
+    toggleFields: toggleSplitField(SplitType.COLOSSEUM_WAVE_7),
+    width: 100,
+  },
+  [Column.COLOSSEUM_WAVE_8]: {
+    name: 'Colo - W8',
+    fullName: 'Colosseum - Wave 8',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.COLOSSEUM_WAVE_8),
+    toggleFields: toggleSplitField(SplitType.COLOSSEUM_WAVE_8),
+    width: 100,
+  },
+  [Column.COLOSSEUM_WAVE_9]: {
+    name: 'Colo - W9',
+    fullName: 'Colosseum - Wave 9',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.COLOSSEUM_WAVE_9),
+    toggleFields: toggleSplitField(SplitType.COLOSSEUM_WAVE_9),
+    width: 100,
+  },
+  [Column.COLOSSEUM_WAVE_10]: {
+    name: 'Colo - W10',
+    fullName: 'Colosseum - Wave 10',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.COLOSSEUM_WAVE_10),
+    toggleFields: toggleSplitField(SplitType.COLOSSEUM_WAVE_10),
+    width: 100,
+  },
+  [Column.COLOSSEUM_WAVE_11]: {
+    name: 'Colo - W11',
+    fullName: 'Colosseum - Wave 11',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.COLOSSEUM_WAVE_11),
+    toggleFields: toggleSplitField(SplitType.COLOSSEUM_WAVE_11),
+    width: 100,
+  },
+  [Column.COLOSSEUM_WAVE_12]: {
+    name: 'Sol Heredit',
+    fullName: 'Sol Heredit Time',
+    align: 'right',
+    renderer: splitsRenderer(SplitType.COLOSSEUM_WAVE_12),
+    toggleFields: toggleSplitField(SplitType.COLOSSEUM_WAVE_12),
+    width: 100,
   },
 };
 
@@ -149,15 +453,19 @@ type ContextMenu = {
   multipleChallenges?: number[];
 };
 
-const DEFAULT_SELECTED_COLUMNS = [
-  Column.UUID,
-  Column.DATE,
-  Column.TYPE,
-  Column.STATUS,
-  Column.SCALE,
-  Column.PARTY,
-  Column.CHALLENGE_TIME,
-  Column.TOTAL_DEATHS,
+type SelectedColumn = {
+  column: Column;
+};
+
+const UUID_COLUMN: SelectedColumn = { column: Column.UUID };
+const DEFAULT_SELECTED_COLUMNS: SelectedColumn[] = [
+  { column: Column.DATE },
+  { column: Column.TYPE },
+  { column: Column.STATUS },
+  { column: Column.SCALE },
+  { column: Column.PARTY },
+  { column: Column.CHALLENGE_TIME },
+  { column: Column.OVERALL_TIME },
 ];
 
 type TableProps = {
@@ -175,11 +483,14 @@ export default function Table(props: TableProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
+  const [columnsModalOpen, setColumnsModalOpen] = useState(false);
 
   const [selectedChallenges, setSelectedChallenges] = useState<number[]>([]);
   const [lastClickedChallenge, setLastClickedChallenge] = useState<
     [number, number] | null
   >(null);
+
+  const storage = useRef(new LocalStorageManager('search-column-presets'));
 
   useEffect(() => {
     const clickListener = () => setContextMenu(null);
@@ -245,11 +556,67 @@ export default function Table(props: TableProps) {
     };
   });
 
-  const [selectedColumns, setSelectedColumns] = useState<Column[]>(
+  const [selectedColumns, setSelectedColumns] = useState<SelectedColumn[]>(
     DEFAULT_SELECTED_COLUMNS,
   );
 
   useEffect(() => setSelectedChallenges([]), [props.challenges]);
+
+  const removeColumn = useCallback(
+    (col: Column) => {
+      const column = COLUMNS[col];
+      setSelectedColumns((columns) => columns.filter((c) => c.column !== col));
+
+      if (column.toggleFields) {
+        props.setContext((context) => ({
+          ...context,
+          extraFields: column.toggleFields!(context.extraFields, false),
+        }));
+      }
+
+      storage.current.set((prev) => ({
+        ...prev,
+        activeColumns: prev.activeColumns.filter((c) => c.column !== col),
+      }));
+    },
+    [setSelectedColumns, props.setContext],
+  );
+
+  const setAllColumns = useCallback(
+    (columns: SelectedColumn[]) => {
+      setSelectedColumns(columns);
+      props.setContext((prev) => {
+        let extraFields: ExtraChallengeFields = {};
+        for (const column of columns) {
+          const toggleFields = COLUMNS[column.column].toggleFields;
+          if (toggleFields !== undefined) {
+            extraFields = toggleFields(extraFields, true);
+          }
+        }
+        return { ...prev, extraFields };
+      });
+      storage.current.set((prev) => ({
+        ...prev,
+        activeColumns: columns,
+      }));
+    },
+    [selectedColumns],
+  );
+
+  const columnsModal = useMemo(
+    () => (
+      <ColumnsModal
+        close={() => setColumnsModalOpen(false)}
+        open={columnsModalOpen}
+        selectedColumns={selectedColumns}
+        setAllColumns={setAllColumns}
+        storage={storage.current}
+      />
+    ),
+    [columnsModalOpen, selectedColumns],
+  );
+
+  const allColumns = [UUID_COLUMN, ...selectedColumns];
 
   return (
     <>
@@ -257,8 +624,8 @@ export default function Table(props: TableProps) {
         <table className={styles.table} ref={tableRef}>
           <thead ref={headingRef}>
             <tr>
-              {selectedColumns.map((c) => {
-                const column = COLUMNS[c];
+              {allColumns.map((c) => {
+                const column = COLUMNS[c.column];
                 let suffix = undefined;
 
                 if (props.context.sort && column.sortKey) {
@@ -276,8 +643,8 @@ export default function Table(props: TableProps) {
 
                 return (
                   <th
-                    key={c}
-                    data-context={`heading:${c}`}
+                    key={c.column}
+                    data-context={`heading:${c.column}`}
                     style={{ width: column.width }}
                   >
                     {column.name}
@@ -335,15 +702,16 @@ export default function Table(props: TableProps) {
                   });
                 }}
               >
-                {selectedColumns.map((column) => {
-                  const align = COLUMNS[column].align ?? 'left';
+                {allColumns.map((c) => {
+                  const column = COLUMNS[c.column];
+                  const align = column.align ?? 'left';
                   return (
                     <td
-                      key={column}
-                      data-context={`row:${i}:${column}`}
-                      style={{ textAlign: align, width: COLUMNS[column].width }}
+                      key={c.column}
+                      data-context={`row:${i}:${c.column}`}
+                      style={{ textAlign: align, width: column.width }}
                     >
-                      {COLUMNS[column].renderer(challenge)}
+                      {column.renderer(challenge)}
                     </td>
                   );
                 })}
@@ -357,11 +725,13 @@ export default function Table(props: TableProps) {
           context={contextMenu}
           challenges={props.challenges}
           menuRef={menuRef}
-          setColumns={setSelectedColumns}
+          openColumnsModal={() => setColumnsModalOpen(true)}
+          removeColumn={removeColumn}
           setContext={props.setContext}
           loading={props.loading}
         />
       )}
+      {columnsModal}
     </>
   );
 }
@@ -373,15 +743,17 @@ function ContextMenu({
   challenges,
   context,
   menuRef,
-  setColumns,
+  openColumnsModal,
   setContext,
+  removeColumn,
   loading,
 }: {
   challenges: ChallengeOverview[];
   context: ContextMenu;
   menuRef: React.RefObject<HTMLDivElement>;
-  setColumns: Dispatch<SetStateAction<Column[]>>;
+  openColumnsModal: () => void;
   setContext: Dispatch<SetStateAction<SearchContext>>;
+  removeColumn: (col: Column) => void;
   loading: boolean;
 }) {
   const entries: React.ReactNode[] = [];
@@ -464,11 +836,7 @@ function ContextMenu({
           className={styles.entry}
           disabled={loading}
           key="remove-column"
-          onClick={() =>
-            setColumns((columns) =>
-              columns.filter((c) => c !== context.heading!.column),
-            )
-          }
+          onClick={() => removeColumn(context.heading!.column)}
         >
           Remove column {column.name}
         </button>,
@@ -476,18 +844,12 @@ function ContextMenu({
     }
 
     entries.push(
-      <div className={styles.entry} key="manage-columns">
-        Manage columns…
-      </div>,
-    );
-
-    entries.push(
       <button
         className={styles.entry}
-        key="reset-columns"
-        onClick={() => setColumns(DEFAULT_SELECTED_COLUMNS)}
+        key="manage-columns"
+        onClick={openColumnsModal}
       >
-        Reset columns
+        Manage columns…
       </button>,
     );
   }
@@ -573,4 +935,451 @@ function ContextMenu({
       {entries}
     </div>
   );
+}
+
+enum DraggingHighlight {
+  NONE,
+  HINT,
+  ACTIVE,
+}
+
+type DraggingHighlights = [DraggingHighlight, DraggingHighlight];
+
+const COLUMN_ENTRY_HEIGHT = 20;
+const COLUMN_PADDING = 2;
+const TOTAL_COLUMN_HEIGHT = COLUMN_ENTRY_HEIGHT + COLUMN_PADDING * 2;
+
+type ConfirmAction = {
+  message: string;
+  action: () => void;
+  customContent?: React.ReactNode;
+  yesButton?: string;
+  noButton?: string;
+};
+
+type PresetColumns = {
+  name: string;
+  id: number;
+  columns: SelectedColumn[];
+};
+
+const DEFAULT_PRESET: PresetColumns = {
+  name: 'Default',
+  id: 0,
+  columns: DEFAULT_SELECTED_COLUMNS,
+};
+
+function ColumnsModal({
+  close,
+  open,
+  selectedColumns,
+  setAllColumns,
+  storage,
+}: {
+  close: () => void;
+  open: boolean;
+  selectedColumns: SelectedColumn[];
+  setAllColumns: (columns: SelectedColumn[]) => void;
+  storage: LocalStorageManager;
+}) {
+  const [columns, setColumns] = useState<SelectedColumn[]>(selectedColumns);
+  const [presets, setPresets] = useState<PresetColumns[]>([]);
+
+  const [dragging, setDragging] = useState<Column | null>(null);
+  const [lastClick, setLastClick] = useState<[Column, number] | null>(null);
+  const [newIndex, setNewIndex] = useState<number | null>(null);
+
+  const [[selectedHighlight, availableHighlight], setHighlights] =
+    useState<DraggingHighlights>([
+      DraggingHighlight.NONE,
+      DraggingHighlight.NONE,
+    ]);
+
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(
+    null,
+  );
+
+  const stopDragging = () => {
+    setDragging(null);
+    setNewIndex(null);
+    setHighlights([DraggingHighlight.NONE, DraggingHighlight.NONE]);
+  };
+
+  useEffect(() => {
+    setColumns(selectedColumns);
+  }, [selectedColumns]);
+
+  useEffect(() => {
+    const presets = storage.get();
+    setPresets(presets.presets);
+    if (presets.activeColumns) {
+      setAllColumns(presets.activeColumns);
+    }
+  }, []);
+
+  const allPresets = [DEFAULT_PRESET, ...presets];
+
+  const selectedRef = useRef<HTMLDivElement>(null);
+  const availableRef = useRef<HTMLDivElement>(null);
+
+  function columnListEntry(col: Column) {
+    const column = COLUMNS[col];
+
+    return (
+      <div
+        className={`${styles.column} ${col === dragging ? styles.selected : ''}`}
+        key={col}
+        onMouseDown={() => {
+          const isSelected = columns.some((c) => c.column === col);
+
+          if (lastClick !== null) {
+            const [last, time] = lastClick;
+            if (last === col && Date.now() - time < DOUBLE_CLICK_THRESHOLD) {
+              if (isSelected) {
+                setColumns(columns.filter((c) => c.column !== col));
+              } else {
+                setColumns([...columns, { column: col }]);
+              }
+              stopDragging();
+              setLastClick(null);
+              return;
+            }
+          }
+
+          setDragging(col);
+          setLastClick([col, Date.now()]);
+        }}
+        onMouseUp={() => {
+          stopDragging();
+        }}
+        style={{
+          height: TOTAL_COLUMN_HEIGHT,
+          padding: `${COLUMN_PADDING}px 4px`,
+        }}
+      >
+        {column.fullName ?? column.name}
+      </div>
+    );
+  }
+
+  function onMouseMove(e: React.MouseEvent) {
+    if (dragging === null) {
+      return;
+    }
+
+    const isSelected = columns.some((c) => c.column === dragging);
+
+    let highlights: DraggingHighlights = [
+      DraggingHighlight.NONE,
+      DraggingHighlight.NONE,
+    ];
+
+    if (isSelected) {
+      if (availableRef.current!.contains(e.target as Node)) {
+        highlights[1] = DraggingHighlight.ACTIVE;
+      }
+    }
+
+    if (selectedRef.current!.contains(e.target as Node)) {
+      highlights = [DraggingHighlight.ACTIVE, DraggingHighlight.NONE];
+
+      // Reorder columns.
+      const rect = selectedRef.current!.getBoundingClientRect();
+      const y = e.clientY - rect.top;
+      const index = Math.min(
+        Math.max(Math.floor(y / TOTAL_COLUMN_HEIGHT), 0),
+        columns.length,
+      );
+      setNewIndex(index);
+    } else {
+      setNewIndex(null);
+    }
+
+    setHighlights(highlights);
+  }
+
+  function onMouseUp(e: React.MouseEvent) {
+    if (dragging === null) {
+      return;
+    }
+
+    if (
+      columns.some((c) => c.column === dragging) &&
+      availableRef.current!.contains(e.target as Node)
+    ) {
+      setColumns(columns.filter((c) => c.column !== dragging));
+    }
+
+    if (newIndex !== null) {
+      setColumns((existing) => {
+        if (existing.some((c) => c.column === dragging)) {
+          return [
+            ...columns.slice(0, newIndex).filter((c) => c.column !== dragging),
+            { column: dragging },
+            ...columns.slice(newIndex).filter((c) => c.column !== dragging),
+          ];
+        }
+
+        return [
+          ...columns.slice(0, newIndex),
+          { column: dragging },
+          ...columns.slice(newIndex),
+        ];
+
+        return [];
+      });
+    }
+
+    stopDragging();
+  }
+
+  useEffect(() => {
+    window.addEventListener('mouseup', stopDragging);
+    return () => window.removeEventListener('mouseup', stopDragging);
+  }, [setDragging, setHighlights]);
+
+  const modified =
+    columns.length !== selectedColumns.length ||
+    columns.some((c, i) => c !== selectedColumns[i]);
+
+  function tryClose() {
+    if (confirmAction !== null) {
+      return;
+    }
+    if (modified) {
+      setConfirmAction({
+        message: 'Exit without saving?',
+        action: () => {
+          setColumns(selectedColumns);
+          close();
+        },
+      });
+    } else {
+      close();
+    }
+  }
+
+  function loadPreset(preset: PresetColumns) {
+    setConfirmAction({
+      message: `Load preset ${preset.name}?`,
+      action: () => {
+        setAllColumns(preset.columns);
+      },
+    });
+  }
+
+  const listClass = (highlight: DraggingHighlight) => {
+    let className = styles.columnsList;
+    if (dragging !== null) {
+      className += ` ${styles.dragging}`;
+      if (highlight === DraggingHighlight.HINT) {
+        className += ` ${styles.hint}`;
+      } else if (highlight === DraggingHighlight.ACTIVE) {
+        className += ` ${styles.active}`;
+      }
+    }
+    return className;
+  };
+
+  return (
+    <Modal className={styles.columnsModal} open={open} onClose={tryClose}>
+      <h2>Manage columns</h2>
+      <div
+        className={styles.selection}
+        onMouseMove={onMouseMove}
+        onMouseUp={onMouseUp}
+      >
+        <div className={listClass(selectedHighlight)} ref={selectedRef}>
+          <label className={styles.label}>Selected</label>
+          <div className={styles.listWrapper}>
+            {columns
+              .filter((c) => COLUMNS[c.column].name !== '')
+              .map((c) => columnListEntry(c.column))}
+            {newIndex !== null && (
+              <div
+                className={styles.insertion}
+                style={{
+                  position: 'absolute',
+                  top: newIndex * TOTAL_COLUMN_HEIGHT,
+                }}
+              >
+                <i className="fas fa-caret-right" />
+                <i className="fas fa-caret-left" />
+              </div>
+            )}
+          </div>
+        </div>
+        <div className={listClass(availableHighlight)} ref={availableRef}>
+          <label className={styles.label}>Available</label>
+          <div className={styles.listWrapper}>
+            {Object.keys(COLUMNS)
+              .filter((key) => {
+                const column = Number(key) as Column;
+                return (
+                  columns.every((c) => c.column !== column) &&
+                  COLUMNS[column].name !== ''
+                );
+              })
+              .map((key) => columnListEntry(Number(key) as Column))}
+          </div>
+        </div>
+        <div className={styles.columnsList}>
+          <label className={styles.label}>Presets</label>
+          <div className={styles.listWrapper}>
+            {allPresets.map((preset) => (
+              <div
+                className={styles.column}
+                key={preset.id}
+                onClick={() => loadPreset(preset)}
+                style={{
+                  height: TOTAL_COLUMN_HEIGHT,
+                  padding: `${COLUMN_PADDING}px 4px`,
+                }}
+              >
+                <span>{preset.name}</span>
+                {preset !== DEFAULT_PRESET && (
+                  <i
+                    className="fas fa-trash"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConfirmAction({
+                        message: `Delete preset ${preset.name}?`,
+                        action: () => {
+                          setPresets((presets) =>
+                            presets.filter((p) => p.id !== preset.id),
+                          );
+                        },
+                      });
+                    }}
+                  />
+                )}
+              </div>
+            ))}
+            <div
+              className={styles.column}
+              style={{
+                height: TOTAL_COLUMN_HEIGHT,
+                padding: `${COLUMN_PADDING}px 4px`,
+                opacity: 0.8,
+              }}
+              onClick={() => {
+                setConfirmAction({
+                  message: 'Save selected columns as preset?',
+                  action: () => {
+                    const input = document.getElementById('new-preset-name');
+                    if (!input || !(input instanceof HTMLInputElement)) {
+                      return;
+                    }
+
+                    const newPresets = [
+                      ...presets,
+                      {
+                        name: input.value,
+                        id: presets.length + 1,
+                        columns,
+                      },
+                    ];
+                    setPresets(newPresets);
+                    storage.set((prev) => ({ ...prev, presets: newPresets }));
+                  },
+                  customContent: (
+                    <div className={styles.presetInput}>
+                      <Input
+                        autoFocus
+                        id="new-preset-name"
+                        label="Preset name"
+                        pattern="[a-zA-Z0-9 _-]{1,50}"
+                        required
+                      />
+                    </div>
+                  ),
+                  yesButton: 'Save',
+                  noButton: 'Cancel',
+                });
+              }}
+            >
+              New Preset…
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className={styles.actions}>
+        <Button
+          disabled={!modified}
+          onClick={() => {
+            setAllColumns(columns);
+          }}
+        >
+          Accept
+        </Button>
+        <Button
+          disabled={!modified}
+          onClick={() => setColumns(selectedColumns)}
+        >
+          Reset
+        </Button>
+        <Button simple onClick={tryClose}>
+          Close
+        </Button>
+      </div>
+      {confirmAction && (
+        <>
+          <div className={styles.dimmer} />
+          <form
+            className={styles.confirm}
+            onSubmit={() => {
+              confirmAction.action();
+              setConfirmAction(null);
+            }}
+          >
+            <p className={styles.message}>{confirmAction.message}</p>
+            {confirmAction.customContent}
+            <div className={styles.confirmActions}>
+              <Button type="submit">{confirmAction.yesButton ?? 'Yes'}</Button>
+              <Button simple onClick={() => setConfirmAction(null)}>
+                {confirmAction.noButton ?? 'No'}
+              </Button>
+            </div>
+          </form>
+        </>
+      )}
+    </Modal>
+  );
+}
+
+type PresetStorage = {
+  presets: PresetColumns[];
+  activeColumns: SelectedColumn[];
+};
+
+class LocalStorageManager {
+  private key: string;
+
+  public constructor(key: string) {
+    this.key = key;
+  }
+
+  public get(): PresetStorage {
+    const data = localStorage.getItem(this.key);
+    if (data === null) {
+      return { presets: [], activeColumns: DEFAULT_SELECTED_COLUMNS };
+    }
+
+    try {
+      return JSON.parse(data);
+    } catch {
+      return { presets: [], activeColumns: DEFAULT_SELECTED_COLUMNS };
+    }
+  }
+
+  public set(
+    presets: PresetStorage | ((prev: PresetStorage) => PresetStorage),
+  ) {
+    if (typeof presets === 'function') {
+      const prev = this.get();
+      localStorage.setItem(this.key, JSON.stringify(presets(prev)));
+    } else {
+      localStorage.setItem(this.key, JSON.stringify(presets));
+    }
+  }
 }

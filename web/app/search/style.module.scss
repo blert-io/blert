@@ -4,20 +4,18 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: 100%;
 }
 
 .challenges {
   position: relative;
-
-  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    width: 98vw;
-  }
+  width: 100%;
 
   .wrapper {
-    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-      width: 100%;
-      overflow-x: auto;
-    }
+    width: 100%;
+    overflow-x: auto;
+
+    @include styledScrollbar;
   }
 
   table.table {
@@ -105,6 +103,7 @@
 
   .id {
     font-family: var(--font-roboto-mono), monospace;
+    font-size: 14px;
     color: var(--blert-blue);
 
     &:hover {
@@ -198,6 +197,174 @@
 
     .checkbox {
       padding: 4px 0;
+    }
+  }
+}
+
+.columnsModal {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 0.8em 1.2em;
+
+  h2 {
+    margin: 0 0 1em 0;
+  }
+
+  .selection {
+    display: flex;
+  }
+
+  .columnsList {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 1em;
+    width: 240px;
+    padding: 16px 10px;
+    border: 2px solid var(--blert-text-color);
+    border-radius: 5px;
+
+    @include styledScrollbar;
+
+    &.hint {
+      border-color: #fff;
+    }
+    &.active {
+      .label {
+        color: var(--blert-blue);
+      }
+      border-color: var(--blert-blue);
+    }
+
+    .listWrapper {
+      height: 400px;
+      padding: 0 4px;
+      overflow-y: auto;
+      position: relative;
+
+      @include styledScrollbar;
+    }
+
+    &:not(.dragging) {
+      .column:hover {
+        cursor: pointer;
+        background: var(--highlight-bg);
+        color: #fff;
+      }
+    }
+
+    &:not(:first-child) {
+      margin-left: 2em;
+    }
+
+    .label {
+      position: absolute;
+      top: -12px;
+      left: 10px;
+      padding: 0 6px;
+      background: var(--nav-bg);
+      z-index: 10;
+      font-size: 1.1rem;
+      font-weight: 500;
+      color: #fff;
+    }
+
+    .column {
+      display: flex;
+      align-items: center;
+      border-radius: 3px;
+
+      &.selected {
+        background: var(--highlight-bg);
+        color: #fff;
+      }
+
+      i {
+        margin-left: auto;
+
+        &:hover {
+          cursor: pointer;
+          color: var(--blert-blue);
+        }
+      }
+    }
+
+    .insertion {
+      height: 2px;
+      left: 8px;
+      width: 200px;
+      background: var(--blert-blue);
+      z-index: 10;
+
+      i {
+        position: absolute;
+        color: var(--blert-blue);
+        top: -7px;
+
+        &:first-child {
+          left: -7px;
+        }
+
+        &:last-child {
+          right: -7px;
+        }
+      }
+    }
+  }
+
+  .actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+
+    button {
+      width: 80px;
+      &:not(:first-child) {
+        margin-left: 10px;
+      }
+    }
+  }
+
+  .dimmer {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    z-index: 100;
+    background: rgba(0, 0, 0, 0.6);
+    top: 0;
+    left: 0;
+    border-radius: 5px;
+  }
+
+  .confirm {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 101;
+    background: var(--panel-bg);
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    min-width: 240px;
+    border-radius: 5px;
+
+    .message {
+      width: 100%;
+      margin: 0 0 0.5em 0;
+    }
+
+    .confirmActions {
+      margin: 0.5em 0 0 0;
+      display: flex;
+      justify-content: flex-start;
+      width: 100%;
+
+      button {
+        width: 80px;
+        margin-right: 10px;
+      }
     }
   }
 }

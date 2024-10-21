@@ -3,7 +3,7 @@ import postgres from 'postgres';
 import { sql } from './db';
 import { InvalidQueryError } from './errors';
 
-export type CompareOp = '>' | '<' | '>=' | '<=' | '==' | '!=';
+export type CompareOp = '>' | '<' | '>=' | '<=' | '==' | '!=' | 'is' | 'isnot';
 export type Operator = CompareOp | '&&' | '||';
 
 /**
@@ -29,6 +29,10 @@ export function operator(op: Operator): postgres.Fragment {
       return sql`AND`;
     case '||':
       return sql`OR`;
+    case 'is':
+      return sql`IS`;
+    case 'isnot':
+      return sql`IS NOT`;
     default:
       throw new InvalidQueryError(`Invalid operator: ${op}`);
   }
@@ -67,8 +71,8 @@ export function join(joins: Join[]) {
     : sql``;
 }
 
-type BaseOperand = number | string;
-type Operand = BaseOperand | Condition;
+export type BaseOperand = number | string | null;
+export type Operand = BaseOperand | Condition;
 export type Condition = [Operand, Operator, Operand];
 
 function consumeWhitespace(expression: string, index: number): number {
@@ -92,7 +96,7 @@ function isAlpha(char: string): boolean {
 function tryParseOperand(
   expression: string,
   index: number,
-): [BaseOperand, number] | null {
+): [string | number, number] | null {
   if (expression[index] === '(' || expression[index] === ')') {
     return null;
   }
@@ -108,8 +112,8 @@ function tryParseOperand(
   if (isAlpha(expression[index])) {
     let i = index;
     while (
-      (i < expression.length && isAlpha(expression[i])) ||
-      isDigit(expression[i])
+      i < expression.length &&
+      (isAlpha(expression[i]) || isDigit(expression[i]))
     ) {
       i++;
     }
@@ -150,6 +154,10 @@ function tryParseOperator(
   return null;
 }
 
+function convertNull(operand: string | number): string | number | null {
+  return operand === 'null' ? null : operand;
+}
+
 function tryParseSingleCondition(
   expression: string,
 ): [BaseOperand, Operator, BaseOperand] | null {
@@ -168,7 +176,7 @@ function tryParseSingleCondition(
     return null;
   }
 
-  const [op, newIndex2] = operator;
+  let [op, newIndex2] = operator;
   index = consumeWhitespace(expression, newIndex2);
 
   const op2 = tryParseOperand(expression, index);
@@ -183,7 +191,21 @@ function tryParseSingleCondition(
     return null;
   }
 
-  return [lhs, op, rhs];
+  if (lhs === 'null' || rhs === 'null') {
+    // Only allow equality and inequality checks with null.
+    switch (op) {
+      case '==':
+        op = 'is';
+        break;
+      case '!=':
+        op = 'isnot';
+        break;
+      default:
+        return null;
+    }
+  }
+
+  return [convertNull(lhs), op, convertNull(rhs)];
 }
 
 export function parseQuery(expression: string): Condition | null {
@@ -192,10 +214,6 @@ export function parseQuery(expression: string): Condition | null {
   const singleCondition = tryParseSingleCondition(expression);
   if (singleCondition) {
     return singleCondition;
-  }
-
-  if (expression[0] === '(' && expression[expression.length - 1] === ')') {
-    return parseQuery(expression.slice(1, expression.length - 1));
   }
 
   let depth = 0;
@@ -221,6 +239,14 @@ export function parseQuery(expression: string): Condition | null {
     }
   }
   parts.push(expression.slice(lastIndex).trim());
+
+  if (
+    parts.length === 1 &&
+    parts[0].startsWith('(') &&
+    parts[0].endsWith(')')
+  ) {
+    return parseQuery(parts[0].slice(1, -1));
+  }
 
   return parts.map((part) =>
     part === '&&' || part === '||' ? part : parseQuery(part),

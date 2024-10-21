@@ -105,10 +105,13 @@ const PlayerSearch = forwardRef<HTMLInputElement, PlayerSearchProps>(
                 className={`${styles.suggestion} ${
                   i === suggestionIndex ? styles.selected : ''
                 }`}
-                onClick={() => {
+                onMouseDown={() => {
                   setSuggestions([]);
-                  inputRef.current!.value = suggestion;
+                  onSelection?.(suggestion);
                   inputRef.current!.focus();
+                  if (props.value === undefined) {
+                    inputRef.current!.value = '';
+                  }
                 }}
                 onMouseEnter={() => setSuggestionIndex(i)}
               >
