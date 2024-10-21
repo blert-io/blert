@@ -798,8 +798,10 @@ export default abstract class ChallengeProcessor {
           const attack = event.getPlayerAttack()!;
           const e = baseQueryableEvent(event);
           e.subtype = attack.getType();
-          e.player_id =
-            this.players[this.party.indexOf(event.getPlayer()!.getName())].id;
+          const playerIndex = this.party.indexOf(event.getPlayer()!.getName());
+          if (playerIndex !== -1) {
+            e.player_id = this.players[playerIndex].id;
+          }
           e[QueryableEventField.PLAYER_ATTACK_DISTANCE] =
             attack.getDistanceToTarget();
           if (attack.hasTarget()) {
@@ -815,10 +817,12 @@ export default abstract class ChallengeProcessor {
         }
 
         case Event.Type.PLAYER_DEATH: {
-          const e = baseQueryableEvent(event);
-          e.player_id =
-            this.players[this.party.indexOf(event.getPlayer()!.getName())].id;
-          queryableEvents.push(e);
+          const playerIndex = this.party.indexOf(event.getPlayer()!.getName());
+          if (playerIndex !== -1) {
+            const e = baseQueryableEvent(event);
+            e.player_id = this.players[playerIndex].id;
+            queryableEvents.push(e);
+          }
           break;
         }
 
@@ -861,8 +865,10 @@ export default abstract class ChallengeProcessor {
           e.subtype = attack.getAttack();
           e.npc_id = event.getNpc()!.getId();
           if (attack.hasTarget()) {
-            e.player_id =
-              this.players[this.party.indexOf(attack.getTarget())].id;
+            const playerIndex = this.party.indexOf(attack.getTarget()!);
+            if (playerIndex !== -1) {
+              e.player_id = this.players[playerIndex].id;
+            }
           }
           queryableEvents.push(e);
           break;

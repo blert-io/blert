@@ -963,7 +963,13 @@ export default class ChallengeManager {
       challenge,
     );
 
-    return this.completeChallengeStage(challenge, processor, stage);
+    try {
+      this.completeChallengeStage(challenge, processor, stage);
+    } catch (e) {
+      logger.error(
+        `Error completing stage ${stage} for challenge ${challengeId}: ${e}`,
+      );
+    }
   }
 
   private async completeChallengeStage(
