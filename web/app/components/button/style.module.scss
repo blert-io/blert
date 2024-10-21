@@ -1,10 +1,18 @@
+$button-color: #5865f2;
+
 .button {
   font-size: 16px;
   border-radius: 5px;
   padding: 8px 10px;
-  background-color: #5865f2;
+  background-color: $button-color;
   color: white;
   font-weight: 600;
+  border: 1px solid $button-color;
+
+  &.simple {
+    background: none;
+    color: $button-color;
+  }
 
   &:disabled {
     opacity: 0.5;

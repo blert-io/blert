@@ -27,6 +27,7 @@ export default async function SearchPage() {
   const initialContext: SearchContext = {
     filters: initialFilters,
     sort: ['-startTime'],
+    extraFields: {},
   };
 
   const query: ChallengeQuery = {

@@ -3,6 +3,7 @@ import { forwardRef } from 'react';
 import styles from './style.module.scss';
 
 export type InputProps = {
+  autoFocus?: boolean;
   customIcon?: React.ReactNode;
   disabled?: boolean;
   errorMessage?: string;
@@ -14,6 +15,7 @@ export type InputProps = {
   labelBg?: string;
   maxLength?: number;
   minLength?: number;
+  pattern?: string;
   onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void;
@@ -41,6 +43,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>((props, ref) => {
   return (
     <div className={className}>
       <input
+        autoFocus={props.autoFocus}
         disabled={props.disabled}
         id={props.id}
         maxLength={props.maxLength}
@@ -50,6 +53,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>((props, ref) => {
         onChange={props.onChange}
         onFocus={props.onFocus}
         onKeyDown={props.onKeyDown}
+        pattern={props.pattern}
         placeholder=" "
         style={style}
         ref={ref}

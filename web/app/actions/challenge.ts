@@ -26,6 +26,7 @@ import { sql } from './db';
 import dataRepository from './data-repository';
 import { InvalidQueryError } from './errors';
 import {
+  BaseOperand,
   Comparator,
   Condition,
   InComparator,
@@ -121,10 +122,29 @@ export type ChallengeOverview = Pick<
   | 'challengeTicks'
   | 'overallTicks'
   | 'totalDeaths'
-> & { party: ChallengePlayer[] };
+> & {
+  party: ChallengePlayer[];
+  splits?: Partial<Record<SplitType, { ticks: number; accurate: boolean }>>;
+};
 
-export type SortQuery<T> =
-  `${'+' | '-'}${T extends object ? keyof T & string : T extends string ? T : never}`;
+type SortSuffix = 'nf' | 'nl';
+
+/**
+ * A `SortQuery` is a string that represents a field to sort by. It consists of
+ * three parts:
+ * - A prefix that indicates the sort order: `+` for ascending, `-` for
+ *   descending.
+ * - The name of the field to sort by.
+ * - Optionally, a suffix specifying additional sorting options. This can be
+ *   one of the following:
+ *   * `#nf` to indicate that null values should be sorted first.
+ *   * `#nl` to indicate that null values should be sorted last.
+ */
+export type SortQuery<T> = `${'+' | '-'}${T extends object
+  ? keyof T & string
+  : T extends string
+    ? T
+    : never}${`#${SortSuffix}` | ''}`;
 
 export type SortableFields = keyof Omit<ChallengeOverview, 'party'>;
 
@@ -149,7 +169,7 @@ export type QueryOptions = {
 };
 
 const DEFAULT_CHALLENGE_LIMIT = 10;
-const DEFAULT_SORT = '-startTime';
+const DEFAULT_SORT: SortQuery<SortableFields> = '-startTime';
 const DEFAULT_CHALLENGE_QUERY: ChallengeQuery = {
   sort: DEFAULT_SORT,
 };
@@ -164,6 +184,7 @@ function fieldToTable(field: string): string {
     case 'scale':
     case 'mode':
     case 'challenge_ticks':
+    case 'overall_ticks':
     case 'total_deaths':
       return 'challenges';
 
@@ -199,7 +220,10 @@ function conditionToSql(
   queryTable: postgres.Helper<string>,
   conditions: Condition,
 ): postgres.Fragment {
-  const columnOrLiteral = (operand: string | number) => {
+  const columnOrLiteral = (operand: BaseOperand) => {
+    if (operand === null) {
+      return sql`NULL`;
+    }
     if (typeof operand === 'string') {
       const field = camelToSnake(operand);
       return sql`${queryTable}.${sql(field)}`;
@@ -230,19 +254,33 @@ function order(
 
   const sorts = Array.isArray(sort) ? sort : [sort];
   for (const sort of sorts) {
-    const field = camelToSnake(sort.slice(1));
+    let [field, suffix] = sort.slice(1).split('#');
+    field = camelToSnake(field);
+    let options;
+    switch (suffix) {
+      case 'nf':
+        options = sql`NULLS FIRST`;
+        break;
+      case 'nl':
+        options = sql`NULLS LAST`;
+        break;
+      default:
+        options = sql``;
+    }
 
     if (challengesTable !== undefined) {
       const table = fieldToTable(field);
       const sqlTable = table === 'challenges' ? challengesTable : sql(table);
       if (sort.startsWith('-')) {
-        fragments.push(sql`${sqlTable}.${sql(field)} DESC`);
+        fragments.push(sql`${sqlTable}.${sql(field)} DESC ${options}`);
       } else {
-        fragments.push(sql`${sqlTable}.${sql(field)} ASC`);
+        fragments.push(sql`${sqlTable}.${sql(field)} ASC ${options}`);
       }
     } else {
       fragments.push(
-        sort.startsWith('-') ? sql`${sql(field)} DESC` : sql`${sql(field)} ASC`,
+        sort.startsWith('-')
+          ? sql`${sql(field)} DESC ${options}`
+          : sql`${sql(field)} ASC ${options}`,
       );
     }
   }
@@ -380,6 +418,15 @@ function applyFilters(query: ChallengeQuery): QueryComponents | null {
   };
 }
 
+export type ExtraChallengeFields = {
+  splits?: SplitType[];
+};
+
+type FindChallengesOptions = {
+  count?: boolean;
+  extraFields?: ExtraChallengeFields;
+};
+
 /**
  * Fetches basic information about the most recently recorded challenges from
  * the database.
@@ -393,7 +440,7 @@ function applyFilters(query: ChallengeQuery): QueryComponents | null {
 export async function findChallenges(
   limit: number = DEFAULT_CHALLENGE_LIMIT,
   query?: ChallengeQuery,
-  count: boolean = true,
+  options: FindChallengesOptions = {},
 ): Promise<[ChallengeOverview[], number | null]> {
   const searchQuery = { ...DEFAULT_CHALLENGE_QUERY, ...query };
 
@@ -403,6 +450,7 @@ export async function findChallenges(
   }
 
   const { baseTable, queryTable, joins, conditions } = components;
+  const sort = searchQuery.sort ?? DEFAULT_SORT;
 
   const promises: Promise<any>[] = [
     sql`
@@ -420,13 +468,13 @@ export async function findChallenges(
       FROM ${baseTable}
       ${join(joins)}
       ${where(conditions)}
-      ${order(searchQuery.sort ?? DEFAULT_SORT, queryTable)}
+      ${order(sort, queryTable)}
       LIMIT ${limit}
     `,
   ];
 
   let total: number | null = null;
-  if (count) {
+  if (options.count) {
     promises.push(
       sql`
         SELECT COUNT(*)
@@ -441,28 +489,68 @@ export async function findChallenges(
 
   const [rawChallenges] = await Promise.all(promises);
 
-  const players = await sql`
-    SELECT
-      challenge_id,
-      challenge_players.username AS username,
-      players.username AS current_username,
-      primary_gear,
-      orb
-    FROM challenge_players
-    JOIN players ON challenge_players.player_id = players.id
-    WHERE challenge_id = ANY(${rawChallenges.map((c: any) => c.id)})
-    ORDER BY orb
-  `;
+  const challengeIds = rawChallenges.map((c: any) => c.id);
+  const extra: Record<number, Partial<ChallengeOverview>> = {};
+  for (const id of challengeIds) {
+    extra[id] = {};
+  }
 
-  const challenges = rawChallenges.map((c: any): ChallengeOverview => {
-    const party: ChallengePlayer[] = players
-      .filter((p) => p.challenge_id === c.id)
-      .map((p) => ({
-        username: p.username,
-        currentUsername: p.current_username,
-        primaryGear: p.primary_gear,
-      }));
-    return {
+  const loadPromises: Promise<any>[] = [];
+
+  if (options.extraFields?.splits) {
+    const splits = options.extraFields.splits.flatMap(allSplitModes);
+
+    loadPromises.push(
+      sql`
+        SELECT challenge_id, type, ticks, accurate
+        FROM challenge_splits
+        WHERE challenge_id = ANY(${challengeIds}) AND type = ANY(${splits})
+      `.then((ss) => {
+        ss.forEach((s: any) => {
+          if (extra[s.challenge_id].splits === undefined) {
+            extra[s.challenge_id].splits = {};
+          }
+          const generalized = generalizeSplit(s.type) as SplitType;
+          extra[s.challenge_id].splits![generalized] = {
+            ticks: s.ticks,
+            accurate: s.accurate,
+          };
+        });
+      }),
+    );
+  }
+
+  loadPromises.push(
+    sql`
+      SELECT
+        challenge_id,
+        challenge_players.username AS username,
+        players.username AS current_username,
+        primary_gear,
+        orb
+      FROM challenge_players
+      JOIN players ON challenge_players.player_id = players.id
+      WHERE challenge_id = ANY(${challengeIds})
+      ORDER BY orb
+    `.then((players) => {
+      players.forEach((p: any) => {
+        if (extra[p.challenge_id].party === undefined) {
+          extra[p.challenge_id].party = [];
+        }
+        extra[p.challenge_id].party!.push({
+          username: p.username,
+          currentUsername: p.current_username,
+          primaryGear: p.primary_gear,
+        });
+      });
+    }),
+  );
+
+  await Promise.all(loadPromises);
+
+  const challenges = rawChallenges.map(
+    // @ts-ignore
+    (c: any): ChallengeOverview => ({
       uuid: c.uuid,
       type: c.type,
       startTime: c.start_time,
@@ -472,9 +560,9 @@ export async function findChallenges(
       challengeTicks: c.challenge_ticks,
       overallTicks: c.overall_ticks,
       totalDeaths: c.total_deaths,
-      party,
-    };
-  });
+      ...extra[c.id],
+    }),
+  );
 
   return [challenges as ChallengeOverview[], total];
 }

@@ -47,10 +47,8 @@ export function challengeApiUrl(type: ChallengeType, id: string): string {
 }
 
 type SingleOrArray<T> = T | T[];
-export type UrlParams = Record<
-  string,
-  SingleOrArray<string | number> | undefined
->;
+export type UrlParam = SingleOrArray<string | number> | undefined;
+export type UrlParams = Record<string, UrlParam>;
 
 /**
  * Returns a URL query string from the given parameters.
