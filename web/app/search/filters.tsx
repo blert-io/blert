@@ -1,5 +1,6 @@
 import { ChallengeMode, ChallengeStatus, ChallengeType } from '@blert/common';
-import { Dispatch, SetStateAction } from 'react';
+import { Dispatch, SetStateAction, useState } from 'react';
+import DatePicker from 'react-datepicker';
 
 import Checkbox from '@/components/checkbox';
 import PlayerSearch from '@/components/player-search';
@@ -7,7 +8,12 @@ import TagList from '@/components/tag-list';
 import Tooltip from '@/components/tooltip';
 import { SearchContext, SearchFilters } from './context';
 
+import 'react-datepicker/dist/react-datepicker.css';
+import './date-picker.css';
 import styles from './style.module.scss';
+
+const DATE_WIDTH = 300;
+const DATE_INPUT_WIDTH = 140;
 
 type FiltersProps = {
   context: SearchContext;
@@ -55,6 +61,8 @@ export default function Filters({
   setContext,
   loading,
 }: FiltersProps) {
+  const [useDateRange, setUseDateRange] = useState(false);
+
   function toggle<
     K extends keyof ArrayFields<SearchFilters>,
     V = SearchFilters[K][number],
@@ -187,8 +195,6 @@ export default function Filters({
           {checkbox('scale', 4, '4s')}
           {checkbox('scale', 5, '5s')}
         </div>
-      </div>
-      <div className={styles.filterGroup}>
         <div className={`${styles.checkGroup} ${styles.item}`}>
           <div className={styles.label}>
             <label>Extra options</label>
@@ -220,7 +226,7 @@ export default function Filters({
         </div>
       </div>
       <div className={styles.filterGroup}>
-        <div className={`${styles.item}`}>
+        <div className={styles.item}>
           {clearLabel('Party', 'party')}
           <PlayerSearch
             disabled={loading || context.filters.party.length >= 5}
@@ -254,6 +260,112 @@ export default function Filters({
             tags={context.filters.party}
             width={300}
           />
+        </div>
+        <div className={styles.item}>
+          <div className={styles.label}>
+            <label>Date</label>
+          </div>
+          <div className={styles.dateWrapper}>
+            <div className={styles.date} style={{ width: DATE_WIDTH }}>
+              <DatePicker
+                customInput={
+                  <input
+                    className={styles.dateInput}
+                    style={{
+                      width: useDateRange ? DATE_INPUT_WIDTH : DATE_WIDTH,
+                    }}
+                  />
+                }
+                disabled={loading}
+                icon="fas fa-calendar-alt"
+                isClearable
+                maxDate={
+                  useDateRange
+                    ? context.filters.endDate ?? undefined
+                    : undefined
+                }
+                placeholderText={useDateRange ? 'Start date' : undefined}
+                popperClassName="blert-datepicker"
+                popperPlacement="bottom"
+                selected={context.filters.startDate}
+                onChange={(date) => {
+                  const endDate = useDateRange ? context.filters.endDate : date;
+                  setContext((prev) => ({
+                    ...prev,
+                    filters: {
+                      ...prev.filters,
+                      startDate: date,
+                      endDate,
+                    },
+                  }));
+                }}
+                showIcon
+                wrapperClassName="blert-datepicker-wrapper"
+              />
+              {useDateRange && (
+                <>
+                  <i className="fas fa-minus" />
+                  <DatePicker
+                    customInput={
+                      <input
+                        className={styles.dateInput}
+                        style={{ width: DATE_INPUT_WIDTH }}
+                      />
+                    }
+                    disabled={loading}
+                    icon="fas fa-calendar-alt"
+                    isClearable
+                    minDate={
+                      useDateRange
+                        ? context.filters.startDate ?? undefined
+                        : undefined
+                    }
+                    placeholderText="End date"
+                    popperClassName="blert-datepicker"
+                    popperPlacement="bottom"
+                    selected={context.filters.endDate}
+                    onChange={(date) =>
+                      setContext((prev) => ({
+                        ...prev,
+                        filters: { ...prev.filters, endDate: date },
+                      }))
+                    }
+                    showIcon
+                    wrapperClassName="blert-datepicker-wrapper"
+                  />
+                </>
+              )}
+            </div>
+            <Checkbox
+              checked={useDateRange}
+              className={styles.dateRangeCheckbox}
+              disabled={loading}
+              onChange={() => {
+                if (useDateRange) {
+                  if (context.filters.startDate !== null) {
+                    setContext((prev) => ({
+                      ...prev,
+                      filters: {
+                        ...prev.filters,
+                        endDate: prev.filters.startDate,
+                      },
+                    }));
+                  } else if (context.filters.endDate !== null) {
+                    setContext((prev) => ({
+                      ...prev,
+                      filters: {
+                        ...prev.filters,
+                        startDate: prev.filters.endDate,
+                      },
+                    }));
+                  }
+                }
+                setUseDateRange((prev) => !prev);
+              }}
+              label="Date range"
+              simple
+            />
+          </div>
         </div>
       </div>
     </div>

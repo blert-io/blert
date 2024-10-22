@@ -24,6 +24,8 @@ export default async function SearchPage() {
       ChallengeStatus.WIPED,
     ],
     type: [],
+    startDate: null,
+    endDate: null,
     accurateSplits: true,
   };
   const initialContext: SearchContext = {
