@@ -151,10 +151,10 @@
 .filters {
   padding: 10px 1em;
   display: flex;
+  flex-direction: column;
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     width: 98vw;
-    flex-direction: column;
   }
 
   .label {
@@ -197,6 +197,39 @@
 
     .checkbox {
       padding: 4px 0;
+    }
+  }
+
+  .dateWrapper {
+    display: flex;
+    flex-direction: column;
+    padding-top: 10px;
+
+    .date {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+
+      .dateInput {
+        background: none;
+        font-size: 16px;
+        line-height: 16px;
+        height: 42px;
+        padding: 12px 15px;
+        border: 1px solid var(--blert-text-color);
+        border-radius: 5px;
+        color: var(--blert-text-color);
+        text-align: center;
+
+        &::placeholder {
+          color: var(--blert-text-color);
+        }
+      }
+    }
+
+    .dateRangeCheckbox {
+      padding: 2px 0;
     }
   }
 }

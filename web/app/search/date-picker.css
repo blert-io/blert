@@ -1,0 +1,58 @@
+.blert-datepicker .react-datepicker {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--panel-bg);
+  border: 1px solid var(--blert-text-color);
+}
+
+.blert-datepicker .react-datepicker__header {
+  background-color: var(--nav-bg);
+}
+
+.blert-datepicker .react-datepicker__current-month {
+  color: #888dbb;
+}
+
+.blert-datepicker .react-datepicker__day-name {
+  color: var(--blert-text-color);
+}
+
+.blert-datepicker .react-datepicker__day {
+  color: var(--blert-text-color);
+}
+
+.blert-datepicker .react-datepicker__day--disabled {
+  opacity: 0.5;
+}
+
+.blert-datepicker .react-datepicker__day:not([aria-disabled='true']):hover {
+  background-color: var(--blert-text-color);
+  color: var(--panel-bg);
+}
+
+.blert-datepicker .react-datepicker__day--selected,
+.blert-datepicker .react-datepicker__day--keyboard-selected {
+  background-color: var(--blert-blue);
+  color: #fff;
+  font-weight: 700;
+}
+
+.blert-datepicker-wrapper .react-datepicker__calendar-icon {
+  top: calc(50% - 1px);
+  left: 2px;
+  transform: translateY(-50%);
+}
+
+.blert-datepicker-wrapper .react-datepicker__close-icon {
+  right: -2px;
+}
+
+.blert-datepicker-wrapper .react-datepicker__close-icon::after {
+  font-family: 'Font Awesome 6 Free';
+  content: '\f057';
+  background: none;
+  font-size: 18px;
+}
+
+.blert-datepicker-wrapper .react-datepicker__close-icon:hover::after {
+  color: var(--blert-blue);
+}

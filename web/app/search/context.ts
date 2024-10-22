@@ -13,6 +13,8 @@ export type SearchFilters = {
   scale: number[];
   status: ChallengeStatus[];
   type: ChallengeType[];
+  startDate: Date | null;
+  endDate: Date | null;
   accurateSplits: boolean;
 };
 
@@ -40,12 +42,28 @@ export function filtersToUrlParams(filters: SearchFilters): UrlParams {
     modes.push(ChallengeMode.NO_MODE);
   }
 
+  let startTime;
+
+  console.log(filters.startDate, filters.endDate);
+  if (filters.startDate !== null && filters.endDate !== null) {
+    const endDate = new Date(filters.endDate);
+    endDate.setDate(endDate.getDate() + 1);
+    startTime = `${filters.startDate.getTime()}..${endDate.getTime()}`;
+  } else if (filters.startDate !== null) {
+    startTime = `>=${filters.startDate.getTime()}`;
+  } else if (filters.endDate !== null) {
+    const endDate = new Date(filters.endDate);
+    endDate.setDate(endDate.getDate() + 1);
+    startTime = `<${filters.endDate.getTime()}`;
+  }
+
   const params: UrlParams = {
     party: filters.party,
     scale: filters.scale,
     status: filters.status,
     mode: modes,
     type: filters.type,
+    startTime,
     options,
   };
 
