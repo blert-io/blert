@@ -17,12 +17,14 @@ export default async function SearchPage() {
   const initialFilters: SearchFilters = {
     party: [],
     scale: [],
+    mode: [],
     status: [
       ChallengeStatus.COMPLETED,
       ChallengeStatus.RESET,
       ChallengeStatus.WIPED,
     ],
     type: [],
+    accurateSplits: true,
   };
   const initialContext: SearchContext = {
     filters: initialFilters,

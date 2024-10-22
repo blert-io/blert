@@ -1,9 +1,10 @@
-import { ChallengeStatus, ChallengeType } from '@blert/common';
+import { ChallengeMode, ChallengeStatus, ChallengeType } from '@blert/common';
 import { Dispatch, SetStateAction } from 'react';
 
 import Checkbox from '@/components/checkbox';
 import PlayerSearch from '@/components/player-search';
 import TagList from '@/components/tag-list';
+import Tooltip from '@/components/tooltip';
 import { SearchContext, SearchFilters } from './context';
 
 import styles from './style.module.scss';
@@ -18,6 +19,36 @@ type ArrayFields<T> = Pick<
   T,
   { [K in keyof T]: T[K] extends Array<any> ? K : never }[keyof T]
 >;
+
+function isTobMode(mode: ChallengeMode) {
+  return mode >= ChallengeMode.TOB_ENTRY && mode <= ChallengeMode.TOB_HARD;
+}
+
+function toggleTobMode(
+  filters: SearchFilters,
+  mode: ChallengeMode,
+): SearchFilters {
+  const remove = filters.mode.includes(mode);
+  if (remove) {
+    const tobModes = filters.mode.filter(isTobMode).length;
+    return {
+      ...filters,
+      mode: filters.mode.filter((v) => v !== mode),
+      type:
+        tobModes === 1
+          ? filters.type.filter((v) => v !== ChallengeType.TOB)
+          : filters.type,
+    };
+  }
+
+  return {
+    ...filters,
+    mode: [...filters.mode, mode],
+    type: filters.type.includes(ChallengeType.TOB)
+      ? filters.type
+      : [...filters.type, ChallengeType.TOB],
+  };
+}
 
 export default function Filters({
   context,
@@ -84,8 +115,61 @@ export default function Filters({
     <div className={styles.filters}>
       <div className={styles.filterGroup}>
         <div className={`${styles.checkGroup} ${styles.item}`}>
-          {clearLabel('Type', 'type')}
-          {checkbox('type', ChallengeType.TOB, 'ToB')}
+          <div className={styles.label}>
+            <label>Type</label>
+            <button
+              className={styles.action}
+              disabled={loading}
+              onClick={() =>
+                setContext((prev) => {
+                  if (
+                    prev.filters.type.length === 0 &&
+                    prev.filters.mode.length === 0
+                  ) {
+                    return prev;
+                  }
+                  return {
+                    ...prev,
+                    filters: { ...prev.filters, type: [], mode: [] },
+                  };
+                })
+              }
+            >
+              Clear
+            </button>
+          </div>
+          <Checkbox
+            checked={
+              context.filters.type.includes(ChallengeType.TOB) &&
+              context.filters.mode.includes(ChallengeMode.TOB_REGULAR)
+            }
+            className={styles.checkbox}
+            disabled={loading}
+            onChange={() =>
+              setContext((prev) => ({
+                ...prev,
+                filters: toggleTobMode(prev.filters, ChallengeMode.TOB_REGULAR),
+              }))
+            }
+            label="ToB Regular"
+            simple
+          />
+          <Checkbox
+            checked={
+              context.filters.type.includes(ChallengeType.TOB) &&
+              context.filters.mode.includes(ChallengeMode.TOB_HARD)
+            }
+            className={styles.checkbox}
+            disabled={loading}
+            onChange={() =>
+              setContext((prev) => ({
+                ...prev,
+                filters: toggleTobMode(prev.filters, ChallengeMode.TOB_HARD),
+              }))
+            }
+            label="ToB Hard"
+            simple
+          />
           {checkbox('type', ChallengeType.COLOSSEUM, 'Colosseum')}
         </div>
         <div className={`${styles.checkGroup} ${styles.item}`}>
@@ -102,6 +186,37 @@ export default function Filters({
           {checkbox('scale', 3, 'Trio')}
           {checkbox('scale', 4, '4s')}
           {checkbox('scale', 5, '5s')}
+        </div>
+      </div>
+      <div className={styles.filterGroup}>
+        <div className={`${styles.checkGroup} ${styles.item}`}>
+          <div className={styles.label}>
+            <label>Extra options</label>
+          </div>
+          <Tooltip tooltipId="accurate-splits-tooltip">
+            <span>
+              When sorting by split times, exclude those which are inaccurate.
+            </span>
+          </Tooltip>
+          <div className={styles.checkbox}>
+            <div data-tooltip-id="accurate-splits-tooltip">
+              <Checkbox
+                checked={context.filters.accurateSplits}
+                disabled={loading}
+                onChange={() =>
+                  setContext((prev) => ({
+                    ...prev,
+                    filters: {
+                      ...prev.filters,
+                      accurateSplits: !prev.filters.accurateSplits,
+                    },
+                  }))
+                }
+                label="Accurate splits"
+                simple
+              />
+            </div>
+          </div>
         </div>
       </div>
       <div className={styles.filterGroup}>

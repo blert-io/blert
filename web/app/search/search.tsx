@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from 'react';
 
-import { ChallengeOverview, SortableFields } from '@/actions/challenge';
+import {
+  BasicSortableFields,
+  ChallengeOverview,
+  SortableFields,
+} from '@/actions/challenge';
 import CollapsiblePanel from '@/components/collapsible-panel';
 import { queryString } from '@/utils/url';
 
@@ -15,6 +19,7 @@ import Filters from './filters';
 import Table from './table';
 
 import styles from './style.module.scss';
+import { SplitType } from '@blert/common';
 
 type FilteredStats = {
   count: number;
@@ -37,6 +42,16 @@ type ChallengesResult = {
   remaining: number;
   stats: FilteredStats;
 };
+
+function getSortKeyValue(challenge: ChallengeOverview, key: SortableFields) {
+  if (key.startsWith('splits:')) {
+    const split = Number.parseInt(key.slice(7)) as SplitType;
+    return challenge.splits?.[split]?.ticks ?? null;
+  }
+
+  const k = key as BasicSortableFields;
+  return challenge[k];
+}
 
 async function fetchChallenges(
   context: SearchContext,
@@ -103,7 +118,7 @@ async function fetchChallenges(
     params.sort.push(`${sortDirection}${sortField}#${options}`);
 
     if (keyChallenge !== null) {
-      const keyField = keyChallenge[sortField];
+      const keyField = getSortKeyValue(keyChallenge, sortField);
       if (keyField !== null) {
         const keyValue =
           keyField instanceof Date ? keyField.getTime() : keyField;

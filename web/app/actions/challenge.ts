@@ -15,7 +15,6 @@ import {
   SplitType,
   Stage,
   TobRaid,
-  adjustSplitForMode,
   allSplitModes,
   camelToSnake,
   generalizeSplit,
@@ -86,6 +85,7 @@ export async function loadChallenge(
     startTime: rawChallenge[0].start_time,
     status: rawChallenge[0].status,
     mode: rawChallenge[0].mode,
+    scale: rawChallenge[0].scale,
     challengeTicks: rawChallenge[0].challenge_ticks,
     overallTicks: rawChallenge[0].overall_ticks,
     totalDeaths: rawChallenge[0].total_deaths,
@@ -116,6 +116,7 @@ export type ChallengeOverview = Pick<
   | 'uuid'
   | 'type'
   | 'stage'
+  | 'scale'
   | 'startTime'
   | 'status'
   | 'mode'
@@ -146,13 +147,15 @@ export type SortQuery<T> = `${'+' | '-'}${T extends object
     ? T
     : never}${`#${SortSuffix}` | ''}`;
 
-export type SortableFields = keyof Omit<ChallengeOverview, 'party'>;
+export type BasicSortableFields = keyof Omit<ChallengeOverview, 'party'>;
+export type SplitSortableFields = `splits:${SplitType}`;
+export type SortableFields = BasicSortableFields | SplitSortableFields;
 
 type SingleOrArray<T> = T | T[];
 
 export type ChallengeQuery = {
   type?: Comparator<ChallengeType>;
-  mode?: ChallengeMode;
+  mode?: SingleOrArray<ChallengeMode>;
   status?: Comparator<ChallengeStatus>;
   scale?: Comparator<number>;
   party?: string[];
@@ -164,6 +167,7 @@ export type ChallengeQuery = {
 };
 
 export type QueryOptions = {
+  accurateSplits?: boolean;
   limit?: number;
   sort?: SortQuery<Omit<ChallengeOverview, 'party'> | Aggregation>;
 };
@@ -173,6 +177,37 @@ const DEFAULT_SORT: SortQuery<SortableFields> = '-startTime';
 const DEFAULT_CHALLENGE_QUERY: ChallengeQuery = {
   sort: DEFAULT_SORT,
 };
+
+function sortedSplitsTable(split: SplitType) {
+  return `challenge_splits_${split}`;
+}
+
+function shorthandToFullField(field: string): [string, string] {
+  if (field.startsWith('splits:')) {
+    const split = field.slice(7);
+    return ['ticks', sortedSplitsTable(parseInt(split))];
+  }
+
+  switch (field) {
+    case 'uuid':
+    case 'type':
+    case 'start_time':
+    case 'status':
+    case 'stage':
+    case 'scale':
+    case 'mode':
+    case 'challenge_ticks':
+    case 'overall_ticks':
+    case 'total_deaths':
+      return [field, 'challenges'];
+
+    case 'username':
+      return [field, 'challenge_players'];
+
+    default:
+      throw new InvalidQueryError(`Unknown field: ${field}`);
+  }
+}
 
 function fieldToTable(field: string): string {
   switch (field) {
@@ -217,7 +252,7 @@ function comparatorToSql(
 }
 
 function conditionToSql(
-  queryTable: postgres.Helper<string>,
+  challengesTable: postgres.Helper<string>,
   conditions: Condition,
 ): postgres.Fragment {
   const columnOrLiteral = (operand: BaseOperand) => {
@@ -226,7 +261,9 @@ function conditionToSql(
     }
     if (typeof operand === 'string') {
       const field = camelToSnake(operand);
-      return sql`${queryTable}.${sql(field)}`;
+      const [tableField, table] = shorthandToFullField(field);
+      const sqlTable = table === 'challenges' ? challengesTable : sql(table);
+      return sql`${sqlTable}.${sql(tableField)}`;
     }
     return sql`${operand}`;
   };
@@ -234,13 +271,13 @@ function conditionToSql(
   return sql`(
     ${
       Array.isArray(conditions[0])
-        ? sql`${conditionToSql(queryTable, conditions[0])}`
+        ? sql`${conditionToSql(challengesTable, conditions[0])}`
         : sql`${columnOrLiteral(conditions[0])}`
     }
     ${operator(conditions[1])}
     ${
       Array.isArray(conditions[2])
-        ? sql`${conditionToSql(queryTable, conditions[2])}`
+        ? sql`${conditionToSql(challengesTable, conditions[2])}`
         : sql`${columnOrLiteral(conditions[2])}`
     }
   )`;
@@ -269,12 +306,12 @@ function order(
     }
 
     if (challengesTable !== undefined) {
-      const table = fieldToTable(field);
+      const [tableField, table] = shorthandToFullField(field);
       const sqlTable = table === 'challenges' ? challengesTable : sql(table);
       if (sort.startsWith('-')) {
-        fragments.push(sql`${sqlTable}.${sql(field)} DESC ${options}`);
+        fragments.push(sql`${sqlTable}.${sql(tableField)} DESC ${options}`);
       } else {
-        fragments.push(sql`${sqlTable}.${sql(field)} ASC ${options}`);
+        fragments.push(sql`${sqlTable}.${sql(tableField)} ASC ${options}`);
       }
     } else {
       fragments.push(
@@ -297,7 +334,10 @@ type QueryComponents = {
   conditions: postgres.Fragment[];
 };
 
-function applyFilters(query: ChallengeQuery): QueryComponents | null {
+function applyFilters(
+  query: ChallengeQuery,
+  accurateSplits?: boolean,
+): QueryComponents | null {
   let challengeTable = 'challenges';
 
   let baseTable = sql`challenges`;
@@ -343,13 +383,7 @@ function applyFilters(query: ChallengeQuery): QueryComponents | null {
   if (query.splits !== undefined && query.splits.size > 0) {
     const splitConditions: postgres.Fragment[] = [];
     for (const [type, comparator] of query.splits) {
-      let types: SplitType[];
-      if (query.mode !== undefined) {
-        types = [adjustSplitForMode(generalizeSplit(type), query.mode)];
-      } else {
-        types = allSplitModes(generalizeSplit(type));
-      }
-
+      const types = allSplitModes(generalizeSplit(type));
       const condition = comparatorToSql(
         sql('challenge_splits'),
         'ticks',
@@ -373,11 +407,40 @@ function applyFilters(query: ChallengeQuery): QueryComponents | null {
     });
   }
 
+  if (query.sort !== undefined) {
+    const sorts = Array.isArray(query.sort) ? query.sort : [query.sort];
+    for (const sort of sorts) {
+      const sortKey = sort.slice(1).split('#')[0];
+      if (!sortKey.startsWith('splits:')) {
+        continue;
+      }
+
+      const split = parseInt(sortKey.slice(7)) as SplitType;
+      const table = sortedSplitsTable(split);
+
+      joins.push({
+        table: sql`(
+            SELECT challenge_id, ticks, accurate
+            FROM challenge_splits
+            WHERE type = ANY(${allSplitModes(generalizeSplit(split))})
+          ) ${sql(table)}`,
+        on: sql`${sqlChallenges}.id = ${sql(table)}.challenge_id`,
+        type: 'left',
+        tableName: table,
+      });
+
+      if (accurateSplits) {
+        conditions.push(sql`${sql(table)}.accurate`);
+      }
+    }
+  }
+
   if (query.type !== undefined) {
     conditions.push(comparatorToSql(sqlChallenges, 'type', query.type));
   }
   if (query.mode !== undefined) {
-    conditions.push(sql`${sqlChallenges}.mode = ${query.mode}`);
+    const modes = Array.isArray(query.mode) ? query.mode : [query.mode];
+    conditions.push(sql`${sqlChallenges}.mode = ANY(${modes})`);
   }
   if (query.scale !== undefined) {
     conditions.push(comparatorToSql(sqlChallenges, 'scale', query.scale));
@@ -422,8 +485,21 @@ export type ExtraChallengeFields = {
   splits?: SplitType[];
 };
 
-type FindChallengesOptions = {
+export type FindChallengesOptions = {
+  /**
+   * When sorting by split times, whether to filter out inaccurate splits.
+   */
+  accurateSplits?: boolean;
+
+  /**
+   * Additionally returns the number of matching challenges as the second value
+   * in the result tuple. If not set, the second value will be `null`.
+   */
   count?: boolean;
+
+  /**
+   * Additional fields to include in the result set.
+   */
   extraFields?: ExtraChallengeFields;
 };
 
@@ -444,7 +520,7 @@ export async function findChallenges(
 ): Promise<[ChallengeOverview[], number | null]> {
   const searchQuery = { ...DEFAULT_CHALLENGE_QUERY, ...query };
 
-  const components = applyFilters(searchQuery);
+  const components = applyFilters(searchQuery, options.accurateSplits);
   if (components === null) {
     return [[], null];
   }
@@ -462,6 +538,7 @@ export async function findChallenges(
         ${queryTable}.status,
         ${queryTable}.stage,
         ${queryTable}.mode,
+        ${queryTable}.scale,
         ${queryTable}.challenge_ticks,
         ${queryTable}.overall_ticks,
         ${queryTable}.total_deaths
@@ -549,7 +626,6 @@ export async function findChallenges(
   await Promise.all(loadPromises);
 
   const challenges = rawChallenges.map(
-    // @ts-ignore
     (c: any): ChallengeOverview => ({
       uuid: c.uuid,
       type: c.type,
@@ -557,10 +633,13 @@ export async function findChallenges(
       status: c.status,
       stage: c.stage,
       mode: c.mode,
+      scale: c.scale,
       challengeTicks: c.challenge_ticks,
       overallTicks: c.overall_ticks,
       totalDeaths: c.total_deaths,
-      ...extra[c.id],
+      ...(extra[c.id] as Partial<ChallengeOverview> & {
+        party: ChallengeOverview['party'];
+      }),
     }),
   );
 
@@ -709,7 +788,7 @@ export async function aggregateChallenges<
   options: QueryOptions = {},
   grouping?: G,
 ): Promise<AggregationResult<F> | GroupedAggregationResult<F, G> | null> {
-  const components = applyFilters(query);
+  const components = applyFilters(query, options.accurateSplits);
   if (components === null) {
     return null;
   }
