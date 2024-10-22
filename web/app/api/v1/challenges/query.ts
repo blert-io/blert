@@ -2,7 +2,7 @@ import { ChallengeMode, SplitType } from '@blert/common';
 
 import { ChallengeQuery, SortQuery, SortableFields } from '@/actions/challenge';
 import { Comparator, Operator, parseQuery } from '@/actions/query';
-import { parseIntParam } from '@/utils/params';
+import { parseArrayParam } from '@/utils/params';
 
 const COMPARATOR_REGEX = /^(lt|gt|le|ge|eq|ne|>|<|>=|<=|=|==|!=)(\d+)$/;
 const SPREAD_REGEX = /^(\d+)?(\.\.)(\d+)?$/;
@@ -127,7 +127,7 @@ export function parseChallengeQuery(
   const party = searchParams.get('party')?.split(',') ?? undefined;
 
   const query: ChallengeQuery = {
-    mode: parseIntParam<ChallengeMode>(searchParams, 'mode'),
+    mode: parseArrayParam<ChallengeMode>(searchParams, 'mode'),
     party,
     splits: new Map(),
     customConditions: [],

@@ -63,11 +63,22 @@ export type Join = {
   table: postgres.Fragment | postgres.Helper<string>;
   on: postgres.Fragment;
   tableName: string;
+  type?: 'inner' | 'left' | 'right';
 };
 
 export function join(joins: Join[]) {
   return joins.length > 0
-    ? joins.map((j) => sql`JOIN ${j.table} ON ${j.on}`)
+    ? joins.map((j) => {
+        let type;
+        if (j.type === 'left') {
+          type = sql`LEFT`;
+        } else if (j.type === 'right') {
+          type = sql`RIGHT`;
+        } else {
+          type = sql`INNER`;
+        }
+        return sql`${type} JOIN ${j.table} ON ${j.on}`;
+      })
     : sql``;
 }
 
@@ -101,6 +112,7 @@ function tryParseOperand(
     return null;
   }
 
+  // Try to parse a number.
   if (isDigit(expression[index])) {
     let i = index;
     while (i < expression.length && isDigit(expression[i])) {
@@ -109,6 +121,7 @@ function tryParseOperand(
     return [parseInt(expression.slice(index, i)), i];
   }
 
+  // Try to parse an identifier with an optional numeric suffix following a ':'.
   if (isAlpha(expression[index])) {
     let i = index;
     while (
@@ -116,6 +129,15 @@ function tryParseOperand(
       (isAlpha(expression[i]) || isDigit(expression[i]))
     ) {
       i++;
+    }
+    if (expression[i] === ':') {
+      i++;
+      if (i === expression.length || !isDigit(expression[i])) {
+        return null;
+      }
+      while (i < expression.length && isDigit(expression[i])) {
+        i++;
+      }
     }
     return [expression.slice(index, i), i];
   }

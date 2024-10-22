@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 
-import { aggregateChallenges } from '@/actions/challenge';
+import { QueryOptions, aggregateChallenges } from '@/actions/challenge';
 import { parseChallengeQuery } from '../query';
 
 // import { loadAggregateChallengeStats } from '../../../../actions/challenge';
@@ -19,12 +19,30 @@ import { parseChallengeQuery } from '../query';
 // }
 
 export async function GET(request: NextRequest) {
-  const query = parseChallengeQuery(request.nextUrl.searchParams);
+  const searchParams = request.nextUrl.searchParams;
+
+  const query = parseChallengeQuery(searchParams);
   if (query === null) {
     return new Response(null, { status: 400 });
   }
 
-  const result = await aggregateChallenges(query, { '*': 'count' });
+  const options: QueryOptions = {};
+
+  const optionsParam = searchParams.get('options');
+  if (optionsParam !== null) {
+    const opts = optionsParam.split(',');
+    for (const opt of opts) {
+      switch (opt) {
+        case 'accurateSplits':
+          options.accurateSplits = true;
+          break;
+        default:
+          return new Response(null, { status: 400 });
+      }
+    }
+  }
+
+  const result = await aggregateChallenges(query, { '*': 'count' }, options);
   if (result === null) {
     return new Response(null, { status: 404 });
   }

@@ -25,6 +25,7 @@ export interface Challenge {
   status: ChallengeStatus;
   stage: Stage;
   mode: ChallengeMode;
+  scale: number;
   startTime: Date;
   party: ChallengePlayer[];
   challengeTicks: number;

@@ -1,7 +1,7 @@
 import { SplitType } from '@blert/common';
 import { NextRequest, NextResponse } from 'next/server';
 
-import { findChallenges } from '@/actions/challenge';
+import { FindChallengesOptions, findChallenges } from '@/actions/challenge';
 import { parseIntParam } from '@/utils/params';
 
 import { parseChallengeQuery } from './query';
@@ -15,6 +15,23 @@ const DEFAULT_SPLITS = [
   SplitType.TOB_CHALLENGE,
   SplitType.TOB_OVERALL,
 ];
+
+/**
+ * Extracts the split type from a string of the form "splits:<split>".
+ * @param value The input string.
+ * @returns The split type or null if the input is invalid.
+ */
+function parseSplit(value: string): SplitType | null {
+  const parts = value.split(':');
+  if (parts.length !== 2) {
+    return null;
+  }
+  const split = parseInt(parts[1]) as SplitType;
+  if (Number.isNaN(split)) {
+    return null;
+  }
+  return split;
+}
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -35,12 +52,8 @@ export async function GET(request: NextRequest) {
   if (extraFields) {
     for (const field of extraFields) {
       if (field.startsWith('splits:')) {
-        const parts = field.split(':');
-        if (parts.length !== 2) {
-          return new Response(null, { status: 400 });
-        }
-        const split = parseInt(parts[1]) as SplitType;
-        if (Number.isNaN(split)) {
+        const split = parseSplit(field);
+        if (split === null) {
           return new Response(null, { status: 400 });
         }
         splits.add(split);
@@ -48,13 +61,43 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // If requesting to sort by splits, ensure that the split values are included
+  // in the result set.
+  const sorts = searchParams.get('sort')?.split(',') ?? [];
+  for (const sort of sorts) {
+    const sortField = sort.slice(1).split('#')[0];
+    if (sortField.startsWith('split:')) {
+      const split = parseSplit(sortField);
+      if (split === null) {
+        return new Response(null, { status: 400 });
+      }
+      splits.add(split);
+    }
+  }
+
+  const findOptions: FindChallengesOptions = {
+    count: true,
+    extraFields: {
+      splits: Array.from(splits),
+    },
+  };
+
+  const optionsParam = searchParams.get('options');
+  if (optionsParam !== null) {
+    const options = optionsParam.split(',');
+    for (const option of options) {
+      switch (option) {
+        case 'accurateSplits':
+          findOptions.accurateSplits = true;
+          break;
+        default:
+          return new Response(null, { status: 400 });
+      }
+    }
+  }
+
   try {
-    const [challenges, count] = await findChallenges(limit, query, {
-      count: true,
-      extraFields: {
-        splits: Array.from(splits),
-      },
-    });
+    const [challenges, count] = await findChallenges(limit, query, findOptions);
     if (challenges === null) {
       return new Response(null, { status: 404 });
     }
