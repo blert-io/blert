@@ -152,6 +152,10 @@ function challengeClientsKey(challengeId: string): string {
   return `challenge:${challengeId}:clients`;
 }
 
+function challengeProcessedStagesKey(challengeId: string): string {
+  return `challenge:${challengeId}:processed-stages`;
+}
+
 export default class ChallengeManager {
   private challengeDataRepository: DataRepository;
   private testDataRepository: DataRepository;
@@ -988,6 +992,29 @@ export default class ChallengeManager {
       await multi.exec();
     }
 
+    let okToProcess = true;
+
+    await this.watchTransaction(async (client) => {
+      const stagesKey = challengeProcessedStagesKey(challenge.uuid);
+      await client.watch(stagesKey);
+      const multi = client.multi();
+
+      const hasProcessed = await client.sIsMember(stagesKey, stage.toString());
+      if (hasProcessed) {
+        okToProcess = false;
+      } else {
+        multi.sAdd(stagesKey, stage.toString());
+        return multi.exec();
+      }
+    });
+
+    if (!okToProcess) {
+      logger.debug(
+        `${challenge.uuid}: stage ${stage} already processed; skipping`,
+      );
+      return;
+    }
+
     const stageEvents = await this.client
       .xRange(
         commandOptions({ returnBuffers: true }),
@@ -1195,6 +1222,7 @@ export default class ChallengeManager {
       const multi = client.multi();
       multi.del(challengesKey(id));
       multi.del(challengeClientsKey(id));
+      multi.del(challengeProcessedStagesKey(id));
       multi.hDel(ChallengeManager.CHALLENGE_TIMEOUT_KEY, id);
 
       const streamsSetKey = challengeStreamsSetKey(id);

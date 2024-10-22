@@ -1,7 +1,13 @@
 'use server';
 
 import { randomBytes } from 'crypto';
-import { ApiKey, Skill, User, hiscoreLookup } from '@blert/common';
+import {
+  ApiKey,
+  Skill,
+  User,
+  hiscoreLookup,
+  isPostgresUniqueViolation,
+} from '@blert/common';
 import bcrypt from 'bcrypt';
 import { isRedirectError } from 'next/dist/client/components/redirect';
 import { z } from 'zod';
@@ -80,8 +86,6 @@ export async function login(
   return null;
 }
 
-const POSTGRES_UNIQUE_VIOLATION_CODE = '23505';
-
 export type RegistrationErrors = {
   username?: string[];
   email?: string[];
@@ -122,10 +126,7 @@ export async function register(
     RETURNING id
   `;
   } catch (e: any) {
-    if (
-      e.name === 'PostgresError' &&
-      e.code === POSTGRES_UNIQUE_VIOLATION_CODE
-    ) {
+    if (isPostgresUniqueViolation(e)) {
       return { email: ['Email address is already in use'] };
     }
     return { overall: 'An error occurred while creating your account' };
@@ -280,10 +281,7 @@ export async function createApiKey(rsn: string): Promise<ApiKeyWithUsername> {
       };
       break;
     } catch (e: any) {
-      if (
-        e.name === 'PostgresError' &&
-        e.code === POSTGRES_UNIQUE_VIOLATION_CODE
-      ) {
+      if (isPostgresUniqueViolation(e)) {
         // Try again if the key already exists.
         continue;
       }

@@ -146,4 +146,6 @@ export {
   stageStreamToRecord,
 } from './db/redis';
 
+export { isPostgresUniqueViolation } from './db/postgres';
+
 export { default as PriceTracker } from './price-tracker';

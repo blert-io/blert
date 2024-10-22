@@ -23,6 +23,7 @@ import {
   VerzikCrab,
   adjustSplitForMode,
   camelToSnakeObject,
+  isPostgresUniqueViolation,
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 import postgres from 'postgres';
@@ -564,19 +565,29 @@ export default abstract class ChallengeProcessor {
       });
     });
 
-    const ids = await sql`
-      INSERT INTO challenge_splits ${sql(
-        splitsToInsert,
-        'challenge_id',
-        'type',
-        'scale',
-        'ticks',
-        'accurate',
-      )}
-      RETURNING id
-    `;
+    try {
+      const ids = await sql`
+        INSERT INTO challenge_splits ${sql(
+          splitsToInsert,
+          'challenge_id',
+          'type',
+          'scale',
+          'ticks',
+          'accurate',
+        )}
+        RETURNING id
+      `;
+      return splitsToInsert.map((split, i) => ({ ...split, id: ids[i].id }));
+    } catch (e: any) {
+      if (isPostgresUniqueViolation(e)) {
+        logger.error(
+          `Failed to insert splits for challenge ${this.uuid}: ${e.message}`,
+        );
+        return [];
+      }
 
-    return splitsToInsert.map((split, i) => ({ ...split, id: ids[i].id }));
+      throw e;
+    }
   }
 
   /**
