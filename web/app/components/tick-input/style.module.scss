@@ -1,0 +1,54 @@
+.tickInput {
+  position: relative;
+  width: fit-content;
+
+  .input {
+    &.comparator {
+      padding-left: 40px;
+    }
+  }
+
+  .typeBar {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 40px;
+    font-size: 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+    align-items: center;
+    border-left: 1px solid var(--content-area-bg);
+
+    button {
+      padding: 2px 6px;
+
+      &:disabled {
+        color: var(--blert-blue);
+      }
+
+      &:not(:disabled):hover {
+        cursor: pointer;
+        color: #fff;
+      }
+    }
+  }
+
+  .comparator {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 40px;
+    padding: 0 10px 0 14px;
+    display: flex;
+    align-items: center;
+    font-family: var(--font-roboto-mono), monospace;
+
+    &:hover {
+      cursor: pointer;
+      color: #fff;
+    }
+  }
+}

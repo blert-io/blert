@@ -5,6 +5,7 @@ import {
   SortQuery,
   SortableFields,
 } from '@/actions/challenge';
+import { Comparator } from '@/components/tick-input';
 import { UrlParam, UrlParams } from '@/utils/url';
 
 export type SearchFilters = {
@@ -15,6 +16,7 @@ export type SearchFilters = {
   type: ChallengeType[];
   startDate: Date | null;
   endDate: Date | null;
+  splits: Record<string, [Comparator, number]>;
   accurateSplits: boolean;
 };
 
@@ -44,7 +46,6 @@ export function filtersToUrlParams(filters: SearchFilters): UrlParams {
 
   let startTime;
 
-  console.log(filters.startDate, filters.endDate);
   if (filters.startDate !== null && filters.endDate !== null) {
     const endDate = new Date(filters.endDate);
     endDate.setDate(endDate.getDate() + 1);
@@ -66,6 +67,22 @@ export function filtersToUrlParams(filters: SearchFilters): UrlParams {
     startTime,
     options,
   };
+
+  Object.entries(filters.splits).forEach(([split, [comparator, value]]) => {
+    let cmp;
+    switch (comparator) {
+      case Comparator.EQUAL:
+        cmp = 'eq';
+        break;
+      case Comparator.LESS_THAN:
+        cmp = 'lt';
+        break;
+      case Comparator.GREATER_THAN:
+        cmp = 'gt';
+        break;
+    }
+    params[`split:${split}`] = `${cmp}${value}`;
+  });
 
   return params;
 }

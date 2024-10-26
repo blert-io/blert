@@ -21,6 +21,7 @@ import {
 import Button from '@/components/button';
 import Input from '@/components/input';
 import Modal from '@/components/modal';
+import Menu, { MENU_DIVIDER, MenuItem } from '@/components/menu';
 import {
   modeNameAndColor,
   statusNameAndColor,
@@ -431,7 +432,6 @@ export default function Table(props: TableProps) {
 
   const tableRef = useRef<HTMLTableElement>(null);
   const headingRef = useRef<HTMLTableSectionElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
   const [columnsModalOpen, setColumnsModalOpen] = useState(false);
@@ -444,13 +444,7 @@ export default function Table(props: TableProps) {
   const storage = useRef(new LocalStorageManager('search-column-presets'));
 
   useEffect(() => {
-    const clickListener = () => setContextMenu(null);
     const menuListener = (e: MouseEvent) => {
-      if (menuRef.current?.contains(e.target as Node)) {
-        e.preventDefault();
-        return;
-      }
-
       if (tableRef.current?.contains(e.target as Node)) {
         e.preventDefault();
 
@@ -500,9 +494,7 @@ export default function Table(props: TableProps) {
       }
     };
     window.addEventListener('contextmenu', menuListener);
-    window.addEventListener('click', clickListener);
     return () => {
-      window.removeEventListener('click', clickListener);
       window.removeEventListener('contextmenu', menuListener);
     };
   });
@@ -675,11 +667,11 @@ export default function Table(props: TableProps) {
         <ContextMenu
           context={contextMenu}
           challenges={props.challenges}
-          menuRef={menuRef}
+          onClose={() => setContextMenu(null)}
           openColumnsModal={() => setColumnsModalOpen(true)}
           removeColumn={removeColumn}
+          router={router}
           setContext={props.setContext}
-          loading={props.loading}
         />
       )}
       {columnsModal}
@@ -693,50 +685,37 @@ const MENU_WIDTH = 300;
 function ContextMenu({
   challenges,
   context,
-  menuRef,
+  onClose,
   openColumnsModal,
   setContext,
   removeColumn,
-  loading,
+  router,
 }: {
   challenges: ChallengeOverview[];
   context: ContextMenu;
-  menuRef: React.RefObject<HTMLDivElement>;
+  onClose: () => void;
   openColumnsModal: () => void;
   setContext: Dispatch<SetStateAction<SearchContext>>;
   removeColumn: (col: Column) => void;
-  loading: boolean;
+  router: ReturnType<typeof useRouter>;
 }) {
-  const entries: React.ReactNode[] = [];
-
-  let dividerCount = 0;
-  const divider = () => (
-    <div className={styles.divider} key={`divider-${dividerCount++}`} />
-  );
+  const items: MenuItem[] = [];
 
   if (context.multipleChallenges) {
     const allChallenges = context.multipleChallenges.map((i) => challenges[i]);
 
-    entries.push(
-      <div className={`${styles.entry} ${styles.inactive}`} key="selected">
-        {context.multipleChallenges.length} challenges selected
-      </div>,
-    );
-    entries.push(divider());
-
-    entries.push(
-      <button
-        className={styles.entry}
-        key="copy-id"
-        onClick={() =>
-          navigator.clipboard.writeText(
-            allChallenges.map((c) => c.uuid).join('\n'),
-          )
-        }
-      >
-        Copy IDs
-      </button>,
-    );
+    items.push({
+      label: `${context.multipleChallenges.length} challenges selected`,
+    });
+    items.push(MENU_DIVIDER);
+    items.push({
+      label: 'Copy IDs',
+      customAction: () => {
+        navigator.clipboard.writeText(
+          allChallenges.map((c) => c.uuid).join('\n'),
+        );
+      },
+    });
   }
 
   if (context.heading !== undefined) {
@@ -744,147 +723,93 @@ function ContextMenu({
 
     if (column.name !== '') {
       if (column.sortKey) {
-        entries.push(
-          <button
-            className={styles.entry}
-            disabled={loading}
-            key="sort-column-asc"
-            onClick={() =>
-              setContext((context) => ({
-                ...context,
-                sort: [`+${column.sortKey!}`],
-              }))
-            }
-          >
-            Sort by {column.fullName ?? column.name}{' '}
-            <i className="fas fa-arrow-up-wide-short" />
-          </button>,
-        );
-        entries.push(
-          <button
-            className={styles.entry}
-            disabled={loading}
-            key="sort-column-desc"
-            onClick={() =>
-              setContext((context) => ({
-                ...context,
-                sort: [`-${column.sortKey!}`],
-              }))
-            }
-          >
-            Sort by {column.fullName ?? column.name}{' '}
-            <i className="fas fa-arrow-down-wide-short" />
-          </button>,
-        );
+        items.push({
+          label: `Sort by ${column.fullName ?? column.name}`,
+          icon: 'fas fa-arrow-up-wide-short',
+          customAction: () =>
+            setContext((context) => ({
+              ...context,
+              sort: [`+${column.sortKey!}`],
+            })),
+        });
+        items.push({
+          label: `Sort by ${column.fullName ?? column.name}`,
+          icon: 'fas fa-arrow-down-wide-short',
+          customAction: () =>
+            setContext((context) => ({
+              ...context,
+              sort: [`-${column.sortKey!}`],
+            })),
+        });
       }
 
-      if (entries.length > 0) {
-        entries.push(divider());
+      if (items.length > 0) {
+        items.push(MENU_DIVIDER);
       }
 
-      entries.push(
-        <button
-          className={styles.entry}
-          disabled={loading}
-          key="remove-column"
-          onClick={() => removeColumn(context.heading!.column)}
-        >
-          Remove column {column.name}
-        </button>,
-      );
+      items.push({
+        label: `Remove column ${column.name}`,
+        customAction: () => removeColumn(context.heading!.column),
+      });
     }
-
-    entries.push(
-      <button
-        className={styles.entry}
-        key="manage-columns"
-        onClick={openColumnsModal}
-      >
-        Manage columns…
-      </button>,
-    );
+    items.push({
+      label: 'Manage columns…',
+      customAction: openColumnsModal,
+    });
   }
 
-  if (context.challenge) {
+  if (context.challenge !== undefined) {
     const challenge = challenges[context.challenge.index];
 
     if (context.challenge.column === Column.PARTY) {
-      entries.push(
-        <div
-          className={`${styles.entry} ${styles.inactive} ${styles.info}`}
-          key="party-list"
-        >
-          {challenge.party.map((p) => p.username).join(', ')}
-        </div>,
-      );
-      entries.push(divider());
+      items.push({
+        label: challenge.party.map((p) => p.username).join(', '),
+        wrap: true,
+      });
+      items.push(MENU_DIVIDER);
     }
 
-    entries.push(
-      <div className={styles.entry} key="challenge">
-        <Link href={challengeUrl(challenge.type, challenge.uuid)}>
-          View challenge
-        </Link>
-      </div>,
-    );
+    items.push({
+      label: 'View challenge',
+      customAction: () =>
+        router.push(challengeUrl(challenge.type, challenge.uuid)),
+    });
 
-    entries.push(
-      <button
-        className={styles.entry}
-        key="similar"
-        onClick={() =>
-          setContext((prev) => ({
-            ...prev,
-            filters: {
-              ...prev.filters,
-              party: challenge.party.map((p) => p.currentUsername),
-              scale: [challenge.party.length],
-              type: [challenge.type],
-            },
-          }))
-        }
-      >
-        Find similar challenges
-      </button>,
-    );
+    items.push({
+      label: 'Find similar challenges',
+      customAction: () =>
+        setContext((prev) => ({
+          ...prev,
+          filters: {
+            ...prev.filters,
+            party: challenge.party.map((p) => p.currentUsername),
+            scale: [challenge.party.length],
+            type: [challenge.type],
+          },
+        })),
+    });
 
-    entries.push(
-      <button
-        className={styles.entry}
-        key="copy-url"
-        onClick={() =>
-          navigator.clipboard.writeText(
-            window.location.origin +
-              challengeUrl(challenge.type, challenge.uuid),
-          )
-        }
-      >
-        Copy URL
-      </button>,
-    );
-    entries.push(
-      <button
-        className={styles.entry}
-        key="copy-id"
-        onClick={() => navigator.clipboard.writeText(challenge.uuid)}
-      >
-        Copy ID
-      </button>,
-    );
+    items.push({
+      label: 'Copy URL',
+      customAction: () =>
+        navigator.clipboard.writeText(
+          window.location.origin + challengeUrl(challenge.type, challenge.uuid),
+        ),
+    });
+    items.push({
+      label: 'Copy ID',
+      customAction: () => navigator.clipboard.writeText(challenge.uuid),
+    });
   }
 
   return (
-    <div
-      className={styles.contextMenu}
-      ref={menuRef}
-      style={{
-        top: context.y,
-        left: context.x,
-        width: MENU_WIDTH,
-      }}
-    >
-      {entries}
-    </div>
+    <Menu
+      items={items}
+      onClose={onClose}
+      open
+      position={context}
+      width={MENU_WIDTH}
+    />
   );
 }
 

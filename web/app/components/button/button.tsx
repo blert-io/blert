@@ -6,6 +6,7 @@ export type ButtonProps = {
   className?: string;
   children: React.ReactNode;
   disabled?: boolean;
+  id?: string;
   fluid?: boolean;
   loading?: boolean;
   onClick?: () => void;
@@ -26,9 +27,10 @@ export function Button(props: ButtonProps) {
     <button
       className={className}
       disabled={props.disabled || props.loading}
+      id={props.id}
       onClick={props.onClick}
       style={{ width: props.fluid ? '100%' : undefined }}
-      type={props.type}
+      type={props.type ?? 'button'}
     >
       {props.loading ? <Spinner /> : props.children}
     </button>

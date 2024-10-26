@@ -4,12 +4,15 @@ import styles from './style.module.scss';
 
 export type InputProps = {
   autoFocus?: boolean;
+  className?: string;
   customIcon?: React.ReactNode;
   disabled?: boolean;
   errorMessage?: string;
   faIcon?: string;
   fluid?: boolean;
+  horizontalPadding?: number;
   id: string;
+  inputClassName?: string;
   invalid?: boolean;
   label: string;
   labelBg?: string;
@@ -21,17 +24,27 @@ export type InputProps = {
   onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void;
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   required?: boolean;
-  type?: 'email' | 'password' | 'text';
+  type?: 'email' | 'number' | 'password' | 'text';
   value?: string;
+  width?: number;
 };
 
 export const Input = forwardRef<HTMLInputElement, InputProps>((props, ref) => {
   const labelBackground = props.labelBg ?? 'var(--panel-bg)';
-  const style = {
-    width: props.fluid ? '100%' : undefined,
+  const style: React.CSSProperties = {
+    width: props.fluid ? '100%' : props.width ?? 240,
   };
 
-  const className = styles.input + (props.invalid ? ` ${styles.invalid}` : '');
+  const paddingX = props.horizontalPadding ?? 15;
+  style.padding = `12px ${paddingX}px`;
+
+  let className = styles.input;
+  if (props.className) {
+    className += ` ${props.className}`;
+  }
+  if (props.invalid) {
+    className += ` ${styles.invalid}`;
+  }
 
   let icon = undefined;
   if (props.customIcon) {
@@ -43,7 +56,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>((props, ref) => {
   return (
     <div className={className}>
       <input
+        autoComplete="off"
         autoFocus={props.autoFocus}
+        className={props.inputClassName}
         disabled={props.disabled}
         id={props.id}
         maxLength={props.maxLength}
@@ -61,7 +76,10 @@ export const Input = forwardRef<HTMLInputElement, InputProps>((props, ref) => {
         type={props.type ?? 'text'}
         value={props.value}
       />
-      <label htmlFor={props.id} style={{ background: labelBackground }}>
+      <label
+        htmlFor={props.id}
+        style={{ background: labelBackground, left: paddingX - 5 }}
+      >
         {props.invalid && props.errorMessage ? props.errorMessage : props.label}
       </label>
       {icon}
