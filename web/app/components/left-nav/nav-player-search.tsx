@@ -51,8 +51,8 @@ export default function NavPlayerSearch() {
       label="Find a player"
       labelBg="var(--nav-bg)"
       maxLength={12}
-      onChange={(e) => {
-        setUsername(e.currentTarget.value);
+      onChange={(value) => {
+        setUsername(value);
       }}
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
@@ -60,8 +60,11 @@ export default function NavPlayerSearch() {
         }
       }}
       onSelection={(username) => {
-        router.push(`/players/${username}`);
-        setLoading(true);
+        const playerPath = `/players/${encodeURIComponent(username)}`;
+        if (pathname !== playerPath) {
+          router.push(playerPath);
+          setLoading(true);
+        }
         setUsername('');
         playerSearchRef.current?.blur();
       }}

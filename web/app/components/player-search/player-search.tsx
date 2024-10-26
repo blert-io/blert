@@ -1,38 +1,89 @@
-import { forwardRef, useCallback, useRef, useState } from 'react';
+import { forwardRef, useCallback, useMemo, useRef, useState } from 'react';
 
 import Input, { InputProps } from '@/components/input';
+import Menu, { MenuItem } from '@/components/menu';
 
 import styles from './style.module.scss';
 
-type PlayerSearchProps = Omit<InputProps, 'inputRef' | 'type'> & {
+type PlayerSearchProps = Omit<InputProps, 'inputRef' | 'onChange' | 'type'> & {
+  onChange?: (value: string) => void;
   onSelection?: (value: string) => void;
 };
+
+function toMenuItem(value: string): MenuItem {
+  return { label: value, value };
+}
 
 const PlayerSearch = forwardRef<HTMLInputElement, PlayerSearchProps>(
   (props, ref) => {
     const inputRef = useRef<HTMLInputElement | null>(null);
+    const [suggestions, setSuggestions] = useState<MenuItem[]>([]);
 
-    const [suggestions, setSuggestions] = useState<string[]>([]);
-    const [suggestionIndex, setSuggestionIndex] = useState<number>(-1);
-
-    const { onBlur, onChange, onFocus, onKeyDown, onSelection, ...inputProps } =
-      props;
+    const {
+      className,
+      onBlur,
+      onChange,
+      onFocus,
+      onKeyDown,
+      onSelection,
+      ...inputProps
+    } = props;
 
     const setIfCurrent = useCallback((value: string) => {
       return (suggestions: string[]) => {
         if (inputRef.current?.value === value) {
-          setSuggestions(suggestions);
+          setSuggestions(suggestions.map(toMenuItem));
         }
       };
     }, []);
+
+    const onBrowse = useCallback((item: MenuItem | null) => {
+      if (item !== null) {
+        if (onChange) {
+          onChange(item.value! as string);
+        }
+        inputRef.current!.value = item.value! as string;
+      }
+    }, []);
+
+    const isControlled = props.value !== undefined;
+
+    const menu = useMemo(() => {
+      return (
+        <Menu
+          attach="bottom"
+          onBrowse={onBrowse}
+          itemClass={styles.suggestion}
+          items={suggestions}
+          menuClass={styles.suggestions}
+          onSelection={(value) => {
+            setSuggestions([]);
+            onSelection?.(value as string);
+            if (!isControlled) {
+              inputRef.current!.value = '';
+            }
+          }}
+          open={suggestions.length > 0}
+          targetId={props.id}
+        />
+      );
+    }, [suggestions, props.id, isControlled]);
+
+    let inputClassName = styles.input;
+    if (className) {
+      inputClassName += ` ${className}`;
+    }
+    if (suggestions.length > 0) {
+      inputClassName += ` ${styles.open}`;
+    }
 
     return (
       <div className={styles.wrapper}>
         <Input
           {...inputProps}
+          inputClassName={inputClassName}
           onBlur={() => {
             setSuggestions([]);
-            setSuggestionIndex(-1);
           }}
           onChange={(e) => {
             if (e.target.value !== '') {
@@ -41,13 +92,22 @@ const PlayerSearch = forwardRef<HTMLInputElement, PlayerSearchProps>(
                 setIfCurrent(e.target.value),
               );
               if (suggestions !== undefined) {
-                setSuggestions(suggestions);
+                setSuggestions(suggestions.map(toMenuItem));
               }
             } else {
               setSuggestions([]);
             }
-            setSuggestionIndex(-1);
-            onChange?.(e);
+            onChange?.(e.target.value);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              setSuggestions([]);
+              onSelection?.(props.value ?? inputRef.current!.value);
+              if (!isControlled) {
+                inputRef.current!.value = '';
+              }
+            }
+            onKeyDown?.(e);
           }}
           ref={(element) => {
             inputRef.current = element;
@@ -60,66 +120,18 @@ const PlayerSearch = forwardRef<HTMLInputElement, PlayerSearchProps>(
           onFocus={() => {
             if (inputRef.current!.value !== '') {
               setSuggestions(
-                cache.getAndUpdate(
-                  inputRef.current!.value,
-                  setIfCurrent(inputRef.current!.value),
-                ) ?? [],
+                cache
+                  .getAndUpdate(
+                    inputRef.current!.value,
+                    setIfCurrent(inputRef.current!.value),
+                  )
+                  ?.map(toMenuItem) ?? [],
               );
             }
-            setSuggestionIndex(-1);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'ArrowDown') {
-              e.preventDefault();
-              setSuggestionIndex((i) => (i + 1) % suggestions.length);
-            }
-            if (e.key === 'ArrowUp') {
-              e.preventDefault();
-              setSuggestionIndex((i) =>
-                i <= 0 ? suggestions.length - 1 : i - 1,
-              );
-            }
-            if (e.key === 'Enter') {
-              if (suggestionIndex >= 0) {
-                onSelection?.(suggestions[suggestionIndex]);
-              } else {
-                onSelection?.(inputRef.current!.value);
-              }
-              if (props.value === undefined) {
-                // If the component is uncontrolled, clear the input once a
-                // suggestion is selected.
-                inputRef.current!.value = '';
-                setSuggestions([]);
-                setSuggestionIndex(-1);
-              }
-            }
-            onKeyDown?.(e);
           }}
           type="text"
         />
-        {suggestions.length > 0 && (
-          <div className={styles.suggestions}>
-            {suggestions.map((suggestion, i) => (
-              <div
-                key={suggestion}
-                className={`${styles.suggestion} ${
-                  i === suggestionIndex ? styles.selected : ''
-                }`}
-                onMouseDown={() => {
-                  setSuggestions([]);
-                  onSelection?.(suggestion);
-                  inputRef.current!.focus();
-                  if (props.value === undefined) {
-                    inputRef.current!.value = '';
-                  }
-                }}
-                onMouseEnter={() => setSuggestionIndex(i)}
-              >
-                {suggestion}
-              </div>
-            ))}
-          </div>
-        )}
+        {menu}
       </div>
     );
   },

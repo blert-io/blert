@@ -26,6 +26,7 @@ export default async function SearchPage() {
     type: [],
     startDate: null,
     endDate: null,
+    splits: {},
     accurateSplits: true,
   };
   const initialContext: SearchContext = {

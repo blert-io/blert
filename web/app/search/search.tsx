@@ -243,7 +243,12 @@ export default function Search({
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (loading || e.target instanceof HTMLInputElement) {
+      if (
+        loading ||
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLButtonElement
+      ) {
         return;
       }
 
@@ -260,7 +265,6 @@ export default function Search({
   return (
     <>
       <CollapsiblePanel
-        contentClassName={styles.filtersWrapper}
         defaultExpanded
         panelTitle="Filters"
         maxPanelHeight={2000}

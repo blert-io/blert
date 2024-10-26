@@ -306,14 +306,14 @@ export function allSplitModes(split: SplitType): SplitType[] {
   return [split];
 }
 
-export function splitName(split: SplitType): string {
+export function splitName(split: SplitType, full?: boolean): string {
   switch (generalizeSplit(split)) {
     case SplitType.TOB_CHALLENGE:
-      return 'Challenge Time';
+      return full ? 'ToB challenge time' : 'Challenge time';
     case SplitType.TOB_OVERALL:
-      return 'Overall Time';
+      return full ? 'ToB overall time' : 'Overall time';
     case SplitType.TOB_MAIDEN:
-      return 'Maiden';
+      return full ? 'Maiden room time' : 'Maiden';
     case SplitType.TOB_MAIDEN_70S:
       return 'Maiden 70s';
     case SplitType.TOB_MAIDEN_50S:
@@ -325,31 +325,31 @@ export function splitName(split: SplitType): string {
     case SplitType.TOB_MAIDEN_50S_30S:
       return 'Maiden 50s-30s';
     case SplitType.TOB_MAIDEN_30S_END:
-      return 'Maiden 30s-End';
+      return 'Maiden 30s-end';
     case SplitType.TOB_BLOAT:
-      return 'Bloat';
+      return full ? 'Bloat room time' : 'Bloat';
     case SplitType.TOB_NYLO_ROOM:
-      return 'Nylocas';
+      return full ? 'Nylocas room time' : 'Nylocas';
     case SplitType.TOB_NYLO_CAP:
-      return 'Nylocas Cap';
+      return 'Nylocas cap';
     case SplitType.TOB_NYLO_WAVES:
-      return 'Nylocas Waves';
+      return 'Nylocas waves';
     case SplitType.TOB_NYLO_CLEANUP:
-      return 'Nylocas Cleanup';
+      return 'Nylocas cleanup';
     case SplitType.TOB_NYLO_BOSS_SPAWN:
-      return 'Nylocas Boss Spawn';
+      return 'Nylocas boss spawn';
     case SplitType.TOB_NYLO_BOSS:
-      return 'Nylocas Boss';
+      return full ? 'Nylocas boss time' : 'Nylocas boss';
     case SplitType.TOB_SOTETSEG:
-      return 'Sotetseg';
+      return full ? 'Sotetseg room time' : 'Sotetseg';
     case SplitType.TOB_SOTETSEG_66:
       return 'Sotetseg 66%';
     case SplitType.TOB_SOTETSEG_33:
       return 'Sotetseg 33%';
     case SplitType.TOB_SOTETSEG_MAZE_1:
-      return 'Sotetseg Maze 1';
+      return 'Sotetseg maze 1';
     case SplitType.TOB_SOTETSEG_MAZE_2:
-      return 'Sotetseg Maze 2';
+      return 'Sotetseg maze 2';
     case SplitType.TOB_SOTETSEG_P1:
       return 'Sotetseg P1';
     case SplitType.TOB_SOTETSEG_P2:
@@ -357,11 +357,11 @@ export function splitName(split: SplitType): string {
     case SplitType.TOB_SOTETSEG_P3:
       return 'Sotetseg P3';
     case SplitType.TOB_XARPUS:
-      return 'Xarpus';
+      return full ? 'Xarpus room time' : 'Xarpus';
     case SplitType.TOB_XARPUS_EXHUMES:
-      return 'Xarpus Exhumes';
+      return 'Xarpus exhumes';
     case SplitType.TOB_XARPUS_SCREECH:
-      return 'Xarpus Screech';
+      return 'Xarpus screech';
     case SplitType.TOB_XARPUS_P1:
       return 'Xarpus P1';
     case SplitType.TOB_XARPUS_P2:
@@ -369,13 +369,13 @@ export function splitName(split: SplitType): string {
     case SplitType.TOB_XARPUS_P3:
       return 'Xarpus P3';
     case SplitType.TOB_VERZIK_ROOM:
-      return 'Verzik';
+      return full ? 'Verzik room time' : 'Verzik';
     case SplitType.TOB_VERZIK_P1_END:
       return 'Verzik P1';
     case SplitType.TOB_VERZIK_REDS:
-      return 'Verzik Reds';
+      return 'Verzik reds';
     case SplitType.TOB_VERZIK_P2_END:
-      return 'Verzik P2 End';
+      return 'Verzik P2 end';
     case SplitType.TOB_VERZIK_P1:
       return 'Verzik P1';
     case SplitType.TOB_VERZIK_P2:
@@ -383,34 +383,34 @@ export function splitName(split: SplitType): string {
     case SplitType.TOB_VERZIK_P3:
       return 'Verzik P3';
     case SplitType.COLOSSEUM_CHALLENGE:
-      return 'Challenge Time';
+      return full ? 'Colosseum challenge time' : 'Challenge time';
     case SplitType.COLOSSEUM_OVERALL:
-      return 'Overall Time';
+      return full ? 'Colosseum Overall Time' : 'Overall time';
     case SplitType.COLOSSEUM_WAVE_1:
-      return 'Wave 1';
+      return full ? 'Colosseum Wave 1' : 'Wave 1';
     case SplitType.COLOSSEUM_WAVE_2:
-      return 'Wave 2';
+      return full ? 'Colosseum Wave 2' : 'Wave 2';
     case SplitType.COLOSSEUM_WAVE_3:
-      return 'Wave 3';
+      return full ? 'Colosseum Wave 3' : 'Wave 3';
     case SplitType.COLOSSEUM_WAVE_4:
-      return 'Wave 4';
+      return full ? 'Colosseum Wave 4' : 'Wave 4';
     case SplitType.COLOSSEUM_WAVE_5:
-      return 'Wave 5';
+      return full ? 'Colosseum Wave 5' : 'Wave 5';
     case SplitType.COLOSSEUM_WAVE_6:
-      return 'Wave 6';
+      return full ? 'Colosseum Wave 6' : 'Wave 6';
     case SplitType.COLOSSEUM_WAVE_7:
-      return 'Wave 7';
+      return full ? 'Colosseum Wave 7' : 'Wave 7';
     case SplitType.COLOSSEUM_WAVE_8:
-      return 'Wave 8';
+      return full ? 'Colosseum Wave 8' : 'Wave 8';
     case SplitType.COLOSSEUM_WAVE_9:
-      return 'Wave 9';
+      return full ? 'Colosseum Wave 9' : 'Wave 9';
     case SplitType.COLOSSEUM_WAVE_10:
-      return 'Wave 10';
+      return full ? 'Colosseum Wave 10' : 'Wave 10';
     case SplitType.COLOSSEUM_WAVE_11:
-      return 'Wave 11';
+      return full ? 'Colosseum Wave 11' : 'Wave 11';
     case SplitType.COLOSSEUM_WAVE_12:
-      return 'Sol Heredit';
+      return full ? 'Sol Heredit time' : 'Sol Heredit';
     default:
-      return 'Unknown Split';
+      return 'Unknown split';
   }
 }
