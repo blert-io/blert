@@ -70,7 +70,21 @@ export default function Filters({
   setContext,
   loading,
 }: FiltersProps) {
-  const [useDateRange, setUseDateRange] = useState(false);
+  const [useDateRange, setUseDateRange] = useState(() => {
+    if (
+      context.filters.startDate !== null &&
+      context.filters.endDate !== null
+    ) {
+      return (
+        context.filters.startDate.getTime() !==
+        context.filters.endDate.getTime()
+      );
+    }
+
+    return (
+      context.filters.startDate !== null || context.filters.endDate !== null
+    );
+  });
 
   function toggle<
     K extends keyof ArrayFields<SearchFilters>,
@@ -380,7 +394,11 @@ export default function Filters({
         </div>
       </div>
       <div className={styles.divider} />
-      <CustomFilters loading={loading} setContext={setContext} />
+      <CustomFilters
+        context={context}
+        loading={loading}
+        setContext={setContext}
+      />
     </div>
   );
 }
@@ -475,15 +493,25 @@ type SplitValues = {
 };
 
 function CustomFilters({
+  context,
   loading,
   setContext,
 }: {
+  context: SearchContext;
   loading: boolean;
   setContext: Dispatch<SetStateAction<SearchContext>>;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [splitInputs, setSplitInputs] = useState<Record<string, SplitValues>>(
-    {},
+    () => {
+      const inputs: Record<string, SplitValues> = {};
+      Object.entries(context.filters.splits).forEach(
+        ([split, [comparator, ticks]]) => {
+          inputs[split] = { ticks, comparator };
+        },
+      );
+      return inputs;
+    },
   );
   const [modified, setModified] = useState(false);
 
@@ -576,6 +604,8 @@ function CustomFilters({
                 comparator
                 label={name}
                 id={`filters-split-${split}`}
+                initialComparator={splitInputs[split]?.comparator}
+                initialTicks={splitInputs[split]?.ticks ?? undefined}
                 onChange={(ticks, comparator) => {
                   setModified(true);
                   setSplitInputs((prev) => ({

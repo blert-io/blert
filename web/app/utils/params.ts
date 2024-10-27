@@ -10,18 +10,3 @@ export function parseIntParam<Enum>(
   const parsed = Number.parseInt(value);
   return Number.isNaN(parsed) ? undefined : (parsed as Enum);
 }
-
-export function parseArrayParam<Enum>(
-  searchParams: URLSearchParams,
-  key: string,
-): Enum[] | undefined {
-  const value = searchParams.get(key);
-  if (value === null) {
-    return undefined;
-  }
-
-  return value
-    .split(',')
-    .map((v) => Number.parseInt(v) as Enum)
-    .filter((v) => !Number.isNaN(v));
-}

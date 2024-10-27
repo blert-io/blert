@@ -1,8 +1,8 @@
 import { ChallengeMode, SplitType } from '@blert/common';
 
 import { ChallengeQuery, SortQuery, SortableFields } from '@/actions/challenge';
-import { Comparator, Operator, parseQuery } from '@/actions/query';
-import { parseArrayParam } from '@/utils/params';
+import { Comparator, Condition, Operator, parseQuery } from '@/actions/query';
+import { NextSearchParams } from '@/utils/url';
 
 const COMPARATOR_REGEX = /^(lt|gt|le|ge|eq|ne|>|<|>=|<=|=|==|!=)(\d+)$/;
 const SPREAD_REGEX = /^(\d+)?(\.\.)(\d+)?$/;
@@ -75,20 +75,20 @@ function comparatorValue<T>(
 }
 
 function comparatorParam<T>(
-  searchParams: URLSearchParams,
+  searchParams: NextSearchParams,
   param: string,
   constructor: (value: string) => T,
 ): Comparator<T> | undefined {
-  if (!searchParams.has(param)) {
+  const value = searchParams[param];
+  if (value === undefined || Array.isArray(value)) {
     return undefined;
   }
 
-  const value = searchParams.get(param)!;
   return comparatorValue(value, constructor);
 }
 
 export function dateComparatorParam(
-  searchParams: URLSearchParams,
+  searchParams: NextSearchParams,
   param: string,
 ): Comparator<Date> | undefined {
   return comparatorParam(
@@ -109,7 +109,7 @@ function numericComparatorValue(value: string): Comparator<number> {
 }
 
 export function numericComparatorParam(
-  searchParams: URLSearchParams,
+  searchParams: NextSearchParams,
   param: string,
 ): Comparator<number> | undefined {
   return comparatorParam(searchParams, param, (v) => {
@@ -121,33 +121,103 @@ export function numericComparatorParam(
   });
 }
 
-export function parseChallengeQuery(
+export function parseChallengeQueryParams(
   searchParams: URLSearchParams,
 ): ChallengeQuery | null {
-  const party = searchParams.get('party')?.split(',') ?? undefined;
+  return parseChallengeQuery(Object.fromEntries(searchParams));
+}
+
+function expectSingle(obj: any, key: string): string | undefined {
+  const value = obj[key];
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length !== 1) {
+      throw new Error(`Expected single value for key: ${key}`);
+    }
+    return value[0];
+  }
+
+  return value;
+}
+
+export function parseChallengeQuery(
+  searchParams: NextSearchParams,
+): ChallengeQuery | null {
+  const party = expectSingle(searchParams, 'party')?.split(',') ?? undefined;
+  const mode = expectSingle(searchParams, 'mode')
+    ?.split(',')
+    .map((m) => parseInt(m))
+    ?.filter((m) => !isNaN(m)) as ChallengeMode[] | undefined;
 
   const query: ChallengeQuery = {
-    mode: parseArrayParam<ChallengeMode>(searchParams, 'mode'),
+    mode,
     party,
     splits: new Map(),
     customConditions: [],
   };
 
-  const sort = searchParams.get('sort') ?? undefined;
+  const before = expectSingle(searchParams, 'before');
+  const after = expectSingle(searchParams, 'after');
+  if (before !== undefined && after !== undefined) {
+    return null;
+  }
+
+  const reverseSorts = before !== undefined;
+
+  const sort = expectSingle(searchParams, 'sort');
+  let sortFields: SortQuery<SortableFields>[] = [];
   if (sort !== undefined) {
     query.sort = [];
 
-    const sortFields = sort.split(',');
-    for (const sort of sortFields) {
-      if (sort[0] !== '-' && sort[0] !== '+') {
+    const fields = sort.split(',');
+    if (fields.length === 0 || fields.length > 2) {
+      return null;
+    }
+
+    for (const sort of fields) {
+      const sortOp = sort[0];
+      if (sortOp !== '-' && sortOp !== '+') {
         return null;
       }
-      query.sort.push(sort as SortQuery<SortableFields>);
+
+      const sortField = sort.slice(1) as SortableFields;
+      const sortDirection = reverseSorts
+        ? sortOp === '+'
+          ? '-'
+          : '+'
+        : sortOp;
+      const options = reverseSorts ? 'nf' : 'nl';
+      query.sort.push(
+        `${sortDirection}${sortField}#${options}` as SortQuery<SortableFields>,
+      );
     }
+
+    sortFields = query.sort;
   }
 
-  for (const [key, value] of searchParams.entries()) {
+  if (before !== undefined) {
+    const condition = paginationCondition(sortFields, before.split(','), true);
+    if (condition === null) {
+      return null;
+    }
+    query.customConditions!.push(condition);
+  } else if (after !== undefined) {
+    const condition = paginationCondition(sortFields, after.split(','), false);
+    if (condition === null) {
+      return null;
+    }
+    query.customConditions!.push(condition);
+  }
+
+  for (const [key, value] of Object.entries(searchParams)) {
     if (key.startsWith('split:')) {
+      if (value === undefined || Array.isArray(value)) {
+        return null;
+      }
+
       const parts = key.split(':');
       if (parts.length !== 2) {
         return null;
@@ -179,8 +249,8 @@ export function parseChallengeQuery(
     return null;
   }
 
-  const customQuery = searchParams.get('q');
-  if (customQuery !== null) {
+  const customQuery = expectSingle(searchParams, 'q');
+  if (customQuery !== undefined) {
     const customConditions = parseQuery(atob(customQuery));
     if (customConditions === null) {
       return null;
@@ -189,4 +259,66 @@ export function parseChallengeQuery(
   }
 
   return query;
+}
+
+function paginationCondition(
+  sorts: SortQuery<SortableFields>[],
+  values: string[],
+  reverse: boolean,
+): Condition | null {
+  if (sorts.length !== values.length) {
+    return null;
+  }
+
+  const [primarySort, secondarySort] = sorts;
+  const [primaryValue, secondaryValue] = values;
+
+  let secondaryCondition: Condition | null = null;
+  if (secondarySort !== undefined) {
+    const secondaryField = secondarySort
+      .slice(1)
+      .split('#')[0] as SortableFields;
+    const op = secondarySort[0] === '+' ? '>' : '<';
+    const val = Number.parseInt(secondaryValue);
+    if (Number.isNaN(val)) {
+      return null;
+    }
+    secondaryCondition = [secondaryField, op, val];
+  }
+
+  let operator: Operator = primarySort[0] === '+' ? '>' : '<';
+  const sortField = primarySort.slice(1).split('#')[0] as SortableFields;
+
+  const value = primaryValue === 'null' ? null : Number.parseInt(primaryValue);
+  if (Number.isNaN(value)) {
+    return null;
+  }
+
+  let cond: Condition | null = null;
+  if (value !== null) {
+    cond = [sortField, operator, value];
+  }
+
+  if (secondaryCondition !== null) {
+    if (reverse && value === null) {
+      // When paging backwards, null values will be first, followed by
+      // non-null values.
+      const isNotNull: Condition = [sortField, 'isnot', null];
+      cond = cond === null ? isNotNull : [cond, '||', isNotNull];
+    }
+
+    const equalOrNull: Condition =
+      value === null
+        ? [sortField, 'is', null]
+        : [[sortField, '==', value], '||', [sortField, 'is', null]];
+    const secondary: Condition = [equalOrNull, '&&', secondaryCondition!];
+
+    if (cond === null) {
+      cond = secondary;
+    } else {
+      cond = [cond, '||', secondary];
+    }
+  }
+
+  return cond;
 }

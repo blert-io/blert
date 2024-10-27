@@ -1,7 +1,11 @@
 import { NextRequest } from 'next/server';
 
-import { QueryOptions, aggregateChallenges } from '@/actions/challenge';
-import { parseChallengeQuery } from '../query';
+import {
+  ChallengeQuery,
+  QueryOptions,
+  aggregateChallenges,
+} from '@/actions/challenge';
+import { parseChallengeQueryParams } from '../query';
 
 // import { loadAggregateChallengeStats } from '../../../../actions/challenge';
 
@@ -21,8 +25,16 @@ import { parseChallengeQuery } from '../query';
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
 
-  const query = parseChallengeQuery(searchParams);
-  if (query === null) {
+  let query: ChallengeQuery;
+
+  try {
+    const q = parseChallengeQueryParams(searchParams);
+    if (q === null) {
+      return new Response(null, { status: 400 });
+    }
+    query = q;
+  } catch (e: any) {
+    console.error('Failed to parse invalid query:', e);
     return new Response(null, { status: 400 });
   }
 
