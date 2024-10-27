@@ -730,6 +730,7 @@ function ContextMenu({
             setContext((context) => ({
               ...context,
               sort: [`+${column.sortKey!}`],
+              pagination: {},
             })),
         });
         items.push({
@@ -739,6 +740,7 @@ function ContextMenu({
             setContext((context) => ({
               ...context,
               sort: [`-${column.sortKey!}`],
+              pagination: {},
             })),
         });
       }
