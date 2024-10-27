@@ -1,10 +1,14 @@
 import { SplitType } from '@blert/common';
 import { NextRequest, NextResponse } from 'next/server';
 
-import { FindChallengesOptions, findChallenges } from '@/actions/challenge';
+import {
+  ChallengeQuery,
+  FindChallengesOptions,
+  findChallenges,
+} from '@/actions/challenge';
 import { parseIntParam } from '@/utils/params';
 
-import { parseChallengeQuery } from './query';
+import { parseChallengeQueryParams } from './query';
 
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 100;
@@ -41,8 +45,16 @@ export async function GET(request: NextRequest) {
     return new Response(null, { status: 400 });
   }
 
-  const query = parseChallengeQuery(searchParams);
-  if (query === null) {
+  let query: ChallengeQuery;
+
+  try {
+    const q = parseChallengeQueryParams(searchParams);
+    if (q === null) {
+      return new Response(null, { status: 400 });
+    }
+    query = q;
+  } catch (e: any) {
+    console.error('Failed to parse invalid query:', e);
     return new Response(null, { status: 400 });
   }
 

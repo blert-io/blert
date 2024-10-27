@@ -1,4 +1,3 @@
-import { ChallengeStatus } from '@blert/common';
 import { ResolvingMetadata } from 'next';
 
 import {
@@ -6,50 +5,47 @@ import {
   aggregateChallenges,
   findChallenges,
 } from '@/actions/challenge';
+import { parseChallengeQuery } from '@/api/v1/challenges/query';
 import { basicMetadata } from '@/utils/metadata';
+import { NextSearchParams } from '@/utils/url';
 
-import { SearchContext, SearchFilters } from './context';
+import { contextFromUrlParams } from './context';
 import Search from './search';
 
 import styles from './style.module.scss';
 
-export default async function SearchPage() {
-  const initialFilters: SearchFilters = {
-    party: [],
-    scale: [],
-    mode: [],
-    status: [
-      ChallengeStatus.COMPLETED,
-      ChallengeStatus.RESET,
-      ChallengeStatus.WIPED,
-    ],
-    type: [],
-    startDate: null,
-    endDate: null,
-    splits: {},
-    accurateSplits: true,
-  };
-  const initialContext: SearchContext = {
-    filters: initialFilters,
-    sort: ['-startTime'],
-    extraFields: {},
-  };
+export default async function SearchPage({
+  searchParams,
+}: {
+  searchParams: NextSearchParams;
+}) {
+  const initialContext = contextFromUrlParams(searchParams);
+  let initialQuery: ChallengeQuery = { sort: ['-startTime'] };
 
-  const query: ChallengeQuery = {
-    sort: initialContext.sort,
-    status: ['in', initialFilters.status],
-  };
+  try {
+    const query = parseChallengeQuery(searchParams);
+    if (query !== null) {
+      initialQuery = { ...initialQuery, ...query };
+    }
+  } catch (e) {
+    // Ignore invalid queries.
+  }
 
-  const [[initialChallenges], initialStats] = await Promise.all([
-    findChallenges(25, query),
-    aggregateChallenges(query, { '*': 'count' }).then((result) =>
-      result !== null
-        ? {
-            count: result['*'].count,
-          }
-        : { count: 0 },
-    ),
-  ]);
+  const baseQuery = { ...initialQuery };
+  baseQuery.sort = undefined;
+  baseQuery.customConditions = undefined;
+
+  const [[initialChallenges, initialRemaining], initialStats] =
+    await Promise.all([
+      findChallenges(25, initialQuery, { count: true }),
+      aggregateChallenges(baseQuery, { '*': 'count' }).then((result) =>
+        result !== null
+          ? {
+              count: result['*'].count,
+            }
+          : { count: 0 },
+      ),
+    ]);
 
   return (
     <div className={styles.searchPage}>
@@ -57,6 +53,7 @@ export default async function SearchPage() {
       <Search
         initialContext={initialContext}
         initialChallenges={initialChallenges}
+        initialRemaining={initialRemaining ?? initialStats.count}
         initialStats={initialStats}
       />
     </div>

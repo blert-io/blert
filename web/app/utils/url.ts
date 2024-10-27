@@ -50,6 +50,8 @@ type SingleOrArray<T> = T | T[];
 export type UrlParam = SingleOrArray<string | number> | undefined;
 export type UrlParams = Record<string, UrlParam>;
 
+export type NextSearchParams = Record<string, string | string[] | undefined>;
+
 /**
  * Returns a URL query string from the given parameters.
  *

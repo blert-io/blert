@@ -6,7 +6,7 @@ import {
   SortableFields,
 } from '@/actions/challenge';
 import { Comparator } from '@/components/tick-input';
-import { UrlParam, UrlParams } from '@/utils/url';
+import { NextSearchParams, UrlParam, UrlParams } from '@/utils/url';
 
 export type SearchFilters = {
   party: string[];
@@ -24,6 +24,10 @@ export type SearchContext = {
   filters: SearchFilters;
   sort: Array<SortQuery<SortableFields>>;
   extraFields: ExtraChallengeFields;
+  pagination: {
+    before?: string;
+    after?: string;
+  };
 };
 
 /**
@@ -87,6 +91,13 @@ export function filtersToUrlParams(filters: SearchFilters): UrlParams {
   return params;
 }
 
+function numericList<T = number>(value: string): T[] {
+  return value
+    .split(',')
+    .map((n) => parseInt(n))
+    .filter((n) => !isNaN(n)) as T[];
+}
+
 export function extraFieldsToUrlParam(
   extraFields: ExtraChallengeFields,
 ): UrlParam {
@@ -99,4 +110,116 @@ export function extraFieldsToUrlParam(
   }
 
   return param;
+}
+
+export function contextFromUrlParams(params: NextSearchParams): SearchContext {
+  const context: SearchContext = {
+    filters: {
+      party: [],
+      mode: [],
+      scale: [],
+      status: [],
+      type: [],
+      startDate: null,
+      endDate: null,
+      splits: {},
+      accurateSplits: false,
+    },
+    sort: [],
+    extraFields: {},
+    pagination: {},
+  };
+
+  for (const [key, v] of Object.entries(params)) {
+    const value = v as string;
+
+    switch (key) {
+      case 'party':
+        context.filters.party = value.split(',');
+        break;
+
+      case 'mode':
+        context.filters.mode = numericList<ChallengeMode>(value);
+        break;
+
+      case 'scale':
+        context.filters.scale = numericList(value);
+        break;
+
+      case 'status':
+        context.filters.status = numericList<ChallengeStatus>(value);
+        break;
+
+      case 'type':
+        context.filters.type = numericList<ChallengeType>(value);
+        break;
+
+      case 'startTime':
+        if (value.startsWith('>=')) {
+          context.filters.startDate = new Date(parseInt(value.slice(2)));
+        } else if (value.startsWith('<')) {
+          context.filters.endDate = new Date(parseInt(value.slice(1)));
+        } else {
+          const [start, end] = value.split('..').map((time) => parseInt(time));
+          context.filters.startDate = new Date(start);
+          context.filters.endDate = new Date(end);
+        }
+        break;
+
+      case 'options': {
+        const options = value.split(',');
+        for (const option of options) {
+          switch (option) {
+            case 'accurateSplits':
+              context.filters.accurateSplits = true;
+              break;
+          }
+        }
+        break;
+      }
+
+      case 'sort': {
+        const sorts = value.split(',');
+        for (const sort of sorts) {
+          context.sort.push(sort as SortQuery<SortableFields>);
+        }
+        break;
+      }
+
+      case 'before':
+        context.pagination.before = value;
+        break;
+
+      case 'after':
+        context.pagination.after = value;
+        break;
+
+      default:
+        if (key.startsWith('split:')) {
+          const split = key.slice(6);
+          let comparator: Comparator;
+          let num: number;
+          if (value.startsWith('eq')) {
+            comparator = Comparator.EQUAL;
+          } else if (value.startsWith('lt')) {
+            comparator = Comparator.LESS_THAN;
+          } else if (value.startsWith('gt')) {
+            comparator = Comparator.GREATER_THAN;
+          } else {
+            continue;
+          }
+          num = parseInt(value.slice(2));
+          if (!isNaN(num)) {
+            context.filters.splits[split] = [comparator, num];
+          }
+        }
+        break;
+    }
+  }
+
+  if (context.sort.length === 0) {
+    context.sort.push('-startTime');
+  }
+
+  return context;
 }

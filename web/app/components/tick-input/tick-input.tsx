@@ -1,23 +1,21 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 
 import Input, { InputProps } from '@/components/input';
 import { ticksFromTime, ticksToFormattedSeconds } from '@/utils/tick';
 
-import styles from './style.module.scss';
+import { Comparator } from './comparator';
 
-export const enum Comparator {
-  EQUAL,
-  LESS_THAN,
-  GREATER_THAN,
-}
+import styles from './style.module.scss';
 
 type TickInputProps = Omit<
   InputProps,
   'horizontalPadding' | 'onChange' | 'type' | 'value'
 > & {
   comparator?: boolean;
+  initialTicks?: number;
+  initialComparator?: Comparator;
   onChange?: (ticks: number | null, comparator?: Comparator) => void;
   round?: number;
 };
@@ -71,8 +69,14 @@ function convertValue(value: string, toTicks: boolean): string {
 export default function TickInput(props: TickInputProps) {
   const [displayTicks, setDisplayTicks] = useState(false);
   const ref = useRef<HTMLInputElement>(null);
-  const [value, setValue] = useState('');
-  const [comparator, setComparator] = useState<Comparator>(Comparator.EQUAL);
+  const [value, setValue] = useState(() =>
+    props.initialTicks !== undefined
+      ? ticksToFormattedSeconds(props.initialTicks)
+      : '',
+  );
+  const [comparator, setComparator] = useState<Comparator>(
+    props.initialComparator ?? Comparator.EQUAL,
+  );
 
   function callOnChange(val?: string, cmp?: Comparator) {
     const v = val ?? value;
