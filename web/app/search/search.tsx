@@ -176,13 +176,10 @@ export default function Search({
       ),
     ]);
 
-    if (action === FetchAction.BACK) {
-      newChallenges.reverse();
-    }
-
     setLoading(false);
 
-    if (action === FetchAction.BACK) {
+    if (action === FetchAction.BACK || paginationParams.before !== undefined) {
+      newChallenges.reverse();
       setRemaining(newStats.count - newRemaining + resultsPerPage);
     } else {
       setRemaining(newRemaining);

@@ -14,6 +14,8 @@ import Search from './search';
 
 import styles from './style.module.scss';
 
+const INITIAL_RESULTS = 25;
+
 export default async function SearchPage({
   searchParams,
 }: {
@@ -35,17 +37,25 @@ export default async function SearchPage({
   baseQuery.sort = undefined;
   baseQuery.customConditions = undefined;
 
-  const [[initialChallenges, initialRemaining], initialStats] =
-    await Promise.all([
-      findChallenges(25, initialQuery, { count: true }),
-      aggregateChallenges(baseQuery, { '*': 'count' }).then((result) =>
-        result !== null
-          ? {
-              count: result['*'].count,
-            }
-          : { count: 0 },
-      ),
-    ]);
+  const [[initialChallenges, remaining], initialStats] = await Promise.all([
+    findChallenges(INITIAL_RESULTS, initialQuery, { count: true }),
+    aggregateChallenges(baseQuery, { '*': 'count' }).then((result) =>
+      result !== null
+        ? {
+            count: result['*'].count,
+          }
+        : { count: 0 },
+    ),
+  ]);
+
+  let initialRemaining: number;
+  if (searchParams.before !== undefined) {
+    initialRemaining =
+      initialStats.count - (remaining ?? initialStats.count) + INITIAL_RESULTS;
+    initialChallenges.reverse();
+  } else {
+    initialRemaining = remaining ?? initialStats.count;
+  }
 
   return (
     <div className={styles.searchPage}>
@@ -53,7 +63,7 @@ export default async function SearchPage({
       <Search
         initialContext={initialContext}
         initialChallenges={initialChallenges}
-        initialRemaining={initialRemaining ?? initialStats.count}
+        initialRemaining={initialRemaining}
         initialStats={initialStats}
       />
     </div>

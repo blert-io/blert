@@ -98,6 +98,7 @@ export default function Filters({
           ? prev.filters[key].filter((v) => v !== value)
           : [...prev.filters[key], value],
       },
+      pagination: {},
     }));
   }
 
@@ -132,6 +133,7 @@ export default function Filters({
               return {
                 ...prev,
                 filters: { ...prev.filters, [key]: [] },
+                pagination: {},
               };
             })
           }
@@ -162,6 +164,7 @@ export default function Filters({
                   return {
                     ...prev,
                     filters: { ...prev.filters, type: [], mode: [] },
+                    pagination: {},
                   };
                 })
               }
@@ -180,6 +183,7 @@ export default function Filters({
               setContext((prev) => ({
                 ...prev,
                 filters: toggleTobMode(prev.filters, ChallengeMode.TOB_REGULAR),
+                pagination: {},
               }))
             }
             label="ToB Regular"
@@ -196,6 +200,7 @@ export default function Filters({
               setContext((prev) => ({
                 ...prev,
                 filters: toggleTobMode(prev.filters, ChallengeMode.TOB_HARD),
+                pagination: {},
               }))
             }
             label="ToB Hard"
@@ -239,6 +244,7 @@ export default function Filters({
                       ...prev.filters,
                       accurateSplits: !prev.filters.accurateSplits,
                     },
+                    pagination: {},
                   }))
                 }
                 label="Accurate splits"
@@ -266,6 +272,7 @@ export default function Filters({
                     ...prev.filters,
                     party: [...prev.filters.party, username],
                   },
+                  pagination: {},
                 };
               })
             }
@@ -278,6 +285,7 @@ export default function Filters({
                   ...prev.filters,
                   party: prev.filters.party.filter((u) => u !== username),
                 },
+                pagination: {},
               }))
             }
             tags={context.filters.party}
@@ -321,6 +329,7 @@ export default function Filters({
                       startDate: date,
                       endDate,
                     },
+                    pagination: {},
                   }));
                 }}
                 showIcon
@@ -353,6 +362,7 @@ export default function Filters({
                       setContext((prev) => ({
                         ...prev,
                         filters: { ...prev.filters, endDate: date },
+                        pagination: {},
                       }))
                     }
                     showIcon
@@ -374,6 +384,7 @@ export default function Filters({
                         ...prev.filters,
                         endDate: prev.filters.startDate,
                       },
+                      pagination: {},
                     }));
                   } else if (context.filters.endDate !== null) {
                     setContext((prev) => ({
@@ -382,6 +393,7 @@ export default function Filters({
                         ...prev.filters,
                         startDate: prev.filters.endDate,
                       },
+                      pagination: {},
                     }));
                   }
                 }
@@ -547,6 +559,7 @@ function CustomFilters({
           next.filters.splits[split] = [comparator, ticks ?? 0];
         }
       });
+      next.pagination = {};
       return next;
     });
   };

@@ -297,21 +297,26 @@ function paginationCondition(
   let cond: Condition | null = null;
   if (value !== null) {
     cond = [sortField, operator, value];
+    if (!reverse) {
+      cond = [cond, '||', [sortField, 'is', null]];
+    }
   }
 
   if (secondaryCondition !== null) {
+    let secondary: Condition;
     if (reverse && value === null) {
       // When paging backwards, null values will be first, followed by
       // non-null values.
       const isNotNull: Condition = [sortField, 'isnot', null];
-      cond = cond === null ? isNotNull : [cond, '||', isNotNull];
+      const isNullBefore: Condition = [
+        [sortField, 'is', null],
+        '&&',
+        secondaryCondition,
+      ];
+      secondary = [isNotNull, '||', isNullBefore];
+    } else {
+      secondary = [[sortField, '==', value], '&&', secondaryCondition!];
     }
-
-    const equalOrNull: Condition =
-      value === null
-        ? [sortField, 'is', null]
-        : [[sortField, '==', value], '||', [sortField, 'is', null]];
-    const secondary: Condition = [equalOrNull, '&&', secondaryCondition!];
 
     if (cond === null) {
       cond = secondary;
