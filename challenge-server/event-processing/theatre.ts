@@ -31,6 +31,25 @@ type SoteMazeState = {
   partialPivots: number[];
 };
 
+function roomsKey(stage: Stage): keyof TobRooms {
+  switch (stage) {
+    case Stage.TOB_MAIDEN:
+      return 'maiden';
+    case Stage.TOB_BLOAT:
+      return 'bloat';
+    case Stage.TOB_NYLOCAS:
+      return 'nylocas';
+    case Stage.TOB_SOTETSEG:
+      return 'sotetseg';
+    case Stage.TOB_XARPUS:
+      return 'xarpus';
+    case Stage.TOB_VERZIK:
+      return 'verzik';
+    default:
+      throw new Error(`Invalid ToB stage: ${stage}`);
+  }
+}
+
 export default class TheatreProcessor extends ChallengeProcessor {
   private rooms: TobRooms;
 
@@ -456,8 +475,18 @@ export default class TheatreProcessor extends ChallengeProcessor {
     return this.rooms;
   }
 
-  protected override hasFullyCompletedChallenge(): boolean {
-    return Object.values(this.rooms).every((room) => room !== null);
+  protected override hasFullyRecordedUpTo(stage: Stage): boolean {
+    if (stage < Stage.TOB_MAIDEN || stage > Stage.TOB_VERZIK) {
+      return false;
+    }
+
+    for (let s = Stage.TOB_MAIDEN; s <= stage; s++) {
+      if (this.rooms[roomsKey(s)] === null) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   private async handlePlayerAttack(event: Event): Promise<void> {

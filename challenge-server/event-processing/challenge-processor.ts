@@ -50,6 +50,7 @@ type ModifiableChallengeFields = Pick<
 
 type DatabaseChallengeFields = ModifiableChallengeFields & {
   overallTicks: number | null;
+  fullRecording: boolean;
 };
 
 type CustomData = {
@@ -229,12 +230,13 @@ export default abstract class ChallengeProcessor {
         status: this.challengeStatus,
         challengeTicks: this.totalChallengeTicks,
         overallTicks: this.reportedTimes?.overall ?? null,
+        fullRecording: this.hasFullyRecordedUpTo(this.stage),
       }),
       this.onFinish(),
     ]);
 
     const timesAccurate =
-      this.hasFullyCompletedChallenge() &&
+      this.hasFullyRecordedUpTo(this.lastStage) &&
       this.challengeStatus === ChallengeStatus.COMPLETED;
 
     const overallSplits = await this.createChallengeSplits(timesAccurate);
@@ -1024,9 +1026,10 @@ export default abstract class ChallengeProcessor {
   protected abstract getCustomData(): object | null;
 
   /**
-   * Returns whether every stage within the challenge has been recorded.
+   * Returns whether the challenge has some recorded data for every stage
+   * between its first stage and the provided stage, inclusive.
    */
-  protected abstract hasFullyCompletedChallenge(): boolean;
+  protected abstract hasFullyRecordedUpTo(stage: Stage): boolean;
 
   protected getDataRepository(): DataRepository {
     return this.dataRepository;

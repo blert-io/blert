@@ -156,8 +156,22 @@ export default class ColosseumProcessor extends ChallengeProcessor {
     };
   }
 
-  protected override hasFullyCompletedChallenge(): boolean {
-    return this.colosseumData.waves.length === 12;
+  protected override hasFullyRecordedUpTo(stage: Stage): boolean {
+    if (stage < Stage.COLOSSEUM_WAVE_1 || stage > Stage.COLOSSEUM_WAVE_12) {
+      return false;
+    }
+
+    const recordedStages = new Set(
+      this.colosseumData.waves.map((wave) => wave.stage),
+    );
+
+    for (let s = Stage.COLOSSEUM_WAVE_1; s <= stage; s++) {
+      if (!recordedStages.has(s)) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   /**
