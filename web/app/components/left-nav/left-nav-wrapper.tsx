@@ -2,8 +2,8 @@
 
 import React, { useContext, useEffect, useState } from 'react';
 
-import { DisplayContext, NavbarContext } from '../../display';
-import { clamp } from '../../utils/math';
+import { DisplayContext, NavbarContext } from '@/display';
+import { clamp } from '@/utils/math';
 
 import { LEFT_NAV_WIDTH } from './definitions';
 
@@ -19,6 +19,31 @@ type TouchInfo = {
   touch: Touch;
   direction: ScrollDirection | null;
 };
+
+/**
+ * Checks if the target element or any of its parents are horizontally
+ * scrollable.
+ *
+ * @param target Element to inspect.
+ * @returns True if the element is scrollable.
+ */
+function isWithinScrollableContainer(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  let element: HTMLElement | null = target;
+  while (element) {
+    if (element.scrollWidth > element.clientWidth + 10) {
+      return true;
+    }
+
+    element = element.parentElement;
+  }
+  return false;
+}
+
+const SCREEN_EDGE_THRESHOLD = 50;
 
 export function LeftNavWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -37,6 +62,18 @@ export function LeftNavWrapper({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) {
+        return;
+      }
+
+      if (
+        !sidebarOpen &&
+        isWithinScrollableContainer(e.target) &&
+        e.touches[0].clientX > SCREEN_EDGE_THRESHOLD
+      ) {
+        // If the user is touching a scrollable container, don't allow the
+        // sidebar to be opened unless the touch is near the edge of the screen.
+        // If the sidebar is already open, allow the touch to be used to close
+        // it.
         return;
       }
       activeTouch.current = { touch: e.touches[0], direction: null };
@@ -105,7 +142,7 @@ export function LeftNavWrapper({ children }: { children: React.ReactNode }) {
     const onTouchCancel = (e: TouchEvent) => onTouchEnd(e);
 
     window.addEventListener('touchstart', onTouchStart);
-    window.addEventListener('touchmove', onTouchMove);
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
     window.addEventListener('touchend', onTouchEnd);
     window.addEventListener('touchcancel', onTouchCancel);
 
