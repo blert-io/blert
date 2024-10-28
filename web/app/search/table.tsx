@@ -7,6 +7,7 @@ import {
   Dispatch,
   SetStateAction,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -26,6 +27,7 @@ import {
   modeNameAndColor,
   statusNameAndColor,
 } from '@/components/raid-quick-details';
+import { DisplayContext } from '@/display';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 import { challengeUrl } from '@/utils/url';
 
@@ -489,6 +491,7 @@ type TableProps = {
 
 export default function Table(props: TableProps) {
   const router = useRouter();
+  const display = useContext(DisplayContext);
 
   const tableRef = useRef<HTMLTableElement>(null);
   const headingRef = useRef<HTMLTableSectionElement>(null);
@@ -506,13 +509,20 @@ export default function Table(props: TableProps) {
       if (tableRef.current?.contains(e.target as Node)) {
         e.preventDefault();
 
-        const menu: ContextMenu = {
-          y: e.clientY,
-          x:
+        let menuX: number;
+        if (display.isCompact()) {
+          menuX = 60;
+        } else {
+          menuX =
             e.clientX + MENU_WIDTH >
             tableRef.current.getBoundingClientRect().right
               ? e.clientX - MENU_WIDTH + 5
-              : e.clientX,
+              : e.clientX;
+        }
+
+        const menu: ContextMenu = {
+          y: e.clientY,
+          x: menuX,
         };
 
         let target: HTMLElement | null = e.target as HTMLElement;
@@ -555,7 +565,7 @@ export default function Table(props: TableProps) {
     return () => {
       window.removeEventListener('contextmenu', menuListener);
     };
-  });
+  }, [display.isCompact()]);
 
   const [selectedColumns, setSelectedColumns] = useState<SelectedColumn[]>(
     DEFAULT_SELECTED_COLUMNS,
@@ -635,11 +645,16 @@ export default function Table(props: TableProps) {
                   }
                 }
 
+                let width = column.width;
+                if (width !== undefined && display.isCompact()) {
+                  width = Math.floor(width * 0.9);
+                }
+
                 return (
                   <th
                     key={c.column}
                     data-context={`heading:${c.column}`}
-                    style={{ width: column.width }}
+                    style={{ width }}
                   >
                     {column.name}
                     {suffix}
@@ -699,11 +714,15 @@ export default function Table(props: TableProps) {
                 {allColumns.map((c) => {
                   const column = COLUMNS[c.column];
                   const align = column.align ?? 'left';
+                  let width = column.width;
+                  if (width !== undefined && display.isCompact()) {
+                    width = Math.floor(width * 0.9);
+                  }
                   return (
                     <td
                       key={c.column}
                       data-context={`row:${i}:${c.column}`}
-                      style={{ textAlign: align, width: column.width }}
+                      style={{ textAlign: align, width }}
                     >
                       {column.renderer(challenge)}
                     </td>
@@ -1253,8 +1272,7 @@ function ColumnsModal({
         </Button>
       </div>
       {confirmAction && (
-        <>
-          <div className={styles.dimmer} />
+        <div className={styles.dimmer}>
           <form
             className={styles.confirm}
             onSubmit={() => {
@@ -1271,7 +1289,7 @@ function ColumnsModal({
               </Button>
             </div>
           </form>
-        </>
+        </div>
       )}
     </Modal>
   );
