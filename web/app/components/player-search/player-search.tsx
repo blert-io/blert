@@ -15,7 +15,7 @@ function toMenuItem(value: string): MenuItem {
 }
 
 const PlayerSearch = forwardRef<HTMLInputElement, PlayerSearchProps>(
-  (props, ref) => {
+  function PlayerSearch(props, ref) {
     const inputRef = useRef<HTMLInputElement | null>(null);
     const [suggestions, setSuggestions] = useState<MenuItem[]>([]);
 

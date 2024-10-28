@@ -209,20 +209,22 @@ export default function Menu(props: MenuProps) {
   const portalNode = useRef<HTMLElement | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
+  const { items, open, onBrowse, onSelection, onClose } = props;
+
   const [activeElements, setActiveElements] = useState<Array<number | null>>(
-    () => createActiveElementsList(props.items),
+    () => createActiveElementsList(items),
   );
 
   useEffect(() => {
-    setActiveElements(createActiveElementsList(props.items));
-  }, [props.items, props.open]);
+    setActiveElements(createActiveElementsList(items));
+  }, [items, open]);
 
   useEffect(() => {
-    if (!props.open) {
+    if (!open) {
       return;
     }
 
-    const maxDepth = maxMenuDepth(props.items);
+    const maxDepth = maxMenuDepth(items);
     const depth = currentDepth(activeElements);
 
     const onKeyDown = (e: KeyboardEvent) => {
@@ -232,21 +234,21 @@ export default function Menu(props: MenuProps) {
 
           const next = [...activeElements];
           if (depth === -1) {
-            const firstItem = props.items.findIndex(isInteractive);
+            const firstItem = items.findIndex(isInteractive);
             if (firstItem !== -1) {
               next[0] = firstItem;
-              props.onBrowse?.(props.items[firstItem]);
+              onBrowse?.(items[firstItem]);
             } else {
               next[0] = null;
-              props.onBrowse?.(null);
+              onBrowse?.(null);
             }
           } else {
-            const menu = currentMenu(props.items, next);
+            const menu = currentMenu(items, next);
             for (let i = 1; i < menu.length; i++) {
               const index = (next[depth]! + i) % menu.length;
               if (isInteractive(menu[index])) {
                 next[depth] = index;
-                props.onBrowse?.(menu[index]);
+                onBrowse?.(menu[index]);
                 break;
               }
             }
@@ -260,22 +262,22 @@ export default function Menu(props: MenuProps) {
           const next = [...activeElements];
 
           if (depth === -1) {
-            const lastItem = props.items.findLastIndex(isInteractive);
+            const lastItem = items.findLastIndex(isInteractive);
             next[0] = lastItem === -1 ? null : lastItem;
             if (lastItem !== -1) {
               next[0] = lastItem;
-              props.onBrowse?.(props.items[lastItem]);
+              onBrowse?.(items[lastItem]);
             } else {
               next[0] = null;
-              props.onBrowse?.(null);
+              onBrowse?.(null);
             }
           } else {
-            const menu = currentMenu(props.items, next);
+            const menu = currentMenu(items, next);
             for (let i = 1; i < menu.length; i++) {
               const index = (next[depth]! - i + menu.length) % menu.length;
               if (isInteractive(menu[index])) {
                 next[depth] = index;
-                props.onBrowse?.(menu[index]);
+                onBrowse?.(menu[index]);
                 break;
               }
             }
@@ -293,10 +295,10 @@ export default function Menu(props: MenuProps) {
 
           if (depth !== -1) {
             const next = [...activeElements];
-            const menu = currentMenu(props.items, next);
+            const menu = currentMenu(items, next);
             if (menu[next[depth]!].subMenu) {
               next[depth + 1] = 0;
-              props.onBrowse?.(menu[next[depth]!].subMenu![0]);
+              onBrowse?.(menu[next[depth]!].subMenu![0]);
             }
             setActiveElements(next);
           }
@@ -315,7 +317,7 @@ export default function Menu(props: MenuProps) {
 
           const next = [...activeElements];
           next[depth] = null;
-          props.onBrowse?.(null);
+          onBrowse?.(null);
           setActiveElements(next);
           break;
         }
@@ -327,15 +329,15 @@ export default function Menu(props: MenuProps) {
 
           e.preventDefault();
 
-          const menu = currentMenu(props.items, activeElements);
+          const menu = currentMenu(items, activeElements);
           const item = menu[activeElements[currentDepth(activeElements)]!];
           if (item.customAction) {
             item.customAction();
           } else if (item.value !== undefined) {
-            props.onSelection?.(item.value);
+            onSelection?.(item.value);
           }
-          setActiveElements(createActiveElementsList(props.items));
-          props.onClose?.();
+          setActiveElements(createActiveElementsList(items));
+          onClose?.();
           break;
         }
       }
@@ -343,10 +345,10 @@ export default function Menu(props: MenuProps) {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [activeElements, props.items, props.open, props.onBrowse]);
+  }, [activeElements, items, open, onBrowse, onSelection, onClose]);
 
   useEffect(() => {
-    if (!props.open) {
+    if (!open) {
       return;
     }
 
@@ -366,11 +368,10 @@ export default function Menu(props: MenuProps) {
           ?.removeChild(portalNode.current!);
       }
     };
-  }, [props.open]);
+  }, [open]);
 
   useEffect(() => {
-    if (props.onClose) {
-      const onClose = props.onClose;
+    if (onClose) {
       const closeMenu = (e: MouseEvent) => {
         if (
           wrapperRef.current !== null &&
@@ -385,7 +386,7 @@ export default function Menu(props: MenuProps) {
         window.removeEventListener('click', closeMenu);
       };
     }
-  }, [props.onClose]);
+  }, [onClose]);
 
   if (
     portalNode.current === null ||

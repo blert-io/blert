@@ -29,60 +29,64 @@ export type InputProps = {
   width?: number;
 };
 
-export const Input = forwardRef<HTMLInputElement, InputProps>((props, ref) => {
-  const labelBackground = props.labelBg ?? 'var(--panel-bg)';
-  const style: React.CSSProperties = {
-    width: props.fluid ? '100%' : props.width ?? 240,
-  };
+export const Input = forwardRef<HTMLInputElement, InputProps>(
+  function Input(props, ref) {
+    const labelBackground = props.labelBg ?? 'var(--panel-bg)';
+    const style: React.CSSProperties = {
+      width: props.fluid ? '100%' : props.width ?? 240,
+    };
 
-  const paddingX = props.horizontalPadding ?? 15;
-  style.padding = `12px ${paddingX}px`;
+    const paddingX = props.horizontalPadding ?? 15;
+    style.padding = `12px ${paddingX}px`;
 
-  let className = styles.input;
-  if (props.className) {
-    className += ` ${props.className}`;
-  }
-  if (props.invalid) {
-    className += ` ${styles.invalid}`;
-  }
+    let className = styles.input;
+    if (props.className) {
+      className += ` ${props.className}`;
+    }
+    if (props.invalid) {
+      className += ` ${styles.invalid}`;
+    }
 
-  let icon = undefined;
-  if (props.customIcon) {
-    icon = <div className={styles.icon}>{props.customIcon}</div>;
-  } else if (props.faIcon) {
-    icon = props.faIcon && <i className={`${styles.icon} ${props.faIcon}`} />;
-  }
+    let icon = undefined;
+    if (props.customIcon) {
+      icon = <div className={styles.icon}>{props.customIcon}</div>;
+    } else if (props.faIcon) {
+      icon = props.faIcon && <i className={`${styles.icon} ${props.faIcon}`} />;
+    }
 
-  return (
-    <div className={className}>
-      <input
-        autoComplete="off"
-        autoFocus={props.autoFocus}
-        className={props.inputClassName}
-        disabled={props.disabled}
-        id={props.id}
-        maxLength={props.maxLength}
-        minLength={props.minLength}
-        name={props.id}
-        onBlur={props.onBlur}
-        onChange={props.onChange}
-        onFocus={props.onFocus}
-        onKeyDown={props.onKeyDown}
-        pattern={props.pattern}
-        placeholder=" "
-        style={style}
-        ref={ref}
-        required={props.required}
-        type={props.type ?? 'text'}
-        value={props.value}
-      />
-      <label
-        htmlFor={props.id}
-        style={{ background: labelBackground, left: paddingX - 5 }}
-      >
-        {props.invalid && props.errorMessage ? props.errorMessage : props.label}
-      </label>
-      {icon}
-    </div>
-  );
-});
+    return (
+      <div className={className}>
+        <input
+          autoComplete="off"
+          autoFocus={props.autoFocus}
+          className={props.inputClassName}
+          disabled={props.disabled}
+          id={props.id}
+          maxLength={props.maxLength}
+          minLength={props.minLength}
+          name={props.id}
+          onBlur={props.onBlur}
+          onChange={props.onChange}
+          onFocus={props.onFocus}
+          onKeyDown={props.onKeyDown}
+          pattern={props.pattern}
+          placeholder=" "
+          style={style}
+          ref={ref}
+          required={props.required}
+          type={props.type ?? 'text'}
+          value={props.value}
+        />
+        <label
+          htmlFor={props.id}
+          style={{ background: labelBackground, left: paddingX - 5 }}
+        >
+          {props.invalid && props.errorMessage
+            ? props.errorMessage
+            : props.label}
+        </label>
+        {icon}
+      </div>
+    );
+  },
+);
