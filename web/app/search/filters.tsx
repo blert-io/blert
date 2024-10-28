@@ -5,7 +5,7 @@ import {
   SplitType,
   splitName,
 } from '@blert/common';
-import { Dispatch, SetStateAction, useState } from 'react';
+import { Dispatch, SetStateAction, useContext, useState } from 'react';
 import DatePicker from 'react-datepicker';
 
 import Button from '@/components/button';
@@ -15,11 +15,13 @@ import PlayerSearch from '@/components/player-search';
 import TagList from '@/components/tag-list';
 import TickInput, { Comparator } from '@/components/tick-input';
 import Tooltip from '@/components/tooltip';
+import { DisplayContext } from '@/display';
 import { SearchContext, SearchFilters } from './context';
 
 import 'react-datepicker/dist/react-datepicker.css';
 import './date-picker.css';
 import styles from './style.module.scss';
+import Modal from '@/components/modal';
 
 const DATE_WIDTH = 300;
 const DATE_INPUT_WIDTH = 140;
@@ -536,6 +538,8 @@ function CustomFilters({
   loading: boolean;
   setContext: Dispatch<SetStateAction<SearchContext>>;
 }) {
+  const display = useContext(DisplayContext);
+
   const [menuOpen, setMenuOpen] = useState(false);
   const [splitInputs, setSplitInputs] = useState<Record<string, SplitValues>>(
     () => {
@@ -614,14 +618,22 @@ function CustomFilters({
           >
             Apply
           </Button>
-          <Menu
-            onClose={() => setMenuOpen(false)}
-            onSelection={addInput}
-            open={menuOpen}
-            items={CUSTOM_FILTERS_ITEMS}
-            targetId="filters-add-custom"
-            width="auto"
-          />
+          {display.isFull() ? (
+            <Menu
+              onClose={() => setMenuOpen(false)}
+              onSelection={addInput}
+              open={menuOpen}
+              items={CUSTOM_FILTERS_ITEMS}
+              targetId="filters-add-custom"
+              width="auto"
+            />
+          ) : (
+            <CustomFiltersModal
+              onClose={() => setMenuOpen(false)}
+              onSelection={addInput}
+              open={menuOpen}
+            />
+          )}
         </div>
       </div>
       <div className={styles.inputs}>
@@ -671,5 +683,75 @@ function CustomFilters({
         })}
       </div>
     </form>
+  );
+}
+
+function CollapsibleList({
+  items,
+  onSelection,
+}: {
+  items: MenuItem[];
+  onSelection: (split: number) => void;
+}) {
+  const [open, setOpen] = useState<boolean[]>(items.map(() => false));
+
+  return (
+    <ul className={styles.customFiltersList}>
+      {items.map((item, i) => {
+        const element = item.subMenu ? (
+          <button
+            className={styles.collapsible}
+            onClick={() =>
+              setOpen((prev) => prev.map((v, j) => (i === j ? !v : v)))
+            }
+          >
+            {item.label}
+            <i
+              className={`fas fa-chevron-${open[i] ? 'up' : 'down'}`}
+              style={{ marginLeft: 8 }}
+            />
+          </button>
+        ) : (
+          <button onClick={() => onSelection(item.value! as number)}>
+            <i className="fas fa-plus" style={{ marginRight: 8, top: 1 }} />
+            {item.label}
+          </button>
+        );
+
+        return (
+          <li key={item.label}>
+            {element}
+            {item.subMenu && open[i] && (
+              <CollapsibleList items={item.subMenu} onSelection={onSelection} />
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function CustomFiltersModal({
+  open,
+  onClose,
+  onSelection,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSelection: (split: number) => void;
+}) {
+  return (
+    <Modal className={styles.customFiltersModal} onClose={onClose} open={open}>
+      <h2>Add custom filter</h2>
+      <div className={styles.customFiltersContent}>
+        <CollapsibleList
+          items={CUSTOM_FILTERS_ITEMS}
+          onSelection={(value) => {
+            onSelection(value);
+            onClose();
+          }}
+        />
+      </div>
+    </Modal>
   );
 }
