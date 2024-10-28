@@ -168,6 +168,7 @@ export type ChallengeQuery = {
 
 export type QueryOptions = {
   accurateSplits?: boolean;
+  fullRecordings?: boolean;
   limit?: number;
   sort?: SortQuery<Omit<ChallengeOverview, 'party'> | Aggregation>;
 };
@@ -337,6 +338,7 @@ type QueryComponents = {
 function applyFilters(
   query: ChallengeQuery,
   accurateSplits?: boolean,
+  fullRecordings?: boolean,
 ): QueryComponents | null {
   let challengeTable = 'challenges';
 
@@ -473,6 +475,10 @@ function applyFilters(
     }
   }
 
+  if (fullRecordings) {
+    conditions.push(sql`${sqlChallenges}.full_recording = true`);
+  }
+
   return {
     baseTable,
     queryTable: sqlChallenges,
@@ -498,6 +504,11 @@ export type FindChallengesOptions = {
   count?: boolean;
 
   /**
+   * Exclude challenges that are missing data for any of their stages.
+   */
+  fullRecordings?: boolean;
+
+  /**
    * Additional fields to include in the result set.
    */
   extraFields?: ExtraChallengeFields;
@@ -520,7 +531,11 @@ export async function findChallenges(
 ): Promise<[ChallengeOverview[], number | null]> {
   const searchQuery = { ...DEFAULT_CHALLENGE_QUERY, ...query };
 
-  const components = applyFilters(searchQuery, options.accurateSplits);
+  const components = applyFilters(
+    searchQuery,
+    options.accurateSplits,
+    options.fullRecordings,
+  );
   if (components === null) {
     return [[], null];
   }
@@ -788,7 +803,11 @@ export async function aggregateChallenges<
   options: QueryOptions = {},
   grouping?: G,
 ): Promise<AggregationResult<F> | GroupedAggregationResult<F, G> | null> {
-  const components = applyFilters(query, options.accurateSplits);
+  const components = applyFilters(
+    query,
+    options.accurateSplits,
+    options.fullRecordings,
+  );
   if (components === null) {
     return null;
   }
