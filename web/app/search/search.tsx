@@ -1,6 +1,7 @@
 'use client';
 
 import { SplitType } from '@blert/common';
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import {
@@ -13,11 +14,12 @@ import { UrlParams, queryString } from '@/utils/url';
 
 import {
   SearchContext,
+  contextFromUrlParams,
   extraFieldsToUrlParam,
   filtersToUrlParams,
 } from './context';
 import Filters from './filters';
-import Table from './table';
+import Table, { extraFieldsForColumns, searchPresetsStorage } from './table';
 
 import styles from './style.module.scss';
 
@@ -120,9 +122,10 @@ export default function Search({
   initialStats,
   initialRemaining,
 }: SearchProps) {
-  const [context, setContext] = useState(initialContext);
+  const [initialFetch, setInitialFetch] = useState(true);
   const [loading, setLoading] = useState(false);
 
+  const [context, setContext] = useState(initialContext);
   const [challenges, setChallenges] =
     useState<ChallengeOverview[]>(initialChallenges);
   const [stats, setStats] = useState<FilteredStats>(initialStats);
@@ -134,64 +137,92 @@ export default function Search({
   const page = Math.floor(offset / resultsPerPage) + 1;
   const totalPages = Math.ceil(stats.count / resultsPerPage);
 
-  const loadChallenges = async (action: FetchAction = FetchAction.LOAD) => {
+  const loadChallenges = async (
+    action: FetchAction = FetchAction.LOAD,
+    ctx: SearchContext = context,
+  ) => {
     const [baseParams, paginationParams] = challengesQueryParams(
-      context,
+      ctx,
       challenges,
       action,
     );
 
     const updatedUrl = `/search?${queryString(paginationParams)}`;
-    window.history.replaceState(
-      { ...window.history.state, as: updatedUrl, url: updatedUrl },
-      '',
-      updatedUrl,
-    );
+    window.history.replaceState(null, '', updatedUrl);
 
     paginationParams.limit = resultsPerPage;
-    paginationParams.extraFields = extraFieldsToUrlParam(context.extraFields);
+    paginationParams.extraFields = extraFieldsToUrlParam(ctx.extraFields);
 
     setLoading(true);
 
-    const [[newChallenges, newRemaining], newStats] = await Promise.all([
-      fetch(`/api/v1/challenges?${queryString(paginationParams)}`).then(
-        async (res) => {
-          if (res.ok) {
-            const rem = res.headers.get('X-Total-Count');
-            return [
-              await res.json().then((cs) =>
-                cs.map((c: any) => ({
-                  ...c,
-                  startTime: new Date(c.startTime),
-                })),
-              ),
-              rem !== null ? parseInt(rem) : null,
-            ];
-          }
-          return [[], null];
-        },
-      ),
-      fetch(`/api/v1/challenges/stats?${queryString(baseParams)}`).then((res) =>
-        res.json(),
-      ),
-    ]);
+    try {
+      const [[newChallenges, newRemaining], newStats] = await Promise.all([
+        fetch(`/api/v1/challenges?${queryString(paginationParams)}`).then(
+          async (res) => {
+            if (res.ok) {
+              const rem = res.headers.get('X-Total-Count');
+              return [
+                await res.json().then((cs) =>
+                  cs.map((c: any) => ({
+                    ...c,
+                    startTime: new Date(c.startTime),
+                  })),
+                ),
+                rem !== null ? parseInt(rem) : null,
+              ];
+            }
+            return [[], null];
+          },
+        ),
+        fetch(`/api/v1/challenges/stats?${queryString(baseParams)}`).then(
+          (res) => res.json(),
+        ),
+      ]);
 
-    setLoading(false);
+      setLoading(false);
 
-    if (action === FetchAction.BACK || paginationParams.before !== undefined) {
-      newChallenges.reverse();
-      setRemaining(newStats.count - newRemaining + resultsPerPage);
-    } else {
-      setRemaining(newRemaining);
+      if (
+        action === FetchAction.BACK ||
+        paginationParams.before !== undefined
+      ) {
+        newChallenges.reverse();
+        setRemaining(newStats.count - newRemaining + resultsPerPage);
+      } else {
+        setRemaining(newRemaining);
+      }
+
+      setChallenges(newChallenges);
+      setStats(newStats);
+    } catch (e) {
+      setLoading(false);
     }
-
-    setChallenges(newChallenges);
-    setStats(newStats);
   };
 
+  const searchParams = useSearchParams();
+
   useEffect(() => {
-    loadChallenges(FetchAction.LOAD);
-  }, [context]);
+    const initialLoad = async () => {
+      const initialContext = contextFromUrlParams(
+        Object.fromEntries(searchParams),
+      );
+      const presets = searchPresetsStorage.get();
+      if (presets.activeColumns) {
+        initialContext.extraFields = extraFieldsForColumns(
+          presets.activeColumns,
+        );
+      }
+      await loadChallenges(FetchAction.LOAD, initialContext);
+      setContext(initialContext);
+      setInitialFetch(false);
+    };
+    initialLoad();
+  }, []);
+
+  useEffect(() => {
+    if (!initialFetch) {
+      loadChallenges(FetchAction.LOAD);
+    }
+  }, [context, initialFetch]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {

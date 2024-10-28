@@ -420,6 +420,66 @@ const DEFAULT_SELECTED_COLUMNS: SelectedColumn[] = [
   { column: Column.OVERALL_TIME },
 ];
 
+type PresetStorage = {
+  presets: PresetColumns[];
+  activeColumns: SelectedColumn[];
+};
+
+class LocalStorageManager {
+  private key: string;
+
+  public constructor(key: string) {
+    this.key = key;
+  }
+
+  public get(): PresetStorage {
+    const data = localStorage.getItem(this.key);
+    if (data === null) {
+      return { presets: [], activeColumns: DEFAULT_SELECTED_COLUMNS };
+    }
+
+    try {
+      return JSON.parse(data);
+    } catch {
+      return { presets: [], activeColumns: DEFAULT_SELECTED_COLUMNS };
+    }
+  }
+
+  public set(
+    presets: PresetStorage | ((prev: PresetStorage) => PresetStorage),
+  ) {
+    if (typeof presets === 'function') {
+      const prev = this.get();
+      localStorage.setItem(this.key, JSON.stringify(presets(prev)));
+    } else {
+      localStorage.setItem(this.key, JSON.stringify(presets));
+    }
+  }
+}
+
+const SEARCH_PRESETS_STORAGE_KEY = 'search-column-presets';
+export const searchPresetsStorage = new LocalStorageManager(
+  SEARCH_PRESETS_STORAGE_KEY,
+);
+
+/**
+ * Returns the extra fields that should be loaded based on the selected columns.
+ * @param columns List of selected columns.
+ * @returns Additional fields to load.
+ */
+export function extraFieldsForColumns(
+  columns: SelectedColumn[],
+): ExtraChallengeFields {
+  let extraFields: ExtraChallengeFields = {};
+  for (const column of columns) {
+    const toggleFields = COLUMNS[column.column].toggleFields;
+    if (toggleFields !== undefined) {
+      extraFields = toggleFields(extraFields, true);
+    }
+  }
+  return extraFields;
+}
+
 type TableProps = {
   challenges: ChallengeOverview[];
   context: SearchContext;
@@ -440,8 +500,6 @@ export default function Table(props: TableProps) {
   const [lastClickedChallenge, setLastClickedChallenge] = useState<
     [number, number] | null
   >(null);
-
-  const storage = useRef(new LocalStorageManager('search-column-presets'));
 
   useEffect(() => {
     const menuListener = (e: MouseEvent) => {
@@ -517,7 +575,7 @@ export default function Table(props: TableProps) {
         }));
       }
 
-      storage.current.set((prev) => ({
+      searchPresetsStorage.set((prev) => ({
         ...prev,
         activeColumns: prev.activeColumns.filter((c) => c.column !== col),
       }));
@@ -528,17 +586,11 @@ export default function Table(props: TableProps) {
   const setAllColumns = useCallback(
     (columns: SelectedColumn[]) => {
       setSelectedColumns(columns);
-      props.setContext((prev) => {
-        let extraFields: ExtraChallengeFields = {};
-        for (const column of columns) {
-          const toggleFields = COLUMNS[column.column].toggleFields;
-          if (toggleFields !== undefined) {
-            extraFields = toggleFields(extraFields, true);
-          }
-        }
-        return { ...prev, extraFields };
-      });
-      storage.current.set((prev) => ({
+      props.setContext((prev) => ({
+        ...prev,
+        extraFields: extraFieldsForColumns(columns),
+      }));
+      searchPresetsStorage.set((prev) => ({
         ...prev,
         activeColumns: columns,
       }));
@@ -553,7 +605,6 @@ export default function Table(props: TableProps) {
         open={columnsModalOpen}
         selectedColumns={selectedColumns}
         setAllColumns={setAllColumns}
-        storage={storage.current}
       />
     ),
     [columnsModalOpen, selectedColumns],
@@ -852,13 +903,11 @@ function ColumnsModal({
   open,
   selectedColumns,
   setAllColumns,
-  storage,
 }: {
   close: () => void;
   open: boolean;
   selectedColumns: SelectedColumn[];
   setAllColumns: (columns: SelectedColumn[]) => void;
-  storage: LocalStorageManager;
 }) {
   const [columns, setColumns] = useState<SelectedColumn[]>(selectedColumns);
   const [presets, setPresets] = useState<PresetColumns[]>([]);
@@ -888,7 +937,7 @@ function ColumnsModal({
   }, [selectedColumns]);
 
   useEffect(() => {
-    const presets = storage.get();
+    const presets = searchPresetsStorage.get();
     setPresets(presets.presets);
     if (presets.activeColumns) {
       setAllColumns(presets.activeColumns);
@@ -1158,7 +1207,10 @@ function ColumnsModal({
                       },
                     ];
                     setPresets(newPresets);
-                    storage.set((prev) => ({ ...prev, presets: newPresets }));
+                    searchPresetsStorage.set((prev) => ({
+                      ...prev,
+                      presets: newPresets,
+                    }));
                   },
                   customContent: (
                     <div className={styles.presetInput}>
@@ -1223,41 +1275,4 @@ function ColumnsModal({
       )}
     </Modal>
   );
-}
-
-type PresetStorage = {
-  presets: PresetColumns[];
-  activeColumns: SelectedColumn[];
-};
-
-class LocalStorageManager {
-  private key: string;
-
-  public constructor(key: string) {
-    this.key = key;
-  }
-
-  public get(): PresetStorage {
-    const data = localStorage.getItem(this.key);
-    if (data === null) {
-      return { presets: [], activeColumns: DEFAULT_SELECTED_COLUMNS };
-    }
-
-    try {
-      return JSON.parse(data);
-    } catch {
-      return { presets: [], activeColumns: DEFAULT_SELECTED_COLUMNS };
-    }
-  }
-
-  public set(
-    presets: PresetStorage | ((prev: PresetStorage) => PresetStorage),
-  ) {
-    if (typeof presets === 'function') {
-      const prev = this.get();
-      localStorage.setItem(this.key, JSON.stringify(presets(prev)));
-    } else {
-      localStorage.setItem(this.key, JSON.stringify(presets));
-    }
-  }
 }

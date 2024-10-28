@@ -102,6 +102,9 @@ export async function GET(request: NextRequest) {
         case 'accurateSplits':
           findOptions.accurateSplits = true;
           break;
+        case 'fullRecordings':
+          findOptions.fullRecordings = true;
+          break;
         default:
           return new Response(null, { status: 400 });
       }

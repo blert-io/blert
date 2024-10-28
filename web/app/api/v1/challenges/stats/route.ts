@@ -48,6 +48,9 @@ export async function GET(request: NextRequest) {
         case 'accurateSplits':
           options.accurateSplits = true;
           break;
+        case 'fullRecordings':
+          options.fullRecordings = true;
+          break;
         default:
           return new Response(null, { status: 400 });
       }

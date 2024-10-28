@@ -18,6 +18,7 @@ export type SearchFilters = {
   endDate: Date | null;
   splits: Record<string, [Comparator, number]>;
   accurateSplits: boolean;
+  fullRecordings: boolean;
 };
 
 export type SearchContext = {
@@ -41,6 +42,9 @@ export function filtersToUrlParams(filters: SearchFilters): UrlParams {
 
   if (filters.accurateSplits) {
     options.push('accurateSplits');
+  }
+  if (filters.fullRecordings) {
+    options.push('fullRecordings');
   }
 
   const modes = [...filters.mode];
@@ -124,6 +128,7 @@ export function contextFromUrlParams(params: NextSearchParams): SearchContext {
       endDate: null,
       splits: {},
       accurateSplits: false,
+      fullRecordings: false,
     },
     sort: [],
     extraFields: {},
@@ -172,6 +177,9 @@ export function contextFromUrlParams(params: NextSearchParams): SearchContext {
           switch (option) {
             case 'accurateSplits':
               context.filters.accurateSplits = true;
+              break;
+            case 'fullRecordings':
+              context.filters.fullRecordings = true;
               break;
           }
         }

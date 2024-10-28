@@ -252,6 +252,29 @@ export default function Filters({
               />
             </div>
           </div>
+          <Tooltip tooltipId="full-recordings-tooltip">
+            <span>Exclude challenges that are missing data for any stage.</span>
+          </Tooltip>
+          <div className={styles.checkbox}>
+            <div data-tooltip-id="full-recordings-tooltip">
+              <Checkbox
+                checked={context.filters.fullRecordings}
+                disabled={loading}
+                onChange={() =>
+                  setContext((prev) => ({
+                    ...prev,
+                    filters: {
+                      ...prev.filters,
+                      fullRecordings: !prev.filters.fullRecordings,
+                    },
+                    pagination: {},
+                  }))
+                }
+                label="Full recordings"
+                simple
+              />
+            </div>
+          </div>
         </div>
       </div>
       <div className={styles.filterGroup}>
