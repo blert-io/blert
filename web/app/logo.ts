@@ -3,4 +3,4 @@ enum Logos {
   HALLOWEEN = '/images/blert-halloween.png',
 }
 
-export const MAIN_LOGO = Logos.HALLOWEEN;
+export const MAIN_LOGO = Logos.STANDARD;

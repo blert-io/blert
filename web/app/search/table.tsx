@@ -17,6 +17,7 @@ import {
 import {
   ChallengeOverview,
   ExtraChallengeFields,
+  SortQuery,
   SortableFields,
 } from '@/actions/challenge';
 import Button from '@/components/button';
@@ -527,7 +528,7 @@ export default function Table(props: TableProps) {
 
         let target: HTMLElement | null = e.target as HTMLElement;
         if (target.tagName !== 'TD' && target.tagName !== 'TH') {
-          target = target.closest('td');
+          target = target.closest('td, th');
         }
 
         if (target === null) {
@@ -630,19 +631,40 @@ export default function Table(props: TableProps) {
             <tr>
               {allColumns.map((c) => {
                 const column = COLUMNS[c.column];
-                let suffix = undefined;
+                let content;
 
                 if (props.context.sort && column.sortKey) {
                   const mainSort = props.context.sort[0];
+                  let icon;
+                  let nextSort: Array<SortQuery<SortableFields>>;
                   if (mainSort.slice(1) === column.sortKey) {
-                    suffix = (
+                    icon = (
                       <i
                         className={`fas fa-sort-${mainSort[0] === '+' ? 'up' : 'down'}`}
                       />
                     );
+                    nextSort =
+                      mainSort[0] === '+'
+                        ? [`-${column.sortKey}`]
+                        : ['-startTime'];
                   } else {
-                    suffix = <i className="fas fa-sort" />;
+                    icon = <i className="fas fa-sort" />;
+                    nextSort = [`+${column.sortKey}`];
                   }
+                  content = (
+                    <button
+                      onClick={() =>
+                        props.setContext((context) => ({
+                          ...context,
+                          sort: nextSort,
+                        }))
+                      }
+                    >
+                      {column.name} {icon}
+                    </button>
+                  );
+                } else {
+                  content = <span>{column.name}</span>;
                 }
 
                 let width = column.width;
@@ -656,11 +678,16 @@ export default function Table(props: TableProps) {
                     data-context={`heading:${c.column}`}
                     style={{ width }}
                   >
-                    {column.name}
-                    {suffix}
+                    {content}
                   </th>
                 );
               })}
+              <th className={styles.addColumns}>
+                <button onClick={() => setColumnsModalOpen(true)}>
+                  <i className="fas fa-plus" />
+                  <span className="sr-only">Add columns</span>
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -728,6 +755,7 @@ export default function Table(props: TableProps) {
                     </td>
                   );
                 })}
+                <td style={{ width: 40, padding: 0 }} />
               </tr>
             ))}
           </tbody>

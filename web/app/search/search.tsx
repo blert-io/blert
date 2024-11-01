@@ -56,7 +56,6 @@ function challengesQueryParams(
   action: FetchAction,
 ): [UrlParams, UrlParams] {
   const baseParams = filtersToUrlParams(context.filters);
-  baseParams.sort = [];
 
   const params: UrlParams = { ...baseParams };
   const sortParam = [];
@@ -112,6 +111,7 @@ function challengesQueryParams(
     params.after = sortValues;
   }
 
+  baseParams.sort = sortParam;
   params.sort = sortParam;
   return [baseParams, params];
 }
