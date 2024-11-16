@@ -1,48 +1,40 @@
-.bossPage__Overview {
-  margin-bottom: 20px;
+@import '../../../../../mixins.scss';
+
+.downs {
   display: flex;
   flex-direction: row;
-}
 
-.bossPage__BossPic {
-  height: 200px;
-  width: 240px;
-  position: relative;
-  margin: 20px;
-}
+  .down {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 
-.bossPage__KeyDetails {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  padding: 0 20px;
+    &:not(:first-child) {
+      margin-left: 2.5em;
+    }
 
-  h2 {
-    font-size: 35px;
-    margin: 0 0 15px 0;
-    border-bottom: 2px solid grey;
+    h3 {
+      margin: 0 0 5px 0;
+    }
+
+    td {
+      padding: 5px 0;
+    }
+
+    .walkTicks {
+      opacity: 0.8;
+      margin-left: 8px;
+      font-size: 14px;
+    }
   }
 
-  .downs {
-    display: flex;
-    flex-direction: row;
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    flex-wrap: wrap;
+    justify-content: space-between;
 
     .down {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-
-      &:not(:first-child) {
-        margin-left: 2.5em;
-      }
-
-      h3 {
-        margin: 0 0 5px 0;
-      }
-
-      td {
-        padding: 5px 0;
-      }
+      width: 48%;
+      margin: 10px 0 0 0 !important;
     }
   }
 }

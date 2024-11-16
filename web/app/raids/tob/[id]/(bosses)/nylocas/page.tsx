@@ -13,9 +13,14 @@ import {
   NyloWaveStallEvent,
   TobRaid,
   SplitType,
+  RoomNpcType,
+  Nylo,
+  NyloSpawn,
+  NyloStyle,
+  RoomNpcMap,
 } from '@blert/common';
 import Image from 'next/image';
-import { useMemo } from 'react';
+import { useContext, useMemo } from 'react';
 
 import Badge from '@/components/badge';
 import {
@@ -24,17 +29,24 @@ import {
   useStageEvents,
 } from '@/utils/boss-room-state';
 import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
-import { TimelineColor, TimelineSplit } from '@/components/attack-timeline';
+import AttackTimeline, {
+  TimelineColor,
+  TimelineSplit,
+} from '@/components/attack-timeline';
 import { BossPageControls } from '@/components/boss-page-controls/boss-page-controls';
 import BossPageReplay from '@/components/boss-page-replay';
+import CollapsiblePanel from '@/components/collapsible-panel';
 import HorizontalScrollable from '@/components/horizontal-scrollable';
+import Loading from '@/components/loading';
 import { Entity, NpcEntity, PlayerEntity } from '@/components/map';
 import { OverlayEntity } from '@/components/map/overlay';
-import Loading from '@/components/loading';
+import Tabs from '@/components/tabs';
+import { DisplayContext } from '@/display';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
-import styles from './style.module.scss';
 import nyloBaseTiles from './nylo-tiles.json';
+import bossStyles from '../style.module.scss';
+import styles from './style.module.scss';
 
 const NYLOCAS_MAP_DEFINITION = {
   baseX: 3279,
@@ -227,7 +239,44 @@ function nyloBossBackgroundColors(
   return colors;
 }
 
+type Splits = { melee: number; ranged: number; mage: number };
+type SplitCounts = {
+  preCap: Splits;
+  postCap: Splits;
+};
+
+function countSplits(npcs: RoomNpcMap): SplitCounts {
+  const preCap = { melee: 0, ranged: 0, mage: 0 };
+  const postCap = { melee: 0, ranged: 0, mage: 0 };
+
+  Object.values(npcs).forEach((npc) => {
+    if (npc.type !== RoomNpcType.NYLO) {
+      return;
+    }
+
+    const nylo = npc as Nylo;
+    if (nylo.nylo.spawnType === NyloSpawn.SPLIT) {
+      const obj = nylo.nylo.wave < 20 ? preCap : postCap;
+      switch (nylo.nylo.style) {
+        case NyloStyle.MAGE:
+          obj.mage++;
+          break;
+        case NyloStyle.RANGE:
+          obj.ranged++;
+          break;
+        case NyloStyle.MELEE:
+          obj.melee++;
+          break;
+      }
+    }
+  });
+
+  return { preCap, postCap };
+}
+
 export default function NylocasPage() {
+  const display = useContext(DisplayContext);
+
   const {
     challenge: raidData,
     totalTicks,
@@ -280,6 +329,11 @@ export default function NylocasPage() {
     }
     return splits;
   }, [events, eventsByType, raidData]);
+
+  const nyloSplits = useMemo(
+    () => countSplits(raidData?.tobRooms.nylocas?.npcs ?? {}),
+    [raidData],
+  );
 
   if (loading || raidData === null) {
     return <Loading />;
@@ -366,7 +420,7 @@ export default function NylocasPage() {
 
     entities.push(
       new OverlayEntity(
-        NYLOCAS_MAP_DEFINITION.baseX + 2,
+        NYLOCAS_MAP_DEFINITION.baseX + (display.isCompact() ? 7 : 2),
         NYLOCAS_MAP_DEFINITION.baseY,
         `nylo-wave-${currentWave}-indicator`,
         overlay,
@@ -387,10 +441,208 @@ export default function NylocasPage() {
       (e) => (e as NyloWaveStallEvent).nyloWave,
     ) ?? [];
 
+  const stats = (
+    <div>
+      <div className={styles.splits}>
+        {raidData.splits[SplitType.TOB_NYLO_CAP] && (
+          <Badge
+            className={styles.split}
+            iconClass="fa-solid fa-hourglass"
+            label="Cap"
+            value={ticksToFormattedSeconds(
+              raidData.splits[SplitType.TOB_NYLO_CAP],
+            )}
+          />
+        )}
+        {raidData.splits[SplitType.TOB_NYLO_WAVES] && (
+          <Badge
+            className={styles.split}
+            iconClass="fa-solid fa-hourglass"
+            label="Waves"
+            value={ticksToFormattedSeconds(
+              raidData.splits[SplitType.TOB_NYLO_WAVES],
+            )}
+          />
+        )}
+        {raidData.splits[SplitType.TOB_NYLO_CLEANUP] && (
+          <Badge
+            className={styles.split}
+            iconClass="fa-solid fa-hourglass"
+            label="Cleanup"
+            value={ticksToFormattedSeconds(
+              raidData.splits[SplitType.TOB_NYLO_CLEANUP],
+            )}
+          />
+        )}
+        {raidData.splits[SplitType.TOB_NYLO_BOSS_SPAWN] && (
+          <Badge
+            className={styles.split}
+            iconClass="fa-solid fa-hourglass"
+            label="Boss"
+            value={ticksToFormattedSeconds(
+              raidData.splits[SplitType.TOB_NYLO_BOSS_SPAWN],
+            )}
+          />
+        )}
+      </div>
+      <div className={styles.splitCounts}>
+        <h3 className={styles.statsHeading}>Splits</h3>
+        <div className={styles.splitCountGroup}>
+          <span className={styles.heading}>Pre-cap</span>
+          <span
+            className={styles.splitCount}
+            style={{ color: BLUE_NYLO_COLOR }}
+          >
+            {nyloSplits.preCap.mage}
+          </span>
+          <span className={styles.divider}>|</span>
+          <span
+            className={styles.splitCount}
+            style={{ color: GREEN_NYLO_COLOR }}
+          >
+            {nyloSplits.preCap.ranged}
+          </span>
+          <span className={styles.divider}>|</span>
+          <span
+            className={styles.splitCount}
+            style={{ color: GRAY_NYLO_COLOR }}
+          >
+            {nyloSplits.preCap.melee}
+          </span>
+        </div>
+        <div className={styles.splitCountGroup}>
+          <span className={styles.heading}>Post-cap</span>
+          <span
+            className={styles.splitCount}
+            style={{ color: BLUE_NYLO_COLOR }}
+          >
+            {nyloSplits.postCap.mage}
+          </span>
+          <span className={styles.divider}>|</span>
+          <span
+            className={styles.splitCount}
+            style={{ color: GREEN_NYLO_COLOR }}
+          >
+            {nyloSplits.postCap.ranged}
+          </span>
+          <span className={styles.divider}>|</span>
+          <span
+            className={styles.splitCount}
+            style={{ color: GRAY_NYLO_COLOR }}
+          >
+            {nyloSplits.postCap.melee}
+          </span>
+        </div>
+        <div className={styles.splitCountGroup}>
+          <span className={styles.heading}>Total</span>
+          <span
+            className={styles.splitCount}
+            style={{ color: BLUE_NYLO_COLOR }}
+          >
+            {nyloSplits.preCap.mage + nyloSplits.postCap.mage}
+          </span>
+          <span className={styles.divider}>|</span>
+          <span
+            className={styles.splitCount}
+            style={{ color: GREEN_NYLO_COLOR }}
+          >
+            {nyloSplits.preCap.ranged + nyloSplits.postCap.ranged}
+          </span>
+          <span className={styles.divider}>|</span>
+          <span
+            className={styles.splitCount}
+            style={{ color: GRAY_NYLO_COLOR }}
+          >
+            {nyloSplits.preCap.melee + nyloSplits.postCap.melee}
+          </span>
+        </div>
+      </div>
+      <h3 className={styles.statsHeading}>Stalled Waves ({stalls.length})</h3>
+      <HorizontalScrollable className={styles.stalls}>
+        {stalls.map((stall, i) => (
+          <div key={i} className={styles.stall}>
+            <span className={styles.wave}>{stall.wave}</span>
+            <span className={styles.nylos}>
+              {stall.nylosAlive}/{stall.roomCap}
+            </span>
+          </div>
+        ))}
+      </HorizontalScrollable>
+    </div>
+  );
+
+  if (display.isCompact()) {
+    let maxHeight;
+    let timelineWrapWidth = 380;
+    if (window) {
+      maxHeight = window.innerHeight - 255;
+      timelineWrapWidth = window.innerWidth - 25;
+    }
+
+    return (
+      <div className={bossStyles.bossPageCompact}>
+        <h1>
+          <i className="fas fa-bullseye" />
+          The Nylocas ({ticksToFormattedSeconds(totalTicks)})
+        </h1>
+        <Tabs
+          fluid
+          maxHeight={maxHeight}
+          tabs={[
+            {
+              icon: 'fas fa-chart-simple',
+              content: <div>{stats}</div>,
+            },
+            {
+              icon: 'fas fa-timeline',
+              content: (
+                <div className={bossStyles.timeline}>
+                  <AttackTimeline
+                    currentTick={currentTick}
+                    playing={playing}
+                    playerState={playerState}
+                    timelineTicks={totalTicks}
+                    updateTickOnPage={updateTickOnPage}
+                    splits={splits}
+                    npcs={npcState}
+                    cellSize={20}
+                    wrapWidth={timelineWrapWidth}
+                    smallLegend
+                  />
+                </div>
+              ),
+            },
+            {
+              icon: 'fas fa-gamepad',
+              content: (
+                <div>
+                  <BossPageReplay
+                    entities={entities}
+                    mapDef={NYLOCAS_MAP_DEFINITION}
+                    playerTickState={playerTickState}
+                    tileSize={11}
+                  />
+                </div>
+              ),
+            },
+          ]}
+        />
+        <BossPageControls
+          currentlyPlaying={playing}
+          totalTicks={totalTicks}
+          currentTick={currentTick}
+          updateTick={updateTickOnPage}
+          updatePlayingState={setPlaying}
+          splits={splits}
+        />
+      </div>
+    );
+  }
+
   return (
     <>
-      <div className={styles.bossPage__Overview}>
-        <div className={styles.bossPage__BossPic}>
+      <div className={bossStyles.bossPage__Overview}>
+        <div className={bossStyles.bossPage__BossPic}>
           <Image
             src="/nyloking.webp"
             alt="Nylocas Vasilias"
@@ -398,59 +650,9 @@ export default function NylocasPage() {
             style={{ objectFit: 'contain' }}
           />
         </div>
-        <div className={styles.bossPage__KeyDetails}>
+        <div className={bossStyles.bossPage__KeyDetails}>
           <h2>The Nylocas ({ticksToFormattedSeconds(totalTicks)})</h2>
-          <div>
-            <div className={styles.splits}>
-              {raidData.splits[SplitType.TOB_NYLO_CAP] && (
-                <Badge
-                  iconClass="fa-solid fa-hourglass"
-                  label="Cap"
-                  value={ticksToFormattedSeconds(
-                    raidData.splits[SplitType.TOB_NYLO_CAP],
-                  )}
-                />
-              )}
-              {raidData.splits[SplitType.TOB_NYLO_WAVES] && (
-                <Badge
-                  iconClass="fa-solid fa-hourglass"
-                  label="Waves"
-                  value={ticksToFormattedSeconds(
-                    raidData.splits[SplitType.TOB_NYLO_WAVES],
-                  )}
-                />
-              )}
-              {raidData.splits[SplitType.TOB_NYLO_CLEANUP] && (
-                <Badge
-                  iconClass="fa-solid fa-hourglass"
-                  label="Cleanup"
-                  value={ticksToFormattedSeconds(
-                    raidData.splits[SplitType.TOB_NYLO_CLEANUP],
-                  )}
-                />
-              )}
-              {raidData.splits[SplitType.TOB_NYLO_BOSS_SPAWN] && (
-                <Badge
-                  iconClass="fa-solid fa-hourglass"
-                  label="Boss"
-                  value={ticksToFormattedSeconds(
-                    raidData.splits[SplitType.TOB_NYLO_BOSS_SPAWN],
-                  )}
-                />
-              )}
-            </div>
-            <h3>Stalled Waves ({stalls.length})</h3>
-            <HorizontalScrollable className={styles.stalls}>
-              {stalls.map((stall, i) => (
-                <div key={i} className={styles.stall}>
-                  <span className={styles.wave}>{stall.wave}</span>
-                  <span className={styles.nylos}>
-                    {stall.nylosAlive}/{stall.roomCap}
-                  </span>
-                </div>
-              ))}
-            </HorizontalScrollable>
-          </div>
+          {stats}
         </div>
       </div>
 
@@ -465,11 +667,17 @@ export default function NylocasPage() {
         npcs={npcState}
       />
 
-      <BossPageReplay
-        entities={entities}
-        mapDef={NYLOCAS_MAP_DEFINITION}
-        playerTickState={playerTickState}
-      />
+      <CollapsiblePanel
+        panelTitle="Room Replay"
+        maxPanelHeight={2000}
+        defaultExpanded={true}
+      >
+        <BossPageReplay
+          entities={entities}
+          mapDef={NYLOCAS_MAP_DEFINITION}
+          playerTickState={playerTickState}
+        />
+      </CollapsiblePanel>
 
       <BossPageControls
         currentlyPlaying={playing}

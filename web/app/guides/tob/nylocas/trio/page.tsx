@@ -85,7 +85,7 @@ export default function TrioNylo() {
       </p>
       <Article.Heading level={4} idPrefix="mage" text="Waves 6-7" />
       <p>
-        Sang the <Mage>w6 east small</Mage>, then the{' '}
+        Sang the <Mage>w6 west small</Mage>, then the{' '}
         <Mage>w7 south small</Mage>. Blowpipe the south rangers if they are
         still alive, prioritizing the big.
       </p>

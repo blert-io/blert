@@ -16,12 +16,16 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useContext, useEffect } from 'react';
 
+import AttackTimeline from '@/components/attack-timeline';
 import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
 import { BossPageControls } from '@/components/boss-page-controls/boss-page-controls';
 import BossPageReplay from '@/components/boss-page-replay';
+import CollapsiblePanel from '@/components/collapsible-panel';
 import ColosseumHandicap from '@/components/colosseum-handicap';
 import { Entity, NpcEntity, PlayerEntity } from '@/components/map';
 import Loading from '@/components/loading';
+import Tabs from '@/components/tabs';
+import { DisplayContext } from '@/display';
 import { usePlayingState, useStageEvents } from '@/utils/boss-room-state';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 import { challengeUrl } from '@/utils/url';
@@ -107,6 +111,8 @@ export default function ColosseumWavePage({
       router.replace(challengeUrl(ChallengeType.COLOSSEUM, challengeId));
     }
   }, [challengeId, waveNumber, router]);
+
+  const display = useContext(DisplayContext);
 
   const waveIndex = validWaveNumber(waveNumber) ? waveNumber - 1 : 0;
   const {
@@ -207,18 +213,18 @@ export default function ColosseumWavePage({
     }
   }
 
-  return (
-    <div className={styles.wavePage}>
-      <div className={styles.waveOverview}>
-        <div className={styles.waveImage}>
-          <Image
-            src={imageForWave(waveNumber)}
-            alt={`Fortis Colosseum Wave ${waveNumber}`}
-            fill
-            style={{ objectFit: 'contain' }}
-          />
-        </div>
-        <div className={styles.waveDetails}>
+  const waveOverview = (
+    <div className={styles.waveOverview}>
+      <div className={styles.waveImage}>
+        <Image
+          src={imageForWave(waveNumber)}
+          alt={`Fortis Colosseum Wave ${waveNumber}`}
+          fill
+          style={{ objectFit: 'contain' }}
+        />
+      </div>
+      <div className={styles.waveDetails}>
+        {display.isFull() && (
           <h2>
             {title} (
             {ticksToFormattedSeconds(
@@ -228,31 +234,111 @@ export default function ColosseumWavePage({
             )}
             )
           </h2>
-          <div className={styles.handicaps}>
-            <h3>Handicaps This Wave</h3>
-            <ul>
-              {waveInfo.options.map((option) => (
-                <li key={option}>
-                  <ColosseumHandicap
-                    handicap={option}
-                    dimmed={option !== waveInfo.handicap}
-                  />
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className={styles.handicaps}>
-            <h3>All Active Handicaps</h3>
-            <ul>
-              {handicapsSoFar.map((handicap) => (
-                <li key={handicap}>
-                  <ColosseumHandicap handicap={handicap} />
-                </li>
-              ))}
-            </ul>
-          </div>
+        )}
+        <div className={styles.handicaps}>
+          <h3>Handicaps This Wave</h3>
+          <ul>
+            {waveInfo.options.map((option) => (
+              <li key={option}>
+                <ColosseumHandicap
+                  handicap={option}
+                  dimmed={option !== waveInfo.handicap}
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className={styles.handicaps}>
+          <h3>All Active Handicaps</h3>
+          <ul>
+            {handicapsSoFar.map((handicap) => (
+              <li key={handicap}>
+                <ColosseumHandicap handicap={handicap} />
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
+    </div>
+  );
+
+  if (display.isCompact()) {
+    let maxHeight;
+    let timelineWrapWidth = 380;
+    if (window) {
+      maxHeight = window.innerHeight - 255;
+      timelineWrapWidth = window.innerWidth - 25;
+    }
+
+    return (
+      <div className={styles.wavePageCompact}>
+        <h1>
+          <i className="fas fa-bullseye" />
+          {title} (
+          {ticksToFormattedSeconds(
+            challenge.splits[
+              (SplitType.COLOSSEUM_WAVE_1 + waveIndex) as SplitType
+            ] ?? 0,
+          )}
+          )
+        </h1>
+        <Tabs
+          fluid
+          maxHeight={maxHeight}
+          tabs={[
+            {
+              icon: 'fas fa-chart-simple',
+              content: waveOverview,
+            },
+            {
+              icon: 'fas fa-timeline',
+              content: (
+                <div className={styles.timeline}>
+                  <AttackTimeline
+                    currentTick={currentTick}
+                    playing={playing}
+                    playerState={playerState}
+                    timelineTicks={totalTicks}
+                    updateTickOnPage={updateTickOnPage}
+                    splits={timelineSplits}
+                    npcs={npcState}
+                    cellSize={20}
+                    wrapWidth={timelineWrapWidth}
+                    smallLegend
+                  />
+                </div>
+              ),
+            },
+            {
+              icon: 'fas fa-gamepad',
+              content: (
+                <div>
+                  <BossPageReplay
+                    entities={entities}
+                    mapDef={COLOSSEUM_MAP_DEFINITION}
+                    playerTickState={playerTickState}
+                    tileSize={11}
+                  />
+                </div>
+              ),
+            },
+          ]}
+        />
+        <BossPageControls
+          currentlyPlaying={playing}
+          totalTicks={totalTicks}
+          currentTick={currentTick}
+          updateTick={updateTickOnPage}
+          updatePlayingState={setPlaying}
+          splits={timelineSplits}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.wavePage}>
+      {waveOverview}
 
       <BossPageAttackTimeline
         currentTick={currentTick}
@@ -265,12 +351,18 @@ export default function ColosseumWavePage({
         cellSize={40}
       />
 
-      <BossPageReplay
-        entities={entities}
-        mapDef={COLOSSEUM_MAP_DEFINITION}
-        playerTickState={playerTickState}
-        tileSize={25}
-      />
+      <CollapsiblePanel
+        panelTitle="Wave Replay"
+        maxPanelHeight={2000}
+        defaultExpanded={true}
+      >
+        <BossPageReplay
+          entities={entities}
+          mapDef={COLOSSEUM_MAP_DEFINITION}
+          playerTickState={playerTickState}
+          tileSize={20}
+        />
+      </CollapsiblePanel>
 
       <BossPageControls
         currentlyPlaying={playing}

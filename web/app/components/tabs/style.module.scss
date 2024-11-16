@@ -1,0 +1,36 @@
+@import '../../mixins.scss';
+
+.tabs {
+  position: relative;
+
+  &.fluid {
+    width: 100%;
+
+    .tab {
+      flex: 1;
+    }
+  }
+
+  .navigation {
+    position: sticky;
+    top: 0;
+    display: flex;
+    justify-content: space-between;
+
+    .tab {
+      border-bottom: 2px solid var(--blert-text-color);
+      font-size: 1.5rem;
+      padding: 10px 20px;
+
+      &.active {
+        color: #fff;
+        border-color: var(--blert-blue);
+      }
+    }
+  }
+
+  .content {
+    overflow-y: auto;
+    @include styledScrollbar;
+  }
+}

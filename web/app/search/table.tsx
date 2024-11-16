@@ -505,13 +505,15 @@ export default function Table(props: TableProps) {
     [number, number] | null
   >(null);
 
+  const isCompact = display.isCompact();
+
   useEffect(() => {
     const menuListener = (e: MouseEvent) => {
       if (tableRef.current?.contains(e.target as Node)) {
         e.preventDefault();
 
         let menuX: number;
-        if (display.isCompact()) {
+        if (isCompact) {
           menuX = 60;
         } else {
           menuX =
@@ -566,7 +568,7 @@ export default function Table(props: TableProps) {
     return () => {
       window.removeEventListener('contextmenu', menuListener);
     };
-  }, [display.isCompact()]);
+  }, [selectedChallenges, isCompact]);
 
   const [selectedColumns, setSelectedColumns] = useState<SelectedColumn[]>(
     DEFAULT_SELECTED_COLUMNS,
@@ -574,13 +576,15 @@ export default function Table(props: TableProps) {
 
   useEffect(() => setSelectedChallenges([]), [props.challenges]);
 
+  const { setContext } = props;
+
   const removeColumn = useCallback(
     (col: Column) => {
       const column = COLUMNS[col];
       setSelectedColumns((columns) => columns.filter((c) => c.column !== col));
 
       if (column.toggleFields) {
-        props.setContext((context) => ({
+        setContext((context) => ({
           ...context,
           extraFields: column.toggleFields!(context.extraFields, false),
         }));
@@ -591,13 +595,13 @@ export default function Table(props: TableProps) {
         activeColumns: prev.activeColumns.filter((c) => c.column !== col),
       }));
     },
-    [setSelectedColumns, props.setContext],
+    [setSelectedColumns, setContext],
   );
 
   const setAllColumns = useCallback(
     (columns: SelectedColumn[]) => {
       setSelectedColumns(columns);
-      props.setContext((prev) => ({
+      setContext((prev) => ({
         ...prev,
         extraFields: extraFieldsForColumns(columns),
       }));
@@ -606,7 +610,7 @@ export default function Table(props: TableProps) {
         activeColumns: columns,
       }));
     },
-    [selectedColumns],
+    [setContext],
   );
 
   const columnsModal = useMemo(
@@ -618,7 +622,7 @@ export default function Table(props: TableProps) {
         setAllColumns={setAllColumns}
       />
     ),
-    [columnsModalOpen, selectedColumns],
+    [columnsModalOpen, selectedColumns, setAllColumns],
   );
 
   const allColumns = [UUID_COLUMN, ...selectedColumns];
@@ -989,7 +993,7 @@ function ColumnsModal({
     if (presets.activeColumns) {
       setAllColumns(presets.activeColumns);
     }
-  }, []);
+  }, [setAllColumns]);
 
   const allPresets = [DEFAULT_PRESET, ...presets];
 

@@ -1,3 +1,5 @@
+@import '../../../../mixins.scss';
+
 .bossPage {
   width: 100%;
   height: 100%;
@@ -10,5 +12,84 @@
     display: flex;
     flex-direction: column;
     align-items: center;
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      width: 100%;
+    }
+  }
+}
+
+.bossPageCompact {
+  width: 100%;
+
+  h1 {
+    i {
+      margin-right: 8px;
+    }
+
+    font-size: 20px;
+    font-weight: 500;
+    text-align: center;
+  }
+
+  .timeline {
+    background: var(--panel-bg);
+    border-radius: 5px;
+  }
+}
+
+.chart {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 1em;
+
+  h3 {
+    margin: 0.8em 0;
+    font-size: 1.25rem;
+  }
+}
+
+.bossPage__Overview {
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: row;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    flex-direction: column;
+    align-items: center;
+  }
+}
+
+.bossPage__BossPic {
+  height: 200px;
+  width: 240px;
+  position: relative;
+  margin: 20px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    height: 100px;
+    width: 120px;
+    margin: 10px;
+  }
+}
+
+.bossPage__KeyDetails {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 0 20px;
+
+  h2 {
+    font-size: 35px;
+    margin: 0 0 15px 0;
+    border-bottom: 2px solid grey;
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      font-size: 1.8rem;
+      padding-bottom: 5px;
+      text-align: center;
+      margin-bottom: 5px;
+    }
   }
 }

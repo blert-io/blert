@@ -1,64 +1,106 @@
 @import '../../../../../mixins.scss';
 
-.bossPage__Overview {
-  margin-bottom: 20px;
+.splits {
+  margin: 10px 0;
+  display: flex;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    flex-wrap: wrap;
+    justify-content: space-between;
+
+    .split {
+      margin: 4px 0 0 0;
+      width: 49%;
+    }
+  }
+}
+
+.statsHeading {
+  margin: 0;
+}
+
+.stalls {
   display: flex;
   flex-direction: row;
-}
+  max-width: 900px;
+  overflow-x: auto;
+  padding: 10px 5px 10px 0;
+  @include styledScrollbar;
 
-.bossPage__BossPic {
-  height: 200px;
-  width: 240px;
-  position: relative;
-  margin: 20px;
-}
-
-.bossPage__KeyDetails {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  padding: 0 20px;
-
-  h2 {
-    font-size: 35px;
-    border-bottom: 2px solid grey;
-    margin: 0;
-  }
-
-  .splits {
-    margin: 10px 0;
-    display: flex;
-  }
-
-  h3 {
-    margin: 0;
-  }
-
-  .stalls {
-    display: flex;
-    flex-direction: row;
-    max-width: 900px;
-    overflow-x: auto;
-    padding: 10px 5px 10px 0;
-    @include styledScrollbar;
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    flex-wrap: wrap;
+    justify-content: space-between;
 
     .stall {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 5px 10px;
-      border-radius: 5px;
-      border: 1px solid rgba(195, 199, 201, 0.21);
+      width: 70px;
+      margin: 8px 0 0 0 !important;
+    }
+  }
 
-      .wave {
-        font-size: 1.5rem;
-        font-weight: 500;
-        margin-bottom: 4px;
-        color: #fff;
+  .stall {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 5px 10px;
+    border-radius: 5px;
+    border: 1px solid rgba(195, 199, 201, 0.21);
+
+    .wave {
+      font-size: 1.5rem;
+      font-weight: 500;
+      margin-bottom: 4px;
+      color: #fff;
+    }
+
+    &:not(:first-child) {
+      margin-left: 20px;
+    }
+  }
+}
+
+.splitCounts {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+
+  @media (min-width: $COMPACT_WIDTH_THRESHOLD) {
+    h3:after {
+      content: ':';
+    }
+  }
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .splitCountGroup {
+    display: flex;
+    align-items: center;
+    margin-left: 1.5em;
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      margin-left: 0;
+    }
+
+    .heading {
+      margin-right: 8px;
+
+      @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+        width: 80px;
       }
+    }
 
-      &:not(:first-child) {
-        margin-left: 20px;
+    .divider {
+      color: #fff;
+      margin: 0 4px;
+      font-size: 12px;
+    }
+
+    .splitCount {
+      @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+        width: 20px;
+        text-align: right;
       }
     }
   }
@@ -136,10 +178,20 @@
   width: 300%; // 3 tiles wide
   height: 200%;
   color: #fff;
-  font-size: 1.25rem;
+  font-size: 1.1rem;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    width: 800%;
+    height: 400%;
+    font-size: 1rem;
+  }
 
   .cap {
     margin-top: 4px;
-    font-size: 1.1rem;
+    font-size: 1rem;
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      font-size: 0.8rem;
+    }
   }
 }

@@ -37,14 +37,17 @@ const PlayerSearch = forwardRef<HTMLInputElement, PlayerSearchProps>(
       };
     }, []);
 
-    const onBrowse = useCallback((item: MenuItem | null) => {
-      if (item !== null) {
-        if (onChange) {
-          onChange(item.value! as string);
+    const onBrowse = useCallback(
+      (item: MenuItem | null) => {
+        if (item !== null) {
+          if (onChange) {
+            onChange(item.value! as string);
+          }
+          inputRef.current!.value = item.value! as string;
         }
-        inputRef.current!.value = item.value! as string;
-      }
-    }, []);
+      },
+      [onChange],
+    );
 
     const isControlled = props.value !== undefined;
 
@@ -67,7 +70,7 @@ const PlayerSearch = forwardRef<HTMLInputElement, PlayerSearchProps>(
           targetId={props.id}
         />
       );
-    }, [suggestions, props.id, isControlled]);
+    }, [suggestions, props.id, isControlled, onBrowse, onSelection]);
 
     let inputClassName = styles.input;
     if (className) {

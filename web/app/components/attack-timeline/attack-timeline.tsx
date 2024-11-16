@@ -1720,6 +1720,7 @@ export type AttackTimelineProps = {
   updateTickOnPage: (tick: number) => void;
   npcs: RoomNpcMap;
   cellSize?: number;
+  smallLegend?: boolean;
   wrapWidth?: number;
 };
 
@@ -1781,7 +1782,7 @@ export function AttackTimeline(props: AttackTimelineProps) {
   let numRows = 1;
 
   if (wrapWidth !== undefined) {
-    const timelineWidth = wrapWidth - 140;
+    const timelineWidth = wrapWidth - (props.smallLegend ? 75 : 140);
     ticksPerRow = Math.floor(timelineWidth / (cellSize + COLUMN_MARGIN));
     numRows = Math.ceil(timelineTicks / ticksPerRow);
   }
@@ -1816,7 +1817,7 @@ export function AttackTimeline(props: AttackTimelineProps) {
         onClick={onClick}
         style={{ height: cellSize }}
       >
-        {name}
+        {props.smallLegend ? name[0] : name}
       </button>,
     );
   }
@@ -1873,7 +1874,10 @@ export function AttackTimeline(props: AttackTimelineProps) {
 
   return (
     <div className={styles.attackTimeline__Inner}>
-      <div className={styles.attackTimeline__Legend}>
+      <div
+        className={styles.attackTimeline__Legend}
+        style={{ width: props.smallLegend ? 50 : 134 }}
+      >
         {Array.from({ length: numRows }).map((_, i) => (
           <div className={styles.legendRow} key={i}>
             {legendElements}

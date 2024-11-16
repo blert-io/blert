@@ -1,16 +1,19 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 
 import AttackTimeline, {
   AttackTimelineProps,
 } from '@/components/attack-timeline';
 import CollapsiblePanel from '@/components/collapsible-panel';
 import Modal from '@/components/modal';
+import { DisplayContext } from '@/display';
 
 import styles from './styles.module.scss';
 
 export function BossPageAttackTimeline(props: AttackTimelineProps) {
+  const display = useContext(DisplayContext);
+
   const [showFullTimeline, setShowFullTimeline] = useState(false);
   const [width, setWidth] = useState(0);
 
@@ -24,13 +27,22 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
   let fullTimeline = null;
   let modalWidth = 0;
 
+  let cellSize = props.cellSize;
+  if (display.isCompact()) {
+    cellSize = 24;
+  }
+
   if (showFullTimeline) {
     modalWidth = Math.floor(width * 0.95);
     const timelineWidth = modalWidth - 2 * 40;
 
     fullTimeline = (
       <div className={styles.timelineModal}>
-        <AttackTimeline {...props} wrapWidth={timelineWidth} cellSize={32} />
+        <AttackTimeline
+          {...props}
+          wrapWidth={timelineWidth}
+          cellSize={display.isFull() ? 32 : 24}
+        />
       </div>
     );
   }
@@ -50,7 +62,7 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
         <i className="fas fa-expand" />
         Expand
       </button>
-      <AttackTimeline {...props} />
+      <AttackTimeline {...props} cellSize={cellSize} />
       <Modal
         open={showFullTimeline}
         onClose={() => setShowFullTimeline(false)}

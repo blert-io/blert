@@ -1,8 +1,16 @@
 'use client';
 
-import { Dispatch, SetStateAction, useEffect, useRef, useState } from 'react';
+import {
+  Dispatch,
+  SetStateAction,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
 import { TimelineSplit } from '@/components/attack-timeline';
+import { DisplayContext } from '@/display';
 import { clamp } from '@/utils/math';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
@@ -26,6 +34,8 @@ export function BossPageControls(props: BossControlsProps) {
     updatePlayingState,
     splits,
   } = props;
+
+  const display = useContext(DisplayContext);
 
   // The value of the tick input field. Tracked separately to `currentTick` to
   // allow users to clear the input.
@@ -66,31 +76,74 @@ export function BossPageControls(props: BossControlsProps) {
     return <div className={styles.contrls}>Loading...</div>;
   }
 
-  const scrubberSplits = splits
-    .filter((split) => !split.unimportant)
-    .map((split) => {
-      const splitPosition = (split.tick / totalTicks) * 100;
-      return (
-        <div
-          key={split.splitName}
-          className={styles.controls__scrubber__split}
-          style={{ left: `calc(${splitPosition}% - 3px)` }}
-        >
-          <div
-            className={styles.controls__splitTextWrapper}
-            onClick={() => {
-              updateTick(split.tick);
-            }}
-          >
-            <span>{split.splitName}</span>
-          </div>
-        </div>
-      );
-    });
+  const scrubberSplits = display.isFull()
+    ? splits
+        .filter((split) => !split.unimportant)
+        .map((split) => {
+          const splitPosition = (split.tick / totalTicks) * 100;
+          return (
+            <div
+              key={split.splitName}
+              className={styles.controls__scrubber__split}
+              style={{ left: `calc(${splitPosition}% - 3px)` }}
+            >
+              <div
+                className={styles.controls__splitTextWrapper}
+                onClick={() => {
+                  updateTick(split.tick);
+                }}
+              >
+                <span>{split.splitName}</span>
+              </div>
+            </div>
+          );
+        })
+    : [];
+
+  const scrubberElement = (
+    <div className={styles.controls__scrubber} ref={scrubber}>
+      <div className={styles.controls__scrubber__splits}>{scrubberSplits}</div>
+      <input
+        type="range"
+        id="timeline-scrubber"
+        name="timeline-scrubber"
+        min={1}
+        value={currentTick}
+        onBlur={() => {
+          setInputFocused(false);
+          updatePlayingState(false);
+        }}
+        onChange={(event) => {
+          try {
+            let newValue = parseInt(event.target.value);
+            if (Number.isNaN(newValue)) {
+              newValue = 1;
+            }
+            const clampedValue = clamp(newValue, 1, totalTicks);
+            updateTick(clampedValue);
+            setValue(event.target.value);
+          } catch (e) {
+            updateTick(1);
+          }
+        }}
+        max={totalTicks}
+      />
+    </div>
+  );
+
+  const roomTime = (
+    <div className={styles.roomTime}>
+      <div className={styles.time}>{ticksToFormattedSeconds(currentTick)}</div>
+      <span>/</span>
+      <div className={styles.time}>{ticksToFormattedSeconds(totalTicks)}</div>
+    </div>
+  );
 
   return (
     <>
       <div className={styles.controls}>
+        {display.isCompact() && scrubberElement}
+        {display.isCompact() && roomTime}
         <div className={styles.controls__main}>
           <button
             className={styles.controls__playButton}
@@ -129,74 +182,39 @@ export function BossPageControls(props: BossControlsProps) {
               className={`${styles.controls_BtnIcon} fa-solid fa-rotate-left`}
             ></i>
           </button>
-          <div className={styles.controls__tickInputLabel}>Current Tick:</div>
-          <input
-            className={styles.controls__tickInput}
-            type="number"
-            name="tick"
-            disabled={currentlyPlaying}
-            min={1}
-            onBlur={() => {
-              setInputFocused(false);
-              updatePlayingState(false);
-            }}
-            onChange={(event) => {
-              try {
-                let newValue = parseInt(event.target.value);
-                if (Number.isNaN(newValue)) {
-                  newValue = 1;
+          <div className={styles.tickInput}>
+            <div className={styles.controls__tickInputLabel}>Tick:</div>
+            <input
+              className={styles.controls__tickInput}
+              type="number"
+              name="tick"
+              disabled={currentlyPlaying}
+              min={1}
+              onBlur={() => {
+                setInputFocused(false);
+                updatePlayingState(false);
+              }}
+              onChange={(event) => {
+                try {
+                  let newValue = parseInt(event.target.value);
+                  if (Number.isNaN(newValue)) {
+                    newValue = 1;
+                  }
+                  const clampedValue = clamp(newValue, 1, totalTicks);
+                  updateTick(clampedValue);
+                  setValue(event.target.value);
+                } catch (e) {
+                  updateTick(1);
                 }
-                const clampedValue = clamp(newValue, 1, totalTicks);
-                updateTick(clampedValue);
-                setValue(event.target.value);
-              } catch (e) {
-                updateTick(1);
-              }
-            }}
-            onFocus={() => setInputFocused(true)}
-            max={totalTicks}
-            value={value}
-          />
-          <div className={styles.roomTime}>
-            <div className={styles.time}>
-              {ticksToFormattedSeconds(currentTick)}
-            </div>
-            <span>/</span>
-            <div className={styles.time}>
-              {ticksToFormattedSeconds(totalTicks)}
-            </div>
+              }}
+              onFocus={() => setInputFocused(true)}
+              max={totalTicks}
+              value={value}
+            />
           </div>
+          {display.isFull() && roomTime}
         </div>
-        <div className={styles.controls__scrubber} ref={scrubber}>
-          <div className={styles.controls__scrubber__splits}>
-            {scrubberSplits}
-          </div>
-          <input
-            type="range"
-            id="timeline-scrubber"
-            name="timeline-scrubber"
-            min={1}
-            value={currentTick}
-            onBlur={() => {
-              setInputFocused(false);
-              updatePlayingState(false);
-            }}
-            onChange={(event) => {
-              try {
-                let newValue = parseInt(event.target.value);
-                if (Number.isNaN(newValue)) {
-                  newValue = 1;
-                }
-                const clampedValue = clamp(newValue, 1, totalTicks);
-                updateTick(clampedValue);
-                setValue(event.target.value);
-              } catch (e) {
-                updateTick(1);
-              }
-            }}
-            max={totalTicks}
-          />
-        </div>
+        {display.isFull() && scrubberElement}
       </div>
       <div className={styles.controlsPadding} />
     </>

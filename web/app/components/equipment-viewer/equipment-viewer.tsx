@@ -8,6 +8,7 @@ import { PlayerEquipment } from '@/utils/boss-room-state';
 import styles from './style.module.scss';
 
 type EquipmentViewerProps = {
+  className?: string;
   username: string;
   equipment: PlayerEquipment | null;
   source?: DataSource;
@@ -32,6 +33,11 @@ const ITEM_SIZE = 36;
 export default function EquipmentViewer(props: EquipmentViewerProps) {
   const { equipment, username, source = DataSource.SECONDARY } = props;
   let items: React.ReactNode[] = [];
+
+  let className = styles.equipmentViewer;
+  if (props.className) {
+    className += ` ${props.className}`;
+  }
 
   if (equipment) {
     items = Object.entries(equipment).map(([slot, item], index) => {
@@ -111,7 +117,7 @@ export default function EquipmentViewer(props: EquipmentViewerProps) {
   }
 
   return (
-    <div className={styles.equipmentViewer}>
+    <div className={className}>
       <Image
         src="/images/equipment.png"
         alt="Equipment screen"

@@ -7,6 +7,7 @@ type KeyPrayersProps = {
   combatOnly?: boolean;
   prayerSet: RawPrayerSet;
   source?: DataSource;
+  size?: number;
 };
 
 type PrayerDescriptor = { name: string; imageUrl: string; combat: boolean };
@@ -50,15 +51,21 @@ const KEY_PRAYERS: [Prayer, PrayerDescriptor][] = [
   ],
 ];
 
+const DEFAULT_PRAYER_SIZE = 32;
+
 export default function KeyPrayers({
   combatOnly = false,
   prayerSet: raw,
+  size = DEFAULT_PRAYER_SIZE,
   source = DataSource.SECONDARY,
 }: KeyPrayersProps) {
   const prayers = PrayerSet.fromRaw(raw);
 
+  const blockSize = size + 8;
+  const width = 3 * blockSize + 10;
+
   return (
-    <div className={styles.keyPrayers}>
+    <div className={styles.keyPrayers} style={{ width }}>
       {KEY_PRAYERS.map(([prayer, { name, imageUrl, combat }]) => {
         if (combatOnly && !combat) {
           return null;
@@ -68,8 +75,12 @@ export default function KeyPrayers({
           <div
             key={prayer}
             className={`${styles.prayer}${prayers.has(prayer) ? ` ${styles.active}` : ''}`}
+            style={{ height: blockSize, width: size + 8 }}
           >
-            <div className={styles.wrapper}>
+            <div
+              className={styles.wrapper}
+              style={{ height: size, width: size }}
+            >
               <Image
                 src={imageUrl}
                 alt={prayers.has(prayer) ? `${name} (Active)` : name}
@@ -81,7 +92,9 @@ export default function KeyPrayers({
         );
       })}
       {source === DataSource.SECONDARY && (
-        <div className={styles.secondary}>No data</div>
+        <div className={styles.secondary} style={{ height: blockSize + 4 }}>
+          No data
+        </div>
       )}
     </div>
   );

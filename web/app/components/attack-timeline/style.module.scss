@@ -57,12 +57,12 @@
 
 .attackTimeline__Legend {
   position: relative;
-  width: 134px;
   margin: 81px 0 0 0;
   align-items: flex-end !important;
 
   .legendRow {
     padding: 24px 0 10px 0;
+    width: 100%;
 
     &:not(:first-child) {
       margin-top: 56px;
@@ -80,10 +80,10 @@
     color: white;
     font-weight: 600;
     text-align: center;
-    width: 125px;
+    width: calc(100% - 10px);
     opacity: 1;
     cursor: pointer;
-    margin: 0 5px 5px 0;
+    margin: 0 5px 5px 5px;
 
     &:hover {
       filter: brightness(1.2);

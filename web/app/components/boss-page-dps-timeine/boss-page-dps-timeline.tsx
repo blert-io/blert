@@ -10,8 +10,6 @@ import {
   ReferenceLine,
 } from 'recharts';
 
-import { CollapsiblePanel } from '../collapsible-panel/collapsible-panel';
-
 import styles from './styles.module.scss';
 
 type BossPageDPSTimelineProps = {
@@ -20,45 +18,39 @@ type BossPageDPSTimelineProps = {
     tick: number;
     bossHealthPercentage: number;
   }[];
+  width: number;
+  height: number;
 };
 
 export function BossPageDPSTimeline(props: BossPageDPSTimelineProps) {
-  const { data } = props;
+  const { data, width, height } = props;
 
   return (
-    <CollapsiblePanel panelTitle="Charts" maxPanelHeight={1000} defaultExpanded>
-      <div className={styles.chartParent}>
-        <h3>Maiden&apos;s Health Over Time</h3>
-        <AreaChart
-          width={1400}
-          height={400}
-          data={data}
-          margin={{
-            top: 20,
-            right: 20,
-            bottom: 20,
-            left: 20,
+    <div className={styles.chartParent}>
+      <AreaChart
+        width={width}
+        height={height}
+        data={data}
+        margin={{ left: -10 }}
+      >
+        <CartesianGrid strokeDasharray="1 1" />
+        <XAxis dataKey="tick" />
+        <YAxis unit="%" />
+        <Area
+          type="monotone"
+          dataKey="bossHealthPercentage"
+          stroke="#ffffff"
+          fill="#532727"
+        />
+        <Tooltip
+          contentStyle={{ backgroundColor: '#171821' }}
+          formatter={(value: number) => {
+            return [`${value.toFixed(2)}%`, 'Health'];
           }}
-        >
-          <CartesianGrid strokeDasharray="1 1" />
-          <XAxis dataKey="tick" />
-          <YAxis unit="%" />
-          <Area
-            type="monotone"
-            dataKey="bossHealthPercentage"
-            stroke="#ffffff"
-            fill="#532727"
-          />
-          <Tooltip
-            contentStyle={{ backgroundColor: '#171821' }}
-            formatter={(value: number) => {
-              return [`${value.toFixed(2)}%`, 'Health'];
-            }}
-            labelFormatter={(value: number) => `Tick: ${value}`}
-          />
-          <ReferenceLine x={props.currentTick} stroke="#ffffff" />
-        </AreaChart>
-      </div>
-    </CollapsiblePanel>
+          labelFormatter={(value: number) => `Tick: ${value}`}
+        />
+        <ReferenceLine x={props.currentTick} stroke="#ffffff" />
+      </AreaChart>
+    </div>
   );
 }

@@ -3,7 +3,6 @@
 .controls {
   position: fixed;
   background-color: #23242f;
-  // border-top: 1px solid rgba(0, 0, 0, 0.5);
   box-shadow: 0 0 5px 0 rgba(0, 0, 0, 0.5);
   bottom: 0;
   left: $LEFT_NAV_WIDTH;
@@ -14,6 +13,12 @@
   padding: 10px 30px;
   z-index: 49;
   opacity: 1;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    left: 0;
+    width: 100vw;
+    flex-direction: column;
+  }
 }
 
 .controlsPadding {
@@ -26,34 +31,81 @@
   flex-direction: row;
   justify-content: center;
 
-  .roomTime {
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    flex-wrap: wrap;
+    padding-bottom: 10px;
+  }
+
+  .tickInput {
     display: flex;
-    align-items: center;
-    font-size: 22px;
-    margin: 0 15px;
-    text-align: center;
 
-    & > * {
-      opacity: 0.75;
+    .controls__tickInput {
+      outline: none !important;
+      background-color: #0f1015;
+      color: rgba(195, 199, 201, 1);
+      outline: none;
+      border: none;
+      border-radius: 5px;
+      width: 75px;
+      font-size: 26px;
+      text-align: center;
+      -moz-appearance: textfield;
+      appearance: textfield;
     }
 
-    .time {
-      &:first-child {
-        opacity: 1;
-      }
-      width: 66px;
+    .controls__tickInputLabel {
+      width: 70px;
+      font-size: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
     }
 
-    span {
-      font-size: 18px;
-      margin: 0 6px;
+    .controls__tickInput::-webkit-outer-spin-button,
+    .controls__tickInput::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
     }
+  }
+}
+
+.roomTime {
+  display: flex;
+  align-items: center;
+  font-size: 22px;
+  margin: 0 15px;
+  text-align: center;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    padding: 0 0 12px 0;
+    font-size: 20px;
+  }
+
+  & > * {
+    opacity: 0.75;
+  }
+
+  .time {
+    &:first-child {
+      opacity: 1;
+    }
+    width: 66px;
+  }
+
+  span {
+    font-size: 18px;
+    margin: 0 6px;
   }
 }
 
 .controls__scrubber {
   padding: 34px 20px;
   flex: 1;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    padding: 10px 0;
+    width: 100%;
+  }
 
   input {
     -webkit-appearance: none;
@@ -142,7 +194,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 15px;
+  margin-right: 10px;
   border: none;
   outline: none;
   border-radius: 5px;
@@ -170,34 +222,6 @@
 
 .controls_BtnIcon {
   color: var(--blert-text-color);
-}
-
-.controls__tickInput {
-  outline: none !important;
-  background-color: #0f1015;
-  color: rgba(195, 199, 201, 1);
-  outline: none;
-  border: none;
-  border-radius: 5px;
-  width: 75px;
-  font-size: 26px;
-  text-align: center;
-  -moz-appearance: textfield;
-  appearance: textfield;
-}
-
-.controls__tickInputLabel {
-  width: 145px;
-  font-size: 20px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.controls__tickInput::-webkit-outer-spin-button,
-.controls__tickInput::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
 }
 
 .controls__playButton {

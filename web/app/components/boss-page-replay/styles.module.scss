@@ -7,11 +7,21 @@
   justify-content: center;
   padding: 10px 20px;
 
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    flex-direction: column;
+    padding: 10px 0;
+  }
+
   .actors {
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
     width: 600px;
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      margin-top: 10px;
+      width: 100%;
+    }
 
     .actor {
       cursor: pointer;
@@ -22,9 +32,17 @@
       flex-direction: column;
       align-items: center;
       width: 270px;
-      justify-content: center;
       margin: 0 auto 10px auto;
       padding-bottom: 5px;
+
+      @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+        width: 170px;
+
+        .equipment {
+          transform: scale(0.75);
+          top: -24px;
+        }
+      }
 
       h2 {
         margin: 0;
@@ -34,6 +52,11 @@
         text-overflow: ellipsis;
         white-space: nowrap;
         text-align: center;
+        font-size: 1.25rem;
+
+        @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+          font-size: 1.1rem;
+        }
       }
 
       &.selected {
@@ -44,10 +67,6 @@
         background-color: lighten(#1b1c25, 2%);
       }
 
-      & > h2 {
-        font-size: 1.25rem;
-      }
-
       .skills {
         margin-top: 8px;
         width: 100%;
@@ -56,6 +75,13 @@
 
         .skill {
           width: 33.33%;
+          @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+            font-size: 12px;
+          }
+        }
+
+        @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+          margin-top: -40px;
         }
       }
     }

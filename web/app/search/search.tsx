@@ -216,7 +216,7 @@ export default function Search({
       setInitialFetch(false);
     };
     initialLoad();
-  }, []);
+  });
 
   useEffect(() => {
     if (!initialFetch) {

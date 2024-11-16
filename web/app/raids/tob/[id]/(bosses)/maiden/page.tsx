@@ -19,7 +19,7 @@ import {
 import { useSearchParams } from 'next/navigation';
 import { useContext, useEffect, useMemo } from 'react';
 
-import { TimelineSplit } from '@/components/attack-timeline';
+import AttackTimeline, { TimelineSplit } from '@/components/attack-timeline';
 import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
 import { BossPageControls } from '@/components/boss-page-controls/boss-page-controls';
 import BossPageReplay from '@/components/boss-page-replay';
@@ -31,6 +31,8 @@ import {
   PlayerEntity,
 } from '@/components/map';
 import Loading from '@/components/loading';
+import Tabs from '@/components/tabs';
+import { DisplayContext } from '@/display';
 import {
   EnhancedMaidenCrab,
   EnhancedRoomNpc,
@@ -42,7 +44,9 @@ import { ticksToFormattedSeconds } from '@/utils/tick';
 import { ActorContext } from '@/raids/tob/context';
 
 import maidenBaseTiles from './maiden.json';
+import bossStyles from '../style.module.scss';
 import styles from './style.module.scss';
+import CollapsiblePanel from '@/components/collapsible-panel';
 
 const MAIDEN_MAP_DEFINITION = {
   baseX: 3160,
@@ -171,6 +175,7 @@ function CrabSpawn(props: CrabSpawnProps) {
 
 export default function Maiden() {
   const searchParams = useSearchParams();
+  const display = useContext(DisplayContext);
 
   const {
     challenge,
@@ -336,10 +341,111 @@ export default function Maiden() {
   }
   controlsSplits.push(...splits);
 
+  const crabSpawns = (
+    <div className={styles.statsWrapper}>
+      {splits.map((split, i) => (
+        <CrabSpawn
+          key={split.splitName}
+          crabs={spawns[i]}
+          name={split.splitName}
+          tick={split.tick}
+          delta={i > 0 ? split.tick - splits[i - 1].tick : undefined}
+        />
+      ))}
+    </div>
+  );
+
+  const chartWidth = display.isFull() ? 1200 : window?.innerWidth - 40 ?? 350;
+  const chartHeight = Math.floor(chartWidth / (display.isCompact() ? 2 : 2.5));
+  const healthChart = (
+    <div className={bossStyles.chart}>
+      <h3>Maiden&apos;s Health By Tick</h3>
+      <BossPageDPSTimeline
+        currentTick={currentTick}
+        data={bossHealthChartData}
+        width={chartWidth}
+        height={chartHeight}
+      />
+    </div>
+  );
+
+  if (display.isCompact()) {
+    let maxHeight;
+    let timelineWrapWidth = 380;
+    if (window) {
+      maxHeight = window.innerHeight - 255;
+      timelineWrapWidth = window.innerWidth - 25;
+    }
+
+    return (
+      <div className={bossStyles.bossPageCompact}>
+        <h1>
+          <i className="fas fa-bullseye" />
+          The Maiden of Sugadinti ({ticksToFormattedSeconds(totalTicks)})
+        </h1>
+        <Tabs
+          fluid
+          maxHeight={maxHeight}
+          tabs={[
+            {
+              icon: 'fas fa-chart-simple',
+              content: (
+                <div>
+                  {crabSpawns}
+                  {healthChart}
+                </div>
+              ),
+            },
+            {
+              icon: 'fas fa-timeline',
+              content: (
+                <div className={bossStyles.timeline}>
+                  <AttackTimeline
+                    currentTick={currentTick}
+                    playing={playing}
+                    playerState={playerState}
+                    timelineTicks={totalTicks}
+                    updateTickOnPage={updateTickOnPage}
+                    splits={splits}
+                    npcs={npcState}
+                    cellSize={20}
+                    wrapWidth={timelineWrapWidth}
+                    smallLegend
+                  />
+                </div>
+              ),
+            },
+            {
+              icon: 'fas fa-gamepad',
+              content: (
+                <div>
+                  <BossPageReplay
+                    entities={entities}
+                    mapDef={MAIDEN_MAP_DEFINITION}
+                    playerTickState={playerTickState}
+                    tileSize={12}
+                  />
+                </div>
+              ),
+            },
+          ]}
+        />
+        <BossPageControls
+          currentlyPlaying={playing}
+          totalTicks={totalTicks}
+          currentTick={currentTick}
+          updateTick={updateTickOnPage}
+          updatePlayingState={setPlaying}
+          splits={controlsSplits}
+        />
+      </div>
+    );
+  }
+
   return (
     <>
-      <div className={styles.bossPage__Overview}>
-        <div className={styles.bossPage__BossPic}>
+      <div className={bossStyles.bossPage__Overview}>
+        <div className={bossStyles.bossPage__BossPic}>
           <Image
             src="/maiden.webp"
             alt="The Maiden of Sugadinti"
@@ -347,21 +453,11 @@ export default function Maiden() {
             style={{ objectFit: 'contain' }}
           />
         </div>
-        <div className={styles.bossPage__KeyDetails}>
+        <div className={bossStyles.bossPage__KeyDetails}>
           <h2>
             The Maiden of Sugadinti ({ticksToFormattedSeconds(totalTicks)})
           </h2>
-          <div className={styles.statsWrapper}>
-            {splits.map((split, i) => (
-              <CrabSpawn
-                key={split.splitName}
-                crabs={spawns[i]}
-                name={split.splitName}
-                tick={split.tick}
-                delta={i > 0 ? split.tick - splits[i - 1].tick : undefined}
-              />
-            ))}
-          </div>
+          {crabSpawns}
         </div>
       </div>
 
@@ -375,16 +471,25 @@ export default function Maiden() {
         npcs={npcState}
       />
 
-      <BossPageReplay
-        entities={entities}
-        mapDef={MAIDEN_MAP_DEFINITION}
-        playerTickState={playerTickState}
-      />
+      <CollapsiblePanel
+        panelTitle="Room Replay"
+        maxPanelHeight={2000}
+        defaultExpanded={true}
+      >
+        <BossPageReplay
+          entities={entities}
+          mapDef={MAIDEN_MAP_DEFINITION}
+          playerTickState={playerTickState}
+        />
+      </CollapsiblePanel>
 
-      <BossPageDPSTimeline
-        currentTick={currentTick}
-        data={bossHealthChartData}
-      />
+      <CollapsiblePanel
+        panelTitle="Charts"
+        maxPanelHeight={1000}
+        defaultExpanded
+      >
+        {healthChart}
+      </CollapsiblePanel>
 
       <BossPageControls
         currentlyPlaying={playing}
