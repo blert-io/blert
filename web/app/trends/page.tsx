@@ -1,10 +1,10 @@
 'use client';
 
-import { ChallengeType, Stage } from '@blert/common';
+import { ChallengeStatus, ChallengeType, Stage } from '@blert/common';
 import { useContext, useEffect, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
 
-import { ChallengeStats, getTotalDeathsByStage } from '../actions/challenge';
+import { getTotalDeathsByStage } from '../actions/challenge';
 import CollapsiblePanel from '../components/collapsible-panel';
 import Statistic from '../components/statistic';
 
@@ -32,6 +32,13 @@ function stageName(stage: Stage): string {
 
 const STATISTIC_SIZE = 104;
 
+type ChallengeStats = {
+  total: number;
+  completions: number;
+  resets: number;
+  wipes: number;
+};
+
 export default function TrendsPage() {
   const display = useContext(DisplayContext);
 
@@ -52,9 +59,19 @@ export default function TrendsPage() {
           Stage.TOB_XARPUS,
           Stage.TOB_VERZIK,
         ]).then(setDeathsByTobRoom),
-        fetch(`/api/v1/challenges/stats?type=${ChallengeType.TOB}`)
+        fetch(`/api/v1/challenges/stats?type=${ChallengeType.TOB}&group=status`)
           .then((res) => res.json())
-          .then(setRaidStats),
+          .then((res) => {
+            const completions = res[ChallengeStatus.COMPLETED]['*'].count ?? 0;
+            const resets = res[ChallengeStatus.RESET]['*'].count ?? 0;
+            const wipes = res[ChallengeStatus.WIPED]['*'].count ?? 0;
+            setRaidStats({
+              completions,
+              resets,
+              wipes,
+              total: completions + resets + wipes,
+            });
+          }),
       ];
 
       await Promise.all(fetches);

@@ -7,21 +7,6 @@ import {
 } from '@/actions/challenge';
 import { parseChallengeQueryParams } from '../query';
 
-// import { loadAggregateChallengeStats } from '../../../../actions/challenge';
-
-// export async function GET(request: NextRequest) {
-//   const searchParams = request.nextUrl.searchParams;
-
-//   const type = parseIntParam<ChallengeType>(searchParams, 'type');
-//   const mode = parseIntParam<ChallengeMode>(searchParams, 'mode');
-
-//   const challenges = await loadAggregateChallengeStats(type, mode);
-//   if (challenges === null) {
-//     return new Response(null, { status: 404 });
-//   }
-//   return Response.json(challenges);
-// }
-
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
 
@@ -37,6 +22,10 @@ export async function GET(request: NextRequest) {
     console.error('Failed to parse invalid query:', e);
     return new Response(null, { status: 400 });
   }
+
+  const groupings = (searchParams.get('group') ?? '')
+    .split(',')
+    .filter((g) => g !== '');
 
   const options: QueryOptions = {};
 
@@ -57,12 +46,15 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const result = await aggregateChallenges(query, { '*': 'count' }, options);
+  const result = await aggregateChallenges(
+    query,
+    { '*': 'count' },
+    options,
+    groupings,
+  );
   if (result === null) {
     return new Response(null, { status: 404 });
   }
 
-  return Response.json({
-    count: result['*'].count,
-  });
+  return Response.json(result);
 }

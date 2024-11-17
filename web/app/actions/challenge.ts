@@ -870,12 +870,12 @@ export async function aggregateChallenges<
 
   const rows = await sql`
     SELECT
-      ${grouping ? sql`${sql(groupFields)},` : sql``}
+      ${groupFields.length > 0 ? sql`${sql(groupFields)},` : sql``}
       ${aggregateFields.flatMap((f, i) => (i === 0 ? f : [sql`, `, f]))}
     FROM ${baseTable}
     ${join(joins)}
     ${where(conditions)}
-    ${grouping ? sql`GROUP BY ${sql(groupFields)}` : sql``}
+    ${groupFields.length > 0 ? sql`GROUP BY ${sql(groupFields)}` : sql``}
     ${options.sort ? order(options.sort) : sql``}
     ${options.limit ? sql`LIMIT ${options.limit}` : sql``}
   `;
@@ -884,7 +884,7 @@ export async function aggregateChallenges<
     return null;
   }
 
-  if (grouping === undefined) {
+  if (groupFields.length === 0) {
     let result = {} as AggregationResult<any>;
 
     const row = rows[0];
@@ -998,51 +998,6 @@ export async function loadEventsForStage(
     }
     throw e;
   }
-}
-
-export type ChallengeStats = {
-  total: number;
-  completions: number;
-  resets: number;
-  wipes: number;
-};
-
-export async function loadAggregateChallengeStats(
-  type?: ChallengeType,
-  mode?: ChallengeMode,
-): Promise<ChallengeStats> {
-  const conditions = [sql`status != ${ChallengeStatus.IN_PROGRESS}`];
-
-  if (type !== undefined) {
-    conditions.push(sql`type = ${type}`);
-  }
-  if (mode !== undefined) {
-    conditions.push(sql`mode = ${mode}`);
-  }
-
-  const stats: postgres.RowList<Array<{ status: number; amount: string }>> =
-    await sql`
-      SELECT status, COUNT(*) as amount
-      FROM challenges
-      ${where(conditions)}
-      GROUP BY status
-    `;
-
-  return stats.reduce(
-    (acc, stat) => {
-      const amount = parseInt(stat.amount);
-      if (stat.status === ChallengeStatus.COMPLETED) {
-        acc.completions = amount;
-      } else if (stat.status === ChallengeStatus.RESET) {
-        acc.resets = amount;
-      } else if (stat.status === ChallengeStatus.WIPED) {
-        acc.wipes = amount;
-      }
-      acc.total += amount;
-      return acc;
-    },
-    { total: 0, completions: 0, resets: 0, wipes: 0 },
-  );
 }
 
 export type PlayerWithStats = Pick<Player, 'username' | 'totalRecordings'> & {

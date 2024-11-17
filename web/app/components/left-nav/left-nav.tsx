@@ -150,7 +150,7 @@ export function LeftNav() {
           </li>
 
           {/* Trends */}
-          {/* <li className={styles.leftNav__menuItem}>
+          <li className={styles.leftNav__menuItem}>
             <Link className={`${styles.leftNav__menuItemInner}`} href="/trends">
               <div className={styles.leftNav__menuItemIcon}>
                 <i className="fa-solid fa-arrow-trend-up"></i>
@@ -160,7 +160,7 @@ export function LeftNav() {
                 Trends
               </span>
             </Link>
-          </li> */}
+          </li>
 
           {/* Guides */}
           <li className={styles.leftNav__menuItem}>

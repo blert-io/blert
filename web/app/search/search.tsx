@@ -186,13 +186,13 @@ export default function Search({
         paginationParams.before !== undefined
       ) {
         newChallenges.reverse();
-        setRemaining(newStats.count - newRemaining + resultsPerPage);
+        setRemaining(newStats['*'].count - newRemaining + resultsPerPage);
       } else {
         setRemaining(newRemaining);
       }
 
       setChallenges(newChallenges);
-      setStats(newStats);
+      setStats({ count: newStats['*'].count });
     } catch (e) {
       setLoading(false);
     }
