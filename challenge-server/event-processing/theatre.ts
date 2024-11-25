@@ -7,19 +7,25 @@ import {
   Maze,
   Npc,
   NpcAttack,
+  NpcId,
+  NyloStyle,
   PlayerAttack,
   PriceTracker,
+  SkillLevel,
   SplitType,
   Stage,
   StageStatus,
+  TobChallengeStats,
   TobRooms,
   VerzikAttackStyle,
   VerzikPhase,
   XarpusPhase,
+  camelToSnakeObject,
 } from '@blert/common';
 import { Event, NpcAttackMap } from '@blert/common/generated/event_pb';
 
 import ChallengeProcessor, { InitializedFields } from './challenge-processor';
+import sql from '../db';
 import logger from '../log';
 import { MergedEvents } from '../merge';
 
@@ -50,11 +56,38 @@ function roomsKey(stage: Stage): keyof TobRooms {
   }
 }
 
+function nyloBossStyle(npcId: number): NyloStyle {
+  switch (npcId) {
+    case NpcId.NYLOCAS_VASILIAS_MAGE_ENTRY:
+    case NpcId.NYLOCAS_VASILIAS_MAGE_REGULAR:
+    case NpcId.NYLOCAS_VASILIAS_MAGE_HARD:
+      return NyloStyle.MAGE;
+
+    case NpcId.NYLOCAS_VASILIAS_RANGE_ENTRY:
+    case NpcId.NYLOCAS_VASILIAS_RANGE_REGULAR:
+    case NpcId.NYLOCAS_VASILIAS_RANGE_HARD:
+      return NyloStyle.RANGE;
+
+    case NpcId.NYLOCAS_VASILIAS_MELEE_ENTRY:
+    case NpcId.NYLOCAS_VASILIAS_MELEE_REGULAR:
+    case NpcId.NYLOCAS_VASILIAS_MELEE_HARD:
+      return NyloStyle.MELEE;
+  }
+  throw new Error(`Invalid Nylocas Vasilias ID: ${npcId}`);
+}
+
 export default class TheatreProcessor extends ChallengeProcessor {
   private rooms: TobRooms;
 
+  private stageStats: Partial<TobChallengeStats>;
   private bloatDownTicks: number[];
   private stalledNyloWaves: number[];
+  private nyloBossStyles: {
+    prev: NyloStyle;
+    mage: number;
+    ranged: number;
+    melee: number;
+  };
   private soteMazes: SoteMazeState[];
   private verzikRedSpawns: number[];
 
@@ -82,8 +115,15 @@ export default class TheatreProcessor extends ChallengeProcessor {
       extraFields,
     );
 
+    this.stageStats = {};
     this.bloatDownTicks = [];
     this.stalledNyloWaves = [];
+    this.nyloBossStyles = {
+      prev: NyloStyle.MELEE,
+      mage: 0,
+      ranged: 0,
+      melee: 0,
+    };
     this.soteMazes = [];
     this.verzikRedSpawns = [];
 
@@ -101,11 +141,14 @@ export default class TheatreProcessor extends ChallengeProcessor {
     }
   }
 
-  protected override onCreate(): Promise<void> {
-    return this.getDataRepository().saveTobChallengeData(
-      this.getUuid(),
-      this.rooms,
-    );
+  protected override async onCreate(): Promise<void> {
+    await Promise.all([
+      sql`
+        INSERT INTO tob_challenge_stats (challenge_id)
+        VALUES (${this.getDatabaseId()})
+      `,
+      this.getDataRepository().saveTobChallengeData(this.getUuid(), this.rooms),
+    ]);
   }
 
   protected override async onFinish(): Promise<void> {
@@ -154,6 +197,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
           ...roomData,
           stage: Stage.TOB_MAIDEN,
         };
+        this.stageStats.maidenDeaths = this.rooms.maiden.deaths.length;
         break;
 
       case Stage.TOB_BLOAT:
@@ -163,9 +207,10 @@ export default class TheatreProcessor extends ChallengeProcessor {
           stage: Stage.TOB_BLOAT,
           downTicks: this.bloatDownTicks,
         };
+        this.stageStats.bloatDeaths = this.rooms.bloat.deaths.length;
         break;
 
-      case Stage.TOB_NYLOCAS:
+      case Stage.TOB_NYLOCAS: {
         stageSplit = SplitType.TOB_NYLO_ROOM;
         const bossSpawn = this.getSplit(SplitType.TOB_NYLO_BOSS_SPAWN);
         if (bossSpawn !== undefined) {
@@ -176,7 +221,26 @@ export default class TheatreProcessor extends ChallengeProcessor {
           stage: Stage.TOB_NYLOCAS,
           stalledWaves: this.stalledNyloWaves,
         };
+
+        this.stageStats.nylocasDeaths = this.rooms.nylocas.deaths.length;
+
+        this.stageStats.nylocasStalls = new Array(31).fill(0);
+        this.stageStats.nylocasPreCapStalls = 0;
+        this.stageStats.nylocasPostCapStalls = 0;
+        for (const wave of this.stalledNyloWaves) {
+          if (wave < 20) {
+            this.stageStats.nylocasPreCapStalls! += 1;
+          } else {
+            this.stageStats.nylocasPostCapStalls! += 1;
+          }
+          this.stageStats.nylocasStalls[wave - 1] += 1;
+        }
+
+        this.stageStats.nylocasBossMage = this.nyloBossStyles.mage;
+        this.stageStats.nylocasBossRanged = this.nyloBossStyles.ranged;
+        this.stageStats.nylocasBossMelee = this.nyloBossStyles.melee;
         break;
+      }
 
       case Stage.TOB_SOTETSEG:
         stageSplit = SplitType.TOB_SOTETSEG;
@@ -192,6 +256,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
           maze1Pivots: this.soteMazes[0]?.pivots ?? [],
           maze2Pivots: this.soteMazes[1]?.pivots ?? [],
         };
+        this.stageStats.sotetsegDeaths = this.rooms.sotetseg.deaths.length;
         break;
 
       case Stage.TOB_XARPUS:
@@ -204,6 +269,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
           ...roomData,
           stage: Stage.TOB_XARPUS,
         };
+        this.stageStats.xarpusDeaths = this.rooms.xarpus.deaths.length;
         break;
 
       case Stage.TOB_VERZIK:
@@ -221,8 +287,12 @@ export default class TheatreProcessor extends ChallengeProcessor {
           stage: Stage.TOB_VERZIK,
           redsSpawnCount: this.verzikRedSpawns.length,
         };
+        this.stageStats.verzikDeaths = this.rooms.verzik.deaths.length;
         break;
     }
+
+    await this.updateChallengeStats(this.stageStats);
+    this.stageStats = {};
 
     this.setSplit(stageSplit!, stageTicks);
 
@@ -259,57 +329,71 @@ export default class TheatreProcessor extends ChallengeProcessor {
       }
 
       case Event.Type.PLAYER_ATTACK:
-        await this.handlePlayerAttack(event);
+        await this.processPlayerAttack(event);
         break;
 
       case Event.Type.NPC_SPAWN:
+        this.processNpcSpawn(event, event.getNpc()!);
+        break;
+
+      case Event.Type.NPC_UPDATE: {
         const npc = event.getNpc()!;
-        if (Npc.isVerzikMatomenos(npc.getId())) {
-          if (this.verzikRedSpawns.length === 0) {
-            // First red spawn is recorded as a stage split.
-            this.setSplit(SplitType.TOB_VERZIK_REDS, event.getTick());
-            this.verzikRedSpawns.push(event.getTick());
-          } else if (
-            this.verzikRedSpawns[this.verzikRedSpawns.length - 1] !==
-            event.getTick()
-          ) {
-            // A new spawn occurred.
-            this.verzikRedSpawns.push(event.getTick());
+        if (Npc.isNylocasVasilias(npc.getId())) {
+          const style = nyloBossStyle(npc.getId());
+          if (this.nyloBossStyles.prev !== style) {
+            switch (style) {
+              case NyloStyle.MAGE:
+                this.nyloBossStyles.mage += 1;
+                break;
+              case NyloStyle.RANGE:
+                this.nyloBossStyles.ranged += 1;
+                break;
+              case NyloStyle.MELEE:
+                this.nyloBossStyles.melee += 1;
+                break;
+            }
           }
+          this.nyloBossStyles.prev = style;
         }
+        break;
+      }
 
-        if (npc.hasMaidenCrab()) {
-          switch (npc.getMaidenCrab()!.getSpawn()) {
-            case MaidenCrabSpawn.SEVENTIES:
-              this.setSplit(SplitType.TOB_MAIDEN_70S, event.getTick());
-              break;
-            case MaidenCrabSpawn.FIFTIES:
-              this.setSplit(SplitType.TOB_MAIDEN_50S, event.getTick());
-              const seventies = this.getSplit(SplitType.TOB_MAIDEN_70S);
-              if (seventies !== undefined) {
-                this.setSplit(
-                  SplitType.TOB_MAIDEN_70S_50S,
-                  event.getTick() - seventies,
-                );
-              }
-              break;
-            case MaidenCrabSpawn.THIRTIES:
-              this.setSplit(SplitType.TOB_MAIDEN_30S, event.getTick());
-              const fifties = this.getSplit(SplitType.TOB_MAIDEN_50S);
-              if (fifties !== undefined) {
-                this.setSplit(
-                  SplitType.TOB_MAIDEN_50S_30S,
-                  event.getTick() - fifties,
-                );
-              }
-              break;
+      case Event.Type.TOB_MAIDEN_CRAB_LEAK: {
+        const npc = event.getNpc()!;
+        const hitpoints = SkillLevel.fromRaw(npc.getHitpoints());
+        if (
+          npc.hasMaidenCrab() &&
+          hitpoints.getCurrent() === hitpoints.getBase()
+        ) {
+          if (!this.stageStats.maidenFullLeaks) {
+            this.stageStats.maidenFullLeaks = 1;
+          } else {
+            this.stageStats.maidenFullLeaks += 1;
           }
         }
         break;
+      }
 
-      case Event.Type.TOB_BLOAT_DOWN:
+      case Event.Type.TOB_BLOAT_DOWN: {
         this.bloatDownTicks.push(event.getTick());
+
+        if (event.getBloatDown()!.getDownNumber() === 1) {
+          const bloat = allEvents
+            .eventsForTick(event.getTick())
+            .find(
+              (e) =>
+                e.getType() === Event.Type.NPC_UPDATE &&
+                Npc.isBloat(e.getNpc()!.getId()),
+            );
+          if (bloat) {
+            const hitpoints = SkillLevel.fromRaw(
+              bloat.getNpc()!.getHitpoints(),
+            );
+            this.stageStats.bloatFirstDownHpPercent = hitpoints.percentage();
+          }
+        }
         break;
+      }
 
       case Event.Type.TOB_NYLO_WAVE_SPAWN:
         const spawnedWave = event.getNyloWave()!.getWave();
@@ -489,7 +573,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
     return true;
   }
 
-  private async handlePlayerAttack(event: Event): Promise<void> {
+  private async processPlayerAttack(event: Event): Promise<void> {
     const username = event.getPlayer()?.getName();
     const attack = event.getPlayerAttack();
 
@@ -614,6 +698,107 @@ export default class TheatreProcessor extends ChallengeProcessor {
     }
   }
 
+  private processNpcSpawn(event: Event, npc: Event.Npc): void {
+    if (Npc.isVerzikMatomenos(npc.getId())) {
+      if (this.verzikRedSpawns.length === 0) {
+        // First red spawn is recorded as a stage split.
+        this.setSplit(SplitType.TOB_VERZIK_REDS, event.getTick());
+        this.verzikRedSpawns.push(event.getTick());
+        this.stageStats.verzikRedsCount = 1;
+      } else if (
+        this.verzikRedSpawns[this.verzikRedSpawns.length - 1] !==
+        event.getTick()
+      ) {
+        // A new spawn occurred.
+        this.verzikRedSpawns.push(event.getTick());
+        this.stageStats.verzikRedsCount! += 1;
+      }
+    }
+
+    if (npc.hasMaidenCrab()) {
+      // Record Maiden spawns as stage splits.
+      switch (npc.getMaidenCrab()!.getSpawn()) {
+        case MaidenCrabSpawn.SEVENTIES:
+          this.setSplit(SplitType.TOB_MAIDEN_70S, event.getTick());
+          break;
+        case MaidenCrabSpawn.FIFTIES:
+          this.setSplit(SplitType.TOB_MAIDEN_50S, event.getTick());
+          const seventies = this.getSplit(SplitType.TOB_MAIDEN_70S);
+          if (seventies !== undefined) {
+            this.setSplit(
+              SplitType.TOB_MAIDEN_70S_50S,
+              event.getTick() - seventies,
+            );
+          }
+          break;
+        case MaidenCrabSpawn.THIRTIES:
+          this.setSplit(SplitType.TOB_MAIDEN_30S, event.getTick());
+          const fifties = this.getSplit(SplitType.TOB_MAIDEN_50S);
+          if (fifties !== undefined) {
+            this.setSplit(
+              SplitType.TOB_MAIDEN_50S_30S,
+              event.getTick() - fifties,
+            );
+          }
+          break;
+      }
+
+      if (npc.getMaidenCrab()!.getScuffed()) {
+        this.stageStats.maidenScuffedSpawns = true;
+      }
+    }
+
+    if (npc.hasNylo()) {
+      const nylo = npc.getNylo()!;
+      if (nylo.getSpawnType() === Event.Npc.Nylo.SpawnType.SPLIT) {
+        switch (nylo.getStyle()) {
+          case Event.Npc.Nylo.Style.MAGE:
+            if (!this.stageStats.nylocasMageSplits) {
+              this.stageStats.nylocasMageSplits = 1;
+            } else {
+              this.stageStats.nylocasMageSplits += 1;
+            }
+            break;
+          case Event.Npc.Nylo.Style.RANGE:
+            if (!this.stageStats.nylocasRangedSplits) {
+              this.stageStats.nylocasRangedSplits = 1;
+            } else {
+              this.stageStats.nylocasRangedSplits += 1;
+            }
+            break;
+          case Event.Npc.Nylo.Style.MELEE:
+            if (!this.stageStats.nylocasMeleeSplits) {
+              this.stageStats.nylocasMeleeSplits = 1;
+            } else {
+              this.stageStats.nylocasMeleeSplits += 1;
+            }
+            break;
+        }
+      }
+    }
+
+    if (Npc.isNylocasVasiliasDropping(npc.getId())) {
+      this.nyloBossStyles.prev = NyloStyle.MELEE;
+      this.nyloBossStyles.melee = 1;
+    } else if (Npc.isNylocasVasilias(npc.getId())) {
+      // If the client lagged and missed the dropping NPC spawn, use the
+      // current style of the boss as its initial style.
+      const style = nyloBossStyle(npc.getId());
+      this.nyloBossStyles.prev = style;
+      switch (style) {
+        case NyloStyle.MAGE:
+          this.nyloBossStyles.mage = 1;
+          break;
+        case NyloStyle.RANGE:
+          this.nyloBossStyles.ranged = 1;
+          break;
+        case NyloStyle.MELEE:
+          this.nyloBossStyles.melee = 1;
+          break;
+      }
+    }
+  }
+
   private handleSoteMazePath(soteMaze: Event.SoteMaze): void {
     const currentMaze = this.soteMazes[this.soteMazes.length - 1];
     if (currentMaze.accuratePath) {
@@ -683,5 +868,15 @@ export default class TheatreProcessor extends ChallengeProcessor {
     logger.debug(
       `Challenge ${this.getUuid()}: Partial maze progress: ${currentMaze.partialPivots}`,
     );
+  }
+
+  private async updateChallengeStats(
+    updates: Partial<TobChallengeStats>,
+  ): Promise<void> {
+    await sql`
+      UPDATE tob_challenge_stats
+      SET ${sql(camelToSnakeObject(updates))}
+      WHERE challenge_id = ${this.getDatabaseId()};
+    `;
   }
 }

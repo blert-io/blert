@@ -148,4 +148,9 @@ export {
 
 export { isPostgresUniqueViolation } from './db/postgres';
 
+export type {
+  TobChallengeStats,
+  TobChallengeStatsRow,
+} from './db/challenge-stats';
+
 export { default as PriceTracker } from './price-tracker';

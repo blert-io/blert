@@ -161,6 +161,10 @@ export default abstract class ChallengeProcessor {
     }
   }
 
+  protected getDatabaseId(): number {
+    return this.databaseId;
+  }
+
   protected addPlayerDeath(player: string): void {
     this.totalDeaths += 1;
     this.updates.totalDeaths = this.totalDeaths;

@@ -351,6 +351,14 @@ export class Npc {
     );
   }
 
+  static isNylocasVasiliasDropping(npcId: number): boolean {
+    return (
+      npcId === NpcId.NYLOCAS_VASILIAS_DROPPING_ENTRY ||
+      npcId === NpcId.NYLOCAS_VASILIAS_DROPPING_REGULAR ||
+      npcId === NpcId.NYLOCAS_VASILIAS_DROPPING_HARD
+    );
+  }
+
   static isNylocasVasiliasEntry(npcId: number): boolean {
     return NYLOCAS_VASILIAS_ENTRY_IDS.includes(npcId);
   }
