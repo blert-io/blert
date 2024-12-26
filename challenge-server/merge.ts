@@ -400,7 +400,7 @@ export class TickState {
 
     const newDeltas: RawItemDelta[] = [];
 
-    for (let slot = EquipmentSlot.HEAD; slot <= EquipmentSlot.RING; slot++) {
+    for (let slot = EquipmentSlot.HEAD; slot <= EquipmentSlot.QUIVER; slot++) {
       const previous = lastState?.equipment[slot];
       const current = state.equipment[slot];
 

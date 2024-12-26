@@ -215,6 +215,7 @@ export enum EquipmentSlot {
   GLOVES = EventProto.Player.EquipmentSlot.GLOVES,
   BOOTS = EventProto.Player.EquipmentSlot.BOOTS,
   RING = EventProto.Player.EquipmentSlot.RING,
+  QUIVER = EventProto.Player.EquipmentSlot.QUIVER,
 }
 
 export interface BasicEventNpc {

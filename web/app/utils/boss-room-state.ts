@@ -346,6 +346,7 @@ const EMPTY_EQUIPMENT: PlayerEquipment = {
   [EquipmentSlot.GLOVES]: null,
   [EquipmentSlot.BOOTS]: null,
   [EquipmentSlot.RING]: null,
+  [EquipmentSlot.QUIVER]: null,
 };
 
 function computePlayerState(

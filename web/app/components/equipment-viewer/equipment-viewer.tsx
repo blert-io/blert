@@ -26,6 +26,7 @@ const EQUIPMENT_OFFSETS: { [key: string]: React.CSSProperties } = {
   [EquipmentSlot.GLOVES]: { top: 201, left: 3 },
   [EquipmentSlot.BOOTS]: { top: 201, left: 73 },
   [EquipmentSlot.RING]: { top: 201, left: 142 },
+  [EquipmentSlot.QUIVER]: { top: 3, left: 124 },
 };
 
 const ITEM_SIZE = 36;
@@ -38,6 +39,8 @@ export default function EquipmentViewer(props: EquipmentViewerProps) {
   if (props.className) {
     className += ` ${props.className}`;
   }
+
+  const hasQuiver = !!equipment?.[EquipmentSlot.QUIVER];
 
   if (equipment) {
     items = Object.entries(equipment).map(([slot, item], index) => {
@@ -119,7 +122,7 @@ export default function EquipmentViewer(props: EquipmentViewerProps) {
   return (
     <div className={className}>
       <Image
-        src="/images/equipment.png"
+        src={`/images/equipment${hasQuiver ? '-quiver' : ''}.png`}
         alt="Equipment screen"
         width={182}
         height={240}

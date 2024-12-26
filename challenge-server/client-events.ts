@@ -395,6 +395,7 @@ export class ClientEvents {
                 [EquipmentSlot.GLOVES]: null,
                 [EquipmentSlot.BOOTS]: null,
                 [EquipmentSlot.RING]: null,
+                [EquipmentSlot.QUIVER]: null,
               },
         };
 
