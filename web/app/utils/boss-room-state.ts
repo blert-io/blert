@@ -40,7 +40,7 @@ import {
 } from 'react';
 
 import { ChallengeContext } from '@/challenge-context';
-import { defaultItemCache } from './item-cache';
+import { simpleItemCache } from './item-cache/simple';
 import { TICK_MS } from './tick';
 import { challengeApiUrl } from './url';
 
@@ -453,7 +453,7 @@ function computePlayerState(
           } else if (event.type === EventType.PLAYER_ATTACK) {
             const attack = (event as PlayerAttackEvent).attack;
             if (attack.weapon) {
-              attack.weapon.name = defaultItemCache.getItemName(
+              attack.weapon.name = simpleItemCache.getItemName(
                 attack.weapon.id,
               );
             }
@@ -507,7 +507,7 @@ function applyItemDeltas(
 
     if (delta.isAdded()) {
       if (previousItem === null || previousItem.id !== delta.getItemId()) {
-        const itemName = defaultItemCache.getItemName(delta.getItemId());
+        const itemName = simpleItemCache.getItemName(delta.getItemId());
         equipment[delta.getSlot()] = {
           id: delta.getItemId(),
           name: itemName,

@@ -1,0 +1,105 @@
+@import '../mixins.scss';
+
+.panel {
+  @include panel;
+  padding: 10px;
+}
+
+.players {
+  max-width: 100%;
+  display: flex;
+  flex-flow: row wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+$SLOT_SIZE: 42px;
+
+.player {
+  width: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  .name {
+    text-align: center;
+    justify-content: center;
+    font-weight: 500;
+    font-size: 18px;
+  }
+
+  .slotContainer {
+    display: flex;
+    flex-flow: row wrap;
+    margin: 0.5em 0;
+  }
+
+  .inventory {
+    width: 4 * $SLOT_SIZE;
+    height: 7 * $SLOT_SIZE;
+  }
+
+  .equipment {
+    width: 3 * $SLOT_SIZE;
+    height: 5 * $SLOT_SIZE;
+  }
+
+  .pouch {
+    width: 4 * $SLOT_SIZE;
+    height: 1 * $SLOT_SIZE;
+  }
+
+  .spellbook {
+    width: 1 * $SLOT_SIZE;
+    height: 1 * $SLOT_SIZE;
+  }
+
+  .remove {
+    color: var(--blert-red);
+    font-size: 14px;
+    padding: 4px 12px;
+
+    i {
+      margin-right: 8px;
+    }
+
+    &:hover {
+      cursor: pointer;
+      filter: brightness(1.4);
+    }
+  }
+}
+
+.slot {
+  width: $SLOT_SIZE - 2px;
+  height: $SLOT_SIZE - 2px;
+  margin: 1px;
+  background: var(--nav-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover {
+    background: var(--nav-bg-lightened);
+  }
+
+  &:not(.empty).invalid:hover {
+    border: 1px solid rgba(var(--blert-red-base), 0.5);
+  }
+  &:not(.empty).valid:hover {
+    border: 1px solid rgba(var(--blert-green-base), 0.5);
+    cursor: pointer;
+  }
+
+  &.empty {
+    background: none;
+
+    &:hover {
+      background: none;
+    }
+  }
+}
+
+.spellbookSlot {
+  cursor: pointer;
+}

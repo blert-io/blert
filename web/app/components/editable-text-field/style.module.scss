@@ -1,0 +1,45 @@
+@import '../../mixins.scss';
+
+.editable {
+  display: flex;
+  align-items: center;
+
+  .text {
+    max-width: calc(100% - 44px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .input {
+    width: calc(100% - 44px);
+    background: none;
+    padding: 1px;
+    margin: 0;
+    outline: none;
+    border: none;
+    color: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+  }
+
+  textarea.input {
+    width: calc(100% - 44px);
+    min-height: 6em;
+    font-family: 'Inter', sans-serif;
+
+    @include styledScrollbar;
+  }
+
+  .button {
+    width: 28px;
+    margin-left: 1em;
+    font-size: 16px;
+    cursor: pointer;
+
+    &:hover {
+      color: #fff;
+    }
+  }
+}
