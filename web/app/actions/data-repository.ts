@@ -1,27 +1,35 @@
 import { S3Client } from '@aws-sdk/client-s3';
 import { DataRepository } from '@blert/common';
 
-let repositoryBackend: DataRepository.Backend;
-if (!process.env.BLERT_DATA_REPOSITORY) {
-  throw new Error('BLERT_DATA_REPOSITORY is not set');
-} else if (process.env.BLERT_DATA_REPOSITORY.startsWith('file://')) {
-  const root = process.env.BLERT_DATA_REPOSITORY.slice('file://'.length);
-  repositoryBackend = new DataRepository.FilesystemBackend(root);
-} else if (process.env.BLERT_DATA_REPOSITORY.startsWith('s3://')) {
-  const s3Client = new S3Client({
-    forcePathStyle: false,
-    region: process.env.BLERT_REGION,
-    endpoint: process.env.BLERT_ENDPOINT,
-    credentials: {
-      accessKeyId: process.env.BLERT_ACCESS_KEY_ID!,
-      secretAccessKey: process.env.BLERT_SECRET_ACCESS_KEY!,
-    },
-  });
-  const bucket = process.env.BLERT_DATA_REPOSITORY.slice('s3://'.length);
-  repositoryBackend = new DataRepository.S3Backend(s3Client, bucket);
-} else {
-  throw new Error('Unknown repository backend');
+function initializeRepository(envVar: string): DataRepository {
+  if (!process.env[envVar]) {
+    throw new Error(`${envVar} is not set`);
+  }
+
+  const uri = process.env[envVar]!;
+  if (uri.startsWith('file://')) {
+    const root = uri.slice('file://'.length);
+    return new DataRepository(new DataRepository.FilesystemBackend(root));
+  }
+
+  if (uri.startsWith('s3://')) {
+    const s3Client = new S3Client({
+      forcePathStyle: false,
+      region: process.env.BLERT_REGION,
+      endpoint: process.env.BLERT_ENDPOINT,
+      credentials: {
+        accessKeyId: process.env.BLERT_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.BLERT_SECRET_ACCESS_KEY!,
+      },
+    });
+    const bucket = uri.slice('s3://'.length);
+    return new DataRepository(new DataRepository.S3Backend(s3Client, bucket));
+  }
+
+  throw new Error(`Unknown repository backend: ${uri}`);
 }
 
-const repository = new DataRepository(repositoryBackend);
+const repository = initializeRepository('BLERT_DATA_REPOSITORY');
+export const webRepository = initializeRepository('BLERT_WEB_REPOSITORY');
+
 export default repository;

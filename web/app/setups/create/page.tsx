@@ -1,20 +1,15 @@
 import { redirect } from 'next/navigation';
 
+import { newGearSetup } from '@/actions/setup';
 import { getSignedInUser } from '@/actions/users';
 
-import GearSetupsCreator from './setup-creator';
-
-import styles from './style.module.scss';
-
-export default async function GearSetupsCreationPage() {
+export default async function GearSetupsCreationRedirect() {
   const user = await getSignedInUser();
   if (user === null) {
     redirect('/login?next=/setups/create');
   }
 
-  return (
-    <div className={styles.setupsPage}>
-      <GearSetupsCreator />
-    </div>
-  );
+  const newSetup = await newGearSetup(user);
+
+  redirect(`/setups/${newSetup.publicId}/edit`);
 }

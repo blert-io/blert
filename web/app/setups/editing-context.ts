@@ -17,13 +17,16 @@ export type EditableGearSetup = {
 export const SetupEditingContext = createContext<EditingContext | null>(null);
 
 export class EditingContext {
+  private setupId: string;
   private state: EditableGearSetup;
   private setState: Dispatch<SetStateAction<EditableGearSetup>>;
 
   constructor(
+    setupId: string,
     state: EditableGearSetup,
     setState: Dispatch<SetStateAction<EditableGearSetup>>,
   ) {
+    this.setupId = setupId;
     this.state = state;
     this.setState = setState;
   }
@@ -35,6 +38,10 @@ export class EditingContext {
       modified: false,
       selectedItem: null,
     };
+  }
+
+  public get modified() {
+    return this.state.modified;
   }
 
   public get setup() {
@@ -110,9 +117,8 @@ export class EditingContext {
     });
   }
 
-  public save() {
-    this.setState((prev) => {
-      return { ...prev, modified: false };
-    });
+  /** Clears the modified flag. */
+  public clearModified() {
+    this.setState((prev) => ({ ...prev, modified: false }));
   }
 }

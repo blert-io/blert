@@ -3,14 +3,14 @@ import { useContext } from 'react';
 import Item from '@/components/item';
 import { extendedItemCache } from '@/utils/item-cache/extended';
 
-import { SetupEditingContext } from '../editing-context';
+import { SetupEditingContext } from '../../editing-context';
 
-import setupStyles from '../style.module.scss';
+import setupStyles from '../../style.module.scss';
 import styles from './style.module.scss';
 
 const MELEE_ITEMS = [
   28254, 28256, 28258, 22981, 13239, 21295, 29801, 28307, 22325, 13652, 1215,
-  22322, 21003, 11804, 23987, 24219, 21015,
+  22322, 21003, 11804, 23987, 24219, 21015, 24780,
 ];
 const RANGED_ITEMS = [
   11664, 13072, 13073, 8842, 13237, 28951, 19547, 28310, 20997, 12926, 28922,

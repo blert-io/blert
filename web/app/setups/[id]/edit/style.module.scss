@@ -1,4 +1,4 @@
-@import '../../mixins.scss';
+@use '../../../mixins.scss' as *;
 
 .setupsPage {
   width: 100%;
@@ -173,6 +173,100 @@ $ACTIONS_HEIGHT: 60px;
       &:not(.selected):hover {
         transform: scale(1.1);
       }
+    }
+  }
+}
+
+.publishModal {
+  max-width: 800px;
+
+  .modalHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border-color);
+
+    h2 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    button {
+      background: none;
+      border: none;
+      padding: 8px;
+      cursor: pointer;
+      transition: color 0.2s;
+      font-size: 16px;
+
+      &:hover {
+        color: #fff;
+      }
+    }
+  }
+
+  .publishDialog {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px 24px;
+
+    p {
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    .issues {
+      & > p {
+        color: var(--blert-red);
+      }
+
+      .issue {
+        &.warning {
+          color: var(--blert-yellow);
+        }
+
+        &.error {
+          color: var(--blert-red);
+        }
+      }
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+
+      label {
+        font-size: 14px;
+        font-weight: 500;
+      }
+
+      textarea {
+        color: var(--blert-text-color);
+        padding: 8px 12px;
+        background: none;
+        border: 1px solid var(--blert-text-color);
+        border-radius: 5px;
+        font-size: 14px;
+        resize: vertical;
+        transition: border-color 0.2s;
+
+        &:focus {
+          outline: none;
+          border-color: #fff;
+        }
+      }
+    }
+
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 8px;
     }
   }
 }

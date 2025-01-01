@@ -6,6 +6,7 @@ import { SessionProvider } from 'next-auth/react';
 import { WebSite, WithContext } from 'schema-dts';
 
 import LeftNav from './components/left-nav';
+import ToastProvider from './components/toast';
 import Topbar from './components/topbar';
 import ChallengeProvider from './challenge-context';
 import { DisplayWrapper } from './display';
@@ -95,12 +96,14 @@ export default function RootLayout({
         <SessionProvider>
           <DisplayWrapper>
             <ChallengeProvider>
-              <Topbar />
-              <div className={styles.siteParent}>
-                <LeftNav />
-                <div id="portal-root" />
-                <div className={styles.pageParentContent}>{children}</div>
-              </div>
+              <ToastProvider>
+                <Topbar />
+                <div className={styles.siteParent}>
+                  <LeftNav />
+                  <div id="portal-root" />
+                  <div className={styles.pageParentContent}>{children}</div>
+                </div>
+              </ToastProvider>
             </ChallengeProvider>
           </DisplayWrapper>
         </SessionProvider>
