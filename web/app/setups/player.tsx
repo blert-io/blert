@@ -11,6 +11,7 @@ import {
   Container,
   GearSetupPlayer,
   ItemSlot,
+  NUM_INVENTORY_SLOTS,
   Spellbook,
   newGearSetupPlayer,
 } from './setup';
@@ -124,7 +125,7 @@ export function Player({ index, player }: PlayerProps) {
         })}
       </div>
       <div className={`${styles.slotContainer} ${styles.inventory}`}>
-        {Array.from({ length: 28 }, (_, i) => (
+        {Array.from({ length: NUM_INVENTORY_SLOTS }, (_, i) => (
           <Slot
             container={Container.INVENTORY}
             playerIndex={index}

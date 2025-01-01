@@ -1,5 +1,9 @@
 import { ChallengeType } from '@blert/common';
 
+export const NUM_EQUIPMENT_SLOTS = 11;
+export const NUM_INVENTORY_SLOTS = 28;
+export const NUM_POUCH_SLOTS = 4;
+
 export type GearSetup = {
   title: string;
   description: string;
@@ -91,4 +95,13 @@ export function newGearSetupPlayer(num: number): GearSetupPlayer {
     pouch: { slots: [] },
     spellbook: Spellbook.STANDARD,
   };
+}
+
+export function hasAllItems(setup: GearSetup): boolean {
+  return setup.players.every(
+    (player) =>
+      player.inventory.slots.length >= NUM_INVENTORY_SLOTS &&
+      player.equipment.slots.length >= NUM_EQUIPMENT_SLOTS &&
+      player.pouch.slots.length >= NUM_POUCH_SLOTS,
+  );
 }
