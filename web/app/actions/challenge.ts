@@ -210,28 +210,6 @@ function shorthandToFullField(field: string): [string, string] {
   }
 }
 
-function fieldToTable(field: string): string {
-  switch (field) {
-    case 'uuid':
-    case 'type':
-    case 'start_time':
-    case 'status':
-    case 'stage':
-    case 'scale':
-    case 'mode':
-    case 'challenge_ticks':
-    case 'overall_ticks':
-    case 'total_deaths':
-      return 'challenges';
-
-    case 'username':
-      return 'challenge_players';
-
-    default:
-      throw new InvalidQueryError(`Unknown field: ${field}`);
-  }
-}
-
 function comparatorToSql(
   table: postgres.Helper<string>,
   column: string,
@@ -875,7 +853,7 @@ export async function aggregateChallenges<
     }
 
     groupFields.forEach((field) => {
-      const table = fieldToTable(camelToSnake(field));
+      const [, table] = shorthandToFullField(camelToSnake(field));
       if (
         table === 'challenges' ||
         joins.find((j) => j.tableName === table) !== undefined

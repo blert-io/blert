@@ -10,7 +10,7 @@ import {
 
 import { parseChallengeQueryParams } from '../query';
 
-export function isAggregation(agg: string): agg is Aggregation {
+function isAggregation(agg: string): agg is Aggregation {
   return ['count', 'sum', 'avg', 'min', 'max'].includes(agg);
 }
 
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
     const field = aggregationOption.slice(0, separator);
     const operations = aggregationOption.slice(separator + 1).split(',');
 
-    if (!operations.every(isAggregation)) {
+    if (operations.length === 0 || !operations.every(isAggregation)) {
       return new Response(null, { status: 400 });
     }
 
