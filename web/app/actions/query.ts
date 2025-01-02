@@ -67,8 +67,12 @@ export type Join = {
 };
 
 export function join(joins: Join[]) {
-  return joins.length > 0
-    ? joins.map((j) => {
+  const unique = new Map<string, Join>();
+  joins.forEach((j) => unique.set(j.tableName, j));
+  const result = Array.from(unique.values());
+
+  return result.length > 0
+    ? result.map((j) => {
         let type;
         if (j.type === 'left') {
           type = sql`LEFT`;

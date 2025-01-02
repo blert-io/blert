@@ -1,11 +1,18 @@
 import { NextRequest } from 'next/server';
 
 import {
+  Aggregation,
+  AggregationQuery,
   ChallengeQuery,
   QueryOptions,
   aggregateChallenges,
 } from '@/actions/challenge';
+
 import { parseChallengeQueryParams } from '../query';
+
+export function isAggregation(agg: string): agg is Aggregation {
+  return ['count', 'sum', 'avg', 'min', 'max'].includes(agg);
+}
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -46,15 +53,33 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const result = await aggregateChallenges(
-    query,
-    { '*': 'count' },
-    options,
-    groupings,
-  );
-  if (result === null) {
-    return new Response(null, { status: 404 });
+  const aggregations: AggregationQuery = { '*': 'count' };
+  for (const aggregationOption of searchParams.getAll('aggregate')) {
+    const separator = aggregationOption.lastIndexOf(':');
+    const field = aggregationOption.slice(0, separator);
+    const operations = aggregationOption.slice(separator + 1).split(',');
+
+    if (!operations.every(isAggregation)) {
+      return new Response(null, { status: 400 });
+    }
+
+    aggregations[field] = operations;
   }
 
-  return Response.json(result);
+  try {
+    const result = await aggregateChallenges(
+      query,
+      aggregations,
+      options,
+      groupings,
+    );
+    if (result === null) {
+      return new Response(null, { status: 404 });
+    }
+
+    return Response.json(result);
+  } catch (e: any) {
+    console.error('Failed to aggregate challenges:', e);
+    return new Response(null, { status: 500 });
+  }
 }

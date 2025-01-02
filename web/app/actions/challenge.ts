@@ -179,14 +179,14 @@ const DEFAULT_CHALLENGE_QUERY: ChallengeQuery = {
   sort: DEFAULT_SORT,
 };
 
-function sortedSplitsTable(split: SplitType) {
+function splitsTableName(split: SplitType) {
   return `challenge_splits_${split}`;
 }
 
 function shorthandToFullField(field: string): [string, string] {
   if (field.startsWith('splits:')) {
     const split = field.slice(7);
-    return ['ticks', sortedSplitsTable(parseInt(split))];
+    return ['ticks', splitsTableName(parseInt(split))];
   }
 
   switch (field) {
@@ -335,6 +335,30 @@ type QueryComponents = {
   conditions: postgres.Fragment[];
 };
 
+function addSplitsTable(
+  split: SplitType,
+  baseTable: postgres.Helper<string, string[]>,
+  joins: Join[],
+  conditions: postgres.Fragment[],
+  accurateSplits?: boolean,
+) {
+  const table = splitsTableName(split);
+  joins.push({
+    table: sql`(
+        SELECT challenge_id, ticks, accurate
+        FROM challenge_splits
+        WHERE type = ANY(${allSplitModes(generalizeSplit(split))})
+      ) ${sql(table)}`,
+    on: sql`${baseTable}.id = ${sql(table)}.challenge_id`,
+    type: 'left',
+    tableName: table,
+  });
+
+  if (accurateSplits) {
+    conditions.push(sql`${sql(table)}.accurate`);
+  }
+}
+
 function applyFilters(
   query: ChallengeQuery,
   accurateSplits?: boolean,
@@ -413,26 +437,9 @@ function applyFilters(
     const sorts = Array.isArray(query.sort) ? query.sort : [query.sort];
     for (const sort of sorts) {
       const sortKey = sort.slice(1).split('#')[0];
-      if (!sortKey.startsWith('splits:')) {
-        continue;
-      }
-
-      const split = parseInt(sortKey.slice(7)) as SplitType;
-      const table = sortedSplitsTable(split);
-
-      joins.push({
-        table: sql`(
-            SELECT challenge_id, ticks, accurate
-            FROM challenge_splits
-            WHERE type = ANY(${allSplitModes(generalizeSplit(split))})
-          ) ${sql(table)}`,
-        on: sql`${sqlChallenges}.id = ${sql(table)}.challenge_id`,
-        type: 'left',
-        tableName: table,
-      });
-
-      if (accurateSplits) {
-        conditions.push(sql`${sql(table)}.accurate`);
+      if (sortKey.startsWith('splits:')) {
+        const split = parseInt(sortKey.slice(7)) as SplitType;
+        addSplitsTable(split, sqlChallenges, joins, conditions, accurateSplits);
       }
     }
   }
@@ -661,10 +668,10 @@ export async function findChallenges(
   return [challenges as ChallengeOverview[], total];
 }
 
-type Aggregation = 'count' | 'sum' | 'avg' | 'min' | 'max';
+export type Aggregation = 'count' | 'sum' | 'avg' | 'min' | 'max';
 type Aggregations = Aggregation | Aggregation[];
 
-type AggregationQuery = Record<string, Aggregations>;
+export type AggregationQuery = Record<string, Aggregations>;
 
 type FieldAggregations<As extends Aggregations> = As extends Aggregation
   ? { [A in As]: number }
@@ -814,8 +821,14 @@ export async function aggregateChallenges<
 
   const { baseTable, queryTable, joins, conditions } = components;
 
-  const aggregateName = (field: string, agg: Aggregation): string =>
-    `${agg}_${field}`;
+  const aggregateName = (
+    table: string,
+    field: string,
+    agg: Aggregation,
+  ): string => `${agg}_${table}_${field}`;
+
+  const originalFields: Record<string, string> = {};
+  let hasCount = false;
 
   const aggregateFields = Object.entries(fields).flatMap(([field, aggs]) => {
     if (field === '*') {
@@ -824,6 +837,7 @@ export async function aggregateChallenges<
           'Cannot aggregate all fields with non-count aggregation',
         );
       }
+      hasCount = true;
       return sql`COUNT(*) as count`;
     }
 
@@ -831,11 +845,24 @@ export async function aggregateChallenges<
       aggs = [aggs];
     }
 
+    const [tableField, table] = shorthandToFullField(camelToSnake(field));
+    const sqlTable = table === 'challenges' ? queryTable : sql(table);
+
+    if (field.startsWith('splits:')) {
+      const split = parseInt(field.slice(7)) as SplitType;
+      addSplitsTable(
+        split,
+        queryTable,
+        joins,
+        conditions,
+        options.accurateSplits,
+      );
+    }
+
     return aggs.map((agg) => {
-      const table = fieldToTable(camelToSnake(field));
-      const sqlTable = table === 'challenges' ? queryTable : sql(table);
-      const name = sql(aggregateName(field, agg));
-      return sql`${sql(agg)}(${sqlTable}.${sql(camelToSnake(field))}) as ${name}`;
+      const name = aggregateName(table, tableField, agg);
+      originalFields[name] = field;
+      return sql`${sql(agg)}(${sqlTable}.${sql(tableField)}) as ${sql(name)}`;
     });
   });
 
@@ -881,6 +908,9 @@ export async function aggregateChallenges<
   `;
 
   if (rows.length === 0) {
+    if (hasCount) {
+      return { '*': { count: 0 } } as any;
+    }
     return null;
   }
 
@@ -888,13 +918,15 @@ export async function aggregateChallenges<
     let result = {} as AggregationResult<any>;
 
     const row = rows[0];
+
     Object.entries(row).forEach(([key, value]) => {
       if (key === 'count') {
         result['*'] = { count: parseInt(value) };
         return;
       }
 
-      const [agg, field] = key.split('_');
+      const agg = key.split('_')[0];
+      const field = originalFields[key];
 
       if (result[field] === undefined) {
         result[field] = {};
@@ -921,7 +953,8 @@ export async function aggregateChallenges<
         return;
       }
 
-      const [agg, field] = key.split('_');
+      const agg = key.split('_')[0];
+      const field = originalFields[key];
 
       if (groupResult[field] === undefined) {
         groupResult[field] = {};
