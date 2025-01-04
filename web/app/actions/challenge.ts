@@ -886,6 +886,9 @@ export async function aggregateChallenges<
   `;
 
   if (rows.length === 0) {
+    if (groupFields.length > 0) {
+      return {} as any;
+    }
     if (hasCount) {
       return { '*': { count: 0 } } as any;
     }

@@ -442,6 +442,7 @@ export enum PlayerAttack {
   HAMMER_BOP = PlayerAttackProto.HAMMER_BOP,
   HAMMER_SPEC = PlayerAttackProto.HAMMER_SPEC,
   HAM_JOINT = PlayerAttackProto.HAM_JOINT,
+  ICE_RUSH = PlayerAttackProto.ICE_RUSH,
   INQUISITORS_MACE = PlayerAttackProto.INQUISITORS_MACE,
   KARILS_CROSSBOW = PlayerAttackProto.KARILS_CROSSBOW,
   KICK = PlayerAttackProto.KICK,

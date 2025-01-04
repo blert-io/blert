@@ -281,6 +281,13 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     special: true,
     style: CombatStyle.MELEE,
   },
+  [PlayerAttack.ICE_RUSH]: {
+    tagColor: 'blue',
+    letter: 'RSH',
+    ranged: true,
+    special: false,
+    style: CombatStyle.MAGIC,
+  },
   [PlayerAttack.INQUISITORS_MACE]: {
     tagColor: 'red',
     letter: 'IM',

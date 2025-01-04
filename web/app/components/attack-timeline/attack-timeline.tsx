@@ -234,10 +234,23 @@ function makeCellImage(playerAttack: Attack, size: number, memes: BlertMemes) {
         infoIcon = (
           <Image
             className={styles.attackTimeline__CellImage__InfoIcon}
-            src={'/barrage.png'}
+            src={'/images/combat/barrage.png'}
             alt="Barrage"
             height={size / 2}
             width={size / 2}
+          />
+        );
+        break;
+
+      case PlayerAttack.ICE_RUSH:
+        infoIcon = (
+          <Image
+            className={styles.attackTimeline__CellImage__InfoIcon}
+            src={'/images/combat/ice-rush.png'}
+            alt="Barrage"
+            height={size / 2 + 1}
+            width={size / 2 + 1}
+            style={{ objectFit: 'contain', bottom: -2 }}
           />
         );
         break;
@@ -473,6 +486,8 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
       return 'hammered';
     case PlayerAttack.HAM_JOINT:
       return 'hammed';
+    case PlayerAttack.ICE_RUSH:
+      return 'rushed';
     case PlayerAttack.INQUISITORS_MACE:
       return 'bashed';
     case PlayerAttack.KICK:
