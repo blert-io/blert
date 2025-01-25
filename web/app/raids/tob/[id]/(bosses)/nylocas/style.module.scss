@@ -73,37 +73,43 @@
     flex-direction: column;
     align-items: flex-start;
   }
+}
 
-  .splitCountGroup {
-    display: flex;
-    align-items: center;
-    margin-left: 1.5em;
+.splitCountGroup {
+  display: flex;
+  align-items: center;
+  margin-left: 1.5em;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    margin-left: 0;
+  }
+
+  .heading {
+    margin-right: 8px;
 
     @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-      margin-left: 0;
-    }
-
-    .heading {
-      margin-right: 8px;
-
-      @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-        width: 80px;
-      }
-    }
-
-    .divider {
-      color: #fff;
-      margin: 0 4px;
-      font-size: 12px;
-    }
-
-    .splitCount {
-      @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-        width: 20px;
-        text-align: right;
-      }
+      width: 80px;
     }
   }
+
+  .divider {
+    color: #fff;
+    margin: 0 4px;
+    font-size: 12px;
+  }
+
+  .splitCount {
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      width: 20px;
+      text-align: right;
+    }
+  }
+}
+
+.bossRotation {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
 }
 
 .barrierNorth {

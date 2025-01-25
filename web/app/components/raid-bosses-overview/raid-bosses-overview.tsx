@@ -190,7 +190,7 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
                 {splits[SplitType.TOB_NYLO_WAVES] && (
                   <Badge
                     iconClass="fa-solid fa-hourglass"
-                    label="Waves"
+                    label="Last wave"
                     value={ticksToFormattedSeconds(
                       splits[SplitType.TOB_NYLO_WAVES],
                     )}

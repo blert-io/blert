@@ -458,7 +458,7 @@ export default function NylocasPage() {
           <Badge
             className={styles.split}
             iconClass="fa-solid fa-hourglass"
-            label="Waves"
+            label="Last wave"
             value={ticksToFormattedSeconds(
               raidData.splits[SplitType.TOB_NYLO_WAVES],
             )}
@@ -557,6 +557,33 @@ export default function NylocasPage() {
           </span>
         </div>
       </div>
+      {raidData.splits[SplitType.TOB_NYLO_BOSS_SPAWN] && (
+        <div className={styles.bossRotation}>
+          <h3 className={styles.statsHeading}>Boss rotation:</h3>
+          <div className={styles.splitCountGroup}>
+            <span
+              className={styles.splitCount}
+              style={{ color: BLUE_NYLO_COLOR }}
+            >
+              {raidData.tobStats.nylocasBossMage}
+            </span>
+            <span className={styles.divider}>|</span>
+            <span
+              className={styles.splitCount}
+              style={{ color: GREEN_NYLO_COLOR }}
+            >
+              {raidData.tobStats.nylocasBossRanged}
+            </span>
+            <span className={styles.divider}>|</span>
+            <span
+              className={styles.splitCount}
+              style={{ color: GRAY_NYLO_COLOR }}
+            >
+              {raidData.tobStats.nylocasBossMelee}
+            </span>
+          </div>
+        </div>
+      )}
       <h3 className={styles.statsHeading}>Stalled Waves ({stalls.length})</h3>
       <HorizontalScrollable className={styles.stalls}>
         {stalls.map((stall, i) => (

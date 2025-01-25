@@ -14,10 +14,12 @@ import {
   PlayerStats,
   SplitType,
   Stage,
+  TobChallengeStats,
   TobRaid,
   allSplitModes,
   camelToSnake,
   generalizeSplit,
+  snakeToCamelObject,
 } from '@blert/common';
 import postgres from 'postgres';
 
@@ -98,10 +100,30 @@ export async function loadChallenge(
   };
 
   switch (rawChallenge[0].type) {
-    case ChallengeType.TOB:
-      (challenge as TobRaid).tobRooms =
-        await dataRepository.loadTobChallengeData(id);
+    case ChallengeType.TOB: {
+      const raid = challenge as TobRaid;
+
+      await Promise.all([
+        dataRepository.loadTobChallengeData(id),
+        sql`
+          SELECT *
+          FROM tob_challenge_stats
+          WHERE challenge_id = ${rawChallenge[0].id}
+        `,
+      ]).then(([tobData, [stats]]) => {
+        raid.tobRooms = tobData;
+        delete stats.id;
+        delete stats.challenge_id;
+        raid.tobStats = snakeToCamelObject(stats) as TobChallengeStats;
+      });
+
+      if (!raid.tobStats) {
+        return null;
+      }
+
       break;
+    }
+
     case ChallengeType.COLOSSEUM:
       (challenge as ColosseumChallenge).colosseum =
         await dataRepository.loadColosseumChallengeData(id);

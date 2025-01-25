@@ -68,6 +68,7 @@ export type {
   RawSkillLevel,
   RoomNpc,
   RoomNpcMap,
+  TobChallengeStats,
   TobRaid,
   TobRooms,
   VerzikCrab,
@@ -110,8 +111,12 @@ export { type NameChange, NameChangeStatus } from './name-change';
 export {
   type CamelToSnakeCase,
   type CamelToSnakeCaseString,
+  type SnakeToCamelCase,
+  type SnakeToCamelCaseString,
   camelToSnake,
   camelToSnakeObject,
+  snakeToCamel,
+  snakeToCamelObject,
 } from './translate';
 
 export { DataRepository } from './data-repository/data-repository';
@@ -148,9 +153,6 @@ export {
 
 export { isPostgresUniqueViolation } from './db/postgres';
 
-export type {
-  TobChallengeStats,
-  TobChallengeStatsRow,
-} from './db/challenge-stats';
+export type { TobChallengeStatsRow } from './db/challenge-stats';
 
 export { default as PriceTracker } from './price-tracker';

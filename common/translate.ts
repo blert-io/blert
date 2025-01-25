@@ -25,3 +25,31 @@ export function camelToSnakeObject<T>(object: T): CamelToSnakeCase<T> {
     }),
   ) as CamelToSnakeCase<T>;
 }
+
+export type SnakeToCamelCaseString<S extends string> =
+  S extends `${infer T}_${infer U}`
+    ? `${T}${Capitalize<SnakeToCamelCaseString<U>>}`
+    : S;
+
+export type SnakeToCamelCase<T> = T extends object
+  ? {
+      [K in keyof T as SnakeToCamelCaseString<K & string>]: SnakeToCamelCase<
+        T[K]
+      >;
+    }
+  : T;
+
+export function snakeToCamel(str: string): string {
+  return str.replace(/_[a-z]/g, (substring) => substring[1].toUpperCase());
+}
+
+export function snakeToCamelObject<T>(object: T): SnakeToCamelCase<T> {
+  return Object.fromEntries(
+    Object.entries(object as {}).map(([key, value]) => {
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        value = snakeToCamelObject(value);
+      }
+      return [snakeToCamel(key), value];
+    }),
+  ) as SnakeToCamelCase<T>;
+}
