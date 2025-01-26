@@ -1,4 +1,4 @@
-@import '../mixins.scss';
+@use '../mixins.scss' as *;
 
 .rat {
   --rat-width: 100px;

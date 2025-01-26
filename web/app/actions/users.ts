@@ -9,7 +9,7 @@ import {
   isPostgresUniqueViolation,
 } from '@blert/common';
 import bcrypt from 'bcrypt';
-import { isRedirectError } from 'next/dist/client/components/redirect';
+import { isRedirectError } from 'next/dist/client/components/redirect-error';
 import { z } from 'zod';
 
 import { auth, signIn } from '@/auth';

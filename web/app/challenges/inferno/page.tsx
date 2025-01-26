@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import Link from 'next/link';
 import Image from 'next/image';
 
 import CollapsiblePanel from '../../components/collapsible-panel';
@@ -50,9 +51,9 @@ export default function Page() {
               <br />
               <br />
               Also, read our{' '}
-              <a href="/" style={{ textDecoration: 'underline' }}>
+              <Link href="/" style={{ textDecoration: 'underline' }}>
                 FAQ
-              </a>
+              </Link>
               !
             </p>
           </div>

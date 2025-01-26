@@ -1,16 +1,18 @@
-@import '../mixins.scss';
+@use '../mixins.scss' as *;
 
 .accountPage {
   width: 100%;
   height: 100vh;
 
+  & {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     height: calc(100vh - $TOPBAR_HEIGHT);
     overflow-y: auto;
   }
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
 }

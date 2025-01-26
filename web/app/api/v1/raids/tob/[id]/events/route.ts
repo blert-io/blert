@@ -5,10 +5,12 @@ import { loadEventsForStage } from '../../../../../../actions/challenge';
 import { parseIntParam } from '../../../../../../utils/params';
 
 type Params = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
 export async function GET(request: NextRequest, { params }: Params) {
+  const { id } = await params;
+
   const searchParams = request.nextUrl.searchParams;
   const room = parseIntParam<Stage>(searchParams, 'stage');
   if (
@@ -22,7 +24,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   const type = parseIntParam<EventType>(searchParams, 'type');
 
   try {
-    const events = await loadEventsForStage(params.id, room, type);
+    const events = await loadEventsForStage(id, room, type);
     if (events === null) {
       return new Response(null, { status: 404 });
     }

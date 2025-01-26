@@ -14,14 +14,16 @@ type RaidParams = {
 };
 
 type RaidLayoutProps = {
-  params: RaidParams;
+  params: Promise<RaidParams>;
   children: React.ReactNode;
 };
 
-export default function RaidLayout(props: RaidLayoutProps) {
+export default async function RaidLayout(props: RaidLayoutProps) {
+  const { id } = await props.params;
+
   return (
     <div className={styles.raid}>
-      <TobContextProvider raidId={props.params.id}>
+      <TobContextProvider raidId={id}>
         <div className={styles.content}>{props.children}</div>
       </TobContextProvider>
     </div>
@@ -32,8 +34,10 @@ export async function generateMetadata(
   { params }: RaidLayoutProps,
   parent: ResolvingMetadata,
 ) {
+  const { id } = await params;
+
   const [raid, metadata] = await Promise.all([
-    loadChallenge(ChallengeType.TOB, params.id),
+    loadChallenge(ChallengeType.TOB, id),
     parent,
   ]);
 

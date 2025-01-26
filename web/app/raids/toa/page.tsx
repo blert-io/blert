@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 import Image from 'next/image';
-
+import Link from 'next/link';
 import CollapsiblePanel from '../../components/collapsible-panel';
 import PvMContentLogo, { PvMContent } from '../../components/pvm-content-logo';
 
@@ -36,21 +36,21 @@ export default function Page() {
               soon! Stay tuned for updates. If you have any questions or, would
               like to help out, provide feedback, or just want to chat, feel
               free to join our{' '}
-              <a
+              <Link
                 href="https://discord.gg/c5Hgv3NnYe"
                 target="_blank"
                 rel="noreferrer noopener"
                 style={{ textDecoration: 'underline' }}
               >
                 Discord Server
-              </a>
+              </Link>
               !
               <br />
               <br />
               Also, read our{' '}
-              <a href="/" style={{ textDecoration: 'underline' }}>
+              <Link href="/" style={{ textDecoration: 'underline' }}>
                 FAQ
-              </a>
+              </Link>
               !
             </p>
           </div>

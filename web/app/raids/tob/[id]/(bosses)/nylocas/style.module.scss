@@ -1,4 +1,4 @@
-@import '../../../../../mixins.scss';
+@use '../../../../../mixins.scss' as *;
 
 .splits {
   margin: 10px 0;

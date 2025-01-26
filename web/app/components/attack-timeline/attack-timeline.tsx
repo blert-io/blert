@@ -1064,6 +1064,7 @@ type BaseTimelineProps = {
   updateTickOnPage: (tick: number) => void;
   npcs: RoomNpcMap;
   actorContext: RoomActorState;
+  memes: BlertMemes;
   cellSize: number;
   wrapWidth?: number;
   numRows: number;
@@ -1079,13 +1080,12 @@ function BaseTimeline(props: BaseTimelineProps) {
     updateTickOnPage,
     npcs,
     actorContext,
+    memes,
     cellSize,
     numRows,
     ticksPerRow,
     timelineTicks,
   } = props;
-
-  const memes = useContext(MemeContext);
 
   const attackTimelineColumnElements = [];
 
@@ -1134,7 +1134,7 @@ export type TimelineSplit = {
   tick: number;
   splitName: string;
   unimportant?: boolean;
-  splitCustomContent?: JSX.Element;
+  splitCustomContent?: React.ReactNode;
 };
 
 export type TimelineColor = {
@@ -1173,6 +1173,7 @@ export function AttackTimeline(props: AttackTimelineProps) {
   const totalColumnWidth = cellSize + COLUMN_MARGIN;
 
   const actorContext = useContext(ActorContext);
+  const memes = useContext(MemeContext);
 
   const attackTimelineRef = useRef<HTMLDivElement>(null);
   const currentTickColumnRef = useRef<HTMLDivElement>(null);
@@ -1220,7 +1221,7 @@ export function AttackTimeline(props: AttackTimelineProps) {
     numRows = Math.ceil(timelineTicks / ticksPerRow);
   }
 
-  const legendElements: JSX.Element[] = [];
+  const legendElements: React.ReactNode[] = [];
 
   for (let i = 0; i < attackTimelineParticipants.length; i++) {
     const [name, id] = attackTimelineParticipants[i];
@@ -1264,6 +1265,7 @@ export function AttackTimeline(props: AttackTimelineProps) {
         updateTickOnPage={updateTickOnPage}
         npcs={npcs}
         actorContext={actorContext}
+        memes={memes}
         cellSize={cellSize}
         numRows={numRows}
         ticksPerRow={ticksPerRow}
@@ -1277,6 +1279,7 @@ export function AttackTimeline(props: AttackTimelineProps) {
       updateTickOnPage,
       npcs,
       actorContext,
+      memes,
       cellSize,
       numRows,
       ticksPerRow,

@@ -1,4 +1,4 @@
-@import '../../mixins.scss';
+@use '../../mixins.scss' as *;
 
 $CONTENT_WIDTH_NORMAL: 1000px;
 $CONTENT_WIDTH_SMALL: 750px;

@@ -12,7 +12,7 @@ import { ticksToFormattedSeconds } from '../../utils/tick';
 import styles from './style.module.scss';
 
 type PlayerPageProps = {
-  params: { username: string };
+  params: Promise<{ username: string }>;
 };
 
 const STATISTIC_WIDTH = 126;
@@ -60,7 +60,9 @@ function PbTable({ title, pbs }: PbTableProps) {
 }
 
 export default async function Player(props: PlayerPageProps) {
-  const username = decodeURIComponent(props.params.username);
+  const username = await props.params.then((p) =>
+    decodeURIComponent(p.username),
+  );
 
   const [player, personalBests] = await Promise.all([
     loadPlayerWithStats(username),
@@ -311,7 +313,7 @@ export async function generateMetadata(
   { params }: PlayerPageProps,
   parent: ResolvingMetadata,
 ) {
-  const username = decodeURIComponent(params.username);
+  const username = await params.then((p) => decodeURIComponent(p.username));
   const [player, metadata] = await Promise.all([
     loadPlayerWithStats(username),
     parent,

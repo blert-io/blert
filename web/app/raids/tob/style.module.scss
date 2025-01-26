@@ -1,4 +1,4 @@
-@import '../../mixins.scss';
+@use '../../mixins.scss' as *;
 
 $MASSIVE_SCREEN_WIDTH: 2270px;
 

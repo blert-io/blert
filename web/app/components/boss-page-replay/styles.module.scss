@@ -1,4 +1,5 @@
-@import '../../mixins.scss';
+@use 'sass:color';
+@use '../../mixins.scss' as *;
 
 .replay {
   display: flex;
@@ -64,7 +65,7 @@
       }
 
       &:hover {
-        background-color: lighten(#1b1c25, 2%);
+        background-color: color.adjust(#1b1c25, $lightness: 2%);
       }
 
       .skills {

@@ -14,7 +14,7 @@ import {
 } from '@blert/common';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { useContext, useEffect } from 'react';
+import { use, useContext, useEffect } from 'react';
 
 import AttackTimeline from '@/components/attack-timeline';
 import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
@@ -67,7 +67,7 @@ function imageForWave(waveNumber: number) {
 }
 
 type ColosseumWavePageProps = {
-  params: { id: string; number: string };
+  params: Promise<{ id: string; number: string }>;
 };
 
 function validWaveNumber(waveNumber: number) {
@@ -100,10 +100,10 @@ function npcOutlineColor(npcId: number): string | undefined {
   return '#2d270c';
 }
 
-export default function ColosseumWavePage({
-  params: { id: challengeId, number },
-}: ColosseumWavePageProps) {
+export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
   const router = useRouter();
+
+  const { id: challengeId, number } = use(params);
 
   const waveNumber = Number.parseInt(number, 10);
   useEffect(() => {

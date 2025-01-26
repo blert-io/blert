@@ -1,12 +1,14 @@
 import { ChallengeType } from '@blert/common';
-import { loadChallenge } from '../../../../../actions/challenge';
+
+import { loadChallenge } from '@/actions/challenge';
 
 type Params = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
 export async function GET(request: Request, { params }: Params) {
-  const challenge = await loadChallenge(ChallengeType.COLOSSEUM, params.id);
+  const { id } = await params;
+  const challenge = await loadChallenge(ChallengeType.COLOSSEUM, id);
   if (challenge === null) {
     return new Response(null, { status: 404 });
   }

@@ -216,12 +216,14 @@ export default function Search({
       setInitialFetch(false);
     };
     initialLoad();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (!initialFetch) {
       loadChallenges(FetchAction.LOAD);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context, initialFetch]);
 
   useEffect(() => {
@@ -243,6 +245,7 @@ export default function Search({
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context, challenges, loading, page, totalPages]);
 
   return (

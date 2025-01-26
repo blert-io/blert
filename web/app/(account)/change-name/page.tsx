@@ -4,10 +4,12 @@ import styles from './style.module.scss';
 import Link from 'next/link';
 
 type ChangeNameProps = {
-  searchParams: Record<string, string>;
+  searchParams: Promise<Record<string, string>>;
 };
 
-export default function ChangeName({ searchParams }: ChangeNameProps) {
+export default async function ChangeName({ searchParams }: ChangeNameProps) {
+  const params = await searchParams;
+
   return (
     <div className={styles.changeName}>
       <h2>Change Name</h2>
@@ -17,7 +19,7 @@ export default function ChangeName({ searchParams }: ChangeNameProps) {
         out on our <a href="https://discord.gg/c5Hgv3NnYe">Discord</a> for
         manual review.
       </p>
-      <ChangeNameForm initialOldName={searchParams.rsn} />
+      <ChangeNameForm initialOldName={params.rsn} />
       <Link className={styles.return} href="/name-changes">
         Return to name changes
       </Link>

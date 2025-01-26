@@ -1,14 +1,15 @@
 import { EventType, Stage } from '@blert/common';
 import { NextRequest } from 'next/server';
 
-import { loadEventsForStage } from '../../../../../../actions/challenge';
-import { parseIntParam } from '../../../../../../utils/params';
+import { loadEventsForStage } from '@/actions/challenge';
+import { parseIntParam } from '@/utils/params';
 
 type Params = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
 export async function GET(request: NextRequest, { params }: Params) {
+  const { id } = await params;
   const searchParams = request.nextUrl.searchParams;
   const stage = parseIntParam<Stage>(searchParams, 'stage');
   if (
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   const type = parseIntParam<EventType>(searchParams, 'type');
 
   try {
-    const events = await loadEventsForStage(params.id, stage, type);
+    const events = await loadEventsForStage(id, stage, type);
     if (events === null) {
       return new Response(null, { status: 404 });
     }

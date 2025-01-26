@@ -19,13 +19,15 @@ const INITIAL_RESULTS = 25;
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: NextSearchParams;
+  searchParams: Promise<NextSearchParams>;
 }) {
-  const initialContext = contextFromUrlParams(searchParams);
+  const params = await searchParams;
+
+  const initialContext = contextFromUrlParams(params);
   let initialQuery: ChallengeQuery = { sort: ['-startTime'] };
 
   try {
-    const query = parseChallengeQuery(searchParams);
+    const query = parseChallengeQuery(params);
     if (query !== null) {
       initialQuery = { ...initialQuery, ...query };
     }
@@ -49,7 +51,7 @@ export default async function SearchPage({
   ]);
 
   let initialRemaining: number;
-  if (searchParams.before !== undefined) {
+  if (params.before !== undefined) {
     initialRemaining =
       initialStats.count - (remaining ?? initialStats.count) + INITIAL_RESULTS;
     initialChallenges.reverse();

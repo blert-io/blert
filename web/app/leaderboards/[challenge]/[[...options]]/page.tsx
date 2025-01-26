@@ -102,14 +102,14 @@ function Leaderboard({ challengeType, split, ranks }: LeaderboardProps) {
 }
 
 type LeaderboardsPageProps = {
-  params: {
+  params: Promise<{
     challenge: string;
     options?: string[];
-  };
+  }>;
 };
 
 export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
-  const { challenge, options } = props.params;
+  const { challenge, options } = await props.params;
 
   let challengeType: ChallengeType;
   let mode = ChallengeMode.NO_MODE;
@@ -289,7 +289,7 @@ export async function generateMetadata(
   { params }: LeaderboardsPageProps,
   parent: ResolvingMetadata,
 ) {
-  const { challenge, options } = params;
+  const { challenge, options } = await params;
 
   let title = 'Leaderboards';
   let description = '';
