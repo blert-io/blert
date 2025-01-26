@@ -1111,23 +1111,36 @@ export type PersonalBest = {
   ticks: number;
 };
 
+type PbsFilter = {
+  splits?: SplitType[];
+  scales?: number[];
+};
+
 export async function loadPbsForPlayer(
   username: string,
+  filter?: PbsFilter,
 ): Promise<PersonalBest[]> {
-  const pbs: postgres.RowList<Array<PersonalBest>> = await sql`
+  const rows = await sql`
     SELECT
-      challenges.uuid as cid,
-      challenge_splits.type,
-      challenge_splits.scale,
-      challenge_splits.ticks
-    FROM personal_bests
-    JOIN challenge_splits ON personal_bests.challenge_split_id = challenge_splits.id
-    JOIN players ON personal_bests.player_id = players.id
-    JOIN challenges ON challenge_splits.challenge_id = challenges.id
-    WHERE lower(players.username) = ${username.toLowerCase()}
+      c.uuid as cid,
+      cs.type,
+      cs.scale,
+      cs.ticks
+    FROM personal_bests pb
+    JOIN challenge_splits cs ON pb.challenge_split_id = cs.id
+    JOIN challenges c ON cs.challenge_id = c.id
+    JOIN players p ON pb.player_id = p.id
+    WHERE lower(p.username) = ${username.toLowerCase()}
+      ${filter?.splits ? sql`AND cs.type = ANY(${filter.splits})` : sql``}
+      ${filter?.scales ? sql`AND cs.scale = ANY(${filter.scales})` : sql``}
   `;
 
-  return pbs;
+  return rows.map((row) => ({
+    cid: row.cid,
+    type: row.type,
+    scale: row.scale,
+    ticks: row.ticks,
+  }));
 }
 
 function stageToStatsField(stage: Stage): string | null {
