@@ -206,8 +206,10 @@ function isInteractive(item: MenuItem): boolean {
 
 export default function Menu(props: MenuProps) {
   const [ready, setReady] = useState(false);
+  const [allowClose, setAllowClose] = useState(false);
   const portalNode = useRef<HTMLElement | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { items, open, onBrowse, onSelection, onClose } = props;
 
@@ -349,8 +351,17 @@ export default function Menu(props: MenuProps) {
 
   useEffect(() => {
     if (!open) {
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+      }
+      setAllowClose(false);
       return;
     }
+
+    setAllowClose(false);
+    closeTimeoutRef.current = setTimeout(() => {
+      setAllowClose(true);
+    }, 100);
 
     const root = document.getElementById('portal-root');
 
@@ -367,6 +378,9 @@ export default function Menu(props: MenuProps) {
           .getElementById('portal-root')
           ?.removeChild(portalNode.current!);
       }
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+      }
     };
   }, [open]);
 
@@ -374,6 +388,7 @@ export default function Menu(props: MenuProps) {
     if (onClose) {
       const closeMenu = (e: MouseEvent) => {
         if (
+          allowClose &&
           wrapperRef.current !== null &&
           !wrapperRef.current.contains(e.target as Node)
         ) {
@@ -386,7 +401,7 @@ export default function Menu(props: MenuProps) {
         window.removeEventListener('click', closeMenu);
       };
     }
-  }, [onClose]);
+  }, [onClose, allowClose]);
 
   if (
     portalNode.current === null ||

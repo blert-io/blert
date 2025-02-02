@@ -1,4 +1,4 @@
-import { ChallengeMode, ChallengeStatus, ChallengeType } from '@blert/common';
+import { ChallengeMode, ChallengeStatus, ChallengeType, Stage } from '@blert/common';
 
 import {
   ExtraChallengeFields,
@@ -8,12 +8,56 @@ import {
 import { Comparator } from '@/components/tick-input';
 import { NextSearchParams, UrlParam, UrlParams } from '@/utils/url';
 
+function serializeComparator(comparator: Comparator): string {
+  switch (comparator) {
+    case Comparator.EQUAL:
+      return 'eq';
+    case Comparator.LESS_THAN:
+      return 'lt';
+    case Comparator.GREATER_THAN:
+      return 'gt';
+    case Comparator.LESS_THAN_OR_EQUAL:
+      return 'le';
+    case Comparator.GREATER_THAN_OR_EQUAL:
+      return 'ge';
+  }
+}
+
+function parseComparatorParam<T extends number>(
+  value: string,
+): [Comparator, T] | null {
+  let comparator: Comparator;
+  let val: string;
+
+  if (value.startsWith('eq')) {
+    comparator = Comparator.EQUAL;
+  } else if (value.startsWith('le')) {
+    comparator = Comparator.LESS_THAN_OR_EQUAL;
+  } else if (value.startsWith('ge')) {
+    comparator = Comparator.GREATER_THAN_OR_EQUAL;
+  } else if (value.startsWith('lt')) {
+    comparator = Comparator.LESS_THAN;
+  } else if (value.startsWith('gt')) {
+    comparator = Comparator.GREATER_THAN;
+  } else {
+    return null;
+  }
+
+  const num = parseInt(value.slice(2));
+  if (isNaN(num)) {
+    return null;
+  }
+
+  return [comparator, num as T];
+}
+
 export type SearchFilters = {
   party: string[];
   mode: ChallengeMode[];
   scale: number[];
   status: ChallengeStatus[];
   type: ChallengeType[];
+  stage: [Comparator, Stage] | null;
   startDate: Date | null;
   endDate: Date | null;
   splits: Record<string, [Comparator, number]>;
@@ -76,20 +120,13 @@ export function filtersToUrlParams(filters: SearchFilters): UrlParams {
     options,
   };
 
+  if (filters.stage !== null) {
+    const [comparator, value] = filters.stage;
+    params.stage = `${serializeComparator(comparator)}${value}`;
+  }
+
   Object.entries(filters.splits).forEach(([split, [comparator, value]]) => {
-    let cmp;
-    switch (comparator) {
-      case Comparator.EQUAL:
-        cmp = 'eq';
-        break;
-      case Comparator.LESS_THAN:
-        cmp = 'lt';
-        break;
-      case Comparator.GREATER_THAN:
-        cmp = 'gt';
-        break;
-    }
-    params[`split:${split}`] = `${cmp}${value}`;
+    params[`split:${split}`] = `${serializeComparator(comparator)}${value}`;
   });
 
   return params;
@@ -124,6 +161,7 @@ export function contextFromUrlParams(params: NextSearchParams): SearchContext {
       scale: [],
       status: [],
       type: [],
+      stage: null,
       startDate: null,
       endDate: null,
       splits: {},
@@ -158,6 +196,14 @@ export function contextFromUrlParams(params: NextSearchParams): SearchContext {
       case 'type':
         context.filters.type = numericList<ChallengeType>(value);
         break;
+
+      case 'stage': {
+        const parsed = parseComparatorParam<Stage>(value);
+        if (parsed !== null) {
+          context.filters.stage = parsed;
+        }
+        break;
+      }
 
       case 'startTime':
         if (value.startsWith('>=')) {
@@ -205,20 +251,9 @@ export function contextFromUrlParams(params: NextSearchParams): SearchContext {
       default:
         if (key.startsWith('split:')) {
           const split = key.slice(6);
-          let comparator: Comparator;
-          let num: number;
-          if (value.startsWith('eq')) {
-            comparator = Comparator.EQUAL;
-          } else if (value.startsWith('lt')) {
-            comparator = Comparator.LESS_THAN;
-          } else if (value.startsWith('gt')) {
-            comparator = Comparator.GREATER_THAN;
-          } else {
-            continue;
-          }
-          num = parseInt(value.slice(2));
-          if (!isNaN(num)) {
-            context.filters.splits[split] = [comparator, num];
+          const parsed = parseComparatorParam(value);
+          if (parsed !== null) {
+            context.filters.splits[split] = parsed;
           }
         }
         break;

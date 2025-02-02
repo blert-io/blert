@@ -245,6 +245,7 @@ export function parseChallengeQuery(
       searchParams,
       'challengeTicks',
     );
+    query.stage = numericComparatorParam(searchParams, 'stage');
   } catch (e) {
     return null;
   }

@@ -186,6 +186,7 @@ export type ChallengeQuery = {
   startTime?: Comparator<Date>;
   challengeTicks?: Comparator<number>;
   customConditions?: Condition[];
+  stage?: Comparator<Stage>;
 };
 
 export type QueryOptions = {
@@ -474,6 +475,10 @@ function applyFilters(
     conditions.push(
       comparatorToSql(sqlChallenges, 'challenge_ticks', query.challengeTicks),
     );
+  }
+
+  if (query.stage !== undefined) {
+    conditions.push(comparatorToSql(sqlChallenges, 'stage', query.stage));
   }
 
   if (query.customConditions !== undefined) {

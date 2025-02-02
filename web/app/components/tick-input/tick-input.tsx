@@ -28,6 +28,10 @@ function comparatorIcon(comparator: Comparator): string {
       return 'less-than';
     case Comparator.GREATER_THAN:
       return 'greater-than';
+    case Comparator.LESS_THAN_OR_EQUAL:
+      return 'less-than-equal';
+    case Comparator.GREATER_THAN_OR_EQUAL:
+      return 'greater-than-equal';
   }
 }
 

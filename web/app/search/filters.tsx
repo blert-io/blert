@@ -3,6 +3,7 @@ import {
   ChallengeStatus,
   ChallengeType,
   SplitType,
+  Stage,
   splitName,
 } from '@blert/common';
 import { Dispatch, SetStateAction, useContext, useState } from 'react';
@@ -67,6 +68,42 @@ function toggleTobMode(
   };
 }
 
+const STAGE_MENU_ITEMS: MenuItem[] = [
+  {
+    label: 'ToB',
+    subMenu: [
+      { label: 'Maiden', value: Stage.TOB_MAIDEN },
+      { label: 'Bloat', value: Stage.TOB_BLOAT },
+      { label: 'Nylocas', value: Stage.TOB_NYLOCAS },
+      { label: 'Sotetseg', value: Stage.TOB_SOTETSEG },
+      { label: 'Xarpus', value: Stage.TOB_XARPUS },
+      { label: 'Verzik', value: Stage.TOB_VERZIK },
+    ],
+  },
+  {
+    label: 'Colosseum',
+    subMenu: [
+      { label: 'Wave 1', value: Stage.COLOSSEUM_WAVE_1 },
+      { label: 'Wave 2', value: Stage.COLOSSEUM_WAVE_2 },
+      { label: 'Wave 3', value: Stage.COLOSSEUM_WAVE_3 },
+      { label: 'Wave 4', value: Stage.COLOSSEUM_WAVE_4 },
+      { label: 'Wave 5', value: Stage.COLOSSEUM_WAVE_5 },
+      { label: 'Wave 6', value: Stage.COLOSSEUM_WAVE_6 },
+      { label: 'Wave 7', value: Stage.COLOSSEUM_WAVE_7 },
+      { label: 'Wave 8', value: Stage.COLOSSEUM_WAVE_8 },
+      { label: 'Wave 9', value: Stage.COLOSSEUM_WAVE_9 },
+      { label: 'Wave 10', value: Stage.COLOSSEUM_WAVE_10 },
+      { label: 'Sol Heredit', value: Stage.COLOSSEUM_WAVE_11 },
+    ],
+  },
+];
+
+const STAGE_OPERATORS = [
+  { label: 'is', value: Comparator.EQUAL },
+  { label: 'is at least', value: Comparator.GREATER_THAN_OR_EQUAL },
+  { label: 'is at most', value: Comparator.LESS_THAN_OR_EQUAL },
+];
+
 export default function Filters({
   context,
   setContext,
@@ -87,6 +124,12 @@ export default function Filters({
       context.filters.startDate !== null || context.filters.endDate !== null
     );
   });
+
+  const [stageMenuOpen, setStageMenuOpen] = useState(false);
+  const [stageOperatorMenuOpen, setStageOperatorMenuOpen] = useState(false);
+
+  const [stageOperator, setStageOperator] = useState(context.filters.stage?.[0] ?? Comparator.EQUAL);
+  const selectedStage = context.filters.stage?.[1] ?? null;
 
   function toggle<
     K extends keyof ArrayFields<SearchFilters>,
@@ -224,6 +267,93 @@ export default function Filters({
           {checkbox('scale', 3, 'Trio')}
           {checkbox('scale', 4, '4s')}
           {checkbox('scale', 5, '5s')}
+        </div>
+        <div className={`${styles.checkGroup} ${styles.item}`}>
+          <div className={styles.label}>
+            <label>Stage</label>
+            <button
+              className={styles.action}
+              disabled={loading}
+              onClick={() => {
+                setStageOperator(Comparator.EQUAL);
+                setContext((prev) => ({
+                  ...prev,
+                  filters: { ...prev.filters, stage: null },
+                  pagination: {},
+                }));
+              }}
+            >
+              Clear
+            </button>
+          </div>
+          <div className={styles.stageFilter}>
+            <button
+              id="stage-operator-select"
+              className={styles.action}
+              onClick={() => setStageOperatorMenuOpen(true)}
+            >
+              {STAGE_OPERATORS.find(op => op.value === stageOperator)?.label ?? 'Select operator'}
+              <i className="fas fa-chevron-down" style={{ marginLeft: 8 }} />
+            </button>
+            <button
+              id="stage-select"
+              className={styles.action}
+              onClick={() => setStageMenuOpen(true)}
+            >
+              {selectedStage ? STAGE_MENU_ITEMS.flatMap(m => m.subMenu!).find(item => item.value === selectedStage)?.label : 'Select stage'}
+              <i className="fas fa-chevron-down" style={{ marginLeft: 8 }} />
+            </button>
+            <Menu
+              onClose={() => setStageOperatorMenuOpen(false)}
+              onSelection={(value) => {
+                const operator = value as Comparator;
+                setStageOperator(operator);
+                setStageOperatorMenuOpen(false);
+                if (selectedStage !== null) {
+                  setContext((prev) => ({
+                    ...prev,
+                    filters: {
+                      ...prev.filters,
+                      stage: [operator, selectedStage],
+                    },
+                    pagination: {},
+                  }));
+                } else {
+                  setContext((prev) => ({
+                    ...prev,
+                    filters: {
+                      ...prev.filters,
+                      stage: null,
+                    },
+                    pagination: {},
+                  }));
+                }
+              }}
+              open={stageOperatorMenuOpen}
+              items={STAGE_OPERATORS}
+              targetId="stage-operator-select"
+              width={DATE_INPUT_WIDTH}
+            />
+            <Menu
+              onClose={() => setStageMenuOpen(false)}
+              onSelection={(value) => {
+                const stage = parseInt(value as string, 10);
+                setStageMenuOpen(false);
+                setContext((prev) => ({
+                  ...prev,
+                  filters: {
+                    ...prev.filters,
+                    stage: [stageOperator, stage],
+                  },
+                  pagination: {},
+                }));
+              }}
+              open={stageMenuOpen}
+              items={STAGE_MENU_ITEMS}
+              targetId="stage-select"
+              width={DATE_INPUT_WIDTH}
+            />
+          </div>
         </div>
         <div className={`${styles.checkGroup} ${styles.item}`}>
           <div className={styles.label}>
@@ -642,7 +772,7 @@ function CustomFilters({
           const name = splitName(split, true);
           const round =
             split === SplitType.TOB_NYLO_BOSS_SPAWN ||
-            split === SplitType.TOB_NYLO_BOSS
+              split === SplitType.TOB_NYLO_BOSS
               ? 4
               : 1;
 

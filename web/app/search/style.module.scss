@@ -43,14 +43,14 @@
         background-color: var(--nav-bg);
         border-color: var(--nav-bg);
 
-        th > span,
-        th > button {
+        th>span,
+        th>button {
           font-size: inherit;
           font-weight: 500;
           color: white;
         }
 
-        th > button {
+        th>button {
           cursor: pointer;
         }
       }
@@ -63,6 +63,7 @@
 
         button {
           padding: 2px 0;
+
           &:hover {
             opacity: 0.8;
           }
@@ -175,7 +176,6 @@
   padding: 10px 1em;
   display: flex;
   flex-direction: column;
-  align-items: center;
   max-width: 1250px;
 
   .label {
@@ -218,6 +218,34 @@
 
     .checkbox {
       padding: 4px 0;
+    }
+  }
+
+  .stageFilter {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    button {
+      min-width: 140px;
+      text-align: left;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+      border-radius: 4px;
+      cursor: pointer;
+      color: var(--blert-text-color);
+      font-size: 16px;
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      &:not(:disabled):hover {
+        background: var(--bg-lighter);
+      }
     }
   }
 
@@ -268,7 +296,7 @@
     .customHeading {
       padding: 0 12px;
 
-      & > label {
+      &>label {
         font-size: 1.2rem;
         color: #fff;
         font-weight: 500;
@@ -401,10 +429,12 @@
     &.hint {
       border-color: #fff;
     }
+
     &.active {
       .label {
         color: var(--blert-blue);
       }
+
       border-color: var(--blert-blue);
     }
 
@@ -493,6 +523,7 @@
 
     button {
       width: 80px;
+
       &:not(:first-child) {
         margin-left: 10px;
       }
