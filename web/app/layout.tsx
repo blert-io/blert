@@ -1,6 +1,7 @@
 import { GoogleAnalytics } from '@next/third-parties/google';
 import { Metadata } from 'next';
 import { Inter, Roboto_Mono } from 'next/font/google';
+import localFont from 'next/font/local';
 import { SessionProvider } from 'next-auth/react';
 import { WebSite, WithContext } from 'schema-dts';
 
@@ -13,6 +14,22 @@ import Styler from './styler';
 
 import './globals.scss';
 import styles from './styles.module.scss';
+
+const runescape = localFont({
+  src: [
+    {
+      path: '../public/fonts/runescape.ttf',
+      weight: '400',
+      style: 'normal',
+    },
+    {
+      path: '../public/fonts/runescape-bold.ttf',
+      weight: '700',
+      style: 'normal',
+    },
+  ],
+  variable: '--font-runescape',
+});
 
 const inter = Inter({ subsets: ['latin'] });
 const robotoMono = Roboto_Mono({
@@ -71,7 +88,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${inter.className} ${robotoMono.variable}`}
+        className={`${inter.className} ${robotoMono.variable} ${runescape.variable}`}
         style={{ overflowX: 'hidden' }}
       >
         <Styler />

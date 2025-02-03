@@ -63,13 +63,32 @@ function normalize(name: string, quantity: number): string {
   return stem;
 }
 
+const QUANTITY_REG_COLOR = '#f9f900';
+const QUANTITY_K_COLOR = '#fdfdfd';
+const QUANTITY_M_COLOR = '#04e976';
+
+function formatQuantity(quantity: number): { text: string; color: string } {
+  if (quantity === 1) {
+    return { text: '', color: QUANTITY_REG_COLOR };
+  }
+  if (quantity < 100_000) {
+    return { text: quantity.toString(), color: QUANTITY_REG_COLOR };
+  }
+  if (quantity < 10_000_000) {
+    const thousands = Math.floor(quantity / 1000);
+    return { text: `${thousands}K`, color: QUANTITY_K_COLOR };
+  }
+  const millions = Math.floor(quantity / 1_000_000);
+  return { text: `${millions}M`, color: QUANTITY_M_COLOR };
+}
+
 export default function Item(props: ItemProps) {
   const imageUrl = `${WIKI_IMAGE_BASE_URL}/${normalize(
     props.name,
     props.quantity,
   )}.png`;
 
-  const quantityColor = 'yellow';
+  const { text: quantityText, color: quantityColor } = formatQuantity(props.quantity);
 
   let imageStyle: React.CSSProperties = { objectFit: 'contain' };
   if (props.outlineColor) {
@@ -93,9 +112,9 @@ export default function Item(props: ItemProps) {
         width={props.size}
         style={imageStyle}
       />
-      {props.quantity > 1 && (
+      {quantityText && (
         <div className={styles.quantity} style={{ color: quantityColor }}>
-          {props.quantity}
+          {quantityText}
         </div>
       )}
     </div>

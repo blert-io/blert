@@ -75,6 +75,7 @@ export default function EquipmentViewer(props: EquipmentViewerProps) {
             />
           </div>
           <Tooltip key={`tooltip-${slot}`} tooltipId={tooltipId}>
+            {item.quantity >= 100_000 && `${item.quantity.toLocaleString()}x `}
             {item.name}
           </Tooltip>
         </span>
