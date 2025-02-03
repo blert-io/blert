@@ -21,17 +21,26 @@ type TouchInfo = {
 };
 
 /**
- * Checks if the target element or any of its parents are horizontally
- * scrollable.
+ * Determines whether starting a drag on the target element should prevent
+ * the sidebar from being opened.
  *
  * @param target Element to inspect.
- * @returns True if the element is scrollable.
+ * @returns True if the element should not allow the sidebar to be opened.
  */
-function isWithinScrollableContainer(target: EventTarget | null): boolean {
+function shouldSuppressSidebarDrag(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) {
     return false;
   }
 
+  // Certain types of inputs are draggable. In text inputs, the user may
+  // want to select text. Don't allow the sidebar to be opened while
+  // interacting with these elements.
+  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+    return true;
+  }
+
+  // If the target element is located within a horizontally scrollable
+  // container, suppress the sidebar drag.
   let element: HTMLElement | null = target;
   while (element) {
     if (element.scrollWidth > element.clientWidth + 10) {
@@ -67,13 +76,14 @@ export function LeftNavWrapper({ children }: { children: React.ReactNode }) {
 
       if (
         !sidebarOpen &&
-        isWithinScrollableContainer(e.target) &&
+        shouldSuppressSidebarDrag(e.target) &&
         e.touches[0].clientX > SCREEN_EDGE_THRESHOLD
       ) {
-        // If the user is touching a scrollable container, don't allow the
-        // sidebar to be opened unless the touch is near the edge of the screen.
-        // If the sidebar is already open, allow the touch to be used to close
-        // it.
+        // If the user is touching a scrollable or otherwise interactive
+        // element, don't allow the sidebar to be opened unless the touch
+        // is near the edge of the screen.
+        // If the sidebar is already open, allow the touch to be used to
+        // close it.
         return;
       }
       activeTouch.current = { touch: e.touches[0], direction: null };
