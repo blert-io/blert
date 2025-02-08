@@ -4,6 +4,7 @@ import { getSetupByPublicId } from '@/actions/setup';
 import { getSignedInUser } from '@/actions/users';
 
 import GearSetupsCreator from './setup-creator';
+import { SetupViewingContextProvider } from '../../viewing-context';
 
 import styles from './style.module.scss';
 
@@ -30,8 +31,10 @@ export default async function GearSetupsEditPage({
   }
 
   return (
-    <div className={styles.setupsPage}>
-      <GearSetupsCreator setup={setup} />
-    </div>
+    <SetupViewingContextProvider>
+      <div className={styles.setupsPage}>
+        <GearSetupsCreator setup={setup} />
+      </div>
+    </SetupViewingContextProvider>
   );
 }

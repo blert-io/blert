@@ -8,12 +8,14 @@
   --blert-green-base: 45, 199, 112;
   --blert-yellow-base: 222, 200, 88;
   --blert-text-color-base: 195, 199, 201;
+  --blert-button-base: 88, 101, 242;
 
   --blert-red: rgb(var(--blert-red-base));
   --blert-blue: rgb(var(--blert-blue-base));
   --blert-green: rgb(var(--blert-green-base));
   --blert-yellow: rgb(var(--blert-yellow-base));
   --blert-text-color: rgb(var(--blert-text-color-base));
+  --blert-button: rgb(var(--blert-button-base));
 
   --nav-bg: #171821;
   --nav-bg-darkened: #111118;

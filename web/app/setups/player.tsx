@@ -1,9 +1,12 @@
+'use client';
+
 import { EquipmentSlot } from '@blert/common';
 import Image from 'next/image';
 import { useContext, useRef, useState } from 'react';
 
 import EditableTextField from '@/components/editable-text-field';
 import Menu, { MenuItem } from '@/components/menu';
+import { useToast } from '@/components/toast';
 import { ExtendedItemData } from '@/utils/item-cache/extended';
 
 import { EditingContext, SetupEditingContext } from './editing-context';
@@ -16,6 +19,7 @@ import {
   newGearSetupPlayer,
 } from './setup';
 import { Slot } from './slot';
+import { SetupViewingContext } from './viewing-context';
 
 import styles from './style.module.scss';
 
@@ -44,7 +48,7 @@ function typeFilter(slot: EquipmentSlot): (item: ExtendedItemData) => boolean {
 function runeFilter(item: ExtendedItemData): boolean {
   return [
     554, 555, 556, 557, 558, 562, 560, 565, 21880, 559, 564, 561, 563, 566,
-    9075, 4695, 4696, 4697, 4698, 4699, 28929,
+    9075, 4694, 4695, 4696, 4697, 4698, 4699, 28929,
   ].includes(item.id);
 }
 
@@ -74,6 +78,9 @@ const EQUIPMENT_SLOTS: Array<EquipmentSlotMetadata | null> = [
 
 export function Player({ index, player }: PlayerProps) {
   const editingContext = useContext(SetupEditingContext);
+  const { highlightedPlayerIndex } = useContext(SetupViewingContext);
+
+  const sendToast = useToast();
 
   const slotsByContainer = {
     [Container.INVENTORY]: slotsByIndex(player.inventory.slots),
@@ -81,24 +88,44 @@ export function Player({ index, player }: PlayerProps) {
     [Container.POUCH]: slotsByIndex(player.pouch.slots),
   };
 
+  const isHighlighted = highlightedPlayerIndex === index;
+  const className = `${styles.player}${isHighlighted ? ` ${styles.highlighted}` : ''}`;
+
   return (
-    <div className={styles.player}>
-      {editingContext !== null ? (
-        <EditableTextField
-          className={styles.name}
-          value={player.name}
-          onChange={(value) =>
-            editingContext?.updatePlayer(index, (prev) => ({
-              ...prev,
-              name: value,
-            }))
-          }
-          tag="h2"
-          width={200}
-        />
-      ) : (
-        <h2 className={styles.name}>{player.name}</h2>
-      )}
+    <div className={className}>
+      <div className={styles.header}>
+        {editingContext !== null ? (
+          <EditableTextField
+            className={styles.name}
+            value={player.name}
+            onChange={(value) =>
+              editingContext?.updatePlayer(index, (prev) => ({
+                ...prev,
+                name: value,
+              }))
+            }
+            tag="h2"
+            width={200}
+          />
+        ) : (
+          <h2 className={styles.name}>
+            {player.name}
+            <button
+              className={styles.shareButton}
+              onClick={() => {
+                const url = new URL(window.location.href);
+                url.searchParams.set('player', (index + 1).toString());
+                navigator.clipboard.writeText(url.toString());
+                sendToast(`Link to ${player.name} copied to clipboard`);
+              }}
+              title="Copy link to this player"
+            >
+              <i className="fas fa-link" />
+              <span className="sr-only">Copy link to this player</span>
+            </button>
+          </h2>
+        )}
+      </div>
       <div className={`${styles.slotContainer} ${styles.equipment}`}>
         {EQUIPMENT_SLOTS.map((slot, i) => {
           if (slot === null || (slot.condition && !slot.condition(player))) {
@@ -166,7 +193,12 @@ export function Player({ index, player }: PlayerProps) {
         />
       </div>
       <div className={`${styles.slotContainer} ${styles.spellbook}`}>
-        <SpellbookIcon context={editingContext} index={index} player={player} />
+        <SpellbookIcon
+          context={editingContext}
+          index={index}
+          player={player}
+          readonly={editingContext === null}
+        />
       </div>
       {editingContext !== null && (
         <button
@@ -202,10 +234,12 @@ function SpellbookIcon({
   context,
   player,
   index,
+  readonly,
 }: {
   context: EditingContext | null;
   player: GearSetupPlayer;
   index: number;
+  readonly: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const slotRef = useRef<HTMLDivElement>(null);
@@ -226,11 +260,13 @@ function SpellbookIcon({
       break;
   }
 
+  const rect = slotRef.current?.getBoundingClientRect();
+
   return (
     <div
-      className={`${styles.slot} ${styles.spellbookSlot}`}
+      className={`${styles.slot} ${styles.spellbookSlot} ${readonly ? styles.readonly : ''}`}
       onClick={() => {
-        if (context !== null) {
+        if (context !== null && !readonly) {
           setMenuOpen(true);
         }
       }}
@@ -249,10 +285,13 @@ function SpellbookIcon({
           open={menuOpen}
           onClose={() => setMenuOpen(false)}
           position={
-            slotRef.current
+            rect
               ? {
-                  x: slotRef.current.offsetLeft,
-                  y: slotRef.current.offsetTop + 42,
+                  x: rect.left,
+                  y:
+                    rect.top + 150 > window.innerHeight
+                      ? rect.top - 112
+                      : rect.top + 42,
                 }
               : { x: 0, y: 0 }
           }

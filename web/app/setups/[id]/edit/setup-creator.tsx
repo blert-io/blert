@@ -14,12 +14,14 @@ import EditableTextField from '@/components/editable-text-field';
 import { Modal } from '@/components/modal/modal';
 import RadioInput from '@/components/radio-input';
 import { useToast } from '@/components/toast';
+import { useWidthThreshold } from '@/display';
 
 import {
   EditableGearSetup,
   EditingContext,
   SetupEditingContext,
 } from '../../editing-context';
+import ItemCounts from '../../item-counts';
 import { Player } from '../../player';
 import { hasAllItems, newGearSetupPlayer } from '../../setup';
 import { ItemSelector } from './item-selector';
@@ -31,6 +33,8 @@ const OVERVIEW_WIDTH = 900;
 
 const MAX_PARTY_SIZE = 8;
 const AUTO_SAVE_INTERVAL_MS = 60000;
+
+const MIN_WIDTH_FOR_ITEM_COUNTS_SIDEBAR = 2000;
 
 interface GearSetupsCreatorProps {
   setup: SetupMetadata;
@@ -44,6 +48,10 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
   const [publishing, setPublishing] = useState(false);
   const [publishMessage, setPublishMessage] = useState('');
   const [publishLoading, setPublishLoading] = useState(false);
+
+  const itemCountsAsSidebar = useWidthThreshold(
+    MIN_WIDTH_FOR_ITEM_COUNTS_SIDEBAR,
+  );
 
   const [editableSetup, setEditableSetup] = useState<EditableGearSetup>(
     EditingContext.newEditableGearSetup(
@@ -178,6 +186,13 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
     }
   }
 
+  const itemCounts = (
+    <ItemCounts
+      setup={context.setup}
+      selectedItemId={context.selectedItem?.id}
+    />
+  );
+
   return (
     <SetupEditingContext.Provider value={context}>
       <div className={styles.creator}>
@@ -217,6 +232,9 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
             </Button>
           </div>
         </div>
+        {itemCountsAsSidebar && (
+          <div className={styles.itemCountsSidebar}>{itemCounts}</div>
+        )}
         <div className={styles.main}>
           <div className={`${setupStyles.panel} ${styles.overview}`}>
             <EditableTextField
@@ -289,6 +307,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
               />
             </div>
           </div>
+          {!itemCountsAsSidebar && itemCounts}
           <div className={`${setupStyles.panel} ${setupStyles.players}`}>
             {context.setup.players.map((player, i) => (
               <Player key={i} index={i} player={player} />
@@ -304,7 +323,10 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
                       const newPlayer = newGearSetupPlayer(
                         prev.players.length + 1,
                       );
-                      return { ...prev, players: [...prev.players, newPlayer] };
+                      return {
+                        ...prev,
+                        players: [...prev.players, newPlayer],
+                      };
                     })
                   }
                 >

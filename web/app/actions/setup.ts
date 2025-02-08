@@ -29,8 +29,21 @@ export type SetupMetadata = {
   authorId: number;
   author: string;
   state: 'draft' | 'published' | 'archived';
+  views: number;
+  likes: number;
+  dislikes: number;
   latestRevision: SetupRevision | null;
   draft: GearSetup | null;
+};
+
+export type VoteType = 'like' | 'dislike';
+
+export type VoteCountsResult = {
+  error: string | null;
+  counts: {
+    likes: number;
+    dislikes: number;
+  } | null;
 };
 
 function revisionDataKey(setupId: string, revisionId: number): string {
@@ -68,6 +81,9 @@ export async function newGearSetup(author: User): Promise<SetupMetadata> {
         authorId: author.id,
         author: author.username,
         state: 'draft',
+        views: 0,
+        likes: 0,
+        dislikes: 0,
         latestRevision: null,
         draft: null,
       };
@@ -100,6 +116,9 @@ export async function getSetupByPublicId(
       u.username as "author",
       s.state,
       s.has_draft,
+      s.views,
+      s.likes,
+      s.dislikes,
       CASE WHEN s.latest_revision_id IS NOT NULL THEN jsonb_build_object(
         'version', r.version,
         'message', r.message,
@@ -123,6 +142,9 @@ export async function getSetupByPublicId(
     authorId: setupRow.author_id,
     author: setupRow.author,
     state: setupRow.state,
+    views: setupRow.views,
+    likes: setupRow.likes,
+    dislikes: setupRow.dislikes,
     latestRevision: null,
     draft: null,
   };
@@ -298,4 +320,181 @@ export async function publishSetupRevision(
   );
 
   return getSetupByPublicId(publicId) as Promise<SetupMetadata>;
+}
+
+/**
+ * Gets the current user's vote on a gear setup.
+ * @param publicId The public ID of the setup.
+ * @returns The user's vote type, or null if they haven't voted.
+ */
+export async function getCurrentVote(
+  publicId: string,
+): Promise<VoteType | null> {
+  const session = await auth();
+  if (session === null || session.user.id === undefined) {
+    return null;
+  }
+
+  const userId = parseInt(session.user.id);
+
+  const [vote] = await sql<[{ vote_type: VoteType } | undefined]>`
+    SELECT vote_type::text
+    FROM gear_setup_votes v
+    JOIN gear_setups s ON s.id = v.setup_id
+    WHERE s.public_id = ${publicId}
+    AND v.user_id = ${userId}
+  `;
+
+  return vote?.vote_type ?? null;
+}
+
+/**
+ * Votes on a gear setup.
+ * @param publicId The public ID of the setup.
+ * @param voteType The type of vote to cast.
+ * @returns The updated vote counts.
+ */
+export async function voteSetup(
+  publicId: string,
+  voteType: VoteType,
+): Promise<VoteCountsResult> {
+  const session = await auth();
+  if (session === null || session.user.id === undefined) {
+    return { error: 'Not authorized', counts: null };
+  }
+
+  const userId = parseInt(session.user.id);
+
+  try {
+    const result = await sql.begin(async (client) => {
+      const [setup] = await client<[{ id: number; author_id: number }?]>`
+        SELECT id, author_id
+        FROM gear_setups
+        WHERE public_id = ${publicId}
+        FOR UPDATE
+    `;
+
+      if (!setup) {
+        throw new Error('Setup not found');
+      }
+
+      if (setup.author_id === userId) {
+        throw new Error('Cannot vote on own setup');
+      }
+
+      // Insert or update the vote.
+      await client`
+        INSERT INTO gear_setup_votes (
+          setup_id,
+          user_id,
+          vote_type
+        ) VALUES (
+          ${setup.id},
+          ${userId},
+          ${voteType}
+        )
+        ON CONFLICT (setup_id, user_id)
+        DO UPDATE SET
+          vote_type = EXCLUDED.vote_type,
+          created_at = NOW()
+      `;
+
+      const [counts] = await client<[{ likes: number; dislikes: number }]>`
+          UPDATE gear_setups
+        SET
+          likes = (
+            SELECT COUNT(*)
+            FROM gear_setup_votes
+            WHERE setup_id = gear_setups.id
+            AND vote_type = 'like'
+          ),
+          dislikes = (
+            SELECT COUNT(*)
+            FROM gear_setup_votes
+            WHERE setup_id = gear_setups.id
+            AND vote_type = 'dislike'
+          )
+        WHERE id = ${setup.id}
+        RETURNING likes, dislikes
+      `;
+
+      return counts;
+    });
+
+    return {
+      error: null,
+      counts: result,
+    };
+  } catch (e) {
+    return {
+      error: (e as Error).message,
+      counts: null,
+    };
+  }
+}
+
+/**
+ * Removes a vote from a gear setup.
+ * @param publicId The public ID of the setup.
+ * @returns The updated vote counts.
+ */
+export async function removeVote(publicId: string): Promise<VoteCountsResult> {
+  const session = await auth();
+  if (session === null || session.user.id === undefined) {
+    return { error: 'Not authorized', counts: null };
+  }
+
+  const userId = parseInt(session.user.id);
+
+  try {
+    const result = await sql.begin(async (client) => {
+      const [setup] = await client<[{ id: number }?]>`
+        SELECT id
+        FROM gear_setups
+        WHERE public_id = ${publicId}
+        FOR UPDATE
+    `;
+
+      if (!setup) {
+        throw new Error('Setup not found');
+      }
+
+      await client`
+        DELETE FROM gear_setup_votes
+        WHERE setup_id = ${setup.id}
+        AND user_id = ${userId}
+      `;
+
+      const [counts] = await client<[{ likes: number; dislikes: number }]>`
+        UPDATE gear_setups
+        SET
+          likes = (
+            SELECT COUNT(*)
+            FROM gear_setup_votes
+            WHERE setup_id = gear_setups.id
+            AND vote_type = 'like'
+          ),
+          dislikes = (
+            SELECT COUNT(*)
+            FROM gear_setup_votes
+            WHERE setup_id = gear_setups.id
+            AND vote_type = 'dislike'
+          )
+        WHERE id = ${setup.id}
+        RETURNING likes, dislikes
+      `;
+
+      return counts;
+    });
+
+    return {
+      error: null,
+      counts: result,
+    };
+  } catch (e) {
+    return {
+      error: (e as Error).message,
+      counts: null,
+    };
+  }
 }
