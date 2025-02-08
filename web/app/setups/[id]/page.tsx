@@ -3,7 +3,11 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { auth } from '@/auth';
-import { getSetupByPublicId, getCurrentVote } from '@/actions/setup';
+import {
+  getSetupByPublicId,
+  getCurrentVote,
+  loadSetupData,
+} from '@/actions/setup';
 import Button from '@/components/button';
 
 import Panels from './panels';
@@ -15,25 +19,40 @@ import styles from './style.module.scss';
 
 type GearSetupProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ player?: string }>;
+  searchParams: Promise<{ player?: string; revision?: string }>;
 };
 
 export default async function GearSetupPage({
   params,
   searchParams,
 }: GearSetupProps) {
-  const [{ id }, { player }] = await Promise.all([params, searchParams]);
+  const [{ id }, { player, revision }] = await Promise.all([
+    params,
+    searchParams,
+  ]);
 
   const setup = await getSetupByPublicId(id);
   if (setup === null || setup.latestRevision === null) {
     notFound();
   }
 
+  let targetRevision = setup.latestRevision.version;
+  if (revision) {
+    const revisionNumber = parseInt(revision);
+    if (!isNaN(revisionNumber)) {
+      targetRevision = revisionNumber;
+    }
+  }
+
+  const gearSetup = await loadSetupData(id, targetRevision);
+  if (gearSetup === null) {
+    notFound();
+  }
+
   let highlightedPlayer = player ? parseInt(player) - 1 : null;
   if (
     highlightedPlayer !== null &&
-    (highlightedPlayer < 0 ||
-      highlightedPlayer >= setup.latestRevision.setup.players.length)
+    (highlightedPlayer < 0 || highlightedPlayer >= gearSetup.players.length)
   ) {
     highlightedPlayer = null;
   }
@@ -46,7 +65,8 @@ export default async function GearSetupPage({
   const loggedIn = session !== null;
   const isAuthor =
     session !== null && parseInt(session.user.id ?? '0') === setup.authorId;
-  const { setup: gearSetup } = setup.latestRevision;
+
+  const isLatestRevision = targetRevision === setup.latestRevision.version;
 
   return (
     <SetupViewingContextProvider initialHighlightedPlayer={highlightedPlayer}>
@@ -54,25 +74,31 @@ export default async function GearSetupPage({
         <div className={`${setupStyles.panel} ${styles.header}`}>
           <div className={styles.metadata}>
             <h1>{gearSetup.title}</h1>
+            {!isLatestRevision && (
+              <div className={styles.revisionBanner}>
+                You are viewing an older revision of this setup.{' '}
+                <Link href={`/setups/${setup.publicId}`}>
+                  View latest version
+                </Link>
+              </div>
+            )}
             <div className={styles.info}>
               <div className={styles.author}>
                 by <span className={styles.username}>{setup.author}</span>
               </div>
-              <div className={styles.version}>
-                v{setup.latestRevision.version}
-              </div>
+              <div className={styles.version}>v{targetRevision}</div>
               <VoteBar
                 publicId={setup.publicId}
                 initialLikes={setup.likes}
                 initialDislikes={setup.dislikes}
                 initialVote={currentVote}
-                disabled={!loggedIn || isAuthor}
+                disabled={!loggedIn || isAuthor || !isLatestRevision}
                 width={300}
               />
             </div>
           </div>
           <div className={styles.actions}>
-            {isAuthor && (
+            {isAuthor && isLatestRevision && (
               <Link href={`/setups/${setup.publicId}/edit`}>
                 <i className="fas fa-pencil-alt" />
                 <span>Edit</span>
@@ -87,7 +113,11 @@ export default async function GearSetupPage({
             <p>{gearSetup.description}</p>
           </div>
         </div>
-        <Panels setup={setup} />
+        <Panels
+          setupMetadata={setup}
+          gearSetup={gearSetup}
+          currentRevision={targetRevision}
+        />
       </div>
     </SetupViewingContextProvider>
   );
@@ -99,15 +129,22 @@ export async function generateMetadata(
 ) {
   const [{ id }, metadata] = await Promise.all([params, parent]);
 
-  const setup = await getSetupByPublicId(id);
-  if (setup === null || setup.latestRevision === null) {
+  const setupMetadata = await getSetupByPublicId(id);
+  if (setupMetadata === null || setupMetadata.latestRevision === null) {
     return {
       title: 'Gear setup not found',
     };
   }
 
-  const title = `${setup.latestRevision.setup.title} by ${setup.author}`;
-  let description = setup.latestRevision.setup.description;
+  const setup = await loadSetupData(id, setupMetadata.latestRevision.version);
+  if (setup === null) {
+    return {
+      title: 'Gear setup not found',
+    };
+  }
+
+  const title = `${setup.title} by ${setupMetadata.author}`;
+  let description = setup.description;
 
   if (description.length > 155) {
     description = description.slice(0, 155) + '…';

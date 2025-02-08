@@ -55,6 +55,24 @@
       font-weight: 600;
     }
 
+    .revisionBanner {
+      margin-top: 12px;
+      padding: 8px 12px;
+      background: var(--nav-bg-darkened);
+      border-radius: 4px;
+      font-size: 14px;
+
+      a {
+        color: var(--blert-button);
+        text-decoration: none;
+        font-weight: 500;
+
+        &:hover {
+          text-decoration: underline;
+        }
+      }
+    }
+
     .info {
       display: flex;
       align-items: center;
@@ -148,11 +166,78 @@
     .current {
       font-size: 14px;
       font-weight: 500;
+      background: var(--nav-bg-darkened);
+      padding: 4px 6px;
+      border-radius: 10px;
     }
+  }
+
+  .loading {
+    font-size: 14px;
+    font-style: italic;
+  }
+
+  .revisionList {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .revision {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px;
+    background: var(--nav-bg);
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+
+    &:hover {
+      background: var(--nav-bg-lightened);
+    }
+  }
+
+  .revisionMeta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .revisionVersion {
+    font-size: 14px;
+    font-weight: 500;
+    background: var(--nav-bg-darkened);
+    padding: 4px 6px;
+    border-radius: 10px;
+
+    a {
+      color: inherit;
+      text-decoration: none;
+
+      &:hover {
+        color: var(--blert-button);
+      }
+    }
+  }
+
+  .revisionInfo {
+    display: flex;
+    gap: 8px;
+    font-size: 14px;
+  }
+
+  .revisionAuthor {
+    font-weight: 500;
+    color: #fff;
+  }
+
+  .revisionDate {
+    color: rgba(var(--blert-text-color-base), 0.8);
   }
 
   .revisionMessage {
     font-size: 14px;
     line-height: 1.5;
+    white-space: pre-wrap;
   }
 }
