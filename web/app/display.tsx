@@ -75,3 +75,25 @@ export function DisplayWrapper({ children }: { children: React.ReactNode }) {
     </DisplayContext.Provider>
   );
 }
+
+/**
+ * Hook that checks if the viewport width is greater than a given width.
+ * @param width The width to check against.
+ * @returns Whether the viewport width is greater than the given width.
+ */
+export function useWidthThreshold(width: number) {
+  const [isWide, setIsWide] = useState(false);
+
+  useEffect(() => {
+    setIsWide(window.innerWidth >= width);
+
+    const handleResize = () => {
+      setIsWide(window.innerWidth >= width);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [width]);
+
+  return isWide;
+}

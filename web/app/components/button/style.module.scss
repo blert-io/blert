@@ -1,17 +1,15 @@
-$button-color: #5865f2;
-
 .button {
   font-size: 16px;
   border-radius: 5px;
   padding: 8px 10px;
-  background-color: $button-color;
+  background-color: var(--blert-button);
   color: white;
   font-weight: 600;
-  border: 1px solid $button-color;
+  border: 1px solid var(--blert-button);
 
   &.simple {
     background: none;
-    color: $button-color;
+    color: var(--blert-button);
   }
 
   &:disabled {

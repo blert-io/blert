@@ -4,12 +4,15 @@ import { createContext, useCallback, useContext, useState } from 'react';
 
 import styles from './style.module.scss';
 
+type ToastType = 'info' | 'success' | 'error';
+
 interface Toast {
   id: number;
   message: string;
+  type: ToastType;
 }
 
-type ShowToast = (message: string) => void;
+type ShowToast = (message: string, type?: ToastType) => void;
 
 export const ToastContext = createContext<ShowToast>(() => {});
 
@@ -28,10 +31,10 @@ export default function ToastProvider({
   }, []);
 
   const showToast = useCallback(
-    (message: string) => {
+    (message: string, type: ToastType = 'info') => {
       const id = nextId;
       setNextId((prev) => prev + 1);
-      setToasts((prev) => [...prev, { id, message }]);
+      setToasts((prev) => [...prev, { id, message, type }]);
 
       setTimeout(() => {
         removeToast(id);
@@ -45,7 +48,10 @@ export default function ToastProvider({
       {children}
       <div className={styles.container}>
         {toasts.map((toast) => (
-          <div key={toast.id} className={styles.toast}>
+          <div
+            key={toast.id}
+            className={`${styles.toast} ${styles[toast.type]}`}
+          >
             <span>{toast.message}</span>
             <button
               className={styles.close}

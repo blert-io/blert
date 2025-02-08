@@ -6,7 +6,7 @@
 }
 
 .players {
-  max-width: 100%;
+  width: 100%;
   display: flex;
   flex-flow: row wrap;
   justify-content: center;
@@ -21,11 +21,39 @@ $SLOT_SIZE: 42px;
   flex-direction: column;
   align-items: center;
 
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 0.5em;
+  }
+
   .name {
     text-align: center;
-    justify-content: center;
     font-weight: 500;
     font-size: 18px;
+    margin: 0;
+    position: relative;
+
+    .shareButton {
+      position: absolute;
+      right: -30px;
+      top: -2px;
+      font-size: 14px;
+      padding: 4px;
+      color: var(--blert-text-color);
+      opacity: 0;
+      transition: all 0.2s ease;
+
+      &:hover {
+        color: var(--blert-button);
+        cursor: pointer;
+      }
+    }
+  }
+
+  &:hover .shareButton {
+    opacity: 1;
   }
 
   .slotContainer {
@@ -68,6 +96,13 @@ $SLOT_SIZE: 42px;
       filter: brightness(1.4);
     }
   }
+
+  &.highlighted {
+    outline: 2px solid var(--blert-button);
+    outline-offset: 2px;
+    border-radius: 5px;
+    transition: outline-color 0.2s ease;
+  }
 }
 
 .slot {
@@ -81,6 +116,11 @@ $SLOT_SIZE: 42px;
 
   &:hover {
     background: var(--nav-bg-lightened);
+  }
+
+  &.highlighted {
+    background: var(--nav-bg-lightened);
+    outline: 1px solid var(--blert-text-color);
   }
 
   &:not(.empty).invalid:hover {
@@ -101,5 +141,55 @@ $SLOT_SIZE: 42px;
 }
 
 .spellbookSlot {
-  cursor: pointer;
+  &:not(.readonly) {
+    cursor: pointer;
+  }
+}
+
+.itemCounts {
+  width: 100%;
+  flex-direction: column;
+
+  h3 {
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    font-weight: 500;
+  }
+
+  .items {
+    display: flex;
+    flex-flow: row wrap;
+    gap: 12px;
+  }
+
+  .itemCount {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 4px 8px;
+    width: 75px;
+    background: var(--nav-bg);
+    border-radius: 4px;
+    transition: all 0.2s ease;
+
+    &:hover {
+      transform: scale(1.1);
+      color: #fff;
+    }
+
+    &.highlighted {
+      background: var(--nav-bg-lightened);
+      outline: 1px solid var(--blert-text-color);
+    }
+
+    .quantity {
+      font-size: 14px;
+    }
+  }
+
+  .noItems {
+    font-size: 14px;
+    font-style: italic;
+  }
 }

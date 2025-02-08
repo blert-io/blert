@@ -21,6 +21,26 @@
   gap: 12px;
   pointer-events: auto;
 
+  &.info {
+    background: var(--nav-bg-darkened);
+  }
+
+  &.success {
+    background: var(--blert-green);
+
+    .close {
+      color: #fff;
+    }
+  }
+
+  &.error {
+    background: var(--blert-red);
+
+    .close {
+      color: #fff;
+    }
+  }
+
   .close {
     background: none;
     border: none;

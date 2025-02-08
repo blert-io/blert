@@ -9,6 +9,7 @@ import {
 
 import { SetupEditingContext } from './editing-context';
 import { Container, ItemSlot, getContainerKey } from './setup';
+import { SetupViewingContext } from './viewing-context';
 
 import styles from './style.module.scss';
 
@@ -23,6 +24,7 @@ type SlotProps = {
 export function Slot(props: SlotProps) {
   const context = useContext(SetupEditingContext);
   const selectedItem = context?.selectedItem ?? null;
+  const { highlightedItemId } = useContext(SetupViewingContext);
 
   let className = styles.slot;
   if (props.index === -1) {
@@ -39,6 +41,10 @@ export function Slot(props: SlotProps) {
     }
 
     className += ` ${canPlace ? styles.valid : styles.invalid}`;
+  }
+
+  if (highlightedItemId === props.item) {
+    className += ` ${styles.highlighted}`;
   }
 
   function onClick(e: React.MouseEvent) {

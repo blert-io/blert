@@ -1,0 +1,158 @@
+@use '../../mixins.scss' as *;
+
+.setupPage {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+
+  .panels {
+    width: 100%;
+    max-width: 1400px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+
+    &.row {
+      max-width: 100%;
+      flex-direction: row;
+      align-items: flex-start;
+
+      .itemCounts {
+        min-width: 280px;
+        flex: 1;
+      }
+
+      .players {
+        min-width: 850px;
+        max-width: 1080px;
+      }
+
+      .revisions {
+        min-width: 250px;
+        flex: 1;
+      }
+    }
+  }
+}
+
+.header {
+  max-width: 1000px;
+  display: flex;
+  flex-flow: row wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+
+  .metadata {
+    flex: 1;
+
+    h1 {
+      margin: 0;
+      font-size: 32px;
+      font-weight: 600;
+    }
+
+    .info {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-top: 8px;
+      font-size: 14px;
+
+      .username {
+        color: #fff;
+        font-weight: 500;
+      }
+
+      .version {
+        font-weight: 500;
+        background: var(--nav-bg-darkened);
+        padding: 4px 6px;
+        border-radius: 10px;
+        font-size: 12px;
+      }
+
+      .stats {
+        display: flex;
+        gap: 16px;
+
+        .stat {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+
+          i {
+            font-size: 16px;
+          }
+        }
+      }
+    }
+  }
+
+  .actions {
+    display: flex;
+    gap: 8px;
+
+    a {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 16px;
+      border-radius: 5px;
+      padding: 8px 10px;
+      background-color: var(--blert-button);
+      color: white;
+      font-weight: 600;
+      border: 1px solid var(--blert-button);
+      text-decoration: none;
+
+      &:hover {
+        cursor: pointer;
+        opacity: 0.9;
+      }
+    }
+  }
+
+  .description {
+    width: 100%;
+
+    p {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+  }
+}
+
+.revisions {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  .revisionHeader {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    h2 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 500;
+    }
+
+    .current {
+      font-size: 14px;
+      font-weight: 500;
+    }
+  }
+
+  .revisionMessage {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+}
