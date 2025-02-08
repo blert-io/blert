@@ -19,7 +19,7 @@ export type SetupRevision = {
   message: string | null;
   createdAt: Date;
   createdBy: number;
-  setup: GearSetup;
+  createdByUsername: string;
 };
 
 export type SetupMetadata = {
@@ -145,50 +145,61 @@ export async function getSetupByPublicId(
     views: setupRow.views,
     likes: setupRow.likes,
     dislikes: setupRow.dislikes,
-    latestRevision: null,
+    latestRevision: setupRow.latest_revision,
     draft: null,
   };
 
-  if (loadDraft && setupRow.has_draft) {
-    try {
-      const draftData = await webRepository.loadRaw(
-        draftDataKey(setup.publicId),
+  if (loadDraft) {
+    if (setupRow.has_draft) {
+      try {
+        const draftData = await webRepository.loadRaw(
+          draftDataKey(setup.publicId),
+        );
+        if (draftData) {
+          setup.draft = JSON.parse(new TextDecoder().decode(draftData));
+        }
+      } catch (e) {
+        if (e instanceof DataRepository.NotFound) {
+          return null;
+        }
+        throw e;
+      }
+    } else if (setupRow.latest_revision !== null) {
+      // If there is no draft but one is requested, use the latest revision.
+      const revision = await loadSetupData(
+        setup.publicId,
+        setupRow.latest_revision.version,
       );
-      if (draftData) {
-        setup.draft = JSON.parse(new TextDecoder().decode(draftData));
+      if (revision !== null) {
+        setup.draft = revision;
       }
-    } catch (e) {
-      if (e instanceof DataRepository.BackendError) {
-        return null;
-      }
-      throw e;
-    }
-  } else {
-    setup.draft = null;
-  }
-
-  if (setupRow.latest_revision !== null) {
-    try {
-      const revisionData = await webRepository.loadRaw(
-        revisionDataKey(setup.publicId, setupRow.latest_revision.version),
-      );
-      const setupData = JSON.parse(new TextDecoder().decode(revisionData));
-      setup.latestRevision = {
-        ...setupRow.latest_revision,
-        setup: setupData,
-      };
-      if (loadDraft && setup.draft === null) {
-        setup.draft = setupData;
-      }
-    } catch (e) {
-      if (e instanceof DataRepository.BackendError) {
-        return null;
-      }
-      throw e;
     }
   }
 
   return setup;
+}
+
+/**
+ * Loads the data for a gear setup revision.
+ * @param publicId The public ID of the setup.
+ * @param revision The revision number.
+ * @returns The setup data or null if the revision does not exist.
+ */
+export async function loadSetupData(
+  publicId: string,
+  revision: number,
+): Promise<GearSetup | null> {
+  try {
+    const data = await webRepository.loadRaw(
+      revisionDataKey(publicId, revision),
+    );
+    return JSON.parse(new TextDecoder().decode(data));
+  } catch (e) {
+    if (e instanceof DataRepository.NotFound) {
+      return null;
+    }
+    throw e;
+  }
 }
 
 /**
@@ -497,4 +508,69 @@ export async function removeVote(publicId: string): Promise<VoteCountsResult> {
       counts: null,
     };
   }
+}
+
+/**
+ * Gets all revisions for a gear setup.
+ * @param publicId The public ID of the setup.
+ * @returns Array of revisions ordered by latest version.
+ */
+export async function getSetupRevisions(
+  publicId: string,
+): Promise<SetupRevision[]> {
+  const [setup] = await sql<[{ id: number }?]>`
+    SELECT id
+    FROM gear_setups
+    WHERE public_id = ${publicId}
+  `;
+
+  if (!setup) {
+    return [];
+  }
+
+  const revisions = await sql<
+    Array<{
+      version: number;
+      message: string | null;
+      created_at: Date;
+      created_by: number;
+      username: string;
+    }>
+  >`
+    SELECT
+      r.version,
+      r.message,
+      r.created_at,
+      r.created_by,
+      u.username
+    FROM gear_setup_revisions r
+    JOIN users u ON u.id = r.created_by
+    WHERE r.setup_id = ${setup.id}
+    ORDER BY r.version DESC
+  `;
+
+  const result: SetupRevision[] = [];
+
+  for (const revision of revisions) {
+    try {
+      const data = await webRepository.loadRaw(
+        revisionDataKey(publicId, revision.version),
+      );
+      if (data) {
+        result.push({
+          version: revision.version,
+          message: revision.message,
+          createdAt: revision.created_at,
+          createdBy: revision.created_by,
+          createdByUsername: revision.username,
+        });
+      }
+    } catch (e) {
+      if (!(e instanceof DataRepository.NotFound)) {
+        throw e;
+      }
+    }
+  }
+
+  return result;
 }
