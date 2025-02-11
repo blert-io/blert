@@ -7,12 +7,16 @@ import {
   User,
 } from '@blert/common';
 import { randomBytes } from 'crypto';
+import postgres from 'postgres';
 
 import { auth } from '@/auth';
 import { GearSetup } from '@/setups/setup';
 
 import { webRepository } from './data-repository';
 import { sql } from './db';
+import { where } from './query';
+
+export type SetupState = 'draft' | 'published' | 'archived';
 
 export type SetupRevision = {
   version: number;
@@ -28,7 +32,7 @@ export type SetupMetadata = {
   challengeType: ChallengeType;
   authorId: number;
   author: string;
-  state: 'draft' | 'published' | 'archived';
+  state: SetupState;
   views: number;
   likes: number;
   dislikes: number;
@@ -44,6 +48,47 @@ export type VoteCountsResult = {
     likes: number;
     dislikes: number;
   } | null;
+};
+
+export type SetupSort = 'latest' | 'score' | 'views';
+
+export type SetupFilter = {
+  author?: number;
+  challenge?: ChallengeType;
+  state?: SetupState;
+  search?: string;
+  orderBy?: SetupSort;
+};
+
+export type SetupListItem = {
+  publicId: string;
+  name: string;
+  challengeType: ChallengeType;
+  authorId: number;
+  author: string;
+  state: SetupState;
+  views: number;
+  likes: number;
+  dislikes: number;
+  score: number;
+  createdAt: Date;
+  updatedAt: Date | null;
+};
+
+export type SetupCursor = {
+  createdAt: Date;
+  score: number;
+  views: number;
+  direction?: 'forward' | 'backward';
+  publicId: string;
+};
+
+export type SetupList = {
+  setups: SetupListItem[];
+  nextCursor: SetupCursor | null;
+  prevCursor: SetupCursor | null;
+  total: number;
+  remaining: number;
 };
 
 function revisionDataKey(setupId: string, revisionId: number): string {
@@ -549,28 +594,196 @@ export async function getSetupRevisions(
     ORDER BY r.version DESC
   `;
 
-  const result: SetupRevision[] = [];
+  return revisions.map((r) => ({
+    version: r.version,
+    message: r.message,
+    createdAt: r.created_at,
+    createdBy: r.created_by,
+    createdByUsername: r.username,
+  }));
+}
 
-  for (const revision of revisions) {
-    try {
-      const data = await webRepository.loadRaw(
-        revisionDataKey(publicId, revision.version),
-      );
-      if (data) {
-        result.push({
-          version: revision.version,
-          message: revision.message,
-          createdAt: revision.created_at,
-          createdBy: revision.created_by,
-          createdByUsername: revision.username,
-        });
-      }
-    } catch (e) {
-      if (!(e instanceof DataRepository.NotFound)) {
-        throw e;
-      }
+/**
+ * Gets a paginated list of setups matching the given filters.
+ * @param filter Filter criteria for the setups.
+ * @param cursor Pagination cursor for the next page.
+ * @param limit Maximum number of setups to return.
+ * @returns The filtered and paginated list of setups.
+ */
+export async function getSetups(
+  filter: SetupFilter = {},
+  cursor: SetupCursor | null = null,
+  limit: number = 20,
+): Promise<SetupList> {
+  const conditions: postgres.Fragment[] = [];
+
+  if (filter.author !== undefined) {
+    conditions.push(sql`s.author_id = ${filter.author}`);
+  }
+
+  if (filter.challenge !== undefined) {
+    conditions.push(sql`s.challenge_type = ${filter.challenge}`);
+  }
+
+  if (filter.state !== undefined) {
+    conditions.push(sql`s.state = ${filter.state}`);
+  }
+
+  if (filter.search !== undefined) {
+    conditions.push(sql`(
+      s.name ILIKE ${`%${filter.search}%`} OR
+      u.username ILIKE ${`%${filter.search}%`}
+    )`);
+  }
+
+  const filterConditions = [...conditions];
+
+  if (cursor !== null) {
+    const isBackward = cursor.direction === 'backward';
+    const operator = isBackward ? sql`>` : sql`<`;
+
+    if (filter.orderBy === 'score') {
+      conditions.push(sql`(
+        s.score ${operator} ${cursor.score} OR
+        (s.score = ${cursor.score} AND s.created_at ${operator} ${cursor.createdAt})
+      )`);
+    } else if (filter.orderBy === 'views') {
+      conditions.push(sql`(
+        s.views ${operator} ${cursor.views} OR
+        (s.views = ${cursor.views} AND s.created_at ${operator} ${cursor.createdAt})
+      )`);
+    } else {
+      conditions.push(sql`(s.created_at ${operator} ${cursor.createdAt})`);
+    }
+
+    conditions.push(sql`s.public_id != ${cursor.publicId}`);
+  }
+
+  let direction = cursor?.direction === 'backward' ? sql`ASC` : sql`DESC`;
+  let orderBy;
+  if (filter.orderBy === 'score') {
+    orderBy = sql`s.score ${direction}, s.created_at ${direction}`;
+  } else if (filter.orderBy === 'views') {
+    orderBy = sql`s.views ${direction}, s.created_at ${direction}`;
+  } else {
+    orderBy = sql`s.created_at ${direction}`;
+  }
+
+  const [{ total, remaining }, setups] = await Promise.all([
+    sql.begin(async (client) => {
+      const [{ count }] = await client<[{ count: string }]>`
+        SELECT COUNT(*) as count
+        FROM gear_setups s
+        JOIN users u ON u.id = s.author_id
+        ${where(filterConditions)}
+      `;
+
+      const [{ count: after }] = await client<[{ count: string }]>`
+        SELECT COUNT(*) as count
+        FROM gear_setups s
+        JOIN users u ON u.id = s.author_id
+        ${where(conditions)}
+      `;
+
+      return { total: parseInt(count), remaining: parseInt(after) };
+    }),
+    sql`
+      SELECT
+        s.id,
+        s.public_id,
+        s.name,
+        s.challenge_type,
+        s.author_id,
+        u.username as "author",
+        s.state,
+        s.views,
+        s.likes,
+        s.dislikes,
+        s.score,
+        s.created_at,
+        s.updated_at
+      FROM gear_setups s
+      JOIN users u ON u.id = s.author_id
+      ${where(conditions)}
+      ORDER BY ${orderBy}
+      LIMIT ${limit}
+    `,
+  ]);
+
+  let hasNextPage = false;
+  let hasPrevPage = false;
+
+  if (cursor?.direction === 'backward') {
+    setups.reverse();
+    hasPrevPage = remaining > limit;
+    hasNextPage = true;
+  } else {
+    hasNextPage = remaining > limit;
+    hasPrevPage = true;
+  }
+
+  let nextCursor: SetupCursor | null = null;
+  let prevCursor: SetupCursor | null = null;
+
+  if (setups.length > 0) {
+    const first = setups[0];
+    const last = setups[setups.length - 1];
+
+    if (hasNextPage) {
+      nextCursor = {
+        createdAt: last.created_at,
+        score: last.score,
+        views: last.views,
+        publicId: last.public_id,
+        direction: 'forward',
+      };
+    }
+
+    if (hasPrevPage) {
+      prevCursor = {
+        createdAt: first.created_at,
+        score: first.score,
+        views: first.views,
+        publicId: first.public_id,
+        direction: 'backward',
+      };
     }
   }
 
-  return result;
+  return {
+    setups: setups.map((s) => ({
+      publicId: s.public_id,
+      name: s.name,
+      challengeType: s.challenge_type,
+      authorId: s.author_id,
+      author: s.author,
+      state: s.state,
+      views: s.views,
+      likes: s.likes,
+      dislikes: s.dislikes,
+      score: s.score,
+      createdAt: s.created_at,
+      updatedAt: s.updated_at,
+    })),
+    nextCursor,
+    prevCursor,
+    total,
+    remaining,
+  };
+}
+
+/**
+ * Gets a list of setups for the current user.
+ * @param limit Maximum number of setups to return.
+ * @returns The user's setups, or null if not logged in.
+ */
+export async function getCurrentUserSetups(
+  limit: number = 20,
+): Promise<SetupList | null> {
+  const session = await auth();
+  if (session === null || session.user.id === undefined) {
+    return null;
+  }
+
+  return getSetups({ author: parseInt(session.user.id) }, null, limit);
 }

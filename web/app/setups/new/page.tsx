@@ -6,7 +6,7 @@ import { getSignedInUser } from '@/actions/users';
 export default async function GearSetupsCreationRedirect() {
   const user = await getSignedInUser();
   if (user === null) {
-    redirect('/login?next=/setups/create');
+    redirect('/login?next=/setups/new');
   }
 
   const newSetup = await newGearSetup(user);
