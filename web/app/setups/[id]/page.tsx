@@ -1,4 +1,5 @@
 import { ResolvingMetadata } from 'next';
+import { headers } from 'next/headers';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
@@ -7,8 +8,10 @@ import {
   getSetupByPublicId,
   getCurrentVote,
   loadSetupData,
+  incrementSetupViews,
 } from '@/actions/setup';
 import Button from '@/components/button';
+import { getRequestIp } from '@/utils/headers';
 
 import Panels from './panels';
 import { SetupViewingContextProvider } from '../viewing-context';
@@ -57,9 +60,13 @@ export default async function GearSetupPage({
     highlightedPlayer = null;
   }
 
+  const headersList = await headers();
+  const ip = getRequestIp(headersList);
+
   const [session, currentVote] = await Promise.all([
     auth(),
     getCurrentVote(id),
+    incrementSetupViews(id, ip),
   ]);
 
   const loggedIn = session !== null;

@@ -14,6 +14,7 @@ import { GearSetup } from '@/setups/setup';
 
 import { webRepository } from './data-repository';
 import { sql } from './db';
+import redis from './redis';
 import { where } from './query';
 
 export type SetupState = 'draft' | 'published' | 'archived';
@@ -786,4 +787,58 @@ export async function getCurrentUserSetups(
   }
 
   return getSetups({ author: parseInt(session.user.id) }, null, limit);
+}
+
+const VIEW_EXPIRY_SECONDS = 1 * 60 * 60; // 1 hour
+
+/**
+ * Increments the view count for a gear setup.
+ * @param publicId The public ID of the setup.
+ * @param viewerIp The IP address of the viewer for anonymous views.
+ * @returns The updated view count.
+ */
+export async function incrementSetupViews(
+  publicId: string,
+  viewerIp: string,
+): Promise<number> {
+  const [session, redisClient] = await Promise.all([auth(), redis()]);
+  const userId = session?.user?.id;
+
+  return sql.begin(async (client) => {
+    const [setup] = await client<[{ id: number }?]>`
+      SELECT id
+      FROM gear_setups
+      WHERE public_id = ${publicId}
+      FOR UPDATE
+    `;
+
+    if (!setup) {
+      throw new Error('Setup not found');
+    }
+
+    // Use either the user ID or IP address to identify the viewer.
+    const viewerKey = `web:setup-views:${setup.id}:${userId || viewerIp}`;
+
+    const hasRecentView = await redisClient.exists(viewerKey);
+    if (!hasRecentView) {
+      await redisClient.set(viewerKey, '1', { EX: VIEW_EXPIRY_SECONDS });
+
+      const [{ views }] = await client<[{ views: number }]>`
+        UPDATE gear_setups
+        SET views = views + 1
+        WHERE id = ${setup.id}
+        RETURNING views
+      `;
+
+      return views;
+    }
+
+    const [{ views }] = await client<[{ views: number }]>`
+      SELECT views
+      FROM gear_setups
+      WHERE id = ${setup.id}
+    `;
+
+    return views;
+  });
 }
