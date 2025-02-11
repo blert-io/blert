@@ -1,0 +1,107 @@
+@use '../mixins.scss' as *;
+
+.setupsPage {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    width: 100%;
+    padding: 10px 0;
+  }
+
+  &.mySetups {
+    max-width: 710px;
+  }
+
+  .title {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    @media (max-width: 1640px) {
+      max-width: 660px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 32px;
+      font-weight: 600;
+    }
+
+    a {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 16px;
+      border-radius: 5px;
+      padding: 8px 10px;
+      background-color: var(--blert-button);
+      color: white;
+      font-weight: 600;
+      border: 1px solid var(--blert-button);
+      text-decoration: none;
+
+      &:hover {
+        cursor: pointer;
+        opacity: 0.9;
+      }
+
+      i {
+        position: relative;
+        top: 1px;
+      }
+    }
+  }
+
+  .sections {
+    display: flex;
+    flex-flow: row wrap;
+    justify-content: center;
+    gap: 24px;
+  }
+
+  .section {
+    @include panel;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      padding: 10px;
+    }
+
+    .sectionHeader {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+
+      h2 {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 500;
+      }
+
+      .showAll {
+        color: var(--blert-button);
+        font-size: 14px;
+        font-weight: 500;
+        text-decoration: none;
+
+        &:hover {
+          text-decoration: underline;
+        }
+      }
+    }
+  }
+
+  .userSetups {
+    max-width: 800px;
+  }
+}

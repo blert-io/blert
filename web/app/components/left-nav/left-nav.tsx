@@ -162,6 +162,16 @@ export function LeftNav() {
             </Link>
           </li>
 
+          {/* Setups */}
+          <li className={styles.leftNav__menuItem}>
+            <Link className={`${styles.leftNav__menuItemInner}`} href="/setups">
+              <div className={styles.leftNav__menuItemIcon}>
+                <i className="fas fa-shield-halved"></i>
+              </div>
+              <span className="active">Gear Setups</span>
+            </Link>
+          </li>
+
           {/* Guides */}
           <li className={styles.leftNav__menuItem}>
             <Link className={`${styles.leftNav__menuItemInner}`} href="/guides">
