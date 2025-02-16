@@ -69,6 +69,7 @@ export default function EquipmentViewer(props: EquipmentViewerProps) {
             />
             <Item
               style={{ zIndex: 2 }}
+              id={item.id}
               name={item.name}
               quantity={item.quantity}
               size={ITEM_SIZE}

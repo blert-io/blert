@@ -113,6 +113,7 @@ $SLOT_SIZE: 42px;
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
 
   &:hover {
     background: var(--nav-bg-lightened);
@@ -125,9 +126,12 @@ $SLOT_SIZE: 42px;
 
   &:not(.empty).invalid:hover {
     border: 1px solid rgba(var(--blert-red-base), 0.5);
+    background: rgba(var(--blert-red-base), 0.1);
   }
+
   &:not(.empty).valid:hover {
     border: 1px solid rgba(var(--blert-green-base), 0.5);
+    background: rgba(var(--blert-green-base), 0.1);
     cursor: pointer;
   }
 
@@ -137,6 +141,23 @@ $SLOT_SIZE: 42px;
     &:hover {
       background: none;
     }
+  }
+
+  &.search {
+    border: 1px solid var(--blert-button);
+  }
+
+  .slotSearch {
+    position: absolute;
+    top: $SLOT_SIZE;
+    left: 0;
+    z-index: 100;
+    width: 200px;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   }
 }
 
