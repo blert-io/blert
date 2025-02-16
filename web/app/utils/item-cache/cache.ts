@@ -6,12 +6,12 @@ export interface ItemData {
 export class ItemCache<T extends ItemData> {
   protected cache: Map<number, T>;
 
-  private itemsToFetch: number[];
+  private itemsToFetch: Set<number>;
   private fetchTimeout: NodeJS.Timeout | null;
 
   public constructor() {
     this.cache = new Map();
-    this.itemsToFetch = [];
+    this.itemsToFetch = new Set();
     this.fetchTimeout = null;
   }
 
@@ -32,7 +32,7 @@ export class ItemCache<T extends ItemData> {
    */
   public getItemName(id: number): string {
     if (!this.cache.has(id)) {
-      this.itemsToFetch.push(id);
+      this.itemsToFetch.add(id);
 
       if (this.fetchTimeout === null) {
         this.fetchTimeout = setTimeout(async () => {
@@ -45,8 +45,8 @@ export class ItemCache<T extends ItemData> {
   }
 
   private async fetchMissingItems(): Promise<void> {
-    const promises = this.itemsToFetch.map(this.fetchItemName);
-    this.itemsToFetch = [];
+    const promises = Array.from(this.itemsToFetch).map(this.fetchItemName);
+    this.itemsToFetch.clear();
     await Promise.all(promises);
   }
 

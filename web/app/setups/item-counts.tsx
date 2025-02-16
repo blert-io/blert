@@ -54,6 +54,7 @@ export default function ItemCounts({ setup, selectedItemId }: ItemCountsProps) {
               onMouseLeave={() => setHighlightedItemId(null)}
             >
               <Item
+                id={id}
                 name={extendedItemCache.getItemName(id)}
                 quantity={1}
                 size={30}

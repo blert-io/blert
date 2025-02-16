@@ -3,6 +3,7 @@ import Image from 'next/image';
 import styles from './style.module.scss';
 
 type ItemProps = {
+  id: number;
   name: string;
   quantity: number;
   outlineColor?: string;
@@ -11,6 +12,8 @@ type ItemProps = {
 };
 
 const WIKI_IMAGE_BASE_URL: string = 'https://oldschool.runescape.wiki/images';
+const CACHE_SPRITE_DUMP_URL: string =
+  'https://chisel.weirdgloop.org/static/img/osrs-sprite';
 
 // A common case is items which have different sprites for each quantity from
 // 1 to 5. A lot of range ammo falls into this category. This regex attempts to
@@ -37,7 +40,7 @@ function isBarrowsItem(name: string): boolean {
  * @param quantity Quantity of the item.
  * @returns The file stem of the item's image, without the `.png` extension.
  */
-function normalize(name: string, quantity: number): string {
+function normalizeToWiki(name: string, quantity: number): string {
   // Treat locked items as their unlocked counterparts.
   name = name.replace(/\(l\)/, '');
 
@@ -83,10 +86,19 @@ function formatQuantity(quantity: number): { text: string; color: string } {
 }
 
 export default function Item(props: ItemProps) {
-  const imageUrl = `${WIKI_IMAGE_BASE_URL}/${normalize(
-    props.name,
-    props.quantity,
-  )}.png`;
+  let imageUrl: string;
+
+  // For most items, fetch their cache sprite via their ID. However, items which
+  // have different sprites for each quantity (e.g. range ammo) are handled
+  // separately via a wiki image URL.
+  if (is1to5Item(props.name)) {
+    imageUrl = `${WIKI_IMAGE_BASE_URL}/${normalizeToWiki(
+      props.name,
+      props.quantity,
+    )}.png`;
+  } else {
+    imageUrl = `${CACHE_SPRITE_DUMP_URL}/${props.id}.png`;
+  }
 
   const { text: quantityText, color: quantityColor } = formatQuantity(props.quantity);
 

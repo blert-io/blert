@@ -293,6 +293,7 @@ function makeCellImage(playerAttack: Attack, size: number, memes: BlertMemes) {
     if (playerAttack.weapon) {
       weaponImage = (
         <Item
+          id={playerAttack.weapon.id}
           name={playerAttack.weapon.name}
           quantity={1}
           outlineColor={outline}

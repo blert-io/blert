@@ -7,6 +7,11 @@ const nextConfig = {
         hostname: 'oldschool.runescape.wiki',
         pathname: '/images/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'chisel.weirdgloop.org',
+        pathname: '/static/img/osrs-sprite/**',
+      },
     ],
   },
   redirects: async () => {

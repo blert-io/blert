@@ -72,7 +72,7 @@ $ACTIONS_HEIGHT: 60px;
     top: calc($ACTIONS_HEIGHT + 1em);
     align-self: flex-start;
     flex: 1;
-    min-width: 300px;
+    min-width: 360px;
   }
 
   .itemCountsSidebar {
@@ -148,16 +148,78 @@ $ACTIONS_HEIGHT: 60px;
 
 .itemSelector {
   flex-direction: column;
+  gap: 16px;
+
+  .search {
+    padding: 12px;
+    background: var(--nav-bg);
+    border-radius: 5px;
+  }
+
+  .selectedItem {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--nav-bg);
+    border: 1px solid var(--nav-bg);
+    border-radius: 5px;
+    min-height: 46px;
+
+    .item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      .name {
+        font-size: 14px;
+        font-weight: 500;
+        color: #fff;
+      }
+    }
+
+    .clear {
+      color: var(--blert-text-color);
+      padding: 4px;
+      font-size: 14px;
+      transition: all 0.2s ease;
+
+      &:hover {
+        color: var(--blert-red);
+        cursor: pointer;
+      }
+    }
+
+    .placeholder {
+      font-size: 14px;
+      font-style: italic;
+      color: rgba(var(--blert-text-color-base), 0.6);
+    }
+
+    &:has(.item) {
+      background: rgba(var(--blert-button-base), 0.1);
+      border-color: var(--blert-button);
+    }
+  }
+
+  .categories {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
 
   .heading {
     font-size: 1.25rem;
-    margin: 0 0 0.5em 0;
+    margin: 0;
+    padding: 0 4px;
   }
 
   .sectionHeading {
     font-size: 1.1rem;
     font-weight: 500;
-    margin: 0.5em 0;
+    margin: 0;
+    padding: 0 4px;
   }
 
   .section {
@@ -171,18 +233,26 @@ $ACTIONS_HEIGHT: 60px;
 
     .item {
       padding: 2px;
+      border-radius: 4px;
+      border: 1px solid transparent;
+      transition: all 0.2s ease;
 
       &.selected {
-        outline: 1px solid var(--blert-text-color);
-        border-radius: 4px;
+        border-color: var(--blert-button);
+        background: rgba(var(--blert-button-base), 0.1);
       }
 
       &:hover {
         cursor: pointer;
+        transform: scale(1.1);
+
+        &:not(.selected) {
+          background: var(--nav-bg-lightened);
+        }
       }
 
-      &:not(.selected):hover {
-        transform: scale(1.1);
+      &.selected:hover {
+        transform: scale(1.05);
       }
     }
   }

@@ -12,6 +12,7 @@ export type EditableGearSetup = {
   position: number;
   modified: boolean;
   selectedItem: number | null;
+  activeSearchSlot: string | null;
 };
 
 export const SetupEditingContext = createContext<EditingContext | null>(null);
@@ -37,6 +38,7 @@ export class EditingContext {
       position: 0,
       modified: false,
       selectedItem: null,
+      activeSearchSlot: null,
     };
   }
 
@@ -59,6 +61,14 @@ export class EditingContext {
     this.setState((prev) =>
       id === prev.selectedItem ? prev : { ...prev, selectedItem: id },
     );
+  }
+
+  public get activeSearchSlot(): string | null {
+    return this.state.activeSearchSlot;
+  }
+
+  public setActiveSearchSlot(id: string | null) {
+    this.setState((prev) => ({ ...prev, activeSearchSlot: id }));
   }
 
   /**

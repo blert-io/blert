@@ -6,6 +6,7 @@ import styles from './style.module.scss';
 export type MenuItem = {
   label: string;
   customAction?: () => void;
+  customElement?: React.ReactNode;
   icon?: string;
   subMenu?: MenuItem[];
   value?: string | number;
@@ -143,8 +144,12 @@ function MenuImpl(props: MenuImplProps) {
               }
             }}
           >
-            <span>{item.label}</span>
-            {icon}
+            {item.customElement ?? (
+              <>
+                <span>{item.label}</span>
+                {icon}
+              </>
+            )}
             {item.subMenu && props.activeElements[props.depth] === i && (
               <MenuImpl
                 {...props}
