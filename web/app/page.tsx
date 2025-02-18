@@ -1,7 +1,9 @@
 import Image from 'next/image';
+import Link from 'next/link';
 
-import styles from './styles.module.scss';
 import CollapsiblePanel from './components/collapsible-panel';
+
+import styles from './home.module.scss';
 
 export default function Home() {
   return (
@@ -15,6 +17,74 @@ export default function Home() {
             style={{ objectFit: 'contain' }}
           />
         </div>
+
+        <CollapsiblePanel
+          panelTitle="Status Updates"
+          maxPanelHeight={9999}
+          defaultExpanded
+          className={styles.homeOverview}
+          disableExpansion
+        >
+          <div className={styles.homeOverviewInner}>
+            <div className={styles.statusSection}>
+              <div className={styles.statusCard}>
+                <h3 className={`${styles.statusHeading} ${styles.error}`}>
+                  ⚠️ Service Alert: February 18, 2025
+                </h3>
+                <ul className={styles.statusList}>
+                  <li>
+                    A recent RuneScape update has changed when NPCs and player
+                    events are sent to clients, which has affected how Blert
+                    records data.
+                  </li>
+                  <li>
+                    Theatre of Blood challenge recording is temporarily disabled
+                    while we work out a solution.
+                  </li>
+                  <li>
+                    Further updates will be posted here and in our Discord
+                    server.
+                  </li>
+                </ul>
+              </div>
+
+              {/* <div className={styles.statusCard}>
+                <h3 className={`${styles.statusHeading} ${styles.error}`}>
+                  ⚠️ Service Alert: February 18, 2025
+                </h3>
+                <ul className={styles.statusList}>
+                  <li>
+                    A recent RuneScape update has caused spectators in the
+                    Theatre of Blood to miss events from certain players and
+                    NPCs.
+                  </li>
+                  <li>
+                    Recording challenges as a spectator is temporarily disabled.
+                  </li>
+                </ul>
+              </div> */}
+
+              {/* <div className={styles.statusCard}>
+                <h3 className={`${styles.statusHeading} ${styles.success}`}>
+                  🎉 Latest Updates - February 2025
+                </h3>
+                <ul className={styles.statusList}>
+                  <li>Lorem ipsum dolor sit amet</li>
+                </ul>
+              </div> */}
+
+              {/* <div className={styles.statusCard}>
+                <h3 className={`${styles.statusHeading} ${styles.info}`}>
+                  🚀 Coming Soon
+                </h3>
+                <ul className={styles.statusList}>
+                  <li>Lorem ipsum dolor sit amet</li>
+                </ul>
+              </div> */}
+            </div>
+          </div>
+        </CollapsiblePanel>
+
         <CollapsiblePanel
           panelTitle="Blert Dot Eye Oh"
           maxPanelHeight={9999}
@@ -22,12 +92,10 @@ export default function Home() {
           className={styles.homeOverview}
           disableExpansion={true}
         >
-          <div className={styles.homeOverviewInner} style={{ padding: '20px' }}>
-            <h2 style={{ fontSize: '26px', marginTop: '0' }}>
-              Welcome to blert!
-            </h2>
-            <p style={{ fontSize: '20px' }}>
-              <strong style={{ fontSize: '22px' }}>What is blert?</strong>
+          <div className={styles.homeOverviewInner}>
+            <h2 className={styles.welcomeTitle}>Welcome to blert!</h2>
+            <p className={styles.contentText}>
+              <strong className={styles.sectionTitle}>What is blert?</strong>
               <br />
               <br />
               Blert is a RuneLite plugin, data analysis pipeline, and web tool
@@ -37,48 +105,50 @@ export default function Home() {
               endgame PvM content (of nontrivial difficulty) that exists in
               OSRS.
             </p>
-            <p style={{ fontSize: '20px' }}>
-              <strong style={{ fontSize: '22px' }}>Why?</strong>
+            <p className={styles.contentText}>
+              <strong className={styles.sectionTitle}>Why?</strong>
               <br />
               <br />
               We believe that the OSRS PvM community is in need of a tool that
               can help players improve their performance and learn from their
               mistakes (or call out their friends&apos; mistakes...). Our
               long-term goal is to be the{' '}
-              <a
-                style={{ textDecoration: 'underline' }}
+              <Link
+                className={styles.link}
                 href="https://wiseoldman.net/"
                 target="_blank"
                 rel="noreferrer noopener"
               >
                 wiseoldman.net
-              </a>{' '}
+              </Link>{' '}
               equivalent but for PvM data analysis.
               <br />
               Our tool aims to fill the gap that exists in the OSRS
               high-level-community that is covered in other major MMOs - tools
               like{' '}
-              <a
-                style={{ textDecoration: 'underline' }}
+              <Link
+                className={styles.link}
                 href="https://warcraftlogs.com/"
                 target="_blank"
                 rel="noreferrer noopener"
               >
                 warcraftlogs.com
-              </a>{' '}
+              </Link>{' '}
               &{' '}
-              <a
-                style={{ textDecoration: 'underline' }}
+              <Link
+                className={styles.link}
                 href="https://fflogs.com/"
                 target="_blank"
                 rel="noreferrer noopener"
               >
                 fflogs.com
-              </a>
+              </Link>{' '}
               {'.'}
             </p>
-            <p style={{ fontSize: '20px' }}>
-              <strong style={{ fontSize: '22px' }}>Who made this thing?</strong>
+            <p className={styles.contentText}>
+              <strong className={styles.sectionTitle}>
+                Who made this thing?
+              </strong>
               <br />
               <br />
               Contrary to popular opinion, the developers of Blert are Sacolyn
@@ -86,8 +156,8 @@ export default function Home() {
               😊... but we might have added some easter eggs pertaining to Caps
               since hes been a part of this journey.
             </p>
-            <p style={{ fontSize: '20px' }}>
-              <strong style={{ fontSize: '22px' }}>
+            <p className={styles.contentText}>
+              <strong className={styles.sectionTitle}>
                 What content is supported so far?
               </strong>
               <br />
@@ -96,8 +166,8 @@ export default function Home() {
               infrastructure and data processing is set up to be generic enough
               to support any PvM content in the game.
             </p>
-            <p style={{ fontSize: '20px' }}>
-              <strong style={{ fontSize: '22px' }}>
+            <p className={styles.contentText}>
+              <strong className={styles.sectionTitle}>
                 What content are you going to work on next?
               </strong>
               <br />
@@ -107,20 +177,22 @@ export default function Home() {
               contributors we will be able to support more content more quickly,
               consider lending a hand!
             </p>
-            <p style={{ fontSize: '20px' }}>
-              <strong style={{ fontSize: '22px' }}>Is it released yet?</strong>
+            <p className={styles.contentText}>
+              <strong className={styles.sectionTitle}>
+                Is it released yet?
+              </strong>
               <br />
               <br />
               We will be submitting Blert for review by the RuneLite team in the
               coming weeks. We are currently in the process of finalizing v1 of
               the plugin :)
             </p>
-            <div style={{ fontSize: '20px' }}>
-              <strong style={{ fontSize: '22px' }}>Do you need help?</strong>
+            <div className={styles.helpSection}>
+              <strong className={styles.helpTitle}>Do you need help?</strong>
               <br />
               <br />
               Yes! Right now we are looking for three things primarily;
-              <ol>
+              <ol className={styles.helpList}>
                 <li>
                   <strong>Code contributors</strong>! If you know Java,
                   HTML/CSS/React or Next
@@ -131,10 +203,10 @@ export default function Home() {
               If you&apos;d like to help out or if you have any questions about
               our website or plugin, please reach us on our{' '}
               <a
+                className={styles.helpLink}
                 href="https://discord.gg/c5Hgv3NnYe"
                 target="_blank"
                 rel="noreferrer noopener"
-                style={{ textDecoration: 'underline' }}
               >
                 Discord Server
               </a>
