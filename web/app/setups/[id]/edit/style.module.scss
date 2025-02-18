@@ -12,6 +12,11 @@ $ACTIONS_HEIGHT: 60px;
   margin-top: calc($ACTIONS_HEIGHT + 1em);
   gap: 1em;
 
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    margin: 1em 0 60px 0;
+    flex-direction: column;
+  }
+
   .actions {
     position: fixed;
     top: 0;
@@ -26,6 +31,16 @@ $ACTIONS_HEIGHT: 60px;
     background: var(--panel-bg);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     z-index: 100;
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      position: relative;
+      top: 0;
+      left: 0;
+      width: 100%;
+      margin-bottom: 0;
+      border-radius: 5px;
+      z-index: 1;
+    }
 
     .editing {
       button {
@@ -52,6 +67,12 @@ $ACTIONS_HEIGHT: 60px;
         }
       }
     }
+  }
+
+  .players {
+    width: 100%;
+    display: flex;
+    justify-content: center;
   }
 
   .main {
@@ -106,42 +127,78 @@ $ACTIONS_HEIGHT: 60px;
     width: 600px;
   }
 
-  .description {
-    span {
-      overflow: initial;
-      white-space: pre-wrap;
+  .descriptionWrapper {
+    width: 100%;
+
+    .description {
+      span {
+        overflow: initial;
+        white-space: pre-wrap;
+      }
     }
   }
-}
 
-.addPlayer {
-  width: 60px;
-  display: inline-flex;
-  justify-content: center;
-  border: 1px dashed rgba(var(--blert-text-color-base), 0.5);
-  border-radius: 5px;
-  min-height: 300px;
+  .panelBackground {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 99;
+  }
 
-  & > button {
-    display: flex;
+  $PANEL_OPEN_HEIGHT: 90vh;
+  $TOGGLE_BUTTON_HEIGHT: 40px;
+
+  .itemPanel {
+    @include panel;
+    width: 100vw;
+    height: $PANEL_OPEN_HEIGHT;
+    z-index: 100;
+    position: fixed;
+    left: 0;
+    bottom: calc(#{-$PANEL_OPEN_HEIGHT} + #{$TOGGLE_BUTTON_HEIGHT});
+    transition: bottom 0.3s ease;
     flex-direction: column;
-    justify-content: center;
+
+    .toggle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: $TOGGLE_BUTTON_HEIGHT;
+      width: 100%;
+      background: var(--nav-bg);
+      border: none;
+      color: #fff;
+      font-size: 16px;
+
+      i {
+        margin-right: 0.5em;
+      }
+    }
+
+    &.open {
+      bottom: 0;
+    }
+  }
+
+  .selectedItemOverlay {
+    position: fixed;
+    bottom: $TOGGLE_BUTTON_HEIGHT + 10px;
+    left: 0;
+    z-index: 98;
+    padding: 10px;
+    background: var(--nav-bg);
+    border-radius: 0 5px 5px 0;
+    border: 1px solid var(--blert-button);
+    display: flex;
     align-items: center;
-    font-size: 16px;
+    gap: 8px;
 
     i {
-      font-size: 18px;
-      width: 16px;
-      margin-bottom: 2px;
-    }
-
-    &:disabled {
-      opacity: 0.5;
-    }
-
-    &:not(:disabled):hover {
-      color: #fff;
-      cursor: pointer;
+      position: relative;
+      top: 1px;
     }
   }
 }

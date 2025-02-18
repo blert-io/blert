@@ -1,8 +1,8 @@
 'use client';
 
-import { ChallengeType, challengeName } from '@blert/common';
+import { ChallengeType } from '@blert/common';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useContext, useEffect, useState } from 'react';
 
 import {
   publishSetupRevision,
@@ -11,10 +11,12 @@ import {
 } from '@/actions/setup';
 import Button from '@/components/button';
 import EditableTextField from '@/components/editable-text-field';
+import Item from '@/components/item';
 import { Modal } from '@/components/modal/modal';
 import RadioInput from '@/components/radio-input';
+import Tabs from '@/components/tabs';
 import { useToast } from '@/components/toast';
-import { useWidthThreshold } from '@/display';
+import { DisplayContext, useWidthThreshold } from '@/display';
 
 import {
   EditableGearSetup,
@@ -22,14 +24,12 @@ import {
   SetupEditingContext,
 } from '../../editing-context';
 import ItemCounts from '../../item-counts';
-import { Player } from '../../player';
-import { hasAllItems, newGearSetupPlayer } from '../../setup';
 import { ItemSelector } from './item-selector';
+import PlayerList from '../../player-list';
+import { hasAllItems, newGearSetupPlayer } from '../../setup';
 
 import setupStyles from '../../style.module.scss';
 import styles from './style.module.scss';
-
-const OVERVIEW_WIDTH = 900;
 
 const MAX_PARTY_SIZE = 8;
 const AUTO_SAVE_INTERVAL_MS = 60000;
@@ -46,12 +46,16 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
 
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [publishMessage, setPublishMessage] = useState('');
   const [publishLoading, setPublishLoading] = useState(false);
+  const [itemPanelOpen, setItemPanelOpen] = useState(false);
 
+  const display = useContext(DisplayContext);
   const itemCountsAsSidebar = useWidthThreshold(
     MIN_WIDTH_FOR_ITEM_COUNTS_SIDEBAR,
   );
+
+  const itemPanelContentHeight =
+    (typeof window !== 'undefined' ? window.innerHeight : 0) * 0.9 - 40;
 
   const [editableSetup, setEditableSetup] = useState<EditableGearSetup>(
     EditingContext.newEditableGearSetup(
@@ -91,27 +95,30 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
     }
   };
 
-  const handlePublish = useCallback(async () => {
-    try {
-      setPublishLoading(true);
-      await publishSetupRevision(
-        setup.publicId,
-        context.setup,
-        publishMessage || null,
-      );
+  const handlePublish = useCallback(
+    async (publishMessage: string) => {
+      try {
+        setPublishLoading(true);
+        await publishSetupRevision(
+          setup.publicId,
+          context.setup,
+          publishMessage || null,
+        );
 
-      showToast('Published setup');
+        showToast('Published setup');
 
-      setTimeout(() => {
-        router.push(`/setups/${setup.publicId}`);
-      }, 100);
-    } catch (e) {
-      showToast('Failed to publish setup');
-    } finally {
-      setPublishLoading(false);
-      setPublishing(false);
-    }
-  }, [context, publishMessage, router, setup.publicId, showToast]);
+        setTimeout(() => {
+          router.push(`/setups/${setup.publicId}`);
+        }, 100);
+      } catch (e) {
+        showToast('Failed to publish setup');
+      } finally {
+        setPublishLoading(false);
+        setPublishing(false);
+      }
+    },
+    [context, router, setup.publicId, showToast],
+  );
 
   useEffect(() => {
     if (!editableSetup.modified) {
@@ -244,7 +251,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
                 context.update((prev) => ({ ...prev, title }))
               }
               tag="h1"
-              width={OVERVIEW_WIDTH}
+              width="95%"
             />
             <div className={styles.group}>
               <div className={styles.challengeType}>
@@ -279,7 +286,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
                   <RadioInput.Option
                     checked={context.setup.challenge === ChallengeType.INFERNO}
                     id={`setup-challenge-type-${ChallengeType.INFERNO}`}
-                    label={challengeName(ChallengeType.INFERNO)}
+                    label="Inferno"
                     value={ChallengeType.INFERNO}
                   />
                   <RadioInput.Option
@@ -287,13 +294,13 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
                       context.setup.challenge === ChallengeType.COLOSSEUM
                     }
                     id={`setup-challenge-type-${ChallengeType.COLOSSEUM}`}
-                    label={challengeName(ChallengeType.COLOSSEUM)}
+                    label={display.isCompact() ? 'Colo' : 'Colosseum'}
                     value={ChallengeType.COLOSSEUM}
                   />
                 </RadioInput.Group>
               </div>
             </div>
-            <div>
+            <div className={styles.descriptionWrapper}>
               <label className={styles.label}>Description</label>
               <EditableTextField
                 className={styles.description}
@@ -303,110 +310,182 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
                 inputTag="textarea"
                 tag="p"
                 value={context.setup.description}
-                width={OVERVIEW_WIDTH}
+                width="95%"
               />
             </div>
           </div>
-          {!itemCountsAsSidebar && itemCounts}
-          <div className={`${setupStyles.panel} ${setupStyles.players}`}>
-            {context.setup.players.map((player, i) => (
-              <Player key={i} index={i} player={player} />
-            ))}
-            {context.setup.players.length < MAX_PARTY_SIZE && (
-              <div className={styles.addPlayer}>
-                <button
-                  onClick={() =>
-                    context.update((prev) => {
-                      if (prev.players.length >= MAX_PARTY_SIZE) {
-                        return prev;
-                      }
-                      const newPlayer = newGearSetupPlayer(
-                        prev.players.length + 1,
-                      );
-                      return {
-                        ...prev,
-                        players: [...prev.players, newPlayer],
-                      };
-                    })
-                  }
-                >
-                  <i className="fas fa-plus" />
-                  <span>Add</span>
-                </button>
-              </div>
-            )}
+          {!display.isCompact() && !itemCountsAsSidebar && itemCounts}
+          <PlayerList
+            className={styles.players}
+            players={context.setup.players}
+            onAddPlayer={() => {
+              context.update((prev) => {
+                if (prev.players.length >= MAX_PARTY_SIZE) {
+                  return prev;
+                }
+                const newPlayer = newGearSetupPlayer(prev.players.length + 1);
+                return {
+                  ...prev,
+                  players: [...prev.players, newPlayer],
+                };
+              });
+            }}
+            showAddButton={context.setup.players.length < MAX_PARTY_SIZE}
+          />
+        </div>
+        {!display.isCompact() && (
+          <div className={styles.selector}>
+            <ItemSelector />
           </div>
-        </div>
-        <div className={styles.selector}>
-          <ItemSelector />
-        </div>
+        )}
+        {display.isCompact() && (
+          <>
+            {context.selectedItem && (
+              <button
+                className={styles.selectedItemOverlay}
+                onClick={() => context.setSelectedItem(null)}
+              >
+                <Item
+                  id={context.selectedItem.id}
+                  name={context.selectedItem.name}
+                  quantity={1}
+                  size={32}
+                />
+                <span className="sr-only">
+                  Unselect item: {context.selectedItem.name}
+                </span>
+                <i className="fas fa-times" />
+              </button>
+            )}
+            {itemPanelOpen && (
+              <div
+                className={styles.panelBackground}
+                onClick={() => setItemPanelOpen(false)}
+              />
+            )}
+            <div
+              className={`${styles.itemPanel} ${itemPanelOpen ? styles.open : ''}`}
+            >
+              <button
+                className={styles.toggle}
+                onClick={() => setItemPanelOpen((prev) => !prev)}
+              >
+                <i
+                  className={`fas fa-chevron-${itemPanelOpen ? 'down' : 'up'}`}
+                />
+                Items
+              </button>
+              <Tabs
+                fluid
+                maxHeight={itemPanelContentHeight}
+                small
+                tabs={[
+                  {
+                    icon: 'fas fa-cog',
+                    title: 'Item selector',
+                    content: <ItemSelector />,
+                  },
+                  {
+                    icon: 'fas fa-list',
+                    title: 'Item counts',
+                    content: itemCounts,
+                  },
+                ]}
+              />
+            </div>
+          </>
+        )}
       </div>
-
-      <Modal
-        className={styles.publishModal}
+      <PublishModal
+        setup={setup}
         open={publishing}
         onClose={() => setPublishing(false)}
-      >
-        <div className={styles.modalHeader}>
-          <h2>Publish setup</h2>
-          <button onClick={() => setPublishing(false)}>
-            <i className="fas fa-times" />
-            <span className="sr-only">Close</span>
-          </button>
-        </div>
-        <div className={styles.publishDialog}>
-          {setup.latestRevision === null ? (
-            <p>
-              Publishing will make your setup visible to other users. You can
-              still make changes after publishing by creating new revisions.
-            </p>
-          ) : (
-            <p>
-              Publishing will create a new revision (v
-              {setup.latestRevision.version + 1}) of your setup. Previous
-              revisions will be preserved and can be viewed in the revision
-              history.
-            </p>
-          )}
-          {publishIssues.length > 0 && (
-            <div className={styles.issues}>
-              <p>Issues have been detected with your setup:</p>
-              <ul>
-                {publishIssues.map((issue) => (
-                  <li
-                    key={issue.message}
-                    className={`${styles.issue} ${styles[issue.type]}`}
-                  >
-                    {issue.message}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          <div className={styles.field}>
-            <label htmlFor="publish-message">Revision message (optional)</label>
-            <textarea
-              id="publish-message"
-              value={publishMessage}
-              onChange={(e) => setPublishMessage(e.target.value)}
-              placeholder="Describe your changes..."
-              rows={3}
-            />
-          </div>
-          <div className={styles.actions}>
-            <Button onClick={() => setPublishing(false)} simple>
-              Cancel
-            </Button>
-            <Button
-              disabled={publishIssues.some((w) => w.type === 'error')}
-              loading={publishLoading}
-              onClick={handlePublish}
-            >
-              Publish
-            </Button>
-          </div>
-        </div>
-      </Modal>
+        onPublish={handlePublish}
+        publishIssues={publishIssues}
+        publishLoading={publishLoading}
+      />
     </SetupEditingContext.Provider>
+  );
+}
+
+function PublishModal({
+  setup,
+  open,
+  onClose,
+  onPublish,
+  publishIssues,
+  publishLoading,
+}: {
+  setup: SetupMetadata;
+  open: boolean;
+  onClose: () => void;
+  onPublish: (message: string) => void;
+  publishIssues: Array<{ message: string; type: 'warning' | 'error' }>;
+  publishLoading: boolean;
+}) {
+  const [publishMessage, setPublishMessage] = useState('');
+
+  return (
+    <Modal className={styles.publishModal} open={open} onClose={onClose}>
+      <div className={styles.modalHeader}>
+        <h2>Publish setup</h2>
+        <button onClick={onClose}>
+          <i className="fas fa-times" />
+          <span className="sr-only">Close</span>
+        </button>
+      </div>
+      <div className={styles.publishDialog}>
+        {setup.latestRevision === null ? (
+          <p>
+            Publishing will make your setup visible to other users. You can
+            still make changes after publishing by creating new revisions.
+          </p>
+        ) : (
+          <p>
+            Publishing will create a new revision (v
+            {setup.latestRevision.version + 1}) of your setup. Previous
+            revisions will be preserved and can be viewed in the revision
+            history.
+          </p>
+        )}
+        {publishIssues.length > 0 && (
+          <div className={styles.issues}>
+            <p>Issues have been detected with your setup:</p>
+            <ul>
+              {publishIssues.map((issue) => (
+                <li
+                  key={issue.message}
+                  className={`${styles.issue} ${styles[issue.type]}`}
+                >
+                  {issue.message}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <div className={styles.field}>
+          <label htmlFor="publish-message">Revision message (optional)</label>
+          <textarea
+            id="publish-message"
+            value={publishMessage}
+            onChange={(e) => setPublishMessage(e.target.value)}
+            placeholder="Describe your changes..."
+            rows={3}
+          />
+        </div>
+        <div className={styles.actions}>
+          <Button onClick={onClose} simple>
+            Cancel
+          </Button>
+          <Button
+            disabled={publishIssues.some((w) => w.type === 'error')}
+            loading={publishLoading}
+            onClick={() => onPublish(publishMessage)}
+          >
+            Publish
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }

@@ -14,17 +14,26 @@ type TabsProps = {
   fluid?: boolean;
   maxHeight?: number;
   tabs: Tab[];
+  small?: boolean;
 };
 
 const NAV_HEIGHT = 50;
 const NAV_MARGIN = 10;
 
-export default function Tabs({ fluid, maxHeight, tabs }: TabsProps) {
+export default function Tabs({
+  fluid,
+  maxHeight,
+  tabs,
+  small = false,
+}: TabsProps) {
   const [activeTab, setActiveTab] = useState(0);
 
   let className = styles.tabs;
   if (fluid) {
     className += ` ${styles.fluid}`;
+  }
+  if (small) {
+    className += ` ${styles.small}`;
   }
 
   let contentStyle: React.CSSProperties = {};

@@ -10,8 +10,8 @@ import {
 } from '@/actions/setup';
 import { useWidthThreshold } from '@/display';
 
-import { Player } from '../player';
 import ItemCounts from '../item-counts';
+import PlayerList from '../player-list';
 import { GearSetup } from '../setup';
 
 import setupStyles from '../style.module.scss';
@@ -41,16 +41,11 @@ export default function GearSetupPanels({
   const renderAsRow = useWidthThreshold(1800);
 
   const playersPanel = (
-    <div
-      className={`${setupStyles.panel} ${setupStyles.players} ${styles.players}`}
+    <PlayerList
+      className={styles.players}
       key="players"
-    >
-      {gearSetup.players.map((player, i) => (
-        <div key={i} className={styles.player}>
-          <Player index={i} player={player} />
-        </div>
-      ))}
-    </div>
+      players={gearSetup.players}
+    />
   );
 
   const itemCountsPanel = (
