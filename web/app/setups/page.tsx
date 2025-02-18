@@ -116,7 +116,10 @@ export default async function SetupsPage({ searchParams }: SetupsPageProps) {
   );
 }
 
-export async function generateMetadata(parent: ResolvingMetadata) {
+export async function generateMetadata(
+  _props: SetupsPageProps,
+  parent: ResolvingMetadata,
+) {
   const metadata = await parent;
 
   const description =

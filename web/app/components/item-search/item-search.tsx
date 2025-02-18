@@ -64,18 +64,22 @@ export default function ItemSearchInput({
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   const isOpen = state !== State.CLOSED;
-  function setIsOpen(open: boolean) {
-    if (open) {
-      const rect = wrapperRef.current?.getBoundingClientRect();
-      if (rect) {
-        const maxMenuHeight = ITEM_HEIGHT * maxResults;
-        const isAbove = rect.top + maxMenuHeight > window.innerHeight;
-        setState(isAbove ? State.OPEN_ABOVE : State.OPEN_BELOW);
+
+  const setIsOpen = useCallback(
+    (open: boolean) => {
+      if (open) {
+        const rect = wrapperRef.current?.getBoundingClientRect();
+        if (rect) {
+          const maxMenuHeight = ITEM_HEIGHT * maxResults;
+          const isAbove = rect.top + maxMenuHeight > window.innerHeight;
+          setState(isAbove ? State.OPEN_ABOVE : State.OPEN_BELOW);
+        }
+      } else {
+        setState(State.CLOSED);
       }
-    } else {
-      setState(State.CLOSED);
-    }
-  }
+    },
+    [maxResults, setState],
+  );
 
   const search = useCallback(
     (value: string) => {
@@ -116,18 +120,18 @@ export default function ItemSearchInput({
 
   const handleClickOutside = useCallback(() => {
     setIsOpen(false);
-  }, []);
+  }, [setIsOpen]);
 
   const handleFocus = useCallback(() => {
     setIsOpen(true);
-  }, []);
+  }, [setIsOpen]);
 
   useEffect(() => {
     if (query === '') {
       setResults([]);
       setIsOpen(false);
     }
-  }, [query]);
+  }, [query, setIsOpen]);
 
   const showMenu = isOpen && results.length > 0;
 

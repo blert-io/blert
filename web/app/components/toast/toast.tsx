@@ -40,7 +40,7 @@ export default function ToastProvider({
         removeToast(id);
       }, TOAST_DURATION_MS);
     },
-    [nextId],
+    [nextId, removeToast],
   );
 
   return (

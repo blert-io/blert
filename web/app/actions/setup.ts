@@ -3,8 +3,8 @@
 import {
   ChallengeType,
   DataRepository,
-  isPostgresUniqueViolation,
   User,
+  isPostgresUniqueViolation,
 } from '@blert/common';
 import { randomBytes } from 'crypto';
 import postgres from 'postgres';
@@ -31,6 +31,7 @@ export type SetupMetadata = {
   publicId: string;
   name: string;
   challengeType: ChallengeType;
+  scale: number;
   authorId: number;
   author: string;
   state: SetupState;
@@ -124,6 +125,7 @@ export async function newGearSetup(author: User): Promise<SetupMetadata> {
         publicId,
         name: 'Untitled setup',
         challengeType: ChallengeType.TOB,
+        scale: 1,
         authorId: author.id,
         author: author.username,
         state: 'draft',
@@ -158,6 +160,7 @@ export async function getSetupByPublicId(
       s.public_id,
       s.name,
       s.challenge_type,
+      s.scale,
       s.author_id,
       u.username as "author",
       s.state,
@@ -185,6 +188,7 @@ export async function getSetupByPublicId(
     publicId: setupRow.public_id,
     name: setupRow.name,
     challengeType: setupRow.challenge_type,
+    scale: setupRow.scale,
     authorId: setupRow.author_id,
     author: setupRow.author,
     state: setupRow.state,
@@ -264,8 +268,10 @@ export async function saveSetupDraft(
   }
   const userId = parseInt(session.user.id);
 
-  const [current] = await sql<[{ id: number; author_id: number }?]>`
-    SELECT id, author_id
+  const [current] = await sql<
+    [{ id: number; author_id: number; state: SetupState }?]
+  >`
+    SELECT id, author_id, state
     FROM gear_setups
     WHERE public_id = ${publicId}
     FOR UPDATE
@@ -279,9 +285,20 @@ export async function saveSetupDraft(
     throw new Error('Not authorized to modify this setup');
   }
 
+  const updates: Record<string, unknown> = {
+    has_draft: true,
+  };
+
+  if (current.state === 'draft') {
+    // If the setup has not yet been published, change its name and scale to
+    // match the latest draft.
+    updates.name = setup.title;
+    updates.scale = setup.players.length;
+  }
+
   await sql`
     UPDATE gear_setups
-    SET has_draft = TRUE
+    SET ${sql(updates)}
     WHERE id = ${current.id}
   `;
 
@@ -361,6 +378,7 @@ export async function publishSetupRevision(
       SET
         name = ${setup.title},
         challenge_type = ${setup.challenge},
+        scale = ${setup.players.length},
         latest_revision_id = ${revision.id},
         state = 'published',
         has_draft = FALSE,

@@ -49,7 +49,7 @@ export default function SearchMenu({
     } else {
       setPosition({ x: rect.left, y: rect.top + rect.height });
     }
-  }, [attach, results, open]);
+  }, [attach, results, open, targetId]);
 
   if (position === null) {
     return null;
