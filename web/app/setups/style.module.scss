@@ -6,11 +6,115 @@
 }
 
 .players {
-  width: 100%;
+  position: relative;
   display: flex;
-  flex-flow: row wrap;
-  justify-content: center;
-  gap: 10px;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+
+  .arrow {
+    width: 40px;
+    font-size: 28px;
+    color: var(--blert-text-color);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    z-index: 1;
+
+    &:not(:disabled):hover {
+      color: var(--blert-button);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  .wrapper {
+    position: relative;
+    overflow: hidden;
+    border-radius: 4px;
+  }
+
+  .list {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    touch-action: pan-y pinch-zoom;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    &.dragging {
+      transition: none;
+    }
+  }
+
+  .addPlayer {
+    width: 60px;
+    display: inline-flex;
+    justify-content: center;
+    border: 1px dashed rgba(var(--blert-text-color-base), 0.5);
+    border-radius: 5px;
+    min-height: 300px;
+
+    & > button {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-size: 16px;
+      gap: 4px;
+
+      i {
+        font-size: 18px;
+        width: 16px;
+      }
+
+      &:disabled {
+        opacity: 0.5;
+      }
+
+      &:not(:disabled):hover {
+        color: #fff;
+        cursor: pointer;
+      }
+    }
+  }
+
+  .footer {
+    margin-top: 8px;
+
+    .dots {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      z-index: 1;
+
+      .dot {
+        padding: 1px;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--blert-text-color);
+        opacity: 0.5;
+        transition: all 0.2s ease;
+
+        &.active {
+          opacity: 1;
+          background: var(--blert-button);
+        }
+      }
+    }
+
+    .addPlayer {
+      margin-top: 8px;
+      min-height: 40px;
+      width: 100%;
+
+      button {
+        flex-direction: row;
+      }
+    }
+  }
 }
 
 $SLOT_SIZE: 42px;
@@ -146,19 +250,19 @@ $SLOT_SIZE: 42px;
   &.search {
     border: 1px solid var(--blert-button);
   }
+}
 
-  .slotSearch {
-    position: absolute;
-    top: $SLOT_SIZE;
-    left: 0;
-    z-index: 100;
-    width: 200px;
-    background: var(--panel-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    padding: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  }
+.slotSearch {
+  position: fixed;
+  top: $SLOT_SIZE;
+  left: 0;
+  z-index: 100;
+  width: 200px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .spellbookSlot {

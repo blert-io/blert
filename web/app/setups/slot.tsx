@@ -1,5 +1,6 @@
 import { EquipmentSlot } from '@blert/common';
-import { useContext, useEffect, useRef, useState } from 'react';
+import { RefObject, useContext, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import Item from '@/components/item';
 import ItemSearchInput from '@/components/item-search';
@@ -26,6 +27,7 @@ export function Slot(props: SlotProps) {
   const context = useContext(SetupEditingContext);
   const selectedItem = context?.selectedItem ?? null;
   const { highlightedItemId } = useContext(SetupViewingContext);
+  const slotRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const id = `slot-${props.playerIndex}-${props.container}-${props.index}`;
@@ -77,7 +79,9 @@ export function Slot(props: SlotProps) {
         context?.setActiveSearchSlot(null);
       };
 
-      searchRef.current?.focus();
+      setTimeout(() => {
+        searchRef.current?.focus();
+      }, 100);
 
       window.addEventListener('keydown', handleKeyDown);
       window.addEventListener('click', handleClick);
@@ -177,7 +181,7 @@ export function Slot(props: SlotProps) {
   }
 
   return (
-    <div className={className} onClick={onClick}>
+    <div className={className} onClick={onClick} ref={slotRef}>
       {props.item !== undefined ? (
         <Item
           id={props.item}
@@ -186,20 +190,81 @@ export function Slot(props: SlotProps) {
           size={30}
         />
       ) : isSearchActive && context !== null ? (
-        <div className={styles.slotSearch}>
-          <ItemSearchInput
-            id={`slot-search-${id}`}
-            slot={
-              props.container === Container.EQUIPMENT ? props.index : undefined
-            }
-            placeholder="Search items…"
-            predicate={props.filter}
-            inputRef={searchRef}
-            onSelect={handleSearchSelect}
-            onClear={() => context.setActiveSearchSlot(null)}
-          />
-        </div>
+        <SlotSearch
+          id={id}
+          container={props.container}
+          index={props.index}
+          filter={props.filter}
+          onSelect={handleSearchSelect}
+          onClear={() => context.setActiveSearchSlot(null)}
+          searchRef={searchRef}
+          slotRef={slotRef}
+        />
       ) : null}
     </div>
+  );
+}
+
+const SEARCH_WIDTH = 320;
+
+function SlotSearch(props: {
+  id: string;
+  container: Container;
+  index: number;
+  filter?: (item: ExtendedItemData) => boolean;
+  onSelect: (item: ExtendedItemData) => void;
+  onClear: () => void;
+  searchRef: RefObject<HTMLInputElement>;
+  slotRef: RefObject<HTMLDivElement>;
+}) {
+  const portalNode = useRef<HTMLElement | null>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const root = document.getElementById('portal-root');
+
+    const menuPortal = document.createElement('div');
+    menuPortal.classList.add('slot-search-portal');
+    root?.appendChild(menuPortal);
+    portalNode.current = menuPortal as HTMLElement;
+    setReady(true);
+
+    return () => {
+      if (portalNode.current !== null) {
+        document
+          .getElementById('portal-root')
+          ?.removeChild(portalNode.current!);
+      }
+    };
+  }, []);
+
+  if (!ready) {
+    return null;
+  }
+
+  const position = { left: 0, top: 0, width: SEARCH_WIDTH };
+  const slotRect = props.slotRef.current?.getBoundingClientRect();
+  if (slotRect !== undefined) {
+    position.top = slotRect.top + slotRect.height;
+    position.left = slotRect.left;
+
+    if (position.left + SEARCH_WIDTH > window.innerWidth - 20) {
+      position.left = window.innerWidth - SEARCH_WIDTH - 20;
+    }
+  }
+
+  return createPortal(
+    <div className={styles.slotSearch} style={position}>
+      <ItemSearchInput
+        id={`slot-search-${props.id}`}
+        slot={props.container === Container.EQUIPMENT ? props.index : undefined}
+        placeholder="Search items…"
+        predicate={props.filter}
+        inputRef={props.searchRef}
+        onSelect={props.onSelect}
+        onClear={props.onClear}
+      />
+    </div>,
+    portalNode.current!,
   );
 }

@@ -11,6 +11,17 @@
     }
   }
 
+  &.small {
+    .navigation {
+      .tab {
+        font-size: 1.2rem;
+        i {
+          margin-right: 8px;
+        }
+      }
+    }
+  }
+
   .navigation {
     position: sticky;
     top: 0;
