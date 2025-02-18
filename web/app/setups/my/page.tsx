@@ -105,7 +105,10 @@ export default async function MySetupsPage({
   );
 }
 
-export async function generateMetadata(parent: ResolvingMetadata) {
+export async function generateMetadata(
+  _props: MySetupsPageProps,
+  parent: ResolvingMetadata,
+) {
   const metadata = await parent;
 
   const description = 'View and manage your gear setups.';

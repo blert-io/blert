@@ -1,6 +1,6 @@
 'use client';
 
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 
 import { DisplayContext } from '@/display';
 
@@ -59,41 +59,44 @@ export default function PlayerList({
     hasStartedDragging.current = false;
   };
 
-  const handleDragMove = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDragging) {
-      return;
-    }
-
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    const deltaX = clientX - dragStart.x;
-    const deltaY = clientY - dragStart.y;
-
-    // If we haven't started dragging yet, check if this is a primarily
-    // vertical movement.
-    if (!hasStartedDragging.current) {
-      if (Math.abs(deltaX) < 5 && Math.abs(deltaY) < 5) {
-        // Too small to determine direction.
+  const handleDragMove = useCallback(
+    (e: React.MouseEvent | React.TouchEvent) => {
+      if (!isDragging) {
         return;
       }
-      if (Math.abs(deltaY) > Math.abs(deltaX)) {
-        setDragStart(null);
-        return;
+
+      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+      const deltaX = clientX - dragStart.x;
+      const deltaY = clientY - dragStart.y;
+
+      // If we haven't started dragging yet, check if this is a primarily
+      // vertical movement.
+      if (!hasStartedDragging.current) {
+        if (Math.abs(deltaX) < 5 && Math.abs(deltaY) < 5) {
+          // Too small to determine direction.
+          return;
+        }
+        if (Math.abs(deltaY) > Math.abs(deltaX)) {
+          setDragStart(null);
+          return;
+        }
+        hasStartedDragging.current = true;
       }
-      hasStartedDragging.current = true;
-    }
 
-    // Limit dragging beyond bounds.
-    const minBound =
-      currentIndex === players.length - 1 ? -MAX_OVERSCROLL : -PLAYER_WIDTH;
-    const maxBound = currentIndex === 0 ? MAX_OVERSCROLL : PLAYER_WIDTH;
-    const boundedOffset = Math.max(minBound, Math.min(maxBound, deltaX));
+      // Limit dragging beyond bounds.
+      const minBound =
+        currentIndex === players.length - 1 ? -MAX_OVERSCROLL : -PLAYER_WIDTH;
+      const maxBound = currentIndex === 0 ? MAX_OVERSCROLL : PLAYER_WIDTH;
+      const boundedOffset = Math.max(minBound, Math.min(maxBound, deltaX));
 
-    dragOffsetRef.current = boundedOffset;
-    setDragOffset(boundedOffset);
-  };
+      dragOffsetRef.current = boundedOffset;
+      setDragOffset(boundedOffset);
+    },
+    [currentIndex, players.length, isDragging, dragStart],
+  );
 
-  const handleDragEnd = () => {
+  const handleDragEnd = useCallback(() => {
     if (!isDragging) {
       return;
     }
@@ -114,7 +117,7 @@ export default function PlayerList({
     setDragStart(null);
     setDragOffset(0);
     dragOffsetRef.current = 0;
-  };
+  }, [currentIndex, players.length, isDragging]);
 
   useEffect(() => {
     if (!renderCarousel) {
@@ -138,7 +141,14 @@ export default function PlayerList({
       window.removeEventListener('mouseup', handleEnd);
       window.removeEventListener('touchend', handleEnd);
     };
-  }, [isDragging, renderCarousel, currentIndex, players.length]);
+  }, [
+    isDragging,
+    renderCarousel,
+    currentIndex,
+    players.length,
+    handleDragMove,
+    handleDragEnd,
+  ]);
 
   useEffect(() => {
     if (!renderCarousel) {
@@ -148,7 +158,7 @@ export default function PlayerList({
     if (currentIndex >= players.length) {
       setCurrentIndex(players.length - 1);
     }
-  }, [players.length, currentIndex]);
+  }, [players.length, currentIndex, renderCarousel]);
 
   const wrapperStyles: React.CSSProperties = {};
   const listStyles: React.CSSProperties = {};

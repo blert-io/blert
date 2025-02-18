@@ -2,7 +2,7 @@
 
 import { ChallengeType } from '@blert/common';
 import { useRouter } from 'next/navigation';
-import { useCallback, useContext, useEffect, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import {
   publishSetupRevision,
@@ -68,32 +68,35 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
     ),
   );
 
-  const context = new EditingContext(
-    setup.publicId,
-    editableSetup,
-    setEditableSetup,
+  const context = useMemo(
+    () => new EditingContext(setup.publicId, editableSetup, setEditableSetup),
+    [editableSetup, setup.publicId, setEditableSetup],
   );
+  const gearSetup = context.setup;
 
-  const handleSave = async (isAutoSave: boolean = false) => {
-    if (!context.modified || saving) {
-      return;
-    }
-
-    try {
-      setSaving(true);
-      await saveSetupDraft(setup.publicId, context.setup);
-      context.clearModified();
-      if (isAutoSave) {
-        showToast('Auto-saved setup');
-      } else {
-        showToast('Saved setup');
+  const handleSave = useCallback(
+    async (isAutoSave: boolean = false) => {
+      if (!context.modified || saving) {
+        return;
       }
-    } catch (e) {
-      showToast('Failed to save setup');
-    } finally {
-      setSaving(false);
-    }
-  };
+
+      try {
+        setSaving(true);
+        await saveSetupDraft(setup.publicId, context.setup);
+        context.clearModified();
+        if (isAutoSave) {
+          showToast('Auto-saved setup');
+        } else {
+          showToast('Saved setup');
+        }
+      } catch (e) {
+        showToast('Failed to save setup');
+      } finally {
+        setSaving(false);
+      }
+    },
+    [setup.publicId, context, saving, showToast],
+  );
 
   const handlePublish = useCallback(
     async (publishMessage: string) => {
@@ -101,7 +104,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
         setPublishLoading(true);
         await publishSetupRevision(
           setup.publicId,
-          context.setup,
+          gearSetup,
           publishMessage || null,
         );
 
@@ -117,7 +120,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
         setPublishing(false);
       }
     },
-    [context, router, setup.publicId, showToast],
+    [gearSetup, router, setup.publicId, showToast],
   );
 
   useEffect(() => {
@@ -130,7 +133,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
     }, AUTO_SAVE_INTERVAL_MS);
 
     return () => clearTimeout(timer);
-  }, [context, editableSetup.modified, showToast]);
+  }, [editableSetup.modified, handleSave]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
