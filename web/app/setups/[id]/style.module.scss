@@ -152,6 +152,11 @@
         opacity: 0.9;
       }
     }
+
+    .delete {
+      background-color: var(--blert-red);
+      border-color: var(--blert-red);
+    }
   }
 
   .description {
@@ -168,6 +173,7 @@
 
 .revisions {
   width: 100%;
+  max-width: 600px;
   display: flex;
   flex-direction: column;
   gap: 8px;

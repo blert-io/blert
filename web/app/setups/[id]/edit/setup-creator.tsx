@@ -18,6 +18,7 @@ import Tabs from '@/components/tabs';
 import { useToast } from '@/components/toast';
 import { DisplayContext, useWidthThreshold } from '@/display';
 
+import DeleteModal from '../../delete-modal';
 import {
   EditableGearSetup,
   EditingContext,
@@ -48,6 +49,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
   const [publishing, setPublishing] = useState(false);
   const [publishLoading, setPublishLoading] = useState(false);
   const [itemPanelOpen, setItemPanelOpen] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const display = useContext(DisplayContext);
   const itemCountsAsSidebar = useWidthThreshold(
@@ -234,10 +236,20 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
           </div>
           <div className={styles.publishing}>
             <Button
+              className={`${styles.button} ${styles.delete}`}
+              disabled={publishing || publishLoading}
+              onClick={() => setShowDeleteModal(true)}
+            >
+              <i className="fas fa-trash" />
+              Delete
+            </Button>
+            <Button
               className={styles.button}
+              disabled={publishing || publishLoading}
               loading={publishLoading}
               onClick={() => setPublishing(true)}
             >
+              <i className="fas fa-upload" />
               Publish
             </Button>
           </div>
@@ -406,6 +418,12 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
         onPublish={handlePublish}
         publishIssues={publishIssues}
         publishLoading={publishLoading}
+      />
+      <DeleteModal
+        setupId={setup.publicId}
+        open={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onDelete={() => router.replace('/setups/my')}
       />
     </SetupEditingContext.Provider>
   );
