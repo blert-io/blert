@@ -33,7 +33,7 @@ export function Option(props: OptionProps) {
 }
 
 type GroupProps = {
-  children: JSX.Element[];
+  children: React.ReactNode;
   name: string;
   onChange?: (value: number | string) => void;
   readOnly?: boolean;
@@ -42,13 +42,19 @@ type GroupProps = {
 export function Group(props: GroupProps) {
   return (
     <div className={styles.radioGroup}>
-      {React.Children.map(props.children, (child) =>
-        React.cloneElement<OptionProps>(child, {
+      {React.Children.map(props.children, (child) => {
+        if (child === null || child === undefined) {
+          return null;
+        }
+
+        const childElement = child as React.ReactElement<OptionProps>;
+
+        return React.cloneElement<OptionProps>(childElement, {
           privateName: props.name,
-          privateOnChange: () => props.onChange?.(child.props.value),
+          privateOnChange: () => props.onChange?.(childElement.props.value),
           privateReadOnly: props.readOnly,
-        }),
-      )}
+        });
+      })}
     </div>
   );
 }
