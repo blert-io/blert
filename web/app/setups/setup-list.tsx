@@ -3,7 +3,7 @@
 import { challengeName, ChallengeType } from '@blert/common';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback } from 'react';
+import { useCallback, useContext } from 'react';
 
 import {
   SetupListItem,
@@ -13,6 +13,7 @@ import {
 } from '@/actions/setup';
 import RadioInput from '@/components/radio-input';
 import VoteBar from '@/components/vote-bar';
+import { DisplayContext } from '@/display';
 
 import styles from './setup-list.module.scss';
 
@@ -24,6 +25,21 @@ function formatDate(date: Date | string): string {
   });
 }
 
+const MAX_SCALE = 8;
+
+function scaleName(scale: number) {
+  switch (scale) {
+    case 1:
+      return 'Solo';
+    case 2:
+      return 'Duo';
+    case 3:
+      return 'Trio';
+    default:
+      return `${scale}-man`;
+  }
+}
+
 type SetupListProps = {
   setups: SetupListItem[];
   nextCursor?: SetupCursor | null;
@@ -33,6 +49,7 @@ type SetupListProps = {
     orderBy: SetupSort;
     search?: string;
     state?: SetupState;
+    scale?: number;
   };
   showState?: boolean;
   showStateFilter?: boolean;
@@ -61,6 +78,8 @@ export function SetupList({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+
+  const display = useContext(DisplayContext);
 
   const currentPage = total > 0 ? Math.floor(position / limit) + 1 : 0;
   const totalPages = Math.ceil(total / limit);
@@ -205,6 +224,33 @@ export function SetupList({
               </RadioInput.Group>
             </div>
           )}
+          <div className={`${styles.filter} ${styles.scale}`}>
+            <label>Scale</label>
+            <RadioInput.Group
+              name="scale-filter"
+              onChange={(value) =>
+                handleFilterChange('scale', value === 'all' ? null : value)
+              }
+            >
+              <RadioInput.Option
+                checked={currentFilter.scale === undefined}
+                id="scale-filter-all"
+                label="All"
+                value="all"
+              />
+              {Array.from({ length: MAX_SCALE }, (_, i) => (
+                <RadioInput.Option
+                  checked={currentFilter.scale === i + 1}
+                  key={i}
+                  id={`scale-filter-${i + 1}`}
+                  label={
+                    display.isCompact() ? (i + 1).toString() : scaleName(i + 1)
+                  }
+                  value={i + 1}
+                />
+              ))}
+            </RadioInput.Group>
+          </div>
           <div className={`${styles.filter} ${styles.challenge}`}>
             <label>Challenge</label>
             <RadioInput.Group

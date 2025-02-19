@@ -60,6 +60,7 @@ export type SetupFilter = {
   state?: SetupState;
   search?: string;
   orderBy?: SetupSort;
+  scale?: number;
 };
 
 export type SetupListItem = {
@@ -655,6 +656,10 @@ export async function getSetups(
     )`);
   }
 
+  if (filter.scale !== undefined) {
+    conditions.push(sql`s.scale = ${filter.scale}`);
+  }
+
   const filterConditions = [...conditions];
 
   if (cursor !== null) {
@@ -713,6 +718,7 @@ export async function getSetups(
         s.name,
         s.challenge_type,
         s.author_id,
+        s.scale,
         u.username as "author",
         s.state,
         s.views,
@@ -774,6 +780,7 @@ export async function getSetups(
       publicId: s.public_id,
       name: s.name,
       challengeType: s.challenge_type,
+      scale: s.scale,
       authorId: s.author_id,
       author: s.author,
       state: s.state,

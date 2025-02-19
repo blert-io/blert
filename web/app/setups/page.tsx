@@ -21,13 +21,14 @@ type SetupsPageProps = {
     challenge?: string;
     sort?: string;
     search?: string;
+    scale?: string;
   }>;
 };
 
 const SETUPS_PER_PAGE = 10;
 
 export default async function SetupsPage({ searchParams }: SetupsPageProps) {
-  const { after, before, challenge, sort, search } = await searchParams;
+  const { after, before, challenge, sort, search, scale } = await searchParams;
 
   let parsedCursor: SetupCursor | null = null;
 
@@ -53,6 +54,7 @@ export default async function SetupsPage({ searchParams }: SetupsPageProps) {
       | 'views'
       | 'latest',
     search,
+    scale: scale !== undefined ? parseInt(scale) : undefined,
   };
 
   const [userSetups, publicSetups] = await Promise.all([

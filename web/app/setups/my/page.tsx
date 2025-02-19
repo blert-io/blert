@@ -26,6 +26,7 @@ type MySetupsPageProps = {
     sort?: SetupSort;
     state?: SetupState;
     search?: string;
+    scale?: string;
   }>;
 };
 
@@ -37,7 +38,8 @@ export default async function MySetupsPage({
     redirect('/login?next=/setups/my');
   }
 
-  const { after, before, challenge, sort, state, search } = await searchParams;
+  const { after, before, challenge, sort, state, search, scale } =
+    await searchParams;
 
   let parsedCursor: SetupCursor | null = null;
 
@@ -64,6 +66,7 @@ export default async function MySetupsPage({
       | 'latest',
     state: state as SetupState | undefined,
     search,
+    scale: scale !== undefined ? parseInt(scale) : undefined,
   };
 
   const setups = await getSetups(filter, parsedCursor, SETUPS_PER_PAGE);
