@@ -332,6 +332,14 @@ export class DataRepository {
     return tobRooms;
   }
 
+  public async deleteDirectory(path: string): Promise<void> {
+    await this.backend.deleteDir(path);
+  }
+
+  public async deleteFile(path: string): Promise<void> {
+    await this.backend.deleteFile(path);
+  }
+
   public async saveRaw(path: string, contents: Uint8Array): Promise<void> {
     await this.backend.write(path, contents);
   }
@@ -471,6 +479,12 @@ export namespace DataRepository {
     public abstract deleteDir(relativePath: string): Promise<void>;
 
     /**
+     * Deletes a file at the specified path.
+     * @param relativePath The path, relative to the backend's root.
+     */
+    public abstract deleteFile(relativePath: string): Promise<void>;
+
+    /**
      * Recursively lists the contents of a directory at the specified path.
      * @param relativePath The path, relative to the backend's root.
      * @returns A list of filenames in the directory, prefixed by the relative
@@ -511,6 +525,11 @@ export namespace DataRepository {
       const fullPath = `${this.root}/${relativePath}`;
       await mkdir(dirname(fullPath), { recursive: true });
       return writeFile(fullPath, data);
+    }
+
+    public override async deleteFile(relativePath: string): Promise<void> {
+      const fullPath = `${this.root}/${relativePath}`;
+      return rm(fullPath);
     }
 
     public override async deleteDir(relativePath: string): Promise<void> {
@@ -586,6 +605,20 @@ export namespace DataRepository {
         await this.client.send(new PutObjectCommand(params));
       } catch (e) {
         console.error(`Failed to write to S3: ${e}`);
+        throw new DataRepository.BackendError();
+      }
+    }
+
+    public override async deleteFile(relativePath: string): Promise<void> {
+      try {
+        await this.client.send(
+          new DeleteObjectsCommand({
+            Bucket: this.bucket,
+            Delete: { Objects: [{ Key: relativePath }] },
+          }),
+        );
+      } catch (e) {
+        console.error(`Failed to delete from S3: ${e}`);
         throw new DataRepository.BackendError();
       }
     }

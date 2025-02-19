@@ -16,6 +16,7 @@ import { webRepository } from './data-repository';
 import { sql } from './db';
 import redis from './redis';
 import { where } from './query';
+import { getSignedInUser } from './users';
 
 export type SetupState = 'draft' | 'published' | 'archived';
 
@@ -94,48 +95,69 @@ export type SetupList = {
   remaining: number;
 };
 
+function setupDataDir(setupId: string): string {
+  return `gear-setups/${setupId}`;
+}
+
 function revisionDataKey(setupId: string, revisionId: number): string {
-  return `gear-setups/${setupId}/rev-${revisionId}.json`;
+  return `${setupDataDir(setupId)}/rev-${revisionId}.json`;
 }
 
 function draftDataKey(setupId: string): string {
-  return `gear-setups/${setupId}/draft.json`;
+  return `${setupDataDir(setupId)}/draft.json`;
 }
 
-export async function newGearSetup(author: User): Promise<SetupMetadata> {
+export async function newGearSetup(
+  author: User,
+  baseSetup?: GearSetup,
+): Promise<SetupMetadata> {
+  let name = 'Untitled setup';
+  let challengeType = ChallengeType.TOB;
+  let scale = 1;
+  let hasDraft = false;
+
+  if (baseSetup !== undefined) {
+    name = `Copy of ${baseSetup.title}`;
+    challengeType = baseSetup.challenge;
+    scale = baseSetup.players.length;
+    hasDraft = true;
+
+    baseSetup = {
+      ...baseSetup,
+      title: name,
+    };
+  }
+
+  let publicId: string;
+  let setupId: number;
+
   while (true) {
-    const publicId = randomBytes(8).toString('base64url');
+    publicId = randomBytes(8).toString('base64url');
 
     try {
-      await sql`
-        INSERT INTO gear_setups (
-          public_id,
-          author_id,
-          name,
-          challenge_type,
-          state
-        ) VALUES (
-          ${publicId},
-          ${author.id},
-          'Untitled setup',
-          ${ChallengeType.TOB},
-          'draft'
-        )
-      `;
-      return {
-        publicId,
-        name: 'Untitled setup',
-        challengeType: ChallengeType.TOB,
-        scale: 1,
-        authorId: author.id,
-        author: author.username,
-        state: 'draft',
-        views: 0,
-        likes: 0,
-        dislikes: 0,
-        latestRevision: null,
-        draft: null,
-      };
+      const [{ id }] = await sql`
+          INSERT INTO gear_setups (
+            public_id,
+            author_id,
+            name,
+            challenge_type,
+            scale,
+            state,
+            has_draft
+          ) VALUES (
+            ${publicId},
+            ${author.id},
+            ${name},
+            ${challengeType},
+            ${scale},
+            'draft',
+            ${hasDraft}
+          )
+          RETURNING id
+        `;
+
+      setupId = parseInt(id);
+      break;
     } catch (e) {
       if (!isPostgresUniqueViolation(e)) {
         throw e;
@@ -144,6 +166,68 @@ export async function newGearSetup(author: User): Promise<SetupMetadata> {
       continue;
     }
   }
+
+  let revision: SetupRevision | null = null;
+
+  if (baseSetup !== undefined) {
+    const [revisionRow] = await sql`
+      INSERT INTO gear_setup_revisions (
+        setup_id,
+        version,
+        message,
+        created_by
+      ) VALUES (
+        ${setupId},
+        1,
+        'Initial revision',
+        ${author.id}
+      )
+      RETURNING *
+    `;
+
+    revision = {
+      version: revisionRow.version,
+      message: revisionRow.message,
+      createdAt: revisionRow.created_at,
+      createdBy: revisionRow.created_by,
+      createdByUsername: author.username,
+    };
+
+    await webRepository.saveRaw(
+      draftDataKey(publicId),
+      new TextEncoder().encode(JSON.stringify(baseSetup)),
+    );
+  }
+
+  return {
+    publicId,
+    name,
+    challengeType,
+    scale,
+    authorId: author.id,
+    author: author.username,
+    state: 'draft',
+    views: 0,
+    likes: 0,
+    dislikes: 0,
+    latestRevision: revision,
+    draft: baseSetup ?? null,
+  };
+}
+
+/**
+ * Clones a gear setup for the logged in user.
+ * @param setup The setup to clone.
+ * @returns The new setup metadata.
+ */
+export async function cloneGearSetup(setup: GearSetup): Promise<SetupMetadata> {
+  const user = await getSignedInUser();
+  if (user === null) {
+    throw new Error('Not authorized');
+  }
+
+  const newSetup = await newGearSetup(user, setup);
+  return newSetup;
 }
 
 /**
@@ -396,6 +480,50 @@ export async function publishSetupRevision(
   );
 
   return getSetupByPublicId(publicId) as Promise<SetupMetadata>;
+}
+
+/**
+ * Deletes a gear setup.
+ * @param publicId The public ID of the setup to delete.
+ * @returns True if the setup was deleted, false if not authorized.
+ */
+export async function deleteSetup(publicId: string): Promise<boolean> {
+  const session = await auth();
+  if (session === null || session.user.id === undefined) {
+    return false;
+  }
+
+  const userId = parseInt(session.user.id);
+
+  try {
+    await sql.begin(async (client) => {
+      const [setup] = await client<[{ id: number; author_id: number }?]>`
+        SELECT id, author_id
+        FROM gear_setups
+        WHERE public_id = ${publicId}
+        FOR UPDATE
+      `;
+
+      if (!setup) {
+        throw new Error('Setup not found');
+      }
+
+      if (setup.author_id !== userId) {
+        throw new Error('Not authorized to delete this setup');
+      }
+
+      await client`
+        DELETE FROM gear_setups
+        WHERE id = ${setup.id}
+      `;
+    });
+
+    await webRepository.deleteDirectory(setupDataDir(publicId));
+    return true;
+  } catch (e) {
+    console.error('Failed to delete setup:', e);
+    return false;
+  }
 }
 
 /**

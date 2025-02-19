@@ -10,9 +10,9 @@ import {
   loadSetupData,
   incrementSetupViews,
 } from '@/actions/setup';
-import Button from '@/components/button';
 import { getRequestIp } from '@/utils/headers';
 
+import SetupActions from './actions';
 import Panels from './panels';
 import { SetupViewingContextProvider } from '../viewing-context';
 import VoteBar from '../vote-bar';
@@ -104,18 +104,13 @@ export default async function GearSetupPage({
               />
             </div>
           </div>
-          <div className={styles.actions}>
-            {isAuthor && isLatestRevision && (
-              <Link href={`/setups/${setup.publicId}/edit`}>
-                <i className="fas fa-pencil-alt" />
-                <span>Edit</span>
-              </Link>
-            )}
-            <Button>
-              <i className="fas fa-download" />
-              <span style={{ marginLeft: 8 }}>Export…</span>
-            </Button>
-          </div>
+          <SetupActions
+            showClone={loggedIn}
+            showDelete={isAuthor}
+            showEdit={isAuthor && isLatestRevision}
+            setup={setup}
+            gearSetup={gearSetup}
+          />
           <div className={styles.description}>
             <p>{gearSetup.description}</p>
           </div>
