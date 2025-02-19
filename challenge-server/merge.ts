@@ -3,6 +3,7 @@ import {
   DataSource,
   EquipmentSlot,
   ItemDelta,
+  Npc,
   RawItemDelta,
   SkillLevel,
   Stage,
@@ -80,7 +81,7 @@ export class Merger {
       `Merging events from ${clients.complete.length} complete clients`,
     );
     for (const client of clients.complete) {
-      if (merged.mergeEvents(client)) {
+      if (merged.mergeEventsFrom(client)) {
         mergedClients.push(client);
       } else {
         unmergedClients.push(client);
@@ -91,7 +92,7 @@ export class Merger {
       `Merging events from ${clients.partial.length} partial clients`,
     );
     for (const client of clients.partial) {
-      if (merged.mergeEvents(client)) {
+      if (merged.mergeEventsFrom(client)) {
         mergedClients.push(client);
       } else {
         unmergedClients.push(client);
@@ -104,6 +105,8 @@ export class Merger {
     if (unmergedClients.length > 0) {
       logger.warn(`${unmergedClients.length} clients could not be merged`);
     }
+
+    merged.postprocess(this.stage);
 
     return { events: merged, mergedClients, unmergedClients };
   }
@@ -278,6 +281,10 @@ export class TickState {
       events.push(...evts);
     }
     return events;
+  }
+
+  public getPlayerStates(): Record<string, PlayerState | null> {
+    return this.playerStates;
   }
 
   public getPlayerState(player: string): PlayerState | null {
@@ -527,7 +534,12 @@ export class MergedEvents {
     return this.ticks[tick]?.getEvents() ?? [];
   }
 
-  public mergeEvents(client: ClientEvents): boolean {
+  /**
+   * Merges events from `client` into this merged event set.
+   * @param client Client to merge events from.
+   * @returns Whether the merge was successful.
+   */
+  public mergeEventsFrom(client: ClientEvents): boolean {
     let success = false;
 
     if (this.accurate) {
@@ -547,6 +559,16 @@ export class MergedEvents {
     }
 
     return success;
+  }
+
+  /**
+   * Applies post-merge corrections to the event set.
+   * @param stage Stage that the events are being merged for.
+   */
+  public postprocess(stage: Stage): void {
+    if (stage === Stage.TOB_MAIDEN) {
+      this.correctOffsetMaidenSpawn();
+    }
   }
 
   private initializeBaseTicks(base: ClientEvents): void {
@@ -604,6 +626,91 @@ export class MergedEvents {
     }
 
     return true;
+  }
+
+  private correctOffsetMaidenSpawn(): void {
+    // On 2025-02-18, a RuneScape update limited clients to receiving events
+    // from only actors that were rendered, rather than all actors in an
+    // instance. This is likely to manifest in many ways, but the first known
+    // issue is that Maiden only appears two ticks into the room from an
+    // entering player's perspective.
+    //
+    // Correct this by moving Maiden's spawn event to the start of the stage and
+    // inserting fake NPC update events during the missing ticks. Fortunately,
+    // Maiden can't be attacked during this time, so we can just set her HP to
+    // 100%.
+    let firstMaidenEvent = null;
+    for (const event of this) {
+      if (event.getType() === Event.Type.NPC_SPAWN) {
+        const npc = event.getNpc()!;
+        if (Npc.isMaiden(npc.getId())) {
+          firstMaidenEvent = event;
+          break;
+        }
+      }
+    }
+
+    if (firstMaidenEvent === null) {
+      return;
+    }
+
+    const tick = firstMaidenEvent.getTick();
+    const maidenNpc = firstMaidenEvent.getNpc()!;
+    const hitpoints = SkillLevel.fromRaw(maidenNpc.getHitpoints());
+
+    // Confirm that Maiden is at full HP to try to avoid the case where the
+    // client has lost ticks and recorded tick 2 isn't actually the second tick.
+    if (tick !== 2 || hitpoints.getCurrent() !== hitpoints.getBase()) {
+      return;
+    }
+
+    const tickState = this.ticks[tick];
+    if (tickState === null) {
+      return;
+    }
+
+    const events = tickState.getEvents();
+    const maidenSpawn = events.find(
+      (e) => e.getType() === Event.Type.NPC_SPAWN,
+    );
+    if (maidenSpawn === undefined) {
+      return;
+    }
+
+    // On the affected tick, change the NPC spawn event to an NPC update.
+    const updateEvent = maidenSpawn.clone();
+    updateEvent.setType(Event.Type.NPC_UPDATE);
+
+    const otherEvents = events.filter((e) => e !== maidenSpawn);
+    this.ticks[tick] = new TickState(
+      tick,
+      [...otherEvents, updateEvent],
+      tickState.getPlayerStates(),
+    );
+
+    maidenSpawn.setTick(0);
+
+    // Add the appropriate NPC events for the initial ticks of the stage.
+    for (let i = 0; i < tick; i++) {
+      const state = this.ticks[i];
+      if (state === null) {
+        continue;
+      }
+
+      let newEvent: Event;
+      if (i === 0) {
+        newEvent = maidenSpawn;
+      } else {
+        newEvent = updateEvent.clone();
+        newEvent.setTick(i);
+      }
+
+      this.ticks[i] = new TickState(
+        i,
+        [...state.getEvents(), newEvent],
+        state.getPlayerStates(),
+      );
+    }
   }
 }
 

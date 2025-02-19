@@ -291,6 +291,18 @@ export default class MessageHandler {
       ? RecordingType.SPECTATOR
       : RecordingType.PARTICIPANT;
 
+    if (
+      challengeType === ChallengeType.TOB &&
+      recordingType === RecordingType.SPECTATOR
+    ) {
+      const error = new ServerMessage.Error();
+      error.setType(ServerMessage.Error.Type.CHALLENGE_RECORDING_ENDED);
+      error.setMessage('Recording as a spectator is temporary disabled.');
+      response.setError(error);
+      client.sendMessage(response);
+      return;
+    }
+
     let challengeId: string;
     try {
       challengeId = await this.challengeManager.startOrJoin(

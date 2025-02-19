@@ -46,6 +46,16 @@
   background-color: var(--nav-bg);
   border-radius: 8px;
   border: 1px solid var(--border-color);
+  position: relative;
+}
+
+.statusTimestamp {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  font-size: 12px;
+  color: rgba(var(--blert-text-color-base), 0.6);
+  font-style: italic;
 }
 
 .statusHeading {
@@ -85,6 +95,10 @@
       position: absolute;
       left: -15px;
     }
+  }
+
+  strong {
+    color: #fff;
   }
 }
 

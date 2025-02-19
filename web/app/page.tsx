@@ -29,8 +29,11 @@ export default function Home() {
             <div className={styles.statusSection}>
               <div className={styles.statusCard}>
                 <h3 className={`${styles.statusHeading} ${styles.error}`}>
-                  ⚠️ Service Alert: February 18, 2025
+                  ⚠️ Service Alert
                 </h3>
+                <span className={styles.statusTimestamp}>
+                  Last updated: Feb 19, 2025 01:00 UTC
+                </span>
                 <ul className={styles.statusList}>
                   <li>
                     A recent RuneScape update has changed when NPCs and player
@@ -38,36 +41,27 @@ export default function Home() {
                     records data.
                   </li>
                   <li>
-                    Theatre of Blood challenge recording is temporarily disabled
-                    while we work out a solution.
+                    A fix has been applied for participants in challenges.
+                    However, spectators in the Theatre of Blood will still
+                    experience issues.
                   </li>
                   <li>
-                    Further updates will be posted here and in our Discord
-                    server.
+                    As a result,{' '}
+                    <strong>
+                      recording challenges as a spectator is temporarily
+                      disabled.
+                    </strong>
                   </li>
                 </ul>
               </div>
 
               {/* <div className={styles.statusCard}>
-                <h3 className={`${styles.statusHeading} ${styles.error}`}>
-                  ⚠️ Service Alert: February 18, 2025
-                </h3>
-                <ul className={styles.statusList}>
-                  <li>
-                    A recent RuneScape update has caused spectators in the
-                    Theatre of Blood to miss events from certain players and
-                    NPCs.
-                  </li>
-                  <li>
-                    Recording challenges as a spectator is temporarily disabled.
-                  </li>
-                </ul>
-              </div> */}
-
-              {/* <div className={styles.statusCard}>
                 <h3 className={`${styles.statusHeading} ${styles.success}`}>
-                  🎉 Latest Updates - February 2025
+                  🎉 Latest Updates
                 </h3>
+                <span className={styles.statusTimestamp}>
+                  Last updated: Feb 18, 2025 12:00 UTC
+                </span>
                 <ul className={styles.statusList}>
                   <li>Lorem ipsum dolor sit amet</li>
                 </ul>
@@ -77,6 +71,9 @@ export default function Home() {
                 <h3 className={`${styles.statusHeading} ${styles.info}`}>
                   🚀 Coming Soon
                 </h3>
+                <span className={styles.statusTimestamp}>
+                  Last updated: Feb 17, 2025 09:15 UTC
+                </span>
                 <ul className={styles.statusList}>
                   <li>Lorem ipsum dolor sit amet</li>
                 </ul>

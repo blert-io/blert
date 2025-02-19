@@ -171,7 +171,10 @@ describe('Merger', () => {
         status: StageStatus.COMPLETED,
         accurate: true,
         recordedTicks: 2,
-        serverTicks: 2,
+        serverTicks: {
+          count: 2,
+          precise: true,
+        },
       },
       client1Events,
     );
@@ -204,7 +207,10 @@ describe('Merger', () => {
         status: StageStatus.WIPED,
         accurate: false,
         recordedTicks: 2,
-        serverTicks: 2 + MISSING_TICKS,
+        serverTicks: {
+          count: 2 + MISSING_TICKS,
+          precise: true,
+        },
       },
       client1Events,
     );
