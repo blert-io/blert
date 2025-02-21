@@ -1,6 +1,7 @@
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
 
 import { login } from '@/actions/users';
@@ -38,15 +39,15 @@ function FormFields() {
   );
 }
 
-export default function LoginForm() {
+export default function LoginForm({ redirectTo }: { redirectTo?: string }) {
   const router = useRouter();
 
-  const [error, formAction] = useFormState(
+  const [error, formAction] = useActionState(
     async (state: string | null, formData: FormData) => {
       const error = await login(state, formData);
       if (error === null) {
         await getSession();
-        router.push('/');
+        router.push(redirectTo ?? '/');
       }
       return error;
     },

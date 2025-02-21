@@ -1,7 +1,7 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState, useRef, useState } from 'react';
+import { useFormStatus } from 'react-dom';
 
 import { RegistrationErrors, register, userExists } from '../../actions/users';
 import Button from '../../components/button';
@@ -110,7 +110,7 @@ function FormFields({ errors }: { errors: RegistrationErrors | null }) {
 }
 
 export default function RegisterForm() {
-  const [errors, formAction] = useFormState(register, null);
+  const [errors, formAction] = useActionState(register, null);
 
   return (
     <form action={formAction} className={styles.registerForm}>
