@@ -6,16 +6,24 @@ import LoginForm from './login-form';
 
 import styles from './style.module.scss';
 
-export default async function Login() {
+type LoginProps = {
+  searchParams: Promise<{
+    next?: string;
+  }>;
+};
+
+export default async function Login({ searchParams }: LoginProps) {
+  const { next } = await searchParams;
+
   const session = await auth();
   if (session !== null) {
-    redirect('/');
+    redirect(next ?? '/');
   }
 
   return (
     <div className={styles.loginPanel}>
       <h1>Sign in to Blert</h1>
-      <LoginForm />
+      <LoginForm redirectTo={next} />
       <Link className={styles.register} href="/register">
         Don&apos;t have an account? Register
       </Link>
