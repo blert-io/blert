@@ -9,12 +9,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    cursor: text;
   }
 
   .input {
     width: calc(100% - 44px);
     background: none;
-    padding: 1px;
     margin: 0;
     outline: none;
     border: none;
@@ -24,10 +24,16 @@
     line-height: inherit;
   }
 
+  input.input {
+    padding: 1px 0 0 0;
+  }
+
   textarea.input {
-    width: calc(100% - 44px);
-    min-height: 6em;
+    padding: 0;
+    min-height: 10em;
+    max-height: 80vh;
     font-family: 'Inter', sans-serif;
+    resize: vertical;
 
     @include styledScrollbar;
   }

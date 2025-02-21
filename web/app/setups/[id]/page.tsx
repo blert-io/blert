@@ -13,6 +13,7 @@ import {
 import { getRequestIp } from '@/utils/headers';
 
 import SetupActions from './actions';
+import CollapsibleDescription from './collapsible-description';
 import Panels from './panels';
 import { SetupViewingContextProvider } from '../viewing-context';
 import VoteBar from '../vote-bar';
@@ -111,9 +112,7 @@ export default async function GearSetupPage({
             setup={setup}
             gearSetup={gearSetup}
           />
-          <div className={styles.description}>
-            <p>{gearSetup.description}</p>
-          </div>
+          <CollapsibleDescription text={gearSetup.description} />
         </div>
         <Panels
           setupMetadata={setup}
