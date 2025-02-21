@@ -1,0 +1,32 @@
+{
+  "name": "empty slots",
+  "inventory": {
+    "slots": [
+      { "index": 9, "item": { "id": 22355, "quantity": 1 }, "comment": null },
+      { "index": 11, "item": { "id": 22355, "quantity": 1 }, "comment": null },
+      { "index": 12, "item": { "id": 22470, "quantity": 1 }, "comment": null },
+      { "index": 14, "item": { "id": 1961, "quantity": 1 }, "comment": null },
+      { "index": 17, "item": { "id": 22355, "quantity": 1 }, "comment": null },
+      { "index": 19, "item": { "id": 22355, "quantity": 1 }, "comment": null },
+      { "index": 24, "item": { "id": 27281, "quantity": 1 }, "comment": null },
+      { "index": 26, "item": { "id": 314, "quantity": 1 }, "comment": null }
+    ]
+  },
+  "equipment": {
+    "slots": [
+      { "index": 0, "item": { "id": 23448, "quantity": 1 }, "comment": null },
+      { "index": 3, "item": { "id": 888, "quantity": 1 }, "comment": null },
+      { "index": 5, "item": { "id": 13663, "quantity": 1 }, "comment": null },
+      { "index": 7, "item": { "id": 13664, "quantity": 1 }, "comment": null },
+      { "index": 8, "item": { "id": 13665, "quantity": 1 }, "comment": null },
+      { "index": 9, "item": { "id": 13182, "quantity": 1 }, "comment": null }
+    ]
+  },
+  "pouch": {
+    "slots": [
+      { "index": 0, "item": { "id": 561, "quantity": 1 }, "comment": null },
+      { "index": 3, "item": { "id": 4699, "quantity": 1 }, "comment": null }
+    ]
+  },
+  "spellbook": 2
+}

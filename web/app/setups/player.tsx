@@ -2,7 +2,7 @@
 
 import { EquipmentSlot } from '@blert/common';
 import Image from 'next/image';
-import { useContext, useRef, useState } from 'react';
+import { useCallback, useContext, useRef, useState } from 'react';
 
 import EditableTextField from '@/components/editable-text-field';
 import Menu, { MenuItem } from '@/components/menu';
@@ -19,6 +19,12 @@ import {
   newGearSetupPlayer,
 } from './setup';
 import { Slot } from './slot';
+import {
+  ExportFormat,
+  exportPlayer,
+  importSetup,
+  TranslateError,
+} from './translate';
 import { SetupViewingContext } from './viewing-context';
 
 import styles from './style.module.scss';
@@ -32,12 +38,16 @@ function slotsByIndex(slots: ItemSlot[]): Record<number, ItemSlot> {
   return slots.reduce((acc, slot) => ({ ...acc, [slot.index]: slot }), {});
 }
 
-const QUIVER_ID = 28951;
+const QUIVER_IDS = [28955, 28902, 28951];
 
 function hasQuiver(player: GearSetupPlayer): boolean {
   return (
-    player.equipment.slots.some((slot) => slot.item?.id === QUIVER_ID) ||
-    player.inventory.slots.some((slot) => slot.item?.id === QUIVER_ID)
+    player.equipment.slots.some((slot) =>
+      QUIVER_IDS.includes(slot.item?.id ?? 0),
+    ) ||
+    player.inventory.slots.some((slot) =>
+      QUIVER_IDS.includes(slot.item?.id ?? 0),
+    )
   );
 }
 
@@ -76,9 +86,15 @@ const EQUIPMENT_SLOTS: Array<EquipmentSlotMetadata | null> = [
   { index: EquipmentSlot.RING, filter: typeFilter(EquipmentSlot.RING) },
 ];
 
+const EXPORT_MENU: MenuItem[] = [
+  { label: 'Export as…' },
+  { label: 'Inventory Setups', value: 'inventory-setups' },
+];
+
 export function Player({ index, player }: PlayerProps) {
   const editingContext = useContext(SetupEditingContext);
   const { highlightedPlayerIndex } = useContext(SetupViewingContext);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
 
   const sendToast = useToast();
 
@@ -90,6 +106,49 @@ export function Player({ index, player }: PlayerProps) {
 
   const isHighlighted = highlightedPlayerIndex === index;
   const className = `${styles.player}${isHighlighted ? ` ${styles.highlighted}` : ''}`;
+
+  const handleExport = useCallback(
+    (format: ExportFormat) => {
+      try {
+        const exported = exportPlayer(player, format);
+        navigator.clipboard.writeText(exported);
+        sendToast(`Setup for ${player.name} copied to clipboard`);
+      } catch (e) {
+        if (e instanceof TranslateError) {
+          const error = e as TranslateError;
+          sendToast(`Failed to export player: ${error.message}`, 'error');
+        } else {
+          sendToast('Failed to export player', 'error');
+        }
+      }
+
+      setExportMenuOpen(false);
+    },
+    [player, sendToast, setExportMenuOpen],
+  );
+
+  const handleImport = useCallback(async () => {
+    const clipboard = navigator.clipboard;
+    if (!clipboard || editingContext === null) {
+      return;
+    }
+
+    try {
+      const text = await clipboard.readText();
+      const setup = importSetup(text);
+      editingContext.updatePlayer(index, (_) => setup);
+    } catch (error: any) {
+      if (error instanceof TranslateError) {
+        const e = error as TranslateError;
+        sendToast(
+          `Failed to import setup from clipboard: ${e.message}`,
+          'error',
+        );
+      } else {
+        sendToast('Failed to import setup from clipboard', 'error');
+      }
+    }
+  }, [sendToast, editingContext, index]);
 
   return (
     <div className={className}>
@@ -110,19 +169,37 @@ export function Player({ index, player }: PlayerProps) {
         ) : (
           <h2 className={styles.name}>
             {player.name}
-            <button
-              className={styles.shareButton}
-              onClick={() => {
-                const url = new URL(window.location.href);
-                url.searchParams.set('player', (index + 1).toString());
-                navigator.clipboard.writeText(url.toString());
-                sendToast(`Link to ${player.name} copied to clipboard`);
-              }}
-              title="Copy link to this player"
-            >
-              <i className="fas fa-link" />
-              <span className="sr-only">Copy link to this player</span>
-            </button>
+            <div className={styles.playerActions}>
+              <button
+                className={styles.shareButton}
+                onClick={() => {
+                  const url = new URL(window.location.href);
+                  url.searchParams.set('player', (index + 1).toString());
+                  navigator.clipboard.writeText(url.toString());
+                  sendToast(`Link to ${player.name} copied to clipboard`);
+                }}
+                title="Copy link to this player"
+              >
+                <i className="fas fa-link" />
+                <span className="sr-only">Copy link to this player</span>
+              </button>
+              <button
+                id={`player-${index}-export`}
+                className={styles.shareButton}
+                onClick={() => setExportMenuOpen(true)}
+              >
+                <i className="fas fa-download" />
+                <span className="sr-only">Export player</span>
+              </button>
+            </div>
+            <Menu
+              items={EXPORT_MENU}
+              onSelection={(value) => handleExport(value as ExportFormat)}
+              open={exportMenuOpen}
+              onClose={() => setExportMenuOpen(false)}
+              targetId={`player-${index}-export`}
+              width={160}
+            />
           </h2>
         )}
       </div>
@@ -201,23 +278,29 @@ export function Player({ index, player }: PlayerProps) {
         />
       </div>
       {editingContext !== null && (
-        <button
-          className={styles.remove}
-          onClick={() =>
-            editingContext.update((prev) => {
-              let newPlayers;
-              if (prev.players.length <= 1) {
-                newPlayers = [newGearSetupPlayer(1)];
-              } else {
-                newPlayers = prev.players.filter((_, i) => i !== index);
-              }
-              return { ...prev, players: newPlayers };
-            })
-          }
-        >
-          <i className="fas fa-trash" />
-          <span>Remove</span>
-        </button>
+        <div className={styles.editActions}>
+          <button className={styles.import} onClick={handleImport}>
+            <i className="fas fa-upload" />
+            Import from clipboard
+          </button>
+          <button
+            className={styles.remove}
+            onClick={() =>
+              editingContext.update((prev) => {
+                let newPlayers;
+                if (prev.players.length <= 1) {
+                  newPlayers = [newGearSetupPlayer(1)];
+                } else {
+                  newPlayers = prev.players.filter((_, i) => i !== index);
+                }
+                return { ...prev, players: newPlayers };
+              })
+            }
+          >
+            <i className="fas fa-trash" />
+            <span>Remove</span>
+          </button>
+        </div>
       )}
     </div>
   );

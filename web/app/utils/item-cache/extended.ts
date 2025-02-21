@@ -498,6 +498,10 @@ const DEFAULT_ITEM_PRIORITIES: Record<number, number> = {
   // Fighter torso
   10551: 1,
 
+  // Imbued and saturated heart
+  20724: 1,
+  27641: 1,
+
   // Infernal cape
   21295: 1,
 
@@ -506,6 +510,12 @@ const DEFAULT_ITEM_PRIORITIES: Record<number, number> = {
 
   // Lightbearer
   25975: 1,
+
+  // Occult necklace
+  12002: 1,
+
+  // Osmumten's fang
+  26219: 1,
 
   // Primordial, pegasian, and eternal boots
   13235: 1,
@@ -536,6 +546,10 @@ const DEFAULT_ITEM_PRIORITIES: Record<number, number> = {
   4699: 1,
   28929: 1,
 
+  // Salve amulet (ei?)
+  10588: 1,
+  12018: 1,
+
   // Saradomin brew
   6685: 1,
   6687: 1,
@@ -544,6 +558,9 @@ const DEFAULT_ITEM_PRIORITIES: Record<number, number> = {
 
   // Scythe of vitur
   22325: 1,
+
+  // Sulphur blades
+  29084: 1,
 
   // Swift blade
   24219: 1,
@@ -567,6 +584,11 @@ const DEFAULT_ITEM_PRIORITIES: Record<number, number> = {
   26382: 1,
   26384: 1,
   26386: 1,
+
+  // Virtus robes
+  26241: 1,
+  26243: 1,
+  26245: 1,
 };
 
 // Common item nicknames/aliases mapped to their item IDs.
@@ -589,6 +611,9 @@ const DEFAULT_ITEM_ALIASES: Record<string, number | number[]> = {
 
   // Blood fury
   bf: 24780,
+
+  // Blood moon armor
+  fursuit: [29047, 29043, 29045, 28997],
 
   // Book of the dead
   'thrall book': 25818,
@@ -613,10 +638,14 @@ const DEFAULT_ITEM_ALIASES: Record<string, number | number[]> = {
   boppers: 28997,
 
   // Items used for humidify Bloat.
-  humid: [11090, 23543, 6685, 4417, 9075, 555, 4699, 4694, 4695],
+  humid: [11090, 12695, 6685, 4417, 9075, 555, 4699, 4694, 4695],
 
   // Ghommal's lucky penny
   coin: 27544,
+
+  // Godbooks
+  godbook: [12612, 12608, 12610, 3840, 3842, 3844],
+  gb: [12612, 12608, 12610, 3840, 3842, 3844],
 
   // Guthix rest (all doses)
   tea: [4417, 4419, 4421, 4423],
@@ -660,11 +689,14 @@ const DEFAULT_ITEM_ALIASES: Record<string, number | number[]> = {
   // Saradomin godsword
   sgs: 11806,
 
+  // Saturated heart should appear when searching for imbued heart
+  imbued: 27641,
+
   // Staff of the dead (and toxic staff of the dead)
   sotd: [11791, 12904],
 
   // Super combat (all doses + divine)
-  scb: [23543, 23545, 23547, 23549, 23685, 23688, 23691, 23694],
+  scb: [12695, 12697, 12699, 12701, 23685, 23688, 23691, 23694],
 
   // Tonaliztics of Ralos
   glaive: 28922,
@@ -713,7 +745,9 @@ const EXCLUDED_ITEMS = new Set([
   20782, 21060, 30303, 30304, 30302, 23626, 28540, 28537, 29599, 28534, 22644,
   28543, 28545, 25488, 25486, 25485, 25487, 24125, 28516, 28517, 29663, 29664,
   26131, 26132, 28492, 28493, 29678, 29679, 26008, 26009, 20784, 21205, 10033,
-  9977,
+  9977, 23543, 23545, 23547, 23549, 21284, 21296, 21297, 23622, 27870, 28507,
+  28508, 25518, 27194, 27193, 27173, 26110, 26111, 27172, 27171, 25278, 26782,
+  25250, 26763, 23654,
 ]);
 
 import itemDump from '../../../resources/extended_items.json';

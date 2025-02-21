@@ -132,6 +132,11 @@
     @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
       width: 100%;
       justify-content: center;
+
+      a,
+      button {
+        font-size: 14px;
+      }
     }
 
     a {
@@ -142,7 +147,7 @@
       border-radius: 5px;
       padding: 8px 10px;
       background-color: var(--blert-button);
-      color: white;
+      color: #fff;
       font-weight: 600;
       border: 1px solid var(--blert-button);
       text-decoration: none;
@@ -156,6 +161,7 @@
     .delete {
       background-color: var(--blert-red);
       border-color: var(--blert-red);
+      color: #fff;
     }
   }
 

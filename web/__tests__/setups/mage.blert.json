@@ -1,0 +1,60 @@
+{
+  "name": "trio mage",
+  "inventory": {
+    "slots": [
+      { "index": 0, "item": { "id": 22296, "quantity": 1 }, "comment": null },
+      { "index": 1, "item": { "id": 23444, "quantity": 1 }, "comment": null },
+      { "index": 2, "item": { "id": 27253, "quantity": 1 }, "comment": null },
+      { "index": 3, "item": { "id": 28688, "quantity": 1 }, "comment": null },
+      { "index": 4, "item": { "id": 12002, "quantity": 1 }, "comment": null },
+      { "index": 5, "item": { "id": 26243, "quantity": 1 }, "comment": null },
+      { "index": 6, "item": { "id": 25731, "quantity": 1 }, "comment": null },
+      { "index": 7, "item": { "id": 20997, "quantity": 1 }, "comment": null },
+      { "index": 8, "item": { "id": 22325, "quantity": 1 }, "comment": null },
+      { "index": 9, "item": { "id": 22981, "quantity": 1 }, "comment": null },
+      { "index": 10, "item": { "id": 28254, "quantity": 1 }, "comment": null },
+      { "index": 11, "item": { "id": 28307, "quantity": 1 }, "comment": null },
+      { "index": 12, "item": { "id": 21285, "quantity": 1 }, "comment": null },
+      { "index": 13, "item": { "id": 28256, "quantity": 1 }, "comment": null },
+      { "index": 14, "item": { "id": 28258, "quantity": 1 }, "comment": null },
+      { "index": 15, "item": { "id": 11804, "quantity": 1 }, "comment": null },
+      { "index": 16, "item": { "id": 26374, "quantity": 1 }, "comment": null },
+      { "index": 17, "item": { "id": 13441, "quantity": 1 }, "comment": null },
+      { "index": 18, "item": { "id": 11090, "quantity": 1 }, "comment": null },
+      { "index": 19, "item": { "id": 13652, "quantity": 1 }, "comment": null },
+      { "index": 20, "item": { "id": 28922, "quantity": 1 }, "comment": null },
+      { "index": 21, "item": { "id": 10588, "quantity": 1 }, "comment": null },
+      { "index": 22, "item": { "id": 4417, "quantity": 1 }, "comment": null },
+      { "index": 23, "item": { "id": 23987, "quantity": 1 }, "comment": null },
+      { "index": 24, "item": { "id": 23685, "quantity": 1 }, "comment": null },
+      { "index": 25, "item": { "id": 12695, "quantity": 1 }, "comment": null },
+      { "index": 26, "item": { "id": 27641, "quantity": 1 }, "comment": null },
+      { "index": 27, "item": { "id": 27281, "quantity": 1 }, "comment": null }
+    ]
+  },
+  "equipment": {
+    "slots": [
+      { "index": 0, "item": { "id": 26475, "quantity": 1 }, "comment": null },
+      { "index": 1, "item": { "id": 28902, "quantity": 1 }, "comment": null },
+      { "index": 2, "item": { "id": 20366, "quantity": 1 }, "comment": null },
+      { "index": 3, "item": { "id": 11222, "quantity": 1 }, "comment": null },
+      { "index": 4, "item": { "id": 13576, "quantity": 1 }, "comment": null },
+      { "index": 5, "item": { "id": 26469, "quantity": 1 }, "comment": null },
+      { "index": 6, "item": { "id": 27550, "quantity": 1 }, "comment": null },
+      { "index": 7, "item": { "id": 26471, "quantity": 1 }, "comment": null },
+      { "index": 8, "item": { "id": 26467, "quantity": 1 }, "comment": null },
+      { "index": 9, "item": { "id": 13239, "quantity": 1 }, "comment": null },
+      { "index": 10, "item": { "id": 25975, "quantity": 1 }, "comment": null },
+      { "index": 99, "item": { "id": 21944, "quantity": 1 }, "comment": null }
+    ]
+  },
+  "pouch": {
+    "slots": [
+      { "index": 0, "item": { "id": 555, "quantity": 1 }, "comment": null },
+      { "index": 1, "item": { "id": 560, "quantity": 1 }, "comment": null },
+      { "index": 2, "item": { "id": 565, "quantity": 1 }, "comment": null },
+      { "index": 3, "item": { "id": 566, "quantity": 1 }, "comment": null }
+    ]
+  },
+  "spellbook": 1
+}
