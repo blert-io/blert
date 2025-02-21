@@ -60,7 +60,7 @@ $ACTIONS_HEIGHT: 60px;
 
     .publishing {
       .button {
-        width: 120px;
+        width: 110px;
 
         &.delete {
           background-color: var(--blert-red);
@@ -141,7 +141,9 @@ $ACTIONS_HEIGHT: 60px;
 
     .description {
       span {
-        overflow: initial;
+        overflow-y: initial;
+        overflow-x: auto;
+        text-overflow: initial;
         white-space: pre-wrap;
       }
     }
