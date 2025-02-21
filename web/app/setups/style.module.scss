@@ -139,24 +139,27 @@ $SLOT_SIZE: 42px;
     margin: 0;
     position: relative;
 
-    .shareButton {
+    .playerActions {
       position: absolute;
-      right: -30px;
+      right: -50px;
       top: -2px;
-      font-size: 14px;
-      padding: 4px;
-      color: var(--blert-text-color);
       opacity: 0;
       transition: all 0.2s ease;
 
-      &:hover {
-        color: var(--blert-button);
-        cursor: pointer;
+      button {
+        font-size: 14px;
+        padding: 4px;
+        color: var(--blert-text-color);
+
+        &:hover {
+          color: var(--blert-button);
+          cursor: pointer;
+        }
       }
     }
   }
 
-  &:hover .shareButton {
+  &:hover .playerActions {
     opacity: 1;
   }
 
@@ -186,18 +189,37 @@ $SLOT_SIZE: 42px;
     height: 1 * $SLOT_SIZE;
   }
 
-  .remove {
-    color: var(--blert-red);
-    font-size: 14px;
-    padding: 4px 12px;
+  .editActions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
 
-    i {
-      margin-right: 8px;
+    button {
+      font-size: 14px;
+      padding: 4px 12px;
+      transition: all 0.2s ease;
+
+      i {
+        margin-right: 8px;
+      }
+
+      &:hover {
+        cursor: pointer;
+        filter: brightness(1.4);
+
+        i {
+          transform: scale(1.1);
+        }
+      }
     }
 
-    &:hover {
-      cursor: pointer;
-      filter: brightness(1.4);
+    .import {
+      color: var(--blert-button);
+    }
+
+    .remove {
+      color: var(--blert-red);
     }
   }
 
