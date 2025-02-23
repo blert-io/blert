@@ -180,27 +180,38 @@ export function Slot(props: SlotProps) {
     context?.setActiveSearchSlot(null);
   }
 
+  let content;
+  if (props.item !== undefined) {
+    const name = extendedItemCache.getItemName(props.item);
+    content = (
+      <div
+        className={styles.itemWrapper}
+        data-tooltip-id="slot-tooltip"
+        data-tooltip-content={name}
+      >
+        <Item id={props.item} name={name} quantity={1} size={30} />
+      </div>
+    );
+  } else if (isSearchActive && context !== null) {
+    content = (
+      <SlotSearch
+        id={id}
+        container={props.container}
+        index={props.index}
+        filter={props.filter}
+        onSelect={handleSearchSelect}
+        onClear={() => context.setActiveSearchSlot(null)}
+        searchRef={searchRef}
+        slotRef={slotRef}
+      />
+    );
+  } else {
+    content = null;
+  }
+
   return (
     <div className={className} onClick={onClick} ref={slotRef}>
-      {props.item !== undefined ? (
-        <Item
-          id={props.item}
-          name={extendedItemCache.getItemName(props.item)}
-          quantity={1}
-          size={30}
-        />
-      ) : isSearchActive && context !== null ? (
-        <SlotSearch
-          id={id}
-          container={props.container}
-          index={props.index}
-          filter={props.filter}
-          onSelect={handleSearchSelect}
-          onClear={() => context.setActiveSearchSlot(null)}
-          searchRef={searchRef}
-          slotRef={slotRef}
-        />
-      ) : null}
+      {content}
     </div>
   );
 }
