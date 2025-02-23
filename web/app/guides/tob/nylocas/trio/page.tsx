@@ -3,16 +3,26 @@ import { ResolvingMetadata } from 'next';
 import Link from 'next/link';
 
 import Article from '@/components/article';
+import YoutubeEmbed from '@/components/youtube-embed';
 import GuideTags from '@/guides/guide-tags';
 import { basicMetadata } from '@/utils/metadata';
 
 import { Mage, Melee, Range } from '../nylos';
 
+import guideStyles from '../../../style.module.scss';
+
 export default function TrioNylo() {
   return (
     <Article.Page>
       <Article.Heading level={1} text="Trio Nylocas Waves" />
-      <em>Written by Nick Ints, Aramaxis, and Lo Sugar</em>
+      <span className={guideStyles.authorCredits}>
+        Written by Nick Ints, Aramaxis, and Lo Sugar. POV VoDs by{' '}
+        <Link href="https://www.youtube.com/@verix3983">Verix</Link> and{' '}
+        <Link href="https://www.youtube.com/channel/UCrAY8CVj9-lxhG-4GML4gjg">
+          Crayy
+        </Link>
+        .
+      </span>
       <GuideTags challenge={ChallengeType.TOB} scale={3} level="max-eff" />
       <Article.TableOfContents />
 
@@ -48,18 +58,22 @@ export default function TrioNylo() {
         information about setting up useful ToB plugins.
       </p>
       <p>
-        Setting a <em>Make Darker Hotkey</em> in the Nyloer plugin allows you to
-        dim every Nylo currently in the room, helping to distinguish relevant
-        smalls to attack from those which will automatically expire by certain
-        time thresholds.
+        The Nyloer plugin allows you to automatically dim every Nylo currently
+        currently in the room at a specific wave by setting the{' '}
+        <em>Darker Wave</em> option within its <em>Font Settings</em> tab. This
+        visually distinguishes relevant smalls from those which will
+        automatically expire by certain time thresholds.
       </p>
       <p>
-        Dimming on the wave 22 spawn (1:45.6 room time) is recommended, as wave
-        22 and older Nylos will explode naturally before the stall check on 28,
-        whereas killing Nylos spawning after 22 will help reduce stalls on the
-        last few waves. You should also dim when wave 28 spawns (2:14.4 room
-        time without previous stalls) to help make clear which Nylos you need to
-        kill during cleanup and which can be left to blow up naturally.
+        When playing for a 2:55.2 boss spawn, set your <em>Darker Wave</em> to{' '}
+        <strong>28</strong>.
+      </p>
+      <p>
+        Additionally, you can set a <em>Make Darker Hotkey</em> to manually dim
+        existing Nylos. Dimming on the wave 22 spawn (1:45.6 room time) is
+        recommended, as wave 22 and older Nylos will explode naturally before
+        the stall check on 28, whereas killing Nylos spawning after 22 will help
+        reduce stalls on the last few waves.
       </p>
 
       {/*
@@ -221,6 +235,8 @@ export default function TrioNylo() {
         When Sanging or barraging, try to run up as close as possible to your
         targets to minimize projectile travel time.
       </p>
+      <Article.Heading level={3} idPrefix="mage" text="Example POV" />
+      <YoutubeEmbed id="rSG0G0lEnLQ" />
 
       {/*
        * RANGER ROTATION
@@ -351,6 +367,8 @@ export default function TrioNylo() {
         a clump with 28s in it as 28s will expire. After killing any 29+
         rangers, look to kill other colors, prioritizing the north side.
       </p>
+      <Article.Heading level={3} idPrefix="ranger" text="Example POV" />
+      <YoutubeEmbed id="WaQW-eZQOCc" />
 
       {/*
        * MELEE ROTATION
@@ -489,6 +507,8 @@ export default function TrioNylo() {
         or mage should help with north melees if they finish before you; if you
         finish the melees first, help them as needed.
       </p>
+      <Article.Heading level={3} idPrefix="melee" text="Example POV" />
+      <YoutubeEmbed id="Zg9wZKUWk7o" />
     </Article.Page>
   );
 }

@@ -9,11 +9,13 @@ import { basicMetadata } from '@/utils/metadata';
 import RoleLinks from './role-links';
 import Image from 'next/image';
 
+import guideStyles from '../../../style.module.scss';
+
 export default function NyloGuide() {
   return (
     <Article.Page>
       <Article.Heading level={1} text="4s Nylocas Waves" />
-      <em>
+      <span className={guideStyles.authorCredits}>
         Contributed by the{' '}
         <Link
           href="https://discord.gg/u6yXPrFFsf"
@@ -24,7 +26,7 @@ export default function NyloGuide() {
         </Link>
         , where you can find additional resources on max-eff ToB and teammates
         to raid with.
-      </em>
+      </span>
       <GuideTags challenge={ChallengeType.TOB} scale={4} level="max-eff" />
       <Image
         src="/nyloking.webp"

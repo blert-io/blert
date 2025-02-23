@@ -106,9 +106,9 @@ export default function PluginGuide() {
         plugin allows you to remove this floor texture. To achieve this, list
         the following object IDs in the plugin&apos;s settings:
       </p>
-      <pre>
-        <code>32941, 32942, 32943, 32944, 32945, 32946, 32947, 32948</code>
-      </pre>
+      <Article.Code language="plaintext">
+        32941, 32942, 32943, 32944, 32945, 32946, 32947, 32948
+      </Article.Code>
       <p>
         However, this is insufficient by itself, as the floor simply gets
         replaced with a black void. To change this, use the builtin Skybox

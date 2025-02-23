@@ -11,11 +11,13 @@ import { basicMetadata } from '@/utils/metadata';
 import { Mage, Range } from '../../nylos';
 import RoleLinks from '../role-links';
 
+import guideStyles from '../../../../style.module.scss';
+
 export default function MageNyloGuide() {
   return (
     <Article.Page>
       <Article.Heading level={1} text="4s Nylocas Mage Waves" />
-      <em>
+      <span className={guideStyles.authorCredits}>
         Contributed by the{' '}
         <Link
           href="https://discord.gg/u6yXPrFFsf"
@@ -26,7 +28,7 @@ export default function MageNyloGuide() {
         </Link>
         , where you can find additional resources on max-eff ToB and teammates
         to raid with.
-      </em>
+      </span>
       <GuideTags challenge={ChallengeType.TOB} scale={4} level="max-eff" />
       <Article.TableOfContents />
 

@@ -1,11 +1,131 @@
 @use '../../mixins.scss' as *;
 
-.group {
-  display: flex;
-  flex-flow: row wrap;
-  justify-content: center;
+.description {
+  max-width: 800px;
 
-  &:not(:last-child) {
-    margin-bottom: 20px;
+  p {
+    margin: 1em 0;
+    line-height: 1.6;
+  }
+}
+
+.subtitle {
+  font-style: italic;
+  font-size: 0.9em;
+}
+
+.sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+  margin: 2em 0;
+}
+
+.section {
+  h2 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 0.5em;
+    color: var(--blert-text-color);
+
+    i {
+      color: var(--blert-button);
+    }
+  }
+}
+
+.sectionDesc {
+  margin: 0 0 1em;
+  font-size: 0.9em;
+  line-height: 1.5;
+}
+
+.sectionImage {
+  display: flex;
+  justify-content: center;
+  padding: 1em;
+  background: var(--nav-bg);
+  border-radius: 6px;
+}
+
+.guideGroup {
+  h3 {
+    margin: 1em 0;
+    color: var(--blert-text-color);
+    font-size: 1.25rem;
+  }
+
+  ul {
+    padding: 0;
+    margin: 0;
+    list-style: none;
+
+    li {
+      margin: 0.75em 0;
+
+      a {
+        display: inline-block;
+        padding: 4px 8px;
+        margin: -4px -8px;
+        border-radius: 4px;
+        transition: background-color 0.2s ease;
+
+        &.main {
+          font-weight: 500;
+          color: #fff;
+        }
+
+        &:hover {
+          color: var(--blert-button);
+        }
+      }
+
+      .guideDesc {
+        margin: 0.25em 0 0 0;
+        font-size: 0.85em;
+        color: rgba(var(--blert-text-color-base), 0.8);
+      }
+
+      ul {
+        margin: 0.5em 0 0.5em 1.5em;
+
+        li {
+          position: relative;
+          margin: 0.35em 0;
+
+          &:before {
+            position: absolute;
+            left: -20px;
+            top: 50%;
+            content: '';
+            display: block;
+            border-left: 1px solid var(--font-color-nav-divider);
+            border-bottom: 1px solid var(--font-color-nav-divider);
+            width: 12px;
+          }
+
+          &:after {
+            position: absolute;
+            left: -20px;
+            top: 0;
+            content: '';
+            display: block;
+            border-left: 1px solid var(--font-color-nav-divider);
+            height: 150%;
+          }
+
+          &:last-child:after {
+            height: 50%;
+          }
+
+          a {
+            &:hover {
+              color: var(--blert-button);
+            }
+          }
+        }
+      }
+    }
   }
 }

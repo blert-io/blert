@@ -10,32 +10,62 @@ export default function GuidesPage() {
   return (
     <div className={styles.guides}>
       <div className={`${styles.guidePanel} ${styles.guidesHeader}`}>
-        <h1>Guides</h1>
-        <p>
-          Welcome to Blert&apos;s guides page, where you can find up-to-date,
-          curated guides for various types of Old School RuneScape PvM content.
-        </p>
-        <p>
-          Get started by selecting a category below to browse available guides.
-        </p>
-        <p style={{ fontSize: 14, fontStyle: 'italic' }}>
-          Blert guides are currently a work in progress. We will continue to
-          update and expand our guides over time.
-        </p>
+        <h1>
+          <i className="fas fa-book" /> OSRS PvM Guides
+        </h1>
+        <div className={styles.description}>
+          <p>
+            Welcome to Blert&apos;s comprehensive guide collection for Old
+            School RuneScape PvM content. Our guides are meticulously crafted to
+            help you master challenging end-game PvM encounters, with detailed
+            strategies, mechanics explanations, and role-specific advice.
+          </p>
+          <p>
+            Each guide is regularly updated to reflect the latest meta
+            strategies and game changes, ensuring you always have access to
+            current, reliable information.
+          </p>
+          <div className={styles.notice}>
+            <i className="fas fa-exclamation-circle" />
+            <span>
+              Blert guides are actively being developed. We are continuously
+              expanding our collection and updating existing guides based on
+              community feedback.
+            </span>
+          </div>
+        </div>
       </div>
+
+      <h2 className={styles.sectionTitle}>Available Guides</h2>
+
       <div className={styles.links}>
         <Link
           className={`${styles.guidePanel} ${styles.guideLink}`}
           href="/guides/tob"
         >
-          <Image
-            src="/logo_tob.webp"
-            alt="Theatre of Blood"
-            height={200}
-            width={280}
-            style={{ objectFit: 'contain' }}
-          />
+          <div className={styles.guideThumbnail}>
+            <Image
+              src="/logo_tob.webp"
+              alt="Theatre of Blood"
+              height={200}
+              width={280}
+              style={{ objectFit: 'contain' }}
+            />
+          </div>
+          <div className={styles.guideInfo}>
+            <h3>Theatre of Blood</h3>
+            <p>
+              Master both normal and hard mode Theatre of Blood with
+              comprehensive room-by-room strategies, role guides, and gear
+              setups.
+            </p>
+          </div>
         </Link>
+
+        {/* Placeholder for future guides - helps with visual balance */}
+        <div className={`${styles.guidePanel} ${styles.guidePlaceholder}`}>
+          <p>More guides coming soon!</p>
+        </div>
       </div>
     </div>
   );
@@ -43,7 +73,8 @@ export default function GuidesPage() {
 
 export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
   return basicMetadata(await parent, {
-    title: 'Guides',
-    description: 'Browse top-tier guides for Old School RuneScape PvM content.',
+    title: 'OSRS PvM Guides',
+    description:
+      'Browse comprehensive, up-to-date guides for Old School RuneScape PvM content.',
   });
 }
