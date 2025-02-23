@@ -34,7 +34,9 @@ export default function CollapsibleDescription({
     <div className={styles.description}>
       <p
         ref={contentRef}
-        className={!isExpanded ? styles.collapsed : undefined}
+        className={
+          shouldShowToggle && !isExpanded ? styles.collapsed : undefined
+        }
         style={{ maxHeight }}
       >
         {text}

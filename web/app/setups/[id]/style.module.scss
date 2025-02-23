@@ -113,6 +113,21 @@
         font-size: 12px;
       }
 
+      .views {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 6px;
+        font-size: 14px;
+        position: relative;
+        font-weight: 500;
+
+        i {
+          position: relative;
+          top: 1px;
+        }
+      }
+
       .stats {
         display: flex;
         gap: 16px;

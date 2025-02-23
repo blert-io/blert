@@ -10,6 +10,7 @@ import {
   loadSetupData,
   incrementSetupViews,
 } from '@/actions/setup';
+import Tooltip from '@/components/tooltip';
 import { getRequestIp } from '@/utils/headers';
 
 import SetupActions from './actions';
@@ -95,6 +96,10 @@ export default async function GearSetupPage({
                 by <span className={styles.username}>{setup.author}</span>
               </div>
               <div className={styles.version}>v{targetRevision}</div>
+              <div className={styles.views}>
+                <i className="fas fa-eye" />
+                <span>{setup.views}</span>
+              </div>
               <VoteBar
                 publicId={setup.publicId}
                 initialLikes={setup.likes}
@@ -120,6 +125,7 @@ export default async function GearSetupPage({
           currentRevision={targetRevision}
         />
       </div>
+      <Tooltip tooltipId="slot-tooltip">Hover an item</Tooltip>
     </SetupViewingContextProvider>
   );
 }

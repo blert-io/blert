@@ -105,3 +105,16 @@ export function hasAllItems(setup: GearSetup): boolean {
       player.pouch.slots.length >= NUM_POUCH_SLOTS,
   );
 }
+
+export function spellbookName(spellbook: Spellbook): string {
+  switch (spellbook) {
+    case Spellbook.STANDARD:
+      return 'Standard';
+    case Spellbook.ANCIENT:
+      return 'Ancient';
+    case Spellbook.LUNAR:
+      return 'Lunar';
+    case Spellbook.ARCEUUS:
+      return 'Arceuus';
+  }
+}

@@ -17,6 +17,7 @@ import {
   NUM_INVENTORY_SLOTS,
   Spellbook,
   newGearSetupPlayer,
+  spellbookName,
 } from './setup';
 import { Slot } from './slot';
 import {
@@ -269,7 +270,11 @@ export function Player({ index, player }: PlayerProps) {
           filter={runeFilter}
         />
       </div>
-      <div className={`${styles.slotContainer} ${styles.spellbook}`}>
+      <div
+        className={`${styles.slotContainer} ${styles.spellbook}`}
+        data-tooltip-id="slot-tooltip"
+        data-tooltip-content={`${spellbookName(player.spellbook)} spellbook`}
+      >
         <SpellbookIcon
           context={editingContext}
           index={index}
@@ -307,10 +312,10 @@ export function Player({ index, player }: PlayerProps) {
 }
 
 const SPELLBOOK_MENU_ITEMS: MenuItem[] = [
-  { label: 'Standard', value: Spellbook.STANDARD },
-  { label: 'Ancient', value: Spellbook.ANCIENT },
-  { label: 'Lunar', value: Spellbook.LUNAR },
-  { label: 'Arceuus', value: Spellbook.ARCEUUS },
+  { label: spellbookName(Spellbook.STANDARD), value: Spellbook.STANDARD },
+  { label: spellbookName(Spellbook.ANCIENT), value: Spellbook.ANCIENT },
+  { label: spellbookName(Spellbook.LUNAR), value: Spellbook.LUNAR },
+  { label: spellbookName(Spellbook.ARCEUUS), value: Spellbook.ARCEUUS },
 ];
 
 function SpellbookIcon({
