@@ -28,29 +28,21 @@ export default function Home() {
           <div className={styles.homeOverviewInner}>
             <div className={styles.statusSection}>
               <div className={styles.statusCard}>
-                <h3 className={`${styles.statusHeading} ${styles.error}`}>
-                  ⚠️ Service Alert
+                <h3 className={`${styles.statusHeading} ${styles.info}`}>
+                  🔧 Service Update
                 </h3>
                 <span className={styles.statusTimestamp}>
-                  Last updated: Feb 19, 2025 01:00 UTC
+                  Last updated: Feb 26, 2025 17:00 UTC
                 </span>
                 <ul className={styles.statusList}>
                   <li>
-                    A recent RuneScape update has changed when NPCs and player
-                    events are sent to clients, which has affected how Blert
-                    records data.
+                    Jagex have corrected the issue with NPCs and player events
+                    being sent to clients, so Blert is once again recording data
+                    correctly.
                   </li>
                   <li>
-                    A fix has been applied for participants in challenges.
-                    However, spectators in the Theatre of Blood will still
-                    experience issues.
-                  </li>
-                  <li>
-                    As a result,{' '}
-                    <strong>
-                      recording challenges as a spectator is temporarily
-                      disabled.
-                    </strong>
+                    Blert is now functioning properly for all players, and
+                    recording challenges as a spectator has been re-enabled.
                   </li>
                 </ul>
               </div>
