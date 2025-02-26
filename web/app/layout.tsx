@@ -48,6 +48,7 @@ const jsonLd: WithContext<WebSite> = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://blert.io'),
   title: {
     default: 'Blert',
     template: '%s | Blert',

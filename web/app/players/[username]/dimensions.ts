@@ -1,0 +1,2 @@
+export const PLAYER_PAGE_STATISTIC_SIZE = 126;
+export const PLAYER_PAGE_CHART_SIZE = 200;

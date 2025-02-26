@@ -16,6 +16,7 @@
 @mixin styledScrollbar {
   &::-webkit-scrollbar {
     width: 6px;
+    height: 6px;
   }
 
   &::-webkit-scrollbar-track {
@@ -24,7 +25,7 @@
   }
 
   &::-webkit-scrollbar-thumb {
-    background: var(--blert-text-color);
+    background: var(--font-color-nav);
     border-radius: 4px;
   }
 }

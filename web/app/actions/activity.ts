@@ -91,3 +91,23 @@ export async function getPlayersPerHour(startTime: Date) {
 
   return byHour.map((h) => h.size);
 }
+
+export async function playerActivityByHour(username: string, startTime: Date) {
+  const challenges = await sql`
+    SELECT c.id, c.start_time
+    FROM challenges c
+    JOIN challenge_players cp ON c.id = cp.challenge_id
+    JOIN players p ON cp.player_id = p.id
+    WHERE LOWER(p.username) = ${username.toLowerCase()}
+      AND c.start_time >= ${startTime}
+  `;
+
+  const byHour = new Array(24).fill(0);
+
+  for (const challenge of challenges) {
+    const hour = challenge.start_time.getUTCHours();
+    byHour[hour]++;
+  }
+
+  return byHour;
+}

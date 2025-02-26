@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 import styles from './style.module.scss';
 
@@ -27,6 +27,18 @@ export default function Tabs({
   small = false,
 }: TabsProps) {
   const [activeTab, setActiveTab] = useState(0);
+  const [indicatorStyle, setIndicatorStyle] = useState<React.CSSProperties>({});
+  const tabsRef = useRef<Array<HTMLButtonElement | null>>([]);
+
+  useEffect(() => {
+    const activeTabElement = tabsRef.current[activeTab];
+    if (activeTabElement) {
+      setIndicatorStyle({
+        width: `${activeTabElement.offsetWidth}px`,
+        transform: `translateX(${activeTabElement.offsetLeft}px)`,
+      });
+    }
+  }, [activeTab]);
 
   let className = styles.tabs;
   if (fluid) {
@@ -50,13 +62,17 @@ export default function Tabs({
         {tabs.map((tab, index) => (
           <button
             key={index}
+            ref={(el) => {
+              tabsRef.current[index] = el;
+            }}
             onClick={() => setActiveTab(index)}
             className={`${styles.tab} ${activeTab === index ? styles.active : ''}`}
           >
             <i className={`${tab.icon} ${styles.icon}`} />
-            {tab.title}
+            <span className={styles.title}>{tab.title}</span>
           </button>
         ))}
+        <div className={styles.indicator} style={indicatorStyle} />
       </div>
       <div className={styles.content} style={contentStyle}>
         {tabs[activeTab]?.content}

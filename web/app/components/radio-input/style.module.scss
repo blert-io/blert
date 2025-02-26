@@ -33,6 +33,33 @@
     }
   }
 
+  &.simple {
+    .radioOption {
+      border-radius: 0;
+      background: none;
+      color: var(--font-color-nav);
+
+      label {
+        border: 1px solid var(--font-color-nav-divider);
+        border-radius: 5px;
+        transition: all 0.2s ease-in-out;
+      }
+
+      label:hover {
+        border: 1px solid rgba(var(--blert-button-base), 0.7);
+        color: var(--blert-text-color);
+        background: none;
+      }
+
+      input:checked + label {
+        border: 1px solid var(--blert-button);
+        color: var(--blert-text-color);
+        font-weight: 500;
+        background: none;
+      }
+    }
+  }
+
   .radioOption {
     flex-grow: 1;
     flex-basis: 0;

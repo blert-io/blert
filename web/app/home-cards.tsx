@@ -13,18 +13,11 @@ import {
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ReactTimeago from 'react-timeago';
-import {
-  Area,
-  AreaChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
 
 import { ActivityFeedItem, ChallengeEndFeedItem } from './actions/activity';
 import { RankedSplit } from './actions/challenge';
 import { SetupListItem } from './actions/setup';
+import ActivityChart from './components/activity-chart';
 import Card, { CardLink } from './components/card';
 import Carousel from './components/carousel';
 import RadioInput from './components/radio-input';
@@ -82,11 +75,11 @@ type PlayerActivity = {
   startHour: number;
   data: Array<{
     hour: number;
-    players: number;
+    count: number;
   }>;
 };
 
-function ActivityChart() {
+function ActivityChartWrapper() {
   const [activityData, setActivityData] = useState<PlayerActivity>({
     startHour: new Date().getUTCHours(),
     data: [],
@@ -98,7 +91,7 @@ function ActivityChart() {
       const payload: number[] = await res.json();
       setActivityData({
         startHour: new Date().getUTCHours(),
-        data: payload.map((p, i) => ({ hour: i, players: p })),
+        data: payload.map((p, i) => ({ hour: i, count: p })),
       });
     } catch (err) {
       // TODO(frolv): Handle error.
@@ -112,71 +105,14 @@ function ActivityChart() {
   }, [fetchData]);
 
   return (
-    <div className={styles.activityChart}>
-      <div className={styles.chartTitle}>
-        <div className={styles.chartTitleMain}>
-          <i className="fas fa-users" />
-          <span>Active Players</span>
-        </div>
-        <div className={styles.chartTimeRange}>
-          <i className="fas fa-clock" />
-          <span>Last 24h</span>
-        </div>
-      </div>
-      <ResponsiveContainer width="100%" height={100}>
-        <AreaChart
-          data={activityData.data}
-          margin={{ top: 5, right: 15, left: 15, bottom: 5 }}
-        >
-          <defs>
-            <linearGradient id="playerGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop
-                offset="0%"
-                stopColor="var(--blert-button)"
-                stopOpacity={0.3}
-              />
-              <stop
-                offset="100%"
-                stopColor="var(--blert-button)"
-                stopOpacity={0}
-              />
-            </linearGradient>
-          </defs>
-          <XAxis
-            dataKey="hour"
-            interval={3}
-            tickFormatter={(hour) =>
-              `${((activityData.startHour + hour) % 24).toString().padStart(2, '0')}:00`
-            }
-            stroke="var(--font-color-nav)"
-            tick={{ fontSize: 10 }}
-            tickLine={false}
-            minTickGap={20}
-          />
-          <YAxis hide />
-          <Tooltip
-            contentStyle={{
-              background: 'var(--nav-bg)',
-              border: 'none',
-              borderRadius: '4px',
-              fontSize: '12px',
-            }}
-            formatter={(value) => [`${value} players`, 'Active']}
-            labelFormatter={(hour) => {
-              const labelHour = (activityData.startHour + hour) % 24;
-              return `${labelHour.toString().padStart(2, '0')}:00 UTC`;
-            }}
-          />
-          <Area
-            type="monotone"
-            dataKey="players"
-            stroke="var(--blert-button)"
-            strokeWidth={2}
-            fill="url(#playerGradient)"
-          />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
+    <ActivityChart
+      data={activityData.data}
+      icon="fas fa-users"
+      title="Active Players"
+      timeRange="Last 24h"
+      height={100}
+      startHour={activityData.startHour}
+    />
   );
 }
 
@@ -374,7 +310,7 @@ export function ChallengeStats({ initialStats }: ChallengeStatsProps) {
           </span>
         </div>
       </div>
-      <ActivityChart />
+      <ActivityChartWrapper />
       <CardLink href="/raids/tob" text="Browse Raids" />
     </Card>
   );
