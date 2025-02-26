@@ -203,34 +203,6 @@ $NAV_MARGIN: 10px;
   }
 }
 
-.tabContent {
-  // TODO(frolv): 60px is the size of the tab navigation bar. This should be
-  // exposed as a variable instead of being hardcoded.
-  height: calc(100vh - $INFO_HEIGHT - 60px);
-  width: 100%;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  overflow-y: auto;
-  @include styledScrollbar;
-}
-
-.section {
-  @include panel;
-  flex-direction: column;
-  padding: 16px;
-
-  h2 {
-    width: 100%;
-    margin: 0;
-    font-size: 22px;
-    font-weight: 500;
-    padding-bottom: 8px;
-    border-bottom: 1px solid rgba(195, 199, 201, 0.21);
-  }
-}
-
 .pbWrapper {
   width: 100%;
   padding: 20px;
@@ -416,7 +388,7 @@ $NAV_MARGIN: 10px;
   flex-direction: column;
   align-items: center;
   width: 100%;
-  max-width: 980px;
+  max-width: 1024px;
 
   .monthLabels {
     display: flex;

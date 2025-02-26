@@ -523,6 +523,7 @@ export default function PlayerOverviewContent({
               value={totalRaids}
               width={PLAYER_PAGE_STATISTIC_SIZE}
               height={PLAYER_PAGE_STATISTIC_SIZE}
+              simple
             />
           </div>
           {isClient && (

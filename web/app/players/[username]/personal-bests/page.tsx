@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { useContext, useState } from 'react';
 
 import { PersonalBest } from '@/actions/challenge';
+import { Card } from '@/components/card/card';
 import RadioInput from '@/components/radio-input';
 import { DisplayContext } from '@/display';
 import { ticksToFormattedSeconds } from '@/utils/tick';
@@ -19,7 +20,6 @@ import { challengeUrl } from '@/utils/url';
 import { usePlayer } from '../player-context';
 
 import styles from './style.module.scss';
-import playerStyles from '../style.module.scss';
 
 import BloatIcon from '../../../../public/images/bloat.svg';
 import MaidenIcon from '../../../../public/images/maiden.svg';
@@ -233,7 +233,7 @@ export default function PlayerPersonalBests() {
 
   return (
     <div className={styles.personalBests}>
-      <div className={`${playerStyles.section} ${styles.selection}`}>
+      <Card className={styles.selection}>
         <RadioInput.Group
           name="personal-bests-challenge"
           className={styles.pbOptions}
@@ -308,7 +308,7 @@ export default function PlayerPersonalBests() {
             }
           />
         </RadioInput.Group>
-      </div>
+      </Card>
       <div className={styles.pbContent}>
         {splitTypes.map((type) => (
           <SplitTypeSection
