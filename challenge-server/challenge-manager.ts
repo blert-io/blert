@@ -1,4 +1,6 @@
 import {
+  ACTIVITY_FEED_KEY,
+  ActivityFeedItemType,
   CHALLENGE_UPDATES_PUBSUB_KEY,
   CLIENT_EVENTS_KEY,
   ChallengeMode,
@@ -23,6 +25,7 @@ import {
   clientChallengesKey,
   partyKeyChallengeList,
   stageStreamFromRecord,
+  ActivityFeedData,
 } from '@blert/common';
 import { RedisClientType, WatchError, commandOptions } from 'redis';
 import { v4 as uuidv4 } from 'uuid';
@@ -1234,6 +1237,10 @@ export default class ChallengeManager {
 
       logger.info(`Challenge ${challengeId} completed`);
 
+      await this.addActivityFeedItem(ActivityFeedItemType.CHALLENGE_END, {
+        challengeId,
+      });
+
       await this.deleteRedisChallengeData(
         challengeId,
         challenge.type,
@@ -1451,6 +1458,27 @@ export default class ChallengeManager {
         ChallengeManager.CHALLENGE_TIMEOUT_INTERVAL,
       );
     }
+  }
+
+  private async addActivityFeedItem(
+    type: ActivityFeedItemType,
+    data: ActivityFeedData,
+  ): Promise<void> {
+    await this.client.xAdd(
+      ACTIVITY_FEED_KEY,
+      '*',
+      {
+        type: type.toString(),
+        data: JSON.stringify(data),
+      },
+      {
+        TRIM: {
+          strategy: 'MAXLEN',
+          strategyModifier: '~',
+          threshold: 1000,
+        },
+      },
+    );
   }
 
   /**

@@ -128,7 +128,12 @@ export {
 } from './db/queryable-event';
 
 export {
+  ACTIVITY_FEED_KEY,
+  type ActivityFeedData,
+  type ActivityFeedItem,
+  ActivityFeedItemType,
   CHALLENGE_UPDATES_PUBSUB_KEY,
+  type ChallengeEndItem,
   type ChallengeServerUpdate,
   ChallengeUpdateAction,
   CLIENT_EVENTS_KEY,

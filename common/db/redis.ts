@@ -52,6 +52,24 @@ export type ChallengeServerUpdate = {
   action: ChallengeUpdateAction;
 };
 
+/** The key of the list used for the activity feed. */
+export const ACTIVITY_FEED_KEY = 'activity-feed';
+
+export type ActivityFeedItem = {
+  type: ActivityFeedItemType;
+  data: ActivityFeedData;
+};
+
+export type ActivityFeedData = ChallengeEndItem;
+
+export enum ActivityFeedItemType {
+  CHALLENGE_END,
+}
+
+export type ChallengeEndItem = {
+  challengeId: string;
+};
+
 /** The key of the list used for client event notifications. */
 export const CLIENT_EVENTS_KEY = 'client-events';
 
