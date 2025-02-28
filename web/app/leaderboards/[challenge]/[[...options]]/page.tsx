@@ -11,7 +11,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { RankedSplit, findBestSplitTimes } from '@/actions/challenge';
-import CollapsiblePanel from '@/components/collapsible-panel';
+import Card from '@/components/card';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 import { challengeUrl } from '@/utils/url';
 
@@ -62,42 +62,51 @@ type LeaderboardProps = {
 
 function Leaderboard({ challengeType, split, ranks }: LeaderboardProps) {
   return (
-    <CollapsiblePanel
-      className={styles.boardPanel}
-      panelTitle={splitName(split)}
-      maxPanelHeight={2000}
-      disableExpansion
-      key={split}
-    >
+    <Card header={{ title: splitName(split) }} className={styles.boardCard}>
       <div className={styles.board}>
         {ranks.map((rank, i) => (
           <Link
-            href={challengeUrl(challengeType, rank.uuid)}
-            className={styles.entry}
             key={i}
+            className={styles.entry}
+            href={challengeUrl(challengeType, rank.uuid)}
           >
-            <div className={styles.rank} style={{ color: colorForRank(i + 1) }}>
+            <div className={`${styles.rank}`}>
+              {i <= 2 && (
+                <span
+                  className={`${styles.medal} ${
+                    i === 0
+                      ? styles.gold
+                      : i === 1
+                        ? styles.silver
+                        : i === 2
+                          ? styles.bronze
+                          : ''
+                  }`}
+                >
+                  {i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}
+                </span>
+              )}
               {i + 1}
             </div>
             <div className={styles.wrapper}>
               <div className={styles.timeAndDate}>
-                <div className={styles.time}>
+                <span className={styles.time}>
                   {ticksToFormattedSeconds(rank.ticks)}
-                </div>
-                <div className={styles.date}>
+                </span>
+                <span className={styles.date}>
                   {new Date(rank.date).toLocaleDateString(undefined, {
                     year: 'numeric',
                     month: 'numeric',
                     day: 'numeric',
                   })}
-                </div>
+                </span>
               </div>
-              <span className={styles.party}>{rank.party.join(', ')}</span>
+              <div className={styles.party}>{rank.party.join(', ')}</div>
             </div>
           </Link>
         ))}
       </div>
-    </CollapsiblePanel>
+    </Card>
   );
 }
 
@@ -144,11 +153,54 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
           : ChallengeMode.TOB_REGULAR;
 
       heading = (
-        <>
-          <h1>
-            Theatre of Blood ({scaleName(scale)} {modeName(mode)})
-          </h1>
-          <div className={styles.options}>
+        <Card className={styles.header} primary>
+          <div className={styles.headerTop}>
+            <div className={styles.challenges}>
+              <Link
+                className={linkClass(true)}
+                href={`/leaderboards/tob/regular/5`}
+              >
+                <Image
+                  src="/logo_tob.webp"
+                  alt="Theatre of Blood"
+                  width={24}
+                  height={24}
+                  style={{ objectFit: 'contain' }}
+                />
+                Theatre of Blood
+              </Link>
+              <Link
+                className={linkClass(false)}
+                href={`/leaderboards/colosseum`}
+              >
+                <Image
+                  src="/varlamore.png"
+                  alt="Fortis Colosseum"
+                  width={24}
+                  height={24}
+                  style={{ objectFit: 'contain' }}
+                />
+                Fortis Colosseum
+              </Link>
+            </div>
+            <div className={styles.modes}>
+              <Link
+                className={linkClass(mode === ChallengeMode.TOB_REGULAR)}
+                href={`/leaderboards/tob/regular/${scale}`}
+              >
+                <i className="fas fa-circle" style={{ color: '#ffd700' }} />
+                Regular
+              </Link>
+              <Link
+                className={linkClass(mode === ChallengeMode.TOB_HARD)}
+                href={`/leaderboards/tob/hard/${scale}`}
+              >
+                <i className="fas fa-circle" style={{ color: '#d100cc' }} />
+                Hard
+              </Link>
+            </div>
+          </div>
+          <div className={styles.scales}>
             {Array.from({ length: 5 }).map((_, i) => (
               <Link
                 className={linkClass(scale === i + 1)}
@@ -159,29 +211,7 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
               </Link>
             ))}
           </div>
-          <div className={styles.options}>
-            <Link
-              className={linkClass(mode === ChallengeMode.TOB_REGULAR)}
-              href={`/leaderboards/tob/regular/${scale}`}
-            >
-              <i
-                className={`far fa-circle${mode === ChallengeMode.TOB_REGULAR ? '-check' : ''}`}
-                style={{ marginRight: 8, color: '#ffd700' }}
-              />
-              Regular
-            </Link>
-            <Link
-              className={linkClass(mode === ChallengeMode.TOB_HARD)}
-              href={`/leaderboards/tob/hard/${scale}`}
-            >
-              <i
-                className={`far fa-circle${mode === ChallengeMode.TOB_HARD ? '-check' : ''}`}
-                style={{ marginRight: 8, color: '#d100cc' }}
-              />
-              Hard
-            </Link>
-          </div>
-        </>
+        </Card>
       );
 
       splits = [
@@ -201,16 +231,38 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
     case 'colosseum': {
       challengeType = ChallengeType.COLOSSEUM;
       heading = (
-        <>
-          <h1>Fortis Colosseum</h1>
-          <Image
-            src="/images/colosseum/smol-heredit.webp"
-            alt="Colosseum"
-            height={90}
-            width={160}
-            style={{ objectFit: 'contain' }}
-          />
-        </>
+        <Card className={styles.header} primary>
+          <div className={styles.headerTop}>
+            <div className={styles.challenges}>
+              <Link
+                className={linkClass(false)}
+                href={`/leaderboards/tob/regular/5`}
+              >
+                <Image
+                  src="/logo_tob.webp"
+                  alt="Theatre of Blood"
+                  width={24}
+                  height={24}
+                  style={{ objectFit: 'contain' }}
+                />
+                Theatre of Blood
+              </Link>
+              <Link
+                className={linkClass(true)}
+                href={`/leaderboards/colosseum`}
+              >
+                <Image
+                  src="/varlamore.png"
+                  alt="Fortis Colosseum"
+                  width={24}
+                  height={24}
+                  style={{ objectFit: 'contain' }}
+                />
+                Fortis Colosseum
+              </Link>
+            </div>
+          </div>
+        </Card>
       );
       splits = [
         SplitType.COLOSSEUM_CHALLENGE,
@@ -238,48 +290,28 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
 
   return (
     <div className={styles.leaderboards}>
-      <div className={`${styles.controls} ${styles.challenge}`}>
-        <div className={styles.options}>
-          <Link
-            className={linkClass(challengeType === ChallengeType.TOB)}
-            href={`/leaderboards/tob/regular/5`}
-          >
-            Theatre of Blood
-          </Link>
-          <Link
-            className={linkClass(challengeType === ChallengeType.COLOSSEUM)}
-            href={`/leaderboards/colosseum`}
-          >
-            Colosseum
-          </Link>
+      <div className={styles.inner}>
+        {heading}
+        <div className={styles.boardGrid}>
+          {splits.slice(0, numHighlightedSplits).map((split, i) => (
+            <Leaderboard
+              key={i}
+              challengeType={challengeType}
+              split={split}
+              ranks={rankedSplits[split] ?? []}
+            />
+          ))}
         </div>
-      </div>
-      <div className={`${styles.controls} ${styles.scale}`}>{heading}</div>
-      <div className={styles.boardGroup}>
-        {splits
-          .slice(0, numHighlightedSplits)
-          .filter((split) => rankedSplits[split] !== undefined)
-          .map((split) => (
+        <div className={styles.boardGrid}>
+          {splits.slice(numHighlightedSplits).map((split, i) => (
             <Leaderboard
-              key={split}
+              key={i}
               challengeType={challengeType}
               split={split}
-              ranks={rankedSplits[split]!}
+              ranks={rankedSplits[split] ?? []}
             />
           ))}
-      </div>
-      <div className={styles.boardGroup}>
-        {splits
-          .slice(numHighlightedSplits)
-          .filter((split) => rankedSplits[split] !== undefined)
-          .map((split) => (
-            <Leaderboard
-              key={split}
-              challengeType={challengeType}
-              split={split}
-              ranks={rankedSplits[split]!}
-            />
-          ))}
+        </div>
       </div>
     </div>
   );
@@ -290,29 +322,33 @@ export async function generateMetadata(
   parent: ResolvingMetadata,
 ) {
   const { challenge, options } = await params;
+  const metadata = await parent;
 
-  let title = 'Leaderboards';
+  let title = 'OSRS Leaderboards';
   let description = '';
+  let imageUrl = '';
 
   switch (challenge) {
     case 'tob': {
       let mode = ChallengeMode.NO_MODE;
       let scale = 1;
+      imageUrl = '/logo_tob.webp';
+
       if (options === undefined || options.length !== 2) {
         title = 'Theatre of Blood Leaderboards';
-        description = `View the best recorded times for the Theatre of Blood raids on Blert, Old School RuneScape's premier PvM tracker.`;
+        description =
+          'View the fastest Theatre of Blood raid times on Blert, including room splits, party compositions, and detailed analytics for all team sizes.';
       } else {
         mode =
-          options![0] === 'hard'
+          options[0] === 'hard'
             ? ChallengeMode.TOB_HARD
             : ChallengeMode.TOB_REGULAR;
-        scale = parseInt(options![1]);
+        scale = parseInt(options[1]);
 
-        title = `Theatre of Blood (${scaleName(scale)} ${modeName(mode)}) Leaderboards`;
-        description =
-          `View the best recorded times for Theatre of Blood ` +
-          `${modeName(mode)} Mode ${scaleName(scale)} ` +
-          `raids on Blert, Old School RuneScape's premier PvM tracker.`;
+        const modeStr = modeName(mode);
+        const scaleStr = scaleName(scale);
+        title = `${scaleStr} ${modeStr} Theatre of Blood Leaderboards`;
+        description = `Track the fastest ${modeStr} Mode Theatre of Blood ${scaleStr} raid times. Compare room splits, view party compositions, and analyze strategies from top teams.`;
       }
       break;
     }
@@ -320,8 +356,8 @@ export async function generateMetadata(
     case 'colosseum': {
       title = 'Fortis Colosseum Leaderboards';
       description =
-        `View the best recorded times for the Fortis Colosseum on Blert, ` +
-        `Old School RuneScape's premier PvM tracker.`;
+        'Track the fastest Fortis Colosseum wave times and completions. View detailed wave splits, strategies, and records from top OSRS PvMers.';
+      imageUrl = '/varlamore.png';
       break;
     }
 
@@ -329,16 +365,28 @@ export async function generateMetadata(
       return { title: 'Not Found' };
   }
 
-  const metadata = await parent;
-
   return {
     title,
     description,
-    openGraph: { ...metadata.openGraph, description },
+    openGraph: {
+      ...metadata.openGraph,
+      title,
+      description,
+      images: [
+        {
+          url: imageUrl,
+          width: 200,
+          height: 200,
+          alt: title,
+        },
+      ],
+    },
     twitter: {
       ...metadata.twitter,
       title,
       description,
+      images: [imageUrl],
+      card: 'summary',
     },
   };
 }
