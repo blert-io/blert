@@ -1,129 +1,211 @@
 @use '../../mixins.scss' as *;
 
 .nameChanges {
-  @include panel;
-  flex-direction: column;
-  padding: 20px 0;
-
-  .heading {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 2px solid var(--content-area-bg);
-    padding: 0 1em 1em 1em;
-    margin-bottom: 1em;
-
-    h2 {
-      margin: 0;
-    }
-
-    .submit {
-      color: var(--blert-blue);
-    }
-  }
-
-  .table {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .empty {
-    width: 600px;
-  }
-
-  .nameChange {
-    display: flex;
-    padding: 1em 0;
-
-    &:nth-child(even) {
-      background: var(--nav-bg);
-    }
-
-    .name {
-      color: #fff;
-      font-weight: 500;
-      width: 200px;
-
-      &.old {
-        text-align: right;
-      }
-    }
-
-    .arrow {
-      width: 45px;
-      text-align: center;
-    }
-
-    .submitted {
-      font-size: 14px;
-      width: 200px;
-    }
-
-    .processed {
-      font-size: 14px;
-      width: 200px;
-    }
-
-    .status {
-      width: 100px;
-
-      i {
-        color: var(--blert-text-color);
-        margin-left: 1em;
-      }
-    }
-  }
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 32px 20px;
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    height: 96%;
-    width: 100%;
-    overflow-y: auto;
+    padding: 0;
+  }
+}
 
-    .heading {
-      flex-direction: column;
+.nameChangesInner {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
 
-      h2 {
-        margin-bottom: 0.5em;
-      }
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    gap: 16px;
+  }
+}
+
+.header {
+  @include panel;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    padding: 16px;
+    border-radius: 0;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  h1 {
+    font-size: 1.8em;
+    margin: 0;
+    color: var(--blert-text-color);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      font-size: 1.5em;
     }
 
-    .empty {
-      width: 100%;
-    }
-
-    .nameChange {
-      flex-wrap: wrap;
-      padding: 1em 0;
-
-      .name {
-        width: calc((100% - 45px) / 2);
-        font-size: 14px;
-        padding-bottom: 0.5em;
-      }
-
-      .submitted,
-      .processed {
-        width: 100%;
-        text-align: center;
-        padding: 0.5em 0;
-      }
-
-      .status {
-        text-align: right;
-        width: 50%;
-        padding-top: 0.5em;
-
-        &:last-child {
-          width: 100%;
-          text-align: center;
-        }
-      }
+    i {
+      color: var(--blert-button);
+      font-size: 0.9em;
     }
   }
 }
 
-.tooltip {
-  display: block;
-  text-align: center;
-  max-width: 350px;
+.submitButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  background: var(--blert-button);
+  color: #fff;
+  text-decoration: none;
+  font-size: 0.95em;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: rgba(var(--blert-button-base), 0.8);
+  }
+
+  i {
+    font-size: 0.9em;
+  }
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+.nameChangeList {
+  @include panel;
+  flex-direction: column;
+  padding: 0;
+  gap: 0;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    border-radius: 0;
+  }
+}
+
+.nameChangeRow {
+  display: flex;
+  align-items: center;
+  padding: 20px;
+  gap: 24px;
+  border-bottom: 1px solid var(--nav-bg-lightened);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 16px;
+  }
+}
+
+.names {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  font-size: 1.1em;
+  position: relative;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    width: 100%;
+    font-size: 1em;
+  }
+
+  .oldName,
+  .newName {
+    color: var(--blert-text-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  i {
+    position: relative;
+    top: 1px;
+    color: var(--font-color-nav);
+    font-size: 0.9em;
+  }
+}
+
+.timestamps {
+  display: flex;
+  gap: 24px;
+  margin-left: auto;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    width: 100%;
+    margin-left: 0;
+    gap: 16px;
+  }
+}
+
+.timestamp {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100px;
+
+  .label {
+    font-size: 0.75em;
+    color: var(--font-color-nav);
+  }
+
+  .value {
+    font-size: 0.85em;
+    color: var(--blert-text-color);
+  }
+}
+
+.status {
+  min-width: 110px;
+  text-align: right;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    width: 100%;
+    text-align: left;
+  }
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.9em;
+  position: relative;
+
+  &.pending {
+    background: rgba(var(--blert-text-color-base), 0.1);
+    color: var(--blert-text-color);
+  }
+
+  &.accepted {
+    background: rgba(var(--blert-green-base), 0.1);
+    color: var(--blert-green);
+  }
+
+  &.rejected {
+    background: rgba(var(--blert-red-base), 0.1);
+    color: var(--blert-red);
+
+    i {
+      position: relative;
+      top: 1px;
+      cursor: help;
+    }
+  }
 }

@@ -47,6 +47,12 @@ function shouldSuppressSidebarDrag(target: EventTarget | null): boolean {
       return true;
     }
 
+    // Custom attribute elements can set to prevent the sidebar from being
+    // opened while interacting with them.
+    if (element.dataset.blertDisableSidebar === 'true') {
+      return true;
+    }
+
     element = element.parentElement;
   }
   return false;

@@ -22,10 +22,11 @@ export function Modal(props: ModalProps) {
   useEffect(() => {
     const root = document.getElementById('portal-root');
 
-    const tooltipPortal = document.createElement('div');
-    tooltipPortal.classList.add(styles.portal);
-    root?.appendChild(tooltipPortal);
-    modalPortal.current = tooltipPortal;
+    const portal = document.createElement('div');
+    portal.classList.add(styles.portal);
+    portal.dataset.blertDisableSidebar = 'true';
+    root?.appendChild(portal);
+    modalPortal.current = portal;
 
     return () => {
       if (modalPortal.current !== null) {

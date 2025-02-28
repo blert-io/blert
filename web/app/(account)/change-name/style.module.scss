@@ -1,41 +1,74 @@
 @use '../../mixins.scss' as *;
 
-.changeName {
-  @include panel;
-  flex-direction: column;
-  padding: 20px;
+.nameChangePage {
   width: 100%;
-  max-width: 600px;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
 
-  h2 {
-    margin: 0 0 1em 0;
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    height: calc(100vh - $TOPBAR_HEIGHT);
+    overflow-y: auto;
+    padding: 10px;
+  }
+}
+
+.formPanel {
+  padding: 32px;
+  width: 100%;
+  max-width: 500px;
+  position: relative;
+  background: var(--panel-bg);
+  border: 1px solid var(--font-color-nav-divider);
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    padding: 24px;
   }
 
-  p {
-    margin: 0 0 0.8em 0;
+  h1 {
+    font-size: 1.8em;
+    margin: 0 0 8px 0;
+    text-align: center;
+    color: var(--blert-text-color);
+  }
+
+  .subtitle {
+    color: var(--font-color-nav);
+    font-size: 0.95em;
+    margin: 12px 0 24px 0;
 
     a {
-      text-decoration: underline;
+      color: var(--blert-button);
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
     }
   }
 
   form {
-    margin-top: 1em;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 16px;
 
-    button {
-      margin-top: 1em;
+    .error {
+      color: var(--blert-red);
+      font-size: 0.9em;
+      text-align: center;
+      margin: 0;
+      padding: 8px 12px;
+      background: rgba(var(--blert-red-base), 0.1);
+      border-radius: 6px;
     }
-  }
 
-  .error {
-    margin-top: 1em;
-    color: var(--blert-red);
-    text-align: center;
-  }
-
-  .return {
-    text-align: center;
-    margin-top: 1em;
-    color: var(--blert-blue);
+    button[type='submit'] {
+      margin-top: 8px;
+      height: 42px;
+      font-size: 0.95em;
+    }
   }
 }

@@ -9,9 +9,8 @@
   overflow: hidden;
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    height: calc(100vh - $TOPBAR_HEIGHT);
-    overflow-y: auto;
-    padding: 20px;
+    height: auto;
+    padding: 10px;
   }
 }
 

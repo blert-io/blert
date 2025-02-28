@@ -1,89 +1,98 @@
 'use client';
 
 import { NameChange, NameChangeStatus } from '@blert/common';
-import { useEffect, useState } from 'react';
 import TimeAgo from 'react-timeago';
 
-import Tooltip from '@/components/tooltip';
+import { useClientOnly } from '@/hooks/client-only';
 
 import styles from './style.module.scss';
 
-type NameChangeProps = {
+type NameChangeRowProps = {
   nameChange: NameChange;
-  id: number;
 };
 
-function nameChangeInfo(
-  nameChange: NameChange,
-): [string, string, string | null] {
+function nameChangeInfo(nameChange: NameChange): [string, string | null] {
   switch (nameChange.status) {
     case NameChangeStatus.PENDING:
-      return ['Pending', 'var(--blert-text-color)', null];
+      return ['Pending', null];
     case NameChangeStatus.ACCEPTED:
-      return ['Accepted', 'var(--blert-green)', null];
+      return ['Accepted', null];
     case NameChangeStatus.OLD_STILL_IN_USE:
       return [
         'Rejected',
-        'var(--blert-red)',
-        `This name change was rejected because the username ` +
-          `"${nameChange.oldName}" is still in use.`,
+        `This name change was rejected because the username "${nameChange.oldName}" is still in use.`,
       ];
     case NameChangeStatus.NEW_DOES_NOT_EXIST:
       return [
         'Rejected',
-        'var(--blert-red)',
-        `This name change was rejected because the username ` +
-          `"${nameChange.newName}" is not on the Hiscores.`,
+        `This name change was rejected because the username "${nameChange.newName}" is not on the Hiscores.`,
       ];
     case NameChangeStatus.DECREASED_EXPERIENCE:
       return [
         'Rejected',
-        'var(--blert-red)',
-        `This name change was rejected because the account ` +
-          `"${nameChange.newName}" has less experience than ` +
-          `"${nameChange.oldName}" previously had.`,
+        `This name change was rejected because the account "${nameChange.newName}" has less experience than "${nameChange.oldName}" previously had.`,
       ];
   }
 }
 
-export default function NameChangeRow({ nameChange, id }: NameChangeProps) {
-  const [loaded, setLoaded] = useState(false);
-  const [statusString, statusColor, reason] = nameChangeInfo(nameChange);
+export default function NameChangeRow({ nameChange }: NameChangeRowProps) {
+  const { oldName, newName, submittedAt, processedAt, status } = nameChange;
 
-  useEffect(() => setLoaded(true), []);
+  const isClient = useClientOnly();
 
-  const tooltipId = `name-change-${id}`;
+  const [statusText, statusReason] = nameChangeInfo(nameChange);
 
   return (
-    <div className={styles.nameChange}>
-      <div className={`${styles.name} ${styles.old}`}>{nameChange.oldName}</div>
-      <div className={styles.arrow}>
+    <div className={styles.nameChangeRow}>
+      <div className={styles.names}>
+        <span className={styles.oldName}>{oldName}</span>
         <i className="fas fa-arrow-right" />
+        <span className={styles.newName}>{newName}</span>
       </div>
-      <div className={styles.name}>{nameChange.newName}</div>
-      <div className={styles.submitted}>
-        Submitted{' '}
-        {loaded && <TimeAgo date={nameChange.submittedAt} live={false} />}
+
+      <div className={styles.timestamps}>
+        <div className={styles.timestamp}>
+          <span className={styles.label}>Submitted</span>
+          <span className={styles.value}>
+            {isClient ? <TimeAgo date={submittedAt} /> : '-'}
+          </span>
+        </div>
+
+        <div className={styles.timestamp}>
+          <span className={styles.label}>Processed</span>
+          <span className={styles.value}>
+            {isClient ? (
+              processedAt ? (
+                <TimeAgo date={processedAt} />
+              ) : (
+                'Pending'
+              )
+            ) : (
+              '-'
+            )}
+          </span>
+        </div>
       </div>
-      <div className={styles.processed}>
-        {nameChange.processedAt && (
-          <>
-            {'Processed '}
-            {loaded && <TimeAgo date={nameChange.processedAt} live={false} />}
-          </>
-        )}
-      </div>
-      <div className={styles.status} style={{ color: statusColor }}>
-        {statusString}
-        {reason !== null && (
-          <>
-            <Tooltip tooltipId={tooltipId}>
-              <span className={styles.tooltip}>{reason}</span>
-            </Tooltip>
-            <i className={`fa fa-info-circle`} data-tooltip-id={tooltipId} />
-            <span className="sr-only">{reason}</span>
-          </>
-        )}
+
+      <div className={styles.status}>
+        <span
+          className={`${styles.statusBadge} ${
+            status === NameChangeStatus.ACCEPTED
+              ? styles.accepted
+              : status === NameChangeStatus.PENDING
+                ? styles.pending
+                : styles.rejected
+          }`}
+        >
+          {statusText}
+          {statusReason && (
+            <i
+              className="fas fa-info-circle"
+              data-tooltip-id="name-change-tooltip"
+              data-tooltip-content={statusReason}
+            />
+          )}
+        </span>
       </div>
     </div>
   );

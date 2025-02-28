@@ -1,44 +1,47 @@
 import { redirect } from 'next/navigation';
 
-import { getApiKeys, getSignedInUser } from '@/actions/users';
+import { getSignedInUser, getUserSettings } from '@/actions/users';
+import Card from '@/components/card';
 
-import ApiKeyPanel from './api-key-panel';
+import ApiKeysSection from './api-keys-section';
 
 import styles from './style.module.scss';
 
 export default async function Settings() {
   const user = await getSignedInUser();
   if (user === null) {
-    redirect('/login');
+    redirect('/login?next=/settings');
   }
 
-  const apiKeys = await getApiKeys();
+  const settings = await getUserSettings();
 
   return (
     <div className={styles.settings}>
-      <div className={styles.panel}>
-        <h2>Account</h2>
-        <div>{user.username}</div>
-        <div>
-          Member since{' '}
-          {user.createdAt.toLocaleDateString(undefined, {
-            year: 'numeric',
-            month: 'numeric',
-            day: 'numeric',
-          })}
-        </div>
-      </div>
+      <div className={styles.settingsInner}>
+        <Card className={styles.header} primary>
+          <h1>Account Settings</h1>
+          <div className={styles.accountInfo}>
+            <div className={styles.field}>
+              <label>Username</label>
+              <div className={styles.value}>
+                {user.username}
+                <span className={styles.memberSince}>
+                  Member since {user.createdAt.toLocaleDateString()}
+                </span>
+              </div>
+            </div>
+          </div>
+        </Card>
 
-      <div className={`${styles.panel} ${styles.apiKeys}`}>
-        <ApiKeyPanel initialApiKeys={apiKeys} />
+        <ApiKeysSection initialApiKeys={settings.apiKeys} />
       </div>
     </div>
   );
 }
 
 export const metadata = {
-  title: 'Settings',
-  description: 'Manage your account settings',
+  title: 'Account Settings',
+  description: 'Manage your Blert account settings and API keys.',
 };
 
 export const dynamic = 'force-dynamic';

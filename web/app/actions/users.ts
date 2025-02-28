@@ -159,12 +159,27 @@ export async function getSignedInUser(): Promise<User | null> {
 
 export type ApiKeyWithUsername = ApiKey & { rsn: string };
 
-export async function getApiKeys(): Promise<ApiKeyWithUsername[]> {
+export type UserSettings = {
+  apiKeys: ApiKeyWithUsername[];
+};
+
+/**
+ * Returns all settings for the current user.
+ * @returns The user's settings.
+ */
+export async function getUserSettings(): Promise<UserSettings> {
   const session = await auth();
   if (session === null || session.user.id === undefined) {
     throw new Error('Not authenticated');
   }
 
+  const userId = parseInt(session.user.id);
+
+  const apiKeys = await getApiKeys(userId);
+  return { apiKeys };
+}
+
+async function getApiKeys(userId: number): Promise<ApiKeyWithUsername[]> {
   const keysWithPlayer = await sql`
     SELECT
       api_keys.id,
@@ -174,7 +189,7 @@ export async function getApiKeys(): Promise<ApiKeyWithUsername[]> {
       players.username as rsn
     FROM api_keys
     JOIN players ON api_keys.player_id = players.id
-    WHERE api_keys.user_id = ${session.user.id}
+    WHERE api_keys.user_id = ${userId}
   `;
 
   return keysWithPlayer.map((key) => ({
@@ -268,7 +283,7 @@ export async function createApiKey(rsn: string): Promise<ApiKeyWithUsername> {
     const key = randomBytes(API_KEY_BYTE_LENGTH).toString('hex');
 
     try {
-      let [{ keyId }] = await sql`
+      const [{ id: keyId }] = await sql`
         INSERT INTO api_keys (user_id, player_id, key)
         VALUES (${session.user.id}, ${player.id}, ${key})
         RETURNING id
@@ -315,6 +330,9 @@ export async function submitApiKeyForm(
   formData: FormData,
 ): Promise<ApiKeyFormState> {
   const rsn = (formData.get('blert-api-key-rsn') as string).trim();
+  if (rsn.length < 1 || rsn.length > 12) {
+    return { error: 'Invalid RSN' };
+  }
 
   let apiKey;
   try {

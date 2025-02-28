@@ -1,128 +1,315 @@
 @use '../../mixins.scss' as *;
 
 .settings {
-  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 32px 20px;
 
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    padding: 0;
+    width: 100%;
+  }
+}
+
+.settingsInner {
   display: flex;
-  flex-flow: row wrap;
-  justify-content: center;
-  align-items: center;
+  flex-direction: column;
+  gap: 32px;
 
-  .panel {
-    @include panel;
-    flex-direction: column;
-    align-self: flex-start;
-    padding: 10px 20px;
-    margin: 20px;
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    gap: 16px;
+  }
+}
 
-    & > h2 {
-      margin: 0 0 15px 0;
+.header {
+  h1 {
+    font-size: 1.8em;
+    margin: 0 0 24px 0;
+    color: var(--blert-text-color);
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      font-size: 1.5em;
+      margin-bottom: 16px;
+    }
+  }
+}
+
+.section {
+  @include panel;
+  flex-direction: column;
+  padding: 20px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    padding: 16px;
+    border-radius: 0;
+  }
+
+  h2 {
+    font-size: 1.5em;
+    margin: 0;
+    color: var(--blert-text-color);
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      font-size: 1.3em;
     }
   }
 
-  .apiKeys {
-    & > h2 {
-      margin: 0;
+  h3 {
+    font-size: 1.2em;
+    margin: 0 0 16px 0;
+    color: var(--blert-text-color);
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      font-size: 1.1em;
+      margin-bottom: 12px;
+    }
+  }
+}
+
+.sectionHeader {
+  margin-bottom: 24px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    margin-bottom: 16px;
+  }
+
+  .description {
+    margin: 8px 0 0 0;
+    color: var(--font-color-nav);
+    font-size: 0.95em;
+    line-height: 1.5;
+  }
+}
+
+.accountInfo {
+  .field {
+    label {
+      display: block;
+      font-size: 0.9em;
+      color: var(--font-color-nav);
+      margin-bottom: 4px;
     }
 
-    .apiKeysList {
-      .apiKey {
-        padding: 15px 0;
-
-        &:not(:last-child) {
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .wrapper {
-          display: flex;
-          justify-content: space-between;
-        }
-
-        input {
-          resize: none;
-          width: 260px;
-          font-size: 16px;
-          background: none;
-          outline: none;
-          border: 1px solid var(--blert-text-color);
-          border-radius: 5px;
-          color: var(--blert-text-color);
-          text-align: center;
-          padding: 3px 8px 5px 8px;
-          font-family: var(--font-roboto-mono), monospace;
-          flex-grow: 1;
-        }
-
-        .actions {
-          display: flex;
-          margin-left: 10px;
-
-          button {
-            margin-left: 5px;
-            border: 1px solid var(--blert-text-color);
-            border-radius: 5px;
-            height: 34px;
-            width: 34px;
-            font-size: 18px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-
-            &:hover {
-              background-color: var(--content-area-bg);
-              cursor: pointer;
-            }
-          }
-        }
-
-        .keyInfo {
-          margin-top: 10px;
-
-          .account {
-            display: flex;
-            align-items: center;
-
-            .accountName {
-              font-weight: 700;
-              color: #fff;
-              margin: 0 5px;
-            }
-
-            a {
-              color: var(--blert-blue);
-              margin-left: auto;
-              font-size: 14px;
-
-              &:hover {
-                cursor: pointer;
-                opacity: 0.8;
-              }
-            }
-          }
-
-          .lastUsed {
-            margin-top: 4px;
-          }
-        }
-      }
-    }
-
-    & > h3 {
-      margin-bottom: 5px;
-    }
-
-    .apiKeyForm {
+    .value {
       display: flex;
+      align-items: baseline;
+      gap: 12px;
+      font-size: 1.1em;
+      color: var(--blert-text-color);
 
-      .generateButton {
-        flex-grow: 1;
-        margin: 10px 0 0 10px;
-        height: 42px;
+      @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .memberSince {
+        font-size: 0.85em;
+        color: var(--font-color-nav);
+      }
+    }
+  }
+}
+
+.apiKeys {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 32px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    margin-bottom: 24px;
+  }
+
+  .emptyState {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 32px;
+    background: var(--nav-bg);
+    border-radius: 6px;
+    color: var(--font-color-nav);
+
+    i {
+      font-size: 2em;
+      margin-bottom: 16px;
+      color: var(--blert-button);
+    }
+
+    h3 {
+      margin: 0 0 8px 0;
+      color: var(--blert-text-color);
+      font-size: 1.2em;
+    }
+
+    p {
+      margin: 0;
+      font-size: 0.95em;
+      line-height: 1.5;
+      max-width: 400px;
+    }
+  }
+}
+
+.apiKey {
+  background: var(--nav-bg);
+  border-radius: 8px;
+  padding: 16px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    padding: 12px;
+  }
+
+  .keyInfo {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .keyValue {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: monospace;
+    font-size: 1.1em;
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 1em;
+    }
+
+    .dots {
+      letter-spacing: 0px;
+      color: var(--blert-text-color);
+    }
+
+    .key {
+      color: var(--blert-text-color);
+      letter-spacing: 1px;
+      user-select: all;
+      word-break: break-all;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-left: auto;
+
+      @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+        margin-left: 0;
+        width: 100%;
+        justify-content: flex-end;
       }
     }
 
-    .formError {
+    .action {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      color: var(--font-color-nav);
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      &:hover {
+        background: var(--nav-bg-lightened);
+        color: var(--blert-button);
+      }
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+  }
+
+  .keyMeta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 0.9em;
+    color: var(--font-color-nav);
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+    }
+
+    strong {
+      color: var(--blert-text-color);
+    }
+
+    .lastUsed {
+      color: var(--font-color-nav-dimmed);
+    }
+  }
+}
+
+.generateKey {
+  background: var(--nav-bg);
+  border-radius: 8px;
+  padding: 20px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    padding: 16px;
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+
+    .error {
       color: var(--blert-red);
+      font-size: 0.9em;
+      text-align: center;
+      margin: 0;
+      padding: 8px 12px;
+      background: rgba(var(--blert-red-base), 0.1);
+      border-radius: 6px;
+    }
+  }
+}
+
+.deleteModal {
+  padding: 24px;
+  background: var(--panel-bg);
+  border-radius: 8px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    padding: 20px;
+  }
+
+  h3 {
+    margin: 0 0 16px 0;
+    color: var(--blert-text-color);
+    font-size: 1.3em;
+  }
+
+  p {
+    margin: 0 0 24px 0;
+    color: var(--font-color-nav);
+    line-height: 1.5;
+
+    strong {
+      color: var(--blert-text-color);
+    }
+  }
+
+  .modalActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+
+    button {
+      min-width: 80px;
     }
   }
 }

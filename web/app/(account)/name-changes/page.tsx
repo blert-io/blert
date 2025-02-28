@@ -1,6 +1,10 @@
+import { ResolvingMetadata } from 'next';
 import Link from 'next/link';
 
 import { getRecentNameChanges } from '@/actions/change-name';
+import Tooltip from '@/components/tooltip';
+import { basicMetadata } from '@/utils/metadata';
+
 import NameChangeRow from './name-change-row';
 
 import styles from './style.module.scss';
@@ -10,23 +14,32 @@ export default async function NameChanges() {
 
   return (
     <div className={styles.nameChanges}>
-      <div className={styles.heading}>
-        <h2>Recent Name Changes</h2>
-        <Link className={styles.submit} href="/change-name">
-          Submit a name change
-        </Link>
-      </div>
-      {nameChanges.length > 0 ? (
-        <div className={styles.table}>
-          {nameChanges.map((nameChange, i) => (
-            <NameChangeRow key={i} id={i} nameChange={nameChange} />
+      <div className={styles.nameChangesInner}>
+        <div className={styles.header}>
+          <h1>
+            <i className="fas fa-history" /> Recent Name Changes
+          </h1>
+          <Link href="/change-name" className={styles.submitButton}>
+            Submit a name change
+          </Link>
+        </div>
+
+        <div className={styles.nameChangeList}>
+          {nameChanges.map((change, i) => (
+            <NameChangeRow key={i} nameChange={change} />
           ))}
         </div>
-      ) : (
-        <div className={styles.empty}>No recent name changes</div>
-      )}
+      </div>
+      <Tooltip tooltipId="name-change-tooltip">
+        <div />
+      </Tooltip>
     </div>
   );
 }
 
-export const dynamic = 'force-dynamic';
+export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
+  return basicMetadata(await parent, {
+    title: 'Recent Name Changes',
+    description: 'Track recent OSRS player name changes.',
+  });
+}
