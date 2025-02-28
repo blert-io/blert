@@ -93,12 +93,16 @@ function ActivityChart() {
   });
 
   const fetchData = useCallback(async () => {
-    const res = await fetch(`/api/activity/players`);
-    const payload: number[] = await res.json();
-    setActivityData({
-      startHour: new Date().getUTCHours(),
-      data: payload.map((p, i) => ({ hour: i, players: p })),
-    });
+    try {
+      const res = await fetch(`/api/activity/players`);
+      const payload: number[] = await res.json();
+      setActivityData({
+        startHour: new Date().getUTCHours(),
+        data: payload.map((p, i) => ({ hour: i, players: p })),
+      });
+    } catch (err) {
+      // TODO(frolv): Handle error.
+    }
   }, [setActivityData]);
 
   useEffect(() => {
@@ -257,42 +261,46 @@ export function ChallengeStats({ initialStats }: ChallengeStatsProps) {
       startTime: `ge${start.getTime()}`,
     });
 
-    const [scalePayload, statusPayload]: [GroupedCount, GroupedCount] =
-      await Promise.all([
-        fetch(`/api/v1/challenges/stats?${filterParams}&group=scale`).then(
-          (res) => res.json(),
-        ),
-        fetch(`/api/v1/challenges/stats?${filterParams}&group=status`).then(
-          (res) => res.json(),
-        ),
-      ]);
+    try {
+      const [scalePayload, statusPayload]: [GroupedCount, GroupedCount] =
+        await Promise.all([
+          fetch(`/api/v1/challenges/stats?${filterParams}&group=scale`).then(
+            (res) => res.json(),
+          ),
+          fetch(`/api/v1/challenges/stats?${filterParams}&group=status`).then(
+            (res) => res.json(),
+          ),
+        ]);
 
-    const totalChallenges = Object.values(scalePayload).reduce(
-      (acc, curr) => acc + curr['*'].count,
-      0,
-    );
+      const totalChallenges = Object.values(scalePayload).reduce(
+        (acc, curr) => acc + curr['*'].count,
+        0,
+      );
 
-    let mostPopularScale = 0;
-    let mostPopularScaleCount = 0;
-    for (const [scale, result] of Object.entries(scalePayload)) {
-      if (result['*'].count > mostPopularScaleCount) {
-        mostPopularScale = parseInt(scale);
-        mostPopularScaleCount = result['*'].count;
+      let mostPopularScale = 0;
+      let mostPopularScaleCount = 0;
+      for (const [scale, result] of Object.entries(scalePayload)) {
+        if (result['*'].count > mostPopularScaleCount) {
+          mostPopularScale = parseInt(scale);
+          mostPopularScaleCount = result['*'].count;
+        }
       }
-    }
 
-    const stats: Stats = {
-      total: totalChallenges,
-      completions: statusPayload[ChallengeStatus.COMPLETED]?.['*'].count ?? 0,
-      mostPopularScale: {
-        scale: mostPopularScale,
-        percentage:
-          totalChallenges > 0
-            ? (mostPopularScaleCount / totalChallenges) * 100
-            : 0,
-      },
-    };
-    setStats(stats);
+      const stats: Stats = {
+        total: totalChallenges,
+        completions: statusPayload[ChallengeStatus.COMPLETED]?.['*'].count ?? 0,
+        mostPopularScale: {
+          scale: mostPopularScale,
+          percentage:
+            totalChallenges > 0
+              ? (mostPopularScaleCount / totalChallenges) * 100
+              : 0,
+        },
+      };
+      setStats(stats);
+    } catch (err) {
+      // TODO(frolv): Handle error.
+    }
   }, [setStats, timePeriod]);
 
   useEffect(() => {
@@ -561,10 +569,8 @@ export function ActivityFeed({
   }, [fetchActivity]);
 
   return (
-    <div className={`${styles.card} ${styles.activityFeed}`}>
-      <div className={styles.cardHeader}>
-        <h2>Live Activity</h2>
-        {/* TODO(frolv): Enable filtering once PB feed is implemented.
+    <Card header={{ title: 'Live Activity' }} className={styles.activityFeed}>
+      {/* TODO(frolv): Enable filtering once PB feed is implemented.
         <RadioInput.Group
           name="feed-type"
           className={styles.filters}
@@ -591,7 +597,6 @@ export function ActivityFeed({
             checked={feedType === FeedType.PBS}
           />
         </RadioInput.Group> */}
-      </div>
       <div className={styles.feedItems}>
         {error ? (
           <ErrorState onRetry={fetchActivity} />
@@ -607,7 +612,7 @@ export function ActivityFeed({
           ))
         )}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -645,19 +650,23 @@ export function GuidesCard() {
   const [setups, setSetups] = useState<GuideCardItem[]>([]);
 
   const fetchSetups = useCallback(async () => {
-    const res = await fetch('/api/setups?limit=2');
-    const data: SetupListItem[] = await res.json();
-    setSetups(
-      data.map((setup) => ({
-        title: setup.name,
-        description: '',
-        href: `/setups/${setup.publicId}`,
-        updatedAt: setup.updatedAt ? new Date(setup.updatedAt) : undefined,
-        score: setup.score,
-        views: setup.views,
-        author: setup.author,
-      })),
-    );
+    try {
+      const res = await fetch('/api/setups?limit=2');
+      const data: SetupListItem[] = await res.json();
+      setSetups(
+        data.map((setup) => ({
+          title: setup.name,
+          description: '',
+          href: `/setups/${setup.publicId}`,
+          updatedAt: setup.updatedAt ? new Date(setup.updatedAt) : undefined,
+          score: setup.score,
+          views: setup.views,
+          author: setup.author,
+        })),
+      );
+    } catch (err) {
+      // TODO(frolv): Handle error.
+    }
   }, []);
 
   useEffect(() => {
@@ -848,28 +857,32 @@ export function LeaderboardCard({
       from: startOfTimePeriod(timePeriod).getTime(),
     };
 
-    const responses = await Promise.all(
-      [5, 4, 3, 2].map((scale) =>
-        fetch(`/api/v1/leaderboards?${queryString({ ...params, scale })}`).then(
-          (res) => res.json(),
+    try {
+      const responses = await Promise.all(
+        [5, 4, 3, 2].map((scale) =>
+          fetch(
+            `/api/v1/leaderboards?${queryString({ ...params, scale })}`,
+          ).then((res) => res.json()),
         ),
-      ),
-    );
+      );
 
-    const leaderboards = responses.map((res, i) => ({
-      scale: 5 - i,
-      entries: (res[SplitType.TOB_REG_CHALLENGE] ?? []).map(
-        (entry: RankedSplit, i: number) => ({
-          rank: i + 1,
-          time: entry.ticks,
-          party: entry.party,
-          uuid: entry.uuid,
-          date: entry.date,
-        }),
-      ),
-    }));
+      const leaderboards = responses.map((res, i) => ({
+        scale: 5 - i,
+        entries: (res[SplitType.TOB_REG_CHALLENGE] ?? []).map(
+          (entry: RankedSplit, i: number) => ({
+            rank: i + 1,
+            time: entry.ticks,
+            party: entry.party,
+            uuid: entry.uuid,
+            date: entry.date,
+          }),
+        ),
+      }));
 
-    setLeaderboards(leaderboards);
+      setLeaderboards(leaderboards);
+    } catch (err) {
+      // TODO(frolv): Handle error.
+    }
   }, [timePeriod, setLeaderboards]);
 
   useEffect(() => {
