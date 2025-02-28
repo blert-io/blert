@@ -28,6 +28,7 @@ import { SetupListItem } from './actions/setup';
 import Card, { CardLink } from './components/card';
 import Carousel from './components/carousel';
 import RadioInput from './components/radio-input';
+import { useClientOnly } from './hooks/client-only';
 import { partyNames } from './utils/challenge-description';
 import { ticksToFormattedSeconds } from './utils/tick';
 import { challengeUrl, queryString } from './utils/url';
@@ -748,6 +749,8 @@ type ScaleLeaderboard = {
 };
 
 function Leaderboard({ leaderboard }: { leaderboard: ScaleLeaderboard }) {
+  const isClient = useClientOnly();
+
   return (
     <div className={styles.leaderboardList} style={{ width: CAROUSEL_WIDTH }}>
       <h3 className={styles.carouselTitle}>
@@ -762,7 +765,7 @@ function Leaderboard({ leaderboard }: { leaderboard: ScaleLeaderboard }) {
               className={styles.leaderboardEntry}
             >
               <div className={styles.date}>
-                <ReactTimeago date={entry.date} />
+                {isClient && <ReactTimeago date={entry.date} />}
               </div>
               <div className={styles.topRow}>
                 <div className={styles.rank}>

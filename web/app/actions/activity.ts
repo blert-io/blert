@@ -20,7 +20,7 @@ export interface ChallengeEndFeedItem extends ActivityFeedItem {
 
 export async function getRecentFeedItems(limit: number = 10) {
   const client = await redis();
-  const rawFeed: RedisActivityFeedItem[] = await client
+  const rawFeed: Array<RedisActivityFeedItem & { time: Date }> = await client
     .xRevRange(ACTIVITY_FEED_KEY, '+', '-', {
       COUNT: limit,
     })
