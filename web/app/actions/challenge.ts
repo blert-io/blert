@@ -176,6 +176,7 @@ export type SortableFields = BasicSortableFields | SplitSortableFields;
 type SingleOrArray<T> = T | T[];
 
 export type ChallengeQuery = {
+  uuid?: string[];
   type?: Comparator<ChallengeType>;
   mode?: SingleOrArray<ChallengeMode>;
   status?: Comparator<ChallengeStatus>;
@@ -370,6 +371,10 @@ function applyFilters(
   let baseTable = sql`challenges`;
   const joins: Join[] = [];
   const conditions = [];
+
+  if (query.uuid !== undefined) {
+    conditions.push(sql`challenges.uuid = ANY(${query.uuid})`);
+  }
 
   if (query.party !== undefined) {
     if (query.party.length === 0) {
@@ -1242,12 +1247,15 @@ export type RankedSplit = {
  * @param types The split types to fetch.
  * @param scale The challenge scale.
  * @param numRanks How many split times to fetch for each split type.
+ * @param startTime Only return splits from challenges that started after
+ *   this time.
  * @returns Object mapping split types to an array of ranked split times.
  */
 export async function findBestSplitTimes(
   types: SplitType[],
   scale: number,
   numRanks: number,
+  startTime?: Date,
 ): Promise<{ [split in SplitType]?: RankedSplit[] }> {
   const rankedSplits: { [split in SplitType]?: RankedSplit[] } = {};
   const partiesToUpdate: Array<[number, any]> = [];
@@ -1275,6 +1283,7 @@ export async function findBestSplitTimes(
           challenge_splits.accurate
           AND challenge_splits.type = ${type}
           AND challenge_splits.scale = ${scale}
+          ${startTime ? sql`AND challenges.start_time >= ${startTime}` : sql``}
         ORDER BY challenge_splits.ticks, challenges.start_time
         LIMIT ${numRanks};
       `;

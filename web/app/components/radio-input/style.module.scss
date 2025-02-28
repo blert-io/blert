@@ -2,10 +2,35 @@
   $selectedColor: rgb(46, 38, 77);
 
   display: flex;
+  gap: 4px;
   width: 100%;
 
   &:not(:last-child) {
     margin-bottom: 10px;
+  }
+
+  &.joined {
+    gap: 0;
+    border-radius: 5px;
+    overflow: hidden;
+
+    .radioOption {
+      border-radius: 0;
+    }
+  }
+
+  &.compact {
+    .radioOption {
+      flex-basis: initial;
+
+      label {
+        padding: 6px;
+      }
+
+      input:checked + label {
+        font-weight: initial;
+      }
+    }
   }
 
   .radioOption {
@@ -25,10 +50,6 @@
         cursor: pointer;
         background: rgba($selectedColor, 0.4);
       }
-    }
-
-    &:not(:last-child) {
-      margin-right: 4px;
     }
 
     input {

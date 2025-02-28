@@ -33,15 +33,29 @@ export function Option(props: OptionProps) {
 }
 
 type GroupProps = {
+  className?: string;
   children: React.ReactNode;
+  compact?: boolean;
+  joined?: boolean;
   name: string;
   onChange?: (value: number | string) => void;
   readOnly?: boolean;
 };
 
 export function Group(props: GroupProps) {
+  let className = styles.radioGroup;
+  if (props.className) {
+    className += ` ${props.className}`;
+  }
+  if (props.joined) {
+    className += ` ${styles.joined}`;
+  }
+  if (props.compact) {
+    className += ` ${styles.compact}`;
+  }
+
   return (
-    <div className={styles.radioGroup}>
+    <div className={className}>
       {React.Children.map(props.children, (child) => {
         if (child === null || child === undefined) {
           return null;

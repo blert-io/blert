@@ -1,29 +1,127 @@
+import { ChallengeStatus, SplitType } from '@blert/common';
 import Image from 'next/image';
 import Link from 'next/link';
 
+import {
+  aggregateChallenges,
+  findBestSplitTimes,
+  RankedSplit,
+} from './actions/challenge';
 import CollapsiblePanel from './components/collapsible-panel';
+import {
+  ActivityFeed,
+  ChallengeStats,
+  GuidesCard,
+  LeaderboardCard,
+} from './home-cards';
 
 import styles from './home.module.scss';
 
-export default function Home() {
+const LEADERBOARD_SCALES = [5, 4, 3, 2];
+
+export default async function Home() {
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+
+  const statsQueries = Promise.all([
+    aggregateChallenges(
+      { startTime: ['>=', today] },
+      { '*': 'count' },
+      {},
+      'scale',
+    ),
+    aggregateChallenges(
+      { startTime: ['>=', today] },
+      { '*': 'count' },
+      {},
+      'status',
+    ),
+  ]);
+
+  const leaderboardQueries = Promise.all(
+    LEADERBOARD_SCALES.map((scale) =>
+      findBestSplitTimes([SplitType.TOB_REG_CHALLENGE], scale, 3, today),
+    ),
+  );
+
+  const [[byScale, byStatus], leaderboardData] = await Promise.all([
+    statsQueries,
+    leaderboardQueries,
+  ]);
+
+  let totalChallenges = 0;
+  let mostPopularScale = 0;
+  let mostPopularScaleCount = 0;
+  Object.entries(byScale ?? {}).forEach(([scale, count]) => {
+    totalChallenges += count['*'].count;
+    if (count['*'].count > mostPopularScaleCount) {
+      mostPopularScale = parseInt(scale);
+      mostPopularScaleCount = count['*'].count;
+    }
+  });
+  const stats = {
+    total: totalChallenges,
+    completions: byStatus?.[ChallengeStatus.COMPLETED]?.['*']?.count ?? 0,
+    mostPopularScale: {
+      scale: mostPopularScale,
+      percentage: (mostPopularScaleCount / totalChallenges) * 100,
+    },
+  };
+
+  const leaderboards = leaderboardData.map((res, i) => ({
+    scale: 5 - i,
+    entries: (res[SplitType.TOB_REG_CHALLENGE] ?? []).map(
+      (entry: RankedSplit, i: number) => ({
+        rank: i + 1,
+        time: entry.ticks,
+        party: entry.party,
+        uuid: entry.uuid,
+        date: entry.date,
+      }),
+    ),
+  }));
+
   return (
     <div className={styles.home}>
       <div className={styles.homeInner}>
-        <div className={styles.image}>
-          <Image
-            src="/tobdataegirl.png"
-            alt="Tob Data Egirl waving"
-            fill
-            style={{ objectFit: 'contain' }}
-          />
+        <div className={styles.registerCta}>
+          <div className={styles.ctaContent}>
+            <h1>Track Your PvM Progress</h1>
+            <p>
+              Join hundreds of players using Blert to analyze and improve their
+              Theatre of Blood raids.
+            </p>
+          </div>
+          <div className={styles.ctaButtons}>
+            <Link href="/register" className={styles.primaryButton}>
+              Create Account <i className="fas fa-arrow-right" />
+            </Link>
+            <Link
+              href="https://github.com/blert-io/plugin/blob/main/DEVELOPMENT.md"
+              target="_blank"
+              rel="noreferrer noopener"
+              className={styles.secondaryButton}
+            >
+              Get Plugin <i className="fas fa-external-link-alt" />
+            </Link>
+          </div>
         </div>
+
+        <div className={styles.statsGrid}>
+          <ChallengeStats initialStats={stats} />
+          <GuidesCard />
+          <LeaderboardCard initialLeaderboards={leaderboards} />
+        </div>
+
+        <ActivityFeed />
 
         <CollapsiblePanel
           panelTitle="Status Updates"
           maxPanelHeight={9999}
           defaultExpanded
-          className={styles.homeOverview}
+          className={styles.statusPanel}
           disableExpansion
+          panelWidth="auto"
         >
           <div className={styles.homeOverviewInner}>
             <div className={styles.statusSection}>
@@ -46,160 +144,78 @@ export default function Home() {
                   </li>
                 </ul>
               </div>
-
-              {/* <div className={styles.statusCard}>
-                <h3 className={`${styles.statusHeading} ${styles.success}`}>
-                  🎉 Latest Updates
-                </h3>
-                <span className={styles.statusTimestamp}>
-                  Last updated: Feb 18, 2025 12:00 UTC
-                </span>
-                <ul className={styles.statusList}>
-                  <li>Lorem ipsum dolor sit amet</li>
-                </ul>
-              </div> */}
-
-              {/* <div className={styles.statusCard}>
-                <h3 className={`${styles.statusHeading} ${styles.info}`}>
-                  🚀 Coming Soon
-                </h3>
-                <span className={styles.statusTimestamp}>
-                  Last updated: Feb 17, 2025 09:15 UTC
-                </span>
-                <ul className={styles.statusList}>
-                  <li>Lorem ipsum dolor sit amet</li>
-                </ul>
-              </div> */}
             </div>
           </div>
         </CollapsiblePanel>
 
         <CollapsiblePanel
-          panelTitle="Blert Dot Eye Oh"
+          panelTitle="About Blert"
           maxPanelHeight={9999}
-          defaultExpanded={true}
-          className={styles.homeOverview}
-          disableExpansion={true}
+          defaultExpanded
+          className={styles.aboutPanel}
         >
-          <div className={styles.homeOverviewInner}>
-            <h2 className={styles.welcomeTitle}>Welcome to blert!</h2>
-            <p className={styles.contentText}>
-              <strong className={styles.sectionTitle}>What is blert?</strong>
-              <br />
-              <br />
-              Blert is a RuneLite plugin, data analysis pipeline, and web tool
-              that we have been developing for several months now. It originally
-              started as a plugin to track and visualize Theatre of Blood raid
-              data but its scope has since expanded to encompass any-and-all
-              endgame PvM content (of nontrivial difficulty) that exists in
-              OSRS.
-            </p>
-            <p className={styles.contentText}>
-              <strong className={styles.sectionTitle}>Why?</strong>
-              <br />
-              <br />
-              We believe that the OSRS PvM community is in need of a tool that
-              can help players improve their performance and learn from their
-              mistakes (or call out their friends&apos; mistakes...). Our
-              long-term goal is to be the{' '}
-              <Link
-                className={styles.link}
-                href="https://wiseoldman.net/"
-                target="_blank"
-                rel="noreferrer noopener"
-              >
-                wiseoldman.net
-              </Link>{' '}
-              equivalent but for PvM data analysis.
-              <br />
-              Our tool aims to fill the gap that exists in the OSRS
-              high-level-community that is covered in other major MMOs - tools
-              like{' '}
-              <Link
-                className={styles.link}
-                href="https://warcraftlogs.com/"
-                target="_blank"
-                rel="noreferrer noopener"
-              >
-                warcraftlogs.com
-              </Link>{' '}
-              &{' '}
-              <Link
-                className={styles.link}
-                href="https://fflogs.com/"
-                target="_blank"
-                rel="noreferrer noopener"
-              >
-                fflogs.com
-              </Link>{' '}
-              {'.'}
-            </p>
-            <p className={styles.contentText}>
-              <strong className={styles.sectionTitle}>
-                Who made this thing?
-              </strong>
-              <br />
-              <br />
-              Contrary to popular opinion, the developers of Blert are Sacolyn
-              (aka TobDataEgirl) and 715 (aka TobDataBoy) -- NOT Caps Lock13
-              😊... but we might have added some easter eggs pertaining to Caps
-              since hes been a part of this journey.
-            </p>
-            <p className={styles.contentText}>
-              <strong className={styles.sectionTitle}>
-                What content is supported so far?
-              </strong>
-              <br />
-              <br />
-              Our efforts so far have been focused on ToB. Our plugin
-              infrastructure and data processing is set up to be generic enough
-              to support any PvM content in the game.
-            </p>
-            <p className={styles.contentText}>
-              <strong className={styles.sectionTitle}>
-                What content are you going to work on next?
-              </strong>
-              <br />
-              <br />
-              When the Fortis Colosseum comes out on March 20th we will likely
-              shift to that as our primary focus. If we get additional
-              contributors we will be able to support more content more quickly,
-              consider lending a hand!
-            </p>
-            <p className={styles.contentText}>
-              <strong className={styles.sectionTitle}>
-                Is it released yet?
-              </strong>
-              <br />
-              <br />
-              We will be submitting Blert for review by the RuneLite team in the
-              coming weeks. We are currently in the process of finalizing v1 of
-              the plugin :)
-            </p>
-            <div className={styles.helpSection}>
-              <strong className={styles.helpTitle}>Do you need help?</strong>
-              <br />
-              <br />
-              Yes! Right now we are looking for three things primarily;
-              <ol className={styles.helpList}>
-                <li>
-                  <strong>Code contributors</strong>! If you know Java,
-                  HTML/CSS/React or Next
-                </li>
-                <li>UX Feedback</li>
-                <li>Feature requests</li>
-              </ol>
-              If you&apos;d like to help out or if you have any questions about
-              our website or plugin, please reach us on our{' '}
-              <a
-                className={styles.helpLink}
-                href="https://discord.gg/c5Hgv3NnYe"
-                target="_blank"
-                rel="noreferrer noopener"
-              >
-                Discord Server
-              </a>
-              !
+          <div className={styles.aboutContent}>
+            <div className={styles.mascot}>
+              <Image
+                src="/tobdataegirl.png"
+                alt="Tob Data Egirl waving"
+                width={200}
+                height={200}
+                style={{ objectFit: 'contain' }}
+              />
+            </div>
+
+            <div className={styles.aboutText}>
+              <h2>What is Blert?</h2>
+              <p>
+                Blert is a RuneLite plugin, data analysis pipeline, and web tool
+                for tracking and analyzing OSRS endgame PvM content. Originally
+                focused on Theatre of Blood, it now aims to support all
+                challenging PvM content in Old School RuneScape.
+              </p>
+
+              <h2>Our Goal</h2>
+              <p>
+                We aim to be the{' '}
+                <Link
+                  href="https://wiseoldman.net/"
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  Wise Old Man
+                </Link>{' '}
+                of PvM data analysis, similar to{' '}
+                <Link
+                  href="https://warcraftlogs.com/"
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  Warcraft Logs
+                </Link>{' '}
+                for WoW. Our tools help players improve their performance and
+                learn from their experiences.
+              </p>
+
+              <div className={styles.helpSection}>
+                <h2>Get Involved</h2>
+                <p>
+                  Join our{' '}
+                  <a
+                    href="https://discord.gg/c5Hgv3NnYe"
+                    target="_blank"
+                    rel="noreferrer noopener"
+                  >
+                    Discord Server
+                  </a>{' '}
+                  to:
+                </p>
+                <ul>
+                  <li>Contribute code (Java, React, Next.js)</li>
+                  <li>Provide UX feedback</li>
+                  <li>Suggest new features</li>
+                  <li>Get help with the plugin</li>
+                </ul>
+              </div>
             </div>
           </div>
         </CollapsiblePanel>
