@@ -11,10 +11,11 @@
 }
 
 .suggestions {
-  border-color: #fff !important;
+  border-color: rgba(var(--blert-button-base), 0.9) !important;
   background-color: var(--panel-bg);
 
   .suggestion {
     padding: 2px 12px;
+    opacity: 0.9;
   }
 }

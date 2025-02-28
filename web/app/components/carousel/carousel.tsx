@@ -143,7 +143,7 @@ export default function Carousel({
     if (controlledIndex !== undefined && controlledIndex !== currentIndex) {
       setCurrentIndex(controlledIndex);
     }
-  }, [controlledIndex]);
+  }, [controlledIndex, currentIndex]);
 
   useEffect(() => {
     if (currentIndex >= children.length) {

@@ -14,7 +14,7 @@
   }
 
   input {
-    border: 1px solid var(--blert-text-color);
+    border: 1px solid var(--font-color-nav-divider);
     border-radius: 5px;
     background: none;
     font-size: 16px;
@@ -25,13 +25,13 @@
 
     &:focus {
       outline: none;
-      border-color: #fff;
+      border-color: rgba(var(--blert-button-base), 0.9);
     }
 
     &:not(:placeholder-shown) + label,
     &:focus + label {
       font-size: 12px;
-      color: #fff;
+      color: rgba(var(--blert-button-base), 0.9);
       top: 2px;
     }
 

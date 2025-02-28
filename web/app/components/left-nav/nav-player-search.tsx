@@ -49,7 +49,6 @@ export default function NavPlayerSearch() {
       fluid
       id="blert-player-search"
       label="Find a player"
-      labelBg="var(--nav-bg)"
       maxLength={12}
       onChange={(value) => {
         setUsername(value);

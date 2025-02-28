@@ -3,11 +3,11 @@
 import { useActionState, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 
-import { RegistrationErrors, register, userExists } from '../../actions/users';
-import Button from '../../components/button';
-import Input from '../../components/input';
+import { RegistrationErrors, register, userExists } from '@/actions/users';
+import Button from '@/components/button';
+import Input from '@/components/input';
 
-import styles from './style.module.scss';
+import styles from '../style.module.scss';
 
 function FormFields({ errors }: { errors: RegistrationErrors | null }) {
   const { pending } = useFormStatus();
@@ -43,6 +43,7 @@ function FormFields({ errors }: { errors: RegistrationErrors | null }) {
             ? 'Username is already taken'
             : 'Only letters, numbers, hyphens, and underscores'
         }
+        faIcon="fa-solid fa-user"
         fluid
         id="blert-username"
         invalid={usernameExists || !validUsername}
@@ -71,6 +72,7 @@ function FormFields({ errors }: { errors: RegistrationErrors | null }) {
       <Input
         disabled={pending}
         errorMessage={errors?.email?.[0]}
+        faIcon="fa-solid fa-envelope"
         fluid
         id="blert-email"
         invalid={errors?.email !== undefined}
@@ -81,6 +83,7 @@ function FormFields({ errors }: { errors: RegistrationErrors | null }) {
       <Input
         disabled={pending}
         errorMessage={errors?.password?.[0]}
+        faIcon="fa-solid fa-lock"
         fluid
         id="blert-password"
         invalid={errors?.password !== undefined}
@@ -93,6 +96,7 @@ function FormFields({ errors }: { errors: RegistrationErrors | null }) {
       />
       <Input
         disabled={pending}
+        faIcon="fa-solid fa-lock"
         fluid
         id="blert-password-confirm"
         label="Confirm password"
@@ -102,7 +106,7 @@ function FormFields({ errors }: { errors: RegistrationErrors | null }) {
         type="password"
         value={passwordConfirm}
       />
-      <Button disabled={!canSubmit} loading={pending} type="submit">
+      <Button disabled={!canSubmit} fluid loading={pending} type="submit">
         Create your account
       </Button>
     </>
@@ -113,7 +117,7 @@ export default function RegisterForm() {
   const [errors, formAction] = useActionState(register, null);
 
   return (
-    <form action={formAction} className={styles.registerForm}>
+    <form action={formAction} className={styles.form}>
       <FormFields errors={errors} />
       {errors?.overall && <p className={styles.error}>{errors.overall}</p>}
     </form>

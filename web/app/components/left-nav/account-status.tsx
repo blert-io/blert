@@ -11,7 +11,6 @@ import styles from './styles.module.scss';
 export default function AccountStatus() {
   const currentPath = usePathname();
   const router = useRouter();
-
   const session = useSession();
 
   return (
@@ -19,14 +18,23 @@ export default function AccountStatus() {
       {session.status === 'authenticated' ? (
         <div className={styles.userWrapper}>
           <div className={styles.userInfo}>
-            Signed in as <span>{session.data.user.name || 'Unknown'}</span>
+            <div className={styles.avatar}>
+              <i className="fa-solid fa-user" />
+            </div>
+            <div className={styles.details}>
+              <div className={styles.label}>Signed in as</div>
+              <div className={styles.username}>
+                {session.data.user.name || 'Unknown'}
+              </div>
+            </div>
           </div>
-          <div className={styles.links}>
-            <Link className={styles.link} href="/settings">
-              Settings
+          <div className={styles.actions}>
+            <Link className={styles.action} href="/settings">
+              <i className="fa-solid fa-gear" />
+              <span>Settings</span>
             </Link>
             <button
-              className={styles.link}
+              className={styles.action}
               onClick={async () => {
                 const { url } = await signOut({
                   redirect: false,
@@ -37,17 +45,26 @@ export default function AccountStatus() {
                 router.replace(url);
               }}
             >
-              Log Out
+              <i className="fa-solid fa-right-from-bracket" />
+              <span>Log Out</span>
             </button>
           </div>
         </div>
       ) : (
-        <div className={styles.links}>
-          <Link className={styles.link} href="/login">
-            Log In
+        <div className={styles.authActions}>
+          <Link
+            className={`${styles.authAction} ${styles.login}`}
+            href="/login"
+          >
+            <i className="fa-solid fa-right-to-bracket" />
+            <span>Log In</span>
           </Link>
-          <Link className={styles.link} href="/register">
-            Sign Up
+          <Link
+            className={`${styles.authAction} ${styles.signup}`}
+            href="/register"
+          >
+            <i className="fa-solid fa-user-plus" />
+            <span>Sign Up</span>
           </Link>
         </div>
       )}

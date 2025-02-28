@@ -1,15 +1,15 @@
 'use client';
 
+import { getSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
-import { useRouter } from 'next/navigation';
 
 import { login } from '@/actions/users';
 import Input from '@/components/input';
 import Button from '@/components/button';
 
-import styles from './style.module.scss';
-import { getSession } from 'next-auth/react';
+import styles from '../style.module.scss';
 
 function FormFields() {
   const { pending } = useFormStatus();
@@ -17,12 +17,14 @@ function FormFields() {
   return (
     <>
       <Input
+        autoFocus
         disabled={pending}
         fluid
         id="blert-username"
         label="Username"
         maxLength={24}
         required
+        faIcon="fa-solid fa-user"
       />
       <Input
         disabled={pending}
@@ -31,9 +33,10 @@ function FormFields() {
         label="Password"
         required
         type="password"
+        faIcon="fa-solid fa-lock"
       />
-      <Button loading={pending} type="submit">
-        Log In
+      <Button loading={pending} type="submit" fluid>
+        Sign in
       </Button>
     </>
   );
@@ -55,7 +58,7 @@ export default function LoginForm({ redirectTo }: { redirectTo?: string }) {
   );
 
   return (
-    <form action={formAction} className={styles.loginForm}>
+    <form action={formAction} className={styles.form}>
       <FormFields />
       {error && <p className={styles.error}>{error}</p>}
     </form>

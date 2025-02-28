@@ -58,7 +58,7 @@ export default function ColosseumLinks() {
     <>
       <li className={styles.leftNav__menuItem}>
         <Link
-          className={`${styles.leftNav__menuItemInner}`}
+          className={`${styles.leftNav__menuItemInner} ${viewingColosseum && styles.leftNav__menuItemInnerActive}`}
           href="/challenges/colosseum"
         >
           <div className={styles.leftNav__menuItemIcon}>

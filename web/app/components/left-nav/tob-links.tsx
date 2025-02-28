@@ -59,7 +59,7 @@ export default function TobLinks() {
     <>
       <li className={styles.leftNav__menuItem}>
         <Link
-          className={`${styles.leftNav__menuItemInner} ${raid !== null && styles.leftNav__menuItemInnerActive}`}
+          className={`${styles.leftNav__menuItemInner} ${viewingTob && styles.leftNav__menuItemInnerActive}`}
           href="/raids/tob"
         >
           <div className={styles.leftNav__menuItemIcon}>
