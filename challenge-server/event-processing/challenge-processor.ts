@@ -161,6 +161,10 @@ export default abstract class ChallengeProcessor {
     }
   }
 
+  public getChallengeStatus(): ChallengeStatus {
+    return this.challengeStatus;
+  }
+
   protected getDatabaseId(): number {
     return this.databaseId;
   }
@@ -198,7 +202,12 @@ export default abstract class ChallengeProcessor {
     await this.createChallenge(startTime);
   }
 
-  public async finish(): Promise<void> {
+  /**
+   * Finalizes the challenge data in the database.
+   * @returns `true` if the challenge was written to the database, `false` if
+   * the challenge was deleted.
+   */
+  public async finish(): Promise<boolean> {
     await this.loadIds();
 
     this.stageState = this.initialStageState();
@@ -208,7 +217,7 @@ export default abstract class ChallengeProcessor {
         `Challenge ${this.uuid} ended without any data; deleting record`,
       );
       await this.deleteChallenge();
-      return;
+      return false;
     }
 
     if (this.stageStatus === StageStatus.STARTED) {
@@ -249,6 +258,7 @@ export default abstract class ChallengeProcessor {
     }
 
     await this.updateAllPlayersStats();
+    return true;
   }
 
   public async finalizeUpdates(): Promise<Partial<ModifiableChallengeFields>> {
@@ -1041,10 +1051,6 @@ export default abstract class ChallengeProcessor {
 
   protected getPriceTracker(): PriceTracker {
     return this.priceTracker;
-  }
-
-  protected getChallengeStatus(): ChallengeStatus {
-    return this.challengeStatus;
   }
 
   protected getStage(): Stage {

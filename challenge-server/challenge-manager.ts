@@ -1233,13 +1233,18 @@ export default class ChallengeManager {
 
       // Handle any outstanding stage events.
       await this.completeChallengeStage(challenge, processor, challenge.stage);
-      await processor.finish();
+      const valid = await processor.finish();
+
+      if (
+        valid &&
+        processor.getChallengeStatus() !== ChallengeStatus.ABANDONED
+      ) {
+        await this.addActivityFeedItem(ActivityFeedItemType.CHALLENGE_END, {
+          challengeId,
+        });
+      }
 
       logger.info(`Challenge ${challengeId} completed`);
-
-      await this.addActivityFeedItem(ActivityFeedItemType.CHALLENGE_END, {
-        challengeId,
-      });
 
       await this.deleteRedisChallengeData(
         challengeId,
