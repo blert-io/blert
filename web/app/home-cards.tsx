@@ -25,6 +25,7 @@ import {
 import { ActivityFeedItem, ChallengeEndFeedItem } from './actions/activity';
 import { RankedSplit } from './actions/challenge';
 import { SetupListItem } from './actions/setup';
+import Card, { CardLink } from './components/card';
 import Carousel from './components/carousel';
 import RadioInput from './components/radio-input';
 import { partyNames } from './utils/challenge-description';
@@ -300,36 +301,40 @@ export function ChallengeStats({ initialStats }: ChallengeStatsProps) {
   }, [fetchStats]);
 
   return (
-    <div className={`${styles.card} ${styles.primary}`}>
-      <div className={styles.cardHeader}>
-        <h2>Theatre of Blood</h2>
-        <RadioInput.Group
-          name="time-selector"
-          className={styles.filters}
-          onChange={(value) => changeTimePeriod(value as TimePeriod)}
-          compact
-          joined
-        >
-          <RadioInput.Option
-            value={TimePeriod.DAY}
-            id="time-selector-day"
-            label="Day"
-            checked={timePeriod === TimePeriod.DAY}
-          />
-          <RadioInput.Option
-            value={TimePeriod.WEEK}
-            id="time-selector-week"
-            label="Week"
-            checked={timePeriod === TimePeriod.WEEK}
-          />
-          <RadioInput.Option
-            value={TimePeriod.MONTH}
-            id="time-selector-month"
-            label="Month"
-            checked={timePeriod === TimePeriod.MONTH}
-          />
-        </RadioInput.Group>
-      </div>
+    <Card
+      primary
+      header={{
+        title: 'Theatre of Blood',
+        action: (
+          <RadioInput.Group
+            name="time-selector"
+            className={styles.filters}
+            onChange={(value) => changeTimePeriod(value as TimePeriod)}
+            compact
+            joined
+          >
+            <RadioInput.Option
+              value={TimePeriod.DAY}
+              id="time-selector-day"
+              label="Day"
+              checked={timePeriod === TimePeriod.DAY}
+            />
+            <RadioInput.Option
+              value={TimePeriod.WEEK}
+              id="time-selector-week"
+              label="Week"
+              checked={timePeriod === TimePeriod.WEEK}
+            />
+            <RadioInput.Option
+              value={TimePeriod.MONTH}
+              id="time-selector-month"
+              label="Month"
+              checked={timePeriod === TimePeriod.MONTH}
+            />
+          </RadioInput.Group>
+        ),
+      }}
+    >
       <div className={styles.statsRow}>
         <div className={styles.stat}>
           <span className={styles.value}>{stats.total}</span>
@@ -361,10 +366,8 @@ export function ChallengeStats({ initialStats }: ChallengeStatsProps) {
         </div>
       </div>
       <ActivityChart />
-      <Link href="/raids/tob" className={styles.cardLink}>
-        Browse Raids <i className="fas fa-arrow-right" />
-      </Link>
-    </div>
+      <CardLink href="/raids/tob" text="Browse Raids" />
+    </Card>
   );
 }
 
@@ -698,17 +701,12 @@ export function GuidesCard() {
           )}
         </Link>
       ))}
-      <Link href={viewAllLink.href} className={styles.cardLink}>
-        {viewAllLink.text} <i className="fas fa-arrow-right" />
-      </Link>
+      <CardLink href={viewAllLink.href} text={viewAllLink.text} />
     </div>
   );
 
   return (
-    <div className={styles.card}>
-      <div className={styles.cardHeader}>
-        <h2>Community Contributions</h2>
-      </div>
+    <Card header={{ title: 'Community Contributions' }}>
       <div className={styles.carousel}>
         <Carousel
           itemWidth={CAROUSEL_WIDTH}
@@ -732,7 +730,7 @@ export function GuidesCard() {
           </div>
         </Carousel>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -802,12 +800,10 @@ function Leaderboard({ leaderboard }: { leaderboard: ScaleLeaderboard }) {
             <p>Record your next raid to be first on the leaderboard!</p>
           </div>
         )}
-        <Link
+        <CardLink
           href={`/leaderboards/tob/regular/${leaderboard.scale}`}
-          className={styles.cardLink}
-        >
-          View Full Leaderboards <i className="fas fa-arrow-right" />
-        </Link>
+          text="View Full Leaderboards"
+        />
       </div>
     </div>
   );
@@ -884,36 +880,39 @@ export function LeaderboardCard({
   }, [fetchLeaderboards]);
 
   return (
-    <div className={styles.card}>
-      <div className={styles.cardHeader}>
-        <h2>Top Times</h2>
-        <RadioInput.Group
-          name="leaderboard-time-selector"
-          className={styles.filters}
-          onChange={(value) => changeTimePeriod(value as TimePeriod)}
-          compact
-          joined
-        >
-          <RadioInput.Option
-            value={TimePeriod.DAY}
-            id="leaderboard-time-selector-day"
-            label="Day"
-            checked={timePeriod === TimePeriod.DAY}
-          />
-          <RadioInput.Option
-            value={TimePeriod.MONTH}
-            id="leaderboard-time-selector-month"
-            label="Month"
-            checked={timePeriod === TimePeriod.MONTH}
-          />
-          <RadioInput.Option
-            value={TimePeriod.ALL}
-            id="leaderboard-time-selector-all"
-            label="All Time"
-            checked={timePeriod === TimePeriod.ALL}
-          />
-        </RadioInput.Group>
-      </div>
+    <Card
+      header={{
+        title: 'Top Times',
+        action: (
+          <RadioInput.Group
+            name="leaderboard-time-selector"
+            className={styles.filters}
+            onChange={(value) => changeTimePeriod(value as TimePeriod)}
+            compact
+            joined
+          >
+            <RadioInput.Option
+              value={TimePeriod.DAY}
+              id="leaderboard-time-selector-day"
+              label="Day"
+              checked={timePeriod === TimePeriod.DAY}
+            />
+            <RadioInput.Option
+              value={TimePeriod.MONTH}
+              id="leaderboard-time-selector-month"
+              label="Month"
+              checked={timePeriod === TimePeriod.MONTH}
+            />
+            <RadioInput.Option
+              value={TimePeriod.ALL}
+              id="leaderboard-time-selector-all"
+              label="All Time"
+              checked={timePeriod === TimePeriod.ALL}
+            />
+          </RadioInput.Group>
+        ),
+      }}
+    >
       <div className={styles.carousel}>
         {leaderboards.length > 0 ? (
           <Carousel
@@ -935,6 +934,6 @@ export function LeaderboardCard({
           </div>
         )}
       </div>
-    </div>
+    </Card>
   );
 }

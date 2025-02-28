@@ -1,0 +1,56 @@
+@use '../../mixins.scss' as *;
+
+.card {
+  @include panel;
+  flex-direction: column;
+  padding: 20px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    padding: 12px;
+  }
+
+  &.primary {
+    background: linear-gradient(
+      to bottom right,
+      var(--panel-bg),
+      var(--nav-bg-lightened)
+    );
+  }
+
+  .cardHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+
+    h2 {
+      font-size: 1.3em;
+      margin: 0;
+      color: var(--blert-text-color);
+    }
+  }
+
+  .cardLink {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--blert-button);
+    text-decoration: none;
+    margin-top: auto;
+    padding: 8px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: var(--nav-bg);
+
+      i {
+        transform: translateX(4px);
+      }
+    }
+
+    i {
+      transition: transform 0.2s ease;
+    }
+  }
+}
