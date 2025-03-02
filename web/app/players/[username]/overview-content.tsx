@@ -546,8 +546,8 @@ export default function PlayerOverviewContent({
   );
 
   const heatmap = useMemo(
-    () => <CalendarHeatmap data={challengeDays} />,
-    [challengeDays],
+    () => <CalendarHeatmap data={initialRaidsByDay} />,
+    [initialRaidsByDay],
   );
 
   return (
@@ -651,7 +651,7 @@ export default function PlayerOverviewContent({
                       </Pie>
                       <Legend
                         verticalAlign="top"
-                        height={36}
+                        height={48}
                         formatter={(value) => {
                           const item = statuses.find((s) => s.name === value);
                           return (
@@ -701,7 +701,7 @@ export default function PlayerOverviewContent({
                       </Pie>
                       <Legend
                         verticalAlign="top"
-                        height={36}
+                        height={48}
                         formatter={(value) => {
                           return (
                             <span className={styles.legendItem}>

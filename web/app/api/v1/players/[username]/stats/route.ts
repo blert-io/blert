@@ -5,10 +5,12 @@ import { InvalidQueryError } from '@/actions/errors';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { username: string } },
+  { params }: { params: Promise<{ username: string }> },
 ) {
+  const { username } = await params;
+  const searchParams = request.nextUrl.searchParams;
+
   try {
-    const searchParams = request.nextUrl.searchParams;
     const filter: PlayerStatsFilter = {};
 
     const after = searchParams.get('after');
@@ -54,7 +56,7 @@ export async function GET(
       filter.fields = which.split(',').map((f) => f.trim());
     }
 
-    const stats = await getPlayerStatsHistory(params.username, limit, filter);
+    const stats = await getPlayerStatsHistory(username, limit, filter);
     return NextResponse.json(stats);
   } catch (error: any) {
     console.error('Error fetching player stats:', error);
