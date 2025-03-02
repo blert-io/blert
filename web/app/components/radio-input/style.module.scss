@@ -86,6 +86,16 @@
       width: 0;
     }
 
+    input:disabled + label {
+      opacity: 0.5;
+      cursor: default;
+
+      &:hover {
+        color: var(--font-color-nav);
+        background: var(--nav-bg);
+      }
+    }
+
     input:checked + label {
       background: $selectedColor;
       color: white;

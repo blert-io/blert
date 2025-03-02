@@ -2,6 +2,7 @@ import ChallengeHistory from '@/components/challenge-history';
 import { getNameChangesForPlayer } from '@/actions/change-name';
 import type { NameChange } from '@blert/common';
 
+import Card, { CardLink } from '@/components/card';
 import { PlayerLayoutParams } from '../layout';
 
 import styles from '../style.module.scss';
@@ -14,18 +15,22 @@ type DisplayNameChange = {
 
 function NameChangeHistory({
   nameChanges,
+  currentUsername,
 }: {
   nameChanges: DisplayNameChange[];
+  currentUsername: string;
 }) {
-  if (nameChanges.length === 0) {
-    return null;
-  }
-
   return (
-    <div className={`${styles.section} ${styles.nameChanges}`}>
-      <h2>
-        <i className="far fa-id-card" /> Name Changes
-      </h2>
+    <Card
+      className={styles.nameChanges}
+      header={{
+        title: (
+          <>
+            <i className="fas fa-id-card" /> Name Changes
+          </>
+        ),
+      }}
+    >
       <div className={styles.nameChangeList}>
         {nameChanges.map((change) => (
           <div key={change.processedAt.getTime()} className={styles.nameChange}>
@@ -40,7 +45,11 @@ function NameChangeHistory({
           </div>
         ))}
       </div>
-    </div>
+      <CardLink
+        href={`/change-name?rsn=${encodeURIComponent(currentUsername)}`}
+        text="Submit a Name Change"
+      />
+    </Card>
   );
 }
 
@@ -65,11 +74,30 @@ export default async function PlayerHistory({
 
   return (
     <div className={styles.history}>
-      <div className={styles.section}>
-        <h2>Recent Challenges</h2>
-        <ChallengeHistory count={25} username={username} />
+      <div
+        className={`${styles.historyGrid} ${nameChanges.length === 0 ? styles.fullWidth : ''}`}
+      >
+        <Card
+          className={styles.historyCard}
+          header={{
+            title: 'Recent Challenges',
+            action: (
+              <CardLink
+                href={`/search?party=${encodeURIComponent(username)}`}
+                text="View All"
+              />
+            ),
+          }}
+        >
+          <ChallengeHistory count={20} username={username} />
+        </Card>
+        {nameChanges.length > 0 && (
+          <NameChangeHistory
+            nameChanges={nameChanges}
+            currentUsername={username}
+          />
+        )}
       </div>
-      <NameChangeHistory nameChanges={nameChanges} />
     </div>
   );
 }

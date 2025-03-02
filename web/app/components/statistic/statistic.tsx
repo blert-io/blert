@@ -1,3 +1,5 @@
+import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
+
 import styles from './style.module.scss';
 
 type StatisticProps = {
@@ -10,10 +12,19 @@ type StatisticProps = {
   unit?: string;
   icon?: string | React.ReactNode;
   simple?: boolean;
+  tooltip?: string;
 };
 
 export default function Statistic(props: StatisticProps) {
-  const { className, unit, width, height, maxFontSize = 40, icon } = props;
+  const {
+    className,
+    unit,
+    width,
+    height,
+    maxFontSize = 40,
+    icon,
+    tooltip,
+  } = props;
 
   let value = props.value;
   if (typeof value === 'number') {
@@ -31,8 +42,18 @@ export default function Statistic(props: StatisticProps) {
     props.simple && styles.simple,
   ].filter(Boolean);
 
+  let tooltipProperties: Record<string, string> = {};
+  if (tooltip) {
+    tooltipProperties['data-tooltip-id'] = GLOBAL_TOOLTIP_ID;
+    tooltipProperties['data-tooltip-content'] = tooltip;
+  }
+
   return (
-    <div className={classNames.join(' ')} style={{ width, height }}>
+    <div
+      className={classNames.join(' ')}
+      style={{ width, height }}
+      {...tooltipProperties}
+    >
       <div className={styles.label}>
         {typeof icon === 'string' ? (
           <i className={`${styles.icon} ${icon}`} />
@@ -47,6 +68,7 @@ export default function Statistic(props: StatisticProps) {
       >
         {value}
       </div>
+      {tooltip && <i className={`${styles.helpIcon} far fa-question-circle`} />}
     </div>
   );
 }

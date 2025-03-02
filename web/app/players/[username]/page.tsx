@@ -50,9 +50,9 @@ export default async function PlayerOverview({
   return (
     <PlayerOverviewContent
       personalBests={personalBests}
-      raidStatuses={statusData}
-      raidsByScale={raidsByScale}
-      raidsByDay={raidsByDay}
+      initialRaidStatuses={statusData}
+      initialRaidsByScale={raidsByScale}
+      initialRaidsByDay={raidsByDay}
     />
   );
 }

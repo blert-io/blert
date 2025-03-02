@@ -81,6 +81,7 @@ export async function getRecentNameChanges(
 
 export async function getNameChangesForPlayer(
   username: string,
+  limit: number = 10,
 ): Promise<NameChange[]> {
   const nameChanges = await sql`
     SELECT
@@ -96,6 +97,7 @@ export async function getNameChangesForPlayer(
       AND nc.status = ${NameChangeStatus.ACCEPTED}
       AND nc.hidden = FALSE
     ORDER BY nc.processed_at DESC
+    LIMIT ${limit}
   `;
 
   return nameChanges.map((nc) => ({

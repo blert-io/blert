@@ -21,12 +21,12 @@ import { usePlayer } from '../player-context';
 
 import styles from './style.module.scss';
 
-import BloatIcon from '../../../../public/images/bloat.svg';
-import MaidenIcon from '../../../../public/images/maiden.svg';
-import NylocasIcon from '../../../../public/images/nyloking.svg';
-import SotetsegIcon from '../../../../public/images/sotetseg.svg';
-import XarpusIcon from '../../../../public/images/xarpus.svg';
-import VerzikIcon from '../../../../public/images/verzik.svg';
+import BloatIcon from '@/svg/bloat.svg';
+import MaidenIcon from '@/svg/maiden.svg';
+import NylocasIcon from '@/svg/nyloking.svg';
+import SotetsegIcon from '@/svg/sotetseg.svg';
+import XarpusIcon from '@/svg/xarpus.svg';
+import VerzikIcon from '@/svg/verzik.svg';
 
 type Scale = 1 | 2 | 3 | 4 | 5;
 
@@ -106,6 +106,78 @@ const COLOSSEUM_SPLIT_TYPES: SplitMetadata[] = [
     name: 'Challenge Time',
     description: 'Best challenge (in-wave) completion time',
     icon: 'fas fa-flag-checkered',
+  },
+  {
+    type: SplitType.COLOSSEUM_WAVE_1,
+    name: 'Wave 1',
+    description: 'Best Wave 1 completion time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.COLOSSEUM_WAVE_2,
+    name: 'Wave 2',
+    description: 'Best Wave 2 completion time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.COLOSSEUM_WAVE_3,
+    name: 'Wave 3',
+    description: 'Best Wave 3 completion time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.COLOSSEUM_WAVE_4,
+    name: 'Wave 4',
+    description: 'Best Wave 4 completion time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.COLOSSEUM_WAVE_5,
+    name: 'Wave 5',
+    description: 'Best Wave 5 completion time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.COLOSSEUM_WAVE_6,
+    name: 'Wave 6',
+    description: 'Best Wave 6 completion time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.COLOSSEUM_WAVE_7,
+    name: 'Wave 7',
+    description: 'Best Wave 7 completion time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.COLOSSEUM_WAVE_8,
+    name: 'Wave 8',
+    description: 'Best Wave 8 completion time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.COLOSSEUM_WAVE_9,
+    name: 'Wave 9',
+    description: 'Best Wave 9 completion time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.COLOSSEUM_WAVE_10,
+    name: 'Wave 10',
+    description: 'Best Wave 10 completion time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.COLOSSEUM_WAVE_11,
+    name: 'Wave 11',
+    description: 'Best Wave 11 completion time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.COLOSSEUM_WAVE_12,
+    name: 'Sol Heredit',
+    description: 'Best Sol Heredit completion time',
+    icon: 'fas fa-stopwatch',
   },
 ];
 
@@ -215,7 +287,6 @@ export default function PlayerPersonalBests() {
     [ChallengeType.TOB, ChallengeMode.TOB_REGULAR],
   );
 
-  console.log(player.personalBests);
   const pbs = buildPersonalBestMap(player.personalBests);
 
   let splitTypes: SplitMetadata[] = [];

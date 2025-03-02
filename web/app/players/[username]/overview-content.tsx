@@ -5,6 +5,9 @@ import Link from 'next/link';
 import { Cell, Legend, Pie, PieChart } from 'recharts';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 
+import ActivityChart from '@/components/activity-chart';
+import Card, { CardLink } from '@/components/card';
+import RadioInput from '@/components/radio-input';
 import {
   scaleNameAndColor,
   statusNameAndColor,
@@ -12,11 +15,9 @@ import {
 import Statistic from '@/components/statistic';
 import { useClientOnly } from '@/hooks/client-only';
 import { ticksToFormattedSeconds } from '@/utils/tick';
-import { challengeUrl } from '@/utils/url';
-import Card, { CardLink } from '@/components/card';
-import RadioInput from '@/components/radio-input';
+import { challengeUrl, queryString } from '@/utils/url';
+
 import { usePlayer } from './player-context';
-import ActivityChart from '@/components/activity-chart';
 
 import {
   PLAYER_PAGE_CHART_SIZE,
@@ -94,9 +95,9 @@ type PlayerOverviewContentProps = {
     ticks: number;
     cid: string;
   }>;
-  raidStatuses: Array<{ status: ChallengeStatus; count: number }>;
-  raidsByScale: Array<{ scale: number; count: number }>;
-  raidsByDay: Array<{ date: Date; count: number }>;
+  initialRaidStatuses: Array<{ status: ChallengeStatus; count: number }>;
+  initialRaidsByScale: Array<{ scale: number; count: number }>;
+  initialRaidsByDay: Array<{ date: Date; count: number }>;
 };
 
 function utcDateString(date: Date): string {
@@ -383,35 +384,126 @@ const enum TimePeriod {
   ALL = 'all',
 }
 
+function startOfTimePeriod(period: TimePeriod): Date {
+  const start = new Date();
+
+  switch (period) {
+    case TimePeriod.DAY:
+      start.setHours(start.getHours() - 24);
+      break;
+    case TimePeriod.WEEK:
+      start.setDate(start.getDate() - 7);
+      break;
+    case TimePeriod.MONTH:
+      start.setMonth(start.getMonth() - 1);
+      break;
+    case TimePeriod.ALL:
+      return new Date(0);
+  }
+  return start;
+}
+
+type ChallengeStatsResponse = {
+  [key: string]: {
+    '*': {
+      count: number;
+    };
+  };
+};
+
 export default function PlayerOverviewContent({
   personalBests,
-  raidStatuses,
-  raidsByScale,
-  raidsByDay,
+  initialRaidStatuses,
+  initialRaidsByScale,
+  initialRaidsByDay,
 }: PlayerOverviewContentProps) {
   const isClient = useClientOnly();
   const player = usePlayer();
+
   const [timePeriod, setTimePeriod] = useState(TimePeriod.ALL);
+  const [loading, setLoading] = useState(false);
+
   const [activityData, setActivityData] = useState<
     Array<{ hour: number; count: number }>
   >([]);
+  const [challengeStatuses, setChallengeStatuses] =
+    useState(initialRaidStatuses);
+  const [challengeScales, setChallengeScales] = useState(initialRaidsByScale);
+  const [challengeDays, setChallengeDays] = useState(initialRaidsByDay);
 
   const fetchActivityData = useCallback(async () => {
     const response = await fetch(
       `/api/activity/players?username=${player.username}&period=${timePeriod}`,
     );
     const data = await response.json();
-    console.log(data);
     setActivityData(
       data.map((d: number, i: number) => ({ hour: i, count: d })),
     );
-  }, [player.username, timePeriod]);
+  }, [player.username, timePeriod, setActivityData]);
+
+  const fetchChallengeStats = useCallback(async () => {
+    const query = {
+      party: player.username,
+      type: ChallengeType.TOB,
+      startTime: `ge${startOfTimePeriod(timePeriod).getTime()}`,
+    };
+
+    const [statuses, scales, days]: [
+      ChallengeStatsResponse,
+      ChallengeStatsResponse,
+      ChallengeStatsResponse,
+    ] = await Promise.all([
+      fetch(`/api/v1/challenges/stats?${queryString(query)}&group=status`).then(
+        (res) => res.json(),
+      ),
+      fetch(`/api/v1/challenges/stats?${queryString(query)}&group=scale`).then(
+        (res) => res.json(),
+      ),
+      fetch(
+        `/api/v1/challenges/stats?${queryString(query)}&group=startTime`,
+      ).then((res) => res.json()),
+    ]);
+
+    const statusData = Object.entries(statuses ?? {}).flatMap(([s, data]) => {
+      const status = parseInt(s, 10) as ChallengeStatus;
+      if (status === ChallengeStatus.IN_PROGRESS) {
+        return [];
+      }
+
+      return { status, count: data['*'].count };
+    });
+
+    const byScale = Object.entries(scales ?? {}).flatMap(([s, data]) => {
+      const scale = parseInt(s, 10) as number;
+      return { scale, count: data['*'].count };
+    });
+
+    const byDay = Object.entries(days ?? {}).flatMap(([s, data]) => {
+      const date = new Date(s);
+      return { date, count: data['*'].count };
+    });
+
+    setChallengeStatuses(statusData);
+    setChallengeScales(byScale);
+    setChallengeDays(byDay);
+  }, [
+    player.username,
+    timePeriod,
+    setChallengeStatuses,
+    setChallengeScales,
+    setChallengeDays,
+  ]);
 
   useEffect(() => {
-    fetchActivityData();
-    const interval = setInterval(fetchActivityData, 15_000);
+    const fetchData = async () => {
+      setLoading(true);
+      await Promise.all([fetchActivityData(), fetchChallengeStats()]);
+      setLoading(false);
+    };
+    fetchData();
+    const interval = setInterval(fetchData, 15_000);
     return () => clearInterval(interval);
-  }, [fetchActivityData]);
+  }, [fetchActivityData, fetchChallengeStats]);
 
   const regPbs: PbEntry[] = [
     { title: scaleName(1), raidId: null, time: null },
@@ -438,24 +530,24 @@ export default function PlayerOverviewContent({
     }
   }
 
-  const statuses = raidStatuses.map((status) => {
+  const statuses = challengeStatuses.map((status) => {
     const [name, color] = statusNameAndColor(status.status);
     return { name, count: status.count, color };
   });
 
-  const scales = raidsByScale.map((scale) => {
+  const scales = challengeScales.map((scale) => {
     const [name, color] = scaleNameAndColor(scale.scale);
     return { name, count: scale.count, color };
   });
 
-  const totalRaids = raidStatuses.reduce(
+  const totalRaids = challengeStatuses.reduce(
     (sum, status) => sum + status.count,
     0,
   );
 
   const heatmap = useMemo(
-    () => <CalendarHeatmap data={raidsByDay} />,
-    [raidsByDay],
+    () => <CalendarHeatmap data={challengeDays} />,
+    [challengeDays],
   );
 
   return (
@@ -493,24 +585,28 @@ export default function PlayerOverviewContent({
                 id="time-selector-day"
                 label="Day"
                 checked={timePeriod === TimePeriod.DAY}
+                disabled={loading}
               />
               <RadioInput.Option
                 value={TimePeriod.WEEK.toString()}
                 id="time-selector-week"
                 label="Week"
                 checked={timePeriod === TimePeriod.WEEK}
+                disabled={loading}
               />
               <RadioInput.Option
                 value={TimePeriod.MONTH.toString()}
                 id="time-selector-month"
                 label="Month"
                 checked={timePeriod === TimePeriod.MONTH}
+                disabled={loading}
               />
               <RadioInput.Option
                 value={TimePeriod.ALL.toString()}
                 id="time-selector-all"
                 label="All time"
                 checked={timePeriod === TimePeriod.ALL}
+                disabled={loading}
               />
             </RadioInput.Group>
           ),
@@ -533,75 +629,101 @@ export default function PlayerOverviewContent({
                   <h3>
                     <i className="fas fa-flag-checkered" /> By Status
                   </h3>
-                  <PieChart
-                    width={PLAYER_PAGE_CHART_SIZE}
-                    height={PLAYER_PAGE_CHART_SIZE / 1.5}
-                  >
-                    <Pie
-                      data={statuses}
-                      dataKey="count"
-                      cx="50%"
-                      cy="100%"
-                      outerRadius="160%"
-                      innerRadius="100%"
-                      startAngle={180}
-                      endAngle={0}
-                      stroke="var(--nav-bg)"
+                  {statuses.length > 0 ? (
+                    <PieChart
+                      width={PLAYER_PAGE_CHART_SIZE}
+                      height={PLAYER_PAGE_CHART_SIZE / 1.5}
                     >
-                      {statuses.map((v, i) => (
-                        <Cell key={`cell-${i}`} fill={v.color} />
-                      ))}
-                    </Pie>
-                    <Legend
-                      verticalAlign="top"
-                      height={36}
-                      formatter={(value) => {
-                        const item = statuses.find((s) => s.name === value);
-                        return (
-                          <span className={styles.legendItem}>
-                            {value} ({item?.count})
-                          </span>
-                        );
+                      <Pie
+                        data={statuses}
+                        dataKey="count"
+                        cx="50%"
+                        cy="100%"
+                        outerRadius="160%"
+                        innerRadius="100%"
+                        startAngle={180}
+                        endAngle={0}
+                        stroke="var(--nav-bg)"
+                      >
+                        {statuses.map((v, i) => (
+                          <Cell key={`cell-${i}`} fill={v.color} />
+                        ))}
+                      </Pie>
+                      <Legend
+                        verticalAlign="top"
+                        height={36}
+                        formatter={(value) => {
+                          const item = statuses.find((s) => s.name === value);
+                          return (
+                            <span className={styles.legendItem}>
+                              {value} ({item?.count})
+                            </span>
+                          );
+                        }}
+                      />
+                    </PieChart>
+                  ) : (
+                    <div
+                      className={styles.noData}
+                      style={{
+                        width: PLAYER_PAGE_CHART_SIZE,
+                        height: PLAYER_PAGE_CHART_SIZE / 1.5,
                       }}
-                    />
-                  </PieChart>
+                    >
+                      <i className="fas fa-chart-pie" />
+                      No raid data available for this time period
+                    </div>
+                  )}
                 </div>
                 <div className={styles.raidChart}>
                   <h3>
                     <i className="fas fa-users" /> By Scale
                   </h3>
-                  <PieChart
-                    width={PLAYER_PAGE_CHART_SIZE}
-                    height={PLAYER_PAGE_CHART_SIZE / 1.5}
-                  >
-                    <Pie
-                      data={scales}
-                      dataKey="count"
-                      cx="50%"
-                      cy="100%"
-                      outerRadius="160%"
-                      innerRadius="100%"
-                      startAngle={180}
-                      endAngle={0}
-                      stroke="var(--nav-bg)"
+                  {scales.length > 0 ? (
+                    <PieChart
+                      width={PLAYER_PAGE_CHART_SIZE}
+                      height={PLAYER_PAGE_CHART_SIZE / 1.5}
                     >
-                      {scales.map((v, i) => (
-                        <Cell key={`cell-${i}`} fill={v.color} />
-                      ))}
-                    </Pie>
-                    <Legend
-                      verticalAlign="top"
-                      height={36}
-                      formatter={(value) => {
-                        return (
-                          <span className={styles.legendItem}>
-                            {value} (
-                            {scales.find((s) => s.name === value)?.count})
-                          </span>
-                        );
+                      <Pie
+                        data={scales}
+                        dataKey="count"
+                        cx="50%"
+                        cy="100%"
+                        outerRadius="160%"
+                        innerRadius="100%"
+                        startAngle={180}
+                        endAngle={0}
+                        stroke="var(--nav-bg)"
+                      >
+                        {scales.map((v, i) => (
+                          <Cell key={`cell-${i}`} fill={v.color} />
+                        ))}
+                      </Pie>
+                      <Legend
+                        verticalAlign="top"
+                        height={36}
+                        formatter={(value) => {
+                          return (
+                            <span className={styles.legendItem}>
+                              {value} (
+                              {scales.find((s) => s.name === value)?.count})
+                            </span>
+                          );
+                        }}
+                      />
+                    </PieChart>
+                  ) : (
+                    <div
+                      className={styles.noData}
+                      style={{
+                        width: PLAYER_PAGE_CHART_SIZE,
+                        height: PLAYER_PAGE_CHART_SIZE / 1.5,
                       }}
-                    />
-                  </PieChart>
+                    >
+                      <i className="fas fa-chart-pie" />
+                      No raid data available for this time period
+                    </div>
+                  )}
                 </div>
               </div>
               <ActivityChart

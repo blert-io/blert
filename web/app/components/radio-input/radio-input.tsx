@@ -6,6 +6,7 @@ import styles from './style.module.scss';
 type OptionProps = {
   checked?: boolean;
   defaultChecked?: boolean;
+  disabled?: boolean;
   id: string;
   label: string | JSX.Element;
   privateName?: string;
@@ -20,6 +21,7 @@ export function Option(props: OptionProps) {
       <input
         checked={props.checked}
         defaultChecked={props.defaultChecked}
+        disabled={props.disabled}
         id={props.id}
         onChange={props.privateOnChange}
         name={props.privateName}

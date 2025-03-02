@@ -20,8 +20,14 @@ import Menu, { MenuItem } from '@/components/menu';
 import Statistic from '@/components/statistic';
 import { useClientOnly } from '@/hooks/client-only';
 
-import MaidenIcon from '../../../../public/images/maiden.svg';
-import VerzikIcon from '../../../../public/images/verzik.svg';
+import BgsIcon from '@/svg/bandos-godsword.svg';
+import ChallyIcon from '@/svg/chally.svg';
+import ChinchompaIcon from '@/svg/chinchompa.svg';
+import ElderMaulIcon from '@/svg/elder-maul.svg';
+import MaidenIcon from '@/svg/maiden.svg';
+import RalosIcon from '@/svg/ralos.svg';
+import ScytheIcon from '@/svg/scythe.svg';
+import VerzikIcon from '@/svg/verzik.svg';
 
 import { PLAYER_PAGE_STATISTIC_SIZE } from '../dimensions';
 import { usePlayer } from '../player-context';
@@ -55,13 +61,14 @@ const DEFAULT_SELECTED_STATS: ViewableStatistic[] = [
 ];
 
 const STAT_COLORS = [
-  '#2ecc71',
-  '#e74c3c',
-  '#f1c40f',
-  '#3498db',
-  '#9b59b6',
-  '#1abc9c',
+  '#4aba91',
+  '#e85d6f',
+  '#d4b95e',
+  '#5b9bd5',
+  '#8c7bb0',
+  '#45a5a1',
 ];
+const MAX_SELECTED_STATS = STAT_COLORS.length;
 
 export default function PlayerStatistics() {
   const isClient = useClientOnly();
@@ -184,11 +191,22 @@ export default function PlayerStatistics() {
               <div className={styles.headerContent}>
                 <i className="fas fa-chart-line" />
                 Historic Stats
+                <span className={styles.statCounter}>
+                  {selectedStats.length}/{MAX_SELECTED_STATS} stats
+                </span>
                 <button
                   id="stats-chart-add"
-                  className={styles.addStatButton}
-                  onClick={() => setMenuOpen(true)}
-                  title="Add statistic"
+                  className={`${styles.addStatButton} ${selectedStats.length >= MAX_SELECTED_STATS ? styles.disabled : ''}`}
+                  onClick={() =>
+                    selectedStats.length < MAX_SELECTED_STATS &&
+                    setMenuOpen(true)
+                  }
+                  title={
+                    selectedStats.length >= MAX_SELECTED_STATS
+                      ? `Maximum of ${MAX_SELECTED_STATS} stats reached`
+                      : 'Add statistic'
+                  }
+                  disabled={selectedStats.length >= MAX_SELECTED_STATS}
                 >
                   <i className="fas fa-plus" />
                 </button>
@@ -205,10 +223,10 @@ export default function PlayerStatistics() {
                     tickFormatter={(date) =>
                       new Date(date).toLocaleDateString()
                     }
-                    stroke="var(--blert-text-color)"
+                    stroke="var(--font-color-nav)"
                     dy={5}
                   />
-                  <YAxis stroke="var(--blert-text-color)" />
+                  <YAxis stroke="var(--font-color-nav)" />
                   {selectedStats.map((stat, index) => (
                     <Line
                       key={stat.key}
@@ -221,14 +239,15 @@ export default function PlayerStatistics() {
                   <Tooltip
                     cursor={false}
                     contentStyle={{
-                      backgroundColor: '#171821',
+                      backgroundColor: 'var(--nav-bg)',
+                      borderColor: 'var(--font-color-nav-divider)',
                       borderRadius: '4px',
                     }}
                     labelFormatter={(date) => (
                       <span
                         style={{
                           display: 'block',
-                          color: '#fff',
+                          color: 'var(--blert-text-color)',
                           fontWeight: 500,
                           marginBottom: 8,
                         }}
@@ -251,19 +270,15 @@ export default function PlayerStatistics() {
           )}
           <div className={styles.selectedStats}>
             {selectedStats.map((stat, index) => (
-              <span
+              <button
                 key={stat.key}
                 className={styles.selectedStat}
                 style={{ color: STAT_COLORS[index] }}
+                onClick={() => removeStatFromSelection(stat.key)}
               >
                 {stat.name}
-                <button
-                  className={styles.removeStatButton}
-                  onClick={() => removeStatFromSelection(stat.key)}
-                >
-                  <i className="fas fa-times" />
-                </button>
-              </span>
+                <i className="fas fa-times" />
+              </button>
             ))}
           </div>
           <Menu
@@ -294,7 +309,7 @@ export default function PlayerStatistics() {
               value={stats.bgsSmacks}
               height={PLAYER_PAGE_STATISTIC_SIZE}
               width={PLAYER_PAGE_STATISTIC_SIZE}
-              icon="fas fa-hammer"
+              icon={<BgsIcon width={24} height={24} />}
             />
             {stats.hammerBops > stats.elderMaulSmacks ? (
               <Statistic
@@ -303,7 +318,7 @@ export default function PlayerStatistics() {
                 value={stats.hammerBops}
                 height={PLAYER_PAGE_STATISTIC_SIZE}
                 width={PLAYER_PAGE_STATISTIC_SIZE}
-                icon="fas fa-gavel"
+                icon="fas fa-hammer"
               />
             ) : (
               <Statistic
@@ -312,7 +327,7 @@ export default function PlayerStatistics() {
                 value={stats.elderMaulSmacks}
                 height={PLAYER_PAGE_STATISTIC_SIZE}
                 width={PLAYER_PAGE_STATISTIC_SIZE}
-                icon="fas fa-hammer"
+                icon={<ElderMaulIcon width={24} height={24} />}
               />
             )}
             <Statistic
@@ -321,7 +336,7 @@ export default function PlayerStatistics() {
               value={stats.challyPokes}
               height={PLAYER_PAGE_STATISTIC_SIZE}
               width={PLAYER_PAGE_STATISTIC_SIZE}
-              icon="fas fa-khanda"
+              icon={<ChallyIcon width={24} height={24} />}
             />
             <Statistic
               className={styles.statistic}
@@ -329,7 +344,7 @@ export default function PlayerStatistics() {
               value={stats.ralosAutos}
               height={PLAYER_PAGE_STATISTIC_SIZE}
               width={PLAYER_PAGE_STATISTIC_SIZE}
-              icon="fas fa-sword"
+              icon={<RalosIcon width={24} height={24} />}
             />
             <Statistic
               className={styles.statistic}
@@ -337,7 +352,7 @@ export default function PlayerStatistics() {
               value={stats.unchargedScytheSwings}
               height={PLAYER_PAGE_STATISTIC_SIZE}
               width={PLAYER_PAGE_STATISTIC_SIZE}
-              icon="fas fa-scythe"
+              icon={<ScytheIcon width={24} height={24} />}
             />
             <Statistic
               className={styles.statistic}
@@ -384,7 +399,7 @@ export default function PlayerStatistics() {
               value={stats.chinsThrownTotal}
               height={PLAYER_PAGE_STATISTIC_SIZE}
               width={PLAYER_PAGE_STATISTIC_SIZE}
-              icon="fas fa-bomb"
+              icon={<ChinchompaIcon width={24} height={24} />}
             />
             <Statistic
               className={styles.statistic}
@@ -401,6 +416,7 @@ export default function PlayerStatistics() {
               height={PLAYER_PAGE_STATISTIC_SIZE}
               width={PLAYER_PAGE_STATISTIC_SIZE}
               icon="fas fa-triangle-exclamation"
+              tooltip="Chinchompas on medium fuse must be thrown from a distance of 4-6 tiles to be 100% accurate."
             />
             <Statistic
               className={styles.statistic}
@@ -410,6 +426,7 @@ export default function PlayerStatistics() {
               width={PLAYER_PAGE_STATISTIC_SIZE}
               unit="%"
               icon="fas fa-percent"
+              tooltip="Percentage of chins thrown during Maiden which were thrown from the wrong distance."
             />
             <Statistic
               className={styles.statistic}

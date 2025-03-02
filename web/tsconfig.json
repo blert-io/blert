@@ -20,7 +20,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./app/*"]
+      "@/*": ["./app/*"],
+      "@/svg/*": ["./public/images/svg/*"]
     }
   },
   "include": [

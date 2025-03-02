@@ -21,7 +21,7 @@ function FormFields({ initialOldName }: { initialOldName?: string }) {
   return (
     <>
       <Input
-        autoFocus
+        autoFocus={!initialOldName}
         disabled={pending}
         faIcon="fa-solid fa-user"
         fluid
@@ -33,6 +33,7 @@ function FormFields({ initialOldName }: { initialOldName?: string }) {
         value={oldName}
       />
       <Input
+        autoFocus={!!initialOldName}
         disabled={pending}
         faIcon="fa-solid fa-user"
         fluid
