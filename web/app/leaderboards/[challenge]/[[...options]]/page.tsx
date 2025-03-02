@@ -332,7 +332,7 @@ export async function generateMetadata(
     case 'tob': {
       let mode = ChallengeMode.NO_MODE;
       let scale = 1;
-      imageUrl = '/logo_tob.webp';
+      imageUrl = 'https://blert.io/logo_tob.webp';
 
       if (options === undefined || options.length !== 2) {
         title = 'Theatre of Blood Leaderboards';
@@ -357,7 +357,7 @@ export async function generateMetadata(
       title = 'Fortis Colosseum Leaderboards';
       description =
         'Track the fastest Fortis Colosseum wave times and completions. View detailed wave splits, strategies, and records from top OSRS PvMers.';
-      imageUrl = '/varlamore.png';
+      imageUrl = 'https://blert.io/varlamore.png';
       break;
     }
 

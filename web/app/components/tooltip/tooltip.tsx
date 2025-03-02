@@ -4,7 +4,10 @@ import ReactDOM from 'react-dom';
 import { useEffect, useRef, useState } from 'react';
 import { Tooltip as ReactTooltip } from 'react-tooltip';
 
+import styles from './style.module.scss';
+
 type TooltipProps = {
+  className?: string;
   children: React.ReactNode;
   maxWidth?: string | number;
   open?: boolean;
@@ -40,8 +43,14 @@ export function Tooltip(props: TooltipProps) {
     return null;
   }
 
+  let className = styles.tooltip;
+  if (props.className) {
+    className = `${className} ${props.className}`;
+  }
+
   return ReactDOM.createPortal(
     <ReactTooltip
+      className={className}
       id={tooltipId}
       isOpen={open}
       openOnClick={openOnClick}

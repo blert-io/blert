@@ -7,6 +7,7 @@ import { WebSite, WithContext } from 'schema-dts';
 
 import LeftNav from './components/left-nav';
 import ToastProvider from './components/toast';
+import Tooltip, { GLOBAL_TOOLTIP_ID } from './components/tooltip';
 import Topbar from './components/topbar';
 import ChallengeProvider from './challenge-context';
 import { DisplayWrapper } from './display';
@@ -107,6 +108,9 @@ export default function RootLayout({
             </ChallengeProvider>
           </DisplayWrapper>
         </SessionProvider>
+        <Tooltip maxWidth={360} tooltipId={GLOBAL_TOOLTIP_ID}>
+          <div />
+        </Tooltip>
       </body>
       {process.env.NODE_ENV === 'production' && (
         <GoogleAnalytics gaId="G-5W75H2B3LF" />

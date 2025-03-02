@@ -1,1 +1,6 @@
 @use '../../mixins.scss' as *;
+
+.tooltip {
+  border: 1px solid var(--font-color-nav-divider);
+  color: var(--blert-text-color) !important;
+}
