@@ -1,7 +1,7 @@
 import { Handicap } from '@blert/common';
 import Image from 'next/image';
 
-import Tooltip from '@/components/tooltip';
+import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 
 import styles from './style.module.scss';
 
@@ -194,10 +194,12 @@ export default function ColosseumHandicap(props: ColosseumHandicapProps) {
     className += ` ${styles.dimmed}`;
   }
 
-  const tooltipId = `handicap-${props.handicap}-tooltip`;
-
   return (
-    <div className={className} data-tooltip-id={tooltipId}>
+    <div
+      className={className}
+      data-tooltip-id={GLOBAL_TOOLTIP_ID}
+      data-tooltip-content={handicap.name}
+    >
       <Image
         height={32}
         width={32}
@@ -207,7 +209,6 @@ export default function ColosseumHandicap(props: ColosseumHandicapProps) {
       {handicap.level !== 'I' && (
         <span className={styles.level}>{handicap.level}</span>
       )}
-      <Tooltip tooltipId={tooltipId}>{handicap.name}</Tooltip>
     </div>
   );
 }

@@ -2,9 +2,11 @@ import { ChallengeMode, ChallengeType } from '@blert/common';
 import { ResolvingMetadata } from 'next';
 
 import { loadChallenge } from '@/actions/challenge';
+import ChallengeNav from '@/components/challenge-nav';
 import { statusNameAndColor } from '@/components/raid-quick-details';
 import { challengePageDescription } from '@/utils/challenge-description';
 import { ticksToFormattedSeconds } from '@/utils/tick';
+
 import { TobContextProvider } from '../context';
 
 import styles from './style.module.scss';
@@ -18,13 +20,17 @@ type RaidLayoutProps = {
   children: React.ReactNode;
 };
 
-export default async function RaidLayout(props: RaidLayoutProps) {
-  const { id } = await props.params;
+export default async function RaidLayout({
+  params,
+  children,
+}: RaidLayoutProps) {
+  const { id } = await params;
 
   return (
     <div className={styles.raid}>
       <TobContextProvider raidId={id}>
-        <div className={styles.content}>{props.children}</div>
+        <ChallengeNav challengeId={id} />
+        <div className={styles.content}>{children}</div>
       </TobContextProvider>
     </div>
   );

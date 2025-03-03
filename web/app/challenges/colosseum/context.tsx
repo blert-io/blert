@@ -2,13 +2,14 @@
 
 import { ChallengeContext } from '@/challenge-context';
 import Loading from '@/components/loading';
-import { usePathname } from 'next/navigation';
+import { notFound, usePathname } from 'next/navigation';
 import {
   Dispatch,
   SetStateAction,
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 
@@ -39,10 +40,11 @@ export function ColosseumContextProvider({
   const [loading, setLoading] = useState(true);
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [selectedRoomNpc, setSelectedRoomNpc] = useState<number | null>(null);
+  const challengeIdRef = useRef(challengeId);
 
   useEffect(() => {
     const loadColosseum = async () => {
-      setLoading(true);
+      setLoading(challenge === null || challengeIdRef.current !== challengeId);
       try {
         const response = await fetch(
           `/api/v1/challenges/colosseum/${challengeId}`,
@@ -55,6 +57,7 @@ export function ColosseumContextProvider({
         setChallenge(null);
       }
       setLoading(false);
+      challengeIdRef.current = challengeId;
     };
 
     loadColosseum();
@@ -72,7 +75,7 @@ export function ColosseumContextProvider({
   }
 
   if (challenge === null) {
-    return <div>Colosseum run not found</div>;
+    return notFound();
   }
 
   return (

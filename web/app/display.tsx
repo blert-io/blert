@@ -4,6 +4,7 @@ import {
   Dispatch,
   SetStateAction,
   createContext,
+  useContext,
   useEffect,
   useState,
 } from 'react';
@@ -74,6 +75,15 @@ export function DisplayWrapper({ children }: { children: React.ReactNode }) {
       </NavbarContext.Provider>
     </DisplayContext.Provider>
   );
+}
+
+/**
+ * Hook that returns the current display type.
+ * @returns The current display type.
+ */
+export function useDisplay() {
+  const display = useContext(DisplayContext);
+  return display;
 }
 
 /**

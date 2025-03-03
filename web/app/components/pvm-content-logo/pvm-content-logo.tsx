@@ -13,6 +13,7 @@ interface PvMContentLogoProps {
   className?: string;
   height?: number;
   width?: number;
+  simple?: boolean;
 }
 
 const getPvMContentLogo = (pvmContent: PvMContent) => {
@@ -33,7 +34,13 @@ const getPvMContentLogo = (pvmContent: PvMContent) => {
 export function PvMContentLogo(props: PvMContentLogoProps) {
   const display = useContext(DisplayContext);
 
-  let { pvmContent, className, height = 300, width = 890 } = props;
+  let {
+    pvmContent,
+    className,
+    height = 300,
+    width = 890,
+    simple = false,
+  } = props;
 
   if (display.isCompact()) {
     height = Math.floor(height / 1.5);
@@ -41,15 +48,16 @@ export function PvMContentLogo(props: PvMContentLogoProps) {
 
   const logoSrc = getPvMContentLogo(pvmContent);
 
+  const classNames = [styles.raid__Title];
+  if (className) {
+    classNames.push(className);
+  }
+  if (simple) {
+    classNames.push(styles.simple);
+  }
+
   return (
-    <div
-      className={`${styles.raid__Title}${className !== undefined ? ' ' + className : ''}`}
-      style={{
-        height,
-        width: '100%',
-        maxWidth: width,
-      }}
-    >
+    <div className={classNames.join(' ')} style={{ height, width }}>
       <Image
         className={styles.raid__Logo}
         src={`${logoSrc}`}

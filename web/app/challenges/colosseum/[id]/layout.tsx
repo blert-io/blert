@@ -1,11 +1,14 @@
+import { ChallengeType } from '@blert/common';
 import { ResolvingMetadata } from 'next';
+
+import { loadChallenge } from '@/actions/challenge';
+import ChallengeNav from '@/components/challenge-nav';
+import { statusNameAndColor } from '@/components/raid-quick-details';
+import { challengePageDescription } from '@/utils/challenge-description';
+
 import { ColosseumContextProvider } from '../context';
 
 import styles from './style.module.scss';
-import { loadChallenge } from '@/actions/challenge';
-import { ChallengeType } from '@blert/common';
-import { statusNameAndColor } from '@/components/raid-quick-details';
-import { challengePageDescription } from '@/utils/challenge-description';
 
 type ColosseumParams = {
   id: string;
@@ -21,6 +24,7 @@ export default function ColosseumLayout(props: ColosseumLayoutProps) {
 
   return (
     <ColosseumContextProvider challengeId={id}>
+      <ChallengeNav challengeId={id} />
       <div className={styles.content}>{props.children}</div>
     </ColosseumContextProvider>
   );

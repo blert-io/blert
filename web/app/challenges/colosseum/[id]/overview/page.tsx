@@ -1,81 +1,23 @@
 'use client';
 
-import {
-  ChallengeType,
-  ColosseumChallenge,
-  ColosseumWave,
-  SplitType,
-} from '@blert/common';
-import Link from 'next/link';
-import Image from 'next/image';
+import { ColosseumChallenge } from '@blert/common';
 import { useContext } from 'react';
 
-import ColosseumHandicap from '../../../../components/colosseum-handicap';
-import { RaidQuickDetails } from '../../../../components/raid-quick-details/raid-quick-details';
-import { RaidTeamPanel } from '../../../../components/raid-team/raid-team';
-import PvMContentLogo, {
-  PvMContent,
-} from '../../../../components/pvm-content-logo';
-import Loading from '../../../../components/loading';
-import { DisplayContext } from '../../../../display';
-import { ticksToFormattedSeconds } from '../../../../utils/tick';
-import { challengeUrl } from '../../../../utils/url';
+import { ChallengeContext } from '@/challenge-context';
+import ChallengeOverview from '@/components/challenge-overview';
+import ColosseumHandicap from '@/components/colosseum-handicap';
+import Loading from '@/components/loading';
+import { PvMContent } from '@/components/pvm-content-logo';
+
+import { ColosseumWavesOverview } from './waves-overview';
 
 import styles from './style.module.scss';
-import { ChallengeContext } from '@/challenge-context';
-
-type WaveProps = {
-  id: string;
-  number: number;
-  ticks: number;
-  wave: ColosseumWave;
-};
-
-function Wave(props: WaveProps) {
-  const url = challengeUrl(ChallengeType.COLOSSEUM, props.id);
-
-  const title = props.number === 12 ? 'Sol Heredit' : `Wave ${props.number}`;
-
-  return (
-    <Link
-      className={styles.wave}
-      href={`${url}/waves/${props.number}`}
-      style={{ color: props.number === 12 ? '#b07825' : undefined }}
-    >
-      <h2>{title}</h2>
-      <span className={styles.time}>
-        <i
-          className="fa-solid fa-hourglass"
-          style={{ position: 'relative', left: '4px' }}
-        />
-        {ticksToFormattedSeconds(props.ticks)}
-      </span>
-      <ul className={styles.handicapOptions}>
-        {props.wave.options.map((option) => (
-          <ColosseumHandicap
-            key={option}
-            handicap={option}
-            dimmed={option !== props.wave.handicap}
-          />
-        ))}
-      </ul>
-      <Image
-        src={`/images/colosseum/wave-${props.number}.webp`}
-        alt={title}
-        width={200}
-        height={80}
-        style={{ objectFit: 'contain' }}
-      />
-    </Link>
-  );
-}
 
 export default function Overview() {
   const [challenge] = useContext(ChallengeContext) as [
     ColosseumChallenge | null,
     unknown,
   ];
-  const display = useContext(DisplayContext);
 
   if (challenge === null) {
     return <Loading />;
@@ -83,47 +25,34 @@ export default function Overview() {
 
   return (
     <div className={styles.colosseum}>
-      <PvMContentLogo
-        pvmContent={PvMContent.Colosseum}
-        height={200}
-        width={380}
-      />
-      <RaidQuickDetails
+      <ChallengeOverview
         type={challenge.type}
         stage={challenge.stage}
         status={challenge.status}
         mode={challenge.mode}
-        totalRaidTicks={challenge.challengeTicks}
+        challengeTicks={challenge.challengeTicks}
         deaths={challenge.totalDeaths}
-        partySize={challenge.party.length}
+        party={challenge.party.map((player) => ({
+          ...player,
+          stageDeaths: [],
+        }))}
         startTime={challenge.startTime}
+        pvmContent={PvMContent.Colosseum}
+        extraInfo={[
+          {
+            label: 'Handicaps',
+            value: (
+              <div className={styles.handicapsList}>
+                {challenge.colosseum.handicaps.map((handicap) => (
+                  <ColosseumHandicap key={handicap} handicap={handicap} />
+                ))}
+              </div>
+            ),
+            span: 2,
+          },
+        ]}
       />
-      <div className={styles.handicaps}>
-        <ul>
-          {challenge.colosseum.handicaps.map((handicap, i) => (
-            <li key={i}>
-              <ColosseumHandicap handicap={handicap} />
-            </li>
-          ))}
-        </ul>
-      </div>
-      <RaidTeamPanel
-        players={challenge.party}
-        compactView={display.isCompact()}
-      />
-      <div className={styles.waves}>
-        {challenge.colosseum.waves.map((wave, i) => (
-          <Wave
-            key={i}
-            id={challenge.uuid}
-            number={i + 1}
-            wave={wave}
-            ticks={
-              challenge.splits[(SplitType.COLOSSEUM_WAVE_1 + i) as SplitType]!
-            }
-          />
-        ))}
-      </div>
+      <ColosseumWavesOverview challenge={challenge} />
     </div>
   );
 }

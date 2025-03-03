@@ -1,6 +1,6 @@
 import { GoogleAnalytics } from '@next/third-parties/google';
 import { Metadata } from 'next';
-import { Inter, Roboto_Mono } from 'next/font/google';
+import { Cinzel, Inter, Roboto_Mono } from 'next/font/google';
 import localFont from 'next/font/local';
 import { SessionProvider } from 'next-auth/react';
 import { WebSite, WithContext } from 'schema-dts';
@@ -33,6 +33,7 @@ const runescape = localFont({
   variable: '--font-runescape',
 });
 
+const cinzel = Cinzel({ subsets: ['latin'], variable: '--font-cinzel' });
 const inter = Inter({ subsets: ['latin'] });
 const robotoMono = Roboto_Mono({
   subsets: ['latin'],
@@ -91,7 +92,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${inter.className} ${robotoMono.variable} ${runescape.variable}`}
+        className={`${cinzel.variable} ${inter.className} ${robotoMono.variable} ${runescape.variable}`}
         style={{ overflowX: 'hidden' }}
       >
         <Styler />

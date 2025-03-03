@@ -1,7 +1,6 @@
 @use '../../mixins.scss' as *;
 
 .raid__Title {
-  padding: 20px 20px 10px 20px;
   justify-content: center;
   align-items: center;
   flex-direction: column;
@@ -12,11 +11,18 @@
   height: 200px;
   margin-top: 20px;
   flex-shrink: 0;
-}
 
-.raid__Logo {
-  @include panel;
-  padding: 20px 60px;
-  width: 450px;
-  justify-self: center;
+  &:not(.simple) {
+    padding: 20px 20px 10px 20px;
+
+    .raid__Logo {
+      @include panel;
+      padding: 20px 60px;
+    }
+  }
+
+  .raid__Logo {
+    width: 450px;
+    justify-self: center;
+  }
 }

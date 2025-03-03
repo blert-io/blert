@@ -4,91 +4,141 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  gap: 2rem;
 
-  $WAVE_SIZE: 240px;
-  $WAVE_MARGIN: 10px;
-  $TOTAL_WAVE_SIZE: $WAVE_SIZE + $WAVE_MARGIN * 2;
+  .handicapsList {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    justify-content: center;
+    padding: 4px;
+    margin: -4px;
+  }
+}
 
-  .handicaps {
-    @include panel;
-    flex-direction: column;
-    padding: 5px 20px;
-    margin-bottom: 1em;
+.wavesOverview {
+  width: 100%;
+  margin: 0 auto;
+  padding: 2rem 0;
 
-    ul {
-      display: flex;
-      flex-wrap: wrap;
-      padding: 0;
-      margin: 0;
-      list-style: none;
-
-      li {
-        padding: 0 10px;
-      }
-    }
+  h2 {
+    font-size: 1.3em;
+    margin: 0 0 20px 0;
+    color: var(--blert-text-color);
   }
 
   .waves {
-    max-width: 1040px;
-    width: auto;
-    display: flex;
-    flex-flow: row wrap;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    position: relative;
+  }
 
-    .wave {
-      @include panel;
-      padding: 10px;
-      width: $WAVE_SIZE;
-      height: $WAVE_SIZE;
-      margin: $WAVE_MARGIN;
+  .wave {
+    @include panel;
+    padding: 16px;
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.2s ease;
+    display: flex;
+    gap: 16px;
+    z-index: 1;
+
+    &:hover {
+      transform: translateY(-2px);
+      background: var(--nav-bg-lightened);
+      outline: 1px solid var(--blert-button);
+    }
+
+    .waveImg {
+      position: relative;
+      width: 120px;
+      height: 120px;
+      flex-shrink: 0;
+      border-radius: 6px;
+      overflow: hidden;
+      background: var(--nav-bg);
+    }
+
+    .waveDetails {
+      flex-grow: 1;
+      min-width: 0;
       display: flex;
       flex-direction: column;
-      align-items: center;
+      gap: 12px;
+    }
 
-      h2 {
-        margin: 0 0 0.5em 0;
-        font-size: 1.5rem;
-      }
+    .waveHeader {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 1.1em;
+      margin: 0;
+      color: var(--blert-text-color);
+      font-weight: 500;
 
       .time {
-        font-size: 18px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-left: auto;
+        font-size: 1em;
 
         i {
-          margin-right: 10px;
+          color: var(--blert-button);
         }
       }
+    }
 
-      .handicapOptions {
-        width: 150px;
+    .handicaps {
+      h4 {
+        font-size: 0.9em;
+        margin: 0 0 8px;
+        color: var(--font-color-nav);
+      }
+
+      ul {
         display: flex;
-        justify-content: space-between;
-        padding: 0;
-        margin: 0.6em 0;
+        flex-wrap: wrap;
+        gap: 4px;
         list-style: none;
-      }
-
-      &:hover {
-        background-color: #21222d;
-        box-shadow: 0 0 5px 0 rgba(255, 255, 255, 0.3);
-        transform: scale(1.02);
+        padding: 0;
+        margin: 0;
       }
     }
   }
 
-  @media (max-width: 1360px) {
-    .waves {
-      width: $TOTAL_WAVE_SIZE * 3;
-    }
-  }
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    padding: 0;
 
-  @media (max-width: 1050px) {
     .waves {
-      width: $TOTAL_WAVE_SIZE * 2;
-    }
-  }
+      grid-template-columns: 1fr;
 
-  @media (max-width: 550px) {
-    .waves {
-      width: $TOTAL_WAVE_SIZE;
+      &:before {
+        display: block;
+        content: '';
+        width: 2px;
+        top: 56px;
+        bottom: 56px;
+        left: 60px;
+        position: absolute;
+        background: var(--blert-button);
+        opacity: 0.3;
+      }
+    }
+
+    .wave {
+      padding: 12px;
+      gap: 12px;
+
+      .waveImg {
+        width: 100px;
+        height: 100px;
+        align-self: center;
+      }
     }
   }
 }

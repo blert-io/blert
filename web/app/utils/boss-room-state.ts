@@ -235,14 +235,20 @@ export function useStageEvents<T extends Challenge>(stage: Stage) {
     playerState: new Map(),
     npcState: new Map(),
   });
+  const challengeRef = useRef(challenge);
 
-  let { ticks: totalTicks } = getStageInfo(challenge, stage);
+  let { ticks: totalTicks } = getStageInfo(challengeRef.current, stage);
   if (totalTicks === -1 && events.length > 0) {
     totalTicks = events[events.length - 1].tick;
   }
 
   useEffect(() => {
-    if (challenge === null) {
+    challengeRef.current = challenge;
+  }, [challenge]);
+
+  useEffect(() => {
+    const c = challengeRef.current;
+    if (c === null) {
       return;
     }
 
@@ -251,7 +257,7 @@ export function useStageEvents<T extends Challenge>(stage: Stage) {
       let evts: Event[] = [];
 
       try {
-        const url = `${challengeApiUrl(challenge.type, challenge.uuid)}/events?stage=${stage}`;
+        const url = `${challengeApiUrl(c.type, c.uuid)}/events?stage=${stage}`;
         evts = await fetch(url).then((res) => res.json());
       } catch (e) {
         setEvents([]);
@@ -262,7 +268,7 @@ export function useStageEvents<T extends Challenge>(stage: Stage) {
       setEvents(evts);
 
       if (evts.length > 0) {
-        const { ticks, npcs } = getStageInfo(challenge, stage);
+        const { ticks, npcs } = getStageInfo(c, stage);
         let totalTicks = ticks;
         if (totalTicks === -1) {
           // The room is in progress, so get the last tick from the events.
@@ -271,7 +277,7 @@ export function useStageEvents<T extends Challenge>(stage: Stage) {
 
         const [eventsByTick, eventsByType] = buildEventMaps(evts);
         const playerState = computePlayerState(
-          challenge.party.map((p) => p.username),
+          c.party.map((p) => p.username),
           totalTicks,
           eventsByTick,
         );
@@ -296,7 +302,7 @@ export function useStageEvents<T extends Challenge>(stage: Stage) {
     };
 
     getEvents();
-  }, [challenge, stage]);
+  }, [stage]);
 
   return {
     challenge,
