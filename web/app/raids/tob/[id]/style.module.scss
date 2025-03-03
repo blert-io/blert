@@ -1,9 +1,18 @@
-.raid {
-  width: 100%;
+@use '../../../mixins.scss' as *;
 
+.raid {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.content {
+  padding: 68px 0 20px 0;
+  flex-grow: 1;
+}
+
+@media (max-width: $COMPACT_WIDTH_THRESHOLD) {
   .content {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
+    padding-top: 60px;
   }
 }

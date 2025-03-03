@@ -122,6 +122,7 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
     playerState,
     npcState,
     totalTicks,
+    loading,
   } = useStageEvents<ColosseumChallenge>(Stage.COLOSSEUM_WAVE_1 + waveIndex);
 
   const { selectedPlayer } = useContext(ActorContext);
@@ -129,7 +130,7 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
 
-  if (challenge === null) {
+  if (challenge === null || loading) {
     return <Loading />;
   }
 

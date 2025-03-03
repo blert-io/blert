@@ -3,12 +3,10 @@ import Link from 'next/link';
 
 import { MAIN_LOGO } from '@/logo';
 
+import AccountStatus from './account-status';
 import { LEFT_NAV_WIDTH } from './definitions';
 import { LeftNavWrapper } from './left-nav-wrapper';
-import AccountStatus from './account-status';
-import ColosseumLinks from './colosseum-links';
 import NavPlayerSearch from './nav-player-search';
-import TobLinks from './tob-links';
 
 import styles from './styles.module.scss';
 
@@ -31,7 +29,7 @@ export function LeftNav() {
         <ul className={styles.leftNav__menu}>
           {/* Home */}
           <li className={styles.leftNav__menuItem}>
-            <Link className={`${styles.leftNav__menuItemInner}`} href="/">
+            <Link className={styles.leftNav__menuItemInner} href="/">
               <div className={styles.leftNav__menuItemIcon}>
                 <div className={styles.imageWrapper}>
                   <Image
@@ -55,13 +53,46 @@ export function LeftNav() {
 
           <div className={styles.leftNav__menuDivider}></div>
 
-          <TobLinks />
-          <ColosseumLinks />
+          <li className={styles.leftNav__menuItem}>
+            <Link className={styles.leftNav__menuItemInner} href="/raids/tob">
+              <div className={styles.leftNav__menuItemIcon}>
+                <div className={styles.imageWrapper}>
+                  <Image
+                    src="/logo_tob.webp"
+                    alt="tob icon"
+                    fill
+                    style={{ objectFit: 'contain' }}
+                  />
+                </div>
+              </div>
+              <span className="active">ToB</span>
+            </Link>
+          </li>
+          <li className={styles.leftNav__menuItem}>
+            <Link
+              className={styles.leftNav__menuItemInner}
+              href="/challenges/colosseum"
+            >
+              <div className={styles.leftNav__menuItemIcon}>
+                <div className={styles.imageWrapper}>
+                  <Image
+                    src="/varlamore.png"
+                    alt="fortis colosseum icon"
+                    fill
+                    style={{ objectFit: 'contain' }}
+                  />
+                </div>
+              </div>
+              <span className="active" style={{ top: -1 }}>
+                Colosseum
+              </span>
+            </Link>
+          </li>
 
           {/* Inferno */}
           <li className={styles.leftNav__menuItem}>
             <Link
-              className={`${styles.leftNav__menuItemInner}`}
+              className={styles.leftNav__menuItemInner}
               href="/challenges/inferno"
             >
               <div className={styles.leftNav__menuItemIcon}>
@@ -80,10 +111,7 @@ export function LeftNav() {
 
           {/* CoX */}
           <li className={styles.leftNav__menuItem}>
-            <Link
-              className={`${styles.leftNav__menuItemInner}`}
-              href="/raids/cox"
-            >
+            <Link className={styles.leftNav__menuItemInner} href="/raids/cox">
               <div className={styles.leftNav__menuItemIcon}>
                 <div className={styles.imageWrapper}>
                   <Image
@@ -100,10 +128,7 @@ export function LeftNav() {
 
           {/* ToA */}
           <li className={styles.leftNav__menuItem}>
-            <Link
-              className={`${styles.leftNav__menuItemInner}`}
-              href="/raids/toa"
-            >
+            <Link className={styles.leftNav__menuItemInner} href="/raids/toa">
               <div className={styles.leftNav__menuItemIcon}>
                 <div className={styles.imageWrapper}>
                   <Image
@@ -122,7 +147,7 @@ export function LeftNav() {
 
           {/* Search */}
           <li className={styles.leftNav__menuItem}>
-            <Link className={`${styles.leftNav__menuItemInner}`} href="/search">
+            <Link className={styles.leftNav__menuItemInner} href="/search">
               <div className={styles.leftNav__menuItemIcon}>
                 <i className="fa-solid fa-magnifying-glass"></i>
               </div>
@@ -136,7 +161,7 @@ export function LeftNav() {
           {/* Leaderboards */}
           <li className={styles.leftNav__menuItem}>
             <Link
-              className={`${styles.leftNav__menuItemInner}`}
+              className={styles.leftNav__menuItemInner}
               href="/leaderboards/tob"
             >
               <div className={styles.leftNav__menuItemIcon}>
@@ -151,7 +176,7 @@ export function LeftNav() {
 
           {/* Trends */}
           <li className={styles.leftNav__menuItem}>
-            <Link className={`${styles.leftNav__menuItemInner}`} href="/trends">
+            <Link className={styles.leftNav__menuItemInner} href="/trends">
               <div className={styles.leftNav__menuItemIcon}>
                 <i className="fa-solid fa-arrow-trend-up"></i>
               </div>
@@ -164,7 +189,7 @@ export function LeftNav() {
 
           {/* Setups */}
           <li className={styles.leftNav__menuItem}>
-            <Link className={`${styles.leftNav__menuItemInner}`} href="/setups">
+            <Link className={styles.leftNav__menuItemInner} href="/setups">
               <div className={styles.leftNav__menuItemIcon}>
                 <i className="fas fa-shield-halved"></i>
               </div>
@@ -174,7 +199,7 @@ export function LeftNav() {
 
           {/* Guides */}
           <li className={styles.leftNav__menuItem}>
-            <Link className={`${styles.leftNav__menuItemInner}`} href="/guides">
+            <Link className={styles.leftNav__menuItemInner} href="/guides">
               <div className={styles.leftNav__menuItemIcon}>
                 <i className="fa-solid fa-book"></i>
               </div>
@@ -186,7 +211,7 @@ export function LeftNav() {
           {/* Name changes */}
           <li className={styles.leftNav__menuItem}>
             <Link
-              className={`${styles.leftNav__menuItemInner}`}
+              className={styles.leftNav__menuItemInner}
               href="/name-changes"
             >
               <div className={styles.leftNav__menuItemIcon}>
@@ -196,17 +221,6 @@ export function LeftNav() {
               <span className="active">Name Changes</span>
             </Link>
           </li>
-
-          {/* Account */}
-          {/* <li className={styles.leftNav__menuItem}>
-          <Link className={`${styles.leftNav__menuItemInner}`} href="/account">
-            <div className={styles.leftNav__menuItemIcon}>
-              <i className="fa-solid fa-user-ninja"></i>
-            </div>
-
-            <span className="active">Account</span>
-          </Link>
-        </li> */}
         </ul>
 
         <AccountStatus />

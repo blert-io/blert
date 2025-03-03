@@ -2,13 +2,14 @@
 
 import { ChallengeContext } from '@/challenge-context';
 import Loading from '@/components/loading';
-import { usePathname } from 'next/navigation';
+import { notFound, usePathname } from 'next/navigation';
 import {
   Dispatch,
   SetStateAction,
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 
@@ -37,6 +38,7 @@ export function TobContextProvider({
 
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [selectedRoomNpc, setSelectedRoomNpc] = useState<number | null>(null);
+  const raidIdRef = useRef(raidId);
 
   const [raid, setRaid] = useContext(ChallengeContext);
 
@@ -44,7 +46,8 @@ export function TobContextProvider({
 
   useEffect(() => {
     const getRaid = async () => {
-      setLoading(true);
+      setLoading(raid === null || raidIdRef.current !== raidId);
+
       try {
         const response = await fetch(`/api/v1/raids/tob/${raidId}`);
         if (response.status === 404) {
@@ -54,7 +57,9 @@ export function TobContextProvider({
       } catch (e) {
         setRaid(null);
       }
+
       setLoading(false);
+      raidIdRef.current = raidId;
     };
 
     getRaid();
@@ -72,7 +77,7 @@ export function TobContextProvider({
   }
 
   if (raid === null) {
-    return <div>Raid not found</div>;
+    return notFound();
   }
 
   return (

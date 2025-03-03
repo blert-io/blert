@@ -1,7 +1,32 @@
 .badge {
-  border: 1px solid #99a0a3;
-  padding: 2px 12px;
-  margin: 5px;
-  border-radius: 5px;
-  background-color: #2a2c3a;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: var(--nav-bg);
+  font-size: 0.85em;
+  color: var(--blert-text-color);
+  transition: all 0.2s ease;
+  text-decoration: none;
+
+  &.link {
+    &:hover {
+      transform: translateY(-1px);
+      background: var(--nav-bg-lightened);
+      outline: 1px solid var(--blert-button);
+    }
+  }
+
+  i {
+    color: var(--blert-button);
+    font-size: 0.9em;
+  }
+
+  strong {
+    display: flex;
+    align-items: center;
+    color: var(--font-color-nav);
+    font-weight: 500;
+  }
 }
