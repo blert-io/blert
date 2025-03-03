@@ -156,7 +156,10 @@ export {
   stageStreamToRecord,
 } from './db/redis';
 
-export { isPostgresUniqueViolation } from './db/postgres';
+export {
+  isPostgresUndefinedColumn,
+  isPostgresUniqueViolation,
+} from './db/postgres';
 
 export type { TobChallengeStatsRow } from './db/challenge-stats';
 

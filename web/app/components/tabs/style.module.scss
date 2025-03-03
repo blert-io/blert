@@ -8,6 +8,7 @@
 
     .tab {
       flex: 1;
+      min-width: 60px;
     }
   }
 
@@ -27,21 +28,69 @@
     top: 0;
     display: flex;
     justify-content: space-between;
+    background: var(--blert-background);
+    z-index: 10;
+    position: relative;
 
     .tab {
       border-bottom: 2px solid var(--blert-text-color);
-      font-size: 1.5rem;
       padding: 10px 20px;
+      transition: color 0.2s ease-in-out;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      white-space: nowrap;
+      background: none;
 
       &.active {
         color: #fff;
-        border-color: var(--blert-blue);
       }
+
+      &:hover {
+        cursor: pointer;
+        color: #fff;
+      }
+
+      .icon {
+        font-size: 1.5rem;
+      }
+
+      .title {
+        font-size: 1.2rem;
+      }
+    }
+
+    .indicator {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      height: 2px;
+      background-color: var(--blert-blue);
+      transition: transform 0.2s ease, width 0.2s ease;
     }
   }
 
   .content {
     overflow-y: auto;
     @include styledScrollbar;
+  }
+}
+
+@media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+  .tabs {
+    .navigation {
+      .tab {
+        padding: 10px 8px;
+
+        .title {
+          display: none;
+        }
+
+        .icon {
+          margin: 0;
+        }
+      }
+    }
   }
 }

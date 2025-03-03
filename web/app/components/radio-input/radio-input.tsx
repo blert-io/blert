@@ -6,6 +6,7 @@ import styles from './style.module.scss';
 type OptionProps = {
   checked?: boolean;
   defaultChecked?: boolean;
+  disabled?: boolean;
   id: string;
   label: string | JSX.Element;
   privateName?: string;
@@ -20,6 +21,7 @@ export function Option(props: OptionProps) {
       <input
         checked={props.checked}
         defaultChecked={props.defaultChecked}
+        disabled={props.disabled}
         id={props.id}
         onChange={props.privateOnChange}
         name={props.privateName}
@@ -37,25 +39,23 @@ type GroupProps = {
   children: React.ReactNode;
   compact?: boolean;
   joined?: boolean;
+  simple?: boolean;
   name: string;
   onChange?: (value: number | string) => void;
   readOnly?: boolean;
 };
 
 export function Group(props: GroupProps) {
-  let className = styles.radioGroup;
-  if (props.className) {
-    className += ` ${props.className}`;
-  }
-  if (props.joined) {
-    className += ` ${styles.joined}`;
-  }
-  if (props.compact) {
-    className += ` ${styles.compact}`;
-  }
+  const classNames = [
+    styles.radioGroup,
+    props.className,
+    props.joined && styles.joined,
+    props.compact && styles.compact,
+    props.simple && styles.simple,
+  ].filter(Boolean);
 
   return (
-    <div className={className}>
+    <div className={classNames.join(' ')}>
       {React.Children.map(props.children, (child) => {
         if (child === null || child === undefined) {
           return null;

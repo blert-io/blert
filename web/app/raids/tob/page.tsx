@@ -155,6 +155,7 @@ export default async function Page() {
                   height={100}
                   value={inProgressRaids}
                   maxFontSize={44}
+                  simple
                 />
                 <Statistic
                   name="Raids Today"
@@ -162,6 +163,7 @@ export default async function Page() {
                   height={100}
                   value={todaysStats?.['*'].count ?? '-'}
                   maxFontSize={44}
+                  simple
                 />
                 <Statistic
                   name="Time Raided"
@@ -173,6 +175,7 @@ export default async function Page() {
                       ? ticksToFormattedSeconds(todaysStats?.challengeTicks.sum)
                       : '-'
                   }
+                  simple
                 />
               </div>
               <div className={styles.divider} />

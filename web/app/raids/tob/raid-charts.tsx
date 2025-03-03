@@ -18,18 +18,11 @@ import {
 import { useClientOnly } from '@/hooks/client-only';
 import {
   modeNameAndColor,
+  scaleNameAndColor,
   statusNameAndColor,
 } from '@/components/raid-quick-details';
 
 import styles from './style.module.scss';
-
-const SCALE_NAME_AND_COLOR = [
-  ['Solo', '#0088fe'],
-  ['Duo', '#00c49f'],
-  ['Trio', '#ffbb28'],
-  ['4s', '#ff8042'],
-  ['5s', '#8884d8'],
-];
 
 const CHART_SIZE = 248;
 const TOOLTIP_WIDTH = 150;
@@ -76,7 +69,7 @@ export default function RaidCharts({
   });
 
   const scales = scaleData.map((v) => {
-    const [name, color] = SCALE_NAME_AND_COLOR[v.key - 1];
+    const [name, color] = scaleNameAndColor(v.key);
     return { name, color, ...v };
   });
 

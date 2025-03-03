@@ -78,3 +78,34 @@ export async function getRecentNameChanges(
     processedAt: nc.processed_at,
   }));
 }
+
+export async function getNameChangesForPlayer(
+  username: string,
+  limit: number = 10,
+): Promise<NameChange[]> {
+  const nameChanges = await sql`
+    SELECT
+      nc.id,
+      nc.old_name,
+      nc.new_name,
+      nc.status,
+      nc.submitted_at,
+      nc.processed_at
+    FROM name_changes nc
+    JOIN players p ON nc.player_id = p.id
+    WHERE lower(p.username) = ${username.toLowerCase()}
+      AND nc.status = ${NameChangeStatus.ACCEPTED}
+      AND nc.hidden = FALSE
+    ORDER BY nc.processed_at DESC
+    LIMIT ${limit}
+  `;
+
+  return nameChanges.map((nc) => ({
+    id: nc.id,
+    oldName: nc.old_name,
+    newName: nc.new_name,
+    status: nc.status,
+    submittedAt: nc.submitted_at,
+    processedAt: nc.processed_at,
+  }));
+}

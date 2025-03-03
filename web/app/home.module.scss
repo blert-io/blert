@@ -328,57 +328,6 @@
   border-radius: 6px;
 }
 
-.activityChart {
-  margin-top: 10px;
-
-  .chartTitle {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-    color: var(--font-color-nav);
-    font-size: 0.9em;
-
-    .chartTitleMain {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-
-      i {
-        color: var(--blert-button);
-      }
-    }
-
-    .chartTimeRange {
-      position: relative;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 0.9em;
-      padding: 4px 8px;
-      background: var(--nav-bg);
-      border-radius: 4px;
-
-      i {
-        position: relative;
-        font-size: 0.9em;
-        top: 2px;
-      }
-    }
-  }
-
-  :global {
-    .recharts-cartesian-grid-horizontal line,
-    .recharts-cartesian-grid-vertical line {
-      stroke: var(--font-color-nav-divider);
-    }
-
-    .recharts-tooltip-cursor {
-      fill: var(--font-color-nav-divider);
-    }
-  }
-}
-
 .quickStat {
   display: flex;
   align-items: center;

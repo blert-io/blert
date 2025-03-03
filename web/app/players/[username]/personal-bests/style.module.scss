@@ -1,0 +1,196 @@
+@use '../../../mixins.scss' as *;
+
+.personalBests {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.pbContent {
+  @include panel;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.selection {
+  margin-bottom: 16px;
+
+  .pbOptions {
+    gap: 12px;
+
+    .pbOption {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+  }
+}
+
+.splitSection {
+  flex-direction: column;
+  padding: 16px;
+}
+
+.splitHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+
+  .splitIcon {
+    position: relative;
+    font-size: 20px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--nav-bg-lightened);
+    border-radius: 8px;
+    color: var(--blert-button);
+
+    svg {
+      position: relative;
+      color: inherit;
+
+      path {
+        fill: currentColor;
+        stroke: currentColor;
+      }
+    }
+  }
+
+  .splitInfo {
+    h3 {
+      font-size: 18px;
+      font-weight: 500;
+      margin: 0 0 2px 0;
+    }
+
+    p {
+      font-size: 13px;
+      margin: 0;
+      color: var(--font-color-nav);
+      line-height: 1.3;
+    }
+  }
+}
+
+.pbGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.pbCard {
+  background: var(--nav-bg);
+  border: 1px solid var(--nav-bg-lightened);
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  color: var(--blert-text-color);
+
+  &.hasTime {
+    cursor: pointer;
+
+    &:hover {
+      transform: translateY(-2px);
+      border-color: var(--blert-button);
+      background: var(--nav-bg-lightened);
+
+      .pbTime {
+        color: var(--blert-button);
+      }
+    }
+  }
+
+  .pbScale {
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 4px;
+    color: var(--font-color-nav);
+  }
+
+  .pbTime {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    font-variant-numeric: tabular-nums;
+    transition: color 0.2s ease;
+  }
+
+  .pbDate {
+    font-size: 11px;
+    color: var(--font-color-nav);
+  }
+}
+
+@media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+  .personalBests {
+    padding: 0;
+  }
+
+  .splitSection {
+    padding: 12px;
+  }
+
+  .splitHeader {
+    gap: 10px;
+    margin-bottom: 12px;
+
+    .splitIcon {
+      font-size: 18px;
+      width: 36px;
+      height: 36px;
+      color: var(--blert-blue);
+
+      svg {
+        fill: currentColor;
+        stroke: currentColor;
+      }
+
+      path {
+        fill: currentColor;
+        stroke: currentColor;
+      }
+    }
+
+    .splitInfo {
+      h3 {
+        font-size: 16px;
+      }
+
+      p {
+        font-size: 12px;
+      }
+    }
+  }
+
+  .pbGrid {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 8px;
+  }
+
+  .pbCard {
+    padding: 10px;
+
+    .pbScale {
+      font-size: 12px;
+    }
+
+    .pbTime {
+      font-size: 18px;
+    }
+
+    .pbDate {
+      font-size: 10px;
+    }
+  }
+}

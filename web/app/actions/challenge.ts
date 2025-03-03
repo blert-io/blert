@@ -19,6 +19,8 @@ import {
   allSplitModes,
   camelToSnake,
   generalizeSplit,
+  isPostgresUndefinedColumn,
+  snakeToCamel,
   snakeToCamelObject,
 } from '@blert/common';
 import postgres from 'postgres';
@@ -678,6 +680,19 @@ export async function findChallenges(
   return [challenges as ChallengeOverview[], total];
 }
 
+type GroupField = {
+  field: string;
+  renamed: string;
+  groupExpression: postgres.Fragment | null;
+};
+
+function groupExpression(groupField: GroupField): postgres.Fragment {
+  if (groupField.groupExpression === null) {
+    return sql`${sql(groupField.field)}`;
+  }
+  return sql`${groupField.groupExpression} AS ${sql(groupField.renamed)}`;
+}
+
 export type Aggregation = 'count' | 'sum' | 'avg' | 'min' | 'max';
 type Aggregations = Aggregation | Aggregation[];
 
@@ -876,27 +891,31 @@ export async function aggregateChallenges<
     });
   });
 
-  let groupFields: string[] = [];
-  if (grouping !== undefined) {
-    if (Array.isArray(grouping)) {
-      groupFields = grouping;
-    } else {
-      groupFields = [grouping];
-    }
+  let groupFields: Array<GroupField> = [];
 
-    groupFields.forEach((field) => {
-      const [, table] = shorthandToFullField(camelToSnake(field));
+  if (grouping !== undefined) {
+    const fields = Array.isArray(grouping) ? grouping : [grouping];
+    fields.forEach((field) => {
+      const [f, table] = shorthandToFullField(camelToSnake(field));
+      let groupExpression = null;
+      let renamed = f;
+
       if (
         table === 'challenges' ||
         joins.find((j) => j.tableName === table) !== undefined
       ) {
-        return;
+        if (field === 'startTime') {
+          renamed = 'start_date';
+          groupExpression = sql`${sql(f)}::date`;
+        }
+      } else {
+        joins.push({
+          table: sql(table),
+          on: sql`challenges.id = ${sql(table)}.challenge_id`,
+          tableName: table,
+        });
       }
-      joins.push({
-        table: sql(table),
-        on: sql`challenges.id = ${sql(table)}.challenge_id`,
-        tableName: table,
-      });
+      groupFields.push({ field: f, renamed, groupExpression });
     });
   }
 
@@ -907,12 +926,16 @@ export async function aggregateChallenges<
 
   const rows = await sql`
     SELECT
-      ${groupFields.length > 0 ? sql`${sql(groupFields)},` : sql``}
+      ${
+        groupFields.length > 0
+          ? sql`${groupFields.map((g) => sql`${groupExpression(g)},`)}`
+          : sql``
+      }
       ${aggregateFields.flatMap((f, i) => (i === 0 ? f : [sql`, `, f]))}
     FROM ${baseTable}
     ${join(joins)}
     ${where(conditions)}
-    ${groupFields.length > 0 ? sql`GROUP BY ${sql(groupFields)}` : sql``}
+    ${groupFields.length > 0 ? sql`GROUP BY ${sql(groupFields.map((g) => g.renamed))}` : sql``}
     ${options.sort ? order(options.sort) : sql``}
     ${options.limit ? sql`LIMIT ${options.limit}` : sql``}
   `;
@@ -962,7 +985,7 @@ export async function aggregateChallenges<
         return;
       }
 
-      if (groupFields.includes(key)) {
+      if (groupFields.some((g) => g.renamed === key)) {
         return;
       }
 
@@ -979,7 +1002,14 @@ export async function aggregateChallenges<
     let parent = result;
 
     groupFields.forEach((field, i) => {
-      const value = row[field];
+      let value = row[field.renamed];
+      if (value instanceof Date) {
+        const date = value as Date;
+        value =
+          `${date.getUTCFullYear()}-` +
+          `${(date.getUTCMonth() + 1).toString().padStart(2, '0')}-` +
+          `${date.getUTCDate().toString().padStart(2, '0')}`;
+      }
 
       if (i === groupFields.length - 1) {
         parent[value] = groupResult;
@@ -1048,6 +1078,7 @@ export async function loadEventsForStage(
 
 export type PlayerWithStats = Pick<Player, 'username' | 'totalRecordings'> & {
   stats: Omit<PlayerStats, 'playerId' | 'date'>;
+  firstRecorded: Date;
 };
 
 /**
@@ -1074,9 +1105,19 @@ export async function loadPlayerWithStats(
     return null;
   }
 
+  const [firstStats] = await sql<[{ date: Date }?]>`
+    SELECT date
+    FROM player_stats
+    WHERE player_id = ${playerWithStats.player_id}
+    ORDER BY date ASC
+    LIMIT 1
+  `;
+  const firstRecorded = firstStats?.date ?? new Date();
+
   return {
     username: playerWithStats.username,
     totalRecordings: playerWithStats.total_recordings,
+    firstRecorded,
     stats: {
       tobCompletions: playerWithStats.tob_completions,
       tobWipes: playerWithStats.tob_wipes,
@@ -1119,6 +1160,13 @@ export type PersonalBest = {
   cid: string;
   scale: number;
   ticks: number;
+  date: Date;
+  rank?: SplitRank;
+};
+
+export type SplitRank = {
+  position: number;
+  total: number;
 };
 
 type PbsFilter = {
@@ -1131,18 +1179,45 @@ export async function loadPbsForPlayer(
   filter?: PbsFilter,
 ): Promise<PersonalBest[]> {
   const rows = await sql`
+    WITH distinct_ticks AS (
+      SELECT DISTINCT type, scale, ticks
+      FROM challenge_splits cs
+      WHERE cs.accurate = true
+    ),
+    all_ranked_splits AS (
+      SELECT
+        type,
+        scale,
+        ticks,
+        DENSE_RANK() OVER (PARTITION BY type, scale ORDER BY ticks) as position,
+        COUNT(*) OVER (PARTITION BY type, scale) as total
+      FROM distinct_ticks
+    ),
+    player_pbs AS (
+      SELECT
+        c.uuid as cid,
+        c.start_time as date,
+        cs.type,
+        cs.scale,
+        cs.ticks
+      FROM personal_bests pb
+      JOIN challenge_splits cs ON pb.challenge_split_id = cs.id
+      JOIN challenges c ON cs.challenge_id = c.id
+      JOIN players p ON pb.player_id = p.id
+      WHERE lower(p.username) = ${username.toLowerCase()}
+        ${filter?.splits ? sql`AND cs.type = ANY(${filter.splits})` : sql``}
+        ${filter?.scales ? sql`AND cs.scale = ANY(${filter.scales})` : sql``}
+    )
     SELECT
-      c.uuid as cid,
-      cs.type,
-      cs.scale,
-      cs.ticks
-    FROM personal_bests pb
-    JOIN challenge_splits cs ON pb.challenge_split_id = cs.id
-    JOIN challenges c ON cs.challenge_id = c.id
-    JOIN players p ON pb.player_id = p.id
-    WHERE lower(p.username) = ${username.toLowerCase()}
-      ${filter?.splits ? sql`AND cs.type = ANY(${filter.splits})` : sql``}
-      ${filter?.scales ? sql`AND cs.scale = ANY(${filter.scales})` : sql``}
+      p.cid,
+      p.date,
+      p.type,
+      p.scale,
+      p.ticks,
+      r.position,
+      r.total
+    FROM player_pbs p
+    JOIN all_ranked_splits r ON p.type = r.type AND p.scale = r.scale AND p.ticks = r.ticks
   `;
 
   return rows.map((row) => ({
@@ -1150,6 +1225,11 @@ export async function loadPbsForPlayer(
     type: row.type,
     scale: row.scale,
     ticks: row.ticks,
+    date: row.date,
+    rank: {
+      position: row.position,
+      total: row.total,
+    },
   }));
 }
 
@@ -1312,4 +1392,83 @@ export async function findBestSplitTimes(
   }
 
   return rankedSplits;
+}
+
+export type PlayerStatsFilter = {
+  after?: Date;
+  before?: Date;
+  fields?: string[];
+};
+
+/**
+ * Fetches historical stats for a player with optional filtering.
+ * @param username The player's username.
+ * @param filter Optional filters to apply to the query.
+ * @returns Array of stats entries, ordered by date descending.
+ */
+export async function getPlayerStatsHistory(
+  username: string,
+  limit?: number,
+  filter: PlayerStatsFilter = {},
+): Promise<Partial<PlayerStats>[]> {
+  const conditions: postgres.Fragment[] = [
+    sql`lower(players.username) = ${username.toLowerCase()}`,
+  ];
+  const fields: postgres.Fragment[] = [];
+
+  if (filter.after) {
+    conditions.push(sql`player_stats.date >= ${filter.after}`);
+  }
+  if (filter.before) {
+    conditions.push(sql`player_stats.date < ${filter.before}`);
+  }
+
+  if (filter.fields && filter.fields.length > 0) {
+    fields.push(sql`player_stats.date`);
+    for (const field of filter.fields) {
+      if (field === 'id' || field === 'player_id') {
+        throw new InvalidQueryError(`Invalid field: ${snakeToCamel(field)}`);
+      }
+      fields.push(sql`player_stats.${sql(camelToSnake(field))}`);
+    }
+  }
+
+  try {
+    const rows = await sql`
+      SELECT ${
+        fields.length > 0
+          ? sql`${fields.flatMap((f, i) => (i === 0 ? f : [sql`, `, f]))}`
+          : sql`player_stats.*`
+      }
+    FROM players
+    JOIN player_stats ON players.id = player_stats.player_id
+    ${where(conditions)}
+    ORDER BY player_stats.date DESC
+    ${limit ? sql`LIMIT ${limit}` : sql``}
+  `;
+
+    return rows.map((row) => {
+      const { date, player_id, id, ...statsFields } = row;
+      const stats: Partial<PlayerStats> = { date };
+
+      for (const [key, value] of Object.entries(statsFields)) {
+        stats[snakeToCamel(key) as keyof PlayerStats] = value;
+      }
+
+      return stats;
+    });
+  } catch (e: any) {
+    if (isPostgresUndefinedColumn(e)) {
+      const missingField = /column ([^"]+) does not exist/.exec(e.message);
+      if (missingField) {
+        let field = missingField[1];
+        if (field.startsWith('player_stats.')) {
+          field = field.slice(13);
+        }
+        throw new InvalidQueryError(`Invalid field: ${snakeToCamel(field)}`);
+      }
+      throw new InvalidQueryError('Invalid field');
+    }
+    throw e;
+  }
 }

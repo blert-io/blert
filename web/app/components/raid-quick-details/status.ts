@@ -71,3 +71,15 @@ export function modeNameAndColor(
       return [short ? 'UNK' : 'Unknown', '#c3c7c9'];
   }
 }
+
+const SCALE_NAME_AND_COLOR: Array<[string, string]> = [
+  ['Solo', '#0088fe'],
+  ['Duo', '#00c49f'],
+  ['Trio', '#ffbb28'],
+  ['4s', '#ff8042'],
+  ['5s', '#8884d8'],
+];
+
+export function scaleNameAndColor(scale: number): [string, string] {
+  return SCALE_NAME_AND_COLOR[scale - 1] ?? ['Unknown', '#c3c7c9'];
+}
