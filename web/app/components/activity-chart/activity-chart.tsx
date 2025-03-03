@@ -24,6 +24,18 @@ type ActivityChartProps = {
   startHour?: number;
 };
 
+function utcToLocal(utcHour: number) {
+  const date = new Date();
+  date.setUTCHours(utcHour, 0, 0, 0);
+  return date.getHours();
+}
+
+function formatHour(hour: number) {
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const h = hour % 12 || 12;
+  return `${h}:00 ${ampm}`;
+}
+
 export default function ActivityChart({
   data,
   title = 'Activity',
@@ -50,7 +62,7 @@ export default function ActivityChart({
       <ResponsiveContainer width="100%" height={height}>
         <AreaChart
           data={data}
-          margin={{ top: 5, right: 15, left: 15, bottom: 5 }}
+          margin={{ top: 5, right: 20, left: 20, bottom: 5 }}
         >
           <defs>
             <linearGradient id="activityGradient" x1="0" y1="0" x2="0" y2="1">
@@ -70,7 +82,7 @@ export default function ActivityChart({
             dataKey="hour"
             interval={3}
             tickFormatter={(hour) =>
-              `${((startHour + hour) % 24).toString().padStart(2, '0')}:00`
+              formatHour(utcToLocal((startHour + hour) % 24))
             }
             stroke="var(--font-color-nav)"
             tick={{ fontSize: 10 }}
@@ -87,8 +99,8 @@ export default function ActivityChart({
             }}
             formatter={(value) => [`${value} ${valueLabel}`, 'Active']}
             labelFormatter={(hour) => {
-              const labelHour = (startHour + hour) % 24;
-              return `${labelHour.toString().padStart(2, '0')}:00 UTC`;
+              const localHour = utcToLocal((startHour + hour) % 24);
+              return formatHour(localHour);
             }}
           />
           <Area

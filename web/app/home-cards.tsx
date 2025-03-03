@@ -110,6 +110,7 @@ function ActivityChartWrapper() {
       icon="fas fa-users"
       title="Active Players"
       timeRange="Last 24h"
+      valueLabel="players"
       height={100}
       startHour={activityData.startHour}
     />
