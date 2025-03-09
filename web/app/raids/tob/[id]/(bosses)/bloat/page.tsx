@@ -11,15 +11,16 @@ import {
   Stage,
   TobRaid,
 } from '@blert/common';
-import Image from 'next/image';
 import { useContext, useMemo } from 'react';
 
-import AttackTimeline, { TimelineColor } from '@/components/attack-timeline';
+import { TimelineColor } from '@/components/attack-timeline';
+import BossFightOverview from '@/components/boss-fight-overview';
 import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
-import { BossPageControls } from '@/components/boss-page-controls/boss-page-controls';
-import { BossPageDPSTimeline } from '@/components/boss-page-dps-timeine/boss-page-dps-timeline';
+import BossPageControls from '@/components/boss-page-controls';
+import BossPageDPSTimeline from '@/components/boss-page-dps-timeline';
+import BossPageParty from '@/components/boss-page-party';
 import BossPageReplay from '@/components/boss-page-replay';
-import CollapsiblePanel from '@/components/collapsible-panel';
+import Card from '@/components/card';
 import {
   Entity,
   MarkerEntity,
@@ -27,8 +28,8 @@ import {
   PlayerEntity,
 } from '@/components/map';
 import Loading from '@/components/loading';
-import Tabs from '@/components/tabs';
-import { DisplayContext } from '@/display';
+import { useDisplay } from '@/display';
+import { ActorContext } from '@/raids/tob/context';
 import {
   EnhancedRoomNpc,
   usePlayingState,
@@ -68,10 +69,11 @@ export default function BloatPage() {
     loading,
   } = useStageEvents<TobRaid>(Stage.TOB_BLOAT);
 
-  const display = useContext(DisplayContext);
-
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
+
+  const display = useDisplay();
+  const { setSelectedPlayer, selectedPlayer } = useContext(ActorContext);
 
   const { downInfo, splits, backgroundColors } = useMemo(() => {
     const bloat: EnhancedRoomNpc | null =
@@ -202,187 +204,98 @@ export default function BloatPage() {
     {},
   );
 
-  const downStats = (
-    <div className={styles.downs}>
-      {downInfo.map((down, i) => (
-        <div key={i} className={styles.down}>
-          <h3>Down {i + 1}</h3>
-          <table>
-            <tbody>
-              <tr>
-                <td>
-                  <i
-                    className="fa-solid fa-person-walking"
-                    style={{ padding: '0 7px 0 3px' }}
-                  />
-                  <span className="sr-only">Walk time</span>
-                </td>
-                <td>
-                  {ticksToFormattedSeconds(down.walkTime - 1)}
-                  <span className={styles.walkTicks}>
-                    ({down.walkTime - 1})
-                  </span>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <i
-                    className="fa-solid fa-heart"
-                    style={{ paddingRight: 10 }}
-                  />
-                  <span className="sr-only">Start hitpoints</span>
-                </td>
-                <td>
-                  {down.startHitpoints
-                    ? down.startHitpoints.toPercent(1)
-                    : 'Unknown'}
-                  {' -> '}
-                  {down.endHitpoints
-                    ? down.endHitpoints.toPercent(1)
-                    : 'Unknown'}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      ))}
-    </div>
-  );
-
-  const chartWidth = display.isFull() ? 1200 : window?.innerWidth - 40 ?? 350;
-  const chartHeight = Math.floor(chartWidth / (display.isCompact() ? 2 : 2.5));
-  const healthChart = (
-    <div className={bossStyles.chart}>
-      <h3>Bloat&apos;s Health By Tick</h3>
-      <BossPageDPSTimeline
-        currentTick={currentTick}
-        data={bossHealthChartData}
-        width={chartWidth}
-        height={chartHeight}
-      />
-    </div>
-  );
-
-  if (display.isCompact()) {
-    let maxHeight;
-    let timelineWrapWidth = 380;
-    if (window) {
-      maxHeight = window.innerHeight - 255;
-      timelineWrapWidth = window.innerWidth - 25;
-    }
-
-    return (
-      <div className={bossStyles.bossPageCompact}>
-        <h1>
-          <i className="fas fa-bullseye" />
-          The Pestilent Bloat ({ticksToFormattedSeconds(totalTicks)})
-        </h1>
-        <Tabs
-          fluid
-          maxHeight={maxHeight}
-          tabs={[
-            {
-              icon: 'fas fa-chart-simple',
-              content: (
-                <div>
-                  {downStats}
-                  {healthChart}
-                </div>
-              ),
-            },
-            {
-              icon: 'fas fa-timeline',
-              content: (
-                <div className={bossStyles.timeline}>
-                  <AttackTimeline
-                    currentTick={currentTick}
-                    playing={playing}
-                    playerState={playerState}
-                    timelineTicks={totalTicks}
-                    updateTickOnPage={updateTickOnPage}
-                    splits={splits}
-                    npcs={npcState}
-                    cellSize={20}
-                    wrapWidth={timelineWrapWidth}
-                    smallLegend
-                  />
-                </div>
-              ),
-            },
-            {
-              icon: 'fas fa-gamepad',
-              content: (
-                <div>
-                  <BossPageReplay
-                    entities={entities}
-                    mapDef={BLOAT_MAP_DEFINITION}
-                    playerTickState={playerTickState}
-                    tileSize={20}
-                  />
-                </div>
-              ),
-            },
-          ]}
-        />
-        <BossPageControls
-          currentlyPlaying={playing}
-          totalTicks={totalTicks}
-          currentTick={currentTick}
-          updateTick={updateTickOnPage}
-          updatePlayingState={setPlaying}
-          splits={splits}
-        />
+  const downStats = downInfo.map((down, i) => ({
+    title: `Down ${i + 1}`,
+    content: (
+      <div key={i} className={styles.down}>
+        <table>
+          <tbody>
+            <tr>
+              <td>
+                <i
+                  className="fa-solid fa-person-walking"
+                  style={{ padding: '0 7px 0 3px' }}
+                />
+                <span className="sr-only">Walk time</span>
+              </td>
+              <td className={styles.walkTime}>
+                {ticksToFormattedSeconds(down.walkTime - 1)}
+                <span className={styles.walkTicks}>({down.walkTime - 1})</span>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <i className="fa-solid fa-heart" style={{ paddingRight: 10 }} />
+                <span className="sr-only">Start hitpoints</span>
+              </td>
+              <td>
+                {down.startHitpoints
+                  ? down.startHitpoints.toPercent(1)
+                  : 'Unknown'}
+                <span className={styles.arrow}>{' -> '}</span>
+                {down.endHitpoints ? down.endHitpoints.toPercent(1) : 'Unknown'}
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-    );
-  }
+    ),
+  }));
 
   return (
     <>
-      <div className={bossStyles.bossPage__Overview}>
-        <div className={bossStyles.bossPage__BossPic}>
-          <Image
-            src="/bloat.webp"
-            alt="The Pestilent Bloat"
-            fill
-            style={{ objectFit: 'contain' }}
+      <div className={bossStyles.overview}>
+        <BossFightOverview
+          name="The Pestilent Bloat"
+          image="/bloat.webp"
+          time={totalTicks}
+          sections={downStats}
+        />
+      </div>
+
+      <div className={bossStyles.timeline}>
+        <BossPageAttackTimeline
+          currentTick={currentTick}
+          playing={playing}
+          playerState={playerState}
+          timelineTicks={totalTicks}
+          updateTickOnPage={updateTickOnPage}
+          npcs={npcState}
+          splits={splits}
+          backgroundColors={backgroundColors}
+        />
+      </div>
+
+      <div className={bossStyles.replayAndParty}>
+        <div className={bossStyles.replay}>
+          <BossPageReplay
+            entities={entities}
+            mapDef={BLOAT_MAP_DEFINITION}
+            tileSize={display.isCompact() ? 22 : undefined}
           />
         </div>
-        <div className={bossStyles.bossPage__KeyDetails}>
-          <h2>The Pestilent Bloat ({ticksToFormattedSeconds(totalTicks)})</h2>
-          {downStats}
+        <div className={bossStyles.party}>
+          <BossPageParty
+            playerTickState={playerTickState}
+            selectedPlayer={selectedPlayer}
+            setSelectedPlayer={setSelectedPlayer}
+          />
         </div>
       </div>
 
-      <BossPageAttackTimeline
-        currentTick={currentTick}
-        playing={playing}
-        playerState={playerState}
-        timelineTicks={totalTicks}
-        updateTickOnPage={updateTickOnPage}
-        npcs={npcState}
-        splits={splits}
-        backgroundColors={backgroundColors}
-      />
-
-      <CollapsiblePanel
-        panelTitle="Room Replay"
-        maxPanelHeight={2000}
-        defaultExpanded={true}
-      >
-        <BossPageReplay
-          entities={entities}
-          mapDef={BLOAT_MAP_DEFINITION}
-          playerTickState={playerTickState}
-        />
-      </CollapsiblePanel>
-
-      <CollapsiblePanel
-        panelTitle="Charts"
-        maxPanelHeight={1000}
-        defaultExpanded
-      >
-        {healthChart}
-      </CollapsiblePanel>
+      <div className={bossStyles.charts}>
+        <Card
+          className={bossStyles.chart}
+          header={{ title: "Bloat's Health By Tick" }}
+        >
+          <BossPageDPSTimeline
+            currentTick={currentTick}
+            data={bossHealthChartData}
+            width="100%"
+            height="100%"
+          />
+        </Card>
+      </div>
 
       <BossPageControls
         currentlyPlaying={playing}

@@ -161,7 +161,7 @@ export function ChallengeOverview(props: ChallengeOverviewProps) {
             <div className={styles.statLabel}>Duration</div>
             <div className={styles.statValue}>
               <i className="fa-solid fa-hourglass" />
-              <span>{ticks}</span>
+              <span className={styles.time}>{ticks}</span>
             </div>
           </div>
           <div className={styles.statItem} data-label="Deaths">

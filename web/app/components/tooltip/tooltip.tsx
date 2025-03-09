@@ -8,15 +8,23 @@ import styles from './style.module.scss';
 
 type TooltipProps = {
   className?: string;
-  children: React.ReactNode;
+  clickable?: boolean;
+  children?: React.ReactNode;
   maxWidth?: string | number;
   open?: boolean;
   openOnClick?: boolean;
   tooltipId: string;
+  render?: ({
+    content,
+    activeAnchor,
+  }: {
+    content: string | null;
+    activeAnchor: HTMLElement | null;
+  }) => React.ReactNode;
 };
 
 export function Tooltip(props: TooltipProps) {
-  const { children, maxWidth, open, openOnClick, tooltipId } = props;
+  const { children, maxWidth, open, openOnClick, tooltipId, clickable } = props;
   const [ready, setReady] = useState(false);
   const portalNode = useRef<HTMLElement | null>(null);
 
@@ -51,15 +59,16 @@ export function Tooltip(props: TooltipProps) {
   return ReactDOM.createPortal(
     <ReactTooltip
       className={className}
+      clickable={clickable}
       id={tooltipId}
       isOpen={open}
       openOnClick={openOnClick}
       opacity={1}
+      render={props.render}
       style={{
         backgroundColor: '#171821',
         borderRadius: '5px',
         boxShadow: '0px 0px 5px rgba(64, 64, 64, 0.2)',
-        pointerEvents: 'auto',
         maxWidth,
         zIndex: 999,
       }}

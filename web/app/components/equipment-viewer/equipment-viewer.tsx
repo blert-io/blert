@@ -2,10 +2,10 @@ import { DataSource, EquipmentSlot } from '@blert/common';
 import Image from 'next/image';
 
 import Item from '@/components/item';
-import Tooltip from '@/components/tooltip';
 import { PlayerEquipment } from '@/utils/boss-room-state';
 
 import styles from './style.module.scss';
+import { GLOBAL_TOOLTIP_ID } from '../tooltip';
 
 type EquipmentViewerProps = {
   className?: string;
@@ -55,11 +55,15 @@ export default function EquipmentViewer(props: EquipmentViewerProps) {
         ...EQUIPMENT_OFFSETS[slot],
       };
 
-      const tooltipId = `${username.replace(/[^a-zA-Z0-9_-]/g, '')}-${slot}-tooltip`;
+      const tooltipContent = `${item.quantity > 1 ? `${item.quantity.toLocaleString()}× ` : ''}${item.name}`;
 
       return (
         <span key={`${slot}-${index}`}>
-          <div style={style} data-tooltip-id={tooltipId}>
+          <div
+            style={style}
+            data-tooltip-id={GLOBAL_TOOLTIP_ID}
+            data-tooltip-content={tooltipContent}
+          >
             <Image
               style={{ position: 'absolute', zIndex: 1 }}
               src="/images/equipment-background.png"
@@ -75,10 +79,6 @@ export default function EquipmentViewer(props: EquipmentViewerProps) {
               size={ITEM_SIZE}
             />
           </div>
-          <Tooltip key={`tooltip-${slot}`} tooltipId={tooltipId}>
-            {item.quantity >= 100_000 && `${item.quantity.toLocaleString()}x `}
-            {item.name}
-          </Tooltip>
         </span>
       );
     });
@@ -90,9 +90,9 @@ export default function EquipmentViewer(props: EquipmentViewerProps) {
           key={`${username}-${EquipmentSlot.AMMO}`}
           style={{
             position: 'absolute',
-            height: ITEM_SIZE + 7,
+            height: ITEM_SIZE + 8,
             width: ITEM_SIZE + 8,
-            top: 49,
+            top: 48,
             left: 120,
           }}
         >
@@ -103,7 +103,7 @@ export default function EquipmentViewer(props: EquipmentViewerProps) {
           key={`${username}-${EquipmentSlot.RING}`}
           style={{
             position: 'absolute',
-            height: ITEM_SIZE + 7,
+            height: ITEM_SIZE + 8,
             width: ITEM_SIZE + 8,
             top: 197,
             left: 139,
@@ -115,7 +115,7 @@ export default function EquipmentViewer(props: EquipmentViewerProps) {
     }
   } else {
     items.push(
-      <div key="empty" className={styles.empty} style={{ top: 96, left: 0 }}>
+      <div key="empty" className={styles.empty} style={{ top: 96 }}>
         No equipment data available.
       </div>,
     );

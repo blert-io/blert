@@ -23,15 +23,16 @@
   }
 
   .secondary {
-    background: rgba(0, 0, 0, 0.15);
-    color: #fff;
-    border-radius: 5px;
+    border-radius: 8px;
     width: 100%;
     position: absolute;
     bottom: 10px;
     display: flex;
     justify-content: center;
     align-items: center;
-    font-size: 14px;
+    font-size: 0.9em;
+    color: var(--font-color-nav);
+    padding: 4px;
+    backdrop-filter: blur(2px);
   }
 }

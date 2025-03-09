@@ -8,7 +8,7 @@
   position: fixed;
   top: 0;
   left: $LEFT_NAV_WIDTH;
-  z-index: 10;
+  z-index: 25;
 }
 
 .navItems {
@@ -127,7 +127,7 @@
     padding: 0;
     background: var(--panel-bg);
     border-bottom: 1px solid var(--nav-bg);
-    z-index: 5;
+    z-index: 20;
   }
 
   .navItems {

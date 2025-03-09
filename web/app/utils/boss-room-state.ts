@@ -30,6 +30,7 @@ import {
   SplitType,
   Skill,
 } from '@blert/common';
+import { useSearchParams } from 'next/navigation';
 import {
   SetStateAction,
   useCallback,
@@ -45,7 +46,10 @@ import { TICK_MS } from './tick';
 import { challengeApiUrl } from './url';
 
 export const usePlayingState = (totalTicks: number) => {
-  const [currentTick, setTick] = useState(1);
+  const searchParams = useSearchParams();
+  const initialTick = Number.parseInt(searchParams.get('tick') ?? '1', 10);
+
+  const [currentTick, setTick] = useState(initialTick);
   const [playing, setPlaying] = useState(false);
 
   const tickTimeout = useRef<number | undefined>(undefined);

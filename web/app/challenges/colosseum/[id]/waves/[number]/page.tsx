@@ -9,27 +9,23 @@ import {
   NpcEvent,
   PlayerUpdateEvent,
   SkillLevel,
-  SplitType,
   Stage,
 } from '@blert/common';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { use, useContext, useEffect } from 'react';
 
-import AttackTimeline from '@/components/attack-timeline';
+import { ActorContext } from '@/challenges/colosseum/context';
+import BossFightOverview from '@/components/boss-fight-overview';
 import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
-import { BossPageControls } from '@/components/boss-page-controls/boss-page-controls';
+import BossPageControls from '@/components/boss-page-controls';
+import BossPageParty from '@/components/boss-page-party';
 import BossPageReplay from '@/components/boss-page-replay';
-import CollapsiblePanel from '@/components/collapsible-panel';
 import ColosseumHandicap from '@/components/colosseum-handicap';
-import { Entity, NpcEntity, PlayerEntity } from '@/components/map';
 import Loading from '@/components/loading';
-import Tabs from '@/components/tabs';
-import { DisplayContext } from '@/display';
+import { Entity, NpcEntity, PlayerEntity } from '@/components/map';
+import { useDisplay } from '@/display';
 import { usePlayingState, useStageEvents } from '@/utils/boss-room-state';
-import { ticksToFormattedSeconds } from '@/utils/tick';
 import { challengeUrl } from '@/utils/url';
-import { ActorContext } from '../../../context';
 
 import styles from './style.module.scss';
 import colosseumBaseTiles from './colosseum-tiles.json';
@@ -43,27 +39,9 @@ const COLOSSEUM_MAP_DEFINITION = {
 };
 
 function imageForWave(waveNumber: number) {
-  switch (waveNumber) {
-    case 1:
-      return '/images/colosseum/serpent-shaman.webp';
-    case 2:
-    case 3:
-      return '/images/colosseum/javelin-colossus.webp';
-    case 4:
-    case 5:
-    case 9:
-    case 10:
-    case 11:
-      return '/images/colosseum/manticore.webp';
-    case 6:
-      return '/images/colosseum/jaguar-warrior.webp';
-    case 7:
-    case 8:
-      return '/images/colosseum/shockwave-colossus.webp';
-    case 12:
-    default:
-      return '/images/colosseum/sol-heredit.webp';
-  }
+  return waveNumber === 12
+    ? '/images/colosseum/sol-heredit.webp'
+    : `/images/colosseum/wave-${waveNumber}.webp`;
 }
 
 type ColosseumWavePageProps = {
@@ -102,6 +80,7 @@ function npcOutlineColor(npcId: number): string | undefined {
 
 export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
   const router = useRouter();
+  const display = useDisplay();
 
   const { id: challengeId, number } = use(params);
 
@@ -111,8 +90,6 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
       router.replace(challengeUrl(ChallengeType.COLOSSEUM, challengeId));
     }
   }, [challengeId, waveNumber, router]);
-
-  const display = useContext(DisplayContext);
 
   const waveIndex = validWaveNumber(waveNumber) ? waveNumber - 1 : 0;
   const {
@@ -125,7 +102,7 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
     loading,
   } = useStageEvents<ColosseumChallenge>(Stage.COLOSSEUM_WAVE_1 + waveIndex);
 
-  const { selectedPlayer } = useContext(ActorContext);
+  const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
 
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
@@ -214,156 +191,74 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
     }
   }
 
-  const waveOverview = (
-    <div className={styles.waveOverview}>
-      <div className={styles.waveImage}>
-        <Image
-          src={imageForWave(waveNumber)}
-          alt={`Fortis Colosseum Wave ${waveNumber}`}
-          fill
-          style={{ objectFit: 'contain' }}
-        />
+  const sections = [];
+  sections.push({
+    title: 'Handicaps This Wave',
+    content: (
+      <div className={styles.handicapOptions}>
+        {waveInfo.options.map((option) => (
+          <div className={styles.handicapOption} key={option}>
+            <ColosseumHandicap
+              handicap={option}
+              dimmed={option !== waveInfo.handicap}
+            />
+          </div>
+        ))}
       </div>
-      <div className={styles.waveDetails}>
-        {display.isFull() && (
-          <h2>
-            {title} (
-            {ticksToFormattedSeconds(
-              challenge.splits[
-                (SplitType.COLOSSEUM_WAVE_1 + waveIndex) as SplitType
-              ] ?? 0,
-            )}
-            )
-          </h2>
-        )}
-        <div className={styles.handicaps}>
-          <h3>Handicaps This Wave</h3>
-          <ul>
-            {waveInfo.options.map((option) => (
-              <li key={option}>
-                <ColosseumHandicap
-                  handicap={option}
-                  dimmed={option !== waveInfo.handicap}
-                />
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className={styles.handicaps}>
-          <h3>All Active Handicaps</h3>
-          <ul>
-            {handicapsSoFar.map((handicap) => (
-              <li key={handicap}>
-                <ColosseumHandicap handicap={handicap} />
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-    </div>
-  );
+    ),
+  });
 
-  if (display.isCompact()) {
-    let maxHeight;
-    let timelineWrapWidth = 380;
-    if (window) {
-      maxHeight = window.innerHeight - 255;
-      timelineWrapWidth = window.innerWidth - 25;
-    }
-
-    return (
-      <div className={styles.wavePageCompact}>
-        <h1>
-          <i className="fas fa-bullseye" />
-          {title} (
-          {ticksToFormattedSeconds(
-            challenge.splits[
-              (SplitType.COLOSSEUM_WAVE_1 + waveIndex) as SplitType
-            ] ?? 0,
-          )}
-          )
-        </h1>
-        <Tabs
-          fluid
-          maxHeight={maxHeight}
-          tabs={[
-            {
-              icon: 'fas fa-chart-simple',
-              content: waveOverview,
-            },
-            {
-              icon: 'fas fa-timeline',
-              content: (
-                <div className={styles.timeline}>
-                  <AttackTimeline
-                    currentTick={currentTick}
-                    playing={playing}
-                    playerState={playerState}
-                    timelineTicks={totalTicks}
-                    updateTickOnPage={updateTickOnPage}
-                    splits={timelineSplits}
-                    npcs={npcState}
-                    cellSize={20}
-                    wrapWidth={timelineWrapWidth}
-                    smallLegend
-                  />
-                </div>
-              ),
-            },
-            {
-              icon: 'fas fa-gamepad',
-              content: (
-                <div>
-                  <BossPageReplay
-                    entities={entities}
-                    mapDef={COLOSSEUM_MAP_DEFINITION}
-                    playerTickState={playerTickState}
-                    tileSize={11}
-                  />
-                </div>
-              ),
-            },
-          ]}
-        />
-        <BossPageControls
-          currentlyPlaying={playing}
-          totalTicks={totalTicks}
-          currentTick={currentTick}
-          updateTick={updateTickOnPage}
-          updatePlayingState={setPlaying}
-          splits={timelineSplits}
-        />
-      </div>
-    );
+  if (handicapsSoFar.length > 0) {
+    sections.push({
+      title: 'All Active Handicaps',
+      content: (
+        <div className={styles.handicapOptions}>
+          {handicapsSoFar.map((handicap) => (
+            <div className={styles.handicapOption} key={handicap}>
+              <ColosseumHandicap handicap={handicap} />
+            </div>
+          ))}
+        </div>
+      ),
+    });
   }
 
   return (
     <div className={styles.wavePage}>
-      {waveOverview}
+      <div className={styles.overview}>
+        <BossFightOverview
+          name={title}
+          image={imageForWave(waveNumber)}
+          time={totalTicks}
+          sections={sections}
+        />
+      </div>
 
-      <BossPageAttackTimeline
-        currentTick={currentTick}
-        playing={playing}
-        playerState={playerState}
-        timelineTicks={totalTicks}
-        updateTickOnPage={updateTickOnPage}
-        splits={timelineSplits}
-        npcs={npcState}
-        cellSize={40}
-      />
+      <div className={styles.timeline}>
+        <BossPageAttackTimeline
+          currentTick={currentTick}
+          playing={playing}
+          playerState={playerState}
+          timelineTicks={totalTicks}
+          updateTickOnPage={updateTickOnPage}
+          splits={timelineSplits}
+          npcs={npcState}
+          smallLegend={display.isCompact()}
+        />
+      </div>
 
-      <CollapsiblePanel
-        panelTitle="Wave Replay"
-        maxPanelHeight={2000}
-        defaultExpanded={true}
-      >
+      <div className={styles.replayAndParty}>
         <BossPageReplay
           entities={entities}
           mapDef={COLOSSEUM_MAP_DEFINITION}
-          playerTickState={playerTickState}
-          tileSize={20}
+          tileSize={display.isCompact() ? 12 : 20}
         />
-      </CollapsiblePanel>
+        <BossPageParty
+          playerTickState={playerTickState}
+          selectedPlayer={selectedPlayer}
+          setSelectedPlayer={setSelectedPlayer}
+        />
+      </div>
 
       <BossPageControls
         currentlyPlaying={playing}

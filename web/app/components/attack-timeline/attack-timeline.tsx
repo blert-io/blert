@@ -38,8 +38,196 @@ import KeyPrayers from '../key-prayers';
 
 import styles from './style.module.scss';
 
-const DEFAULT_CELL_SIZE = 35;
+const DEFAULT_CELL_SIZE = 30;
 const COLUMN_MARGIN = 5;
+
+const TIMELINE_TOOLTIP_ID = 'attack-timeline-tooltip';
+
+function TimelineTooltipRenderer({
+  activeAnchor,
+}: {
+  activeAnchor: HTMLElement | null;
+}) {
+  const { setSelectedPlayer } = useContext(ActorContext);
+
+  if (!activeAnchor) {
+    return null;
+  }
+
+  let content;
+
+  switch (activeAnchor.dataset.tooltipType) {
+    case 'npc': {
+      const npcName = activeAnchor.dataset.tooltipNpcName;
+      const npcAttack = activeAnchor.dataset.tooltipNpcAttack;
+      const npcTarget = activeAnchor.dataset.tooltipNpcTarget;
+
+      content = (
+        <div className={styles.npcTooltip}>
+          <button className={styles.npc}>{npcName}</button>
+          {npcTarget ? (
+            <span>
+              targeted
+              <button onClick={() => setSelectedPlayer(npcTarget)}>
+                {npcTarget}
+              </button>
+              with
+            </span>
+          ) : (
+            <span>did</span>
+          )}
+          <span className={styles.npcAttack}>{npcAttack}</span>
+        </div>
+      );
+      break;
+    }
+
+    case 'player': {
+      const username = activeAnchor.dataset.tooltipUsername!;
+      const attackType = parseInt(
+        activeAnchor.dataset.tooltipAttack!,
+      ) as PlayerAttack;
+      const hitpoints = activeAnchor.dataset.tooltipTargetHp;
+      const distance = activeAnchor.dataset.tooltipDistance;
+      const prayerSet = parseInt(activeAnchor.dataset.tooltipPrayerSet ?? '0');
+
+      const meta =
+        ATTACK_METADATA[attackType] ?? ATTACK_METADATA[PlayerAttack.UNKNOWN];
+
+      let stats = [];
+
+      const rawStats = activeAnchor.dataset.tooltipStats;
+      if (rawStats !== undefined) {
+        const [attack, strength, ranged, magic] = JSON.parse(rawStats).map(
+          (s: number) => (s !== undefined ? SkillLevel.fromRaw(s) : undefined),
+        );
+
+        const combatThresholds = (boost: BoostType, level: number) => ({
+          high: maxBoostedLevel(boost, level),
+          low: level,
+        });
+
+        switch (meta.style) {
+          case CombatStyle.MELEE:
+            if (attack !== undefined) {
+              stats.push(
+                <PlayerSkill
+                  key="attack"
+                  skill={Skill.ATTACK}
+                  level={attack}
+                  thresholds={combatThresholds(
+                    BoostType.SUPER_COMBAT,
+                    attack.getBase(),
+                  )}
+                />,
+              );
+            }
+            if (strength !== undefined) {
+              stats.push(
+                <PlayerSkill
+                  key="strength"
+                  skill={Skill.STRENGTH}
+                  level={strength}
+                  thresholds={combatThresholds(
+                    BoostType.SUPER_COMBAT,
+                    strength.getBase(),
+                  )}
+                />,
+              );
+            }
+            break;
+          case CombatStyle.RANGED:
+            if (ranged !== undefined) {
+              stats.push(
+                <PlayerSkill
+                  key="ranged"
+                  skill={Skill.RANGED}
+                  level={ranged}
+                  thresholds={combatThresholds(
+                    BoostType.RANGING_POTION,
+                    ranged.getBase(),
+                  )}
+                />,
+              );
+            }
+            break;
+          case CombatStyle.MAGIC:
+            if (magic !== undefined) {
+              stats.push(
+                <PlayerSkill
+                  key="magic"
+                  skill={Skill.MAGIC}
+                  level={magic}
+                  thresholds={combatThresholds(
+                    BoostType.SATURATED_HEART,
+                    magic.getBase(),
+                  )}
+                />,
+              );
+            }
+            break;
+        }
+      }
+
+      content = (
+        <div className={styles.playerTooltip}>
+          <div className={styles.message}>
+            <button
+              className={styles.playerName}
+              onClick={() => setSelectedPlayer(username)}
+            >
+              {username}
+            </button>
+            <span>{playerAttackVerb(attackType)}</span>
+            <button className={styles.npc}>
+              {activeAnchor.dataset.tooltipTargetName}
+              {hitpoints && (
+                <span className={styles.hitpoints}>
+                  <i className="far fa-heart" />
+                  {hitpoints}%
+                </span>
+              )}
+            </button>
+            {meta.ranged && (
+              <span>{`from ${distance} tile${distance === '1' ? '' : 's'} away`}</span>
+            )}
+          </div>
+          {stats.length > 0 && (
+            <>
+              <div className={styles.divider} />
+              <div className={styles.stats}>{stats}</div>
+              <KeyPrayers
+                combatOnly
+                prayerSet={prayerSet}
+                source={DataSource.PRIMARY}
+              />
+            </>
+          )}
+        </div>
+      );
+      break;
+    }
+
+    case 'player-death': {
+      const username = activeAnchor.dataset.tooltipUsername!;
+
+      content = (
+        <div className={styles.playerDeathTooltip}>
+          <button onClick={() => setSelectedPlayer(username)}>
+            {username}
+          </button>
+          <span>died</span>
+        </div>
+      );
+      break;
+    }
+
+    default:
+      return null;
+  }
+
+  return <div className={styles.tooltip}>{content}</div>;
+}
 
 function npcAttackImage(attack: NpcAttack, size: number) {
   let imageUrl = '';
@@ -592,138 +780,51 @@ type CellInfo = {
 function buildPlayerTooltip(
   state: PlayerState,
   npcs: RoomNpcMap,
-  actorContext: RoomActorState,
-  tooltipUsername: string,
   imageSize: number,
   memes: BlertMemes,
-) {
+): {
+  playerTooltip: Record<string, string>;
+  cellImage: React.ReactNode;
+} {
   const attack = state.attack!;
   const cellImage = makeCellImage(attack, imageSize, memes);
 
-  let targetName = 'Unknown';
-  let targetHp: number | undefined = undefined;
+  const playerTooltip: Record<string, string> = {
+    'data-tooltip-type': 'player',
+    'data-tooltip-username': state.player.name,
+    'data-tooltip-attack': attack.type.toString(),
+    'data-tooltip-distance': attack.distanceToTarget.toString(),
+  };
+
   const maybeTarget = attack.target;
   if (maybeTarget !== undefined) {
     const roomNpc = npcs.get(maybeTarget.roomId);
     if (roomNpc !== undefined) {
-      targetName = npcFriendlyName(roomNpc, npcs);
-      targetHp = roomNpc.stateByTick[state.tick]?.hitpoints.percentage();
+      playerTooltip['data-tooltip-target-name'] = npcFriendlyName(
+        roomNpc,
+        npcs,
+      );
+      const hitpoints = roomNpc.stateByTick[state.tick]?.hitpoints;
+      if (hitpoints !== undefined) {
+        playerTooltip['data-tooltip-target-hp'] = hitpoints
+          .percentage()
+          .toFixed(2);
+      }
     }
   }
 
-  const tooltipId = `player-${tooltipUsername}-attack-${state.tick}`;
-
-  const meta =
-    ATTACK_METADATA[attack.type] ?? ATTACK_METADATA[PlayerAttack.UNKNOWN];
-  const distance = attack.distanceToTarget;
-
-  const combatThresholds = (boost: BoostType, level: number) => ({
-    high: maxBoostedLevel(boost, level),
-    low: level,
-  });
-
-  let stats = [];
-  switch (meta.style) {
-    case CombatStyle.MELEE:
-      if (state.skills[Skill.ATTACK]) {
-        stats.push(
-          <PlayerSkill
-            key="attack"
-            skill={Skill.ATTACK}
-            level={state.skills[Skill.ATTACK]}
-            thresholds={combatThresholds(
-              BoostType.SUPER_COMBAT,
-              state.skills[Skill.ATTACK].getBase(),
-            )}
-          />,
-        );
-      }
-      if (state.skills[Skill.STRENGTH]) {
-        stats.push(
-          <PlayerSkill
-            key="strength"
-            skill={Skill.STRENGTH}
-            level={state.skills[Skill.STRENGTH]}
-            thresholds={combatThresholds(
-              BoostType.SUPER_COMBAT,
-              state.skills[Skill.STRENGTH].getBase(),
-            )}
-          />,
-        );
-      }
-      break;
-    case CombatStyle.RANGED:
-      if (state.skills[Skill.RANGED]) {
-        stats.push(
-          <PlayerSkill
-            key="ranged"
-            skill={Skill.RANGED}
-            level={state.skills[Skill.RANGED]}
-            thresholds={combatThresholds(
-              BoostType.RANGING_POTION,
-              state.skills[Skill.RANGED].getBase(),
-            )}
-          />,
-        );
-      }
-      break;
-    case CombatStyle.MAGIC:
-      if (state.skills[Skill.MAGIC]) {
-        stats.push(
-          <PlayerSkill
-            key="magic"
-            skill={Skill.MAGIC}
-            level={state.skills[Skill.MAGIC]}
-            thresholds={combatThresholds(
-              BoostType.SATURATED_HEART,
-              state.skills[Skill.MAGIC].getBase(),
-            )}
-          />,
-        );
-      }
-      break;
+  if (state.player.source === DataSource.PRIMARY) {
+    playerTooltip['data-tooltip-stats'] = JSON.stringify([
+      state.skills[Skill.ATTACK]?.toRaw(),
+      state.skills[Skill.STRENGTH]?.toRaw(),
+      state.skills[Skill.RANGED]?.toRaw(),
+      state.skills[Skill.MAGIC]?.toRaw(),
+    ]);
+    playerTooltip['data-tooltip-prayer-set'] =
+      state.player.prayerSet.toString();
   }
 
-  const tooltip = (
-    <Tooltip tooltipId={tooltipId}>
-      <div className={`${styles.tooltip} ${styles.playerTooltip}`}>
-        <div className={styles.message}>
-          <button
-            className={styles.playerName}
-            onClick={() => actorContext.setSelectedPlayer(state.player.name)}
-          >
-            {state.player.name}
-          </button>
-          <span>{playerAttackVerb(attack.type)}</span>
-          <button className={styles.npc}>
-            {targetName}
-            {targetHp && !Number.isNaN(targetHp) && (
-              <span className={styles.hitpoints}>
-                <i className="far fa-heart" />
-                {targetHp.toFixed(2)}%
-              </span>
-            )}
-          </button>
-          {meta.ranged && (
-            <span>{`from ${distance} tile${distance === 1 ? '' : 's'} away`}</span>
-          )}
-        </div>
-        {state.player.source === DataSource.PRIMARY && (
-          <>
-            <div className={styles.divider} />
-            <div className={styles.stats}>{stats}</div>
-            <KeyPrayers
-              combatOnly
-              prayerSet={state.player.prayerSet || 0}
-              source={state.player.source}
-            />
-          </>
-        )}
-      </div>
-    </Tooltip>
-  );
-
-  return { tooltipId, tooltip, cellImage };
+  return { playerTooltip, cellImage };
 }
 
 const buildTickCell = (
@@ -758,8 +859,7 @@ const buildTickCell = (
     );
   }
 
-  let tooltip = undefined;
-  let tooltipId = undefined;
+  let tooltip: Record<string, string> | undefined = undefined;
 
   if (npcState !== null) {
     let cellImage;
@@ -769,26 +869,15 @@ const buildTickCell = (
       cellImage = npcAttackImage(npcState.attack, imageSize);
       const npcName = getNpcDefinition(npcState.npcId)?.fullName ?? 'Unknown';
 
-      tooltipId = `npc-${npcState.roomId}-${npcState.tick}`;
-      tooltip = (
-        <Tooltip tooltipId={tooltipId}>
-          <div className={`${styles.tooltip} ${styles.npcTooltip}`}>
-            <button className={styles.npc}>{npcName}</button>
-            {(npcState.target !== null && (
-              <span>
-                targeted
-                <button onClick={() => setSelectedPlayer(npcState!.target)}>
-                  {npcState.target}
-                </button>
-                with
-              </span>
-            )) || <span>did</span>}
-            <span className={styles.npcAttack}>
-              {npcAttackName(npcState.attack)}
-            </span>
-          </div>
-        </Tooltip>
-      );
+      tooltip = {
+        'data-tooltip-type': 'npc',
+        'data-tooltip-npc-name': npcName,
+        'data-tooltip-npc-attack': npcAttackName(npcState.attack),
+      };
+
+      if (npcState.target !== null) {
+        tooltip['data-tooltip-npc-target'] = npcState.target;
+      }
 
       className += ` ${styles.npcCooldown} ${styles.cellInteractable}`;
     }
@@ -797,19 +886,23 @@ const buildTickCell = (
       <div
         className={className}
         key={`npc-${npcState.roomId}-${npcState.tick}`}
-        data-tooltip-id={tooltipId}
+        data-tooltip-id={TIMELINE_TOOLTIP_ID}
         style={style}
+        {...tooltip}
       >
         {cellImage}
-        {tooltip}
-        <span className={styles.label}>{npcState.label}</span>
+        <span
+          className={styles.label}
+          style={{ fontSize: Math.min(cellSize / 2 - 2, 10) }}
+        >
+          {npcState.label}
+        </span>
       </div>
     );
   }
 
   if (playerState !== null) {
     const username = playerState.player.name;
-    const tooltipUsername = username.replace(/[^a-zA-Z0-9_-]/g, '');
     const playerIsOffCooldown =
       playerState.player.offCooldownTick <= playerState.tick;
 
@@ -824,16 +917,8 @@ const buildTickCell = (
       const meta =
         ATTACK_METADATA[attack.type] ?? ATTACK_METADATA[PlayerAttack.UNKNOWN];
 
-      const result = buildPlayerTooltip(
-        playerState,
-        npcs,
-        actorContext,
-        tooltipUsername,
-        imageSize,
-        memes,
-      );
-      tooltipId = result.tooltipId;
-      tooltip = result.tooltip;
+      const result = buildPlayerTooltip(playerState, npcs, imageSize, memes);
+      tooltip = result.playerTooltip;
       cellImage = result.cellImage;
 
       let combatSkill: SkillLevel | undefined = undefined;
@@ -871,18 +956,10 @@ const buildTickCell = (
         style.outline = '1px solid rgba(var(--blert-text-color-base), 0.2)';
       }
     } else if (diedThisTick) {
-      tooltipId = `player-${tooltipUsername}-death`;
-
-      tooltip = (
-        <Tooltip tooltipId={tooltipId}>
-          <div className={`${styles.tooltip} ${styles.playerTooltip}`}>
-            <button onClick={() => setSelectedPlayer(username)}>
-              {username}
-            </button>
-            <span>died</span>
-          </div>
-        </Tooltip>
-      );
+      tooltip = {
+        'data-tooltip-type': 'player-death',
+        'data-tooltip-username': username,
+      };
 
       cellImage = (
         <div className={styles.attackTimeline__CellImage}>
@@ -911,15 +988,18 @@ const buildTickCell = (
       style.backgroundColor = undefined;
     }
 
+    if (tooltip !== undefined) {
+      tooltip['data-tooltip-id'] = TIMELINE_TOOLTIP_ID;
+    }
+
     return (
       <div
         className={className}
         style={style}
-        data-tooltip-id={tooltipId}
         key={`player-cell-${username}-${playerState.tick}`}
+        {...tooltip}
       >
         {cellImage}
-        {tooltip}
       </div>
     );
   }
@@ -1004,11 +1084,6 @@ const buildTickColumn = (
     );
   }
 
-  let tooltipId = undefined;
-  if (split !== undefined) {
-    tooltipId = `timeline-split-${split.splitName.replaceAll(' ', '-')}-tooltip`;
-  }
-
   const splitWidth = cellSize + 21;
   const splitTailOffset = (splitWidth - 4) / 2;
 
@@ -1023,10 +1098,7 @@ const buildTickColumn = (
           className={styles.attackTimeline__RoomSplit}
           style={{ width: splitWidth }}
         >
-          <Tooltip openOnClick tooltipId={tooltipId!}>
-            {split.splitName}
-          </Tooltip>
-          <span data-tooltip-id={tooltipId}>{split.splitName}</span>
+          <span>{split.splitName}</span>
           <div className={styles.splitIndicatorWrapper}>
             <div className={styles.splitIndicatorPt1}></div>
             <div
@@ -1301,7 +1373,7 @@ export function AttackTimeline(props: AttackTimelineProps) {
           ACTIVE_INDICATOR_OFFSET +
           row * (rowHeight + ACTIVE_INDICATOR_OFFSET + 23.5),
         height: rowHeight + 40,
-        width: totalColumnWidth + 5,
+        width: totalColumnWidth + 3,
       }}
       className={styles.attackTimeline__ColumnActiveIndicator}
       ref={currentTickColumnRef}
@@ -1329,6 +1401,11 @@ export function AttackTimeline(props: AttackTimelineProps) {
         {deferredColumnIndicator}
         {memoizedBaseTimeline}
       </HorizontalScrollable>
+      <Tooltip
+        clickable
+        tooltipId={TIMELINE_TOOLTIP_ID}
+        render={TimelineTooltipRenderer}
+      />
     </div>
   );
 }

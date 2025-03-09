@@ -44,9 +44,11 @@ export function TobContextProvider({
 
   const [loading, setLoading] = useState(true);
 
+  const raidLoaded = raid !== null;
+
   useEffect(() => {
     const getRaid = async () => {
-      setLoading(raid === null || raidIdRef.current !== raidId);
+      setLoading(!raidLoaded || raidIdRef.current !== raidId);
 
       try {
         const response = await fetch(`/api/v1/raids/tob/${raidId}`);
@@ -65,7 +67,7 @@ export function TobContextProvider({
     getRaid();
 
     // Reload raid every time the page changes to support in-progress raids.
-  }, [raidId, pathname, setRaid]);
+  }, [raidLoaded, raidId, pathname, setRaid]);
 
   useEffect(() => {
     // Clean up the raid when the component is unmounted.

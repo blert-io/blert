@@ -3,62 +3,85 @@
 
 .controls {
   position: fixed;
-  background-color: #23242f;
-  box-shadow: 0 0 5px 0 rgba(0, 0, 0, 0.5);
+  background: var(--nav-bg);
+  border-top: 1px solid var(--nav-bg-lightened);
+  box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.1);
   bottom: 0;
   left: $LEFT_NAV_WIDTH;
   width: calc(100% - $LEFT_NAV_WIDTH);
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  padding: 10px 30px;
+  padding: 12px 20px;
   z-index: 49;
-  opacity: 1;
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     left: 0;
     width: 100vw;
     flex-direction: column;
+    padding: 10px 12px;
+  }
+
+  .wrapper {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    margin: 0 auto;
+    width: 100%;
+    max-width: 1400px;
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      flex-direction: column;
+    }
   }
 }
 
 .controlsPadding {
   width: 100%;
-  height: 100px;
+  height: 80px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    height: 120px;
+  }
 }
 
 .controls__main {
   display: flex;
   flex-direction: row;
+  align-items: center;
   justify-content: center;
+  gap: 8px;
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     flex-wrap: wrap;
-    padding-bottom: 10px;
   }
 
   .tickInput {
     display: flex;
+    align-items: center;
+    gap: 8px;
 
     .controls__tickInput {
-      outline: none !important;
-      background-color: #0f1015;
-      color: rgba(195, 199, 201, 1);
-      outline: none;
-      border: none;
-      border-radius: 5px;
-      width: 75px;
-      font-size: 26px;
+      background: var(--panel-bg);
+      color: var(--blert-text-color);
+      border: 1px solid var(--nav-bg-lightened);
+      border-radius: 4px;
+      width: 60px;
+      height: 32px;
+      font-size: 0.9em;
       text-align: center;
       -moz-appearance: textfield;
       appearance: textfield;
+      transition: all 0.2s ease;
+
+      &:focus {
+        border-color: var(--blert-button);
+        outline: none;
+      }
     }
 
     .controls__tickInputLabel {
-      width: 70px;
-      font-size: 20px;
+      font-size: 0.9em;
+      color: var(--font-color-nav);
       display: flex;
-      justify-content: center;
       align-items: center;
     }
 
@@ -73,38 +96,34 @@
 .roomTime {
   display: flex;
   align-items: center;
-  font-size: 22px;
-  margin: 0 15px;
-  text-align: center;
+  font-size: 0.9em;
+  margin: 0 12px;
+  color: var(--font-color-nav);
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     padding: 0 0 12px 0;
-    font-size: 20px;
-  }
-
-  & > * {
-    opacity: 0.75;
   }
 
   .time {
     &:first-child {
-      opacity: 1;
+      color: var(--blert-text-color);
     }
-    width: 66px;
+    min-width: 50px;
   }
 
   span {
-    font-size: 18px;
-    margin: 0 6px;
+    margin: 0 4px;
+    opacity: 0.5;
   }
 }
 
 .controls__scrubber {
-  padding: 34px 20px;
+  padding: 20px 20px 16px;
   flex: 1;
+  position: relative;
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    padding: 10px 0;
+    padding: 0;
     width: 100%;
   }
 
@@ -114,30 +133,52 @@
     background: transparent;
     cursor: pointer;
     width: 100%;
+    height: 20px;
+    padding: 0;
+
+    &:focus {
+      outline: none;
+    }
   }
 
-  /***** Chrome, Safari, Opera, and Edge Chromium *****/
   input[type='range']::-webkit-slider-runnable-track {
-    background: color.adjust(#23242f, $lightness: 10%);
-    height: 0.5rem;
-    border-radius: 3px;
+    background: var(--nav-bg-lightened);
+    height: 4px;
+    border-radius: 2px;
   }
 
-  /******** Firefox ********/
   input[type='range']::-moz-range-track {
-    background: color.adjust(#23242f, $lightness: 10%);
-    height: 0.5rem;
-    border-radius: 3px;
+    background: var(--nav-bg-lightened);
+    height: 4px;
+    border-radius: 2px;
   }
 
   input[type='range']::-webkit-slider-thumb {
-    -webkit-appearance: none; /* Override default look */
+    -webkit-appearance: none;
     appearance: none;
-    margin-top: -4px;
-    background-color: var(--blert-text-color);
+    margin-top: -6px;
+    background: var(--blert-button);
     border-radius: 50%;
-    height: 1rem;
-    width: 1rem;
+    height: 16px;
+    width: 16px;
+    transition: transform 0.2s ease;
+
+    &:hover {
+      transform: scale(1.2);
+    }
+  }
+
+  input[type='range']::-moz-range-thumb {
+    background: var(--blert-button);
+    border: none;
+    border-radius: 50%;
+    height: 16px;
+    width: 16px;
+    transition: transform 0.2s ease;
+
+    &:hover {
+      transform: scale(1.2);
+    }
   }
 }
 
@@ -147,23 +188,23 @@
 
 .controls__scrubber__split {
   position: absolute;
-  opacity: 0.9;
-  height: 10px;
-  width: 3px;
-  border-radius: 3px;
-  background-color: #c3c7c9;
-  top: 16px;
+  opacity: 0.8;
+  height: 8px;
+  width: 2px;
+  background: var(--blert-button);
+  top: 14px;
+  transition: all 0.2s ease;
 
   &:hover {
-    transform: scale(1.1);
+    opacity: 1;
   }
 
   &:nth-of-type(odd) {
-    top: -4px;
+    top: 2px;
 
     .controls__splitTextWrapper {
       span {
-        top: -28px;
+        top: -24px;
       }
     }
   }
@@ -171,71 +212,64 @@
 
 .controls__splitTextWrapper {
   position: relative;
-  left: calc(-50% + 2px);
+  left: calc(-50% + 1px);
   cursor: pointer;
 
   span {
     transform: translateX(-50%);
     position: absolute;
-    font-size: 18px;
-    padding: 4px 12px;
-    border-radius: 5px;
-    color: #c3c7c9;
-    background-color: #c3c7c9;
-    color: #23242f;
+    font-size: 0.85em;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: var(--panel-bg);
+    color: var(--blert-text-color);
+    border: 1px solid var(--blert-button);
     top: 8px;
     white-space: nowrap;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: var(--nav-bg-lightened);
+      transform: translateX(-50%) translateY(-1px);
+    }
   }
 }
 
-@mixin controlBtn {
-  font-size: 35px;
-  height: 40px;
-  width: 50px;
+.playbackButton {
+  font-size: 1.2em;
+  height: 32px;
+  width: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 10px;
   border: none;
   outline: none;
-  border-radius: 5px;
-  background: none;
-  opacity: 0.7;
-  box-shadow: 0 0 2px 0 rgba(195, 199, 201, 0.5);
+  border-radius: 4px;
+  background: var(--panel-bg);
+  color: var(--blert-text-color);
   cursor: pointer;
-  transition: all 100ms ease;
+  transition: all 0.2s ease;
+  position: relative;
 
-  &:hover {
-    transform: scale(1.1);
-    opacity: 1;
+  &:hover:not(:disabled) {
+    background: var(--nav-bg-lightened);
+    transform: translateY(-1px);
   }
 
-  &:active {
-    transform: scale(1);
+  &:active:not(:disabled) {
+    transform: translateY(0);
   }
 
   &:disabled {
-    transform: scale(1);
-    opacity: 0.25;
-    cursor: default;
+    opacity: 0.3;
+    cursor: not-allowed;
   }
-}
 
-.controls_BtnIcon {
-  color: var(--blert-text-color);
-}
-
-.controls__playButton {
-  @include controlBtn;
-  margin-left: 5px;
-}
-
-.controls__pauseButton {
-  @include controlBtn;
-}
-
-.controls__restartButton {
-  @include controlBtn;
+  .icon {
+    color: var(--blert-button);
+    position: relative;
+    top: 1px;
+  }
 }
 
 .controls__roomActor {

@@ -83,7 +83,7 @@ export function BossPageControls(props: BossControlsProps) {
           const splitPosition = (split.tick / totalTicks) * 100;
           return (
             <div
-              key={split.splitName}
+              key={split.tick}
               className={styles.controls__scrubber__split}
               style={{ left: `calc(${splitPosition}% - 3px)` }}
             >
@@ -142,79 +142,75 @@ export function BossPageControls(props: BossControlsProps) {
   return (
     <>
       <div className={styles.controls}>
-        {display.isCompact() && scrubberElement}
-        {display.isCompact() && roomTime}
-        <div className={styles.controls__main}>
-          <button
-            className={styles.controls__playButton}
-            disabled={currentlyPlaying}
-            onClick={() => {
-              if (currentlyPlaying) return;
-              updatePlayingState(true);
-            }}
-          >
-            <i
-              className={`${styles.controls_BtnIcon} fa-regular fa-circle-play`}
-            ></i>
-          </button>
-          <button
-            className={styles.controls__pauseButton}
-            disabled={!currentlyPlaying}
-            onClick={() => {
-              if (!currentlyPlaying) return;
-              updatePlayingState(false);
-            }}
-          >
-            <i
-              className={`${styles.controls_BtnIcon} fa-regular fa-circle-pause`}
-            ></i>
-          </button>
-          <button
-            className={styles.controls__restartButton}
-            disabled={currentTick === 1}
-            onClick={() => {
-              if (currentTick === 1) return;
-              updateTick(1);
-              updatePlayingState(false);
-            }}
-          >
-            <i
-              className={`${styles.controls_BtnIcon} fa-solid fa-rotate-left`}
-            ></i>
-          </button>
-          <div className={styles.tickInput}>
-            <div className={styles.controls__tickInputLabel}>Tick:</div>
-            <input
-              className={styles.controls__tickInput}
-              type="number"
-              name="tick"
+        <div className={styles.wrapper}>
+          {display.isCompact() && scrubberElement}
+          {display.isCompact() && roomTime}
+          <div className={styles.controls__main}>
+            <button
+              className={styles.playbackButton}
               disabled={currentlyPlaying}
-              min={1}
-              onBlur={() => {
-                setInputFocused(false);
+              onClick={() => {
+                if (currentlyPlaying) return;
+                updatePlayingState(true);
+              }}
+            >
+              <i className={`${styles.icon} far fa-circle-play`} />
+            </button>
+            <button
+              className={styles.playbackButton}
+              disabled={!currentlyPlaying}
+              onClick={() => {
+                if (!currentlyPlaying) return;
                 updatePlayingState(false);
               }}
-              onChange={(event) => {
-                try {
-                  let newValue = parseInt(event.target.value);
-                  if (Number.isNaN(newValue)) {
-                    newValue = 1;
-                  }
-                  const clampedValue = clamp(newValue, 1, totalTicks);
-                  updateTick(clampedValue);
-                  setValue(event.target.value);
-                } catch (e) {
-                  updateTick(1);
-                }
+            >
+              <i className={`${styles.icon} far fa-circle-pause`} />
+            </button>
+            <button
+              className={styles.playbackButton}
+              disabled={currentTick === 1}
+              onClick={() => {
+                if (currentTick === 1) return;
+                updateTick(1);
+                updatePlayingState(false);
               }}
-              onFocus={() => setInputFocused(true)}
-              max={totalTicks}
-              value={value}
-            />
+            >
+              <i className={`${styles.icon} fa-solid fa-rotate-left`} />
+            </button>
+            <div className={styles.tickInput}>
+              <div className={styles.controls__tickInputLabel}>Tick:</div>
+              <input
+                className={styles.controls__tickInput}
+                type="number"
+                name="tick"
+                disabled={currentlyPlaying}
+                min={1}
+                onBlur={() => {
+                  setInputFocused(false);
+                  updatePlayingState(false);
+                }}
+                onChange={(event) => {
+                  try {
+                    let newValue = parseInt(event.target.value);
+                    if (Number.isNaN(newValue)) {
+                      newValue = 1;
+                    }
+                    const clampedValue = clamp(newValue, 1, totalTicks);
+                    updateTick(clampedValue);
+                    setValue(event.target.value);
+                  } catch (e) {
+                    updateTick(1);
+                  }
+                }}
+                onFocus={() => setInputFocused(true)}
+                max={totalTicks}
+                value={value}
+              />
+            </div>
+            {display.isFull() && roomTime}
           </div>
-          {display.isFull() && roomTime}
+          {display.isFull() && scrubberElement}
         </div>
-        {display.isFull() && scrubberElement}
       </div>
       <div className={styles.controlsPadding} />
     </>

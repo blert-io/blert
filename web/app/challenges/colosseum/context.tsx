@@ -42,9 +42,11 @@ export function ColosseumContextProvider({
   const [selectedRoomNpc, setSelectedRoomNpc] = useState<number | null>(null);
   const challengeIdRef = useRef(challengeId);
 
+  const challengeLoaded = challenge !== null;
+
   useEffect(() => {
     const loadColosseum = async () => {
-      setLoading(challenge === null || challengeIdRef.current !== challengeId);
+      setLoading(!challengeLoaded || challengeIdRef.current !== challengeId);
       try {
         const response = await fetch(
           `/api/v1/challenges/colosseum/${challengeId}`,
@@ -63,7 +65,7 @@ export function ColosseumContextProvider({
     loadColosseum();
 
     // Reload raid every time the page changes to support in-progress raids.
-  }, [challengeId, pathname, setChallenge]);
+  }, [challengeLoaded, challengeId, pathname, setChallenge]);
 
   useEffect(() => {
     // Cleanup the challenge when the component is unmounted.

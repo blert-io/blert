@@ -15,12 +15,12 @@ type ColosseumParams = {
 };
 
 type ColosseumLayoutProps = {
-  params: ColosseumParams;
+  params: Promise<ColosseumParams>;
   children: React.ReactNode;
 };
 
-export default function ColosseumLayout(props: ColosseumLayoutProps) {
-  const id = props.params.id;
+export default async function ColosseumLayout(props: ColosseumLayoutProps) {
+  const { id } = await props.params;
 
   return (
     <ColosseumContextProvider challengeId={id}>
@@ -34,8 +34,9 @@ export async function generateMetadata(
   { params }: ColosseumLayoutProps,
   parent: ResolvingMetadata,
 ) {
+  const { id } = await params;
   const [challenge, metadata] = await Promise.all([
-    loadChallenge(ChallengeType.COLOSSEUM, params.id),
+    loadChallenge(ChallengeType.COLOSSEUM, id),
     parent,
   ]);
 

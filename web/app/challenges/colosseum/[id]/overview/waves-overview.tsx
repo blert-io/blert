@@ -30,7 +30,11 @@ function Wave({ challengeId, ticks, wave, waveNumber }: WaveProps) {
     >
       <div className={styles.waveImg}>
         <Image
-          src={`/images/colosseum/wave-${waveNumber}.webp`}
+          src={
+            waveNumber === 12
+              ? '/images/colosseum/sol-heredit.webp'
+              : `/images/colosseum/wave-${waveNumber}.webp`
+          }
           alt={title}
           fill
           style={{
