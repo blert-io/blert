@@ -53,7 +53,7 @@ export default function Map({
     [x, y, width, height],
   );
 
-  const tiles = useMemo(() => {
+  const [tiles, mapEntities] = useMemo(() => {
     let tiles: TileData[][] = [];
     for (let yy = y; yy < y + height; yy++) {
       let row: TileData[] = [];
@@ -77,20 +77,6 @@ export default function Map({
       }
     }
 
-    if (faceSouth) {
-      for (let i = 0; i < tiles.length; i++) {
-        tiles[i].reverse();
-      }
-    } else {
-      // The y coordinate goes from bottom to top, but we have to render from
-      // top to bottom.
-      tiles.reverse();
-    }
-
-    return tiles;
-  }, [x, y, width, height, baseTiles, faceSouth, getTileForCoords]);
-
-  const mapEntities = useMemo(() => {
     let mapEntities: Entity[] = [];
     let packedTiles: TileData[] = [];
 
@@ -163,16 +149,27 @@ export default function Map({
       );
     }
 
-    return mapEntities;
+    if (faceSouth) {
+      for (let i = 0; i < tiles.length; i++) {
+        tiles[i].reverse();
+      }
+    } else {
+      // The y coordinate goes from bottom to top, but we have to render from
+      // top to bottom.
+      tiles.reverse();
+    }
+
+    return [tiles, mapEntities];
   }, [
+    baseTiles,
     entities,
     tileSize,
     width,
     height,
     x,
     y,
+    faceSouth,
     selectedTile,
-    tiles,
     onEntityClicked,
     getTileForCoords,
   ]);

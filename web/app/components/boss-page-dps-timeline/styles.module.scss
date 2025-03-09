@@ -4,10 +4,15 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: 100%;
 }
 
 .dpsChart {
-  margin: 50px;
+  margin: 24px 0;
+  width: 100%;
+  background: var(--panel-bg);
+  border-radius: 8px;
+  padding: 16px;
 }
 
 .chartParent {
@@ -20,6 +25,9 @@
   flex-direction: column;
 
   h3 {
-    font-size: 1.5rem;
+    font-size: 1.1em;
+    color: var(--font-color-nav);
+    margin: 0 0 16px 0;
+    text-align: center;
   }
 }

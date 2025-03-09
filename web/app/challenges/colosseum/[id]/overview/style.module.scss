@@ -86,6 +86,7 @@
         gap: 8px;
         margin-left: auto;
         font-size: 1em;
+        font-family: var(--font-roboto-mono), monospace;
 
         i {
           color: var(--blert-button);
@@ -96,6 +97,7 @@
     .handicaps {
       h4 {
         font-size: 0.9em;
+        font-weight: 500;
         margin: 0 0 8px;
         color: var(--font-color-nav);
       }

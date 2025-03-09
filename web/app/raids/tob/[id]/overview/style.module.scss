@@ -174,11 +174,20 @@
   margin: 0;
   color: var(--blert-text-color);
   font-weight: 500;
+  position: relative;
 
   i {
     color: var(--blert-button);
     font-size: 0.9em;
     margin-left: 10px;
+  }
+
+  .time {
+    position: relative;
+    top: -1px;
+    font-family: var(--font-roboto-mono), monospace;
+    font-weight: 400;
+    font-size: 0.9em;
   }
 
   .deathCount {

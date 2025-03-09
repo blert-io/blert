@@ -12,24 +12,24 @@ import {
   Stage,
   TobRaid,
 } from '@blert/common';
-import Image from 'next/image';
 import { useContext, useMemo } from 'react';
 
-import AttackTimeline from '@/components/attack-timeline';
-import { BossPageAttackTimeline } from '@/components/boss-page-attack-timeline/boss-page-attack-timeline';
-import { BossPageControls } from '@/components/boss-page-controls/boss-page-controls';
-import { BossPageDPSTimeline } from '@/components/boss-page-dps-timeine/boss-page-dps-timeline';
+import BossFightOverview from '@/components/boss-fight-overview';
+import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
+import BossPageControls from '@/components/boss-page-controls';
+import BossPageDPSTimeline from '@/components/boss-page-dps-timeline';
+import BossPageParty from '@/components/boss-page-party';
 import BossPageReplay from '@/components/boss-page-replay';
-import CollapsiblePanel from '@/components/collapsible-panel';
+import Card from '@/components/card';
+import Loading from '@/components/loading';
 import {
   Entity,
   NpcEntity,
   OverlayEntity,
   PlayerEntity,
 } from '@/components/map';
-import Loading from '@/components/loading';
-import Tabs from '@/components/tabs';
-import { DisplayContext } from '@/display';
+import { useDisplay } from '@/display';
+import { ActorContext } from '@/raids/tob/context';
 import {
   EnhancedRoomNpc,
   usePlayingState,
@@ -72,7 +72,7 @@ function Maze({ pivots, tileSize, showPivots = false }: MazeProps) {
           height: tileSizeWithBorder * (MAZE_HEIGHT + additionalTiles),
         }}
       >
-        Not enough data.
+        No maze data
       </div>
     );
   }
@@ -158,20 +158,21 @@ function Maze({ pivots, tileSize, showPivots = false }: MazeProps) {
 }
 
 export default function SotetsegPage() {
+  const display = useDisplay();
+
   const {
     challenge: raidData,
     totalTicks,
     eventsByTick,
-    eventsByType,
     playerState,
     npcState,
     loading,
   } = useStageEvents<TobRaid>(Stage.TOB_SOTETSEG);
 
-  const display = useContext(DisplayContext);
-
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
+
+  const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
 
   const splits = useMemo(() => {
     if (!raidData) {
@@ -238,6 +239,7 @@ export default function SotetsegPage() {
           e.yCoord,
           e.player.name,
           hitpoints,
+          /*highlight=*/ e.player.name === selectedPlayer,
         );
         entities.push(player);
         players.push(player);
@@ -301,13 +303,15 @@ export default function SotetsegPage() {
     {},
   );
 
-  const mazes = (
-    <div className={styles.mazes}>
-      {soteData?.maze1Pivots && (
+  const mazeSections = [];
+
+  if (soteData?.maze1Pivots) {
+    mazeSections.push({
+      title: 'Maze 1',
+      content: (
         <div className={styles.mazeInfo}>
           <Maze pivots={soteData.maze1Pivots} tileSize={10} />
           <div className={styles.details}>
-            <h3>Maze 1</h3>
             <div className={styles.mazeStat}>
               <i className="fa-solid fa-hourglass" />
               {ticksToFormattedSeconds(
@@ -322,12 +326,17 @@ export default function SotetsegPage() {
             </div>
           </div>
         </div>
-      )}
-      {soteData?.maze2Pivots && (
+      ),
+    });
+  }
+
+  if (soteData?.maze2Pivots) {
+    mazeSections.push({
+      title: 'Maze 2',
+      content: (
         <div className={styles.mazeInfo}>
           <Maze pivots={soteData.maze2Pivots} tileSize={10} />
           <div className={styles.details}>
-            <h3>Maze 2</h3>
             <div className={styles.mazeStat}>
               <i className="fa-solid fa-hourglass" />
               {ticksToFormattedSeconds(
@@ -342,143 +351,60 @@ export default function SotetsegPage() {
             </div>
           </div>
         </div>
-      )}
-    </div>
-  );
-
-  const chartWidth = display.isFull() ? 1200 : window?.innerWidth - 40 ?? 350;
-  const chartHeight = Math.floor(chartWidth / (display.isCompact() ? 2 : 2.5));
-  const healthChart = (
-    <div className={bossStyles.chart}>
-      <h3>Sotetseg&apos;s Health By Tick</h3>
-      <BossPageDPSTimeline
-        currentTick={currentTick}
-        data={bossHealthChartData}
-        width={chartWidth}
-        height={chartHeight}
-      />
-    </div>
-  );
-
-  if (display.isCompact()) {
-    let maxHeight;
-    let timelineWrapWidth = 380;
-    if (window) {
-      maxHeight = window.innerHeight - 255;
-      timelineWrapWidth = window.innerWidth - 25;
-    }
-
-    return (
-      <div className={bossStyles.bossPageCompact}>
-        <h1>
-          <i className="fas fa-bullseye" />
-          Sotetseg ({ticksToFormattedSeconds(totalTicks)})
-        </h1>
-        <Tabs
-          fluid
-          maxHeight={maxHeight}
-          tabs={[
-            {
-              icon: 'fas fa-chart-simple',
-              content: (
-                <div>
-                  {mazes}
-                  {healthChart}
-                </div>
-              ),
-            },
-            {
-              icon: 'fas fa-timeline',
-              content: (
-                <div className={bossStyles.timeline}>
-                  <AttackTimeline
-                    currentTick={currentTick}
-                    playing={playing}
-                    playerState={playerState}
-                    timelineTicks={totalTicks}
-                    updateTickOnPage={updateTickOnPage}
-                    splits={splits}
-                    npcs={npcState}
-                    cellSize={20}
-                    wrapWidth={timelineWrapWidth}
-                    smallLegend
-                  />
-                </div>
-              ),
-            },
-            {
-              icon: 'fas fa-gamepad',
-              content: (
-                <div>
-                  <BossPageReplay
-                    entities={entities}
-                    mapDef={SOTETSEG_MAP_DEFINITION}
-                    playerTickState={playerTickState}
-                    tileSize={18}
-                  />
-                </div>
-              ),
-            },
-          ]}
-        />
-        <BossPageControls
-          currentlyPlaying={playing}
-          totalTicks={totalTicks}
-          currentTick={currentTick}
-          updateTick={updateTickOnPage}
-          updatePlayingState={setPlaying}
-          splits={splits}
-        />
-      </div>
-    );
+      ),
+    });
   }
 
   return (
     <>
-      <div className={bossStyles.bossPage__Overview}>
-        <div className={bossStyles.bossPage__BossPic}>
-          <Image
-            src="/sote.webp"
-            alt="Sotetseg"
-            fill
-            style={{ objectFit: 'contain' }}
-          />
-        </div>
-        <div className={bossStyles.bossPage__KeyDetails}>
-          <h2>Sotetseg ({ticksToFormattedSeconds(totalTicks)})</h2>
-          {mazes}
-        </div>
+      <div className={bossStyles.overview}>
+        <BossFightOverview
+          name="Sotetseg"
+          image="/sote.webp"
+          time={totalTicks}
+          sections={mazeSections}
+        />
       </div>
 
-      <BossPageAttackTimeline
-        currentTick={currentTick}
-        playing={playing}
-        playerState={playerState}
-        timelineTicks={totalTicks}
-        updateTickOnPage={updateTickOnPage}
-        npcs={npcState}
-        splits={splits}
-      />
+      <div className={bossStyles.timeline}>
+        <BossPageAttackTimeline
+          currentTick={currentTick}
+          playing={playing}
+          playerState={playerState}
+          timelineTicks={totalTicks}
+          updateTickOnPage={updateTickOnPage}
+          splits={splits}
+          npcs={npcState}
+          smallLegend={display.isCompact()}
+        />
+      </div>
 
-      <CollapsiblePanel
-        panelTitle="Room Replay"
-        maxPanelHeight={2000}
-        defaultExpanded={true}
-      >
+      <div className={bossStyles.replayAndParty}>
         <BossPageReplay
           entities={entities}
           mapDef={SOTETSEG_MAP_DEFINITION}
-          playerTickState={playerTickState}
+          tileSize={display.isCompact() ? 20 : undefined}
         />
-      </CollapsiblePanel>
+        <BossPageParty
+          playerTickState={playerTickState}
+          selectedPlayer={selectedPlayer}
+          setSelectedPlayer={setSelectedPlayer}
+        />
+      </div>
 
-      <CollapsiblePanel
-        panelTitle="Charts"
-        maxPanelHeight={1000}
-        defaultExpanded
-      >
-        {healthChart}
-      </CollapsiblePanel>
+      <div className={bossStyles.charts}>
+        <Card
+          className={bossStyles.chart}
+          header={{ title: "Sotetseg's Health By Tick" }}
+        >
+          <BossPageDPSTimeline
+            currentTick={currentTick}
+            data={bossHealthChartData}
+            width="100%"
+            height="100%"
+          />
+        </Card>
+      </div>
 
       <BossPageControls
         currentlyPlaying={playing}

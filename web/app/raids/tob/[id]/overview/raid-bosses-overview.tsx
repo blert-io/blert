@@ -67,7 +67,9 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
             <h4 className={styles.bossName}>
               The Maiden of Sugadinti
               <i className="fa-solid fa-hourglass" />
-              {ticksToFormattedSeconds(splits[SplitType.TOB_MAIDEN] ?? 0)}
+              <span className={styles.time}>
+                {ticksToFormattedSeconds(splits[SplitType.TOB_MAIDEN] ?? 0)}
+              </span>
               {rooms.maiden.deaths.length > 0 && (
                 <div
                   className={styles.deathCount}
@@ -137,7 +139,9 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
             <h4 className={styles.bossName}>
               The Pestilent Bloat
               <i className="fa-solid fa-hourglass" />
-              {ticksToFormattedSeconds(splits[SplitType.TOB_BLOAT] ?? 0)}
+              <span className={styles.time}>
+                {ticksToFormattedSeconds(splits[SplitType.TOB_BLOAT] ?? 0)}
+              </span>
               {rooms.bloat.deaths.length > 0 && (
                 <div
                   className={styles.deathCount}
@@ -175,7 +179,9 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
             <h4 className={styles.bossName}>
               The Nylocas
               <i className="fa-solid fa-hourglass" />
-              {ticksToFormattedSeconds(splits[SplitType.TOB_NYLO_ROOM] ?? 0)}
+              <span className={styles.time}>
+                {ticksToFormattedSeconds(splits[SplitType.TOB_NYLO_ROOM] ?? 0)}
+              </span>
               {rooms.nylocas.deaths.length > 0 && (
                 <div
                   className={styles.deathCount}
@@ -272,7 +278,9 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
             <h4 className={styles.bossName}>
               Sotetseg
               <i className="fa-solid fa-hourglass" />
-              {ticksToFormattedSeconds(splits[SplitType.TOB_SOTETSEG] ?? 0)}
+              <span className={styles.time}>
+                {ticksToFormattedSeconds(splits[SplitType.TOB_SOTETSEG] ?? 0)}
+              </span>
               {rooms.sotetseg.deaths.length > 0 && (
                 <div
                   className={styles.deathCount}
@@ -331,7 +339,9 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
             <h4 className={styles.bossName}>
               Xarpus
               <i className="fa-solid fa-hourglass" />
-              {ticksToFormattedSeconds(splits[SplitType.TOB_XARPUS] ?? 0)}
+              <span className={styles.time}>
+                {ticksToFormattedSeconds(splits[SplitType.TOB_XARPUS] ?? 0)}
+              </span>
               {rooms.xarpus.deaths.length > 0 && (
                 <div
                   className={styles.deathCount}
@@ -391,7 +401,11 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
             <h4 className={styles.bossName}>
               Verzik Vitur
               <i className="fa-solid fa-hourglass" />
-              {ticksToFormattedSeconds(splits[SplitType.TOB_VERZIK_ROOM] ?? 0)}
+              <span className={styles.time}>
+                {ticksToFormattedSeconds(
+                  splits[SplitType.TOB_VERZIK_ROOM] ?? 0,
+                )}
+              </span>
               {rooms.verzik.deaths.length > 0 && (
                 <div
                   className={styles.deathCount}

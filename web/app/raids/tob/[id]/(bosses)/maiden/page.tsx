@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import {
   ChallengeStatus,
   EventType,
@@ -19,11 +18,14 @@ import {
 import { useSearchParams } from 'next/navigation';
 import { useContext, useEffect, useMemo } from 'react';
 
-import AttackTimeline, { TimelineSplit } from '@/components/attack-timeline';
+import { TimelineSplit } from '@/components/attack-timeline';
+import BossFightOverview from '@/components/boss-fight-overview';
 import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
-import { BossPageControls } from '@/components/boss-page-controls/boss-page-controls';
+import BossPageControls from '@/components/boss-page-controls';
+import BossPageDPSTimeline from '@/components/boss-page-dps-timeline';
+import BossPageParty from '@/components/boss-page-party';
 import BossPageReplay from '@/components/boss-page-replay';
-import { BossPageDPSTimeline } from '@/components/boss-page-dps-timeine/boss-page-dps-timeline';
+import Card from '@/components/card';
 import {
   Entity,
   MarkerEntity,
@@ -31,8 +33,8 @@ import {
   PlayerEntity,
 } from '@/components/map';
 import Loading from '@/components/loading';
-import Tabs from '@/components/tabs';
 import { DisplayContext } from '@/display';
+import { ActorContext } from '@/raids/tob/context';
 import {
   EnhancedMaidenCrab,
   EnhancedRoomNpc,
@@ -41,12 +43,10 @@ import {
 } from '@/utils/boss-room-state';
 import { clamp } from '@/utils/math';
 import { ticksToFormattedSeconds } from '@/utils/tick';
-import { ActorContext } from '@/raids/tob/context';
 
 import maidenBaseTiles from './maiden.json';
 import bossStyles from '../style.module.scss';
 import styles from './style.module.scss';
-import CollapsiblePanel from '@/components/collapsible-panel';
 
 const MAIDEN_MAP_DEFINITION = {
   baseX: 3160,
@@ -68,107 +68,106 @@ const SPAWN_SIZE = 25;
 
 function CrabSpawn(props: CrabSpawnProps) {
   const spawns = new Set(props.crabs.map((crab) => crab.position));
-  const scuffed = props.crabs.some((crab) => crab.scuffed);
+  const scuffedCrabs = new Set(
+    props.crabs.filter((crab) => crab.scuffed).map((crab) => crab.position),
+  );
 
   const crab = (position: MaidenCrabPosition, name: string) =>
     spawns.has(position) ? (
-      <div className={styles.presentCrab}>{name}</div>
+      <div
+        className={`${styles.presentCrab} ${scuffedCrabs.has(position) ? styles.scuffed : ''}`}
+      >
+        {name}
+      </div>
     ) : (
       <div className={styles.absentCrab} />
     );
 
   return (
     <div className={styles.spawn}>
-      <div className={styles.split}>
-        <span className={styles.name}>{props.name}</span> —{' '}
-        {ticksToFormattedSeconds(props.tick)}
-        {props.delta && (
-          <span className={styles.delta}>
-            (+{ticksToFormattedSeconds(props.delta)})
-          </span>
-        )}
-      </div>
       <table>
         <tbody>
           <tr>
-            <td>
-              <table className={styles.spawn}>
-                <tbody>
-                  <tr>
-                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
-                      {crab(MaidenCrabPosition.S1, 'S1')}
-                    </td>
-                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
-                      &nbsp;
-                    </td>
-                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
-                      &nbsp;
-                    </td>
-                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
-                      &nbsp;
-                    </td>
-                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
-                      {crab(MaidenCrabPosition.N1, 'N1')}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
-                      {crab(MaidenCrabPosition.S2, 'S2')}
-                    </td>
-                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
-                      &nbsp;
-                    </td>
-                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
-                      &nbsp;
-                    </td>
-                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
-                      &nbsp;
-                    </td>
-                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
-                      {crab(MaidenCrabPosition.N2, 'N2')}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
-                      {crab(MaidenCrabPosition.S3, 'S3')}
-                    </td>
-                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
-                      &nbsp;
-                    </td>
-                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
-                      &nbsp;
-                    </td>
-                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
-                      &nbsp;
-                    </td>
-                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
-                      {crab(MaidenCrabPosition.N3, 'N3')}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
-                      {crab(MaidenCrabPosition.S4_OUTER, 'S4')}
-                    </td>
-                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
-                      {crab(MaidenCrabPosition.S4_INNER, 'S4')}
-                    </td>
-                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
-                      &nbsp;
-                    </td>
-                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
-                      {crab(MaidenCrabPosition.N4_INNER, 'N4')}
-                    </td>
-                    <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
-                      {crab(MaidenCrabPosition.N4_OUTER, 'N4')}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+            <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+              {crab(MaidenCrabPosition.S1, 'S1')}
+            </td>
+            <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+              &nbsp;
+            </td>
+            <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+              &nbsp;
+            </td>
+            <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+              &nbsp;
+            </td>
+            <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+              {crab(MaidenCrabPosition.N1, 'N1')}
+            </td>
+          </tr>
+          <tr>
+            <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+              {crab(MaidenCrabPosition.S2, 'S2')}
+            </td>
+            <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+              &nbsp;
+            </td>
+            <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+              &nbsp;
+            </td>
+            <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+              &nbsp;
+            </td>
+            <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+              {crab(MaidenCrabPosition.N2, 'N2')}
+            </td>
+          </tr>
+          <tr>
+            <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+              {crab(MaidenCrabPosition.S3, 'S3')}
+            </td>
+            <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+              &nbsp;
+            </td>
+            <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+              &nbsp;
+            </td>
+            <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+              &nbsp;
+            </td>
+            <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+              {crab(MaidenCrabPosition.N3, 'N3')}
+            </td>
+          </tr>
+          <tr>
+            <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+              {crab(MaidenCrabPosition.S4_OUTER, 'S4')}
+            </td>
+            <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+              {crab(MaidenCrabPosition.S4_INNER, 'S4')}
+            </td>
+            <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+              &nbsp;
+            </td>
+            <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+              {crab(MaidenCrabPosition.N4_INNER, 'N4')}
+            </td>
+            <td width={SPAWN_SIZE} height={SPAWN_SIZE}>
+              {crab(MaidenCrabPosition.N4_OUTER, 'N4')}
             </td>
           </tr>
         </tbody>
       </table>
-      {scuffed && <div className={styles.scuffed}>Scuffed</div>}
+      <div className={styles.time}>
+        <div>
+          <i className="far fa-hourglass" />
+          {ticksToFormattedSeconds(props.tick)}
+        </div>
+        {props.delta && (
+          <div className={styles.delta}>
+            +{ticksToFormattedSeconds(props.delta)}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -191,24 +190,6 @@ export default function Maiden() {
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
 
-  const tickParam = searchParams.get('tick');
-  let parsedTickParam = 0;
-  if (tickParam === null) {
-    parsedTickParam = 1;
-  } else {
-    parsedTickParam = Number.parseInt(tickParam, 10);
-    if (Number.isNaN(parsedTickParam)) {
-      console.log('Unable to parse param as valid int, defaulting to 1');
-      parsedTickParam = 1;
-    }
-  }
-
-  const finalParsedTickParam = clamp(Math.abs(parsedTickParam), 1, totalTicks);
-
-  useEffect(() => {
-    updateTickOnPage(finalParsedTickParam);
-  }, [finalParsedTickParam, updateTickOnPage]);
-
   const bossHealthChartData = useMemo(() => {
     let maiden: EnhancedRoomNpc | null = null;
     let iter = npcState.values();
@@ -227,7 +208,7 @@ export default function Maiden() {
     );
   }, [npcState]);
 
-  const { selectedPlayer } = useContext(ActorContext);
+  const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
 
   const { splits, spawns } = useMemo(() => {
     const splits: TimelineSplit[] = [];
@@ -341,155 +322,67 @@ export default function Maiden() {
   }
   controlsSplits.push(...splits);
 
-  const crabSpawns = (
-    <div className={styles.statsWrapper}>
-      {splits.map((split, i) => (
-        <CrabSpawn
-          key={split.splitName}
-          crabs={spawns[i]}
-          name={split.splitName}
-          tick={split.tick}
-          delta={i > 0 ? split.tick - splits[i - 1].tick : undefined}
-        />
-      ))}
-    </div>
-  );
-
-  const chartWidth = display.isFull() ? 1200 : window?.innerWidth - 40 ?? 350;
-  const chartHeight = Math.floor(chartWidth / (display.isCompact() ? 2 : 2.5));
-  const healthChart = (
-    <div className={bossStyles.chart}>
-      <h3>Maiden&apos;s Health By Tick</h3>
-      <BossPageDPSTimeline
-        currentTick={currentTick}
-        data={bossHealthChartData}
-        width={chartWidth}
-        height={chartHeight}
-      />
-    </div>
-  );
-
-  if (display.isCompact()) {
-    let maxHeight;
-    let timelineWrapWidth = 380;
-    if (window) {
-      maxHeight = window.innerHeight - 255;
-      timelineWrapWidth = window.innerWidth - 25;
-    }
-
-    return (
-      <div className={bossStyles.bossPageCompact}>
-        <h1>
-          <i className="fas fa-bullseye" />
-          The Maiden of Sugadinti ({ticksToFormattedSeconds(totalTicks)})
-        </h1>
-        <Tabs
-          fluid
-          maxHeight={maxHeight}
-          tabs={[
-            {
-              icon: 'fas fa-chart-simple',
-              content: (
-                <div>
-                  {crabSpawns}
-                  {healthChart}
-                </div>
-              ),
-            },
-            {
-              icon: 'fas fa-timeline',
-              content: (
-                <div className={bossStyles.timeline}>
-                  <AttackTimeline
-                    currentTick={currentTick}
-                    playing={playing}
-                    playerState={playerState}
-                    timelineTicks={totalTicks}
-                    updateTickOnPage={updateTickOnPage}
-                    splits={splits}
-                    npcs={npcState}
-                    cellSize={20}
-                    wrapWidth={timelineWrapWidth}
-                    smallLegend
-                  />
-                </div>
-              ),
-            },
-            {
-              icon: 'fas fa-gamepad',
-              content: (
-                <div>
-                  <BossPageReplay
-                    entities={entities}
-                    mapDef={MAIDEN_MAP_DEFINITION}
-                    playerTickState={playerTickState}
-                    tileSize={12}
-                  />
-                </div>
-              ),
-            },
-          ]}
-        />
-        <BossPageControls
-          currentlyPlaying={playing}
-          totalTicks={totalTicks}
-          currentTick={currentTick}
-          updateTick={updateTickOnPage}
-          updatePlayingState={setPlaying}
-          splits={controlsSplits}
-        />
-      </div>
-    );
-  }
-
   return (
     <>
-      <div className={bossStyles.bossPage__Overview}>
-        <div className={bossStyles.bossPage__BossPic}>
-          <Image
-            src="/maiden.webp"
-            alt="The Maiden of Sugadinti"
-            fill
-            style={{ objectFit: 'contain' }}
-          />
-        </div>
-        <div className={bossStyles.bossPage__KeyDetails}>
-          <h2>
-            The Maiden of Sugadinti ({ticksToFormattedSeconds(totalTicks)})
-          </h2>
-          {crabSpawns}
-        </div>
+      <div className={bossStyles.overview}>
+        <BossFightOverview
+          name="The Maiden of Sugadinti"
+          image="/maiden.webp"
+          time={totalTicks}
+          sections={splits.map((split, i) => ({
+            title: `${split.splitName} spawn`,
+            content: (
+              <CrabSpawn
+                key={split.splitName}
+                crabs={spawns[i]}
+                name={split.splitName}
+                tick={split.tick}
+                delta={i > 0 ? split.tick - splits[i - 1].tick : undefined}
+              />
+            ),
+          }))}
+        />
       </div>
 
-      <BossPageAttackTimeline
-        currentTick={currentTick}
-        playing={playing}
-        playerState={playerState}
-        timelineTicks={totalTicks}
-        updateTickOnPage={updateTickOnPage}
-        splits={splits}
-        npcs={npcState}
-      />
+      <div className={bossStyles.timeline}>
+        <BossPageAttackTimeline
+          currentTick={currentTick}
+          playing={playing}
+          playerState={playerState}
+          timelineTicks={totalTicks}
+          updateTickOnPage={updateTickOnPage}
+          splits={splits}
+          npcs={npcState}
+          smallLegend={display.isCompact()}
+        />
+      </div>
 
-      <CollapsiblePanel
-        panelTitle="Room Replay"
-        maxPanelHeight={2000}
-        defaultExpanded={true}
-      >
+      <div className={bossStyles.replayAndParty}>
         <BossPageReplay
           entities={entities}
           mapDef={MAIDEN_MAP_DEFINITION}
-          playerTickState={playerTickState}
+          tileSize={display.isCompact() ? 12 : undefined}
         />
-      </CollapsiblePanel>
+        <BossPageParty
+          playerTickState={playerTickState}
+          selectedPlayer={selectedPlayer}
+          setSelectedPlayer={setSelectedPlayer}
+        />
+      </div>
 
-      <CollapsiblePanel
-        panelTitle="Charts"
-        maxPanelHeight={1000}
-        defaultExpanded
-      >
-        {healthChart}
-      </CollapsiblePanel>
+      <div className={bossStyles.charts}>
+        <Card
+          className={bossStyles.chart}
+          header={{ title: "Maiden's Health By Tick" }}
+        >
+          <BossPageDPSTimeline
+            currentTick={currentTick}
+            data={bossHealthChartData}
+            width="100%"
+            height="100%"
+          />
+        </Card>
+      </div>
 
       <BossPageControls
         currentlyPlaying={playing}

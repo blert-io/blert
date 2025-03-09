@@ -11,19 +11,21 @@ import {
   Stage,
   TobRaid,
 } from '@blert/common';
-import Image from 'next/image';
-import { useContext, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useContext, useEffect, useMemo } from 'react';
 
-import AttackTimeline from '@/components/attack-timeline';
-import { BossPageAttackTimeline } from '@/components/boss-page-attack-timeline/boss-page-attack-timeline';
-import { BossPageControls } from '@/components/boss-page-controls/boss-page-controls';
-import { BossPageDPSTimeline } from '@/components/boss-page-dps-timeine/boss-page-dps-timeline';
+import { TimelineSplit } from '@/components/attack-timeline';
+import BossFightOverview from '@/components/boss-fight-overview';
+import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
+import BossPageControls from '@/components/boss-page-controls';
+import BossPageDPSTimeline from '@/components/boss-page-dps-timeline';
+import BossPageParty from '@/components/boss-page-party';
 import BossPageReplay from '@/components/boss-page-replay';
-import CollapsiblePanel from '@/components/collapsible-panel';
+import Card from '@/components/card';
 import { Entity, NpcEntity, PlayerEntity } from '@/components/map';
 import Loading from '@/components/loading';
-import Tabs from '@/components/tabs';
 import { DisplayContext } from '@/display';
+import { ActorContext } from '@/raids/tob/context';
 import {
   EnhancedRoomNpc,
   usePlayingState,
@@ -44,6 +46,9 @@ const XARPUS_MAP_DEFINITION = {
 };
 
 export default function XarpusPage() {
+  const searchParams = useSearchParams();
+  const display = useContext(DisplayContext);
+
   const {
     challenge: raidData,
     totalTicks,
@@ -54,17 +59,38 @@ export default function XarpusPage() {
     loading,
   } = useStageEvents<TobRaid>(Stage.TOB_XARPUS);
 
-  const display = useContext(DisplayContext);
-
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
+
+  const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
+
+  const tickParam = searchParams.get('tick');
+  let parsedTickParam = 0;
+  if (tickParam === null) {
+    parsedTickParam = 1;
+  } else {
+    parsedTickParam = Number.parseInt(tickParam, 10);
+    if (Number.isNaN(parsedTickParam)) {
+      console.log('Unable to parse param as valid int, defaulting to 1');
+      parsedTickParam = 1;
+    }
+  }
+
+  const finalParsedTickParam = Math.max(
+    1,
+    Math.min(parsedTickParam, totalTicks),
+  );
+
+  useEffect(() => {
+    updateTickOnPage(finalParsedTickParam);
+  }, [finalParsedTickParam, updateTickOnPage]);
 
   const splits = useMemo(() => {
     if (raidData === null) {
       return [];
     }
 
-    const splits = [];
+    const splits: TimelineSplit[] = [];
     if (raidData.splits[SplitType.TOB_XARPUS_EXHUMES]) {
       splits.push({
         tick: raidData.splits[SplitType.TOB_XARPUS_EXHUMES],
@@ -124,6 +150,7 @@ export default function XarpusPage() {
           e.yCoord,
           e.player.name,
           hitpoints,
+          /*highlight=*/ e.player.name === selectedPlayer,
         );
         entities.push(player);
         players.push(player);
@@ -154,134 +181,106 @@ export default function XarpusPage() {
     {},
   );
 
-  const chartWidth = display.isFull() ? 1200 : window?.innerWidth - 40 ?? 350;
-  const chartHeight = Math.floor(chartWidth / (display.isCompact() ? 2 : 2.5));
-  const healthChart = (
-    <div className={bossStyles.chart}>
-      <h3>Xarpus&apos;s Health By Tick</h3>
-      <BossPageDPSTimeline
-        currentTick={currentTick}
-        data={bossHealthChartData}
-        width={chartWidth}
-        height={chartHeight}
-      />
-    </div>
-  );
+  const sections = [];
 
-  if (display.isCompact()) {
-    let maxHeight;
-    let timelineWrapWidth = 380;
-    if (window) {
-      maxHeight = window.innerHeight - 255;
-      timelineWrapWidth = window.innerWidth - 25;
-    }
-
-    return (
-      <div className={bossStyles.bossPageCompact}>
-        <h1>
-          <i className="fas fa-bullseye" />
-          Xarpus ({ticksToFormattedSeconds(totalTicks)})
-        </h1>
-        <Tabs
-          fluid
-          maxHeight={maxHeight}
-          tabs={[
-            {
-              icon: 'fas fa-chart-simple',
-              content: <div>{healthChart}</div>,
-            },
-            {
-              icon: 'fas fa-timeline',
-              content: (
-                <div className={bossStyles.timeline}>
-                  <AttackTimeline
-                    currentTick={currentTick}
-                    playing={playing}
-                    playerState={playerState}
-                    timelineTicks={totalTicks}
-                    updateTickOnPage={updateTickOnPage}
-                    splits={splits}
-                    npcs={npcState}
-                    cellSize={20}
-                    wrapWidth={timelineWrapWidth}
-                    smallLegend
-                  />
-                </div>
-              ),
-            },
-            {
-              icon: 'fas fa-gamepad',
-              content: (
-                <div>
-                  <BossPageReplay
-                    entities={entities}
-                    mapDef={XARPUS_MAP_DEFINITION}
-                    playerTickState={playerTickState}
-                    tileSize={22}
-                  />
-                </div>
-              ),
-            },
-          ]}
-        />
-        <BossPageControls
-          currentlyPlaying={playing}
-          totalTicks={totalTicks}
-          currentTick={currentTick}
-          updateTick={updateTickOnPage}
-          updatePlayingState={setPlaying}
-          splits={splits}
-        />
-      </div>
-    );
+  if (
+    raidData.splits[SplitType.TOB_XARPUS_EXHUMES] ||
+    raidData.splits[SplitType.TOB_XARPUS_SCREECH]
+  ) {
+    sections.push({
+      title: 'Phase Splits',
+      content: (
+        <div className={styles.phaseTimes}>
+          {raidData.splits[SplitType.TOB_XARPUS_EXHUMES] && (
+            <div className={styles.phaseTime}>
+              <span className={styles.phaseLabel}>Exhumes:</span>
+              <button
+                className={styles.phaseValue}
+                onClick={() => {
+                  updateTickOnPage(
+                    raidData.splits[SplitType.TOB_XARPUS_EXHUMES]!,
+                  );
+                }}
+              >
+                {ticksToFormattedSeconds(
+                  raidData.splits[SplitType.TOB_XARPUS_EXHUMES],
+                )}
+              </button>
+            </div>
+          )}
+          {raidData.splits[SplitType.TOB_XARPUS_SCREECH] && (
+            <div className={styles.phaseTime}>
+              <span className={styles.phaseLabel}>Screech:</span>
+              <button
+                className={styles.phaseValue}
+                onClick={() => {
+                  updateTickOnPage(
+                    raidData.splits[SplitType.TOB_XARPUS_SCREECH]!,
+                  );
+                }}
+              >
+                {ticksToFormattedSeconds(
+                  raidData.splits[SplitType.TOB_XARPUS_SCREECH],
+                )}
+              </button>
+            </div>
+          )}
+        </div>
+      ),
+    });
   }
 
   return (
     <>
-      <div className={bossStyles.bossPage__Overview}>
-        <div className={bossStyles.bossPage__BossPic}>
-          <Image
-            src="/xarpus.webp"
-            alt="Xarpus"
-            fill
-            style={{ objectFit: 'contain' }}
-          />
-        </div>
-        <div className={bossStyles.bossPage__KeyDetails}>
-          <h2>Xarpus ({ticksToFormattedSeconds(totalTicks)})</h2>
-        </div>
+      <div className={bossStyles.overview}>
+        <BossFightOverview
+          name="Xarpus"
+          className={styles.overview}
+          image="/xarpus.webp"
+          time={totalTicks}
+          sections={sections}
+        />
       </div>
 
-      <BossPageAttackTimeline
-        currentTick={currentTick}
-        playing={playing}
-        playerState={playerState}
-        timelineTicks={totalTicks}
-        updateTickOnPage={updateTickOnPage}
-        npcs={npcState}
-        splits={splits}
-      />
+      <div className={bossStyles.timeline}>
+        <BossPageAttackTimeline
+          currentTick={currentTick}
+          playing={playing}
+          playerState={playerState}
+          timelineTicks={totalTicks}
+          updateTickOnPage={updateTickOnPage}
+          splits={splits}
+          npcs={npcState}
+          smallLegend={display.isCompact()}
+        />
+      </div>
 
-      <CollapsiblePanel
-        panelTitle="Room Replay"
-        maxPanelHeight={2000}
-        defaultExpanded={true}
-      >
+      <div className={bossStyles.replayAndParty}>
         <BossPageReplay
           entities={entities}
           mapDef={XARPUS_MAP_DEFINITION}
-          tileSize={35}
-          playerTickState={playerTickState}
+          tileSize={display.isCompact() ? 12 : 28}
         />
-      </CollapsiblePanel>
+        <BossPageParty
+          playerTickState={playerTickState}
+          selectedPlayer={selectedPlayer}
+          setSelectedPlayer={setSelectedPlayer}
+        />
+      </div>
 
-      <CollapsiblePanel
-        panelTitle="Charts"
-        maxPanelHeight={1000}
-        defaultExpanded
-      >
-        {healthChart}
-      </CollapsiblePanel>
+      <div className={bossStyles.charts}>
+        <Card
+          className={bossStyles.chart}
+          header={{ title: "Xarpus's Health By Tick" }}
+        >
+          <BossPageDPSTimeline
+            currentTick={currentTick}
+            data={bossHealthChartData}
+            width="100%"
+            height="100%"
+          />
+        </Card>
+      </div>
 
       <BossPageControls
         currentlyPlaying={playing}

@@ -14,22 +14,21 @@ import {
   Stage,
   TobRaid,
 } from '@blert/common';
-import Image from 'next/image';
-import { useContext, useMemo } from 'react';
+import { useContext, useMemo, useRef } from 'react';
 
-import { usePlayingState, useStageEvents } from '@/utils/boss-room-state';
-import { BossPageControls } from '@/components/boss-page-controls/boss-page-controls';
-import { BossPageAttackTimeline } from '@/components/boss-page-attack-timeline/boss-page-attack-timeline';
-import AttackTimeline, { TimelineColor } from '@/components/attack-timeline';
-import Badge from '@/components/badge';
+import { TimelineColor, TimelineSplit } from '@/components/attack-timeline';
+import BossFightOverview from '@/components/boss-fight-overview';
+import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
+import BossPageControls from '@/components/boss-page-controls';
+import BossPageParty from '@/components/boss-page-party';
 import BossPageReplay from '@/components/boss-page-replay';
-import CollapsiblePanel from '@/components/collapsible-panel';
+import Card from '@/components/card';
 import Loading from '@/components/loading';
 import { Entity, NpcEntity, PlayerEntity } from '@/components/map';
-import Tabs from '@/components/tabs';
-import { DisplayContext } from '@/display';
+import { useDisplay } from '@/display';
+import { ActorContext } from '@/raids/tob/context';
+import { usePlayingState, useStageEvents } from '@/utils/boss-room-state';
 import { ticksToFormattedSeconds } from '@/utils/tick';
-import { ActorContext } from '../../../context';
 
 import bossStyles from '../style.module.scss';
 import styles from './style.module.scss';
@@ -68,7 +67,16 @@ function verzikNpcColor(npcId: number): string | undefined {
   return undefined;
 }
 
+type RedCrabInfo = {
+  tick: number;
+  attackableTick: number;
+  verzikStartHpPercentage?: number;
+  verzikLowestHpPercentage?: number;
+};
+
 export default function VerzikPage() {
+  const display = useDisplay();
+
   const {
     challenge: raidData,
     totalTicks,
@@ -79,19 +87,19 @@ export default function VerzikPage() {
     loading,
   } = useStageEvents<TobRaid>(Stage.TOB_VERZIK);
 
-  const display = useContext(DisplayContext);
-
   const { currentTick, updateTickOnPage, playing, setPlaying } =
     usePlayingState(totalTicks);
 
-  const { selectedPlayer } = useContext(ActorContext);
+  const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
 
-  const [splits, backgroundColors] = useMemo(() => {
+  const redCrabInfoRef = useRef<HTMLDivElement>(null);
+
+  const [splits, redsInfo, backgroundColors] = useMemo(() => {
     if (raidData === null) {
-      return [[], []];
+      return [[], [], []];
     }
 
-    const splits = [];
+    const splits: TimelineSplit[] = [];
     if (raidData.splits[SplitType.TOB_VERZIK_P1_END]) {
       splits.push({
         tick: raidData.splits[SplitType.TOB_VERZIK_P1_END],
@@ -114,28 +122,6 @@ export default function VerzikPage() {
         splitName: 'P3',
       });
     }
-
-    const redsTicks: number[] = [];
-    eventsByType[EventType.NPC_SPAWN]?.forEach((event) => {
-      if (Npc.isVerzikMatomenos((event as NpcEvent).npc.id)) {
-        if (!redsTicks.includes(event.tick)) {
-          redsTicks.push(event.tick);
-        }
-      }
-    });
-    redsTicks.forEach((tick, i) => {
-      splits.push({
-        tick,
-        splitName: i === 0 ? 'Reds' : `Reds ${i + 1}`,
-        unimportant: tick !== raidData.splits[SplitType.TOB_VERZIK_REDS],
-      });
-
-      splits.push({
-        tick: tick + 10,
-        splitName: 'Attackable',
-        unimportant: true,
-      });
-    });
 
     const backgroundColors: TimelineColor[] = [];
     eventsByType[EventType.NPC_ATTACK]?.forEach((event) => {
@@ -160,8 +146,74 @@ export default function VerzikPage() {
       }
     });
 
-    return [splits, backgroundColors];
-  }, [raidData, eventsByType]);
+    const redsTicks: number[] = [];
+    eventsByType[EventType.NPC_SPAWN]?.forEach((event) => {
+      if (Npc.isVerzikMatomenos((event as NpcEvent).npc.id)) {
+        if (!redsTicks.includes(event.tick)) {
+          redsTicks.push(event.tick);
+        }
+      }
+    });
+
+    const info: RedCrabInfo[] = [];
+
+    for (let i = 0; i < redsTicks.length; i++) {
+      const tick = redsTicks[i];
+      const attackableTick = tick + 10;
+
+      splits.push({
+        tick,
+        splitName: i === 0 ? 'Reds' : `Reds ${i + 1}`,
+        unimportant: tick !== raidData?.splits[SplitType.TOB_VERZIK_REDS],
+      });
+
+      splits.push({
+        tick: attackableTick,
+        splitName: 'Attackable',
+        unimportant: true,
+      });
+
+      const getVerzikHp = (tick: number) => {
+        const event = eventsByTick[tick]?.find(
+          (e) =>
+            e.type === EventType.NPC_UPDATE &&
+            Npc.isVerzikP2((e as NpcEvent).npc.id),
+        );
+        if (event === undefined) {
+          return undefined;
+        }
+        return SkillLevel.fromRaw(
+          (event as NpcEvent).npc.hitpoints,
+        ).percentage();
+      };
+
+      const verzikStartHpPercentage = getVerzikHp(attackableTick);
+      let verzikLowestHpPercentage;
+
+      const nextCrabsTick =
+        i < redsTicks.length - 1 ? redsTicks[i + 1] : undefined;
+      if (nextCrabsTick !== undefined) {
+        for (let tick = attackableTick; tick < nextCrabsTick; tick++) {
+          const hp = getVerzikHp(tick);
+          if (verzikLowestHpPercentage === undefined) {
+            verzikLowestHpPercentage = hp;
+          } else if (hp !== undefined && hp < verzikLowestHpPercentage) {
+            verzikLowestHpPercentage = hp;
+          }
+        }
+      } else {
+        verzikLowestHpPercentage = 0;
+      }
+
+      info.push({
+        tick,
+        attackableTick,
+        verzikStartHpPercentage,
+        verzikLowestHpPercentage,
+      });
+    }
+    return [splits, info, backgroundColors];
+  }, [raidData, eventsByType, eventsByTick]);
 
   if (loading || raidData === null) {
     return <Loading />;
@@ -189,6 +241,7 @@ export default function VerzikPage() {
           e.yCoord,
           e.player.name,
           hitpoints,
+          /*highlight=*/ e.player.name === selectedPlayer,
         );
         entities.push(player);
         players.push(player);
@@ -220,157 +273,213 @@ export default function VerzikPage() {
     {},
   );
 
-  if (display.isCompact()) {
-    let maxHeight;
-    let timelineWrapWidth = 380;
-    if (window) {
-      maxHeight = window.innerHeight - 255;
-      timelineWrapWidth = window.innerWidth - 25;
-    }
+  const sections = [];
 
-    return (
-      <div className={bossStyles.bossPageCompact}>
-        <h1>
-          <i className="fas fa-bullseye" />
-          Verzik Vitur ({ticksToFormattedSeconds(totalTicks)})
-        </h1>
-        <Tabs
-          fluid
-          maxHeight={maxHeight}
-          tabs={[
-            {
-              icon: 'fas fa-chart-simple',
-              content: (
-                <div>
-                  <div className={styles.splits}>
-                    {raidData.splits[SplitType.TOB_VERZIK_P1_END] && (
-                      <Badge
-                        className={styles.split}
-                        iconClass="fa-solid fa-hourglass"
-                        label="P1"
-                        value={ticksToFormattedSeconds(
-                          raidData.splits[SplitType.TOB_VERZIK_P1_END],
-                        )}
-                      />
-                    )}
-                    {raidData.splits[SplitType.TOB_VERZIK_REDS] && (
-                      <Badge
-                        className={styles.split}
-                        iconClass="fa-solid fa-hourglass"
-                        label="Reds"
-                        value={ticksToFormattedSeconds(
-                          raidData.splits[SplitType.TOB_VERZIK_REDS],
-                        )}
-                      />
-                    )}
-                    {raidData.splits[SplitType.TOB_VERZIK_P2_END] && (
-                      <Badge
-                        className={styles.split}
-                        iconClass="fa-solid fa-hourglass"
-                        label="P2"
-                        value={ticksToFormattedSeconds(
-                          raidData.splits[SplitType.TOB_VERZIK_P2_END],
-                        )}
-                      />
-                    )}
-                  </div>
-                  <div>
-                    <label
-                      style={{ fontWeight: 500, color: '#fff', marginRight: 8 }}
-                    >
-                      Red crab spawns:
-                    </label>
-                    <span>
-                      {raidData.tobRooms.verzik?.redsSpawnCount ?? '-'}
-                    </span>
-                  </div>
-                </div>
-              ),
-            },
-            {
-              icon: 'fas fa-timeline',
-              content: (
-                <div className={bossStyles.timeline}>
-                  <AttackTimeline
-                    currentTick={currentTick}
-                    playing={playing}
-                    playerState={playerState}
-                    timelineTicks={totalTicks}
-                    updateTickOnPage={updateTickOnPage}
-                    splits={splits}
-                    npcs={npcState}
-                    cellSize={20}
-                    wrapWidth={timelineWrapWidth}
-                    smallLegend
-                  />
-                </div>
-              ),
-            },
-            {
-              icon: 'fas fa-gamepad',
-              content: (
-                <div>
-                  <BossPageReplay
-                    entities={entities}
-                    mapDef={VERZIK_MAP_DEFINITION}
-                    playerTickState={playerTickState}
-                    tileSize={14}
-                  />
-                </div>
-              ),
-            },
-          ]}
-        />
-        <BossPageControls
-          currentlyPlaying={playing}
-          totalTicks={totalTicks}
-          currentTick={currentTick}
-          updateTick={updateTickOnPage}
-          updatePlayingState={setPlaying}
-          splits={splits}
-        />
-      </div>
-    );
+  if (
+    raidData.splits[SplitType.TOB_VERZIK_P1_END] ||
+    raidData.splits[SplitType.TOB_VERZIK_REDS] ||
+    raidData.splits[SplitType.TOB_VERZIK_P2_END]
+  ) {
+    sections.push({
+      title: 'Phase Splits',
+      content: (
+        <div className={styles.phaseTimes}>
+          {raidData.splits[SplitType.TOB_VERZIK_P1_END] && (
+            <div className={styles.phaseTime}>
+              <span className={styles.phaseLabel}>P1:</span>
+              <button
+                className={styles.phaseValue}
+                onClick={() => {
+                  updateTickOnPage(
+                    raidData.splits[SplitType.TOB_VERZIK_P1_END]!,
+                  );
+                }}
+              >
+                {ticksToFormattedSeconds(
+                  raidData.splits[SplitType.TOB_VERZIK_P1_END],
+                )}
+              </button>
+            </div>
+          )}
+          {raidData.splits[SplitType.TOB_VERZIK_REDS] && (
+            <div className={styles.phaseTime}>
+              <span className={styles.phaseLabel}>Reds:</span>
+              <button
+                className={styles.phaseValue}
+                onClick={() => {
+                  updateTickOnPage(raidData.splits[SplitType.TOB_VERZIK_REDS]!);
+                }}
+              >
+                {ticksToFormattedSeconds(
+                  raidData.splits[SplitType.TOB_VERZIK_REDS],
+                )}
+              </button>
+            </div>
+          )}
+          {raidData.splits[SplitType.TOB_VERZIK_P2_END] && (
+            <div className={styles.phaseTime}>
+              <span className={styles.phaseLabel}>P2:</span>
+              <button
+                className={styles.phaseValue}
+                onClick={() => {
+                  updateTickOnPage(
+                    raidData.splits[SplitType.TOB_VERZIK_P2_END]!,
+                  );
+                }}
+              >
+                {ticksToFormattedSeconds(
+                  raidData.splits[SplitType.TOB_VERZIK_P2_END],
+                )}
+              </button>
+            </div>
+          )}
+        </div>
+      ),
+    });
+  }
+
+  if (verzikData?.redsSpawnCount !== undefined) {
+    sections.push({
+      title: 'Stats',
+      content: (
+        <div className={styles.stats}>
+          <div className={styles.redCrabCount}>
+            <div className={styles.redCrabLabel}>
+              Reds Spawn Count:
+              <button
+                className={styles.redCrabButton}
+                onClick={() => {
+                  redCrabInfoRef.current?.scrollIntoView({
+                    behavior: 'smooth',
+                  });
+                }}
+              >
+                View Spawns
+              </button>
+            </div>
+            <span className={styles.redCrabValue}>
+              {verzikData.redsSpawnCount}
+            </span>
+          </div>
+        </div>
+      ),
+    });
   }
 
   return (
     <>
-      <div className={bossStyles.bossPage__Overview}>
-        <div className={bossStyles.bossPage__BossPic}>
-          <Image
-            src="/verzik.webp"
-            alt="Verzik Vitur"
-            fill
-            style={{ objectFit: 'contain' }}
-          />
-        </div>
-        <div className={bossStyles.bossPage__KeyDetails}>
-          <h2>Verzik Vitur ({ticksToFormattedSeconds(totalTicks)})</h2>
-        </div>
+      <div className={bossStyles.overview}>
+        <BossFightOverview
+          className={styles.overview}
+          name="Verzik Vitur"
+          image="/verzik.webp"
+          time={totalTicks}
+          sections={sections}
+        />
       </div>
 
-      <BossPageAttackTimeline
-        currentTick={currentTick}
-        playing={playing}
-        playerState={playerState}
-        timelineTicks={totalTicks}
-        updateTickOnPage={updateTickOnPage}
-        npcs={npcState}
-        splits={splits}
-        backgroundColors={backgroundColors}
-      />
+      <div className={bossStyles.timeline}>
+        <BossPageAttackTimeline
+          currentTick={currentTick}
+          playing={playing}
+          playerState={playerState}
+          timelineTicks={totalTicks}
+          updateTickOnPage={updateTickOnPage}
+          splits={splits}
+          npcs={npcState}
+          backgroundColors={backgroundColors}
+          smallLegend={display.isCompact()}
+        />
+      </div>
 
-      <CollapsiblePanel
-        panelTitle="Room Replay"
-        maxPanelHeight={2000}
-        defaultExpanded={true}
-      >
+      <div className={bossStyles.replayAndParty}>
         <BossPageReplay
           entities={entities}
           mapDef={VERZIK_MAP_DEFINITION}
-          playerTickState={playerTickState}
+          tileSize={display.isCompact() ? 12 : undefined}
         />
-      </CollapsiblePanel>
+        <BossPageParty
+          playerTickState={playerTickState}
+          selectedPlayer={selectedPlayer}
+          setSelectedPlayer={setSelectedPlayer}
+        />
+      </div>
+
+      {verzikData?.redsSpawnCount !== undefined && (
+        <Card
+          className={styles.redCrabAnalysis}
+          header={{ title: 'Red Crabs Phases' }}
+        >
+          <div className={styles.redCrabInfo} ref={redCrabInfoRef}>
+            {redsInfo.map((info, i) => {
+              const startHp = info.verzikStartHpPercentage ?? 0;
+              const lowestHp = info.verzikLowestHpPercentage ?? 0;
+              const hpDifference = startHp - lowestHp;
+              const hpPercentage = (lowestHp / startHp) * 100;
+
+              let hpDifferenceClass = '';
+              let hpDifferenceIcon: React.ReactNode = '';
+              if (Math.abs(hpDifference) < 3) {
+                hpDifferenceClass = styles.hpDifferenceLow;
+                hpDifferenceIcon = '~';
+              } else if (hpDifference > 0) {
+                hpDifferenceClass = styles.hpDifferenceUp;
+                hpDifferenceIcon = <i className="fas fa-arrow-down" />;
+              } else {
+                hpDifferenceClass = styles.hpDifferenceDown;
+                hpDifferenceIcon = <i className="fas fa-arrow-up" />;
+              }
+
+              return (
+                <div key={info.tick} className={styles.redCrabInfoItem}>
+                  <div className={styles.redCrabInfoLabel}>
+                    Reds {i + 1}
+                    <span className={styles.redCrabTick}>
+                      {ticksToFormattedSeconds(info.tick)}
+                    </span>
+                  </div>
+                  <div className={styles.redCrabInfoContent}>
+                    <div className={`${styles.hpInfo} ${styles.starting}`}>
+                      <span className={styles.hpLabel}>Starting HP</span>
+                      <span className={styles.hpValue}>
+                        {startHp.toFixed(2)}%
+                      </span>
+                    </div>
+                    <div className={`${styles.hpInfo} ${styles.lowest}`}>
+                      <span className={styles.hpLabel}>Lowest HP</span>
+                      <span className={styles.hpValue}>
+                        {lowestHp.toFixed(2)}%
+                        <div className={styles.hpBar}>
+                          <div
+                            className={styles.hpFill}
+                            style={{ width: `${hpPercentage}%` }}
+                          />
+                        </div>
+                      </span>
+                    </div>
+                    <div className={`${styles.hpInfo} ${styles.difference}`}>
+                      <span className={styles.hpLabel}>Change</span>
+                      <div
+                        className={`${styles.hpDifference} ${hpDifferenceClass}`}
+                      >
+                        {hpDifferenceIcon}
+                        {Math.abs(hpDifference).toFixed(2)}%
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    className={styles.jumpButton}
+                    onClick={() => updateTickOnPage(info.tick)}
+                  >
+                    <i className="fa-solid fa-play" />
+                    Jump to spawn
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       <BossPageControls
         currentlyPlaying={playing}

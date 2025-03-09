@@ -368,7 +368,7 @@ function FeedItem({ item, index }: { item: ActivityFeedItem; index: number }) {
           break;
         case ChallengeStatus.RESET:
           icon = '🔄';
-          status = `reset at ${stageName(challenge.stage)}`;
+          status = `reset after ${stageName(challenge.stage)}`;
           break;
         case ChallengeStatus.WIPED:
           icon = '💀';

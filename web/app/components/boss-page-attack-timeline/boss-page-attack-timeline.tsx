@@ -5,7 +5,7 @@ import { useContext, useEffect, useState } from 'react';
 import AttackTimeline, {
   AttackTimelineProps,
 } from '@/components/attack-timeline';
-import CollapsiblePanel from '@/components/collapsible-panel';
+import Card from '@/components/card';
 import Modal from '@/components/modal';
 import { DisplayContext } from '@/display';
 
@@ -34,10 +34,15 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
 
   if (showFullTimeline) {
     modalWidth = Math.floor(width * 0.95);
-    const timelineWidth = modalWidth - 2 * 40;
+    const paddingY = display.isCompact() ? 20 : 10;
+    const paddingX = display.isCompact() ? 12 : 30;
+    const timelineWidth = modalWidth - 2 * paddingX;
 
     fullTimeline = (
-      <div className={styles.timelineModal}>
+      <div
+        className={styles.timelineModal}
+        style={{ padding: `${paddingY}px ${paddingX}px` }}
+      >
         <AttackTimeline
           {...props}
           wrapWidth={timelineWidth}
@@ -48,20 +53,22 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
   }
 
   return (
-    <CollapsiblePanel
-      panelTitle="Room Timeline"
-      maxPanelHeight={1000}
-      defaultExpanded={true}
-      panelWidth="100%"
-      className={styles.attackTimelinePanel}
+    <Card
+      className={styles.attackTimelineCard}
+      header={{
+        title: 'Room Timeline',
+        action: (
+          <button
+            className={styles.expandButton}
+            onClick={() => setShowFullTimeline(true)}
+          >
+            <i className="fas fa-expand" />
+            Expand
+          </button>
+        ),
+        styles: { marginBottom: 0 },
+      }}
     >
-      <button
-        className={styles.expandButton}
-        onClick={() => setShowFullTimeline(true)}
-      >
-        <i className="fas fa-expand" />
-        Expand
-      </button>
       <AttackTimeline {...props} cellSize={cellSize} />
       <Modal
         open={showFullTimeline}
@@ -70,6 +77,6 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
       >
         {fullTimeline}
       </Modal>
-    </CollapsiblePanel>
+    </Card>
   );
 }

@@ -9,6 +9,9 @@
   --blert-yellow-base: 222, 200, 88;
   --blert-text-color-base: 195, 199, 201;
   --blert-button-base: 88, 101, 242;
+  --nav-bg-base: 23, 24, 33;
+  --nav-bg-darkened-base: 17, 18, 33;
+  --nav-bg-lightened-base: 33, 35, 48;
 
   --blert-red: rgb(var(--blert-red-base));
   --blert-blue: rgb(var(--blert-blue-base));
@@ -17,9 +20,9 @@
   --blert-text-color: rgb(var(--blert-text-color-base));
   --blert-button: rgb(var(--blert-button-base));
 
-  --nav-bg: #171821;
-  --nav-bg-darkened: #111118;
-  --nav-bg-lightened: #212330;
+  --nav-bg: rgb(var(--nav-bg-base));
+  --nav-bg-darkened: rgb(var(--nav-bg-darkened-base));
+  --nav-bg-lightened: rgb(var(--nav-bg-lightened-base));
   --page-bg: #171821;
   --content-area-bg: #212229;
   --panel-bg: #1b1c25;

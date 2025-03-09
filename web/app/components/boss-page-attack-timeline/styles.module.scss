@@ -1,15 +1,19 @@
 @use '../../mixins.scss' as *;
 
-.attackTimelinePanel {
+.attackTimelineCard {
+  width: 100%;
+
   .expandButton {
     margin: 8px 0 0 auto;
     text-align: center;
     width: 110px;
     font-size: 16px;
+    transition: all 0.2s ease;
+    color: var(--blert-button);
 
     &:hover {
       cursor: pointer;
-      color: #fff;
+      transform: scale(1.1);
     }
 
     i {
@@ -22,7 +26,6 @@
   @include styledScrollbar;
 
   width: 100%;
-  padding: 20px 30px;
   max-height: 90vh;
   overflow-y: auto;
   overflow-x: hidden;

@@ -2,22 +2,23 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  font-size: 14px;
   padding: 4px 0;
+  font-family: var(--font-runescape);
+  font-size: 16px;
 
   img {
     margin-right: 8px;
   }
 
   &.high {
-    color: var(--blert-green);
+    color: rgba(var(--blert-green-base), 0.9);
   }
 
   &.medium {
-    color: var(--blert-yellow);
+    color: rgba(var(--blert-yellow-base), 0.9);
   }
 
   &.low {
-    color: var(--blert-red);
+    color: rgba(var(--blert-red-base), 0.9);
   }
 }

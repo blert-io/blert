@@ -111,6 +111,12 @@
       overflow-wrap: break-word;
       word-break: break-word;
       hyphens: auto;
+
+      &.time {
+        font-family: var(--font-roboto-mono), monospace;
+        font-weight: 400;
+        font-size: 1em;
+      }
     }
   }
 }

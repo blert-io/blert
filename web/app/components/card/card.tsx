@@ -10,6 +10,7 @@ export type CardProps = {
   header?: {
     title: ReactNode;
     action?: ReactNode;
+    styles?: React.CSSProperties;
   };
 };
 
@@ -26,7 +27,7 @@ export function Card({
   return (
     <div className={cardClasses}>
       {header && (
-        <div className={styles.cardHeader}>
+        <div className={styles.cardHeader} style={header.styles}>
           <h2>{header.title}</h2>
           {header.action}
         </div>

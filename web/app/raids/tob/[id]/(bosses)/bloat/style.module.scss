@@ -1,40 +1,25 @@
 @use '../../../../../mixins.scss' as *;
 
-.downs {
-  display: flex;
-  flex-direction: row;
-
-  .down {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-
-    &:not(:first-child) {
-      margin-left: 2.5em;
-    }
-
-    h3 {
-      margin: 0 0 5px 0;
-    }
-
-    td {
-      padding: 5px 0;
-    }
-
-    .walkTicks {
-      opacity: 0.8;
-      margin-left: 8px;
-      font-size: 14px;
-    }
+.down {
+  td {
+    padding: 5px 0;
   }
 
-  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    flex-wrap: wrap;
-    justify-content: space-between;
+  i {
+    color: var(--blert-button);
+  }
 
-    .down {
-      width: 48%;
-      margin: 10px 0 0 0 !important;
-    }
+  .arrow {
+    color: var(--font-color-nav);
+  }
+
+  .walkTime {
+    font-family: var(--font-roboto-mono), monospace;
+  }
+
+  .walkTicks {
+    font-size: 14px;
+    color: var(--font-color-nav);
+    margin-left: 8px;
   }
 }

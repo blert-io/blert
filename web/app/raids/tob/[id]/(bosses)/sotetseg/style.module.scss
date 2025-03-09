@@ -1,47 +1,37 @@
 @use '../../../../../mixins.scss' as *;
 
-.mazes {
+.mazeInfo {
   display: flex;
-  padding: 10px 0;
+  flex-wrap: wrap;
+  background: var(--background-color-light);
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  padding: 12px;
+  margin-bottom: 12px;
+  gap: 20px;
 
-  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    flex-direction: column;
-    align-items: center;
-
-    .mazeInfo:last-child {
-      margin: 20px 0 0 0 !important;
-    }
-  }
-
-  .mazeInfo {
+  .details {
     display: flex;
+    flex-direction: column;
+    gap: 8px;
 
-    .details {
+    .mazeStat {
       display: flex;
-      flex-direction: column;
-      padding: 0 20px;
-      text-align: center;
+      align-items: center;
+      font-family: var(--font-roboto-mono), monospace;
 
-      h3 {
-        margin: 0;
+      i {
+        margin-right: 10px;
+        width: 16px;
+        text-align: center;
+        color: var(--blert-button);
       }
-
-      .mazeStat {
-        padding: 5px 0 0 0;
-        i {
-          margin-right: 10px;
-        }
-      }
-    }
-
-    &:last-child {
-      margin-left: 40px;
     }
   }
 }
 
-$disabledMazeTileColor: #5a5a5a;
-$activeMazeTileColor: #961919;
+$disabledMazeTileColor: rgba(var(--blert-text-color-base), 0.5);
+$activeMazeTileColor: var(--blert-red);
 
 .mapTile {
   width: 100%;
@@ -76,6 +66,7 @@ $activeMazeTileColor: #961919;
     border: 1px solid $disabledMazeTileColor;
     font-size: 14px;
     font-style: italic;
+    color: var(--font-color-nav);
   }
 
   .mazeRow {
@@ -87,9 +78,7 @@ $activeMazeTileColor: #961919;
       align-items: center;
       justify-content: center;
       font-size: 8px;
-
-      // Hidden border to match the actual tiles.
-      border: 1px solid rgba(0, 0, 0, 0);
+      border: 1px solid transparent;
       box-sizing: content-box;
     }
 
@@ -102,8 +91,11 @@ $activeMazeTileColor: #961919;
 
       &.active {
         border-color: $activeMazeTileColor;
+        background-color: rgba(var(--blert-red-base), 0.1);
+
         .circle {
           border-color: $activeMazeTileColor;
+          background-color: rgba(var(--blert-red-base), 0.2);
         }
       }
 
@@ -115,8 +107,9 @@ $activeMazeTileColor: #961919;
       }
 
       .pivot {
-        color: #ffb205;
+        color: var(--blert-button);
         font-size: 8px;
+        font-weight: bold;
       }
     }
   }

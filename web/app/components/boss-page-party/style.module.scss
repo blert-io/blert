@@ -1,0 +1,95 @@
+@use 'sass:color';
+@use '../../mixins.scss' as *;
+
+.bossPageParty {
+  width: fit-content;
+  height: fit-content;
+
+  .actors {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 16px;
+    width: 100%;
+    max-width: 1400px;
+    padding: 8px;
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      padding: 4px;
+    }
+  }
+
+  .actor {
+    cursor: pointer;
+    background: var(--panel-bg);
+    border: 1px solid var(--nav-bg-lightened);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 220px;
+    overflow: hidden;
+    transition: all 0.2s ease;
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      margin: 0 8px;
+    }
+
+    h2 {
+      margin: 0;
+      padding: 8px;
+      width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: center;
+      font-size: 1.1em;
+      color: var(--blert-text-color);
+      font-weight: 500;
+      background: var(--nav-bg);
+      border-bottom: 1px solid var(--nav-bg-lightened);
+
+      @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+        font-size: 1em;
+        padding: 6px;
+      }
+    }
+
+    .prayers {
+      background: rgba(var(--nav-bg-base), 0.5);
+      border-bottom: 1px solid var(--nav-bg-lightened);
+      display: flex;
+      justify-content: center;
+      width: 100%;
+    }
+
+    .equipment {
+      background: var(--panel-bg);
+      display: flex;
+      justify-content: center;
+      width: 100%;
+      padding: 8px 0;
+    }
+
+    .skills {
+      background: rgba(var(--nav-bg-base), 0.5);
+      border-top: 1px solid var(--nav-bg-lightened);
+      margin-top: 0;
+      flex-grow: 1;
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2px;
+      padding: 6px;
+    }
+
+    &.selected {
+      border-color: var(--blert-button);
+    }
+
+    &:hover {
+      transform: translateY(-1px);
+      border-color: rgba(var(--blert-button-base), 0.5);
+    }
+  }
+}
