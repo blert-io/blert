@@ -768,6 +768,12 @@ export default abstract class ChallengeProcessor {
 
     if (torso !== undefined) {
       switch (torso.getItemId()) {
+        case ItemId.RADIANT_OATHPLATE_CHEST:
+          gear = PrimaryMeleeGear.RADIANT_OATHPLATE;
+          break;
+        case ItemId.OATHPLATE_CHESTPLATE:
+          gear = PrimaryMeleeGear.OATHPLATE;
+          break;
         case ItemId.BLORVA_PLATEBODY:
           gear = PrimaryMeleeGear.BLORVA;
           break;
@@ -1111,4 +1117,6 @@ enum ItemId {
   TORVA_PLATEBODY = 26384,
   VOID_MELEE_HELM_OR = 26477,
   BLORVA_PLATEBODY = 28256,
+  OATHPLATE_CHESTPLATE = 30753,
+  RADIANT_OATHPLATE_CHEST = 30779,
 }

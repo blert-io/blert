@@ -639,6 +639,8 @@ export enum PrimaryMeleeGear {
   BANDOS = 2,
   TORVA = 3,
   BLORVA = 4,
+  OATHPLATE = 5,
+  RADIANT_OATHPLATE = 6,
 }
 
 export type PlayerInfo = {
