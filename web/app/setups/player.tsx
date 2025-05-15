@@ -10,6 +10,7 @@ import { useToast } from '@/components/toast';
 import { ExtendedItemData } from '@/utils/item-cache/extended';
 
 import { EditingContext, SetupEditingContext } from './editing-context';
+import { RUNE_ITEMS } from './[id]/edit/item-selector';
 import {
   Container,
   GearSetupPlayer,
@@ -57,10 +58,7 @@ function typeFilter(slot: EquipmentSlot): (item: ExtendedItemData) => boolean {
 }
 
 function runeFilter(item: ExtendedItemData): boolean {
-  return [
-    554, 555, 556, 557, 558, 562, 560, 565, 21880, 559, 564, 561, 563, 566,
-    9075, 4694, 4695, 4696, 4697, 4698, 4699, 28929,
-  ].includes(item.id);
+  return RUNE_ITEMS.includes(item.id);
 }
 
 type EquipmentSlotMetadata = {

@@ -516,6 +516,11 @@ const DEFAULT_ITEM_PRIORITIES: Record<number, number> = {
   27238: 1,
   27241: 1,
 
+  // Oathplate armor
+  30750: 1,
+  30753: 1,
+  30756: 1,
+
   // Occult necklace
   12002: 1,
 
@@ -550,6 +555,7 @@ const DEFAULT_ITEM_PRIORITIES: Record<number, number> = {
   4698: 1,
   4699: 1,
   28929: 1,
+  30843: 1,
 
   // Rune pouches
   12791: 1,
