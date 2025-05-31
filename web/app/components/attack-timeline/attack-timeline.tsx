@@ -661,6 +661,7 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
     case PlayerAttack.DINHS_SPEC:
       return 'dinhsed';
     case PlayerAttack.DUAL_MACUAHUITL:
+    case PlayerAttack.GLACIAL_TEMOTLI:
       return 'pummeled';
     case PlayerAttack.ELDER_MAUL:
     case PlayerAttack.ELDER_MAUL_SPEC:
@@ -680,6 +681,7 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
     case PlayerAttack.INQUISITORS_MACE:
       return 'bashed';
     case PlayerAttack.KICK:
+    case PlayerAttack.GOBLIN_PAINT_CANNON:
       return 'kicked';
     case PlayerAttack.NOXIOUS_HALBERD:
       return 'hallied';
@@ -702,6 +704,7 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
     case PlayerAttack.RAPIER:
       return 'stabbed';
     case PlayerAttack.SAELDOR:
+    case PlayerAttack.SULPHUR_BLADES:
     case PlayerAttack.VOIDWAKER_AUTO:
       return 'slashed';
     case PlayerAttack.SANG:

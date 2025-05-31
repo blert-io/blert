@@ -239,6 +239,13 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     special: false,
     style: CombatStyle.MELEE,
   },
+  [PlayerAttack.GLACIAL_TEMOTLI]: {
+    tagColor: 'red',
+    letter: 'GT',
+    ranged: false,
+    special: false,
+    style: CombatStyle.MELEE,
+  },
   [PlayerAttack.GOBLIN_PAINT_CANNON]: {
     tagColor: 'red',
     letter: 'GPC',
@@ -445,6 +452,13 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
   [PlayerAttack.STAFF_OF_LIGHT_SWIPE]: {
     tagColor: 'blue',
     letter: 'SOL',
+    ranged: false,
+    special: false,
+    style: CombatStyle.MELEE,
+  },
+  [PlayerAttack.SULPHUR_BLADES]: {
+    tagColor: 'red',
+    letter: 'SUL',
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
