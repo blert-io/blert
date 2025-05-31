@@ -20,12 +20,21 @@ export default async function PlayerOverview({
     party: [username],
   };
 
-  const [personalBests, raidStatuses, raidScales, raidCounts] =
+  const oneYearAgo = new Date();
+  oneYearAgo.setUTCFullYear(oneYearAgo.getUTCFullYear() - 1);
+  oneYearAgo.setUTCHours(0, 0, 0, 0);
+
+  const [personalBests, raidStatuses, raidScales, raidCountsLastYear] =
     await Promise.all([
       loadPbsForPlayer(username),
       aggregateChallenges(query, { '*': 'count' }, {}, 'status'),
       aggregateChallenges(query, { '*': 'count' }, {}, 'scale'),
-      aggregateChallenges(query, { '*': 'count' }, {}, 'startTime'),
+      aggregateChallenges(
+        { ...query, startTime: ['>=', oneYearAgo] },
+        { '*': 'count' },
+        {},
+        'startTime',
+      ),
     ]);
 
   const statusData = Object.entries(raidStatuses ?? {}).flatMap(([s, data]) => {
@@ -42,10 +51,12 @@ export default async function PlayerOverview({
     return { scale, count: data['*'].count };
   });
 
-  const raidsByDay = Object.entries(raidCounts ?? {}).flatMap(([s, data]) => {
-    const date = new Date(s);
-    return { date, count: data['*'].count };
-  });
+  const raidsByDay = Object.entries(raidCountsLastYear ?? {}).flatMap(
+    ([s, data]) => {
+      const date = new Date(s);
+      return { date, count: data['*'].count };
+    },
+  );
 
   return (
     <PlayerOverviewContent
