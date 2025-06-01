@@ -1,8 +1,8 @@
 import { EventType, Stage } from '@blert/common';
 import { NextRequest } from 'next/server';
 
-import { loadEventsForStage } from '../../../../../../actions/challenge';
-import { parseIntParam } from '../../../../../../utils/params';
+import { loadEventsForStage } from '@/actions/challenge';
+import { parseIntParam } from '@/utils/params';
 
 type Params = {
   params: Promise<{ id: string }>;
@@ -30,6 +30,7 @@ export async function GET(request: NextRequest, { params }: Params) {
     }
     return Response.json(events);
   } catch (e) {
+    console.error('Failed to load events:', e);
     return new Response(null, { status: 500 });
   }
 }

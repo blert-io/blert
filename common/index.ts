@@ -43,13 +43,18 @@ export type {
   SoteMazePathEvent,
   VerzikAttackStyleEvent,
   VerzikPhaseEvent,
+  XarpusExhumed,
+  XarpusExhumedEvent,
   XarpusPhaseEvent,
+  XarpusSplat,
+  XarpusSplatEvent,
 } from './event';
 export {
   DataSource,
   EquipmentSlot,
   EventType,
   VerzikAttackStyle,
+  XarpusSplatSource,
   isNpcEvent,
   isPlayerEvent,
 } from './event';

@@ -9,6 +9,7 @@ export class PlayerEntity implements Entity {
   size = 1;
   outlineColor: string;
   interactable: boolean = true;
+  customZIndex: number | null = null;
 
   name: string;
   hitpoints?: SkillLevel;
@@ -51,9 +52,10 @@ export class PlayerEntity implements Entity {
           flexDirection: 'column',
           textAlign: 'center',
           color: '#fff',
-          fontSize: '12px',
+          fontSize: '11px',
           fontWeight: this.highlight ? 700 : 400,
           textShadow: '3px 3px 2px rgba(0, 0, 0, 1)',
+          textWrap: 'nowrap',
         }}
       >
         {this.name}

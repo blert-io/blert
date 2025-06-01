@@ -10,9 +10,11 @@ import {
   SplitType,
   Stage,
   TobRaid,
+  XarpusExhumed,
+  XarpusExhumedEvent,
 } from '@blert/common';
-import { useSearchParams } from 'next/navigation';
-import { useContext, useEffect, useMemo } from 'react';
+import Image from 'next/image';
+import { useContext, useMemo } from 'react';
 
 import { TimelineSplit } from '@/components/attack-timeline';
 import BossFightOverview from '@/components/boss-fight-overview';
@@ -22,7 +24,13 @@ import BossPageDPSTimeline from '@/components/boss-page-dps-timeline';
 import BossPageParty from '@/components/boss-page-party';
 import BossPageReplay from '@/components/boss-page-replay';
 import Card from '@/components/card';
-import { Entity, NpcEntity, PlayerEntity } from '@/components/map';
+import {
+  Entity,
+  MarkerEntity,
+  NpcEntity,
+  OverlayEntity,
+  PlayerEntity,
+} from '@/components/map';
 import Loading from '@/components/loading';
 import { DisplayContext } from '@/display';
 import { ActorContext } from '@/raids/tob/context';
@@ -45,8 +53,45 @@ const XARPUS_MAP_DEFINITION = {
   baseTiles: xarpusBaseTiles,
 };
 
+function ExhumedOverlay({
+  tick,
+  exhumed,
+}: {
+  tick: number;
+  exhumed: XarpusExhumed;
+}) {
+  const healCount = exhumed.healTicks.filter((t) => t <= tick).length;
+  const ball = (key: number) => (
+    <div
+      key={key}
+      className={styles.exhumedBall}
+      style={{ backgroundColor: '#c7e917' }}
+    />
+  );
+
+  return (
+    <div className={styles.exhumedOverlay}>
+      <Image
+        src="/images/objects/exhumed.png"
+        alt="Xarpus Exhumed"
+        fill
+        style={{ objectFit: 'contain' }}
+      />
+      <div className={styles.exhumedHealCount}>
+        {healCount < 5 ? (
+          Array.from({ length: healCount }).map((_, i) => ball(i))
+        ) : (
+          <>
+            <span>{healCount}×</span>
+            {ball(0)}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function XarpusPage() {
-  const searchParams = useSearchParams();
   const display = useContext(DisplayContext);
 
   const {
@@ -63,27 +108,6 @@ export default function XarpusPage() {
     usePlayingState(totalTicks);
 
   const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
-
-  const tickParam = searchParams.get('tick');
-  let parsedTickParam = 0;
-  if (tickParam === null) {
-    parsedTickParam = 1;
-  } else {
-    parsedTickParam = Number.parseInt(tickParam, 10);
-    if (Number.isNaN(parsedTickParam)) {
-      console.log('Unable to parse param as valid int, defaulting to 1');
-      parsedTickParam = 1;
-    }
-  }
-
-  const finalParsedTickParam = Math.max(
-    1,
-    Math.min(parsedTickParam, totalTicks),
-  );
-
-  useEffect(() => {
-    updateTickOnPage(finalParsedTickParam);
-  }, [finalParsedTickParam, updateTickOnPage]);
 
   const splits = useMemo(() => {
     if (raidData === null) {
@@ -173,6 +197,66 @@ export default function XarpusPage() {
     }
   }
 
+  (eventsByType[EventType.TOB_XARPUS_SPLAT] ?? [])
+    .filter((evt) => evt.tick <= currentTick)
+    .forEach((evt) => {
+      entities.push(
+        new OverlayEntity(
+          evt.xCoord,
+          evt.yCoord,
+          'splat',
+          (
+            <Image
+              src="/xarpus_spit.png"
+              alt="Splat"
+              fill
+              style={{ objectFit: 'contain' }}
+            />
+          ),
+          /*interactable=*/ false,
+          /*size=*/ 1,
+          /*customZIndex=*/ 0,
+        ),
+      );
+    });
+
+  const exhumedHealing = {
+    none: 0,
+    once: 0,
+    twice: 0,
+    many: 0,
+  };
+  let healAmount = 0;
+
+  for (const evt of eventsByType[EventType.TOB_XARPUS_EXHUMED]) {
+    const exhumed = (evt as XarpusExhumedEvent).xarpusExhumed;
+    healAmount = exhumed.healAmount;
+
+    if (currentTick >= exhumed.spawnTick && currentTick < evt.tick) {
+      entities.push(
+        new OverlayEntity(
+          evt.xCoord,
+          evt.yCoord,
+          `exhumed-${exhumed.spawnTick}`,
+          <ExhumedOverlay tick={currentTick} exhumed={exhumed} />,
+          /*interactable=*/ false,
+          /*size=*/ 1,
+          /*customZIndex=*/ 0,
+        ),
+      );
+    }
+
+    if (exhumed.healTicks.length === 0) {
+      exhumedHealing.none++;
+    } else if (exhumed.healTicks.length === 1) {
+      exhumedHealing.once++;
+    } else if (exhumed.healTicks.length === 2) {
+      exhumedHealing.twice++;
+    } else {
+      exhumedHealing.many++;
+    }
+  }
+
   const playerTickState = raidData.party.reduce(
     (acc, { username }) => ({
       ...acc,
@@ -226,6 +310,49 @@ export default function XarpusPage() {
             </div>
           )}
         </div>
+      ),
+    });
+  }
+
+  if (raidData.tobStats.xarpusHealing !== null) {
+    sections.push({
+      title: 'Exhumed Healing',
+      content: (
+        <table className={styles.healingTable}>
+          <thead>
+            <tr>
+              <th colSpan={2} className={styles.healingTableHeader}>
+                <i className="fas fa-heart" /> Total Healing:{' '}
+                {raidData.tobStats.xarpusHealing}
+              </th>
+              <th colSpan={2} className={styles.healingTableHeader}>
+                <i className="fas fa-splotch" /> Per Splat: {healAmount}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th className={styles.healingTableSubHeader}>0 heals</th>
+              <th className={styles.healingTableSubHeader}>1 heal</th>
+              <th className={styles.healingTableSubHeader}>2 heals</th>
+              <th className={styles.healingTableSubHeader}>&gt;2 heals</th>
+            </tr>
+            <tr>
+              <td className={styles.healingTableAmount}>
+                {exhumedHealing.none} exh
+              </td>
+              <td className={styles.healingTableAmount}>
+                {exhumedHealing.once} exh
+              </td>
+              <td className={styles.healingTableAmount}>
+                {exhumedHealing.twice} exh
+              </td>
+              <td className={styles.healingTableAmount}>
+                {exhumedHealing.many} exh
+              </td>
+            </tr>
+          </tbody>
+        </table>
       ),
     });
   }

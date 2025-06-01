@@ -8,6 +8,7 @@ export class OverlayEntity implements Entity {
   size: number;
   outlineColor: string | null = null;
   interactable: boolean;
+  customZIndex: number | null;
 
   name: string;
   contents: React.ReactNode;
@@ -19,6 +20,7 @@ export class OverlayEntity implements Entity {
     contents: React.ReactNode,
     interactable: boolean = true,
     size: number = 1,
+    customZIndex: number | null = null,
   ) {
     this.x = x;
     this.y = y;
@@ -26,6 +28,7 @@ export class OverlayEntity implements Entity {
     this.size = size;
     this.contents = contents;
     this.interactable = interactable;
+    this.customZIndex = customZIndex;
   }
 
   getUniqueId(): string {

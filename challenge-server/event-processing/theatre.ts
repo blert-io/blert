@@ -89,6 +89,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
     melee: number;
   };
   private soteMazes: SoteMazeState[];
+  private xarpusHealing: number | null;
   private verzikRedSpawns: number[];
 
   public constructor(
@@ -125,6 +126,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
       melee: 0,
     };
     this.soteMazes = [];
+    this.xarpusHealing = null;
     this.verzikRedSpawns = [];
 
     if (extraFields.customData) {
@@ -269,6 +271,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
           ...roomData,
           stage: Stage.TOB_XARPUS,
         };
+        this.stageStats.xarpusHealing = this.xarpusHealing;
         this.stageStats.xarpusDeaths = this.rooms.xarpus.deaths.length;
         break;
 
@@ -469,6 +472,17 @@ export default class TheatreProcessor extends ChallengeProcessor {
           );
         }
         return false;
+      }
+
+      case Event.Type.TOB_XARPUS_EXHUMED: {
+        const xarpusExhumed = event.getXarpusExhumed()!;
+        if (this.xarpusHealing === null) {
+          this.xarpusHealing = 0;
+        }
+        this.xarpusHealing +=
+          xarpusExhumed.getHealAmount() *
+          xarpusExhumed.getHealTicksList().length;
+        break;
       }
 
       case Event.Type.TOB_XARPUS_PHASE:

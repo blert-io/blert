@@ -32,6 +32,8 @@ export enum EventType {
   TOB_SOTE_MAZE_PATH = EventProto.Type.TOB_SOTE_MAZE_PATH,
   TOB_SOTE_MAZE_END = EventProto.Type.TOB_SOTE_MAZE_END,
   TOB_XARPUS_PHASE = EventProto.Type.TOB_XARPUS_PHASE,
+  TOB_XARPUS_EXHUMED = EventProto.Type.TOB_XARPUS_EXHUMED,
+  TOB_XARPUS_SPLAT = EventProto.Type.TOB_XARPUS_SPLAT,
   TOB_VERZIK_PHASE = EventProto.Type.TOB_VERZIK_PHASE,
   TOB_VERZIK_ATTACK_STYLE = EventProto.Type.TOB_VERZIK_ATTACK_STYLE,
   COLOSSEUM_HANDICAP_CHOICE = EventProto.Type.COLOSSEUM_HANDICAP_CHOICE,
@@ -138,6 +140,16 @@ export interface XarpusPhaseEvent extends Event {
   xarpusPhase: XarpusPhase;
 }
 
+export interface XarpusExhumedEvent extends Event {
+  type: EventType.TOB_XARPUS_EXHUMED;
+  xarpusExhumed: XarpusExhumed;
+}
+
+export interface XarpusSplatEvent extends Event {
+  type: EventType.TOB_XARPUS_SPLAT;
+  xarpusSplat: XarpusSplat;
+}
+
 export interface VerzikPhaseEvent extends Event {
   type: EventType.TOB_VERZIK_PHASE;
   verzikPhase: VerzikPhase;
@@ -169,6 +181,8 @@ export type MergedEvent = Event &
   Omit<NyloWaveSpawnEvent, 'type'> &
   Omit<NyloWaveStallEvent, 'type'> &
   Omit<SoteMazePathEvent, 'type'> &
+  Omit<XarpusExhumedEvent, 'type'> &
+  Omit<XarpusSplatEvent, 'type'> &
   Omit<XarpusPhaseEvent, 'type'> &
   Omit<VerzikPhaseEvent, 'type'> &
   Omit<VerzikAttackStyleEvent, 'type'> &
@@ -262,6 +276,23 @@ export type SoteMaze = {
 };
 
 export type SoteMazePath = SoteMaze & { activeTiles: Coords[] };
+
+export type XarpusExhumed = {
+  spawnTick: number;
+  healAmount: number;
+  healTicks: number[];
+};
+
+export enum XarpusSplatSource {
+  UNKNOWN = 0,
+  XARPUS = 1,
+  BOUNCE = 2,
+}
+
+export type XarpusSplat = {
+  source: XarpusSplatSource;
+  bounceFrom: Coords | null;
+};
 
 export enum VerzikAttackStyle {
   MELEE = EventProto.VerzikAttackStyle.Style.MELEE,

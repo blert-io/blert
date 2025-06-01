@@ -37,6 +37,9 @@ export interface Entity {
   /** Whether or not the entity can be interacted with on the map. */
   readonly interactable: boolean;
 
+  /** Overrides the default z-index for the entity. */
+  readonly customZIndex: number | null;
+
   /** Renders the internal contents of an entity displayed on a map. */
   renderContents(tileSize?: number): React.ReactNode;
 
@@ -99,7 +102,7 @@ export function MapEntity(props: MapEntityProps) {
     cursor: canClick ? 'pointer' : 'default',
     height: size,
     width: size,
-    zIndex: entityZIndex(entity.type),
+    zIndex: entity.customZIndex ?? entityZIndex(entity.type),
   };
 
   if (!entity.interactable) {

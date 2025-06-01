@@ -13,6 +13,7 @@ export class NpcEntity implements Entity {
   name: string;
   outlineColor: string;
   interactable: boolean = true;
+  customZIndex: number | null = null;
 
   id: number;
   roomId: number;

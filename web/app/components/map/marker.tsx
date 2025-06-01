@@ -11,6 +11,7 @@ export class MarkerEntity implements Entity {
   name: string;
   outlineColor: string;
   interactable: boolean = false;
+  customZIndex: number | null = null;
 
   private static DEFAULT_OUTLINE_COLOR: string = '#626262';
 

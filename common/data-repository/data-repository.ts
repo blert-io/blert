@@ -46,7 +46,9 @@ import {
   SoteMazeEvent,
   SoteMazePathEvent,
   VerzikPhaseEvent,
+  XarpusExhumedEvent,
   XarpusPhaseEvent,
+  XarpusSplatEvent,
 } from '../event';
 
 type Proto<T> = T[keyof T];
@@ -966,6 +968,32 @@ function eventFromProto(evt: EventProto, eventData: ChallengeEvents): Event {
     case EventType.TOB_XARPUS_PHASE: {
       const e = event as XarpusPhaseEvent;
       e.xarpusPhase = evt.getXarpusPhase();
+      break;
+    }
+
+    case EventType.TOB_XARPUS_EXHUMED: {
+      const xarpusExhumed = evt.getXarpusExhumed()!;
+      const e = event as XarpusExhumedEvent;
+      e.xarpusExhumed = {
+        spawnTick: xarpusExhumed.getSpawnTick(),
+        healAmount: xarpusExhumed.getHealAmount(),
+        healTicks: xarpusExhumed.getHealTicksList(),
+      };
+      break;
+    }
+
+    case EventType.TOB_XARPUS_SPLAT: {
+      const xarpusSplat = evt.getXarpusSplat()!;
+      const e = event as XarpusSplatEvent;
+      e.xarpusSplat = {
+        source: xarpusSplat.getSource(),
+        bounceFrom: xarpusSplat.hasBounceFrom()
+          ? {
+              x: xarpusSplat.getBounceFrom()!.getX(),
+              y: xarpusSplat.getBounceFrom()!.getY(),
+            }
+          : null,
+      };
       break;
     }
 
