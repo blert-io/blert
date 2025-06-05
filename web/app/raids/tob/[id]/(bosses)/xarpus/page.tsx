@@ -228,8 +228,10 @@ export default function XarpusPage() {
   };
   let healAmount = 0;
 
-  for (const evt of eventsByType[EventType.TOB_XARPUS_EXHUMED]) {
-    const exhumed = (evt as XarpusExhumedEvent).xarpusExhumed;
+  const exhumedEvents = (eventsByType[EventType.TOB_XARPUS_EXHUMED] ??
+    []) as XarpusExhumedEvent[];
+  for (const evt of exhumedEvents) {
+    const exhumed = evt.xarpusExhumed;
     healAmount = exhumed.healAmount;
 
     if (currentTick >= exhumed.spawnTick && currentTick < evt.tick) {

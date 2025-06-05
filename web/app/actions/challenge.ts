@@ -1472,3 +1472,217 @@ export async function getPlayerStatsHistory(
     throw e;
   }
 }
+
+export type BloatHandsView = 'total' | 'wave' | 'chunk' | 'intraChunkOrder';
+
+export type BloatHandsQuery = ChallengeQuery & {
+  wave?: Comparator<number>;
+  chunk?: Comparator<number>;
+  intraChunkOrder?: Comparator<number>;
+};
+
+export type BloatHandsResponse = {
+  totalChallenges: number;
+  totalHands: number;
+  data: BloatHandsData;
+};
+
+export type BloatHandsData =
+  | { view: 'total'; byTile: Record<string, number> }
+  | { view: 'wave'; byWave: Record<string, Record<string, number>> }
+  | { view: 'chunk'; byChunk: Record<string, number> }
+  | {
+      view: 'intraChunkOrder';
+      byOrder: Record<string, Record<string, number>>;
+    };
+
+/**
+ * Aggregates bloat hand spawn data from multiple challenges.
+ *
+ * @param query Challenge query with bloat-specific filters
+ * @param view The aggregation view mode
+ * @returns Aggregated bloat hands data or null if no challenges match
+ */
+export async function aggregateBloatHands(
+  query: BloatHandsQuery,
+  view: BloatHandsView,
+): Promise<BloatHandsResponse | null> {
+  const components = applyFilters(query, false, false);
+  if (components === null) {
+    return null;
+  }
+
+  const { baseTable, queryTable, joins, conditions } = components;
+
+  joins.push({
+    table: sql`bloat_hands`,
+    on: sql`${queryTable}.id = bloat_hands.challenge_id`,
+    tableName: 'bloat_hands',
+  });
+
+  if (query.wave !== undefined) {
+    conditions.push(
+      comparatorToSql(sql('bloat_hands'), 'wave_number', query.wave),
+    );
+  }
+  if (query.chunk !== undefined) {
+    conditions.push(comparatorToSql(sql('bloat_hands'), 'chunk', query.chunk));
+  }
+  if (query.intraChunkOrder !== undefined) {
+    conditions.push(
+      comparatorToSql(
+        sql('bloat_hands'),
+        'intra_chunk_order',
+        query.intraChunkOrder,
+      ),
+    );
+  }
+
+  if (view !== 'chunk') {
+    conditions.push(sql`bloat_hands.tile_id IS NOT NULL`);
+  }
+
+  const totals = await sql`
+    SELECT
+      COUNT(DISTINCT ${queryTable}.id) as total_challenges,
+      COUNT(*) as total_hands
+    FROM ${baseTable}
+    ${join(joins)}
+    ${where(conditions)}
+  `;
+
+  const totalChallenges = parseInt(totals[0]?.total_challenges ?? '0');
+  const totalHands = parseInt(totals[0]?.total_hands ?? '0');
+  let data: BloatHandsData;
+
+  switch (view) {
+    case 'total':
+      data = await aggregateByTile(baseTable, joins, conditions);
+      break;
+    case 'wave':
+      data = await aggregateByWave(baseTable, joins, conditions);
+      break;
+    case 'chunk':
+      data = await aggregateByChunk(baseTable, joins, conditions);
+      break;
+    case 'intraChunkOrder':
+      data = await aggregateByIntraChunkOrder(baseTable, joins, conditions);
+      break;
+  }
+
+  return {
+    totalChallenges,
+    totalHands,
+    data,
+  };
+}
+
+async function aggregateByTile(
+  baseTable: postgres.Fragment,
+  joins: Join[],
+  conditions: postgres.Fragment[],
+): Promise<BloatHandsData> {
+  const rows = await sql`
+    SELECT
+      bloat_hands.tile_id,
+      COUNT(*) as hand_count
+    FROM ${baseTable}
+    ${join(joins)}
+    ${where(conditions)}
+    GROUP BY bloat_hands.tile_id
+    ORDER BY bloat_hands.tile_id
+  `;
+
+  return {
+    view: 'total',
+    byTile: Object.fromEntries(
+      rows.map((row) => [row.tile_id.toString(), parseInt(row.hand_count)]),
+    ),
+  };
+}
+
+async function aggregateByWave(
+  baseTable: postgres.Fragment,
+  joins: Join[],
+  conditions: postgres.Fragment[],
+): Promise<BloatHandsData> {
+  const rows = await sql`
+    SELECT
+      bloat_hands.wave_number,
+      bloat_hands.tile_id,
+      COUNT(*) as hand_count
+    FROM ${baseTable}
+    ${join(joins)}
+    ${where(conditions)}
+    GROUP BY bloat_hands.wave_number, bloat_hands.tile_id
+    ORDER BY bloat_hands.wave_number, bloat_hands.tile_id
+  `;
+
+  const byWave: Record<string, Record<string, number>> = {};
+  rows.forEach((row) => {
+    const wave = row.wave_number.toString();
+    const tile = row.tile_id.toString();
+
+    if (!byWave[wave]) {
+      byWave[wave] = {};
+    }
+    byWave[wave][tile] = parseInt(row.hand_count);
+  });
+
+  return { view: 'wave', byWave };
+}
+
+async function aggregateByChunk(
+  baseTable: postgres.Fragment,
+  joins: Join[],
+  conditions: postgres.Fragment[],
+): Promise<BloatHandsData> {
+  const rows = await sql`
+    SELECT
+      bloat_hands.chunk,
+      COUNT(*) as hand_count
+    FROM ${baseTable}
+    ${join(joins)}
+    ${where(conditions)}
+    GROUP BY bloat_hands.chunk
+    ORDER BY bloat_hands.chunk
+  `;
+
+  return {
+    view: 'chunk',
+    byChunk: Object.fromEntries(
+      rows.map((row) => [row.chunk.toString(), parseInt(row.hand_count)]),
+    ),
+  };
+}
+
+async function aggregateByIntraChunkOrder(
+  baseTable: postgres.Fragment,
+  joins: Join[],
+  conditions: postgres.Fragment[],
+): Promise<BloatHandsData> {
+  const rows = await sql`
+    SELECT
+      bloat_hands.intra_chunk_order,
+      bloat_hands.tile_id,
+      COUNT(*) as hand_count
+    FROM ${baseTable}
+    ${join(joins)}
+    ${where(conditions)}
+    GROUP BY bloat_hands.intra_chunk_order, bloat_hands.tile_id
+    ORDER BY bloat_hands.intra_chunk_order, bloat_hands.tile_id
+  `;
+
+  const byOrder: Record<string, Record<string, number>> = {};
+  rows.forEach((row) => {
+    const order = row.intra_chunk_order.toString();
+    const tile = row.tile_id.toString();
+
+    if (!byOrder[order]) {
+      byOrder[order] = {};
+    }
+    byOrder[order][tile] = parseInt(row.hand_count);
+  });
+
+  return { view: 'intraChunkOrder', byOrder };
+}

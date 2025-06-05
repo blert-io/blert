@@ -673,8 +673,8 @@ describe('processNameChange', () => {
 
     const expectedApiKeys = [
       { player_id: oldPlayerId, key: 'new-key' },
-      { player_id: oldPlayerId, key: 'old-key' },
       { player_id: newPlayerId, key: 'older-key' },
+      { player_id: oldPlayerId, key: 'old-key' },
     ];
     const updatedApiKeys = await sql`SELECT * FROM api_keys ORDER BY key`;
     expect(updatedApiKeys).toHaveLength(expectedApiKeys.length);

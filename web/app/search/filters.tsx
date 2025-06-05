@@ -7,22 +7,21 @@ import {
   splitName,
 } from '@blert/common';
 import { Dispatch, SetStateAction, useContext, useState } from 'react';
-import DatePicker from 'react-datepicker';
 
 import Button from '@/components/button';
 import Checkbox from '@/components/checkbox';
+import DatePicker from '@/components/date-picker';
 import Menu, { MenuItem } from '@/components/menu';
+import Modal from '@/components/modal';
 import PlayerSearch from '@/components/player-search';
 import TagList from '@/components/tag-list';
 import TickInput, { Comparator } from '@/components/tick-input';
 import Tooltip from '@/components/tooltip';
 import { DisplayContext } from '@/display';
+
 import { SearchContext, SearchFilters } from './context';
 
-import 'react-datepicker/dist/react-datepicker.css';
-import './date-picker.css';
 import styles from './style.module.scss';
-import Modal from '@/components/modal';
 
 const DATE_WIDTH = 300;
 const DATE_INPUT_WIDTH = 140;
@@ -128,7 +127,9 @@ export default function Filters({
   const [stageMenuOpen, setStageMenuOpen] = useState(false);
   const [stageOperatorMenuOpen, setStageOperatorMenuOpen] = useState(false);
 
-  const [stageOperator, setStageOperator] = useState(context.filters.stage?.[0] ?? Comparator.EQUAL);
+  const [stageOperator, setStageOperator] = useState(
+    context.filters.stage?.[0] ?? Comparator.EQUAL,
+  );
   const selectedStage = context.filters.stage?.[1] ?? null;
 
   function toggle<
@@ -292,7 +293,8 @@ export default function Filters({
               className={styles.action}
               onClick={() => setStageOperatorMenuOpen(true)}
             >
-              {STAGE_OPERATORS.find(op => op.value === stageOperator)?.label ?? 'Select operator'}
+              {STAGE_OPERATORS.find((op) => op.value === stageOperator)
+                ?.label ?? 'Select operator'}
               <i className="fas fa-chevron-down" style={{ marginLeft: 8 }} />
             </button>
             <button
@@ -300,7 +302,11 @@ export default function Filters({
               className={styles.action}
               onClick={() => setStageMenuOpen(true)}
             >
-              {selectedStage ? STAGE_MENU_ITEMS.flatMap(m => m.subMenu!).find(item => item.value === selectedStage)?.label : 'Select stage'}
+              {selectedStage
+                ? STAGE_MENU_ITEMS.flatMap((m) => m.subMenu!).find(
+                    (item) => item.value === selectedStage,
+                  )?.label
+                : 'Select stage'}
               <i className="fas fa-chevron-down" style={{ marginLeft: 8 }} />
             </button>
             <Menu
@@ -454,14 +460,6 @@ export default function Filters({
           <div className={styles.dateWrapper}>
             <div className={styles.date} style={{ width: DATE_WIDTH }}>
               <DatePicker
-                customInput={
-                  <input
-                    className={styles.dateInput}
-                    style={{
-                      width: useDateRange ? DATE_INPUT_WIDTH : DATE_WIDTH,
-                    }}
-                  />
-                }
                 disabled={loading}
                 icon="fas fa-calendar-alt"
                 isClearable
@@ -471,9 +469,7 @@ export default function Filters({
                     : undefined
                 }
                 placeholderText={useDateRange ? 'Start date' : undefined}
-                popperClassName="blert-datepicker"
                 popperPlacement="bottom"
-                portalId="portal-root"
                 selected={context.filters.startDate}
                 onChange={(date) => {
                   const endDate = useDateRange ? context.filters.endDate : date;
@@ -488,18 +484,12 @@ export default function Filters({
                   }));
                 }}
                 showIcon
-                wrapperClassName="blert-datepicker-wrapper"
+                width={useDateRange ? DATE_INPUT_WIDTH : DATE_WIDTH}
               />
               {useDateRange && (
                 <>
                   <i className="fas fa-minus" />
                   <DatePicker
-                    customInput={
-                      <input
-                        className={styles.dateInput}
-                        style={{ width: DATE_INPUT_WIDTH }}
-                      />
-                    }
                     disabled={loading}
                     icon="fas fa-calendar-alt"
                     isClearable
@@ -509,9 +499,7 @@ export default function Filters({
                         : undefined
                     }
                     placeholderText="End date"
-                    popperClassName="blert-datepicker"
                     popperPlacement="bottom"
-                    portalId="portal-root"
                     selected={context.filters.endDate}
                     onChange={(date) =>
                       setContext((prev) => ({
@@ -521,7 +509,7 @@ export default function Filters({
                       }))
                     }
                     showIcon
-                    wrapperClassName="blert-datepicker-wrapper"
+                    width={DATE_INPUT_WIDTH}
                   />
                 </>
               )}
@@ -772,7 +760,7 @@ function CustomFilters({
           const name = splitName(split, true);
           const round =
             split === SplitType.TOB_NYLO_BOSS_SPAWN ||
-              split === SplitType.TOB_NYLO_BOSS
+            split === SplitType.TOB_NYLO_BOSS
               ? 4
               : 1;
 

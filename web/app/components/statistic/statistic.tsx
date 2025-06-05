@@ -12,6 +12,7 @@ type StatisticProps = {
   unit?: string;
   icon?: string | React.ReactNode;
   simple?: boolean;
+  label?: 'top' | 'bottom';
   tooltip?: string;
 };
 
@@ -24,6 +25,7 @@ export default function Statistic(props: StatisticProps) {
     maxFontSize = 40,
     icon,
     tooltip,
+    label: labelPosition = 'top',
   } = props;
 
   let value = props.value;
@@ -48,26 +50,34 @@ export default function Statistic(props: StatisticProps) {
     tooltipProperties['data-tooltip-content'] = tooltip;
   }
 
+  const label = (
+    <div key="label" className={styles.label}>
+      {typeof icon === 'string' ? (
+        <i className={`${styles.icon} ${icon}`} />
+      ) : icon ? (
+        <div className={styles.icon}>{icon}</div>
+      ) : null}
+      {props.name}
+    </div>
+  );
+  const val = (
+    <div
+      key="value"
+      className={styles.value}
+      style={{ fontSize, height: Math.floor(maxFontSize * 1.1) }}
+    >
+      {value}
+    </div>
+  );
+
   return (
     <div
       className={classNames.join(' ')}
       style={{ width, height }}
       {...tooltipProperties}
     >
-      <div className={styles.label}>
-        {typeof icon === 'string' ? (
-          <i className={`${styles.icon} ${icon}`} />
-        ) : icon ? (
-          <div className={styles.icon}>{icon}</div>
-        ) : null}
-        {props.name}
-      </div>
-      <div
-        className={styles.value}
-        style={{ fontSize, height: Math.floor(maxFontSize * 1.1) }}
-      >
-        {value}
-      </div>
+      {labelPosition === 'top' ? label : val}
+      {labelPosition === 'bottom' ? label : val}
       {tooltip && <i className={`${styles.helpIcon} far fa-question-circle`} />}
     </div>
   );

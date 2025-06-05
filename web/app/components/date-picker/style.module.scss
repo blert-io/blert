@@ -1,0 +1,24 @@
+.dateInput {
+  background: none;
+  font-size: 16px;
+  line-height: 16px;
+  height: 42px;
+  padding: 12px 15px;
+  border: 1px solid var(--font-color-nav);
+  border-radius: 5px;
+  color: var(--blert-text-color);
+  transition: border-color 0.2s ease-in-out;
+
+  &:focus {
+    outline: none;
+    border-color: var(--blert-button);
+  }
+
+  &:hover {
+    border-color: var(--blert-button);
+  }
+
+  &::placeholder {
+    color: var(--font-color-nav);
+  }
+}

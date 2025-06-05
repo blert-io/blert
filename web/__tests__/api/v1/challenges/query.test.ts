@@ -1,34 +1,36 @@
 import { numericComparatorParam } from '@/api/v1/challenges/query';
 
 describe('comparatorParam', () => {
-  const searchParams = new URLSearchParams();
-  searchParams.set('single', '200');
-  searchParams.set('multiple', '300,600,900');
-  searchParams.set('until', '..500');
-  searchParams.set('from', '100..');
-  searchParams.set('range', '100..500');
-  searchParams.set('equal', '==200');
-  searchParams.set('equal2', '=200');
-  searchParams.set('equal3', 'eq200');
-  searchParams.set('notEqual', '!=200');
-  searchParams.set('notEqual2', 'ne200');
-  searchParams.set('lessThan', '<200');
-  searchParams.set('lessThan2', 'lt200');
-  searchParams.set('lessThanOrEqual', '<=200');
-  searchParams.set('lessThanOrEqual2', 'le200');
-  searchParams.set('greaterThan', '>200');
-  searchParams.set('greaterThan2', 'gt200');
-  searchParams.set('greaterThanOrEqual', '>=200');
-  searchParams.set('greaterThanOrEqual2', 'ge200');
+  const params = new URLSearchParams();
+  params.set('single', '200');
+  params.set('multiple', '300,600,900');
+  params.set('until', '..500');
+  params.set('from', '100..');
+  params.set('range', '100..500');
+  params.set('equal', '==200');
+  params.set('equal2', '=200');
+  params.set('equal3', 'eq200');
+  params.set('notEqual', '!=200');
+  params.set('notEqual2', 'ne200');
+  params.set('lessThan', '<200');
+  params.set('lessThan2', 'lt200');
+  params.set('lessThanOrEqual', '<=200');
+  params.set('lessThanOrEqual2', 'le200');
+  params.set('greaterThan', '>200');
+  params.set('greaterThan2', 'gt200');
+  params.set('greaterThanOrEqual', '>=200');
+  params.set('greaterThanOrEqual2', 'ge200');
 
-  searchParams.set('invalidSingle', '#$*(&');
-  searchParams.set('invalidMultiple', '300,600,900,');
-  searchParams.set('invalidRange', '..');
-  searchParams.set('invalidRange2', '300..600..900');
-  searchParams.set('invalidComparator', '>=');
-  searchParams.set('invalidComparator2', '43>=38');
-  searchParams.set('invalidComparator3', '<32<');
-  searchParams.set('invalidComparator4', '32||33');
+  params.set('invalidSingle', '#$*(&');
+  params.set('invalidMultiple', '300,600,900,');
+  params.set('invalidRange', '..');
+  params.set('invalidRange2', '300..600..900');
+  params.set('invalidComparator', '>=');
+  params.set('invalidComparator2', '43>=38');
+  params.set('invalidComparator3', '<32<');
+  params.set('invalidComparator4', '32||33');
+
+  const searchParams = Object.fromEntries(params.entries());
 
   it('should return undefined if the param is not present', () => {
     expect(numericComparatorParam(searchParams, 'missing')).toBeUndefined();

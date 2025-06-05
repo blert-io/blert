@@ -21,6 +21,9 @@ export {
 export type {
   Attack,
   BloatDownEvent,
+  BloatHandsDropEvent,
+  BloatHandsSplatEvent,
+  Coords,
   Event,
   EventNpc,
   HandicapChoiceEvent,
@@ -48,6 +51,7 @@ export type {
   XarpusPhaseEvent,
   XarpusSplat,
   XarpusSplatEvent,
+  VerzikYellowsEvent,
 } from './event';
 export {
   DataSource,

@@ -1,15 +1,17 @@
 'use client';
 
 import { ChallengeStatus, ChallengeType, Stage } from '@blert/common';
+import Link from 'next/link';
 import { useContext, useEffect, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
 
-import { getTotalDeathsByStage } from '../actions/challenge';
-import CollapsiblePanel from '../components/collapsible-panel';
-import Statistic from '../components/statistic';
+import { getTotalDeathsByStage } from '@/actions/challenge';
+import CollapsiblePanel from '@/components/collapsible-panel';
+import Statistic from '@/components/statistic';
+import { DisplayContext } from '@/display';
+import BloatIcon from '@/svg/bloat.svg';
 
 import styles from './style.module.scss';
-import { DisplayContext } from '../display';
 
 function stageName(stage: Stage): string {
   switch (stage) {
@@ -98,76 +100,102 @@ export default function TrendsPage() {
         defaultExpanded
         maxPanelHeight={1000}
       >
-        <div className={styles.challengeStats}>
-          {(raidStats !== null && (
-            <>
-              <Statistic
-                name="Total Raids"
-                value={raidStats.total}
-                height={STATISTIC_SIZE}
-                width={STATISTIC_SIZE}
-              />
-              <Statistic
-                name="Completions"
-                value={raidStats.completions}
-                height={STATISTIC_SIZE}
-                width={STATISTIC_SIZE}
-              />
-              <Statistic
-                name="Resets"
-                value={raidStats.resets}
-                height={STATISTIC_SIZE}
-                width={STATISTIC_SIZE}
-              />
-              <Statistic
-                name="Wipes"
-                value={raidStats.wipes}
-                height={STATISTIC_SIZE}
-                width={STATISTIC_SIZE}
-              />
-            </>
-          )) || (
-            <div
-              className={styles.statsLoading}
-              style={{ height: STATISTIC_SIZE }}
-            >
-              Loading...
-            </div>
-          )}
-        </div>
-        <div
-          className={styles.charts}
-          style={{ padding: display.isFull() ? `0 ${20}px` : 0 }}
-        >
-          <h2>Deaths by Room</h2>
-          <BarChart
-            data={tobDeathData}
-            width={chartWidth}
-            height={chartWidth / 2}
+        <div className={styles.tobSection}>
+          {/* TODO(frolv): Enable link when sufficient data has been collected. */}
+          {/* <div className={styles.navigationLinks}>
+            <Link href="/trends/bloat-hands" className={styles.analysisLink}>
+              <div className={styles.linkIcon}>
+                <BloatIcon width={32} height={32} />
+              </div>
+              <div className={styles.linkContent}>
+                <div className={styles.linkTitle}>
+                  Bloat Hand Spawn Analysis
+                </div>
+                <div className={styles.linkDescription}>
+                  Detailed heatmaps and patterns of hand spawns during Bloat
+                  encounters
+                </div>
+              </div>
+              <div className={styles.linkArrow}>
+                <i className="fas fa-arrow-right" />
+              </div>
+            </Link>
+          </div> */}
+
+          <div className={styles.challengeStats}>
+            {(raidStats !== null && (
+              <>
+                <Statistic
+                  name="Total Raids"
+                  value={raidStats.total}
+                  height={STATISTIC_SIZE}
+                  width={STATISTIC_SIZE}
+                />
+                <Statistic
+                  name="Completions"
+                  value={raidStats.completions}
+                  height={STATISTIC_SIZE}
+                  width={STATISTIC_SIZE}
+                />
+                <Statistic
+                  name="Resets"
+                  value={raidStats.resets}
+                  height={STATISTIC_SIZE}
+                  width={STATISTIC_SIZE}
+                />
+                <Statistic
+                  name="Wipes"
+                  value={raidStats.wipes}
+                  height={STATISTIC_SIZE}
+                  width={STATISTIC_SIZE}
+                />
+              </>
+            )) || (
+              <div
+                className={styles.statsLoading}
+                style={{ height: STATISTIC_SIZE }}
+              >
+                Loading...
+              </div>
+            )}
+          </div>
+          <div
+            className={styles.charts}
+            style={{ padding: display.isFull() ? `0 ${20}px` : 0 }}
           >
-            <CartesianGrid strokeDasharray="2 2" />
-            <Bar dataKey="deaths" fill="#62429b" />
-            <XAxis
-              dataKey="name"
-              tick={{
-                fill: 'var(--blert-text-color)',
-                fontSize: display.isCompact() ? 11 : 16,
-              }}
-              interval={0}
-            />
-            <YAxis tick={{ fill: 'var(--blert-text-color)' }} />
-            <Tooltip
-              contentStyle={{ backgroundColor: '#171821', color: '#fff' }}
-              cursor={false}
-              labelFormatter={(room: string) => <strong>{room}</strong>}
-              formatter={(value: number) => [
-                <span key="deaths" style={{ color: 'var(--blert-text-color)' }}>
-                  {value} deaths
-                </span>,
-              ]}
-              position={{ y: 100 }}
-            />
-          </BarChart>
+            <h2>Deaths by Room</h2>
+            <BarChart
+              data={tobDeathData}
+              width={chartWidth}
+              height={chartWidth / 2}
+            >
+              <CartesianGrid strokeDasharray="2 2" />
+              <Bar dataKey="deaths" fill="#62429b" />
+              <XAxis
+                dataKey="name"
+                tick={{
+                  fill: 'var(--blert-text-color)',
+                  fontSize: display.isCompact() ? 11 : 16,
+                }}
+                interval={0}
+              />
+              <YAxis tick={{ fill: 'var(--blert-text-color)' }} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#171821', color: '#fff' }}
+                cursor={false}
+                labelFormatter={(room: string) => <strong>{room}</strong>}
+                formatter={(value: number) => [
+                  <span
+                    key="deaths"
+                    style={{ color: 'var(--blert-text-color)' }}
+                  >
+                    {value} deaths
+                  </span>,
+                ]}
+                position={{ y: 100 }}
+              />
+            </BarChart>
+          </div>
         </div>
       </CollapsiblePanel>
     </div>

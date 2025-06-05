@@ -13,7 +13,9 @@ import {
   SplitType,
   Stage,
   TobRaid,
+  VerzikYellowsEvent,
 } from '@blert/common';
+import Image from 'next/image';
 import { useContext, useMemo, useRef } from 'react';
 
 import { TimelineColor, TimelineSplit } from '@/components/attack-timeline';
@@ -24,7 +26,12 @@ import BossPageParty from '@/components/boss-page-party';
 import BossPageReplay from '@/components/boss-page-replay';
 import Card from '@/components/card';
 import Loading from '@/components/loading';
-import { Entity, NpcEntity, PlayerEntity } from '@/components/map';
+import {
+  Entity,
+  NpcEntity,
+  OverlayEntity,
+  PlayerEntity,
+} from '@/components/map';
 import { useDisplay } from '@/display';
 import { ActorContext } from '@/raids/tob/context';
 import { usePlayingState, useStageEvents } from '@/utils/boss-room-state';
@@ -262,6 +269,32 @@ export default function VerzikPage() {
         );
         break;
       }
+    }
+  }
+
+  const yellowsEvent = eventsForCurrentTick.find(
+    (e) => e.type === EventType.TOB_VERZIK_YELLOWS,
+  ) as VerzikYellowsEvent | undefined;
+  if (yellowsEvent !== undefined) {
+    for (const yellow of yellowsEvent.verzikYellows) {
+      entities.push(
+        new OverlayEntity(
+          yellow.x,
+          yellow.y,
+          'yellow',
+          (
+            <Image
+              src="/verzik_p3_yellow.webp"
+              alt="Verzik yellow pool"
+              fill
+              style={{ objectFit: 'contain' }}
+            />
+          ),
+          /*interactable=*/ false,
+          /*size=*/ 1,
+          /*customZIndex=*/ 0,
+        ),
+      );
     }
   }
 

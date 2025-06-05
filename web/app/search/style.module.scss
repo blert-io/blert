@@ -43,14 +43,14 @@
         background-color: var(--nav-bg);
         border-color: var(--nav-bg);
 
-        th>span,
-        th>button {
+        th > span,
+        th > button {
           font-size: inherit;
           font-weight: 500;
           color: white;
         }
 
-        th>button {
+        th > button {
           cursor: pointer;
         }
       }
@@ -259,22 +259,6 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 10px;
-
-      .dateInput {
-        background: none;
-        font-size: 16px;
-        line-height: 16px;
-        height: 42px;
-        padding: 12px 15px;
-        border: 1px solid var(--blert-text-color);
-        border-radius: 5px;
-        color: var(--blert-text-color);
-        text-align: center;
-
-        &::placeholder {
-          color: var(--blert-text-color);
-        }
-      }
     }
 
     .dateRangeCheckbox {
@@ -296,7 +280,7 @@
     .customHeading {
       padding: 0 12px;
 
-      &>label {
+      & > label {
         font-size: 1.2rem;
         color: #fff;
         font-weight: 500;

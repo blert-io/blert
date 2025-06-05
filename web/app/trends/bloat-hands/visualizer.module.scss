@@ -1,0 +1,461 @@
+@use '../../mixins.scss' as *;
+
+$TILE_SIZE: 24px;
+$COMPACT_TILE_SIZE: 18px;
+
+$GRADIENT_START_R: 48;
+$GRADIENT_START_G: 44;
+$GRADIENT_START_B: 99;
+$GRADIENT_START: $GRADIENT_START_R, $GRADIENT_START_G, $GRADIENT_START_B;
+$GRADIENT_END_R: 169;
+$GRADIENT_END_G: 110;
+$GRADIENT_END_B: 255;
+$GRADIENT_END: $GRADIENT_END_R, $GRADIENT_END_G, $GRADIENT_END_B;
+
+$RELATIVE_NEG_R: 110;
+$RELATIVE_NEG_G: 38;
+$RELATIVE_NEG_B: 125;
+$RELATIVE_NEUTRAL_R: 48;
+$RELATIVE_NEUTRAL_G: 44;
+$RELATIVE_NEUTRAL_B: 99;
+$RELATIVE_POS_R: 169;
+$RELATIVE_POS_G: 110;
+$RELATIVE_POS_B: 255;
+
+.visualizer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  width: 100%;
+
+  .gridContainer {
+    position: relative;
+    display: inline-block;
+    border: 2px solid rgba(var(--blert-text-color-base), 0.3);
+    border-radius: 4px;
+    background: rgba(var(--nav-bg-base), 0.3);
+  }
+
+  .coordinateLabels {
+    .topLabels,
+    .bottomLabels {
+      display: flex;
+      align-items: center;
+
+      .corner {
+        width: $TILE_SIZE + 8px;
+        height: $TILE_SIZE;
+        flex-shrink: 0;
+      }
+
+      .coordLabel {
+        width: $TILE_SIZE;
+        height: $TILE_SIZE;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        color: var(--font-color-nav);
+        font-family: monospace;
+      }
+    }
+
+    .mainGrid {
+      .gridRow {
+        display: flex;
+        align-items: center;
+
+        .leftLabel {
+          width: $TILE_SIZE + 8px;
+          height: $TILE_SIZE;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.75rem;
+          color: var(--font-color-nav);
+          font-family: monospace;
+          flex-shrink: 0;
+        }
+
+        .tilesRow {
+          display: flex;
+        }
+      }
+    }
+  }
+
+  .tile {
+    width: $TILE_SIZE;
+    height: $TILE_SIZE;
+    border: 1px solid rgba(var(--blert-text-color-base), 0.1);
+    cursor: pointer;
+    position: relative;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: rgb(
+      calc(
+        $GRADIENT_START_R + var(--intensity, 0) *
+          ($GRADIENT_END_R - $GRADIENT_START_R)
+      ),
+      calc(
+        $GRADIENT_START_G + var(--intensity, 0) *
+          ($GRADIENT_END_G - $GRADIENT_START_G)
+      ),
+      calc(
+        $GRADIENT_START_B + var(--intensity, 0) *
+          ($GRADIENT_END_B - $GRADIENT_START_B)
+      )
+    );
+
+    &.relativeTile {
+      &.negative {
+        background: rgb(
+          calc(
+            #{$RELATIVE_NEG_R} + var(--intensity) * ($RELATIVE_NEUTRAL_R -
+                  $RELATIVE_NEG_R)
+          ),
+          calc(
+            #{$RELATIVE_NEG_G} + var(--intensity) * ($RELATIVE_NEUTRAL_G -
+                  $RELATIVE_NEG_G)
+          ),
+          calc(
+            #{$RELATIVE_NEG_B} + var(--intensity) * ($RELATIVE_NEUTRAL_B -
+                  $RELATIVE_NEG_B)
+          )
+        );
+      }
+
+      &.positive {
+        background: rgb(
+          calc(
+            #{$RELATIVE_NEUTRAL_R} + var(--intensity) * ($RELATIVE_POS_R -
+                  $RELATIVE_NEUTRAL_R)
+          ),
+          calc(
+            #{$RELATIVE_NEUTRAL_G} + var(--intensity) * ($RELATIVE_POS_G -
+                  $RELATIVE_NEUTRAL_G)
+          ),
+          calc(
+            #{$RELATIVE_NEUTRAL_B} + var(--intensity) * ($RELATIVE_POS_B -
+                  $RELATIVE_NEUTRAL_B)
+          )
+        );
+      }
+    }
+
+    &.impassable {
+      background: repeating-linear-gradient(
+        45deg,
+        rgba(var(--blert-text-color-base), 0.2),
+        rgba(var(--blert-text-color-base), 0.2) 2px,
+        transparent 2px,
+        transparent 4px
+      );
+      cursor: not-allowed;
+    }
+
+    &.hovered:not(.impassable) {
+      border-color: rgba(var(--blert-text-color-base), 0.6);
+      transform: scale(1.1);
+      z-index: 10;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    &.selected:not(.impassable) {
+      border: 2px solid var(--blert-button);
+      box-shadow: 0 0 0 1px var(--blert-button);
+      z-index: 5;
+    }
+
+    .handCount,
+    .displayValue {
+      font-size: 8px;
+      font-weight: 600;
+      color: #fff;
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+      line-height: 1;
+      pointer-events: none;
+      user-select: none;
+    }
+  }
+
+  .chunkOverlay {
+    position: absolute;
+    top: 0;
+    left: $TILE_SIZE + 8px;
+    right: 0;
+    bottom: $TILE_SIZE;
+    pointer-events: none;
+
+    .chunkBoundary {
+      position: absolute;
+      background: rgba(var(--blert-text-color-base), 0.8);
+      pointer-events: none;
+
+      &:first-child {
+        width: 1px;
+      }
+
+      &:last-child {
+        height: 1px;
+      }
+    }
+  }
+
+  .bottomSection {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    align-items: center;
+  }
+
+  .legend {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    width: 200px;
+
+    .legendTitle {
+      font-size: 0.9rem;
+      color: var(--blert-text-color);
+      font-weight: 500;
+    }
+
+    .colorBar {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+
+      .colorGradient {
+        height: $TILE_SIZE;
+        background: linear-gradient(
+          to right,
+          rgb($GRADIENT_START_R, $GRADIENT_START_G, $GRADIENT_START_B),
+          rgb($GRADIENT_END_R, $GRADIENT_END_G, $GRADIENT_END_B)
+        );
+        border: 1px solid rgba(var(--blert-text-color-base), 0.3);
+        border-radius: 2px;
+
+        &.relativeGradient {
+          background: linear-gradient(
+            to right,
+            rgb($RELATIVE_NEG_R, $RELATIVE_NEG_G, $RELATIVE_NEG_B),
+            rgb($RELATIVE_NEUTRAL_R, $RELATIVE_NEUTRAL_G, $RELATIVE_NEUTRAL_B),
+            rgb($RELATIVE_POS_R, $RELATIVE_POS_G, $RELATIVE_POS_B)
+          );
+        }
+      }
+
+      .legendLabels {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.75rem;
+        color: var(--font-color-nav);
+        font-family: monospace;
+        position: relative;
+
+        &.threeLabelLayout {
+          span:nth-child(1) {
+            position: absolute;
+            left: 0;
+          }
+
+          span:nth-child(2) {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+          }
+
+          span:nth-child(3) {
+            position: absolute;
+            right: 0;
+          }
+        }
+      }
+    }
+  }
+
+  .topSpawnLocations {
+    .topSpawnTitle {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--blert-text-color);
+      margin-bottom: 0.75rem;
+      text-align: center;
+    }
+
+    .topTiles {
+      display: flex;
+      flex-flow: row wrap;
+      justify-content: center;
+      gap: 10px;
+      max-width: 600px;
+      width: 100%;
+
+      .topTile {
+        width: 180px;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem;
+        transition: background-color 0.2s ease;
+
+        .rank {
+          flex-shrink: 0;
+          width: 2rem;
+          height: 2rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: linear-gradient(135deg, #6e4aff, #a96eff);
+          color: #fff;
+          border-radius: 50%;
+          font-size: 0.75rem;
+          font-weight: 600;
+        }
+
+        .tileDetails {
+          flex: 1;
+          min-width: 0;
+
+          .tileTitle {
+            display: flex;
+            align-items: center;
+            font-size: 0.85rem;
+            color: var(--blert-text-color);
+            font-weight: 500;
+            margin-bottom: 0.2rem;
+
+            .tileCoords {
+              margin-left: 0.5rem;
+              font-size: 0.75rem;
+              font-family: monospace;
+            }
+          }
+
+          .tileCount {
+            font-size: 0.75rem;
+            color: var(--font-color-nav);
+          }
+        }
+      }
+    }
+  }
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    .tile {
+      width: $COMPACT_TILE_SIZE;
+      height: $COMPACT_TILE_SIZE;
+
+      .handCount {
+        font-size: 7px;
+      }
+    }
+
+    .coordinateLabels {
+      .bottomLabels {
+        .corner {
+          width: $COMPACT_TILE_SIZE + 8px;
+          height: $COMPACT_TILE_SIZE;
+        }
+
+        .coordLabel {
+          width: $COMPACT_TILE_SIZE;
+          height: $COMPACT_TILE_SIZE;
+          font-size: 0.65rem;
+        }
+      }
+
+      .mainGrid {
+        .gridRow {
+          .leftLabel {
+            width: $COMPACT_TILE_SIZE + 8px;
+            height: $COMPACT_TILE_SIZE;
+            font-size: 0.65rem;
+          }
+        }
+      }
+    }
+
+    .chunkOverlay {
+      top: 0;
+      left: $COMPACT_TILE_SIZE + 8px;
+      bottom: $COMPACT_TILE_SIZE;
+    }
+
+    .legend {
+      width: 160px;
+
+      .legendTitle {
+        font-size: 0.8rem;
+      }
+
+      .colorBar {
+        .colorGradient {
+          height: 16px;
+        }
+      }
+    }
+  }
+}
+
+.tileTooltip {
+  color: var(--blert-text-color);
+
+  .tileHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin: 0.5rem 0 0.75rem 0;
+    padding: 0.5rem;
+    background: rgba(var(--blert-button-base), 0.1);
+    border-radius: 4px;
+
+    .tileId {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--blert-text-color);
+    }
+
+    .tileCoords {
+      font-size: 0.85rem;
+      color: var(--font-color-nav);
+      font-family: monospace;
+    }
+  }
+
+  .tileStats {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+
+    .tileStat {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.4rem 0.6rem;
+      background: rgba(var(--nav-bg-base), 0.4);
+      border-radius: 3px;
+
+      span:first-child {
+        font-size: 0.8rem;
+        color: var(--font-color-nav);
+      }
+
+      span:last-child {
+        margin-left: 0.5rem;
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: var(--blert-text-color);
+      }
+    }
+  }
+}

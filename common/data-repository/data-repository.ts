@@ -33,6 +33,8 @@ import {
 } from '../challenge';
 import {
   BloatDownEvent,
+  BloatHandsDropEvent,
+  BloatHandsSplatEvent,
   Event,
   EventType,
   MaidenBloodSplatsEvent,
@@ -46,6 +48,7 @@ import {
   SoteMazeEvent,
   SoteMazePathEvent,
   VerzikPhaseEvent,
+  VerzikYellowsEvent,
   XarpusExhumedEvent,
   XarpusPhaseEvent,
   XarpusSplatEvent,
@@ -927,6 +930,16 @@ function eventFromProto(evt: EventProto, eventData: ChallengeEvents): Event {
       break;
     }
 
+    case EventType.TOB_BLOAT_HANDS_DROP:
+    case EventType.TOB_BLOAT_HANDS_SPLAT: {
+      const e = event as BloatHandsDropEvent | BloatHandsSplatEvent;
+      e.bloatHands = evt.getBloatHandsList()!.map((hand) => ({
+        x: hand.getX(),
+        y: hand.getY(),
+      }));
+      break;
+    }
+
     case EventType.TOB_NYLO_WAVE_SPAWN:
     case EventType.TOB_NYLO_WAVE_STALL: {
       const nyloWave = evt.getNyloWave()!;
@@ -1000,6 +1013,15 @@ function eventFromProto(evt: EventProto, eventData: ChallengeEvents): Event {
     case EventType.TOB_VERZIK_PHASE: {
       const e = event as VerzikPhaseEvent;
       e.verzikPhase = evt.getVerzikPhase();
+      break;
+    }
+
+    case EventType.TOB_VERZIK_YELLOWS: {
+      const e = event as VerzikYellowsEvent;
+      e.verzikYellows = evt.getVerzikYellowsList().map((yellow) => ({
+        x: yellow.getX(),
+        y: yellow.getY(),
+      }));
       break;
     }
 

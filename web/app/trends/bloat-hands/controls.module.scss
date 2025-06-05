@@ -1,0 +1,77 @@
+@use '../../mixins.scss' as *;
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-evenly;
+  gap: 1.5rem;
+  align-items: flex-start;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .section {
+    .sectionTitle {
+      margin: 0 0 0.75rem 0;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--blert-text-color);
+    }
+  }
+
+  .filterGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 0.75rem;
+    max-width: 450px;
+  }
+
+  .dateFilters {
+    display: flex;
+    gap: 1rem;
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      gap: 0.5rem;
+    }
+  }
+
+  .filterGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+
+    label {
+      font-size: 0.8rem;
+      color: var(--font-color-nav);
+      font-weight: 500;
+    }
+
+    .filterSelect {
+      padding: 0.4rem 0.6rem;
+      border: 1px solid var(--font-color-nav);
+      background: var(--nav-bg);
+      color: var(--blert-text-color);
+      border-radius: 5px;
+      font-size: 0.85rem;
+      transition: border-color 0.2s ease;
+      height: 42px;
+      cursor: pointer;
+
+      &:focus {
+        outline: none;
+        border-color: var(--blert-button);
+      }
+
+      &:hover {
+        border-color: var(--blert-button);
+      }
+
+      option {
+        background: var(--nav-bg);
+        color: var(--blert-text-color);
+      }
+    }
+  }
+}

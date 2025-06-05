@@ -2,7 +2,10 @@
 
 import {
   BloatDownEvent,
+  BloatHandsDropEvent,
+  BloatHandsSplatEvent,
   ChallengeStatus,
+  Coords,
   EventType,
   Npc,
   NpcEvent,
@@ -11,6 +14,8 @@ import {
   Stage,
   TobRaid,
 } from '@blert/common';
+
+import Image from 'next/image';
 import { useContext, useMemo } from 'react';
 
 import { TimelineColor } from '@/components/attack-timeline';
@@ -25,6 +30,7 @@ import {
   Entity,
   MarkerEntity,
   NpcEntity,
+  OverlayEntity,
   PlayerEntity,
 } from '@/components/map';
 import Loading from '@/components/loading';
@@ -57,6 +63,12 @@ type DownInfo = {
   startHitpoints: SkillLevel | undefined;
   endHitpoints: SkillLevel | undefined;
 };
+
+type TickHands = {
+  intensity: number;
+  hands: Coords[];
+};
+const BLOAT_HAND_DROP_TICKS = 3;
 
 export default function BloatPage() {
   const {
@@ -145,6 +157,45 @@ export default function BloatPage() {
     );
   }, [npcState]);
 
+  const hands = useMemo(() => {
+    const handsByTick = new Map<number, TickHands>();
+
+    const unmatchedDropTicks = new Set<number>();
+    eventsByType[EventType.TOB_BLOAT_HANDS_DROP]?.forEach((evt) => {
+      unmatchedDropTicks.add(evt.tick);
+    });
+
+    const drops = (eventsByType[EventType.TOB_BLOAT_HANDS_DROP] ??
+      []) as BloatHandsDropEvent[];
+    const splats = (eventsByType[EventType.TOB_BLOAT_HANDS_SPLAT] ??
+      []) as BloatHandsSplatEvent[];
+
+    for (const splat of splats) {
+      const splatTick = splat.tick;
+      const correspondingDrop = drops.findLast(
+        (drop) =>
+          drop.tick < splatTick &&
+          drop.tick >= splatTick - BLOAT_HAND_DROP_TICKS,
+      );
+      if (correspondingDrop !== undefined) {
+        unmatchedDropTicks.delete(correspondingDrop.tick);
+
+        for (let tick = correspondingDrop.tick; tick <= splatTick; tick++) {
+          handsByTick.set(tick, {
+            intensity: BLOAT_HAND_DROP_TICKS - (splatTick - tick),
+            hands: splat.bloatHands,
+          });
+        }
+      }
+    }
+
+    if (unmatchedDropTicks.size > 0) {
+      console.warn(`${unmatchedDropTicks.size} unmatched hand drops.`);
+    }
+
+    return handsByTick;
+  }, [eventsByType]);
+
   if (loading || raidData === null) {
     return <Loading />;
   }
@@ -193,6 +244,45 @@ export default function BloatPage() {
         }
         break;
       }
+    }
+  }
+
+  const handsForCurrentTick = hands.get(currentTick);
+  if (handsForCurrentTick !== undefined) {
+    let image;
+    if (handsForCurrentTick.intensity === 3) {
+      image = (
+        <Image
+          src="/images/objects/bloat_hand_splat.png"
+          alt="Bloat hand splat"
+          width={24}
+          height={24}
+        />
+      );
+    } else {
+      const sizes = [12, 18, 24];
+      const size = sizes[handsForCurrentTick.intensity];
+      image = (
+        <Image
+          src="/images/objects/bloat_hand_drop.png"
+          alt="Bloat hand drop"
+          width={size}
+          height={size}
+        />
+      );
+    }
+
+    for (const hand of handsForCurrentTick.hands) {
+      const entity = new OverlayEntity(
+        hand.x,
+        hand.y,
+        'hand',
+        <div className={styles.hand}>{image}</div>,
+        /*interactable=*/ false,
+        /*size=*/ 1,
+        /*customZIndex=*/ 0,
+      );
+      entities.push(entity);
     }
   }
 

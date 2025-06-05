@@ -2,7 +2,7 @@ import postgres from 'postgres';
 
 let connectionOptions: postgres.Options<{}> | undefined = undefined;
 
-if (['development', 'test'].includes(process.env.NODE_ENV)) {
+if (process.env.NODE_ENV === 'development') {
   connectionOptions = {
     debug: (_, query, params) => console.log(query, params),
     idle_timeout: 15,

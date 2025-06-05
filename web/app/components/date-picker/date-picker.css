@@ -1,7 +1,7 @@
 .blert-datepicker .react-datepicker {
   font-family: 'Inter', sans-serif;
   background-color: var(--panel-bg);
-  border: 1px solid var(--blert-text-color);
+  border: 1px solid var(--font-color-nav);
 }
 
 .blert-datepicker .react-datepicker__header {
@@ -31,7 +31,7 @@
 
 .blert-datepicker .react-datepicker__day--selected,
 .blert-datepicker .react-datepicker__day--keyboard-selected {
-  background-color: var(--blert-blue);
+  background-color: var(--blert-button);
   color: #fff;
   font-weight: 700;
 }
@@ -40,6 +40,7 @@
   top: calc(50% - 1px);
   left: 2px;
   transform: translateY(-50%);
+  color: var(--font-color-nav);
 }
 
 .blert-datepicker-wrapper .react-datepicker__close-icon {
@@ -47,6 +48,7 @@
 }
 
 .blert-datepicker-wrapper .react-datepicker__close-icon::after {
+  color: var(--font-color-nav);
   font-family: 'Font Awesome 6 Free';
   content: '\f057';
   background: none;
@@ -54,5 +56,9 @@
 }
 
 .blert-datepicker-wrapper .react-datepicker__close-icon:hover::after {
-  color: var(--blert-blue);
+  color: var(--blert-button);
+}
+
+.blert-datepicker-wrapper .react-datepicker__view-calendar-icon input {
+  padding: 6px 10px 5px 30px;
 }

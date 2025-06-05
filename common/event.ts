@@ -24,6 +24,8 @@ export enum EventType {
   TOB_MAIDEN_BLOOD_SPLATS = EventProto.Type.TOB_MAIDEN_BLOOD_SPLATS,
   TOB_BLOAT_DOWN = EventProto.Type.TOB_BLOAT_DOWN,
   TOB_BLOAT_UP = EventProto.Type.TOB_BLOAT_UP,
+  TOB_BLOAT_HANDS_DROP = EventProto.Type.TOB_BLOAT_HANDS_DROP,
+  TOB_BLOAT_HANDS_SPLAT = EventProto.Type.TOB_BLOAT_HANDS_SPLAT,
   TOB_NYLO_WAVE_SPAWN = EventProto.Type.TOB_NYLO_WAVE_SPAWN,
   TOB_NYLO_WAVE_STALL = EventProto.Type.TOB_NYLO_WAVE_STALL,
   TOB_NYLO_CLEANUP_END = EventProto.Type.TOB_NYLO_CLEANUP_END,
@@ -36,6 +38,7 @@ export enum EventType {
   TOB_XARPUS_SPLAT = EventProto.Type.TOB_XARPUS_SPLAT,
   TOB_VERZIK_PHASE = EventProto.Type.TOB_VERZIK_PHASE,
   TOB_VERZIK_ATTACK_STYLE = EventProto.Type.TOB_VERZIK_ATTACK_STYLE,
+  TOB_VERZIK_YELLOWS = EventProto.Type.TOB_VERZIK_YELLOWS,
   COLOSSEUM_HANDICAP_CHOICE = EventProto.Type.COLOSSEUM_HANDICAP_CHOICE,
 }
 
@@ -115,6 +118,16 @@ export interface BloatDownEvent extends Event {
   bloatDown: BloatDown;
 }
 
+export interface BloatHandsDropEvent extends Event {
+  type: EventType.TOB_BLOAT_HANDS_DROP;
+  bloatHands: Coords[];
+}
+
+export interface BloatHandsSplatEvent extends Event {
+  type: EventType.TOB_BLOAT_HANDS_SPLAT;
+  bloatHands: Coords[];
+}
+
 export interface NyloWaveSpawnEvent extends Event {
   type: EventType.TOB_NYLO_WAVE_SPAWN;
   nyloWave: NyloWave;
@@ -163,6 +176,11 @@ export interface VerzikAttackStyleEvent extends Event {
   };
 }
 
+export interface VerzikYellowsEvent extends Event {
+  type: EventType.TOB_VERZIK_YELLOWS;
+  verzikYellows: Coords[];
+}
+
 export interface HandicapChoiceEvent extends Event {
   type: EventType.COLOSSEUM_HANDICAP_CHOICE;
   handicap: Handicap;
@@ -178,6 +196,8 @@ export type MergedEvent = Event &
   Omit<NpcAttackEvent, 'type'> &
   Omit<MaidenBloodSplatsEvent, 'type'> &
   Omit<BloatDownEvent, 'type'> &
+  Omit<BloatHandsDropEvent, 'type'> &
+  Omit<BloatHandsSplatEvent, 'type'> &
   Omit<NyloWaveSpawnEvent, 'type'> &
   Omit<NyloWaveStallEvent, 'type'> &
   Omit<SoteMazePathEvent, 'type'> &
@@ -186,6 +206,7 @@ export type MergedEvent = Event &
   Omit<XarpusPhaseEvent, 'type'> &
   Omit<VerzikPhaseEvent, 'type'> &
   Omit<VerzikAttackStyleEvent, 'type'> &
+  Omit<VerzikYellowsEvent, 'type'> &
   Omit<HandicapChoiceEvent, 'type'>;
 
 export enum DataSource {

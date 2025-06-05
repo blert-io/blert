@@ -37,6 +37,13 @@ type SoteMazeState = {
   partialPivots: number[];
 };
 
+type BloatHandData = {
+  waveNumber: number;
+  tileId: number | null;
+  chunk: number;
+  intraChunkOrder: number;
+};
+
 function roomsKey(stage: Stage): keyof TobRooms {
   switch (stage) {
     case Stage.TOB_MAIDEN:
@@ -81,6 +88,8 @@ export default class TheatreProcessor extends ChallengeProcessor {
 
   private stageStats: Partial<TobChallengeStats>;
   private bloatDownTicks: number[];
+  private bloatHands: BloatHandData[];
+  private bloatWaveNumber: number;
   private stalledNyloWaves: number[];
   private nyloBossStyles: {
     prev: NyloStyle;
@@ -118,6 +127,8 @@ export default class TheatreProcessor extends ChallengeProcessor {
 
     this.stageStats = {};
     this.bloatDownTicks = [];
+    this.bloatHands = [];
+    this.bloatWaveNumber = 1;
     this.stalledNyloWaves = [];
     this.nyloBossStyles = {
       prev: NyloStyle.MELEE,
@@ -210,6 +221,10 @@ export default class TheatreProcessor extends ChallengeProcessor {
           downTicks: this.bloatDownTicks,
         };
         this.stageStats.bloatDeaths = this.rooms.bloat.deaths.length;
+
+        if (events.isAccurate()) {
+          await this.saveBloatHands();
+        }
         break;
 
       case Stage.TOB_NYLOCAS: {
@@ -395,6 +410,46 @@ export default class TheatreProcessor extends ChallengeProcessor {
             this.stageStats.bloatFirstDownHpPercent = hitpoints.percentage();
           }
         }
+        break;
+      }
+
+      case Event.Type.TOB_BLOAT_HANDS_DROP: {
+        const hands = event.getBloatHandsList()!;
+
+        const handsByChunk = new Map<number, number[]>();
+
+        for (const hand of hands) {
+          const x = hand.getX() - 3288;
+          const y = hand.getY() - 4440;
+
+          if (x < 0 || x > 15 || y < 0 || y > 15) {
+            logger.warn(
+              `Challenge ${this.getUuid()}: Bloat hand at invalid coordinates (${x}, ${y})`,
+            );
+            continue;
+          }
+
+          const tileId = y * 16 + x;
+          const chunk = Math.floor(y / 8) * 2 + Math.floor(x / 8);
+
+          if (!handsByChunk.has(chunk)) {
+            handsByChunk.set(chunk, []);
+          }
+          handsByChunk.get(chunk)!.push(tileId);
+        }
+
+        for (const [chunk, chunkHands] of handsByChunk) {
+          chunkHands.forEach((tileId, index) => {
+            this.bloatHands.push({
+              waveNumber: this.bloatWaveNumber,
+              tileId,
+              chunk,
+              intraChunkOrder: index,
+            });
+          });
+        }
+
+        this.bloatWaveNumber++;
         break;
       }
 
@@ -892,5 +947,30 @@ export default class TheatreProcessor extends ChallengeProcessor {
       SET ${sql(camelToSnakeObject(updates))}
       WHERE challenge_id = ${this.getDatabaseId()};
     `;
+  }
+
+  private async saveBloatHands(): Promise<void> {
+    if (this.bloatHands.length === 0) {
+      return;
+    }
+
+    const challengeId = this.getDatabaseId();
+    const handsToInsert = this.bloatHands.map((hand) => ({
+      challenge_id: challengeId,
+      wave_number: hand.waveNumber,
+      tile_id: hand.tileId,
+      chunk: hand.chunk,
+      intra_chunk_order: hand.intraChunkOrder,
+    }));
+
+    await sql`
+      INSERT INTO bloat_hands ${sql(handsToInsert)}
+    `;
+
+    logger.debug(
+      `Challenge ${this.getUuid()}: Saved ${this.bloatHands.length} bloat hand records`,
+    );
+
+    this.bloatHands = [];
   }
 }
