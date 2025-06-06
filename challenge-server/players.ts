@@ -7,17 +7,9 @@ import {
 } from '@blert/common';
 
 import sql from './db';
+import { startOfDateUtc } from './time';
 
 export type ModifiablePlayerStats = Omit<PlayerStats, 'date' | 'playerId'>;
-
-function startOfDateUtc(): Date {
-  let date = new Date();
-  date.setUTCHours(0);
-  date.setUTCMinutes(0);
-  date.setUTCSeconds(0);
-  date.setUTCMilliseconds(0);
-  return date;
-}
 
 export class Players {
   private static readonly USERNAME_REGEX = /^[a-zA-Z0-9 _-]{1,12}$/;

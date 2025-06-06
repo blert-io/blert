@@ -28,6 +28,7 @@ import ChallengeProcessor, { InitializedFields } from './challenge-processor';
 import sql from '../db';
 import logger from '../log';
 import { MergedEvents } from '../merge';
+import { startOfDateUtc } from '../time';
 
 type SoteMazeState = {
   pivots: number[];
@@ -84,6 +85,19 @@ function nyloBossStyle(npcId: number): NyloStyle {
 }
 
 export default class TheatreProcessor extends ChallengeProcessor {
+  private static readonly DAILY_BLOAT_HAND_LIMIT = process.env
+    .DAILY_BLOAT_HAND_LIMIT
+    ? parseInt(process.env.DAILY_BLOAT_HAND_LIMIT)
+    : 10_000;
+
+  private static firstChallengeOfDay: {
+    id: number | null;
+    date: Date | null;
+  } = {
+    id: null,
+    date: null,
+  };
+
   private rooms: TobRooms;
 
   private stageStats: Partial<TobChallengeStats>;
@@ -152,6 +166,31 @@ export default class TheatreProcessor extends ChallengeProcessor {
         verzik: null,
       };
     }
+  }
+
+  private static async getFirstChallengeIdOfDay(): Promise<number | null> {
+    const firstChallengeOfDay = this.firstChallengeOfDay;
+    const today = startOfDateUtc();
+
+    if (
+      firstChallengeOfDay.date === null ||
+      firstChallengeOfDay.date.getTime() !== today.getTime()
+    ) {
+      const [challenge] = await sql`
+        SELECT id FROM challenges
+        WHERE start_time >= ${today}
+        ORDER BY start_time ASC
+        LIMIT 1
+      `;
+      if (challenge) {
+        this.firstChallengeOfDay = {
+          id: challenge.id,
+          date: today,
+        };
+      }
+    }
+
+    return firstChallengeOfDay.id;
   }
 
   protected override async onCreate(): Promise<void> {
@@ -951,6 +990,32 @@ export default class TheatreProcessor extends ChallengeProcessor {
 
   private async saveBloatHands(): Promise<void> {
     if (this.bloatHands.length === 0) {
+      return;
+    }
+
+    // Only a relatively small number of hands is required for statistically
+    // significant data for analysis, so we don't want to blow up the database
+    // size with every single hand recorded. However, we still want to have a
+    // regular ingestion of new hand data over time.
+    //
+    // To control how quickly the database grows, set a soft limit on the number
+    // of hands that can be recorded per day.
+    //
+    // This is not done within a transaction, so multiple challenges completing
+    // at the same time could exceed the limit, but this is okay since the limit
+    // isn't intended to be strict.
+    let handsRecordedToday = 0;
+    const firstChallengeIdOfDay =
+      await TheatreProcessor.getFirstChallengeIdOfDay();
+
+    if (firstChallengeIdOfDay !== null) {
+      handsRecordedToday = await sql<{ count: number }[]>`
+        SELECT COUNT(*) FROM bloat_hands
+        WHERE challenge_id >= ${firstChallengeIdOfDay}
+      `.then(([row]) => row?.count ?? 0);
+    }
+
+    if (handsRecordedToday >= TheatreProcessor.DAILY_BLOAT_HAND_LIMIT) {
       return;
     }
 

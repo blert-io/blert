@@ -107,6 +107,7 @@ export {
   XarpusPhase,
   challengeName,
   stageName,
+  stagesForChallenge,
 } from './challenge';
 
 export { ItemDelta } from './item-delta';

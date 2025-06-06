@@ -9,12 +9,12 @@ import styles from './style.module.scss';
 export default function BloatHandsPage() {
   return (
     <div className={styles.bloatHands}>
-      <div className={styles.header}>
+      <Card primary className={styles.header}>
         <h1>Bloat Hand Spawn Analysis</h1>
         <p className={styles.subtitle}>
           Heatmaps of Bloat hand spawn rates across Theatre of Blood raids.
         </p>
-      </div>
+      </Card>
       <Card className={styles.mainPanel}>
         <BloatHands />
       </Card>

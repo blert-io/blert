@@ -665,7 +665,7 @@ export function challengeName(type: ChallengeType): string {
   }
 }
 
-export function stageName(stage: Stage): string {
+export function stageName(stage: Stage, short: boolean = false): string {
   switch (stage) {
     case Stage.TOB_MAIDEN:
       return 'Maiden';
@@ -681,7 +681,7 @@ export function stageName(stage: Stage): string {
       return 'Verzik';
 
     case Stage.COLOSSEUM_WAVE_12:
-      return 'Sol Heredit';
+      return short ? 'Sol' : 'Sol Heredit';
 
     case Stage.TOA_APMEKEN:
       return 'Apmeken';
@@ -731,8 +731,69 @@ export function stageName(stage: Stage): string {
   }
 
   if (stage >= Stage.COLOSSEUM_WAVE_1 && stage <= Stage.COLOSSEUM_WAVE_11) {
-    return `Wave ${stage - Stage.COLOSSEUM_WAVE_1 + 1}`;
+    const prefix = short ? 'W' : 'Wave ';
+    return `${prefix}${stage - Stage.COLOSSEUM_WAVE_1 + 1}`;
   }
 
   return 'Unknown';
+}
+
+const STAGES_BY_CHALLENGE = {
+  [ChallengeType.TOB]: [
+    Stage.TOB_MAIDEN,
+    Stage.TOB_BLOAT,
+    Stage.TOB_NYLOCAS,
+    Stage.TOB_SOTETSEG,
+    Stage.TOB_XARPUS,
+    Stage.TOB_VERZIK,
+  ],
+  [ChallengeType.COLOSSEUM]: [
+    Stage.COLOSSEUM_WAVE_1,
+    Stage.COLOSSEUM_WAVE_2,
+    Stage.COLOSSEUM_WAVE_3,
+    Stage.COLOSSEUM_WAVE_4,
+    Stage.COLOSSEUM_WAVE_5,
+    Stage.COLOSSEUM_WAVE_6,
+    Stage.COLOSSEUM_WAVE_7,
+    Stage.COLOSSEUM_WAVE_8,
+    Stage.COLOSSEUM_WAVE_9,
+    Stage.COLOSSEUM_WAVE_10,
+    Stage.COLOSSEUM_WAVE_11,
+    Stage.COLOSSEUM_WAVE_12,
+  ],
+  [ChallengeType.TOA]: [
+    Stage.TOA_APMEKEN,
+    Stage.TOA_BABA,
+    Stage.TOA_CRONDIS,
+    Stage.TOA_ZEBAK,
+    Stage.TOA_HET,
+    Stage.TOA_AKKHA,
+    Stage.TOA_SCABARAS,
+    Stage.TOA_KEPHRI,
+    Stage.TOA_WARDENS,
+  ],
+  [ChallengeType.COX]: [
+    Stage.COX_TEKTON,
+    Stage.COX_CRABS,
+    Stage.COX_ICE_DEMON,
+    Stage.COX_SHAMANS,
+    Stage.COX_VANGUARDS,
+    Stage.COX_THIEVING,
+    Stage.COX_VESPULA,
+    Stage.COX_TIGHTROPE,
+    Stage.COX_GUARDIANS,
+    Stage.COX_VASA,
+    Stage.COX_MYSTICS,
+    Stage.COX_MUTTADILE,
+    Stage.COX_OLM,
+  ],
+};
+
+/**
+ * Returns all stages of a given challenge.
+ * @param challenge The challenge type.
+ * @returns List of stages within the challenge.
+ */
+export function stagesForChallenge(challenge: ChallengeType): Stage[] {
+  return STAGES_BY_CHALLENGE[challenge];
 }

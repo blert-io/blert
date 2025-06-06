@@ -1258,6 +1258,8 @@ export async function getTotalDeathsByStage(
   const statsFields: Array<[Stage, string]> = [];
   const otherStages: Stage[] = [];
 
+  const deathsByStage = {} as Record<Stage, number>;
+
   for (const stage of stages) {
     const field = stageToStatsField(stage);
     if (field !== null) {
@@ -1265,9 +1267,9 @@ export async function getTotalDeathsByStage(
     } else {
       otherStages.push(stage);
     }
+    deathsByStage[stage] = 0;
   }
 
-  const deathsByStage = {} as Record<Stage, number>;
   const promises = [];
 
   if (statsFields.length > 0) {
@@ -1293,13 +1295,19 @@ export async function getTotalDeathsByStage(
   }
 
   if (otherStages.length > 0) {
+    // TODO(frolv): The only other challenge recorded currently is Colosseum,
+    // which is solo only, so this hack works for now. Eventually, all deaths
+    // should be tracked with player stats.
     promises.push(
       await sql`
-      SELECT stage, COUNT(*) as deaths
-      FROM queryable_events
-      WHERE event_type = ${EventType.PLAYER_DEATH} AND stage = ANY(${otherStages})
-      GROUP BY stage
-    `.then((stagesAndDeaths) => {
+        SELECT stage, COUNT(*) as deaths
+        FROM challenges
+        WHERE
+          type = ${ChallengeType.COLOSSEUM}
+          AND stage = ANY(${otherStages})
+          AND status = ${ChallengeStatus.WIPED}
+        GROUP BY stage
+      `.then((stagesAndDeaths) => {
         for (const row of stagesAndDeaths) {
           deathsByStage[row.stage] = parseInt(row.deaths);
         }

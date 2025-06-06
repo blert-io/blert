@@ -1,203 +1,54 @@
-'use client';
+import { ChallengeType } from '@blert/common';
+import { Metadata } from 'next';
 
-import { ChallengeStatus, ChallengeType, Stage } from '@blert/common';
-import Link from 'next/link';
-import { useContext, useEffect, useState } from 'react';
-import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
-
-import { getTotalDeathsByStage } from '@/actions/challenge';
-import CollapsiblePanel from '@/components/collapsible-panel';
-import Statistic from '@/components/statistic';
-import { DisplayContext } from '@/display';
+import Card from '@/components/card';
 import BloatIcon from '@/svg/bloat.svg';
+
+import ChallengeStats, { AnalysisLink } from './challenge-stats';
 
 import styles from './style.module.scss';
 
-function stageName(stage: Stage): string {
-  switch (stage) {
-    case Stage.TOB_MAIDEN:
-      return 'Maiden';
-    case Stage.TOB_BLOAT:
-      return 'Bloat';
-    case Stage.TOB_NYLOCAS:
-      return 'Nylocas';
-    case Stage.TOB_SOTETSEG:
-      return 'Sotetseg';
-    case Stage.TOB_XARPUS:
-      return 'Xarpus';
-    case Stage.TOB_VERZIK:
-      return 'Verzik';
-  }
+// Define analysis links for each challenge type
+const TOB_ANALYSIS_LINKS: AnalysisLink[] = [
+  {
+    href: '/trends/bloat-hands',
+    title: 'Bloat Hand Spawn Analysis',
+    description:
+      'Detailed heatmaps and patterns of hand spawns during Bloat encounters',
+    icon: <BloatIcon width={32} height={32} />,
+  },
+];
 
-  return 'Unknown';
-}
-
-const STATISTIC_SIZE = 104;
-
-type ChallengeStats = {
-  total: number;
-  completions: number;
-  resets: number;
-  wipes: number;
-};
+const COLOSSEUM_ANALYSIS_LINKS: AnalysisLink[] = [
+  // Add Colosseum-specific analysis links here when they become available
+];
 
 export default function TrendsPage() {
-  const display = useContext(DisplayContext);
-
-  const [deathsByTobRoom, setDeathsByTobRoom] = useState<{
-    [key: number]: number;
-  }>({});
-
-  const [raidStats, setRaidStats] = useState<ChallengeStats | null>(null);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      const fetches = [
-        getTotalDeathsByStage([
-          Stage.TOB_MAIDEN,
-          Stage.TOB_BLOAT,
-          Stage.TOB_NYLOCAS,
-          Stage.TOB_SOTETSEG,
-          Stage.TOB_XARPUS,
-          Stage.TOB_VERZIK,
-        ]).then(setDeathsByTobRoom),
-        fetch(`/api/v1/challenges/stats?type=${ChallengeType.TOB}&group=status`)
-          .then((res) => res.json())
-          .then((res) => {
-            const completions = res[ChallengeStatus.COMPLETED]['*'].count ?? 0;
-            const resets = res[ChallengeStatus.RESET]['*'].count ?? 0;
-            const wipes = res[ChallengeStatus.WIPED]['*'].count ?? 0;
-            setRaidStats({
-              completions,
-              resets,
-              wipes,
-              total: completions + resets + wipes,
-            });
-          }),
-      ];
-
-      await Promise.all(fetches);
-    };
-
-    fetchData();
-  }, []);
-
-  const tobDeathData = Object.entries(deathsByTobRoom).map(
-    ([stage, deaths]) => ({
-      name: stageName(Number(stage)),
-      deaths,
-    }),
-  );
-
-  const chartWidth = display.isFull() ? 600 : 350;
-
   return (
     <div className={styles.trends}>
-      <h1>Trends</h1>
+      <Card primary className={styles.header}>
+        <h1>Data Trends & Analysis</h1>
+        <p className={styles.subtitle}>
+          Explore community performance data and detailed analysis tools
+        </p>
+      </Card>
 
-      <CollapsiblePanel
-        panelTitle="Theatre of Blood"
-        defaultExpanded
-        maxPanelHeight={1000}
-      >
-        <div className={styles.tobSection}>
-          {/* TODO(frolv): Enable link when sufficient data has been collected. */}
-          {/* <div className={styles.navigationLinks}>
-            <Link href="/trends/bloat-hands" className={styles.analysisLink}>
-              <div className={styles.linkIcon}>
-                <BloatIcon width={32} height={32} />
-              </div>
-              <div className={styles.linkContent}>
-                <div className={styles.linkTitle}>
-                  Bloat Hand Spawn Analysis
-                </div>
-                <div className={styles.linkDescription}>
-                  Detailed heatmaps and patterns of hand spawns during Bloat
-                  encounters
-                </div>
-              </div>
-              <div className={styles.linkArrow}>
-                <i className="fas fa-arrow-right" />
-              </div>
-            </Link>
-          </div> */}
-
-          <div className={styles.challengeStats}>
-            {(raidStats !== null && (
-              <>
-                <Statistic
-                  name="Total Raids"
-                  value={raidStats.total}
-                  height={STATISTIC_SIZE}
-                  width={STATISTIC_SIZE}
-                />
-                <Statistic
-                  name="Completions"
-                  value={raidStats.completions}
-                  height={STATISTIC_SIZE}
-                  width={STATISTIC_SIZE}
-                />
-                <Statistic
-                  name="Resets"
-                  value={raidStats.resets}
-                  height={STATISTIC_SIZE}
-                  width={STATISTIC_SIZE}
-                />
-                <Statistic
-                  name="Wipes"
-                  value={raidStats.wipes}
-                  height={STATISTIC_SIZE}
-                  width={STATISTIC_SIZE}
-                />
-              </>
-            )) || (
-              <div
-                className={styles.statsLoading}
-                style={{ height: STATISTIC_SIZE }}
-              >
-                Loading...
-              </div>
-            )}
-          </div>
-          <div
-            className={styles.charts}
-            style={{ padding: display.isFull() ? `0 ${20}px` : 0 }}
-          >
-            <h2>Deaths by Room</h2>
-            <BarChart
-              data={tobDeathData}
-              width={chartWidth}
-              height={chartWidth / 2}
-            >
-              <CartesianGrid strokeDasharray="2 2" />
-              <Bar dataKey="deaths" fill="#62429b" />
-              <XAxis
-                dataKey="name"
-                tick={{
-                  fill: 'var(--blert-text-color)',
-                  fontSize: display.isCompact() ? 11 : 16,
-                }}
-                interval={0}
-              />
-              <YAxis tick={{ fill: 'var(--blert-text-color)' }} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#171821', color: '#fff' }}
-                cursor={false}
-                labelFormatter={(room: string) => <strong>{room}</strong>}
-                formatter={(value: number) => [
-                  <span
-                    key="deaths"
-                    style={{ color: 'var(--blert-text-color)' }}
-                  >
-                    {value} deaths
-                  </span>,
-                ]}
-                position={{ y: 100 }}
-              />
-            </BarChart>
-          </div>
-        </div>
-      </CollapsiblePanel>
+      <div className={styles.challengeGrid}>
+        <ChallengeStats
+          challenge={ChallengeType.TOB}
+          analysisLinks={TOB_ANALYSIS_LINKS}
+        />
+        <ChallengeStats
+          challenge={ChallengeType.COLOSSEUM}
+          analysisLinks={COLOSSEUM_ANALYSIS_LINKS}
+        />
+      </div>
     </div>
   );
 }
+
+export const metadata: Metadata = {
+  title: 'Data Trends & Analysis',
+  description:
+    'Explore community performance data and detailed analysis tools on Blert, Old School Runescape’s premier PvM tracker.',
+};

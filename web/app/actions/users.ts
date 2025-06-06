@@ -115,10 +115,6 @@ export async function register(
 
   const hash = await bcrypt.hash(password, SALT_ROUNDS);
 
-  if (!process.env.FEATURE_ACCOUNTS) {
-    return { overall: 'Account creation is currently disabled' };
-  }
-
   try {
     await sql`
     INSERT INTO users (username, password, email)
