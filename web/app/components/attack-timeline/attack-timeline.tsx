@@ -31,6 +31,7 @@ import {
   RoomNpcMap,
 } from '@/utils/boss-room-state';
 import { BoostType, maxBoostedLevel } from '@/utils/combat';
+import { normalizeItemId } from '@/utils/item';
 
 import { ATTACK_METADATA, CombatStyle } from './attack-metadata';
 import PlayerSkill from '../player-skill';
@@ -364,7 +365,12 @@ function npcAttackImage(attack: NpcAttack, size: number) {
   );
 }
 
-function makeCellImage(playerAttack: Attack, size: number, memes: BlertMemes) {
+function makeCellImage(
+  playerAttack: Attack,
+  size: number,
+  memes: BlertMemes,
+  normalizeItems: boolean,
+) {
   let blunderIcon;
 
   switch (true) {
@@ -481,7 +487,11 @@ function makeCellImage(playerAttack: Attack, size: number, memes: BlertMemes) {
     if (playerAttack.weapon) {
       weaponImage = (
         <Item
-          id={playerAttack.weapon.id}
+          id={
+            normalizeItems
+              ? normalizeItemId(playerAttack.weapon.id)
+              : playerAttack.weapon.id
+          }
           name={playerAttack.weapon.name}
           quantity={1}
           outlineColor={outline}
@@ -781,16 +791,20 @@ type CellInfo = {
 };
 
 function buildPlayerTooltip(
+  context: TimelineContext,
   state: PlayerState,
-  npcs: RoomNpcMap,
   imageSize: number,
-  memes: BlertMemes,
 ): {
   playerTooltip: Record<string, string>;
   cellImage: React.ReactNode;
 } {
   const attack = state.attack!;
-  const cellImage = makeCellImage(attack, imageSize, memes);
+  const cellImage = makeCellImage(
+    attack,
+    imageSize,
+    context.memes,
+    context.normalizeItems,
+  );
 
   const playerTooltip: Record<string, string> = {
     'data-tooltip-type': 'player',
@@ -801,11 +815,11 @@ function buildPlayerTooltip(
 
   const maybeTarget = attack.target;
   if (maybeTarget !== undefined) {
-    const roomNpc = npcs.get(maybeTarget.roomId);
+    const roomNpc = context.npcs.get(maybeTarget.roomId);
     if (roomNpc !== undefined) {
       playerTooltip['data-tooltip-target-name'] = npcFriendlyName(
         roomNpc,
-        npcs,
+        context.npcs,
       );
       const hitpoints = roomNpc.stateByTick[state.tick]?.hitpoints;
       if (hitpoints !== undefined) {
@@ -831,23 +845,19 @@ function buildPlayerTooltip(
 }
 
 const buildTickCell = (
-  cellSize: number,
+  context: TimelineContext,
+  actorIndex: number,
   cellInfo: CellInfo,
   tick: number,
-  actorIndex: number,
-  npcs: RoomNpcMap,
-  actorContext: RoomActorState,
-  memes: BlertMemes,
 ) => {
-  const { setSelectedPlayer } = actorContext;
-  let { playerState, npcState, highlighted, backgroundColor } = cellInfo;
+  let { playerState, npcState, backgroundColor } = cellInfo;
 
-  const imageSize = cellSize - 2;
+  const imageSize = context.cellSize - 2;
 
   const style: React.CSSProperties = {
     backgroundColor,
-    width: cellSize,
-    height: cellSize,
+    width: context.cellSize,
+    height: context.cellSize,
   };
 
   if (playerState === null && npcState === null) {
@@ -896,7 +906,7 @@ const buildTickCell = (
         {cellImage}
         <span
           className={styles.label}
-          style={{ fontSize: Math.min(cellSize / 2 - 2, 10) }}
+          style={{ fontSize: Math.min(context.cellSize / 2 - 2, 10) }}
         >
           {npcState.label}
         </span>
@@ -920,7 +930,7 @@ const buildTickCell = (
       const meta =
         ATTACK_METADATA[attack.type] ?? ATTACK_METADATA[PlayerAttack.UNKNOWN];
 
-      const result = buildPlayerTooltip(playerState, npcs, imageSize, memes);
+      const result = buildPlayerTooltip(context, playerState, imageSize);
       tooltip = result.playerTooltip;
       cellImage = result.cellImage;
 
@@ -1009,22 +1019,17 @@ const buildTickCell = (
 };
 
 const buildTickColumn = (
-  cellSize: number,
-  playerState: PlayerStateMap,
+  context: TimelineContext,
   columnTick: number,
-  updateTickOnPage: (tick: number) => void,
-  npcs: RoomNpcMap,
-  actorContext: RoomActorState,
-  memes: BlertMemes,
   split?: TimelineSplit,
   backgroundColor?: string,
 ) => {
   const tickCells = [];
   const cellInfo: CellInfo[] = [];
 
-  const { selectedPlayer } = actorContext;
+  const { selectedPlayer } = context.actorContext;
 
-  npcs.forEach((npc, _) => {
+  context.npcs.forEach((npc, _) => {
     if (!npc.hasAttacks) {
       return;
     }
@@ -1063,7 +1068,7 @@ const buildTickColumn = (
     });
   });
 
-  playerState.forEach((playerTimeline, playerName) => {
+  context.playerState.forEach((playerTimeline, playerName) => {
     const state = playerTimeline.find((event) => event?.tick === columnTick);
     cellInfo.push({
       npcState: null,
@@ -1074,27 +1079,17 @@ const buildTickColumn = (
   });
 
   for (let i = 0; i < cellInfo.length; i++) {
-    tickCells.push(
-      buildTickCell(
-        cellSize,
-        cellInfo[i],
-        columnTick,
-        i,
-        npcs,
-        actorContext,
-        memes,
-      ),
-    );
+    tickCells.push(buildTickCell(context, i, cellInfo[i], columnTick));
   }
 
-  const splitWidth = cellSize + 21;
+  const splitWidth = context.cellSize + 21;
   const splitTailOffset = (splitWidth - 4) / 2;
 
   return (
     <div
       key={`attackTimeline__${columnTick}`}
       className={styles.attackTimeline__Column}
-      style={{ width: cellSize, marginRight: COLUMN_MARGIN }}
+      style={{ width: context.cellSize, marginRight: COLUMN_MARGIN }}
     >
       {split !== undefined && (
         <div
@@ -1113,8 +1108,8 @@ const buildTickColumn = (
       )}
       <button
         className={styles.attackTimeline__TickHeader}
-        onClick={() => updateTickOnPage(columnTick)}
-        style={{ fontSize: cellSize / 2 - 1 }}
+        onClick={() => context.updateTickOnPage(columnTick)}
+        style={{ fontSize: context.cellSize / 2 - 1 }}
       >
         {columnTick}
       </button>
@@ -1146,7 +1141,19 @@ type BaseTimelineProps = {
   numRows: number;
   ticksPerRow: number;
   timelineTicks: number;
+  normalizeItems: boolean;
 };
+
+type TimelineContext = Pick<
+  BaseTimelineProps,
+  | 'actorContext'
+  | 'cellSize'
+  | 'memes'
+  | 'normalizeItems'
+  | 'npcs'
+  | 'playerState'
+  | 'updateTickOnPage'
+>;
 
 function BaseTimeline(props: BaseTimelineProps) {
   const {
@@ -1161,9 +1168,20 @@ function BaseTimeline(props: BaseTimelineProps) {
     numRows,
     ticksPerRow,
     timelineTicks,
+    normalizeItems,
   } = props;
 
   const attackTimelineColumnElements = [];
+
+  const context: TimelineContext = {
+    actorContext,
+    cellSize,
+    memes,
+    normalizeItems,
+    npcs,
+    updateTickOnPage,
+    playerState,
+  };
 
   for (let row = 0; row < numRows; row++) {
     const rowColumns = [];
@@ -1181,19 +1199,7 @@ function BaseTimeline(props: BaseTimelineProps) {
         return tick >= c.tick && tick < c.tick + length;
       })?.backgroundColor;
 
-      rowColumns.push(
-        buildTickColumn(
-          cellSize,
-          playerState,
-          tick,
-          updateTickOnPage,
-          npcs,
-          actorContext,
-          memes,
-          potentialSplit,
-          color,
-        ),
-      );
+      rowColumns.push(buildTickColumn(context, tick, potentialSplit, color));
     }
 
     attackTimelineColumnElements.push(
@@ -1231,6 +1237,7 @@ export type AttackTimelineProps = {
   cellSize?: number;
   smallLegend?: boolean;
   wrapWidth?: number;
+  normalizeItems?: boolean;
 };
 
 export function AttackTimeline(props: AttackTimelineProps) {
@@ -1244,6 +1251,7 @@ export function AttackTimeline(props: AttackTimelineProps) {
     npcs,
     cellSize = DEFAULT_CELL_SIZE,
     wrapWidth,
+    normalizeItems = false,
   } = props;
 
   const totalColumnWidth = cellSize + COLUMN_MARGIN;
@@ -1346,6 +1354,7 @@ export function AttackTimeline(props: AttackTimelineProps) {
         numRows={numRows}
         ticksPerRow={ticksPerRow}
         timelineTicks={timelineTicks}
+        normalizeItems={normalizeItems}
       />
     ),
     [
@@ -1360,6 +1369,7 @@ export function AttackTimeline(props: AttackTimelineProps) {
       numRows,
       ticksPerRow,
       timelineTicks,
+      normalizeItems,
     ],
   );
 

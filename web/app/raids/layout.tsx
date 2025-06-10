@@ -43,6 +43,16 @@ export default function RaidLayout(props: RaidLayoutProps) {
             />
           </div>
         )}
+        {memes.tenWTwoQ && (
+          <div className={styles.tenWTwoQ}>
+            <Image
+              alt="WWWWWWWWWWQQ"
+              src="/images/wwwwwwwwwwqq.gif"
+              width={498}
+              height={282}
+            />
+          </div>
+        )}
         {props.children}
       </MemeContext.Provider>
     </>

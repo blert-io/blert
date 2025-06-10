@@ -22,13 +22,17 @@
     }
   }
 
+  &:not(.button):hover {
+    color: white;
+  }
+
   input[type='checkbox'] {
     -webkit-appearance: none;
     appearance: none;
     background: none;
     margin: 0;
     font-family: 'Font Awesome 6 Free';
-    color: var(--blert-text-color);
+    color: var(--font-color-nav);
     font-size: 18px;
 
     &::before {

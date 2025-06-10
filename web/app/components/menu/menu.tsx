@@ -4,12 +4,36 @@ import { createPortal } from 'react-dom';
 import styles from './style.module.scss';
 
 export type MenuItem = {
+  /** Label to display in the menu, unless `customElement` is provided. */
   label: string;
-  customAction?: () => void;
+
+  /**
+   * Action to perform when the item is selected, overriding the default
+   * behavior of calling `onSelection` and closing the menu.
+   *
+   * Optionally returns a boolean indicating whether the menu should be closed.
+   * If not specified, the menu will close as normal.
+   *
+   * @returns `true` if the menu should close, `false` if it should remain open.
+   */
+  customAction?: () => boolean | void;
+
+  /**
+   * Custom element to render in the menu, overriding the default label and
+   * icon.
+   */
   customElement?: React.ReactNode;
+
+  /** Icon to display in the menu, overriding the default icon. */
   icon?: string;
+
+  /** Submenu to display when the item is hovered. */
   subMenu?: MenuItem[];
+
+  /** Value to pass to `onSelection` when the item is selected. */
   value?: string | number;
+
+  /** Whether text within the menu item should wrap. */
   wrap?: boolean;
 };
 
@@ -92,8 +116,10 @@ function MenuImpl(props: MenuImplProps) {
         if (item.customAction) {
           ElementType = 'button';
           onMouseDown = () => {
-            item.customAction!();
-            props.onClose?.();
+            const shouldClose = item.customAction!();
+            if (shouldClose) {
+              props.onClose?.();
+            }
           };
         } else if (item.value !== undefined) {
           ElementType = 'button';
@@ -338,13 +364,16 @@ export default function Menu(props: MenuProps) {
 
           const menu = currentMenu(items, activeElements);
           const item = menu[activeElements[currentDepth(activeElements)]!];
+          let shouldClose = true;
           if (item.customAction) {
-            item.customAction();
+            shouldClose = !!item.customAction();
           } else if (item.value !== undefined) {
             onSelection?.(item.value);
           }
-          setActiveElements(createActiveElementsList(items));
-          onClose?.();
+          if (shouldClose) {
+            setActiveElements(createActiveElementsList(items));
+            onClose?.();
+          }
           break;
         }
       }
