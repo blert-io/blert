@@ -5,6 +5,7 @@ import {
   Skill,
   hiscoreLookup,
 } from '@blert/common';
+import { revalidatePath } from 'next/cache';
 
 import { sql } from './db';
 
@@ -323,6 +324,7 @@ export async function processNameChange(changeId: number) {
         SET status = ${nameChangeStatus}, processed_at = ${new Date()}
         WHERE id = ${changeId}
       `;
+      revalidatePath('/name-changes');
       return;
     }
 
@@ -459,6 +461,7 @@ export async function processNameChange(changeId: number) {
   `;
 
   await Promise.all([updatePlayer, updateNameChange]);
+  revalidatePath('/name-changes');
   console.log(`Name change accepted: ${oldName} -> ${newName}`);
 }
 
@@ -466,11 +469,13 @@ class NameChangeProcessor {
   private static readonly NAME_CHANGE_PERIOD = 1000 * 5;
   private static readonly NAME_CHANGES_PER_BATCH = 5;
 
-  private timeout: NodeJS.Timeout | null = null;
+  // For whatever reason, Next likes to create multiple instances of this class
+  // sometimes, so we use a single global timeout.
+  private static timeout: NodeJS.Timeout | null = null;
 
   public constructor() {
     if (process.env.NODE_ENV === 'production') {
-      this.timeout = setTimeout(
+      NameChangeProcessor.timeout = setTimeout(
         () => this.processNameChangeBatch(),
         NameChangeProcessor.NAME_CHANGE_PERIOD,
       );
@@ -478,8 +483,8 @@ class NameChangeProcessor {
   }
 
   public start() {
-    if (this.timeout === null) {
-      this.timeout = setTimeout(
+    if (NameChangeProcessor.timeout === null) {
+      NameChangeProcessor.timeout = setTimeout(
         () => this.processNameChangeBatch(),
         NameChangeProcessor.NAME_CHANGE_PERIOD,
       );
@@ -487,9 +492,9 @@ class NameChangeProcessor {
   }
 
   public stop() {
-    if (this.timeout !== null) {
-      clearTimeout(this.timeout);
-      this.timeout = null;
+    if (NameChangeProcessor.timeout !== null) {
+      clearTimeout(NameChangeProcessor.timeout);
+      NameChangeProcessor.timeout = null;
     }
   }
 
@@ -507,7 +512,7 @@ class NameChangeProcessor {
       await processNameChange(id);
     }
 
-    this.timeout = setTimeout(
+    NameChangeProcessor.timeout = setTimeout(
       () => this.processNameChangeBatch(),
       NameChangeProcessor.NAME_CHANGE_PERIOD,
     );
