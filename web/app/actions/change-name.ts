@@ -1,11 +1,12 @@
 'use server';
 
 import { NameChange, NameChangeStatus } from '@blert/common';
-import processor from './name-change-processor';
+import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { auth } from '@/auth';
 import { sql } from './db';
+import processor from './name-change-processor';
 
 const RSN_REGEX = /^[a-zA-Z0-9 _-]{1,12}$/;
 
@@ -49,6 +50,7 @@ export async function submitNameChangeForm(
   await sql`INSERT INTO name_changes ${sql(nameChange)}`;
   processor.start();
 
+  revalidatePath('/name-changes');
   redirect('/name-changes');
 }
 
