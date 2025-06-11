@@ -488,6 +488,7 @@ type TableProps = {
   context: SearchContext;
   setContext: Dispatch<SetStateAction<SearchContext>>;
   loading: boolean;
+  totalCount: number;
 };
 
 export default function Table(props: TableProps) {
@@ -629,6 +630,15 @@ export default function Table(props: TableProps) {
 
   return (
     <>
+      <div className={styles.tableHeader}>
+        <h3>
+          <i className="fas fa-table" />
+          Challenges
+          <span className={styles.totalCount}>
+            ({props.totalCount.toLocaleString()})
+          </span>
+        </h3>
+      </div>
       <div className={styles.wrapper}>
         <table className={styles.table} ref={tableRef}>
           <thead ref={headingRef}>
@@ -641,7 +651,8 @@ export default function Table(props: TableProps) {
                   const mainSort = props.context.sort[0];
                   let icon;
                   let nextSort: Array<SortQuery<SortableFields>>;
-                  if (mainSort.slice(1) === column.sortKey) {
+                  const currentSort = mainSort.slice(1);
+                  if (currentSort === column.sortKey) {
                     icon = (
                       <i
                         className={`fas fa-sort-${mainSort[0] === '+' ? 'up' : 'down'}`}
@@ -650,7 +661,9 @@ export default function Table(props: TableProps) {
                     nextSort =
                       mainSort[0] === '+'
                         ? [`-${column.sortKey}`]
-                        : ['-startTime'];
+                        : currentSort === 'startTime'
+                          ? ['+startTime']
+                          : ['-startTime'];
                   } else {
                     icon = <i className="fas fa-sort" />;
                     nextSort = [`+${column.sortKey}`];
@@ -661,6 +674,7 @@ export default function Table(props: TableProps) {
                         props.setContext((context) => ({
                           ...context,
                           sort: nextSort,
+                          pagination: {},
                         }))
                       }
                     >
@@ -881,7 +895,7 @@ function ContextMenu({
 
     items.push({
       label: 'Find similar challenges',
-      customAction: () =>
+      customAction: () => {
         setContext((prev) => ({
           ...prev,
           filters: {
@@ -890,19 +904,23 @@ function ContextMenu({
             scale: [challenge.party.length],
             type: [challenge.type],
           },
-        })),
+        }));
+      },
     });
 
     items.push({
       label: 'Copy URL',
-      customAction: () =>
+      customAction: () => {
         navigator.clipboard.writeText(
           window.location.origin + challengeUrl(challenge.type, challenge.uuid),
-        ),
+        );
+      },
     });
     items.push({
       label: 'Copy ID',
-      customAction: () => navigator.clipboard.writeText(challenge.uuid),
+      customAction: () => {
+        navigator.clipboard.writeText(challenge.uuid);
+      },
     });
   }
 
@@ -1161,14 +1179,22 @@ function ColumnsModal({
 
   return (
     <Modal className={styles.columnsModal} open={open} onClose={tryClose}>
-      <h2>Manage columns</h2>
+      <div className={styles.modalHeader}>
+        <h2>Manage columns</h2>
+        <button className={styles.closeButton} onClick={tryClose}>
+          <i className="fas fa-times" />
+        </button>
+      </div>
       <div
         className={styles.selection}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
       >
         <div className={listClass(selectedHighlight)} ref={selectedRef}>
-          <label className={styles.label}>Selected</label>
+          <label className={styles.label}>
+            <i className="fas fa-check-circle" />
+            Selected
+          </label>
           <div className={styles.listWrapper}>
             {columns
               .filter((c) => COLUMNS[c.column].name !== '')
@@ -1178,7 +1204,9 @@ function ColumnsModal({
                 className={styles.insertion}
                 style={{
                   position: 'absolute',
-                  top: newIndex * TOTAL_COLUMN_HEIGHT,
+                  top: newIndex * (TOTAL_COLUMN_HEIGHT + 2),
+                  left: '12px',
+                  width: 'calc(100% - 24px)',
                 }}
               >
                 <i className="fas fa-caret-right" />
@@ -1188,7 +1216,10 @@ function ColumnsModal({
           </div>
         </div>
         <div className={listClass(availableHighlight)} ref={availableRef}>
-          <label className={styles.label}>Available</label>
+          <label className={styles.label}>
+            <i className="fas fa-plus-circle" />
+            Available
+          </label>
           <div className={styles.listWrapper}>
             {Object.keys(COLUMNS)
               .filter((key) => {
@@ -1202,7 +1233,10 @@ function ColumnsModal({
           </div>
         </div>
         <div className={styles.columnsList}>
-          <label className={styles.label}>Presets</label>
+          <label className={styles.label}>
+            <i className="fas fa-bookmark" />
+            Presets
+          </label>
           <div className={styles.listWrapper}>
             {allPresets.map((preset) => (
               <div
@@ -1279,12 +1313,13 @@ function ColumnsModal({
                 });
               }}
             >
+              <i className="fas fa-plus" />
               New Preset…
             </div>
           </div>
         </div>
       </div>
-      <div className={styles.actions}>
+      <div className={styles.modalFooter}>
         <Button
           disabled={!modified}
           onClick={() => {

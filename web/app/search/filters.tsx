@@ -6,7 +6,7 @@ import {
   Stage,
   splitName,
 } from '@blert/common';
-import { Dispatch, SetStateAction, useContext, useState } from 'react';
+import React, { Dispatch, SetStateAction, useContext, useState } from 'react';
 
 import Button from '@/components/button';
 import Checkbox from '@/components/checkbox';
@@ -807,31 +807,115 @@ function CustomFilters({
 function CollapsibleList({
   items,
   onSelection,
+  searchTerm = '',
+  level = 0,
 }: {
   items: MenuItem[];
   onSelection: (split: number) => void;
+  searchTerm?: string;
+  level?: number;
 }) {
-  const [open, setOpen] = useState<boolean[]>(items.map(() => false));
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+
+  const itemMatchesSearch = (item: MenuItem, term: string): boolean => {
+    if (term === '') {
+      return true;
+    }
+
+    if (item.label.toLowerCase().includes(term.toLowerCase())) {
+      return true;
+    }
+
+    if (item.subMenu) {
+      return item.subMenu.some((subItem) => itemMatchesSearch(subItem, term));
+    }
+
+    return false;
+  };
+
+  const filteredItems = items
+    .map((item) => {
+      if (!itemMatchesSearch(item, searchTerm)) {
+        return null;
+      }
+
+      if (!item.subMenu) {
+        return item;
+      }
+
+      const itemDirectlyMatches = item.label
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
+
+      if (itemDirectlyMatches) {
+        return item;
+      }
+
+      const filteredSubMenu = item.subMenu
+        .map((subItem) => {
+          if (!itemMatchesSearch(subItem, searchTerm)) {
+            return null;
+          }
+
+          if (!subItem.subMenu) {
+            return subItem;
+          }
+
+          // If subItem directly matches, show all its children.
+          const subItemDirectlyMatches = subItem.label
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase());
+
+          if (subItemDirectlyMatches) {
+            return subItem;
+          }
+
+          const filteredSubSubMenu = subItem.subMenu.filter((subSubItem) =>
+            itemMatchesSearch(subSubItem, searchTerm),
+          );
+
+          return filteredSubSubMenu.length > 0
+            ? { ...subItem, subMenu: filteredSubSubMenu }
+            : null;
+        })
+        .filter(Boolean) as MenuItem[];
+
+      return filteredSubMenu.length > 0
+        ? { ...item, subMenu: filteredSubMenu }
+        : null;
+    })
+    .filter(Boolean) as MenuItem[];
+
+  const shouldExpand = searchTerm.length > 0;
 
   return (
-    <ul className={styles.customFiltersList}>
-      {items.map((item, i) => {
+    <ul
+      className={`${styles.customFiltersList} ${styles[`level${level}`] || ''}`}
+    >
+      {filteredItems.map((item) => {
+        const itemKey = `${level}-${item.label}`;
+        const isExpanded = shouldExpand || open[itemKey] || false;
+
         const element = item.subMenu ? (
           <button
             className={styles.collapsible}
             onClick={() =>
-              setOpen((prev) => prev.map((v, j) => (i === j ? !v : v)))
+              setOpen((prev) => ({
+                ...prev,
+                [itemKey]: !prev[itemKey],
+              }))
             }
           >
+            <i className={`fas fa-folder${isExpanded ? '-open' : ''}`} />
             {item.label}
-            <i
-              className={`fas fa-chevron-${open[i] ? 'up' : 'down'}`}
-              style={{ marginLeft: 8 }}
-            />
+            <i className={`fas fa-chevron-${isExpanded ? 'up' : 'down'}`} />
           </button>
         ) : (
-          <button onClick={() => onSelection(item.value! as number)}>
-            <i className="fas fa-plus" style={{ marginRight: 8, top: 1 }} />
+          <button
+            className={styles.filterItem}
+            onClick={() => onSelection(item.value! as number)}
+          >
+            <i className="fas fa-plus" />
             {item.label}
           </button>
         );
@@ -839,8 +923,17 @@ function CollapsibleList({
         return (
           <li key={item.label}>
             {element}
-            {item.subMenu && open[i] && (
-              <CollapsibleList items={item.subMenu} onSelection={onSelection} />
+            {item.subMenu && isExpanded && (
+              <CollapsibleList
+                items={item.subMenu}
+                onSelection={onSelection}
+                searchTerm={
+                  item.label.toLowerCase().includes(searchTerm.toLowerCase())
+                    ? '' // Don't filter children if parent directly matched.
+                    : searchTerm
+                }
+                level={level + 1}
+              />
             )}
           </li>
         );
@@ -858,17 +951,66 @@ function CustomFiltersModal({
   onClose: () => void;
   onSelection: (split: number) => void;
 }) {
+  const [searchTerm, setSearchTerm] = useState('');
+
+  React.useEffect(() => {
+    if (open) {
+      setSearchTerm('');
+    }
+  }, [open]);
+
   return (
     <Modal className={styles.customFiltersModal} onClose={onClose} open={open}>
-      <h2>Add custom filter</h2>
+      <div className={styles.modalHeader}>
+        <h2>Add Custom Filter</h2>
+        <button className={styles.closeButton} onClick={onClose} type="button">
+          <i className="fas fa-times" />
+          <span className="sr-only">Close</span>
+        </button>
+      </div>
+
+      <div className={styles.searchWrapper}>
+        <div className={styles.searchInput}>
+          <i className="fas fa-search" />
+          <input
+            type="text"
+            placeholder="Search filters..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            autoFocus
+          />
+          {searchTerm && (
+            <button
+              className={styles.clearSearch}
+              onClick={() => setSearchTerm('')}
+              type="button"
+            >
+              <i className="fas fa-times" />
+            </button>
+          )}
+        </div>
+      </div>
+
       <div className={styles.customFiltersContent}>
+        {searchTerm && (
+          <div className={styles.searchInfo}>
+            Showing filters matching "{searchTerm}"
+          </div>
+        )}
         <CollapsibleList
           items={CUSTOM_FILTERS_ITEMS}
+          searchTerm={searchTerm}
           onSelection={(value) => {
             onSelection(value);
             onClose();
           }}
         />
+      </div>
+
+      <div className={styles.modalFooter}>
+        <Button simple onClick={onClose}>
+          Cancel
+        </Button>
       </div>
     </Modal>
   );

@@ -257,44 +257,37 @@ export default function Search({
       >
         <Filters context={context} setContext={setContext} loading={loading} />
       </CollapsiblePanel>
-      <CollapsiblePanel
-        panelTitle={`Challenges${stats ? ` (${stats.count})` : ''}`}
-        defaultExpanded
-        disableExpansion
-        maxPanelWidth="min(100%, 2000px)"
-        maxPanelHeight={2000}
-      >
-        <div className={styles.challenges}>
-          <Table
-            challenges={challenges}
-            context={context}
-            setContext={setContext}
-            loading={loading}
-          />
-          <div className={styles.pagination}>
-            <div className={styles.controls}>
-              <button
-                disabled={loading || page <= 1}
-                onClick={() => loadChallenges(FetchAction.BACK)}
-              >
-                <i className="fas fa-chevron-left" />
-                <span className="sr-only">Previous</span>
-              </button>
-              <p>
-                Page {page}
-                {totalPages > 0 && ` of ${totalPages}`}
-              </p>
-              <button
-                disabled={loading || page >= totalPages}
-                onClick={() => loadChallenges(FetchAction.FORWARD)}
-              >
-                <i className="fas fa-chevron-right" />
-                <span className="sr-only">Next</span>
-              </button>
-            </div>
+      <div className={styles.challenges}>
+        <Table
+          challenges={challenges}
+          context={context}
+          setContext={setContext}
+          loading={loading}
+          totalCount={stats.count}
+        />
+        <div className={styles.pagination}>
+          <div className={styles.controls}>
+            <button
+              disabled={loading || page <= 1}
+              onClick={() => loadChallenges(FetchAction.BACK)}
+            >
+              <i className="fas fa-chevron-left" />
+              <span className="sr-only">Previous</span>
+            </button>
+            <p>
+              Page {page}
+              {totalPages > 0 && ` of ${totalPages}`}
+            </p>
+            <button
+              disabled={loading || page >= totalPages}
+              onClick={() => loadChallenges(FetchAction.FORWARD)}
+            >
+              <i className="fas fa-chevron-right" />
+              <span className="sr-only">Next</span>
+            </button>
           </div>
         </div>
-      </CollapsiblePanel>
+      </div>
     </>
   );
 }

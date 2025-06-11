@@ -117,7 +117,7 @@ function MenuImpl(props: MenuImplProps) {
           ElementType = 'button';
           onMouseDown = () => {
             const shouldClose = item.customAction!();
-            if (shouldClose) {
+            if (shouldClose === undefined || shouldClose) {
               props.onClose?.();
             }
           };
@@ -366,7 +366,8 @@ export default function Menu(props: MenuProps) {
           const item = menu[activeElements[currentDepth(activeElements)]!];
           let shouldClose = true;
           if (item.customAction) {
-            shouldClose = !!item.customAction();
+            const result = item.customAction();
+            shouldClose = result === undefined || result;
           } else if (item.value !== undefined) {
             onSelection?.(item.value);
           }
