@@ -13,8 +13,9 @@ import ConnectionManager from './connection-manager';
 import LocalChallengeManager from './local-challenge-manager';
 import MessageHandler from './message-handler';
 import { PlayerManager } from './players';
-import ServerManager, { ServerStatus } from './server-manager';
 import { RemoteChallengeManager } from './remote-challenge-manager';
+import ServerManager, { ServerStatus } from './server-manager';
+import { verifyRuneLiteVersion, verifyRevision } from './verification';
 
 type ShutdownRequest = {
   shutdownTime?: number;
@@ -176,9 +177,15 @@ async function main(): Promise<void> {
         validPluginRevisions,
         request.headers['blert-revision'] as string | undefined,
       );
-      if (!validRevision) {
+
+      const validRuneLiteVersion = verifyRuneLiteVersion(
+        request.headers['blert-runelite-version'] as string | undefined,
+        process.env.BLERT_MIN_RL_VERSION,
+      );
+
+      if (!validRevision || !validRuneLiteVersion) {
         console.log(
-          `[${requestId}] Invalid plugin revision: ${request.headers['blert-revision']}`,
+          `[${requestId}] Invalid plugin revision: ${request.headers['blert-revision']} (${request.headers['blert-runelite-version']})`,
         );
         socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
         socket.destroy();
@@ -239,25 +246,6 @@ async function main(): Promise<void> {
     serverManager.handleNewClient(client);
     console.log(`${client} connected`);
   });
-}
-
-function verifyRevision(
-  validRevisions: Set<string>,
-  revision: string | undefined,
-): boolean {
-  if (!process.env.BLERT_REVISIONS_FILE) {
-    return true;
-  }
-
-  if (revision === undefined) {
-    return false;
-  }
-  revision = revision.split(':')[0];
-  if (revision === undefined) {
-    return false;
-  }
-
-  return validRevisions.has(revision);
 }
 
 main();
