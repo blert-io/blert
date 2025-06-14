@@ -10,6 +10,7 @@ import {
   type SetupState,
 } from '@/actions/setup';
 import { getSignedInUser } from '@/actions/users';
+import Card from '@/components/card';
 
 import { cursorFromParam } from '../query';
 import { SetupList } from '../setup-list';
@@ -80,28 +81,48 @@ export default async function MySetupsPage({
 
   return (
     <div className={`${styles.setupsPage} ${styles.mySetups}`}>
-      <div className={styles.title}>
-        <h1>Your Setups</h1>
-        <Link href="/setups/new">
-          <i className="fas fa-plus" />
-          <span>New setup</span>
-        </Link>
-      </div>
-      <div className={styles.sections}>
-        <div className={styles.section}>
-          <SetupList
-            setups={setups.setups}
-            nextCursor={setups.nextCursor}
-            prevCursor={setups.prevCursor}
-            currentFilter={filter}
-            showState
-            showPagination
-            showStateFilter
-            showSearch
-            position={position}
-            total={setups.total}
-            limit={SETUPS_PER_PAGE}
-          />
+      <Card primary className={styles.pageHeader}>
+        <div className={styles.headerContent}>
+          <div className={styles.titleSection}>
+            <h1>Your Setups</h1>
+            <p className={styles.subtitle}>
+              Manage and organize your personal gear setups collection
+            </p>
+          </div>
+          <Link href="/setups/new" className={styles.createButton}>
+            <i className="fas fa-plus" />
+            <span>Create Setup</span>
+          </Link>
+        </div>
+      </Card>
+
+      <div className={styles.content}>
+        <div className={styles.publicSetupsSection}>
+          <Card
+            header={{
+              title: (
+                <div className={styles.sectionTitle}>
+                  <i className="fas fa-user-gear" />
+                  Setup Management
+                </div>
+              ),
+            }}
+            className={styles.publicSetupsCard}
+          >
+            <SetupList
+              setups={setups.setups}
+              nextCursor={setups.nextCursor}
+              prevCursor={setups.prevCursor}
+              currentFilter={filter}
+              showState
+              showPagination
+              showStateFilter
+              showSearch
+              position={position}
+              total={setups.total}
+              limit={SETUPS_PER_PAGE}
+            />
+          </Card>
         </div>
       </div>
     </div>

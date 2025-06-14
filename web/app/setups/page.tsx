@@ -8,6 +8,7 @@ import {
   type SetupCursor,
   type SetupSort,
 } from '@/actions/setup';
+import Card from '@/components/card';
 
 import { cursorFromParam } from './query';
 import { SetupList } from './setup-list';
@@ -68,50 +69,92 @@ export default async function SetupsPage({ searchParams }: SetupsPageProps) {
 
   return (
     <div className={styles.setupsPage}>
-      <div className={styles.title}>
-        <h1>Gear Setups</h1>
-        <Link href="/setups/new">
-          <i className="fas fa-plus" />
-          <span>New setup</span>
-        </Link>
-      </div>
-      <div className={styles.sections}>
+      <Card primary className={styles.pageHeader}>
+        <div className={styles.headerContent}>
+          <div className={styles.titleSection}>
+            <h1>Gear Setups</h1>
+            <p className={styles.subtitle}>
+              Browse and create community gear setups for various PvM challenges
+            </p>
+          </div>
+          <Link href="/setups/new" className={styles.createButton}>
+            <i className="fas fa-plus" />
+            <span>Create Setup</span>
+          </Link>
+        </div>
+      </Card>
+
+      <div className={styles.content}>
         {userSetups && (
-          <div className={styles.section}>
-            <div className={styles.sectionHeader}>
-              <h2>Your setups</h2>
-              <Link href="/setups/my" className={styles.showAll}>
-                Show all
-              </Link>
-            </div>
-            {userSetups.setups.length > 0 ? (
-              <SetupList
-                setups={userSetups.setups}
-                showState
-                className={styles.userSetups}
-                position={0}
-                total={userSetups.total}
-                limit={SETUPS_PER_PAGE}
-              />
-            ) : (
-              <p>You have not yet created any setups.</p>
-            )}
+          <div className={styles.userSetupsSection}>
+            <Card
+              header={{
+                title: (
+                  <div className={styles.sectionTitle}>
+                    <i className="fas fa-user" />
+                    Your Setups
+                  </div>
+                ),
+                action: userSetups.total > SETUPS_PER_PAGE && (
+                  <Link href="/setups/my" className={styles.viewAllLink}>
+                    View All ({userSetups.total})
+                    <i className="fas fa-arrow-right" />
+                  </Link>
+                ),
+              }}
+              className={styles.userSetupsCard}
+            >
+              {userSetups.setups.length > 0 ? (
+                <SetupList
+                  setups={userSetups.setups}
+                  showState
+                  className={styles.userSetups}
+                  position={0}
+                  total={userSetups.total}
+                  limit={SETUPS_PER_PAGE}
+                />
+              ) : (
+                <div className={styles.emptyState}>
+                  <i className="fas fa-shield-halved" />
+                  <h3>No setups yet</h3>
+                  <p>
+                    You haven’t created any gear setups. Start by creating your
+                    first setup!
+                  </p>
+                  <Link href="/setups/new" className={styles.emptyStateButton}>
+                    <i className="fas fa-plus" />
+                    Create Your First Setup
+                  </Link>
+                </div>
+              )}
+            </Card>
           </div>
         )}
-        <div className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h2>All setups</h2>
-          </div>
-          <SetupList
-            setups={publicSetups.setups}
-            nextCursor={publicSetups.nextCursor}
-            prevCursor={publicSetups.prevCursor}
-            currentFilter={filter}
-            position={position}
-            total={publicSetups.total}
-            limit={SETUPS_PER_PAGE}
-            showPagination
-          />
+
+        <div className={styles.publicSetupsSection}>
+          <Card
+            header={{
+              title: (
+                <div className={styles.sectionTitle}>
+                  <i className="fas fa-globe" />
+                  Community Setups
+                </div>
+              ),
+            }}
+            className={styles.publicSetupsCard}
+          >
+            <SetupList
+              setups={publicSetups.setups}
+              nextCursor={publicSetups.nextCursor}
+              prevCursor={publicSetups.prevCursor}
+              currentFilter={filter}
+              position={position}
+              total={publicSetups.total}
+              limit={SETUPS_PER_PAGE}
+              showPagination
+              showSearch
+            />
+          </Card>
         </div>
       </div>
     </div>

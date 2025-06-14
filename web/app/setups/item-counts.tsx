@@ -2,6 +2,7 @@
 
 import { useContext } from 'react';
 
+import Card from '@/components/card';
 import Item from '@/components/item';
 import { extendedItemCache } from '@/utils/item-cache/extended';
 
@@ -42,8 +43,10 @@ export default function ItemCounts({ setup, selectedItemId }: ItemCountsProps) {
   itemCounts.sort((a, b) => a[0] - b[0]);
 
   return (
-    <div className={`${styles.panel} ${styles.itemCounts}`}>
-      <h3>Required Items</h3>
+    <Card className={styles.itemCounts}>
+      <h3>
+        <i className="fas fa-box" /> Required Items
+      </h3>
       <div className={styles.items}>
         {itemCounts.length > 0 ? (
           itemCounts.map(([id, quantity]) => (
@@ -66,6 +69,6 @@ export default function ItemCounts({ setup, selectedItemId }: ItemCountsProps) {
           <div className={styles.noItems}>No items in setup.</div>
         )}
       </div>
-    </div>
+    </Card>
   );
 }

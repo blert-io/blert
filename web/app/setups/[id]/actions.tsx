@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 
 import { SetupMetadata, cloneGearSetup } from '@/actions/setup';
-import Button from '@/components/button';
 import Menu from '@/components/menu';
 import { useToast } from '@/components/toast';
 
@@ -79,30 +78,37 @@ export default function SetupActions({
   return (
     <div className={styles.actions}>
       {showEdit && (
-        <Link href={`/setups/${setup.publicId}/edit`}>
+        <Link
+          href={`/setups/${setup.publicId}/edit`}
+          className={styles.editButton}
+        >
           <i className="fas fa-pencil-alt" />
           <span>Edit</span>
         </Link>
       )}
       {showDelete && (
-        <Button
-          className={styles.delete}
+        <button
+          className={`${styles.actionButton} ${styles.deleteButton}`}
           onClick={() => setShowDeleteModal(true)}
         >
           <i className="fas fa-trash" />
-          <span style={{ marginLeft: 8 }}>Delete</span>
-        </Button>
+          <span>Delete</span>
+        </button>
       )}
       {showClone && (
-        <Button onClick={forkSetup}>
+        <button className={styles.actionButton} onClick={forkSetup}>
           <i className="fas fa-clone" />
-          <span style={{ marginLeft: 8 }}>Clone</span>
-        </Button>
+          <span>Clone</span>
+        </button>
       )}
-      <Button id="setup-export-button" onClick={() => setShowExportMenu(true)}>
+      <button
+        id="setup-export-button"
+        className={styles.actionButton}
+        onClick={() => setShowExportMenu(true)}
+      >
         <i className="fas fa-download" />
-        <span style={{ marginLeft: 8 }}>Export…</span>
-      </Button>
+        <span>Export…</span>
+      </button>
       <DeleteModal
         open={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}

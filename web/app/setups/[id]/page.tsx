@@ -2,6 +2,7 @@ import { ResolvingMetadata } from 'next';
 import { headers } from 'next/headers';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { challengeName } from '@blert/common';
 
 import { auth } from '@/auth';
 import {
@@ -10,6 +11,7 @@ import {
   loadSetupData,
   incrementSetupViews,
 } from '@/actions/setup';
+import Card from '@/components/card';
 import Tooltip from '@/components/tooltip';
 import { getRequestIp } from '@/utils/headers';
 
@@ -19,7 +21,6 @@ import Panels from './panels';
 import { SetupViewingContextProvider } from '../viewing-context';
 import VoteBar from '../vote-bar';
 
-import setupStyles from '../style.module.scss';
 import styles from './style.module.scss';
 
 type GearSetupProps = {
@@ -80,50 +81,71 @@ export default async function GearSetupPage({
   return (
     <SetupViewingContextProvider initialHighlightedPlayer={highlightedPlayer}>
       <div className={styles.setupPage}>
-        <div className={`${setupStyles.panel} ${styles.header}`}>
-          <div className={styles.metadata}>
-            <h1>{gearSetup.title}</h1>
-            {!isLatestRevision && (
-              <div className={styles.revisionBanner}>
-                You are viewing an older revision of this setup.{' '}
-                <Link href={`/setups/${setup.publicId}`}>
-                  View latest version
-                </Link>
+        <Card primary className={styles.headerCard}>
+          <div className={styles.headerContent}>
+            <div className={styles.metadata}>
+              <h1>{gearSetup.title}</h1>
+              {!isLatestRevision && (
+                <div className={styles.revisionBanner}>
+                  <i className="fas fa-info-circle" />
+                  <span>
+                    You are viewing an older revision of this setup.{' '}
+                    <Link href={`/setups/${setup.publicId}`}>
+                      View latest version
+                    </Link>
+                  </span>
+                </div>
+              )}
+              <div className={styles.setupInfo}>
+                <div className={styles.setupMeta}>
+                  <span className={styles.author}>
+                    <i className="fas fa-user" />
+                    <span className={styles.username}>{setup.author}</span>
+                  </span>
+                  <span className={styles.challenge}>
+                    <i className="fas fa-shield" />
+                    {challengeName(gearSetup.challenge)}
+                  </span>
+                  <span className={styles.version}>
+                    <i className="fas fa-code-branch" />v{targetRevision}
+                  </span>
+                  <span className={styles.views}>
+                    <i className="fas fa-eye" />
+                    <span>{setup.views.toLocaleString()}</span>
+                  </span>
+                </div>
+                <div className={styles.voteSection}>
+                  <VoteBar
+                    publicId={setup.publicId}
+                    initialLikes={setup.likes}
+                    initialDislikes={setup.dislikes}
+                    initialVote={currentVote}
+                    disabled={!loggedIn || isAuthor || !isLatestRevision}
+                    width={280}
+                  />
+                </div>
               </div>
-            )}
-            <div className={styles.info}>
-              <div className={styles.author}>
-                by <span className={styles.username}>{setup.author}</span>
-              </div>
-              <div className={styles.version}>v{targetRevision}</div>
-              <div className={styles.views}>
-                <i className="fas fa-eye" />
-                <span>{setup.views}</span>
-              </div>
-              <VoteBar
-                publicId={setup.publicId}
-                initialLikes={setup.likes}
-                initialDislikes={setup.dislikes}
-                initialVote={currentVote}
-                disabled={!loggedIn || isAuthor || !isLatestRevision}
-                width={300}
+            </div>
+            <div className={styles.actionsSection}>
+              <SetupActions
+                showClone={loggedIn}
+                showDelete={isAuthor}
+                showEdit={isAuthor && isLatestRevision}
+                setup={setup}
+                gearSetup={gearSetup}
               />
             </div>
           </div>
-          <SetupActions
-            showClone={loggedIn}
-            showDelete={isAuthor}
-            showEdit={isAuthor && isLatestRevision}
-            setup={setup}
-            gearSetup={gearSetup}
-          />
           <CollapsibleDescription text={gearSetup.description} />
+        </Card>
+
+        <div className={styles.content}>
+          <Panels
+            setupMetadata={setup}
+            gearSetup={gearSetup}
+            currentRevision={targetRevision}
+          />
         </div>
-        <Panels
-          setupMetadata={setup}
-          gearSetup={gearSetup}
-          currentRevision={targetRevision}
-        />
       </div>
       <Tooltip tooltipId="slot-tooltip">Hover an item</Tooltip>
     </SetupViewingContextProvider>

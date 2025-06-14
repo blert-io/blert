@@ -1,108 +1,256 @@
 @use '../mixins.scss' as *;
 
 .setupsPage {
-  padding: 24px;
+  padding: 2rem 1rem;
   max-width: 1400px;
   margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 24px;
+  width: 100%;
+  overflow-x: hidden;
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    width: 100%;
-    padding: 10px 0;
+    padding: 1rem 0.5rem;
   }
 
   &.mySetups {
-    max-width: 710px;
+    max-width: 1400px;
   }
+}
 
-  .title {
-    width: 100%;
+.pageHeader {
+  margin-bottom: 2.5rem;
+
+  .headerContent {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-
-    @media (max-width: 1640px) {
-      max-width: 660px;
-    }
-
-    h1 {
-      margin: 0;
-      font-size: 32px;
-      font-weight: 600;
-    }
-
-    a {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 16px;
-      border-radius: 5px;
-      padding: 8px 10px;
-      background-color: var(--blert-button);
-      color: white;
-      font-weight: 600;
-      border: 1px solid var(--blert-button);
-      text-decoration: none;
-
-      &:hover {
-        cursor: pointer;
-        opacity: 0.9;
-      }
-
-      i {
-        position: relative;
-        top: 1px;
-      }
-    }
-  }
-
-  .sections {
-    display: flex;
-    flex-flow: row wrap;
-    justify-content: center;
-    gap: 24px;
-  }
-
-  .section {
-    @include panel;
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    max-width: 660px;
+    align-items: flex-end;
+    gap: 2rem;
 
     @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-      padding: 10px;
-    }
-
-    .sectionHeader {
-      display: flex;
-      justify-content: space-between;
+      flex-direction: column;
       align-items: center;
+      text-align: center;
+      gap: 1.5rem;
+    }
+  }
 
-      h2 {
-        margin: 0;
-        font-size: 24px;
-        font-weight: 500;
+  .titleSection {
+    flex: 1;
+
+    h1 {
+      text-align: left;
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin: 0 0 0.5rem 0;
+      background: linear-gradient(
+        135deg,
+        var(--blert-text-color),
+        rgba(var(--blert-text-color-base), 0.8)
+      );
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1.2;
+
+      @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+        font-size: 2rem;
       }
+    }
 
-      .showAll {
-        color: var(--blert-button);
-        font-size: 14px;
-        font-weight: 500;
-        text-decoration: none;
+    .subtitle {
+      color: var(--font-color-nav);
+      font-size: 1.1rem;
+      margin: 0;
+      line-height: 1.5;
+      max-width: 600px;
 
-        &:hover {
-          text-decoration: underline;
-        }
+      @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+        font-size: 1rem;
+        margin: 0 auto;
       }
     }
   }
 
-  .userSetups {
-    max-width: 800px;
+  .createButton {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border-radius: 6px;
+    font-weight: 500;
+    background: var(--blert-button);
+    color: #fff;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    font-size: 1rem;
+    white-space: nowrap;
+
+    &:hover {
+      background: rgba(var(--blert-button-base), 0.8);
+      transform: translateY(-1px);
+
+      i {
+        transform: translateX(2px);
+      }
+    }
+
+    i {
+      transition: transform 0.2s ease;
+      font-size: 0.9em;
+    }
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      width: 100%;
+      max-width: 200px;
+    }
   }
+}
+
+.content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 2rem;
+  align-items: start;
+  width: 100%;
+  max-width: 100%;
+
+  @media (max-width: 1200px) {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+}
+
+.setupsPage.mySetups .content {
+  grid-template-columns: 1fr;
+  max-width: none;
+}
+
+.userSetupsSection {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.publicSetupsSection {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.2em;
+  font-weight: 600;
+  color: var(--blert-text-color);
+
+  i {
+    color: var(--blert-button);
+    font-size: 1.1em;
+  }
+}
+
+.viewAllLink {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--blert-button);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+
+  &:hover {
+    color: rgba(var(--blert-button-base), 0.8);
+
+    i {
+      transform: translateX(2px);
+    }
+  }
+
+  i {
+    font-size: 0.8em;
+    transition: transform 0.2s ease;
+  }
+}
+
+.userSetupsCard,
+.publicSetupsCard {
+  width: 100%;
+  max-width: 100%;
+  height: fit-content;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 3rem 2rem;
+  background: linear-gradient(
+    135deg,
+    rgba(var(--blert-button-base), 0.05) 0%,
+    rgba(var(--nav-bg-base), 0.3) 100%
+  );
+  border-radius: 12px;
+  border: 1px solid rgba(var(--blert-button-base), 0.1);
+
+  i {
+    font-size: 3rem;
+    color: var(--blert-button);
+    margin-bottom: 1rem;
+    opacity: 0.8;
+  }
+
+  h3 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0 0 0.5rem 0;
+    color: var(--blert-text-color);
+  }
+
+  p {
+    color: var(--font-color-nav);
+    margin: 0 0 1.5rem 0;
+    font-size: 1rem;
+    line-height: 1.5;
+    max-width: 400px;
+  }
+
+  .emptyStateButton {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: var(--nav-bg);
+    color: var(--blert-text-color);
+    border: 1px solid var(--font-color-nav-divider);
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: var(--nav-bg-lightened);
+      border-color: var(--blert-button);
+      color: var(--blert-button);
+
+      i {
+        transform: scale(1.1);
+      }
+    }
+
+    i {
+      transition: transform 0.2s ease;
+      font-size: 0.9em;
+    }
+  }
+}
+
+.userSetups {
+  max-width: 800px;
 }

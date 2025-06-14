@@ -994,7 +994,7 @@ function CustomFiltersModal({
       <div className={styles.customFiltersContent}>
         {searchTerm && (
           <div className={styles.searchInfo}>
-            Showing filters matching "{searchTerm}"
+            Showing filters matching &quot;{searchTerm}&quot;
           </div>
         )}
         <CollapsibleList

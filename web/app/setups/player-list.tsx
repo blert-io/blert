@@ -2,6 +2,7 @@
 
 import { useContext, useEffect, useState } from 'react';
 
+import Card from '@/components/card';
 import Carousel from '@/components/carousel';
 import { DisplayContext } from '@/display';
 
@@ -19,6 +20,7 @@ type PlayerListProps = {
   players: GearSetupPlayer[];
   onAddPlayer?: () => void;
   showAddButton?: boolean;
+  maxPlayersPerRow?: number;
 };
 
 export default function PlayerList({
@@ -26,6 +28,7 @@ export default function PlayerList({
   players,
   onAddPlayer,
   showAddButton = false,
+  maxPlayersPerRow = 4,
 }: PlayerListProps) {
   const display = useContext(DisplayContext);
   const { highlightedPlayerIndex } = useContext(SetupViewingContext);
@@ -53,7 +56,7 @@ export default function PlayerList({
     </div>
   );
 
-  const classes = [styles.panel, styles.players];
+  const classes = [styles.players];
   if (className) {
     classes.push(className);
   }
@@ -75,15 +78,24 @@ export default function PlayerList({
     );
   }
 
+  const playersPerRow =
+    Math.min(players.length, maxPlayersPerRow) + (showAddButton ? 1 : 0);
+  const playerWidth = PLAYER_WIDTH;
+  const totalGap = (playersPerRow - 1) * PLAYER_GAP;
+  const minContainerWidth = playersPerRow * playerWidth + totalGap;
+
   return (
-    <div className={classes.join(' ')}>
+    <Card className={classes.join(' ')}>
       <div className={styles.wrapper} style={{ width: '100%' }}>
         <div
           className={styles.list}
           style={{
-            width: '100%',
-            flexWrap: 'wrap',
+            display: 'grid',
+            gridTemplateColumns: `repeat(auto-fit, minmax(${playerWidth}px, 1fr))`,
             gap: PLAYER_GAP,
+            justifyContent: 'center',
+            maxWidth: `${minContainerWidth}px`,
+            margin: '0 auto',
           }}
         >
           {players.map((player, index) => (
@@ -92,6 +104,6 @@ export default function PlayerList({
           {showAddButton && addPlayerButton}
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

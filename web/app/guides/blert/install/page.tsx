@@ -70,7 +70,7 @@ export default function BlertInstallGuide() {
       <ol>
         <li>
           <p>
-            Open IntelliJ, then click <strong>"Get from VCS"</strong> on the
+            Open IntelliJ, then click <strong>Get from VCS</strong> on the
             welcome screen.
           </p>
           <p>

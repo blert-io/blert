@@ -83,12 +83,12 @@ function ErrorStatsPlaceholder() {
       <div className={styles.placeholderCard}>
         <h3>About This Analysis</h3>
         <p>
-          This tool visualizes where Bloat's hands spawn across thousands of
+          This tool visualizes where Bloat’s hands spawn across thousands of
           Theatre of Blood raids, helping you understand spawn patterns.
         </p>
       </div>
       <div className={styles.placeholderCard}>
-        <h3>What You'll See</h3>
+        <h3>What You’ll See</h3>
         <ul>
           <li>
             <strong>Heat Map:</strong> Color-coded spawn frequency by tile

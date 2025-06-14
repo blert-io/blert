@@ -24,7 +24,7 @@ export default function GettingStarted() {
         <Link href="/register" target="_blank">
           sign up here
         </Link>{' '}
-        (opens in a new tab). Your Blert username doesn't have to be the same as
+        (opens in a new tab). Your Blert username doesn’t have to be the same as
         your OSRS account.
       </p>
 

@@ -54,7 +54,7 @@ interface PlayerCardProps {
 function PlayerCard({ player, role }: PlayerCardProps) {
   let deathTooltipContent = '';
   if (player.stageDeaths.length > 0) {
-    deathTooltipContent = `Died at ${player.stageDeaths.map(stageName).join(', ')}`;
+    deathTooltipContent = `Died at ${player.stageDeaths.map((stage) => stageName(stage)).join(', ')}`;
   }
 
   return (
