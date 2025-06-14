@@ -10,6 +10,8 @@
 }
 
 .subtitle {
+  margin-top: 0;
+  color: var(--font-color-nav);
   font-style: italic;
   font-size: 0.9em;
 }
@@ -73,7 +75,6 @@
 
         &.main {
           font-weight: 500;
-          color: #fff;
         }
 
         &:hover {
@@ -84,7 +85,7 @@
       .guideDesc {
         margin: 0.25em 0 0 0;
         font-size: 0.85em;
-        color: rgba(var(--blert-text-color-base), 0.8);
+        color: var(--font-color-nav);
       }
 
       ul {

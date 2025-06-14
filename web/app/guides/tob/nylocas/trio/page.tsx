@@ -24,7 +24,6 @@ export default function TrioNylo() {
         .
       </span>
       <GuideTags challenge={ChallengeType.TOB} scale={3} level="max-eff" />
-      <Article.TableOfContents />
 
       <Article.Heading level={2} text="Overview" />
       <p>
@@ -34,7 +33,7 @@ export default function TrioNylo() {
       </p>
       <Article.Heading level={3} text="Team goals" />
       <p>
-        In trio waves, you are aiming for 2:55.2 or 2:57.6 boss spawn. The goal
+        In trio waves, you are aiming for 2:55.2 or 2:57.6 boss spawn. Your goal
         is to:
       </p>
       <ol>
@@ -60,14 +59,17 @@ export default function TrioNylo() {
       <p>
         The Nyloer plugin allows you to automatically dim every Nylo currently
         currently in the room at a specific wave by setting the{' '}
-        <em>Darker Wave</em> option within its <em>Font Settings</em> tab. This
-        visually distinguishes relevant smalls from those which will
-        automatically expire by certain time thresholds.
+        <Link href="/guides/tob/plugins#nyloer-dimming">Darker Wave</Link>{' '}
+        option within its <em>Font Settings</em> tab. This visually
+        distinguishes relevant smalls from those which will automatically expire
+        by certain time thresholds.
       </p>
-      <p>
-        When playing for a 2:55.2 boss spawn, set your <em>Darker Wave</em> to{' '}
-        <strong>28</strong>.
-      </p>
+      <Article.Notice type="info">
+        <p>
+          When playing for a 2:55.2 boss spawn, set your <em>Darker Wave</em> to{' '}
+          <strong>28</strong>.
+        </p>
+      </Article.Notice>
       <p>
         Additionally, you can set a <em>Make Darker Hotkey</em> to manually dim
         existing Nylos. Dimming on the wave 22 spawn (1:45.6 room time) is
@@ -200,22 +202,22 @@ export default function TrioNylo() {
           Sang the <Mage>24 south big</Mage> until it dies.
         </li>
         <li>
-          Sang the <Mage>25 east big</Mage> until it dies. (If you attack on the
-          first tick it spawns, it will flicker melee at the time of the second
-          Sang.)
+          Sang the <Mage>25 east big</Mage>. If you attack on the first tick it
+          spawns, it will flicker melee at the time of the second Sang.
         </li>
         <li>
-          Sang the <Mage>26 west big</Mage> until it dies.
+          Sang the <Mage>26 west big</Mage> once.
         </li>
         <li>
-          Sang the <Mage>27 west big</Mage> until it dies.
-        </li>
-        <li>
-          Barrage the <Mage>26 east big</Mage> alongside any splits on the
-          northeast pillar.
+          Sang the <Mage>27 west big</Mage> until it dies. Return to the{' '}
+          <Mage>26 west big</Mage> if your previous Sang didn&apos;t kill it.
         </li>
         <li>
           Sang the <Mage>27 east big</Mage> until it dies.
+        </li>
+        <li>
+          Kill the <Mage>26 east big</Mage> on the northeast pillar. There are
+          often mage splits around it allowing you to barrage.
         </li>
       </ul>
       <Article.Heading level={4} idPrefix="mage" text="Waves 28-29" />

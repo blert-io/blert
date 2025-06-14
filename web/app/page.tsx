@@ -97,12 +97,10 @@ export default async function Home() {
               Create Account <i className="fas fa-arrow-right" />
             </Link>
             <Link
-              href="https://github.com/blert-io/plugin/blob/main/DEVELOPMENT.md"
-              target="_blank"
-              rel="noreferrer noopener"
+              href="/guides/blert/install"
               className={styles.secondaryButton}
             >
-              Get Plugin <i className="fas fa-external-link-alt" />
+              Get Plugin <i className="fas fa-arrow-right" />
             </Link>
           </div>
         </div>

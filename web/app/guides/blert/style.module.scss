@@ -1,0 +1,7 @@
+@use '@/mixins' as *;
+
+.blertGuide {
+  li i {
+    color: var(--blert-button);
+  }
+}

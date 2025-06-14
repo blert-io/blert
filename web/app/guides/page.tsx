@@ -5,11 +5,12 @@ import Link from 'next/link';
 import { basicMetadata } from '@/utils/metadata';
 
 import styles from './style.module.scss';
+import Card from '@/components/card';
 
 export default function GuidesPage() {
   return (
     <div className={styles.guides}>
-      <div className={`${styles.guidePanel} ${styles.guidesHeader}`}>
+      <Card className={`${styles.guidePanel} ${styles.guidesHeader}`} primary>
         <h1>
           <i className="fas fa-book" /> OSRS PvM Guides
         </h1>
@@ -34,9 +35,102 @@ export default function GuidesPage() {
             </span>
           </div>
         </div>
-      </div>
+      </Card>
 
-      <h2 className={styles.sectionTitle}>Available Guides</h2>
+      <Card className={`${styles.guidePanel} ${styles.section}`}>
+        <h2>Blert Usage</h2>
+        <div className={styles.description}>
+          <p>
+            Get the most out of your Blert plugin. From initial installation to
+            advanced features, these guides will help you configure Blert for
+            optimal PvM analysis and improvement.
+          </p>
+        </div>
+
+        <div className={styles.usageLinks}>
+          <Link className={`${styles.usageLink}`} href="/guides/blert/install">
+            <div className={styles.usageLinkContent}>
+              <i className="fas fa-download" />
+              <div>
+                <h4>Plugin Installation</h4>
+                <p>
+                  Step-by-step guide to installing the Blert RuneLite plugin
+                </p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            className={`${styles.usageLink}`}
+            href="/guides/blert/getting-started"
+          >
+            <div className={styles.usageLinkContent}>
+              <i className="fas fa-play-circle" />
+              <div>
+                <h4>Getting Started</h4>
+                <p>Basic setup and your first raid recording</p>
+              </div>
+            </div>
+          </Link>
+
+          {/* TODO(frolv): Add these guides back in when they are ready. */}
+          {/*
+          <Link
+            className={`${styles.usageLink}`}
+            href="/guides/blert/configuration"
+          >
+            <div className={styles.usageLinkContent}>
+              <i className="fas fa-cog" />
+              <div>
+                <h4>Configuration</h4>
+                <p>Customize plugin settings and recording preferences</p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            className={`${styles.usageLink}`}
+            href="/guides/blert/analyzing-raids"
+          >
+            <div className={styles.usageLinkContent}>
+              <i className="fas fa-chart-line" />
+              <div>
+                <h4>Analyzing Your Raids</h4>
+                <p>How to review and interpret your recorded raid data</p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            className={`${styles.usageLink}`}
+            href="/guides/blert/troubleshooting"
+          >
+            <div className={styles.usageLinkContent}>
+              <i className="fas fa-wrench" />
+              <div>
+                <h4>Troubleshooting</h4>
+                <p>Common issues and solutions for the Blert plugin</p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            className={`${styles.usageLink}`}
+            href="/guides/blert/advanced-features"
+          >
+            <div className={styles.usageLinkContent}>
+              <i className="fas fa-star" />
+              <div>
+                <h4>Advanced Features</h4>
+                <p>Explore advanced plugin capabilities and integrations</p>
+              </div>
+            </div>
+          </Link>
+          */}
+        </div>
+      </Card>
+
+      <h2 className={styles.sectionTitle}>Guides by Category</h2>
 
       <div className={styles.links}>
         <Link

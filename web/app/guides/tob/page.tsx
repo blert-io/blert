@@ -2,6 +2,7 @@ import { ResolvingMetadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 
+import Card from '@/components/card';
 import { basicMetadata } from '@/utils/metadata';
 
 import guideStyles from '../style.module.scss';
@@ -10,7 +11,10 @@ import styles from './style.module.scss';
 export default function TobGuides() {
   return (
     <div className={guideStyles.guides}>
-      <div className={`${guideStyles.guidePanel} ${guideStyles.guidesHeader}`}>
+      <Card
+        className={`${guideStyles.guidePanel} ${guideStyles.guidesHeader}`}
+        primary
+      >
         <h1>
           <i className="fas fa-book" /> Theatre of Blood Guides
         </h1>
@@ -18,10 +22,10 @@ export default function TobGuides() {
           Our selection of guides is currently limited, but we are working hard
           to expand our collection. Check back soon!
         </p>
-      </div>
+      </Card>
 
       <div className={styles.sections}>
-        <div className={`${guideStyles.guidePanel} ${styles.section}`}>
+        <Card className={`${guideStyles.guidePanel} ${styles.section}`}>
           <h2>General</h2>
           <p className={styles.sectionDesc}>
             Essential information for getting started with Theatre of Blood.
@@ -38,9 +42,9 @@ export default function TobGuides() {
               </li>
             </ul>
           </div>
-        </div>
+        </Card>
 
-        <div className={`${guideStyles.guidePanel} ${styles.section}`}>
+        <Card className={`${guideStyles.guidePanel} ${styles.section}`}>
           <h2>The Nylocas</h2>
           <div className={styles.sectionImage}>
             <Image
@@ -89,7 +93,7 @@ export default function TobGuides() {
               </li>
             </ul>
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );

@@ -1,4 +1,9 @@
+'use client';
+
 import Link from 'next/link';
+import { useCallback } from 'react';
+
+import { useToast } from '@/components/toast';
 
 import styles from './style.module.scss';
 
@@ -18,6 +23,8 @@ export function Heading({
   idPrefix,
   ...headingProps
 }: HeadingProps) {
+  const showToast = useToast();
+
   let id: string;
 
   if (userId) {
@@ -32,6 +39,21 @@ export function Heading({
     }
   }
 
+  const handleCopyLink = useCallback(
+    async (e: React.MouseEvent) => {
+      e.preventDefault();
+
+      try {
+        const url = `${window.location.origin}${window.location.pathname}#${id}`;
+        await navigator.clipboard.writeText(url);
+        showToast('Link copied to clipboard!');
+      } catch (error) {
+        showToast('Failed to copy link', 'error');
+      }
+    },
+    [id, showToast],
+  );
+
   let fullClass = styles.heading;
   if (className) {
     fullClass += ` ${className}`;
@@ -41,7 +63,14 @@ export function Heading({
 
   return (
     <Tag {...headingProps} className={fullClass} id={id}>
-      <i className="fas fa-link" />
+      <button
+        className={styles.linkButton}
+        onClick={handleCopyLink}
+        title={`Copy link to "${text}"`}
+        aria-label={`Copy link to ${text}`}
+      >
+        <i className="fas fa-link" />
+      </button>
       <Link href={`#${id}`}>{text}</Link>
     </Tag>
   );

@@ -30,7 +30,6 @@ export default function RangerNyloGuide() {
         to raid with.
       </span>
       <GuideTags challenge={ChallengeType.TOB} scale={4} level="max-eff" />
-      <Article.TableOfContents />
 
       <Article.Heading level={2} text="Prelude" />
       <p>

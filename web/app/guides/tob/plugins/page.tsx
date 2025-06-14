@@ -10,20 +10,18 @@ export default function PluginGuide() {
     <Article.Page>
       <Article.Heading level={1} text="Theatre of Blood Plugins" />
       <em>
-        Note: This list of plugins is incomplete; we are continuing to update
-        it.
+        Note: This list of plugins is incomplete and will be updated over time.
       </em>
-      <Article.TableOfContents />
       <Article.Heading level={2} text="General" />
       <Article.Heading level={3} text="Party / Hub Party Panel" />
       <p>
         While not ToB-specific, the Party plugin is perhaps the most essential
         plugin to have when doing any group PvM. At its core, it shares basic
         information about your character with your teammates, such as your
-        current hitpoints, prayer points, and special attack energy. What is
-        more useful, though, is that it provides a mechanism through which other
-        plugins can share information, enabling many features which greatly
-        improve your raid experience.
+        current hitpoints, prayer points, and special attack energy. More
+        importantly, it provides a mechanism for other plugins to share
+        information, enabling many features which greatly improve your raid
+        experience.
       </p>
       <p>
         One such plugin that builds on Party is the{' '}
@@ -36,7 +34,7 @@ export default function PluginGuide() {
       <Article.Heading level={3} text="Special Attack Counter" />
       <p>
         Special Attack Counter is a builtin Runelite plugin which tracks how
-        many defense-lowering special attacks you have landed on a boss. It
+        many defence-reducing special attacks you&apos;ve landed on a boss. It
         integrates with the Party plugin to share this information with your
         teammates.
       </p>
@@ -54,9 +52,9 @@ export default function PluginGuide() {
       <p>
         <Link href="https://runelite.net/plugin-hub/show/tob-qol">ToB QoL</Link>{' '}
         offers a variety of quality of life features throughout every room of
-        the Theatre of Blood. There are too many to list here; you are
-        encouraged to play around with them to see which you find useful. A
-        selection of the most notable features include:
+        the Theatre of Blood. There are too many to list here; we encourage you
+        to try them out to see which you find useful. A selection of the most
+        notable features include:
       </p>
       <ul>
         <li>
@@ -83,7 +81,7 @@ export default function PluginGuide() {
         <li>
           <p>
             <strong>Object hiders</strong>. You can hide the ceiling chains at
-            Bloat, as well as various objects in the Nylocas room, reducing
+            Bloat, along with various objects in the Nylocas room, reducing
             visual clutter.
           </p>
         </li>
@@ -98,30 +96,37 @@ export default function PluginGuide() {
       <Article.Heading level={2} text="The Pestilent Bloat" />
       <Article.Heading level={3} text="Ground Object Hider" />
       <p>
-        It can be difficult to see shadows on Bloat&apos;s floor through its
-        default texture, leading to embarrassing deaths. The{' '}
+        It can be difficult to see shadows on Bloat’s floor through its default
+        texture, leading to embarrassing deaths. The{' '}
         <Link href="https://runelite.net/plugin-hub/show/object-hider">
           Ground Object Hider
         </Link>{' '}
         plugin allows you to remove this floor texture. To achieve this, list
-        the following object IDs in the plugin&apos;s settings:
+        the following object IDs in the plugin’s settings:
       </p>
       <Article.Code language="plaintext">
         32941, 32942, 32943, 32944, 32945, 32946, 32947, 32948
       </Article.Code>
       <p>
-        However, this is insufficient by itself, as the floor simply gets
-        replaced with a black void. To change this, use the builtin Skybox
-        plugin to set both the overworld and cave skyboxes to a color of your
-        choice.
-        <Image
-          src="/images/guides/tob/plugins/skybox.png"
-          alt="Skybox plugin settings"
-          width={236}
-          height={95}
-          unoptimized
-        />
+        However, this alone isn’t enough, since the floor otherwise appears as a
+        black void. To change this, use the builtin Skybox plugin to set both
+        the Overworld and Cave skyboxes to a color of your choice.
       </p>
+      <Article.Notice type="warning">
+        <p>
+          You must set <em>both</em> the Overworld and Cave skyboxes, or the
+          floor will still occasionally appear black.
+        </p>
+      </Article.Notice>
+
+      <Image
+        src="/images/guides/tob/plugins/skybox.png"
+        alt="Skybox plugin settings"
+        width={236}
+        height={95}
+        unoptimized
+        style={{ borderRadius: 0 }}
+      />
 
       <Article.Heading level={2} text="The Nylocas" />
       <Article.Heading level={3} text="Nyloer" />
@@ -131,55 +136,103 @@ export default function PluginGuide() {
       </p>
       <Article.Heading level={4} idPrefix="nyloer" text="Wave numbers" />
       <p>
-        Nyloer&apos;s most useful feature is its wave indicators, which display
-        the wave number over every Nylo that spawns, as well as whether the Nylo
-        is a split. This makes it easy to prioritize Nylos which are newer,
+        Nyloer’s most useful feature is its wave indicators, which display the
+        wave number over every Nylo that spawns, as well as whether the Nylo is
+        a split. This makes it easy to prioritize Nylos which are newer,
         avoiding killing those which will expire soon.
       </p>
       <p>
         To enable wave numbers, tick the <em>Show Nylocas Wave</em> option in
         the plugin&apos;s <em>General Settings</em>:
-        <Image
-          src="/images/guides/tob/plugins/nyloer-wave.webp"
-          alt="Nyloer wave number setting"
-          width={229}
-          height={270}
-          unoptimized
-        />
       </p>
+      <Image
+        src="/images/guides/tob/plugins/nyloer-wave.webp"
+        alt="Nyloer wave number setting"
+        width={229}
+        height={270}
+        unoptimized
+        style={{ borderRadius: 0 }}
+      />
+      <Article.Heading level={4} idPrefix="nyloer" text="Dimming" />
       <p>
         A related feature is the ability to visually darken the wave numbers of
-        any Nylos currently in the room by pressing a{' '}
-        <em>Make Darker Hotkey</em>. This is more advanced, requiring an
-        understanding of the Nylo room cycle, but when used correctly, it
-        simplifies the decision making process to &quot;avoid dimmed
-        Nylos&quot;.
-        <Image
-          src="/images/guides/tob/plugins/nyloer-hotkey.png"
-          alt="Nyloer darken hotkey setting"
-          width={224}
-          height={27}
-          unoptimized
-        />
+        any Nylos currently in the room (&quot;dimming&quot;). Doing so provides
+        a visual indicator of which Nylos to avoid targeting, as they will
+        expire naturally before a key threshold.
       </p>
       <p>
-        The points at which to dim Nylos vary depending on the raid scale and
-        the wave times you are targeting. Nylo wave guides may mention
-        &quot;dimming&quot;; this is what they are referring to.
+        Most commonly, players will set a <em>Darker Wave</em> (and sometimes{' '}
+        <em>Darker Wave Offset</em>) under Nyloer’s <em>Font Settings</em>{' '}
+        before starting the room. Nyloer will then automatically dim Nylos as
+        soon as the specified wave and tick offsets are reached. The specific
+        wave and tick offsets are determined based on the boss spawn time a team
+        is targeting. The most common configurations are listed below.
       </p>
+      <table>
+        <thead>
+          <tr>
+            <th
+              colSpan={3}
+              style={{ textAlign: 'center', fontSize: '1.05rem' }}
+            >
+              <strong>Common dim settings (assuming no pre-28 stalls)</strong>
+            </th>
+          </tr>
+          <tr>
+            <th>Boss spawn time</th>
+            <th>Darker wave</th>
+            <th>Tick offset</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>2:48.0</td>
+            <td>26</td>
+            <td>0</td>
+          </tr>
+          <tr>
+            <td>2:50.4</td>
+            <td>27</td>
+            <td>0</td>
+          </tr>
+          <tr>
+            <td>2:52.8</td>
+            <td>27</td>
+            <td>4</td>
+          </tr>
+          <tr>
+            <td>2:55.2</td>
+            <td>28</td>
+            <td>0</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Nyloer also allows setting a <em>Make Darker Hotkey</em> to manually dim
+        Nylos on demand. This is more advanced, requiring an understanding of
+        the Nylocas room cycle, but can be invaluable to experienced players.
+      </p>
+      <Image
+        src="/images/guides/tob/plugins/nyloer-dim.png"
+        alt="Nyloer darken hotkey setting"
+        width={226}
+        height={82}
+        unoptimized
+        style={{ borderRadius: 0 }}
+      />
       <Article.Heading level={4} idPrefix="nyloer" text="Role menu swaps" />
       <p>
         Nyloer also allows you to configure menu priorities for your role,
-        putting the style(s) of Nylo you care about above others. This allows
-        you to simply left click on a stack of Nylos to attack the one you want.
-        This functionality replaces the Custom Menu Swaps plugin which players
-        previously used for this purpose.
+        prioritizing its relevant Nylo style(s), allowing you to simply left
+        click on a stack of Nylos to attack the one you want. This replaces the
+        need for the Custom Menu Swaps plugin which players previously used for
+        this purpose.
       </p>
       <p>
         Nyloer comes with default menu swaps for the Mage, Ranger, and Melee
         roles, which you can quickly switch between by clicking a button in the
-        plugin&apos;s sidebar panel. You can also customize these menu swaps to
-        your preference in the plugin&apos;s settings.
+        plugin’s sidebar panel. You can also customize these menu swaps to your
+        preference in the plugin’s settings.
       </p>
       <Article.Heading level={3} text="Nylo Death Indicators" />
       <p>
@@ -187,11 +240,11 @@ export default function PluginGuide() {
           Nylo Death Indicators
         </Link>{' '}
         tracks your experience drops as you attack Nylos and immediately hides
-        Nylos which will die to your attacks, before the client registers their
-        death. Better yet, it integrates with the Party plugin, also removing
-        the dead Nylo from your teammates&apos; screens. This is incredibly
-        useful to avoid doubling up on Nylos which your teammates have already
-        killed.
+        Nylos that will die to your attacks, before the client visually
+        registers their death. Better yet, it integrates with the Party plugin,
+        also removing the dead Nylo from your teammates&apos; screens. This is
+        incredibly useful to avoid doubling up on Nylos that your teammates have
+        already killed.
       </p>
     </Article.Page>
   );
