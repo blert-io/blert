@@ -1,4 +1,4 @@
-import { ChallengeType, Stage, StageStatus } from '../challenge';
+import { ChallengeMode, ChallengeType, Stage, StageStatus } from '../challenge';
 
 function normalizeUsername(username: string): string {
   return username.toLowerCase().replaceAll(' ', '_');
@@ -25,6 +25,22 @@ export function challengesKey(uuid: string) {
  */
 export function clientChallengesKey(id: number) {
   return `client-challenges:${id}`;
+}
+
+/**
+ * Returns the Redis key for a session with the given type, mode, and party.
+ * @param type Type of challenges in the session.
+ * @param mode Mode of challenges in the session.
+ * @param party Members of the party.
+ * @returns Key for the session.
+ */
+export function sessionKey(
+  type: ChallengeType,
+  mode: ChallengeMode,
+  party: string[],
+) {
+  const p = party.toSorted().map(normalizeUsername).join('-');
+  return `session:${type}:${mode}:${p}`;
 }
 
 /**

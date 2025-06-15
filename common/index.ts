@@ -162,6 +162,7 @@ export {
   challengesKey,
   clientChallengesKey,
   partyKeyChallengeList,
+  sessionKey,
   stageStreamFromRecord,
   stageStreamToRecord,
 } from './db/redis';

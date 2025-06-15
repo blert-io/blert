@@ -27,6 +27,7 @@ export interface Challenge {
   mode: ChallengeMode;
   scale: number;
   startTime: Date;
+  finishTime: Date | null;
   party: ChallengePlayer[];
   challengeTicks: number;
   overallTicks: number | null;

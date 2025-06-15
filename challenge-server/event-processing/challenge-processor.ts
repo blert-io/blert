@@ -48,10 +48,10 @@ type ModifiableChallengeFields = Pick<
   'challengeTicks' | 'mode' | 'stage' | 'status' | 'totalDeaths'
 >;
 
-type DatabaseChallengeFields = ModifiableChallengeFields & {
-  overallTicks: number | null;
-  fullRecording: boolean;
-};
+type DatabaseChallengeFields = ModifiableChallengeFields &
+  Pick<ApiChallenge, 'overallTicks' | 'finishTime'> & {
+    fullRecording: boolean;
+  };
 
 type CustomData = {
   players: PlayerInfo[];
@@ -204,10 +204,11 @@ export default abstract class ChallengeProcessor {
 
   /**
    * Finalizes the challenge data in the database.
+   * @param finishTime The time at which the challenge was finished.
    * @returns `true` if the challenge was written to the database, `false` if
    * the challenge was deleted.
    */
-  public async finish(): Promise<boolean> {
+  public async finish(finishTime: Date): Promise<boolean> {
     await this.loadIds();
 
     this.stageState = this.initialStageState();
@@ -243,6 +244,7 @@ export default abstract class ChallengeProcessor {
         status: this.challengeStatus,
         challengeTicks: this.totalChallengeTicks,
         overallTicks: this.reportedTimes?.overall ?? null,
+        finishTime,
         fullRecording: this.hasFullyRecordedUpTo(this.stage),
       }),
       this.onFinish(),
@@ -308,8 +310,7 @@ export default abstract class ChallengeProcessor {
       this.totalChallengeTicks + events.getLastTick(),
     );
 
-    // Set the appropriate status if the raid were to be finished at this
-    // point.
+    // Set the appropriate status if the raid were to be finished at this point.
     if (events.getStatus() === StageStatus.COMPLETED) {
       if (stage === this.lastStage) {
         this.challengeStatus = ChallengeStatus.COMPLETED;
@@ -361,18 +362,26 @@ export default abstract class ChallengeProcessor {
   }
 
   /**
-   * Registers a user as a recorder for this challenge.
+   * Registers a user as a recorder for a challenge.
    * @param userId The ID of the user.
    * @param recordingType The type of recording.
    */
-  public async addRecorder(
+  public static async addRecorder(
+    uuid: string,
     userId: number,
     recordingType: RecordingType,
   ): Promise<void> {
-    await this.loadIds();
+    const [challenge] = await sql`
+      SELECT id FROM challenges WHERE uuid = ${uuid}
+    `;
+
+    if (challenge === undefined) {
+      throw new Error(`Challenge ${uuid} does not exist`);
+    }
+
     await sql`
       INSERT INTO recorded_challenges (challenge_id, recorder_id, recording_type)
-      VALUES (${this.databaseId}, ${userId}, ${recordingType})
+      VALUES (${challenge.id}, ${userId}, ${recordingType})
     `;
   }
 
@@ -470,7 +479,11 @@ export default abstract class ChallengeProcessor {
   private async updateChallenge(
     updates: Partial<DatabaseChallengeFields>,
   ): Promise<void> {
-    const translated = camelToSnakeObject(updates);
+    const translated: any = camelToSnakeObject(updates);
+    if ('finishTime' in updates && updates.finishTime !== null) {
+      translated.finish_time = updates.finishTime!.getTime();
+    }
+
     await sql`
       UPDATE challenges
       SET ${sql(translated)}
