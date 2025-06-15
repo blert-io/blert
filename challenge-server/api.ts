@@ -43,6 +43,8 @@ function errorStatus(e: Error): number {
         return 400;
       case ChallengeErrorType.UNSUPPORTED:
         return 422;
+      case ChallengeErrorType.INTERNAL:
+        return 500;
     }
   }
 
@@ -62,7 +64,7 @@ async function newChallenge(req: Request, res: Response): Promise<void> {
   const request = req.body as NewChallengeRequest;
 
   try {
-    const challengeId = await res.locals.challengeManager.getOrCreate(
+    const challengeId = await res.locals.challengeManager.createOrJoin(
       request.userId,
       request.type,
       request.mode,
