@@ -1,3 +1,5 @@
+import { createHash } from 'crypto';
+
 import { ChallengeMode, ChallengeType, Stage, StageStatus } from '../challenge';
 
 function normalizeUsername(username: string): string {
@@ -28,19 +30,30 @@ export function clientChallengesKey(id: number) {
 }
 
 /**
- * Returns the Redis key for a session with the given type, mode, and party.
- * @param type Type of challenges in the session.
- * @param mode Mode of challenges in the session.
+ * Returns a hash of a party's members.
  * @param party Members of the party.
+ * @returns Hash of the party's members.
+ */
+export function partyHash(party: string[]) {
+  return createHash('sha256')
+    .update(party.toSorted().map(normalizeUsername).join('-'))
+    .digest('hex');
+}
+
+/**
+ * Returns the Redis key for a session with the given type and party.
+ * @param type Type of challenges in the session.
+ * @param partyOrHash Either the members of the party or the hash of the party.
  * @returns Key for the session.
  */
 export function sessionKey(
   type: ChallengeType,
-  mode: ChallengeMode,
-  party: string[],
+  partyOrHash: string[] | string,
 ) {
-  const p = party.toSorted().map(normalizeUsername).join('-');
-  return `session:${type}:${mode}:${p}`;
+  const hash = Array.isArray(partyOrHash)
+    ? partyHash(partyOrHash)
+    : partyOrHash;
+  return `session:${type}:${hash}`;
 }
 
 /**

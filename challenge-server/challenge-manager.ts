@@ -1,32 +1,34 @@
 import {
   ACTIVITY_FEED_KEY,
+  ActivityFeedData,
   ActivityFeedItemType,
+  activePlayerKey,
   CHALLENGE_UPDATES_PUBSUB_KEY,
-  CLIENT_EVENTS_KEY,
   ChallengeMode,
+  challengesKey,
+  ChallengeServerUpdate,
   ChallengeStatus,
   ChallengeType,
-  ChallengeServerUpdate,
   ChallengeUpdateAction,
-  ClientEvent,
-  ClientEventType,
-  ClientStageStream,
-  ClientStatusEvent,
-  ClientStatus,
-  DataRepository,
-  PriceTracker,
-  RecordingType,
-  Stage,
-  StageStatus,
-  activePlayerKey,
   challengeStageStreamKey,
   challengeStreamsSetKey,
-  challengesKey,
+  CLIENT_EVENTS_KEY,
+  ClientEvent,
+  ClientEventType,
   clientChallengesKey,
+  ClientStageStream,
+  ClientStatus,
+  ClientStatusEvent,
+  DataRepository,
   partyKeyChallengeList,
+  PriceTracker,
+  RecordingType,
+  SESSION_ACTIVITY_DURATION_MS,
+  Stage,
+  StageStatus,
   stageStreamFromRecord,
-  ActivityFeedData,
   sessionKey,
+  SessionStatus,
 } from '@blert/common';
 import { RedisClientType, WatchError, commandOptions } from 'redis';
 import { v4 as uuidv4 } from 'uuid';
@@ -41,6 +43,7 @@ import {
 } from './event-processing';
 import logger from './log';
 import { ChallengeInfo, MergeResult, Merger } from './merge';
+import { Logger } from 'winston';
 
 export const enum ChallengeErrorType {
   FAILED_PRECONDITION,
@@ -144,6 +147,7 @@ function toRedis(
 function fromRedis(state: RedisChallengeState): ExtendedChallengeState {
   return {
     id: Number.parseInt(state.id),
+    sessionId: Number.parseInt(state.sessionId),
     uuid: state.uuid,
     type: Number.parseInt(state.type) as ChallengeType,
     mode: Number.parseInt(state.mode) as ChallengeMode,
@@ -198,6 +202,9 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// Redis expires are in seconds.
+const SESSION_ACTIVITY_DURATION_S = SESSION_ACTIVITY_DURATION_MS / 1000;
+
 export default class ChallengeManager {
   private challengeDataRepository: DataRepository;
   private testDataRepository: DataRepository;
@@ -208,6 +215,7 @@ export default class ChallengeManager {
 
   private manageTimeouts: boolean;
   private timeoutTaskTimer: NodeJS.Timeout | null;
+  private sessionWatchdog: SessionWatchdog;
 
   private static readonly CHALLENGE_TIMEOUT_KEY = 'expiring-challenges';
   private static readonly CHALLENGE_TIMEOUT_INTERVAL = 500;
@@ -240,12 +248,15 @@ export default class ChallengeManager {
     this.eventClient = client.duplicate();
     this.eventQueueActive = true;
 
+    this.sessionWatchdog = new SessionWatchdog(client.duplicate());
+
     this.manageTimeouts = manageTimeouts;
     if (this.manageTimeouts) {
       this.timeoutTaskTimer = setTimeout(
         () => this.processChallengeTimeouts(),
         ChallengeManager.CHALLENGE_TIMEOUT_INTERVAL,
       );
+      this.sessionWatchdog.run();
     } else {
       this.timeoutTaskTimer = null;
     }
@@ -282,9 +293,11 @@ export default class ChallengeManager {
 
     const partyMembers = party.join(',');
     const partyKeyList = partyKeyChallengeList(type, party);
+    const sk = sessionKey(type, party);
 
     let startAction = StartAction.UNKNOWN;
     let challengeUuid: string = '';
+    let sessionId: number | null = null;
 
     const challengeClient: ChallengeClient = {
       userId,
@@ -303,7 +316,7 @@ export default class ChallengeManager {
       startAction = StartAction.UNKNOWN;
       challengeUuid = '';
 
-      await client.watch(partyKeyList);
+      await Promise.all([client.watch(partyKeyList), client.watch(sk)]);
       const multi = client.multi();
 
       const lastChallengeForParty = await client.lIndex(partyKeyList, -1);
@@ -374,6 +387,9 @@ export default class ChallengeManager {
               userId,
               JSON.stringify(challengeClient),
             );
+
+            // Refresh the session duration.
+            multi.expire(sk, SESSION_ACTIVITY_DURATION_S, 'GT');
           }
         }
       } else {
@@ -397,6 +413,11 @@ export default class ChallengeManager {
             timeoutState: TimeoutState.NONE,
           }),
         );
+
+        const sessionIdValue = await client.get(sk);
+        if (sessionIdValue !== null) {
+          sessionId = Number.parseInt(sessionIdValue);
+        }
       } else {
         // If a client is joining a challenge that is due for cleanup, reset
         // its timeout state to allow the challenge to continue.
@@ -453,7 +474,7 @@ export default class ChallengeManager {
             party,
           );
 
-          await processor.createNew(startTime);
+          await processor.createNew(startTime, sessionId);
         } catch (e) {
           logger.error(
             `User ${userId}: Failed to create challenge ${challengeUuid}`,
@@ -471,27 +492,35 @@ export default class ChallengeManager {
           );
         }
 
-        const multi = this.client
-          .multi()
-          .hSet(challengesKey(challengeUuid), {
-            ...toRedis(processor.getState()),
-            state: LifecycleState.ACTIVE,
-          })
-          .hSet(
-            challengeClientsKey(challengeUuid),
-            userId,
-            JSON.stringify(challengeClient),
-          )
-          .set(clientChallengesKey(userId), challengeUuid);
+        await this.watchTransaction(async (client) => {
+          await client.watch(sk);
 
-        for (const player of party) {
-          multi.set(activePlayerKey(player), challengeUuid);
-        }
+          const multi = client
+            .multi()
+            .hSet(challengesKey(challengeUuid), {
+              ...toRedis(processor.getState()),
+              state: LifecycleState.ACTIVE,
+            })
+            .hSet(
+              challengeClientsKey(challengeUuid),
+              userId,
+              JSON.stringify(challengeClient),
+            )
+            .set(clientChallengesKey(userId), challengeUuid)
+            .set(sk, processor.getSessionId(), {
+              EX: SESSION_ACTIVITY_DURATION_S,
+            });
 
-        await multi.exec();
+          for (const player of party) {
+            multi.set(activePlayerKey(player), challengeUuid);
+          }
 
-        logger.debug(
-          `User ${userId}: Created challenge ${challengeUuid} at stage ${stage}`,
+          return multi.exec();
+        });
+
+        logger.info(
+          `User ${userId}: Created challenge ${challengeUuid} ` +
+            `in session ${processor.getSessionId()} at stage ${stage}`,
         );
         break;
       }
@@ -616,6 +645,13 @@ export default class ChallengeManager {
         logger.warn(`Challenge ${challengeId} is no longer active`);
         return multi.exec();
       }
+
+      // As there is activity, refresh the challenge's session duration.
+      multi.expire(
+        sessionKey(challenge.type, challenge.party),
+        SESSION_ACTIVITY_DURATION_S,
+        'GT',
+      );
 
       const clients = await this.loadChallengeClients(challengeId, client);
       const self = clients.find((c) => c.userId === userId);
@@ -743,6 +779,13 @@ export default class ChallengeManager {
           `${challengeId}: canceling cleanup due to client activity`,
         );
       }
+
+      // As there is activity, refresh the challenge's session duration.
+      multi.expire(
+        sessionKey(challenge.type, challenge.party),
+        SESSION_ACTIVITY_DURATION_S,
+        'GT',
+      );
 
       const processor = loadChallengeProcessor(
         this.challengeDataRepository,
@@ -1799,3 +1842,68 @@ type ChallengeTimeout = {
   /** Interval, in milliseconds, between cleanup attempts. */
   retryIntervalMs: number;
 };
+
+class SessionWatchdog {
+  private static readonly WATCHDOG_INTERVAL_MS = 5 * 60 * 1000;
+
+  private client: RedisClientType;
+  private running;
+  private log: Logger;
+
+  public constructor(client: RedisClientType) {
+    this.client = client;
+    this.running = false;
+    this.log = logger.child({ service: 'session-watchdog' });
+  }
+
+  public async run(): Promise<void> {
+    this.client.on('error', (err) => {
+      this.log.error(`Redis error: ${err}`);
+    });
+
+    await this.client.connect();
+    this.running = true;
+
+    this.log.info(`Watchdog started`);
+
+    while (this.running) {
+      await this.finishInactiveSessions();
+      await delay(SessionWatchdog.WATCHDOG_INTERVAL_MS);
+    }
+
+    this.log.info(`Watchdog exited`);
+  }
+
+  public stop(): void {
+    this.running = false;
+  }
+
+  private async finishInactiveSessions(): Promise<void> {
+    const expiringSessions = await ChallengeProcessor.loadExpiringSessions();
+    let expiredSessions = 0;
+
+    for (const session of expiringSessions) {
+      const sk = sessionKey(session.challengeType, session.partyHash);
+
+      // There are two ways a session could expire: if its Redis key has
+      // expired, or if the same party has started a new session, in which case
+      // the ID will not match.
+      const id = await this.client.get(sk);
+      const hasExpired = id === null || Number.parseInt(id) !== session.id;
+
+      if (!hasExpired) {
+        continue;
+      }
+
+      this.log.debug(`Session ${session.id} has expired; finishing`);
+      ++expiredSessions;
+      await ChallengeProcessor.finalizeSession(session.id);
+    }
+
+    this.log.info(
+      `Watchdog finishInactiveSessions: candidates=%d, expired=%d`,
+      expiringSessions.length,
+      expiredSessions,
+    );
+  }
+}

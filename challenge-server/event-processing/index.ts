@@ -87,6 +87,7 @@ export function loadChallengeProcessor(
     state.party,
     {
       databaseId: state.id,
+      sessionId: state.sessionId,
       players: state.players,
       totalDeaths: state.totalDeaths,
       challengeStatus: state.status,
