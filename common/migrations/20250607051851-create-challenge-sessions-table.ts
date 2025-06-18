@@ -12,6 +12,7 @@ async function createChallengeSessionsTable(sql: Sql) {
       uuid UUID NOT NULL,
       challenge_type SMALLINT NOT NULL,
       challenge_mode SMALLINT NOT NULL,
+      scale SMALLINT NOT NULL,
       party_hash VARCHAR(64) NOT NULL,
       start_time TIMESTAMPTZ NOT NULL,
       end_time TIMESTAMPTZ,

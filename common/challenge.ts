@@ -21,6 +21,7 @@ export enum ChallengeType {
 
 export interface Challenge {
   uuid: string;
+  sessionUuid: string;
   type: ChallengeType;
   status: ChallengeStatus;
   stage: Stage;
@@ -649,6 +650,25 @@ export enum PrimaryMeleeGear {
 export type PlayerInfo = {
   currentUsername: string;
   gear: PrimaryMeleeGear;
+};
+
+/** Duration for which a session remains open after its last activity. */
+export const SESSION_ACTIVITY_DURATION_MS = 30 * 60 * 1000;
+
+export enum SessionStatus {
+  ACTIVE = 0,
+  COMPLETED = 1,
+}
+
+export type Session = {
+  uuid: string;
+  challengeType: ChallengeType;
+  challengeMode: ChallengeMode;
+  scale: number;
+  partyHash: string;
+  startTime: Date;
+  endTime: Date | null;
+  status: SessionStatus;
 };
 
 export function challengeName(type: ChallengeType): string {

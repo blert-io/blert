@@ -16,6 +16,8 @@ import {
   RecordingType,
   RoomNpc,
   RoomNpcType,
+  Session as ApiSession,
+  SessionStatus,
   SkillLevel,
   SplitType,
   Stage,
@@ -24,6 +26,8 @@ import {
   adjustSplitForMode,
   camelToSnakeObject,
   isPostgresUniqueViolation,
+  partyHash,
+  SESSION_ACTIVITY_DURATION_MS,
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 import postgres from 'postgres';
@@ -35,6 +39,7 @@ import { Players } from '../players';
 
 export type InitializedFields = {
   databaseId?: number;
+  sessionId?: number;
   players?: PlayerInfo[];
   totalDeaths?: number;
   challengeStatus?: ChallengeStatus;
@@ -66,6 +71,7 @@ type PlayerInfo = {
 export type ChallengeState = ModifiableChallengeFields &
   CustomData & {
     id: number;
+    sessionId: number;
     uuid: string;
     type: ChallengeType;
     party: string[];
@@ -73,6 +79,16 @@ export type ChallengeState = ModifiableChallengeFields &
     reportedChallengeTicks: number | null;
     reportedOverallTicks: number | null;
   };
+
+export type Session = Pick<
+  ApiSession,
+  'challengeType' | 'challengeMode' | 'partyHash'
+> & { id: number };
+
+export type ModifiableSessionFields = Pick<
+  ApiSession,
+  'endTime' | 'challengeMode' | 'status'
+>;
 
 export type ReportedTimes = {
   challenge: number;
@@ -108,6 +124,7 @@ export default abstract class ChallengeProcessor {
   private readonly uuid: string;
   private readonly type: ChallengeType;
   private databaseId: number;
+  private sessionId: number;
   private mode: ChallengeMode;
   private challengeStatus: ChallengeStatus;
   private stage: Stage;
@@ -131,6 +148,7 @@ export default abstract class ChallengeProcessor {
   public getState(): ChallengeState {
     return {
       id: this.databaseId,
+      sessionId: this.sessionId,
       uuid: this.uuid,
       type: this.type,
       mode: this.mode,
@@ -165,6 +183,10 @@ export default abstract class ChallengeProcessor {
     return this.challengeStatus;
   }
 
+  public getSessionId(): number {
+    return this.sessionId;
+  }
+
   protected getDatabaseId(): number {
     return this.databaseId;
   }
@@ -186,7 +208,17 @@ export default abstract class ChallengeProcessor {
     this.reportedTimes = times;
   }
 
-  public async createNew(startTime: Date): Promise<void> {
+  /**
+   * Creates a new challenge record, and optionally a session.
+   *
+   * @param startTime The time at which the challenge was started.
+   * @param sessionId The ID of the session that created the challenge.
+   *   If `null`, a new session will be created for the challenge.
+   */
+  public async createNew(
+    startTime: Date,
+    sessionId: number | null,
+  ): Promise<void> {
     const playerIds = await Promise.all(this.party.map(Players.startChallenge));
     if (
       playerIds.length !== this.party.length ||
@@ -199,7 +231,7 @@ export default abstract class ChallengeProcessor {
       this.players[i].id = id!;
     });
 
-    await this.createChallenge(startTime);
+    await this.createChallengeWithSession(startTime, sessionId);
   }
 
   /**
@@ -247,6 +279,7 @@ export default abstract class ChallengeProcessor {
         finishTime,
         fullRecording: this.hasFullyRecordedUpTo(this.stage),
       }),
+      ChallengeProcessor.updateSession(this.sessionId, { endTime: finishTime }),
       this.onFinish(),
     ]);
 
@@ -269,7 +302,18 @@ export default abstract class ChallengeProcessor {
     }
 
     const updates = this.updates;
-    await this.updateChallenge(updates);
+
+    const updatePromises = [this.updateChallenge(updates)];
+    if ('mode' in updates) {
+      updatePromises.push(
+        ChallengeProcessor.updateSession(this.sessionId, {
+          challengeMode: updates.mode,
+        }),
+      );
+    }
+
+    await Promise.all(updatePromises);
+
     this.updates = {};
     return updates;
   }
@@ -359,6 +403,87 @@ export default abstract class ChallengeProcessor {
     updates.customData = this.getCustomData();
 
     return updates;
+  }
+
+  /**
+   * Finds sessions in the database which may potentially be expired.
+   *
+   * A potentially-expired session is an active session which either:
+   * - Has an end time which is older than the session activity duration, or
+   * - Has no end time and was started more than twice the session activity
+   *   duration ago.
+   *
+   * These are not definitive indicators of expiration; the Redis session key
+   * is the source of truth and must be checked.
+   *
+   * @returns Information about the potentially-expiring sessions.
+   */
+  public static async loadExpiringSessions(): Promise<Session[]> {
+    const now = Date.now();
+
+    const sessions = await sql`
+      SELECT id, challenge_type, challenge_mode, party_hash
+      FROM challenge_sessions
+      WHERE status = ${SessionStatus.ACTIVE} AND
+        (end_time < ${now - SESSION_ACTIVITY_DURATION_MS}
+        OR (end_time IS NULL AND start_time < ${now - SESSION_ACTIVITY_DURATION_MS * 2}))
+    `;
+
+    return sessions.map((session) => ({
+      id: session.id,
+      challengeType: session.challenge_type,
+      challengeMode: session.challenge_mode,
+      partyHash: session.party_hash,
+    }));
+  }
+
+  public static async finalizeSession(sessionId: number): Promise<void> {
+    const loadLastFinishTime = sql`
+      SELECT finish_time FROM challenges
+      WHERE session_id = ${sessionId}
+      ORDER BY finish_time DESC NULLS FIRST
+      LIMIT 1
+    `;
+    const loadMostFrequentMode = sql`
+      SELECT mode FROM challenges
+      WHERE session_id = ${sessionId}
+      GROUP BY mode ORDER BY COUNT(*) DESC, mode ASC LIMIT 1
+    `;
+
+    const [lastFinishTime, mostFrequentMode] = await Promise.all([
+      loadLastFinishTime,
+      loadMostFrequentMode,
+    ]);
+
+    const updates: Partial<ModifiableSessionFields> = {
+      status: SessionStatus.COMPLETED,
+    };
+
+    if (lastFinishTime?.[0]?.finish_time) {
+      updates.endTime = lastFinishTime[0].finish_time;
+    }
+
+    if (mostFrequentMode?.[0]?.mode) {
+      updates.challengeMode = mostFrequentMode[0].mode;
+    }
+
+    await this.updateSession(sessionId, updates);
+  }
+
+  private static async updateSession(
+    sessionId: number,
+    updates: Partial<ModifiableSessionFields>,
+  ): Promise<void> {
+    const translated: any = camelToSnakeObject(updates);
+    if ('endTime' in updates && updates.endTime !== null) {
+      translated.end_time = updates.endTime!.getTime();
+    }
+
+    await sql`
+      UPDATE challenge_sessions
+      SET ${sql(translated)}
+      WHERE id = ${sessionId}
+    `;
   }
 
   /**
@@ -491,18 +616,59 @@ export default abstract class ChallengeProcessor {
     `;
   }
 
-  private async createChallenge(startTime: Date): Promise<void> {
-    this.databaseId = await sql.begin(async (sql) => {
+  private async createChallengeWithSession(
+    startTime: Date,
+    sessionId: number | null,
+  ): Promise<void> {
+    const [id, sid] = await sql.begin(async (sql) => {
+      if (sessionId === null) {
+        const [{ id, uuid }] = await sql`
+          INSERT INTO challenge_sessions (
+            uuid,
+            challenge_type,
+            challenge_mode,
+            scale,
+            party_hash,
+            start_time,
+            status
+          ) VALUES (
+           ${this.uuid},
+           ${this.type},
+           ${this.mode},
+           ${this.getScale()},
+           ${partyHash(this.party)},
+           ${startTime},
+           ${SessionStatus.ACTIVE}
+          )
+          RETURNING id, uuid
+        `;
+
+        logger.info(
+          `Created new session ${uuid} (#${id}) for party ${this.party.join(',')}`,
+        );
+
+        sessionId = id;
+      }
+
       const [{ id }] = await sql`
-        INSERT INTO challenges (uuid, type, mode, scale, stage, status, start_time)
-        VALUES (
+        INSERT INTO challenges (
+          uuid,
+          type,
+          mode,
+          scale,
+          stage,
+          status,
+          start_time,
+          session_id
+        ) VALUES (
           ${this.uuid},
           ${this.type},
           ${this.mode},
-          ${this.party.length},
+          ${this.getScale()},
           ${this.stage},
           ${ChallengeStatus.IN_PROGRESS},
-          ${startTime}
+          ${startTime},
+          ${sessionId}
         )
         RETURNING id;
       `;
@@ -526,8 +692,11 @@ export default abstract class ChallengeProcessor {
         )}
     `;
 
-      return id;
+      return [id, sessionId!];
     });
+
+    this.databaseId = id;
+    this.sessionId = sid;
 
     await this.onCreate();
   }
@@ -549,14 +718,15 @@ export default abstract class ChallengeProcessor {
   }
 
   private async loadIds(): Promise<void> {
-    if (this.databaseId === -1) {
+    if (this.databaseId === -1 || this.sessionId === -1) {
       const [challenge] =
-        await sql`SELECT id FROM challenges WHERE uuid = ${this.uuid}`;
+        await sql`SELECT id, session_id FROM challenges WHERE uuid = ${this.uuid}`;
       if (!challenge) {
         throw new Error(`Challenge ${this.uuid} does not exist`);
       }
 
       this.databaseId = challenge.id;
+      this.sessionId = challenge.session_id;
     }
 
     if (this.players.every((p) => p.id !== -1)) {
@@ -588,7 +758,7 @@ export default abstract class ChallengeProcessor {
       splitsToInsert.push({
         challenge_id: this.databaseId,
         type: adjustSplitForMode(split, this.mode),
-        scale: this.party.length,
+        scale: this.getScale(),
         ticks,
         accurate,
       });
@@ -640,7 +810,7 @@ export default abstract class ChallengeProcessor {
       JOIN challenge_splits ON personal_bests.challenge_split_id = challenge_splits.id
       WHERE
         challenge_splits.type = ANY(${splits.map((s) => s.type)})
-        AND challenge_splits.scale = ${this.party.length}
+        AND challenge_splits.scale = ${this.getScale()}
         AND personal_bests.player_id = ANY(${playerIds})
     `;
 
@@ -665,7 +835,7 @@ export default abstract class ChallengeProcessor {
 
         if (currentPb === undefined) {
           logger.info(
-            `Setting PB(${split.type}, ${this.party.length}) for ` +
+            `Setting PB(${split.type}, ${this.getScale()}) for ` +
               `${this.party[i]}#${playerId} to ${split.ticks}`,
           );
           pbRowsToCreate.push({
@@ -674,13 +844,13 @@ export default abstract class ChallengeProcessor {
           });
         } else if (split.ticks < currentPb.ticks) {
           logger.info(
-            `Updating PB(${split.type}, ${this.party.length}) for ` +
+            `Updating PB(${split.type}, ${this.getScale()}) for ` +
               `${this.party[i]}#${playerId} to ${split.ticks}`,
           );
           pbRowsToUpdate.push(sql([playerId, currentPb.id]));
         } else {
           logger.debug(
-            `PB(${split.type}, ${this.party.length}) for ` +
+            `PB(${split.type}, ${this.getScale()}) for ` +
               `${this.party[i]}#${playerId} is already better: ${currentPb.ticks}`,
           );
         }
@@ -1010,6 +1180,7 @@ export default abstract class ChallengeProcessor {
     this.stageState = this.initialStageState();
 
     this.databaseId = extraFields.databaseId ?? -1;
+    this.sessionId = extraFields.sessionId ?? -1;
     this.players =
       extraFields.players ??
       this.party.map((_) => ({ id: -1, gear: PrimaryMeleeGear.UNKNOWN }));
@@ -1078,6 +1249,10 @@ export default abstract class ChallengeProcessor {
 
   protected getParty(): string[] {
     return this.party;
+  }
+
+  protected getScale(): number {
+    return this.party.length;
   }
 
   protected getTotalChallengeTicks(): number {
