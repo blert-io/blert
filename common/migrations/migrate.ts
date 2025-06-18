@@ -55,6 +55,30 @@ function createMigration(dir: string, name: string) {
   console.log(`Created migration ${migrationName} at ${sourceFile}`);
 }
 
+async function runScript(dir: string, script: string, sql: postgres.Sql) {
+  let scriptMain: (sql: postgres.Sql, args: string[]) => Promise<void>;
+
+  script = path.join(dir, script);
+  if (!script.endsWith('.js')) {
+    script += '.js';
+  }
+
+  const scriptPath = distToSrcFile(script);
+  if (!fs.existsSync(scriptPath)) {
+    throw new Error(`Script "${scriptPath}" not found`);
+  }
+
+  try {
+    scriptMain = (await import(script)).scriptMain;
+  } catch (e: any) {
+    throw new Error(
+      `Script "${scriptPath}" does not export a scriptMain function`,
+    );
+  }
+
+  await scriptMain(sql, process.argv.slice(4));
+}
+
 async function main() {
   const migrationsDir = __dirname;
 
@@ -71,6 +95,17 @@ async function main() {
   }
 
   const sql = postgres(process.env.BLERT_DATABASE_URI);
+
+  if (process.argv[2] === 'script') {
+    if (process.argv.length < 4) {
+      throw new Error(
+        `Usage: ${process.argv[1]} script <script-name> [script-args...]`,
+      );
+    }
+    const script = process.argv[3];
+    await runScript(migrationsDir, script, sql);
+    return;
+  }
 
   await ensureMigrationsTable(sql);
   const [latestMigration] = await sql`
