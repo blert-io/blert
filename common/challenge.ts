@@ -658,6 +658,7 @@ export const SESSION_ACTIVITY_DURATION_MS = 30 * 60 * 1000;
 export enum SessionStatus {
   ACTIVE = 0,
   COMPLETED = 1,
+  HIDDEN = 2,
 }
 
 export type Session = {

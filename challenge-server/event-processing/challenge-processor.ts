@@ -243,6 +243,7 @@ export default abstract class ChallengeProcessor {
   public async finish(finishTime: Date): Promise<boolean> {
     await this.loadIds();
 
+    this.splits.clear();
     this.stageState = this.initialStageState();
 
     if (this.totalChallengeTicks === 0) {
@@ -438,6 +439,11 @@ export default abstract class ChallengeProcessor {
   }
 
   public static async finalizeSession(sessionId: number): Promise<void> {
+    const loadStatusCounts = sql`
+      SELECT status, COUNT(*) FROM challenges
+      WHERE session_id = ${sessionId}
+      GROUP BY status
+    `;
     const loadLastFinishTime = sql`
       SELECT finish_time FROM challenges
       WHERE session_id = ${sessionId}
@@ -450,14 +456,29 @@ export default abstract class ChallengeProcessor {
       GROUP BY mode ORDER BY COUNT(*) DESC, mode ASC LIMIT 1
     `;
 
-    const [lastFinishTime, mostFrequentMode] = await Promise.all([
+    const [statusCounts, lastFinishTime, mostFrequentMode] = await Promise.all([
+      loadStatusCounts,
       loadLastFinishTime,
       loadMostFrequentMode,
     ]);
 
+    if (statusCounts.length === 0) {
+      logger.warn(`Session ${sessionId} has no challenges; deleting`);
+      await sql`DELETE FROM challenge_sessions WHERE id = ${sessionId}`;
+      return;
+    }
+
     const updates: Partial<ModifiableSessionFields> = {
       status: SessionStatus.COMPLETED,
     };
+
+    if (
+      statusCounts.length === 1 &&
+      parseInt(statusCounts[0].status) === ChallengeStatus.ABANDONED
+    ) {
+      logger.warn(`Session ${sessionId} has only abandoned challenges; hiding`);
+      updates.status = SessionStatus.HIDDEN;
+    }
 
     if (lastFinishTime?.[0]?.finish_time) {
       updates.endTime = lastFinishTime[0].finish_time;
