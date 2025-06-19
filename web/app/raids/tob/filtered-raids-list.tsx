@@ -3,7 +3,8 @@
 import { ChallengeMode, ChallengeType, ChallengeStatus } from '@blert/common';
 import { useState } from 'react';
 
-import { ClientChallengeHistory } from '@/components/challenge-history';
+// import { ClientChallengeHistory } from '@/components/challenge-history';
+import { ClientSessionHistory } from '@/components/session-history';
 import Checkbox from '@/components/checkbox';
 import RadioInput from '@/components/radio-input';
 
@@ -142,13 +143,13 @@ export default function FilteredRaidsList() {
         </div>
       </div>
       <div className={styles.divider} />
-      <ClientChallengeHistory
+      <ClientSessionHistory
         type={ChallengeType.TOB}
-        initialChallenges={[]}
+        initialSessions={[]}
         count={10}
         mode={mode}
         scale={scale}
-        status={statuses}
+        // status={statuses}
       />
     </div>
   );

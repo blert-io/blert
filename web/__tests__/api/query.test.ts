@@ -1,4 +1,4 @@
-import { numericComparatorParam } from '@/api/v1/challenges/query';
+import { numericComparatorParam } from '@/api/query';
 
 describe('comparatorParam', () => {
   const params = new URLSearchParams();

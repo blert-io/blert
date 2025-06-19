@@ -12,6 +12,8 @@ import {
   EventType,
   Player,
   PlayerStats,
+  Session,
+  SessionStatus,
   SplitType,
   Stage,
   TobChallengeStats,
@@ -52,7 +54,12 @@ export async function loadChallenge(
   id: string,
 ): Promise<Challenge | null> {
   const rawChallenge = await sql`
-    SELECT * from challenges WHERE uuid = ${id} AND type = ${type}
+    SELECT
+      challenges.*,
+      challenge_sessions.uuid as session_uuid
+    FROM challenges
+    JOIN challenge_sessions ON challenges.session_id = challenge_sessions.id
+    WHERE challenges.uuid = ${id} AND challenges.type = ${type}
   `;
   if (rawChallenge.length === 0) {
     return null;
@@ -84,9 +91,11 @@ export async function loadChallenge(
 
   const challenge: Challenge = {
     uuid: rawChallenge[0].uuid,
+    sessionUuid: rawChallenge[0].session_uuid,
     type: rawChallenge[0].type,
     stage: rawChallenge[0].stage,
     startTime: rawChallenge[0].start_time,
+    finishTime: rawChallenge[0].finish_time,
     status: rawChallenge[0].status,
     mode: rawChallenge[0].mode,
     scale: rawChallenge[0].scale,
@@ -138,10 +147,12 @@ export async function loadChallenge(
 export type ChallengeOverview = Pick<
   Challenge,
   | 'uuid'
+  | 'sessionUuid'
   | 'type'
   | 'stage'
   | 'scale'
   | 'startTime'
+  | 'finishTime'
   | 'status'
   | 'mode'
   | 'challengeTicks'
@@ -152,7 +163,8 @@ export type ChallengeOverview = Pick<
   splits?: Partial<Record<SplitType, { ticks: number; accurate: boolean }>>;
 };
 
-type SortSuffix = 'nf' | 'nl';
+type SortDirection = '+' | '-';
+type SortOptions = 'nf' | 'nl';
 
 /**
  * A `SortQuery` is a string that represents a field to sort by. It consists of
@@ -165,13 +177,23 @@ type SortSuffix = 'nf' | 'nl';
  *   * `#nf` to indicate that null values should be sorted first.
  *   * `#nl` to indicate that null values should be sorted last.
  */
-export type SortQuery<T> = `${'+' | '-'}${T extends object
+export type SortQuery<T> = `${SortDirection}${T extends object
   ? keyof T & string
   : T extends string
     ? T
-    : never}${`#${SortSuffix}` | ''}`;
+    : never}${`#${SortOptions}` | ''}`;
 
-export type BasicSortableFields = keyof Omit<ChallengeOverview, 'party'>;
+function isSortDirection(s: string): s is SortDirection {
+  return s === '+' || s === '-';
+}
+function isSortOptions(s: string): s is SortOptions {
+  return s === 'nf' || s === 'nl';
+}
+
+export type BasicSortableFields = keyof Omit<
+  ChallengeOverview,
+  'party' | 'finishTime'
+>;
 export type SplitSortableFields = `splits:${SplitType}`;
 export type SortableFields = BasicSortableFields | SplitSortableFields;
 
@@ -179,6 +201,7 @@ type SingleOrArray<T> = T | T[];
 
 export type ChallengeQuery = {
   uuid?: string[];
+  session?: number[] | string[];
   type?: Comparator<ChallengeType>;
   mode?: SingleOrArray<ChallengeMode>;
   status?: Comparator<ChallengeStatus>;
@@ -196,7 +219,9 @@ export type QueryOptions = {
   accurateSplits?: boolean;
   fullRecordings?: boolean;
   limit?: number;
-  sort?: SortQuery<Omit<ChallengeOverview, 'party'> | Aggregation>;
+  sort?: SortQuery<
+    Omit<ChallengeOverview, 'party' | 'finishTime'> | Aggregation
+  >;
 };
 
 const DEFAULT_CHALLENGE_LIMIT = 10;
@@ -288,6 +313,24 @@ function conditionToSql(
   )`;
 }
 
+function parseSort(sort: string): {
+  direction: SortDirection;
+  field: string;
+  options: SortOptions | undefined;
+} {
+  const direction = sort[0];
+  if (!isSortDirection(direction)) {
+    throw new InvalidQueryError(`Invalid sort direction: ${direction}`);
+  }
+
+  const [field, options] = sort.slice(1).split('#');
+  if (options !== undefined && !isSortOptions(options)) {
+    throw new InvalidQueryError(`Invalid sort options: ${options}`);
+  }
+
+  return { direction, field, options };
+}
+
 function order(
   sort: SingleOrArray<string>,
   challengesTable?: postgres.Helper<string>,
@@ -296,33 +339,33 @@ function order(
 
   const sorts = Array.isArray(sort) ? sort : [sort];
   for (const sort of sorts) {
-    let [field, suffix] = sort.slice(1).split('#');
+    let { direction, field, options } = parseSort(sort);
     field = camelToSnake(field);
-    let options;
-    switch (suffix) {
+    let sortOptions;
+    switch (options) {
       case 'nf':
-        options = sql`NULLS FIRST`;
+        sortOptions = sql`NULLS FIRST`;
         break;
       case 'nl':
-        options = sql`NULLS LAST`;
+        sortOptions = sql`NULLS LAST`;
         break;
       default:
-        options = sql``;
+        sortOptions = sql``;
     }
 
     if (challengesTable !== undefined) {
       const [tableField, table] = shorthandToFullField(field);
       const sqlTable = table === 'challenges' ? challengesTable : sql(table);
-      if (sort.startsWith('-')) {
-        fragments.push(sql`${sqlTable}.${sql(tableField)} DESC ${options}`);
+      if (direction === '-') {
+        fragments.push(sql`${sqlTable}.${sql(tableField)} DESC ${sortOptions}`);
       } else {
-        fragments.push(sql`${sqlTable}.${sql(tableField)} ASC ${options}`);
+        fragments.push(sql`${sqlTable}.${sql(tableField)} ASC ${sortOptions}`);
       }
     } else {
       fragments.push(
-        sort.startsWith('-')
-          ? sql`${sql(field)} DESC ${options}`
-          : sql`${sql(field)} ASC ${options}`,
+        direction === '-'
+          ? sql`${sql(field)} DESC ${sortOptions}`
+          : sql`${sql(field)} ASC ${sortOptions}`,
       );
     }
   }
@@ -365,17 +408,31 @@ function addSplitsTable(
 
 function applyFilters(
   query: ChallengeQuery,
+  defaultJoins: Join[] = [],
   accurateSplits?: boolean,
   fullRecordings?: boolean,
 ): QueryComponents | null {
   let challengeTable = 'challenges';
 
   let baseTable = sql`challenges`;
-  const joins: Join[] = [];
+  const joins: Join[] = defaultJoins;
   const conditions = [];
 
   if (query.uuid !== undefined) {
     conditions.push(sql`challenges.uuid = ANY(${query.uuid})`);
+  }
+
+  if (query.session !== undefined && query.session.length > 0) {
+    if (typeof query.session[0] === 'number') {
+      conditions.push(sql`challenges.session_id = ANY(${query.session})`);
+    } else {
+      conditions.push(sql`challenge_sessions.uuid = ANY(${query.session})`);
+      joins.push({
+        table: sql`challenge_sessions`,
+        on: sql`challenges.session_id = challenge_sessions.id`,
+        tableName: 'challenge_sessions',
+      });
+    }
   }
 
   if (query.party !== undefined) {
@@ -544,14 +601,31 @@ export type FindChallengesOptions = {
  * - `InvalidQueryError` if any parameters in the query are invalid.
  */
 export async function findChallenges(
-  limit: number = DEFAULT_CHALLENGE_LIMIT,
+  limit: number | null = DEFAULT_CHALLENGE_LIMIT,
   query?: ChallengeQuery,
   options: FindChallengesOptions = {},
 ): Promise<[ChallengeOverview[], number | null]> {
   const searchQuery = { ...DEFAULT_CHALLENGE_QUERY, ...query };
 
+  if (limit === null) {
+    if (query?.uuid === undefined && query?.session === undefined) {
+      throw new Error(
+        'Must specify list of UUIDs or sessions to fetch without a limit',
+      );
+    }
+  }
+
+  const defaultJoins: Join[] = [
+    {
+      table: sql`challenge_sessions`,
+      on: sql`challenges.session_id = challenge_sessions.id`,
+      tableName: 'challenge_sessions',
+    },
+  ];
+
   const components = applyFilters(
     searchQuery,
+    defaultJoins,
     options.accurateSplits,
     options.fullRecordings,
   );
@@ -567,20 +641,23 @@ export async function findChallenges(
       SELECT
         ${queryTable}.id,
         ${queryTable}.uuid,
+        ${queryTable}.session_id,
         ${queryTable}.type,
         ${queryTable}.start_time,
+        ${queryTable}.finish_time,
         ${queryTable}.status,
         ${queryTable}.stage,
         ${queryTable}.mode,
         ${queryTable}.scale,
         ${queryTable}.challenge_ticks,
         ${queryTable}.overall_ticks,
-        ${queryTable}.total_deaths
+        ${queryTable}.total_deaths,
+        challenge_sessions.uuid AS session_uuid
       FROM ${baseTable}
       ${join(joins)}
       ${where(conditions)}
       ${order(sort, queryTable)}
-      LIMIT ${limit}
+      ${limit !== null ? sql`LIMIT ${limit}` : sql``}
     `,
   ];
 
@@ -662,8 +739,10 @@ export async function findChallenges(
   const challenges = rawChallenges.map(
     (c: any): ChallengeOverview => ({
       uuid: c.uuid,
+      sessionUuid: c.session_uuid,
       type: c.type,
       startTime: c.start_time,
+      finishTime: c.finish_time,
       status: c.status,
       stage: c.stage,
       mode: c.mode,
@@ -696,7 +775,13 @@ function groupExpression(groupField: GroupField): postgres.Fragment {
 export type Aggregation = 'count' | 'sum' | 'avg' | 'min' | 'max';
 type Aggregations = Aggregation | Aggregation[];
 
+function isAggregation(agg: string): agg is Aggregation {
+  return ['count', 'sum', 'avg', 'min', 'max'].includes(agg);
+}
+
 export type AggregationQuery = Record<string, Aggregations>;
+
+export type FieldAggregation<T extends string> = `${T}:${Aggregation}`;
 
 type FieldAggregations<As extends Aggregations> = As extends Aggregation
   ? { [A in As]: number }
@@ -704,11 +789,11 @@ type FieldAggregations<As extends Aggregations> = As extends Aggregation
     ? { [A in As[number]]: number }
     : never;
 
-type AggregationResult<F extends AggregationQuery> = {
+export type AggregationResult<F extends AggregationQuery> = {
   [K in keyof F]: FieldAggregations<F[K]>;
 };
 
-type GroupedAggregationResult<
+export type GroupedAggregationResult<
   F extends AggregationQuery,
   G extends string | string[],
 > = G extends string
@@ -720,8 +805,10 @@ type GroupedAggregationResult<
 type NestedGroupedAggregationResult<
   F extends AggregationQuery,
   G extends string[],
-> = G extends [infer _, ...infer R]
-  ? Record<string, NestedGroupedAggregationResult<F, Extract<R, string[]>>>
+> = G extends [string, ...infer R]
+  ? R extends string[]
+    ? { [key: string]: NestedGroupedAggregationResult<F, R> }
+    : never
   : AggregationResult<F>;
 
 /**
@@ -837,6 +924,7 @@ export async function aggregateChallenges<
 ): Promise<AggregationResult<F> | GroupedAggregationResult<F, G> | null> {
   const components = applyFilters(
     query,
+    [],
     options.accurateSplits,
     options.fullRecordings,
   );
@@ -935,7 +1023,11 @@ export async function aggregateChallenges<
     FROM ${baseTable}
     ${join(joins)}
     ${where(conditions)}
-    ${groupFields.length > 0 ? sql`GROUP BY ${sql(groupFields.map((g) => g.renamed))}` : sql``}
+    ${
+      groupFields.length > 0
+        ? sql`GROUP BY ${sql(groupFields.map((g) => g.renamed))}`
+        : sql``
+    }
     ${options.sort ? order(options.sort) : sql``}
     ${options.limit ? sql`LIMIT ${options.limit}` : sql``}
   `;
@@ -1012,6 +1104,425 @@ export async function aggregateChallenges<
       }
 
       if (i === groupFields.length - 1) {
+        parent[value] = groupResult;
+      } else if (parent[value] === undefined) {
+        parent[value] = {};
+      }
+
+      parent = parent[value];
+    });
+  });
+
+  return result as GroupedAggregationResult<F, G>;
+}
+
+export type SessionQuery = {
+  type?: Comparator<ChallengeType>;
+  mode?: SingleOrArray<ChallengeMode>;
+  scale?: Comparator<number>;
+  startTime?: Comparator<Date>;
+  status?: Comparator<SessionStatus>;
+};
+
+type SessionSortableFields = Pick<Session, 'startTime' | 'endTime' | 'status'>;
+
+export type SessionWithChallenges = Omit<Session, 'partyHash'> & {
+  party: string[];
+  challenges: ChallengeOverview[];
+};
+
+function sessionFilters(query: SessionQuery): {
+  conditions: postgres.Fragment[];
+  defaultSort: SingleOrArray<SortQuery<SessionSortableFields>>;
+} {
+  const conditions: postgres.Fragment[] = [];
+  let defaultSort: SingleOrArray<SortQuery<SessionSortableFields>> =
+    '-startTime';
+
+  if (query.type !== undefined) {
+    conditions.push(
+      comparatorToSql(sql('challenge_sessions'), 'challenge_type', query.type),
+    );
+  }
+
+  if (query.mode !== undefined) {
+    const mode = Array.isArray(query.mode) ? query.mode : [query.mode];
+    conditions.push(sql`challenge_sessions.challenge_mode = ANY(${mode})`);
+  }
+
+  if (query.scale !== undefined) {
+    conditions.push(
+      comparatorToSql(sql('challenge_sessions'), 'scale', query.scale),
+    );
+  }
+
+  if (query.startTime !== undefined) {
+    conditions.push(
+      comparatorToSql(sql('challenge_sessions'), 'start_time', query.startTime),
+    );
+  }
+
+  if (query.status !== undefined) {
+    conditions.push(
+      comparatorToSql(sql('challenge_sessions'), 'status', query.status),
+    );
+  } else {
+    conditions.push(sql`challenge_sessions.status != ${SessionStatus.HIDDEN}`);
+
+    // Ensure active sessions are at the top.
+    defaultSort = ['+status', '-startTime'];
+  }
+
+  return { conditions, defaultSort };
+}
+
+/**
+ * Loads `limit` most recent sessions that match the provided query.
+ *
+ * @param limit The maximum number of sessions to load.
+ * @param query The query to filter sessions by.
+ * @returns Sessions matching the query.
+ */
+export async function loadSessions(
+  limit: number = 10,
+  query: SessionQuery = {},
+): Promise<SessionWithChallenges[]> {
+  const { conditions, defaultSort } = sessionFilters(query);
+
+  const sessions = await sql`
+    SELECT "challenge_sessions".*
+    FROM challenge_sessions
+    ${where(conditions)}
+    ${order(defaultSort)}
+    LIMIT ${limit}
+  `;
+
+  if (sessions.length === 0) {
+    return [];
+  }
+
+  const sessionsByUuid = new Map(
+    sessions.map((s) => [
+      s.uuid,
+      { ...s, challenges: [] as ChallengeOverview[] },
+    ]),
+  );
+
+  const [challenges] = await findChallenges(null, {
+    session: sessions.map((s) => s.id),
+  });
+
+  if (challenges.length === 0) {
+    console.warn(
+      'No challenges found for sessions:',
+      sessions.map((s) => s.uuid),
+    );
+    return [];
+  }
+
+  for (const c of challenges) {
+    sessionsByUuid.get(c.sessionUuid)?.challenges.push(c);
+  }
+
+  return sessions.map((session) => ({
+    uuid: session.uuid,
+    challengeType: session.challenge_type as ChallengeType,
+    challengeMode: session.challenge_mode as ChallengeMode,
+    scale: session.scale,
+    startTime: session.start_time,
+    endTime: session.end_time,
+    status: session.status as SessionStatus,
+    party:
+      sessionsByUuid
+        .get(session.uuid)
+        ?.challenges[0]?.party.map((p) => p.username) ?? [],
+    challenges:
+      sessionsByUuid.get(session.uuid)?.challenges.toSorted(
+        // Sort challenges by most recent first.
+        (a, b) => b.startTime.getTime() - a.startTime.getTime(),
+      ) ?? [],
+  }));
+}
+
+function sessionFieldToExpression(field: string): postgres.Fragment {
+  const snakeField = camelToSnake(field);
+  switch (snakeField) {
+    case 'duration':
+      // Time difference in seconds.
+      return sql`
+        EXTRACT(
+          EPOCH FROM (
+            COALESCE(challenge_sessions.end_time, NOW()) - challenge_sessions.start_time
+          )
+        )
+      `;
+
+    case 'challenges':
+      // Number of challenges in the session.
+      return sql`(
+        SELECT COUNT(*)
+        FROM challenges c
+        WHERE c.session_id = challenge_sessions.id
+          AND c.status != ${ChallengeStatus.ABANDONED}
+      )`;
+
+    default:
+      throw new InvalidQueryError(`Invalid aggregation field: ${field}`);
+  }
+}
+
+function sessionGroupingFieldToDb(field: string): string {
+  switch (field) {
+    case 'type':
+      return 'challenge_type';
+    case 'mode':
+      return 'challenge_mode';
+    case 'party':
+      return 'party_hash';
+    case 'scale':
+      return 'scale';
+    case 'status':
+      return 'status';
+    default:
+      throw new InvalidQueryError(`Invalid grouping field: ${field}`);
+  }
+}
+
+export type SessionAggregationOptions<F extends AggregationQuery = {}> = {
+  limit?: number;
+  sort?: SortQuery<Aggregation | FieldAggregation<keyof Omit<F, '*'> & string>>;
+};
+
+/**
+ * Aggregates sessions based on the provided query.
+ *
+ * @param query The query to filter sessions by.
+ * @param fields The fields to aggregate.
+ * @returns The aggregated results.
+ */
+export async function aggregateSessions<F extends AggregationQuery>(
+  query: SessionQuery,
+  fields: F,
+): Promise<AggregationResult<F> | null>;
+
+export async function aggregateSessions<F extends AggregationQuery>(
+  query: SessionQuery,
+  fields: F,
+  options: SessionAggregationOptions<F>,
+): Promise<AggregationResult<F> | null>;
+
+export async function aggregateSessions<
+  F extends AggregationQuery,
+  G extends string | string[],
+>(
+  query: SessionQuery,
+  fields: F,
+  options: SessionAggregationOptions<F>,
+  grouping: G,
+): Promise<GroupedAggregationResult<F, G> | null>;
+
+export async function aggregateSessions<
+  F extends AggregationQuery,
+  G extends string | string[],
+>(
+  query: SessionQuery,
+  fields: F,
+  options: SessionAggregationOptions<F> = { limit: 50 },
+  grouping?: G,
+): Promise<AggregationResult<F> | GroupedAggregationResult<F, G> | null> {
+  const { conditions } = sessionFilters(query);
+
+  const aggregateName = (field: string, agg: Aggregation): string =>
+    `${agg}_${field}`;
+
+  const originalFields: Record<string, string> = {};
+  let hasCount = false;
+
+  const aggregateFields = Object.entries(fields).flatMap(([field, aggs]) => {
+    if (field === '*') {
+      if (aggs !== 'count') {
+        throw new InvalidQueryError(
+          'Cannot aggregate all fields with non-count aggregation',
+        );
+      }
+      hasCount = true;
+      return sql`COUNT(*) as count`;
+    }
+
+    if (!Array.isArray(aggs)) {
+      aggs = [aggs];
+    }
+
+    const fieldExpression = sessionFieldToExpression(field);
+
+    return aggs.map((agg) => {
+      const name = aggregateName(field, agg);
+      originalFields[name] = field;
+      return sql`${sql(agg)}(${fieldExpression}) as ${sql(name)}`;
+    });
+  });
+
+  let groupFields: string[] = [];
+  if (grouping !== undefined) {
+    const fields = Array.isArray(grouping) ? grouping : [grouping];
+    groupFields = (fields as string[]).map(sessionGroupingFieldToDb);
+  }
+
+  const floatOrZero = (value: string | number | null | undefined): number => {
+    const num = parseFloat(value as string);
+    return Number.isNaN(num) ? 0 : num;
+  };
+
+  let sort = undefined;
+  if (options.sort) {
+    const { direction, field } = parseSort(options.sort);
+    const [fieldName, agg] = field.split(':');
+    if (!(fieldName in fields)) {
+      throw new InvalidQueryError(`Invalid aggregation field: ${fieldName}`);
+    }
+
+    if (agg === undefined) {
+      sort = `${direction}${field}`;
+    } else if (isAggregation(agg)) {
+      sort = `${direction}${aggregateName(fieldName, agg as Aggregation)}#nl`;
+    } else {
+      throw new InvalidQueryError(`Invalid aggregation: ${agg}`);
+    }
+  }
+
+  const rows = await sql`
+    SELECT
+      ${
+        groupFields.length > 0
+          ? sql`${groupFields.map(
+              (g) => sql`challenge_sessions.${sql(g)} as ${sql(g)},`,
+            )}`
+          : sql``
+      }
+      ${aggregateFields.flatMap((f, i) => (i === 0 ? f : [sql`, `, f]))}
+    FROM challenge_sessions
+    ${where(conditions)}
+    ${groupFields.length > 0 ? sql`GROUP BY ${sql(groupFields)}` : sql``}
+    ${sort ? order(sort) : sql``}
+    ${options.limit ? sql`LIMIT ${options.limit}` : sql``}
+  `;
+
+  if (rows.length === 0) {
+    if (groupFields.length > 0) {
+      return {} as any;
+    }
+    if (hasCount) {
+      return { '*': { count: 0 } } as any;
+    }
+    return null;
+  }
+
+  if (groupFields.length === 0) {
+    const result = {} as AggregationResult<any>;
+    const row = rows[0];
+
+    Object.entries(row).forEach(([key, value]) => {
+      if (key === 'count') {
+        result['*'] = { count: parseInt(value as string) };
+        return;
+      }
+
+      const agg = key.split('_')[0];
+      const field = originalFields[key];
+
+      if (result[field] === undefined) {
+        result[field] = {};
+      }
+
+      result[field][agg as Aggregation] = floatOrZero(value);
+    });
+
+    return result;
+  }
+
+  const result = {} as Record<string, any>;
+  const groupingFieldsRaw = Array.isArray(grouping) ? grouping : [grouping!];
+
+  // If grouping by party, we want to return a list of usernames rather than
+  // the hash as the group key. Reconstruct the list from the players in the
+  // first challenge of each session that has the party hash.
+  const partyHashes = new Map<string, string[]>();
+
+  if (groupingFieldsRaw.includes('party' as G)) {
+    const partyField = sessionGroupingFieldToDb('party');
+    for (const row of rows) {
+      if (row[partyField]) {
+        partyHashes.set(row[partyField], []);
+      }
+    }
+
+    const conditionsWithHash = [
+      ...conditions,
+      sql`party_hash = ANY(${Array.from(partyHashes.keys())})`,
+    ];
+
+    const partyUsernames = await sql`
+      WITH latest_sessions AS (
+        SELECT DISTINCT ON (party_hash) id, party_hash
+        FROM challenge_sessions
+        ${where(conditionsWithHash)}
+        ORDER BY party_hash, end_time DESC NULLS LAST
+      ),
+      first_challenges AS (
+        SELECT DISTINCT ON (session_id) id, session_id
+        FROM challenges
+        WHERE session_id IN (SELECT id FROM latest_sessions)
+        ORDER BY session_id, start_time
+      )
+      SELECT
+        cs.party_hash,
+        p.username
+      FROM latest_sessions cs
+      JOIN first_challenges fc ON fc.session_id = cs.id
+      JOIN challenge_players cp ON cp.challenge_id = fc.id
+      JOIN players p ON p.id = cp.player_id
+      ORDER BY cs.party_hash, cp.orb;
+    `;
+
+    for (const { party_hash, username } of partyUsernames) {
+      partyHashes.get(party_hash)?.push(username);
+    }
+  }
+
+  rows.forEach((row) => {
+    let groupResult = {} as any;
+
+    Object.entries(row).forEach(([key, value]) => {
+      if (key === 'count') {
+        groupResult['*'] = { count: parseInt(value as string) };
+        return;
+      }
+
+      if (groupFields.includes(key)) {
+        return;
+      }
+
+      const agg = key.split('_')[0];
+      const field = originalFields[key];
+
+      if (groupResult[field] === undefined) {
+        groupResult[field] = {};
+      }
+
+      groupResult[field][agg as Aggregation] = floatOrZero(value);
+    });
+
+    let parent = result;
+
+    groupingFieldsRaw.forEach((field, i) => {
+      const dbField = sessionGroupingFieldToDb(field);
+      let value = row[dbField];
+
+      if (field === 'party') {
+        value = partyHashes.get(value)?.join(',') || value;
+      }
+
+      if (i === groupingFieldsRaw.length - 1) {
         parent[value] = groupResult;
       } else if (parent[value] === undefined) {
         parent[value] = {};
@@ -1515,7 +2026,7 @@ export async function aggregateBloatHands(
   query: BloatHandsQuery,
   view: BloatHandsView,
 ): Promise<BloatHandsResponse | null> {
-  const components = applyFilters(query, false, false);
+  const components = applyFilters(query, [], false, false);
   if (components === null) {
     return null;
   }

@@ -5,10 +5,8 @@ import {
   BloatHandsQuery,
   BloatHandsView,
 } from '@/actions/challenge';
-import {
-  parseChallengeQueryParams,
-  numericComparatorParam,
-} from '../../challenges/query';
+import { numericComparatorParam } from '@/api/query';
+import { parseChallengeQueryParams } from '../../challenges/query';
 
 function isValidView(view: string): view is BloatHandsView {
   return ['total', 'wave', 'chunk', 'intraChunkOrder'].includes(view);
