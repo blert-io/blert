@@ -9,6 +9,10 @@
   --blert-yellow-base: 222, 200, 88;
   --blert-text-color-base: 195, 199, 201;
   --blert-button-base: 88, 101, 242;
+  --blert-gold-base: 255, 215, 0;
+  --blert-silver-base: 192, 192, 192;
+  --blert-bronze-base: 205, 127, 50;
+
   --nav-bg-base: 23, 24, 33;
   --nav-bg-darkened-base: 17, 18, 33;
   --nav-bg-lightened-base: 33, 35, 48;
@@ -19,6 +23,9 @@
   --blert-yellow: rgb(var(--blert-yellow-base));
   --blert-text-color: rgb(var(--blert-text-color-base));
   --blert-button: rgb(var(--blert-button-base));
+  --blert-gold: rgb(var(--blert-gold-base));
+  --blert-silver: rgb(var(--blert-silver-base));
+  --blert-bronze: rgb(var(--blert-bronze-base));
 
   --nav-bg: rgb(var(--nav-bg-base));
   --nav-bg-darkened: rgb(var(--nav-bg-darkened-base));
@@ -41,6 +48,12 @@
 
   --font-size-normal: 15px;
   --font-color-normal: #000;
+
+  --blert-gold-text-shadow: 0 0 8px rgba(255, 215, 0, 0.6),
+    0 0 16px rgba(255, 215, 0, 0.3), 0 0 24px rgba(255, 215, 0, 0.25);
+  --blert-silver-text-shadow: 0 0 6px rgba(192, 192, 192, 0.5),
+    0 0 12px rgba(192, 192, 192, 0.25);
+  --blert-bronze-text-shadow: 0 0 6px rgba(205, 127, 50, 0.4);
 }
 
 * {

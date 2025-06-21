@@ -1,0 +1,50 @@
+@use '@/mixins.scss' as *;
+
+$LARGE_SCREEN_WIDTH: 2000px;
+
+.challengePage {
+  width: 100%;
+  padding: 2rem 1rem;
+  margin: 0 auto;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    padding: 1rem 0.5rem;
+  }
+}
+
+.content {
+  display: flex;
+  align-items: flex-start;
+  gap: 2rem;
+  max-width: 1900px;
+  margin: 0 auto;
+
+  @media (max-width: $LARGE_SCREEN_WIDTH) {
+    max-width: 1400px;
+  }
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+}
+
+.dashboardSidebar {
+  width: 100%;
+  max-width: 500px;
+
+  @media (min-width: $LARGE_SCREEN_WIDTH) {
+    max-width: 800px;
+  }
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    position: static;
+    max-width: none;
+  }
+}
+
+.challengeSection {
+  max-width: 1200px;
+  min-width: 0;
+  width: 100%;
+}

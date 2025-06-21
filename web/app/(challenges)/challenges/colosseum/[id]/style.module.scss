@@ -1,0 +1,13 @@
+@use '@/mixins.scss' as *;
+
+.content {
+  width: 100%;
+  padding: 68px 0 20px 0;
+  flex-grow: 1;
+}
+
+@media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+  .content {
+    padding-top: 60px;
+  }
+}

@@ -5,21 +5,22 @@ import {
   ChallengeStatus,
   ChallengeType,
   SessionStatus,
-  challengeName,
 } from '@blert/common';
 import Link from 'next/link';
-import { Suspense, useDeferredValue, useEffect, useState } from 'react';
+import { useDeferredValue, useEffect, useState } from 'react';
 import TimeAgo from 'react-timeago';
 
 import { ChallengeOverview, SessionWithChallenges } from '@/actions/challenge';
+import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
+import { useClientOnly } from '@/hooks/client-only';
 import {
   modeNameAndColor,
   statusNameAndColor,
   scaleNameAndColor,
-} from '@/components/raid-quick-details/status';
-import { useClientOnly } from '@/hooks/client-only';
-import { challengeUrl, queryString } from '@/utils/url';
+} from '@/utils/challenge';
 import { ticksToFormattedSeconds } from '@/utils/tick';
+import { formatDuration } from '@/utils/time';
+import { challengeUrl, queryString } from '@/utils/url';
 
 import styles from './style.module.scss';
 
@@ -36,11 +37,13 @@ export type SessionHistoryProps = {
 function ChallengeItem({
   challenge,
   challengeIndex,
+  icon,
   groupName,
   totalChallenges,
 }: {
   challenge: ChallengeOverview;
   challengeIndex: number;
+  icon?: React.ReactNode;
   groupName: string;
   totalChallenges: number;
 }) {
@@ -78,38 +81,39 @@ function ChallengeItem({
         <span className={styles.challengeIndex}>
           {groupName} {challengeIndex} of {totalChallenges}
         </span>
+        {icon}
       </div>
 
       <div className={styles.challengeDetails}>
         <div className={styles.challengeDetail} style={{ color: modeColor }}>
-          <i className="fa-solid fa-trophy" style={{ color: modeColor }} />
+          <i className="fas fa-trophy" style={{ color: modeColor }} />
           <span>{modeString}</span>
         </div>
 
         <div className={styles.challengeDetail} style={{ color: statusColor }}>
           <i
-            className={`fa-solid ${getStatusIcon(challenge.status)}`}
+            className={`fas ${getStatusIcon(challenge.status)}`}
             style={{ color: statusColor }}
           />
           <span>{statusString}</span>
         </div>
 
         <div className={styles.challengeDetail}>
-          <i className="fa-solid fa-hourglass"></i>
+          <i className="fas fa-hourglass" />
           <span>{ticksToFormattedSeconds(challenge.challengeTicks)}</span>
         </div>
 
         <div className={styles.challengeDetail}>
-          <i className="fa-solid fa-skull"></i>
+          <i className="fas fa-clock" />
+          {isClient && <TimeAgo date={challenge.startTime} />}
+        </div>
+
+        <div className={styles.challengeDetail}>
+          <i className="fas fa-skull" />
           <span>
             {challenge.totalDeaths} Death
             {challenge.totalDeaths !== 1 ? 's' : ''}
           </span>
-        </div>
-
-        <div className={styles.challengeDetail}>
-          <i className="fa-solid fa-clock"></i>
-          {isClient && <TimeAgo date={challenge.startTime} />}
         </div>
       </div>
     </Link>
@@ -126,6 +130,11 @@ function SessionCard({
   onToggle: () => void;
 }) {
   const isClient = useClientOnly();
+
+  if (session.challenges.length === 0) {
+    return null;
+  }
+
   const totalChallenges = session.challenges.length;
   const completedChallenges = session.challenges.filter(
     (c) => c.status === ChallengeStatus.COMPLETED,
@@ -140,26 +149,14 @@ function SessionCard({
       : 0;
 
   const end = session.endTime ?? new Date();
-  const durationMins = Math.round(
-    (end.getTime() - session.startTime.getTime()) / 1000 / 60,
+  const sessionDuration = formatDuration(
+    end.getTime() - session.startTime.getTime(),
   );
-  let sessionDuration: string;
-  if (durationMins > 60) {
-    sessionDuration = `${Math.round(durationMins / 60)}h ${durationMins % 60}m`;
-  } else {
-    sessionDuration = `${durationMins}m`;
-  }
 
-  const timeReference =
-    session.status === SessionStatus.ACTIVE
-      ? session.startTime
-      : session.endTime;
-  const timeText =
-    session.status === SessionStatus.ACTIVE ? 'Started' : 'Finished';
-  const timeColor =
-    session.status === SessionStatus.ACTIVE
-      ? 'var(--blert-blue)'
-      : 'var(--blert-green)';
+  const isActiveSession = session.status === SessionStatus.ACTIVE;
+
+  const timeReference = isActiveSession ? session.startTime : session.endTime;
+  const timeText = isActiveSession ? 'Started' : 'Finished';
 
   const groupName = [
     ChallengeType.TOB,
@@ -169,61 +166,101 @@ function SessionCard({
     ? 'Raid'
     : 'Run';
 
+  // Highlight the fastest completed challenge only if there are multiple
+  // challenges in the session.
+  let fastestChallenge: ChallengeOverview | null = null;
+  if (session.challenges.length > 1) {
+    fastestChallenge = session.challenges.reduce<ChallengeOverview | null>(
+      (fastest, challenge) => {
+        if (challenge.status !== ChallengeStatus.COMPLETED) {
+          return fastest;
+        }
+        if (fastest === null) {
+          return challenge;
+        }
+        return challenge.challengeTicks < fastest.challengeTicks
+          ? challenge
+          : fastest;
+      },
+      null,
+    );
+  }
+
+  const [latestStatus, latestColor] = statusNameAndColor(
+    session.challenges[0].status,
+    session.challenges[0].stage,
+  );
+
   return (
-    <div className={styles.sessionCard}>
+    <div
+      className={`${styles.sessionCard} ${isActiveSession ? styles.activeSession : ''}`}
+    >
       <div className={styles.sessionHeader} onClick={onToggle}>
         <div className={styles.sessionTitle}>
           <div className={styles.sessionInfo}>
-            <h3 className={styles.sessionName}>
-              {challengeName(session.challengeType)} ·{' '}
-              {scaleNameAndColor(session.scale)[0]} ·{' '}
-              {
-                modeNameAndColor(
-                  session.challengeType,
-                  session.challengeMode,
-                  false,
-                )[0]
-              }
-            </h3>
+            <h3 className={styles.sessionName}>{session.party.join(', ')}</h3>
             <div className={styles.sessionMeta}>
-              <span style={{ color: timeColor }}>
-                <i className="fa-solid fa-clock"></i>
+              {isActiveSession && (
+                <>
+                  <span className={styles.liveIndicator}>
+                    <span className={styles.pulsingDot} />
+                    Live
+                  </span>
+                  <span className={styles.separator}>•</span>
+                </>
+              )}
+              <span>
+                <i className="fas fa-clock" />
                 {timeText}{' '}
                 {isClient && timeReference && <TimeAgo date={timeReference} />}
               </span>
               <span className={styles.separator}>•</span>
-              <span>{session.party.join(', ')}</span>
+              <span>
+                {
+                  modeNameAndColor(
+                    session.challengeType,
+                    session.challengeMode,
+                  )[0]
+                }
+              </span>
+              <span className={styles.separator}>•</span>
+              <span>{scaleNameAndColor(session.scale)[0]}</span>
             </div>
           </div>
           <button className={styles.expandButton}>
-            <i
-              className={`fa-solid fa-chevron-${isExpanded ? 'up' : 'down'}`}
-            ></i>
+            <i className={`fas fa-chevron-${isExpanded ? 'up' : 'down'}`} />
           </button>
         </div>
 
         <div className={styles.sessionStats}>
           <div className={styles.stat}>
-            <i className="fa-solid fa-list-ol"></i>
+            <i className="fas fa-list-ol" />
             <span>
               {totalChallenges} {groupName.toLowerCase()}
               {totalChallenges !== 1 ? 's' : ''}
             </span>
           </div>
+
+          <div className={styles.stat}>
+            <i className="fas fa-flag-checkered" />
+            <span>Latest:</span>
+            <span style={{ color: latestColor }}>{latestStatus}</span>
+          </div>
+
           {sessionDuration && (
             <div className={styles.stat}>
-              <i className="fa-solid fa-hourglass"></i>
+              <i className="fas fa-hourglass" />
               <span>{sessionDuration}</span>
             </div>
           )}
           <div className={styles.stat}>
-            <i className="fa-solid fa-chart-simple"></i>
-            <span>{completionRate}% completions</span>
+            <i className="fas fa-chart-simple" />
+            <span>{completionRate}% compl.</span>
           </div>
           <div className={styles.stat}>
-            <i className="fa-solid fa-skull"></i>
+            <i className="fas fa-skull" />
             <span>
-              {totalDeaths} total death{totalDeaths !== 1 ? 's' : ''}
+              {totalDeaths} death{totalDeaths !== 1 ? 's' : ''}
             </span>
           </div>
         </div>
@@ -239,6 +276,15 @@ function SessionCard({
                 challengeIndex={totalChallenges - i} // Most recent first
                 groupName={groupName}
                 totalChallenges={session.challenges.length}
+                icon={
+                  challenge === fastestChallenge ? (
+                    <i
+                      className={`fas fa-star ${styles.goldMedal}`}
+                      data-tooltip-id={GLOBAL_TOOLTIP_ID}
+                      data-tooltip-content={`Fastest completed ${groupName.toLowerCase()}`}
+                    />
+                  ) : null
+                }
               />
             ))}
           </div>
@@ -261,7 +307,7 @@ function SkeletonSession() {
         </div>
 
         <div className={styles.sessionStats}>
-          {[...Array(4)].map((_, i) => (
+          {[...Array(5)].map((_, i) => (
             <div key={i} className={styles.stat}>
               <div
                 className={`${styles.skeleton} ${styles.skeletonStat}`}
@@ -275,9 +321,11 @@ function SkeletonSession() {
 }
 
 function SessionList({
+  count,
   sessions,
   isLoading,
 }: {
+  count: number;
   sessions: SessionWithChallenges[];
   isLoading: boolean;
 }) {
@@ -300,7 +348,7 @@ function SessionList({
   if (isLoading) {
     return (
       <>
-        {[...Array(5)].map((_, i) => (
+        {[...Array(count)].map((_, i) => (
           <SkeletonSession key={i} />
         ))}
       </>
@@ -310,7 +358,7 @@ function SessionList({
   if (sessions.length === 0) {
     return (
       <div className={styles.message}>
-        <i className="fa-solid fa-bed"></i>
+        <i className="fas fa-bed" />
         <span>No sessions found</span>
       </div>
     );
@@ -380,9 +428,11 @@ export default function SessionHistory(props: SessionHistoryProps) {
 
   return (
     <div className={styles.history}>
-      <Suspense fallback={<div className={styles.message}>Loading...</div>}>
-        <SessionList sessions={deferredSessions} isLoading={isInitialLoading} />
-      </Suspense>
+      <SessionList
+        count={count}
+        sessions={deferredSessions}
+        isLoading={isInitialLoading}
+      />
     </div>
   );
 }

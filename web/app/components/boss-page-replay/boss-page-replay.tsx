@@ -4,7 +4,7 @@ import { useContext } from 'react';
 
 import Card from '@/components/card';
 import Map, { Entity, EntityType, MapDefinition } from '@/components/map';
-import { ActorContext } from '@/raids/tob/context';
+import { ActorContext } from '@/(challenges)/raids/tob/context';
 
 import styles from './styles.module.scss';
 

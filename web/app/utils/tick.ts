@@ -1,3 +1,5 @@
+import { formatDuration } from './time';
+
 /** Milliseconds in an OSRS tick. */
 export const TICK_MS: number = 600;
 
@@ -47,4 +49,13 @@ export function ticksFromTime(time: string): number | null {
   }
 
   return milliseconds / TICK_MS;
+}
+
+/**
+ * Converts a number of ticks to a human-readable duration string.
+ * @param ticks The number of ticks.
+ * @returns The duration string.
+ */
+export function ticksToFormattedDuration(ticks: number): string {
+  return formatDuration(ticks * TICK_MS);
 }
