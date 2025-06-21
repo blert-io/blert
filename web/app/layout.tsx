@@ -92,7 +92,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${cinzel.variable} ${inter.className} ${robotoMono.variable} ${runescape.variable}`}
+        className={`${styles.body} ${cinzel.variable} ${inter.className} ${robotoMono.variable} ${runescape.variable}`}
         style={{ overflowX: 'hidden' }}
       >
         <Styler />

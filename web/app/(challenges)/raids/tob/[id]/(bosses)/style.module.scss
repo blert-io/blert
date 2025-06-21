@@ -1,0 +1,133 @@
+@use '@/mixins.scss' as *;
+
+.bossPage {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    padding: 0;
+  }
+
+  .inner {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      gap: 12px;
+    }
+  }
+}
+
+.overview {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  max-width: 1400px;
+}
+
+.timeline {
+  width: 100%;
+  max-width: 2150px;
+}
+
+.replayAndParty {
+  display: flex;
+  flex-flow: row wrap;
+  gap: 24px;
+  justify-content: center;
+  width: 100%;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    gap: 12px;
+  }
+}
+
+.charts {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  max-width: 1400px;
+
+  .scrollable {
+    width: 100%;
+    height: 100%;
+    overflow: auto hidden;
+    @include styledScrollbar;
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      padding-bottom: 30px;
+    }
+  }
+
+  .chart {
+    width: 100%;
+    height: 500px;
+
+    @media (max-width: 1300px) {
+      height: 400px;
+    }
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      height: 250px;
+    }
+  }
+}
+
+.bossPageCompact {
+  width: 100%;
+
+  h1 {
+    i {
+      margin-right: 8px;
+    }
+
+    font-size: 20px;
+    font-weight: 500;
+    text-align: center;
+  }
+
+  .timeline {
+    background: var(--panel-bg);
+    border-radius: 5px;
+  }
+}
+
+.bossPage__BossPic {
+  height: 200px;
+  width: 240px;
+  position: relative;
+  margin: 20px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    height: 100px;
+    width: 120px;
+    margin: 10px;
+  }
+}
+
+.bossPage__KeyDetails {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 0 20px;
+
+  h2 {
+    font-size: 35px;
+    margin: 0 0 15px 0;
+    border-bottom: 2px solid grey;
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      font-size: 1.8rem;
+      padding-bottom: 5px;
+      text-align: center;
+      margin-bottom: 5px;
+    }
+  }
+}

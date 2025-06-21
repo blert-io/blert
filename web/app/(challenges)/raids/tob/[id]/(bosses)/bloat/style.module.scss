@@ -1,0 +1,33 @@
+@use '@/mixins.scss' as *;
+
+.down {
+  td {
+    padding: 5px 0;
+  }
+
+  i {
+    color: var(--blert-button);
+  }
+
+  .arrow {
+    color: var(--font-color-nav);
+  }
+
+  .walkTime {
+    font-family: var(--font-roboto-mono), monospace;
+  }
+
+  .walkTicks {
+    font-size: 14px;
+    color: var(--font-color-nav);
+    margin-left: 8px;
+  }
+}
+
+.hand {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

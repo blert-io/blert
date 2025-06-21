@@ -23,8 +23,8 @@ import {
 import Tooltip from '@/components/tooltip';
 import HorizontalScrollable from '@/components/horizontal-scrollable';
 import Item from '@/components/item';
-import { BlertMemes, MemeContext } from '@/raids/meme-context';
-import { ActorContext, RoomActorState } from '@/raids/tob/context';
+import { BlertMemes, MemeContext } from '@/(challenges)/raids/meme-context';
+import { ActorContext, RoomActorState } from '@/(challenges)/raids/tob/context';
 import {
   PlayerState,
   PlayerStateMap,

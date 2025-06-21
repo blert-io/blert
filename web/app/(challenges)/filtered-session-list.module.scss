@@ -1,0 +1,72 @@
+@use '@/mixins.scss' as *;
+@use './style.module.scss' as *;
+
+.sessionList {
+  max-width: 880px;
+
+  @media (min-width: $LARGE_SCREEN_WIDTH) {
+    max-width: 1080px;
+  }
+
+  .title {
+    font-size: 1.33rem;
+    font-weight: 500;
+  }
+
+  .filters {
+    display: flex;
+    justify-content: space-between;
+    padding: 1em 0;
+
+    .filter {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 500px;
+      margin: 0 20px;
+
+      .label {
+        font-size: 1.25rem;
+        margin-bottom: 10px;
+        font-weight: 500;
+        color: var(--font-color-nav);
+      }
+
+      @media (max-width: $LARGE_SCREEN_WIDTH) {
+        margin: 0 5px;
+      }
+    }
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      flex-direction: column;
+
+      .filter {
+        width: 100%;
+
+        &:not(:last-child) {
+          margin-bottom: 20px;
+        }
+
+        &:last-child {
+          margin-left: 0;
+        }
+      }
+    }
+  }
+
+  .statuses {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+
+    .checkbox {
+      margin: 0 2px;
+
+      @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+        margin-top: 5px;
+        width: 46%;
+      }
+    }
+  }
+}

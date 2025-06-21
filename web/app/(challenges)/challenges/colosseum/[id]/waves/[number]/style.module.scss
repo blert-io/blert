@@ -1,0 +1,52 @@
+@use '@/mixins.scss' as *;
+
+.wavePage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0 auto;
+  gap: 24px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    gap: 12px;
+  }
+}
+
+.overview {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  max-width: 1400px;
+}
+
+.timeline {
+  width: 100%;
+  max-width: 2150px;
+}
+
+.replayAndParty {
+  display: flex;
+  flex-flow: row wrap;
+  gap: 24px;
+  justify-content: center;
+  width: 100%;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    gap: 12px;
+  }
+}
+
+.handicapOptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+
+  .handicapOption {
+    position: relative;
+    transition: all 0.2s ease;
+
+    &:hover {
+      transform: translateY(-2px);
+    }
+  }
+}

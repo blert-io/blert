@@ -4,9 +4,18 @@
   @include panel;
   flex-direction: column;
   padding: 20px;
+  border: 1px solid rgba(var(--blert-button-base), 0.15);
+  border-radius: 12px;
+  transition: all 0.3s ease;
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     padding: 12px;
+  }
+
+  &:hover {
+    border-color: rgba(var(--blert-button-base), 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
   }
 
   &.primary {

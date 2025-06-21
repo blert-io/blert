@@ -56,9 +56,15 @@ export type NextSearchParams = Record<string, string | string[] | undefined>;
  * Returns a URL query string from the given parameters.
  *
  * @param params Key-value pairs to encode. Undefined values are ignored.
+ * @param joinMultiple If a value is an array, join its values with commas as a
+ *   single URL parameter. If false, each array value is added as a separate
+ *   parameter.
  * @returns A URL query string.
  */
-export function queryString(params: UrlParams): string {
+export function queryString(
+  params: UrlParams,
+  joinMultiple: boolean = true,
+): string {
   const searchParams = new URLSearchParams();
   for (let [key, value] of Object.entries(params)) {
     if (value === undefined) {
@@ -69,6 +75,14 @@ export function queryString(params: UrlParams): string {
       if (value.length === 0) {
         continue;
       }
+
+      if (!joinMultiple) {
+        for (let v of value) {
+          searchParams.append(key, v.toString());
+        }
+        continue;
+      }
+
       value = value.join(',');
     }
     searchParams.set(key, value.toString());
