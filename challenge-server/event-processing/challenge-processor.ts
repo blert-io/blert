@@ -369,6 +369,7 @@ export default abstract class ChallengeProcessor {
     }
 
     await Promise.all([
+      this.addStageDeaths(),
       this.writeStageEvents(
         stage,
         this.stageState.eventsToWrite,
@@ -913,6 +914,32 @@ export default abstract class ChallengeProcessor {
         promises.push(Players.updateStats(id, stats));
       }
     });
+
+    await Promise.all(promises);
+  }
+
+  private async addStageDeaths(): Promise<void> {
+    const stageDeaths = this.stageState.deaths;
+    if (stageDeaths.length === 0) {
+      return;
+    }
+
+    const promises = [];
+    for (const death of stageDeaths) {
+      const playerIndex = this.party.indexOf(death);
+      if (playerIndex === -1) {
+        continue;
+      }
+
+      promises.push(
+        sql`
+          UPDATE challenge_players
+          SET stage_deaths = COALESCE(stage_deaths, '{}') || ${[this.stage]}
+          WHERE challenge_id = ${this.databaseId}
+            AND player_id = ${this.players[playerIndex].id}
+        `,
+      );
+    }
 
     await Promise.all(promises);
   }
