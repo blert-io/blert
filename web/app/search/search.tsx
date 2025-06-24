@@ -111,7 +111,6 @@ function challengesQueryParams(
     params.after = sortValues;
   }
 
-  baseParams.sort = sortParam;
   params.sort = sortParam;
   return [baseParams, params];
 }
