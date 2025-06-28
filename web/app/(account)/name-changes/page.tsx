@@ -37,6 +37,8 @@ export default async function NameChanges() {
   );
 }
 
+export const dynamic = 'force-dynamic';
+
 export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
   return basicMetadata(await parent, {
     title: 'Recent Name Changes',

@@ -8,12 +8,11 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import ActivityChart from '@/components/activity-chart';
 import Card, { CardLink } from '@/components/card';
 import RadioInput from '@/components/radio-input';
-import {
-  scaleNameAndColor,
-  statusNameAndColor,
-} from '@/components/raid-quick-details';
+import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
+import Tooltip from '@/components/tooltip';
 import Statistic from '@/components/statistic';
 import { useClientOnly } from '@/hooks/client-only';
+import { scaleNameAndColor, statusNameAndColor } from '@/utils/challenge';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 import { challengeUrl, queryString } from '@/utils/url';
 
@@ -33,6 +32,8 @@ const ACTIVITY_THRESHOLDS = [
   { threshold: 0.75, color: '#4a55b2' },
   { threshold: 1, color: 'var(--blert-button)' },
 ] as const;
+
+const HEATMAP_TOOLTIP_ID = 'calendar-heatmap-tooltip';
 
 type PbEntry = {
   title: string;
@@ -113,14 +114,6 @@ function CalendarHeatmap({
 }: {
   data: Array<{ date: Date; count: number }>;
 }) {
-  const [tooltip, setTooltip] = useState<{
-    date: Date;
-    count: number;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null>(null);
   const heatmapRef = useRef<HTMLDivElement>(null);
 
   // Use 8 as the minimum count so that low-activity players don't have a
@@ -201,41 +194,6 @@ function CalendarHeatmap({
     return ACTIVITY_THRESHOLDS[ACTIVITY_THRESHOLDS.length - 1].color;
   };
 
-  const handleMouseEnter = (
-    day: { date: Date; count: number },
-    event: React.MouseEvent<HTMLDivElement>,
-  ) => {
-    if (!heatmapRef.current) {
-      return;
-    }
-
-    const rect = event.currentTarget.getBoundingClientRect();
-
-    const tooltipWidth = 250;
-    const tooltipHeight = 70;
-
-    let left = rect.left + rect.width / 2 - tooltipWidth / 2;
-    let top = rect.top - tooltipHeight - 10;
-
-    if (left + tooltipWidth > window.innerWidth) {
-      left = window.innerWidth - tooltipWidth - 10;
-    }
-    if (left < 10) {
-      left = 10;
-    }
-    if (top < 10) {
-      top = rect.bottom + 10;
-    }
-
-    setTooltip({
-      ...day,
-      x: left,
-      y: top,
-      width: tooltipWidth,
-      height: tooltipHeight,
-    });
-  };
-
   return (
     <div className={styles.heatmap} ref={heatmapRef}>
       <div className={styles.monthLabels}>
@@ -269,8 +227,10 @@ function CalendarHeatmap({
                   key={j}
                   className={styles.day}
                   style={{ backgroundColor: getColor(day?.count || 0) }}
-                  onMouseEnter={(e) => day && handleMouseEnter(day, e)}
-                  onMouseLeave={() => setTooltip(null)}
+                  data-tooltip-id={HEATMAP_TOOLTIP_ID}
+                  data-tooltip-date={day ? formatDate(day.date) : undefined}
+                  data-tooltip-count={day ? day.count.toString() : undefined}
+                  data-tooltip-missing-data={day ? 'false' : 'true'}
                 />
               ))}
             </div>
@@ -288,98 +248,11 @@ function CalendarHeatmap({
         ))}
         <div className={styles.label}>More</div>
       </div>
-      {tooltip && (
-        <CalendarTooltip
-          date={tooltip.date}
-          count={tooltip.count}
-          initialLeft={tooltip.x}
-          initialTop={tooltip.y}
-          initialWidth={tooltip.width}
-          initialHeight={tooltip.height}
-        />
-      )}
-    </div>
-  );
-}
-
-function CalendarTooltip({
-  date,
-  count,
-  initialLeft,
-  initialTop,
-  initialWidth,
-  initialHeight,
-}: {
-  date: Date;
-  count: number;
-  initialLeft: number;
-  initialTop: number;
-  initialWidth: number;
-  initialHeight: number;
-}) {
-  const tooltipRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState<{ left: number; top: number }>({
-    left: initialLeft,
-    top: initialTop,
-  });
-
-  useEffect(() => {
-    if (!tooltipRef.current) {
-      return;
-    }
-
-    const tooltip = tooltipRef.current;
-    const rect = tooltip.getBoundingClientRect();
-
-    let left = initialLeft;
-    let top = initialTop;
-
-    if (rect.width !== initialWidth) {
-      left += (initialWidth - rect.width) / 2;
-    }
-    if (rect.height !== initialHeight) {
-      if (initialTop <= rect.top) {
-        top += initialHeight - rect.height;
-      }
-    }
-
-    if (left + rect.width > window.innerWidth) {
-      left = window.innerWidth - rect.width - 10;
-    }
-    if (left < 10) {
-      left = 10;
-    }
-    if (top < 10) {
-      top = rect.bottom + 10;
-    }
-
-    setPosition({ left, top });
-  }, [initialLeft, initialTop, initialWidth, initialHeight]);
-
-  const formattedDate = new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
-  ).toLocaleDateString(undefined, {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    timeZone: 'UTC',
-  });
-
-  return (
-    <div
-      ref={tooltipRef}
-      className={styles.calendarTooltip}
-      style={{
-        position: 'fixed',
-        left: position.left,
-        top: position.top,
-      }}
-    >
-      <div className={styles.date}>{formattedDate}</div>
-      <div className={styles.count}>
-        {count} {count === 1 ? 'raid' : 'raids'}
-      </div>
+      <Tooltip
+        clickable
+        tooltipId={HEATMAP_TOOLTIP_ID}
+        render={HeatmapTooltipRenderer}
+      />
     </div>
   );
 }
@@ -417,6 +290,61 @@ type ChallengeStatsResponse = {
     };
   };
 };
+
+function formatDate(date: Date): string {
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  ).toLocaleDateString(undefined, {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+function HeatmapTooltipRenderer({
+  activeAnchor,
+}: {
+  activeAnchor: HTMLElement | null;
+}) {
+  if (!activeAnchor) {
+    return null;
+  }
+
+  const dateStr = activeAnchor.dataset.tooltipDate;
+  const countStr = activeAnchor.dataset.tooltipCount;
+  const isMissingData = activeAnchor.dataset.tooltipMissingData === 'true';
+
+  if (isMissingData) {
+    return (
+      <div className={styles.heatmapTooltip}>
+        <div className={styles.missingData}>
+          <i className="fas fa-exclamation-triangle" />
+          <span>Missing data</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!dateStr || !countStr) {
+    return null;
+  }
+
+  const count = parseInt(countStr, 10);
+
+  return (
+    <div className={styles.heatmapTooltip}>
+      <div className={styles.date}>{dateStr}</div>
+      <div className={styles.challengeCount}>
+        <i className="fas fa-shield-alt" />
+        <span>
+          {count} challenge{count === 1 ? '' : 's'}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export default function PlayerOverviewContent({
   personalBests,

@@ -22,7 +22,7 @@ import Card, { CardLink } from './components/card';
 import Carousel from './components/carousel';
 import RadioInput from './components/radio-input';
 import { useClientOnly } from './hooks/client-only';
-import { partyNames } from './utils/challenge-description';
+import { challengePartyNames } from './utils/challenge-description';
 import { ticksToFormattedSeconds } from './utils/tick';
 import { challengeUrl, queryString } from './utils/url';
 
@@ -378,7 +378,7 @@ function FeedItem({ item, index }: { item: ActivityFeedItem; index: number }) {
 
       content = (
         <span>
-          <strong>{partyNames(challenge as Challenge)}</strong>{' '}
+          <strong>{challengePartyNames(challenge as Challenge)}</strong>{' '}
           <Link href={challengeUrl(challenge.type, challenge.uuid)}>
             {status}
           </Link>

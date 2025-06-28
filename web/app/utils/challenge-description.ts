@@ -5,23 +5,26 @@ import {
   stageName,
 } from '@blert/common';
 
-export function partyNames(challenge: Challenge): string {
-  const partyNames = challenge.party.map((p) => p.username);
-  if (partyNames.length === 1) {
-    return partyNames[0];
+export function partyNames(party: string[]): string {
+  if (party.length === 1) {
+    return party[0];
   }
-  if (partyNames.length === 2) {
-    return partyNames.join(' and ');
+  if (party.length === 2) {
+    return party.join(' and ');
   }
   return (
-    partyNames.slice(0, partyNames.length - 1).join(', ') +
+    party.slice(0, party.length - 1).join(', ') +
     ', and ' +
-    partyNames[challenge.party.length - 1]
+    party[party.length - 1]
   );
 }
 
+export function challengePartyNames(challenge: Challenge): string {
+  return partyNames(challenge.party.map((p) => p.username));
+}
+
 export function challengePageDescription(challenge: Challenge): string {
-  const party = partyNames(challenge);
+  const party = challengePartyNames(challenge);
 
   let stem;
   if (challenge.status === ChallengeStatus.IN_PROGRESS) {

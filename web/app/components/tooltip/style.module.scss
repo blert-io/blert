@@ -1,6 +1,10 @@
 @use '../../mixins.scss' as *;
 
 .tooltip {
-  border: 1px solid var(--font-color-nav-divider);
   color: var(--blert-text-color) !important;
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: 0.025em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }

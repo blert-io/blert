@@ -40,6 +40,7 @@ export type ChallengePlayer = {
   username: string;
   currentUsername: string;
   primaryGear: PrimaryMeleeGear;
+  deaths: Stage[];
 };
 
 export interface TobRaid extends Challenge {
@@ -88,7 +89,7 @@ export type TobChallengeStats = {
   nylocasBossMelee: number;
   sotetsegDeaths: number;
   xarpusDeaths: number;
-  xarpusHealing: number | null; // TODO(frolv): This is not yet tracked.
+  xarpusHealing: number | null;
   verzikDeaths: number;
   verzikRedsCount: number | null;
 };

@@ -12,6 +12,7 @@ import {
   EventType,
   Player,
   PlayerStats,
+  RELEVANT_PB_SPLITS,
   Session,
   SessionStatus,
   SplitType,
@@ -21,6 +22,7 @@ import {
   allSplitModes,
   camelToSnake,
   generalizeSplit,
+  isPostgresInvalidTextRepresentation,
   isPostgresUndefinedColumn,
   snakeToCamel,
   snakeToCamelObject,
@@ -69,6 +71,7 @@ export async function loadChallenge(
     SELECT
       challenge_players.username,
       challenge_players.primary_gear,
+      challenge_players.stage_deaths,
       players.username as current_username
     FROM
       challenge_players JOIN players ON challenge_players.player_id = players.id
@@ -106,6 +109,7 @@ export async function loadChallenge(
       username: p.username,
       currentUsername: p.current_username,
       primaryGear: p.primary_gear,
+      deaths: p.stage_deaths,
     })),
     splits: splitsMap,
   };
@@ -144,6 +148,11 @@ export async function loadChallenge(
   return challenge;
 }
 
+export type SplitValue = {
+  ticks: number;
+  accurate: boolean;
+};
+
 export type ChallengeOverview = Pick<
   Challenge,
   | 'uuid'
@@ -160,7 +169,7 @@ export type ChallengeOverview = Pick<
   | 'totalDeaths'
 > & {
   party: ChallengePlayer[];
-  splits?: Partial<Record<SplitType, { ticks: number; accurate: boolean }>>;
+  splits?: Partial<Record<SplitType, SplitValue>>;
 };
 
 type SortDirection = '+' | '-';
@@ -713,6 +722,7 @@ export async function findChallenges(
       SELECT
         challenge_id,
         challenge_players.username AS username,
+        challenge_players.stage_deaths,
         players.username AS current_username,
         primary_gear,
         orb
@@ -729,6 +739,7 @@ export async function findChallenges(
           username: p.username,
           currentUsername: p.current_username,
           primaryGear: p.primary_gear,
+          deaths: p.stage_deaths,
         });
       });
     }),
@@ -1174,6 +1185,297 @@ function sessionFilters(query: SessionQuery): {
   }
 
   return { conditions, defaultSort };
+}
+
+export type SessionStats = {
+  challenges: number;
+  completions: number;
+  wipes: number;
+  resets: number;
+  deaths: number;
+  /** Percentage of challenges completed. */
+  completionRate: number;
+  /** Fastest completed challenge time. */
+  minCompletionTicks: number;
+  /** Slowest completed challenge time. */
+  maxCompletionTicks: number;
+  /** Average completion time, rounded to the nearest tick. */
+  avgCompletionTicks: number;
+  /** Total number of personal bests achieved across the team. */
+  personalBests: number;
+};
+
+type SimplePersonalBest = {
+  type: SplitType;
+  ticks: number;
+};
+
+export type ChallengePersonalBest = SimplePersonalBest & {
+  player: string;
+};
+
+export type SessionPlayerStats = {
+  username: string;
+  deaths: number;
+  deathsByStage: Record<Stage, number>;
+  personalBests: SimplePersonalBest[];
+};
+
+export type SessionChallenge = Omit<ChallengeOverview, 'sessionUuid'> &
+  Required<Pick<ChallengeOverview, 'splits'>> & {
+    personalBests: ChallengePersonalBest[];
+  };
+
+export type SessionWithStats = Omit<Session, 'partyHash'> & {
+  challenges: SessionChallenge[];
+  party: string[];
+  stats: SessionStats;
+  playerStats: SessionPlayerStats[];
+};
+
+/**
+ * Loads detailed statistics for a session.
+ *
+ * @param uuid The UUID of the session to load.
+ * @returns The session.
+ */
+export async function loadSessionWithStats(
+  uuid: string,
+): Promise<SessionWithStats | null> {
+  let rawSession: postgres.Row;
+
+  try {
+    const [result] = await sql`
+      SELECT * FROM challenge_sessions
+      WHERE uuid = ${uuid}
+    `;
+
+    if (result === undefined) {
+      return null;
+    }
+
+    rawSession = result;
+  } catch (e) {
+    if (isPostgresInvalidTextRepresentation(e)) {
+      return null;
+    }
+    throw e;
+  }
+
+  const rawChallenges = await sql`
+    SELECT * FROM challenges
+    WHERE session_id = ${rawSession.id}
+      AND status != ${ChallengeStatus.ABANDONED}
+    ORDER BY start_time ASC
+  `;
+
+  if (rawChallenges.length === 0) {
+    return null;
+  }
+
+  const challengeIds = rawChallenges.map((c) => c.id);
+
+  const challengePlayersQuery = sql`
+    SELECT
+      cp.challenge_id,
+      cp.username,
+      cp.stage_deaths,
+      cp.primary_gear,
+      p.username AS current_username
+    FROM challenge_players cp
+    JOIN players p ON p.id = cp.player_id
+    WHERE cp.challenge_id = ANY(${challengeIds})
+    ORDER BY cp.orb ASC, cp.challenge_id ASC
+  `;
+
+  const challengeSplitsQuery = sql`
+    SELECT challenge_id, type, ticks, accurate FROM challenge_splits
+    WHERE challenge_id = ANY(${challengeIds})
+  `;
+
+  const personalBestsQuery = sql`
+    SELECT p.username, cs.challenge_id, cs.type, cs.ticks
+    FROM personal_best_history pbh
+    JOIN challenge_splits cs ON pbh.challenge_split_id = cs.id
+    JOIN players p ON p.id = pbh.player_id
+    WHERE cs.challenge_id = ANY(${challengeIds})
+      AND cs.type = ANY(${RELEVANT_PB_SPLITS})
+    ORDER BY pbh.created_at ASC
+  `;
+
+  const [challengePlayers, challengeSplits, personalBests] = await Promise.all([
+    challengePlayersQuery,
+    challengeSplitsQuery,
+    personalBestsQuery,
+  ]);
+
+  const partiesByChallenge = challengePlayers.reduce<
+    Record<number, ChallengePlayer[]>
+  >((acc, player) => {
+    if (!acc[player.challenge_id]) {
+      acc[player.challenge_id] = [];
+    }
+    acc[player.challenge_id].push({
+      username: player.username,
+      currentUsername: player.current_username,
+      primaryGear: player.primary_gear,
+      deaths: player.stage_deaths,
+    });
+    return acc;
+  }, {});
+
+  // Use the first challenge's party as the canonical session party.
+  const party = partiesByChallenge[rawChallenges[0].id].map((p) => p.username);
+
+  const splitsByChallenge = challengeSplits.reduce<
+    Record<number, Partial<Record<SplitType, SplitValue>>>
+  >((acc, split) => {
+    if (!acc[split.challenge_id]) {
+      acc[split.challenge_id] = {};
+    }
+    acc[split.challenge_id][split.type as SplitType] = {
+      ticks: split.ticks,
+      accurate: split.accurate,
+    };
+    return acc;
+  }, {});
+
+  const pbsByChallenge: Record<number, ChallengePersonalBest[]> = {};
+  const pbsByPlayer: Map<string, Map<SplitType, number>> = new Map(
+    party.map((p) => [p, new Map()]),
+  );
+
+  for (const pb of personalBests) {
+    if (!pbsByChallenge[pb.challenge_id]) {
+      pbsByChallenge[pb.challenge_id] = [];
+    }
+    pbsByChallenge[pb.challenge_id].push({
+      player: pb.username,
+      type: pb.type as SplitType,
+      ticks: pb.ticks,
+    });
+
+    // PB rows are sorted by creation date, so the latest row is the fastest.
+    pbsByPlayer.get(pb.username)?.set(pb.type as SplitType, pb.ticks);
+  }
+
+  const challenges: SessionChallenge[] = rawChallenges.map((c) => ({
+    uuid: c.uuid,
+    type: c.type as ChallengeType,
+    status: c.status as ChallengeStatus,
+    mode: c.mode as ChallengeMode,
+    stage: c.stage,
+    scale: c.scale,
+    startTime: c.start_time,
+    finishTime: c.finish_time,
+    challengeTicks: c.challenge_ticks,
+    overallTicks: c.overall_ticks,
+    totalDeaths: c.total_deaths,
+    party: partiesByChallenge[c.id],
+    splits: splitsByChallenge[c.id] ?? {},
+    personalBests: pbsByChallenge[c.id] ?? [],
+  }));
+
+  const statsForPlayer: Record<string, SessionPlayerStats> = {};
+  for (const cp of challengePlayers) {
+    if (!statsForPlayer[cp.username]) {
+      statsForPlayer[cp.username] = {
+        username: cp.username,
+        deaths: 0,
+        deathsByStage: {} as Record<Stage, number>,
+        personalBests: Array.from(
+          pbsByPlayer.get(cp.username)?.entries() ?? [],
+        ).map(([type, ticks]) => ({
+          type: type as SplitType,
+          ticks,
+        })),
+      };
+    }
+
+    statsForPlayer[cp.username].deaths += cp.stage_deaths.length;
+    for (const stage of cp.stage_deaths) {
+      if (!statsForPlayer[cp.username].deathsByStage[stage]) {
+        statsForPlayer[cp.username].deathsByStage[stage] = 0;
+      }
+      statsForPlayer[cp.username].deathsByStage[stage]++;
+    }
+  }
+
+  // The number of challenges in a session will always be reasonable, so stats
+  // can be aggregated here rather than in the database.
+  const stats: SessionStats = {
+    challenges: challenges.length,
+    completions: 0,
+    wipes: 0,
+    resets: 0,
+    deaths: 0,
+    completionRate: 0,
+    minCompletionTicks: Infinity,
+    maxCompletionTicks: 0,
+    avgCompletionTicks: 0,
+    // The number of unique personal bests across the team.
+    personalBests: Object.values(statsForPlayer).reduce(
+      (acc, player) => acc + player.personalBests.length,
+      0,
+    ),
+  };
+  let totalCompletionTicks = 0;
+
+  for (const challenge of challenges) {
+    switch (challenge.status) {
+      case ChallengeStatus.COMPLETED:
+        stats.completions++;
+
+        totalCompletionTicks += challenge.challengeTicks;
+        stats.minCompletionTicks = Math.min(
+          stats.minCompletionTicks,
+          challenge.challengeTicks,
+        );
+        stats.maxCompletionTicks = Math.max(
+          stats.maxCompletionTicks,
+          challenge.challengeTicks,
+        );
+        break;
+
+      case ChallengeStatus.WIPED:
+        stats.wipes++;
+        break;
+
+      case ChallengeStatus.RESET:
+        stats.resets++;
+        break;
+    }
+
+    stats.deaths += challenge.totalDeaths;
+  }
+
+  if (stats.challenges > 0) {
+    stats.completionRate = (stats.completions / stats.challenges) * 100;
+  }
+
+  if (stats.completions > 0) {
+    stats.avgCompletionTicks = Math.round(
+      totalCompletionTicks / stats.completions,
+    );
+  } else {
+    stats.minCompletionTicks = 0;
+  }
+
+  const session: SessionWithStats = {
+    uuid: rawSession.uuid,
+    challengeType: rawSession.challenge_type as ChallengeType,
+    challengeMode: rawSession.challenge_mode as ChallengeMode,
+    scale: rawSession.scale,
+    startTime: rawSession.start_time,
+    endTime: rawSession.end_time,
+    status: rawSession.status as SessionStatus,
+    party,
+    challenges,
+    stats,
+    playerStats: party.map((username) => statsForPlayer[username]),
+  };
+
+  return session;
 }
 
 /**
