@@ -162,6 +162,37 @@
   color: var(--font-color-nav-divider);
 }
 
+.sessionActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.viewSessionButton {
+  background: rgba(var(--blert-green-base), 0.1);
+  border: 1px solid rgba(var(--blert-green-base), 0.3);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--blert-green);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  text-decoration: none;
+
+  &:hover {
+    background: rgba(var(--blert-green-base), 0.2);
+    transform: scale(1.05);
+    color: var(--blert-green);
+  }
+
+  i {
+    font-size: 14px;
+  }
+}
+
 .expandButton {
   background: rgba(var(--blert-button-base), 0.1);
   border: 1px solid rgba(var(--blert-button-base), 0.3);
