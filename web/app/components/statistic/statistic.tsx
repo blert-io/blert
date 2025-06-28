@@ -7,6 +7,7 @@ type StatisticProps = {
   maxFontSize?: number;
   value: number | string;
   className?: string;
+  valueClassName?: string;
   width: number;
   height?: number;
   unit?: string;
@@ -63,7 +64,7 @@ export default function Statistic(props: StatisticProps) {
   const val = (
     <div
       key="value"
-      className={styles.value}
+      className={[styles.value, props.valueClassName].filter(Boolean).join(' ')}
       style={{ fontSize, height: Math.floor(maxFontSize * 1.1) }}
     >
       {value}

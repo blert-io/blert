@@ -250,7 +250,7 @@ $NAV_MARGIN: 10px;
   }
 
   .filters {
-    width: 250px;
+    width: 260px;
     color: var(--font-color-nav);
   }
 
@@ -574,6 +574,51 @@ $NAV_MARGIN: 10px;
     .count {
       font-size: 12px;
       color: rgba(255, 255, 255, 0.8);
+    }
+  }
+}
+
+.heatmapTooltip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  .date {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--blert-text-color);
+  }
+
+  .challengeCount {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--font-color-nav);
+
+    i {
+      color: rgba(var(--blert-button-base), 0.8);
+      font-size: 14px;
+      width: 16px;
+      text-align: center;
+    }
+
+    span {
+      font-weight: 500;
+    }
+  }
+
+  .missingData {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--blert-yellow);
+    font-style: italic;
+
+    i {
+      color: var(--blert-yellow);
+      font-size: 14px;
     }
   }
 }

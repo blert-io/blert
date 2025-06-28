@@ -16,6 +16,8 @@ export {
   allSplitModes,
   generalizeSplit,
   splitName,
+  splitToStage,
+  RELEVANT_PB_SPLITS,
 } from './split';
 
 export type {
@@ -172,6 +174,7 @@ export {
 } from './db/redis';
 
 export {
+  isPostgresInvalidTextRepresentation,
   isPostgresUndefinedColumn,
   isPostgresUniqueViolation,
 } from './db/postgres';

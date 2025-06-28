@@ -1,6 +1,6 @@
-.radioGroup {
-  $selectedColor: rgb(46, 38, 77);
+@use '@/mixins.scss' as *;
 
+.radioGroup {
   display: flex;
   gap: 4px;
   width: 100%;
@@ -11,11 +11,33 @@
 
   &.joined {
     gap: 0;
-    border-radius: 5px;
+    border-radius: 8px;
     overflow: hidden;
+    border: 1px solid rgba(var(--nav-bg-lightened-base), 0.3);
+    background: rgba(var(--nav-bg-base), 0.3);
 
     .radioOption {
       border-radius: 0;
+      border: none;
+      background: transparent;
+
+      &:not(:last-child) {
+        border-right: 1px solid rgba(var(--nav-bg-lightened-base), 0.3);
+      }
+
+      label {
+        border: none;
+        background: transparent;
+        border-radius: 0;
+      }
+
+      &:first-child label {
+        border-radius: 7px 0 0 7px;
+      }
+
+      &:last-child label {
+        border-radius: 0 7px 7px 0;
+      }
     }
   }
 
@@ -24,11 +46,13 @@
       flex-basis: initial;
 
       label {
-        padding: 6px;
+        padding: 8px 12px;
+        font-size: 0.85rem;
+        font-weight: 500;
       }
 
       input:checked + label {
-        font-weight: initial;
+        font-weight: 600;
       }
     }
   }
@@ -40,22 +64,35 @@
       color: var(--font-color-nav);
 
       label {
-        border: 1px solid var(--font-color-nav-divider);
-        border-radius: 5px;
-        transition: all 0.2s ease-in-out;
+        border: 1px solid rgba(var(--font-color-nav-divider), 0.5);
+        border-radius: 8px;
+        background: rgba(var(--panel-bg-base), 0.3);
+        transition: all 0.2s ease;
+        backdrop-filter: blur(2px);
       }
 
       label:hover {
-        border: 1px solid rgba(var(--blert-button-base), 0.7);
+        border: 1px solid rgba(var(--blert-button-base), 0.5);
         color: var(--blert-text-color);
-        background: none;
+        background: rgba(var(--blert-button-base), 0.05);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       }
 
       input:checked + label {
-        border: 1px solid var(--blert-button);
+        border: 1px solid rgba(var(--blert-button-base), 0.8);
         color: var(--blert-text-color);
-        font-weight: 500;
-        background: none;
+        font-weight: 600;
+        background: rgba(var(--blert-button-base), 0.1);
+        box-shadow:
+          0 2px 8px rgba(var(--blert-button-base), 0.2),
+          inset 0 1px 0 rgba(var(--blert-button-base), 0.1);
+      }
+
+      input:checked + label:hover {
+        background: rgba(var(--blert-button-base), 0.15);
+        box-shadow:
+          0 6px 16px rgba(var(--blert-button-base), 0.25),
+          inset 0 1px 0 rgba(var(--blert-button-base), 0.15);
       }
     }
   }
@@ -63,19 +100,32 @@
   .radioOption {
     flex-grow: 1;
     flex-basis: 0;
-    background: var(--nav-bg);
-    border-radius: 5px;
+    background: rgba(var(--nav-bg-base), 0.6);
+    border: 1px solid rgba(var(--nav-bg-lightened-base), 0.3);
+    border-radius: 8px;
     overflow: hidden;
+    transition: all 0.2s ease;
+
+    &:hover {
+      border-color: rgba(var(--blert-button-base), 0.3);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
 
     label {
       display: block;
-      padding: 10px;
+      padding: 12px 16px;
       text-align: center;
+      cursor: pointer;
+      font-weight: 500;
+      color: var(--font-color-nav);
+      transition: all 0.2s ease;
+      background: transparent;
+      border-radius: 7px;
+      user-select: none;
 
       &:hover {
-        color: white;
-        cursor: pointer;
-        background: rgba($selectedColor, 0.4);
+        color: var(--blert-text-color);
+        background: rgba(var(--blert-button-base), 0.08);
       }
     }
 
@@ -88,21 +138,74 @@
 
     input:disabled + label {
       opacity: 0.5;
-      cursor: default;
+      cursor: not-allowed;
+      color: var(--font-color-nav);
 
       &:hover {
         color: var(--font-color-nav);
-        background: var(--nav-bg);
+        background: transparent;
+        transform: none;
       }
     }
 
     input:checked + label {
-      background: $selectedColor;
-      color: white;
-      font-weight: bold;
+      background: linear-gradient(
+        135deg,
+        rgba(var(--blert-button-base), 0.9) 0%,
+        rgba(var(--blert-button-base), 0.8) 100%
+      );
+      color: var(--blert-text-color);
+      font-weight: 600;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.1),
+        0 2px 8px rgba(var(--blert-button-base), 0.3);
 
       &:hover {
+        background: linear-gradient(
+          135deg,
+          rgba(var(--blert-button-base), 1) 0%,
+          rgba(var(--blert-button-base), 0.9) 100%
+        );
+        color: white;
         cursor: default;
+      }
+    }
+
+    &:focus-within {
+      border-color: rgba(var(--blert-button-base), 0.5);
+      box-shadow: 0 0 0 2px rgba(var(--blert-button-base), 0.2);
+    }
+  }
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    gap: 2px;
+
+    .radioOption {
+      border-radius: 6px;
+
+      label {
+        padding: 10px 12px;
+        font-size: 0.85rem;
+      }
+    }
+
+    &.compact .radioOption label {
+      padding: 6px 8px;
+      font-size: 0.8rem;
+    }
+
+    &.joined {
+      border-radius: 6px;
+
+      .radioOption {
+        &:first-child label {
+          border-radius: 5px 0 0 5px;
+        }
+
+        &:last-child label {
+          border-radius: 0 5px 5px 0;
+        }
       }
     }
   }

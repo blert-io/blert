@@ -1,4 +1,4 @@
-import { ChallengeMode } from './challenge';
+import { ChallengeMode, Stage } from './challenge';
 
 export enum SplitType {
   // Theatre of Blood splits.
@@ -263,11 +263,11 @@ export function adjustSplitForMode(
 ): SplitType {
   if (genericTobSplits.includes(split)) {
     const offset =
-      mode === ChallengeMode.TOB_ENTRY
-        ? 0
-        : mode === ChallengeMode.TOB_REGULAR
-          ? 1
-          : 2;
+      mode === ChallengeMode.TOB_REGULAR
+        ? 1
+        : mode === ChallengeMode.TOB_HARD
+          ? 2
+          : 0;
     return split + offset;
   }
 
@@ -306,7 +306,20 @@ export function allSplitModes(split: SplitType): SplitType[] {
   return [split];
 }
 
-export function splitName(split: SplitType, full?: boolean): string {
+/**
+ * Returns the name of a split.
+ *
+ * @param split The split.
+ * @param full Whether to include the full name of the split.
+ * @param excludeStage Whether to exclude the stage name from the split name.
+ *   Overrides `full` if set.
+ * @returns The name of the split.
+ */
+export function splitName(
+  split: SplitType,
+  full: boolean = false,
+  excludeStage: boolean = false,
+): string {
   switch (generalizeSplit(split)) {
     case SplitType.TOB_CHALLENGE:
       return full ? 'ToB challenge time' : 'Challenge time';
@@ -315,73 +328,76 @@ export function splitName(split: SplitType, full?: boolean): string {
     case SplitType.TOB_MAIDEN:
       return full ? 'Maiden room time' : 'Maiden';
     case SplitType.TOB_MAIDEN_70S:
-      return 'Maiden 70s';
+      return excludeStage ? '70s' : 'Maiden 70s';
     case SplitType.TOB_MAIDEN_50S:
-      return 'Maiden 50s';
+      return excludeStage ? '50s' : 'Maiden 50s';
     case SplitType.TOB_MAIDEN_30S:
-      return 'Maiden 30s';
+      return excludeStage ? '30s' : 'Maiden 30s';
     case SplitType.TOB_MAIDEN_70S_50S:
-      return 'Maiden 70s-50s';
+      return excludeStage ? '70s-50s' : 'Maiden 70s-50s';
     case SplitType.TOB_MAIDEN_50S_30S:
-      return 'Maiden 50s-30s';
+      return excludeStage ? '50s-30s' : 'Maiden 50s-30s';
     case SplitType.TOB_MAIDEN_30S_END:
-      return 'Maiden 30s-end';
+      return excludeStage ? '30s-end' : 'Maiden 30s-end';
     case SplitType.TOB_BLOAT:
       return full ? 'Bloat room time' : 'Bloat';
     case SplitType.TOB_NYLO_ROOM:
       return full ? 'Nylocas room time' : 'Nylocas';
     case SplitType.TOB_NYLO_CAP:
-      return 'Nylocas cap';
+      return excludeStage ? 'Cap' : 'Nylocas cap';
     case SplitType.TOB_NYLO_WAVES:
-      return 'Nylocas waves';
+      return excludeStage ? 'Waves' : 'Nylocas waves';
     case SplitType.TOB_NYLO_CLEANUP:
-      return 'Nylocas cleanup';
+      return excludeStage ? 'Cleanup' : 'Nylocas cleanup';
     case SplitType.TOB_NYLO_BOSS_SPAWN:
-      return 'Nylocas boss spawn';
+      return excludeStage ? 'Boss spawn' : 'Nylocas boss spawn';
     case SplitType.TOB_NYLO_BOSS:
+      if (excludeStage) {
+        return 'Boss';
+      }
       return full ? 'Nylocas boss time' : 'Nylocas boss';
     case SplitType.TOB_SOTETSEG:
       return full ? 'Sotetseg room time' : 'Sotetseg';
     case SplitType.TOB_SOTETSEG_66:
-      return 'Sotetseg 66%';
+      return excludeStage ? '66%' : 'Sotetseg 66%';
     case SplitType.TOB_SOTETSEG_33:
-      return 'Sotetseg 33%';
+      return excludeStage ? '33%' : 'Sotetseg 33%';
     case SplitType.TOB_SOTETSEG_MAZE_1:
-      return 'Sotetseg maze 1';
+      return excludeStage ? 'Maze 1' : 'Sotetseg maze 1';
     case SplitType.TOB_SOTETSEG_MAZE_2:
-      return 'Sotetseg maze 2';
+      return excludeStage ? 'Maze 2' : 'Sotetseg maze 2';
     case SplitType.TOB_SOTETSEG_P1:
-      return 'Sotetseg P1';
+      return excludeStage ? 'P1' : 'Sotetseg P1';
     case SplitType.TOB_SOTETSEG_P2:
-      return 'Sotetseg P2';
+      return excludeStage ? 'P2' : 'Sotetseg P2';
     case SplitType.TOB_SOTETSEG_P3:
-      return 'Sotetseg P3';
+      return excludeStage ? 'P3' : 'Sotetseg P3';
     case SplitType.TOB_XARPUS:
       return full ? 'Xarpus room time' : 'Xarpus';
     case SplitType.TOB_XARPUS_EXHUMES:
-      return 'Xarpus exhumes';
+      return excludeStage ? 'Exhumes' : 'Xarpus exhumes';
     case SplitType.TOB_XARPUS_SCREECH:
-      return 'Xarpus screech';
+      return excludeStage ? 'Screech' : 'Xarpus screech';
     case SplitType.TOB_XARPUS_P1:
-      return 'Xarpus P1';
+      return excludeStage ? 'P1' : 'Xarpus P1';
     case SplitType.TOB_XARPUS_P2:
-      return 'Xarpus P2';
+      return excludeStage ? 'P2' : 'Xarpus P2';
     case SplitType.TOB_XARPUS_P3:
-      return 'Xarpus P3';
+      return excludeStage ? 'P3' : 'Xarpus P3';
     case SplitType.TOB_VERZIK_ROOM:
       return full ? 'Verzik room time' : 'Verzik';
     case SplitType.TOB_VERZIK_P1_END:
-      return 'Verzik P1';
+      return excludeStage ? 'P1' : 'Verzik P1';
     case SplitType.TOB_VERZIK_REDS:
-      return 'Verzik reds';
+      return excludeStage ? 'Reds' : 'Verzik reds';
     case SplitType.TOB_VERZIK_P2_END:
-      return 'Verzik P2 end';
+      return excludeStage ? 'P2' : 'Verzik P2 end';
     case SplitType.TOB_VERZIK_P1:
-      return 'Verzik P1';
+      return excludeStage ? 'P1' : 'Verzik P1';
     case SplitType.TOB_VERZIK_P2:
-      return 'Verzik P2';
+      return excludeStage ? 'P2' : 'Verzik P2';
     case SplitType.TOB_VERZIK_P3:
-      return 'Verzik P3';
+      return excludeStage ? 'P3' : 'Verzik P3';
     case SplitType.COLOSSEUM_CHALLENGE:
       return full ? 'Colosseum challenge time' : 'Challenge time';
     case SplitType.COLOSSEUM_OVERALL:
@@ -414,3 +430,92 @@ export function splitName(split: SplitType, full?: boolean): string {
       return 'Unknown split';
   }
 }
+
+/**
+ * Given a split, returns the stage to which it belongs.
+ * If the split does not belong to a stage (e.g. an overall raid split),
+ * returns `Stage.UNKNOWN`.
+ *
+ * @param split The split.
+ * @returns The stage to which the split belongs.
+ */
+export function splitToStage(split: SplitType): Stage {
+  if (
+    split >= SplitType.TOB_ENTRY_MAIDEN &&
+    split <= SplitType.TOB_HM_MAIDEN_30S_END
+  ) {
+    return Stage.TOB_MAIDEN;
+  }
+
+  if (split >= SplitType.TOB_ENTRY_BLOAT && split <= SplitType.TOB_HM_BLOAT) {
+    return Stage.TOB_BLOAT;
+  }
+
+  if (
+    split >= SplitType.TOB_ENTRY_NYLO_ROOM &&
+    split <= SplitType.TOB_HM_NYLO_BOSS
+  ) {
+    return Stage.TOB_NYLOCAS;
+  }
+
+  if (
+    split >= SplitType.TOB_ENTRY_SOTETSEG &&
+    split <= SplitType.TOB_HM_SOTETSEG_P3
+  ) {
+    return Stage.TOB_SOTETSEG;
+  }
+
+  if (
+    split >= SplitType.TOB_ENTRY_XARPUS &&
+    split <= SplitType.TOB_HM_XARPUS_P3
+  ) {
+    return Stage.TOB_XARPUS;
+  }
+
+  if (
+    split >= SplitType.TOB_ENTRY_VERZIK_ROOM &&
+    split <= SplitType.TOB_HM_VERZIK_P3
+  ) {
+    return Stage.TOB_VERZIK;
+  }
+
+  if (
+    split >= SplitType.COLOSSEUM_WAVE_1 &&
+    split <= SplitType.COLOSSEUM_WAVE_12
+  ) {
+    const wave = split - SplitType.COLOSSEUM_WAVE_1;
+    return Stage.COLOSSEUM_WAVE_1 + wave;
+  }
+
+  return Stage.UNKNOWN;
+}
+
+/**
+ * The splits that are relevant for personal bests.
+ */
+export const RELEVANT_PB_SPLITS: SplitType[] = [
+  SplitType.TOB_CHALLENGE,
+  SplitType.TOB_OVERALL,
+  SplitType.TOB_MAIDEN,
+  SplitType.TOB_BLOAT,
+  SplitType.TOB_NYLO_BOSS_SPAWN,
+  SplitType.TOB_SOTETSEG,
+  SplitType.TOB_NYLO_ROOM,
+  SplitType.TOB_XARPUS,
+  SplitType.TOB_VERZIK_ROOM,
+
+  SplitType.COLOSSEUM_CHALLENGE,
+  SplitType.COLOSSEUM_OVERALL,
+  SplitType.COLOSSEUM_WAVE_1,
+  SplitType.COLOSSEUM_WAVE_2,
+  SplitType.COLOSSEUM_WAVE_3,
+  SplitType.COLOSSEUM_WAVE_4,
+  SplitType.COLOSSEUM_WAVE_5,
+  SplitType.COLOSSEUM_WAVE_6,
+  SplitType.COLOSSEUM_WAVE_7,
+  SplitType.COLOSSEUM_WAVE_8,
+  SplitType.COLOSSEUM_WAVE_9,
+  SplitType.COLOSSEUM_WAVE_10,
+  SplitType.COLOSSEUM_WAVE_11,
+  SplitType.COLOSSEUM_WAVE_12,
+].flatMap((s) => allSplitModes(s));

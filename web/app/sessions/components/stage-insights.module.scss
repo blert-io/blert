@@ -1,0 +1,131 @@
+@use '@/mixins.scss' as *;
+
+.insightsGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.statsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.sectionSubtitle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--blert-text-color);
+  margin: 0;
+
+  i {
+    color: var(--blert-button);
+    font-size: 0.9rem;
+  }
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 0.75rem;
+  }
+}
+
+.statCard {
+  background: var(--nav-bg);
+  border-radius: 8px;
+  padding: 1rem;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--blert-button), var(--blert-green));
+    opacity: 0.7;
+  }
+
+  &:hover {
+    border-color: rgba(var(--blert-button-base), 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+}
+
+.statHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+
+  i {
+    color: var(--blert-button);
+    font-size: 0.9rem;
+    width: 16px;
+    text-align: center;
+  }
+}
+
+.statTitle {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--font-color-nav);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.statValue {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-roboto-mono), monospace;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--blert-text-color);
+  margin-bottom: 0.25rem;
+
+  i {
+    font-size: 0.8rem;
+    margin-left: 0.5rem;
+  }
+}
+
+.statSubtitle {
+  font-size: 0.75rem;
+  color: var(--font-color-nav);
+  opacity: 0.8;
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 3rem;
+  color: var(--font-color-nav);
+  text-align: center;
+
+  i {
+    font-size: 2.5rem;
+    opacity: 0.5;
+  }
+
+  span {
+    font-size: 1.1rem;
+    opacity: 0.8;
+  }
+}

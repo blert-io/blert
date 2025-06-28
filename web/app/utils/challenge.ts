@@ -1,7 +1,9 @@
 import {
+  adjustSplitForMode,
   ChallengeMode,
   ChallengeStatus,
   ChallengeType,
+  SplitType,
   Stage,
   stageName,
 } from '@blert/common';
@@ -82,4 +84,103 @@ const SCALE_NAME_AND_COLOR: Array<[string, string]> = [
 
 export function scaleNameAndColor(scale: number): [string, string] {
   return SCALE_NAME_AND_COLOR[scale - 1] ?? ['Unknown', '#c3c7c9'];
+}
+
+/**
+ * Returns the appropriate term for a challenge attempt based on its type.
+ *
+ * @param type The type of challenge.
+ * @param plural Whether to return the plural form.
+ * @returns The appropriate term for the challenge attempt.
+ */
+export function challengeTerm(type: ChallengeType, plural: boolean = false) {
+  if (type === ChallengeType.COLOSSEUM || type === ChallengeType.INFERNO) {
+    return plural ? 'Runs' : 'Run';
+  }
+  return plural ? 'Raids' : 'Raid';
+}
+
+/**
+ * Returns the appropriate term for a challenge's stages based on its type.
+ *
+ * @param type The type of challenge.
+ * @param plural Whether to return the plural form.
+ * @returns The appropriate term for the stages.
+ */
+export function stageTerm(type: ChallengeType, plural: boolean = false) {
+  if (type === ChallengeType.COLOSSEUM || type === ChallengeType.INFERNO) {
+    return plural ? 'Waves' : 'Wave';
+  }
+  return plural ? 'Rooms' : 'Room';
+}
+
+export function relevantSplitsForStage(
+  stage: Stage,
+  mode: ChallengeMode = ChallengeMode.NO_MODE,
+): SplitType[] {
+  let splits: SplitType[] = [];
+
+  switch (stage) {
+    case Stage.TOB_MAIDEN:
+      splits = [
+        SplitType.TOB_MAIDEN,
+        SplitType.TOB_MAIDEN_70S,
+        SplitType.TOB_MAIDEN_50S,
+        SplitType.TOB_MAIDEN_30S,
+      ];
+      break;
+
+    case Stage.TOB_BLOAT:
+      splits = [SplitType.TOB_BLOAT];
+      break;
+
+    case Stage.TOB_NYLOCAS:
+      splits = [
+        SplitType.TOB_NYLO_ROOM,
+        SplitType.TOB_NYLO_BOSS_SPAWN,
+        SplitType.TOB_NYLO_BOSS,
+      ];
+      break;
+    case Stage.TOB_SOTETSEG:
+      splits = [
+        SplitType.TOB_SOTETSEG,
+        SplitType.TOB_SOTETSEG_66,
+        SplitType.TOB_SOTETSEG_33,
+      ];
+      break;
+
+    case Stage.TOB_XARPUS:
+      splits = [SplitType.TOB_XARPUS, SplitType.TOB_XARPUS_SCREECH];
+      break;
+
+    case Stage.TOB_VERZIK:
+      splits = [
+        SplitType.TOB_VERZIK_ROOM,
+        SplitType.TOB_VERZIK_P1,
+        SplitType.TOB_VERZIK_REDS,
+        SplitType.TOB_VERZIK_P2,
+      ];
+      break;
+
+    case Stage.COLOSSEUM_WAVE_1:
+    case Stage.COLOSSEUM_WAVE_2:
+    case Stage.COLOSSEUM_WAVE_3:
+    case Stage.COLOSSEUM_WAVE_4:
+    case Stage.COLOSSEUM_WAVE_5:
+    case Stage.COLOSSEUM_WAVE_6:
+    case Stage.COLOSSEUM_WAVE_7:
+    case Stage.COLOSSEUM_WAVE_8:
+    case Stage.COLOSSEUM_WAVE_9:
+    case Stage.COLOSSEUM_WAVE_10:
+    case Stage.COLOSSEUM_WAVE_11:
+    case Stage.COLOSSEUM_WAVE_12:
+      const wave = stage - Stage.COLOSSEUM_WAVE_1;
+      splits = [SplitType.COLOSSEUM_WAVE_1 + wave];
+      break;
+
+    default:
+      break;
+  }
+
+  return splits.map((split) => adjustSplitForMode(split, mode));
 }

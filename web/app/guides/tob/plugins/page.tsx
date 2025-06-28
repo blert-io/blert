@@ -175,7 +175,7 @@ export default function PluginGuide() {
               colSpan={3}
               style={{ textAlign: 'center', fontSize: '1.05rem' }}
             >
-              <strong>Common dim settings (assuming no pre-28 stalls)</strong>
+              <strong>Common dim settings</strong>
             </th>
           </tr>
           <tr>
