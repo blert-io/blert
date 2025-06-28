@@ -227,9 +227,20 @@ function SessionCard({
               <span>{scaleNameAndColor(session.scale)[0]}</span>
             </div>
           </div>
-          <button className={styles.expandButton}>
-            <i className={`fas fa-chevron-${isExpanded ? 'up' : 'down'}`} />
-          </button>
+          <div className={styles.sessionActions}>
+            <Link
+              href={`/sessions/${session.uuid}`}
+              className={styles.viewSessionButton}
+              onClick={(e) => e.stopPropagation()}
+              data-tooltip-id={GLOBAL_TOOLTIP_ID}
+              data-tooltip-content="View session details"
+            >
+              <i className="fas fa-external-link-alt" />
+            </Link>
+            <button className={styles.expandButton}>
+              <i className={`fas fa-chevron-${isExpanded ? 'up' : 'down'}`} />
+            </button>
+          </div>
         </div>
 
         <div className={styles.sessionStats}>
