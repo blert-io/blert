@@ -1690,45 +1690,40 @@ export async function loadPbsForPlayer(
   filter?: PbsFilter,
 ): Promise<PersonalBest[]> {
   const rows = await sql`
-    WITH distinct_ticks AS (
-      SELECT DISTINCT type, scale, ticks
-      FROM challenge_splits cs
-      WHERE cs.accurate = true
-    ),
-    all_ranked_splits AS (
-      SELECT
-        type,
-        scale,
-        ticks,
-        DENSE_RANK() OVER (PARTITION BY type, scale ORDER BY ticks) as position,
-        COUNT(*) OVER (PARTITION BY type, scale) as total
-      FROM distinct_ticks
+    WITH player_id_cte AS (
+      SELECT id
+      FROM players
+      WHERE lower(username) = ${username.toLowerCase()}
+      LIMIT 1
     ),
     player_pbs AS (
       SELECT
-        c.uuid as cid,
-        c.start_time as date,
         cs.type,
         cs.scale,
-        cs.ticks
-      FROM personal_bests pb
-      JOIN challenge_splits cs ON pb.challenge_split_id = cs.id
+        cs.ticks,
+        c.uuid,
+        pbh.created_at as date
+      FROM personal_best_history pbh
+      JOIN challenge_splits cs ON pbh.challenge_split_id = cs.id
       JOIN challenges c ON cs.challenge_id = c.id
-      JOIN players p ON pb.player_id = p.id
-      WHERE lower(p.username) = ${username.toLowerCase()}
+      WHERE pbh.player_id = (SELECT id FROM player_id_cte)
         ${filter?.splits ? sql`AND cs.type = ANY(${filter.splits})` : sql``}
         ${filter?.scales ? sql`AND cs.scale = ANY(${filter.scales})` : sql``}
+        AND cs.accurate = true
+    ),
+    latest_pbs AS (
+      SELECT *,
+        ROW_NUMBER() OVER (PARTITION BY type, scale ORDER BY date DESC) AS rn
+      FROM player_pbs
     )
     SELECT
-      p.cid,
-      p.date,
-      p.type,
-      p.scale,
-      p.ticks,
-      r.position,
-      r.total
-    FROM player_pbs p
-    JOIN all_ranked_splits r ON p.type = r.type AND p.scale = r.scale AND p.ticks = r.ticks
+      uuid as cid,
+      date,
+      type,
+      scale,
+      ticks
+    FROM latest_pbs
+    WHERE rn = 1
   `;
 
   return rows.map((row) => ({
@@ -1737,10 +1732,6 @@ export async function loadPbsForPlayer(
     scale: row.scale,
     ticks: row.ticks,
     date: row.date,
-    rank: {
-      position: row.position,
-      total: row.total,
-    },
   }));
 }
 
