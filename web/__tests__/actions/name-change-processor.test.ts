@@ -129,30 +129,35 @@ describe('processNameChange', () => {
       {
         uuid: '11111111-1111-1111-1111-111111111111',
         start_time: new Date('2024-04-21'),
+        finish_time: new Date('2024-04-21'),
         type: ChallengeType.TOB,
         scale: 2,
       },
       {
         uuid: '22222222-2222-2222-2222-222222222222',
         start_time: new Date('2024-04-21'),
+        finish_time: new Date('2024-04-21'),
         type: ChallengeType.TOB,
         scale: 1,
       },
       {
         uuid: '33333333-3333-3333-3333-333333333333',
         start_time: new Date('2024-04-22'),
+        finish_time: new Date('2024-04-22'),
         type: ChallengeType.TOB,
         scale: 2,
       },
       {
         uuid: '44444444-4444-4444-4444-444444444444',
         start_time: new Date('2024-04-22'),
+        finish_time: new Date('2024-04-22'),
         type: ChallengeType.TOB,
         scale: 1,
       },
       {
         uuid: '55555555-5555-5555-5555-555555555555',
         start_time: new Date('2024-04-23'),
+        finish_time: new Date('2024-04-23'),
         type: ChallengeType.TOB,
         scale: 2,
       },
@@ -292,16 +297,49 @@ describe('processNameChange', () => {
     }));
 
     const personalBests = [
-      { player_id: oldPlayerId, challenge_split_id: splitIds[0] },
-      { player_id: oldPlayerId, challenge_split_id: splitIds[1] },
-      { player_id: oldPlayerId, challenge_split_id: splitIds[2] },
-      { player_id: oldPlayerId, challenge_split_id: splitIds[3] },
-      { player_id: newPlayerId, challenge_split_id: splitIds[4] },
-      { player_id: newPlayerId, challenge_split_id: splitIds[5] },
-      { player_id: newPlayerId, challenge_split_id: splitIds[6] },
-      { player_id: newPlayerId, challenge_split_id: splitIds[7] },
+      {
+        player_id: oldPlayerId,
+        challenge_split_id: splitIds[0],
+        created_at: challenges[0].finish_time,
+      },
+      {
+        player_id: oldPlayerId,
+        challenge_split_id: splitIds[1],
+        created_at: challenges[0].finish_time,
+      },
+      {
+        player_id: oldPlayerId,
+        challenge_split_id: splitIds[2],
+        created_at: challenges[1].finish_time,
+      },
+      {
+        player_id: oldPlayerId,
+        challenge_split_id: splitIds[3],
+        created_at: challenges[1].finish_time,
+      },
+      {
+        player_id: newPlayerId,
+        challenge_split_id: splitIds[4],
+        created_at: challenges[2].finish_time,
+      },
+      {
+        player_id: newPlayerId,
+        challenge_split_id: splitIds[5],
+        created_at: challenges[2].finish_time,
+      },
+      {
+        player_id: newPlayerId,
+        challenge_split_id: splitIds[6],
+        created_at: challenges[4].finish_time,
+      },
+      {
+        player_id: newPlayerId,
+        challenge_split_id: splitIds[7],
+        created_at: challenges[4].finish_time,
+      },
     ];
-    await sql`INSERT INTO personal_bests ${sql(personalBests)}`;
+
+    await sql`INSERT INTO personal_best_history ${sql(personalBests)}`;
 
     const playerStats = [
       {
@@ -343,7 +381,7 @@ describe('processNameChange', () => {
   afterEach(async () => {
     global.fetch = _fetch;
     await sql`DELETE FROM name_changes`;
-    await sql`DELETE FROM personal_bests`;
+    await sql`DELETE FROM personal_best_history`;
     await sql`DELETE FROM challenge_splits`;
     await sql`DELETE FROM challenge_players`;
     await sql`DELETE FROM challenges`;
@@ -456,22 +494,23 @@ describe('processNameChange', () => {
       expect(key).toMatchObject(expectedApiKeys[index]);
     });
 
-    const expectedPersonalBests = [
+    const expectedPbHistory = [
       { player_id: oldPlayerId, challenge_split_id: challengeSplits[0].id },
+      { player_id: oldPlayerId, challenge_split_id: challengeSplits[1].id },
       { player_id: oldPlayerId, challenge_split_id: challengeSplits[2].id },
       { player_id: oldPlayerId, challenge_split_id: challengeSplits[3].id },
       { player_id: oldPlayerId, challenge_split_id: challengeSplits[4].id },
       { player_id: oldPlayerId, challenge_split_id: challengeSplits[7].id },
     ];
-    const updatedPersonalBests = await sql`
-      SELECT player_id, challenge_split_id FROM personal_bests
+    const updatedPbHistory = await sql`
+      SELECT player_id, challenge_split_id FROM personal_best_history
     `;
-    updatedPersonalBests.sort(
+    updatedPbHistory.sort(
       (a, b) => a.challenge_split_id - b.challenge_split_id,
     );
-    expect(updatedPersonalBests).toHaveLength(expectedPersonalBests.length);
-    updatedPersonalBests.forEach((pb, index) => {
-      expect(pb).toMatchObject(expectedPersonalBests[index]);
+    expect(updatedPbHistory).toHaveLength(expectedPbHistory.length);
+    updatedPbHistory.forEach((pb, index) => {
+      expect(pb).toMatchObject(expectedPbHistory[index]);
     });
 
     const [updatedPlayer] =
@@ -498,7 +537,7 @@ describe('processNameChange', () => {
     const updatedRequest = await loadNameChangeRequest(id);
     expect(updatedRequest!.status).toBe(NameChangeStatus.ACCEPTED);
     expect(updatedRequest!.processedAt).not.toBeNull();
-    expect(updatedRequest!.migratedDocuments).toBe(10);
+    expect(updatedRequest!.migratedDocuments).toBe(12);
   });
 
   it('succeeds when a player has previously existed with the new name', async () => {
@@ -512,13 +551,16 @@ describe('processNameChange', () => {
       INSERT INTO api_keys (user_id, player_id, key, last_used)
       VALUES (${userId}, ${newPlayerId}, 'older-key', ${new Date('2024-03-21')})
     `;
-    const newChallengeIds = await sql`
-      INSERT INTO challenges (uuid, start_time, type, scale)
+    const newChallenges = await sql`
+      INSERT INTO challenges (uuid, start_time, type, scale, finish_time)
       VALUES
-        ('66666666-6666-6666-6666-666666666666', ${new Date('2024-03-20')}, 1, 2),
-        ('77777777-7777-7777-7777-777777777777', ${new Date('2024-03-20')}, 1, 2)
-      RETURNING id
-    `.then((res) => res.map((r) => r.id));
+        ('66666666-6666-6666-6666-666666666666', ${new Date('2024-03-20')}, 1, 2, ${new Date('2024-03-20')}),
+        ('77777777-7777-7777-7777-777777777777', ${new Date('2024-03-20')}, 1, 2, ${new Date('2024-03-20')})
+      RETURNING id, finish_time
+    `;
+    const newChallengeIds = newChallenges.map((r) => r.id);
+    const newChallengeFinishTimes = newChallenges.map((r) => r.finish_time);
+
     await sql`
       INSERT INTO challenge_players (
         challenge_id,
@@ -533,7 +575,7 @@ describe('processNameChange', () => {
         (${newChallengeIds[1]}, ${newPlayerId}, 'New Name', 0, 1),
         (${newChallengeIds[1]}, ${otherPlayerId}, 'SomeRandom', 1, 1)
     `;
-    const splitIds = await sql`
+    const extraSplitIds = await sql`
       INSERT INTO challenge_splits (challenge_id, type, scale, ticks, accurate)
       VALUES
         (${newChallengeIds[0]}, 6, 2, 33, true),
@@ -541,8 +583,10 @@ describe('processNameChange', () => {
       RETURNING id
     `.then((res) => res.map((r) => r.id));
     await sql`
-      INSERT INTO personal_bests (player_id, challenge_split_id)
-      VALUES (${newPlayerId}, ${splitIds[0]})
+      INSERT INTO personal_best_history (player_id, challenge_split_id, created_at)
+      VALUES
+        (${newPlayerId}, ${extraSplitIds[0]}, ${newChallengeFinishTimes[0]}),
+        (${newPlayerId}, ${extraSplitIds[1]}, ${newChallengeFinishTimes[1]})
     `;
     await sql`
       INSERT INTO player_stats (
@@ -682,29 +726,36 @@ describe('processNameChange', () => {
       expect(key).toMatchObject(expectedApiKeys[index]);
     });
 
-    const expectedPersonalBests = [
+    const expectedOldPlayerPbHistory = [
       { player_id: oldPlayerId, challenge_split_id: challengeSplits[0].id },
+      { player_id: oldPlayerId, challenge_split_id: challengeSplits[1].id },
       { player_id: oldPlayerId, challenge_split_id: challengeSplits[2].id },
       { player_id: oldPlayerId, challenge_split_id: challengeSplits[3].id },
       { player_id: oldPlayerId, challenge_split_id: challengeSplits[4].id },
       { player_id: oldPlayerId, challenge_split_id: challengeSplits[7].id },
-
-      // This PB was never beaten by oldPlayer, so it should remain.
-      { player_id: newPlayerId, challenge_split_id: splitIds[0] },
-
-      // This PB was beaten by oldPlayer, but should be restored following
-      // the migration.
-      { player_id: newPlayerId, challenge_split_id: splitIds[1] },
     ];
-    const updatedPersonalBests = await sql`
-      SELECT player_id, challenge_split_id FROM personal_bests
+    const oldPlayerPbHistory = await sql`
+      SELECT player_id, challenge_split_id FROM personal_best_history WHERE player_id = ${oldPlayerId}
     `;
-    updatedPersonalBests.sort(
+    oldPlayerPbHistory.sort(
       (a, b) => a.challenge_split_id - b.challenge_split_id,
     );
-    expect(updatedPersonalBests).toHaveLength(expectedPersonalBests.length);
-    updatedPersonalBests.forEach((pb, index) => {
-      expect(pb).toMatchObject(expectedPersonalBests[index]);
+    expect(oldPlayerPbHistory).toHaveLength(expectedOldPlayerPbHistory.length);
+    oldPlayerPbHistory.forEach((pb, index) => {
+      expect(pb).toMatchObject(expectedOldPlayerPbHistory[index]);
+    });
+
+    // newPlayerId should retain its original PB history.
+    const expectedNewPlayerPbHistory = [
+      { player_id: newPlayerId, challenge_split_id: extraSplitIds[0] },
+      { player_id: newPlayerId, challenge_split_id: extraSplitIds[1] },
+    ];
+    const newPlayerPbHistory = await sql`
+      SELECT player_id, challenge_split_id FROM personal_best_history WHERE player_id = ${newPlayerId}
+    `;
+    expect(newPlayerPbHistory).toHaveLength(expectedNewPlayerPbHistory.length);
+    newPlayerPbHistory.forEach((pb, index) => {
+      expect(pb).toMatchObject(expectedNewPlayerPbHistory[index]);
     });
 
     const [updatedPlayer] =
@@ -735,7 +786,7 @@ describe('processNameChange', () => {
     const updatedRequest = await loadNameChangeRequest(id);
     expect(updatedRequest.status).toBe(NameChangeStatus.ACCEPTED);
     expect(updatedRequest.processedAt).not.toBeNull();
-    expect(updatedRequest.migratedDocuments).toBe(11);
+    expect(updatedRequest.migratedDocuments).toBe(12);
   });
 
   it('updates name without any migration if the new player has no data', async () => {

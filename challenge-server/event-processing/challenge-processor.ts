@@ -820,38 +820,58 @@ export default abstract class ChallengeProcessor {
   private async updatePersonalBests(
     splits: ChallengeSplitWithId[],
   ): Promise<void> {
+    if (splits.length === 0) {
+      return;
+    }
+
     const playerIds = this.players.map((p) => p.id);
+    const splitTypes = splits.map((s) => s.type);
+    const scale = this.getScale();
 
     const currentPbs = await sql`
+      WITH ranked_pbs AS (
+        SELECT
+          pbh.player_id,
+          cs.type,
+          cs.ticks,
+          ROW_NUMBER() OVER (
+            PARTITION BY pbh.player_id, cs.type, cs.scale
+            ORDER BY pbh.created_at DESC
+          ) as rn
+        FROM
+          personal_best_history pbh
+        JOIN
+          challenge_splits cs ON pbh.challenge_split_id = cs.id
+        WHERE
+          pbh.player_id = ANY(${playerIds}) AND
+          cs.type = ANY(${splitTypes}) AND
+          cs.scale = ${scale}
+      )
       SELECT
-        challenge_splits.type,
-        challenge_splits.ticks,
-        personal_bests.challenge_split_id,
-        personal_bests.player_id
-      FROM personal_bests
-      JOIN challenge_splits ON personal_bests.challenge_split_id = challenge_splits.id
+        player_id,
+        type,
+        ticks
+      FROM
+        ranked_pbs
       WHERE
-        challenge_splits.type = ANY(${splits.map((s) => s.type)})
-        AND challenge_splits.scale = ${this.getScale()}
-        AND personal_bests.player_id = ANY(${playerIds})
+        rn = 1
     `;
 
-    const pbsByPlayer: Map<
-      number,
-      Map<SplitType, { ticks: number; id: number }>
-    > = new Map(playerIds.map((id) => [id, new Map()]));
+    const pbsByPlayer: Map<number, Map<SplitType, { ticks: number }>> = new Map(
+      playerIds.map((id) => [id, new Map()]),
+    );
     currentPbs.forEach((pb) => {
-      pbsByPlayer.get(pb.player_id)!.set(pb.type, {
-        ticks: pb.ticks,
-        id: pb.challenge_split_id,
-      });
+      pbsByPlayer.get(pb.player_id)!.set(pb.type, { ticks: pb.ticks });
     });
 
-    const pbRowsToCreate: Array<CamelToSnakeCase<PersonalBest>> = [];
+    const pbRowsToCreate: Array<
+      CamelToSnakeCase<PersonalBest> & { created_at: Date }
+    > = [];
+
+    // Give all the personal bests a consistent creation time.
+    const now = new Date();
 
     for (const split of splits) {
-      const pbRowsToUpdate: Array<postgres.Helper<number[]>> = [];
-
       playerIds.forEach((playerId, i) => {
         const currentPb = pbsByPlayer.get(playerId)!.get(split.type);
 
@@ -863,13 +883,18 @@ export default abstract class ChallengeProcessor {
           pbRowsToCreate.push({
             player_id: playerId,
             challenge_split_id: split.id,
+            created_at: now,
           });
         } else if (split.ticks < currentPb.ticks) {
           logger.info(
             `Updating PB(${split.type}, ${this.getScale()}) for ` +
               `${this.party[i]}#${playerId} to ${split.ticks}`,
           );
-          pbRowsToUpdate.push(sql([playerId, currentPb.id]));
+          pbRowsToCreate.push({
+            player_id: playerId,
+            challenge_split_id: split.id,
+            created_at: now,
+          });
         } else {
           logger.debug(
             `PB(${split.type}, ${this.getScale()}) for ` +
@@ -877,22 +902,15 @@ export default abstract class ChallengeProcessor {
           );
         }
       });
-
-      if (pbRowsToUpdate.length > 0) {
-        await sql`
-          UPDATE personal_bests
-          SET challenge_split_id = ${split.id}
-          WHERE (player_id, challenge_split_id) IN ${sql(pbRowsToUpdate)}
-        `;
-      }
     }
 
     if (pbRowsToCreate.length > 0) {
       await sql`
-        INSERT INTO personal_bests ${sql(
+        INSERT INTO personal_best_history ${sql(
           pbRowsToCreate,
           'player_id',
           'challenge_split_id',
+          'created_at',
         )}
       `;
     }

@@ -5,7 +5,6 @@ import {
   Skill,
   hiscoreLookup,
 } from '@blert/common';
-import { revalidatePath } from 'next/cache';
 
 import { sql } from './db';
 
@@ -84,117 +83,134 @@ async function updateApiKeys(
   return updated.count + deleted.count;
 }
 
-type PersonalBestQueryResult = {
-  challenge_split_id: number;
-  type: number;
-  scale: number;
-  ticks: number;
-};
-
-async function updatePersonalBests(
+async function updatePersonalBestHistory(
   oldPlayerId: number,
   newPlayerId: number,
   challengeIds: number[],
-  reassignNewPlayerPbs: boolean,
 ): Promise<number> {
-  const newPlayerPersonalBests = await sql<PersonalBestQueryResult[]>`
+  if (challengeIds.length === 0) {
+    return 0;
+  }
+
+  // Find all splits from the challenges that are being migrated from the new
+  // player to the old player. These are ordered chronologically to correctly
+  // determine the PB progression.
+  const newPlayerSplits = await sql<
+    {
+      id: number;
+      type: number;
+      scale: number;
+      ticks: number;
+      finish_time: Date;
+    }[]
+  >`
     SELECT
-      personal_bests.challenge_split_id,  
-      challenge_splits.type,
-      challenge_splits.scale,
-      challenge_splits.ticks
-    FROM personal_bests
-    JOIN challenge_splits ON personal_bests.challenge_split_id = challenge_splits.id
-    WHERE
-      personal_bests.player_id = ${newPlayerId}
-      AND challenge_splits.challenge_id = ANY(${challengeIds})
+      cs.id,
+      cs.type,
+      cs.scale,
+      cs.ticks,
+      c.finish_time
+    FROM challenge_splits cs
+    JOIN challenges c ON cs.challenge_id = c.id
+    WHERE cs.challenge_id = ANY(${challengeIds}) AND cs.accurate
+    ORDER BY c.finish_time ASC
   `;
 
-  const oldPlayerPersonalBests = await sql<PersonalBestQueryResult[]>`
+  if (newPlayerSplits.length === 0) {
+    return 0;
+  }
+
+  // For each distinct split type (type and scale), get the old player's current
+  // personal best.
+  const distinctSplitTypes = newPlayerSplits
+    .filter(
+      (split, index, self) =>
+        index ===
+        self.findIndex((s) => s.type === split.type && s.scale === split.scale),
+    )
+    .map((split) => sql([split.type, split.scale]));
+
+  const oldPlayerPbs = await sql<
+    { type: number; scale: number; best_time: number }[]
+  >`
     SELECT
-      personal_bests.challenge_split_id,  
-      challenge_splits.type,
-      challenge_splits.scale,
-      challenge_splits.ticks
-    FROM personal_bests
-    JOIN challenge_splits ON personal_bests.challenge_split_id = challenge_splits.id
+      cs.type,
+      cs.scale,
+      MIN(cs.ticks) as best_time
+    FROM personal_best_history pbh
+    JOIN challenge_splits cs ON pbh.challenge_split_id = cs.id
     WHERE
-      personal_bests.player_id = ${oldPlayerId}
-      AND (challenge_splits.type, challenge_splits.scale) IN ${sql(
-        newPlayerPersonalBests.map((pb) => sql([pb.type, pb.scale])),
+      pbh.player_id = ${oldPlayerId}
+      AND (cs.type, cs.scale) IN ${sql(distinctSplitTypes)}
+    GROUP BY cs.type, cs.scale
+  `;
+
+  const splitKey = (type: number, scale: number) => `${type}-${scale}`;
+
+  const oldPlayerPbMap: Record<string, number> = oldPlayerPbs.reduce(
+    (acc, pb) => {
+      acc[splitKey(pb.type, pb.scale)] = pb.best_time;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
+
+  // Iterate through all of the chronologically-sorted splits from the new
+  // player, inserting a new PB history record if it beats the old player's
+  // previous best.
+  const pbsToInsert: {
+    player_id: number;
+    challenge_split_id: number;
+    created_at: Date;
+  }[] = [];
+
+  for (const split of newPlayerSplits) {
+    const key = splitKey(split.type, split.scale);
+    const currentBest = oldPlayerPbMap[key];
+
+    if (currentBest === undefined || split.ticks < currentBest) {
+      pbsToInsert.push({
+        player_id: oldPlayerId,
+        challenge_split_id: split.id,
+        created_at: split.finish_time,
+      });
+      oldPlayerPbMap[key] = split.ticks;
+    }
+  }
+
+  let insertedCount = 0;
+  if (pbsToInsert.length > 0) {
+    const result = await sql`
+      INSERT INTO personal_best_history ${sql(
+        pbsToInsert,
+        'player_id',
+        'challenge_split_id',
+        'created_at',
       )}
-  `;
-
-  for (const newPb of newPlayerPersonalBests) {
-    const oldPb = oldPlayerPersonalBests.find(
-      (pb) => pb.type === newPb.type && pb.scale === newPb.scale,
-    );
-
-    // Either delete or migrate the new player's PBs to the old player.
-    if (oldPb === undefined || oldPb.ticks > newPb.ticks) {
-      if (oldPb !== undefined) {
-        await sql`
-          DELETE FROM personal_bests
-          WHERE
-            player_id = ${oldPlayerId}
-            AND challenge_split_id = ${oldPb.challenge_split_id}
-        `;
-      }
-      await sql`
-        UPDATE personal_bests
-        SET player_id = ${oldPlayerId}
-        WHERE
-          player_id = ${newPlayerId}
-          AND challenge_split_id = ${newPb.challenge_split_id}
-      `;
-    } else {
-      await sql`
-        DELETE FROM personal_bests
-        WHERE
-          player_id = ${newPlayerId}
-          AND challenge_split_id = ${newPb.challenge_split_id}
-      `;
-    }
+    `;
+    insertedCount = result.count;
   }
 
-  let migratedDocuments = newPlayerPersonalBests.length;
+  // Delete all of the new player's personal bests that were associated with the
+  // migrated challenges. This effectively rolls back their PB history to the
+  // state before the name change, as the underlying challenges now belong to
+  // the old player.
+  const splitsInMigratedChallenges = await sql`
+    SELECT id FROM challenge_splits WHERE challenge_id = ANY(${challengeIds})
+  `.then((rows) => rows.map((r) => r.id));
 
-  if (reassignNewPlayerPbs) {
-    // If a player with the new name previously existed, reassign the personal
-    // bests that were deleted based on their older challenges.
-    const pbsToInsert: Array<{
-      player_id: number;
-      challenge_split_id: number;
-    }> = [];
-
-    for (const pb of newPlayerPersonalBests) {
-      const [previousPbSplit] = await sql`
-        SELECT challenge_splits.id
-        FROM challenge_players
-        JOIN challenge_splits ON challenge_players.challenge_id = challenge_splits.challenge_id
-        WHERE
-          challenge_players.player_id = ${newPlayerId}
-          AND challenge_splits.type = ${pb.type}
-          AND challenge_splits.scale = ${pb.scale}
-          AND challenge_splits.accurate
-        ORDER BY challenge_splits.ticks ASC
-        LIMIT 1
-      `;
-      if (previousPbSplit !== undefined) {
-        pbsToInsert.push({
-          player_id: newPlayerId,
-          challenge_split_id: previousPbSplit.id,
-        });
-      }
-    }
-
-    if (pbsToInsert.length > 0) {
-      await sql`INSERT INTO personal_bests ${sql(pbsToInsert)}`;
-      migratedDocuments += pbsToInsert.length;
-    }
+  let deletedCount = 0;
+  if (splitsInMigratedChallenges.length > 0) {
+    const result = await sql`
+      DELETE FROM personal_best_history
+      WHERE
+        player_id = ${newPlayerId}
+        AND challenge_split_id = ANY(${splitsInMigratedChallenges})
+    `;
+    deletedCount = result.count;
   }
 
-  return migratedDocuments;
+  return insertedCount + deletedCount;
 }
 
 function compareExperience(
@@ -324,7 +340,6 @@ export async function processNameChange(changeId: number) {
         SET status = ${nameChangeStatus}, processed_at = ${new Date()}
         WHERE id = ${changeId}
       `;
-      revalidatePath('/name-changes');
       return;
     }
 
@@ -389,12 +404,7 @@ export async function processNameChange(changeId: number) {
       const modifiedDocuments = await Promise.all([
         updateChallengePlayers,
         updateApiKeys(playerId, newPlayer.id, updateFrom),
-        updatePersonalBests(
-          playerId,
-          newPlayer.id,
-          challengesToUpdate,
-          newPlayerPreviouslyExisted,
-        ),
+        updatePersonalBestHistory(playerId, newPlayer.id, challengesToUpdate),
         updatePlayerStats(playerId, newPlayer.id, updateFrom),
       ]);
 
@@ -461,7 +471,6 @@ export async function processNameChange(changeId: number) {
   `;
 
   await Promise.all([updatePlayer, updateNameChange]);
-  revalidatePath('/name-changes');
   console.log(`Name change accepted: ${oldName} -> ${newName}`);
 }
 
