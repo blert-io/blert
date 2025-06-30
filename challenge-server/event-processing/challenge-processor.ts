@@ -30,7 +30,7 @@ import {
   SESSION_ACTIVITY_DURATION_MS,
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
-import postgres from 'postgres';
+import { v4 as uuidv4 } from 'uuid';
 
 import sql from '../db';
 import logger from '../log';
@@ -644,7 +644,9 @@ export default abstract class ChallengeProcessor {
   ): Promise<void> {
     const [id, sid] = await sql.begin(async (sql) => {
       if (sessionId === null) {
-        const [{ id, uuid }] = await sql`
+        const sessionUuid = uuidv4();
+
+        const [{ id }] = await sql`
           INSERT INTO challenge_sessions (
             uuid,
             challenge_type,
@@ -654,7 +656,7 @@ export default abstract class ChallengeProcessor {
             start_time,
             status
           ) VALUES (
-           ${this.uuid},
+           ${sessionUuid},
            ${this.type},
            ${this.mode},
            ${this.getScale()},
@@ -662,11 +664,11 @@ export default abstract class ChallengeProcessor {
            ${startTime},
            ${SessionStatus.ACTIVE}
           )
-          RETURNING id, uuid
+          RETURNING id
         `;
 
         logger.info(
-          `Created new session ${uuid} (#${id}) for party ${this.party.join(',')}`,
+          `Created new session ${sessionUuid} (#${id}) for party ${this.party.join(',')}`,
         );
 
         sessionId = id;
