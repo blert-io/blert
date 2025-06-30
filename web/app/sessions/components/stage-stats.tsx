@@ -309,7 +309,6 @@ export default function StageStats() {
   const stages = stagesForChallenge(session.challengeType);
 
   const stageStatistics: StageStatistics[] = stages.map((stage) => {
-    const name = stageName(stage);
     const stageChallenges = session.challenges.filter((c) => c.stage >= stage);
 
     // The number of times the team completed the stage (includes resets).
@@ -330,7 +329,13 @@ export default function StageStats() {
     const splitStatistics: SplitStatistics[] = relevantSplits.map(
       (splitType) => {
         const splitData = stageChallenges
-          .map((c) => c.splits[splitType]?.ticks)
+          .map((c) => {
+            const split = c.splits[splitType];
+            if (!split || !split.accurate) {
+              return undefined;
+            }
+            return split.ticks;
+          })
           .filter((t): t is number => t !== undefined);
 
         const minTicks =

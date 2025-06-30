@@ -16,7 +16,13 @@ type ShowToast = (message: string, type?: ToastType) => void;
 
 export const ToastContext = createContext<ShowToast>(() => {});
 
-const TOAST_DURATION_MS = 3000;
+const TOAST_DURATION_MS = 4000;
+
+const TOAST_ICONS: Record<ToastType, string> = {
+  info: 'fas fa-info-circle',
+  success: 'fas fa-check-circle',
+  error: 'fas fa-exclamation-circle',
+};
 
 export default function ToastProvider({
   children,
@@ -46,18 +52,30 @@ export default function ToastProvider({
   return (
     <ToastContext.Provider value={showToast}>
       {children}
-      <div className={styles.container}>
+      <div
+        className={styles.container}
+        role="region"
+        aria-label="Notifications"
+      >
         {toasts.map((toast) => (
           <div
             key={toast.id}
             className={`${styles.toast} ${styles[toast.type]}`}
+            role="alert"
+            aria-live="polite"
           >
-            <span>{toast.message}</span>
+            <i
+              className={`${TOAST_ICONS[toast.type]} ${styles.toastIcon}`}
+              aria-hidden="true"
+            />
+            <span className={styles.toastMessage}>{toast.message}</span>
             <button
               className={styles.close}
               onClick={() => removeToast(toast.id)}
+              aria-label={`Close ${toast.type} notification`}
+              type="button"
             >
-              <i className="fas fa-times" />
+              <i className="fas fa-times" aria-hidden="true" />
               <span className="sr-only">Close</span>
             </button>
           </div>
