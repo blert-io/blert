@@ -714,7 +714,7 @@ export default function ChallengesTable() {
                           onClick={() => {
                             const url = `${window.location.origin}${challengeUrl(session.challengeType, challenge.uuid)}`;
                             navigator.clipboard.writeText(url);
-                            showToast('Link copied to clipboard');
+                            showToast('Link copied to clipboard', 'success');
                           }}
                         >
                           <i className="fas fa-link" />

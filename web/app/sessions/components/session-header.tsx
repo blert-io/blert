@@ -59,7 +59,7 @@ export default function SessionHeader() {
   const copyToClipboard = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
-      showToast('Session link copied to clipboard');
+      showToast('Session link copied to clipboard', 'success');
     } catch (err) {
       console.error('Failed to copy to clipboard:', err);
       showToast('Failed to copy link', 'error');

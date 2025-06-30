@@ -5,67 +5,219 @@
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   pointer-events: none;
+
+  @media (max-width: 940px) {
+    bottom: 16px;
+    right: 16px;
+    left: 16px;
+    gap: 10px;
+  }
 }
 
 .toast {
-  background: var(--nav-bg-darkened);
-  color: white;
-  padding: 12px 16px;
-  border-radius: 4px;
-  font-size: 14px;
-  animation: slide-in 0.2s ease-out;
+  background: linear-gradient(
+    135deg,
+    var(--panel-bg) 0%,
+    rgba(var(--nav-bg-base), 0.95) 100%
+  );
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(var(--blert-button-base), 0.15);
+  border-radius: 8px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: var(--blert-text-color);
+  padding: 16px 20px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  animation: slideInWithBounce 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
   display: flex;
   align-items: center;
   gap: 12px;
   pointer-events: auto;
+  position: relative;
+  overflow: hidden;
+  max-width: 400px;
+  min-width: 280px;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--blert-button),
+      transparent
+    );
+    animation: borderShimmer 3s ease-in-out infinite;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.1),
+      transparent
+    );
+    animation: shimmer 2s ease-in-out infinite;
+    animation-delay: 0.5s;
+  }
 
   &.info {
-    background: var(--nav-bg-darkened);
+    border-color: rgba(var(--blert-blue-base), 0.3);
+
+    &::before {
+      background: linear-gradient(
+        90deg,
+        transparent,
+        var(--blert-blue),
+        transparent
+      );
+    }
+
+    .toastIcon {
+      color: var(--blert-blue);
+    }
   }
 
   &.success {
-    background: var(--blert-green);
+    border-color: rgba(var(--blert-green-base), 0.3);
 
-    .close {
-      color: #fff;
+    &::before {
+      background: linear-gradient(
+        90deg,
+        transparent,
+        var(--blert-green),
+        transparent
+      );
+    }
+
+    .toastIcon {
+      color: var(--blert-green);
     }
   }
 
   &.error {
-    background: var(--blert-red);
+    border-color: rgba(var(--blert-red-base), 0.3);
 
-    .close {
-      color: #fff;
+    &::before {
+      background: linear-gradient(
+        90deg,
+        transparent,
+        var(--blert-red),
+        transparent
+      );
+    }
+
+    .toastIcon {
+      color: var(--blert-red);
     }
   }
 
-  .close {
-    background: none;
-    border: none;
-    padding: 2px;
-    color: rgba(255, 255, 255, 0.6);
-    cursor: pointer;
-    transition: color 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-
-    &:hover {
-      color: white;
-    }
+  @media (max-width: 940px) {
+    padding: 14px 16px;
+    font-size: 0.85rem;
+    min-width: auto;
+    max-width: none;
   }
 }
 
-@keyframes slide-in {
-  from {
-    transform: translateX(100%);
+.toastIcon {
+  font-size: 1.1rem;
+  margin-right: 4px;
+  flex-shrink: 0;
+  color: var(--blert-button);
+}
+
+.toastMessage {
+  flex: 1;
+  line-height: 1.4;
+}
+
+.close {
+  background: none;
+  border: none;
+  padding: 6px;
+  color: rgba(var(--blert-text-color-base), 0.7);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+  margin-left: 4px;
+
+  &:hover {
+    color: var(--blert-text-color);
+    background: rgba(var(--nav-bg-lightened-base), 0.6);
+    transform: scale(1.1);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+.toast.exiting {
+  animation: slideOutWithFade 0.3s ease-in forwards;
+}
+
+@keyframes slideInWithBounce {
+  0% {
+    transform: translateX(120%) scale(0.9);
     opacity: 0;
   }
-  to {
-    transform: translateX(0);
+  60% {
+    transform: translateX(-5%) scale(1.02);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateX(0) scale(1);
     opacity: 1;
+  }
+}
+
+@keyframes slideOutWithFade {
+  0% {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(120%) scale(0.95);
+    opacity: 0;
+  }
+}
+
+@keyframes borderShimmer {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
   }
 }
