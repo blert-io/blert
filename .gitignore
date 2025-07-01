@@ -17,6 +17,9 @@ web/out/
 web/build
 **/dist
 
+# compiled scripts
+web/public/scripts
+
 # misc
 .DS_Store
 *.pem
