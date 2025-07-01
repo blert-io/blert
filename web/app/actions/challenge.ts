@@ -2285,6 +2285,141 @@ export async function getPlayerStatsHistory(
   }
 }
 
+export type PlayerNetworkOptions = {
+  limit?: number;
+  type?: ChallengeType;
+  mode?: ChallengeMode;
+  scale?: number[];
+  from?: Date;
+  to?: Date;
+};
+
+export async function loadPlayerNetwork(options: PlayerNetworkOptions) {
+  const { limit = 10_000, type, mode, scale, from, to } = options;
+
+  const conditions: postgres.Fragment[] = [];
+  if (type) {
+    conditions.push(sql`challenge_type = ${type}`);
+  }
+  if (mode) {
+    conditions.push(sql`challenge_mode = ${mode}`);
+  }
+  if (scale) {
+    conditions.push(sql`challenge_scale = ANY(${scale})`);
+  }
+  if (from) {
+    conditions.push(sql`day_bucket >= ${from}`);
+  }
+  if (to) {
+    conditions.push(sql`day_bucket <= ${to}`);
+  }
+
+  const edges = await sql`
+    SELECT player_id_1, player_id_2, SUM(challenge_count) as challenge_count
+    FROM mv_daily_player_pairs
+    ${where(conditions)}
+    GROUP BY player_id_1, player_id_2
+    HAVING SUM(challenge_count) >= 5
+    ORDER BY challenge_count DESC
+    LIMIT ${limit}
+  `;
+
+  const playerIds = Array.from(
+    new Set(edges.flatMap((e) => [e.player_id_1, e.player_id_2])),
+  );
+  const players = await sql<{ id: number; username: string }[]>`
+    SELECT id, username FROM players WHERE id = ANY(${playerIds})
+  `;
+
+  const playerMap = new Map(players.map((p) => [p.id, p.username]));
+  const nodes = Array.from(playerMap.entries()).map(
+    ([_, username]) => username,
+  );
+
+  return {
+    nodes,
+    edges: edges.map((e) => ({
+      source: playerMap.get(e.player_id_1) ?? 'Unknown',
+      target: playerMap.get(e.player_id_2) ?? 'Unknown',
+      value: parseInt(e.challenge_count),
+    })),
+    meta: {
+      filters: { type, mode, scale, from, to },
+    },
+  };
+}
+
+export type ChallengePartner = {
+  username: string;
+  challengesTogether: number;
+  firstChallengeDate: Date;
+  lastChallengeDate: Date;
+};
+
+/**
+ * Returns the top partners for a player, based on the number of challenges
+ * they have completed together.
+ *
+ * @param username The player's username.
+ * @param options Optional options to filter the results.
+ * @returns Array of partner objects, ordered by number of challenges together
+ *   in descending order. If no player with the given username exists, returns
+ *   `null`.
+ */
+export async function topPartnersForPlayer(
+  username: string,
+  options: PlayerNetworkOptions,
+): Promise<ChallengePartner[] | null> {
+  const { limit = 10, type, mode, scale, from, to } = options;
+
+  const playerId = await sql<{ id: number }[]>`
+    SELECT id FROM players WHERE LOWER(username) = ${username.toLowerCase()}
+  `.then((rows) => rows[0]?.id);
+
+  if (!playerId) {
+    return null;
+  }
+
+  const rows = await sql`
+    SELECT
+      CASE WHEN player_id_1 = ${playerId} THEN player_id_2 ELSE player_id_1 END AS partner_id,
+      SUM(challenge_count) AS challenges_together,
+      MIN(day_bucket) AS first_challenge_date,
+      MAX(day_bucket) AS last_challenge_date
+    FROM mv_daily_player_pairs
+    WHERE
+      (${playerId} IN (player_id_1, player_id_2))
+      ${type ? sql`AND challenge_type = ${type}` : sql``}
+      ${mode ? sql`AND challenge_mode = ${mode}` : sql``}
+      ${scale ? sql`AND challenge_scale = ANY(${scale})` : sql``}
+      ${from ? sql`AND day_bucket >= ${from}` : sql``}
+      ${to ? sql`AND day_bucket <= ${to}` : sql``}
+    GROUP BY partner_id
+    ORDER BY challenges_together DESC
+    LIMIT ${limit}
+  `;
+
+  if (rows.length === 0) {
+    return [];
+  }
+
+  const partnerIds = rows.map((row) => row.partner_id);
+  const partnerRows = await sql<{ id: number; username: string }[]>`
+    SELECT id, username FROM players WHERE id = ANY(${partnerIds})
+  `;
+
+  const partnerNames = new Map<number, string>(
+    partnerRows.map((row) => [row.id, row.username]),
+  );
+
+  return rows.map((row) => ({
+    username: partnerNames.get(row.partner_id) ?? 'Unknown',
+    challengesTogether: parseInt(row.challenges_together),
+    firstChallengeDate: row.first_challenge_date,
+    lastChallengeDate: row.last_challenge_date,
+  }));
+}
+
 export type BloatHandsView = 'total' | 'wave' | 'chunk' | 'intraChunkOrder';
 
 export type BloatHandsQuery = ChallengeQuery & {
