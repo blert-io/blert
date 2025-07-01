@@ -180,3 +180,44 @@ export function expectSingle(
 export function isAggregation(agg: string): agg is Aggregation {
   return ['count', 'sum', 'avg', 'min', 'max'].includes(agg);
 }
+
+/**
+ * Parses a comma-separated list of numbers from a search parameter.
+ *
+ * @param obj The search params object.
+ * @param key The parameter key.
+ * @returns The list of numbers, or `undefined` if the parameter is not present.
+ */
+export function numericListParam<T extends number = number>(
+  obj: NextSearchParams,
+  key: string,
+): T[] | undefined {
+  return expectSingle(obj, key)
+    ?.split(',')
+    .map((v) => parseInt(v) as T)
+    ?.filter((v) => !isNaN(v));
+}
+
+/**
+ * Parses a numeric value from a search parameter.
+ *
+ * @param obj The search params object.
+ * @param key The parameter key.
+ * @returns The numeric value, or `undefined` if the parameter is not present.
+ */
+export function numericParam<T extends number = number>(
+  obj: NextSearchParams,
+  key: string,
+): T | undefined {
+  const value = expectSingle(obj, key);
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const num = parseInt(value);
+  if (isNaN(num)) {
+    throw new InvalidQueryError(`${key}: Invalid numeric value ${value}`);
+  }
+
+  return num as T;
+}

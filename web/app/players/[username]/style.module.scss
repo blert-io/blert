@@ -9,7 +9,7 @@ $NAV_MARGIN: 10px;
 
 .playerPage {
   width: 100%;
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 20px;
 
@@ -233,9 +233,13 @@ $NAV_MARGIN: 10px;
 .overviewContent {
   width: 100%;
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
   min-width: 0;
+
+  @media (max-width: 1560px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     grid-template-columns: 1fr;
@@ -260,7 +264,7 @@ $NAV_MARGIN: 10px;
     flex-flow: row wrap;
     justify-content: space-evenly;
     margin: 4px 0;
-    gap: 16px;
+    gap: 12px;
 
     .pbTable {
       margin: 0;
@@ -312,6 +316,12 @@ $NAV_MARGIN: 10px;
           }
         }
       }
+    }
+  }
+
+  @media (max-width: 1560px) {
+    .activityCard {
+      grid-column: 1 / -1;
     }
   }
 
@@ -379,6 +389,108 @@ $NAV_MARGIN: 10px;
       }
     }
   }
+
+  .partnersSection {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+
+    .partnersList {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+
+      .partner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px;
+        background: var(--nav-bg);
+        border-radius: 6px;
+        transition: all 0.2s ease;
+        text-decoration: none;
+        border: 1px solid transparent;
+
+        &:hover {
+          background: var(--nav-bg-lightened);
+          border-color: rgba(var(--blert-button-base), 0.3);
+          transform: translateY(-1px);
+        }
+
+        .partnerInfo {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          min-width: 0;
+
+          .partnerName {
+            font-weight: 500;
+            color: var(--blert-text-color);
+            font-size: 1em;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+
+          .partnerMeta {
+            font-size: 0.8em;
+            color: var(--font-color-nav);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+
+            .challengeCount {
+              display: flex;
+              align-items: center;
+              gap: 4px;
+
+              i {
+                color: var(--blert-button);
+                font-size: 0.9em;
+              }
+            }
+          }
+        }
+
+        .arrow {
+          color: var(--font-color-nav);
+          transition: all 0.2s ease;
+          font-size: 0.8em;
+        }
+
+        &:hover .arrow {
+          color: var(--blert-button);
+          transform: translateX(2px);
+        }
+      }
+    }
+
+    .noPartners {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      background: var(--nav-bg);
+      border-radius: 6px;
+      color: var(--font-color-nav);
+      text-align: center;
+      gap: 8px;
+      border: 1px dashed var(--font-color-nav-divider);
+
+      i {
+        font-size: 1.4em;
+        opacity: 0.7;
+        margin-bottom: 4px;
+      }
+
+      p {
+        margin: 0;
+        font-size: 0.9em;
+        font-style: italic;
+      }
+    }
+  }
 }
 
 .personalBests {
@@ -390,7 +502,7 @@ $NAV_MARGIN: 10px;
 
 .history {
   width: 100%;
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
 }
 
@@ -421,7 +533,7 @@ $NAV_MARGIN: 10px;
 
   .wrapper {
     width: 100%;
-    max-width: 100%;
+    max-width: 1024px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -435,7 +547,7 @@ $NAV_MARGIN: 10px;
 
     .heatmapWrapper {
       width: 100%;
-      max-width: 100%;
+      max-width: 1024px;
       overflow-x: auto;
       overflow-y: hidden;
       -webkit-overflow-scrolling: touch;
@@ -757,7 +869,7 @@ $NAV_MARGIN: 10px;
 
 .statistics {
   width: 100%;
-  max-width: 1200px;
+  max-width: 1400px;
 }
 
 .statisticsGrid {

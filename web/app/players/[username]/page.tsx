@@ -4,6 +4,7 @@ import {
   aggregateChallenges,
   ChallengeQuery,
   loadPbsForPlayer,
+  topPartnersForPlayer,
 } from '@/actions/challenge';
 
 import PlayerOverviewContent from './overview-content';
@@ -24,18 +25,24 @@ export default async function PlayerOverview({
   oneYearAgo.setUTCFullYear(oneYearAgo.getUTCFullYear() - 1);
   oneYearAgo.setUTCHours(0, 0, 0, 0);
 
-  const [personalBests, raidStatuses, raidScales, raidCountsLastYear] =
-    await Promise.all([
-      loadPbsForPlayer(username),
-      aggregateChallenges(query, { '*': 'count' }, {}, 'status'),
-      aggregateChallenges(query, { '*': 'count' }, {}, 'scale'),
-      aggregateChallenges(
-        { ...query, startTime: ['>=', oneYearAgo] },
-        { '*': 'count' },
-        {},
-        'startTime',
-      ),
-    ]);
+  const [
+    personalBests,
+    raidStatuses,
+    raidScales,
+    raidCountsLastYear,
+    topPartners,
+  ] = await Promise.all([
+    loadPbsForPlayer(username),
+    aggregateChallenges(query, { '*': 'count' }, {}, 'status'),
+    aggregateChallenges(query, { '*': 'count' }, {}, 'scale'),
+    aggregateChallenges(
+      { ...query, startTime: ['>=', oneYearAgo] },
+      { '*': 'count' },
+      {},
+      'startTime',
+    ),
+    topPartnersForPlayer(username, { limit: 8, type: ChallengeType.TOB }),
+  ]);
 
   const statusData = Object.entries(raidStatuses ?? {}).flatMap(([s, data]) => {
     const status = parseInt(s, 10) as ChallengeStatus;
@@ -64,6 +71,7 @@ export default async function PlayerOverview({
       initialRaidStatuses={statusData}
       initialRaidsByScale={raidsByScale}
       initialRaidsByDay={raidsByDay}
+      topPartners={topPartners ?? []}
     />
   );
 }

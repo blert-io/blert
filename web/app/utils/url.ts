@@ -46,6 +46,15 @@ export function challengeApiUrl(type: ChallengeType, id: string): string {
   return '/api/v1';
 }
 
+/**
+ * Returns the Blert URL to the player page for the given username.
+ * @param username Player username.
+ * @returns URL for the player's page.
+ */
+export function playerUrl(username: string): string {
+  return `/players/${encodeURIComponent(username)}`;
+}
+
 type SingleOrArray<T> = T | T[];
 export type UrlParam = SingleOrArray<string | number> | undefined;
 export type UrlParams = Record<string, UrlParam>;

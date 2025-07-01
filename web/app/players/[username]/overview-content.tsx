@@ -5,16 +5,16 @@ import Link from 'next/link';
 import { Cell, Legend, Pie, PieChart } from 'recharts';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 
+import { ChallengePartner } from '@/actions/challenge';
 import ActivityChart from '@/components/activity-chart';
 import Card, { CardLink } from '@/components/card';
 import RadioInput from '@/components/radio-input';
-import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 import Tooltip from '@/components/tooltip';
 import Statistic from '@/components/statistic';
 import { useClientOnly } from '@/hooks/client-only';
 import { scaleNameAndColor, statusNameAndColor } from '@/utils/challenge';
 import { ticksToFormattedSeconds } from '@/utils/tick';
-import { challengeUrl, queryString } from '@/utils/url';
+import { challengeUrl, playerUrl, queryString } from '@/utils/url';
 
 import { usePlayer } from './player-context';
 
@@ -99,6 +99,7 @@ type PlayerOverviewContentProps = {
   initialRaidStatuses: Array<{ status: ChallengeStatus; count: number }>;
   initialRaidsByScale: Array<{ scale: number; count: number }>;
   initialRaidsByDay: Array<{ date: Date; count: number }>;
+  topPartners: ChallengePartner[];
 };
 
 function utcDateString(date: Date): string {
@@ -351,6 +352,7 @@ export default function PlayerOverviewContent({
   initialRaidStatuses,
   initialRaidsByScale,
   initialRaidsByDay,
+  topPartners,
 }: PlayerOverviewContentProps) {
   const isClient = useClientOnly();
   const player = usePlayer();
@@ -510,6 +512,53 @@ export default function PlayerOverviewContent({
       </Card>
 
       <Card
+        header={{
+          title: 'Top Partners',
+          action:
+            topPartners.length > 0 ? (
+              <CardLink
+                href={`/network?focus=${encodeURIComponent(player.username)}`}
+                text="View all"
+              />
+            ) : undefined,
+        }}
+      >
+        <div className={styles.partnersSection}>
+          {topPartners.length > 0 ? (
+            <div className={styles.partnersList}>
+              {topPartners.map((partner) => (
+                <Link
+                  key={partner.username}
+                  href={playerUrl(partner.username)}
+                  className={styles.partner}
+                >
+                  <div className={styles.partnerInfo}>
+                    <div className={styles.partnerName}>{partner.username}</div>
+                    <div className={styles.partnerMeta}>
+                      <div className={styles.challengeCount}>
+                        <i className="fas fa-shield-alt" />
+                        <span>
+                          {partner.challengesTogether.toLocaleString()} raid
+                          {partner.challengesTogether === 1 ? '' : 's'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <i className={`fas fa-chevron-right ${styles.arrow}`} />
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className={styles.noPartners}>
+              <i className="fas fa-users" />
+              <p>No recent partners found</p>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      <Card
+        className={styles.activityCard}
         header={{
           title: 'Activity',
           action: (
