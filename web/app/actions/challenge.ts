@@ -2292,10 +2292,27 @@ export type PlayerNetworkOptions = {
   scale?: number[];
   from?: Date;
   to?: Date;
+  minChallengesTogether?: number;
 };
 
+/**
+ * Loads the player network for a given set of filters. The network is
+ * represented as a graph with players as nodes and edges representing the
+ * number of challenges they have completed together.
+ *
+ * @param options Options for filtering the network.
+ * @returns The player network.
+ */
 export async function loadPlayerNetwork(options: PlayerNetworkOptions) {
-  const { limit = 10_000, type, mode, scale, from, to } = options;
+  const {
+    limit = 10_000,
+    type,
+    mode,
+    scale,
+    from,
+    to,
+    minChallengesTogether = 5,
+  } = options;
 
   const conditions: postgres.Fragment[] = [];
   if (type) {
@@ -2319,7 +2336,7 @@ export async function loadPlayerNetwork(options: PlayerNetworkOptions) {
     FROM mv_daily_player_pairs
     ${where(conditions)}
     GROUP BY player_id_1, player_id_2
-    HAVING SUM(challenge_count) >= 5
+    HAVING SUM(challenge_count) >= ${minChallengesTogether}
     ORDER BY challenge_count DESC
     LIMIT ${limit}
   `;
@@ -2370,7 +2387,15 @@ export async function topPartnersForPlayer(
   username: string,
   options: PlayerNetworkOptions,
 ): Promise<ChallengePartner[] | null> {
-  const { limit = 10, type, mode, scale, from, to } = options;
+  const {
+    limit = 10,
+    type,
+    mode,
+    scale,
+    from,
+    to,
+    minChallengesTogether = 1,
+  } = options;
 
   const playerId = await sql<{ id: number }[]>`
     SELECT id FROM players WHERE LOWER(username) = ${username.toLowerCase()}
@@ -2395,6 +2420,7 @@ export async function topPartnersForPlayer(
       ${from ? sql`AND day_bucket >= ${from}` : sql``}
       ${to ? sql`AND day_bucket <= ${to}` : sql``}
     GROUP BY partner_id
+    HAVING SUM(challenge_count) >= ${minChallengesTogether}
     ORDER BY challenges_together DESC
     LIMIT ${limit}
   `;
