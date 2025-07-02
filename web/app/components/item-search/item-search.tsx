@@ -30,7 +30,7 @@ export type ItemSearchInputProps = {
   /** Callback when the input is cleared */
   onClear?: () => void;
   /** Optional ref for the input element */
-  inputRef?: React.RefObject<HTMLInputElement>;
+  inputRef?: React.RefObject<HTMLInputElement | null>;
   /** Optional key to display in the input */
   displayKey?: string;
   /** Whether to show item IDs in the results */
