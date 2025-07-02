@@ -1,4 +1,11 @@
-import { Dispatch, SetStateAction, useEffect, useRef, useState } from 'react';
+import {
+  Dispatch,
+  JSX,
+  SetStateAction,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { createPortal } from 'react-dom';
 
 import styles from './style.module.scss';

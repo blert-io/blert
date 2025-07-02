@@ -225,8 +225,8 @@ function SlotSearch(props: {
   filter?: (item: ExtendedItemData) => boolean;
   onSelect: (item: ExtendedItemData) => void;
   onClear: () => void;
-  searchRef: RefObject<HTMLInputElement>;
-  slotRef: RefObject<HTMLDivElement>;
+  searchRef: RefObject<HTMLInputElement | null>;
+  slotRef: RefObject<HTMLDivElement | null>;
 }) {
   const portalNode = useRef<HTMLElement | null>(null);
   const [ready, setReady] = useState(false);

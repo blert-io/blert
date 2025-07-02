@@ -127,7 +127,7 @@ export class ClientEvents {
       challenge,
       stageInfo,
       tickState,
-      primaryPlayer,
+      primaryPlayer ?? null,
     );
   }
 
@@ -191,7 +191,7 @@ export class ClientEvents {
       challenge,
       stageInfo,
       tickState,
-      primaryPlayer,
+      primaryPlayer ?? null,
     );
   }
 

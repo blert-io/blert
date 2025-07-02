@@ -46,7 +46,7 @@ export default function Carousel({
   const listRef = useRef<HTMLDivElement>(null);
   const dragOffsetRef = useRef(0);
   const hasStartedDragging = useRef(false);
-  const cycleTimeoutRef = useRef<NodeJS.Timeout>();
+  const cycleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const isDragging = dragStart !== null;
 

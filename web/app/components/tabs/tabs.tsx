@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { JSX, useEffect, useRef, useState } from 'react';
 
 import styles from './style.module.scss';
 
