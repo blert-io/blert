@@ -29,6 +29,7 @@ import {
   DataSource,
   SplitType,
   Skill,
+  Coords,
 } from '@blert/common';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -45,6 +46,44 @@ import { simpleItemCache } from './item-cache/simple';
 import { TICK_MS } from './tick';
 import { challengeApiUrl } from './url';
 
+export const useLegacyTickTimeout = (
+  enabled: boolean,
+  playing: boolean,
+  advanceTick: () => void,
+  setTick: (tick: number | SetStateAction<number>) => void,
+) => {
+  const tickTimeout = useRef<number | undefined>(undefined);
+
+  const clearTimeout = useCallback(() => {
+    window.clearTimeout(tickTimeout.current);
+    tickTimeout.current = undefined;
+  }, []);
+
+  const updateTickOnPage = useCallback(
+    (tick: number | SetStateAction<number>) => {
+      clearTimeout();
+      setTick(tick);
+    },
+    [clearTimeout, setTick],
+  );
+
+  useEffect(() => {
+    if (enabled && playing) {
+      tickTimeout.current = window.setTimeout(() => {
+        advanceTick();
+      }, TICK_MS);
+    } else {
+      clearTimeout();
+    }
+
+    return () => clearTimeout();
+  }, [advanceTick, enabled, playing, clearTimeout]);
+
+  return {
+    updateTickOnPage,
+  };
+};
+
 export const usePlayingState = (totalTicks: number) => {
   const searchParams = useSearchParams();
   const initialTick = Number.parseInt(searchParams.get('tick') ?? '1', 10);
@@ -52,36 +91,15 @@ export const usePlayingState = (totalTicks: number) => {
   const [currentTick, setTick] = useState(initialTick);
   const [playing, setPlaying] = useState(false);
 
-  const tickTimeout = useRef<number | undefined>(undefined);
-
-  const clearTimeout = () => {
-    window.clearTimeout(tickTimeout.current);
-    tickTimeout.current = undefined;
-  };
-
-  const updateTickOnPage = useCallback(
-    (tick: number | SetStateAction<number>) => {
-      clearTimeout();
-      setTick(tick);
-    },
-    [],
-  );
-
-  useEffect(() => {
-    if (playing) {
-      if (currentTick < totalTicks) {
-        tickTimeout.current = window.setTimeout(() => {
-          updateTickOnPage(currentTick + 1);
-        }, TICK_MS);
-      } else {
-        setPlaying(false);
-        clearTimeout();
-        updateTickOnPage(1);
+  const advanceTick = useCallback(() => {
+    setTick((tick) => {
+      if (tick < totalTicks) {
+        return tick + 1;
       }
-    } else {
-      clearTimeout();
-    }
-  }, [currentTick, totalTicks, playing, updateTickOnPage]);
+      setPlaying(false);
+      return 1;
+    });
+  }, [totalTicks]);
 
   useEffect(() => {
     const listener = (e: KeyboardEvent) => {
@@ -91,10 +109,10 @@ export const usePlayingState = (totalTicks: number) => {
 
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        updateTickOnPage((tick) => Math.max(1, tick - 1));
+        setTick((tick) => Math.max(1, tick - 1));
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
-        updateTickOnPage((tick) => Math.min(totalTicks, tick + 1));
+        setTick((tick) => Math.min(totalTicks, tick + 1));
       } else if (e.key === ' ') {
         e.preventDefault();
         setPlaying((playing) => !playing);
@@ -103,11 +121,12 @@ export const usePlayingState = (totalTicks: number) => {
 
     window.addEventListener('keydown', listener);
     return () => window.removeEventListener('keydown', listener);
-  }, [totalTicks, updateTickOnPage]);
+  }, [totalTicks, setTick]);
 
   return {
     currentTick,
-    updateTickOnPage,
+    advanceTick,
+    setTick,
     playing,
     setPlaying,
   };
@@ -164,6 +183,7 @@ export type PlayerState = Omit<PlayerUpdateEvent, 'type' | 'stage' | 'cId'> & {
 
 export type NpcState = {
   attack: Nullable<{ type: NpcAttack; target: string | null }>;
+  position: Coords;
   hitpoints: SkillLevel;
   label?: string;
 };
@@ -337,7 +357,9 @@ function buildEventMaps(events: Event[]): [EventTickMap, EventTypeMap] {
 }
 
 const eventBelongsToPlayer = (event: Event, playerName: string): boolean => {
-  if (!isPlayerEvent(event)) return false;
+  if (!isPlayerEvent(event)) {
+    return false;
+  }
 
   const eventAsPlayerEvent = event as PlayerEvent;
 
@@ -576,6 +598,10 @@ function computeNpcState(
       if (eventsForThisNpc.length > 0) {
         npc.stateByTick[i] = {
           attack: null,
+          position: {
+            x: eventsForThisNpc[0].xCoord,
+            y: eventsForThisNpc[0].yCoord,
+          },
           hitpoints: SkillLevel.fromRaw(eventsForThisNpc[0].npc.hitpoints),
         };
         lastActiveTick = i;
@@ -594,6 +620,10 @@ function computeNpcState(
               : new SkillLevel(0, 1);
           npc.stateByTick[i] = {
             attack: null,
+            position: {
+              x: eventsForThisNpc[0].xCoord,
+              y: eventsForThisNpc[0].yCoord,
+            },
             hitpoints,
           };
         }

@@ -2,6 +2,7 @@
 
 import {
   ChallengeStatus,
+  Coords,
   EventType,
   MaidenBloodSplatsEvent,
   MaidenCrabPosition,
@@ -10,13 +11,13 @@ import {
   NpcEvent,
   PlayerUpdateEvent,
   RoomNpcType,
+  Skill,
   SkillLevel,
   SplitType,
   Stage,
   TobRaid,
 } from '@blert/common';
-import { useSearchParams } from 'next/navigation';
-import { useContext, useEffect, useMemo } from 'react';
+import { useContext, useMemo, useState } from 'react';
 
 import { TimelineSplit } from '@/components/attack-timeline';
 import BossFightOverview from '@/components/boss-fight-overview';
@@ -24,37 +25,75 @@ import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
 import BossPageControls from '@/components/boss-page-controls';
 import BossPageDPSTimeline from '@/components/boss-page-dps-timeline';
 import BossPageParty from '@/components/boss-page-party';
-import BossPageReplay from '@/components/boss-page-replay';
+import BossPageReplay, {
+  NewBossPageReplay,
+} from '@/components/boss-page-replay';
 import Card from '@/components/card';
 import {
-  Entity,
-  MarkerEntity,
+  Entity as LegacyEntity,
+  MarkerEntity as LegacyMarkerEntity,
+  NpcEntity as LegacyNpcEntity,
+  PlayerEntity as LegacyPlayerEntity,
+} from '@/components/map';
+import {
+  AnyEntity,
+  GroundObjectEntity,
+  MapDefinition,
   NpcEntity,
   PlayerEntity,
-} from '@/components/map';
+  Terrain,
+} from '@/components/map-renderer';
 import Loading from '@/components/loading';
 import { DisplayContext } from '@/display';
 import { ActorContext } from '@/(challenges)/raids/tob/context';
 import {
   EnhancedMaidenCrab,
   EnhancedRoomNpc,
+  useLegacyTickTimeout,
   usePlayingState,
   useStageEvents,
 } from '@/utils/boss-room-state';
-import { clamp } from '@/utils/math';
+import { coordsEqual, inRect } from '@/utils/coords';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import maidenBaseTiles from './maiden.json';
 import bossStyles from '../style.module.scss';
 import styles from './style.module.scss';
 
-const MAIDEN_MAP_DEFINITION = {
+const DEFAULT_USE_NEW_REPLAY = true;
+
+const LEGACY_MAIDEN_MAP_DEFINITION = {
   baseX: 3160,
   baseY: 4435,
   width: 28,
   height: 24,
   baseTiles: maidenBaseTiles,
 };
+
+class MaidenTerrain implements Terrain {
+  isPassable(coords: Coords): boolean {
+    // Maiden.
+    if (inRect(coords, { x: 3162, y: 4444, width: 6, height: 6 })) {
+      return false;
+    }
+
+    return (
+      !coordsEqual(coords, { x: 3185, y: 4444 }) &&
+      !coordsEqual(coords, { x: 3185, y: 4449 })
+    );
+  }
+}
+
+const MAIDEN_MAP_DEFINITION: MapDefinition = {
+  baseX: 3136,
+  baseY: 4416,
+  width: 72,
+  height: 64,
+  initialZoom: 25,
+  initialCameraPosition: { x: 3174, y: 4447 },
+  terrain: new MaidenTerrain(),
+};
+
 const BLOOD_SPLAT_COLOR = '#b93e3e';
 
 type CrabSpawnProps = {
@@ -173,22 +212,38 @@ function CrabSpawn(props: CrabSpawnProps) {
 }
 
 export default function Maiden() {
-  const searchParams = useSearchParams();
   const display = useContext(DisplayContext);
+  const [useNewReplay, setUseNewReplay] = useState(DEFAULT_USE_NEW_REPLAY);
+
+  const compact = display.isCompact();
+
+  const mapDefinition = useMemo(() => {
+    const initialZoom = compact ? 13 : 25;
+    return {
+      ...MAIDEN_MAP_DEFINITION,
+      initialZoom,
+    };
+  }, [compact]);
 
   const {
     challenge,
     events,
     totalTicks,
     eventsByTick,
-    eventsByType,
     playerState,
     npcState,
     loading,
   } = useStageEvents<TobRaid>(Stage.TOB_MAIDEN);
 
-  const { currentTick, updateTickOnPage, playing, setPlaying } =
+  const { currentTick, advanceTick, setTick, playing, setPlaying } =
     usePlayingState(totalTicks);
+
+  const { updateTickOnPage } = useLegacyTickTimeout(
+    !useNewReplay,
+    playing,
+    advanceTick,
+    setTick,
+  );
 
   const bossHealthChartData = useMemo(() => {
     let maiden: EnhancedRoomNpc | null = null;
@@ -246,6 +301,109 @@ export default function Maiden() {
     return { splits, spawns };
   }, [challenge, eventsByTick, npcState]);
 
+  const entitiesByTick = useMemo(() => {
+    const entities = new Map<number, AnyEntity[]>();
+
+    if (challenge === null) {
+      return entities;
+    }
+
+    const partyOrb = challenge.party.reduce(
+      (acc, p, i) => {
+        acc[p.username] = i;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+
+    for (let tick = 0; tick < totalTicks; tick++) {
+      const entitiesForTick: AnyEntity[] = [];
+
+      for (const [playerName, state] of playerState) {
+        const playerState = state?.at(tick);
+        if (!playerState) {
+          continue;
+        }
+
+        const orb = partyOrb[playerName] ?? 7;
+
+        let nextPosition: Coords | undefined = undefined;
+        let nextHitpoints: SkillLevel | undefined = undefined;
+        if (tick < totalTicks - 1) {
+          const nextState = state?.at(tick + 1);
+          if (nextState) {
+            nextPosition = { x: nextState.xCoord, y: nextState.yCoord };
+            nextHitpoints = nextState.skills[Skill.HITPOINTS];
+          }
+        }
+
+        entitiesForTick.push(
+          new PlayerEntity(
+            { x: playerState.xCoord, y: playerState.yCoord },
+            playerName,
+            orb,
+            {
+              current: playerState.skills[Skill.HITPOINTS],
+              next: nextHitpoints,
+            },
+            nextPosition,
+          ),
+        );
+      }
+
+      for (const [roomId, npc] of npcState) {
+        const npcState = npc.stateByTick[tick];
+        if (!npcState) {
+          continue;
+        }
+
+        let nextPosition: Coords | undefined = undefined;
+        let nextHitpoints: SkillLevel | undefined = undefined;
+        if (tick < totalTicks - 1) {
+          const nextState = npc.stateByTick[tick + 1];
+          if (nextState) {
+            nextPosition = nextState.position;
+            nextHitpoints = nextState.hitpoints;
+          }
+        }
+
+        entitiesForTick.push(
+          new NpcEntity(
+            npcState.position,
+            npc.spawnNpcId,
+            roomId,
+            { current: npcState.hitpoints, next: nextHitpoints },
+            nextPosition,
+          ),
+        );
+      }
+
+      const bloodSplats = eventsByTick[tick]?.filter(
+        (evt) => evt.type === EventType.TOB_MAIDEN_BLOOD_SPLATS,
+      );
+      if (bloodSplats) {
+        for (const evt of bloodSplats) {
+          const e = evt as MaidenBloodSplatsEvent;
+          for (const coords of e.maidenBloodSplats) {
+            entitiesForTick.push(
+              new GroundObjectEntity(
+                coords,
+                '/images/objects/maiden_blood_splat.png',
+                'Blood Splat',
+                1,
+                BLOOD_SPLAT_COLOR,
+              ),
+            );
+          }
+        }
+      }
+
+      entities.set(tick, entitiesForTick);
+    }
+
+    return entities;
+  }, [npcState, playerState, eventsByTick, totalTicks, challenge]);
+
   if (loading || challenge === null) {
     return <Loading />;
   }
@@ -261,8 +419,7 @@ export default function Maiden() {
 
   const eventsForCurrentTick = eventsByTick[currentTick] ?? [];
 
-  const entities: Entity[] = [];
-  const players: PlayerEntity[] = [];
+  const legacyEntities: LegacyEntity[] = [];
 
   for (const evt of eventsForCurrentTick) {
     switch (evt.type) {
@@ -271,22 +428,21 @@ export default function Maiden() {
         const hitpoints = e.player.hitpoints
           ? SkillLevel.fromRaw(e.player.hitpoints)
           : undefined;
-        const player = new PlayerEntity(
+        const player = new LegacyPlayerEntity(
           e.xCoord,
           e.yCoord,
           e.player.name,
           hitpoints,
           /*highlight=*/ e.player.name === selectedPlayer,
         );
-        entities.push(player);
-        players.push(player);
+        legacyEntities.push(player);
         break;
       }
       case EventType.NPC_SPAWN:
       case EventType.NPC_UPDATE: {
         const e = evt as NpcEvent;
-        entities.push(
-          new NpcEntity(
+        legacyEntities.push(
+          new LegacyNpcEntity(
             e.xCoord,
             e.yCoord,
             e.npc.id,
@@ -299,7 +455,9 @@ export default function Maiden() {
       case EventType.TOB_MAIDEN_BLOOD_SPLATS:
         const e = evt as MaidenBloodSplatsEvent;
         for (const coord of e.maidenBloodSplats ?? []) {
-          entities.push(new MarkerEntity(coord.x, coord.y, BLOOD_SPLAT_COLOR));
+          legacyEntities.push(
+            new LegacyMarkerEntity(coord.x, coord.y, BLOOD_SPLAT_COLOR),
+          );
         }
         break;
     }
@@ -358,11 +516,24 @@ export default function Maiden() {
       </div>
 
       <div className={bossStyles.replayAndParty}>
-        <BossPageReplay
-          entities={entities}
-          mapDef={MAIDEN_MAP_DEFINITION}
-          tileSize={display.isCompact() ? 12 : undefined}
-        />
+        {useNewReplay ? (
+          <NewBossPageReplay
+            entities={entitiesByTick.get(currentTick) ?? []}
+            mapDef={mapDefinition}
+            playing={playing}
+            width={display.isCompact() ? 352 : 704}
+            height={display.isCompact() ? 302 : 604}
+            currentTick={currentTick}
+            advanceTick={advanceTick}
+            setUseLegacy={() => setUseNewReplay(false)}
+          />
+        ) : (
+          <BossPageReplay
+            entities={legacyEntities}
+            mapDef={LEGACY_MAIDEN_MAP_DEFINITION}
+            tileSize={display.isCompact() ? 12 : undefined}
+          />
+        )}
         <BossPageParty
           playerTickState={playerTickState}
           selectedPlayer={selectedPlayer}

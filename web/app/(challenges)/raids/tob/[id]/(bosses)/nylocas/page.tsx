@@ -42,6 +42,7 @@ import BossPageControls from '@/components/boss-page-controls';
 import BossPageReplay from '@/components/boss-page-replay';
 import {
   EventTickMap,
+  useLegacyTickTimeout,
   usePlayingState,
   useStageEvents,
 } from '@/utils/boss-room-state';
@@ -340,8 +341,14 @@ export default function NylocasPage() {
     loading,
   } = useStageEvents<TobRaid>(Stage.TOB_NYLOCAS);
 
-  const { currentTick, updateTickOnPage, playing, setPlaying } =
+  const { currentTick, setTick, playing, setPlaying, advanceTick } =
     usePlayingState(totalTicks);
+  const { updateTickOnPage } = useLegacyTickTimeout(
+    true,
+    playing,
+    advanceTick,
+    setTick,
+  );
 
   const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
 
