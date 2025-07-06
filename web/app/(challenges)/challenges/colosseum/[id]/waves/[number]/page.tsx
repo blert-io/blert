@@ -23,7 +23,11 @@ import ColosseumHandicap from '@/components/colosseum-handicap';
 import Loading from '@/components/loading';
 import { Entity, NpcEntity, PlayerEntity } from '@/components/map';
 import { useDisplay } from '@/display';
-import { usePlayingState, useStageEvents } from '@/utils/boss-room-state';
+import {
+  useLegacyTickTimeout,
+  usePlayingState,
+  useStageEvents,
+} from '@/utils/boss-room-state';
 import { challengeUrl } from '@/utils/url';
 
 import { ActorContext } from '../../../context';
@@ -105,8 +109,14 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
 
   const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
 
-  const { currentTick, updateTickOnPage, playing, setPlaying } =
+  const { currentTick, setTick, playing, setPlaying, advanceTick } =
     usePlayingState(totalTicks);
+  const { updateTickOnPage } = useLegacyTickTimeout(
+    true,
+    playing,
+    advanceTick,
+    setTick,
+  );
 
   if (challenge === null || loading) {
     return <Loading />;

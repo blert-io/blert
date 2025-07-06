@@ -38,6 +38,7 @@ import { useDisplay } from '@/display';
 import { ActorContext } from '@/(challenges)/raids/tob/context';
 import {
   EnhancedRoomNpc,
+  useLegacyTickTimeout,
   usePlayingState,
   useStageEvents,
 } from '@/utils/boss-room-state';
@@ -81,8 +82,14 @@ export default function BloatPage() {
     loading,
   } = useStageEvents<TobRaid>(Stage.TOB_BLOAT);
 
-  const { currentTick, updateTickOnPage, playing, setPlaying } =
+  const { currentTick, setTick, playing, setPlaying, advanceTick } =
     usePlayingState(totalTicks);
+  const { updateTickOnPage } = useLegacyTickTimeout(
+    true,
+    playing,
+    advanceTick,
+    setTick,
+  );
 
   const display = useDisplay();
   const { setSelectedPlayer, selectedPlayer } = useContext(ActorContext);

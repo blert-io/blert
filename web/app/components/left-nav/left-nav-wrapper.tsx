@@ -35,7 +35,11 @@ function shouldSuppressSidebarDrag(target: EventTarget | null): boolean {
   // Certain types of inputs are draggable. In text inputs, the user may
   // want to select text. Don't allow the sidebar to be opened while
   // interacting with these elements.
-  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+  if (
+    target.tagName === 'INPUT' ||
+    target.tagName === 'TEXTAREA' ||
+    target.tagName === 'CANVAS'
+  ) {
     return true;
   }
 

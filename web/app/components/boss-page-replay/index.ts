@@ -1,2 +1,4 @@
-import BossPageReplay from './boss-page-replay';
-export default BossPageReplay;
+export {
+  default,
+  BossPageReplay as NewBossPageReplay,
+} from './boss-page-replay';

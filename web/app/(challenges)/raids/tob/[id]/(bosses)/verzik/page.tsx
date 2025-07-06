@@ -34,7 +34,11 @@ import {
 } from '@/components/map';
 import { useDisplay } from '@/display';
 import { ActorContext } from '@/(challenges)/raids/tob/context';
-import { usePlayingState, useStageEvents } from '@/utils/boss-room-state';
+import {
+  useLegacyTickTimeout,
+  usePlayingState,
+  useStageEvents,
+} from '@/utils/boss-room-state';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import bossStyles from '../style.module.scss';
@@ -94,8 +98,14 @@ export default function VerzikPage() {
     loading,
   } = useStageEvents<TobRaid>(Stage.TOB_VERZIK);
 
-  const { currentTick, updateTickOnPage, playing, setPlaying } =
+  const { currentTick, setTick, playing, setPlaying, advanceTick } =
     usePlayingState(totalTicks);
+  const { updateTickOnPage } = useLegacyTickTimeout(
+    true,
+    playing,
+    advanceTick,
+    setTick,
+  );
 
   const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
 

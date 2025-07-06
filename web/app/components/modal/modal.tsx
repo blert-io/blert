@@ -39,7 +39,11 @@ export function Modal(props: ModalProps) {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      const isInput =
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement ||
+        event.target instanceof HTMLSelectElement;
+      if (event.key === 'Escape' && !isInput) {
         onClose();
       }
     };
