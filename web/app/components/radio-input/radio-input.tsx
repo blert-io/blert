@@ -64,6 +64,7 @@ export function Group(props: GroupProps) {
         const childElement = child as React.ReactElement<OptionProps>;
 
         return React.cloneElement<OptionProps>(childElement, {
+          ...childElement.props,
           privateName: props.name,
           privateOnChange: () => props.onChange?.(childElement.props.value),
           privateReadOnly: props.readOnly,
