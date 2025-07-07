@@ -241,7 +241,7 @@ export default function Maiden() {
   const { updateTickOnPage } = useLegacyTickTimeout(
     !useNewReplay,
     playing,
-    advanceTick,
+    currentTick,
     setTick,
   );
 
