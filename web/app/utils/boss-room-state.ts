@@ -51,7 +51,7 @@ import { challengeApiUrl } from './url';
 export const useLegacyTickTimeout = (
   enabled: boolean,
   playing: boolean,
-  advanceTick: () => void,
+  currentTick: number,
   setTick: (tick: number | SetStateAction<number>) => void,
 ) => {
   const tickTimeout = useRef<number | undefined>(undefined);
@@ -72,14 +72,14 @@ export const useLegacyTickTimeout = (
   useEffect(() => {
     if (enabled && playing) {
       tickTimeout.current = window.setTimeout(() => {
-        advanceTick();
+        updateTickOnPage(currentTick + 1);
       }, TICK_MS);
     } else {
       clearTimeout();
     }
 
     return () => clearTimeout();
-  }, [advanceTick, enabled, playing, clearTimeout]);
+  }, [currentTick, updateTickOnPage, enabled, playing, clearTimeout]);
 
   return {
     updateTickOnPage,

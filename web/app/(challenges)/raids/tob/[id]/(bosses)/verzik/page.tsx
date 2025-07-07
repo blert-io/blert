@@ -103,7 +103,7 @@ export default function VerzikPage() {
   const { updateTickOnPage } = useLegacyTickTimeout(
     true,
     playing,
-    advanceTick,
+    currentTick,
     setTick,
   );
 

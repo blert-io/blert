@@ -114,7 +114,7 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
   const { updateTickOnPage } = useLegacyTickTimeout(
     true,
     playing,
-    advanceTick,
+    currentTick,
     setTick,
   );
 
