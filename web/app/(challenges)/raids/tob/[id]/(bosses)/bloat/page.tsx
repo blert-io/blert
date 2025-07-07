@@ -87,7 +87,7 @@ export default function BloatPage() {
   const { updateTickOnPage } = useLegacyTickTimeout(
     true,
     playing,
-    advanceTick,
+    currentTick,
     setTick,
   );
 

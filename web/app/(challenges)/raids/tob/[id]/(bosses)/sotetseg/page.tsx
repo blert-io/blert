@@ -175,7 +175,7 @@ export default function SotetsegPage() {
   const { updateTickOnPage } = useLegacyTickTimeout(
     true,
     playing,
-    advanceTick,
+    currentTick,
     setTick,
   );
 
