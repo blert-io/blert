@@ -1,8 +1,16 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { MapControls, OrthographicCamera } from '@react-three/drei';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Coords } from '@blert/common';
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { MapControls, OrthographicCamera, Plane } from '@react-three/drei';
+import { Canvas, ThreeEvent, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { MapControls as MapControlsImpl } from 'three-stdlib';
 
@@ -13,6 +21,7 @@ import MapFloor from './map-floor';
 import Npc from './npc';
 import Player from './player';
 import { useReplayContext } from './replay-context';
+import StackIndicator from './stack-indicator';
 import TileHoverOverlay from './tile-hover-overlay';
 import {
   ActorInteractionState,
@@ -25,6 +34,7 @@ import {
 } from './types';
 
 import styles from './style.module.scss';
+import StackHoverPlane from './stack-hover-plane';
 
 export interface MapCanvasProps {
   /** List of entities to render on the map. */
@@ -63,6 +73,13 @@ const PARTY_COLORS = [
   '#84cc16', // lime
 ];
 
+type StackEntity = {
+  entity: AnyEntity;
+  fanOutIndex: number;
+};
+
+type StackMap = Map<string, StackEntity>;
+
 function MapScene({
   mapDefinition,
   entities,
@@ -73,9 +90,106 @@ function MapScene({
   mapDefinition: MapDefinition;
   entities: AnyEntity[];
   interactionState: ActorInteractionState;
-  onEntitySelected?: (entity: AnyEntity | null) => void;
-  onEntityHovered?: (entity: AnyEntity | null) => void;
+  onEntitySelected: (entity: AnyEntity | null) => void;
+  onEntityHovered: (entity: AnyEntity | null) => void;
 }) {
+  const [hoveredTile, setHoveredTile] = useState<Coords | null>(null);
+  const [hoveredStack, setHoveredStack] = useState<StackMap | null>(null);
+
+  const { config } = useReplayContext();
+
+  // Map of tile coordinates to a map of entity IDs to stack index.
+  const [entitiesById, entitiesByTile, multiEntityStacks] = useMemo(() => {
+    const idMap = new Map<string, AnyEntity>();
+    const tileMap = new Map<string, StackMap>();
+
+    for (const entity of entities) {
+      idMap.set(entity.getUniqueId(), entity);
+      if (!entity.interactive) {
+        continue;
+      }
+
+      const tile = `${entity.position.x},${entity.position.y}`;
+      const stack = tileMap.get(tile) || new Map<string, StackEntity>();
+      stack.set(entity.getUniqueId(), {
+        entity,
+        fanOutIndex: stack.size,
+      });
+      tileMap.set(tile, stack);
+    }
+
+    const multiEntityStacks: Array<{ position: Coords; stack: StackMap }> = [];
+
+    for (const [tile, stack] of tileMap) {
+      if (stack.size > 1) {
+        const [x, y] = tile.split(',').map(Number);
+        multiEntityStacks.push({
+          position: { x, y },
+          stack,
+        });
+      }
+    }
+
+    return [idMap, tileMap, multiEntityStacks];
+  }, [entities]);
+
+  const onPointerMove = useCallback(
+    (event: ThreeEvent<PointerEvent>) => {
+      for (const intersection of event.intersections) {
+        let obj: THREE.Object3D<THREE.Object3DEventMap> | null =
+          intersection.object;
+
+        for (; obj !== null; obj = obj.parent) {
+          if (obj.userData?.entityId) {
+            const entityId = obj.userData.entityId as string;
+            const entity = entitiesById.get(entityId);
+            if (entity === undefined) {
+              continue;
+            }
+
+            if (hoveredStack !== null && !hoveredStack.has(entityId)) {
+              // When a stack is hovered, only entities within that stack should
+              // be interactable.
+              continue;
+            }
+
+            onEntityHovered(entity);
+            return;
+          }
+        }
+      }
+
+      onEntityHovered(null);
+    },
+    [entitiesById, hoveredStack, onEntityHovered],
+  );
+
+  const onPointerOut = useCallback(() => {
+    onEntityHovered(null);
+  }, [onEntityHovered]);
+
+  const handleTileHover = useCallback(
+    (tile: Coords | null) => {
+      if (!tile) {
+        setHoveredTile(null);
+        setHoveredStack(null);
+        return;
+      }
+
+      setHoveredTile(tile);
+      const stack = entitiesByTile.get(`${tile.x},${tile.y}`);
+      if (stack && stack.size > 1) {
+        setHoveredStack(stack);
+      }
+    },
+    [entitiesByTile],
+  );
+
+  const handleStackHoverOut = useCallback(() => {
+    setHoveredTile(null);
+    setHoveredStack(null);
+  }, []);
+
   const players = entities.filter(
     (entity) => entity.type === EntityType.PLAYER,
   ) as PlayerEntity[];
@@ -89,18 +203,12 @@ function MapScene({
   const mapCenterX = mapDefinition.baseX + mapDefinition.width / 2;
   const mapCenterZ = -(mapDefinition.baseY + mapDefinition.height / 2);
 
-  const { config } = useReplayContext();
-
   const handleEntityClick = (entity: AnyEntity) => {
     if (interactionState.selectedActorId === entity.getUniqueId()) {
       onEntitySelected?.(null);
     } else {
       onEntitySelected?.(entity);
     }
-  };
-
-  const handleEntityHover = (entity: AnyEntity | null) => {
-    onEntityHovered?.(entity);
   };
 
   return (
@@ -123,34 +231,82 @@ function MapScene({
         baseY={mapDefinition.baseY}
         width={mapDefinition.width}
         height={mapDefinition.height}
+        hoveredTile={hoveredTile}
+        onTileHovered={handleTileHover}
       />
 
-      {players.map((entity) => (
-        <Player
-          key={entity.getUniqueId()}
-          entity={entity}
-          partyColor={PARTY_COLORS[entity.orb % PARTY_COLORS.length]}
-          onClicked={handleEntityClick}
-          onHover={handleEntityHover}
-          isSelected={interactionState.selectedActorId === entity.getUniqueId()}
-          isHovered={interactionState.hoveredActorId === entity.getUniqueId()}
-        />
-      ))}
+      <group onPointerMove={onPointerMove} onPointerOut={onPointerOut}>
+        {players.map((entity) => {
+          const stackEntity = hoveredStack?.get(entity.getUniqueId());
+          const inStack = stackEntity !== undefined;
 
-      {npcs.map((entity) => (
-        <Npc
-          key={entity.getUniqueId()}
-          entity={entity}
-          onClicked={handleEntityClick}
-          onHover={handleEntityHover}
-          isSelected={interactionState.selectedActorId === entity.getUniqueId()}
-          isHovered={interactionState.hoveredActorId === entity.getUniqueId()}
-        />
-      ))}
+          return (
+            <Player
+              key={entity.getUniqueId()}
+              entity={entity}
+              partyColor={PARTY_COLORS[entity.orb % PARTY_COLORS.length]}
+              onClicked={handleEntityClick}
+              isSelected={
+                interactionState.selectedActorId === entity.getUniqueId()
+              }
+              isHovered={
+                interactionState.hoveredActorId === entity.getUniqueId()
+              }
+              isDimmed={hoveredStack !== null && !inStack}
+              fanOutIndex={stackEntity?.fanOutIndex}
+              stackSize={hoveredStack?.size ?? 1}
+            />
+          );
+        })}
 
-      {groundObjects.map((entity) => (
-        <GroundObject key={entity.getUniqueId()} entity={entity} />
-      ))}
+        {npcs.map((entity) => {
+          const stackEntity = hoveredStack?.get(entity.getUniqueId());
+          const inStack = stackEntity !== undefined;
+
+          return (
+            <Npc
+              key={entity.getUniqueId()}
+              entity={entity}
+              onClicked={handleEntityClick}
+              isSelected={
+                interactionState.selectedActorId === entity.getUniqueId()
+              }
+              isHovered={
+                interactionState.hoveredActorId === entity.getUniqueId()
+              }
+              isDimmed={hoveredStack !== null && !inStack}
+              fanOutIndex={stackEntity?.fanOutIndex}
+              stackSize={hoveredStack?.size ?? 1}
+            />
+          );
+        })}
+
+        {groundObjects.map((entity) => (
+          <GroundObject key={entity.getUniqueId()} entity={entity} />
+        ))}
+      </group>
+
+      {hoveredStack && (
+        <StackHoverPlane
+          entities={Array.from(hoveredStack.values()).map((e) => e.entity)}
+          basePosition={hoveredStack.values().next().value!.entity.position}
+          onPointerOut={handleStackHoverOut}
+        />
+      )}
+
+      {multiEntityStacks.map((stack) => {
+        if (hoveredStack === stack.stack) {
+          return null;
+        }
+
+        return (
+          <StackIndicator
+            key={`${stack.position.x},${stack.position.y}`}
+            position={stack.position}
+            size={stack.stack.size}
+          />
+        );
+      })}
 
       {config.debug && (
         <>
