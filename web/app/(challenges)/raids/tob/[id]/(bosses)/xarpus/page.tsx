@@ -110,7 +110,7 @@ export default function XarpusPage() {
   const { updateTickOnPage } = useLegacyTickTimeout(
     true,
     playing,
-    advanceTick,
+    currentTick,
     setTick,
   );
 

@@ -346,7 +346,7 @@ export default function NylocasPage() {
   const { updateTickOnPage } = useLegacyTickTimeout(
     true,
     playing,
-    advanceTick,
+    currentTick,
     setTick,
   );
 
