@@ -8,29 +8,24 @@ import * as THREE from 'three';
 // @ts-ignore
 import { Text as TroikaText } from 'troika-three-text';
 
-import { updateInterpolation, osrsToThreePosition } from './animation';
+import {
+  updateInterpolation,
+  osrsToThreePosition,
+  calculateFanOutOffset,
+} from './animation';
 import HealthBar from './health-bar';
 import { useReplayContext } from './replay-context';
-import { EntityType, InterpolationState, PlayerEntity } from './types';
+import {
+  EntityType,
+  InteractiveEntityProps,
+  InterpolationState,
+  PlayerEntity,
+} from './types';
 
-export interface PlayerComponentProps {
-  /** Entity data for the player */
-  entity: PlayerEntity;
-
+export interface PlayerComponentProps
+  extends InteractiveEntityProps<PlayerEntity> {
   /** Color assigned to this player in the party */
   partyColor?: string;
-
-  /** Callback when the player is clicked */
-  onClicked?: (entity: PlayerEntity) => void;
-
-  /** Callback when the player is hovered/unhovered */
-  onHover?: (entity: PlayerEntity | null) => void;
-
-  /** Whether this player is currently selected */
-  isSelected?: boolean;
-
-  /** Whether this player is currently hovered */
-  isHovered?: boolean;
 }
 
 /**
@@ -40,9 +35,11 @@ export default function Player({
   entity,
   partyColor = '#6366f1',
   onClicked,
-  onHover,
   isSelected = false,
   isHovered = false,
+  isDimmed = false,
+  fanOutIndex,
+  stackSize,
 }: PlayerComponentProps) {
   const groupRef = useRef<THREE.Group>(null);
   const borderMeshRef = useRef<THREE.Mesh>(null);
@@ -61,49 +58,57 @@ export default function Player({
 
     const currentTime = state.clock.getElapsedTime() * 1000;
 
-    const { position, interpolationState: newInterpolationState } =
-      updateInterpolation(
-        entity,
-        interpolationStateRef.current,
-        config,
-        playing,
-        currentTime,
-        mapDefinition.terrain,
-      );
+    const {
+      position: basePosition,
+      interpolationState: newInterpolationState,
+    } = updateInterpolation(
+      entity,
+      interpolationStateRef.current,
+      config,
+      playing,
+      currentTime,
+      mapDefinition.terrain,
+    );
 
     interpolationStateRef.current = newInterpolationState;
-    currentPositionRef.current = position;
+    currentPositionRef.current = basePosition;
 
-    const threePosition = osrsToThreePosition(position, 0.5);
-    groupRef.current.position.set(...threePosition);
+    let finalPosition = basePosition;
+    if (fanOutIndex !== undefined && stackSize > 1) {
+      const offset = calculateFanOutOffset(fanOutIndex, stackSize);
+      finalPosition = {
+        x: basePosition.x + offset.x,
+        y: basePosition.y + offset.y,
+      };
+    }
+
+    const threePosition = osrsToThreePosition(finalPosition, 0.5);
+    if (fanOutIndex !== undefined) {
+      const targetPosition = new THREE.Vector3(...threePosition);
+      groupRef.current.position.lerp(targetPosition, 0.1);
+    } else {
+      groupRef.current.position.set(...threePosition);
+    }
 
     if (borderMeshRef.current) {
-      borderMeshRef.current.position.set(
-        threePosition[0],
-        -0.002,
-        threePosition[2],
-      );
+      const borderPosition = osrsToThreePosition(finalPosition, -0.002);
+      borderMeshRef.current.position.set(...borderPosition);
     }
 
     if (config.debug && debugTextRef.current) {
-      debugTextRef.current.text = `Render: ${position.x.toFixed(2)}, ${position.y.toFixed(2)}`;
+      debugTextRef.current.text = `Render: ${finalPosition.x.toFixed(2)}, ${finalPosition.y.toFixed(2)}`;
     }
   });
 
-  const borderMaterial = useMemo(() => {
-    const borderColor = new THREE.Color(partyColor);
+  const [{ meshColor, meshOpacity }, borderMaterial] = useMemo(() => {
+    const baseColor = new THREE.Color(partyColor);
 
-    return new THREE.ShaderMaterial({
+    const borderShader = new THREE.ShaderMaterial({
       uniforms: {
         thickness: { value: 0.01 },
         borderWidth: { value: 0.05 },
         borderColor: {
-          value: new THREE.Vector4(
-            borderColor.r,
-            borderColor.g,
-            borderColor.b,
-            0.5,
-          ),
+          value: new THREE.Vector4(baseColor.r, baseColor.g, baseColor.b, 0.5),
         },
       },
       vertexShader: `
@@ -130,7 +135,22 @@ export default function Player({
       transparent: true,
       depthWrite: false,
     });
-  }, [partyColor]);
+
+    if (isDimmed) {
+      const luminance =
+        baseColor.r * 0.299 + baseColor.g * 0.587 + baseColor.b * 0.114;
+      const grayscale = new THREE.Color(luminance, luminance, luminance);
+      return [
+        {
+          meshColor: grayscale.lerp(baseColor, 0.5),
+          meshOpacity: 0.5,
+        },
+        borderShader,
+      ];
+    }
+
+    return [{ meshColor: baseColor, meshOpacity: 0.9 }, borderShader];
+  }, [partyColor, isDimmed]);
 
   if (entity.type !== EntityType.PLAYER) {
     console.warn('Player component received non-player entity:', entity);
@@ -138,20 +158,8 @@ export default function Player({
   }
 
   const handleClick = () => {
-    if (entity.interactive && onClicked) {
+    if (!isDimmed && entity.interactive && onClicked) {
       onClicked(entity);
-    }
-  };
-
-  const handlePointerOver = () => {
-    if (entity.interactive && onHover) {
-      onHover(entity);
-    }
-  };
-
-  const handlePointerOut = () => {
-    if (entity.interactive && onHover) {
-      onHover(null);
     }
   };
 
@@ -189,11 +197,14 @@ export default function Player({
       <Billboard ref={groupRef}>
         <group
           onClick={handleClick}
-          onPointerOver={handlePointerOver}
-          onPointerOut={handlePointerOut}
+          userData={{ entityId: entity.getUniqueId() }}
         >
           <Plane args={[0.8, 0.8]}>
-            <meshBasicMaterial color={partyColor} transparent opacity={0.9} />
+            <meshBasicMaterial
+              color={meshColor}
+              transparent
+              opacity={meshOpacity}
+            />
           </Plane>
           <Plane args={[0.95, 0.95]} position={[0, 0, -0.001]}>
             <meshBasicMaterial
