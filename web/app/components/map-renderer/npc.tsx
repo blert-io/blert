@@ -8,27 +8,21 @@ import * as THREE from 'three';
 // @ts-ignore
 import { Text as TroikaText } from 'troika-three-text';
 
-import { updateInterpolation, osrsToThreePosition } from './animation';
+import {
+  updateInterpolation,
+  osrsToThreePosition,
+  calculateFanOutOffset,
+} from './animation';
 import HealthBar from './health-bar';
 import { useReplayContext } from './replay-context';
-import { EntityType, NpcEntity, InterpolationState } from './types';
+import {
+  EntityType,
+  InteractiveEntityProps,
+  InterpolationState,
+  NpcEntity,
+} from './types';
 
-export interface NpcComponentProps {
-  /** Entity data for the NPC */
-  entity: NpcEntity;
-
-  /** Callback when the NPC is clicked */
-  onClicked?: (entity: NpcEntity) => void;
-
-  /** Callback when the NPC is hovered/unhovered */
-  onHover?: (entity: NpcEntity | null) => void;
-
-  /** Whether this NPC is currently selected */
-  isSelected?: boolean;
-
-  /** Whether this NPC is currently hovered */
-  isHovered?: boolean;
-}
+export interface NpcComponentProps extends InteractiveEntityProps<NpcEntity> {}
 
 const vertexShader = `
   varying vec2 vUv;
@@ -44,9 +38,20 @@ const fragmentShader = `
   uniform float u_outlineThickness;
   uniform vec2 u_textureResolution;
   varying vec2 vUv;
+  uniform bool u_isDimmed;
+  uniform float u_dimOpacity;
 
   void main() {
     vec4 originalColor = texture2D(u_texture, vUv);
+
+    if (u_isDimmed) {
+      float luminance = dot(originalColor.rgb, vec3(0.299, 0.587, 0.114));
+      vec3 grayscale = vec3(luminance);
+      float desaturation = 0.85;
+      vec3 desaturated = mix(grayscale, originalColor.rgb, desaturation);
+      gl_FragColor = vec4(desaturated, originalColor.a * u_dimOpacity);
+      return;
+    }
 
     if (originalColor.a > 0.5) {
       gl_FragColor = originalColor;
@@ -119,6 +124,7 @@ function NpcSpriteMesh({
   baseHeight,
   isSelected,
   isHovered,
+  isDimmed,
   npcEntity,
   setAspect,
 }: {
@@ -126,6 +132,7 @@ function NpcSpriteMesh({
   baseHeight: number;
   isSelected: boolean;
   isHovered: boolean;
+  isDimmed: boolean;
   npcEntity: NpcEntity;
   setAspect: (n: number) => void;
 }) {
@@ -159,6 +166,8 @@ function NpcSpriteMesh({
           ),
         },
         u_outlineThickness: { value: 0.0 },
+        u_isDimmed: { value: false },
+        u_dimOpacity: { value: 0.5 },
       },
       vertexShader,
       fragmentShader,
@@ -170,6 +179,7 @@ function NpcSpriteMesh({
   useEffect(() => {
     outlineMaterial.uniforms.u_outlineThickness.value =
       isSelected || isHovered ? 8.0 : 0.0;
+    outlineMaterial.uniforms.u_isDimmed.value = isDimmed;
 
     if (isSelected) {
       outlineMaterial.uniforms.u_outlineColor.value = new THREE.Vector4(
@@ -186,7 +196,7 @@ function NpcSpriteMesh({
         1.0,
       );
     }
-  }, [outlineMaterial, isSelected, isHovered]);
+  }, [outlineMaterial, isSelected, isHovered, isDimmed]);
 
   return (
     <mesh
@@ -202,9 +212,11 @@ function NpcSpriteMesh({
 export default function Npc({
   entity,
   onClicked,
-  onHover,
   isSelected = false,
   isHovered = false,
+  isDimmed = false,
+  fanOutIndex,
+  stackSize,
 }: NpcComponentProps) {
   const groupRef = useRef<THREE.Group>(null);
   const borderMeshRef = useRef<THREE.Mesh>(null);
@@ -270,41 +282,55 @@ export default function Npc({
 
     const currentTime = state.clock.getElapsedTime() * 1000;
 
-    const { position, interpolationState: newInterpolationState } =
-      updateInterpolation(
-        entity,
-        interpolationStateRef.current,
-        config,
-        playing,
-        currentTime,
-        mapDefinition.terrain,
-      );
+    const {
+      position: basePosition,
+      interpolationState: newInterpolationState,
+    } = updateInterpolation(
+      entity,
+      interpolationStateRef.current,
+      config,
+      playing,
+      currentTime,
+      mapDefinition.terrain,
+    );
 
     interpolationStateRef.current = newInterpolationState;
-    currentPositionRef.current = position;
+    currentPositionRef.current = basePosition;
 
     const sizeOffset = (entity.size - 1) / 2;
     const adjustedPosition = {
-      x: position.x + sizeOffset,
-      y: position.y + sizeOffset,
+      x: basePosition.x + sizeOffset,
+      y: basePosition.y + sizeOffset,
     };
 
+    let finalPosition = adjustedPosition;
+
+    if (fanOutIndex !== undefined && stackSize > 1) {
+      const offset = calculateFanOutOffset(fanOutIndex, stackSize, entity.size);
+      finalPosition = {
+        x: adjustedPosition.x + offset.x,
+        y: adjustedPosition.y + offset.y,
+      };
+    }
+
     const threePosition = osrsToThreePosition(
-      adjustedPosition,
+      finalPosition,
       entity.size / 2 - 0.2,
     );
-    groupRef.current.position.set(...threePosition);
+    if (fanOutIndex !== undefined) {
+      const targetPosition = new THREE.Vector3(...threePosition);
+      groupRef.current.position.lerp(targetPosition, 0.1);
+    } else {
+      groupRef.current.position.set(...threePosition);
+    }
 
     if (borderMeshRef.current) {
-      borderMeshRef.current.position.set(
-        threePosition[0],
-        -0.002,
-        threePosition[2],
-      );
+      const borderPosition = osrsToThreePosition(finalPosition, -0.002);
+      borderMeshRef.current.position.set(...borderPosition);
     }
 
     if (config.debug && debugTextRef.current) {
-      debugTextRef.current.text = `Render: ${position.x.toFixed(2)}, ${position.y.toFixed(2)}`;
+      debugTextRef.current.text = `Render: ${finalPosition.x.toFixed(2)}, ${finalPosition.y.toFixed(2)}`;
     }
   });
 
@@ -314,20 +340,8 @@ export default function Npc({
   }
 
   const handleClick = () => {
-    if (onClicked && entity.interactive) {
+    if (!isDimmed && entity.interactive && onClicked) {
       onClicked(entity);
-    }
-  };
-
-  const handlePointerOver = () => {
-    if (entity.interactive && onHover) {
-      onHover(entity);
-    }
-  };
-
-  const handlePointerOut = () => {
-    if (entity.interactive && onHover) {
-      onHover(null);
     }
   };
 
@@ -346,8 +360,7 @@ export default function Npc({
       <Billboard ref={groupRef}>
         <group
           onClick={handleClick}
-          onPointerOver={handlePointerOver}
-          onPointerOut={handlePointerOut}
+          userData={{ entityId: entity.getUniqueId() }}
         >
           <Suspense
             fallback={
@@ -359,34 +372,40 @@ export default function Npc({
               baseHeight={baseHeight}
               isSelected={isSelected}
               isHovered={isHovered}
+              isDimmed={isDimmed}
               npcEntity={npcEntity}
               setAspect={setAspect}
             />
           </Suspense>
         </group>
-        <Text
-          position={[0, 1.5 + (entity.size - 1) * 0.5, 0]}
-          fontSize={0.5}
-          color="#ffffff"
-          anchorX="center"
-          anchorY="middle"
-          font="/fonts/runescape.ttf"
-          outlineWidth={0.03}
-          outlineColor="#000000"
-          maxWidth={5}
-        >
-          {entity.name}
-        </Text>
 
-        {hitpoints && (
-          <group position={[0, (entity.size - 1) * 0.5, 0]}>
-            <HealthBar
-              hitpoints={hitpoints.current}
-              nextHitpoints={hitpoints.next}
-              width={2 * entity.size}
-              showFull
-            />
-          </group>
+        {!isDimmed && (
+          <>
+            <Text
+              position={[0, 1.5 + (entity.size - 1) * 0.5, 0]}
+              fontSize={0.5}
+              color="#ffffff"
+              anchorX="center"
+              anchorY="middle"
+              font="/fonts/runescape.ttf"
+              outlineWidth={0.03}
+              outlineColor="#000000"
+              maxWidth={5}
+            >
+              {entity.name}
+            </Text>
+
+            {hitpoints && (
+              <group position={[0, (entity.size - 1) * 0.5, 0]}>
+                <HealthBar
+                  hitpoints={hitpoints.current}
+                  nextHitpoints={hitpoints.next}
+                  width={2 * entity.size}
+                  showFull
+                />
+              </group>
+            )}
+          </>
         )}
 
         {config.debug && (

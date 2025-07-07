@@ -9,6 +9,7 @@ import {
   PlayerEntity,
   ReplayConfig,
 } from './types';
+import { clamp } from '@/utils/math';
 
 export function createInterpolationState(
   entity: PlayerEntity | NpcEntity,
@@ -130,6 +131,45 @@ function calculatePositionAlongWaypoints(
   return {
     x: from.x + (to.x - from.x) * segmentProgress,
     y: from.y + (to.y - from.y) * segmentProgress,
+  };
+}
+
+const FAN_OUT_BASE_RADIUS = 0.8;
+const FAN_OUT_MIN_ARC = Math.PI / 2;
+const FAN_OUT_MAX_ARC = Math.PI * (3 / 2);
+const FAN_OUT_MAX_ARC_COUNT = 10;
+
+/**
+ * Calculates the offset for a fan-out entity.
+ *
+ * @param index The index of the entity in the stack.
+ * @param count The total number of entities in the stack.
+ * @param size The size of the entity.
+ * @returns The offset for the entity.
+ */
+export function calculateFanOutOffset(
+  index: number,
+  count: number,
+  size: number = 1,
+): Coords {
+  if (count <= 1) {
+    return { x: 0, y: 0 };
+  }
+
+  const progress = clamp((count - 2) / (FAN_OUT_MAX_ARC_COUNT - 2), 0, 1);
+  const arc = FAN_OUT_MIN_ARC + (FAN_OUT_MAX_ARC - FAN_OUT_MIN_ARC) * progress;
+
+  const angleStep = arc / (count - 1);
+  const initialAngle = -Math.PI / 2 - arc / 2;
+  const angle = initialAngle + index * angleStep;
+
+  const sizeOffset = 0.25 * (size - 1);
+  const stackSizeOffset = 0.15 * (count - 2); // Min 2 entities in stack.
+  const radius = FAN_OUT_BASE_RADIUS + sizeOffset + stackSizeOffset;
+
+  return {
+    x: radius * Math.cos(angle),
+    y: radius * Math.sin(angle),
   };
 }
 

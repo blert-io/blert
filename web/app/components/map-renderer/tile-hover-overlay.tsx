@@ -3,8 +3,10 @@
 import { Coords } from '@blert/common';
 import { Billboard, Plane, Text } from '@react-three/drei';
 import { ThreeEvent } from '@react-three/fiber';
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import * as THREE from 'three';
+
+import { coordsEqual } from '@/utils/coords';
 
 import { useReplayContext } from './replay-context';
 
@@ -17,6 +19,12 @@ export interface TileHoverOverlayProps {
   width: number;
   /** Map height */
   height: number;
+
+  /** Currently hovered tile. */
+  hoveredTile: Coords | null;
+
+  /** Callback when a tile is hovered. */
+  onTileHovered: (tile: Coords | null) => void;
 }
 
 export default function TileHoverOverlay({
@@ -24,10 +32,11 @@ export default function TileHoverOverlay({
   height,
   baseX,
   baseY,
+  hoveredTile,
+  onTileHovered,
 }: TileHoverOverlayProps) {
   const highlighterRef = useRef<THREE.Mesh>(null);
   const debugGroupRef = useRef<THREE.Group>(null);
-  const [hoveredTile, setHoveredTile] = useState<Coords | null>(null);
   const { config } = useReplayContext();
 
   const handlePointerMove = (event: ThreeEvent<PointerEvent>) => {
@@ -41,7 +50,10 @@ export default function TileHoverOverlay({
     const tileX = Math.floor(point.x);
     const tileY = Math.floor(-point.z);
 
-    setHoveredTile({ x: tileX, y: tileY });
+    const tile = { x: tileX, y: tileY };
+    if (!hoveredTile || !coordsEqual(hoveredTile, tile)) {
+      onTileHovered(tile);
+    }
 
     highlighterRef.current.position.set(tileX + 0.5, 0.01, -(tileY + 0.5));
     highlighterRef.current.visible = true;
@@ -60,7 +72,8 @@ export default function TileHoverOverlay({
     if (debugGroupRef.current) {
       debugGroupRef.current.visible = false;
     }
-    setHoveredTile(null);
+
+    onTileHovered(null);
   };
 
   const planeWidth = width;

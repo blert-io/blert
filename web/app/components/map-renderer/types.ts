@@ -189,3 +189,26 @@ export class GroundObjectEntity implements Entity {
  * Utility type for all animated entity types.
  */
 export type AnyEntity = PlayerEntity | NpcEntity | GroundObjectEntity;
+
+export interface InteractiveEntityProps<T extends Entity> {
+  /** Entity data. */
+  entity: T;
+
+  /** Callback when the entity is clicked. */
+  onClicked?: (entity: T) => void;
+
+  /** Whether this entity is currently selected. */
+  isSelected?: boolean;
+
+  /** Whether this entity is currently hovered. */
+  isHovered?: boolean;
+
+  /** If fanning out, the index of this entity in its stack. */
+  fanOutIndex?: number;
+
+  /** Size of the stack this entity is in. */
+  stackSize: number;
+
+  /** Whether this entity is dimmed. */
+  isDimmed?: boolean;
+}
