@@ -16,7 +16,7 @@ import {
 } from '@blert/common';
 
 import Image from 'next/image';
-import { useContext, useMemo } from 'react';
+import { useCallback, useContext, useMemo, useState } from 'react';
 
 import { TimelineColor } from '@/components/attack-timeline';
 import BossFightOverview from '@/components/boss-fight-overview';
@@ -24,31 +24,57 @@ import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
 import BossPageControls from '@/components/boss-page-controls';
 import BossPageDPSTimeline from '@/components/boss-page-dps-timeline';
 import BossPageParty from '@/components/boss-page-party';
-import BossPageReplay from '@/components/boss-page-replay';
+import BossPageReplay, {
+  NewBossPageReplay,
+} from '@/components/boss-page-replay';
 import Card from '@/components/card';
 import {
-  Entity,
-  MarkerEntity,
-  NpcEntity,
-  OverlayEntity,
-  PlayerEntity,
+  Entity as LegacyEntity,
+  MarkerEntity as LegacyMarkerEntity,
+  NpcEntity as LegacyNpcEntity,
+  OverlayEntity as LegacyOverlayEntity,
+  PlayerEntity as LegacyPlayerEntity,
 } from '@/components/map';
+import {
+  CustomEntity,
+  MapDefinition,
+  Terrain,
+} from '@/components/map-renderer';
 import Loading from '@/components/loading';
 import { useDisplay } from '@/display';
 import { ActorContext } from '@/(challenges)/raids/tob/context';
 import {
   EnhancedRoomNpc,
   useLegacyTickTimeout,
+  useMapEntities,
   usePlayingState,
   useStageEvents,
 } from '@/utils/boss-room-state';
+import { inRect } from '@/utils/coords';
 import { ticksToFormattedSeconds } from '@/utils/tick';
+
+import BloatHandRenderer, { BloatHandData, BloatHandState } from './bloat-hand';
 
 import bloatBaseTiles from './bloat-tiles.json';
 import bossStyles from '../style.module.scss';
 import styles from './style.module.scss';
 
-const BLOAT_MAP_DEFINITION = {
+class BloatTerrain implements Terrain {
+  isPassable(coords: Coords): boolean {
+    // Central tank area.
+    return !inRect(coords, { x: 3293, y: 4445, width: 6, height: 6 });
+  }
+}
+
+const BLOAT_MAP_DEFINITION: MapDefinition = {
+  baseX: 3280,
+  baseY: 4432,
+  width: 32,
+  height: 32,
+  terrain: new BloatTerrain(),
+};
+
+const LEGACY_BLOAT_MAP_DEFINITION = {
   baseX: 3288,
   baseY: 4440,
   width: 16,
@@ -56,7 +82,7 @@ const BLOAT_MAP_DEFINITION = {
   baseTiles: bloatBaseTiles,
 };
 
-const BLOAT_PILLAR_OUTLINE = new MarkerEntity(3293, 4445, 'white', 6);
+const BLOAT_PILLAR_OUTLINE = new LegacyMarkerEntity(3293, 4445, 'white', 6);
 
 type DownInfo = {
   tick: number;
@@ -66,14 +92,30 @@ type DownInfo = {
 };
 
 type TickHands = {
+  dropTick: number;
   intensity: number;
   hands: Coords[];
 };
 const BLOAT_HAND_DROP_TICKS = 3;
 
+const DEFAULT_USE_NEW_REPLAY = true;
+
 export default function BloatPage() {
+  const display = useDisplay();
+  const [useNewReplay, setUseNewReplay] = useState(DEFAULT_USE_NEW_REPLAY);
+
+  const compact = display.isCompact();
+
+  const mapDefinition = useMemo(() => {
+    const initialZoom = compact ? 18 : 29;
+    return {
+      ...BLOAT_MAP_DEFINITION,
+      initialZoom,
+    };
+  }, [compact]);
+
   const {
-    challenge: raidData,
+    challenge,
     totalTicks,
     eventsByTick,
     eventsByType,
@@ -85,13 +127,12 @@ export default function BloatPage() {
   const { currentTick, setTick, playing, setPlaying, advanceTick } =
     usePlayingState(totalTicks);
   const { updateTickOnPage } = useLegacyTickTimeout(
-    true,
+    !useNewReplay,
     playing,
     currentTick,
     setTick,
   );
 
-  const display = useDisplay();
   const { setSelectedPlayer, selectedPlayer } = useContext(ActorContext);
 
   const { downInfo, splits, backgroundColors } = useMemo(() => {
@@ -189,6 +230,7 @@ export default function BloatPage() {
 
         for (let tick = correspondingDrop.tick; tick <= splatTick; tick++) {
           handsByTick.set(tick, {
+            dropTick: correspondingDrop.tick,
             intensity: BLOAT_HAND_DROP_TICKS - (splatTick - tick),
             hands: splat.bloatHands,
           });
@@ -203,19 +245,57 @@ export default function BloatPage() {
     return handsByTick;
   }, [eventsByType]);
 
-  if (loading || raidData === null) {
+  const getHandsForTick = useCallback(
+    (tick: number): Array<CustomEntity<BloatHandData>> => {
+      const handsForTick = hands.get(tick);
+      if (handsForTick === undefined) {
+        return [];
+      }
+      const state =
+        handsForTick.intensity === BLOAT_HAND_DROP_TICKS
+          ? BloatHandState.SPLAT
+          : BloatHandState.FALLING;
+
+      return handsForTick.hands.map(
+        (hand) =>
+          new CustomEntity<BloatHandData>(
+            { x: hand.x, y: hand.y },
+            'Bloat hand',
+            1,
+            BloatHandRenderer,
+            {
+              state,
+              dropProgress: handsForTick.intensity / BLOAT_HAND_DROP_TICKS,
+              dropTicks: BLOAT_HAND_DROP_TICKS,
+            },
+            `bloat-hand-${handsForTick.dropTick}-${hand.x}-${hand.y}`,
+          ),
+      );
+    },
+    [hands],
+  );
+
+  const entitiesByTick = useMapEntities(
+    challenge,
+    playerState,
+    npcState,
+    totalTicks,
+    getHandsForTick,
+  );
+
+  if (loading || challenge === null) {
     return <Loading />;
   }
 
-  const bloatData = raidData.tobRooms.bloat;
-  if (raidData.status !== ChallengeStatus.IN_PROGRESS && bloatData === null) {
+  const bloatData = challenge.tobRooms.bloat;
+  if (challenge.status !== ChallengeStatus.IN_PROGRESS && bloatData === null) {
     return <>No Bloat data for this raid</>;
   }
 
   const eventsForCurrentTick = eventsByTick[currentTick] ?? [];
 
-  const entities: Entity[] = [BLOAT_PILLAR_OUTLINE];
-  const players: PlayerEntity[] = [];
+  const legacyEntities: LegacyEntity[] = [BLOAT_PILLAR_OUTLINE];
+  const players: LegacyPlayerEntity[] = [];
 
   for (const evt of eventsForCurrentTick) {
     switch (evt.type) {
@@ -224,20 +304,20 @@ export default function BloatPage() {
         const hitpoints = e.player.hitpoints
           ? SkillLevel.fromRaw(e.player.hitpoints)
           : undefined;
-        const player = new PlayerEntity(
+        const player = new LegacyPlayerEntity(
           e.xCoord,
           e.yCoord,
           e.player.name,
           hitpoints,
         );
-        entities.push(player);
+        legacyEntities.push(player);
         players.push(player);
         break;
       }
       case EventType.NPC_SPAWN:
       case EventType.NPC_UPDATE: {
         const e = evt as NpcEvent;
-        const npc = new NpcEntity(
+        const npc = new LegacyNpcEntity(
           e.xCoord,
           e.yCoord,
           e.npc.id,
@@ -245,9 +325,11 @@ export default function BloatPage() {
           SkillLevel.fromRaw(e.npc.hitpoints),
         );
         if (
-          !entities.some((entity) => entity.getUniqueId() === npc.getUniqueId())
+          !legacyEntities.some(
+            (entity) => entity.getUniqueId() === npc.getUniqueId(),
+          )
         ) {
-          entities.push(npc);
+          legacyEntities.push(npc);
         }
         break;
       }
@@ -280,7 +362,7 @@ export default function BloatPage() {
     }
 
     for (const hand of handsForCurrentTick.hands) {
-      const entity = new OverlayEntity(
+      const entity = new LegacyOverlayEntity(
         hand.x,
         hand.y,
         'hand',
@@ -289,11 +371,11 @@ export default function BloatPage() {
         /*size=*/ 1,
         /*customZIndex=*/ 0,
       );
-      entities.push(entity);
+      legacyEntities.push(entity);
     }
   }
 
-  const playerTickState = raidData.party.reduce(
+  const playerTickState = challenge.party.reduce(
     (acc, { username }) => ({
       ...acc,
       [username]: playerState.get(username)?.at(currentTick) ?? null,
@@ -365,11 +447,24 @@ export default function BloatPage() {
 
       <div className={bossStyles.replayAndParty}>
         <div className={bossStyles.replay}>
-          <BossPageReplay
-            entities={entities}
-            mapDef={BLOAT_MAP_DEFINITION}
-            tileSize={display.isCompact() ? 22 : undefined}
-          />
+          {useNewReplay ? (
+            <NewBossPageReplay
+              entities={entitiesByTick.get(currentTick) ?? []}
+              mapDef={mapDefinition}
+              playing={playing}
+              width={display.isCompact() ? 352 : 550}
+              height={display.isCompact() ? 352 : 550}
+              currentTick={currentTick}
+              advanceTick={advanceTick}
+              setUseLegacy={() => setUseNewReplay(false)}
+            />
+          ) : (
+            <BossPageReplay
+              entities={legacyEntities}
+              mapDef={LEGACY_BLOAT_MAP_DEFINITION}
+              tileSize={display.isCompact() ? 22 : undefined}
+            />
+          )}
         </div>
         <div className={bossStyles.party}>
           <BossPageParty

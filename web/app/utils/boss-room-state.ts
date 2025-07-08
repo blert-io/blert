@@ -39,11 +39,14 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
 
 import { ChallengeContext } from '@/challenge-context';
+import { AnyEntity, NpcEntity, PlayerEntity } from '@/components/map-renderer';
+
 import { simpleItemCache } from './item-cache/simple';
 import { TICK_MS } from './tick';
 import { challengeApiUrl } from './url';
@@ -707,4 +710,112 @@ function postprocessNpcs(npc: EnhancedRoomNpc, eventsByType: EventTypeMap) {
     });
     return;
   }
+}
+
+type CustomEntitiesCallback = (tick: number) => AnyEntity[];
+
+/**
+ * Returns a map of tick to entities for a stage in a challenge.
+ *
+ * @param challenge Challenge to which the stage belongs.
+ * @param playerState Player state for the stage.
+ * @param npcState NPC state for the stage.
+ * @param totalTicks Total number of ticks in the stage.
+ * @param getCustomEntitiesForTick Callback that returns the custom entities
+ *   for a given tick.
+ * @returns Map of tick to entities.
+ */
+export function useMapEntities(
+  challenge: Challenge | null,
+  playerState: PlayerStateMap,
+  npcState: RoomNpcMap,
+  totalTicks: number,
+  getCustomEntitiesForTick: CustomEntitiesCallback = () => [],
+): Map<number, AnyEntity[]> {
+  const entitiesByTick = useMemo(() => {
+    const entities = new Map<number, AnyEntity[]>();
+
+    if (challenge === null) {
+      return entities;
+    }
+
+    const partyOrb = challenge.party.reduce(
+      (acc, p, i) => {
+        acc[p.username] = i;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+
+    for (let tick = 0; tick < totalTicks; tick++) {
+      const entitiesForTick: AnyEntity[] = [];
+
+      for (const [playerName, state] of playerState) {
+        const playerState = state?.at(tick);
+        if (!playerState) {
+          continue;
+        }
+
+        const orb = partyOrb[playerName] ?? 7;
+
+        let nextPosition: Coords | undefined = undefined;
+        let nextHitpoints: SkillLevel | undefined = undefined;
+        if (tick < totalTicks - 1) {
+          const nextState = state?.at(tick + 1);
+          if (nextState) {
+            nextPosition = { x: nextState.xCoord, y: nextState.yCoord };
+            nextHitpoints = nextState.skills[Skill.HITPOINTS];
+          }
+        }
+
+        entitiesForTick.push(
+          new PlayerEntity(
+            { x: playerState.xCoord, y: playerState.yCoord },
+            playerName,
+            orb,
+            {
+              current: playerState.skills[Skill.HITPOINTS],
+              next: nextHitpoints,
+            },
+            nextPosition,
+          ),
+        );
+      }
+
+      for (const [roomId, npc] of npcState) {
+        const npcState = npc.stateByTick[tick];
+        if (!npcState) {
+          continue;
+        }
+
+        let nextPosition: Coords | undefined = undefined;
+        let nextHitpoints: SkillLevel | undefined = undefined;
+        if (tick < totalTicks - 1) {
+          const nextState = npc.stateByTick[tick + 1];
+          if (nextState) {
+            nextPosition = nextState.position;
+            nextHitpoints = nextState.hitpoints;
+          }
+        }
+
+        entitiesForTick.push(
+          new NpcEntity(
+            npcState.position,
+            npc.spawnNpcId,
+            roomId,
+            { current: npcState.hitpoints, next: nextHitpoints },
+            nextPosition,
+          ),
+        );
+      }
+
+      entitiesForTick.push(...getCustomEntitiesForTick(tick));
+
+      entities.set(tick, entitiesForTick);
+    }
+
+    return entities;
+  }, [challenge, npcState, playerState, totalTicks, getCustomEntitiesForTick]);
+
+  return entitiesByTick;
 }

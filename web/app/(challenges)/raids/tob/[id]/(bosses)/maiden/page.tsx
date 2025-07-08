@@ -11,13 +11,12 @@ import {
   NpcEvent,
   PlayerUpdateEvent,
   RoomNpcType,
-  Skill,
   SkillLevel,
   SplitType,
   Stage,
   TobRaid,
 } from '@blert/common';
-import { useContext, useMemo, useState } from 'react';
+import { useCallback, useContext, useMemo, useState } from 'react';
 
 import { TimelineSplit } from '@/components/attack-timeline';
 import BossFightOverview from '@/components/boss-fight-overview';
@@ -39,8 +38,6 @@ import {
   AnyEntity,
   GroundObjectEntity,
   MapDefinition,
-  NpcEntity,
-  PlayerEntity,
   Terrain,
 } from '@/components/map-renderer';
 import Loading from '@/components/loading';
@@ -50,6 +47,7 @@ import {
   EnhancedMaidenCrab,
   EnhancedRoomNpc,
   useLegacyTickTimeout,
+  useMapEntities,
   usePlayingState,
   useStageEvents,
 } from '@/utils/boss-room-state';
@@ -301,108 +299,38 @@ export default function Maiden() {
     return { splits, spawns };
   }, [challenge, eventsByTick, npcState]);
 
-  const entitiesByTick = useMemo(() => {
-    const entities = new Map<number, AnyEntity[]>();
-
-    if (challenge === null) {
-      return entities;
-    }
-
-    const partyOrb = challenge.party.reduce(
-      (acc, p, i) => {
-        acc[p.username] = i;
-        return acc;
-      },
-      {} as Record<string, number>,
-    );
-
-    for (let tick = 0; tick < totalTicks; tick++) {
-      const entitiesForTick: AnyEntity[] = [];
-
-      for (const [playerName, state] of playerState) {
-        const playerState = state?.at(tick);
-        if (!playerState) {
-          continue;
-        }
-
-        const orb = partyOrb[playerName] ?? 7;
-
-        let nextPosition: Coords | undefined = undefined;
-        let nextHitpoints: SkillLevel | undefined = undefined;
-        if (tick < totalTicks - 1) {
-          const nextState = state?.at(tick + 1);
-          if (nextState) {
-            nextPosition = { x: nextState.xCoord, y: nextState.yCoord };
-            nextHitpoints = nextState.skills[Skill.HITPOINTS];
-          }
-        }
-
-        entitiesForTick.push(
-          new PlayerEntity(
-            { x: playerState.xCoord, y: playerState.yCoord },
-            playerName,
-            orb,
-            {
-              current: playerState.skills[Skill.HITPOINTS],
-              next: nextHitpoints,
-            },
-            nextPosition,
-          ),
-        );
-      }
-
-      for (const [roomId, npc] of npcState) {
-        const npcState = npc.stateByTick[tick];
-        if (!npcState) {
-          continue;
-        }
-
-        let nextPosition: Coords | undefined = undefined;
-        let nextHitpoints: SkillLevel | undefined = undefined;
-        if (tick < totalTicks - 1) {
-          const nextState = npc.stateByTick[tick + 1];
-          if (nextState) {
-            nextPosition = nextState.position;
-            nextHitpoints = nextState.hitpoints;
-          }
-        }
-
-        entitiesForTick.push(
-          new NpcEntity(
-            npcState.position,
-            npc.spawnNpcId,
-            roomId,
-            { current: npcState.hitpoints, next: nextHitpoints },
-            nextPosition,
-          ),
-        );
-      }
-
+  const getBloodSplatsForTick = useCallback(
+    (tick: number): AnyEntity[] => {
       const bloodSplats = eventsByTick[tick]?.filter(
         (evt) => evt.type === EventType.TOB_MAIDEN_BLOOD_SPLATS,
-      );
-      if (bloodSplats) {
-        for (const evt of bloodSplats) {
-          const e = evt as MaidenBloodSplatsEvent;
-          for (const coords of e.maidenBloodSplats) {
-            entitiesForTick.push(
-              new GroundObjectEntity(
-                coords,
-                '/images/objects/maiden_blood_splat.png',
-                'Blood Splat',
-                1,
-                BLOOD_SPLAT_COLOR,
-              ),
-            );
-          }
-        }
+      ) as MaidenBloodSplatsEvent[];
+      if (!bloodSplats) {
+        return [];
       }
 
-      entities.set(tick, entitiesForTick);
-    }
+      return bloodSplats.flatMap((evt) =>
+        evt.maidenBloodSplats.map(
+          (coords) =>
+            new GroundObjectEntity(
+              coords,
+              '/images/objects/maiden_blood_splat.png',
+              'Blood Splat',
+              1,
+              BLOOD_SPLAT_COLOR,
+            ),
+        ),
+      );
+    },
+    [eventsByTick],
+  );
 
-    return entities;
-  }, [npcState, playerState, eventsByTick, totalTicks, challenge]);
+  const entitiesByTick = useMapEntities(
+    challenge,
+    playerState,
+    npcState,
+    totalTicks,
+    getBloodSplatsForTick,
+  );
 
   if (loading || challenge === null) {
     return <Loading />;
