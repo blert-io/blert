@@ -11,10 +11,10 @@ export const DEFAULT_REPLAY_CONFIG: ReplayConfig = {
 };
 
 type ReplayContextType = {
-  config: ReplayConfig;
+  config: Readonly<ReplayConfig>;
   updateConfig: (updater: (config: ReplayConfig) => ReplayConfig) => void;
-  mapDefinition: MapDefinition;
-  playing: boolean;
+  mapDefinition: Readonly<MapDefinition>;
+  playing: Readonly<boolean>;
   replayTime: RefObject<number>;
   resetCamera: () => void;
   onResetAvailable: (resetFn: () => void) => void;
