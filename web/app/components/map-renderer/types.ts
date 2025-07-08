@@ -16,6 +16,7 @@ export const enum EntityType {
   PLAYER,
   NPC,
   GROUND_OBJECT,
+  CUSTOM,
 }
 
 /**
@@ -186,9 +187,46 @@ export class GroundObjectEntity implements Entity {
 }
 
 /**
+ * A generic entity that provides its own rendering logic.
+ * @template T The type of data to pass to the renderer.
+ */
+export class CustomEntity<T = any> implements Entity {
+  readonly type: EntityType = EntityType.CUSTOM;
+  readonly interactive: boolean = false;
+
+  readonly renderer: React.ComponentType<{ entity: CustomEntity<T> }>;
+  readonly data: T;
+
+  readonly uniqueId: string | null;
+
+  public constructor(
+    public readonly position: Coords,
+    public readonly name: string,
+    public readonly size: number,
+    renderer: React.ComponentType<{ entity: CustomEntity<T> }>,
+    data: T,
+    uniqueId: string | null = null,
+  ) {
+    this.renderer = renderer;
+    this.data = data;
+    this.uniqueId = uniqueId;
+  }
+
+  public getUniqueId(): string {
+    return (
+      this.uniqueId ?? `${this.type}-${this.position.x}-${this.position.y}`
+    );
+  }
+}
+
+/**
  * Utility type for all animated entity types.
  */
-export type AnyEntity = PlayerEntity | NpcEntity | GroundObjectEntity;
+export type AnyEntity =
+  | PlayerEntity
+  | NpcEntity
+  | GroundObjectEntity
+  | CustomEntity;
 
 export interface InteractiveEntityProps<T extends Entity> {
   /** Entity data. */

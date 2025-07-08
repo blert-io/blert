@@ -26,6 +26,7 @@ import TileHoverOverlay from './tile-hover-overlay';
 import {
   ActorInteractionState,
   AnyEntity,
+  CustomEntity,
   EntityType,
   GroundObjectEntity,
   MapDefinition,
@@ -199,6 +200,9 @@ function MapScene({
   const groundObjects = entities.filter(
     (entity) => entity.type === EntityType.GROUND_OBJECT,
   ) as GroundObjectEntity[];
+  const customEntities = entities.filter(
+    (entity) => entity.type === EntityType.CUSTOM,
+  ) as CustomEntity[];
 
   const mapCenterX = mapDefinition.baseX + mapDefinition.width / 2;
   const mapCenterZ = -(mapDefinition.baseY + mapDefinition.height / 2);
@@ -284,6 +288,11 @@ function MapScene({
         {groundObjects.map((entity) => (
           <GroundObject key={entity.getUniqueId()} entity={entity} />
         ))}
+
+        {customEntities.map((entity) => {
+          const Renderer = entity.renderer;
+          return <Renderer key={entity.getUniqueId()} entity={entity} />;
+        })}
       </group>
 
       {hoveredStack && (

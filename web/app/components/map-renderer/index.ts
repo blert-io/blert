@@ -7,8 +7,11 @@ export { default as GroundObject } from './ground-object';
 export { default as CameraResetButton } from './camera-reset-button';
 export { default as CustomButton } from './custom-button';
 
+export { osrsToThreePosition } from './animation';
+export { useReplayContext } from './replay-context';
 export {
   type AnyEntity,
+  CustomEntity,
   type Entity,
   EntityType,
   type MapDefinition,
