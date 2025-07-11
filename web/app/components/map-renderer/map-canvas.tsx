@@ -9,7 +9,12 @@ import {
   useRef,
   useState,
 } from 'react';
-import { MapControls, OrthographicCamera, Plane } from '@react-three/drei';
+import {
+  MapControls,
+  OrthographicCamera,
+  Plane,
+  useTexture,
+} from '@react-three/drei';
 import { Canvas, ThreeEvent, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { MapControls as MapControlsImpl } from 'three-stdlib';
@@ -58,6 +63,9 @@ export interface MapCanvasProps {
 
   /** Speed of keyboard camera movement in tiles per second. */
   keyboardControlsSpeed?: number;
+
+  /** List of texture URLs to preload. */
+  preloadTextures?: string[];
 
   /** Additional Map components to render within the canvas. */
   children?: React.ReactNode;
@@ -352,11 +360,13 @@ function LoadingFallback() {
 
 function CameraRig({
   controlsRef,
+  faceSouth,
   initialX,
   initialZ,
   initialZoom,
 }: {
   controlsRef: React.RefObject<MapControlsImpl | null>;
+  faceSouth: boolean;
   initialX: number;
   initialZ: number;
   initialZoom: number;
@@ -385,7 +395,9 @@ function CameraRig({
         return;
       }
 
-      mapControls.target0.set(initialX, 0, initialZ);
+      const targetZ = initialZ + (faceSouth ? 0.01 : 0);
+
+      mapControls.target0.set(initialX, 0, targetZ);
       mapControls.position0.set(initialX, 100, initialZ);
 
       if (camera.type === 'OrthographicCamera') {
@@ -395,14 +407,15 @@ function CameraRig({
       mapControls.reset();
       mapControls.enableDamping = wasDampingEnabled;
     });
-  }, [camera, initialX, initialZ, initialZoom, controlsRef]);
+  }, [camera, initialX, initialZ, faceSouth, initialZoom, controlsRef]);
 
   useEffect(() => {
     if (controls && !isInitialized.current) {
       // Set the camera's final position and orientation after the controls
       // are initialized.
+      const targetZ = initialZ + (faceSouth ? 0.01 : 0);
       camera.position.set(initialX, 100, initialZ);
-      camera.lookAt(initialX, 0, initialZ);
+      camera.lookAt(initialX, 0, targetZ);
       isInitialized.current = true;
       onResetAvailable(resetCamera);
     }
@@ -412,8 +425,25 @@ function CameraRig({
         cancelAnimationFrame(frameId.current);
       }
     };
-  }, [controls, camera, initialX, initialZ, resetCamera, onResetAvailable]);
+  }, [
+    controls,
+    camera,
+    initialX,
+    initialZ,
+    faceSouth,
+    resetCamera,
+    onResetAvailable,
+  ]);
 
+  return null;
+}
+
+function TexturePreloader({ urls }: { urls: string[] }) {
+  useEffect(() => {
+    if (urls && urls.length > 0) {
+      useTexture.preload(urls);
+    }
+  }, [urls]);
   return null;
 }
 
@@ -425,6 +455,7 @@ export default function MapCanvas({
   followedActor = null,
   keyboardControlsEnabled = true,
   keyboardControlsSpeed = 16,
+  preloadTextures,
   children,
 }: MapCanvasProps) {
   const { mapDefinition } = useReplayContext();
@@ -507,7 +538,11 @@ export default function MapCanvas({
         <MapControls
           makeDefault
           ref={mapControlsRef}
-          target={[initialX, 0, initialZ]}
+          target={[
+            initialX,
+            0,
+            initialZ + (mapDefinition.faceSouth ? 0.01 : 0),
+          ]}
           enableRotate
           enableZoom
           enablePan
@@ -523,6 +558,7 @@ export default function MapCanvas({
 
         <CameraRig
           controlsRef={mapControlsRef}
+          faceSouth={mapDefinition.faceSouth ?? false}
           initialX={initialX}
           initialZ={initialZ}
           initialZoom={mapDefinition.initialZoom ?? 20}
@@ -542,6 +578,8 @@ export default function MapCanvas({
             onEntityHovered={handleEntityHovered}
           />
         </Suspense>
+
+        {preloadTextures && <TexturePreloader urls={preloadTextures} />}
 
         {children}
       </Canvas>

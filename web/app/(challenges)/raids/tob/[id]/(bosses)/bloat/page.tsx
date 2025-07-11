@@ -53,6 +53,7 @@ import {
 import { inRect } from '@/utils/coords';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
+import BarrierEntity from '../barrier';
 import BloatHandRenderer, { BloatHandData, BloatHandState } from './bloat-hand';
 
 import bloatBaseTiles from './bloat-tiles.json';
@@ -73,6 +74,11 @@ const BLOAT_MAP_DEFINITION: MapDefinition = {
   height: 32,
   terrain: new BloatTerrain(),
 };
+
+const BARRIERS = [
+  new BarrierEntity({ x: 3305, y: 4448 }, 4, Math.PI / 2),
+  new BarrierEntity({ x: 3287, y: 4448 }, 4, (3 * Math.PI) / 2),
+];
 
 const LEGACY_BLOAT_MAP_DEFINITION = {
   baseX: 3288,
@@ -245,42 +251,51 @@ export default function BloatPage() {
     return handsByTick;
   }, [eventsByType]);
 
-  const getHandsForTick = useCallback(
-    (tick: number): Array<CustomEntity<BloatHandData>> => {
+  const customEntitiesForTick = useCallback(
+    (tick: number): Array<CustomEntity> => {
+      const entities: CustomEntity[] = [...BARRIERS];
+
       const handsForTick = hands.get(tick);
       if (handsForTick === undefined) {
-        return [];
+        return entities;
       }
+
       const state =
         handsForTick.intensity === BLOAT_HAND_DROP_TICKS
           ? BloatHandState.SPLAT
           : BloatHandState.FALLING;
 
-      return handsForTick.hands.map(
-        (hand) =>
-          new CustomEntity<BloatHandData>(
-            { x: hand.x, y: hand.y },
-            'Bloat hand',
-            1,
-            BloatHandRenderer,
-            {
-              state,
-              dropProgress: handsForTick.intensity / BLOAT_HAND_DROP_TICKS,
-              dropTicks: BLOAT_HAND_DROP_TICKS,
-            },
-            `bloat-hand-${handsForTick.dropTick}-${hand.x}-${hand.y}`,
-          ),
+      entities.push(
+        ...handsForTick.hands.map(
+          (hand) =>
+            new CustomEntity<BloatHandData>(
+              { x: hand.x, y: hand.y },
+              'Bloat hand',
+              1,
+              BloatHandRenderer,
+              {
+                state,
+                dropProgress: handsForTick.intensity / BLOAT_HAND_DROP_TICKS,
+                dropTicks: BLOAT_HAND_DROP_TICKS,
+              },
+              `bloat-hand-${handsForTick.dropTick}-${hand.x}-${hand.y}`,
+            ),
+        ),
       );
+
+      return entities;
     },
     [hands],
   );
 
-  const entitiesByTick = useMapEntities(
+  const { entitiesByTick, preloads } = useMapEntities(
     challenge,
     playerState,
     npcState,
     totalTicks,
-    getHandsForTick,
+    {
+      customEntitiesForTick,
+    },
   );
 
   if (loading || challenge === null) {
@@ -450,6 +465,7 @@ export default function BloatPage() {
           {useNewReplay ? (
             <NewBossPageReplay
               entities={entitiesByTick.get(currentTick) ?? []}
+              preloads={preloads}
               mapDef={mapDefinition}
               playing={playing}
               width={display.isCompact() ? 352 : 550}

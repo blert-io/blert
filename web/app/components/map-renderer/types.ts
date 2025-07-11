@@ -1,5 +1,6 @@
 import { Coords, getNpcDefinition, SkillLevel } from '@blert/common';
 
+import { osrsToThreePosition } from './animation';
 import { Terrain } from './path';
 
 export type MapDefinition = {
@@ -7,6 +8,7 @@ export type MapDefinition = {
   baseY: number;
   width: number;
   height: number;
+  faceSouth?: boolean;
   initialCameraPosition?: Coords;
   initialZoom?: number;
   terrain?: Terrain;
@@ -117,6 +119,28 @@ export class PlayerEntity implements Entity {
   }
 }
 
+type NpcOptions = {
+  /**
+   * Overrides the default interpolation for the NPC over the course of tick,
+   * which paths it in 2D space from `position` to `nextPosition`.
+   *
+   * Allows for special effects like having an NPC pop up or drop into the map.
+   *
+   * Coordinates provided in `from` and `to` are in 3D Three.js space, where
+   * OSRS (x, y) corresponds to (x, 0, -y). @see {@link osrsToThreePosition} for
+   * more details.
+   *
+   * Warning: if `to` does not end at `nextPosition`, it will result in a visual
+   * jump when the next tick begins.
+   */
+  customInterpolation?: {
+    from: [number, number, number];
+    to: [number, number, number];
+    /** Easing function to use for the interpolation. Defaults to linear. */
+    ease?: (t: number) => number;
+  };
+};
+
 export class NpcEntity implements Entity {
   type: EntityType = EntityType.NPC;
   interactive: boolean = true;
@@ -130,7 +154,8 @@ export class NpcEntity implements Entity {
     public readonly id: number,
     public readonly roomId: number,
     hitpoints: HitpointsState | SkillLevel,
-    public readonly nextPosition?: Coords,
+    public readonly nextPosition: Coords | undefined = undefined,
+    public readonly options: NpcOptions = {},
   ) {
     const npcDef = getNpcDefinition(this.id);
     if (npcDef !== null) {

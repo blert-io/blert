@@ -188,6 +188,7 @@ export type NpcState = {
   attack: Nullable<{ type: NpcAttack; target: string | null }>;
   position: Coords;
   hitpoints: SkillLevel;
+  id: number;
   label?: string;
 };
 
@@ -600,6 +601,7 @@ function computeNpcState(
 
       if (eventsForThisNpc.length > 0) {
         npc.stateByTick[i] = {
+          id: eventsForThisNpc[0].npc.id,
           attack: null,
           position: {
             x: eventsForThisNpc[0].xCoord,
@@ -622,6 +624,7 @@ function computeNpcState(
               ? npc.stateByTick[lastActiveTick]!.hitpoints
               : new SkillLevel(0, 1);
           npc.stateByTick[i] = {
+            id: attackEvent.npc.id,
             attack: null,
             position: {
               x: eventsForThisNpc[0].xCoord,
@@ -667,6 +670,12 @@ function postprocessNpcs(npc: EnhancedRoomNpc, eventsByType: EventTypeMap) {
 }
 
 type CustomEntitiesCallback = (tick: number) => AnyEntity[];
+type ModifyEntityCallback = (tick: number, entity: AnyEntity) => AnyEntity;
+
+type CustomEntitiesOptions = {
+  customEntitiesForTick?: CustomEntitiesCallback;
+  modifyEntity?: ModifyEntityCallback;
+};
 
 /**
  * Returns a map of tick to entities for a stage in a challenge.
@@ -675,8 +684,7 @@ type CustomEntitiesCallback = (tick: number) => AnyEntity[];
  * @param playerState Player state for the stage.
  * @param npcState NPC state for the stage.
  * @param totalTicks Total number of ticks in the stage.
- * @param getCustomEntitiesForTick Callback that returns the custom entities
- *   for a given tick.
+ * @param options Options to configure the entities.
  * @returns Map of tick to entities.
  */
 export function useMapEntities(
@@ -684,13 +692,17 @@ export function useMapEntities(
   playerState: PlayerStateMap,
   npcState: RoomNpcMap,
   totalTicks: number,
-  getCustomEntitiesForTick: CustomEntitiesCallback = () => [],
-): Map<number, AnyEntity[]> {
-  const entitiesByTick = useMemo(() => {
+  options: CustomEntitiesOptions = {},
+): { entitiesByTick: Map<number, AnyEntity[]>; preloads: string[] } {
+  const { customEntitiesForTick = () => [], modifyEntity = (_, e) => e } =
+    options;
+
+  const [entitiesByTick, preloads] = useMemo(() => {
     const entities = new Map<number, AnyEntity[]>();
+    const preloads = new Set<string>();
 
     if (challenge === null) {
-      return entities;
+      return [entities, []];
     }
 
     const partyOrb = challenge.party.reduce(
@@ -722,18 +734,15 @@ export function useMapEntities(
           }
         }
 
-        entitiesForTick.push(
-          new PlayerEntity(
-            { x: playerState.xCoord, y: playerState.yCoord },
-            playerName,
-            orb,
-            {
-              current: playerState.skills[Skill.HITPOINTS],
-              next: nextHitpoints,
-            },
-            nextPosition,
-          ),
+        const playerEntity = new PlayerEntity(
+          { x: playerState.xCoord, y: playerState.yCoord },
+          playerName,
+          orb,
+          { current: playerState.skills[Skill.HITPOINTS], next: nextHitpoints },
+          nextPosition,
         );
+
+        entitiesForTick.push(modifyEntity(tick, playerEntity));
       }
 
       for (const [roomId, npc] of npcState) {
@@ -752,24 +761,32 @@ export function useMapEntities(
           }
         }
 
-        entitiesForTick.push(
-          new NpcEntity(
-            npcState.position,
-            npc.spawnNpcId,
-            roomId,
-            { current: npcState.hitpoints, next: nextHitpoints },
-            nextPosition,
-          ),
+        const npcEntity = new NpcEntity(
+          npcState.position,
+          npcState.id,
+          roomId,
+          { current: npcState.hitpoints, next: nextHitpoints },
+          nextPosition,
         );
+
+        preloads.add(npcEntity.imageUrl);
+        entitiesForTick.push(modifyEntity(tick, npcEntity));
       }
 
-      entitiesForTick.push(...getCustomEntitiesForTick(tick));
+      entitiesForTick.push(...customEntitiesForTick(tick));
 
       entities.set(tick, entitiesForTick);
     }
 
-    return entities;
-  }, [challenge, npcState, playerState, totalTicks, getCustomEntitiesForTick]);
+    return [entities, Array.from(preloads)];
+  }, [
+    challenge,
+    npcState,
+    playerState,
+    totalTicks,
+    customEntitiesForTick,
+    modifyEntity,
+  ]);
 
-  return entitiesByTick;
+  return { entitiesByTick, preloads };
 }
