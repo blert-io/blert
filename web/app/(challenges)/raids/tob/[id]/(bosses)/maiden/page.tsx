@@ -54,6 +54,8 @@ import {
 import { coordsEqual, inRect } from '@/utils/coords';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
+import BarrierEntity from '../barrier';
+
 import maidenBaseTiles from './maiden.json';
 import bossStyles from '../style.module.scss';
 import styles from './style.module.scss';
@@ -91,6 +93,8 @@ const MAIDEN_MAP_DEFINITION: MapDefinition = {
   initialCameraPosition: { x: 3174, y: 4447 },
   terrain: new MaidenTerrain(),
 };
+
+const BARRIER = new BarrierEntity({ x: 3186, y: 4447 }, 4, Math.PI / 2);
 
 const BLOOD_SPLAT_COLOR = '#b93e3e';
 
@@ -299,16 +303,16 @@ export default function Maiden() {
     return { splits, spawns };
   }, [challenge, eventsByTick, npcState]);
 
-  const getBloodSplatsForTick = useCallback(
+  const customEntitiesForTick = useCallback(
     (tick: number): AnyEntity[] => {
       const bloodSplats = eventsByTick[tick]?.filter(
         (evt) => evt.type === EventType.TOB_MAIDEN_BLOOD_SPLATS,
       ) as MaidenBloodSplatsEvent[];
       if (!bloodSplats) {
-        return [];
+        return [BARRIER];
       }
 
-      return bloodSplats.flatMap((evt) =>
+      const entities: AnyEntity[] = bloodSplats.flatMap((evt) =>
         evt.maidenBloodSplats.map(
           (coords) =>
             new GroundObjectEntity(
@@ -320,16 +324,21 @@ export default function Maiden() {
             ),
         ),
       );
+
+      entities.push(BARRIER);
+      return entities;
     },
     [eventsByTick],
   );
 
-  const entitiesByTick = useMapEntities(
+  const { entitiesByTick, preloads } = useMapEntities(
     challenge,
     playerState,
     npcState,
     totalTicks,
-    getBloodSplatsForTick,
+    {
+      customEntitiesForTick,
+    },
   );
 
   if (loading || challenge === null) {
@@ -447,6 +456,7 @@ export default function Maiden() {
         {useNewReplay ? (
           <NewBossPageReplay
             entities={entitiesByTick.get(currentTick) ?? []}
+            preloads={preloads}
             mapDef={mapDefinition}
             playing={playing}
             width={display.isCompact() ? 352 : 704}

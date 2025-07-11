@@ -19,8 +19,9 @@ import {
   NyloStyle,
   RoomNpcMap,
   ChallengeMode,
+  Coords,
 } from '@blert/common';
-import { useContext, useMemo } from 'react';
+import { useCallback, useContext, useMemo, useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -33,38 +34,94 @@ import {
   Label,
 } from 'recharts';
 
+import { ActorContext } from '@/(challenges)/raids/tob/context';
 import { TimelineColor, TimelineSplit } from '@/components/attack-timeline';
 import Badge from '@/components/badge';
 import BossFightOverview from '@/components/boss-fight-overview';
 import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
 import BossPageParty from '@/components/boss-page-party';
 import BossPageControls from '@/components/boss-page-controls';
-import BossPageReplay from '@/components/boss-page-replay';
-import {
-  EventTickMap,
-  useLegacyTickTimeout,
-  usePlayingState,
-  useStageEvents,
-} from '@/utils/boss-room-state';
+import BossPageReplay, {
+  NewBossPageReplay,
+} from '@/components/boss-page-replay';
 import Card from '@/components/card';
 import HorizontalScrollable from '@/components/horizontal-scrollable';
 import Loading from '@/components/loading';
 import {
-  Entity,
-  NpcEntity,
-  PlayerEntity,
-  OverlayEntity,
+  Entity as LegacyEntity,
+  NpcEntity as LegacyNpcEntity,
+  OverlayEntity as LegacyOverlayEntity,
+  PlayerEntity as LegacyPlayerEntity,
 } from '@/components/map';
+import {
+  AnyEntity,
+  EntityType,
+  MapDefinition,
+  NpcEntity,
+  osrsToThreePosition,
+  Terrain,
+} from '@/components/map-renderer';
 import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
-import { DisplayContext } from '@/display';
-import { ActorContext } from '@/(challenges)/raids/tob/context';
+import { useDisplay } from '@/display';
+import {
+  EventTickMap,
+  useLegacyTickTimeout,
+  useMapEntities,
+  usePlayingState,
+  useStageEvents,
+} from '@/utils/boss-room-state';
+import { inRect } from '@/utils/coords';
 import { ticksToFormattedSeconds } from '@/utils/tick';
+
+import BarrierEntity from '../barrier';
 
 import nyloBaseTiles from './nylo-tiles.json';
 import bossStyles from '../style.module.scss';
 import styles from './style.module.scss';
 
-const NYLOCAS_MAP_DEFINITION = {
+class NylocasTerrain implements Terrain {
+  private static ROOM = { x: 3290, y: 4243, width: 12, height: 12 };
+
+  private static PILLARS = [
+    { x: 3290, y: 4243 },
+    { x: 3300, y: 4243 },
+    { x: 3290, y: 4253 },
+    { x: 3300, y: 4253 },
+  ].map((pillar) => ({ ...pillar, width: 2, height: 2 }));
+
+  private static WEST_LANE = { x: 3280, y: 4248, width: 10, height: 2 };
+  private static EAST_LANE = { x: 3302, y: 4248, width: 10, height: 2 };
+  private static SOUTH_LANE = { x: 3295, y: 4233, width: 2, height: 10 };
+  private static CORRIDOR = { x: 3294, y: 4256, width: 4, height: 28 };
+  private static ENTRANCE = { x: 3295, y: 4255, width: 2, height: 1 };
+
+  isPassable(coords: Coords): boolean {
+    const inRoom = inRect(coords, NylocasTerrain.ROOM);
+    if (inRoom) {
+      return !NylocasTerrain.PILLARS.some((pillar) => inRect(coords, pillar));
+    }
+
+    return [
+      NylocasTerrain.WEST_LANE,
+      NylocasTerrain.EAST_LANE,
+      NylocasTerrain.SOUTH_LANE,
+      NylocasTerrain.CORRIDOR,
+      NylocasTerrain.ENTRANCE,
+    ].some((rect) => inRect(coords, rect));
+  }
+}
+
+const NYLOCAS_MAP_DEFINITION: MapDefinition = {
+  baseX: 3272,
+  baseY: 4232,
+  width: 48,
+  height: 56,
+  initialCameraPosition: { x: 3296, y: 4245 },
+  faceSouth: true,
+  terrain: new NylocasTerrain(),
+};
+
+const LEGACY_NYLOCAS_MAP_DEFINITION = {
   baseX: 3279,
   baseY: 4232,
   width: 34,
@@ -73,13 +130,14 @@ const NYLOCAS_MAP_DEFINITION = {
   baseTiles: nyloBaseTiles,
 };
 
+const CAP_INCREASE_WAVE = 20;
 const LAST_NYLO_WAVE = 31;
 
 const GRAY_NYLO_COLOR = '#a9aaab';
 const GREEN_NYLO_COLOR = '#408d43';
 const BLUE_NYLO_COLOR = '#42c6d7';
 
-const NORTH_BARRIER = new OverlayEntity(
+const NORTH_BARRIER = new LegacyOverlayEntity(
   3299,
   4255,
   'barrier',
@@ -91,7 +149,7 @@ const NORTH_BARRIER = new OverlayEntity(
   /*interactable=*/ false,
 );
 
-const WEST_BARRIER = new OverlayEntity(
+const WEST_BARRIER = new LegacyOverlayEntity(
   3289,
   4245,
   'barrier',
@@ -103,7 +161,7 @@ const WEST_BARRIER = new OverlayEntity(
   /*interactable=*/ false,
 );
 
-const SOUTH_BARRIER = new OverlayEntity(
+const SOUTH_BARRIER = new LegacyOverlayEntity(
   3299,
   4242,
   'barrier',
@@ -115,7 +173,7 @@ const SOUTH_BARRIER = new OverlayEntity(
   /*interactable=*/ false,
 );
 
-const EAST_BARRIER = new OverlayEntity(
+const EAST_BARRIER = new LegacyOverlayEntity(
   3302,
   4245,
   'barrier',
@@ -272,7 +330,7 @@ function countSplits(npcs: RoomNpcMap): SplitCounts {
 
     const nylo = npc as Nylo;
     if (nylo.nylo.spawnType === NyloSpawn.SPLIT) {
-      const obj = nylo.nylo.wave < 20 ? preCap : postCap;
+      const obj = nylo.nylo.wave < CAP_INCREASE_WAVE ? preCap : postCap;
       switch (nylo.nylo.style) {
         case NyloStyle.MAGE:
           obj.mage++;
@@ -327,11 +385,35 @@ function nyloBossStyle(npcId: number): NyloStyle {
   throw new Error(`Invalid Nylocas Vasilias ID: ${npcId}`);
 }
 
+const BARRIERS = [
+  new BarrierEntity({ x: 3296, y: 4255 }, 2),
+  new BarrierEntity({ x: 3302, y: 4249 }, 2, Math.PI / 2),
+  new BarrierEntity({ x: 3296, y: 4243 }, 2, Math.PI),
+  new BarrierEntity({ x: 3290, y: 4249 }, 2, (3 * Math.PI) / 2),
+];
+
+function getBarrierEntities(_tick: number): BarrierEntity[] {
+  return [...BARRIERS];
+}
+
+const DEFAULT_USE_NEW_REPLAY = true;
+
 export default function NylocasPage() {
-  const display = useContext(DisplayContext);
+  const display = useDisplay();
+  const [useNewReplay, setUseNewReplay] = useState(DEFAULT_USE_NEW_REPLAY);
+
+  const compact = display.isCompact();
+
+  const mapDefinition = useMemo(() => {
+    const initialZoom = compact ? 18 : 26;
+    return {
+      ...NYLOCAS_MAP_DEFINITION,
+      initialZoom,
+    };
+  }, [compact]);
 
   const {
-    challenge: raidData,
+    challenge,
     totalTicks,
     events,
     eventsByTick,
@@ -358,15 +440,15 @@ export default function NylocasPage() {
   );
 
   const splits = useMemo(() => {
-    if (raidData === null || events.length === 0) {
+    if (challenge === null || events.length === 0) {
       return [];
     }
     let splits: TimelineSplit[] =
       eventsByType[EventType.TOB_NYLO_WAVE_SPAWN]?.map((evt) => {
         const wave = (evt as NyloWaveSpawnEvent).nyloWave.wave;
         const importantWaves: { [wave: number]: string } = {
-          20: 'Cap',
-          31: 'Waves',
+          [CAP_INCREASE_WAVE]: 'Cap',
+          [LAST_NYLO_WAVE]: 'Waves',
         };
 
         return {
@@ -376,24 +458,24 @@ export default function NylocasPage() {
         };
       }) ?? [];
 
-    if (raidData.splits[SplitType.TOB_NYLO_CLEANUP]) {
+    if (challenge.splits[SplitType.TOB_NYLO_CLEANUP]) {
       splits.push({
-        tick: raidData.splits[SplitType.TOB_NYLO_CLEANUP],
+        tick: challenge.splits[SplitType.TOB_NYLO_CLEANUP],
         splitName: 'Cleanup',
       });
     }
-    if (raidData.splits[SplitType.TOB_NYLO_BOSS_SPAWN]) {
+    if (challenge.splits[SplitType.TOB_NYLO_BOSS_SPAWN]) {
       splits.push({
-        tick: raidData.splits[SplitType.TOB_NYLO_BOSS_SPAWN],
+        tick: challenge.splits[SplitType.TOB_NYLO_BOSS_SPAWN],
         splitName: 'Boss',
       });
     }
     return splits;
-  }, [events, eventsByType, raidData]);
+  }, [events, eventsByType, challenge]);
 
   const nyloSplits = useMemo(
-    () => countSplits(raidData?.tobRooms.nylocas?.npcs ?? {}),
-    [raidData],
+    () => countSplits(challenge?.tobRooms.nylocas?.npcs ?? {}),
+    [challenge],
   );
 
   const bossRotation = useMemo((): BossRotation => {
@@ -449,7 +531,7 @@ export default function NylocasPage() {
   }, [eventsByType]);
 
   const nylosAliveByTick = useMemo(() => {
-    const endTick = raidData?.splits[SplitType.TOB_NYLO_CLEANUP] ?? totalTicks;
+    const endTick = challenge?.splits[SplitType.TOB_NYLO_CLEANUP] ?? totalTicks;
     const nylosAlive = [];
 
     for (let tick = 0; tick <= endTick; tick++) {
@@ -469,26 +551,75 @@ export default function NylocasPage() {
       nylosAlive.push({ tick, nylosAlive: nylos });
     }
     return nylosAlive;
-  }, [eventsByTick, raidData, totalTicks]);
+  }, [eventsByTick, challenge, totalTicks]);
 
-  if (loading || raidData === null) {
+  const dropBosses = useCallback(
+    (tick: number, entity: AnyEntity) => {
+      if (entity.type !== EntityType.NPC) {
+        return entity;
+      }
+
+      const npcEntity = entity as NpcEntity;
+      const npc = npcState.get(npcEntity.roomId);
+      if (npc === undefined) {
+        return entity;
+      }
+
+      // Check that the NPC:
+      // 1. Spawned as a dropping boss (no late spectator join / lost ticks)
+      // 2. Is on its spawn tick
+      // If so, visually drop it down to the ground.
+
+      const isDroppingBoss =
+        Npc.isNylocasVasiliasDropping(npc.spawnNpcId) ||
+        npc.spawnNpcId === NpcId.NYLOCAS_PRINKIPAS_DROPPING;
+
+      if (isDroppingBoss && tick === npc.spawnTick) {
+        const sizeOffset = (npcEntity.size - 1) / 2;
+        const adjustedPosition = {
+          x: npcEntity.position.x + sizeOffset,
+          y: npcEntity.position.y + sizeOffset,
+        };
+        const finalHeight = npcEntity.size / 2 - 0.2;
+
+        npcEntity.options.customInterpolation = {
+          from: osrsToThreePosition(adjustedPosition, 10),
+          to: osrsToThreePosition(adjustedPosition, finalHeight),
+          ease: (t) => t * t,
+        };
+      }
+
+      return entity;
+    },
+    [npcState],
+  );
+
+  const { entitiesByTick, preloads } = useMapEntities(
+    challenge,
+    playerState,
+    npcState,
+    totalTicks,
+    { customEntitiesForTick: getBarrierEntities, modifyEntity: dropBosses },
+  );
+
+  if (loading || challenge === null) {
     return <Loading />;
   }
 
-  const nyloData = raidData.tobRooms.nylocas;
-  if (raidData.status !== ChallengeStatus.IN_PROGRESS && nyloData === null) {
+  const nyloData = challenge.tobRooms.nylocas;
+  if (challenge.status !== ChallengeStatus.IN_PROGRESS && nyloData === null) {
     return <>No Nylocas data for this raid</>;
   }
 
   const eventsForCurrentTick = eventsByTick[currentTick] ?? [];
 
-  const entities: Entity[] = [
+  const legacyEntities: LegacyEntity[] = [
     NORTH_BARRIER,
     WEST_BARRIER,
     SOUTH_BARRIER,
     EAST_BARRIER,
   ];
-  const players: PlayerEntity[] = [];
+  const players: LegacyPlayerEntity[] = [];
 
   let nylosAlive = 0;
 
@@ -499,14 +630,14 @@ export default function NylocasPage() {
         const hitpoints = e.player.hitpoints
           ? SkillLevel.fromRaw(e.player.hitpoints)
           : undefined;
-        const player = new PlayerEntity(
+        const player = new LegacyPlayerEntity(
           e.xCoord,
           e.yCoord,
           e.player.name,
           hitpoints,
           /*highlight=*/ e.player.name === selectedPlayer,
         );
-        entities.push(player);
+        legacyEntities.push(player);
         players.push(player);
         break;
       }
@@ -516,8 +647,8 @@ export default function NylocasPage() {
         if (Npc.isNylocas(e.npc.id)) {
           nylosAlive++;
         }
-        entities.push(
-          new NpcEntity(
+        legacyEntities.push(
+          new LegacyNpcEntity(
             e.xCoord,
             e.yCoord,
             e.npc.id,
@@ -555,17 +686,17 @@ export default function NylocasPage() {
       </div>
     );
 
-    entities.push(
-      new OverlayEntity(
-        NYLOCAS_MAP_DEFINITION.baseX + (display.isCompact() ? 7 : 2),
-        NYLOCAS_MAP_DEFINITION.baseY,
+    legacyEntities.push(
+      new LegacyOverlayEntity(
+        LEGACY_NYLOCAS_MAP_DEFINITION.baseX + (compact ? 7 : 2),
+        LEGACY_NYLOCAS_MAP_DEFINITION.baseY,
         `nylo-wave-${currentWave}-indicator`,
         overlay,
       ),
     );
   }
 
-  const playerTickState = raidData.party.reduce(
+  const playerTickState = challenge.party.reduce(
     (acc, { username }) => ({
       ...acc,
       [username]: playerState.get(username)?.at(currentTick) ?? null,
@@ -581,48 +712,48 @@ export default function NylocasPage() {
   const sections = [];
 
   if (
-    raidData.splits[SplitType.TOB_NYLO_CAP] ||
-    raidData.splits[SplitType.TOB_NYLO_WAVES] ||
-    raidData.splits[SplitType.TOB_NYLO_CLEANUP] ||
-    raidData.splits[SplitType.TOB_NYLO_BOSS_SPAWN]
+    challenge.splits[SplitType.TOB_NYLO_CAP] ||
+    challenge.splits[SplitType.TOB_NYLO_WAVES] ||
+    challenge.splits[SplitType.TOB_NYLO_CLEANUP] ||
+    challenge.splits[SplitType.TOB_NYLO_BOSS_SPAWN]
   ) {
     sections.push({
       title: 'Room Times',
       content: (
         <div className={styles.splits}>
-          {raidData.splits[SplitType.TOB_NYLO_CAP] && (
+          {challenge.splits[SplitType.TOB_NYLO_CAP] && (
             <Badge
               iconClass="fa-solid fa-hourglass"
               label="Cap"
               value={ticksToFormattedSeconds(
-                raidData.splits[SplitType.TOB_NYLO_CAP],
+                challenge.splits[SplitType.TOB_NYLO_CAP],
               )}
             />
           )}
-          {raidData.splits[SplitType.TOB_NYLO_WAVES] && (
+          {challenge.splits[SplitType.TOB_NYLO_WAVES] && (
             <Badge
               iconClass="fa-solid fa-hourglass"
               label="Last wave"
               value={ticksToFormattedSeconds(
-                raidData.splits[SplitType.TOB_NYLO_WAVES],
+                challenge.splits[SplitType.TOB_NYLO_WAVES],
               )}
             />
           )}
-          {raidData.splits[SplitType.TOB_NYLO_CLEANUP] && (
+          {challenge.splits[SplitType.TOB_NYLO_CLEANUP] && (
             <Badge
               iconClass="fa-solid fa-hourglass"
               label="Cleanup"
               value={ticksToFormattedSeconds(
-                raidData.splits[SplitType.TOB_NYLO_CLEANUP],
+                challenge.splits[SplitType.TOB_NYLO_CLEANUP],
               )}
             />
           )}
-          {raidData.splits[SplitType.TOB_NYLO_BOSS_SPAWN] && (
+          {challenge.splits[SplitType.TOB_NYLO_BOSS_SPAWN] && (
             <Badge
               iconClass="fa-solid fa-hourglass"
               label="Boss"
               value={ticksToFormattedSeconds(
-                raidData.splits[SplitType.TOB_NYLO_BOSS_SPAWN],
+                challenge.splits[SplitType.TOB_NYLO_BOSS_SPAWN],
               )}
             />
           )}
@@ -702,7 +833,7 @@ export default function NylocasPage() {
     ),
   });
 
-  if (raidData.splits[SplitType.TOB_NYLO_BOSS_SPAWN]) {
+  if (challenge.splits[SplitType.TOB_NYLO_BOSS_SPAWN]) {
     sections.push({
       title: 'Boss Rotation',
       content: (
@@ -747,7 +878,7 @@ export default function NylocasPage() {
               style={{ color: GRAY_NYLO_COLOR }}
             >
               <span className={styles.count}>
-                {raidData.tobStats.nylocasBossMelee || 0}
+                {challenge.tobStats.nylocasBossMelee || 0}
               </span>
               <span className={styles.label}>Melee</span>
             </div>
@@ -756,7 +887,7 @@ export default function NylocasPage() {
               style={{ color: GREEN_NYLO_COLOR }}
             >
               <span className={styles.count}>
-                {raidData.tobStats.nylocasBossRanged || 0}
+                {challenge.tobStats.nylocasBossRanged || 0}
               </span>
               <span className={styles.label}>Ranged</span>
             </div>
@@ -765,7 +896,7 @@ export default function NylocasPage() {
               style={{ color: BLUE_NYLO_COLOR }}
             >
               <span className={styles.count}>
-                {raidData.tobStats.nylocasBossMage || 0}
+                {challenge.tobStats.nylocasBossMage || 0}
               </span>
               <span className={styles.label}>Mage</span>
             </div>
@@ -796,8 +927,6 @@ export default function NylocasPage() {
     });
   }
 
-  const startingRoomCap = raidData.mode === ChallengeMode.TOB_HARD ? 15 : 12;
-
   return (
     <>
       <div className={bossStyles.overview}>
@@ -824,11 +953,25 @@ export default function NylocasPage() {
       </div>
 
       <div className={bossStyles.replayAndParty}>
-        <BossPageReplay
-          entities={entities}
-          mapDef={NYLOCAS_MAP_DEFINITION}
-          tileSize={display.isCompact() ? 11 : undefined}
-        />
+        {useNewReplay ? (
+          <NewBossPageReplay
+            entities={entitiesByTick.get(currentTick) ?? []}
+            preloads={preloads}
+            mapDef={mapDefinition}
+            playing={playing}
+            width={display.isCompact() ? 374 : 850}
+            height={display.isCompact() ? 275 : 625}
+            currentTick={currentTick}
+            advanceTick={advanceTick}
+            setUseLegacy={() => setUseNewReplay(false)}
+          />
+        ) : (
+          <BossPageReplay
+            entities={legacyEntities}
+            mapDef={LEGACY_NYLOCAS_MAP_DEFINITION}
+            tileSize={display.isCompact() ? 11 : undefined}
+          />
+        )}
         <BossPageParty
           playerTickState={playerTickState}
           selectedPlayer={selectedPlayer}
@@ -837,183 +980,19 @@ export default function NylocasPage() {
       </div>
 
       <div className={bossStyles.charts}>
-        <Card
-          className={bossStyles.chart}
-          header={{ title: 'Nylos Alive By Tick' }}
-        >
-          <HorizontalScrollable className={bossStyles.scrollable}>
-            <ResponsiveContainer
-              width={display.isFull() ? '100%' : 1350}
-              height="100%"
-            >
-              <AreaChart
-                data={nylosAliveByTick}
-                margin={{ left: -10, bottom: 20 }}
-              >
-                <defs>
-                  <linearGradient
-                    id="backgroundGradient"
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop
-                      offset="0%"
-                      stopColor="var(--blert-button)"
-                      stopOpacity={0.3}
-                    />
-                    <stop
-                      offset="100%"
-                      stopColor="var(--blert-button)"
-                      stopOpacity={0.05}
-                    />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="var(--nav-bg-lightened)"
-                  opacity={0.9}
-                />
-                <XAxis
-                  dataKey="tick"
-                  stroke="var(--font-color-nav)"
-                  tickLine={false}
-                  axisLine={{ stroke: 'var(--nav-bg-lightened)' }}
-                  hide
-                />
-                <YAxis
-                  stroke="var(--font-color-nav)"
-                  tickLine={false}
-                  axisLine={{ stroke: 'var(--nav-bg-lightened)' }}
-                  tickCount={8}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="nylosAlive"
-                  stroke="rgba(var(--blert-button-base), 0.7)"
-                  strokeWidth={2}
-                  fill="url(#backgroundGradient)"
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'var(--nav-bg)',
-                    border: '1px solid var(--nav-bg-lightened)',
-                    borderRadius: '8px',
-                    color: 'var(--blert-text-color)',
-                    padding: '8px',
-                  }}
-                  formatter={(value: number) => {
-                    return [value, 'Nylos Alive'];
-                  }}
-                  labelFormatter={(tick: number) => {
-                    let waveSpawn;
-                    const events = eventsByType[
-                      EventType.TOB_NYLO_WAVE_SPAWN
-                    ] as NyloWaveSpawnEvent[];
-                    for (let i = 1; i < events.length; i++) {
-                      if (tick < events[i].tick) {
-                        waveSpawn = events[i - 1];
-                        break;
-                      }
-                    }
-                    if (waveSpawn === undefined) {
-                      waveSpawn = events[events.length - 1];
-                    }
-
-                    return `Tick: ${tick} (Wave ${waveSpawn.nyloWave.wave})`;
-                  }}
-                  cursor={{
-                    stroke: 'var(--font-color-nav-divider)',
-                    strokeWidth: 1,
-                  }}
-                />
-                <ReferenceLine
-                  stroke="rgba(var(--blert-red-base), 0.7)"
-                  strokeWidth={2}
-                  strokeDasharray="2 2"
-                  segment={[
-                    { x: 0, y: startingRoomCap },
-                    {
-                      x: raidData.splits[SplitType.TOB_NYLO_CAP],
-                      y: startingRoomCap,
-                    },
-                  ]}
-                >
-                  <Label
-                    position="top"
-                    stroke="rgba(var(--blert-text-color-base), 0.7)"
-                    style={{ fontWeight: 200 }}
-                  >
-                    Room cap
-                  </Label>
-                </ReferenceLine>
-                <ReferenceLine
-                  stroke="rgba(var(--blert-red-base), 0.7)"
-                  strokeWidth={2}
-                  strokeDasharray="2 2"
-                  segment={[
-                    { x: raidData.splits[SplitType.TOB_NYLO_CAP], y: 24 },
-                    { x: raidData.splits[SplitType.TOB_NYLO_CLEANUP], y: 24 },
-                  ]}
-                >
-                  <Label
-                    position="top"
-                    stroke="rgba(var(--blert-text-color-base), 0.7)"
-                    style={{ fontWeight: 200 }}
-                  >
-                    Room cap
-                  </Label>
-                </ReferenceLine>
-                {eventsByType[EventType.TOB_NYLO_WAVE_SPAWN].map((evt) => {
-                  return (
-                    <ReferenceLine
-                      key={evt.tick}
-                      x={evt.tick}
-                      stroke={
-                        (evt as NyloWaveSpawnEvent).nyloWave.wave === 20
-                          ? 'rgba(var(--blert-text-color-base), 0.75)'
-                          : 'rgba(var(--blert-text-color-base), 0.15)'
-                      }
-                      strokeWidth={1}
-                    >
-                      <Label
-                        stroke={
-                          (evt as NyloWaveSpawnEvent).nyloWave.wave === 20
-                            ? 'rgba(var(--blert-text-color-base), 0.8)'
-                            : 'var(--font-color-nav)'
-                        }
-                        position="bottom"
-                        style={{ fontSize: 13, fontWeight: 100 }}
-                      >
-                        {(evt as NyloWaveSpawnEvent).nyloWave.wave}
-                      </Label>
-                    </ReferenceLine>
-                  );
-                })}
-                {eventsByType[EventType.TOB_NYLO_WAVE_STALL].map((evt) => {
-                  return (
-                    <ReferenceLine
-                      key={evt.tick}
-                      x={evt.tick}
-                      stroke="rgba(var(--blert-text-color-base), 0.5)"
-                      strokeWidth={2}
-                      strokeDasharray="3 3"
-                    >
-                      <Label
-                        stroke="rgba(var(--blert-red-base), 0.7)"
-                        position="bottom"
-                        style={{ fontSize: 13, fontWeight: 100 }}
-                      >
-                        {(evt as NyloWaveStallEvent).nyloWave.wave}
-                      </Label>
-                    </ReferenceLine>
-                  );
-                })}
-              </AreaChart>
-            </ResponsiveContainer>
-          </HorizontalScrollable>
-        </Card>
+        <NyloWaveChart
+          challenge={challenge}
+          nylosAliveByTick={nylosAliveByTick}
+          spawns={
+            (eventsByType[EventType.TOB_NYLO_WAVE_SPAWN] ??
+              []) as NyloWaveSpawnEvent[]
+          }
+          stalls={
+            (eventsByType[EventType.TOB_NYLO_WAVE_STALL] ??
+              []) as NyloWaveStallEvent[]
+          }
+          width={display.isFull() ? '100%' : 1350}
+        />
       </div>
 
       <BossPageControls
@@ -1025,5 +1004,192 @@ export default function NylocasPage() {
         splits={splits}
       />
     </>
+  );
+}
+
+function NyloWaveChart({
+  challenge,
+  nylosAliveByTick,
+  spawns,
+  stalls,
+  width,
+}: {
+  challenge: TobRaid;
+  nylosAliveByTick: Array<{ tick: number; nylosAlive: number }>;
+  spawns: NyloWaveSpawnEvent[];
+  stalls: NyloWaveStallEvent[];
+  width: number | string;
+}) {
+  const startingRoomCap = challenge.mode === ChallengeMode.TOB_HARD ? 15 : 12;
+
+  return (
+    <Card
+      className={bossStyles.chart}
+      header={{ title: 'Nylos Alive By Tick' }}
+    >
+      <HorizontalScrollable className={bossStyles.scrollable}>
+        <ResponsiveContainer width={width} height="100%">
+          <AreaChart data={nylosAliveByTick} margin={{ left: -10, bottom: 20 }}>
+            <defs>
+              <linearGradient
+                id="backgroundGradient"
+                x1="0"
+                y1="0"
+                x2="0"
+                y2="1"
+              >
+                <stop
+                  offset="0%"
+                  stopColor="var(--blert-button)"
+                  stopOpacity={0.3}
+                />
+                <stop
+                  offset="100%"
+                  stopColor="var(--blert-button)"
+                  stopOpacity={0.05}
+                />
+              </linearGradient>
+            </defs>
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="var(--nav-bg-lightened)"
+              opacity={0.9}
+            />
+            <XAxis
+              dataKey="tick"
+              stroke="var(--font-color-nav)"
+              tickLine={false}
+              axisLine={{ stroke: 'var(--nav-bg-lightened)' }}
+              hide
+            />
+            <YAxis
+              stroke="var(--font-color-nav)"
+              tickLine={false}
+              axisLine={{ stroke: 'var(--nav-bg-lightened)' }}
+              tickCount={8}
+            />
+            <Area
+              type="monotone"
+              dataKey="nylosAlive"
+              stroke="rgba(var(--blert-button-base), 0.7)"
+              strokeWidth={2}
+              fill="url(#backgroundGradient)"
+            />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: 'var(--nav-bg)',
+                border: '1px solid var(--nav-bg-lightened)',
+                borderRadius: '8px',
+                color: 'var(--blert-text-color)',
+                padding: '8px',
+              }}
+              formatter={(value: number) => {
+                return [value, 'Nylos Alive'];
+              }}
+              labelFormatter={(tick: number) => {
+                let waveSpawn;
+                for (let i = 1; i < spawns.length; i++) {
+                  if (tick < spawns[i].tick) {
+                    waveSpawn = spawns[i - 1];
+                    break;
+                  }
+                }
+                if (waveSpawn === undefined) {
+                  waveSpawn = spawns[spawns.length - 1];
+                }
+
+                return `Tick: ${tick} (Wave ${waveSpawn.nyloWave.wave})`;
+              }}
+              cursor={{
+                stroke: 'var(--font-color-nav-divider)',
+                strokeWidth: 1,
+              }}
+            />
+            <ReferenceLine
+              stroke="rgba(var(--blert-red-base), 0.7)"
+              strokeWidth={2}
+              strokeDasharray="2 2"
+              segment={[
+                { x: 0, y: startingRoomCap },
+                {
+                  x: challenge.splits[SplitType.TOB_NYLO_CAP],
+                  y: startingRoomCap,
+                },
+              ]}
+            >
+              <Label
+                position="top"
+                stroke="rgba(var(--blert-text-color-base), 0.7)"
+                style={{ fontWeight: 200 }}
+              >
+                Room cap
+              </Label>
+            </ReferenceLine>
+            <ReferenceLine
+              stroke="rgba(var(--blert-red-base), 0.7)"
+              strokeWidth={2}
+              strokeDasharray="2 2"
+              segment={[
+                { x: challenge.splits[SplitType.TOB_NYLO_CAP], y: 24 },
+                { x: challenge.splits[SplitType.TOB_NYLO_CLEANUP], y: 24 },
+              ]}
+            >
+              <Label
+                position="top"
+                stroke="rgba(var(--blert-text-color-base), 0.7)"
+                style={{ fontWeight: 200 }}
+              >
+                Room cap
+              </Label>
+            </ReferenceLine>
+            {spawns.map((evt) => {
+              return (
+                <ReferenceLine
+                  key={evt.tick}
+                  x={evt.tick}
+                  stroke={
+                    evt.nyloWave.wave === CAP_INCREASE_WAVE
+                      ? 'rgba(var(--blert-text-color-base), 0.75)'
+                      : 'rgba(var(--blert-text-color-base), 0.15)'
+                  }
+                  strokeWidth={1}
+                >
+                  <Label
+                    stroke={
+                      evt.nyloWave.wave === CAP_INCREASE_WAVE
+                        ? 'rgba(var(--blert-text-color-base), 0.8)'
+                        : 'var(--font-color-nav)'
+                    }
+                    position="bottom"
+                    style={{ fontSize: 13, fontWeight: 100 }}
+                  >
+                    {evt.nyloWave.wave}
+                  </Label>
+                </ReferenceLine>
+              );
+            })}
+            {stalls.map((evt) => {
+              return (
+                <ReferenceLine
+                  key={evt.tick}
+                  x={evt.tick}
+                  stroke="rgba(var(--blert-text-color-base), 0.5)"
+                  strokeWidth={2}
+                  strokeDasharray="3 3"
+                >
+                  <Label
+                    stroke="rgba(var(--blert-red-base), 0.7)"
+                    position="bottom"
+                    style={{ fontSize: 13, fontWeight: 100 }}
+                  >
+                    {evt.nyloWave.wave}
+                  </Label>
+                </ReferenceLine>
+              );
+            })}
+          </AreaChart>
+        </ResponsiveContainer>
+      </HorizontalScrollable>
+    </Card>
   );
 }
