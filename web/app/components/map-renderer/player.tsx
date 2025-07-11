@@ -167,17 +167,20 @@ export default function Player({
     if (isSelected) {
       return {
         borderColor: '#5865f2',
+        textColor: '#5865f2',
         opacity: 1,
       };
     }
     if (isHovered) {
       return {
         borderColor: '#f59e0b',
+        textColor: '#f59e0b',
         opacity: 0.8,
       };
     }
     return {
       borderColor: '#1f2937',
+      textColor: '#ffffff',
       opacity: 0.8,
     };
   };
@@ -218,7 +221,7 @@ export default function Player({
         <Text
           position={[0, 1.2, 0]}
           fontSize={0.4}
-          color="#ffffff"
+          color={visualState.textColor}
           anchorX="center"
           anchorY="middle"
           font="/fonts/runescape.ttf"
@@ -289,7 +292,7 @@ export default function Player({
             <Text
               position={[0, 1.6, 0.001]}
               fontSize={0.14}
-              color={isSelected ? '#5865f2' : isHovered ? '#f59e0b' : '#6b7280'}
+              color={visualState.textColor}
               anchorX="center"
               anchorY="middle"
               font="/fonts/runescape.ttf"

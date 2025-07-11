@@ -65,6 +65,7 @@ export default function LegacyBossPageReplay({
 
 type BossReplayProps = {
   entities: AnyEntity[];
+  preloads: string[];
   mapDef: MapDefinition;
   playing: boolean;
   width: number | string;
@@ -76,6 +77,7 @@ type BossReplayProps = {
 
 export function BossPageReplay({
   entities,
+  preloads,
   mapDef,
   playing,
   width,
@@ -146,6 +148,7 @@ export function BossPageReplay({
     >
       <MapCanvas
         entities={entities}
+        preloadTextures={preloads}
         selectedEntity={selectedEntity}
         onEntitySelected={onEntitySelected}
       >
