@@ -303,34 +303,49 @@ export default function Npc({
       y: basePosition.y + sizeOffset,
     };
 
-    let finalPosition = adjustedPosition;
+    if (playing && npcEntity.options.customInterpolation) {
+      const { from, to, ease } = npcEntity.options.customInterpolation;
+      const elapsed = currentTime - interpolationStateRef.current!.startTime;
+      const progress = Math.min(elapsed / config.tickDuration, 1);
+      const easedProgress = ease ? ease(progress) : progress;
 
-    if (fanOutIndex !== undefined && stackSize > 1) {
-      const offset = calculateFanOutOffset(fanOutIndex, stackSize, entity.size);
-      finalPosition = {
-        x: adjustedPosition.x + offset.x,
-        y: adjustedPosition.y + offset.y,
-      };
-    }
-
-    const threePosition = osrsToThreePosition(
-      finalPosition,
-      entity.size / 2 - 0.2,
-    );
-    if (fanOutIndex !== undefined) {
-      const targetPosition = new THREE.Vector3(...threePosition);
-      groupRef.current.position.lerp(targetPosition, 0.1);
+      const start = new THREE.Vector3(...from);
+      const end = new THREE.Vector3(...to);
+      groupRef.current.position.lerpVectors(start, end, easedProgress);
     } else {
-      groupRef.current.position.set(...threePosition);
+      let finalPosition = adjustedPosition;
+
+      if (fanOutIndex !== undefined && stackSize > 1) {
+        const offset = calculateFanOutOffset(
+          fanOutIndex,
+          stackSize,
+          entity.size,
+        );
+        finalPosition = {
+          x: adjustedPosition.x + offset.x,
+          y: adjustedPosition.y + offset.y,
+        };
+      }
+
+      const threePosition = osrsToThreePosition(
+        finalPosition,
+        entity.size / 2 - 0.2,
+      );
+      if (fanOutIndex !== undefined) {
+        const targetPosition = new THREE.Vector3(...threePosition);
+        groupRef.current.position.lerp(targetPosition, 0.1);
+      } else {
+        groupRef.current.position.set(...threePosition);
+      }
     }
 
     if (borderMeshRef.current) {
-      const borderPosition = osrsToThreePosition(finalPosition, -0.002);
+      const borderPosition = osrsToThreePosition(adjustedPosition, -0.002);
       borderMeshRef.current.position.set(...borderPosition);
     }
 
     if (config.debug && debugTextRef.current) {
-      debugTextRef.current.text = `Render: ${finalPosition.x.toFixed(2)}, ${finalPosition.y.toFixed(2)}`;
+      debugTextRef.current.text = `Render: ${groupRef.current.position.x.toFixed(2)}, ${-groupRef.current.position.z.toFixed(2)}`;
     }
   });
 
@@ -346,6 +361,12 @@ export default function Npc({
   };
 
   const baseHeight = entity.size * 0.9;
+
+  const textColor = isSelected
+    ? SELECTED_COLOR.clone()
+    : isHovered
+      ? HOVERED_COLOR.clone()
+      : new THREE.Color('#ffffff');
 
   return (
     <>
@@ -384,7 +405,7 @@ export default function Npc({
             <Text
               position={[0, 1.5 + (entity.size - 1) * 0.5, 0]}
               fontSize={0.5}
-              color="#ffffff"
+              color={textColor}
               anchorX="center"
               anchorY="middle"
               font="/fonts/runescape.ttf"
@@ -472,7 +493,7 @@ export default function Npc({
             <Text
               position={[0, 1.95 + (entity.size - 1) * 0.5, 0.001]}
               fontSize={0.14}
-              color={isSelected ? '#5865f2' : isHovered ? '#f59e0b' : '#6b7280'}
+              color={textColor}
               anchorX="center"
               anchorY="middle"
               font="/fonts/runescape.ttf"
