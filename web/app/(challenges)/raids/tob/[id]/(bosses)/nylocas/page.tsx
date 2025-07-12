@@ -405,7 +405,7 @@ export default function NylocasPage() {
   const compact = display.isCompact();
 
   const mapDefinition = useMemo(() => {
-    const initialZoom = compact ? 18 : 26;
+    const initialZoom = compact ? 13 : 26;
     return {
       ...NYLOCAS_MAP_DEFINITION,
       initialZoom,
