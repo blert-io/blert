@@ -14,8 +14,13 @@ type BarrierData = {
 /** Theatre of Blood room entrance barrier. */
 export default class BarrierEntity extends CustomEntity<BarrierData> {
   constructor(position: Coords, length: number, rotation: number = 0) {
+    const pos = {
+      x: position.x + (length % 2 !== 0 ? 0.5 : 0),
+      y: position.y,
+    };
+
     super(
-      position,
+      pos,
       'Barrier',
       length,
       BarrierRenderer,
@@ -72,7 +77,7 @@ const BarrierMaterial = shaderMaterial(
 
 extend({ BarrierMaterial });
 
-const BASE_OPACITY = 0.85;
+const BASE_OPACITY = 0.6;
 
 function BarrierRenderer({ entity }: { entity: CustomEntity<BarrierData> }) {
   const { playing } = useReplayContext();
