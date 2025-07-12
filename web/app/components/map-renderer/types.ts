@@ -8,6 +8,7 @@ export type MapDefinition = {
   baseY: number;
   width: number;
   height: number;
+  plane?: number;
   faceSouth?: boolean;
   initialCameraPosition?: Coords;
   initialZoom?: number;

@@ -24,6 +24,9 @@ export interface MapFloorProps {
   /** Height of the map in tiles */
   height: number;
 
+  /** OSRS map plane for which to load tiles. */
+  plane?: number;
+
   /** Base tiles with custom colors */
   baseTiles?: BaseTile[];
 }
@@ -37,7 +40,7 @@ const OSRS_MAP_ORIGIN_Y = 1216;
 /**
  * Returns the URL to a 256x256 PNG of the OSRS map tile for a given 8x8 chunk.
  */
-function getTileUrl(chunkX: number, chunkY: number) {
+function getTileUrl(chunkX: number, chunkY: number, plane: number) {
   const offsetX = OSRS_MAP_ORIGIN_X / CHUNK_SIZE;
   const offsetY = OSRS_MAP_ORIGIN_Y / CHUNK_SIZE;
 
@@ -47,17 +50,19 @@ function getTileUrl(chunkX: number, chunkY: number) {
   const y = chunkY - offsetY;
 
   // TODO(frolv): Host this ourselves.
-  return `https://raw.githubusercontent.com/Explv/osrs_map_tiles/refs/heads/master/0/${ZOOM}/${x}/${y}.png`;
+  return `https://raw.githubusercontent.com/Explv/osrs_map_tiles/refs/heads/master/${plane}/${ZOOM}/${x}/${y}.png`;
 }
 
 function LoadedMapChunk({
   chunkX,
   chunkY,
+  plane,
 }: {
   chunkX: number;
   chunkY: number;
+  plane: number;
 }) {
-  const tileUrl = getTileUrl(chunkX, chunkY);
+  const tileUrl = getTileUrl(chunkX, chunkY, plane);
 
   const texture = useTexture(tileUrl, (loadedTexture) => {
     loadedTexture.minFilter = THREE.NearestFilter;
@@ -144,10 +149,18 @@ function FallbackMapChunk({
 /**
  * Renders a single map chunk with texture loading and fallback.
  */
-function MapChunk({ chunkX, chunkY }: { chunkX: number; chunkY: number }) {
+function MapChunk({
+  chunkX,
+  chunkY,
+  plane,
+}: {
+  chunkX: number;
+  chunkY: number;
+  plane: number;
+}) {
   return (
     <Suspense fallback={<FallbackMapChunk chunkX={chunkX} chunkY={chunkY} />}>
-      <LoadedMapChunk chunkX={chunkX} chunkY={chunkY} />
+      <LoadedMapChunk chunkX={chunkX} chunkY={chunkY} plane={plane} />
     </Suspense>
   );
 }
@@ -178,6 +191,7 @@ export default function MapFloor({
   baseY,
   width,
   height,
+  plane = 0,
   baseTiles = [],
 }: MapFloorProps) {
   const chunks = useMemo(() => {
@@ -204,6 +218,7 @@ export default function MapFloor({
           key={`chunk-${chunkX}-${chunkY}`}
           chunkX={chunkX}
           chunkY={chunkY}
+          plane={plane}
         />
       ))}
       {baseTiles.map((tile, index) => (

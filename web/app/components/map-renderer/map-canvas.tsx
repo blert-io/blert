@@ -236,6 +236,7 @@ function MapScene({
         baseY={mapDefinition.baseY}
         width={mapDefinition.width}
         height={mapDefinition.height}
+        plane={mapDefinition.plane}
       />
 
       <TileHoverOverlay
