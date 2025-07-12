@@ -120,16 +120,16 @@ function NpcFallback({ width, height }: { width: number; height: number }) {
 }
 
 function NpcSpriteMesh({
-  aspect,
-  baseHeight,
+  spriteWidth,
+  spriteHeight,
   isSelected,
   isHovered,
   isDimmed,
   npcEntity,
   setAspect,
 }: {
-  aspect: number;
-  baseHeight: number;
+  spriteWidth: number;
+  spriteHeight: number;
   isSelected: boolean;
   isHovered: boolean;
   isDimmed: boolean;
@@ -201,7 +201,7 @@ function NpcSpriteMesh({
   return (
     <mesh
       ref={meshRef}
-      scale={[baseHeight * aspect, baseHeight, 1]}
+      scale={[spriteWidth, spriteHeight, 1]}
       material={outlineMaterial}
     >
       <planeGeometry args={[1, 1]} />
@@ -231,6 +231,12 @@ export default function Npc({
   const hitpoints = npcEntity.hitpoints;
 
   const planeSize = entity.size;
+
+  const maxSize = entity.size * 0.9;
+  const finalScale = Math.min(maxSize, maxSize / aspect);
+
+  const spriteWidth = finalScale * aspect;
+  const spriteHeight = finalScale;
 
   const borderMaterial = useMemo(() => {
     return new THREE.ShaderMaterial({
@@ -329,7 +335,7 @@ export default function Npc({
 
       const threePosition = osrsToThreePosition(
         finalPosition,
-        entity.size / 2 - 0.2,
+        spriteHeight / 2 - 0.2,
       );
       if (fanOutIndex !== undefined) {
         const targetPosition = new THREE.Vector3(...threePosition);
@@ -360,8 +366,6 @@ export default function Npc({
     }
   };
 
-  const baseHeight = entity.size * 0.9;
-
   const textColor = isSelected
     ? SELECTED_COLOR.clone()
     : isHovered
@@ -384,13 +388,11 @@ export default function Npc({
           userData={{ entityId: entity.getUniqueId() }}
         >
           <Suspense
-            fallback={
-              <NpcFallback width={baseHeight * aspect} height={baseHeight} />
-            }
+            fallback={<NpcFallback width={spriteWidth} height={spriteHeight} />}
           >
             <NpcSpriteMesh
-              aspect={aspect}
-              baseHeight={baseHeight}
+              spriteWidth={spriteWidth}
+              spriteHeight={spriteHeight}
               isSelected={isSelected}
               isHovered={isHovered}
               isDimmed={isDimmed}
