@@ -184,7 +184,7 @@ export default function SotetsegPage() {
   const compact = display.isCompact();
 
   const mapDefinition = useMemo(() => {
-    const initialZoom = compact ? 13 : 23;
+    const initialZoom = compact ? 17 : 23;
     return {
       ...SOTETSEG_MAP_DEFINITION,
       initialZoom,
@@ -203,7 +203,7 @@ export default function SotetsegPage() {
   const { currentTick, setTick, playing, setPlaying, advanceTick } =
     usePlayingState(totalTicks);
   const { updateTickOnPage } = useLegacyTickTimeout(
-    true,
+    !useNewReplay,
     playing,
     currentTick,
     setTick,
