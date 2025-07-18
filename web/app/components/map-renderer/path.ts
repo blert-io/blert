@@ -55,12 +55,26 @@ export function visualPath(
     return [from, to];
   }
 
-  // Player moves along the dominant axis first.
+  // For moves > 1 tile, the player moves along the dominant axis first.
+  // If the move is L-shaped (i.e. dx != dy), check if the later diagonal would
+  // be blocked by an obstacle. If so, the diagonal must happen first.
   const intermediate = { x: from.x, y: from.y };
   if (Math.abs(dx) > Math.abs(dy)) {
     intermediate.x += Math.sign(dx);
+    if (terrain !== undefined && dy !== 0) {
+      const corner = { x: from.x + dx, y: from.y };
+      if (!terrain.isPassable(corner)) {
+        intermediate.y += Math.sign(dy);
+      }
+    }
   } else if (Math.abs(dy) > Math.abs(dx)) {
     intermediate.y += Math.sign(dy);
+    if (terrain !== undefined && dx !== 0) {
+      const corner = { x: from.x, y: from.y + dy };
+      if (!terrain.isPassable(corner)) {
+        intermediate.x += Math.sign(dx);
+      }
+    }
   } else {
     // Diagonal move.
     intermediate.x += Math.sign(dx);
