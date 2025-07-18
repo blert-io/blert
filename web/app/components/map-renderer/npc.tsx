@@ -335,7 +335,7 @@ export default function Npc({
 
       const threePosition = osrsToThreePosition(
         finalPosition,
-        spriteHeight / 2 - 0.2,
+        spriteHeight / 2 - 0.1,
       );
       if (fanOutIndex !== undefined) {
         const targetPosition = new THREE.Vector3(...threePosition);
@@ -418,7 +418,7 @@ export default function Npc({
               {entity.name}
             </Text>
 
-            {hitpoints && (
+            {hitpoints && hitpoints.current.getBase() > 0 && (
               <group position={[0, (entity.size - 1) * 0.5, 0]}>
                 <HealthBar
                   hitpoints={hitpoints.current}

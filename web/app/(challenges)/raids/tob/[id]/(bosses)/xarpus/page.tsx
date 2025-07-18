@@ -137,6 +137,7 @@ export default function XarpusPage() {
       initialZoom,
     };
   }, [compact]);
+
   const {
     challenge,
     totalTicks,

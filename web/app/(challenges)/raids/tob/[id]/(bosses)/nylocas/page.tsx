@@ -386,7 +386,7 @@ function nyloBossStyle(npcId: number): NyloStyle {
 }
 
 const BARRIERS = [
-  new BarrierEntity({ x: 3296, y: 4255 }, 2),
+  new BarrierEntity({ x: 3296, y: 4256 }, 2),
   new BarrierEntity({ x: 3302, y: 4249 }, 2, Math.PI / 2),
   new BarrierEntity({ x: 3296, y: 4243 }, 2, Math.PI),
   new BarrierEntity({ x: 3290, y: 4249 }, 2, (3 * Math.PI) / 2),
