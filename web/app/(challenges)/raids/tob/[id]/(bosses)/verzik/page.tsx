@@ -2,6 +2,7 @@
 
 import {
   ChallengeStatus,
+  Coords,
   EventType,
   Npc,
   NpcAttack,
@@ -16,42 +17,75 @@ import {
   VerzikYellowsEvent,
 } from '@blert/common';
 import Image from 'next/image';
-import { useContext, useMemo, useRef } from 'react';
+import { useCallback, useContext, useMemo, useRef, useState } from 'react';
 
 import { TimelineColor, TimelineSplit } from '@/components/attack-timeline';
 import BossFightOverview from '@/components/boss-fight-overview';
 import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
 import BossPageControls from '@/components/boss-page-controls';
 import BossPageParty from '@/components/boss-page-party';
-import BossPageReplay from '@/components/boss-page-replay';
+import BossPageReplay, {
+  NewBossPageReplay,
+} from '@/components/boss-page-replay';
 import Card from '@/components/card';
 import Loading from '@/components/loading';
 import {
-  Entity,
-  NpcEntity,
-  OverlayEntity,
-  PlayerEntity,
+  Entity as LegacyEntity,
+  NpcEntity as LegacyNpcEntity,
+  OverlayEntity as LegacyOverlayEntity,
+  PlayerEntity as LegacyPlayerEntity,
 } from '@/components/map';
+import {
+  AnyEntity,
+  GroundObjectEntity,
+  MapDefinition,
+  Terrain,
+} from '@/components/map-renderer';
 import { useDisplay } from '@/display';
 import { ActorContext } from '@/(challenges)/raids/tob/context';
 import {
   useLegacyTickTimeout,
+  useMapEntities,
   usePlayingState,
   useStageEvents,
 } from '@/utils/boss-room-state';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
+import BarrierEntity from '../barrier';
+
 import bossStyles from '../style.module.scss';
 import styles from './style.module.scss';
 import verzikBaseTiles from './verzik-tiles.json';
+import { inRect } from '@/utils/coords';
 
-const VERZIK_MAP_DEFINITION = {
+const VERZIK_MAP_DEFINITION: MapDefinition = {
+  baseX: 3144,
+  baseY: 4288,
+  width: 48,
+  height: 48,
+  initialCameraPosition: {
+    x: 3168.5,
+    y: 4316,
+  },
+};
+
+const LEGACY_VERZIK_MAP_DEFINITION = {
   baseX: 3154,
   baseY: 4302,
   width: 29,
   height: 25,
   baseTiles: verzikBaseTiles,
 };
+
+class VerzikTerrain implements Terrain {
+  constructor(private readonly pillars: Coords[]) {}
+
+  isPassable(coords: Coords): boolean {
+    return !this.pillars.some((p) =>
+      inRect(coords, { x: p.x, y: p.y, width: 3, height: 3 }),
+    );
+  }
+}
 
 const VERZIK_ATTACK_BACKGROUND = '#391717';
 
@@ -85,11 +119,18 @@ type RedCrabInfo = {
   verzikLowestHpPercentage?: number;
 };
 
+const BARRIER = new BarrierEntity({ x: 3296, y: 4256 }, 2);
+
+const DEFAULT_USE_NEW_REPLAY = true;
+
 export default function VerzikPage() {
   const display = useDisplay();
+  const [useNewReplay, setUseNewReplay] = useState(DEFAULT_USE_NEW_REPLAY);
+
+  const compact = display.isCompact();
 
   const {
-    challenge: raidData,
+    challenge,
     totalTicks,
     eventsByTick,
     eventsByType,
@@ -101,41 +142,68 @@ export default function VerzikPage() {
   const { currentTick, setTick, playing, setPlaying, advanceTick } =
     usePlayingState(totalTicks);
   const { updateTickOnPage } = useLegacyTickTimeout(
-    true,
+    !useNewReplay,
     playing,
     currentTick,
     setTick,
   );
+
+  const eventsForCurrentTick = eventsByTick[currentTick] ?? [];
+
+  const mapDefinition = useMemo(() => {
+    const pillarsThisTick: Coords[] = [];
+
+    for (const event of eventsForCurrentTick) {
+      if (
+        event.type === EventType.NPC_SPAWN ||
+        event.type === EventType.NPC_UPDATE
+      ) {
+        const npcEvent = event as NpcEvent;
+        if (npcEvent.npc.id === NpcId.VERZIK_PILLAR) {
+          pillarsThisTick.push({ x: npcEvent.xCoord, y: npcEvent.yCoord });
+        }
+      }
+    }
+
+    const terrain = new VerzikTerrain(pillarsThisTick);
+    const initialZoom = compact ? 11 : 23.5;
+
+    return {
+      ...VERZIK_MAP_DEFINITION,
+      terrain,
+      initialZoom,
+    };
+  }, [compact, eventsForCurrentTick]);
 
   const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
 
   const redCrabInfoRef = useRef<HTMLDivElement>(null);
 
   const [splits, redsInfo, backgroundColors] = useMemo(() => {
-    if (raidData === null) {
+    if (challenge === null) {
       return [[], [], []];
     }
 
     const splits: TimelineSplit[] = [];
-    if (raidData.splits[SplitType.TOB_VERZIK_P1_END]) {
+    if (challenge.splits[SplitType.TOB_VERZIK_P1_END]) {
       splits.push({
-        tick: raidData.splits[SplitType.TOB_VERZIK_P1_END],
+        tick: challenge.splits[SplitType.TOB_VERZIK_P1_END],
         splitName: 'P1 End',
         unimportant: true,
       });
       splits.push({
-        tick: raidData.splits[SplitType.TOB_VERZIK_P1_END] + 13,
+        tick: challenge.splits[SplitType.TOB_VERZIK_P1_END] + 13,
         splitName: 'P2',
       });
     }
-    if (raidData.splits[SplitType.TOB_VERZIK_P2_END]) {
+    if (challenge.splits[SplitType.TOB_VERZIK_P2_END]) {
       splits.push({
-        tick: raidData.splits[SplitType.TOB_VERZIK_P2_END],
+        tick: challenge.splits[SplitType.TOB_VERZIK_P2_END],
         splitName: 'P2 End',
         unimportant: true,
       });
       splits.push({
-        tick: raidData.splits[SplitType.TOB_VERZIK_P2_END] + 6,
+        tick: challenge.splits[SplitType.TOB_VERZIK_P2_END] + 6,
         splitName: 'P3',
       });
     }
@@ -181,7 +249,7 @@ export default function VerzikPage() {
       splits.push({
         tick,
         splitName: i === 0 ? 'Reds' : `Reds ${i + 1}`,
-        unimportant: tick !== raidData?.splits[SplitType.TOB_VERZIK_REDS],
+        unimportant: tick !== challenge?.splits[SplitType.TOB_VERZIK_REDS],
       });
 
       splits.push({
@@ -230,21 +298,50 @@ export default function VerzikPage() {
       });
     }
     return [splits, info, backgroundColors];
-  }, [raidData, eventsByType, eventsByTick]);
+  }, [challenge, eventsByType, eventsByTick]);
 
-  if (loading || raidData === null) {
+  const customEntitiesForTick = useCallback(
+    (tick: number) => {
+      const entities: AnyEntity[] = [BARRIER];
+
+      const yellowsEvent = eventsByTick[tick]?.find(
+        (e) => e.type === EventType.TOB_VERZIK_YELLOWS,
+      ) as VerzikYellowsEvent | undefined;
+      if (yellowsEvent !== undefined) {
+        for (const yellow of yellowsEvent.verzikYellows) {
+          entities.push(
+            new GroundObjectEntity(
+              yellow,
+              '/verzik_p3_yellow.webp',
+              'Verzik yellow pool',
+            ),
+          );
+        }
+      }
+
+      return entities;
+    },
+    [eventsByTick],
+  );
+
+  const { entitiesByTick, preloads } = useMapEntities(
+    challenge,
+    playerState,
+    npcState,
+    totalTicks,
+    { customEntitiesForTick },
+  );
+
+  if (loading || challenge === null) {
     return <Loading />;
   }
 
-  const verzikData = raidData.tobRooms.verzik;
-  if (raidData.status !== ChallengeStatus.IN_PROGRESS && verzikData === null) {
+  const verzikData = challenge.tobRooms.verzik;
+  if (challenge.status !== ChallengeStatus.IN_PROGRESS && verzikData === null) {
     return <>No Verzik data for this raid</>;
   }
 
-  const eventsForCurrentTick = eventsByTick[currentTick] ?? [];
-
-  let entities: Entity[] = [];
-  const players: PlayerEntity[] = [];
+  const legacyEntities: LegacyEntity[] = [];
 
   for (const evt of eventsForCurrentTick) {
     switch (evt.type) {
@@ -253,22 +350,21 @@ export default function VerzikPage() {
         const hitpoints = e.player.hitpoints
           ? SkillLevel.fromRaw(e.player.hitpoints)
           : undefined;
-        const player = new PlayerEntity(
+        const player = new LegacyPlayerEntity(
           e.xCoord,
           e.yCoord,
           e.player.name,
           hitpoints,
           /*highlight=*/ e.player.name === selectedPlayer,
         );
-        entities.push(player);
-        players.push(player);
+        legacyEntities.push(player);
         break;
       }
       case EventType.NPC_SPAWN:
       case EventType.NPC_UPDATE: {
         const e = evt as NpcEvent;
-        entities.push(
-          new NpcEntity(
+        legacyEntities.push(
+          new LegacyNpcEntity(
             e.xCoord,
             e.yCoord,
             e.npc.id,
@@ -287,8 +383,8 @@ export default function VerzikPage() {
   ) as VerzikYellowsEvent | undefined;
   if (yellowsEvent !== undefined) {
     for (const yellow of yellowsEvent.verzikYellows) {
-      entities.push(
-        new OverlayEntity(
+      legacyEntities.push(
+        new LegacyOverlayEntity(
           yellow.x,
           yellow.y,
           'yellow',
@@ -308,7 +404,7 @@ export default function VerzikPage() {
     }
   }
 
-  const playerTickState = raidData.party.reduce(
+  const playerTickState = challenge.party.reduce(
     (acc, { username }) => ({
       ...acc,
       [username]: playerState.get(username)?.at(currentTick) ?? null,
@@ -319,59 +415,61 @@ export default function VerzikPage() {
   const sections = [];
 
   if (
-    raidData.splits[SplitType.TOB_VERZIK_P1_END] ||
-    raidData.splits[SplitType.TOB_VERZIK_REDS] ||
-    raidData.splits[SplitType.TOB_VERZIK_P2_END]
+    challenge.splits[SplitType.TOB_VERZIK_P1_END] ||
+    challenge.splits[SplitType.TOB_VERZIK_REDS] ||
+    challenge.splits[SplitType.TOB_VERZIK_P2_END]
   ) {
     sections.push({
       title: 'Phase Splits',
       content: (
         <div className={styles.phaseTimes}>
-          {raidData.splits[SplitType.TOB_VERZIK_P1_END] && (
+          {challenge.splits[SplitType.TOB_VERZIK_P1_END] && (
             <div className={styles.phaseTime}>
               <span className={styles.phaseLabel}>P1:</span>
               <button
                 className={styles.phaseValue}
                 onClick={() => {
                   updateTickOnPage(
-                    raidData.splits[SplitType.TOB_VERZIK_P1_END]!,
+                    challenge.splits[SplitType.TOB_VERZIK_P1_END]!,
                   );
                 }}
               >
                 {ticksToFormattedSeconds(
-                  raidData.splits[SplitType.TOB_VERZIK_P1_END],
+                  challenge.splits[SplitType.TOB_VERZIK_P1_END],
                 )}
               </button>
             </div>
           )}
-          {raidData.splits[SplitType.TOB_VERZIK_REDS] && (
+          {challenge.splits[SplitType.TOB_VERZIK_REDS] && (
             <div className={styles.phaseTime}>
               <span className={styles.phaseLabel}>Reds:</span>
               <button
                 className={styles.phaseValue}
                 onClick={() => {
-                  updateTickOnPage(raidData.splits[SplitType.TOB_VERZIK_REDS]!);
+                  updateTickOnPage(
+                    challenge.splits[SplitType.TOB_VERZIK_REDS]!,
+                  );
                 }}
               >
                 {ticksToFormattedSeconds(
-                  raidData.splits[SplitType.TOB_VERZIK_REDS],
+                  challenge.splits[SplitType.TOB_VERZIK_REDS],
                 )}
               </button>
             </div>
           )}
-          {raidData.splits[SplitType.TOB_VERZIK_P2_END] && (
+          {challenge.splits[SplitType.TOB_VERZIK_P2_END] && (
             <div className={styles.phaseTime}>
               <span className={styles.phaseLabel}>P2:</span>
               <button
                 className={styles.phaseValue}
                 onClick={() => {
                   updateTickOnPage(
-                    raidData.splits[SplitType.TOB_VERZIK_P2_END]!,
+                    challenge.splits[SplitType.TOB_VERZIK_P2_END]!,
                   );
                 }}
               >
                 {ticksToFormattedSeconds(
-                  raidData.splits[SplitType.TOB_VERZIK_P2_END],
+                  challenge.splits[SplitType.TOB_VERZIK_P2_END],
                 )}
               </button>
             </div>
@@ -436,11 +534,25 @@ export default function VerzikPage() {
       </div>
 
       <div className={bossStyles.replayAndParty}>
-        <BossPageReplay
-          entities={entities}
-          mapDef={VERZIK_MAP_DEFINITION}
-          tileSize={display.isCompact() ? 12 : undefined}
-        />
+        {useNewReplay ? (
+          <NewBossPageReplay
+            entities={entitiesByTick.get(currentTick) ?? []}
+            preloads={preloads}
+            mapDef={mapDefinition}
+            playing={playing}
+            width={compact ? 348 : 725}
+            height={compact ? 300 : 625}
+            currentTick={currentTick}
+            advanceTick={advanceTick}
+            setUseLegacy={() => setUseNewReplay(false)}
+          />
+        ) : (
+          <BossPageReplay
+            entities={legacyEntities}
+            mapDef={LEGACY_VERZIK_MAP_DEFINITION}
+            tileSize={compact ? 12 : undefined}
+          />
+        )}
         <BossPageParty
           playerTickState={playerTickState}
           selectedPlayer={selectedPlayer}
