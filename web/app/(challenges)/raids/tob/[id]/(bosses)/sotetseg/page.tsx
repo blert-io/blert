@@ -324,6 +324,12 @@ export default function SotetsegPage() {
                 raidData.splits[SplitType.TOB_SOTETSEG_MAZE_1] ?? 0,
               )}
             </div>
+            {soteData.maze1Chosen && (
+              <div className={styles.mazeStat}>
+                <i className="fa-solid fa-user" />
+                {soteData.maze1Chosen}
+              </div>
+            )}
           </div>
         </div>
       ),
@@ -349,6 +355,12 @@ export default function SotetsegPage() {
                 raidData.splits[SplitType.TOB_SOTETSEG_MAZE_2] ?? 0,
               )}
             </div>
+            {soteData.maze2Chosen && (
+              <div className={styles.mazeStat}>
+                <i className="fa-solid fa-user" />
+                {soteData.maze2Chosen}
+              </div>
+            )}
           </div>
         </div>
       ),

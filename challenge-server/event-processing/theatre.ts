@@ -36,6 +36,7 @@ type SoteMazeState = {
   endTick: number;
   accuratePath: boolean;
   partialPivots: number[];
+  chosenPlayer: string | null;
 };
 
 type BloatHandData = {
@@ -311,6 +312,8 @@ export default class TheatreProcessor extends ChallengeProcessor {
           stage: Stage.TOB_SOTETSEG,
           maze1Pivots: this.soteMazes[0]?.pivots ?? [],
           maze2Pivots: this.soteMazes[1]?.pivots ?? [],
+          maze1Chosen: this.soteMazes[0]?.chosenPlayer ?? null,
+          maze2Chosen: this.soteMazes[1]?.chosenPlayer ?? null,
         };
         this.stageStats.sotetsegDeaths = this.rooms.sotetseg.deaths.length;
         break;
@@ -534,6 +537,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
           endTick: 0,
           accuratePath: false,
           partialPivots: Array(8).fill(-1),
+          chosenPlayer: null,
         });
         break;
       }
@@ -550,9 +554,13 @@ export default class TheatreProcessor extends ChallengeProcessor {
       }
 
       case Event.Type.TOB_SOTE_MAZE_END: {
-        const maze = event.getSoteMaze()!.getMaze();
+        const soteMaze = event.getSoteMaze()!;
+        const maze = soteMaze.getMaze();
         const activeMaze = this.soteMazes[this.soteMazes.length - 1];
         activeMaze.endTick = event.getTick();
+        if (soteMaze.hasChosenPlayer()) {
+          activeMaze.chosenPlayer = soteMaze.getChosenPlayer();
+        }
 
         if (maze === Maze.MAZE_66) {
           this.setSplit(
@@ -608,6 +616,34 @@ export default class TheatreProcessor extends ChallengeProcessor {
           }
         }
         break;
+
+      case Event.Type.TOB_VERZIK_BOUNCE: {
+        const bounce = event.getVerzikBounce()!;
+
+        if (bounce.getNpcAttackTick() === -1) {
+          // If the tick is -1, no one got bounced, and the event just reports
+          // the number of players who were in bounce range.
+          return false;
+        }
+
+        const attack = allEvents
+          .eventsForTick(bounce.getNpcAttackTick())
+          .find(
+            (e) =>
+              e.getType() === Event.Type.NPC_ATTACK &&
+              e.getNpcAttack()!.getAttack() === NpcAttack.TOB_VERZIK_P2_BOUNCE,
+          );
+
+        if (attack === undefined) {
+          logger.warn(
+            `Challenge ${this.getUuid()} got VERZIK_BOUNCE without a matching NPC_ATTACK`,
+          );
+          return false;
+        }
+
+        attack.getNpcAttack()!.setTarget(bounce.getBouncedPlayer());
+        return false; // Don't write this event.
+      }
 
       case Event.Type.TOB_VERZIK_ATTACK_STYLE: {
         // Update the previously-written NPC_ATTACK event.

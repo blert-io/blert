@@ -47,6 +47,8 @@ export type {
   SoteMazePath,
   SoteMazePathEvent,
   VerzikAttackStyleEvent,
+  VerzikDawnEvent,
+  VerzikHealEvent,
   VerzikPhaseEvent,
   XarpusExhumed,
   XarpusExhumedEvent,

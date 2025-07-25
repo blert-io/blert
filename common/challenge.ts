@@ -65,7 +65,12 @@ export type TobRooms = {
   bloat: Nullable<TobRoom & { downTicks: number[] }>;
   nylocas: Nullable<TobRoom & { stalledWaves: number[] }>;
   sotetseg: Nullable<
-    TobRoom & { maze1Pivots: number[]; maze2Pivots: number[] }
+    TobRoom & {
+      maze1Pivots: number[];
+      maze2Pivots: number[];
+      maze1Chosen: string | null;
+      maze2Chosen: string | null;
+    }
   >;
   xarpus: Nullable<TobRoom>;
   verzik: Nullable<TobRoom & { redsSpawnCount: number }>;

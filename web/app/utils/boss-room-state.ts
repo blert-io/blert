@@ -29,6 +29,8 @@ import {
   DataSource,
   SplitType,
   Skill,
+  VerzikHealEvent,
+  VerzikDawnEvent,
 } from '@blert/common';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -160,6 +162,13 @@ export type PlayerState = Omit<PlayerUpdateEvent, 'type' | 'stage' | 'cId'> & {
   isDead: boolean;
   equipment: PlayerEquipment;
   skills: { [key in Skill]?: SkillLevel };
+  customState: Array<CustomPlayerState>;
+};
+
+export type CustomPlayerState = {
+  label: string;
+  fullText?: string;
+  icon?: string;
 };
 
 export type NpcState = {
@@ -284,6 +293,7 @@ export function useStageEvents<T extends Challenge>(stage: Stage) {
           c.party.map((p) => p.username),
           totalTicks,
           eventsByTick,
+          eventsByType,
         );
         const npcState = computeNpcState(
           npcs,
@@ -363,11 +373,12 @@ function computePlayerState(
   party: string[],
   totalTicks: number,
   eventsByTick: EventTickMap,
+  eventsByType: EventTypeMap,
 ): Map<string, Nullable<PlayerState>[]> {
   let playerState: Map<string, Nullable<PlayerState>[]> = new Map();
 
   for (const partyMember of party) {
-    const state = Array(totalTicks).fill(null);
+    const state: Array<Nullable<PlayerState>> = Array(totalTicks).fill(null);
 
     let isDead = false;
     let lastActiveTick = -1;
@@ -399,9 +410,10 @@ function computePlayerState(
           isDead,
           equipment:
             lastActiveTick !== -1
-              ? { ...state[lastActiveTick].equipment }
+              ? { ...state[lastActiveTick]!.equipment }
               : { ...EMPTY_EQUIPMENT },
           skills: {},
+          customState: [],
         };
         lastActiveTick = tick;
 
@@ -489,12 +501,14 @@ function computePlayerState(
           isDead: true,
           equipment: { ...EMPTY_EQUIPMENT },
           skills: {},
+          customState: [],
         };
       }
 
       state[tick] = playerStateThisTick;
     }
 
+    postprocessPlayerState(partyMember, state, eventsByType);
     playerState.set(partyMember, state);
   }
 
@@ -611,6 +625,38 @@ function computeNpcState(
   });
 
   return npcs;
+}
+
+function postprocessPlayerState(
+  partyMember: string,
+  state: Array<Nullable<PlayerState>>,
+  eventsByType: EventTypeMap,
+) {
+  eventsByType[EventType.TOB_VERZIK_HEAL]?.forEach((event) => {
+    const verzikHeal = (event as VerzikHealEvent).verzikHeal;
+    const tickState = state[event.tick];
+    if (tickState !== null && verzikHeal.player === partyMember) {
+      tickState.customState.push({
+        icon: '/images/npcs/8386.webp',
+        label: verzikHeal.healAmount.toString(),
+        fullText:
+          verzikHeal.healAmount > 0
+            ? `Healed Verzik for ${verzikHeal.healAmount}`
+            : 'Healed Verzik',
+      });
+    }
+  });
+
+  eventsByType[EventType.TOB_VERZIK_DAWN]?.forEach((event) => {
+    const dawn = (event as VerzikDawnEvent).verzikDawn;
+    const tickState = state[dawn.attackTick];
+    if (tickState !== null && dawn.player === partyMember) {
+      tickState.customState.push({
+        label: dawn.damage.toString(),
+        fullText: `Dawnbringer special attack hit for ${dawn.damage}`,
+      });
+    }
+  });
 }
 
 const BLOAT_DOWN_TICKS = 32;

@@ -290,6 +290,15 @@ const [
   size: 2,
 });
 
+const [VERZIK_TORNADO_ENTRY, VERZIK_TORNADO_REGULAR, VERZIK_TORNADO_HARD] =
+  defineForAllModes({
+    fullName: 'Tornado',
+    shortName: 'Tornado',
+    canonicalId: NpcId.VERZIK_TORNADO_REGULAR,
+    semanticId: false,
+    size: 1,
+  });
+
 const JAGUAR_WARRIOR = {
   fullName: 'Jaguar Warrior',
   shortName: 'Furry',
@@ -551,6 +560,11 @@ const NPC_DEFINITIONS: { [id: number]: NpcDefinition } = {
   [NpcId.VERZIK_MATOMENOS_ENTRY]: VERZIK_MATOMENOS_ENTRY,
   [NpcId.VERZIK_MATOMENOS_REGULAR]: VERZIK_MATOMENOS_REGULAR,
   [NpcId.VERZIK_MATOMENOS_HARD]: VERZIK_MATOMENOS_HARD,
+
+  // Tornadoes at Verzik.
+  [NpcId.VERZIK_TORNADO_ENTRY]: VERZIK_TORNADO_ENTRY,
+  [NpcId.VERZIK_TORNADO_REGULAR]: VERZIK_TORNADO_REGULAR,
+  [NpcId.VERZIK_TORNADO_HARD]: VERZIK_TORNADO_HARD,
 
   // Colosseum NPCs.
   [NpcId.JAGUAR_WARRIOR]: JAGUAR_WARRIOR,

@@ -26,12 +26,14 @@ import Item from '@/components/item';
 import { BlertMemes, MemeContext } from '@/(challenges)/raids/meme-context';
 import { ActorContext, RoomActorState } from '@/(challenges)/raids/tob/context';
 import {
+  CustomPlayerState,
   PlayerState,
   PlayerStateMap,
   RoomNpcMap,
 } from '@/utils/boss-room-state';
 import { BoostType, maxBoostedLevel } from '@/utils/combat';
 import { normalizeItemId } from '@/utils/item';
+import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import { ATTACK_METADATA, CombatStyle } from './attack-metadata';
 import PlayerSkill from '../player-skill';
@@ -54,16 +56,13 @@ function TimelineTooltipRenderer({
   if (!activeAnchor) {
     return null;
   }
+  if (activeAnchor.dataset.tooltipType === 'npc') {
+    const npcName = activeAnchor.dataset.tooltipNpcName;
+    const npcAttack = activeAnchor.dataset.tooltipNpcAttack;
+    const npcTarget = activeAnchor.dataset.tooltipNpcTarget;
 
-  let content;
-
-  switch (activeAnchor.dataset.tooltipType) {
-    case 'npc': {
-      const npcName = activeAnchor.dataset.tooltipNpcName;
-      const npcAttack = activeAnchor.dataset.tooltipNpcAttack;
-      const npcTarget = activeAnchor.dataset.tooltipNpcTarget;
-
-      content = (
+    return (
+      <div className={styles.tooltip}>
         <div className={styles.npcTooltip}>
           <button className={styles.npc}>{npcName}</button>
           {npcTarget ? (
@@ -79,155 +78,255 @@ function TimelineTooltipRenderer({
           )}
           <span className={styles.npcAttack}>{npcAttack}</span>
         </div>
-      );
-      break;
-    }
-
-    case 'player': {
-      const username = activeAnchor.dataset.tooltipUsername!;
-      const attackType = parseInt(
-        activeAnchor.dataset.tooltipAttack!,
-      ) as PlayerAttack;
-      const hitpoints = activeAnchor.dataset.tooltipTargetHp;
-      const distance = activeAnchor.dataset.tooltipDistance;
-      const prayerSet = parseInt(activeAnchor.dataset.tooltipPrayerSet ?? '0');
-
-      const meta =
-        ATTACK_METADATA[attackType] ?? ATTACK_METADATA[PlayerAttack.UNKNOWN];
-
-      let stats = [];
-
-      const rawStats = activeAnchor.dataset.tooltipStats;
-      if (rawStats !== undefined) {
-        const [attack, strength, ranged, magic] = JSON.parse(rawStats).map(
-          (s: number) => (s !== undefined ? SkillLevel.fromRaw(s) : undefined),
-        );
-
-        const combatThresholds = (boost: BoostType, level: number) => ({
-          high: maxBoostedLevel(boost, level),
-          low: level,
-        });
-
-        switch (meta.style) {
-          case CombatStyle.MELEE:
-            if (attack !== undefined) {
-              stats.push(
-                <PlayerSkill
-                  key="attack"
-                  skill={Skill.ATTACK}
-                  level={attack}
-                  thresholds={combatThresholds(
-                    BoostType.SUPER_COMBAT,
-                    attack.getBase(),
-                  )}
-                />,
-              );
-            }
-            if (strength !== undefined) {
-              stats.push(
-                <PlayerSkill
-                  key="strength"
-                  skill={Skill.STRENGTH}
-                  level={strength}
-                  thresholds={combatThresholds(
-                    BoostType.SUPER_COMBAT,
-                    strength.getBase(),
-                  )}
-                />,
-              );
-            }
-            break;
-          case CombatStyle.RANGED:
-            if (ranged !== undefined) {
-              stats.push(
-                <PlayerSkill
-                  key="ranged"
-                  skill={Skill.RANGED}
-                  level={ranged}
-                  thresholds={combatThresholds(
-                    BoostType.RANGING_POTION,
-                    ranged.getBase(),
-                  )}
-                />,
-              );
-            }
-            break;
-          case CombatStyle.MAGIC:
-            if (magic !== undefined) {
-              stats.push(
-                <PlayerSkill
-                  key="magic"
-                  skill={Skill.MAGIC}
-                  level={magic}
-                  thresholds={combatThresholds(
-                    BoostType.SATURATED_HEART,
-                    magic.getBase(),
-                  )}
-                />,
-              );
-            }
-            break;
-        }
-      }
-
-      content = (
-        <div className={styles.playerTooltip}>
-          <div className={styles.message}>
-            <button
-              className={styles.playerName}
-              onClick={() => setSelectedPlayer(username)}
-            >
-              {username}
-            </button>
-            <span>{playerAttackVerb(attackType)}</span>
-            <button className={styles.npc}>
-              {activeAnchor.dataset.tooltipTargetName}
-              {hitpoints && (
-                <span className={styles.hitpoints}>
-                  <i className="far fa-heart" />
-                  {hitpoints}%
-                </span>
-              )}
-            </button>
-            {meta.ranged && (
-              <span>{`from ${distance} tile${distance === '1' ? '' : 's'} away`}</span>
-            )}
-          </div>
-          {stats.length > 0 && (
-            <>
-              <div className={styles.divider} />
-              <div className={styles.stats}>{stats}</div>
-              <KeyPrayers
-                combatOnly
-                prayerSet={prayerSet}
-                source={DataSource.PRIMARY}
-              />
-            </>
-          )}
-        </div>
-      );
-      break;
-    }
-
-    case 'player-death': {
-      const username = activeAnchor.dataset.tooltipUsername!;
-
-      content = (
-        <div className={styles.playerDeathTooltip}>
-          <button onClick={() => setSelectedPlayer(username)}>
-            {username}
-          </button>
-          <span>died</span>
-        </div>
-      );
-      break;
-    }
-
-    default:
-      return null;
+      </div>
+    );
   }
 
-  return <div className={styles.tooltip}>{content}</div>;
+  const username = activeAnchor.dataset.tooltipUsername;
+  const tick = activeAnchor.dataset.tooltipTick;
+  const customState = JSON.parse(
+    activeAnchor.dataset.tooltipCustomState ?? '[]',
+  );
+
+  if (!username || !tick) {
+    return null;
+  }
+
+  const sections: React.ReactNode[] = [];
+
+  const headerSection = (
+    <div className={styles.tooltipHeader} key="header">
+      <button
+        className={styles.playerName}
+        onClick={() => setSelectedPlayer(username)}
+      >
+        {username}
+      </button>
+      <span className={styles.tickInfo}>Tick {tick}</span>
+      <span className={styles.timeInfo}>
+        {ticksToFormattedSeconds(parseInt(tick))}
+      </span>
+    </div>
+  );
+  sections.push(headerSection);
+
+  const attackType = activeAnchor.dataset.tooltipAttack;
+  if (attackType) {
+    const attack = parseInt(attackType) as PlayerAttack;
+    const hitpoints = activeAnchor.dataset.tooltipTargetHp;
+    const distance = activeAnchor.dataset.tooltipDistance;
+    const targetName = activeAnchor.dataset.tooltipTargetName;
+
+    const meta =
+      ATTACK_METADATA[attack] ?? ATTACK_METADATA[PlayerAttack.UNKNOWN];
+
+    const attackSection = (
+      <div className={styles.tooltipSection} key="attack">
+        <div className={styles.sectionHeader}>
+          <i className="fas fa-bolt" />
+          <span>Attack</span>
+        </div>
+        <div className={styles.attackInfo}>
+          <span className={styles.attackVerb}>{playerAttackVerb(attack)}</span>
+          <button className={styles.npc}>
+            {targetName}
+            {hitpoints && (
+              <span className={styles.hitpoints}>
+                <i className="far fa-heart" />
+                {hitpoints}%
+              </span>
+            )}
+          </button>
+          {meta.ranged && (
+            <span className={styles.distanceInfo}>
+              from {distance} tile{distance === '1' ? '' : 's'} away
+            </span>
+          )}
+        </div>
+      </div>
+    );
+    sections.push(attackSection);
+  }
+
+  const rawStats = activeAnchor.dataset.tooltipStats;
+  const prayerSet = activeAnchor.dataset.tooltipPrayerSet;
+  if (rawStats) {
+    const [attack, strength, ranged, magic] = JSON.parse(rawStats).map(
+      (s: number) => (s !== undefined ? SkillLevel.fromRaw(s) : undefined),
+    );
+
+    const combatThresholds = (boost: BoostType, level: number) => ({
+      high: maxBoostedLevel(boost, level),
+      low: level,
+    });
+
+    const stats = [];
+
+    const attackTypeParsed = activeAnchor.dataset.tooltipAttack
+      ? (parseInt(activeAnchor.dataset.tooltipAttack) as PlayerAttack)
+      : null;
+    const meta = attackTypeParsed
+      ? (ATTACK_METADATA[attackTypeParsed] ??
+        ATTACK_METADATA[PlayerAttack.UNKNOWN])
+      : null;
+    const emphasizedClass = (style: CombatStyle) =>
+      meta?.style === style
+        ? `${styles.combatStat} ${styles.emphasized}`
+        : styles.combatStat;
+
+    if (attack !== undefined) {
+      stats.push(
+        <PlayerSkill
+          className={emphasizedClass(CombatStyle.MELEE)}
+          key="attack"
+          skill={Skill.ATTACK}
+          level={attack}
+          thresholds={combatThresholds(
+            BoostType.SUPER_COMBAT,
+            attack.getBase(),
+          )}
+        />,
+      );
+    }
+    if (strength !== undefined) {
+      stats.push(
+        <PlayerSkill
+          className={emphasizedClass(CombatStyle.MELEE)}
+          key="strength"
+          skill={Skill.STRENGTH}
+          level={strength}
+          thresholds={combatThresholds(
+            BoostType.SUPER_COMBAT,
+            strength.getBase(),
+          )}
+        />,
+      );
+    }
+
+    if (ranged !== undefined) {
+      stats.push(
+        <PlayerSkill
+          className={emphasizedClass(CombatStyle.RANGED)}
+          key="ranged"
+          skill={Skill.RANGED}
+          level={ranged}
+          thresholds={combatThresholds(
+            BoostType.RANGING_POTION,
+            ranged.getBase(),
+          )}
+        />,
+      );
+    }
+
+    if (magic !== undefined) {
+      stats.push(
+        <PlayerSkill
+          className={emphasizedClass(CombatStyle.MAGIC)}
+          key="magic"
+          skill={Skill.MAGIC}
+          level={magic}
+          thresholds={combatThresholds(
+            BoostType.SATURATED_HEART,
+            magic.getBase(),
+          )}
+        />,
+      );
+    }
+
+    if (stats.length > 0) {
+      const statsSection = (
+        <div className={styles.tooltipSection} key="stats">
+          <div className={styles.sectionHeader}>
+            <i className="fas fa-chart-bar" />
+            <span>Combat Stats</span>
+          </div>
+          <div className={styles.statsGrid}>{stats}</div>
+          <KeyPrayers
+            combatOnly
+            prayerSet={parseInt(prayerSet ?? '0')}
+            source={DataSource.PRIMARY}
+          />
+        </div>
+      );
+      sections.push(statsSection);
+    }
+  }
+
+  if (activeAnchor.dataset.tooltipDeathState) {
+    const deathSection = (
+      <div className={styles.tooltipSection} key="death">
+        <div className={styles.sectionHeader}>
+          <i className="fas fa-skull" />
+          <span>Death</span>
+        </div>
+        <div className={styles.deathInfo}>
+          {activeAnchor.dataset.tooltipDeathState === 'tick'
+            ? 'Player died this tick'
+            : 'Player is dead'}
+        </div>
+      </div>
+    );
+    sections.push(deathSection);
+  }
+
+  if (customState.length > 0) {
+    const customStateSection = (
+      <div className={styles.tooltipSection} key="custom-state">
+        <div className={styles.sectionHeader}>
+          <i className="fas fa-info-circle" />
+          <span>Other</span>
+        </div>
+        <div className={styles.customStateList}>
+          {customState.map((cs: CustomPlayerState, i: number) => (
+            <div key={i} className={styles.customStateItem}>
+              <div className={styles.customStateIcon}>
+                {cs.icon ? (
+                  <Image
+                    src={cs.icon}
+                    alt={cs.label}
+                    height={16}
+                    width={16}
+                    style={{ objectFit: 'contain' }}
+                  />
+                ) : (
+                  <i className="fas fa-star" />
+                )}
+              </div>
+              <span className={styles.customStateLabel}>
+                {cs.fullText ?? cs.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+    sections.push(customStateSection);
+  }
+
+  if (sections.length === 1) {
+    // Only the header exists.
+    sections.push(
+      <div
+        className={`${styles.tooltipSection} ${styles.noContent}`}
+        key="no-content"
+      >
+        Nothing interesting happened.
+      </div>,
+    );
+  }
+
+  return (
+    <div className={styles.tooltip}>
+      {sections.map((section, index) => (
+        <>
+          {section}
+          {index < sections.length - 1 && (
+            <div className={styles.sectionDivider} />
+          )}
+        </>
+      ))}
+    </div>
+  );
 }
 
 function npcAttackImage(attack: NpcAttack, size: number) {
@@ -366,34 +465,62 @@ function npcAttackImage(attack: NpcAttack, size: number) {
 }
 
 function makeCellImage(
-  playerAttack: Attack,
+  state: PlayerState,
   size: number,
   memes: BlertMemes,
   normalizeItems: boolean,
 ) {
-  let blunderIcon;
+  let customState;
 
-  switch (true) {
-    case true:
-      blunderIcon = (
-        <Image
-          className={styles.attackTimeline__CellImage__blunderIcon}
-          src={'/spec.png'}
-          alt="Special Attack"
-          height={25}
-          width={25}
-        />
-      );
-      break;
+  if (state.customState.length > 0) {
+    customState = state.customState.map((cs, i) => (
+      <div className={styles.customState} key={i}>
+        {cs.icon ? (
+          <Image
+            src={cs.icon}
+            alt={cs.fullText ?? cs.label ?? ''}
+            height={size / 2}
+            width={size / 2}
+            style={{ objectFit: 'contain' }}
+          />
+        ) : (
+          <span>{cs.label}</span>
+        )}
+      </div>
+    ));
   }
 
-  let content;
+  let baseImage = undefined;
+  let attackIcon = undefined;
 
-  const meta =
-    ATTACK_METADATA[playerAttack.type] ?? ATTACK_METADATA[PlayerAttack.UNKNOWN];
+  const playerAttack = state.attack;
+  if (playerAttack === undefined) {
+    if (state.diedThisTick) {
+      baseImage = (
+        <Image
+          src="/skull.webp"
+          alt="Player died"
+          height={size}
+          width={size}
+          style={{ objectFit: 'contain' }}
+        />
+      );
+    } else {
+      baseImage = <span className={styles.attackTimeline__Nothing}></span>;
+    }
+  } else {
+    const meta =
+      ATTACK_METADATA[playerAttack.type] ??
+      ATTACK_METADATA[PlayerAttack.UNKNOWN];
 
-  if (!memes.capsLock) {
-    let infoIcon = undefined;
+    if (memes.capsLock) {
+      // In caps lock mode, only use letters.
+      return (
+        <div className={styles.attackTimeline__CellImage}>
+          <div className={styles.letter}>{meta.letter}</div>
+        </div>
+      );
+    }
 
     const trollStyles = {
       filter: 'drop-shadow(2px 4px 6px black)',
@@ -402,7 +529,7 @@ function makeCellImage(
     let troll = false;
 
     if (meta.special) {
-      infoIcon = (
+      attackIcon = (
         <Image
           className={styles.attackTimeline__CellImage__InfoIcon}
           src={'/spec.png'}
@@ -425,7 +552,7 @@ function makeCellImage(
       case PlayerAttack.TOXIC_STAFF_BARRAGE:
       case PlayerAttack.TRIDENT_BARRAGE:
       case PlayerAttack.UNKNOWN_BARRAGE:
-        infoIcon = (
+        attackIcon = (
           <Image
             className={styles.attackTimeline__CellImage__InfoIcon}
             src={'/images/combat/barrage.png'}
@@ -437,7 +564,7 @@ function makeCellImage(
         break;
 
       case PlayerAttack.ICE_RUSH:
-        infoIcon = (
+        attackIcon = (
           <Image
             className={styles.attackTimeline__CellImage__InfoIcon}
             src={'/images/combat/ice-rush.png'}
@@ -483,9 +610,8 @@ function makeCellImage(
 
     let outline = memes.inventoryTags ? meta.tagColor : undefined;
 
-    let weaponImage;
     if (playerAttack.weapon) {
-      weaponImage = (
+      baseImage = (
         <Item
           id={
             normalizeItems
@@ -513,7 +639,7 @@ function makeCellImage(
           break;
       }
 
-      weaponImage = (
+      baseImage = (
         <Image
           src={customImageUrl}
           alt="Unknown attack"
@@ -523,19 +649,15 @@ function makeCellImage(
         />
       );
     }
-
-    content = (
-      <>
-        {infoIcon}
-        {weaponImage}
-      </>
-    );
-  } else {
-    // In caps lock mode, only use letters.
-    content = <div className={styles.letter}>{meta.letter}</div>;
   }
 
-  return <div className={styles.attackTimeline__CellImage}>{content}</div>;
+  return (
+    <div className={styles.attackTimeline__CellImage}>
+      {baseImage}
+      {customState}
+      {attackIcon}
+    </div>
+  );
 }
 
 const npcAttackName = (attack: NpcAttack): string => {
@@ -798,34 +920,44 @@ function buildPlayerTooltip(
   playerTooltip: Record<string, string>;
   cellImage: React.ReactNode;
 } {
-  const attack = state.attack!;
   const cellImage = makeCellImage(
-    attack,
+    state,
     imageSize,
     context.memes,
     context.normalizeItems,
   );
 
   const playerTooltip: Record<string, string> = {
-    'data-tooltip-type': 'player',
     'data-tooltip-username': state.player.name,
-    'data-tooltip-attack': attack.type.toString(),
-    'data-tooltip-distance': attack.distanceToTarget.toString(),
+    'data-tooltip-tick': state.tick.toString(),
+    'data-tooltip-custom-state': JSON.stringify(state.customState),
   };
 
-  const maybeTarget = attack.target;
-  if (maybeTarget !== undefined) {
-    const roomNpc = context.npcs.get(maybeTarget.roomId);
-    if (roomNpc !== undefined) {
-      playerTooltip['data-tooltip-target-name'] = npcFriendlyName(
-        roomNpc,
-        context.npcs,
-      );
-      const hitpoints = roomNpc.stateByTick[state.tick]?.hitpoints;
-      if (hitpoints !== undefined) {
-        playerTooltip['data-tooltip-target-hp'] = hitpoints
-          .percentage()
-          .toFixed(2);
+  if (state.diedThisTick) {
+    playerTooltip['data-tooltip-death-state'] = 'tick';
+  } else if (state.isDead) {
+    playerTooltip['data-tooltip-death-state'] = 'dead';
+  }
+
+  const attack = state.attack;
+  if (attack !== undefined) {
+    playerTooltip['data-tooltip-attack'] = attack.type.toString();
+    playerTooltip['data-tooltip-distance'] = attack.distanceToTarget.toString();
+
+    const maybeTarget = attack.target;
+    if (maybeTarget !== undefined) {
+      const roomNpc = context.npcs.get(maybeTarget.roomId);
+      if (roomNpc !== undefined) {
+        playerTooltip['data-tooltip-target-name'] = npcFriendlyName(
+          roomNpc,
+          context.npcs,
+        );
+        const hitpoints = roomNpc.stateByTick[state.tick]?.hitpoints;
+        if (hitpoints !== undefined) {
+          playerTooltip['data-tooltip-target-hp'] = hitpoints
+            .percentage()
+            .toFixed(2);
+        }
       }
     }
   }
@@ -922,17 +1054,17 @@ const buildTickCell = (
     const diedThisTick = playerState.diedThisTick;
     const playerIsDead = playerState.isDead;
 
-    let cellImage;
+    const { playerTooltip, cellImage } = buildPlayerTooltip(
+      context,
+      playerState,
+      imageSize,
+    );
 
     if (playerState.attack !== undefined) {
       const attack = playerState.attack;
 
       const meta =
         ATTACK_METADATA[attack.type] ?? ATTACK_METADATA[PlayerAttack.UNKNOWN];
-
-      const result = buildPlayerTooltip(context, playerState, imageSize);
-      tooltip = result.playerTooltip;
-      cellImage = result.cellImage;
 
       let combatSkill: SkillLevel | undefined = undefined;
       let boostType: BoostType;
@@ -968,25 +1100,6 @@ const buildTickCell = (
       } else {
         style.outline = '1px solid rgba(var(--blert-text-color-base), 0.2)';
       }
-    } else if (diedThisTick) {
-      tooltip = {
-        'data-tooltip-type': 'player-death',
-        'data-tooltip-username': username,
-      };
-
-      cellImage = (
-        <div className={styles.attackTimeline__CellImage}>
-          <Image
-            src="/skull.webp"
-            alt="Player died"
-            height={imageSize}
-            width={imageSize}
-            style={{ objectFit: 'contain' }}
-          />
-        </div>
-      );
-    } else {
-      cellImage = <span className={styles.attackTimeline__Nothing}></span>;
     }
 
     let className = styles.cell;
@@ -1001,8 +1114,8 @@ const buildTickCell = (
       style.backgroundColor = undefined;
     }
 
-    if (tooltip !== undefined) {
-      tooltip['data-tooltip-id'] = TIMELINE_TOOLTIP_ID;
+    if (playerTooltip !== undefined) {
+      playerTooltip['data-tooltip-id'] = TIMELINE_TOOLTIP_ID;
     }
 
     return (
@@ -1010,7 +1123,7 @@ const buildTickCell = (
         className={className}
         style={style}
         key={`player-cell-${username}-${playerState.tick}`}
-        {...tooltip}
+        {...playerTooltip}
       >
         {cellImage}
       </div>

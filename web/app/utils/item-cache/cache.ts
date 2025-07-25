@@ -52,6 +52,6 @@ export class ItemCache<T extends ItemData> {
 
   private async fetchItemName(id: number): Promise<void> {
     // TODO(frolv): Get items from the OSRS Wiki API.
-    throw new Error('Not implemented');
+    throw new Error(`Cannot fetch item ${id}: Not implemented`);
   }
 }

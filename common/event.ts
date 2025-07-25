@@ -38,7 +38,10 @@ export enum EventType {
   TOB_XARPUS_SPLAT = EventProto.Type.TOB_XARPUS_SPLAT,
   TOB_VERZIK_PHASE = EventProto.Type.TOB_VERZIK_PHASE,
   TOB_VERZIK_ATTACK_STYLE = EventProto.Type.TOB_VERZIK_ATTACK_STYLE,
+  TOB_VERZIK_DAWN = EventProto.Type.TOB_VERZIK_DAWN,
+  TOB_VERZIK_BOUNCE = EventProto.Type.TOB_VERZIK_BOUNCE,
   TOB_VERZIK_YELLOWS = EventProto.Type.TOB_VERZIK_YELLOWS,
+  TOB_VERZIK_HEAL = EventProto.Type.TOB_VERZIK_HEAL,
   COLOSSEUM_HANDICAP_CHOICE = EventProto.Type.COLOSSEUM_HANDICAP_CHOICE,
 }
 
@@ -176,9 +179,26 @@ export interface VerzikAttackStyleEvent extends Event {
   };
 }
 
+export interface VerzikDawnEvent extends Event {
+  type: EventType.TOB_VERZIK_DAWN;
+  verzikDawn: {
+    attackTick: number;
+    damage: number;
+    player: string;
+  };
+}
+
 export interface VerzikYellowsEvent extends Event {
   type: EventType.TOB_VERZIK_YELLOWS;
   verzikYellows: Coords[];
+}
+
+export interface VerzikHealEvent extends Event {
+  type: EventType.TOB_VERZIK_HEAL;
+  verzikHeal: {
+    player: string;
+    healAmount: number;
+  };
 }
 
 export interface HandicapChoiceEvent extends Event {
@@ -206,7 +226,9 @@ export type MergedEvent = Event &
   Omit<XarpusPhaseEvent, 'type'> &
   Omit<VerzikPhaseEvent, 'type'> &
   Omit<VerzikAttackStyleEvent, 'type'> &
+  Omit<VerzikDawnEvent, 'type'> &
   Omit<VerzikYellowsEvent, 'type'> &
+  Omit<VerzikHealEvent, 'type'> &
   Omit<HandicapChoiceEvent, 'type'>;
 
 export enum DataSource {

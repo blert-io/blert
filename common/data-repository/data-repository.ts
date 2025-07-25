@@ -47,6 +47,8 @@ import {
   PlayerUpdateEvent,
   SoteMazeEvent,
   SoteMazePathEvent,
+  VerzikDawnEvent,
+  VerzikHealEvent,
   VerzikPhaseEvent,
   VerzikYellowsEvent,
   XarpusExhumedEvent,
@@ -125,7 +127,13 @@ export class DataRepository {
     if (tobRooms.sotetseg !== null) {
       const sotetseg = setSharedRoomData(tobRooms.sotetseg);
       sotetseg.setSotetsegMaze1PivotsList(tobRooms.sotetseg.maze1Pivots);
+      if (tobRooms.sotetseg.maze1Chosen !== null) {
+        sotetseg.setSotetsegMaze1Chosen(tobRooms.sotetseg.maze1Chosen);
+      }
       sotetseg.setSotetsegMaze2PivotsList(tobRooms.sotetseg.maze2Pivots);
+      if (tobRooms.sotetseg.maze2Chosen !== null) {
+        sotetseg.setSotetsegMaze2Chosen(tobRooms.sotetseg.maze2Chosen);
+      }
       tobData.setSotetseg(sotetseg);
     }
 
@@ -308,6 +316,8 @@ export class DataRepository {
           deaths: sotetseg.getDeathsList(),
           maze1Pivots: sotetseg.getSotetsegMaze1PivotsList(),
           maze2Pivots: sotetseg.getSotetsegMaze2PivotsList(),
+          maze1Chosen: sotetseg.getSotetsegMaze1Chosen() || null,
+          maze2Chosen: sotetseg.getSotetsegMaze2Chosen() || null,
           npcs: npcsFromProto(sotetseg.getNpcsList()),
         };
       }
@@ -1016,6 +1026,17 @@ function eventFromProto(evt: EventProto, eventData: ChallengeEvents): Event {
       break;
     }
 
+    case EventType.TOB_VERZIK_DAWN: {
+      const verzikDawn = evt.getVerzikDawn()!;
+      const e = event as VerzikDawnEvent;
+      e.verzikDawn = {
+        attackTick: verzikDawn.getAttackTick(),
+        damage: verzikDawn.getDamage(),
+        player: verzikDawn.getPlayer(),
+      };
+      break;
+    }
+
     case EventType.TOB_VERZIK_YELLOWS: {
       const e = event as VerzikYellowsEvent;
       e.verzikYellows = evt.getVerzikYellowsList().map((yellow) => ({
@@ -1025,7 +1046,18 @@ function eventFromProto(evt: EventProto, eventData: ChallengeEvents): Event {
       break;
     }
 
+    case EventType.TOB_VERZIK_HEAL: {
+      const verzikHeal = evt.getVerzikHeal()!;
+      const e = event as VerzikHealEvent;
+      e.verzikHeal = {
+        player: verzikHeal.getPlayer(),
+        healAmount: verzikHeal.getHealAmount(),
+      };
+      break;
+    }
+
     case EventType.TOB_VERZIK_ATTACK_STYLE:
+    case EventType.TOB_VERZIK_BOUNCE:
     case EventType.COLOSSEUM_HANDICAP_CHOICE:
       // These events are not serialized to the file.
       break;

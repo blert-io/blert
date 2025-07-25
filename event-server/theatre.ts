@@ -162,6 +162,8 @@ export default class TheatreChallenge extends Challenge {
           npcs: Object.fromEntries(this.getStageNpcs()),
           maze1Pivots: this.soteMazes[0]?.pivots ?? [],
           maze2Pivots: this.soteMazes[1]?.pivots ?? [],
+          maze1Chosen: null,
+          maze2Chosen: null,
         };
         break;
       case Stage.TOB_XARPUS:
