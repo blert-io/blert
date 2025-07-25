@@ -12,7 +12,7 @@ import {
   npcFriendlyName,
 } from '@blert/common';
 import Image from 'next/image';
-import {
+import React, {
   useContext,
   useDeferredValue,
   useEffect,
@@ -318,12 +318,12 @@ function TimelineTooltipRenderer({
   return (
     <div className={styles.tooltip}>
       {sections.map((section, index) => (
-        <>
+        <React.Fragment key={index}>
           {section}
           {index < sections.length - 1 && (
             <div className={styles.sectionDivider} />
           )}
-        </>
+        </React.Fragment>
       ))}
     </div>
   );
@@ -787,6 +787,7 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
     case PlayerAttack.DART:
       return 'threw a dart at';
     case PlayerAttack.DDS_POKE:
+    case PlayerAttack.EARTHBOUND_TECPATL:
       return 'poked';
     case PlayerAttack.DDS_SPEC:
       return 'DDSed';
@@ -798,6 +799,10 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
     case PlayerAttack.ELDER_MAUL:
     case PlayerAttack.ELDER_MAUL_SPEC:
       return 'mauled';
+    case PlayerAttack.EYE_OF_AYAK_AUTO:
+      return 'ayaked';
+    case PlayerAttack.EYE_OF_AYAK_SPEC:
+      return 'ayak specced';
     case PlayerAttack.FANG_STAB:
       return 'fanged';
     case PlayerAttack.GODSWORD_SMACK:

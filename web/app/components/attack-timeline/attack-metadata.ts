@@ -218,6 +218,13 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     special: false,
     style: CombatStyle.MELEE,
   },
+  [PlayerAttack.EARTHBOUND_TECPATL]: {
+    tagColor: 'red',
+    letter: 'ET',
+    ranged: false,
+    special: false,
+    style: CombatStyle.MELEE,
+  },
   [PlayerAttack.ELDER_MAUL]: {
     tagColor: 'red',
     letter: 'eld',
@@ -231,6 +238,20 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: true,
     style: CombatStyle.MELEE,
+  },
+  [PlayerAttack.EYE_OF_AYAK_AUTO]: {
+    tagColor: 'blue',
+    letter: 'aya',
+    ranged: true,
+    special: false,
+    style: CombatStyle.MAGIC,
+  },
+  [PlayerAttack.EYE_OF_AYAK_SPEC]: {
+    tagColor: 'blue',
+    letter: 'AYA',
+    ranged: true,
+    special: true,
+    style: CombatStyle.MAGIC,
   },
   [PlayerAttack.FANG_STAB]: {
     tagColor: 'red',
