@@ -347,7 +347,9 @@ function buildEventMaps(events: Event[]): [EventTickMap, EventTypeMap] {
 }
 
 const eventBelongsToPlayer = (event: Event, playerName: string): boolean => {
-  if (!isPlayerEvent(event)) return false;
+  if (!isPlayerEvent(event)) {
+    return false;
+  }
 
   const eventAsPlayerEvent = event as PlayerEvent;
 

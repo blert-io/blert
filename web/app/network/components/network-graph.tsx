@@ -174,7 +174,9 @@ export default function NetworkGraph({
       const nodeId = event.node;
       const graph = graphRef.current;
 
-      if (!graph || !data) return;
+      if (!graph || !data) {
+        return;
+      }
 
       const connections = graph.neighbors(nodeId);
       const nodeConnections = connections.length;
@@ -220,7 +222,9 @@ export default function NetworkGraph({
   const handleEdgeEnter = useCallback(
     (event: { edge: string; event: { x: number; y: number } }) => {
       const graph = graphRef.current;
-      if (!graph) return;
+      if (!graph) {
+        return;
+      }
 
       const edgeId = event.edge;
       const source = graph.source(edgeId);

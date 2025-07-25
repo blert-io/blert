@@ -150,7 +150,9 @@ export function BossPageControls(props: BossControlsProps) {
               className={styles.playbackButton}
               disabled={currentlyPlaying}
               onClick={() => {
-                if (currentlyPlaying) return;
+                if (currentlyPlaying) {
+                  return;
+                }
                 updatePlayingState(true);
               }}
             >
@@ -160,7 +162,9 @@ export function BossPageControls(props: BossControlsProps) {
               className={styles.playbackButton}
               disabled={!currentlyPlaying}
               onClick={() => {
-                if (!currentlyPlaying) return;
+                if (!currentlyPlaying) {
+                  return;
+                }
                 updatePlayingState(false);
               }}
             >
@@ -170,7 +174,9 @@ export function BossPageControls(props: BossControlsProps) {
               className={styles.playbackButton}
               disabled={currentTick === 1}
               onClick={() => {
-                if (currentTick === 1) return;
+                if (currentTick === 1) {
+                  return;
+                }
                 updateTick(1);
                 updatePlayingState(false);
               }}

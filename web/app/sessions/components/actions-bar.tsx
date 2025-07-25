@@ -70,7 +70,9 @@ export default function ActionsBar() {
   };
 
   const handleOpenAllReplays = () => {
-    if (completedRaids.length === 0) return;
+    if (completedRaids.length === 0) {
+      return;
+    }
 
     // Open up to 5 replays to avoid overwhelming the browser
     const raidsToOpen = completedRaids.slice(0, 5);

@@ -65,7 +65,9 @@ export function CollapsiblePanel(props: CollapsiblePanelProps) {
       <div
         className={styles.collapsiblePanelHeader}
         onClick={() => {
-          if (disableExpansion) return;
+          if (disableExpansion) {
+            return;
+          }
           setExpanded(!expanded);
         }}
       >

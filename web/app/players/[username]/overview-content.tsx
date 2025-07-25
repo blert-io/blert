@@ -190,7 +190,9 @@ function CalendarHeatmap({
 
     const ratio = count / maxCount;
     for (const { threshold, color } of ACTIVITY_THRESHOLDS) {
-      if (ratio <= threshold) return color;
+      if (ratio <= threshold) {
+        return color;
+      }
     }
     return ACTIVITY_THRESHOLDS[ACTIVITY_THRESHOLDS.length - 1].color;
   };

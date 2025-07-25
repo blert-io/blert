@@ -288,7 +288,9 @@ export default function SessionTimeline() {
   );
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (!containerRef.current) return;
+    if (!containerRef.current) {
+      return;
+    }
 
     // Only start drag if not clicking on a bar (to preserve click-to-navigate).
     const target = e.target as HTMLElement;

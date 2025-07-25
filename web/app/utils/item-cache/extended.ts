@@ -413,7 +413,9 @@ export class ExtendedItemCache extends ItemCache<ExtendedItemData> {
   }
 
   private hasTransposedCharacters(a: string, b: string): boolean {
-    if (Math.abs(a.length - b.length) > 1) return false;
+    if (Math.abs(a.length - b.length) > 1) {
+      return false;
+    }
 
     const chars = new Map<string, number>();
     for (const c of a) {
@@ -421,7 +423,9 @@ export class ExtendedItemCache extends ItemCache<ExtendedItemData> {
     }
     for (const c of b) {
       const count = chars.get(c) || 0;
-      if (count === 0) return false;
+      if (count === 0) {
+        return false;
+      }
       chars.set(c, count - 1);
     }
 

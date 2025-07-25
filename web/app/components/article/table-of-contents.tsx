@@ -74,7 +74,9 @@ export function TableOfContents(props: TableOfContentsProps) {
       intersectionObserver.current.disconnect();
     }
 
-    if (headings.length === 0) return;
+    if (headings.length === 0) {
+      return;
+    }
 
     intersectionObserver.current = new IntersectionObserver(
       (entries) => {
@@ -131,7 +133,9 @@ export function TableOfContents(props: TableOfContentsProps) {
     });
 
     const handleScroll = () => {
-      if (isScrolling) return;
+      if (isScrolling) {
+        return;
+      }
 
       clearTimeout(scrollTimeout.current!);
       scrollTimeout.current = window.setTimeout(() => {
