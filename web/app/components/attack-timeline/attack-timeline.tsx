@@ -541,6 +541,19 @@ function makeCellImage(
     }
 
     switch (playerAttack.type) {
+      case PlayerAttack.DARK_DEMONBANE:
+        attackIcon = (
+          <Image
+            className={styles.attackTimeline__CellImage__InfoIcon}
+            src={'/images/combat/dark-demonbane.webp'}
+            alt="Dark Demonbane"
+            height={size / 2}
+            width={size / 2}
+            style={{ objectFit: 'contain' }}
+          />
+        );
+        break;
+
       case PlayerAttack.KODAI_BARRAGE:
       case PlayerAttack.NM_STAFF_BARRAGE:
       case PlayerAttack.SANG_BARRAGE:
@@ -757,6 +770,10 @@ const npcAttackName = (attack: NpcAttack): string => {
 
 const playerAttackVerb = (attack: PlayerAttack): string => {
   switch (attack) {
+    case PlayerAttack.ARCLIGHT_AUTO:
+      return 'arclighted';
+    case PlayerAttack.ARCLIGHT_SPEC:
+      return 'arclight specced';
     case PlayerAttack.ABYSSAL_BLUDGEON:
       return 'bludgeoned';
     case PlayerAttack.AGS_SPEC:
@@ -781,6 +798,8 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
     case PlayerAttack.BURNING_CLAW_SPEC:
     case PlayerAttack.CLAW_SPEC:
       return 'clawed';
+    case PlayerAttack.DARK_DEMONBANE:
+      return 'demonbaned';
     case PlayerAttack.DAWN_AUTO:
     case PlayerAttack.DAWN_SPEC:
       return 'dawned';
@@ -799,6 +818,10 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
     case PlayerAttack.ELDER_MAUL:
     case PlayerAttack.ELDER_MAUL_SPEC:
       return 'mauled';
+    case PlayerAttack.EMBERLIGHT_AUTO:
+      return 'embered';
+    case PlayerAttack.EMBERLIGHT_SPEC:
+      return 'ember specced';
     case PlayerAttack.EYE_OF_AYAK_AUTO:
       return 'ayaked';
     case PlayerAttack.EYE_OF_AYAK_SPEC:
@@ -846,6 +869,10 @@ const playerAttackVerb = (attack: PlayerAttack): string => {
       return 'slashed';
     case PlayerAttack.SANG:
       return 'sanged';
+    case PlayerAttack.SCORCHING_BOW_AUTO:
+      return 'scobowed';
+    case PlayerAttack.SCORCHING_BOW_SPEC:
+      return 'scobo specced';
     case PlayerAttack.SCYTHE:
     case PlayerAttack.SCYTHE_UNCHARGED:
       return 'scythed';
@@ -1111,7 +1138,11 @@ const buildTickCell = (
     if (tooltip !== undefined) {
       className += ` ${styles.cellInteractable}`;
     }
-    if (playerIsOffCooldown || diedThisTick) {
+    if (
+      playerIsOffCooldown ||
+      diedThisTick ||
+      playerState.attack !== undefined
+    ) {
       className += ` ${styles.attackTimeline__CellOffCooldown}`;
     }
     if (playerIsDead && !diedThisTick) {

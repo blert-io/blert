@@ -43,6 +43,20 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     special: true,
     style: CombatStyle.MELEE,
   },
+  [PlayerAttack.ARCLIGHT_AUTO]: {
+    tagColor: 'red',
+    letter: 'arc',
+    ranged: false,
+    special: false,
+    style: CombatStyle.MELEE,
+  },
+  [PlayerAttack.ARCLIGHT_SPEC]: {
+    tagColor: 'red',
+    letter: 'ARC',
+    ranged: false,
+    special: true,
+    style: CombatStyle.MELEE,
+  },
   [PlayerAttack.ATLATL_AUTO]: {
     tagColor: 'green',
     letter: 'atl',
@@ -148,6 +162,13 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     special: true,
     style: CombatStyle.MELEE,
   },
+  [PlayerAttack.DARK_DEMONBANE]: {
+    tagColor: 'blue',
+    letter: 'DEM',
+    ranged: true,
+    special: false,
+    style: CombatStyle.MAGIC,
+  },
   [PlayerAttack.DAWN_AUTO]: {
     tagColor: 'yellow',
     letter: 'db',
@@ -235,6 +256,20 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
   [PlayerAttack.ELDER_MAUL_SPEC]: {
     tagColor: 'red',
     letter: 'ELD',
+    ranged: false,
+    special: true,
+    style: CombatStyle.MELEE,
+  },
+  [PlayerAttack.EMBERLIGHT_AUTO]: {
+    tagColor: 'red',
+    letter: 'em',
+    ranged: false,
+    special: false,
+    style: CombatStyle.MELEE,
+  },
+  [PlayerAttack.EMBERLIGHT_SPEC]: {
+    tagColor: 'red',
+    letter: 'EMB',
     ranged: false,
     special: true,
     style: CombatStyle.MELEE,
@@ -413,6 +448,20 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.MAGIC,
+  },
+  [PlayerAttack.SCORCHING_BOW_AUTO]: {
+    tagColor: 'green',
+    letter: 'sco',
+    ranged: true,
+    special: false,
+    style: CombatStyle.RANGED,
+  },
+  [PlayerAttack.SCORCHING_BOW_SPEC]: {
+    tagColor: 'green',
+    letter: 'SCO',
+    ranged: true,
+    special: true,
+    style: CombatStyle.RANGED,
   },
   [PlayerAttack.SCYTHE]: {
     tagColor: 'red',
