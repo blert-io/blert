@@ -18,6 +18,8 @@ export function challengeUrl(type: ChallengeType, id: string): string {
       return `/challenges/colosseum/${id}`;
     case ChallengeType.INFERNO:
       return `/challenges/inferno/${id}`;
+    case ChallengeType.MOKHAIOTL:
+      return `/challenges/mokhaiotl/${id}`;
   }
 
   return '/';
@@ -41,6 +43,8 @@ export function challengeApiUrl(type: ChallengeType, id: string): string {
       return `/api/v1/challenges/colosseum/${id}`;
     case ChallengeType.INFERNO:
       return `/api/v1/challenges/inferno/${id}`;
+    case ChallengeType.MOKHAIOTL:
+      return `/api/v1/challenges/mokhaiotl/${id}`;
   }
 
   return '/api/v1';

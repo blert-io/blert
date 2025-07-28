@@ -4,6 +4,7 @@ import {
   Challenge,
   ChallengeType,
   ColosseumChallenge,
+  MokhaiotlChallenge,
   Stage,
   TobRaid,
 } from '@blert/common';
@@ -163,6 +164,63 @@ const COLOSSEUM_NAV_ITEMS: NavItem[] = [
   },
 ];
 
+const MOKHAIOTL_NAV_ITEMS: NavItem[] = [
+  {
+    path: 'overview',
+    label: 'Overview',
+    stage: Stage.UNKNOWN,
+    icon: <i className="fa-solid fa-list" />,
+  },
+  {
+    path: 'delves/1',
+    label: 'Delve 1',
+    stage: Stage.MOKHAIOTL_DELVE_1,
+    icon: <i className="fa-solid fa-person-digging" />,
+  },
+  {
+    path: 'delves/2',
+    label: 'Delve 2',
+    stage: Stage.MOKHAIOTL_DELVE_2,
+    icon: <i className="fa-solid fa-person-digging" />,
+  },
+  {
+    path: 'delves/3',
+    label: 'Delve 3',
+    stage: Stage.MOKHAIOTL_DELVE_3,
+    icon: <i className="fa-solid fa-person-digging" />,
+  },
+  {
+    path: 'delves/4',
+    label: 'Delve 4',
+    stage: Stage.MOKHAIOTL_DELVE_4,
+    icon: <i className="fa-solid fa-person-digging" />,
+  },
+  {
+    path: 'delves/5',
+    label: 'Delve 5',
+    stage: Stage.MOKHAIOTL_DELVE_5,
+    icon: <i className="fa-solid fa-person-digging" />,
+  },
+  {
+    path: 'delves/6',
+    label: 'Delve 6',
+    stage: Stage.MOKHAIOTL_DELVE_6,
+    icon: <i className="fa-solid fa-person-digging" />,
+  },
+  {
+    path: 'delves/7',
+    label: 'Delve 7',
+    stage: Stage.MOKHAIOTL_DELVE_7,
+    icon: <i className="fa-solid fa-person-digging" />,
+  },
+  {
+    path: 'delves/8',
+    label: 'Delve 8',
+    stage: Stage.MOKHAIOTL_DELVE_8,
+    icon: <i className="fa-solid fa-person-digging" />,
+  },
+];
+
 export default function ChallengeNav({ challengeId }: ChallengeNavProps) {
   const pathname = usePathname();
   const display = useDisplay();
@@ -200,6 +258,9 @@ export default function ChallengeNav({ challengeId }: ChallengeNavProps) {
     case ChallengeType.COLOSSEUM:
       navItems = COLOSSEUM_NAV_ITEMS;
       break;
+    case ChallengeType.MOKHAIOTL:
+      navItems = MOKHAIOTL_NAV_ITEMS;
+      break;
   }
 
   const isStageAccessible = (stage: Stage): boolean => {
@@ -232,6 +293,11 @@ export default function ChallengeNav({ challengeId }: ChallengeNavProps) {
         const waves = (challenge as ColosseumChallenge).colosseum.waves;
         const offset = stage - Stage.COLOSSEUM_WAVE_1;
         return offset < waves.length;
+      }
+      case ChallengeType.MOKHAIOTL: {
+        const delves = (challenge as MokhaiotlChallenge).mokhaiotl.delves;
+        const offset = stage - Stage.MOKHAIOTL_DELVE_1;
+        return offset < delves.length;
       }
     }
 

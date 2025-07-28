@@ -28,6 +28,8 @@ const getPvMContentLogo = (pvmContent: PvMContent) => {
       return '/inferno.png';
     case PvMContent.Colosseum:
       return '/varlamore.png';
+    case PvMContent.Mokhaiotl:
+      return '/images/mokhaiotl.webp';
   }
 };
 

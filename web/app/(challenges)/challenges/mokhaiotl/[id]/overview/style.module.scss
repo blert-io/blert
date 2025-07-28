@@ -1,0 +1,119 @@
+@use '@/mixins.scss' as *;
+
+.mokhaiotl {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  gap: 2rem;
+}
+
+.delvesOverview {
+  width: 100%;
+  margin: 0 auto;
+  padding: 2rem 0;
+
+  h2 {
+    font-size: 1.3em;
+    margin: 0 0 20px 0;
+    color: var(--blert-text-color);
+  }
+
+  .delves {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    position: relative;
+
+    .delve {
+      @include panel;
+      padding: 16px;
+      text-decoration: none;
+      color: inherit;
+      transition: all 0.2s ease;
+      gap: 16px;
+      z-index: 1;
+
+      &:hover {
+        transform: translateY(-2px);
+        background: var(--nav-bg-lightened);
+        outline: 1px solid var(--blert-button);
+      }
+
+      .delveImg {
+        position: relative;
+        width: 120px;
+        height: 120px;
+        flex-shrink: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        background: var(--nav-bg);
+      }
+
+      .delveDetails {
+        flex-grow: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .delveHeader {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 1.1em;
+        margin: 0;
+        color: var(--blert-text-color);
+        font-weight: 500;
+
+        .time {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-left: auto;
+          font-size: 1em;
+          font-family: var(--font-roboto-mono), monospace;
+          color: var(--font-color-nav);
+
+          i {
+            color: var(--blert-button);
+          }
+        }
+      }
+    }
+  }
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    padding: 0;
+
+    .delves {
+      grid-template-columns: 1fr;
+
+      &:before {
+        display: block;
+        content: '';
+        width: 2px;
+        top: 56px;
+        bottom: 56px;
+        left: 60px;
+        position: absolute;
+        background: var(--blert-button);
+        opacity: 0.3;
+      }
+    }
+
+    .delve {
+      padding: 12px;
+      gap: 12px;
+
+      .delveImg {
+        width: 100px;
+        height: 100px;
+        align-self: center;
+      }
+    }
+  }
+}

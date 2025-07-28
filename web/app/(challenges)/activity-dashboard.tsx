@@ -236,7 +236,8 @@ export default function ActivityDashboard({
 
   const isSolo =
     challengeType === ChallengeType.COLOSSEUM ||
-    challengeType === ChallengeType.INFERNO;
+    challengeType === ChallengeType.INFERNO ||
+    challengeType === ChallengeType.MOKHAIOTL;
 
   const fetchTimeout = useRef<number | null>(null);
 

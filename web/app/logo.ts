@@ -9,6 +9,7 @@ enum Logos {
   TOA = '/images/toa.webp',
   COLOSSEUM = '/images/colosseum.png',
   INFERNO = '/images/inferno.png',
+  MOKHAIOTL = '/images/mokhaiotl.webp',
 }
 
 export const MAIN_LOGO = Logos.STANDARD;
@@ -30,5 +31,7 @@ export function challengeLogo(challengeType: ChallengeType): string {
       return Logos.COLOSSEUM;
     case ChallengeType.INFERNO:
       return Logos.INFERNO;
+    case ChallengeType.MOKHAIOTL:
+      return Logos.MOKHAIOTL;
   }
 }

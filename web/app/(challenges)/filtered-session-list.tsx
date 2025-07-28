@@ -14,7 +14,9 @@ export default function FilteredSessionList({ type }: { type: ChallengeType }) {
   const [mode, setMode] = useState<ChallengeMode | undefined>(undefined);
 
   const isSolo =
-    type === ChallengeType.COLOSSEUM || type === ChallengeType.INFERNO;
+    type === ChallengeType.COLOSSEUM ||
+    type === ChallengeType.INFERNO ||
+    type === ChallengeType.MOKHAIOTL;
   const hasMode = type === ChallengeType.TOB;
 
   return (

@@ -270,7 +270,7 @@
   font-size: 0.9rem;
 
   button {
-    padding: 1px 5px;
+    padding: 1px;
     font-size: 0.9rem;
     color: var(--blert-button);
     margin-bottom: 1px;
@@ -358,6 +358,7 @@
 
   .attackVerb {
     text-transform: capitalize;
+    margin-right: 0.25rem;
   }
 
   .distanceInfo {
