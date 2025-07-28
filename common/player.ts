@@ -21,15 +21,6 @@ export type PlayerStats = {
   tobWipes: number;
   tobResets: number;
 
-  colosseumCompletions: number;
-  colosseumWipes: number;
-  colosseumResets: number;
-
-  mokhaiotlCompletions: number;
-  mokhaiotlWipes: number;
-  mokhaiotlResets: number;
-  mokhaiotlTotalDelves: number;
-
   deathsTotal: number;
   deathsMaiden: number;
   deathsBloat: number;
@@ -57,6 +48,17 @@ export type PlayerStats = {
   chinsThrownNylocas: number;
   chinsThrownValue: number;
   chinsThrownIncorrectlyMaiden: number;
+
+  colosseumCompletions: number;
+  colosseumWipes: number;
+  colosseumResets: number;
+
+  mokhaiotlCompletions: number;
+  mokhaiotlWipes: number;
+  mokhaiotlResets: number;
+  mokhaiotlTotalDelves: number;
+  mokhaiotlDelvesCompleted: number;
+  mokhaiotlDeepDelvesCompleted: number;
 };
 
 const OSRS_HISCORES_API =
