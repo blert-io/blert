@@ -1,4 +1,5 @@
 import {
+  AttackStyle,
   ChallengeMode,
   ChallengeStatus,
   ChallengeType,
@@ -13,7 +14,6 @@ import {
   Stage,
   StageStatus,
   TobRooms,
-  VerzikAttackStyle,
   VerzikPhase,
   XarpusPhase,
 } from '@blert/common';
@@ -466,7 +466,7 @@ export default class TheatreChallenge extends Challenge {
 
         let attackType: NpcAttack;
         switch (verzikAttackStyle.getStyle()) {
-          case VerzikAttackStyle.MELEE: {
+          case AttackStyle.MELEE: {
             attackType = NpcAttack.TOB_VERZIK_P3_MELEE;
             if (npcAttack.hasTarget()) {
               const stats = this.getCurrentStageStats(npcAttack.getTarget()!);
@@ -475,11 +475,11 @@ export default class TheatreChallenge extends Challenge {
             break;
           }
 
-          case VerzikAttackStyle.RANGE:
+          case AttackStyle.RANGE:
             attackType = NpcAttack.TOB_VERZIK_P3_RANGE;
             break;
 
-          case VerzikAttackStyle.MAGE:
+          case AttackStyle.MAGE:
             attackType = NpcAttack.TOB_VERZIK_P3_MAGE;
             break;
 

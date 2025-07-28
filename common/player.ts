@@ -25,6 +25,11 @@ export type PlayerStats = {
   colosseumWipes: number;
   colosseumResets: number;
 
+  mokhaiotlCompletions: number;
+  mokhaiotlWipes: number;
+  mokhaiotlResets: number;
+  mokhaiotlTotalDelves: number;
+
   deathsTotal: number;
   deathsMaiden: number;
   deathsBloat: number;

@@ -167,6 +167,17 @@ export enum NpcId {
   SHOCKWAVE_COLOSSUS = 12819,
   SOL_HEREDIT = 12821,
   SOLARFLARE = 12826,
+
+  // Mokhaiotl NPCs.
+  MOKHAIOTL = 14707,
+  MOKHAIOTL_SHIELDED = 14708,
+  MOKHAIOTL_BURROWED = 14709,
+  DEMONIC_LARVA = 14710,
+  DEMONIC_RANGE_LARVA = 14711,
+  DEMONIC_MAGIC_LARVA = 14712,
+  DEMONIC_MELEE_LARVA = 14713,
+  VOLATILE_EARTH = 14714,
+  EARTHEN_SHIELD = 14715,
 }
 
 const MAIDEN_ENTRY_IDS = [
@@ -563,5 +574,18 @@ export class Npc {
 
   static isSolarflare(npcId: number): boolean {
     return npcId === NpcId.SOLARFLARE;
+  }
+
+  static isMokhaiotl(npcId: number): boolean {
+    return npcId === NpcId.MOKHAIOTL || npcId === NpcId.MOKHAIOTL_BURROWED;
+  }
+
+  static isDemonicLarva(npcId: number): boolean {
+    return (
+      npcId === NpcId.DEMONIC_LARVA ||
+      npcId === NpcId.DEMONIC_RANGE_LARVA ||
+      npcId === NpcId.DEMONIC_MAGIC_LARVA ||
+      npcId === NpcId.DEMONIC_MELEE_LARVA
+    );
   }
 }

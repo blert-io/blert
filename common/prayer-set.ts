@@ -64,6 +64,14 @@ export class PrayerSet {
     return (this.value & prayerBit) !== BigInt(0);
   }
 
+  public isEmpty(): boolean {
+    return (
+      (this.value &
+        ~(PrayerSet.PRAYER_BOOK_MASK << PrayerSet.PRAYER_BOOK_SHIFT)) ===
+      BigInt(0)
+    );
+  }
+
   public add(prayer: Prayer): boolean {
     if (prayer >= 50) {
       return false;

@@ -22,6 +22,7 @@ import {
 import {
   ColosseumData,
   MaidenCrab,
+  MokhaiotlData,
   Nylo,
   RoomNpc,
   RoomNpcMap,
@@ -38,6 +39,10 @@ import {
   Event,
   EventType,
   MaidenBloodSplatsEvent,
+  MokhaiotlLarvaLeakEvent,
+  MokhaiotlObjectsEvent,
+  MokhaiotlOrbEvent,
+  MokhaiotlShockwaveEvent,
   NpcAttackEvent,
   NpcEvent,
   NyloWaveSpawnEvent,
@@ -55,6 +60,7 @@ import {
   XarpusPhaseEvent,
   XarpusSplatEvent,
 } from '../event';
+import { PrayerSet } from '../prayer-set';
 
 type Proto<T> = T[keyof T];
 
@@ -186,6 +192,35 @@ export class DataRepository {
     );
   }
 
+  public async saveMokhaiotlChallengeData(
+    uuid: string,
+    mokhaiotlData: MokhaiotlData,
+  ): Promise<void> {
+    const challengeData = new ChallengeData();
+    challengeData.setChallengeId(uuid);
+    const mokhaiotl = new ChallengeData.Mokhaiotl();
+
+    mokhaiotl.setDelvesList(
+      mokhaiotlData.delves.map((delve) => {
+        const delveData = new ChallengeData.MokhaiotlDelve();
+        delveData.setStage(delve.stage as Proto<StageMap>);
+        delveData.setTicksLost(delve.ticksLost);
+        delveData.setNpcsList(npcsToProto(delve.npcs));
+        delveData.setDelve(delve.delve);
+        delveData.setChallengeTicks(delve.challengeTicks);
+        delveData.setLarvaeLeaked(delve.larvaeLeaked);
+        return delveData;
+      }),
+    );
+
+    challengeData.setMokhaiotl(mokhaiotl);
+    await this.backend.saveChallengeFile(
+      uuid,
+      DataRepository.CHALLENGE_FILE,
+      challengeData,
+    );
+  }
+
   public async loadTobChallengeData(uuid: string): Promise<TobRooms> {
     const challengeData = await this.loadChallengeDataProto(uuid);
 
@@ -208,12 +243,25 @@ export class DataRepository {
     return this.parseColosseumData(challengeData);
   }
 
+  public async loadMokhaiotlChallengeData(
+    uuid: string,
+  ): Promise<MokhaiotlData> {
+    const challengeData = await this.loadChallengeDataProto(uuid);
+
+    if (!challengeData.hasMokhaiotl()) {
+      throw new DataRepository.InvalidType();
+    }
+
+    return this.parseMokhaiotlData(challengeData);
+  }
+
   public async saveProtoStageEvents(
     uuid: string,
     stage: Stage,
     party: string[],
     events: EventProto[],
-  ) {
+    attempt?: number,
+  ): Promise<void> {
     const challengeEvents = new ChallengeEvents();
     challengeEvents.setStage(stage as Proto<StageMap>);
     challengeEvents.setPartyNamesList(party);
@@ -246,16 +294,20 @@ export class DataRepository {
 
     await this.backend.saveChallengeFile(
       uuid,
-      DataRepository.fileForStage(stage),
+      DataRepository.fileForStage(stage, attempt),
       challengeEvents,
     );
   }
 
-  public async loadStageEvents(uuid: string, stage: Stage): Promise<Event[]> {
+  public async loadStageEvents(
+    uuid: string,
+    stage: Stage,
+    attempt?: number,
+  ): Promise<Event[]> {
     const protoEvents = await this.backend.loadChallengeFile(
       ChallengeEvents.deserializeBinary,
       uuid,
-      DataRepository.fileForStage(stage),
+      DataRepository.fileForStage(stage, attempt),
     );
 
     return protoEvents
@@ -397,25 +449,53 @@ export class DataRepository {
     return colosseumData;
   }
 
+  private parseMokhaiotlData(data: ChallengeData): MokhaiotlData {
+    const mokhaiotlData: MokhaiotlData = { delves: [] };
+
+    if (data.hasMokhaiotl()) {
+      const mokhaiotl = data.getMokhaiotl()!;
+      mokhaiotlData.delves = mokhaiotl.getDelvesList().map((delve) => ({
+        stage: delve.getStage(),
+        ticksLost: delve.getTicksLost(),
+        npcs: npcsFromProto(delve.getNpcsList()),
+        delve: delve.getDelve(),
+        challengeTicks: delve.getChallengeTicks(),
+        larvaeLeaked: delve.getLarvaeLeaked(),
+      }));
+
+      mokhaiotlData.delves.sort((a, b) => a.delve - b.delve);
+    }
+
+    return mokhaiotlData;
+  }
+
   /**
    * Returns the basename of the file in which a stage's events are stored.
    * @param stage The stage.
    * @returns Filename for the stage's events.
    */
-  private static fileForStage(stage: Stage): string {
+  private static fileForStage(stage: Stage, attempt?: number): string {
+    let fileName = '';
+
     switch (stage) {
       case Stage.TOB_MAIDEN:
-        return 'maiden';
+        fileName = 'maiden';
+        break;
       case Stage.TOB_BLOAT:
-        return 'bloat';
+        fileName = 'bloat';
+        break;
       case Stage.TOB_NYLOCAS:
-        return 'nylocas';
+        fileName = 'nylocas';
+        break;
       case Stage.TOB_SOTETSEG:
-        return 'sotetseg';
+        fileName = 'sotetseg';
+        break;
       case Stage.TOB_XARPUS:
-        return 'xarpus';
+        fileName = 'xarpus';
+        break;
       case Stage.TOB_VERZIK:
-        return 'verzik';
+        fileName = 'verzik';
+        break;
       case Stage.COLOSSEUM_WAVE_1:
       case Stage.COLOSSEUM_WAVE_2:
       case Stage.COLOSSEUM_WAVE_3:
@@ -428,10 +508,26 @@ export class DataRepository {
       case Stage.COLOSSEUM_WAVE_10:
       case Stage.COLOSSEUM_WAVE_11:
       case Stage.COLOSSEUM_WAVE_12:
-        return `wave-${stage - Stage.COLOSSEUM_WAVE_1 + 1}`;
+        fileName = `wave-${stage - Stage.COLOSSEUM_WAVE_1 + 1}`;
+        break;
+      case Stage.MOKHAIOTL_DELVE_1:
+      case Stage.MOKHAIOTL_DELVE_2:
+      case Stage.MOKHAIOTL_DELVE_3:
+      case Stage.MOKHAIOTL_DELVE_4:
+      case Stage.MOKHAIOTL_DELVE_5:
+      case Stage.MOKHAIOTL_DELVE_6:
+      case Stage.MOKHAIOTL_DELVE_7:
+      case Stage.MOKHAIOTL_DELVE_8:
+        fileName = `delve-${stage - Stage.MOKHAIOTL_DELVE_1 + 1}`;
+        break;
+      case Stage.MOKHAIOTL_DELVE_8PLUS:
+        fileName = 'delve-8plus';
+        break;
       default:
         throw new Error(`Invalid stage: ${stage}`);
     }
+
+    return attempt === undefined ? fileName : `${fileName}:${attempt}`;
   }
 }
 
@@ -897,6 +993,7 @@ function eventFromProto(evt: EventProto, eventData: ChallengeEvents): Event {
         id: npc.getId(),
         roomId: npc.getRoomId(),
         hitpoints: npc.getHitpoints(),
+        prayers: npc.getActivePrayers(),
       };
       break;
     }
@@ -1061,6 +1158,58 @@ function eventFromProto(evt: EventProto, eventData: ChallengeEvents): Event {
     case EventType.COLOSSEUM_HANDICAP_CHOICE:
       // These events are not serialized to the file.
       break;
+
+    case EventType.MOKHAIOTL_ORB: {
+      const e = event as MokhaiotlOrbEvent;
+      const orb = evt.getMokhaiotlOrb()!;
+      e.mokhaiotlOrb = {
+        source: orb.getSource(),
+        sourcePoint: orb.getSourcePoint()!.toObject(),
+        style: orb.getStyle(),
+        startTick: orb.getStartTick(),
+        endTick: orb.getEndTick(),
+      };
+      break;
+    }
+
+    case EventType.MOKHAIOTL_OBJECTS: {
+      const e = event as MokhaiotlObjectsEvent;
+      const objects = evt.getMokhaiotlObjects()!;
+      e.mokhaiotlObjects = {
+        rocksSpawned: objects
+          .getRocksSpawnedList()
+          .map((rock) => rock.toObject()),
+        rocksDespawned: objects
+          .getRocksDespawnedList()
+          .map((rock) => rock.toObject()),
+        splatsSpawned: objects
+          .getSplatsSpawnedList()
+          .map((splat) => splat.toObject()),
+        splatsDespawned: objects
+          .getSplatsDespawnedList()
+          .map((splat) => splat.toObject()),
+      };
+      break;
+    }
+
+    case EventType.MOKHAIOTL_LARVA_LEAK: {
+      const e = event as MokhaiotlLarvaLeakEvent;
+      const larvaLeak = evt.getMokhaiotlLarvaLeak()!;
+      e.mokhaiotlLarvaLeak = {
+        roomId: larvaLeak.getRoomId(),
+        healAmount: larvaLeak.getHealAmount(),
+      };
+      break;
+    }
+
+    case EventType.MOKHAIOTL_SHOCKWAVE: {
+      const e = event as MokhaiotlShockwaveEvent;
+      const shockwave = evt.getMokhaiotlShockwave()!;
+      e.mokhaiotlShockwave = {
+        tiles: shockwave.getTilesList().map((tile) => tile.toObject()),
+      };
+      break;
+    }
   }
 
   return event as Event;

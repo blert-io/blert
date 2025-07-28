@@ -20,6 +20,8 @@ export type NpcDefinition = {
   semanticId: boolean;
   size: number;
   mode: ChallengeMode;
+  /** Maximum tiles moved per tick. */
+  maxSpeed: number;
 };
 
 /**
@@ -45,6 +47,7 @@ const [MAIDEN_ENTRY, MAIDEN_REGULAR, MAIDEN_HARD] = defineForAllModes({
   canonicalId: NpcId.MAIDEN_REGULAR,
   semanticId: false,
   size: 6,
+  maxSpeed: 0,
 });
 
 const [
@@ -57,6 +60,7 @@ const [
   canonicalId: NpcId.MAIDEN_MATOMENOS_REGULAR,
   semanticId: false,
   size: 2,
+  maxSpeed: 1,
 });
 
 const [
@@ -69,6 +73,7 @@ const [
   canonicalId: NpcId.MAIDEN_BLOOD_SPAWN_REGULAR,
   semanticId: false,
   size: 1,
+  maxSpeed: 1,
 });
 
 const [BLOAT_ENTRY, BLOAT_REGULAR, BLOAT_HARD] = defineForAllModes({
@@ -77,6 +82,7 @@ const [BLOAT_ENTRY, BLOAT_REGULAR, BLOAT_HARD] = defineForAllModes({
   canonicalId: NpcId.BLOAT_REGULAR,
   semanticId: false,
   size: 5,
+  maxSpeed: 2,
 });
 
 const [
@@ -89,6 +95,7 @@ const [
   canonicalId: NpcId.NYLOCAS_ISCHYROS_SMALL_REGULAR,
   semanticId: false,
   size: 1,
+  maxSpeed: 1,
 });
 
 const [
@@ -101,6 +108,7 @@ const [
   canonicalId: NpcId.NYLOCAS_ISCHYROS_BIG_REGULAR,
   semanticId: false,
   size: 2,
+  maxSpeed: 1,
 });
 
 const [
@@ -113,6 +121,7 @@ const [
   canonicalId: NpcId.NYLOCAS_TOXOBOLOS_SMALL_REGULAR,
   semanticId: false,
   size: 1,
+  maxSpeed: 1,
 });
 
 const [
@@ -125,6 +134,7 @@ const [
   canonicalId: NpcId.NYLOCAS_TOXOBOLOS_BIG_REGULAR,
   semanticId: false,
   size: 2,
+  maxSpeed: 1,
 });
 
 const [
@@ -137,6 +147,7 @@ const [
   canonicalId: NpcId.NYLOCAS_HAGIOS_SMALL_REGULAR,
   semanticId: false,
   size: 1,
+  maxSpeed: 1,
 });
 
 const [
@@ -149,15 +160,17 @@ const [
   canonicalId: NpcId.NYLOCAS_HAGIOS_BIG_REGULAR,
   semanticId: false,
   size: 2,
+  maxSpeed: 1,
 });
 
-const NYLOCAS_PRINKIPAS = {
+const NYLOCAS_PRINKIPAS: NpcDefinition = {
   fullName: 'Nylocas Prinkipas',
   shortName: 'Nylo Prince',
   canonicalId: NpcId.NYLOCAS_PRINKIPAS_MELEE,
   semanticId: true,
   size: 3,
   mode: ChallengeMode.TOB_HARD,
+  maxSpeed: 1,
 };
 
 const [
@@ -170,6 +183,7 @@ const [
   canonicalId: NpcId.NYLOCAS_VASILIAS_MELEE_REGULAR,
   semanticId: true,
   size: 4,
+  maxSpeed: 1,
 });
 
 const [SOTETSEG_ENTRY, SOTETSEG_REGULAR, SOTETSEG_HARD] = defineForAllModes({
@@ -178,6 +192,7 @@ const [SOTETSEG_ENTRY, SOTETSEG_REGULAR, SOTETSEG_HARD] = defineForAllModes({
   canonicalId: NpcId.SOTETSEG_REGULAR,
   semanticId: false,
   size: 5,
+  maxSpeed: 0,
 });
 
 const [XARPUS_IDLE_ENTRY, XARPUS_IDLE_REGULAR, XARPUS_IDLE_HARD] =
@@ -187,6 +202,7 @@ const [XARPUS_IDLE_ENTRY, XARPUS_IDLE_REGULAR, XARPUS_IDLE_HARD] =
     canonicalId: NpcId.XARPUS_IDLE_REGULAR,
     semanticId: false,
     size: 3,
+    maxSpeed: 0,
   });
 
 const [XARPUS_ENTRY, XARPUS_REGULAR, XARPUS_HARD] = defineForAllModes({
@@ -195,6 +211,7 @@ const [XARPUS_ENTRY, XARPUS_REGULAR, XARPUS_HARD] = defineForAllModes({
   canonicalId: NpcId.XARPUS_REGULAR,
   semanticId: false,
   size: 5,
+  maxSpeed: 0,
 });
 
 const [VERZIK_P1_ENTRY, VERZIK_P1_REGULAR, VERZIK_P1_HARD] = defineForAllModes({
@@ -203,6 +220,7 @@ const [VERZIK_P1_ENTRY, VERZIK_P1_REGULAR, VERZIK_P1_HARD] = defineForAllModes({
   canonicalId: NpcId.VERZIK_P1_REGULAR,
   semanticId: false,
   size: 5,
+  maxSpeed: 0,
 });
 
 const [VERZIK_P2_ENTRY, VERZIK_P2_REGULAR, VERZIK_P2_HARD] = defineForAllModes({
@@ -211,6 +229,7 @@ const [VERZIK_P2_ENTRY, VERZIK_P2_REGULAR, VERZIK_P2_HARD] = defineForAllModes({
   canonicalId: NpcId.VERZIK_P2_REGULAR,
   semanticId: false,
   size: 3,
+  maxSpeed: 0,
 });
 
 const [VERZIK_P3_ENTRY, VERZIK_P3_REGULAR, VERZIK_P3_HARD] = defineForAllModes({
@@ -219,15 +238,17 @@ const [VERZIK_P3_ENTRY, VERZIK_P3_REGULAR, VERZIK_P3_HARD] = defineForAllModes({
   canonicalId: NpcId.VERZIK_P3_REGULAR,
   semanticId: false,
   size: 7,
+  maxSpeed: 1,
 });
 
-const VERZIK_PILLAR = {
+const VERZIK_PILLAR: NpcDefinition = {
   fullName: 'Pillar',
   shortName: 'Pillar',
   canonicalId: NpcId.VERZIK_PILLAR,
   semanticId: false,
   size: 3,
   mode: ChallengeMode.TOB_REGULAR,
+  maxSpeed: 0,
 };
 
 const [
@@ -240,6 +261,7 @@ const [
   canonicalId: NpcId.VERZIK_NYLOCAS_ISCHYROS_REGULAR,
   semanticId: false,
   size: 2,
+  maxSpeed: 1,
 });
 
 const [
@@ -252,6 +274,7 @@ const [
   canonicalId: NpcId.VERZIK_NYLOCAS_TOXOBOLOS_REGULAR,
   semanticId: false,
   size: 2,
+  maxSpeed: 1,
 });
 
 const [
@@ -264,6 +287,7 @@ const [
   canonicalId: NpcId.VERZIK_NYLOCAS_HAGIOS_REGULAR,
   semanticId: false,
   size: 2,
+  maxSpeed: 1,
 });
 
 const [
@@ -276,6 +300,7 @@ const [
   canonicalId: NpcId.VERZIK_ATHANATOS_REGULAR,
   semanticId: false,
   size: 3,
+  maxSpeed: 1,
 });
 
 const [
@@ -288,6 +313,7 @@ const [
   canonicalId: NpcId.VERZIK_MATOMENOS_REGULAR,
   semanticId: false,
   size: 2,
+  maxSpeed: 1,
 });
 
 const [VERZIK_TORNADO_ENTRY, VERZIK_TORNADO_REGULAR, VERZIK_TORNADO_HARD] =
@@ -297,105 +323,207 @@ const [VERZIK_TORNADO_ENTRY, VERZIK_TORNADO_REGULAR, VERZIK_TORNADO_HARD] =
     canonicalId: NpcId.VERZIK_TORNADO_REGULAR,
     semanticId: false,
     size: 1,
+    maxSpeed: 1,
   });
 
-const JAGUAR_WARRIOR = {
+const JAGUAR_WARRIOR: NpcDefinition = {
   fullName: 'Jaguar Warrior',
   shortName: 'Furry',
   canonicalId: NpcId.JAGUAR_WARRIOR,
   semanticId: false,
   size: 2,
   mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
 };
 
-const SERPENT_SHAMAN = {
+const SERPENT_SHAMAN: NpcDefinition = {
   fullName: 'Serpent Shaman',
   shortName: 'Shaman',
   canonicalId: NpcId.SERPENT_SHAMAN,
   semanticId: false,
   size: 1,
   mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
 };
 
-const MINOTAUR = {
+const MINOTAUR: NpcDefinition = {
   fullName: 'Minotaur',
   shortName: 'Minotaur',
   canonicalId: NpcId.MINOTAUR,
   semanticId: false,
   size: 3,
   mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
 };
 
-const FREMENNIK_ARCHER = {
+const FREMENNIK_ARCHER: NpcDefinition = {
   fullName: 'Fremennik Warband Archer',
   shortName: 'Archer',
   canonicalId: NpcId.FREMENNIK_ARCHER,
   semanticId: false,
   size: 1,
   mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
 };
 
-const FREMENNIK_SEER = {
+const FREMENNIK_SEER: NpcDefinition = {
   fullName: 'Fremennik Warband Seer',
   shortName: 'Seer',
   canonicalId: NpcId.FREMENNIK_SEER,
   semanticId: false,
   size: 1,
   mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
 };
 
-const FREMENNIK_BERSERKER = {
+const FREMENNIK_BERSERKER: NpcDefinition = {
   fullName: 'Fremennik Warband Berserker',
   shortName: 'Berserker',
   canonicalId: NpcId.FREMENNIK_BERSERKER,
   semanticId: false,
   size: 1,
   mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
 };
 
-const JAVELIN_COLOSSUS = {
+const JAVELIN_COLOSSUS: NpcDefinition = {
   fullName: 'Javelin Colossus',
   shortName: 'Javelin',
   canonicalId: NpcId.JAVELIN_COLOSSUS,
   semanticId: false,
   size: 3,
   mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
 };
 
-const MANTICORE = {
+const MANTICORE: NpcDefinition = {
   fullName: 'Manticore',
   shortName: 'Manticore',
   canonicalId: NpcId.MANTICORE,
   semanticId: false,
   size: 3,
   mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
 };
 
-const SHOCKWAVE_COLOSSUS = {
+const SHOCKWAVE_COLOSSUS: NpcDefinition = {
   fullName: 'Shockwave Colossus',
   shortName: 'Shockwave',
   canonicalId: NpcId.SHOCKWAVE_COLOSSUS,
   semanticId: false,
   size: 3,
   mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
 };
 
-const SOL_HEREDIT = {
+const SOL_HEREDIT: NpcDefinition = {
   fullName: 'Sol Heredit',
   shortName: 'Sol Heredit',
   canonicalId: NpcId.SOL_HEREDIT,
   semanticId: false,
   size: 5,
   mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
 };
 
-const SOLARFLARE = {
+const SOLARFLARE: NpcDefinition = {
   fullName: 'Solarflare',
   shortName: 'Solarflare',
   canonicalId: NpcId.SOLARFLARE,
   semanticId: false,
   size: 1,
   mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
+};
+
+const MOKHAIOTL: NpcDefinition = {
+  fullName: 'Doom of Mokhaiotl',
+  shortName: 'Mokhaiotl',
+  canonicalId: NpcId.MOKHAIOTL,
+  semanticId: false,
+  size: 5,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
+};
+
+const MOKHAIOTL_SHIELDED: NpcDefinition = {
+  fullName: 'Doom of Mokhaiotl (Shielded)',
+  shortName: 'Mokhaiotl',
+  canonicalId: NpcId.MOKHAIOTL_SHIELDED,
+  semanticId: false,
+  size: 5,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 0,
+};
+
+const MOKHAIOTL_BURROWED: NpcDefinition = {
+  fullName: 'Doom of Mokhaiotl',
+  shortName: 'Mokhaiotl',
+  canonicalId: NpcId.MOKHAIOTL_BURROWED,
+  semanticId: false,
+  size: 5,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 4,
+};
+
+const DEMONIC_LARVA: NpcDefinition = {
+  fullName: 'Demonic larva',
+  shortName: 'Larva',
+  canonicalId: NpcId.DEMONIC_LARVA,
+  semanticId: false,
+  size: 1,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
+};
+
+const DEMONIC_RANGE_LARVA: NpcDefinition = {
+  fullName: 'Demonic range larva',
+  shortName: 'Larva',
+  canonicalId: NpcId.DEMONIC_RANGE_LARVA,
+  semanticId: false,
+  size: 1,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
+};
+
+const DEMONIC_MAGIC_LARVA: NpcDefinition = {
+  fullName: 'Demonic magic larva',
+  shortName: 'Larva',
+  canonicalId: NpcId.DEMONIC_MAGIC_LARVA,
+  semanticId: false,
+  size: 1,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
+};
+
+const DEMONIC_MELEE_LARVA: NpcDefinition = {
+  fullName: 'Demonic melee larva',
+  shortName: 'Larva',
+  canonicalId: NpcId.DEMONIC_MELEE_LARVA,
+  semanticId: false,
+  size: 1,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
+};
+
+const VOLATILE_EARTH: NpcDefinition = {
+  fullName: 'Volatile earth',
+  shortName: 'Volatile earth',
+  canonicalId: NpcId.VOLATILE_EARTH,
+  semanticId: false,
+  size: 1,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 0,
+};
+
+const EARTHEN_SHIELD: NpcDefinition = {
+  fullName: 'Earthen shield',
+  shortName: 'Earthen shield',
+  canonicalId: NpcId.EARTHEN_SHIELD,
+  semanticId: false,
+  size: 3,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
 };
 
 const NPC_DEFINITIONS: { [id: number]: NpcDefinition } = {
@@ -578,6 +706,17 @@ const NPC_DEFINITIONS: { [id: number]: NpcDefinition } = {
   [NpcId.SHOCKWAVE_COLOSSUS]: SHOCKWAVE_COLOSSUS,
   [NpcId.SOL_HEREDIT]: SOL_HEREDIT,
   [NpcId.SOLARFLARE]: SOLARFLARE,
+
+  // Mokhaiotl NPCs.
+  [NpcId.MOKHAIOTL]: MOKHAIOTL,
+  [NpcId.MOKHAIOTL_SHIELDED]: MOKHAIOTL_SHIELDED,
+  [NpcId.MOKHAIOTL_BURROWED]: MOKHAIOTL_BURROWED,
+  [NpcId.DEMONIC_LARVA]: DEMONIC_LARVA,
+  [NpcId.DEMONIC_RANGE_LARVA]: DEMONIC_RANGE_LARVA,
+  [NpcId.DEMONIC_MAGIC_LARVA]: DEMONIC_MAGIC_LARVA,
+  [NpcId.DEMONIC_MELEE_LARVA]: DEMONIC_MELEE_LARVA,
+  [NpcId.VOLATILE_EARTH]: VOLATILE_EARTH,
+  [NpcId.EARTHEN_SHIELD]: EARTHEN_SHIELD,
 };
 
 export function getNpcDefinition(npcId: number): NpcDefinition | null {
