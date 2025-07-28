@@ -22,7 +22,7 @@ interface BossControlsProps {
   currentTick: number;
   updateTick: Dispatch<SetStateAction<number>>;
   updatePlayingState: (isPlaying: boolean) => void;
-  splits: TimelineSplit[];
+  splits?: TimelineSplit[];
 }
 
 export function BossPageControls(props: BossControlsProps) {
@@ -32,7 +32,7 @@ export function BossPageControls(props: BossControlsProps) {
     currentTick,
     updateTick,
     updatePlayingState,
-    splits,
+    splits = [],
   } = props;
 
   const display = useContext(DisplayContext);

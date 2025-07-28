@@ -32,6 +32,8 @@ import {
   Skill,
   VerzikHealEvent,
   VerzikDawnEvent,
+  MokhaiotlChallenge,
+  PrayerSet,
 } from '@blert/common';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -197,6 +199,7 @@ export type NpcState = {
   attack: Nullable<{ type: NpcAttack; target: string | null }>;
   position: Coords;
   hitpoints: SkillLevel;
+  prayers: PrayerSet;
   id: number;
   label?: string;
 };
@@ -206,7 +209,11 @@ type StageInfo = {
   npcs: RawRoomNpcMap;
 };
 
-function getStageInfo(challenge: Challenge | null, stage: Stage): StageInfo {
+function getStageInfo(
+  challenge: Challenge | null,
+  stage: Stage,
+  attempt?: number,
+): StageInfo {
   if (challenge === null) {
     return { ticks: -1, npcs: {} };
   }
@@ -258,10 +265,27 @@ function getStageInfo(challenge: Challenge | null, stage: Stage): StageInfo {
     };
   }
 
+  if (challenge.type === ChallengeType.MOKHAIOTL) {
+    const mokhaiotl = challenge as MokhaiotlChallenge;
+    let delveIndex;
+    if (attempt !== undefined) {
+      delveIndex = attempt + 7;
+    } else {
+      delveIndex = stage - Stage.MOKHAIOTL_DELVE_1;
+    }
+    return {
+      ticks: mokhaiotl.mokhaiotl.delves[delveIndex]?.challengeTicks ?? -1,
+      npcs: mokhaiotl.mokhaiotl.delves[delveIndex]?.npcs ?? {},
+    };
+  }
+
   return { ticks: -1, npcs: {} };
 }
 
-export function useStageEvents<T extends Challenge>(stage: Stage) {
+export function useStageEvents<T extends Challenge>(
+  stage: Stage,
+  attempt?: number,
+) {
   const [challenge] = useContext(ChallengeContext) as [T | null, unknown];
 
   const [loading, setLoading] = useState(true);
@@ -274,7 +298,11 @@ export function useStageEvents<T extends Challenge>(stage: Stage) {
   });
   const challengeRef = useRef(challenge);
 
-  let { ticks: totalTicks } = getStageInfo(challengeRef.current, stage);
+  let { ticks: totalTicks } = getStageInfo(
+    challengeRef.current,
+    stage,
+    attempt,
+  );
   if (totalTicks === -1 && events.length > 0) {
     totalTicks = events[events.length - 1].tick;
   }
@@ -294,7 +322,9 @@ export function useStageEvents<T extends Challenge>(stage: Stage) {
       let evts: Event[] = [];
 
       try {
-        const url = `${challengeApiUrl(c.type, c.uuid)}/events?stage=${stage}`;
+        const url = `${challengeApiUrl(c.type, c.uuid)}/events?stage=${stage}${
+          attempt !== undefined ? `&attempt=${attempt}` : ''
+        }`;
         evts = await fetch(url).then((res) => res.json());
       } catch (e) {
         setEvents([]);
@@ -305,7 +335,7 @@ export function useStageEvents<T extends Challenge>(stage: Stage) {
       setEvents(evts);
 
       if (evts.length > 0) {
-        const { ticks, npcs } = getStageInfo(c, stage);
+        const { ticks, npcs } = getStageInfo(c, stage, attempt);
         let totalTicks = ticks;
         if (totalTicks === -1) {
           // The room is in progress, so get the last tick from the events.
@@ -340,7 +370,7 @@ export function useStageEvents<T extends Challenge>(stage: Stage) {
     };
 
     getEvents();
-  }, [stage]);
+  }, [stage, attempt]);
 
   return {
     challenge,
@@ -622,6 +652,7 @@ function computeNpcState(
             y: eventsForThisNpc[0].yCoord,
           },
           hitpoints: SkillLevel.fromRaw(eventsForThisNpc[0].npc.hitpoints),
+          prayers: PrayerSet.fromRaw(eventsForThisNpc[0].npc.prayers),
         };
         lastActiveTick = i;
       }
@@ -637,6 +668,10 @@ function computeNpcState(
             lastActiveTick !== -1
               ? npc.stateByTick[lastActiveTick]!.hitpoints
               : new SkillLevel(0, 1);
+          const prayers =
+            lastActiveTick !== -1
+              ? npc.stateByTick[lastActiveTick]!.prayers
+              : PrayerSet.fromRaw(0);
           npc.stateByTick[i] = {
             id: attackEvent.npc.id,
             attack: null,
@@ -645,6 +680,7 @@ function computeNpcState(
               y: eventsForThisNpc[0].yCoord,
             },
             hitpoints,
+            prayers,
           };
         }
 
@@ -812,6 +848,7 @@ export function useMapEntities(
           npcState.id,
           roomId,
           { current: npcState.hitpoints, next: nextHitpoints },
+          npcState.prayers,
           nextPosition,
         );
 

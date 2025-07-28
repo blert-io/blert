@@ -72,7 +72,7 @@ type BossReplayProps = {
   height: number | string;
   currentTick: number;
   advanceTick: () => void;
-  setUseLegacy: () => void;
+  setUseLegacy?: () => void;
 };
 
 export function BossPageReplay({
@@ -92,6 +92,7 @@ export function BossPageReplay({
     debug: false,
   });
 
+  const canSwitchToLegacy = setUseLegacy !== undefined;
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // TODO(frolv): Switch to using a single selected entity.
@@ -171,7 +172,7 @@ export function BossPageReplay({
       <Card
         header={{
           title: 'Room Replay',
-          action: (
+          action: canSwitchToLegacy ? (
             <div className={styles.testingNotice}>
               <span className={styles.noticeText}>
                 Previewing Blert&apos;s new replay system
@@ -184,7 +185,7 @@ export function BossPageReplay({
                 Switch to original
               </button>
             </div>
-          ),
+          ) : undefined,
         }}
         className={styles.replay}
       >

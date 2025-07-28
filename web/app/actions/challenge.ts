@@ -10,6 +10,8 @@ import {
   DataRepository,
   Event,
   EventType,
+  MokhaiotlChallenge,
+  MokhaiotlChallengeStats,
   Player,
   PlayerStats,
   RELEVANT_PB_SPLITS,
@@ -142,6 +144,26 @@ export async function loadChallenge(
     case ChallengeType.COLOSSEUM:
       (challenge as ColosseumChallenge).colosseum =
         await dataRepository.loadColosseumChallengeData(id);
+      break;
+
+    case ChallengeType.MOKHAIOTL:
+      await Promise.all([
+        dataRepository.loadMokhaiotlChallengeData(id),
+        sql`
+          SELECT *
+          FROM mokhaiotl_challenge_stats
+          WHERE challenge_id = ${rawChallenge[0].id}
+        `,
+      ]).then(([mokhaiotlData, [stats]]) => {
+        (challenge as MokhaiotlChallenge).mokhaiotl = mokhaiotlData;
+        if (stats) {
+          delete stats.id;
+          delete stats.challenge_id;
+          (challenge as MokhaiotlChallenge).mokhaiotlStats = snakeToCamelObject(
+            stats,
+          ) as MokhaiotlChallengeStats;
+        }
+      });
       break;
   }
 
@@ -1866,6 +1888,9 @@ async function loadChallengeParties(
  * Fetches all of the events for a specified stage in a challenge.
  * @param challengeId UUID of the challenge.
  * @param stage The stage whose events to fetch.
+ * @param type Optional event type to filter by.
+ * @param attempt If the challenge stage can be attempted multiple times, the
+ * attempt number for which to fetch events.
  * @returns Array of events for the stage, or `null` if the stage does not
  * exist.
  * @throws Any error that occurs while fetching the events.
@@ -1874,9 +1899,14 @@ export async function loadEventsForStage(
   challengeId: string,
   stage: Stage,
   type?: EventType,
+  attempt?: number,
 ): Promise<Event[] | null> {
   try {
-    const events = await dataRepository.loadStageEvents(challengeId, stage);
+    const events = await dataRepository.loadStageEvents(
+      challengeId,
+      stage,
+      attempt,
+    );
     if (type !== undefined) {
       return events.filter((e) => e.type === type);
     }
@@ -1938,6 +1968,10 @@ export async function loadPlayerWithStats(
       colosseumCompletions: playerWithStats.colosseum_completions,
       colosseumWipes: playerWithStats.colosseum_wipes,
       colosseumResets: playerWithStats.colosseum_resets,
+      mokhaiotlCompletions: playerWithStats.mokhaiotl_completions,
+      mokhaiotlWipes: playerWithStats.mokhaiotl_wipes,
+      mokhaiotlResets: playerWithStats.mokhaiotl_resets,
+      mokhaiotlTotalDelves: playerWithStats.mokhaiotl_total_delves,
       deathsTotal: playerWithStats.deaths_total,
       deathsMaiden: playerWithStats.deaths_maiden,
       deathsBloat: playerWithStats.deaths_bloat,

@@ -14,18 +14,22 @@ import Link from 'next/link';
 import TimeAgo from 'react-timeago';
 
 import PvMContentLogo, { PvMContent } from '@/components/pvm-content-logo';
-import {
-  modeNameAndColor,
-  statusNameAndColor,
-} from '@/components/raid-quick-details/status';
 import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 import { useClientOnly } from '@/hooks/client-only';
+import { modeNameAndColor, statusNameAndColor } from '@/utils/challenge';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import styles from './style.module.scss';
 
 type ExtendedChallengePlayer = ChallengePlayer & {
   stageDeaths: Stage[];
+};
+
+export type ExtraOverviewInfo = {
+  label: string;
+  value: string | number | React.ReactNode;
+  icon?: string;
+  span?: number;
 };
 
 interface ChallengeOverviewProps {
@@ -38,12 +42,7 @@ interface ChallengeOverviewProps {
   party: ExtendedChallengePlayer[];
   startTime: Date;
   pvmContent: PvMContent;
-  extraInfo?: Array<{
-    label: string;
-    value: string | number | React.ReactNode;
-    icon?: string;
-    span?: number;
-  }>;
+  extraInfo?: ExtraOverviewInfo[];
 }
 
 interface PlayerCardProps {

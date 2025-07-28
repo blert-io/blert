@@ -39,6 +39,9 @@ export function modeNameAndColor(
   if (type === ChallengeType.INFERNO) {
     return [short ? 'INF' : 'Inferno', '#a14f1a'];
   }
+  if (type === ChallengeType.MOKHAIOTL) {
+    return [short ? 'MOK' : 'Mokhaiotl', '#c16056'];
+  }
 
   switch (difficulty) {
     case ChallengeMode.TOB_REGULAR: {

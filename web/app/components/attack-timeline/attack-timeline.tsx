@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  Attack,
   DataSource,
   Npc,
   NpcAttack,
@@ -35,7 +34,11 @@ import { BoostType, maxBoostedLevel } from '@/utils/combat';
 import { normalizeItemId } from '@/utils/item';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
-import { ATTACK_METADATA, CombatStyle } from './attack-metadata';
+import {
+  ATTACK_METADATA,
+  CombatStyle,
+  NPC_ATTACK_METADATA,
+} from './attack-metadata';
 import PlayerSkill from '../player-skill';
 import KeyPrayers from '../key-prayers';
 
@@ -58,25 +61,21 @@ function TimelineTooltipRenderer({
   }
   if (activeAnchor.dataset.tooltipType === 'npc') {
     const npcName = activeAnchor.dataset.tooltipNpcName;
-    const npcAttack = activeAnchor.dataset.tooltipNpcAttack;
+    const npcAttack = parseInt(activeAnchor.dataset.tooltipNpcAttack ?? '0');
     const npcTarget = activeAnchor.dataset.tooltipNpcTarget;
+
+    const meta =
+      NPC_ATTACK_METADATA[npcAttack] ?? NPC_ATTACK_METADATA[NpcAttack.UNKNOWN];
+
+    const npcButton = <button className={styles.npc}>{npcName}</button>;
+    const target = npcTarget ? (
+      <button onClick={() => setSelectedPlayer(npcTarget)}>{npcTarget}</button>
+    ) : null;
 
     return (
       <div className={styles.tooltip}>
         <div className={styles.npcTooltip}>
-          <button className={styles.npc}>{npcName}</button>
-          {npcTarget ? (
-            <span>
-              targeted
-              <button onClick={() => setSelectedPlayer(npcTarget)}>
-                {npcTarget}
-              </button>
-              with
-            </span>
-          ) : (
-            <span>did</span>
-          )}
-          <span className={styles.npcAttack}>{npcAttack}</span>
+          {meta.description(npcButton, target)}
         </div>
       </div>
     );
@@ -127,7 +126,7 @@ function TimelineTooltipRenderer({
           <span>Attack</span>
         </div>
         <div className={styles.attackInfo}>
-          <span className={styles.attackVerb}>{playerAttackVerb(attack)}</span>
+          <span className={styles.attackVerb}>{meta.verb}</span>
           <button className={styles.npc}>
             {targetName}
             {hitpoints && (
@@ -330,131 +329,13 @@ function TimelineTooltipRenderer({
 }
 
 function npcAttackImage(attack: NpcAttack, size: number) {
-  let imageUrl = '';
-
-  switch (attack) {
-    case NpcAttack.TOB_MAIDEN_AUTO:
-      imageUrl = '/maiden_auto.png';
-      break;
-    case NpcAttack.TOB_MAIDEN_BLOOD_THROW:
-      imageUrl = '/maiden_blood_throw.png';
-      break;
-    case NpcAttack.TOB_BLOAT_STOMP:
-      imageUrl = '/bloat_stomp.webp';
-      break;
-    case NpcAttack.TOB_NYLO_BOSS_MELEE:
-      imageUrl = '/nylo_boss_melee.png';
-      break;
-    case NpcAttack.TOB_NYLO_BOSS_RANGE:
-      imageUrl = '/nylo_boss_range.png';
-      break;
-    case NpcAttack.TOB_NYLO_BOSS_MAGE:
-      imageUrl = '/nylo_boss_mage.png';
-      break;
-    case NpcAttack.TOB_SOTE_BALL:
-      imageUrl = '/sote_ball.png';
-      break;
-    case NpcAttack.TOB_SOTE_MELEE:
-      imageUrl = '/sote_melee.png';
-      break;
-    case NpcAttack.TOB_SOTE_DEATH_BALL:
-      imageUrl = '/sote_death_ball.png';
-      break;
-    case NpcAttack.TOB_XARPUS_SPIT:
-      imageUrl = '/xarpus_spit.png';
-      break;
-    case NpcAttack.TOB_XARPUS_TURN:
-      imageUrl = '/xarpus_turn.webp';
-      break;
-    case NpcAttack.TOB_VERZIK_P1_AUTO:
-      imageUrl = '/verzik_p1_auto.png';
-      break;
-    case NpcAttack.TOB_VERZIK_P2_BOUNCE:
-      imageUrl = '/verzik_p2_bounce.png';
-      break;
-    case NpcAttack.TOB_VERZIK_P2_CABBAGE:
-      imageUrl = '/verzik_p2_cabbage.png';
-      break;
-    case NpcAttack.TOB_VERZIK_P2_PURPLE:
-      imageUrl = '/verzik_p2_purple.png';
-      break;
-    case NpcAttack.TOB_VERZIK_P2_ZAP:
-      imageUrl = '/verzik_p2_zap.png';
-      break;
-    case NpcAttack.TOB_VERZIK_P2_MAGE:
-      imageUrl = '/verzik_p2_mage.webp';
-      break;
-    case NpcAttack.TOB_VERZIK_P3_WEBS:
-      imageUrl = '/verzik_p3_webs.webp';
-      break;
-    case NpcAttack.TOB_VERZIK_P3_MELEE:
-      imageUrl = '/verzik_p3_melee.webp';
-      break;
-    case NpcAttack.TOB_VERZIK_P3_RANGE:
-      imageUrl = '/verzik_p3_range.webp';
-      break;
-    case NpcAttack.TOB_VERZIK_P3_MAGE:
-      imageUrl = '/verzik_p3_mage.webp';
-      break;
-    case NpcAttack.TOB_VERZIK_P3_YELLOWS:
-      imageUrl = '/verzik_p3_yellow.webp';
-      break;
-    case NpcAttack.TOB_VERZIK_P3_BALL:
-      imageUrl = '/verzik_p3_ball.webp';
-      break;
-
-    case NpcAttack.COLOSSEUM_BERSERKER_AUTO:
-      imageUrl = '/images/colosseum/fremennik-berserker.webp';
-      break;
-    case NpcAttack.COLOSSEUM_SEER_AUTO:
-      imageUrl = '/images/colosseum/fremennik-seer.webp';
-      break;
-    case NpcAttack.COLOSSEUM_ARCHER_AUTO:
-      imageUrl = '/images/colosseum/fremennik-archer.webp';
-      break;
-    case NpcAttack.COLOSSEUM_SHAMAN_AUTO:
-      imageUrl = '/images/colosseum/shaman-auto.webp';
-      break;
-    case NpcAttack.COLOSSEUM_JAGUAR_AUTO:
-      imageUrl = '/images/colosseum/jaguar-auto.webp';
-      break;
-    case NpcAttack.COLOSSEUM_JAVELIN_AUTO:
-      imageUrl = '/images/colosseum/javelin-colossus.webp';
-      break;
-    case NpcAttack.COLOSSEUM_JAVELIN_TOSS:
-      imageUrl = '/images/colosseum/javelin-toss.webp';
-      break;
-    case NpcAttack.COLOSSEUM_MANTICORE_MAGE:
-      imageUrl = '/images/colosseum/manticore-mage.webp';
-      break;
-    case NpcAttack.COLOSSEUM_MANTICORE_RANGE:
-      imageUrl = '/images/colosseum/manticore-range.webp';
-      break;
-    case NpcAttack.COLOSSEUM_MANTICORE_MELEE:
-      imageUrl = '/images/colosseum/manticore-melee.webp';
-      break;
-    case NpcAttack.COLOSSEUM_SHOCKWAVE_AUTO:
-      imageUrl = '/images/colosseum/shockwave-auto.webp';
-      break;
-    case NpcAttack.COLOSSEUM_MINOTAUR_AUTO:
-      imageUrl = '/images/colosseum/minotaur-auto.webp';
-      break;
-    case NpcAttack.COLOSSEUM_HEREDIT_SLAM:
-      imageUrl = '/images/colosseum/heredit-slam.webp';
-      break;
-
-    case NpcAttack.COLOSSEUM_HEREDIT_THRUST:
-    case NpcAttack.COLOSSEUM_HEREDIT_COMBO:
-    case NpcAttack.COLOSSEUM_HEREDIT_BREAK:
-    default:
-      imageUrl = '/images/huh.png';
-      break;
-  }
+  const meta =
+    NPC_ATTACK_METADATA[attack] ?? NPC_ATTACK_METADATA[NpcAttack.UNKNOWN];
 
   return (
     <div className={styles.attackTimeline__CellImage}>
       <Image
-        src={imageUrl}
+        src={meta.imageUrl}
         alt={`NPC attack: ${attack}`}
         height={size}
         width={size}
@@ -673,261 +554,6 @@ function makeCellImage(
   );
 }
 
-const npcAttackName = (attack: NpcAttack): string => {
-  // A human-readable name for the attack, to be used to complete the sentence
-  // "X targeted Y with ..." or "X did ..."
-  switch (attack) {
-    case NpcAttack.TOB_MAIDEN_AUTO:
-    case NpcAttack.TOB_VERZIK_P1_AUTO:
-      return 'an auto attack';
-
-    case NpcAttack.TOB_MAIDEN_BLOOD_THROW:
-      return 'a blood throw';
-
-    case NpcAttack.TOB_BLOAT_STOMP:
-      return 'a stomp';
-
-    case NpcAttack.TOB_NYLO_BOSS_MELEE:
-    case NpcAttack.TOB_SOTE_MELEE:
-    case NpcAttack.TOB_VERZIK_P3_MELEE:
-      return 'a melee attack';
-
-    case NpcAttack.TOB_NYLO_BOSS_RANGE:
-    case NpcAttack.TOB_VERZIK_P2_CABBAGE:
-    case NpcAttack.TOB_VERZIK_P3_RANGE:
-      return 'a ranged attack';
-
-    case NpcAttack.TOB_NYLO_BOSS_MAGE:
-    case NpcAttack.TOB_VERZIK_P3_MAGE:
-    case NpcAttack.TOB_VERZIK_P2_MAGE:
-      return 'a magic attack';
-
-    case NpcAttack.TOB_SOTE_BALL:
-      return 'a ball';
-
-    case NpcAttack.TOB_SOTE_DEATH_BALL:
-      return 'a death ball';
-
-    case NpcAttack.TOB_XARPUS_SPIT:
-      return 'a poison spit';
-
-    case NpcAttack.TOB_XARPUS_TURN:
-      return 'a turn';
-
-    case NpcAttack.TOB_VERZIK_P2_BOUNCE:
-      return 'a bounce';
-
-    case NpcAttack.TOB_VERZIK_P2_ZAP:
-      return 'a zap';
-
-    case NpcAttack.TOB_VERZIK_P2_PURPLE:
-      return 'a purple crab';
-
-    case NpcAttack.TOB_VERZIK_P3_AUTO:
-      return 'an unknown attack';
-
-    case NpcAttack.TOB_VERZIK_P3_WEBS:
-      return 'webs';
-
-    case NpcAttack.TOB_VERZIK_P3_YELLOWS:
-      return 'yellow pools';
-
-    case NpcAttack.TOB_VERZIK_P3_BALL:
-      return 'a green ball';
-
-    case NpcAttack.COLOSSEUM_BERSERKER_AUTO:
-    case NpcAttack.COLOSSEUM_SEER_AUTO:
-    case NpcAttack.COLOSSEUM_ARCHER_AUTO:
-    case NpcAttack.COLOSSEUM_SHAMAN_AUTO:
-    case NpcAttack.COLOSSEUM_JAGUAR_AUTO:
-    case NpcAttack.COLOSSEUM_JAVELIN_AUTO:
-    case NpcAttack.COLOSSEUM_SHOCKWAVE_AUTO:
-    case NpcAttack.COLOSSEUM_MINOTAUR_AUTO:
-      return 'an auto attack';
-
-    case NpcAttack.COLOSSEUM_JAVELIN_TOSS:
-      return 'a javelin toss';
-
-    case NpcAttack.COLOSSEUM_MANTICORE_MAGE:
-      return 'a magic attack';
-    case NpcAttack.COLOSSEUM_MANTICORE_RANGE:
-      return 'a ranged attack';
-    case NpcAttack.COLOSSEUM_MANTICORE_MELEE:
-      return 'a melee attack';
-
-    case NpcAttack.COLOSSEUM_HEREDIT_THRUST:
-      return 'a trident stab';
-    case NpcAttack.COLOSSEUM_HEREDIT_SLAM:
-      return 'a shield bash';
-    case NpcAttack.COLOSSEUM_HEREDIT_COMBO:
-      return 'a combo attack';
-    case NpcAttack.COLOSSEUM_HEREDIT_BREAK:
-      return 'a grapple attack';
-  }
-
-  return '';
-};
-
-const playerAttackVerb = (attack: PlayerAttack): string => {
-  switch (attack) {
-    case PlayerAttack.ARCLIGHT_AUTO:
-      return 'arclighted';
-    case PlayerAttack.ARCLIGHT_SPEC:
-      return 'arclight specced';
-    case PlayerAttack.ABYSSAL_BLUDGEON:
-      return 'bludgeoned';
-    case PlayerAttack.AGS_SPEC:
-      return "AGS'd";
-    case PlayerAttack.ATLATL_AUTO:
-    case PlayerAttack.ATLATL_SPEC:
-      return 'atlatled';
-    case PlayerAttack.BGS_SPEC:
-      return "BGS'd";
-    case PlayerAttack.BLOWPIPE:
-    case PlayerAttack.BLOWPIPE_SPEC:
-      return 'piped';
-    case PlayerAttack.CHALLY_SPEC:
-      return 'challied';
-    case PlayerAttack.CHIN_BLACK:
-    case PlayerAttack.CHIN_GREY:
-    case PlayerAttack.CHIN_RED:
-      return 'chinned';
-    case PlayerAttack.BURNING_CLAW_SCRATCH:
-    case PlayerAttack.CLAW_SCRATCH:
-      return 'claw scratched';
-    case PlayerAttack.BURNING_CLAW_SPEC:
-    case PlayerAttack.CLAW_SPEC:
-      return 'clawed';
-    case PlayerAttack.DARK_DEMONBANE:
-      return 'demonbaned';
-    case PlayerAttack.DAWN_AUTO:
-    case PlayerAttack.DAWN_SPEC:
-      return 'dawned';
-    case PlayerAttack.DART:
-      return 'threw a dart at';
-    case PlayerAttack.DDS_POKE:
-    case PlayerAttack.EARTHBOUND_TECPATL:
-      return 'poked';
-    case PlayerAttack.DDS_SPEC:
-      return 'DDSed';
-    case PlayerAttack.DINHS_SPEC:
-      return 'dinhsed';
-    case PlayerAttack.DUAL_MACUAHUITL:
-    case PlayerAttack.GLACIAL_TEMOTLI:
-      return 'pummeled';
-    case PlayerAttack.ELDER_MAUL:
-    case PlayerAttack.ELDER_MAUL_SPEC:
-      return 'mauled';
-    case PlayerAttack.EMBERLIGHT_AUTO:
-      return 'embered';
-    case PlayerAttack.EMBERLIGHT_SPEC:
-      return 'ember specced';
-    case PlayerAttack.EYE_OF_AYAK_AUTO:
-      return 'ayaked';
-    case PlayerAttack.EYE_OF_AYAK_SPEC:
-      return 'ayak specced';
-    case PlayerAttack.FANG_STAB:
-      return 'fanged';
-    case PlayerAttack.GODSWORD_SMACK:
-      return 'smacked';
-    case PlayerAttack.HAMMER_BOP:
-      return 'hammer bopped';
-    case PlayerAttack.HAMMER_SPEC:
-      return 'hammered';
-    case PlayerAttack.HAM_JOINT:
-      return 'hammed';
-    case PlayerAttack.ICE_RUSH:
-      return 'rushed';
-    case PlayerAttack.INQUISITORS_MACE:
-      return 'bashed';
-    case PlayerAttack.KICK:
-    case PlayerAttack.GOBLIN_PAINT_CANNON:
-      return 'kicked';
-    case PlayerAttack.NOXIOUS_HALBERD:
-      return 'hallied';
-    case PlayerAttack.PUNCH:
-      return 'punched';
-    case PlayerAttack.KODAI_BARRAGE:
-    case PlayerAttack.NM_STAFF_BARRAGE:
-    case PlayerAttack.SANG_BARRAGE:
-    case PlayerAttack.SCEPTRE_BARRAGE:
-    case PlayerAttack.SHADOW_BARRAGE:
-    case PlayerAttack.SOTD_BARRAGE:
-    case PlayerAttack.STAFF_OF_LIGHT_BARRAGE:
-    case PlayerAttack.TOXIC_TRIDENT_BARRAGE:
-    case PlayerAttack.TOXIC_STAFF_BARRAGE:
-    case PlayerAttack.TRIDENT_BARRAGE:
-    case PlayerAttack.UNKNOWN_BARRAGE:
-      return 'froze';
-    case PlayerAttack.KODAI_BASH:
-      return 'kodai bashed';
-    case PlayerAttack.RAPIER:
-      return 'stabbed';
-    case PlayerAttack.SAELDOR:
-    case PlayerAttack.SULPHUR_BLADES:
-    case PlayerAttack.VOIDWAKER_AUTO:
-      return 'slashed';
-    case PlayerAttack.SANG:
-      return 'sanged';
-    case PlayerAttack.SCORCHING_BOW_AUTO:
-      return 'scobowed';
-    case PlayerAttack.SCORCHING_BOW_SPEC:
-      return 'scobo specced';
-    case PlayerAttack.SCYTHE:
-    case PlayerAttack.SCYTHE_UNCHARGED:
-      return 'scythed';
-    case PlayerAttack.SGS_SPEC:
-      return "SGS'd";
-    case PlayerAttack.SHADOW:
-      return 'shadowed';
-    case PlayerAttack.SOULREAPER_AXE:
-    case PlayerAttack.ZOMBIE_AXE:
-      return 'hacked at';
-    case PlayerAttack.CHALLY_SWIPE:
-    case PlayerAttack.STAFF_OF_LIGHT_SWIPE:
-    case PlayerAttack.TOXIC_STAFF_SWIPE:
-      return 'swiped';
-    case PlayerAttack.SWIFT_BLADE:
-      return 'swifted';
-    case PlayerAttack.TENT_WHIP:
-      return 'whipped';
-    case PlayerAttack.TONALZTICS_AUTO:
-    case PlayerAttack.TONALZTICS_UNCHARGED:
-      return 'ralos tossed';
-    case PlayerAttack.TONALZTICS_SPEC:
-      return 'ralosed';
-    case PlayerAttack.TOXIC_TRIDENT:
-    case PlayerAttack.TRIDENT:
-      return 'tridented';
-    case PlayerAttack.BOWFA:
-    case PlayerAttack.TWISTED_BOW:
-    case PlayerAttack.VENATOR_BOW:
-    case PlayerAttack.WEBWEAVER_AUTO:
-    case PlayerAttack.UNKNOWN_BOW:
-      return 'bowed';
-    case PlayerAttack.VOIDWAKER_SPEC:
-      return 'voidwakered';
-    case PlayerAttack.NM_STAFF_BASH:
-      return 'nightmare bashed';
-    case PlayerAttack.VOLATILE_NM_SPEC:
-      return 'volatiled';
-    case PlayerAttack.WEBWEAVER_SPEC:
-      return 'webweavered';
-    case PlayerAttack.XGS_SPEC:
-      return "XGS'd";
-    case PlayerAttack.ZCB_AUTO:
-    case PlayerAttack.ZCB_SPEC:
-      return "ZCB'd";
-    case PlayerAttack.ZGS_SPEC:
-      return "ZGS'd";
-    case PlayerAttack.UNKNOWN_POWERED_STAFF:
-    case PlayerAttack.UNKNOWN:
-      return 'attacked';
-  }
-
-  return 'attacked';
-};
-
 type CellNpcState = {
   npcId: number;
   roomId: number;
@@ -940,6 +566,7 @@ type CellNpcState = {
 type CellInfo = {
   playerState: PlayerState | null;
   npcState: CellNpcState | null;
+  customRenderer: ((tick: number, size: number) => React.ReactNode) | null;
   highlighted: boolean;
   backgroundColor?: string;
 };
@@ -1024,14 +651,36 @@ const buildTickCell = (
     height: context.cellSize,
   };
 
-  if (playerState === null && npcState === null) {
+  if (
+    playerState === null &&
+    npcState === null &&
+    cellInfo.customRenderer === null
+  ) {
     return (
       <div
-        className={`${styles.cell}`}
+        className={styles.cell}
         key={`empty-cell-${tick}-${actorIndex}`}
         style={style}
       >
         <span className={styles.attackTimeline__Nothing}></span>
+      </div>
+    );
+  }
+
+  if (cellInfo.customRenderer !== null) {
+    const content = cellInfo.customRenderer(tick, imageSize);
+    let className = styles.cell;
+    if (content !== null) {
+      className += ` ${styles.attackTimeline__CellOffCooldown}`;
+    }
+
+    return (
+      <div
+        className={className}
+        key={`custom-cell-${tick}-${actorIndex}`}
+        style={style}
+      >
+        {content}
       </div>
     );
   }
@@ -1049,7 +698,7 @@ const buildTickCell = (
       tooltip = {
         'data-tooltip-type': 'npc',
         'data-tooltip-npc-name': npcName,
-        'data-tooltip-npc-attack': npcAttackName(npcState.attack),
+        'data-tooltip-npc-attack': npcState.attack.toString(),
       };
 
       if (npcState.target !== null) {
@@ -1212,6 +861,17 @@ const buildTickColumn = (
     cellInfo.push({
       npcState,
       playerState: null,
+      customRenderer: null,
+      highlighted: false,
+      backgroundColor,
+    });
+  });
+
+  context.customRows.forEach((row) => {
+    cellInfo.push({
+      npcState: null,
+      playerState: null,
+      customRenderer: row.cellRenderer,
       highlighted: false,
       backgroundColor,
     });
@@ -1222,6 +882,7 @@ const buildTickColumn = (
     cellInfo.push({
       npcState: null,
       playerState: state ?? null,
+      customRenderer: null,
       highlighted: selectedPlayer === playerName,
       backgroundColor,
     });
@@ -1278,7 +939,8 @@ const buildTickColumn = (
 };
 
 type BaseTimelineProps = {
-  splits: TimelineSplit[];
+  splits?: TimelineSplit[];
+  customRows?: CustomRow[];
   backgroundColors?: TimelineColor[];
   playerState: PlayerStateMap;
   updateTickOnPage: (tick: number) => void;
@@ -1293,20 +955,24 @@ type BaseTimelineProps = {
   normalizeItems: boolean;
 };
 
-type TimelineContext = Pick<
-  BaseTimelineProps,
-  | 'actorContext'
-  | 'cellSize'
-  | 'memes'
-  | 'normalizeItems'
-  | 'npcs'
-  | 'playerState'
-  | 'updateTickOnPage'
+type TimelineContext = Required<
+  Pick<
+    BaseTimelineProps,
+    | 'actorContext'
+    | 'cellSize'
+    | 'customRows'
+    | 'memes'
+    | 'normalizeItems'
+    | 'npcs'
+    | 'playerState'
+    | 'updateTickOnPage'
+  >
 >;
 
 function BaseTimeline(props: BaseTimelineProps) {
   const {
-    splits,
+    splits = [],
+    customRows = [],
     backgroundColors,
     playerState,
     updateTickOnPage,
@@ -1325,6 +991,7 @@ function BaseTimeline(props: BaseTimelineProps) {
   const context: TimelineContext = {
     actorContext,
     cellSize,
+    customRows,
     memes,
     normalizeItems,
     npcs,
@@ -1374,13 +1041,19 @@ export type TimelineColor = {
   backgroundColor: string;
 };
 
+export type CustomRow = {
+  name: string;
+  cellRenderer: (tick: number, size: number) => React.ReactNode;
+};
+
 export type AttackTimelineProps = {
   currentTick: number;
   playing: boolean;
   playerState: PlayerStateMap;
   timelineTicks: number;
-  splits: TimelineSplit[];
+  splits?: TimelineSplit[];
   backgroundColors?: TimelineColor[];
+  customRows?: CustomRow[];
   updateTickOnPage: (tick: number) => void;
   npcs: RoomNpcMap;
   cellSize?: number;
@@ -1389,6 +1062,8 @@ export type AttackTimelineProps = {
   normalizeItems?: boolean;
 };
 
+type RowType = 'npc' | 'player' | 'custom';
+
 export function AttackTimeline(props: AttackTimelineProps) {
   const {
     currentTick,
@@ -1396,9 +1071,10 @@ export function AttackTimeline(props: AttackTimelineProps) {
     updateTickOnPage,
     timelineTicks,
     backgroundColors,
-    splits,
     npcs,
     cellSize = DEFAULT_CELL_SIZE,
+    splits,
+    customRows,
     wrapWidth,
     normalizeItems = false,
   } = props;
@@ -1431,18 +1107,23 @@ export function AttackTimeline(props: AttackTimelineProps) {
     }
   }, [shouldScroll, currentTick, totalColumnWidth]);
 
-  const attackTimelineParticipants: [string, number][] = [];
+  const attackTimelineParticipants: [RowType, string, number][] = [];
   npcs.forEach((npc, roomId) => {
     if (npc.hasAttacks) {
       attackTimelineParticipants.push([
+        'npc',
         getNpcDefinition(npc.spawnNpcId)?.shortName ?? 'Unknown',
         roomId,
       ]);
     }
   });
-  const numNpcs = attackTimelineParticipants.length;
+
+  customRows?.forEach((row) => {
+    attackTimelineParticipants.push(['custom', row.name, 0]);
+  });
+
   playerState.forEach((_, playerName) => {
-    attackTimelineParticipants.push([playerName, 0]);
+    attackTimelineParticipants.push(['player', playerName, 0]);
   });
 
   let ticksPerRow = timelineTicks;
@@ -1457,19 +1138,20 @@ export function AttackTimeline(props: AttackTimelineProps) {
   const legendElements: React.ReactNode[] = [];
 
   for (let i = 0; i < attackTimelineParticipants.length; i++) {
-    const [name, id] = attackTimelineParticipants[i];
-    const isNpc = i < numNpcs;
+    const [type, name, id] = attackTimelineParticipants[i];
 
     let className = styles.legendParticipant;
     let onClick;
 
-    if (isNpc) {
+    if (type === 'npc') {
       onClick = () => actorContext.setSelectedRoomNpc(id);
       className += ` ${styles.npc}`;
       if (id === actorContext.selectedRoomNpc) {
         // TODO(frolv): Support selected NPCs.
         // className += ` ${styles.selected}`;
       }
+    } else if (type === 'custom') {
+      className += ` ${styles.custom}`;
     } else {
       onClick = () =>
         actorContext.setSelectedPlayer((p) => (p === name ? null : name));
@@ -1493,6 +1175,7 @@ export function AttackTimeline(props: AttackTimelineProps) {
     () => (
       <BaseTimeline
         splits={splits}
+        customRows={customRows}
         backgroundColors={backgroundColors}
         playerState={playerState}
         updateTickOnPage={updateTickOnPage}
@@ -1519,6 +1202,7 @@ export function AttackTimeline(props: AttackTimelineProps) {
       ticksPerRow,
       timelineTicks,
       normalizeItems,
+      customRows,
     ],
   );
 

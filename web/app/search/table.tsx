@@ -24,11 +24,8 @@ import Button from '@/components/button';
 import Input from '@/components/input';
 import Modal from '@/components/modal';
 import Menu, { MENU_DIVIDER, MenuItem } from '@/components/menu';
-import {
-  modeNameAndColor,
-  statusNameAndColor,
-} from '@/components/raid-quick-details';
 import { DisplayContext } from '@/display';
+import { modeNameAndColor, statusNameAndColor } from '@/utils/challenge';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 import { challengeUrl } from '@/utils/url';
 

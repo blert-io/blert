@@ -1,1 +1,4 @@
-export { ChallengeOverview as default } from './challenge-overview';
+export {
+  ChallengeOverview as default,
+  type ExtraOverviewInfo,
+} from './challenge-overview';

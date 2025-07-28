@@ -1,4 +1,4 @@
-import { PlayerAttack } from '@blert/common';
+import { NpcAttack, PlayerAttack } from '@blert/common';
 
 export const enum CombatStyle {
   MELEE,
@@ -12,6 +12,17 @@ type AttackMetadata = {
   ranged: boolean;
   special: boolean;
   style: CombatStyle | null;
+  verb: string;
+};
+
+type NpcAttackDescriptionFunction = (
+  npcName: React.ReactNode,
+  target: React.ReactNode | null,
+) => React.ReactNode;
+
+type NpcAttackMetadata = {
+  imageUrl: string;
+  description: NpcAttackDescriptionFunction;
 };
 
 export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
@@ -21,6 +32,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'bludgeoned',
   },
   [PlayerAttack.ACCURSED_SCEPTRE_AUTO]: {
     tagColor: 'yellow',
@@ -28,6 +40,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MAGIC,
+    verb: 'sceptred',
   },
   [PlayerAttack.ACCURSED_SCEPTRE_SPEC]: {
     tagColor: 'yellow',
@@ -35,6 +48,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: true,
     style: CombatStyle.MAGIC,
+    verb: 'sceptre specced',
   },
   [PlayerAttack.AGS_SPEC]: {
     tagColor: 'yellow',
@@ -42,6 +56,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: true,
     style: CombatStyle.MELEE,
+    verb: "AGS'd",
   },
   [PlayerAttack.ARCLIGHT_AUTO]: {
     tagColor: 'red',
@@ -49,6 +64,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'arclighted',
   },
   [PlayerAttack.ARCLIGHT_SPEC]: {
     tagColor: 'red',
@@ -56,6 +72,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: true,
     style: CombatStyle.MELEE,
+    verb: 'arclight specced',
   },
   [PlayerAttack.ATLATL_AUTO]: {
     tagColor: 'green',
@@ -63,6 +80,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.RANGED,
+    verb: 'atlatled',
   },
   [PlayerAttack.ATLATL_SPEC]: {
     tagColor: 'green',
@@ -70,6 +88,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: true,
     style: CombatStyle.RANGED,
+    verb: 'atlatled',
   },
   [PlayerAttack.BGS_SPEC]: {
     tagColor: 'yellow',
@@ -77,6 +96,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: true,
     style: CombatStyle.MELEE,
+    verb: "BGS'd",
   },
   [PlayerAttack.BLOWPIPE]: {
     tagColor: 'green',
@@ -84,6 +104,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.RANGED,
+    verb: 'piped',
   },
   [PlayerAttack.BLOWPIPE_SPEC]: {
     tagColor: 'green',
@@ -91,6 +112,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: true,
     style: CombatStyle.RANGED,
+    verb: 'pipe specced',
   },
   [PlayerAttack.BOWFA]: {
     tagColor: 'green',
@@ -98,6 +120,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.RANGED,
+    verb: 'bowed',
   },
   [PlayerAttack.BURNING_CLAW_SCRATCH]: {
     tagColor: 'red',
@@ -105,6 +128,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'claw scratched',
   },
   [PlayerAttack.BURNING_CLAW_SPEC]: {
     tagColor: 'red',
@@ -112,6 +136,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: true,
     style: CombatStyle.MELEE,
+    verb: 'clawed',
   },
   [PlayerAttack.CHALLY_SPEC]: {
     tagColor: 'yellow',
@@ -119,6 +144,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: true,
     style: CombatStyle.MELEE,
+    verb: 'challied',
   },
   [PlayerAttack.CHALLY_SWIPE]: {
     tagColor: 'yellow',
@@ -126,6 +152,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'swiped',
   },
   [PlayerAttack.CHIN_BLACK]: {
     tagColor: 'green',
@@ -133,6 +160,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.RANGED,
+    verb: 'chinned',
   },
   [PlayerAttack.CHIN_GREY]: {
     tagColor: 'green',
@@ -140,6 +168,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.RANGED,
+    verb: 'chinned',
   },
   [PlayerAttack.CHIN_RED]: {
     tagColor: 'green',
@@ -147,6 +176,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.RANGED,
+    verb: 'chinned',
   },
   [PlayerAttack.CLAW_SCRATCH]: {
     tagColor: 'red',
@@ -154,6 +184,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'claw scratched',
   },
   [PlayerAttack.CLAW_SPEC]: {
     tagColor: 'red',
@@ -161,6 +192,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: true,
     style: CombatStyle.MELEE,
+    verb: 'clawed',
   },
   [PlayerAttack.DARK_DEMONBANE]: {
     tagColor: 'blue',
@@ -168,6 +200,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.MAGIC,
+    verb: 'demonbaned',
   },
   [PlayerAttack.DAWN_AUTO]: {
     tagColor: 'yellow',
@@ -175,6 +208,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.MAGIC,
+    verb: 'dawned',
   },
   [PlayerAttack.DAWN_SPEC]: {
     tagColor: 'yellow',
@@ -182,6 +216,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: true,
     style: null,
+    verb: 'dawned',
   },
   [PlayerAttack.DART]: {
     tagColor: 'green',
@@ -189,6 +224,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.RANGED,
+    verb: 'threw a dart at',
   },
   [PlayerAttack.DDS_POKE]: {
     tagColor: 'yellow',
@@ -196,6 +232,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'poked',
   },
   [PlayerAttack.DDS_SPEC]: {
     tagColor: 'yellow',
@@ -203,6 +240,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: true,
     style: CombatStyle.MELEE,
+    verb: 'DDSed',
   },
   [PlayerAttack.DHAROKS_GREATAXE]: {
     tagColor: 'red',
@@ -210,6 +248,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'hacked',
   },
   [PlayerAttack.DINHS_SPEC]: {
     tagColor: 'yellow',
@@ -217,6 +256,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: true,
     style: CombatStyle.MELEE,
+    verb: 'dinhsed',
   },
   [PlayerAttack.DRAGON_HUNTER_LANCE]: {
     tagColor: 'red',
@@ -224,6 +264,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'poked',
   },
   [PlayerAttack.DRAGON_SCIMITAR]: {
     tagColor: 'red',
@@ -231,6 +272,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'slashed',
   },
   [PlayerAttack.DUAL_MACUAHUITL]: {
     tagColor: 'red',
@@ -238,6 +280,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'pummeled',
   },
   [PlayerAttack.EARTHBOUND_TECPATL]: {
     tagColor: 'red',
@@ -245,6 +288,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'poked',
   },
   [PlayerAttack.ELDER_MAUL]: {
     tagColor: 'red',
@@ -252,6 +296,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'maul whacked',
   },
   [PlayerAttack.ELDER_MAUL_SPEC]: {
     tagColor: 'red',
@@ -259,6 +304,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: true,
     style: CombatStyle.MELEE,
+    verb: 'mauled',
   },
   [PlayerAttack.EMBERLIGHT_AUTO]: {
     tagColor: 'red',
@@ -266,6 +312,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'embered',
   },
   [PlayerAttack.EMBERLIGHT_SPEC]: {
     tagColor: 'red',
@@ -273,6 +320,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: true,
     style: CombatStyle.MELEE,
+    verb: 'ember specced',
   },
   [PlayerAttack.EYE_OF_AYAK_AUTO]: {
     tagColor: 'blue',
@@ -280,6 +328,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.MAGIC,
+    verb: 'ayaked',
   },
   [PlayerAttack.EYE_OF_AYAK_SPEC]: {
     tagColor: 'blue',
@@ -287,6 +336,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: true,
     style: CombatStyle.MAGIC,
+    verb: 'ayak specced',
   },
   [PlayerAttack.FANG_STAB]: {
     tagColor: 'red',
@@ -294,6 +344,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'fanged',
   },
   [PlayerAttack.GLACIAL_TEMOTLI]: {
     tagColor: 'red',
@@ -301,6 +352,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'pummeled',
   },
   [PlayerAttack.GOBLIN_PAINT_CANNON]: {
     tagColor: 'red',
@@ -308,6 +360,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'kicked',
   },
   [PlayerAttack.GODSWORD_SMACK]: {
     tagColor: 'yellow',
@@ -315,6 +368,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'smacked',
   },
   [PlayerAttack.GUTHANS_WARSPEAR]: {
     tagColor: 'red',
@@ -322,6 +376,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'attacked',
   },
   [PlayerAttack.HAM_JOINT]: {
     tagColor: 'red',
@@ -329,6 +384,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'hammed',
   },
   [PlayerAttack.HAMMER_BOP]: {
     tagColor: 'red',
@@ -336,6 +392,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'hammer bopped',
   },
   [PlayerAttack.HAMMER_SPEC]: {
     tagColor: 'red',
@@ -343,6 +400,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: true,
     style: CombatStyle.MELEE,
+    verb: 'hammered',
   },
   [PlayerAttack.ICE_RUSH]: {
     tagColor: 'blue',
@@ -350,6 +408,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.MAGIC,
+    verb: 'rushed',
   },
   [PlayerAttack.INQUISITORS_MACE]: {
     tagColor: 'red',
@@ -357,6 +416,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'bashed',
   },
   [PlayerAttack.KARILS_CROSSBOW]: {
     tagColor: 'green',
@@ -364,6 +424,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.RANGED,
+    verb: 'attacked',
   },
   [PlayerAttack.KICK]: {
     tagColor: undefined,
@@ -371,6 +432,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'kicked',
   },
   [PlayerAttack.KODAI_BARRAGE]: {
     tagColor: 'blue',
@@ -378,6 +440,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.MAGIC,
+    verb: 'froze',
   },
   [PlayerAttack.KODAI_BASH]: {
     tagColor: 'blue',
@@ -385,6 +448,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'kodai bashed',
   },
   [PlayerAttack.NM_STAFF_BARRAGE]: {
     tagColor: 'blue',
@@ -392,6 +456,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.MAGIC,
+    verb: 'froze',
   },
   [PlayerAttack.NM_STAFF_BASH]: {
     tagColor: 'blue',
@@ -399,6 +464,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'nightmare bashed',
   },
   [PlayerAttack.NOXIOUS_HALBERD]: {
     tagColor: 'red',
@@ -406,6 +472,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'hallied',
   },
   [PlayerAttack.PUNCH]: {
     tagColor: undefined,
@@ -413,6 +480,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'punched',
   },
   [PlayerAttack.RAPIER]: {
     tagColor: 'red',
@@ -420,6 +488,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'stabbed',
   },
   [PlayerAttack.SAELDOR]: {
     tagColor: 'red',
@@ -427,6 +496,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'slashed',
   },
   [PlayerAttack.SANG]: {
     tagColor: 'blue',
@@ -434,6 +504,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.MAGIC,
+    verb: 'sanged',
   },
   [PlayerAttack.SANG_BARRAGE]: {
     tagColor: 'blue',
@@ -441,6 +512,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.MAGIC,
+    verb: 'froze',
   },
   [PlayerAttack.SCEPTRE_BARRAGE]: {
     tagColor: 'blue',
@@ -448,6 +520,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.MAGIC,
+    verb: 'froze',
   },
   [PlayerAttack.SCORCHING_BOW_AUTO]: {
     tagColor: 'green',
@@ -455,6 +528,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.RANGED,
+    verb: 'scobowed',
   },
   [PlayerAttack.SCORCHING_BOW_SPEC]: {
     tagColor: 'green',
@@ -462,6 +536,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: true,
     style: CombatStyle.RANGED,
+    verb: 'scobo specced',
   },
   [PlayerAttack.SCYTHE]: {
     tagColor: 'red',
@@ -469,6 +544,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'scythed',
   },
   [PlayerAttack.SCYTHE_UNCHARGED]: {
     tagColor: 'red',
@@ -476,6 +552,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'scythed',
   },
   [PlayerAttack.SGS_SPEC]: {
     tagColor: 'yellow',
@@ -483,6 +560,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: true,
     style: CombatStyle.MELEE,
+    verb: "SGS'd",
   },
   [PlayerAttack.SHADOW]: {
     tagColor: 'blue',
@@ -490,6 +568,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.MAGIC,
+    verb: 'shadowed',
   },
   [PlayerAttack.SHADOW_BARRAGE]: {
     tagColor: 'blue',
@@ -497,6 +576,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.MAGIC,
+    verb: 'froze',
   },
   [PlayerAttack.SOTD_BARRAGE]: {
     tagColor: 'blue',
@@ -504,6 +584,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.MAGIC,
+    verb: 'froze',
   },
   [PlayerAttack.SOULREAPER_AXE]: {
     tagColor: 'red',
@@ -511,6 +592,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'hacked at',
   },
   [PlayerAttack.STAFF_OF_LIGHT_BARRAGE]: {
     tagColor: 'blue',
@@ -518,6 +600,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.MAGIC,
+    verb: 'froze',
   },
   [PlayerAttack.STAFF_OF_LIGHT_SWIPE]: {
     tagColor: 'blue',
@@ -525,6 +608,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'swiped',
   },
   [PlayerAttack.SULPHUR_BLADES]: {
     tagColor: 'red',
@@ -532,6 +616,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'slashed',
   },
   [PlayerAttack.SWIFT_BLADE]: {
     tagColor: 'red',
@@ -539,6 +624,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'swifted',
   },
   [PlayerAttack.TENT_WHIP]: {
     tagColor: 'red',
@@ -546,6 +632,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'whipped',
   },
   [PlayerAttack.TORAGS_HAMMERS]: {
     tagColor: 'red',
@@ -553,6 +640,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'attacked',
   },
   [PlayerAttack.TOXIC_TRIDENT]: {
     tagColor: 'blue',
@@ -560,6 +648,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.MAGIC,
+    verb: 'tridented',
   },
   [PlayerAttack.TOXIC_TRIDENT_BARRAGE]: {
     tagColor: 'blue',
@@ -567,6 +656,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.MAGIC,
+    verb: 'froze',
   },
   [PlayerAttack.TOXIC_STAFF_BARRAGE]: {
     tagColor: 'blue',
@@ -574,6 +664,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.MAGIC,
+    verb: 'froze',
   },
   [PlayerAttack.TOXIC_STAFF_SWIPE]: {
     tagColor: 'blue',
@@ -581,6 +672,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'swiped',
   },
   [PlayerAttack.TRIDENT]: {
     tagColor: 'blue',
@@ -588,6 +680,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.MAGIC,
+    verb: 'tridented',
   },
   [PlayerAttack.TRIDENT_BARRAGE]: {
     tagColor: 'blue',
@@ -595,6 +688,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.MAGIC,
+    verb: 'froze',
   },
   [PlayerAttack.TONALZTICS_AUTO]: {
     tagColor: 'yellow',
@@ -602,6 +696,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.RANGED,
+    verb: 'ralos tossed',
   },
   [PlayerAttack.TONALZTICS_SPEC]: {
     tagColor: 'yellow',
@@ -609,6 +704,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: true,
     style: CombatStyle.RANGED,
+    verb: 'ralosed',
   },
   [PlayerAttack.TONALZTICS_UNCHARGED]: {
     tagColor: 'yellow',
@@ -616,6 +712,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: true,
     style: CombatStyle.RANGED,
+    verb: 'ralos tossed',
   },
   [PlayerAttack.TWISTED_BOW]: {
     tagColor: 'green',
@@ -623,6 +720,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.RANGED,
+    verb: 'bowed',
   },
   [PlayerAttack.VENATOR_BOW]: {
     tagColor: 'green',
@@ -630,6 +728,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.RANGED,
+    verb: 'bowed',
   },
   [PlayerAttack.VERACS_FLAIL]: {
     tagColor: 'red',
@@ -637,6 +736,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'attacked',
   },
   [PlayerAttack.VOIDWAKER_AUTO]: {
     tagColor: 'yellow',
@@ -644,6 +744,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'slashed',
   },
   [PlayerAttack.VOIDWAKER_SPEC]: {
     tagColor: 'yellow',
@@ -651,6 +752,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: true,
     style: CombatStyle.MELEE,
+    verb: 'voidwakered',
   },
   [PlayerAttack.VOLATILE_NM_SPEC]: {
     tagColor: 'blue',
@@ -658,6 +760,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: true,
     style: CombatStyle.MAGIC,
+    verb: 'volatiled',
   },
   [PlayerAttack.WEBWEAVER_AUTO]: {
     tagColor: 'green',
@@ -665,6 +768,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.RANGED,
+    verb: 'bowed',
   },
   [PlayerAttack.WEBWEAVER_SPEC]: {
     tagColor: 'green',
@@ -672,6 +776,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: true,
     style: CombatStyle.RANGED,
+    verb: 'webweavered',
   },
   [PlayerAttack.XGS_SPEC]: {
     tagColor: 'yellow',
@@ -679,6 +784,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: true,
     style: CombatStyle.MELEE,
+    verb: "XGS'd",
   },
   [PlayerAttack.ZCB_AUTO]: {
     tagColor: 'green',
@@ -686,6 +792,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.RANGED,
+    verb: "ZCB'd",
   },
   [PlayerAttack.ZCB_SPEC]: {
     tagColor: 'green',
@@ -693,6 +800,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: true,
     style: CombatStyle.RANGED,
+    verb: "ZCB'd",
   },
   [PlayerAttack.ZGS_SPEC]: {
     tagColor: 'yellow',
@@ -700,6 +808,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: true,
     style: CombatStyle.MELEE,
+    verb: "ZGS'd",
   },
   [PlayerAttack.ZOMBIE_AXE]: {
     tagColor: 'red',
@@ -707,6 +816,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
+    verb: 'hacked at',
   },
   [PlayerAttack.UNKNOWN_BARRAGE]: {
     tagColor: undefined,
@@ -714,6 +824,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.MAGIC,
+    verb: 'froze',
   },
   [PlayerAttack.UNKNOWN_BOW]: {
     tagColor: 'green',
@@ -721,6 +832,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.RANGED,
+    verb: 'bowed',
   },
   [PlayerAttack.UNKNOWN_POWERED_STAFF]: {
     tagColor: 'blue',
@@ -728,6 +840,7 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: true,
     special: false,
     style: CombatStyle.MAGIC,
+    verb: 'attacked',
   },
   [PlayerAttack.UNKNOWN]: {
     tagColor: undefined,
@@ -735,5 +848,276 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     ranged: false,
     special: false,
     style: null,
+    verb: 'attacked',
   },
 };
+
+/**
+ * Standard description for attacks that don't have a specific description.
+ *
+ * @param attackName A human-readable name for the attack, to be used to
+ * complete the sentence "X targeted Y with ..." or "X did ..."
+ * @returns Function that generates a simple description of the attack.
+ */
+function basicDescription(attackName: string): NpcAttackDescriptionFunction {
+  const description: NpcAttackDescriptionFunction = (npcName, target) => {
+    if (target) {
+      return (
+        <span>
+          {npcName} targeted {target} with {attackName}
+        </span>
+      );
+    }
+    return (
+      <span>
+        {npcName} did {attackName}
+      </span>
+    );
+  };
+
+  return description;
+}
+
+export const NPC_ATTACK_METADATA: { [attack in NpcAttack]: NpcAttackMetadata } =
+  {
+    [NpcAttack.TOB_MAIDEN_AUTO]: {
+      imageUrl: '/maiden_auto.png',
+      description: basicDescription('an auto attack'),
+    },
+    [NpcAttack.TOB_MAIDEN_BLOOD_THROW]: {
+      imageUrl: '/maiden_blood_throw.png',
+      description: (npcName, target) => (
+        <span>
+          {npcName} threw blood{target ? <> at {target}</> : ''}
+        </span>
+      ),
+    },
+    [NpcAttack.TOB_BLOAT_STOMP]: {
+      imageUrl: '/bloat_stomp.webp',
+      description: (npcName, _) => <span>{npcName} stomped</span>,
+    },
+    [NpcAttack.TOB_NYLO_BOSS_MELEE]: {
+      imageUrl: '/nylo_boss_melee.png',
+      description: basicDescription('a melee attack'),
+    },
+    [NpcAttack.TOB_NYLO_BOSS_RANGE]: {
+      imageUrl: '/nylo_boss_range.png',
+      description: basicDescription('a ranged attack'),
+    },
+    [NpcAttack.TOB_NYLO_BOSS_MAGE]: {
+      imageUrl: '/nylo_boss_mage.png',
+      description: basicDescription('a magic attack'),
+    },
+    [NpcAttack.TOB_SOTE_MELEE]: {
+      imageUrl: '/sote_melee.png',
+      description: basicDescription('a melee attack'),
+    },
+    [NpcAttack.TOB_SOTE_BALL]: {
+      imageUrl: '/sote_ball.png',
+      description: basicDescription('a ball'),
+    },
+    [NpcAttack.TOB_SOTE_DEATH_BALL]: {
+      imageUrl: '/sote_death_ball.png',
+      description: (npcName, target) => (
+        <span>
+          {npcName} launched a death ball{target ? <> at {target}</> : ''}
+        </span>
+      ),
+    },
+    [NpcAttack.TOB_XARPUS_SPIT]: {
+      imageUrl: '/xarpus_spit.png',
+      description: (npcName, target) => (
+        <span>
+          {npcName} spat poison{target ? <> at {target}</> : ''}
+        </span>
+      ),
+    },
+    [NpcAttack.TOB_XARPUS_TURN]: {
+      imageUrl: '/xarpus_turn.webp',
+      description: (npcName, _) => <span>{npcName} turned</span>,
+    },
+    [NpcAttack.TOB_VERZIK_P1_AUTO]: {
+      imageUrl: '/verzik_p1_auto.png',
+      description: basicDescription('an auto attack'),
+    },
+    [NpcAttack.TOB_VERZIK_P2_BOUNCE]: {
+      imageUrl: '/verzik_p2_bounce.png',
+      description: (npcName, target) => (
+        <span>
+          {npcName} bounced {target ?? 'someone'}
+        </span>
+      ),
+    },
+    [NpcAttack.TOB_VERZIK_P2_CABBAGE]: {
+      imageUrl: '/verzik_p2_cabbage.png',
+      description: basicDescription('a ranged attack'),
+    },
+    [NpcAttack.TOB_VERZIK_P2_ZAP]: {
+      imageUrl: '/verzik_p2_zap.png',
+      description: basicDescription('a zap'),
+    },
+    [NpcAttack.TOB_VERZIK_P2_PURPLE]: {
+      imageUrl: '/verzik_p2_purple.png',
+      description: basicDescription('a purple crab'),
+    },
+    [NpcAttack.TOB_VERZIK_P2_MAGE]: {
+      imageUrl: '/verzik_p2_mage.webp',
+      description: basicDescription('a magic attack'),
+    },
+    [NpcAttack.TOB_VERZIK_P3_AUTO]: {
+      imageUrl: '/images/huh.png',
+      description: basicDescription('an unknown attack'),
+    },
+    [NpcAttack.TOB_VERZIK_P3_MELEE]: {
+      imageUrl: '/verzik_p3_melee.webp',
+      description: basicDescription('a melee attack'),
+    },
+    [NpcAttack.TOB_VERZIK_P3_RANGE]: {
+      imageUrl: '/verzik_p3_range.webp',
+      description: basicDescription('a ranged attack'),
+    },
+    [NpcAttack.TOB_VERZIK_P3_MAGE]: {
+      imageUrl: '/verzik_p3_mage.webp',
+      description: basicDescription('a magic attack'),
+    },
+    [NpcAttack.TOB_VERZIK_P3_WEBS]: {
+      imageUrl: '/verzik_p3_webs.webp',
+      description: (npcName, _) => (
+        <span>{npcName} started releasing webs</span>
+      ),
+    },
+    [NpcAttack.TOB_VERZIK_P3_YELLOWS]: {
+      imageUrl: '/verzik_p3_yellow.webp',
+      description: (npcName, _) => <span>{npcName} spawned yellow pools</span>,
+    },
+    [NpcAttack.TOB_VERZIK_P3_BALL]: {
+      imageUrl: '/verzik_p3_ball.webp',
+      description: (npcName, target) => (
+        <span>
+          {npcName} launched a green ball{target ? <> at {target}</> : ''}
+        </span>
+      ),
+    },
+    [NpcAttack.COLOSSEUM_BERSERKER_AUTO]: {
+      imageUrl: '/images/colosseum/fremennik-berserker.webp',
+      description: basicDescription('an auto attack'),
+    },
+    [NpcAttack.COLOSSEUM_SEER_AUTO]: {
+      imageUrl: '/images/colosseum/fremennik-seer.webp',
+      description: basicDescription('an auto attack'),
+    },
+    [NpcAttack.COLOSSEUM_ARCHER_AUTO]: {
+      imageUrl: '/images/colosseum/fremennik-archer.webp',
+      description: basicDescription('an auto attack'),
+    },
+    [NpcAttack.COLOSSEUM_SHAMAN_AUTO]: {
+      imageUrl: '/images/colosseum/shaman-auto.webp',
+      description: basicDescription('an auto attack'),
+    },
+    [NpcAttack.COLOSSEUM_JAGUAR_AUTO]: {
+      imageUrl: '/images/colosseum/jaguar-auto.webp',
+      description: basicDescription('an auto attack'),
+    },
+    [NpcAttack.COLOSSEUM_JAVELIN_AUTO]: {
+      imageUrl: '/images/colosseum/javelin-colossus.webp',
+      description: basicDescription('an auto attack'),
+    },
+    [NpcAttack.COLOSSEUM_JAVELIN_TOSS]: {
+      imageUrl: '/images/colosseum/javelin-toss.webp',
+      description: basicDescription('a javelin toss'),
+    },
+    [NpcAttack.COLOSSEUM_MANTICORE_MAGE]: {
+      imageUrl: '/images/colosseum/manticore-mage.webp',
+      description: basicDescription('a magic attack'),
+    },
+    [NpcAttack.COLOSSEUM_MANTICORE_RANGE]: {
+      imageUrl: '/images/colosseum/manticore-range.webp',
+      description: basicDescription('a ranged attack'),
+    },
+    [NpcAttack.COLOSSEUM_MANTICORE_MELEE]: {
+      imageUrl: '/images/colosseum/manticore-melee.webp',
+      description: basicDescription('a melee attack'),
+    },
+    [NpcAttack.COLOSSEUM_SHOCKWAVE_AUTO]: {
+      imageUrl: '/images/colosseum/shockwave-auto.webp',
+      description: basicDescription('an auto attack'),
+    },
+    [NpcAttack.COLOSSEUM_MINOTAUR_AUTO]: {
+      imageUrl: '/images/colosseum/minotaur-auto.webp',
+      description: basicDescription('an auto attack'),
+    },
+    [NpcAttack.COLOSSEUM_HEREDIT_THRUST]: {
+      imageUrl: '/images/huh.png',
+      description: basicDescription('a trident stab'),
+    },
+    [NpcAttack.COLOSSEUM_HEREDIT_SLAM]: {
+      imageUrl: '/images/colosseum/heredit-slam.webp',
+      description: basicDescription('a shield bash'),
+    },
+    [NpcAttack.COLOSSEUM_HEREDIT_COMBO]: {
+      imageUrl: '/images/huh.png',
+      description: basicDescription('a combo attack'),
+    },
+    [NpcAttack.COLOSSEUM_HEREDIT_BREAK]: {
+      imageUrl: '/images/huh.png',
+      description: basicDescription('a grapple attack'),
+    },
+    [NpcAttack.MOKHAIOTL_AUTO]: {
+      imageUrl: '/images/huh.png',
+      description: basicDescription('an orb'),
+    },
+    [NpcAttack.MOKHAIOTL_RANGED_AUTO]: {
+      imageUrl: '/images/mokhaiotl/ranged-orb.png',
+      description: basicDescription('a ranged orb'),
+    },
+    [NpcAttack.MOKHAIOTL_MAGE_AUTO]: {
+      imageUrl: '/images/mokhaiotl/magic-orb.png',
+      description: basicDescription('a magic orb'),
+    },
+    [NpcAttack.MOKHAIOTL_MELEE_AUTO]: {
+      imageUrl: '/images/mokhaiotl/melee-orb.png',
+      description: basicDescription('a melee orb'),
+    },
+    [NpcAttack.MOKHAIOTL_BALL]: {
+      imageUrl: '/images/huh.png',
+      description: (npcName, _) => <span>{npcName} launched a ball</span>,
+    },
+    [NpcAttack.MOKHAIOTL_RANGED_BALL]: {
+      imageUrl: '/images/mokhaiotl/ranged-ball.png',
+      description: (npcName, _) => (
+        <span>{npcName} launched a ranged ball</span>
+      ),
+    },
+    [NpcAttack.MOKHAIOTL_MAGE_BALL]: {
+      imageUrl: '/images/mokhaiotl/magic-ball.png',
+      description: (npcName, _) => <span>{npcName} launched a magic ball</span>,
+    },
+    [NpcAttack.MOKHAIOTL_CHARGE]: {
+      imageUrl: '/images/mokhaiotl/charge.png',
+      description: (npcName, _) => <span>{npcName} started charging</span>,
+    },
+    [NpcAttack.MOKHAIOTL_BLAST]: {
+      imageUrl: '/images/mokhaiotl/blast.png',
+      description: basicDescription('a blast'),
+    },
+    [NpcAttack.MOKHAIOTL_RACECAR]: {
+      imageUrl: '/images/mokhaiotl/racecar.webp',
+      description: (npcName, target) => (
+        <span>
+          {npcName} dug{target ? <> towards {target}</> : ''}
+        </span>
+      ),
+    },
+    [NpcAttack.MOKHAIOTL_SLAM]: {
+      imageUrl: '/images/mokhaiotl/shockwave.png',
+      description: (npcName, _) => <span>{npcName} slammed the ground</span>,
+    },
+    [NpcAttack.MOKHAIOTL_SHOCKWAVE]: {
+      imageUrl: '/images/mokhaiotl/shockwave.png',
+      description: (npcName, _) => <span>{npcName} released a shockwave</span>,
+    },
+    [NpcAttack.MOKHAIOTL_MELEE]: {
+      imageUrl: '/images/mokhaiotl/melee.png',
+      description: basicDescription('a melee attack'),
+    },
+  };

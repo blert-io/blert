@@ -89,6 +89,28 @@ export function LeftNav() {
             </Link>
           </li>
 
+          {/* Mokhaiotl */}
+          <li className={styles.leftNav__menuItem}>
+            <Link
+              className={styles.leftNav__menuItemInner}
+              href="/challenges/mokhaiotl"
+            >
+              <div className={styles.leftNav__menuItemIcon}>
+                <div className={styles.imageWrapper}>
+                  <Image
+                    src="/images/mokhaiotl.webp"
+                    alt="Mokhaiotl icon"
+                    fill
+                    style={{ objectFit: 'contain' }}
+                  />
+                </div>
+              </div>
+              <span className="active" style={{ top: -1 }}>
+                Mokhaiotl
+              </span>
+            </Link>
+          </li>
+
           {/* Inferno */}
           <li className={styles.leftNav__menuItem}>
             <Link

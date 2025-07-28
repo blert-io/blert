@@ -36,6 +36,16 @@ const nextConfig = {
         destination: '/raids/tob/:id/overview',
         permanent: true,
       },
+      {
+        source: '/challenges/mokhaiotl/:id',
+        destination: '/challenges/mokhaiotl/:id/overview',
+        permanent: true,
+      },
+      {
+        source: '/challenges/mokhaiotl/:id/delves',
+        destination: '/challenges/mokhaiotl/:id/overview',
+        permanent: true,
+      },
     ];
   },
   webpack: (config, { isServer }) => {
