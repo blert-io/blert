@@ -12,7 +12,9 @@ import {
   updateInterpolation,
   osrsToThreePosition,
   calculateFanOutOffset,
+  threeToOsrsPosition,
 } from './animation';
+import { useEntityPositions } from './entity-position-context';
 import HealthBar from './health-bar';
 import { useReplayContext } from './replay-context';
 import {
@@ -48,6 +50,7 @@ export default function Player({
   const currentPositionRef = useRef<Coords | null>(null);
   const debugTextRef = useRef<TroikaText>(null);
   const { config, playing, mapDefinition } = useReplayContext();
+  const { updateEntityPosition } = useEntityPositions();
 
   const playerEntity = entity as PlayerEntity;
 
@@ -89,6 +92,11 @@ export default function Player({
     } else {
       groupRef.current.position.set(...threePosition);
     }
+
+    updateEntityPosition(
+      entity.getUniqueId(),
+      threeToOsrsPosition(threePosition),
+    );
 
     if (borderMeshRef.current) {
       const borderPosition = osrsToThreePosition(finalPosition, -0.002);

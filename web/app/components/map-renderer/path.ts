@@ -21,6 +21,7 @@ export function visualPath(
   from: Coords,
   to: Coords,
   terrain?: Terrain,
+  allowTeleport: boolean = false,
 ): Array<Coords> | null {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
@@ -33,7 +34,7 @@ export function visualPath(
   if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
     // Players can only move 2 tiles per tick. Anything longer is considered a
     // teleport, which should not be interpolated.
-    return null;
+    return allowTeleport ? [from, to] : null;
   }
 
   if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) {

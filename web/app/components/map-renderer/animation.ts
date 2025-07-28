@@ -20,7 +20,9 @@ export function createInterpolationState(
   const from = entity.position;
   const to = entity.nextPosition ?? entity.position;
 
-  const waypoints = visualPath(from, to, terrain) ?? [from];
+  // TODO(frolv): Actually handle the entity's movement speed instead of this hack.
+  const allowTeleport = entity.maxSpeed > 1;
+  const waypoints = visualPath(from, to, terrain, allowTeleport) ?? [from];
 
   return {
     waypoints,
@@ -187,4 +189,17 @@ export function osrsToThreePosition(
   // OSRS coordinates are based on the southwest point of the entity. Center
   // them on the Three.js tile by applying a 0.5 offset.
   return [coords.x + 0.5, yOffset, -(coords.y + 0.5)];
+}
+
+/**
+ * Converts Three.js coordinates to OSRS coordinates.
+ *
+ * @param coords The Three.js coordinates.
+ * @returns The OSRS coordinates.
+ */
+export function threeToOsrsPosition(coords: [number, number, number]): Coords {
+  return {
+    x: coords[0] - 0.5,
+    y: -(coords[2] + 0.5),
+  };
 }

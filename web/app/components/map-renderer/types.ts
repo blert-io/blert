@@ -1,4 +1,4 @@
-import { Coords, getNpcDefinition, SkillLevel } from '@blert/common';
+import { Coords, getNpcDefinition, PrayerSet, SkillLevel } from '@blert/common';
 
 import { osrsToThreePosition } from './animation';
 import { Terrain } from './path';
@@ -18,7 +18,7 @@ export type MapDefinition = {
 export const enum EntityType {
   PLAYER,
   NPC,
-  GROUND_OBJECT,
+  OBJECT,
   CUSTOM,
 }
 
@@ -90,10 +90,21 @@ type HitpointsState = {
 };
 
 export class PlayerEntity implements Entity {
+  /**
+   * Returns the entity ID of the player with the given username.
+   *
+   * @param username The username of the player.
+   * @returns The entity ID of the player.
+   */
+  public static uniqueId(username: string): string {
+    return `${EntityType.PLAYER}-${username}`;
+  }
+
   type: EntityType = EntityType.PLAYER;
   size: number = 1;
   interactive: boolean = true;
   hitpoints: HitpointsState | null;
+  readonly maxSpeed: number = 2;
 
   public constructor(
     public readonly position: Coords,
@@ -116,7 +127,7 @@ export class PlayerEntity implements Entity {
   }
 
   public getUniqueId(): string {
-    return `${this.type}-${this.name}`;
+    return PlayerEntity.uniqueId(this.name);
   }
 }
 
@@ -148,6 +159,7 @@ export class NpcEntity implements Entity {
   readonly name: string;
   readonly size: number;
   readonly imageUrl: string;
+  readonly maxSpeed: number;
   hitpoints: HitpointsState | null;
 
   public constructor(
@@ -155,6 +167,7 @@ export class NpcEntity implements Entity {
     public readonly id: number,
     public readonly roomId: number,
     hitpoints: HitpointsState | SkillLevel,
+    public readonly prayers: PrayerSet,
     public readonly nextPosition: Coords | undefined = undefined,
     public readonly options: NpcOptions = {},
   ) {
@@ -165,10 +178,12 @@ export class NpcEntity implements Entity {
 
       const imageId = npcDef.semanticId ? id : npcDef.canonicalId;
       this.imageUrl = `/images/npcs/${imageId}.webp`;
+      this.maxSpeed = npcDef.maxSpeed ?? 1;
     } else {
       this.name = `Unknown NPC ${this.id}`;
       this.size = 1;
       this.imageUrl = '/images/huh.png';
+      this.maxSpeed = 1;
     }
 
     if (hitpoints instanceof SkillLevel) {
@@ -186,29 +201,32 @@ export class NpcEntity implements Entity {
   }
 }
 
-export class GroundObjectEntity implements Entity {
-  type: EntityType = EntityType.GROUND_OBJECT;
+export class ObjectEntity implements Entity {
+  type: EntityType = EntityType.OBJECT;
   interactive: boolean = false;
   readonly name: string;
   readonly size: number;
   readonly imageUrl: string;
   readonly borderColor?: string;
+  readonly lieFlat: boolean;
 
   public constructor(
     public readonly position: Coords,
     imageUrl: string,
-    name: string = 'Ground Object',
+    name: string = 'Object',
     size: number = 1,
     borderColor?: string,
+    lieFlat: boolean = false,
   ) {
     this.name = name;
     this.size = size;
     this.imageUrl = imageUrl;
     this.borderColor = borderColor;
+    this.lieFlat = lieFlat;
   }
 
   public getUniqueId(): string {
-    return `${this.type}-${this.position.x}-${this.position.y}`;
+    return `${this.type}-${this.name}-${this.position.x}-${this.position.y}`;
   }
 }
 
@@ -248,11 +266,7 @@ export class CustomEntity<T = any> implements Entity {
 /**
  * Utility type for all animated entity types.
  */
-export type AnyEntity =
-  | PlayerEntity
-  | NpcEntity
-  | GroundObjectEntity
-  | CustomEntity;
+export type AnyEntity = PlayerEntity | NpcEntity | ObjectEntity | CustomEntity;
 
 export interface InteractiveEntityProps<T extends Entity> {
   /** Entity data. */

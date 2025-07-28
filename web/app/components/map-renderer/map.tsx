@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react';
 
+import { EntityPositionProvider } from './entity-position-context';
 import { ReplayContext, DEFAULT_REPLAY_CONFIG } from './replay-context';
 import { MapDefinition, ReplayConfig } from './types';
 
@@ -75,7 +76,7 @@ export default function Map({
   return (
     <div className={styles.map} style={{ width, height }}>
       <ReplayContext.Provider value={contextValue}>
-        {children}
+        <EntityPositionProvider>{children}</EntityPositionProvider>
       </ReplayContext.Provider>
     </div>
   );
