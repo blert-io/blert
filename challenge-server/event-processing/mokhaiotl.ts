@@ -129,6 +129,12 @@ export default class MokhaiotlProcessor extends ChallengeProcessor {
     for (const username of this.getParty()) {
       const stats = this.getCurrentStageStats(username);
       stats.mokhaiotlTotalDelves += 1;
+      if (events.getStatus() === StageStatus.COMPLETED) {
+        stats.mokhaiotlDelvesCompleted += 1;
+        if (this.delve >= 8) {
+          stats.mokhaiotlDeepDelvesCompleted += 1;
+        }
+      }
     }
 
     const state = this.getStageState();
@@ -142,7 +148,11 @@ export default class MokhaiotlProcessor extends ChallengeProcessor {
     });
 
     await Promise.all([
-      this.updateChallengeStats(this.delve, this.delveState.larvaeLeaked),
+      this.updateChallengeStats(
+        this.delve,
+        this.delveState.larvaeLeaked,
+        events.getStatus() === StageStatus.COMPLETED ? this.delve : undefined,
+      ),
       this.getDataRepository().saveMokhaiotlChallengeData(
         this.getUuid(),
         this.mokhaiotlData,
@@ -245,10 +255,19 @@ export default class MokhaiotlProcessor extends ChallengeProcessor {
   private async updateChallengeStats(
     delve: number,
     additionalLarvaeLeaked: number,
+    maxCompletedDelve?: number,
   ): Promise<void> {
+    const updates: Record<string, any> = {
+      delve,
+      larvae_leaked: sql`larvae_leaked + ${additionalLarvaeLeaked}`,
+    };
+    if (maxCompletedDelve) {
+      updates.max_completed_delve = maxCompletedDelve;
+    }
+
     await sql`
       UPDATE mokhaiotl_challenge_stats
-      SET delve = ${delve}, larvae_leaked = larvae_leaked + ${additionalLarvaeLeaked}
+      SET ${sql(updates)}
       WHERE challenge_id = ${this.getDatabaseId()};
     `;
   }
