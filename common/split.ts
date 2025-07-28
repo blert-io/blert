@@ -204,6 +204,18 @@ export enum SplitType {
   COLOSSEUM_WAVE_10 = 161,
   COLOSSEUM_WAVE_11 = 162,
   COLOSSEUM_WAVE_12 = 163,
+
+  // Mokhaiotl splits.
+  MOKHAIOTL_CHALLENGE = 200,
+  MOKHAIOTL_OVERALL = 201,
+  MOKHAIOTL_DELVE_1 = 202,
+  MOKHAIOTL_DELVE_2 = 203,
+  MOKHAIOTL_DELVE_3 = 204,
+  MOKHAIOTL_DELVE_4 = 205,
+  MOKHAIOTL_DELVE_5 = 206,
+  MOKHAIOTL_DELVE_6 = 207,
+  MOKHAIOTL_DELVE_7 = 208,
+  MOKHAIOTL_DELVE_8 = 209,
 }
 
 const genericTobSplits = [
@@ -401,7 +413,7 @@ export function splitName(
     case SplitType.COLOSSEUM_CHALLENGE:
       return full ? 'Colosseum challenge time' : 'Challenge time';
     case SplitType.COLOSSEUM_OVERALL:
-      return full ? 'Colosseum Overall Time' : 'Overall time';
+      return full ? 'Colosseum overall time' : 'Overall time';
     case SplitType.COLOSSEUM_WAVE_1:
       return full ? 'Colosseum Wave 1' : 'Wave 1';
     case SplitType.COLOSSEUM_WAVE_2:
@@ -426,6 +438,26 @@ export function splitName(
       return full ? 'Colosseum Wave 11' : 'Wave 11';
     case SplitType.COLOSSEUM_WAVE_12:
       return full ? 'Sol Heredit time' : 'Sol Heredit';
+    case SplitType.MOKHAIOTL_CHALLENGE:
+      return full ? 'Mokhaiotl 1-8 challenge time' : '1-8 challenge time';
+    case SplitType.MOKHAIOTL_OVERALL:
+      return full ? 'Mokhaiotl 1-8 overall time' : '1-8 overall time';
+    case SplitType.MOKHAIOTL_DELVE_1:
+      return full ? 'Mokhaiotl Delve 1' : 'Delve 1';
+    case SplitType.MOKHAIOTL_DELVE_2:
+      return full ? 'Mokhaiotl Delve 2' : 'Delve 2';
+    case SplitType.MOKHAIOTL_DELVE_3:
+      return full ? 'Mokhaiotl Delve 3' : 'Delve 3';
+    case SplitType.MOKHAIOTL_DELVE_4:
+      return full ? 'Mokhaiotl Delve 4' : 'Delve 4';
+    case SplitType.MOKHAIOTL_DELVE_5:
+      return full ? 'Mokhaiotl Delve 5' : 'Delve 5';
+    case SplitType.MOKHAIOTL_DELVE_6:
+      return full ? 'Mokhaiotl Delve 6' : 'Delve 6';
+    case SplitType.MOKHAIOTL_DELVE_7:
+      return full ? 'Mokhaiotl Delve 7' : 'Delve 7';
+    case SplitType.MOKHAIOTL_DELVE_8:
+      return full ? 'Mokhaiotl Delve 8' : 'Delve 8';
     default:
       return 'Unknown split';
   }
@@ -487,6 +519,13 @@ export function splitToStage(split: SplitType): Stage {
     return Stage.COLOSSEUM_WAVE_1 + wave;
   }
 
+  if (
+    split >= SplitType.MOKHAIOTL_DELVE_1 &&
+    split <= SplitType.MOKHAIOTL_DELVE_8
+  ) {
+    return Stage.MOKHAIOTL_DELVE_1 + (split - SplitType.MOKHAIOTL_DELVE_1);
+  }
+
   return Stage.UNKNOWN;
 }
 
@@ -518,4 +557,15 @@ export const RELEVANT_PB_SPLITS: SplitType[] = [
   SplitType.COLOSSEUM_WAVE_10,
   SplitType.COLOSSEUM_WAVE_11,
   SplitType.COLOSSEUM_WAVE_12,
+
+  SplitType.MOKHAIOTL_CHALLENGE,
+  SplitType.MOKHAIOTL_OVERALL,
+  SplitType.MOKHAIOTL_DELVE_1,
+  SplitType.MOKHAIOTL_DELVE_2,
+  SplitType.MOKHAIOTL_DELVE_3,
+  SplitType.MOKHAIOTL_DELVE_4,
+  SplitType.MOKHAIOTL_DELVE_5,
+  SplitType.MOKHAIOTL_DELVE_6,
+  SplitType.MOKHAIOTL_DELVE_7,
+  SplitType.MOKHAIOTL_DELVE_8,
 ].flatMap((s) => allSplitModes(s));

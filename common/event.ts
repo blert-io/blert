@@ -43,6 +43,11 @@ export enum EventType {
   TOB_VERZIK_YELLOWS = EventProto.Type.TOB_VERZIK_YELLOWS,
   TOB_VERZIK_HEAL = EventProto.Type.TOB_VERZIK_HEAL,
   COLOSSEUM_HANDICAP_CHOICE = EventProto.Type.COLOSSEUM_HANDICAP_CHOICE,
+  MOKHAIOTL_ATTACK_STYLE = EventProto.Type.MOKHAIOTL_ATTACK_STYLE,
+  MOKHAIOTL_ORB = EventProto.Type.MOKHAIOTL_ORB,
+  MOKHAIOTL_OBJECTS = EventProto.Type.MOKHAIOTL_OBJECTS,
+  MOKHAIOTL_LARVA_LEAK = EventProto.Type.MOKHAIOTL_LARVA_LEAK,
+  MOKHAIOTL_SHOCKWAVE = EventProto.Type.MOKHAIOTL_SHOCKWAVE,
 }
 
 export const isPlayerEvent = (event: Event): event is PlayerEvent => {
@@ -173,10 +178,7 @@ export interface VerzikPhaseEvent extends Event {
 
 export interface VerzikAttackStyleEvent extends Event {
   type: EventType.TOB_VERZIK_ATTACK_STYLE;
-  verzikAttack: {
-    style: VerzikAttackStyle;
-    npcAttackTick: number;
-  };
+  verzikAttack: NpcAttackStyle;
 }
 
 export interface VerzikDawnEvent extends Event {
@@ -206,6 +208,60 @@ export interface HandicapChoiceEvent extends Event {
   handicap: Handicap;
 }
 
+export interface MokhaiotlAttackStyleEvent extends Event {
+  type: EventType.MOKHAIOTL_ATTACK_STYLE;
+  mokhaiotlAttackStyle: NpcAttackStyle;
+}
+
+export interface MokhaiotlOrbEvent extends Event {
+  type: EventType.MOKHAIOTL_ORB;
+  mokhaiotlOrb: MokhaiotlOrb;
+}
+
+export interface MokhaiotlObjectsEvent extends Event {
+  type: EventType.MOKHAIOTL_OBJECTS;
+  mokhaiotlObjects: {
+    rocksSpawned: Coords[];
+    rocksDespawned: Coords[];
+    splatsSpawned: Coords[];
+    splatsDespawned: Coords[];
+  };
+}
+
+export interface MokhaiotlLarvaLeakEvent extends Event {
+  type: EventType.MOKHAIOTL_LARVA_LEAK;
+  mokhaiotlLarvaLeak: {
+    roomId: number;
+    healAmount: number;
+  };
+}
+
+export interface MokhaiotlShockwaveEvent extends Event {
+  type: EventType.MOKHAIOTL_SHOCKWAVE;
+  mokhaiotlShockwave: {
+    tiles: Coords[];
+  };
+}
+
+export type MokhaiotlOrb = {
+  source: MokhaiotlOrbSource;
+  sourcePoint: Coords;
+  style: AttackStyle;
+  startTick: number;
+  endTick: number;
+};
+
+export enum MokhaiotlOrbSource {
+  UNKNOWN = 0,
+  MOKHAIOTL = 1,
+  BALL = 2,
+}
+
+export type NpcAttackStyle = {
+  style: AttackStyle;
+  npcAttackTick: number;
+};
+
 export type MergedEvent = Event &
   Omit<PlayerUpdateEvent, 'type'> &
   Omit<PlayerAttackEvent, 'type'> &
@@ -229,7 +285,12 @@ export type MergedEvent = Event &
   Omit<VerzikDawnEvent, 'type'> &
   Omit<VerzikYellowsEvent, 'type'> &
   Omit<VerzikHealEvent, 'type'> &
-  Omit<HandicapChoiceEvent, 'type'>;
+  Omit<HandicapChoiceEvent, 'type'> &
+  Omit<MokhaiotlAttackStyleEvent, 'type'> &
+  Omit<MokhaiotlOrbEvent, 'type'> &
+  Omit<MokhaiotlObjectsEvent, 'type'> &
+  Omit<MokhaiotlLarvaLeakEvent, 'type'> &
+  Omit<MokhaiotlShockwaveEvent, 'type'>;
 
 export enum DataSource {
   PRIMARY = EventProto.Player.DataSource.PRIMARY,
@@ -282,6 +343,7 @@ export interface BasicEventNpc {
 
 export interface EventNpc extends BasicEventNpc {
   hitpoints: RawSkillLevel;
+  prayers: RawPrayerSet;
 }
 
 export type Attack = {
@@ -337,8 +399,8 @@ export type XarpusSplat = {
   bounceFrom: Coords | null;
 };
 
-export enum VerzikAttackStyle {
-  MELEE = EventProto.VerzikAttackStyle.Style.MELEE,
-  RANGE = EventProto.VerzikAttackStyle.Style.RANGE,
-  MAGE = EventProto.VerzikAttackStyle.Style.MAGE,
+export enum AttackStyle {
+  MELEE = EventProto.AttackStyle.Style.MELEE,
+  RANGE = EventProto.AttackStyle.Style.RANGE,
+  MAGE = EventProto.AttackStyle.Style.MAGE,
 }

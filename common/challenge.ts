@@ -17,6 +17,7 @@ export enum ChallengeType {
   TOA = ChallengeProto.TOA,
   COLOSSEUM = ChallengeProto.COLOSSEUM,
   INFERNO = ChallengeProto.INFERNO,
+  MOKHAIOTL = ChallengeProto.MOKHAIOTL,
 }
 
 export interface Challenge {
@@ -53,6 +54,17 @@ export interface ColosseumChallenge extends Challenge {
   type: ChallengeType.COLOSSEUM;
   colosseum: ColosseumData;
 }
+
+export interface MokhaiotlChallenge extends Challenge {
+  type: ChallengeType.MOKHAIOTL;
+  mokhaiotl: MokhaiotlData;
+  mokhaiotlStats: MokhaiotlChallengeStats;
+}
+
+export type MokhaiotlChallengeStats = {
+  delve: number;
+  larvaeLeaked: number;
+};
 
 interface StageData {
   stage: Stage;
@@ -154,6 +166,22 @@ export enum Handicap {
   SOLARFLARE_3 = SOLARFLARE_2 + HANDICAP_LEVEL_VALUE_INCREMENT,
   MYOPIA_3 = MYOPIA_2 + HANDICAP_LEVEL_VALUE_INCREMENT,
   FRAILTY_3 = FRAILTY_2 + HANDICAP_LEVEL_VALUE_INCREMENT,
+}
+
+export type MokhaiotlData = {
+  delves: MokhaiotlDelve[];
+};
+
+export interface MokhaiotlDelve extends StageData {
+  /**
+   * The delve number, starting from 1.
+   * For 1-8, this is equivalent to the stage number.
+   * Beyond that, stage is always MOKHAIOTL_DELVE_8PLUS and delve represents
+   * the actual delve number.
+   */
+  delve: number;
+  challengeTicks: number;
+  larvaeLeaked: number;
 }
 
 export type RoomNpcMap = { [roomId: number]: RoomNpc };
@@ -272,6 +300,16 @@ export enum Stage {
   TOA_CRONDIS = StageProto.TOA_CRONDIS,
   TOA_ZEBAK = StageProto.TOA_ZEBAK,
   TOA_WARDENS = StageProto.TOA_WARDENS,
+
+  MOKHAIOTL_DELVE_1 = StageProto.MOKHAIOTL_DELVE_1,
+  MOKHAIOTL_DELVE_2 = StageProto.MOKHAIOTL_DELVE_2,
+  MOKHAIOTL_DELVE_3 = StageProto.MOKHAIOTL_DELVE_3,
+  MOKHAIOTL_DELVE_4 = StageProto.MOKHAIOTL_DELVE_4,
+  MOKHAIOTL_DELVE_5 = StageProto.MOKHAIOTL_DELVE_5,
+  MOKHAIOTL_DELVE_6 = StageProto.MOKHAIOTL_DELVE_6,
+  MOKHAIOTL_DELVE_7 = StageProto.MOKHAIOTL_DELVE_7,
+  MOKHAIOTL_DELVE_8 = StageProto.MOKHAIOTL_DELVE_8,
+  MOKHAIOTL_DELVE_8PLUS = StageProto.MOKHAIOTL_DELVE_8PLUS,
 
   COLOSSEUM_WAVE_1 = StageProto.COLOSSEUM_WAVE_1,
   COLOSSEUM_WAVE_2 = StageProto.COLOSSEUM_WAVE_2,
@@ -570,6 +608,20 @@ export enum NpcAttack {
   TOB_VERZIK_P3_YELLOWS = NpcAttackProto.TOB_VERZIK_P3_YELLOWS,
   TOB_VERZIK_P3_BALL = NpcAttackProto.TOB_VERZIK_P3_BALL,
 
+  MOKHAIOTL_AUTO = NpcAttackProto.MOKHAIOTL_AUTO,
+  MOKHAIOTL_RANGED_AUTO = NpcAttackProto.MOKHAIOTL_RANGED_AUTO,
+  MOKHAIOTL_MAGE_AUTO = NpcAttackProto.MOKHAIOTL_MAGE_AUTO,
+  MOKHAIOTL_MELEE_AUTO = NpcAttackProto.MOKHAIOTL_MELEE_AUTO,
+  MOKHAIOTL_BALL = NpcAttackProto.MOKHAIOTL_BALL,
+  MOKHAIOTL_MAGE_BALL = NpcAttackProto.MOKHAIOTL_MAGE_BALL,
+  MOKHAIOTL_RANGED_BALL = NpcAttackProto.MOKHAIOTL_RANGED_BALL,
+  MOKHAIOTL_CHARGE = NpcAttackProto.MOKHAIOTL_CHARGE,
+  MOKHAIOTL_BLAST = NpcAttackProto.MOKHAIOTL_BLAST,
+  MOKHAIOTL_RACECAR = NpcAttackProto.MOKHAIOTL_RACECAR,
+  MOKHAIOTL_SLAM = NpcAttackProto.MOKHAIOTL_SLAM,
+  MOKHAIOTL_SHOCKWAVE = NpcAttackProto.MOKHAIOTL_SHOCKWAVE,
+  MOKHAIOTL_MELEE = NpcAttackProto.MOKHAIOTL_MELEE,
+
   COLOSSEUM_BERSERKER_AUTO = NpcAttackProto.COLOSSEUM_BERSERKER_AUTO,
   COLOSSEUM_SEER_AUTO = NpcAttackProto.COLOSSEUM_SEER_AUTO,
   COLOSSEUM_ARCHER_AUTO = NpcAttackProto.COLOSSEUM_ARCHER_AUTO,
@@ -700,6 +752,8 @@ export function challengeName(type: ChallengeType): string {
       return 'Colosseum';
     case ChallengeType.INFERNO:
       return 'Inferno';
+    case ChallengeType.MOKHAIOTL:
+      return 'Doom of Mokhaiotl';
   }
 }
 
@@ -766,6 +820,14 @@ export function stageName(stage: Stage, short: boolean = false): string {
       return 'Muttadile';
     case Stage.COX_OLM:
       return 'Olm';
+
+    case Stage.MOKHAIOTL_DELVE_8PLUS:
+      return short ? 'D8+' : 'Delve 8+';
+  }
+
+  if (stage >= Stage.MOKHAIOTL_DELVE_1 && stage <= Stage.MOKHAIOTL_DELVE_8) {
+    const prefix = short ? 'D' : 'Delve ';
+    return `${prefix}${stage - Stage.MOKHAIOTL_DELVE_1 + 1}`;
   }
 
   if (stage >= Stage.COLOSSEUM_WAVE_1 && stage <= Stage.COLOSSEUM_WAVE_11) {
@@ -824,6 +886,17 @@ const STAGES_BY_CHALLENGE = {
     Stage.COX_MYSTICS,
     Stage.COX_MUTTADILE,
     Stage.COX_OLM,
+  ],
+  [ChallengeType.MOKHAIOTL]: [
+    Stage.MOKHAIOTL_DELVE_1,
+    Stage.MOKHAIOTL_DELVE_2,
+    Stage.MOKHAIOTL_DELVE_3,
+    Stage.MOKHAIOTL_DELVE_4,
+    Stage.MOKHAIOTL_DELVE_5,
+    Stage.MOKHAIOTL_DELVE_6,
+    Stage.MOKHAIOTL_DELVE_7,
+    Stage.MOKHAIOTL_DELVE_8,
+    Stage.MOKHAIOTL_DELVE_8PLUS,
   ],
 };
 

@@ -1,4 +1,5 @@
 import {
+  AttackStyle,
   ChallengeMode,
   ChallengeStatus,
   ChallengeType,
@@ -17,7 +18,6 @@ import {
   StageStatus,
   TobChallengeStats,
   TobRooms,
-  VerzikAttackStyle,
   VerzikPhase,
   XarpusPhase,
   camelToSnakeObject,
@@ -204,8 +204,10 @@ export default class TheatreProcessor extends ChallengeProcessor {
     ]);
   }
 
-  protected override async onFinish(): Promise<void> {
-    this.setSplit(SplitType.TOB_CHALLENGE, this.getTotalChallengeTicks());
+  protected override async onFinish(
+    finalChallengeTicks: number,
+  ): Promise<void> {
+    this.setSplit(SplitType.TOB_CHALLENGE, finalChallengeTicks);
     this.setSplit(SplitType.TOB_OVERALL, this.getOverallTicks());
 
     for (const username of this.getParty()) {
@@ -668,7 +670,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
 
         let attackType: NpcAttack;
         switch (verzikAttackStyle.getStyle()) {
-          case VerzikAttackStyle.MELEE: {
+          case AttackStyle.MELEE: {
             attackType = NpcAttack.TOB_VERZIK_P3_MELEE;
             if (npcAttack.hasTarget()) {
               const stats = this.getCurrentStageStats(npcAttack.getTarget()!);
@@ -677,11 +679,11 @@ export default class TheatreProcessor extends ChallengeProcessor {
             break;
           }
 
-          case VerzikAttackStyle.RANGE:
+          case AttackStyle.RANGE:
             attackType = NpcAttack.TOB_VERZIK_P3_RANGE;
             break;
 
-          case VerzikAttackStyle.MAGE:
+          case AttackStyle.MAGE:
             attackType = NpcAttack.TOB_VERZIK_P3_MAGE;
             break;
 

@@ -1,6 +1,5 @@
 import {
   ChallengeMode,
-  ChallengeStatus,
   ChallengeType,
   DataRepository,
   PriceTracker,
@@ -14,6 +13,7 @@ import ChallengeProcessor, {
   type ReportedTimes,
 } from './challenge-processor';
 import ColosseumProcessor from './colosseum';
+import MokhaiotlProcessor from './mokhaiotl';
 import TheatreProcessor from './theatre';
 
 export { ChallengeProcessor, ChallengeState, ReportedTimes };
@@ -41,6 +41,19 @@ export function newChallengeProcessor(
         party,
         extraFields,
       );
+
+    case ChallengeType.MOKHAIOTL:
+      return new MokhaiotlProcessor(
+        dataRepository,
+        priceTracker,
+        uuid,
+        mode,
+        stage,
+        stageStatus,
+        party,
+        extraFields,
+      );
+
     case ChallengeType.TOB:
       return new TheatreProcessor(
         dataRepository,
@@ -94,6 +107,7 @@ export function loadChallengeProcessor(
       totalChallengeTicks: state.challengeTicks,
       customData: state.customData,
       reportedTimes,
+      stageAttempt: state.stageAttempt,
     },
   );
 }

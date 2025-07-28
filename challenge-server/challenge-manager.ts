@@ -152,6 +152,9 @@ function fromRedis(state: RedisChallengeState): ExtendedChallengeState {
     type: Number.parseInt(state.type) as ChallengeType,
     mode: Number.parseInt(state.mode) as ChallengeMode,
     stage: Number.parseInt(state.stage) as Stage,
+    stageAttempt: state.stageAttempt
+      ? Number.parseInt(state.stageAttempt)
+      : undefined,
     status: Number.parseInt(state.status) as ChallengeStatus,
     stageStatus: Number.parseInt(state.stageStatus) as StageStatus,
     party: state.party.split(','),
@@ -375,7 +378,7 @@ export default class ChallengeManager {
             startAction = StartAction.DEFERRED_JOIN;
           } else {
             logger.info(
-              `User ${userId}: Joining existing challenge for ${partyMembers}`,
+              `User ${userId}: Joining existing challenge type ${type} for ${partyMembers}`,
             );
 
             challengeUuid = lastChallengeForParty;
@@ -394,7 +397,7 @@ export default class ChallengeManager {
         }
       } else {
         logger.info(
-          `User ${userId}: Starting new challenge for ${partyMembers}`,
+          `User ${userId}: Starting new challenge type ${type} for ${partyMembers}`,
         );
         startAction = StartAction.CREATE;
       }

@@ -79,8 +79,10 @@ export default class ColosseumProcessor extends ChallengeProcessor {
     );
   }
 
-  protected override async onFinish(): Promise<void> {
-    this.setSplit(SplitType.COLOSSEUM_CHALLENGE, this.getTotalChallengeTicks());
+  protected override async onFinish(
+    finalChallengeTicks: number,
+  ): Promise<void> {
+    this.setSplit(SplitType.COLOSSEUM_CHALLENGE, finalChallengeTicks);
 
     for (const username of this.getParty()) {
       const stats = this.getCurrentStageStats(username);

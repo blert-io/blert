@@ -46,6 +46,7 @@ export type InitializedFields = {
   totalChallengeTicks?: number;
   reportedTimes?: ReportedTimes | null;
   customData?: object | null;
+  stageAttempt?: number;
 };
 
 type ModifiableChallengeFields = Pick<
@@ -78,6 +79,7 @@ export type ChallengeState = ModifiableChallengeFields &
     stageStatus: StageStatus;
     reportedChallengeTicks: number | null;
     reportedOverallTicks: number | null;
+    stageAttempt: number | undefined;
   };
 
 export type Session = Pick<
@@ -129,6 +131,7 @@ export default abstract class ChallengeProcessor {
   private challengeStatus: ChallengeStatus;
   private stage: Stage;
   private stageStatus: StageStatus;
+  private stageAttempt: number | undefined;
   private party: string[];
   private players: PlayerInfo[];
   private totalChallengeTicks: number;
@@ -153,6 +156,7 @@ export default abstract class ChallengeProcessor {
       type: this.type,
       mode: this.mode,
       stage: this.stage,
+      stageAttempt: this.stageAttempt,
       status: this.challengeStatus,
       stageStatus: this.stageStatus,
       party: this.party,
@@ -208,6 +212,25 @@ export default abstract class ChallengeProcessor {
     this.reportedTimes = times;
   }
 
+  protected setStageAttempt(attempt: number): void {
+    this.stageAttempt = attempt;
+  }
+
+  protected getStageAttempt(): number | undefined {
+    return this.stageAttempt;
+  }
+
+  /**
+   * Returns the final number of ticks to be counted for the challenge.
+   * Implementations can override this if the challenge can continue past its
+   * last stage.
+   *
+   * @returns The final challenge ticks.
+   */
+  protected getFinalChallengeTicks(): number {
+    return this.totalChallengeTicks;
+  }
+
   /**
    * Creates a new challenge record, and optionally a session.
    *
@@ -261,27 +284,31 @@ export default abstract class ChallengeProcessor {
       this.challengeStatus = ChallengeStatus.ABANDONED;
     }
 
+    let finalChallengeTicks = this.getFinalChallengeTicks();
+
     if (
       this.reportedTimes !== null &&
-      this.reportedTimes.challenge !== this.totalChallengeTicks
+      this.reportedTimes.challenge !== finalChallengeTicks
     ) {
       logger.warn(
-        `Challenge time mismatch: recorded ${this.totalChallengeTicks}, ` +
+        `Challenge time mismatch: recorded ${finalChallengeTicks}, ` +
           `reported ${this.reportedTimes.challenge}`,
       );
-      this.totalChallengeTicks = this.reportedTimes.challenge;
+      finalChallengeTicks = this.reportedTimes.challenge;
     }
 
     await Promise.all([
       this.updateChallenge({
         status: this.challengeStatus,
+        // This is different from `finalChallengeTicks`, as it includes stages
+        // beyond the final stage of the challenge.
         challengeTicks: this.totalChallengeTicks,
         overallTicks: this.reportedTimes?.overall ?? null,
         finishTime,
         fullRecording: this.hasFullyRecordedUpTo(this.stage),
       }),
       ChallengeProcessor.updateSession(this.sessionId, { endTime: finishTime }),
-      this.onFinish(),
+      this.onFinish(finalChallengeTicks),
     ]);
 
     const timesAccurate =
@@ -356,7 +383,11 @@ export default abstract class ChallengeProcessor {
     );
 
     // Set the appropriate status if the raid were to be finished at this point.
-    if (events.getStatus() === StageStatus.COMPLETED) {
+    if (stage > this.lastStage) {
+      // Some challenges can continue past their last stage. They should always
+      // count as completed as long as the last stage is completed.
+      this.challengeStatus = ChallengeStatus.COMPLETED;
+    } else if (events.getStatus() === StageStatus.COMPLETED) {
       if (stage === this.lastStage) {
         this.challengeStatus = ChallengeStatus.COMPLETED;
       } else {
@@ -368,6 +399,8 @@ export default abstract class ChallengeProcessor {
       this.challengeStatus = ChallengeStatus.WIPED;
     }
 
+    await this.onStageFinished(stage, events);
+
     await Promise.all([
       this.addStageDeaths(),
       this.writeStageEvents(
@@ -375,7 +408,6 @@ export default abstract class ChallengeProcessor {
         this.stageState.eventsToWrite,
         events.isAccurate(),
       ),
-      this.onStageFinished(stage, events),
     ]);
 
     const stageSplits = await this.createChallengeSplits(events.isAccurate());
@@ -576,17 +608,8 @@ export default abstract class ChallengeProcessor {
       return;
     }
 
-    let type = RoomNpcType.BASIC;
-    if (npc.hasMaidenCrab()) {
-      type = RoomNpcType.MAIDEN_CRAB;
-    } else if (npc.hasNylo()) {
-      type = RoomNpcType.NYLO;
-    } else if (npc.hasVerzikCrab()) {
-      type = RoomNpcType.VERZIK_CRAB;
-    }
-
     const npcCommon = {
-      type,
+      type: RoomNpcType.BASIC,
       spawnNpcId: npc.getId(),
       roomId: npc.getRoomId(),
       spawnTick: event.getTick(),
@@ -980,6 +1003,7 @@ export default abstract class ChallengeProcessor {
       stage,
       this.party,
       events,
+      this.stageAttempt,
     );
 
     logger.info(
@@ -1257,6 +1281,7 @@ export default abstract class ChallengeProcessor {
     this.challengeStatus =
       extraFields.challengeStatus ?? ChallengeStatus.IN_PROGRESS;
     this.totalChallengeTicks = extraFields.totalChallengeTicks ?? 0;
+    this.stageAttempt = extraFields.stageAttempt ?? undefined;
   }
 
   /**
@@ -1268,7 +1293,7 @@ export default abstract class ChallengeProcessor {
   /**
    * Invoked when the challenge is finished.
    */
-  protected abstract onFinish(): Promise<void>;
+  protected abstract onFinish(finalChallengeTicks: number): Promise<void>;
 
   /**
    * Invoked after all events have been processed for a stage.

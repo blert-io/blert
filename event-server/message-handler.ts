@@ -259,6 +259,7 @@ export default class MessageHandler {
         break;
 
       case ChallengeType.COLOSSEUM:
+      case ChallengeType.MOKHAIOTL:
         if (!checkPartySize(1)) {
           return;
         }
