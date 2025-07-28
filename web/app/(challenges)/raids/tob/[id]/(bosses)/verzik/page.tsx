@@ -37,8 +37,8 @@ import {
 } from '@/components/map';
 import {
   AnyEntity,
-  GroundObjectEntity,
   MapDefinition,
+  ObjectEntity,
   Terrain,
 } from '@/components/map-renderer';
 import { useDisplay } from '@/display';
@@ -310,10 +310,13 @@ export default function VerzikPage() {
       if (yellowsEvent !== undefined) {
         for (const yellow of yellowsEvent.verzikYellows) {
           entities.push(
-            new GroundObjectEntity(
+            new ObjectEntity(
               yellow,
               '/verzik_p3_yellow.webp',
               'Verzik yellow pool',
+              1,
+              undefined,
+              true,
             ),
           );
         }

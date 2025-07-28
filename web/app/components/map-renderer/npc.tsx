@@ -1,6 +1,6 @@
 'use client';
 
-import { Coords } from '@blert/common';
+import { Coords, Prayer, PrayerSet } from '@blert/common';
 import { Billboard, Plane, Text, useTexture } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useRef, useMemo, useEffect, useState, Suspense } from 'react';
@@ -12,7 +12,9 @@ import {
   updateInterpolation,
   osrsToThreePosition,
   calculateFanOutOffset,
+  threeToOsrsPosition,
 } from './animation';
+import { useEntityPositions } from './entity-position-context';
 import HealthBar from './health-bar';
 import { useReplayContext } from './replay-context';
 import {
@@ -209,6 +211,64 @@ function NpcSpriteMesh({
   );
 }
 
+function PrayerSprite({ prayers }: { prayers: PrayerSet }) {
+  const spriteTexture = useTexture(overheadPrayerSprite(prayers), (texture) => {
+    texture.minFilter = THREE.NearestFilter;
+    texture.magFilter = THREE.NearestFilter;
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+  });
+
+  const spriteMaterial = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        u_texture: { value: spriteTexture },
+        u_textureResolution: {
+          value: new THREE.Vector2(
+            spriteTexture.image.width,
+            spriteTexture.image.height,
+          ),
+        },
+        u_isDimmed: { value: false },
+        u_dimOpacity: { value: 0.5 },
+      },
+      vertexShader,
+      fragmentShader,
+      transparent: true,
+      side: THREE.DoubleSide,
+    });
+  }, [spriteTexture]);
+
+  const spriteWidth = 0.5;
+  const spriteHeight =
+    spriteWidth / (spriteTexture.image.width / spriteTexture.image.height);
+
+  return (
+    <mesh scale={[spriteWidth, spriteHeight, 1]} material={spriteMaterial}>
+      <planeGeometry args={[1, 1]} />
+    </mesh>
+  );
+}
+
+function overheadPrayerSprite(prayers: PrayerSet): string {
+  const parts = [];
+  if (prayers.has(Prayer.PROTECT_FROM_MISSILES)) {
+    parts.push('ranged');
+  }
+  if (prayers.has(Prayer.PROTECT_FROM_MAGIC)) {
+    parts.push('magic');
+  }
+  if (prayers.has(Prayer.PROTECT_FROM_MELEE)) {
+    parts.push('melee');
+  }
+
+  if (parts.length === 0) {
+    return '/images/huh.png';
+  }
+
+  return `/images/prayers/overhead-${parts.join('-')}.png`;
+}
+
 export default function Npc({
   entity,
   onClicked,
@@ -225,6 +285,7 @@ export default function Npc({
   const currentPositionRef = useRef<Coords | null>(null);
   const debugTextRef = useRef<TroikaText>(null);
   const [aspect, setAspect] = useState(1);
+  const { updateEntityPosition } = useEntityPositions();
   const { config, playing, mapDefinition } = useReplayContext();
 
   const npcEntity = entity as NpcEntity;
@@ -345,6 +406,11 @@ export default function Npc({
       }
     }
 
+    updateEntityPosition(
+      entity.getUniqueId(),
+      threeToOsrsPosition(groupRef.current.position.toArray()),
+    );
+
     if (borderMeshRef.current) {
       const borderPosition = osrsToThreePosition(adjustedPosition, -0.002);
       borderMeshRef.current.position.set(...borderPosition);
@@ -417,6 +483,14 @@ export default function Npc({
             >
               {entity.name}
             </Text>
+
+            {!npcEntity.prayers.isEmpty() && (
+              <group position={[0, 2.0 + (entity.size - 1) * 0.5, 0]}>
+                <Suspense fallback={null}>
+                  <PrayerSprite prayers={npcEntity.prayers} />
+                </Suspense>
+              </group>
+            )}
 
             {hitpoints && hitpoints.current.getBase() > 0 && (
               <group position={[0, (entity.size - 1) * 0.5, 0]}>

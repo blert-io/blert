@@ -34,8 +34,8 @@ import {
 } from '@/components/map';
 import {
   AnyEntity,
-  GroundObjectEntity,
   MapDefinition,
+  ObjectEntity,
 } from '@/components/map-renderer';
 import Loading from '@/components/loading';
 import { DisplayContext } from '@/display';
@@ -207,11 +207,13 @@ export default function XarpusPage() {
           .filter((evt) => evt.tick <= tick)
           .map(
             (evt) =>
-              new GroundObjectEntity(
+              new ObjectEntity(
                 { x: evt.xCoord, y: evt.yCoord },
                 '/xarpus_spit.png',
                 'Xarpus Splat',
                 1,
+                /*borderColor=*/ undefined,
+                /*layFlat=*/ true,
               ),
           ),
       );

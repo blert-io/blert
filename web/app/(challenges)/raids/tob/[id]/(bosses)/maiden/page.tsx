@@ -36,7 +36,7 @@ import {
 } from '@/components/map';
 import {
   AnyEntity,
-  GroundObjectEntity,
+  ObjectEntity,
   MapDefinition,
   Terrain,
 } from '@/components/map-renderer';
@@ -315,12 +315,13 @@ export default function Maiden() {
       const entities: AnyEntity[] = bloodSplats.flatMap((evt) =>
         evt.maidenBloodSplats.map(
           (coords) =>
-            new GroundObjectEntity(
+            new ObjectEntity(
               coords,
               '/images/objects/maiden_blood_splat.png',
               'Blood Splat',
               1,
               BLOOD_SPLAT_COLOR,
+              true,
             ),
         ),
       );

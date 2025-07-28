@@ -1,24 +1,30 @@
 'use client';
 
-import { useTexture } from '@react-three/drei';
+import { Billboard, useTexture } from '@react-three/drei';
 import { useRef, useMemo, useState, Suspense } from 'react';
 import * as THREE from 'three';
 
 import { osrsToThreePosition } from './animation';
-import { EntityType, GroundObjectEntity } from './types';
+import { EntityType, ObjectEntity } from './types';
 
-export interface GroundObjectComponentProps {
+export interface ObjectComponentProps {
   /** Entity data for the ground object */
-  entity: GroundObjectEntity;
+  entity: ObjectEntity;
 }
 
 const DEFAULT_BORDER_COLOR = new THREE.Color('#c3c7c9');
 
-function GroundObjectFallback({ size }: { size: number }) {
+function ObjectFallback({
+  size,
+  rotation,
+}: {
+  size: number;
+  rotation?: [number, number, number];
+}) {
   const matRef = useRef<THREE.MeshBasicMaterial>(null);
 
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} scale={[size, size, 1]}>
+    <mesh rotation={rotation} scale={[size, size, 1]}>
       <planeGeometry args={[1, 1]} />
       <meshBasicMaterial
         ref={matRef}
@@ -30,11 +36,11 @@ function GroundObjectFallback({ size }: { size: number }) {
   );
 }
 
-function GroundObjectSpriteMesh({
+function ObjectSpriteMesh({
   entity,
   size,
 }: {
-  entity: GroundObjectEntity;
+  entity: ObjectEntity;
   size: number;
 }) {
   const meshRef = useRef<THREE.Mesh>(null);
@@ -51,7 +57,7 @@ function GroundObjectSpriteMesh({
   return (
     <mesh
       ref={meshRef}
-      rotation={[-Math.PI / 2, 0, 0]}
+      rotation={[entity.lieFlat ? -Math.PI / 2 : 0, 0, 0]}
       scale={[size * aspect, size, 1]}
     >
       <planeGeometry args={[1, 1]} />
@@ -65,7 +71,7 @@ function GroundObjectSpriteMesh({
   );
 }
 
-export default function GroundObject({ entity }: GroundObjectComponentProps) {
+export default function Object({ entity }: ObjectComponentProps) {
   const groupRef = useRef<THREE.Group>(null);
   const borderMeshRef = useRef<THREE.Mesh>(null);
 
@@ -118,11 +124,8 @@ export default function GroundObject({ entity }: GroundObjectComponentProps) {
     });
   }, [entity.size, borderColor]);
 
-  if (entity.type !== EntityType.GROUND_OBJECT) {
-    console.warn(
-      'GroundObject component received non-ground-object entity:',
-      entity,
-    );
+  if (entity.type !== EntityType.OBJECT) {
+    console.warn('Object component received non-object entity:', entity);
     return null;
   }
 
@@ -132,18 +135,40 @@ export default function GroundObject({ entity }: GroundObjectComponentProps) {
     y: entity.position.y + sizeOffset,
   };
 
-  const threePosition = osrsToThreePosition(adjustedPosition, 0);
-  const position: [number, number, number] = [
-    threePosition[0],
-    0.001,
-    threePosition[2],
-  ];
+  const y = entity.lieFlat ? 0.001 : entity.size / 2 - 0.25;
+  const position = osrsToThreePosition(adjustedPosition, y);
 
   const borderPosition: [number, number, number] = [
-    threePosition[0],
+    position[0],
     0.0005,
-    threePosition[2],
+    position[2],
   ];
+
+  let objectGroup;
+  if (entity.lieFlat) {
+    objectGroup = (
+      <group ref={groupRef} position={position}>
+        <Suspense
+          fallback={
+            <ObjectFallback
+              size={entity.size * 0.9}
+              rotation={[-Math.PI / 2, 0, 0]}
+            />
+          }
+        >
+          <ObjectSpriteMesh entity={entity} size={entity.size * 0.9} />
+        </Suspense>
+      </group>
+    );
+  } else {
+    objectGroup = (
+      <Billboard ref={groupRef} position={position}>
+        <Suspense fallback={<ObjectFallback size={entity.size * 0.9} />}>
+          <ObjectSpriteMesh entity={entity} size={entity.size * 0.9} />
+        </Suspense>
+      </Billboard>
+    );
+  }
 
   return (
     <>
@@ -158,11 +183,7 @@ export default function GroundObject({ entity }: GroundObjectComponentProps) {
           <planeGeometry args={[1, 1]} />
         </mesh>
       )}
-      <group ref={groupRef} position={position}>
-        <Suspense fallback={<GroundObjectFallback size={entity.size * 0.9} />}>
-          <GroundObjectSpriteMesh entity={entity} size={entity.size * 0.9} />
-        </Suspense>
-      </group>
+      {objectGroup}
     </>
   );
 }

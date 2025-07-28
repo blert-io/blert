@@ -20,10 +20,10 @@ import * as THREE from 'three';
 import { MapControls as MapControlsImpl } from 'three-stdlib';
 
 import DevConsole from './dev-console';
-import GroundObject from './ground-object';
 import KeyboardCameraControls from './keyboard-camera-controls';
 import MapFloor from './map-floor';
 import Npc from './npc';
+import Object from './object';
 import Player from './player';
 import { useReplayContext } from './replay-context';
 import StackIndicator from './stack-indicator';
@@ -33,9 +33,9 @@ import {
   AnyEntity,
   CustomEntity,
   EntityType,
-  GroundObjectEntity,
   MapDefinition,
   NpcEntity,
+  ObjectEntity,
   PlayerEntity,
 } from './types';
 
@@ -205,9 +205,9 @@ function MapScene({
   const npcs = entities.filter(
     (entity) => entity.type === EntityType.NPC,
   ) as NpcEntity[];
-  const groundObjects = entities.filter(
-    (entity) => entity.type === EntityType.GROUND_OBJECT,
-  ) as GroundObjectEntity[];
+  const objects = entities.filter(
+    (entity) => entity.type === EntityType.OBJECT,
+  ) as ObjectEntity[];
   const customEntities = entities.filter(
     (entity) => entity.type === EntityType.CUSTOM,
   ) as CustomEntity[];
@@ -294,8 +294,8 @@ function MapScene({
           );
         })}
 
-        {groundObjects.map((entity) => (
-          <GroundObject key={entity.getUniqueId()} entity={entity} />
+        {objects.map((entity) => (
+          <Object key={entity.getUniqueId()} entity={entity} />
         ))}
 
         {customEntities.map((entity) => {
