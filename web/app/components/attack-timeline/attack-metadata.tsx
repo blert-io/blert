@@ -202,6 +202,22 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     style: CombatStyle.MAGIC,
     verb: 'demonbaned',
   },
+  [PlayerAttack.DARKLIGHT_AUTO]: {
+    tagColor: 'red',
+    letter: 'dl',
+    ranged: false,
+    special: false,
+    style: CombatStyle.MELEE,
+    verb: 'darklighted',
+  },
+  [PlayerAttack.DARKLIGHT_SPEC]: {
+    tagColor: 'red',
+    letter: 'DL',
+    ranged: false,
+    special: true,
+    style: CombatStyle.MELEE,
+    verb: 'darklight specced',
+  },
   [PlayerAttack.DAWN_AUTO]: {
     tagColor: 'yellow',
     letter: 'db',

@@ -496,6 +496,8 @@ export enum PlayerAttack {
   CLAW_SCRATCH = PlayerAttackProto.CLAW_SCRATCH,
   CLAW_SPEC = PlayerAttackProto.CLAW_SPEC,
   DARK_DEMONBANE = PlayerAttackProto.DARK_DEMONBANE,
+  DARKLIGHT_AUTO = PlayerAttackProto.DARKLIGHT_AUTO,
+  DARKLIGHT_SPEC = PlayerAttackProto.DARKLIGHT_SPEC,
   DAWN_AUTO = PlayerAttackProto.DAWN_AUTO,
   DAWN_SPEC = PlayerAttackProto.DAWN_SPEC,
   DART = PlayerAttackProto.DART,
