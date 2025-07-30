@@ -58,7 +58,7 @@ export default function TrioNylo() {
       </p>
       <p>
         The Nyloer plugin allows you to automatically dim every Nylo currently
-        currently in the room at a specific wave by setting the{' '}
+        in the room at a specific wave by setting the{' '}
         <Link href="/guides/tob/plugins#nyloer-dimming">Darker Wave</Link>{' '}
         option within its <em>Font Settings</em> tab. This visually
         distinguishes relevant smalls from those which will automatically expire

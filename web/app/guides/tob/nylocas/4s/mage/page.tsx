@@ -267,10 +267,6 @@ export default function MageNyloGuide() {
         barraging earlier Nylos to avoid a stall.
       </p>
       <p>
-        If your Melee Freeze did not kill their east bigs, you should clean
-        these up, though avoid doubling up on them.
-      </p>
-      <p>
         You can Sang the <Mage>28 east small</Mage> as it later turns melee,
         which can cause issues during cleanup.
       </p>
