@@ -282,6 +282,22 @@ export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
     style: CombatStyle.MELEE,
     verb: 'poked',
   },
+  [PlayerAttack.DRAGON_KNIFE_AUTO]: {
+    tagColor: 'green',
+    letter: 'dk',
+    ranged: true,
+    special: false,
+    style: CombatStyle.RANGED,
+    verb: 'knifed',
+  },
+  [PlayerAttack.DRAGON_KNIFE_SPEC]: {
+    tagColor: 'green',
+    letter: 'DK',
+    ranged: true,
+    special: true,
+    style: CombatStyle.RANGED,
+    verb: 'knifed',
+  },
   [PlayerAttack.DRAGON_SCIMITAR]: {
     tagColor: 'red',
     letter: 'DS',
