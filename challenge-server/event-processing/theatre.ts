@@ -719,6 +719,10 @@ export default class TheatreProcessor extends ChallengeProcessor {
     return true;
   }
 
+  protected override isRetriable(_: Stage): boolean {
+    return false;
+  }
+
   private async processPlayerAttack(event: Event): Promise<void> {
     const username = event.getPlayer()?.getName();
     const attack = event.getPlayerAttack();

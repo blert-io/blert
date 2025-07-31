@@ -17,7 +17,10 @@ import {
   ChallengeUpdate as ChallengeUpdateProto,
 } from '@blert/common/generated/server_message_pb';
 
-import ChallengeManager, { ChallengeUpdate } from './challenge-manager';
+import ChallengeManager, {
+  ChallengeStatusResponse,
+  ChallengeUpdate,
+} from './challenge-manager';
 import Client from './client';
 import { PlayerManager, Players } from './players';
 import { Users } from './users';
@@ -102,8 +105,10 @@ export default class MessageHandler {
         const rsn = confirmation.getUsername().toLowerCase();
 
         if (confirmation.getIsValid()) {
-          if (client.getActiveChallenge() !== message.getActiveChallengeId()) {
-            const added = await this.challengeManager.addClient(
+          if (
+            client.getActiveChallengeId() !== message.getActiveChallengeId()
+          ) {
+            const result = await this.challengeManager.addClient(
               client,
               message.getActiveChallengeId(),
               confirmation.getSpectator()
@@ -111,10 +116,12 @@ export default class MessageHandler {
                 : RecordingType.PARTICIPANT,
             );
 
-            if (added) {
+            if (result !== null) {
               console.log(
                 `${client}: player ${rsn} rejoining challenge ${message.getActiveChallengeId()}`,
               );
+              client.setActiveChallenge(result.uuid);
+              client.setStageAttempt(result.stage, result.stageAttempt);
             } else {
               console.error(
                 `${client}: failed to rejoin challenge ${message.getActiveChallengeId()}`,
@@ -292,9 +299,9 @@ export default class MessageHandler {
       ? RecordingType.SPECTATOR
       : RecordingType.PARTICIPANT;
 
-    let challengeId: string;
+    let status: ChallengeStatusResponse;
     try {
-      challengeId = await this.challengeManager.startOrJoin(
+      status = await this.challengeManager.startOrJoin(
         client,
         challengeType,
         request.getMode(),
@@ -308,7 +315,9 @@ export default class MessageHandler {
       return;
     }
 
-    response.setActiveChallengeId(challengeId);
+    client.setActiveChallenge(status.uuid);
+    client.setStageAttempt(status.stage, status.stageAttempt);
+    response.setActiveChallengeId(status.uuid);
     client.sendMessage(response);
   }
 
@@ -344,7 +353,7 @@ export default class MessageHandler {
     challengeId: string,
     update: ChallengeUpdateProto,
   ) {
-    if (challengeId !== client.getActiveChallenge()) {
+    if (challengeId !== client.getActiveChallengeId()) {
       console.error(
         `${client} sent CHALLENGE_UPDATE event for challenge ${challengeId}, ` +
           'but is not in it.',
@@ -374,11 +383,15 @@ export default class MessageHandler {
     }
 
     try {
-      this.challengeManager.updateChallenge(
+      const result = await this.challengeManager.updateChallenge(
         client,
         challengeId,
         challengeUpdate,
       );
+      if (result === null) {
+        throw new Error('ChallengeManager returned null');
+      }
+      client.setStageAttempt(result.stage, result.stageAttempt);
     } catch (e) {
       console.error(`${client} Failed to update challenge: ${e}`);
     }

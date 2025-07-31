@@ -46,12 +46,27 @@ export type InitializedFields = {
   totalChallengeTicks?: number;
   reportedTimes?: ReportedTimes | null;
   customData?: object | null;
-  stageAttempt?: number;
+  stageAttempt?: number | null;
 };
+
+type ModifiableChallengeFieldKey =
+  | 'challengeTicks'
+  | 'mode'
+  | 'stage'
+  | 'status'
+  | 'totalDeaths';
+
+function isModifiableChallengeFieldKey(
+  key: string,
+): key is ModifiableChallengeFieldKey {
+  return ['challengeTicks', 'mode', 'stage', 'status', 'totalDeaths'].includes(
+    key,
+  );
+}
 
 type ModifiableChallengeFields = Pick<
   ApiChallenge,
-  'challengeTicks' | 'mode' | 'stage' | 'status' | 'totalDeaths'
+  ModifiableChallengeFieldKey
 >;
 
 type DatabaseChallengeFields = ModifiableChallengeFields &
@@ -79,7 +94,7 @@ export type ChallengeState = ModifiableChallengeFields &
     stageStatus: StageStatus;
     reportedChallengeTicks: number | null;
     reportedOverallTicks: number | null;
-    stageAttempt: number | undefined;
+    stageAttempt: number | null;
   };
 
 export type Session = Pick<
@@ -131,7 +146,7 @@ export default abstract class ChallengeProcessor {
   private challengeStatus: ChallengeStatus;
   private stage: Stage;
   private stageStatus: StageStatus;
-  private stageAttempt: number | undefined;
+  private stageAttempt: number | null;
   private party: string[];
   private players: PlayerInfo[];
   private totalChallengeTicks: number;
@@ -141,7 +156,12 @@ export default abstract class ChallengeProcessor {
   private splits: Map<SplitType, number>;
   private stageState: StageState;
 
-  private updates: Partial<ModifiableChallengeFields>;
+  private pendingUpdates: {
+    database: Partial<ModifiableChallengeFields>;
+    redis: Partial<
+      Omit<ChallengeState, ModifiableChallengeFieldKey | 'customData'>
+    >;
+  };
 
   /** Returns the challenge's UUID. */
   public getUuid(): string {
@@ -172,19 +192,35 @@ export default abstract class ChallengeProcessor {
   public setMode(mode: ChallengeMode): void {
     if (mode != ChallengeMode.NO_MODE && mode !== this.mode) {
       this.mode = mode;
-      this.updates.mode = mode;
+      this.prepareUpdates({ mode });
     }
   }
 
-  public setStage(stage: Stage): void {
+  public startStage(stage: Stage): void {
     if (stage !== this.stage) {
       this.stage = stage;
-      this.updates.stage = stage;
+      this.stageAttempt = this.isRetriable(stage) ? 1 : null;
+      this.prepareUpdates({ stage, stageAttempt: this.stageAttempt });
+    } else if (this.isRetriable(stage)) {
+      this.stageAttempt = (this.stageAttempt ?? 0) + 1;
+      this.prepareUpdates({ stageAttempt: this.stageAttempt });
+    } else if (stage !== this.firstStage) {
+      logger.error(
+        `Challenge ${this.uuid} attempted to restart non-retriable stage ${stage}`,
+      );
     }
   }
 
   public getChallengeStatus(): ChallengeStatus {
     return this.challengeStatus;
+  }
+
+  public getStage(): Stage {
+    return this.stage;
+  }
+
+  public getStageAttempt(): number | null {
+    return this.stageAttempt;
   }
 
   public getSessionId(): number {
@@ -197,27 +233,19 @@ export default abstract class ChallengeProcessor {
 
   protected addPlayerDeath(player: string): void {
     this.totalDeaths += 1;
-    this.updates.totalDeaths = this.totalDeaths;
+    this.prepareUpdates({ totalDeaths: this.totalDeaths });
     this.stageState.deaths.push(player);
   }
 
   protected setTotalChallengeTicks(ticks: number): void {
     if (ticks !== this.totalChallengeTicks) {
       this.totalChallengeTicks = ticks;
-      this.updates.challengeTicks = ticks;
+      this.prepareUpdates({ challengeTicks: ticks });
     }
   }
 
   public setReportedTimes(times: ReportedTimes): void {
     this.reportedTimes = times;
-  }
-
-  protected setStageAttempt(attempt: number): void {
-    this.stageAttempt = attempt;
-  }
-
-  protected getStageAttempt(): number | undefined {
-    return this.stageAttempt;
   }
 
   /**
@@ -324,26 +352,33 @@ export default abstract class ChallengeProcessor {
     return true;
   }
 
-  public async finalizeUpdates(): Promise<Partial<ModifiableChallengeFields>> {
-    if (Object.keys(this.updates).length === 0) {
-      return {};
+  public async finalizeUpdates(): Promise<Partial<ChallengeState>> {
+    const updatedState: Partial<ChallengeState> = {
+      ...this.pendingUpdates.redis,
+      ...this.pendingUpdates.database,
+    };
+    const databaseUpdates = this.pendingUpdates.database;
+
+    this.pendingUpdates = {
+      database: {},
+      redis: {},
+    };
+
+    if (Object.keys(databaseUpdates).length === 0) {
+      return updatedState;
     }
 
-    const updates = this.updates;
-
-    const updatePromises = [this.updateChallenge(updates)];
-    if ('mode' in updates) {
+    const updatePromises = [this.updateChallenge(databaseUpdates)];
+    if ('mode' in databaseUpdates) {
       updatePromises.push(
         ChallengeProcessor.updateSession(this.sessionId, {
-          challengeMode: updates.mode,
+          challengeMode: databaseUpdates.mode,
         }),
       );
     }
 
     await Promise.all(updatePromises);
-
-    this.updates = {};
-    return updates;
+    return updatedState;
   }
 
   /**
@@ -1003,7 +1038,7 @@ export default abstract class ChallengeProcessor {
       stage,
       this.party,
       events,
-      this.stageAttempt,
+      this.stageAttempt ?? undefined,
     );
 
     logger.info(
@@ -1242,6 +1277,20 @@ export default abstract class ChallengeProcessor {
     };
   }
 
+  private prepareUpdates(
+    updates: Partial<Omit<ChallengeState, 'customData'>>,
+  ): void {
+    for (const [key, value] of Object.entries(updates)) {
+      if (isModifiableChallengeFieldKey(key)) {
+        // @ts-ignore
+        this.pendingUpdates.database[key] = value;
+      } else {
+        // @ts-ignore
+        this.pendingUpdates.redis[key] = value;
+      }
+    }
+  }
+
   protected constructor(
     dataRepository: DataRepository,
     priceTracker: PriceTracker,
@@ -1268,7 +1317,10 @@ export default abstract class ChallengeProcessor {
     this.party = party;
 
     this.splits = new Map();
-    this.updates = {};
+    this.pendingUpdates = {
+      database: {},
+      redis: {},
+    };
     this.stageState = this.initialStageState();
 
     this.databaseId = extraFields.databaseId ?? -1;
@@ -1281,7 +1333,7 @@ export default abstract class ChallengeProcessor {
     this.challengeStatus =
       extraFields.challengeStatus ?? ChallengeStatus.IN_PROGRESS;
     this.totalChallengeTicks = extraFields.totalChallengeTicks ?? 0;
-    this.stageAttempt = extraFields.stageAttempt ?? undefined;
+    this.stageAttempt = extraFields.stageAttempt ?? null;
   }
 
   /**
@@ -1328,16 +1380,19 @@ export default abstract class ChallengeProcessor {
    */
   protected abstract hasFullyRecordedUpTo(stage: Stage): boolean;
 
+  /**
+   * Returns whether a stage can be attempted multiple times.
+   * @param stage The stage to check.
+   * @returns `true` if the stage can be attempted multiple times, `false` if not.
+   */
+  protected abstract isRetriable(stage: Stage): boolean;
+
   protected getDataRepository(): DataRepository {
     return this.dataRepository;
   }
 
   protected getPriceTracker(): PriceTracker {
     return this.priceTracker;
-  }
-
-  protected getStage(): Stage {
-    return this.stage;
   }
 
   protected getParty(): string[] {

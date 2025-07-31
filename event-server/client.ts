@@ -1,7 +1,7 @@
+import { Stage } from '@blert/common';
 import { ServerMessage } from '@blert/common/generated/server_message_pb';
 import { WebSocket } from 'ws';
 
-import { Challenge } from './challenge';
 import MessageHandler from './message-handler';
 import { BasicUser } from './users';
 
@@ -42,6 +42,12 @@ class MessageStats {
   }
 }
 
+type ActiveChallengeInfo = {
+  uuid: string;
+  /** Mapping of stage to attempt number. */
+  stages: Map<Stage, number | null>;
+};
+
 export default class Client {
   private static HEARTBEAT_INTERVAL_MS: number = 5000;
   private static HEARTBEAT_DISCONNECT_THRESHOLD: number = 10;
@@ -50,7 +56,7 @@ export default class Client {
   private sessionId: number;
   private socket: WebSocket;
   private messageHandler: MessageHandler;
-  private activeChallenge: string | null;
+  private activeChallenge: ActiveChallengeInfo | null;
   private messageQueue: ServerMessage[];
   private isOpen: boolean;
 
@@ -168,13 +174,37 @@ export default class Client {
     return this.user.linkedPlayerId;
   }
 
-  public getActiveChallenge(): string | null {
-    return this.activeChallenge;
+  public getActiveChallengeId(): string | null {
+    return this.activeChallenge?.uuid ?? null;
   }
 
-  public setActiveChallenge(challengeId: string | null): void {
-    console.log(`${this}: active challenge set to ${challengeId ?? 'null'}`);
-    this.activeChallenge = challengeId;
+  public setActiveChallenge(
+    challengeId: string,
+    stages?: Map<Stage, number | null>,
+  ): void {
+    console.log(`${this}: active challenge set to ${challengeId}`);
+    this.activeChallenge = {
+      uuid: challengeId,
+      stages: stages ?? new Map(),
+    };
+  }
+
+  public clearActiveChallenge(): void {
+    console.log(`${this}: active challenge cleared`);
+    this.activeChallenge = null;
+  }
+
+  public setStageAttempt(stage: Stage, attempt: number | null): void {
+    if (this.activeChallenge !== null) {
+      console.log(
+        `${this}: challenge ${this.activeChallenge.uuid} stage ${stage} attempt set to ${attempt}`,
+      );
+      this.activeChallenge.stages.set(stage, attempt);
+    }
+  }
+
+  public getStageAttempt(stage: Stage): number | null {
+    return this.activeChallenge?.stages.get(stage) ?? null;
   }
 
   public getLoggedInRsn(): string | null {

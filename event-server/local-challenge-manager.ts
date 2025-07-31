@@ -19,6 +19,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Challenge, challengePartyKey } from './challenge';
 import ChallengeManager, {
   ChallengeInfo,
+  ChallengeStatusResponse,
   ChallengeUpdate,
   RecordedTimes,
 } from './challenge-manager';
@@ -60,7 +61,7 @@ export default class LocalChallengeManager extends ChallengeManager {
     partyMembers: string[],
     stage: Stage,
     recordingType: RecordingType,
-  ): Promise<string> {
+  ): Promise<ChallengeStatusResponse> {
     const partyKey = challengePartyKey(type, partyMembers);
 
     let challenge = this.getLastChallengeForParty(partyKey);
@@ -115,7 +116,12 @@ export default class LocalChallengeManager extends ChallengeManager {
       recordingType,
     );
 
-    return challengeId;
+    return {
+      uuid: challengeId,
+      mode: challenge!.getMode(),
+      stage: challenge!.getStage(),
+      stageAttempt: null,
+    };
   }
 
   public override async completeChallenge(
@@ -145,14 +151,14 @@ export default class LocalChallengeManager extends ChallengeManager {
     client: Client,
     challengeId: string,
     update: ChallengeUpdate,
-  ): Promise<void> {
+  ): Promise<ChallengeStatusResponse | null> {
     const aggregator = this.challengeAggregators[challengeId];
     if (aggregator === undefined) {
       console.error(`No aggregator for challenge ${challengeId}`);
-      return;
+      return null;
     }
 
-    await aggregator.updateChallenge(client, update);
+    return await aggregator.updateChallenge(client, update);
   }
 
   public override async getChallengeInfo(
@@ -169,6 +175,7 @@ export default class LocalChallengeManager extends ChallengeManager {
       status: challenge.getChallengeStatus(),
       stage: challenge.getStage(),
       party: challenge.getParty(),
+      stageAttempt: null,
     };
   }
 
@@ -177,7 +184,7 @@ export default class LocalChallengeManager extends ChallengeManager {
     challengeId: string,
     events: Event[],
   ): Promise<void> {
-    if (challengeId !== client.getActiveChallenge()) {
+    if (challengeId !== client.getActiveChallengeId()) {
       console.error(
         `${client} sent events for challenge ${challengeId}, but is not in it.`,
       );
@@ -198,22 +205,28 @@ export default class LocalChallengeManager extends ChallengeManager {
     client: Client,
     challengeId: string,
     recordingType: RecordingType,
-  ): Promise<boolean> {
+  ): Promise<ChallengeStatusResponse | null> {
     const aggregator = this.challengeAggregators[challengeId];
     if (aggregator === undefined) {
       console.error(`No aggregator for challenge ${challengeId}`);
-      return Promise.resolve(false);
+      return Promise.resolve(null);
     }
 
     aggregator.addClient(client, recordingType);
-    return Promise.resolve(true);
+    const challenge = aggregator.getChallenge();
+    return Promise.resolve({
+      uuid: challenge.getId(),
+      mode: challenge.getMode(),
+      stage: challenge.getStage(),
+      stageAttempt: null,
+    });
   }
 
   public override updateClientStatus(
     client: Client,
     status: ClientStatus,
   ): void {
-    const challengeId = client.getActiveChallenge();
+    const challengeId = client.getActiveChallengeId();
     if (challengeId === null) {
       return;
     }
@@ -223,7 +236,7 @@ export default class LocalChallengeManager extends ChallengeManager {
       console.error(
         `${client} claims to be in unknown challenge ${challengeId}`,
       );
-      client.setActiveChallenge(null);
+      client.clearActiveChallenge();
       return;
     }
 
@@ -442,13 +455,13 @@ class ChallengeStreamAggregator {
    * @param client The new client.
    */
   public addClient(client: Client, type: RecordingType): void {
-    if (client.getActiveChallenge() === this.challenge.getId()) {
+    if (client.getActiveChallengeId() === this.challenge.getId()) {
       return;
     }
 
-    if (client.getActiveChallenge() !== null) {
+    if (client.getActiveChallengeId() !== null) {
       console.error(
-        `${client} is already in challenge ${client.getActiveChallenge()}`,
+        `${client} is already in challenge ${client.getActiveChallengeId()}`,
       );
       return;
     }
@@ -490,7 +503,7 @@ class ChallengeStreamAggregator {
       return;
     }
 
-    client.setActiveChallenge(null);
+    client.clearActiveChallenge();
 
     if (this.clients.length === 1) {
       this.clients = [];
@@ -557,11 +570,11 @@ class ChallengeStreamAggregator {
   public async updateChallenge(
     client: Client,
     update: ChallengeUpdate,
-  ): Promise<void> {
+  ): Promise<ChallengeStatusResponse | null> {
     const connectedClient = this.clients.find((c) => c.client === client);
     if (!connectedClient) {
       console.error(`updateChallenge: ${client} is not connected to ${this}`);
-      return;
+      return null;
     }
 
     if (update.mode !== ChallengeMode.NO_MODE) {
@@ -570,7 +583,7 @@ class ChallengeStreamAggregator {
         // raids to be recorded.
         console.log(`Terminating ToB entry mode raid ${this}`);
         await this.terminateAndPurgeChallenge();
-        return;
+        return null;
       }
 
       await this.challenge.setMode(update.mode);
@@ -595,6 +608,13 @@ class ChallengeStreamAggregator {
         await this.challenge.updateStage(stageUpdate);
       }
     }
+
+    return {
+      uuid: this.challenge.getId(),
+      mode: this.challenge.getMode(),
+      stage: this.challenge.getStage(),
+      stageAttempt: null,
+    };
   }
 
   /**
@@ -697,7 +717,7 @@ class ChallengeStreamAggregator {
     errorMessage.setError(error);
 
     this.clients.forEach((c) => {
-      c.client.setActiveChallenge(null);
+      c.client.clearActiveChallenge();
       c.client.sendMessage(errorMessage);
     });
 
@@ -745,7 +765,7 @@ class ChallengeStreamAggregator {
   private async finish(): Promise<void> {
     clearInterval(this.watchdogTimer);
     await this.challengeManager.endChallenge(this.challenge.getId());
-    this.clients.forEach((c) => c.client.setActiveChallenge(null));
+    this.clients.forEach((c) => c.client.clearActiveChallenge());
   }
 
   private watchdog(): void {
