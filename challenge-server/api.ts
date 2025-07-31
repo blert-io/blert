@@ -64,7 +64,7 @@ async function newChallenge(req: Request, res: Response): Promise<void> {
   const request = req.body as NewChallengeRequest;
 
   try {
-    const challengeId = await res.locals.challengeManager.createOrJoin(
+    const result = await res.locals.challengeManager.createOrJoin(
       request.userId,
       request.type,
       request.mode,
@@ -72,7 +72,7 @@ async function newChallenge(req: Request, res: Response): Promise<void> {
       request.party,
       request.recordingType,
     );
-    res.json({ challengeId });
+    res.json(result);
   } catch (e: any) {
     logger.error(`Failed to create challenge: ${e}`);
     res.status(errorStatus(e)).send();
@@ -89,13 +89,16 @@ async function updateChallenge(req: Request, res: Response): Promise<void> {
     const challengeId = req.params.challengeId;
     const request = req.body as UpdateChallengeRequest;
 
-    const ok = await res.locals.challengeManager.update(
+    const result = await res.locals.challengeManager.update(
       challengeId,
       request.userId,
       request.update,
     );
-    const status = ok ? 200 : 409;
-    res.status(status).send();
+    if (result === null) {
+      res.status(409).send();
+    } else {
+      res.json(result);
+    }
   } catch (e: any) {
     logger.error(`Failed to update challenge: ${e}`);
     res.status(errorStatus(e)).send();
@@ -134,12 +137,12 @@ async function joinChallenge(req: Request, res: Response): Promise<void> {
   const request = req.body as JoinChallengeRequest;
 
   try {
-    await res.locals.challengeManager.addClient(
+    const status = await res.locals.challengeManager.addClient(
       challengeId,
       request.userId,
       request.recordingType,
     );
-    res.status(200).send();
+    res.json(status);
   } catch (e: any) {
     logger.error(`Failed to finish challenge: ${e}`);
     res.status(errorStatus(e)).send();

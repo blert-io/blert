@@ -24,13 +24,11 @@ type DelveState = {
 
 type CustomData = {
   mokhaiotlData: MokhaiotlData;
-  delve: number;
   delve1To8Ticks: number | null;
 };
 
 export default class MokhaiotlProcessor extends ChallengeProcessor {
   private mokhaiotlData: MokhaiotlData;
-  private delve: number;
   private delveState: DelveState;
   private delve1To8Ticks: number | null;
 
@@ -65,11 +63,9 @@ export default class MokhaiotlProcessor extends ChallengeProcessor {
     if (extraFields.customData) {
       const customData = extraFields.customData as CustomData;
       this.mokhaiotlData = customData.mokhaiotlData;
-      this.delve = customData.delve;
       this.delve1To8Ticks = customData.delve1To8Ticks;
     } else {
       this.mokhaiotlData = { delves: [] };
-      this.delve = 1;
       this.delve1To8Ticks = null;
     }
   }
@@ -78,7 +74,7 @@ export default class MokhaiotlProcessor extends ChallengeProcessor {
     await Promise.all([
       sql`
         INSERT INTO mokhaiotl_challenge_stats (challenge_id, delve)
-        VALUES (${this.getDatabaseId()}, ${this.delve})
+        VALUES (${this.getDatabaseId()}, ${this.getDelve()})
       `,
       this.getDataRepository().saveMokhaiotlChallengeData(
         this.getUuid(),
@@ -114,24 +110,22 @@ export default class MokhaiotlProcessor extends ChallengeProcessor {
     stage: Stage,
     events: MergedEvents,
   ): Promise<void> {
-    if (stage === Stage.MOKHAIOTL_DELVE_8PLUS) {
-      this.delve += 1;
-      this.setStageAttempt(this.delve - 8);
-    } else {
+    if (stage !== Stage.MOKHAIOTL_DELVE_8PLUS) {
       if (stage === Stage.MOKHAIOTL_DELVE_8) {
         this.delve1To8Ticks = this.getTotalChallengeTicks();
       }
       const index = stage - Stage.MOKHAIOTL_DELVE_1;
-      this.delve = index + 1;
       this.setSplit(SplitType.MOKHAIOTL_DELVE_1 + index, events.getLastTick());
     }
+
+    const delve = this.getDelve();
 
     for (const username of this.getParty()) {
       const stats = this.getCurrentStageStats(username);
       stats.mokhaiotlTotalDelves += 1;
       if (events.getStatus() === StageStatus.COMPLETED) {
         stats.mokhaiotlDelvesCompleted += 1;
-        if (this.delve >= 8) {
+        if (delve >= 8) {
           stats.mokhaiotlDeepDelvesCompleted += 1;
         }
       }
@@ -142,16 +136,16 @@ export default class MokhaiotlProcessor extends ChallengeProcessor {
       stage,
       ticksLost: events.getMissingTickCount(),
       npcs: Object.fromEntries(state?.npcs ?? []),
-      delve: this.delve,
+      delve,
       challengeTicks: events.getLastTick(),
       larvaeLeaked: this.delveState.larvaeLeaked,
     });
 
     await Promise.all([
       this.updateChallengeStats(
-        this.delve,
+        delve,
         this.delveState.larvaeLeaked,
-        events.getStatus() === StageStatus.COMPLETED ? this.delve : undefined,
+        events.getStatus() === StageStatus.COMPLETED ? delve : undefined,
       ),
       this.getDataRepository().saveMokhaiotlChallengeData(
         this.getUuid(),
@@ -223,15 +217,14 @@ export default class MokhaiotlProcessor extends ChallengeProcessor {
     return true;
   }
 
-  protected getCustomData(): CustomData | null {
+  protected override getCustomData(): CustomData | null {
     return {
       mokhaiotlData: this.mokhaiotlData,
-      delve: this.delve,
       delve1To8Ticks: this.delve1To8Ticks,
     };
   }
 
-  protected hasFullyRecordedUpTo(stage: Stage): boolean {
+  protected override hasFullyRecordedUpTo(stage: Stage): boolean {
     if (
       stage < Stage.MOKHAIOTL_DELVE_1 ||
       stage > Stage.MOKHAIOTL_DELVE_8PLUS
@@ -252,6 +245,10 @@ export default class MokhaiotlProcessor extends ChallengeProcessor {
     return true;
   }
 
+  protected override isRetriable(stage: Stage): boolean {
+    return stage === Stage.MOKHAIOTL_DELVE_8PLUS;
+  }
+
   private async updateChallengeStats(
     delve: number,
     additionalLarvaeLeaked: number,
@@ -270,5 +267,13 @@ export default class MokhaiotlProcessor extends ChallengeProcessor {
       SET ${sql(updates)}
       WHERE challenge_id = ${this.getDatabaseId()};
     `;
+  }
+
+  private getDelve(): number {
+    if (this.getStage() === Stage.MOKHAIOTL_DELVE_8PLUS) {
+      return 8 + (this.getStageAttempt() ?? 1);
+    }
+    const index = this.getStage() - Stage.MOKHAIOTL_DELVE_1;
+    return index + 1;
   }
 }

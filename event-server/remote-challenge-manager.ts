@@ -27,6 +27,7 @@ import { RedisClientType } from 'redis';
 
 import ChallengeManager, {
   ChallengeInfo,
+  ChallengeStatusResponse,
   ChallengeUpdate,
   RecordedTimes,
 } from './challenge-manager';
@@ -56,7 +57,7 @@ export class RemoteChallengeManager extends ChallengeManager {
     party: string[],
     stage: Stage,
     recordingType: RecordingType,
-  ): Promise<string> {
+  ): Promise<ChallengeStatusResponse> {
     const res = await fetch(`${this.serverUrl}/challenges/new`, {
       method: 'POST',
       headers: {
@@ -72,11 +73,9 @@ export class RemoteChallengeManager extends ChallengeManager {
       }),
     });
 
-    const { challengeId }: { challengeId: string } = await res.json();
-
-    this.addClientToChallenge(client, challengeId);
-
-    return challengeId;
+    const status: ChallengeStatusResponse = await res.json();
+    this.addClientToChallenge(client, status.uuid);
+    return status;
   }
 
   public override async completeChallenge(
@@ -128,7 +127,7 @@ export class RemoteChallengeManager extends ChallengeManager {
     client: Client,
     challengeId: string,
     update: ChallengeUpdate,
-  ): Promise<void> {
+  ): Promise<ChallengeStatusResponse | null> {
     try {
       if (update.stage !== undefined) {
         if (
@@ -141,7 +140,11 @@ export class RemoteChallengeManager extends ChallengeManager {
             update: update.stage,
           };
           await this.redisClient.xAdd(
-            challengeStageStreamKey(challengeId, update.stage.stage),
+            challengeStageStreamKey(
+              challengeId,
+              update.stage.stage,
+              client.getStageAttempt(update.stage.stage),
+            ),
             '*',
             stageStreamToRecord(endEvent),
           );
@@ -158,8 +161,16 @@ export class RemoteChallengeManager extends ChallengeManager {
           update,
         }),
       });
+
+      if (res.status === 200) {
+        const response = (await res.json()) as ChallengeStatusResponse;
+        return response;
+      }
+      console.log(`Challenge update request failed with status ${res.status}`);
+      return null;
     } catch (e) {
       console.log('Failed to update challenge:', e);
+      return null;
     }
   }
 
@@ -179,6 +190,9 @@ export class RemoteChallengeManager extends ChallengeManager {
         mode: Number.parseInt(challenge.mode) as ChallengeMode,
         status: Number.parseInt(challenge.status) as ChallengeStatus,
         stage: Number.parseInt(challenge.stage) as Stage,
+        stageAttempt: challenge.stageAttempt
+          ? Number.parseInt(challenge.stageAttempt)
+          : null,
         party: challenge.party.split(','),
       };
     } catch (e) {
@@ -214,13 +228,21 @@ export class RemoteChallengeManager extends ChallengeManager {
         events: eventsMessage.serializeBinary(),
       };
       multi.xAdd(
-        challengeStageStreamKey(challengeId, stage),
+        challengeStageStreamKey(
+          challengeId,
+          stage,
+          client.getStageAttempt(stage),
+        ),
         '*',
         stageStreamToRecord(eventsStream),
       );
       multi.sAdd(
         challengeStreamsSetKey(challengeId),
-        challengeStageStreamKey(challengeId, stage),
+        challengeStageStreamKey(
+          challengeId,
+          stage,
+          client.getStageAttempt(stage),
+        ),
       );
     }
 
@@ -231,7 +253,7 @@ export class RemoteChallengeManager extends ChallengeManager {
     client: Client,
     challengeId: string,
     recordingType: RecordingType,
-  ): Promise<boolean> {
+  ): Promise<ChallengeStatusResponse | null> {
     try {
       const res = await fetch(
         `${this.serverUrl}/challenges/${challengeId}/join`,
@@ -249,13 +271,13 @@ export class RemoteChallengeManager extends ChallengeManager {
 
       if (res.status !== 200) {
         console.log(`Challenge join request failed with status ${res.status}`);
-        return false;
+        return null;
       }
 
-      return true;
+      return (await res.json()) as ChallengeStatusResponse;
     } catch (e) {
       console.log('Failed to join challenge:', e);
-      return false;
+      return null;
     }
   }
 
@@ -308,7 +330,7 @@ export class RemoteChallengeManager extends ChallengeManager {
 
           for (const client of clients) {
             client.sendMessage(endMessage);
-            client.setActiveChallenge(null);
+            client.clearActiveChallenge();
           }
 
           this.clientsByChallenge.delete(update.id);
@@ -322,13 +344,11 @@ export class RemoteChallengeManager extends ChallengeManager {
     if (!this.clientsByChallenge.has(challengeId)) {
       this.clientsByChallenge.set(challengeId, []);
     }
-
     this.clientsByChallenge.get(challengeId)!.push(client);
-    client.setActiveChallenge(challengeId);
   }
 
   private removeClientFromChallenge(client: Client): void {
-    const challengeId = client.getActiveChallenge();
+    const challengeId = client.getActiveChallengeId();
     if (!challengeId) {
       return;
     }
@@ -347,6 +367,6 @@ export class RemoteChallengeManager extends ChallengeManager {
       );
     }
 
-    client.setActiveChallenge(null);
+    client.clearActiveChallenge();
   }
 }

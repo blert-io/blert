@@ -21,11 +21,19 @@ export type ChallengeUpdate = {
   stage?: StageUpdate;
 };
 
+export type ChallengeStatusResponse = {
+  uuid: string;
+  mode: ChallengeMode;
+  stage: Stage;
+  stageAttempt: number | null;
+};
+
 export type ChallengeInfo = {
   type: ChallengeType;
   mode: ChallengeMode;
   status: ChallengeStatus;
   stage: Stage;
+  stageAttempt: number | null;
   party: string[];
 };
 
@@ -40,7 +48,7 @@ export default abstract class ChallengeManager {
    * @param party List of players in the challenge party.
    * @param stage The stage at which the challenge is starting.
    * @param recordingType Whether the client is a participant or spectator.
-   * @returns UUID of the challenge recording.
+   * @returns The current status of the challenge.
    */
   public abstract startOrJoin(
     client: Client,
@@ -49,7 +57,7 @@ export default abstract class ChallengeManager {
     party: string[],
     stage: Stage,
     recordingType: RecordingType,
-  ): Promise<string>;
+  ): Promise<ChallengeStatusResponse>;
 
   /**
    * Indicates that a client has completed and left a challenge.
@@ -68,12 +76,13 @@ export default abstract class ChallengeManager {
    * @param client The client making the update.
    * @param challengeId The ID of the challenge.
    * @param update New state of the challenge reported by the client.
+   * @returns The updated challenge state.
    */
   public abstract updateChallenge(
     client: Client,
     challengeId: string,
     update: ChallengeUpdate,
-  ): Promise<void>;
+  ): Promise<ChallengeStatusResponse | null>;
 
   /**
    * Returns information about an active challenge.
@@ -108,7 +117,7 @@ export default abstract class ChallengeManager {
     client: Client,
     challengeId: string,
     recordingType: RecordingType,
-  ): Promise<boolean>;
+  ): Promise<ChallengeStatusResponse | null>;
 
   /**
    * Changes the connection status of a client.

@@ -176,6 +176,10 @@ export default class ColosseumProcessor extends ChallengeProcessor {
     return true;
   }
 
+  protected override isRetriable(_: Stage): boolean {
+    return false;
+  }
+
   /**
    * Adjusts a handicap's ID based on the level of the handicap.
    * @param handicap The base handicap ID.

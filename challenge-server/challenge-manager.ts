@@ -28,7 +28,6 @@ import {
   StageStatus,
   stageStreamFromRecord,
   sessionKey,
-  SessionStatus,
 } from '@blert/common';
 import { RedisClientType, WatchError, commandOptions } from 'redis';
 import { v4 as uuidv4 } from 'uuid';
@@ -112,8 +111,12 @@ type ChallengeClient = {
   type: RecordingType;
   active: boolean;
   stage: Stage;
+  stageAttempt: number | null;
   stageStatus: StageStatus;
-  lastCompletedStage: Stage;
+  lastCompleted: {
+    stage: Stage;
+    attempt: number | null;
+  };
 };
 
 function toRedis(
@@ -154,7 +157,7 @@ function fromRedis(state: RedisChallengeState): ExtendedChallengeState {
     stage: Number.parseInt(state.stage) as Stage,
     stageAttempt: state.stageAttempt
       ? Number.parseInt(state.stageAttempt)
-      : undefined,
+      : null,
     status: Number.parseInt(state.status) as ChallengeStatus,
     stageStatus: Number.parseInt(state.stageStatus) as StageStatus,
     party: state.party.split(','),
@@ -174,6 +177,23 @@ function fromRedis(state: RedisChallengeState): ExtendedChallengeState {
   };
 }
 
+function maxAttempt(a: number | null, b: number | null): number | null {
+  if (a === null && b === null) {
+    return null;
+  }
+  if (a === null) {
+    return b;
+  }
+  if (b === null) {
+    return a;
+  }
+  return Math.max(a, b);
+}
+
+function stageAndAttempt(stage: Stage, attempt: number | null): string {
+  return `${stage}${attempt !== null ? `:${attempt}` : ''}`;
+}
+
 export type SimpleStageUpdate = {
   stage: Stage;
   status: StageStatus;
@@ -191,6 +211,13 @@ export type StageUpdate = SimpleStageUpdate & {
 export type ChallengeUpdate = {
   mode: ChallengeMode;
   stage?: SimpleStageUpdate;
+};
+
+export type ChallengeStatusResponse = {
+  uuid: string;
+  mode: ChallengeMode;
+  stage: Stage;
+  stageAttempt: number | null;
 };
 
 function challengeClientsKey(challengeId: string): string {
@@ -286,7 +313,7 @@ export default class ChallengeManager {
     stage: Stage,
     party: string[],
     recordingType: RecordingType,
-  ): Promise<string> {
+  ): Promise<ChallengeStatusResponse> {
     if (mode === ChallengeMode.TOB_ENTRY) {
       throw new ChallengeError(
         ChallengeErrorType.UNSUPPORTED,
@@ -300,6 +327,7 @@ export default class ChallengeManager {
 
     let startAction = StartAction.UNKNOWN;
     let challengeUuid: string = '';
+    let statusResponse: ChallengeStatusResponse | null = null;
     let sessionId: number | null = null;
 
     const challengeClient: ChallengeClient = {
@@ -307,8 +335,12 @@ export default class ChallengeManager {
       type: recordingType,
       active: true,
       stage,
+      stageAttempt: null,
       stageStatus: StageStatus.ENTERED,
-      lastCompletedStage: Stage.UNKNOWN,
+      lastCompleted: {
+        stage: Stage.UNKNOWN,
+        attempt: null,
+      },
     };
 
     // Requests from multiple clients in the same party may arrive around the
@@ -318,6 +350,7 @@ export default class ChallengeManager {
       // Reset state in case we had to retry the transaction.
       startAction = StartAction.UNKNOWN;
       challengeUuid = '';
+      statusResponse = null;
 
       await Promise.all([client.watch(partyKeyList), client.watch(sk)]);
       const multi = client.multi();
@@ -327,8 +360,21 @@ export default class ChallengeManager {
         const key = challengesKey(lastChallengeForParty);
         await client.watch(key);
 
-        const [stateValue, statusValue, stageValue, timeoutStateValue] =
-          await client.hmGet(key, ['state', 'status', 'stage', 'timeoutState']);
+        const [
+          stateValue,
+          modeValue,
+          statusValue,
+          stageValue,
+          stageAttemptValue,
+          timeoutStateValue,
+        ] = await client.hmGet(key, [
+          'state',
+          'mode',
+          'status',
+          'stage',
+          'stageAttempt',
+          'timeoutState',
+        ]);
 
         const lifecycleState =
           stateValue !== null
@@ -382,6 +428,16 @@ export default class ChallengeManager {
             );
 
             challengeUuid = lastChallengeForParty;
+            statusResponse = {
+              uuid: challengeUuid,
+              mode: Number.parseInt(modeValue) as ChallengeMode,
+              stage: Number.parseInt(stageValue) as Stage,
+              stageAttempt: stageAttemptValue
+                ? Number.parseInt(stageAttemptValue)
+                : null,
+            };
+            challengeClient.stage = statusResponse.stage;
+            challengeClient.stageAttempt = statusResponse.stageAttempt;
             startAction = StartAction.IMMEDIATE_JOIN;
 
             multi.set(clientChallengesKey(userId), lastChallengeForParty);
@@ -521,6 +577,13 @@ export default class ChallengeManager {
           return multi.exec();
         });
 
+        statusResponse = {
+          uuid: challengeUuid,
+          mode,
+          stage,
+          stageAttempt: processor.getStageAttempt(),
+        };
+
         logger.info(
           `User ${userId}: Created challenge ${challengeUuid} ` +
             `in session ${processor.getSessionId()} at stage ${stage}`,
@@ -542,7 +605,13 @@ export default class ChallengeManager {
 
             const multi = client.multi();
 
-            const state = await client.hGet(key, 'state');
+            const [state, modeValue, stageValue, stageAttemptValue] =
+              await client.hmGet(key, [
+                'state',
+                'mode',
+                'stage',
+                'stageAttempt',
+              ]);
             const lifecycleState =
               state !== undefined
                 ? (Number.parseInt(state) as LifecycleState)
@@ -564,6 +633,17 @@ export default class ChallengeManager {
 
             if (lifecycleState === LifecycleState.ACTIVE) {
               complete = true;
+
+              statusResponse = {
+                uuid: challengeUuid,
+                mode: Number.parseInt(modeValue) as ChallengeMode,
+                stage: Number.parseInt(stageValue) as Stage,
+                stageAttempt: stageAttemptValue
+                  ? Number.parseInt(stageAttemptValue)
+                  : null,
+              };
+              challengeClient.stage = statusResponse.stage;
+              challengeClient.stageAttempt = statusResponse.stageAttempt;
 
               multi.set(clientChallengesKey(userId), challengeUuid);
               multi.hSet(
@@ -606,7 +686,7 @@ export default class ChallengeManager {
     }
 
     await ChallengeProcessor.addRecorder(challengeUuid, userId, recordingType);
-    return challengeUuid;
+    return statusResponse!;
   }
 
   /**
@@ -733,7 +813,7 @@ export default class ChallengeManager {
     challengeId: string,
     userId: number,
     update: ChallengeUpdate,
-  ): Promise<boolean> {
+  ): Promise<ChallengeStatusResponse | null> {
     const currentChallenge = await this.client.get(clientChallengesKey(userId));
     if (currentChallenge !== challengeId) {
       if (currentChallenge === null) {
@@ -747,16 +827,16 @@ export default class ChallengeManager {
             `but is currently in challenge ${currentChallenge}`,
         );
       }
-      return false;
+      return null;
     }
 
-    let updated = true;
+    let result: ChallengeStatusResponse | null = null;
     let forceCleanup = false;
-    let finishStage: Stage | null = null;
+    let finishStage: [Stage, number | null] | null = null;
 
     await this.watchTransaction(async (client) => {
       // Reset state variables in case we had to retry the transaction.
-      updated = true;
+      result = null;
       forceCleanup = false;
       finishStage = null;
 
@@ -768,7 +848,7 @@ export default class ChallengeManager {
         logger.warn(
           `Player ${userId} attempted to update non-existent challenge`,
         );
-        updated = false;
+        result = null;
         return multi.exec();
       }
 
@@ -815,7 +895,7 @@ export default class ChallengeManager {
               `to stage ${stageUpdate.stage}, but it is at later stage ` +
               `${challenge.stage}`,
           );
-          updated = false;
+          result = null;
           return multi.exec();
         }
 
@@ -828,7 +908,7 @@ export default class ChallengeManager {
             `User ${userId} attempted to update challenge ${challengeId} ` +
               'but is not currently in the challenge',
           );
-          updated = false;
+          result = null;
           return multi.exec();
         }
 
@@ -843,23 +923,39 @@ export default class ChallengeManager {
           // The client has finished the stage. If all clients have finished,
           // the challenge stage can be finalized. Otherwise, wait for other
           // clients to complete the stage up to a maximum deadline.
-          us.lastCompletedStage = stageUpdate.stage;
+          us.lastCompleted = {
+            stage: stageUpdate.stage,
+            attempt: us.stageAttempt,
+          };
+
+          const hasFinishedStage = (c: ChallengeClient) => {
+            if (c.stage > challenge.stage) {
+              return true;
+            }
+
+            if (!isFinished(c.stageStatus)) {
+              return false;
+            }
+
+            return (
+              maxAttempt(c.stageAttempt, challenge.stageAttempt) ===
+              c.stageAttempt
+            );
+          };
 
           const numFinishedClients = clients.reduce(
-            (acc, c) =>
-              c.stage > challenge.stage || isFinished(c.stageStatus)
-                ? acc + 1
-                : acc,
+            (acc, c) => (hasFinishedStage(c) ? acc + 1 : acc),
             0,
           );
 
           logger.debug(
-            `${challengeId}: client ${userId} finished stage ${stageUpdate.stage} ` +
-              `[${numFinishedClients}/${clients.length}]`,
+            `${challengeId}: client ${userId} finished stage ${stageUpdate.stage}` +
+              (us.stageAttempt !== null ? `:${us.stageAttempt})` : '') +
+              ` [${numFinishedClients}/${clients.length}]`,
           );
 
           if (numFinishedClients === clients.length) {
-            finishStage = stageUpdate.stage;
+            finishStage = [stageUpdate.stage, us.stageAttempt];
             if (challenge.timeoutState !== TimeoutState.CHALLENGE_END) {
               multi.hSet(
                 challengesKey(challengeId),
@@ -885,7 +981,41 @@ export default class ChallengeManager {
             );
           }
         } else if (stageUpdate.status === StageStatus.STARTED) {
-          processor.setStage(stageUpdate.stage);
+          // Handle multiple clients in the challenge starting the same stage
+          // at once. There are two cases:
+          //
+          // 1. The clients are starting a new stage.
+          //    a. The first client's request is different to the challenge's
+          //       current stage. It updates the challenge's stage.
+          //    b. Subsequent clients' requests will have the same stage, and
+          //       will be handled by the attempt behavior in case 2.
+          //
+          // 2. The clients are restarting the same stage. The stage may or may
+          //    not be retriable.
+          //    a. The first client's current attempt number will be equal to
+          //       the challenge's current attempt number. The client will try
+          //       to start the stage again (failing if it is not retriable).
+          //    b. Subsequent clients' requests will have an attempt lower than
+          //       that of the challenge. Their current attempt number will be
+          //       advanced to match the challenge.
+          //       This additionally handles case 1b, as each client will
+          //       be brought up to the challenge's new stage and attempt.
+          //
+          const isNewStage = stageUpdate.stage !== processor.getStage();
+          if (isNewStage) {
+            processor.startStage(stageUpdate.stage);
+          } else {
+            const isCurrentAttempt =
+              us.stage === processor.getStage() &&
+              processor.getStageAttempt() !== null &&
+              us.stageAttempt === processor.getStageAttempt();
+
+            if (isCurrentAttempt) {
+              processor.startStage(stageUpdate.stage);
+            }
+          }
+
+          us.stageAttempt = processor.getStageAttempt();
         }
 
         multi.hSet(
@@ -896,8 +1026,16 @@ export default class ChallengeManager {
       }
 
       const updates = await processor.finalizeUpdates();
+      result = {
+        uuid: challengeId,
+        mode: challenge.mode,
+        stage: challenge.stage,
+        stageAttempt: challenge.stageAttempt,
+      };
+
       if (Object.keys(updates).length > 0) {
         multi.hSet(challengesKey(challengeId), toRedis(updates));
+        result = { ...result, ...updates };
       }
 
       return multi.exec();
@@ -906,13 +1044,22 @@ export default class ChallengeManager {
     if (forceCleanup) {
       await this.cleanupChallenge(challengeId, null);
     } else if (finishStage !== null) {
+      const [stageToComplete, attemptToComplete] = finishStage as [
+        Stage,
+        number | null,
+      ];
       setTimeout(
-        () => this.loadAndCompleteChallengeStage(challengeId, finishStage!),
+        () =>
+          this.loadAndCompleteChallengeStage(
+            challengeId,
+            stageToComplete,
+            attemptToComplete,
+          ),
         0,
       );
     }
 
-    return updated;
+    return result;
   }
 
   /**
@@ -920,13 +1067,14 @@ export default class ChallengeManager {
    * @param challengeId ID of the challenge to join.
    * @param userId ID of the client.
    * @param recordingType Type of client recording.
+   * @returns The current status of the joined challenge.
    * @throws ChallengeError if the join fails.
    */
   public async addClient(
     challengeId: string,
     userId: number,
     recordingType: RecordingType,
-  ): Promise<void> {
+  ): Promise<ChallengeStatusResponse> {
     const currentChallenge = await this.client.get(clientChallengesKey(userId));
     if (currentChallenge !== null) {
       logger.warn(
@@ -939,12 +1087,16 @@ export default class ChallengeManager {
       );
     }
 
+    let statusResponse: ChallengeStatusResponse | null = null;
+
     await this.watchTransaction(async (client) => {
       await Promise.all([
         client.watch(challengesKey(challengeId)),
         client.watch(challengeClientsKey(challengeId)),
       ]);
       const multi = client.multi();
+
+      statusResponse = null;
 
       const [challenge, clients] = await Promise.all([
         this.loadChallenge(challengeId, client),
@@ -963,8 +1115,12 @@ export default class ChallengeManager {
         type: recordingType,
         active: true,
         stage: challenge.stage,
+        stageAttempt: challenge.stageAttempt ?? null,
         stageStatus: StageStatus.ENTERED,
-        lastCompletedStage: Stage.UNKNOWN,
+        lastCompleted: {
+          stage: Stage.UNKNOWN,
+          attempt: null,
+        },
       };
       multi.hSet(
         challengeClientsKey(challengeId),
@@ -974,8 +1130,9 @@ export default class ChallengeManager {
 
       const allInactive = clients.every((c) => !c.active);
       if (allInactive && challenge.timeoutState === TimeoutState.CLEANUP) {
-        logger.debug(
-          `User ${userId} reconnected to inactive challenge ${challengeId}`,
+        logger.info(
+          `User ${userId} reconnected to inactive challenge ${challengeId} ` +
+            `at stage ${stageAndAttempt(clientInfo.stage, clientInfo.stageAttempt)}`,
         );
         // Pause any pending cleanup if the challenge was previously inactive.
         multi.hSet(
@@ -984,12 +1141,33 @@ export default class ChallengeManager {
           TimeoutState.NONE,
         );
         multi.hDel(ChallengeManager.CHALLENGE_TIMEOUT_KEY, challengeId);
+      } else {
+        logger.info(
+          `User ${userId} reconnected to challenge ${challengeId} at stage ` +
+            stageAndAttempt(clientInfo.stage, clientInfo.stageAttempt),
+        );
       }
 
       multi.set(clientChallengesKey(userId), challengeId);
 
+      statusResponse = {
+        uuid: challengeId,
+        mode: challenge.mode,
+        stage: clientInfo.stage,
+        stageAttempt: clientInfo.stageAttempt,
+      };
+
       return multi.exec();
     });
+
+    if (statusResponse === null) {
+      throw new ChallengeError(
+        ChallengeErrorType.FAILED_PRECONDITION,
+        'Challenge does not exist',
+      );
+    }
+
+    return statusResponse;
   }
 
   private async processEvents() {
@@ -1208,12 +1386,13 @@ export default class ChallengeManager {
   private async loadAndCompleteChallengeStage(
     challengeId: string,
     stage: Stage,
+    attempt: number | null,
   ): Promise<void> {
     if (stage === Stage.UNKNOWN) {
       return;
     }
 
-    const streamKey = challengeStageStreamKey(challengeId, stage);
+    const streamKey = challengeStageStreamKey(challengeId, stage, attempt);
 
     const challenge = await this.loadChallenge(challengeId);
     if (challenge === null) {
@@ -1228,10 +1407,10 @@ export default class ChallengeManager {
     );
 
     try {
-      this.completeChallengeStage(challenge, processor, stage);
+      this.completeChallengeStage(challenge, processor, stage, attempt);
     } catch (e) {
       logger.error(
-        `Error completing stage ${stage} for challenge ${challengeId}: ${e}`,
+        `Error completing stage ${stageAndAttempt(stage, attempt)} for challenge ${challengeId}: ${e}`,
       );
     }
   }
@@ -1240,6 +1419,7 @@ export default class ChallengeManager {
     challenge: ExtendedChallengeState,
     processor: ChallengeProcessor,
     stage: Stage,
+    attempt: number | null,
   ): Promise<void> {
     if (challenge.timeoutState === TimeoutState.STAGE_END) {
       const multi = this.client.multi();
@@ -1252,6 +1432,7 @@ export default class ChallengeManager {
       await multi.exec();
     }
 
+    const stageWithAttempt = stageAndAttempt(stage, attempt);
     let okToProcess = true;
 
     await this.watchTransaction(async (client) => {
@@ -1262,11 +1443,11 @@ export default class ChallengeManager {
       await client.watch(stagesKey);
       const multi = client.multi();
 
-      const hasProcessed = await client.sIsMember(stagesKey, stage.toString());
+      const hasProcessed = await client.sIsMember(stagesKey, stageWithAttempt);
       if (hasProcessed) {
         okToProcess = false;
       } else {
-        multi.sAdd(stagesKey, stage.toString());
+        multi.sAdd(stagesKey, stageWithAttempt);
         multi.hSet(challengesKey(challenge.uuid), 'processingStage', '1');
         return multi.exec();
       }
@@ -1274,7 +1455,7 @@ export default class ChallengeManager {
 
     if (!okToProcess) {
       logger.debug(
-        `${challenge.uuid}: stage ${stage} already processed; skipping`,
+        `${challenge.uuid}: stage ${stageWithAttempt} already processed; skipping`,
       );
       return;
     }
@@ -1282,7 +1463,7 @@ export default class ChallengeManager {
     const stageEvents = await this.client
       .xRange(
         commandOptions({ returnBuffers: true }),
-        challengeStageStreamKey(challenge.uuid, stage),
+        challengeStageStreamKey(challenge.uuid, stage, attempt),
         '-',
         '+',
       )
@@ -1290,7 +1471,7 @@ export default class ChallengeManager {
 
     if (stageEvents.length === 0) {
       const multi = this.client.multi();
-      multi.del(challengeStageStreamKey(challenge.uuid, stage));
+      multi.del(challengeStageStreamKey(challenge.uuid, stage, attempt));
       multi.hSet(challengesKey(challenge.uuid), 'processingStage', '0');
       await multi.exec();
       return;
@@ -1325,9 +1506,9 @@ export default class ChallengeManager {
 
     if (result !== null) {
       logger.info(
-        '%s: stage %d finished with status %s in %d ticks; %d clients merged, %d unmerged',
+        '%s: stage %s finished with status %s in %d ticks; %d clients merged, %d unmerged',
         challenge.uuid,
-        stage,
+        stageWithAttempt,
         result.events.getStatus(),
         result.events.getLastTick(),
         result.mergedClients.length,
@@ -1354,26 +1535,40 @@ export default class ChallengeManager {
       }
     }
 
-    multi.del(challengeStageStreamKey(challenge.uuid, stage));
+    multi.del(challengeStageStreamKey(challenge.uuid, stage, attempt));
     multi.hSet(challengesKey(challenge.uuid), 'processingStage', '0');
     await multi.exec();
   }
 
   private async handleStageEndTimeout(uuid: string): Promise<void> {
     const clients = await this.loadChallengeClients(uuid);
-    const stage = clients.reduce(
-      (acc, c) => Math.max(acc, c.lastCompletedStage),
-      Stage.UNKNOWN,
+    const [stage, attempt] = clients.reduce(
+      ([accStage, accAttempt], c) => {
+        const { stage: clientStage, attempt: clientAttempt } = c.lastCompleted;
+        if (clientStage > accStage) {
+          return [clientStage, clientAttempt];
+        }
+
+        if (clientStage === accStage) {
+          return [accStage, maxAttempt(accAttempt, clientAttempt)];
+        }
+
+        return [accStage, accAttempt];
+      },
+      [Stage.UNKNOWN, null] as [Stage, number | null],
     );
     const uncompletedClients = clients.filter(
-      (c) => c.lastCompletedStage < stage,
+      (c) =>
+        c.lastCompleted.stage < stage ||
+        (c.lastCompleted.stage === stage &&
+          (c.lastCompleted.attempt ?? 0) < (attempt ?? 0)),
     );
 
     logger.debug(
       `Forcing stage ${stage} end for challenge ${uuid} ` +
         `after timeout (${uncompletedClients.length} uncompleted clients)`,
     );
-    await this.loadAndCompleteChallengeStage(uuid, stage);
+    await this.loadAndCompleteChallengeStage(uuid, stage, attempt);
   }
 
   /**
@@ -1489,7 +1684,12 @@ export default class ChallengeManager {
       );
 
       // Handle any outstanding stage events.
-      await this.completeChallengeStage(challenge, processor, challenge.stage);
+      await this.completeChallengeStage(
+        challenge,
+        processor,
+        challenge.stage,
+        challenge.stageAttempt,
+      );
       const valid = await processor.finish(finishTime);
 
       if (
