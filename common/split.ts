@@ -439,9 +439,13 @@ export function splitName(
     case SplitType.COLOSSEUM_WAVE_12:
       return full ? 'Sol Heredit time' : 'Sol Heredit';
     case SplitType.MOKHAIOTL_CHALLENGE:
-      return full ? 'Mokhaiotl 1-8 challenge time' : '1-8 challenge time';
+      return full
+        ? 'Mokhaiotl delve 1-8 challenge time'
+        : 'Delve 1-8 challenge time';
     case SplitType.MOKHAIOTL_OVERALL:
-      return full ? 'Mokhaiotl 1-8 overall time' : '1-8 overall time';
+      return full
+        ? 'Mokhaiotl delve 1-8 overall time'
+        : 'Delve 1-8 overall time';
     case SplitType.MOKHAIOTL_DELVE_1:
       return full ? 'Mokhaiotl Delve 1' : 'Delve 1';
     case SplitType.MOKHAIOTL_DELVE_2:
