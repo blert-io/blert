@@ -11,6 +11,18 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+
+  &.soloLayout {
+    .splitsContainer {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+
+      .splitSection.fullWidth {
+        grid-column: 1 / -1; // Span entire grid width
+      }
+    }
+  }
 }
 
 .selection {
@@ -82,6 +94,94 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px;
+
+  &.soloLayout {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 300px));
+    justify-content: start;
+  }
+}
+
+.achievementSection {
+  flex-direction: column;
+  padding: 16px;
+}
+
+.achievementGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 300px));
+  gap: 12px;
+  justify-content: start;
+}
+
+.achievementCard {
+  background: linear-gradient(
+    135deg,
+    var(--nav-bg) 0%,
+    var(--nav-bg-lightened) 100%
+  );
+  border: 1px solid var(--nav-bg-lightened);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: all 0.2s ease;
+  text-decoration: none;
+
+  &.hasValue {
+    cursor: pointer;
+
+    &:hover {
+      transform: translateY(-2px);
+      border-color: var(--blert-button);
+      background: linear-gradient(
+        135deg,
+        var(--nav-bg-lightened) 0%,
+        rgba(var(--blert-button-base), 0.1) 100%
+      );
+
+      .achievementValue {
+        color: var(--blert-button);
+      }
+    }
+  }
+
+  .achievementIcon {
+    font-size: 24px;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(var(--blert-button-base), 0.1);
+    border-radius: 8px;
+    color: var(--blert-button);
+    flex-shrink: 0;
+  }
+
+  .achievementContent {
+    flex: 1;
+
+    .achievementLabel {
+      font-size: 0.8rem;
+      font-weight: 500;
+      margin-bottom: 2px;
+      color: var(--font-color-nav);
+    }
+
+    .achievementValue {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: 2px;
+      font-variant-numeric: tabular-nums;
+      transition: color 0.2s ease;
+    }
+
+    .achievementDate {
+      font-size: 0.7rem;
+      color: var(--font-color-nav);
+    }
+  }
 }
 
 .pbCard {
@@ -176,6 +276,46 @@
   .pbGrid {
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 8px;
+  }
+
+  .pbContent.soloLayout {
+    .splitsContainer {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+  }
+
+  .achievementSection {
+    padding: 12px;
+  }
+
+  .achievementGrid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .achievementCard {
+    padding: 12px;
+
+    .achievementIcon {
+      font-size: 20px;
+      width: 40px;
+      height: 40px;
+    }
+
+    .achievementContent {
+      .achievementLabel {
+        font-size: 13px;
+      }
+
+      .achievementValue {
+        font-size: 18px;
+      }
+
+      .achievementDate {
+        font-size: 10px;
+      }
+    }
   }
 
   .pbCard {
