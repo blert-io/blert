@@ -192,7 +192,9 @@ export type ChallengeOverview = Pick<
 > & {
   party: ChallengePlayer[];
   splits?: Partial<Record<SplitType, SplitValue>>;
-};
+} & Partial<
+    Pick<TobRaid, 'tobStats'> & Pick<MokhaiotlChallenge, 'mokhaiotlStats'>
+  >;
 
 type SortDirection = '+' | '-';
 type SortOptions = 'nf' | 'nl';
@@ -226,7 +228,12 @@ export type BasicSortableFields = keyof Omit<
   'party' | 'finishTime'
 >;
 export type SplitSortableFields = `splits:${SplitType}`;
-export type SortableFields = BasicSortableFields | SplitSortableFields;
+export type MokhaiotlSortableFields =
+  `mok:${keyof Pick<MokhaiotlChallengeStats, 'maxCompletedDelve'>}`;
+export type SortableFields =
+  | BasicSortableFields
+  | SplitSortableFields
+  | MokhaiotlSortableFields;
 
 type SingleOrArray<T> = T | T[];
 
@@ -269,6 +276,11 @@ function shorthandToFullField(field: string): [string, string] {
   if (field.startsWith('splits:')) {
     const split = field.slice(7);
     return ['ticks', splitsTableName(parseInt(split))];
+  }
+
+  if (field.startsWith('mok:')) {
+    const mokField = field.slice(4);
+    return [mokField, 'mokhaiotl_challenge_stats'];
   }
 
   switch (field) {
@@ -537,6 +549,14 @@ function applyFilters(
         const split = parseInt(sortKey.slice(7)) as SplitType;
         addSplitsTable(split, sqlChallenges, joins, conditions, accurateSplits);
       }
+
+      if (sortKey.startsWith('mok:')) {
+        joins.push({
+          table: sql`mokhaiotl_challenge_stats`,
+          on: sql`${sqlChallenges}.id = mokhaiotl_challenge_stats.challenge_id`,
+          tableName: 'mokhaiotl_challenge_stats',
+        });
+      }
     }
   }
 
@@ -596,6 +616,7 @@ function applyFilters(
 
 export type ExtraChallengeFields = {
   splits?: SplitType[];
+  stats?: boolean;
 };
 
 export type FindChallengesOptions = {
@@ -737,6 +758,48 @@ export async function findChallenges(
         });
       }),
     );
+  }
+
+  if (options.extraFields?.stats) {
+    const types = new Map<ChallengeType, number[]>();
+    for (const c of rawChallenges) {
+      const list = types.get(c.type) ?? [];
+      types.set(c.type, [...list, c.id]);
+    }
+
+    if (types.has(ChallengeType.TOB)) {
+      loadPromises.push(
+        sql`
+          SELECT *
+          FROM tob_challenge_stats
+          WHERE challenge_id = ANY(${types.get(ChallengeType.TOB)!})
+        `.then((stats) => {
+          stats.forEach((s: any) => {
+            const challengeId = s.challenge_id;
+            delete s.id;
+            delete s.challenge_id;
+            extra[challengeId].tobStats = snakeToCamelObject(s);
+          });
+        }),
+      );
+    }
+
+    if (types.has(ChallengeType.MOKHAIOTL)) {
+      loadPromises.push(
+        sql`
+          SELECT *
+          FROM mokhaiotl_challenge_stats
+          WHERE challenge_id = ANY(${types.get(ChallengeType.MOKHAIOTL)!})
+        `.then((stats) => {
+          stats.forEach((s: any) => {
+            const challengeId = s.challenge_id;
+            delete s.id;
+            delete s.challenge_id;
+            extra[challengeId].mokhaiotlStats = snakeToCamelObject(s);
+          });
+        }),
+      );
+    }
   }
 
   loadPromises.push(
@@ -1972,6 +2035,9 @@ export async function loadPlayerWithStats(
       mokhaiotlWipes: playerWithStats.mokhaiotl_wipes,
       mokhaiotlResets: playerWithStats.mokhaiotl_resets,
       mokhaiotlTotalDelves: playerWithStats.mokhaiotl_total_delves,
+      mokhaiotlDelvesCompleted: playerWithStats.mokhaiotl_delves_completed,
+      mokhaiotlDeepDelvesCompleted:
+        playerWithStats.mokhaiotl_deep_delves_completed,
       deathsTotal: playerWithStats.deaths_total,
       deathsMaiden: playerWithStats.deaths_maiden,
       deathsBloat: playerWithStats.deaths_bloat,
