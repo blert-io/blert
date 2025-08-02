@@ -96,9 +96,9 @@ type PlayerOverviewContentProps = {
     ticks: number;
     cid: string;
   }>;
-  initialRaidStatuses: Array<{ status: ChallengeStatus; count: number }>;
-  initialRaidsByScale: Array<{ scale: number; count: number }>;
-  initialRaidsByDay: Array<{ date: Date; count: number }>;
+  initialChallengeStatuses: Array<{ status: ChallengeStatus; count: number }>;
+  initialChallengesByScale: Array<{ scale: number; count: number }>;
+  initialChallengesByDay: Array<{ date: Date; count: number }>;
   topPartners: ChallengePartner[];
 };
 
@@ -351,9 +351,9 @@ function HeatmapTooltipRenderer({
 
 export default function PlayerOverviewContent({
   personalBests,
-  initialRaidStatuses,
-  initialRaidsByScale,
-  initialRaidsByDay,
+  initialChallengeStatuses,
+  initialChallengesByScale,
+  initialChallengesByDay,
   topPartners,
 }: PlayerOverviewContentProps) {
   const isClient = useClientOnly();
@@ -362,8 +362,8 @@ export default function PlayerOverviewContent({
   const [timePeriod, setTimePeriod] = useState(TimePeriod.ALL);
   const [loading, setLoading] = useState(false);
   const challengesLastYear = useMemo(
-    () => initialRaidsByDay.reduce((acc, { count }) => acc + count, 0),
-    [initialRaidsByDay],
+    () => initialChallengesByDay.reduce((acc, { count }) => acc + count, 0),
+    [initialChallengesByDay],
   );
 
   const [activityData, setActivityData] = useState<
@@ -371,9 +371,12 @@ export default function PlayerOverviewContent({
   >([]);
   const [startHour, setStartHour] = useState(0);
 
-  const [challengeStatuses, setChallengeStatuses] =
-    useState(initialRaidStatuses);
-  const [challengeScales, setChallengeScales] = useState(initialRaidsByScale);
+  const [challengeStatuses, setChallengeStatuses] = useState(
+    initialChallengeStatuses,
+  );
+  const [challengeScales, setChallengeScales] = useState(
+    initialChallengesByScale,
+  );
 
   const fetchActivityData = useCallback(async () => {
     const response = await fetch(
@@ -411,7 +414,6 @@ export default function PlayerOverviewContent({
   const fetchChallengeStats = useCallback(async () => {
     const query = {
       party: player.username,
-      type: ChallengeType.TOB,
       startTime: `ge${startOfTimePeriod(timePeriod).getTime()}`,
     };
 
@@ -606,7 +608,7 @@ export default function PlayerOverviewContent({
         <div className={styles.activityStats}>
           <div className={styles.activityHeader}>
             <Statistic
-              name="Total Raids"
+              name="Total Runs"
               value={totalChallenges}
               width={PLAYER_PAGE_STATISTIC_SIZE}
               height={PLAYER_PAGE_STATISTIC_SIZE}
@@ -747,7 +749,7 @@ export default function PlayerOverviewContent({
               {challengesLastYear === 1 ? '' : 's'} recorded in the last year
             </h3>
             <div className={styles.heatmapWrapper}>
-              {isClient && <CalendarHeatmap data={initialRaidsByDay} />}
+              {isClient && <CalendarHeatmap data={initialChallengesByDay} />}
             </div>
           </div>
         </div>

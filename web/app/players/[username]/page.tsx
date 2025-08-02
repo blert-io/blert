@@ -17,7 +17,6 @@ export default async function PlayerOverview({
   const username = await params.then((p) => decodeURIComponent(p.username));
 
   const query: ChallengeQuery = {
-    type: ['==', ChallengeType.TOB],
     party: [username],
   };
 
@@ -27,9 +26,9 @@ export default async function PlayerOverview({
 
   const [
     personalBests,
-    raidStatuses,
-    raidScales,
-    raidCountsLastYear,
+    challengeStatuses,
+    challengeScales,
+    challengeCountsLastYear,
     topPartners,
   ] = await Promise.all([
     loadPbsForPlayer(username),
@@ -44,21 +43,25 @@ export default async function PlayerOverview({
     topPartnersForPlayer(username, { limit: 8, type: ChallengeType.TOB }),
   ]);
 
-  const statusData = Object.entries(raidStatuses ?? {}).flatMap(([s, data]) => {
-    const status = parseInt(s, 10) as ChallengeStatus;
-    if (status === ChallengeStatus.IN_PROGRESS) {
-      return [];
-    }
+  const statusData = Object.entries(challengeStatuses ?? {}).flatMap(
+    ([s, data]) => {
+      const status = parseInt(s, 10) as ChallengeStatus;
+      if (status === ChallengeStatus.IN_PROGRESS) {
+        return [];
+      }
 
-    return { status, count: data['*'].count };
-  });
+      return { status, count: data['*'].count };
+    },
+  );
 
-  const raidsByScale = Object.entries(raidScales ?? {}).flatMap(([s, data]) => {
-    const scale = parseInt(s, 10) as number;
-    return { scale, count: data['*'].count };
-  });
+  const challengesByScale = Object.entries(challengeScales ?? {}).flatMap(
+    ([s, data]) => {
+      const scale = parseInt(s, 10) as number;
+      return { scale, count: data['*'].count };
+    },
+  );
 
-  const raidsByDay = Object.entries(raidCountsLastYear ?? {}).flatMap(
+  const challengesByDay = Object.entries(challengeCountsLastYear ?? {}).flatMap(
     ([s, data]) => {
       const date = new Date(s);
       return { date, count: data['*'].count };
@@ -68,9 +71,9 @@ export default async function PlayerOverview({
   return (
     <PlayerOverviewContent
       personalBests={personalBests}
-      initialRaidStatuses={statusData}
-      initialRaidsByScale={raidsByScale}
-      initialRaidsByDay={raidsByDay}
+      initialChallengeStatuses={statusData}
+      initialChallengesByScale={challengesByScale}
+      initialChallengesByDay={challengesByDay}
       topPartners={topPartners ?? []}
     />
   );
