@@ -148,12 +148,10 @@ export default function VerzikPage() {
     setTick,
   );
 
-  const eventsForCurrentTick = eventsByTick[currentTick] ?? [];
-
   const mapDefinition = useMemo(() => {
     const pillarsThisTick: Coords[] = [];
 
-    for (const event of eventsForCurrentTick) {
+    for (const event of eventsByTick[currentTick] ?? []) {
       if (
         event.type === EventType.NPC_SPAWN ||
         event.type === EventType.NPC_UPDATE
@@ -173,7 +171,7 @@ export default function VerzikPage() {
       terrain,
       initialZoom,
     };
-  }, [compact, eventsForCurrentTick]);
+  }, [compact, eventsByTick, currentTick]);
 
   const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
 
@@ -343,6 +341,8 @@ export default function VerzikPage() {
   if (challenge.status !== ChallengeStatus.IN_PROGRESS && verzikData === null) {
     return <>No Verzik data for this raid</>;
   }
+
+  const eventsForCurrentTick = eventsByTick[currentTick] ?? [];
 
   const legacyEntities: LegacyEntity[] = [];
 

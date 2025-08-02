@@ -8,27 +8,20 @@ import {
 import { ResolvingMetadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
-import { RankedSplit, findBestSplitTimes } from '@/actions/challenge';
+import {
+  RankedSplit,
+  findBestSplitTimes,
+  findChallenges,
+} from '@/actions/challenge';
 import Card from '@/components/card';
+import { challengeLogo } from '@/logo';
+import { scaleNameAndColor } from '@/utils/challenge';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 import { challengeUrl } from '@/utils/url';
 
 import styles from './style.module.scss';
-
-function scaleName(scale: number) {
-  switch (scale) {
-    case 1:
-      return 'Solo';
-    case 2:
-      return 'Duo';
-    case 3:
-      return 'Trio';
-    default:
-      return `${scale}s`;
-  }
-}
 
 function modeName(mode: ChallengeMode) {
   switch (mode) {
@@ -41,28 +34,22 @@ function modeName(mode: ChallengeMode) {
   }
 }
 
-function colorForRank(rank: number) {
-  if (rank === 1) {
-    return '#ffd700';
-  }
-  if (rank === 2) {
-    return '#c0c0c0';
-  }
-  if (rank === 3) {
-    return '#cd7f32';
-  }
-  return 'var(--blert-text-color)';
-}
+type Rank = {
+  uuid: string;
+  date: Date;
+  party: string[];
+  value: number | string;
+};
 
 type LeaderboardProps = {
   challengeType: ChallengeType;
-  split: SplitType;
-  ranks: RankedSplit[];
+  ranks: Rank[];
+  title: string;
 };
 
-function Leaderboard({ challengeType, split, ranks }: LeaderboardProps) {
+function Leaderboard({ challengeType, ranks, title }: LeaderboardProps) {
   return (
-    <Card header={{ title: splitName(split) }} className={styles.boardCard}>
+    <Card header={{ title }} className={styles.boardCard}>
       <div className={styles.board}>
         {ranks.map((rank, i) => (
           <Link
@@ -90,9 +77,7 @@ function Leaderboard({ challengeType, split, ranks }: LeaderboardProps) {
             </div>
             <div className={styles.wrapper}>
               <div className={styles.timeAndDate}>
-                <span className={styles.time}>
-                  {ticksToFormattedSeconds(rank.ticks)}
-                </span>
+                <span className={styles.time}>{rank.value}</span>
                 <span className={styles.date}>
                   {new Date(rank.date).toLocaleDateString(undefined, {
                     year: 'numeric',
@@ -124,12 +109,16 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
   let mode = ChallengeMode.NO_MODE;
   let scale = 1;
 
-  let heading;
   let splits: SplitType[] = [];
   let numHighlightedSplits = 1;
 
   const linkClass = (active: boolean) =>
     `${styles.option} ${active ? styles.active : ''}`;
+
+  let headerModes;
+  let headerScales;
+
+  const customLeaderboards: LeaderboardProps[] = [];
 
   switch (challenge) {
     case 'tob': {
@@ -152,66 +141,37 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
           ? ChallengeMode.TOB_HARD
           : ChallengeMode.TOB_REGULAR;
 
-      heading = (
-        <Card className={styles.header} primary>
-          <div className={styles.headerTop}>
-            <div className={styles.challenges}>
-              <Link
-                className={linkClass(true)}
-                href={`/leaderboards/tob/regular/5`}
-              >
-                <Image
-                  src="/logo_tob.webp"
-                  alt="Theatre of Blood"
-                  width={24}
-                  height={24}
-                  style={{ objectFit: 'contain' }}
-                />
-                Theatre of Blood
-              </Link>
-              <Link
-                className={linkClass(false)}
-                href={`/leaderboards/colosseum`}
-              >
-                <Image
-                  src="/varlamore.png"
-                  alt="Fortis Colosseum"
-                  width={24}
-                  height={24}
-                  style={{ objectFit: 'contain' }}
-                />
-                Fortis Colosseum
-              </Link>
-            </div>
-            <div className={styles.modes}>
-              <Link
-                className={linkClass(mode === ChallengeMode.TOB_REGULAR)}
-                href={`/leaderboards/tob/regular/${scale}`}
-              >
-                <i className="fas fa-circle" style={{ color: '#ffd700' }} />
-                Regular
-              </Link>
-              <Link
-                className={linkClass(mode === ChallengeMode.TOB_HARD)}
-                href={`/leaderboards/tob/hard/${scale}`}
-              >
-                <i className="fas fa-circle" style={{ color: '#d100cc' }} />
-                Hard
-              </Link>
-            </div>
-          </div>
-          <div className={styles.scales}>
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Link
-                className={linkClass(scale === i + 1)}
-                href={`/leaderboards/tob/${modeName(mode).toLowerCase()}/${i + 1}`}
-                key={i}
-              >
-                {scaleName(i + 1)}
-              </Link>
-            ))}
-          </div>
-        </Card>
+      headerModes = (
+        <div className={styles.modes}>
+          <Link
+            className={linkClass(mode === ChallengeMode.TOB_REGULAR)}
+            href={`/leaderboards/tob/regular/${scale}`}
+          >
+            <i className="fas fa-circle" style={{ color: '#ffd700' }} />
+            Regular
+          </Link>
+          <Link
+            className={linkClass(mode === ChallengeMode.TOB_HARD)}
+            href={`/leaderboards/tob/hard/${scale}`}
+          >
+            <i className="fas fa-circle" style={{ color: '#d100cc' }} />
+            Hard
+          </Link>
+        </div>
+      );
+
+      headerScales = (
+        <div className={styles.scales}>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Link
+              className={linkClass(scale === i + 1)}
+              href={`/leaderboards/tob/${modeName(mode).toLowerCase()}/${i + 1}`}
+              key={i}
+            >
+              {scaleNameAndColor(i + 1)[0]}
+            </Link>
+          ))}
+        </div>
       );
 
       splits = [
@@ -230,40 +190,6 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
 
     case 'colosseum': {
       challengeType = ChallengeType.COLOSSEUM;
-      heading = (
-        <Card className={styles.header} primary>
-          <div className={styles.headerTop}>
-            <div className={styles.challenges}>
-              <Link
-                className={linkClass(false)}
-                href={`/leaderboards/tob/regular/5`}
-              >
-                <Image
-                  src="/logo_tob.webp"
-                  alt="Theatre of Blood"
-                  width={24}
-                  height={24}
-                  style={{ objectFit: 'contain' }}
-                />
-                Theatre of Blood
-              </Link>
-              <Link
-                className={linkClass(true)}
-                href={`/leaderboards/colosseum`}
-              >
-                <Image
-                  src="/varlamore.png"
-                  alt="Fortis Colosseum"
-                  width={24}
-                  height={24}
-                  style={{ objectFit: 'contain' }}
-                />
-                Fortis Colosseum
-              </Link>
-            </div>
-          </div>
-        </Card>
-      );
       splits = [
         SplitType.COLOSSEUM_CHALLENGE,
         SplitType.COLOSSEUM_WAVE_1,
@@ -282,9 +208,96 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
       break;
     }
 
+    case 'mokhaiotl': {
+      challengeType = ChallengeType.MOKHAIOTL;
+      splits = [
+        SplitType.MOKHAIOTL_CHALLENGE,
+        SplitType.MOKHAIOTL_DELVE_1,
+        SplitType.MOKHAIOTL_DELVE_2,
+        SplitType.MOKHAIOTL_DELVE_3,
+        SplitType.MOKHAIOTL_DELVE_4,
+        SplitType.MOKHAIOTL_DELVE_5,
+        SplitType.MOKHAIOTL_DELVE_6,
+        SplitType.MOKHAIOTL_DELVE_7,
+        SplitType.MOKHAIOTL_DELVE_8,
+      ];
+
+      const [topDelves] = await findChallenges(
+        3,
+        {
+          type: ['==', ChallengeType.MOKHAIOTL],
+          sort: ['-mok:maxCompletedDelve'],
+        },
+        { extraFields: { stats: true } },
+      );
+      customLeaderboards.push({
+        challengeType: ChallengeType.MOKHAIOTL,
+        ranks: topDelves.map((challenge) => ({
+          uuid: challenge.uuid,
+          date: challenge.startTime,
+          party: challenge.party.map((player) => player.username),
+          value: challenge.mokhaiotlStats?.maxCompletedDelve
+            ? `Delve ${challenge.mokhaiotlStats.maxCompletedDelve}`
+            : 'N/A',
+        })),
+        title: 'Deepest Delves',
+      });
+      break;
+    }
+
     default:
-      return 'Not Found';
+      notFound();
   }
+
+  const heading = (
+    <Card className={styles.header} primary>
+      <div className={styles.headerTop}>
+        <div className={styles.challenges}>
+          <Link
+            className={linkClass(challengeType === ChallengeType.TOB)}
+            href={`/leaderboards/tob/regular/5`}
+          >
+            <Image
+              src="/logo_tob.webp"
+              alt="Theatre of Blood"
+              width={24}
+              height={24}
+              style={{ objectFit: 'contain' }}
+            />
+            Theatre of Blood
+          </Link>
+          <Link
+            className={linkClass(challengeType === ChallengeType.COLOSSEUM)}
+            href={`/leaderboards/colosseum`}
+          >
+            <Image
+              src="/varlamore.png"
+              alt="Fortis Colosseum"
+              width={24}
+              height={24}
+              style={{ objectFit: 'contain' }}
+            />
+            Fortis Colosseum
+          </Link>
+          <Link
+            className={linkClass(challengeType === ChallengeType.MOKHAIOTL)}
+            href={`/leaderboards/mokhaiotl`}
+          >
+            <Image
+              src={challengeLogo(ChallengeType.MOKHAIOTL)}
+              alt="Doom of Mokhaiotl"
+              width={24}
+              height={24}
+              style={{ objectFit: 'contain' }}
+            />
+            Doom of Mokhaiotl
+          </Link>
+        </div>
+        {headerModes}
+      </div>
+      {headerScales}
+    </Card>
+  );
 
   const rankedSplits = await findBestSplitTimes(splits, scale, 3);
 
@@ -293,12 +306,22 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
       <div className={styles.inner}>
         {heading}
         <div className={styles.boardGrid}>
+          {customLeaderboards.map((leaderboard, i) => (
+            <Leaderboard key={i} {...leaderboard} />
+          ))}
           {splits.slice(0, numHighlightedSplits).map((split, i) => (
             <Leaderboard
               key={i}
               challengeType={challengeType}
-              split={split}
-              ranks={rankedSplits[split] ?? []}
+              title={splitName(split)}
+              ranks={
+                rankedSplits[split]?.map((split) => ({
+                  uuid: split.uuid,
+                  date: split.date,
+                  party: split.party,
+                  value: ticksToFormattedSeconds(split.ticks),
+                })) ?? []
+              }
             />
           ))}
         </div>
@@ -307,8 +330,15 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
             <Leaderboard
               key={i}
               challengeType={challengeType}
-              split={split}
-              ranks={rankedSplits[split] ?? []}
+              title={splitName(split)}
+              ranks={
+                rankedSplits[split]?.map((split) => ({
+                  uuid: split.uuid,
+                  date: split.date,
+                  party: split.party,
+                  value: ticksToFormattedSeconds(split.ticks),
+                })) ?? []
+              }
             />
           ))}
         </div>
@@ -346,7 +376,7 @@ export async function generateMetadata(
         scale = parseInt(options[1]);
 
         const modeStr = modeName(mode);
-        const scaleStr = scaleName(scale);
+        const scaleStr = scaleNameAndColor(scale)[0];
         title = `${scaleStr} ${modeStr} Theatre of Blood Leaderboards`;
         description = `Track the fastest ${modeStr} Mode Theatre of Blood ${scaleStr} raid times. Compare room splits, view party compositions, and analyze strategies from top teams.`;
       }
@@ -361,6 +391,12 @@ export async function generateMetadata(
       break;
     }
 
+    case 'mokhaiotl': {
+      title = 'Doom of Mokhaiotl Leaderboards';
+      description =
+        'Track the fastest Doom of Mokhaiotl delve times and completions. View detailed delve splits, strategies, and records from top OSRS PvMers.';
+      imageUrl = 'https://blert.io/images/mokhaiotl.webp';
+    }
     default:
       return { title: 'Not Found' };
   }
