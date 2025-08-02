@@ -87,7 +87,9 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const findOptions: FindChallengesOptions = {
+  const findOptions: Required<FindChallengesOptions> = {
+    accurateSplits: false,
+    fullRecordings: false,
     count: true,
     extraFields: {
       splits: Array.from(splits),
@@ -104,6 +106,9 @@ export async function GET(request: NextRequest) {
           break;
         case 'fullRecordings':
           findOptions.fullRecordings = true;
+          break;
+        case 'stats':
+          findOptions.extraFields.stats = true;
           break;
         default:
           return new Response(null, { status: 400 });

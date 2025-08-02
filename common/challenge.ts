@@ -63,6 +63,7 @@ export interface MokhaiotlChallenge extends Challenge {
 
 export type MokhaiotlChallengeStats = {
   delve: number;
+  maxCompletedDelve: number;
   larvaeLeaked: number;
 };
 
