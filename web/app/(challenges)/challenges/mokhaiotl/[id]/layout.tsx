@@ -3,7 +3,7 @@ import { ResolvingMetadata } from 'next';
 
 import { loadChallenge } from '@/actions/challenge';
 import ChallengeNav from '@/components/challenge-nav';
-import { statusNameAndColor } from '@/components/raid-quick-details';
+import { statusNameAndColor } from '@/utils/challenge';
 import { challengePageDescription } from '@/utils/challenge-description';
 
 import { MokhaiotlContextProvider } from '../context';
