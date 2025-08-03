@@ -1,5 +1,3 @@
-import { S3Client } from '@aws-sdk/client-s3';
-import { DataRepository } from '@blert/common';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express, { Request } from 'express';
@@ -10,7 +8,6 @@ import { WebSocket, WebSocketServer } from 'ws';
 import ChallengeManager from './challenge-manager';
 import Client from './client';
 import ConnectionManager from './connection-manager';
-import LocalChallengeManager from './local-challenge-manager';
 import MessageHandler from './message-handler';
 import { PlayerManager } from './players';
 import { RemoteChallengeManager } from './remote-challenge-manager';
@@ -59,43 +56,6 @@ async function setupHttpRoutes(
     }
     res.json(serverManager.getStatus());
   });
-}
-
-/**
- * Initializes the repository for Blert's static challenge data files, with a
- * backend set based on the BLERT_DATA_REPOSITORY environment variable.
- * @returns The initialized data repository.
- */
-function initializeDataRepository(envVar: string): DataRepository {
-  let repositoryBackend: DataRepository.Backend;
-  if (!process.env[envVar]) {
-    throw new Error(`${envVar} is not set`);
-  }
-
-  const repositoryUri = process.env[envVar]!;
-
-  if (repositoryUri.startsWith('file://')) {
-    const root = repositoryUri.slice('file://'.length);
-    console.log(`DataRepository using filesystem backend at ${root}`);
-    repositoryBackend = new DataRepository.FilesystemBackend(root);
-  } else if (repositoryUri.startsWith('s3://')) {
-    const s3Client = new S3Client({
-      forcePathStyle: false,
-      region: process.env.BLERT_REGION,
-      endpoint: process.env.BLERT_ENDPOINT,
-      credentials: {
-        accessKeyId: process.env.BLERT_ACCESS_KEY_ID!,
-        secretAccessKey: process.env.BLERT_SECRET_ACCESS_KEY!,
-      },
-    });
-    const bucket = repositoryUri.slice('s3://'.length);
-    console.log(`DataRepository using S3 backend bucket ${bucket}`);
-    repositoryBackend = new DataRepository.S3Backend(s3Client, bucket);
-  } else {
-    throw new Error(`Unknown repository backend type: ${repositoryUri}`);
-  }
-
-  return new DataRepository(repositoryBackend);
 }
 
 async function initializeRemoteChallengeManager(): Promise<
@@ -203,30 +163,11 @@ async function main(): Promise<void> {
     }
   });
 
-  const repository = initializeDataRepository('BLERT_DATA_REPOSITORY');
-  const clientRepository = initializeDataRepository(
-    'BLERT_CLIENT_DATA_REPOSITORY',
-  );
-
   const connectionManager = new ConnectionManager();
   const serverManager = new ServerManager(connectionManager);
 
-  let challengeManager: ChallengeManager;
-  let playerManager: PlayerManager;
-
-  if (process.env.BLERT_CHALLENGE_SERVER_URI !== undefined) {
-    const [cm, pm] = await initializeRemoteChallengeManager();
-    challengeManager = cm;
-    playerManager = pm;
-  } else {
-    console.log('Using local challenge manager');
-    playerManager = new PlayerManager(null);
-    challengeManager = new LocalChallengeManager(
-      playerManager,
-      repository,
-      clientRepository,
-    );
-  }
+  const [challengeManager, playerManager] =
+    await initializeRemoteChallengeManager();
 
   const messageHandler = new MessageHandler(challengeManager, playerManager);
 
