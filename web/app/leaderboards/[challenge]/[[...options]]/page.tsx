@@ -226,7 +226,7 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
         3,
         {
           type: ['==', ChallengeType.MOKHAIOTL],
-          sort: ['-mok:maxCompletedDelve'],
+          sort: ['-mok:maxCompletedDelve', '+startTime'],
         },
         { extraFields: { stats: true } },
       );
@@ -396,7 +396,9 @@ export async function generateMetadata(
       description =
         'Track the fastest Doom of Mokhaiotl delve times and completions. View detailed delve splits, strategies, and records from top OSRS PvMers.';
       imageUrl = 'https://blert.io/images/mokhaiotl.webp';
+      break;
     }
+
     default:
       return { title: 'Not Found' };
   }

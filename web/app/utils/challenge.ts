@@ -97,7 +97,11 @@ export function scaleNameAndColor(scale: number): [string, string] {
  * @returns The appropriate term for the challenge attempt.
  */
 export function challengeTerm(type: ChallengeType, plural: boolean = false) {
-  if (type === ChallengeType.COLOSSEUM || type === ChallengeType.INFERNO) {
+  if (
+    type === ChallengeType.COLOSSEUM ||
+    type === ChallengeType.INFERNO ||
+    type === ChallengeType.MOKHAIOTL
+  ) {
     return plural ? 'Runs' : 'Run';
   }
   return plural ? 'Raids' : 'Raid';
@@ -113,6 +117,9 @@ export function challengeTerm(type: ChallengeType, plural: boolean = false) {
 export function stageTerm(type: ChallengeType, plural: boolean = false) {
   if (type === ChallengeType.COLOSSEUM || type === ChallengeType.INFERNO) {
     return plural ? 'Waves' : 'Wave';
+  }
+  if (type === ChallengeType.MOKHAIOTL) {
+    return plural ? 'Delves' : 'Delve';
   }
   return plural ? 'Rooms' : 'Room';
 }
@@ -179,6 +186,18 @@ export function relevantSplitsForStage(
     case Stage.COLOSSEUM_WAVE_12:
       const wave = stage - Stage.COLOSSEUM_WAVE_1;
       splits = [SplitType.COLOSSEUM_WAVE_1 + wave];
+      break;
+
+    case Stage.MOKHAIOTL_DELVE_1:
+    case Stage.MOKHAIOTL_DELVE_2:
+    case Stage.MOKHAIOTL_DELVE_3:
+    case Stage.MOKHAIOTL_DELVE_4:
+    case Stage.MOKHAIOTL_DELVE_5:
+    case Stage.MOKHAIOTL_DELVE_6:
+    case Stage.MOKHAIOTL_DELVE_7:
+    case Stage.MOKHAIOTL_DELVE_8:
+      const delve = stage - Stage.MOKHAIOTL_DELVE_1;
+      splits = [SplitType.MOKHAIOTL_DELVE_1 + delve];
       break;
 
     default:

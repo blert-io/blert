@@ -440,11 +440,11 @@ export function splitName(
       return full ? 'Sol Heredit time' : 'Sol Heredit';
     case SplitType.MOKHAIOTL_CHALLENGE:
       return full
-        ? 'Mokhaiotl delve 1-8 challenge time'
+        ? 'Mokhaiotl Delve 1-8 challenge time'
         : 'Delve 1-8 challenge time';
     case SplitType.MOKHAIOTL_OVERALL:
       return full
-        ? 'Mokhaiotl delve 1-8 overall time'
+        ? 'Mokhaiotl Delve 1-8 overall time'
         : 'Delve 1-8 overall time';
     case SplitType.MOKHAIOTL_DELVE_1:
       return full ? 'Mokhaiotl Delve 1' : 'Delve 1';
