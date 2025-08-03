@@ -507,17 +507,9 @@ $NAV_MARGIN: 10px;
 }
 
 .historyGrid {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 16px;
-
-  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    grid-template-columns: 1fr;
-  }
-
-  &.fullWidth {
-    grid-template-columns: 1fr;
-  }
 
   .historyCard {
     min-height: 600px;
@@ -737,7 +729,6 @@ $NAV_MARGIN: 10px;
 
 .nameChanges {
   width: 100%;
-  max-width: 400px;
   height: fit-content;
 
   h2 {

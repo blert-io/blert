@@ -418,6 +418,7 @@ export default function SessionHistory(props: SessionHistoryProps) {
             ? status
             : [status]
           : undefined,
+        party: username ? [username] : undefined,
       };
       const sessions = await fetch(
         `/api/v1/sessions?${queryString(params)}`,

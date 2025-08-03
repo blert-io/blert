@@ -1218,6 +1218,7 @@ export type SessionQuery = {
   scale?: Comparator<number>;
   startTime?: Comparator<Date>;
   status?: Comparator<SessionStatus>;
+  party?: string[];
 };
 
 type SessionSortableFields = Pick<Session, 'startTime' | 'endTime' | 'status'>;
@@ -1267,6 +1268,36 @@ function sessionFilters(query: SessionQuery): {
 
     // Ensure active sessions are at the top.
     defaultSort = ['+status', '-startTime'];
+  }
+
+  if (query.party) {
+    if (query.party.length === 1) {
+      conditions.push(
+        sql`
+          challenge_sessions.id IN (
+            SELECT DISTINCT(c.session_id)
+            FROM challenge_players cp
+            JOIN players p ON p.id = cp.player_id
+            JOIN challenges c ON c.id = cp.challenge_id
+            WHERE LOWER(p.username) = ${query.party[0].toLowerCase()}
+          )
+        `,
+      );
+    } else {
+      conditions.push(
+        sql`
+          challenge_sessions.id IN (
+            SELECT DISTINCT(c.session_id)
+            FROM challenge_players cp
+            JOIN players p ON p.id = cp.player_id
+            JOIN challenges c ON c.id = cp.challenge_id
+            WHERE LOWER(p.username) = ANY(${query.party.map((u) => u.toLowerCase())})
+            GROUP BY c.id
+            HAVING COUNT(*) = ${query.party.length}
+          )
+        `,
+      );
+    }
   }
 
   return { conditions, defaultSort };

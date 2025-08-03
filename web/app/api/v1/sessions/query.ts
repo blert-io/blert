@@ -22,5 +22,8 @@ export function parseSessionQuery(params: NextSearchParams): SessionQuery {
     scale: numericComparatorParam(params, 'scale'),
     startTime: dateComparatorParam(params, 'startTime'),
     status: numericComparatorParam(params, 'status'),
+    party: expectSingle(params, 'party')
+      ?.split(',')
+      .map((p) => p.trim()),
   };
 }

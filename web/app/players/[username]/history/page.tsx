@@ -1,8 +1,9 @@
-import ChallengeHistory from '@/components/challenge-history';
-import { getNameChangesForPlayer } from '@/actions/change-name';
 import type { NameChange } from '@blert/common';
 
+import { getNameChangesForPlayer } from '@/actions/change-name';
 import Card, { CardLink } from '@/components/card';
+import SessionHistory from '@/components/session-history';
+
 import { PlayerLayoutParams } from '../layout';
 
 import styles from '../style.module.scss';
@@ -74,13 +75,11 @@ export default async function PlayerHistory({
 
   return (
     <div className={styles.history}>
-      <div
-        className={`${styles.historyGrid} ${nameChanges.length === 0 ? styles.fullWidth : ''}`}
-      >
+      <div className={styles.historyGrid}>
         <Card
           className={styles.historyCard}
           header={{
-            title: 'Recent Challenges',
+            title: 'Recent Sessions',
             action: (
               <CardLink
                 href={`/search?party=${encodeURIComponent(username)}`}
@@ -89,7 +88,7 @@ export default async function PlayerHistory({
             ),
           }}
         >
-          <ChallengeHistory count={20} username={username} />
+          <SessionHistory count={10} username={username} />
         </Card>
         {nameChanges.length > 0 && (
           <NameChangeHistory

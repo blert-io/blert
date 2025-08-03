@@ -16,6 +16,7 @@ export default async function SessionHistory(props: SessionHistoryProps) {
     status: props.status
       ? ['in', Array.isArray(props.status) ? props.status : [props.status]]
       : undefined,
+    party: props.username ? [props.username] : undefined,
   });
 
   return <SessionHistoryCore {...props} initialSessions={initialSessions} />;
