@@ -1,4 +1,9 @@
-import { ChallengeMode, ChallengeStatus, ChallengeType, Stage } from '@blert/common';
+import {
+  ChallengeMode,
+  ChallengeStatus,
+  ChallengeType,
+  Stage,
+} from '@blert/common';
 
 import {
   ExtraChallengeFields,
@@ -148,6 +153,9 @@ export function extraFieldsToUrlParam(
     for (const split of extraFields.splits) {
       param.push(`splits:${split}`);
     }
+  }
+  if (extraFields.stats) {
+    param.push('stats');
   }
 
   return param;

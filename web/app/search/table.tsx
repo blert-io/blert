@@ -74,6 +74,17 @@ const enum Column {
   COLOSSEUM_WAVE_10,
   COLOSSEUM_WAVE_11,
   COLOSSEUM_WAVE_12,
+  MOKHAIOTL_DELVE_1,
+  MOKHAIOTL_DELVE_2,
+  MOKHAIOTL_DELVE_3,
+  MOKHAIOTL_DELVE_4,
+  MOKHAIOTL_DELVE_5,
+  MOKHAIOTL_DELVE_6,
+  MOKHAIOTL_DELVE_7,
+  MOKHAIOTL_DELVE_8,
+
+  MOKHAIOTL_DELVE,
+  MOKHAIOTL_MAX_COMPLETED_DELVE,
 }
 
 type ColumnRenderer = (challenge: ChallengeOverview) => React.ReactNode;
@@ -137,6 +148,13 @@ function toggleSplitField(type: SplitType): ColumnExtraFieldsToggler {
     return { ...fields, splits: splits.filter((s) => s !== type) };
   };
 }
+
+const includeStats: ColumnExtraFieldsToggler = (fields, add) => {
+  if (add) {
+    return { ...fields, stats: true };
+  }
+  return fields;
+};
 
 function splitColumn(
   name: string,
@@ -390,6 +408,68 @@ const COLUMNS: { [key in Column]: ColumnInfo } = {
     100,
     'Sol Heredit Time',
   ),
+  [Column.MOKHAIOTL_DELVE_1]: splitColumn(
+    'Mok - D1',
+    SplitType.MOKHAIOTL_DELVE_1,
+    100,
+    'Mokhaiotl - Delve 1',
+  ),
+  [Column.MOKHAIOTL_DELVE_2]: splitColumn(
+    'Mok - D2',
+    SplitType.MOKHAIOTL_DELVE_2,
+    100,
+    'Mokhaiotl - Delve 2',
+  ),
+  [Column.MOKHAIOTL_DELVE_3]: splitColumn(
+    'Mok - D3',
+    SplitType.MOKHAIOTL_DELVE_3,
+    100,
+    'Mokhaiotl - Delve 3',
+  ),
+  [Column.MOKHAIOTL_DELVE_4]: splitColumn(
+    'Mok - D4',
+    SplitType.MOKHAIOTL_DELVE_4,
+    100,
+    'Mokhaiotl - Delve 4',
+  ),
+  [Column.MOKHAIOTL_DELVE_5]: splitColumn(
+    'Mok - D5',
+    SplitType.MOKHAIOTL_DELVE_5,
+    100,
+    'Mokhaiotl - Delve 5',
+  ),
+  [Column.MOKHAIOTL_DELVE_6]: splitColumn(
+    'Mok - D6',
+    SplitType.MOKHAIOTL_DELVE_6,
+    100,
+    'Mokhaiotl - Delve 6',
+  ),
+  [Column.MOKHAIOTL_DELVE_7]: splitColumn(
+    'Mok - D7',
+    SplitType.MOKHAIOTL_DELVE_7,
+    100,
+    'Mokhaiotl - Delve 7',
+  ),
+  [Column.MOKHAIOTL_DELVE_8]: splitColumn(
+    'Mok - D8',
+    SplitType.MOKHAIOTL_DELVE_8,
+    100,
+    'Mokhaiotl - Delve 8',
+  ),
+  [Column.MOKHAIOTL_DELVE]: {
+    name: 'Mok - Delve',
+    fullName: 'Mokhaiotl Delve',
+    align: 'right',
+    renderer: (challenge) => challenge.mokhaiotlStats?.delve ?? '-',
+    toggleFields: includeStats,
+  },
+  [Column.MOKHAIOTL_MAX_COMPLETED_DELVE]: {
+    name: 'Mok - Completed',
+    fullName: 'Mokhaiotl Completed',
+    align: 'right',
+    renderer: (challenge) => challenge.mokhaiotlStats?.maxCompletedDelve ?? '-',
+    toggleFields: includeStats,
+  },
 };
 
 type ContextMenu = {
