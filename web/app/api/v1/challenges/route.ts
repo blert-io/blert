@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
   }
 
   const splits = new Set(DEFAULT_SPLITS);
+  let loadStats = false;
 
   const extraFields = searchParams.get('extraFields')?.split(',');
   if (extraFields) {
@@ -69,6 +70,9 @@ export async function GET(request: NextRequest) {
           return new Response(null, { status: 400 });
         }
         splits.add(split);
+      }
+      if (field === 'stats') {
+        loadStats = true;
       }
     }
   }
@@ -93,6 +97,7 @@ export async function GET(request: NextRequest) {
     count: true,
     extraFields: {
       splits: Array.from(splits),
+      stats: loadStats,
     },
   };
 
@@ -106,9 +111,6 @@ export async function GET(request: NextRequest) {
           break;
         case 'fullRecordings':
           findOptions.fullRecordings = true;
-          break;
-        case 'stats':
-          findOptions.extraFields.stats = true;
           break;
         default:
           return new Response(null, { status: 400 });

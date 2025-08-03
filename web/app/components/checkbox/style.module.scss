@@ -1,6 +1,6 @@
 .checkbox {
   &:has(input[type='checkbox']:disabled) {
-    opacity: 0.9;
+    opacity: 0.6;
   }
 
   &.button {
@@ -22,7 +22,7 @@
     }
   }
 
-  &:not(.button):hover {
+  &:not(.button):not(:has(input[type='checkbox']:disabled)):hover {
     color: white;
   }
 

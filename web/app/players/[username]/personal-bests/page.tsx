@@ -480,7 +480,7 @@ export default function PlayerPersonalBests() {
         const params = {
           party: username,
           type: ChallengeType.MOKHAIOTL,
-          options: 'stats',
+          extraFields: 'stats',
           sort: '-mok:maxCompletedDelve',
           limit: 1,
         };

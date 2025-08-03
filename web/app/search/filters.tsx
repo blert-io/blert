@@ -95,6 +95,19 @@ const STAGE_MENU_ITEMS: MenuItem[] = [
       { label: 'Sol Heredit', value: Stage.COLOSSEUM_WAVE_11 },
     ],
   },
+  {
+    label: 'Mokhaiotl',
+    subMenu: [
+      { label: 'Delve 1', value: Stage.MOKHAIOTL_DELVE_1 },
+      { label: 'Delve 2', value: Stage.MOKHAIOTL_DELVE_2 },
+      { label: 'Delve 3', value: Stage.MOKHAIOTL_DELVE_3 },
+      { label: 'Delve 4', value: Stage.MOKHAIOTL_DELVE_4 },
+      { label: 'Delve 5', value: Stage.MOKHAIOTL_DELVE_5 },
+      { label: 'Delve 6', value: Stage.MOKHAIOTL_DELVE_6 },
+      { label: 'Delve 7', value: Stage.MOKHAIOTL_DELVE_7 },
+      { label: 'Delve 8', value: Stage.MOKHAIOTL_DELVE_8 },
+    ],
+  },
 ];
 
 const STAGE_OPERATORS = [
@@ -151,12 +164,15 @@ export default function Filters({
   function checkbox<
     K extends keyof ArrayFields<SearchFilters>,
     V = SearchFilters[K][number],
-  >(key: K, value: V, label: string) {
+  >(key: K, value: V, label: string, disabled: boolean = false) {
+    const checked = (context.filters[key] as V[]).includes(value);
+    const isDisabled = disabled && !checked; // Allow unchecking if disabled.
+
     return (
       <Checkbox
-        checked={(context.filters[key] as V[]).includes(value)}
+        checked={checked}
         className={styles.checkbox}
-        disabled={loading}
+        disabled={loading || isDisabled}
         onChange={() => toggle(key, value)}
         label={label}
         simple
@@ -189,6 +205,10 @@ export default function Filters({
       </div>
     );
   }
+
+  const hasTeamChallenges =
+    context.filters.type.length === 0 ||
+    context.filters.type.includes(ChallengeType.TOB);
 
   return (
     <div className={styles.filters}>
@@ -253,6 +273,7 @@ export default function Filters({
             simple
           />
           {checkbox('type', ChallengeType.COLOSSEUM, 'Colosseum')}
+          {checkbox('type', ChallengeType.MOKHAIOTL, 'Mokhaiotl')}
         </div>
         <div className={`${styles.checkGroup} ${styles.item}`}>
           {clearLabel('Status', 'status')}
@@ -264,10 +285,10 @@ export default function Filters({
         <div className={`${styles.checkGroup} ${styles.item}`}>
           {clearLabel('Scale', 'scale')}
           {checkbox('scale', 1, 'Solo')}
-          {checkbox('scale', 2, 'Duo')}
-          {checkbox('scale', 3, 'Trio')}
-          {checkbox('scale', 4, '4s')}
-          {checkbox('scale', 5, '5s')}
+          {checkbox('scale', 2, 'Duo', !hasTeamChallenges)}
+          {checkbox('scale', 3, 'Trio', !hasTeamChallenges)}
+          {checkbox('scale', 4, '4s', !hasTeamChallenges)}
+          {checkbox('scale', 5, '5s', !hasTeamChallenges)}
         </div>
         <div className={`${styles.checkGroup} ${styles.item}`}>
           <div className={styles.label}>
@@ -465,7 +486,7 @@ export default function Filters({
                 isClearable
                 maxDate={
                   useDateRange
-                    ? context.filters.endDate ?? undefined
+                    ? (context.filters.endDate ?? undefined)
                     : undefined
                 }
                 placeholderText={useDateRange ? 'Start date' : undefined}
@@ -495,7 +516,7 @@ export default function Filters({
                     isClearable
                     minDate={
                       useDateRange
-                        ? context.filters.startDate ?? undefined
+                        ? (context.filters.startDate ?? undefined)
                         : undefined
                     }
                     placeholderText="End date"
@@ -636,6 +657,19 @@ const CUSTOM_FILTERS_ITEMS: MenuItem[] = [
           { label: 'Wave 10 time', value: SplitType.COLOSSEUM_WAVE_10 },
           { label: 'Wave 11 time', value: SplitType.COLOSSEUM_WAVE_11 },
           { label: 'Sol Heredit time', value: SplitType.COLOSSEUM_WAVE_12 },
+        ],
+      },
+      {
+        label: 'Mokhaiotl',
+        subMenu: [
+          { label: 'Delve 1 time', value: SplitType.MOKHAIOTL_DELVE_1 },
+          { label: 'Delve 2 time', value: SplitType.MOKHAIOTL_DELVE_2 },
+          { label: 'Delve 3 time', value: SplitType.MOKHAIOTL_DELVE_3 },
+          { label: 'Delve 4 time', value: SplitType.MOKHAIOTL_DELVE_4 },
+          { label: 'Delve 5 time', value: SplitType.MOKHAIOTL_DELVE_5 },
+          { label: 'Delve 6 time', value: SplitType.MOKHAIOTL_DELVE_6 },
+          { label: 'Delve 7 time', value: SplitType.MOKHAIOTL_DELVE_7 },
+          { label: 'Delve 8 time', value: SplitType.MOKHAIOTL_DELVE_8 },
         ],
       },
     ],
