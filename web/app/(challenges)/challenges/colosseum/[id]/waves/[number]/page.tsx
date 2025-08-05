@@ -35,7 +35,11 @@ import {
   NpcEntity as LegacyNpcEntity,
   PlayerEntity as LegacyPlayerEntity,
 } from '@/components/map';
-import { AnyEntity, MapDefinition } from '@/components/map-renderer';
+import {
+  AnyEntity,
+  MapDefinition,
+  ObjectEntity,
+} from '@/components/map-renderer';
 import { useDisplay } from '@/display';
 import {
   useLegacyTickTimeout,
@@ -106,7 +110,12 @@ function npcOutlineColor(npcId: number): string | undefined {
   return '#2d270c';
 }
 
-const PILLARS = [{ x: 1800, y: 3072 }];
+const PILLARS = [
+  { x: 1816, y: 3098 },
+  { x: 1831, y: 3098 },
+  { x: 1816, y: 3113 },
+  { x: 1831, y: 3113 },
+];
 
 const DEFAULT_USE_NEW_REPLAY = true;
 
@@ -156,11 +165,20 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
     setTick,
   );
 
-  const customEntitiesForTick = useCallback((tick: number) => {
-    const entities: AnyEntity[] = [];
-
-    return entities;
-  }, []);
+  const customEntitiesForTick = useCallback(
+    (_: number) =>
+      PILLARS.map(
+        (pillar) =>
+          new ObjectEntity(
+            pillar,
+            '/images/colosseum/pillar.png',
+            'Colosseum Pillar',
+            3,
+            '#603025',
+          ),
+      ),
+    [],
+  );
 
   const { entitiesByTick, preloads } = useMapEntities(
     challenge,

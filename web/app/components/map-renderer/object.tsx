@@ -57,7 +57,7 @@ function ObjectSpriteMesh({
   return (
     <mesh
       ref={meshRef}
-      rotation={[entity.lieFlat ? -Math.PI / 2 : 0, 0, 0]}
+      rotation={[entity.layFlat ? -Math.PI / 2 : 0, 0, 0]}
       scale={[size * aspect, size, 1]}
     >
       <planeGeometry args={[1, 1]} />
@@ -135,7 +135,7 @@ export default function Object({ entity }: ObjectComponentProps) {
     y: entity.position.y + sizeOffset,
   };
 
-  const y = entity.lieFlat ? 0.001 : entity.size / 2 - 0.25;
+  const y = entity.layFlat ? 0.001 : entity.size / 2 - 0.25;
   const position = osrsToThreePosition(adjustedPosition, y);
 
   const borderPosition: [number, number, number] = [
@@ -145,7 +145,7 @@ export default function Object({ entity }: ObjectComponentProps) {
   ];
 
   let objectGroup;
-  if (entity.lieFlat) {
+  if (entity.layFlat) {
     objectGroup = (
       <group ref={groupRef} position={position}>
         <Suspense

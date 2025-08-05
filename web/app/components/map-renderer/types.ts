@@ -208,7 +208,7 @@ export class ObjectEntity implements Entity {
   readonly size: number;
   readonly imageUrl: string;
   readonly borderColor?: string;
-  readonly lieFlat: boolean;
+  readonly layFlat: boolean;
 
   public constructor(
     public readonly position: Coords,
@@ -216,13 +216,13 @@ export class ObjectEntity implements Entity {
     name: string = 'Object',
     size: number = 1,
     borderColor?: string,
-    lieFlat: boolean = false,
+    layFlat: boolean = false,
   ) {
     this.name = name;
     this.size = size;
     this.imageUrl = imageUrl;
     this.borderColor = borderColor;
-    this.lieFlat = lieFlat;
+    this.layFlat = layFlat;
   }
 
   public getUniqueId(): string {
