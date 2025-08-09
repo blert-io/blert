@@ -506,6 +506,26 @@ const DEMONIC_MELEE_LARVA: NpcDefinition = {
   maxSpeed: 1,
 };
 
+const GIANT_DEMONIC_RANGE_LARVA: NpcDefinition = {
+  fullName: 'Giant demonic range larva',
+  shortName: 'Larva',
+  canonicalId: NpcId.GIANT_DEMONIC_RANGE_LARVA,
+  semanticId: false,
+  size: 2,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
+};
+
+const GIANT_DEMONIC_MAGIC_LARVA: NpcDefinition = {
+  fullName: 'Giant demonic magic larva',
+  shortName: 'Larva',
+  canonicalId: NpcId.GIANT_DEMONIC_MAGIC_LARVA,
+  semanticId: false,
+  size: 2,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
+};
+
 const VOLATILE_EARTH: NpcDefinition = {
   fullName: 'Volatile earth',
   shortName: 'Volatile earth',
@@ -717,6 +737,8 @@ const NPC_DEFINITIONS: { [id: number]: NpcDefinition } = {
   [NpcId.DEMONIC_MELEE_LARVA]: DEMONIC_MELEE_LARVA,
   [NpcId.VOLATILE_EARTH]: VOLATILE_EARTH,
   [NpcId.EARTHEN_SHIELD]: EARTHEN_SHIELD,
+  [NpcId.GIANT_DEMONIC_RANGE_LARVA]: GIANT_DEMONIC_RANGE_LARVA,
+  [NpcId.GIANT_DEMONIC_MAGIC_LARVA]: GIANT_DEMONIC_MAGIC_LARVA,
 };
 
 export function getNpcDefinition(npcId: number): NpcDefinition | null {
