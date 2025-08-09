@@ -157,6 +157,32 @@ export default function BlertInstallGuide() {
       </Article.Notice>
 
       <Article.Heading
+        level={3}
+        text="Optional: Logging in with a Jagex Account"
+      />
+      <p>
+        If you use a <strong>Jagex Account</strong> to log in to Old School
+        RuneScape, you&apos;ll need to enable support for it in your developer
+        RuneLite client. Follow the official RuneLite guide here:
+      </p>
+      <p>
+        <Link
+          href="https://github.com/runelite/runelite/wiki/Using-Jagex-Accounts"
+          target="_blank"
+          rel="noreferrer noopener"
+        >
+          RuneLite Wiki: Using Jagex Accounts
+        </Link>
+      </p>
+      <Article.Notice type="info">
+        <p>
+          Jagex Account login requires extra configuration compared to email and
+          password login. Make sure you complete these steps before trying to
+          sign in with your Jagex Account.
+        </p>
+      </Article.Notice>
+
+      <Article.Heading
         level={2}
         text="Option 2: Sideload Blert (for users with an existing dev RuneLite setup)"
       />
