@@ -12,13 +12,13 @@ import { basicMetadata } from '@/utils/metadata';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
 // import ActionsBar from '../components/actions-bar';
+import ChallengeAnalysis from '../components/challenge-analysis';
 import ChallengesTable from '../components/challenges-table';
 import MetricsGrid from '../components/metrics-grid';
 import PlayerBreakdown from '../components/player-breakdown';
 import SessionHeader from '../components/session-header';
 import SessionTimeline from '../components/session-timeline';
 import StageStats from '../components/stage-stats';
-// import StageInsights from '../components/stage-insights';
 import SessionContextProvider from '../components/session-context-provider';
 
 import styles from './style.module.scss';
@@ -61,10 +61,9 @@ export default async function SessionPage({ params }: SessionPageProps) {
             </div>
           </div>
 
-          {/* TODO(frolv): Add stage insights */}
-          {/* <div className={styles.fullWidth}>
-            <StageInsights />
-          </div> */}
+          <div className={styles.fullWidth}>
+            <ChallengeAnalysis />
+          </div>
 
           {/* TODO(frolv): Add actions bar */}
           {/* <div className={styles.actionsSection}>

@@ -14,8 +14,11 @@
 
   &:hover {
     border-color: rgba(var(--blert-button-base), 0.3);
-    transform: translateY(-2px);
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
+  }
+
+  &:not(.fixed):hover {
+    transform: translateY(-2px);
   }
 
   &.primary {

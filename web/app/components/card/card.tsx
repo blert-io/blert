@@ -7,6 +7,7 @@ export type CardProps = {
   children: ReactNode;
   className?: string;
   primary?: boolean;
+  fixed?: boolean;
   header?: {
     title: ReactNode;
     action?: ReactNode;
@@ -18,9 +19,15 @@ export function Card({
   children,
   className,
   primary = false,
+  fixed = false,
   header,
 }: CardProps) {
-  const cardClasses = [styles.card, primary && styles.primary, className]
+  const cardClasses = [
+    styles.card,
+    primary && styles.primary,
+    fixed && styles.fixed,
+    className,
+  ]
     .filter(Boolean)
     .join(' ');
 

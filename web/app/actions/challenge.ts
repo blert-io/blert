@@ -129,9 +129,7 @@ export async function loadChallenge(
         `,
       ]).then(([tobData, [stats]]) => {
         raid.tobRooms = tobData;
-        delete stats.id;
-        delete stats.challenge_id;
-        raid.tobStats = snakeToCamelObject(stats) as TobChallengeStats;
+        raid.tobStats = statsObject(stats);
       });
 
       if (!raid.tobStats) {
@@ -157,17 +155,35 @@ export async function loadChallenge(
       ]).then(([mokhaiotlData, [stats]]) => {
         (challenge as MokhaiotlChallenge).mokhaiotl = mokhaiotlData;
         if (stats) {
-          delete stats.id;
-          delete stats.challenge_id;
-          (challenge as MokhaiotlChallenge).mokhaiotlStats = snakeToCamelObject(
-            stats,
-          ) as MokhaiotlChallengeStats;
+          (challenge as MokhaiotlChallenge).mokhaiotlStats = statsObject(stats);
         }
       });
       break;
   }
 
   return challenge;
+}
+
+function statsTableAndField(type: ChallengeType): {
+  table: string;
+  field: keyof Pick<SessionChallenge, 'tobStats' | 'mokhaiotlStats'>;
+} | null {
+  switch (type) {
+    case ChallengeType.TOB:
+      return { table: 'tob_challenge_stats', field: 'tobStats' };
+    case ChallengeType.MOKHAIOTL:
+      return { table: 'mokhaiotl_challenge_stats', field: 'mokhaiotlStats' };
+    default:
+      return null;
+  }
+}
+
+function statsObject<T extends TobChallengeStats | MokhaiotlChallengeStats>(
+  rawRow: Record<string, any>,
+): T {
+  delete rawRow.id;
+  delete rawRow.challenge_id;
+  return snakeToCamelObject(rawRow) as T;
 }
 
 export type SplitValue = {
@@ -1390,6 +1406,22 @@ export async function loadSessionWithStats(
   }
 
   const challengeIds = rawChallenges.map((c) => c.id);
+  const extraChallengeData = rawChallenges.reduce<
+    Record<
+      number,
+      Pick<
+        SessionChallenge,
+        'party' | 'splits' | 'personalBests' | 'tobStats' | 'mokhaiotlStats'
+      >
+    >
+  >((acc, c) => {
+    acc[c.id] = {
+      party: [],
+      splits: {},
+      personalBests: [],
+    };
+    return acc;
+  }, {});
 
   const challengePlayersQuery = sql`
     SELECT
@@ -1419,53 +1451,52 @@ export async function loadSessionWithStats(
     ORDER BY pbh.created_at ASC
   `;
 
-  const [challengePlayers, challengeSplits, personalBests] = await Promise.all([
-    challengePlayersQuery,
-    challengeSplitsQuery,
-    personalBestsQuery,
-  ]);
+  let challengeStatsQuery: Promise<postgres.Row[]>;
+  const statsMeta = statsTableAndField(rawChallenges[0].type as ChallengeType);
+  if (statsMeta !== null) {
+    challengeStatsQuery = sql`
+      SELECT * FROM ${sql(statsMeta.table)}
+      WHERE challenge_id = ANY(${challengeIds})
+    `;
+  } else {
+    challengeStatsQuery = Promise.resolve([]);
+  }
 
-  const partiesByChallenge = challengePlayers.reduce<
-    Record<number, ChallengePlayer[]>
-  >((acc, player) => {
-    if (!acc[player.challenge_id]) {
-      acc[player.challenge_id] = [];
-    }
-    acc[player.challenge_id].push({
+  const [challengePlayers, challengeSplits, personalBests, challengeStats] =
+    await Promise.all([
+      challengePlayersQuery,
+      challengeSplitsQuery,
+      personalBestsQuery,
+      challengeStatsQuery,
+    ]);
+
+  for (const player of challengePlayers) {
+    extraChallengeData[player.challenge_id].party.push({
       username: player.username,
       currentUsername: player.current_username,
       primaryGear: player.primary_gear,
       deaths: player.stage_deaths,
     });
-    return acc;
-  }, {});
+  }
 
   // Use the first challenge's party as the canonical session party.
-  const party = partiesByChallenge[rawChallenges[0].id].map((p) => p.username);
+  const party = extraChallengeData[rawChallenges[0].id].party.map(
+    (p) => p.username,
+  );
 
-  const splitsByChallenge = challengeSplits.reduce<
-    Record<number, Partial<Record<SplitType, SplitValue>>>
-  >((acc, split) => {
-    if (!acc[split.challenge_id]) {
-      acc[split.challenge_id] = {};
-    }
-    acc[split.challenge_id][split.type as SplitType] = {
+  for (const split of challengeSplits) {
+    extraChallengeData[split.challenge_id].splits[split.type as SplitType] = {
       ticks: split.ticks,
       accurate: split.accurate,
     };
-    return acc;
-  }, {});
+  }
 
-  const pbsByChallenge: Record<number, ChallengePersonalBest[]> = {};
   const pbsByPlayer: Map<string, Map<SplitType, number>> = new Map(
     party.map((p) => [p, new Map()]),
   );
 
   for (const pb of personalBests) {
-    if (!pbsByChallenge[pb.challenge_id]) {
-      pbsByChallenge[pb.challenge_id] = [];
-    }
-    pbsByChallenge[pb.challenge_id].push({
+    extraChallengeData[pb.challenge_id].personalBests.push({
       player: pb.username,
       type: pb.type as SplitType,
       ticks: pb.ticks,
@@ -1473,6 +1504,12 @@ export async function loadSessionWithStats(
 
     // PB rows are sorted by creation date, so the latest row is the fastest.
     pbsByPlayer.get(pb.username)?.set(pb.type as SplitType, pb.ticks);
+  }
+
+  for (const stat of challengeStats) {
+    const challengeId = stat.challenge_id;
+    (extraChallengeData[challengeId] as any)[statsMeta!.field] =
+      statsObject(stat);
   }
 
   const challenges: SessionChallenge[] = rawChallenges.map((c) => ({
@@ -1487,9 +1524,7 @@ export async function loadSessionWithStats(
     challengeTicks: c.challenge_ticks,
     overallTicks: c.overall_ticks,
     totalDeaths: c.total_deaths,
-    party: partiesByChallenge[c.id],
-    splits: splitsByChallenge[c.id] ?? {},
-    personalBests: pbsByChallenge[c.id] ?? [],
+    ...extraChallengeData[c.id],
   }));
 
   const statsForPlayer: Record<string, SessionPlayerStats> = {};
