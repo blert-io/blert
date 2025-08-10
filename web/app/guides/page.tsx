@@ -167,8 +167,10 @@ export default function GuidesPage() {
 
 export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
   return basicMetadata(await parent, {
-    title: 'OSRS PvM Guides',
+    title: 'OSRS PvM Guides & Strategies',
     description:
-      'Browse comprehensive, up-to-date guides for Old School RuneScape PvM content.',
+      "Explore Blert's growing library of Old School RuneScape PvM guides, " +
+      'featuring strategies, mechanics breakdowns, gear advice, and plugin ' +
+      'tips.',
   });
 }

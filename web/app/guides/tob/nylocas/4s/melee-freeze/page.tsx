@@ -344,8 +344,10 @@ export default function MeleeFreezeNyloGuide() {
 
 export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
   return basicMetadata(await parent, {
-    title: '4s Nylocas Melee Freeze Waves Guide',
+    title: 'OSRS ToB 4s Nylocas Melee Freeze Guide - Waves & Rotations',
     description:
-      "Learn the Melee Freeze role's rotation for the Nylocas waves in a Theatre of Blood 4s raid.",
+      'Step-by-step OSRS Theatre of Blood 4s Nylocas Melee Freeze guide: ' +
+      'east-lane prefires, split priority, wave-by-wave rotations, ' +
+      'inventory tips, and POV VOD.',
   });
 }

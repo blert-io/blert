@@ -266,8 +266,10 @@ export default function MeleeNyloGuide() {
 
 export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
   return basicMetadata(await parent, {
-    title: '4s Nylocas Melee Waves Guide',
+    title: 'OSRS ToB 4s Nylocas Melee Guide - Waves & Rotations',
     description:
-      "Learn the Melee role's rotation for the Nylocas waves in a Theatre of Blood 4s raid.",
+      'Step-by-step OSRS Theatre of Blood 4s Nylocas Melee guide: ' +
+      'first-tick prefires, split priority, south/west cleanup, ' +
+      'wave-by-wave rotations, inventory tips, and POV VOD.',
   });
 }

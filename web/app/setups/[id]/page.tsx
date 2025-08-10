@@ -172,12 +172,12 @@ export async function generateMetadata(
     };
   }
 
-  const title = `${setup.title} by ${setupMetadata.author}`;
-  let description = setup.description;
-
-  if (description.length > 155) {
-    description = description.slice(0, 155) + '…';
-  }
+  const title = `${setup.title} by ${setupMetadata.author} - PvM Loadout for ${challengeName(setup.challenge)}`;
+  let description =
+    `Explore ${setup.title}, a community gear setup for ${challengeName(
+      setup.challenge,
+    )} in Old School RuneScape. View equipment, inventories, and rune pouches ` +
+    'to fine-tune your PvM strategy.';
 
   return {
     title,

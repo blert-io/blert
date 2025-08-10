@@ -101,7 +101,10 @@ export default function TobGuides() {
 
 export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
   return basicMetadata(await parent, {
-    title: 'Theatre of Blood Guides',
-    description: 'Browse comprehensive guides for the Theatre of Blood raid.',
+    title: 'OSRS Theatre of Blood Guides & Strategies',
+    description:
+      "Browse Blert's growing collection of OSRS Theatre of Blood guides, " +
+      'including plugins, boss mechanics, room strategies, meta roles, ' +
+      'and advanced tactics.',
   });
 }

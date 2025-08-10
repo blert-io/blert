@@ -271,8 +271,9 @@ export default function RangerNyloGuide() {
 
 export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
   return basicMetadata(await parent, {
-    title: '4s Nylocas Ranger Waves Guide',
+    title: 'OSRS ToB 4s Nylocas Ranger Guide - Waves & Rotations',
     description:
-      "Learn the Ranger role's rotation for the Nylocas waves in a Theatre of Blood 4s raid.",
+      'Step-by-step OSRS Theatre of Blood 4s Nylocas Ranger guide: on-tick prefires, ' +
+      'chin/bow/blowpipe rotations, wave timings, cleanup tips, and POV VOD.',
   });
 }

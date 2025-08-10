@@ -517,8 +517,9 @@ export default function TrioNylo() {
 
 export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
   return basicMetadata(await parent, {
-    title: 'Trio Nylocas Waves Guide',
+    title: 'OSRS ToB Trio Nylocas Guide - Mage, Range & Melee Rotations',
     description:
-      'Learn how to handle the Nylocas waves in a Theatre of Blood trio, with optimal rotations for each role.',
+      'Complete Theatre of Blood Trio Nylocas guide with optimal mage, range, ' +
+      'and melee rotations, wave timings, and strategies for max efficiency runs.',
   });
 }

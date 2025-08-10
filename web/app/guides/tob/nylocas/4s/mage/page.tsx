@@ -309,8 +309,9 @@ export default function MageNyloGuide() {
 
 export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
   return basicMetadata(await parent, {
-    title: '4s Nylocas Mage Waves Guide',
+    title: 'OSRS ToB 4s Nylocas Mage Guide - Waves & Rotations',
     description:
-      "Learn the Mage role's rotation for the Nylocas waves in a Theatre of Blood 4s raid.",
+      'Step-by-step OSRS Theatre of Blood 4s Nylocas Mage guide: optimal prefires, ' +
+      'barrage stacks, wave-by-wave rotations, plugin tips, and POV VOD.',
   });
 }

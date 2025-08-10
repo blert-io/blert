@@ -252,8 +252,10 @@ export default function PluginGuide() {
 
 export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
   return basicMetadata(await parent, {
-    title: 'Theatre of Blood Plugins Guide',
+    title: 'Best RuneLite Plugins for Theatre of Blood (OSRS Guide)',
     description:
-      'Learn about the best Runelite plugins to enhance your Theatre of Blood raids.',
+      'Comprehensive OSRS Theatre of Blood plugin guide: optimize raids with ' +
+      'Nyloer, ToB QoL, Party, Special Attack Counter, and other top RuneLite ' +
+      'tools.',
   });
 }

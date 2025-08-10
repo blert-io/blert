@@ -81,8 +81,9 @@ export default async function SearchPage({
 
 export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
   return basicMetadata(await parent, {
-    title: 'Search',
+    title: 'OSRS Challenge Search',
     description:
-      'Find recorded challenges on Blert, Old School RuneScape’s premier PvM tracker.',
+      'Find recorded raids and challenges on Blert, Old School RuneScape’s ' +
+      'premier PvM tracker. Search by name, date, or other criteria.',
   });
 }

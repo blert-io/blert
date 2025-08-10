@@ -54,8 +54,10 @@ export default function NyloGuide() {
 
 export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
   return basicMetadata(await parent, {
-    title: '4s Nylocas Waves Guide',
+    title: 'OSRS ToB 4s Nylocas Guide - All Role Rotations',
     description:
-      'Learn efficient Nylocas waves rotations for every role in a Theatre of Blood 4s raid.',
+      'Full Theatre of Blood 4-scale Nylocas guide with optimal mage, melee freeze, ' +
+      'ranger, and melee rotations. Detailed wave strategies and POV videos ' +
+      'for max-efficiency raids.',
   });
 }

@@ -1,6 +1,7 @@
-import { Metadata } from 'next';
+import { ResolvingMetadata } from 'next';
 
 import Card from '@/components/card';
+import { basicMetadata } from '@/utils/metadata';
 
 import BloatHands from './bloat-hands';
 
@@ -22,9 +23,11 @@ export default function BloatHandsPage() {
   );
 }
 
-export const metadata: Metadata = {
-  title: 'Bloat Hand Spawn Analysis',
-  description:
-    'Visualize trends in Bloat hand spawn patterns across Theatre of Blood raids ' +
-    'recorded on Blert, Old School Runescape’s premier PvM tracker.',
-};
+export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
+  return basicMetadata(await parent, {
+    title: 'OSRS Bloat Hand Spawn Analysis',
+    description:
+      'Visualize trends in Bloat hand spawn patterns across Theatre of Blood raids ' +
+      'recorded on Blert, Old School RuneScape’s premier PvM tracker.',
+  });
+}

@@ -1,8 +1,9 @@
 import { ChallengeType } from '@blert/common';
-import { Metadata } from 'next';
+import { ResolvingMetadata } from 'next';
 
 import Card from '@/components/card';
 import BloatIcon from '@/svg/bloat.svg';
+import { basicMetadata } from '@/utils/metadata';
 
 import ChallengeStats, { AnalysisLink } from './challenge-stats';
 
@@ -47,8 +48,11 @@ export default function TrendsPage() {
   );
 }
 
-export const metadata: Metadata = {
-  title: 'Data Trends & Analysis',
-  description:
-    'Explore community performance data and detailed analysis tools on Blert, Old School Runescape’s premier PvM tracker.',
-};
+export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
+  return basicMetadata(await parent, {
+    title: 'OSRS Data Trends & Analysis',
+    description:
+      'Explore community performance data and detailed analysis tools on Blert, ' +
+      'Old School RuneScape’s premier PvM tracker.',
+  });
+}

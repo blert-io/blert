@@ -168,10 +168,13 @@ export async function generateMetadata(
   const metadata = await parent;
 
   const description =
-    'Browse community-created gear setups for various PvM challenges in Old School RuneScape.';
+    'Browse the best community-created Old School RuneScape gear setups for ' +
+    'the Theatre of Blood, Chambers of Xeric, Tombs of Amascut, Inferno, and ' +
+    'Colosseum. Compare loadouts, filter by scale, and optimize your PvM ' +
+    'performance.';
 
   return {
-    title: 'Gear Setups',
+    title: 'OSRS Community Gear Setups - PvM Loadouts for ToB, CoX, ToA & More',
     description,
     twitter: {
       ...metadata.twitter,
