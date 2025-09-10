@@ -216,6 +216,25 @@ export enum SplitType {
   MOKHAIOTL_DELVE_6 = 207,
   MOKHAIOTL_DELVE_7 = 208,
   MOKHAIOTL_DELVE_8 = 209,
+
+  // Inferno splits.
+  INFERNO_CHALLENGE = 220,
+  INFERNO_OVERALL = 221,
+  INFERNO_WAVE_9_START = 222,
+  INFERNO_WAVE_18_START = 223,
+  INFERNO_WAVE_25_START = 224,
+  INFERNO_WAVE_35_START = 225,
+  INFERNO_WAVE_42_START = 226,
+  INFERNO_WAVE_50_START = 227,
+  INFERNO_WAVE_57_START = 228,
+  INFERNO_WAVE_60_START = 229,
+  INFERNO_WAVE_63_START = 230,
+  INFERNO_WAVE_66_START = 231,
+  INFERNO_WAVE_67_START = 232,
+  INFERNO_WAVE_68_START = 233,
+  INFERNO_WAVE_69_START = 234,
+  INFERNO_WAVE_68_TIME = 235,
+  INFERNO_WAVE_69_TIME = 236,
 }
 
 const genericTobSplits = [
@@ -462,6 +481,42 @@ export function splitName(
       return full ? 'Mokhaiotl Delve 7' : 'Delve 7';
     case SplitType.MOKHAIOTL_DELVE_8:
       return full ? 'Mokhaiotl Delve 8' : 'Delve 8';
+
+    case SplitType.INFERNO_CHALLENGE:
+      return full ? 'Inferno challenge time' : 'Challenge time';
+    case SplitType.INFERNO_OVERALL:
+      return full ? 'Inferno overall time' : 'Overall time';
+    case SplitType.INFERNO_WAVE_9_START:
+      return full ? 'Inferno Wave 9' : 'Wave 9';
+    case SplitType.INFERNO_WAVE_18_START:
+      return full ? 'Inferno Wave 18' : 'Wave 18';
+    case SplitType.INFERNO_WAVE_25_START:
+      return full ? 'Inferno Wave 25' : 'Wave 25';
+    case SplitType.INFERNO_WAVE_35_START:
+      return full ? 'Inferno Wave 35' : 'Wave 35';
+    case SplitType.INFERNO_WAVE_42_START:
+      return full ? 'Inferno Wave 42' : 'Wave 42';
+    case SplitType.INFERNO_WAVE_50_START:
+      return full ? 'Inferno Wave 50' : 'Wave 50';
+    case SplitType.INFERNO_WAVE_57_START:
+      return full ? 'Inferno Wave 57' : 'Wave 57';
+    case SplitType.INFERNO_WAVE_60_START:
+      return full ? 'Inferno Wave 60' : 'Wave 60';
+    case SplitType.INFERNO_WAVE_63_START:
+      return full ? 'Inferno Wave 63' : 'Wave 63';
+    case SplitType.INFERNO_WAVE_66_START:
+      return full ? 'Inferno Wave 66' : 'Wave 66';
+    case SplitType.INFERNO_WAVE_67_START:
+      return full ? 'Inferno Wave 67' : 'Wave 67';
+    case SplitType.INFERNO_WAVE_68_START:
+      return full ? 'Inferno Wave 68' : 'Wave 68';
+    case SplitType.INFERNO_WAVE_69_START:
+      return full ? 'Inferno Wave 69' : 'Wave 69';
+    case SplitType.INFERNO_WAVE_68_TIME:
+      return full ? 'Inferno Wave 68 time' : 'Wave 68 time';
+    case SplitType.INFERNO_WAVE_69_TIME:
+      return full ? 'Inferno Wave 69 time' : 'Wave 69 time';
+
     default:
       return 'Unknown split';
   }

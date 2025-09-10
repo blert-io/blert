@@ -21,6 +21,7 @@ import {
 } from '../generated/event_pb';
 import {
   ColosseumData,
+  InfernoData,
   MaidenCrab,
   MokhaiotlData,
   Nylo,
@@ -60,7 +61,6 @@ import {
   XarpusPhaseEvent,
   XarpusSplatEvent,
 } from '../event';
-import { PrayerSet } from '../prayer-set';
 
 type Proto<T> = T[keyof T];
 
@@ -192,6 +192,34 @@ export class DataRepository {
     );
   }
 
+  public async saveInfernoChallengeData(
+    uuid: string,
+    infernoData: InfernoData,
+  ): Promise<void> {
+    const challengeData = new ChallengeData();
+    challengeData.setChallengeId(uuid);
+
+    const inferno = new ChallengeData.Inferno();
+
+    inferno.setWavesList(
+      infernoData.waves.map((wave) => {
+        const waveData = new ChallengeData.InfernoWave();
+        waveData.setStage(wave.stage as Proto<StageMap>);
+        waveData.setTicks(wave.ticks);
+        waveData.setStartTick(wave.startTick);
+        waveData.setNpcsList(npcsToProto(wave.npcs));
+        return waveData;
+      }),
+    );
+
+    challengeData.setInferno(inferno);
+    await this.backend.saveChallengeFile(
+      uuid,
+      DataRepository.CHALLENGE_FILE,
+      challengeData,
+    );
+  }
+
   public async saveMokhaiotlChallengeData(
     uuid: string,
     mokhaiotlData: MokhaiotlData,
@@ -243,6 +271,20 @@ export class DataRepository {
     return this.parseColosseumData(challengeData);
   }
 
+  /**
+   * Loads stored data for an Inferno challenge with the given UUID.
+   * @param uuid UUID of the challenge.
+   * @returns Parsed Inferno data.
+   */
+  public async loadInfernoChallengeData(uuid: string): Promise<InfernoData> {
+    const challengeData = await this.loadChallengeDataProto(uuid);
+    if (!challengeData.hasInferno()) {
+      throw new DataRepository.InvalidType();
+    }
+
+    return this.parseInfernoData(challengeData);
+  }
+
   public async loadMokhaiotlChallengeData(
     uuid: string,
   ): Promise<MokhaiotlData> {
@@ -273,8 +315,11 @@ export class DataRepository {
 
       if (e.hasPlayer()) {
         const player = e.getPlayer()!;
-        player.setPartyIndex(party.indexOf(player.getName()));
-        player.setName('');
+        const partyIndex = party.indexOf(player.getName());
+        if (partyIndex !== -1) {
+          player.setPartyIndex(partyIndex);
+          player.setName('');
+        }
       }
 
       if (e.getType() === EventType.NPC_ATTACK) {
@@ -284,7 +329,10 @@ export class DataRepository {
           const target = npcAttack.getTarget();
           npcAttack.clearTarget();
           const player = new EventProto.Player();
-          player.setPartyIndex(party.indexOf(target));
+          const partyIndex = party.indexOf(target);
+          if (partyIndex !== -1) {
+            player.setPartyIndex(party.indexOf(target));
+          }
           e.setPlayer(player);
         }
       }
@@ -449,6 +497,23 @@ export class DataRepository {
     return colosseumData;
   }
 
+  private parseInfernoData(data: ChallengeData): InfernoData {
+    const infernoData: InfernoData = { waves: [] };
+
+    if (data.hasInferno()) {
+      const inferno = data.getInferno()!;
+      infernoData.waves = inferno.getWavesList().map((wave) => ({
+        stage: wave.getStage(),
+        ticks: wave.getTicks(),
+        ticksLost: wave.getTicksLost(),
+        startTick: wave.getStartTick(),
+        npcs: npcsFromProto(wave.getNpcsList()),
+      }));
+    }
+
+    return infernoData;
+  }
+
   private parseMokhaiotlData(data: ChallengeData): MokhaiotlData {
     const mokhaiotlData: MokhaiotlData = { delves: [] };
 
@@ -476,6 +541,10 @@ export class DataRepository {
    */
   private static fileForStage(stage: Stage, attempt?: number): string {
     let fileName = '';
+
+    if (stage >= Stage.INFERNO_WAVE_1 && stage <= Stage.INFERNO_WAVE_69) {
+      return `wave-${stage - Stage.INFERNO_WAVE_1 + 1}`;
+    }
 
     switch (stage) {
       case Stage.TOB_MAIDEN:
@@ -900,6 +969,13 @@ function npcsToProto(npcs: RoomNpcMap): ChallengeData.StageNpc[] {
   return protoNpcs;
 }
 
+function getName(player: EventProto.Player, party: string[]): string {
+  if (player.getName() !== '') {
+    return player.getName();
+  }
+  return party[player.getPartyIndex()];
+}
+
 function eventFromProto(evt: EventProto, eventData: ChallengeEvents): Event {
   const event: Partial<Event> = {
     type: evt.getType(),
@@ -919,7 +995,7 @@ function eventFromProto(evt: EventProto, eventData: ChallengeEvents): Event {
         source: player.getDataSource(),
         offCooldownTick: player.getOffCooldownTick(),
         prayerSet: player.getActivePrayers(),
-        name: party[player.getPartyIndex()],
+        name: getName(player, party),
       };
       if (player.hasHitpoints()) {
         e.player.hitpoints = player.getHitpoints();
@@ -952,7 +1028,7 @@ function eventFromProto(evt: EventProto, eventData: ChallengeEvents): Event {
     case EventType.PLAYER_ATTACK: {
       const attack = evt.getPlayerAttack()!;
       const e = event as PlayerAttackEvent;
-      e.player = { name: party[evt.getPlayer()!.getPartyIndex()] };
+      e.player = { name: getName(evt.getPlayer()!, party) };
       e.attack = {
         type: attack.getType(),
         distanceToTarget: attack.getDistanceToTarget(),
@@ -979,7 +1055,7 @@ function eventFromProto(evt: EventProto, eventData: ChallengeEvents): Event {
 
     case EventType.PLAYER_DEATH: {
       const e = event as PlayerDeathEvent;
-      e.player = { name: party[evt.getPlayer()!.getPartyIndex()] };
+      e.player = { name: getName(evt.getPlayer()!, party) };
       break;
     }
 
@@ -1011,7 +1087,7 @@ function eventFromProto(evt: EventProto, eventData: ChallengeEvents): Event {
       };
 
       if (evt.hasPlayer()) {
-        e.npcAttack.target = party[evt.getPlayer()!.getPartyIndex()];
+        e.npcAttack.target = getName(evt.getPlayer()!, party);
       } else if (npcAttack.hasTarget()) {
         e.npcAttack.target = npcAttack.getTarget();
       }

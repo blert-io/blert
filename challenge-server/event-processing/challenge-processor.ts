@@ -112,13 +112,13 @@ export type ReportedTimes = {
   overall: number;
 };
 
-type ChallengeSplit = {
+export type ChallengeSplit = {
   type: SplitType;
   ticks: number;
   scale: number;
   accurate: boolean;
 };
-type ChallengeSplitWithId = ChallengeSplit & { id: number };
+export type ChallengeSplitWithId = ChallengeSplit & { id: number };
 
 type PersonalBest = {
   playerId: number;
@@ -877,7 +877,7 @@ export default abstract class ChallengeProcessor {
    *
    * @param splits Splits to check.
    */
-  private async updatePersonalBests(
+  protected async updatePersonalBests(
     splits: ChallengeSplitWithId[],
   ): Promise<void> {
     if (splits.length === 0) {

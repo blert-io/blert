@@ -24,6 +24,156 @@ export type NpcDefinition = {
   maxSpeed: number;
 };
 
+const JAL_NIB: NpcDefinition = {
+  fullName: 'Jal-Nib',
+  shortName: 'Nibbler',
+  canonicalId: NpcId.JAL_NIB,
+  semanticId: false,
+  size: 1,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
+};
+
+const JAL_MEJRAH: NpcDefinition = {
+  fullName: 'Jal-MejRah',
+  shortName: 'Bat',
+  canonicalId: NpcId.JAL_MEJRAH,
+  semanticId: false,
+  size: 2,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
+};
+
+const JAL_AK: NpcDefinition = {
+  fullName: 'Jal-Ak',
+  shortName: 'Blob',
+  canonicalId: NpcId.JAL_AK,
+  semanticId: false,
+  size: 3,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
+};
+
+const JAL_AKREK_MEJ: NpcDefinition = {
+  fullName: 'Jal-AkRek-Mej',
+  shortName: 'Mage bloblet',
+  canonicalId: NpcId.JAL_AKREK_MEJ,
+  semanticId: false,
+  size: 1,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
+};
+
+const JAL_AKREK_XIL: NpcDefinition = {
+  fullName: 'Jal-AkRek-Xil',
+  shortName: 'Ranged bloblet',
+  canonicalId: NpcId.JAL_AKREK_XIL,
+  semanticId: false,
+  size: 1,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
+};
+
+const JAL_AKREK_KET: NpcDefinition = {
+  fullName: 'Jal-AkRek-Ket',
+  shortName: 'Melee bloblet',
+  canonicalId: NpcId.JAL_AKREK_KET,
+  semanticId: false,
+  size: 1,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
+};
+
+const JAL_IMKOT: NpcDefinition = {
+  fullName: 'Jal-ImKot',
+  shortName: 'Meleer',
+  canonicalId: NpcId.JAL_IMKOT,
+  semanticId: false,
+  size: 4,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
+};
+
+const JAL_XIL: NpcDefinition = {
+  fullName: 'Jal-Xil',
+  shortName: 'Ranger',
+  canonicalId: NpcId.JAL_XIL,
+  semanticId: false,
+  size: 3,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
+};
+
+const JAL_ZEK: NpcDefinition = {
+  fullName: 'Jal-Zek',
+  shortName: 'Mager',
+  canonicalId: NpcId.JAL_ZEK,
+  semanticId: false,
+  size: 4,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
+};
+
+const JALTOK_JAD: NpcDefinition = {
+  fullName: 'JalTok-Jad',
+  shortName: 'Jad',
+  canonicalId: NpcId.JALTOK_JAD,
+  semanticId: false,
+  size: 5,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
+};
+
+const YT_HURKOT: NpcDefinition = {
+  fullName: 'Yt-HurKot',
+  shortName: 'Healer',
+  canonicalId: NpcId.YT_HURKOT,
+  semanticId: false,
+  size: 1,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
+};
+
+const TZKAL_ZUK: NpcDefinition = {
+  fullName: 'TzKal-Zuk',
+  shortName: 'Zuk',
+  canonicalId: NpcId.TZKAL_ZUK,
+  semanticId: false,
+  size: 7,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 0,
+};
+
+const ZUK_SHIELD: NpcDefinition = {
+  fullName: 'Ancestral Glyph',
+  shortName: 'Shield',
+  canonicalId: NpcId.ZUK_SHIELD,
+  semanticId: false,
+  size: 3,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
+};
+
+const JAL_MEJJAK: NpcDefinition = {
+  fullName: 'Jal-MejJak',
+  shortName: 'Healer',
+  canonicalId: NpcId.JAL_MEJJAK,
+  semanticId: false,
+  size: 1,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 0,
+};
+
+const ROCKY_SUPPORT: NpcDefinition = {
+  fullName: 'Rocky Support',
+  shortName: 'Pillar',
+  canonicalId: NpcId.ROCKY_SUPPORT,
+  semanticId: false,
+  size: 3,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 0,
+};
+
 /**
  * Creates a copy of the given NPC definition for each raid mode.
  *
@@ -547,6 +697,27 @@ const EARTHEN_SHIELD: NpcDefinition = {
 };
 
 const NPC_DEFINITIONS: { [id: number]: NpcDefinition } = {
+  // Inferno NPCs.
+  [NpcId.JAL_NIB]: JAL_NIB,
+  [NpcId.JAL_MEJRAH]: JAL_MEJRAH,
+  [NpcId.JAL_AK]: JAL_AK,
+  [NpcId.JAL_AKREK_MEJ]: JAL_AKREK_MEJ,
+  [NpcId.JAL_AKREK_XIL]: JAL_AKREK_XIL,
+  [NpcId.JAL_AKREK_KET]: JAL_AKREK_KET,
+  [NpcId.JAL_IMKOT]: JAL_IMKOT,
+  [NpcId.JAL_XIL]: JAL_XIL,
+  [NpcId.JAL_ZEK]: JAL_ZEK,
+  [NpcId.JALTOK_JAD]: JALTOK_JAD,
+  [NpcId.YT_HURKOT]: YT_HURKOT,
+  [NpcId.JAL_XIL_ZUK]: JAL_XIL,
+  [NpcId.JAL_ZEK_ZUK]: JAL_ZEK,
+  [NpcId.JALTOK_JAD_ZUK]: JALTOK_JAD,
+  [NpcId.YT_HURKOT_ZUK]: YT_HURKOT,
+  [NpcId.TZKAL_ZUK]: TZKAL_ZUK,
+  [NpcId.ZUK_SHIELD]: ZUK_SHIELD,
+  [NpcId.JAL_MEJJAK]: JAL_MEJJAK,
+  [NpcId.ROCKY_SUPPORT]: ROCKY_SUPPORT,
+
   // All Maiden NPCs.
   [NpcId.MAIDEN_ENTRY]: MAIDEN_ENTRY,
   [NpcId.MAIDEN_ENTRY_10815]: MAIDEN_ENTRY,

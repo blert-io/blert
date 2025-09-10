@@ -266,6 +266,7 @@ export default class MessageHandler {
         break;
 
       case ChallengeType.COLOSSEUM:
+      case ChallengeType.INFERNO:
       case ChallengeType.MOKHAIOTL:
         if (!checkPartySize(1)) {
           return;
@@ -274,7 +275,6 @@ export default class MessageHandler {
 
       case ChallengeType.COX:
       case ChallengeType.TOA:
-      case ChallengeType.INFERNO:
         console.error(
           `Received CHALLENGE_START_REQUEST for unimplemented type: ${challengeType}`,
         );

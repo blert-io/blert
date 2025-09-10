@@ -1,5 +1,26 @@
-// 98% of this file was AI generated. Thanks AI.
 export enum NpcId {
+  // Inferno NPCs.
+  JAL_NIB = 7691,
+  JAL_MEJRAH = 7692,
+  JAL_AK = 7693,
+  JAL_AKREK_MEJ = 7694,
+  JAL_AKREK_XIL = 7695,
+  JAL_AKREK_KET = 7696,
+  JAL_IMKOT = 7697,
+  JAL_XIL = 7698,
+  JAL_ZEK = 7699,
+  JALTOK_JAD = 7700,
+  YT_HURKOT = 7701,
+  JAL_XIL_ZUK = 7702,
+  JAL_ZEK_ZUK = 7703,
+  JALTOK_JAD_ZUK = 7704,
+  YT_HURKOT_ZUK = 7705,
+  TZKAL_ZUK = 7706,
+  ZUK_SHIELD = 7707,
+  JAL_MEJJAK = 7708,
+  ROCKY_SUPPORT = 7709,
+
+  // ToB NPCs.
   MAIDEN_ENTRY = 10814,
   MAIDEN_ENTRY_10815 = 10815,
   MAIDEN_ENTRY_10816 = 10816,
@@ -576,6 +597,14 @@ export class Npc {
 
   static isSolarflare(npcId: number): boolean {
     return npcId === NpcId.SOLARFLARE;
+  }
+
+  static isBloblet(npcId: number): boolean {
+    return (
+      npcId === NpcId.JAL_AKREK_KET ||
+      npcId === NpcId.JAL_AKREK_MEJ ||
+      npcId === NpcId.JAL_AKREK_XIL
+    );
   }
 
   static isMokhaiotl(npcId: number): boolean {
