@@ -53,6 +53,10 @@ export type PlayerStats = {
   colosseumWipes: number;
   colosseumResets: number;
 
+  infernoCompletions: number;
+  infernoWipes: number;
+  infernoResets: number;
+
   mokhaiotlCompletions: number;
   mokhaiotlWipes: number;
   mokhaiotlResets: number;

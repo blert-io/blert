@@ -55,6 +55,20 @@ export interface ColosseumChallenge extends Challenge {
   colosseum: ColosseumData;
 }
 
+export interface InfernoChallenge extends Challenge {
+  type: ChallengeType.INFERNO;
+  inferno: InfernoData;
+  infernoStats: InfernoChallengeStats;
+}
+
+export type InfernoChallengeStats = {
+  wastPillarCollapseWave: number | null;
+  eastPillarCollapseWave: number | null;
+  southPillarCollapseWave: number | null;
+  meleerDigs: number;
+  magerRevives: number;
+};
+
 export interface MokhaiotlChallenge extends Challenge {
   type: ChallengeType.MOKHAIOTL;
   mokhaiotl: MokhaiotlData;
@@ -167,6 +181,15 @@ export enum Handicap {
   SOLARFLARE_3 = SOLARFLARE_2 + HANDICAP_LEVEL_VALUE_INCREMENT,
   MYOPIA_3 = MYOPIA_2 + HANDICAP_LEVEL_VALUE_INCREMENT,
   FRAILTY_3 = FRAILTY_2 + HANDICAP_LEVEL_VALUE_INCREMENT,
+}
+
+export type InfernoData = {
+  waves: InfernoWave[];
+};
+
+export interface InfernoWave extends StageData {
+  ticks: number;
+  startTick: number;
 }
 
 export type MokhaiotlData = {
@@ -324,6 +347,76 @@ export enum Stage {
   COLOSSEUM_WAVE_10 = StageProto.COLOSSEUM_WAVE_10,
   COLOSSEUM_WAVE_11 = StageProto.COLOSSEUM_WAVE_11,
   COLOSSEUM_WAVE_12 = StageProto.COLOSSEUM_WAVE_12,
+
+  INFERNO_WAVE_1 = StageProto.INFERNO_WAVE_1,
+  INFERNO_WAVE_2 = StageProto.INFERNO_WAVE_2,
+  INFERNO_WAVE_3 = StageProto.INFERNO_WAVE_3,
+  INFERNO_WAVE_4 = StageProto.INFERNO_WAVE_4,
+  INFERNO_WAVE_5 = StageProto.INFERNO_WAVE_5,
+  INFERNO_WAVE_6 = StageProto.INFERNO_WAVE_6,
+  INFERNO_WAVE_7 = StageProto.INFERNO_WAVE_7,
+  INFERNO_WAVE_8 = StageProto.INFERNO_WAVE_8,
+  INFERNO_WAVE_9 = StageProto.INFERNO_WAVE_9,
+  INFERNO_WAVE_10 = StageProto.INFERNO_WAVE_10,
+  INFERNO_WAVE_11 = StageProto.INFERNO_WAVE_11,
+  INFERNO_WAVE_12 = StageProto.INFERNO_WAVE_12,
+  INFERNO_WAVE_13 = StageProto.INFERNO_WAVE_13,
+  INFERNO_WAVE_14 = StageProto.INFERNO_WAVE_14,
+  INFERNO_WAVE_15 = StageProto.INFERNO_WAVE_15,
+  INFERNO_WAVE_16 = StageProto.INFERNO_WAVE_16,
+  INFERNO_WAVE_17 = StageProto.INFERNO_WAVE_17,
+  INFERNO_WAVE_18 = StageProto.INFERNO_WAVE_18,
+  INFERNO_WAVE_19 = StageProto.INFERNO_WAVE_19,
+  INFERNO_WAVE_20 = StageProto.INFERNO_WAVE_20,
+  INFERNO_WAVE_21 = StageProto.INFERNO_WAVE_21,
+  INFERNO_WAVE_22 = StageProto.INFERNO_WAVE_22,
+  INFERNO_WAVE_23 = StageProto.INFERNO_WAVE_23,
+  INFERNO_WAVE_24 = StageProto.INFERNO_WAVE_24,
+  INFERNO_WAVE_25 = StageProto.INFERNO_WAVE_25,
+  INFERNO_WAVE_26 = StageProto.INFERNO_WAVE_26,
+  INFERNO_WAVE_27 = StageProto.INFERNO_WAVE_27,
+  INFERNO_WAVE_28 = StageProto.INFERNO_WAVE_28,
+  INFERNO_WAVE_29 = StageProto.INFERNO_WAVE_29,
+  INFERNO_WAVE_30 = StageProto.INFERNO_WAVE_30,
+  INFERNO_WAVE_31 = StageProto.INFERNO_WAVE_31,
+  INFERNO_WAVE_32 = StageProto.INFERNO_WAVE_32,
+  INFERNO_WAVE_33 = StageProto.INFERNO_WAVE_33,
+  INFERNO_WAVE_34 = StageProto.INFERNO_WAVE_34,
+  INFERNO_WAVE_35 = StageProto.INFERNO_WAVE_35,
+  INFERNO_WAVE_36 = StageProto.INFERNO_WAVE_36,
+  INFERNO_WAVE_37 = StageProto.INFERNO_WAVE_37,
+  INFERNO_WAVE_38 = StageProto.INFERNO_WAVE_38,
+  INFERNO_WAVE_39 = StageProto.INFERNO_WAVE_39,
+  INFERNO_WAVE_40 = StageProto.INFERNO_WAVE_40,
+  INFERNO_WAVE_41 = StageProto.INFERNO_WAVE_41,
+  INFERNO_WAVE_42 = StageProto.INFERNO_WAVE_42,
+  INFERNO_WAVE_43 = StageProto.INFERNO_WAVE_43,
+  INFERNO_WAVE_44 = StageProto.INFERNO_WAVE_44,
+  INFERNO_WAVE_45 = StageProto.INFERNO_WAVE_45,
+  INFERNO_WAVE_46 = StageProto.INFERNO_WAVE_46,
+  INFERNO_WAVE_47 = StageProto.INFERNO_WAVE_47,
+  INFERNO_WAVE_48 = StageProto.INFERNO_WAVE_48,
+  INFERNO_WAVE_49 = StageProto.INFERNO_WAVE_49,
+  INFERNO_WAVE_50 = StageProto.INFERNO_WAVE_50,
+  INFERNO_WAVE_51 = StageProto.INFERNO_WAVE_51,
+  INFERNO_WAVE_52 = StageProto.INFERNO_WAVE_52,
+  INFERNO_WAVE_53 = StageProto.INFERNO_WAVE_53,
+  INFERNO_WAVE_54 = StageProto.INFERNO_WAVE_54,
+  INFERNO_WAVE_55 = StageProto.INFERNO_WAVE_55,
+  INFERNO_WAVE_56 = StageProto.INFERNO_WAVE_56,
+  INFERNO_WAVE_57 = StageProto.INFERNO_WAVE_57,
+  INFERNO_WAVE_58 = StageProto.INFERNO_WAVE_58,
+  INFERNO_WAVE_59 = StageProto.INFERNO_WAVE_59,
+  INFERNO_WAVE_60 = StageProto.INFERNO_WAVE_60,
+  INFERNO_WAVE_61 = StageProto.INFERNO_WAVE_61,
+  INFERNO_WAVE_62 = StageProto.INFERNO_WAVE_62,
+  INFERNO_WAVE_63 = StageProto.INFERNO_WAVE_63,
+  INFERNO_WAVE_64 = StageProto.INFERNO_WAVE_64,
+  INFERNO_WAVE_65 = StageProto.INFERNO_WAVE_65,
+  INFERNO_WAVE_66 = StageProto.INFERNO_WAVE_66,
+  INFERNO_WAVE_67 = StageProto.INFERNO_WAVE_67,
+  INFERNO_WAVE_68 = StageProto.INFERNO_WAVE_68,
+  INFERNO_WAVE_69 = StageProto.INFERNO_WAVE_69,
 }
 
 export enum ChallengeMode {
@@ -643,6 +736,26 @@ export enum NpcAttack {
   COLOSSEUM_HEREDIT_SLAM = NpcAttackProto.COLOSSEUM_HEREDIT_SLAM,
   COLOSSEUM_HEREDIT_BREAK = NpcAttackProto.COLOSSEUM_HEREDIT_BREAK,
   COLOSSEUM_HEREDIT_COMBO = NpcAttackProto.COLOSSEUM_HEREDIT_COMBO,
+
+  INFERNO_BAT_AUTO = NpcAttackProto.INFERNO_BAT_AUTO,
+  INFERNO_BLOB_RANGED = NpcAttackProto.INFERNO_BLOB_RANGED,
+  INFERNO_BLOB_MAGE = NpcAttackProto.INFERNO_BLOB_MAGE,
+  INFERNO_BLOB_MELEE = NpcAttackProto.INFERNO_BLOB_MELEE,
+  INFERNO_BLOBLET_RANGED_AUTO = NpcAttackProto.INFERNO_BLOBLET_RANGED_AUTO,
+  INFERNO_BLOBLET_MAGE_AUTO = NpcAttackProto.INFERNO_BLOBLET_MAGE_AUTO,
+  INFERNO_BLOBLET_MELEE_AUTO = NpcAttackProto.INFERNO_BLOBLET_MELEE_AUTO,
+  INFERNO_MELEER_AUTO = NpcAttackProto.INFERNO_MELEER_AUTO,
+  INFERNO_MELEER_DIG = NpcAttackProto.INFERNO_MELEER_DIG,
+  INFERNO_RANGER_AUTO = NpcAttackProto.INFERNO_RANGER_AUTO,
+  INFERNO_RANGER_MELEE = NpcAttackProto.INFERNO_RANGER_MELEE,
+  INFERNO_MAGER_AUTO = NpcAttackProto.INFERNO_MAGER_AUTO,
+  INFERNO_MAGER_MELEE = NpcAttackProto.INFERNO_MAGER_MELEE,
+  INFERNO_MAGER_RESURRECT = NpcAttackProto.INFERNO_MAGER_RESURRECT,
+  INFERNO_JAD_RANGED = NpcAttackProto.INFERNO_JAD_RANGED,
+  INFERNO_JAD_MAGE = NpcAttackProto.INFERNO_JAD_MAGE,
+  INFERNO_JAD_MELEE = NpcAttackProto.INFERNO_JAD_MELEE,
+  INFERNO_JAD_HEALER_AUTO = NpcAttackProto.INFERNO_JAD_HEALER_AUTO,
+  INFERNO_ZUK_AUTO = NpcAttackProto.INFERNO_ZUK_AUTO,
 }
 
 export enum MaidenCrabSpawn {
@@ -780,6 +893,9 @@ export function stageName(stage: Stage, short: boolean = false): string {
     case Stage.COLOSSEUM_WAVE_12:
       return short ? 'Sol' : 'Sol Heredit';
 
+    case Stage.INFERNO_WAVE_69:
+      return short ? 'Zuk' : 'TzKal-Zuk';
+
     case Stage.TOA_APMEKEN:
       return 'Apmeken';
     case Stage.TOA_BABA:
@@ -838,6 +954,11 @@ export function stageName(stage: Stage, short: boolean = false): string {
   if (stage >= Stage.COLOSSEUM_WAVE_1 && stage <= Stage.COLOSSEUM_WAVE_11) {
     const prefix = short ? 'W' : 'Wave ';
     return `${prefix}${stage - Stage.COLOSSEUM_WAVE_1 + 1}`;
+  }
+
+  if (stage >= Stage.INFERNO_WAVE_1 && stage <= Stage.INFERNO_WAVE_68) {
+    const prefix = short ? 'W' : 'Wave ';
+    return `${prefix}${stage - Stage.INFERNO_WAVE_1 + 1}`;
   }
 
   return 'Unknown';
@@ -902,6 +1023,77 @@ const STAGES_BY_CHALLENGE = {
     Stage.MOKHAIOTL_DELVE_7,
     Stage.MOKHAIOTL_DELVE_8,
     Stage.MOKHAIOTL_DELVE_8PLUS,
+  ],
+  [ChallengeType.INFERNO]: [
+    Stage.INFERNO_WAVE_1,
+    Stage.INFERNO_WAVE_2,
+    Stage.INFERNO_WAVE_3,
+    Stage.INFERNO_WAVE_4,
+    Stage.INFERNO_WAVE_5,
+    Stage.INFERNO_WAVE_6,
+    Stage.INFERNO_WAVE_7,
+    Stage.INFERNO_WAVE_8,
+    Stage.INFERNO_WAVE_9,
+    Stage.INFERNO_WAVE_10,
+    Stage.INFERNO_WAVE_11,
+    Stage.INFERNO_WAVE_12,
+    Stage.INFERNO_WAVE_13,
+    Stage.INFERNO_WAVE_14,
+    Stage.INFERNO_WAVE_15,
+    Stage.INFERNO_WAVE_16,
+    Stage.INFERNO_WAVE_17,
+    Stage.INFERNO_WAVE_18,
+    Stage.INFERNO_WAVE_19,
+    Stage.INFERNO_WAVE_20,
+    Stage.INFERNO_WAVE_21,
+    Stage.INFERNO_WAVE_22,
+    Stage.INFERNO_WAVE_23,
+    Stage.INFERNO_WAVE_24,
+    Stage.INFERNO_WAVE_25,
+    Stage.INFERNO_WAVE_26,
+    Stage.INFERNO_WAVE_27,
+    Stage.INFERNO_WAVE_28,
+    Stage.INFERNO_WAVE_29,
+    Stage.INFERNO_WAVE_30,
+    Stage.INFERNO_WAVE_31,
+    Stage.INFERNO_WAVE_32,
+    Stage.INFERNO_WAVE_33,
+    Stage.INFERNO_WAVE_34,
+    Stage.INFERNO_WAVE_35,
+    Stage.INFERNO_WAVE_36,
+    Stage.INFERNO_WAVE_37,
+    Stage.INFERNO_WAVE_38,
+    Stage.INFERNO_WAVE_39,
+    Stage.INFERNO_WAVE_40,
+    Stage.INFERNO_WAVE_41,
+    Stage.INFERNO_WAVE_42,
+    Stage.INFERNO_WAVE_43,
+    Stage.INFERNO_WAVE_44,
+    Stage.INFERNO_WAVE_45,
+    Stage.INFERNO_WAVE_46,
+    Stage.INFERNO_WAVE_47,
+    Stage.INFERNO_WAVE_48,
+    Stage.INFERNO_WAVE_49,
+    Stage.INFERNO_WAVE_50,
+    Stage.INFERNO_WAVE_51,
+    Stage.INFERNO_WAVE_52,
+    Stage.INFERNO_WAVE_53,
+    Stage.INFERNO_WAVE_54,
+    Stage.INFERNO_WAVE_55,
+    Stage.INFERNO_WAVE_56,
+    Stage.INFERNO_WAVE_57,
+    Stage.INFERNO_WAVE_58,
+    Stage.INFERNO_WAVE_59,
+    Stage.INFERNO_WAVE_60,
+    Stage.INFERNO_WAVE_61,
+    Stage.INFERNO_WAVE_62,
+    Stage.INFERNO_WAVE_63,
+    Stage.INFERNO_WAVE_64,
+    Stage.INFERNO_WAVE_65,
+    Stage.INFERNO_WAVE_66,
+    Stage.INFERNO_WAVE_67,
+    Stage.INFERNO_WAVE_68,
+    Stage.INFERNO_WAVE_69,
   ],
 };
 
