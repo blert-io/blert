@@ -59,7 +59,7 @@
 
   &.simple {
     .radioOption {
-      border-radius: 0;
+      border: none;
       background: none;
       color: var(--font-color-nav);
 
@@ -79,6 +79,7 @@
       }
 
       input:checked + label {
+        border-radius: 8px;
         border: 1px solid rgba(var(--blert-button-base), 0.8);
         color: var(--blert-text-color);
         background: rgba(var(--blert-button-base), 0.1);

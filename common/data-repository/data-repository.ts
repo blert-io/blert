@@ -331,7 +331,7 @@ export class DataRepository {
           const player = new EventProto.Player();
           const partyIndex = party.indexOf(target);
           if (partyIndex !== -1) {
-            player.setPartyIndex(party.indexOf(target));
+            player.setPartyIndex(partyIndex);
           }
           e.setPlayer(player);
         }

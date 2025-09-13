@@ -2,6 +2,7 @@
 
 import {
   ChallengeStatus,
+  ChallengeType,
   SplitType,
   Stage,
   splitName,
@@ -374,7 +375,14 @@ export default function StageStats() {
   });
 
   // Filter to only show stages that have been attempted.
-  const visibleStages = stageStatistics.filter((s) => s.attempts > 0);
+  const visibleStages = stageStatistics.filter((s) => {
+    if (session.challengeType === ChallengeType.INFERNO) {
+      // For inferno, don't show all 69 stages, only the relevant milestones.
+      // (`relevantSplitsForStage` filters only stages with tracked split times)
+      return s.splits.length > 0 && s.attempts > 0;
+    }
+    return s.attempts > 0;
+  });
 
   if (visibleStages.length === 0) {
     return (
