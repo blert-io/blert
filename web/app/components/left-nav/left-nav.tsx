@@ -71,6 +71,24 @@ export function LeftNav() {
           <li className={styles.leftNav__menuItem}>
             <Link
               className={styles.leftNav__menuItemInner}
+              href="/challenges/inferno"
+            >
+              <div className={styles.leftNav__menuItemIcon}>
+                <div className={styles.imageWrapper}>
+                  <Image
+                    src="/inferno.png"
+                    alt="Inferno icon"
+                    fill
+                    style={{ objectFit: 'contain' }}
+                  />
+                </div>
+              </div>
+              <span className="active">Inferno</span>
+            </Link>
+          </li>
+          <li className={styles.leftNav__menuItem}>
+            <Link
+              className={styles.leftNav__menuItemInner}
               href="/challenges/colosseum"
             >
               <div className={styles.leftNav__menuItemIcon}>
@@ -108,26 +126,6 @@ export function LeftNav() {
               <span className="active" style={{ top: -1 }}>
                 Mokhaiotl
               </span>
-            </Link>
-          </li>
-
-          {/* Inferno */}
-          <li className={styles.leftNav__menuItem}>
-            <Link
-              className={styles.leftNav__menuItemInner}
-              href="/challenges/inferno"
-            >
-              <div className={styles.leftNav__menuItemIcon}>
-                <div className={styles.imageWrapper}>
-                  <Image
-                    src="/inferno.png"
-                    alt="fortis inferno icon"
-                    fill
-                    style={{ objectFit: 'contain' }}
-                  />
-                </div>
-              </div>
-              <span className="active">Inferno</span>
             </Link>
           </li>
 

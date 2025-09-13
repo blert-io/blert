@@ -351,28 +351,10 @@ function makeCellImage(
   memes: BlertMemes,
   normalizeItems: boolean,
 ) {
-  let customState;
-
-  if (state.customState.length > 0) {
-    customState = state.customState.map((cs, i) => (
-      <div className={styles.customState} key={i}>
-        {cs.icon ? (
-          <Image
-            src={cs.icon}
-            alt={cs.fullText ?? cs.label ?? ''}
-            height={size / 2}
-            width={size / 2}
-            style={{ objectFit: 'contain' }}
-          />
-        ) : (
-          <span>{cs.label}</span>
-        )}
-      </div>
-    ));
-  }
-
   let baseImage = undefined;
   let attackIcon = undefined;
+
+  const customStateEntries = [...state.customState];
 
   const playerAttack = state.attack;
   if (playerAttack === undefined) {
@@ -390,6 +372,13 @@ function makeCellImage(
       baseImage = <span className={styles.attackTimeline__Nothing}></span>;
     }
   } else {
+    if (state.diedThisTick) {
+      customStateEntries.push({
+        icon: '/skull.webp',
+        label: `${state.player.name} died this tick`,
+      });
+    }
+
     const meta =
       ATTACK_METADATA[playerAttack.type] ??
       ATTACK_METADATA[PlayerAttack.UNKNOWN];
@@ -543,6 +532,25 @@ function makeCellImage(
         />
       );
     }
+  }
+
+  let customState;
+  if (customStateEntries.length > 0) {
+    customState = customStateEntries.map((cs, i) => (
+      <div className={styles.customState} key={i}>
+        {cs.icon ? (
+          <Image
+            src={cs.icon}
+            alt={cs.fullText ?? cs.label ?? ''}
+            height={size / 2}
+            width={size / 2}
+            style={{ objectFit: 'contain' }}
+          />
+        ) : (
+          <span>{cs.label}</span>
+        )}
+      </div>
+    ));
   }
 
   return (

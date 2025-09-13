@@ -1,1 +1,4 @@
-export { BossFightOverview as default } from './boss-fight-overview';
+export {
+  BossFightOverview as default,
+  type BossFightOverviewSection,
+} from './boss-fight-overview';

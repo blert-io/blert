@@ -34,6 +34,11 @@ import {
   VerzikDawnEvent,
   MokhaiotlChallenge,
   PrayerSet,
+  InfernoChallenge,
+  NpcId,
+  NpcSpawnEvent,
+  npcFriendlyName,
+  getNpcDefinition,
 } from '@blert/common';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -262,6 +267,15 @@ function getStageInfo(
     return {
       ticks: challenge.splits[split] ?? -1,
       npcs: colosseum.colosseum.waves[waveIndex]?.npcs ?? {},
+    };
+  }
+
+  if (challenge.type === ChallengeType.INFERNO) {
+    const inferno = challenge as InfernoChallenge;
+    const waveIndex = stage - Stage.INFERNO_WAVE_1;
+    return {
+      ticks: inferno.inferno.waves[waveIndex]?.ticks ?? -1,
+      npcs: inferno.inferno.waves[waveIndex]?.npcs ?? {},
     };
   }
 
@@ -748,6 +762,27 @@ function postprocessNpcs(npc: EnhancedRoomNpc, eventsByType: EventTypeMap) {
       }
     });
     return;
+  } else if (npc.spawnNpcId === NpcId.JAL_ZEK) {
+    for (let tick = 0; tick < npc.stateByTick.length; tick++) {
+      if (
+        npc.stateByTick[tick] === null ||
+        npc.stateByTick[tick]!.attack === null
+      ) {
+        continue;
+      }
+      const attack = npc.stateByTick[tick]!.attack!;
+      if (attack.type === NpcAttack.INFERNO_MAGER_RESURRECT) {
+        const target = (
+          eventsByType[EventType.NPC_SPAWN] as NpcSpawnEvent[]
+        )?.find((event) => {
+          const npcSpawn = (event as NpcSpawnEvent).npc;
+          return !Npc.isBloblet(npcSpawn.id) && event.tick === tick;
+        });
+        if (target) {
+          attack.target = getNpcDefinition(target.npc.id)?.fullName ?? null;
+        }
+      }
+    }
   }
 }
 
@@ -843,7 +878,7 @@ export function useMapEntities(
           }
         }
 
-        const npcEntity = new NpcEntity(
+        let npcEntity = new NpcEntity(
           npcState.position,
           npcState.id,
           roomId,
@@ -852,8 +887,9 @@ export function useMapEntities(
           nextPosition,
         );
 
+        npcEntity = modifyEntity(tick, npcEntity) as NpcEntity;
         preloads.add(npcEntity.imageUrl);
-        entitiesForTick.push(modifyEntity(tick, npcEntity));
+        entitiesForTick.push(npcEntity);
       }
 
       entitiesForTick.push(...customEntitiesForTick(tick));

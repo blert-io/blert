@@ -10,6 +10,8 @@ import {
   DataRepository,
   Event,
   EventType,
+  InfernoChallenge,
+  InfernoChallengeStats,
   MokhaiotlChallenge,
   MokhaiotlChallengeStats,
   Player,
@@ -129,7 +131,9 @@ export async function loadChallenge(
         `,
       ]).then(([tobData, [stats]]) => {
         raid.tobRooms = tobData;
-        raid.tobStats = statsObject(stats);
+        if (stats) {
+          raid.tobStats = statsObject(stats);
+        }
       });
 
       if (!raid.tobStats) {
@@ -142,6 +146,22 @@ export async function loadChallenge(
     case ChallengeType.COLOSSEUM:
       (challenge as ColosseumChallenge).colosseum =
         await dataRepository.loadColosseumChallengeData(id);
+      break;
+
+    case ChallengeType.INFERNO:
+      await Promise.all([
+        dataRepository.loadInfernoChallengeData(id),
+        sql`
+          SELECT *
+          FROM inferno_challenge_stats
+          WHERE challenge_id = ${rawChallenge[0].id}
+        `,
+      ]).then(([infernoData, [stats]]) => {
+        (challenge as InfernoChallenge).inferno = infernoData;
+        if (stats) {
+          (challenge as InfernoChallenge).infernoStats = statsObject(stats);
+        }
+      });
       break;
 
     case ChallengeType.MOKHAIOTL:
@@ -166,21 +186,26 @@ export async function loadChallenge(
 
 function statsTableAndField(type: ChallengeType): {
   table: string;
-  field: keyof Pick<SessionChallenge, 'tobStats' | 'mokhaiotlStats'>;
+  field: keyof Pick<
+    SessionChallenge,
+    'tobStats' | 'mokhaiotlStats' | 'infernoStats'
+  >;
 } | null {
   switch (type) {
     case ChallengeType.TOB:
       return { table: 'tob_challenge_stats', field: 'tobStats' };
     case ChallengeType.MOKHAIOTL:
       return { table: 'mokhaiotl_challenge_stats', field: 'mokhaiotlStats' };
+    case ChallengeType.INFERNO:
+      return { table: 'inferno_challenge_stats', field: 'infernoStats' };
     default:
       return null;
   }
 }
 
-function statsObject<T extends TobChallengeStats | MokhaiotlChallengeStats>(
-  rawRow: Record<string, any>,
-): T {
+function statsObject<
+  T extends TobChallengeStats | MokhaiotlChallengeStats | InfernoChallengeStats,
+>(rawRow: Record<string, any>): T {
   delete rawRow.id;
   delete rawRow.challenge_id;
   return snakeToCamelObject(rawRow) as T;
@@ -209,7 +234,9 @@ export type ChallengeOverview = Pick<
   party: ChallengePlayer[];
   splits?: Partial<Record<SplitType, SplitValue>>;
 } & Partial<
-    Pick<TobRaid, 'tobStats'> & Pick<MokhaiotlChallenge, 'mokhaiotlStats'>
+    Pick<TobRaid, 'tobStats'> &
+      Pick<MokhaiotlChallenge, 'mokhaiotlStats'> &
+      Pick<InfernoChallenge, 'infernoStats'>
   >;
 
 type SortDirection = '+' | '-';
@@ -816,6 +843,23 @@ export async function findChallenges(
         }),
       );
     }
+
+    if (types.has(ChallengeType.INFERNO)) {
+      loadPromises.push(
+        sql`
+          SELECT *
+          FROM inferno_challenge_stats
+          WHERE challenge_id = ANY(${types.get(ChallengeType.INFERNO)!})
+        `.then((stats) => {
+          stats.forEach((s: any) => {
+            const challengeId = s.challenge_id;
+            delete s.id;
+            delete s.challenge_id;
+            extra[challengeId].infernoStats = snakeToCamelObject(s);
+          });
+        }),
+      );
+    }
   }
 
   loadPromises.push(
@@ -1411,7 +1455,12 @@ export async function loadSessionWithStats(
       number,
       Pick<
         SessionChallenge,
-        'party' | 'splits' | 'personalBests' | 'tobStats' | 'mokhaiotlStats'
+        | 'party'
+        | 'splits'
+        | 'personalBests'
+        | 'tobStats'
+        | 'mokhaiotlStats'
+        | 'infernoStats'
       >
     >
   >((acc, c) => {
@@ -2097,6 +2146,9 @@ export async function loadPlayerWithStats(
       colosseumCompletions: playerWithStats.colosseum_completions,
       colosseumWipes: playerWithStats.colosseum_wipes,
       colosseumResets: playerWithStats.colosseum_resets,
+      infernoCompletions: playerWithStats.inferno_completions,
+      infernoWipes: playerWithStats.inferno_wipes,
+      infernoResets: playerWithStats.inferno_resets,
       mokhaiotlCompletions: playerWithStats.mokhaiotl_completions,
       mokhaiotlWipes: playerWithStats.mokhaiotl_wipes,
       mokhaiotlResets: playerWithStats.mokhaiotl_resets,

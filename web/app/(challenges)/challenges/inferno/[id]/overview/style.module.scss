@@ -1,0 +1,212 @@
+@use '@/mixins.scss' as *;
+
+.inferno {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  gap: 2rem;
+}
+
+.wavesOverview {
+  width: 100%;
+  margin: 0 auto;
+  padding: 2rem 0;
+
+  h2 {
+    font-size: 1.3em;
+    margin: 0 0 20px 0;
+    color: var(--blert-text-color);
+  }
+
+  .groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1rem;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+
+  .waveGroup {
+    &.special {
+      .groupTitle {
+        color: var(--blert-button);
+        font-weight: 600;
+
+        i {
+          color: var(--blert-button);
+        }
+      }
+    }
+
+    .groupHeader {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid rgba(var(--blert-button-base), 0.3);
+
+      .groupInfo {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        flex: 1;
+
+        .groupTitle {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 1.2em;
+          font-weight: 600;
+          color: var(--blert-text-color);
+
+          i {
+            font-size: 1em;
+            color: var(--blert-button);
+          }
+        }
+
+        .groupTiming {
+          display: flex;
+          gap: 16px;
+          font-size: 0.85em;
+          font-family: var(--font-roboto-mono), monospace;
+
+          .startTime,
+          .duration {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--font-color-nav);
+
+            i {
+              font-size: 0.9em;
+              color: var(--blert-button);
+              min-width: 14px;
+            }
+          }
+
+          .startTime {
+            color: var(--blert-text-color);
+            font-weight: 500;
+          }
+        }
+      }
+
+      .bossImage {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(var(--blert-button-base), 0.1);
+        border-radius: 8px;
+        border: 2px solid rgba(var(--blert-button-base), 0.3);
+        flex-shrink: 0;
+
+        img {
+          object-fit: contain;
+          filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+        }
+      }
+    }
+
+    .waveLinks {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+
+      .waveLink {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 6px 8px;
+        width: 40px;
+        height: 32px;
+        background: var(--nav-bg);
+        border: 1px solid var(--font-color-nav-divider);
+        border-radius: 6px;
+        color: var(--blert-text-color);
+        text-decoration: none;
+        font-size: 0.85em;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        font-family: var(--font-roboto-mono), monospace;
+
+        &:hover {
+          background: var(--blert-button);
+          border-color: var(--blert-button);
+          color: #fff;
+          transform: translateY(-1px);
+        }
+      }
+    }
+  }
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    padding: 0;
+
+    .groups {
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
+      max-height: none;
+    }
+
+    .waveGroup {
+      padding: 12px;
+
+      .groupHeader {
+        padding-bottom: 8px;
+
+        .groupInfo {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 8px;
+
+          .groupTitle {
+            font-size: 1.1em;
+          }
+
+          .groupTiming {
+            gap: 12px;
+          }
+        }
+
+        .bossImage {
+          width: 48px;
+          height: 48px;
+
+          img {
+            width: 36px;
+            height: 36px;
+          }
+        }
+      }
+
+      .waveLinks {
+        gap: 4px;
+
+        .waveLink {
+          padding: 4px 6px;
+          width: 36px;
+          height: 28px;
+          font-size: 0.8em;
+        }
+      }
+    }
+  }
+
+  @media (min-width: 769px) and (max-width: 1200px) {
+    .groups {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (min-width: 1201px) {
+    .groups {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+}

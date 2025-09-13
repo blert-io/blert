@@ -912,6 +912,10 @@ function basicDescription(attackName: string): NpcAttackDescriptionFunction {
 
 export const NPC_ATTACK_METADATA: { [attack in NpcAttack]: NpcAttackMetadata } =
   {
+    [NpcAttack.UNKNOWN]: {
+      imageUrl: '/images/huh.png',
+      description: basicDescription('an unknown attack'),
+    },
     [NpcAttack.TOB_MAIDEN_AUTO]: {
       imageUrl: '/maiden_auto.png',
       description: basicDescription('an auto attack'),
@@ -1093,6 +1097,86 @@ export const NPC_ATTACK_METADATA: { [attack in NpcAttack]: NpcAttackMetadata } =
     [NpcAttack.COLOSSEUM_HEREDIT_BREAK]: {
       imageUrl: '/images/huh.png',
       description: basicDescription('a grapple attack'),
+    },
+    [NpcAttack.INFERNO_BAT_AUTO]: {
+      imageUrl: '/images/inferno/bat-auto.png',
+      description: basicDescription('an auto attack'),
+    },
+    [NpcAttack.INFERNO_BLOB_RANGED]: {
+      imageUrl: '/images/inferno/blob-ranged.png',
+      description: basicDescription('a ranged attack'),
+    },
+    [NpcAttack.INFERNO_BLOB_MAGE]: {
+      imageUrl: '/images/inferno/blob-mage.png',
+      description: basicDescription('a magic attack'),
+    },
+    [NpcAttack.INFERNO_BLOB_MELEE]: {
+      imageUrl: '/images/combat/punch.webp',
+      description: basicDescription('a melee attack'),
+    },
+    [NpcAttack.INFERNO_BLOBLET_RANGED_AUTO]: {
+      imageUrl: '/images/npcs/7695.webp',
+      description: basicDescription('an auto attack'),
+    },
+    [NpcAttack.INFERNO_BLOBLET_MAGE_AUTO]: {
+      imageUrl: '/images/npcs/7694.webp',
+      description: basicDescription('an auto attack'),
+    },
+    [NpcAttack.INFERNO_BLOBLET_MELEE_AUTO]: {
+      imageUrl: '/images/npcs/7696.webp',
+      description: basicDescription('an auto attack'),
+    },
+    [NpcAttack.INFERNO_MELEER_AUTO]: {
+      imageUrl: '/images/inferno/meleer-auto.png',
+      description: basicDescription('an auto attack'),
+    },
+    [NpcAttack.INFERNO_MELEER_DIG]: {
+      imageUrl: '/images/inferno/meleer-dig.png',
+      description: (npcName, _) => <span>{npcName} dug</span>,
+    },
+    [NpcAttack.INFERNO_RANGER_AUTO]: {
+      imageUrl: '/images/inferno/ranger-auto.png',
+      description: basicDescription('an auto attack'),
+    },
+    [NpcAttack.INFERNO_RANGER_MELEE]: {
+      imageUrl: '/images/combat/punch.webp',
+      description: basicDescription('a melee attack'),
+    },
+    [NpcAttack.INFERNO_MAGER_AUTO]: {
+      imageUrl: '/images/inferno/mager-auto.png',
+      description: basicDescription('an auto attack'),
+    },
+    [NpcAttack.INFERNO_MAGER_MELEE]: {
+      imageUrl: '/images/combat/punch.webp',
+      description: basicDescription('a melee attack'),
+    },
+    [NpcAttack.INFERNO_MAGER_RESURRECT]: {
+      imageUrl: '/images/inferno/mager-resurrect.png',
+      description: (npcName, target) => (
+        <span>
+          {npcName} resurrected {target ?? 'someone'}
+        </span>
+      ),
+    },
+    [NpcAttack.INFERNO_JAD_RANGED]: {
+      imageUrl: '/images/inferno/jad-ranged.png',
+      description: basicDescription('a ranged attack'),
+    },
+    [NpcAttack.INFERNO_JAD_MAGE]: {
+      imageUrl: '/images/inferno/jad-mage.png',
+      description: basicDescription('a magic attack'),
+    },
+    [NpcAttack.INFERNO_JAD_MELEE]: {
+      imageUrl: '/images/combat/punch.webp',
+      description: basicDescription('a melee attack'),
+    },
+    [NpcAttack.INFERNO_JAD_HEALER_AUTO]: {
+      imageUrl: '/images/npcs/7701.webp',
+      description: basicDescription('an auto attack'),
+    },
+    [NpcAttack.INFERNO_ZUK_AUTO]: {
+      imageUrl: '/images/inferno/zuk-auto.png',
+      description: basicDescription('an auto attack'),
     },
     [NpcAttack.MOKHAIOTL_AUTO]: {
       imageUrl: '/images/huh.png',

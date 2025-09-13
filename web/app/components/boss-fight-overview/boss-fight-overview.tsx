@@ -5,16 +5,18 @@ import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import styles from './style.module.scss';
 
+export type BossFightOverviewSection = {
+  title: string;
+  content: ReactNode;
+  span?: number;
+};
+
 interface BossFightOverviewProps {
   name: string;
   className?: string;
   image: string;
   time: number;
-  sections?: Array<{
-    title: string;
-    content: ReactNode;
-    span?: number;
-  }>;
+  sections?: Array<BossFightOverviewSection>;
 }
 
 export function BossFightOverview({
