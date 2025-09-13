@@ -119,6 +119,118 @@
   }
 }
 
+.dropdown {
+  position: relative;
+  display: inline-block;
+
+  .navItem {
+    padding: 8px 6px;
+  }
+}
+
+.dropdownContent {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1000;
+  min-width: 180px;
+  background: var(--panel-bg);
+  border: 1px solid var(--nav-bg-lightened);
+  border-radius: 6px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  padding: 8px 0;
+  margin-top: 4px;
+  backdrop-filter: blur(8px);
+}
+
+.dropdownItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  color: var(--font-color-nav);
+  font-size: 0.85em;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  border-radius: 0;
+
+  i {
+    font-size: 0.85em;
+    color: var(--font-color-nav);
+  }
+
+  svg {
+    fill: var(--font-color-nav);
+    stroke: var(--font-color-nav);
+  }
+
+  path {
+    fill: var(--font-color-nav);
+    stroke: var(--font-color-nav);
+  }
+
+  &:hover:not(.disabled) {
+    background: var(--nav-bg);
+    color: var(--blert-text-color);
+
+    i {
+      color: var(--blert-button);
+    }
+
+    svg {
+      fill: var(--blert-button);
+      stroke: var(--blert-button);
+    }
+
+    path {
+      fill: var(--blert-button);
+      stroke: var(--blert-button);
+    }
+  }
+
+  &.active {
+    background: var(--nav-bg);
+    color: var(--blert-text-color);
+    font-weight: 500;
+
+    i {
+      color: var(--blert-button);
+    }
+
+    svg {
+      fill: var(--blert-button);
+      stroke: var(--blert-button);
+    }
+
+    path {
+      fill: var(--blert-button);
+      stroke: var(--blert-button);
+    }
+  }
+
+  &.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .waveIcon {
+    min-width: 20px;
+    height: 20px;
+    font-size: 0.8em;
+    font-weight: 600;
+    background: var(--nav-bg);
+    border-radius: 3px;
+    padding: 0 2px;
+  }
+}
+
+.navItem:has(+ .dropdownContent) i:global(.fa-chevron-down),
+.dropdown > .navItem i:global(.fa-chevron-down) {
+  font-size: 0.7em;
+  margin-left: 0px;
+  transition: transform 0.2s ease;
+}
+
 @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
   .nav {
     width: 100vw;
@@ -205,5 +317,51 @@
     min-width: 20px;
     height: 20px;
     font-size: 0.85em;
+  }
+
+  .dropdown {
+    position: static;
+  }
+
+  .dropdownContent {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    min-width: auto;
+    max-height: 50vh;
+    overflow-y: auto;
+    border-radius: 16px 16px 0 0;
+    margin-top: 0;
+    padding: 16px 0;
+    z-index: 1001;
+
+    &::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: -1;
+    }
+  }
+
+  .dropdownItem {
+    padding: 12px 20px;
+    font-size: 0.9em;
+
+    .waveIcon {
+      min-width: 24px;
+      height: 24px;
+      font-size: 0.9em;
+    }
+  }
+
+  // Hide dropdown chevron on mobile since we use a different interaction.
+  .dropdown > .navItem i.fa-chevron-down {
+    display: none;
   }
 }

@@ -158,7 +158,7 @@ export class NpcEntity implements Entity {
   interactive: boolean = true;
   readonly name: string;
   readonly size: number;
-  readonly imageUrl: string;
+  imageUrl: string;
   readonly maxSpeed: number;
   hitpoints: HitpointsState | null;
 
