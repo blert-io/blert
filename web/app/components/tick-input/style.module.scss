@@ -23,14 +23,15 @@
 
     button {
       padding: 2px 6px;
+      color: var(--font-color-nav);
 
       &:disabled {
-        color: var(--blert-blue);
+        color: var(--blert-button);
       }
 
       &:not(:disabled):hover {
         cursor: pointer;
-        color: #fff;
+        color: var(--blert-text-color);
       }
     }
   }

@@ -3,6 +3,7 @@
 import {
   ChallengeType,
   generalizeSplit,
+  RELEVANT_PB_SPLITS,
   splitName,
   SplitType,
   Stage,
@@ -65,7 +66,7 @@ type AggregatedData = {
 
 function getAvailableStats(
   challengeType: ChallengeType,
-  challenges: any[],
+  challenges: SessionChallenge[],
 ): StatOption[] {
   const stats: StatOption[] = [];
 
@@ -197,6 +198,33 @@ function getAvailableStats(
     stats.push(...tobStats);
   }
 
+  if (challengeType === ChallengeType.INFERNO) {
+    stats.push({
+      type: StatType.CHALLENGE_SPECIFIC,
+      key: 'wastPillarCollapseWave',
+      label: 'Wast Pillar Collapse Wave',
+      unit: 'count',
+    });
+    stats.push({
+      type: StatType.CHALLENGE_SPECIFIC,
+      key: 'eastPillarCollapseWave',
+      label: 'East Pillar Collapse Wave',
+      unit: 'count',
+    });
+    stats.push({
+      type: StatType.CHALLENGE_SPECIFIC,
+      key: 'southPillarCollapseWave',
+      label: 'South Pillar Collapse Wave',
+      unit: 'count',
+    });
+    stats.push({
+      type: StatType.CHALLENGE_SPECIFIC,
+      key: 'meleerDigs',
+      label: 'Meleer Digs',
+      unit: 'count',
+    });
+  }
+
   if (challengeType === ChallengeType.MOKHAIOTL) {
     const mokhaiotlStats: StatOption[] = [
       {
@@ -234,11 +262,16 @@ function getAvailableStats(
             ? 'tobStats'
             : challengeType === ChallengeType.MOKHAIOTL
               ? 'mokhaiotlStats'
-              : null;
+              : challengeType === ChallengeType.INFERNO
+                ? 'infernoStats'
+                : null;
+        if (!statsField) {
+          return false;
+        }
+        const key = stat.key as keyof (typeof challenge)[typeof statsField];
         return (
-          statsField &&
-          challenge[statsField]?.[stat.key] !== undefined &&
-          challenge[statsField]?.[stat.key] !== null
+          challenge[statsField]?.[key] !== undefined &&
+          challenge[statsField]?.[key] !== null
         );
       }
     });
@@ -282,7 +315,9 @@ function aggregateStatData(
           ? 'tobStats'
           : challengeType === ChallengeType.MOKHAIOTL
             ? 'mokhaiotlStats'
-            : null;
+            : challengeType === ChallengeType.INFERNO
+              ? 'infernoStats'
+              : null;
       if (statsField) {
         const key =
           selectedStat.key as keyof (typeof challenge)[typeof statsField];
@@ -513,7 +548,7 @@ function DistributionChart({
             }}
             cursor={{ fill: 'rgba(139, 92, 246, 0.1)' }}
             formatter={(value: number, name: string, props: any) => [
-              <span style={{ color: 'var(--blert-text-color)' }}>
+              <span key={value} style={{ color: 'var(--blert-text-color)' }}>
                 {value} occurrence{value === 1 ? '' : 's'} (
                 {props.payload.percentage.toFixed(1)}%)
               </span>,
@@ -568,7 +603,7 @@ function ChartDisplay({
       }}
       cursor={{ fill: 'rgba(139, 92, 246, 0.1)' }}
       formatter={(value: number, name: string, props: any) => [
-        <span style={{ color: 'var(--blert-text-color)' }}>
+        <span key={value} style={{ color: 'var(--blert-text-color)' }}>
           {selectedStat.formatter ? selectedStat.formatter(value) : value}
         </span>,
       ]}
@@ -816,7 +851,7 @@ export default function ChallengeAnalysis() {
             open={statMenuOpen}
             items={menuItems}
             targetId="stat-select"
-            width="auto"
+            width={250}
           />
         </div>
 

@@ -5,7 +5,7 @@
   padding: 20px;
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    padding: 10px;
+    padding: 20px 0;
   }
 }
 
@@ -38,6 +38,7 @@
 
     @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
       width: 100%;
+      flex-wrap: wrap;
     }
 
     .option {

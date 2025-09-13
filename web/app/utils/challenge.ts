@@ -172,6 +172,43 @@ export function relevantSplitsForStage(
       ];
       break;
 
+    case Stage.INFERNO_WAVE_9:
+      splits = [SplitType.INFERNO_WAVE_9_START];
+      break;
+    case Stage.INFERNO_WAVE_18:
+      splits = [SplitType.INFERNO_WAVE_18_START];
+      break;
+    case Stage.INFERNO_WAVE_25:
+      splits = [SplitType.INFERNO_WAVE_25_START];
+      break;
+    case Stage.INFERNO_WAVE_35:
+      splits = [SplitType.INFERNO_WAVE_35_START];
+      break;
+    case Stage.INFERNO_WAVE_42:
+      splits = [SplitType.INFERNO_WAVE_42_START];
+      break;
+    case Stage.INFERNO_WAVE_50:
+      splits = [SplitType.INFERNO_WAVE_50_START];
+      break;
+    case Stage.INFERNO_WAVE_57:
+      splits = [SplitType.INFERNO_WAVE_57_START];
+      break;
+    case Stage.INFERNO_WAVE_60:
+      splits = [SplitType.INFERNO_WAVE_60_START];
+      break;
+    case Stage.INFERNO_WAVE_63:
+      splits = [SplitType.INFERNO_WAVE_63_START];
+      break;
+    case Stage.INFERNO_WAVE_66:
+      splits = [SplitType.INFERNO_WAVE_66_START];
+      break;
+    case Stage.INFERNO_WAVE_68:
+      splits = [SplitType.INFERNO_WAVE_68_START];
+      break;
+    case Stage.INFERNO_WAVE_69:
+      splits = [SplitType.INFERNO_WAVE_69_START];
+      break;
+
     case Stage.COLOSSEUM_WAVE_1:
     case Stage.COLOSSEUM_WAVE_2:
     case Stage.COLOSSEUM_WAVE_3:

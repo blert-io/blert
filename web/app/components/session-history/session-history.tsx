@@ -436,7 +436,7 @@ export default function SessionHistory(props: SessionHistoryProps) {
     fetchSessions();
     const refetchInterval = window.setInterval(fetchSessions, 30 * 1000);
     return () => window.clearInterval(refetchInterval);
-  }, [count, type, scale, mode, status]);
+  }, [count, type, scale, mode, status, username]);
 
   return (
     <div className={styles.history}>

@@ -32,6 +32,21 @@ const nextConfig = {
         permanent: true,
       },
       {
+        source: '/challenges/inferno/:id',
+        destination: '/challenges/inferno/:id/overview',
+        permanent: true,
+      },
+      {
+        source: '/challenges/inferno/:id/waves',
+        destination: '/challenges/inferno/:id/overview',
+        permanent: true,
+      },
+      {
+        source: '/challenges/inferno/:id/waves/:number([^0-9]+)',
+        destination: '/challenges/inferno/:id/overview',
+        permanent: true,
+      },
+      {
         source: '/raids/tob/:id',
         destination: '/raids/tob/:id/overview',
         permanent: true,

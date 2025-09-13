@@ -115,6 +115,88 @@ const TOB_SPLIT_TYPES: SplitMetadata[] = [
   },
 ];
 
+const INFERNO_SPLIT_TYPES: SplitMetadata[] = [
+  {
+    type: SplitType.INFERNO_CHALLENGE,
+    name: 'Challenge Time',
+    description: 'Best challenge completion time',
+    icon: 'fas fa-flag-checkered',
+    fullWidth: true,
+  },
+  {
+    type: SplitType.INFERNO_WAVE_9_START,
+    name: 'Wave 9',
+    description: 'Best Wave 9 entry time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.INFERNO_WAVE_18_START,
+    name: 'Wave 18',
+    description: 'Best Wave 18 entry time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.INFERNO_WAVE_25_START,
+    name: 'Wave 25',
+    description: 'Best Wave 25 entry time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.INFERNO_WAVE_35_START,
+    name: 'Wave 35',
+    description: 'Best Wave 35 entry time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.INFERNO_WAVE_42_START,
+    name: 'Wave 42',
+    description: 'Best Wave 42 entry time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.INFERNO_WAVE_50_START,
+    name: 'Wave 50',
+    description: 'Best Wave 50 entry time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.INFERNO_WAVE_57_START,
+    name: 'Wave 57',
+    description: 'Best Wave 57 entry time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.INFERNO_WAVE_60_START,
+    name: 'Wave 60',
+    description: 'Best Wave 60 entry time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.INFERNO_WAVE_63_START,
+    name: 'Wave 63',
+    description: 'Best Wave 63 entry time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.INFERNO_WAVE_66_START,
+    name: 'Wave 66',
+    description: 'Best Wave 66 entry time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.INFERNO_WAVE_68_START,
+    name: 'Wave 68',
+    description: 'Best Wave 68 entry time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.INFERNO_WAVE_69_START,
+    name: 'Wave 69 (Zuk)',
+    description: 'Best TzKal-Zuk entry time',
+    icon: 'fas fa-stopwatch',
+  },
+];
+
 const COLOSSEUM_SPLIT_TYPES: SplitMetadata[] = [
   {
     type: SplitType.COLOSSEUM_CHALLENGE,
@@ -277,6 +359,8 @@ function typeParamToSelection(
       return [ChallengeType.TOB, ChallengeMode.TOB_REGULAR];
     case 'hmt':
       return [ChallengeType.TOB, ChallengeMode.TOB_HARD];
+    case 'inf':
+      return [ChallengeType.INFERNO, ChallengeMode.NO_MODE];
     case 'colo':
       return [ChallengeType.COLOSSEUM, ChallengeMode.NO_MODE];
     case 'mok':
@@ -284,25 +368,6 @@ function typeParamToSelection(
     default:
       return [ChallengeType.TOB, ChallengeMode.TOB_REGULAR];
   }
-}
-
-function selectionToTypeParam(
-  type: ChallengeType,
-  mode: ChallengeMode,
-): string {
-  if (type === ChallengeType.TOB && mode === ChallengeMode.TOB_REGULAR) {
-    return 'tob';
-  }
-  if (type === ChallengeType.TOB && mode === ChallengeMode.TOB_HARD) {
-    return 'hmt';
-  }
-  if (type === ChallengeType.COLOSSEUM) {
-    return 'colo';
-  }
-  if (type === ChallengeType.MOKHAIOTL) {
-    return 'mok';
-  }
-  return 'tob';
 }
 
 type PersonalBestMap = {
@@ -528,6 +593,9 @@ export default function PlayerPersonalBests() {
       splitTypes = TOB_SPLIT_TYPES;
       scales = TOB_SCALES;
       break;
+    case ChallengeType.INFERNO:
+      splitTypes = INFERNO_SPLIT_TYPES;
+      break;
     case ChallengeType.COLOSSEUM:
       splitTypes = COLOSSEUM_SPLIT_TYPES;
       break;
@@ -553,6 +621,9 @@ export default function PlayerPersonalBests() {
                 break;
               case 'hmt':
                 newSelection = [ChallengeType.TOB, ChallengeMode.TOB_HARD];
+                break;
+              case 'inf':
+                newSelection = [ChallengeType.INFERNO, ChallengeMode.NO_MODE];
                 break;
               case 'colo':
                 newSelection = [ChallengeType.COLOSSEUM, ChallengeMode.NO_MODE];
@@ -581,13 +652,15 @@ export default function PlayerPersonalBests() {
             value="tob"
             label={
               <span className={styles.pbOption}>
-                <Image
-                  src={challengeLogo(ChallengeType.TOB)}
-                  alt={challengeName(ChallengeType.TOB)}
-                  width={24}
-                  height={24}
-                  style={{ objectFit: 'contain' }}
-                />
+                {!display.isCompact() && (
+                  <Image
+                    src={challengeLogo(ChallengeType.TOB)}
+                    alt={challengeName(ChallengeType.TOB)}
+                    width={24}
+                    height={24}
+                    style={{ objectFit: 'contain' }}
+                  />
+                )}
                 {display.isCompact() ? 'ToB' : 'ToB Regular Mode'}
               </span>
             }
@@ -600,14 +673,35 @@ export default function PlayerPersonalBests() {
             value="hmt"
             label={
               <span className={styles.pbOption}>
-                <Image
-                  src={challengeLogo(ChallengeType.TOB)}
-                  alt={challengeName(ChallengeType.TOB)}
-                  width={24}
-                  height={24}
-                  style={{ objectFit: 'contain' }}
-                />
+                {!display.isCompact() && (
+                  <Image
+                    src={challengeLogo(ChallengeType.TOB)}
+                    alt={challengeName(ChallengeType.TOB)}
+                    width={24}
+                    height={24}
+                    style={{ objectFit: 'contain' }}
+                  />
+                )}
                 {display.isCompact() ? 'HMT' : 'ToB Hard Mode'}
+              </span>
+            }
+          />
+          <RadioInput.Option
+            checked={type === ChallengeType.INFERNO}
+            id="personal-bests-challenge-inf"
+            value="inf"
+            label={
+              <span className={styles.pbOption}>
+                {!display.isCompact() && (
+                  <Image
+                    src={challengeLogo(ChallengeType.INFERNO)}
+                    alt={challengeName(ChallengeType.INFERNO)}
+                    width={24}
+                    height={24}
+                    style={{ objectFit: 'contain' }}
+                  />
+                )}
+                Inferno
               </span>
             }
           />
@@ -617,13 +711,15 @@ export default function PlayerPersonalBests() {
             value="colo"
             label={
               <span className={styles.pbOption}>
-                <Image
-                  src={challengeLogo(ChallengeType.COLOSSEUM)}
-                  alt={challengeName(ChallengeType.COLOSSEUM)}
-                  width={24}
-                  height={24}
-                  style={{ objectFit: 'contain' }}
-                />
+                {!display.isCompact() && (
+                  <Image
+                    src={challengeLogo(ChallengeType.COLOSSEUM)}
+                    alt={challengeName(ChallengeType.COLOSSEUM)}
+                    width={24}
+                    height={24}
+                    style={{ objectFit: 'contain' }}
+                  />
+                )}
                 {display.isCompact() ? 'Colo' : 'Fortis Colosseum'}
               </span>
             }
@@ -634,14 +730,16 @@ export default function PlayerPersonalBests() {
             value="mok"
             label={
               <span className={styles.pbOption}>
-                <Image
-                  src={challengeLogo(ChallengeType.MOKHAIOTL)}
-                  alt={challengeName(ChallengeType.MOKHAIOTL)}
-                  width={24}
-                  height={24}
-                  style={{ objectFit: 'contain' }}
-                />
-                {display.isCompact() ? 'Mok' : 'Mokhaiotl'}
+                {!display.isCompact() && (
+                  <Image
+                    src={challengeLogo(ChallengeType.MOKHAIOTL)}
+                    alt={challengeName(ChallengeType.MOKHAIOTL)}
+                    width={24}
+                    height={24}
+                    style={{ objectFit: 'contain' }}
+                  />
+                )}
+                {display.isCompact() ? 'Doom' : 'Mokhaiotl'}
               </span>
             }
           />

@@ -188,6 +188,26 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
       break;
     }
 
+    case 'inferno': {
+      challengeType = ChallengeType.INFERNO;
+      splits = [
+        SplitType.INFERNO_CHALLENGE,
+        SplitType.INFERNO_WAVE_9_START,
+        SplitType.INFERNO_WAVE_18_START,
+        SplitType.INFERNO_WAVE_25_START,
+        SplitType.INFERNO_WAVE_35_START,
+        SplitType.INFERNO_WAVE_42_START,
+        SplitType.INFERNO_WAVE_50_START,
+        SplitType.INFERNO_WAVE_57_START,
+        SplitType.INFERNO_WAVE_60_START,
+        SplitType.INFERNO_WAVE_63_START,
+        SplitType.INFERNO_WAVE_66_START,
+        SplitType.INFERNO_WAVE_68_START,
+        SplitType.INFERNO_WAVE_69_START,
+      ];
+      break;
+    }
+
     case 'colosseum': {
       challengeType = ChallengeType.COLOSSEUM;
       splits = [
@@ -258,7 +278,7 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
             href={`/leaderboards/tob/regular/5`}
           >
             <Image
-              src="/logo_tob.webp"
+              src={challengeLogo(ChallengeType.TOB)}
               alt="Theatre of Blood"
               width={24}
               height={24}
@@ -267,11 +287,24 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
             Theatre of Blood
           </Link>
           <Link
+            className={linkClass(challengeType === ChallengeType.INFERNO)}
+            href={`/leaderboards/inferno`}
+          >
+            <Image
+              src={challengeLogo(ChallengeType.INFERNO)}
+              alt="Inferno"
+              width={24}
+              height={24}
+              style={{ objectFit: 'contain' }}
+            />
+            Inferno
+          </Link>
+          <Link
             className={linkClass(challengeType === ChallengeType.COLOSSEUM)}
             href={`/leaderboards/colosseum`}
           >
             <Image
-              src="/varlamore.png"
+              src={challengeLogo(ChallengeType.COLOSSEUM)}
               alt="Fortis Colosseum"
               width={24}
               height={24}
@@ -362,7 +395,7 @@ export async function generateMetadata(
     case 'tob': {
       let mode = ChallengeMode.NO_MODE;
       let scale = 1;
-      imageUrl = 'https://blert.io/logo_tob.webp';
+      imageUrl = 'https://blert.io/images/tob.webp';
 
       if (options === undefined || options.length !== 2) {
         title = 'Theatre of Blood Leaderboards';
@@ -380,6 +413,14 @@ export async function generateMetadata(
         title = `${scaleStr} ${modeStr} Theatre of Blood Leaderboards`;
         description = `Track the fastest ${modeStr} Mode Theatre of Blood ${scaleStr} raid times. Compare room splits, view party compositions, and analyze strategies from top teams.`;
       }
+      break;
+    }
+
+    case 'inferno': {
+      title = 'Inferno Leaderboards';
+      description =
+        'Track the fastest Inferno raid times and completions. View detailed raid splits, strategies, and records from top OSRS PvMers.';
+      imageUrl = 'https://blert.io/images/inferno.png';
       break;
     }
 

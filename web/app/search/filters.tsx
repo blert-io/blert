@@ -80,6 +80,24 @@ const STAGE_MENU_ITEMS: MenuItem[] = [
     ],
   },
   {
+    label: 'Inferno',
+    subMenu: [
+      { label: 'Wave 9', value: Stage.INFERNO_WAVE_9 },
+      { label: 'Wave 18', value: Stage.INFERNO_WAVE_18 },
+      { label: 'Wave 25', value: Stage.INFERNO_WAVE_25 },
+      { label: 'Wave 35', value: Stage.INFERNO_WAVE_35 },
+      { label: 'Wave 42', value: Stage.INFERNO_WAVE_42 },
+      { label: 'Wave 50', value: Stage.INFERNO_WAVE_50 },
+      { label: 'Wave 57', value: Stage.INFERNO_WAVE_57 },
+      { label: 'Wave 60', value: Stage.INFERNO_WAVE_60 },
+      { label: 'Wave 63', value: Stage.INFERNO_WAVE_63 },
+      { label: 'Wave 66', value: Stage.INFERNO_WAVE_66 },
+      { label: 'Wave 67', value: Stage.INFERNO_WAVE_67 },
+      { label: 'Wave 68', value: Stage.INFERNO_WAVE_68 },
+      { label: 'Wave 69', value: Stage.INFERNO_WAVE_69 },
+    ],
+  },
+  {
     label: 'Colosseum',
     subMenu: [
       { label: 'Wave 1', value: Stage.COLOSSEUM_WAVE_1 },
@@ -272,6 +290,7 @@ export default function Filters({
             label="ToB Hard"
             simple
           />
+          {checkbox('type', ChallengeType.INFERNO, 'Inferno')}
           {checkbox('type', ChallengeType.COLOSSEUM, 'Colosseum')}
           {checkbox('type', ChallengeType.MOKHAIOTL, 'Mokhaiotl')}
         </div>
@@ -640,6 +659,23 @@ const CUSTOM_FILTERS_ITEMS: MenuItem[] = [
               { label: 'P3 time', value: SplitType.TOB_VERZIK_P3 },
             ],
           },
+        ],
+      },
+      {
+        label: 'Inferno',
+        subMenu: [
+          { label: 'Wave 9 entry', value: SplitType.INFERNO_WAVE_9_START },
+          { label: 'Wave 18 entry', value: SplitType.INFERNO_WAVE_18_START },
+          { label: 'Wave 25 entry', value: SplitType.INFERNO_WAVE_25_START },
+          { label: 'Wave 35 entry', value: SplitType.INFERNO_WAVE_35_START },
+          { label: 'Wave 42 entry', value: SplitType.INFERNO_WAVE_42_START },
+          { label: 'Wave 50 entry', value: SplitType.INFERNO_WAVE_50_START },
+          { label: 'Wave 57 entry', value: SplitType.INFERNO_WAVE_57_START },
+          { label: 'Wave 60 entry', value: SplitType.INFERNO_WAVE_60_START },
+          { label: 'Wave 63 entry', value: SplitType.INFERNO_WAVE_63_START },
+          { label: 'Wave 66 entry', value: SplitType.INFERNO_WAVE_66_START },
+          { label: 'Wave 68 entry', value: SplitType.INFERNO_WAVE_68_START },
+          { label: 'Wave 69 entry', value: SplitType.INFERNO_WAVE_69_START },
         ],
       },
       {
