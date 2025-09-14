@@ -23,6 +23,7 @@ function FormFields() {
         fluid
         id="blert-api-key-rsn"
         label="OSRS username"
+        labelBg="var(--nav-bg)"
         maxLength={12}
         required
         faIcon="fa-solid fa-user"

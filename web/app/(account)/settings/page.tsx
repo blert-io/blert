@@ -4,6 +4,7 @@ import { getSignedInUser, getUserSettings } from '@/actions/users';
 import Card from '@/components/card';
 
 import ApiKeysSection from './api-keys-section';
+import PasswordSection from './password-section';
 
 import styles from './style.module.scss';
 
@@ -32,6 +33,8 @@ export default async function Settings() {
             </div>
           </div>
         </Card>
+
+        <PasswordSection />
 
         <ApiKeysSection initialApiKeys={settings.apiKeys} />
       </div>

@@ -339,3 +339,83 @@ export async function submitApiKeyForm(
 
   return { apiKey };
 }
+
+const passwordResetSchema = z
+  .object({
+    currentPassword: z
+      .string()
+      .min(1, { message: 'Current password is required' }),
+    newPassword: z
+      .string()
+      .min(8, { message: 'Password must be at least 8 characters' })
+      .max(96, { message: 'Password must be at most 96 characters' })
+      .trim(),
+    confirmPassword: z
+      .string()
+      .min(1, { message: 'Password confirmation is required' }),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
+
+export type PasswordResetErrors = {
+  currentPassword?: string[];
+  newPassword?: string[];
+  confirmPassword?: string[];
+  overall?: string;
+};
+
+export async function changePassword(
+  _state: PasswordResetErrors | null,
+  formData: FormData,
+): Promise<PasswordResetErrors | null> {
+  const session = await auth();
+  if (session === null || session.user.id === undefined) {
+    return { overall: 'Not authenticated' };
+  }
+
+  const validatedFields = passwordResetSchema.safeParse({
+    currentPassword: formData.get('current-password'),
+    newPassword: formData.get('new-password'),
+    confirmPassword: formData.get('confirm-password'),
+  });
+
+  if (!validatedFields.success) {
+    return validatedFields.error.flatten().fieldErrors;
+  }
+
+  const { currentPassword, newPassword } = validatedFields.data;
+
+  const [user] = await sql`
+    SELECT password FROM users
+    WHERE id = ${session.user.id}
+  `;
+
+  if (!user) {
+    return { overall: 'User not found' };
+  }
+
+  const validCurrentPassword = await bcrypt.compare(
+    currentPassword,
+    user.password,
+  );
+  if (!validCurrentPassword) {
+    return { currentPassword: ['Current password is incorrect'] };
+  }
+
+  const newPasswordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+
+  try {
+    await sql`
+      UPDATE users
+      SET password = ${newPasswordHash}
+      WHERE id = ${session.user.id}
+    `;
+  } catch (e: any) {
+    console.error('Error updating password:', e);
+    return { overall: 'An error occurred while updating your password' };
+  }
+
+  return null;
+}

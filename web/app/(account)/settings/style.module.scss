@@ -278,6 +278,32 @@
   }
 }
 
+.passwordForm {
+  background: var(--nav-bg);
+  border-radius: 8px;
+  padding: 20px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    padding: 16px;
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+
+    .error {
+      color: var(--blert-red);
+      font-size: 0.9em;
+      text-align: center;
+      margin: 0;
+      padding: 8px 12px;
+      background: rgba(var(--blert-red-base), 0.1);
+      border-radius: 6px;
+    }
+  }
+}
+
 .deleteModal {
   padding: 24px;
   background: var(--panel-bg);
