@@ -484,10 +484,12 @@ class NameChangeProcessor {
 
   public constructor() {
     if (process.env.NODE_ENV === 'production') {
-      NameChangeProcessor.timeout = setTimeout(
-        () => this.processNameChangeBatch(),
-        NameChangeProcessor.NAME_CHANGE_PERIOD,
-      );
+      if (NameChangeProcessor.timeout === null) {
+        NameChangeProcessor.timeout = setTimeout(
+          () => this.processNameChangeBatch(),
+          NameChangeProcessor.NAME_CHANGE_PERIOD,
+        );
+      }
     }
   }
 
