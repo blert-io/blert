@@ -60,6 +60,59 @@
     @include styledScrollbar;
   }
 
+  .emptyState {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 32px 16px;
+    margin-top: 8px;
+    background: var(--nav-bg);
+    border-radius: 8px;
+    color: var(--font-color-nav);
+    text-align: center;
+    border: 1px solid rgba(var(--blert-button-base), 0.12);
+
+    i {
+      font-size: 20px;
+      color: var(--blert-button);
+      opacity: 0.9;
+    }
+
+    .title {
+      margin: 0;
+      font-weight: 600;
+      color: var(--blert-text-color);
+    }
+
+    .hint {
+      margin: 0;
+      font-size: 0.95em;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+
+      button {
+        padding: 8px 12px;
+        border-radius: 6px;
+        background: rgba(var(--blert-button-base), 0.1);
+        border: 1px solid rgba(var(--blert-button-base), 0.2);
+        color: var(--blert-button);
+        transition: all 0.2s ease;
+
+        &:hover {
+          cursor: pointer;
+          background: rgba(var(--blert-button-base), 0.2);
+          transform: translateY(-1px);
+        }
+      }
+    }
+  }
+
   table.table {
     border-collapse: collapse;
     background: var(--panel-bg);

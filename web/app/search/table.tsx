@@ -870,73 +870,118 @@ export default function Table(props: TableProps) {
             </tr>
           </thead>
           <tbody>
-            {props.challenges.map((challenge, i) => (
-              <tr
-                key={challenge.uuid}
-                className={
-                  selectedChallenges.includes(i) ? styles.selectedChallenge : ''
-                }
-                onClick={(e) => {
-                  const now = Date.now();
-                  if (lastClickedChallenge !== null) {
-                    const [id, time] = lastClickedChallenge;
-                    if (id === i && now - time < DOUBLE_CLICK_THRESHOLD) {
-                      router.push(challengeUrl(challenge.type, challenge.uuid));
-                      return;
+            {props.challenges.length > 0
+              ? props.challenges.map((challenge, i) => (
+                  <tr
+                    key={challenge.uuid}
+                    className={
+                      selectedChallenges.includes(i)
+                        ? styles.selectedChallenge
+                        : ''
                     }
-                  }
-
-                  setLastClickedChallenge([i, now]);
-
-                  setSelectedChallenges((selected) => {
-                    if (e.ctrlKey || e.metaKey) {
-                      if (selected.includes(i)) {
-                        return selected.filter((j) => j !== i);
-                      }
-                      return [...selected, i];
-                    }
-
-                    if (e.shiftKey) {
-                      if (selected.length === 0) {
-                        return [i];
+                    onClick={(e) => {
+                      const now = Date.now();
+                      if (lastClickedChallenge !== null) {
+                        const [id, time] = lastClickedChallenge;
+                        if (id === i && now - time < DOUBLE_CLICK_THRESHOLD) {
+                          router.push(
+                            challengeUrl(challenge.type, challenge.uuid),
+                          );
+                          return;
+                        }
                       }
 
-                      const start = Math.min(selected[0], i);
-                      const end = Math.max(selected[0], i);
-                      return Array.from(
-                        { length: end - start + 1 },
-                        (_, j) => j + start,
+                      setLastClickedChallenge([i, now]);
+
+                      setSelectedChallenges((selected) => {
+                        if (e.ctrlKey || e.metaKey) {
+                          if (selected.includes(i)) {
+                            return selected.filter((j) => j !== i);
+                          }
+                          return [...selected, i];
+                        }
+
+                        if (e.shiftKey) {
+                          if (selected.length === 0) {
+                            return [i];
+                          }
+
+                          const start = Math.min(selected[0], i);
+                          const end = Math.max(selected[0], i);
+                          return Array.from(
+                            { length: end - start + 1 },
+                            (_, j) => j + start,
+                          );
+                        }
+
+                        if (selected.length > 1) {
+                          return [i];
+                        }
+
+                        return selected[0] === i ? [] : [i];
+                      });
+                    }}
+                  >
+                    {allColumns.map((c) => {
+                      const column = COLUMNS[c.column];
+                      const align = column.align ?? 'left';
+                      let width = column.width;
+                      if (width !== undefined && display.isCompact()) {
+                        width = Math.floor(width * 0.9);
+                      }
+                      return (
+                        <td
+                          key={c.column}
+                          data-context={`row:${i}:${c.column}`}
+                          style={{ textAlign: align, width }}
+                        >
+                          {column.renderer(challenge)}
+                        </td>
                       );
-                    }
-
-                    if (selected.length > 1) {
-                      return [i];
-                    }
-
-                    return selected[0] === i ? [] : [i];
-                  });
-                }}
-              >
-                {allColumns.map((c) => {
-                  const column = COLUMNS[c.column];
-                  const align = column.align ?? 'left';
-                  let width = column.width;
-                  if (width !== undefined && display.isCompact()) {
-                    width = Math.floor(width * 0.9);
-                  }
-                  return (
-                    <td
-                      key={c.column}
-                      data-context={`row:${i}:${c.column}`}
-                      style={{ textAlign: align, width }}
-                    >
-                      {column.renderer(challenge)}
+                    })}
+                    <td style={{ width: 40, padding: 0 }} />
+                  </tr>
+                ))
+              : !props.loading && (
+                  <tr>
+                    <td colSpan={allColumns.length + 1}>
+                      <div className={styles.emptyState}>
+                        <i className="fas fa-search" />
+                        <p className={styles.title}>
+                          No challenges match your filters
+                        </p>
+                        <p className={styles.hint}>
+                          Try adjusting filters or clearing them.
+                        </p>
+                        <div className={styles.actions}>
+                          <button
+                            onClick={() =>
+                              props.setContext((prev) => ({
+                                ...prev,
+                                filters: {
+                                  party: [],
+                                  mode: [],
+                                  scale: [],
+                                  status: [],
+                                  type: [],
+                                  stage: null,
+                                  startDate: null,
+                                  endDate: null,
+                                  splits: {},
+                                  accurateSplits: false,
+                                  fullRecordings: false,
+                                },
+                                pagination: {},
+                              }))
+                            }
+                          >
+                            Clear filters
+                          </button>
+                        </div>
+                      </div>
                     </td>
-                  );
-                })}
-                <td style={{ width: 40, padding: 0 }} />
-              </tr>
-            ))}
+                  </tr>
+                )}
           </tbody>
         </table>
       </div>

@@ -498,8 +498,6 @@ function applyFilters(
   accurateSplits?: boolean,
   fullRecordings?: boolean,
 ): QueryComponents | null {
-  let challengeTable = 'challenges';
-
   let baseTable = sql`challenges`;
   const joins: Join[] = defaultJoins;
   const conditions = [];
@@ -550,12 +548,11 @@ function applyFilters(
         WHERE lower(players.username) = ANY(${query.party.map((u) => u.toLowerCase())})
         GROUP BY challenges.id
         HAVING COUNT(*) = ${query.party.length}
-      ) partied_challenges`;
-      challengeTable = 'partied_challenges';
+      ) challenges`;
     }
   }
 
-  const sqlChallenges = sql(challengeTable);
+  const sqlChallenges = sql('challenges');
 
   if (query.splits !== undefined && query.splits.size > 0) {
     const splitConditions: postgres.Fragment[] = [];
