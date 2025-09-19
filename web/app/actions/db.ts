@@ -1,4 +1,4 @@
-import postgres from 'postgres';
+import postgres, { Sql, TransactionSql } from 'postgres';
 
 let connectionOptions: postgres.Options<{}> | undefined = undefined;
 
@@ -16,3 +16,5 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 export const sql = postgres(process.env.BLERT_DATABASE_URI!, connectionOptions);
+
+export type Db = Sql<{}> | TransactionSql<{}>;

@@ -6,14 +6,15 @@ import {
   hiscoreLookup,
 } from '@blert/common';
 
-import { sql } from './db';
+import { sql, type Db } from './db';
 
 async function updatePlayerStats(
   oldPlayerId: number,
   newPlayerId: number,
   fromDate: Date,
+  db: Db = sql,
 ): Promise<number> {
-  const [lastStats] = await sql`
+  const [lastStats] = await db`
     SELECT *
     FROM player_stats
     WHERE player_id = ${oldPlayerId}
@@ -22,7 +23,7 @@ async function updatePlayerStats(
     LIMIT 1
   `;
 
-  const [newPlayerLastStats] = await sql`
+  const [newPlayerLastStats] = await db`
     SELECT *
     FROM player_stats
     WHERE player_id = ${newPlayerId}
@@ -31,7 +32,7 @@ async function updatePlayerStats(
     LIMIT 1
   `;
 
-  const statsToMigrate = await sql`
+  const statsToMigrate = await db`
     SELECT *
     FROM player_stats
     WHERE player_id = ${newPlayerId}
@@ -55,7 +56,7 @@ async function updatePlayerStats(
       newStats[key] = old + delta;
     });
 
-    await sql`
+    await db`
       UPDATE player_stats SET ${sql(newStats)} WHERE id = ${stats.id}
     `;
   }
@@ -67,15 +68,16 @@ async function updateApiKeys(
   oldPlayerId: number,
   newPlayerId: number,
   fromDate: Date,
+  db: Db = sql,
 ): Promise<number> {
-  const updated = await sql`
+  const updated = await db`
     UPDATE api_keys
     SET player_id = ${oldPlayerId}
     WHERE player_id = ${newPlayerId} AND last_used > ${fromDate}
   `;
 
   // Delete unused keys for the new player.
-  const deleted = await sql`
+  const deleted = await db`
     DELETE FROM api_keys
     WHERE player_id = ${newPlayerId} AND last_used IS NULL
   `;
@@ -83,10 +85,19 @@ async function updateApiKeys(
   return updated.count + deleted.count;
 }
 
+type SplitRow = {
+  id: number;
+  type: number;
+  scale: number;
+  ticks: number;
+  finish_time: Date;
+};
+
 async function updatePersonalBestHistory(
   oldPlayerId: number,
   newPlayerId: number,
   challengeIds: number[],
+  db: Db = sql,
 ): Promise<number> {
   if (challengeIds.length === 0) {
     return 0;
@@ -95,15 +106,7 @@ async function updatePersonalBestHistory(
   // Find all splits from the challenges that are being migrated from the new
   // player to the old player. These are ordered chronologically to correctly
   // determine the PB progression.
-  const newPlayerSplits = await sql<
-    {
-      id: number;
-      type: number;
-      scale: number;
-      ticks: number;
-      finish_time: Date;
-    }[]
-  >`
+  const newPlayerSplits = await db<SplitRow[]>`
     SELECT
       cs.id,
       cs.type,
@@ -124,13 +127,15 @@ async function updatePersonalBestHistory(
   // personal best.
   const distinctSplitTypes = newPlayerSplits
     .filter(
-      (split, index, self) =>
+      (split: SplitRow, index: number, self: SplitRow[]) =>
         index ===
-        self.findIndex((s) => s.type === split.type && s.scale === split.scale),
+        self.findIndex(
+          (s: SplitRow) => s.type === split.type && s.scale === split.scale,
+        ),
     )
-    .map((split) => sql([split.type, split.scale]));
+    .map((split: SplitRow) => sql([split.type, split.scale]));
 
-  const oldPlayerPbs = await sql<
+  const oldPlayerPbs = await db<
     { type: number; scale: number; best_time: number }[]
   >`
     SELECT
@@ -148,7 +153,10 @@ async function updatePersonalBestHistory(
   const splitKey = (type: number, scale: number) => `${type}-${scale}`;
 
   const oldPlayerPbMap: Record<string, number> = oldPlayerPbs.reduce(
-    (acc, pb) => {
+    (
+      acc: Record<string, number>,
+      pb: { type: number; scale: number; best_time: number },
+    ) => {
       acc[splitKey(pb.type, pb.scale)] = pb.best_time;
       return acc;
     },
@@ -180,7 +188,7 @@ async function updatePersonalBestHistory(
 
   let insertedCount = 0;
   if (pbsToInsert.length > 0) {
-    const result = await sql`
+    const result = await db`
       INSERT INTO personal_best_history ${sql(
         pbsToInsert,
         'player_id',
@@ -195,13 +203,16 @@ async function updatePersonalBestHistory(
   // migrated challenges. This effectively rolls back their PB history to the
   // state before the name change, as the underlying challenges now belong to
   // the old player.
-  const splitsInMigratedChallenges = await sql`
+  const splitsInMigratedChallengesRows = await db<{ id: number }[]>`
     SELECT id FROM challenge_splits WHERE challenge_id = ANY(${challengeIds})
-  `.then((rows) => rows.map((r) => r.id));
+  `;
+  const splitsInMigratedChallenges = splitsInMigratedChallengesRows.map(
+    (r) => r.id,
+  );
 
   let deletedCount = 0;
   if (splitsInMigratedChallenges.length > 0) {
-    const result = await sql`
+    const result = await db`
       DELETE FROM personal_best_history
       WHERE
         player_id = ${newPlayerId}
@@ -245,8 +256,8 @@ type NameChangeQueryResult = {
   magic_experience: number;
 };
 
-export async function processNameChange(changeId: number) {
-  const [nameChange]: [NameChangeQueryResult?] = await sql`
+export async function processNameChange(changeId: number, db: Db = sql) {
+  const [nameChange]: [NameChangeQueryResult?] = await db`
     SELECT
       name_changes.id,
       name_changes.old_name,
@@ -335,7 +346,7 @@ export async function processNameChange(changeId: number) {
 
   if (nameChangeStatus !== NameChangeStatus.PENDING) {
     if (!nameChange.skip_checks) {
-      await sql`
+      await db`
         UPDATE name_changes
         SET status = ${nameChangeStatus}, processed_at = ${new Date()}
         WHERE id = ${changeId}
@@ -351,7 +362,7 @@ export async function processNameChange(changeId: number) {
 
   let migratedDocuments = 0;
 
-  const [newPlayer]: [{ id: number }?] = await sql`
+  const [newPlayer]: [{ id: number }?] = await db`
     SELECT id
     FROM players
     WHERE lower(username) = ${newName.toLowerCase()}
@@ -361,7 +372,7 @@ export async function processNameChange(changeId: number) {
     let newPlayerPreviouslyExisted = false;
     let challengesUpdated = 0;
 
-    const [lastRecordedChallenge]: [{ start_time: Date }?] = await sql`
+    const [lastRecordedChallenge]: [{ start_time: Date }?] = await db`
       SELECT challenges.start_time
       FROM challenges
       JOIN challenge_players ON challenges.id = challenge_players.challenge_id
@@ -371,15 +382,16 @@ export async function processNameChange(changeId: number) {
     `;
     if (lastRecordedChallenge !== undefined) {
       const updateFrom = lastRecordedChallenge.start_time;
-      const challengesToUpdate = await sql`
+      const challengesToUpdateRows = await db<{ id: number }[]>`
         SELECT challenges.id
         FROM challenges
         JOIN challenge_players ON challenges.id = challenge_players.challenge_id
         WHERE challenge_players.player_id = ${newPlayer.id}
           AND challenges.start_time > ${updateFrom}
-      `.then((res) => res.map((r) => r.id as number));
+      `;
+      const challengesToUpdate = challengesToUpdateRows.map((r) => r.id);
 
-      const [challengesBefore] = await sql`
+      const [challengesBefore] = await db`
         SELECT 1
         FROM challenges
         JOIN challenge_players ON challenges.id = challenge_players.challenge_id
@@ -393,7 +405,7 @@ export async function processNameChange(changeId: number) {
           `challenges since name change`,
       );
 
-      const updateChallengePlayers = sql`
+      const updateChallengePlayers = db`
         UPDATE challenge_players
         SET player_id = ${playerId}
         WHERE
@@ -403,9 +415,14 @@ export async function processNameChange(changeId: number) {
 
       const modifiedDocuments = await Promise.all([
         updateChallengePlayers,
-        updateApiKeys(playerId, newPlayer.id, updateFrom),
-        updatePersonalBestHistory(playerId, newPlayer.id, challengesToUpdate),
-        updatePlayerStats(playerId, newPlayer.id, updateFrom),
+        updateApiKeys(playerId, newPlayer.id, updateFrom, db),
+        updatePersonalBestHistory(
+          playerId,
+          newPlayer.id,
+          challengesToUpdate,
+          db,
+        ),
+        updatePlayerStats(playerId, newPlayer.id, updateFrom, db),
       ]);
 
       challengesUpdated = challengesToUpdate.length;
@@ -426,7 +443,7 @@ export async function processNameChange(changeId: number) {
       console.log(
         `Previously-existing "${newName}" has been renamed to "*${newName}"`,
       );
-      await sql`
+      await db`
         UPDATE players
         SET
           username = ${`*${newName}`},
@@ -442,7 +459,7 @@ export async function processNameChange(changeId: number) {
         WHERE id = ${newPlayer.id}
       `;
     } else {
-      await sql`DELETE FROM players WHERE id = ${newPlayer.id}`;
+      await db`DELETE FROM players WHERE id = ${newPlayer.id}`;
     }
   }
 
@@ -457,11 +474,11 @@ export async function processNameChange(changeId: number) {
     playerUpdates.magic_experience = newExperience[Skill.MAGIC];
   }
 
-  const updatePlayer = sql`
+  const updatePlayer = db`
     UPDATE players SET ${sql(playerUpdates)} WHERE id = ${playerId}
   `;
 
-  const updateNameChange = sql`
+  const updateNameChange = db`
     UPDATE name_changes
     SET
       status = ${NameChangeStatus.ACCEPTED},
@@ -510,18 +527,34 @@ class NameChangeProcessor {
   }
 
   private async processNameChangeBatch() {
-    const ids = await sql`
-      SELECT id
-      FROM name_changes
-      WHERE status = ${NameChangeStatus.PENDING}
-      LIMIT ${NameChangeProcessor.NAME_CHANGES_PER_BATCH}
-    `;
+    let processedCount = 0;
 
-    console.log(`Processing ${ids.length} name change requests`);
+    for (let i = 0; i < NameChangeProcessor.NAME_CHANGES_PER_BATCH; i++) {
+      const claimed = await sql.begin(async (tx) => {
+        const [row]: [{ id: number }?] = await tx`
+          SELECT id
+          FROM name_changes
+          WHERE status = ${NameChangeStatus.PENDING}
+          ORDER BY id
+          FOR UPDATE SKIP LOCKED
+          LIMIT 1
+        `;
 
-    for (const { id } of ids) {
-      await processNameChange(id);
+        if (!row) {
+          return false;
+        }
+
+        await processNameChange(row.id, tx);
+        return true;
+      });
+
+      if (!claimed) {
+        break;
+      }
+      processedCount += 1;
     }
+
+    console.log(`Processed ${processedCount} name change requests`);
 
     NameChangeProcessor.timeout = setTimeout(
       () => this.processNameChangeBatch(),
