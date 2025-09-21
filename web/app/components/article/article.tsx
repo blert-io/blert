@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { default as BaseTooltip } from '@/components/tooltip';
+import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 
 import { AppendixProvider, List as AppendixList } from './appendix';
 import { TableOfContents } from './table-of-contents';
@@ -11,8 +11,6 @@ type PageProps = {
   children?: React.ReactNode;
   className?: string;
 };
-
-const ARTICLE_TOOLTIP_ID = 'article-tooltip';
 
 export function Page({ children, className }: PageProps) {
   const classes = [styles.article, className].filter(Boolean).join(' ');
@@ -36,12 +34,13 @@ type TooltipProps = {
 
 export function Tooltip({ children, text }: TooltipProps) {
   return (
-    <span className={styles.tooltip} data-tooltip-id={ARTICLE_TOOLTIP_ID}>
+    <span
+      className={styles.tooltip}
+      data-tooltip-id={GLOBAL_TOOLTIP_ID}
+      data-tooltip-content={text}
+    >
       {children}
       <i className="fas fa-info" />
-      <BaseTooltip maxWidth={400} tooltipId={ARTICLE_TOOLTIP_ID}>
-        {text}
-      </BaseTooltip>
     </span>
   );
 }
@@ -63,7 +62,15 @@ export function Notice({ children, type = 'info', icon }: NoticeProps) {
   return (
     <div className={`${styles.notice} ${styles[`notice-${type}`]}`}>
       <i className={`fas ${icon || defaultIcons[type]}`} />
-      <div className={styles.noticeContent}>{children}</div>
+      <div className={styles.noticeContent}>
+        {(() => {
+          const childArray = React.Children.toArray(children);
+          const isPlainText = childArray.every(
+            (child) => typeof child === 'string' || typeof child === 'number',
+          );
+          return isPlainText ? <p>{children}</p> : children;
+        })()}
+      </div>
     </div>
   );
 }

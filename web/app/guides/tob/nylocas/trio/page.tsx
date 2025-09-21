@@ -16,7 +16,8 @@ export default function TrioNylo() {
     <Article.Page>
       <Article.Heading level={1} text="Trio Nylocas Waves" />
       <span className={guideStyles.authorCredits}>
-        Written by Nick Ints, Aramaxis, and Lo Sugar. POV VoDs by{' '}
+        Originally written by Nick Ints, Aramaxis, and Lo Sugar. Maintained by
+        the Blert community. POV VoDs by{' '}
         <Link href="https://www.youtube.com/@verix3983">Verix</Link> and{' '}
         <Link href="https://www.youtube.com/channel/UCrAY8CVj9-lxhG-4GML4gjg">
           Crayy
@@ -28,8 +29,12 @@ export default function TrioNylo() {
       <Article.Heading level={2} text="Overview" />
       <p>
         This guide is targeted at players learning max-eff trio moneys or
-        speedruns, and assumes a base understanding of the Nylocas room
-        mechanics.
+        speedruns. It assumes a base understanding of the room&apos;s mechanics,
+        which you can learn in the{' '}
+        <Link href="/guides/tob/nylocas/mechanics">
+          Nylocas mechanics guide
+        </Link>
+        .
       </p>
       <Article.Heading level={3} text="Team goals" />
       <p>
@@ -254,25 +259,29 @@ export default function TrioNylo() {
       <p>
         Blowpipe the <Range>wave 4 west small</Range> and bow the{' '}
         <Range>wave 5 big</Range> behind it (which your melee will double up
-        on). Claw scratch the <Melee>wave 5 south melee small</Melee>. The
-        splits will spawn from the wave 4 mage big the same tick you claw
-        scratch this (if the mage one-shots it), so be careful not to null. Kill
-        any ranged splits from the wave 4 mage big and the wave 5 ranged big.
-        You can Blowpipe 2 splits and tick perfectly chin into bow the{' '}
+        on). Hover the splits that will spawn from the wave 4 mage big and the
+        wave 5 ranged big, prioritizing the ranged and mage splits. You can
+        Blowpipe 2 splits and tick-perfectly chin into bow the{' '}
         <Range>wave 6 ranged small</Range> and <Range>wave 7 big</Range>.
       </p>
       <Article.Heading level={4} idPrefix="ranger" text="Waves 8-10" />
       <p>
-        Path east and be ready to kill the <Range>wave 8 ranged small</Range>{' '}
-        and splits from the wave 6 melee big and wave 7 ranged big. You can claw
-        scratch the <Melee>east wave 7 melee small</Melee> if your meleer
-        didn&apos;t one shot the wave 6 big.
+        Path west and stand 1 tile away from the west barrier. Ayak the{' '}
+        <Mage>8 mage big</Mage> then chin the <Range>9 ranged big</Range>. If
+        the mage big lives, let the mage finish it; bow the 9 ranged big
+        instead.
       </p>
       <p>
-        Continue killing splits and be ready to Blowpipe the{' '}
-        <Range>wave 9 ranged big</Range> if your mage didn&apos;t kill it. Chin
-        the <Range>wave 10 west and south doubles</Range>, and Blowpipe anything
-        your mage didn&apos;t kill from the east.
+        After attacking the 9 ranged big, move east and Blowpipe the{' '}
+        <Range>8 ranged small</Range> that is now entering the room. Afterwards,
+        return to the west, killing splits along the way.
+      </p>
+      <p>
+        Chin the <Range>wave 10 west and south doubles</Range>, then clean up
+        any ranged smalls that lived. You can chin west and south then do 1
+        Blowpipe before first tick Ayaking the <Mage>11 west mage big</Mage>. If
+        you noodled on the chins, prioritize cleaning up the room before Ayaking
+        the mage big.
       </p>
       <Article.Heading level={4} idPrefix="ranger" text="Waves 11-12" />
       <p>
@@ -281,35 +290,71 @@ export default function TrioNylo() {
         wave 11 mage big, its splits will spawn in front of your wave 12 melee
         doubles, so you can Blowpipe 1 or 2 of these before you Scythe.
       </p>
+      <p>
+        Stand one tile back from the barrier after Scything the doubles. If you
+        wait briefly after Scything the double before switching back to your
+        ranged gear, you will automatically be pushed back 1 tile. You can see
+        this in the <Link href="#ranger-example-pov">example VOD</Link>.
+      </p>
       <Article.Heading level={4} idPrefix="ranger" text="Wave 13" />
       <p>
-        Pipe the <Range>west wave 13 ranged small</Range> and make your way
-        south. Kill the <Range>south wave 13 ranged small</Range>, along with
-        any ranged splits in the room.
+        Blowpipe the <Range>west wave 13 ranged small</Range> and path
+        diagonally toward the south. Kill the{' '}
+        <Range>south wave 13 ranged small</Range> along with any ranged splits
+        in the room.
       </p>
       <Article.Heading level={4} idPrefix="ranger" text="Waves 14-15" />
       <p>
-        Pay attention to how far ahead your mage is. If they are behind, Sang
-        the <Mage>wave 14 south small</Mage> then pipe the{' '}
-        <Range>ranged small</Range> next to it and move east. Pipe the{' '}
-        <Range>15 east ranged small</Range> then kill the{' '}
-        <Range>14 ranged big aggro</Range> immediately after it enters the room
-        and make your way west to kill the <Range>wave 15 ranged small</Range>.
+        Pay attention to how far ahead your mage is. If they are behind, Ayak
+        the <Mage>wave 14 south small</Mage> then Blowpipe the{' '}
+        <Range>ranged small</Range> next to it and move east. Blowpipe the{' '}
+        <Range>14 east ranged big</Range> if you are ahead. Otherwise, Ayak the{' '}
+        <Mage>15 east mage small</Mage> and Blowpipe the{' '}
+        <Range>ranged small</Range> next to it before killing the 14 big.
       </p>
       <Article.Heading level={4} idPrefix="ranger" text="Waves 16-17" />
       <p>
-        If you didn&apos;t noodle on previous waves, you can chin the incoming{' '}
-        <Range>wave 16 ranged small</Range> before it flashes then Sang the{' '}
+        If you didn&apos;t noodle on previous waves, you can blowpipe the{' '}
+        <Range>15 west ranged small</Range> or chin the incoming{' '}
+        <Range>wave 16 ranged small</Range> before it flashes then Ayak the{' '}
         <Mage>wave 17 west mage big</Mage> before it flashes as well.
       </p>
       <Article.Heading level={4} idPrefix="ranger" text="Waves 18-20" />
       <p>
         Kill splits from the 17 big(s) while waiting for the 18 big rangers to
-        come into the room. Blowpipe the <Range>west 18 big aggro</Range> on
-        tick 14 so splits spawn after the cap increase. Kill the other 2 after
-        the west one is dead. If you kill these early enough, hit splits until
-        the <Melee>wave 20 west big</Melee> flashes green then bow it.
+        come into the room. Blowpipe the <Range>west 18 big aggro</Range> on{' '}
+        <Article.Tooltip text="When the wave 19 mage bigs flicker melee. The ranged big will be roughly in the center of the room.">
+          tick 14
+        </Article.Tooltip>{' '}
+        so splits spawn after the cap increase. Kill the other 2 after the west
+        one is dead. If you kill these early enough, hit splits until the{' '}
+        <Melee>wave 20 west big</Melee> flashes green then bow it.
       </p>
+      <Article.Notice>
+        <p>
+          Proficient teams can opt to play waves 17&ndash;20 more aggressively
+          depending on the room state.
+        </p>
+        <ul>
+          <li>
+            If the 12 melee big is killed, you can commit to killing the 17 west
+            mage big.
+          </li>
+          <li>
+            If the 17 east and west mage bigs are killed, you should clean up
+            splits before bowing the 18 west ranged big when it spawns. Continue
+            kiling splits until the 19 mage bigs are about to flash melee, then
+            kill the rest of the 18 ranged bigs.
+          </li>
+          <li>
+            If the room is not clean enough to bow the 18 west ranged big, clean
+            splits until wave 19 spawns. Wait 2 ticks then Ayak the 19 south
+            mage big and start killing all the 18 ranged bigs. (Tip: Blowpipe a
+            non-aggro 18 big before Blowpiping the west aggro big to prevent
+            overkill from Veng/thralls.)
+          </li>
+        </ul>
+      </Article.Notice>
       <Article.Heading level={3} idPrefix="ranger" text="Post-cap" />
       <Article.Heading level={4} idPrefix="ranger" text="Waves 21-22" />
       <p>
@@ -319,6 +364,12 @@ export default function TrioNylo() {
         more than 8 or you will chin after the wave 22 check. After you chin,
         kill splits in the room until the <Melee>wave 22 west big</Melee>{' '}
         flashes green and bow it.
+      </p>
+      <p>
+        A more advanced method is to Claw spec the <Melee>20 west big</Melee>,
+        then fill 5 ticks worth of attacks before first tick chinning the{' '}
+        <Range>east wave 21 ranged doubles</Range>. Cast Death Charge any time
+        after the Claw spec to regen 100 spec for the boss.
       </p>
       <Article.Heading level={4} idPrefix="ranger" text="Waves 23-25" />
       <p>
@@ -330,28 +381,39 @@ export default function TrioNylo() {
       </p>
       <p>
         Head south. You can do 1 Blowpipe before bowing the{' '}
-        <Range>wave 25 south big</Range>. If you one-shot the wave 23 south
-        range big earlier, its splits will spawn in the lane and you should
-        Blowpipe one of these if either are range.
+        <Range>wave 25 south ranged big</Range> if the room is clean. If you
+        one-shot the wave 23 south range big earlier, its splits will spawn in
+        the lane and you should Blowpipe one of these if either are range. If
+        the room is not clean, clean up some smalls before Blowpiping the 25
+        south ranged big.
       </p>
       <Article.Heading level={4} idPrefix="ranger" text="Waves 26-27" />
       <p>
         After you bow the wave 25 south big, start cleaning up any range splits
         you see. Don&apos;t get baited into killing splits that will soon expire
         (any splits from wave 20 or 21 will expire before 28 check), and try to
-        stay on tick with the room (Blowpipe or Sang will keep you on tick with
-        the room assuming you don&apos;t lose any ticks; if you chin, you will
-        have to either throw a second chin or lose a tick). Kill the{' '}
+        stay on tick with the room (Blowpipe will keep you on tick with the room
+        assuming you don&apos;t lose any ticks; if you chin or Ayak, you will
+        have to either do a second chin/Ayak or lose a tick). Kill the{' '}
         <Range>wave 27 south big</Range> once it turns green.
+      </p>
+      <p>
+        A more advanced method you can use if the room is clean after killing
+        the 25 south ranged big is to help Ayak the 26 or 27 east mage bigs
+        before Blowpiping the 27 south ranged big once it turns green.
       </p>
       <Article.Heading level={4} idPrefix="ranger" text="Waves 28-29" />
       <p>
-        Start looking for splits that spawned after wave 28 while making your
-        way west, and Blowpipe these instead of the wave 28 south flashers
-        (which will expire in cleanup). Blowpipe the wave 29 west flashers. Your
-        team will likely stall after this. Stay on the west side of the room and
-        hit splits/smalls that spawned after wave 28 while staying on tick (you
-        are on tick with the room after Blowpiping the 29 flashers).
+        Start looking for ranged/mage splits that spawned after wave 28 while
+        making your way west, and prioritize Blowpiping or Ayaking these instead
+        of the wave 28 south flashers (which will expire in cleanup). Kill
+        splits on the east side of the room first as you move west.
+      </p>
+      <p>
+        Blowpipe the wave 29 west flashers. Your team will likely stall after
+        this. Stay on the west side of the room and hit splits/smalls that
+        spawned after wave 28 while staying on tick (you are on tick with the
+        room after Blowpiping the 29 flashers).
       </p>
       <Article.Heading level={4} idPrefix="ranger" text="Waves 30-31" />
       <p>
@@ -362,15 +424,22 @@ export default function TrioNylo() {
         the wave 31 west flashers, then chin the <Range>31 south doubles</Range>
         .
       </p>
+      <p>
+        Alternatively, if wave 29 stalled and you are waiting for wave 30 after
+        running out of new splits to kill, you can first tick Blowpipe the wave
+        30 west ranged big from the barrier, then run 4 tiles back to chin the
+        wave 30 south doubles.
+      </p>
       <Article.Heading level={3} idPrefix="ranger" text="Cleanup" />
       <p>
-        Kill any wave 31 smalls first as these will change color if you
+        Kill any wave 29/31 smalls first as these will change color if you
         don&apos;t kill them quickly enough. Don&apos;t get baited into chinning
         a clump with 28s in it as 28s will expire. After killing any 29+
-        rangers, look to kill other colors, prioritizing the north side.
+        rangers, look to kill other colors (mage &gt; melee), working from the
+        south to the north side.
       </p>
       <Article.Heading level={3} idPrefix="ranger" text="Example POV" />
-      <YoutubeEmbed id="WaQW-eZQOCc" />
+      <YoutubeEmbed id="i5o31g" source="streamable" />
 
       {/*
        * MELEE ROTATION
