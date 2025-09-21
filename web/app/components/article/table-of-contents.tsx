@@ -23,16 +23,30 @@ export function TableOfContents(props: TableOfContentsProps) {
   const [isScrolling, setIsScrolling] = useState(false);
   const scrollTimeout = useRef<number | null>(null);
   const intersectionObserver = useRef<IntersectionObserver | null>(null);
+  const mutationObserver = useRef<MutationObserver | null>(null);
+  const rafId = useRef<number | null>(null);
 
   useEffect(() => {
     const findAndFilterHeadings = () => {
+      const wrapper = document.getElementById('blert-article-wrapper');
       let headings = Array.from(
-        document.querySelectorAll('h2, h3, h4, h5, h6'),
+        (wrapper || document).querySelectorAll('h2, h3, h4, h5, h6'),
       );
 
       headings = headings.filter((heading) => {
         const tocElement = heading.closest(`.${styles.tableOfContents}`);
-        return !tocElement;
+        if (tocElement) {
+          return false;
+        }
+
+        const isAppendixHeading =
+          heading.tagName === 'H2' && heading.id === 'appendix';
+        const isChildOfAppendix = !!heading.closest('#appendix');
+        if (isChildOfAppendix && !isAppendixHeading) {
+          return false;
+        }
+
+        return true;
       });
 
       // Limit the table of contents to fit in the window, by removing
@@ -66,6 +80,22 @@ export function TableOfContents(props: TableOfContentsProps) {
 
     onResize();
     window.addEventListener('resize', onResize);
+
+    // Watch for dynamic content (e.g., Appendix mounted later).
+    const wrapper = document.getElementById('blert-article-wrapper');
+    if (wrapper && !mutationObserver.current) {
+      mutationObserver.current = new MutationObserver(() => {
+        // Debounce to next frame.
+        if (rafId.current) {
+          cancelAnimationFrame(rafId.current);
+        }
+        rafId.current = requestAnimationFrame(() => findAndFilterHeadings());
+      });
+      mutationObserver.current.observe(wrapper, {
+        childList: true,
+        subtree: true,
+      });
+    }
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
@@ -165,6 +195,13 @@ export function TableOfContents(props: TableOfContentsProps) {
 
     return () => {
       intersectionObserver.current?.disconnect();
+      if (mutationObserver.current) {
+        mutationObserver.current.disconnect();
+        mutationObserver.current = null;
+      }
+      if (rafId.current) {
+        cancelAnimationFrame(rafId.current);
+      }
       window.removeEventListener('scroll', handleScroll);
       if (scrollTimeout.current) {
         clearTimeout(scrollTimeout.current);

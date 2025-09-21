@@ -523,6 +523,41 @@ $FIXED_TOC_MARGIN: 40px;
   }
 }
 
+.appendixRef {
+  color: var(--blert-button);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: all 0.2s ease;
+  font-weight: 500;
+
+  &:hover {
+    border-bottom-color: var(--blert-button);
+    color: rgba(var(--blert-button-base), 0.8);
+  }
+}
+
+.appendix {
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(var(--blert-button-base), 0.15);
+
+  .appendixItem {
+    margin-top: 1.5rem;
+    padding-top: 0.5rem;
+  }
+
+  .appendixContent {
+    margin-top: 0.75rem;
+  }
+}
+
+.appendixAnchor {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
 .codeBlock {
   margin: 2rem 0;
   background: linear-gradient(
@@ -672,8 +707,9 @@ $FIXED_TOC_MARGIN: 40px;
     }
 
     code {
-      font-family: var(--font-roboto-mono), 'Fira Code', 'JetBrains Mono',
-        'Consolas', monospace;
+      font-family:
+        var(--font-roboto-mono), 'Fira Code', 'JetBrains Mono', 'Consolas',
+        monospace;
       font-size: 0.9em;
       line-height: 1.7;
       color: rgba(var(--blert-text-color-base), 0.96);
@@ -683,8 +719,9 @@ $FIXED_TOC_MARGIN: 40px;
 
 .article {
   code:not(.codeBlock code) {
-    font-family: var(--font-roboto-mono), 'Fira Code', 'JetBrains Mono',
-      'Consolas', monospace;
+    font-family:
+      var(--font-roboto-mono), 'Fira Code', 'JetBrains Mono', 'Consolas',
+      monospace;
     font-size: 0.875em;
     font-weight: 600;
     color: var(--blert-button);

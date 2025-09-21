@@ -2,6 +2,7 @@ import React from 'react';
 
 import { default as BaseTooltip } from '@/components/tooltip';
 
+import { AppendixProvider, List as AppendixList } from './appendix';
 import { TableOfContents } from './table-of-contents';
 
 import styles from './style.module.scss';
@@ -18,7 +19,12 @@ export function Page({ children, className }: PageProps) {
   return (
     <div className={styles.wrapper} id="blert-article-wrapper">
       <TableOfContents />
-      <div className={classes}>{children}</div>
+      <div className={classes}>
+        <AppendixProvider>
+          {children}
+          <AppendixList />
+        </AppendixProvider>
+      </div>
     </div>
   );
 }

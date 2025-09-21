@@ -57,7 +57,21 @@ export default function TobGuides() {
           </div>
 
           <div className={styles.guideGroup}>
-            <h3>Nylocas waves</h3>
+            <h3>Basics</h3>
+            <ul>
+              <li>
+                <Link
+                  href="/guides/tob/nylocas/mechanics"
+                  className={styles.main}
+                >
+                  Room Mechanics
+                </Link>
+                <p className={styles.guideDesc}>
+                  How the Nylocas room functions
+                </p>
+              </li>
+            </ul>
+            <h3>Waves by Role</h3>
             <ul>
               <li>
                 <Link href="/guides/tob/nylocas/trio" className={styles.main}>

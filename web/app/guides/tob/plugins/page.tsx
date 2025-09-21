@@ -50,7 +50,7 @@ export default function PluginGuide() {
       </p>
       <Article.Heading level={3} text="ToB QoL" />
       <p>
-        <Link href="https://runelite.net/plugin-hub/show/tob-qol">ToB QoL</Link>{' '}
+        <Link href="https://runelite.net/plugin-hub/show/tobqol">ToB QoL</Link>{' '}
         offers a variety of quality of life features throughout every room of
         the Theatre of Blood. There are too many to list here; we encourage you
         to try them out to see which you find useful. A selection of the most
