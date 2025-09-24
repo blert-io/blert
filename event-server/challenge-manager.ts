@@ -5,15 +5,26 @@ import {
   ClientStatus,
   RecordingType,
   Stage,
+  StageStatus,
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
-import { StageUpdate } from './challenge';
 import Client from './client';
 
 export type RecordedTimes = {
   challenge: number;
   overall: number;
+};
+
+type StageUpdate = {
+  stage: Stage;
+  status: StageStatus;
+  accurate: boolean;
+  recordedTicks: number;
+  serverTicks: {
+    count: number;
+    precise: boolean;
+  } | null;
 };
 
 export type ChallengeUpdate = {

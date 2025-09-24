@@ -57,24 +57,6 @@ export class Users {
   }
 
   /**
-   * Adds a recorded challenge to a user's history.
-   *
-   * @param userId ID of the user.
-   * @param challengeId Database ID of the challenge.
-   * @param recordingType Type of recording.
-   */
-  static async addRecordedChallenge(
-    userId: number,
-    challengeId: number,
-    recordingType: RecordingType,
-  ): Promise<void> {
-    await sql`
-      INSERT INTO recorded_challenges (challenge_id, recorder_id, recording_type)
-      VALUES (${challengeId}, ${userId}, ${recordingType})
-    `;
-  }
-
-  /**
    * Retrieves the most recent challenges recorded by a user.
    *
    * @param userId ID of the user to look up.
