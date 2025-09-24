@@ -41,9 +41,9 @@ export function compareRuneLiteVersions(
  */
 export function verifyRuneLiteVersion(
   version: string | undefined,
-  minVersion: string | undefined,
+  minVersion: string | null,
 ): boolean {
-  if (minVersion === undefined) {
+  if (minVersion === null) {
     return true;
   }
 

@@ -13,6 +13,7 @@ import { PlayerManager } from './players';
 import { RemoteChallengeManager } from './remote-challenge-manager';
 import ServerManager, { ServerStatus } from './server-manager';
 import { verifyRuneLiteVersion, verifyRevision } from './verification';
+import { ConfigManager } from './config';
 
 type ShutdownRequest = {
   shutdownTime?: number;
@@ -58,9 +59,9 @@ async function setupHttpRoutes(
   });
 }
 
-async function initializeRemoteChallengeManager(): Promise<
-  [ChallengeManager, PlayerManager]
-> {
+async function initializeRemoteChallengeManager(
+  redisClient: RedisClientType,
+): Promise<[ChallengeManager, PlayerManager]> {
   if (!process.env.BLERT_CHALLENGE_SERVER_URI) {
     throw new Error('BLERT_CHALLENGE_SERVER_URI is not set');
   }
@@ -71,14 +72,6 @@ async function initializeRemoteChallengeManager(): Promise<
   console.log(
     `Using remote challenge manager at ${process.env.BLERT_CHALLENGE_SERVER_URI}`,
   );
-
-  const redisClient: RedisClientType = createClient({
-    url: process.env.BLERT_REDIS_URI,
-    pingInterval: 3 * 60 * 1000,
-  });
-  redisClient.on('connect', () => console.log('Connected to Redis'));
-  redisClient.on('error', (err) => console.error('Redis error:', err));
-  await redisClient.connect();
 
   const challengeManager = new RemoteChallengeManager(
     process.env.BLERT_CHALLENGE_SERVER_URI,
@@ -93,9 +86,7 @@ async function initializeRemoteChallengeManager(): Promise<
   return [challengeManager, playerManager];
 }
 
-async function main(): Promise<void> {
-  dotenv.config({ path: ['.env.local', `.env.${process.env.NODE_ENV}`] });
-
+async function loadValidRevisions(): Promise<Set<string>> {
   let validPluginRevisions: Set<string> = new Set();
   if (process.env.BLERT_REVISIONS_FILE) {
     try {
@@ -106,6 +97,30 @@ async function main(): Promise<void> {
       process.exit(1);
     }
   }
+
+  return validPluginRevisions;
+}
+
+async function main(): Promise<void> {
+  dotenv.config({ path: ['.env.local', `.env.${process.env.NODE_ENV}`] });
+
+  if (!process.env.BLERT_REDIS_URI) {
+    throw new Error('BLERT_REDIS_URI is not set');
+  }
+
+  const redisClient: RedisClientType = createClient({
+    url: process.env.BLERT_REDIS_URI,
+    pingInterval: 3 * 60 * 1000,
+  });
+  redisClient.on('connect', () => console.log('Connected to Redis'));
+  redisClient.on('error', (err) => console.error('Redis error:', err));
+  await redisClient.connect();
+
+  const validPluginRevisions = await loadValidRevisions();
+  const configManager = new ConfigManager(redisClient, {
+    minRuneLiteVersion: process.env.BLERT_MIN_RL_VERSION ?? null,
+    allowedRevisions: validPluginRevisions,
+  });
 
   const port = process.env.PORT || 3003;
 
@@ -133,19 +148,14 @@ async function main(): Promise<void> {
       const token = Buffer.from(auth[1], 'base64').toString();
       const user = await connectionManager.authenticate(token);
 
-      const validRevision = verifyRevision(
-        validPluginRevisions,
+      const isAllowed = await configManager.verify(
         request.headers['blert-revision'] as string | undefined,
-      );
-
-      const validRuneLiteVersion = verifyRuneLiteVersion(
         request.headers['blert-runelite-version'] as string | undefined,
-        process.env.BLERT_MIN_RL_VERSION,
       );
 
-      if (!validRevision || !validRuneLiteVersion) {
+      if (!isAllowed) {
         console.log(
-          `[${requestId}] Invalid plugin revision: ${request.headers['blert-revision']} (${request.headers['blert-runelite-version']})`,
+          `[${requestId}] Plugin not allowed: ${request.headers['blert-revision']} (${request.headers['blert-runelite-version']})`,
         );
         socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
         socket.destroy();
@@ -167,7 +177,7 @@ async function main(): Promise<void> {
   const serverManager = new ServerManager(connectionManager);
 
   const [challengeManager, playerManager] =
-    await initializeRemoteChallengeManager();
+    await initializeRemoteChallengeManager(redisClient);
 
   const messageHandler = new MessageHandler(challengeManager, playerManager);
 
