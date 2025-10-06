@@ -12,7 +12,11 @@ import MessageHandler from './message-handler';
 import { PlayerManager } from './players';
 import { RemoteChallengeManager } from './remote-challenge-manager';
 import ServerManager, { ServerStatus } from './server-manager';
-import { verifyRuneLiteVersion, verifyRevision } from './verification';
+import {
+  verifyRuneLiteVersion,
+  verifyRevision,
+  PluginVersions,
+} from './verification';
 import { ConfigManager } from './config';
 
 type ShutdownRequest = {
@@ -148,22 +152,24 @@ async function main(): Promise<void> {
       const token = Buffer.from(auth[1], 'base64').toString();
       const user = await connectionManager.authenticate(token);
 
-      const isAllowed = await configManager.verify(
-        request.headers['blert-revision'] as string | undefined,
-        request.headers['blert-runelite-version'] as string | undefined,
-      );
+      const pluginVersions = PluginVersions.fromHeaders(request.headers);
+      if (pluginVersions === null) {
+        console.log(`[${requestId}] missing plugin versions`);
+        socket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
+        socket.destroy();
+        return;
+      }
 
+      const isAllowed = await configManager.verify(pluginVersions);
       if (!isAllowed) {
-        console.log(
-          `[${requestId}] Plugin not allowed: ${request.headers['blert-revision']} (${request.headers['blert-runelite-version']})`,
-        );
+        console.log(`[${requestId}] Plugin not allowed: ${pluginVersions}`);
         socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
         socket.destroy();
         return;
       }
 
       wss.handleUpgrade(request, socket, head, (ws) => {
-        const client = new Client(ws, messageHandler, user);
+        const client = new Client(ws, messageHandler, user, pluginVersions);
         wss.emit('connection', ws, request, client);
       });
     } catch (e: any) {
@@ -195,7 +201,7 @@ async function main(): Promise<void> {
   wss.on('connection', (ws: WebSocket, req: Request, client: Client) => {
     connectionManager.addClient(client);
     serverManager.handleNewClient(client);
-    console.log(`${client} connected`);
+    console.log(`${client} (${client.getPluginVersions()}) connected`);
   });
 }
 

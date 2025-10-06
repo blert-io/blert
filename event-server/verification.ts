@@ -1,3 +1,59 @@
+import { IncomingHttpHeaders } from 'http';
+
+/**
+ * Represents the versions of a connected Blert plugin.
+ */
+export class PluginVersions {
+  private static readonly VERSION_HEADER = 'blert-version';
+  private static readonly REVISION_HEADER = 'blert-revision';
+  private static readonly RUNELITE_VERSION_HEADER = 'blert-runelite-version';
+
+  public static fromHeaders(
+    headers: IncomingHttpHeaders,
+  ): PluginVersions | null {
+    const version = headers[PluginVersions.VERSION_HEADER] as
+      | string
+      | undefined;
+    let revision = headers[PluginVersions.REVISION_HEADER] as
+      | string
+      | undefined;
+    revision = revision?.split(':')[0];
+    const runeLiteVersion = headers[PluginVersions.RUNELITE_VERSION_HEADER] as
+      | string
+      | undefined;
+
+    if (!revision || !version || !runeLiteVersion) {
+      return null;
+    }
+
+    return new PluginVersions(version, revision, runeLiteVersion);
+  }
+
+  public getVersion(): string {
+    return this.version;
+  }
+
+  public getRevision(): string {
+    return this.revision;
+  }
+
+  public getRuneLiteVersion(): string {
+    return this.runeLiteVersion;
+  }
+
+  public toString(): string {
+    const version = `v${this.version}`;
+    const revision = `${this.revision.slice(0, 8)}`;
+    return `${version}-${revision}@${this.runeLiteVersion}`;
+  }
+
+  private constructor(
+    public readonly version: string,
+    public readonly revision: string,
+    public readonly runeLiteVersion: string,
+  ) {}
+}
+
 /**
  * Compare RuneLite-style version numbers that may have 4 parts
  * (major.minor.patch.build).
@@ -100,10 +156,5 @@ export function verifyRevision(
     return false;
   }
 
-  const cleanRevision = revision.split(':')[0];
-  if (cleanRevision === undefined) {
-    return false;
-  }
-
-  return validRevisions.has(cleanRevision);
+  return validRevisions.has(revision);
 }

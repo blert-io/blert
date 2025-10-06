@@ -1,6 +1,10 @@
 import { RedisClientType } from 'redis';
 
-import { verifyRevision, verifyRuneLiteVersion } from './verification';
+import {
+  PluginVersions,
+  verifyRevision,
+  verifyRuneLiteVersion,
+} from './verification';
 
 type Config = {
   minRuneLiteVersion: string | null;
@@ -32,14 +36,14 @@ export class ConfigManager {
    * @param version The version to verify.
    * @returns True if the revision and version are valid.
    */
-  public async verify(
-    revision: string | undefined,
-    version: string | undefined,
-  ): Promise<boolean> {
+  public async verify(pluginVersions: PluginVersions): Promise<boolean> {
     const config = await this.get();
     return (
-      verifyRevision(config.allowedRevisions, revision) &&
-      verifyRuneLiteVersion(version, config.minRuneLiteVersion)
+      verifyRevision(config.allowedRevisions, pluginVersions.getRevision()) &&
+      verifyRuneLiteVersion(
+        pluginVersions.getRuneLiteVersion(),
+        config.minRuneLiteVersion,
+      )
     );
   }
 

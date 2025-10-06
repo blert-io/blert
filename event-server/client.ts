@@ -3,6 +3,7 @@ import { ServerMessage } from '@blert/common/generated/server_message_pb';
 import { WebSocket } from 'ws';
 
 import MessageHandler from './message-handler';
+import { PluginVersions } from './verification';
 import { BasicUser } from './users';
 
 type Stats = {
@@ -53,6 +54,7 @@ export default class Client {
   private static HEARTBEAT_DISCONNECT_THRESHOLD: number = 10;
 
   private user: BasicUser;
+  private pluginVersions: PluginVersions;
   private sessionId: number;
   private socket: WebSocket;
   private messageHandler: MessageHandler;
@@ -77,8 +79,10 @@ export default class Client {
     socket: WebSocket,
     eventHandler: MessageHandler,
     user: BasicUser,
+    pluginVersions: PluginVersions,
   ) {
     this.user = user;
+    this.pluginVersions = pluginVersions;
     this.sessionId = -1;
     this.socket = socket;
     this.messageHandler = eventHandler;
@@ -172,6 +176,14 @@ export default class Client {
    */
   public getLinkedPlayerId(): number {
     return this.user.linkedPlayerId;
+  }
+
+  /**
+   * Returns the plugin info for this client.
+   * @returns The plugin info.
+   */
+  public getPluginVersions(): Readonly<PluginVersions> {
+    return this.pluginVersions;
   }
 
   public getActiveChallengeId(): string | null {
