@@ -31,6 +31,7 @@ import {
 } from '@blert/common';
 import { RedisClientType, WatchError, commandOptions } from 'redis';
 import { v4 as uuidv4 } from 'uuid';
+import { Logger } from 'winston';
 
 import { ClientEvents, ServerTicks } from './client-events';
 import {
@@ -42,7 +43,6 @@ import {
 } from './event-processing';
 import logger from './log';
 import { ChallengeInfo, MergeResult, Merger } from './merge';
-import { Logger } from 'winston';
 
 export const enum ChallengeErrorType {
   FAILED_PRECONDITION,
@@ -81,6 +81,14 @@ const enum StartAction {
   DEFERRED_JOIN,
 }
 
+const enum CleanupStatus {
+  OK,
+  ACTIVE_CLIENTS,
+  PROCESSING_STAGE,
+  CHALLENGE_NOT_FOUND,
+  CHALLENGE_FAILED_CLEANUP,
+}
+
 const DEFERRED_JOIN_MAX_RETRIES = 10;
 const DEFERRED_JOIN_RETRY_INTERVAL_MS = 10;
 
@@ -100,7 +108,8 @@ const enum LifecycleState {
 type ExtendedChallengeState = ChallengeState & {
   state: LifecycleState;
   timeoutState: TimeoutState;
-  processingStage: boolean;
+  /** Timestamp at which stage processing began. */
+  processingStage: number | null;
 };
 
 type RedisChallengeState = Record<keyof ExtendedChallengeState, string>;
@@ -172,7 +181,9 @@ function fromRedis(state: RedisChallengeState): ExtendedChallengeState {
       ? Number.parseInt(state.reportedOverallTicks)
       : null,
     timeoutState: Number.parseInt(state.timeoutState) as TimeoutState,
-    processingStage: state.processingStage === '1',
+    processingStage: state.processingStage
+      ? Number.parseInt(state.processingStage)
+      : null,
     customData: state.customData ? JSON.parse(state.customData) : null,
   };
 }
@@ -264,6 +275,12 @@ export default class ChallengeManager {
    * end event following the first client's completion.
    */
   private static readonly STAGE_END_TIMEOUT = 2000;
+
+  /**
+   * Maximum time to wait for a stage to be processed.
+   * Beyond this time, the processing step is considered to have failed.
+   */
+  private static readonly MAX_STAGE_PROCESSING_TIME = 1000 * 30;
 
   public constructor(
     challengeDataRepository: DataRepository,
@@ -1048,6 +1065,11 @@ export default class ChallengeManager {
         Stage,
         number | null,
       ];
+      await this.client.hSet(
+        challengesKey(challengeId),
+        'processingStage',
+        Date.now().toString(),
+      );
       setTimeout(
         () =>
           this.loadAndCompleteChallengeStage(
@@ -1448,7 +1470,11 @@ export default class ChallengeManager {
         okToProcess = false;
       } else {
         multi.sAdd(stagesKey, stageWithAttempt);
-        multi.hSet(challengesKey(challenge.uuid), 'processingStage', '1');
+        multi.hSet(
+          challengesKey(challenge.uuid),
+          'processingStage',
+          Date.now().toString(),
+        );
         return multi.exec();
       }
     });
@@ -1472,7 +1498,7 @@ export default class ChallengeManager {
     if (stageEvents.length === 0) {
       const multi = this.client.multi();
       multi.del(challengeStageStreamKey(challenge.uuid, stage, attempt));
-      multi.hSet(challengesKey(challenge.uuid), 'processingStage', '0');
+      multi.hDel(challengesKey(challenge.uuid), 'processingStage');
       await multi.exec();
       return;
     }
@@ -1536,7 +1562,7 @@ export default class ChallengeManager {
     }
 
     multi.del(challengeStageStreamKey(challenge.uuid, stage, attempt));
-    multi.hSet(challengesKey(challenge.uuid), 'processingStage', '0');
+    multi.hDel(challengesKey(challenge.uuid), 'processingStage');
     await multi.exec();
   }
 
@@ -1585,7 +1611,7 @@ export default class ChallengeManager {
     timeout: ChallengeTimeout | null,
   ): Promise<void> {
     const challengeKey = challengesKey(challengeId);
-    let okToCleanup = false;
+    let status = CleanupStatus.ACTIVE_CLIENTS;
 
     // Attempt to clear the challenge's active flag if no clients are connected.
     // Once the active flag is unset, we have sole ownership of the challenge
@@ -1593,9 +1619,6 @@ export default class ChallengeManager {
     await this.watchTransaction(async (client) => {
       await client.watch(challengeKey);
       const multi = client.multi();
-
-      // Reset okToCleanup in case we had to retry the transaction.
-      okToCleanup = false;
 
       const [[lifecycleState, timeoutState, processingStage], clients] =
         await Promise.all([
@@ -1606,11 +1629,14 @@ export default class ChallengeManager {
           ]),
           this.loadChallengeClients(challengeId, client),
         ]);
-      if (
-        lifecycleState === null ||
-        Number.parseInt(lifecycleState) === LifecycleState.CLEANUP
-      ) {
-        logger.debug(`Challenge ${challengeId} no longer exists`);
+
+      if (lifecycleState === null) {
+        status = CleanupStatus.CHALLENGE_NOT_FOUND;
+        return multi.exec();
+      }
+
+      if (Number.parseInt(lifecycleState) === LifecycleState.CLEANUP) {
+        status = CleanupStatus.CHALLENGE_FAILED_CLEANUP;
         return multi.exec();
       }
 
@@ -1620,28 +1646,32 @@ export default class ChallengeManager {
         case TimeoutState.CLEANUP:
           break;
         case TimeoutState.CHALLENGE_END:
-          if (processingStage === '1' && timeout !== null) {
-            logger.info(
-              `Challenge ${challengeId} still processing stage; delaying finish`,
-            );
-            requireCleanup = false;
+          if (processingStage !== null && timeout !== null) {
+            const elapsed = Date.now() - Number.parseInt(processingStage);
+            if (elapsed < ChallengeManager.MAX_STAGE_PROCESSING_TIME) {
+              status = CleanupStatus.PROCESSING_STAGE;
+              requireCleanup = false;
+            } else {
+              logger.warn(
+                `Challenge ${challengeId} took too long to process stage`,
+              );
+            }
           }
           break;
         default:
           if (timeout !== null) {
-            logger.debug(
-              `Challenge ${challengeId} still active; canceling cleanup`,
-            );
+            status = CleanupStatus.ACTIVE_CLIENTS;
             return multi.exec();
           }
           break;
       }
 
       if (requireCleanup || clients.length === 0) {
+        status = CleanupStatus.OK;
         multi.hSet(challengeKey, 'state', LifecycleState.CLEANUP);
-        multi.hSet(challengeKey, 'processingStage', 0);
-        okToCleanup = true;
+        multi.hDel(challengeKey, 'processingStage');
       } else {
+        status = CleanupStatus.ACTIVE_CLIENTS;
         const nextTimeout: ChallengeTimeout = {
           timestamp: Date.now() + timeout!.retryIntervalMs,
           maxRetryAttempts: timeout!.maxRetryAttempts - 1,
@@ -1657,11 +1687,35 @@ export default class ChallengeManager {
       await multi.exec();
     });
 
-    if (!okToCleanup) {
-      logger.info(
-        `Challenge ${challengeId} still has connected clients; aborting`,
-      );
-      return;
+    switch (status as CleanupStatus) {
+      case CleanupStatus.OK:
+        // Proceed.
+        break;
+
+      case CleanupStatus.ACTIVE_CLIENTS:
+        logger.info(
+          `Challenge ${challengeId} still has connected clients; aborting`,
+        );
+        return;
+
+      case CleanupStatus.PROCESSING_STAGE:
+        logger.info(
+          `Challenge ${challengeId} still processing stage; delaying finish`,
+        );
+        return;
+
+      case CleanupStatus.CHALLENGE_NOT_FOUND:
+        logger.info(`Challenge ${challengeId} no longer exists`);
+        // To be safe, clear out any remaining data.
+        await this.deleteRedisChallengeData(challengeId);
+        return;
+
+      case CleanupStatus.CHALLENGE_FAILED_CLEANUP:
+        logger.warn(
+          `Challenge ${challengeId} previously failed cleanup; deleting all data`,
+        );
+        await this.deleteRedisChallengeData(challengeId);
+        return;
     }
 
     const challenge = await this.loadChallenge(challengeId);
