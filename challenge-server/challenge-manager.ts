@@ -90,7 +90,7 @@ const enum CleanupStatus {
 }
 
 const DEFERRED_JOIN_MAX_RETRIES = 10;
-const DEFERRED_JOIN_RETRY_INTERVAL_MS = 10;
+const DEFERRED_JOIN_RETRY_INTERVAL_MS = 25;
 
 const enum TimeoutState {
   NONE = 0,
@@ -620,6 +620,7 @@ export default class ChallengeManager {
           await this.watchTransaction(async (client) => {
             await client.watch(key);
 
+            complete = false;
             const multi = client.multi();
 
             const [state, modeValue, stageValue, stageAttemptValue] =
@@ -677,15 +678,15 @@ export default class ChallengeManager {
             break;
           }
 
-          const delayMs = DEFERRED_JOIN_RETRY_INTERVAL_MS * (retries + 1);
-          await delay(Math.min(delayMs, 50));
+          const delayMs = DEFERRED_JOIN_RETRY_INTERVAL_MS * 2 ** retries;
+          await delay(Math.min(delayMs, 250));
           retries++;
         }
 
         if (retries === DEFERRED_JOIN_MAX_RETRIES) {
           throw new ChallengeError(
             ChallengeErrorType.INTERNAL,
-            `Failed to join challenge ${challengeUuid} for user ${userId}`,
+            `Failed to join challenge ${challengeUuid} for user ${userId} after ${retries} attempts`,
           );
         }
 
