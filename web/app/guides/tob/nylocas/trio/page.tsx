@@ -90,43 +90,43 @@ export default function TrioNylo() {
       <Article.Heading level={3} idPrefix="mage" text="Pre-cap" />
       <Article.Heading level={4} idPrefix="mage" text="Waves 1-3" />
       <p>
-        Sang the <Mage>w1 south small</Mage>, the <Mage>w2 west small</Mage>,
-        and the <Mage>w3 east small</Mage>.
+        Ayak the <Mage>w1 south small</Mage>, <strong>ignore</strong> the w2
+        west small, and Ayak <Mage>w3 east small</Mage>.
       </p>
       <Article.Heading level={4} idPrefix="mage" text="Wave 4" />
       <p>
-        Sang the <Mage>south big</Mage> until it is dead, hugging the south
-        barrier.
+        Ayak the <Mage>south big</Mage> first tick until it is dead, hugging the
+        south barrier.
       </p>
       <Article.Heading level={4} idPrefix="mage" text="Wave 5" />
       <p>
-        Sang the <Mage>east small</Mage> until it is dead, then clean up any
+        Ayak the <Mage>east small</Mage> until it is dead, then clean up any
         mages in the room. If the w5 west big split into two mages, prioritize
         the northern one.
       </p>
       <Article.Heading level={4} idPrefix="mage" text="Waves 6-7" />
       <p>
-        Sang the <Mage>w6 west small</Mage>, then the{' '}
+        Ayak the <Mage>w6 west small</Mage>, then the{' '}
         <Mage>w7 south small</Mage>. Blowpipe the south rangers if they are
         still alive, prioritizing the big.
       </p>
       <Article.Heading level={4} idPrefix="mage" text="Waves 8-9" />
       <p>
-        Sang the <Mage>wave 8 west big</Mage> until it is dead.
+        Ayak the <Mage>wave 8 west big</Mage> until it is dead.
       </p>
       <ul>
         <li>
-          If it takes 1 Sang, switch to ranged gear and bow the{' '}
+          If it takes 1 Ayak, switch to ranged gear and bow the{' '}
           <Range>9 west big</Range>.
         </li>
         <li>
-          If it takes 2 Sangs, Blowpipe the <Range>9 west big</Range> twice.
+          If it takes 2 Ayaks, bow the <Range>9 west big</Range> once.
         </li>
-        <li>If it takes 3 or more Sangs, ignore the ranged big.</li>
+        <li>If it takes 3 or more Ayaks, Blowpipe the ranged big once.</li>
       </ul>
       <p>
-        Sang the <Mage>9 east small</Mage>. If you managed to one-shot the 8
-        big, Sang another small in the room.
+        Ayak the <Mage>9 east small</Mage>. If you managed to one-shot the 8
+        big, Ayak another small in the room.
       </p>
       <Article.Heading level={4} idPrefix="mage" text="Waves 10-12" />
       <p>
@@ -135,66 +135,72 @@ export default function TrioNylo() {
       </p>
       <p>
         Barrage the <Mage>11 east doubles</Mage>, then the{' '}
-        <Mage>11 south doubles</Mage>. If you one-hit both sets of doubles, Sang
+        <Mage>11 south doubles</Mage>. If you one-hit both sets of doubles, Ayak
         a small mage from the 10 east big or 11 west big.
       </p>
       <p>
-        If there are only 2 smalls in the room, Claw spec the{' '}
-        <Melee>12 south melee big</Melee>. Equip a Lightbearer to regenerate
-        100% spec for the boss. Otherwise, hit remaining smalls.
+        If there are only 2 smalls in the room, Scythe the{' '}
+        <Melee>12 south melee big</Melee>. Hit remaining smalls.
       </p>
       <Article.Heading level={4} idPrefix="mage" text="Waves 13-15" />
       <p>
-        Sang the <Mage>13 west small</Mage>, the <Mage>14 west small</Mage>, and
-        the <Mage>14 south small</Mage>. Sang the{' '}
+        Ayak the <Mage>13 west small</Mage>, the <Mage>14 west small</Mage>, and
+        the <Mage>14 south small</Mage>. Ayak the{' '}
         <Mage>15 east mage small</Mage> and Blowpipe the{' '}
         <Range>15 west ranged small</Range> if your ranger hasn&apos;t killed
         it.
       </p>
       <Article.Heading level={4} idPrefix="mage" text="Waves 16-19" />
       <p>
-        Sang the <Mage>16 east small</Mage>, the <Mage>17 east big</Mage>, then
+        Ayak the <Mage>16 east small</Mage>, the <Mage>17 east big</Mage>, then
         kill splits in the room.
       </p>
       <p>
-        When wave 19 spawns, Sang the <Mage>19 east mage big</Mage> on the first
-        tick standing one tile away from the east barrier to increase the
+        When wave 19 spawns, Sang the <Mage>19 east mage big</Mage> on the
+        second tick standing one tile away from the east barrier to increase the
         projectile&apos;s travel time, causing its splits to spawn after the
-        wave 20 check. Follow up by Sanging the <Mage>17 south big</Mage> on the
-        southeast pillar, then the <Mage>19 south big</Mage> in lane.
+        wave 20 check. Follow up by Ayaking the <Mage>19 west big</Mage>, then
+        the <Mage>19 south big</Mage> in lane.
       </p>
+      <Article.Notice>
+        In a proficient team, if the 12 big was popped and the room state is
+        clean, you can Ayak the 17 south big before cleaning up splits. Be ready
+        to Ayak the 19 big two ticks after it spawns.
+      </Article.Notice>
       <Article.Heading level={3} idPrefix="mage" text="Post-cap" />
       <Article.Heading level={4} idPrefix="mage" text="Wave 20" />
       <p>
-        Sang the <Mage>20 south mage big</Mage> on the first tick.
+        Ayak the <Mage>20 south mage big</Mage>, ideally on the first tick. If
+        you attack on the first tick and it doesn&apos;t die, you can hit a
+        second Ayak before it flickers. Otherwise, Blowpipe it when it flickers,
+        then Scythe to finish it off.
       </p>
-      <ul>
-        <li>
-          If you one-shot it, do 3 more Sangs before wave 21, prioritizing any
-          remaining bigs.
-        </li>
-        <li>
-          If it doesn&apos;t die, Blowpipe it when it flickers, then Scythe to
-          finish it off.
-        </li>
-      </ul>
+      <p>
+        If the big dies in one Ayak, you can do 4 more Ayaks before wave 21,
+        prioritizing any remaining bigs.
+      </p>
       <Article.Heading level={4} idPrefix="mage" text="Waves 21-23" />
       <p>
-        Barrage the <Mage>21 west doubles</Mage>. Then, either Sang a small in
-        the room or barrage once if you see a value clump.
+        Barrage the <Mage>21 west doubles</Mage>. Then, either Ayak a small in
+        the room or Barrage once if you see a value clump. Barrage value here is
+        good if the room appears full.
       </p>
       <p>
-        Sang the <Mage>22 east big</Mage>.
+        Ayak the <Mage>22 east big</Mage>.
       </p>
       <ul>
-        <li>If it dies in one Sang, Sang 2 smalls in the room.</li>
         <li>
-          If it does not die, Scythe it on the first tick it enters the room.
+          If it dies in one Ayak, Ayak 2 smalls in the room. You can look for
+          another value Barrage to push waves if the room is full.
+        </li>
+        <li>
+          If it does not die, Scythe it on the first tick it enters the room, or
+          Claw scratch if it is low HP.
         </li>
       </ul>
       <p>
-        Sang the <Mage>23 east big</Mage>. If your ranger didn&apos;t kill the{' '}
-        <Range>23 south big</Range>, Sang it when it flickers. Otherwise, hit a
+        Ayak the <Mage>23 east big</Mage>. If your ranger didn&apos;t kill the{' '}
+        <Range>23 south big</Range>, Ayak it when it flickers. Otherwise, hit a
         small.
       </p>
       <Article.Heading level={4} idPrefix="mage" text="Waves 24-27" />
@@ -204,46 +210,59 @@ export default function TrioNylo() {
       </p>
       <ul>
         <li>
-          Sang the <Mage>24 south big</Mage> until it dies.
+          Ayak the <Mage>24 south big</Mage> until it dies.
         </li>
         <li>
-          Sang the <Mage>25 east big</Mage>. If you attack on the first tick it
-          spawns, it will flicker melee at the time of the second Sang.
+          Ayak the <Mage>25 east big</Mage>. If you attack on the first tick it
+          spawns, you can get a second Ayak before it flickers. If you one-shot
+          it, Ayak a small in the room while moving west.
         </li>
         <li>
-          Sang the <Mage>26 west big</Mage> once.
+          Ayak the <Mage>26 west big</Mage> once. If it dies in one Ayak, hit a
+          small before hitting 27.
         </li>
         <li>
-          Sang the <Mage>27 west big</Mage> until it dies. Return to the{' '}
-          <Mage>26 west big</Mage> if your previous Sang didn&apos;t kill it.
+          Ayak the <Mage>27 west big</Mage> until it dies. Return to the{' '}
+          <Mage>26 west big</Mage> if your previous Ayak didn&apos;t kill it.
         </li>
         <li>
-          Sang the <Mage>27 east big</Mage> until it dies.
+          Ayak the <Mage>27 east big</Mage> until it dies.
         </li>
         <li>
           Kill the <Mage>26 east big</Mage> on the northeast pillar. There are
-          often mage splits around it allowing you to barrage.
+          often mage splits around it allowing you to Barrage.
         </li>
       </ul>
       <Article.Heading level={4} idPrefix="mage" text="Waves 28-29" />
       <p>
         Finish off any remaining mage bigs, while looking out for high value
-        barrages. Continue Sanging smalls with the highest wave number.
+        Barrages. Continue Ayaking smalls with the highest wave number.
       </p>
       <Article.Heading level={4} idPrefix="mage" text="Waves 30-31" />
       <p>
         Kill the <Mage>30 east big</Mage> as quickly as possible, followed by
-        the <Mage>31 east small</Mage>.
+        the <Mage>31 east small</Mage>. If the 30 dies in one hit, you can
+        Blowpipe both the 31 east smalls (the mage flickers ranged) to help your
+        ranger.
       </p>
       <Article.Heading level={3} idPrefix="mage" text="Cleanup" />
-      <p>
-        During cleanup, you should primarily focus the north side of the room,
-        prioritizing high value barrages and Nylos with the highest wave number.
-        When Sanging or barraging, try to run up as close as possible to your
-        targets to minimize projectile travel time.
-      </p>
+      <ul>
+        <li>
+          Prioritize cleaning up the north side of the room after the 31s are
+          dead. Look for high value Barrages, but avoid clumps with dimmed
+          Nylos.
+        </li>
+        <li>
+          If a dimmed and undimmed Nylo are stacked, right click and target the
+          bottom one in the menu, as it is the newest.
+        </li>
+        <li>
+          When Ayaking or Barraging, move as close as possible to your targets
+          to minimize projectile travel time.
+        </li>
+      </ul>
       <Article.Heading level={3} idPrefix="mage" text="Example POV" />
-      <YoutubeEmbed id="rSG0G0lEnLQ" />
+      <YoutubeEmbed id="z3Zrlr0-0K4" />
 
       {/*
        * RANGER ROTATION
