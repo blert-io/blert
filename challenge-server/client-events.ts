@@ -82,10 +82,12 @@ export class ClientEvents {
 
     const primaryPlayers = new Set<string>();
 
-    const eventsByTick: Array<Event[]> = Array(
-      stageInfo.recordedTicks + 1,
-    ).fill([]);
-    events.forEach((event) => {
+    const eventsByTick: Event[][] = Array.from(
+      { length: stageInfo.recordedTicks + 1 },
+      () => [],
+    );
+
+    for (const event of events) {
       if (
         event.getType() === Event.Type.PLAYER_UPDATE &&
         event.getPlayer()!.getDataSource() === DataSource.PRIMARY
@@ -93,8 +95,8 @@ export class ClientEvents {
         primaryPlayers.add(event.getPlayer()!.getName());
       }
 
-      eventsByTick[event.getTick()] = [...eventsByTick[event.getTick()], event];
-    });
+      eventsByTick[event.getTick()].push(event);
+    }
 
     if (primaryPlayers.size > 1) {
       logger.warn(
@@ -122,6 +124,18 @@ export class ClientEvents {
         ),
     );
 
+    const st = stageInfo.serverTicks;
+    const derivedAccurate =
+      st !== null && st.precise && st.count === stageInfo.recordedTicks;
+    if (stageInfo.accurate && !derivedAccurate) {
+      const serverTicks =
+        st !== null ? `(count=${st.count},precise=${st.precise})` : 'none';
+      logger.warn(
+        `Client reported accurate has mismatched tick count: reported=${stageInfo.recordedTicks} server=${serverTicks}`,
+      );
+      stageInfo.accurate = derivedAccurate;
+    }
+
     return new ClientEvents(
       clientId,
       challenge,
@@ -139,16 +153,17 @@ export class ClientEvents {
   ): ClientEvents {
     const events = [...rawEvents].sort((a, b) => a.getTick() - b.getTick());
 
-    if (stageInfo.recordedTicks === 0) {
-      stageInfo.recordedTicks = events[events.length - 1].getTick() ?? 0;
+    if (stageInfo.recordedTicks === 0 && events.length > 0) {
+      stageInfo.recordedTicks = events[events.length - 1].getTick();
     }
 
     const primaryPlayers = new Set<string>();
 
-    const eventsByTick: Array<Event[]> = Array(
-      stageInfo.recordedTicks + 1,
-    ).fill([]);
-    events.forEach((event) => {
+    const eventsByTick: Event[][] = Array.from(
+      { length: stageInfo.recordedTicks + 1 },
+      () => [],
+    );
+    for (const event of events) {
       if (
         event.getType() === Event.Type.PLAYER_UPDATE &&
         event.getPlayer()!.getDataSource() === DataSource.PRIMARY
@@ -156,8 +171,8 @@ export class ClientEvents {
         primaryPlayers.add(event.getPlayer()!.getName());
       }
 
-      eventsByTick[event.getTick()] = [...eventsByTick[event.getTick()], event];
-    });
+      eventsByTick[event.getTick()].push(event);
+    }
 
     if (primaryPlayers.size > 1) {
       logger.warn(

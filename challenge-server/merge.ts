@@ -21,9 +21,10 @@ export type ChallengeInfo = {
 };
 
 type MergeClients = {
+  referenceTicks: number;
   base: ClientEvents;
-  complete: ClientEvents[];
-  partial: ClientEvents[];
+  matching: ClientEvents[];
+  mismatched: ClientEvents[];
 };
 
 export type MergeResult = {
@@ -31,6 +32,143 @@ export type MergeResult = {
   mergedClients: ClientEvents[];
   unmergedClients: ClientEvents[];
 };
+
+/**
+ * From a list of clients, finds the modal tick count. If there is a tie for
+ * the mode, the highest tick count is chosen.
+ * @param clients The clients to find the consensus tick count from.
+ * @param key The key to get the tick count from.
+ * @returns The consensus tick count, or null if clients is empty.
+ */
+function getConsensusTicks(
+  clients: ClientEvents[],
+  key: (c: ClientEvents) => number,
+): number {
+  if (clients.length === 0) {
+    throw new Error('No clients from which to get consensus tick count');
+  }
+
+  const counts = new Map<number, number>();
+  for (const client of clients) {
+    const k = key(client);
+    counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
+
+  const maxCount = Math.max(...counts.values());
+  const modes = [...counts.keys()].filter((k) => counts.get(k) === maxCount);
+
+  return Math.max(...modes);
+}
+
+/**
+ * Splits clients into three categories: a single reference client, clients with
+ * complete tick data, and clients with partial tick data.
+ *
+ * Preconditions: `clients` is nonempty.
+ *
+ * @param clients Nonempty list of clients to classify.
+ * @returns The classified clients and a reference tick count for the stage.
+ */
+export function classifyClients(clients: ClientEvents[]): MergeClients {
+  let baseClient: ClientEvents | null = null;
+  let referenceTicks = 0;
+
+  // 1. Prioritize accurate clients.
+  const accurateClients = clients.filter((c) => c.isAccurate());
+  if (accurateClients.length > 0) {
+    referenceTicks = getConsensusTicks(accurateClients, (c) =>
+      c.getFinalTick(),
+    );
+
+    const candidates = accurateClients.filter(
+      (c) => c.getFinalTick() === referenceTicks,
+    );
+
+    // Tie-break by lowest client ID.
+    candidates.sort((a, b) => a.getId() - b.getId());
+    baseClient = candidates[0];
+
+    logger.debug(
+      `Using ${referenceTicks} ticks from accurate consensus ${baseClient}`,
+    );
+  }
+
+  // 2. If no accurate client exists, pick a precise client with the highest
+  //    recorded tick count.
+  if (baseClient === null) {
+    const preciseClients = clients.filter(
+      (c) => c.getServerTicks()?.precise === true,
+    );
+    if (preciseClients.length > 0) {
+      preciseClients.sort(
+        (a, b) => b.getFinalTick() - a.getFinalTick() || a.getId() - b.getId(),
+      );
+      baseClient = preciseClients[0];
+      referenceTicks = baseClient.getServerTicks()!.count;
+      logger.debug(
+        `Using ${referenceTicks} ticks from precise client ${baseClient}`,
+      );
+    }
+  }
+
+  // 3. If no precise client exists, pick a client with an imprecise server tick
+  //    count, again with the highest recorded tick count.
+  if (baseClient === null) {
+    const impreciseClients = clients.filter(
+      (c) => c.getServerTicks()?.precise === false,
+    );
+    if (impreciseClients.length > 0) {
+      impreciseClients.sort(
+        (a, b) => b.getFinalTick() - a.getFinalTick() || a.getId() - b.getId(),
+      );
+      baseClient = impreciseClients[0];
+      referenceTicks = baseClient.getServerTicks()!.count;
+      logger.debug(
+        `Using ${referenceTicks} from imprecise client ${baseClient}`,
+      );
+    }
+  }
+
+  // 4. Finally, if no client has a server tick count, use the one with the
+  //    highest recorded tick count.
+  if (baseClient === null) {
+    const sortedClients = clients.toSorted(
+      (a, b) => b.getFinalTick() - a.getFinalTick() || a.getId() - b.getId(),
+    );
+    baseClient = sortedClients[0];
+    referenceTicks = baseClient.getFinalTick();
+    logger.debug(
+      `Assuming ${referenceTicks} from recorded ticks on ${baseClient}`,
+    );
+  }
+
+  if (baseClient === null) {
+    // This should not be reachable if `clients` is non-empty.
+    throw new Error('Could not determine a reference client');
+  }
+
+  const matching: ClientEvents[] = [];
+  const mismatched: ClientEvents[] = [];
+
+  for (const client of clients) {
+    if (client.getId() === baseClient.getId()) {
+      continue;
+    }
+
+    const isMatching =
+      baseClient.isAccurate() &&
+      client.isAccurate() &&
+      client.getFinalTick() === referenceTicks;
+
+    if (isMatching) {
+      matching.push(client);
+    } else {
+      mismatched.push(client);
+    }
+  }
+
+  return { base: baseClient, matching, mismatched, referenceTicks };
+}
 
 export class Merger {
   private readonly stage: Stage;
@@ -65,7 +203,7 @@ export class Merger {
     const mergedClients: ClientEvents[] = [];
     const unmergedClients: ClientEvents[] = [];
 
-    const clients = this.classifyClients();
+    const clients = this.classifyAndUpdateClients();
     mergedClients.push(clients.base);
 
     if (!clients.base.isAccurate()) {
@@ -78,9 +216,9 @@ export class Merger {
     const merged = new MergedEvents(clients.base);
 
     logger.debug(
-      `Merging events from ${clients.complete.length} complete clients`,
+      `Merging events from ${clients.matching.length} complete clients`,
     );
-    for (const client of clients.complete) {
+    for (const client of clients.matching) {
       if (merged.mergeEventsFrom(client)) {
         mergedClients.push(client);
       } else {
@@ -89,9 +227,9 @@ export class Merger {
     }
 
     logger.debug(
-      `Merging events from ${clients.partial.length} partial clients`,
+      `Merging events from ${clients.mismatched.length} partial clients`,
     );
-    for (const client of clients.partial) {
+    for (const client of clients.mismatched) {
       if (merged.mergeEventsFrom(client)) {
         mergedClients.push(client);
       } else {
@@ -111,77 +249,50 @@ export class Merger {
     return { events: merged, mergedClients, unmergedClients };
   }
 
-  /**
-   * Splits clients into three categories: a single base client, clients with
-   * complete tick data, and clients with partial tick data.
-   */
-  private classifyClients(): MergeClients {
-    let accurateClients = this.clients.filter((client) => client.isAccurate());
-
-    let stageTicks = 0;
-    let base: ClientEvents;
+  private classifyAndUpdateClients(): MergeClients {
+    const accurateClients = this.clients.filter((c) => c.isAccurate());
 
     if (accurateClients.length > 0) {
-      base = accurateClients[0];
-      stageTicks = base.getFinalTick();
-      logger.debug(`Using ${stageTicks} ticks from accurate client ${base}`);
-
+      const counts = new Map<number, number>();
+      let maxCount = 0;
       for (const client of accurateClients) {
-        if (client.getFinalTick() !== stageTicks) {
-          logger.error(
-            `${client} claims to be accurate but differs in tick count ` +
-              `(expected: ${stageTicks}, actual: ${client.getFinalTick()})`,
-          );
-
-          client.setAccurate(false);
-          accurateClients = accurateClients.filter(
-            (c) => c.getId() !== client.getId(),
-          );
+        const k = client.getFinalTick();
+        const count = (counts.get(k) ?? 0) + 1;
+        counts.set(k, count);
+        if (count > maxCount) {
+          maxCount = count;
         }
       }
-    } else {
-      // `this.clients` is sorted by decreasing tick count. Use the client with
-      // the most recorded ticks as the base client, but prioritize clients
-      // which have reported in-game tick counts.
-      const ref = this.clients.find(
-        (c) => c.getServerTicks()?.precise === true,
+
+      const modes = [...counts.keys()].filter(
+        (k) => counts.get(k) === maxCount,
       );
-      if (ref !== undefined) {
-        base = ref;
-        stageTicks = ref.getServerTicks()!.count;
+
+      if (modes.length > 1) {
+        logger.warn(
+          `Multiple accurate tick modes found: ${modes.join(', ')}. ` +
+            `This indicates bad input data. Demoting all accurate clients.`,
+          // TODO(frolv): Flag this merge for review.
+        );
+        for (const client of accurateClients) {
+          client.setAccurate(false);
+        }
       } else {
-        // If there is no client with a precise in-game tick count, use any
-        // which has an imprecise count.
-        const ref = this.clients.find((c) => c.getServerTicks() !== null);
-        if (ref !== undefined) {
-          base = ref;
-          stageTicks = base.getServerTicks()!.count;
-        } else {
-          base = this.clients[0];
-          stageTicks = base.getFinalTick();
-          logger.debug(
-            `Assuming ${stageTicks} ticks from most active client ${base}`,
-          );
+        // Single mode. Demote any "accurate" clients that don't match.
+        const modalTicks = modes[0];
+        for (const client of accurateClients) {
+          if (client.isAccurate() && client.getFinalTick() !== modalTicks) {
+            logger.warn(
+              `${client} claims to be accurate but differs from the modal tick count ` +
+                `(expected: ${modalTicks}, actual: ${client.getFinalTick()})`,
+            );
+            client.setAccurate(false);
+          }
         }
       }
     }
 
-    const complete = [];
-    const partial = [];
-
-    for (const client of this.clients) {
-      if (client.getId() === base.getId()) {
-        continue;
-      }
-
-      if (client.getFinalTick() === stageTicks) {
-        complete.push(client);
-      } else {
-        partial.push(client);
-      }
-    }
-
-    return { base, complete, partial };
+    return classifyClients(this.clients);
   }
 }
 
