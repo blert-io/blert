@@ -1,0 +1,344 @@
+@use '../../mixins.scss' as *;
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--font-color-nav-divider);
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: var(--panel-bg);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background-color: var(--nav-bg);
+  border-bottom: 1px solid var(--font-color-nav-divider);
+  flex-wrap: wrap;
+}
+
+.formatButtons {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.toolbarDivider {
+  width: 1px;
+  height: 24px;
+  background-color: var(--font-color-nav-divider);
+  opacity: 0.5;
+  margin: 0 0.5rem;
+}
+
+.formatButton {
+  padding: 0.4rem 0.6rem;
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--font-color-nav);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+
+  &:hover {
+    background-color: var(--nav-bg-lightened);
+    border-color: rgba(var(--blert-button-base), 0.3);
+    color: var(--blert-text-color);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+
+  &.active {
+    background-color: rgba(var(--blert-button-base), 0.1);
+    color: var(--blert-button);
+    border-color: rgba(var(--blert-button-base), 0.3);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background-color: transparent;
+    border-color: transparent;
+    color: var(--font-color-nav);
+
+    &:hover {
+      background-color: transparent;
+      border-color: transparent;
+      color: var(--font-color-nav);
+    }
+
+    &:active {
+      transform: none;
+    }
+  }
+
+  i {
+    pointer-events: none;
+  }
+}
+
+.tableButtonWrapper {
+  position: relative;
+}
+
+.tablePicker {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  background-color: var(--panel-bg);
+  border: 1px solid var(--font-color-nav-divider);
+  border-radius: 6px;
+  padding: 0.75rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  min-width: 200px;
+}
+
+.tableGrid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 3px;
+  margin-bottom: 0.5rem;
+}
+
+.tableCell {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--font-color-nav-divider);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  background-color: var(--nav-bg);
+  position: relative;
+
+  // Extend clickable area to cover gaps.
+  &::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    z-index: 1;
+  }
+
+  &.headerRow {
+    background-color: rgba(var(--blert-button-base), 0.08);
+    border-bottom-width: 2px;
+    font-weight: 600;
+  }
+
+  &:hover,
+  &.selected {
+    background-color: rgba(var(--blert-button-base), 0.4);
+    border-color: var(--blert-button);
+    z-index: 2;
+  }
+}
+
+.tableLabel {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--font-color-nav);
+  padding: 0.25rem;
+  min-height: 1.5rem;
+}
+
+.toolbarActions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.toolbarButton {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.8rem;
+  background-color: transparent;
+  border: 1px solid var(--font-color-nav-divider);
+  border-radius: 4px;
+  color: var(--font-color-nav);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  justify-content: center;
+
+  &.previewButton {
+    min-width: 104px;
+  }
+
+  &:hover {
+    background-color: var(--nav-bg-lightened);
+    color: var(--blert-text-color);
+    border-color: rgba(var(--blert-button-base), 0.3);
+  }
+
+  &.active {
+    background-color: rgba(var(--blert-button-base), 0.1);
+    color: var(--blert-button);
+    border-color: var(--blert-button);
+  }
+
+  i {
+    font-size: 0.9rem;
+  }
+}
+
+.helpPanel {
+  padding: 1rem;
+  background-color: rgba(var(--nav-bg-base), 0.5);
+  border-bottom: 1px solid var(--font-color-nav-divider);
+}
+
+.helpContent {
+  h4 {
+    margin: 0 0 0.75rem 0;
+    font-size: 0.95rem;
+    color: var(--blert-text-color);
+  }
+}
+
+.helpGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.helpItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+
+  code {
+    background-color: rgba(var(--nav-bg-base), 0.8);
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    font-family: var(--font-roboto-mono), monospace;
+    font-size: 0.8rem;
+    color: var(--blert-text-color);
+  }
+
+  span {
+    color: var(--font-color-nav);
+    font-size: 0.8rem;
+  }
+}
+
+.helpNote {
+  margin: 0;
+  padding: 0.5rem;
+  background-color: rgba(var(--blert-button-base), 0.1);
+  border-left: 3px solid var(--blert-button);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: var(--font-color-nav);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+
+  i {
+    color: var(--blert-button);
+    margin-top: 0.1rem;
+  }
+}
+
+.editorContent {
+  flex: 1;
+  min-height: 200px;
+  max-height: 600px;
+  display: flex;
+}
+
+.textarea {
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+  padding: 1rem;
+  border: none;
+  background-color: var(--panel-bg);
+  color: var(--blert-text-color);
+  font-family: var(--font-roboto-mono), monospace;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  resize: none;
+  outline: none;
+  overflow-y: auto;
+  @include styledScrollbar;
+
+  // Modern CSS auto-sizing (with fallback)
+  field-sizing: content;
+
+  &::placeholder {
+    color: var(--font-color-nav);
+    opacity: 0.6;
+  }
+}
+
+.preview {
+  flex: 1;
+  padding: 1rem;
+  min-height: 200px;
+  overflow-y: auto;
+  @include styledScrollbar;
+}
+
+.emptyPreview {
+  color: var(--font-color-nav);
+  font-style: italic;
+  text-align: center;
+  padding: 3rem 1rem;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.5rem 1rem;
+  background-color: var(--nav-bg);
+  border-top: 1px solid var(--font-color-nav-divider);
+}
+
+.characterCount {
+  font-size: 0.8rem;
+  color: var(--font-color-nav);
+  font-family: var(--font-roboto-mono), monospace;
+
+  &.warning {
+    color: var(--blert-yellow);
+  }
+
+  &.error {
+    color: var(--blert-red);
+    font-weight: 600;
+  }
+}
+
+// Responsive adjustments
+@media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .formatButtons {
+    justify-content: center;
+  }
+
+  .toolbarActions {
+    justify-content: space-between;
+  }
+
+  .helpGrid {
+    grid-template-columns: 1fr;
+  }
+}

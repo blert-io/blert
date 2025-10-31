@@ -40,7 +40,9 @@ yarn-error.log*
 next-env.d.ts
 
 # editors
+*.swp
 .vscode
+**/.cursor
 
 # protobuf
 common/generated
