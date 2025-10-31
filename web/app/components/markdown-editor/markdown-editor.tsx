@@ -4,6 +4,8 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 
 import MarkdownRenderer from '@/components/markdown-renderer';
 import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
+import { useIsApple } from '@/display';
+
 import * as fmt from './markdown-formatting';
 
 import styles from './style.module.scss';
@@ -71,7 +73,7 @@ export default function MarkdownEditor({
   const [showPreview, setShowPreview] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [isApple, setIsApple] = useState(false);
+  const isApple = useIsApple();
   const [savedCursorPosition, setSavedCursorPosition] = useState<{
     start: number;
     end: number;
@@ -82,15 +84,6 @@ export default function MarkdownEditor({
     cols: number;
   } | null>(null);
   const tablePickerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const ua = navigator.userAgent || '';
-    const platform =
-      (navigator as any).userAgentData?.platform || navigator.platform || '';
-    setIsApple(
-      /Mac|iPhone|iPad|iPod/i.test(platform) || /Macintosh|iPad/i.test(ua),
-    );
-  }, []);
 
   useEffect(() => {
     // Restore cursor position when returning from preview mode.

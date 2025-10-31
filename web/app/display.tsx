@@ -107,3 +107,22 @@ export function useWidthThreshold(width: number) {
 
   return isWide;
 }
+
+/**
+ * Hook that detects if the user is on an Apple platform (Mac, iPhone, iPad, iPod).
+ * @returns Whether the user is on an Apple platform.
+ */
+export function useIsApple() {
+  const [isApple, setIsApple] = useState(false);
+
+  useEffect(() => {
+    const ua = navigator.userAgent || '';
+    const platform =
+      (navigator as any).userAgentData?.platform || navigator.platform || '';
+    setIsApple(
+      /Mac|iPhone|iPad|iPod/i.test(platform) || /Macintosh|iPad/i.test(ua),
+    );
+  }, []);
+
+  return isApple;
+}

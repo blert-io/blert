@@ -17,7 +17,8 @@ import { Modal } from '@/components/modal/modal';
 import RadioInput from '@/components/radio-input';
 import Tabs from '@/components/tabs';
 import { useToast } from '@/components/toast';
-import { DisplayContext, useWidthThreshold } from '@/display';
+import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
+import { useDisplay, useIsApple, useWidthThreshold } from '@/display';
 
 import DeleteModal from '../../delete-modal';
 import {
@@ -43,6 +44,68 @@ interface GearSetupsCreatorProps {
   setup: SetupMetadata;
 }
 
+function SaveButton({
+  disabled,
+  onClick,
+  modifier,
+  hasUnsavedChanges,
+}: {
+  disabled: boolean;
+  onClick: () => void;
+  modifier: string;
+  hasUnsavedChanges: boolean;
+}) {
+  const [lastSavedAt, setLastSavedAt] = useState<Date>(new Date());
+
+  useEffect(() => {
+    const now = new Date();
+    const diffMs = now.getTime() - lastSavedAt.getTime();
+    const updateInterval = diffMs < 60000 ? 1000 : 60000;
+
+    const interval = setInterval(() => {
+      // Force re-render to update the time display.
+      setLastSavedAt(new Date(lastSavedAt.getTime()));
+    }, updateInterval);
+
+    return () => clearInterval(interval);
+  }, [lastSavedAt]);
+
+  const getSaveTimeText = () => {
+    const now = new Date();
+    const diffMs = now.getTime() - lastSavedAt.getTime();
+    const diffSecs = Math.floor(diffMs / 1000);
+
+    if (diffSecs < 10) {
+      return 'Now';
+    } else if (diffSecs < 60) {
+      return `${diffSecs}s`;
+    } else {
+      const diffMins = Math.floor(diffSecs / 60);
+      if (diffMins < 60) {
+        return `${diffMins}m`;
+      } else {
+        const diffHours = Math.floor(diffMins / 60);
+        return `${diffHours}h`;
+      }
+    }
+  };
+
+  return (
+    <button
+      disabled={disabled}
+      onClick={onClick}
+      data-tooltip-id={GLOBAL_TOOLTIP_ID}
+      data-tooltip-content={`Save (${modifier}+S)`}
+      className={styles.saveWithTime}
+    >
+      {hasUnsavedChanges && <span className={styles.unsavedDot} />}
+      <i className="fas fa-save" />
+      <span className={styles.saveTime}>{getSaveTimeText()}</span>
+      <span className="sr-only">Save</span>
+    </button>
+  );
+}
+
 export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
   const router = useRouter();
   const showToast = useToast();
@@ -52,11 +115,14 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
   const [publishLoading, setPublishLoading] = useState(false);
   const [itemPanelOpen, setItemPanelOpen] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [saveCompleteCounter, setSaveCompleteCounter] = useState(0);
 
-  const display = useContext(DisplayContext);
+  const display = useDisplay();
   const itemCountsAsSidebar = useWidthThreshold(
     MIN_WIDTH_FOR_ITEM_COUNTS_SIDEBAR,
   );
+  const isApple = useIsApple();
 
   const itemPanelContentHeight =
     (typeof window !== 'undefined' ? window.innerHeight : 0) * 0.9 - 40;
@@ -95,6 +161,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
         setSaving(true);
         await saveSetupDraft(setup.publicId, context.setup);
         context.clearModified();
+        setSaveCompleteCounter((c) => c + 1);
         if (isAutoSave) {
           showToast('Auto-saved setup');
         } else {
@@ -152,12 +219,21 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement;
       if (inInput) {
+        if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          handleSave(false);
+        }
         return;
       }
 
       switch (e.key) {
         case 'Escape':
           context.setSelectedItem(null);
+          break;
+
+        case '?':
+          e.preventDefault();
+          setShowShortcutsModal(true);
           break;
 
         case 's':
@@ -214,6 +290,8 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
     />
   );
 
+  const modifier = isApple ? '⌘' : 'Ctrl';
+
   return (
     <SetupEditingContext.Provider value={context}>
       <div className={styles.creator}>
@@ -222,6 +300,8 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
             <button
               disabled={editableSetup.position === 0}
               onClick={() => context.undo()}
+              data-tooltip-id={GLOBAL_TOOLTIP_ID}
+              data-tooltip-content={`Undo (${modifier}+Z)`}
             >
               <i className="fas fa-undo" />
               <span className="sr-only">Undo</span>
@@ -231,16 +311,26 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
                 editableSetup.position === editableSetup.history.length - 1
               }
               onClick={() => context.redo()}
+              data-tooltip-id={GLOBAL_TOOLTIP_ID}
+              data-tooltip-content={`Redo (${modifier}+Y)`}
             >
               <i className="fas fa-redo" />
               <span className="sr-only">Redo</span>
             </button>
-            <button
+            <SaveButton
               disabled={!editableSetup.modified || saving}
               onClick={() => handleSave(false)}
+              modifier={modifier}
+              hasUnsavedChanges={editableSetup.modified}
+              key={saveCompleteCounter}
+            />
+            <button
+              onClick={() => setShowShortcutsModal(true)}
+              data-tooltip-id={GLOBAL_TOOLTIP_ID}
+              data-tooltip-content="Keyboard shortcuts (?)"
             >
-              <i className="fas fa-save" />
-              <span className="sr-only">Save</span>
+              <i className="fas fa-question-circle" />
+              <span className="sr-only">Keyboard shortcuts</span>
             </button>
           </div>
           <div className={styles.publishing}>
@@ -248,6 +338,8 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
               className={`${styles.button} ${styles.delete}`}
               disabled={publishing || publishLoading}
               onClick={() => setShowDeleteModal(true)}
+              data-tooltip-id={GLOBAL_TOOLTIP_ID}
+              data-tooltip-content="Delete setup"
             >
               <i className="fas fa-trash" />
               Delete
@@ -257,6 +349,8 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
               disabled={publishing || publishLoading}
               loading={publishLoading}
               onClick={() => setPublishing(true)}
+              data-tooltip-id={GLOBAL_TOOLTIP_ID}
+              data-tooltip-content="Publish setup"
             >
               <i className="fas fa-upload" />
               Publish
@@ -430,6 +524,10 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
         onClose={() => setShowDeleteModal(false)}
         onDelete={() => router.replace('/setups/my')}
       />
+      <KeyboardShortcutsModal
+        open={showShortcutsModal}
+        onClose={() => setShowShortcutsModal(false)}
+      />
     </SetupEditingContext.Provider>
   );
 }
@@ -511,6 +609,83 @@ function PublishModal({
             Publish
           </Button>
         </div>
+      </div>
+    </Modal>
+  );
+}
+
+function KeyboardShortcutsModal({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const isApple = useIsApple();
+  const modifier = isApple ? '⌘' : 'Ctrl';
+
+  const shortcuts = [
+    {
+      category: 'Editing',
+      items: [
+        { keys: [`${modifier}+Z`], description: 'Undo' },
+        { keys: [`${modifier}+Y`], description: 'Redo' },
+        { keys: [`${modifier}+S`], description: 'Save setup' },
+        { keys: ['?'], description: 'Show keyboard shortcuts' },
+      ],
+    },
+    {
+      category: 'Item Management',
+      items: [
+        { keys: ['/'], description: 'Focus item search' },
+        { keys: ['Esc'], description: 'Clear selected item / Close search' },
+        { keys: [`${modifier}+Click`], description: 'Select item from slot' },
+      ],
+    },
+    {
+      category: 'Slot Actions',
+      items: [
+        { keys: ['Click (empty slot)'], description: 'Open item search' },
+        {
+          keys: ['Click (filled slot)'],
+          description: 'Remove item (no item selected)',
+        },
+        { keys: ['Click (filled slot)'], description: 'Place selected item' },
+      ],
+    },
+  ];
+
+  return (
+    <Modal className={styles.shortcutsModal} open={open} onClose={onClose}>
+      <div className={styles.modalHeader}>
+        <h2>Keyboard Shortcuts</h2>
+        <button onClick={onClose}>
+          <i className="fas fa-times" />
+          <span className="sr-only">Close</span>
+        </button>
+      </div>
+      <div className={styles.shortcutsContent}>
+        {shortcuts.map((category) => (
+          <div key={category.category} className={styles.shortcutCategory}>
+            <h3>{category.category}</h3>
+            <div className={styles.shortcutList}>
+              {category.items.map((shortcut, idx) => (
+                <div key={idx} className={styles.shortcutItem}>
+                  <div className={styles.keys}>
+                    {shortcut.keys.map((key, keyIdx) => (
+                      <kbd key={keyIdx} className={styles.key}>
+                        {key}
+                      </kbd>
+                    ))}
+                  </div>
+                  <span className={styles.description}>
+                    {shortcut.description}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     </Modal>
   );

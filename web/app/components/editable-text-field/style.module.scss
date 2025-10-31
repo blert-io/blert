@@ -3,33 +3,68 @@
 .editable {
   display: flex;
   align-items: center;
+  gap: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: rgba(var(--nav-bg-base), 0.4);
+  }
 
   .text {
     max-width: calc(100% - 44px);
+    height: 35px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     cursor: text;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+
+    &:hover {
+      background: rgba(var(--nav-bg-lightened-base), 0.4);
+      border-color: rgba(var(--blert-button-base), 0.15);
+    }
   }
 
   .input {
     width: calc(100% - 44px);
-    background: none;
+    height: 35px;
+    background: linear-gradient(
+      145deg,
+      rgba(var(--nav-bg-base), 0.6),
+      rgba(var(--nav-bg-darkened-base), 0.4)
+    );
     margin: 0;
     outline: none;
-    border: none;
+    border: 1px solid rgba(var(--blert-button-base), 0.3);
+    border-radius: 4px;
     color: inherit;
     font-size: inherit;
     font-weight: inherit;
     line-height: inherit;
+    transition: all 0.2s ease;
+
+    &:focus {
+      border-color: rgba(var(--blert-button-base), 0.6);
+      box-shadow: 0 0 0 2px rgba(var(--blert-button-base), 0.15);
+      background: linear-gradient(
+        145deg,
+        rgba(var(--nav-bg-base), 0.8),
+        rgba(var(--nav-bg-darkened-base), 0.6)
+      );
+    }
   }
 
   input.input {
-    padding: 1px 0 0 0;
+    padding: 6px 10px;
   }
 
   textarea.input {
-    padding: 0;
+    padding: 8px 10px;
     min-height: 10em;
     max-height: 80vh;
     font-family: 'Inter', sans-serif;
@@ -39,13 +74,37 @@
   }
 
   .button {
-    width: 28px;
-    margin-left: 1em;
-    font-size: 16px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    font-size: 14px;
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--font-color-nav);
+    transition: all 0.2s ease;
     cursor: pointer;
+    flex-shrink: 0;
 
     &:hover {
-      color: #fff;
+      background-color: var(--nav-bg-lightened);
+      border-color: rgba(var(--blert-button-base), 0.3);
+      color: var(--blert-text-color);
+
+      i {
+        color: var(--blert-button);
+      }
+    }
+
+    &:active {
+      transform: scale(0.95);
+    }
+
+    i {
+      transition: color 0.2s ease;
     }
   }
 }

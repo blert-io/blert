@@ -3,7 +3,7 @@
 import { createPortal } from 'react-dom';
 
 import styles from './style.module.scss';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 type ModalProps = {
   children: React.ReactNode;
@@ -18,6 +18,7 @@ export function Modal(props: ModalProps) {
 
   const modalPortal = useRef<HTMLDivElement | null>(null);
   const modalRef = useRef<HTMLDivElement | null>(null);
+  const [shouldRender, setShouldRender] = useState(open);
 
   useEffect(() => {
     const root = document.getElementById('portal-root');
@@ -62,26 +63,42 @@ export function Modal(props: ModalProps) {
 
       if (modalPortal.current !== null) {
         modalPortal.current.style.visibility = 'hidden';
+        modalPortal.current.classList.remove(styles.closing);
         modalPortal.current.removeEventListener('click', onClick);
         window.removeEventListener('keydown', onKeyDown);
       }
+      setShouldRender(false);
     };
 
     if (open) {
+      setShouldRender(true);
       document.body.style.overflowY = 'hidden';
       if (modalPortal.current !== null) {
         modalPortal.current.style.visibility = 'visible';
+        modalPortal.current.classList.remove(styles.closing);
         modalPortal.current.addEventListener('click', onClick);
         window.addEventListener('keydown', onKeyDown);
       }
     } else {
-      hidePortal();
+      // Start closing animation and wait for animation completion before hiding
+      if (modalPortal.current !== null) {
+        modalPortal.current.classList.add(styles.closing);
+      }
+
+      const timeoutId = setTimeout(() => {
+        hidePortal();
+      }, 200); // Match the CSS transition duration
+
+      return () => {
+        clearTimeout(timeoutId);
+        hidePortal();
+      };
     }
 
     return () => hidePortal();
   }, [open, onClose]);
 
-  if (modalPortal.current === null) {
+  if (modalPortal.current === null || !shouldRender) {
     return null;
   }
 

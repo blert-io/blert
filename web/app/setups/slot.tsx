@@ -29,6 +29,8 @@ export function Slot(props: SlotProps) {
   const { highlightedItemId } = useContext(SetupViewingContext);
   const slotRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const [ctrlHeld, setCtrlHeld] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
   const id = `slot-${props.playerIndex}-${props.container}-${props.index}`;
   const isSearchActive = context?.activeSearchSlot === id;
@@ -40,7 +42,7 @@ export function Slot(props: SlotProps) {
 
   let canPlace = false;
 
-  if (selectedItem !== null) {
+  if (selectedItem !== null && !ctrlHeld) {
     if (props.filter !== undefined) {
       canPlace = props.filter(selectedItem);
     } else {
@@ -48,6 +50,16 @@ export function Slot(props: SlotProps) {
     }
 
     className += ` ${canPlace ? styles.valid : styles.invalid}`;
+  }
+
+  if (
+    selectedItem === null &&
+    !ctrlHeld &&
+    props.item !== undefined &&
+    isHovered &&
+    context !== null
+  ) {
+    className += ` ${styles.deletable}`;
   }
 
   if (highlightedItemId === props.item) {
@@ -58,38 +70,61 @@ export function Slot(props: SlotProps) {
     className += ` ${styles.search}`;
   }
 
+  if (ctrlHeld && props.item !== undefined && context !== null) {
+    if (isHovered) {
+      className += ` ${styles.ctrlHover}`;
+    } else {
+      className += ` ${styles.ctrlHint}`;
+    }
+  }
+
   useEffect(() => {
-    if (isSearchActive) {
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') {
-          context?.setActiveSearchSlot(null);
-          searchRef.current?.blur();
-        }
-      };
-
-      const handleClick = (e: MouseEvent) => {
-        const target = e.target as Element;
-        const searchElement = document.getElementById(id);
-
-        // Don't close if clicking inside the search element or its menu
-        if (searchElement?.contains(target) || target.closest('.menu-portal')) {
-          return;
-        }
-
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Control' || e.key === 'Meta') {
+        setCtrlHeld(true);
+      }
+      if (isSearchActive && e.key === 'Escape') {
         context?.setActiveSearchSlot(null);
-      };
+        searchRef.current?.blur();
+      }
+    };
 
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Control' || e.key === 'Meta') {
+        setCtrlHeld(false);
+      }
+    };
+
+    const handleClick = (e: MouseEvent) => {
+      if (!isSearchActive) {
+        return;
+      }
+
+      const target = e.target as Element;
+      const searchElement = document.getElementById(id);
+
+      // Don't close if clicking inside the search element or its menu
+      if (searchElement?.contains(target) || target.closest('.menu-portal')) {
+        return;
+      }
+
+      context?.setActiveSearchSlot(null);
+    };
+
+    if (isSearchActive) {
       setTimeout(() => {
         searchRef.current?.focus();
       }, 100);
-
-      window.addEventListener('keydown', handleKeyDown);
-      window.addEventListener('click', handleClick);
-      return () => {
-        window.removeEventListener('keydown', handleKeyDown);
-        window.removeEventListener('click', handleClick);
-      };
     }
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('click', handleClick);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('click', handleClick);
+    };
   }, [isSearchActive, context, id]);
 
   function placeItem(item: ExtendedItemData) {
@@ -153,6 +188,12 @@ export function Slot(props: SlotProps) {
       return;
     }
 
+    // Ctrl+Click (or Cmd+Click on Mac) to select the item from this slot
+    if ((e.ctrlKey || e.metaKey) && props.item !== undefined) {
+      context.setSelectedItem(props.item);
+      return;
+    }
+
     if (selectedItem !== null && canPlace) {
       placeItem(selectedItem);
     } else if (selectedItem === null) {
@@ -210,7 +251,13 @@ export function Slot(props: SlotProps) {
   }
 
   return (
-    <div className={className} onClick={onClick} ref={slotRef}>
+    <div
+      className={className}
+      onClick={onClick}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      ref={slotRef}
+    >
       {content}
     </div>
   );

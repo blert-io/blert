@@ -12,6 +12,8 @@ export type ButtonProps = {
   onClick?: () => void;
   simple?: boolean;
   type?: 'button' | 'submit';
+  'data-tooltip-id'?: string;
+  'data-tooltip-content'?: string;
 };
 
 export function Button(props: ButtonProps) {
@@ -31,6 +33,8 @@ export function Button(props: ButtonProps) {
       onClick={props.onClick}
       style={{ width: props.fluid ? '100%' : undefined }}
       type={props.type ?? 'button'}
+      data-tooltip-id={props['data-tooltip-id']}
+      data-tooltip-content={props['data-tooltip-content']}
     >
       {props.loading ? <Spinner /> : props.children}
     </button>

@@ -12,23 +12,23 @@ import setupStyles from '../../style.module.scss';
 import styles from './style.module.scss';
 
 const MELEE_ITEMS = [
-  30750, 30753, 30756, 28254, 28256, 28258, 22981, 13239, 21295, 29801, 28307,
+  30750, 30753, 30756, 28254, 28256, 28258, 22981, 31097, 21295, 29801, 28307,
   11665, 24780, 22325, 13652, 1215, 26219, 27690, 22322, 21003, 11804, 11806,
   23987, 24219, 21015, 28997, 29084,
 ];
 const RANGED_ITEMS = [
-  11664, 13072, 13073, 8842, 13237, 28955, 19547, 28310, 27235, 27238, 27241,
+  11664, 13072, 13073, 8842, 31097, 28955, 19547, 28310, 27235, 27238, 27241,
   26235, 20997, 12926, 28922, 11959, 21000, 27610, 26374, 11212, 21944,
 ];
 const MAGIC_ITEMS = [
-  21018, 21021, 21024, 19544, 13235, 21791, 12002, 28313, 11663, 26241, 26243,
-  26245, 21006, 24424, 28266, 22323, 27275, 27251,
+  21018, 21021, 21024, 19544, 31097, 21791, 12002, 28313, 11663, 26241, 26243,
+  26245, 21006, 24424, 28266, 31113, 22323, 27275, 27251,
 ];
 const SUPPLY_ITEMS = [
-  13441, 23685, 12695, 23733, 2444, 30875, 6685, 3024, 10925, 4417,
+  13441, 23685, 12695, 23733, 2444, 30875, 6685, 3024, 10925, 30125, 4417,
 ];
 const UTILITY_ITEMS = [
-  27281, 27641, 25975, 10588, 12018, 11090, 25818, 12612, 9763, 27544,
+  27281, 27641, 25975, 10588, 12018, 11090, 25818, 12612, 9763, 30759, 27544,
 ];
 export const RUNE_ITEMS = [
   554, 555, 556, 557, 558, 562, 560, 565, 21880, 559, 564, 561, 563, 566, 9075,
@@ -43,7 +43,11 @@ export function ItemSelector() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!(e.target instanceof HTMLInputElement) && e.key === '/') {
+      const isInput =
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement;
+      if (!isInput && e.key === '/') {
         e.preventDefault();
         searchRef.current?.focus();
       }
@@ -91,6 +95,7 @@ export function ItemSelector() {
             context?.setSelectedItem(null);
             searchRef.current?.blur();
           }}
+          showIds
         />
       </div>
       <div className={styles.categories}>

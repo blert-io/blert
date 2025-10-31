@@ -19,6 +19,7 @@ export function EditableTextField(props: EditableTextFieldProps) {
   const [fieldHeight, setFieldHeight] = useState(0);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
+  const justStoppedEditing = useRef(false);
 
   useEffect(() => {
     if (editing && inputRef.current) {
@@ -33,6 +34,17 @@ export function EditableTextField(props: EditableTextFieldProps) {
   function stopEditing() {
     setEditing(false);
     props.onChange(value);
+    justStoppedEditing.current = true;
+    setTimeout(() => {
+      justStoppedEditing.current = false;
+    }, 200);
+  }
+
+  function startEditing() {
+    if (justStoppedEditing.current) {
+      return;
+    }
+    setEditing(true);
   }
 
   const Tag = props.tag as any;
@@ -46,14 +58,10 @@ export function EditableTextField(props: EditableTextFieldProps) {
   if (!editing) {
     return (
       <Tag className={className} style={style}>
-        <span
-          className={styles.text}
-          ref={textRef}
-          onClick={() => setEditing(true)}
-        >
+        <span className={styles.text} ref={textRef} onClick={startEditing}>
           {props.value}
         </span>
-        <button className={styles.button} onClick={() => setEditing(true)}>
+        <button className={styles.button} onClick={startEditing}>
           <i className="fas fa-pencil-alt" />
           <span className="sr-only">Edit name</span>
         </button>
@@ -88,7 +96,14 @@ export function EditableTextField(props: EditableTextFieldProps) {
         value={value}
         style={{ height: isTextarea ? fieldHeight : undefined }}
       />
-      <button className={styles.button} onClick={stopEditing}>
+      <button
+        className={styles.button}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          stopEditing();
+        }}
+      >
         <i className="fas fa-check" />
         <span className="sr-only">Confirm</span>
       </button>
