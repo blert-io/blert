@@ -394,14 +394,14 @@
   position: relative;
   margin-top: 1rem;
 
-  p {
+  > div {
     margin: 0;
     width: 100%;
     font-size: 1rem;
     line-height: 1.6;
-    white-space: pre-wrap;
     transition: max-height 0.3s ease;
     overflow: auto;
+    user-select: text !important;
     @include styledScrollbar;
 
     &.collapsed {

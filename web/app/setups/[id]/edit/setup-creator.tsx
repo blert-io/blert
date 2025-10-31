@@ -12,6 +12,7 @@ import {
 import Button from '@/components/button';
 import EditableTextField from '@/components/editable-text-field';
 import Item from '@/components/item';
+import MarkdownEditor from '@/components/markdown-editor';
 import { Modal } from '@/components/modal/modal';
 import RadioInput from '@/components/radio-input';
 import Tabs from '@/components/tabs';
@@ -33,6 +34,7 @@ import setupStyles from '../../style.module.scss';
 import styles from './style.module.scss';
 
 const MAX_PARTY_SIZE = 8;
+const MAX_DESCRIPTION_LENGTH = 5000;
 const AUTO_SAVE_INTERVAL_MS = 60000;
 
 const MIN_WIDTH_FOR_ITEM_COUNTS_SIDEBAR = 2000;
@@ -75,6 +77,13 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
     [editableSetup, setup.publicId, setEditableSetup],
   );
   const gearSetup = context.setup;
+
+  const onDescriptionChange = useCallback(
+    (description: string) => {
+      context.update((prev) => ({ ...prev, description }));
+    },
+    [context],
+  );
 
   const handleSave = useCallback(
     async (isAutoSave: boolean = false) => {
@@ -317,15 +326,11 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
             </div>
             <div className={styles.descriptionWrapper}>
               <label className={styles.label}>Description</label>
-              <EditableTextField
-                className={styles.description}
-                onChange={(description) =>
-                  context.update((prev) => ({ ...prev, description }))
-                }
-                inputTag="textarea"
-                tag="p"
+              <MarkdownEditor
                 value={context.setup.description}
-                width="95%"
+                onChange={onDescriptionChange}
+                placeholder="Describe your gear setup"
+                maxLength={MAX_DESCRIPTION_LENGTH}
               />
             </div>
           </div>

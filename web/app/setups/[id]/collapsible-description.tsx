@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 
+import MarkdownRenderer from '@/components/markdown-renderer';
+
 import styles from './style.module.scss';
 
 type CollapsibleDescriptionProps = {
@@ -15,7 +17,7 @@ export default function CollapsibleDescription({
 }: CollapsibleDescriptionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [shouldShowToggle, setShouldShowToggle] = useState(false);
-  const contentRef = useRef<HTMLParagraphElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (contentRef.current) {
@@ -32,15 +34,15 @@ export default function CollapsibleDescription({
 
   return (
     <div className={styles.description}>
-      <p
+      <div
         ref={contentRef}
         className={
           shouldShowToggle && !isExpanded ? styles.collapsed : undefined
         }
         style={{ maxHeight }}
       >
-        {text}
-      </p>
+        <MarkdownRenderer content={text} />
+      </div>
       {shouldShowToggle && (
         <button
           className={`${styles.toggle} ${isExpanded ? styles.expanded : ''}`}

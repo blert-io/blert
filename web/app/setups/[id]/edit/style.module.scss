@@ -138,15 +138,9 @@ $ACTIONS_HEIGHT: 60px;
 
   .descriptionWrapper {
     width: 100%;
-
-    .description {
-      span {
-        overflow-y: initial;
-        overflow-x: auto;
-        text-overflow: initial;
-        white-space: pre-wrap;
-      }
-    }
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
   }
 
   .panelBackground {
