@@ -353,7 +353,7 @@ $ACTIONS_HEIGHT: 60px;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    padding: 10px 14px;
+    padding: 8px 14px;
     background: linear-gradient(
       145deg,
       rgba(var(--nav-bg-base), 0.6),
@@ -391,9 +391,26 @@ $ACTIONS_HEIGHT: 60px;
     }
 
     .placeholder {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       font-size: 14px;
       font-style: italic;
       color: rgba(var(--blert-text-color-base), 0.6);
+
+      .placeholderIcon {
+        width: 24px;
+        height: 24px;
+        background: linear-gradient(
+          135deg,
+          rgba(var(--blert-red-base), 0.08),
+          rgba(var(--blert-red-base), 0.12)
+        );
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
     }
 
     &:has(.item) {

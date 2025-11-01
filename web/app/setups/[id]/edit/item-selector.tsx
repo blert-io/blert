@@ -21,7 +21,7 @@ const RANGED_ITEMS = [
   26235, 20997, 12926, 28922, 11959, 21000, 27610, 26374, 11212, 21944,
 ];
 const MAGIC_ITEMS = [
-  21018, 21021, 21024, 19544, 31097, 21791, 12002, 28313, 11663, 26241, 26243,
+  21018, 21021, 21024, 31106, 31097, 21791, 12002, 28313, 11663, 26241, 26243,
   26245, 21006, 24424, 28266, 31113, 22323, 27275, 27251,
 ];
 const SUPPLY_ITEMS = [
@@ -82,7 +82,13 @@ export function ItemSelector() {
             </button>
           </>
         ) : (
-          <div className={styles.placeholder}>No item selected</div>
+          <div className={styles.placeholder}>
+            <div
+              className={styles.placeholderIcon}
+              style={{ width: ITEM_SIZE, height: ITEM_SIZE }}
+            />
+            <span className={styles.name}>No item selected</span>
+          </div>
         )}
       </div>
       <div className={styles.search}>
@@ -95,7 +101,6 @@ export function ItemSelector() {
             context?.setSelectedItem(null);
             searchRef.current?.blur();
           }}
-          showIds
         />
       </div>
       <div className={styles.categories}>
