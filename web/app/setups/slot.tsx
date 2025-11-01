@@ -29,7 +29,7 @@ export function Slot(props: SlotProps) {
   const { highlightedItemId } = useContext(SetupViewingContext);
   const slotRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const [ctrlHeld, setCtrlHeld] = useState(false);
+  const [altHeld, setAltHeld] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
   const id = `slot-${props.playerIndex}-${props.container}-${props.index}`;
@@ -42,7 +42,7 @@ export function Slot(props: SlotProps) {
 
   let canPlace = false;
 
-  if (selectedItem !== null && !ctrlHeld) {
+  if (selectedItem !== null && !altHeld) {
     if (props.filter !== undefined) {
       canPlace = props.filter(selectedItem);
     } else {
@@ -54,7 +54,7 @@ export function Slot(props: SlotProps) {
 
   if (
     selectedItem === null &&
-    !ctrlHeld &&
+    !altHeld &&
     props.item !== undefined &&
     isHovered &&
     context !== null
@@ -70,18 +70,18 @@ export function Slot(props: SlotProps) {
     className += ` ${styles.search}`;
   }
 
-  if (ctrlHeld && props.item !== undefined && context !== null) {
+  if (altHeld && props.item !== undefined && context !== null) {
     if (isHovered) {
-      className += ` ${styles.ctrlHover}`;
+      className += ` ${styles.eyedropperHover}`;
     } else {
-      className += ` ${styles.ctrlHint}`;
+      className += ` ${styles.eyedropperHint}`;
     }
   }
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Control' || e.key === 'Meta') {
-        setCtrlHeld(true);
+      if (e.key === 'Alt') {
+        setAltHeld(true);
       }
       if (isSearchActive && e.key === 'Escape') {
         context?.setActiveSearchSlot(null);
@@ -90,8 +90,8 @@ export function Slot(props: SlotProps) {
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'Control' || e.key === 'Meta') {
-        setCtrlHeld(false);
+      if (e.key === 'Alt') {
+        setAltHeld(false);
       }
     };
 
@@ -188,8 +188,9 @@ export function Slot(props: SlotProps) {
       return;
     }
 
-    // Ctrl+Click (or Cmd+Click on Mac) to select the item from this slot
-    if ((e.ctrlKey || e.metaKey) && props.item !== undefined) {
+    // Alt+Click to select the item from this slot
+    if (e.altKey && props.item !== undefined) {
+      e.preventDefault();
       context.setSelectedItem(props.item);
       return;
     }

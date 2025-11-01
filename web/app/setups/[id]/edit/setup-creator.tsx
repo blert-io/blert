@@ -622,15 +622,16 @@ function KeyboardShortcutsModal({
   onClose: () => void;
 }) {
   const isApple = useIsApple();
-  const modifier = isApple ? '⌘' : 'Ctrl';
+  const ctrl = isApple ? '⌘' : 'Ctrl';
+  const alt = isApple ? '⌥' : 'Alt';
 
   const shortcuts = [
     {
       category: 'Editing',
       items: [
-        { keys: [`${modifier}+Z`], description: 'Undo' },
-        { keys: [`${modifier}+Y`], description: 'Redo' },
-        { keys: [`${modifier}+S`], description: 'Save setup' },
+        { keys: [`${ctrl}+Z`], description: 'Undo' },
+        { keys: [`${ctrl}+Y`], description: 'Redo' },
+        { keys: [`${ctrl}+S`], description: 'Save setup' },
         { keys: ['?'], description: 'Show keyboard shortcuts' },
       ],
     },
@@ -639,7 +640,7 @@ function KeyboardShortcutsModal({
       items: [
         { keys: ['/'], description: 'Focus item search' },
         { keys: ['Esc'], description: 'Clear selected item / Close search' },
-        { keys: [`${modifier}+Click`], description: 'Select item from slot' },
+        { keys: [`${alt}+Click`], description: 'Select item from slot' },
       ],
     },
     {

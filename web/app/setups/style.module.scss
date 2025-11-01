@@ -285,12 +285,12 @@ $SLOT_SIZE: 42px;
     }
   }
 
-  &.ctrlHint {
+  &.eyedropperHint {
     outline: 1px solid rgba(var(--blert-button-base), 0.3);
     outline-offset: -1px;
   }
 
-  &.ctrlHover {
+  &.eyedropperHover {
     border: 1px solid var(--blert-button);
     background: rgba(var(--blert-button-base), 0.2);
     cursor: copy;
