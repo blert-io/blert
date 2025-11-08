@@ -87,13 +87,12 @@ export function SelectableContainer({
   const mouseDownPos = useRef<{ x: number; y: number } | null>(null);
   const dragThresholdMet = useRef(false);
 
-  // Only enable selection if we're in editing mode.
-  if (context === null) {
-    return <div className={className}>{children}</div>;
-  }
-
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      if (context === null) {
+        return;
+      }
+
       if (e.button !== 0) {
         return;
       }
@@ -131,6 +130,10 @@ export function SelectableContainer({
 
   const setHoverCoords = useCallback(
     (coords: [number, number] | null) => {
+      if (context === null) {
+        return;
+      }
+
       if (coords !== null) {
         context.setPlacementHoverTarget(container, playerIndex, coords);
       } else {
@@ -149,7 +152,7 @@ export function SelectableContainer({
 
   useEffect(() => {
     // Set up event listeners for a potential drag.
-    if (dragStart === null) {
+    if (dragStart === null || context === null) {
       return;
     }
 
@@ -274,33 +277,7 @@ export function SelectableContainer({
     };
   }, [dragStart, dragCurrent, container, playerIndex, context, setHoverCoords]);
 
-  let marquee: React.ReactElement | null = null;
-  if (
-    isDragging &&
-    context.operationMode === OperationMode.SELECTING &&
-    dragStart !== null &&
-    dragCurrent !== null
-  ) {
-    const { coords: startCoords } = dragStart;
-    const minX = Math.min(startCoords[0], dragCurrent[0]);
-    const maxX = Math.max(startCoords[0], dragCurrent[0]);
-    const minY = Math.min(startCoords[1], dragCurrent[1]);
-    const maxY = Math.max(startCoords[1], dragCurrent[1]);
-
-    marquee = (
-      <div
-        className={styles.marquee}
-        style={{
-          left: `${minX * SLOT_SIZE_PX}px`,
-          top: `${minY * SLOT_SIZE_PX}px`,
-          width: `${(maxX - minX + 1) * SLOT_SIZE_PX}px`,
-          height: `${(maxY - minY + 1) * SLOT_SIZE_PX}px`,
-        }}
-      />
-    );
-  }
-
-  const isPlacementMode = context.isPlacementMode;
+  const isPlacementMode = context?.isPlacementMode ?? false;
 
   const handleContainerMouseEnter = useCallback(
     (e: React.MouseEvent) => {
@@ -329,6 +306,37 @@ export function SelectableContainer({
       setHoverCoords(null);
     }
   }, [isPlacementMode, setHoverCoords]);
+
+  // Only enable selection if we're in editing mode.
+  if (context === null) {
+    return <div className={className}>{children}</div>;
+  }
+
+  let marquee: React.ReactElement | null = null;
+  if (
+    isDragging &&
+    context.operationMode === OperationMode.SELECTING &&
+    dragStart !== null &&
+    dragCurrent !== null
+  ) {
+    const { coords: startCoords } = dragStart;
+    const minX = Math.min(startCoords[0], dragCurrent[0]);
+    const maxX = Math.max(startCoords[0], dragCurrent[0]);
+    const minY = Math.min(startCoords[1], dragCurrent[1]);
+    const maxY = Math.max(startCoords[1], dragCurrent[1]);
+
+    marquee = (
+      <div
+        className={styles.marquee}
+        style={{
+          left: `${minX * SLOT_SIZE_PX}px`,
+          top: `${minY * SLOT_SIZE_PX}px`,
+          width: `${(maxX - minX + 1) * SLOT_SIZE_PX}px`,
+          height: `${(maxY - minY + 1) * SLOT_SIZE_PX}px`,
+        }}
+      />
+    );
+  }
 
   const containerIdData = `${container}-${playerIndex}`;
 
