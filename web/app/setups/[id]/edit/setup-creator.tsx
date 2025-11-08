@@ -21,9 +21,11 @@ import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 import { useDisplay, useIsApple, useWidthThreshold } from '@/display';
 
 import DeleteModal from '../../delete-modal';
+import DebugOverlay from './debug-overlay';
 import {
   EditableGearSetup,
   EditingContext,
+  OperationMode,
   SetupEditingContext,
 } from '../../editing-context';
 import ItemCounts from '../../item-counts';
@@ -228,7 +230,23 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
 
       switch (e.key) {
         case 'Escape':
-          context.setSelectedItem(null);
+          if (
+            context.operationMode === OperationMode.CLIPBOARD_CUT ||
+            context.operationMode === OperationMode.CLIPBOARD_COPY
+          ) {
+            context.setOperationMode(OperationMode.SELECTION);
+          } else if (context.selection !== null) {
+            context.clearSelection();
+          } else {
+            context.setSelectedItem(null);
+          }
+          break;
+
+        case 'Delete':
+          if (context.selection !== null) {
+            e.preventDefault();
+            context.deleteSelection();
+          }
           break;
 
         case '?':
@@ -236,19 +254,46 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
           setShowShortcutsModal(true);
           break;
 
+        case 'c':
+          if (e.ctrlKey || e.metaKey) {
+            if (context.selection !== null) {
+              e.preventDefault();
+              context.copySelection();
+            }
+          }
+          break;
+
         case 's':
-          if (e.ctrlKey) {
+          if (e.ctrlKey || e.metaKey) {
             e.preventDefault();
             handleSave(false);
           }
           break;
+
+        case 'v':
+          if (context.clipboard !== null) {
+            e.preventDefault();
+            context.cycleClipboardMode();
+          }
+          break;
+
+        case 'x':
+          if (e.ctrlKey || e.metaKey) {
+            if (context.selection !== null) {
+              e.preventDefault();
+              context.cutSelection();
+            }
+          }
+          break;
+
         case 'y':
-          if (e.ctrlKey) {
+          if (e.ctrlKey || e.metaKey) {
             context.redo();
           }
           break;
+
         case 'z':
-          if (e.ctrlKey) {
+          if (e.ctrlKey || e.metaKey) {
             context.undo();
           }
           break;
@@ -258,6 +303,43 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [context, handleSave]);
+
+  useEffect(() => {
+    if (!context.isPlacementMode) {
+      return;
+    }
+
+    const handlePlacementRelease = (e: MouseEvent) => {
+      const { placementHoverTarget } = context;
+
+      if (context.operationMode === OperationMode.DRAGGING) {
+        if (placementHoverTarget !== null) {
+          e.preventDefault();
+          context.completeDrag(
+            placementHoverTarget.container,
+            placementHoverTarget.playerIndex,
+            placementHoverTarget.gridCoords,
+          );
+        } else {
+          context.cancelDrag();
+        }
+      } else if (
+        context.operationMode === OperationMode.CLIPBOARD_CUT ||
+        context.operationMode === OperationMode.CLIPBOARD_COPY
+      ) {
+        // Paste completion is done by slots. Only handle the reset case here.
+        if (placementHoverTarget === null) {
+          context.setOperationMode(OperationMode.SELECTION);
+        }
+      }
+    };
+
+    // Drag release happens on mouseup, clipboard release happens on click.
+    const eventType =
+      context.operationMode === OperationMode.DRAGGING ? 'mouseup' : 'click';
+    window.addEventListener(eventType, handlePlacementRelease);
+    return () => window.removeEventListener(eventType, handlePlacementRelease);
+  }, [context]);
 
   const publishIssues: Array<{ message: string; type: 'warning' | 'error' }> =
     [];
@@ -528,6 +610,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
         open={showShortcutsModal}
         onClose={() => setShowShortcutsModal(false)}
       />
+      {process.env.NODE_ENV === 'development' && <DebugOverlay />}
     </SetupEditingContext.Provider>
   );
 }
@@ -631,8 +714,20 @@ function KeyboardShortcutsModal({
       items: [
         { keys: [`${ctrl}+Z`], description: 'Undo' },
         { keys: [`${ctrl}+Y`], description: 'Redo' },
-        { keys: [`${ctrl}+S`], description: 'Save setup' },
+        { keys: [`${ctrl}+S`], description: 'Save setup draft' },
         { keys: ['?'], description: 'Show keyboard shortcuts' },
+      ],
+    },
+    {
+      category: 'Selection',
+      items: [
+        { keys: ['Click+Drag'], description: 'Select region' },
+        { keys: ['Shift+Drag'], description: 'Force selection' },
+        { keys: [`${ctrl}+C`], description: 'Copy selection' },
+        { keys: [`${ctrl}+X`], description: 'Cut selection' },
+        { keys: [`V`], description: 'Cycle paste mode (Replace/Merge)' },
+        { keys: ['Del'], description: 'Delete selection' },
+        { keys: ['Esc'], description: 'Clear selection' },
       ],
     },
     {
@@ -652,6 +747,7 @@ function KeyboardShortcutsModal({
           description: 'Remove item (no item selected)',
         },
         { keys: ['Click (filled slot)'], description: 'Place selected item' },
+        { keys: ['Click+Drag'], description: 'Move item' },
       ],
     },
   ];

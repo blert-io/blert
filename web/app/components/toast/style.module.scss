@@ -77,19 +77,10 @@
   }
 
   &.info {
-    border-color: rgba(var(--blert-blue-base), 0.3);
-
-    &::before {
-      background: linear-gradient(
-        90deg,
-        transparent,
-        var(--blert-blue),
-        transparent
-      );
-    }
+    border-color: rgba(var(--blert-button-base), 0.3);
 
     .toastIcon {
-      color: var(--blert-blue);
+      color: var(--blert-button);
     }
   }
 

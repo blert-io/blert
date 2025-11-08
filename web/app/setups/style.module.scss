@@ -118,8 +118,6 @@
   }
 }
 
-$SLOT_SIZE: 42px;
-
 .player {
   width: 200px;
   display: flex;
@@ -166,29 +164,34 @@ $SLOT_SIZE: 42px;
   }
 
   .slotContainer {
-    display: flex;
-    flex-flow: row wrap;
+    display: grid;
     margin: 0.5em 0;
   }
 
   .inventory {
-    width: 4 * $SLOT_SIZE;
-    height: 7 * $SLOT_SIZE;
+    width: calc(4 * var(--slot-size));
+    height: calc(7 * var(--slot-size));
+    grid-template-columns: repeat(4, var(--slot-size));
+    grid-template-rows: repeat(7, var(--slot-size));
   }
 
   .equipment {
-    width: 3 * $SLOT_SIZE;
-    height: 5 * $SLOT_SIZE;
+    width: calc(3 * var(--slot-size));
+    height: calc(5 * var(--slot-size));
+    grid-template-columns: repeat(3, var(--slot-size));
+    grid-template-rows: repeat(5, var(--slot-size));
   }
 
   .pouch {
-    width: 4 * $SLOT_SIZE;
-    height: 1 * $SLOT_SIZE;
+    width: calc(4 * var(--slot-size));
+    height: calc(1 * var(--slot-size));
+    grid-template-columns: repeat(4, var(--slot-size));
+    grid-template-rows: repeat(1, var(--slot-size));
   }
 
   .spellbook {
-    width: 1 * $SLOT_SIZE;
-    height: 1 * $SLOT_SIZE;
+    width: calc(1 * var(--slot-size));
+    height: calc(1 * var(--slot-size));
   }
 
   .editActions {
@@ -234,8 +237,8 @@ $SLOT_SIZE: 42px;
 }
 
 .slot {
-  width: $SLOT_SIZE - 2px;
-  height: $SLOT_SIZE - 2px;
+  width: calc(var(--slot-size) - 2px);
+  height: calc(var(--slot-size) - 2px);
   margin: 1px;
   background: var(--nav-bg);
   display: flex;
@@ -311,7 +314,7 @@ $SLOT_SIZE: 42px;
 
 .slotSearch {
   position: fixed;
-  top: $SLOT_SIZE;
+  top: var(--slot-size);
   left: 0;
   z-index: 100;
   width: 200px;

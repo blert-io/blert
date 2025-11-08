@@ -101,6 +101,7 @@ export function ItemSelector() {
             context?.setSelectedItem(null);
             searchRef.current?.blur();
           }}
+          showIds={process.env.NODE_ENV === 'development'}
         />
       </div>
       <div className={styles.categories}>

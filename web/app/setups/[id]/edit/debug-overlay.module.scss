@@ -1,0 +1,55 @@
+.overlay {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  background: rgba(var(--nav-bg-base), 0.95);
+  border: 1px solid rgba(var(--blert-button-base), 0.3);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 12px;
+  font-family: var(--font-roboto-mono), monospace;
+  color: var(--blert-text-color);
+  min-width: 200px;
+  z-index: 9999;
+  backdrop-filter: blur(8px);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.header {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(var(--blert-button-base), 0.2);
+  color: var(--blert-button);
+}
+
+.section {
+  margin-bottom: 10px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.label {
+  font-size: 10px;
+  color: var(--font-color-nav);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.value {
+  font-weight: 500;
+  color: var(--blert-text-color);
+  margin-bottom: 2px;
+}
+
+.subValue {
+  font-size: 10px;
+  color: var(--font-color-nav-active);
+  margin-left: 8px;
+}

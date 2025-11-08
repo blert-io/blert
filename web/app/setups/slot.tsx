@@ -9,7 +9,8 @@ import {
   extendedItemCache,
 } from '@/utils/item-cache/extended';
 
-import { SetupEditingContext } from './editing-context';
+import { indexToCoords } from './container-grid';
+import { OperationMode, SetupEditingContext } from './editing-context';
 import { Container, ItemSlot, getContainerKey } from './setup';
 import { SetupViewingContext } from './viewing-context';
 
@@ -80,7 +81,7 @@ export function Slot(props: SlotProps) {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Alt') {
+      if (!context?.isPlacementMode && e.key === 'Alt') {
         setAltHeld(true);
       }
       if (isSearchActive && e.key === 'Escape') {
@@ -137,6 +138,13 @@ export function Slot(props: SlotProps) {
 
       let slots = prev[key].slots.filter((slot) => slot.index !== props.index);
 
+      if (item.stackable) {
+        const existingSlot = slots.find((slot) => slot.item?.id === item.id);
+        if (existingSlot) {
+          return prev;
+        }
+      }
+
       if (props.container === Container.EQUIPMENT) {
         if (item.slot === EquipmentSlot.WEAPON && item.stats?.twoHanded) {
           // If adding a two-handed weapon, remove any shield.
@@ -159,11 +167,6 @@ export function Slot(props: SlotProps) {
               );
             }
           }
-        }
-      } else if (item.stackable) {
-        const existingSlot = slots.find((slot) => slot.item?.id === item.id);
-        if (existingSlot) {
-          return prev;
         }
       }
 
@@ -188,7 +191,30 @@ export function Slot(props: SlotProps) {
       return;
     }
 
-    // Alt+Click to select the item from this slot
+    if (context.operationMode === OperationMode.DRAGGING) {
+      // Drag completion is handled by the container.
+      return;
+    }
+
+    if (
+      context.operationMode === OperationMode.CLIPBOARD_CUT ||
+      context.operationMode === OperationMode.CLIPBOARD_COPY
+    ) {
+      const gridCoords = indexToCoords(props.index, props.container);
+      if (gridCoords === null) {
+        return;
+      }
+
+      e.preventDefault();
+      context.applyClipboard(props.container, props.playerIndex, gridCoords);
+      return;
+    }
+
+    if (context.selection !== null) {
+      context.clearSelection();
+    }
+
+    // Alt+Click to select the item from this slot.
     if (e.altKey && props.item !== undefined) {
       e.preventDefault();
       context.setSelectedItem(props.item);
@@ -199,7 +225,7 @@ export function Slot(props: SlotProps) {
       placeItem(selectedItem);
     } else if (selectedItem === null) {
       if (props.item !== undefined) {
-        // Remove item if one exists
+        // Remove item if one exists.
         context.updatePlayer(props.playerIndex, (prev) => {
           const key = getContainerKey(props.container);
           const slots = prev[key].slots.filter(
@@ -208,8 +234,8 @@ export function Slot(props: SlotProps) {
           return { ...prev, [key]: { ...prev[key], slots } };
         });
       } else {
-        // Show search if slot is empty
-        e.stopPropagation(); // Prevent the click from immediately closing the search
+        // Show search if slot is empty.
+        e.stopPropagation(); // Prevent click from immediately closing search.
         context.setActiveSearchSlot(id);
       }
     }
@@ -231,7 +257,13 @@ export function Slot(props: SlotProps) {
         data-tooltip-id="slot-tooltip"
         data-tooltip-content={name}
       >
-        <Item id={props.item} name={name} quantity={1} size={30} />
+        <Item
+          id={props.item}
+          name={name}
+          quantity={1}
+          size={30}
+          data-slot-item={props.item}
+        />
       </div>
     );
   } else if (isSearchActive && context !== null) {
@@ -251,13 +283,28 @@ export function Slot(props: SlotProps) {
     content = null;
   }
 
+  const handleMouseEnter = () => {
+    const mode = context?.operationMode;
+    if (
+      mode === OperationMode.ITEM_PLACEMENT ||
+      mode === OperationMode.SELECTION
+    ) {
+      setIsHovered(true);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+  };
+
   return (
     <div
       className={className}
       onClick={onClick}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       ref={slotRef}
+      data-slot="true"
     >
       {content}
     </div>

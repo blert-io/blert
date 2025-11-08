@@ -7,15 +7,17 @@ import { useCallback, useContext, useRef, useState } from 'react';
 import EditableTextField from '@/components/editable-text-field';
 import Menu, { MenuItem } from '@/components/menu';
 import { useToast } from '@/components/toast';
-import { ExtendedItemData } from '@/utils/item-cache/extended';
 
 import { EditingContext, SetupEditingContext } from './editing-context';
-import { RUNE_ITEMS } from './[id]/edit/item-selector';
+import { getSlotMetadata, SLOT_SIZE_PX } from './container-grid';
+import { SelectableContainer } from './selectable-container';
 import {
   Container,
   GearSetupPlayer,
   ItemSlot,
   NUM_INVENTORY_SLOTS,
+  NUM_POUCH_SLOTS,
+  QUIVER_SLOT_INDEX,
   Spellbook,
   newGearSetupPlayer,
   spellbookName,
@@ -40,49 +42,22 @@ function slotsByIndex(slots: ItemSlot[]): Record<number, ItemSlot> {
   return slots.reduce((acc, slot) => ({ ...acc, [slot.index]: slot }), {});
 }
 
-const QUIVER_IDS = [28955, 28902, 28951];
-
-function hasQuiver(player: GearSetupPlayer): boolean {
-  return (
-    player.equipment.slots.some((slot) =>
-      QUIVER_IDS.includes(slot.item?.id ?? 0),
-    ) ||
-    player.inventory.slots.some((slot) =>
-      QUIVER_IDS.includes(slot.item?.id ?? 0),
-    )
-  );
-}
-
-function typeFilter(slot: EquipmentSlot): (item: ExtendedItemData) => boolean {
-  return (item) => item.slot === slot;
-}
-
-function runeFilter(item: ExtendedItemData): boolean {
-  return RUNE_ITEMS.includes(item.id);
-}
-
-type EquipmentSlotMetadata = {
-  index: number;
-  filter: (item: ExtendedItemData) => boolean;
-  condition?: (player: GearSetupPlayer) => boolean;
-};
-
-const EQUIPMENT_SLOTS: Array<EquipmentSlotMetadata | null> = [
+const EQUIPMENT_LAYOUT: Array<EquipmentSlot | null> = [
   null,
-  { index: EquipmentSlot.HEAD, filter: typeFilter(EquipmentSlot.HEAD) },
-  { index: 99, filter: typeFilter(EquipmentSlot.AMMO), condition: hasQuiver },
-  { index: EquipmentSlot.CAPE, filter: typeFilter(EquipmentSlot.CAPE) },
-  { index: EquipmentSlot.AMULET, filter: typeFilter(EquipmentSlot.AMULET) },
-  { index: EquipmentSlot.AMMO, filter: typeFilter(EquipmentSlot.AMMO) },
-  { index: EquipmentSlot.WEAPON, filter: typeFilter(EquipmentSlot.WEAPON) },
-  { index: EquipmentSlot.TORSO, filter: typeFilter(EquipmentSlot.TORSO) },
-  { index: EquipmentSlot.SHIELD, filter: typeFilter(EquipmentSlot.SHIELD) },
+  EquipmentSlot.HEAD,
+  QUIVER_SLOT_INDEX,
+  EquipmentSlot.CAPE,
+  EquipmentSlot.AMULET,
+  EquipmentSlot.AMMO,
+  EquipmentSlot.WEAPON,
+  EquipmentSlot.TORSO,
+  EquipmentSlot.SHIELD,
   null,
-  { index: EquipmentSlot.LEGS, filter: typeFilter(EquipmentSlot.LEGS) },
+  EquipmentSlot.LEGS,
   null,
-  { index: EquipmentSlot.GLOVES, filter: typeFilter(EquipmentSlot.GLOVES) },
-  { index: EquipmentSlot.BOOTS, filter: typeFilter(EquipmentSlot.BOOTS) },
-  { index: EquipmentSlot.RING, filter: typeFilter(EquipmentSlot.RING) },
+  EquipmentSlot.GLOVES,
+  EquipmentSlot.BOOTS,
+  EquipmentSlot.RING,
 ];
 
 const EXPORT_MENU: MenuItem[] = [
@@ -150,7 +125,10 @@ export function Player({ index, player }: PlayerProps) {
   }, [sendToast, editingContext, index]);
 
   return (
-    <div className={className}>
+    <div
+      className={className}
+      style={{ '--slot-size': `${SLOT_SIZE_PX}px` } as React.CSSProperties}
+    >
       <div className={styles.header}>
         {editingContext !== null ? (
           <EditableTextField
@@ -202,9 +180,26 @@ export function Player({ index, player }: PlayerProps) {
           </h2>
         )}
       </div>
-      <div className={`${styles.slotContainer} ${styles.equipment}`}>
-        {EQUIPMENT_SLOTS.map((slot, i) => {
-          if (slot === null || (slot.condition && !slot.condition(player))) {
+      <SelectableContainer
+        container={Container.EQUIPMENT}
+        playerIndex={index}
+        className={`${styles.slotContainer} ${styles.equipment}`}
+      >
+        {EQUIPMENT_LAYOUT.map((slotIndex, i) => {
+          if (slotIndex === null) {
+            return (
+              <Slot
+                container={Container.EQUIPMENT}
+                playerIndex={index}
+                index={-1}
+                key={i}
+              />
+            );
+          }
+
+          const slotMetadata = getSlotMetadata(Container.EQUIPMENT, slotIndex);
+
+          if (slotMetadata?.condition && !slotMetadata.condition(player)) {
             return (
               <Slot
                 container={Container.EQUIPMENT}
@@ -219,15 +214,19 @@ export function Player({ index, player }: PlayerProps) {
             <Slot
               container={Container.EQUIPMENT}
               playerIndex={index}
-              item={slotsByContainer[Container.EQUIPMENT][slot.index]?.item?.id}
-              index={slot.index}
-              filter={slot.filter}
+              item={slotsByContainer[Container.EQUIPMENT][slotIndex]?.item?.id}
+              index={slotIndex}
+              filter={slotMetadata?.typeFilter}
               key={i}
             />
           );
         })}
-      </div>
-      <div className={`${styles.slotContainer} ${styles.inventory}`}>
+      </SelectableContainer>
+      <SelectableContainer
+        container={Container.INVENTORY}
+        playerIndex={index}
+        className={`${styles.slotContainer} ${styles.inventory}`}
+      >
         {Array.from({ length: NUM_INVENTORY_SLOTS }, (_, i) => (
           <Slot
             container={Container.INVENTORY}
@@ -237,37 +236,28 @@ export function Player({ index, player }: PlayerProps) {
             key={i}
           />
         ))}
-      </div>
-      <div className={`${styles.slotContainer} ${styles.pouch}`}>
-        <Slot
-          container={Container.POUCH}
-          playerIndex={index}
-          item={slotsByContainer[Container.POUCH][0]?.item?.id}
-          index={0}
-          filter={runeFilter}
-        />
-        <Slot
-          container={Container.POUCH}
-          playerIndex={index}
-          item={slotsByContainer[Container.POUCH][1]?.item?.id}
-          index={1}
-          filter={runeFilter}
-        />
-        <Slot
-          container={Container.POUCH}
-          playerIndex={index}
-          item={slotsByContainer[Container.POUCH][2]?.item?.id}
-          index={2}
-          filter={runeFilter}
-        />
-        <Slot
-          container={Container.POUCH}
-          playerIndex={index}
-          item={slotsByContainer[Container.POUCH][3]?.item?.id}
-          index={3}
-          filter={runeFilter}
-        />
-      </div>
+      </SelectableContainer>
+      <SelectableContainer
+        container={Container.POUCH}
+        playerIndex={index}
+        className={`${styles.slotContainer} ${styles.pouch}`}
+      >
+        {Array.from({ length: NUM_POUCH_SLOTS }, (_, i) => i).map(
+          (slotIndex) => {
+            const slotMetadata = getSlotMetadata(Container.POUCH, slotIndex);
+            return (
+              <Slot
+                key={slotIndex}
+                container={Container.POUCH}
+                playerIndex={index}
+                item={slotsByContainer[Container.POUCH][slotIndex]?.item?.id}
+                index={slotIndex}
+                filter={slotMetadata?.typeFilter}
+              />
+            );
+          },
+        )}
+      </SelectableContainer>
       <div
         className={`${styles.slotContainer} ${styles.spellbook}`}
         data-tooltip-id="slot-tooltip"

@@ -1,0 +1,24 @@
+.selectableContainer {
+  position: relative;
+  user-select: none;
+}
+
+.marquee {
+  position: absolute;
+  background: rgba(var(--blert-button-base), 0.1);
+  border: 2px dashed var(--blert-button);
+  pointer-events: none;
+  z-index: 15;
+  box-sizing: border-box;
+  animation: marquee-pulse 1s ease-in-out infinite;
+}
+
+@keyframes marquee-pulse {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}

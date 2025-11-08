@@ -2,15 +2,6 @@ import Image from 'next/image';
 
 import styles from './style.module.scss';
 
-type ItemProps = {
-  id: number;
-  name: string;
-  quantity: number;
-  outlineColor?: string;
-  size: number;
-  style?: React.CSSProperties;
-};
-
 const WIKI_IMAGE_BASE_URL: string = 'https://oldschool.runescape.wiki/images';
 const CACHE_SPRITE_DUMP_URL: string =
   'https://chisel.weirdgloop.org/static/img/osrs-sprite';
@@ -85,43 +76,65 @@ function formatQuantity(quantity: number): { text: string; color: string } {
   return { text: `${millions}M`, color: QUANTITY_M_COLOR };
 }
 
-export default function Item(props: ItemProps) {
+type ItemProps = {
+  id: number;
+  name: string;
+  quantity: number;
+  outlineColor?: string;
+  size: number;
+  className?: string;
+  style?: React.CSSProperties;
+  [key: `data-${string}`]: string | undefined;
+};
+
+export default function Item({
+  id,
+  name,
+  quantity,
+  outlineColor,
+  size,
+  className,
+  style,
+  ...dataAttributes
+}: ItemProps) {
   let imageUrl: string;
 
   // For most items, fetch their cache sprite via their ID. However, items which
   // have different sprites for each quantity (e.g. range ammo) are handled
   // separately via a wiki image URL.
-  if (is1to5Item(props.name)) {
-    imageUrl = `${WIKI_IMAGE_BASE_URL}/${normalizeToWiki(
-      props.name,
-      props.quantity,
-    )}.png`;
+  if (is1to5Item(name)) {
+    imageUrl = `${WIKI_IMAGE_BASE_URL}/${normalizeToWiki(name, quantity)}.png`;
   } else {
-    imageUrl = `${CACHE_SPRITE_DUMP_URL}/${props.id}.png`;
+    imageUrl = `${CACHE_SPRITE_DUMP_URL}/${id}.png`;
   }
 
-  const { text: quantityText, color: quantityColor } = formatQuantity(props.quantity);
+  const { text: quantityText, color: quantityColor } = formatQuantity(quantity);
 
   let imageStyle: React.CSSProperties = { objectFit: 'contain' };
-  if (props.outlineColor) {
+  if (outlineColor) {
     imageStyle.filter =
-      `drop-shadow(1px 2px 0 ${props.outlineColor})` +
-      ` drop-shadow(-1px -1px 0 ${props.outlineColor})`;
+      `drop-shadow(1px 2px 0 ${outlineColor})` +
+      ` drop-shadow(-1px -1px 0 ${outlineColor})`;
   }
 
-  const style = {
-    ...props.style,
-    width: props.size,
-    height: props.size,
+  const cssStyle = {
+    ...style,
+    width: size,
+    height: size,
   };
 
+  let cls = styles.image;
+  if (className) {
+    cls = `${cls} ${className}`;
+  }
+
   return (
-    <div className={styles.image} style={style}>
+    <div className={cls} style={cssStyle} {...dataAttributes}>
       <Image
         src={imageUrl}
-        alt={props.name}
-        height={props.size}
-        width={props.size}
+        alt={name}
+        height={size}
+        width={size}
         style={imageStyle}
       />
       {quantityText && (

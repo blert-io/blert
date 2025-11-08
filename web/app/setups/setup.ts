@@ -106,6 +106,23 @@ export function hasAllItems(setup: GearSetup): boolean {
   );
 }
 
+export const QUIVER_SLOT_INDEX = 99;
+export const QUIVER_IDS = [28955, 28902, 28951];
+
+/**
+ * Checks if the player has a Dizana's quiver equipped or in their inventory.
+ */
+export function hasQuiver(player: GearSetupPlayer): boolean {
+  return (
+    player.equipment.slots.some((slot) =>
+      QUIVER_IDS.includes(slot.item?.id ?? 0),
+    ) ||
+    player.inventory.slots.some((slot) =>
+      QUIVER_IDS.includes(slot.item?.id ?? 0),
+    )
+  );
+}
+
 export function spellbookName(spellbook: Spellbook): string {
   switch (spellbook) {
     case Spellbook.STANDARD:

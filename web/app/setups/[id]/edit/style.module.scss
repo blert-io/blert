@@ -587,7 +587,7 @@ $ACTIONS_HEIGHT: 60px;
 }
 
 .shortcutsModal {
-  max-width: 700px;
+  max-width: 900px;
 
   .modalHeader {
     display: flex;
@@ -625,17 +625,25 @@ $ACTIONS_HEIGHT: 60px;
 
   .shortcutsContent {
     padding: 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 28px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
     background: linear-gradient(
       135deg,
       rgba(var(--nav-bg-base), 0.3) 0%,
       rgba(var(--panel-bg-base), 0.2) 100%
     );
+
+    @media (max-width: 768px) {
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
   }
 
   .shortcutCategory {
+    display: flex;
+    flex-direction: column;
+
     h3 {
       margin: 0 0 12px 0;
       font-size: 1rem;
@@ -644,6 +652,7 @@ $ACTIONS_HEIGHT: 60px;
       align-items: center;
       padding-bottom: 8px;
       border-bottom: 1px solid rgba(var(--blert-button-base), 0.2);
+      color: var(--blert-text-color);
     }
   }
 
@@ -694,7 +703,7 @@ $ACTIONS_HEIGHT: 60px;
       border: 1px solid rgba(var(--blert-text-color-base), 0.3);
       border-radius: 4px;
       padding: 4px 10px;
-      font-family: monospace;
+      font-family: var(--font-roboto-mono), monospace;
       font-size: 13px;
       font-weight: 500;
       color: var(--blert-text-color);
