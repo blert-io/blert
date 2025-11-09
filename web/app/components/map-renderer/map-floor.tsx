@@ -34,7 +34,7 @@ export interface MapFloorProps {
 const TILE_SIZE = 1;
 const CHUNK_SIZE = 8;
 
-const OSRS_MAP_ORIGIN_X = 1024;
+const OSRS_MAP_ORIGIN_X = 960;
 const OSRS_MAP_ORIGIN_Y = 1216;
 
 /**
