@@ -6,7 +6,10 @@
 .menu {
   position: fixed;
   background-color: var(--nav-bg);
-  border: 1px solid var(--font-color-nav-divider);
+  border: 1px solid rgba(var(--blert-button-base), 0.2);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 2px 8px rgba(0, 0, 0, 0.2);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -21,6 +24,9 @@
     display: flex;
     align-items: center;
     justify-content: flex-start;
+    transition: all 0.2s ease;
+    color: var(--blert-text-color);
+    position: relative;
 
     &:not(.wrap) {
       white-space: nowrap;
@@ -28,7 +34,8 @@
 
     &:disabled,
     &.inactive {
-      opacity: 0.7;
+      opacity: 0.5;
+      color: var(--font-color-nav);
     }
 
     &.info {
@@ -37,18 +44,43 @@
     }
 
     &.active {
-      background-color: var(--nav-bg-lightened);
+      background: linear-gradient(
+        90deg,
+        rgba(var(--blert-button-base), 0.15) 0%,
+        rgba(var(--blert-button-base), 0.08) 100%
+      );
+      color: #fff;
+
+      &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background: var(--blert-button);
+        border-radius: 0 2px 2px 0;
+      }
 
       & > span {
         color: #fff;
       }
 
       & > .icon {
-        color: #fff;
+        color: var(--blert-button);
       }
     }
 
-    &:not(.inactive):hover {
+    &:not(.inactive):not(.active):hover {
+      cursor: pointer;
+      background: rgba(var(--blert-button-base), 0.08);
+
+      .icon:not(.subMenuIcon) {
+        transform: translateX(2px);
+      }
+    }
+
+    &:not(.inactive) {
       cursor: pointer;
     }
 
@@ -56,10 +88,15 @@
       margin-left: auto;
       padding-left: 8px;
       opacity: 0.7;
+      transition: opacity 0.2s ease;
     }
 
     .icon {
       margin-left: 8px;
+      transition:
+        transform 0.2s ease,
+        color 0.2s ease;
+      color: var(--blert-button);
     }
   }
 
@@ -67,6 +104,11 @@
     width: calc(100% - 16px);
     height: 1px;
     margin: 0 auto;
-    background-color: var(--content-area-bg);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--font-color-nav-divider),
+      transparent
+    );
   }
 }

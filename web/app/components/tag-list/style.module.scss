@@ -1,18 +1,80 @@
 .tagList {
   display: flex;
   flex-flow: row wrap;
+  gap: 8px;
+  align-items: center;
 
   .tag {
-    padding: 2px 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px 6px 12px;
+    background: linear-gradient(
+      135deg,
+      rgba(var(--blert-button-base), 0.12) 0%,
+      rgba(var(--blert-button-base), 0.08) 100%
+    );
+    border: 1px solid rgba(var(--blert-button-base), 0.25);
+    border-radius: 6px;
+    color: var(--blert-text-color);
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    animation: tagSlideIn 0.2s ease-out;
 
-    button {
-      margin-left: 4px;
-      font-size: 14px;
+    &:hover {
+      border-color: rgba(var(--blert-button-base), 0.4);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 
-      &:hover {
-        color: var(--blert-button);
-        cursor: pointer;
+      button {
+        background: rgba(var(--blert-red-base), 0.15);
+        color: var(--blert-red);
       }
     }
+
+    span {
+      user-select: none;
+    }
+
+    button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px;
+      width: 18px;
+      height: 18px;
+      background: rgba(var(--nav-bg-base), 0.4);
+      border: none;
+      border-radius: 3px;
+      color: var(--font-color-nav);
+      font-size: 11px;
+      transition: all 0.2s ease;
+      cursor: pointer;
+
+      &:hover {
+        background: rgba(var(--blert-red-base), 0.2);
+        color: var(--blert-red);
+        transform: scale(1.1);
+      }
+
+      &:active {
+        transform: scale(0.95);
+      }
+
+      i {
+        pointer-events: none;
+      }
+    }
+  }
+}
+
+@keyframes tagSlideIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
   }
 }

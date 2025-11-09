@@ -3,19 +3,75 @@
   width: fit-content;
 
   .input {
+    transition: all 0.2s ease;
+
     &.open {
       border-radius: 5px 5px 0 0;
       border-bottom: none;
+      border-color: rgba(var(--blert-button-base), 0.9);
+      box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
     }
   }
 }
 
 .suggestions {
   border-color: rgba(var(--blert-button-base), 0.9) !important;
-  background-color: var(--panel-bg);
+  background: linear-gradient(
+    180deg,
+    var(--panel-bg) 0%,
+    rgba(var(--nav-bg-base), 0.98) 100%
+  );
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.3),
+    0 2px 8px rgba(0, 0, 0, 0.15) !important;
 
   .suggestion {
-    padding: 2px 12px;
-    opacity: 0.9;
+    padding: 8px 12px;
+    color: var(--blert-text-color);
+    font-weight: 400;
+    transition: all 0.15s ease;
+    position: relative;
+
+    &:hover {
+      background: rgba(var(--blert-button-base), 0.1);
+      padding-left: 16px;
+    }
+
+    &.active {
+      background: rgba(var(--blert-button-base), 0.15);
+      font-weight: 500;
+      padding-left: 16px;
+
+      &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background: var(--blert-button);
+        border-radius: 0 2px 2px 0;
+      }
+    }
+
+    // Animation for newly loaded suggestions
+    @for $i from 1 through 10 {
+      &:nth-child(#{$i}) {
+        animation: slideInSuggestion 0.2s ease-out forwards;
+        animation-delay: #{$i * 0.02}s;
+        opacity: 0;
+      }
+    }
+  }
+}
+
+@keyframes slideInSuggestion {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
   }
 }
