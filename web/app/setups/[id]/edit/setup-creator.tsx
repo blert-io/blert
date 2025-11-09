@@ -2,7 +2,7 @@
 
 import { ChallengeType } from '@blert/common';
 import { useRouter } from 'next/navigation';
-import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
   publishSetupRevision,
@@ -20,6 +20,8 @@ import { useToast } from '@/components/toast';
 import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 import { useDisplay, useIsApple, useWidthThreshold } from '@/display';
 
+import { slotIdFromString } from '../../container-grid';
+import { ContextMenuWrapper } from './context-menu';
 import DeleteModal from '../../delete-modal';
 import DebugOverlay from './debug-overlay';
 import {
@@ -263,11 +265,14 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
               context.selectAll(container, playerIndex, selectItemsOnly);
             } else if (context.activeSearchSlot !== null) {
               e.preventDefault();
-              // TODO(frolv): Don't store active search slot as a string.
-              const parts = context.activeSearchSlot.split('-');
-              const playerIndex = parseInt(parts[1]);
-              const container = parseInt(parts[2]);
-              context.selectAll(container, playerIndex, selectItemsOnly);
+              const slotId = slotIdFromString(context.activeSearchSlot);
+              if (slotId !== null) {
+                context.selectAll(
+                  slotId.container,
+                  slotId.playerIndex,
+                  selectItemsOnly,
+                );
+              }
             }
           }
           break;
@@ -394,222 +399,226 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
 
   return (
     <SetupEditingContext.Provider value={context}>
-      <div className={styles.creator}>
-        <div className={styles.actions}>
-          <div className={styles.editing}>
-            <button
-              disabled={editableSetup.position === 0}
-              onClick={() => context.undo()}
-              data-tooltip-id={GLOBAL_TOOLTIP_ID}
-              data-tooltip-content={`Undo (${modifier}+Z)`}
-            >
-              <i className="fas fa-undo" />
-              <span className="sr-only">Undo</span>
-            </button>
-            <button
-              disabled={
-                editableSetup.position === editableSetup.history.length - 1
-              }
-              onClick={() => context.redo()}
-              data-tooltip-id={GLOBAL_TOOLTIP_ID}
-              data-tooltip-content={`Redo (${modifier}+Y)`}
-            >
-              <i className="fas fa-redo" />
-              <span className="sr-only">Redo</span>
-            </button>
-            <SaveButton
-              disabled={!editableSetup.modified || saving}
-              onClick={() => handleSave(false)}
-              modifier={modifier}
-              hasUnsavedChanges={editableSetup.modified}
-              key={saveCompleteCounter}
-            />
-            <button
-              onClick={() => setShowShortcutsModal(true)}
-              data-tooltip-id={GLOBAL_TOOLTIP_ID}
-              data-tooltip-content="Keyboard shortcuts (?)"
-            >
-              <i className="fas fa-question-circle" />
-              <span className="sr-only">Keyboard shortcuts</span>
-            </button>
+      <ContextMenuWrapper>
+        <div className={styles.creator}>
+          <div className={styles.actions}>
+            <div className={styles.editing}>
+              <button
+                disabled={editableSetup.position === 0}
+                onClick={() => context.undo()}
+                data-tooltip-id={GLOBAL_TOOLTIP_ID}
+                data-tooltip-content={`Undo (${modifier}+Z)`}
+              >
+                <i className="fas fa-undo" />
+                <span className="sr-only">Undo</span>
+              </button>
+              <button
+                disabled={
+                  editableSetup.position === editableSetup.history.length - 1
+                }
+                onClick={() => context.redo()}
+                data-tooltip-id={GLOBAL_TOOLTIP_ID}
+                data-tooltip-content={`Redo (${modifier}+Y)`}
+              >
+                <i className="fas fa-redo" />
+                <span className="sr-only">Redo</span>
+              </button>
+              <SaveButton
+                disabled={!editableSetup.modified || saving}
+                onClick={() => handleSave(false)}
+                modifier={modifier}
+                hasUnsavedChanges={editableSetup.modified}
+                key={saveCompleteCounter}
+              />
+              <button
+                onClick={() => setShowShortcutsModal(true)}
+                data-tooltip-id={GLOBAL_TOOLTIP_ID}
+                data-tooltip-content="Keyboard shortcuts (?)"
+              >
+                <i className="fas fa-question-circle" />
+                <span className="sr-only">Keyboard shortcuts</span>
+              </button>
+            </div>
+            <div className={styles.publishing}>
+              <Button
+                className={`${styles.button} ${styles.delete}`}
+                disabled={publishing || publishLoading}
+                onClick={() => setShowDeleteModal(true)}
+                data-tooltip-id={GLOBAL_TOOLTIP_ID}
+                data-tooltip-content="Delete setup"
+              >
+                <i className="fas fa-trash" />
+                Delete
+              </Button>
+              <Button
+                className={styles.button}
+                disabled={publishing || publishLoading}
+                loading={publishLoading}
+                onClick={() => setPublishing(true)}
+                data-tooltip-id={GLOBAL_TOOLTIP_ID}
+                data-tooltip-content="Publish setup"
+              >
+                <i className="fas fa-upload" />
+                Publish
+              </Button>
+            </div>
           </div>
-          <div className={styles.publishing}>
-            <Button
-              className={`${styles.button} ${styles.delete}`}
-              disabled={publishing || publishLoading}
-              onClick={() => setShowDeleteModal(true)}
-              data-tooltip-id={GLOBAL_TOOLTIP_ID}
-              data-tooltip-content="Delete setup"
-            >
-              <i className="fas fa-trash" />
-              Delete
-            </Button>
-            <Button
-              className={styles.button}
-              disabled={publishing || publishLoading}
-              loading={publishLoading}
-              onClick={() => setPublishing(true)}
-              data-tooltip-id={GLOBAL_TOOLTIP_ID}
-              data-tooltip-content="Publish setup"
-            >
-              <i className="fas fa-upload" />
-              Publish
-            </Button>
-          </div>
-        </div>
-        {itemCountsAsSidebar && (
-          <div className={styles.itemCountsSidebar}>{itemCounts}</div>
-        )}
-        <div className={styles.main}>
-          <div className={`${setupStyles.panel} ${styles.overview}`}>
-            <EditableTextField
-              className={styles.title}
-              value={context.setup.title}
-              onChange={(title) =>
-                context.update((prev) => ({ ...prev, title }))
-              }
-              tag="h1"
-              width="95%"
-            />
-            <div className={styles.group}>
-              <div className={styles.challengeType}>
-                <label className={styles.label}>Challenge type</label>
-                <RadioInput.Group
-                  name="setup-challenge-type"
-                  onChange={(value) =>
-                    context.update((prev) => ({
-                      ...prev,
-                      challenge: value as ChallengeType,
-                    }))
-                  }
-                >
-                  <RadioInput.Option
-                    checked={context.setup.challenge === ChallengeType.TOB}
-                    id={`setup-challenge-type-${ChallengeType.TOB}`}
-                    label="ToB"
-                    value={ChallengeType.TOB}
-                  />
-                  <RadioInput.Option
-                    checked={context.setup.challenge === ChallengeType.COX}
-                    id={`setup-challenge-type-${ChallengeType.COX}`}
-                    label="CoX"
-                    value={ChallengeType.COX}
-                  />
-                  <RadioInput.Option
-                    checked={context.setup.challenge === ChallengeType.TOA}
-                    id={`setup-challenge-type-${ChallengeType.TOA}`}
-                    label="ToA"
-                    value={ChallengeType.TOA}
-                  />
-                  <RadioInput.Option
-                    checked={context.setup.challenge === ChallengeType.INFERNO}
-                    id={`setup-challenge-type-${ChallengeType.INFERNO}`}
-                    label="Inferno"
-                    value={ChallengeType.INFERNO}
-                  />
-                  <RadioInput.Option
-                    checked={
-                      context.setup.challenge === ChallengeType.COLOSSEUM
+          {itemCountsAsSidebar && (
+            <div className={styles.itemCountsSidebar}>{itemCounts}</div>
+          )}
+          <div className={styles.main}>
+            <div className={`${setupStyles.panel} ${styles.overview}`}>
+              <EditableTextField
+                className={styles.title}
+                value={context.setup.title}
+                onChange={(title) =>
+                  context.update((prev) => ({ ...prev, title }))
+                }
+                tag="h1"
+                width="95%"
+              />
+              <div className={styles.group}>
+                <div className={styles.challengeType}>
+                  <label className={styles.label}>Challenge type</label>
+                  <RadioInput.Group
+                    name="setup-challenge-type"
+                    onChange={(value) =>
+                      context.update((prev) => ({
+                        ...prev,
+                        challenge: value as ChallengeType,
+                      }))
                     }
-                    id={`setup-challenge-type-${ChallengeType.COLOSSEUM}`}
-                    label={display.isCompact() ? 'Colo' : 'Colosseum'}
-                    value={ChallengeType.COLOSSEUM}
-                  />
-                </RadioInput.Group>
+                  >
+                    <RadioInput.Option
+                      checked={context.setup.challenge === ChallengeType.TOB}
+                      id={`setup-challenge-type-${ChallengeType.TOB}`}
+                      label="ToB"
+                      value={ChallengeType.TOB}
+                    />
+                    <RadioInput.Option
+                      checked={context.setup.challenge === ChallengeType.COX}
+                      id={`setup-challenge-type-${ChallengeType.COX}`}
+                      label="CoX"
+                      value={ChallengeType.COX}
+                    />
+                    <RadioInput.Option
+                      checked={context.setup.challenge === ChallengeType.TOA}
+                      id={`setup-challenge-type-${ChallengeType.TOA}`}
+                      label="ToA"
+                      value={ChallengeType.TOA}
+                    />
+                    <RadioInput.Option
+                      checked={
+                        context.setup.challenge === ChallengeType.INFERNO
+                      }
+                      id={`setup-challenge-type-${ChallengeType.INFERNO}`}
+                      label="Inferno"
+                      value={ChallengeType.INFERNO}
+                    />
+                    <RadioInput.Option
+                      checked={
+                        context.setup.challenge === ChallengeType.COLOSSEUM
+                      }
+                      id={`setup-challenge-type-${ChallengeType.COLOSSEUM}`}
+                      label={display.isCompact() ? 'Colo' : 'Colosseum'}
+                      value={ChallengeType.COLOSSEUM}
+                    />
+                  </RadioInput.Group>
+                </div>
+              </div>
+              <div className={styles.descriptionWrapper}>
+                <label className={styles.label}>Description</label>
+                <MarkdownEditor
+                  value={context.setup.description}
+                  onChange={onDescriptionChange}
+                  placeholder="Describe your gear setup"
+                  maxLength={MAX_DESCRIPTION_LENGTH}
+                />
               </div>
             </div>
-            <div className={styles.descriptionWrapper}>
-              <label className={styles.label}>Description</label>
-              <MarkdownEditor
-                value={context.setup.description}
-                onChange={onDescriptionChange}
-                placeholder="Describe your gear setup"
-                maxLength={MAX_DESCRIPTION_LENGTH}
-              />
+            {!display.isCompact() && !itemCountsAsSidebar && itemCounts}
+            <PlayerList
+              className={styles.players}
+              players={context.setup.players}
+              onAddPlayer={() => {
+                context.update((prev) => {
+                  if (prev.players.length >= MAX_PARTY_SIZE) {
+                    return prev;
+                  }
+                  const newPlayer = newGearSetupPlayer(prev.players.length + 1);
+                  return {
+                    ...prev,
+                    players: [...prev.players, newPlayer],
+                  };
+                });
+              }}
+              showAddButton={context.setup.players.length < MAX_PARTY_SIZE}
+            />
+          </div>
+          {!display.isCompact() && (
+            <div className={styles.selector}>
+              <ItemSelector />
             </div>
-          </div>
-          {!display.isCompact() && !itemCountsAsSidebar && itemCounts}
-          <PlayerList
-            className={styles.players}
-            players={context.setup.players}
-            onAddPlayer={() => {
-              context.update((prev) => {
-                if (prev.players.length >= MAX_PARTY_SIZE) {
-                  return prev;
-                }
-                const newPlayer = newGearSetupPlayer(prev.players.length + 1);
-                return {
-                  ...prev,
-                  players: [...prev.players, newPlayer],
-                };
-              });
-            }}
-            showAddButton={context.setup.players.length < MAX_PARTY_SIZE}
-          />
-        </div>
-        {!display.isCompact() && (
-          <div className={styles.selector}>
-            <ItemSelector />
-          </div>
-        )}
-        {display.isCompact() && (
-          <>
-            {context.selectedItem && (
-              <button
-                className={styles.selectedItemOverlay}
-                onClick={() => context.setSelectedItem(null)}
-              >
-                <Item
-                  id={context.selectedItem.id}
-                  name={context.selectedItem.name}
-                  quantity={1}
-                  size={32}
+          )}
+          {display.isCompact() && (
+            <>
+              {context.selectedItem && (
+                <button
+                  className={styles.selectedItemOverlay}
+                  onClick={() => context.setSelectedItem(null)}
+                >
+                  <Item
+                    id={context.selectedItem.id}
+                    name={context.selectedItem.name}
+                    quantity={1}
+                    size={32}
+                  />
+                  <span className="sr-only">
+                    Unselect item: {context.selectedItem.name}
+                  </span>
+                  <i className="fas fa-times" />
+                </button>
+              )}
+              {itemPanelOpen && (
+                <div
+                  className={styles.panelBackground}
+                  onClick={() => setItemPanelOpen(false)}
                 />
-                <span className="sr-only">
-                  Unselect item: {context.selectedItem.name}
-                </span>
-                <i className="fas fa-times" />
-              </button>
-            )}
-            {itemPanelOpen && (
+              )}
               <div
-                className={styles.panelBackground}
-                onClick={() => setItemPanelOpen(false)}
-              />
-            )}
-            <div
-              className={`${styles.itemPanel} ${itemPanelOpen ? styles.open : ''}`}
-            >
-              <button
-                className={styles.toggle}
-                onClick={() => setItemPanelOpen((prev) => !prev)}
+                className={`${styles.itemPanel} ${itemPanelOpen ? styles.open : ''}`}
               >
-                <i
-                  className={`fas fa-chevron-${itemPanelOpen ? 'down' : 'up'}`}
+                <button
+                  className={styles.toggle}
+                  onClick={() => setItemPanelOpen((prev) => !prev)}
+                >
+                  <i
+                    className={`fas fa-chevron-${itemPanelOpen ? 'down' : 'up'}`}
+                  />
+                  Items
+                </button>
+                <Tabs
+                  fluid
+                  maxHeight={itemPanelContentHeight}
+                  small
+                  tabs={[
+                    {
+                      icon: 'fas fa-cog',
+                      title: 'Item selector',
+                      content: <ItemSelector />,
+                    },
+                    {
+                      icon: 'fas fa-list',
+                      title: 'Item counts',
+                      content: itemCounts,
+                    },
+                  ]}
                 />
-                Items
-              </button>
-              <Tabs
-                fluid
-                maxHeight={itemPanelContentHeight}
-                small
-                tabs={[
-                  {
-                    icon: 'fas fa-cog',
-                    title: 'Item selector',
-                    content: <ItemSelector />,
-                  },
-                  {
-                    icon: 'fas fa-list',
-                    title: 'Item counts',
-                    content: itemCounts,
-                  },
-                ]}
-              />
-            </div>
-          </>
-        )}
-      </div>
+              </div>
+            </>
+          )}
+        </div>
+      </ContextMenuWrapper>
       <PublishModal
         setup={setup}
         open={publishing}

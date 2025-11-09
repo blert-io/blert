@@ -34,6 +34,9 @@ export type MenuItem = {
   /** Icon to display in the menu, overriding the default icon. */
   icon?: string;
 
+  /** Secondary text to display on the right side of the menu item. */
+  secondary?: string;
+
   /** Submenu to display when the item is hovered. */
   subMenu?: MenuItem[];
 
@@ -143,14 +146,22 @@ function MenuImpl(props: MenuImplProps) {
         }
 
         let icon;
+        let secondary;
         if (item.subMenu) {
           icon = (
             <i
               className={`fas fa-chevron-right ${styles.icon} ${styles.subMenuIcon}`}
             />
           );
-        } else if (item.icon) {
-          icon = <i className={`${item.icon} ${styles.icon}`} />;
+        } else {
+          if (item.icon) {
+            icon = <i className={`${item.icon} ${styles.icon}`} />;
+          }
+          if (item.secondary) {
+            secondary = (
+              <span className={styles.secondary}>{item.secondary}</span>
+            );
+          }
         }
 
         return (
@@ -181,6 +192,7 @@ function MenuImpl(props: MenuImplProps) {
               <>
                 <span>{item.label}</span>
                 {icon}
+                {secondary}
               </>
             )}
             {item.subMenu && props.activeElements[props.depth] === i && (

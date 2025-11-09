@@ -12,13 +12,13 @@ import {
   coordsToIndex,
   eventToGridCoords,
   SLOT_SIZE_PX,
+  SlotIdentifier,
 } from './container-grid';
 import {
   OperationMode,
   SetupEditingContext,
   SelectionRegion,
   SlotData,
-  SlotIdentifier,
   SlotKey,
 } from './editing-context';
 import { PlacementPreview } from './placement-preview';

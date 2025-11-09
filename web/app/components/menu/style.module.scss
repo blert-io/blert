@@ -69,6 +69,10 @@
       & > .icon {
         color: var(--blert-button);
       }
+
+      .secondary {
+        color: rgba(255, 255, 255, 0.7);
+      }
     }
 
     &:not(.inactive):not(.active):hover {
@@ -98,6 +102,16 @@
         color 0.2s ease;
       color: var(--blert-button);
     }
+
+    .secondary {
+      margin-left: auto;
+      color: var(--font-color-nav);
+      font-size: 0.85rem;
+      font-family: var(--font-roboto-mono), monospace;
+      white-space: nowrap;
+      padding-left: 8px;
+      opacity: 0.8;
+    }
   }
 
   .divider {
@@ -106,9 +120,9 @@
     margin: 0 auto;
     background: linear-gradient(
       90deg,
-      transparent,
-      var(--font-color-nav-divider),
-      transparent
+      rgba(var(--blert-button-base), 0.05),
+      rgba(var(--blert-button-base), 0.25),
+      rgba(var(--blert-button-base), 0.05)
     );
   }
 }

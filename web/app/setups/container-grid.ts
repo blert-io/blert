@@ -39,6 +39,46 @@ const CONTAINER_DIMENSIONS = {
 export const SLOT_SIZE_PX = 42;
 
 /**
+ * Identifier for a specific slot in the setup.
+ */
+export type SlotIdentifier = {
+  playerIndex: number;
+  container: Container;
+  index: number;
+};
+
+export type SlotIdString = `slot-${number}-${Container}-${number}`;
+
+/**
+ * Converts a slot identifier to a string.
+ * @param slotId The slot identifier to convert to a string.
+ * @returns The string representation of the slot identifier.
+ */
+export function slotIdToString(slotId: SlotIdentifier): SlotIdString {
+  return `slot-${slotId.playerIndex}-${slotId.container}-${slotId.index}`;
+}
+
+/**
+ * Parses a slot identifier from a string.
+ * @param id The string representation of the slot identifier.
+ * @returns The slot identifier, or null if the string is not a valid slot
+ *   identifier.
+ */
+export function slotIdFromString(id: string): SlotIdentifier | null {
+  const parts = id.split('-');
+  if (parts.length !== 4 || parts[0] !== 'slot') {
+    return null;
+  }
+  const playerIndex = parseInt(parts[1]);
+  const container = parseInt(parts[2]) as Container;
+  const index = parseInt(parts[3]);
+  if (isNaN(playerIndex) || isNaN(container) || isNaN(index)) {
+    return null;
+  }
+  return { playerIndex, container, index };
+}
+
+/**
  * Equipment grid layout mapping grid positions to equipment slot indices.
  * null represents empty/invalid positions.
  */

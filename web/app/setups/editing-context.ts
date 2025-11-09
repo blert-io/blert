@@ -22,6 +22,8 @@ import {
   PlacementMode,
   PlacementTarget,
   placeRegion,
+  SlotIdentifier,
+  SlotIdString,
 } from './container-grid';
 
 /**
@@ -41,15 +43,6 @@ export enum OperationMode {
   CLIPBOARD_CUT = 'clipboard_cut',
   /** Selection has been copied (Ctrl+C). */
   CLIPBOARD_COPY = 'clipboard_copy',
-}
-
-/**
- * Identifier for a specific slot in the setup.
- */
-export interface SlotIdentifier {
-  playerIndex: number;
-  container: Container;
-  index: number;
 }
 
 /**
@@ -86,7 +79,7 @@ export type EditableGearSetup = {
   position: number;
   modified: boolean;
   selectedItem: number | null;
-  activeSearchSlot: string | null;
+  activeSearchSlot: SlotIdString | null;
   operationMode: OperationMode;
   selection: SelectionRegion | null;
   clipboard: {
@@ -153,7 +146,7 @@ export class EditingContext {
     return this.state.activeSearchSlot;
   }
 
-  public setActiveSearchSlot(id: string | null) {
+  public setActiveSearchSlot(id: SlotIdString | null) {
     this.setState((prev) => ({ ...prev, activeSearchSlot: id }));
   }
 

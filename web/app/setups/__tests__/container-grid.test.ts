@@ -13,13 +13,9 @@ import {
   PlacementMode,
   PlacementTarget,
   removeConflicting2hItem,
-} from '../container-grid';
-import {
-  SelectionRegion,
-  SlotData,
   SlotIdentifier,
-  SlotKey,
-} from '../editing-context';
+} from '../container-grid';
+import { SelectionRegion, SlotData, SlotKey } from '../editing-context';
 import { Container, GearSetupPlayer, ItemSlot, Spellbook } from '../setup';
 
 describe('indexToCoords and coordsToIndex', () => {

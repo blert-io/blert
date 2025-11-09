@@ -9,7 +9,7 @@ import {
   extendedItemCache,
 } from '@/utils/item-cache/extended';
 
-import { indexToCoords } from './container-grid';
+import { indexToCoords, slotIdToString } from './container-grid';
 import { OperationMode, SetupEditingContext } from './editing-context';
 import { Container, ItemSlot, getContainerKey } from './setup';
 import { SetupViewingContext } from './viewing-context';
@@ -33,7 +33,11 @@ export function Slot(props: SlotProps) {
   const [altHeld, setAltHeld] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
-  const id = `slot-${props.playerIndex}-${props.container}-${props.index}`;
+  const id = slotIdToString({
+    playerIndex: props.playerIndex,
+    container: props.container,
+    index: props.index,
+  });
   const isSearchActive = context?.activeSearchSlot === id;
 
   let className = styles.slot;
@@ -244,6 +248,7 @@ export function Slot(props: SlotProps) {
   function handleSearchSelect(item: ExtendedItemData) {
     if (props.filter?.(item) ?? true) {
       placeItem(item);
+      setIsHovered(false);
     }
     context?.setActiveSearchSlot(null);
   }
@@ -266,21 +271,6 @@ export function Slot(props: SlotProps) {
         />
       </div>
     );
-  } else if (isSearchActive && context !== null) {
-    content = (
-      <SlotSearch
-        id={id}
-        container={props.container}
-        index={props.index}
-        filter={props.filter}
-        onSelect={handleSearchSelect}
-        onClear={() => context.setActiveSearchSlot(null)}
-        searchRef={searchRef}
-        slotRef={slotRef}
-      />
-    );
-  } else {
-    content = null;
   }
 
   const handleMouseEnter = () => {
@@ -300,6 +290,7 @@ export function Slot(props: SlotProps) {
   return (
     <div
       className={className}
+      id={id}
       onClick={onClick}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -307,6 +298,18 @@ export function Slot(props: SlotProps) {
       data-slot="true"
     >
       {content}
+      {isSearchActive && context !== null && (
+        <SlotSearch
+          id={id}
+          container={props.container}
+          index={props.index}
+          filter={props.filter}
+          onSelect={handleSearchSelect}
+          onClear={() => context?.setActiveSearchSlot(null)}
+          searchRef={searchRef}
+          slotRef={slotRef}
+        />
+      )}
     </div>
   );
 }
