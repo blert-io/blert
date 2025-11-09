@@ -9,11 +9,20 @@ import {
   Container,
   GearSetup,
   GearSetupPlayer,
+  getContainer,
   getContainerKey,
+  hasQuiver,
   ItemSlot,
+  QUIVER_SLOT_INDEX,
   SlotItem,
 } from './setup';
-import { PlacementMode, PlacementTarget, placeRegion } from './container-grid';
+import {
+  coordsToIndex,
+  getContainerDimensions,
+  PlacementMode,
+  PlacementTarget,
+  placeRegion,
+} from './container-grid';
 
 /**
  * Operation modes for the editing context.
@@ -192,6 +201,104 @@ export class EditingContext {
    */
   public clearSelection() {
     this.setSelection(null);
+  }
+
+  /**
+   * Selects all slots in a container.
+   * @param container Container to select all slots from.
+   * @param playerIndex Player index to select all slots from.
+   * @param populated If true, only include slots that are populated.
+   */
+  public selectAll(
+    container: Container,
+    playerIndex: number,
+    populated: boolean = false,
+  ) {
+    this.setState((prev) => {
+      const player = prev.history[prev.position].players[playerIndex];
+
+      const { cols, rows } = getContainerDimensions(container);
+      const slots = new Map<SlotKey, SlotData>();
+
+      const containerSlots = new Map<number, ItemSlot>(
+        getContainer(player, container).map((slot) => {
+          return [slot.index, slot];
+        }),
+      );
+
+      let slotCount = 0;
+
+      let minX = Number.MAX_SAFE_INTEGER;
+      let minY = Number.MAX_SAFE_INTEGER;
+      let maxX = -1;
+      let maxY = -1;
+
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          const index = coordsToIndex(x, y, container);
+          if (index === null) {
+            continue;
+          }
+
+          if (
+            container === Container.EQUIPMENT &&
+            index === QUIVER_SLOT_INDEX &&
+            !hasQuiver(player)
+          ) {
+            continue;
+          }
+
+          if (populated && containerSlots.get(index) === undefined) {
+            continue;
+          }
+
+          const slotId: SlotIdentifier = {
+            playerIndex,
+            container,
+            index,
+          };
+
+          slots.set(`${x},${y}`, {
+            slotId,
+            localX: x,
+            localY: y,
+            slot: containerSlots.get(index) ?? null,
+          });
+
+          slotCount++;
+          minX = Math.min(minX, x);
+          minY = Math.min(minY, y);
+          maxX = Math.max(maxX, x);
+          maxY = Math.max(maxY, y);
+        }
+      }
+
+      if (slotCount === 0) {
+        return prev;
+      }
+
+      const width = maxX - minX + 1;
+      const height = maxY - minY + 1;
+
+      const newSelection: SelectionRegion = {
+        type: slotCount === width * height ? 'dense' : 'sparse',
+        bounds: {
+          minX,
+          minY,
+          width,
+          height,
+          container,
+          playerIndex,
+        },
+        slots,
+      };
+
+      return {
+        ...prev,
+        ...this.modeTransitions(prev.operationMode, OperationMode.SELECTION),
+        selection: newSelection,
+      };
+    });
   }
 
   /**

@@ -254,6 +254,24 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
           setShowShortcutsModal(true);
           break;
 
+        case 'a':
+          if (e.ctrlKey || e.metaKey) {
+            const selectItemsOnly = e.shiftKey;
+            if (context.selection !== null) {
+              e.preventDefault();
+              const { container, playerIndex } = context.selection.bounds;
+              context.selectAll(container, playerIndex, selectItemsOnly);
+            } else if (context.activeSearchSlot !== null) {
+              e.preventDefault();
+              // TODO(frolv): Don't store active search slot as a string.
+              const parts = context.activeSearchSlot.split('-');
+              const playerIndex = parseInt(parts[1]);
+              const container = parseInt(parts[2]);
+              context.selectAll(container, playerIndex, selectItemsOnly);
+            }
+          }
+          break;
+
         case 'c':
           if (e.ctrlKey || e.metaKey) {
             if (context.selection !== null) {
@@ -300,8 +318,8 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
       }
     };
 
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [context, handleSave]);
 
   useEffect(() => {
@@ -723,6 +741,7 @@ function KeyboardShortcutsModal({
       items: [
         { keys: ['Click+Drag'], description: 'Select region' },
         { keys: ['Shift+Drag'], description: 'Force selection' },
+        { keys: [`${ctrl}+A`], description: 'Select all slots' },
         { keys: [`${ctrl}+C`], description: 'Copy selection' },
         { keys: [`${ctrl}+X`], description: 'Cut selection' },
         { keys: [`V`], description: 'Cycle paste mode (Replace/Merge)' },
