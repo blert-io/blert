@@ -1,6 +1,8 @@
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
+import Button from '@/components/button';
 import Menu, { MENU_DIVIDER, MenuItem } from '@/components/menu';
+import Modal from '@/components/modal';
 import { useIsApple } from '@/display';
 import {
   indexToCoords,
@@ -11,6 +13,8 @@ import {
 import { EditingContext, SetupEditingContext } from '@/setups/editing-context';
 import { getContainerKey } from '@/setups/setup';
 import { extendedItemCache } from '@/utils/item-cache/extended';
+
+import styles from './style.module.scss';
 
 function isInSelection(
   context: EditingContext,
@@ -43,6 +47,8 @@ export function ContextMenuWrapper({
 }) {
   const context = useContext(SetupEditingContext);
   const [menuTargetId, setMenuTargetId] = useState<SlotIdentifier | null>(null);
+  const [commentModalSlot, setCommentModalSlot] =
+    useState<SlotIdentifier | null>(null);
 
   const isApple = useIsApple();
 
@@ -136,7 +142,31 @@ export function ContextMenuWrapper({
 
       const slot = context.setup.players[playerIndex][key].slots.find(
         (slot) => slot.index === index,
-      );
+      ) ?? null;
+
+      const hasComment = slot !== null && slot.comment !== null;
+
+      if (hasComment) {
+        items.push({
+          label: 'Edit comment…',
+          customAction: () => {
+            setCommentModalSlot(menuTargetId);
+          },
+        });
+        items.push({
+          label: 'Remove comment',
+          customAction: () => {
+            context?.setSlotComment(playerIndex, container, index, null);
+          },
+        });
+      } else {
+        items.push({
+          label: 'Add comment…',
+          customAction: () => {
+            setCommentModalSlot(menuTargetId);
+          },
+        });
+      }
 
       if (slot?.item) {
         const id = slot.item.id;
@@ -198,6 +228,90 @@ export function ContextMenuWrapper({
           targetId={slotIdToString(menuTargetId)}
         />
       )}
+      <CommentModal
+        open={commentModalSlot !== null}
+        onClose={() => setCommentModalSlot(null)}
+        slotId={commentModalSlot}
+        context={context}
+      />
     </div>
+  );
+}
+
+function CommentModal({
+  open,
+  onClose,
+  slotId,
+  context,
+}: {
+  open: boolean;
+  onClose: () => void;
+  slotId: SlotIdentifier | null;
+  context: EditingContext | null;
+}) {
+  const [comment, setComment] = useState('');
+
+  useEffect(() => {
+    if (open && slotId !== null && context !== null) {
+      const key = getContainerKey(slotId.container);
+      const slot = context.setup.players[slotId.playerIndex][key].slots.find(
+        (slot) => slot.index === slotId.index,
+      );
+      setComment(slot?.comment ?? '');
+    }
+  }, [open, slotId, context]);
+
+  const handleSave = () => {
+    if (slotId === null || context === null) {
+      return;
+    }
+
+    const trimmedComment = comment.trim();
+    context.setSlotComment(
+      slotId.playerIndex,
+      slotId.container,
+      slotId.index,
+      trimmedComment.length > 0 ? trimmedComment : null,
+    );
+    onClose();
+  };
+
+  const existingComment =
+    slotId !== null && context !== null
+      ? context.setup.players[slotId.playerIndex][
+          getContainerKey(slotId.container)
+        ].slots.find((slot) => slot.index === slotId.index)?.comment
+      : null;
+
+  return (
+    <Modal className={styles.commentModal} open={open} onClose={onClose}>
+      <div className={styles.modalHeader}>
+        <h2>
+          <i className="fas fa-comment" />
+          {existingComment ? 'Edit' : 'Add'} Comment
+        </h2>
+        <button onClick={onClose}>
+          <i className="fas fa-times" />
+          <span className="sr-only">Close</span>
+        </button>
+      </div>
+      <div className={styles.commentDialog}>
+        <textarea
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder="Add a note about this slot…"
+          rows={4}
+          maxLength={500}
+          autoFocus
+        />
+        <div className={styles.characterCount}>{comment.length} / 500</div>
+        <div className={styles.actions}>
+          <Button onClick={onClose} simple>
+            Cancel
+          </Button>
+          <Button onClick={handleSave}>Save</Button>
+        </div>
+      </div>
+    </Modal>
   );
 }

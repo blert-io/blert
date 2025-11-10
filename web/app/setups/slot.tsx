@@ -1,3 +1,5 @@
+'use client';
+
 import { EquipmentSlot } from '@blert/common';
 import { RefObject, useContext, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -16,11 +18,14 @@ import { SetupViewingContext } from './viewing-context';
 
 import styles from './style.module.scss';
 
+const SLOT_TOOLTIP_ID = 'slot-tooltip';
+
 type SlotProps = {
   container: Container;
   index: number;
   playerIndex: number;
   item?: number;
+  comment?: string | null;
   filter?: (item: ExtendedItemData) => boolean;
 };
 
@@ -256,12 +261,18 @@ export function Slot(props: SlotProps) {
   let content;
   if (props.item !== undefined) {
     const name = extendedItemCache.getItemName(props.item);
+
+    const tooltipProps: Record<string, string> = {
+      'data-tooltip-id': SLOT_TOOLTIP_ID,
+      'data-tooltip-item-name': name,
+    };
+
+    if (props.comment) {
+      tooltipProps['data-tooltip-comment'] = props.comment;
+    }
+
     content = (
-      <div
-        className={styles.itemWrapper}
-        data-tooltip-id="slot-tooltip"
-        data-tooltip-content={name}
-      >
+      <div className={styles.itemWrapper} {...tooltipProps}>
         <Item
           id={props.item}
           name={name}
@@ -271,6 +282,13 @@ export function Slot(props: SlotProps) {
         />
       </div>
     );
+  } else if (props.comment) {
+    const tooltipProps: Record<string, string> = {
+      'data-tooltip-id': SLOT_TOOLTIP_ID,
+      'data-tooltip-comment': props.comment,
+    };
+
+    content = <div className={styles.itemWrapper} {...tooltipProps} />;
   }
 
   const handleMouseEnter = () => {
@@ -298,6 +316,7 @@ export function Slot(props: SlotProps) {
       data-slot="true"
     >
       {content}
+      {props.comment && <CommentBadge />}
       {isSearchActive && context !== null && (
         <SlotSearch
           id={id}
@@ -310,6 +329,49 @@ export function Slot(props: SlotProps) {
           slotRef={slotRef}
         />
       )}
+    </div>
+  );
+}
+
+function CommentBadge() {
+  return (
+    <div className={styles.commentBadge}>
+      <i className="fas fa-comment" />
+    </div>
+  );
+}
+
+export function SlotTooltipRenderer({
+  activeAnchor,
+}: {
+  activeAnchor: HTMLElement | null;
+}) {
+  if (!activeAnchor) {
+    return null;
+  }
+
+  const itemName = activeAnchor.dataset.tooltipItemName;
+  const comment = activeAnchor.dataset.tooltipComment;
+
+  if (!itemName && !comment) {
+    return null;
+  }
+
+  if (!comment) {
+    return itemName;
+  }
+
+  return (
+    <div className={styles.slotTooltipContent}>
+      {itemName && (
+        <div className={styles.tooltipHeader}>
+          <span>{itemName}</span>
+        </div>
+      )}
+      <div className={styles.commentSection}>
+        <i className="fas fa-comment" />
+        <span className={styles.commentText}>{comment}</span>
+      </div>
     </div>
   );
 }

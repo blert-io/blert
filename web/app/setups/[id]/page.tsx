@@ -1,8 +1,8 @@
+import { challengeName } from '@blert/common';
 import { ResolvingMetadata } from 'next';
 import { headers } from 'next/headers';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { challengeName } from '@blert/common';
 
 import { auth } from '@/auth';
 import {
@@ -18,6 +18,7 @@ import { getRequestIp } from '@/utils/headers';
 import SetupActions from './actions';
 import CollapsibleDescription from './collapsible-description';
 import Panels from './panels';
+import { SlotTooltipRenderer } from '../slot';
 import { SetupViewingContextProvider } from '../viewing-context';
 import VoteBar from '../vote-bar';
 
@@ -147,7 +148,7 @@ export default async function GearSetupPage({
           />
         </div>
       </div>
-      <Tooltip tooltipId="slot-tooltip">Hover an item</Tooltip>
+      <Tooltip tooltipId="slot-tooltip" render={SlotTooltipRenderer} />
     </SetupViewingContextProvider>
   );
 }

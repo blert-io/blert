@@ -653,6 +653,60 @@ export class EditingContext {
     });
   }
 
+  /**
+   * Sets or removes a comment on a specific slot.
+   * @param playerIndex Index of the player.
+   * @param container Container of the slot.
+   * @param index Slot index within the container.
+   * @param comment Comment text, or null to remove.
+   */
+  public setSlotComment(
+    playerIndex: number,
+    container: Container,
+    index: number,
+    comment: string | null,
+  ) {
+    this.updatePlayer(playerIndex, (prev) => {
+      const key = getContainerKey(container);
+      const existingSlot = prev[key].slots.find((slot) => slot.index === index);
+
+      // If no slot exists at this index, create one with just the comment.
+      if (existingSlot === undefined) {
+        if (comment === null) {
+          // Don't create a slot just to remove a comment
+          return prev;
+        }
+        const newSlot: ItemSlot = {
+          index,
+          item: null,
+          comment,
+        };
+        return {
+          ...prev,
+          [key]: {
+            ...prev[key],
+            slots: [...prev[key].slots, newSlot],
+          },
+        };
+      }
+
+      const slots = prev[key].slots
+        .map((slot) => {
+          if (slot.index === index) {
+            // If removing comment and slot has no item, remove the entire slot.
+            if (comment === null && slot.item === null) {
+              return null;
+            }
+            return { ...slot, comment };
+          }
+          return slot;
+        })
+        .filter((slot): slot is ItemSlot => slot !== null);
+
+      return { ...prev, [key]: { ...prev[key], slots } };
+    });
+  }
+
   /** Reverts to the previous gear setup state. */
   public undo() {
     this.setState((prev) => {

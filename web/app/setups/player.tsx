@@ -215,6 +215,9 @@ export function Player({ index, player }: PlayerProps) {
               container={Container.EQUIPMENT}
               playerIndex={index}
               item={slotsByContainer[Container.EQUIPMENT][slotIndex]?.item?.id}
+              comment={
+                slotsByContainer[Container.EQUIPMENT][slotIndex]?.comment
+              }
               index={slotIndex}
               filter={slotMetadata?.typeFilter}
               key={i}
@@ -232,6 +235,7 @@ export function Player({ index, player }: PlayerProps) {
             container={Container.INVENTORY}
             playerIndex={index}
             item={slotsByContainer[Container.INVENTORY][i]?.item?.id}
+            comment={slotsByContainer[Container.INVENTORY][i]?.comment}
             index={i}
             key={i}
           />
@@ -251,6 +255,7 @@ export function Player({ index, player }: PlayerProps) {
                 container={Container.POUCH}
                 playerIndex={index}
                 item={slotsByContainer[Container.POUCH][slotIndex]?.item?.id}
+                comment={slotsByContainer[Container.POUCH][slotIndex]?.comment}
                 index={slotIndex}
                 filter={slotMetadata?.typeFilter}
               />
