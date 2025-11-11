@@ -68,6 +68,7 @@ export type SetupListItem = {
   publicId: string;
   name: string;
   challengeType: ChallengeType;
+  scale: number;
   authorId: number;
   author: string;
   state: SetupState;
@@ -792,16 +793,39 @@ export async function getSetups(
 ): Promise<SetupList> {
   const conditions: postgres.Fragment[] = [];
 
-  if (filter.author !== undefined) {
-    conditions.push(sql`s.author_id = ${filter.author}`);
+  let state: SetupState | undefined;
+  let author: number | undefined;
+
+  const user = await getSignedInUser();
+  if (user !== null) {
+    if (filter.state !== undefined) {
+      state = filter.state;
+      if (state !== 'published') {
+        author = user.id;
+      }
+    } else {
+      // No state filter, show only the user's own setups.
+      author = user.id;
+    }
+  } else {
+    // No user logged in, show only published setups.
+    state = 'published';
+  }
+
+  if (state !== undefined) {
+    conditions.push(sql`s.state = ${state}`);
+  }
+
+  if (filter.author !== undefined && author === undefined) {
+    author = filter.author;
+  }
+
+  if (author !== undefined) {
+    conditions.push(sql`s.author_id = ${author}`);
   }
 
   if (filter.challenge !== undefined) {
     conditions.push(sql`s.challenge_type = ${filter.challenge}`);
-  }
-
-  if (filter.state !== undefined) {
-    conditions.push(sql`s.state = ${filter.state}`);
   }
 
   if (filter.search !== undefined) {

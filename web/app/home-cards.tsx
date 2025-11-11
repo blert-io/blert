@@ -588,10 +588,10 @@ export function GuidesCard() {
 
   const fetchSetups = useCallback(async () => {
     try {
-      const res = await fetch('/api/setups?limit=2');
-      const data: SetupListItem[] = await res.json();
+      const res = await fetch('/api/setups?limit=2&sort=score');
+      const data = await res.json();
       setSetups(
-        data.map((setup) => ({
+        data.setups.map((setup: SetupListItem) => ({
           title: setup.name,
           description: '',
           href: `/setups/${setup.publicId}`,

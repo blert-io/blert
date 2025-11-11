@@ -83,6 +83,7 @@ class SetupLocalStorage {
         publicId: setup.publicId,
         name: setup.name,
         challengeType: setup.challengeType,
+        scale: setup.scale,
         authorId: setup.authorId,
         author: setup.author,
         state: setup.state,

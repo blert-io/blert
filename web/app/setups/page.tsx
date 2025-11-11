@@ -10,9 +10,10 @@ import {
 } from '@/actions/setup';
 import Card from '@/components/card';
 
+import { FilterableSetupList } from './filterable-setup-list';
 import LocalSetupsList from './local-setups-list';
 import { cursorFromParam } from './query';
-import { SetupList } from './setup-list';
+import { StaticSetupList } from './static-setup-list';
 
 import styles from './page.module.scss';
 
@@ -57,6 +58,7 @@ export default async function SetupsPage({ searchParams }: SetupsPageProps) {
       | 'latest',
     search,
     scale: scale !== undefined ? parseInt(scale) : undefined,
+    sort: 'latest' as const,
   };
 
   const [userSetups, publicSetups] = await Promise.all([
@@ -96,7 +98,7 @@ export default async function SetupsPage({ searchParams }: SetupsPageProps) {
                     Your Setups
                   </div>
                 ),
-                action: userSetups.total > SETUPS_PER_PAGE && (
+                action: (
                   <Link href="/setups/my" className={styles.viewAllLink}>
                     View All ({userSetups.total})
                     <i className="fas fa-arrow-right" />
@@ -106,13 +108,10 @@ export default async function SetupsPage({ searchParams }: SetupsPageProps) {
               className={styles.userSetupsCard}
             >
               {userSetups.setups.length > 0 ? (
-                <SetupList
+                <StaticSetupList
                   setups={userSetups.setups}
                   showState
                   className={styles.userSetups}
-                  position={0}
-                  total={userSetups.total}
-                  limit={SETUPS_PER_PAGE}
                 />
               ) : (
                 <div className={styles.emptyState}>
@@ -150,16 +149,10 @@ export default async function SetupsPage({ searchParams }: SetupsPageProps) {
             }}
             className={styles.publicSetupsCard}
           >
-            <SetupList
-              setups={publicSetups.setups}
-              nextCursor={publicSetups.nextCursor}
-              prevCursor={publicSetups.prevCursor}
-              currentFilter={filter}
-              position={position}
-              total={publicSetups.total}
+            <FilterableSetupList
+              initialData={publicSetups}
+              initialFilters={filter}
               limit={SETUPS_PER_PAGE}
-              showPagination
-              showSearch
             />
           </Card>
         </div>

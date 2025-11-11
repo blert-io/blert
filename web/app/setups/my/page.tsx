@@ -12,9 +12,9 @@ import {
 import { getSignedInUser } from '@/actions/users';
 import Card from '@/components/card';
 
+import { FilterableSetupList } from '../filterable-setup-list';
 import { LocalSetupMigrator } from './local-setup-migrator';
 import { cursorFromParam } from '../query';
-import { SetupList } from '../setup-list';
 
 import styles from '../page.module.scss';
 
@@ -69,16 +69,13 @@ export default async function MySetupsPage({
     state: state as SetupState | undefined,
     search,
     scale: scale !== undefined ? parseInt(scale) : undefined,
+    sort: 'latest' as const,
   };
 
   const setups = await getSetups(filter, parsedCursor, SETUPS_PER_PAGE);
   if (setups === null) {
     redirect('/login?next=/setups/my');
   }
-
-  const position = before
-    ? setups.remaining - SETUPS_PER_PAGE
-    : setups.total - setups.remaining;
 
   return (
     <div className={`${styles.setupsPage} ${styles.mySetups}`}>
@@ -112,17 +109,10 @@ export default async function MySetupsPage({
             }}
             className={styles.publicSetupsCard}
           >
-            <SetupList
-              setups={setups.setups}
-              nextCursor={setups.nextCursor}
-              prevCursor={setups.prevCursor}
-              currentFilter={filter}
+            <FilterableSetupList
+              initialData={setups}
+              initialFilters={filter}
               showState
-              showPagination
-              showStateFilter
-              showSearch
-              position={position}
-              total={setups.total}
               limit={SETUPS_PER_PAGE}
             />
           </Card>
