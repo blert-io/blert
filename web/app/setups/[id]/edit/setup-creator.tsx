@@ -1,6 +1,7 @@
 'use client';
 
-import { ChallengeType } from '@blert/common';
+import { challengeName, ChallengeType } from '@blert/common';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -31,9 +32,10 @@ import {
   SetupEditingContext,
 } from '../../editing-context';
 import ItemCounts from '../../item-counts';
+import { setupLocalStorage } from '../../local-storage';
 import { ItemSelector } from './item-selector';
 import PlayerList from '../../player-list';
-import { hasAllItems, newGearSetupPlayer } from '../../setup';
+import { GearSetup, hasAllItems, newGearSetupPlayer } from '../../setup';
 
 import setupStyles from '../../style.module.scss';
 import styles from './style.module.scss';
@@ -43,6 +45,9 @@ const MAX_DESCRIPTION_LENGTH = 5000;
 const AUTO_SAVE_INTERVAL_MS = 60000;
 
 const MIN_WIDTH_FOR_ITEM_COUNTS_SIDEBAR = 2000;
+
+const ACTIONS_HEIGHT = 60;
+const ANONYMOUS_BANNER_HEIGHT = 40;
 
 interface GearSetupsCreatorProps {
   setup: SetupMetadata;
@@ -163,7 +168,12 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
 
       try {
         setSaving(true);
-        await saveSetupDraft(setup.publicId, context.setup);
+
+        if (context.isLocal) {
+          setupLocalStorage.saveSetup(setup.publicId, context.setup);
+        } else {
+          await saveSetupDraft(setup.publicId, context.setup);
+        }
         context.clearModified();
         setSaveCompleteCounter((c) => c + 1);
         if (isAutoSave) {
@@ -172,7 +182,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
           showToast('Saved setup');
         }
       } catch (e) {
-        showToast('Failed to save setup');
+        showToast('Failed to save setup', 'error');
       } finally {
         setSaving(false);
       }
@@ -180,9 +190,16 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
     [setup.publicId, context, saving, showToast],
   );
 
+  const isLocal = context.isLocal;
+
   const handlePublish = useCallback(
     async (publishMessage: string) => {
       try {
+        if (isLocal) {
+          // This should not be called by the publish modal.
+          return;
+        }
+
         setPublishLoading(true);
         await publishSetupRevision(
           setup.publicId,
@@ -202,7 +219,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
         setPublishing(false);
       }
     },
-    [gearSetup, router, setup.publicId, showToast],
+    [gearSetup, router, setup.publicId, showToast, isLocal],
   );
 
   useEffect(() => {
@@ -397,11 +414,16 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
 
   const modifier = isApple ? '⌘' : 'Ctrl';
 
+  const margin = context.isLocal
+    ? ACTIONS_HEIGHT + ANONYMOUS_BANNER_HEIGHT
+    : ACTIONS_HEIGHT;
+  const contentMarginTop = `calc(${margin}px + 1em)`;
+
   return (
     <SetupEditingContext.Provider value={context}>
       <ContextMenuWrapper>
-        <div className={styles.creator}>
-          <div className={styles.actions}>
+        <div className={styles.creator} style={{ marginTop: contentMarginTop }}>
+          <div className={styles.actions} style={{ height: ACTIONS_HEIGHT }}>
             <div className={styles.editing}>
               <button
                 disabled={editableSetup.position === 0}
@@ -463,6 +485,21 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
               </Button>
             </div>
           </div>
+          {context.isLocal && (
+            <div
+              className={styles.anonymousBanner}
+              style={{ top: ACTIONS_HEIGHT, height: ANONYMOUS_BANNER_HEIGHT }}
+            >
+              <div className={styles.anonymousBannerContent}>
+                <i className="fas fa-info-circle" />
+                <span>
+                  You&apos;re editing a local setup.{' '}
+                  <Link href="/register?next=/setups/my">Sign up</Link> to
+                  publish and share it.
+                </span>
+              </div>
+            </div>
+          )}
           {itemCountsAsSidebar && (
             <div className={styles.itemCountsSidebar}>{itemCounts}</div>
           )}
@@ -556,7 +593,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
             />
           </div>
           {!display.isCompact() && (
-            <div className={styles.selector}>
+            <div className={styles.selector} style={{ top: contentMarginTop }}>
               <ItemSelector />
             </div>
           )}
@@ -621,6 +658,8 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
       </ContextMenuWrapper>
       <PublishModal
         setup={setup}
+        gearSetup={context.setup}
+        isLocal={context.isLocal}
         open={publishing}
         onClose={() => setPublishing(false)}
         onPublish={handlePublish}
@@ -629,9 +668,12 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
       />
       <DeleteModal
         setupId={setup.publicId}
+        isLocal={context.isLocal}
         open={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
-        onDelete={() => router.replace('/setups/my')}
+        onDelete={() =>
+          router.replace(context.isLocal ? '/setups' : '/setups/my')
+        }
       />
       <KeyboardShortcutsModal
         open={showShortcutsModal}
@@ -644,6 +686,8 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
 
 function PublishModal({
   setup,
+  gearSetup,
+  isLocal,
   open,
   onClose,
   onPublish,
@@ -651,62 +695,198 @@ function PublishModal({
   publishLoading,
 }: {
   setup: SetupMetadata;
+  gearSetup: GearSetup;
+  isLocal: boolean;
   open: boolean;
   onClose: () => void;
   onPublish: (message: string) => void;
   publishIssues: Array<{ message: string; type: 'warning' | 'error' }>;
   publishLoading: boolean;
 }) {
+  const router = useRouter();
   const [publishMessage, setPublishMessage] = useState('');
 
-  return (
-    <Modal className={styles.publishModal} open={open} onClose={onClose}>
-      <div className={styles.modalHeader}>
-        <h2>Publish setup</h2>
-        <button onClick={onClose}>
-          <i className="fas fa-times" />
-          <span className="sr-only">Close</span>
-        </button>
-      </div>
+  const migrationUrl = `/setups/my?migrate=${setup.publicId}`;
+
+  let content;
+  if (isLocal) {
+    content = (
       <div className={styles.publishDialog}>
-        {setup.latestRevision === null ? (
-          <p>
-            Publishing will make your setup visible to other users. You can
-            still make changes after publishing by creating new revisions.
-          </p>
-        ) : (
-          <p>
-            Publishing will create a new revision (v
-            {setup.latestRevision.version + 1}) of your setup. Previous
-            revisions will be preserved and can be viewed in the revision
-            history.
-          </p>
-        )}
+        <div className={styles.localNotice}>
+          <div className={styles.noticeIcon}>
+            <i className="fas fa-hard-drive" />
+          </div>
+          <div className={styles.noticeContent}>
+            <h3>You&apos;re editing a local setup</h3>
+            <p>
+              Your setup is currently stored locally in your browser. To publish
+              and share it with the community, you&apos;ll need to create a free
+              account.
+            </p>
+          </div>
+        </div>
+
+        <div className={styles.benefits}>
+          <h4>What you&apos;ll get with an account:</h4>
+          <ul>
+            <li>
+              <i className="fas fa-share-nodes" />
+              <div>
+                <strong>Publish & Share</strong>
+                <span>Make your setup visible to the community</span>
+              </div>
+            </li>
+            <li>
+              <i className="fas fa-cloud" />
+              <div>
+                <strong>Cloud Backup</strong>
+                <span>Never lose your work, access from anywhere</span>
+              </div>
+            </li>
+            <li>
+              <i className="fas fa-infinity" />
+              <div>
+                <strong>Unlimited Setups</strong>
+                <span>No more 5-setup limit</span>
+              </div>
+            </li>
+            <li>
+              <i className="fas fa-code-branch" />
+              <div>
+                <strong>Revision History</strong>
+                <span>Track changes and manage versions</span>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <div className={styles.setupPreview}>
+          <div className={styles.previewLabel}>Setup to be published:</div>
+          <div className={styles.previewCard}>
+            <div className={styles.previewIcon}>
+              <i className="fas fa-shield" />
+            </div>
+            <div className={styles.previewInfo}>
+              <span className={styles.previewName}>{gearSetup.title}</span>
+              <div className={styles.previewMeta}>
+                <span>
+                  <i className="fas fa-shield" />
+                  {challengeName(gearSetup.challenge)}
+                </span>
+                <span>
+                  <i className="fas fa-users" />
+                  {gearSetup.players.length} player
+                  {gearSetup.players.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className={styles.actions}>
+          <Button onClick={onClose} simple>
+            <i className="fas fa-arrow-left" />
+            Back to Editing
+          </Button>
+          <Button
+            onClick={() =>
+              router.push(`/register?next=${encodeURIComponent(migrationUrl)}`)
+            }
+            className={styles.signupButton}
+          >
+            <i className="fas fa-user-plus" />
+            Create Free Account
+          </Button>
+        </div>
+
+        <div className={styles.signInPrompt}>
+          Already have an account?{' '}
+          <Link href={`/login?next=${encodeURIComponent(migrationUrl)}`}>
+            Sign in
+          </Link>
+        </div>
+      </div>
+    );
+  } else {
+    content = (
+      <div className={styles.publishDialog}>
+        <div className={styles.publishInfo}>
+          {setup.latestRevision === null ? (
+            <>
+              <div className={styles.infoIcon}>
+                <i className="fas fa-rocket" />
+              </div>
+              <div className={styles.infoContent}>
+                <h3>Ready to Publish</h3>
+                <p>
+                  Your setup will be published to the community where others can
+                  view, vote on, and use it. You can still make changes after
+                  publishing by creating new revisions.
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className={styles.infoIcon}>
+                <i className="fas fa-code-branch" />
+              </div>
+              <div className={styles.infoContent}>
+                <h3>New Revision</h3>
+                <p>
+                  This will create{' '}
+                  <strong>version {setup.latestRevision.version + 1}</strong> of
+                  your setup. Previous revisions remain accessible and can be
+                  viewed in the revision history.
+                </p>
+              </div>
+            </>
+          )}
+        </div>
+
         {publishIssues.length > 0 && (
           <div className={styles.issues}>
-            <p>Issues have been detected with your setup:</p>
+            <div className={styles.issuesHeader}>
+              <i className="fas fa-triangle-exclamation" />
+              <span>Issues Detected</span>
+            </div>
             <ul>
-              {publishIssues.map((issue) => (
+              {publishIssues.map((issue, index) => (
                 <li
-                  key={issue.message}
+                  key={index}
                   className={`${styles.issue} ${styles[issue.type]}`}
                 >
-                  {issue.message}
+                  <i
+                    className={`fas fa-${issue.type === 'error' ? 'circle-xmark' : 'circle-exclamation'}`}
+                  />
+                  <span>{issue.message}</span>
                 </li>
               ))}
             </ul>
           </div>
         )}
+
         <div className={styles.field}>
-          <label htmlFor="publish-message">Revision message (optional)</label>
+          <label htmlFor="publish-message">
+            <i className="fas fa-message" />
+            Revision message <span className={styles.optional}>(optional)</span>
+          </label>
           <textarea
             id="publish-message"
             value={publishMessage}
             onChange={(e) => setPublishMessage(e.target.value)}
-            placeholder="Describe your changes..."
+            placeholder={
+              setup.latestRevision === null
+                ? 'Initial version'
+                : 'Describe what changed in this version...'
+            }
             rows={3}
+            maxLength={500}
           />
+          <div className={styles.characterCount}>
+            {publishMessage.length}/500
+          </div>
         </div>
+
         <div className={styles.actions}>
           <Button onClick={onClose} simple>
             Cancel
@@ -715,11 +895,35 @@ function PublishModal({
             disabled={publishIssues.some((w) => w.type === 'error')}
             loading={publishLoading}
             onClick={() => onPublish(publishMessage)}
+            className={styles.publishButton}
           >
-            Publish
+            <i className="fas fa-upload" />
+            {setup.latestRevision === null
+              ? 'Publish Setup'
+              : 'Publish Revision'}
           </Button>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <Modal className={styles.publishModal} open={open} onClose={onClose}>
+      <div className={styles.modalHeader}>
+        <h2>
+          <i className="fas fa-upload" />
+          {isLocal
+            ? 'Publish Setup'
+            : setup.latestRevision === null
+              ? 'Publish Setup'
+              : 'Publish New Revision'}
+        </h2>
+        <button onClick={onClose}>
+          <i className="fas fa-times" />
+          <span className="sr-only">Close</span>
+        </button>
+      </div>
+      {content}
     </Modal>
   );
 }

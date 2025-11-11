@@ -109,23 +109,32 @@ function draftDataKey(setupId: string): string {
 
 export async function newGearSetup(
   author: User,
-  baseSetup?: GearSetup,
+  template?: GearSetup,
+  clone: boolean = false,
 ): Promise<SetupMetadata> {
   let name = 'Untitled setup';
   let challengeType = ChallengeType.TOB;
   let scale = 1;
   let hasDraft = false;
 
-  if (baseSetup !== undefined) {
-    name = `Copy of ${baseSetup.title}`;
-    challengeType = baseSetup.challenge;
-    scale = baseSetup.players.length;
+  if (clone) {
+    if (template === undefined) {
+      throw new Error('Template is required for cloning');
+    }
+    name = `Copy of ${template.title}`;
+    challengeType = template.challenge;
+    scale = template.players.length;
     hasDraft = true;
 
-    baseSetup = {
-      ...baseSetup,
+    template = {
+      ...template,
       title: name,
     };
+  } else if (template !== undefined) {
+    name = template.title;
+    challengeType = template.challenge;
+    scale = template.players.length;
+    hasDraft = true;
   }
 
   let publicId: string;
@@ -169,33 +178,35 @@ export async function newGearSetup(
 
   let revision: SetupRevision | null = null;
 
-  if (baseSetup !== undefined) {
-    const [revisionRow] = await sql`
-      INSERT INTO gear_setup_revisions (
-        setup_id,
-        version,
-        message,
-        created_by
-      ) VALUES (
-        ${setupId},
-        1,
-        'Initial revision',
-        ${author.id}
-      )
-      RETURNING *
-    `;
+  if (template !== undefined) {
+    if (clone) {
+      const [revisionRow] = await sql`
+        INSERT INTO gear_setup_revisions (
+          setup_id,
+          version,
+          message,
+          created_by
+        ) VALUES (
+          ${setupId},
+          1,
+          'Initial revision',
+          ${author.id}
+        )
+        RETURNING *
+      `;
 
-    revision = {
-      version: revisionRow.version,
-      message: revisionRow.message,
-      createdAt: revisionRow.created_at,
-      createdBy: revisionRow.created_by,
-      createdByUsername: author.username,
-    };
+      revision = {
+        version: revisionRow.version,
+        message: revisionRow.message,
+        createdAt: revisionRow.created_at,
+        createdBy: revisionRow.created_by,
+        createdByUsername: author.username,
+      };
+    }
 
     await webRepository.saveRaw(
       draftDataKey(publicId),
-      new TextEncoder().encode(JSON.stringify(baseSetup)),
+      new TextEncoder().encode(JSON.stringify(template)),
     );
   }
 
@@ -211,7 +222,7 @@ export async function newGearSetup(
     likes: 0,
     dislikes: 0,
     latestRevision: revision,
-    draft: baseSetup ?? null,
+    draft: template ?? null,
   };
 }
 
@@ -226,7 +237,23 @@ export async function cloneGearSetup(setup: GearSetup): Promise<SetupMetadata> {
     throw new Error('Not authorized');
   }
 
-  const newSetup = await newGearSetup(user, setup);
+  const newSetup = await newGearSetup(user, setup, true);
+  return newSetup;
+}
+
+/**
+ * Migrates a local setup to a server-side setup.
+ * @param setup The local setup to migrate.
+ * @returns The migrated setup.
+ */
+export async function migrateLocalSetup(
+  setup: GearSetup,
+): Promise<SetupMetadata> {
+  const user = await getSignedInUser();
+  if (user === null) {
+    throw new Error('Not authorized');
+  }
+  const newSetup = await newGearSetup(user, setup, false);
   return newSetup;
 }
 

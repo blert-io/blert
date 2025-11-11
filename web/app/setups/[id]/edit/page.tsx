@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { getSetupByPublicId } from '@/actions/setup';
 import { getSignedInUser } from '@/actions/users';
 
+import LocalSetupLoader from './local-setup-loader';
 import GearSetupsCreator from './setup-creator';
 import { SetupViewingContextProvider } from '../../viewing-context';
 
@@ -14,6 +15,10 @@ export default async function GearSetupsEditPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+
+  if (id.startsWith('local-')) {
+    return <LocalSetupLoader id={id} />;
+  }
 
   const user = await getSignedInUser();
   if (user === null) {

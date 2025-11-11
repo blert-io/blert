@@ -1,0 +1,312 @@
+.localSetupsSection {
+  margin-bottom: 2rem;
+}
+
+.localSetupsCard {
+  border: 2px solid rgba(var(--blert-yellow-base), 0.1);
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  font-size: 1.2em;
+  gap: 0.75rem;
+
+  i {
+    color: var(--blert-button);
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem 0.5rem;
+    background: rgba(var(--blert-yellow-base), 0.2);
+    border: 1px solid rgba(var(--blert-yellow-base), 0.4);
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--blert-yellow);
+  }
+}
+
+.localNotice {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  background: rgba(var(--blert-yellow-base), 0.1);
+  border: 1px solid rgba(var(--blert-yellow-base), 0.3);
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+
+  > i {
+    color: var(--blert-yellow);
+    font-size: 1.25rem;
+    flex-shrink: 0;
+    margin-top: 0.125rem;
+  }
+
+  .noticeContent {
+    flex: 1;
+
+    p {
+      margin: 0 0 0.5rem 0;
+      color: var(--blert-text-color);
+      font-size: 0.9rem;
+      line-height: 1.5;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      strong {
+        color: var(--blert-yellow);
+      }
+    }
+
+    a {
+      color: var(--blert-button);
+      text-decoration: none;
+      font-weight: 500;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+}
+
+.setupsList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.setupCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--nav-bg);
+  border: 1px solid var(--font-color-nav-divider);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: rgba(var(--blert-button-base), 0.3);
+    background: var(--nav-bg-lightened);
+  }
+
+  @media (max-width: 940px) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.setupLink {
+  flex: 1;
+  text-decoration: none;
+  color: inherit;
+  min-width: 0;
+}
+
+.setupHeader {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.setupIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: rgba(var(--blert-yellow-base), 0.1);
+  border: 1px solid rgba(var(--blert-yellow-base), 0.3);
+  border-radius: 8px;
+  flex-shrink: 0;
+
+  i {
+    color: var(--blert-yellow);
+    font-size: 1.25rem;
+  }
+}
+
+.setupInfo {
+  flex: 1;
+  min-width: 0;
+
+  h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1rem;
+    color: var(--blert-text-color);
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .setupMeta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+
+    span {
+      display: flex;
+      align-items: center;
+      color: var(--font-color-nav);
+      font-size: 0.85rem;
+      white-space: nowrap;
+      background: var(--nav-bg-darkened);
+      padding: 4px 8px;
+      border-radius: 12px;
+
+      i {
+        font-size: 0.8rem;
+        margin-right: 4px;
+        color: var(--blert-button);
+      }
+
+      time {
+        margin-left: 4px;
+      }
+    }
+  }
+}
+
+.setupActions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+
+  @media (max-width: 940px) {
+    width: 100%;
+
+    button,
+    a {
+      flex: 1;
+    }
+  }
+}
+
+.editButton,
+.deleteButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+
+  i {
+    position: relative;
+    top: 1px;
+    font-size: 0.85rem;
+  }
+
+  &:hover {
+    cursor: pointer;
+  }
+}
+
+.editButton {
+  background: var(--blert-button);
+  color: #fff;
+  border: none;
+
+  &:hover {
+    background: rgba(var(--blert-button-base), 0.9);
+  }
+}
+
+.deleteButton {
+  background: none;
+  border: 1px solid var(--font-color-nav-divider);
+  color: var(--font-color-nav);
+
+  &:hover {
+    border-color: var(--blert-red);
+    color: var(--blert-red);
+    background: rgba(var(--blert-red-base), 0.1);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  color: var(--font-color-nav);
+
+  i {
+    font-size: 1.5rem;
+  }
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 3rem 2rem;
+  text-align: center;
+
+  i {
+    font-size: 3rem;
+    color: var(--font-color-nav);
+    opacity: 0.5;
+  }
+
+  h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    color: var(--blert-text-color);
+  }
+
+  p {
+    margin: 0;
+    color: var(--font-color-nav);
+    font-size: 0.95rem;
+  }
+}
+
+.emptyStateButton {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--blert-button);
+  color: #fff;
+  text-decoration: none;
+  border-radius: 6px;
+  font-weight: 500;
+  margin-top: 0.5rem;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: rgba(var(--blert-button-base), 0.9);
+  }
+
+  i {
+    position: relative;
+    top: 1px;
+    color: #fff;
+    font-size: 1rem;
+    opacity: 1;
+  }
+}

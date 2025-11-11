@@ -1,5 +1,7 @@
 import { ChallengeType } from '@blert/common';
 
+export const MAX_LOCAL_SETUPS = 5;
+
 export const NUM_EQUIPMENT_SLOTS = 11;
 export const NUM_INVENTORY_SLOTS = 28;
 export const NUM_POUCH_SLOTS = 4;

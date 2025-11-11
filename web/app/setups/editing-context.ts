@@ -14,7 +14,6 @@ import {
   hasQuiver,
   ItemSlot,
   QUIVER_SLOT_INDEX,
-  SlotItem,
 } from './setup';
 import {
   coordsToIndex,
@@ -106,6 +105,10 @@ export class EditingContext {
     this.setupId = setupId;
     this.state = state;
     this.setState = setState;
+  }
+
+  public get isLocal(): boolean {
+    return this.setupId.startsWith('local-');
   }
 
   public static newEditableGearSetup(setup: GearSetup): EditableGearSetup {

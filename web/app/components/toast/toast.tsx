@@ -1,6 +1,12 @@
 'use client';
 
-import { createContext, useCallback, useContext, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useRef,
+  useState,
+} from 'react';
 
 import styles from './style.module.scss';
 
@@ -30,7 +36,7 @@ export default function ToastProvider({
   children?: React.ReactNode;
 }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const [nextId, setNextId] = useState(1);
+  const nextIdRef = useRef(1);
 
   const removeToast = useCallback((id: number) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -38,15 +44,15 @@ export default function ToastProvider({
 
   const showToast = useCallback(
     (message: string, type: ToastType = 'info') => {
-      const id = nextId;
-      setNextId((prev) => prev + 1);
+      const id = nextIdRef.current;
+      nextIdRef.current++;
       setToasts((prev) => [...prev, { id, message, type }]);
 
       setTimeout(() => {
         removeToast(id);
       }, TOAST_DURATION_MS);
     },
-    [nextId, removeToast],
+    [removeToast],
   );
 
   return (

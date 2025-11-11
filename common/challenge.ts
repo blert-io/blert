@@ -873,6 +873,8 @@ export function challengeName(type: ChallengeType): string {
     case ChallengeType.MOKHAIOTL:
       return 'Doom of Mokhaiotl';
   }
+
+  return 'Unknown';
 }
 
 export function stageName(stage: Stage, short: boolean = false): string {

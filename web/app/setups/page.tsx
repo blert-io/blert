@@ -10,6 +10,7 @@ import {
 } from '@/actions/setup';
 import Card from '@/components/card';
 
+import LocalSetupsList from './local-setups-list';
 import { cursorFromParam } from './query';
 import { SetupList } from './setup-list';
 
@@ -128,6 +129,12 @@ export default async function SetupsPage({ searchParams }: SetupsPageProps) {
                 </div>
               )}
             </Card>
+          </div>
+        )}
+
+        {!userSetups && (
+          <div className={styles.userSetupsSection}>
+            <LocalSetupsList />
           </div>
         )}
 

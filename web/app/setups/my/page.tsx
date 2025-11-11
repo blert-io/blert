@@ -12,6 +12,7 @@ import {
 import { getSignedInUser } from '@/actions/users';
 import Card from '@/components/card';
 
+import { LocalSetupMigrator } from './local-setup-migrator';
 import { cursorFromParam } from '../query';
 import { SetupList } from '../setup-list';
 
@@ -95,6 +96,8 @@ export default async function MySetupsPage({
           </Link>
         </div>
       </Card>
+
+      <LocalSetupMigrator />
 
       <div className={styles.content}>
         <div className={styles.publicSetupsSection}>
