@@ -148,10 +148,8 @@ export function Slot(props: SlotProps) {
       let slots = prev[key].slots.filter((slot) => slot.index !== props.index);
 
       if (item.stackable) {
-        const existingSlot = slots.find((slot) => slot.item?.id === item.id);
-        if (existingSlot) {
-          return prev;
-        }
+        // If the item is stackable, remove any existing instances of it.
+        slots = slots.filter((slot) => slot.item?.id !== item.id);
       }
 
       if (props.container === Container.EQUIPMENT) {
