@@ -46,9 +46,6 @@ const AUTO_SAVE_INTERVAL_MS = 60000;
 
 const MIN_WIDTH_FOR_ITEM_COUNTS_SIDEBAR = 2000;
 
-const ACTIONS_HEIGHT = 60;
-const ANONYMOUS_BANNER_HEIGHT = 40;
-
 interface GearSetupsCreatorProps {
   setup: SetupMetadata;
 }
@@ -414,16 +411,20 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
 
   const modifier = isApple ? '⌘' : 'Ctrl';
 
-  const margin = context.isLocal
-    ? ACTIONS_HEIGHT + ANONYMOUS_BANNER_HEIGHT
-    : ACTIONS_HEIGHT;
-  const contentMarginTop = `calc(${margin}px + 1em)`;
+  const topOffset = context.isLocal
+    ? 'var(--actions-height) + var(--anonymous-banner-height)'
+    : 'var(--actions-height)';
 
   return (
     <SetupEditingContext.Provider value={context}>
       <ContextMenuWrapper>
-        <div className={styles.creator} style={{ marginTop: contentMarginTop }}>
-          <div className={styles.actions} style={{ height: ACTIONS_HEIGHT }}>
+        <div
+          className={styles.creator}
+          style={{
+            ['--top-offset' as string]: topOffset,
+          }}
+        >
+          <div className={styles.actions}>
             <div className={styles.editing}>
               <button
                 disabled={editableSetup.position === 0}
@@ -486,10 +487,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
             </div>
           </div>
           {context.isLocal && (
-            <div
-              className={styles.anonymousBanner}
-              style={{ top: ACTIONS_HEIGHT, height: ANONYMOUS_BANNER_HEIGHT }}
-            >
+            <div className={styles.anonymousBanner}>
               <div className={styles.anonymousBannerContent}>
                 <i className="fas fa-info-circle" />
                 <span>
@@ -593,7 +591,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
             />
           </div>
           {!display.isCompact() && (
-            <div className={styles.selector} style={{ top: contentMarginTop }}>
+            <div className={styles.selector}>
               <ItemSelector />
             </div>
           )}

@@ -1046,3 +1046,176 @@ export async function incrementSetupViews(
     return views;
   });
 }
+
+export type ItemCategory =
+  | 'melee'
+  | 'ranged'
+  | 'magic'
+  | 'supplies'
+  | 'utility'
+  | 'runes';
+
+export type CustomItems = {
+  [key in ItemCategory]: { added: number[]; hidden: number[] };
+};
+
+/**
+ * Adds a custom item to the current user's custom items.
+ *
+ * @param category Category to which to add the item.
+ * @param itemId ID of the item to add.
+ * @param setupId ID of the setup to add the item to, or null to add globally.
+ */
+export async function addCustomItem(
+  category: ItemCategory,
+  itemId: number,
+  setupId: number | null = null,
+): Promise<void> {
+  await insertCustomItem(setupId, category, itemId, true);
+}
+
+/**
+ * Removes a custom item from the current user's custom items.
+ *
+ * @param category Category from which to remove the item.
+ * @param itemId ID of the item to remove.
+ * @param setupId ID of the setup to remove the item from, or null to remove globally.
+ */
+export async function removeCustomItem(
+  category: ItemCategory,
+  itemId: number,
+  setupId: number | null = null,
+): Promise<void> {
+  await deleteCustomItem(setupId, category, itemId, true);
+}
+
+/**
+ * Hides a default item from the current user's custom items.
+ *
+ * @param category Category from which to hide the item.
+ * @param itemId ID of the item to hide.
+ * @param setupId ID of the setup to hide the item from, or null to hide globally.
+ */
+export async function hideDefaultItem(
+  category: ItemCategory,
+  itemId: number,
+  setupId: number | null = null,
+): Promise<void> {
+  await insertCustomItem(setupId, category, itemId, false);
+}
+
+/**
+ * Shows a hidden item in the current user's custom items.
+ *
+ * @param category Category from which to show the item.
+ * @param itemId ID of the item to show.
+ * @param setupId ID of the setup to show the item in, or null to show globally.
+ */
+export async function showDefaultItem(
+  category: ItemCategory,
+  itemId: number,
+  setupId: number | null = null,
+): Promise<void> {
+  await deleteCustomItem(setupId, category, itemId, false);
+}
+
+async function insertCustomItem(
+  setupId: number | null,
+  category: ItemCategory,
+  itemId: number,
+  isAdded: boolean,
+): Promise<void> {
+  const session = await auth();
+  if (session === null || session.user.id === undefined) {
+    throw new Error('Not authorized');
+  }
+  const userId = parseInt(session.user.id);
+
+  await sql`
+    INSERT INTO user_custom_items (
+      user_id,
+      setup_id,
+      item_id,
+      category,
+      is_added
+    ) VALUES (
+      ${userId},
+      ${setupId},
+      ${itemId},
+      ${category},
+      ${isAdded}
+    )
+    ON CONFLICT (user_id, setup_id, category, item_id, is_added) DO NOTHING
+  `;
+}
+
+async function deleteCustomItem(
+  setupId: number | null,
+  category: ItemCategory,
+  itemId: number,
+  isAdded: boolean,
+): Promise<void> {
+  const session = await auth();
+  if (session === null || session.user.id === undefined) {
+    throw new Error('Not authorized');
+  }
+  const userId = parseInt(session.user.id);
+
+  await sql`
+    DELETE FROM user_custom_items
+    WHERE user_id = ${userId}
+      AND item_id = ${itemId}
+      AND category = ${category}
+      AND is_added = ${isAdded}
+      AND ${setupId === null ? sql`setup_id IS NULL` : sql`setup_id = ${setupId}`}
+  `;
+}
+
+/**
+ * Gets the custom items for the current user.
+ *
+ * @param setupId The ID of the setup to get custom items for, or null to get
+ *   only global custom items.
+ * @returns The custom items for the current user.
+ */
+export async function getCustomItems(
+  setupId: number | null = null,
+): Promise<CustomItems> {
+  const result: CustomItems = {
+    melee: { added: [], hidden: [] },
+    ranged: { added: [], hidden: [] },
+    magic: { added: [], hidden: [] },
+    supplies: { added: [], hidden: [] },
+    utility: { added: [], hidden: [] },
+    runes: { added: [], hidden: [] },
+  };
+
+  const session = await auth();
+  if (session === null || session.user.id === undefined) {
+    return result;
+  }
+
+  const userId = parseInt(session.user.id);
+
+  const items = await sql<
+    Array<{ item_id: number; category: ItemCategory; is_added: boolean }>
+  >`
+    SELECT item_id, category, is_added
+    FROM user_custom_items
+    WHERE user_id = ${userId}
+    AND (
+      setup_id IS NULL
+      ${setupId !== null ? sql`OR setup_id = ${setupId}` : sql``}
+    )
+  `;
+
+  for (const item of items) {
+    if (item.is_added) {
+      result[item.category].added.push(item.item_id);
+    } else {
+      result[item.category].hidden.push(item.item_id);
+    }
+  }
+
+  return result;
+}
