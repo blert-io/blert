@@ -148,27 +148,11 @@ export function BossPageControls(props: BossControlsProps) {
           <div className={styles.controls__main}>
             <button
               className={styles.playbackButton}
-              disabled={currentlyPlaying}
-              onClick={() => {
-                if (currentlyPlaying) {
-                  return;
-                }
-                updatePlayingState(true);
-              }}
+              onClick={() => updatePlayingState(!currentlyPlaying)}
             >
-              <i className={`${styles.icon} far fa-circle-play`} />
-            </button>
-            <button
-              className={styles.playbackButton}
-              disabled={!currentlyPlaying}
-              onClick={() => {
-                if (!currentlyPlaying) {
-                  return;
-                }
-                updatePlayingState(false);
-              }}
-            >
-              <i className={`${styles.icon} far fa-circle-pause`} />
+              <i
+                className={`${styles.icon} far fa-circle-${currentlyPlaying ? 'pause' : 'play'}`}
+              />
             </button>
             <button
               className={styles.playbackButton}
