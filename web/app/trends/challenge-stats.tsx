@@ -151,25 +151,21 @@ export default function ChallengeStats({
                   name="Total"
                   value={completionStats.total}
                   height={STATISTIC_SIZE}
-                  width={STATISTIC_SIZE}
                 />
                 <Statistic
                   name="Completions"
                   value={completionStats.completions}
                   height={STATISTIC_SIZE}
-                  width={STATISTIC_SIZE}
                 />
                 <Statistic
                   name="Resets"
                   value={completionStats.resets}
                   height={STATISTIC_SIZE}
-                  width={STATISTIC_SIZE}
                 />
                 <Statistic
                   name="Wipes"
                   value={completionStats.wipes}
                   height={STATISTIC_SIZE}
-                  width={STATISTIC_SIZE}
                 />
               </>
             )) || (

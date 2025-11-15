@@ -304,78 +304,60 @@ export default function PlayerStatistics() {
         >
           <div className={styles.statsGrid}>
             <Statistic
-              className={styles.statistic}
               name="BGS Smacks"
               value={stats.bgsSmacks}
               height={PLAYER_PAGE_STATISTIC_SIZE}
-              width={PLAYER_PAGE_STATISTIC_SIZE}
               icon={<BgsIcon width={24} height={24} />}
             />
             {stats.hammerBops > stats.elderMaulSmacks ? (
               <Statistic
-                className={styles.statistic}
                 name="Hammer Bops"
                 value={stats.hammerBops}
                 height={PLAYER_PAGE_STATISTIC_SIZE}
-                width={PLAYER_PAGE_STATISTIC_SIZE}
                 icon="fas fa-hammer"
               />
             ) : (
               <Statistic
-                className={styles.statistic}
                 name="Maul Bonks"
                 value={stats.elderMaulSmacks}
                 height={PLAYER_PAGE_STATISTIC_SIZE}
-                width={PLAYER_PAGE_STATISTIC_SIZE}
                 icon={<ElderMaulIcon width={24} height={24} />}
               />
             )}
             <Statistic
-              className={styles.statistic}
               name="Chally Pokes"
               value={stats.challyPokes}
               height={PLAYER_PAGE_STATISTIC_SIZE}
-              width={PLAYER_PAGE_STATISTIC_SIZE}
               icon={<ChallyIcon width={24} height={24} />}
             />
             <Statistic
-              className={styles.statistic}
               name="Ralos Autos"
               value={stats.ralosAutos}
               height={PLAYER_PAGE_STATISTIC_SIZE}
-              width={PLAYER_PAGE_STATISTIC_SIZE}
               icon={<RalosIcon width={24} height={24} />}
             />
             <Statistic
-              className={styles.statistic}
               name="Uncharged Scythes"
               value={stats.unchargedScytheSwings}
               height={PLAYER_PAGE_STATISTIC_SIZE}
-              width={PLAYER_PAGE_STATISTIC_SIZE}
               icon={<ScytheIcon width={24} height={24} />}
             />
             <Statistic
-              className={styles.statistic}
               name="Barrages w/o 15% weapon"
               value={stats.tobBarragesWithoutProperWeapon}
               height={PLAYER_PAGE_STATISTIC_SIZE}
-              width={PLAYER_PAGE_STATISTIC_SIZE}
               icon="fas fa-wand-sparkles"
             />
             <Statistic
-              className={styles.statistic}
               name="Non-Dawn P1 Specs"
               value={stats.tobVerzikP1TrollSpecs}
               height={PLAYER_PAGE_STATISTIC_SIZE}
-              width={PLAYER_PAGE_STATISTIC_SIZE}
               icon="fas fa-bolt"
             />
             <Statistic
-              className={styles.statistic}
               name="P3 Melees"
               value={stats.tobVerzikP3Melees}
               height={PLAYER_PAGE_STATISTIC_SIZE}
-              width={PLAYER_PAGE_STATISTIC_SIZE}
               icon={<VerzikIcon width={24} height={24} />}
             />
           </div>
@@ -394,46 +376,36 @@ export default function PlayerStatistics() {
         >
           <div className={styles.statsGrid}>
             <Statistic
-              className={styles.statistic}
               name="Chins Thrown"
               value={stats.chinsThrownTotal}
               height={PLAYER_PAGE_STATISTIC_SIZE}
-              width={PLAYER_PAGE_STATISTIC_SIZE}
               icon={<ChinchompaIcon width={24} height={24} />}
             />
             <Statistic
-              className={styles.statistic}
               name="During Maiden"
               value={stats.chinsThrownMaiden}
               height={PLAYER_PAGE_STATISTIC_SIZE}
-              width={PLAYER_PAGE_STATISTIC_SIZE}
               icon={<MaidenIcon width={24} height={24} />}
             />
             <Statistic
-              className={styles.statistic}
               name="Wrong Distance"
               value={stats.chinsThrownIncorrectlyMaiden}
               height={PLAYER_PAGE_STATISTIC_SIZE}
-              width={PLAYER_PAGE_STATISTIC_SIZE}
               icon="fas fa-triangle-exclamation"
               tooltip="Chinchompas on medium fuse must be thrown from a distance of 4-6 tiles to be 100% accurate."
             />
             <Statistic
-              className={styles.statistic}
               name="Troll Chins %"
               value={chinsThrownIncorrectlyPercentage.toFixed(1)}
               height={PLAYER_PAGE_STATISTIC_SIZE}
-              width={PLAYER_PAGE_STATISTIC_SIZE}
               unit="%"
               icon="fas fa-percent"
               tooltip="Percentage of chins thrown during Maiden which were thrown from the wrong distance."
             />
             <Statistic
-              className={styles.statistic}
               name="Thrown Value"
               value={stats.chinsThrownValue}
               height={PLAYER_PAGE_STATISTIC_SIZE}
-              width={PLAYER_PAGE_STATISTIC_SIZE}
               unit="gp"
               icon="fas fa-coins"
             />
