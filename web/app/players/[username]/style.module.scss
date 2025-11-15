@@ -945,10 +945,6 @@ $NAV_MARGIN: 10px;
   width: 100%;
   padding: 8px;
 
-  .statistic {
-    margin: 0 auto;
-  }
-
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 12px;

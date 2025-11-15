@@ -8,7 +8,7 @@ type StatisticProps = {
   value: number | string;
   className?: string;
   valueClassName?: string;
-  width: number;
+  width?: number;
   height?: number;
   unit?: string;
   icon?: string | React.ReactNode;
