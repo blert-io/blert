@@ -50,8 +50,8 @@ type ActiveChallengeInfo = {
 };
 
 export default class Client {
-  private static HEARTBEAT_INTERVAL_MS: number = 5000;
-  private static HEARTBEAT_DISCONNECT_THRESHOLD: number = 10;
+  private static readonly HEARTBEAT_INTERVAL_MS = 5000;
+  private static readonly HEARTBEAT_DISCONNECT_THRESHOLD = 10;
 
   private user: BasicUser;
   private pluginVersions: PluginVersions;
@@ -102,11 +102,11 @@ export default class Client {
     socket.binaryType = 'arraybuffer';
 
     socket.on('close', (code) => {
-      console.log(`${this} closed: ${code}`);
+      console.log(`${this.toString()} closed: ${code}`);
       this.cleanup();
     });
     socket.on('error', (code) => {
-      console.log(`${this} error: ${code}`);
+      console.log(`${this.toString()} error: ${code}`);
       this.cleanup();
     });
 
@@ -118,7 +118,7 @@ export default class Client {
 
         const now = Date.now();
         if (now - this.lastMessageLog > 2 * 60 * 1000) {
-          console.log(`${this}: ${this.stats.logString()}`);
+          console.log(`${this.toString()}: ${this.stats.logString()}`);
           this.lastMessageLog = now;
         }
 
@@ -128,14 +128,19 @@ export default class Client {
           );
           this.messageQueue.push(serverMessage);
         } catch (e) {
-          console.log(`${this} received invalid protobuf message: ${e}`);
+          const message = e instanceof Error ? e.message : String(e);
+          console.log(
+            `${this.toString()} received invalid protobuf message: ${message}`,
+          );
         }
       } else {
-        console.log(`${this} received unsupported text message`);
+        console.log(`${this.toString()} received unsupported text message`);
       }
     });
 
-    this.processTimeout = setTimeout(() => this.processMessages(), 20);
+    this.processTimeout = setTimeout(() => {
+      void this.processMessages();
+    }, 20);
     this.heartbeatTimeout = setTimeout(
       () => this.heartbeat(),
       Client.HEARTBEAT_INTERVAL_MS,
@@ -194,22 +199,22 @@ export default class Client {
     challengeId: string,
     stages?: Map<Stage, number | null>,
   ): void {
-    console.log(`${this}: active challenge set to ${challengeId}`);
+    console.log(`${this.toString()}: active challenge set to ${challengeId}`);
     this.activeChallenge = {
       uuid: challengeId,
-      stages: stages ?? new Map(),
+      stages: stages ?? new Map<Stage, number | null>(),
     };
   }
 
   public clearActiveChallenge(): void {
-    console.log(`${this}: active challenge cleared`);
+    console.log(`${this.toString()}: active challenge cleared`);
     this.activeChallenge = null;
   }
 
   public setStageAttempt(stage: Stage, attempt: number | null): void {
     if (this.activeChallenge !== null) {
       console.log(
-        `${this}: challenge ${this.activeChallenge.uuid} stage ${stage} attempt set to ${attempt}`,
+        `${this.toString()}: challenge ${this.activeChallenge.uuid} stage ${stage} attempt set to ${attempt}`,
       );
       this.activeChallenge.stages.set(stage, attempt);
     }
@@ -276,11 +281,13 @@ export default class Client {
 
     // Keep running forever.
     if (this.isOpen) {
-      this.processTimeout = setTimeout(() => this.processMessages(), 20);
+      this.processTimeout = setTimeout(() => {
+        void this.processMessages();
+      }, 20);
     }
   }
 
-  private async heartbeat(): Promise<void> {
+  private heartbeat(): void {
     const ping = new ServerMessage();
     ping.setType(ServerMessage.Type.PING);
     this.sendMessage(ping);
@@ -289,7 +296,7 @@ export default class Client {
       this.missedHeartbeats++;
 
       if (this.missedHeartbeats >= Client.HEARTBEAT_DISCONNECT_THRESHOLD) {
-        console.log(`${this} is unresponsive, closing connection`);
+        console.log(`${this.toString()} is unresponsive, closing connection`);
         this.isOpen = false;
         this.close();
         return;

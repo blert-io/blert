@@ -2,7 +2,6 @@ import {
   PlayerStats,
   Player,
   activePlayerKey,
-  camelToSnakeObject,
   CamelToSnakeCase,
   camelToSnake,
 } from '@blert/common';
@@ -11,15 +10,6 @@ import { RedisClientType } from 'redis';
 import sql from './db';
 
 export type ModifiablePlayerStats = Omit<PlayerStats, 'date' | 'playerId'>;
-
-function startOfDateUtc(): Date {
-  let date = new Date();
-  date.setUTCHours(0);
-  date.setUTCMinutes(0);
-  date.setUTCSeconds(0);
-  date.setUTCMilliseconds(0);
-  return date;
-}
 
 type Experience = Pick<
   Player,
@@ -35,7 +25,9 @@ type Experience = Pick<
 
 export class Players {
   public static async lookupUsername(id: number): Promise<string | null> {
-    const [player] = await sql`SELECT username FROM players WHERE id = ${id}`;
+    const [player] = await sql<
+      { username: string }[]
+    >`SELECT username FROM players WHERE id = ${id}`;
     return player?.username ?? null;
   }
 

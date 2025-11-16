@@ -1,4 +1,10 @@
-import { Challenge, ChallengeStatus, RecordingType } from '@blert/common';
+import {
+  Challenge,
+  ChallengeMode,
+  ChallengeStatus,
+  ChallengeType,
+  Stage,
+} from '@blert/common';
 
 import sql from './db';
 import { Players } from './players';
@@ -36,9 +42,10 @@ export class Users {
       return null;
     }
 
-    const [user] =
-      await sql`SELECT username FROM users WHERE id = ${key.user_id}`;
-    if (user === null) {
+    const [user] = await sql<
+      { username: string }[]
+    >`SELECT username FROM users WHERE id = ${key.user_id}`;
+    if (!user) {
       console.error(`API key ${apiKey} does not belong to a user; deleting.`);
       await sql`DELETE FROM api_keys WHERE key = ${apiKey}`;
       return null;
@@ -67,7 +74,16 @@ export class Users {
     userId: number,
     limit: number = 10,
   ): Promise<PastChallenge[]> {
-    const recordedChallenges = await sql`
+    const recordedChallenges = await sql<
+      {
+        id: number;
+        uuid: string;
+        type: ChallengeType;
+        stage: Stage;
+        status: ChallengeStatus;
+        mode: ChallengeMode;
+      }[]
+    >`
       SELECT
         challenges.id,
         challenges.uuid,
@@ -83,17 +99,15 @@ export class Users {
       LIMIT ${limit}
     `;
 
-    const players = await sql`
+    const players = await sql<{ challenge_id: number; username: string }[]>`
       SELECT challenge_id, username
       FROM challenge_players
       WHERE challenge_id = ANY(${recordedChallenges.map((r) => r.id)})
       ORDER BY challenge_id, orb ASC
     `;
 
-    const parties: Record<number, string[]> = players.reduce((acc, player) => {
-      if (acc[player.challenge_id] === undefined) {
-        acc[player.challenge_id] = [];
-      }
+    const parties = players.reduce<Record<number, string[]>>((acc, player) => {
+      acc[player.challenge_id] ??= [];
       acc[player.challenge_id].push(player.username);
       return acc;
     }, {});

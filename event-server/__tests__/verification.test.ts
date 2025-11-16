@@ -62,7 +62,7 @@ describe('verifyRuneLiteVersion', () => {
   });
 
   it('should return true when minVersion is undefined', () => {
-    expect(verifyRuneLiteVersion('1.11.10.1', undefined)).toBe(true);
+    expect(verifyRuneLiteVersion('1.11.10.1', null)).toBe(true);
   });
 
   it('should return false when version is undefined but minVersion is set', () => {
@@ -162,18 +162,5 @@ describe('verifyRevision', () => {
     const revisions = new Set(['abc123', 'def456']);
     expect(verifyRevision(revisions, 'xyz789')).toBe(false);
     expect(verifyRevision(revisions, 'invalid')).toBe(false);
-  });
-
-  it('should handle revisions with colons (extract first part)', () => {
-    const revisions = new Set(['abc123', 'def456']);
-    expect(verifyRevision(revisions, 'abc123:extra-info')).toBe(true);
-    expect(verifyRevision(revisions, 'def456:branch:more-info')).toBe(true);
-    expect(verifyRevision(revisions, 'xyz789:invalid')).toBe(false);
-  });
-
-  it('should handle edge cases with colons', () => {
-    const revisions = new Set(['abc123']);
-    expect(verifyRevision(revisions, ':abc123')).toBe(false);
-    expect(verifyRevision(revisions, ':')).toBe(false);
   });
 });

@@ -118,13 +118,13 @@ export default class MessageHandler {
 
             if (result !== null) {
               console.log(
-                `${client}: player ${rsn} rejoining challenge ${message.getActiveChallengeId()}`,
+                `${client.toString()}: player ${rsn} rejoining challenge ${message.getActiveChallengeId()}`,
               );
               client.setActiveChallenge(result.uuid);
               client.setStageAttempt(result.stage, result.stageAttempt);
             } else {
               console.error(
-                `${client}: failed to rejoin challenge ${message.getActiveChallengeId()}`,
+                `${client.toString()}: failed to rejoin challenge ${message.getActiveChallengeId()}`,
               );
             }
           }
@@ -136,7 +136,7 @@ export default class MessageHandler {
           );
 
           console.log(
-            `${client}: player ${rsn} is no longer in challenge ${message.getActiveChallengeId()}`,
+            `${client.toString()}: player ${rsn} is no longer in challenge ${message.getActiveChallengeId()}`,
           );
 
           const errorMessage = new ServerMessage();
@@ -151,7 +151,7 @@ export default class MessageHandler {
       }
 
       case ServerMessage.Type.CHALLENGE_START_REQUEST:
-        this.handleChallengeStart(
+        await this.handleChallengeStart(
           client,
           message,
           message.getChallengeStartRequest()!,
@@ -159,7 +159,7 @@ export default class MessageHandler {
         break;
 
       case ServerMessage.Type.CHALLENGE_END_REQUEST:
-        this.handleChallengeEnd(
+        await this.handleChallengeEnd(
           client,
           message,
           message.getChallengeEndRequest()!,
@@ -168,7 +168,7 @@ export default class MessageHandler {
 
       case ServerMessage.Type.CHALLENGE_UPDATE:
         if (message.getActiveChallengeId() !== '') {
-          this.handleChallengeUpdate(
+          await this.handleChallengeUpdate(
             client,
             message.getActiveChallengeId(),
             message.getChallengeUpdate()!,
@@ -195,7 +195,8 @@ export default class MessageHandler {
             events,
           );
         } catch (e) {
-          console.error(`${client} Failed to handle events: ${e}`);
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error(`${client.toString()} Failed to handle events: ${msg}`);
         }
         break;
       }
@@ -230,7 +231,7 @@ export default class MessageHandler {
     const username = await Players.lookupUsername(client.getLinkedPlayerId());
 
     if (username === null) {
-      console.log(`${client} is not linked to a player; closing`);
+      console.log(`${client.toString()} is not linked to a player; closing`);
       client.sendUnauthenticatedAndClose();
       return;
     }
@@ -259,7 +260,7 @@ export default class MessageHandler {
           return;
         }
         if (request.getMode() === ChallengeMode.TOB_ENTRY) {
-          console.log(`${client}: denying ToB entry mode raid`);
+          console.log(`${client.toString()}: denying ToB entry mode raid`);
           client.sendMessage(response);
           return;
         }
@@ -328,12 +329,12 @@ export default class MessageHandler {
   ) {
     if (message.getActiveChallengeId() === '') {
       console.error(
-        `${client} sent CHALLENGE_END_REQUEST with no challenge ID`,
+        `${client.toString()} sent CHALLENGE_END_REQUEST with no challenge ID`,
       );
       return;
     }
 
-    this.challengeManager.completeChallenge(
+    await this.challengeManager.completeChallenge(
       client,
       message.getActiveChallengeId(),
       {
@@ -355,13 +356,13 @@ export default class MessageHandler {
   ) {
     if (challengeId !== client.getActiveChallengeId()) {
       console.error(
-        `${client} sent CHALLENGE_UPDATE event for challenge ${challengeId}, ` +
+        `${client.toString()} sent CHALLENGE_UPDATE event for challenge ${challengeId}, ` +
           'but is not in it.',
       );
       return;
     }
 
-    let challengeUpdate: ChallengeUpdate = {
+    const challengeUpdate: ChallengeUpdate = {
       mode: update.getMode(),
     };
 
@@ -393,7 +394,8 @@ export default class MessageHandler {
       }
       client.setStageAttempt(result.stage, result.stageAttempt);
     } catch (e) {
-      console.error(`${client} Failed to update challenge: ${e}`);
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error(`${client.toString()} Failed to update challenge: ${msg}`);
     }
   }
 
@@ -444,7 +446,9 @@ export default class MessageHandler {
         break;
 
       default:
-        console.error(`${client}: Unknown game state: ${gameState.getState()}`);
+        console.error(
+          `${client.toString()}: Unknown game state: ${gameState.getState()}`,
+        );
         break;
     }
   }

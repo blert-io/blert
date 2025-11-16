@@ -36,7 +36,7 @@ export default class ServerManager {
   private connectionManager: ConnectionManager;
   private status: ServerStatus;
   private shutdownTime: Date | null;
-  private statusUpdateCallbacks: Array<(status: ServerStatusUpdate) => void>;
+  private statusUpdateCallbacks: ((status: ServerStatusUpdate) => void)[];
 
   private shutdownTimer: NodeJS.Timeout | null = null;
   private shutdownMessageTimer: NodeJS.Timeout | null = null;
@@ -87,8 +87,8 @@ export default class ServerManager {
       const timeBeforePending =
         shutdownDuration - ServerManager.SHUTDOWN_MESSAGE_INTERVALS[0];
       console.log(
-        `Future shutdown requested for ${this.shutdownTime}; ` +
-          `will begin processing at ${new Date(Date.now() + timeBeforePending)}`,
+        `Future shutdown requested for ${this.shutdownTime.toISOString()}; ` +
+          `will begin processing at ${new Date(Date.now() + timeBeforePending).toISOString()}`,
       );
       this.shutdownTimer = setTimeout(
         () => this.enterShutdownPending(),
@@ -104,7 +104,7 @@ export default class ServerManager {
       return;
     }
 
-    console.log(`Server will shut down at ${this.shutdownTime}`);
+    console.log(`Server will shut down at ${this.shutdownTime.toISOString()}`);
 
     const shutdownDuration = this.shutdownTime.getTime() - Date.now();
     this.shutdownTimer = setTimeout(() => this.shutdown(), shutdownDuration);

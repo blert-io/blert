@@ -9,8 +9,8 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "isolatedModules": true,
-    "incremental": true,
+    "incremental": true
   },
   "include": ["**/*.ts"],
-  "exclude": ["node_modules", "__tests__"]
+  "exclude": ["node_modules", "**/__tests__/**", "**/*.test.ts", "**/*.spec.ts"]
 }
