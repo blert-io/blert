@@ -157,7 +157,7 @@ export class BlertbankClient {
       if (!response.ok) {
         let errorResponse: ApiErrorResponse;
         try {
-          errorResponse = await response.json();
+          errorResponse = (await response.json()) as ApiErrorResponse;
         } catch {
           throw new BlertbankApiError(
             response.status,
@@ -173,7 +173,7 @@ export class BlertbankClient {
         throw BlertbankApiError.fromResponse(response.status, errorResponse);
       }
 
-      return await response.json();
+      return (await response.json()) as T;
     } catch (error) {
       if (error instanceof BlertbankApiError) {
         throw error;
