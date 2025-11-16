@@ -4,7 +4,7 @@ import Client from './client';
 import { BasicUser, Users } from './users';
 
 export default class ConnectionManager {
-  private activeClients: { [id: number]: Client };
+  private activeClients: Record<number, Client>;
   private nextSessionId;
 
   public constructor() {
@@ -25,7 +25,7 @@ export default class ConnectionManager {
     const user = await Users.findByApiKey(token);
 
     if (user === null) {
-      throw { message: 'Invalid token' };
+      throw new Error('Invalid token');
     }
 
     return user;

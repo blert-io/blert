@@ -12,11 +12,7 @@ import MessageHandler from './message-handler';
 import { PlayerManager } from './players';
 import { RemoteChallengeManager } from './remote-challenge-manager';
 import ServerManager, { ServerStatus } from './server-manager';
-import {
-  verifyRuneLiteVersion,
-  verifyRevision,
-  PluginVersions,
-} from './verification';
+import { PluginVersions } from './verification';
 import { ConfigManager } from './config';
 
 type ShutdownRequest = {
@@ -25,10 +21,7 @@ type ShutdownRequest = {
   force?: boolean;
 };
 
-async function setupHttpRoutes(
-  app: express.Express,
-  serverManager: ServerManager,
-) {
+function setupHttpRoutes(app: express.Express, serverManager: ServerManager) {
   app.get('/ping', (_req, res) => {
     res.send('pong');
   });
@@ -46,7 +39,7 @@ async function setupHttpRoutes(
     res.json(serverManager.getStatus());
   });
 
-  app.post('/admin/shutdown', async (req, res) => {
+  app.post('/admin/shutdown', (req, res) => {
     const {
       shutdownTime,
       cancel = false,
@@ -91,7 +84,7 @@ async function initializeRemoteChallengeManager(
 }
 
 async function loadValidRevisions(): Promise<Set<string>> {
-  let validPluginRevisions: Set<string> = new Set();
+  let validPluginRevisions = new Set<string>();
   if (process.env.BLERT_REVISIONS_FILE) {
     try {
       const data = await readFile(process.env.BLERT_REVISIONS_FILE, 'utf8');
@@ -126,7 +119,7 @@ async function main(): Promise<void> {
     allowedRevisions: validPluginRevisions,
   });
 
-  const port = process.env.PORT || 3003;
+  const port = process.env.PORT ?? 3003;
 
   const app = express();
   app.use(cors({ origin: '*', allowedHeaders: ['Authorization'] }));
@@ -139,44 +132,49 @@ async function main(): Promise<void> {
 
   let requestId = 0;
 
-  server.on('upgrade', async (request, socket, head) => {
-    ++requestId;
-    console.log(`[${requestId}] New websocket authentication request`);
+  server.on('upgrade', (request, socket, head) => {
+    void (async () => {
+      ++requestId;
+      console.log(`[${requestId}] New websocket authentication request`);
 
-    try {
-      const auth = request.headers.authorization?.split(' ') || [];
-      if (auth.length != 2 || auth[0] != 'Basic') {
-        throw { message: 'Missing token' };
-      }
+      try {
+        const auth = request.headers.authorization?.split(' ') ?? [];
+        if (auth.length != 2 || auth[0] != 'Basic') {
+          throw new Error('Missing token');
+        }
 
-      const token = Buffer.from(auth[1], 'base64').toString();
-      const user = await connectionManager.authenticate(token);
+        const token = Buffer.from(auth[1], 'base64').toString();
+        const user = await connectionManager.authenticate(token);
 
-      const pluginVersions = PluginVersions.fromHeaders(request.headers);
-      if (pluginVersions === null) {
-        console.log(`[${requestId}] missing plugin versions`);
-        socket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
+        const pluginVersions = PluginVersions.fromHeaders(request.headers);
+        if (pluginVersions === null) {
+          console.log(`[${requestId}] missing plugin versions`);
+          socket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
+          socket.destroy();
+          return;
+        }
+
+        const isAllowed = await configManager.verify(pluginVersions);
+        if (!isAllowed) {
+          console.log(
+            `[${requestId}] Plugin not allowed: ${pluginVersions.toString()}`,
+          );
+          socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+          socket.destroy();
+          return;
+        }
+
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          const client = new Client(ws, messageHandler, user, pluginVersions);
+          wss.emit('connection', ws, request, client);
+        });
+      } catch (e: any) {
+        const message = e instanceof Error ? e.message : String(e);
+        console.log(`[${requestId}] Failed to authenticate: ${message}`);
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
         socket.destroy();
-        return;
       }
-
-      const isAllowed = await configManager.verify(pluginVersions);
-      if (!isAllowed) {
-        console.log(`[${requestId}] Plugin not allowed: ${pluginVersions}`);
-        socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
-        socket.destroy();
-        return;
-      }
-
-      wss.handleUpgrade(request, socket, head, (ws) => {
-        const client = new Client(ws, messageHandler, user, pluginVersions);
-        wss.emit('connection', ws, request, client);
-      });
-    } catch (e: any) {
-      console.log(`[${requestId}] Failed to authenticate: ${e.message}`);
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-      socket.destroy();
-    }
+    })();
   });
 
   const connectionManager = new ConnectionManager();
@@ -201,8 +199,10 @@ async function main(): Promise<void> {
   wss.on('connection', (ws: WebSocket, req: Request, client: Client) => {
     connectionManager.addClient(client);
     serverManager.handleNewClient(client);
-    console.log(`${client} (${client.getPluginVersions()}) connected`);
+    console.log(
+      `${client.toString()} (${client.getPluginVersions().toString()}) connected`,
+    );
   });
 }
 
-main();
+void main();

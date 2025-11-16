@@ -47,7 +47,9 @@ export class RemoteChallengeManager extends ChallengeManager {
     this.pubsubClient = redisClient.duplicate();
     this.clientsByChallenge = new Map();
 
-    setTimeout(() => this.startPubsub(), 100);
+    setTimeout(() => {
+      void this.startPubsub();
+    }, 100);
   }
 
   public override async startOrJoin(
@@ -73,7 +75,7 @@ export class RemoteChallengeManager extends ChallengeManager {
       }),
     });
 
-    const status: ChallengeStatusResponse = await res.json();
+    const status = (await res.json()) as ChallengeStatusResponse;
     this.addClientToChallenge(client, status.uuid);
     return status;
   }
@@ -288,7 +290,7 @@ export class RemoteChallengeManager extends ChallengeManager {
       status,
     };
 
-    this.redisClient.lPush(CLIENT_EVENTS_KEY, JSON.stringify(event));
+    void this.redisClient.lPush(CLIENT_EVENTS_KEY, JSON.stringify(event));
 
     if (status === ClientStatus.DISCONNECTED) {
       this.removeClientFromChallenge(client);
@@ -303,10 +305,7 @@ export class RemoteChallengeManager extends ChallengeManager {
     );
   }
 
-  private async handleChallengeUpdate(
-    message: string,
-    channel: string,
-  ): Promise<void> {
+  private handleChallengeUpdate(message: string, channel: string): void {
     if (channel !== CHALLENGE_UPDATES_PUBSUB_KEY) {
       return;
     }
