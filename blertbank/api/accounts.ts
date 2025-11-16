@@ -30,7 +30,7 @@ export async function createForUser(
     }
 
     try {
-      const [inserted] = await tx<Array<{ id: number; created_at: Date }>>`
+      const [inserted] = await tx<{ id: number; created_at: Date }[]>`
       INSERT INTO blertcoin_accounts (owner_user_id, kind)
       VALUES (${userId}, 'user')
       RETURNING id, created_at
@@ -91,13 +91,13 @@ async function getAccountByUserId(
   userId: number,
 ): Promise<AccountResponse | null> {
   const [accountRow] = await tx<
-    Array<{
+    {
       id: number;
       owner_user_id: number;
       balance: number;
       created_at: Date;
       updated_at: Date;
-    }>
+    }[]
   >`
     SELECT
       a.id,

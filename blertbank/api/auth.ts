@@ -13,7 +13,7 @@ export function requireServiceAuth(
 ) {
   const headerToken =
     req.header('X-Service-Token') ??
-    (req.header('authorization') || '').replace(/^Bearer\s+/i, '');
+    (req.header('authorization') ?? '').replace(/^Bearer\s+/i, '');
 
   if (!headerToken || headerToken !== SERVICE_TOKEN) {
     return next(
