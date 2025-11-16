@@ -15,14 +15,24 @@ export async function migrate(sql: Sql) {
 }
 `;
 
-function distToSrc(dir: string): string {
+/**
+ * Converts a path in the `dist` directory to a path in the `src` directory.
+ * @param dir Path of the path in the `dist` directory.
+ * @returns Path of the path in the `src` directory.
+ */
+export function distToSrc(dir: string): string {
   return dir
     .split(path.sep)
     .filter((p) => p !== 'dist')
     .join(path.sep);
 }
 
-function distToSrcFile(file: string): string {
+/**
+ * Converts a file in the `dist` directory to a file in the `src` directory.
+ * @param file Path of the file in the `dist` directory.
+ * @returns Path of the file in the `src` directory.
+ */
+export function distToSrcFile(file: string): string {
   const dirname = path.dirname(file);
   const basename = path.basename(file);
   return `${distToSrc(dirname)}/${basename.replace(/\.js$/, '.ts')}`;
