@@ -1,0 +1,46 @@
+name: Test Blertbank Client
+
+on:
+  pull_request:
+    paths:
+      - 'blertbank-client/**'
+      - 'package.json'
+      - '.github/workflows/test-blertbank-client.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'blertbank-client/**'
+      - 'package.json'
+      - '.github/workflows/test-blertbank-client.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.8.0'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build blertbank-client
+        run: npm run -w blertbank-client build
+
+      - name: Run tests with coverage
+        run: npm run -w blertbank-client test:coverage
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          files: ./blertbank-client/coverage/lcov.info
+          flags: blertbank-client
+        continue-on-error: true
