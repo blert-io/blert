@@ -34,9 +34,10 @@ export default tseslint.config(
     ],
     languageOptions: {
       parserOptions: {
-        projectService: {
-          allowDefaultProject: ['*.js', '*.mjs'],
-        },
+        project: [
+          './*/tsconfig.eslint.json',
+          './*/tsconfig.json',
+        ],
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -54,11 +55,13 @@ export default tseslint.config(
       ],
     },
   },
-  // Relax rules for test files.
+  // Test files have relaxed rules.
   {
     files: ['**/__tests__/**/*.ts', '**/*.test.ts', '**/*.spec.ts'],
     rules: {
       '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/require-await': 'off',
     },
   },

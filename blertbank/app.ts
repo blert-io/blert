@@ -15,7 +15,7 @@ export function createApp(): Application {
   return app;
 }
 
-async function main() {
+function main() {
   const app = createApp();
   const port = process.env.PORT ?? 3003;
 
@@ -25,11 +25,13 @@ async function main() {
 }
 
 if (require.main === module) {
-  main().catch((err) => {
+  try {
+    main();
+  } catch (err) {
     logger.error('Error starting Blertbank server', {
       event: 'server_start_error',
       error: err,
     });
     process.exit(1);
-  });
+  }
 }

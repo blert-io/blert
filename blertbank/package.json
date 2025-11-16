@@ -5,11 +5,17 @@
   "license": "MIT",
   "scripts": {
     "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --check . --ignore-path ../.prettierignore",
+    "format:fix": "prettier --write . --ignore-path ../.prettierignore",
     "start": "node ./dist/app.js",
     "dev": "NODE_ENV=development tsc-watch --noClear -p ./tsconfig.json --onSuccess \"node ./dist/app.js\"",
     "migration:create": "tsc && node dist/migrations/migrate.js create $1",
     "migration:run": "tsc && node dist/migrations/migrate.js",
-    "test": "jest"
+    "test": "jest",
+    "test:coverage": "jest --coverage"
   },
   "dependencies": {
     "@blert/common": "file:../common",

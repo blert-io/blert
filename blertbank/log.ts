@@ -14,15 +14,14 @@ const logger = winston.createLogger({
     winston.format.errors({ stack: true }),
     winston.format.splat(),
     isDev
-      ? winston.format.printf(
-          ({ timestamp, level, message, service, ...meta }) => {
-            const metaStr =
-              meta && Object.keys(meta).length > 0
-                ? ' ' + JSON.stringify(meta)
-                : '';
-            return `${timestamp} [${service}] ${level}: ${message}${metaStr}`;
-          },
-        )
+      ? winston.format.printf((info) => {
+          const { timestamp, level, message, service, ...meta } = info;
+          const metaStr =
+            meta && Object.keys(meta).length > 0
+              ? ' ' + JSON.stringify(meta)
+              : '';
+          return `${String(timestamp)} [${String(service)}] ${String(level)}: ${String(message)}${metaStr}`;
+        })
       : winston.format.json(),
   ),
   transports: [new winston.transports.Console()],
