@@ -7,7 +7,7 @@ const logger = winston.createLogger({
     winston.format.timestamp(),
     winston.format.json(),
     winston.format.printf(({ timestamp, level, message, service }) => {
-      return `${timestamp} [${service}] ${level}: ${message}`;
+      return `${String(timestamp)} [${String(service)}] ${level}: ${String(message)}`;
     }),
   ),
   defaultMeta: { service: 'challenge-server' },

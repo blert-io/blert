@@ -308,7 +308,7 @@ export class ClientEvents {
         }
 
         if (lastPlayerStates[player] !== null) {
-          const last = lastPlayerStates[player]!;
+          const last = lastPlayerStates[player];
           const ticksSinceLast = tick - last.tick;
 
           // Players can move at most 2 tiles per tick -- anything more is a
@@ -361,8 +361,8 @@ export class ClientEvents {
   private static buildPlayerStates(
     eventsByTick: Event[][],
     party: string[],
-  ): Record<string, Array<PlayerState | null>> {
-    const playerStates: Record<string, Array<PlayerState | null>> = {};
+  ): Record<string, (PlayerState | null)[]> {
+    const playerStates: Record<string, (PlayerState | null)[]> = {};
 
     for (const player of party) {
       const states = Array(eventsByTick.length).fill(null);
@@ -390,7 +390,7 @@ export class ClientEvents {
           continue;
         }
 
-        let state: PlayerState = {
+        const state: PlayerState = {
           source: DataSource.SECONDARY,
           username: player,
           x: lastState?.x ?? 0,
@@ -428,7 +428,7 @@ export class ClientEvents {
                 const previous = state.equipment[delta.getSlot()];
 
                 if (delta.isAdded()) {
-                  if (previous === null || previous.id !== delta.getItemId()) {
+                  if (previous?.id !== delta.getItemId()) {
                     state.equipment[delta.getSlot()] = {
                       id: delta.getItemId(),
                       quantity: delta.getQuantity(),
@@ -468,7 +468,7 @@ export class ClientEvents {
         lastState = state;
       }
 
-      playerStates[player] = states;
+      playerStates[player] = states as (PlayerState | null)[];
     }
 
     return playerStates;

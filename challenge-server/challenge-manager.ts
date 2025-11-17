@@ -131,7 +131,7 @@ type ChallengeClient = {
 function toRedis(
   state: Partial<ExtendedChallengeState>,
 ): Partial<RedisChallengeState> {
-  let result: Partial<RedisChallengeState> = {};
+  const result: Partial<RedisChallengeState> = {};
 
   for (const key in state) {
     const k = key as keyof ChallengeState;
@@ -143,6 +143,8 @@ function toRedis(
     if (k === 'players') {
       result[k] = JSON.stringify(value);
     } else if (Array.isArray(value)) {
+      // All array values are strings.
+      // eslint-disable-next-line @typescript-eslint/no-base-to-string
       result[k] = value.join(',');
     } else if (typeof value === 'object') {
       result[k] = JSON.stringify(value);
@@ -170,7 +172,7 @@ function fromRedis(state: RedisChallengeState): ExtendedChallengeState {
     status: Number.parseInt(state.status) as ChallengeStatus,
     stageStatus: Number.parseInt(state.stageStatus) as StageStatus,
     party: state.party.split(','),
-    players: JSON.parse(state.players),
+    players: JSON.parse(state.players) as ChallengeState['players'],
     totalDeaths: Number.parseInt(state.totalDeaths),
     challengeTicks: Number.parseInt(state.challengeTicks),
     state: Number.parseInt(state.state) as LifecycleState,
@@ -184,7 +186,9 @@ function fromRedis(state: RedisChallengeState): ExtendedChallengeState {
     processingStage: state.processingStage
       ? Number.parseInt(state.processingStage)
       : null,
-    customData: state.customData ? JSON.parse(state.customData) : null,
+    customData: state.customData
+      ? (JSON.parse(state.customData) as object)
+      : null,
   };
 }
 
@@ -299,16 +303,17 @@ export default class ChallengeManager {
 
     this.manageTimeouts = manageTimeouts;
     if (this.manageTimeouts) {
-      this.timeoutTaskTimer = setTimeout(
-        () => this.processChallengeTimeouts(),
-        ChallengeManager.CHALLENGE_TIMEOUT_INTERVAL,
-      );
-      this.sessionWatchdog.run();
+      this.timeoutTaskTimer = setTimeout(() => {
+        void this.processChallengeTimeouts();
+      }, ChallengeManager.CHALLENGE_TIMEOUT_INTERVAL);
+      void this.sessionWatchdog.run();
     } else {
       this.timeoutTaskTimer = null;
     }
 
-    setTimeout(() => this.processEvents(), 100);
+    setTimeout(() => {
+      void this.processEvents();
+    }, 100);
   }
 
   /**
@@ -503,7 +508,8 @@ export default class ChallengeManager {
         );
         if (
           timeoutState !== undefined &&
-          parseInt(timeoutState) === TimeoutState.CLEANUP
+          (Number.parseInt(timeoutState) as TimeoutState) ===
+            TimeoutState.CLEANUP
         ) {
           multi.hSet(
             challengesKey(challengeUuid),
@@ -1071,15 +1077,13 @@ export default class ChallengeManager {
         'processingStage',
         Date.now().toString(),
       );
-      setTimeout(
-        () =>
-          this.loadAndCompleteChallengeStage(
-            challengeId,
-            stageToComplete,
-            attemptToComplete,
-          ),
-        0,
-      );
+      setTimeout(() => {
+        void this.loadAndCompleteChallengeStage(
+          challengeId,
+          stageToComplete,
+          attemptToComplete,
+        );
+      }, 0);
     }
 
     return result;
@@ -1231,7 +1235,7 @@ export default class ChallengeManager {
       }
     }
 
-    this.eventClient.disconnect();
+    void this.eventClient.disconnect();
   }
 
   private async removeClient(id: number, challengeId: string): Promise<void> {
@@ -1430,10 +1434,11 @@ export default class ChallengeManager {
     );
 
     try {
-      this.completeChallengeStage(challenge, processor, stage, attempt);
+      await this.completeChallengeStage(challenge, processor, stage, attempt);
     } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
       logger.error(
-        `Error completing stage ${stageAndAttempt(stage, attempt)} for challenge ${challengeId}: ${e}`,
+        `Error completing stage ${stageAndAttempt(stage, attempt)} for challenge ${challengeId}: ${msg}`,
       );
     }
   }
@@ -1550,7 +1555,7 @@ export default class ChallengeManager {
         if (shouldSave) {
           setTimeout(
             () =>
-              this.saveUnmergedEvents(
+              void this.saveUnmergedEvents(
                 challengeInfo,
                 stage,
                 stageEvents,
@@ -1636,14 +1641,17 @@ export default class ChallengeManager {
         return multi.exec();
       }
 
-      if (Number.parseInt(lifecycleState) === LifecycleState.CLEANUP) {
+      if (
+        (Number.parseInt(lifecycleState) as LifecycleState) ===
+        LifecycleState.CLEANUP
+      ) {
         status = CleanupStatus.CHALLENGE_FAILED_CLEANUP;
         return multi.exec();
       }
 
       let requireCleanup = timeout === null || timeout.maxRetryAttempts === 0;
 
-      switch (Number.parseInt(timeoutState)) {
+      switch (Number.parseInt(timeoutState) as TimeoutState) {
         case TimeoutState.CLEANUP:
           break;
         case TimeoutState.CHALLENGE_END:
@@ -1905,7 +1913,8 @@ export default class ChallengeManager {
           ChallengeManager.CHALLENGE_TIMEOUT_KEY,
         );
       } catch (e) {
-        logger.error(`Failed to fetch challenge timeouts: ${e}`);
+        const msg = e instanceof Error ? e.message : String(e);
+        logger.error(`Failed to fetch challenge timeouts: ${msg}`);
         break;
       }
 
@@ -1966,14 +1975,14 @@ export default class ChallengeManager {
     try {
       await this.processOneChallengeTimeout();
     } catch (e) {
-      logger.error(`Error processing challenge timeout: ${e}`);
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.error(`Error processing challenge timeout: ${msg}`);
     }
 
     if (this.manageTimeouts) {
-      this.timeoutTaskTimer = setTimeout(
-        () => this.processChallengeTimeouts(),
-        ChallengeManager.CHALLENGE_TIMEOUT_INTERVAL,
-      );
+      this.timeoutTaskTimer = setTimeout(() => {
+        void this.processChallengeTimeouts();
+      }, ChallengeManager.CHALLENGE_TIMEOUT_INTERVAL);
     }
   }
 

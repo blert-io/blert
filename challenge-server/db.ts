@@ -2,7 +2,8 @@ import postgres from 'postgres';
 
 import logger from './log';
 
-let connectionOptions: postgres.Options<{}> | undefined = undefined;
+let connectionOptions: postgres.Options<Record<string, any>> | undefined =
+  undefined;
 
 if (['development', 'test'].includes(process.env.NODE_ENV!)) {
   connectionOptions = {

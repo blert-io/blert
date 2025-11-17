@@ -5,10 +5,11 @@ import {
   DataRepository,
   RecordingType,
   Stage,
+  StageStreamEvents,
   StageStreamType,
 } from '@blert/common';
 import { ChallengeEvents } from '@blert/common/generated/challenge_storage_pb';
-import { Application, Request, Response } from 'express';
+import { Application, NextFunction, Request, Response } from 'express';
 
 import {
   ChallengeError,
@@ -23,22 +24,29 @@ import { ReportedTimes } from './event-processing';
 import logger from './log';
 import { Merger } from './merge';
 
+function asyncHandler(
+  fn: (req: Request, res: Response) => Promise<void>,
+): (req: Request, res: Response, next: NextFunction) => void {
+  return function (req: Request, res: Response, next: NextFunction) {
+    Promise.resolve(fn(req, res)).catch(next);
+  };
+}
+
 export function registerApiRoutes(app: Application): void {
   app.get('/ping', (_req, res) => {
     res.send('pong');
   });
 
-  app.post('/challenges/new', newChallenge);
-  app.post('/challenges/:challengeId', updateChallenge);
-  app.post('/challenges/:challengeId/finish', finishChallenge);
-  app.post('/challenges/:challengeId/join', joinChallenge);
-  app.post('/test/merge/:challengeId/:stage', mergeTestEvents);
+  app.post('/challenges/new', asyncHandler(newChallenge));
+  app.post('/challenges/:challengeId', asyncHandler(updateChallenge));
+  app.post('/challenges/:challengeId/finish', asyncHandler(finishChallenge));
+  app.post('/challenges/:challengeId/join', asyncHandler(joinChallenge));
+  app.post('/test/merge/:challengeId/:stage', asyncHandler(mergeTestEvents));
 }
 
-function errorStatus(e: Error): number {
+function errorStatus(e: unknown): number {
   if (e instanceof ChallengeError) {
-    const err = e as ChallengeError;
-    switch (err.type) {
+    switch (e.type) {
       case ChallengeErrorType.FAILED_PRECONDITION:
         return 400;
       case ChallengeErrorType.UNSUPPORTED:
@@ -73,8 +81,9 @@ async function newChallenge(req: Request, res: Response): Promise<void> {
       request.recordingType,
     );
     res.json(result);
-  } catch (e: any) {
-    logger.error(`Failed to create challenge: ${e}`);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.error(`Failed to create challenge: ${msg}`);
     res.status(errorStatus(e)).send();
   }
 }
@@ -166,14 +175,15 @@ async function mergeTestEvents(req: Request, res: Response): Promise<void> {
     const data = await testDataRepository.loadRaw(
       unmergedEventsFile(challengeId, stage),
     );
-    const raw = JSON.parse(data.toString());
+    const raw = JSON.parse(data.toString()) as UnmergedEventData;
     mergeData = {
       ...raw,
-      rawEvents: raw.rawEvents.map((e: any) => {
+      rawEvents: raw.rawEvents.map((e) => {
         if (e.type === StageStreamType.STAGE_EVENTS) {
+          const events = (e as StageStreamEvents).events;
           return {
             ...e,
-            events: Buffer.from(e.events.data),
+            events: Buffer.from(events),
           };
         }
 
@@ -187,7 +197,10 @@ async function mergeTestEvents(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    logger.error(`Failed to load test data for challenge ${challengeId}: ${e}`);
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.error(
+      `Failed to load test data for challenge ${challengeId}: ${msg}`,
+    );
     res.status(500).send();
     return;
   }

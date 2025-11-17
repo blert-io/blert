@@ -83,7 +83,7 @@ export function newChallengeProcessor(
       throw new Error(`Unimplemented challenge type ${type}`);
 
     default:
-      throw new Error(`Unknown challenge type ${type}`);
+      throw new Error(`Unknown challenge type ${String(type)}`);
   }
 }
 

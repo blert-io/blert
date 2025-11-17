@@ -19,7 +19,7 @@ function initializeDataRepository(envVar: string): DataRepository {
     throw new Error(`${envVar} is not set`);
   }
 
-  const repositoryUri = process.env[envVar]!;
+  const repositoryUri = process.env[envVar];
 
   if (repositoryUri.startsWith('file://')) {
     const root = repositoryUri.slice('file://'.length);
@@ -75,7 +75,7 @@ async function main() {
   );
 
   const app = express();
-  const port = process.env.PORT || 3003;
+  const port = process.env.PORT ?? 3003;
 
   app.use(express.json());
 
@@ -105,4 +105,4 @@ async function main() {
   });
 }
 
-main();
+void main();
