@@ -31,7 +31,7 @@ export function ticksFromTime(time: string): number | null {
     return null;
   }
   const [mins, rest] = time.split(':');
-  let secs = rest.split('.');
+  const secs = rest.split('.');
 
   let milliseconds = Number(mins) * 60 * 1000 + Number(secs[0]) * 1000;
 

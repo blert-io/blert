@@ -10,7 +10,7 @@ const compat = new FlatCompat({
   baseDirectory: __dirname,
 });
 
-// TODO(frolv): Enable all lints once fixed.
+// TODO(frolv): Enable full rootConfig lint incrementally (currently 539 errors).
 export default [
   // ...rootConfig,
   ...compat.extends('next/core-web-vitals'),

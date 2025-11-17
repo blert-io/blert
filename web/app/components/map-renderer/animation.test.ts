@@ -19,7 +19,7 @@ describe('Animation System', () => {
     if (nextX !== undefined && nextY !== undefined) {
       nextPosition = { x: nextX, y: nextY };
     }
-    return new PlayerEntity({ x, y }, 'TestPlayer', undefined, nextPosition);
+    return new PlayerEntity({ x, y }, 'TestPlayer', 0, undefined, nextPosition);
   };
 
   const createTestConfig = (

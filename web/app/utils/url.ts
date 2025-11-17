@@ -79,10 +79,12 @@ export function queryString(
   joinMultiple: boolean = true,
 ): string {
   const searchParams = new URLSearchParams();
-  for (let [key, value] of Object.entries(params)) {
-    if (value === undefined) {
+  for (const [key, valueRaw] of Object.entries(params)) {
+    if (valueRaw === undefined) {
       continue;
     }
+
+    let value = valueRaw;
 
     if (Array.isArray(value)) {
       if (value.length === 0) {
@@ -90,7 +92,7 @@ export function queryString(
       }
 
       if (!joinMultiple) {
-        for (let v of value) {
+        for (const v of value) {
           searchParams.append(key, v.toString());
         }
         continue;

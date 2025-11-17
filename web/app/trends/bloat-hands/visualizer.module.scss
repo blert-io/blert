@@ -115,16 +115,16 @@ $RELATIVE_POS_B: 255;
       &.negative {
         background: rgb(
           calc(
-            #{$RELATIVE_NEG_R} + var(--intensity) * ($RELATIVE_NEUTRAL_R -
-                  $RELATIVE_NEG_R)
+            #{$RELATIVE_NEG_R} + var(--intensity) *
+              ($RELATIVE_NEUTRAL_R - $RELATIVE_NEG_R)
           ),
           calc(
-            #{$RELATIVE_NEG_G} + var(--intensity) * ($RELATIVE_NEUTRAL_G -
-                  $RELATIVE_NEG_G)
+            #{$RELATIVE_NEG_G} + var(--intensity) *
+              ($RELATIVE_NEUTRAL_G - $RELATIVE_NEG_G)
           ),
           calc(
-            #{$RELATIVE_NEG_B} + var(--intensity) * ($RELATIVE_NEUTRAL_B -
-                  $RELATIVE_NEG_B)
+            #{$RELATIVE_NEG_B} + var(--intensity) *
+              ($RELATIVE_NEUTRAL_B - $RELATIVE_NEG_B)
           )
         );
       }
@@ -132,16 +132,16 @@ $RELATIVE_POS_B: 255;
       &.positive {
         background: rgb(
           calc(
-            #{$RELATIVE_NEUTRAL_R} + var(--intensity) * ($RELATIVE_POS_R -
-                  $RELATIVE_NEUTRAL_R)
+            #{$RELATIVE_NEUTRAL_R} + var(--intensity) *
+              ($RELATIVE_POS_R - $RELATIVE_NEUTRAL_R)
           ),
           calc(
-            #{$RELATIVE_NEUTRAL_G} + var(--intensity) * ($RELATIVE_POS_G -
-                  $RELATIVE_NEUTRAL_G)
+            #{$RELATIVE_NEUTRAL_G} + var(--intensity) *
+              ($RELATIVE_POS_G - $RELATIVE_NEUTRAL_G)
           ),
           calc(
-            #{$RELATIVE_NEUTRAL_B} + var(--intensity) * ($RELATIVE_POS_B -
-                  $RELATIVE_NEUTRAL_B)
+            #{$RELATIVE_NEUTRAL_B} + var(--intensity) *
+              ($RELATIVE_POS_B - $RELATIVE_NEUTRAL_B)
           )
         );
       }

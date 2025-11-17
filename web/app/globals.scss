@@ -50,10 +50,11 @@
   --font-size-normal: 15px;
   --font-color-normal: #000;
 
-  --blert-gold-text-shadow: 0 0 8px rgba(255, 215, 0, 0.6),
-    0 0 16px rgba(255, 215, 0, 0.3), 0 0 24px rgba(255, 215, 0, 0.25);
-  --blert-silver-text-shadow: 0 0 6px rgba(192, 192, 192, 0.5),
-    0 0 12px rgba(192, 192, 192, 0.25);
+  --blert-gold-text-shadow:
+    0 0 8px rgba(255, 215, 0, 0.6), 0 0 16px rgba(255, 215, 0, 0.3),
+    0 0 24px rgba(255, 215, 0, 0.25);
+  --blert-silver-text-shadow:
+    0 0 6px rgba(192, 192, 192, 0.5), 0 0 12px rgba(192, 192, 192, 0.25);
   --blert-bronze-text-shadow: 0 0 6px rgba(205, 127, 50, 0.4);
 }
 

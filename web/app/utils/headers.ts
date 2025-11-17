@@ -6,5 +6,5 @@
 export function getRequestIp(headers: Headers): string {
   const forwardedFor = headers.get('x-forwarded-for');
   const realIp = headers.get('x-real-ip');
-  return forwardedFor?.split(',')[0] || realIp || '127.0.0.1';
+  return forwardedFor?.split(',')[0] ?? realIp ?? '127.0.0.1';
 }

@@ -34,18 +34,20 @@ export class ItemCache<T extends ItemData> {
     if (!this.cache.has(id)) {
       this.itemsToFetch.add(id);
 
-      if (this.fetchTimeout === null) {
-        this.fetchTimeout = setTimeout(async () => {
+      this.fetchTimeout ??= setTimeout(() => {
+        void (async () => {
           this.fetchTimeout = null;
           await this.fetchMissingItems();
-        }, 1000);
-      }
+        })();
+      }, 1000);
     }
     return this.cache.get(id)?.name ?? 'Unknown item';
   }
 
   private async fetchMissingItems(): Promise<void> {
-    const promises = Array.from(this.itemsToFetch).map(this.fetchItemName);
+    const promises = Array.from(this.itemsToFetch).map((id) =>
+      this.fetchItemName(id),
+    );
     this.itemsToFetch.clear();
     await Promise.all(promises);
   }
@@ -53,5 +55,6 @@ export class ItemCache<T extends ItemData> {
   private async fetchItemName(id: number): Promise<void> {
     // TODO(frolv): Get items from the OSRS Wiki API.
     throw new Error(`Cannot fetch item ${id}: Not implemented`);
+    await Promise.resolve();
   }
 }
