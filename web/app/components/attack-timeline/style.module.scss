@@ -26,6 +26,7 @@
   .row {
     display: flex;
     width: 100%;
+    gap: 5px;
 
     &:not(:only-child) {
       &:not(:last-child) {
@@ -39,11 +40,11 @@
 
 .attackTimeline__ColumnActiveIndicator {
   position: absolute;
-  height: 96%;
+  height: 100%;
   border: 2px solid var(--blert-button);
   border-radius: 5px;
   opacity: 0.5;
-  left: -8px;
+  left: 0;
   z-index: 20;
   pointer-events: none;
   transition: all 0.2s ease;
@@ -57,7 +58,7 @@
   align-items: center;
   padding-bottom: 10px;
   position: relative;
-  margin-right: 5px;
+  // margin-right: 5px;
 }
 
 .attackTimeline__Legend {
@@ -89,7 +90,7 @@
     width: calc(100% - 10px);
     opacity: 1;
     cursor: pointer;
-    margin: 0 5px 5px 5px;
+    margin: 0 5px 5px 0;
     transition: all 0.2s ease;
 
     &:hover {
@@ -127,7 +128,6 @@
   padding: 0;
   cursor: pointer;
   position: relative;
-  left: -3px;
   top: -3px;
   font-size: 0.9em;
   color: var(--font-color-nav);
@@ -210,7 +210,7 @@
   font-weight: bold;
   text-align: center;
   opacity: 0.3;
-  margin: 0 5px 5px 0;
+  margin: 0 0 5px 0;
   position: relative;
   transition: all 0.2s ease;
   border: 1px solid transparent;

@@ -907,7 +907,7 @@ const buildTickColumn = (
     <div
       key={`attackTimeline__${columnTick}`}
       className={styles.attackTimeline__Column}
-      style={{ width: context.cellSize, marginRight: COLUMN_MARGIN }}
+      style={{ width: context.cellSize }}
     >
       {split !== undefined && (
         <div
@@ -1222,12 +1222,13 @@ export function AttackTimeline(props: AttackTimelineProps) {
   const activeColumnIndicator = (
     <div
       style={{
-        left: totalColumnWidth * tickOnRow + 5,
+        left: (totalColumnWidth * tickOnRow) + 9,
         top:
           ACTIVE_INDICATOR_OFFSET +
           row * (rowHeight + ACTIVE_INDICATOR_OFFSET + 23.5),
         height: rowHeight + 40,
-        width: totalColumnWidth + 3,
+        width: totalColumnWidth + 1,
+        // marginLeft: 6,
       }}
       className={styles.attackTimeline__ColumnActiveIndicator}
       ref={currentTickColumnRef}

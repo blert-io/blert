@@ -764,6 +764,29 @@ export default function ChallengeAnalysis() {
     return items;
   }, [availableStats, term]);
 
+  // Store last selected statKey for each group
+  const [groupStatKeys, setGroupStatKeys] = useState<Record<number, string>>({});
+
+  // Derive selectedGroupIdx from selectedStatKey and menuItems
+  const selectedGroupIdx = useMemo(() => {
+    if (!selectedStatKey || menuItems.length === 0) {
+      return 0;
+    }
+    const idx = menuItems.findIndex(group => group.subMenu?.some(item => item.value === selectedStatKey));
+    return idx === -1 ? 0 : idx;
+  }, [selectedStatKey, menuItems]);
+
+  // When group changes, restore last stat for that group or default to first
+  React.useEffect(() => {
+    if (menuItems.length > 0) {
+      const group = menuItems[selectedGroupIdx];
+      const statKey = groupStatKeys[selectedGroupIdx] ?? group.subMenu?.[0]?.value;
+      if (statKey && statKey !== selectedStatKey) {
+        setSelectedStatKey(statKey);
+      }
+    }
+  }, [selectedGroupIdx, menuItems, groupStatKeys, selectedStatKey]);
+
   const aggregatedData = useMemo(() => {
     if (!session || !selectedStat) {
       return null;
@@ -832,27 +855,58 @@ export default function ChallengeAnalysis() {
             Choose any split time or challenge-specific statistic to analyze
             across all challenges in the session.
           </p>
-          <button
-            id="stat-select"
-            className={styles.selectButton}
-            onClick={() => setStatMenuOpen(true)}
-            aria-expanded={statMenuOpen}
-            aria-haspopup="menu"
-          >
-            {selectedStat ? selectedStat.label : 'Choose a statistic...'}
-            <i className="fas fa-chevron-down" />
-          </button>
-          <Menu
-            onClose={() => setStatMenuOpen(false)}
-            onSelection={(value) => {
-              setSelectedStatKey(value as string);
-              setStatMenuOpen(false);
-            }}
-            open={statMenuOpen}
-            items={menuItems}
-            targetId="stat-select"
-            width={250}
-          />
+          {menuItems.length > 1 ? (
+            <div className={styles.statGroupSelector}>
+              <RadioInput.Group
+                name="stat-group"
+                compact
+                joined
+                onChange={(idx) => {
+                  // Only update selectedStatKey; useEffect will restore last stat for group
+                  setSelectedStatKey(groupStatKeys[Number(idx)] ?? menuItems[Number(idx)]?.subMenu?.[0]?.value ?? null);
+                }}
+              >
+                {menuItems.map((group, idx) => (
+                  <RadioInput.Option
+                    key={group.label}
+                    id={`stat-group-${idx}`}
+                    label={group.label}
+                    value={idx}
+                    checked={selectedGroupIdx === idx}
+                  />
+                ))}
+              </RadioInput.Group>
+            </div>
+          ) : null}
+          {/* Second tier: dropdown or menu for stats in the selected group */}
+          {menuItems.length > 0 && (
+            <>
+              <button
+                id="stat-select"
+                className={styles.selectButton}
+                onClick={() => setStatMenuOpen(true)}
+                aria-expanded={statMenuOpen}
+                aria-haspopup="menu"
+              >
+                {selectedStat
+                  ? menuItems[selectedGroupIdx]?.subMenu?.find(item => item.value === selectedStatKey)?.label || 'Choose a statistic...'
+                  : 'Choose a statistic...'}
+                <i className="fas fa-chevron-down" />
+              </button>
+              <Menu
+                onClose={() => setStatMenuOpen(false)}
+                onSelection={(value) => {
+                  setSelectedStatKey(value as string);
+                  setGroupStatKeys(prev => ({ ...prev, [selectedGroupIdx]: value as string }));
+                  setStatMenuOpen(false);
+                }}
+                open={statMenuOpen}
+                items={menuItems[selectedGroupIdx]?.subMenu?.map(item => ({ ...item })) || []}
+                targetId="stat-select"
+                width={250}
+              />
+            </>
+          )}
         </div>
 
         {selectedStat && aggregatedData && (
