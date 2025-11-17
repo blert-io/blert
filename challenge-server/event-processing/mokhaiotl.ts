@@ -87,7 +87,7 @@ export default class MokhaiotlProcessor extends ChallengeProcessor {
     return this.delve1To8Ticks ?? this.getTotalChallengeTicks();
   }
 
-  protected async onFinish(finalChallengeTicks: number): Promise<void> {
+  protected override onFinish(finalChallengeTicks: number): Promise<void> {
     this.setSplit(SplitType.MOKHAIOTL_CHALLENGE, finalChallengeTicks);
 
     for (const username of this.getParty()) {
@@ -104,6 +104,8 @@ export default class MokhaiotlProcessor extends ChallengeProcessor {
           break;
       }
     }
+
+    return Promise.resolve();
   }
 
   protected override async onStageFinished(
@@ -154,7 +156,7 @@ export default class MokhaiotlProcessor extends ChallengeProcessor {
     ]);
   }
 
-  protected async processChallengeEvent(
+  protected override processChallengeEvent(
     allEvents: MergedEvents,
     event: Event,
   ): Promise<boolean> {
@@ -180,7 +182,7 @@ export default class MokhaiotlProcessor extends ChallengeProcessor {
           logger.warn(
             `Challenge ${this.getUuid()} got MOKHAIOTL_ATTACK_STYLE without a matching NPC_ATTACK`,
           );
-          return false;
+          return Promise.resolve(false);
         }
 
         const npcAttack = attackEvent.getNpcAttack()!;
@@ -205,7 +207,7 @@ export default class MokhaiotlProcessor extends ChallengeProcessor {
         npcAttack.setAttack(attackType as NpcAttackMap[keyof NpcAttackMap]);
 
         // The MOKHAIOTL_ATTACK_STYLE event should not be written.
-        return false;
+        return Promise.resolve(false);
       }
 
       case Event.Type.MOKHAIOTL_LARVA_LEAK: {
@@ -214,7 +216,7 @@ export default class MokhaiotlProcessor extends ChallengeProcessor {
       }
     }
 
-    return true;
+    return Promise.resolve(true);
   }
 
   protected override getCustomData(): CustomData | null {

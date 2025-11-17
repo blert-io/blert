@@ -15,7 +15,9 @@ export class Players {
   private static readonly USERNAME_REGEX = /^[a-zA-Z0-9 _-]{1,12}$/;
 
   public static async lookupUsername(id: number): Promise<string | null> {
-    const [player] = await sql`SELECT username FROM players WHERE id = ${id}`;
+    const [player] = await sql<
+      [{ username: string }?]
+    >`SELECT username FROM players WHERE id = ${id}`;
     return player?.username ?? null;
   }
 
@@ -26,7 +28,7 @@ export class Players {
    * @returns The IDs of the players, in the same order as the input usernames.
    */
   public static async lookupIds(usernames: string[]): Promise<number[]> {
-    const rows = await sql`
+    const rows = await sql<{ id: number; username: string }[]>`
       SELECT id, username
       FROM players
       WHERE lower(username) = ANY(${usernames.map((u) => u.toLowerCase())})
@@ -107,7 +109,9 @@ export class Players {
     statsIncrements: Partial<ModifiablePlayerStats>,
   ): Promise<void> {
     const startOfDay = startOfDateUtc();
-    const [lastStats] = await sql`
+    const [lastStats] = await sql<
+      ({ id?: number } & CamelToSnakeCase<PlayerStats>)[]
+    >`
       SELECT * FROM player_stats
       WHERE player_id = ${playerId}
       ORDER BY date DESC
@@ -138,10 +142,10 @@ export class Players {
       const updates = camelToSnakeObject(statsIncrements);
       for (const key in updates) {
         const k = key as keyof CamelToSnakeCase<ModifiablePlayerStats>;
-        updates[k] += lastStats[k];
+        updates[k]! += lastStats[k];
       }
       await sql`
-        UPDATE player_stats SET ${sql(updates)} WHERE id = ${lastStats.id}
+        UPDATE player_stats SET ${sql(updates)} WHERE id = ${lastStats.id!}
       `;
       return;
     }

@@ -65,7 +65,7 @@ function roomsKey(stage: Stage): keyof TobRooms {
   }
 }
 
-function nyloBossStyle(npcId: number): NyloStyle {
+function nyloBossStyle(npcId: NpcId): NyloStyle {
   switch (npcId) {
     case NpcId.NYLOCAS_VASILIAS_MAGE_ENTRY:
     case NpcId.NYLOCAS_VASILIAS_MAGE_REGULAR:
@@ -177,7 +177,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
       firstChallengeOfDay.date === null ||
       firstChallengeOfDay.date.getTime() !== today.getTime()
     ) {
-      const [challenge] = await sql`
+      const [challenge] = await sql<[{ id: number }?]>`
         SELECT id FROM challenges
         WHERE start_time >= ${today}
         ORDER BY start_time ASC
@@ -204,9 +204,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
     ]);
   }
 
-  protected override async onFinish(
-    finalChallengeTicks: number,
-  ): Promise<void> {
+  protected override onFinish(finalChallengeTicks: number): Promise<void> {
     this.setSplit(SplitType.TOB_CHALLENGE, finalChallengeTicks);
     this.setSplit(SplitType.TOB_OVERALL, this.getOverallTicks());
 
@@ -224,6 +222,8 @@ export default class TheatreProcessor extends ChallengeProcessor {
           break;
       }
     }
+
+    return Promise.resolve();
   }
 
   protected override async onStageFinished(
@@ -288,9 +288,9 @@ export default class TheatreProcessor extends ChallengeProcessor {
         this.stageStats.nylocasPostCapStalls = 0;
         for (const wave of this.stalledNyloWaves) {
           if (wave < 20) {
-            this.stageStats.nylocasPreCapStalls! += 1;
+            this.stageStats.nylocasPreCapStalls += 1;
           } else {
-            this.stageStats.nylocasPostCapStalls! += 1;
+            this.stageStats.nylocasPostCapStalls += 1;
           }
           this.stageStats.nylocasStalls[wave - 1] += 1;
         }
@@ -458,7 +458,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
       }
 
       case Event.Type.TOB_BLOAT_HANDS_DROP: {
-        const hands = event.getBloatHandsList()!;
+        const hands = event.getBloatHandsList();
 
         const handsByChunk = new Map<number, number[]>();
 
@@ -538,7 +538,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
           startTick: event.getTick(),
           endTick: 0,
           accuratePath: false,
-          partialPivots: Array(8).fill(-1),
+          partialPivots: Array<number>(8).fill(-1),
           chosenPlayer: null,
         });
         break;
@@ -580,9 +580,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
 
       case Event.Type.TOB_XARPUS_EXHUMED: {
         const xarpusExhumed = event.getXarpusExhumed()!;
-        if (this.xarpusHealing === null) {
-          this.xarpusHealing = 0;
-        }
+        this.xarpusHealing ??= 0;
         this.xarpusHealing +=
           xarpusExhumed.getHealAmount() *
           xarpusExhumed.getHealTicksList().length;
@@ -673,7 +671,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
           case AttackStyle.MELEE: {
             attackType = NpcAttack.TOB_VERZIK_P3_MELEE;
             if (npcAttack.hasTarget()) {
-              const stats = this.getCurrentStageStats(npcAttack.getTarget()!);
+              const stats = this.getCurrentStageStats(npcAttack.getTarget());
               stats.tobVerzikP3Melees++;
             }
             break;
@@ -783,7 +781,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
         if (weapon !== undefined) {
           try {
             chinPrice = await this.getPriceTracker().getPrice(weapon.getId());
-          } catch (e) {
+          } catch {
             chinPrice = 0;
           }
         }
@@ -983,7 +981,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
     }
     if (overworldPivots.length > 0) {
       logger.error(
-        `Challenge ${this.getUuid()}: Received partial overworld pivots: ${overworldPivots}`,
+        `Challenge ${this.getUuid()}: Received partial overworld pivots: ${overworldPivots.join(', ')}`,
       );
     }
 
@@ -1016,7 +1014,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
     }
 
     logger.debug(
-      `Challenge ${this.getUuid()}: Partial maze progress: ${currentMaze.partialPivots}`,
+      `Challenge ${this.getUuid()}: Partial maze progress: ${currentMaze.partialPivots.join(', ')}`,
     );
   }
 

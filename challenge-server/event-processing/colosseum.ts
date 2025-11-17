@@ -68,7 +68,7 @@ export default class ColosseumProcessor extends ChallengeProcessor {
         waves: [],
         handicaps: [],
       };
-      this.handicapLevels = Array(14).fill(0);
+      this.handicapLevels = Array<number>(14).fill(0);
     }
   }
 
@@ -79,9 +79,7 @@ export default class ColosseumProcessor extends ChallengeProcessor {
     );
   }
 
-  protected override async onFinish(
-    finalChallengeTicks: number,
-  ): Promise<void> {
+  protected override onFinish(finalChallengeTicks: number): Promise<void> {
     this.setSplit(SplitType.COLOSSEUM_CHALLENGE, finalChallengeTicks);
 
     for (const username of this.getParty()) {
@@ -98,6 +96,8 @@ export default class ColosseumProcessor extends ChallengeProcessor {
           break;
       }
     }
+
+    return Promise.resolve();
   }
 
   protected override async onStageFinished(
@@ -125,8 +125,8 @@ export default class ColosseumProcessor extends ChallengeProcessor {
     );
   }
 
-  protected override async processChallengeEvent(
-    allEvents: MergedEvents,
+  protected override processChallengeEvent(
+    _allEvents: MergedEvents,
     event: Event,
   ): Promise<boolean> {
     if (event.getType() === Event.Type.COLOSSEUM_HANDICAP_CHOICE) {
@@ -135,7 +135,7 @@ export default class ColosseumProcessor extends ChallengeProcessor {
       this.selectedHandicap = this.levelHandicap(handicap);
       this.waveHandicapOptions = event
         .getHandicapOptionsList()
-        .map(this.levelHandicap, this);
+        .map((handicap) => this.levelHandicap(handicap));
 
       this.handicapLevels[handicap]++;
 
@@ -148,7 +148,7 @@ export default class ColosseumProcessor extends ChallengeProcessor {
         this.colosseumData.handicaps.push(handicap);
       }
     }
-    return true;
+    return Promise.resolve(true);
   }
 
   protected override getCustomData(): CustomData | null {

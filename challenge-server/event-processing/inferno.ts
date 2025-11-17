@@ -225,22 +225,22 @@ export default class InfernoProcessor extends ChallengeProcessor {
     switch (event.getType()) {
       case Event.Type.NPC_DEATH: {
         const npc = event.getNpc()!;
-        if (npc.getId() === NpcId.ROCKY_SUPPORT) {
+        if (npc.getId() === (NpcId.ROCKY_SUPPORT as number)) {
           const pillar = pillarFromCoords(event.getXCoord(), event.getYCoord());
           const wave = stageToWave(this.getStage());
           switch (pillar) {
             case Pillar.WEST:
-              this.updateChallengeStats({
+              await this.updateChallengeStats({
                 wastPillarCollapseWave: wave,
               });
               break;
             case Pillar.EAST:
-              this.updateChallengeStats({
+              await this.updateChallengeStats({
                 eastPillarCollapseWave: wave,
               });
               break;
             case Pillar.SOUTH:
-              this.updateChallengeStats({
+              await this.updateChallengeStats({
                 southPillarCollapseWave: wave,
               });
               break;

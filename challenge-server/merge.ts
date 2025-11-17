@@ -89,7 +89,7 @@ export function classifyClients(clients: ClientEvents[]): MergeClients {
     baseClient = candidates[0];
 
     logger.debug(
-      `Using ${referenceTicks} ticks from accurate consensus ${baseClient}`,
+      `Using ${referenceTicks} ticks from accurate consensus ${baseClient.toString()}`,
     );
   }
 
@@ -106,7 +106,7 @@ export function classifyClients(clients: ClientEvents[]): MergeClients {
       baseClient = preciseClients[0];
       referenceTicks = baseClient.getServerTicks()!.count;
       logger.debug(
-        `Using ${referenceTicks} ticks from precise client ${baseClient}`,
+        `Using ${referenceTicks} ticks from precise client ${baseClient.toString()}`,
       );
     }
   }
@@ -124,7 +124,7 @@ export function classifyClients(clients: ClientEvents[]): MergeClients {
       baseClient = impreciseClients[0];
       referenceTicks = baseClient.getServerTicks()!.count;
       logger.debug(
-        `Using ${referenceTicks} from imprecise client ${baseClient}`,
+        `Using ${referenceTicks} from imprecise client ${baseClient.toString()}`,
       );
     }
   }
@@ -138,7 +138,7 @@ export function classifyClients(clients: ClientEvents[]): MergeClients {
     baseClient = sortedClients[0];
     referenceTicks = baseClient.getFinalTick();
     logger.debug(
-      `Assuming ${referenceTicks} from recorded ticks on ${baseClient}`,
+      `Assuming ${referenceTicks} from recorded ticks on ${baseClient.toString()}`,
     );
   }
 
@@ -283,7 +283,7 @@ export class Merger {
         for (const client of accurateClients) {
           if (client.isAccurate() && client.getFinalTick() !== modalTicks) {
             logger.warn(
-              `${client} claims to be accurate but differs from the modal tick count ` +
+              `${client.toString()} claims to be accurate but differs from the modal tick count ` +
                 `(expected: ${modalTicks}, actual: ${client.getFinalTick()})`,
             );
             client.setAccurate(false);
@@ -313,9 +313,7 @@ export type PlayerState = {
   x: number;
   y: number;
   isDead: boolean;
-  equipment: {
-    [slot in EquipmentSlot]: EquippedItem | null;
-  };
+  equipment: Record<EquipmentSlot, EquippedItem | null>;
 };
 
 export class TickState {
@@ -410,7 +408,7 @@ export class TickState {
     const playerStates: Record<string, PlayerState | null> = {};
     for (const player in this.playerStates) {
       if (this.playerStates[player] !== null) {
-        const current = this.playerStates[player]!;
+        const current = this.playerStates[player];
         playerStates[player] = { ...current };
       } else {
         playerStates[player] = null;
@@ -479,7 +477,7 @@ export class TickState {
    * the overall stage state following a merge.
    * @param tickStates Updated tick states for the entire stage.
    */
-  public resynchronize(tickStates: Array<TickState | null>): void {
+  public resynchronize(tickStates: (TickState | null)[]): void {
     if (!this.requiresResync) {
       return;
     }
@@ -493,7 +491,7 @@ export class TickState {
 
   private resynchronizePlayer(
     player: string,
-    tickStates: Array<TickState | null>,
+    tickStates: (TickState | null)[],
   ): void {
     const state = this.playerStates[player];
     if (!state) {
@@ -601,7 +599,7 @@ export class TickState {
 }
 
 export class MergedEvents {
-  private ticks: Array<TickState | null>;
+  private ticks: (TickState | null)[];
   private readonly status: StageStatus;
   private accurate: boolean;
 
@@ -613,7 +611,7 @@ export class MergedEvents {
 
     this.status = base.getStatus();
     this.accurate = base.isAccurate();
-    this.ticks = Array(tickCount + 1).fill(null);
+    this.ticks = Array<TickState | null>(tickCount + 1).fill(null);
     this.initializeBaseTicks(base);
   }
 
@@ -727,7 +725,7 @@ export class MergedEvents {
       if (existingState !== null) {
         if (!existingState.merge(stateToMerge)) {
           logger.error(
-            `Failed to merge events at tick ${tick} from ${client} into base`,
+            `Failed to merge events at tick ${tick} from ${client.toString()} into base`,
           );
           return false;
         }
@@ -826,11 +824,11 @@ export class MergedEvents {
 }
 
 class EventIterator implements Iterator<Event, Event | null> {
-  private readonly ticks: Array<TickState | null>;
+  private readonly ticks: (TickState | null)[];
   private tick: number;
   private eventIndex: number;
 
-  constructor(ticks: Array<TickState | null>) {
+  constructor(ticks: (TickState | null)[]) {
     this.ticks = ticks;
     this.tick = 0;
     this.eventIndex = 0;

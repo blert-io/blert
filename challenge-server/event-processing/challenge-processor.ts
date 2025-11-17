@@ -129,7 +129,7 @@ type StageState = {
   deaths: string[];
   npcs: Map<string, RoomNpc>;
   eventsToWrite: Event[];
-  playerStats: Array<Partial<PlayerStats>>;
+  playerStats: Partial<PlayerStats>[];
 };
 
 export default abstract class ChallengeProcessor {
@@ -270,7 +270,9 @@ export default abstract class ChallengeProcessor {
     startTime: Date,
     sessionId: number | null,
   ): Promise<void> {
-    const playerIds = await Promise.all(this.party.map(Players.startChallenge));
+    const playerIds = await Promise.all(
+      this.party.map((name) => Players.startChallenge(name)),
+    );
     if (
       playerIds.length !== this.party.length ||
       playerIds.some((id) => id === null)
@@ -490,7 +492,14 @@ export default abstract class ChallengeProcessor {
   public static async loadExpiringSessions(): Promise<Session[]> {
     const now = Date.now();
 
-    const sessions = await sql`
+    const sessions = await sql<
+      {
+        id: number;
+        challenge_type: ChallengeType;
+        challenge_mode: ChallengeMode;
+        party_hash: string;
+      }[]
+    >`
       SELECT id, challenge_type, challenge_mode, party_hash
       FROM challenge_sessions
       WHERE status = ${SessionStatus.ACTIVE} AND
@@ -507,18 +516,18 @@ export default abstract class ChallengeProcessor {
   }
 
   public static async finalizeSession(sessionId: number): Promise<void> {
-    const loadStatusCounts = sql`
+    const loadStatusCounts = sql<{ status: string; count: string }[]>`
       SELECT status, COUNT(*) FROM challenges
       WHERE session_id = ${sessionId}
       GROUP BY status
     `;
-    const loadLastFinishTime = sql`
+    const loadLastFinishTime = sql<{ finish_time: Date }[]>`
       SELECT finish_time FROM challenges
       WHERE session_id = ${sessionId}
       ORDER BY finish_time DESC NULLS FIRST
       LIMIT 1
     `;
-    const loadMostFrequentMode = sql`
+    const loadMostFrequentMode = sql<{ mode: ChallengeMode }[]>`
       SELECT mode FROM challenges
       WHERE session_id = ${sessionId}
       GROUP BY mode ORDER BY COUNT(*) DESC, mode ASC LIMIT 1
@@ -542,7 +551,8 @@ export default abstract class ChallengeProcessor {
 
     if (
       statusCounts.length === 1 &&
-      parseInt(statusCounts[0].status) === ChallengeStatus.ABANDONED
+      (Number.parseInt(statusCounts[0].status) as ChallengeStatus) ===
+        ChallengeStatus.ABANDONED
     ) {
       logger.warn(`Session ${sessionId} has only abandoned challenges; hiding`);
       updates.status = SessionStatus.HIDDEN;
@@ -563,7 +573,7 @@ export default abstract class ChallengeProcessor {
     sessionId: number,
     updates: Partial<ModifiableSessionFields>,
   ): Promise<void> {
-    const translated: any = camelToSnakeObject(updates);
+    const translated: Record<string, unknown> = camelToSnakeObject(updates);
     if ('endTime' in updates && updates.endTime !== null) {
       translated.end_time = updates.endTime!.getTime();
     }
@@ -585,7 +595,7 @@ export default abstract class ChallengeProcessor {
     userId: number,
     recordingType: RecordingType,
   ): Promise<void> {
-    const [challenge] = await sql`
+    const [challenge] = await sql<[{ id: number }?]>`
       SELECT id FROM challenges WHERE uuid = ${uuid}
     `;
 
@@ -618,7 +628,7 @@ export default abstract class ChallengeProcessor {
         break;
 
       case Event.Type.NPC_DEATH:
-        let npc = stageState.npcs.get(event.getNpc()!.getRoomId().toString());
+        const npc = stageState.npcs.get(event.getNpc()!.getRoomId().toString());
         if (npc !== undefined) {
           npc.deathTick = event.getTick();
           npc.deathPoint = { x: event.getXCoord(), y: event.getYCoord() };
@@ -684,7 +694,7 @@ export default abstract class ChallengeProcessor {
   private async updateChallenge(
     updates: Partial<DatabaseChallengeFields>,
   ): Promise<void> {
-    const translated: any = camelToSnakeObject(updates);
+    const translated: Record<string, unknown> = camelToSnakeObject(updates);
     if ('finishTime' in updates && updates.finishTime !== null) {
       translated.finish_time = updates.finishTime!.getTime();
     }
@@ -704,7 +714,7 @@ export default abstract class ChallengeProcessor {
       if (sessionId === null) {
         const sessionUuid = uuidv4();
 
-        const [{ id }] = await sql`
+        const [{ id }] = await sql<[{ id: number }]>`
           INSERT INTO challenge_sessions (
             uuid,
             challenge_type,
@@ -732,7 +742,7 @@ export default abstract class ChallengeProcessor {
         sessionId = id;
       }
 
-      const [{ id }] = await sql`
+      const [{ id }] = await sql<[{ id: number }]>`
         INSERT INTO challenges (
           uuid,
           type,
@@ -774,7 +784,7 @@ export default abstract class ChallengeProcessor {
         )}
     `;
 
-      return [id, sessionId!];
+      return [id, sessionId];
     });
 
     this.databaseId = id;
@@ -801,8 +811,9 @@ export default abstract class ChallengeProcessor {
 
   private async loadIds(): Promise<void> {
     if (this.databaseId === -1 || this.sessionId === -1) {
-      const [challenge] =
-        await sql`SELECT id, session_id FROM challenges WHERE uuid = ${this.uuid}`;
+      const [challenge] = await sql<
+        [{ id: number; session_id: number }?]
+      >`SELECT id, session_id FROM challenges WHERE uuid = ${this.uuid}`;
       if (!challenge) {
         throw new Error(`Challenge ${this.uuid} does not exist`);
       }
@@ -815,7 +826,7 @@ export default abstract class ChallengeProcessor {
       return;
     }
 
-    const players = await sql`
+    const players = await sql<{ player_id: number }[]>`
       SELECT player_id
       FROM challenge_players
       WHERE challenge_id = ${this.databaseId}
@@ -834,7 +845,7 @@ export default abstract class ChallengeProcessor {
       return [];
     }
 
-    const splitsToInsert: Array<ChallengeSplit & { challenge_id: number }> = [];
+    const splitsToInsert: (ChallengeSplit & { challenge_id: number })[] = [];
 
     this.splits.forEach((ticks, split) => {
       splitsToInsert.push({
@@ -847,7 +858,7 @@ export default abstract class ChallengeProcessor {
     });
 
     try {
-      const ids = await sql`
+      const ids: { id: number }[] = await sql`
         INSERT INTO challenge_splits ${sql(
           splitsToInsert,
           'challenge_id',
@@ -862,7 +873,7 @@ export default abstract class ChallengeProcessor {
     } catch (e: any) {
       if (isPostgresUniqueViolation(e)) {
         logger.error(
-          `Failed to insert splits for challenge ${this.uuid}: ${e.message}`,
+          `Failed to insert splits for challenge ${this.uuid}: ${(e as Error).message}`,
         );
         return [];
       }
@@ -888,7 +899,9 @@ export default abstract class ChallengeProcessor {
     const splitTypes = splits.map((s) => s.type);
     const scale = this.getScale();
 
-    const currentPbs = await sql`
+    const currentPbs = await sql<
+      { player_id: number; type: SplitType; ticks: number }[]
+    >`
       WITH ranked_pbs AS (
         SELECT
           pbh.player_id,
@@ -917,16 +930,16 @@ export default abstract class ChallengeProcessor {
         rn = 1
     `;
 
-    const pbsByPlayer: Map<number, Map<SplitType, { ticks: number }>> = new Map(
+    const pbsByPlayer = new Map<number, Map<SplitType, { ticks: number }>>(
       playerIds.map((id) => [id, new Map()]),
     );
     currentPbs.forEach((pb) => {
       pbsByPlayer.get(pb.player_id)!.set(pb.type, { ticks: pb.ticks });
     });
 
-    const pbRowsToCreate: Array<
-      CamelToSnakeCase<PersonalBest> & { created_at: Date }
-    > = [];
+    const pbRowsToCreate: (CamelToSnakeCase<PersonalBest> & {
+      created_at: Date;
+    })[] = [];
 
     // Give all the personal bests a consistent creation time.
     const now = new Date();
@@ -980,7 +993,7 @@ export default abstract class ChallengeProcessor {
    * Update the stats of every player in the challenge from the current state.
    */
   private async updateAllPlayersStats() {
-    const promises: Array<Promise<void>> = [];
+    const promises: Promise<void>[] = [];
 
     if (this.mode === ChallengeMode.TOB_ENTRY) {
       return;
@@ -1061,7 +1074,9 @@ export default abstract class ChallengeProcessor {
       return;
     }
 
-    const equipment = player.getEquipmentDeltasList().map(ItemDelta.fromRaw);
+    const equipment = player
+      .getEquipmentDeltasList()
+      .map((delta) => ItemDelta.fromRaw(delta));
     if (equipment.length === 0) {
       return;
     }
@@ -1078,27 +1093,27 @@ export default abstract class ChallengeProcessor {
 
     if (torso !== undefined) {
       switch (torso.getItemId()) {
-        case ItemId.RADIANT_OATHPLATE_CHEST:
+        case ItemId.RADIANT_OATHPLATE_CHEST as number:
           gear = PrimaryMeleeGear.RADIANT_OATHPLATE;
           break;
-        case ItemId.OATHPLATE_CHESTPLATE:
+        case ItemId.OATHPLATE_CHESTPLATE as number:
           gear = PrimaryMeleeGear.OATHPLATE;
           break;
-        case ItemId.BLORVA_PLATEBODY:
+        case ItemId.BLORVA_PLATEBODY as number:
           gear = PrimaryMeleeGear.BLORVA;
           break;
-        case ItemId.TORVA_PLATEBODY:
+        case ItemId.TORVA_PLATEBODY as number:
           gear = PrimaryMeleeGear.TORVA;
           break;
-        case ItemId.BANDOS_CHESTPLATE:
+        case ItemId.BANDOS_CHESTPLATE as number:
           gear = PrimaryMeleeGear.BANDOS;
           break;
       }
     }
     if (
       helm !== undefined &&
-      (helm.getItemId() === ItemId.VOID_MELEE_HELM ||
-        helm.getItemId() === ItemId.VOID_MELEE_HELM_OR)
+      (helm.getItemId() === (ItemId.VOID_MELEE_HELM as number) ||
+        helm.getItemId() === (ItemId.VOID_MELEE_HELM_OR as number))
     ) {
       gear = PrimaryMeleeGear.ELITE_VOID;
     }
@@ -1208,7 +1223,7 @@ export default abstract class ChallengeProcessor {
           e.subtype = attack.getAttack();
           e.npc_id = event.getNpc()!.getId();
           if (attack.hasTarget()) {
-            const playerIndex = this.party.indexOf(attack.getTarget()!);
+            const playerIndex = this.party.indexOf(attack.getTarget());
             if (playerIndex !== -1) {
               e.player_id = this.players[playerIndex].id;
             }
@@ -1282,10 +1297,10 @@ export default abstract class ChallengeProcessor {
   ): void {
     for (const [key, value] of Object.entries(updates)) {
       if (isModifiableChallengeFieldKey(key)) {
-        // @ts-ignore
+        // @ts-expect-error: Dynamic key access on partial update type
         this.pendingUpdates.database[key] = value;
       } else {
-        // @ts-ignore
+        // @ts-expect-error: Dynamic key access on partial update type
         this.pendingUpdates.redis[key] = value;
       }
     }
@@ -1436,14 +1451,18 @@ export default abstract class ChallengeProcessor {
     );
 
     const defaultZero = {
-      get: (obj: any, prop: string) => (prop in obj ? obj[prop] : 0),
+      get: (obj: Partial<PlayerStats>, prop: keyof PlayerStats) =>
+        prop in obj ? obj[prop] : 0,
     };
 
     if (playerIndex === -1) {
-      return new Proxy({}, defaultZero);
+      return new Proxy<PlayerStats>({} as PlayerStats, defaultZero);
     }
 
-    return new Proxy(this.stageState.playerStats[playerIndex], defaultZero);
+    return new Proxy<PlayerStats>(
+      this.stageState.playerStats[playerIndex] as PlayerStats,
+      defaultZero,
+    );
   }
 }
 
