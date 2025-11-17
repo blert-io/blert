@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
 
-import { ChallengeMode, ChallengeType, Stage, StageStatus } from '../challenge';
+import { ChallengeType, Stage, StageStatus } from '../challenge';
 
 function normalizeUsername(username: string): string {
   return username.toLowerCase().replaceAll(' ', '_');
@@ -218,7 +218,7 @@ export function stageStreamFromRecord(
       return {
         type,
         clientId,
-        update: JSON.parse(event.update.toString()),
+        update: JSON.parse(event.update.toString()) as StageUpdate,
       } as StageStreamEnd;
 
     default:

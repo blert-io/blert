@@ -1,3 +1,5 @@
+import { PostgresError } from 'postgres';
+
 const POSTGRES_INVALID_TEXT_REPRESENTATION_CODE = '22P02';
 const POSTGRES_UNIQUE_VIOLATION_CODE = '23505';
 const POSTGRES_UNDEFINED_COLUMN_CODE = '42703';
@@ -6,8 +8,12 @@ const POSTGRES_ERROR_NAME = 'PostgresError';
 
 function isPostgresError(e: any, code: string) {
   try {
-    return e.name === POSTGRES_ERROR_NAME && e.code === code;
-  } catch (e) {
+    return (
+      e instanceof Error &&
+      e.name === POSTGRES_ERROR_NAME &&
+      (e as PostgresError).code === code
+    );
+  } catch {
     return false;
   }
 }

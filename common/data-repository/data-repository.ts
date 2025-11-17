@@ -75,7 +75,7 @@ export class DataRepository {
 
   public async loadChallengeDataProto(uuid: string): Promise<ChallengeData> {
     return await this.backend.loadChallengeFile(
-      ChallengeData.deserializeBinary,
+      (data) => ChallengeData.deserializeBinary(data),
       uuid,
       DataRepository.CHALLENGE_FILE,
     );
@@ -353,7 +353,7 @@ export class DataRepository {
     attempt?: number,
   ): Promise<Event[]> {
     const protoEvents = await this.backend.loadChallengeFile(
-      ChallengeEvents.deserializeBinary,
+      (data) => ChallengeEvents.deserializeBinary(data),
       uuid,
       DataRepository.fileForStage(stage, attempt),
     );
@@ -600,6 +600,8 @@ export class DataRepository {
   }
 }
 
+// TODO(frolv): Remove the namespace and just export the classes directly.
+// eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace DataRepository {
   export abstract class Backend {
     public async loadChallengeFile<T extends jspb.Message>(
@@ -614,7 +616,7 @@ export namespace DataRepository {
           console.log(`Loaded ${data.length}B of challenge data from ${path}`);
         }
         return deserialize(data);
-      } catch (e) {
+      } catch {
         throw new DataRepository.NotFound(`${uuid}/${file}`);
       }
     }
@@ -693,7 +695,7 @@ export namespace DataRepository {
     public override read(relativePath: string): Promise<Uint8Array> {
       try {
         return readFile(`${this.root}/${relativePath}`);
-      } catch (e) {
+      } catch {
         throw new DataRepository.NotFound(relativePath);
       }
     }
@@ -730,11 +732,12 @@ export namespace DataRepository {
             (entry) =>
               entry.path.slice(this.root.length + 1) + '/' + entry.name,
           );
-      } catch (e: any) {
-        if (e.code === 'ENOENT') {
+      } catch (e: unknown) {
+        const err = e as NodeJS.ErrnoException;
+        if (err.code === 'ENOENT') {
           return [];
         }
-        console.error(`Failed to list directory: ${e}`);
+        console.error(`Failed to list directory: ${err.message}`);
         throw new DataRepository.BackendError();
       }
     }
@@ -763,7 +766,7 @@ export namespace DataRepository {
         }
         return await response.Body.transformToByteArray();
       } catch (e: any) {
-        if (e.name === 'NoSuchKey') {
+        if (e instanceof Error && e.name === 'NoSuchKey') {
           throw new DataRepository.NotFound(relativePath);
         }
         console.error(`Failed to read from S3: ${e}`);
@@ -784,7 +787,8 @@ export namespace DataRepository {
       try {
         await this.client.send(new PutObjectCommand(params));
       } catch (e) {
-        console.error(`Failed to write to S3: ${e}`);
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error(`Failed to write to S3: ${msg}`);
         throw new DataRepository.BackendError();
       }
     }
@@ -798,7 +802,8 @@ export namespace DataRepository {
           }),
         );
       } catch (e) {
-        console.error(`Failed to delete from S3: ${e}`);
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error(`Failed to delete from S3: ${msg}`);
         throw new DataRepository.BackendError();
       }
     }
@@ -834,7 +839,8 @@ export namespace DataRepository {
 
         return response.Contents.map((obj) => obj.Key ?? '');
       } catch (e) {
-        console.error(`Failed to list objects in S3: ${e}`);
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error(`Failed to list objects in S3: ${msg}`);
         throw new DataRepository.BackendError();
       }
     }
@@ -865,10 +871,10 @@ export namespace DataRepository {
  * @returns Translated NPCs map.
  */
 function npcsFromProto(npcs: ChallengeData.StageNpc[]): RoomNpcMap {
-  let map: RoomNpcMap = {};
+  const map: RoomNpcMap = {};
 
   npcs.forEach((npc) => {
-    let roomNpc: RoomNpc = {
+    const roomNpc: RoomNpc = {
       type: RoomNpcType.BASIC,
       roomId: npc.getRoomId(),
       spawnNpcId: npc.getSpawnNpcId(),
@@ -1036,7 +1042,7 @@ function eventFromProto(evt: EventProto, eventData: ChallengeEvents): Event {
 
       if (attack.hasWeapon()) {
         const weapon = attack.getWeapon()!;
-        // @ts-ignore: Name is populated on the frontend.
+        // @ts-expect-error: Name is populated on the frontend.
         e.attack.weapon = {
           id: weapon.getId(),
           quantity: weapon.getQuantity(),
@@ -1116,7 +1122,7 @@ function eventFromProto(evt: EventProto, eventData: ChallengeEvents): Event {
     case EventType.TOB_BLOAT_HANDS_DROP:
     case EventType.TOB_BLOAT_HANDS_SPLAT: {
       const e = event as BloatHandsDropEvent | BloatHandsSplatEvent;
-      e.bloatHands = evt.getBloatHandsList()!.map((hand) => ({
+      e.bloatHands = evt.getBloatHandsList().map((hand) => ({
         x: hand.getX(),
         y: hand.getY(),
       }));

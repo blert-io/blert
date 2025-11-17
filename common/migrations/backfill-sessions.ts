@@ -16,6 +16,9 @@ type ActiveSession = {
   endTime: Date;
 };
 
+// Historic one-off migration script, will never be run again.
+/* eslint-disable */
+
 export async function scriptMain(sql: postgres.Sql, args: string[]) {
   // Finds all existing challenges in the database which are not associated with
   // a session, and groups them into sessions based on time and party.

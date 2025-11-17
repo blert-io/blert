@@ -1,12 +1,13 @@
 type WikiLatestPriceResponse = {
-  data: {
-    [id: string]: {
+  data: Record<
+    string,
+    {
       high: number;
       highTime: number;
       low: number;
       lowTime: number;
-    };
-  };
+    }
+  >;
 };
 
 const OSRS_WIKI_PRICES_ENDPOINT = 'https://prices.runescape.wiki/api/v1/osrs';
@@ -56,7 +57,8 @@ export default class PriceTracker {
       });
       priceJson = (await response.json()) as WikiLatestPriceResponse;
     } catch (e) {
-      throw new Error(`Failed to fetch price data: ${e}`);
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(`Failed to fetch price data: ${msg}`);
     }
 
     const dataForItem = priceJson.data[itemId];
