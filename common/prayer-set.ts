@@ -73,7 +73,7 @@ export class PrayerSet {
   }
 
   public add(prayer: Prayer): boolean {
-    if (prayer >= 50) {
+    if ((prayer as number) >= 50) {
       return false;
     }
     const prayerBit = BigInt(1) << BigInt(prayer);

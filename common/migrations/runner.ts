@@ -41,7 +41,7 @@ export function distToSrcFile(file: string): string {
 async function ensureMigrationsTable(sql: Sql, tableName: string) {
   try {
     await sql`SELECT * FROM ${sql(tableName)} LIMIT 1;`;
-  } catch (e: any) {
+  } catch {
     await sql`
       CREATE TABLE ${sql(tableName)} (name TEXT PRIMARY KEY, run_at TIMESTAMPTZ)
     `;
@@ -49,7 +49,9 @@ async function ensureMigrationsTable(sql: Sql, tableName: string) {
 }
 
 async function migrateFile(sql: Sql, path: string) {
-  const { migrate } = await import(path);
+  const { migrate } = (await import(path)) as {
+    migrate: (sql: Sql) => Promise<void>;
+  };
   await migrate(sql);
 }
 
@@ -80,16 +82,16 @@ async function runScript(dir: string, script: string, sql: Sql) {
     throw new Error(`Script "${srcPath}" not found`);
   }
 
-  let scriptMain: (sql: Sql, args: string[]) => Promise<void>;
   try {
-    scriptMain = (await import(fullPath)).scriptMain;
-  } catch (e: any) {
+    const { scriptMain } = (await import(fullPath)) as {
+      scriptMain: (sql: Sql, args: string[]) => Promise<void>;
+    };
+    await scriptMain(sql, process.argv.slice(4));
+  } catch {
     throw new Error(
       `Script "${srcPath}" does not export a scriptMain function`,
     );
   }
-
-  await scriptMain(sql, process.argv.slice(4));
 }
 
 export async function runMigrationsCli(options: MigrationRunnerOptions) {
@@ -128,7 +130,7 @@ export async function runMigrationsCli(options: MigrationRunnerOptions) {
   `;
 
   const migrationFileRegex = /^(\d{14}-[a-zA-Z0-9\-]+)\.js$/;
-  const migrationsToRun: Array<{ name: string; path: string }> = [];
+  const migrationsToRun: { name: string; path: string }[] = [];
   const files = fs.readdirSync(migrationsDir);
 
   for (const file of files) {

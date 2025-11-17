@@ -696,7 +696,7 @@ const EARTHEN_SHIELD: NpcDefinition = {
   maxSpeed: 1,
 };
 
-const NPC_DEFINITIONS: { [id: number]: NpcDefinition } = {
+const NPC_DEFINITIONS: Record<number, NpcDefinition> = {
   // Inferno NPCs.
   [NpcId.JAL_NIB]: JAL_NIB,
   [NpcId.JAL_MEJRAH]: JAL_MEJRAH,

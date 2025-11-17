@@ -7,6 +7,9 @@ import {
 } from './script-helpers';
 import { ChallengeStatus, ChallengeType, Stage, TobRooms } from '../challenge';
 
+// Historic one-off migration script, will never be run again.
+/* eslint-disable */
+
 export async function scriptMain(sql: postgres.Sql, args: string[]) {
   const { values } = parseArgs({
     options: {

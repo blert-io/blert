@@ -1,20 +1,18 @@
-name: Test Blertbank
+name: Test Common
 
 on:
   pull_request:
     paths:
-      - 'blertbank/**'
       - 'common/**'
       - 'package.json'
-      - '.github/workflows/test-blertbank.yml'
+      - '.github/workflows/test-common.yml'
   push:
     branches:
       - main
     paths:
-      - 'blertbank/**'
       - 'common/**'
       - 'package.json'
-      - '.github/workflows/test-blertbank.yml'
+      - '.github/workflows/test-common.yml'
 
 jobs:
   test:
@@ -35,29 +33,26 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build common (dependency)
+      - name: Build common
         run: npm run -w common build
 
       - name: Format check
-        run: npm run -w blertbank format
+        run: npm run -w common format
 
       - name: Lint
-        run: npm run -w blertbank lint
+        run: npm run -w common lint
 
       - name: Type check
-        run: npm run -w blertbank typecheck
-
-      - name: Build blertbank
-        run: npm run -w blertbank build
+        run: npm run -w common typecheck
 
       - name: Run tests with coverage
-        run: npm run -w blertbank test:coverage
+        run: npm run -w common test:coverage
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@v5
         if: always()
         with:
-          files: ./blertbank/coverage/lcov.info
-          flags: blertbank
+          files: ./common/coverage/lcov.info
+          flags: common
           token: ${{ secrets.CODECOV_TOKEN }}
         continue-on-error: true

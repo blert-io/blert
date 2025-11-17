@@ -25,10 +25,7 @@ export async function scriptMain(sql: postgres.Sql, args: string[]) {
   };
 
   // Player ID -> Split Type -> Scale -> Ticks
-  const pbsByPlayerId: Map<
-    number,
-    Map<SplitType, Map<number, number>>
-  > = new Map();
+  const pbsByPlayerId = new Map<number, Map<SplitType, Map<number, number>>>();
 
   let idCursor = 0;
   let startTimeCursor = new Date(0);
@@ -51,13 +48,13 @@ export async function scriptMain(sql: postgres.Sql, args: string[]) {
     idCursor = challenge.id;
     startTimeCursor = challenge.start_time;
 
-    const playersQuery = await sql<{ id: number; username: string }[]>`
+    const playersQuery = sql<{ id: number; username: string }[]>`
       SELECT player_id AS id, username
       FROM challenge_players
       WHERE challenge_id = ${challenge.id}
     `;
 
-    const splitsQuery = await sql<ChallengeSplitRow[]>`
+    const splitsQuery = sql<ChallengeSplitRow[]>`
       SELECT *
       FROM challenge_splits
       WHERE challenge_id = ${challenge.id}
@@ -70,11 +67,11 @@ export async function scriptMain(sql: postgres.Sql, args: string[]) {
       continue;
     }
 
-    const pbsToCreate: Array<{
+    const pbsToCreate: {
       player_id: number;
       challenge_split_id: number;
       created_at: Date;
-    }> = [];
+    }[] = [];
 
     for (const split of splits) {
       if (!split.accurate) {

@@ -208,7 +208,7 @@ export interface MokhaiotlDelve extends StageData {
   larvaeLeaked: number;
 }
 
-export type RoomNpcMap = { [roomId: number]: RoomNpc };
+export type RoomNpcMap = Record<number, RoomNpc>;
 
 export interface RoomOverview {
   firstTick: number;
