@@ -1,16 +1,24 @@
 import { createClient, RedisClientType } from 'redis';
 
-const redisClient: RedisClientType = createClient({
-  url: process.env.BLERT_REDIS_URI,
-  pingInterval: 3 * 60 * 1000,
-});
+let redisClient: RedisClientType | null = null;
+
+function getRedisClient(): RedisClientType {
+  if (redisClient === null) {
+    redisClient = createClient({
+      url: process.env.BLERT_REDIS_URI,
+      pingInterval: 3 * 60 * 1000,
+    });
+  }
+  return redisClient;
+}
 
 export default async function redis(): Promise<RedisClientType> {
-  if (!redisClient.isOpen) {
-    redisClient.on('connect', () => console.log('Connected to Redis'));
-    redisClient.on('error', (err) => console.error('Redis error:', err));
-    await redisClient.connect();
+  const client = getRedisClient();
+  if (!client.isOpen) {
+    client.on('connect', () => console.log('Connected to Redis'));
+    client.on('error', (err) => console.error('Redis error:', err));
+    await client.connect();
   }
 
-  return redisClient;
+  return client;
 }

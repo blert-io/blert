@@ -9,8 +9,12 @@
     "build": "npm run build:worker && npx next build",
     "build:worker": "npx esbuild workers/graph-layout-worker.mjs --bundle --platform=browser --outfile=public/scripts/graph-layout-worker.js",
     "start": "npx next start",
+    "typecheck": "tsc --noEmit",
     "lint": "npx next lint",
-    "test": "jest"
+    "format": "prettier --check . --ignore-path ../.prettierignore",
+    "format:fix": "prettier --write . --ignore-path ../.prettierignore",
+    "test": "jest --runInBand",
+    "test:coverage": "jest --coverage --runInBand"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.587.0",

@@ -3,8 +3,7 @@
 import { usePathname } from 'next/navigation';
 
 // This a client component, still prerendered
-// @ts-ignore
-export function Pathname({ children }) {
+export function Pathname({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   return (
     <div>
@@ -17,7 +16,7 @@ export function Pathname({ children }) {
 // Definitely not copied from somebody elses codebase by proxy
 // from the cursed AI that is making intellectual property ownership a thing of the past
 export function getOrdinal(n: number): string {
-  let s = ['th', 'st', 'nd', 'rd'],
-    v = n % 100;
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }

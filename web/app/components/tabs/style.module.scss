@@ -67,7 +67,9 @@
       left: 0;
       height: 2px;
       background-color: var(--blert-blue);
-      transition: transform 0.2s ease, width 0.2s ease;
+      transition:
+        transform 0.2s ease,
+        width 0.2s ease;
     }
   }
 

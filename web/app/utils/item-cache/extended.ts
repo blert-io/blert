@@ -57,11 +57,11 @@ const MAX_PERMITTED_USER_PRIORITY = 1000;
 export class ExtendedItemCache extends ItemCache<ExtendedItemData> {
   private readonly allowBankNotes: boolean;
 
-  private slotIndex: Map<EquipmentSlot, Set<number>> = new Map();
-  private normalizedIndex: Map<string, Set<number>> = new Map();
-  private aliasIndex: Map<string, number[]> = new Map();
+  private slotIndex = new Map<EquipmentSlot, Set<number>>();
+  private normalizedIndex = new Map<string, Set<number>>();
+  private aliasIndex = new Map<string, number[]>();
 
-  private itemPriorities: Map<number, number> = new Map();
+  private itemPriorities = new Map<number, number>();
 
   private fuzzyMatchBasePriority: number = 0;
   private exactMatchBasePriority: number = 0;
@@ -207,12 +207,12 @@ export class ExtendedItemCache extends ItemCache<ExtendedItemData> {
               Array.from(slotItems.values()).map((id) => [
                 id,
                 {
-                  item: this.getItem(id),
+                  item: this.getItem(id)!,
                   priority: this.itemPriorities.get(id) ?? 0,
                 },
               ]),
             )
-          : new Map();
+          : new Map<number, SearchResult>();
       } else {
         return [];
       }
@@ -419,10 +419,10 @@ export class ExtendedItemCache extends ItemCache<ExtendedItemData> {
 
     const chars = new Map<string, number>();
     for (const c of a) {
-      chars.set(c, (chars.get(c) || 0) + 1);
+      chars.set(c, (chars.get(c) ?? 0) + 1);
     }
     for (const c of b) {
-      const count = chars.get(c) || 0;
+      const count = chars.get(c) ?? 0;
       if (count === 0) {
         return false;
       }

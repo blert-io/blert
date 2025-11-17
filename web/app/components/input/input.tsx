@@ -33,7 +33,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
   function Input(props, ref) {
     const labelBackground = props.labelBg ?? 'var(--panel-bg)';
     const style: React.CSSProperties = {
-      width: props.fluid ? '100%' : props.width ?? 240,
+      width: props.fluid ? '100%' : (props.width ?? 240),
     };
 
     const paddingX = props.horizontalPadding ?? 15;

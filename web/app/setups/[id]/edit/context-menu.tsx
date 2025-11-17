@@ -140,9 +140,10 @@ export function ContextMenuWrapper({
 
       const key = getContainerKey(container);
 
-      const slot = context.setup.players[playerIndex][key].slots.find(
-        (slot) => slot.index === index,
-      ) ?? null;
+      const slot =
+        context.setup.players[playerIndex][key].slots.find(
+          (slot) => slot.index === index,
+        ) ?? null;
 
       const hasComment = slot !== null && slot.comment !== null;
 

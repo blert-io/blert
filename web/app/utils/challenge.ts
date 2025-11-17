@@ -19,7 +19,7 @@ export function statusNameAndColor(status: ChallengeStatus, stage?: Stage) {
     return ['Abandoned', '#b9bbb6'];
   }
 
-  let prefix = stage ? `${stageName(stage)} ` : '';
+  const prefix = stage ? `${stageName(stage)} ` : '';
 
   if (status === ChallengeStatus.RESET) {
     return [`${prefix}Reset`, 'var(--blert-text-color)'];
@@ -77,7 +77,7 @@ export function modeNameAndColor(
   }
 }
 
-const SCALE_NAME_AND_COLOR: Array<[string, string]> = [
+const SCALE_NAME_AND_COLOR: [string, string][] = [
   ['Solo', '#0088fe'],
   ['Duo', '#00c49f'],
   ['Trio', '#ffbb28'],

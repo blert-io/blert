@@ -13,7 +13,6 @@ import {
   NpcAttackEvent,
   NpcEvent,
   PlayerAttackEvent,
-  PlayerEvent,
   PlayerUpdateEvent,
   RoomNpc,
   RoomNpcMap as RawRoomNpcMap,
@@ -37,7 +36,6 @@ import {
   InfernoChallenge,
   NpcId,
   NpcSpawnEvent,
-  npcFriendlyName,
   getNpcDefinition,
 } from '@blert/common';
 import { useSearchParams } from 'next/navigation';
@@ -161,8 +159,8 @@ export type EnhancedVerzikCrab = EnhancedRoomNpc & {
   verzikCrab: VerzikCrabProperties;
 };
 
-export type EventTickMap = { [key: number]: Event[] };
-export type EventTypeMap = { [key: string]: Event[] };
+export type EventTickMap = Record<number, Event[]>;
+export type EventTypeMap = Record<string, Event[]>;
 export type PlayerStateMap = Map<string, Nullable<PlayerState>[]>;
 export type RoomNpcMap = Map<number, EnhancedRoomNpc>;
 
@@ -181,17 +179,15 @@ type Item = {
   quantity: number;
 };
 
-export type PlayerEquipment = {
-  [slot in EquipmentSlot]: Item | null;
-};
+export type PlayerEquipment = Record<EquipmentSlot, Item | null>;
 
 export type PlayerState = Omit<PlayerUpdateEvent, 'type' | 'stage' | 'cId'> & {
   attack?: Attack;
   diedThisTick: boolean;
   isDead: boolean;
   equipment: PlayerEquipment;
-  skills: { [key in Skill]?: SkillLevel };
-  customState: Array<CustomPlayerState>;
+  skills: Partial<Record<Skill, SkillLevel>>;
+  customState: CustomPlayerState[];
 };
 
 export type CustomPlayerState = {
@@ -339,8 +335,8 @@ export function useStageEvents<T extends Challenge>(
         const url = `${challengeApiUrl(c.type, c.uuid)}/events?stage=${stage}${
           attempt !== undefined ? `&attempt=${attempt}` : ''
         }`;
-        evts = await fetch(url).then((res) => res.json());
-      } catch (e) {
+        evts = (await fetch(url).then((res) => res.json())) as Event[];
+      } catch {
         setEvents([]);
         setLoading(false);
         return;
@@ -383,7 +379,7 @@ export function useStageEvents<T extends Challenge>(
       setLoading(false);
     };
 
-    getEvents();
+    void getEvents();
   }, [stage, attempt]);
 
   return {
@@ -396,33 +392,23 @@ export function useStageEvents<T extends Challenge>(
 }
 
 function buildEventMaps(events: Event[]): [EventTickMap, EventTypeMap] {
-  let byTick: EventTickMap = {};
-  let byType: EventTypeMap = {};
+  const byTick: EventTickMap = {};
+  const byType: EventTypeMap = {};
 
   for (const event of events) {
-    if (byTick[event.tick] === undefined) {
-      byTick[event.tick] = [];
-    }
+    byTick[event.tick] ??= [];
     byTick[event.tick].push(event);
 
-    if (byType[event.type] === undefined) {
-      byType[event.type] = [];
-    }
+    byType[event.type] ??= [];
     byType[event.type].push(event);
   }
 
   return [byTick, byType];
 }
 
-const eventBelongsToPlayer = (event: Event, playerName: string): boolean => {
-  if (!isPlayerEvent(event)) {
-    return false;
-  }
-
-  const eventAsPlayerEvent = event as PlayerEvent;
-
-  return eventAsPlayerEvent.player.name === playerName;
-};
+function eventBelongsToPlayer(event: Event, playerName: string): boolean {
+  return isPlayerEvent(event) && event.player.name === playerName;
+}
 
 const EMPTY_EQUIPMENT: PlayerEquipment = {
   [EquipmentSlot.HEAD]: null,
@@ -445,10 +431,10 @@ function computePlayerState(
   eventsByTick: EventTickMap,
   eventsByType: EventTypeMap,
 ): Map<string, Nullable<PlayerState>[]> {
-  let playerState: Map<string, Nullable<PlayerState>[]> = new Map();
+  const playerState = new Map<string, Nullable<PlayerState>[]>();
 
   for (const partyMember of party) {
-    const state: Array<Nullable<PlayerState>> = Array(totalTicks).fill(null);
+    const state = Array<Nullable<PlayerState>>(totalTicks).fill(null);
 
     let isDead = false;
     let lastActiveTick = -1;
@@ -496,7 +482,11 @@ function computePlayerState(
               isDead,
             };
           } else if (event.type === EventType.PLAYER_UPDATE) {
-            const { type, stage, ...rest } = event as PlayerUpdateEvent;
+            const {
+              type: _type,
+              stage: _stage,
+              ...rest
+            } = event as PlayerUpdateEvent;
 
             if (rest.player.equipmentDeltas) {
               applyItemDeltas(
@@ -600,7 +590,7 @@ function applyItemDeltas(
     const previousItem = equipment[delta.getSlot()];
 
     if (delta.isAdded()) {
-      if (previousItem === null || previousItem.id !== delta.getItemId()) {
+      if (previousItem?.id !== delta.getItemId()) {
         const itemName = simpleItemCache.getItemName(delta.getItemId());
         equipment[delta.getSlot()] = {
           id: delta.getItemId(),
@@ -617,11 +607,11 @@ function applyItemDeltas(
     } else {
       if (
         previousItem !== null &&
-        previousItem!.quantity - delta.getQuantity() > 0
+        previousItem.quantity - delta.getQuantity() > 0
       ) {
         equipment[delta.getSlot()] = {
-          ...previousItem!,
-          quantity: previousItem!.quantity - delta.getQuantity(),
+          ...previousItem,
+          quantity: previousItem.quantity - delta.getQuantity(),
         };
       } else {
         equipment[delta.getSlot()] = null;
@@ -641,7 +631,7 @@ function computeNpcState(
   Object.entries(roomNpcs).forEach(([roomId, roomNpc]) => {
     const npc: EnhancedRoomNpc = {
       ...roomNpc,
-      stateByTick: new Array(totalTicks).fill(null),
+      stateByTick: Array<Nullable<NpcState>>(totalTicks).fill(null),
       hasAttacks: false,
     };
 
@@ -715,7 +705,7 @@ function computeNpcState(
 
 function postprocessPlayerState(
   partyMember: string,
-  state: Array<Nullable<PlayerState>>,
+  state: Nullable<PlayerState>[],
   eventsByType: EventTypeMap,
 ) {
   eventsByType[EventType.TOB_VERZIK_HEAL]?.forEach((event) => {
@@ -762,20 +752,17 @@ function postprocessNpcs(npc: EnhancedRoomNpc, eventsByType: EventTypeMap) {
       }
     });
     return;
-  } else if (npc.spawnNpcId === NpcId.JAL_ZEK) {
+  } else if (npc.spawnNpcId === (NpcId.JAL_ZEK as number)) {
     for (let tick = 0; tick < npc.stateByTick.length; tick++) {
-      if (
-        npc.stateByTick[tick] === null ||
-        npc.stateByTick[tick]!.attack === null
-      ) {
+      const attack = npc.stateByTick[tick]?.attack;
+      if (!attack) {
         continue;
       }
-      const attack = npc.stateByTick[tick]!.attack!;
       if (attack.type === NpcAttack.INFERNO_MAGER_RESURRECT) {
         const target = (
           eventsByType[EventType.NPC_SPAWN] as NpcSpawnEvent[]
         )?.find((event) => {
-          const npcSpawn = (event as NpcSpawnEvent).npc;
+          const npcSpawn = event.npc;
           return !Npc.isBloblet(npcSpawn.id) && event.tick === tick;
         });
         if (target) {

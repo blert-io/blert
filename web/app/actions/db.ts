@@ -9,7 +9,7 @@ if (process.env.NODE_ENV === 'development') {
     max_lifetime: 1,
   };
 }
-if (process.env.NODE_ENV === 'production') {
+if (process.env.NODE_ENV === 'production' && !process.env.CI) {
   connectionOptions = {
     ssl: 'require',
   };
