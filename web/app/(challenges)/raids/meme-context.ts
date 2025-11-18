@@ -57,7 +57,7 @@ export function MemeContextUpdater({ setMemes }: MemeContextUpdaterProps) {
   useEffect(() => {
     const memesToApply = memesParam?.split(',') ?? [];
 
-    let memes: BlertMemes = {
+    const memes: BlertMemes = {
       inventoryTags: false,
       capsLock: thirteenCapsLockPresses,
       cursed: Math.random() < 0.005,

@@ -1,4 +1,4 @@
-import { ChallengeStatus, ChallengeType, SessionStatus } from '@blert/common';
+import { ChallengeStatus, ChallengeType } from '@blert/common';
 
 import {
   ChallengeQuery,
@@ -14,7 +14,7 @@ import { parseMostActiveTeam, parseSessionStats } from './query';
 import styles from './style.module.scss';
 
 function startOfDateUtc(): Date {
-  let date = new Date();
+  const date = new Date();
   date.setUTCHours(0);
   date.setUTCMinutes(0);
   date.setUTCSeconds(0);

@@ -151,8 +151,8 @@ export default function DelvePage({ params }: DelvePageProps) {
   }, [eventsByType]);
 
   const [rocksByTick, splatsByTick] = useMemo(() => {
-    const rocks: Map<number, Coords[]> = new Map();
-    const splats: Map<number, Coords[]> = new Map();
+    const rocks = new Map<number, Coords[]>();
+    const splats = new Map<number, Coords[]>();
 
     const activeRocks = new Set<string>();
     const activeSplats = new Set<string>();

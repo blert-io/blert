@@ -109,7 +109,7 @@ function MazeTileWalls({
     // Otherwise, snap it to the final state.
     if (playing) {
       const targetProgress = active ? 1.0 : 0.0;
-      let currentProgress = progress.current;
+      const currentProgress = progress.current;
 
       if (Math.abs(targetProgress - currentProgress) > 0.001) {
         const step = delta * animationSpeed;

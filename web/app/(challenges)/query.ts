@@ -49,7 +49,7 @@ export function parseMostActiveTeam(
   result: GroupedAggregationResult<
     {
       '*': 'count';
-      duration: Array<'max' | 'sum'>;
+      duration: ('max' | 'sum')[];
     },
     'party'
   >,

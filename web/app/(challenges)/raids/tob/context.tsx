@@ -1,5 +1,6 @@
 'use client';
 
+import { TobRaid } from '@blert/common';
 import { ChallengeContext } from '@/challenge-context';
 import Loading from '@/components/loading';
 import { notFound, usePathname } from 'next/navigation';
@@ -20,11 +21,19 @@ export type RoomActorState = {
   setSelectedRoomNpc: Dispatch<SetStateAction<number | null>>;
 };
 
+const missingPlayerDispatch: Dispatch<SetStateAction<string | null>> = () => {
+  throw new Error('setSelectedPlayer must be used within an ActorContext');
+};
+
+const missingRoomNpcDispatch: Dispatch<SetStateAction<number | null>> = () => {
+  throw new Error('setSelectedRoomNpc must be used within an ActorContext');
+};
+
 export const ActorContext = createContext<RoomActorState>({
   selectedPlayer: null,
-  setSelectedPlayer: (player) => {},
+  setSelectedPlayer: missingPlayerDispatch,
   selectedRoomNpc: null,
-  setSelectedRoomNpc: (npcId) => {},
+  setSelectedRoomNpc: missingRoomNpcDispatch,
 });
 
 export function TobContextProvider({
@@ -40,7 +49,10 @@ export function TobContextProvider({
   const [selectedRoomNpc, setSelectedRoomNpc] = useState<number | null>(null);
   const raidIdRef = useRef(raidId);
 
-  const [raid, setRaid] = useContext(ChallengeContext);
+  const [raid, setRaid] = useContext(ChallengeContext) as [
+    TobRaid | null,
+    Dispatch<SetStateAction<TobRaid | null>>,
+  ];
 
   const [loading, setLoading] = useState(true);
 
@@ -54,9 +66,11 @@ export function TobContextProvider({
         const response = await fetch(`/api/v1/raids/tob/${raidId}`);
         if (response.status === 404) {
           setRaid(null);
+          return;
         }
-        setRaid(await response.json());
-      } catch (e) {
+        const raidResponse = (await response.json()) as TobRaid;
+        setRaid(raidResponse);
+      } catch {
         setRaid(null);
       }
 
@@ -64,7 +78,7 @@ export function TobContextProvider({
       raidIdRef.current = raidId;
     };
 
-    getRaid();
+    void getRaid();
 
     // Reload raid every time the page changes to support in-progress raids.
   }, [raidLoaded, raidId, pathname, setRaid]);

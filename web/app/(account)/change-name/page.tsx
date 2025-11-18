@@ -39,7 +39,10 @@ export default async function ChangeName({ searchParams }: ChangeNameProps) {
   );
 }
 
-export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
+export async function generateMetadata(
+  _props: Record<string, never>,
+  parent: ResolvingMetadata,
+) {
   return basicMetadata(await parent, {
     title: 'Submit Name Change',
     description: 'Report a change in your OSRS account name.',

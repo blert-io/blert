@@ -373,7 +373,9 @@ export default function ActivityDashboard({
   }, [challengeType, isSolo]);
 
   const statuses = statusData.map((v) => {
-    let [name, color] = statusNameAndColor(v.key);
+    const statusEntry = statusNameAndColor(v.key);
+    let name = statusEntry[0];
+    const color = statusEntry[1];
     if (v.key === ChallengeStatus.COMPLETED) {
       name = 'Complete';
     }
@@ -527,7 +529,7 @@ export default function ActivityDashboard({
                   boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
                 }}
                 cursor={{ fill: 'rgba(139, 92, 246, 0.1)' }}
-                labelFormatter={(label: string, payload: any) => {
+                labelFormatter={(label: string) => {
                   return (
                     <span
                       style={{

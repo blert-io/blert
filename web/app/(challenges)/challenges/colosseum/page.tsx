@@ -4,11 +4,14 @@ import { ResolvingMetadata } from 'next';
 import { basicMetadata } from '@/utils/metadata';
 import ChallengePage from '../../challenge-page';
 
-export default async function Page() {
+export default function Page() {
   return <ChallengePage type={ChallengeType.COLOSSEUM} />;
 }
 
-export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
+export async function generateMetadata(
+  _props: Record<string, never>,
+  parent: ResolvingMetadata,
+) {
   return basicMetadata(await parent, {
     title: 'Fortis Colosseum Activity — OSRS Raid Stats & Analytics',
     description:

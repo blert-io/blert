@@ -69,7 +69,10 @@ function OrbSprite({
   const texture = useTexture(textureUrl);
 
   const maxSize = 0.8;
-  const { naturalWidth: w, naturalHeight: h } = texture.image;
+  const { naturalWidth: w, naturalHeight: h } = texture.image as {
+    naturalWidth: number;
+    naturalHeight: number;
+  };
   const aspect = w / h;
   const scale: [number, number, number] =
     aspect >= 1
@@ -158,9 +161,7 @@ function MokhaiotlOrbRenderer({
       lastTickRef.current = currentTravelTick;
     }
 
-    if (animationStartTimeRef.current === null) {
-      animationStartTimeRef.current = currentTime;
-    }
+    animationStartTimeRef.current ??= currentTime;
 
     let tickProgress = 0;
     if (shouldInterpolate) {

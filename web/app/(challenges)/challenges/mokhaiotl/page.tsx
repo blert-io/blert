@@ -5,11 +5,14 @@ import { basicMetadata } from '@/utils/metadata';
 
 import ChallengePage from '../../challenge-page';
 
-export default async function Page() {
+export default function Page() {
   return <ChallengePage type={ChallengeType.MOKHAIOTL} />;
 }
 
-export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
+export async function generateMetadata(
+  _props: Record<string, never>,
+  parent: ResolvingMetadata,
+) {
   return basicMetadata(await parent, {
     title: 'Doom of Mokhaiotl Activity — OSRS Challenge Stats & Analytics',
     description:

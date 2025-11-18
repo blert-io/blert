@@ -28,6 +28,11 @@ export type PoisonBallData = {
 
 const POISON_COLOR = '#c7e917';
 
+type TextLabelApi = {
+  fillOpacity: number;
+  outlineOpacity: number;
+};
+
 function easeOutQuad(x: number): number {
   return 1 - (1 - x) * (1 - x);
 }
@@ -119,7 +124,7 @@ function ExhumedRenderer({ entity }: { entity: CustomEntity<ExhumedData> }) {
   const animationStateRef = useRef<{ startTime: number } | null>(null);
   const healCountOpacity = useRef(1);
   const healCountMaterialsRef = useRef<THREE.MeshBasicMaterial[]>([]);
-  const textRef = useRef<any>(null);
+  const textRef = useRef<TextLabelApi | null>(null);
 
   const { state, healCount } = entity.data;
 
@@ -135,11 +140,9 @@ function ExhumedRenderer({ entity }: { entity: CustomEntity<ExhumedData> }) {
     const shouldInterpolate = config.interpolationEnabled && playing;
     const currentTime = clock.getElapsedTime() * 1000;
 
-    if (animationStateRef.current === null) {
-      animationStateRef.current = {
-        startTime: currentTime,
-      };
-    }
+    animationStateRef.current ??= {
+      startTime: currentTime,
+    };
 
     const elapsed = currentTime - animationStateRef.current.startTime;
 
@@ -277,9 +280,7 @@ function PoisonBallRenderer({
     const shouldInterpolate = config.interpolationEnabled && playing;
     const currentTime = clock.getElapsedTime() * 1000;
 
-    if (startTimeRef.current === null) {
-      startTimeRef.current = currentTime;
-    }
+    startTimeRef.current ??= currentTime;
 
     if (shouldInterpolate) {
       const elapsed = currentTime - startTimeRef.current;

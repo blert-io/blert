@@ -765,14 +765,18 @@ export default function ChallengeAnalysis() {
   }, [availableStats, term]);
 
   // Store last selected statKey for each group
-  const [groupStatKeys, setGroupStatKeys] = useState<Record<number, string>>({});
+  const [groupStatKeys, setGroupStatKeys] = useState<Record<number, string>>(
+    {},
+  );
 
   // Derive selectedGroupIdx from selectedStatKey and menuItems
   const selectedGroupIdx = useMemo(() => {
     if (!selectedStatKey || menuItems.length === 0) {
       return 0;
     }
-    const idx = menuItems.findIndex(group => group.subMenu?.some(item => item.value === selectedStatKey));
+    const idx = menuItems.findIndex((group) =>
+      group.subMenu?.some((item) => item.value === selectedStatKey),
+    );
     return idx === -1 ? 0 : idx;
   }, [selectedStatKey, menuItems]);
 
@@ -780,7 +784,8 @@ export default function ChallengeAnalysis() {
   useEffect(() => {
     if (menuItems.length > 0) {
       const group = menuItems[selectedGroupIdx];
-      const statKey = groupStatKeys[selectedGroupIdx] ?? group.subMenu?.[0]?.value;
+      const statKey =
+        groupStatKeys[selectedGroupIdx] ?? group.subMenu?.[0]?.value;
       if (statKey && statKey !== selectedStatKey) {
         setSelectedStatKey(statKey);
       }
@@ -863,7 +868,11 @@ export default function ChallengeAnalysis() {
                 joined
                 onChange={(idx) => {
                   // Only update selectedStatKey; useEffect will restore last stat for group
-                  setSelectedStatKey(groupStatKeys[Number(idx)] ?? menuItems[Number(idx)]?.subMenu?.[0]?.value ?? null);
+                  setSelectedStatKey(
+                    groupStatKeys[Number(idx)] ??
+                      menuItems[Number(idx)]?.subMenu?.[0]?.value ??
+                      null,
+                  );
                 }}
               >
                 {menuItems.map((group, idx) => (
@@ -889,7 +898,9 @@ export default function ChallengeAnalysis() {
                 aria-haspopup="menu"
               >
                 {selectedStat
-                  ? menuItems[selectedGroupIdx]?.subMenu?.find(item => item.value === selectedStatKey)?.label || 'Choose a statistic...'
+                  ? menuItems[selectedGroupIdx]?.subMenu?.find(
+                      (item) => item.value === selectedStatKey,
+                    )?.label || 'Choose a statistic...'
                   : 'Choose a statistic...'}
                 <i className="fas fa-chevron-down" />
               </button>
@@ -897,11 +908,18 @@ export default function ChallengeAnalysis() {
                 onClose={() => setStatMenuOpen(false)}
                 onSelection={(value) => {
                   setSelectedStatKey(value as string);
-                  setGroupStatKeys(prev => ({ ...prev, [selectedGroupIdx]: value as string }));
+                  setGroupStatKeys((prev) => ({
+                    ...prev,
+                    [selectedGroupIdx]: value as string,
+                  }));
                   setStatMenuOpen(false);
                 }}
                 open={statMenuOpen}
-                items={menuItems[selectedGroupIdx]?.subMenu?.map(item => ({ ...item })) || []}
+                items={
+                  menuItems[selectedGroupIdx]?.subMenu?.map((item) => ({
+                    ...item,
+                  })) || []
+                }
                 targetId="stat-select"
               />
             </>

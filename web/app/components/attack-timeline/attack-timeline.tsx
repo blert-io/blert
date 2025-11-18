@@ -1222,7 +1222,7 @@ export function AttackTimeline(props: AttackTimelineProps) {
   const activeColumnIndicator = (
     <div
       style={{
-        left: (totalColumnWidth * tickOnRow) + 9,
+        left: totalColumnWidth * tickOnRow + 9,
         top:
           ACTIVE_INDICATOR_OFFSET +
           row * (rowHeight + ACTIVE_INDICATOR_OFFSET + 23.5),

@@ -2,6 +2,7 @@ import {
   ACTIVITY_FEED_KEY,
   ActivityFeedItem as RedisActivityFeedItem,
   ActivityFeedItemType,
+  ActivityFeedData,
 } from '@blert/common';
 
 import { ChallengeOverview, findChallenges } from './challenge';
@@ -18,27 +19,43 @@ export interface ChallengeEndFeedItem extends ActivityFeedItem {
   challenge: ChallengeOverview;
 }
 
+type ParsedActivityFeedItem = RedisActivityFeedItem & {
+  time: Date;
+};
+
+function isChallengeEndItem(
+  item: ParsedActivityFeedItem,
+): item is ParsedActivityFeedItem & { data: ActivityFeedData } {
+  return (
+    item.type === ActivityFeedItemType.CHALLENGE_END &&
+    typeof item.data === 'object' &&
+    item.data !== null
+  );
+}
+
 export async function getRecentFeedItems(limit: number = 10) {
   const client = await redis();
-  const rawFeed: Array<RedisActivityFeedItem & { time: Date }> = await client
+  const rawFeed: ParsedActivityFeedItem[] = await client
     .xRevRange(ACTIVITY_FEED_KEY, '+', '-', {
       COUNT: limit,
     })
     .then((items) =>
       items.map((item) => {
-        const [timestamp, _] = item.id.split('-');
-        const data = JSON.parse(item.message.data);
+        const [timestamp] = item.id.split('-');
+        const parsedData = JSON.parse(item.message.data) as ActivityFeedData;
         return {
           type: parseInt(item.message.type),
           time: new Date(parseInt(timestamp)),
-          data,
+          data: parsedData,
         };
       }),
     );
 
-  const challengesToFetch = rawFeed
-    .filter((item) => item.type === ActivityFeedItemType.CHALLENGE_END)
-    .map((item) => item.data.challengeId);
+  const challengeEndItems = rawFeed.filter(isChallengeEndItem);
+
+  const challengesToFetch = challengeEndItems.map(
+    (item) => item.data.challengeId,
+  );
 
   const [challenges, _] = await findChallenges(challengesToFetch.length, {
     uuid: challengesToFetch,
@@ -46,26 +63,27 @@ export async function getRecentFeedItems(limit: number = 10) {
 
   const feed: ActivityFeedItem[] = [];
 
-  for (const item of rawFeed) {
-    if (item.type === ActivityFeedItemType.CHALLENGE_END) {
-      const challenge = challenges.find(
-        (c) => c.uuid === item.data.challengeId,
-      );
-      if (challenge) {
-        feed.push({
-          type: item.type,
-          time: item.time,
-          challenge,
-        } as ChallengeEndFeedItem);
-      }
+  for (const item of challengeEndItems) {
+    const challenge = challenges.find((c) => c.uuid === item.data.challengeId);
+    if (challenge) {
+      feed.push({
+        type: item.type,
+        time: item.time,
+        challenge,
+      } as ChallengeEndFeedItem);
     }
   }
 
   return feed;
 }
 
+type ChallengePlayerRow = {
+  start_time: Date;
+  player_id: string;
+};
+
 export async function getPlayersPerHour(startTime: Date) {
-  const players = await sql`
+  const players = await sql<ChallengePlayerRow[]>`
     SELECT c.id, c.start_time, cp.player_id
     FROM challenges c
     JOIN challenge_players cp ON c.id = cp.challenge_id
@@ -92,8 +110,12 @@ export async function getPlayersPerHour(startTime: Date) {
   return byHour.map((h) => h.size);
 }
 
+type PlayerChallengeRow = {
+  start_time: Date;
+};
+
 export async function playerActivityByHour(username: string, startTime: Date) {
-  const challenges = await sql`
+  const challenges = await sql<PlayerChallengeRow[]>`
     SELECT c.id, c.start_time
     FROM challenges c
     JOIN challenge_players cp ON c.id = cp.challenge_id
@@ -102,7 +124,7 @@ export async function playerActivityByHour(username: string, startTime: Date) {
       AND c.start_time >= ${startTime}
   `;
 
-  const byHour = new Array(24).fill(0);
+  const byHour = new Array<number>(24).fill(0);
 
   for (const challenge of challenges) {
     const hour = challenge.start_time.getUTCHours();
