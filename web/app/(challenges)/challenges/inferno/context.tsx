@@ -1,5 +1,6 @@
 'use client';
 
+import { InfernoChallenge } from '@blert/common';
 import { ChallengeContext } from '@/challenge-context';
 import Loading from '@/components/loading';
 import { notFound, usePathname } from 'next/navigation';
@@ -20,11 +21,19 @@ export type RoomActorState = {
   setSelectedRoomNpc: Dispatch<SetStateAction<number | null>>;
 };
 
+const missingPlayerDispatch: Dispatch<SetStateAction<string | null>> = () => {
+  throw new Error('setSelectedPlayer must be used within an ActorContext');
+};
+
+const missingRoomNpcDispatch: Dispatch<SetStateAction<number | null>> = () => {
+  throw new Error('setSelectedRoomNpc must be used within an ActorContext');
+};
+
 export const ActorContext = createContext<RoomActorState>({
   selectedPlayer: null,
-  setSelectedPlayer: (player) => {},
+  setSelectedPlayer: missingPlayerDispatch,
   selectedRoomNpc: null,
-  setSelectedRoomNpc: (npcId) => {},
+  setSelectedRoomNpc: missingRoomNpcDispatch,
 });
 
 export function InfernoContextProvider({
@@ -53,16 +62,18 @@ export function InfernoContextProvider({
         );
         if (response.status === 404) {
           setChallenge(null);
+          return;
         }
-        setChallenge(await response.json());
-      } catch (e) {
+        const challengeResponse = (await response.json()) as InfernoChallenge;
+        setChallenge(challengeResponse);
+      } catch {
         setChallenge(null);
       }
       setLoading(false);
       challengeIdRef.current = challengeId;
     };
 
-    loadInferno();
+    void loadInferno();
 
     // Reload every time the page changes to support in-progress challenges.
   }, [challengeLoaded, challengeId, pathname, setChallenge]);

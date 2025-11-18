@@ -5,6 +5,7 @@ import {
   ColosseumChallenge,
   EventType,
   HANDICAP_LEVEL_VALUE_INCREMENT,
+  Handicap,
   Npc,
   NpcEvent,
   PlayerUpdateEvent,
@@ -35,11 +36,7 @@ import {
   NpcEntity as LegacyNpcEntity,
   PlayerEntity as LegacyPlayerEntity,
 } from '@/components/map';
-import {
-  AnyEntity,
-  MapDefinition,
-  ObjectEntity,
-} from '@/components/map-renderer';
+import { MapDefinition, ObjectEntity } from '@/components/map-renderer';
 import { useDisplay } from '@/display';
 import {
   useLegacyTickTimeout,
@@ -200,11 +197,15 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
   const title = waveNumber === 12 ? 'Sol Heredit' : `Wave ${waveNumber}`;
 
   // Collect all the handicaps that have been selected up to this wave.
-  const handicapsSoFar = [];
+  const handicapsSoFar: Handicap[] = [];
   for (let i = 0; i < waveNumber; i++) {
     const handicap = challenge.colosseum.waves[i].handicap;
+    const previousLevelHandicap = (handicap -
+      HANDICAP_LEVEL_VALUE_INCREMENT) as Handicap;
     const index: number = handicapsSoFar.findIndex(
-      (h) => h === handicap || h == handicap - HANDICAP_LEVEL_VALUE_INCREMENT,
+      (existingHandicap) =>
+        existingHandicap === handicap ||
+        existingHandicap === previousLevelHandicap,
     );
     if (index === -1) {
       handicapsSoFar.push(handicap);
@@ -258,7 +259,7 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
     [username]: playerState.get(username)?.at(currentTick) ?? null,
   };
 
-  let timelineSplits = [];
+  const timelineSplits: { tick: number; splitName: string }[] = [];
   if (waveNumber < 12) {
     const reinforcementTick =
       eventsByType[EventType.NPC_SPAWN]?.find((e) => (e as NpcEvent).tick > 1)

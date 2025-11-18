@@ -249,7 +249,7 @@ export default function Maiden() {
 
   const bossHealthChartData = useMemo(() => {
     let maiden: EnhancedRoomNpc | null = null;
-    let iter = npcState.values();
+    const iter = npcState.values();
     for (let npc = iter.next(); !npc.done; npc = iter.next()) {
       if (Npc.isMaiden(npc.value.spawnNpcId)) {
         maiden = npcState.get(npc.value.roomId)!;

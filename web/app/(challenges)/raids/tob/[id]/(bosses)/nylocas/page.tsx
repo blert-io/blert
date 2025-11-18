@@ -192,7 +192,7 @@ const EAST_BARRIER = new LegacyOverlayEntity(
  * @param background If true, the color will be dimmed.
  * @returns Hex color code for the Nylo.
  */
-function getNyloColor(npcId: number, background?: boolean): string | undefined {
+function getNyloColor(npcId: NpcId, background?: boolean): string | undefined {
   let color = undefined;
   if (Npc.isNylocasIschyros(npcId)) {
     color = GRAY_NYLO_COLOR;
@@ -253,10 +253,10 @@ function nyloBossBackgroundColors(
     return [];
   }
 
-  let colors: TimelineColor[] = [];
+  const colors: TimelineColor[] = [];
 
   let startTick: number | undefined = undefined;
-  let bossId: number | undefined = undefined;
+  let bossId: NpcId | undefined = undefined;
 
   for (let tick = 0; tick <= totalTicks; tick++) {
     const bossEvent = eventsByTick[tick]?.find((evt) => {
@@ -293,7 +293,8 @@ function nyloBossBackgroundColors(
       continue;
     }
 
-    if (nyloBoss.id !== bossId) {
+    const nyloBossId = nyloBoss.id as NpcId;
+    if (nyloBossId !== bossId) {
       if (startTick !== undefined) {
         const backgroundColor = getNyloColor(bossId!, true);
         if (backgroundColor !== undefined) {
@@ -306,7 +307,7 @@ function nyloBossBackgroundColors(
       }
 
       startTick = tick;
-      bossId = nyloBoss.id;
+      bossId = nyloBossId;
     }
   }
 
@@ -365,7 +366,7 @@ type BossRotation = {
 /**
  * Determines the style of the Nylocas Vasilias based on its NPC ID.
  */
-function nyloBossStyle(npcId: number): NyloStyle {
+function nyloBossStyle(npcId: NpcId): NyloStyle {
   switch (npcId) {
     case NpcId.NYLOCAS_VASILIAS_MAGE_ENTRY:
     case NpcId.NYLOCAS_VASILIAS_MAGE_REGULAR:
@@ -443,10 +444,10 @@ export default function NylocasPage() {
     if (challenge === null || events.length === 0) {
       return [];
     }
-    let splits: TimelineSplit[] =
+    const splits: TimelineSplit[] =
       eventsByType[EventType.TOB_NYLO_WAVE_SPAWN]?.map((evt) => {
         const wave = (evt as NyloWaveSpawnEvent).nyloWave.wave;
-        const importantWaves: { [wave: number]: string } = {
+        const importantWaves: Record<number, string> = {
           [CAP_INCREASE_WAVE]: 'Cap',
           [LAST_NYLO_WAVE]: 'Waves',
         };
@@ -492,7 +493,7 @@ export default function NylocasPage() {
 
     const bossUpdateEvents = (
       (eventsByType[EventType.NPC_UPDATE] as NpcEvent[]) ?? []
-    ).filter((evt) => Npc.isNylocasVasilias((evt as NpcEvent).npc.id));
+    ).filter((evt) => Npc.isNylocasVasilias(evt.npc.id));
 
     if (bossUpdateEvents.length === 0) {
       return { styleChanges, counts };
@@ -501,7 +502,7 @@ export default function NylocasPage() {
     let prevStyle: NyloStyle | null = null;
 
     bossUpdateEvents.forEach((evt) => {
-      const style = nyloBossStyle(evt.npc.id);
+      const style = nyloBossStyle(evt.npc.id as NpcId);
 
       if (style !== prevStyle) {
         styleChanges.push({
@@ -570,9 +571,10 @@ export default function NylocasPage() {
       // 2. Is on its spawn tick
       // If so, visually drop it down to the ground.
 
+      const spawnNpcId = npc.spawnNpcId as NpcId;
       const isDroppingBoss =
-        Npc.isNylocasVasiliasDropping(npc.spawnNpcId) ||
-        npc.spawnNpcId === NpcId.NYLOCAS_PRINKIPAS_DROPPING;
+        Npc.isNylocasVasiliasDropping(spawnNpcId) ||
+        spawnNpcId === NpcId.NYLOCAS_PRINKIPAS_DROPPING;
 
       if (isDroppingBoss && tick === npc.spawnTick) {
         const sizeOffset = (npcEntity.size - 1) / 2;
@@ -654,7 +656,7 @@ export default function NylocasPage() {
             e.npc.id,
             e.npc.roomId,
             SkillLevel.fromRaw(e.npc.hitpoints),
-            getNyloColor(e.npc.id),
+            getNyloColor(e.npc.id as NpcId),
           ),
         );
         break;
@@ -690,7 +692,7 @@ export default function NylocasPage() {
       new LegacyOverlayEntity(
         LEGACY_NYLOCAS_MAP_DEFINITION.baseX + (compact ? 7 : 2),
         LEGACY_NYLOCAS_MAP_DEFINITION.baseY,
-        `nylo-wave-${currentWave}-indicator`,
+        `nylo-wave-${currentWave.wave}-indicator`,
         overlay,
       ),
     );
@@ -1015,7 +1017,7 @@ function NyloWaveChart({
   width,
 }: {
   challenge: TobRaid;
-  nylosAliveByTick: Array<{ tick: number; nylosAlive: number }>;
+  nylosAliveByTick: { tick: number; nylosAlive: number }[];
   spawns: NyloWaveSpawnEvent[];
   stalls: NyloWaveStallEvent[];
   width: number | string;
@@ -1094,9 +1096,7 @@ function NyloWaveChart({
                     break;
                   }
                 }
-                if (waveSpawn === undefined) {
-                  waveSpawn = spawns[spawns.length - 1];
-                }
+                waveSpawn ??= spawns[spawns.length - 1];
 
                 return `Tick: ${tick} (Wave ${waveSpawn.nyloWave.wave})`;
               }}

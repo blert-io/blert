@@ -57,13 +57,12 @@ export default function BloatHandRenderer({
     const shouldInterpolate = config.interpolationEnabled && playing;
     const currentTime = clock.getElapsedTime() * 1000;
 
-    if (droppingStateRef.current === null) {
-      droppingStateRef.current = {
-        startTime: currentTime,
-      };
-    }
+    const dropState = droppingStateRef.current ?? {
+      startTime: currentTime,
+    };
+    droppingStateRef.current = dropState;
 
-    const elapsed = currentTime - droppingStateRef.current.startTime;
+    const elapsed = currentTime - dropState.startTime;
 
     if (state === BloatHandState.FALLING) {
       // Grow the size of the shadow as the hand falls.

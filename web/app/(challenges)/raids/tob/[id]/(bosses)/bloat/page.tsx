@@ -156,13 +156,13 @@ export default function BloatPage() {
         };
       }) ?? [];
 
-    let splits = downInfo.map((down, i) => ({
+    const splits = downInfo.map((down, i) => ({
       tick: down.tick,
       splitName: `Down ${i + 1}`,
     }));
 
     const upColor = 'rgba(100, 56, 70, 0.3)';
-    let backgroundColors: TimelineColor[] = [];
+    const backgroundColors: TimelineColor[] = [];
 
     // First up from the start of the room.
     backgroundColors.push({
@@ -195,7 +195,7 @@ export default function BloatPage() {
 
   const bossHealthChartData = useMemo(() => {
     let bloat: EnhancedRoomNpc | null = null;
-    let iter = npcState.values();
+    const iter = npcState.values();
     for (let npc = iter.next(); !npc.done; npc = iter.next()) {
       if (Npc.isBloat(npc.value.spawnNpcId)) {
         bloat = npcState.get(npc.value.roomId)!;
@@ -252,7 +252,7 @@ export default function BloatPage() {
   }, [eventsByType]);
 
   const customEntitiesForTick = useCallback(
-    (tick: number): Array<CustomEntity> => {
+    (tick: number): CustomEntity[] => {
       const entities: CustomEntity[] = [...BARRIERS];
 
       const handsForTick = hands.get(tick);

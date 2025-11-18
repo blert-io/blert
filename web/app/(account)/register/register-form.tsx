@@ -51,18 +51,21 @@ function FormFields({ errors }: { errors: RegistrationErrors | null }) {
         minLength={2}
         maxLength={24}
         onChange={(e) => {
-          setUsername(e.target.value);
+          const nextUsername = e.target.value;
+
+          setUsername(nextUsername);
           setUsernameExists(false);
 
           if (usernameCheckTimeout.current) {
             window.clearTimeout(usernameCheckTimeout.current);
           }
 
-          if (e.target.value.length > 0) {
-            usernameCheckTimeout.current = window.setTimeout(async () => {
-              const exists = await userExists(e.target.value);
-              setUsernameExists(exists);
+          if (nextUsername.length > 0) {
+            usernameCheckTimeout.current = window.setTimeout(() => {
               usernameCheckTimeout.current = null;
+              void userExists(nextUsername).then((exists) => {
+                setUsernameExists(exists);
+              });
             }, 500);
           }
         }}

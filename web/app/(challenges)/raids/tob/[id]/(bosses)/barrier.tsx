@@ -97,7 +97,7 @@ function BarrierRenderer({ entity }: { entity: CustomEntity<BarrierData> }) {
       rotation={[0, entity.data.rotation, 0]}
     >
       <planeGeometry args={[entity.data.length, 1.25]} />
-      {/* @ts-expect-error */}
+      {/* @ts-expect-error barrierMaterial is injected via extend() */}
       <barrierMaterial ref={materialRef} transparent side={THREE.DoubleSide} />
     </mesh>
   );

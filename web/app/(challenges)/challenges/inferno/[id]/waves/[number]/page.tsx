@@ -148,7 +148,7 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
 
   const title = `Wave ${waveNumber}`;
 
-  let sections: BossFightOverviewSection[] = [];
+  const sections: BossFightOverviewSection[] = [];
   if (stage === Stage.INFERNO_WAVE_69) {
     let setNumber = 0;
     const splits: Map<number, string> = new Map();
