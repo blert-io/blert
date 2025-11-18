@@ -1,6 +1,6 @@
 'use server';
 
-import { randomBytes } from 'crypto';
+import { randomBytes, randomInt } from 'crypto';
 import {
   ApiKey,
   Skill,
@@ -50,7 +50,7 @@ export async function verifyUser(
   username: string,
   password: string,
 ): Promise<string> {
-  const user = await sql`
+  const user = await sql<{ id: number; password: string }[]>`
     SELECT id, password FROM users
     WHERE lower(username) = ${username.toLowerCase()}
     LIMIT 1
@@ -134,11 +134,33 @@ export async function register(
 
 export async function getSignedInUser(): Promise<User | null> {
   const session = await auth();
-  if (session === null || session.user.id === undefined) {
+  if (!session?.user.id) {
     return null;
   }
 
-  const [user] = await sql`SELECT * from users WHERE id = ${session.user.id}`;
+  const [user] = await sql<
+    {
+      id: number;
+      username: string;
+      email: string;
+      created_at: Date;
+      email_verified: boolean;
+      can_create_api_key: boolean;
+      discord_id: string | null;
+      discord_username: string | null;
+    }[]
+  >`SELECT
+      id,
+      username,
+      email,
+      created_at,
+      email_verified,
+      can_create_api_key,
+      discord_id,
+      discord_username
+    FROM users
+    WHERE id = ${session.user.id}
+  `;
   if (!user) {
     return null;
   }
@@ -150,7 +172,21 @@ export async function getSignedInUser(): Promise<User | null> {
     createdAt: user.created_at,
     emailVerified: user.email_verified,
     canCreateApiKey: user.can_create_api_key,
+    discordId: user.discord_id,
+    discordUsername: user.discord_username,
   };
+}
+
+async function ensureAuthenticated(): Promise<number> {
+  const session = await auth();
+  if (!session?.user.id) {
+    throw new Error('Not authenticated');
+  }
+  const userId = Number.parseInt(session.user.id, 10);
+  if (!Number.isInteger(userId)) {
+    throw new Error('Invalid user ID');
+  }
+  return userId;
 }
 
 export type ApiKeyWithUsername = ApiKey & { rsn: string };
@@ -164,19 +200,21 @@ export type UserSettings = {
  * @returns The user's settings.
  */
 export async function getUserSettings(): Promise<UserSettings> {
-  const session = await auth();
-  if (session === null || session.user.id === undefined) {
-    throw new Error('Not authenticated');
-  }
-
-  const userId = parseInt(session.user.id);
-
+  const userId = await ensureAuthenticated();
   const apiKeys = await getApiKeys(userId);
   return { apiKeys };
 }
 
 async function getApiKeys(userId: number): Promise<ApiKeyWithUsername[]> {
-  const keysWithPlayer = await sql`
+  const keysWithPlayer = await sql<
+    {
+      id: number;
+      key: string;
+      active: boolean;
+      last_used: Date | null;
+      rsn: string;
+    }[]
+  >`
     SELECT
       api_keys.id,
       api_keys.key,
@@ -203,10 +241,7 @@ const API_KEY_BYTE_LENGTH = API_KEY_HEX_LENGTH / 2;
 const MAX_API_KEYS_PER_USER = 1;
 
 export async function createApiKey(rsn: string): Promise<ApiKeyWithUsername> {
-  const session = await auth();
-  if (session === null || session.user.id === undefined) {
-    throw new Error('Not authenticated');
-  }
+  const userId = await ensureAuthenticated();
 
   if (rsn.length < 1 || rsn.length > 12) {
     throw new Error('Invalid RSN');
@@ -214,20 +249,20 @@ export async function createApiKey(rsn: string): Promise<ApiKeyWithUsername> {
 
   // TODO(frolv): This is temporary.
   const canCreate = await sql`
-    SELECT can_create_api_key FROM users WHERE id = ${session.user.id}
+    SELECT can_create_api_key FROM users WHERE id = ${userId}
   `;
   if (canCreate.length === 0 || !canCreate[0].can_create_api_key) {
     throw new Error('Not authorized to create API keys');
   }
 
-  const [apiKeyCount] = await sql`
-    SELECT COUNT(*) FROM api_keys WHERE user_id = ${session.user.id}
+  const [apiKeyCount] = await sql<{ count: string }[]>`
+    SELECT COUNT(*) FROM api_keys WHERE user_id = ${userId}
   `;
   if (parseInt(apiKeyCount.count) >= MAX_API_KEYS_PER_USER) {
     throw new Error('Maximum number of API keys reached');
   }
 
-  let [player] = await sql`
+  let [player] = await sql<{ id: number; username: string }[]>`
     SELECT id, username
     FROM players
     WHERE lower(username) = ${rsn.toLowerCase()}
@@ -237,7 +272,7 @@ export async function createApiKey(rsn: string): Promise<ApiKeyWithUsername> {
     let experience;
     try {
       experience = await hiscoreLookup(rsn);
-    } catch (e: any) {
+    } catch {
       throw new Error(
         'Unable to create API key at this time, please try again later',
       );
@@ -246,7 +281,7 @@ export async function createApiKey(rsn: string): Promise<ApiKeyWithUsername> {
       throw new Error('Player does not exist on Hiscores');
     }
 
-    const [{ id }] = await sql`
+    const [{ id }] = await sql<{ id: number }[]>`
       INSERT INTO players (
         username,
         overall_experience,
@@ -279,9 +314,9 @@ export async function createApiKey(rsn: string): Promise<ApiKeyWithUsername> {
     const key = randomBytes(API_KEY_BYTE_LENGTH).toString('hex');
 
     try {
-      const [{ id: keyId }] = await sql`
+      const [{ id: keyId }] = await sql<{ id: number }[]>`
         INSERT INTO api_keys (user_id, player_id, key)
-        VALUES (${session.user.id}, ${player.id}, ${key})
+        VALUES (${userId}, ${player.id}, ${key})
         RETURNING id
       `;
       apiKey = {
@@ -305,14 +340,11 @@ export async function createApiKey(rsn: string): Promise<ApiKeyWithUsername> {
 }
 
 export async function deleteApiKey(key: string): Promise<void> {
-  const session = await auth();
-  if (session === null || session.user.id === undefined) {
-    throw new Error('Not authenticated');
-  }
+  const userId = await ensureAuthenticated();
 
   await sql`
     DELETE FROM api_keys
-    WHERE key = ${key} AND user_id = ${session.user.id}
+    WHERE key = ${key} AND user_id = ${userId}
   `;
 }
 
@@ -333,8 +365,9 @@ export async function submitApiKeyForm(
   let apiKey;
   try {
     apiKey = await createApiKey(rsn);
-  } catch (e: any) {
-    return { error: e.message };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { error: msg };
   }
 
   return { apiKey };
@@ -370,10 +403,7 @@ export async function changePassword(
   _state: PasswordResetErrors | null,
   formData: FormData,
 ): Promise<PasswordResetErrors | null> {
-  const session = await auth();
-  if (session === null || session.user.id === undefined) {
-    return { overall: 'Not authenticated' };
-  }
+  const userId = await ensureAuthenticated();
 
   const validatedFields = passwordResetSchema.safeParse({
     currentPassword: formData.get('current-password'),
@@ -387,9 +417,9 @@ export async function changePassword(
 
   const { currentPassword, newPassword } = validatedFields.data;
 
-  const [user] = await sql`
+  const [user] = await sql<{ password: string }[]>`
     SELECT password FROM users
-    WHERE id = ${session.user.id}
+    WHERE id = ${userId}
   `;
 
   if (!user) {
@@ -410,7 +440,7 @@ export async function changePassword(
     await sql`
       UPDATE users
       SET password = ${newPasswordHash}
-      WHERE id = ${session.user.id}
+      WHERE id = ${userId}
     `;
   } catch (e: any) {
     console.error('Error updating password:', e);
@@ -418,4 +448,142 @@ export async function changePassword(
   }
 
   return null;
+}
+
+const LINKING_CODE_LENGTH = 8;
+const LINKING_CODE_CHARS = '23456789BCDFGHJKMNPQRSTVWXYZ';
+const LINKING_CODE_EXPIRY_MS = 15 * 60 * 1000;
+
+export type LinkingCode = {
+  code: string;
+  expiresAt: Date;
+};
+
+/**
+ * Generates a new Discord linking code for the current user.
+ * If a non-expired code already exists, returns that instead.
+ * @returns The linking code and its expiration time.
+ */
+export async function generateDiscordLinkingCode(): Promise<LinkingCode> {
+  const userId = await ensureAuthenticated();
+
+  const expiresAt = new Date(Date.now() + LINKING_CODE_EXPIRY_MS);
+
+  const MAX_RETRIES = 20;
+
+  for (let i = 0; i < MAX_RETRIES; i++) {
+    const code = Array.from(
+      { length: LINKING_CODE_LENGTH },
+      () => LINKING_CODE_CHARS[randomInt(0, LINKING_CODE_CHARS.length)],
+    ).join('');
+
+    try {
+      const [result] = await sql<{ code: string; expires_at: Date }[]>`
+        INSERT INTO account_linking_codes (user_id, type, code, expires_at)
+        VALUES (${userId}, 'discord', ${code}, ${expiresAt})
+        ON CONFLICT (user_id, type)
+        DO UPDATE SET
+          code = CASE
+            WHEN account_linking_codes.expires_at < NOW() THEN EXCLUDED.code
+            ELSE account_linking_codes.code
+          END,
+          expires_at = CASE
+            WHEN account_linking_codes.expires_at < NOW() THEN EXCLUDED.expires_at
+            ELSE account_linking_codes.expires_at
+          END
+        RETURNING code, expires_at
+      `;
+
+      return {
+        code: result.code,
+        expiresAt: result.expires_at,
+      };
+    } catch (e: unknown) {
+      if (isPostgresUniqueViolation(e)) {
+        continue;
+      }
+      console.error(e);
+      throw new Error('Failed to generate linking code');
+    }
+  }
+
+  throw new Error(
+    `Failed to generate linking code after ${MAX_RETRIES} retries`,
+  );
+}
+
+/**
+ * Gets the active Discord linking code for the current user, if one exists.
+ * @returns The linking code and expiration, or null if none exists.
+ */
+export async function getActiveLinkingCode(): Promise<LinkingCode | null> {
+  const userId = await ensureAuthenticated();
+
+  const result = await sql<{ code: string; expires_at: Date }[]>`
+    SELECT code, expires_at
+    FROM account_linking_codes
+    WHERE user_id = ${userId}
+      AND type = 'discord'
+      AND expires_at > NOW()
+  `;
+
+  if (result.length === 0) {
+    return null;
+  }
+
+  return {
+    code: result[0].code,
+    expiresAt: result[0].expires_at,
+  };
+}
+
+export type DiscordLinkStatus = {
+  isLinked: boolean;
+  discordId: string | null;
+  discordUsername: string | null;
+};
+
+/**
+ * Gets the Discord link status for the current user.
+ * @returns The Discord link status.
+ */
+export async function getDiscordLinkStatus(): Promise<DiscordLinkStatus> {
+  const userId = await ensureAuthenticated();
+
+  const [user] = await sql<
+    { discord_id: string | null; discord_username: string | null }[]
+  >`
+    SELECT discord_id, discord_username
+    FROM users
+    WHERE id = ${userId}
+  `;
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  return {
+    isLinked: user.discord_id !== null,
+    discordId: user.discord_id,
+    discordUsername: user.discord_username,
+  };
+}
+
+/**
+ * Unlinks the Discord account from the current user.
+ */
+export async function unlinkDiscord(): Promise<void> {
+  const userId = await ensureAuthenticated();
+  await Promise.all([
+    sql`
+      UPDATE users
+      SET discord_id = NULL, discord_username = NULL
+      WHERE id = ${userId}
+    `,
+    sql`
+      DELETE FROM account_linking_codes
+      WHERE user_id = ${userId}
+        AND type = 'discord'
+    `,
+  ]);
 }

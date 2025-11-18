@@ -8,7 +8,7 @@ import Button from '@/components/button';
 import Input from '@/components/input';
 import { useToast } from '@/components/toast';
 
-import styles from './style.module.scss';
+import styles from '../style.module.scss';
 
 function FormFields({ errors }: { errors: PasswordResetErrors | null }) {
   const { pending } = useFormStatus();

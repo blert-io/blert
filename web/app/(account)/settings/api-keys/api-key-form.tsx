@@ -11,7 +11,7 @@ import {
 import Button from '@/components/button';
 import Input from '@/components/input';
 
-import styles from './style.module.scss';
+import styles from '../style.module.scss';
 
 function FormFields() {
   const { pending } = useFormStatus();
