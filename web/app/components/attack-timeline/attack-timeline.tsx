@@ -1228,7 +1228,6 @@ export function AttackTimeline(props: AttackTimelineProps) {
           row * (rowHeight + ACTIVE_INDICATOR_OFFSET + 23.5),
         height: rowHeight + 40,
         width: totalColumnWidth + 1,
-        // marginLeft: 6,
       }}
       className={styles.attackTimeline__ColumnActiveIndicator}
       ref={currentTickColumnRef}

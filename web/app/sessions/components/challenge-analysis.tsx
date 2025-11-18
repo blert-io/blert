@@ -9,7 +9,7 @@ import {
   Stage,
   stagesForChallenge,
 } from '@blert/common';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   BarChart,
   Bar,
@@ -777,7 +777,7 @@ export default function ChallengeAnalysis() {
   }, [selectedStatKey, menuItems]);
 
   // When group changes, restore last stat for that group or default to first
-  React.useEffect(() => {
+  useEffect(() => {
     if (menuItems.length > 0) {
       const group = menuItems[selectedGroupIdx];
       const statKey = groupStatKeys[selectedGroupIdx] ?? group.subMenu?.[0]?.value;
@@ -903,7 +903,6 @@ export default function ChallengeAnalysis() {
                 open={statMenuOpen}
                 items={menuItems[selectedGroupIdx]?.subMenu?.map(item => ({ ...item })) || []}
                 targetId="stat-select"
-                width={250}
               />
             </>
           )}
