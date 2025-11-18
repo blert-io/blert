@@ -14,6 +14,9 @@ export type User = {
 
   // TODO(frolv): This is temporary for controlling initial access to the API.
   canCreateApiKey: boolean;
+
+  discordId: string | null;
+  discordUsername: string | null;
 };
 
 export enum RecordingType {

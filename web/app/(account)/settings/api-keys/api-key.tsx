@@ -7,7 +7,7 @@ import Button from '@/components/button';
 import { Modal } from '@/components/modal/modal';
 import { useToast } from '@/components/toast';
 
-import styles from './style.module.scss';
+import styles from '../style.module.scss';
 
 type ApiKeyProps = {
   apiKey: ApiKeyWithUsername;
@@ -30,7 +30,7 @@ export default function ApiKey({ apiKey, onDelete }: ApiKeyProps) {
     try {
       await deleteApiKey(apiKey.key);
       onDelete();
-    } catch (e) {
+    } catch {
       showToast('Failed to delete API key');
     }
     setIsDeleting(false);
@@ -57,7 +57,7 @@ export default function ApiKey({ apiKey, onDelete }: ApiKeyProps) {
             <button
               title="Copy key"
               className={styles.action}
-              onClick={handleCopy}
+              onClick={() => void handleCopy()}
             >
               <i className="fa-solid fa-copy" />
             </button>
@@ -101,7 +101,7 @@ export default function ApiKey({ apiKey, onDelete }: ApiKeyProps) {
             >
               Cancel
             </Button>
-            <Button onClick={handleDelete} loading={isDeleting}>
+            <Button onClick={() => void handleDelete()} loading={isDeleting}>
               Delete
             </Button>
           </div>

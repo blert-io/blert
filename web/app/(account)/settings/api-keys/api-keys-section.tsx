@@ -7,7 +7,7 @@ import { ApiKeyWithUsername } from '@/actions/users';
 import ApiKey from './api-key';
 import ApiKeyForm from './api-key-form';
 
-import styles from './style.module.scss';
+import styles from '../style.module.scss';
 
 type ApiKeysSectionProps = {
   initialApiKeys: ApiKeyWithUsername[];
