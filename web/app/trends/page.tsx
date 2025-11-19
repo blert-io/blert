@@ -48,7 +48,10 @@ export default function TrendsPage() {
   );
 }
 
-export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
+export async function generateMetadata(
+  _props: Record<string, never>,
+  parent: ResolvingMetadata,
+) {
   return basicMetadata(await parent, {
     title: 'OSRS Data Trends & Analysis',
     description:
