@@ -37,14 +37,12 @@
     }
   }
 
-  :global {
-    .recharts-cartesian-grid-horizontal line,
-    .recharts-cartesian-grid-vertical line {
-      stroke: var(--font-color-nav-divider);
-    }
+  :global(.recharts-cartesian-grid-horizontal line),
+  :global(.recharts-cartesian-grid-vertical line) {
+    stroke: var(--font-color-nav-divider);
+  }
 
-    .recharts-tooltip-cursor {
-      fill: var(--font-color-nav-divider);
-    }
+  :global(.recharts-tooltip-cursor) {
+    fill: var(--font-color-nav-divider);
   }
 }

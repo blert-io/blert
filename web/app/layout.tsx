@@ -2,16 +2,13 @@ import { GoogleAnalytics } from '@next/third-parties/google';
 import { Metadata } from 'next';
 import { Cinzel, Inter, Roboto_Mono } from 'next/font/google';
 import localFont from 'next/font/local';
-import { SessionProvider } from 'next-auth/react';
 import { WebSite, WithContext } from 'schema-dts';
 
 import LeftNav from './components/left-nav';
-import ToastProvider from './components/toast';
 import Tooltip, { GLOBAL_TOOLTIP_ID } from './components/tooltip';
 import Topbar from './components/topbar';
-import ChallengeProvider from './challenge-context';
-import { DisplayWrapper } from './display';
 import { MAIN_LOGO } from './logo';
+import Providers from './providers';
 import Styler from './styler';
 
 import './globals.scss';
@@ -96,20 +93,14 @@ export default function RootLayout({
         style={{ overflowX: 'hidden' }}
       >
         <Styler />
-        <SessionProvider>
-          <DisplayWrapper>
-            <ChallengeProvider>
-              <ToastProvider>
-                <Topbar />
-                <div className={styles.siteParent}>
-                  <LeftNav />
-                  <div id="portal-root" />
-                  <div className={styles.pageParentContent}>{children}</div>
-                </div>
-              </ToastProvider>
-            </ChallengeProvider>
-          </DisplayWrapper>
-        </SessionProvider>
+        <Providers>
+          <Topbar />
+          <div className={styles.siteParent}>
+            <LeftNav />
+            <div id="portal-root" />
+            <div className={styles.pageParentContent}>{children}</div>
+          </div>
+        </Providers>
         <Tooltip maxWidth={360} tooltipId={GLOBAL_TOOLTIP_ID}>
           <div />
         </Tooltip>

@@ -1,5 +1,11 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+import type { NextConfig } from 'next';
+import path from 'path';
+
+const repoRoot = path.join(__dirname, '../../');
+const emptyModulePath = './config/empty-browser-module.js';
+
+const nextConfig: NextConfig = {
+  outputFileTracingRoot: repoRoot,
   images: {
     remotePatterns: [
       {
@@ -14,7 +20,7 @@ const nextConfig = {
       },
     ],
   },
-  redirects: async () => {
+  redirects: () => {
     return [
       {
         source: '/challenges/colosseum/:id',
@@ -63,37 +69,23 @@ const nextConfig = {
       },
     ];
   },
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      config.resolve.fallback = { fs: false };
-    }
-
-    // Grab the existing rule that handles SVG imports
-    const fileLoaderRule = config.module.rules.find((rule) =>
-      rule.test?.test?.('.svg'),
-    );
-
-    config.module.rules.push(
-      // Reapply the existing rule, but only for svg imports ending in ?url
-      {
-        ...fileLoaderRule,
-        test: /\.svg$/i,
-        resourceQuery: /url/, // *.svg?url
+  turbopack: {
+    resolveExtensions: ['.ts', '.tsx', '.js', '.jsx'],
+    resolveAlias: {
+      fs: {
+        browser: emptyModulePath,
       },
-      // Convert all other *.svg imports to React components
-      {
-        test: /\.svg$/i,
-        issuer: fileLoaderRule.issuer,
-        resourceQuery: { not: [...fileLoaderRule.resourceQuery.not, /url/] }, // exclude if *.svg?url
-        use: ['@svgr/webpack'],
+      'fs/promises': {
+        browser: emptyModulePath,
       },
-    );
-
-    // Modify the file loader rule to ignore *.svg, since we have it handled now.
-    fileLoaderRule.exclude = /\.svg$/i;
-
-    return config;
+    },
+    rules: {
+      '*.svg': {
+        loaders: ['@svgr/webpack'],
+        as: '*.js',
+      },
+    },
   },
 };
 
-module.exports = nextConfig;
+export default nextConfig;

@@ -10,8 +10,18 @@ const compat = new FlatCompat({
   baseDirectory: __dirname,
 });
 
-// TODO(frolv): Enable full rootConfig lint incrementally (currently 539 errors).
-export default [
+const config = [
+  {
+    ignores: [
+      '.next/**',
+      'node_modules/**',
+      'coverage/**',
+      'public/scripts/graph-layout-worker.js',
+    ],
+  },
+  // TODO(frolv): Enable full rootConfig lint incrementally (currently 539 errors).
   // ...rootConfig,
   ...compat.extends('next/core-web-vitals'),
 ];
+
+export default config;
