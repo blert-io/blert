@@ -265,7 +265,6 @@ export default function ActivityDashboard({
 
   useEffect(() => {
     const fetchData = async () => {
-      setIsLoading(true);
       fetchTimeout.current = null;
 
       const today = new Date();
