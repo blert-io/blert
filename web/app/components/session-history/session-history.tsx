@@ -318,7 +318,7 @@ function SkeletonSession() {
         </div>
 
         <div className={styles.sessionStats}>
-          {[...Array(5)].map((_, i) => (
+          {[...Array<undefined>(5)].map((_, i) => (
             <div key={i} className={styles.stat}>
               <div
                 className={`${styles.skeleton} ${styles.skeletonStat}`}
@@ -359,7 +359,7 @@ function SessionList({
   if (isLoading) {
     return (
       <>
-        {[...Array(count)].map((_, i) => (
+        {[...Array<undefined>(count)].map((_, i) => (
           <SkeletonSession key={i} />
         ))}
       </>
@@ -407,6 +407,7 @@ export default function SessionHistory(props: SessionHistoryProps) {
   const deferredSessions = useDeferredValue(sessions);
 
   useEffect(() => {
+    let isMounted = true;
     const fetchSessions = async () => {
       const params = {
         limit: count.toString(),
@@ -420,22 +421,46 @@ export default function SessionHistory(props: SessionHistoryProps) {
           : undefined,
         party: username ? [username] : undefined,
       };
-      const sessions = await fetch(
-        `/api/v1/sessions?${queryString(params)}`,
-      ).then((res) => res.json());
-      setSessions(
-        sessions.map((s: any) => ({
-          ...s,
-          startTime: new Date(s.startTime),
-          endTime: s.endTime ? new Date(s.endTime) : null,
-        })),
-      );
-      setIsInitialLoading(false);
+      try {
+        const response = await fetch(`/api/v1/sessions?${queryString(params)}`);
+        if (!response.ok) {
+          return;
+        }
+
+        const result = (await response.json()) as SessionWithChallenges[];
+        if (!Array.isArray(result)) {
+          return;
+        }
+
+        if (!isMounted) {
+          return;
+        }
+
+        setSessions(
+          result.map((s) => ({
+            ...s,
+            startTime: new Date(s.startTime),
+            endTime: s.endTime ? new Date(s.endTime) : null,
+          })),
+        );
+      } catch (error) {
+        console.error('Failed to load sessions', error);
+      } finally {
+        if (isMounted) {
+          setIsInitialLoading(false);
+        }
+      }
     };
 
-    fetchSessions();
-    const refetchInterval = window.setInterval(fetchSessions, 30 * 1000);
-    return () => window.clearInterval(refetchInterval);
+    void fetchSessions();
+    const refetchInterval = window.setInterval(
+      () => void fetchSessions(),
+      30 * 1000,
+    );
+    return () => {
+      isMounted = false;
+      window.clearInterval(refetchInterval);
+    };
   }, [count, type, scale, mode, status, username]);
 
   return (

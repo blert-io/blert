@@ -19,6 +19,7 @@ import {
   LabelList,
 } from 'recharts';
 
+import type { GroupedAggregationResult } from '@/actions/challenge';
 import Card from '@/components/card';
 import Statistic from '@/components/statistic';
 import { useClientOnly } from '@/hooks/client-only';
@@ -125,7 +126,7 @@ function PieChartSkeleton({ title }: { title: string }) {
 function BarChartSkeleton() {
   return (
     <div className={styles.barChartSkeleton}>
-      {[...Array(8)].map((_, i) => (
+      {[...Array<undefined>(8)].map((_, i) => (
         <div key={i} className={styles.skeletonBarRow}>
           <div className={styles.skeletonLabel}></div>
           <div
@@ -205,14 +206,35 @@ const EMPTY_PLAYERS_MESSAGES = [
 
 type GroupedCountResponse = Record<string, { '*': { count: number } }>;
 
+async function fetchJsonOrNull<T>(
+  input: RequestInfo,
+  init?: RequestInit,
+): Promise<T | null> {
+  try {
+    const response = await fetch(input, init);
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
 function toChartValues<T = string>(
-  response: GroupedCountResponse,
+  response: GroupedCountResponse | null | undefined,
   keyParser: (key: string) => T = (key) => key as T,
 ): ChartValue<T>[] {
-  return Object.entries(response).map(([key, value]) => ({
-    key: keyParser(key),
-    value: value['*'].count,
-  }));
+  if (!response) {
+    return [];
+  }
+
+  return Object.entries(response)
+    .filter(([, value]) => typeof value?.['*']?.count === 'number')
+    .map(([key, value]) => ({
+      key: keyParser(key),
+      value: value['*'].count,
+    }));
 }
 
 export default function ActivityDashboard({
@@ -243,6 +265,7 @@ export default function ActivityDashboard({
 
   useEffect(() => {
     const fetchData = async () => {
+      setIsLoading(true);
       fetchTimeout.current = null;
 
       const today = new Date();
@@ -253,17 +276,13 @@ export default function ActivityDashboard({
         startTime: `>=${today.getTime()}`,
       };
 
-      const fetchPromises = [];
-
       const challengeParams = {
         ...filterParams,
         aggregate: 'challengeTicks:sum',
       };
 
-      fetchPromises.push(
-        fetch(`/api/v1/challenges/stats?${queryString(challengeParams)}`).then(
-          (res) => res.json(),
-        ),
+      const challengePromise = fetchJsonOrNull<TodaysStats>(
+        `/api/v1/challenges/stats?${queryString(challengeParams)}`,
       );
 
       const statusParams = {
@@ -275,10 +294,8 @@ export default function ActivityDashboard({
         ],
         group: 'status',
       };
-      fetchPromises.push(
-        fetch(`/api/v1/challenges/stats?${queryString(statusParams)}`).then(
-          (res) => res.json(),
-        ),
+      const statusPromise = fetchJsonOrNull<GroupedCountResponse>(
+        `/api/v1/challenges/stats?${queryString(statusParams)}`,
       );
 
       const playerParams = {
@@ -287,10 +304,8 @@ export default function ActivityDashboard({
         limit: 10,
         sort: '-count',
       };
-      fetchPromises.push(
-        fetch(`/api/v1/challenges/stats?${queryString(playerParams)}`).then(
-          (res) => res.json(),
-        ),
+      const playerPromise = fetchJsonOrNull<GroupedCountResponse>(
+        `/api/v1/challenges/stats?${queryString(playerParams)}`,
       );
 
       const sessionParams = {
@@ -298,11 +313,16 @@ export default function ActivityDashboard({
         aggregate: ['duration:avg', 'challenges:sum'],
         group: 'status',
       };
-      fetchPromises.push(
-        fetch(
-          `/api/v1/sessions/stats?${queryString(sessionParams, false)}`,
-        ).then((res) => res.json()),
-      );
+      const sessionPromise = fetchJsonOrNull<
+        Record<
+          string,
+          {
+            '*': { count: number };
+            duration: { avg: number };
+            challenges: { sum: number };
+          }
+        >
+      >(`/api/v1/sessions/stats?${queryString(sessionParams, false)}`);
 
       const teamParams = {
         ...filterParams,
@@ -311,60 +331,77 @@ export default function ActivityDashboard({
         sort: '-duration:sum',
         limit: 1,
       };
-      fetchPromises.push(
-        fetch(`/api/v1/sessions/stats?${queryString(teamParams)}`).then((res) =>
-          res.json(),
-        ),
-      );
+      const teamPromise = fetchJsonOrNull<
+        GroupedAggregationResult<
+          {
+            '*': 'count';
+            duration: ('max' | 'sum')[];
+          },
+          'party'
+        >
+      >(`/api/v1/sessions/stats?${queryString(teamParams)}`);
 
-      if (!isSolo) {
-        const scaleParams = {
-          ...filterParams,
-          group: 'scale',
-        };
+      const scalePromise = isSolo
+        ? Promise.resolve<GroupedCountResponse | null>(null)
+        : fetchJsonOrNull<GroupedCountResponse>(
+            `/api/v1/challenges/stats?${queryString({
+              ...filterParams,
+              group: 'scale',
+            })}`,
+          );
 
-        fetchPromises.push(
-          fetch(`/api/v1/challenges/stats?${queryString(scaleParams)}`).then(
-            (res) => res.json(),
-          ),
+      try {
+        const [
+          challengeResponse,
+          statusResponse,
+          playerResponse,
+          sessionResponse,
+          teamResponse,
+          scaleResponse,
+        ] = await Promise.all([
+          challengePromise,
+          statusPromise,
+          playerPromise,
+          sessionPromise,
+          teamPromise,
+          scalePromise,
+        ]);
+
+        setDailyStats(challengeResponse);
+        setStatusData(toChartValues<number>(statusResponse, parseInt));
+
+        setPlayerData(
+          toChartValues(playerResponse).toSorted((a, b) => {
+            if (a.value === b.value) {
+              return a.key.localeCompare(b.key);
+            }
+            return b.value - a.value;
+          }),
+        );
+
+        setSessionStats(parseSessionStats(sessionResponse));
+        setMostActiveTeam(parseMostActiveTeam(teamResponse));
+
+        if (!isSolo) {
+          setScaleData(toChartValues<number>(scaleResponse, parseInt));
+        }
+      } catch (error) {
+        console.error('ActivityDashboard failed to refresh', error);
+      } finally {
+        setIsLoading(false);
+        fetchTimeout.current = window.setTimeout(
+          () => void fetchData(),
+          REFRESH_INTERVAL,
         );
       }
-
-      const [
-        challengeResponse,
-        statusResponse,
-        playerResponse,
-        sessionResponse,
-        teamResponse,
-        scaleResponse,
-      ] = await Promise.all(fetchPromises);
-
-      setDailyStats(challengeResponse);
-      setStatusData(toChartValues<number>(statusResponse, parseInt));
-
-      setPlayerData(
-        toChartValues(playerResponse).toSorted((a, b) => {
-          if (a.value === b.value) {
-            return a.key.localeCompare(b.key);
-          }
-          return b.value - a.value;
-        }),
-      );
-
-      setSessionStats(parseSessionStats(sessionResponse));
-      setMostActiveTeam(parseMostActiveTeam(teamResponse));
-
-      if (scaleResponse) {
-        setScaleData(toChartValues<number>(scaleResponse, parseInt));
-      }
-
-      setIsLoading(false);
-      fetchTimeout.current = window.setTimeout(fetchData, REFRESH_INTERVAL);
     };
 
-    fetchData();
+    void fetchData();
 
-    fetchTimeout.current = window.setTimeout(fetchData, REFRESH_INTERVAL);
+    fetchTimeout.current = window.setTimeout(
+      () => void fetchData(),
+      REFRESH_INTERVAL,
+    );
     return () => {
       if (fetchTimeout.current) {
         window.clearInterval(fetchTimeout.current);

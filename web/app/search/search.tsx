@@ -34,6 +34,21 @@ type SearchProps = {
   initialRemaining: number;
 };
 
+class LoadChallengeError extends Error {
+  public readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'LoadChallengeError';
+    this.status = status;
+  }
+}
+
+type LoadErrorState = {
+  message: string;
+  details?: string;
+};
+
 enum FetchAction {
   LOAD,
   FORWARD,
@@ -62,7 +77,7 @@ function challengesQueryParams(
 
   let hasTime = false;
 
-  const sortValues: Array<number | string> = [];
+  const sortValues: (number | string)[] = [];
 
   let keyChallenge: ChallengeOverview | null = null;
   if (action === FetchAction.FORWARD && challenges.length > 0) {
@@ -123,6 +138,7 @@ export default function Search({
 }: SearchProps) {
   const [initialFetch, setInitialFetch] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<LoadErrorState | null>(null);
 
   const [context, setContext] = useState(initialContext);
   const [challenges, setChallenges] =
@@ -135,6 +151,21 @@ export default function Search({
 
   const page = Math.floor(offset / resultsPerPage) + 1;
   const totalPages = Math.ceil(stats.count / resultsPerPage);
+
+  const errorForStatus = (status?: number): LoadErrorState => {
+    if (status === 429) {
+      return {
+        message: 'Search temporarily rate limited',
+        details:
+          'Too many requests hit the server. Please wait a few seconds and try again.',
+      };
+    }
+
+    return {
+      message: 'Unable to load challenges right now.',
+      details: 'Please refresh the page or adjust your filters and retry.',
+    };
+  };
 
   const loadChallenges = async (
     action: FetchAction = FetchAction.LOAD,
@@ -153,46 +184,69 @@ export default function Search({
     paginationParams.extraFields = extraFieldsToUrlParam(ctx.extraFields);
 
     setLoading(true);
+    setLoadError(null);
 
     try {
       const [[newChallenges, newRemaining], newStats] = await Promise.all([
         fetch(`/api/v1/challenges?${queryString(paginationParams)}`).then(
           async (res) => {
-            if (res.ok) {
-              const rem = res.headers.get('X-Total-Count');
-              return [
-                await res.json().then((cs) =>
-                  cs.map((c: any) => ({
-                    ...c,
-                    startTime: new Date(c.startTime),
-                  })),
-                ),
-                rem !== null ? parseInt(rem) : null,
-              ];
+            if (!res.ok) {
+              throw new LoadChallengeError('Search request failed', res.status);
             }
-            return [[], null];
+            const rem = res.headers.get('X-Total-Count');
+            const payload = (await res.json()) as ChallengeOverview[];
+            const parsed = payload.map((c) => ({
+              ...c,
+              startTime: new Date(c.startTime),
+            }));
+            return [
+              parsed,
+              rem !== null && !Number.isNaN(parseInt(rem, 10))
+                ? parseInt(rem, 10)
+                : null,
+            ] as [ChallengeOverview[], number | null];
           },
         ),
         fetch(`/api/v1/challenges/stats?${queryString(baseParams)}`).then(
-          (res) => res.json(),
+          async (res) => {
+            if (!res.ok) {
+              throw new LoadChallengeError('Stats request failed', res.status);
+            }
+            return (await res.json()) as { '*': { count: number } | undefined };
+          },
         ),
       ]);
 
-      setLoading(false);
+      const totalCount = newStats['*']?.count ?? 0;
 
       if (
         action === FetchAction.BACK ||
         paginationParams.before !== undefined
       ) {
         newChallenges.reverse();
-        setRemaining(newStats['*'].count - newRemaining + resultsPerPage);
+        setRemaining(
+          newRemaining !== null
+            ? totalCount - newRemaining + resultsPerPage
+            : totalCount,
+        );
       } else {
-        setRemaining(newRemaining);
+        setRemaining(newRemaining ?? totalCount);
       }
 
       setChallenges(newChallenges);
-      setStats({ count: newStats['*'].count });
-    } catch (e) {
+      setStats({ count: totalCount });
+    } catch (error) {
+      if (error instanceof LoadChallengeError) {
+        setLoadError(errorForStatus(error.status));
+        return;
+      }
+      console.error('Failed to load challenges', error);
+      setLoadError({
+        message: 'Unable to load challenges right now.',
+        details: 'Please try again later.',
+      });
+      return;
+    } finally {
       setLoading(false);
     }
   };
@@ -214,13 +268,13 @@ export default function Search({
       setContext(initialContext);
       setInitialFetch(false);
     };
-    initialLoad();
+    void initialLoad();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (!initialFetch) {
-      loadChallenges(FetchAction.LOAD);
+      void loadChallenges(FetchAction.LOAD);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context, initialFetch]);
@@ -229,6 +283,7 @@ export default function Search({
     const onKeyDown = (e: KeyboardEvent) => {
       if (
         loading ||
+        loadError !== null ||
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement ||
         e.target instanceof HTMLButtonElement
@@ -237,15 +292,15 @@ export default function Search({
       }
 
       if (e.key === 'ArrowLeft' && page > 1) {
-        loadChallenges(FetchAction.BACK);
+        void loadChallenges(FetchAction.BACK);
       } else if (e.key === 'ArrowRight' && page < totalPages) {
-        loadChallenges(FetchAction.FORWARD);
+        void loadChallenges(FetchAction.FORWARD);
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [context, challenges, loading, page, totalPages]);
+  }, [context, challenges, loading, loadError, page, totalPages]);
 
   return (
     <>
@@ -263,12 +318,14 @@ export default function Search({
           setContext={setContext}
           loading={loading}
           totalCount={stats.count}
+          loadError={loadError}
+          onRetry={() => void loadChallenges(FetchAction.LOAD)}
         />
         <div className={styles.pagination}>
           <div className={styles.controls}>
             <button
-              disabled={loading || page <= 1}
-              onClick={() => loadChallenges(FetchAction.BACK)}
+              disabled={loading || loadError !== null || page <= 1}
+              onClick={() => void loadChallenges(FetchAction.BACK)}
             >
               <i className="fas fa-chevron-left" />
               <span className="sr-only">Previous</span>
@@ -278,8 +335,8 @@ export default function Search({
               {totalPages > 0 && ` of ${totalPages}`}
             </p>
             <button
-              disabled={loading || page >= totalPages}
-              onClick={() => loadChallenges(FetchAction.FORWARD)}
+              disabled={loading || loadError !== null || page >= totalPages}
+              onClick={() => void loadChallenges(FetchAction.FORWARD)}
             >
               <i className="fas fa-chevron-right" />
               <span className="sr-only">Next</span>
