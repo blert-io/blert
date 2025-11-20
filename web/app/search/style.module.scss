@@ -103,11 +103,22 @@
         border: 1px solid rgba(var(--blert-button-base), 0.2);
         color: var(--blert-button);
         transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
 
         &:hover {
           cursor: pointer;
           background: rgba(var(--blert-button-base), 0.2);
           transform: translateY(-1px);
+        }
+
+        i {
+          font-size: 0.95em;
+          margin: 0;
+          position: relative;
+          top: 1px;
         }
       }
     }

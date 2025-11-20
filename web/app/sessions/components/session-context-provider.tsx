@@ -22,7 +22,7 @@ const SessionContext = createContext<SessionContext>({
   isLoading: false,
   isInitialLoad: false,
   session: null,
-  refetchSession: async () => {},
+  refetchSession: () => Promise.resolve(),
 });
 
 export const useSessionContext = () => useContext(SessionContext);
@@ -38,13 +38,13 @@ async function fetchSessionData(
 ): Promise<SessionWithStats | null> {
   try {
     const response = await fetch(`/api/v1/sessions/${uuid}`);
-    const data = await response.json();
+    const data = (await response.json()) as SessionWithStats;
 
     return {
       ...data,
       startTime: new Date(data.startTime),
-      endTime: new Date(data.endTime),
-      challenges: data.challenges.map((challenge: any) => ({
+      endTime: data.endTime ? new Date(data.endTime) : null,
+      challenges: data.challenges.map((challenge) => ({
         ...challenge,
         startTime: new Date(challenge.startTime),
         finishTime: challenge.finishTime
@@ -94,7 +94,7 @@ export default function SessionContextProvider({
       setIsInitialLoad(false);
     };
 
-    loadInitialData();
+    void loadInitialData();
   }, [uuid, initialData]);
 
   const isLive = sessionData?.status === SessionStatus.ACTIVE;
@@ -105,7 +105,7 @@ export default function SessionContextProvider({
     }
 
     // Automatically refresh live sessions.
-    const interval = setInterval(refetchData, 15_000);
+    const interval = setInterval(() => void refetchData(), 15_000);
     return () => clearInterval(interval);
   }, [refetchData, isInitialLoad, isLive]);
 

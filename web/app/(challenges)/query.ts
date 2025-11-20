@@ -52,18 +52,26 @@ export function parseMostActiveTeam(
       duration: ('max' | 'sum')[];
     },
     'party'
-  >,
+  > | null,
 ): MostActiveTeam | null {
+  if (!result) {
+    return null;
+  }
+
   const team = Object.entries(result)[0];
   if (!team) {
     return null;
   }
 
   const [party, data] = team;
+  const sessionCount = data['*']?.count ?? 0;
+  if (sessionCount === 0) {
+    return null;
+  }
   return {
     party: party.split(','),
-    sessions: data['*'].count,
+    sessions: sessionCount,
     maxDurationSeconds: data.duration.max,
-    avgDurationSeconds: data.duration.sum / data['*'].count,
+    avgDurationSeconds: sessionCount > 0 ? data.duration.sum / sessionCount : 0,
   };
 }

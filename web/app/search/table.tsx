@@ -132,9 +132,7 @@ function ticksRenderer(
   field: keyof PickType<ChallengeOverview, number | null>,
 ): ColumnRenderer {
   return (challenge) =>
-    challenge[field] !== null
-      ? ticksToFormattedSeconds(challenge[field]!)
-      : '-';
+    challenge[field] !== null ? ticksToFormattedSeconds(challenge[field]) : '-';
 }
 
 function splitsRenderer(type: SplitType): ColumnRenderer {
@@ -185,7 +183,7 @@ function splitColumn(
   };
 }
 
-const COLUMNS: { [key in Column]: ColumnInfo } = {
+const COLUMNS: Record<Column, ColumnInfo> = {
   [Column.UUID]: {
     name: '', // Intentionally empty.
     renderer: (challenge) => (
@@ -603,7 +601,7 @@ class LocalStorageManager {
     }
 
     try {
-      return JSON.parse(data);
+      return JSON.parse(data) as PresetStorage;
     } catch {
       return { presets: [], activeColumns: DEFAULT_SELECTED_COLUMNS };
     }
@@ -650,6 +648,8 @@ type TableProps = {
   setContext: Dispatch<SetStateAction<SearchContext>>;
   loading: boolean;
   totalCount: number;
+  loadError: { message: string; details?: string } | null;
+  onRetry?: () => void;
 };
 
 export default function Table(props: TableProps) {
@@ -699,7 +699,7 @@ export default function Table(props: TableProps) {
           return;
         }
 
-        const [type, ...rest] = (target.dataset['context'] ?? '').split(':');
+        const [type, ...rest] = (target.dataset.context ?? '').split(':');
         switch (type) {
           case 'heading': {
             const column = Number.parseInt(rest[0]) as Column;
@@ -721,7 +721,7 @@ export default function Table(props: TableProps) {
           }
         }
 
-        setContextMenu(menu as ContextMenu);
+        setContextMenu(menu);
       } else {
         setContextMenu(null);
       }
@@ -811,20 +811,19 @@ export default function Table(props: TableProps) {
                 if (props.context.sort && column.sortKey) {
                   const mainSort = props.context.sort[0];
                   let icon;
-                  let nextSort: Array<SortQuery<SortableFields>>;
+                  let nextSort: SortQuery<SortableFields>[];
                   const currentSort = mainSort.slice(1);
                   if (currentSort === column.sortKey) {
                     icon = (
                       <i
-                        className={`fas fa-sort-${mainSort[0] === '+' ? 'up' : 'down'}`}
+                        className={`fas fa-sort-${mainSort.startsWith('+') ? 'up' : 'down'}`}
                       />
                     );
-                    nextSort =
-                      mainSort[0] === '+'
-                        ? [`-${column.sortKey}`]
-                        : currentSort === 'startTime'
-                          ? ['+startTime']
-                          : ['-startTime'];
+                    nextSort = mainSort.startsWith('+')
+                      ? [`-${column.sortKey}`]
+                      : currentSort === 'startTime'
+                        ? ['+startTime']
+                        : ['-startTime'];
                   } else {
                     icon = <i className="fas fa-sort" />;
                     nextSort = [`+${column.sortKey}`];
@@ -870,118 +869,143 @@ export default function Table(props: TableProps) {
             </tr>
           </thead>
           <tbody>
-            {props.challenges.length > 0
-              ? props.challenges.map((challenge, i) => (
-                  <tr
-                    key={challenge.uuid}
-                    className={
-                      selectedChallenges.includes(i)
-                        ? styles.selectedChallenge
-                        : ''
+            {props.loadError ? (
+              <tr>
+                <td colSpan={allColumns.length + 1}>
+                  <div className={styles.emptyState}>
+                    <i className="fas fa-triangle-exclamation" />
+                    <p className={styles.title}>{props.loadError.message}</p>
+                    {props.loadError.details ? (
+                      <p className={styles.hint}>{props.loadError.details}</p>
+                    ) : null}
+                    {props.onRetry ? (
+                      <div className={styles.actions}>
+                        <button
+                          onClick={props.onRetry}
+                          disabled={props.loading}
+                        >
+                          <i className="fas fa-rotate-right" />
+                          Retry
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                </td>
+              </tr>
+            ) : props.challenges.length > 0 ? (
+              props.challenges.map((challenge, i) => (
+                <tr
+                  key={challenge.uuid}
+                  className={
+                    selectedChallenges.includes(i)
+                      ? styles.selectedChallenge
+                      : ''
+                  }
+                  onClick={(e) => {
+                    const now = Date.now();
+                    if (lastClickedChallenge !== null) {
+                      const [id, time] = lastClickedChallenge;
+                      if (id === i && now - time < DOUBLE_CLICK_THRESHOLD) {
+                        router.push(
+                          challengeUrl(challenge.type, challenge.uuid),
+                        );
+                        return;
+                      }
                     }
-                    onClick={(e) => {
-                      const now = Date.now();
-                      if (lastClickedChallenge !== null) {
-                        const [id, time] = lastClickedChallenge;
-                        if (id === i && now - time < DOUBLE_CLICK_THRESHOLD) {
-                          router.push(
-                            challengeUrl(challenge.type, challenge.uuid),
-                          );
-                          return;
+
+                    setLastClickedChallenge([i, now]);
+
+                    setSelectedChallenges((selected) => {
+                      if (e.ctrlKey || e.metaKey) {
+                        if (selected.includes(i)) {
+                          return selected.filter((j) => j !== i);
                         }
+                        return [...selected, i];
                       }
 
-                      setLastClickedChallenge([i, now]);
-
-                      setSelectedChallenges((selected) => {
-                        if (e.ctrlKey || e.metaKey) {
-                          if (selected.includes(i)) {
-                            return selected.filter((j) => j !== i);
-                          }
-                          return [...selected, i];
-                        }
-
-                        if (e.shiftKey) {
-                          if (selected.length === 0) {
-                            return [i];
-                          }
-
-                          const start = Math.min(selected[0], i);
-                          const end = Math.max(selected[0], i);
-                          return Array.from(
-                            { length: end - start + 1 },
-                            (_, j) => j + start,
-                          );
-                        }
-
-                        if (selected.length > 1) {
+                      if (e.shiftKey) {
+                        if (selected.length === 0) {
                           return [i];
                         }
 
-                        return selected[0] === i ? [] : [i];
-                      });
-                    }}
-                  >
-                    {allColumns.map((c) => {
-                      const column = COLUMNS[c.column];
-                      const align = column.align ?? 'left';
-                      let width = column.width;
-                      if (width !== undefined && display.isCompact()) {
-                        width = Math.floor(width * 0.9);
+                        const start = Math.min(selected[0], i);
+                        const end = Math.max(selected[0], i);
+                        return Array.from(
+                          { length: end - start + 1 },
+                          (_, j) => j + start,
+                        );
                       }
-                      return (
-                        <td
-                          key={c.column}
-                          data-context={`row:${i}:${c.column}`}
-                          style={{ textAlign: align, width }}
+
+                      if (selected.length > 1) {
+                        return [i];
+                      }
+
+                      return selected[0] === i ? [] : [i];
+                    });
+                  }}
+                >
+                  {allColumns.map((c) => {
+                    const column = COLUMNS[c.column];
+                    const align = column.align ?? 'left';
+                    let width = column.width;
+                    if (width !== undefined && display.isCompact()) {
+                      width = Math.floor(width * 0.9);
+                    }
+                    return (
+                      <td
+                        key={c.column}
+                        data-context={`row:${i}:${c.column}`}
+                        style={{ textAlign: align, width }}
+                      >
+                        {column.renderer(challenge)}
+                      </td>
+                    );
+                  })}
+                  <td style={{ width: 40, padding: 0 }} />
+                </tr>
+              ))
+            ) : (
+              !props.loading && (
+                <tr>
+                  <td colSpan={allColumns.length + 1}>
+                    <div className={styles.emptyState}>
+                      <i className="fas fa-search" />
+                      <p className={styles.title}>
+                        No challenges match your filters
+                      </p>
+                      <p className={styles.hint}>
+                        Try adjusting filters or clearing them.
+                      </p>
+                      <div className={styles.actions}>
+                        <button
+                          onClick={() =>
+                            props.setContext((prev) => ({
+                              ...prev,
+                              filters: {
+                                party: [],
+                                mode: [],
+                                scale: [],
+                                status: [],
+                                type: [],
+                                stage: null,
+                                startDate: null,
+                                endDate: null,
+                                splits: {},
+                                accurateSplits: false,
+                                fullRecordings: false,
+                              },
+                              pagination: {},
+                            }))
+                          }
                         >
-                          {column.renderer(challenge)}
-                        </td>
-                      );
-                    })}
-                    <td style={{ width: 40, padding: 0 }} />
-                  </tr>
-                ))
-              : !props.loading && (
-                  <tr>
-                    <td colSpan={allColumns.length + 1}>
-                      <div className={styles.emptyState}>
-                        <i className="fas fa-search" />
-                        <p className={styles.title}>
-                          No challenges match your filters
-                        </p>
-                        <p className={styles.hint}>
-                          Try adjusting filters or clearing them.
-                        </p>
-                        <div className={styles.actions}>
-                          <button
-                            onClick={() =>
-                              props.setContext((prev) => ({
-                                ...prev,
-                                filters: {
-                                  party: [],
-                                  mode: [],
-                                  scale: [],
-                                  status: [],
-                                  type: [],
-                                  stage: null,
-                                  startDate: null,
-                                  endDate: null,
-                                  splits: {},
-                                  accurateSplits: false,
-                                  fullRecordings: false,
-                                },
-                                pagination: {},
-                              }))
-                            }
-                          >
-                            Clear filters
-                          </button>
-                        </div>
+                          Clear filters
+                        </button>
                       </div>
-                    </td>
-                  </tr>
-                )}
+                    </div>
+                  </td>
+                </tr>
+              )
+            )}
           </tbody>
         </table>
       </div>
@@ -1033,7 +1057,7 @@ function ContextMenu({
     items.push({
       label: 'Copy IDs',
       customAction: () => {
-        navigator.clipboard.writeText(
+        void navigator.clipboard.writeText(
           allChallenges.map((c) => c.uuid).join('\n'),
         );
       },
@@ -1117,7 +1141,7 @@ function ContextMenu({
     items.push({
       label: 'Copy URL',
       customAction: () => {
-        navigator.clipboard.writeText(
+        void navigator.clipboard.writeText(
           window.location.origin + challengeUrl(challenge.type, challenge.uuid),
         );
       },
@@ -1125,7 +1149,7 @@ function ContextMenu({
     items.push({
       label: 'Copy ID',
       customAction: () => {
-        navigator.clipboard.writeText(challenge.uuid);
+        void navigator.clipboard.writeText(challenge.uuid);
       },
     });
   }

@@ -1,0 +1,43 @@
+@use '@/mixins.scss' as *;
+
+.container {
+  width: 100%;
+  padding: 2rem 1rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+.card {
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+  background-color: var(--panel-bg);
+  border: 1px solid var(--nav-bg-lightened);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
+}
+
+.logo {
+  margin-bottom: 1rem;
+  display: flex;
+  justify-content: center;
+
+  img {
+    object-fit: contain;
+  }
+}
+
+.message {
+  color: var(--blert-text-color);
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.details {
+  color: var(--font-color-nav);
+  font-size: 0.95rem;
+}
