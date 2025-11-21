@@ -8,7 +8,7 @@ type HorizontalScrollableProps = React.HTMLAttributes<HTMLDivElement> & {
 };
 
 export function HorizontalScrollable(props: HorizontalScrollableProps) {
-  const { customRef, disable, ...divProps } = props;
+  const { customRef: _customRef, disable, ...divProps } = props;
 
   const ref = useRef<HTMLDivElement | null>(null);
 
@@ -22,7 +22,7 @@ export function HorizontalScrollable(props: HorizontalScrollableProps) {
   useEffect(() => {
     const div = ref.current;
     if (div === null) {
-      return () => {};
+      return;
     }
 
     const handleWheel = (e: WheelEvent) => {

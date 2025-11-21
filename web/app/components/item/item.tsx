@@ -14,13 +14,13 @@ const ONE_TO_FIVE_REGEX =
 const ONE_TO_FIVE_ITEMS = new Set(['Atlatl dart']);
 
 function is1to5Item(name: string): boolean {
-  return ONE_TO_FIVE_ITEMS.has(name) || name.match(ONE_TO_FIVE_REGEX) !== null;
+  return ONE_TO_FIVE_ITEMS.has(name) || ONE_TO_FIVE_REGEX.exec(name) !== null;
 }
 
 const BARROWS_REGEX = /^(Ahrim's|Dharok's|Guthan's|Karil's|Torag's|Verac's)/;
 
 function isBarrowsItem(name: string): boolean {
-  return name.match(BARROWS_REGEX) !== null;
+  return BARROWS_REGEX.exec(name) !== null;
 }
 
 /**
@@ -110,7 +110,7 @@ export default function Item({
 
   const { text: quantityText, color: quantityColor } = formatQuantity(quantity);
 
-  let imageStyle: React.CSSProperties = { objectFit: 'contain' };
+  const imageStyle: React.CSSProperties = { objectFit: 'contain' };
   if (outlineColor) {
     imageStyle.filter =
       `drop-shadow(1px 2px 0 ${outlineColor})` +

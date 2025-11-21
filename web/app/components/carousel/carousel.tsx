@@ -120,8 +120,10 @@ export default function Carousel({
   }, [currentIndex, children.length, isDragging, onIndexChange]);
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => handleDragMove(e as any);
-    const handleTouchMove = (e: TouchEvent) => handleDragMove(e as any);
+    const handleMouseMove = (e: MouseEvent) =>
+      handleDragMove(e as unknown as React.MouseEvent);
+    const handleTouchMove = (e: TouchEvent) =>
+      handleDragMove(e as unknown as React.TouchEvent);
     const handleEnd = () => handleDragEnd();
 
     if (isDragging) {
