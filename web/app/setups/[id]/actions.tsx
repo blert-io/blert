@@ -38,7 +38,7 @@ export default function SetupActions({
     try {
       const newSetup = await cloneGearSetup(gearSetup);
       publicId = newSetup.publicId;
-    } catch (e) {
+    } catch {
       showToast('Failed to clone setup', 'error');
     }
 
@@ -51,7 +51,7 @@ export default function SetupActions({
     (format: ExportFormat, playerIndex: number) => {
       try {
         const exported = exportSetup(gearSetup, playerIndex, format);
-        navigator.clipboard.writeText(exported);
+        void navigator.clipboard.writeText(exported);
         showToast(
           `Setup for ${gearSetup.players[playerIndex].name} copied to clipboard`,
         );
@@ -96,7 +96,10 @@ export default function SetupActions({
         </button>
       )}
       {showClone && (
-        <button className={styles.actionButton} onClick={forkSetup}>
+        <button
+          className={styles.actionButton}
+          onClick={() => void forkSetup()}
+        >
           <i className="fas fa-clone" />
           <span>Clone</span>
         </button>
