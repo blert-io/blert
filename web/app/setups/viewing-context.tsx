@@ -11,9 +11,13 @@ export type SetupViewingContextType = {
 
 export const SetupViewingContext = createContext<SetupViewingContextType>({
   highlightedItemId: null,
-  setHighlightedItemId: () => {},
+  setHighlightedItemId: () => {
+    /* noop */
+  },
   highlightedPlayerIndex: null,
-  setHighlightedPlayerIndex: () => {},
+  setHighlightedPlayerIndex: () => {
+    /* noop */
+  },
 });
 
 export function SetupViewingContextProvider({

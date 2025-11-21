@@ -82,8 +82,8 @@ export default function SetupVoteBar({
       disabled={disabled}
       loading={loading}
       width={width}
-      onVote={handleVote}
-      onRemoveVote={handleRemoveVote}
+      onVote={(voteType) => void handleVote(voteType)}
+      onRemoveVote={() => void handleRemoveVote()}
     />
   );
 }

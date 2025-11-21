@@ -139,9 +139,8 @@ export function SelectableContainer({
       } else {
         const current = context.placementHoverTarget;
         if (
-          current &&
-          current.container === container &&
-          current.playerIndex === playerIndex
+          current?.container === container &&
+          current?.playerIndex === playerIndex
         ) {
           context.clearPlacementHoverTarget();
         }
