@@ -64,7 +64,7 @@ export default function BloatHandsControls({
             <select
               id="mode-filter"
               className={styles.filterSelect}
-              value={filters.mode || ''}
+              value={filters.mode ?? ''}
               onChange={(e) =>
                 setFilters({
                   ...filters,
@@ -87,7 +87,7 @@ export default function BloatHandsControls({
             <select
               id="order-filter"
               className={styles.filterSelect}
-              value={filters.intraChunkOrder || ''}
+              value={filters.intraChunkOrder ?? ''}
               onChange={(e) =>
                 setFilters({
                   ...filters,

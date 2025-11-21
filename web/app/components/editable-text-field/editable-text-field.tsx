@@ -1,6 +1,6 @@
 'use client';
 
-import { ElementType, useEffect, useRef, useState } from 'react';
+import React, { ElementType, useEffect, useRef, useState } from 'react';
 
 import styles from './style.module.scss';
 
@@ -47,8 +47,8 @@ export function EditableTextField(props: EditableTextFieldProps) {
     setEditing(true);
   }
 
-  const Tag = props.tag as any;
-  const InputTag = props.inputTag || 'input';
+  const Tag = props.tag as React.ElementType;
+  const InputTag = props.inputTag ?? 'input';
   const style: React.CSSProperties = { width: props.width };
 
   const className = props.className
@@ -76,7 +76,9 @@ export function EditableTextField(props: EditableTextFieldProps) {
       <InputTag
         autoFocus
         className={styles.input}
-        ref={inputRef as any}
+        ref={
+          inputRef as React.RefObject<HTMLInputElement & HTMLTextAreaElement>
+        }
         onBlur={() => {
           if (!isTextarea) {
             stopEditing();

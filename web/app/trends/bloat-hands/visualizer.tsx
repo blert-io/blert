@@ -59,11 +59,11 @@ function TileTooltipRenderer({
     return null;
   }
 
-  const rank = activeAnchor.dataset.rank || 'N/A';
-  const tileId = parseInt(activeAnchor.dataset.tileId || '0');
-  const handCount = parseInt(activeAnchor.dataset.handCount || '0');
-  const displayValue = activeAnchor.dataset.displayValue || '0%';
-  const displayMode = activeAnchor.dataset.displayMode || 'percentage';
+  const rank = activeAnchor.dataset.rank ?? 'N/A';
+  const tileId = parseInt(activeAnchor.dataset.tileId ?? '0');
+  const handCount = parseInt(activeAnchor.dataset.handCount ?? '0');
+  const displayValue = activeAnchor.dataset.displayValue ?? '0%';
+  const displayMode = activeAnchor.dataset.displayMode ?? 'percentage';
   const coords = tileIdToCoords(tileId);
   const chunk = coordsToChunk(coords.x, coords.y);
 
@@ -142,11 +142,11 @@ export default function BloatHandsVisualizer({
   onTileClick,
 }: BloatHandsVisualizerProps) {
   const { tileData, colorScale, legendLabels } = useMemo(() => {
-    const tiles: Array<TileData | null> = new Array(BLOAT_TILE_COUNT).fill(
-      null,
-    );
+    const tiles: (TileData | null)[] = new Array<TileData | null>(
+      BLOAT_TILE_COUNT,
+    ).fill(null);
 
-    let handCounts: Record<string, number> = {};
+    const handCounts: Record<string, number> = {};
     let maxCount = 0;
 
     if (data.data.view === 'total') {
@@ -169,7 +169,7 @@ export default function BloatHandsVisualizer({
       });
     }
 
-    let displayValues: Record<string, { value: number; text: string }> = {};
+    const displayValues: Record<string, { value: number; text: string }> = {};
     let minDisplayValue = 0;
     let maxDisplayValue = 0;
 
@@ -278,11 +278,11 @@ export default function BloatHandsVisualizer({
     onTileClick(selectedTile === tileId ? null : tileId);
   };
 
-  let topTiles: Array<{
+  let topTiles: {
     tileId: number;
     count: number;
     percentage: number;
-  }> = [];
+  }[] = [];
   if (data.data.view === 'total') {
     topTiles = Object.entries(data.data.byTile)
       .map(([tileId, count]) => ({
