@@ -7,13 +7,13 @@ import { Display, DisplayContext } from '@/display';
 
 import styles from './style.module.scss';
 
-type TableOfContentsProps = {};
+type TableOfContentsProps = Record<string, never>;
 
 const HEADING_HEIGHT = 32;
 const COMPACT_TOPBAR_OFFSET = 70;
 const SCROLL_OFFSET = 20;
 
-export function TableOfContents(props: TableOfContentsProps) {
+export function TableOfContents(_props: TableOfContentsProps) {
   const display = useContext(DisplayContext);
   const router = useRouter();
 
@@ -30,7 +30,7 @@ export function TableOfContents(props: TableOfContentsProps) {
     const findAndFilterHeadings = () => {
       const wrapper = document.getElementById('blert-article-wrapper');
       let headings = Array.from(
-        (wrapper || document).querySelectorAll('h2, h3, h4, h5, h6'),
+        (wrapper ?? document).querySelectorAll('h2, h3, h4, h5, h6'),
       );
 
       headings = headings.filter((heading) => {
@@ -283,7 +283,7 @@ export function TableOfContents(props: TableOfContentsProps) {
               fontSize: 'inherit',
               fontFamily: 'inherit',
             }}
-            title={heading.textContent || ''}
+            title={heading.textContent ?? ''}
           >
             {heading.textContent}
           </button>

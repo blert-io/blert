@@ -16,7 +16,7 @@ type TabsProps = {
 };
 
 export function Tabs({ tabs, defaultTab }: TabsProps) {
-  const [activeTab, setActiveTab] = useState(defaultTab || tabs[0].id);
+  const [activeTab, setActiveTab] = useState(defaultTab ?? tabs[0].id);
 
   return (
     <div className={styles.tabs}>

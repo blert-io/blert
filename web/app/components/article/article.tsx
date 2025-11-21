@@ -61,7 +61,7 @@ export function Notice({ children, type = 'info', icon }: NoticeProps) {
 
   return (
     <div className={`${styles.notice} ${styles[`notice-${type}`]}`}>
-      <i className={`fas ${icon || defaultIcons[type]}`} />
+      <i className={`fas ${icon ?? defaultIcons[type]}`} />
       <div className={styles.noticeContent}>
         {(() => {
           const childArray = React.Children.toArray(children);

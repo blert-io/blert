@@ -103,7 +103,7 @@ export function Code({ children, language, filename }: CodeProps) {
         </div>
         <button
           className={styles.copyButton}
-          onClick={handleCopy}
+          onClick={() => void handleCopy()}
           title={copied ? 'Copied!' : 'Copy to clipboard'}
           disabled={copied}
         >
