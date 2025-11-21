@@ -106,7 +106,7 @@ function verzikNpcColor(npcId: number): string | undefined {
     return '#c51111';
   }
 
-  if (npcId === NpcId.VERZIK_PILLAR) {
+  if (npcId === (NpcId.VERZIK_PILLAR as number)) {
     return '#6f11c5';
   }
   return undefined;
@@ -157,7 +157,7 @@ export default function VerzikPage() {
         event.type === EventType.NPC_UPDATE
       ) {
         const npcEvent = event as NpcEvent;
-        if (npcEvent.npc.id === NpcId.VERZIK_PILLAR) {
+        if (npcEvent.npc.id === (NpcId.VERZIK_PILLAR as number)) {
           pillarsThisTick.push({ x: npcEvent.xCoord, y: npcEvent.yCoord });
         }
       }
