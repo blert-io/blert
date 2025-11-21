@@ -107,7 +107,7 @@ export function FilterableSetupList({
       }
 
       if (cursor) {
-        const values: Array<number | string> = [];
+        const values: (number | string)[] = [];
 
         switch (sort) {
           case 'score':
@@ -142,7 +142,7 @@ export function FilterableSetupList({
           throw new Error('Failed to fetch setups');
         }
 
-        const newData: SetupList = await response.json();
+        const newData = (await response.json()) as SetupList;
         if (newData.nextCursor !== null) {
           newData.nextCursor.createdAt = new Date(newData.nextCursor.createdAt);
         }
@@ -164,14 +164,14 @@ export function FilterableSetupList({
 
   useEffect(() => {
     startTransition(() => {
-      fetchSetups(null, true);
+      void fetchSetups(null, true);
     });
   }, [challenge, sort, scale, debouncedSearch, state, author, fetchSetups]);
 
   const handleNextPage = useCallback(() => {
     if (data.nextCursor) {
       startTransition(() => {
-        fetchSetups(data.nextCursor);
+        void fetchSetups(data.nextCursor);
         setCurrentPage((prev) => prev + 1);
       });
     }
@@ -180,7 +180,7 @@ export function FilterableSetupList({
   const handlePrevPage = useCallback(() => {
     if (data.prevCursor) {
       startTransition(() => {
-        fetchSetups(data.prevCursor);
+        void fetchSetups(data.prevCursor);
         setCurrentPage((prev) => Math.max(1, prev - 1));
       });
     }
@@ -238,7 +238,7 @@ export function FilterableSetupList({
               <select
                 id="state-filter"
                 className={styles.filterSelect}
-                value={state || ''}
+                value={state ?? ''}
                 onChange={(e) =>
                   setState(
                     e.target.value === ''

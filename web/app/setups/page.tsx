@@ -5,6 +5,7 @@ import {
   getSetups,
   getCurrentUserSetups,
   type SetupCursor,
+  type SetupSort,
 } from '@/actions/setup';
 import Card from '@/components/card';
 
@@ -33,9 +34,9 @@ export default async function SetupsPage({ searchParams }: SetupsPageProps) {
 
   let parsedCursor: SetupCursor | null = null;
 
-  let sortBy = sort ?? 'latest';
-  if (sortBy !== 'latest' && sortBy !== 'score' && sortBy !== 'views') {
-    sortBy = 'latest';
+  let sortBy: SetupSort = 'latest';
+  if (sort === 'latest' || sort === 'score' || sort === 'views') {
+    sortBy = sort;
   }
 
   if (after) {
@@ -46,9 +47,8 @@ export default async function SetupsPage({ searchParams }: SetupsPageProps) {
 
   const filter = {
     state: 'published' as const,
-    challenge:
-      challenge !== undefined ? parseInt(challenge) : undefined,
-    orderBy: sort === 'score' || sort === 'views' ? sort : 'latest',
+    challenge: challenge !== undefined ? parseInt(challenge) : undefined,
+    orderBy: sortBy,
     search,
     scale: scale !== undefined ? parseInt(scale) : undefined,
     sort: 'latest' as const,
