@@ -44,9 +44,9 @@ export default async function MySetupsPage({
 
   let parsedCursor: SetupCursor | null = null;
 
-  let sortBy = sort ?? 'latest';
-  if (sortBy !== 'latest' && sortBy !== 'score' && sortBy !== 'views') {
-    sortBy = 'latest';
+  let sortBy: SetupSort = 'latest';
+  if (sort === 'latest' || sort === 'score' || sort === 'views') {
+    sortBy = sort;
   }
 
   if (after) {
@@ -57,9 +57,8 @@ export default async function MySetupsPage({
 
   const filter = {
     author: user.id,
-    challenge:
-      challenge !== undefined ? parseInt(challenge) : undefined,
-    orderBy: sort === 'score' || sort === 'views' ? sort : 'latest',
+    challenge: challenge !== undefined ? parseInt(challenge) : undefined,
+    orderBy: sortBy,
     state,
     search,
     scale: scale !== undefined ? parseInt(scale) : undefined,

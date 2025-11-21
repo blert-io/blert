@@ -43,7 +43,7 @@ export default function DeleteModal({
       } else {
         showToast(`Failed to delete ${title ?? 'setup'}`, 'error');
       }
-    } catch (e) {
+    } catch {
       showToast(`Failed to delete ${title ?? 'setup'}`, 'error');
     } finally {
       setLoading(false);
@@ -72,7 +72,7 @@ export default function DeleteModal({
             className={styles.delete}
             disabled={loading}
             loading={loading}
-            onClick={handleDelete}
+            onClick={() => void handleDelete()}
           >
             Delete
           </Button>
