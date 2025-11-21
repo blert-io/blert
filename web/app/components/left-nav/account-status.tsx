@@ -24,7 +24,7 @@ export default function AccountStatus() {
             <div className={styles.details}>
               <div className={styles.label}>Signed in as</div>
               <div className={styles.username}>
-                {session.data.user.name || 'Unknown'}
+                {session.data.user.name ?? 'Unknown'}
               </div>
             </div>
           </div>
@@ -35,15 +35,17 @@ export default function AccountStatus() {
             </Link>
             <button
               className={styles.action}
-              onClick={async () => {
-                const { url } = await signOut({
-                  redirect: false,
-                  callbackUrl: PROTECTED_ROUTES.includes(currentPath)
-                    ? '/'
-                    : currentPath,
-                });
-                router.replace(url);
-              }}
+              onClick={() =>
+                void (async () => {
+                  const { url } = await signOut({
+                    redirect: false,
+                    callbackUrl: PROTECTED_ROUTES.includes(currentPath)
+                      ? '/'
+                      : currentPath,
+                  });
+                  router.replace(url);
+                })()
+              }
             >
               <i className="fa-solid fa-right-from-bracket" />
               <span>Log Out</span>

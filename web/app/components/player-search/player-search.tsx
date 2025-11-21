@@ -21,9 +21,9 @@ const PlayerSearch = forwardRef<HTMLInputElement, PlayerSearchProps>(
 
     const {
       className,
-      onBlur,
+      onBlur: _onBlur,
       onChange,
-      onFocus,
+      onFocus: _onFocus,
       onKeyDown,
       onSelection,
       ...inputProps
@@ -150,7 +150,7 @@ type CachedSuggestion = {
 class SuggestionCache {
   private static readonly EXPIRY_PERIOD = 1000 * 15;
 
-  private cache: Map<string, CachedSuggestion> = new Map();
+  private cache = new Map<string, CachedSuggestion>();
 
   public getAndUpdate(
     query: string,
@@ -159,7 +159,7 @@ class SuggestionCache {
     const cached = this.cache.get(query);
 
     if (!cached || cached.expiry < Date.now()) {
-      this.fetch(query).then(() => {
+      void this.fetch(query).then(() => {
         const suggestions = this.cache.get(query)!.results ?? [];
         callback(suggestions);
       });
@@ -170,9 +170,9 @@ class SuggestionCache {
 
   private async fetch(query: string): Promise<void> {
     const res = await fetch(`/api/suggest?type=players&q=${query}`);
-    const data = await res.json();
+    const data = (await res.json()) as { results: { value: string }[] };
     this.cache.set(query, {
-      results: data.results.map((s: any) => s.value),
+      results: data.results.map((s) => s.value),
       expiry: Date.now() + SuggestionCache.EXPIRY_PERIOD,
     });
   }

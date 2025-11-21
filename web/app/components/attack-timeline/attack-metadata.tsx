@@ -25,7 +25,7 @@ type NpcAttackMetadata = {
   description: NpcAttackDescriptionFunction;
 };
 
-export const ATTACK_METADATA: { [attack in PlayerAttack]: AttackMetadata } = {
+export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
   [PlayerAttack.ABYSSAL_BLUDGEON]: {
     tagColor: 'red',
     letter: 'BLD',
@@ -910,330 +910,325 @@ function basicDescription(attackName: string): NpcAttackDescriptionFunction {
   return description;
 }
 
-export const NPC_ATTACK_METADATA: { [attack in NpcAttack]: NpcAttackMetadata } =
-  {
-    [NpcAttack.UNKNOWN]: {
-      imageUrl: '/images/huh.png',
-      description: basicDescription('an unknown attack'),
-    },
-    [NpcAttack.TOB_MAIDEN_AUTO]: {
-      imageUrl: '/maiden_auto.png',
-      description: basicDescription('an auto attack'),
-    },
-    [NpcAttack.TOB_MAIDEN_BLOOD_THROW]: {
-      imageUrl: '/maiden_blood_throw.png',
-      description: (npcName, target) => (
-        <span>
-          {npcName} threw blood{target ? <> at {target}</> : ''}
-        </span>
-      ),
-    },
-    [NpcAttack.TOB_BLOAT_STOMP]: {
-      imageUrl: '/bloat_stomp.webp',
-      description: (npcName, _) => <span>{npcName} stomped</span>,
-    },
-    [NpcAttack.TOB_NYLO_BOSS_MELEE]: {
-      imageUrl: '/nylo_boss_melee.png',
-      description: basicDescription('a melee attack'),
-    },
-    [NpcAttack.TOB_NYLO_BOSS_RANGE]: {
-      imageUrl: '/nylo_boss_range.png',
-      description: basicDescription('a ranged attack'),
-    },
-    [NpcAttack.TOB_NYLO_BOSS_MAGE]: {
-      imageUrl: '/nylo_boss_mage.png',
-      description: basicDescription('a magic attack'),
-    },
-    [NpcAttack.TOB_SOTE_MELEE]: {
-      imageUrl: '/sote_melee.png',
-      description: basicDescription('a melee attack'),
-    },
-    [NpcAttack.TOB_SOTE_BALL]: {
-      imageUrl: '/sote_ball.png',
-      description: basicDescription('a ball'),
-    },
-    [NpcAttack.TOB_SOTE_DEATH_BALL]: {
-      imageUrl: '/sote_death_ball.png',
-      description: (npcName, target) => (
-        <span>
-          {npcName} launched a death ball{target ? <> at {target}</> : ''}
-        </span>
-      ),
-    },
-    [NpcAttack.TOB_XARPUS_SPIT]: {
-      imageUrl: '/xarpus_spit.png',
-      description: (npcName, target) => (
-        <span>
-          {npcName} spat poison{target ? <> at {target}</> : ''}
-        </span>
-      ),
-    },
-    [NpcAttack.TOB_XARPUS_TURN]: {
-      imageUrl: '/xarpus_turn.webp',
-      description: (npcName, _) => <span>{npcName} turned</span>,
-    },
-    [NpcAttack.TOB_VERZIK_P1_AUTO]: {
-      imageUrl: '/verzik_p1_auto.png',
-      description: basicDescription('an auto attack'),
-    },
-    [NpcAttack.TOB_VERZIK_P2_BOUNCE]: {
-      imageUrl: '/verzik_p2_bounce.png',
-      description: (npcName, target) => (
-        <span>
-          {npcName} bounced {target ?? 'someone'}
-        </span>
-      ),
-    },
-    [NpcAttack.TOB_VERZIK_P2_CABBAGE]: {
-      imageUrl: '/verzik_p2_cabbage.png',
-      description: basicDescription('a ranged attack'),
-    },
-    [NpcAttack.TOB_VERZIK_P2_ZAP]: {
-      imageUrl: '/verzik_p2_zap.png',
-      description: basicDescription('a zap'),
-    },
-    [NpcAttack.TOB_VERZIK_P2_PURPLE]: {
-      imageUrl: '/verzik_p2_purple.png',
-      description: basicDescription('a purple crab'),
-    },
-    [NpcAttack.TOB_VERZIK_P2_MAGE]: {
-      imageUrl: '/verzik_p2_mage.webp',
-      description: basicDescription('a magic attack'),
-    },
-    [NpcAttack.TOB_VERZIK_P3_AUTO]: {
-      imageUrl: '/images/huh.png',
-      description: basicDescription('an unknown attack'),
-    },
-    [NpcAttack.TOB_VERZIK_P3_MELEE]: {
-      imageUrl: '/verzik_p3_melee.webp',
-      description: basicDescription('a melee attack'),
-    },
-    [NpcAttack.TOB_VERZIK_P3_RANGE]: {
-      imageUrl: '/verzik_p3_range.webp',
-      description: basicDescription('a ranged attack'),
-    },
-    [NpcAttack.TOB_VERZIK_P3_MAGE]: {
-      imageUrl: '/verzik_p3_mage.webp',
-      description: basicDescription('a magic attack'),
-    },
-    [NpcAttack.TOB_VERZIK_P3_WEBS]: {
-      imageUrl: '/verzik_p3_webs.webp',
-      description: (npcName, _) => (
-        <span>{npcName} started releasing webs</span>
-      ),
-    },
-    [NpcAttack.TOB_VERZIK_P3_YELLOWS]: {
-      imageUrl: '/verzik_p3_yellow.webp',
-      description: (npcName, _) => <span>{npcName} spawned yellow pools</span>,
-    },
-    [NpcAttack.TOB_VERZIK_P3_BALL]: {
-      imageUrl: '/verzik_p3_ball.webp',
-      description: (npcName, target) => (
-        <span>
-          {npcName} launched a green ball{target ? <> at {target}</> : ''}
-        </span>
-      ),
-    },
-    [NpcAttack.COLOSSEUM_BERSERKER_AUTO]: {
-      imageUrl: '/images/colosseum/fremennik-berserker.webp',
-      description: basicDescription('an auto attack'),
-    },
-    [NpcAttack.COLOSSEUM_SEER_AUTO]: {
-      imageUrl: '/images/colosseum/fremennik-seer.webp',
-      description: basicDescription('an auto attack'),
-    },
-    [NpcAttack.COLOSSEUM_ARCHER_AUTO]: {
-      imageUrl: '/images/colosseum/fremennik-archer.webp',
-      description: basicDescription('an auto attack'),
-    },
-    [NpcAttack.COLOSSEUM_SHAMAN_AUTO]: {
-      imageUrl: '/images/colosseum/shaman-auto.webp',
-      description: basicDescription('an auto attack'),
-    },
-    [NpcAttack.COLOSSEUM_JAGUAR_AUTO]: {
-      imageUrl: '/images/colosseum/jaguar-auto.webp',
-      description: basicDescription('an auto attack'),
-    },
-    [NpcAttack.COLOSSEUM_JAVELIN_AUTO]: {
-      imageUrl: '/images/colosseum/javelin-colossus.webp',
-      description: basicDescription('an auto attack'),
-    },
-    [NpcAttack.COLOSSEUM_JAVELIN_TOSS]: {
-      imageUrl: '/images/colosseum/javelin-toss.webp',
-      description: basicDescription('a javelin toss'),
-    },
-    [NpcAttack.COLOSSEUM_MANTICORE_MAGE]: {
-      imageUrl: '/images/colosseum/manticore-mage.webp',
-      description: basicDescription('a magic attack'),
-    },
-    [NpcAttack.COLOSSEUM_MANTICORE_RANGE]: {
-      imageUrl: '/images/colosseum/manticore-range.webp',
-      description: basicDescription('a ranged attack'),
-    },
-    [NpcAttack.COLOSSEUM_MANTICORE_MELEE]: {
-      imageUrl: '/images/colosseum/manticore-melee.webp',
-      description: basicDescription('a melee attack'),
-    },
-    [NpcAttack.COLOSSEUM_SHOCKWAVE_AUTO]: {
-      imageUrl: '/images/colosseum/shockwave-auto.webp',
-      description: basicDescription('an auto attack'),
-    },
-    [NpcAttack.COLOSSEUM_MINOTAUR_AUTO]: {
-      imageUrl: '/images/colosseum/minotaur-auto.webp',
-      description: basicDescription('an auto attack'),
-    },
-    [NpcAttack.COLOSSEUM_HEREDIT_THRUST]: {
-      imageUrl: '/images/huh.png',
-      description: basicDescription('a trident stab'),
-    },
-    [NpcAttack.COLOSSEUM_HEREDIT_SLAM]: {
-      imageUrl: '/images/colosseum/heredit-slam.webp',
-      description: basicDescription('a shield bash'),
-    },
-    [NpcAttack.COLOSSEUM_HEREDIT_COMBO]: {
-      imageUrl: '/images/huh.png',
-      description: basicDescription('a combo attack'),
-    },
-    [NpcAttack.COLOSSEUM_HEREDIT_BREAK]: {
-      imageUrl: '/images/huh.png',
-      description: basicDescription('a grapple attack'),
-    },
-    [NpcAttack.INFERNO_BAT_AUTO]: {
-      imageUrl: '/images/inferno/bat-auto.png',
-      description: basicDescription('an auto attack'),
-    },
-    [NpcAttack.INFERNO_BLOB_RANGED]: {
-      imageUrl: '/images/inferno/blob-ranged.png',
-      description: basicDescription('a ranged attack'),
-    },
-    [NpcAttack.INFERNO_BLOB_MAGE]: {
-      imageUrl: '/images/inferno/blob-mage.png',
-      description: basicDescription('a magic attack'),
-    },
-    [NpcAttack.INFERNO_BLOB_MELEE]: {
-      imageUrl: '/images/combat/punch.webp',
-      description: basicDescription('a melee attack'),
-    },
-    [NpcAttack.INFERNO_BLOBLET_RANGED_AUTO]: {
-      imageUrl: '/images/npcs/7695.webp',
-      description: basicDescription('an auto attack'),
-    },
-    [NpcAttack.INFERNO_BLOBLET_MAGE_AUTO]: {
-      imageUrl: '/images/npcs/7694.webp',
-      description: basicDescription('an auto attack'),
-    },
-    [NpcAttack.INFERNO_BLOBLET_MELEE_AUTO]: {
-      imageUrl: '/images/npcs/7696.webp',
-      description: basicDescription('an auto attack'),
-    },
-    [NpcAttack.INFERNO_MELEER_AUTO]: {
-      imageUrl: '/images/inferno/meleer-auto.png',
-      description: basicDescription('an auto attack'),
-    },
-    [NpcAttack.INFERNO_MELEER_DIG]: {
-      imageUrl: '/images/inferno/meleer-dig.png',
-      description: (npcName, _) => <span>{npcName} dug</span>,
-    },
-    [NpcAttack.INFERNO_RANGER_AUTO]: {
-      imageUrl: '/images/inferno/ranger-auto.png',
-      description: basicDescription('an auto attack'),
-    },
-    [NpcAttack.INFERNO_RANGER_MELEE]: {
-      imageUrl: '/images/combat/punch.webp',
-      description: basicDescription('a melee attack'),
-    },
-    [NpcAttack.INFERNO_MAGER_AUTO]: {
-      imageUrl: '/images/inferno/mager-auto.png',
-      description: basicDescription('an auto attack'),
-    },
-    [NpcAttack.INFERNO_MAGER_MELEE]: {
-      imageUrl: '/images/combat/punch.webp',
-      description: basicDescription('a melee attack'),
-    },
-    [NpcAttack.INFERNO_MAGER_RESURRECT]: {
-      imageUrl: '/images/inferno/mager-resurrect.png',
-      description: (npcName, target) => (
-        <span>
-          {npcName} resurrected {target ?? 'someone'}
-        </span>
-      ),
-    },
-    [NpcAttack.INFERNO_JAD_RANGED]: {
-      imageUrl: '/images/inferno/jad-ranged.png',
-      description: basicDescription('a ranged attack'),
-    },
-    [NpcAttack.INFERNO_JAD_MAGE]: {
-      imageUrl: '/images/inferno/jad-mage.png',
-      description: basicDescription('a magic attack'),
-    },
-    [NpcAttack.INFERNO_JAD_MELEE]: {
-      imageUrl: '/images/combat/punch.webp',
-      description: basicDescription('a melee attack'),
-    },
-    [NpcAttack.INFERNO_JAD_HEALER_AUTO]: {
-      imageUrl: '/images/npcs/7701.webp',
-      description: basicDescription('an auto attack'),
-    },
-    [NpcAttack.INFERNO_ZUK_AUTO]: {
-      imageUrl: '/images/inferno/zuk-auto.png',
-      description: basicDescription('an auto attack'),
-    },
-    [NpcAttack.MOKHAIOTL_AUTO]: {
-      imageUrl: '/images/huh.png',
-      description: basicDescription('an orb'),
-    },
-    [NpcAttack.MOKHAIOTL_RANGED_AUTO]: {
-      imageUrl: '/images/mokhaiotl/ranged-orb.png',
-      description: basicDescription('a ranged orb'),
-    },
-    [NpcAttack.MOKHAIOTL_MAGE_AUTO]: {
-      imageUrl: '/images/mokhaiotl/magic-orb.png',
-      description: basicDescription('a magic orb'),
-    },
-    [NpcAttack.MOKHAIOTL_MELEE_AUTO]: {
-      imageUrl: '/images/mokhaiotl/melee-orb.png',
-      description: basicDescription('a melee orb'),
-    },
-    [NpcAttack.MOKHAIOTL_BALL]: {
-      imageUrl: '/images/huh.png',
-      description: (npcName, _) => <span>{npcName} launched a ball</span>,
-    },
-    [NpcAttack.MOKHAIOTL_RANGED_BALL]: {
-      imageUrl: '/images/mokhaiotl/ranged-ball.png',
-      description: (npcName, _) => (
-        <span>{npcName} launched a ranged ball</span>
-      ),
-    },
-    [NpcAttack.MOKHAIOTL_MAGE_BALL]: {
-      imageUrl: '/images/mokhaiotl/magic-ball.png',
-      description: (npcName, _) => <span>{npcName} launched a magic ball</span>,
-    },
-    [NpcAttack.MOKHAIOTL_CHARGE]: {
-      imageUrl: '/images/mokhaiotl/charge.png',
-      description: (npcName, _) => <span>{npcName} started charging</span>,
-    },
-    [NpcAttack.MOKHAIOTL_BLAST]: {
-      imageUrl: '/images/mokhaiotl/blast.png',
-      description: basicDescription('a blast'),
-    },
-    [NpcAttack.MOKHAIOTL_RACECAR]: {
-      imageUrl: '/images/mokhaiotl/racecar.webp',
-      description: (npcName, target) => (
-        <span>
-          {npcName} dug{target ? <> towards {target}</> : ''}
-        </span>
-      ),
-    },
-    [NpcAttack.MOKHAIOTL_SLAM]: {
-      imageUrl: '/images/mokhaiotl/shockwave.png',
-      description: (npcName, _) => <span>{npcName} slammed the ground</span>,
-    },
-    [NpcAttack.MOKHAIOTL_SHOCKWAVE]: {
-      imageUrl: '/images/mokhaiotl/shockwave.png',
-      description: (npcName, _) => <span>{npcName} released a shockwave</span>,
-    },
-    [NpcAttack.MOKHAIOTL_MELEE]: {
-      imageUrl: '/images/mokhaiotl/melee.png',
-      description: basicDescription('a melee attack'),
-    },
-  };
+export const NPC_ATTACK_METADATA: Record<NpcAttack, NpcAttackMetadata> = {
+  [NpcAttack.UNKNOWN]: {
+    imageUrl: '/images/huh.png',
+    description: basicDescription('an unknown attack'),
+  },
+  [NpcAttack.TOB_MAIDEN_AUTO]: {
+    imageUrl: '/maiden_auto.png',
+    description: basicDescription('an auto attack'),
+  },
+  [NpcAttack.TOB_MAIDEN_BLOOD_THROW]: {
+    imageUrl: '/maiden_blood_throw.png',
+    description: (npcName, target) => (
+      <span>
+        {npcName} threw blood{target ? <> at {target}</> : ''}
+      </span>
+    ),
+  },
+  [NpcAttack.TOB_BLOAT_STOMP]: {
+    imageUrl: '/bloat_stomp.webp',
+    description: (npcName, _) => <span>{npcName} stomped</span>,
+  },
+  [NpcAttack.TOB_NYLO_BOSS_MELEE]: {
+    imageUrl: '/nylo_boss_melee.png',
+    description: basicDescription('a melee attack'),
+  },
+  [NpcAttack.TOB_NYLO_BOSS_RANGE]: {
+    imageUrl: '/nylo_boss_range.png',
+    description: basicDescription('a ranged attack'),
+  },
+  [NpcAttack.TOB_NYLO_BOSS_MAGE]: {
+    imageUrl: '/nylo_boss_mage.png',
+    description: basicDescription('a magic attack'),
+  },
+  [NpcAttack.TOB_SOTE_MELEE]: {
+    imageUrl: '/sote_melee.png',
+    description: basicDescription('a melee attack'),
+  },
+  [NpcAttack.TOB_SOTE_BALL]: {
+    imageUrl: '/sote_ball.png',
+    description: basicDescription('a ball'),
+  },
+  [NpcAttack.TOB_SOTE_DEATH_BALL]: {
+    imageUrl: '/sote_death_ball.png',
+    description: (npcName, target) => (
+      <span>
+        {npcName} launched a death ball{target ? <> at {target}</> : ''}
+      </span>
+    ),
+  },
+  [NpcAttack.TOB_XARPUS_SPIT]: {
+    imageUrl: '/xarpus_spit.png',
+    description: (npcName, target) => (
+      <span>
+        {npcName} spat poison{target ? <> at {target}</> : ''}
+      </span>
+    ),
+  },
+  [NpcAttack.TOB_XARPUS_TURN]: {
+    imageUrl: '/xarpus_turn.webp',
+    description: (npcName, _) => <span>{npcName} turned</span>,
+  },
+  [NpcAttack.TOB_VERZIK_P1_AUTO]: {
+    imageUrl: '/verzik_p1_auto.png',
+    description: basicDescription('an auto attack'),
+  },
+  [NpcAttack.TOB_VERZIK_P2_BOUNCE]: {
+    imageUrl: '/verzik_p2_bounce.png',
+    description: (npcName, target) => (
+      <span>
+        {npcName} bounced {target ?? 'someone'}
+      </span>
+    ),
+  },
+  [NpcAttack.TOB_VERZIK_P2_CABBAGE]: {
+    imageUrl: '/verzik_p2_cabbage.png',
+    description: basicDescription('a ranged attack'),
+  },
+  [NpcAttack.TOB_VERZIK_P2_ZAP]: {
+    imageUrl: '/verzik_p2_zap.png',
+    description: basicDescription('a zap'),
+  },
+  [NpcAttack.TOB_VERZIK_P2_PURPLE]: {
+    imageUrl: '/verzik_p2_purple.png',
+    description: basicDescription('a purple crab'),
+  },
+  [NpcAttack.TOB_VERZIK_P2_MAGE]: {
+    imageUrl: '/verzik_p2_mage.webp',
+    description: basicDescription('a magic attack'),
+  },
+  [NpcAttack.TOB_VERZIK_P3_AUTO]: {
+    imageUrl: '/images/huh.png',
+    description: basicDescription('an unknown attack'),
+  },
+  [NpcAttack.TOB_VERZIK_P3_MELEE]: {
+    imageUrl: '/verzik_p3_melee.webp',
+    description: basicDescription('a melee attack'),
+  },
+  [NpcAttack.TOB_VERZIK_P3_RANGE]: {
+    imageUrl: '/verzik_p3_range.webp',
+    description: basicDescription('a ranged attack'),
+  },
+  [NpcAttack.TOB_VERZIK_P3_MAGE]: {
+    imageUrl: '/verzik_p3_mage.webp',
+    description: basicDescription('a magic attack'),
+  },
+  [NpcAttack.TOB_VERZIK_P3_WEBS]: {
+    imageUrl: '/verzik_p3_webs.webp',
+    description: (npcName, _) => <span>{npcName} started releasing webs</span>,
+  },
+  [NpcAttack.TOB_VERZIK_P3_YELLOWS]: {
+    imageUrl: '/verzik_p3_yellow.webp',
+    description: (npcName, _) => <span>{npcName} spawned yellow pools</span>,
+  },
+  [NpcAttack.TOB_VERZIK_P3_BALL]: {
+    imageUrl: '/verzik_p3_ball.webp',
+    description: (npcName, target) => (
+      <span>
+        {npcName} launched a green ball{target ? <> at {target}</> : ''}
+      </span>
+    ),
+  },
+  [NpcAttack.COLOSSEUM_BERSERKER_AUTO]: {
+    imageUrl: '/images/colosseum/fremennik-berserker.webp',
+    description: basicDescription('an auto attack'),
+  },
+  [NpcAttack.COLOSSEUM_SEER_AUTO]: {
+    imageUrl: '/images/colosseum/fremennik-seer.webp',
+    description: basicDescription('an auto attack'),
+  },
+  [NpcAttack.COLOSSEUM_ARCHER_AUTO]: {
+    imageUrl: '/images/colosseum/fremennik-archer.webp',
+    description: basicDescription('an auto attack'),
+  },
+  [NpcAttack.COLOSSEUM_SHAMAN_AUTO]: {
+    imageUrl: '/images/colosseum/shaman-auto.webp',
+    description: basicDescription('an auto attack'),
+  },
+  [NpcAttack.COLOSSEUM_JAGUAR_AUTO]: {
+    imageUrl: '/images/colosseum/jaguar-auto.webp',
+    description: basicDescription('an auto attack'),
+  },
+  [NpcAttack.COLOSSEUM_JAVELIN_AUTO]: {
+    imageUrl: '/images/colosseum/javelin-colossus.webp',
+    description: basicDescription('an auto attack'),
+  },
+  [NpcAttack.COLOSSEUM_JAVELIN_TOSS]: {
+    imageUrl: '/images/colosseum/javelin-toss.webp',
+    description: basicDescription('a javelin toss'),
+  },
+  [NpcAttack.COLOSSEUM_MANTICORE_MAGE]: {
+    imageUrl: '/images/colosseum/manticore-mage.webp',
+    description: basicDescription('a magic attack'),
+  },
+  [NpcAttack.COLOSSEUM_MANTICORE_RANGE]: {
+    imageUrl: '/images/colosseum/manticore-range.webp',
+    description: basicDescription('a ranged attack'),
+  },
+  [NpcAttack.COLOSSEUM_MANTICORE_MELEE]: {
+    imageUrl: '/images/colosseum/manticore-melee.webp',
+    description: basicDescription('a melee attack'),
+  },
+  [NpcAttack.COLOSSEUM_SHOCKWAVE_AUTO]: {
+    imageUrl: '/images/colosseum/shockwave-auto.webp',
+    description: basicDescription('an auto attack'),
+  },
+  [NpcAttack.COLOSSEUM_MINOTAUR_AUTO]: {
+    imageUrl: '/images/colosseum/minotaur-auto.webp',
+    description: basicDescription('an auto attack'),
+  },
+  [NpcAttack.COLOSSEUM_HEREDIT_THRUST]: {
+    imageUrl: '/images/huh.png',
+    description: basicDescription('a trident stab'),
+  },
+  [NpcAttack.COLOSSEUM_HEREDIT_SLAM]: {
+    imageUrl: '/images/colosseum/heredit-slam.webp',
+    description: basicDescription('a shield bash'),
+  },
+  [NpcAttack.COLOSSEUM_HEREDIT_COMBO]: {
+    imageUrl: '/images/huh.png',
+    description: basicDescription('a combo attack'),
+  },
+  [NpcAttack.COLOSSEUM_HEREDIT_BREAK]: {
+    imageUrl: '/images/huh.png',
+    description: basicDescription('a grapple attack'),
+  },
+  [NpcAttack.INFERNO_BAT_AUTO]: {
+    imageUrl: '/images/inferno/bat-auto.png',
+    description: basicDescription('an auto attack'),
+  },
+  [NpcAttack.INFERNO_BLOB_RANGED]: {
+    imageUrl: '/images/inferno/blob-ranged.png',
+    description: basicDescription('a ranged attack'),
+  },
+  [NpcAttack.INFERNO_BLOB_MAGE]: {
+    imageUrl: '/images/inferno/blob-mage.png',
+    description: basicDescription('a magic attack'),
+  },
+  [NpcAttack.INFERNO_BLOB_MELEE]: {
+    imageUrl: '/images/combat/punch.webp',
+    description: basicDescription('a melee attack'),
+  },
+  [NpcAttack.INFERNO_BLOBLET_RANGED_AUTO]: {
+    imageUrl: '/images/npcs/7695.webp',
+    description: basicDescription('an auto attack'),
+  },
+  [NpcAttack.INFERNO_BLOBLET_MAGE_AUTO]: {
+    imageUrl: '/images/npcs/7694.webp',
+    description: basicDescription('an auto attack'),
+  },
+  [NpcAttack.INFERNO_BLOBLET_MELEE_AUTO]: {
+    imageUrl: '/images/npcs/7696.webp',
+    description: basicDescription('an auto attack'),
+  },
+  [NpcAttack.INFERNO_MELEER_AUTO]: {
+    imageUrl: '/images/inferno/meleer-auto.png',
+    description: basicDescription('an auto attack'),
+  },
+  [NpcAttack.INFERNO_MELEER_DIG]: {
+    imageUrl: '/images/inferno/meleer-dig.png',
+    description: (npcName, _) => <span>{npcName} dug</span>,
+  },
+  [NpcAttack.INFERNO_RANGER_AUTO]: {
+    imageUrl: '/images/inferno/ranger-auto.png',
+    description: basicDescription('an auto attack'),
+  },
+  [NpcAttack.INFERNO_RANGER_MELEE]: {
+    imageUrl: '/images/combat/punch.webp',
+    description: basicDescription('a melee attack'),
+  },
+  [NpcAttack.INFERNO_MAGER_AUTO]: {
+    imageUrl: '/images/inferno/mager-auto.png',
+    description: basicDescription('an auto attack'),
+  },
+  [NpcAttack.INFERNO_MAGER_MELEE]: {
+    imageUrl: '/images/combat/punch.webp',
+    description: basicDescription('a melee attack'),
+  },
+  [NpcAttack.INFERNO_MAGER_RESURRECT]: {
+    imageUrl: '/images/inferno/mager-resurrect.png',
+    description: (npcName, target) => (
+      <span>
+        {npcName} resurrected {target ?? 'someone'}
+      </span>
+    ),
+  },
+  [NpcAttack.INFERNO_JAD_RANGED]: {
+    imageUrl: '/images/inferno/jad-ranged.png',
+    description: basicDescription('a ranged attack'),
+  },
+  [NpcAttack.INFERNO_JAD_MAGE]: {
+    imageUrl: '/images/inferno/jad-mage.png',
+    description: basicDescription('a magic attack'),
+  },
+  [NpcAttack.INFERNO_JAD_MELEE]: {
+    imageUrl: '/images/combat/punch.webp',
+    description: basicDescription('a melee attack'),
+  },
+  [NpcAttack.INFERNO_JAD_HEALER_AUTO]: {
+    imageUrl: '/images/npcs/7701.webp',
+    description: basicDescription('an auto attack'),
+  },
+  [NpcAttack.INFERNO_ZUK_AUTO]: {
+    imageUrl: '/images/inferno/zuk-auto.png',
+    description: basicDescription('an auto attack'),
+  },
+  [NpcAttack.MOKHAIOTL_AUTO]: {
+    imageUrl: '/images/huh.png',
+    description: basicDescription('an orb'),
+  },
+  [NpcAttack.MOKHAIOTL_RANGED_AUTO]: {
+    imageUrl: '/images/mokhaiotl/ranged-orb.png',
+    description: basicDescription('a ranged orb'),
+  },
+  [NpcAttack.MOKHAIOTL_MAGE_AUTO]: {
+    imageUrl: '/images/mokhaiotl/magic-orb.png',
+    description: basicDescription('a magic orb'),
+  },
+  [NpcAttack.MOKHAIOTL_MELEE_AUTO]: {
+    imageUrl: '/images/mokhaiotl/melee-orb.png',
+    description: basicDescription('a melee orb'),
+  },
+  [NpcAttack.MOKHAIOTL_BALL]: {
+    imageUrl: '/images/huh.png',
+    description: (npcName, _) => <span>{npcName} launched a ball</span>,
+  },
+  [NpcAttack.MOKHAIOTL_RANGED_BALL]: {
+    imageUrl: '/images/mokhaiotl/ranged-ball.png',
+    description: (npcName, _) => <span>{npcName} launched a ranged ball</span>,
+  },
+  [NpcAttack.MOKHAIOTL_MAGE_BALL]: {
+    imageUrl: '/images/mokhaiotl/magic-ball.png',
+    description: (npcName, _) => <span>{npcName} launched a magic ball</span>,
+  },
+  [NpcAttack.MOKHAIOTL_CHARGE]: {
+    imageUrl: '/images/mokhaiotl/charge.png',
+    description: (npcName, _) => <span>{npcName} started charging</span>,
+  },
+  [NpcAttack.MOKHAIOTL_BLAST]: {
+    imageUrl: '/images/mokhaiotl/blast.png',
+    description: basicDescription('a blast'),
+  },
+  [NpcAttack.MOKHAIOTL_RACECAR]: {
+    imageUrl: '/images/mokhaiotl/racecar.webp',
+    description: (npcName, target) => (
+      <span>
+        {npcName} dug{target ? <> towards {target}</> : ''}
+      </span>
+    ),
+  },
+  [NpcAttack.MOKHAIOTL_SLAM]: {
+    imageUrl: '/images/mokhaiotl/shockwave.png',
+    description: (npcName, _) => <span>{npcName} slammed the ground</span>,
+  },
+  [NpcAttack.MOKHAIOTL_SHOCKWAVE]: {
+    imageUrl: '/images/mokhaiotl/shockwave.png',
+    description: (npcName, _) => <span>{npcName} released a shockwave</span>,
+  },
+  [NpcAttack.MOKHAIOTL_MELEE]: {
+    imageUrl: '/images/mokhaiotl/melee.png',
+    description: basicDescription('a melee attack'),
+  },
+};
