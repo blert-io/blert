@@ -39,7 +39,7 @@ export default async function GearSetupPage({
   ]);
 
   const setup = await getSetupByPublicId(id);
-  if (setup === null || setup.latestRevision === null) {
+  if (setup?.latestRevision === null || setup === null) {
     notFound();
   }
 
@@ -160,7 +160,7 @@ export async function generateMetadata(
   const [{ id }, metadata] = await Promise.all([params, parent]);
 
   const setupMetadata = await getSetupByPublicId(id);
-  if (setupMetadata === null || setupMetadata.latestRevision === null) {
+  if (setupMetadata?.latestRevision === null || setupMetadata === null) {
     return {
       title: 'Gear setup not found',
     };
@@ -174,7 +174,7 @@ export async function generateMetadata(
   }
 
   const title = `${setup.title} by ${setupMetadata.author} - PvM Loadout for ${challengeName(setup.challenge)}`;
-  let description =
+  const description =
     `Explore ${setup.title}, a community gear setup for ${challengeName(
       setup.challenge,
     )} in Old School RuneScape. View equipment, inventories, and rune pouches ` +

@@ -33,7 +33,7 @@ export default function GearSetupPanels({
   const [showAllRevisions, setShowAllRevisions] = useState(false);
 
   useEffect(() => {
-    getSetupRevisions(setupMetadata.publicId).then((revs) => {
+    void getSetupRevisions(setupMetadata.publicId).then((revs) => {
       setRevisions(revs);
       setLoading(false);
     });
