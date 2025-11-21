@@ -102,7 +102,7 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
     }
 
     const npc = entity as NpcEntity;
-    if (npc.id !== NpcId.ROCKY_SUPPORT) {
+    if (npc.id !== (NpcId.ROCKY_SUPPORT as number)) {
       return entity;
     }
 
@@ -151,27 +151,27 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
   const sections: BossFightOverviewSection[] = [];
   if (stage === Stage.INFERNO_WAVE_69) {
     let setNumber = 0;
-    const splits: Map<number, string> = new Map();
+    const splits = new Map<number, string>();
 
     eventsByType[EventType.NPC_SPAWN]
       ?.filter((evt) => {
         const npcId = (evt as NpcSpawnEvent).npc.id;
         return (
-          npcId === NpcId.JAL_ZEK_ZUK ||
-          npcId === NpcId.JALTOK_JAD_ZUK ||
-          npcId === NpcId.JAL_MEJJAK
+          npcId === (NpcId.JAL_ZEK_ZUK as number) ||
+          npcId === (NpcId.JALTOK_JAD_ZUK as number) ||
+          npcId === (NpcId.JAL_MEJJAK as number)
         );
       })
       .forEach((evt) => {
         switch ((evt as NpcSpawnEvent).npc.id) {
-          case NpcId.JAL_ZEK_ZUK:
+          case NpcId.JAL_ZEK_ZUK as number:
             setNumber++;
             splits.set(evt.tick, `Set ${setNumber}`);
             return;
-          case NpcId.JALTOK_JAD_ZUK:
+          case NpcId.JALTOK_JAD_ZUK as number:
             splits.set(evt.tick, 'Jad');
             return;
-          case NpcId.JAL_MEJJAK:
+          case NpcId.JAL_MEJJAK as number:
             splits.set(evt.tick, 'Healers');
             return;
         }
