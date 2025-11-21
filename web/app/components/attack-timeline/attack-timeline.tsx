@@ -88,7 +88,7 @@ function TimelineTooltipRenderer({
   const tick = activeAnchor.dataset.tooltipTick;
   const customState = JSON.parse(
     activeAnchor.dataset.tooltipCustomState ?? '[]',
-  );
+  ) as CustomPlayerState[];
 
   if (!username || !tick) {
     return null;
@@ -153,9 +153,9 @@ function TimelineTooltipRenderer({
   const rawStats = activeAnchor.dataset.tooltipStats;
   const prayerSet = activeAnchor.dataset.tooltipPrayerSet;
   if (rawStats) {
-    const [attack, strength, ranged, magic] = JSON.parse(rawStats).map(
-      (s: number) => (s !== undefined ? SkillLevel.fromRaw(s) : undefined),
-    );
+    const [attack, strength, ranged, magic] = (
+      JSON.parse(rawStats) as number[]
+    ).map((s: number) => (s !== undefined ? SkillLevel.fromRaw(s) : undefined));
 
     const combatThresholds = (boost: BoostType, level: number) => ({
       high: maxBoostedLevel(boost, level),
@@ -494,7 +494,7 @@ function makeCellImage(
         break;
     }
 
-    let outline = memes.inventoryTags ? meta.tagColor : undefined;
+    const outline = memes.inventoryTags ? meta.tagColor : undefined;
 
     if (playerAttack.weapon) {
       baseImage = (
@@ -652,7 +652,7 @@ const buildTickCell = (
   cellInfo: CellInfo,
   tick: number,
 ) => {
-  let { playerState, npcState, backgroundColor } = cellInfo;
+  const { playerState, npcState, backgroundColor } = cellInfo;
 
   const imageSize = context.cellSize - 2;
 
@@ -848,7 +848,7 @@ const buildTickColumn = (
     const attack = npc.stateByTick[columnTick]?.attack ?? null;
     const label = npc.stateByTick[columnTick]?.label;
 
-    let partialNpcState = {
+    const partialNpcState = {
       npcId: npc.spawnNpcId,
       roomId: npc.roomId,
       tick: columnTick,

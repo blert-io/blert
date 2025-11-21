@@ -50,10 +50,7 @@ export function Modal(props: ModalProps) {
     };
 
     const onClick = (event: MouseEvent) => {
-      if (
-        modalRef.current === null ||
-        !modalRef.current.contains(event.target as Node)
-      ) {
+      if (!modalRef.current?.contains(event.target as Node)) {
         onClose();
       }
     };
