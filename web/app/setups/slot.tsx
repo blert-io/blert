@@ -400,9 +400,7 @@ function SlotSearch(props: {
 
     return () => {
       if (portalNode.current !== null) {
-        document
-          .getElementById('portal-root')
-          ?.removeChild(portalNode.current!);
+        document.getElementById('portal-root')?.removeChild(portalNode.current);
       }
     };
   }, []);
