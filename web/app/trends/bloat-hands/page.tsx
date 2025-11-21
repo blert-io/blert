@@ -23,7 +23,10 @@ export default function BloatHandsPage() {
   );
 }
 
-export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
+export async function generateMetadata(
+  _props: unknown,
+  parent: ResolvingMetadata,
+) {
   return basicMetadata(await parent, {
     title: 'OSRS Bloat Hand Spawn Analysis',
     description:

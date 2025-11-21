@@ -158,7 +158,7 @@ export default function BloatHands() {
         throw new Error(`Failed to fetch data: ${response.status}`);
       }
 
-      const result = await response.json();
+      const result = (await response.json()) as BloatHandsData;
       setData(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch data');
@@ -169,7 +169,7 @@ export default function BloatHands() {
   }, [filters]);
 
   useEffect(() => {
-    fetchData();
+    void fetchData();
   }, [fetchData]);
 
   const handleTileHover = (tileId: number | null) => {
@@ -200,7 +200,7 @@ export default function BloatHands() {
       <div className={styles.contentGrid}>
         <div className={styles.visualizerSection}>
           {error ? (
-            <ErrorState onRetry={fetchData} />
+            <ErrorState onRetry={() => void fetchData()} />
           ) : loading || !data ? (
             <SkeletonVisualizer />
           ) : (

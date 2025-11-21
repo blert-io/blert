@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback } from 'react';
+import React, { useCallback } from 'react';
 
 import { useToast } from '@/components/toast';
 
@@ -47,7 +47,7 @@ export function Heading({
         const url = `${window.location.origin}${window.location.pathname}#${id}`;
         await navigator.clipboard.writeText(url);
         showToast('Link copied to clipboard!');
-      } catch (error) {
+      } catch {
         showToast('Failed to copy link', 'error');
       }
     },
@@ -59,13 +59,13 @@ export function Heading({
     fullClass += ` ${className}`;
   }
 
-  const Tag = `h${level}` as any;
+  const Tag = `h${level}` as React.ElementType;
 
   return (
     <Tag {...headingProps} className={fullClass} id={id}>
       <button
         className={styles.linkButton}
-        onClick={handleCopyLink}
+        onClick={(e) => void handleCopyLink(e)}
         title={`Copy link to "${text}"`}
         aria-label={`Copy link to ${text}`}
       >

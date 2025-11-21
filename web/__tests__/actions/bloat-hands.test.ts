@@ -281,7 +281,7 @@ describe('aggregateBloatHands', () => {
   });
 
   afterAll(async () => {
-    sql.end();
+    await sql.end();
   });
 
   describe('total view', () => {
@@ -539,7 +539,7 @@ describe('aggregateBloatHands', () => {
 
       await sql`
         INSERT INTO challenge_players (challenge_id, player_id, username, orb, primary_gear)
-        VALUES (${challengeResult.id}, ${playerIds[0]}, 'Player1', 0, 1)
+        VALUES (${challengeResult.id as number}, ${playerIds[0]}, 'Player1', 0, 1)
       `;
 
       const query: BloatHandsQuery = {};
