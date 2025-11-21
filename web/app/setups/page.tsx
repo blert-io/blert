@@ -1,4 +1,3 @@
-import { ChallengeType } from '@blert/common';
 import { ResolvingMetadata } from 'next';
 import Link from 'next/link';
 
@@ -6,7 +5,6 @@ import {
   getSetups,
   getCurrentUserSetups,
   type SetupCursor,
-  type SetupSort,
 } from '@/actions/setup';
 import Card from '@/components/card';
 
@@ -41,21 +39,16 @@ export default async function SetupsPage({ searchParams }: SetupsPageProps) {
   }
 
   if (after) {
-    parsedCursor = cursorFromParam(sortBy as SetupSort, 'forward', after);
+    parsedCursor = cursorFromParam(sortBy, 'forward', after);
   } else if (before) {
-    parsedCursor = cursorFromParam(sortBy as SetupSort, 'backward', before);
+    parsedCursor = cursorFromParam(sortBy, 'backward', before);
   }
 
   const filter = {
     state: 'published' as const,
     challenge:
-      challenge !== undefined
-        ? (parseInt(challenge) as ChallengeType)
-        : undefined,
-    orderBy: (sort === 'score' || sort === 'views' ? sort : 'latest') as
-      | 'score'
-      | 'views'
-      | 'latest',
+      challenge !== undefined ? parseInt(challenge) : undefined,
+    orderBy: sort === 'score' || sort === 'views' ? sort : 'latest',
     search,
     scale: scale !== undefined ? parseInt(scale) : undefined,
     sort: 'latest' as const,
@@ -65,10 +58,6 @@ export default async function SetupsPage({ searchParams }: SetupsPageProps) {
     getCurrentUserSetups(SETUPS_PER_PAGE),
     getSetups(filter, parsedCursor, SETUPS_PER_PAGE),
   ]);
-
-  const position = before
-    ? publicSetups.remaining - SETUPS_PER_PAGE
-    : publicSetups.total - publicSetups.remaining;
 
   return (
     <div className={styles.setupsPage}>

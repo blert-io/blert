@@ -1,4 +1,3 @@
-import { ChallengeType } from '@blert/common';
 import { ResolvingMetadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -51,22 +50,17 @@ export default async function MySetupsPage({
   }
 
   if (after) {
-    parsedCursor = cursorFromParam(sortBy as SetupSort, 'forward', after);
+    parsedCursor = cursorFromParam(sortBy, 'forward', after);
   } else if (before) {
-    parsedCursor = cursorFromParam(sortBy as SetupSort, 'backward', before);
+    parsedCursor = cursorFromParam(sortBy, 'backward', before);
   }
 
   const filter = {
     author: user.id,
     challenge:
-      challenge !== undefined
-        ? (parseInt(challenge) as ChallengeType)
-        : undefined,
-    orderBy: (sort === 'score' || sort === 'views' ? sort : 'latest') as
-      | 'score'
-      | 'views'
-      | 'latest',
-    state: state as SetupState | undefined,
+      challenge !== undefined ? parseInt(challenge) : undefined,
+    orderBy: sort === 'score' || sort === 'views' ? sort : 'latest',
+    state,
     search,
     scale: scale !== undefined ? parseInt(scale) : undefined,
     sort: 'latest' as const,

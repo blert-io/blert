@@ -28,7 +28,7 @@ export function StaticSetupList({
   className,
 }: StaticSetupListProps) {
   return (
-    <div className={`${styles.setupList} ${className || ''}`}>
+    <div className={`${styles.setupList} ${className ?? ''}`}>
       <div className={styles.setupsList}>
         {setups.length > 0 ? (
           setups.map((setup) => (
