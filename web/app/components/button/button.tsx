@@ -28,7 +28,7 @@ export function Button(props: ButtonProps) {
   return (
     <button
       className={className}
-      disabled={props.disabled || props.loading}
+      disabled={props.disabled ?? props.loading}
       id={props.id}
       onClick={props.onClick}
       style={{ width: props.fluid ? '100%' : undefined }}
