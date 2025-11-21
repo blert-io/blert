@@ -72,7 +72,7 @@ export function LocalSetupMigrator() {
       try {
         await migrateSetup(setup.publicId);
         migrated++;
-      } catch (e) {
+      } catch {
         failed++;
       }
     }
@@ -91,7 +91,7 @@ export function LocalSetupMigrator() {
   }, [showToast, setLocalSetups]);
 
   const handleDelete = useCallback(
-    async (id: string) => {
+    (id: string) => {
       setupLocalStorage.deleteSetup(id);
       showToast('Deleted setup', 'success');
       setLocalSetups(setupLocalStorage.listSetups());
@@ -111,7 +111,7 @@ export function LocalSetupMigrator() {
     }
 
     if (idToMigrate.startsWith('local-')) {
-      handleMigrateSingle(idToMigrate, true);
+      void handleMigrateSingle(idToMigrate, true);
     }
   }, [params, handleMigrateSingle]);
 
@@ -167,14 +167,14 @@ export function LocalSetupMigrator() {
                     <span>
                       <i className="fas fa-clock" />
                       {new Date(
-                        setup.updatedAt || setup.createdAt,
+                        setup.updatedAt ?? setup.createdAt,
                       ).toLocaleDateString()}
                     </span>
                   </div>
                 </div>
                 <div className={styles.setupActions}>
                   <Button
-                    onClick={() => handleMigrateSingle(setup.publicId)}
+                    onClick={() => void handleMigrateSingle(setup.publicId)}
                     className={`${styles.button} ${styles.migrateButton}`}
                     simple
                     disabled={migrating}
@@ -186,7 +186,7 @@ export function LocalSetupMigrator() {
                     <span className="sr-only">Migrate setup</span>
                   </Button>
                   <Button
-                    onClick={() => handleDelete(setup.publicId)}
+                    onClick={() => void handleDelete(setup.publicId)}
                     className={`${styles.button} ${styles.deleteButton}`}
                     simple
                     disabled={migrating}
@@ -205,7 +205,7 @@ export function LocalSetupMigrator() {
 
       <div className={styles.bannerActions}>
         <Button
-          onClick={handleMigrateAll}
+          onClick={() => void handleMigrateAll()}
           loading={migrating}
           disabled={migrating}
           className={`${styles.button} ${styles.migrateButton}`}

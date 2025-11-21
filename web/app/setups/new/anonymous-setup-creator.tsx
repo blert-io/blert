@@ -34,7 +34,7 @@ export function AnonymousSetupCreator() {
   }, [router]);
 
   useEffect(() => {
-    async function checkAndCreateSetup() {
+    function checkAndCreateSetup() {
       const localSetups = setupLocalStorage.listSetups();
       setExistingSetups(
         localSetups.toSorted(
@@ -52,7 +52,7 @@ export function AnonymousSetupCreator() {
       createSetup();
     }
 
-    checkAndCreateSetup();
+    void checkAndCreateSetup();
   }, [createSetup]);
 
   function handleReplace(setup: SetupListItem) {

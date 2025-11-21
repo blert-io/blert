@@ -6,7 +6,6 @@ import TimeAgo from 'react-timeago';
 
 import { SetupListItem } from '@/actions/setup';
 import Card from '@/components/card';
-import { useToast } from '@/components/toast';
 
 import DeleteModal from './delete-modal';
 import { setupLocalStorage } from './local-storage';
@@ -16,19 +15,17 @@ import styles from './local-setups-list.module.scss';
 import { challengeName } from '@blert/common';
 
 export default function LocalSetupsList() {
-  const showToast = useToast();
-
   const [localSetups, setLocalSetups] = useState<SetupListItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadLocalSetups = useCallback(async () => {
+  const loadLocalSetups = useCallback(() => {
     const setups = setupLocalStorage.listSetups();
     setLocalSetups(setups);
     setLoading(false);
   }, [setLocalSetups, setLoading]);
 
   useEffect(() => {
-    loadLocalSetups();
+    void loadLocalSetups();
   }, [loadLocalSetups]);
 
   if (loading) {
