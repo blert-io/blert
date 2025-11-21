@@ -59,7 +59,7 @@ export function Heading({
     fullClass += ` ${className}`;
   }
 
-  const Tag = `h${level}` as React.ElementType;
+  const Tag = `h${level}` as any;
 
   return (
     <Tag {...headingProps} className={fullClass} id={id}>
