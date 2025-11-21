@@ -182,7 +182,7 @@ export default function XarpusPage() {
 
   const bossHealthChartData = useMemo(() => {
     let xarpus: EnhancedRoomNpc | null = null;
-    let iter = npcState.values();
+    const iter = npcState.values();
     for (let npc = iter.next(); !npc.done; npc = iter.next()) {
       if (Npc.isXarpus(npc.value.spawnNpcId)) {
         xarpus = npcState.get(npc.value.roomId)!;

@@ -96,7 +96,7 @@ function Maze({ pivots, tileSize, showPivots = false }: MazeProps) {
   const mazeTiles: boolean[][] = [];
 
   for (let y = MAZE_HEIGHT - 1; y >= 0; --y) {
-    const row = new Array(MAZE_WIDTH).fill(false);
+    const row = new Array<boolean>(MAZE_WIDTH).fill(false);
 
     if (y % 2 === 0) {
       row[pivots[y / 2]] = true;
@@ -234,7 +234,7 @@ export default function SotetsegPage() {
 
   const bossHealthChartData = useMemo(() => {
     let sotetseg: EnhancedRoomNpc | null = null;
-    let iter = npcState.values();
+    const iter = npcState.values();
     for (let npc = iter.next(); !npc.done; npc = iter.next()) {
       if (Npc.isSotetseg(npc.value.spawnNpcId)) {
         sotetseg = npcState.get(npc.value.roomId)!;
