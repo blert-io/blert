@@ -5,7 +5,7 @@ import { Billboard, Plane, Text } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
-// @ts-ignore
+// @ts-expect-error - troika-three-text has no type declarations
 import { Text as TroikaText } from 'troika-three-text';
 
 import {
@@ -51,8 +51,6 @@ export default function Player({
   const debugTextRef = useRef<TroikaText>(null);
   const { config, playing, mapDefinition } = useReplayContext();
   const { updateEntityPosition } = useEntityPositions();
-
-  const playerEntity = entity as PlayerEntity;
 
   useFrame((state) => {
     if (!groupRef.current) {
@@ -104,7 +102,8 @@ export default function Player({
     }
 
     if (config.debug && debugTextRef.current) {
-      debugTextRef.current.text = `Render: ${finalPosition.x.toFixed(2)}, ${finalPosition.y.toFixed(2)}`;
+      (debugTextRef.current as { text: string }).text =
+        `Render: ${finalPosition.x.toFixed(2)}, ${finalPosition.y.toFixed(2)}`;
     }
   });
 
@@ -239,10 +238,10 @@ export default function Player({
           {entity.name}
         </Text>
 
-        {playerEntity.hitpoints && (
+        {entity.hitpoints && (
           <HealthBar
-            hitpoints={playerEntity.hitpoints.current}
-            nextHitpoints={playerEntity.hitpoints.next}
+            hitpoints={entity.hitpoints.current}
+            nextHitpoints={entity.hitpoints.next}
             width={2.0}
             height={0.25}
             position={[0, 0.8, 0]}

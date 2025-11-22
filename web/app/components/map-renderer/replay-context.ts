@@ -22,7 +22,9 @@ type ReplayContextType = {
 
 export const ReplayContext = createContext<ReplayContextType>({
   config: DEFAULT_REPLAY_CONFIG,
-  updateConfig: () => {},
+  updateConfig: () => {
+    /* noop */
+  },
   playing: false,
   replayTime: { current: 0 },
   mapDefinition: {
@@ -31,8 +33,12 @@ export const ReplayContext = createContext<ReplayContextType>({
     width: 0,
     height: 0,
   },
-  resetCamera: () => {},
-  onResetAvailable: () => {},
+  resetCamera: () => {
+    /* noop */
+  },
+  onResetAvailable: () => {
+    /* noop */
+  },
 });
 
 export function useReplayContext(): ReplayContextType {

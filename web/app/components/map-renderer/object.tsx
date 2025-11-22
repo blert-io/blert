@@ -51,7 +51,8 @@ function ObjectSpriteMesh({
     texture.magFilter = THREE.NearestFilter;
     texture.wrapS = THREE.ClampToEdgeWrapping;
     texture.wrapT = THREE.ClampToEdgeWrapping;
-    setAspect(texture.image.width / texture.image.height);
+    const image = texture.image as { width: number; height: number };
+    setAspect(image.width / image.height);
   });
 
   return (
