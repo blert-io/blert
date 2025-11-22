@@ -5,7 +5,7 @@ import { Billboard, Plane, Text, useTexture } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useRef, useMemo, useEffect, useState, Suspense } from 'react';
 import * as THREE from 'three';
-// @ts-ignore
+// @ts-expect-error - troika-three-text has no type declarations
 import { Text as TroikaText } from 'troika-three-text';
 
 import {
@@ -24,7 +24,7 @@ import {
   NpcEntity,
 } from './types';
 
-export interface NpcComponentProps extends InteractiveEntityProps<NpcEntity> {}
+export type NpcComponentProps = InteractiveEntityProps<NpcEntity>;
 
 const vertexShader = `
   varying vec2 vUv;
@@ -145,19 +145,18 @@ function NpcSpriteMesh({
     texture.magFilter = THREE.NearestFilter;
     texture.wrapS = THREE.ClampToEdgeWrapping;
     texture.wrapT = THREE.ClampToEdgeWrapping;
-    setAspect(texture.image.width / texture.image.height);
+    const image = texture.image as { width: number; height: number };
+    setAspect(image.width / image.height);
   });
 
   const outlineMaterial = useMemo(() => {
     const outlineColor = SELECTED_COLOR;
+    const image = spriteTexture.image as { width: number; height: number };
     return new THREE.ShaderMaterial({
       uniforms: {
         u_texture: { value: spriteTexture },
         u_textureResolution: {
-          value: new THREE.Vector2(
-            spriteTexture.image.width,
-            spriteTexture.image.height,
-          ),
+          value: new THREE.Vector2(image.width, image.height),
         },
         u_outlineColor: {
           value: new THREE.Vector4(
@@ -220,14 +219,12 @@ function PrayerSprite({ prayers }: { prayers: PrayerSet }) {
   });
 
   const spriteMaterial = useMemo(() => {
+    const image = spriteTexture.image as { width: number; height: number };
     return new THREE.ShaderMaterial({
       uniforms: {
         u_texture: { value: spriteTexture },
         u_textureResolution: {
-          value: new THREE.Vector2(
-            spriteTexture.image.width,
-            spriteTexture.image.height,
-          ),
+          value: new THREE.Vector2(image.width, image.height),
         },
         u_isDimmed: { value: false },
         u_dimOpacity: { value: 0.5 },
@@ -239,9 +236,9 @@ function PrayerSprite({ prayers }: { prayers: PrayerSet }) {
     });
   }, [spriteTexture]);
 
+  const spriteImage = spriteTexture.image as { width: number; height: number };
   const spriteWidth = 0.5;
-  const spriteHeight =
-    spriteWidth / (spriteTexture.image.width / spriteTexture.image.height);
+  const spriteHeight = spriteWidth / (spriteImage.width / spriteImage.height);
 
   return (
     <mesh scale={[spriteWidth, spriteHeight, 1]} material={spriteMaterial}>
@@ -288,7 +285,7 @@ export default function Npc({
   const { updateEntityPosition } = useEntityPositions();
   const { config, playing, mapDefinition } = useReplayContext();
 
-  const npcEntity = entity as NpcEntity;
+  const npcEntity = entity;
   const hitpoints = npcEntity.hitpoints;
 
   const planeSize = entity.size;
@@ -372,7 +369,7 @@ export default function Npc({
 
     if (playing && npcEntity.options.customInterpolation) {
       const { from, to, ease } = npcEntity.options.customInterpolation;
-      const elapsed = currentTime - interpolationStateRef.current!.startTime;
+      const elapsed = currentTime - interpolationStateRef.current.startTime;
       const progress = Math.min(elapsed / config.tickDuration, 1);
       const easedProgress = ease ? ease(progress) : progress;
 
@@ -417,7 +414,8 @@ export default function Npc({
     }
 
     if (config.debug && debugTextRef.current) {
-      debugTextRef.current.text = `Render: ${groupRef.current.position.x.toFixed(2)}, ${-groupRef.current.position.z.toFixed(2)}`;
+      (debugTextRef.current as { text: string }).text =
+        `Render: ${groupRef.current.position.x.toFixed(2)}, ${(-groupRef.current.position.z).toFixed(2)}`;
     }
   });
 
@@ -551,7 +549,7 @@ export default function Npc({
               outlineWidth={0.02}
               outlineColor="#000000"
             >
-              {`Next: ${entity.nextPosition?.x || 'N/A'}, ${entity.nextPosition?.y || 'N/A'}`}
+              {`Next: ${entity.nextPosition?.x ?? 'N/A'}, ${entity.nextPosition?.y ?? 'N/A'}`}
             </Text>
 
             <Text

@@ -50,9 +50,7 @@ export default function ReplayClock({ currentTick, onTick }: ReplayClockProps) {
 
     replayTime.current += delta * 1000;
 
-    if (lastTickTime.current === null) {
-      lastTickTime.current = currentTime;
-    }
+    lastTickTime.current ??= currentTime;
 
     const elapsed = currentTime - lastTickTime.current;
 
