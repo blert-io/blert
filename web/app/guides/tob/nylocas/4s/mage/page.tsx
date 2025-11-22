@@ -307,7 +307,10 @@ export default function MageNyloGuide() {
   );
 }
 
-export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
+export async function generateMetadata(
+  _props: object,
+  parent: ResolvingMetadata,
+) {
   return basicMetadata(await parent, {
     title: 'OSRS ToB 4s Nylocas Mage Guide - Waves & Rotations',
     description:
