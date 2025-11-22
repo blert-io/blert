@@ -28,7 +28,7 @@ export async function GET(request: NextRequest, { params }: Params) {
       return new Response(null, { status: 404 });
     }
     return Response.json(events);
-  } catch (e) {
+  } catch {
     return new Response(null, { status: 500 });
   }
 }

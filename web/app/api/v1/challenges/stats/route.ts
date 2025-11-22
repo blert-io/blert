@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
 
   if (searchParams.has('sort')) {
     const sort = searchParams.get('sort')!;
-    if (sort[0] !== '-' && sort[0] !== '+') {
+    if (!sort.startsWith('-') && !sort.startsWith('+')) {
       return new Response(null, { status: 400 });
     }
     if (!isAggregation(sort.slice(1))) {

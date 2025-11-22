@@ -14,8 +14,8 @@ export async function GET(request: NextRequest) {
     const query = parseSessionQueryParams(searchParams);
     const sessions = await loadSessions(limit, query);
     return Response.json(sessions);
-  } catch (e: any) {
-    if (e.name === 'InvalidQueryError') {
+  } catch (e) {
+    if (e instanceof Error && e.name === 'InvalidQueryError') {
       return new Response(null, { status: 400 });
     }
 

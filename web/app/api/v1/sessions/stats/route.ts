@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
 
   if (searchParams.has('sort')) {
     const sort = searchParams.get('sort')!;
-    if (sort[0] !== '-' && sort[0] !== '+') {
+    if (!sort.startsWith('-') && !sort.startsWith('+')) {
       return new Response(null, { status: 400 });
     }
     options.sort = sort as SortQuery<Aggregation>;
@@ -58,8 +58,8 @@ export async function GET(request: NextRequest) {
       groupings,
     );
     return Response.json(result);
-  } catch (e: any) {
-    if (e.name === 'InvalidQueryError') {
+  } catch (e) {
+    if (e instanceof Error && e.name === 'InvalidQueryError') {
       return new Response(null, { status: 400 });
     }
 

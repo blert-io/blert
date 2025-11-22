@@ -103,7 +103,7 @@ export function parseChallengeQuery(
 
       try {
         query.splits!.set(split, numericComparatorValue(value));
-      } catch (e) {
+      } catch {
         return null;
       }
     }
@@ -119,7 +119,7 @@ export function parseChallengeQuery(
       'challengeTicks',
     );
     query.stage = numericComparatorParam(searchParams, 'stage');
-  } catch (e) {
+  } catch {
     return null;
   }
 
@@ -152,7 +152,7 @@ function paginationCondition(
     const secondaryField = secondarySort
       .slice(1)
       .split('#')[0] as SortableFields;
-    const op = secondarySort[0] === '+' ? '>' : '<';
+    const op = secondarySort.startsWith('+') ? '>' : '<';
     const val = Number.parseInt(secondaryValue);
     if (Number.isNaN(val)) {
       return null;
@@ -160,7 +160,7 @@ function paginationCondition(
     secondaryCondition = [secondaryField, op, val];
   }
 
-  let operator: Operator = primarySort[0] === '+' ? '>' : '<';
+  const operator: Operator = primarySort.startsWith('+') ? '>' : '<';
   const sortField = primarySort.slice(1).split('#')[0] as SortableFields;
 
   const value = primaryValue === 'null' ? null : Number.parseInt(primaryValue);
@@ -189,7 +189,7 @@ function paginationCondition(
       ];
       secondary = [isNotNull, '||', isNullBefore];
     } else {
-      secondary = [[sortField, '==', value], '&&', secondaryCondition!];
+      secondary = [[sortField, '==', value], '&&', secondaryCondition];
     }
 
     if (cond === null) {

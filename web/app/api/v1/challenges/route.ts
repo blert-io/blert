@@ -128,8 +128,8 @@ export async function GET(request: NextRequest) {
         'X-Total-Count': count ? count.toString() : '0',
       },
     });
-  } catch (e: any) {
-    if (e.name === 'InvalidQueryError') {
+  } catch (e) {
+    if (e instanceof Error && e.name === 'InvalidQueryError') {
       return new Response(null, { status: 400 });
     }
 
