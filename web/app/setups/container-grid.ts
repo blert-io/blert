@@ -896,7 +896,7 @@ export function removeConflicting2hItem(
       const removed = playerEquipment.get(removeSlot)!;
       playerEquipment.delete(removeSlot);
 
-      const updatedInventory: Array<ItemSlot | null> = new Array(
+      const updatedInventory: (ItemSlot | null)[] = new Array<ItemSlot | null>(
         NUM_INVENTORY_SLOTS,
       ).fill(null);
       for (const slot of playerInventory) {
@@ -1037,7 +1037,7 @@ export function placeRegion(
   // Grab slots from the updated target container, which automatically handles
   // the case where the target and source players are the same as they will
   // already have source modifications applied.
-  let targetSlots = new Map<number, ItemSlot>(
+  const targetSlots = new Map<number, ItemSlot>(
     updatedTarget[targetContainerKey].slots.map((slot) => [slot.index, slot]),
   );
 

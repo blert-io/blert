@@ -24,15 +24,15 @@ interface InventorySetupsItem {
 
 type InventorySetupsData = {
   setup: {
-    inv: Array<InventorySetupsItem | null>;
-    eq: Array<InventorySetupsItem | null>;
-    rp: Array<InventorySetupsItem | null>;
-    qv?: Array<InventorySetupsItem | null>;
+    inv: (InventorySetupsItem | null)[];
+    eq: (InventorySetupsItem | null)[];
+    rp: (InventorySetupsItem | null)[];
+    qv?: (InventorySetupsItem | null)[];
     name: string;
     hc: string;
     sb: number;
   };
-  layout: Array<number | null>;
+  layout: (number | null)[];
 };
 
 // Map our equipment slot indices to Inventory Setups indices.
@@ -189,7 +189,7 @@ function exportPlayerToInventorySetups(
   const pouch = new Array<InventorySetupsItem | null>(NUM_POUCH_SLOTS).fill(
     null,
   );
-  const quiver: Array<InventorySetupsItem | null> = [];
+  const quiver: (InventorySetupsItem | null)[] = [];
 
   // Fill inventory slots
   for (const slot of player.inventory.slots) {
@@ -363,7 +363,9 @@ export function exportPlayer(
     case 'inventory-setups':
       return JSON.stringify(exportPlayerToInventorySetups(player));
     default:
-      throw new TranslateError(`Unsupported export format: ${format}`);
+      throw new TranslateError(
+        `Unsupported export format: ${format as string}`,
+      );
   }
 }
 
@@ -402,15 +404,17 @@ export function importSetup(data: string): GearSetupPlayer {
     throw new TranslateError('Empty setup data');
   }
 
-  const parsed = JSON.parse(data);
+  const parsed: unknown = JSON.parse(data);
   if (typeof parsed !== 'object' || parsed === null) {
     throw new TranslateError('Invalid setup data');
   }
 
   // Attempt to detect the format of the setup data.
-  if (parsed.setup !== undefined) {
-    if (parsed.setup.inv || parsed.setup.eq || parsed.setup.rp) {
-      return importInventorySetups(parsed);
+  const obj = parsed as Record<string, unknown>;
+  if (obj.setup !== undefined) {
+    const setup = obj.setup as Record<string, unknown>;
+    if (setup.inv || setup.eq || setup.rp) {
+      return importInventorySetups(parsed as InventorySetupsData);
     }
   }
 
