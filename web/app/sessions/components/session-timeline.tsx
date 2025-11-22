@@ -67,7 +67,7 @@ interface CustomTooltipProps {
 }
 
 function CustomTooltip({ active = false, payload }: CustomTooltipProps) {
-  if (!active || !payload || !payload[0]) {
+  if (!active || !payload?.[0]) {
     return null;
   }
 
@@ -426,7 +426,7 @@ export default function SessionTimeline() {
     if (index > 0) {
       // Check if there was a break between the previous challenge and this one.
       const prevChallenge = session.challenges[index - 1];
-      const prevEndTime = prevChallenge.finishTime || prevChallenge.startTime;
+      const prevEndTime = prevChallenge.finishTime ?? prevChallenge.startTime;
       const breakDurationMinutes = mins(
         challenge.startTime.getTime() - prevEndTime.getTime(),
       );
@@ -484,7 +484,7 @@ export default function SessionTimeline() {
   // 100% zoom baseline.
   // For width, use container width minus margins/padding
   // (1rem padding = 16px on each side, plus Y-axis width).
-  const availableWidth = (containerRef.current?.clientWidth || 800) - 32 - 50;
+  const availableWidth = (containerRef.current?.clientWidth ?? 800) - 32 - 50;
   const baseChartWidth = Math.max(availableWidth, MIN_TIMELINE_WIDTH);
 
   // For height, ensure it fills the available space.

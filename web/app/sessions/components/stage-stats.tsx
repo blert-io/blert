@@ -85,7 +85,7 @@ function stageIcon(stage: Stage): React.ReactNode {
 
 function StageStatCard({
   stageStats,
-  challengeType,
+  challengeType: _challengeType,
 }: {
   stageStats: StageStatistics;
   challengeType: string;
@@ -332,7 +332,7 @@ export default function StageStats() {
         const splitData = stageChallenges
           .map((c) => {
             const split = c.splits[splitType];
-            if (!split || !split.accurate) {
+            if (!split?.accurate) {
               return undefined;
             }
             return split.ticks;

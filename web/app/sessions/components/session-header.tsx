@@ -47,12 +47,12 @@ export default function SessionHeader() {
           text: `Check out this ${challengeName(session.challengeType)} session with ${stats.completionRate.toFixed(1)}% success rate!`,
           url: window.location.href,
         });
-      } catch (err) {
+      } catch {
         // Fallback to clipboard
-        copyToClipboard();
+        void copyToClipboard();
       }
     } else {
-      copyToClipboard();
+      void copyToClipboard();
     }
   };
 
@@ -60,8 +60,8 @@ export default function SessionHeader() {
     try {
       await navigator.clipboard.writeText(window.location.href);
       showToast('Session link copied to clipboard', 'success');
-    } catch (err) {
-      console.error('Failed to copy to clipboard:', err);
+    } catch (e) {
+      console.error('Failed to copy to clipboard:', e);
       showToast('Failed to copy link', 'error');
     }
   };
@@ -70,7 +70,7 @@ export default function SessionHeader() {
     try {
       await refetchSession();
       showToast('Session data refreshed');
-    } catch (err) {
+    } catch {
       showToast('Failed to refresh data', 'error');
     }
   };
@@ -166,14 +166,17 @@ export default function SessionHeader() {
         </div>
 
         <div className={styles.quickActions}>
-          <button className={styles.actionButton} onClick={handleShare}>
+          <button
+            className={styles.actionButton}
+            onClick={() => void handleShare()}
+          >
             <i className="fas fa-share" />
             Share
           </button>
           {isLive && (
             <button
               className={`${styles.actionButton} ${isLoading ? styles.loading : ''}`}
-              onClick={handleRefresh}
+              onClick={() => void handleRefresh()}
               disabled={isLoading}
             >
               <i className={`fas fa-sync ${isLoading ? 'fa-spin' : ''}`} />
