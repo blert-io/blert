@@ -373,11 +373,10 @@ export class EditingContext {
       // Only update if the grid coordinates actually changed.
       const current = prev.placementHoverTarget;
       if (
-        current &&
-        current.container === container &&
-        current.playerIndex === playerIndex &&
-        current.gridCoords[0] === gridCoords[0] &&
-        current.gridCoords[1] === gridCoords[1]
+        current?.container === container &&
+        current?.playerIndex === playerIndex &&
+        current?.gridCoords[0] === gridCoords[0] &&
+        current?.gridCoords[1] === gridCoords[1]
       ) {
         return prev;
       }
@@ -455,7 +454,7 @@ export class EditingContext {
         prev.placementOffset,
       );
 
-      let updates: Partial<EditableGearSetup> = {};
+      const updates: Partial<EditableGearSetup> = {};
 
       if (result !== null) {
         const [updatedTarget, updatedSource, newRegion] = result;
@@ -512,7 +511,7 @@ export class EditingContext {
         prev.placementOffset,
       );
 
-      let updates: Partial<EditableGearSetup> = {};
+      const updates: Partial<EditableGearSetup> = {};
       let newMode: OperationMode;
 
       if (result !== null) {
