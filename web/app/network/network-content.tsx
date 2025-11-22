@@ -24,11 +24,11 @@ import styles from './network-content.module.scss';
 
 export type NetworkData = {
   nodes: string[];
-  edges: Array<{
+  edges: {
     source: string;
     target: string;
     value: number;
-  }>;
+  }[];
   meta: {
     filters: {
       type?: ChallengeType;
@@ -53,10 +53,10 @@ export type NetworkFilters = {
 export type SelectedNode = {
   username: string;
   connections: number;
-  neighbors: Array<{
+  neighbors: {
     username: string;
     edgeCount: number;
-  }>;
+  }[];
 } | null;
 
 export default function NetworkContent() {
@@ -103,7 +103,7 @@ export default function NetworkContent() {
         throw new Error(`Failed to fetch network data: ${response.statusText}`);
       }
 
-      const data: NetworkData = await response.json();
+      const data = (await response.json()) as NetworkData;
 
       startTransition(() => {
         setNetworkData(data);
@@ -123,7 +123,7 @@ export default function NetworkContent() {
   }, [filters, showToast]);
 
   useEffect(() => {
-    fetchNetworkData();
+    void fetchNetworkData();
   }, [fetchNetworkData]);
 
   const handleFiltersChange = useCallback((newFilters: NetworkFilters) => {
@@ -160,7 +160,10 @@ export default function NetworkContent() {
           <i className="fas fa-exclamation-triangle" />
           <h3>Failed to Load Network</h3>
           <p>{error}</p>
-          <button className={styles.retryButton} onClick={handleRefresh}>
+          <button
+            className={styles.retryButton}
+            onClick={() => void handleRefresh()}
+          >
             <i className="fas fa-redo" />
             Try Again
           </button>
@@ -183,8 +186,8 @@ export default function NetworkContent() {
               filters={filters}
               onFiltersChange={handleFiltersChange}
               loading={updating}
-              nodeCount={networkData?.nodes.length || 0}
-              edgeCount={networkData?.edges.length || 0}
+              nodeCount={networkData?.nodes.length ?? 0}
+              edgeCount={networkData?.edges.length ?? 0}
               focusedPlayer={focusedPlayer}
               onFocusPlayer={handleFocusPlayer}
             />
