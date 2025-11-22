@@ -33,9 +33,7 @@
   overflow: hidden;
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    margin-bottom: 16px;
+    margin-bottom: 0.5rem;
   }
 
   .tab {
@@ -63,6 +61,10 @@
 
     i {
       font-size: 0.9em;
+
+      @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+        font-size: 1.3em;
+      }
     }
 
     &:hover {
