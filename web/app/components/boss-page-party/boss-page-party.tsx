@@ -43,7 +43,7 @@ export default function BossPageParty({
       <h2>{username}</h2>
       <div className={styles.prayers}>
         <KeyPrayers
-          prayerSet={state?.player.prayerSet || 0}
+          prayerSet={state?.player.prayerSet ?? 0}
           source={state?.player.source}
         />
       </div>

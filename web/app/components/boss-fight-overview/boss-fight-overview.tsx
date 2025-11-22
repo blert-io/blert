@@ -16,7 +16,7 @@ interface BossFightOverviewProps {
   className?: string;
   image: string;
   time: number;
-  sections?: Array<BossFightOverviewSection>;
+  sections?: BossFightOverviewSection[];
 }
 
 export function BossFightOverview({

@@ -49,7 +49,7 @@ export function updateInterpolation(
   terrain?: Terrain,
 ): { position: Coords; interpolationState: InterpolationState } {
   const from = entity.position;
-  const to = entity.nextPosition || entity.position;
+  const to = entity.nextPosition ?? entity.position;
 
   // Snap to the position if not playing or interpolation is disabled.
   if (!playing || !config.interpolationEnabled) {

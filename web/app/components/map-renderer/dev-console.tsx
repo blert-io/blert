@@ -125,7 +125,7 @@ export default function DevConsole({
 
     // Start a new completion.
     let matches: string[] = [];
-    let originalInput = input;
+    const originalInput = input;
 
     if (parts.length === 1) {
       const availableCommands = Object.keys(COMMANDS);

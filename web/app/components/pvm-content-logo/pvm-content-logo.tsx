@@ -36,14 +36,15 @@ const getPvMContentLogo = (pvmContent: PvMContent) => {
 export function PvMContentLogo(props: PvMContentLogoProps) {
   const display = useContext(DisplayContext);
 
-  let {
+  const {
     pvmContent,
     className,
-    height = 300,
+    height: initialHeight = 300,
     width = 890,
     simple = false,
   } = props;
 
+  let height = initialHeight;
   if (display.isCompact()) {
     height = Math.floor(height / 1.5);
   }

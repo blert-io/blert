@@ -37,7 +37,7 @@ export default function Statistic(props: StatisticProps) {
     value += unit;
   }
 
-  let fontSize = Math.max(maxFontSize - value.length * 2, 14);
+  const fontSize = Math.max(maxFontSize - value.length * 2, 14);
 
   const classNames = [
     styles.statistic,
@@ -45,7 +45,7 @@ export default function Statistic(props: StatisticProps) {
     props.simple && styles.simple,
   ].filter(Boolean);
 
-  let tooltipProperties: Record<string, string> = {};
+  const tooltipProperties: Record<string, string> = {};
   if (tooltip) {
     tooltipProperties['data-tooltip-id'] = GLOBAL_TOOLTIP_ID;
     tooltipProperties['data-tooltip-content'] = tooltip;

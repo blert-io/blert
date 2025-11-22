@@ -9,12 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import {
-  MapControls,
-  OrthographicCamera,
-  Plane,
-  useTexture,
-} from '@react-three/drei';
+import { MapControls, OrthographicCamera, useTexture } from '@react-three/drei';
 import { Canvas, ThreeEvent, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { MapControls as MapControlsImpl } from 'three-stdlib';
@@ -119,7 +114,7 @@ function MapScene({
       }
 
       const tile = `${entity.position.x},${entity.position.y}`;
-      const stack = tileMap.get(tile) || new Map<string, StackEntity>();
+      const stack = tileMap.get(tile) ?? new Map<string, StackEntity>();
       stack.set(entity.getUniqueId(), {
         entity,
         fanOutIndex: stack.size,
@@ -127,7 +122,7 @@ function MapScene({
       tileMap.set(tile, stack);
     }
 
-    const multiEntityStacks: Array<{ position: Coords; stack: StackMap }> = [];
+    const multiEntityStacks: { position: Coords; stack: StackMap }[] = [];
 
     for (const [tile, stack] of tileMap) {
       if (stack.size > 1) {
@@ -453,7 +448,7 @@ export default function MapCanvas({
   onEntitySelected,
   onEntityHovered,
   selectedEntity,
-  followedActor = null,
+  followedActor: _followedActor = null,
   keyboardControlsEnabled = true,
   keyboardControlsSpeed = 16,
   preloadTextures,

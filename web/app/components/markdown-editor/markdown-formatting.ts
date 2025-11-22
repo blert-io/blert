@@ -118,7 +118,7 @@ export function cycleHeadingLevel(
 
   let newLine: string;
 
-  const match = line.text.match(/^(#{1,6})\s+/);
+  const match = /^(#{1,6})\s+/.exec(line.text);
   if (match === null) {
     newLine = `## ${line.text}`;
   } else if (match[1].length < 6) {
@@ -189,7 +189,7 @@ function handleTabInList(
   const [cursorPos, cursorEnd] = selection;
 
   // Check if we're in a list (bullet or numbered).
-  const listMatch = line.text.match(/^(\s*)(-|\d+\.)\s+(.*)$/);
+  const listMatch = /^(\s*)(-|\d+\.)\s+(.*)$/.exec(line.text);
   if (!listMatch) {
     return null;
   }
@@ -256,7 +256,7 @@ function handleTabInQuote(
 ): [string, SelectionRange] | null {
   const [cursorPos, cursorEnd] = selection;
 
-  const quoteMatch = line.text.match(/^(>\s*)(.*)$/);
+  const quoteMatch = /^(>\s*)(.*)$/.exec(line.text);
   if (!quoteMatch) {
     return null;
   }
@@ -307,7 +307,7 @@ function handleEnterInBulletList(
   cursorPos: number,
   line: Line,
 ): [string, number] | null {
-  const bulletMatch = line.text.match(/^(\s*)-\s+(.*)$/);
+  const bulletMatch = /^(\s*)-\s+(.*)$/.exec(line.text);
   if (!bulletMatch) {
     return null;
   }
@@ -340,7 +340,7 @@ function handleEnterInNumberedList(
   cursorPos: number,
   line: Line,
 ): [string, number] | null {
-  const numberedMatch = line.text.match(/^(\s*)(\d+)\.\s+(.*)$/);
+  const numberedMatch = /^(\s*)(\d+)\.\s+(.*)$/.exec(line.text);
   if (!numberedMatch) {
     return null;
   }
@@ -375,7 +375,7 @@ function handleEnterInQuote(
   cursorPos: number,
   line: Line,
 ): [string, number] | null {
-  const quoteMatch = line.text.match(/^(>\s*)(.*)$/);
+  const quoteMatch = /^(>\s*)(.*)$/.exec(line.text);
   if (!quoteMatch) {
     return null;
   }

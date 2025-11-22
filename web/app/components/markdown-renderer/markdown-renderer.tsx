@@ -5,7 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
-import { ComponentPropsWithoutRef, useState, useEffect, useRef } from 'react';
+import { ComponentPropsWithoutRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
 import 'katex/dist/katex.min.css';
@@ -189,7 +189,7 @@ export default function MarkdownRenderer({
                     className={styles.invalidImage}
                     title="Image from untrusted source"
                   >
-                    [Invalid or untrusted image: {alt || 'no description'}]
+                    [Invalid or untrusted image: {alt ?? 'no description'}]
                   </span>
                 );
               }
@@ -198,22 +198,22 @@ export default function MarkdownRenderer({
                 <span
                   className={styles.imageWrapper}
                   onClick={() =>
-                    setViewedImage({ src, alt: alt || 'Setup image' })
+                    setViewedImage({ src, alt: alt ?? 'Setup image' })
                   }
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      setViewedImage({ src, alt: alt || 'Setup image' });
+                      setViewedImage({ src, alt: alt ?? 'Setup image' });
                     }
                   }}
-                  aria-label={`View full size: ${alt || 'Setup image'}`}
+                  aria-label={`View full size: ${alt ?? 'Setup image'}`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={src}
-                    alt={alt || 'Setup image'}
+                    alt={alt ?? 'Setup image'}
                     loading="lazy"
                     className={styles.image}
                   />
@@ -250,22 +250,22 @@ export default function MarkdownRenderer({
               }
               return <input type={type} {...props} />;
             },
-            h1: ({ children, node, ...props }) => (
+            h1: ({ children, node: _node, ...props }) => (
               <h3 {...props}>{children}</h3>
             ),
-            h2: ({ children, node, ...props }) => (
+            h2: ({ children, node: _node, ...props }) => (
               <h4 {...props}>{children}</h4>
             ),
-            h3: ({ children, node, ...props }) => (
+            h3: ({ children, node: _node, ...props }) => (
               <h5 {...props}>{children}</h5>
             ),
-            h4: ({ children, node, ...props }) => (
+            h4: ({ children, node: _node, ...props }) => (
               <h6 {...props}>{children}</h6>
             ),
-            h5: ({ children, node, ...props }) => (
+            h5: ({ children, node: _node, ...props }) => (
               <h6 {...props}>{children}</h6>
             ),
-            h6: ({ children, node, ...props }) => (
+            h6: ({ children, node: _node, ...props }) => (
               <h6 {...props}>{children}</h6>
             ),
           }}

@@ -195,7 +195,7 @@ export default function MapFloor({
   baseTiles = [],
 }: MapFloorProps) {
   const chunks = useMemo(() => {
-    const chunkList: Array<{ chunkX: number; chunkY: number }> = [];
+    const chunkList: { chunkX: number; chunkY: number }[] = [];
 
     const startChunkX = Math.floor(baseX / CHUNK_SIZE);
     const endChunkX = Math.floor((baseX + width - 1) / CHUNK_SIZE);
