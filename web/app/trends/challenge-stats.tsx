@@ -19,11 +19,13 @@ import {
   YAxis,
 } from 'recharts';
 
-import { getTotalDeathsByStage } from '@/actions/challenge';
+import {
+  getTotalDeathsByStage,
+  GroupedAggregationResult,
+} from '@/actions/challenge';
 import Card from '@/components/card';
 import Statistic from '@/components/statistic';
 import { DisplayContext } from '@/display';
-import BloatIcon from '@/svg/bloat.svg';
 
 import styles from './style.module.scss';
 
@@ -54,9 +56,9 @@ export default function ChallengeStats({
 }: ChallengeStatsProps) {
   const display = useContext(DisplayContext);
 
-  const [deathsByStage, setDeathsByStage] = useState<{
-    [key: number]: number;
-  }>({});
+  const [deathsByStage, setDeathsByStage] = useState<Record<number, number>>(
+    {},
+  );
 
   const [completionStats, setCompletionStats] =
     useState<CompletionStats | null>(null);
@@ -73,18 +75,20 @@ export default function ChallengeStats({
           ),
           fetch(`/api/v1/challenges/stats?type=${challenge}&group=status`)
             .then((res) => res.json())
-            .then((res) => {
-              const completions =
-                res[ChallengeStatus.COMPLETED]?.['*'].count ?? 0;
-              const resets = res[ChallengeStatus.RESET]?.['*'].count ?? 0;
-              const wipes = res[ChallengeStatus.WIPED]?.['*'].count ?? 0;
-              setCompletionStats({
-                completions,
-                resets,
-                wipes,
-                total: completions + resets + wipes,
-              });
-            }),
+            .then(
+              (res: GroupedAggregationResult<{ '*': 'count' }, ['status']>) => {
+                const completions =
+                  res[ChallengeStatus.COMPLETED]?.['*'].count ?? 0;
+                const resets = res[ChallengeStatus.RESET]?.['*'].count ?? 0;
+                const wipes = res[ChallengeStatus.WIPED]?.['*'].count ?? 0;
+                setCompletionStats({
+                  completions,
+                  resets,
+                  wipes,
+                  total: completions + resets + wipes,
+                });
+              },
+            ),
         ];
 
         await Promise.all(fetches);
@@ -95,7 +99,7 @@ export default function ChallengeStats({
       }
     };
 
-    fetchData();
+    void fetchData();
   }, [challenge]);
 
   const deathData = Object.entries(deathsByStage).map(([stage, deaths]) => ({
@@ -249,7 +253,10 @@ export default function ChallengeStats({
                       boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
                     }}
                     cursor={{ fill: 'rgba(139, 92, 246, 0.1)' }}
-                    labelFormatter={(label: string, payload: any) => {
+                    labelFormatter={(
+                      label: string,
+                      payload: { payload?: { stage?: number } }[],
+                    ) => {
                       // Try to use the stage's full name, but fall back to the
                       // short name if it's not available.
                       const stage = payload[0]?.payload?.stage;
