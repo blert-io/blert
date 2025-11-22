@@ -154,7 +154,10 @@ export default function GettingStarted() {
   );
 }
 
-export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
+export async function generateMetadata(
+  _props: object,
+  parent: ResolvingMetadata,
+) {
   return basicMetadata(await parent, {
     title: 'Getting Started with Blert',
     description:

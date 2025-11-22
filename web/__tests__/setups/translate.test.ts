@@ -4,6 +4,7 @@ import {
   exportPlayer,
   exportSetup,
   importInventorySetups,
+  importSetup,
 } from '@/setups/translate';
 
 import emptySlotsBlertSetup from './empty-slots.blert.json';
@@ -23,6 +24,20 @@ describe('inventory-setups', () => {
 
       expect(() => exportSetup(setup, 0, 'inventory-setups')).toThrow(
         'Invalid player index',
+      );
+    });
+
+    it('should throw an error for unsupported export format', () => {
+      const player: GearSetupPlayer = {
+        name: 'Test Player',
+        spellbook: Spellbook.STANDARD,
+        inventory: { slots: [] },
+        equipment: { slots: [] },
+        pouch: { slots: [] },
+      };
+
+      expect(() => exportPlayer(player, 'unsupported-format' as any)).toThrow(
+        'Unsupported export format: unsupported-format',
       );
     });
 
@@ -218,6 +233,54 @@ describe('inventory-setups', () => {
 
       const importedEmptySlots = importAndSort(emptySlotsInventorySetupsSetup);
       expect(importedEmptySlots).toEqual(emptySlotsBlertSetup);
+    });
+  });
+
+  describe('importSetup', () => {
+    it('should throw an error for empty data', () => {
+      expect(() => importSetup('')).toThrow('Empty setup data');
+    });
+
+    it('should throw an error for non-object JSON', () => {
+      expect(() => importSetup('"string"')).toThrow('Invalid setup data');
+      expect(() => importSetup('123')).toThrow('Invalid setup data');
+      expect(() => importSetup('null')).toThrow('Invalid setup data');
+      expect(() => importSetup('true')).toThrow('Invalid setup data');
+    });
+
+    it('should throw an error for unsupported format', () => {
+      expect(() => importSetup('{}')).toThrow(
+        'Invalid or unsupported setup import format',
+      );
+      expect(() => importSetup('{"foo": "bar"}')).toThrow(
+        'Invalid or unsupported setup import format',
+      );
+      expect(() => importSetup('{"setup": {}}')).toThrow(
+        'Invalid or unsupported setup import format',
+      );
+    });
+
+    it('should successfully import inventory-setups format', () => {
+      const setup = {
+        setup: {
+          name: 'Test Player',
+          inv: new Array(28).fill(null),
+          eq: new Array(14).fill(null),
+          rp: new Array(4).fill(null),
+          hc: '#FFFF0000',
+          sb: 0,
+        },
+        layout: [],
+      };
+
+      const imported = importSetup(JSON.stringify(setup));
+      expect(imported).toEqual({
+        name: 'Test Player',
+        spellbook: Spellbook.STANDARD,
+        inventory: { slots: [] },
+        equipment: { slots: [] },
+        pouch: { slots: [] },
+      });
     });
   });
 });

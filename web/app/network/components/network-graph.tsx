@@ -61,11 +61,11 @@ export default function NetworkGraph({
       networkData.edges.forEach((edge) => {
         nodeConnections.set(
           edge.source,
-          (nodeConnections.get(edge.source) || 0) + 1,
+          (nodeConnections.get(edge.source) ?? 0) + 1,
         );
         nodeConnections.set(
           edge.target,
-          (nodeConnections.get(edge.target) || 0) + 1,
+          (nodeConnections.get(edge.target) ?? 0) + 1,
         );
       });
 
@@ -74,7 +74,7 @@ export default function NetworkGraph({
       const connectionRange = maxConnections - minConnections || 1;
 
       networkData.nodes.forEach((node, i) => {
-        const connections = nodeConnections.get(node) || 0;
+        const connections = nodeConnections.get(node) ?? 0;
         const normalizedSize = (connections - minConnections) / connectionRange;
         const size = 3 + normalizedSize * 12;
 
@@ -134,17 +134,29 @@ export default function NetworkGraph({
           focusedPlayer,
         });
 
-        worker.onmessage = (e) => {
-          const { success, graphData, error } = e.data;
+        worker.onmessage = (e: MessageEvent) => {
+          const { success, graphData, error } = e.data as {
+            success: boolean;
+            graphData: {
+              nodes: { key: string; attributes: object }[];
+              edges: {
+                key: string;
+                source: string;
+                target: string;
+                attributes: object;
+              }[];
+            };
+            error?: string;
+          };
 
           if (success) {
             const newGraph = new Graph();
 
-            graphData.nodes.forEach((nodeData: any) => {
+            graphData.nodes.forEach((nodeData) => {
               newGraph.addNode(nodeData.key, nodeData.attributes);
             });
 
-            graphData.edges.forEach((edgeData: any) => {
+            graphData.edges.forEach((edgeData) => {
               newGraph.addEdge(
                 edgeData.source,
                 edgeData.target,
@@ -161,7 +173,7 @@ export default function NetworkGraph({
         };
 
         worker.onerror = (error) => {
-          reject(error);
+          reject(new Error(error.message));
           worker.terminate();
         };
       });
@@ -203,7 +215,7 @@ export default function NetworkGraph({
 
           return {
             username: neighborId,
-            edgeCount: graph.getEdgeAttribute(edgeKey, 'weight'),
+            edgeCount: graph.getEdgeAttribute(edgeKey, 'weight') as number,
           };
         })
         .sort((a, b) => b.edgeCount - a.edgeCount);
@@ -229,7 +241,7 @@ export default function NetworkGraph({
       const edgeId = event.edge;
       const source = graph.source(edgeId);
       const target = graph.target(edgeId);
-      const weight = graph.getEdgeAttribute(edgeId, 'weight');
+      const weight = graph.getEdgeAttribute(edgeId, 'weight') as number;
 
       setEdgeTooltip({
         x: event.event.x,
@@ -296,7 +308,7 @@ export default function NetworkGraph({
       }
     };
 
-    initializeGraph();
+    void initializeGraph();
 
     return () => {
       if (sigmaRef.current) {

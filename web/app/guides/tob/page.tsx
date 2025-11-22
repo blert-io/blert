@@ -113,7 +113,10 @@ export default function TobGuides() {
   );
 }
 
-export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
+export async function generateMetadata(
+  _props: object,
+  parent: ResolvingMetadata,
+) {
   return basicMetadata(await parent, {
     title: 'OSRS Theatre of Blood Guides & Strategies',
     description:

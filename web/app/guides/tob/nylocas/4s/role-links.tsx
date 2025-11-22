@@ -35,9 +35,6 @@ function RoleLink({ role, active }: { role: Role; active: boolean }) {
 }
 
 export default function RoleLinks({ active }: RoleLinksProps) {
-  const activeClass = (role: RoleLinksProps['active']) =>
-    role === active ? `${styles.link} ${styles.active}` : styles.link;
-
   return (
     <div className={styles.roleLinks}>
       <RoleLink role="mage" active={active === 'mage'} />

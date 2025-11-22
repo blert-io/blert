@@ -250,7 +250,10 @@ export default function PluginGuide() {
   );
 }
 
-export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
+export async function generateMetadata(
+  _props: object,
+  parent: ResolvingMetadata,
+) {
   return basicMetadata(await parent, {
     title: 'Best RuneLite Plugins for Theatre of Blood (OSRS Guide)',
     description:

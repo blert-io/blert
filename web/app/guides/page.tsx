@@ -165,7 +165,10 @@ export default function GuidesPage() {
   );
 }
 
-export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
+export async function generateMetadata(
+  _props: object,
+  parent: ResolvingMetadata,
+) {
   return basicMetadata(await parent, {
     title: 'OSRS PvM Guides & Strategies',
     description:

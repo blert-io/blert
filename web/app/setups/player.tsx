@@ -42,7 +42,7 @@ function slotsByIndex(slots: ItemSlot[]): Record<number, ItemSlot> {
   return slots.reduce((acc, slot) => ({ ...acc, [slot.index]: slot }), {});
 }
 
-const EQUIPMENT_LAYOUT: Array<EquipmentSlot | null> = [
+const EQUIPMENT_LAYOUT: (EquipmentSlot | null)[] = [
   null,
   EquipmentSlot.HEAD,
   QUIVER_SLOT_INDEX,
@@ -85,12 +85,11 @@ export function Player({ index, player }: PlayerProps) {
     (format: ExportFormat) => {
       try {
         const exported = exportPlayer(player, format);
-        navigator.clipboard.writeText(exported);
+        void navigator.clipboard.writeText(exported);
         sendToast(`Setup for ${player.name} copied to clipboard`);
       } catch (e) {
         if (e instanceof TranslateError) {
-          const error = e as TranslateError;
-          sendToast(`Failed to export player: ${error.message}`, 'error');
+          sendToast(`Failed to export player: ${e.message}`, 'error');
         } else {
           sendToast('Failed to export player', 'error');
         }
@@ -111,11 +110,10 @@ export function Player({ index, player }: PlayerProps) {
       const text = await clipboard.readText();
       const setup = importSetup(text);
       editingContext.updatePlayer(index, (_) => setup);
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error instanceof TranslateError) {
-        const e = error as TranslateError;
         sendToast(
-          `Failed to import setup from clipboard: ${e.message}`,
+          `Failed to import setup from clipboard: ${error.message}`,
           'error',
         );
       } else {
@@ -152,7 +150,7 @@ export function Player({ index, player }: PlayerProps) {
                 onClick={() => {
                   const url = new URL(window.location.href);
                   url.searchParams.set('player', (index + 1).toString());
-                  navigator.clipboard.writeText(url.toString());
+                  void navigator.clipboard.writeText(url.toString());
                   sendToast(`Link to ${player.name} copied to clipboard`);
                 }}
                 title="Copy link to this player"
@@ -277,7 +275,7 @@ export function Player({ index, player }: PlayerProps) {
       </div>
       {editingContext !== null && (
         <div className={styles.editActions}>
-          <button className={styles.import} onClick={handleImport}>
+          <button className={styles.import} onClick={() => void handleImport()}>
             <i className="fas fa-upload" />
             Import from clipboard
           </button>
