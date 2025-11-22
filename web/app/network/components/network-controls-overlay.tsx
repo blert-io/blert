@@ -59,7 +59,7 @@ export default function NetworkControlsOverlay({
   const handleScaleChange = useCallback(
     (scaleValue: string, checked: boolean) => {
       const scale = parseInt(scaleValue);
-      const currentScales = filters.scale || [];
+      const currentScales = filters.scale ?? [];
 
       let newScales: number[];
       if (checked) {
@@ -249,7 +249,7 @@ export default function NetworkControlsOverlay({
                     label={
                       scale === 2 ? 'Duo' : scale === 3 ? 'Trio' : `${scale}s`
                     }
-                    checked={filters.scale?.includes(scale) || false}
+                    checked={filters.scale?.includes(scale) ?? false}
                     onChange={(checked) =>
                       handleScaleChange(scale.toString(), checked)
                     }
@@ -260,14 +260,14 @@ export default function NetworkControlsOverlay({
 
             <div className={styles.connectionThreshold}>
               <label className={styles.controlLabel}>
-                Min. Raids Together: {filters.minConnections || 5}
+                Min. Raids Together: {filters.minConnections ?? 5}
               </label>
               <input
                 type="range"
                 min="5"
                 max="50"
                 step="5"
-                value={filters.minConnections || 5}
+                value={filters.minConnections ?? 5}
                 onChange={(e) => handleMinConnectionsChange(e.target.value)}
                 className={styles.slider}
               />
