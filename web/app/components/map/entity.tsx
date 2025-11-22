@@ -97,7 +97,7 @@ export function MapEntity(props: MapEntityProps) {
     };
   }
 
-  let entityStyle: React.CSSProperties = {
+  const entityStyle: React.CSSProperties = {
     border,
     cursor: canClick ? 'pointer' : 'default',
     height: size,

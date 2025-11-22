@@ -54,9 +54,9 @@ export default function Map({
   );
 
   const [tiles, mapEntities] = useMemo(() => {
-    let tiles: TileData[][] = [];
+    const tiles: TileData[][] = [];
     for (let yy = y; yy < y + height; yy++) {
-      let row: TileData[] = [];
+      const row: TileData[] = [];
       for (let xx = x; xx < x + width; xx++) {
         row.push({ x: xx, y: yy, entities: [] });
       }
@@ -64,7 +64,7 @@ export default function Map({
     }
 
     for (const baseTile of baseTiles) {
-      let tile = getTileForCoords(baseTile.x, baseTile.y, tiles);
+      const tile = getTileForCoords(baseTile.x, baseTile.y, tiles);
       if (tile === null) {
         console.error(
           `base tile (${baseTile.x},${baseTile.y}) is out-of-bounds`,
@@ -77,11 +77,11 @@ export default function Map({
       }
     }
 
-    let mapEntities: Entity[] = [];
-    let packedTiles: TileData[] = [];
+    const mapEntities: Entity[] = [];
+    const packedTiles: TileData[] = [];
 
     for (const entity of entities) {
-      let tile = getTileForCoords(entity.x, entity.y, tiles);
+      const tile = getTileForCoords(entity.x, entity.y, tiles);
       if (tile !== null) {
         mapEntities.push(entity);
 
@@ -150,8 +150,8 @@ export default function Map({
     }
 
     if (faceSouth) {
-      for (let i = 0; i < tiles.length; i++) {
-        tiles[i].reverse();
+      for (const row of tiles) {
+        row.reverse();
       }
     } else {
       // The y coordinate goes from bottom to top, but we have to render from
@@ -180,7 +180,7 @@ export default function Map({
       style={{ width: widthPx }}
       onClick={() => setSelectedTile(null)}
     >
-      {tiles.map((row, i) => (
+      {tiles.map((row) => (
         <div key={row[0].y} className={styles.mapRow} data-row-y={row[0].y}>
           {row.map((tile) => (
             <Tile key={tile.x} size={tileSize} tile={tile} />
