@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
             };
           }
       }
-    } catch (e) {
+    } catch {
       return Response.json({ error: 'Invalid cursor' }, { status: 400 });
     }
   }

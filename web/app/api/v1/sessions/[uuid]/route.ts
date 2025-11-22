@@ -12,8 +12,8 @@ export async function GET(
     const session = await loadSessionWithStats(uuid);
     // TODO(frolv): Cache the session if it is completed.
     return Response.json(session);
-  } catch (e: any) {
-    if (e.name === 'InvalidQueryError') {
+  } catch (e) {
+    if (e instanceof Error && e.name === 'InvalidQueryError') {
       return new Response(null, { status: 400 });
     }
 

@@ -45,7 +45,7 @@ function comparatorValue<T>(
     return ['in', values.map(constructor)];
   }
 
-  let match = value.match(SPREAD_REGEX);
+  let match = SPREAD_REGEX.exec(value);
   if (match !== null) {
     const lhs = match[1];
     const rhs = match[3];
@@ -61,7 +61,7 @@ function comparatorValue<T>(
     return ['range', [constructor(lhs), constructor(rhs)]];
   }
 
-  match = value.match(COMPARATOR_REGEX);
+  match = COMPARATOR_REGEX.exec(value);
   if (match === null) {
     if (VALUE_REGEX.test(value)) {
       return ['==', constructor(value)];
