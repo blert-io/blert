@@ -19,7 +19,7 @@ function PlayerPBTooltipRenderer({
 }: {
   activeAnchor: HTMLElement | null;
 }) {
-  if (!activeAnchor || activeAnchor.dataset.tooltipType !== 'player-pbs') {
+  if (activeAnchor?.dataset.tooltipType !== 'player-pbs') {
     return null;
   }
 

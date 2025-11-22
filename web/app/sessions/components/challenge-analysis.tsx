@@ -3,7 +3,6 @@
 import {
   ChallengeType,
   generalizeSplit,
-  RELEVANT_PB_SPLITS,
   splitName,
   SplitType,
   Stage,
@@ -60,8 +59,8 @@ type AggregatedData = {
   median: number;
   mode: number | null;
   dataPoints: number;
-  values: Array<{ challengeIndex: number; value: number; uuid: string }>;
-  distribution: Array<{ value: number; count: number; percentage: number }>;
+  values: { challengeIndex: number; value: number; uuid: string }[];
+  distribution: { value: number; count: number; percentage: number }[];
 };
 
 function getAvailableStats(
@@ -284,8 +283,7 @@ function aggregateStatData(
   challengeType: ChallengeType,
   requireAccurateSplits: boolean = true,
 ): AggregatedData | null {
-  const values: Array<{ challengeIndex: number; value: number; uuid: string }> =
-    [];
+  const values: { challengeIndex: number; value: number; uuid: string }[] = [];
 
   challenges.forEach((challenge, index) => {
     let value: number | null = null;
@@ -358,7 +356,7 @@ function aggregateStatData(
 
   const frequencyMap = new Map<number, number>();
   numericValues.forEach((val) => {
-    frequencyMap.set(val, (frequencyMap.get(val) || 0) + 1);
+    frequencyMap.set(val, (frequencyMap.get(val) ?? 0) + 1);
   });
 
   let mode: number | null = null;
@@ -473,7 +471,7 @@ function DistributionChart({
   data: AggregatedData;
   selectedStat: StatOption;
 }) {
-  const formatter = selectedStat.formatter || ((value) => value.toString());
+  const formatter = selectedStat.formatter ?? ((value) => value.toString());
 
   if (data.distribution.length === 0) {
     return (
@@ -602,7 +600,7 @@ function ChartDisplay({
         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
       }}
       cursor={{ fill: 'rgba(139, 92, 246, 0.1)' }}
-      formatter={(value: number, name: string, props: any) => [
+      formatter={(value: number, _name: string, _props: any) => [
         <span key={value} style={{ color: 'var(--blert-text-color)' }}>
           {selectedStat.formatter ? selectedStat.formatter(value) : value}
         </span>,
@@ -898,9 +896,9 @@ export default function ChallengeAnalysis() {
                 aria-haspopup="menu"
               >
                 {selectedStat
-                  ? menuItems[selectedGroupIdx]?.subMenu?.find(
+                  ? (menuItems[selectedGroupIdx]?.subMenu?.find(
                       (item) => item.value === selectedStatKey,
-                    )?.label || 'Choose a statistic...'
+                    )?.label ?? 'Choose a statistic...')
                   : 'Choose a statistic...'}
                 <i className="fas fa-chevron-down" />
               </button>
@@ -918,7 +916,7 @@ export default function ChallengeAnalysis() {
                 items={
                   menuItems[selectedGroupIdx]?.subMenu?.map((item) => ({
                     ...item,
-                  })) || []
+                  })) ?? []
                 }
                 targetId="stat-select"
               />

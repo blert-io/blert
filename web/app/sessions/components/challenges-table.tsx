@@ -117,20 +117,21 @@ function ExpandedChallengeDetails({
   challenge: SessionChallenge;
 }) {
   const splits = Object.entries(challenge.splits ?? {});
-  const splitsByStage = splits.reduce<
-    Record<Stage, Array<[SplitType, SplitValue]>>
-  >((acc, [splitType, splitValue]) => {
-    const split = parseInt(splitType);
+  const splitsByStage = splits.reduce<Record<Stage, [SplitType, SplitValue][]>>(
+    (acc, [splitType, splitValue]) => {
+      const split = parseInt(splitType);
 
-    if (EXCLUDED_SPLITS.has(generalizeSplit(split))) {
+      if (EXCLUDED_SPLITS.has(generalizeSplit(split))) {
+        return acc;
+      }
+
+      const stage = splitToStage(split);
+      acc[stage] ??= [];
+      acc[stage].push([split, splitValue]);
       return acc;
-    }
-
-    const stage = splitToStage(split);
-    acc[stage] ??= [];
-    acc[stage].push([split, splitValue]);
-    return acc;
-  }, {});
+    },
+    {},
+  );
 
   const playerDeaths = challenge.party.reduce<Record<string, number>>(
     (acc, player) => {
@@ -359,7 +360,7 @@ export default function ChallengesTable() {
               return;
             }
 
-            if (accurate && ticks < bestStageSplits[generalizedSplit]!.ticks) {
+            if (accurate && ticks < bestStageSplits[generalizedSplit].ticks) {
               bestStageSplits[generalizedSplit] = {
                 ticks,
                 uuid: challenge.uuid,
@@ -713,7 +714,7 @@ export default function ChallengesTable() {
                           data-tooltip-content="Copy Link"
                           onClick={() => {
                             const url = `${window.location.origin}${challengeUrl(session.challengeType, challenge.uuid)}`;
-                            navigator.clipboard.writeText(url);
+                            void navigator.clipboard.writeText(url);
                             showToast('Link copied to clipboard', 'success');
                           }}
                         >

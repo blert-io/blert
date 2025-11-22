@@ -95,13 +95,13 @@ export default function ActionsBar() {
           text: `Check out this ${session.challengeType} session with ${session.challenges.length} ${challengeLabel}!`,
           url: window.location.href,
         });
-      } catch (error) {
+      } catch {
         // Fallback to copy link if share fails
-        handleCopyLink();
+        void handleCopyLink();
       }
     } else {
       // Fallback for browsers without native share
-      handleCopyLink();
+      void handleCopyLink();
     }
   };
 
@@ -118,7 +118,7 @@ export default function ActionsBar() {
           <div className={styles.actions}>
             <ActionButton
               icon={copiedLink ? 'fa-check' : 'fa-link'}
-              onClick={handleShare}
+              onClick={() => void handleShare()}
               variant={copiedLink ? 'success' : 'default'}
             >
               {copiedLink ? 'Copied!' : 'Share Session'}
@@ -126,7 +126,7 @@ export default function ActionsBar() {
 
             <ActionButton
               icon={exportingData ? 'fa-spinner fa-spin' : 'fa-download'}
-              onClick={handleExportData}
+              onClick={() => void handleExportData()}
               disabled={exportingData}
             >
               {exportingData ? 'Exporting...' : 'Export Data'}
