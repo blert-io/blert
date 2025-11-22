@@ -97,7 +97,7 @@ export default function ActivityChart({
               borderRadius: '4px',
               fontSize: '12px',
             }}
-            formatter={(value) => [`${value} ${valueLabel}`, 'Active']}
+            formatter={(value) => [`${String(value)} ${valueLabel}`, 'Active']}
             labelFormatter={(hour) => {
               const localHour = utcToLocal((startHour + hour) % 24);
               return formatHour(localHour);

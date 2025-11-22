@@ -47,7 +47,7 @@ export function EditableTextField(props: EditableTextFieldProps) {
     setEditing(true);
   }
 
-  const Tag = props.tag as any;
+  const Tag = props.tag as React.ElementType<React.HTMLAttributes<HTMLElement>>;
   const InputTag = props.inputTag ?? 'input';
   const style: React.CSSProperties = { width: props.width };
 
