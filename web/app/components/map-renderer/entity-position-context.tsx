@@ -18,7 +18,9 @@ export type EntityPositionContextType = {
 
 export const EntityPositionContext = createContext<EntityPositionContextType>({
   positions: new Map(),
-  updateEntityPosition: () => {},
+  updateEntityPosition: () => {
+    // Default noop implementation
+  },
 });
 
 export const useEntityPositions = () => {

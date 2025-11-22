@@ -28,7 +28,7 @@ export default function Tabs({
 }: TabsProps) {
   const [activeTab, setActiveTab] = useState(0);
   const [indicatorStyle, setIndicatorStyle] = useState<React.CSSProperties>({});
-  const tabsRef = useRef<Array<HTMLButtonElement | null>>([]);
+  const tabsRef = useRef<(HTMLButtonElement | null)[]>([]);
 
   useEffect(() => {
     const activeTabElement = tabsRef.current[activeTab];
@@ -48,7 +48,7 @@ export default function Tabs({
     className += ` ${styles.small}`;
   }
 
-  let contentStyle: React.CSSProperties = {};
+  const contentStyle: React.CSSProperties = {};
   if (maxHeight) {
     contentStyle.maxHeight = maxHeight - NAV_HEIGHT - NAV_MARGIN;
   }

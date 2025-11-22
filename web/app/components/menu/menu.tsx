@@ -66,8 +66,8 @@ type MenuProps = {
 type MenuImplProps = MenuProps & {
   parent: HTMLElement | null;
   depth: number;
-  activeElements: Array<number | null>;
-  setActiveElements: Dispatch<SetStateAction<Array<number | null>>>;
+  activeElements: (number | null)[];
+  setActiveElements: Dispatch<SetStateAction<(number | null)[]>>;
 };
 
 function MenuImpl(props: MenuImplProps) {
@@ -220,14 +220,11 @@ function maxMenuDepth(items: MenuItem[]): number {
   return max;
 }
 
-function currentDepth(active: Array<number | null>): number {
+function currentDepth(active: (number | null)[]): number {
   return active.findLastIndex((el) => el !== null);
 }
 
-function currentMenu(
-  items: MenuItem[],
-  active: Array<number | null>,
-): MenuItem[] {
+function currentMenu(items: MenuItem[], active: (number | null)[]): MenuItem[] {
   const depth = currentDepth(active);
   if (depth === -1) {
     return items;
@@ -241,9 +238,9 @@ function currentMenu(
   return menu;
 }
 
-function createActiveElementsList(items: MenuItem[]): Array<number | null> {
+function createActiveElementsList(items: MenuItem[]): (number | null)[] {
   const depth = maxMenuDepth(items);
-  return new Array(depth).fill(null);
+  return new Array<number | null>(depth).fill(null);
 }
 
 function isInteractive(item: MenuItem): boolean {
@@ -263,8 +260,8 @@ export default function Menu(props: MenuProps) {
 
   const { items, open, onBrowse, onSelection, onClose } = props;
 
-  const [activeElements, setActiveElements] = useState<Array<number | null>>(
-    () => createActiveElementsList(items),
+  const [activeElements, setActiveElements] = useState<(number | null)[]>(() =>
+    createActiveElementsList(items),
   );
 
   useEffect(() => {
@@ -428,9 +425,7 @@ export default function Menu(props: MenuProps) {
 
     return () => {
       if (portalNode.current !== null) {
-        document
-          .getElementById('portal-root')
-          ?.removeChild(portalNode.current!);
+        document.getElementById('portal-root')?.removeChild(portalNode.current);
       }
       if (closeTimeoutRef.current) {
         clearTimeout(closeTimeoutRef.current);

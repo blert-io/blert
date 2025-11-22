@@ -133,9 +133,7 @@ export default function HealthBar({
       lastHitpoints.current = hitpoints;
     }
 
-    if (animationStartTime.current === null) {
-      animationStartTime.current = currentTime;
-    }
+    animationStartTime.current ??= currentTime;
 
     const elapsedTime = currentTime - animationStartTime.current;
     const progress = Math.min(elapsedTime / config.tickDuration, 1.0);

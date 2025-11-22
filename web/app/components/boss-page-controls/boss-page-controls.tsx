@@ -122,7 +122,7 @@ export function BossPageControls(props: BossControlsProps) {
             const clampedValue = clamp(newValue, 1, totalTicks);
             updateTick(clampedValue);
             setValue(event.target.value);
-          } catch (e) {
+          } catch {
             updateTick(1);
           }
         }}
@@ -188,7 +188,7 @@ export function BossPageControls(props: BossControlsProps) {
                     const clampedValue = clamp(newValue, 1, totalTicks);
                     updateTick(clampedValue);
                     setValue(event.target.value);
-                  } catch (e) {
+                  } catch {
                     updateTick(1);
                   }
                 }}

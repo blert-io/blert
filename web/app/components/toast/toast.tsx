@@ -20,7 +20,9 @@ interface Toast {
 
 type ShowToast = (message: string, type?: ToastType) => void;
 
-export const ToastContext = createContext<ShowToast>(() => {});
+export const ToastContext = createContext<ShowToast>(() => {
+  // Default noop implementation
+});
 
 const TOAST_DURATION_MS = 4000;
 

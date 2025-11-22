@@ -14,7 +14,7 @@ type EquipmentViewerProps = {
   source?: DataSource;
 };
 
-const EQUIPMENT_OFFSETS: { [key: string]: React.CSSProperties } = {
+const EQUIPMENT_OFFSETS: Record<string, React.CSSProperties> = {
   [EquipmentSlot.HEAD]: { top: 3, left: 73 },
   [EquipmentSlot.CAPE]: { top: 53, left: 22 },
   [EquipmentSlot.AMULET]: { top: 53, left: 73 },
