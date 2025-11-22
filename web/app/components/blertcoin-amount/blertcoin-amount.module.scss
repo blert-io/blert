@@ -1,0 +1,11 @@
+.amount {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+
+  .symbol {
+    font-size: 0.85em;
+    opacity: 0.85;
+  }
+}
