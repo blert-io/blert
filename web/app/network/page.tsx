@@ -46,7 +46,10 @@ function NetworkSkeleton() {
   );
 }
 
-export async function generateMetadata(_params: {}, parent: ResolvingMetadata) {
+export async function generateMetadata(
+  _params: object,
+  parent: ResolvingMetadata,
+) {
   return basicMetadata(await parent, {
     title: 'Player Network — OSRS Raid Connections & Partnerships',
     description:
