@@ -222,7 +222,7 @@ describe('insertTableText', () => {
   it('creates correct number of columns', () => {
     const [result] = insertTableText('', 0, 2, 5);
     const headerLine = result.split('\n')[0]; // First line is now the header
-    const cellCount = (headerLine.match(/\|/g) || []).length - 1;
+    const cellCount = (headerLine.match(/\|/g) ?? []).length - 1;
     expect(cellCount).toBe(5);
   });
 

@@ -98,7 +98,6 @@ export async function proxy(request: NextRequest) {
 
   const ip = getTrustedRequestIp(request.headers, {
     // @ts-expect-error: NextRequest.ip is not typed.
-    // eslint-disable-next-line
     remoteAddress: request.ip,
   });
   if (ip === null) {
