@@ -1,10 +1,12 @@
 import { ChallengeType } from '@blert/common';
 import { GearSetup, GearSetupPlayer, Spellbook } from '@/setups/setup';
 import {
+  ExportFormat,
   exportPlayer,
   exportSetup,
   importInventorySetups,
   importSetup,
+  InventorySetupsData,
 } from '@/setups/translate';
 
 import emptySlotsBlertSetup from './empty-slots.blert.json';
@@ -36,9 +38,10 @@ describe('inventory-setups', () => {
         pouch: { slots: [] },
       };
 
-      expect(() => exportPlayer(player, 'unsupported-format' as any)).toThrow(
-        'Unsupported export format: unsupported-format',
-      );
+      // Cast to ExportFormat to bypass compile-time check; test validates runtime error
+      expect(() =>
+        exportPlayer(player, 'unsupported-format' as ExportFormat),
+      ).toThrow('Unsupported export format: unsupported-format');
     });
 
     it('should export an empty setup correctly', () => {
@@ -220,7 +223,7 @@ describe('inventory-setups', () => {
     });
 
     it('should import a complete setup correctly', () => {
-      function importAndSort(setup: any) {
+      function importAndSort(setup: InventorySetupsData) {
         const imported = importInventorySetups(setup);
         imported.equipment.slots.sort((a, b) => a.index - b.index);
         imported.inventory.slots.sort((a, b) => a.index - b.index);
