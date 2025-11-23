@@ -34,7 +34,7 @@ export default function Navigation({ username }: { username: string }) {
   const [indicatorStyle, setIndicatorStyle] = useState<React.CSSProperties>({
     opacity: 0,
   });
-  const tabsRef = useRef<Array<HTMLAnchorElement | null>>([]);
+  const tabsRef = useRef<(HTMLAnchorElement | null)[]>([]);
   const navRef = useRef<HTMLElement>(null);
 
   const currentTab = PLAYER_TABS.find((tab) => {

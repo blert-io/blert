@@ -78,7 +78,9 @@ export default function PlayerStatistics() {
   const [selectedStats, setSelectedStats] = useState<ViewableStatistic[]>(
     DEFAULT_SELECTED_STATS,
   );
-  const [historicalData, setHistoricalData] = useState<any[]>([]);
+  const [historicalData, setHistoricalData] = useState<
+    Record<string, unknown>[]
+  >([]);
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -91,14 +93,14 @@ export default function PlayerStatistics() {
         if (!response.ok) {
           throw new Error('Failed to fetch historical data');
         }
-        const data = await response.json();
+        const data = (await response.json()) as Record<string, unknown>[];
         setHistoricalData(data.reverse());
       } catch (error) {
         console.error('Error fetching historical data:', error);
       }
     };
 
-    fetchHistoricalData();
+    void fetchHistoricalData();
   }, [player.username, selectedStats]);
 
   const menuItems: MenuItem[] = AVAILABLE_STATS.map((stat) => ({
@@ -220,7 +222,7 @@ export default function PlayerStatistics() {
                 <LineChart data={historicalData} margin={{ right: 40 }}>
                   <XAxis
                     dataKey="date"
-                    tickFormatter={(date) =>
+                    tickFormatter={(date: string) =>
                       new Date(date).toLocaleDateString()
                     }
                     stroke="var(--font-color-nav)"
@@ -243,7 +245,7 @@ export default function PlayerStatistics() {
                       borderColor: 'var(--font-color-nav-divider)',
                       borderRadius: '4px',
                     }}
-                    labelFormatter={(date) => (
+                    labelFormatter={(date: string) => (
                       <span
                         style={{
                           display: 'block',

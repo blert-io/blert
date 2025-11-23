@@ -56,7 +56,7 @@ export default async function PlayerOverview({
 
   const challengesByScale = Object.entries(challengeScales ?? {}).flatMap(
     ([s, data]) => {
-      const scale = parseInt(s, 10) as number;
+      const scale = parseInt(s, 10);
       return { scale, count: data['*'].count };
     },
   );
