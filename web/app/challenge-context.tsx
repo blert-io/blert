@@ -7,7 +7,12 @@ type ChallengeState = [
   Challenge | null,
   Dispatch<SetStateAction<Challenge | null>>,
 ];
-export const ChallengeContext = createContext<ChallengeState>([null, () => {}]);
+export const ChallengeContext = createContext<ChallengeState>([
+  null,
+  () => {
+    /* noop */
+  },
+]);
 
 export default function ChallengeProvider({
   children,

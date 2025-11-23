@@ -10,11 +10,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
-import {
-  RankedSplit,
-  findBestSplitTimes,
-  findChallenges,
-} from '@/actions/challenge';
+import { findBestSplitTimes, findChallenges } from '@/actions/challenge';
 import Card from '@/components/card';
 import { challengeLogo } from '@/logo';
 import { scaleNameAndColor } from '@/utils/challenge';
@@ -123,7 +119,7 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
   switch (challenge) {
     case 'tob': {
       challengeType = ChallengeType.TOB;
-      if (options === undefined || options.length !== 2) {
+      if (options?.length !== 2) {
         redirect('/leaderboards/tob/regular/5');
       }
 
@@ -397,7 +393,7 @@ export async function generateMetadata(
       let scale = 1;
       imageUrl = 'https://blert.io/images/tob.webp';
 
-      if (options === undefined || options.length !== 2) {
+      if (options?.length !== 2) {
         title = 'Theatre of Blood Leaderboards';
         description =
           'View the fastest Theatre of Blood raid times on Blert, including room splits, party compositions, and detailed analytics for all team sizes.';

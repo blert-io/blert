@@ -22,7 +22,7 @@ export function visualPath(
   to: Coords,
   terrain?: Terrain,
   allowTeleport: boolean = false,
-): Array<Coords> | null {
+): Coords[] | null {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
 

@@ -1,6 +1,5 @@
 import { Coords, getNpcDefinition, PrayerSet, SkillLevel } from '@blert/common';
 
-import { osrsToThreePosition } from './animation';
 import { Terrain } from './path';
 
 export type MapDefinition = {
