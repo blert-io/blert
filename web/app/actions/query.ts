@@ -34,7 +34,7 @@ export function operator(op: Operator): postgres.Fragment {
     case 'isnot':
       return sql`IS NOT`;
     default:
-      throw new InvalidQueryError(`Invalid operator: ${op}`);
+      throw new InvalidQueryError(`Invalid operator: ${op as string}`);
   }
 }
 
@@ -202,7 +202,8 @@ function tryParseSingleCondition(
     return null;
   }
 
-  let [op, newIndex2] = operator;
+  const [initialOp, newIndex2] = operator;
+  let op = initialOp;
   index = consumeWhitespace(expression, newIndex2);
 
   const op2 = tryParseOperand(expression, index);
@@ -243,7 +244,7 @@ export function parseQuery(expression: string): Condition | null {
   }
 
   let depth = 0;
-  let parts = [];
+  const parts: string[] = [];
   let lastIndex = 0;
 
   for (let i = 0; i < expression.length; i++) {
