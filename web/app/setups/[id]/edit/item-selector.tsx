@@ -222,10 +222,13 @@ function CategorySection({
   name: string;
   category: ItemCategory;
   customItems: CustomItems;
-  removeCustomItem: (category: ItemCategory, id: number) => void;
-  addCustomItem: (category: ItemCategory, id: number) => void;
-  hideDefaultItem: (category: ItemCategory, id: number) => void;
-  showDefaultItem: (category: ItemCategory, id: number) => void;
+  removeCustomItem: (
+    category: ItemCategory,
+    id: number,
+  ) => void | Promise<void>;
+  addCustomItem: (category: ItemCategory, id: number) => void | Promise<void>;
+  hideDefaultItem: (category: ItemCategory, id: number) => void | Promise<void>;
+  showDefaultItem: (category: ItemCategory, id: number) => void | Promise<void>;
   isLoading: boolean;
   context: EditingContext;
 }) {
@@ -277,12 +280,12 @@ function CategorySection({
               onClick={(id) => context.setSelectedItem(id)}
               onRemove={
                 editing && !hidden
-                  ? () => hideDefaultItem(category, id)
+                  ? () => void hideDefaultItem(category, id)
                   : undefined
               }
               onRestore={
                 editing && hidden
-                  ? () => showDefaultItem(category, id)
+                  ? () => void showDefaultItem(category, id)
                   : undefined
               }
             />
@@ -296,11 +299,13 @@ function CategorySection({
             editing={editing}
             onClick={(id) => context.setSelectedItem(id)}
             onRemove={
-              editing ? () => removeCustomItem(category, id) : undefined
+              editing ? () => void removeCustomItem(category, id) : undefined
             }
           />
         ))}
-        {editing && <AddButton onAdd={(id) => addCustomItem(category, id)} />}
+        {editing && (
+          <AddButton onAdd={(id) => void addCustomItem(category, id)} />
+        )}
       </div>
     </>
   );

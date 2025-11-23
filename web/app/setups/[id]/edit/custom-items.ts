@@ -51,7 +51,7 @@ export function useCustomItems(onError?: (message: string) => void) {
         if (!cancelled) {
           setCustomItems(config);
         }
-      } catch (e) {
+      } catch {
         if (!cancelled) {
           onError?.('Failed to load custom items');
         }
@@ -62,7 +62,7 @@ export function useCustomItems(onError?: (message: string) => void) {
       }
     }
 
-    loadConfig();
+    void loadConfig();
     return () => {
       cancelled = true;
     };
@@ -83,7 +83,7 @@ export function useCustomItems(onError?: (message: string) => void) {
             added: [...prev[category].added, id],
           },
         }));
-      } catch (e) {
+      } catch {
         onError?.('Failed to add custom item');
       }
     },
@@ -105,7 +105,7 @@ export function useCustomItems(onError?: (message: string) => void) {
             added: prev[category].added.filter((item) => item !== id),
           },
         }));
-      } catch (e) {
+      } catch {
         onError?.('Failed to remove custom item');
       }
     },
@@ -127,7 +127,7 @@ export function useCustomItems(onError?: (message: string) => void) {
             hidden: [...prev[category].hidden, id],
           },
         }));
-      } catch (e) {
+      } catch {
         onError?.('Failed to hide default item');
       }
     },
@@ -149,7 +149,7 @@ export function useCustomItems(onError?: (message: string) => void) {
             hidden: prev[category].hidden.filter((item) => item !== id),
           },
         }));
-      } catch (e) {
+      } catch {
         onError?.('Failed to show default item');
       }
     },
@@ -256,7 +256,7 @@ class CustomItemStorage {
     if (data === null) {
       return emptyConfig;
     }
-    const parsed = JSON.parse(data);
+    const parsed = JSON.parse(data) as Partial<CustomItems>;
     return { ...emptyConfig, ...parsed };
   }
 }
