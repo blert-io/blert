@@ -73,10 +73,10 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
 
 type PlayerActivity = {
   startHour: number;
-  data: Array<{
+  data: {
     hour: number;
     count: number;
-  }>;
+  }[];
 };
 
 function ActivityChartWrapper() {
@@ -88,19 +88,22 @@ function ActivityChartWrapper() {
   const fetchData = useCallback(async () => {
     try {
       const res = await fetch(`/api/activity/players`);
-      const payload: number[] = await res.json();
+      const payload = (await res.json()) as number[];
       setActivityData({
         startHour: new Date().getUTCHours(),
         data: payload.map((p, i) => ({ hour: i, count: p })),
       });
-    } catch (err) {
+    } catch {
       // TODO(frolv): Handle error.
     }
   }, [setActivityData]);
 
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, DEFAULT_REFRESH_INTERVAL);
+    void fetchData();
+    const interval = setInterval(
+      () => void fetchData(),
+      DEFAULT_REFRESH_INTERVAL,
+    );
     return () => clearInterval(interval);
   }, [fetchData]);
 
@@ -199,15 +202,14 @@ export function ChallengeStats({ initialStats }: ChallengeStatsProps) {
     });
 
     try {
-      const [scalePayload, statusPayload]: [GroupedCount, GroupedCount] =
-        await Promise.all([
-          fetch(`/api/v1/challenges/stats?${filterParams}&group=scale`).then(
-            (res) => res.json(),
-          ),
-          fetch(`/api/v1/challenges/stats?${filterParams}&group=status`).then(
-            (res) => res.json(),
-          ),
-        ]);
+      const [scalePayload, statusPayload] = await Promise.all([
+        fetch(`/api/v1/challenges/stats?${filterParams}&group=scale`).then(
+          (res) => res.json() as Promise<GroupedCount>,
+        ),
+        fetch(`/api/v1/challenges/stats?${filterParams}&group=status`).then(
+          (res) => res.json() as Promise<GroupedCount>,
+        ),
+      ]);
 
       const totalChallenges = Object.values(scalePayload).reduce(
         (acc, curr) => acc + curr['*'].count,
@@ -235,14 +237,17 @@ export function ChallengeStats({ initialStats }: ChallengeStatsProps) {
         },
       };
       setStats(stats);
-    } catch (err) {
+    } catch {
       // TODO(frolv): Handle error.
     }
   }, [setStats, timePeriod]);
 
   useEffect(() => {
-    fetchStats();
-    const interval = setInterval(fetchStats, DEFAULT_REFRESH_INTERVAL);
+    void fetchStats();
+    const interval = setInterval(
+      () => void fetchStats(),
+      DEFAULT_REFRESH_INTERVAL,
+    );
     return () => clearInterval(interval);
   }, [fetchStats]);
 
@@ -450,26 +455,26 @@ export function ActivityFeed({
     initialFeed.length === 0,
   );
   const [error, setError] = useState(false);
-  const [feedType, setFeedType] = useState<FeedType>(FeedType.ALL);
+  const [_feedType, _setFeedType] = useState<FeedType>(FeedType.ALL);
 
   useEffect(() => {
     const storedFeedType = window.localStorage.getItem(
       LocalStorageKey.ACTIVITY_FILTER,
     );
     if (storedFeedType !== null) {
-      setFeedType(parseInt(storedFeedType) as FeedType);
+      _setFeedType(parseInt(storedFeedType) as FeedType);
     }
   }, []);
 
-  const changeFeedType = useCallback(
+  const _changeFeedType = useCallback(
     (type: FeedType) => {
-      setFeedType(type);
+      _setFeedType(type);
       window.localStorage.setItem(
         LocalStorageKey.ACTIVITY_FILTER,
         type.toString(),
       );
     },
-    [setFeedType],
+    [_setFeedType],
   );
 
   const fetchActivity = useCallback(async () => {
@@ -479,12 +484,12 @@ export function ActivityFeed({
       if (!res.ok) {
         throw new Error(`Fetch failed with status ${res.status}`);
       }
-      const data: ActivityFeedItem[] = await res.json().then((data: any) =>
-        data.map((item: any) => ({
-          ...item,
-          time: new Date(item.time),
-        })),
-      );
+      type RawFeedItem = Omit<ActivityFeedItem, 'time'> & { time: string };
+      const rawData = (await res.json()) as RawFeedItem[];
+      const data: ActivityFeedItem[] = rawData.map((item) => ({
+        ...item,
+        time: new Date(item.time),
+      }));
 
       // Only update feed if there are new items to avoid unnecessary animations.
       if (feedKeys(data) !== feedItemKeys.current) {
@@ -493,15 +498,18 @@ export function ActivityFeed({
       }
 
       setInitialLoading(false);
-    } catch (err) {
+    } catch {
       setError(true);
       setInitialLoading(true);
     }
   }, [limit]);
 
   useEffect(() => {
-    fetchActivity();
-    const interval = setInterval(fetchActivity, DEFAULT_REFRESH_INTERVAL);
+    void fetchActivity();
+    const interval = setInterval(
+      () => void fetchActivity(),
+      DEFAULT_REFRESH_INTERVAL,
+    );
     return () => clearInterval(interval);
   }, [fetchActivity]);
 
@@ -536,7 +544,7 @@ export function ActivityFeed({
         </RadioInput.Group> */}
       <div className={styles.feedItems}>
         {error ? (
-          <ErrorState onRetry={fetchActivity} />
+          <ErrorState onRetry={() => void fetchActivity()} />
         ) : initialLoading ? (
           <>
             {Array.from({ length: limit }).map((_, i) => (
@@ -589,9 +597,9 @@ export function GuidesCard() {
   const fetchSetups = useCallback(async () => {
     try {
       const res = await fetch('/api/setups?limit=2&sort=score');
-      const data = await res.json();
+      const data = (await res.json()) as { setups: SetupListItem[] };
       setSetups(
-        data.setups.map((setup: SetupListItem) => ({
+        data.setups.map((setup) => ({
           title: setup.name,
           description: '',
           href: `/setups/${setup.publicId}`,
@@ -601,14 +609,17 @@ export function GuidesCard() {
           author: setup.author,
         })),
       );
-    } catch (err) {
+    } catch {
       // TODO(frolv): Handle error.
     }
   }, []);
 
   useEffect(() => {
-    fetchSetups();
-    const interval = setInterval(fetchSetups, DEFAULT_REFRESH_INTERVAL);
+    void fetchSetups();
+    const interval = setInterval(
+      () => void fetchSetups(),
+      DEFAULT_REFRESH_INTERVAL,
+    );
     return () => clearInterval(interval);
   }, [fetchSetups]);
 
@@ -795,37 +806,36 @@ export function LeaderboardCard({
     };
 
     try {
+      type LeaderboardResponse = Record<SplitType, RankedSplit[]>;
       const responses = await Promise.all(
         [5, 4, 3, 2].map((scale) =>
           fetch(
             `/api/v1/leaderboards?${queryString({ ...params, scale })}`,
-          ).then((res) => res.json()),
+          ).then((res) => res.json() as Promise<LeaderboardResponse>),
         ),
       );
 
       const leaderboards = responses.map((res, i) => ({
         scale: 5 - i,
-        entries: (res[SplitType.TOB_REG_CHALLENGE] ?? []).map(
-          (entry: RankedSplit, i: number) => ({
-            rank: i + 1,
-            time: entry.ticks,
-            party: entry.party,
-            uuid: entry.uuid,
-            date: entry.date,
-          }),
-        ),
+        entries: (res[SplitType.TOB_REG_CHALLENGE] ?? []).map((entry, j) => ({
+          rank: j + 1,
+          time: entry.ticks,
+          party: entry.party,
+          uuid: entry.uuid,
+          date: entry.date,
+        })),
       }));
 
       setLeaderboards(leaderboards);
-    } catch (err) {
+    } catch {
       // TODO(frolv): Handle error.
     }
   }, [timePeriod, setLeaderboards]);
 
   useEffect(() => {
-    fetchLeaderboards();
+    void fetchLeaderboards();
     const interval = setInterval(
-      fetchLeaderboards,
+      () => void fetchLeaderboards(),
       // Leaderboard don't change that often, so update them less frequently.
       DEFAULT_REFRESH_INTERVAL * 5,
     );
