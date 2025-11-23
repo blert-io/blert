@@ -251,9 +251,12 @@ function getAvailableStats(
   return stats.filter((stat) => {
     return challenges.some((challenge) => {
       if (stat.type === StatType.SPLIT) {
-        const generalizedSplit = parseInt(stat.key);
+        const generalizedSplit = parseInt(stat.key) as SplitType;
         return Object.keys(challenge.splits || {}).some((splitKey) => {
-          return generalizeSplit(parseInt(splitKey)) === generalizedSplit;
+          return (
+            generalizeSplit(parseInt(splitKey) as SplitType) ===
+            generalizedSplit
+          );
         });
       } else {
         const statsField =
@@ -293,10 +296,12 @@ function aggregateStatData(
     }
 
     if (selectedStat.type === StatType.SPLIT) {
-      const generalizedSplit = parseInt(selectedStat.key);
+      const generalizedSplit = parseInt(selectedStat.key) as SplitType;
       const splitEntries = Object.entries(challenge.splits || {});
       for (const [splitKey, splitValue] of splitEntries) {
-        if (generalizeSplit(parseInt(splitKey)) === generalizedSplit) {
+        if (
+          generalizeSplit(parseInt(splitKey) as SplitType) === generalizedSplit
+        ) {
           const typedSplitValue = splitValue as {
             ticks: number;
             accurate: boolean;
@@ -545,10 +550,14 @@ function DistributionChart({
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
             }}
             cursor={{ fill: 'rgba(139, 92, 246, 0.1)' }}
-            formatter={(value: number, name: string, props: any) => [
+            formatter={(
+              value: number,
+              _name: string,
+              props: { payload?: { percentage: number } },
+            ) => [
               <span key={value} style={{ color: 'var(--blert-text-color)' }}>
-                {value} occurrence{value === 1 ? '' : 's'} (
-                {props.payload.percentage.toFixed(1)}%)
+                {value} occurrence{value === 1 ? '' : 's'}
+                {props.payload && ` (${props.payload.percentage.toFixed(1)}%)`}
               </span>,
             ]}
             labelFormatter={(label: string) => (
