@@ -49,7 +49,9 @@ type NavbarContextType = {
 
 export const NavbarContext = createContext<NavbarContextType>({
   sidebarOpen: false,
-  setSidebarOpen: () => {},
+  setSidebarOpen: () => {
+    /* noop */
+  },
 });
 
 export function DisplayWrapper({ children }: { children: React.ReactNode }) {
@@ -116,9 +118,9 @@ export function useIsApple() {
   const [isApple, setIsApple] = useState(false);
 
   useEffect(() => {
-    const ua = navigator.userAgent || '';
-    const platform =
-      (navigator as any).userAgentData?.platform || navigator.platform || '';
+    const ua = navigator.userAgent ?? '';
+    const nav = navigator as { userAgentData?: { platform?: string } };
+    const platform = nav.userAgentData?.platform ?? navigator.platform ?? '';
     setIsApple(
       /Mac|iPhone|iPad|iPod/i.test(platform) || /Macintosh|iPad/i.test(ua),
     );
