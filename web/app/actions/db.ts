@@ -1,6 +1,7 @@
 import postgres, { Sql, TransactionSql } from 'postgres';
 
-let connectionOptions: postgres.Options<{}> | undefined = undefined;
+let connectionOptions: postgres.Options<NonNullable<unknown>> | undefined =
+  undefined;
 
 if (process.env.NODE_ENV === 'development') {
   connectionOptions = {
@@ -17,4 +18,6 @@ if (process.env.NODE_ENV === 'production' && !process.env.CI) {
 
 export const sql = postgres(process.env.BLERT_DATABASE_URI!, connectionOptions);
 
-export type Db = Sql<{}> | TransactionSql<{}>;
+export type Db =
+  | Sql<NonNullable<unknown>>
+  | TransactionSql<NonNullable<unknown>>;

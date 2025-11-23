@@ -18,7 +18,9 @@ export async function suggestPlayers(
   query: string,
   limit: number,
 ): Promise<Suggestions> {
-  const results = await sql`
+  const results = await sql<
+    { id: number; username: string; similarity: number }[]
+  >`
     SELECT id, username, strict_word_similarity(username, ${query}) AS similarity
     FROM players
     WHERE NOT starts_with(username, '*')

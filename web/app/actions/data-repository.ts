@@ -6,7 +6,7 @@ function initializeRepository(envVar: string): DataRepository {
     throw new Error(`${envVar} is not set`);
   }
 
-  const uri = process.env[envVar]!;
+  const uri = process.env[envVar];
   if (uri.startsWith('file://')) {
     const root = uri.slice('file://'.length);
     return new DataRepository(new DataRepository.FilesystemBackend(root));
