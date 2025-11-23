@@ -63,7 +63,7 @@ type TimelineDataPoint = {
 
 interface CustomTooltipProps {
   active?: boolean;
-  payload?: any[];
+  payload?: { payload: TimelineDataPoint }[];
 }
 
 function CustomTooltip({ active = false, payload }: CustomTooltipProps) {
@@ -71,7 +71,7 @@ function CustomTooltip({ active = false, payload }: CustomTooltipProps) {
     return null;
   }
 
-  const data = payload[0].payload as TimelineDataPoint;
+  const data = payload[0].payload;
 
   if (!data.challenge) {
     return (
@@ -185,7 +185,7 @@ function TimelineSkeleton() {
   return (
     <div className={styles.skeletonContainer}>
       <div className={styles.skeletonBars}>
-        {[...Array(5)].map((_, i) => (
+        {Array.from({ length: 5 }, (_, i) => (
           <div
             key={i}
             className={styles.skeletonBar}
@@ -572,7 +572,7 @@ export default function SessionTimeline() {
             tick={{ fill: 'var(--blert-text-color)', fontSize: 11 }}
             axisLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
             tickLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
-            tickFormatter={(value) => {
+            tickFormatter={(value: number) => {
               const data = timelineData.find((d) => d.index === value);
               return data?.challenge === null ? '—' : `#${Math.floor(value)}`;
             }}
@@ -599,7 +599,7 @@ export default function SessionTimeline() {
             strokeWidth={1}
             cursor="pointer"
             stackId="timeline"
-            onClick={(data: any) => {
+            onClick={(data: TimelineDataPoint) => {
               if (!isDragging && data.challenge !== null) {
                 router.push(
                   challengeUrl(session.challengeType, data.challenge.uuid),

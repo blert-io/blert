@@ -1,6 +1,6 @@
 'use client';
 
-import { splitName } from '@blert/common';
+import { splitName, SplitType } from '@blert/common';
 
 import { SessionPlayerStats } from '@/actions/challenge';
 import Card from '@/components/card';
@@ -28,7 +28,10 @@ function PlayerPBTooltipRenderer({
     return null;
   }
 
-  const personalBests = JSON.parse(pbsData);
+  const personalBests = JSON.parse(pbsData) as {
+    type: SplitType;
+    ticks: number;
+  }[];
 
   return (
     <div className={styles.pbTooltipContent}>
@@ -37,7 +40,7 @@ function PlayerPBTooltipRenderer({
         <span>Personal Bests Achieved</span>
       </div>
       <div className={styles.pbTooltipList}>
-        {personalBests.map((pb: any, index: number) => (
+        {personalBests.map((pb, index) => (
           <div key={index} className={styles.pbTooltipItem}>
             <span className={styles.pbTooltipSplit}>
               {splitName(pb.type, true)}
@@ -149,7 +152,7 @@ export default function PlayerBreakdown() {
       <Card className={styles.playerBreakdown}>
         <SectionTitle icon="fa-users">Player Performance</SectionTitle>
         <div className={styles.playersGrid}>
-          {[...Array(4)].map((_, i) => (
+          {Array.from({ length: 4 }, (_, i) => (
             <PlayerSkeleton key={i} />
           ))}
         </div>
