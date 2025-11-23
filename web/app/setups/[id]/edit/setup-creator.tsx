@@ -178,7 +178,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
         } else {
           showToast('Saved setup');
         }
-      } catch (e) {
+      } catch {
         showToast('Failed to save setup', 'error');
       } finally {
         setSaving(false);
@@ -209,7 +209,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
         setTimeout(() => {
           router.push(`/setups/${setup.publicId}`);
         }, 100);
-      } catch (e) {
+      } catch {
         showToast('Failed to publish setup');
       } finally {
         setPublishLoading(false);
@@ -225,7 +225,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
     }
 
     const timer = setTimeout(() => {
-      handleSave(true);
+      void handleSave(true);
     }, AUTO_SAVE_INTERVAL_MS);
 
     return () => clearTimeout(timer);
@@ -239,7 +239,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
       if (inInput) {
         if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
           e.preventDefault();
-          handleSave(false);
+          void handleSave(false);
         }
         return;
       }
@@ -303,7 +303,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
         case 's':
           if (e.ctrlKey || e.metaKey) {
             e.preventDefault();
-            handleSave(false);
+            void handleSave(false);
           }
           break;
 
@@ -378,8 +378,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
     return () => window.removeEventListener(eventType, handlePlacementRelease);
   }, [context]);
 
-  const publishIssues: Array<{ message: string; type: 'warning' | 'error' }> =
-    [];
+  const publishIssues: { message: string; type: 'warning' | 'error' }[] = [];
   if (publishing) {
     if (context.setup.title.length === 0) {
       publishIssues.push({
@@ -448,7 +447,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
               </button>
               <SaveButton
                 disabled={!editableSetup.modified || saving}
-                onClick={() => handleSave(false)}
+                onClick={() => void handleSave(false)}
                 modifier={modifier}
                 hasUnsavedChanges={editableSetup.modified}
                 key={saveCompleteCounter}
@@ -697,8 +696,8 @@ function PublishModal({
   isLocal: boolean;
   open: boolean;
   onClose: () => void;
-  onPublish: (message: string) => void;
-  publishIssues: Array<{ message: string; type: 'warning' | 'error' }>;
+  onPublish: (message: string) => void | Promise<void>;
+  publishIssues: { message: string; type: 'warning' | 'error' }[];
   publishLoading: boolean;
 }) {
   const router = useRouter();
@@ -892,7 +891,7 @@ function PublishModal({
           <Button
             disabled={publishIssues.some((w) => w.type === 'error')}
             loading={publishLoading}
-            onClick={() => onPublish(publishMessage)}
+            onClick={() => void onPublish(publishMessage)}
             className={styles.publishButton}
           >
             <i className="fas fa-upload" />

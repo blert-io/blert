@@ -63,7 +63,7 @@ export function ContextMenuWrapper({
           ? e.target.closest('[data-slot="true"]')
           : null;
 
-      if (slot === null || !slot.id) {
+      if (!slot?.id) {
         setMenuTargetId(null);
         return;
       }
