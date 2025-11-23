@@ -17,6 +17,8 @@ export type ButtonProps = {
 };
 
 export function Button(props: ButtonProps) {
+  const { disabled = false, loading = false } = props;
+
   let className = styles.button;
   if (props.className) {
     className += ` ${props.className}`;
@@ -28,7 +30,7 @@ export function Button(props: ButtonProps) {
   return (
     <button
       className={className}
-      disabled={props.disabled ?? props.loading}
+      disabled={disabled || loading}
       id={props.id}
       onClick={props.onClick}
       style={{ width: props.fluid ? '100%' : undefined }}
