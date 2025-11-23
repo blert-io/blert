@@ -34,7 +34,7 @@ type FiltersProps = {
 
 type ArrayFields<T> = Pick<
   T,
-  { [K in keyof T]: T[K] extends Array<any> ? K : never }[keyof T]
+  { [K in keyof T]: T[K] extends any[] ? K : never }[keyof T]
 >;
 
 function isTobMode(mode: ChallengeMode) {
