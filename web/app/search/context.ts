@@ -32,7 +32,6 @@ function parseComparatorParam<T extends number>(
   value: string,
 ): [Comparator, T] | null {
   let comparator: Comparator;
-  let val: string;
 
   if (value.startsWith('eq')) {
     comparator = Comparator.EQUAL;
@@ -72,7 +71,7 @@ export type SearchFilters = {
 
 export type SearchContext = {
   filters: SearchFilters;
-  sort: Array<SortQuery<SortableFields>>;
+  sort: SortQuery<SortableFields>[];
   extraFields: ExtraChallengeFields;
   pagination: {
     before?: string;

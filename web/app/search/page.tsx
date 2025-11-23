@@ -32,7 +32,7 @@ export default async function SearchPage({
     if (query !== null) {
       initialQuery = { ...initialQuery, ...query };
     }
-  } catch (e) {
+  } catch {
     // Ignore invalid queries.
   }
 
@@ -79,7 +79,10 @@ export default async function SearchPage({
   );
 }
 
-export async function generateMetadata(_props: {}, parent: ResolvingMetadata) {
+export async function generateMetadata(
+  _props: Record<string, never>,
+  parent: ResolvingMetadata,
+) {
   return basicMetadata(await parent, {
     title: 'OSRS Challenge Search',
     description:
