@@ -1,12 +1,18 @@
 import {
+  CamelToSnakeCase,
   HiscoresRateLimitError,
   NameChangeStatus,
   PlayerExperience,
+  PlayerStats,
   Skill,
   hiscoreLookup,
 } from '@blert/common';
 
 import { sql, type Db } from './db';
+
+type PlayerStatsRow = CamelToSnakeCase<PlayerStats> & {
+  id: number;
+};
 
 async function updatePlayerStats(
   oldPlayerId: number,
@@ -14,7 +20,7 @@ async function updatePlayerStats(
   fromDate: Date,
   db: Db = sql,
 ): Promise<number> {
-  const [lastStats] = await db`
+  const [lastStats] = await db<[PlayerStatsRow?]>`
     SELECT *
     FROM player_stats
     WHERE player_id = ${oldPlayerId}
@@ -23,7 +29,7 @@ async function updatePlayerStats(
     LIMIT 1
   `;
 
-  const [newPlayerLastStats] = await db`
+  const [newPlayerLastStats] = await db<[PlayerStatsRow?]>`
     SELECT *
     FROM player_stats
     WHERE player_id = ${newPlayerId}
@@ -32,7 +38,7 @@ async function updatePlayerStats(
     LIMIT 1
   `;
 
-  const statsToMigrate = await db`
+  const statsToMigrate = await db<PlayerStatsRow[]>`
     SELECT *
     FROM player_stats
     WHERE player_id = ${newPlayerId}
@@ -50,9 +56,10 @@ async function updatePlayerStats(
       if (key === 'id' || key === 'player_id' || typeof value !== 'number') {
         return;
       }
-      const base = newPlayerLastStats?.[key] ?? 0;
+      const k = key as keyof PlayerStatsRow;
+      const base = (newPlayerLastStats?.[k] as number | undefined) ?? 0;
       const delta = value - base;
-      const old = lastStats?.[key] ?? 0;
+      const old = (lastStats?.[k] as number | undefined) ?? 0;
       newStats[key] = old + delta;
     });
 
@@ -233,7 +240,7 @@ function compareExperience(
   Object.keys(before).forEach((key) => {
     const skill = parseInt(key) as Skill;
     if (before[skill] !== 0 && after[skill] < before[skill]) {
-      decreasedSkills.push(skill as Skill);
+      decreasedSkills.push(skill);
     }
   });
 
@@ -314,7 +321,7 @@ export async function processNameChange(changeId: number, db: Db = sql) {
 
   let nameChangeStatus = NameChangeStatus.PENDING;
 
-  let playerUpdates: Record<string, any> = {
+  const playerUpdates: Record<string, any> = {
     username: newName,
   };
 
@@ -501,22 +508,18 @@ class NameChangeProcessor {
 
   public constructor() {
     if (process.env.NODE_ENV === 'production') {
-      if (NameChangeProcessor.timeout === null) {
-        NameChangeProcessor.timeout = setTimeout(
-          () => this.processNameChangeBatch(),
-          NameChangeProcessor.NAME_CHANGE_PERIOD,
-        );
-      }
+      NameChangeProcessor.timeout ??= setTimeout(
+        () => void this.processNameChangeBatch(),
+        NameChangeProcessor.NAME_CHANGE_PERIOD,
+      );
     }
   }
 
   public start() {
-    if (NameChangeProcessor.timeout === null) {
-      NameChangeProcessor.timeout = setTimeout(
-        () => this.processNameChangeBatch(),
-        NameChangeProcessor.NAME_CHANGE_PERIOD,
-      );
-    }
+    NameChangeProcessor.timeout ??= setTimeout(
+      () => void this.processNameChangeBatch(),
+      NameChangeProcessor.NAME_CHANGE_PERIOD,
+    );
   }
 
   public stop() {
@@ -557,7 +560,7 @@ class NameChangeProcessor {
     console.log(`Processed ${processedCount} name change requests`);
 
     NameChangeProcessor.timeout = setTimeout(
-      () => this.processNameChangeBatch(),
+      () => void this.processNameChangeBatch(),
       NameChangeProcessor.NAME_CHANGE_PERIOD,
     );
   }

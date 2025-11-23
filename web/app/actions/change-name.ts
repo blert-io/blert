@@ -26,7 +26,7 @@ export async function submitNameChangeForm(
 
   const session = await auth();
 
-  const [player] = await sql`
+  const [player] = await sql<[{ id: number; username: string }?]>`
     SELECT id, username
     FROM players
     WHERE lower(username) = ${oldName.toLowerCase()}
@@ -36,14 +36,21 @@ export async function submitNameChangeForm(
     return `No Blert player found with the name ${oldName}`;
   }
 
-  const nameChange: Record<string, any> = {
+  const nameChange: {
+    status: NameChangeStatus;
+    old_name: string;
+    new_name: string;
+    player_id: number;
+    submitted_at: Date;
+    submitter_id?: string;
+  } = {
     status: NameChangeStatus.PENDING,
     old_name: player.username,
     new_name: newName,
     player_id: player.id,
     submitted_at: new Date(),
   };
-  if (session !== null && session.user.id !== undefined) {
+  if (session?.user?.id) {
     nameChange.submitter_id = session.user.id;
   }
 
@@ -54,10 +61,19 @@ export async function submitNameChangeForm(
   redirect('/name-changes');
 }
 
+type NameChangeRow = {
+  id: number;
+  old_name: string;
+  new_name: string;
+  status: NameChangeStatus;
+  submitted_at: Date;
+  processed_at: Date | null;
+};
+
 export async function getRecentNameChanges(
   limit: number = 10,
 ): Promise<NameChange[]> {
-  const nameChanges = await sql`
+  const nameChanges = await sql<NameChangeRow[]>`
     SELECT
       id,
       old_name,
@@ -85,7 +101,7 @@ export async function getNameChangesForPlayer(
   username: string,
   limit: number = 10,
 ): Promise<NameChange[]> {
-  const nameChanges = await sql`
+  const nameChanges = await sql<NameChangeRow[]>`
     SELECT
       nc.id,
       nc.old_name,
