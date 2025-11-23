@@ -90,15 +90,15 @@ function scaleName(scale: number) {
 }
 
 type PlayerOverviewContentProps = {
-  personalBests: Array<{
+  personalBests: {
     type: SplitType;
     scale: number;
     ticks: number;
     cid: string;
-  }>;
-  initialChallengeStatuses: Array<{ status: ChallengeStatus; count: number }>;
-  initialChallengesByScale: Array<{ scale: number; count: number }>;
-  initialChallengesByDay: Array<{ date: Date; count: number }>;
+  }[];
+  initialChallengeStatuses: { status: ChallengeStatus; count: number }[];
+  initialChallengesByScale: { scale: number; count: number }[];
+  initialChallengesByDay: { date: Date; count: number }[];
   topPartners: ChallengePartner[];
 };
 
@@ -110,11 +110,7 @@ function utcDateString(date: Date): string {
   );
 }
 
-function CalendarHeatmap({
-  data,
-}: {
-  data: Array<{ date: Date; count: number }>;
-}) {
+function CalendarHeatmap({ data }: { data: { date: Date; count: number }[] }) {
   const heatmapRef = useRef<HTMLDivElement>(null);
 
   // Use 8 as the minimum count so that low-activity players don't have a
@@ -122,7 +118,7 @@ function CalendarHeatmap({
   const maxCount = Math.max(...data.map((d) => d.count), 8);
 
   const { weeks, monthLabels } = useMemo(() => {
-    const weeks: Array<Array<{ date: Date; count: number } | null>> = [];
+    const weeks: ({ date: Date; count: number } | null)[][] = [];
     const today = new Date();
     const todayUTC = Date.UTC(
       today.getUTCFullYear(),
@@ -136,8 +132,8 @@ function CalendarHeatmap({
 
     const countMap = new Map(data.map((d) => [utcDateString(d.date), d.count]));
 
-    let currentDate = new Date(startDate);
-    let week: Array<{ date: Date; count: number } | null> = [];
+    const currentDate = new Date(startDate);
+    let week: ({ date: Date; count: number } | null)[] = [];
 
     while (currentDate <= new Date(todayUTC)) {
       if (currentDate.getUTCDay() === 0 && week.length > 0) {
@@ -145,7 +141,7 @@ function CalendarHeatmap({
         week = [];
       }
 
-      const count = countMap.get(utcDateString(currentDate)) || 0;
+      const count = countMap.get(utcDateString(currentDate)) ?? 0;
       week.push({ date: new Date(currentDate), count });
 
       currentDate.setUTCDate(currentDate.getUTCDate() + 1);
@@ -155,7 +151,7 @@ function CalendarHeatmap({
       weeks.push(week);
     }
 
-    const monthLabels = weeks.reduce<Array<{ month: string; span: number }>>(
+    const monthLabels = weeks.reduce<{ month: string; span: number }[]>(
       (acc, week) => {
         const date = week[0]?.date;
         if (!date) {
@@ -229,7 +225,7 @@ function CalendarHeatmap({
                 <div
                   key={j}
                   className={styles.day}
-                  style={{ backgroundColor: getColor(day?.count || 0) }}
+                  style={{ backgroundColor: getColor(day?.count ?? 0) }}
                   data-tooltip-id={HEATMAP_TOOLTIP_ID}
                   data-tooltip-date={day ? formatDate(day.date) : undefined}
                   data-tooltip-count={day ? day.count.toString() : undefined}
@@ -286,13 +282,14 @@ function startOfTimePeriod(period: TimePeriod): Date {
   return start;
 }
 
-type ChallengeStatsResponse = {
-  [key: string]: {
+type ChallengeStatsResponse = Record<
+  string,
+  {
     '*': {
       count: number;
     };
-  };
-};
+  }
+>;
 
 function formatDate(date: Date): string {
   return new Date(
@@ -367,7 +364,7 @@ export default function PlayerOverviewContent({
   );
 
   const [activityData, setActivityData] = useState<
-    Array<{ hour: number; count: number }>
+    { hour: number; count: number }[]
   >([]);
   const [startHour, setStartHour] = useState(0);
 
@@ -382,7 +379,7 @@ export default function PlayerOverviewContent({
     const response = await fetch(
       `/api/activity/players?username=${player.username}&period=${timePeriod}`,
     );
-    const data = await response.json();
+    const data = (await response.json()) as number[];
 
     const now = new Date();
     const offset = -now.getTimezoneOffset() / 60;
@@ -417,15 +414,14 @@ export default function PlayerOverviewContent({
       startTime: `ge${startOfTimePeriod(timePeriod).getTime()}`,
     };
 
-    const [statuses, scales]: [ChallengeStatsResponse, ChallengeStatsResponse] =
-      await Promise.all([
-        fetch(
-          `/api/v1/challenges/stats?${queryString(query)}&group=status`,
-        ).then((res) => res.json()),
-        fetch(
-          `/api/v1/challenges/stats?${queryString(query)}&group=scale`,
-        ).then((res) => res.json()),
-      ]);
+    const [statuses, scales] = await Promise.all([
+      fetch(`/api/v1/challenges/stats?${queryString(query)}&group=status`).then(
+        (res) => res.json() as Promise<ChallengeStatsResponse>,
+      ),
+      fetch(`/api/v1/challenges/stats?${queryString(query)}&group=scale`).then(
+        (res) => res.json() as Promise<ChallengeStatsResponse>,
+      ),
+    ]);
 
     const statusData = Object.entries(statuses ?? {}).flatMap(([s, data]) => {
       const status = parseInt(s, 10) as ChallengeStatus;
@@ -437,7 +433,7 @@ export default function PlayerOverviewContent({
     });
 
     const byScale = Object.entries(scales ?? {}).flatMap(([s, data]) => {
-      const scale = parseInt(s, 10) as number;
+      const scale = parseInt(s, 10);
       return { scale, count: data['*'].count };
     });
 
@@ -451,8 +447,8 @@ export default function PlayerOverviewContent({
       await Promise.all([fetchActivityData(), fetchChallengeStats()]);
       setLoading(false);
     };
-    fetchData();
-    const interval = setInterval(fetchData, 15_000);
+    void fetchData();
+    const interval = setInterval(() => void fetchData(), 15_000);
     return () => clearInterval(interval);
   }, [fetchActivityData, fetchChallengeStats]);
 

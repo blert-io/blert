@@ -370,11 +370,9 @@ function typeParamToSelection(
   }
 }
 
-type PersonalBestMap = {
-  [split in SplitType]?: {
-    [scale in Scale]?: PersonalBest;
-  };
-};
+type PersonalBestMap = Partial<
+  Record<SplitType, Partial<Record<Scale, PersonalBest>>>
+>;
 
 function buildPersonalBestMap(pbs: PersonalBest[]): PersonalBestMap {
   return pbs.reduce((acc, pb) => {
@@ -551,11 +549,15 @@ export default function PlayerPersonalBests() {
         };
         try {
           const res = await fetch(`/api/v1/challenges?${queryString(params)}`);
-          const challenges = await res.json();
+          const challenges = (await res.json()) as {
+            mokhaiotlStats?: { maxCompletedDelve?: number };
+            finishTime: string;
+            uuid: string;
+          }[];
 
           const newAchievements: Achievement[] = [];
 
-          if (challenges && challenges.length > 0) {
+          if (challenges.length > 0) {
             const challenge = challenges[0];
 
             if (challenge.mokhaiotlStats?.maxCompletedDelve !== undefined) {
@@ -577,7 +579,7 @@ export default function PlayerPersonalBests() {
         }
       };
 
-      fetchData();
+      void fetchData();
     } else {
       setAchievements([]);
     }
