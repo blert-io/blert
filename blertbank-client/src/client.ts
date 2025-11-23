@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import {
   AccountNotFoundError,
   BlertbankApiError,
@@ -28,6 +29,31 @@ export type BlertbankClientConfig = {
    * Optional fetch implementation. Defaults to global fetch.
    */
   fetch?: typeof fetch;
+
+  /**
+   * Optional function that returns the current request ID for distributed
+   * tracing.
+   * Useful for integrating with AsyncLocalStorage-based request contexts.
+   *
+   * @example
+   * ```ts
+   * const client = new BlertbankClient({
+   *   // ...
+   *   requestIdProvider: () => getRequestContext().requestId,
+   * });
+   * ```
+   */
+  requestIdProvider?: () => string | undefined;
+};
+
+/**
+ * Options for individual API requests.
+ */
+export type RequestOptions = {
+  /**
+   * Request ID for distributed tracing. Overrides the provider if set.
+   */
+  requestId?: string;
 };
 
 /**
@@ -38,12 +64,14 @@ export class BlertbankClient {
   private readonly serviceToken: string;
   private readonly serviceName: string;
   private readonly fetch: typeof fetch;
+  private readonly requestIdProvider?: () => string | undefined;
 
   public constructor(config: BlertbankClientConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, '');
     this.serviceToken = config.serviceToken;
     this.serviceName = config.serviceName;
     this.fetch = config.fetch ?? globalThis.fetch;
+    this.requestIdProvider = config.requestIdProvider;
 
     if (!this.serviceToken) {
       throw new BlertbankError('Service token is required');
@@ -54,15 +82,23 @@ export class BlertbankClient {
    * Gets or creates a Blertcoin account for a user.
    *
    * @param userId ID of the user for whom to get or create an account
+   * @param options Optional request options
    * @returns The account details
    */
-  public async getOrCreateAccountForUser(userId: number): Promise<UserAccount> {
+  public async getOrCreateAccountForUser(
+    userId: number,
+    options?: RequestOptions,
+  ): Promise<UserAccount> {
     // `/accounts` is an idempotent endpoint that will return the existing
     // account if it already exists.
-    const response = await this.request<UserAccountRaw>('/accounts', {
-      method: 'POST',
-      body: JSON.stringify({ userId }),
-    });
+    const response = await this.request<UserAccountRaw>(
+      '/accounts',
+      {
+        method: 'POST',
+        body: JSON.stringify({ userId }),
+      },
+      options,
+    );
 
     return this.deserializeAccount(response);
   }
@@ -71,16 +107,19 @@ export class BlertbankClient {
    * Gets account information for a user.
    *
    * @param userId ID of the user for whom to get account information
+   * @param options Optional request options
    * @returns The account details
    * @throws {AccountNotFoundError} If the user doesn't have an account
    */
-  public async getAccountByUserId(userId: number): Promise<UserAccount> {
+  public async getAccountByUserId(
+    userId: number,
+    options?: RequestOptions,
+  ): Promise<UserAccount> {
     try {
       const response = await this.request<UserAccountRaw>(
         `/accounts/user/${userId}`,
-        {
-          method: 'GET',
-        },
+        { method: 'GET' },
+        options,
       );
 
       return this.deserializeAccount(response);
@@ -99,11 +138,15 @@ export class BlertbankClient {
    * Gets the current balance for a user.
    *
    * @param userId ID of the user for whom to get balance
+   * @param options Optional request options
    * @returns The user's current balance
    * @throws {AccountNotFoundError} If the user doesn't have an account
    */
-  public async getBalance(userId: number): Promise<number> {
-    const account = await this.getAccountByUserId(userId);
+  public async getBalance(
+    userId: number,
+    options?: RequestOptions,
+  ): Promise<number> {
+    const account = await this.getAccountByUserId(userId, options);
     return account.balance;
   }
 
@@ -112,10 +155,14 @@ export class BlertbankClient {
    * be created with a balance of 0.
    *
    * @param userId ID of the user for whom to get balance
+   * @param options Optional request options
    * @returns The user's current balance
    */
-  public async getOrCreateBalance(userId: number): Promise<number> {
-    return (await this.getOrCreateAccountForUser(userId)).balance;
+  public async getOrCreateBalance(
+    userId: number,
+    options?: RequestOptions,
+  ): Promise<number> {
+    return (await this.getOrCreateAccountForUser(userId, options)).balance;
   }
 
   /**
@@ -138,12 +185,18 @@ export class BlertbankClient {
   private async request<T>(
     path: string,
     options: RequestInit = {},
+    requestOptions?: RequestOptions,
   ): Promise<T> {
     const url = `${this.baseUrl}${path}`;
+
+    const requestId =
+      requestOptions?.requestId ?? this.requestIdProvider?.() ?? randomUUID();
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       'X-Service-Token': this.serviceToken,
       'X-Service-Name': this.serviceName,
+      'X-Request-ID': requestId,
       ...options.headers,
     };
 

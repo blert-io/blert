@@ -3,6 +3,7 @@ process.env.BLERTBANK_SERVICE_TOKEN = 'test-token';
 import type { Request, Response, NextFunction } from 'express';
 import { requireServiceAuth } from '../../api/auth';
 import { ApiError, ApiErrorCode } from '../../api/error';
+import { getRequestContext, requestContext } from '../../context';
 
 function makeMockReq(headers: Record<string, string> = {}): Request {
   return {
@@ -10,40 +11,42 @@ function makeMockReq(headers: Record<string, string> = {}): Request {
   } as any;
 }
 
-function makeMockRes(): { res: Response; locals: any } {
-  const locals: any = {};
-  const res = { locals } as Response;
-  return { res, locals };
+function makeMockRes(): Response {
+  return { locals: {} } as Response;
 }
 
 describe('requireServiceAuth', () => {
   it('successfully calls next with valid service token', () => {
     const req = makeMockReq({ 'X-Service-Token': 'test-token' });
-    const { res, locals } = makeMockRes();
+    const res = makeMockRes();
     const next = jest.fn();
 
-    requireServiceAuth(req, res, next as unknown as NextFunction);
+    requestContext.run({}, () => {
+      requireServiceAuth(req, res, next as unknown as NextFunction);
 
-    expect(next).toHaveBeenCalledWith();
-    expect(locals.serviceName).toBe('unknown');
+      expect(next).toHaveBeenCalledWith();
+      expect(getRequestContext().requestService).toBe('unknown');
+    });
   });
 
-  it('stores service name in locals', () => {
+  it('stores service name in request context', () => {
     const req = makeMockReq({
       'X-Service-Token': 'test-token',
       'X-Service-Name': 'test-service',
     });
-    const { res, locals } = makeMockRes();
+    const res = makeMockRes();
     const next = jest.fn();
 
-    requireServiceAuth(req, res, next as unknown as NextFunction);
+    requestContext.run({}, () => {
+      requireServiceAuth(req, res, next as unknown as NextFunction);
 
-    expect(locals.serviceName).toBe('test-service');
+      expect(getRequestContext().requestService).toBe('test-service');
+    });
   });
 
   it('fails with missing service token', () => {
     const req = makeMockReq();
-    const { res } = makeMockRes();
+    const res = makeMockRes();
     const next = jest.fn();
 
     requireServiceAuth(req, res, next as unknown as NextFunction);

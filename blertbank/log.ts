@@ -1,7 +1,25 @@
 import { Request, Response, NextFunction } from 'express';
 import winston from 'winston';
 
+import { getRequestContext } from './context';
+
 const isDev = process.env.NODE_ENV === 'development';
+
+/**
+ * Custom Winston format that merges request context into every log entry.
+ * This allows logs emitted during a request to include caller service name,
+ * request ID, and other contextual metadata automatically.
+ */
+const requestContextFormat = winston.format((info) => {
+  const ctx = getRequestContext();
+  if (ctx.requestService !== undefined) {
+    info.callerService = ctx.requestService;
+  }
+  if (ctx.requestId !== undefined) {
+    info.requestId = ctx.requestId;
+  }
+  return info;
+});
 
 const logger = winston.createLogger({
   level:
@@ -13,6 +31,7 @@ const logger = winston.createLogger({
     winston.format.timestamp(),
     winston.format.errors({ stack: true }),
     winston.format.splat(),
+    requestContextFormat(),
     isDev
       ? winston.format.printf((info) => {
           const { timestamp, level, message, service, ...meta } = info;
@@ -43,10 +62,6 @@ export function requestLogger(req: Request, res: Response, next: NextFunction) {
       statusCode: res.statusCode,
       durationMs,
       userAgent: req.get('user-agent'),
-      requestId:
-        (req.headers['x-request-id'] as string | undefined) ??
-        (req.headers['x-correlation-id'] as string | undefined) ??
-        undefined,
     });
   });
 

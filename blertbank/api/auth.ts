@@ -1,4 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
+
+import { updateRequestContext } from '../context';
 import { ApiError, ApiErrorCode } from './error';
 
 const SERVICE_TOKEN = process.env.BLERTBANK_SERVICE_TOKEN;
@@ -8,7 +10,7 @@ if (!SERVICE_TOKEN) {
 
 export function requireServiceAuth(
   req: Request,
-  res: Response,
+  _res: Response,
   next: NextFunction,
 ) {
   const headerToken =
@@ -21,8 +23,9 @@ export function requireServiceAuth(
     );
   }
 
-  // TODO(frolv): Include service name in structured logs.
-  res.locals.serviceName = req.header('X-Service-Name') ?? 'unknown';
+  updateRequestContext({
+    requestService: req.header('X-Service-Name') ?? 'unknown',
+  });
 
   return next();
 }
