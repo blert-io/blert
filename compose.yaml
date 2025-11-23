@@ -71,7 +71,7 @@ services:
     command: npm run -w challenge-server dev
 
   blertbank:
-    image: node:22
+    image: node:24
     depends_on:
       - postgres
     ports:

@@ -1,12 +1,14 @@
 import express, { Application } from 'express';
 
 import { apiErrorHandler, registerApiRoutes } from './api';
+import { contextMiddleware } from './context';
 import logger, { requestLogger } from './log';
 
 export function createApp(): Application {
   const app = express();
 
   app.use(express.json());
+  app.use(contextMiddleware);
   app.use(requestLogger);
 
   registerApiRoutes(app);

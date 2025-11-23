@@ -316,8 +316,107 @@ describe('BlertbankClient', () => {
             'Content-Type': 'application/json',
             'X-Service-Token': 'test-token',
             'X-Service-Name': 'test-service',
+            'X-Request-ID': expect.any(String),
           }),
         }),
+      );
+    });
+  });
+
+  describe('request ID handling', () => {
+    it('should generate a UUID request ID by default', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockAccountRaw,
+      });
+
+      await client.getAccountByUserId(456);
+
+      const headers = mockFetch.mock.calls[0][1].headers as Record<
+        string,
+        string
+      >;
+      expect(headers['X-Request-ID']).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      );
+    });
+
+    it('should use request ID from provider', async () => {
+      const clientWithProvider = new BlertbankClient({
+        baseUrl: 'http://localhost:3000',
+        serviceToken: 'test-token',
+        serviceName: 'test-service',
+        fetch: mockFetch,
+        requestIdProvider: () => 'provider-request-id',
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockAccountRaw,
+      });
+
+      await clientWithProvider.getAccountByUserId(456);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'X-Request-ID': 'provider-request-id',
+          }),
+        }),
+      );
+    });
+
+    it('should use per-request requestId over provider', async () => {
+      const clientWithProvider = new BlertbankClient({
+        baseUrl: 'http://localhost:3000',
+        serviceToken: 'test-token',
+        serviceName: 'test-service',
+        fetch: mockFetch,
+        requestIdProvider: () => 'provider-request-id',
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockAccountRaw,
+      });
+
+      await clientWithProvider.getAccountByUserId(456, {
+        requestId: 'per-request-id',
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'X-Request-ID': 'per-request-id',
+          }),
+        }),
+      );
+    });
+
+    it('should generate UUID when provider returns undefined', async () => {
+      const clientWithProvider = new BlertbankClient({
+        baseUrl: 'http://localhost:3000',
+        serviceToken: 'test-token',
+        serviceName: 'test-service',
+        fetch: mockFetch,
+        requestIdProvider: () => undefined,
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockAccountRaw,
+      });
+
+      await clientWithProvider.getAccountByUserId(456);
+
+      const headers = mockFetch.mock.calls[0][1].headers as Record<
+        string,
+        string
+      >;
+      expect(headers['X-Request-ID']).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
       );
     });
   });
