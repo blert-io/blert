@@ -16,6 +16,15 @@ jest.mock('@/auth', () => {
   };
 });
 
+type TestPlayer = {
+  id: number;
+  username: string;
+  total_recordings: number;
+  overall_experience: string | number;
+};
+
+type CountResult = { count: string };
+
 describe('processNameChange', () => {
   const arbitraryExperience: PlayerExperience = {
     [Skill.OVERALL]: 300_000_000,
@@ -28,17 +37,17 @@ describe('processNameChange', () => {
     [Skill.MAGIC]: 7_000_000,
   };
 
-  let _fetch = global.fetch;
+  const _fetch = global.fetch;
   let userId: number;
   let oldPlayerId: number;
   let newPlayerId: number;
   let otherPlayerId: number;
-  let challengeSplits: Array<{
+  let challengeSplits: {
     id: number;
     type: number;
     scale: number;
     ticks: number;
-  }>;
+  }[];
 
   beforeAll(async () => {
     const users = [
@@ -50,7 +59,7 @@ describe('processNameChange', () => {
 
   afterAll(async () => {
     await sql`DELETE FROM users`;
-    sql.end();
+    void sql.end();
   });
 
   beforeEach(async () => {
@@ -420,7 +429,9 @@ describe('processNameChange', () => {
       '55555555-5555-5555-5555-555555555555': [otherPlayerId, oldPlayerId],
     };
 
-    const updatedChallengePlayers = await sql`
+    const updatedChallengePlayers = await sql<
+      { uuid: string; player_id: number; orb: number }[]
+    >`
       SELECT uuid, player_id, orb
       FROM challenge_players
       JOIN challenges ON challenge_players.challenge_id = challenges.id
@@ -513,31 +524,32 @@ describe('processNameChange', () => {
       expect(pb).toMatchObject(expectedPbHistory[index]);
     });
 
-    const [updatedPlayer] =
-      await sql`SELECT * FROM players WHERE id = ${oldPlayerId}`;
+    const [updatedPlayer] = await sql<[TestPlayer?]>`
+      SELECT * FROM players WHERE id = ${oldPlayerId}
+    `;
     expect(updatedPlayer).not.toBeUndefined();
-    expect(updatedPlayer.username).toBe('New Name');
-    expect(updatedPlayer.total_recordings).toBe(4);
-    expect(BigInt(updatedPlayer.overall_experience)).toBe(BigInt(300_000_000));
+    expect(updatedPlayer!.username).toBe('New Name');
+    expect(updatedPlayer!.total_recordings).toBe(4);
+    expect(BigInt(updatedPlayer!.overall_experience)).toBe(BigInt(300_000_000));
 
     // All the new player's data following the change date should be deleted.
     const [newPlayerExists] = await sql`
       SELECT 1 FROM players WHERE id = ${newPlayerId}
     `;
     expect(newPlayerExists).toBeUndefined();
-    const [newPlayerStats] = await sql`
+    const [newPlayerStats] = await sql<[CountResult]>`
       SELECT COUNT(*) FROM player_stats WHERE player_id = ${newPlayerId}
     `;
     expect(parseInt(newPlayerStats.count)).toBe(0);
-    const [newPlayerChallenges] = await sql`
+    const [newPlayerChallenges] = await sql<[CountResult]>`
       SELECT COUNT(*) FROM challenge_players WHERE player_id = ${newPlayerId}
     `;
     expect(parseInt(newPlayerChallenges.count)).toBe(0);
 
     const updatedRequest = await loadNameChangeRequest(id);
-    expect(updatedRequest!.status).toBe(NameChangeStatus.ACCEPTED);
-    expect(updatedRequest!.processedAt).not.toBeNull();
-    expect(updatedRequest!.migratedDocuments).toBe(12);
+    expect(updatedRequest.status).toBe(NameChangeStatus.ACCEPTED);
+    expect(updatedRequest.processedAt).not.toBeNull();
+    expect(updatedRequest.migratedDocuments).toBe(12);
   });
 
   it('succeeds when a player has previously existed with the new name', async () => {
@@ -551,7 +563,7 @@ describe('processNameChange', () => {
       INSERT INTO api_keys (user_id, player_id, key, last_used)
       VALUES (${userId}, ${newPlayerId}, 'older-key', ${new Date('2024-03-21')})
     `;
-    const newChallenges = await sql`
+    const newChallenges = await sql<{ id: number; finish_time: Date }[]>`
       INSERT INTO challenges (uuid, start_time, type, scale, finish_time)
       VALUES
         ('66666666-6666-6666-6666-666666666666', ${new Date('2024-03-20')}, 1, 2, ${new Date('2024-03-20')}),
@@ -575,7 +587,7 @@ describe('processNameChange', () => {
         (${newChallengeIds[1]}, ${newPlayerId}, 'New Name', 0, 1),
         (${newChallengeIds[1]}, ${otherPlayerId}, 'SomeRandom', 1, 1)
     `;
-    const extraSplitIds = await sql`
+    const extraSplitIds = await sql<{ id: number }[]>`
       INSERT INTO challenge_splits (challenge_id, type, scale, ticks, accurate)
       VALUES
         (${newChallengeIds[0]}, 6, 2, 33, true),
@@ -635,7 +647,9 @@ describe('processNameChange', () => {
       '77777777-7777-7777-7777-777777777777': [newPlayerId, otherPlayerId],
     };
 
-    const updatedChallengePlayers = await sql`
+    const updatedChallengePlayers = await sql<
+      { uuid: string; player_id: number; orb: number }[]
+    >`
       SELECT uuid, player_id, orb
       FROM challenge_players
       JOIN challenges ON challenge_players.challenge_id = challenges.id
@@ -758,27 +772,29 @@ describe('processNameChange', () => {
       expect(pb).toMatchObject(expectedNewPlayerPbHistory[index]);
     });
 
-    const [updatedPlayer] =
-      await sql`SELECT * FROM players WHERE id = ${oldPlayerId}`;
+    const [updatedPlayer] = await sql<[TestPlayer?]>`
+      SELECT * FROM players WHERE id = ${oldPlayerId}
+    `;
     expect(updatedPlayer).not.toBeUndefined();
-    expect(updatedPlayer.username).toBe('New Name');
-    expect(updatedPlayer.total_recordings).toBe(4);
-    expect(BigInt(updatedPlayer.overall_experience)).toBe(BigInt(300_000_000));
+    expect(updatedPlayer!.username).toBe('New Name');
+    expect(updatedPlayer!.total_recordings).toBe(4);
+    expect(BigInt(updatedPlayer!.overall_experience)).toBe(BigInt(300_000_000));
 
     // All the new player's data following the change date should be deleted,
     // but their earlier data should remain.
-    const [newPlayer] =
-      await sql`SELECT * FROM players WHERE id = ${newPlayerId}`;
+    const [newPlayer] = await sql<[TestPlayer?]>`
+      SELECT * FROM players WHERE id = ${newPlayerId}
+    `;
     expect(newPlayer).not.toBeUndefined();
-    expect(newPlayer.username).toBe('*New Name');
-    expect(newPlayer.total_recordings).toBe(2);
-    expect(BigInt(newPlayer.overall_experience)).toBe(BigInt(0));
+    expect(newPlayer!.username).toBe('*New Name');
+    expect(newPlayer!.total_recordings).toBe(2);
+    expect(BigInt(newPlayer!.overall_experience)).toBe(BigInt(0));
 
-    const [newPlayerStats] = await sql`
+    const [newPlayerStats] = await sql<[CountResult]>`
       SELECT COUNT(*) FROM player_stats WHERE player_id = ${newPlayerId}
     `;
     expect(parseInt(newPlayerStats.count)).toBe(2);
-    const [newPlayerChallenges] = await sql`
+    const [newPlayerChallenges] = await sql<[CountResult]>`
       SELECT COUNT(*) FROM challenge_players WHERE player_id = ${newPlayerId}
     `;
     expect(parseInt(newPlayerChallenges.count)).toBe(2);
@@ -805,17 +821,18 @@ describe('processNameChange', () => {
     const id = await createNameChangeRequest('old name', oldPlayerId, 'Novel');
     await processNameChange(id);
 
-    const [updatedPlayer] =
-      await sql`SELECT * FROM players WHERE id = ${oldPlayerId}`;
+    const [updatedPlayer] = await sql<[TestPlayer?]>`
+      SELECT * FROM players WHERE id = ${oldPlayerId}
+    `;
     expect(updatedPlayer).not.toBeUndefined();
-    expect(updatedPlayer.username).toBe('Novel');
-    expect(updatedPlayer.total_recordings).toBe(2);
-    expect(BigInt(updatedPlayer.overall_experience)).toBe(BigInt(300_000_000));
+    expect(updatedPlayer!.username).toBe('Novel');
+    expect(updatedPlayer!.total_recordings).toBe(2);
+    expect(BigInt(updatedPlayer!.overall_experience)).toBe(BigInt(300_000_000));
 
     const updatedRequest = await loadNameChangeRequest(id);
-    expect(updatedRequest!.status).toBe(NameChangeStatus.ACCEPTED);
-    expect(updatedRequest!.processedAt).not.toBeNull();
-    expect(updatedRequest!.migratedDocuments).toBe(0);
+    expect(updatedRequest.status).toBe(NameChangeStatus.ACCEPTED);
+    expect(updatedRequest.processedAt).not.toBeNull();
+    expect(updatedRequest.migratedDocuments).toBe(0);
   });
 
   it('fails with OLD_STILL_IN_USE if old player is on hiscores', async () => {
@@ -832,9 +849,9 @@ describe('processNameChange', () => {
     await processNameChange(id);
 
     const updatedRequest = await loadNameChangeRequest(id);
-    expect(updatedRequest!.status).toBe(NameChangeStatus.OLD_STILL_IN_USE);
-    expect(updatedRequest!.processedAt).not.toBeNull();
-    expect(updatedRequest!.migratedDocuments).toBe(0);
+    expect(updatedRequest.status).toBe(NameChangeStatus.OLD_STILL_IN_USE);
+    expect(updatedRequest.processedAt).not.toBeNull();
+    expect(updatedRequest.migratedDocuments).toBe(0);
   });
 
   it('fails with NEW_DOES_NOT_EXIST if new player is not on hiscores', async () => {
@@ -849,9 +866,9 @@ describe('processNameChange', () => {
     await processNameChange(id);
 
     const updatedRequest = await loadNameChangeRequest(id);
-    expect(updatedRequest!.status).toBe(NameChangeStatus.NEW_DOES_NOT_EXIST);
-    expect(updatedRequest!.processedAt).not.toBeNull();
-    expect(updatedRequest!.migratedDocuments).toBe(0);
+    expect(updatedRequest.status).toBe(NameChangeStatus.NEW_DOES_NOT_EXIST);
+    expect(updatedRequest.processedAt).not.toBeNull();
+    expect(updatedRequest.migratedDocuments).toBe(0);
   });
 
   it("fails with DECREASED_EXPERIENCE if new player's experience is lower", async () => {
@@ -879,9 +896,9 @@ describe('processNameChange', () => {
     await processNameChange(id);
 
     const updatedRequest = await loadNameChangeRequest(id);
-    expect(updatedRequest!.status).toBe(NameChangeStatus.DECREASED_EXPERIENCE);
-    expect(updatedRequest!.processedAt).not.toBeNull();
-    expect(updatedRequest!.migratedDocuments).toBe(0);
+    expect(updatedRequest.status).toBe(NameChangeStatus.DECREASED_EXPERIENCE);
+    expect(updatedRequest.processedAt).not.toBeNull();
+    expect(updatedRequest.migratedDocuments).toBe(0);
   });
 });
 
