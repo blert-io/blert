@@ -90,7 +90,7 @@ type MockItem = {
   stats?: { twoHanded?: boolean };
 };
 
-const originalGetItem = extendedItemCache.getItem;
+const originalGetItem = extendedItemCache.getItem.bind(extendedItemCache);
 
 function mockItems(items: MockItem[]): void {
   const map = new Map<number, MockItem>(items.map((item) => [item.id, item]));
@@ -108,9 +108,9 @@ function restoreItems(): void {
 }
 
 function createTestPlayer(items?: {
-  inventory?: Array<{ index: number; itemId: number; quantity?: number }>;
-  equipment?: Array<{ index: number; itemId: number; quantity?: number }>;
-  pouch?: Array<{ index: number; itemId: number; quantity?: number }>;
+  inventory?: { index: number; itemId: number; quantity?: number }[];
+  equipment?: { index: number; itemId: number; quantity?: number }[];
+  pouch?: { index: number; itemId: number; quantity?: number }[];
 }): GearSetupPlayer {
   const player: GearSetupPlayer = {
     name: 'Test Player',
@@ -154,7 +154,7 @@ function createTestRegion(
   minY: number,
   width: number,
   height: number,
-  itemSlots: Array<{ x: number; y: number; itemId?: number }> = [],
+  itemSlots: { x: number; y: number; itemId?: number }[] = [],
 ): SelectionRegion {
   const slots = new Map<SlotKey, SlotData>();
 
@@ -869,7 +869,7 @@ describe('removeConflicting2hItem', () => {
     restoreItems();
   });
 
-  function equipMap(entries: Array<[number, number]>): Map<number, ItemSlot> {
+  function equipMap(entries: [number, number][]): Map<number, ItemSlot> {
     return new Map<number, ItemSlot>(
       entries.map(([idx, id]) => [
         idx,

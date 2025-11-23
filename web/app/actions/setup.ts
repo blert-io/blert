@@ -145,7 +145,7 @@ export async function newGearSetup(
     publicId = randomBytes(8).toString('base64url');
 
     try {
-      const [{ id }] = await sql`
+      const [{ id }] = await sql<[{ id: string }]>`
           INSERT INTO gear_setups (
             public_id,
             author_id,
@@ -181,7 +181,16 @@ export async function newGearSetup(
 
   if (template !== undefined) {
     if (clone) {
-      const [revisionRow] = await sql`
+      const [revisionRow] = await sql<
+        [
+          {
+            version: number;
+            message: string | null;
+            created_at: Date;
+            created_by: number;
+          },
+        ]
+      >`
         INSERT INTO gear_setup_revisions (
           setup_id,
           version,
@@ -264,11 +273,26 @@ export async function migrateLocalSetup(
  * @param loadDraft Whether to load a draft for the setup if one exists.
  * @returns The setup or null if the setup does not exist.
  */
+type SetupRow = {
+  public_id: string;
+  name: string;
+  challenge_type: ChallengeType;
+  scale: number;
+  author_id: number;
+  author: string;
+  state: SetupState;
+  has_draft: boolean;
+  views: number;
+  likes: number;
+  dislikes: number;
+  latest_revision: SetupRevision | null;
+};
+
 export async function getSetupByPublicId(
   publicId: string,
   loadDraft: boolean = false,
 ): Promise<SetupMetadata | null> {
-  const [setupRow] = await sql`
+  const [setupRow] = await sql<[SetupRow?]>`
     SELECT
       s.public_id,
       s.name,
@@ -285,11 +309,13 @@ export async function getSetupByPublicId(
         'version', r.version,
         'message', r.message,
         'createdAt', r.created_at,
-        'createdBy', r.created_by
+        'createdBy', r.created_by,
+        'createdByUsername', ru.username
       ) END as "latest_revision"
     FROM gear_setups s
     LEFT JOIN gear_setup_revisions r ON r.id = s.latest_revision_id
     LEFT JOIN users u ON u.id = s.author_id
+    LEFT JOIN users ru ON ru.id = r.created_by
     WHERE s.public_id = ${publicId}
   `;
 
@@ -319,7 +345,9 @@ export async function getSetupByPublicId(
           draftDataKey(setup.publicId),
         );
         if (draftData) {
-          setup.draft = JSON.parse(new TextDecoder().decode(draftData));
+          setup.draft = JSON.parse(
+            new TextDecoder().decode(draftData),
+          ) as GearSetup;
         }
       } catch (e) {
         if (e instanceof DataRepository.NotFound) {
@@ -356,7 +384,7 @@ export async function loadSetupData(
     const data = await webRepository.loadRaw(
       revisionDataKey(publicId, revision),
     );
-    return JSON.parse(new TextDecoder().decode(data));
+    return JSON.parse(new TextDecoder().decode(data)) as GearSetup;
   } catch (e) {
     if (e instanceof DataRepository.NotFound) {
       return null;
@@ -376,7 +404,7 @@ export async function saveSetupDraft(
 ): Promise<void> {
   const session = await auth();
 
-  if (session === null || session.user.id === undefined) {
+  if (!session?.user?.id) {
     throw new Error('Not authorized');
   }
   const userId = parseInt(session.user.id);
@@ -435,7 +463,7 @@ export async function publishSetupRevision(
 ): Promise<SetupMetadata> {
   const session = await auth();
 
-  if (session === null || session.user.id === undefined) {
+  if (!session?.user?.id) {
     throw new Error('Not authorized');
   }
   const userId = parseInt(session.user.id);
@@ -517,7 +545,7 @@ export async function publishSetupRevision(
  */
 export async function deleteSetup(publicId: string): Promise<boolean> {
   const session = await auth();
-  if (session === null || session.user.id === undefined) {
+  if (!session?.user?.id) {
     return false;
   }
 
@@ -563,7 +591,7 @@ export async function getCurrentVote(
   publicId: string,
 ): Promise<VoteType | null> {
   const session = await auth();
-  if (session === null || session.user.id === undefined) {
+  if (!session?.user?.id) {
     return null;
   }
 
@@ -591,7 +619,7 @@ export async function voteSetup(
   voteType: VoteType,
 ): Promise<VoteCountsResult> {
   const session = await auth();
-  if (session === null || session.user.id === undefined) {
+  if (!session?.user?.id) {
     return { error: 'Not authorized', counts: null };
   }
 
@@ -672,7 +700,7 @@ export async function voteSetup(
  */
 export async function removeVote(publicId: string): Promise<VoteCountsResult> {
   const session = await auth();
-  if (session === null || session.user.id === undefined) {
+  if (!session?.user?.id) {
     return { error: 'Not authorized', counts: null };
   }
 
@@ -750,13 +778,13 @@ export async function getSetupRevisions(
   }
 
   const revisions = await sql<
-    Array<{
+    {
       version: number;
       message: string | null;
       created_at: Date;
       created_by: number;
       username: string;
-    }>
+    }[]
   >`
     SELECT
       r.version,
@@ -862,7 +890,7 @@ export async function getSetups(
     conditions.push(sql`s.public_id != ${cursor.publicId}`);
   }
 
-  let direction = cursor?.direction === 'backward' ? sql`ASC` : sql`DESC`;
+  const direction = cursor?.direction === 'backward' ? sql`ASC` : sql`DESC`;
   let orderBy;
   if (filter.orderBy === 'score') {
     orderBy = sql`s.score ${direction}, s.created_at ${direction}`;
@@ -871,6 +899,23 @@ export async function getSetups(
   } else {
     orderBy = sql`s.created_at ${direction}`;
   }
+
+  type SetupListRow = {
+    id: number;
+    public_id: string;
+    name: string;
+    challenge_type: ChallengeType;
+    author_id: number;
+    scale: number;
+    author: string;
+    state: SetupState;
+    views: number;
+    likes: number;
+    dislikes: number;
+    score: number;
+    created_at: Date;
+    updated_at: Date | null;
+  };
 
   const [{ total, remaining }, setups] = await Promise.all([
     sql.begin(async (client) => {
@@ -890,7 +935,7 @@ export async function getSetups(
 
       return { total: parseInt(count), remaining: parseInt(after) };
     }),
-    sql`
+    sql<SetupListRow[]>`
       SELECT
         s.id,
         s.public_id,
@@ -986,7 +1031,7 @@ export async function getCurrentUserSetups(
   limit: number = 20,
 ): Promise<SetupList | null> {
   const session = await auth();
-  if (session === null || session.user.id === undefined) {
+  if (!session?.user?.id) {
     return null;
   }
 
@@ -1021,7 +1066,7 @@ export async function incrementSetupViews(
     }
 
     // Use either the user ID or IP address to identify the viewer.
-    const viewerKey = `web:setup-views:${setup.id}:${userId || viewerIp}`;
+    const viewerKey = `web:setup-views:${setup.id}:${userId ?? viewerIp}`;
 
     const hasRecentView = await redisClient.exists(viewerKey);
     if (!hasRecentView) {
@@ -1055,9 +1100,10 @@ export type ItemCategory =
   | 'utility'
   | 'runes';
 
-export type CustomItems = {
-  [key in ItemCategory]: { added: number[]; hidden: number[] };
-};
+export type CustomItems = Record<
+  ItemCategory,
+  { added: number[]; hidden: number[] }
+>;
 
 /**
  * Adds a custom item to the current user's custom items.
@@ -1126,7 +1172,7 @@ async function insertCustomItem(
   isAdded: boolean,
 ): Promise<void> {
   const session = await auth();
-  if (session === null || session.user.id === undefined) {
+  if (!session?.user?.id) {
     throw new Error('Not authorized');
   }
   const userId = parseInt(session.user.id);
@@ -1156,7 +1202,7 @@ async function deleteCustomItem(
   isAdded: boolean,
 ): Promise<void> {
   const session = await auth();
-  if (session === null || session.user.id === undefined) {
+  if (!session?.user?.id) {
     throw new Error('Not authorized');
   }
   const userId = parseInt(session.user.id);
@@ -1191,14 +1237,14 @@ export async function getCustomItems(
   };
 
   const session = await auth();
-  if (session === null || session.user.id === undefined) {
+  if (!session?.user?.id) {
     return result;
   }
 
   const userId = parseInt(session.user.id);
 
   const items = await sql<
-    Array<{ item_id: number; category: ItemCategory; is_added: boolean }>
+    { item_id: number; category: ItemCategory; is_added: boolean }[]
   >`
     SELECT item_id, category, is_added
     FROM user_custom_items

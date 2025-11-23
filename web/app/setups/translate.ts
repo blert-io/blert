@@ -22,7 +22,7 @@ interface InventorySetupsItem {
   q?: number;
 }
 
-type InventorySetupsData = {
+export type InventorySetupsData = {
   setup: {
     inv: (InventorySetupsItem | null)[];
     eq: (InventorySetupsItem | null)[];
