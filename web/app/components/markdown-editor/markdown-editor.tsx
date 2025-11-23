@@ -473,7 +473,7 @@ export default function MarkdownEditor({
   const isOverLimit = characterCount > maxLength;
 
   return (
-    <div className={`${styles.editor} ${className || ''}`}>
+    <div className={`${styles.editor} ${className ?? ''}`}>
       <div className={styles.toolbar}>
         <div className={styles.formatButtons}>
           {formatActions.inlineActions.map((action, index) => (
