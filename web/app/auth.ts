@@ -16,21 +16,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         username: {},
         password: {},
       },
-      authorize: async (credentials: any) => {
+      authorize: async (credentials) => {
         try {
-          const userId = await verifyUser(
-            credentials.username,
-            credentials.password,
-          );
-          return { name: credentials.username, id: userId };
-        } catch (e) {
+          const username = credentials?.username as string;
+          const password = credentials?.password as string;
+          const userId = await verifyUser(username, password);
+          return { name: username, id: userId };
+        } catch {
           return null;
         }
       },
     }),
   ],
   callbacks: {
-    async jwt({ trigger, token, user }) {
+    jwt({ trigger, token, user }) {
       if (trigger === 'signIn') {
         if (user) {
           token.id = user.id;
@@ -38,7 +37,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
       return token;
     },
-    async session({ session, token }) {
+    session({ session, token }) {
       session.user.id = token.id as string;
       return session;
     },

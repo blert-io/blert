@@ -182,7 +182,7 @@ export default function MarkdownRenderer({
                 </Link>
               );
             },
-            img: ({ src, alt, ...props }) => {
+            img: ({ src, alt }) => {
               if (!src || typeof src !== 'string' || !isImageUrlAllowed(src)) {
                 return (
                   <span
