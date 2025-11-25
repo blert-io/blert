@@ -34,6 +34,7 @@ export class ClientEvents {
   private readonly stageInfo: StageInfo;
   private readonly tickState: TickState[];
   private readonly primaryPlayer: string | null;
+  private readonly invalidTickCount: boolean;
 
   /**
    * Initializes challenge events for a client from its stage event stream.
@@ -75,9 +76,27 @@ export class ClientEvents {
       }
     }
 
-    events.sort((a, b) => a.getTick() - b.getTick());
-    if (stageInfo.recordedTicks === 0) {
-      stageInfo.recordedTicks = events[events.length - 1].getTick() ?? 0;
+    return ClientEvents.fromRawEvents(clientId, challenge, stageInfo, events);
+  }
+
+  /**
+   * Initializes challenge events for a client from a list of raw events.
+   *
+   * @param clientId ID of the client that recorded these events.
+   * @param challenge The challenge to which the events belong.
+   * @param stageInfo Information about the stage of the challenge.
+   * @param rawEvents Raw list of stage events.
+   * @returns Structured client events.
+   */
+  public static fromRawEvents(
+    clientId: number,
+    challenge: ChallengeInfo,
+    stageInfo: StageInfo,
+    rawEvents: Event[],
+  ): ClientEvents {
+    const events = [...rawEvents].sort((a, b) => a.getTick() - b.getTick());
+    if (stageInfo.recordedTicks === 0 && events.length > 0) {
+      stageInfo.recordedTicks = events[events.length - 1].getTick();
     }
 
     const primaryPlayers = new Set<string>();
@@ -100,7 +119,9 @@ export class ClientEvents {
 
     if (primaryPlayers.size > 1) {
       logger.warn(
-        `Client reported multiple primary players: ${Array.from(primaryPlayers).join(', ')}`,
+        'Client %d reported multiple primary players: %s',
+        clientId,
+        Array.from(primaryPlayers).join(', '),
       );
       logger.warn(
         'Treating client as a spectator (ignoring primary player data)',
@@ -127,11 +148,27 @@ export class ClientEvents {
     const st = stageInfo.serverTicks;
     const derivedAccurate =
       st !== null && st.precise && st.count === stageInfo.recordedTicks;
+    let invalidTickCount = false;
+
+    if (st !== null && stageInfo.recordedTicks > st.count) {
+      invalidTickCount = true;
+      logger.warn(
+        'Client %d: recorded tick count %d exceeds reported server ticks %d',
+        clientId,
+        stageInfo.recordedTicks,
+        st.count,
+      );
+      stageInfo.accurate = false;
+    }
+
     if (stageInfo.accurate && !derivedAccurate) {
       const serverTicks =
         st !== null ? `(count=${st.count},precise=${st.precise})` : 'none';
       logger.warn(
-        `Client reported accurate has mismatched tick count: reported=${stageInfo.recordedTicks} server=${serverTicks}`,
+        'Client %d reported accurate but has mismatched tick count: reported=%d, server=%s',
+        clientId,
+        stageInfo.recordedTicks,
+        serverTicks,
       );
       stageInfo.accurate = derivedAccurate;
     }
@@ -142,71 +179,7 @@ export class ClientEvents {
       stageInfo,
       tickState,
       primaryPlayer ?? null,
-    );
-  }
-
-  public static fromRawEvents(
-    clientId: number,
-    challenge: ChallengeInfo,
-    stageInfo: StageInfo,
-    rawEvents: Event[],
-  ): ClientEvents {
-    const events = [...rawEvents].sort((a, b) => a.getTick() - b.getTick());
-
-    if (stageInfo.recordedTicks === 0 && events.length > 0) {
-      stageInfo.recordedTicks = events[events.length - 1].getTick();
-    }
-
-    const primaryPlayers = new Set<string>();
-
-    const eventsByTick: Event[][] = Array.from(
-      { length: stageInfo.recordedTicks + 1 },
-      () => [],
-    );
-    for (const event of events) {
-      if (
-        event.getType() === Event.Type.PLAYER_UPDATE &&
-        event.getPlayer()!.getDataSource() === DataSource.PRIMARY
-      ) {
-        primaryPlayers.add(event.getPlayer()!.getName());
-      }
-
-      eventsByTick[event.getTick()].push(event);
-    }
-
-    if (primaryPlayers.size > 1) {
-      logger.warn(
-        `Client reported multiple primary players: ${Array.from(primaryPlayers).join(', ')}`,
-      );
-      logger.warn(
-        'Treating client as a spectator (ignoring primary player data)',
-      );
-      primaryPlayers.clear();
-    }
-
-    const primaryPlayer =
-      primaryPlayers.size === 1 ? primaryPlayers.values().next().value : null;
-
-    const playerStates = this.buildPlayerStates(eventsByTick, challenge.party);
-
-    const tickState = eventsByTick.map(
-      (evts, tick) =>
-        new TickState(
-          tick,
-          evts,
-          challenge.party.reduce(
-            (acc, player) => ({ ...acc, [player]: playerStates[player][tick] }),
-            {},
-          ),
-        ),
-    );
-
-    return new ClientEvents(
-      clientId,
-      challenge,
-      stageInfo,
-      tickState,
-      primaryPlayer ?? null,
+      invalidTickCount,
     );
   }
 
@@ -276,7 +249,11 @@ export class ClientEvents {
   }
 
   public toString(): string {
-    return `Client#${this.clientId}`;
+    return `Client#${this.clientId}[${this.primaryPlayer ?? 'spectator'}]`;
+  }
+
+  public hasInvalidTickCount(): boolean {
+    return this.invalidTickCount;
   }
 
   /**
@@ -350,12 +327,14 @@ export class ClientEvents {
     stageInfo: StageInfo,
     tickState: TickState[],
     primaryPlayer: string | null,
+    invalidTickCount: boolean,
   ) {
     this.clientId = clientId;
     this.challenge = challenge;
     this.stageInfo = stageInfo;
     this.tickState = tickState;
     this.primaryPlayer = primaryPlayer;
+    this.invalidTickCount = invalidTickCount;
   }
 
   private static buildPlayerStates(
