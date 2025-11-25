@@ -196,6 +196,12 @@ export {
   isPostgresUniqueViolation,
 } from './db/postgres';
 
+export type {
+  ChallengeRow,
+  ChallengeSplitRow,
+  SessionRow,
+} from './db/challenge';
+
 export type { TobChallengeStatsRow } from './db/challenge-stats';
 
 export { default as PriceTracker } from './price-tracker';

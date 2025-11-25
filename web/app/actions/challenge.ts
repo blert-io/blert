@@ -1,6 +1,7 @@
 'use server';
 
 import {
+  CamelToSnakeCase,
   Challenge,
   ChallengeMode,
   ChallengePlayer,
@@ -16,6 +17,7 @@ import {
   MokhaiotlChallengeStats,
   Player,
   PlayerStats,
+  PrimaryMeleeGear,
   RELEVANT_PB_SPLITS,
   Session,
   SessionStatus,
@@ -31,6 +33,9 @@ import {
   snakeToCamel,
   snakeToCamelObject,
 } from '@blert/common';
+// TODO(frolv): Typescript doesn't like the re-export from common/db so we have
+// to import it directly.
+import type { ChallengeRow, SessionRow } from '@blert/common/dist/db/challenge';
 import postgres from 'postgres';
 
 import { sql } from './db';
@@ -40,13 +45,13 @@ import {
   BaseOperand,
   Comparator,
   Condition,
-  InComparator,
   Join,
-  RangeComparator,
   join,
   operator,
   where,
 } from './query';
+
+type ChallengeRowWithSessionUuid = ChallengeRow & { session_uuid: string };
 
 /**
  * Fetches the challenge with the specific ID from the database.
@@ -59,7 +64,7 @@ export async function loadChallenge(
   type: ChallengeType,
   id: string,
 ): Promise<Challenge | null> {
-  const rawChallenge = await sql`
+  const [rawChallenge] = await sql<[ChallengeRowWithSessionUuid?]>`
     SELECT
       challenges.*,
       challenge_sessions.uuid as session_uuid
@@ -67,11 +72,18 @@ export async function loadChallenge(
     JOIN challenge_sessions ON challenges.session_id = challenge_sessions.id
     WHERE challenges.uuid = ${id} AND challenges.type = ${type}
   `;
-  if (rawChallenge.length === 0) {
+  if (!rawChallenge) {
     return null;
   }
 
-  const playersQuery = sql`
+  const playersQuery = sql<
+    {
+      username: string;
+      primary_gear: PrimaryMeleeGear;
+      stage_deaths: Stage[];
+      current_username: string;
+    }[]
+  >`
     SELECT
       challenge_players.username,
       challenge_players.primary_gear,
@@ -79,14 +91,14 @@ export async function loadChallenge(
       players.username as current_username
     FROM
       challenge_players JOIN players ON challenge_players.player_id = players.id
-    WHERE challenge_id = ${rawChallenge[0].id}
+    WHERE challenge_id = ${rawChallenge.id}
     ORDER BY orb
   `;
 
-  const splitsQuery = sql`
+  const splitsQuery = sql<{ type: SplitType; ticks: number }[]>`
     SELECT type, ticks
     FROM challenge_splits
-    WHERE challenge_id = ${rawChallenge[0].id}
+    WHERE challenge_id = ${rawChallenge.id}
   `;
 
   const [players, splits] = await Promise.all([playersQuery, splitsQuery]);
@@ -97,18 +109,18 @@ export async function loadChallenge(
   });
 
   const challenge: Challenge = {
-    uuid: rawChallenge[0].uuid,
-    sessionUuid: rawChallenge[0].session_uuid,
-    type: rawChallenge[0].type,
-    stage: rawChallenge[0].stage,
-    startTime: rawChallenge[0].start_time,
-    finishTime: rawChallenge[0].finish_time,
-    status: rawChallenge[0].status,
-    mode: rawChallenge[0].mode,
-    scale: rawChallenge[0].scale,
-    challengeTicks: rawChallenge[0].challenge_ticks,
-    overallTicks: rawChallenge[0].overall_ticks,
-    totalDeaths: rawChallenge[0].total_deaths,
+    uuid: rawChallenge.uuid,
+    sessionUuid: rawChallenge.session_uuid,
+    type: rawChallenge.type,
+    stage: rawChallenge.stage,
+    startTime: rawChallenge.start_time,
+    finishTime: rawChallenge.finish_time,
+    status: rawChallenge.status,
+    mode: rawChallenge.mode,
+    scale: rawChallenge.scale,
+    challengeTicks: rawChallenge.challenge_ticks,
+    overallTicks: rawChallenge.overall_ticks,
+    totalDeaths: rawChallenge.total_deaths,
     party: players.map((p) => ({
       username: p.username,
       currentUsername: p.current_username,
@@ -118,7 +130,7 @@ export async function loadChallenge(
     splits: splitsMap,
   };
 
-  switch (rawChallenge[0].type) {
+  switch (rawChallenge.type) {
     case ChallengeType.TOB: {
       const raid = challenge as TobRaid;
 
@@ -127,7 +139,7 @@ export async function loadChallenge(
         sql`
           SELECT *
           FROM tob_challenge_stats
-          WHERE challenge_id = ${rawChallenge[0].id}
+          WHERE challenge_id = ${rawChallenge.id}
         `,
       ]).then(([tobData, [stats]]) => {
         raid.tobRooms = tobData;
@@ -154,7 +166,7 @@ export async function loadChallenge(
         sql`
           SELECT *
           FROM inferno_challenge_stats
-          WHERE challenge_id = ${rawChallenge[0].id}
+          WHERE challenge_id = ${rawChallenge.id}
         `,
       ]).then(([infernoData, [stats]]) => {
         (challenge as InfernoChallenge).inferno = infernoData;
@@ -170,7 +182,7 @@ export async function loadChallenge(
         sql`
           SELECT *
           FROM mokhaiotl_challenge_stats
-          WHERE challenge_id = ${rawChallenge[0].id}
+          WHERE challenge_id = ${rawChallenge.id}
         `,
       ]).then(([mokhaiotlData, [stats]]) => {
         (challenge as MokhaiotlChallenge).mokhaiotl = mokhaiotlData;
@@ -203,9 +215,12 @@ function statsTableAndField(type: ChallengeType): {
   }
 }
 
-function statsObject<
-  T extends TobChallengeStats | MokhaiotlChallengeStats | InfernoChallengeStats,
->(rawRow: Record<string, any>): T {
+type StatsObject =
+  | TobChallengeStats
+  | MokhaiotlChallengeStats
+  | InfernoChallengeStats;
+
+function statsObject<T extends StatsObject>(rawRow: Record<string, any>): T {
   delete rawRow.id;
   delete rawRow.challenge_id;
   return snakeToCamelObject(rawRow) as T;
@@ -347,18 +362,20 @@ function shorthandToFullField(field: string): [string, string] {
   }
 }
 
+type ComparableValue = number | string | Date;
+
 function comparatorToSql(
   table: postgres.Helper<string>,
   column: string,
-  comparator: Comparator<any>,
+  comparator: Comparator<ComparableValue>,
 ): postgres.Fragment {
   if (comparator[0] === 'in') {
-    const c = comparator as InComparator<any>;
+    const c = comparator;
     return sql`${table}.${sql(column)} = ANY(${c[1]})`;
   }
 
   if (comparator[0] === 'range') {
-    const c = comparator as RangeComparator<any>;
+    const c = comparator;
     const [start, end] = c[1];
     return sql`${table}.${sql(column)} >= ${start} AND ${table}.${sql(column)} < ${end}`;
   }
@@ -425,8 +442,8 @@ function order(
 
   const sorts = Array.isArray(sort) ? sort : [sort];
   for (const sort of sorts) {
-    let { direction, field, options } = parseSort(sort);
-    field = camelToSnake(field);
+    const { direction, field: camelField, options } = parseSort(sort);
+    const field = camelToSnake(camelField);
     let sortOptions;
     switch (options) {
       case 'nf':
@@ -729,7 +746,7 @@ export async function findChallenges(
   const sort = searchQuery.sort ?? DEFAULT_SORT;
 
   const promises: Promise<any>[] = [
-    sql`
+    sql<ChallengeRowWithSessionUuid[]>`
       SELECT
         ${queryTable}.id,
         ${queryTable}.uuid,
@@ -756,7 +773,7 @@ export async function findChallenges(
   let total: number | null = null;
   if (options.count) {
     promises.push(
-      sql`
+      sql<[{ count: string }]>`
         SELECT COUNT(*)
         FROM ${baseTable}
         ${join(joins)}
@@ -767,9 +784,11 @@ export async function findChallenges(
     );
   }
 
-  const [rawChallenges] = await Promise.all(promises);
+  const rawChallenges = (
+    await Promise.all(promises)
+  )[0] as ChallengeRowWithSessionUuid[];
 
-  const challengeIds = rawChallenges.map((c: any) => c.id);
+  const challengeIds = rawChallenges.map((c) => c.id);
   const extra: Record<number, Partial<ChallengeOverview>> = {};
   for (const id of challengeIds) {
     extra[id] = {};
@@ -781,16 +800,21 @@ export async function findChallenges(
     const splits = options.extraFields.splits.flatMap(allSplitModes);
 
     loadPromises.push(
-      sql`
+      sql<
+        {
+          challenge_id: number;
+          type: SplitType;
+          ticks: number;
+          accurate: boolean;
+        }[]
+      >`
         SELECT challenge_id, type, ticks, accurate
         FROM challenge_splits
         WHERE challenge_id = ANY(${challengeIds}) AND type = ANY(${splits})
       `.then((ss) => {
-        ss.forEach((s: any) => {
-          if (extra[s.challenge_id].splits === undefined) {
-            extra[s.challenge_id].splits = {};
-          }
-          const generalized = generalizeSplit(s.type) as SplitType;
+        ss.forEach((s) => {
+          extra[s.challenge_id].splits ??= {};
+          const generalized = generalizeSplit(s.type);
           extra[s.challenge_id].splits![generalized] = {
             ticks: s.ticks,
             accurate: s.accurate,
@@ -809,16 +833,18 @@ export async function findChallenges(
 
     if (types.has(ChallengeType.TOB)) {
       loadPromises.push(
-        sql`
+        sql<({ challenge_id?: number; id?: number } & TobChallengeStats)[]>`
           SELECT *
           FROM tob_challenge_stats
           WHERE challenge_id = ANY(${types.get(ChallengeType.TOB)!})
         `.then((stats) => {
-          stats.forEach((s: any) => {
-            const challengeId = s.challenge_id;
+          stats.forEach((s) => {
+            const challengeId = s.challenge_id!;
             delete s.id;
             delete s.challenge_id;
-            extra[challengeId].tobStats = snakeToCamelObject(s);
+            extra[challengeId].tobStats = snakeToCamelObject(
+              s,
+            ) as TobChallengeStats;
           });
         }),
       );
@@ -826,13 +852,15 @@ export async function findChallenges(
 
     if (types.has(ChallengeType.MOKHAIOTL)) {
       loadPromises.push(
-        sql`
+        sql<
+          ({ challenge_id?: number; id?: number } & MokhaiotlChallengeStats)[]
+        >`
           SELECT *
           FROM mokhaiotl_challenge_stats
           WHERE challenge_id = ANY(${types.get(ChallengeType.MOKHAIOTL)!})
         `.then((stats) => {
-          stats.forEach((s: any) => {
-            const challengeId = s.challenge_id;
+          stats.forEach((s) => {
+            const challengeId = s.challenge_id!;
             delete s.id;
             delete s.challenge_id;
             extra[challengeId].mokhaiotlStats = snakeToCamelObject(s);
@@ -843,13 +871,13 @@ export async function findChallenges(
 
     if (types.has(ChallengeType.INFERNO)) {
       loadPromises.push(
-        sql`
+        sql<({ challenge_id?: number; id?: number } & InfernoChallengeStats)[]>`
           SELECT *
           FROM inferno_challenge_stats
           WHERE challenge_id = ANY(${types.get(ChallengeType.INFERNO)!})
         `.then((stats) => {
-          stats.forEach((s: any) => {
-            const challengeId = s.challenge_id;
+          stats.forEach((s) => {
+            const challengeId = s.challenge_id!;
             delete s.id;
             delete s.challenge_id;
             extra[challengeId].infernoStats = snakeToCamelObject(s);
@@ -860,7 +888,16 @@ export async function findChallenges(
   }
 
   loadPromises.push(
-    sql`
+    sql<
+      {
+        challenge_id: number;
+        username: string;
+        stage_deaths: Stage[];
+        current_username: string;
+        primary_gear: PrimaryMeleeGear;
+        orb: number;
+      }[]
+    >`
       SELECT
         challenge_id,
         challenge_players.username AS username,
@@ -873,10 +910,8 @@ export async function findChallenges(
       WHERE challenge_id = ANY(${challengeIds})
       ORDER BY orb
     `.then((players) => {
-      players.forEach((p: any) => {
-        if (extra[p.challenge_id].party === undefined) {
-          extra[p.challenge_id].party = [];
-        }
+      players.forEach((p) => {
+        extra[p.challenge_id].party ??= [];
         extra[p.challenge_id].party!.push({
           username: p.username,
           currentUsername: p.current_username,
@@ -890,7 +925,7 @@ export async function findChallenges(
   await Promise.all(loadPromises);
 
   const challenges = rawChallenges.map(
-    (c: any): ChallengeOverview => ({
+    (c): ChallengeOverview => ({
       uuid: c.uuid,
       sessionUuid: c.session_uuid,
       type: c.type,
@@ -909,7 +944,7 @@ export async function findChallenges(
     }),
   );
 
-  return [challenges as ChallengeOverview[], total];
+  return [challenges, total];
 }
 
 type GroupField = {
@@ -937,9 +972,9 @@ export type AggregationQuery = Record<string, Aggregations>;
 export type FieldAggregation<T extends string> = `${T}:${Aggregation}`;
 
 type FieldAggregations<As extends Aggregations> = As extends Aggregation
-  ? { [A in As]: number }
+  ? Record<As, number>
   : As extends Aggregation[]
-    ? { [A in As[number]]: number }
+    ? Record<As[number], number>
     : never;
 
 export type AggregationResult<F extends AggregationQuery> = {
@@ -1132,10 +1167,10 @@ export async function aggregateChallenges<
     });
   });
 
-  let groupFields: Array<GroupField> = [];
+  const groupFields: GroupField[] = [];
 
   if (grouping !== undefined) {
-    const fields = Array.isArray(grouping) ? grouping : [grouping];
+    const fields: string[] = Array.isArray(grouping) ? grouping : [grouping];
     fields.forEach((field) => {
       const [f, table] = shorthandToFullField(camelToSnake(field));
       let groupExpression = null;
@@ -1187,46 +1222,45 @@ export async function aggregateChallenges<
 
   if (rows.length === 0) {
     if (groupFields.length > 0) {
-      return {} as any;
+      return {} as GroupedAggregationResult<F, G>;
     }
     if (hasCount) {
-      return { '*': { count: 0 } } as any;
+      return { '*': { count: 0 } } as AggregationResult<F>;
     }
     return null;
   }
 
   if (groupFields.length === 0) {
-    let result = {} as AggregationResult<any>;
+    const result = {} as AggregationResult<AggregationQuery>;
 
     const row = rows[0];
 
     Object.entries(row).forEach(([key, value]) => {
       if (key === 'count') {
-        result['*'] = { count: parseInt(value) };
+        result['*'] = { count: parseInt(value as string) };
         return;
       }
 
-      const agg = key.split('_')[0];
+      const agg = key.split('_')[0] as Aggregation;
       const field = originalFields[key];
 
-      if (result[field] === undefined) {
-        result[field] = {};
-      }
-
-      result[field][agg as Aggregation] = floatOrZero(value);
+      result[field] ??= {} as Record<Aggregation, number>;
+      (result[field] as Record<Aggregation, number>)[agg] = floatOrZero(
+        value as string,
+      );
     });
 
-    return result;
+    return result as AggregationResult<F>;
   }
 
-  const result = {} as Record<string, any>;
+  const result = {} as GroupedAggregationResult<AggregationQuery, string>;
 
   rows.forEach((row) => {
-    let groupResult = {} as any;
+    const groupResult = {} as AggregationResult<AggregationQuery>;
 
     Object.entries(row).forEach(([key, value]) => {
       if (key === 'count') {
-        groupResult['*'] = { count: parseInt(value) };
+        groupResult['*'] = { count: parseInt(value as string) };
         return;
       }
 
@@ -1237,19 +1271,18 @@ export async function aggregateChallenges<
       const agg = key.split('_')[0];
       const field = originalFields[key];
 
-      if (groupResult[field] === undefined) {
-        groupResult[field] = {};
-      }
-
-      groupResult[field][agg as Aggregation] = floatOrZero(value);
+      groupResult[field] ??= {} as Record<Aggregation, number>;
+      (groupResult[field] as Record<string, number>)[agg] = floatOrZero(
+        value as string,
+      );
     });
 
     let parent = result;
 
     groupFields.forEach((field, i) => {
-      let value = row[field.renamed];
+      let value = row[field.renamed] as string | number | Date;
       if (value instanceof Date) {
-        const date = value as Date;
+        const date = value;
         value =
           `${date.getUTCFullYear()}-` +
           `${(date.getUTCMonth() + 1).toString().padStart(2, '0')}-` +
@@ -1258,11 +1291,14 @@ export async function aggregateChallenges<
 
       if (i === groupFields.length - 1) {
         parent[value] = groupResult;
-      } else if (parent[value] === undefined) {
-        parent[value] = {};
+      } else {
+        parent[value] ??= {};
       }
 
-      parent = parent[value];
+      parent = parent[value] as unknown as GroupedAggregationResult<
+        AggregationQuery,
+        string
+      >;
     });
   });
 
@@ -1415,10 +1451,10 @@ export type SessionWithStats = Omit<Session, 'partyHash'> & {
 export async function loadSessionWithStats(
   uuid: string,
 ): Promise<SessionWithStats | null> {
-  let rawSession: postgres.Row;
+  let rawSession: SessionRow;
 
   try {
-    const [result] = await sql`
+    const [result] = await sql<[SessionRow?]>`
       SELECT * FROM challenge_sessions
       WHERE uuid = ${uuid}
     `;
@@ -1435,7 +1471,7 @@ export async function loadSessionWithStats(
     throw e;
   }
 
-  const rawChallenges = await sql`
+  const rawChallenges = await sql<ChallengeRow[]>`
     SELECT * FROM challenges
     WHERE session_id = ${rawSession.id}
       AND status != ${ChallengeStatus.ABANDONED}
@@ -1469,7 +1505,15 @@ export async function loadSessionWithStats(
     return acc;
   }, {});
 
-  const challengePlayersQuery = sql`
+  const challengePlayersQuery = sql<
+    {
+      challenge_id: number;
+      username: string;
+      stage_deaths: Stage[];
+      primary_gear: PrimaryMeleeGear;
+      current_username: string;
+    }[]
+  >`
     SELECT
       cp.challenge_id,
       cp.username,
@@ -1482,12 +1526,21 @@ export async function loadSessionWithStats(
     ORDER BY cp.orb ASC, cp.challenge_id ASC
   `;
 
-  const challengeSplitsQuery = sql`
+  const challengeSplitsQuery = sql<
+    {
+      challenge_id: number;
+      type: SplitType;
+      ticks: number;
+      accurate: boolean;
+    }[]
+  >`
     SELECT challenge_id, type, ticks, accurate FROM challenge_splits
     WHERE challenge_id = ANY(${challengeIds})
   `;
 
-  const personalBestsQuery = sql`
+  const personalBestsQuery = sql<
+    { username: string; challenge_id: number; type: SplitType; ticks: number }[]
+  >`
     SELECT p.username, cs.challenge_id, cs.type, cs.ticks
     FROM personal_best_history pbh
     JOIN challenge_splits cs ON pbh.challenge_split_id = cs.id
@@ -1497,10 +1550,10 @@ export async function loadSessionWithStats(
     ORDER BY pbh.created_at ASC
   `;
 
-  let challengeStatsQuery: Promise<postgres.Row[]>;
-  const statsMeta = statsTableAndField(rawChallenges[0].type as ChallengeType);
+  let challengeStatsQuery: Promise<(StatsObject & { challenge_id: number })[]>;
+  const statsMeta = statsTableAndField(rawChallenges[0].type);
   if (statsMeta !== null) {
-    challengeStatsQuery = sql`
+    challengeStatsQuery = sql<(StatsObject & { challenge_id: number })[]>`
       SELECT * FROM ${sql(statsMeta.table)}
       WHERE challenge_id = ANY(${challengeIds})
     `;
@@ -1531,38 +1584,38 @@ export async function loadSessionWithStats(
   );
 
   for (const split of challengeSplits) {
-    extraChallengeData[split.challenge_id].splits[split.type as SplitType] = {
+    extraChallengeData[split.challenge_id].splits[split.type] = {
       ticks: split.ticks,
       accurate: split.accurate,
     };
   }
 
-  const pbsByPlayer: Map<string, Map<SplitType, number>> = new Map(
+  const pbsByPlayer = new Map<string, Map<SplitType, number>>(
     party.map((p) => [p, new Map()]),
   );
 
   for (const pb of personalBests) {
     extraChallengeData[pb.challenge_id].personalBests.push({
       player: pb.username,
-      type: pb.type as SplitType,
+      type: pb.type,
       ticks: pb.ticks,
     });
 
     // PB rows are sorted by creation date, so the latest row is the fastest.
-    pbsByPlayer.get(pb.username)?.set(pb.type as SplitType, pb.ticks);
+    pbsByPlayer.get(pb.username)?.set(pb.type, pb.ticks);
   }
 
   for (const stat of challengeStats) {
     const challengeId = stat.challenge_id;
-    (extraChallengeData[challengeId] as any)[statsMeta!.field] =
-      statsObject(stat);
+    // @ts-expect-error `stat` is guaranteed to have the correct type.
+    extraChallengeData[challengeId][statsMeta!.field] = statsObject(stat);
   }
 
   const challenges: SessionChallenge[] = rawChallenges.map((c) => ({
     uuid: c.uuid,
-    type: c.type as ChallengeType,
-    status: c.status as ChallengeStatus,
-    mode: c.mode as ChallengeMode,
+    type: c.type,
+    status: c.status,
+    mode: c.mode,
     stage: c.stage,
     scale: c.scale,
     startTime: c.start_time,
@@ -1583,7 +1636,7 @@ export async function loadSessionWithStats(
         personalBests: Array.from(
           pbsByPlayer.get(cp.username)?.entries() ?? [],
         ).map(([type, ticks]) => ({
-          type: type as SplitType,
+          type,
           ticks,
         })),
       };
@@ -1660,12 +1713,12 @@ export async function loadSessionWithStats(
 
   const session: SessionWithStats = {
     uuid: rawSession.uuid,
-    challengeType: rawSession.challenge_type as ChallengeType,
-    challengeMode: rawSession.challenge_mode as ChallengeMode,
+    challengeType: rawSession.challenge_type,
+    challengeMode: rawSession.challenge_mode,
     scale: rawSession.scale,
     startTime: rawSession.start_time,
     endTime: rawSession.end_time,
-    status: rawSession.status as SessionStatus,
+    status: rawSession.status,
     party,
     challenges,
     stats,
@@ -1688,7 +1741,7 @@ export async function loadSessions(
 ): Promise<SessionWithChallenges[]> {
   const { conditions, defaultSort } = sessionFilters(query);
 
-  const sessions = await sql`
+  const sessions = await sql<SessionRow[]>`
     SELECT "challenge_sessions".*
     FROM challenge_sessions
     ${where(conditions)}
@@ -1725,12 +1778,12 @@ export async function loadSessions(
 
   return sessions.map((session) => ({
     uuid: session.uuid,
-    challengeType: session.challenge_type as ChallengeType,
-    challengeMode: session.challenge_mode as ChallengeMode,
+    challengeType: session.challenge_type,
+    challengeMode: session.challenge_mode,
     scale: session.scale,
     startTime: session.start_time,
     endTime: session.end_time,
-    status: session.status as SessionStatus,
+    status: session.status,
     party:
       sessionsByUuid
         .get(session.uuid)
@@ -1787,7 +1840,9 @@ function sessionGroupingFieldToDb(field: string): string {
   }
 }
 
-export type SessionAggregationOptions<F extends AggregationQuery = {}> = {
+export type SessionAggregationOptions<
+  F extends AggregationQuery = Record<string, Aggregations>,
+> = {
   limit?: number;
   sort?: SortQuery<Aggregation | FieldAggregation<keyof Omit<F, '*'> & string>>;
 };
@@ -1883,7 +1938,7 @@ export async function aggregateSessions<
     if (agg === undefined) {
       sort = `${direction}${field}`;
     } else if (isAggregation(agg)) {
-      sort = `${direction}${aggregateName(fieldName, agg as Aggregation)}#nl`;
+      sort = `${direction}${aggregateName(fieldName, agg)}#nl`;
     } else {
       throw new InvalidQueryError(`Invalid aggregation: ${agg}`);
     }
@@ -1908,10 +1963,10 @@ export async function aggregateSessions<
 
   if (rows.length === 0) {
     if (groupFields.length > 0) {
-      return {} as any;
+      return {} as GroupedAggregationResult<F, G>;
     }
     if (hasCount) {
-      return { '*': { count: 0 } } as any;
+      return { '*': { count: 0 } } as AggregationResult<F>;
     }
     return null;
   }
@@ -1929,17 +1984,14 @@ export async function aggregateSessions<
       const agg = key.split('_')[0];
       const field = originalFields[key];
 
-      if (result[field] === undefined) {
-        result[field] = {};
-      }
-
-      result[field][agg as Aggregation] = floatOrZero(value);
+      result[field] ??= {};
+      result[field][agg] = floatOrZero(value as string);
     });
 
     return result;
   }
 
-  const result = {} as Record<string, any>;
+  const result = {} as GroupedAggregationResult<AggregationQuery, string>;
   const groupingFieldsRaw = Array.isArray(grouping) ? grouping : [grouping!];
 
   // If grouping by party, we want to return a list of usernames rather than
@@ -1951,7 +2003,7 @@ export async function aggregateSessions<
     const partyField = sessionGroupingFieldToDb('party');
     for (const row of rows) {
       if (row[partyField]) {
-        partyHashes.set(row[partyField], []);
+        partyHashes.set(row[partyField] as string, []);
       }
     }
 
@@ -1960,7 +2012,9 @@ export async function aggregateSessions<
       sql`party_hash = ANY(${Array.from(partyHashes.keys())})`,
     ];
 
-    const partyUsernames = await sql`
+    const partyUsernames = await sql<
+      { party_hash: string; username: string }[]
+    >`
       WITH latest_sessions AS (
         SELECT DISTINCT ON (party_hash) id, party_hash
         FROM challenge_sessions
@@ -1989,7 +2043,7 @@ export async function aggregateSessions<
   }
 
   rows.forEach((row) => {
-    let groupResult = {} as any;
+    const groupResult = {} as AggregationResult<AggregationQuery>;
 
     Object.entries(row).forEach(([key, value]) => {
       if (key === 'count') {
@@ -2004,30 +2058,32 @@ export async function aggregateSessions<
       const agg = key.split('_')[0];
       const field = originalFields[key];
 
-      if (groupResult[field] === undefined) {
-        groupResult[field] = {};
-      }
-
-      groupResult[field][agg as Aggregation] = floatOrZero(value);
+      groupResult[field] ??= {} as Record<Aggregation, number>;
+      (groupResult[field] as Record<string, number>)[agg] = floatOrZero(
+        value as string,
+      );
     });
 
     let parent = result;
 
-    groupingFieldsRaw.forEach((field, i) => {
+    groupingFieldsRaw.forEach((field: string, i) => {
       const dbField = sessionGroupingFieldToDb(field);
-      let value = row[dbField];
+      let value = row[dbField] as string | number;
 
       if (field === 'party') {
-        value = partyHashes.get(value)?.join(',') || value;
+        value = partyHashes.get(value as string)?.join(',') ?? value;
       }
 
       if (i === groupingFieldsRaw.length - 1) {
         parent[value] = groupResult;
-      } else if (parent[value] === undefined) {
-        parent[value] = {};
+      } else {
+        parent[value] ??= {};
       }
 
-      parent = parent[value];
+      parent = parent[value] as unknown as GroupedAggregationResult<
+        AggregationQuery,
+        string
+      >;
     });
   });
 
@@ -2042,21 +2098,18 @@ export async function aggregateSessions<
 async function loadChallengeParties(
   challengeIds: number[],
 ): Promise<Record<number, string[]>> {
-  const players = await sql`
+  const players = await sql<{ challenge_id: number; username: string }[]>`
     SELECT challenge_id, username
     FROM challenge_players
     WHERE challenge_id = ANY(${challengeIds})
     ORDER BY orb
   `;
 
-  return players.reduce((acc, player) => {
-    if (acc[player.challenge_id] === undefined) {
-      acc[player.challenge_id] = [player.username];
-    } else {
-      acc[player.challenge_id].push(player.username);
-    }
+  return players.reduce<Record<number, string[]>>((acc, player) => {
+    acc[player.challenge_id] ??= [];
+    acc[player.challenge_id].push(player.username);
     return acc;
-  }, []);
+  }, {});
 }
 
 /**
@@ -2099,6 +2152,12 @@ export type PlayerWithStats = Pick<Player, 'username' | 'totalRecordings'> & {
   firstRecorded: Date;
 };
 
+type PlayerStatsRow = CamelToSnakeCase<PlayerStats> & {
+  id: number;
+  tob_verzik_p1_troll_specs: number;
+  tob_verzik_p3_melees: number;
+};
+
 /**
  * Looks up a player by their username and fetches their most recent stats.
  * @param username The player's username.
@@ -2107,7 +2166,12 @@ export type PlayerWithStats = Pick<Player, 'username' | 'totalRecordings'> & {
 export async function loadPlayerWithStats(
   username: string,
 ): Promise<PlayerWithStats | null> {
-  const [playerWithStats] = await sql`
+  const [playerWithStats] = await sql<
+    ({
+      username: string;
+      total_recordings: number;
+    } & PlayerStatsRow)[]
+  >`
     SELECT
       players.username,
       players.total_recordings,
@@ -2206,7 +2270,9 @@ export async function loadPbsForPlayer(
   username: string,
   filter?: PbsFilter,
 ): Promise<PersonalBest[]> {
-  const rows = await sql`
+  const rows = await sql<
+    { cid: string; date: Date; type: SplitType; scale: number; ticks: number }[]
+  >`
     WITH player_id_cte AS (
       SELECT id
       FROM players
@@ -2274,7 +2340,7 @@ function stageToStatsField(stage: Stage): string | null {
 export async function getTotalDeathsByStage(
   stages: Stage[],
 ): Promise<Record<Stage, number>> {
-  const statsFields: Array<[Stage, string]> = [];
+  const statsFields: [Stage, string][] = [];
   const otherStages: Stage[] = [];
 
   const deathsByStage = {} as Record<Stage, number>;
@@ -2289,7 +2355,7 @@ export async function getTotalDeathsByStage(
     deathsByStage[stage] = 0;
   }
 
-  const promises = [];
+  const promises: Promise<void>[] = [];
 
   if (statsFields.length > 0) {
     const baseColumns = statsFields.map(([, field]) => field);
@@ -2299,13 +2365,13 @@ export async function getTotalDeathsByStage(
     });
 
     promises.push(
-      await sql`
-      SELECT ${aggregateColumns} FROM (
-        SELECT DISTINCT ON (player_id) ${sql(baseColumns)}
-        FROM player_stats
-        ORDER BY player_id, date DESC
-      );
-    `.then(([stagesAndDeaths]) => {
+      sql<Record<string, string>[]>`
+        SELECT ${aggregateColumns} FROM (
+          SELECT DISTINCT ON (player_id) ${sql(baseColumns)}
+          FROM player_stats
+          ORDER BY player_id, date DESC
+        );
+      `.then(([stagesAndDeaths]) => {
         Object.entries(stagesAndDeaths).forEach(([stage, deaths]) => {
           deathsByStage[parseInt(stage)] = parseInt(deaths);
         });
@@ -2318,7 +2384,7 @@ export async function getTotalDeathsByStage(
     // which is solo only, so this hack works for now. Eventually, all deaths
     // should be tracked with player stats.
     promises.push(
-      await sql`
+      sql<{ stage: Stage; deaths: string }[]>`
         SELECT stage, COUNT(*) as deaths
         FROM challenges
         WHERE
@@ -2363,20 +2429,20 @@ export async function findBestSplitTimes(
   scale: number,
   numRanks: number,
   startTime?: Date,
-): Promise<{ [split in SplitType]?: RankedSplit[] }> {
-  const rankedSplits: { [split in SplitType]?: RankedSplit[] } = {};
-  const partiesToUpdate: Array<[number, any]> = [];
+): Promise<Partial<Record<SplitType, RankedSplit[]>>> {
+  const rankedSplits: Partial<Record<SplitType, RankedSplit[]>> = {};
+  const partiesToUpdate: [number, RankedSplit][] = [];
 
   await Promise.all(
     types.map(async (type) => {
-      const results: Array<{
+      const results: {
         id: number;
         uuid: string;
         start_time: Date;
         type: SplitType;
         scale: number;
         ticks: number;
-      }> = await sql`
+      }[] = await sql`
         SELECT DISTINCT ON (ticks)
           challenges.id,
           challenges.uuid,
@@ -2396,10 +2462,7 @@ export async function findBestSplitTimes(
       `;
 
       results.forEach((r) => {
-        if (rankedSplits[type] === undefined) {
-          rankedSplits[type] = [];
-        }
-
+        rankedSplits[type] ??= [];
         const rankedSplit = {
           uuid: r.uuid,
           date: r.start_time,
@@ -2407,7 +2470,7 @@ export async function findBestSplitTimes(
           party: [],
         };
 
-        rankedSplits[type]!.push(rankedSplit);
+        rankedSplits[type].push(rankedSplit);
         partiesToUpdate.push([r.id, rankedSplit]);
       });
     }),
@@ -2461,7 +2524,7 @@ export async function getPlayerStatsHistory(
   }
 
   try {
-    const rows = await sql`
+    const rows = await sql<Partial<PlayerStatsRow>[]>`
       SELECT ${
         fields.length > 0
           ? sql`${fields.flatMap((f, i) => (i === 0 ? f : [sql`, `, f]))}`
@@ -2475,18 +2538,20 @@ export async function getPlayerStatsHistory(
   `;
 
     return rows.map((row) => {
-      const { date, player_id, id, ...statsFields } = row;
+      const { date, player_id: _playerId, id: _id, ...statsFields } = row;
       const stats: Partial<PlayerStats> = { date };
 
       for (const [key, value] of Object.entries(statsFields)) {
-        stats[snakeToCamel(key) as keyof PlayerStats] = value;
+        const k = snakeToCamel(key) as keyof Omit<PlayerStats, 'date'>;
+        stats[k] = value;
       }
 
       return stats;
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (isPostgresUndefinedColumn(e)) {
-      const missingField = /column ([^"]+) does not exist/.exec(e.message);
+      const err = e as Error;
+      const missingField = /column ([^"]+) does not exist/.exec(err.message);
       if (missingField) {
         let field = missingField[1];
         if (field.startsWith('player_stats.')) {
@@ -2546,7 +2611,9 @@ export async function loadPlayerNetwork(options: PlayerNetworkOptions) {
     conditions.push(sql`day_bucket <= ${to}`);
   }
 
-  const edges = await sql`
+  const edges = await sql<
+    { player_id_1: number; player_id_2: number; challenge_count: string }[]
+  >`
     SELECT player_id_1, player_id_2, SUM(challenge_count) as challenge_count
     FROM mv_daily_player_pairs
     ${where(conditions)}
@@ -2620,7 +2687,14 @@ export async function topPartnersForPlayer(
     return null;
   }
 
-  const rows = await sql`
+  const rows = await sql<
+    {
+      partner_id: number;
+      challenges_together: string;
+      first_challenge_date: Date;
+      last_challenge_date: Date;
+    }[]
+  >`
     SELECT
       CASE WHEN player_id_1 = ${playerId} THEN player_id_2 ELSE player_id_1 END AS partner_id,
       SUM(challenge_count) AS challenges_together,
@@ -2730,7 +2804,7 @@ export async function aggregateBloatHands(
     conditions.push(sql`bloat_hands.tile_id IS NOT NULL`);
   }
 
-  const totals = await sql`
+  const totals = await sql<{ total_challenges: string; total_hands: string }[]>`
     SELECT
       COUNT(DISTINCT ${queryTable}.id) as total_challenges,
       COUNT(*) as total_hands
@@ -2770,7 +2844,7 @@ async function aggregateByTile(
   joins: Join[],
   conditions: postgres.Fragment[],
 ): Promise<BloatHandsData> {
-  const rows = await sql`
+  const rows = await sql<{ tile_id: number; hand_count: string }[]>`
     SELECT
       bloat_hands.tile_id,
       COUNT(*) as hand_count
@@ -2794,7 +2868,9 @@ async function aggregateByWave(
   joins: Join[],
   conditions: postgres.Fragment[],
 ): Promise<BloatHandsData> {
-  const rows = await sql`
+  const rows = await sql<
+    { wave_number: number; tile_id: number; hand_count: string }[]
+  >`
     SELECT
       bloat_hands.wave_number,
       bloat_hands.tile_id,
@@ -2825,7 +2901,7 @@ async function aggregateByChunk(
   joins: Join[],
   conditions: postgres.Fragment[],
 ): Promise<BloatHandsData> {
-  const rows = await sql`
+  const rows = await sql<{ chunk: number; hand_count: string }[]>`
     SELECT
       bloat_hands.chunk,
       COUNT(*) as hand_count
@@ -2849,7 +2925,9 @@ async function aggregateByIntraChunkOrder(
   joins: Join[],
   conditions: postgres.Fragment[],
 ): Promise<BloatHandsData> {
-  const rows = await sql`
+  const rows = await sql<
+    { intra_chunk_order: number; tile_id: number; hand_count: string }[]
+  >`
     SELECT
       bloat_hands.intra_chunk_order,
       bloat_hands.tile_id,

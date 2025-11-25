@@ -2,6 +2,7 @@ import {
   ChallengeMode,
   ChallengeStatus,
   ChallengeType,
+  SessionStatus,
   Stage,
 } from '../challenge';
 import { SplitType } from '../split';
@@ -30,4 +31,16 @@ export type ChallengeSplitRow = {
   scale: number;
   ticks: number;
   accurate: boolean;
+};
+
+export type SessionRow = {
+  id: number;
+  uuid: string;
+  challenge_type: ChallengeType;
+  challenge_mode: ChallengeMode;
+  scale: number;
+  party_hash: string;
+  start_time: Date;
+  end_time: Date | null;
+  status: SessionStatus;
 };
