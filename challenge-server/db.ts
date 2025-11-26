@@ -7,7 +7,7 @@ let connectionOptions: postgres.Options<Record<string, any>> | undefined =
 
 if (['development', 'test'].includes(process.env.NODE_ENV!)) {
   connectionOptions = {
-    debug: (_, query, params) => console.log(query, params),
+    debug: (_, query, params) => logger.debug('%s %o', query, params),
   };
 }
 

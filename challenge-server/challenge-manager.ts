@@ -41,7 +41,7 @@ import {
   loadChallengeProcessor,
   newChallengeProcessor,
 } from './event-processing';
-import logger from './log';
+import logger, { runWithLogContext } from './log';
 import { ChallengeInfo, MergeResult, Merger } from './merge';
 
 export const enum ChallengeErrorType {
@@ -1449,127 +1449,143 @@ export default class ChallengeManager {
     stage: Stage,
     attempt: number | null,
   ): Promise<void> {
-    if (challenge.timeoutState === TimeoutState.STAGE_END) {
-      const multi = this.client.multi();
-      multi.hSet(
-        challengesKey(challenge.uuid),
-        'timeoutState',
-        TimeoutState.NONE,
-      );
-      multi.hDel(ChallengeManager.CHALLENGE_TIMEOUT_KEY, challenge.uuid);
-      await multi.exec();
-    }
-
     const stageWithAttempt = stageAndAttempt(stage, attempt);
-    let okToProcess = true;
 
-    await this.watchTransaction(async (client) => {
-      // Reset okToProcess in case we had to retry the transaction.
-      okToProcess = true;
+    await runWithLogContext(
+      { challengeUuid: challenge.uuid, stage: stageWithAttempt },
+      async () => {
+        if (challenge.timeoutState === TimeoutState.STAGE_END) {
+          const multi = this.client.multi();
+          multi.hSet(
+            challengesKey(challenge.uuid),
+            'timeoutState',
+            TimeoutState.NONE,
+          );
+          multi.hDel(ChallengeManager.CHALLENGE_TIMEOUT_KEY, challenge.uuid);
+          await multi.exec();
+        }
 
-      const stagesKey = challengeProcessedStagesKey(challenge.uuid);
-      await client.watch(stagesKey);
-      const multi = client.multi();
+        let okToProcess = true;
 
-      const hasProcessed = await client.sIsMember(stagesKey, stageWithAttempt);
-      if (hasProcessed) {
-        okToProcess = false;
-      } else {
-        multi.sAdd(stagesKey, stageWithAttempt);
-        multi.hSet(
-          challengesKey(challenge.uuid),
-          'processingStage',
-          Date.now().toString(),
-        );
-        return multi.exec();
-      }
-    });
+        await this.watchTransaction(async (client) => {
+          // Reset okToProcess in case we had to retry the transaction.
+          okToProcess = true;
 
-    if (!okToProcess) {
-      logger.debug(
-        `${challenge.uuid}: stage ${stageWithAttempt} already processed; skipping`,
-      );
-      return;
-    }
+          const stagesKey = challengeProcessedStagesKey(challenge.uuid);
+          await client.watch(stagesKey);
+          const multi = client.multi();
 
-    const stageEvents = await this.client
-      .xRange(
-        commandOptions({ returnBuffers: true }),
-        challengeStageStreamKey(challenge.uuid, stage, attempt),
-        '-',
-        '+',
-      )
-      .then((res) => res.map((s) => stageStreamFromRecord(s.message)));
+          const hasProcessed = await client.sIsMember(
+            stagesKey,
+            stageWithAttempt,
+          );
+          if (hasProcessed) {
+            okToProcess = false;
+          } else {
+            multi.sAdd(stagesKey, stageWithAttempt);
+            multi.hSet(
+              challengesKey(challenge.uuid),
+              'processingStage',
+              Date.now().toString(),
+            );
+            return multi.exec();
+          }
+        });
 
-    if (stageEvents.length === 0) {
-      const multi = this.client.multi();
-      multi.del(challengeStageStreamKey(challenge.uuid, stage, attempt));
-      multi.hDel(challengesKey(challenge.uuid), 'processingStage');
-      await multi.exec();
-      return;
-    }
+        if (!okToProcess) {
+          logger.debug(
+            `${challenge.uuid}: stage ${stageWithAttempt} already processed; skipping`,
+          );
+          return;
+        }
 
-    const eventsByClient = new Map<number, ClientStageStream[]>();
-    for (const evt of stageEvents) {
-      if (!eventsByClient.has(evt.clientId)) {
-        eventsByClient.set(evt.clientId, []);
-      }
-      eventsByClient.get(evt.clientId)!.push(evt);
-    }
+        const stageEvents = await this.client
+          .xRange(
+            commandOptions({ returnBuffers: true }),
+            challengeStageStreamKey(challenge.uuid, stage, attempt),
+            '-',
+            '+',
+          )
+          .then((res) => res.map((s) => stageStreamFromRecord(s.message)));
 
-    const challengeInfo = {
-      uuid: challenge.uuid,
-      type: challenge.type,
-      party: challenge.party,
-    };
+        if (stageEvents.length === 0) {
+          const multi = this.client.multi();
+          multi.del(challengeStageStreamKey(challenge.uuid, stage, attempt));
+          multi.hDel(challengesKey(challenge.uuid), 'processingStage');
+          await multi.exec();
+          return;
+        }
 
-    const clients: ClientEvents[] = [];
+        const eventsByClient = new Map<number, ClientStageStream[]>();
+        for (const evt of stageEvents) {
+          if (!eventsByClient.has(evt.clientId)) {
+            eventsByClient.set(evt.clientId, []);
+          }
+          eventsByClient.get(evt.clientId)!.push(evt);
+        }
 
-    for (const [clientId, events] of eventsByClient) {
-      clients.push(
-        ClientEvents.fromClientStream(clientId, challengeInfo, stage, events),
-      );
-    }
+        const challengeInfo = {
+          uuid: challenge.uuid,
+          type: challenge.type,
+          party: challenge.party,
+        };
 
-    const merger = new Merger(stage, clients);
-    const result = merger.merge();
+        const clients: ClientEvents[] = [];
 
-    const multi = this.client.multi();
-
-    if (result !== null) {
-      logger.info(
-        '%s: stage %s finished with status %s in %d ticks; %d clients merged, %d unmerged',
-        challenge.uuid,
-        stageWithAttempt,
-        result.events.getStatus(),
-        result.events.getLastTick(),
-        result.mergedClients.length,
-        result.unmergedClients.length,
-      );
-
-      const updates = await processor.processStage(stage, result.events);
-      multi.hSet(challengesKey(challenge.uuid), toRedis(updates));
-
-      if (result.unmergedClients.length > 0) {
-        const shouldSave = Math.random() < UNMERGED_EVENT_SAVE_RATE;
-        if (shouldSave) {
-          setTimeout(
-            () =>
-              void this.saveUnmergedEvents(
-                challengeInfo,
-                stage,
-                stageEvents,
-                result,
-              ),
-            0,
+        for (const [clientId, events] of eventsByClient) {
+          clients.push(
+            ClientEvents.fromClientStream(
+              clientId,
+              challengeInfo,
+              stage,
+              events,
+            ),
           );
         }
-      }
-    }
 
-    multi.del(challengeStageStreamKey(challenge.uuid, stage, attempt));
-    multi.hDel(challengesKey(challenge.uuid), 'processingStage');
-    await multi.exec();
+        const merger = new Merger(stage, clients);
+        const result = merger.merge();
+
+        const multi = this.client.multi();
+
+        if (result !== null) {
+          logger.info(
+            '%s: stage %s finished with status %s in %d ticks; %d clients merged, %d unmerged',
+            challenge.uuid,
+            stageWithAttempt,
+            result.events.getStatus(),
+            result.events.getLastTick(),
+            result.mergedClients.length,
+            result.unmergedClients.length,
+          );
+
+          const updates = await processor.processStage(stage, result.events);
+          multi.hSet(challengesKey(challenge.uuid), toRedis(updates));
+
+          if (result.unmergedClients.length > 0) {
+            const shouldSave = Math.random() < UNMERGED_EVENT_SAVE_RATE;
+            if (shouldSave) {
+              setTimeout(() => {
+                void runWithLogContext(
+                  { challengeUuid: challenge.uuid, stage: stageWithAttempt },
+                  () =>
+                    this.saveUnmergedEvents(
+                      challengeInfo,
+                      stage,
+                      stageEvents,
+                      result,
+                    ),
+                );
+              }, 0);
+            }
+          }
+        }
+
+        multi.del(challengeStageStreamKey(challenge.uuid, stage, attempt));
+        multi.hDel(challengesKey(challenge.uuid), 'processingStage');
+        await multi.exec();
+      },
+    );
   }
 
   private async handleStageEndTimeout(uuid: string): Promise<void> {

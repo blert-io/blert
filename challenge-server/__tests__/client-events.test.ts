@@ -19,7 +19,7 @@ const challengeInfo = {
   type: ChallengeType.TOB,
   status: ChallengeStatus.IN_PROGRESS,
   stage: Stage.TOB_MAIDEN,
-  party: ['alice', 'bob'],
+  party: ['player1', 'player2'],
 };
 
 type Proto<T> = T[keyof T];
