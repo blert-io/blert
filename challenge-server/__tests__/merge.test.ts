@@ -13,7 +13,12 @@ import {
   StageMap,
 } from '@blert/common/generated/event_pb';
 
-import { Merger, classifyClients } from '../merge';
+import {
+  Merger,
+  classifyClients,
+  MergeClientClassification,
+  MergeClientStatus,
+} from '../merge';
 import { ClientEvents } from '../client-events';
 
 type Proto<T> = T[keyof T];
@@ -318,8 +323,15 @@ describe('Merger', () => {
     const result = merger.merge();
 
     expect(result).not.toBeNull();
-    expect(result!.mergedClients).toEqual([client1]);
-    expect(result!.unmergedClients).toEqual([]);
+    expect(result!.clients).toHaveLength(1);
+    expect(result!.clients[0]).toMatchObject({
+      id: client1.getId(),
+      status: MergeClientStatus.MERGED,
+      classification: MergeClientClassification.REFERENCE,
+    });
+    expect(result!.mergedCount).toBe(1);
+    expect(result!.unmergedCount).toBe(0);
+    expect(result!.skippedCount).toBe(0);
 
     const events = result!.events;
     expect(events.isAccurate()).toBe(false);
@@ -352,8 +364,15 @@ describe('Merger', () => {
     const result = merger.merge();
 
     expect(result).not.toBeNull();
-    expect(result!.mergedClients).toEqual([client1]);
-    expect(result!.unmergedClients).toEqual([]);
+    expect(result!.clients).toHaveLength(1);
+    expect(result!.clients[0]).toMatchObject({
+      id: client1.getId(),
+      status: MergeClientStatus.MERGED,
+      classification: MergeClientClassification.REFERENCE,
+    });
+    expect(result!.mergedCount).toBe(1);
+    expect(result!.unmergedCount).toBe(0);
+    expect(result!.skippedCount).toBe(0);
 
     const events = result!.events;
     expect(events.isAccurate()).toBe(true);
@@ -388,8 +407,15 @@ describe('Merger', () => {
     const result = merger.merge();
 
     expect(result).not.toBeNull();
-    expect(result!.mergedClients).toEqual([client1]);
-    expect(result!.unmergedClients).toEqual([]);
+    expect(result!.clients).toHaveLength(1);
+    expect(result!.clients[0]).toMatchObject({
+      id: client1.getId(),
+      status: MergeClientStatus.MERGED,
+      classification: MergeClientClassification.REFERENCE,
+    });
+    expect(result!.mergedCount).toBe(1);
+    expect(result!.unmergedCount).toBe(0);
+    expect(result!.skippedCount).toBe(0);
 
     const events = result!.events;
     expect(events.isAccurate()).toBe(false);

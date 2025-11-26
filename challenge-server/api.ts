@@ -22,7 +22,7 @@ import { ClientEvents } from './client-events';
 import sql from './db';
 import { ReportedTimes } from './event-processing';
 import logger, { runWithLogContext } from './log';
-import { Merger } from './merge';
+import { Merger, MergeClientStatus } from './merge';
 
 function asyncHandler(
   fn: (req: Request, res: Response) => Promise<void>,
@@ -264,11 +264,16 @@ async function mergeTestEvents(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    logger.info(
-      `Merged clients: ${result.mergedClients.map((c) => c.getId()).join(', ')}`,
+    const mergedClients = result.clients.filter(
+      (c) => c.status === MergeClientStatus.MERGED,
     );
+    const unmergedClients = result.clients.filter(
+      (c) => c.status === MergeClientStatus.UNMERGED,
+    );
+
+    logger.info(`Merged clients: ${mergedClients.map((c) => c.id).join(', ')}`);
     logger.info(
-      `Unmerged clients: ${result.unmergedClients.map((c) => c.getId()).join(', ')}`,
+      `Unmerged clients: ${unmergedClients.map((c) => c.id).join(', ')}`,
     );
 
     const mergedEvents = new ChallengeEvents();

@@ -15,6 +15,20 @@ import logger from './log';
 import { ChallengeInfo, PlayerState, TickState } from './merge';
 import { ChallengeEvents } from '@blert/common/generated/challenge_storage_pb';
 
+export const enum ClientAnomaly {
+  MULTIPLE_PRIMARY_PLAYERS = 'MULTIPLE_PRIMARY_PLAYERS',
+  MISSING_STAGE_METADATA = 'MISSING_STAGE_METADATA',
+  CONSISTENCY_ISSUES = 'CONSISTENCY_ISSUES',
+}
+
+export type ConsistencyIssue = {
+  player: string;
+  delta: { x: number; y: number };
+  ticksSinceLast: number;
+  lastTick: number;
+  currentTick: number;
+};
+
 export type ServerTicks = {
   count: number;
   precise: boolean;
@@ -31,10 +45,13 @@ export type StageInfo = {
 export class ClientEvents {
   private readonly clientId: number;
   private readonly challenge: ChallengeInfo;
-  private readonly stageInfo: StageInfo;
+  private readonly stageInfo: Readonly<StageInfo>;
   private readonly tickState: TickState[];
   private readonly primaryPlayer: string | null;
   private readonly invalidTickCount: boolean;
+  private readonly anomalies: Set<ClientAnomaly>;
+  private accurate: boolean;
+  private consistencyIssues: ConsistencyIssue[];
 
   /**
    * Initializes challenge events for a client from its stage event stream.
@@ -60,6 +77,8 @@ export class ClientEvents {
     };
 
     const events: Event[] = [];
+    const anomalies = new Set<ClientAnomaly>();
+    let sawStageEnd = false;
 
     for (const stream of streamEvents) {
       if (stream.type === StageStreamType.STAGE_END) {
@@ -68,6 +87,7 @@ export class ClientEvents {
         stageInfo.accurate = update.accurate;
         stageInfo.recordedTicks = update.recordedTicks;
         stageInfo.serverTicks = update.serverTicks;
+        sawStageEnd = true;
       } else if (stream.type === StageStreamType.STAGE_EVENTS) {
         const message = ChallengeEvents.deserializeBinary(
           (stream as StageStreamEvents).events,
@@ -76,7 +96,22 @@ export class ClientEvents {
       }
     }
 
-    return ClientEvents.fromRawEvents(clientId, challenge, stageInfo, events);
+    if (!sawStageEnd) {
+      anomalies.add(ClientAnomaly.MISSING_STAGE_METADATA);
+      logger.warn('client_missing_stage_metadata', {
+        challengeUuid: challenge.uuid,
+        clientId,
+        stage,
+      });
+    }
+
+    return ClientEvents.fromRawEvents(
+      clientId,
+      challenge,
+      stageInfo,
+      events,
+      anomalies,
+    );
   }
 
   /**
@@ -93,7 +128,10 @@ export class ClientEvents {
     challenge: ChallengeInfo,
     stageInfo: StageInfo,
     rawEvents: Event[],
+    anomaliesParam?: Set<ClientAnomaly>,
   ): ClientEvents {
+    const anomalies = anomaliesParam ?? new Set<ClientAnomaly>();
+
     const events = [...rawEvents].sort((a, b) => a.getTick() - b.getTick());
     if (stageInfo.recordedTicks === 0 && events.length > 0) {
       stageInfo.recordedTicks = events[events.length - 1].getTick();
@@ -118,15 +156,13 @@ export class ClientEvents {
     }
 
     if (primaryPlayers.size > 1) {
-      logger.warn(
-        'Client %d reported multiple primary players: %s',
+      logger.warn('client_multiple_primary_players', {
+        challengeUuid: challenge.uuid,
         clientId,
-        Array.from(primaryPlayers).join(', '),
-      );
-      logger.warn(
-        'Treating client as a spectator (ignoring primary player data)',
-      );
+        players: Array.from(primaryPlayers),
+      });
       primaryPlayers.clear();
+      anomalies.add(ClientAnomaly.MULTIPLE_PRIMARY_PLAYERS);
     }
 
     const primaryPlayer =
@@ -146,40 +182,45 @@ export class ClientEvents {
     );
 
     const st = stageInfo.serverTicks;
-    const derivedAccurate =
-      st !== null && st.precise && st.count === stageInfo.recordedTicks;
+    const ticksMatch = st !== null && st.count === stageInfo.recordedTicks;
+    const hasPreciseServerTicks = st?.precise ?? false;
+    let derivedAccurate = hasPreciseServerTicks && ticksMatch;
     let invalidTickCount = false;
 
     if (st !== null && stageInfo.recordedTicks > st.count) {
       invalidTickCount = true;
-      logger.warn(
-        'Client %d: recorded tick count %d exceeds reported server ticks %d',
+      logger.warn('client_recorded_ticks_exceed_server', {
+        challengeUuid: challenge.uuid,
         clientId,
-        stageInfo.recordedTicks,
-        st.count,
-      );
-      stageInfo.accurate = false;
+        recordedTicks: stageInfo.recordedTicks,
+        serverTicks: st.count,
+      });
+      derivedAccurate = false;
     }
 
     if (stageInfo.accurate && !derivedAccurate) {
       const serverTicks =
         st !== null ? `(count=${st.count},precise=${st.precise})` : 'none';
-      logger.warn(
-        'Client %d reported accurate but has mismatched tick count: reported=%d, server=%s',
+      logger.warn('client_accuracy_mismatch', {
+        challengeUuid: challenge.uuid,
         clientId,
-        stageInfo.recordedTicks,
+        recordedTicks: stageInfo.recordedTicks,
         serverTicks,
-      );
-      stageInfo.accurate = derivedAccurate;
+      });
     }
+
+    const finalAccurate =
+      stageInfo.accurate && derivedAccurate && !invalidTickCount;
 
     return new ClientEvents(
       clientId,
       challenge,
       stageInfo,
+      finalAccurate,
       tickState,
       primaryPlayer ?? null,
       invalidTickCount,
+      anomalies,
     );
   }
 
@@ -222,11 +263,18 @@ export class ClientEvents {
    * @returns Whether the recorded ticks of the client's events are accurate.
    */
   public isAccurate(): boolean {
-    return this.stageInfo.accurate;
+    return this.accurate;
   }
 
   public setAccurate(accurate: boolean): void {
-    this.stageInfo.accurate = accurate;
+    this.accurate = accurate;
+  }
+
+  /**
+   * @returns Whether the client reported accurate ticks to the server.
+   */
+  public getReportedAccurate(): boolean {
+    return this.stageInfo.accurate;
   }
 
   /**
@@ -256,12 +304,28 @@ export class ClientEvents {
     return this.invalidTickCount;
   }
 
+  public hasConsistencyIssues(): boolean {
+    return this.consistencyIssues.length > 0;
+  }
+
+  public getConsistencyIssues(): ConsistencyIssue[] {
+    return [...this.consistencyIssues];
+  }
+
+  public getAnomalies(): ClientAnomaly[] {
+    return Array.from(this.anomalies);
+  }
+
+  public hasAnomaly(anomaly: ClientAnomaly): boolean {
+    return this.anomalies.has(anomaly);
+  }
+
   /**
    * Performs a cursory check for consistency in the client's recorded events,
    * looking for obvious indications of tick loss.
    * @returns `false` if any major inconsistencies are found, `true` otherwise.
    */
-  public checkForConsistency(): boolean {
+  private checkForConsistency(): boolean {
     const lastPlayerStates: Record<
       string,
       (PlayerState & { tick: number }) | null
@@ -274,7 +338,7 @@ export class ClientEvents {
     );
 
     let ok = true;
-    const potentialLostTicks = new Set<number>();
+    const issues: ConsistencyIssue[] = [];
 
     for (let tick = 0; tick <= this.stageInfo.recordedTicks; tick++) {
       for (const player of this.challenge.party) {
@@ -304,13 +368,24 @@ export class ClientEvents {
             );
 
           if (invalidMove) {
-            logger.debug(
-              `Client#${this.clientId} consistency issue: ` +
-                `player ${player} moved (${dx}, ${dy}) in ${ticksSinceLast} ticks`,
-            );
+            logger.debug('client_consistency_issue', {
+              challengeUuid: this.challenge.uuid,
+              clientId: this.clientId,
+              player,
+              delta: { x: dx, y: dy },
+              ticksSinceLast,
+              lastTick: last.tick,
+              currentTick: tick,
+            });
 
             ok = false;
-            potentialLostTicks.add(tick - 1);
+            issues.push({
+              player,
+              delta: { x: dx, y: dy },
+              ticksSinceLast,
+              lastTick: last.tick,
+              currentTick: tick,
+            });
           }
         }
 
@@ -318,6 +393,10 @@ export class ClientEvents {
       }
     }
 
+    this.consistencyIssues = issues;
+    if (issues.length > 0) {
+      this.anomalies.add(ClientAnomaly.CONSISTENCY_ISSUES);
+    }
     return ok;
   }
 
@@ -325,9 +404,11 @@ export class ClientEvents {
     clientId: number,
     challenge: ChallengeInfo,
     stageInfo: StageInfo,
+    accurate: boolean,
     tickState: TickState[],
     primaryPlayer: string | null,
     invalidTickCount: boolean,
+    anomalies: Set<ClientAnomaly>,
   ) {
     this.clientId = clientId;
     this.challenge = challenge;
@@ -335,6 +416,12 @@ export class ClientEvents {
     this.tickState = tickState;
     this.primaryPlayer = primaryPlayer;
     this.invalidTickCount = invalidTickCount;
+    this.anomalies = anomalies;
+    this.consistencyIssues = [];
+
+    // TODO(frolv): Demote accurate clients that have consistency issues.
+    const _ok = this.checkForConsistency();
+    this.accurate = accurate;
   }
 
   private static buildPlayerStates(

@@ -11,7 +11,12 @@ import {
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
-import { ClientEvents } from './client-events';
+import {
+  ClientAnomaly,
+  ClientEvents,
+  ConsistencyIssue,
+  ServerTicks,
+} from './client-events';
 import logger from './log';
 
 export type ChallengeInfo = {
@@ -20,17 +25,56 @@ export type ChallengeInfo = {
   party: string[];
 };
 
-type MergeClients = {
+type ClassifiedClients = {
   referenceTicks: number;
   base: ClientEvents;
   matching: ClientEvents[];
   mismatched: ClientEvents[];
 };
 
+export const enum MergeClientStatus {
+  /** The client was successfully merged into the merged events. */
+  MERGED = 'MERGED',
+
+  /** The client could not be merged into the merged events. */
+  UNMERGED = 'UNMERGED',
+
+  /** The client was skipped due to critical anomalies or other issues. */
+  SKIPPED = 'SKIPPED',
+}
+
+export const enum MergeClientClassification {
+  /** The client was selected as the reference client. */
+  REFERENCE = 'REFERENCE',
+
+  /** The client was classified as matching. */
+  MATCHING = 'MATCHING',
+
+  /** The client was classified as mismatched. */
+  MISMATCHED = 'MISMATCHED',
+}
+
+export type MergeClient = {
+  id: number;
+  status: MergeClientStatus;
+  classification: MergeClientClassification;
+  sequenceNumber: number;
+  recordedTicks: number;
+  serverTicks: ServerTicks | null;
+  reportedAccurate: boolean;
+  derivedAccurate: boolean;
+  anomalies: ClientAnomaly[];
+  consistencyIssues: ConsistencyIssue[];
+  spectator: boolean;
+  // TODO(frolv): Add alignment information if available.
+};
+
 export type MergeResult = {
   events: MergedEvents;
-  mergedClients: ClientEvents[];
-  unmergedClients: ClientEvents[];
+  clients: MergeClient[];
+  mergedCount: number;
+  unmergedCount: number;
+  skippedCount: number;
 };
 
 /**
@@ -69,7 +113,7 @@ function getConsensusTicks(
  * @param clients Nonempty list of clients to classify.
  * @returns The classified clients and a reference tick count for the stage.
  */
-export function classifyClients(clients: ClientEvents[]): MergeClients {
+export function classifyClients(clients: ClientEvents[]): ClassifiedClients {
   let baseClient: ClientEvents | null = null;
   let referenceTicks = 0;
 
@@ -192,6 +236,8 @@ export class Merger {
     );
 
     for (const clientEvents of this.clients) {
+      // TODO(frolv): Record structured merge results with individual client
+      // metadata.
       logger.debug(
         '    %s | ticks: %d accurate: %s',
         clientEvents,
@@ -200,56 +246,121 @@ export class Merger {
       );
     }
 
-    const mergedClients: ClientEvents[] = [];
-    const unmergedClients: ClientEvents[] = [];
+    const mergeClients: MergeClient[] = [];
 
     const clients = this.classifyAndUpdateClients();
-    mergedClients.push(clients.base);
 
-    if (!clients.base.isAccurate()) {
-      const ok = clients.base.checkForConsistency();
-      if (!ok) {
-        logger.warn('Base client has likely lost ticks');
-      }
-    }
+    mergeClients.push(
+      this.createMergeClient(
+        clients.base,
+        MergeClientClassification.REFERENCE,
+        MergeClientStatus.MERGED,
+        0,
+      ),
+    );
 
     const merged = new MergedEvents(clients.base);
+
+    const mergeFrom = (
+      client: ClientEvents,
+      classification: MergeClientClassification,
+    ) => {
+      const status = merged.mergeEventsFrom(client)
+        ? MergeClientStatus.MERGED
+        : MergeClientStatus.UNMERGED;
+      mergeClients.push(
+        this.createMergeClient(
+          client,
+          classification,
+          status,
+          mergeClients.length,
+        ),
+      );
+    };
 
     logger.debug(
       `Merging events from ${clients.matching.length} complete clients`,
     );
     for (const client of clients.matching) {
-      if (merged.mergeEventsFrom(client)) {
-        mergedClients.push(client);
-      } else {
-        unmergedClients.push(client);
-      }
+      mergeFrom(client, MergeClientClassification.MATCHING);
     }
 
     logger.debug(
       `Merging events from ${clients.mismatched.length} partial clients`,
     );
     for (const client of clients.mismatched) {
-      if (merged.mergeEventsFrom(client)) {
-        mergedClients.push(client);
-      } else {
-        unmergedClients.push(client);
-      }
+      mergeFrom(client, MergeClientClassification.MISMATCHED);
     }
 
+    const { mergedCount, unmergedCount, skippedCount } =
+      this.getMergeCounts(mergeClients);
+
     logger.info(
-      `Successfully merged events from ${mergedClients.length} clients`,
+      `Successfully merged events from ${mergedCount} clients (unmerged=${unmergedCount}, skipped=${skippedCount})`,
     );
-    if (unmergedClients.length > 0) {
-      logger.warn(`${unmergedClients.length} clients could not be merged`);
+    if (unmergedCount > 0) {
+      logger.warn(`${unmergedCount} clients could not be merged`);
     }
 
     merged.postprocess(this.stage);
 
-    return { events: merged, mergedClients, unmergedClients };
+    return {
+      events: merged,
+      clients: mergeClients,
+      mergedCount,
+      unmergedCount,
+      skippedCount,
+    };
   }
 
-  private classifyAndUpdateClients(): MergeClients {
+  private createMergeClient(
+    client: ClientEvents,
+    classification: MergeClientClassification,
+    status: MergeClientStatus,
+    sequenceNumber: number,
+  ): MergeClient {
+    return {
+      id: client.getId(),
+      status,
+      classification,
+      sequenceNumber,
+      recordedTicks: client.getFinalTick(),
+      serverTicks: client.getServerTicks(),
+      reportedAccurate: client.getReportedAccurate(),
+      derivedAccurate: client.isAccurate(),
+      anomalies: client.getAnomalies(),
+      consistencyIssues: client.getConsistencyIssues(),
+      spectator: client.isSpectator(),
+    };
+  }
+
+  private getMergeCounts(clients: MergeClient[]): {
+    mergedCount: number;
+    unmergedCount: number;
+    skippedCount: number;
+  } {
+    let mergedCount = 0;
+    let unmergedCount = 0;
+    let skippedCount = 0;
+
+    for (const client of clients) {
+      switch (client.status) {
+        case MergeClientStatus.MERGED:
+          mergedCount++;
+          break;
+        case MergeClientStatus.UNMERGED:
+          unmergedCount++;
+          break;
+        case MergeClientStatus.SKIPPED:
+          skippedCount++;
+          break;
+      }
+    }
+
+    return { mergedCount, unmergedCount, skippedCount };
+  }
+
+  private classifyAndUpdateClients(): ClassifiedClients {
     const accurateClients = this.clients.filter((c) => c.isAccurate());
 
     if (accurateClients.length > 0) {

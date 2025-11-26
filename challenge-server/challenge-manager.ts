@@ -33,7 +33,7 @@ import { RedisClientType, WatchError, commandOptions } from 'redis';
 import { v4 as uuidv4 } from 'uuid';
 import { Logger } from 'winston';
 
-import { ClientEvents, ServerTicks } from './client-events';
+import { ClientEvents } from './client-events';
 import {
   ChallengeProcessor,
   ChallengeState,
@@ -42,7 +42,13 @@ import {
   newChallengeProcessor,
 } from './event-processing';
 import logger, { runWithLogContext } from './log';
-import { ChallengeInfo, MergeResult, Merger } from './merge';
+import {
+  ChallengeInfo,
+  MergeClient,
+  MergeClientStatus,
+  MergeResult,
+  Merger,
+} from './merge';
 
 export const enum ChallengeErrorType {
   FAILED_PRECONDITION,
@@ -1549,20 +1555,24 @@ export default class ChallengeManager {
         const multi = this.client.multi();
 
         if (result !== null) {
-          logger.info(
-            '%s: stage %s finished with status %s in %d ticks; %d clients merged, %d unmerged',
-            challenge.uuid,
-            stageWithAttempt,
-            result.events.getStatus(),
-            result.events.getLastTick(),
-            result.mergedClients.length,
-            result.unmergedClients.length,
-          );
+          logger.info('stage_finished', {
+            challengeUuid: challenge.uuid,
+            stage: stageWithAttempt,
+            status: result.events.getStatus(),
+            ticks: result.events.getLastTick(),
+            mergedCount: result.mergedCount,
+            unmergedCount: result.unmergedCount,
+            skippedCount: result.skippedCount,
+          });
+
+          // TODO(frolv): Persist this in the data repository. For now, log
+          // for visibility.
+          logger.info('merge_result_clients', { clients: result.clients });
 
           const updates = await processor.processStage(stage, result.events);
           multi.hSet(challengesKey(challenge.uuid), toRedis(updates));
 
-          if (result.unmergedClients.length > 0) {
+          if (result.unmergedCount > 0) {
             const shouldSave = Math.random() < UNMERGED_EVENT_SAVE_RATE;
             if (shouldSave) {
               setTimeout(() => {
@@ -2064,20 +2074,12 @@ export default class ChallengeManager {
     const stageEventData: UnmergedEventData = {
       challengeInfo: challenge,
       stage,
-      mergedClients: result.mergedClients.map((c) => ({
-        id: c.getId(),
-        ticks: c.getFinalTick(),
-        serverTicks: c.getServerTicks(),
-        accurate: c.isAccurate(),
-        spectator: c.isSpectator(),
-      })),
-      unmergedClients: result.unmergedClients.map((c) => ({
-        id: c.getId(),
-        ticks: c.getFinalTick(),
-        serverTicks: c.getServerTicks(),
-        accurate: c.isAccurate(),
-        spectator: c.isSpectator(),
-      })),
+      mergedClients: result.clients.filter(
+        (client) => client.status === MergeClientStatus.MERGED,
+      ),
+      unmergedClients: result.clients.filter(
+        (client) => client.status === MergeClientStatus.UNMERGED,
+      ),
       rawEvents: events,
     };
 
@@ -2088,19 +2090,11 @@ export default class ChallengeManager {
   }
 }
 
-type ClientMetadata = {
-  id: number;
-  ticks: number;
-  serverTicks: ServerTicks | null;
-  accurate: boolean;
-  spectator: boolean;
-};
-
 export type UnmergedEventData = {
   challengeInfo: ChallengeInfo;
   stage: Stage;
-  mergedClients: ClientMetadata[];
-  unmergedClients: ClientMetadata[];
+  mergedClients: MergeClient[];
+  unmergedClients: MergeClient[];
   rawEvents: ClientStageStream[];
 };
 
