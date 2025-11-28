@@ -27,6 +27,8 @@ export type ConsistencyIssue = {
   ticksSinceLast: number;
   lastTick: number;
   currentTick: number;
+  start: { x: number; y: number };
+  end: { x: number; y: number };
 };
 
 export type ServerTicks = {
@@ -368,7 +370,7 @@ export class ClientEvents {
             );
 
           if (invalidMove) {
-            logger.debug('client_consistency_issue', {
+            logger.info('client_consistency_issue', {
               challengeUuid: this.challenge.uuid,
               clientId: this.clientId,
               player,
@@ -376,6 +378,9 @@ export class ClientEvents {
               ticksSinceLast,
               lastTick: last.tick,
               currentTick: tick,
+              stage: this.stageInfo.stage,
+              start: { x: last.x, y: last.y },
+              end: { x: playerState.x, y: playerState.y },
             });
 
             ok = false;
@@ -385,6 +390,8 @@ export class ClientEvents {
               ticksSinceLast,
               lastTick: last.tick,
               currentTick: tick,
+              start: { x: last.x, y: last.y },
+              end: { x: playerState.x, y: playerState.y },
             });
           }
         }
