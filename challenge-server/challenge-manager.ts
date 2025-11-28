@@ -33,7 +33,6 @@ import { RedisClientType, WatchError, commandOptions } from 'redis';
 import { v4 as uuidv4 } from 'uuid';
 import { Logger } from 'winston';
 
-import { ClientEvents } from './client-events';
 import {
   ChallengeProcessor,
   ChallengeState,
@@ -44,11 +43,12 @@ import {
 import logger, { runWithLogContext } from './log';
 import {
   ChallengeInfo,
+  ClientEvents,
   MergeClient,
   MergeClientStatus,
   MergeResult,
   Merger,
-} from './merge';
+} from './merging';
 
 export const enum ChallengeErrorType {
   FAILED_PRECONDITION,

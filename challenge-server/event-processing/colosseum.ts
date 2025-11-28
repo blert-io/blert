@@ -14,7 +14,7 @@ import {
 import { Event } from '@blert/common/generated/event_pb';
 
 import ChallengeProcessor, { InitializedFields } from './challenge-processor';
-import { MergedEvents } from '../merge';
+import { MergedEvents } from '../merging';
 
 function waveIndex(stage: Stage): number {
   return stage - Stage.COLOSSEUM_WAVE_1;

@@ -21,7 +21,7 @@ import ChallengeProcessor, {
   InitializedFields,
 } from './challenge-processor';
 import sql from '../db';
-import { MergedEvents } from '../merge';
+import { MergedEvents } from '../merging';
 
 function waveToSplit(wave: number): SplitType | null {
   switch (wave) {
