@@ -11,7 +11,7 @@ import {
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
-import logger from './log';
+import logger from '../log';
 import { ChallengeInfo, PlayerState, TickState } from './merge';
 import { ChallengeEvents } from '@blert/common/generated/challenge_storage_pb';
 

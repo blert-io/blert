@@ -18,11 +18,10 @@ import {
   UnmergedEventData,
   unmergedEventsFile,
 } from './challenge-manager';
-import { ClientEvents } from './client-events';
 import sql from './db';
 import { ReportedTimes } from './event-processing';
 import logger, { runWithLogContext } from './log';
-import { Merger, MergeClientStatus } from './merge';
+import { ClientEvents, Merger, MergeClientStatus } from './merging';
 
 function asyncHandler(
   fn: (req: Request, res: Response) => Promise<void>,

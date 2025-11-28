@@ -27,7 +27,7 @@ import { Event, NpcAttackMap } from '@blert/common/generated/event_pb';
 import ChallengeProcessor, { InitializedFields } from './challenge-processor';
 import sql from '../db';
 import logger from '../log';
-import { MergedEvents } from '../merge';
+import { MergedEvents } from '../merging';
 import { startOfDateUtc } from '../time';
 
 type SoteMazeState = {

@@ -34,7 +34,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import sql from '../db';
 import logger from '../log';
-import { MergedEvents } from '../merge';
+import { MergedEvents } from '../merging';
 import { Players } from '../players';
 
 export type InitializedFields = {
