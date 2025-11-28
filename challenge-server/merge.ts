@@ -26,10 +26,32 @@ export type ChallengeInfo = {
 };
 
 type ClassifiedClients = {
-  referenceTicks: number;
   base: ClientEvents;
   matching: ClientEvents[];
   mismatched: ClientEvents[];
+  referenceTicks: ReferenceSelection;
+};
+
+export const enum ReferenceSelectionMethod {
+  ACCURATE_MODAL = 'ACCURATE_MODAL',
+  PRECISE_SERVER = 'PRECISE_SERVER',
+  IMPRECISE_SERVER = 'IMPRECISE_SERVER',
+  RECORDED_TICKS = 'RECORDED_TICKS',
+}
+
+export type ReferenceSelection = {
+  count: number;
+  method: ReferenceSelectionMethod;
+  details?: Record<string, unknown>;
+};
+
+export const enum MergeAlertType {
+  MULTIPLE_ACCURATE_TICK_MODES = 'MULTIPLE_ACCURATE_TICK_MODES',
+}
+
+export type MergeAlert = {
+  type: MergeAlertType;
+  details?: Record<string, unknown>;
 };
 
 export const enum MergeClientStatus {
@@ -75,6 +97,8 @@ export type MergeResult = {
   mergedCount: number;
   unmergedCount: number;
   skippedCount: number;
+  alerts: MergeAlert[];
+  referenceSelection: ReferenceSelection;
 };
 
 /**
@@ -116,6 +140,8 @@ function getConsensusTicks(
 export function classifyClients(clients: ClientEvents[]): ClassifiedClients {
   let baseClient: ClientEvents | null = null;
   let referenceTicks = 0;
+  let selectionMethod: ReferenceSelectionMethod;
+  let selectionDetails: Record<string, unknown> | undefined;
 
   // 1. Prioritize accurate clients.
   const accurateClients = clients.filter((c) => c.isAccurate());
@@ -123,6 +149,7 @@ export function classifyClients(clients: ClientEvents[]): ClassifiedClients {
     referenceTicks = getConsensusTicks(accurateClients, (c) =>
       c.getFinalTick(),
     );
+    selectionMethod = ReferenceSelectionMethod.ACCURATE_MODAL;
 
     const candidates = accurateClients.filter(
       (c) => c.getFinalTick() === referenceTicks,
@@ -135,6 +162,20 @@ export function classifyClients(clients: ClientEvents[]): ClassifiedClients {
     logger.debug(
       `Using ${referenceTicks} ticks from accurate consensus ${baseClient.toString()}`,
     );
+
+    const accurateTickCounts = new Map<number, number>();
+    for (const client of accurateClients) {
+      const ticks = client.getFinalTick();
+      accurateTickCounts.set(ticks, (accurateTickCounts.get(ticks) ?? 0) + 1);
+    }
+    selectionDetails = {
+      accurateTickCounts: [...accurateTickCounts.entries()].sort(
+        (a, b) => a[0] - b[0],
+      ),
+      accurateClientIds: accurateClients
+        .map((c) => c.getId())
+        .sort((a, b) => a - b),
+    };
   }
 
   // 2. If no accurate client exists, pick a precise client with the highest
@@ -149,6 +190,10 @@ export function classifyClients(clients: ClientEvents[]): ClassifiedClients {
       );
       baseClient = preciseClients[0];
       referenceTicks = baseClient.getServerTicks()!.count;
+      selectionMethod = ReferenceSelectionMethod.PRECISE_SERVER;
+      selectionDetails = {
+        candidateClientIds: preciseClients.map((c) => c.getId()),
+      };
       logger.debug(
         `Using ${referenceTicks} ticks from precise client ${baseClient.toString()}`,
       );
@@ -167,6 +212,10 @@ export function classifyClients(clients: ClientEvents[]): ClassifiedClients {
       );
       baseClient = impreciseClients[0];
       referenceTicks = baseClient.getServerTicks()!.count;
+      selectionMethod = ReferenceSelectionMethod.IMPRECISE_SERVER;
+      selectionDetails = {
+        candidateClientIds: impreciseClients.map((c) => c.getId()),
+      };
       logger.debug(
         `Using ${referenceTicks} from imprecise client ${baseClient.toString()}`,
       );
@@ -181,6 +230,10 @@ export function classifyClients(clients: ClientEvents[]): ClassifiedClients {
     );
     baseClient = sortedClients[0];
     referenceTicks = baseClient.getFinalTick();
+    selectionMethod = ReferenceSelectionMethod.RECORDED_TICKS;
+    selectionDetails = {
+      candidateClientIds: sortedClients.map((c) => c.getId()),
+    };
     logger.debug(
       `Assuming ${referenceTicks} from recorded ticks on ${baseClient.toString()}`,
     );
@@ -211,18 +264,33 @@ export function classifyClients(clients: ClientEvents[]): ClassifiedClients {
     }
   }
 
-  return { base: baseClient, matching, mismatched, referenceTicks };
+  const selection: ReferenceSelection = {
+    count: referenceTicks,
+    method: selectionMethod!,
+    details: selectionDetails,
+  };
+
+  return {
+    base: baseClient,
+    matching,
+    mismatched,
+    referenceTicks: selection,
+  };
 }
 
 export class Merger {
   private readonly stage: Stage;
   private readonly clients: ClientEvents[];
+  private readonly alerts: MergeAlert[];
+  private referenceSelection: ReferenceSelection | null;
 
   public constructor(stage: Stage, clients: ClientEvents[]) {
     this.stage = stage;
     this.clients = clients.toSorted(
       (a, b) => b.getFinalTick() - a.getFinalTick(),
     );
+    this.alerts = [];
+    this.referenceSelection = null;
   }
 
   public merge(): MergeResult | null {
@@ -249,6 +317,7 @@ export class Merger {
     const mergeClients: MergeClient[] = [];
 
     const clients = this.classifyAndUpdateClients();
+    this.referenceSelection = clients.referenceTicks;
 
     mergeClients.push(
       this.createMergeClient(
@@ -310,7 +379,13 @@ export class Merger {
       mergedCount,
       unmergedCount,
       skippedCount,
+      alerts: this.alerts,
+      referenceSelection: this.referenceSelection,
     };
+  }
+
+  private getReferenceTicks(): number | null {
+    return this.referenceSelection?.count ?? null;
   }
 
   private createMergeClient(
@@ -380,11 +455,15 @@ export class Merger {
       );
 
       if (modes.length > 1) {
-        logger.warn(
-          `Multiple accurate tick modes found: ${modes.join(', ')}. ` +
-            `This indicates bad input data. Demoting all accurate clients.`,
-          // TODO(frolv): Flag this merge for review.
-        );
+        const tickCounts = modes.toSorted((a, b) => a - b);
+        logger.warn('merge_multiple_accurate_tick_modes', {
+          stage: this.stage,
+          tickCounts,
+        });
+        this.alerts.push({
+          type: MergeAlertType.MULTIPLE_ACCURATE_TICK_MODES,
+          details: { tickCounts },
+        });
         for (const client of accurateClients) {
           client.setAccurate(false);
         }
@@ -393,10 +472,12 @@ export class Merger {
         const modalTicks = modes[0];
         for (const client of accurateClients) {
           if (client.isAccurate() && client.getFinalTick() !== modalTicks) {
-            logger.warn(
-              `${client.toString()} claims to be accurate but differs from the modal tick count ` +
-                `(expected: ${modalTicks}, actual: ${client.getFinalTick()})`,
-            );
+            logger.warn('merge_client_accuracy_mismatch', {
+              stage: this.stage,
+              client: client.getId(),
+              expectedTicks: modalTicks,
+              actualTicks: client.getFinalTick(),
+            });
             client.setAccurate(false);
           }
         }
