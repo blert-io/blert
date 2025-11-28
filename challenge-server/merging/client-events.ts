@@ -9,11 +9,12 @@ import {
   StageStreamEvents,
   StageStreamType,
 } from '@blert/common';
+import { ChallengeEvents } from '@blert/common/generated/challenge_storage_pb';
 import { Event } from '@blert/common/generated/event_pb';
 
 import logger from '../log';
-import { ChallengeInfo, PlayerState, TickState } from './merge';
-import { ChallengeEvents } from '@blert/common/generated/challenge_storage_pb';
+import { ChallengeInfo } from './merge';
+import { PlayerState, TickState } from './tick-state';
 
 export const enum ClientAnomaly {
   MULTIPLE_PRIMARY_PLAYERS = 'MULTIPLE_PRIMARY_PLAYERS',
