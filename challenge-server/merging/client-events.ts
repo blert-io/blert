@@ -2,6 +2,7 @@ import {
   ClientStageStream,
   DataSource,
   EquipmentSlot,
+  EventType,
   ItemDelta,
   Stage,
   StageStatus,
@@ -45,12 +46,45 @@ export type StageInfo = {
   serverTicks: ServerTicks | null;
 };
 
+// Tiles where players are teleported at the start and end of Sotetseg's maze.
+const SOTETSEG_OVERWORLD_MAZE_START_TILE = { x: 3274, y: 4307 };
+const SOTETSEG_UNDERWORLD_MAZE_START_TILE = { x: 3360, y: 4309 };
+const SOTETSEG_MAZE_END_TILE = { x: 3275, y: 4327 };
+const SOTETSEG_ROOM_AREA = { x: 3271, y: 4304, width: 17, height: 30 };
+const SOTETSEG_UNDERWORLD_AREA = { x: 3354, y: 4309, width: 14, height: 22 };
+
+interface CoordsLike {
+  x: number;
+  y: number;
+}
+
+interface AreaLike {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+function coordsEqual(a: CoordsLike, b: CoordsLike): boolean {
+  return a.x === b.x && a.y === b.y;
+}
+
+function inArea(coords: CoordsLike, area: AreaLike): boolean {
+  return (
+    coords.x >= area.x &&
+    coords.x < area.x + area.width &&
+    coords.y >= area.y &&
+    coords.y < area.y + area.height
+  );
+}
+
 export class ClientEvents {
   private readonly clientId: number;
   private readonly challenge: ChallengeInfo;
   private readonly stageInfo: Readonly<StageInfo>;
   private readonly tickState: TickState[];
   private readonly primaryPlayer: string | null;
+  private readonly eventsByType: Map<EventType, readonly Event[]>;
   private readonly invalidTickCount: boolean;
   private readonly anomalies: Set<ClientAnomaly>;
   private accurate: boolean;
@@ -221,6 +255,7 @@ export class ClientEvents {
       stageInfo,
       finalAccurate,
       tickState,
+      events,
       primaryPlayer ?? null,
       invalidTickCount,
       anomalies,
@@ -362,13 +397,9 @@ export class ClientEvents {
 
           const maxDistance = 2 * ticksSinceLast;
           const invalidMove =
+            !playerState.isDead &&
             (Math.abs(dx) > maxDistance || Math.abs(dy) > maxDistance) &&
-            !isSpecialTeleport(
-              this.stageInfo.stage,
-              last,
-              playerState,
-              ticksSinceLast,
-            );
+            !this.isSpecialTeleport(tick, last, playerState, ticksSinceLast);
 
           if (invalidMove) {
             logger.info('client_consistency_issue', {
@@ -414,6 +445,7 @@ export class ClientEvents {
     stageInfo: StageInfo,
     accurate: boolean,
     tickState: TickState[],
+    rawEvents: readonly Event[],
     primaryPlayer: string | null,
     invalidTickCount: boolean,
     anomalies: Set<ClientAnomaly>,
@@ -426,6 +458,15 @@ export class ClientEvents {
     this.invalidTickCount = invalidTickCount;
     this.anomalies = anomalies;
     this.consistencyIssues = [];
+
+    const eventsByType = new Map<EventType, Event[]>();
+    for (const event of rawEvents) {
+      if (!eventsByType.has(event.getType())) {
+        eventsByType.set(event.getType(), []);
+      }
+      eventsByType.get(event.getType())!.push(event);
+    }
+    this.eventsByType = eventsByType;
 
     // TODO(frolv): Demote accurate clients that have consistency issues.
     const _ok = this.checkForConsistency();
@@ -547,52 +588,84 @@ export class ClientEvents {
 
     return playerStates;
   }
-}
 
-// The tiles to which players are teleported at the start of Sotetseg's maze.
-const SOTETSEG_OVERWORLD_MAZE_START_TILE = { x: 3274, y: 4307 };
-const SOTETSEG_UNDERWORLD_MAZE_START_TILE = { x: 3360, y: 4309 };
-const SOTETSEG_ROOM_AREA = { x: 3271, y: 4304, width: 17, height: 30 };
+  /**
+   * Checks if a player's movement between two positions is a special teleport
+   * within a specific boss fight.
+   *
+   * @param tick The tick at which the player's movement occurred.
+   * @param last Player's last known state.
+   * @param current Player's current state.
+   * @param deltaTicks Number of ticks between the two states.
+   * @returns Whether the player's movement between the two states is a teleport.
+   */
+  private isSpecialTeleport(
+    tick: number,
+    last: PlayerState,
+    current: PlayerState,
+    deltaTicks: number,
+  ): boolean {
+    switch (this.stageInfo.stage) {
+      case Stage.TOB_SOTETSEG: {
+        // Handle teleports occurring during a Sotetseg maze.
+        if (deltaTicks !== 1) {
+          return false;
+        }
 
-/**
- * Checks if a player's movement between two positions is a special teleport
- * within a specific boss fight.
- *
- * @param stage The challenge stage the player is in.
- * @param last Player's last known state.
- * @param current Player's current state.
- * @param ticks Number of ticks between the two states.
- * @returns Whether the player's movement between the two states is a teleport.
- */
-function isSpecialTeleport(
-  stage: Stage,
-  last: PlayerState,
-  current: PlayerState,
-  ticks: number,
-): boolean {
-  if (stage === Stage.TOB_SOTETSEG) {
-    // Sotetseg's maze teleports players from their location in the room to a
-    // specific start tile in the overworld or underworld.
-    if (ticks !== 1) {
-      return false;
+        // Teleporting back out of the maze after completion.
+        if (coordsEqual(current, SOTETSEG_MAZE_END_TILE)) {
+          return inArea(last, SOTETSEG_UNDERWORLD_AREA);
+        }
+
+        // Being chosen to run the maze.
+        if (coordsEqual(current, SOTETSEG_UNDERWORLD_MAZE_START_TILE)) {
+          return inArea(last, SOTETSEG_ROOM_AREA);
+        }
+
+        // Teleporting to the start of the maze. This can happen either from the
+        // overworld (regular maze) or the underworld (solo maze).
+        if (coordsEqual(current, SOTETSEG_OVERWORLD_MAZE_START_TILE)) {
+          return (
+            inArea(last, SOTETSEG_ROOM_AREA) ||
+            inArea(last, SOTETSEG_UNDERWORLD_AREA)
+          );
+        }
+
+        return false;
+      }
+
+      case Stage.TOB_VERZIK: {
+        // Verzik's bounce pushes a player back by 3 tiles.
+        if (deltaTicks !== 1) {
+          return false;
+        }
+
+        const chebyshev = Math.max(
+          Math.abs(current.x - last.x),
+          Math.abs(current.y - last.y),
+        );
+        if (chebyshev !== 3) {
+          return false;
+        }
+
+        const potentialBounceTick = tick - 1;
+
+        const bounceEvent = this.eventsByType
+          .get(Event.Type.TOB_VERZIK_BOUNCE)
+          ?.find((evt) => {
+            const bounce = evt.getVerzikBounce()!;
+            return (
+              bounce.getNpcAttackTick() === potentialBounceTick &&
+              bounce.getBouncedPlayer() === current.username
+            );
+          });
+
+        return bounceEvent !== undefined;
+      }
+
+      default: {
+        return false;
+      }
     }
-
-    const isTargetTile =
-      (current.x === SOTETSEG_OVERWORLD_MAZE_START_TILE.x &&
-        current.y === SOTETSEG_OVERWORLD_MAZE_START_TILE.y) ||
-      (current.x === SOTETSEG_UNDERWORLD_MAZE_START_TILE.x &&
-        current.y === SOTETSEG_UNDERWORLD_MAZE_START_TILE.y);
-    if (!isTargetTile) {
-      return false;
-    }
-
-    return (
-      last.x >= SOTETSEG_ROOM_AREA.x &&
-      last.x <= SOTETSEG_ROOM_AREA.x + SOTETSEG_ROOM_AREA.width &&
-      last.y >= SOTETSEG_ROOM_AREA.y &&
-      last.y <= SOTETSEG_ROOM_AREA.y + SOTETSEG_ROOM_AREA.height
-    );
   }
-
-  return false;
 }
