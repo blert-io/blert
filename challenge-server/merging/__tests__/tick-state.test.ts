@@ -2,128 +2,16 @@ import {
   DataSource,
   EquipmentSlot,
   ItemDelta,
-  Stage,
   SkillLevel,
 } from '@blert/common';
+import { Event as ProtoEvent } from '@blert/common/generated/event_pb';
+
 import {
-  Event as ProtoEvent,
-  StageMap,
-} from '@blert/common/generated/event_pb';
-
-import { TickState, PlayerState, EquippedItem } from '../tick-state';
-
-type ProtoStage = StageMap[keyof StageMap];
-type ProtoDataSource =
-  ProtoEvent.Player.DataSourceMap[keyof ProtoEvent.Player.DataSourceMap];
-const STAGE = Stage.TOB_MAIDEN as ProtoStage;
-
-type PlayerStateOptions = {
-  username: string;
-  source?: DataSource;
-  x?: number;
-  y?: number;
-  isDead?: boolean;
-  equipment?: Partial<Record<EquipmentSlot, EquippedItem | null>>;
-};
-
-function createPlayerState({
-  username,
-  source = DataSource.SECONDARY,
-  x = 0,
-  y = 0,
-  isDead = false,
-  equipment = {},
-}: PlayerStateOptions): PlayerState {
-  const emptyEquipment: Record<EquipmentSlot, EquippedItem | null> = {
-    [EquipmentSlot.HEAD]: null,
-    [EquipmentSlot.CAPE]: null,
-    [EquipmentSlot.AMULET]: null,
-    [EquipmentSlot.AMMO]: null,
-    [EquipmentSlot.WEAPON]: null,
-    [EquipmentSlot.TORSO]: null,
-    [EquipmentSlot.SHIELD]: null,
-    [EquipmentSlot.LEGS]: null,
-    [EquipmentSlot.GLOVES]: null,
-    [EquipmentSlot.BOOTS]: null,
-    [EquipmentSlot.RING]: null,
-    [EquipmentSlot.QUIVER]: null,
-  };
-
-  for (const [slot, item] of Object.entries(equipment)) {
-    emptyEquipment[slot] = item;
-  }
-
-  return {
-    username,
-    source,
-    x,
-    y,
-    isDead,
-    equipment: emptyEquipment,
-  };
-}
-
-function createPlayerUpdateEvent({
-  tick,
-  name,
-  source = DataSource.SECONDARY,
-  x = 0,
-  y = 0,
-  equipmentDeltas = [],
-}: {
-  tick: number;
-  name: string;
-  source?: DataSource;
-  x?: number;
-  y?: number;
-  equipmentDeltas?: ItemDelta[];
-}): ProtoEvent {
-  const event = new ProtoEvent();
-  event.setType(ProtoEvent.Type.PLAYER_UPDATE);
-  event.setTick(tick);
-  event.setStage(STAGE);
-  event.setXCoord(x);
-  event.setYCoord(y);
-
-  const player = new ProtoEvent.Player();
-  player.setName(name);
-  player.setDataSource(source as ProtoDataSource);
-  player.setEquipmentDeltasList(equipmentDeltas.map((delta) => delta.toRaw()));
-  event.setPlayer(player);
-
-  return event;
-}
-
-function createNpcSpawnEvent({
-  tick,
-  roomId,
-  npcId,
-  x,
-  y,
-  hitpoints,
-}: {
-  tick: number;
-  roomId: number;
-  npcId: number;
-  x: number;
-  y: number;
-  hitpoints: number;
-}): ProtoEvent {
-  const event = new ProtoEvent();
-  event.setType(ProtoEvent.Type.NPC_SPAWN);
-  event.setTick(tick);
-  event.setStage(STAGE);
-  event.setXCoord(x);
-  event.setYCoord(y);
-
-  const npc = new ProtoEvent.Npc();
-  npc.setRoomId(roomId);
-  npc.setId(npcId);
-  npc.setHitpoints(new SkillLevel(hitpoints, hitpoints).toRaw());
-  event.setNpc(npc);
-
-  return event;
-}
+  createNpcSpawnEvent,
+  createPlayerState,
+  createPlayerUpdateEvent,
+} from './fixtures';
+import { TickState } from '../tick-state';
 
 describe('TickState', () => {
   it('returns false when merging ticks with different indices', () => {
@@ -224,7 +112,7 @@ describe('TickState', () => {
           roomId: 1,
           x: 10,
           y: 20,
-          hitpoints: 500,
+          hitpointsCurrent: 500,
         }),
       ],
       { player1: null },
