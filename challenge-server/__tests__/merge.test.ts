@@ -16,8 +16,10 @@ import {
 import {
   Merger,
   classifyClients,
+  MergeAlertType,
   MergeClientClassification,
   MergeClientStatus,
+  ReferenceSelectionMethod,
 } from '../merge';
 import { ClientEvents } from '../client-events';
 
@@ -156,10 +158,13 @@ describe('classifyClients', () => {
     const { base, matching, mismatched, referenceTicks } = classifyClients([
       client,
     ]);
-    expect(referenceTicks).toBe(10);
     expect(base).toBe(client);
     expect(matching).toEqual([]);
     expect(mismatched).toEqual([]);
+    expect(referenceTicks).toMatchObject({
+      count: 10,
+      method: ReferenceSelectionMethod.ACCURATE_MODAL,
+    });
   });
 
   it('uses an accurate client if present', () => {
@@ -171,10 +176,13 @@ describe('classifyClients', () => {
       acc2,
       other,
     ]);
-    expect(referenceTicks).toBe(10);
     expect(base).toBe(acc1);
     expect(matching).toEqual([acc2]);
     expect(mismatched).toEqual([other]);
+    expect(referenceTicks).toMatchObject({
+      method: ReferenceSelectionMethod.ACCURATE_MODAL,
+      count: 10,
+    });
   });
 
   it('breaks ties with lowest client ID', () => {
@@ -203,10 +211,13 @@ describe('classifyClients', () => {
       acc4,
       acc5,
     ]);
-    expect(referenceTicks).toBe(101);
     expect(base).toBe(acc3);
     expect(matching).toEqual([acc4]);
     expect(mismatched).toEqual(expect.arrayContaining([acc1, acc2, acc5]));
+    expect(referenceTicks).toMatchObject({
+      method: ReferenceSelectionMethod.ACCURATE_MODAL,
+      count: 101,
+    });
   });
 
   it('prefers a precise client if no accurate client is available', () => {
@@ -217,10 +228,13 @@ describe('classifyClients', () => {
       precise2,
     ]);
 
-    expect(referenceTicks).toBe(12);
     expect(base).toBe(precise1);
     expect(matching).toEqual([]);
     expect(mismatched).toEqual([precise2]);
+    expect(referenceTicks).toMatchObject({
+      method: ReferenceSelectionMethod.PRECISE_SERVER,
+      count: 12,
+    });
   });
 
   it('prefers an imprecise client if no precise client is available', () => {
@@ -237,10 +251,13 @@ describe('classifyClients', () => {
       imprecise2,
     ]);
 
-    expect(referenceTicks).toBe(12);
     expect(base).toBe(imprecise1);
     expect(matching).toEqual([]);
     expect(mismatched).toEqual([imprecise2]);
+    expect(referenceTicks).toMatchObject({
+      method: ReferenceSelectionMethod.IMPRECISE_SERVER,
+      count: 12,
+    });
   });
 
   it('uses highest recorded ticks if no client has server ticks', () => {
@@ -251,10 +268,13 @@ describe('classifyClients', () => {
       client2,
     ]);
 
-    expect(referenceTicks).toBe(11);
     expect(base).toBe(client1);
     expect(matching).toEqual([]);
     expect(mismatched).toEqual([client2]);
+    expect(referenceTicks).toMatchObject({
+      method: ReferenceSelectionMethod.RECORDED_TICKS,
+      count: 11,
+    });
   });
 
   it('prefers the larger modal tick when tied', () => {
@@ -266,10 +286,13 @@ describe('classifyClients', () => {
       acc2,
       other,
     ]);
-    expect(referenceTicks).toBe(11);
     expect(base).toBe(acc2);
     expect(matching).toEqual([]);
     expect(mismatched).toEqual(expect.arrayContaining([other, acc1]));
+    expect(referenceTicks).toMatchObject({
+      method: ReferenceSelectionMethod.ACCURATE_MODAL,
+      count: 11,
+    });
   });
 
   it('falls back to server tick consensus when no accurate clients are present', () => {
@@ -283,20 +306,26 @@ describe('classifyClients', () => {
       other,
       server2,
     ]);
-    expect(referenceTicks).toBe(11);
     expect(base).toBe(server1);
     expect(matching).toEqual([]);
     expect(mismatched).toEqual(
       expect.arrayContaining([server3, other, server2]),
     );
+    expect(referenceTicks).toMatchObject({
+      method: ReferenceSelectionMethod.IMPRECISE_SERVER,
+      count: 11,
+    });
   });
 
   it('handles a server tick count of 0', () => {
     const client1 = createClient(1, false, 0, { count: 0, precise: true });
     const client2 = createClient(2, false, 10, null);
     const { base, referenceTicks } = classifyClients([client1, client2]);
-    expect(referenceTicks).toBe(0);
     expect(base).toBe(client1);
+    expect(referenceTicks).toMatchObject({
+      method: ReferenceSelectionMethod.PRECISE_SERVER,
+      count: 0,
+    });
   });
 });
 
@@ -332,6 +361,7 @@ describe('Merger', () => {
     expect(result!.mergedCount).toBe(1);
     expect(result!.unmergedCount).toBe(0);
     expect(result!.skippedCount).toBe(0);
+    expect(result!.alerts).toEqual([]);
 
     const events = result!.events;
     expect(events.isAccurate()).toBe(false);
@@ -373,6 +403,7 @@ describe('Merger', () => {
     expect(result!.mergedCount).toBe(1);
     expect(result!.unmergedCount).toBe(0);
     expect(result!.skippedCount).toBe(0);
+    expect(result!.alerts).toEqual([]);
 
     const events = result!.events;
     expect(events.isAccurate()).toBe(true);
@@ -383,6 +414,52 @@ describe('Merger', () => {
     expect(allEvents.map((e) => e.toObject())).toEqual(
       client1Events.map((e) => e.toObject()),
     );
+  });
+
+  it('records an alert when multiple accurate tick modes exist', () => {
+    const accurateClientA = ClientEvents.fromRawEvents(
+      10,
+      fakeChallenge,
+      {
+        stage: Stage.TOB_MAIDEN,
+        status: StageStatus.COMPLETED,
+        accurate: true,
+        recordedTicks: 2,
+        serverTicks: { count: 2, precise: true },
+      },
+      client1Events,
+    );
+
+    const accurateClientB = ClientEvents.fromRawEvents(
+      11,
+      fakeChallenge,
+      {
+        stage: Stage.TOB_MAIDEN,
+        status: StageStatus.COMPLETED,
+        accurate: true,
+        recordedTicks: 3,
+        serverTicks: { count: 3, precise: true },
+      },
+      client1Events,
+    );
+
+    const merger = new Merger(Stage.TOB_MAIDEN, [
+      accurateClientA,
+      accurateClientB,
+    ]);
+    const result = merger.merge();
+
+    expect(result).not.toBeNull();
+    expect(result!.alerts).toEqual([
+      {
+        type: MergeAlertType.MULTIPLE_ACCURATE_TICK_MODES,
+        details: { tickCounts: [2, 3] },
+      },
+    ]);
+    expect(result!.clients.map((c) => c.derivedAccurate)).toEqual([
+      false,
+      false,
+    ]);
   });
 
   it('offsets ticks for an inaccurate client with a reported stage update', () => {
@@ -416,6 +493,7 @@ describe('Merger', () => {
     expect(result!.mergedCount).toBe(1);
     expect(result!.unmergedCount).toBe(0);
     expect(result!.skippedCount).toBe(0);
+    expect(result!.alerts).toEqual([]);
 
     const events = result!.events;
     expect(events.isAccurate()).toBe(false);
@@ -433,5 +511,36 @@ describe('Merger', () => {
         return obj;
       }),
     );
+  });
+
+  it('reports reference selection details in result', () => {
+    const client1 = ClientEvents.fromRawEvents(
+      1,
+      fakeChallenge,
+      {
+        stage: Stage.TOB_MAIDEN,
+        status: StageStatus.COMPLETED,
+        accurate: true,
+        recordedTicks: 2,
+        serverTicks: {
+          count: 2,
+          precise: true,
+        },
+      },
+      client1Events,
+    );
+
+    const merger = new Merger(Stage.TOB_MAIDEN, [client1]);
+
+    const result = merger.merge();
+    expect(result).not.toBeNull();
+    expect(result!.referenceSelection).toEqual({
+      count: 2,
+      method: ReferenceSelectionMethod.ACCURATE_MODAL,
+      details: {
+        accurateClientIds: [client1.getId()],
+        accurateTickCounts: [[2, 1]],
+      },
+    });
   });
 });
