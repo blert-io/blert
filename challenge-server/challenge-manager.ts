@@ -291,6 +291,7 @@ export default class ChallengeManager {
    * Beyond this time, the processing step is considered to have failed.
    */
   private static readonly MAX_STAGE_PROCESSING_TIME = 1000 * 30;
+  private static readonly STAGE_PROCESSING_RETRY_INTERVAL = 1500;
 
   public constructor(
     challengeDataRepository: DataRepository,
@@ -1675,23 +1676,69 @@ export default class ChallengeManager {
         return multi.exec();
       }
 
-      let requireCleanup = timeout === null || timeout.maxRetryAttempts === 0;
+      const timeoutStateValue = timeoutState
+        ? (Number.parseInt(timeoutState) as TimeoutState)
+        : TimeoutState.NONE;
+      const processingStartedAt =
+        processingStage === null ? null : Number.parseInt(processingStage);
+      const now = Date.now();
 
-      switch (Number.parseInt(timeoutState) as TimeoutState) {
-        case TimeoutState.CLEANUP:
-          break;
-        case TimeoutState.CHALLENGE_END:
-          if (processingStage !== null && timeout !== null) {
-            const elapsed = Date.now() - Number.parseInt(processingStage);
-            if (elapsed < ChallengeManager.MAX_STAGE_PROCESSING_TIME) {
-              status = CleanupStatus.PROCESSING_STAGE;
-              requireCleanup = false;
-            } else {
-              logger.warn(
-                `Challenge ${challengeId} took too long to process stage`,
+      if (processingStartedAt !== null) {
+        const elapsed = now - processingStartedAt;
+        if (elapsed < ChallengeManager.MAX_STAGE_PROCESSING_TIME) {
+          status = CleanupStatus.PROCESSING_STAGE;
+
+          if (timeout !== null) {
+            // Keep the existing timeout parameters, effectively pausing the
+            // challenge from being cleaned up until the stage is processed.
+            const nextTimeout: ChallengeTimeout = {
+              timestamp: now + timeout.retryIntervalMs,
+              maxRetryAttempts: timeout.maxRetryAttempts,
+              retryIntervalMs: timeout.retryIntervalMs,
+            };
+            multi.hSet(
+              ChallengeManager.CHALLENGE_TIMEOUT_KEY,
+              challengeId,
+              JSON.stringify(nextTimeout),
+            );
+          } else {
+            // Create an empty timeout which will immediately clean up the
+            // challenge if the stage is not processed within the maximum time.
+            const retryTimeout: ChallengeTimeout = {
+              timestamp: now + ChallengeManager.STAGE_PROCESSING_RETRY_INTERVAL,
+              maxRetryAttempts: 0,
+              retryIntervalMs: ChallengeManager.STAGE_PROCESSING_RETRY_INTERVAL,
+            };
+            multi.hSet(
+              ChallengeManager.CHALLENGE_TIMEOUT_KEY,
+              challengeId,
+              JSON.stringify(retryTimeout),
+            );
+
+            if (timeoutStateValue === TimeoutState.NONE) {
+              multi.hSet(
+                challengeKey,
+                'timeoutState',
+                TimeoutState.CHALLENGE_END,
               );
             }
           }
+
+          return multi.exec();
+        }
+
+        logger.warn('stage_processing_timeout', {
+          elapsed,
+          maxTime: ChallengeManager.MAX_STAGE_PROCESSING_TIME,
+        });
+      }
+
+      const requireCleanup = timeout === null || timeout.maxRetryAttempts === 0;
+
+      switch (timeoutStateValue) {
+        case TimeoutState.CLEANUP:
+        case TimeoutState.CHALLENGE_END:
+          // No action needed.
           break;
         default:
           if (timeout !== null) {
@@ -1708,9 +1755,9 @@ export default class ChallengeManager {
       } else {
         status = CleanupStatus.ACTIVE_CLIENTS;
         const nextTimeout: ChallengeTimeout = {
-          timestamp: Date.now() + timeout!.retryIntervalMs,
-          maxRetryAttempts: timeout!.maxRetryAttempts - 1,
-          retryIntervalMs: timeout!.retryIntervalMs,
+          timestamp: Date.now() + timeout.retryIntervalMs,
+          maxRetryAttempts: timeout.maxRetryAttempts - 1,
+          retryIntervalMs: timeout.retryIntervalMs,
         };
         multi.hSet(
           ChallengeManager.CHALLENGE_TIMEOUT_KEY,
@@ -1971,7 +2018,7 @@ export default class ChallengeManager {
           await this.cleanupChallenge(timedOutChallenge, timeoutInfo);
         } else if (state === TimeoutState.CHALLENGE_END) {
           logger.info(`Finishing challenge ${timedOutChallenge} after timeout`);
-          await this.cleanupChallenge(timedOutChallenge, null);
+          await this.cleanupChallenge(timedOutChallenge, timeoutInfo);
         } else if (state === TimeoutState.STAGE_END) {
           await this.handleStageEndTimeout(timedOutChallenge);
           await this.checkForActiveClients(timedOutChallenge);
