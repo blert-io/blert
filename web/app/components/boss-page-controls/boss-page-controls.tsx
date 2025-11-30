@@ -91,30 +91,31 @@ export function BossPageControls(props: BossControlsProps) {
   }
 
   const thumbWidth = 16;
-  const scrubberSplits = display.isFull() && trackWidth > 0
-    ? splits
-        .filter((split) => !split.unimportant)
-        .map((split) => {
-          const percent = (split.tick - 1) / (totalTicks - 1);
-          const left = percent * (trackWidth - thumbWidth) + thumbWidth / 2;
-          return (
-            <div
-              key={split.tick}
-              className={styles.controls__scrubber__split}
-              style={{ left: `${left + 1}px` }}
-            >
+  const scrubberSplits =
+    display.isFull() && trackWidth > 0
+      ? splits
+          .filter((split) => !split.unimportant)
+          .map((split) => {
+            const percent = (split.tick - 1) / (totalTicks - 1);
+            const left = percent * (trackWidth - thumbWidth) + thumbWidth / 2;
+            return (
               <div
-                className={styles.controls__splitTextWrapper}
-                onClick={() => {
-                  updateTick(split.tick);
-                }}
+                key={split.tick}
+                className={styles.controls__scrubber__split}
+                style={{ left: `${left + 1}px` }}
               >
-                <span>{split.splitName}</span>
+                <div
+                  className={styles.controls__splitTextWrapper}
+                  onClick={() => {
+                    updateTick(split.tick);
+                  }}
+                >
+                  <span>{split.splitName}</span>
+                </div>
               </div>
-            </div>
-          );
-        })
-    : [];
+            );
+          })
+      : [];
 
   const scrubberElement = (
     <div className={styles.controls__scrubber} ref={scrubber}>
