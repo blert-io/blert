@@ -213,10 +213,13 @@ export default class Client {
 
   public setStageAttempt(stage: Stage, attempt: number | null): void {
     if (this.activeChallenge !== null) {
-      console.log(
-        `${this.toString()}: challenge ${this.activeChallenge.uuid} stage ${stage} attempt set to ${attempt}`,
-      );
-      this.activeChallenge.stages.set(stage, attempt);
+      const current = this.getStageAttempt(stage);
+      if (current === undefined || current !== attempt) {
+        console.log(
+          `${this.toString()}: challenge ${this.activeChallenge.uuid} stage ${stage} attempt set to ${attempt}`,
+        );
+        this.activeChallenge.stages.set(stage, attempt);
+      }
     }
   }
 

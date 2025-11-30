@@ -21,7 +21,7 @@ import {
 import sql from './db';
 import { ReportedTimes } from './event-processing';
 import logger, { runWithLogContext } from './log';
-import { ClientEvents, Merger, MergeClientStatus } from './merging';
+import { ClientEvents, Merger } from './merging';
 
 function asyncHandler(
   fn: (req: Request, res: Response) => Promise<void>,
@@ -58,6 +58,11 @@ function errorStatus(e: unknown): number {
   return 500;
 }
 
+function sendErrorResponse(res: Response, e: unknown): void {
+  const message = e instanceof Error ? e.message : 'Internal server error';
+  res.status(errorStatus(e)).json({ error: { message } });
+}
+
 type NewChallengeRequest = {
   userId: number;
   type: ChallengeType;
@@ -84,8 +89,10 @@ async function newChallenge(req: Request, res: Response): Promise<void> {
         );
         res.json(result);
       } catch (e: unknown) {
-        logger.error('Failed to create challenge', e as Error);
-        res.status(errorStatus(e)).send();
+        logger.error('challenge_api_error', {
+          error: e instanceof Error ? e : new Error(String(e)),
+        });
+        sendErrorResponse(res, e);
       }
     },
   );
@@ -115,8 +122,10 @@ async function updateChallenge(req: Request, res: Response): Promise<void> {
           res.json(result);
         }
       } catch (e: unknown) {
-        logger.error('Failed to update challenge', e as Error);
-        res.status(errorStatus(e)).send();
+        logger.error('Failed to update challenge', {
+          error: e instanceof Error ? e : new Error(String(e)),
+        });
+        sendErrorResponse(res, e);
       }
     },
   );
@@ -142,8 +151,10 @@ async function finishChallenge(req: Request, res: Response): Promise<void> {
         );
         res.status(200).send();
       } catch (e: unknown) {
-        logger.error('Failed to finish challenge', e as Error);
-        res.status(errorStatus(e)).send();
+        logger.error('Failed to finish challenge', {
+          error: e instanceof Error ? e : new Error(String(e)),
+        });
+        sendErrorResponse(res, e);
       }
     },
   );
@@ -169,8 +180,10 @@ async function joinChallenge(req: Request, res: Response): Promise<void> {
         );
         res.json(status);
       } catch (e: unknown) {
-        logger.error('Failed to join challenge', e as Error);
-        res.status(errorStatus(e)).send();
+        logger.error('Failed to join challenge', {
+          error: e instanceof Error ? e : new Error(String(e)),
+        });
+        sendErrorResponse(res, e);
       }
     },
   );
@@ -211,15 +224,13 @@ async function mergeTestEvents(req: Request, res: Response): Promise<void> {
       };
     } catch (e) {
       if (e instanceof DataRepository.NotFound) {
-        logger.error(`No unmerged event data for ${challengeId}:${stage}`);
+        logger.error('test_data_not_found');
         res.status(404).send();
         return;
       }
 
       const msg = e instanceof Error ? e.message : String(e);
-      logger.error(
-        `Failed to load test data for challenge ${challengeId}: ${msg}`,
-      );
+      logger.error('test_data_load_error', { error: msg });
       res.status(500).send();
       return;
     }
@@ -230,7 +241,7 @@ async function mergeTestEvents(req: Request, res: Response): Promise<void> {
           WHERE uuid = ${challengeId}
         `;
     if (!challengeInfo) {
-      logger.error(`Challenge ${challengeId} does not exist`);
+      logger.error('test_challenge_not_found');
       res.status(404).send();
       return;
     }
@@ -263,17 +274,7 @@ async function mergeTestEvents(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const mergedClients = result.clients.filter(
-      (c) => c.status === MergeClientStatus.MERGED,
-    );
-    const unmergedClients = result.clients.filter(
-      (c) => c.status === MergeClientStatus.UNMERGED,
-    );
-
-    logger.info(`Merged clients: ${mergedClients.map((c) => c.id).join(', ')}`);
-    logger.info(
-      `Unmerged clients: ${unmergedClients.map((c) => c.id).join(', ')}`,
-    );
+    logger.info('test_merge_result', { result });
 
     const mergedEvents = new ChallengeEvents();
     mergedEvents.setEventsList(Array.from(result.events));
