@@ -19,6 +19,7 @@ import {
   ServerTicks,
 } from './client-events';
 import logger from '../log';
+import { SimilarityScorer } from './similarity-scorer';
 import { TickState } from './tick-state';
 
 export type ChallengeInfo = {
@@ -350,6 +351,27 @@ export class MergedEvents {
         accurate: this.accurate,
         client: { id: client.getId(), accurate: client.isAccurate() },
       });
+
+      // TODO(frolv)
+      for (let i = 30; i < 50; i++) {
+        const base = this.ticks[i]!;
+        const target = client.getTickState(i);
+        if (target === null) {
+          continue;
+        }
+
+        const scorer = new SimilarityScorer();
+        const score = scorer.score(base, target);
+        console.log(`Score for tick ${i} -> ${i}: ${score}`);
+
+        const target2 = client.getTickState(i + 1);
+        if (target2 === null) {
+          continue;
+        }
+
+        const score2 = scorer.score(base, target2);
+        console.log(`Score for tick ${i} -> ${i + 1}: ${score2}`);
+      }
     }
 
     if (success) {

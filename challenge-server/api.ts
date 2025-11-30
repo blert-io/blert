@@ -17,7 +17,6 @@ import {
   UnmergedEventData,
   unmergedEventsFile,
 } from './challenge-manager';
-import sql from './db';
 import { ReportedTimes } from './event-processing';
 import logger, { runWithLogContext } from './log';
 import { ClientEvents, Merger } from './merging';
@@ -60,7 +59,10 @@ export function registerApiRoutes(app: Application): void {
   app.post('/challenges/:challengeId', asyncHandler(updateChallenge));
   app.post('/challenges/:challengeId/finish', asyncHandler(finishChallenge));
   app.post('/challenges/:challengeId/join', asyncHandler(joinChallenge));
-  app.post('/test/merge/:challengeId/:stage', asyncHandler(mergeTestEvents));
+
+  if (process.env.NODE_ENV === 'development') {
+    app.post('/test/merge/:challengeId/:stage', asyncHandler(mergeTestEvents));
+  }
 }
 
 function recordHttpMetrics(
@@ -306,17 +308,6 @@ async function mergeTestEvents(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const [challengeInfo] = await sql`
-          SELECT id, stage, status, type, uuid
-          FROM challenges
-          WHERE uuid = ${challengeId}
-        `;
-    if (!challengeInfo) {
-      logger.error('test_challenge_not_found');
-      res.status(404).send();
-      return;
-    }
-
     const eventsByClient = new Map<number, ClientStageStream[]>();
     for (const evt of mergeData.rawEvents) {
       if (!eventsByClient.has(evt.clientId)) {
@@ -345,11 +336,11 @@ async function mergeTestEvents(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    logger.info('test_merge_result', { result });
+    const { events, ...metadata } = result;
+    logger.info('test_merge_result', { result: metadata });
 
     const mergedEvents = new ChallengeEvents();
-    mergedEvents.setEventsList(Array.from(result.events));
-
+    mergedEvents.setEventsList(Array.from(events));
     res
       .status(200)
       .send(Buffer.from(mergedEvents.serializeBinary()).toString('base64'));

@@ -1,7 +1,9 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import winston from 'winston';
 
-const isDev = process.env.NODE_ENV !== 'production';
+const env = process.env.NODE_ENV ?? 'development';
+const isDev = env !== 'production';
+const isTest = env === 'test';
 
 const structuredLogsEnabled = (() => {
   const flag = process.env.BLERT_STRUCTURED_LOGS;
@@ -44,7 +46,9 @@ const logger = winston.createLogger({
       : winston.format.json(),
   ),
   transports: [
-    new winston.transports.Console({ silent: process.env.NODE_ENV === 'test' }),
+    new winston.transports.Console({
+      silent: isTest,
+    }),
   ],
 });
 

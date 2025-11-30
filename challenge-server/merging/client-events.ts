@@ -11,6 +11,8 @@ import {
   ItemDelta,
   Npc,
   NpcAttack,
+  PrayerBook,
+  PrayerSet,
   Stage,
   StageStatus,
   StageStreamType,
@@ -291,9 +293,11 @@ export class ClientEvents {
         new TickState(
           tick,
           evts,
-          challenge.party.reduce(
-            (acc, player) => ({ ...acc, [player]: playerStates[player][tick] }),
-            {},
+          new Map(
+            challenge.party.map((player) => [
+              player,
+              playerStates[player][tick],
+            ]),
           ),
         ),
     );
@@ -607,6 +611,8 @@ export class ClientEvents {
                 [EquipmentSlot.RING]: null,
                 [EquipmentSlot.QUIVER]: null,
               },
+          attack: null,
+          prayers: PrayerSet.empty(PrayerBook.NORMAL),
         };
 
         playerEvents.forEach((event) => {
@@ -617,6 +623,7 @@ export class ClientEvents {
               state.source = player.getDataSource();
               state.x = event.getXCoord();
               state.y = event.getYCoord();
+              state.prayers = PrayerSet.fromRaw(player.getActivePrayers());
 
               player.getEquipmentDeltasList().forEach((rawDelta) => {
                 const delta = ItemDelta.fromRaw(rawDelta);
@@ -651,9 +658,20 @@ export class ClientEvents {
               });
               break;
             }
+
             case Event.Type.PLAYER_DEATH: {
               isDead = true;
               state.isDead = true;
+              break;
+            }
+
+            case Event.Type.PLAYER_ATTACK: {
+              const attack = event.getPlayerAttack()!;
+              state.attack = {
+                type: attack.getType(),
+                weaponId: attack.getWeapon()?.getId() ?? 0,
+                target: attack.getTarget()?.getRoomId() ?? null,
+              };
               break;
             }
           }
