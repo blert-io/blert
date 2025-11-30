@@ -451,6 +451,7 @@ export default class ChallengeManager {
                 `${partyMembers} is initializing; deferring join`,
             );
             startAction = StartAction.DEFERRED_JOIN;
+            challengeUuid = lastChallengeForParty;
           } else {
             logger.info(
               `User ${userId}: Joining existing challenge type ${type} for ${partyMembers}`,
