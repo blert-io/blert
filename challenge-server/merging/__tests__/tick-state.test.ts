@@ -15,8 +15,8 @@ import { TickState } from '../tick-state';
 
 describe('TickState', () => {
   it('returns false when merging ticks with different indices', () => {
-    const tick0 = new TickState(0, [], { player1: null });
-    const tick1 = new TickState(1, [], { player1: null });
+    const tick0 = new TickState(0, [], new Map([['player1', null]]));
+    const tick1 = new TickState(1, [], new Map([['player1', null]]));
 
     expect(tick0.merge(tick1)).toBe(false);
   });
@@ -36,7 +36,7 @@ describe('TickState', () => {
     const base = new TickState(
       0,
       [createPlayerUpdateEvent({ tick: 0, name: 'player1' })],
-      { player1: basePlayer },
+      new Map([['player1', basePlayer]]),
     );
     const target = new TickState(
       0,
@@ -49,7 +49,7 @@ describe('TickState', () => {
           y: 7,
         }),
       ],
-      { player1: targetPlayer },
+      new Map([['player1', targetPlayer]]),
     );
 
     expect(base.merge(target)).toBe(true);
@@ -84,12 +84,12 @@ describe('TickState', () => {
     const base = new TickState(
       0,
       [createPlayerUpdateEvent({ tick: 0, name: 'player1', x: 1, y: 2 })],
-      { player1: basePlayer },
+      new Map([['player1', basePlayer]]),
     );
     const target = new TickState(
       0,
       [createPlayerUpdateEvent({ tick: 0, name: 'player1', x: 9, y: 9 })],
-      { player1: targetPlayer },
+      new Map([['player1', targetPlayer]]),
     );
 
     expect(base.merge(target)).toBe(true);
@@ -102,7 +102,7 @@ describe('TickState', () => {
   });
 
   it('merges NPC state that was missing from the base tick', () => {
-    const base = new TickState(0, [], { player1: null });
+    const base = new TickState(0, [], new Map([['player1', null]]));
     const target = new TickState(
       0,
       [
@@ -115,7 +115,7 @@ describe('TickState', () => {
           hitpointsCurrent: 500,
         }),
       ],
-      { player1: null },
+      new Map([['player1', null]]),
     );
 
     expect(base.merge(target)).toBe(true);
@@ -150,18 +150,21 @@ describe('TickState', () => {
           equipmentDeltas: [new ItemDelta(100, 1, EquipmentSlot.HEAD, true)],
         }),
       ],
-      { player1: previousPlayer },
+      new Map([['player1', previousPlayer]]),
     );
 
     const base = new TickState(
       1,
       [createPlayerUpdateEvent({ tick: 1, name: 'player1' })],
-      {
-        player1: createPlayerState({
-          username: 'player1',
-          equipment: { [EquipmentSlot.HEAD]: { id: 100, quantity: 1 } },
-        }),
-      },
+      new Map([
+        [
+          'player1',
+          createPlayerState({
+            username: 'player1',
+            equipment: { [EquipmentSlot.HEAD]: { id: 100, quantity: 1 } },
+          }),
+        ],
+      ]),
     );
 
     const target = new TickState(
@@ -174,15 +177,18 @@ describe('TickState', () => {
           equipmentDeltas: [new ItemDelta(200, 1, EquipmentSlot.HEAD, true)],
         }),
       ],
-      {
-        player1: createPlayerState({
-          username: 'player1',
-          source: DataSource.PRIMARY,
-          equipment: {
-            [EquipmentSlot.HEAD]: { id: 200, quantity: 1 },
-          },
-        }),
-      },
+      new Map([
+        [
+          'player1',
+          createPlayerState({
+            username: 'player1',
+            source: DataSource.PRIMARY,
+            equipment: {
+              [EquipmentSlot.HEAD]: { id: 200, quantity: 1 },
+            },
+          }),
+        ],
+      ]),
     );
 
     expect(base.merge(target)).toBe(true);
