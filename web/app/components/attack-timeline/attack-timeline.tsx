@@ -915,14 +915,14 @@ const buildTickColumn = (
       {split !== undefined && (
         <div
           className={styles.attackTimeline__RoomSplit}
-          style={{ width: splitWidth }}
+          style={{ width: splitWidth - 1 }}
         >
           <span>{split.splitName}</span>
           <div className={styles.splitIndicatorWrapper}>
             <div className={styles.splitIndicatorPt1}></div>
             <div
               className={styles.splitIndicatorPt2}
-              style={{ left: splitTailOffset }}
+              style={{ left: splitTailOffset + 1 }}
             ></div>
           </div>
         </div>
@@ -938,7 +938,7 @@ const buildTickColumn = (
       {split !== undefined && (
         <div
           className={`${styles.attackTimeline__RoomSplit} ${styles.splitIndicatorBottom}`}
-          style={{ width: splitWidth }}
+          style={{ width: splitWidth - 1 }}
         >
           <div className={styles.splitIndicatorWrapper}>
             <div className={styles.splitIndicatorPt1}></div>
