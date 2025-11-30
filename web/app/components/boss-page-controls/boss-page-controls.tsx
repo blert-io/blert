@@ -7,6 +7,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useLayoutEffect,
 } from 'react';
 
 import { TimelineSplit } from '@/components/attack-timeline';
@@ -42,6 +43,19 @@ export function BossPageControls(props: BossControlsProps) {
   const [value, setValue] = useState(currentTick.toString());
   const [inputFocused, setInputFocused] = useState(false);
   const scrubber = useRef<HTMLDivElement>(null);
+  const rangeRef = useRef<HTMLInputElement>(null);
+  const [trackWidth, setTrackWidth] = useState<number>(0);
+  // Update trackWidth on mount and when window resizes
+  useLayoutEffect(() => {
+    function updateWidth() {
+      if (rangeRef.current) {
+        setTrackWidth(rangeRef.current.getBoundingClientRect().width);
+      }
+    }
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, []);
 
   useEffect(() => {
     const onWheel = (event: WheelEvent) => {
@@ -76,16 +90,18 @@ export function BossPageControls(props: BossControlsProps) {
     return <div className={styles.contrls}>Loading...</div>;
   }
 
-  const scrubberSplits = display.isFull()
+  const thumbWidth = 16;
+  const scrubberSplits = display.isFull() && trackWidth > 0
     ? splits
         .filter((split) => !split.unimportant)
         .map((split) => {
-          const splitPosition = (split.tick / totalTicks) * 100;
+          const percent = (split.tick - 1) / (totalTicks - 1);
+          const left = percent * (trackWidth - thumbWidth) + thumbWidth / 2;
           return (
             <div
               key={split.tick}
               className={styles.controls__scrubber__split}
-              style={{ left: `calc(${splitPosition}% - 3px)` }}
+              style={{ left: `${left + 1}px` }}
             >
               <div
                 className={styles.controls__splitTextWrapper}
@@ -109,6 +125,7 @@ export function BossPageControls(props: BossControlsProps) {
         name="timeline-scrubber"
         min={1}
         value={currentTick}
+        ref={rangeRef}
         onBlur={() => {
           setInputFocused(false);
           updatePlayingState(false);
