@@ -33,6 +33,12 @@ import ChallengeManager, {
 } from './challenge-manager';
 import Client from './client';
 
+type ChallengeServerError = {
+  error: {
+    message: string;
+  };
+};
+
 export class RemoteChallengeManager extends ChallengeManager {
   private serverUrl: string;
   private redisClient: RedisClientType;
@@ -75,6 +81,11 @@ export class RemoteChallengeManager extends ChallengeManager {
       }),
     });
 
+    if (!res.ok) {
+      const error = (await res.json()) as ChallengeServerError;
+      throw new Error(`Challenge server error: ${error.error.message}`);
+    }
+
     const status = (await res.json()) as ChallengeStatusResponse;
     this.addClientToChallenge(client, status.uuid);
     return status;
@@ -111,10 +122,9 @@ export class RemoteChallengeManager extends ChallengeManager {
         },
       );
 
-      if (res.status !== 200) {
-        console.log(
-          `Challenge completion request failed with status ${res.status}`,
-        );
+      if (!res.ok) {
+        const error = (await res.json()) as ChallengeServerError;
+        throw new Error(`Challenge server error: ${error.error.message}`);
       }
     } catch (e) {
       console.log('Failed to complete challenge:', e);
@@ -164,11 +174,19 @@ export class RemoteChallengeManager extends ChallengeManager {
         }),
       });
 
-      if (res.status === 200) {
+      if (res.ok) {
         const response = (await res.json()) as ChallengeStatusResponse;
         return response;
       }
-      console.log(`Challenge update request failed with status ${res.status}`);
+
+      const { error } = (await res.json()) as ChallengeServerError;
+
+      if (res.status === 409) {
+        console.log(`Challenge update request rejected: ${error.message}`);
+        return null;
+      }
+
+      console.log(`Challenge update request failed: ${error.message}`);
       return null;
     } catch (e) {
       console.log('Failed to update challenge:', e);
@@ -271,8 +289,9 @@ export class RemoteChallengeManager extends ChallengeManager {
         },
       );
 
-      if (res.status !== 200) {
-        console.log(`Challenge join request failed with status ${res.status}`);
+      if (!res.ok) {
+        const { error } = (await res.json()) as ChallengeServerError;
+        console.log(`Challenge join request failed: ${error.message}`);
         return null;
       }
 
