@@ -1107,3 +1107,189 @@ const STAGES_BY_CHALLENGE = {
 export function stagesForChallenge(challenge: ChallengeType): Stage[] {
   return STAGES_BY_CHALLENGE[challenge];
 }
+
+export type TobStage =
+  | Stage.TOB_MAIDEN
+  | Stage.TOB_BLOAT
+  | Stage.TOB_NYLOCAS
+  | Stage.TOB_SOTETSEG
+  | Stage.TOB_XARPUS
+  | Stage.TOB_VERZIK;
+
+/**
+ * Returns true if the stage is part of the Theatre of Blood.
+ * @param stage The stage to check.
+ * @returns True if the stage is a ToB stage.
+ */
+export function isTobStage(stage: Stage): stage is TobStage {
+  return stage >= Stage.TOB_MAIDEN && stage <= Stage.TOB_VERZIK;
+}
+
+export type CoxStage =
+  | Stage.COX_TEKTON
+  | Stage.COX_CRABS
+  | Stage.COX_ICE_DEMON
+  | Stage.COX_SHAMANS
+  | Stage.COX_VANGUARDS
+  | Stage.COX_THIEVING
+  | Stage.COX_VESPULA
+  | Stage.COX_TIGHTROPE
+  | Stage.COX_GUARDIANS
+  | Stage.COX_VASA
+  | Stage.COX_MYSTICS
+  | Stage.COX_MUTTADILE
+  | Stage.COX_OLM;
+
+/**
+ * Returns true if the stage is part of the Chambers of Xeric.
+ * @param stage The stage to check.
+ * @returns True if the stage is a CoX stage.
+ */
+export function isCoxStage(stage: Stage): stage is CoxStage {
+  return stage >= Stage.COX_TEKTON && stage <= Stage.COX_OLM;
+}
+
+export type ToaStage =
+  | Stage.TOA_APMEKEN
+  | Stage.TOA_BABA
+  | Stage.TOA_SCABARAS
+  | Stage.TOA_KEPHRI
+  | Stage.TOA_HET
+  | Stage.TOA_AKKHA
+  | Stage.TOA_CRONDIS
+  | Stage.TOA_ZEBAK
+  | Stage.TOA_WARDENS;
+
+/**
+ * Returns true if the stage is part of the Tombs of Amascut.
+ * @param stage The stage to check.
+ * @returns True if the stage is a ToA stage.
+ */
+export function isToaStage(stage: Stage): stage is ToaStage {
+  return stage >= Stage.TOA_APMEKEN && stage <= Stage.TOA_WARDENS;
+}
+
+export type ColosseumStage =
+  | Stage.COLOSSEUM_WAVE_1
+  | Stage.COLOSSEUM_WAVE_2
+  | Stage.COLOSSEUM_WAVE_3
+  | Stage.COLOSSEUM_WAVE_4
+  | Stage.COLOSSEUM_WAVE_5
+  | Stage.COLOSSEUM_WAVE_6
+  | Stage.COLOSSEUM_WAVE_7
+  | Stage.COLOSSEUM_WAVE_8
+  | Stage.COLOSSEUM_WAVE_9
+  | Stage.COLOSSEUM_WAVE_10
+  | Stage.COLOSSEUM_WAVE_11
+  | Stage.COLOSSEUM_WAVE_12;
+
+/**
+ * Returns true if the stage is part of the Colosseum.
+ * @param stage The stage to check.
+ * @returns True if the stage is a Colosseum stage.
+ */
+export function isColosseumStage(stage: Stage): stage is ColosseumStage {
+  return stage >= Stage.COLOSSEUM_WAVE_1 && stage <= Stage.COLOSSEUM_WAVE_12;
+}
+
+export type InfernoStage =
+  | Stage.INFERNO_WAVE_1
+  | Stage.INFERNO_WAVE_2
+  | Stage.INFERNO_WAVE_3
+  | Stage.INFERNO_WAVE_4
+  | Stage.INFERNO_WAVE_5
+  | Stage.INFERNO_WAVE_6
+  | Stage.INFERNO_WAVE_7
+  | Stage.INFERNO_WAVE_8
+  | Stage.INFERNO_WAVE_9
+  | Stage.INFERNO_WAVE_10
+  | Stage.INFERNO_WAVE_11
+  | Stage.INFERNO_WAVE_12
+  | Stage.INFERNO_WAVE_13
+  | Stage.INFERNO_WAVE_14
+  | Stage.INFERNO_WAVE_15
+  | Stage.INFERNO_WAVE_16
+  | Stage.INFERNO_WAVE_17
+  | Stage.INFERNO_WAVE_18
+  | Stage.INFERNO_WAVE_19
+  | Stage.INFERNO_WAVE_20
+  | Stage.INFERNO_WAVE_21
+  | Stage.INFERNO_WAVE_22
+  | Stage.INFERNO_WAVE_23
+  | Stage.INFERNO_WAVE_24
+  | Stage.INFERNO_WAVE_25
+  | Stage.INFERNO_WAVE_26
+  | Stage.INFERNO_WAVE_27
+  | Stage.INFERNO_WAVE_28
+  | Stage.INFERNO_WAVE_29
+  | Stage.INFERNO_WAVE_30
+  | Stage.INFERNO_WAVE_31
+  | Stage.INFERNO_WAVE_32
+  | Stage.INFERNO_WAVE_33
+  | Stage.INFERNO_WAVE_34
+  | Stage.INFERNO_WAVE_35
+  | Stage.INFERNO_WAVE_36
+  | Stage.INFERNO_WAVE_37
+  | Stage.INFERNO_WAVE_38
+  | Stage.INFERNO_WAVE_39
+  | Stage.INFERNO_WAVE_40
+  | Stage.INFERNO_WAVE_41
+  | Stage.INFERNO_WAVE_42
+  | Stage.INFERNO_WAVE_43
+  | Stage.INFERNO_WAVE_44
+  | Stage.INFERNO_WAVE_45
+  | Stage.INFERNO_WAVE_46
+  | Stage.INFERNO_WAVE_47
+  | Stage.INFERNO_WAVE_48
+  | Stage.INFERNO_WAVE_49
+  | Stage.INFERNO_WAVE_50
+  | Stage.INFERNO_WAVE_51
+  | Stage.INFERNO_WAVE_52
+  | Stage.INFERNO_WAVE_53
+  | Stage.INFERNO_WAVE_54
+  | Stage.INFERNO_WAVE_55
+  | Stage.INFERNO_WAVE_56
+  | Stage.INFERNO_WAVE_57
+  | Stage.INFERNO_WAVE_58
+  | Stage.INFERNO_WAVE_59
+  | Stage.INFERNO_WAVE_60
+  | Stage.INFERNO_WAVE_61
+  | Stage.INFERNO_WAVE_62
+  | Stage.INFERNO_WAVE_63
+  | Stage.INFERNO_WAVE_64
+  | Stage.INFERNO_WAVE_65
+  | Stage.INFERNO_WAVE_66
+  | Stage.INFERNO_WAVE_67
+  | Stage.INFERNO_WAVE_68
+  | Stage.INFERNO_WAVE_69;
+
+/**
+ * Returns true if the stage is part of the Inferno.
+ * @param stage The stage to check.
+ * @returns True if the stage is an Inferno stage.
+ */
+export function isInfernoStage(stage: Stage): stage is InfernoStage {
+  return stage >= Stage.INFERNO_WAVE_1 && stage <= Stage.INFERNO_WAVE_69;
+}
+
+export type MokhaiotlStage =
+  | Stage.MOKHAIOTL_DELVE_1
+  | Stage.MOKHAIOTL_DELVE_2
+  | Stage.MOKHAIOTL_DELVE_3
+  | Stage.MOKHAIOTL_DELVE_4
+  | Stage.MOKHAIOTL_DELVE_5
+  | Stage.MOKHAIOTL_DELVE_6
+  | Stage.MOKHAIOTL_DELVE_7
+  | Stage.MOKHAIOTL_DELVE_8
+  | Stage.MOKHAIOTL_DELVE_8PLUS;
+
+/**
+ * Returns true if the stage is a Mokhaiotl delve.
+ * @param stage The stage to check.
+ * @returns True if the stage is a Mokhaiotl delve.
+ */
+export function isMokhaiotlStage(stage: Stage): stage is MokhaiotlStage {
+  return (
+    stage >= Stage.MOKHAIOTL_DELVE_1 && stage <= Stage.MOKHAIOTL_DELVE_8PLUS
+  );
+}

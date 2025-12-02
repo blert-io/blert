@@ -3,7 +3,14 @@ import {
   DataSource,
   EquipmentSlot,
   EventType,
+  isColosseumStage,
+  isCoxStage,
+  isInfernoStage,
+  isMokhaiotlStage,
+  isToaStage,
   ItemDelta,
+  Npc,
+  NpcAttack,
   Stage,
   StageStatus,
   StageStreamEnd,
@@ -46,13 +53,6 @@ export type StageInfo = {
   serverTicks: ServerTicks | null;
 };
 
-// Tiles where players are teleported at the start and end of Sotetseg's maze.
-const SOTETSEG_OVERWORLD_MAZE_START_TILE = { x: 3274, y: 4307 };
-const SOTETSEG_UNDERWORLD_MAZE_START_TILE = { x: 3360, y: 4309 };
-const SOTETSEG_MAZE_END_TILE = { x: 3275, y: 4327 };
-const SOTETSEG_ROOM_AREA = { x: 3271, y: 4304, width: 17, height: 30 };
-const SOTETSEG_UNDERWORLD_AREA = { x: 3354, y: 4309, width: 14, height: 22 };
-
 interface CoordsLike {
   x: number;
   y: number;
@@ -75,6 +75,68 @@ function inArea(coords: CoordsLike, area: AreaLike): boolean {
     coords.x < area.x + area.width &&
     coords.y >= area.y &&
     coords.y < area.y + area.height
+  );
+}
+
+function chebyshev(a: CoordsLike, b: CoordsLike): number {
+  return Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+}
+
+// Tile to which players are teleported at the start of Sotetseg's maze.
+const SOTETSEG_OVERWORLD_MAZE_START_TILE = { x: 3274, y: 4307 };
+const SOTETSEG_ROOM_AREA = { x: 3271, y: 4304, width: 17, height: 30 };
+const SOTETSEG_UNDERWORLD_AREA = { x: 3354, y: 4309, width: 14, height: 22 };
+
+// Tiles within melee range of Verzik's fixed 3x3 P2 location.
+const VERZIK_P2_BOUNCEABLE_AREA = { x: 3166, y: 4312, width: 5, height: 5 };
+const VERZIK_P2_CENTER_TILE = { x: 3168, y: 4314 };
+
+// Tiles within Verzik's 7x7 P3 location during webs.
+const VERZIK_P3_WEBS_AREA = { x: 3165, y: 4309, width: 7, height: 7 };
+const VERZIK_P3_WEBS_CENTER_TILE = { x: 3168, y: 4312 };
+
+function isValidP2BounceDestination(coords: CoordsLike): boolean {
+  const distance = chebyshev(coords, VERZIK_P2_CENTER_TILE);
+  return distance === 5 || distance === 6;
+}
+
+function isValidP3WebsPushDestination(coords: CoordsLike): boolean {
+  return chebyshev(coords, VERZIK_P3_WEBS_CENTER_TILE) === 4;
+}
+
+const DEATH_AREAS_BY_STAGE: Partial<Record<Stage, AreaLike[]>> = {
+  [Stage.TOB_MAIDEN]: [
+    { x: 3166, y: 4433, width: 2, height: 1 },
+    { x: 3166, y: 4460, width: 2, height: 1 },
+  ],
+  [Stage.TOB_BLOAT]: [
+    { x: 3295, y: 4436, width: 2, height: 1 },
+    { x: 3295, y: 4459, width: 2, height: 1 },
+  ],
+  [Stage.TOB_NYLOCAS]: [
+    { x: 3290, y: 4240, width: 1, height: 1 },
+    { x: 3301, y: 4240, width: 1, height: 1 },
+    { x: 3287, y: 4243, width: 1, height: 1 },
+    { x: 3304, y: 4243, width: 1, height: 1 },
+    { x: 3287, y: 4254, width: 1, height: 1 },
+    { x: 3304, y: 4254, width: 1, height: 1 },
+    { x: 3290, y: 4257, width: 1, height: 1 },
+    { x: 3301, y: 4257, width: 1, height: 1 },
+  ],
+  [Stage.TOB_SOTETSEG]: [
+    { x: 3270, y: 4313, width: 1, height: 2 },
+    { x: 3289, y: 4313, width: 1, height: 2 },
+  ],
+  [Stage.TOB_XARPUS]: [{ x: 3156, y: 4381, width: 2, height: 13 }],
+  [Stage.TOB_VERZIK]: [
+    { x: 3157, y: 4325, width: 5, height: 1 },
+    { x: 3175, y: 4325, width: 5, height: 1 },
+  ],
+};
+
+function isInDeathArea(stage: Stage, coords: CoordsLike): boolean {
+  return (
+    DEATH_AREAS_BY_STAGE[stage]?.some((area) => inArea(coords, area)) ?? false
   );
 }
 
@@ -392,16 +454,16 @@ export class ClientEvents {
 
           // Players can move at most 2 tiles per tick -- anything more is a
           // likely indication of tick loss.
-          const dx = playerState.x - last.x;
-          const dy = playerState.y - last.y;
-
           const maxDistance = 2 * ticksSinceLast;
           const invalidMove =
             !playerState.isDead &&
-            (Math.abs(dx) > maxDistance || Math.abs(dy) > maxDistance) &&
+            chebyshev(playerState, last) > maxDistance &&
             !this.isSpecialTeleport(tick, last, playerState, ticksSinceLast);
 
           if (invalidMove) {
+            const dx = playerState.x - last.x;
+            const dy = playerState.y - last.y;
+
             logger.info('client_consistency_issue', {
               challengeUuid: this.challenge.uuid,
               clientId: this.clientId,
@@ -605,67 +667,201 @@ export class ClientEvents {
     current: PlayerState,
     deltaTicks: number,
   ): boolean {
+    if (isInDeathArea(this.stageInfo.stage, current)) {
+      return true;
+    }
+
+    if (isInfernoStage(this.stageInfo.stage)) {
+      return false;
+    }
+    if (isMokhaiotlStage(this.stageInfo.stage)) {
+      return false;
+    }
+    if (isColosseumStage(this.stageInfo.stage)) {
+      return false;
+    }
+
     switch (this.stageInfo.stage) {
       case Stage.TOB_SOTETSEG: {
-        // Handle teleports occurring during a Sotetseg maze.
-        if (deltaTicks !== 1) {
-          return false;
+        // Maze teleports between the overworld and underworld are special
+        // teleports by definition.
+        if (
+          inArea(current, SOTETSEG_UNDERWORLD_AREA) &&
+          inArea(last, SOTETSEG_ROOM_AREA)
+        ) {
+          return true;
+        }
+        if (
+          inArea(current, SOTETSEG_ROOM_AREA) &&
+          inArea(last, SOTETSEG_UNDERWORLD_AREA)
+        ) {
+          return true;
         }
 
-        // Teleporting back out of the maze after completion.
-        if (coordsEqual(current, SOTETSEG_MAZE_END_TILE)) {
-          return inArea(last, SOTETSEG_UNDERWORLD_AREA);
-        }
-
-        // Being chosen to run the maze.
-        if (coordsEqual(current, SOTETSEG_UNDERWORLD_MAZE_START_TILE)) {
-          return inArea(last, SOTETSEG_ROOM_AREA);
-        }
-
-        // Teleporting to the start of the maze. This can happen either from the
-        // overworld (regular maze) or the underworld (solo maze).
-        if (coordsEqual(current, SOTETSEG_OVERWORLD_MAZE_START_TILE)) {
-          return (
-            inArea(last, SOTETSEG_ROOM_AREA) ||
-            inArea(last, SOTETSEG_UNDERWORLD_AREA)
-          );
-        }
-
-        return false;
+        // Otherwise, the only special teleport that occurs is going from
+        // anywhere in the room to the start of the maze when it procs. This
+        // must be a one-tick movement.
+        return (
+          deltaTicks === 1 &&
+          inArea(last, SOTETSEG_ROOM_AREA) &&
+          coordsEqual(current, SOTETSEG_OVERWORLD_MAZE_START_TILE)
+        );
       }
 
       case Stage.TOB_VERZIK: {
-        // Verzik's bounce pushes a player back by 3 tiles.
         if (deltaTicks !== 1) {
           return false;
         }
 
-        const chebyshev = Math.max(
-          Math.abs(current.x - last.x),
-          Math.abs(current.y - last.y),
-        );
-        if (chebyshev !== 3) {
+        // Check the previous tick's NPC because a bounce can happen right on a
+        // phase transition.
+        const verzikNpc = this.tickState[tick - 1]
+          ?.getNpcs()
+          .values()
+          .find((npc) => Npc.isVerzik(npc.id));
+        if (verzikNpc === undefined) {
           return false;
         }
 
-        const potentialBounceTick = tick - 1;
+        if (Npc.isVerzikP2(verzikNpc.id)) {
+          return this.checkForP2Bounce(tick, last, current);
+        }
 
-        const bounceEvent = this.eventsByType
-          .get(Event.Type.TOB_VERZIK_BOUNCE)
-          ?.find((evt) => {
-            const bounce = evt.getVerzikBounce()!;
-            return (
-              bounce.getNpcAttackTick() === potentialBounceTick &&
-              bounce.getBouncedPlayer() === current.username
-            );
-          });
+        if (Npc.isVerzikP3(verzikNpc.id)) {
+          return this.checkForP3WebsPush(tick, last, current);
+        }
 
-        return bounceEvent !== undefined;
-      }
-
-      default: {
         return false;
       }
+
+      case Stage.TOB_MAIDEN:
+      case Stage.TOB_BLOAT:
+      case Stage.TOB_NYLOCAS:
+      case Stage.TOB_XARPUS:
+        // These stages have no special teleports.
+        return false;
+
+      case Stage.UNKNOWN:
+        return false;
     }
+
+    // TODO(frolv): These challenges are not yet supported.
+    if (isCoxStage(this.stageInfo.stage) || isToaStage(this.stageInfo.stage)) {
+      return false;
+    }
+
+    const _exhaustive: never = this.stageInfo.stage;
+    return false;
+  }
+
+  private checkForP2Bounce(
+    tick: number,
+    last: PlayerState,
+    current: PlayerState,
+  ): boolean {
+    // Verzik's bounce pushes a player away from under or adjacent to her.
+    if (
+      !inArea(last, VERZIK_P2_BOUNCEABLE_AREA) ||
+      !isValidP2BounceDestination(current)
+    ) {
+      return false;
+    }
+
+    const potentialBounceTick = tick - 1;
+
+    const bounceEvent = this.eventsByType
+      .get(Event.Type.TOB_VERZIK_BOUNCE)
+      ?.find((evt) => {
+        const bounce = evt.getVerzikBounce()!;
+        const validTick =
+          bounce.getNpcAttackTick() === potentialBounceTick ||
+          bounce.getNpcAttackTick() === tick;
+        return validTick && bounce.getBouncedPlayer() === current.username;
+      });
+
+    if (bounceEvent !== undefined) {
+      return true;
+    }
+
+    // It's possible for a client to miss the bounce event, in which case we
+    // fall back to the presence of a bounce attack, which indicates that
+    // Verzik performed the bounce animation, but without knowing the
+    // target.
+    //
+    // Verzik's bounce targets a single player, so if the bounce attack is
+    // present, we ensure that only the player we are checking made a
+    // bounce-like movement.
+    const hasBounce = (tickState: TickState | null): boolean => {
+      return (
+        tickState?.getEventsByType(Event.Type.NPC_ATTACK)?.find((evt) => {
+          const attack = evt.getNpcAttack()!;
+          return attack.getAttack() === NpcAttack.TOB_VERZIK_P2_BOUNCE;
+        }) !== undefined
+      );
+    };
+
+    if (
+      !hasBounce(this.tickState[potentialBounceTick]) &&
+      !hasBounce(this.tickState[tick])
+    ) {
+      return false;
+    }
+
+    let bounceLikeMovements = 0;
+    let playerWasBounced = false;
+
+    for (const player of this.challenge.party) {
+      const curr = this.tickState[tick]?.getPlayerState(player);
+      const prev = this.tickState[tick - 1]?.getPlayerState(player);
+      if (!curr || !prev) {
+        continue;
+      }
+
+      if (
+        inArea(prev, VERZIK_P2_BOUNCEABLE_AREA) &&
+        isValidP2BounceDestination(curr)
+      ) {
+        bounceLikeMovements++;
+        if (player === current.username) {
+          playerWasBounced = true;
+        }
+      }
+    }
+
+    return playerWasBounced && bounceLikeMovements === 1;
+  }
+
+  private checkForP3WebsPush(
+    tick: number,
+    last: PlayerState,
+    current: PlayerState,
+  ): boolean {
+    // When webs starts, players under Verzik are pushed directly outside of
+    // her area.
+    let isWebs = false;
+
+    for (let t = tick; t >= Math.max(tick - 3, 0); t--) {
+      const tickState = this.tickState[t];
+      if (!tickState) {
+        continue;
+      }
+
+      const websAttack = tickState
+        .getEventsByType(Event.Type.NPC_ATTACK)
+        ?.find((evt) => {
+          const attack = evt.getNpcAttack()!;
+          return attack.getAttack() === NpcAttack.TOB_VERZIK_P3_WEBS;
+        });
+      if (websAttack !== undefined) {
+        isWebs = true;
+        break;
+      }
+    }
+
+    return (
+      isWebs &&
+      inArea(last, VERZIK_P3_WEBS_AREA) &&
+      isValidP3WebsPushDestination(current)
+    );
   }
 }

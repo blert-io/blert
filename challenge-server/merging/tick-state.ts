@@ -37,6 +37,7 @@ function offsetEventTick(event: Event, offset: number): void {
 }
 
 export type NpcState = {
+  id: number;
   x: number;
   y: number;
   hitpoints: number;
@@ -92,6 +93,7 @@ export class TickState {
         const npc = event.getNpc()!;
 
         this.npcs.set(npc.getRoomId(), {
+          id: npc.getId(),
           x: event.getXCoord(),
           y: event.getYCoord(),
           hitpoints: SkillLevel.fromRaw(npc.getHitpoints()).getCurrent(),
@@ -132,12 +134,49 @@ export class TickState {
     return events;
   }
 
-  public getPlayerStates(): Record<string, PlayerState | null> {
+  /**
+   * Retrieves all events of the given type recorded on this tick.
+   * @param type The type of events to retrieve.
+   * @returns The events of the given type.
+   */
+  public getEventsByType(type: EventType): Event[] {
+    return this.eventsByType.get(type) ?? [];
+  }
+
+  /**
+   * Returns the states of all players on this tick.
+   * @returns A map of usernames to player states.
+   */
+  public getPlayerStates(): Readonly<Record<string, PlayerState | null>> {
     return this.playerStates;
   }
 
-  public getPlayerState(player: string): PlayerState | null {
+  /**
+   * Retrieves the state of the player with the given username on this tick.
+   *
+   * @param player The username of the player to retrieve.
+   * @returns The player state, or `null` if the player is not present.
+   */
+  public getPlayerState(player: string): Readonly<PlayerState | null> {
     return this.playerStates[player] ?? null;
+  }
+
+  /**
+   * Returns the states of all NPCs on this tick.
+   * @returns A map of room IDs to NPC states.
+   */
+  public getNpcs(): Readonly<Map<number, NpcState>> {
+    return this.npcs;
+  }
+
+  /**
+   * Retrieves the state of the NPC with the given room ID on this tick.
+   *
+   * @param roomId The room ID of the NPC to retrieve.
+   * @returns The NPC state, or `null` if the NPC is not present.
+   */
+  public getNpcState(roomId: number): Readonly<NpcState | null> {
+    return this.npcs.get(roomId) ?? null;
   }
 
   /**
