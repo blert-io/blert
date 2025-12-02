@@ -123,13 +123,28 @@ export {
   SessionStatus,
   Skill,
   SkillLevel,
-  Stage,
   StageStatus,
   stageName,
   stagesForChallenge,
   VerzikCrabSpawn,
   VerzikPhase,
   XarpusPhase,
+} from './challenge';
+
+export {
+  Stage,
+  type ColosseumStage,
+  type CoxStage,
+  type InfernoStage,
+  type MokhaiotlStage,
+  type ToaStage,
+  type TobStage,
+  isColosseumStage,
+  isCoxStage,
+  isInfernoStage,
+  isMokhaiotlStage,
+  isToaStage,
+  isTobStage,
 } from './challenge';
 
 export { ItemDelta } from './item-delta';
