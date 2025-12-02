@@ -944,38 +944,43 @@ export default abstract class ChallengeProcessor {
     // Give all the personal bests a consistent creation time.
     const now = new Date();
 
+    const personalBests: {
+      new: Record<string, [number, number][]>;
+      updated: Record<string, [number, number][]>;
+    } = {
+      new: {},
+      updated: {},
+    };
+
     for (const split of splits) {
       playerIds.forEach((playerId, i) => {
         const currentPb = pbsByPlayer.get(playerId)!.get(split.type);
+        const playerKey = `${this.party[i]}#${playerId}`;
 
         if (currentPb === undefined) {
-          logger.info(
-            `Setting PB(${split.type}, ${this.getScale()}) for ` +
-              `${this.party[i]}#${playerId} to ${split.ticks}`,
-          );
+          personalBests.new[playerKey] ??= [];
+          personalBests.new[playerKey].push([split.id, split.ticks]);
           pbRowsToCreate.push({
             player_id: playerId,
             challenge_split_id: split.id,
             created_at: now,
           });
         } else if (split.ticks < currentPb.ticks) {
-          logger.info(
-            `Updating PB(${split.type}, ${this.getScale()}) for ` +
-              `${this.party[i]}#${playerId} to ${split.ticks}`,
-          );
+          personalBests.updated[playerKey] ??= [];
+          personalBests.updated[playerKey].push([split.id, split.ticks]);
           pbRowsToCreate.push({
             player_id: playerId,
             challenge_split_id: split.id,
             created_at: now,
           });
-        } else {
-          logger.debug(
-            `PB(${split.type}, ${this.getScale()}) for ` +
-              `${this.party[i]}#${playerId} is already better: ${currentPb.ticks}`,
-          );
         }
       });
     }
+
+    logger.info('challenge_processor_personal_bests', {
+      scale: this.getScale(),
+      personalBests,
+    });
 
     if (pbRowsToCreate.length > 0) {
       await sql`
@@ -1054,14 +1059,13 @@ export default abstract class ChallengeProcessor {
       this.stageAttempt ?? undefined,
     );
 
-    logger.info(
-      'Challenge %s: saved %d total, %d queryable events for stage %s (accurate=%s)',
-      this.uuid,
-      events.length,
-      dbEventsCount,
+    logger.info('challenge_processor_events_saved', {
+      challengeUuid: this.uuid,
       stage,
+      totalEvents: events.length,
+      queryableEvents: dbEventsCount,
       accurate,
-    );
+    });
   }
 
   private async tryDetermineGear(player: Event.Player): Promise<void> {
