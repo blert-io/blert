@@ -1,20 +1,20 @@
-name: Test Event Server
+name: Test Socket Server
 
 on:
   pull_request:
     paths:
-      - 'event-server/**'
+      - 'socket-server/**'
       - 'common/**'
       - 'package.json'
-      - '.github/workflows/test-event-server.yml'
+      - '.github/workflows/test-socket-server.yml'
   push:
     branches:
       - main
     paths:
-      - 'event-server/**'
+      - 'socket-server/**'
       - 'common/**'
       - 'package.json'
-      - '.github/workflows/test-event-server.yml'
+      - '.github/workflows/test-socket-server.yml'
 
 jobs:
   test:
@@ -39,25 +39,25 @@ jobs:
         run: npm run -w common build
 
       - name: Format check
-        run: npm run -w event-server format
+        run: npm run -w socket-server format
 
       - name: Lint
-        run: npm run -w event-server lint
+        run: npm run -w socket-server lint
 
       - name: Type check
-        run: npm run -w event-server typecheck
+        run: npm run -w socket-server typecheck
 
-      - name: Build event-server
-        run: npm run -w event-server build
+      - name: Build socket-server
+        run: npm run -w socket-server build
 
       - name: Run tests with coverage
-        run: npm run -w event-server test:coverage
+        run: npm run -w socket-server test:coverage
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@v5
         if: always()
         with:
-          files: ./event-server/coverage/lcov.info
-          flags: event-server
+          files: ./socket-server/coverage/lcov.info
+          flags: socket-server
           token: ${{ secrets.CODECOV_TOKEN }}
         continue-on-error: true

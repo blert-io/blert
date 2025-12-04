@@ -6,7 +6,7 @@
     "blertbank-client/",
     "challenge-server/",
     "common/",
-    "event-server/",
+    "socket-server/",
     "web/"
   ],
   "scripts": {
