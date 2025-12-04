@@ -32,6 +32,7 @@ import ChallengeManager, {
   RecordedTimes,
 } from './challenge-manager';
 import Client from './client';
+import logger from './log';
 
 type ChallengeServerError = {
   error: {
@@ -127,7 +128,10 @@ export class RemoteChallengeManager extends ChallengeManager {
         throw new Error(`Challenge server error: ${error.error.message}`);
       }
     } catch (e) {
-      console.log('Failed to complete challenge:', e);
+      logger.error('remote_complete_challenge_failed', {
+        error: e instanceof Error ? e : new Error(String(e)),
+        challengeUuid: challengeId,
+      });
     }
 
     // Always reset the client's active challenge after completion; the remote
@@ -182,14 +186,24 @@ export class RemoteChallengeManager extends ChallengeManager {
       const { error } = (await res.json()) as ChallengeServerError;
 
       if (res.status === 409) {
-        console.log(`Challenge update request rejected: ${error.message}`);
+        logger.warn('remote_challenge_update_rejected', {
+          challengeUuid: challengeId,
+          message: error.message,
+        });
         return null;
       }
 
-      console.log(`Challenge update request failed: ${error.message}`);
+      logger.error('remote_challenge_update_failed', {
+        challengeUuid: challengeId,
+        statusCode: res.status,
+        message: error.message,
+      });
       return null;
     } catch (e) {
-      console.log('Failed to update challenge:', e);
+      logger.error('remote_challenge_update_exception', {
+        challengeUuid: challengeId,
+        error: e instanceof Error ? e : new Error(String(e)),
+      });
       return null;
     }
   }
@@ -197,14 +211,14 @@ export class RemoteChallengeManager extends ChallengeManager {
   public async getChallengeInfo(
     challengeId: string,
   ): Promise<ChallengeInfo | null> {
-    const challenge = await this.redisClient.hGetAll(
-      challengesKey(challengeId),
-    );
-    if (Object.keys(challenge).length === 0) {
-      return null;
-    }
-
     try {
+      const challenge = await this.redisClient.hGetAll(
+        challengesKey(challengeId),
+      );
+      if (Object.keys(challenge).length === 0) {
+        return null;
+      }
+
       return {
         type: Number.parseInt(challenge.type) as ChallengeType,
         mode: Number.parseInt(challenge.mode) as ChallengeMode,
@@ -216,7 +230,10 @@ export class RemoteChallengeManager extends ChallengeManager {
         party: challenge.party.split(','),
       };
     } catch (e) {
-      console.log('Failed to parse challenge info:', e);
+      logger.error('remote_challenge_info_exception', {
+        challengeUuid: challengeId,
+        error: e instanceof Error ? e : new Error(String(e)),
+      });
       return null;
     }
   }
@@ -291,13 +308,19 @@ export class RemoteChallengeManager extends ChallengeManager {
 
       if (!res.ok) {
         const { error } = (await res.json()) as ChallengeServerError;
-        console.log(`Challenge join request failed: ${error.message}`);
+        logger.warn('remote_challenge_join_failed', {
+          challengeUuid: challengeId,
+          message: error.message,
+        });
         return null;
       }
 
       return (await res.json()) as ChallengeStatusResponse;
     } catch (e) {
-      console.log('Failed to join challenge:', e);
+      logger.error('remote_challenge_join_exception', {
+        challengeUuid: challengeId,
+        error: e instanceof Error ? e : new Error(String(e)),
+      });
       return null;
     }
   }
@@ -335,9 +358,10 @@ export class RemoteChallengeManager extends ChallengeManager {
       case ChallengeUpdateAction.FINISH: {
         const clients = this.clientsByChallenge.get(update.id);
         if (clients) {
-          console.log(
-            `Challenge ${update.id} finished; notifying ${clients.length} clients`,
-          );
+          logger.info('remote_challenge_finished_notification', {
+            challengeUuid: update.id,
+            clientCount: clients.length,
+          });
 
           const endMessage = new ServerMessage();
           endMessage.setType(ServerMessage.Type.ERROR);
