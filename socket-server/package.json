@@ -1,7 +1,7 @@
 {
-  "name": "@blert/event-server",
+  "name": "@blert/socket-server",
   "version": "0.1.0",
-  "description": "Websocket server for blert raid events",
+  "description": "Websocket server for Blert",
   "license": "MIT",
   "scripts": {
     "build": "tsc",
