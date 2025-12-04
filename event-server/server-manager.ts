@@ -3,6 +3,7 @@ import { Timestamp } from 'google-protobuf/google/protobuf/timestamp_pb';
 
 import Client from './client';
 import ConnectionManager from './connection-manager';
+import logger from './log';
 
 export enum ServerStatus {
   RUNNING = 'RUNNING',
@@ -86,10 +87,10 @@ export default class ServerManager {
     if (shutdownDuration > ServerManager.SHUTDOWN_MESSAGE_INTERVALS[0]) {
       const timeBeforePending =
         shutdownDuration - ServerManager.SHUTDOWN_MESSAGE_INTERVALS[0];
-      console.log(
-        `Future shutdown requested for ${this.shutdownTime.toISOString()}; ` +
-          `will begin processing at ${new Date(Date.now() + timeBeforePending).toISOString()}`,
-      );
+      logger.info('server_shutdown_scheduled', {
+        shutdownTime: this.shutdownTime.toISOString(),
+        countdownStart: new Date(Date.now() + timeBeforePending).toISOString(),
+      });
       this.shutdownTimer = setTimeout(
         () => this.enterShutdownPending(),
         timeBeforePending,
@@ -104,7 +105,9 @@ export default class ServerManager {
       return;
     }
 
-    console.log(`Server will shut down at ${this.shutdownTime.toISOString()}`);
+    logger.info('server_shutdown_pending', {
+      shutdownTime: this.shutdownTime.toISOString(),
+    });
 
     const shutdownDuration = this.shutdownTime.getTime() - Date.now();
     this.shutdownTimer = setTimeout(() => this.shutdown(), shutdownDuration);
@@ -135,7 +138,7 @@ export default class ServerManager {
     this.updateStatus(ServerStatus.SHUTDOWN_CANCELED);
     this.notifyAllClientsOfState();
 
-    console.log('Shutdown canceled');
+    logger.info('server_shutdown_canceled');
 
     setTimeout(() => this.updateStatus(ServerStatus.RUNNING), 10000);
   }
@@ -150,9 +153,7 @@ export default class ServerManager {
 
       // Don't actually exit the process to prevent it from being restarted by
       // a system service. Leave it in a zombie state to be restarted manually.
-      console.log('=====================');
-      console.log('Server has shut down.');
-      console.log('=====================');
+      logger.info('server_shutdown_complete');
     }, 2000);
   }
 
@@ -181,7 +182,9 @@ export default class ServerManager {
     const nextMessageTime = this.shutdownTime!.getTime() - nextInterval;
     const messageTimeout = nextMessageTime - Date.now();
 
-    console.log(`Next shutdown message in ${messageTimeout}ms`);
+    logger.debug('server_shutdown_message_scheduled', {
+      messageTimeoutMs: messageTimeout,
+    });
     this.shutdownMessageTimer = setTimeout(() => {
       this.notifyAllClientsOfState();
       this.scheduleNextShutdownMessage();
@@ -214,9 +217,10 @@ export default class ServerManager {
     const statusMessage = this.serverStatusMessage();
 
     const activeClients = this.connectionManager.clients();
-    console.log(
-      `Sending server status ${this.status} to ${activeClients.length} clients`,
-    );
+    logger.debug('server_status_broadcast', {
+      status: this.status,
+      clientCount: activeClients.length,
+    });
 
     for (const client of activeClients) {
       client.sendMessage(statusMessage);

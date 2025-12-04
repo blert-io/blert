@@ -8,6 +8,7 @@ import {
 import { RedisClientType } from 'redis';
 
 import sql from './db';
+import logger from './log';
 
 export type ModifiablePlayerStats = Omit<PlayerStats, 'date' | 'playerId'>;
 
@@ -83,10 +84,11 @@ export class PlayerManager {
       return;
     }
     if (activePlayer.challengeId !== challengeId) {
-      console.error(
-        `Tried to remove ${username} from challenge ${challengeId}, ` +
-          `but they are in ${activePlayer.challengeId}`,
-      );
+      logger.warn('player_challenge_mismatch', {
+        username,
+        expectedChallengeUuid: challengeId,
+        actualChallengeUuid: activePlayer.challengeId,
+      });
       return;
     }
     this.activePlayers.delete(username);

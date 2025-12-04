@@ -20,12 +20,9 @@ export default class ConnectionManager {
    * @throws Error if the key is invalid.
    */
   public async authenticate(token: string): Promise<BasicUser> {
-    // TODO(frolv): When accounts are added, check the token against the
-    // database and return the actual ID of the account;
     const user = await Users.findByApiKey(token);
-
     if (user === null) {
-      throw new Error('Invalid token');
+      throw new Error('Invalid API key');
     }
 
     return user;

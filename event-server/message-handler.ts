@@ -25,6 +25,7 @@ import Client from './client';
 import { PlayerManager, Players } from './players';
 import { Users } from './users';
 import { ServerStatus, ServerStatusUpdate } from './server-manager';
+import logger from './log';
 
 type Proto<E> = E[keyof E];
 
@@ -50,12 +51,10 @@ export default class MessageHandler {
   public handleServerStatusUpdate = ({ status }: ServerStatusUpdate): void => {
     if (status === ServerStatus.SHUTDOWN_PENDING) {
       this.allowStartingChallenges = false;
-      console.log(
-        'MessageHandler denying new challenges due to pending shutdown',
-      );
+      logger.warn('message_handler_start_blocked', { status });
     } else if (status === ServerStatus.SHUTDOWN_CANCELED) {
       this.allowStartingChallenges = true;
-      console.log('MessageHandler allowing new challenges');
+      logger.info('message_handler_start_allowed', { status });
     }
   };
 
@@ -117,15 +116,19 @@ export default class MessageHandler {
             );
 
             if (result !== null) {
-              console.log(
-                `${client.toString()}: player ${rsn} rejoining challenge ${message.getActiveChallengeId()}`,
-              );
+              logger.info('client_rejoined_challenge', {
+                username: client.getUsername(),
+                rsn,
+                challengeUuid: message.getActiveChallengeId(),
+              });
               client.setActiveChallenge(result.uuid);
               client.setStageAttempt(result.stage, result.stageAttempt);
             } else {
-              console.error(
-                `${client.toString()}: failed to rejoin challenge ${message.getActiveChallengeId()}`,
-              );
+              logger.warn('client_rejoin_failed', {
+                username: client.getUsername(),
+                rsn,
+                challengeUuid: message.getActiveChallengeId(),
+              });
             }
           }
         } else {
@@ -135,9 +138,11 @@ export default class MessageHandler {
             null,
           );
 
-          console.log(
-            `${client.toString()}: player ${rsn} is no longer in challenge ${message.getActiveChallengeId()}`,
-          );
+          logger.info('client_left_challenge', {
+            username: client.getUsername(),
+            rsn,
+            challengeUuid: message.getActiveChallengeId(),
+          });
 
           const errorMessage = new ServerMessage();
           errorMessage.setType(ServerMessage.Type.ERROR);
@@ -174,14 +179,14 @@ export default class MessageHandler {
             message.getChallengeUpdate()!,
           );
         } else {
-          console.error('Received CHALLENGE_UPDATE event with no challenge ID');
+          logger.warn('challenge_update_missing_id');
         }
         break;
 
       case ServerMessage.Type.EVENT_STREAM: {
         const challengeId = message.getActiveChallengeId();
         if (challengeId === '') {
-          console.error('Received EVENT_STREAM event with no challenge ID');
+          logger.warn('event_stream_missing_id');
           return;
         }
 
@@ -195,14 +200,16 @@ export default class MessageHandler {
             events,
           );
         } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          console.error(`${client.toString()} Failed to handle events: ${msg}`);
+          logger.error('event_stream_processing_failed', {
+            challengeUuid: challengeId,
+            error: e instanceof Error ? e : new Error(String(e)),
+          });
         }
         break;
       }
 
       default:
-        console.error(`Unknown message type: ${message.getType()}`);
+        logger.warn('unknown_message_type', { type: message.getType() });
         break;
     }
   }
@@ -231,7 +238,7 @@ export default class MessageHandler {
     const username = await Players.lookupUsername(client.getLinkedPlayerId());
 
     if (username === null) {
-      console.log(`${client.toString()} is not linked to a player; closing`);
+      logger.warn('client_missing_linked_player');
       client.sendUnauthenticatedAndClose();
       return;
     }
@@ -242,10 +249,10 @@ export default class MessageHandler {
     const checkPartySize = (minSize: number, maxSize?: number): boolean => {
       maxSize = maxSize ?? minSize;
       if (partySize < minSize || partySize > maxSize) {
-        console.error(
-          `Received CHALLENGE_START_REQUEST for type ${challengeType} ` +
-            `with invalid party size: ${partySize}`,
-        );
+        logger.warn('challenge_start_invalid_party_size', {
+          challengeType,
+          partySize,
+        });
 
         // TODO(frolv): Use a proper error type instead of an empty ID.
         client.sendMessage(response);
@@ -260,7 +267,7 @@ export default class MessageHandler {
           return;
         }
         if (request.getMode() === ChallengeMode.TOB_ENTRY) {
-          console.log(`${client.toString()}: denying ToB entry mode raid`);
+          logger.info('challenge_start_tob_entry_denied');
           client.sendMessage(response);
           return;
         }
@@ -276,18 +283,14 @@ export default class MessageHandler {
 
       case ChallengeType.COX:
       case ChallengeType.TOA:
-        console.error(
-          `Received CHALLENGE_START_REQUEST for unimplemented type: ${challengeType}`,
-        );
+        logger.warn('challenge_start_unimplemented_type', { challengeType });
 
         // TODO(frolv): Use a proper error type instead of an empty ID.
         client.sendMessage(response);
         return;
 
       default:
-        console.error(
-          `Received CHALLENGE_START_REQUEST for unknown type: ${challengeType}`,
-        );
+        logger.warn('challenge_start_unknown_type', { challengeType });
 
         // TODO(frolv): Use a proper error type instead of an empty ID.
         client.sendMessage(response);
@@ -311,7 +314,9 @@ export default class MessageHandler {
         recordingType,
       );
     } catch (e: any) {
-      console.error(`Failed to start or join challenge: ${e}`);
+      logger.error('challenge_start_failed', {
+        error: e instanceof Error ? e : new Error(String(e)),
+      });
       client.sendMessage(response);
       return;
     }
@@ -328,9 +333,7 @@ export default class MessageHandler {
     request: ChallengeEndRequest,
   ) {
     if (message.getActiveChallengeId() === '') {
-      console.error(
-        `${client.toString()} sent CHALLENGE_END_REQUEST with no challenge ID`,
-      );
+      logger.warn('challenge_end_missing_id');
       return;
     }
 
@@ -355,10 +358,9 @@ export default class MessageHandler {
     update: ChallengeUpdateProto,
   ) {
     if (challengeId !== client.getActiveChallengeId()) {
-      console.error(
-        `${client.toString()} sent CHALLENGE_UPDATE event for challenge ${challengeId}, ` +
-          'but is not in it.',
-      );
+      logger.warn('challenge_update_wrong_challenge', {
+        challengeUuid: challengeId,
+      });
       return;
     }
 
@@ -394,8 +396,10 @@ export default class MessageHandler {
       }
       client.setStageAttempt(result.stage, result.stageAttempt);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.error(`${client.toString()} Failed to update challenge: ${msg}`);
+      logger.error('challenge_update_failed', {
+        challengeUuid: challengeId,
+        error: e instanceof Error ? e : new Error(String(e)),
+      });
     }
   }
 
@@ -446,9 +450,7 @@ export default class MessageHandler {
         break;
 
       default:
-        console.error(
-          `${client.toString()}: Unknown game state: ${gameState.getState()}`,
-        );
+        logger.warn('unknown_game_state', { state: gameState.getState() });
         break;
     }
   }

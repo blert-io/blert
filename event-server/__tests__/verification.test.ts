@@ -51,16 +51,6 @@ describe('compareRuneLiteVersions', () => {
 });
 
 describe('verifyRuneLiteVersion', () => {
-  const originalConsoleLog = console.log;
-
-  beforeEach(() => {
-    console.log = jest.fn();
-  });
-
-  afterEach(() => {
-    console.log = originalConsoleLog;
-  });
-
   it('should return true when minVersion is undefined', () => {
     expect(verifyRuneLiteVersion('1.11.10.1', null)).toBe(true);
   });

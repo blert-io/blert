@@ -126,7 +126,6 @@ export function verifyRuneLiteVersion(
 
   const versionRegex = /^[\d.]+$/;
   if (!versionRegex.test(cleanVersion) || !versionRegex.test(minVersion)) {
-    console.log('Invalid version format:', cleanVersion, minVersion);
     return false;
   }
 

@@ -5,6 +5,7 @@ import {
   verifyRevision,
   verifyRuneLiteVersion,
 } from './verification';
+import logger from './log';
 
 type Config = {
   minRuneLiteVersion: string | null;
@@ -58,7 +59,9 @@ export class ConfigManager {
         await this.refresh();
         this.expiry = Date.now() + ConfigManager.TTL_MS;
       } catch (e) {
-        console.error('Failed to get config from Redis:', e);
+        logger.error('config_refresh_failed', {
+          error: e instanceof Error ? e : new Error(String(e)),
+        });
         this.expiry = Date.now() + ConfigManager.TTL_MS / 2;
       } finally {
         this.request = null;
@@ -81,7 +84,9 @@ export class ConfigManager {
         newRevisions.size === this.config.allowedRevisions.size &&
         newRevisions.isSubsetOf(this.config.allowedRevisions);
       if (!revisionsMatch) {
-        console.log('Updating allowed revisions:', redisRevisions.join(', '));
+        logger.info('config_allowed_revisions_updated', {
+          revisions: Array.from(newRevisions),
+        });
         this.config.allowedRevisions = newRevisions;
       }
     }
@@ -90,7 +95,9 @@ export class ConfigManager {
       redisRlVersion !== null &&
       redisRlVersion !== this.config.minRuneLiteVersion
     ) {
-      console.log('Updating min RuneLite version:', redisRlVersion);
+      logger.info('config_min_runelite_version_updated', {
+        minRuneLiteVersion: redisRlVersion,
+      });
       this.config.minRuneLiteVersion = redisRlVersion;
     }
   }

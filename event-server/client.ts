@@ -5,6 +5,7 @@ import { WebSocket } from 'ws';
 import MessageHandler from './message-handler';
 import { PluginVersions } from './verification';
 import { BasicUser } from './users';
+import logger, { runWithLogContext } from './log';
 
 type Stats = {
   total: number;
@@ -52,6 +53,7 @@ type ActiveChallengeInfo = {
 export default class Client {
   private static readonly HEARTBEAT_INTERVAL_MS = 5000;
   private static readonly HEARTBEAT_DISCONNECT_THRESHOLD = 10;
+  private static readonly MESSAGE_LOOP_INTERVAL_MS = 20;
 
   private user: BasicUser;
   private pluginVersions: PluginVersions;
@@ -67,8 +69,8 @@ export default class Client {
   private heartbeatAcknowledged: boolean;
   private missedHeartbeats: number;
 
-  private processTimeout: NodeJS.Timeout;
-  private heartbeatTimeout: NodeJS.Timeout;
+  private processTimeout: NodeJS.Timeout | null;
+  private heartbeatTimeout: NodeJS.Timeout | null;
 
   private lastMessageLog: number;
   private stats: MessageStats;
@@ -90,6 +92,8 @@ export default class Client {
     this.closeCallbacks = [];
     this.messageQueue = [];
     this.isOpen = true;
+    this.processTimeout = null;
+    this.heartbeatTimeout = null;
 
     this.heartbeatAcknowledged = true;
     this.missedHeartbeats = 0;
@@ -102,23 +106,34 @@ export default class Client {
     socket.binaryType = 'arraybuffer';
 
     socket.on('close', (code) => {
-      console.log(`${this.toString()} closed: ${code}`);
+      logger.info('client_socket_closed', this.logContext({ code }));
       this.cleanup();
     });
-    socket.on('error', (code) => {
-      console.log(`${this.toString()} error: ${code}`);
+    socket.on('error', (error) => {
+      logger.warn(
+        'client_socket_error',
+        this.logContext({
+          error: error instanceof Error ? error : new Error(String(error)),
+        }),
+      );
       this.cleanup();
     });
 
     // Messages received through the socket are pushed into a message queue
-    // where they are processed synchronously through `processMessages`.
+    // where they are processed synchronously through the message loop.
     socket.on('message', (message: ArrayBuffer, isBinary) => {
       if (isBinary) {
         this.stats.recordIn(message.byteLength);
 
         const now = Date.now();
         if (now - this.lastMessageLog > 2 * 60 * 1000) {
-          console.log(`${this.toString()}: ${this.stats.logString()}`);
+          logger.info(
+            'client_message_stats',
+            this.logContext({
+              inbound: this.stats.in,
+              outbound: this.stats.out,
+            }),
+          );
           this.lastMessageLog = now;
         }
 
@@ -128,23 +143,20 @@ export default class Client {
           );
           this.messageQueue.push(serverMessage);
         } catch (e) {
-          const message = e instanceof Error ? e.message : String(e);
-          console.log(
-            `${this.toString()} received invalid protobuf message: ${message}`,
+          logger.warn(
+            'client_invalid_protobuf',
+            this.logContext({
+              error: e instanceof Error ? e : new Error(String(e)),
+            }),
           );
         }
       } else {
-        console.log(`${this.toString()} received unsupported text message`);
+        logger.warn('client_received_text_message', this.logContext());
       }
     });
 
-    this.processTimeout = setTimeout(() => {
-      void this.processMessages();
-    }, 20);
-    this.heartbeatTimeout = setTimeout(
-      () => this.heartbeat(),
-      Client.HEARTBEAT_INTERVAL_MS,
-    );
+    void this.withLogContext(() => this.processMessageLoop());
+    void this.withLogContext(() => this.heartbeatLoop());
   }
 
   /**
@@ -199,24 +211,37 @@ export default class Client {
     challengeId: string,
     stages?: Map<Stage, number | null>,
   ): void {
-    console.log(`${this.toString()}: active challenge set to ${challengeId}`);
     this.activeChallenge = {
       uuid: challengeId,
       stages: stages ?? new Map<Stage, number | null>(),
     };
+    logger.info(
+      'client_active_challenge_set',
+      this.logContext({ challengeUuid: challengeId }),
+    );
   }
 
   public clearActiveChallenge(): void {
-    console.log(`${this.toString()}: active challenge cleared`);
+    const previousChallengeUuid = this.activeChallenge?.uuid ?? null;
     this.activeChallenge = null;
+    logger.info(
+      'client_active_challenge_cleared',
+      this.logContext({ previousChallengeUuid }),
+    );
   }
 
   public setStageAttempt(stage: Stage, attempt: number | null): void {
     if (this.activeChallenge !== null) {
       const current = this.getStageAttempt(stage);
       if (current === undefined || current !== attempt) {
-        console.log(
-          `${this.toString()}: challenge ${this.activeChallenge.uuid} stage ${stage} attempt set to ${attempt}`,
+        const challengeUuid = this.activeChallenge.uuid;
+        logger.debug(
+          'client_stage_attempt_set',
+          this.logContext({
+            challengeUuid,
+            stage,
+            attempt,
+          }),
         );
         this.activeChallenge.stages.set(stage, attempt);
       }
@@ -270,58 +295,84 @@ export default class Client {
     return `Client#${this.sessionId}[${this.user.username}]`;
   }
 
-  private async processMessages(): Promise<void> {
-    if (this.messageQueue.length > 0) {
-      const message = this.messageQueue.shift()!;
+  private withLogContext<T>(
+    fn: () => Promise<T> | T,
+    extra?: Record<string, unknown>,
+  ): Promise<T> | T {
+    return runWithLogContext(this.logContext(extra), fn);
+  }
 
-      if (message.getType() === ServerMessage.Type.PONG) {
-        this.heartbeatAcknowledged = true;
-        this.missedHeartbeats = 0;
-      } else {
-        await this.messageHandler.handleMessage(this, message);
+  private logContext(extra?: Record<string, unknown>): Record<string, unknown> {
+    return {
+      userId: this.user.id,
+      username: this.user.username,
+      sessionId: this.sessionId,
+      loggedInRsn: this.loggedInRsn ?? undefined,
+      pluginVersion: this.pluginVersions.getVersion(),
+      pluginRevision: this.pluginVersions.getRevision(),
+      runeLiteVersion: this.pluginVersions.getRuneLiteVersion(),
+      challengeUuid: this.activeChallenge?.uuid ?? undefined,
+      ...extra,
+    };
+  }
+
+  private async processMessageLoop(): Promise<void> {
+    while (this.isOpen) {
+      if (this.messageQueue.length > 0) {
+        const message = this.messageQueue.shift()!;
+        if (message.getType() === ServerMessage.Type.PONG) {
+          this.heartbeatAcknowledged = true;
+          this.missedHeartbeats = 0;
+        } else {
+          await this.messageHandler.handleMessage(this, message);
+        }
       }
-    }
 
-    // Keep running forever.
-    if (this.isOpen) {
-      this.processTimeout = setTimeout(() => {
-        void this.processMessages();
-      }, 20);
+      await this.delay(Client.MESSAGE_LOOP_INTERVAL_MS, (timeout) => {
+        this.processTimeout = timeout;
+      });
     }
   }
 
-  private heartbeat(): void {
-    const ping = new ServerMessage();
-    ping.setType(ServerMessage.Type.PING);
-    this.sendMessage(ping);
+  private async heartbeatLoop(): Promise<void> {
+    while (this.isOpen) {
+      const ping = new ServerMessage();
+      ping.setType(ServerMessage.Type.PING);
+      this.sendMessage(ping);
 
-    if (!this.heartbeatAcknowledged) {
-      this.missedHeartbeats++;
+      if (!this.heartbeatAcknowledged) {
+        this.missedHeartbeats++;
 
-      if (this.missedHeartbeats >= Client.HEARTBEAT_DISCONNECT_THRESHOLD) {
-        console.log(`${this.toString()} is unresponsive, closing connection`);
-        this.isOpen = false;
-        this.close();
-        return;
+        if (this.missedHeartbeats >= Client.HEARTBEAT_DISCONNECT_THRESHOLD) {
+          logger.warn(
+            'client_unresponsive',
+            this.logContext({ missedHeartbeats: this.missedHeartbeats }),
+          );
+          this.isOpen = false;
+          this.close();
+          return;
+        }
       }
-    }
 
-    this.heartbeatAcknowledged = false;
+      this.heartbeatAcknowledged = false;
 
-    // Keep running forever.
-    if (this.isOpen) {
-      this.heartbeatTimeout = setTimeout(
-        () => this.heartbeat(),
-        Client.HEARTBEAT_INTERVAL_MS,
-      );
+      await this.delay(Client.HEARTBEAT_INTERVAL_MS, (timeout) => {
+        this.heartbeatTimeout = timeout;
+      });
     }
   }
 
   private cleanup(): void {
     this.isOpen = false;
 
-    clearTimeout(this.processTimeout);
-    clearTimeout(this.heartbeatTimeout);
+    if (this.processTimeout !== null) {
+      clearTimeout(this.processTimeout);
+      this.processTimeout = null;
+    }
+    if (this.heartbeatTimeout !== null) {
+      clearTimeout(this.heartbeatTimeout);
+      this.heartbeatTimeout = null;
+    }
 
     this.closeCallbacks.forEach((callback) => {
       callback();
@@ -332,5 +383,15 @@ export default class Client {
     this.sessionId = -1;
     this.closeCallbacks = [];
     this.activeChallenge = null;
+  }
+
+  private async delay(
+    ms: number,
+    store: (timeout: NodeJS.Timeout) => void,
+  ): Promise<void> {
+    await new Promise<void>((resolve) => {
+      const timeout = setTimeout(resolve, ms);
+      store(timeout);
+    });
   }
 }

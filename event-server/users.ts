@@ -46,13 +46,11 @@ export class Users {
       { username: string }[]
     >`SELECT username FROM users WHERE id = ${key.user_id}`;
     if (!user) {
-      console.error(`API key ${apiKey} does not belong to a user; deleting.`);
       await sql`DELETE FROM api_keys WHERE key = ${apiKey}`;
       return null;
     }
 
     if ((await Players.lookupUsername(key.player_id)) === null) {
-      console.error(`API key ${apiKey} does not belong to a player`);
       return null;
     }
 

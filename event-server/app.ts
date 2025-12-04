@@ -14,6 +14,7 @@ import { RemoteChallengeManager } from './remote-challenge-manager';
 import ServerManager, { ServerStatus } from './server-manager';
 import { PluginVersions } from './verification';
 import { ConfigManager } from './config';
+import logger, { runWithLogContext } from './log';
 
 type ShutdownRequest = {
   shutdownTime?: number;
@@ -66,9 +67,9 @@ async function initializeRemoteChallengeManager(
     throw new Error('BLERT_REDIS_URI is not set');
   }
 
-  console.log(
-    `Using remote challenge manager at ${process.env.BLERT_CHALLENGE_SERVER_URI}`,
-  );
+  logger.info('remote_challenge_manager_selected', {
+    challengeServerUri: process.env.BLERT_CHALLENGE_SERVER_URI,
+  });
 
   const challengeManager = new RemoteChallengeManager(
     process.env.BLERT_CHALLENGE_SERVER_URI,
@@ -90,7 +91,10 @@ async function loadValidRevisions(): Promise<Set<string>> {
       const data = await readFile(process.env.BLERT_REVISIONS_FILE, 'utf8');
       validPluginRevisions = new Set(data.split('\n').filter((x) => x));
     } catch (e: any) {
-      console.error(`Failed to read ${process.env.BLERT_REVISIONS_FILE}:`, e);
+      logger.error('revision_file_read_failed', {
+        file: process.env.BLERT_REVISIONS_FILE,
+        error: e instanceof Error ? e : new Error(String(e)),
+      });
       process.exit(1);
     }
   }
@@ -109,8 +113,14 @@ async function main(): Promise<void> {
     url: process.env.BLERT_REDIS_URI,
     pingInterval: 3 * 60 * 1000,
   });
-  redisClient.on('connect', () => console.log('Connected to Redis'));
-  redisClient.on('error', (err) => console.error('Redis error:', err));
+  redisClient.on('connect', () =>
+    logger.info('redis_connected', { redisUri: process.env.BLERT_REDIS_URI }),
+  );
+  redisClient.on('error', (err) =>
+    logger.error('redis_error', {
+      error: err instanceof Error ? err : new Error(String(err)),
+    }),
+  );
   await redisClient.connect();
 
   const validPluginRevisions = await loadValidRevisions();
@@ -125,7 +135,7 @@ async function main(): Promise<void> {
   app.use(cors({ origin: '*', allowedHeaders: ['Authorization'] }));
   app.use(express.json());
   const server = app.listen(port, () => {
-    console.log(`Blert webserver started on port ${port}`);
+    logger.info('event_server_listening', { port });
   });
 
   const wss = new WebSocketServer({ noServer: true });
@@ -133,22 +143,24 @@ async function main(): Promise<void> {
   let requestId = 0;
 
   server.on('upgrade', (request, socket, head) => {
-    void (async () => {
-      ++requestId;
-      console.log(`[${requestId}] New websocket authentication request`);
-
+    ++requestId;
+    void runWithLogContext({ requestId }, async () => {
       try {
         const auth = request.headers.authorization?.split(' ') ?? [];
-        if (auth.length != 2 || auth[0] != 'Basic') {
+        if (auth.length !== 2 || auth[0] !== 'Basic') {
           throw new Error('Missing token');
         }
 
         const token = Buffer.from(auth[1], 'base64').toString();
         const user = await connectionManager.authenticate(token);
+        logger.debug('websocket_token_authenticated', {
+          userId: user.id,
+          username: user.username,
+        });
 
         const pluginVersions = PluginVersions.fromHeaders(request.headers);
         if (pluginVersions === null) {
-          console.log(`[${requestId}] missing plugin versions`);
+          logger.warn('websocket_auth_missing_plugin_versions');
           socket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
           socket.destroy();
           return;
@@ -156,9 +168,11 @@ async function main(): Promise<void> {
 
         const isAllowed = await configManager.verify(pluginVersions);
         if (!isAllowed) {
-          console.log(
-            `[${requestId}] Plugin not allowed: ${pluginVersions.toString()}`,
-          );
+          logger.warn('websocket_auth_plugin_not_allowed', {
+            pluginVersion: pluginVersions.getVersion(),
+            pluginRevision: pluginVersions.getRevision(),
+            runeLiteVersion: pluginVersions.getRuneLiteVersion(),
+          });
           socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
           socket.destroy();
           return;
@@ -169,12 +183,13 @@ async function main(): Promise<void> {
           wss.emit('connection', ws, request, client);
         });
       } catch (e: any) {
-        const message = e instanceof Error ? e.message : String(e);
-        console.log(`[${requestId}] Failed to authenticate: ${message}`);
+        logger.warn('websocket_auth_failed', {
+          error: e instanceof Error ? e : new Error(String(e)),
+        });
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
         socket.destroy();
       }
-    })();
+    });
   });
 
   const connectionManager = new ConnectionManager();
@@ -190,18 +205,24 @@ async function main(): Promise<void> {
   serverManager.onStatusUpdate((status) => {
     if (status.status === ServerStatus.OFFLINE) {
       server.close();
-      console.log('HTTP server closed.');
+      logger.info('http_server_closed');
     }
   });
 
   setupHttpRoutes(app, serverManager);
 
-  wss.on('connection', (ws: WebSocket, req: Request, client: Client) => {
+  wss.on('connection', (_ws: WebSocket, _req: Request, client: Client) => {
     connectionManager.addClient(client);
     serverManager.handleNewClient(client);
-    console.log(
-      `${client.toString()} (${client.getPluginVersions().toString()}) connected`,
-    );
+    const pluginVersions = client.getPluginVersions();
+    logger.info('client_connected', {
+      userId: client.getUserId(),
+      username: client.getUsername(),
+      sessionId: client.getSessionId(),
+      pluginVersion: pluginVersions.getVersion(),
+      pluginRevision: pluginVersions.getRevision(),
+      runeLiteVersion: pluginVersions.getRuneLiteVersion(),
+    });
   });
 }
 
