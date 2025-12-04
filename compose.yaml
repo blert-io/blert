@@ -17,7 +17,7 @@ services:
     volumes:
       - rediscache:/data
 
-  event-server:
+  socket-server:
     image: node:22
     depends_on:
       - redis
@@ -39,7 +39,7 @@ services:
       BLERT_CLIENT_DATA_REPOSITORY: file:///app/.data/testing_data
       BLERT_REDIS_URI: redis://redis:6379
     working_dir: /app
-    command: npm run -w event-server dev
+    command: npm run -w socket-server dev
 
   challenge-server:
     image: node:22

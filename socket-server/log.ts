@@ -15,7 +15,7 @@ const addContext = winston.format((info) => {
 
 const logger = winston.createLogger({
   level: process.env.BLERT_LOG_LEVEL ?? (isDev ? 'debug' : 'info'),
-  defaultMeta: { service: 'event-server' },
+  defaultMeta: { service: 'socket-server' },
   format: winston.format.combine(
     addContext(),
     winston.format.timestamp(),

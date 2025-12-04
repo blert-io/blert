@@ -13,7 +13,7 @@ services.
 ```
 blert/
 ├── web/                # Frontend web app
-├── event-server/       # WebSocket event server
+├── socket-server/      # WebSocket event server
 ├── challenge-server/   # Processing and challenge handling
 ├── blertbank/          # Blertcoin accounts and ledger
 ├── common/             # Shared utilities and modules
@@ -80,7 +80,7 @@ nvm use
 ```bash
 npm install
 npm run -w common build
-npm run -w event-server build
+npm run -w socket-server build
 npm run -w challenge-server build
 ```
 
