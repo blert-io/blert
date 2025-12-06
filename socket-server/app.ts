@@ -1,6 +1,6 @@
 import cors from 'cors';
 import dotenv from 'dotenv';
-import express, { Request } from 'express';
+import express, { NextFunction, Request, Response } from 'express';
 import { readFile } from 'fs/promises';
 import { RedisClientType, createClient } from 'redis';
 import { WebSocket, WebSocketServer } from 'ws';
@@ -15,6 +15,22 @@ import ServerManager, { ServerStatus } from './server-manager';
 import { PluginVersions } from './verification';
 import { ConfigManager } from './config';
 import logger, { runWithLogContext } from './log';
+import {
+  AuthFailureReason,
+  getMetricsSnapshot,
+  metricsContentType,
+  recordAuthFailure,
+  recordAuthSuccess,
+  recordRedisEvent,
+} from './metrics';
+
+function asyncHandler(
+  fn: (req: Request, res: Response) => Promise<void>,
+): (req: Request, res: Response, next: NextFunction) => void {
+  return function (req: Request, res: Response, next: NextFunction) {
+    Promise.resolve(fn(req, res)).catch(next);
+  };
+}
 
 type ShutdownRequest = {
   shutdownTime?: number;
@@ -55,6 +71,21 @@ function setupHttpRoutes(app: express.Express, serverManager: ServerManager) {
     }
     res.json(serverManager.getStatus());
   });
+
+  app.get(
+    '/metrics',
+    asyncHandler(async (_req, res) => {
+      try {
+        res.set('Content-Type', metricsContentType);
+        res.send(await getMetricsSnapshot());
+      } catch (e: any) {
+        logger.error('metrics_endpoint_failure', {
+          error: e instanceof Error ? e : new Error(String(e)),
+        });
+        res.status(500).send('metrics_unavailable');
+      }
+    }),
+  );
 }
 
 async function initializeRemoteChallengeManager(
@@ -77,6 +108,12 @@ async function initializeRemoteChallengeManager(
   );
 
   const playerClient = redisClient.duplicate();
+  playerClient.on('error', (err) => {
+    recordRedisEvent('error');
+    logger.error('redis_error', {
+      error: err instanceof Error ? err : new Error(String(err)),
+    });
+  });
   await playerClient.connect();
 
   const playerManager = new PlayerManager(playerClient);
@@ -113,14 +150,16 @@ async function main(): Promise<void> {
     url: process.env.BLERT_REDIS_URI,
     pingInterval: 3 * 60 * 1000,
   });
-  redisClient.on('connect', () =>
-    logger.info('redis_connected', { redisUri: process.env.BLERT_REDIS_URI }),
-  );
-  redisClient.on('error', (err) =>
+  redisClient.on('connect', () => {
+    recordRedisEvent('connect');
+    logger.info('redis_connected');
+  });
+  redisClient.on('error', (err) => {
+    recordRedisEvent('error');
     logger.error('redis_error', {
       error: err instanceof Error ? err : new Error(String(err)),
-    }),
-  );
+    });
+  });
   await redisClient.connect();
 
   const validPluginRevisions = await loadValidRevisions();
@@ -134,6 +173,7 @@ async function main(): Promise<void> {
   const app = express();
   app.use(cors({ origin: '*', allowedHeaders: ['Authorization'] }));
   app.use(express.json());
+
   const server = app.listen(port, () => {
     logger.info('event_server_listening', { port });
   });
@@ -145,10 +185,17 @@ async function main(): Promise<void> {
   server.on('upgrade', (request, socket, head) => {
     ++requestId;
     void runWithLogContext({ requestId }, async () => {
+      const reject = (statusLine: string, reason: AuthFailureReason) => {
+        recordAuthFailure(reason);
+        socket.write(`${statusLine}\r\n\r\n`);
+        socket.destroy();
+      };
+
       try {
         const auth = request.headers.authorization?.split(' ') ?? [];
         if (auth.length !== 2 || auth[0] !== 'Basic') {
-          throw new Error('Missing token');
+          reject('HTTP/1.1 401 Unauthorized', 'missing_token');
+          return;
         }
 
         const token = Buffer.from(auth[1], 'base64').toString();
@@ -161,8 +208,7 @@ async function main(): Promise<void> {
         const pluginVersions = PluginVersions.fromHeaders(request.headers);
         if (pluginVersions === null) {
           logger.warn('websocket_auth_missing_plugin_versions');
-          socket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
-          socket.destroy();
+          reject('HTTP/1.1 400 Bad Request', 'missing_plugin_versions');
           return;
         }
 
@@ -173,16 +219,21 @@ async function main(): Promise<void> {
             pluginRevision: pluginVersions.getRevision(),
             runeLiteVersion: pluginVersions.getRuneLiteVersion(),
           });
-          socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
-          socket.destroy();
+          reject('HTTP/1.1 403 Forbidden', 'plugin_not_allowed');
           return;
         }
 
+        recordAuthSuccess();
         wss.handleUpgrade(request, socket, head, (ws) => {
           const client = new Client(ws, messageHandler, user, pluginVersions);
           wss.emit('connection', ws, request, client);
         });
       } catch (e: any) {
+        const reason: AuthFailureReason =
+          e instanceof Error && e.message === 'Invalid API key'
+            ? 'invalid_token'
+            : 'unknown';
+        recordAuthFailure(reason);
         logger.warn('websocket_auth_failed', {
           error: e instanceof Error ? e : new Error(String(e)),
         });

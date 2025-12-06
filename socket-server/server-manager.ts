@@ -4,6 +4,7 @@ import { Timestamp } from 'google-protobuf/google/protobuf/timestamp_pb';
 import Client from './client';
 import ConnectionManager from './connection-manager';
 import logger from './log';
+import { recordShutdownBroadcast, setServerStatusMetric } from './metrics';
 
 export enum ServerStatus {
   RUNNING = 'RUNNING',
@@ -47,6 +48,7 @@ export default class ServerManager {
     this.status = ServerStatus.RUNNING;
     this.shutdownTime = null;
     this.statusUpdateCallbacks = [];
+    setServerStatusMetric(this.status);
   }
 
   /**
@@ -159,6 +161,7 @@ export default class ServerManager {
 
   private updateStatus(newStatus: ServerStatus): void {
     this.status = newStatus;
+    setServerStatusMetric(newStatus);
     this.statusUpdateCallbacks.forEach((callback) =>
       callback({
         status: this.status,
@@ -221,6 +224,7 @@ export default class ServerManager {
       status: this.status,
       clientCount: activeClients.length,
     });
+    recordShutdownBroadcast(this.status);
 
     for (const client of activeClients) {
       client.sendMessage(statusMessage);

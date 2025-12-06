@@ -2,13 +2,14 @@ import { ServerMessage } from '@blert/common/generated/server_message_pb';
 
 import Client from './client';
 import { BasicUser, Users } from './users';
+import { recordActiveClients, recordClientRegistration } from './metrics';
 
 export default class ConnectionManager {
-  private activeClients: Record<number, Client>;
+  private activeClients: Map<number, Client>;
   private nextSessionId;
 
   public constructor() {
-    this.activeClients = {};
+    this.activeClients = new Map();
     this.nextSessionId = 1;
   }
 
@@ -37,7 +38,14 @@ export default class ConnectionManager {
     client.setSessionId(sessionId);
     client.onClose(() => this.removeClient(client));
 
-    this.activeClients[sessionId] = client;
+    this.activeClients.set(sessionId, client);
+
+    const pluginInfo = client.getPluginVersions();
+    recordClientRegistration({
+      pluginVersion: pluginInfo.getVersion(),
+      runeLiteVersion: pluginInfo.getRuneLiteVersion(),
+    });
+    recordActiveClients(this.activeClients.size);
 
     const connectionResponse = new ServerMessage();
     connectionResponse.setType(ServerMessage.Type.CONNECTION_RESPONSE);
@@ -50,21 +58,25 @@ export default class ConnectionManager {
   }
 
   public removeClient(client: Client) {
-    delete this.activeClients[client.getSessionId()];
+    this.activeClients.delete(client.getSessionId());
+    recordActiveClients(this.activeClients.size);
   }
 
   public closeAllClients() {
-    for (const client of this.clients()) {
+    const clients = Array.from(this.activeClients.values());
+    for (const client of clients) {
+      // Client's onClose callback handles removing the client from the map.
       client.close(1001);
     }
+    recordActiveClients(0);
   }
 
   public clients(): readonly Client[] {
-    return Object.values(this.activeClients);
+    return Array.from(this.activeClients.values());
   }
 
   private newSessionId(): number {
-    // 2**53 session IDs ought to be sufficient.
+    // 2**53 session IDs ought to be enough for anybody.
     return this.nextSessionId++;
   }
 }

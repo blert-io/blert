@@ -6,11 +6,17 @@ import MessageHandler from './message-handler';
 import { PluginVersions } from './verification';
 import { BasicUser } from './users';
 import logger, { runWithLogContext } from './log';
+import {
+  observeMessageBytes,
+  recordClientDisconnection,
+  recordInvalidMessage,
+} from './metrics';
 
 type Stats = {
   total: number;
   maxSize: number;
   meanSize: number;
+  totalBytes: number;
 };
 
 class MessageStats {
@@ -18,15 +24,17 @@ class MessageStats {
   public out: Stats;
 
   constructor() {
-    this.in = { total: 0, maxSize: 0, meanSize: 0 };
-    this.out = { total: 0, maxSize: 0, meanSize: 0 };
+    this.in = { total: 0, maxSize: 0, meanSize: 0, totalBytes: 0 };
+    this.out = { total: 0, maxSize: 0, meanSize: 0, totalBytes: 0 };
   }
 
   public recordIn(size: number): void {
+    observeMessageBytes('in', size);
     this.updateStats(this.in, size);
   }
 
   public recordOut(size: number): void {
+    observeMessageBytes('out', size);
     this.updateStats(this.out, size);
   }
 
@@ -41,6 +49,7 @@ class MessageStats {
     stats.total++;
     stats.maxSize = Math.max(stats.maxSize, size);
     stats.meanSize = (stats.meanSize * (stats.total - 1) + size) / stats.total;
+    stats.totalBytes += size;
   }
 }
 
@@ -54,6 +63,7 @@ export default class Client {
   private static readonly HEARTBEAT_INTERVAL_MS = 5000;
   private static readonly HEARTBEAT_DISCONNECT_THRESHOLD = 10;
   private static readonly MESSAGE_LOOP_INTERVAL_MS = 20;
+  private static readonly MESSAGE_STATS_INTERVAL_MS = 2 * 60 * 1000;
 
   private user: BasicUser;
   private pluginVersions: PluginVersions;
@@ -107,6 +117,7 @@ export default class Client {
 
     socket.on('close', (code) => {
       logger.info('client_socket_closed', this.logContext({ code }));
+      recordClientDisconnection('close', code);
       this.cleanup();
     });
     socket.on('error', (error) => {
@@ -116,6 +127,7 @@ export default class Client {
           error: error instanceof Error ? error : new Error(String(error)),
         }),
       );
+      recordClientDisconnection('error');
       this.cleanup();
     });
 
@@ -126,7 +138,7 @@ export default class Client {
         this.stats.recordIn(message.byteLength);
 
         const now = Date.now();
-        if (now - this.lastMessageLog > 2 * 60 * 1000) {
+        if (now - this.lastMessageLog > Client.MESSAGE_STATS_INTERVAL_MS) {
           logger.info(
             'client_message_stats',
             this.logContext({
@@ -143,6 +155,7 @@ export default class Client {
           );
           this.messageQueue.push(serverMessage);
         } catch (e) {
+          recordInvalidMessage('protobuf');
           logger.warn(
             'client_invalid_protobuf',
             this.logContext({
@@ -151,6 +164,7 @@ export default class Client {
           );
         }
       } else {
+        recordInvalidMessage('text');
         logger.warn('client_received_text_message', this.logContext());
       }
     });
@@ -348,6 +362,7 @@ export default class Client {
             'client_unresponsive',
             this.logContext({ missedHeartbeats: this.missedHeartbeats }),
           );
+          recordClientDisconnection('unresponsive');
           this.isOpen = false;
           this.close();
           return;
@@ -379,7 +394,6 @@ export default class Client {
     });
 
     this.messageHandler.closeClient(this);
-
     this.sessionId = -1;
     this.closeCallbacks = [];
     this.activeChallenge = null;

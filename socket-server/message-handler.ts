@@ -26,6 +26,14 @@ import { PlayerManager, Players } from './players';
 import { Users } from './users';
 import { ServerStatus, ServerStatusUpdate } from './server-manager';
 import logger from './log';
+import {
+  ChallengeStartResult,
+  recordChallengeEnd,
+  recordChallengeStart,
+  recordChallengeUpdate,
+  recordEventStreamBatch,
+  recordRemoteOperation,
+} from './metrics';
 
 type Proto<E> = E[keyof E];
 
@@ -199,7 +207,11 @@ export default class MessageHandler {
             challengeId,
             events,
           );
+          recordRemoteOperation('process_events', 'success');
+          recordEventStreamBatch('success');
         } catch (e) {
+          recordRemoteOperation('process_events', 'error');
+          recordEventStreamBatch('error');
           logger.error('event_stream_processing_failed', {
             challengeUuid: challengeId,
             error: e instanceof Error ? e : new Error(String(e)),
@@ -229,7 +241,18 @@ export default class MessageHandler {
     response.setType(ServerMessage.Type.CHALLENGE_START_RESPONSE);
     response.setRequestId(message.getRequestId());
 
+    const challengeType = request.getChallenge() as ChallengeType;
+    const stage = request.getStage() as Stage;
+
+    const recordingType = request.getSpectator()
+      ? RecordingType.SPECTATOR
+      : RecordingType.PARTICIPANT;
+
+    const recordStartResult = (result: ChallengeStartResult) =>
+      recordChallengeStart(challengeType, recordingType, result);
+
     if (!this.allowStartingChallenges) {
+      recordStartResult('blocked');
       // TODO(frolv): Use a proper error type instead of an empty ID.
       client.sendMessage(response);
       return;
@@ -239,11 +262,11 @@ export default class MessageHandler {
 
     if (username === null) {
       logger.warn('client_missing_linked_player');
+      recordStartResult('missing_linked_player');
       client.sendUnauthenticatedAndClose();
       return;
     }
 
-    const challengeType = request.getChallenge();
     const partySize = request.getPartyList().length;
 
     const checkPartySize = (minSize: number, maxSize?: number): boolean => {
@@ -253,6 +276,7 @@ export default class MessageHandler {
           challengeType,
           partySize,
         });
+        recordStartResult('invalid_party_size');
 
         // TODO(frolv): Use a proper error type instead of an empty ID.
         client.sendMessage(response);
@@ -267,7 +291,11 @@ export default class MessageHandler {
           return;
         }
         if (request.getMode() === ChallengeMode.TOB_ENTRY) {
-          logger.info('challenge_start_tob_entry_denied');
+          logger.info('challenge_start_blocked_type', {
+            challengeType,
+            challengeMode: request.getMode(),
+          });
+          recordStartResult('blocked');
           client.sendMessage(response);
           return;
         }
@@ -284,6 +312,7 @@ export default class MessageHandler {
       case ChallengeType.COX:
       case ChallengeType.TOA:
         logger.warn('challenge_start_unimplemented_type', { challengeType });
+        recordStartResult('unimplemented');
 
         // TODO(frolv): Use a proper error type instead of an empty ID.
         client.sendMessage(response);
@@ -291,17 +320,12 @@ export default class MessageHandler {
 
       default:
         logger.warn('challenge_start_unknown_type', { challengeType });
+        recordStartResult('unknown');
 
         // TODO(frolv): Use a proper error type instead of an empty ID.
         client.sendMessage(response);
         return;
     }
-
-    const stage = request.getStage() as Stage;
-
-    const recordingType = request.getSpectator()
-      ? RecordingType.SPECTATOR
-      : RecordingType.PARTICIPANT;
 
     let status: ChallengeStatusResponse;
     try {
@@ -313,10 +337,13 @@ export default class MessageHandler {
         stage,
         recordingType,
       );
+      recordRemoteOperation('start', 'success');
     } catch (e: any) {
+      recordRemoteOperation('start', 'error');
       logger.error('challenge_start_failed', {
         error: e instanceof Error ? e : new Error(String(e)),
       });
+      recordStartResult('error');
       client.sendMessage(response);
       return;
     }
@@ -325,6 +352,7 @@ export default class MessageHandler {
     client.setStageAttempt(status.stage, status.stageAttempt);
     response.setActiveChallengeId(status.uuid);
     client.sendMessage(response);
+    recordStartResult('started');
   }
 
   private async handleChallengeEnd(
@@ -337,14 +365,22 @@ export default class MessageHandler {
       return;
     }
 
-    await this.challengeManager.completeChallenge(
-      client,
-      message.getActiveChallengeId(),
-      {
-        challenge: request.getChallengeTimeTicks(),
-        overall: request.getOverallTimeTicks(),
-      },
-    );
+    try {
+      await this.challengeManager.completeChallenge(
+        client,
+        message.getActiveChallengeId(),
+        {
+          challenge: request.getChallengeTimeTicks(),
+          overall: request.getOverallTimeTicks(),
+        },
+      );
+      recordRemoteOperation('complete', 'success');
+      recordChallengeEnd('success');
+    } catch (e) {
+      recordRemoteOperation('complete', 'error');
+      recordChallengeEnd('error');
+      throw e;
+    }
 
     const response = new ServerMessage();
     response.setType(ServerMessage.Type.CHALLENGE_END_RESPONSE);
@@ -361,6 +397,7 @@ export default class MessageHandler {
       logger.warn('challenge_update_wrong_challenge', {
         challengeUuid: challengeId,
       });
+      recordChallengeUpdate('wrong_challenge');
       return;
     }
 
@@ -395,7 +432,11 @@ export default class MessageHandler {
         throw new Error('ChallengeManager returned null');
       }
       client.setStageAttempt(result.stage, result.stageAttempt);
+      recordRemoteOperation('update', 'success');
+      recordChallengeUpdate('success');
     } catch (e) {
+      recordRemoteOperation('update', 'error');
+      recordChallengeUpdate('error');
       logger.error('challenge_update_failed', {
         challengeUuid: challengeId,
         error: e instanceof Error ? e : new Error(String(e)),
