@@ -33,6 +33,11 @@ import ChallengeManager, {
 } from './challenge-manager';
 import Client from './client';
 import logger from './log';
+import {
+  recordRedisEvent,
+  RemoteOperation,
+  timeRemoteOperation,
+} from './metrics';
 
 type ChallengeServerError = {
   error: {
@@ -67,7 +72,7 @@ export class RemoteChallengeManager extends ChallengeManager {
     stage: Stage,
     recordingType: RecordingType,
   ): Promise<ChallengeStatusResponse> {
-    const res = await fetch(`${this.serverUrl}/challenges/new`, {
+    const res = await this.request('start', '/challenges/new', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -109,8 +114,9 @@ export class RemoteChallengeManager extends ChallengeManager {
     }
 
     try {
-      const res = await fetch(
-        `${this.serverUrl}/challenges/${challengeId}/finish`,
+      const res = await this.request(
+        'complete',
+        `/challenges/${challengeId}/finish`,
         {
           method: 'POST',
           headers: {
@@ -167,7 +173,7 @@ export class RemoteChallengeManager extends ChallengeManager {
         }
       }
 
-      const res = await fetch(`${this.serverUrl}/challenges/${challengeId}`, {
+      const res = await this.request('update', `/challenges/${challengeId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -292,8 +298,9 @@ export class RemoteChallengeManager extends ChallengeManager {
     recordingType: RecordingType,
   ): Promise<ChallengeStatusResponse | null> {
     try {
-      const res = await fetch(
-        `${this.serverUrl}/challenges/${challengeId}/join`,
+      const res = await this.request(
+        'join',
+        `/challenges/${challengeId}/join`,
         {
           method: 'POST',
           headers: {
@@ -341,6 +348,12 @@ export class RemoteChallengeManager extends ChallengeManager {
 
   private async startPubsub(): Promise<void> {
     await this.pubsubClient.connect();
+    this.pubsubClient.on('error', (err) => {
+      recordRedisEvent('error');
+      logger.error('redis_error', {
+        error: err instanceof Error ? err : new Error(String(err)),
+      });
+    });
     await this.pubsubClient.subscribe(
       CHALLENGE_UPDATES_PUBSUB_KEY,
       this.handleChallengeUpdate.bind(this),
@@ -410,5 +423,15 @@ export class RemoteChallengeManager extends ChallengeManager {
     }
 
     client.clearActiveChallenge();
+  }
+
+  private async request(
+    operation: RemoteOperation,
+    path: string,
+    init: RequestInit,
+  ): Promise<Response> {
+    return timeRemoteOperation(operation, () =>
+      fetch(`${this.serverUrl}${path}`, init),
+    );
   }
 }
