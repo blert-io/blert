@@ -117,7 +117,7 @@ async function updateChallenge(req: Request, res: Response): Promise<void> {
           request.update,
         );
         if (result === null) {
-          res.status(409).send();
+          res.status(409).json({ error: { message: 'Update rejected' } });
         } else {
           res.json(result);
         }

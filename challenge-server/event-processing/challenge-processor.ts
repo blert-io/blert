@@ -959,7 +959,7 @@ export default abstract class ChallengeProcessor {
 
         if (currentPb === undefined) {
           personalBests.new[playerKey] ??= [];
-          personalBests.new[playerKey].push([split.id, split.ticks]);
+          personalBests.new[playerKey].push([split.type, split.ticks]);
           pbRowsToCreate.push({
             player_id: playerId,
             challenge_split_id: split.id,
@@ -967,7 +967,7 @@ export default abstract class ChallengeProcessor {
           });
         } else if (split.ticks < currentPb.ticks) {
           personalBests.updated[playerKey] ??= [];
-          personalBests.updated[playerKey].push([split.id, split.ticks]);
+          personalBests.updated[playerKey].push([split.type, split.ticks]);
           pbRowsToCreate.push({
             player_id: playerId,
             challenge_split_id: split.id,
