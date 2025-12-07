@@ -100,24 +100,18 @@ export class Merger {
 
   public merge(): MergeResult | null {
     if (this.clients.length === 0) {
-      logger.warn('No clients to merge');
+      logger.warn('merge_no_clients', { stage: this.stage });
       return null;
     }
 
-    logger.info(
-      `Merging events for stage ${this.stage} from ${this.clients.length} clients`,
-    );
-
-    for (const clientEvents of this.clients) {
-      // TODO(frolv): Record structured merge results with individual client
-      // metadata.
-      logger.debug(
-        '    %s | ticks: %d accurate: %s',
-        clientEvents,
-        clientEvents.getFinalTick(),
-        clientEvents.isAccurate(),
-      );
-    }
+    logger.debug('merge_start', {
+      stage: this.stage,
+      clientMetadata: this.clients.map((c) => ({
+        id: c.getId(),
+        tickCount: c.getFinalTick(),
+        accurate: c.isAccurate(),
+      })),
+    });
 
     const mergeClients: MergeClient[] = [];
 
@@ -152,16 +146,10 @@ export class Merger {
       );
     };
 
-    logger.debug(
-      `Merging events from ${clients.matching.length} complete clients`,
-    );
     for (const client of clients.matching) {
       mergeFrom(client, MergeClientClassification.MATCHING);
     }
 
-    logger.debug(
-      `Merging events from ${clients.mismatched.length} partial clients`,
-    );
     for (const client of clients.mismatched) {
       mergeFrom(client, MergeClientClassification.MISMATCHED);
     }
@@ -169,14 +157,16 @@ export class Merger {
     const { mergedCount, unmergedCount, skippedCount } =
       this.getMergeCounts(mergeClients);
 
-    logger.info(
-      `Successfully merged events from ${mergedCount} clients (unmerged=${unmergedCount}, skipped=${skippedCount})`,
-    );
-    if (unmergedCount > 0) {
-      logger.warn(`${unmergedCount} clients could not be merged`);
-    }
-
     merged.postprocess(this.stage);
+
+    logger.info('merge_result', {
+      mergedCount,
+      unmergedCount,
+      skippedCount,
+      alerts: this.alerts,
+      referenceSelection: this.referenceSelection,
+      accurate: merged.isAccurate(),
+    });
 
     return {
       events: merged,
@@ -350,12 +340,16 @@ export class MergedEvents {
       if (client.isAccurate()) {
         success = this.mergeAccurateEvents(client);
       } else {
-        logger.warn(
-          'Merging of inaccurate into accurate clients is not yet implemented',
-        );
+        logger.warn('merge_unimplemented', {
+          accurate: this.accurate,
+          client: { id: client.getId(), accurate: client.isAccurate() },
+        });
       }
     } else {
-      logger.warn('Merging of two inaccurate clients is not yet implemented');
+      logger.warn('merge_unimplemented', {
+        accurate: this.accurate,
+        client: { id: client.getId(), accurate: client.isAccurate() },
+      });
     }
 
     if (success) {
@@ -377,7 +371,7 @@ export class MergedEvents {
 
   private initializeBaseTicks(base: ClientEvents): void {
     if (base.isAccurate()) {
-      logger.debug('Base client is accurate; using all events');
+      logger.debug('merge_base_ticks', { accurate: true });
       for (let i = 0; i <= base.getFinalTick(); i++) {
         this.ticks[i] = base.getTickState(i)?.clone() ?? null;
       }
@@ -386,10 +380,10 @@ export class MergedEvents {
       // count, it has completed the stage, so it is initially assumed that its
       // events are offset from the end of the stage.
       const offset = base.getServerTicks()!.count - base.getFinalTick();
-      logger.debug(
-        'Base client is not accurate but has in-game tick count; ' +
-          `assuming events from end of stage with a ${offset} tick offset`,
-      );
+      logger.debug('merge_base_ticks', {
+        accurate: false,
+        offset,
+      });
       for (let i = 0; i <= base.getFinalTick(); i++) {
         const state = base.getTickState(i);
         if (state !== null) {
@@ -399,10 +393,7 @@ export class MergedEvents {
         }
       }
     } else {
-      logger.debug(
-        'Base client is not accurate and has no in-game tick count; ' +
-          'assuming events from start',
-      );
+      logger.debug('merge_base_ticks', { accurate: false, offset: 0 });
       for (let i = 0; i <= base.getFinalTick(); i++) {
         this.ticks[i] = base.getTickState(i)?.clone() ?? null;
       }
@@ -419,9 +410,10 @@ export class MergedEvents {
       const existingState = this.ticks[tick];
       if (existingState !== null) {
         if (!existingState.merge(stateToMerge)) {
-          logger.error(
-            `Failed to merge events at tick ${tick} from ${client.toString()} into base`,
-          );
+          logger.error('merge_tick_conflict', {
+            tick,
+            clientId: client.getId(),
+          });
           return false;
         }
       } else {

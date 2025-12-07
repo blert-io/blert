@@ -79,10 +79,6 @@ export function classifyClients(clients: ClientEvents[]): ClassifiedClients {
     candidates.sort((a, b) => a.getId() - b.getId());
     baseClient = candidates[0];
 
-    logger.debug(
-      `Using ${referenceTicks} ticks from accurate consensus ${baseClient.toString()}`,
-    );
-
     const accurateTickCounts = new Map<number, number>();
     for (const client of accurateClients) {
       const ticks = client.getFinalTick();
@@ -114,9 +110,6 @@ export function classifyClients(clients: ClientEvents[]): ClassifiedClients {
       selectionDetails = {
         candidateClientIds: preciseClients.map((c) => c.getId()),
       };
-      logger.debug(
-        `Using ${referenceTicks} ticks from precise client ${baseClient.toString()}`,
-      );
     }
   }
 
@@ -136,9 +129,6 @@ export function classifyClients(clients: ClientEvents[]): ClassifiedClients {
       selectionDetails = {
         candidateClientIds: impreciseClients.map((c) => c.getId()),
       };
-      logger.debug(
-        `Using ${referenceTicks} from imprecise client ${baseClient.toString()}`,
-      );
     }
   }
 
@@ -154,15 +144,18 @@ export function classifyClients(clients: ClientEvents[]): ClassifiedClients {
     selectionDetails = {
       candidateClientIds: sortedClients.map((c) => c.getId()),
     };
-    logger.debug(
-      `Assuming ${referenceTicks} from recorded ticks on ${baseClient.toString()}`,
-    );
   }
 
   if (baseClient === null) {
     // This should not be reachable if `clients` is non-empty.
     throw new Error('Could not determine a reference client');
   }
+
+  logger.debug('merge_classification_reference_selection', {
+    referenceTicks,
+    selectionMethod: selectionMethod!,
+    selectionDetails,
+  });
 
   const matching: ClientEvents[] = [];
   const mismatched: ClientEvents[] = [];
