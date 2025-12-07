@@ -16,14 +16,15 @@ import logger from './log';
 function initializeDataRepository(envVar: string): DataRepository {
   let repositoryBackend: DataRepository.Backend;
   if (!process.env[envVar]) {
-    throw new Error(`${envVar} is not set`);
+    logger.error('environment_missing', { variable: envVar });
+    process.exit(1);
   }
 
   const repositoryUri = process.env[envVar];
 
   if (repositoryUri.startsWith('file://')) {
     const root = repositoryUri.slice('file://'.length);
-    logger.info(`DataRepository using filesystem backend at ${root}`);
+    logger.info('data_repository_backend', { backend: 'filesystem', root });
     repositoryBackend = new DataRepository.FilesystemBackend(root);
   } else if (repositoryUri.startsWith('s3://')) {
     const s3Client = new S3Client({
@@ -36,10 +37,11 @@ function initializeDataRepository(envVar: string): DataRepository {
       },
     });
     const bucket = repositoryUri.slice('s3://'.length);
-    logger.info(`DataRepository using S3 backend bucket ${bucket}`);
+    logger.info('data_repository_backend', { backend: 's3', bucket });
     repositoryBackend = new DataRepository.S3Backend(s3Client, bucket);
   } else {
-    throw new Error(`Unknown repository backend type: ${repositoryUri}`);
+    logger.error('data_repository_backend_invalid', { backend: repositoryUri });
+    process.exit(1);
   }
 
   return new DataRepository(repositoryBackend);
@@ -49,15 +51,21 @@ async function main() {
   dotenv.config({ path: ['.env.local', `.env.${process.env.NODE_ENV}`] });
 
   if (!process.env.BLERT_REDIS_URI) {
-    throw new Error('BLERT_REDIS_URI is not set');
+    logger.error('environment_missing', { variable: 'BLERT_REDIS_URI' });
+    process.exit(1);
   }
 
   const redisClient: RedisClientType = createClient({
     url: process.env.BLERT_REDIS_URI,
     pingInterval: 3 * 60 * 1000,
   });
-  redisClient.on('connect', () => logger.info('Connected to Redis'));
-  redisClient.on('error', (err) => logger.error('Redis error:', err));
+  redisClient.on('connect', () => logger.info('redis_connected'));
+  redisClient.on('error', (err) =>
+    logger.error('redis_error', {
+      error: err instanceof Error ? err : new Error(String(err)),
+      message: err instanceof Error ? err.message : String(err),
+    }),
+  );
   await redisClient.connect();
 
   const challengeDataRepository = initializeDataRepository(
@@ -85,7 +93,12 @@ async function main() {
       res.on('finish', () => {
         const diff = process.hrtime(time);
         const duration = diff[0] * 1e3 + diff[1] * 1e-6;
-        logger.info(`${req.method} ${req.url} ${duration.toFixed(2)}ms`);
+        logger.debug('http_request_completed', {
+          method: req.method,
+          url: req.url,
+          durationMs: duration,
+          status: res.statusCode,
+        });
       });
       next();
     });
@@ -101,7 +114,7 @@ async function main() {
   registerApiRoutes(app);
 
   app.listen(port, () => {
-    logger.info(`Challenge server started on port ${port}`);
+    logger.info('challenge_server_listening', { port });
   });
 }
 

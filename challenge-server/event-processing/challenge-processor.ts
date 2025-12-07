@@ -205,9 +205,10 @@ export default abstract class ChallengeProcessor {
       this.stageAttempt = (this.stageAttempt ?? 0) + 1;
       this.prepareUpdates({ stageAttempt: this.stageAttempt });
     } else if (stage !== this.firstStage) {
-      logger.error(
-        `Challenge ${this.uuid} attempted to restart non-retriable stage ${stage}`,
-      );
+      logger.error('challenge_restart_non_retriable_stage', {
+        challengeUuid: this.uuid,
+        stage,
+      });
     }
   }
 
@@ -300,17 +301,15 @@ export default abstract class ChallengeProcessor {
     this.stageState = this.initialStageState();
 
     if (this.totalChallengeTicks === 0) {
-      logger.info(
-        `Challenge ${this.uuid} ended without any data; deleting record`,
-      );
+      logger.info('challenge_finished_no_data', { challengeUuid: this.uuid });
       await this.deleteChallenge();
       return false;
     }
 
     if (this.stageStatus === StageStatus.STARTED) {
-      logger.info(
-        `Challenge ${this.uuid} finished with stage still in progress`,
-      );
+      logger.info('challenge_finished_stage_in_progress', {
+        challengeUuid: this.uuid,
+      });
       this.challengeStatus = ChallengeStatus.ABANDONED;
     }
 
@@ -320,10 +319,11 @@ export default abstract class ChallengeProcessor {
       this.reportedTimes !== null &&
       this.reportedTimes.challenge !== finalChallengeTicks
     ) {
-      logger.warn(
-        `Challenge time mismatch: recorded ${finalChallengeTicks}, ` +
-          `reported ${this.reportedTimes.challenge}`,
-      );
+      logger.warn('challenge_time_mismatch', {
+        challengeUuid: this.uuid,
+        recordedTicks: finalChallengeTicks,
+        reportedTicks: this.reportedTimes.challenge,
+      });
       finalChallengeTicks = this.reportedTimes.challenge;
     }
 
@@ -404,10 +404,11 @@ export default abstract class ChallengeProcessor {
       if (event.hasPlayer()) {
         const player = event.getPlayer()!;
         if (!this.party.includes(player.getName())) {
-          logger.error(
-            `Challenge ${this.uuid} received event type ${event.getType()} ` +
-              `referencing unknown player ${player.getName()}`,
-          );
+          logger.error('challenge_event_unknown_player', {
+            challengeUuid: this.uuid,
+            eventType: event.getType(),
+            playerName: player.getName(),
+          });
           continue;
         }
       }
@@ -459,12 +460,14 @@ export default abstract class ChallengeProcessor {
     >;
 
     const [deltaS, deltaNs] = process.hrtime(startTime);
-    logger.debug(
-      'Challenge %s: processed events for stage %s in %sms',
-      this.uuid,
+
+    // TODO(frolv): Record duration as a metric.
+    logger.info('challenge_stage_processed', {
+      challengeUuid: this.uuid,
       stage,
-      (deltaS * 1000 + deltaNs / 1e6).toFixed(2),
-    );
+      status: events.getStatus(),
+      duration: deltaS * 1000 + deltaNs / 1e6,
+    });
 
     // Add the challenge status after the updates have been written to the
     // database, as it should only be updated in memory until the challenge is
@@ -540,7 +543,7 @@ export default abstract class ChallengeProcessor {
     ]);
 
     if (statusCounts.length === 0) {
-      logger.warn(`Session ${sessionId} has no challenges; deleting`);
+      logger.warn('session_no_challenges', { sessionId });
       await sql`DELETE FROM challenge_sessions WHERE id = ${sessionId}`;
       return;
     }
@@ -554,7 +557,7 @@ export default abstract class ChallengeProcessor {
       (Number.parseInt(statusCounts[0].status) as ChallengeStatus) ===
         ChallengeStatus.ABANDONED
     ) {
-      logger.warn(`Session ${sessionId} has only abandoned challenges; hiding`);
+      logger.warn('session_only_abandoned_challenges', { sessionId });
       updates.status = SessionStatus.HIDDEN;
     }
 
@@ -735,9 +738,14 @@ export default abstract class ChallengeProcessor {
           RETURNING id
         `;
 
-        logger.info(
-          `Created new session ${sessionUuid} (#${id}) for party ${this.party.join(',')}`,
-        );
+        logger.info('session_created', {
+          sessionUuid,
+          sessionId: id,
+          challengeType: this.type,
+          challengeMode: this.mode,
+          party: this.party,
+          partyHash: partyHash(this.party),
+        });
 
         sessionId = id;
       }
@@ -797,7 +805,10 @@ export default abstract class ChallengeProcessor {
     const [result] = await Promise.all([
       sql`DELETE FROM challenges WHERE id = ${this.databaseId}`,
       this.dataRepository.deleteChallenge(this.uuid).catch((e) => {
-        logger.error(`${this.uuid}: Failed to delete challenge data:`, e);
+        logger.error('challenge_delete_failed', {
+          challengeUuid: this.uuid,
+          error: e instanceof Error ? e.message : String(e),
+        });
       }),
     ]);
     if (result.count > 0) {
@@ -872,9 +883,10 @@ export default abstract class ChallengeProcessor {
       return splitsToInsert.map((split, i) => ({ ...split, id: ids[i].id }));
     } catch (e: any) {
       if (isPostgresUniqueViolation(e)) {
-        logger.error(
-          `Failed to insert splits for challenge ${this.uuid}: ${(e as Error).message}`,
-        );
+        logger.error('challenge_splits_insert_failed', {
+          challengeUuid: this.uuid,
+          error: e instanceof Error ? e.message : String(e),
+        });
         return [];
       }
 
@@ -977,7 +989,7 @@ export default abstract class ChallengeProcessor {
       });
     }
 
-    logger.info('challenge_processor_personal_bests', {
+    logger.info('challenge_personal_bests_updated', {
       scale: this.getScale(),
       personalBests,
     });
@@ -1059,7 +1071,7 @@ export default abstract class ChallengeProcessor {
       this.stageAttempt ?? undefined,
     );
 
-    logger.info('challenge_processor_events_saved', {
+    logger.info('challenge_stage_events_saved', {
       challengeUuid: this.uuid,
       stage,
       totalEvents: events.length,

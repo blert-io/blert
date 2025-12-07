@@ -58,8 +58,14 @@ function errorStatus(e: unknown): number {
   return 500;
 }
 
-function sendErrorResponse(res: Response, e: unknown): void {
-  const message = e instanceof Error ? e.message : 'Internal server error';
+function logAndSendErrorResponse(res: Response, e: unknown): void {
+  logger.error('challenge_api_error', {
+    error: e instanceof Error ? e.message : String(e),
+  });
+
+  // Only surface challenge error details.
+  const message =
+    e instanceof ChallengeError ? e.message : 'Internal server error';
   res.status(errorStatus(e)).json({ error: { message } });
 }
 
@@ -89,10 +95,7 @@ async function newChallenge(req: Request, res: Response): Promise<void> {
         );
         res.json(result);
       } catch (e: unknown) {
-        logger.error('challenge_api_error', {
-          error: e instanceof Error ? e : new Error(String(e)),
-        });
-        sendErrorResponse(res, e);
+        logAndSendErrorResponse(res, e);
       }
     },
   );
@@ -122,10 +125,7 @@ async function updateChallenge(req: Request, res: Response): Promise<void> {
           res.json(result);
         }
       } catch (e: unknown) {
-        logger.error('Failed to update challenge', {
-          error: e instanceof Error ? e : new Error(String(e)),
-        });
-        sendErrorResponse(res, e);
+        logAndSendErrorResponse(res, e);
       }
     },
   );
@@ -151,10 +151,7 @@ async function finishChallenge(req: Request, res: Response): Promise<void> {
         );
         res.status(200).send();
       } catch (e: unknown) {
-        logger.error('Failed to finish challenge', {
-          error: e instanceof Error ? e : new Error(String(e)),
-        });
-        sendErrorResponse(res, e);
+        logAndSendErrorResponse(res, e);
       }
     },
   );
@@ -180,10 +177,7 @@ async function joinChallenge(req: Request, res: Response): Promise<void> {
         );
         res.json(status);
       } catch (e: unknown) {
-        logger.error('Failed to join challenge', {
-          error: e instanceof Error ? e : new Error(String(e)),
-        });
-        sendErrorResponse(res, e);
+        logAndSendErrorResponse(res, e);
       }
     },
   );

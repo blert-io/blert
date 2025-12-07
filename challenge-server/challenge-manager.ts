@@ -350,7 +350,6 @@ export default class ChallengeManager {
       );
     }
 
-    const partyMembers = party.join(',');
     const partyKeyList = partyKeyChallengeList(type, party);
     const sk = sessionKey(type, party);
 
@@ -370,6 +369,23 @@ export default class ChallengeManager {
         stage: Stage.UNKNOWN,
         attempt: null,
       },
+    };
+
+    const logChallengeJoinDecision = (
+      action: StartAction,
+      reason: string,
+      meta: Record<string, unknown> = {},
+      level: 'info' | 'warn' = 'info',
+    ) => {
+      logger[level]('challenge_join_decision', {
+        userId,
+        type,
+        stage,
+        party,
+        action,
+        reason,
+        ...meta,
+      });
     };
 
     // Requests from multiple clients in the same party may arrive around the
@@ -416,9 +432,11 @@ export default class ChallengeManager {
           statusValue === null ||
           stageValue === null
         ) {
-          logger.warn(
-            `User ${userId}: Challenge ${lastChallengeForParty} no longer ` +
-              'exists, cleaning up',
+          logChallengeJoinDecision(
+            StartAction.CREATE,
+            'challenge_not_found',
+            { lastChallengeForParty },
+            'warn',
           );
           multi.rPop(partyKeyList);
           startAction = StartAction.CREATE;
@@ -433,28 +451,32 @@ export default class ChallengeManager {
             status === ChallengeStatus.COMPLETED ||
             timeoutState === TimeoutState.CHALLENGE_END
           ) {
-            logger.info(
-              `User ${userId}: Previous challenge for party ${partyMembers} ` +
-                'has completed; starting new one',
+            logChallengeJoinDecision(
+              StartAction.CREATE,
+              'previous_challenge_completed',
+              { lastChallengeForParty },
             );
             startAction = StartAction.CREATE;
           } else if (stage !== Stage.UNKNOWN && stage < lastStage) {
-            logger.info(
-              `User ${userId}: Request to start challenge for party ` +
-                `${partyMembers} at stage ${stage} is earlier than the ` +
-                `previous stage ${lastStage}; assuming a new challenge`,
-            );
+            logChallengeJoinDecision(StartAction.CREATE, 'earlier_stage', {
+              lastChallengeForParty,
+              stage,
+              lastStage,
+            });
             startAction = StartAction.CREATE;
           } else if (lifecycleState === LifecycleState.INITIALIZING) {
-            logger.info(
-              `User ${userId}: Request to start challenge for party ` +
-                `${partyMembers} is initializing; deferring join`,
+            logChallengeJoinDecision(
+              StartAction.DEFERRED_JOIN,
+              'challenge_initializing',
+              { joiningChallenge: lastChallengeForParty },
             );
             startAction = StartAction.DEFERRED_JOIN;
             challengeUuid = lastChallengeForParty;
           } else {
-            logger.info(
-              `User ${userId}: Joining existing challenge type ${type} for ${partyMembers}`,
+            logChallengeJoinDecision(
+              StartAction.IMMEDIATE_JOIN,
+              'challenge_active',
+              { joiningChallenge: lastChallengeForParty },
             );
 
             challengeUuid = lastChallengeForParty;
@@ -482,9 +504,7 @@ export default class ChallengeManager {
           }
         }
       } else {
-        logger.info(
-          `User ${userId}: Starting new challenge type ${type} for ${partyMembers}`,
-        );
+        logChallengeJoinDecision(StartAction.CREATE, 'new_challenge');
         startAction = StartAction.CREATE;
       }
 
@@ -533,13 +553,12 @@ export default class ChallengeManager {
     if (startAction === StartAction.UNKNOWN || challengeUuid === '') {
       // This should never happen as the transaction should always set these
       // values, but log some basic debugging information just in case.
-      logger.error(
-        'Failed to start challenge for user %d: type=%d, stage=%d, party=%s',
+      logger.error('challenge_start_failed', {
         userId,
         type,
         stage,
-        party.join(','),
-      );
+        party,
+      });
       throw new Error('Failed to start challenge');
     }
 
@@ -565,11 +584,16 @@ export default class ChallengeManager {
           );
 
           await processor.createNew(startTime, sessionId);
-        } catch (e) {
-          logger.error(
-            `User ${userId}: Failed to create challenge ${challengeUuid}`,
-            e,
-          );
+        } catch (e: unknown) {
+          logger.error('challenge_create_failed', {
+            userId,
+            challengeUuid,
+            type,
+            mode,
+            stage,
+            party,
+            error: e instanceof Error ? e : new Error(String(e)),
+          });
 
           await this.deleteRedisChallengeData(challengeUuid, type, party);
 
@@ -615,10 +639,15 @@ export default class ChallengeManager {
           stageAttempt: processor.getStageAttempt(),
         };
 
-        logger.info(
-          `User ${userId}: Created challenge ${challengeUuid} ` +
-            `in session ${processor.getSessionId()} at stage ${stage}`,
-        );
+        logger.info('challenge_created', {
+          userId,
+          challengeUuid,
+          sessionId: processor.getSessionId(),
+          type,
+          mode,
+          stage,
+          party,
+        });
         break;
       }
 
@@ -653,10 +682,11 @@ export default class ChallengeManager {
               lifecycleState === null ||
               lifecycleState === LifecycleState.CLEANUP
             ) {
-              logger.error(
-                `User ${userId}: Challenge ${challengeUuid} was deleted with ` +
-                  'a pending deferred join',
-              );
+              logger.error('deferred_join_missing_challenge', {
+                challengeUuid,
+                userId,
+                lifecycleState,
+              });
               throw new ChallengeError(
                 ChallengeErrorType.INTERNAL,
                 `Challenge ${challengeUuid} no longer exists`,
@@ -698,15 +728,22 @@ export default class ChallengeManager {
         }
 
         if (retries === DEFERRED_JOIN_MAX_RETRIES) {
+          logger.error('deferred_join_max_retries', {
+            challengeUuid,
+            userId,
+            retries,
+          });
           throw new ChallengeError(
             ChallengeErrorType.INTERNAL,
             `Failed to join challenge ${challengeUuid} for user ${userId} after ${retries} attempts`,
           );
         }
 
-        logger.info(
-          `User ${userId}: Deferred-joined ${challengeUuid} in ${retries} attempts`,
-        );
+        logger.info('deferred_join_success', {
+          challengeUuid,
+          userId,
+          retries,
+        });
         break;
       }
 
@@ -733,21 +770,23 @@ export default class ChallengeManager {
   ): Promise<void> {
     const currentChallenge = await this.client.get(clientChallengesKey(userId));
     if (currentChallenge !== challengeId) {
-      logger.warn(
-        `User ${userId} attempted to finish challenge ${challengeId} ` +
-          `but is currently in challenge ${currentChallenge}`,
-      );
+      logger.warn('finish_challenge_not_in_challenge', {
+        userId,
+        challengeUuid: challengeId,
+        currentChallenge,
+      });
       return;
     }
 
-    logger.info(`User ${userId} finishing challenge ${challengeId}`);
     const challengeKey = challengesKey(challengeId);
 
     let allClientsFinished = false;
+    let result: string | null = null;
 
     await this.watchTransaction(async (client) => {
       // Reset allClientsFinished in case we had to retry the transaction.
       allClientsFinished = false;
+      result = null;
 
       await client.watch(challengeKey);
       await client.watch(challengeClientsKey(challengeId));
@@ -757,7 +796,7 @@ export default class ChallengeManager {
 
       const challenge = await this.loadChallenge(challengeId, client);
       if (challenge === null || challenge.state !== LifecycleState.ACTIVE) {
-        logger.warn(`Challenge ${challengeId} is no longer active`);
+        result = 'challenge_not_active';
         return multi.exec();
       }
 
@@ -771,10 +810,7 @@ export default class ChallengeManager {
       const clients = await this.loadChallengeClients(challengeId, client);
       const self = clients.find((c) => c.userId === userId);
       if (self === undefined) {
-        logger.warn(
-          `User ${userId} attempted to finish challenge ${challengeId} ` +
-            'but is not in the challenge',
-        );
+        result = 'not_in_challenge';
         return multi.exec();
       }
 
@@ -837,7 +873,15 @@ export default class ChallengeManager {
         multi.hSet(challengeKey, 'reportedOverallTicks', reportedTimes.overall);
       }
 
+      result = 'success';
       return multi.exec();
+    });
+
+    logger.info('challenge_finish', {
+      userId,
+      challengeUuid: challengeId,
+      result,
+      allClientsFinished,
     });
   }
 
@@ -849,15 +893,18 @@ export default class ChallengeManager {
     const currentChallenge = await this.client.get(clientChallengesKey(userId));
     if (currentChallenge !== challengeId) {
       if (currentChallenge === null) {
-        logger.warn(
-          `User ${userId} attempted to update challenge ${challengeId} ` +
-            'but is not currently in a challenge',
-        );
+        logger.warn('challenge_update_rejected', {
+          userId,
+          challengeUuid: challengeId,
+          reason: 'not_in_challenge',
+        });
       } else {
-        logger.warn(
-          `User ${userId} attempted to update challenge ${challengeId} ` +
-            `but is currently in challenge ${currentChallenge}`,
-        );
+        logger.warn('challenge_update_rejected', {
+          userId,
+          challengeUuid: challengeId,
+          reason: 'in_other_challenge',
+          currentChallenge,
+        });
       }
       return null;
     }
@@ -877,9 +924,11 @@ export default class ChallengeManager {
       const multi = client.multi();
 
       if (challenge === null) {
-        logger.warn(
-          `Player ${userId} attempted to update non-existent challenge`,
-        );
+        logger.warn('challenge_update_rejected', {
+          userId,
+          challengeUuid: challengeId,
+          reason: 'non_existent',
+        });
         result = null;
         return multi.exec();
       }
@@ -890,9 +939,10 @@ export default class ChallengeManager {
           'timeoutState',
           TimeoutState.NONE,
         );
-        logger.debug(
-          `${challengeId}: canceling cleanup due to client activity`,
-        );
+        logger.debug('challenge_cleanup_canceled', {
+          challengeUuid: challengeId,
+          reason: 'client_activity',
+        });
       }
 
       // As there is activity, refresh the challenge's session duration.
@@ -911,7 +961,11 @@ export default class ChallengeManager {
       if (update.mode !== ChallengeMode.NO_MODE) {
         // Entry mode tracking is currently disabled.
         if (update.mode === ChallengeMode.TOB_ENTRY) {
-          logger.info(`Ending ToB entry mode challenge ${challengeId}`);
+          logger.info('challenge_update_invalid_mode', {
+            challengeUuid: challengeId,
+            userId,
+            mode: update.mode,
+          });
           forceCleanup = true;
           return multi.exec();
         }
@@ -922,11 +976,13 @@ export default class ChallengeManager {
       if (update.stage !== undefined) {
         const stageUpdate = update.stage;
         if (stageUpdate.stage < challenge.stage) {
-          logger.warn(
-            `User ${userId} attempted to update challenge ${challengeId} ` +
-              `to stage ${stageUpdate.stage}, but it is at later stage ` +
-              `${challenge.stage}`,
-          );
+          logger.warn('challenge_update_rejected', {
+            userId,
+            challengeUuid: challengeId,
+            reason: 'earlier_stage',
+            stage: stageUpdate.stage,
+            currentStage: challenge.stage,
+          });
           result = null;
           return multi.exec();
         }
@@ -936,10 +992,11 @@ export default class ChallengeManager {
 
         const us = clients.find((c) => c.userId === userId);
         if (us === undefined) {
-          logger.warn(
-            `User ${userId} attempted to update challenge ${challengeId} ` +
-              'but is not currently in the challenge',
-          );
+          logger.warn('challenge_update_rejected', {
+            userId,
+            challengeUuid: challengeId,
+            reason: 'not_in_challenge',
+          });
           result = null;
           return multi.exec();
         }
@@ -980,11 +1037,14 @@ export default class ChallengeManager {
             0,
           );
 
-          logger.debug(
-            `${challengeId}: client ${userId} finished stage ${stageUpdate.stage}` +
-              (us.stageAttempt !== null ? `:${us.stageAttempt})` : '') +
-              ` [${numFinishedClients}/${clients.length}]`,
-          );
+          logger.debug('client_finished_stage', {
+            challengeUuid: challengeId,
+            userId,
+            stage: stageUpdate.stage,
+            attempt: us.stageAttempt,
+            numFinishedClients,
+            totalClients: clients.length,
+          });
 
           if (numFinishedClients === clients.length) {
             finishStage = [stageUpdate.stage, us.stageAttempt];
@@ -1112,10 +1172,12 @@ export default class ChallengeManager {
   ): Promise<ChallengeStatusResponse> {
     const currentChallenge = await this.client.get(clientChallengesKey(userId));
     if (currentChallenge !== null) {
-      logger.warn(
-        `User ${userId} attempted to join challenge ${challengeId} ` +
-          `but is already in challenge ${currentChallenge}`,
-      );
+      logger.warn('challenge_join_rejected', {
+        userId,
+        challengeUuid: challengeId,
+        reason: 'already_in_challenge',
+        currentChallenge,
+      });
       throw new ChallengeError(
         ChallengeErrorType.FAILED_PRECONDITION,
         'User is already in a challenge',
@@ -1139,9 +1201,11 @@ export default class ChallengeManager {
       ]);
 
       if (challenge === null || challenge.state !== LifecycleState.ACTIVE) {
-        logger.warn(
-          `User ${userId} attempted to join non-existent challenge ${challengeId}`,
-        );
+        logger.warn('challenge_join_rejected', {
+          userId,
+          challengeUuid: challengeId,
+          reason: 'non_existent',
+        });
         return multi.exec();
       }
 
@@ -1165,10 +1229,13 @@ export default class ChallengeManager {
 
       const allInactive = clients.every((c) => !c.active);
       if (allInactive && challenge.timeoutState === TimeoutState.CLEANUP) {
-        logger.info(
-          `User ${userId} reconnected to inactive challenge ${challengeId} ` +
-            `at stage ${stageAndAttempt(clientInfo.stage, clientInfo.stageAttempt)}`,
-        );
+        logger.info('challenge_cleanup_canceled', {
+          userId,
+          challengeUuid: challengeId,
+          stage: clientInfo.stage,
+          attempt: clientInfo.stageAttempt,
+          reason: 'client_reconnected',
+        });
         // Pause any pending cleanup if the challenge was previously inactive.
         multi.hSet(
           challengesKey(challengeId),
@@ -1176,12 +1243,14 @@ export default class ChallengeManager {
           TimeoutState.NONE,
         );
         multi.hDel(ChallengeManager.CHALLENGE_TIMEOUT_KEY, challengeId);
-      } else {
-        logger.info(
-          `User ${userId} reconnected to challenge ${challengeId} at stage ` +
-            stageAndAttempt(clientInfo.stage, clientInfo.stageAttempt),
-        );
       }
+
+      logger.info('client_reconnected', {
+        userId,
+        challengeUuid: challengeId,
+        stage: clientInfo.stage,
+        attempt: clientInfo.stageAttempt,
+      });
 
       multi.set(clientChallengesKey(userId), challengeId);
 
@@ -1207,7 +1276,10 @@ export default class ChallengeManager {
 
   private async processEvents() {
     this.eventClient.on('error', (err) => {
-      logger.error(`Event queue error: ${err}`);
+      logger.error('redis_error', {
+        key: CLIENT_EVENTS_KEY,
+        error: err instanceof Error ? err : new Error(String(err)),
+      });
     });
     await this.eventClient.connect();
 
@@ -1261,9 +1333,11 @@ export default class ChallengeManager {
         lifecycleState === null ||
         lifecycleState === LifecycleState.CLEANUP.toString()
       ) {
-        logger.debug(
-          `Cannot remove client ${id} from challenge ${challengeId} as it no longer exists`,
-        );
+        logger.warn('client_remove_rejected', {
+          userId: id,
+          challengeUuid: challengeId,
+          reason: 'non_existent',
+        });
         return multi.exec();
       }
 
@@ -1286,9 +1360,10 @@ export default class ChallengeManager {
           JSON.stringify(timeout),
         );
 
-        logger.info(
-          `Challenge ${challengeId} has no clients; starting reconnection timer`,
-        );
+        logger.info('challenge_reconnection_timer_started', {
+          challengeUuid: challengeId,
+          timeout: ChallengeManager.MAX_RECONNECTION_PERIOD,
+        });
       }
 
       return multi.exec();
@@ -1322,9 +1397,11 @@ export default class ChallengeManager {
 
       const us = clients.find((c) => c.userId === id);
       if (us === undefined) {
-        logger.warn(
-          `setClientActive: client ${id} not in challenge ${challengeId}`,
-        );
+        logger.warn('client_not_in_challenge', {
+          userId: id,
+          challengeUuid: challengeId,
+          operation: 'set_client_active',
+        });
         multi.del(clientChallengesKey(id));
         return multi.exec();
       }
@@ -1333,7 +1410,10 @@ export default class ChallengeManager {
         return multi.exec();
       }
 
-      logger.debug(`${challengeId}: client ${id} reconnected`);
+      logger.debug('client_reconnected', {
+        challengeId,
+        userId: id,
+      });
       us.active = true;
 
       multi.hSet(clientsKey, id, JSON.stringify(us));
@@ -1377,9 +1457,11 @@ export default class ChallengeManager {
 
       const us = clients.find((c) => c.userId === id);
       if (us === undefined) {
-        logger.warn(
-          `setClientInactive: client ${id} not in challenge ${challengeId}`,
-        );
+        logger.warn('client_not_in_challenge', {
+          userId: id,
+          challengeUuid: challengeId,
+          operation: 'set_client_inactive',
+        });
         multi.del(clientChallengesKey(id));
         return multi.exec();
       }
@@ -1388,15 +1470,19 @@ export default class ChallengeManager {
         return multi.exec();
       }
 
-      logger.debug(`${challengeId}: client ${id} disconnected`);
+      logger.debug('client_disconnected', {
+        challengeUuid: challengeId,
+        userId: id,
+      });
       us.active = false;
       multi.hSet(clientsKey, id, JSON.stringify(us));
 
       const allInactive = clients.every((c) => !c.active);
       if (allInactive && challenge.timeoutState === TimeoutState.NONE) {
-        logger.info(
-          `${challengeId}: all clients inactive; starting reconnection timer`,
-        );
+        logger.info('challenge_reconnection_timer_started', {
+          challengeUuid: challengeId,
+          timeout: ChallengeManager.MAX_INACTIVITY_PERIOD,
+        });
         const timeout: ChallengeTimeout = {
           timestamp: Date.now() + ChallengeManager.MAX_INACTIVITY_PERIOD,
           maxRetryAttempts: 0,
@@ -1443,11 +1529,13 @@ export default class ChallengeManager {
 
     try {
       await this.completeChallengeStage(challenge, processor, stage, attempt);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      logger.error(
-        `Error completing stage ${stageAndAttempt(stage, attempt)} for challenge ${challengeId}: ${msg}`,
-      );
+    } catch (e: unknown) {
+      logger.error('challenge_stage_completion_failed', {
+        challengeUuid: challengeId,
+        stage,
+        attempt,
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
   }
 
@@ -1501,9 +1589,10 @@ export default class ChallengeManager {
         });
 
         if (!okToProcess) {
-          logger.debug(
-            `${challenge.uuid}: stage ${stageWithAttempt} already processed; skipping`,
-          );
+          logger.debug('stage_already_processed', {
+            challengeUuid: challenge.uuid,
+            stage: stageWithAttempt,
+          });
           return;
         }
 
@@ -1567,9 +1656,7 @@ export default class ChallengeManager {
             skippedCount: result.skippedCount,
           });
 
-          // TODO(frolv): Persist this in the data repository. For now, log
-          // for visibility.
-          logger.info('merge_result_clients', { clients: result.clients });
+          // TODO(frolv): Persist merge result in the data repository.
 
           const updates = await processor.processStage(stage, result.events);
           multi.hSet(challengesKey(challenge.uuid), toRedis(updates));
@@ -1624,10 +1711,12 @@ export default class ChallengeManager {
           (c.lastCompleted.attempt ?? 0) < (attempt ?? 0)),
     );
 
-    logger.debug(
-      `Forcing stage ${stage} end for challenge ${uuid} ` +
-        `after timeout (${uncompletedClients.length} uncompleted clients)`,
-    );
+    logger.debug('stage_end_timeout', {
+      challengeUuid: uuid,
+      stage,
+      attempt,
+      uncompletedClients: uncompletedClients.length,
+    });
     await this.loadAndCompleteChallengeStage(uuid, stage, attempt);
   }
 
@@ -1776,27 +1865,33 @@ export default class ChallengeManager {
         break;
 
       case CleanupStatus.ACTIVE_CLIENTS:
-        logger.info(
-          `Challenge ${challengeId} still has connected clients; aborting`,
-        );
+        logger.info('challenge_cleanup_status', {
+          challengeUuid: challengeId,
+          status: 'active_clients',
+        });
         return;
 
       case CleanupStatus.PROCESSING_STAGE:
-        logger.info(
-          `Challenge ${challengeId} still processing stage; delaying finish`,
-        );
+        logger.info('challenge_cleanup_status', {
+          challengeUuid: challengeId,
+          status: 'processing_stage',
+        });
         return;
 
       case CleanupStatus.CHALLENGE_NOT_FOUND:
-        logger.info(`Challenge ${challengeId} no longer exists`);
+        logger.info('challenge_cleanup_status', {
+          challengeUuid: challengeId,
+          status: 'challenge_not_found',
+        });
         // To be safe, clear out any remaining data.
         await this.deleteRedisChallengeData(challengeId);
         return;
 
       case CleanupStatus.CHALLENGE_FAILED_CLEANUP:
-        logger.warn(
-          `Challenge ${challengeId} previously failed cleanup; deleting all data`,
-        );
+        logger.warn('challenge_cleanup_status', {
+          challengeUuid: challengeId,
+          status: 'previously_failed_cleanup',
+        });
         await this.deleteRedisChallengeData(challengeId);
         return;
     }
@@ -1838,7 +1933,10 @@ export default class ChallengeManager {
         });
       }
 
-      logger.info(`Challenge ${challengeId} completed`);
+      logger.info('challenge_completed', {
+        challengeUuid: challengeId,
+        status: processor.getChallengeStatus(),
+      });
 
       await this.deleteRedisChallengeData(
         challengeId,
@@ -1955,9 +2053,10 @@ export default class ChallengeManager {
 
       const activeClients = clients.filter((c) => c.active);
       if (activeClients.length === 0) {
-        logger.info(
-          `${challengeId} has no active clients; starting reconnection timer`,
-        );
+        logger.info('challenge_reconnection_timer_started', {
+          challengeUuid: challengeId,
+          timeout: ChallengeManager.MAX_RECONNECTION_PERIOD,
+        });
         const timeout: ChallengeTimeout = {
           timestamp: Date.now() + ChallengeManager.MAX_RECONNECTION_PERIOD,
           maxRetryAttempts: 3,
@@ -1987,8 +2086,10 @@ export default class ChallengeManager {
           ChallengeManager.CHALLENGE_TIMEOUT_KEY,
         );
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        logger.error(`Failed to fetch challenge timeouts: ${msg}`);
+        logger.error('redis_error', {
+          key: ChallengeManager.CHALLENGE_TIMEOUT_KEY,
+          error: e instanceof Error ? e.message : String(e),
+        });
         break;
       }
 
@@ -2015,20 +2116,26 @@ export default class ChallengeManager {
           );
 
         if (state === TimeoutState.CLEANUP) {
-          logger.info(`Cleaning up expired challenge ${timedOutChallenge}`);
+          logger.info('challenge_cleanup_started', {
+            challengeUuid: timedOutChallenge,
+            status: 'expired',
+          });
           await this.cleanupChallenge(timedOutChallenge, timeoutInfo);
         } else if (state === TimeoutState.CHALLENGE_END) {
-          logger.info(`Finishing challenge ${timedOutChallenge} after timeout`);
+          logger.info('challenge_cleanup_started', {
+            challengeUuid: timedOutChallenge,
+            status: 'finished',
+          });
           await this.cleanupChallenge(timedOutChallenge, timeoutInfo);
         } else if (state === TimeoutState.STAGE_END) {
           await this.handleStageEndTimeout(timedOutChallenge);
           await this.checkForActiveClients(timedOutChallenge);
         } else {
           if (state !== TimeoutState.NONE) {
-            logger.warn(
-              `Timed-out challenge ${timedOutChallenge} has unknown timeout state ` +
-                `${state}; ignoring`,
-            );
+            logger.warn('challenge_cleanup_invalid_state', {
+              challengeUuid: timedOutChallenge,
+              state,
+            });
           }
           await this.client.hDel(
             ChallengeManager.CHALLENGE_TIMEOUT_KEY,
@@ -2048,9 +2155,10 @@ export default class ChallengeManager {
 
     try {
       await this.processOneChallengeTimeout();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      logger.error(`Error processing challenge timeout: ${msg}`);
+    } catch (e: unknown) {
+      logger.error('challenge_timeout_processing_failed', {
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
 
     if (this.manageTimeouts) {
@@ -2090,14 +2198,17 @@ export default class ChallengeManager {
   private async watchTransaction<T>(
     txn: (client: RedisClientType) => Promise<T | undefined>,
   ): Promise<void> {
+    let attempt = 0;
+
     while (true) {
+      attempt++;
       try {
         await this.client.executeIsolated(txn);
         break;
       } catch (e) {
         if (e instanceof WatchError) {
           // Retry the transaction.
-          logger.debug('Retrying transaction due to watch error');
+          logger.debug('watch_transaction_retry', { attempt });
         } else {
           throw e;
         }
@@ -2111,10 +2222,6 @@ export default class ChallengeManager {
     events: ClientStageStream[],
     result: MergeResult,
   ): Promise<void> {
-    logger.info(
-      `Merge failure: saving all client events for unmerged stage ${stage} of ${challenge.uuid}`,
-    );
-
     // Save all event data as a single JSON file. This is inefficient as the
     // files are quite large, but it's simple to work with and debug. Ideally,
     // the amount of merge failures should reduce over time, making this less
@@ -2135,6 +2242,14 @@ export default class ChallengeManager {
       unmergedEventsFile(challenge.uuid, stage),
       Buffer.from(JSON.stringify(stageEventData)),
     );
+
+    logger.info('unmerged_events_saved', {
+      challengeUuid: challenge.uuid,
+      stage,
+      mergedCount: result.mergedCount,
+      unmergedCount: result.unmergedCount,
+      skippedCount: result.skippedCount,
+    });
   }
 }
 
@@ -2183,20 +2298,22 @@ class SessionWatchdog {
 
   public async run(): Promise<void> {
     this.client.on('error', (err) => {
-      this.log.error(`Redis error: ${err}`);
+      this.log.error('redis_error', {
+        error: err instanceof Error ? err : new Error(String(err)),
+      });
     });
 
     await this.client.connect();
     this.running = true;
 
-    this.log.info(`Watchdog started`);
+    this.log.info('watchdog_started');
 
     while (this.running) {
       await this.finishInactiveSessions();
       await delay(SessionWatchdog.WATCHDOG_INTERVAL_MS);
     }
 
-    this.log.info(`Watchdog exited`);
+    this.log.info('watchdog_exited');
   }
 
   public stop(): void {
@@ -2220,15 +2337,14 @@ class SessionWatchdog {
         continue;
       }
 
-      this.log.debug(`Session ${session.id} has expired; finishing`);
+      this.log.debug('session_expired', { sessionId: session.id });
       ++expiredSessions;
       await ChallengeProcessor.finalizeSession(session.id);
     }
 
-    this.log.info(
-      `Watchdog finishInactiveSessions: candidates=%d, expired=%d`,
-      expiringSessions.length,
-      expiredSessions,
-    );
+    this.log.info('watchdog_finish_inactive_sessions', {
+      candidates: expiringSessions.length,
+      expired: expiredSessions,
+    });
   }
 }
