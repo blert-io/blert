@@ -12,4 +12,9 @@ scrape_configs:
     static_configs:
       - targets:
           - socket-server:3003
+  - job_name: blert-challenge-server
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - challenge-server:3003
   # TODO(frolv): Add other services here once they expose metrics.

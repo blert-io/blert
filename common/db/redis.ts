@@ -138,20 +138,19 @@ export enum StageStreamType {
   STAGE_END,
 }
 
-export interface ClientStageStream {
-  type: StageStreamType;
-  clientId: number;
-}
+export type ClientStageStream = StageStreamEvents | StageStreamEnd;
 
-export interface StageStreamEvents extends ClientStageStream {
+export type StageStreamEvents = {
   type: StageStreamType.STAGE_EVENTS;
+  clientId: number;
   events: Uint8Array;
-}
+};
 
-export interface StageStreamEnd extends ClientStageStream {
+export type StageStreamEnd = {
   type: StageStreamType.STAGE_END;
+  clientId: number;
   update: StageUpdate;
-}
+};
 
 /**
  * Returns the Redis key for the stream of events for a challenge stage.
@@ -190,10 +189,10 @@ export function stageStreamToRecord(
 
   switch (event.type) {
     case StageStreamType.STAGE_EVENTS:
-      evt.events = Buffer.from((event as StageStreamEvents).events);
+      evt.events = Buffer.from(event.events);
       break;
     case StageStreamType.STAGE_END:
-      evt.update = JSON.stringify((event as StageStreamEnd).update);
+      evt.update = JSON.stringify(event.update);
       break;
   }
 
@@ -222,7 +221,9 @@ export function stageStreamFromRecord(
       } as StageStreamEnd;
 
     default:
-      return { type, clientId };
+      throw new Error(
+        `Unknown stage stream type: ${type as unknown as number}`,
+      );
   }
 }
 

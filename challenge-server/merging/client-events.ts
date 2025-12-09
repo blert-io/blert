@@ -13,8 +13,6 @@ import {
   NpcAttack,
   Stage,
   StageStatus,
-  StageStreamEnd,
-  StageStreamEvents,
   StageStreamType,
 } from '@blert/common';
 import { ChallengeEvents } from '@blert/common/generated/challenge_storage_pb';
@@ -181,16 +179,14 @@ export class ClientEvents {
 
     for (const stream of streamEvents) {
       if (stream.type === StageStreamType.STAGE_END) {
-        const update = (stream as StageStreamEnd).update;
+        const update = stream.update;
         stageInfo.status = update.status;
         stageInfo.accurate = update.accurate;
         stageInfo.recordedTicks = update.recordedTicks;
         stageInfo.serverTicks = update.serverTicks;
         sawStageEnd = true;
       } else if (stream.type === StageStreamType.STAGE_EVENTS) {
-        const message = ChallengeEvents.deserializeBinary(
-          (stream as StageStreamEvents).events,
-        );
+        const message = ChallengeEvents.deserializeBinary(stream.events);
         events.push(...message.getEventsList());
       }
     }
