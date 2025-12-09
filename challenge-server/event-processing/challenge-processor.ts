@@ -35,6 +35,12 @@ import { v4 as uuidv4 } from 'uuid';
 import sql from '../db';
 import logger from '../log';
 import { MergedEvents } from '../merging';
+import {
+  recordQueryableEvents,
+  recordReportedTimeMismatch,
+  recordRepositoryWrite,
+  recordSessionFinalized,
+} from '../metrics';
 import { Players } from '../players';
 
 export type InitializedFields = {
@@ -319,6 +325,7 @@ export default abstract class ChallengeProcessor {
       this.reportedTimes !== null &&
       this.reportedTimes.challenge !== finalChallengeTicks
     ) {
+      recordReportedTimeMismatch('challenge');
       logger.warn('challenge_time_mismatch', {
         challengeUuid: this.uuid,
         recordedTicks: finalChallengeTicks,
@@ -351,6 +358,7 @@ export default abstract class ChallengeProcessor {
     }
 
     await this.updateAllPlayersStats();
+
     return true;
   }
 
@@ -394,8 +402,6 @@ export default abstract class ChallengeProcessor {
     events: MergedEvents,
   ): Promise<Partial<ModifiableChallengeFields & CustomData>> {
     await this.loadIds();
-
-    const startTime = process.hrtime();
 
     this.splits.clear();
     this.stageState = this.initialStageState();
@@ -458,16 +464,6 @@ export default abstract class ChallengeProcessor {
     const updates = (await this.finalizeUpdates()) as Partial<
       ModifiableChallengeFields & CustomData
     >;
-
-    const [deltaS, deltaNs] = process.hrtime(startTime);
-
-    // TODO(frolv): Record duration as a metric.
-    logger.info('challenge_stage_processed', {
-      challengeUuid: this.uuid,
-      stage,
-      status: events.getStatus(),
-      duration: deltaS * 1000 + deltaNs / 1e6,
-    });
 
     // Add the challenge status after the updates have been written to the
     // database, as it should only be updated in memory until the challenge is
@@ -570,6 +566,8 @@ export default abstract class ChallengeProcessor {
     }
 
     await this.updateSession(sessionId, updates);
+
+    recordSessionFinalized();
   }
 
   private static async updateSession(
@@ -1060,24 +1058,35 @@ export default abstract class ChallengeProcessor {
     let dbEventsCount = 0;
     if (accurate) {
       dbEventsCount = await this.writeQueryableEvents(events);
+      recordQueryableEvents(stage, dbEventsCount);
     }
 
-    // `saveProtoStageEvents` modifies the events, so it must be called last.
-    await this.dataRepository.saveProtoStageEvents(
-      this.uuid,
-      stage,
-      this.party,
-      events,
-      this.stageAttempt ?? undefined,
-    );
+    try {
+      // `saveProtoStageEvents` modifies the events, so it must be called last.
+      await this.dataRepository.saveProtoStageEvents(
+        this.uuid,
+        stage,
+        this.party,
+        events,
+        this.stageAttempt ?? undefined,
+      );
 
-    logger.info('challenge_stage_events_saved', {
-      challengeUuid: this.uuid,
-      stage,
-      totalEvents: events.length,
-      queryableEvents: dbEventsCount,
-      accurate,
-    });
+      recordRepositoryWrite('challenge', 'stage_events', 'success');
+      logger.info('challenge_stage_events_saved', {
+        challengeUuid: this.uuid,
+        stage,
+        totalEvents: events.length,
+        queryableEvents: dbEventsCount,
+        accurate,
+      });
+    } catch (e) {
+      recordRepositoryWrite('challenge', 'stage_events', 'error');
+      logger.error('challenge_stage_events_save_error', {
+        challengeUuid: this.uuid,
+        stage,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
   }
 
   private async tryDetermineGear(player: Event.Player): Promise<void> {

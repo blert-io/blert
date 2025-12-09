@@ -28,6 +28,7 @@ import {
   StageStatus,
   stageStreamFromRecord,
   sessionKey,
+  StageStreamType,
 } from '@blert/common';
 import { RedisClientType, WatchError, commandOptions } from 'redis';
 import { v4 as uuidv4 } from 'uuid';
@@ -49,6 +50,35 @@ import {
   MergeResult,
   Merger,
 } from './merging';
+import {
+  incrementClientEventProcessed,
+  observeMergeDuration,
+  observeStageProcessingDuration,
+  recordChallengeFinalization,
+  recordChallengeRequest,
+  recordCleanupAttempt,
+  recordClientAnomaly,
+  recordClientReconnect,
+  recordClientReportedTimePrecision,
+  recordFinishRequest,
+  recordMergeAlert,
+  recordMergeClient,
+  recordReconnectionTimer,
+  recordRepositoryWrite,
+  recordSessionWatchdogRun,
+  recordStageCompletion,
+  recordStageEventPayload,
+  recordStageStart,
+  recordTimeoutEvent,
+  recordWatchConflict,
+  setClientEventQueueDepth,
+  type ChallengeRequestAction,
+  type ChallengeRequestDecision,
+  type ClientEventStatusLabel,
+  type FinalizationPath,
+  type FinishRequestResult,
+} from './metrics';
+import { timeOperation } from './time';
 
 export const enum ChallengeErrorType {
   FAILED_PRECONDITION,
@@ -241,6 +271,35 @@ export type ChallengeStatusResponse = {
   stageAttempt: number | null;
 };
 
+type StartActionDecision =
+  | { action: StartAction.CREATE; uuid: string; sessionId: number | null }
+  | { action: StartAction.DEFERRED_JOIN; uuid: string }
+  | {
+      action: StartAction.IMMEDIATE_JOIN;
+      uuid: string;
+      response: ChallengeStatusResponse;
+    };
+
+function createChallengeClient(
+  userId: number,
+  recordingType: RecordingType,
+  stage: Stage,
+  stageAttempt: number | null = null,
+): ChallengeClient {
+  return {
+    userId,
+    type: recordingType,
+    active: true,
+    stage,
+    stageAttempt,
+    stageStatus: StageStatus.ENTERED,
+    lastCompleted: {
+      stage: Stage.UNKNOWN,
+      attempt: null,
+    },
+  };
+}
+
 function challengeClientsKey(challengeId: string): string {
   return `challenge:${challengeId}:clients`;
 }
@@ -343,33 +402,97 @@ export default class ChallengeManager {
     party: string[],
     recordingType: RecordingType,
   ): Promise<ChallengeStatusResponse> {
-    if (mode === ChallengeMode.TOB_ENTRY) {
-      throw new ChallengeError(
-        ChallengeErrorType.UNSUPPORTED,
-        'ToB entry mode challenges are not supported',
+    let requestAction: ChallengeRequestAction = 'create';
+    let requestDecision: ChallengeRequestDecision = 'error';
+
+    try {
+      if (mode === ChallengeMode.TOB_ENTRY) {
+        requestDecision = 'rejected';
+        throw new ChallengeError(
+          ChallengeErrorType.UNSUPPORTED,
+          'ToB entry mode challenges are not supported',
+        );
+      }
+
+      const sk = sessionKey(type, party);
+
+      let statusResponse: ChallengeStatusResponse | null = null;
+
+      const decision = await this.determineStartAction(
+        userId,
+        type,
+        recordingType,
+        stage,
+        party,
+        sk,
+      );
+
+      requestAction =
+        decision.action === StartAction.CREATE ? 'create' : 'join';
+
+      switch (decision.action) {
+        case StartAction.CREATE: {
+          statusResponse = await this.handleChallengeCreate(
+            decision.uuid,
+            decision.sessionId,
+            userId,
+            recordingType,
+            type,
+            mode,
+            stage,
+            party,
+            sk,
+          );
+          requestDecision = 'accepted';
+          break;
+        }
+
+        case StartAction.DEFERRED_JOIN: {
+          statusResponse = await this.handleChallengeDeferredJoin(
+            decision.uuid,
+            userId,
+            recordingType,
+          );
+          requestDecision = 'deferred';
+          break;
+        }
+
+        case StartAction.IMMEDIATE_JOIN: {
+          // No additional action is required here as the client was already
+          // added in the initial transaction.
+          statusResponse = decision.response;
+          requestDecision = 'accepted';
+          break;
+        }
+      }
+
+      await ChallengeProcessor.addRecorder(
+        decision.uuid,
+        userId,
+        recordingType,
+      );
+
+      return statusResponse;
+    } finally {
+      recordChallengeRequest(
+        requestAction,
+        type,
+        mode,
+        recordingType,
+        requestDecision,
       );
     }
+  }
 
-    const partyKeyList = partyKeyChallengeList(type, party);
-    const sk = sessionKey(type, party);
-
-    let startAction = StartAction.UNKNOWN;
-    let challengeUuid: string = '';
-    let statusResponse: ChallengeStatusResponse | null = null;
-    let sessionId: number | null = null;
-
-    const challengeClient: ChallengeClient = {
-      userId,
-      type: recordingType,
-      active: true,
-      stage,
-      stageAttempt: null,
-      stageStatus: StageStatus.ENTERED,
-      lastCompleted: {
-        stage: Stage.UNKNOWN,
-        attempt: null,
-      },
-    };
+  private async determineStartAction(
+    userId: number,
+    type: ChallengeType,
+    recordingType: RecordingType,
+    stage: Stage,
+    party: string[],
+    partySessionKey: string,
+  ): Promise<StartActionDecision> {
+    let decision: StartActionDecision | null = null;
 
     const logChallengeJoinDecision = (
       action: StartAction,
@@ -388,16 +511,21 @@ export default class ChallengeManager {
       });
     };
 
+    const partyKeyList = partyKeyChallengeList(type, party);
+
     // Requests from multiple clients in the same party may arrive around the
     // same time, so we need to ensure that only one challenge is created for
     // the party.
     await this.watchTransaction(async (client) => {
       // Reset state in case we had to retry the transaction.
-      startAction = StartAction.UNKNOWN;
-      challengeUuid = '';
-      statusResponse = null;
+      decision = null;
 
-      await Promise.all([client.watch(partyKeyList), client.watch(sk)]);
+      let startAction = StartAction.UNKNOWN;
+
+      await Promise.all([
+        client.watch(partyKeyList),
+        client.watch(partySessionKey),
+      ]);
       const multi = client.multi();
 
       const lastChallengeForParty = await client.lIndex(partyKeyList, -1);
@@ -471,7 +599,10 @@ export default class ChallengeManager {
               { joiningChallenge: lastChallengeForParty },
             );
             startAction = StartAction.DEFERRED_JOIN;
-            challengeUuid = lastChallengeForParty;
+            decision = {
+              action: StartAction.DEFERRED_JOIN,
+              uuid: lastChallengeForParty,
+            };
           } else {
             logChallengeJoinDecision(
               StartAction.IMMEDIATE_JOIN,
@@ -479,28 +610,36 @@ export default class ChallengeManager {
               { joiningChallenge: lastChallengeForParty },
             );
 
-            challengeUuid = lastChallengeForParty;
-            statusResponse = {
-              uuid: challengeUuid,
-              mode: Number.parseInt(modeValue) as ChallengeMode,
-              stage: Number.parseInt(stageValue) as Stage,
-              stageAttempt: stageAttemptValue
-                ? Number.parseInt(stageAttemptValue)
-                : null,
-            };
-            challengeClient.stage = statusResponse.stage;
-            challengeClient.stageAttempt = statusResponse.stageAttempt;
             startAction = StartAction.IMMEDIATE_JOIN;
+            decision = {
+              action: StartAction.IMMEDIATE_JOIN,
+              uuid: lastChallengeForParty,
+              response: {
+                uuid: lastChallengeForParty,
+                mode: Number.parseInt(modeValue) as ChallengeMode,
+                stage: Number.parseInt(stageValue) as Stage,
+                stageAttempt: stageAttemptValue
+                  ? Number.parseInt(stageAttemptValue)
+                  : null,
+              },
+            };
+
+            const challengeClient = createChallengeClient(
+              userId,
+              recordingType,
+              decision.response.stage,
+              decision.response.stageAttempt,
+            );
 
             multi.set(clientChallengesKey(userId), lastChallengeForParty);
             multi.hSet(
-              challengeClientsKey(challengeUuid),
+              challengeClientsKey(lastChallengeForParty),
               userId,
               JSON.stringify(challengeClient),
             );
 
             // Refresh the session duration.
-            multi.expire(sk, SESSION_ACTIVITY_DURATION_S, 'GT');
+            multi.expire(partySessionKey, SESSION_ACTIVITY_DURATION_S, 'GT');
           }
         }
       } else {
@@ -511,7 +650,7 @@ export default class ChallengeManager {
       if (startAction === StartAction.CREATE) {
         // Generate a UUID for the new challenge and set the minimum required
         // fields for other clients to recognize the challenge is initializing.
-        challengeUuid = uuidv4();
+        const challengeUuid = uuidv4();
         multi.rPush(partyKeyList, challengeUuid);
         multi.hSet(
           challengesKey(challengeUuid),
@@ -523,15 +662,17 @@ export default class ChallengeManager {
           }),
         );
 
-        const sessionIdValue = await client.get(sk);
-        if (sessionIdValue !== null) {
-          sessionId = Number.parseInt(sessionIdValue);
-        }
-      } else {
+        const sessionIdValue = await client.get(partySessionKey);
+        decision = {
+          action: StartAction.CREATE,
+          uuid: challengeUuid,
+          sessionId: sessionIdValue ? Number.parseInt(sessionIdValue) : null,
+        };
+      } else if (decision !== null) {
         // If a client is joining a challenge that is due for cleanup, reset
         // its timeout state to allow the challenge to continue.
         const timeoutState = await client.hGet(
-          challengesKey(challengeUuid),
+          challengesKey(decision.uuid),
           'timeoutState',
         );
         if (
@@ -540,7 +681,7 @@ export default class ChallengeManager {
             TimeoutState.CLEANUP
         ) {
           multi.hSet(
-            challengesKey(challengeUuid),
+            challengesKey(decision.uuid),
             'timeoutState',
             TimeoutState.NONE,
           );
@@ -548,9 +689,9 @@ export default class ChallengeManager {
       }
 
       return multi.exec();
-    });
+    }, 'challenge_start');
 
-    if (startAction === StartAction.UNKNOWN || challengeUuid === '') {
+    if (decision === null) {
       // This should never happen as the transaction should always set these
       // values, but log some basic debugging information just in case.
       logger.error('challenge_start_failed', {
@@ -562,199 +703,208 @@ export default class ChallengeManager {
       throw new Error('Failed to start challenge');
     }
 
-    switch (startAction) {
-      case StartAction.CREATE: {
-        // This client is responsible for creating the challenge in the
-        // database. Once that is done, activate the challenge and update its
-        // Redis state from its challenge processor.
+    return decision;
+  }
 
-        const startTime = new Date();
-        let processor: ChallengeProcessor;
+  private async handleChallengeCreate(
+    uuid: string,
+    sessionId: number | null,
+    userId: number,
+    recordingType: RecordingType,
+    type: ChallengeType,
+    mode: ChallengeMode,
+    stage: Stage,
+    party: string[],
+    partySessionKey: string,
+  ): Promise<ChallengeStatusResponse> {
+    // This client is responsible for creating the challenge in the
+    // database. Once that is done, activate the challenge and update its
+    // Redis state from its challenge processor.
 
-        try {
-          processor = newChallengeProcessor(
-            this.challengeDataRepository,
-            this.priceTracker,
-            challengeUuid,
-            type,
-            mode,
-            stage,
-            StageStatus.ENTERED,
-            party,
-          );
+    const startTime = new Date();
+    let processor: ChallengeProcessor;
 
-          await processor.createNew(startTime, sessionId);
-        } catch (e: unknown) {
-          logger.error('challenge_create_failed', {
-            userId,
-            challengeUuid,
-            type,
-            mode,
-            stage,
-            party,
-            error: e instanceof Error ? e : new Error(String(e)),
-          });
+    try {
+      processor = newChallengeProcessor(
+        this.challengeDataRepository,
+        this.priceTracker,
+        uuid,
+        type,
+        mode,
+        stage,
+        StageStatus.ENTERED,
+        party,
+      );
 
-          await this.deleteRedisChallengeData(challengeUuid, type, party);
+      await processor.createNew(startTime, sessionId);
+    } catch (e: unknown) {
+      logger.error('challenge_create_failed', {
+        userId,
+        challengeUuid: uuid,
+        type,
+        mode,
+        stage,
+        party,
+        error: e instanceof Error ? e : new Error(String(e)),
+      });
 
-          if (e instanceof ChallengeError) {
-            throw e;
-          }
-          throw new ChallengeError(
-            ChallengeErrorType.INTERNAL,
-            'Failed to create challenge',
-          );
-        }
+      await this.deleteRedisChallengeData(uuid, type, party);
 
-        await this.watchTransaction(async (client) => {
-          await client.watch(sk);
-
-          const multi = client
-            .multi()
-            .hSet(challengesKey(challengeUuid), {
-              ...toRedis(processor.getState()),
-              state: LifecycleState.ACTIVE,
-            })
-            .hSet(
-              challengeClientsKey(challengeUuid),
-              userId,
-              JSON.stringify(challengeClient),
-            )
-            .set(clientChallengesKey(userId), challengeUuid)
-            .set(sk, processor.getSessionId(), {
-              EX: SESSION_ACTIVITY_DURATION_S,
-            });
-
-          for (const player of party) {
-            multi.set(activePlayerKey(player), challengeUuid);
-          }
-
-          return multi.exec();
-        });
-
-        statusResponse = {
-          uuid: challengeUuid,
-          mode,
-          stage,
-          stageAttempt: processor.getStageAttempt(),
-        };
-
-        logger.info('challenge_created', {
-          userId,
-          challengeUuid,
-          sessionId: processor.getSessionId(),
-          type,
-          mode,
-          stage,
-          party,
-        });
-        break;
+      if (e instanceof ChallengeError) {
+        throw e;
       }
-
-      case StartAction.DEFERRED_JOIN: {
-        // Another client is simultaneously creating the challenge. Wait until
-        // it is ready, then have this client join it.
-        const key = challengesKey(challengeUuid);
-        let retries = 0;
-
-        while (retries < DEFERRED_JOIN_MAX_RETRIES) {
-          let complete = false;
-
-          await this.watchTransaction(async (client) => {
-            await client.watch(key);
-
-            complete = false;
-            const multi = client.multi();
-
-            const [state, modeValue, stageValue, stageAttemptValue] =
-              await client.hmGet(key, [
-                'state',
-                'mode',
-                'stage',
-                'stageAttempt',
-              ]);
-            const lifecycleState =
-              state !== undefined
-                ? (Number.parseInt(state) as LifecycleState)
-                : null;
-
-            if (
-              lifecycleState === null ||
-              lifecycleState === LifecycleState.CLEANUP
-            ) {
-              logger.error('deferred_join_missing_challenge', {
-                challengeUuid,
-                userId,
-                lifecycleState,
-              });
-              throw new ChallengeError(
-                ChallengeErrorType.INTERNAL,
-                `Challenge ${challengeUuid} no longer exists`,
-              );
-            }
-
-            if (lifecycleState === LifecycleState.ACTIVE) {
-              complete = true;
-
-              statusResponse = {
-                uuid: challengeUuid,
-                mode: Number.parseInt(modeValue) as ChallengeMode,
-                stage: Number.parseInt(stageValue) as Stage,
-                stageAttempt: stageAttemptValue
-                  ? Number.parseInt(stageAttemptValue)
-                  : null,
-              };
-              challengeClient.stage = statusResponse.stage;
-              challengeClient.stageAttempt = statusResponse.stageAttempt;
-
-              multi.set(clientChallengesKey(userId), challengeUuid);
-              multi.hSet(
-                challengeClientsKey(challengeUuid),
-                userId,
-                JSON.stringify(challengeClient),
-              );
-            }
-
-            return multi.exec();
-          });
-
-          if (complete) {
-            break;
-          }
-
-          const delayMs = DEFERRED_JOIN_RETRY_INTERVAL_MS * 2 ** retries;
-          await delay(Math.min(delayMs, 250));
-          retries++;
-        }
-
-        if (retries === DEFERRED_JOIN_MAX_RETRIES) {
-          logger.error('deferred_join_max_retries', {
-            challengeUuid,
-            userId,
-            retries,
-          });
-          throw new ChallengeError(
-            ChallengeErrorType.INTERNAL,
-            `Failed to join challenge ${challengeUuid} for user ${userId} after ${retries} attempts`,
-          );
-        }
-
-        logger.info('deferred_join_success', {
-          challengeUuid,
-          userId,
-          retries,
-        });
-        break;
-      }
-
-      case StartAction.IMMEDIATE_JOIN: {
-        // No additional action is required here as the client was already
-        // added in the initial transaction.
-        break;
-      }
+      throw new ChallengeError(
+        ChallengeErrorType.INTERNAL,
+        'Failed to create challenge',
+      );
     }
 
-    await ChallengeProcessor.addRecorder(challengeUuid, userId, recordingType);
+    const challengeClient = createChallengeClient(userId, recordingType, stage);
+
+    await this.watchTransaction(async (client) => {
+      await client.watch(partySessionKey);
+
+      const multi = client
+        .multi()
+        .hSet(challengesKey(uuid), {
+          ...toRedis(processor.getState()),
+          state: LifecycleState.ACTIVE,
+        })
+        .hSet(
+          challengeClientsKey(uuid),
+          userId,
+          JSON.stringify(challengeClient),
+        )
+        .set(clientChallengesKey(userId), uuid)
+        .set(partySessionKey, processor.getSessionId(), {
+          EX: SESSION_ACTIVITY_DURATION_S,
+        });
+
+      for (const player of party) {
+        multi.set(activePlayerKey(player), uuid);
+      }
+
+      return multi.exec();
+    }, 'challenge_create');
+
+    logger.info('challenge_created', {
+      userId,
+      challengeUuid: uuid,
+      sessionId: processor.getSessionId(),
+      type,
+      mode,
+      stage,
+      party,
+    });
+
+    return {
+      uuid,
+      mode,
+      stage,
+      stageAttempt: processor.getStageAttempt(),
+    };
+  }
+
+  private async handleChallengeDeferredJoin(
+    uuid: string,
+    userId: number,
+    recordingType: RecordingType,
+  ): Promise<ChallengeStatusResponse> {
+    // Another client is simultaneously creating the challenge. Wait until
+    // it is ready, then have this client join it.
+    const key = challengesKey(uuid);
+    let retries = 0;
+
+    let statusResponse: ChallengeStatusResponse | null = null;
+
+    while (retries < DEFERRED_JOIN_MAX_RETRIES) {
+      let complete = false;
+
+      await this.watchTransaction(async (client) => {
+        await client.watch(key);
+
+        complete = false;
+        const multi = client.multi();
+
+        const [state, modeValue, stageValue, stageAttemptValue] =
+          await client.hmGet(key, ['state', 'mode', 'stage', 'stageAttempt']);
+        const lifecycleState =
+          state !== undefined
+            ? (Number.parseInt(state) as LifecycleState)
+            : null;
+
+        if (
+          lifecycleState === null ||
+          lifecycleState === LifecycleState.CLEANUP
+        ) {
+          logger.error('deferred_join_missing_challenge', {
+            challengeUuid: uuid,
+            userId,
+            lifecycleState,
+          });
+          throw new ChallengeError(
+            ChallengeErrorType.INTERNAL,
+            `Challenge ${uuid} no longer exists`,
+          );
+        }
+
+        if (lifecycleState === LifecycleState.ACTIVE) {
+          complete = true;
+
+          statusResponse = {
+            uuid,
+            mode: Number.parseInt(modeValue) as ChallengeMode,
+            stage: Number.parseInt(stageValue) as Stage,
+            stageAttempt: stageAttemptValue
+              ? Number.parseInt(stageAttemptValue)
+              : null,
+          };
+
+          const challengeClient = createChallengeClient(
+            userId,
+            recordingType,
+            statusResponse.stage,
+            statusResponse.stageAttempt,
+          );
+
+          multi.set(clientChallengesKey(userId), uuid);
+          multi.hSet(
+            challengeClientsKey(uuid),
+            userId,
+            JSON.stringify(challengeClient),
+          );
+        }
+
+        return multi.exec();
+      }, 'deferred_join');
+
+      if (complete) {
+        break;
+      }
+
+      const delayMs = DEFERRED_JOIN_RETRY_INTERVAL_MS * 2 ** retries;
+      await delay(Math.min(delayMs, 250));
+      retries++;
+    }
+
+    if (retries === DEFERRED_JOIN_MAX_RETRIES) {
+      logger.error('deferred_join_max_retries', {
+        challengeUuid: uuid,
+        userId,
+        retries,
+      });
+      throw new ChallengeError(
+        ChallengeErrorType.INTERNAL,
+        `Failed to join challenge ${uuid} for user ${userId} after ${retries} attempts`,
+      );
+    }
+
+    logger.info('deferred_join_success', {
+      challengeUuid: uuid,
+      userId,
+      retries,
+    });
+
     return statusResponse!;
   }
 
@@ -775,6 +925,7 @@ export default class ChallengeManager {
         challengeUuid: challengeId,
         currentChallenge,
       });
+      recordFinishRequest(false, 'rejected');
       return;
     }
 
@@ -782,107 +933,125 @@ export default class ChallengeManager {
 
     let allClientsFinished = false;
     let result: string | null = null;
+    let metricResult: FinishRequestResult = 'error';
 
-    await this.watchTransaction(async (client) => {
-      // Reset allClientsFinished in case we had to retry the transaction.
-      allClientsFinished = false;
-      result = null;
+    try {
+      await this.watchTransaction(async (client) => {
+        // Reset allClientsFinished in case we had to retry the transaction.
+        allClientsFinished = false;
+        result = null;
 
-      await client.watch(challengeKey);
-      await client.watch(challengeClientsKey(challengeId));
-      const multi = client.multi();
+        await client.watch(challengeKey);
+        await client.watch(challengeClientsKey(challengeId));
+        const multi = client.multi();
 
-      multi.del(clientChallengesKey(userId));
+        multi.del(clientChallengesKey(userId));
 
-      const challenge = await this.loadChallenge(challengeId, client);
-      if (challenge === null || challenge.state !== LifecycleState.ACTIVE) {
-        result = 'challenge_not_active';
-        return multi.exec();
-      }
+        const challenge = await this.loadChallenge(challengeId, client);
+        if (challenge === null || challenge.state !== LifecycleState.ACTIVE) {
+          result = 'challenge_not_active';
+          return multi.exec();
+        }
 
-      // As there is activity, refresh the challenge's session duration.
-      multi.expire(
-        sessionKey(challenge.type, challenge.party),
-        SESSION_ACTIVITY_DURATION_S,
-        'GT',
-      );
+        // As there is activity, refresh the challenge's session duration.
+        multi.expire(
+          sessionKey(challenge.type, challenge.party),
+          SESSION_ACTIVITY_DURATION_S,
+          'GT',
+        );
 
-      const clients = await this.loadChallengeClients(challengeId, client);
-      const self = clients.find((c) => c.userId === userId);
-      if (self === undefined) {
-        result = 'not_in_challenge';
-        return multi.exec();
-      }
+        const clients = await this.loadChallengeClients(challengeId, client);
+        const self = clients.find((c) => c.userId === userId);
+        if (self === undefined) {
+          result = 'not_in_challenge';
+          return multi.exec();
+        }
 
-      let timeout: ChallengeTimeout;
+        let timeout: ChallengeTimeout;
 
-      allClientsFinished = clients.length === 1;
-      if (!allClientsFinished) {
-        // If there are still clients connected, set a timeout to allow
-        // their own finish requests to complete.
-        //
-        // However, spectators may just leave a challenge early before it has
-        // actually finished, so don't count their end times as definitive.
-        // Instead, start a longer cleanup timer which will end the challenge
-        // unless other activity is detected.
-        const hasDefinitelyFinished =
-          self.type === RecordingType.PARTICIPANT || reportedTimes !== null;
+        allClientsFinished = clients.length === 1;
+        if (!allClientsFinished) {
+          // If there are still clients connected, set a timeout to allow
+          // their own finish requests to complete.
+          //
+          // However, spectators may just leave a challenge early before it has
+          // actually finished, so don't count their end times as definitive.
+          // Instead, start a longer cleanup timer which will end the challenge
+          // unless other activity is detected.
+          const hasDefinitelyFinished =
+            self.type === RecordingType.PARTICIPANT || reportedTimes !== null;
 
-        if (
-          hasDefinitelyFinished ||
-          challenge.timeoutState === TimeoutState.CHALLENGE_END
-        ) {
+          if (
+            hasDefinitelyFinished ||
+            challenge.timeoutState === TimeoutState.CHALLENGE_END
+          ) {
+            timeout = {
+              timestamp: Date.now() + 1500,
+              maxRetryAttempts: 3,
+              retryIntervalMs: 1000,
+            };
+            multi.hSet(
+              challengeKey,
+              'timeoutState',
+              TimeoutState.CHALLENGE_END,
+            );
+          } else {
+            timeout = {
+              timestamp: Date.now() + ChallengeManager.MAX_RECONNECTION_PERIOD,
+              maxRetryAttempts: 1,
+              retryIntervalMs: ChallengeManager.MAX_RECONNECTION_PERIOD,
+            };
+            multi.hSet(challengeKey, 'timeoutState', TimeoutState.CLEANUP);
+          }
+        } else {
           timeout = {
             timestamp: Date.now() + 1500,
             maxRetryAttempts: 3,
             retryIntervalMs: 1000,
           };
           multi.hSet(challengeKey, 'timeoutState', TimeoutState.CHALLENGE_END);
-        } else {
-          timeout = {
-            timestamp: Date.now() + ChallengeManager.MAX_RECONNECTION_PERIOD,
-            maxRetryAttempts: 1,
-            retryIntervalMs: ChallengeManager.MAX_RECONNECTION_PERIOD,
-          };
-          multi.hSet(challengeKey, 'timeoutState', TimeoutState.CLEANUP);
         }
-      } else {
-        timeout = {
-          timestamp: Date.now() + 1500,
-          maxRetryAttempts: 3,
-          retryIntervalMs: 1000,
-        };
-        multi.hSet(challengeKey, 'timeoutState', TimeoutState.CHALLENGE_END);
-      }
 
-      multi.hSet(
-        ChallengeManager.CHALLENGE_TIMEOUT_KEY,
-        challengeId,
-        JSON.stringify(timeout),
-      );
-
-      multi.hDel(challengeClientsKey(challengeId), userId.toString());
-
-      // TODO(frolv): Collect and cross-check reported times from all clients.
-      if (reportedTimes !== null) {
         multi.hSet(
-          challengeKey,
-          'reportedChallengeTicks',
-          reportedTimes.challenge,
+          ChallengeManager.CHALLENGE_TIMEOUT_KEY,
+          challengeId,
+          JSON.stringify(timeout),
         );
-        multi.hSet(challengeKey, 'reportedOverallTicks', reportedTimes.overall);
+
+        multi.hDel(challengeClientsKey(challengeId), userId.toString());
+
+        if (reportedTimes !== null) {
+          multi.hSet(
+            challengeKey,
+            'reportedChallengeTicks',
+            reportedTimes.challenge,
+          );
+          multi.hSet(
+            challengeKey,
+            'reportedOverallTicks',
+            reportedTimes.overall,
+          );
+        }
+
+        result = 'success';
+        return multi.exec();
+      });
+
+      logger.info('challenge_finish', {
+        userId,
+        challengeUuid: challengeId,
+        result,
+        allClientsFinished,
+      });
+
+      if (result === 'success') {
+        metricResult = 'accepted';
+      } else if (result !== null) {
+        metricResult = 'rejected';
       }
-
-      result = 'success';
-      return multi.exec();
-    });
-
-    logger.info('challenge_finish', {
-      userId,
-      challengeUuid: challengeId,
-      result,
-      allClientsFinished,
-    });
+    } finally {
+      recordFinishRequest(allClientsFinished, metricResult);
+    }
   }
 
   public async update(
@@ -912,12 +1081,14 @@ export default class ChallengeManager {
     let result: ChallengeStatusResponse | null = null;
     let forceCleanup = false;
     let finishStage: [Stage, number | null] | null = null;
+    let stageStarted: [ChallengeType, ChallengeMode, Stage] | null = null;
 
     await this.watchTransaction(async (client) => {
       // Reset state variables in case we had to retry the transaction.
       result = null;
       forceCleanup = false;
       finishStage = null;
+      stageStarted = null;
 
       await client.watch(challengesKey(challengeId));
       const challenge = await this.loadChallenge(challengeId, client);
@@ -976,6 +1147,9 @@ export default class ChallengeManager {
       if (update.stage !== undefined) {
         const stageUpdate = update.stage;
         if (stageUpdate.stage < challenge.stage) {
+          // TODO(frolv): Investigate log patterns to see whether this check
+          // should be relaxed, e.g. a client sends a delayed finish update for
+          // a previous stage.
           logger.warn('challenge_update_rejected', {
             userId,
             challengeUuid: challengeId,
@@ -1096,6 +1270,7 @@ export default class ChallengeManager {
           const isNewStage = stageUpdate.stage !== processor.getStage();
           if (isNewStage) {
             processor.startStage(stageUpdate.stage);
+            stageStarted = [challenge.type, challenge.mode, stageUpdate.stage];
           } else {
             const isCurrentAttempt =
               us.stage === processor.getStage() &&
@@ -1104,6 +1279,11 @@ export default class ChallengeManager {
 
             if (isCurrentAttempt) {
               processor.startStage(stageUpdate.stage);
+              stageStarted = [
+                challenge.type,
+                challenge.mode,
+                stageUpdate.stage,
+              ];
             }
           }
 
@@ -1133,8 +1313,12 @@ export default class ChallengeManager {
       return multi.exec();
     });
 
+    if (stageStarted !== null) {
+      recordStageStart(stageStarted[0], stageStarted[1], stageStarted[2]);
+    }
+
     if (forceCleanup) {
-      await this.cleanupChallenge(challengeId, null);
+      await this.cleanupChallenge(challengeId, null, 'forced_cleanup');
     } else if (finishStage !== null) {
       const [stageToComplete, attemptToComplete] = finishStage as [
         Stage,
@@ -1170,108 +1354,129 @@ export default class ChallengeManager {
     userId: number,
     recordingType: RecordingType,
   ): Promise<ChallengeStatusResponse> {
-    const currentChallenge = await this.client.get(clientChallengesKey(userId));
-    if (currentChallenge !== null) {
-      logger.warn('challenge_join_rejected', {
-        userId,
-        challengeUuid: challengeId,
-        reason: 'already_in_challenge',
-        currentChallenge,
-      });
-      throw new ChallengeError(
-        ChallengeErrorType.FAILED_PRECONDITION,
-        'User is already in a challenge',
+    let metricDecision: ChallengeRequestDecision = 'error';
+
+    try {
+      const currentChallenge = await this.client.get(
+        clientChallengesKey(userId),
       );
-    }
-
-    let statusResponse: ChallengeStatusResponse | null = null;
-
-    await this.watchTransaction(async (client) => {
-      await Promise.all([
-        client.watch(challengesKey(challengeId)),
-        client.watch(challengeClientsKey(challengeId)),
-      ]);
-      const multi = client.multi();
-
-      statusResponse = null;
-
-      const [challenge, clients] = await Promise.all([
-        this.loadChallenge(challengeId, client),
-        this.loadChallengeClients(challengeId, client),
-      ]);
-
-      if (challenge === null || challenge.state !== LifecycleState.ACTIVE) {
+      if (currentChallenge !== null) {
         logger.warn('challenge_join_rejected', {
           userId,
           challengeUuid: challengeId,
-          reason: 'non_existent',
+          reason: 'already_in_challenge',
+          currentChallenge,
         });
-        return multi.exec();
+        metricDecision = 'rejected';
+        throw new ChallengeError(
+          ChallengeErrorType.FAILED_PRECONDITION,
+          'User is already in a challenge',
+        );
       }
 
-      const clientInfo: ChallengeClient = {
-        userId,
-        type: recordingType,
-        active: true,
-        stage: challenge.stage,
-        stageAttempt: challenge.stageAttempt ?? null,
-        stageStatus: StageStatus.ENTERED,
-        lastCompleted: {
-          stage: Stage.UNKNOWN,
-          attempt: null,
-        },
-      };
-      multi.hSet(
-        challengeClientsKey(challengeId),
-        userId,
-        JSON.stringify(clientInfo),
-      );
+      let statusResponse: ChallengeStatusResponse | null = null;
 
-      const allInactive = clients.every((c) => !c.active);
-      if (allInactive && challenge.timeoutState === TimeoutState.CLEANUP) {
-        logger.info('challenge_cleanup_canceled', {
+      await this.watchTransaction(async (client) => {
+        await Promise.all([
+          client.watch(challengesKey(challengeId)),
+          client.watch(challengeClientsKey(challengeId)),
+        ]);
+        const multi = client.multi();
+
+        statusResponse = null;
+
+        const [challenge, clients] = await Promise.all([
+          this.loadChallenge(challengeId, client),
+          this.loadChallengeClients(challengeId, client),
+        ]);
+
+        if (challenge === null || challenge.state !== LifecycleState.ACTIVE) {
+          logger.warn('challenge_join_rejected', {
+            userId,
+            challengeUuid: challengeId,
+            reason: 'non_existent',
+          });
+          metricDecision = 'rejected';
+          return multi.exec();
+        }
+
+        const clientInfo: ChallengeClient = {
+          userId,
+          type: recordingType,
+          active: true,
+          stage: challenge.stage,
+          stageAttempt: challenge.stageAttempt ?? null,
+          stageStatus: StageStatus.ENTERED,
+          lastCompleted: {
+            stage: Stage.UNKNOWN,
+            attempt: null,
+          },
+        };
+        multi.hSet(
+          challengeClientsKey(challengeId),
+          userId,
+          JSON.stringify(clientInfo),
+        );
+
+        const allInactive = clients.every((c) => !c.active);
+        if (allInactive && challenge.timeoutState === TimeoutState.CLEANUP) {
+          logger.info('challenge_cleanup_canceled', {
+            userId,
+            challengeUuid: challengeId,
+            stage: clientInfo.stage,
+            attempt: clientInfo.stageAttempt,
+            reason: 'client_reconnected',
+          });
+
+          // Pause any pending cleanup if the challenge was previously inactive.
+          multi.hSet(
+            challengesKey(challengeId),
+            'timeoutState',
+            TimeoutState.NONE,
+          );
+          multi.hDel(ChallengeManager.CHALLENGE_TIMEOUT_KEY, challengeId);
+        }
+
+        logger.info('client_reconnected', {
           userId,
           challengeUuid: challengeId,
           stage: clientInfo.stage,
           attempt: clientInfo.stageAttempt,
-          reason: 'client_reconnected',
         });
-        // Pause any pending cleanup if the challenge was previously inactive.
-        multi.hSet(
-          challengesKey(challengeId),
-          'timeoutState',
-          TimeoutState.NONE,
-        );
-        multi.hDel(ChallengeManager.CHALLENGE_TIMEOUT_KEY, challengeId);
-      }
 
-      logger.info('client_reconnected', {
-        userId,
-        challengeUuid: challengeId,
-        stage: clientInfo.stage,
-        attempt: clientInfo.stageAttempt,
+        multi.set(clientChallengesKey(userId), challengeId);
+
+        statusResponse = {
+          uuid: challengeId,
+          mode: challenge.mode,
+          stage: clientInfo.stage,
+          stageAttempt: clientInfo.stageAttempt,
+        };
+
+        return multi.exec();
       });
 
-      multi.set(clientChallengesKey(userId), challengeId);
+      if (statusResponse === null) {
+        metricDecision = 'rejected';
+        throw new ChallengeError(
+          ChallengeErrorType.FAILED_PRECONDITION,
+          'Challenge does not exist',
+        );
+      }
 
-      statusResponse = {
-        uuid: challengeId,
-        mode: challenge.mode,
-        stage: clientInfo.stage,
-        stageAttempt: clientInfo.stageAttempt,
-      };
-
-      return multi.exec();
-    });
-
-    if (statusResponse === null) {
-      throw new ChallengeError(
-        ChallengeErrorType.FAILED_PRECONDITION,
-        'Challenge does not exist',
-      );
+      metricDecision = 'accepted';
+      return statusResponse;
+    } catch (e) {
+      logger.error('client_reconnect_error', {
+        userId,
+        challengeUuid: challengeId,
+        recordingType,
+        error: e instanceof Error ? e : new Error(String(e)),
+      });
+      throw e;
+    } finally {
+      recordClientReconnect(recordingType, metricDecision);
     }
-
-    return statusResponse;
   }
 
   private async processEvents() {
@@ -1290,6 +1495,8 @@ export default class ChallengeManager {
         continue;
       }
 
+      await this.updateClientEventQueueDepth();
+
       const event = JSON.parse(res.element) as ClientEvent;
 
       const clientChallenge = await this.eventClient.get(
@@ -1301,21 +1508,29 @@ export default class ChallengeManager {
 
       if (event.type === ClientEventType.STATUS) {
         const statusEvent = event as ClientStatusEvent;
+        let statusLabel: ClientEventStatusLabel | null = null;
         switch (statusEvent.status) {
           case ClientStatus.ACTIVE:
             await this.setClientActive(event.userId, clientChallenge);
+            statusLabel = 'active';
             break;
           case ClientStatus.IDLE:
             await this.setClientInactive(event.userId, clientChallenge);
+            statusLabel = 'idle';
             break;
           case ClientStatus.DISCONNECTED:
             await this.removeClient(event.userId, clientChallenge);
+            statusLabel = 'disconnected';
             break;
+        }
+
+        if (statusLabel !== null) {
+          incrementClientEventProcessed(statusLabel);
         }
       }
     }
 
-    void this.eventClient.disconnect();
+    await this.eventClient.disconnect();
   }
 
   private async removeClient(id: number, challengeId: string): Promise<void> {
@@ -1364,10 +1579,22 @@ export default class ChallengeManager {
           challengeUuid: challengeId,
           timeout: ChallengeManager.MAX_RECONNECTION_PERIOD,
         });
+        recordReconnectionTimer('disconnect');
       }
 
       return multi.exec();
     });
+  }
+
+  private async updateClientEventQueueDepth(): Promise<void> {
+    try {
+      const length = await this.eventClient.lLen(CLIENT_EVENTS_KEY);
+      setClientEventQueueDepth(length);
+    } catch (err) {
+      logger.warn('client_event_queue_depth_failed', {
+        error: err instanceof Error ? err : new Error(String(err)),
+      });
+    }
   }
 
   private async setClientActive(
@@ -1483,6 +1710,7 @@ export default class ChallengeManager {
           challengeUuid: challengeId,
           timeout: ChallengeManager.MAX_INACTIVITY_PERIOD,
         });
+        recordReconnectionTimer('all_inactive');
         const timeout: ChallengeTimeout = {
           timestamp: Date.now() + ChallengeManager.MAX_INACTIVITY_PERIOD,
           maxRetryAttempts: 0,
@@ -1596,16 +1824,38 @@ export default class ChallengeManager {
           return;
         }
 
-        const stageEvents = await this.client
-          .xRange(
-            commandOptions({ returnBuffers: true }),
-            challengeStageStreamKey(challenge.uuid, stage, attempt),
-            '-',
-            '+',
-          )
-          .then((res) => res.map((s) => stageStreamFromRecord(s.message)));
+        const stageEvents = await this.client.xRange(
+          commandOptions({ returnBuffers: true }),
+          challengeStageStreamKey(challenge.uuid, stage, attempt),
+          '-',
+          '+',
+        );
 
-        if (stageEvents.length === 0) {
+        let totalSize = 0;
+
+        const eventsByClient = new Map<number, ClientStageStream[]>();
+        for (const evt of stageEvents) {
+          try {
+            const streamEvent = stageStreamFromRecord(evt.message);
+            if (!eventsByClient.has(streamEvent.clientId)) {
+              eventsByClient.set(streamEvent.clientId, []);
+            }
+
+            eventsByClient.get(streamEvent.clientId)!.push(streamEvent);
+            if (streamEvent.type === StageStreamType.STAGE_EVENTS) {
+              totalSize += streamEvent.events.length;
+            }
+          } catch (e: unknown) {
+            logger.error('stage_stream_event_parse_failed', {
+              challengeUuid: challenge.uuid,
+              stage: stageWithAttempt,
+              attempt,
+              error: e instanceof Error ? e.message : String(e),
+            });
+          }
+        }
+
+        if (eventsByClient.size === 0) {
           const multi = this.client.multi();
           multi.del(challengeStageStreamKey(challenge.uuid, stage, attempt));
           multi.hDel(challengesKey(challenge.uuid), 'processingStage');
@@ -1613,13 +1863,7 @@ export default class ChallengeManager {
           return;
         }
 
-        const eventsByClient = new Map<number, ClientStageStream[]>();
-        for (const evt of stageEvents) {
-          if (!eventsByClient.has(evt.clientId)) {
-            eventsByClient.set(evt.clientId, []);
-          }
-          eventsByClient.get(evt.clientId)!.push(evt);
-        }
+        recordStageEventPayload(stage, totalSize, eventsByClient.size);
 
         const challengeInfo = {
           uuid: challenge.uuid,
@@ -1630,20 +1874,32 @@ export default class ChallengeManager {
         const clients: ClientEvents[] = [];
 
         for (const [clientId, events] of eventsByClient) {
-          clients.push(
-            ClientEvents.fromClientStream(
-              clientId,
-              challengeInfo,
-              stage,
-              events,
-            ),
+          const client = ClientEvents.fromClientStream(
+            clientId,
+            challengeInfo,
+            stage,
+            events,
           );
+
+          const serverTicks = client.getServerTicks();
+          if (serverTicks !== null) {
+            recordClientReportedTimePrecision(
+              serverTicks.precise ? 'precise' : 'imprecise',
+            );
+          }
+
+          clients.push(client);
         }
 
-        const merger = new Merger(stage, clients);
-        const result = merger.merge();
+        const result = await timeOperation(
+          () => new Merger(stage, clients).merge(),
+          (durationMs) => {
+            observeMergeDuration(stage, durationMs);
+            logger.info('merge_duration', { stage, durationMs });
+          },
+        );
 
-        const multi = this.client.multi();
+        const pipeline = this.client.multi();
 
         if (result !== null) {
           logger.info('stage_finished', {
@@ -1656,10 +1912,29 @@ export default class ChallengeManager {
             skippedCount: result.skippedCount,
           });
 
-          // TODO(frolv): Persist merge result in the data repository.
+          recordStageCompletion(
+            stage,
+            result.events.getStatus(),
+            result.events.isAccurate(),
+            result.unmergedCount > 0,
+            result.skippedCount > 0,
+          );
 
-          const updates = await processor.processStage(stage, result.events);
-          multi.hSet(challengesKey(challenge.uuid), toRedis(updates));
+          this.recordMergeResult(stage, result);
+
+          const updates = await timeOperation(
+            async () => await processor.processStage(stage, result.events),
+            (durationMs) => {
+              logger.info('challenge_stage_processed', {
+                challengeUuid: challenge.uuid,
+                stage,
+                status: result.events.getStatus(),
+                durationMs,
+              });
+              observeStageProcessingDuration(stage, durationMs);
+            },
+          );
+          pipeline.hSet(challengesKey(challenge.uuid), toRedis(updates));
 
           if (result.unmergedCount > 0) {
             const shouldSave = Math.random() < UNMERGED_EVENT_SAVE_RATE;
@@ -1671,7 +1946,10 @@ export default class ChallengeManager {
                     this.saveUnmergedEvents(
                       challengeInfo,
                       stage,
-                      stageEvents,
+                      eventsByClient
+                        .values()
+                        .flatMap((s) => s)
+                        .toArray(),
                       result,
                     ),
                 );
@@ -1680,9 +1958,9 @@ export default class ChallengeManager {
           }
         }
 
-        multi.del(challengeStageStreamKey(challenge.uuid, stage, attempt));
-        multi.hDel(challengesKey(challenge.uuid), 'processingStage');
-        await multi.exec();
+        pipeline.del(challengeStageStreamKey(challenge.uuid, stage, attempt));
+        pipeline.hDel(challengesKey(challenge.uuid), 'processingStage');
+        await pipeline.exec();
       },
     );
   }
@@ -1732,6 +2010,7 @@ export default class ChallengeManager {
   private async cleanupChallenge(
     challengeId: string,
     timeout: ChallengeTimeout | null,
+    path: FinalizationPath,
   ): Promise<void> {
     const challengeKey = challengesKey(challengeId);
     let status = CleanupStatus.ACTIVE_CLIENTS;
@@ -1861,10 +2140,12 @@ export default class ChallengeManager {
 
     switch (status as CleanupStatus) {
       case CleanupStatus.OK:
+        recordCleanupAttempt('ok');
         // Proceed.
         break;
 
       case CleanupStatus.ACTIVE_CLIENTS:
+        recordCleanupAttempt('active_clients');
         logger.info('challenge_cleanup_status', {
           challengeUuid: challengeId,
           status: 'active_clients',
@@ -1872,6 +2153,7 @@ export default class ChallengeManager {
         return;
 
       case CleanupStatus.PROCESSING_STAGE:
+        recordCleanupAttempt('processing_stage');
         logger.info('challenge_cleanup_status', {
           challengeUuid: challengeId,
           status: 'processing_stage',
@@ -1879,6 +2161,7 @@ export default class ChallengeManager {
         return;
 
       case CleanupStatus.CHALLENGE_NOT_FOUND:
+        recordCleanupAttempt('challenge_not_found');
         logger.info('challenge_cleanup_status', {
           challengeUuid: challengeId,
           status: 'challenge_not_found',
@@ -1888,6 +2171,7 @@ export default class ChallengeManager {
         return;
 
       case CleanupStatus.CHALLENGE_FAILED_CLEANUP:
+        recordCleanupAttempt('challenge_failed_cleanup');
         logger.warn('challenge_cleanup_status', {
           challengeUuid: challengeId,
           status: 'previously_failed_cleanup',
@@ -1937,6 +2221,8 @@ export default class ChallengeManager {
         challengeUuid: challengeId,
         status: processor.getChallengeStatus(),
       });
+
+      recordChallengeFinalization(path, processor.getChallengeStatus());
 
       await this.deleteRedisChallengeData(
         challengeId,
@@ -2057,6 +2343,7 @@ export default class ChallengeManager {
           challengeUuid: challengeId,
           timeout: ChallengeManager.MAX_RECONNECTION_PERIOD,
         });
+        recordReconnectionTimer('all_inactive');
         const timeout: ChallengeTimeout = {
           timestamp: Date.now() + ChallengeManager.MAX_RECONNECTION_PERIOD,
           maxRetryAttempts: 3,
@@ -2116,21 +2403,29 @@ export default class ChallengeManager {
           );
 
         if (state === TimeoutState.CLEANUP) {
+          recordTimeoutEvent('cleanup');
           logger.info('challenge_cleanup_started', {
             challengeUuid: timedOutChallenge,
             status: 'expired',
           });
-          await this.cleanupChallenge(timedOutChallenge, timeoutInfo);
+          await this.cleanupChallenge(
+            timedOutChallenge,
+            timeoutInfo,
+            'timeout',
+          );
         } else if (state === TimeoutState.CHALLENGE_END) {
+          recordTimeoutEvent('challenge_end');
           logger.info('challenge_cleanup_started', {
             challengeUuid: timedOutChallenge,
             status: 'finished',
           });
-          await this.cleanupChallenge(timedOutChallenge, timeoutInfo);
+          await this.cleanupChallenge(timedOutChallenge, timeoutInfo, 'normal');
         } else if (state === TimeoutState.STAGE_END) {
+          recordTimeoutEvent('stage_end');
           await this.handleStageEndTimeout(timedOutChallenge);
           await this.checkForActiveClients(timedOutChallenge);
         } else {
+          recordTimeoutEvent('none');
           if (state !== TimeoutState.NONE) {
             logger.warn('challenge_cleanup_invalid_state', {
               challengeUuid: timedOutChallenge,
@@ -2197,6 +2492,7 @@ export default class ChallengeManager {
    */
   private async watchTransaction<T>(
     txn: (client: RedisClientType) => Promise<T | undefined>,
+    action: string = 'generic',
   ): Promise<void> {
     let attempt = 0;
 
@@ -2208,12 +2504,27 @@ export default class ChallengeManager {
       } catch (e) {
         if (e instanceof WatchError) {
           // Retry the transaction.
-          logger.debug('watch_transaction_retry', { attempt });
+          logger.debug('watch_transaction_retry', { attempt, action });
+          recordWatchConflict(action);
         } else {
           throw e;
         }
       }
     }
+  }
+
+  private recordMergeResult(stage: Stage, result: MergeResult): void {
+    for (const client of result.clients) {
+      recordMergeClient(client.classification, client.status);
+      for (const anomaly of client.anomalies) {
+        recordClientAnomaly(stage, anomaly);
+      }
+    }
+    for (const alert of result.alerts) {
+      recordMergeAlert(stage, alert.type);
+    }
+
+    // TODO(frolv): Persist merge result in the data repository.
   }
 
   private async saveUnmergedEvents(
@@ -2238,18 +2549,27 @@ export default class ChallengeManager {
       rawEvents: events,
     };
 
-    await this.testDataRepository.saveRaw(
-      unmergedEventsFile(challenge.uuid, stage),
-      Buffer.from(JSON.stringify(stageEventData)),
-    );
-
-    logger.info('unmerged_events_saved', {
-      challengeUuid: challenge.uuid,
-      stage,
-      mergedCount: result.mergedCount,
-      unmergedCount: result.unmergedCount,
-      skippedCount: result.skippedCount,
-    });
+    try {
+      await this.testDataRepository.saveRaw(
+        unmergedEventsFile(challenge.uuid, stage),
+        Buffer.from(JSON.stringify(stageEventData)),
+      );
+      recordRepositoryWrite('test', 'unmerged_events', 'success');
+      logger.info('unmerged_events_saved', {
+        challengeUuid: challenge.uuid,
+        stage,
+        mergedCount: result.mergedCount,
+        unmergedCount: result.unmergedCount,
+        skippedCount: result.skippedCount,
+      });
+    } catch (e) {
+      recordRepositoryWrite('test', 'unmerged_events', 'error');
+      logger.error('unmerged_events_save_error', {
+        challengeUuid: challenge.uuid,
+        stage,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
   }
 }
 
@@ -2309,7 +2629,15 @@ class SessionWatchdog {
     this.log.info('watchdog_started');
 
     while (this.running) {
-      await this.finishInactiveSessions();
+      try {
+        await this.finishInactiveSessions();
+      } catch (e) {
+        this.log.error('session_watchdog_error', {
+          error: e instanceof Error ? e.message : String(e),
+        });
+        recordSessionWatchdogRun('error');
+      }
+
       await delay(SessionWatchdog.WATCHDOG_INTERVAL_MS);
     }
 
@@ -2346,5 +2674,11 @@ class SessionWatchdog {
       candidates: expiringSessions.length,
       expired: expiredSessions,
     });
+
+    if (expiredSessions > 0) {
+      recordSessionWatchdogRun('expired_sessions');
+    } else {
+      recordSessionWatchdogRun('no_expired_sessions');
+    }
   }
 }
