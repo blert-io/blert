@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
-    "target": "es6",
+    "target": "esnext",
     "outDir": "./dist/",
-    "lib": ["esnext", "dom"],
+    "lib": ["esnext"],
     "allowJs": false,
     "strict": true,
     "esModuleInterop": true,

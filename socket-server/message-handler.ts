@@ -1,6 +1,7 @@
 import {
   ChallengeType,
   ClientStatus,
+  isPostgresUniqueViolation,
   RecordingType,
   Stage,
 } from '@blert/common';
@@ -448,11 +449,17 @@ export default class MessageHandler {
     client: Client,
     gameState: ServerMessage.GameState,
   ): Promise<void> {
+    // Any GAME_STATE response (logged in or out) satisfies the request.
+    client.cancelGameStateRequest();
+
+    logger.debug('game_state_update', { gameState: gameState.toObject() });
+
     if (gameState.getState() === ServerMessage.GameState.State.LOGGED_IN) {
       const playerInfo = gameState.getPlayerInfo()!;
       const rsn = playerInfo.getUsername().toLowerCase();
-      const username = await Players.lookupUsername(client.getLinkedPlayerId());
+      const playerId = client.getLinkedPlayerId();
 
+      const username = await Players.lookupUsername(playerId);
       if (username === null) {
         client.sendUnauthenticatedAndClose();
         return;
@@ -460,7 +467,40 @@ export default class MessageHandler {
 
       client.setLoggedInRsn(rsn);
 
-      if (rsn !== username.toLowerCase()) {
+      let clientAccountHash: bigint | null = null;
+      const accountHashStr = playerInfo.getAccountHash();
+
+      try {
+        if (accountHashStr !== '') {
+          // `-1` is what RuneLite reports if it can't access the account hash.
+          const hash = BigInt(accountHashStr);
+          if (hash !== -1n) {
+            clientAccountHash = hash;
+          }
+        }
+      } catch {
+        logger.error('invalid_account_hash', {
+          playerId,
+          username,
+          accountHash: accountHashStr,
+        });
+      }
+
+      const isValid = await this.validatePlayerIdentity(
+        playerId,
+        clientAccountHash,
+        rsn,
+        username,
+      );
+
+      if (isValid) {
+        // When a player logs in, request a confirmation of their active
+        // challenge state to synchronize with the server.
+        await Promise.all([
+          this.requestChallengeStateConfirmation(client, rsn),
+          Players.updateExperience(rsn, playerInfo.toObject()),
+        ]);
+      } else {
         const error = new ServerMessage();
         error.setType(ServerMessage.Type.ERROR);
         const rsnError = new ServerMessage.Error();
@@ -468,13 +508,6 @@ export default class MessageHandler {
         rsnError.setUsername(username);
         error.setError(rsnError);
         client.sendMessage(error);
-      } else {
-        // When a player logs in, request a confirmation of their active
-        // challenge state to synchronize with the server.
-        await Promise.all([
-          this.requestChallengeStateConfirmation(client, rsn),
-          Players.updateExperience(rsn, playerInfo.toObject()),
-        ]);
       }
     } else {
       // Client has logged out.
@@ -522,5 +555,85 @@ export default class MessageHandler {
     message.setChallengeStateConfirmation(request);
 
     client.sendMessage(message);
+  }
+
+  /**
+   * Validates that the logged-in player matches the player linked to the API
+   * key. Uses account hash if available, otherwise falls back to username.
+   *
+   * On first successful login (when no account hash is stored), the account
+   * hash from the client is saved for future validation.
+   *
+   * @param playerId The ID of the linked player.
+   * @param clientAccountHash The account hash sent by the client, or null if
+   *     not available.
+   * @param clientRsn The RSN sent by the client.
+   * @param storedUsername The username stored for the player.
+   * @returns True if the player identity is valid.
+   */
+  private async validatePlayerIdentity(
+    playerId: number,
+    clientAccountHash: bigint | null,
+    clientRsn: string,
+    storedUsername: string,
+  ): Promise<boolean> {
+    const storedAccountHash = await Players.getAccountHash(playerId);
+    if (storedAccountHash !== null) {
+      // Account hash is stored; use it for validation.
+      if (clientAccountHash === null) {
+        // Client didn't send an account hash but we have one stored.
+        // Fall back to username validation for backwards compatibility.
+        logger.info('client_missing_account_hash', { playerId, clientRsn });
+        return clientRsn === storedUsername.toLowerCase();
+      }
+
+      const isValid = clientAccountHash === storedAccountHash;
+      if (!isValid) {
+        logger.warn('account_hash_mismatch', {
+          playerId,
+          clientAccountHash: clientAccountHash.toString(),
+          storedAccountHash: storedAccountHash.toString(),
+        });
+      }
+      return isValid;
+    }
+
+    // No account hash stored yet. Validate by username.
+    if (clientRsn !== storedUsername.toLowerCase()) {
+      logger.info('username_mismatch_no_hash', {
+        playerId,
+        clientRsn,
+        storedUsername,
+      });
+      return false;
+    }
+
+    // First successful login with this API key. Store the account hash if
+    // the client provided one.
+    if (clientAccountHash !== null) {
+      logger.info('account_hash_stored', {
+        playerId,
+        accountHash: clientAccountHash.toString(),
+      });
+      try {
+        await Players.setAccountHash(playerId, clientAccountHash);
+      } catch (e) {
+        if (isPostgresUniqueViolation(e)) {
+          // TODO(frolv): The player to whom this API key belongs is the same
+          // OSRS account as a previously-known player. Handle renaming.
+        } else {
+          // We've already passed validation at this point. Don't take action in
+          // response to the error, just log it.
+          logger.error('database_error', {
+            operation: 'set_account_hash',
+            playerId,
+            accountHash: clientAccountHash.toString(),
+            error: e instanceof Error ? e : new Error(String(e)),
+          });
+        }
+      }
+    }
+
+    return true;
   }
 }
