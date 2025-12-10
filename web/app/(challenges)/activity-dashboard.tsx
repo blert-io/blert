@@ -264,6 +264,8 @@ export default function ActivityDashboard({
   const fetchTimeout = useRef<number | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchData = async () => {
       fetchTimeout.current = null;
 
@@ -366,6 +368,10 @@ export default function ActivityDashboard({
           scalePromise,
         ]);
 
+        if (!isMounted) {
+          return;
+        }
+
         setDailyStats(challengeResponse);
         setStatusData(toChartValues<number>(statusResponse, parseInt));
 
@@ -387,23 +393,22 @@ export default function ActivityDashboard({
       } catch (error) {
         console.error('ActivityDashboard failed to refresh', error);
       } finally {
-        setIsLoading(false);
-        fetchTimeout.current = window.setTimeout(
-          () => void fetchData(),
-          REFRESH_INTERVAL,
-        );
+        if (isMounted) {
+          setIsLoading(false);
+          fetchTimeout.current = window.setTimeout(
+            () => void fetchData(),
+            REFRESH_INTERVAL,
+          );
+        }
       }
     };
 
     void fetchData();
 
-    fetchTimeout.current = window.setTimeout(
-      () => void fetchData(),
-      REFRESH_INTERVAL,
-    );
     return () => {
-      if (fetchTimeout.current) {
-        window.clearInterval(fetchTimeout.current);
+      isMounted = false;
+      if (fetchTimeout.current !== null) {
+        window.clearTimeout(fetchTimeout.current);
       }
     };
   }, [challengeType, isSolo]);
