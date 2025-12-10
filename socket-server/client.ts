@@ -65,6 +65,13 @@ export default class Client {
   private static readonly MESSAGE_LOOP_INTERVAL_MS = 20;
   private static readonly MESSAGE_STATS_INTERVAL_MS = 2 * 60 * 1000;
 
+  /** Delay after connection before sending the first GAME_STATE_REQUEST. */
+  private static readonly GAME_STATE_REQUEST_INITIAL_DELAY_MS = 1000;
+  /** Interval between GAME_STATE_REQUEST retries. */
+  private static readonly GAME_STATE_REQUEST_RETRY_INTERVAL_MS = 5000;
+  /** Maximum number of GAME_STATE_REQUEST messages to send. */
+  private static readonly GAME_STATE_REQUEST_MAX_ATTEMPTS = 5;
+
   private user: BasicUser;
   private pluginVersions: PluginVersions;
   private sessionId: number;
@@ -81,6 +88,8 @@ export default class Client {
 
   private processTimeout: NodeJS.Timeout | null;
   private heartbeatTimeout: NodeJS.Timeout | null;
+  private gameStateRequestTimeout: NodeJS.Timeout | null;
+  private gameStateRequestAttempts: number;
 
   private lastMessageLog: number;
   private stats: MessageStats;
@@ -104,6 +113,8 @@ export default class Client {
     this.isOpen = true;
     this.processTimeout = null;
     this.heartbeatTimeout = null;
+    this.gameStateRequestTimeout = null;
+    this.gameStateRequestAttempts = 0;
 
     this.heartbeatAcknowledged = true;
     this.missedHeartbeats = 0;
@@ -274,6 +285,67 @@ export default class Client {
     this.loggedInRsn = rsn;
   }
 
+  /**
+   * Starts the game state request cycle. After an initial delay, sends a
+   * GAME_STATE_REQUEST to the client. If no valid GAME_STATE response is
+   * received, retries up to the maximum number of attempts.
+   *
+   * This should be called after the client has been sent a CONNECTION_RESPONSE.
+   */
+  public startGameStateRequestCycle(): void {
+    this.cancelGameStateRequest();
+
+    this.gameStateRequestAttempts = 0;
+    this.gameStateRequestTimeout = setTimeout(
+      () => this.sendGameStateRequest(),
+      Client.GAME_STATE_REQUEST_INITIAL_DELAY_MS,
+    );
+  }
+
+  /**
+   * Cancels any pending game state request. Should be called when a valid
+   * GAME_STATE message is received from the client.
+   */
+  public cancelGameStateRequest(): void {
+    if (this.gameStateRequestTimeout !== null) {
+      clearTimeout(this.gameStateRequestTimeout);
+      this.gameStateRequestTimeout = null;
+    }
+  }
+
+  private sendGameStateRequest(): void {
+    if (
+      this.gameStateRequestAttempts === Client.GAME_STATE_REQUEST_MAX_ATTEMPTS
+    ) {
+      logger.warn(
+        'client_game_state_request_max_attempts',
+        this.logContext({
+          attempts: this.gameStateRequestAttempts,
+        }),
+      );
+      this.gameStateRequestTimeout = null;
+      return;
+    }
+
+    this.gameStateRequestAttempts++;
+
+    logger.debug(
+      'client_game_state_request_sent',
+      this.logContext({
+        attempt: this.gameStateRequestAttempts,
+      }),
+    );
+
+    const request = new ServerMessage();
+    request.setType(ServerMessage.Type.GAME_STATE_REQUEST);
+    this.sendMessage(request);
+
+    this.gameStateRequestTimeout = setTimeout(
+      () => this.sendGameStateRequest(),
+      Client.GAME_STATE_REQUEST_RETRY_INTERVAL_MS,
+    );
+  }
+
   public sendMessage(message: ServerMessage): void {
     if (this.isOpen) {
       const serialized = message.serializeBinary();
@@ -387,6 +459,10 @@ export default class Client {
     if (this.heartbeatTimeout !== null) {
       clearTimeout(this.heartbeatTimeout);
       this.heartbeatTimeout = null;
+    }
+    if (this.gameStateRequestTimeout !== null) {
+      clearTimeout(this.gameStateRequestTimeout);
+      this.gameStateRequestTimeout = null;
     }
 
     this.closeCallbacks.forEach((callback) => {

@@ -32,6 +32,34 @@ export class Players {
     return player?.username ?? null;
   }
 
+  /**
+   * Retrieves the account hash for a player, if one has been recorded.
+   * @param id The player's ID.
+   * @returns The account hash, or null if not set.
+   */
+  public static async getAccountHash(id: number): Promise<bigint | null> {
+    const [player] = await sql<
+      { account_hash: bigint | null }[]
+    >`SELECT account_hash FROM players WHERE id = ${id}`;
+    return player?.account_hash ?? null;
+  }
+
+  /**
+   * Sets the account hash for a player.
+   * @param id The player's ID.
+   * @param accountHash The account hash to set.
+   */
+  public static async setAccountHash(
+    id: number,
+    accountHash: bigint,
+  ): Promise<void> {
+    await sql`
+      UPDATE players
+      SET account_hash = ${accountHash}
+      WHERE id = ${id}
+    `;
+  }
+
   public static async updateExperience(
     username: string,
     experience: Experience,

@@ -55,6 +55,7 @@ export default class ConnectionManager {
     connectionResponse.setUser(user);
 
     client.sendMessage(connectionResponse);
+    client.startGameStateRequestCycle();
   }
 
   public removeClient(client: Client) {
