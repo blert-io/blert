@@ -81,6 +81,35 @@ export type ChallengeServerUpdate = {
   action: ChallengeUpdateAction;
 };
 
+/** The key of the pubsub channel for name change updates. */
+export const NAME_CHANGE_PUBSUB_KEY = 'name-changes';
+
+export enum NameChangeUpdateType {
+  /** A player's username was updated without merging records. */
+  RENAMED,
+  /** Two player records were merged; the newer record was deleted. */
+  MERGED,
+}
+
+export type NameChangeRenamedUpdate = {
+  type: NameChangeUpdateType.RENAMED;
+  playerId: number;
+  oldName: string;
+  newName: string;
+};
+
+export type NameChangeMergedUpdate = {
+  type: NameChangeUpdateType.MERGED;
+  /** The player ID that was deleted (newer record). */
+  deletedPlayerId: number;
+  /** The player ID that remains (older record). */
+  remainingPlayerId: number;
+  oldName: string;
+  newName: string;
+};
+
+export type NameChangeUpdate = NameChangeRenamedUpdate | NameChangeMergedUpdate;
+
 /** The key of the list used for the activity feed. */
 export const ACTIVITY_FEED_KEY = 'activity-feed';
 

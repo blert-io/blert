@@ -4,6 +4,7 @@ import {
   activePlayerKey,
   CamelToSnakeCase,
   camelToSnake,
+  NameChangeStatus,
 } from '@blert/common';
 import { RedisClientType } from 'redis';
 
@@ -57,6 +58,66 @@ export class Players {
       UPDATE players
       SET account_hash = ${accountHash}
       WHERE id = ${id}
+    `;
+  }
+
+  /**
+   * Retrieves a player's ID by their account hash.
+   * @param accountHash The account hash to look up.
+   * @returns The player's ID, or null if no player has this hash.
+   */
+  public static async getPlayerByAccountHash(
+    accountHash: bigint,
+  ): Promise<{ id: number; username: string } | null> {
+    const [player] = await sql<
+      { id: number; username: string }[]
+    >`SELECT id, username FROM players WHERE account_hash = ${accountHash}`;
+    return player ?? null;
+  }
+
+  /**
+   * Queues a name change for processing.
+   *
+   * @param oldName The player's old username.
+   * @param newName The player's new username.
+   * @param playerId The player's ID.
+   */
+  public static async queueNameChange(
+    oldName: string,
+    newName: string,
+    playerId: number,
+  ): Promise<void> {
+    // Messages from each client are queued and processed sequentially, and it's
+    // not possible to log into the same OSRS account multiple times. Therefore,
+    // there is no race between checking for an existing name change and inserting
+    // a new one.
+    const [existingNameChange] = await sql<[{ id: number }?]>`
+      SELECT id FROM name_changes
+      WHERE player_id = ${playerId}
+      AND (
+        status = ${NameChangeStatus.PENDING}
+        OR status = ${NameChangeStatus.DEFERRED}
+      )
+    `;
+    if (existingNameChange !== undefined) {
+      return;
+    }
+
+    await sql`
+      INSERT INTO name_changes (
+        old_name,
+        new_name,
+        player_id,
+        status,
+        submitted_at
+      )
+      VALUES (
+        ${oldName},
+        ${newName},
+        ${playerId},
+        ${NameChangeStatus.PENDING},
+        NOW()
+      )
     `;
   }
 

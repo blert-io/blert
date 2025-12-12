@@ -243,7 +243,7 @@ async function main(): Promise<void> {
     });
   });
 
-  const connectionManager = new ConnectionManager();
+  const connectionManager = new ConnectionManager(redisClient);
   const serverManager = new ServerManager(connectionManager);
 
   const [challengeManager, playerManager] =

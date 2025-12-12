@@ -221,6 +221,15 @@ export default class Client {
   }
 
   /**
+   * Updates the linked player ID for this client. Used when a name change
+   * merges two player records and the client's original player ID is deleted.
+   * @param playerId The new player ID.
+   */
+  public setLinkedPlayerId(playerId: number): void {
+    this.user.linkedPlayerId = playerId;
+  }
+
+  /**
    * Returns the plugin info for this client.
    * @returns The plugin info.
    */

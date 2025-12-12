@@ -1,16 +1,82 @@
+import {
+  NAME_CHANGE_PUBSUB_KEY,
+  NameChangeUpdate,
+  NameChangeUpdateType,
+} from '@blert/common';
 import { ServerMessage } from '@blert/common/generated/server_message_pb';
+import { RedisClientType } from 'redis';
 
 import Client from './client';
-import { BasicUser, Users } from './users';
+import logger from './log';
 import { recordActiveClients, recordClientRegistration } from './metrics';
+import { BasicUser, Users } from './users';
 
 export default class ConnectionManager {
   private activeClients: Map<number, Client>;
   private nextSessionId;
+  private pubsubClient: RedisClientType | null;
 
-  public constructor() {
+  public constructor(redisClient: RedisClientType | null) {
     this.activeClients = new Map();
     this.nextSessionId = 1;
+    this.pubsubClient = null;
+
+    if (redisClient !== null) {
+      this.pubsubClient = redisClient.duplicate() as RedisClientType;
+      this.pubsubClient.on('error', (e) => {
+        logger.error('redis_error', {
+          key: NAME_CHANGE_PUBSUB_KEY,
+          message: e instanceof Error ? e.message : String(e),
+        });
+      });
+      void this.startPubsub();
+    }
+  }
+
+  private async startPubsub(): Promise<void> {
+    if (this.pubsubClient === null) {
+      return;
+    }
+
+    await this.pubsubClient.connect();
+
+    await this.pubsubClient.subscribe(
+      NAME_CHANGE_PUBSUB_KEY,
+      this.handleNameChangeUpdate.bind(this),
+    );
+
+    logger.debug('connection_manager_pubsub_started');
+  }
+
+  private handleNameChangeUpdate(message: string): void {
+    let update: NameChangeUpdate;
+    try {
+      update = JSON.parse(message) as NameChangeUpdate;
+    } catch (e) {
+      logger.error('name_change_update_parse_error', {
+        key: NAME_CHANGE_PUBSUB_KEY,
+        message: e instanceof Error ? e.message : String(e),
+      });
+      return;
+    }
+
+    if (update.type === NameChangeUpdateType.MERGED) {
+      const { deletedPlayerId, remainingPlayerId, oldName, newName } = update;
+
+      for (const client of this.activeClients.values()) {
+        if (client.getLinkedPlayerId() === deletedPlayerId) {
+          logger.info('client_player_id_updated', {
+            sessionId: client.getSessionId(),
+            userId: client.getUserId(),
+            oldPlayerId: deletedPlayerId,
+            newPlayerId: remainingPlayerId,
+            oldName,
+            newName,
+          });
+          client.setLinkedPlayerId(remainingPlayerId);
+        }
+      }
+    }
   }
 
   /**
