@@ -14,6 +14,7 @@ type NameChangeRowProps = {
 function nameChangeInfo(nameChange: NameChange): [string, string | null] {
   switch (nameChange.status) {
     case NameChangeStatus.PENDING:
+    case NameChangeStatus.DEFERRED:
       return ['Pending', null];
     case NameChangeStatus.ACCEPTED:
       return ['Accepted', null];
@@ -79,7 +80,8 @@ export default function NameChangeRow({ nameChange }: NameChangeRowProps) {
           className={`${styles.statusBadge} ${
             status === NameChangeStatus.ACCEPTED
               ? styles.accepted
-              : status === NameChangeStatus.PENDING
+              : status === NameChangeStatus.PENDING ||
+                  status === NameChangeStatus.DEFERRED
                 ? styles.pending
                 : styles.rejected
           }`}

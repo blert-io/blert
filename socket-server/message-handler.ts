@@ -489,7 +489,7 @@ export default class MessageHandler {
       const isValid = await this.validatePlayerIdentity(
         playerId,
         clientAccountHash,
-        rsn,
+        playerInfo.getUsername(), // Non-normalized display name
         username,
       );
 
@@ -578,13 +578,16 @@ export default class MessageHandler {
     storedUsername: string,
   ): Promise<boolean> {
     const storedAccountHash = await Players.getAccountHash(playerId);
+    const displayNameMatches =
+      clientRsn.toLowerCase() === storedUsername.toLowerCase();
+
     if (storedAccountHash !== null) {
       // Account hash is stored; use it for validation.
       if (clientAccountHash === null) {
         // Client didn't send an account hash but we have one stored.
         // Fall back to username validation for backwards compatibility.
         logger.info('client_missing_account_hash', { playerId, clientRsn });
-        return clientRsn === storedUsername.toLowerCase();
+        return displayNameMatches;
       }
 
       const isValid = clientAccountHash === storedAccountHash;
@@ -594,12 +597,22 @@ export default class MessageHandler {
           clientAccountHash: clientAccountHash.toString(),
           storedAccountHash: storedAccountHash.toString(),
         });
+      } else if (!displayNameMatches) {
+        // Hash matches but RSN differs: auto-queue name change.
+        logger.info('auto_name_change_queued', {
+          reason: 'hash_match_rsn_differs',
+          oldName: storedUsername,
+          newName: clientRsn,
+          existingPlayerId: playerId,
+          newPlayerId: playerId,
+        });
+        await Players.queueNameChange(storedUsername, clientRsn, playerId);
       }
       return isValid;
     }
 
     // No account hash stored yet. Validate by username.
-    if (clientRsn !== storedUsername.toLowerCase()) {
+    if (!displayNameMatches) {
       logger.info('username_mismatch_no_hash', {
         playerId,
         clientRsn,
@@ -619,8 +632,25 @@ export default class MessageHandler {
         await Players.setAccountHash(playerId, clientAccountHash);
       } catch (e) {
         if (isPostgresUniqueViolation(e)) {
-          // TODO(frolv): The player to whom this API key belongs is the same
-          // OSRS account as a previously-known player. Handle renaming.
+          // The account hash already belongs to another player: this is a name
+          // change. Find the player who has this hash and queue a name change
+          // from their username to the client's RSN.
+          const existingPlayer =
+            await Players.getPlayerByAccountHash(clientAccountHash);
+          if (existingPlayer !== null) {
+            logger.info('auto_name_change_queued', {
+              reason: 'account_hash_already_exists',
+              oldName: existingPlayer.username,
+              newName: clientRsn,
+              existingPlayerId: existingPlayer.id,
+              newPlayerId: playerId,
+            });
+            await Players.queueNameChange(
+              existingPlayer.username,
+              clientRsn,
+              existingPlayer.id,
+            );
+          }
         } else {
           // We've already passed validation at this point. Don't take action in
           // response to the error, just log it.

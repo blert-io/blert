@@ -2,12 +2,17 @@ import {
   ChallengeType,
   NameChange,
   NameChangeStatus,
+  NameChangeUpdateType,
   PlayerExperience,
   Skill,
 } from '@blert/common';
 
 import { sql } from '@/actions/db';
-import { processNameChange } from '@/actions/name-change-processor';
+import {
+  NameChangeProcessor,
+  processNameChange,
+} from '@/actions/name-change-processor';
+import redis from '@/actions/redis';
 
 jest.mock('@/auth', () => {
   return {
@@ -15,6 +20,28 @@ jest.mock('@/auth', () => {
     auth: jest.fn(),
   };
 });
+
+jest.mock('@/actions/redis');
+
+type MockRedisClient = {
+  multi: jest.Mock;
+  get: jest.Mock;
+  publish: jest.Mock;
+};
+
+const mockedRedis = redis as jest.MockedFunction<typeof redis>;
+
+function createMockRedisClient(): MockRedisClient {
+  const mockMulti = {
+    get: jest.fn().mockReturnThis(),
+    exec: jest.fn().mockResolvedValue([null, null]),
+  };
+  return {
+    multi: jest.fn().mockReturnValue(mockMulti),
+    get: jest.fn().mockResolvedValue(null),
+    publish: jest.fn().mockResolvedValue(1),
+  };
+}
 
 type TestPlayer = {
   id: number;
@@ -48,6 +75,7 @@ describe('processNameChange', () => {
     scale: number;
     ticks: number;
   }[];
+  let mockRedisClient: MockRedisClient;
 
   beforeAll(async () => {
     const users = [
@@ -58,11 +86,15 @@ describe('processNameChange', () => {
   });
 
   afterAll(async () => {
-    await sql`DELETE FROM users`;
-    void sql.end();
+    await sql`DELETE FROM users WHERE username = 'User 1'`;
   });
 
   beforeEach(async () => {
+    mockRedisClient = createMockRedisClient();
+    mockedRedis.mockResolvedValue(
+      mockRedisClient as unknown as Awaited<ReturnType<typeof redis>>,
+    );
+
     const players = [
       {
         username: 'Old Name',
@@ -417,7 +449,15 @@ describe('processNameChange', () => {
       oldPlayerId,
       'New Name',
     );
-    await processNameChange(id);
+    const result = await processNameChange(id);
+
+    expect(result).toEqual({
+      type: NameChangeUpdateType.MERGED,
+      deletedPlayerId: newPlayerId,
+      remainingPlayerId: oldPlayerId,
+      oldName: 'Old Name',
+      newName: 'New Name',
+    });
 
     // Challenges in which the new player participated should be updated to
     // reference the old player instead.
@@ -630,7 +670,14 @@ describe('processNameChange', () => {
       oldPlayerId,
       'New Name',
     );
-    await processNameChange(id);
+    const result = await processNameChange(id);
+
+    expect(result).toEqual({
+      type: NameChangeUpdateType.RENAMED,
+      playerId: oldPlayerId,
+      oldName: 'Old Name',
+      newName: 'New Name',
+    });
 
     // Challenges in which the new player participated should be updated to
     // reference the old player instead.
@@ -819,7 +866,14 @@ describe('processNameChange', () => {
       });
 
     const id = await createNameChangeRequest('old name', oldPlayerId, 'Novel');
-    await processNameChange(id);
+    const result = await processNameChange(id);
+
+    expect(result).toEqual({
+      type: NameChangeUpdateType.RENAMED,
+      playerId: oldPlayerId,
+      oldName: 'old name',
+      newName: 'Novel',
+    });
 
     const [updatedPlayer] = await sql<[TestPlayer?]>`
       SELECT * FROM players WHERE id = ${oldPlayerId}
@@ -846,7 +900,9 @@ describe('processNameChange', () => {
       oldPlayerId,
       'new name',
     );
-    await processNameChange(id);
+    const result = await processNameChange(id);
+
+    expect(result).toBeNull();
 
     const updatedRequest = await loadNameChangeRequest(id);
     expect(updatedRequest.status).toBe(NameChangeStatus.OLD_STILL_IN_USE);
@@ -863,7 +919,9 @@ describe('processNameChange', () => {
       oldPlayerId,
       'new name',
     );
-    await processNameChange(id);
+    const result = await processNameChange(id);
+
+    expect(result).toBeNull();
 
     const updatedRequest = await loadNameChangeRequest(id);
     expect(updatedRequest.status).toBe(NameChangeStatus.NEW_DOES_NOT_EXIST);
@@ -893,12 +951,48 @@ describe('processNameChange', () => {
       oldPlayerId,
       'new name',
     );
-    await processNameChange(id);
+    const result = await processNameChange(id);
+
+    expect(result).toBeNull();
 
     const updatedRequest = await loadNameChangeRequest(id);
     expect(updatedRequest.status).toBe(NameChangeStatus.DECREASED_EXPERIENCE);
     expect(updatedRequest.processedAt).not.toBeNull();
     expect(updatedRequest.migratedDocuments).toBe(0);
+  });
+
+  it('throws PlayerInActiveChallengeError if player is in active challenge', async () => {
+    // Mock Redis to indicate the old player is in an active challenge.
+    const mockMulti = {
+      get: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue(['some-challenge-uuid', null]),
+    };
+    mockRedisClient.multi.mockReturnValue(mockMulti);
+
+    // Mock the OSRS Hiscores API responses.
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        status: 404,
+      })
+      .mockResolvedValueOnce({
+        text: () => Promise.resolve(mockedHiscoresPayload(arbitraryExperience)),
+      });
+
+    const id = await createNameChangeRequest(
+      'Old Name',
+      oldPlayerId,
+      'New Name',
+    );
+
+    await expect(processNameChange(id)).rejects.toThrow(
+      'Player in active challenge during name change processing',
+    );
+
+    // The name change should not have been processed.
+    const updatedRequest = await loadNameChangeRequest(id);
+    expect(updatedRequest.status).toBe(NameChangeStatus.PENDING);
+    expect(updatedRequest.processedAt).toBeNull();
   });
 });
 
@@ -960,3 +1054,235 @@ function mockedHiscoresPayload(experience: PlayerExperience): string {
     })
     .join('\n');
 }
+
+describe('NameChangeProcessor.processBatch', () => {
+  const arbitraryExperience: PlayerExperience = {
+    [Skill.OVERALL]: 300_000_000,
+    [Skill.ATTACK]: 7_000_000,
+    [Skill.DEFENCE]: 7_000_000,
+    [Skill.STRENGTH]: 7_000_000,
+    [Skill.HITPOINTS]: 7_000_000,
+    [Skill.RANGED]: 7_000_000,
+    [Skill.PRAYER]: 7_000_000,
+    [Skill.MAGIC]: 7_000_000,
+  };
+
+  const _fetch = global.fetch;
+  let userId: number;
+  let playerId: number;
+  let mockRedisClient: MockRedisClient;
+  let processor: NameChangeProcessor;
+
+  beforeAll(async () => {
+    const [{ id }] = await sql`
+      INSERT INTO users (username, email, password)
+      VALUES ('BatchTestUser', 'batch@test.com', 'password')
+      RETURNING id
+    `;
+    userId = id;
+  });
+
+  afterAll(async () => {
+    await sql`DELETE FROM users WHERE id = ${userId}`;
+  });
+
+  beforeEach(async () => {
+    mockRedisClient = createMockRedisClient();
+    mockedRedis.mockResolvedValue(
+      mockRedisClient as unknown as Awaited<ReturnType<typeof redis>>,
+    );
+
+    const [{ id }] = await sql`
+      INSERT INTO players (
+        username,
+        total_recordings,
+        overall_experience,
+        attack_experience,
+        defence_experience,
+        strength_experience,
+        hitpoints_experience,
+        ranged_experience,
+        prayer_experience,
+        magic_experience
+      ) VALUES (
+        'BatchPlayer',
+        0,
+        100000000,
+        5000000,
+        5000000,
+        5000000,
+        5000000,
+        5000000,
+        5000000,
+        5000000
+      )
+      RETURNING id
+    `;
+    playerId = id;
+
+    processor = new NameChangeProcessor({ autoStart: false, batchSize: 5 });
+  });
+
+  afterEach(async () => {
+    global.fetch = _fetch;
+    processor?.stop();
+    if (playerId) {
+      await sql`DELETE FROM name_changes WHERE player_id = ${playerId}`;
+      await sql`DELETE FROM players WHERE id = ${playerId}`;
+    }
+  });
+
+  it('processes PENDING name changes and returns processed count', async () => {
+    // Mock successful hiscores responses.
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({ status: 404 })
+      .mockResolvedValueOnce({
+        text: () => Promise.resolve(mockedHiscoresPayload(arbitraryExperience)),
+      });
+
+    await sql`
+      INSERT INTO name_changes (player_id, old_name, new_name, status, submitted_at)
+      VALUES (${playerId}, 'BatchPlayer', 'NewBatch', ${NameChangeStatus.PENDING}, NOW())
+    `;
+
+    const result = await processor.processBatch();
+
+    expect(result.processed).toBe(1);
+    expect(result.deferred).toBe(0);
+    expect(result.promoted).toBe(0);
+
+    const [updated] = await sql`
+      SELECT status FROM name_changes WHERE player_id = ${playerId}
+    `;
+    expect(updated.status).toBe(NameChangeStatus.ACCEPTED);
+
+    expect(mockRedisClient.publish).toHaveBeenCalledWith(
+      'name-changes',
+      expect.stringContaining(`"type":${NameChangeUpdateType.RENAMED}`),
+    );
+  });
+
+  it('defers name changes when player is in active challenge', async () => {
+    const mockMulti = {
+      get: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue(['active-challenge-uuid', null]),
+    };
+    mockRedisClient.multi.mockReturnValue(mockMulti);
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({ status: 404 })
+      .mockResolvedValueOnce({
+        text: () => Promise.resolve(mockedHiscoresPayload(arbitraryExperience)),
+      });
+
+    await sql`
+      INSERT INTO name_changes (player_id, old_name, new_name, status, submitted_at)
+      VALUES (${playerId}, 'BatchPlayer', 'NewBatch', ${NameChangeStatus.PENDING}, NOW())
+    `;
+
+    const result = await processor.processBatch();
+
+    expect(result.processed).toBe(0);
+    expect(result.deferred).toBe(1);
+    expect(result.promoted).toBe(0);
+
+    const [updated] = await sql`
+      SELECT status FROM name_changes WHERE player_id = ${playerId}
+    `;
+    expect(updated.status).toBe(NameChangeStatus.DEFERRED);
+  });
+
+  it('promotes DEFERRED entries when player is no longer in active challenge', async () => {
+    await sql`
+      INSERT INTO name_changes (player_id, old_name, new_name, status, submitted_at)
+      VALUES (${playerId}, 'BatchPlayer', 'NewBatch', ${NameChangeStatus.DEFERRED}, NOW())
+    `;
+
+    // Mock Redis to indicate player is not in active challenge.
+    const mockMulti = {
+      get: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue([null, null]),
+    };
+    mockRedisClient.multi.mockReturnValue(mockMulti);
+
+    const result = await processor.processBatch();
+
+    expect(result.processed).toBe(0);
+    expect(result.deferred).toBe(0);
+    expect(result.promoted).toBe(1);
+
+    const [updated] = await sql`
+      SELECT status FROM name_changes WHERE player_id = ${playerId}
+    `;
+    expect(updated.status).toBe(NameChangeStatus.PENDING);
+  });
+
+  it('does not promote DEFERRED entries when player is still in active challenge', async () => {
+    await sql`
+      INSERT INTO name_changes (player_id, old_name, new_name, status, submitted_at)
+      VALUES (${playerId}, 'BatchPlayer', 'NewBatch', ${NameChangeStatus.DEFERRED}, NOW())
+    `;
+
+    // Mock Redis to indicate player is in an active challenge.
+    const mockMulti = {
+      get: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue(['still-active-uuid', null]),
+    };
+    mockRedisClient.multi.mockReturnValue(mockMulti);
+
+    const result = await processor.processBatch();
+
+    expect(result.processed).toBe(0);
+    expect(result.deferred).toBe(0);
+    expect(result.promoted).toBe(0);
+
+    const [updated] = await sql`
+      SELECT status FROM name_changes WHERE player_id = ${playerId}
+    `;
+    expect(updated.status).toBe(NameChangeStatus.DEFERRED);
+  });
+
+  it('respects batchSize configuration', async () => {
+    const smallBatchProcessor = new NameChangeProcessor({
+      autoStart: false,
+      batchSize: 2,
+    });
+
+    // Mock successful hiscores responses for multiple requests.
+    global.fetch = jest.fn().mockImplementation(() =>
+      Promise.resolve({
+        status: 404,
+      }),
+    );
+
+    // Insert 3 PENDING name changes.
+    for (let i = 0; i < 3; i++) {
+      const [{ id: pid }] = await sql<[{ id: number }]>`
+        INSERT INTO players (username, total_recordings, overall_experience)
+        VALUES (${'Bp' + i}, 0, 100000000)
+        RETURNING id
+      `;
+      await sql`
+        INSERT INTO name_changes (player_id, old_name, new_name, status, submitted_at)
+        VALUES (${pid}, ${'Bp' + i}, ${'Nn' + i}, ${NameChangeStatus.PENDING}, NOW())
+      `;
+    }
+
+    await smallBatchProcessor.processBatch();
+    smallBatchProcessor.stop();
+
+    // Should only process 2 (the batchSize), though they fail due to hiscores.
+    // The third should not even be attempted.
+    expect(global.fetch).toHaveBeenCalledTimes(4); // 2 requests * 2 hiscore calls each
+
+    await sql`DELETE FROM name_changes WHERE old_name LIKE 'Bp%'`;
+    await sql`DELETE FROM players WHERE username LIKE 'Bp%' OR username LIKE 'Nn%'`;
+  });
+});
+
+// Close database connection after all tests.
+afterAll(async () => {
+  await sql.end();
+});
