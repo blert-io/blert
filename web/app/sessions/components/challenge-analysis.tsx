@@ -557,6 +557,7 @@ function DistributionChart({
             ) => [
               <span key={value} style={{ color: 'var(--blert-text-color)' }}>
                 {value} occurrence{value === 1 ? '' : 's'}
+                {/* eslint-disable-next-line react/prop-types */}
                 {props.payload && ` (${props.payload.percentage.toFixed(1)}%)`}
               </span>,
             ]}
