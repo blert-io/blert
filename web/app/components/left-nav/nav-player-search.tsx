@@ -5,7 +5,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 
 import Spinner from '@/components/spinner';
 import PlayerSearch from '@/components/player-search';
-import { DisplayContext } from '@/display';
+import { DisplayContext, useIsApple } from '@/display';
 
 import styles from './styles.module.scss';
 
@@ -16,6 +16,7 @@ export default function NavPlayerSearch() {
 
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
+  const isApple = useIsApple();
 
   useEffect(() => {
     setLoading(false);
@@ -24,20 +25,20 @@ export default function NavPlayerSearch() {
   const playerSearchRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const focusSearch = (e: KeyboardEvent) => {
-      if (e.key === 'k' && e.ctrlKey) {
+      if (e.key === 'k' && (e.ctrlKey || (isApple && e.metaKey))) {
         e.preventDefault();
         playerSearchRef.current?.focus();
       }
     };
     window.addEventListener('keydown', focusSearch);
     return () => window.removeEventListener('keydown', focusSearch);
-  }, []);
+  }, [isApple]);
 
   const customIcon = loading ? (
     <Spinner />
   ) : display.isFull() ? (
     <div className={styles.shortcut}>
-      <span>Ctrl</span>-<span>K</span>
+      <kbd>{isApple ? <span>⌘</span> : 'Ctrl-'}K</kbd>
     </div>
   ) : undefined;
 

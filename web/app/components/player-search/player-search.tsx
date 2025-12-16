@@ -81,7 +81,10 @@ const PlayerSearch = forwardRef<HTMLInputElement, PlayerSearchProps>(
     }
 
     return (
-      <div className={styles.wrapper}>
+      <div
+        className={styles.wrapper}
+        style={{ width: inputProps.fluid ? '100%' : inputProps.width }}
+      >
         <Input
           {...inputProps}
           inputClassName={inputClassName}
