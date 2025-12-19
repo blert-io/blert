@@ -6,7 +6,6 @@ import { WebSite, WithContext } from 'schema-dts';
 
 import LeftNav from './components/left-nav';
 import { LayoutContent } from './components/layout-content';
-import { PlayerLinkTooltip } from './components/player-link';
 import Tooltip, { GLOBAL_TOOLTIP_ID } from './components/tooltip';
 import Topbar from './components/topbar';
 import { MAIN_LOGO } from './logo';
@@ -101,9 +100,11 @@ export default function RootLayout({
         <Providers>
           <Topbar />
           <LayoutContent className={styles.siteParent}>
+          <LayoutContent className={styles.siteParent}>
             <LeftNav />
             <div id="portal-root" />
             <div className={styles.pageParentContent}>{children}</div>
+          </LayoutContent>
           </LayoutContent>
         </Providers>
         <Tooltip maxWidth={360} tooltipId={GLOBAL_TOOLTIP_ID}>

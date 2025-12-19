@@ -3,6 +3,9 @@
 
 .replay {
   width: fit-content;
+  // max-width: 550px;
+  // max-height: 400px;
+  overflow: auto;
 }
 
 .testingNotice {

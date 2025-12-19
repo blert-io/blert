@@ -1,11 +1,13 @@
 'use client';
 
+'use client';
+
 import Image from 'next/image';
 import Link from 'next/link';
-import { Suspense, useContext } from 'react';
+import { useContext } from 'react';
 
 import { MAIN_LOGO } from '@/logo';
-import { NavbarContext, useDisplay } from '@/display';
+import { NavbarContext } from '@/display';
 
 import AccountStatus, { AccountStatusSkeleton } from './account-status';
 import { LeftNavWrapper } from './left-nav-wrapper';
@@ -14,22 +16,21 @@ import NavPlayerSearch from './nav-player-search';
 import styles from './styles.module.scss';
 
 export function LeftNav() {
-  const display = useDisplay();
-  const { sidebarCollapsed: collapsed, setSidebarCollapsed: setCollapsed } =
-    useContext(NavbarContext);
+  const { sidebarCollapsed: collapsed, setSidebarCollapsed: setCollapsed } = useContext(NavbarContext);
 
   return (
-    <LeftNavWrapper>
-      <div className={`${styles.leftNav} ${collapsed ? styles.collapsed : ''}`}>
-        {display.isFull() && (
-          <button
-            className={styles.collapseToggle}
-            onClick={() => setCollapsed(!collapsed)}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            <i className={`fas fa-chevron-${collapsed ? 'right' : 'left'}`} />
-          </button>
-        )}
+    <LeftNavWrapper collapsed={collapsed}>
+      <div
+        className={`${styles.leftNav} ${collapsed ? styles.collapsed : ''}`}
+        style={{ width: collapsed ? 60 : LEFT_NAV_WIDTH }}
+      >
+        <button
+          className={styles.collapseToggle}
+          onClick={() => setCollapsed(!collapsed)}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          <i className={`fas fa-chevron-${collapsed ? 'right' : 'left'}`} />
+        </button>
 
         <div className={styles.leftNav__logo}>
           <Link className={styles.homeImage} href="/">

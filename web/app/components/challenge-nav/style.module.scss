@@ -2,16 +2,15 @@
 
 .nav {
   width: calc(100vw - var(--left-nav-width, $LEFT_NAV_WIDTH));
-  background: var(--blert-surface-dark);
-  border-bottom: 1px solid var(--blert-surface-light);
+  background: var(--nav-bg);
+  border-bottom: 1px solid var(--nav-bg-lightened);
   padding: 0 20px;
   position: fixed;
   top: 0;
   left: var(--left-nav-width, $LEFT_NAV_WIDTH);
+  left: var(--left-nav-width, $LEFT_NAV_WIDTH);
   z-index: 25;
-  transition:
-    left 0.3s ease,
-    width 0.3s ease;
+  transition: left 0.3s ease, width 0.3s ease;
 }
 
 .navItems {

@@ -47,6 +47,8 @@ type NavbarContextType = {
   setSidebarOpen: Dispatch<SetStateAction<boolean>>;
   sidebarCollapsed: boolean;
   setSidebarCollapsed: Dispatch<SetStateAction<boolean>>;
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: Dispatch<SetStateAction<boolean>>;
 };
 
 export const NavbarContext = createContext<NavbarContextType>({
@@ -58,11 +60,16 @@ export const NavbarContext = createContext<NavbarContextType>({
   setSidebarCollapsed: () => {
     /* noop */
   },
+  sidebarCollapsed: false,
+  setSidebarCollapsed: () => {
+    /* noop */
+  },
 });
 
 export function DisplayWrapper({ children }: { children: React.ReactNode }) {
   const [display, setDisplay] = useState<Display>(Display.FULL);
   const [sidebarOpen, setSidebarOpen] = useState(display.isFull());
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
@@ -79,14 +86,7 @@ export function DisplayWrapper({ children }: { children: React.ReactNode }) {
 
   return (
     <DisplayContext.Provider value={display}>
-      <NavbarContext.Provider
-        value={{
-          sidebarOpen,
-          setSidebarOpen,
-          sidebarCollapsed,
-          setSidebarCollapsed,
-        }}
-      >
+      <NavbarContext.Provider value={{ sidebarOpen, setSidebarOpen, sidebarCollapsed, setSidebarCollapsed }}>
         {children}
       </NavbarContext.Provider>
     </DisplayContext.Provider>

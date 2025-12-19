@@ -1,5 +1,8 @@
 .map {
   position: relative;
+  width: 500px !important;
+  max-width: 500px !important;
+  max-height: 400px !important;
 
   .mapCanvas {
     position: relative;
