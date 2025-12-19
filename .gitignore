@@ -25,6 +25,7 @@ web/public/scripts
 .DS_Store
 Thumbs.db
 *.pem
+.history/
 
 # debug
 npm-debug.log*

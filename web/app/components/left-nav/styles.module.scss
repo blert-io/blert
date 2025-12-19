@@ -15,8 +15,33 @@
   background: linear-gradient(to bottom, var(--panel-bg), var(--nav-bg));
   flex-direction: column;
   overflow-y: scroll;
-  transition: all 0.2s ease;
+  transition: width 0.3s ease;
   border-radius: 0;
+  position: relative;
+
+  &.collapsed {
+    .leftNav__logo,
+    .leftNav__playerSearch,
+    .leftNav__menuDivider,
+    .leftNav__menuDividerTwo,
+    .account,
+    .leftNav__externalLinks {
+      display: none;
+    }
+
+    .leftNav__menuItemInner {
+      justify-content: center;
+      padding: 8px;
+
+      span {
+        display: none;
+      }
+    }
+
+    .leftNav__menuItemIcon {
+      margin: 0;
+    }
+  }
 
   .homeImage {
     position: relative;
@@ -27,6 +52,34 @@
     @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
       height: 60px;
       width: 140px;
+    }
+  }
+
+  .collapseToggle {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    border: 1px solid var(--font-color-nav-divider);
+    background: var(--nav-bg);
+    color: var(--font-color-nav);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    z-index: 10;
+
+    &:hover {
+      background: var(--nav-bg-lightened);
+      border-color: var(--blert-button);
+      color: var(--blert-button);
+    }
+
+    i {
+      font-size: 14px;
     }
   }
 

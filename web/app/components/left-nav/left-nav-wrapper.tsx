@@ -64,7 +64,13 @@ function shouldSuppressSidebarDrag(target: EventTarget | null): boolean {
 
 const SCREEN_EDGE_THRESHOLD = 50;
 
-export function LeftNavWrapper({ children }: { children: React.ReactNode }) {
+export function LeftNavWrapper({
+  children,
+  collapsed,
+}: {
+  children: React.ReactNode;
+  collapsed: boolean;
+}) {
   const pathname = usePathname();
 
   const display = useContext(DisplayContext);
@@ -174,15 +180,16 @@ export function LeftNavWrapper({ children }: { children: React.ReactNode }) {
     };
   }, [display, sidebarOpen, setSidebarOpen]);
 
-  let left = sidebarOpen ? 0 : -LEFT_NAV_WIDTH;
+  const currentWidth = collapsed ? 60 : LEFT_NAV_WIDTH;
+  let left = sidebarOpen ? 0 : -currentWidth;
   left += dragX;
 
   const shouldAnimate = display.isCompact() && activeTouch.current === null;
 
   const style: React.CSSProperties = {
-    width: LEFT_NAV_WIDTH,
+    width: currentWidth,
     left,
-    transition: shouldAnimate ? 'left 0.2s' : 'none',
+    transition: shouldAnimate ? 'left 0.2s, width 0.3s' : 'width 0.3s',
   };
 
   return (

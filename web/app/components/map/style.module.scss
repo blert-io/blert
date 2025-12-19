@@ -4,6 +4,8 @@
   flex-direction: column;
   border: 2px solid rgba(var(--blert-text-color-base), 0.7);
   overflow: hidden;
+  // max-width: 500px;
+  // max-height: 400px;
 
   .mapRow {
     display: flex;
