@@ -7,6 +7,13 @@
   top: 0;
 }
 
+.leftNavWrapperUnmounted {
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    left: -$LEFT_NAV_WIDTH !important;
+    visibility: hidden;
+  }
+}
+
 .leftNav {
   @include hideTheFuckingScrollbarsJesusChrist;
   @include panel;
