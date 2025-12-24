@@ -482,6 +482,21 @@ export default function Npc({
               {entity.name}
             </Text>
 
+            {npcEntity.label && (
+              <Text
+                position={[0, 0, 0.01]}
+                fontSize={0.4}
+                color="#ffffff"
+                anchorX="center"
+                anchorY="middle"
+                font="/fonts/runescape.ttf"
+                outlineWidth={0.03}
+                outlineColor="#000000"
+              >
+                {npcEntity.label}
+              </Text>
+            )}
+
             {!npcEntity.prayers.isEmpty() && (
               <group position={[0, 2.0 + (entity.size - 1) * 0.5, 0]}>
                 <Suspense fallback={null}>

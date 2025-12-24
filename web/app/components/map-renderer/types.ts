@@ -160,6 +160,8 @@ export class NpcEntity implements Entity {
   imageUrl: string;
   readonly maxSpeed: number;
   hitpoints: HitpointsState | null;
+  dimmed: boolean = false;
+  label?: string;
 
   public constructor(
     public readonly position: Coords,
