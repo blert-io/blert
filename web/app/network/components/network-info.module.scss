@@ -52,10 +52,10 @@
 .infoCard {
   background: linear-gradient(
     135deg,
-    var(--panel-bg) 0%,
-    rgba(var(--nav-bg-base), 0.95) 100%
+    var(--blert-panel-background-color) 0%,
+    rgba(var(--blert-surface-dark-base), 0.95) 100%
   );
-  border: 1px solid rgba(var(--blert-button-base), 0.3);
+  border: 1px solid rgba(var(--blert-purple-base), 0.3);
   box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.4),
     0 2px 8px rgba(0, 0, 0, 0.2);
@@ -79,7 +79,7 @@
   gap: 12px;
   margin-bottom: 16px;
   padding-bottom: 12px;
-  border-bottom: 1px solid rgba(var(--nav-bg-lightened-base), 0.6);
+  border-bottom: 1px solid rgba(var(--blert-surface-light-base), 0.6);
 }
 
 .playerInfo {
@@ -93,11 +93,11 @@
     margin: 0 0 8px 0;
     font-size: 1.2rem;
     font-weight: 600;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     word-break: break-word;
 
     i {
-      color: var(--blert-button);
+      color: var(--blert-purple);
       font-size: 1rem;
       flex-shrink: 0;
     }
@@ -108,10 +108,10 @@
     align-items: center;
     gap: 6px;
     font-size: 0.85rem;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
 
     i {
-      color: var(--blert-button);
+      color: var(--blert-purple);
       font-size: 0.8rem;
       width: 12px;
       text-align: center;
@@ -154,13 +154,13 @@
 }
 
 .focusButton {
-  background: rgba(var(--blert-button-base), 0.1);
-  border-color: rgba(var(--blert-button-base), 0.3);
-  color: var(--blert-button);
+  background: rgba(var(--blert-purple-base), 0.1);
+  border-color: rgba(var(--blert-purple-base), 0.3);
+  color: var(--blert-purple);
 
   &:hover {
-    background: rgba(var(--blert-button-base), 0.2);
-    border-color: rgba(var(--blert-button-base), 0.5);
+    background: rgba(var(--blert-purple-base), 0.2);
+    border-color: rgba(var(--blert-purple-base), 0.5);
   }
 }
 
@@ -191,18 +191,18 @@
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  background: rgba(var(--blert-button-base), 0.1);
-  border: 1px solid rgba(var(--blert-button-base), 0.3);
+  background: rgba(var(--blert-purple-base), 0.1);
+  border: 1px solid rgba(var(--blert-purple-base), 0.3);
   border-radius: 6px;
-  color: var(--blert-button);
+  color: var(--blert-purple);
   text-decoration: none;
   font-size: 0.9rem;
   font-weight: 500;
   transition: all 0.2s ease;
 
   &:hover {
-    background: rgba(var(--blert-button-base), 0.2);
-    border-color: rgba(var(--blert-button-base), 0.5);
+    background: rgba(var(--blert-purple-base), 0.2);
+    border-color: rgba(var(--blert-purple-base), 0.5);
   }
 
   i {
@@ -218,10 +218,10 @@
     margin: 0 0 12px 0;
     font-size: 1rem;
     font-weight: 600;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
 
     i {
-      color: var(--blert-button);
+      color: var(--blert-purple);
       font-size: 0.9rem;
       width: 14px;
       text-align: center;
@@ -241,14 +241,14 @@
   align-items: center;
   gap: 8px;
   padding: 8px;
-  background: rgba(var(--nav-bg-base), 0.6);
-  border: 1px solid rgba(var(--font-color-nav-divider), 0.3);
+  background: rgba(var(--blert-surface-dark-base), 0.6);
+  border: 1px solid rgba(var(--blert-divider-color), 0.3);
   border-radius: 6px;
   transition: all 0.2s ease;
 
   &:hover {
-    background: rgba(var(--nav-bg-lightened-base), 0.7);
-    border-color: rgba(var(--blert-button-base), 0.3);
+    background: rgba(var(--blert-surface-light-base), 0.7);
+    border-color: rgba(var(--blert-purple-base), 0.3);
   }
 }
 
@@ -259,7 +259,7 @@
   min-width: 0;
 
   &:hover .neighborName {
-    color: var(--blert-button);
+    color: var(--blert-purple);
   }
 }
 
@@ -272,7 +272,7 @@
   .neighborName {
     font-size: 0.9rem;
     font-weight: 500;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     transition: color 0.2s ease;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -281,7 +281,7 @@
 
   .neighborCount {
     font-size: 0.75rem;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     font-variant-numeric: tabular-nums;
   }
 }
@@ -292,18 +292,18 @@
   justify-content: center;
   width: 24px;
   height: 24px;
-  background: rgba(var(--blert-button-base), 0.1);
-  border: 1px solid rgba(var(--blert-button-base), 0.3);
+  background: rgba(var(--blert-purple-base), 0.1);
+  border: 1px solid rgba(var(--blert-purple-base), 0.3);
   border-radius: 4px;
-  color: var(--blert-button);
+  color: var(--blert-purple);
   cursor: pointer;
   transition: all 0.2s ease;
   flex-shrink: 0;
   position: relative;
 
   &:hover {
-    background: rgba(var(--blert-button-base), 0.2);
-    border-color: rgba(var(--blert-button-base), 0.5);
+    background: rgba(var(--blert-purple-base), 0.2);
+    border-color: rgba(var(--blert-purple-base), 0.5);
     transform: scale(1.1);
   }
 
@@ -320,10 +320,10 @@
   justify-content: center;
   gap: 8px;
   padding: 8px 12px;
-  background: rgba(var(--nav-bg-base), 0.4);
-  border: 1px dashed rgba(var(--font-color-nav-divider), 0.5);
+  background: rgba(var(--blert-surface-dark-base), 0.4);
+  border: 1px dashed rgba(var(--blert-divider-color), 0.5);
   border-radius: 6px;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   font-size: 0.8rem;
   font-style: italic;
 
@@ -339,7 +339,7 @@
   justify-content: center;
   padding: 24px 16px;
   text-align: center;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   gap: 8px;
 
   i {

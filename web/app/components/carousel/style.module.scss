@@ -17,8 +17,8 @@
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    background: var(--nav-bg);
-    color: var(--font-color-nav);
+    background: var(--blert-surface-dark);
+    color: var(--blert-font-color-secondary);
     transition: all 0.2s ease;
     cursor: pointer;
 
@@ -28,11 +28,11 @@
     }
 
     &:not(:disabled) {
-      color: var(--blert-button);
+      color: var(--blert-purple);
     }
 
     &:hover:not(:disabled) {
-      background: var(--nav-bg-lightened);
+      background: var(--blert-surface-light);
     }
 
     &:disabled {
@@ -73,17 +73,17 @@
       width: 10px;
       height: 10px;
       border-radius: 50%;
-      background: rgba(var(--blert-button-base), 0.3);
+      background: rgba(var(--blert-purple-base), 0.3);
       transition: all 0.2s ease;
       cursor: pointer;
 
       &:hover {
-        background: rgba(var(--blert-button-base), 0.6);
+        background: rgba(var(--blert-purple-base), 0.6);
       }
 
       &.active {
         transform: scale(1.1);
-        background: var(--blert-button);
+        background: var(--blert-purple);
       }
     }
   }

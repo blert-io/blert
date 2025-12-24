@@ -8,7 +8,11 @@
   padding: 20px;
   width: 100%;
   max-width: 1400px;
-  background: linear-gradient(135deg, var(--panel-bg), var(--nav-bg-lightened));
+  background: linear-gradient(
+    135deg,
+    var(--blert-panel-background-color),
+    var(--blert-surface-light)
+  );
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     width: 100%;
@@ -47,7 +51,7 @@
   flex-shrink: 0;
   border-radius: 8px;
   overflow: hidden;
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     width: 80px;
@@ -68,7 +72,7 @@
   h1 {
     font-size: 1.4em;
     margin: 0;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     font-weight: 500;
   }
 
@@ -77,10 +81,10 @@
     align-items: center;
     gap: 8px;
     font-family: var(--font-roboto-mono), monospace;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
 
     i {
-      color: var(--blert-button);
+      color: var(--blert-purple);
     }
   }
 }
@@ -97,20 +101,20 @@
 }
 
 .section {
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
   border-radius: 8px;
   padding: 16px;
 
   h3 {
     font-size: 1em;
     margin: 0 0 12px 0;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     font-weight: 500;
   }
 }
 
 .sectionContent {
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
   font-size: 0.95em;
   line-height: 1.4;
 }

@@ -6,7 +6,7 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 12px;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     font-size: 0.9em;
 
     .chartTitleMain {
@@ -15,7 +15,7 @@
       gap: 8px;
 
       i {
-        color: var(--blert-button);
+        color: var(--blert-purple);
       }
     }
 
@@ -26,7 +26,7 @@
       gap: 6px;
       font-size: 0.9em;
       padding: 4px 8px;
-      background: var(--nav-bg);
+      background: var(--blert-surface-dark);
       border-radius: 4px;
 
       i {
@@ -39,10 +39,10 @@
 
   :global(.recharts-cartesian-grid-horizontal line),
   :global(.recharts-cartesian-grid-vertical line) {
-    stroke: var(--font-color-nav-divider);
+    stroke: var(--blert-divider-color);
   }
 
   :global(.recharts-tooltip-cursor) {
-    fill: var(--font-color-nav-divider);
+    fill: var(--blert-divider-color);
   }
 }

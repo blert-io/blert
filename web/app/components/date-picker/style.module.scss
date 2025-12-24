@@ -4,21 +4,21 @@
   line-height: 16px;
   height: 42px;
   padding: 12px 15px;
-  border: 1px solid var(--font-color-nav);
+  border: 1px solid var(--blert-font-color-secondary);
   border-radius: 5px;
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
   transition: border-color 0.2s ease-in-out;
 
   &:focus {
     outline: none;
-    border-color: var(--blert-button);
+    border-color: var(--blert-purple);
   }
 
   &:hover {
-    border-color: var(--blert-button);
+    border-color: var(--blert-purple);
   }
 
   &::placeholder {
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
   }
 }

@@ -522,7 +522,7 @@ function DistributionChart({
           />
           <XAxis
             dataKey="value"
-            tick={{ fill: 'var(--blert-text-color)', fontSize: 12 }}
+            tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 12 }}
             axisLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
             tickLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
             angle={selectedStat.type === StatType.SPLIT ? -45 : undefined}
@@ -531,22 +531,25 @@ function DistributionChart({
             interval={0}
           />
           <YAxis
-            tick={{ fill: 'var(--blert-text-color)', fontSize: 12 }}
+            tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 12 }}
             axisLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
             tickLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
             label={{
               value: 'Frequency',
               angle: -90,
               position: 'insideLeft',
-              style: { textAnchor: 'middle', fill: 'var(--blert-text-color)' },
+              style: {
+                textAnchor: 'middle',
+                fill: 'var(--blert-font-color-primary)',
+              },
             }}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: 'var(--panel-bg)',
-              border: '1px solid var(--nav-bg-lightened)',
+              backgroundColor: 'var(--blert-panel-background-color)',
+              border: '1px solid var(--blert-surface-light)',
               borderRadius: '6px',
-              color: 'var(--blert-text-color)',
+              color: 'var(--blert-font-color-primary)',
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
             }}
             cursor={{ fill: 'rgba(139, 92, 246, 0.1)' }}
@@ -555,14 +558,22 @@ function DistributionChart({
               _name: string,
               props: { payload?: { percentage: number } },
             ) => [
-              <span key={value} style={{ color: 'var(--blert-text-color)' }}>
+              <span
+                key={value}
+                style={{ color: 'var(--blert-font-color-primary)' }}
+              >
                 {value} occurrence{value === 1 ? '' : 's'}
                 {/* eslint-disable-next-line react/prop-types */}
                 {props.payload && ` (${props.payload.percentage.toFixed(1)}%)`}
               </span>,
             ]}
             labelFormatter={(label: string) => (
-              <span style={{ fontWeight: 600, color: 'var(--font-color-nav)' }}>
+              <span
+                style={{
+                  fontWeight: 600,
+                  color: 'var(--blert-font-color-secondary)',
+                }}
+              >
                 Value: {label}
               </span>
             )}
@@ -603,20 +614,25 @@ function ChartDisplay({
   const tooltip = (
     <Tooltip
       contentStyle={{
-        backgroundColor: 'var(--panel-bg)',
-        border: '1px solid var(--nav-bg-lightened)',
+        backgroundColor: 'var(--blert-panel-background-color)',
+        border: '1px solid var(--blert-surface-light)',
         borderRadius: '6px',
-        color: 'var(--blert-text-color)',
+        color: 'var(--blert-font-color-primary)',
         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
       }}
       cursor={{ fill: 'rgba(139, 92, 246, 0.1)' }}
       formatter={(value: number, _name: string, _props: any) => [
-        <span key={value} style={{ color: 'var(--blert-text-color)' }}>
+        <span key={value} style={{ color: 'var(--blert-font-color-primary)' }}>
           {selectedStat.formatter ? selectedStat.formatter(value) : value}
         </span>,
       ]}
       labelFormatter={(label: string) => (
-        <span style={{ fontWeight: 600, color: 'var(--font-color-nav)' }}>
+        <span
+          style={{
+            fontWeight: 600,
+            color: 'var(--blert-font-color-secondary)',
+          }}
+        >
           {challengeTerm(challengeType)} #{label}
         </span>
       )}
@@ -649,13 +665,13 @@ function ChartDisplay({
             />
             <XAxis
               dataKey="challengeIndex"
-              tick={{ fill: 'var(--blert-text-color)', fontSize: 12 }}
+              tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 12 }}
               axisLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
               tickLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
               tickFormatter={(value: number) => `#${value}`}
             />
             <YAxis
-              tick={{ fill: 'var(--blert-text-color)', fontSize: 12 }}
+              tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 12 }}
               axisLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
               tickLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
               tickFormatter={selectedStat.formatter}
@@ -678,13 +694,13 @@ function ChartDisplay({
             />
             <XAxis
               dataKey="challengeIndex"
-              tick={{ fill: 'var(--blert-text-color)', fontSize: 12 }}
+              tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 12 }}
               axisLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
               tickLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
               tickFormatter={(value: number) => `#${value}`}
             />
             <YAxis
-              tick={{ fill: 'var(--blert-text-color)', fontSize: 12 }}
+              tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 12 }}
               axisLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
               tickLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
               tickFormatter={selectedStat.formatter}
@@ -869,7 +885,7 @@ export default function ChallengeAnalysis() {
             across all challenges in the session.
           </p>
           {menuItems.length > 1 ? (
-            <div className={styles.statGroupSelector}>
+            <div>
               <RadioInput.Group
                 name="stat-group"
                 compact

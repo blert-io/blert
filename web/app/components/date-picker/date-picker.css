@@ -1,11 +1,11 @@
 .blert-datepicker .react-datepicker {
   font-family: 'Inter', sans-serif;
-  background-color: var(--panel-bg);
-  border: 1px solid var(--font-color-nav);
+  background-color: var(--blert-panel-background-color);
+  border: 1px solid var(--blert-font-color-secondary);
 }
 
 .blert-datepicker .react-datepicker__header {
-  background-color: var(--nav-bg);
+  background-color: var(--blert-surface-dark);
 }
 
 .blert-datepicker .react-datepicker__current-month {
@@ -13,11 +13,11 @@
 }
 
 .blert-datepicker .react-datepicker__day-name {
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
 }
 
 .blert-datepicker .react-datepicker__day {
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
 }
 
 .blert-datepicker .react-datepicker__day--disabled {
@@ -25,13 +25,13 @@
 }
 
 .blert-datepicker .react-datepicker__day:not([aria-disabled='true']):hover {
-  background-color: var(--blert-text-color);
-  color: var(--panel-bg);
+  background-color: var(--blert-font-color-primary);
+  color: var(--blert-panel-background-color);
 }
 
 .blert-datepicker .react-datepicker__day--selected,
 .blert-datepicker .react-datepicker__day--keyboard-selected {
-  background-color: var(--blert-button);
+  background-color: var(--blert-purple);
   color: #fff;
   font-weight: 700;
 }
@@ -40,7 +40,7 @@
   top: calc(50% - 1px);
   left: 2px;
   transform: translateY(-50%);
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
 }
 
 .blert-datepicker-wrapper .react-datepicker__close-icon {
@@ -48,7 +48,7 @@
 }
 
 .blert-datepicker-wrapper .react-datepicker__close-icon::after {
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   font-family: 'Font Awesome 6 Free';
   content: '\f057';
   background: none;
@@ -56,7 +56,7 @@
 }
 
 .blert-datepicker-wrapper .react-datepicker__close-icon:hover::after {
-  color: var(--blert-button);
+  color: var(--blert-purple);
 }
 
 .blert-datepicker-wrapper .react-datepicker__view-calendar-icon input {

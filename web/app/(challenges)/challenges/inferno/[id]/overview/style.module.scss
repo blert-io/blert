@@ -18,7 +18,7 @@
   h2 {
     font-size: 1.3em;
     margin: 0 0 20px 0;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
   }
 
   .groups {
@@ -32,11 +32,11 @@
   .waveGroup {
     &.special {
       .groupTitle {
-        color: var(--blert-button);
+        color: var(--blert-purple);
         font-weight: 600;
 
         i {
-          color: var(--blert-button);
+          color: var(--blert-purple);
         }
       }
     }
@@ -47,7 +47,7 @@
       justify-content: space-between;
       margin-bottom: 16px;
       padding-bottom: 12px;
-      border-bottom: 2px solid rgba(var(--blert-button-base), 0.3);
+      border-bottom: 2px solid rgba(var(--blert-purple-base), 0.3);
 
       .groupInfo {
         display: flex;
@@ -62,11 +62,11 @@
           gap: 8px;
           font-size: 1.2em;
           font-weight: 600;
-          color: var(--blert-text-color);
+          color: var(--blert-font-color-primary);
 
           i {
             font-size: 1em;
-            color: var(--blert-button);
+            color: var(--blert-purple);
           }
         }
 
@@ -81,17 +81,17 @@
             display: flex;
             align-items: center;
             gap: 6px;
-            color: var(--font-color-nav);
+            color: var(--blert-font-color-secondary);
 
             i {
               font-size: 0.9em;
-              color: var(--blert-button);
+              color: var(--blert-purple);
               min-width: 14px;
             }
           }
 
           .startTime {
-            color: var(--blert-text-color);
+            color: var(--blert-font-color-primary);
             font-weight: 500;
           }
         }
@@ -101,9 +101,9 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background: rgba(var(--blert-button-base), 0.1);
+        background: rgba(var(--blert-purple-base), 0.1);
         border-radius: 8px;
-        border: 2px solid rgba(var(--blert-button-base), 0.3);
+        border: 2px solid rgba(var(--blert-purple-base), 0.3);
         flex-shrink: 0;
 
         img {
@@ -125,10 +125,10 @@
         padding: 6px 8px;
         width: 40px;
         height: 32px;
-        background: var(--nav-bg);
-        border: 1px solid var(--font-color-nav-divider);
+        background: var(--blert-surface-dark);
+        border: 1px solid var(--blert-divider-color);
         border-radius: 6px;
-        color: var(--blert-text-color);
+        color: var(--blert-font-color-primary);
         text-decoration: none;
         font-size: 0.85em;
         font-weight: 500;
@@ -136,8 +136,8 @@
         font-family: var(--font-roboto-mono), monospace;
 
         &:hover {
-          background: var(--blert-button);
-          border-color: var(--blert-button);
+          background: var(--blert-purple);
+          border-color: var(--blert-purple);
           color: #fff;
           transform: translateY(-1px);
         }

@@ -2,14 +2,14 @@
   font-size: 16px;
   border-radius: 5px;
   padding: 8px 10px;
-  background-color: var(--blert-button);
+  background-color: var(--blert-purple);
   color: white;
   font-weight: 600;
-  border: 1px solid var(--blert-button);
+  border: 1px solid var(--blert-purple);
 
   &.simple {
     background: none;
-    color: var(--blert-button);
+    color: var(--blert-purple);
   }
 
   &:disabled {

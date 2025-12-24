@@ -7,48 +7,39 @@
   --blert-blue-base: 59, 130, 246;
   --blert-green-base: 45, 199, 112;
   --blert-yellow-base: 222, 200, 88;
-  --blert-text-color-base: 195, 199, 201;
-  --blert-button-base: 88, 101, 242;
+  --blert-purple-base: 88, 101, 242;
   --blert-gold-base: 255, 215, 0;
   --blert-silver-base: 192, 192, 192;
   --blert-bronze-base: 205, 127, 50;
 
-  --nav-bg-base: 23, 24, 33;
-  --nav-bg-darkened-base: 17, 18, 33;
-  --nav-bg-lightened-base: 33, 35, 48;
-  --panel-bg-base: 27, 28, 37;
+  --blert-font-color-primary-base: 195, 199, 201;
+  --blert-font-color-secondary-base: 94, 98, 136;
+
+  --blert-surface-dark-base: 23, 24, 33;
+  --blert-surface-darker-base: 17, 18, 33;
+  --blert-surface-light-base: 33, 35, 48;
+  --blert-page-background-color-base: 33, 34, 41;
+  --blert-panel-background-color-base: 27, 28, 37;
 
   --blert-red: rgb(var(--blert-red-base));
   --blert-blue: rgb(var(--blert-blue-base));
   --blert-green: rgb(var(--blert-green-base));
   --blert-yellow: rgb(var(--blert-yellow-base));
-  --blert-text-color: rgb(var(--blert-text-color-base));
-  --blert-button: rgb(var(--blert-button-base));
+  --blert-purple: rgb(var(--blert-purple-base));
   --blert-gold: rgb(var(--blert-gold-base));
   --blert-silver: rgb(var(--blert-silver-base));
   --blert-bronze: rgb(var(--blert-bronze-base));
 
-  --nav-bg: rgb(var(--nav-bg-base));
-  --nav-bg-darkened: rgb(var(--nav-bg-darkened-base));
-  --nav-bg-lightened: rgb(var(--nav-bg-lightened-base));
-  --page-bg: #171821;
-  --content-area-bg: #212229;
-  --panel-bg: #1b1c25;
+  --blert-font-color-primary: rgb(var(--blert-font-color-primary-base));
+  --blert-font-color-secondary: rgb(var(--blert-font-color-secondary-base));
+  --blert-font-color-secondary-active: #acafc6;
+  --blert-divider-color: #4b4e6d;
 
-  --highlight-bg: #303349;
-
-  --font-color-nav: #5e6288;
-  --font-color-nav-active: #acafc6;
-  --font-color-nav-divider: #4b4e6d;
-
-  --font-size-title: 25px;
-  --font-color-title: #000;
-
-  --font-size-subtitle: 20px;
-  --font-color-subtitle: #fff;
-
-  --font-size-normal: 15px;
-  --font-color-normal: #000;
+  --blert-surface-dark: rgb(var(--blert-surface-dark-base));
+  --blert-surface-darker: rgb(var(--blert-surface-darker-base));
+  --blert-surface-light: rgb(var(--blert-surface-light-base));
+  --blert-page-background-color: rgb(var(--blert-page-background-color-base));
+  --blert-panel-background-color: rgb(var(--blert-panel-background-color-base));
 
   --blert-gold-text-shadow:
     0 0 8px rgba(255, 215, 0, 0.6), 0 0 16px rgba(255, 215, 0, 0.3),
@@ -77,18 +68,18 @@ body {
 }
 
 body {
-  color: var(--blert-text-color);
-  background-color: var(--page-bg);
+  color: var(--blert-font-color-primary);
+  background-color: var(--blert-page-background-color);
   display: flex;
 }
 
 a {
   text-decoration: none;
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
 }
 
 button {
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
   background: none;
   border: none;
   font-family: 'Inter', sans-serif;

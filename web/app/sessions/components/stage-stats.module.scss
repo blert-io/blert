@@ -12,7 +12,7 @@
 }
 
 .stageCard {
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
   border-radius: 12px;
   padding: 1rem;
   border: 1px solid transparent;
@@ -27,12 +27,12 @@
     left: 0;
     right: 0;
     height: 3px;
-    background: linear-gradient(90deg, var(--blert-button), var(--blert-green));
+    background: linear-gradient(90deg, var(--blert-purple), var(--blert-green));
     opacity: 0.6;
   }
 
   &:hover {
-    border-color: rgba(var(--blert-button-base), 0.3);
+    border-color: rgba(var(--blert-purple-base), 0.3);
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
   }
@@ -43,7 +43,7 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: 1rem;
-  border-bottom: 1px solid rgba(var(--font-color-nav-base), 0.1);
+  border-bottom: 1px solid rgba(var(--blert-font-color-secondary-base), 0.1);
 }
 
 .stageTitle {
@@ -52,26 +52,26 @@
   gap: 0.75rem;
 
   i {
-    color: var(--blert-button);
+    color: var(--blert-purple);
     font-size: 1.1rem;
     width: 20px;
     text-align: center;
   }
 
   svg {
-    fill: var(--blert-button);
-    stroke: var(--blert-button);
+    fill: var(--blert-purple);
+    stroke: var(--blert-purple);
   }
 
   path {
-    fill: var(--blert-button);
-    stroke: var(--blert-button);
+    fill: var(--blert-purple);
+    stroke: var(--blert-purple);
   }
 
   span {
     font-weight: 600;
     font-size: 1rem;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
   }
 }
 
@@ -83,7 +83,7 @@
 
   .attempts {
     font-size: 0.7rem;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     opacity: 0.8;
     font-weight: 500;
   }
@@ -112,14 +112,14 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem;
-  background: var(--panel-bg);
+  background: var(--blert-panel-background-color);
   border-radius: 8px;
-  border: 1px solid rgba(var(--blert-button-base), 0.1);
+  border: 1px solid rgba(var(--blert-purple-base), 0.1);
   transition: all 0.2s ease;
 
   &:hover {
-    border-color: rgba(var(--blert-button-base), 0.2);
-    background: rgba(var(--panel-bg-base), 1.05);
+    border-color: rgba(var(--blert-purple-base), 0.2);
+    background: rgba(var(--blert-panel-background-color-base), 1.05);
   }
 
   i {
@@ -136,7 +136,7 @@
 
   .statLabel {
     font-size: 0.6rem;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     opacity: 0.8;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -158,14 +158,14 @@
   align-items: center;
   gap: 0.25rem;
   padding: 0.5rem;
-  background: rgba(var(--nav-bg-base), 0.5);
+  background: rgba(var(--blert-surface-dark-base), 0.5);
   border-radius: 6px;
-  border: 1px solid rgba(var(--blert-button-base), 0.08);
+  border: 1px solid rgba(var(--blert-purple-base), 0.08);
 }
 
 .timeLabel {
   font-size: 0.7rem;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   opacity: 0.7;
   text-transform: uppercase;
   letter-spacing: 0.3px;
@@ -176,7 +176,7 @@
   font-family: var(--font-roboto-mono), monospace;
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
 }
 
 .noCompletions {
@@ -185,7 +185,7 @@
   justify-content: center;
   gap: 0.5rem;
   padding: 1rem;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   opacity: 0.6;
   font-size: 0.9rem;
   font-style: italic;
@@ -197,14 +197,14 @@
 }
 
 .splitsStats {
-  border-top: 1px solid rgba(var(--font-color-nav-base), 0.1);
+  border-top: 1px solid rgba(var(--blert-font-color-secondary-base), 0.1);
 
   .splitsHeader {
     margin-bottom: 0.25rem;
 
     .splitsTitle {
       font-size: 0.75rem;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
       opacity: 0.8;
       text-transform: uppercase;
       letter-spacing: 0.5px;
@@ -223,13 +223,13 @@
     justify-content: space-between;
     align-items: center;
     padding: 0 0.5rem;
-    background: rgba(var(--nav-bg-base), 0.3);
+    background: rgba(var(--blert-surface-dark-base), 0.3);
     border-radius: 4px;
     font-size: 0.8rem;
   }
 
   .splitName {
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     opacity: 0.9;
     font-weight: 500;
     flex: 1;
@@ -240,7 +240,7 @@
 
   .splitTime {
     font-family: var(--font-roboto-mono), monospace;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     font-size: 0.75rem;
     margin-left: 0.5rem;
   }
@@ -258,11 +258,11 @@
 
 .moderateCompletion {
   .statValue {
-    color: var(--blert-button);
-    text-shadow: 0 0 3px rgba(var(--blert-button-base), 0.3);
+    color: var(--blert-purple);
+    text-shadow: 0 0 3px rgba(var(--blert-purple-base), 0.3);
   }
   i {
-    color: var(--blert-button);
+    color: var(--blert-purple);
   }
 }
 
@@ -288,11 +288,11 @@
 
 .lowDeaths {
   .statValue {
-    color: var(--blert-button);
-    text-shadow: 0 0 3px rgba(var(--blert-button-base), 0.3);
+    color: var(--blert-purple);
+    text-shadow: 0 0 3px rgba(var(--blert-purple-base), 0.3);
   }
   i {
-    color: var(--blert-button);
+    color: var(--blert-purple);
   }
 }
 
@@ -339,7 +339,7 @@
 }
 
 .skeleton {
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
   border-radius: 4px;
   animation: pulse 1.5s ease-in-out infinite;
 }
@@ -389,13 +389,13 @@
   gap: 1rem;
   padding: 3rem 2rem;
   text-align: center;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   background: linear-gradient(
     135deg,
-    rgba(var(--panel-bg-base), 0.3) 0%,
-    rgba(var(--nav-bg-base), 0.1) 100%
+    rgba(var(--blert-panel-background-color-base), 0.3) 0%,
+    rgba(var(--blert-surface-dark-base), 0.1) 100%
   );
-  border: 2px dashed rgba(var(--font-color-nav-base), 0.3);
+  border: 2px dashed rgba(var(--blert-font-color-secondary-base), 0.3);
   border-radius: 12px;
 }
 
@@ -405,8 +405,8 @@
   border-radius: 50%;
   background: linear-gradient(
     135deg,
-    rgba(var(--blert-button-base), 0.1) 0%,
-    rgba(var(--blert-button-base), 0.05) 100%
+    rgba(var(--blert-purple-base), 0.1) 0%,
+    rgba(var(--blert-purple-base), 0.05) 100%
   );
   display: flex;
   align-items: center;
@@ -414,7 +414,7 @@
 
   i {
     font-size: 1.5rem;
-    color: var(--blert-button);
+    color: var(--blert-purple);
     opacity: 0.7;
   }
 }
@@ -434,13 +434,13 @@
   gap: 1rem;
   padding: 3rem;
   text-align: center;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   background: linear-gradient(
     135deg,
-    rgba(var(--panel-bg-base), 0.3) 0%,
-    rgba(var(--nav-bg-base), 0.1) 100%
+    rgba(var(--blert-panel-background-color-base), 0.3) 0%,
+    rgba(var(--blert-surface-dark-base), 0.1) 100%
   );
-  border: 2px dashed rgba(var(--font-color-nav-base), 0.3);
+  border: 2px dashed rgba(var(--blert-font-color-secondary-base), 0.3);
   border-radius: 12px;
 }
 

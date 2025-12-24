@@ -3,11 +3,11 @@
 .migrationBanner {
   padding: 1.5rem;
   margin-bottom: 2rem;
-  border: 2px solid rgba(var(--blert-button-base), 0.3);
+  border: 2px solid rgba(var(--blert-purple-base), 0.3);
   background: linear-gradient(
     135deg,
-    rgba(var(--blert-button-base), 0.08) 0%,
-    rgba(var(--blert-button-base), 0.02) 50%,
+    rgba(var(--blert-purple-base), 0.08) 0%,
+    rgba(var(--blert-purple-base), 0.02) 50%,
     transparent 100%
   );
   box-shadow:
@@ -26,7 +26,7 @@
     background: linear-gradient(
       90deg,
       transparent,
-      var(--blert-button),
+      var(--blert-purple),
       transparent
     );
     animation: borderSlide 3s ease-in-out infinite;
@@ -69,15 +69,15 @@
     height: 64px;
     background: linear-gradient(
       135deg,
-      rgba(var(--blert-button-base), 0.2) 0%,
-      rgba(var(--blert-button-base), 0.05) 100%
+      rgba(var(--blert-purple-base), 0.2) 0%,
+      rgba(var(--blert-purple-base), 0.05) 100%
     );
-    border: 2px solid rgba(var(--blert-button-base), 0.4);
+    border: 2px solid rgba(var(--blert-purple-base), 0.4);
     border-radius: 12px;
     flex-shrink: 0;
 
     > i {
-      color: var(--blert-button);
+      color: var(--blert-purple);
       font-size: 2rem;
       z-index: 1;
     }
@@ -101,7 +101,7 @@
     height: 100%;
     background: radial-gradient(
       circle,
-      rgba(var(--blert-button-base), 0.4) 0%,
+      rgba(var(--blert-purple-base), 0.4) 0%,
       transparent 70%
     );
     border-radius: 12px;
@@ -130,11 +130,11 @@
       gap: 0.5rem;
       margin: 0 0 0.5rem 0;
       font-size: 1.5rem;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
       font-weight: 700;
 
       i {
-        color: var(--blert-button);
+        color: var(--blert-purple);
         font-size: 1.25rem;
       }
 
@@ -149,12 +149,12 @@
 
     p {
       margin: 0;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
       font-size: 1rem;
       line-height: 1.6;
 
       strong {
-        color: var(--blert-button);
+        color: var(--blert-purple);
         font-weight: 600;
       }
 
@@ -182,22 +182,22 @@
     justify-content: space-between;
     width: 100%;
     padding: 0.75rem 1rem;
-    background: var(--nav-bg);
-    border: 1px solid var(--font-color-nav-divider);
+    background: var(--blert-surface-dark);
+    border: 1px solid var(--blert-divider-color);
     border-radius: 6px;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     font-size: 0.9rem;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s ease;
 
     &:hover {
-      background: var(--nav-bg-lightened);
-      border-color: rgba(var(--blert-button-base), 0.3);
+      background: var(--blert-surface-light);
+      border-color: rgba(var(--blert-purple-base), 0.3);
     }
 
     i {
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
       font-size: 0.85rem;
       transition: transform 0.2s ease;
     }
@@ -207,7 +207,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    background: rgba(var(--panel-bg), 0.5);
+    background: rgba(var(--blert-panel-background-color), 0.5);
     max-height: 300px;
     overflow-y: auto;
     animation: slideDown 0.3s ease-out;
@@ -240,8 +240,8 @@
     align-items: center;
     gap: 0.75rem;
     padding: 0.75rem;
-    background: var(--nav-bg);
-    border: 1px solid var(--font-color-nav-divider);
+    background: var(--blert-surface-dark);
+    border: 1px solid var(--blert-divider-color);
     border-radius: 6px;
     transition: all 0.2s ease;
     animation: fadeIn 0.2s ease-out;
@@ -274,13 +274,13 @@
       justify-content: center;
       width: 40px;
       height: 40px;
-      background: rgba(var(--blert-button-base), 0.1);
-      border: 1px solid rgba(var(--blert-button-base), 0.3);
+      background: rgba(var(--blert-purple-base), 0.1);
+      border: 1px solid rgba(var(--blert-purple-base), 0.3);
       border-radius: 6px;
       flex-shrink: 0;
 
       i {
-        color: var(--blert-button);
+        color: var(--blert-purple);
         font-size: 1.1rem;
       }
 
@@ -302,7 +302,7 @@
       min-width: 0;
 
       .setupName {
-        color: var(--blert-text-color);
+        color: var(--blert-font-color-primary);
         font-size: 0.95rem;
         font-weight: 600;
         white-space: nowrap;
@@ -324,7 +324,7 @@
           display: flex;
           align-items: center;
           gap: 0.35rem;
-          color: var(--font-color-nav);
+          color: var(--blert-font-color-secondary);
           font-size: 0.8rem;
           white-space: nowrap;
 
@@ -377,7 +377,7 @@
     gap: 0.75rem;
     align-items: center;
     padding-top: 1rem;
-    border-top: 1px solid var(--font-color-nav-divider);
+    border-top: 1px solid var(--blert-divider-color);
     justify-content: flex-end;
 
     @media (max-width: 940px) {
@@ -404,8 +404,8 @@
       overflow: hidden;
 
       &:hover {
-        background: rgba(var(--blert-button-base), 0.9);
-        box-shadow: 0 4px 12px rgba(var(--blert-button-base), 0.3);
+        background: rgba(var(--blert-purple-base), 0.9);
+        box-shadow: 0 4px 12px rgba(var(--blert-purple-base), 0.3);
       }
 
       &:active {
@@ -444,8 +444,8 @@
     }
 
     .dismissButton {
-      border: 1px solid var(--font-color-nav-divider);
-      color: var(--font-color-nav);
+      border: 1px solid var(--blert-divider-color);
+      color: var(--blert-font-color-secondary);
       font-size: 0.95rem;
       font-weight: 500;
       white-space: nowrap;
@@ -461,8 +461,8 @@
         cursor: not-allowed;
 
         &:hover {
-          border-color: var(--font-color-nav-divider);
-          color: var(--font-color-nav);
+          border-color: var(--blert-divider-color);
+          color: var(--blert-font-color-secondary);
           background: none;
         }
       }

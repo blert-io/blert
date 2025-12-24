@@ -1042,47 +1042,47 @@ function NyloWaveChart({
               >
                 <stop
                   offset="0%"
-                  stopColor="var(--blert-button)"
+                  stopColor="var(--blert-purple)"
                   stopOpacity={0.3}
                 />
                 <stop
                   offset="100%"
-                  stopColor="var(--blert-button)"
+                  stopColor="var(--blert-purple)"
                   stopOpacity={0.05}
                 />
               </linearGradient>
             </defs>
             <CartesianGrid
               strokeDasharray="3 3"
-              stroke="var(--nav-bg-lightened)"
+              stroke="var(--blert-surface-light)"
               opacity={0.9}
             />
             <XAxis
               dataKey="tick"
-              stroke="var(--font-color-nav)"
+              stroke="var(--blert-font-color-secondary)"
               tickLine={false}
-              axisLine={{ stroke: 'var(--nav-bg-lightened)' }}
+              axisLine={{ stroke: 'var(--blert-surface-light)' }}
               hide
             />
             <YAxis
-              stroke="var(--font-color-nav)"
+              stroke="var(--blert-font-color-secondary)"
               tickLine={false}
-              axisLine={{ stroke: 'var(--nav-bg-lightened)' }}
+              axisLine={{ stroke: 'var(--blert-surface-light)' }}
               tickCount={8}
             />
             <Area
               type="monotone"
               dataKey="nylosAlive"
-              stroke="rgba(var(--blert-button-base), 0.7)"
+              stroke="rgba(var(--blert-purple-base), 0.7)"
               strokeWidth={2}
               fill="url(#backgroundGradient)"
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: 'var(--nav-bg)',
-                border: '1px solid var(--nav-bg-lightened)',
+                backgroundColor: 'var(--blert-surface-dark)',
+                border: '1px solid var(--blert-surface-light)',
                 borderRadius: '8px',
-                color: 'var(--blert-text-color)',
+                color: 'var(--blert-font-color-primary)',
                 padding: '8px',
               }}
               formatter={(value: number) => {
@@ -1101,7 +1101,7 @@ function NyloWaveChart({
                 return `Tick: ${tick} (Wave ${waveSpawn.nyloWave.wave})`;
               }}
               cursor={{
-                stroke: 'var(--font-color-nav-divider)',
+                stroke: 'var(--blert-divider-color)',
                 strokeWidth: 1,
               }}
             />
@@ -1119,7 +1119,7 @@ function NyloWaveChart({
             >
               <Label
                 position="top"
-                stroke="rgba(var(--blert-text-color-base), 0.7)"
+                stroke="rgba(var(--blert-font-color-primary-base), 0.7)"
                 style={{ fontWeight: 200 }}
               >
                 Room cap
@@ -1136,7 +1136,7 @@ function NyloWaveChart({
             >
               <Label
                 position="top"
-                stroke="rgba(var(--blert-text-color-base), 0.7)"
+                stroke="rgba(var(--blert-font-color-primary-base), 0.7)"
                 style={{ fontWeight: 200 }}
               >
                 Room cap
@@ -1149,16 +1149,16 @@ function NyloWaveChart({
                   x={evt.tick}
                   stroke={
                     evt.nyloWave.wave === CAP_INCREASE_WAVE
-                      ? 'rgba(var(--blert-text-color-base), 0.75)'
-                      : 'rgba(var(--blert-text-color-base), 0.15)'
+                      ? 'rgba(var(--blert-font-color-primary-base), 0.75)'
+                      : 'rgba(var(--blert-font-color-primary-base), 0.15)'
                   }
                   strokeWidth={1}
                 >
                   <Label
                     stroke={
                       evt.nyloWave.wave === CAP_INCREASE_WAVE
-                        ? 'rgba(var(--blert-text-color-base), 0.8)'
-                        : 'var(--font-color-nav)'
+                        ? 'rgba(var(--blert-font-color-primary-base), 0.8)'
+                        : 'var(--blert-font-color-secondary)'
                     }
                     position="bottom"
                     style={{ fontSize: 13, fontWeight: 100 }}
@@ -1173,7 +1173,7 @@ function NyloWaveChart({
                 <ReferenceLine
                   key={evt.tick}
                   x={evt.tick}
-                  stroke="rgba(var(--blert-text-color-base), 0.5)"
+                  stroke="rgba(var(--blert-font-color-primary-base), 0.5)"
                   strokeWidth={2}
                   strokeDasharray="3 3"
                 >

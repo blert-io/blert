@@ -11,7 +11,7 @@
 
 .subtitle {
   margin-top: 0;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   font-style: italic;
   font-size: 0.9em;
 }
@@ -29,10 +29,10 @@
     align-items: center;
     gap: 12px;
     margin-bottom: 0.5em;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
 
     i {
-      color: var(--blert-button);
+      color: var(--blert-purple);
     }
   }
 }
@@ -47,14 +47,14 @@
   display: flex;
   justify-content: center;
   padding: 1em;
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
   border-radius: 6px;
 }
 
 .guideGroup {
   h3 {
     margin: 1em 0;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     font-size: 1.25rem;
   }
 
@@ -78,14 +78,14 @@
         }
 
         &:hover {
-          color: var(--blert-button);
+          color: var(--blert-purple);
         }
       }
 
       .guideDesc {
         margin: 0.25em 0 0 0;
         font-size: 0.85em;
-        color: var(--font-color-nav);
+        color: var(--blert-font-color-secondary);
       }
 
       ul {
@@ -101,8 +101,8 @@
             top: 50%;
             content: '';
             display: block;
-            border-left: 1px solid var(--font-color-nav-divider);
-            border-bottom: 1px solid var(--font-color-nav-divider);
+            border-left: 1px solid var(--blert-divider-color);
+            border-bottom: 1px solid var(--blert-divider-color);
             width: 12px;
           }
 
@@ -112,7 +112,7 @@
             top: 0;
             content: '';
             display: block;
-            border-left: 1px solid var(--font-color-nav-divider);
+            border-left: 1px solid var(--blert-divider-color);
             height: 150%;
           }
 
@@ -122,7 +122,7 @@
 
           a {
             &:hover {
-              color: var(--blert-button);
+              color: var(--blert-purple);
             }
           }
         }

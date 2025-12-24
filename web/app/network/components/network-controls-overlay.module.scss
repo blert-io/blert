@@ -23,11 +23,11 @@
   padding: 12px 20px;
   background: linear-gradient(
     135deg,
-    rgba(var(--panel-bg-base), 0.95) 0%,
-    rgba(var(--nav-bg-base), 0.9) 100%
+    rgba(var(--blert-panel-background-color-base), 0.95) 0%,
+    rgba(var(--blert-surface-dark-base), 0.9) 100%
   );
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(var(--blert-button-base), 0.15);
+  border: 1px solid rgba(var(--blert-purple-base), 0.15);
   border-radius: 8px 8px 0 0;
   box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.4),
@@ -47,14 +47,14 @@
     background: linear-gradient(
       90deg,
       transparent,
-      rgba(var(--blert-button-base), 0.6),
+      rgba(var(--blert-purple-base), 0.6),
       transparent
     );
     animation: borderShimmer 3s ease-in-out infinite;
   }
 
   &:hover {
-    border-color: rgba(var(--blert-button-base), 0.25);
+    border-color: rgba(var(--blert-purple-base), 0.25);
     box-shadow:
       0 12px 40px rgba(0, 0, 0, 0.5),
       0 4px 12px rgba(0, 0, 0, 0.3),
@@ -107,13 +107,13 @@
   flex-shrink: 0;
 
   i {
-    color: var(--blert-button);
+    color: var(--blert-purple);
     font-size: 1.1rem;
   }
 
   .title {
     font-weight: 600;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     font-size: 0.95rem;
   }
 
@@ -142,22 +142,22 @@
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
-  background: rgba(var(--nav-bg-base), 0.6);
-  border: 1px solid rgba(var(--blert-button-base), 0.1);
+  background: rgba(var(--blert-surface-dark-base), 0.6);
+  border: 1px solid rgba(var(--blert-purple-base), 0.1);
   border-radius: 6px;
   font-size: 0.85rem;
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
   white-space: nowrap;
   transition: all 0.2s ease;
 
   i {
-    color: var(--blert-button);
+    color: var(--blert-purple);
     font-size: 0.8rem;
   }
 
   &:hover {
-    background: rgba(var(--nav-bg-lightened-base), 0.8);
-    border-color: rgba(var(--blert-button-base), 0.2);
+    background: rgba(var(--blert-surface-light-base), 0.8);
+    border-color: rgba(var(--blert-purple-base), 0.2);
   }
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
@@ -225,11 +225,11 @@
   align-items: center;
   gap: 4px;
   font-size: 0.85rem;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   font-weight: 500;
 
   i {
-    color: var(--blert-button);
+    color: var(--blert-purple);
     font-size: 0.75rem;
   }
 
@@ -244,16 +244,16 @@
   justify-content: center;
   width: 36px;
   height: 36px;
-  background: rgba(var(--blert-button-base), 0.1);
-  border: 1px solid rgba(var(--blert-button-base), 0.2);
+  background: rgba(var(--blert-purple-base), 0.1);
+  border: 1px solid rgba(var(--blert-purple-base), 0.2);
   border-radius: 8px;
-  color: var(--blert-button);
+  color: var(--blert-purple);
   cursor: pointer;
   transition: all 0.2s ease;
 
   &:hover:not(:disabled) {
-    background: rgba(var(--blert-button-base), 0.2);
-    border-color: rgba(var(--blert-button-base), 0.4);
+    background: rgba(var(--blert-purple-base), 0.2);
+    border-color: rgba(var(--blert-purple-base), 0.4);
     transform: translateY(-1px);
   }
 
@@ -279,17 +279,17 @@
   justify-content: center;
   width: 36px;
   height: 36px;
-  background: rgba(var(--nav-bg-base), 0.8);
-  border: 1px solid rgba(var(--blert-button-base), 0.15);
+  background: rgba(var(--blert-surface-dark-base), 0.8);
+  border: 1px solid rgba(var(--blert-purple-base), 0.15);
   border-radius: 8px;
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
   cursor: pointer;
   transition: all 0.2s ease;
 
   &:hover {
-    background: rgba(var(--nav-bg-lightened-base), 0.9);
-    border-color: rgba(var(--blert-button-base), 0.3);
-    color: var(--blert-button);
+    background: rgba(var(--blert-surface-light-base), 0.9);
+    border-color: rgba(var(--blert-purple-base), 0.3);
+    color: var(--blert-purple);
     transform: translateY(-1px);
   }
 
@@ -309,11 +309,11 @@
   padding: 24px;
   background: linear-gradient(
     135deg,
-    rgba(var(--panel-bg-base), 0.98) 0%,
-    rgba(var(--nav-bg-base), 0.95) 100%
+    rgba(var(--blert-panel-background-color-base), 0.98) 0%,
+    rgba(var(--blert-surface-dark-base), 0.95) 100%
   );
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(var(--blert-button-base), 0.2);
+  border: 1px solid rgba(var(--blert-purple-base), 0.2);
   border-top: none;
   border-radius: 0 0 12px 12px;
   box-shadow:
@@ -361,7 +361,7 @@
   display: block;
   font-size: 0.9rem;
   font-weight: 600;
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
   margin-bottom: 12px;
 
   &.focusLabel {
@@ -382,7 +382,7 @@
     justify-content: center;
     width: 42px;
     height: 42px;
-    background: var(--blert-button);
+    background: var(--blert-purple);
     border: none;
     border-radius: 6px;
     color: white;
@@ -391,7 +391,7 @@
     flex-shrink: 0;
 
     &:hover:not(:disabled) {
-      background: rgba(var(--blert-button-base), 0.8);
+      background: rgba(var(--blert-purple-base), 0.8);
       transform: translateY(-1px);
     }
 
@@ -422,7 +422,7 @@
   .slider {
     width: 100%;
     height: 6px;
-    background: rgba(var(--blert-button-base), 0.2);
+    background: rgba(var(--blert-purple-base), 0.2);
     border-radius: 3px;
     outline: none;
     margin: 8px 0;
@@ -433,7 +433,7 @@
       appearance: none;
       width: 18px;
       height: 18px;
-      background: var(--blert-button);
+      background: var(--blert-purple);
       border-radius: 50%;
       cursor: pointer;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
@@ -448,7 +448,7 @@
     &::-moz-range-thumb {
       width: 18px;
       height: 18px;
-      background: var(--blert-button);
+      background: var(--blert-purple);
       border: none;
       border-radius: 50%;
       cursor: pointer;
@@ -466,7 +466,7 @@
     display: flex;
     justify-content: space-between;
     font-size: 0.8rem;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     margin-top: 4px;
   }
 }

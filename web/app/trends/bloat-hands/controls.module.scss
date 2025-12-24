@@ -17,7 +17,7 @@
       margin: 0 0 0.75rem 0;
       font-size: 0.9rem;
       font-weight: 600;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
     }
   }
 
@@ -44,15 +44,15 @@
 
     label {
       font-size: 0.8rem;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
       font-weight: 500;
     }
 
     .filterSelect {
       padding: 0.4rem 0.6rem;
-      border: 1px solid var(--font-color-nav);
-      background: var(--nav-bg);
-      color: var(--blert-text-color);
+      border: 1px solid var(--blert-font-color-secondary);
+      background: var(--blert-surface-dark);
+      color: var(--blert-font-color-primary);
       border-radius: 5px;
       font-size: 0.85rem;
       transition: border-color 0.2s ease;
@@ -61,16 +61,16 @@
 
       &:focus {
         outline: none;
-        border-color: var(--blert-button);
+        border-color: var(--blert-purple);
       }
 
       &:hover {
-        border-color: var(--blert-button);
+        border-color: var(--blert-purple);
       }
 
       option {
-        background: var(--nav-bg);
-        color: var(--blert-text-color);
+        background: var(--blert-surface-dark);
+        color: var(--blert-font-color-primary);
       }
     }
   }

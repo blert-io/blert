@@ -27,10 +27,10 @@ $FIXED_TOC_MARGIN: 40px;
 .article {
   background: linear-gradient(
     135deg,
-    var(--panel-bg) 0%,
-    rgba(var(--nav-bg-base), 0.8) 100%
+    var(--blert-panel-background-color) 0%,
+    rgba(var(--blert-surface-dark-base), 0.8) 100%
   );
-  border: 1px solid rgba(var(--blert-button-base), 0.12);
+  border: 1px solid rgba(var(--blert-purple-base), 0.12);
   border-radius: 16px;
   box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.3),
@@ -55,7 +55,7 @@ $FIXED_TOC_MARGIN: 40px;
     background: linear-gradient(
       90deg,
       transparent,
-      var(--blert-button),
+      var(--blert-purple),
       transparent
     );
     animation: borderShimmer 3s ease-in-out infinite;
@@ -71,9 +71,9 @@ $FIXED_TOC_MARGIN: 40px;
     border-radius: 15px;
     background: linear-gradient(
       135deg,
-      rgba(var(--blert-button-base), 0.05) 0%,
+      rgba(var(--blert-purple-base), 0.05) 0%,
       transparent 50%,
-      rgba(var(--blert-button-base), 0.02) 100%
+      rgba(var(--blert-purple-base), 0.02) 100%
     );
     pointer-events: none;
     z-index: 0;
@@ -124,9 +124,9 @@ $FIXED_TOC_MARGIN: 40px;
     margin: 0 0 2rem 0;
     background: linear-gradient(
       135deg,
-      var(--blert-text-color) 0%,
-      rgba(var(--blert-text-color-base), 0.9) 70%,
-      rgba(var(--blert-button-base), 0.8) 100%
+      var(--blert-font-color-primary) 0%,
+      rgba(var(--blert-font-color-primary-base), 0.9) 70%,
+      rgba(var(--blert-purple-base), 0.8) 100%
     );
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -147,7 +147,7 @@ $FIXED_TOC_MARGIN: 40px;
     font-size: 1.875rem;
     font-weight: 600;
     margin: 3rem 0 1.25rem 0;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     position: relative;
     padding-bottom: 0.75rem;
 
@@ -160,8 +160,8 @@ $FIXED_TOC_MARGIN: 40px;
       height: 3px;
       background: linear-gradient(
         90deg,
-        var(--blert-button),
-        rgba(var(--blert-button-base), 0.6)
+        var(--blert-purple),
+        rgba(var(--blert-purple-base), 0.6)
       );
       border-radius: 2px;
     }
@@ -175,7 +175,7 @@ $FIXED_TOC_MARGIN: 40px;
     font-size: 1.5rem;
     font-weight: 600;
     margin: 2.5rem 0 1rem 0;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     position: relative;
     padding-left: 1.25rem;
 
@@ -189,8 +189,8 @@ $FIXED_TOC_MARGIN: 40px;
       height: 1.5em;
       background: linear-gradient(
         180deg,
-        var(--blert-button),
-        rgba(var(--blert-button-base), 0.5)
+        var(--blert-purple),
+        rgba(var(--blert-purple-base), 0.5)
       );
       border-radius: 2px;
     }
@@ -200,27 +200,27 @@ $FIXED_TOC_MARGIN: 40px;
     font-size: 1.25rem;
     font-weight: 600;
     margin: 2rem 0 0.875rem 0;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
   }
 
   h5 {
     font-size: 1.125rem;
     font-weight: 600;
     margin: 1.5rem 0 0.75rem 0;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
   }
 
   h6 {
     font-size: 1rem;
     font-weight: 600;
     margin: 1.25rem 0 0.5rem 0;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
   }
 
   p {
     margin: 1.25rem 0;
     line-height: 1.75;
-    color: rgba(var(--blert-text-color-base), 0.95);
+    color: rgba(var(--blert-font-color-primary-base), 0.95);
     font-size: 1rem;
 
     &:first-child {
@@ -240,8 +240,8 @@ $FIXED_TOC_MARGIN: 40px;
     th {
       background: linear-gradient(
         135deg,
-        rgba(var(--blert-button-base), 0.1) 0%,
-        rgba(var(--blert-button-base), 0.05) 100%
+        rgba(var(--blert-purple-base), 0.1) 0%,
+        rgba(var(--blert-purple-base), 0.05) 100%
       );
     }
 
@@ -249,9 +249,9 @@ $FIXED_TOC_MARGIN: 40px;
     td {
       padding: 0.5rem 1rem;
       text-align: center;
-      border: 1px solid rgba(var(--blert-button-base), 0.15);
+      border: 1px solid rgba(var(--blert-purple-base), 0.15);
       font-size: 0.9rem;
-      color: rgba(var(--blert-text-color-base), 0.95);
+      color: rgba(var(--blert-font-color-primary-base), 0.95);
     }
   }
 
@@ -263,7 +263,7 @@ $FIXED_TOC_MARGIN: 40px;
     li {
       padding: 0.4rem 0;
       line-height: 1.7;
-      color: rgba(var(--blert-text-color-base), 0.95);
+      color: rgba(var(--blert-font-color-primary-base), 0.95);
       position: relative;
 
       p:first-child {
@@ -275,7 +275,7 @@ $FIXED_TOC_MARGIN: 40px;
       }
 
       &::marker {
-        color: rgba(var(--blert-button-base), 0.7);
+        color: rgba(var(--blert-purple-base), 0.7);
       }
     }
 
@@ -286,15 +286,15 @@ $FIXED_TOC_MARGIN: 40px;
   }
 
   *:not(h1, h2, h3, h4, h5, h6) a {
-    color: var(--blert-button);
+    color: var(--blert-purple);
     text-decoration: none;
     border-bottom: 1px solid transparent;
     transition: all 0.2s ease;
     font-weight: 500;
 
     &:hover {
-      border-bottom-color: var(--blert-button);
-      color: rgba(var(--blert-button-base), 0.8);
+      border-bottom-color: var(--blert-purple);
+      color: rgba(var(--blert-purple-base), 0.8);
 
       & > i:last-child {
         transform: translateX(0.2rem);
@@ -326,11 +326,11 @@ $FIXED_TOC_MARGIN: 40px;
     position: relative;
     padding-right: 0.8rem;
     cursor: help;
-    border-bottom: 1px dotted rgba(var(--blert-button-base), 0.5);
+    border-bottom: 1px dotted rgba(var(--blert-purple-base), 0.5);
     transition: all 0.2s ease;
 
     &:hover {
-      border-bottom-color: var(--blert-button);
+      border-bottom-color: var(--blert-purple);
     }
 
     i {
@@ -339,7 +339,7 @@ $FIXED_TOC_MARGIN: 40px;
       top: 0.2rem;
       right: 0.2rem;
       opacity: 0.7;
-      color: var(--blert-button);
+      color: var(--blert-purple);
       transition: all 0.2s ease;
     }
 
@@ -366,12 +366,12 @@ $FIXED_TOC_MARGIN: 40px;
       border-radius: 6px;
       opacity: 0;
       transition: all 0.3s ease;
-      color: var(--blert-button);
+      color: var(--blert-purple);
       font-size: 1rem;
 
       &:hover {
-        background: rgba(var(--blert-button-base), 0.1);
-        color: rgba(var(--blert-button-base), 0.8);
+        background: rgba(var(--blert-purple-base), 0.1);
+        color: rgba(var(--blert-purple-base), 0.8);
         transform: translateY(-50%) scale(1.1);
       }
 
@@ -414,15 +414,15 @@ $FIXED_TOC_MARGIN: 40px;
   padding: 1.5rem;
   background: linear-gradient(
     135deg,
-    rgba(var(--nav-bg-base), 0.98) 0%,
-    rgba(var(--nav-bg-lightened-base), 0.95) 100%
+    rgba(var(--blert-surface-dark-base), 0.98) 0%,
+    rgba(var(--blert-surface-light-base), 0.95) 100%
   );
-  border: 1px solid rgba(var(--blert-button-base), 0.15);
+  border: 1px solid rgba(var(--blert-purple-base), 0.15);
   border-radius: 16px;
   backdrop-filter: blur(12px);
   box-shadow:
     0 10px 25px rgba(0, 0, 0, 0.15),
-    0 0 0 1px rgba(var(--blert-button-base), 0.1);
+    0 0 0 1px rgba(var(--blert-purple-base), 0.1);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 100;
   @include styledScrollbar;
@@ -430,7 +430,7 @@ $FIXED_TOC_MARGIN: 40px;
   &:hover {
     box-shadow:
       0 15px 35px rgba(0, 0, 0, 0.2),
-      0 0 0 1px rgba(var(--blert-button-base), 0.2);
+      0 0 0 1px rgba(var(--blert-purple-base), 0.2);
     transform: translateY(-2px);
   }
 
@@ -455,9 +455,9 @@ $FIXED_TOC_MARGIN: 40px;
     font-size: 1.1rem;
     font-weight: 700;
     margin: 0 0 1.25rem 0;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     padding-bottom: 0.75rem;
-    border-bottom: 2px solid rgba(var(--blert-button-base), 0.2);
+    border-bottom: 2px solid rgba(var(--blert-purple-base), 0.2);
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
@@ -466,7 +466,7 @@ $FIXED_TOC_MARGIN: 40px;
     display: block;
     width: 100%;
     padding: 0.3rem 1rem 0.3rem 0;
-    color: rgba(var(--blert-text-color-base), 0.8);
+    color: rgba(var(--blert-font-color-primary-base), 0.8);
     text-decoration: none;
     border: none;
     background: none;
@@ -491,14 +491,14 @@ $FIXED_TOC_MARGIN: 40px;
       transform: translateY(-50%);
       width: 3px;
       height: 0;
-      background: var(--blert-button);
+      background: var(--blert-purple);
       transition: height 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       border-radius: 0 2px 2px 0;
     }
 
     &:hover {
-      color: var(--blert-text-color);
-      background: rgba(var(--blert-button-base), 0.08);
+      color: var(--blert-font-color-primary);
+      background: rgba(var(--blert-purple-base), 0.08);
       transform: translateX(2px);
 
       &::before {
@@ -507,11 +507,11 @@ $FIXED_TOC_MARGIN: 40px;
     }
 
     &.active {
-      color: var(--blert-button);
+      color: var(--blert-purple);
       background: linear-gradient(
         135deg,
-        rgba(var(--blert-button-base), 0.15) 0%,
-        rgba(var(--blert-button-base), 0.08) 100%
+        rgba(var(--blert-purple-base), 0.15) 0%,
+        rgba(var(--blert-purple-base), 0.08) 100%
       );
       font-weight: 600;
       transform: translateX(4px);
@@ -524,22 +524,22 @@ $FIXED_TOC_MARGIN: 40px;
 }
 
 .appendixRef {
-  color: var(--blert-button);
+  color: var(--blert-purple);
   text-decoration: none;
   border-bottom: 1px solid transparent;
   transition: all 0.2s ease;
   font-weight: 500;
 
   &:hover {
-    border-bottom-color: var(--blert-button);
-    color: rgba(var(--blert-button-base), 0.8);
+    border-bottom-color: var(--blert-purple);
+    color: rgba(var(--blert-purple-base), 0.8);
   }
 }
 
 .appendix {
   margin-top: 3rem;
   padding-top: 1rem;
-  border-top: 1px solid rgba(var(--blert-button-base), 0.15);
+  border-top: 1px solid rgba(var(--blert-purple-base), 0.15);
 
   .appendixItem {
     margin-top: 1.5rem;
@@ -562,10 +562,10 @@ $FIXED_TOC_MARGIN: 40px;
   margin: 2rem 0;
   background: linear-gradient(
     135deg,
-    rgba(var(--nav-bg-darkened-base), 1) 0%,
-    rgba(var(--nav-bg-base), 0.95) 100%
+    rgba(var(--blert-surface-darker-base), 1) 0%,
+    rgba(var(--blert-surface-dark-base), 0.95) 100%
   );
-  border: 1px solid rgba(var(--blert-button-base), 0.2);
+  border: 1px solid rgba(var(--blert-purple-base), 0.2);
   border-radius: 12px;
   overflow: hidden;
   box-shadow:
@@ -580,10 +580,10 @@ $FIXED_TOC_MARGIN: 40px;
     padding: 1.25rem 1.5rem;
     background: linear-gradient(
       135deg,
-      rgba(var(--nav-bg-base), 1) 0%,
-      rgba(var(--nav-bg-lightened-base), 0.9) 100%
+      rgba(var(--blert-surface-dark-base), 1) 0%,
+      rgba(var(--blert-surface-light-base), 0.9) 100%
     );
-    border-bottom: 1px solid rgba(var(--blert-button-base), 0.25);
+    border-bottom: 1px solid rgba(var(--blert-purple-base), 0.25);
 
     .codeInfo {
       display: flex;
@@ -597,32 +597,32 @@ $FIXED_TOC_MARGIN: 40px;
         gap: 0.5rem;
         font-size: 0.85rem;
         font-weight: 600;
-        color: rgba(var(--blert-text-color-base), 0.9);
-        background: rgba(var(--nav-bg-darkened-base), 0.6);
+        color: rgba(var(--blert-font-color-primary-base), 0.9);
+        background: rgba(var(--blert-surface-darker-base), 0.6);
         padding: 0.4rem 0.8rem;
         border-radius: 6px;
-        border: 1px solid rgba(var(--blert-button-base), 0.2);
+        border: 1px solid rgba(var(--blert-purple-base), 0.2);
 
         i {
           font-size: 0.8rem;
-          color: rgba(var(--blert-button-base), 0.8);
+          color: rgba(var(--blert-purple-base), 0.8);
         }
       }
 
       .language {
         font-size: 0.8rem;
         font-weight: 700;
-        color: var(--blert-button);
+        color: var(--blert-purple);
         text-transform: uppercase;
         letter-spacing: 0.8px;
         background: linear-gradient(
           135deg,
-          rgba(var(--blert-button-base), 0.2) 0%,
-          rgba(var(--blert-button-base), 0.1) 100%
+          rgba(var(--blert-purple-base), 0.2) 0%,
+          rgba(var(--blert-purple-base), 0.1) 100%
         );
         padding: 0.4rem 0.8rem;
         border-radius: 6px;
-        border: 1px solid rgba(var(--blert-button-base), 0.3);
+        border: 1px solid rgba(var(--blert-purple-base), 0.3);
       }
 
       .lineCount {
@@ -630,11 +630,11 @@ $FIXED_TOC_MARGIN: 40px;
         align-items: center;
         gap: 0.4rem;
         font-size: 0.75rem;
-        color: rgba(var(--blert-text-color-base), 0.7);
+        color: rgba(var(--blert-font-color-primary-base), 0.7);
 
         i {
           font-size: 0.7rem;
-          color: rgba(var(--blert-button-base), 0.6);
+          color: rgba(var(--blert-purple-base), 0.6);
         }
       }
     }
@@ -644,13 +644,13 @@ $FIXED_TOC_MARGIN: 40px;
       align-items: center;
       gap: 0.5rem;
       padding: 0.6rem 1rem;
-      color: rgba(var(--blert-text-color-base), 0.8);
+      color: rgba(var(--blert-font-color-primary-base), 0.8);
       background: linear-gradient(
         135deg,
-        rgba(var(--nav-bg-darkened-base), 0.9) 0%,
-        rgba(var(--nav-bg-base), 0.7) 100%
+        rgba(var(--blert-surface-darker-base), 0.9) 0%,
+        rgba(var(--blert-surface-dark-base), 0.7) 100%
       );
-      border: 1px solid rgba(var(--blert-button-base), 0.25);
+      border: 1px solid rgba(var(--blert-purple-base), 0.25);
       border-radius: 8px;
       cursor: pointer;
       transition: all 0.3s ease;
@@ -658,13 +658,13 @@ $FIXED_TOC_MARGIN: 40px;
       font-weight: 500;
 
       &:hover:not(:disabled) {
-        color: var(--blert-text-color);
+        color: var(--blert-font-color-primary);
         background: linear-gradient(
           135deg,
-          rgba(var(--blert-button-base), 0.15) 0%,
-          rgba(var(--blert-button-base), 0.08) 100%
+          rgba(var(--blert-purple-base), 0.15) 0%,
+          rgba(var(--blert-purple-base), 0.08) 100%
         );
-        border-color: rgba(var(--blert-button-base), 0.5);
+        border-color: rgba(var(--blert-purple-base), 0.5);
         transform: translateY(-1px);
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
       }
@@ -672,11 +672,11 @@ $FIXED_TOC_MARGIN: 40px;
       &:disabled {
         background: linear-gradient(
           135deg,
-          rgba(var(--blert-button-base), 0.2) 0%,
-          rgba(var(--blert-button-base), 0.1) 100%
+          rgba(var(--blert-purple-base), 0.2) 0%,
+          rgba(var(--blert-purple-base), 0.1) 100%
         );
-        border-color: rgba(var(--blert-button-base), 0.4);
-        color: var(--blert-text-color);
+        border-color: rgba(var(--blert-purple-base), 0.4);
+        color: var(--blert-font-color-primary);
         cursor: default;
       }
 
@@ -690,7 +690,7 @@ $FIXED_TOC_MARGIN: 40px;
       }
 
       &:disabled i {
-        color: var(--blert-button);
+        color: var(--blert-purple);
       }
     }
   }
@@ -712,7 +712,7 @@ $FIXED_TOC_MARGIN: 40px;
         monospace;
       font-size: 0.9em;
       line-height: 1.7;
-      color: rgba(var(--blert-text-color-base), 0.96);
+      color: rgba(var(--blert-font-color-primary-base), 0.96);
     }
   }
 }
@@ -724,13 +724,13 @@ $FIXED_TOC_MARGIN: 40px;
       monospace;
     font-size: 0.875em;
     font-weight: 600;
-    color: var(--blert-button);
+    color: var(--blert-purple);
     background: linear-gradient(
       135deg,
-      rgba(var(--blert-button-base), 0.15) 0%,
-      rgba(var(--blert-button-base), 0.08) 100%
+      rgba(var(--blert-purple-base), 0.15) 0%,
+      rgba(var(--blert-purple-base), 0.08) 100%
     );
-    border: 1px solid rgba(var(--blert-button-base), 0.25);
+    border: 1px solid rgba(var(--blert-purple-base), 0.25);
     border-radius: 4px;
     padding: 0.2em 0.5em;
     margin: 0 0.1em;
@@ -742,10 +742,10 @@ $FIXED_TOC_MARGIN: 40px;
     &:hover {
       background: linear-gradient(
         135deg,
-        rgba(var(--blert-button-base), 0.22) 0%,
-        rgba(var(--blert-button-base), 0.12) 100%
+        rgba(var(--blert-purple-base), 0.22) 0%,
+        rgba(var(--blert-purple-base), 0.12) 100%
       );
-      border-color: rgba(var(--blert-button-base), 0.4);
+      border-color: rgba(var(--blert-purple-base), 0.4);
       transform: translateY(-1px);
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
@@ -784,8 +784,8 @@ $FIXED_TOC_MARGIN: 40px;
   padding: 1.25rem;
   margin: 1.5rem 0;
   border-radius: 12px;
-  background: rgba(var(--blert-button-base), 0.05);
-  border: 1px solid rgba(var(--blert-button-base), 0.1);
+  background: rgba(var(--blert-purple-base), 0.05);
+  border: 1px solid rgba(var(--blert-purple-base), 0.1);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: all 0.2s ease;
 
@@ -799,7 +799,7 @@ $FIXED_TOC_MARGIN: 40px;
     flex: 1;
     font-size: 1rem;
     line-height: 1.5;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
 
     p {
       margin: 0;
@@ -850,25 +850,25 @@ $FIXED_TOC_MARGIN: 40px;
 
 .tabs {
   margin: 1.5rem 0;
-  border: 1px solid rgba(var(--blert-button-base), 0.1);
+  border: 1px solid rgba(var(--blert-purple-base), 0.1);
   border-radius: 12px;
   overflow: hidden;
-  background: rgba(var(--blert-button-base), 0.02);
+  background: rgba(var(--blert-purple-base), 0.02);
 }
 
 .tabList {
   display: flex;
   gap: 1px;
-  background: rgba(var(--blert-button-base), 0.1);
+  background: rgba(var(--blert-purple-base), 0.1);
   padding: 0.5rem 0.5rem 0;
-  border-bottom: 1px solid rgba(var(--blert-button-base), 0.1);
+  border-bottom: 1px solid rgba(var(--blert-purple-base), 0.1);
 }
 
 .tab {
   padding: 0.75rem 1.25rem;
   border: none;
   background: transparent;
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
   font-size: 0.9375rem;
   font-weight: 500;
   cursor: pointer;
@@ -879,13 +879,13 @@ $FIXED_TOC_MARGIN: 40px;
 
   &:hover {
     opacity: 0.9;
-    background: rgba(var(--blert-button-base), 0.05);
+    background: rgba(var(--blert-purple-base), 0.05);
   }
 
   &.active {
     opacity: 1;
-    background: rgba(var(--blert-button-base), 0.05);
-    color: var(--blert-button);
+    background: rgba(var(--blert-purple-base), 0.05);
+    color: var(--blert-purple);
 
     &::after {
       content: '';
@@ -894,7 +894,7 @@ $FIXED_TOC_MARGIN: 40px;
       left: 0;
       right: 0;
       height: 2px;
-      background: var(--blert-button);
+      background: var(--blert-purple);
       border-radius: 2px 2px 0 0;
     }
   }
@@ -902,7 +902,7 @@ $FIXED_TOC_MARGIN: 40px;
 
 .tabContent {
   padding: 1.5rem;
-  background: rgba(var(--blert-button-base), 0.02);
+  background: rgba(var(--blert-purple-base), 0.02);
 
   pre {
     margin: 0;

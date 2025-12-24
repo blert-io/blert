@@ -26,7 +26,7 @@
   .errorContent {
     text-align: center;
     padding: 48px;
-    background: var(--panel-bg);
+    background: var(--blert-panel-background-color);
     border: 1px solid rgba(var(--blert-red-base), 0.2);
     border-radius: 12px;
     max-width: 400px;
@@ -39,13 +39,13 @@
 
     h3 {
       margin: 0 0 12px 0;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
       font-size: 1.5rem;
     }
 
     p {
       margin: 0 0 24px 0;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
       line-height: 1.5;
     }
 
@@ -54,18 +54,18 @@
       align-items: center;
       gap: 8px;
       padding: 12px 24px;
-      background: rgba(var(--blert-button-base), 0.1);
-      border: 1px solid rgba(var(--blert-button-base), 0.3);
+      background: rgba(var(--blert-purple-base), 0.1);
+      border: 1px solid rgba(var(--blert-purple-base), 0.3);
       border-radius: 8px;
-      color: var(--blert-button);
+      color: var(--blert-purple);
       font-weight: 500;
       cursor: pointer;
       transition: all 0.2s ease;
       margin: 0 auto;
 
       &:hover {
-        background: rgba(var(--blert-button-base), 0.2);
-        border-color: rgba(var(--blert-button-base), 0.5);
+        background: rgba(var(--blert-purple-base), 0.2);
+        border-color: rgba(var(--blert-purple-base), 0.5);
         transform: translateY(-2px);
       }
 

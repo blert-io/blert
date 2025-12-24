@@ -2,7 +2,7 @@
   table-layout: fixed;
 
   .emptySpawn {
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
   }
 }
 
@@ -79,7 +79,7 @@
 
 .cycleTable {
   .spawnTick {
-    background: rgba(var(--blert-button-base), 0.2);
+    background: rgba(var(--blert-purple-base), 0.2);
     color: white;
     font-weight: 700;
   }

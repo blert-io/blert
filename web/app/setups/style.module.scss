@@ -15,13 +15,13 @@
   .arrow {
     width: 40px;
     font-size: 28px;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     cursor: pointer;
     transition: all 0.2s ease;
     z-index: 1;
 
     &:not(:disabled):hover {
-      color: var(--blert-button);
+      color: var(--blert-purple);
     }
 
     &:disabled {
@@ -52,7 +52,7 @@
     width: 60px;
     display: inline-flex;
     justify-content: center;
-    border: 1px dashed var(--font-color-nav);
+    border: 1px dashed var(--blert-font-color-secondary);
     border-radius: 5px;
     min-height: 300px;
 
@@ -75,7 +75,7 @@
       }
 
       &:not(:disabled):hover {
-        color: var(--blert-button);
+        color: var(--blert-purple);
         cursor: pointer;
       }
     }
@@ -95,13 +95,13 @@
         width: 10px;
         height: 10px;
         border-radius: 50%;
-        background: var(--blert-text-color);
+        background: var(--blert-font-color-primary);
         opacity: 0.5;
         transition: all 0.2s ease;
 
         &.active {
           opacity: 1;
-          background: var(--blert-button);
+          background: var(--blert-purple);
         }
       }
     }
@@ -149,10 +149,10 @@
       button {
         font-size: 14px;
         padding: 4px;
-        color: var(--blert-text-color);
+        color: var(--blert-font-color-primary);
 
         &:hover {
-          color: var(--blert-button);
+          color: var(--blert-purple);
           cursor: pointer;
         }
       }
@@ -220,7 +220,7 @@
     }
 
     .import {
-      color: var(--blert-button);
+      color: var(--blert-purple);
     }
 
     .remove {
@@ -229,7 +229,7 @@
   }
 
   &.highlighted {
-    outline: 2px solid var(--blert-button);
+    outline: 2px solid var(--blert-purple);
     outline-offset: 2px;
     border-radius: 5px;
     transition: outline-color 0.2s ease;
@@ -240,19 +240,19 @@
   width: calc(var(--slot-size) - 2px);
   height: calc(var(--slot-size) - 2px);
   margin: 1px;
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
 
   &:hover {
-    background: var(--nav-bg-lightened);
+    background: var(--blert-surface-light);
   }
 
   &.highlighted {
-    background: var(--nav-bg-lightened);
-    outline: 1px solid var(--blert-text-color);
+    background: var(--blert-surface-light);
+    outline: 1px solid var(--blert-font-color-primary);
   }
 
   &:not(.empty).invalid:hover {
@@ -275,7 +275,7 @@
   }
 
   &.search {
-    border: 1px solid var(--blert-button);
+    border: 1px solid var(--blert-purple);
   }
 
   &.deletable {
@@ -289,17 +289,17 @@
   }
 
   &.eyedropperHint {
-    outline: 1px solid rgba(var(--blert-button-base), 0.3);
+    outline: 1px solid rgba(var(--blert-purple-base), 0.3);
     outline-offset: -1px;
   }
 
   &.eyedropperHover {
-    border: 1px solid var(--blert-button);
-    background: rgba(var(--blert-button-base), 0.2);
+    border: 1px solid var(--blert-purple);
+    background: rgba(var(--blert-purple-base), 0.2);
     cursor: copy;
 
     &:hover {
-      background: rgba(var(--blert-button-base), 0.25);
+      background: rgba(var(--blert-purple-base), 0.25);
     }
   }
 
@@ -316,7 +316,7 @@
     bottom: 2px;
     right: 2px;
     font-size: 10px;
-    color: var(--blert-button);
+    color: var(--blert-purple);
     pointer-events: none;
     transition: transform 0.2s ease;
     filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
@@ -338,17 +338,17 @@
   gap: 0.5rem;
   font-weight: 600;
   font-size: 0.9rem;
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
   margin-bottom: 0.5rem;
   padding-bottom: 0.25rem;
-  border-bottom: 1px solid rgba(var(--nav-bg-lightened-base), 0.6);
+  border-bottom: 1px solid rgba(var(--blert-surface-light-base), 0.6);
 }
 
 .commentSection {
   display: flex;
   gap: 0.5rem;
   font-size: 0.85rem;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
 
   i {
     margin-top: 2px;
@@ -368,7 +368,7 @@
   left: 0;
   z-index: 100;
   width: 200px;
-  background: var(--panel-bg);
+  background: var(--blert-panel-background-color);
   border: 1px solid var(--border-color);
   border-radius: 4px;
   padding: 4px;
@@ -391,7 +391,7 @@
     font-weight: 500;
 
     i {
-      color: var(--blert-button);
+      color: var(--blert-purple);
       margin-right: 4px;
     }
   }
@@ -409,7 +409,7 @@
     gap: 6px;
     padding: 4px 8px;
     width: 75px;
-    background: var(--nav-bg);
+    background: var(--blert-surface-dark);
     border-radius: 4px;
     transition: all 0.2s ease;
 
@@ -419,8 +419,8 @@
     }
 
     &.highlighted {
-      background: var(--nav-bg-lightened);
-      outline: 1px solid var(--blert-text-color);
+      background: var(--blert-surface-light);
+      outline: 1px solid var(--blert-font-color-primary);
     }
 
     .quantity {

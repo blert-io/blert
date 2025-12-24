@@ -6,7 +6,7 @@ $LARGE_SCREEN_WIDTH: 2000px;
   width: 100%;
   padding: 2rem 1rem;
   margin: 0 auto;
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     padding: 1rem 0;
@@ -127,7 +127,7 @@ $LARGE_SCREEN_WIDTH: 2000px;
 
 .skeletonMetric {
   height: 100px;
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
   border-radius: 8px;
   animation: pulse 1.5s ease-in-out infinite;
   animation-delay: calc(var(--index) * 100ms);
@@ -168,7 +168,7 @@ $LARGE_SCREEN_WIDTH: 2000px;
 
 .skeletonTable {
   height: 400px;
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
   border-radius: 12px;
   animation: pulse 1.5s ease-in-out infinite;
   animation-delay: 300ms;
@@ -176,7 +176,7 @@ $LARGE_SCREEN_WIDTH: 2000px;
 
 .skeletonSidebar {
   height: 300px;
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
   border-radius: 12px;
   animation: pulse 1.5s ease-in-out infinite;
   animation-delay: 400ms;

@@ -5,8 +5,8 @@
 
 .marquee {
   position: absolute;
-  background: rgba(var(--blert-button-base), 0.1);
-  border: 2px dashed var(--blert-button);
+  background: rgba(var(--blert-purple-base), 0.1);
+  border: 2px dashed var(--blert-purple);
   pointer-events: none;
   z-index: 15;
   box-sizing: border-box;

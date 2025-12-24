@@ -19,17 +19,17 @@
 .toast {
   background: linear-gradient(
     135deg,
-    var(--panel-bg) 0%,
-    rgba(var(--nav-bg-base), 0.95) 100%
+    var(--blert-panel-background-color) 0%,
+    rgba(var(--blert-surface-dark-base), 0.95) 100%
   );
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(var(--blert-button-base), 0.15);
+  border: 1px solid rgba(var(--blert-purple-base), 0.15);
   border-radius: 8px;
   box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.4),
     0 2px 8px rgba(0, 0, 0, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
   padding: 16px 20px;
   font-size: 0.9rem;
   font-weight: 500;
@@ -53,7 +53,7 @@
     background: linear-gradient(
       90deg,
       transparent,
-      var(--blert-button),
+      var(--blert-purple),
       transparent
     );
     animation: borderShimmer 3s ease-in-out infinite;
@@ -77,10 +77,10 @@
   }
 
   &.info {
-    border-color: rgba(var(--blert-button-base), 0.3);
+    border-color: rgba(var(--blert-purple-base), 0.3);
 
     .toastIcon {
-      color: var(--blert-button);
+      color: var(--blert-purple);
     }
   }
 
@@ -130,7 +130,7 @@
   font-size: 1.1rem;
   margin-right: 4px;
   flex-shrink: 0;
-  color: var(--blert-button);
+  color: var(--blert-purple);
 }
 
 .toastMessage {
@@ -142,7 +142,7 @@
   background: none;
   border: none;
   padding: 6px;
-  color: rgba(var(--blert-text-color-base), 0.7);
+  color: rgba(var(--blert-font-color-primary-base), 0.7);
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
@@ -154,8 +154,8 @@
   margin-left: 4px;
 
   &:hover {
-    color: var(--blert-text-color);
-    background: rgba(var(--nav-bg-lightened-base), 0.6);
+    color: var(--blert-font-color-primary);
+    background: rgba(var(--blert-surface-light-base), 0.6);
     transform: scale(1.1);
   }
 

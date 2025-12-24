@@ -95,7 +95,7 @@ function TileTooltipRenderer({
                 style={{
                   color:
                     Math.abs(value) < RELATIVE_LABEL_THRESHOLD
-                      ? 'var(--blert-text-color)'
+                      ? 'var(--blert-font-color-primary)'
                       : value > 0
                         ? 'var(--blert-green)'
                         : 'var(--blert-red)',

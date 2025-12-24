@@ -21,7 +21,7 @@
 .filters {
   width: 200px !important;
   font-size: 0.9em;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
 }
 
 .statsGrid {
@@ -48,14 +48,14 @@
   .value {
     font-size: 2em;
     font-weight: 500;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     line-height: 1.2;
     margin-bottom: auto;
   }
 
   .label {
     font-size: 0.9em;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     margin-top: 6px;
     white-space: nowrap;
   }
@@ -75,7 +75,7 @@
     transition: background-color 0.2s ease;
 
     &:hover {
-      background: var(--nav-bg);
+      background: var(--blert-surface-dark);
     }
 
     &:not(:last-child) {
@@ -86,7 +86,7 @@
 
 .guideType {
   font-size: 0.85em;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   margin-top: 2px;
 }
 
@@ -98,7 +98,7 @@
 
   .rank {
     font-weight: 500;
-    color: var(--blert-button);
+    color: var(--blert-purple);
     width: 24px;
   }
 
@@ -107,7 +107,7 @@
   }
 
   .score {
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
   }
 }
 
@@ -120,7 +120,7 @@
 
     .statusCard {
       padding: 12px;
-      background: var(--nav-bg);
+      background: var(--blert-surface-dark);
       border-radius: 6px;
 
       .statusHeading {
@@ -138,7 +138,7 @@
       .statusTimestamp {
         display: block;
         font-size: 0.85em;
-        color: var(--font-color-nav);
+        color: var(--blert-font-color-secondary);
         margin-bottom: 12px;
       }
 
@@ -176,7 +176,7 @@
     h2 {
       font-size: 1.3em;
       margin: 0 0 12px 0;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
 
       &:not(:first-child) {
         margin-top: 24px;
@@ -189,7 +189,7 @@
     }
 
     a {
-      color: var(--blert-button);
+      color: var(--blert-purple);
       text-decoration: none;
 
       &:hover {
@@ -216,7 +216,11 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: linear-gradient(135deg, var(--panel-bg), var(--nav-bg-lightened));
+  background: linear-gradient(
+    135deg,
+    var(--blert-panel-background-color),
+    var(--blert-surface-light)
+  );
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     flex-direction: column;
@@ -228,14 +232,14 @@
     h1 {
       font-size: 2.4em;
       margin: 0 0 16px 0;
-      background: linear-gradient(to right, #fff, var(--blert-button));
+      background: linear-gradient(to right, #fff, var(--blert-purple));
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
 
     p {
       font-size: 1.1em;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
       max-width: 500px;
       line-height: 1.6;
     }
@@ -273,22 +277,22 @@
 }
 
 .primaryButton {
-  background: var(--blert-button);
+  background: var(--blert-purple);
   color: #fff;
 
   &:hover {
-    background: rgba(var(--blert-button-base), 0.8);
+    background: rgba(var(--blert-purple-base), 0.8);
   }
 }
 
 .secondaryButton {
-  background: var(--nav-bg);
-  color: var(--blert-text-color);
-  border: 1px solid var(--font-color-nav-divider);
+  background: var(--blert-surface-dark);
+  color: var(--blert-font-color-primary);
+  border: 1px solid var(--blert-divider-color);
 
   &:hover {
-    background: var(--panel-bg);
-    border-color: var(--blert-button);
+    background: var(--blert-panel-background-color);
+    border-color: var(--blert-purple);
   }
 }
 
@@ -296,23 +300,23 @@
   display: flex;
   gap: 2px;
   padding: 2px;
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
   border-radius: 4px;
 
   button {
     padding: 4px 12px;
     border-radius: 3px;
     font-size: 0.9em;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     transition: all 0.2s ease;
     cursor: pointer;
 
     &:hover {
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
     }
 
     &.active {
-      background: var(--panel-bg);
+      background: var(--blert-panel-background-color);
       color: #fff;
     }
   }
@@ -324,7 +328,7 @@
   gap: 8px;
   margin-bottom: 20px;
   padding: 12px;
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
   border-radius: 6px;
 }
 
@@ -332,11 +336,11 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   font-size: 0.9em;
 
   i {
-    color: var(--blert-button);
+    color: var(--blert-purple);
     width: 16px;
     text-align: center;
   }
@@ -351,7 +355,7 @@
 
 .guideDate {
   font-size: 0.85em;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
 }
 
 .playerStats {
@@ -361,7 +365,7 @@
 
   .count {
     font-size: 0.85em;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
   }
 }
 
@@ -376,7 +380,7 @@
       align-items: center;
       gap: 12px;
       padding: 12px;
-      background: var(--nav-bg);
+      background: var(--blert-surface-dark);
       border-radius: 6px;
       transition: all 0.2s ease;
       transform-origin: top;
@@ -396,7 +400,7 @@
       }
 
       a {
-        color: var(--blert-button);
+        color: var(--blert-purple);
         text-decoration: none;
 
         &:hover {
@@ -413,7 +417,7 @@
         font-size: 1.2em;
 
         &.skeleton {
-          background: var(--panel-bg);
+          background: var(--blert-panel-background-color);
           border-radius: 4px;
           animation: pulse 1.5s ease-in-out infinite;
         }
@@ -431,12 +435,12 @@
 
       .feedTime {
         font-size: 0.85em;
-        color: var(--font-color-nav);
+        color: var(--blert-font-color-secondary);
 
         &.skeleton {
           width: 60px;
           height: 16px;
-          background: var(--panel-bg);
+          background: var(--blert-panel-background-color);
           border-radius: 3px;
           animation: pulse 1.5s ease-in-out infinite;
         }
@@ -450,7 +454,7 @@
     align-items: center;
     text-align: center;
     padding: 32px 20px;
-    background: var(--nav-bg);
+    background: var(--blert-surface-dark);
     border-radius: 6px;
     gap: 16px;
 
@@ -463,13 +467,13 @@
     .errorContent {
       h3 {
         margin: 0 0 8px 0;
-        color: var(--blert-text-color);
+        color: var(--blert-font-color-primary);
         font-size: 1.1em;
       }
 
       p {
         margin: 0;
-        color: var(--font-color-nav);
+        color: var(--blert-font-color-secondary);
         font-size: 0.9em;
       }
     }
@@ -480,14 +484,14 @@
       gap: 8px;
       padding: 8px 16px;
       border-radius: 4px;
-      background: var(--panel-bg);
-      color: var(--blert-text-color);
+      background: var(--blert-panel-background-color);
+      color: var(--blert-font-color-primary);
       font-size: 0.9em;
       transition: all 0.2s ease;
       cursor: pointer;
 
       &:hover {
-        background: var(--nav-bg-lightened);
+        background: var(--blert-surface-light);
 
         i {
           transform: rotate(180deg);
@@ -533,7 +537,7 @@
 
 .skeletonLine {
   height: 16px;
-  background: var(--panel-bg);
+  background: var(--blert-panel-background-color);
   border-radius: 3px;
   animation: pulse 1.5s ease-in-out infinite;
 }
@@ -556,7 +560,7 @@
 
 .carouselTitle {
   font-size: 1.1em;
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
   margin: 0 0 16px 0;
   font-weight: 500;
 }
@@ -572,20 +576,20 @@
   display: flex;
   flex-direction: column;
   padding: 16px;
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
   border-radius: 6px;
   text-decoration: none;
   transition: all 0.2s ease;
 
   &:hover {
-    background: var(--nav-bg-lightened);
+    background: var(--blert-surface-light);
     transform: translateY(-2px);
   }
 
   .guideTitle {
     font-size: 1.1em;
     font-weight: 500;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     margin-bottom: 8px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -599,10 +603,10 @@
     align-items: center;
     margin-bottom: 8px;
     font-size: 0.85em;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
 
     .guideType {
-      color: var(--blert-button);
+      color: var(--blert-purple);
     }
 
     .guideAuthor {
@@ -614,7 +618,7 @@
     margin: 0;
     font-size: 0.9em;
     line-height: 1.5;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     margin-bottom: 12px;
   }
 
@@ -623,7 +627,7 @@
     gap: 16px;
     margin-top: auto;
     padding-top: 12px;
-    border-top: 1px solid var(--font-color-nav-divider);
+    border-top: 1px solid var(--blert-divider-color);
     font-size: 0.9em;
 
     .score,
@@ -631,7 +635,7 @@
       display: flex;
       align-items: center;
       gap: 6px;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
 
       i {
         font-size: 0.9em;
@@ -640,7 +644,7 @@
 
     .score {
       i {
-        color: var(--blert-button);
+        color: var(--blert-purple);
       }
     }
   }
@@ -667,9 +671,9 @@
   justify-content: center;
   gap: 12px;
   padding: 32px 16px;
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
   border-radius: 6px;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   height: 260px;
 
   i {
@@ -690,14 +694,14 @@
   flex-direction: column;
   gap: 8px;
   padding: 12px 16px;
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
   border-radius: 6px;
   text-decoration: none;
   transition: all 0.2s ease;
   width: 100%;
 
   &:hover {
-    background: var(--nav-bg-lightened);
+    background: var(--blert-surface-light);
     transform: translateX(4px);
   }
 
@@ -706,7 +710,7 @@
     top: 12px;
     right: 16px;
     font-size: 0.85em;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     opacity: 0.8;
   }
 
@@ -718,7 +722,7 @@
 
   .rank {
     font-weight: 500;
-    color: var(--blert-button);
+    color: var(--blert-purple);
     display: flex;
     align-items: center;
     gap: 4px;
@@ -744,7 +748,7 @@
 
   .time {
     font-family: var(--font-roboto-mono);
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     width: 80px;
   }
 
@@ -754,7 +758,7 @@
     gap: 4px;
 
     .party {
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
       font-size: 0.9em;
       line-height: 1.4;
     }

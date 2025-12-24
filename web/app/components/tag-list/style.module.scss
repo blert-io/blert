@@ -11,19 +11,19 @@
     padding: 6px 10px 6px 12px;
     background: linear-gradient(
       135deg,
-      rgba(var(--blert-button-base), 0.12) 0%,
-      rgba(var(--blert-button-base), 0.08) 100%
+      rgba(var(--blert-purple-base), 0.12) 0%,
+      rgba(var(--blert-purple-base), 0.08) 100%
     );
-    border: 1px solid rgba(var(--blert-button-base), 0.25);
+    border: 1px solid rgba(var(--blert-purple-base), 0.25);
     border-radius: 6px;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     font-size: 0.9rem;
     font-weight: 500;
     transition: all 0.2s ease;
     animation: tagSlideIn 0.2s ease-out;
 
     &:hover {
-      border-color: rgba(var(--blert-button-base), 0.4);
+      border-color: rgba(var(--blert-purple-base), 0.4);
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 
       button {
@@ -43,10 +43,10 @@
       padding: 2px;
       width: 18px;
       height: 18px;
-      background: rgba(var(--nav-bg-base), 0.4);
+      background: rgba(var(--blert-surface-dark-base), 0.4);
       border: none;
       border-radius: 3px;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
       font-size: 11px;
       transition: all 0.2s ease;
       cursor: pointer;

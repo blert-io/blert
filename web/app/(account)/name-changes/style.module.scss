@@ -38,7 +38,7 @@
   h1 {
     font-size: 1.8em;
     margin: 0;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     display: flex;
     align-items: center;
     gap: 12px;
@@ -48,7 +48,7 @@
     }
 
     i {
-      color: var(--blert-button);
+      color: var(--blert-purple);
       font-size: 0.9em;
     }
   }
@@ -60,14 +60,14 @@
   gap: 8px;
   padding: 8px 16px;
   border-radius: 6px;
-  background: var(--blert-button);
+  background: var(--blert-purple);
   color: #fff;
   text-decoration: none;
   font-size: 0.95em;
   transition: all 0.2s ease;
 
   &:hover {
-    background: rgba(var(--blert-button-base), 0.8);
+    background: rgba(var(--blert-purple-base), 0.8);
   }
 
   i {
@@ -96,7 +96,7 @@
   align-items: center;
   padding: 20px;
   gap: 24px;
-  border-bottom: 1px solid var(--nav-bg-lightened);
+  border-bottom: 1px solid var(--blert-surface-light);
 
   &:last-child {
     border-bottom: none;
@@ -126,7 +126,7 @@
 
   .oldName,
   .newName {
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -135,7 +135,7 @@
   i {
     position: relative;
     top: 1px;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     font-size: 0.9em;
   }
 }
@@ -160,12 +160,12 @@
 
   .label {
     font-size: 0.75em;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
   }
 
   .value {
     font-size: 0.85em;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
   }
 }
 
@@ -189,8 +189,8 @@
   position: relative;
 
   &.pending {
-    background: rgba(var(--blert-text-color-base), 0.1);
-    color: var(--blert-text-color);
+    background: rgba(var(--blert-font-color-primary-base), 0.1);
+    color: var(--blert-font-color-primary);
   }
 
   &.accepted {

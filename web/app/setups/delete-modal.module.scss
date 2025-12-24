@@ -10,7 +10,7 @@
 
   p {
     margin: 0 0 24px 0;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
   }
 
   .actions {
@@ -59,7 +59,7 @@
     .current {
       font-size: 14px;
       font-weight: 500;
-      background: var(--nav-bg-darkened);
+      background: var(--blert-surface-darker);
       padding: 4px 6px;
       border-radius: 10px;
     }
@@ -81,12 +81,12 @@
     flex-direction: column;
     gap: 4px;
     padding: 8px;
-    background: var(--nav-bg);
+    background: var(--blert-surface-dark);
     border-radius: 4px;
     transition: background-color 0.2s ease;
 
     &:hover {
-      background: var(--nav-bg-lightened);
+      background: var(--blert-surface-light);
     }
   }
 
@@ -99,7 +99,7 @@
   .revisionVersion {
     font-size: 14px;
     font-weight: 500;
-    background: var(--nav-bg-darkened);
+    background: var(--blert-surface-darker);
     padding: 4px 6px;
     border-radius: 10px;
 
@@ -108,7 +108,7 @@
       text-decoration: none;
 
       &:hover {
-        color: var(--blert-button);
+        color: var(--blert-purple);
       }
     }
   }
@@ -125,7 +125,7 @@
   }
 
   .revisionDate {
-    color: rgba(var(--blert-text-color-base), 0.8);
+    color: rgba(var(--blert-font-color-primary-base), 0.8);
   }
 
   .revisionMessage {

@@ -790,7 +790,8 @@ const buildTickCell = (
           style.outline = '1px solid rgba(var(--blert-red-base), 0.5)';
         }
       } else {
-        style.outline = '1px solid rgba(var(--blert-text-color-base), 0.2)';
+        style.outline =
+          '1px solid rgba(var(--blert-font-color-primary-base), 0.2)';
       }
     }
 

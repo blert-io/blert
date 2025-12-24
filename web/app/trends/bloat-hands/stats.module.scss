@@ -6,7 +6,7 @@
   gap: 1.5rem;
 
   .section {
-    background: var(--nav-bg);
+    background: var(--blert-surface-dark);
     border-radius: 6px;
     padding: 1rem;
 
@@ -14,8 +14,8 @@
       margin: 0 0 1rem 0;
       font-size: 0.9rem;
       font-weight: 600;
-      color: var(--blert-text-color);
-      border-bottom: 1px solid rgba(var(--blert-text-color-base), 0.2);
+      color: var(--blert-font-color-primary);
+      border-bottom: 1px solid rgba(var(--blert-font-color-primary-base), 0.2);
       padding-bottom: 0.5rem;
     }
 
@@ -30,13 +30,13 @@
         .statValue {
           font-size: 1.5rem;
           font-weight: 600;
-          color: var(--blert-text-color);
+          color: var(--blert-font-color-primary);
           margin-bottom: 0.25rem;
         }
 
         .statLabel {
           font-size: 0.75rem;
-          color: var(--font-color-nav);
+          color: var(--blert-font-color-secondary);
         }
       }
     }
@@ -58,7 +58,7 @@
 
         .statLabel {
           font-size: 0.75rem;
-          color: var(--font-color-nav);
+          color: var(--blert-font-color-secondary);
           text-transform: uppercase;
           letter-spacing: 0.5px;
         }
@@ -74,7 +74,7 @@
           margin: 0;
           font-size: 0.85rem;
           line-height: 1.4;
-          color: var(--font-color-nav);
+          color: var(--blert-font-color-secondary);
         }
       }
     }
@@ -87,13 +87,13 @@
         gap: 0.5rem;
         margin-bottom: 1rem;
         padding: 0.5rem;
-        background: rgba(var(--blert-button-base), 0.1);
+        background: rgba(var(--blert-purple-base), 0.1);
         border-radius: 4px;
 
         .modeLabel {
           font-size: 0.9rem;
           font-weight: 600;
-          color: var(--blert-text-color);
+          color: var(--blert-font-color-primary);
         }
 
         .modeIcon {
@@ -105,7 +105,7 @@
         margin: 0;
         font-size: 0.9rem;
         line-height: 1.5;
-        color: var(--font-color-nav);
+        color: var(--blert-font-color-secondary);
         text-align: center;
       }
     }
