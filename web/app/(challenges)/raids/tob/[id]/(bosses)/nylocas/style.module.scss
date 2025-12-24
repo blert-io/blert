@@ -123,7 +123,7 @@
     }
 
     .nylos {
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
       font-size: 0.9em;
       padding: 4px 8px;
     }
@@ -190,7 +190,7 @@
   position: relative;
   height: 100%;
   width: 800%;
-  border-top: 1px solid var(--blert-text-color);
+  border-top: 1px solid var(--blert-font-color-primary);
   top: -1px;
 
   .entrance {
@@ -207,7 +207,7 @@
   position: relative;
   height: 800%;
   width: 100%;
-  border-left: 1px solid var(--blert-text-color);
+  border-left: 1px solid var(--blert-font-color-primary);
 
   .entrance {
     position: absolute;
@@ -223,7 +223,7 @@
   position: relative;
   height: 100%;
   width: 800%;
-  border-bottom: 1px solid var(--blert-text-color);
+  border-bottom: 1px solid var(--blert-font-color-primary);
   top: 1px;
 
   .entrance {
@@ -240,7 +240,7 @@
   position: relative;
   height: 800%;
   width: 100%;
-  border-right: 1px solid var(--blert-text-color);
+  border-right: 1px solid var(--blert-font-color-primary);
   right: -1px;
 
   .entrance {

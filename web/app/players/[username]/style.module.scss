@@ -31,8 +31,8 @@ $NAV_MARGIN: 10px;
   padding: 24px;
   background: linear-gradient(
     to bottom right,
-    var(--panel-bg),
-    var(--nav-bg-lightened)
+    var(--blert-panel-background-color),
+    var(--blert-surface-light)
   );
 
   .playerImgWrapper {
@@ -42,7 +42,7 @@ $NAV_MARGIN: 10px;
     flex-shrink: 0;
     border-radius: 8px;
     overflow: hidden;
-    background: var(--nav-bg);
+    background: var(--blert-surface-dark);
   }
 
   .playerInfoText {
@@ -52,7 +52,7 @@ $NAV_MARGIN: 10px;
     h1 {
       font-size: 2.4em;
       margin: 0 0 16px 0;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
     }
 
     .playerStats {
@@ -69,7 +69,7 @@ $NAV_MARGIN: 10px;
           display: flex;
           align-items: center;
           gap: 8px;
-          color: var(--font-color-nav);
+          color: var(--blert-font-color-secondary);
           font-size: 0.85em;
 
           i {
@@ -82,7 +82,7 @@ $NAV_MARGIN: 10px;
         .value {
           font-size: 1.2em;
           font-weight: 500;
-          color: var(--blert-text-color);
+          color: var(--blert-font-color-primary);
         }
       }
     }
@@ -94,7 +94,7 @@ $NAV_MARGIN: 10px;
   display: flex;
   align-items: center;
   height: $NAV_HEIGHT;
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
   border-radius: 0 0 8px 8px;
 
   .tabs {
@@ -109,7 +109,7 @@ $NAV_MARGIN: 10px;
     align-items: center;
     justify-content: center;
     gap: 12px;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     text-decoration: none;
     font-size: 15px;
     transition: color 0.2s ease;
@@ -117,18 +117,18 @@ $NAV_MARGIN: 10px;
     z-index: 1;
 
     &:hover {
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
 
       .icon {
-        color: var(--blert-button);
+        color: var(--blert-purple);
       }
     }
 
     &.active {
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
 
       .icon {
-        color: var(--blert-button);
+        color: var(--blert-purple);
       }
     }
 
@@ -143,7 +143,7 @@ $NAV_MARGIN: 10px;
     bottom: 0;
     left: 0;
     height: 2px;
-    background: var(--blert-button);
+    background: var(--blert-purple);
     transition:
       transform 0.2s ease,
       width 0.2s ease,
@@ -255,7 +255,7 @@ $NAV_MARGIN: 10px;
 
   .filters {
     width: 260px;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
   }
 
   .pbTables {
@@ -274,7 +274,7 @@ $NAV_MARGIN: 10px;
         text-align: center;
         font-weight: 500;
         margin: 0 0 8px 0;
-        color: var(--blert-text-color);
+        color: var(--blert-font-color-primary);
         font-size: 1.1em;
       }
 
@@ -287,10 +287,10 @@ $NAV_MARGIN: 10px;
         width: 100%;
 
         a.pb:hover {
-          color: var(--blert-button);
+          color: var(--blert-purple);
 
           .time {
-            color: var(--blert-button);
+            color: var(--blert-purple);
           }
         }
 
@@ -305,14 +305,14 @@ $NAV_MARGIN: 10px;
           .time {
             font-size: 24px;
             font-weight: 700;
-            color: var(--blert-text-color);
+            color: var(--blert-font-color-primary);
             transition: color 0.2s ease-in-out;
           }
 
           .scale {
             font-size: 18px;
             font-weight: 500;
-            color: var(--font-color-nav);
+            color: var(--blert-font-color-secondary);
           }
         }
       }
@@ -354,14 +354,14 @@ $NAV_MARGIN: 10px;
         h3 {
           font-size: 1.1em;
           margin: 0 0 12px;
-          color: var(--blert-text-color);
+          color: var(--blert-font-color-primary);
           display: flex;
           align-items: center;
           font-weight: 500;
           gap: 8px;
 
           i {
-            color: var(--blert-button);
+            color: var(--blert-purple);
             font-size: 0.9em;
           }
         }
@@ -371,13 +371,13 @@ $NAV_MARGIN: 10px;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          background: var(--nav-bg);
+          background: var(--blert-surface-dark);
           border-radius: 6px;
-          color: var(--font-color-nav);
+          color: var(--blert-font-color-secondary);
           font-style: italic;
           font-size: 0.9em;
           padding: 16px;
-          border: 1px dashed var(--font-color-nav-divider);
+          border: 1px dashed var(--blert-divider-color);
           gap: 8px;
           text-align: center;
 
@@ -405,15 +405,15 @@ $NAV_MARGIN: 10px;
         align-items: center;
         justify-content: space-between;
         padding: 12px;
-        background: var(--nav-bg);
+        background: var(--blert-surface-dark);
         border-radius: 6px;
         transition: all 0.2s ease;
         text-decoration: none;
         border: 1px solid transparent;
 
         &:hover {
-          background: var(--nav-bg-lightened);
-          border-color: rgba(var(--blert-button-base), 0.3);
+          background: var(--blert-surface-light);
+          border-color: rgba(var(--blert-purple-base), 0.3);
           transform: translateY(-1px);
         }
 
@@ -425,7 +425,7 @@ $NAV_MARGIN: 10px;
 
           .partnerName {
             font-weight: 500;
-            color: var(--blert-text-color);
+            color: var(--blert-font-color-primary);
             font-size: 1em;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -434,7 +434,7 @@ $NAV_MARGIN: 10px;
 
           .partnerMeta {
             font-size: 0.8em;
-            color: var(--font-color-nav);
+            color: var(--blert-font-color-secondary);
             display: flex;
             align-items: center;
             gap: 8px;
@@ -445,7 +445,7 @@ $NAV_MARGIN: 10px;
               gap: 4px;
 
               i {
-                color: var(--blert-button);
+                color: var(--blert-purple);
                 font-size: 0.9em;
               }
             }
@@ -453,13 +453,13 @@ $NAV_MARGIN: 10px;
         }
 
         .arrow {
-          color: var(--font-color-nav);
+          color: var(--blert-font-color-secondary);
           transition: all 0.2s ease;
           font-size: 0.8em;
         }
 
         &:hover .arrow {
-          color: var(--blert-button);
+          color: var(--blert-purple);
           transform: translateX(2px);
         }
       }
@@ -471,12 +471,12 @@ $NAV_MARGIN: 10px;
       align-items: center;
       justify-content: center;
       padding: 24px 16px;
-      background: var(--nav-bg);
+      background: var(--blert-surface-dark);
       border-radius: 6px;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
       text-align: center;
       gap: 8px;
-      border: 1px dashed var(--font-color-nav-divider);
+      border: 1px dashed var(--blert-divider-color);
 
       i {
         font-size: 1.4em;
@@ -642,7 +642,7 @@ $NAV_MARGIN: 10px;
 
   .calendarTooltip {
     position: fixed;
-    background: var(--nav-bg);
+    background: var(--blert-surface-dark);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 6px;
     padding: 8px 12px;
@@ -665,7 +665,7 @@ $NAV_MARGIN: 10px;
       height: 0;
       border-left: 5px solid transparent;
       border-right: 5px solid transparent;
-      border-top: 5px solid var(--nav-bg);
+      border-top: 5px solid var(--blert-surface-dark);
     }
 
     .date {
@@ -690,7 +690,7 @@ $NAV_MARGIN: 10px;
   .date {
     font-size: 14px;
     font-weight: 600;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
   }
 
   .challengeCount {
@@ -698,10 +698,10 @@ $NAV_MARGIN: 10px;
     align-items: center;
     gap: 8px;
     font-size: 13px;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
 
     i {
-      color: rgba(var(--blert-button-base), 0.8);
+      color: rgba(var(--blert-purple-base), 0.8);
       font-size: 14px;
       width: 16px;
       text-align: center;
@@ -738,7 +738,7 @@ $NAV_MARGIN: 10px;
 
     i {
       font-size: 0.9em;
-      color: var(--blert-button);
+      color: var(--blert-purple);
     }
   }
 
@@ -747,7 +747,7 @@ $NAV_MARGIN: 10px;
     flex-direction: column;
     padding: 0;
     gap: 0;
-    background: var(--nav-bg);
+    background: var(--blert-surface-dark);
     border-radius: 6px;
     margin-bottom: 16px;
 
@@ -756,7 +756,7 @@ $NAV_MARGIN: 10px;
       align-items: center;
       justify-content: space-between;
       padding: 16px;
-      border-bottom: 1px solid var(--nav-bg-lightened);
+      border-bottom: 1px solid var(--blert-surface-light);
 
       &:last-child {
         border-bottom: none;
@@ -771,7 +771,7 @@ $NAV_MARGIN: 10px;
 
         .oldName,
         .newName {
-          color: var(--blert-text-color);
+          color: var(--blert-font-color-primary);
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
@@ -780,14 +780,14 @@ $NAV_MARGIN: 10px;
         i {
           position: relative;
           top: 1px;
-          color: var(--font-color-nav);
+          color: var(--blert-font-color-secondary);
           font-size: 0.9em;
         }
       }
 
       .date {
         font-size: 0.85em;
-        color: var(--font-color-nav);
+        color: var(--blert-font-color-secondary);
         margin-left: 12px;
       }
     }
@@ -826,14 +826,14 @@ $NAV_MARGIN: 10px;
   .selectedStat {
     position: relative;
     align-items: center;
-    background: var(--nav-bg-lightened);
+    background: var(--blert-surface-light);
     border-radius: 4px;
     display: flex;
     font-size: 0.9rem;
     gap: 0.5rem;
     padding: 0.25rem 0.5rem;
     transition: all 0.2s ease-in-out;
-    border: 1px solid var(--font-color-nav-divider);
+    border: 1px solid var(--blert-divider-color);
 
     i {
       position: relative;
@@ -843,18 +843,18 @@ $NAV_MARGIN: 10px;
 
     &:hover {
       cursor: pointer;
-      background: var(--nav-bg-lightened);
-      border-color: var(--blert-button);
+      background: var(--blert-surface-light);
+      border-color: var(--blert-purple);
 
       i {
-        color: var(--blert-button);
+        color: var(--blert-purple);
       }
     }
   }
 }
 
 .legendItem {
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   font-size: 0.8rem;
 }
 
@@ -886,36 +886,36 @@ $NAV_MARGIN: 10px;
     justify-content: center;
     gap: 12px;
     padding-bottom: 16px;
-    border-bottom: 1px solid var(--nav-bg-lightened);
+    border-bottom: 1px solid var(--blert-surface-light);
     font-weight: 500;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
 
     i {
-      color: var(--blert-button);
+      color: var(--blert-purple);
       font-size: 1.1em;
     }
 
     .statCounter {
       font-size: 0.8em;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
       margin-left: auto;
     }
 
     .addStatButton {
       background: none;
       border: none;
-      color: var(--blert-button);
+      color: var(--blert-purple);
       cursor: pointer;
       padding: 4px;
       border-radius: 4px;
       transition: all 0.2s ease;
 
       &:hover:not(.disabled) {
-        background: var(--nav-bg-lightened);
+        background: var(--blert-surface-light);
       }
 
       &.disabled {
-        color: var(--font-color-nav);
+        color: var(--blert-font-color-secondary);
         cursor: not-allowed;
         opacity: 0.7;
       }

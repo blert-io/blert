@@ -442,7 +442,7 @@ export default function SessionTimeline() {
           durationMinutes: breakDurationMinutes,
           endMinutes: breakStartMinutes + breakDurationMinutes,
           challenge: null,
-          color: 'rgba(var(--blert-text-color-base), 0.1)',
+          color: 'rgba(var(--blert-font-color-primary-base), 0.1)',
           baseWidth: breakStartMinutes,
         });
       }
@@ -559,7 +559,7 @@ export default function SessionTimeline() {
             type="number"
             domain={[0, maxMinutes]}
             tickFormatter={formatTimeAxis}
-            tick={{ fill: 'var(--blert-text-color)', fontSize: 12 }}
+            tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 12 }}
             tickCount={8}
             axisLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
             tickLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
@@ -569,7 +569,7 @@ export default function SessionTimeline() {
             type="category"
             dataKey="index"
             width={50}
-            tick={{ fill: 'var(--blert-text-color)', fontSize: 11 }}
+            tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 11 }}
             axisLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
             tickLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
             tickFormatter={(value: number) => {
@@ -673,7 +673,7 @@ export default function SessionTimeline() {
               <div
                 className={styles.legendColor}
                 style={{
-                  background: 'rgba(var(--blert-text-color-base), 0.1)',
+                  background: 'rgba(var(--blert-font-color-primary-base), 0.1)',
                 }}
               ></div>
               <span>Break</span>

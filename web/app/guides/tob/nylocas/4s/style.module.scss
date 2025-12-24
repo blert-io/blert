@@ -5,7 +5,7 @@
   display: flex;
   border-radius: 10px;
   overflow: hidden;
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     width: 100%;
@@ -27,22 +27,22 @@
       width: 50%;
 
       &:nth-child(even) {
-        border-left: 2px solid var(--content-area-bg);
+        border-left: 2px solid rgba(var(--blert-purple-base), 0.1);
       }
 
       &:nth-child(-n + 2) {
-        border-bottom: 2px solid var(--content-area-bg);
+        border-bottom: 2px solid rgba(var(--blert-purple-base), 0.1);
       }
     }
 
     @media (min-width: $COMPACT_WIDTH_THRESHOLD) {
       &:not(:last-child) {
-        border-right: 2px solid var(--content-area-bg);
+        border-right: 2px solid rgba(var(--blert-purple-base), 0.1);
       }
     }
 
     &.active {
-      background: var(--nav-bg-darkened);
+      background: var(--blert-surface-darker);
       color: #fff;
 
       &:hover {
@@ -51,7 +51,7 @@
     }
 
     &:not(.active):hover {
-      background: var(--nav-bg-lightened);
+      background: var(--blert-surface-light);
       color: #fff;
     }
 

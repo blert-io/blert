@@ -1,5 +1,5 @@
 .markdown {
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
   line-height: 1.6;
   word-wrap: break-word;
   user-select: text !important;
@@ -16,7 +16,7 @@
     margin-bottom: 0.5em;
     font-weight: 600;
     line-height: 1.3;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
 
     &:first-child {
       margin-top: 0;
@@ -25,7 +25,7 @@
 
   h3 {
     font-size: 1.5em;
-    border-bottom: 1px solid var(--font-color-nav-divider);
+    border-bottom: 1px solid var(--blert-divider-color);
     padding-bottom: 0.3em;
   }
 
@@ -39,7 +39,7 @@
 
   h6 {
     font-size: 1em;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
   }
 
   p {
@@ -52,7 +52,7 @@
   }
 
   a {
-    color: var(--blert-button);
+    color: var(--blert-purple);
     text-decoration: none;
     transition: opacity 0.2s ease;
 
@@ -94,7 +94,7 @@
     background: none;
     margin: 0;
     font-family: 'Font Awesome 6 Free';
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     font-size: 18px;
     cursor: default;
     position: relative;
@@ -125,18 +125,18 @@
   }
 
   .inlineCode {
-    background-color: rgba(var(--nav-bg-base), 0.8);
+    background-color: rgba(var(--blert-surface-dark-base), 0.8);
     border-radius: 3px;
     padding: 0.2em 0.4em;
     font-family: var(--font-roboto-mono), monospace;
     font-size: 0.9em;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
   }
 
   pre {
-    background-color: var(--nav-bg);
+    background-color: var(--blert-surface-dark);
     border-radius: 6px;
-    border: 1px solid var(--font-color-nav-divider);
+    border: 1px solid var(--blert-divider-color);
     padding: 1em;
     overflow-x: auto;
     margin-bottom: 1em;
@@ -147,16 +147,16 @@
       font-family: var(--font-roboto-mono), monospace;
       font-size: 0.9em;
       line-height: 1.45;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
     }
   }
 
   blockquote {
     margin: 0 0 1em 0;
     padding: 0 1em;
-    border-left: 4px solid rgba(var(--blert-button-base), 0.3);
-    color: var(--font-color-nav);
-    background: rgba(var(--nav-bg-base), 0.3);
+    border-left: 4px solid rgba(var(--blert-purple-base), 0.3);
+    color: var(--blert-font-color-secondary);
+    background: rgba(var(--blert-surface-dark-base), 0.3);
     border-radius: 0 4px 4px 0;
 
     > :first-child {
@@ -172,7 +172,7 @@
     overflow-x: auto;
     margin-bottom: 1em;
     border-radius: 6px;
-    border: 1px solid var(--font-color-nav-divider);
+    border: 1px solid var(--blert-divider-color);
   }
 
   table {
@@ -182,28 +182,28 @@
     th,
     td {
       padding: 0.5em 0.75em;
-      border: 1px solid var(--font-color-nav-divider);
+      border: 1px solid var(--blert-divider-color);
       text-align: left;
     }
 
     th {
-      background-color: var(--nav-bg);
+      background-color: var(--blert-surface-dark);
       font-weight: 600;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
     }
 
     td {
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
     }
 
     tr:nth-child(even) {
-      background-color: rgba(var(--nav-bg-base), 0.3);
+      background-color: rgba(var(--blert-surface-dark-base), 0.3);
     }
   }
 
   hr {
     border: none;
-    border-top: 1px solid var(--font-color-nav-divider);
+    border-top: 1px solid var(--blert-divider-color);
     margin: 1.5em 0;
   }
 
@@ -220,11 +220,11 @@
 
     &:hover {
       transform: translateY(-2px);
-      border-color: rgba(var(--blert-button-base), 0.5);
+      border-color: rgba(var(--blert-purple-base), 0.5);
     }
 
     &:focus {
-      outline: 1px solid rgba(var(--blert-button-base), 0.5);
+      outline: 1px solid rgba(var(--blert-purple-base), 0.5);
       outline-offset: 2px;
       border-radius: 6px;
     }
@@ -235,7 +235,7 @@
     height: auto;
     border-radius: 6px;
     display: block;
-    border: 1px solid var(--font-color-nav-divider);
+    border: 1px solid var(--blert-divider-color);
     pointer-events: none;
   }
 
@@ -252,12 +252,12 @@
 
   del {
     text-decoration: line-through;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
   }
 
   strong {
     font-weight: 600;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
   }
 
   em {
@@ -266,7 +266,7 @@
 
   :global(.katex) {
     font-size: 1.1em;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
   }
 
   :global(.katex-display) {
@@ -358,7 +358,7 @@
   }
 
   &:focus {
-    outline: 2px solid var(--blert-button);
+    outline: 2px solid var(--blert-purple);
     outline-offset: 2px;
   }
 }

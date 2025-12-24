@@ -9,7 +9,7 @@
   transition: all 0.2s ease;
 
   &:hover {
-    background: rgba(var(--nav-bg-base), 0.4);
+    background: rgba(var(--blert-surface-dark-base), 0.4);
   }
 
   .text {
@@ -25,8 +25,8 @@
     border: 1px solid transparent;
 
     &:hover {
-      background: rgba(var(--nav-bg-lightened-base), 0.4);
-      border-color: rgba(var(--blert-button-base), 0.15);
+      background: rgba(var(--blert-surface-light-base), 0.4);
+      border-color: rgba(var(--blert-purple-base), 0.15);
     }
   }
 
@@ -35,12 +35,12 @@
     height: 35px;
     background: linear-gradient(
       145deg,
-      rgba(var(--nav-bg-base), 0.6),
-      rgba(var(--nav-bg-darkened-base), 0.4)
+      rgba(var(--blert-surface-dark-base), 0.6),
+      rgba(var(--blert-surface-darker-base), 0.4)
     );
     margin: 0;
     outline: none;
-    border: 1px solid rgba(var(--blert-button-base), 0.3);
+    border: 1px solid rgba(var(--blert-purple-base), 0.3);
     border-radius: 4px;
     color: inherit;
     font-size: inherit;
@@ -49,12 +49,12 @@
     transition: all 0.2s ease;
 
     &:focus {
-      border-color: rgba(var(--blert-button-base), 0.6);
-      box-shadow: 0 0 0 2px rgba(var(--blert-button-base), 0.15);
+      border-color: rgba(var(--blert-purple-base), 0.6);
+      box-shadow: 0 0 0 2px rgba(var(--blert-purple-base), 0.15);
       background: linear-gradient(
         145deg,
-        rgba(var(--nav-bg-base), 0.8),
-        rgba(var(--nav-bg-darkened-base), 0.6)
+        rgba(var(--blert-surface-dark-base), 0.8),
+        rgba(var(--blert-surface-darker-base), 0.6)
       );
     }
   }
@@ -84,18 +84,18 @@
     background-color: transparent;
     border: 1px solid transparent;
     border-radius: 4px;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     transition: all 0.2s ease;
     cursor: pointer;
     flex-shrink: 0;
 
     &:hover {
-      background-color: var(--nav-bg-lightened);
-      border-color: rgba(var(--blert-button-base), 0.3);
-      color: var(--blert-text-color);
+      background-color: var(--blert-surface-light);
+      border-color: rgba(var(--blert-purple-base), 0.3);
+      color: var(--blert-font-color-primary);
 
       i {
-        color: var(--blert-button);
+        color: var(--blert-purple);
       }
     }
 

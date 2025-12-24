@@ -4,7 +4,7 @@
   @include panel;
   flex-direction: column;
   padding: 20px;
-  border: 1px solid rgba(var(--blert-button-base), 0.15);
+  border: 1px solid rgba(var(--blert-purple-base), 0.15);
   border-radius: 12px;
   transition: all 0.3s ease;
 
@@ -13,7 +13,7 @@
   }
 
   &:hover {
-    border-color: rgba(var(--blert-button-base), 0.3);
+    border-color: rgba(var(--blert-purple-base), 0.3);
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
   }
 
@@ -24,8 +24,8 @@
   &.primary {
     background: linear-gradient(
       to bottom right,
-      var(--panel-bg),
-      var(--nav-bg-lightened)
+      var(--blert-panel-background-color),
+      var(--blert-surface-light)
     );
   }
 
@@ -39,7 +39,7 @@
     h2 {
       font-size: 1.3em;
       margin: 0;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
     }
   }
 
@@ -47,7 +47,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    color: var(--blert-button);
+    color: var(--blert-purple);
     text-decoration: none;
     margin-top: auto;
     padding: 8px;
@@ -55,7 +55,7 @@
     transition: all 0.2s ease;
 
     &:hover {
-      background: var(--nav-bg);
+      background: var(--blert-surface-dark);
 
       i {
         transform: translateX(4px);

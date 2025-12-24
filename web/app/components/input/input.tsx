@@ -31,7 +31,8 @@ export type InputProps = {
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
   function Input(props, ref) {
-    const labelBackground = props.labelBg ?? 'var(--panel-bg)';
+    const labelBackground =
+      props.labelBg ?? 'var(--blert-panel-background-color)';
     const style: React.CSSProperties = {
       width: props.fluid ? '100%' : (props.width ?? 240),
     };

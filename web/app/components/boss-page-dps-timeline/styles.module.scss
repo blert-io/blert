@@ -10,7 +10,7 @@
 .dpsChart {
   margin: 24px 0;
   width: 100%;
-  background: var(--panel-bg);
+  background: var(--blert-panel-background-color);
   border-radius: 8px;
   padding: 16px;
 }
@@ -26,7 +26,7 @@
 
   h3 {
     font-size: 1.1em;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     margin: 0 0 16px 0;
     text-align: center;
   }

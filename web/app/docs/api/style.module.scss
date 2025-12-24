@@ -7,7 +7,7 @@
 
 :global(.swagger-ui) {
   font-family: 'Inter', sans-serif;
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
   width: 100%;
 
   .wrapper {
@@ -26,7 +26,7 @@
     }
 
     .title small {
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
     }
   }
 
@@ -61,11 +61,11 @@
       background: none;
 
       .opblock-summary-method {
-        background: var(--nav-bg);
+        background: var(--blert-surface-dark);
       }
 
       .opblock-summary-path {
-        color: var(--font-color-nav-active);
+        color: var(--blert-font-color-secondary-active);
       }
     }
 
@@ -76,7 +76,7 @@
     }
 
     pre {
-      background: var(--nav-bg) !important;
+      background: var(--blert-surface-dark) !important;
       margin-bottom: 1em !important;
     }
   }
@@ -100,7 +100,7 @@
   .tab-header .tab-item,
   .response-control-media-type__accept-message,
   .download-contents {
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
   }
 
   .parameter__name {
@@ -108,14 +108,14 @@
   }
 
   .model {
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
 
     .property {
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
     }
 
     .property-type {
-      color: var(--font-color-nav-active);
+      color: var(--blert-font-color-secondary-active);
     }
 
     .model-title {
@@ -128,9 +128,9 @@
   }
 
   input {
-    background: var(--nav-bg);
-    color: var(--blert-text-color);
-    border: 1px solid var(--blert-text-color);
+    background: var(--blert-surface-dark);
+    color: var(--blert-font-color-primary);
+    border: 1px solid var(--blert-font-color-primary);
 
     &:focus {
       border: 1px solid #fff;
@@ -140,25 +140,25 @@
   table {
     thead tr th {
       color: #fff;
-      border-bottom: 1px solid var(--font-color-nav);
+      border-bottom: 1px solid var(--blert-font-color-secondary);
       background: none;
     }
 
     tbody tr td {
-      color: var(--blert-text-color);
-      border-bottom: 1px solid var(--font-color-nav);
+      color: var(--blert-font-color-primary);
+      border-bottom: 1px solid var(--blert-font-color-secondary);
       background: none;
     }
   }
 
   .btn {
-    background: var(--nav-bg);
-    color: var(--blert-text-color);
-    border: 1px solid var(--font-color-nav);
+    background: var(--blert-surface-dark);
+    color: var(--blert-font-color-primary);
+    border: 1px solid var(--blert-font-color-secondary);
     box-shadow: 0 0 5px 0 rgba(0, 0, 0, 0.5);
 
     &:hover {
-      background: var(--nav-bg-lightened);
+      background: var(--blert-surface-light);
     }
   }
 
@@ -186,7 +186,7 @@
   }
 
   .prop-type {
-    color: var(--font-color-nav-active);
+    color: var(--blert-font-color-secondary-active);
   }
 
   .prop-format {
@@ -195,5 +195,5 @@
 }
 
 :global(svg.arrow) {
-  fill: var(--blert-text-color);
+  fill: var(--blert-font-color-primary);
 }

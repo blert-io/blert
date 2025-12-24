@@ -23,10 +23,10 @@
     align-items: center;
     justify-content: center;
     padding: 0.5rem;
-    background: rgba(var(--nav-bg-base), 0.85);
-    border: 1px solid rgba(var(--blert-button-base), 0.2);
+    background: rgba(var(--blert-surface-dark-base), 0.85);
+    border: 1px solid rgba(var(--blert-purple-base), 0.2);
     border-radius: 6px;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     font-size: 0.875rem;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -34,23 +34,23 @@
     z-index: 10;
 
     &:hover {
-      background: rgba(var(--nav-bg-lightened-base), 0.95);
-      border-color: rgba(var(--blert-button-base), 0.4);
+      background: rgba(var(--blert-surface-light-base), 0.95);
+      border-color: rgba(var(--blert-purple-base), 0.4);
     }
 
     &:focus {
       outline: none;
-      border-color: var(--blert-button);
-      box-shadow: 0 0 0 2px rgba(var(--blert-button-base), 0.2);
+      border-color: var(--blert-purple);
+      box-shadow: 0 0 0 2px rgba(var(--blert-purple-base), 0.2);
     }
 
     &.playing {
       opacity: 0.8;
-      border-color: rgba(var(--blert-button-base), 0.3);
+      border-color: rgba(var(--blert-purple-base), 0.3);
     }
 
     i {
-      color: var(--blert-button);
+      color: var(--blert-purple);
       font-size: 0.875rem;
     }
   }

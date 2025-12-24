@@ -9,15 +9,15 @@
     justify-content: center;
     gap: 12px;
     padding: 2rem;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     text-align: center;
-    background: var(--nav-bg);
+    background: var(--blert-surface-dark);
     border-radius: 8px;
-    border: 1px solid rgba(var(--blert-button-base), 0.1);
+    border: 1px solid rgba(var(--blert-purple-base), 0.1);
 
     i {
       font-size: 2rem;
-      color: var(--blert-button);
+      color: var(--blert-purple);
       opacity: 0.6;
     }
 
@@ -30,10 +30,10 @@
 .sessionCard {
   background: linear-gradient(
     135deg,
-    var(--panel-bg) 0%,
-    rgba(var(--nav-bg-base), 0.8) 100%
+    var(--blert-panel-background-color) 0%,
+    rgba(var(--blert-surface-dark-base), 0.8) 100%
   );
-  border: 1px solid rgba(var(--blert-button-base), 0.15);
+  border: 1px solid rgba(var(--blert-purple-base), 0.15);
   border-radius: 12px;
   margin-bottom: 16px;
   overflow: hidden;
@@ -41,7 +41,7 @@
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 
   &:hover {
-    border-color: rgba(var(--blert-button-base), 0.3);
+    border-color: rgba(var(--blert-purple-base), 0.3);
     transform: translateY(-2px);
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
   }
@@ -53,8 +53,8 @@
   background: linear-gradient(
     135deg,
     rgba(var(--blert-green-base), 0.02) 0%,
-    var(--panel-bg) 30%,
-    rgba(var(--nav-bg-base), 0.8) 100%
+    var(--blert-panel-background-color) 30%,
+    rgba(var(--blert-surface-dark-base), 0.8) 100%
   );
   box-shadow:
     0 4px 16px rgba(0, 0, 0, 0.2),
@@ -109,7 +109,7 @@
   transition: background-color 0.2s ease;
 
   &:hover {
-    background: rgba(var(--nav-bg-lightened-base), 0.5);
+    background: rgba(var(--blert-surface-light-base), 0.5);
   }
 }
 
@@ -134,8 +134,8 @@
   font-size: 1.25rem;
   font-weight: 600;
   margin: 0 0 8px 0;
-  color: var(--blert-text-color);
-  text-shadow: 0 0 3px rgba(var(--blert-button-base), 0.4);
+  color: var(--blert-font-color-primary);
+  text-shadow: 0 0 3px rgba(var(--blert-purple-base), 0.4);
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     font-size: 1.1rem;
@@ -147,7 +147,7 @@
   align-items: center;
   gap: 8px;
   font-size: 0.9rem;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
 
   i {
     margin-right: 4px;
@@ -159,7 +159,7 @@
 }
 
 .separator {
-  color: var(--font-color-nav-divider);
+  color: var(--blert-divider-color);
 }
 
 .sessionActions {
@@ -194,11 +194,11 @@
 }
 
 .expandButton {
-  background: rgba(var(--blert-button-base), 0.1);
-  border: 1px solid rgba(var(--blert-button-base), 0.3);
+  background: rgba(var(--blert-purple-base), 0.1);
+  border: 1px solid rgba(var(--blert-purple-base), 0.3);
   border-radius: 8px;
   padding: 8px 12px;
-  color: var(--blert-button);
+  color: var(--blert-purple);
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
@@ -207,7 +207,7 @@
   min-width: 40px;
 
   &:hover {
-    background: rgba(var(--blert-button-base), 0.2);
+    background: rgba(var(--blert-purple-base), 0.2);
     transform: scale(1.05);
   }
 
@@ -234,15 +234,15 @@
   align-items: center;
   gap: 8px;
   padding: 12px;
-  background: rgba(var(--nav-bg-base), 0.6);
+  background: rgba(var(--blert-surface-dark-base), 0.6);
   border-radius: 8px;
   font-size: 0.9rem;
-  color: var(--blert-text-color);
-  border: 1px solid rgba(var(--font-color-nav-divider), 0.3);
+  color: var(--blert-font-color-primary);
+  border: 1px solid rgba(var(--blert-divider-color), 0.3);
   transition: all 0.2s ease;
 
   i {
-    color: var(--blert-button);
+    color: var(--blert-purple);
     font-size: 16px;
     width: 16px;
     text-align: center;
@@ -264,8 +264,8 @@
 }
 
 .sessionChallenges {
-  border-top: 1px solid rgba(var(--font-color-nav-divider), 0.3);
-  background: rgba(var(--nav-bg-darkened-base), 0.4);
+  border-top: 1px solid rgba(var(--blert-divider-color), 0.3);
+  background: rgba(var(--blert-surface-darker-base), 0.4);
 }
 
 .challengesList {
@@ -279,8 +279,8 @@
   display: flex;
   flex-direction: column;
   padding: 12px;
-  background: rgba(var(--panel-bg-base), 0.8);
-  border: 1px solid rgba(var(--font-color-nav-divider), 0.2);
+  background: rgba(var(--blert-panel-background-color-base), 0.8);
+  border: 1px solid rgba(var(--blert-divider-color), 0.2);
   border-radius: 8px;
   text-decoration: none;
   color: inherit;
@@ -298,15 +298,15 @@
     background: linear-gradient(
       90deg,
       transparent,
-      rgba(var(--blert-button-base), 0.1),
+      rgba(var(--blert-purple-base), 0.1),
       transparent
     );
     transition: left 0.5s ease;
   }
 
   &:hover {
-    background: rgba(var(--nav-bg-base), 0.8);
-    border-color: rgba(var(--blert-button-base), 0.4);
+    background: rgba(var(--blert-surface-dark-base), 0.8);
+    border-color: rgba(var(--blert-purple-base), 0.4);
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 
@@ -329,7 +329,7 @@
   .challengeIndex {
     font-size: 0.85rem;
     font-weight: 600;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
 
     @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
       font-size: 0.8rem;
@@ -366,7 +366,7 @@
     width: 16px;
     text-align: center;
     font-size: 12px;
-    color: var(--blert-button);
+    color: var(--blert-purple);
   }
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
@@ -393,7 +393,7 @@
 }
 
 .skeleton {
-  background: var(--nav-bg-lightened);
+  background: var(--blert-surface-light);
   border-radius: 4px;
   animation: pulse 1.5s ease-in-out infinite;
 }

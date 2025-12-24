@@ -225,10 +225,10 @@ export default function PlayerStatistics() {
                     tickFormatter={(date: string) =>
                       new Date(date).toLocaleDateString()
                     }
-                    stroke="var(--font-color-nav)"
+                    stroke="var(--blert-font-color-secondary)"
                     dy={5}
                   />
-                  <YAxis stroke="var(--font-color-nav)" />
+                  <YAxis stroke="var(--blert-font-color-secondary)" />
                   {selectedStats.map((stat, index) => (
                     <Line
                       key={stat.key}
@@ -241,15 +241,15 @@ export default function PlayerStatistics() {
                   <Tooltip
                     cursor={false}
                     contentStyle={{
-                      backgroundColor: 'var(--nav-bg)',
-                      borderColor: 'var(--font-color-nav-divider)',
+                      backgroundColor: 'var(--blert-surface-dark)',
+                      borderColor: 'var(--blert-divider-color)',
                       borderRadius: '4px',
                     }}
                     labelFormatter={(date: string) => (
                       <span
                         style={{
                           display: 'block',
-                          color: 'var(--blert-text-color)',
+                          color: 'var(--blert-font-color-primary)',
                           fontWeight: 500,
                           marginBottom: 8,
                         }}

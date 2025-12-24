@@ -25,19 +25,19 @@ $MAX_MENU_HEIGHT: ($ITEM_HEIGHT + $ITEM_PADDING * 2) * $MAX_ITEMS;
   input {
     padding: 8px 12px;
     border-radius: 5px;
-    border: 1px solid rgba(var(--blert-text-color-base), 0.3);
-    background: var(--nav-bg);
-    color: var(--blert-text-color);
+    border: 1px solid rgba(var(--blert-font-color-primary-base), 0.3);
+    background: var(--blert-surface-dark);
+    color: var(--blert-font-color-primary);
     font-size: 14px;
     transition: border-color 0.2s;
 
     &:focus {
       outline: none;
-      border-color: rgba(var(--blert-button-base), 0.6);
+      border-color: rgba(var(--blert-purple-base), 0.6);
     }
 
     &::placeholder {
-      color: rgba(var(--blert-text-color-base), 0.5);
+      color: rgba(var(--blert-font-color-primary-base), 0.5);
     }
 
     &:disabled {
@@ -55,16 +55,16 @@ $MAX_MENU_HEIGHT: ($ITEM_HEIGHT + $ITEM_PADDING * 2) * $MAX_ITEMS;
     right: 8px;
     top: calc(50%);
     transform: translateY(-50%);
-    color: rgba(var(--blert-text-color-base), 0.5);
-    border: 1px solid rgba(var(--blert-text-color-base), 0.3);
+    color: rgba(var(--blert-font-color-primary-base), 0.5);
+    border: 1px solid rgba(var(--blert-font-color-primary-base), 0.3);
     border-radius: 4px;
     padding: 3px 8px;
     font-size: 12px;
     font-family: monospace;
     background: linear-gradient(
       145deg,
-      rgba(var(--panel-bg-base), 0.6),
-      rgba(var(--nav-bg-darkened-base), 0.4)
+      rgba(var(--blert-panel-background-color-base), 0.6),
+      rgba(var(--blert-surface-darker-base), 0.4)
     );
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
     transition: opacity 0.2s ease;
@@ -76,11 +76,11 @@ $MAX_MENU_HEIGHT: ($ITEM_HEIGHT + $ITEM_PADDING * 2) * $MAX_ITEMS;
   max-height: $MAX_MENU_HEIGHT;
   display: flex;
   flex-direction: column;
-  border-color: rgba(var(--blert-button-base), 0.6);
+  border-color: rgba(var(--blert-purple-base), 0.6);
   background: linear-gradient(
     145deg,
-    rgba(var(--panel-bg-base), 1),
-    rgba(var(--nav-bg-base), 1)
+    rgba(var(--blert-panel-background-color-base), 1),
+    rgba(var(--blert-surface-dark-base), 1)
   );
 }
 
@@ -99,12 +99,12 @@ $MAX_MENU_HEIGHT: ($ITEM_HEIGHT + $ITEM_PADDING * 2) * $MAX_ITEMS;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
   }
 
   .id {
     font-size: 12px;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     font-family: monospace;
     padding-top: 5px;
   }

@@ -48,9 +48,9 @@
       padding: 8px 12px;
       border-radius: 6px;
       font-weight: 500;
-      background: rgba(var(--nav-bg-base), 0.4);
-      border: 1px solid var(--font-color-nav-divider);
-      color: var(--font-color-nav);
+      background: rgba(var(--blert-surface-dark-base), 0.4);
+      border: 1px solid var(--blert-divider-color);
+      color: var(--blert-font-color-secondary);
       transition: all 0.2s ease;
       white-space: nowrap;
 
@@ -61,28 +61,28 @@
       }
 
       &:hover {
-        background: var(--nav-bg);
-        border-color: var(--blert-button);
-        color: var(--blert-text-color);
+        background: var(--blert-surface-dark);
+        border-color: var(--blert-purple);
+        color: var(--blert-font-color-primary);
 
         i {
-          color: var(--blert-button);
+          color: var(--blert-purple);
         }
       }
 
       &.active {
-        background: var(--nav-bg);
-        color: var(--blert-text-color);
-        border-color: var(--blert-button);
+        background: var(--blert-surface-dark);
+        color: var(--blert-font-color-primary);
+        border-color: var(--blert-purple);
 
         i {
-          color: var(--blert-button);
+          color: var(--blert-purple);
         }
       }
 
       i {
         font-size: 0.9em;
-        color: var(--font-color-nav);
+        color: var(--blert-font-color-secondary);
         transition: color 0.2s ease;
       }
     }
@@ -104,9 +104,9 @@
       padding: 6px 12px;
       border-radius: 6px;
       font-size: 0.9em;
-      background: rgba(var(--nav-bg-base), 0.4);
-      border: 1px solid var(--font-color-nav-divider);
-      color: var(--font-color-nav);
+      background: rgba(var(--blert-surface-dark-base), 0.4);
+      border: 1px solid var(--blert-divider-color);
+      color: var(--blert-font-color-secondary);
       transition: all 0.2s ease;
 
       @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
@@ -115,15 +115,15 @@
       }
 
       &:hover {
-        background: var(--nav-bg);
-        border-color: var(--blert-button);
-        color: var(--blert-text-color);
+        background: var(--blert-surface-dark);
+        border-color: var(--blert-purple);
+        color: var(--blert-font-color-primary);
       }
 
       &.active {
-        background: var(--nav-bg);
-        color: var(--blert-text-color);
-        border-color: var(--blert-button);
+        background: var(--blert-surface-dark);
+        color: var(--blert-font-color-primary);
+        border-color: var(--blert-purple);
       }
 
       i {
@@ -148,9 +148,9 @@
     padding: 6px 12px;
     border-radius: 6px;
     font-size: 0.9em;
-    background: rgba(var(--nav-bg-base), 0.4);
-    border: 1px solid var(--font-color-nav-divider);
-    color: var(--font-color-nav);
+    background: rgba(var(--blert-surface-dark-base), 0.4);
+    border: 1px solid var(--blert-divider-color);
+    color: var(--blert-font-color-secondary);
     transition: all 0.2s ease;
 
     @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
@@ -160,15 +160,15 @@
     }
 
     &:hover {
-      background: var(--nav-bg);
-      border-color: var(--blert-button);
-      color: var(--blert-text-color);
+      background: var(--blert-surface-dark);
+      border-color: var(--blert-purple);
+      color: var(--blert-font-color-primary);
     }
 
     &.active {
-      background: var(--nav-bg);
-      color: var(--blert-text-color);
-      border-color: var(--blert-button);
+      background: var(--blert-surface-dark);
+      color: var(--blert-font-color-primary);
+      border-color: var(--blert-purple);
     }
   }
 }
@@ -191,12 +191,12 @@
 
   .boardHeader {
     padding: 16px;
-    border-bottom: 1px solid var(--nav-bg);
+    border-bottom: 1px solid var(--blert-surface-dark);
 
     h3 {
       margin: 0;
       font-size: 1.2rem;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
     }
   }
 }
@@ -215,7 +215,7 @@
     border-radius: 5px;
 
     &:hover {
-      background: var(--nav-bg-lightened);
+      background: var(--blert-surface-light);
       transform: translateX(4px);
     }
 
@@ -226,7 +226,7 @@
       font-weight: 500;
       align-items: center;
       gap: 4px;
-      color: var(--blert-button);
+      color: var(--blert-purple);
 
       .medal {
         &.gold {
@@ -262,13 +262,13 @@
 
         .time {
           font-family: var(--font-roboto-mono);
-          color: var(--blert-text-color);
+          color: var(--blert-font-color-primary);
           width: 80px;
         }
 
         .date {
           font-size: 0.85rem;
-          color: var(--font-color-nav);
+          color: var(--blert-font-color-secondary);
           opacity: 0.8;
           font-variant-numeric: tabular-nums;
           white-space: nowrap;
@@ -277,7 +277,7 @@
 
       .party {
         font-size: 0.9rem;
-        color: var(--font-color-nav);
+        color: var(--blert-font-color-secondary);
       }
     }
   }

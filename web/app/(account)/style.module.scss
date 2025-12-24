@@ -21,8 +21,8 @@
   width: 100%;
   max-width: 420px;
   position: relative;
-  background: var(--panel-bg);
-  border: 1px solid var(--font-color-nav-divider);
+  background: var(--blert-panel-background-color);
+  border: 1px solid var(--blert-divider-color);
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     padding: 24px;
@@ -39,12 +39,12 @@
     font-size: 1.8em;
     margin: 0 0 8px 0;
     text-align: center;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
   }
 
   .subtitle {
     text-align: center;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     font-size: 0.95em;
     margin: 0 0 24px 0;
   }
@@ -76,7 +76,7 @@
     align-items: center;
     gap: 12px;
     margin: 24px 0;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     font-size: 0.9em;
 
     &:before,
@@ -84,18 +84,18 @@
       content: '';
       flex: 1;
       height: 1px;
-      background: var(--font-color-nav-divider);
+      background: var(--blert-divider-color);
     }
   }
 
   .altLink {
     text-align: center;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     font-size: 0.95em;
     margin-top: 16px;
 
     a {
-      color: var(--blert-button);
+      color: var(--blert-purple);
       text-decoration: none;
       font-weight: 500;
       margin-left: 4px;

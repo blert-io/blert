@@ -30,14 +30,14 @@
       font-family: var(--font-roboto-mono), monospace;
       font-size: 1.1em;
       font-weight: 500;
-      color: var(--blert-button);
-      background: rgba(var(--blert-button-base), 0.1);
+      color: var(--blert-purple);
+      background: rgba(var(--blert-purple-base), 0.1);
       padding: 4px 10px;
       border-radius: 4px;
       cursor: pointer;
 
       &:hover {
-        background: rgba(var(--blert-button-base), 0.2);
+        background: rgba(var(--blert-purple-base), 0.2);
       }
     }
   }
@@ -55,7 +55,7 @@
   }
 
   i {
-    color: var(--blert-button);
+    color: var(--blert-purple);
   }
 }
 
@@ -71,11 +71,11 @@
   }
 
   .healingTableHeader {
-    border-bottom: 2px solid var(--font-color-nav-divider);
+    border-bottom: 2px solid var(--blert-divider-color);
     font-weight: 700;
 
     i {
-      color: var(--blert-button);
+      color: var(--blert-purple);
       margin-right: 4px;
     }
   }
@@ -83,7 +83,7 @@
   .healingTableSubHeader {
     font-weight: 400;
     padding-bottom: 0;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
   }
 
   .healingTableAmount {

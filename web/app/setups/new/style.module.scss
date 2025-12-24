@@ -18,17 +18,17 @@
     margin-bottom: 1.5rem;
     position: relative;
     padding: 1.2em 1.8em;
-    border-bottom: 1px solid rgba(var(--blert-button-base), 0.15);
+    border-bottom: 1px solid rgba(var(--blert-purple-base), 0.15);
     background: linear-gradient(
       135deg,
-      var(--panel-bg) 0%,
-      rgba(var(--nav-bg-base), 0.8) 100%
+      var(--blert-panel-background-color) 0%,
+      rgba(var(--blert-surface-dark-base), 0.8) 100%
     );
 
     h2 {
       margin: 0;
       font-size: 1.7rem;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
       flex: 1;
       font-weight: 500;
 
@@ -40,7 +40,7 @@
     > button {
       background: none;
       border: none;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
       font-size: 1.25rem;
       cursor: pointer;
       padding: 0.5rem;
@@ -53,8 +53,8 @@
       height: 36px;
 
       &:hover {
-        background: var(--nav-bg);
-        color: var(--blert-text-color);
+        background: var(--blert-surface-dark);
+        color: var(--blert-font-color-primary);
       }
 
       &:active {
@@ -64,7 +64,7 @@
   }
 
   .description {
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     font-size: 1rem;
     line-height: 1.5;
     margin: 0 0 2rem 0;
@@ -112,14 +112,14 @@
   flex-direction: column;
   gap: 1rem;
   padding: 1.5rem;
-  background: var(--nav-bg);
-  border: 1px solid var(--font-color-nav-divider);
+  background: var(--blert-surface-dark);
+  border: 1px solid var(--blert-divider-color);
   border-radius: 8px;
   transition: all 0.2s ease;
 
   &:hover {
     transform: translateY(-2px);
-    border-color: rgba(var(--blert-button-base), 0.3);
+    border-color: rgba(var(--blert-purple-base), 0.3);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   }
 
@@ -145,26 +145,26 @@
 .signupOption {
   background: linear-gradient(
     135deg,
-    rgba(var(--blert-button-base), 0.1) 0%,
-    rgba(var(--blert-button-base), 0.05) 100%
+    rgba(var(--blert-purple-base), 0.1) 0%,
+    rgba(var(--blert-purple-base), 0.05) 100%
   );
-  border-color: rgba(var(--blert-button-base), 0.3);
+  border-color: rgba(var(--blert-purple-base), 0.3);
 
   &:hover {
-    border-color: rgba(var(--blert-button-base), 0.5);
+    border-color: rgba(var(--blert-purple-base), 0.5);
     background: linear-gradient(
       135deg,
-      rgba(var(--blert-button-base), 0.15) 0%,
-      rgba(var(--blert-button-base), 0.08) 100%
+      rgba(var(--blert-purple-base), 0.15) 0%,
+      rgba(var(--blert-purple-base), 0.08) 100%
     );
   }
 
   button {
-    background: var(--blert-button);
+    background: var(--blert-purple);
     color: #fff;
 
     &:hover {
-      background: rgba(var(--blert-button-base), 0.9);
+      background: rgba(var(--blert-purple-base), 0.9);
     }
   }
 }
@@ -177,19 +177,19 @@
 
   i {
     font-size: 1.5rem;
-    color: var(--blert-button);
+    color: var(--blert-purple);
   }
 
   h3 {
     margin: 0;
     font-size: 1.05rem;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     font-weight: 600;
   }
 }
 
 .optionDescription {
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   font-size: 0.9rem;
   margin: 0;
   line-height: 1.4;
@@ -200,18 +200,18 @@
   flex-direction: column;
   gap: 0.25rem;
   padding: 0.75rem;
-  background: var(--panel-bg);
+  background: var(--blert-panel-background-color);
   border-radius: 6px;
-  border: 1px solid var(--font-color-nav-divider);
+  border: 1px solid var(--blert-divider-color);
 
   .title {
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     font-weight: 500;
     font-size: 0.95rem;
   }
 
   .meta {
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     font-size: 0.85rem;
   }
 }
@@ -228,7 +228,7 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     font-size: 0.9rem;
     line-height: 1.4;
 
@@ -244,14 +244,14 @@
   display: flex;
   justify-content: center;
   padding-top: 1rem;
-  border-top: 1px solid var(--font-color-nav-divider);
+  border-top: 1px solid var(--blert-divider-color);
   padding-bottom: 1em;
 }
 
 .cancelLink {
   background: none;
   border: none;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   font-size: 0.9rem;
   cursor: pointer;
   padding: 0.5rem 1rem;
@@ -259,8 +259,8 @@
   transition: all 0.2s ease;
 
   &:hover {
-    color: var(--blert-text-color);
-    background: var(--nav-bg);
+    color: var(--blert-font-color-primary);
+    background: var(--blert-surface-dark);
   }
 }
 
@@ -285,33 +285,33 @@
   align-items: center;
   justify-content: space-between;
   padding: 1rem;
-  background: var(--nav-bg);
-  border: 2px solid var(--font-color-nav-divider);
+  background: var(--blert-surface-dark);
+  border: 2px solid var(--blert-divider-color);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
 
   &:hover {
-    border-color: rgba(var(--blert-button-base), 0.5);
-    background: var(--nav-bg-lightened);
+    border-color: rgba(var(--blert-purple-base), 0.5);
+    background: var(--blert-surface-light);
   }
 
   &.selected {
-    border-color: var(--blert-button);
-    background: rgba(var(--blert-button-base), 0.1);
+    border-color: var(--blert-purple);
+    background: rgba(var(--blert-purple-base), 0.1);
 
     .setupInfo h3 {
-      color: var(--blert-button);
+      color: var(--blert-purple);
     }
 
     > i {
-      color: var(--blert-button);
+      color: var(--blert-purple);
       font-size: 1.5rem;
     }
   }
 
   > i {
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     font-size: 1.25rem;
     transition: all 0.2s ease;
   }
@@ -326,7 +326,7 @@
   h3 {
     margin: 0;
     font-size: 1rem;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     font-weight: 600;
     transition: color 0.2s ease;
   }
@@ -341,7 +341,7 @@
       display: flex;
       align-items: center;
       gap: 0.4rem;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
       font-size: 0.85rem;
 
       i {
@@ -356,7 +356,7 @@
   gap: 0.75rem;
   justify-content: flex-end;
   padding: 1em 1.8em;
-  border-top: 1px solid var(--font-color-nav-divider);
+  border-top: 1px solid var(--blert-divider-color);
 
   button {
     padding: 0.75rem 1.5rem;

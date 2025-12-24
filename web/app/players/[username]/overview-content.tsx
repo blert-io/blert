@@ -30,7 +30,7 @@ const ACTIVITY_THRESHOLDS = [
   { threshold: 0.25, color: '#2c2f5a' },
   { threshold: 0.5, color: '#3b4286' },
   { threshold: 0.75, color: '#4a55b2' },
-  { threshold: 1, color: 'var(--blert-button)' },
+  { threshold: 1, color: 'var(--blert-purple)' },
 ] as const;
 
 const HEATMAP_TOOLTIP_ID = 'calendar-heatmap-tooltip';
@@ -632,7 +632,7 @@ export default function PlayerOverviewContent({
                         innerRadius="100%"
                         startAngle={180}
                         endAngle={0}
-                        stroke="var(--nav-bg)"
+                        stroke="var(--blert-surface-dark)"
                       >
                         {statuses.map((v, i) => (
                           <Cell key={`cell-${i}`} fill={v.color} />
@@ -682,7 +682,7 @@ export default function PlayerOverviewContent({
                         innerRadius="100%"
                         startAngle={180}
                         endAngle={0}
-                        stroke="var(--nav-bg)"
+                        stroke="var(--blert-surface-dark)"
                       >
                         {scales.map((v, i) => (
                           <Cell key={`cell-${i}`} fill={v.color} />

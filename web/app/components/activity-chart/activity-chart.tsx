@@ -68,12 +68,12 @@ export default function ActivityChart({
             <linearGradient id="activityGradient" x1="0" y1="0" x2="0" y2="1">
               <stop
                 offset="0%"
-                stopColor="var(--blert-button)"
+                stopColor="var(--blert-purple)"
                 stopOpacity={0.3}
               />
               <stop
                 offset="100%"
-                stopColor="var(--blert-button)"
+                stopColor="var(--blert-purple)"
                 stopOpacity={0}
               />
             </linearGradient>
@@ -84,7 +84,7 @@ export default function ActivityChart({
             tickFormatter={(hour) =>
               formatHour(utcToLocal((startHour + hour) % 24))
             }
-            stroke="var(--font-color-nav)"
+            stroke="var(--blert-font-color-secondary)"
             tick={{ fontSize: 10 }}
             tickLine={false}
             minTickGap={20}
@@ -92,7 +92,7 @@ export default function ActivityChart({
           <YAxis hide />
           <Tooltip
             contentStyle={{
-              background: 'var(--nav-bg)',
+              background: 'var(--blert-surface-dark)',
               border: 'none',
               borderRadius: '4px',
               fontSize: '12px',
@@ -106,7 +106,7 @@ export default function ActivityChart({
           <Area
             type="monotone"
             dataKey="count"
-            stroke="var(--blert-button)"
+            stroke="var(--blert-purple)"
             strokeWidth={2}
             fill="url(#activityGradient)"
           />

@@ -27,7 +27,7 @@
   h2 {
     font-size: 1.3em;
     margin: 0 0 20px 0;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
   }
 
   .waves {
@@ -49,8 +49,8 @@
 
     &:hover {
       transform: translateY(-2px);
-      background: var(--nav-bg-lightened);
-      outline: 1px solid var(--blert-button);
+      background: var(--blert-surface-light);
+      outline: 1px solid var(--blert-purple);
     }
 
     .waveImg {
@@ -60,7 +60,7 @@
       flex-shrink: 0;
       border-radius: 6px;
       overflow: hidden;
-      background: var(--nav-bg);
+      background: var(--blert-surface-dark);
     }
 
     .waveDetails {
@@ -77,7 +77,7 @@
       gap: 8px;
       font-size: 1.1em;
       margin: 0;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
       font-weight: 500;
 
       .time {
@@ -89,7 +89,7 @@
         font-family: var(--font-roboto-mono), monospace;
 
         i {
-          color: var(--blert-button);
+          color: var(--blert-purple);
         }
       }
     }
@@ -99,7 +99,7 @@
         font-size: 0.9em;
         font-weight: 500;
         margin: 0 0 8px;
-        color: var(--font-color-nav);
+        color: var(--blert-font-color-secondary);
       }
 
       ul {
@@ -127,7 +127,7 @@
         bottom: 56px;
         left: 60px;
         position: absolute;
-        background: var(--blert-button);
+        background: var(--blert-purple);
         opacity: 0.3;
       }
     }

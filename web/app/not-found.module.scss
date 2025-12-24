@@ -27,7 +27,7 @@
       font-size: 64px;
       font-weight: 700;
       margin: 0;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
       text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     }
 
@@ -35,14 +35,14 @@
       font-size: 24px;
       font-weight: 600;
       margin: 8px 0 24px;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
     }
 
     p {
       font-size: 16px;
       line-height: 1.6;
       margin: 0 0 32px;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
     }
 
     .homeButton {
@@ -50,7 +50,7 @@
       align-items: center;
       gap: 8px;
       padding: 12px 24px;
-      background-color: var(--blert-button);
+      background-color: var(--blert-purple);
       color: #fff;
       text-decoration: none;
       border-radius: 4px;
@@ -58,7 +58,7 @@
       transition: background-color 0.2s ease;
 
       &:hover {
-        background-color: rgba(var(--blert-button-base), 0.8);
+        background-color: rgba(var(--blert-purple-base), 0.8);
       }
 
       i {

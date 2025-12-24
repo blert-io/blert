@@ -36,7 +36,7 @@
       align-items: center;
       justify-content: center;
       transition: all 0.2s ease;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
 
       &.presentCrab {
         background: rgba(var(--blert-red-base), 0.15);
@@ -59,14 +59,14 @@
       }
 
       &.absentCrab {
-        border: 1px solid rgba(var(--blert-text-color-base), 0.2);
+        border: 1px solid rgba(var(--blert-font-color-primary-base), 0.2);
         opacity: 0.6;
-        background: var(--nav-bg);
+        background: var(--blert-surface-dark);
 
         &:hover {
           opacity: 0.8;
           transform: translateY(-1px);
-          border-color: rgba(var(--blert-text-color-base), 0.4);
+          border-color: rgba(var(--blert-font-color-primary-base), 0.4);
         }
       }
     }
@@ -80,18 +80,18 @@
   align-items: flex-start;
   gap: 4px;
   font-size: 0.95em;
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
   font-family: var(--font-roboto-mono), monospace;
   min-width: 80px;
 
   i {
-    color: var(--blert-button);
+    color: var(--blert-purple);
     margin-right: 6px;
     width: 16px;
   }
 
   .delta {
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     margin-left: 14px;
   }
 }

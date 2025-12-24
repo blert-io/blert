@@ -12,22 +12,22 @@
   }
 
   :global(.sigma-control) {
-    background: rgba(var(--panel-bg-base), 0.9) !important;
-    border: 1px solid rgba(var(--blert-button-base), 0.3) !important;
+    background: rgba(var(--blert-panel-background-color-base), 0.9) !important;
+    border: 1px solid rgba(var(--blert-purple-base), 0.3) !important;
     border-radius: 6px !important;
-    color: var(--blert-button) !important;
+    color: var(--blert-purple) !important;
     backdrop-filter: blur(8px);
     transition: all 0.2s ease !important;
 
     &:hover {
-      background: rgba(var(--panel-bg-base), 1) !important;
-      border-color: rgba(var(--blert-button-base), 0.5) !important;
+      background: rgba(var(--blert-panel-background-color-base), 1) !important;
+      border-color: rgba(var(--blert-purple-base), 0.5) !important;
       transform: translateY(-1px) !important;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
     }
 
     svg {
-      fill: var(--blert-button) !important;
+      fill: var(--blert-purple) !important;
     }
   }
 
@@ -41,8 +41,8 @@
   min-height: 400px;
   border-radius: 8px;
   overflow: hidden;
-  background: var(--nav-bg);
-  border: 1px solid var(--nav-bg-lightened);
+  background: var(--blert-surface-dark);
+  border: 1px solid var(--blert-surface-light);
   position: relative;
   padding-top: 70px; // Space for collapsed filter bar
 
@@ -59,7 +59,7 @@
   align-items: center;
   justify-content: center;
   height: 400px;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   text-align: center;
   gap: 16px;
 
@@ -71,21 +71,21 @@
 
 .loadingSpinner i {
   font-size: 2rem;
-  color: var(--blert-button);
+  color: var(--blert-purple);
   margin-bottom: 8px;
 }
 
 .emptyState {
   i {
     font-size: 3rem;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     opacity: 0.6;
     margin-bottom: 8px;
   }
 
   h3 {
     margin: 0 0 8px 0;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     font-size: 1.25rem;
   }
 
@@ -102,7 +102,7 @@
   gap: 16px;
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid var(--nav-bg-lightened);
+  border-top: 1px solid var(--blert-surface-light);
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     flex-wrap: wrap;
@@ -115,7 +115,7 @@
   align-items: center;
   gap: 6px;
   font-size: 0.8rem;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
 
   .legendColor {
     width: 12px;
@@ -129,10 +129,10 @@
   position: absolute;
   background: linear-gradient(
     135deg,
-    var(--panel-bg) 0%,
-    rgba(var(--nav-bg-base), 0.95) 100%
+    var(--blert-panel-background-color) 0%,
+    rgba(var(--blert-surface-dark-base), 0.95) 100%
   );
-  border: 1px solid rgba(var(--blert-button-base), 0.3);
+  border: 1px solid rgba(var(--blert-purple-base), 0.3);
   border-radius: 8px;
   padding: 12px;
   z-index: 1000;
@@ -150,10 +150,10 @@
     gap: 6px;
     font-size: 0.8rem;
     font-weight: 600;
-    color: var(--blert-button);
+    color: var(--blert-purple);
     margin-bottom: 8px;
     padding-bottom: 6px;
-    border-bottom: 1px solid rgba(var(--nav-bg-lightened-base), 0.6);
+    border-bottom: 1px solid rgba(var(--blert-surface-light-base), 0.6);
 
     i {
       font-size: 0.75rem;
@@ -174,7 +174,7 @@
 
     .playerName {
       font-weight: 500;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -183,7 +183,7 @@
     }
 
     i {
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
       font-size: 0.7rem;
       flex-shrink: 0;
     }
@@ -194,10 +194,10 @@
     align-items: center;
     gap: 6px;
     font-size: 0.8rem;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
 
     i {
-      color: var(--blert-button);
+      color: var(--blert-purple);
       font-size: 0.75rem;
       width: 12px;
       text-align: center;
@@ -241,21 +241,21 @@
   padding: 8px 12px;
   background: linear-gradient(
     135deg,
-    rgba(var(--panel-bg-base), 0.95) 0%,
-    rgba(var(--nav-bg-base), 0.9) 100%
+    rgba(var(--blert-panel-background-color-base), 0.95) 0%,
+    rgba(var(--blert-surface-dark-base), 0.9) 100%
   );
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(var(--blert-button-base), 0.2);
+  border: 1px solid rgba(var(--blert-purple-base), 0.2);
   border-radius: 6px;
   box-shadow:
     0 4px 16px rgba(0, 0, 0, 0.3),
     0 2px 4px rgba(0, 0, 0, 0.1);
   animation: fadeInTooltip 0.2s ease-out;
   font-size: 0.85rem;
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
 
   i {
-    color: var(--blert-button);
+    color: var(--blert-purple);
     font-size: 0.8rem;
   }
 

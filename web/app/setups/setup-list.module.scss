@@ -22,7 +22,7 @@
     align-items: center;
     margin-bottom: 1rem;
     padding-bottom: 0.75rem;
-    border-bottom: 2px solid rgba(var(--blert-button-base), 0.2);
+    border-bottom: 2px solid rgba(var(--blert-purple-base), 0.2);
     position: relative;
 
     &::after {
@@ -32,7 +32,7 @@
       left: 0;
       width: 60px;
       height: 2px;
-      background: var(--blert-button);
+      background: var(--blert-purple);
     }
 
     .filtersTitle {
@@ -42,17 +42,17 @@
       font-size: 1.1rem;
       font-weight: 600;
       margin: 0;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
 
       i {
-        color: var(--blert-button);
+        color: var(--blert-purple);
         font-size: 1em;
       }
     }
 
     .resultsCount {
       font-size: 0.9rem;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
       font-weight: 500;
 
       @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
@@ -87,10 +87,10 @@
         gap: 6px;
         font-size: 0.9rem;
         font-weight: 500;
-        color: var(--blert-text-color);
+        color: var(--blert-font-color-primary);
 
         i {
-          color: var(--blert-button);
+          color: var(--blert-purple);
           font-size: 0.9em;
           width: 14px;
           text-align: center;
@@ -114,9 +114,9 @@
         .searchInput {
           padding: 10px 16px;
           border-radius: 6px;
-          border: 1px solid var(--font-color-nav-divider);
-          background: var(--nav-bg);
-          color: var(--blert-text-color);
+          border: 1px solid var(--blert-divider-color);
+          background: var(--blert-surface-dark);
+          color: var(--blert-font-color-primary);
           font-size: 0.95rem;
           transition: all 0.2s ease;
           width: 100%;
@@ -127,12 +127,12 @@
 
           &:focus {
             outline: none;
-            border-color: var(--blert-button);
-            background: var(--nav-bg-lightened);
+            border-color: var(--blert-purple);
+            background: var(--blert-surface-light);
           }
 
           &::placeholder {
-            color: var(--font-color-nav);
+            color: var(--blert-font-color-secondary);
             font-style: italic;
           }
         }
@@ -142,7 +142,7 @@
           right: 8px;
           background: none;
           border: none;
-          color: var(--font-color-nav);
+          color: var(--blert-font-color-secondary);
           cursor: pointer;
           padding: 6px;
           border-radius: 4px;
@@ -152,8 +152,8 @@
           justify-content: center;
 
           &:hover {
-            color: var(--blert-text-color);
-            background: var(--nav-bg);
+            color: var(--blert-font-color-primary);
+            background: var(--blert-surface-dark);
           }
 
           i {
@@ -164,9 +164,9 @@
 
       .filterSelect {
         padding: 8px 12px;
-        border: 1px solid var(--font-color-nav-divider);
-        background: var(--nav-bg);
-        color: var(--blert-text-color);
+        border: 1px solid var(--blert-divider-color);
+        background: var(--blert-surface-dark);
+        color: var(--blert-font-color-primary);
         border-radius: 6px;
         font-size: 0.9rem;
         transition: all 0.2s ease;
@@ -178,17 +178,17 @@
 
         &:focus {
           outline: none;
-          border-color: var(--blert-button);
-          background: var(--nav-bg-lightened);
+          border-color: var(--blert-purple);
+          background: var(--blert-surface-light);
         }
 
         &:hover {
-          border-color: var(--blert-button);
+          border-color: var(--blert-purple);
         }
 
         option {
-          background: var(--nav-bg);
-          color: var(--blert-text-color);
+          background: var(--blert-surface-dark);
+          color: var(--blert-font-color-primary);
           padding: 4px 8px;
         }
       }
@@ -202,7 +202,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(var(--nav-bg-base), 0.7);
+  background: rgba(var(--blert-surface-dark-base), 0.7);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -216,15 +216,15 @@
     align-items: center;
     gap: 12px;
     padding: 16px 24px;
-    background: var(--panel-bg);
-    border: 1px solid rgba(var(--blert-button-base), 0.2);
+    background: var(--blert-panel-background-color);
+    border: 1px solid rgba(var(--blert-purple-base), 0.2);
     border-radius: 8px;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     font-weight: 500;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 
     i {
-      color: var(--blert-button);
+      color: var(--blert-purple);
       font-size: 1.2em;
     }
   }
@@ -262,10 +262,10 @@
   padding: 1.5rem;
   background: linear-gradient(
     135deg,
-    var(--nav-bg) 0%,
-    rgba(var(--nav-bg-base), 0.8) 100%
+    var(--blert-surface-dark) 0%,
+    rgba(var(--blert-surface-dark-base), 0.8) 100%
   );
-  border: 1px solid rgba(var(--blert-button-base), 0.1);
+  border: 1px solid rgba(var(--blert-purple-base), 0.1);
   border-radius: 8px;
   text-decoration: none;
   transition: all 0.2s ease;
@@ -287,18 +287,18 @@
     background: linear-gradient(
       90deg,
       transparent,
-      rgba(var(--blert-button-base), 0.05),
+      rgba(var(--blert-purple-base), 0.05),
       transparent
     );
     transition: left 0.4s ease;
   }
 
   &:hover {
-    border-color: rgba(var(--blert-button-base), 0.3);
+    border-color: rgba(var(--blert-purple-base), 0.3);
     background: linear-gradient(
       135deg,
-      var(--nav-bg-lightened) 0%,
-      rgba(var(--nav-bg-lightened-base), 0.9) 100%
+      var(--blert-surface-light) 0%,
+      rgba(var(--blert-surface-light-base), 0.9) 100%
     );
     transform: translateY(-2px);
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
@@ -308,7 +308,7 @@
     }
 
     .setupTitle h3 {
-      color: var(--blert-button);
+      color: var(--blert-purple);
     }
   }
 
@@ -336,7 +336,7 @@
         margin: 0 0 8px 0;
         font-size: 1.25rem;
         font-weight: 600;
-        color: var(--blert-text-color);
+        color: var(--blert-font-color-primary);
         transition: color 0.2s ease;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -360,12 +360,12 @@
           align-items: center;
           gap: 4px;
           font-weight: 500;
-          color: var(--blert-text-color);
+          color: var(--blert-font-color-primary);
 
           i {
             position: relative;
             top: 1px;
-            color: var(--blert-button);
+            color: var(--blert-purple);
             font-size: 0.8em;
           }
         }
@@ -374,15 +374,15 @@
           display: flex;
           align-items: center;
           gap: 4px;
-          background: var(--nav-bg-darkened);
+          background: var(--blert-surface-darker);
           padding: 4px 8px;
           border-radius: 12px;
           font-size: 0.8rem;
           font-weight: 500;
-          color: var(--font-color-nav);
+          color: var(--blert-font-color-secondary);
 
           i {
-            color: var(--blert-button);
+            color: var(--blert-purple);
             font-size: 0.8em;
           }
         }
@@ -399,7 +399,7 @@
           }
 
           &.draft {
-            background: var(--font-color-nav);
+            background: var(--blert-font-color-secondary);
           }
 
           &.published {
@@ -429,11 +429,11 @@
         align-items: center;
         gap: 6px;
         font-size: 0.9rem;
-        color: var(--font-color-nav);
+        color: var(--blert-font-color-secondary);
         font-weight: 500;
 
         i {
-          color: var(--blert-button);
+          color: var(--blert-purple);
           font-size: 0.9em;
         }
       }
@@ -454,10 +454,10 @@
         align-items: center;
         gap: 4px;
         font-size: 0.85rem;
-        color: var(--font-color-nav);
+        color: var(--blert-font-color-secondary);
 
         i {
-          color: var(--blert-button);
+          color: var(--blert-purple);
           font-size: 0.8em;
           opacity: 0.8;
         }
@@ -475,15 +475,15 @@
   padding: 3rem 2rem;
   background: linear-gradient(
     135deg,
-    rgba(var(--font-color-nav-base), 0.1) 0%,
-    rgba(var(--nav-bg-base), 0.3) 100%
+    rgba(var(--blert-font-color-secondary-base), 0.1) 0%,
+    rgba(var(--blert-surface-dark-base), 0.3) 100%
   );
   border-radius: 12px;
-  border: 1px solid rgba(var(--font-color-nav-divider-base), 0.5);
+  border: 1px solid rgba(var(--blert-divider-color-base), 0.5);
 
   i {
     font-size: 2.5rem;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     margin-bottom: 1rem;
     opacity: 0.6;
   }
@@ -492,11 +492,11 @@
     font-size: 1.25rem;
     font-weight: 600;
     margin: 0 0 0.5rem 0;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
   }
 
   p {
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     margin: 0;
     font-size: 0.95rem;
     line-height: 1.5;
@@ -511,7 +511,7 @@
   gap: 1rem;
   padding: 1.5rem 0;
   margin-top: 1rem;
-  border-top: 1px solid var(--font-color-nav-divider);
+  border-top: 1px solid var(--blert-divider-color);
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     gap: 1rem;
@@ -522,18 +522,18 @@
     align-items: center;
     gap: 8px;
     padding: 10px 16px;
-    background: var(--nav-bg);
-    color: var(--blert-text-color);
-    border: 1px solid var(--font-color-nav-divider);
+    background: var(--blert-surface-dark);
+    color: var(--blert-font-color-primary);
+    border: 1px solid var(--blert-divider-color);
     border-radius: 6px;
     font-weight: 500;
     transition: all 0.2s ease;
     font-size: 0.9rem;
 
     &:hover:not(:disabled) {
-      background: var(--nav-bg-lightened);
-      border-color: var(--blert-button);
-      color: var(--blert-button);
+      background: var(--blert-surface-light);
+      border-color: var(--blert-purple);
+      color: var(--blert-purple);
       cursor: pointer;
 
       i {
@@ -546,7 +546,7 @@
       cursor: not-allowed;
 
       &:hover {
-        background: var(--nav-bg);
+        background: var(--blert-surface-dark);
         transform: none;
       }
     }
@@ -571,13 +571,13 @@
 
     .pageIndicator {
       font-weight: 600;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
       font-size: 0.95rem;
     }
 
     .resultsInfo {
       font-size: 0.85rem;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
     }
   }
 }
@@ -591,7 +591,6 @@
     position: sticky;
     top: 60px;
     z-index: 5;
-    background: var(--page-bg);
     padding: 12px;
     margin: -12px -12px 12px;
     border-radius: 0;

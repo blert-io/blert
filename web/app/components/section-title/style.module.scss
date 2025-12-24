@@ -5,9 +5,9 @@
   font-size: 1.1rem;
   font-weight: 600;
   margin: 0 0 1.5rem 0;
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
   padding-bottom: 0.75rem;
-  border-bottom: 2px solid rgba(var(--blert-button-base), 0.2);
+  border-bottom: 2px solid rgba(var(--blert-purple-base), 0.2);
   position: relative;
 
   &::after {
@@ -17,11 +17,11 @@
     left: 0;
     width: 60px;
     height: 2px;
-    background: var(--blert-button);
+    background: var(--blert-purple);
   }
 
   i {
-    color: var(--blert-button);
+    color: var(--blert-purple);
     font-size: 1.2rem;
   }
 }

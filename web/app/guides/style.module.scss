@@ -25,7 +25,7 @@
       }
 
       i {
-        color: var(--blert-button);
+        color: var(--blert-purple);
       }
     }
   }
@@ -45,12 +45,12 @@
     gap: 10px;
     margin-top: 20px;
     padding: 12px 16px;
-    background: var(--nav-bg);
+    background: var(--blert-surface-dark);
     border-radius: 6px;
     font-size: 0.9em;
 
     i {
-      color: var(--blert-button);
+      color: var(--blert-purple);
       font-size: 1.2em;
     }
   }
@@ -75,7 +75,7 @@
   .usageLink {
     display: block;
     text-decoration: none;
-    background: var(--nav-bg);
+    background: var(--blert-surface-dark);
     border-radius: 8px;
     padding: 16px 20px;
     transition:
@@ -87,8 +87,8 @@
     &:hover {
       transform: translateY(-2px);
       box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-      background: var(--panel-bg);
-      border-color: rgba(var(--blert-button-base), 0.3);
+      background: var(--blert-panel-background-color);
+      border-color: rgba(var(--blert-purple-base), 0.3);
     }
 
     .usageLinkContent {
@@ -98,7 +98,7 @@
 
       i {
         font-size: 1.4em;
-        color: var(--blert-button);
+        color: var(--blert-purple);
         margin-top: 2px;
         flex-shrink: 0;
       }
@@ -117,7 +117,7 @@
           margin: 0;
           font-size: 0.85em;
           line-height: 1.4;
-          color: var(--font-color-nav);
+          color: var(--blert-font-color-secondary);
         }
       }
     }
@@ -135,18 +135,18 @@
         box-shadow 0.2s ease-in-out;
       text-decoration: none;
       cursor: pointer;
-      background: var(--panel-bg);
+      background: var(--blert-panel-background-color);
 
       &:hover {
         transform: translateY(-4px);
         box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
-        outline: 1px solid rgba(var(--blert-button-base), 0.5);
+        outline: 1px solid rgba(var(--blert-purple-base), 0.5);
       }
 
       .guideThumbnail {
         margin: -10px -30px 10px;
         padding: 20px;
-        background: var(--nav-bg);
+        background: var(--blert-surface-dark);
         border-radius: 6px 6px 0 0;
         text-align: center;
       }
@@ -160,7 +160,7 @@
           margin: 0;
           font-size: 0.9em;
           line-height: 1.5;
-          color: var(--font-color-nav);
+          color: var(--blert-font-color-secondary);
         }
       }
     }
@@ -169,9 +169,9 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: var(--nav-bg);
-      border: 2px dashed var(--font-color-nav-divider);
-      color: var(--font-color-nav);
+      background: var(--blert-surface-dark);
+      border: 2px dashed var(--blert-divider-color);
+      color: var(--blert-font-color-secondary);
       opacity: 0.8;
 
       p {
@@ -198,7 +198,7 @@
     text-decoration: none;
 
     &:hover {
-      color: var(--blert-button);
+      color: var(--blert-purple);
     }
   }
 
@@ -209,7 +209,7 @@
 
     & > li {
       line-height: 2em;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
 
       ul {
         list-style: none;
@@ -225,9 +225,9 @@
           top: 0px;
           content: '';
           display: block;
-          border-left: 1px solid var(--font-color-nav-divider);
+          border-left: 1px solid var(--blert-divider-color);
           height: 1em;
-          border-bottom: 1px solid var(--font-color-nav-divider);
+          border-bottom: 1px solid var(--blert-divider-color);
           width: 10px;
         }
 
@@ -237,7 +237,7 @@
           bottom: -7px;
           content: '';
           display: block;
-          border-left: 1px solid var(--font-color-nav-divider);
+          border-left: 1px solid var(--blert-divider-color);
           height: 100%;
         }
 
@@ -254,7 +254,7 @@
   padding: 0.5em 0;
   display: flex;
   border-radius: 5px;
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
   width: fit-content;
 
   .tag {
@@ -262,12 +262,12 @@
     padding: 0 12px;
 
     &:not(:first-child) {
-      border-left: 2px solid var(--content-area-bg);
+      border-left: 2px solid rgba(var(--blert-purple-base), 0.1);
     }
 
     i {
       margin-right: 8px;
-      color: var(--blert-button);
+      color: var(--blert-purple);
     }
   }
 }
@@ -275,7 +275,7 @@
 .authorCredits {
   display: block;
   margin-bottom: 1em;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   font-size: 0.9em;
   font-style: italic;
 }

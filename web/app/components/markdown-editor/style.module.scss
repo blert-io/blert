@@ -3,10 +3,10 @@
 .editor {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--font-color-nav-divider);
+  border: 1px solid var(--blert-divider-color);
   border-radius: 6px;
   overflow: hidden;
-  background-color: var(--panel-bg);
+  background-color: var(--blert-panel-background-color);
 }
 
 .toolbar {
@@ -15,8 +15,8 @@
   justify-content: space-between;
   gap: 0.5rem;
   padding: 0.5rem;
-  background-color: var(--nav-bg);
-  border-bottom: 1px solid var(--font-color-nav-divider);
+  background-color: var(--blert-surface-dark);
+  border-bottom: 1px solid var(--blert-divider-color);
   flex-wrap: wrap;
 }
 
@@ -30,7 +30,7 @@
 .toolbarDivider {
   width: 1px;
   height: 24px;
-  background-color: var(--font-color-nav-divider);
+  background-color: var(--blert-divider-color);
   opacity: 0.5;
   margin: 0 0.5rem;
 }
@@ -40,15 +40,15 @@
   background-color: transparent;
   border: 1px solid transparent;
   border-radius: 4px;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   font-size: 0.9rem;
 
   &:hover {
-    background-color: var(--nav-bg-lightened);
-    border-color: rgba(var(--blert-button-base), 0.3);
-    color: var(--blert-text-color);
+    background-color: var(--blert-surface-light);
+    border-color: rgba(var(--blert-purple-base), 0.3);
+    color: var(--blert-font-color-primary);
   }
 
   &:active {
@@ -56,9 +56,9 @@
   }
 
   &.active {
-    background-color: rgba(var(--blert-button-base), 0.1);
-    color: var(--blert-button);
-    border-color: rgba(var(--blert-button-base), 0.3);
+    background-color: rgba(var(--blert-purple-base), 0.1);
+    color: var(--blert-purple);
+    border-color: rgba(var(--blert-purple-base), 0.3);
   }
 
   &:disabled {
@@ -66,12 +66,12 @@
     cursor: not-allowed;
     background-color: transparent;
     border-color: transparent;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
 
     &:hover {
       background-color: transparent;
       border-color: transparent;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
     }
 
     &:active {
@@ -92,8 +92,8 @@
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
-  background-color: var(--panel-bg);
-  border: 1px solid var(--font-color-nav-divider);
+  background-color: var(--blert-panel-background-color);
+  border: 1px solid var(--blert-divider-color);
   border-radius: 6px;
   padding: 0.75rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -111,11 +111,11 @@
 .tableCell {
   width: 20px;
   height: 20px;
-  border: 1px solid var(--font-color-nav-divider);
+  border: 1px solid var(--blert-divider-color);
   border-radius: 2px;
   cursor: pointer;
   transition: all 0.1s ease;
-  background-color: var(--nav-bg);
+  background-color: var(--blert-surface-dark);
   position: relative;
 
   // Extend clickable area to cover gaps.
@@ -130,15 +130,15 @@
   }
 
   &.headerRow {
-    background-color: rgba(var(--blert-button-base), 0.08);
+    background-color: rgba(var(--blert-purple-base), 0.08);
     border-bottom-width: 2px;
     font-weight: 600;
   }
 
   &:hover,
   &.selected {
-    background-color: rgba(var(--blert-button-base), 0.4);
-    border-color: var(--blert-button);
+    background-color: rgba(var(--blert-purple-base), 0.4);
+    border-color: var(--blert-purple);
     z-index: 2;
   }
 }
@@ -146,7 +146,7 @@
 .tableLabel {
   text-align: center;
   font-size: 0.8rem;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   padding: 0.25rem;
   min-height: 1.5rem;
 }
@@ -163,9 +163,9 @@
   gap: 0.4rem;
   padding: 0.4rem 0.8rem;
   background-color: transparent;
-  border: 1px solid var(--font-color-nav-divider);
+  border: 1px solid var(--blert-divider-color);
   border-radius: 4px;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   font-size: 0.85rem;
@@ -177,15 +177,15 @@
   }
 
   &:hover {
-    background-color: var(--nav-bg-lightened);
-    color: var(--blert-text-color);
-    border-color: rgba(var(--blert-button-base), 0.3);
+    background-color: var(--blert-surface-light);
+    color: var(--blert-font-color-primary);
+    border-color: rgba(var(--blert-purple-base), 0.3);
   }
 
   &.active {
-    background-color: rgba(var(--blert-button-base), 0.1);
-    color: var(--blert-button);
-    border-color: var(--blert-button);
+    background-color: rgba(var(--blert-purple-base), 0.1);
+    color: var(--blert-purple);
+    border-color: var(--blert-purple);
   }
 
   i {
@@ -195,15 +195,15 @@
 
 .helpPanel {
   padding: 1rem;
-  background-color: rgba(var(--nav-bg-base), 0.5);
-  border-bottom: 1px solid var(--font-color-nav-divider);
+  background-color: rgba(var(--blert-surface-dark-base), 0.5);
+  border-bottom: 1px solid var(--blert-divider-color);
 }
 
 .helpContent {
   h4 {
     margin: 0 0 0.75rem 0;
     font-size: 0.95rem;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
   }
 }
 
@@ -221,16 +221,16 @@
   font-size: 0.85rem;
 
   code {
-    background-color: rgba(var(--nav-bg-base), 0.8);
+    background-color: rgba(var(--blert-surface-dark-base), 0.8);
     padding: 0.2rem 0.4rem;
     border-radius: 3px;
     font-family: var(--font-roboto-mono), monospace;
     font-size: 0.8rem;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
   }
 
   span {
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     font-size: 0.8rem;
   }
 }
@@ -238,17 +238,17 @@
 .helpNote {
   margin: 0;
   padding: 0.5rem;
-  background-color: rgba(var(--blert-button-base), 0.1);
-  border-left: 3px solid var(--blert-button);
+  background-color: rgba(var(--blert-purple-base), 0.1);
+  border-left: 3px solid var(--blert-purple);
   border-radius: 4px;
   font-size: 0.8rem;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   display: flex;
   align-items: flex-start;
   gap: 0.5rem;
 
   i {
-    color: var(--blert-button);
+    color: var(--blert-purple);
     margin-top: 0.1rem;
   }
 }
@@ -266,8 +266,8 @@
   min-height: 200px;
   padding: 1rem;
   border: none;
-  background-color: var(--panel-bg);
-  color: var(--blert-text-color);
+  background-color: var(--blert-panel-background-color);
+  color: var(--blert-font-color-primary);
   font-family: var(--font-roboto-mono), monospace;
   font-size: 0.9rem;
   line-height: 1.6;
@@ -280,7 +280,7 @@
   field-sizing: content;
 
   &::placeholder {
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     opacity: 0.6;
   }
 }
@@ -294,7 +294,7 @@
 }
 
 .emptyPreview {
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   font-style: italic;
   text-align: center;
   padding: 3rem 1rem;
@@ -304,13 +304,13 @@
   display: flex;
   justify-content: flex-end;
   padding: 0.5rem 1rem;
-  background-color: var(--nav-bg);
-  border-top: 1px solid var(--font-color-nav-divider);
+  background-color: var(--blert-surface-dark);
+  border-top: 1px solid var(--blert-divider-color);
 }
 
 .characterCount {
   font-size: 0.8rem;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   font-family: var(--font-roboto-mono), monospace;
 
   &.warning {

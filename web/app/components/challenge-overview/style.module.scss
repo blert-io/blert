@@ -4,7 +4,11 @@
   @include panel;
   display: flex;
   gap: 32px;
-  background: linear-gradient(135deg, var(--panel-bg), var(--nav-bg-lightened));
+  background: linear-gradient(
+    135deg,
+    var(--blert-panel-background-color),
+    var(--blert-surface-light)
+  );
   padding: 20px;
   width: 100%;
 
@@ -18,7 +22,7 @@
     font-size: 1.1em;
     margin: 0 0 12px 0;
     font-weight: 500;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
   }
 }
 
@@ -43,13 +47,13 @@
     justify-content: center;
     gap: 6px;
     padding: 6px 12px;
-    background: var(--nav-bg);
+    background: var(--blert-surface-dark);
     border-radius: 4px;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
 
     i {
       font-size: 0.9em;
-      color: var(--blert-button);
+      color: var(--blert-purple);
     }
   }
 }
@@ -79,13 +83,13 @@
     align-items: center;
     text-align: center;
     padding: 12px 8px;
-    background: var(--nav-bg);
+    background: var(--blert-surface-dark);
     border-radius: 6px;
   }
 
   .statLabel {
     font-size: 0.8em;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     margin-bottom: 6px;
   }
 
@@ -98,7 +102,7 @@
     padding: 0 4px;
 
     i {
-      color: var(--blert-button);
+      color: var(--blert-purple);
       font-size: 1em;
       flex-shrink: 0;
     }
@@ -106,7 +110,7 @@
     & > span {
       font-size: 1.1em;
       font-weight: 500;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
       line-height: 1.2;
       overflow-wrap: break-word;
       word-break: break-word;
@@ -137,7 +141,7 @@
     align-items: center;
     gap: 6px;
     padding: 6px 8px;
-    background: var(--nav-bg);
+    background: var(--blert-surface-dark);
     border-radius: 6px;
     text-decoration: none;
     color: inherit;
@@ -145,8 +149,8 @@
 
     &:hover {
       transform: translateY(-2px);
-      background: var(--nav-bg-lightened);
-      outline: 1px solid var(--blert-button);
+      background: var(--blert-surface-light);
+      outline: 1px solid var(--blert-purple);
     }
   }
 
@@ -174,7 +178,7 @@
   .playerName {
     font-weight: 500;
     font-size: 0.9em;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     max-width: 120px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -184,7 +188,7 @@
   .playerRole {
     font-size: 0.75em;
     width: fit-content;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     text-transform: capitalize;
     padding: 1px 0;
     display: inline-flex;
@@ -196,7 +200,7 @@
     margin-left: auto;
     padding-left: 6px;
     gap: 2px;
-    color: var(--blert-button);
+    color: var(--blert-purple);
 
     i {
       font-size: 0.8em;

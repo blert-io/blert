@@ -32,9 +32,9 @@ $RELATIVE_POS_B: 255;
   .gridContainer {
     position: relative;
     display: inline-block;
-    border: 2px solid rgba(var(--blert-text-color-base), 0.3);
+    border: 2px solid rgba(var(--blert-font-color-primary-base), 0.3);
     border-radius: 4px;
-    background: rgba(var(--nav-bg-base), 0.3);
+    background: rgba(var(--blert-surface-dark-base), 0.3);
   }
 
   .coordinateLabels {
@@ -56,7 +56,7 @@ $RELATIVE_POS_B: 255;
         align-items: center;
         justify-content: center;
         font-size: 0.75rem;
-        color: var(--font-color-nav);
+        color: var(--blert-font-color-secondary);
         font-family: monospace;
       }
     }
@@ -73,7 +73,7 @@ $RELATIVE_POS_B: 255;
           align-items: center;
           justify-content: center;
           font-size: 0.75rem;
-          color: var(--font-color-nav);
+          color: var(--blert-font-color-secondary);
           font-family: monospace;
           flex-shrink: 0;
         }
@@ -88,7 +88,7 @@ $RELATIVE_POS_B: 255;
   .tile {
     width: $TILE_SIZE;
     height: $TILE_SIZE;
-    border: 1px solid rgba(var(--blert-text-color-base), 0.1);
+    border: 1px solid rgba(var(--blert-font-color-primary-base), 0.1);
     cursor: pointer;
     position: relative;
     transition: all 0.15s ease;
@@ -150,8 +150,8 @@ $RELATIVE_POS_B: 255;
     &.impassable {
       background: repeating-linear-gradient(
         45deg,
-        rgba(var(--blert-text-color-base), 0.2),
-        rgba(var(--blert-text-color-base), 0.2) 2px,
+        rgba(var(--blert-font-color-primary-base), 0.2),
+        rgba(var(--blert-font-color-primary-base), 0.2) 2px,
         transparent 2px,
         transparent 4px
       );
@@ -159,15 +159,15 @@ $RELATIVE_POS_B: 255;
     }
 
     &.hovered:not(.impassable) {
-      border-color: rgba(var(--blert-text-color-base), 0.6);
+      border-color: rgba(var(--blert-font-color-primary-base), 0.6);
       transform: scale(1.1);
       z-index: 10;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     }
 
     &.selected:not(.impassable) {
-      border: 2px solid var(--blert-button);
-      box-shadow: 0 0 0 1px var(--blert-button);
+      border: 2px solid var(--blert-purple);
+      box-shadow: 0 0 0 1px var(--blert-purple);
       z-index: 5;
     }
 
@@ -193,7 +193,7 @@ $RELATIVE_POS_B: 255;
 
     .chunkBoundary {
       position: absolute;
-      background: rgba(var(--blert-text-color-base), 0.8);
+      background: rgba(var(--blert-font-color-primary-base), 0.8);
       pointer-events: none;
 
       &:first-child {
@@ -223,7 +223,7 @@ $RELATIVE_POS_B: 255;
 
     .legendTitle {
       font-size: 0.9rem;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
       font-weight: 500;
     }
 
@@ -240,7 +240,7 @@ $RELATIVE_POS_B: 255;
           rgb($GRADIENT_START_R, $GRADIENT_START_G, $GRADIENT_START_B),
           rgb($GRADIENT_END_R, $GRADIENT_END_G, $GRADIENT_END_B)
         );
-        border: 1px solid rgba(var(--blert-text-color-base), 0.3);
+        border: 1px solid rgba(var(--blert-font-color-primary-base), 0.3);
         border-radius: 2px;
 
         &.relativeGradient {
@@ -257,7 +257,7 @@ $RELATIVE_POS_B: 255;
         display: flex;
         justify-content: space-between;
         font-size: 0.75rem;
-        color: var(--font-color-nav);
+        color: var(--blert-font-color-secondary);
         font-family: monospace;
         position: relative;
 
@@ -286,7 +286,7 @@ $RELATIVE_POS_B: 255;
     .topSpawnTitle {
       font-size: 0.9rem;
       font-weight: 600;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
       margin-bottom: 0.75rem;
       text-align: center;
     }
@@ -329,7 +329,7 @@ $RELATIVE_POS_B: 255;
             display: flex;
             align-items: center;
             font-size: 0.85rem;
-            color: var(--blert-text-color);
+            color: var(--blert-font-color-primary);
             font-weight: 500;
             margin-bottom: 0.2rem;
 
@@ -342,7 +342,7 @@ $RELATIVE_POS_B: 255;
 
           .tileCount {
             font-size: 0.75rem;
-            color: var(--font-color-nav);
+            color: var(--blert-font-color-secondary);
           }
         }
       }
@@ -407,7 +407,7 @@ $RELATIVE_POS_B: 255;
 }
 
 .tileTooltip {
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
 
   .tileHeader {
     display: flex;
@@ -416,18 +416,18 @@ $RELATIVE_POS_B: 255;
     gap: 1rem;
     margin: 0.5rem 0 0.75rem 0;
     padding: 0.5rem;
-    background: rgba(var(--blert-button-base), 0.1);
+    background: rgba(var(--blert-purple-base), 0.1);
     border-radius: 4px;
 
     .tileId {
       font-size: 1rem;
       font-weight: 600;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
     }
 
     .tileCoords {
       font-size: 0.85rem;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
       font-family: monospace;
     }
   }
@@ -442,19 +442,19 @@ $RELATIVE_POS_B: 255;
       justify-content: space-between;
       align-items: center;
       padding: 0.4rem 0.6rem;
-      background: rgba(var(--nav-bg-base), 0.4);
+      background: rgba(var(--blert-surface-dark-base), 0.4);
       border-radius: 3px;
 
       span:first-child {
         font-size: 0.8rem;
-        color: var(--font-color-nav);
+        color: var(--blert-font-color-secondary);
       }
 
       span:last-child {
         margin-left: 0.5rem;
         font-size: 0.85rem;
         font-weight: 500;
-        color: var(--blert-text-color);
+        color: var(--blert-font-color-primary);
       }
     }
   }

@@ -13,8 +13,8 @@
   max-width: 420px;
   width: 100%;
   text-align: center;
-  background-color: var(--panel-bg);
-  border: 1px solid var(--nav-bg-lightened);
+  background-color: var(--blert-panel-background-color);
+  border: 1px solid var(--blert-surface-light);
   border-radius: 12px;
   padding: 1.5rem;
   box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
@@ -31,13 +31,13 @@
 }
 
 .message {
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
   font-size: 1.1rem;
   font-weight: 600;
   margin-bottom: 0.5rem;
 }
 
 .details {
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   font-size: 0.95rem;
 }

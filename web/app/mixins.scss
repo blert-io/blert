@@ -1,6 +1,6 @@
 @mixin panel {
   display: flex;
-  background-color: var(--panel-bg);
+  background-color: var(--blert-panel-background-color);
   box-shadow: 0 0 5px 0 rgba(0, 0, 0, 0.5);
   border-radius: 5px;
 }
@@ -25,7 +25,7 @@
   }
 
   &::-webkit-scrollbar-thumb {
-    background: var(--font-color-nav);
+    background: var(--blert-font-color-secondary);
     border-radius: 4px;
   }
 }

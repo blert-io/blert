@@ -4,29 +4,29 @@
   gap: 6px;
   padding: 6px 10px;
   border-radius: 4px;
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
   font-size: 0.85em;
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
   transition: all 0.2s ease;
   text-decoration: none;
 
   &.link {
     &:hover {
       transform: translateY(-1px);
-      background: var(--nav-bg-lightened);
-      outline: 1px solid var(--blert-button);
+      background: var(--blert-surface-light);
+      outline: 1px solid var(--blert-purple);
     }
   }
 
   i {
-    color: var(--blert-button);
+    color: var(--blert-purple);
     font-size: 0.9em;
   }
 
   strong {
     display: flex;
     align-items: center;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     font-weight: 500;
   }
 }
