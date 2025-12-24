@@ -282,7 +282,7 @@ function MapScene({
               isHovered={
                 interactionState.hoveredActorId === entity.getUniqueId()
               }
-              isDimmed={hoveredStack !== null && !inStack}
+              isDimmed={hoveredStack !== null ? !inStack : entity.dimmed}
               fanOutIndex={stackEntity?.fanOutIndex}
               stackSize={hoveredStack?.size ?? 1}
             />

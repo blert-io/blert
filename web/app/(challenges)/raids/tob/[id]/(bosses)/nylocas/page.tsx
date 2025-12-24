@@ -64,6 +64,7 @@ import {
 import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 import { useDisplay } from '@/display';
 import {
+  EnhancedNylo,
   EventTickMap,
   useLegacyTickTimeout,
   useMapEntities,
@@ -73,6 +74,7 @@ import {
 import { inRect } from '@/utils/coords';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
+import NyloDimSettings, { DimThreshold } from './dim-settings';
 import BarrierEntity from '../barrier';
 
 import nyloBaseTiles from './nylo-tiles.json';
@@ -402,6 +404,8 @@ const DEFAULT_USE_NEW_REPLAY = true;
 export default function NylocasPage() {
   const display = useDisplay();
   const [useNewReplay, setUseNewReplay] = useState(DEFAULT_USE_NEW_REPLAY);
+  const [dimThresholds, setDimThresholds] = useState<DimThreshold[]>([]);
+  const [showLabels, setShowLabels] = useState(true);
 
   const compact = display.isCompact();
 
@@ -554,7 +558,52 @@ export default function NylocasPage() {
     return nylosAlive;
   }, [eventsByTick, challenge, totalTicks]);
 
-  const dropBosses = useCallback(
+  const dimStartByRoomId = useMemo(() => {
+    const waveEvents = eventsByType[EventType.TOB_NYLO_WAVE_SPAWN] as
+      | NyloWaveSpawnEvent[]
+      | undefined;
+    if (!waveEvents || dimThresholds.length === 0) {
+      return new Map<number, number>();
+    }
+
+    const waveTick = new Map<number, number>();
+    for (const evt of waveEvents) {
+      waveTick.set(evt.nyloWave.wave, evt.tick);
+    }
+
+    const starts = new Map<number, number>();
+
+    for (const th of dimThresholds) {
+      const spawnTick = waveTick.get(th.wave);
+      if (spawnTick == null) {
+        continue;
+      }
+      const dimTick = spawnTick + th.offset;
+
+      for (const [roomId, npc] of npcState) {
+        const npcId = npc.spawnNpcId as NpcId;
+        const isBoss =
+          Npc.isNylocasPrinkipas(npcId) ||
+          Npc.isNylocasVasilias(npcId) ||
+          Npc.isNylocasVasiliasDropping(npcId) ||
+          npcId === NpcId.NYLOCAS_PRINKIPAS_DROPPING;
+        if (isBoss) {
+          continue;
+        }
+
+        if (npc.stateByTick[dimTick]) {
+          const prev = starts.get(roomId);
+          if (prev == null || dimTick < prev) {
+            starts.set(roomId, dimTick);
+          }
+        }
+      }
+    }
+
+    return starts;
+  }, [dimThresholds, eventsByType, npcState]);
+
+  const modifyNpcs = useCallback(
     (tick: number, entity: AnyEntity) => {
       if (entity.type !== EntityType.NPC) {
         return entity;
@@ -566,12 +615,12 @@ export default function NylocasPage() {
         return entity;
       }
 
+      const spawnNpcId = npc.spawnNpcId as NpcId;
+
       // Check that the NPC:
       // 1. Spawned as a dropping boss (no late spectator join / lost ticks)
       // 2. Is on its spawn tick
       // If so, visually drop it down to the ground.
-
-      const spawnNpcId = npc.spawnNpcId as NpcId;
       const isDroppingBoss =
         Npc.isNylocasVasiliasDropping(spawnNpcId) ||
         spawnNpcId === NpcId.NYLOCAS_PRINKIPAS_DROPPING;
@@ -591,9 +640,24 @@ export default function NylocasPage() {
         };
       }
 
+      const isBoss =
+        Npc.isNylocasPrinkipas(spawnNpcId) ||
+        Npc.isNylocasVasilias(spawnNpcId) ||
+        isDroppingBoss;
+
+      if (!isBoss) {
+        npcEntity.dimmed =
+          (dimStartByRoomId.get(npcEntity.roomId) ?? Infinity) <= tick;
+
+        if (showLabels && npc.type === RoomNpcType.NYLO) {
+          const nylo = npc as EnhancedNylo;
+          npcEntity.label = `W${nylo.nylo.wave}`;
+        }
+      }
+
       return entity;
     },
-    [npcState],
+    [npcState, dimStartByRoomId, showLabels],
   );
 
   const { entitiesByTick, preloads } = useMapEntities(
@@ -601,7 +665,7 @@ export default function NylocasPage() {
     playerState,
     npcState,
     totalTicks,
-    { customEntitiesForTick: getBarrierEntities, modifyEntity: dropBosses },
+    { customEntitiesForTick: getBarrierEntities, modifyEntity: modifyNpcs },
   );
 
   if (loading || challenge === null) {
@@ -966,6 +1030,14 @@ export default function NylocasPage() {
             currentTick={currentTick}
             advanceTick={advanceTick}
             setUseLegacy={() => setUseNewReplay(false)}
+            customControls={
+              <NyloDimSettings
+                scale={challenge.party.length}
+                disabled={playing}
+                onDimThresholdsChange={setDimThresholds}
+                onShowLabelsChange={setShowLabels}
+              />
+            }
           />
         ) : (
           <BossPageReplay

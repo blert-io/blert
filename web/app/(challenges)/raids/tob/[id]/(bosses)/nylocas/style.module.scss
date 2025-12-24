@@ -8,10 +8,6 @@
   justify-content: space-between;
 }
 
-.statsHeading {
-  margin: 0;
-}
-
 .bossRotationContainer {
   display: flex;
   flex-direction: column;
@@ -276,5 +272,236 @@
     @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
       font-size: 0.8rem;
     }
+  }
+}
+
+.dimSettings {
+  display: flex;
+  gap: 12px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: var(--blert-surface-dark);
+  border-radius: 6px;
+  flex-wrap: wrap;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    gap: 8px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+  }
+}
+
+.dimSection {
+  display: flex;
+  align-items: flex-start;
+  flex: 1;
+  gap: 12px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    gap: 8px;
+  }
+}
+
+.dimSettingsLabel {
+  font-weight: 600;
+  color: var(--blert-font-color-primary);
+  font-size: 0.9rem;
+  letter-spacing: 0.5px;
+  padding-top: 5px;
+}
+
+.dimControls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.dimPresetRow {
+  display: flex;
+  align-items: center;
+
+  // Override default RadioInput.Group margin
+  > div {
+    margin-bottom: 0 !important;
+  }
+}
+
+.dimCustomRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dimSeparator {
+  width: 1px;
+  height: 100%;
+  background: var(--blert-divider-color);
+  margin: 0 4px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    display: none;
+  }
+}
+
+.customDimChip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: rgba(var(--blert-purple-base), 0.15);
+  border: 1px solid rgba(var(--blert-purple-base), 0.3);
+  border-radius: 4px;
+  color: var(--blert-font-color-primary);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: rgba(var(--blert-red-base), 0.2);
+    border-color: rgba(var(--blert-red-base), 0.4);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .removeIcon {
+    font-size: 0.9rem;
+    line-height: 1;
+    opacity: 0.7;
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      position: relative;
+      top: -1px;
+    }
+  }
+}
+
+.customDropdownContainer {
+  position: relative;
+}
+
+.addCustomButton {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  background: transparent;
+  border: 1px solid var(--blert-divider-color);
+  border-radius: 4px;
+  color: var(--blert-font-color-secondary);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  i {
+    font-size: 0.7rem;
+    position: relative;
+    top: 1px;
+  }
+
+  &:hover:not(:disabled) {
+    border-color: var(--blert-purple);
+    color: var(--blert-purple);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.customDropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 100;
+  min-width: 180px;
+  padding: 12px;
+  background: var(--blert-panel-background-color);
+  border: 1px solid var(--blert-divider-color);
+  border-radius: 6px;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.dropdownContent {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.dropdownInput {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  span {
+    font-size: 0.75rem;
+    color: var(--blert-font-color-secondary);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  input {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--blert-divider-color);
+    border-radius: 4px;
+    background: var(--blert-surface-dark);
+    color: var(--blert-font-color-primary);
+    font-size: 0.9rem;
+
+    &:focus {
+      outline: none;
+      border-color: var(--blert-purple);
+    }
+  }
+}
+
+.dropdownActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.dropdownCancel,
+.dropdownAdd {
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.dropdownCancel {
+  background: transparent;
+  border: 1px solid var(--blert-divider-color);
+  color: var(--blert-font-color-secondary);
+
+  &:hover {
+    border-color: var(--blert-font-color-secondary);
+    color: var(--blert-font-color-primary);
+  }
+}
+
+.dropdownAdd {
+  background: var(--blert-purple);
+  border: none;
+  color: #fff;
+
+  &:hover:not(:disabled) {
+    background: rgba(var(--blert-purple-base), 0.8);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 }
