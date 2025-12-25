@@ -4,16 +4,16 @@
   "description": "Blertcoin mint and management system",
   "license": "MIT",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && tsc-alias",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --check . --ignore-path ../.prettierignore",
     "format:fix": "prettier --write . --ignore-path ../.prettierignore",
     "start": "node ./dist/app.js",
-    "dev": "NODE_ENV=development tsc-watch --noClear -p ./tsconfig.json --onSuccess \"node ./dist/app.js\"",
-    "migration:create": "tsc && node dist/migrations/migrate.js create $1",
-    "migration:run": "tsc && node dist/migrations/migrate.js",
+    "dev": "NODE_ENV=development tsc-watch --noClear -p ./tsconfig.json --onSuccess \"sh -c 'tsc-alias && node ./dist/app.js'\"",
+    "migration:create": "tsc && tsc-alias && node dist/migrations/migrate.js create $1",
+    "migration:run": "tsc && tsc-alias && node dist/migrations/migrate.js",
     "test": "jest",
     "test:coverage": "jest --coverage"
   },
@@ -31,6 +31,7 @@
     "jest": "^29.7.0",
     "supertest": "^7.1.4",
     "ts-jest": "^29.2.5",
+    "tsc-alias": "^1.8.16",
     "tsc-watch": "^6.0.4"
   }
 }

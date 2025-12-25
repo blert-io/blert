@@ -1,10 +1,11 @@
 import { Application, NextFunction, Request, Response } from 'express';
 
+import logger from '@/log';
+
 import * as accounts from './accounts';
+import { requireServiceAuth } from './auth';
 import { ApiError, ApiErrorCode } from './error';
 import * as health from './health';
-import logger from '../log';
-import { requireServiceAuth } from './auth';
 
 type ErrorResponse = {
   error: ApiErrorCode;

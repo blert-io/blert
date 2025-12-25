@@ -2,12 +2,12 @@ process.env.BLERTBANK_SERVICE_TOKEN = 'test-token';
 
 import request from 'supertest';
 
-jest.mock('../../db', () => ({
+jest.mock('@/db', () => ({
   __esModule: true,
   default: jest.fn(() => Promise.resolve([{ '?column?': 1 }])),
 }));
 
-import { createApp } from '../../app';
+import { createApp } from '@/app';
 
 describe('Health check endpoints', () => {
   const app = createApp();
