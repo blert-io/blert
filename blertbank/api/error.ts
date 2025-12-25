@@ -1,5 +1,8 @@
 export enum ApiErrorCode {
   ACCOUNT_NOT_FOUND = 'ACCOUNT_NOT_FOUND',
+  INSUFFICIENT_FUNDS = 'INSUFFICIENT_FUNDS',
+  INVALID_AMOUNT = 'INVALID_AMOUNT',
+  UNBALANCED_TRANSACTION = 'UNBALANCED_TRANSACTION',
 
   BAD_REQUEST = 'BAD_REQUEST',
   INTERNAL_ERROR = 'INTERNAL_ERROR',
@@ -22,7 +25,11 @@ export class ApiError extends Error {
   public get statusCode(): number {
     switch (this.code) {
       case ApiErrorCode.BAD_REQUEST:
+      case ApiErrorCode.INVALID_AMOUNT:
+      case ApiErrorCode.UNBALANCED_TRANSACTION:
         return 400;
+      case ApiErrorCode.INSUFFICIENT_FUNDS:
+        return 422;
       case ApiErrorCode.ACCOUNT_NOT_FOUND:
         return 404;
       case ApiErrorCode.INTERNAL_ERROR:

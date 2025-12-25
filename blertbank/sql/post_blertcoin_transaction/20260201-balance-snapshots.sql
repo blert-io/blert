@@ -61,14 +61,13 @@ BEGIN
       WHERE idempotency_key = p_idem_key;
 
       RETURN QUERY
-      SELECT v_txn_id, v_created_at, d.acct_id, d.delta::bigint, b.balance, TRUE
-      FROM (
-        SELECT te_inner.account_id AS acct_id, SUM(te_inner.amount) AS delta
-        FROM blertcoin_transaction_entries te_inner
-        WHERE te_inner.txn_id = v_txn_id
-        GROUP BY te_inner.account_id
-      ) d
-      JOIN blertcoin_account_balances b ON b.account_id = d.acct_id;
+      SELECT v_txn_id, v_created_at, s.account_id, s.delta, s.balance_after, TRUE
+      FROM blertcoin_transaction_accounts s
+      WHERE s.txn_id = v_txn_id;
+
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'MISSING_SNAPSHOT' USING ERRCODE = 'BL104';
+      END IF;
       RETURN;
     END IF;
   ELSE
@@ -115,21 +114,24 @@ BEGIN
   INSERT INTO blertcoin_transaction_entries(txn_id, account_id, amount)
   SELECT v_txn_id, (e).account_id, (e).amount FROM unnest(p_entries) e;
 
-  UPDATE blertcoin_account_balances b
-  SET balance = b.balance + d.delta, updated_at = NOW()
-  FROM (
+  WITH deltas AS (
     SELECT (e).account_id AS acct_id, SUM((e).amount) AS delta
     FROM unnest(p_entries) e
     GROUP BY (e).account_id
-  ) d
-  WHERE b.account_id = d.acct_id;
+  ),
+  updated AS (
+    UPDATE blertcoin_account_balances b
+    SET balance = b.balance + d.delta, updated_at = NOW()
+    FROM deltas d
+    WHERE b.account_id = d.acct_id
+    RETURNING b.account_id, d.delta, b.balance AS balance_after
+  )
+  INSERT INTO blertcoin_transaction_accounts (txn_id, account_id, delta, balance_after)
+  SELECT v_txn_id, u.account_id, u.delta, u.balance_after
+  FROM updated u;
 
   RETURN QUERY
-  SELECT v_txn_id, v_created_at, d.acct_id, d.delta::bigint, b.balance, FALSE
-  FROM (
-    SELECT (e).account_id AS acct_id, SUM((e).amount) AS delta
-    FROM unnest(p_entries) e
-    GROUP BY (e).account_id
-  ) d
-  JOIN blertcoin_account_balances b ON b.account_id = d.acct_id;
+  SELECT v_txn_id, v_created_at, s.account_id, s.delta, s.balance_after, FALSE
+  FROM blertcoin_transaction_accounts s
+  WHERE s.txn_id = v_txn_id;
 END $$;
