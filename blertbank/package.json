@@ -14,7 +14,9 @@
     "dev": "NODE_ENV=development tsc-watch --noClear -p ./tsconfig.json --onSuccess \"sh -c 'tsc-alias && node ./dist/app.js'\"",
     "migration:create": "tsc && tsc-alias && node dist/migrations/migrate.js create $1",
     "migration:run": "tsc && tsc-alias && node dist/migrations/migrate.js",
-    "test": "jest",
+    "test": "jest --selectProjects unit",
+    "test:integration": "jest --selectProjects integration",
+    "test:all": "jest",
     "test:coverage": "jest --coverage"
   },
   "dependencies": {

@@ -6,6 +6,7 @@ import * as accounts from './accounts';
 import { requireServiceAuth } from './auth';
 import { ApiError, ApiErrorCode } from './error';
 import * as health from './health';
+import * as transactions from './transactions';
 
 type ErrorResponse = {
   error: ApiErrorCode;
@@ -67,4 +68,6 @@ export function registerApiRoutes(app: Application): void {
 
   app.post('/accounts', asyncHandler(accounts.createForUser));
   app.get('/accounts/user/:userId', asyncHandler(accounts.getByUserId));
+
+  app.post('/transactions', asyncHandler(transactions.create));
 }

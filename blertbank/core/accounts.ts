@@ -15,20 +15,20 @@ export type AccountRow = {
 };
 
 type RawAccountRow = {
-  id: number;
+  id: bigint;
   owner_user_id: number | null;
   kind: AccountKind;
-  balance: number;
+  balance: bigint;
   created_at: Date;
   updated_at: Date;
 };
 
 function rowToAccount(row: RawAccountRow): AccountRow {
   return {
-    id: row.id,
+    id: Number(row.id),
     ownerUserId: row.owner_user_id,
     kind: row.kind,
-    balance: row.balance,
+    balance: Number(row.balance),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

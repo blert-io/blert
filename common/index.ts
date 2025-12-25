@@ -216,6 +216,7 @@ export {
 } from './db/redis';
 
 export {
+  isPostgresError,
   isPostgresInvalidTextRepresentation,
   isPostgresUndefinedColumn,
   isPostgresUniqueViolation,
