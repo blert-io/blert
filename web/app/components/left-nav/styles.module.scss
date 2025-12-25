@@ -128,6 +128,55 @@
       }
     }
 
+    @keyframes accountStatusPulse {
+      0% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.4;
+      }
+      100% {
+        opacity: 1;
+      }
+    }
+
+    .skeleton {
+      background: var(--blert-surface-light);
+      animation: accountStatusPulse 1.5s ease-in-out infinite;
+    }
+
+    .skeletonText {
+      background: var(--blert-surface-light);
+      border-radius: 4px;
+      animation: accountStatusPulse 1.5s ease-in-out infinite;
+    }
+
+    .skeletonLabel {
+      width: 70px;
+      height: 12px;
+      margin-bottom: 6px;
+    }
+
+    .skeletonUsername {
+      width: 100px;
+      height: 14px;
+    }
+
+    .skeletonAction {
+      height: 30px;
+      border-radius: 6px;
+      background: var(--blert-surface-light);
+      animation: accountStatusPulse 1.5s ease-in-out infinite;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .skeleton,
+      .skeletonText,
+      .skeletonAction {
+        animation: none;
+      }
+    }
+
     .authActions {
       display: flex;
       flex-direction: column;
