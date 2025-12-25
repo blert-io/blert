@@ -1,4 +1,4 @@
-import { ApiError, ApiErrorCode } from '../../api/error';
+import { ApiError, ApiErrorCode } from '@/api/error';
 
 describe('ApiError', () => {
   it('maps codes to status codes', () => {

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 
-import sql from '../db';
+import sql from '@/db';
 
 const START_TIME = Date.now();
 

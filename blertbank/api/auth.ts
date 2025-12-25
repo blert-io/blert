@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 
-import { updateRequestContext } from '../context';
+import { updateRequestContext } from '@/context';
+
 import { ApiError, ApiErrorCode } from './error';
 
 const SERVICE_TOKEN = process.env.BLERTBANK_SERVICE_TOKEN;

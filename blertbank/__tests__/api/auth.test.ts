@@ -1,9 +1,10 @@
 process.env.BLERTBANK_SERVICE_TOKEN = 'test-token';
 
 import type { Request, Response, NextFunction } from 'express';
-import { requireServiceAuth } from '../../api/auth';
-import { ApiError, ApiErrorCode } from '../../api/error';
-import { getRequestContext, requestContext } from '../../context';
+
+import { requireServiceAuth } from '@/api/auth';
+import { ApiError, ApiErrorCode } from '@/api/error';
+import { getRequestContext, requestContext } from '@/context';
 
 function makeMockReq(headers: Record<string, string> = {}): Request {
   return {
