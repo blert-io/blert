@@ -101,7 +101,7 @@ function SaveButton({
       disabled={disabled}
       onClick={onClick}
       data-tooltip-id={GLOBAL_TOOLTIP_ID}
-      data-tooltip-content={`Save (${modifier}+S)`}
+      data-tooltip-content={`Save (${modifier}S)`}
       className={styles.saveWithTime}
     >
       {hasUnsavedChanges && <span className={styles.unsavedDot} />}
@@ -408,7 +408,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
     />
   );
 
-  const modifier = isApple ? '⌘' : 'Ctrl';
+  const modifier = isApple ? '⌘' : 'Ctrl+';
 
   const topOffset = context.isLocal
     ? 'var(--actions-height) + var(--anonymous-banner-height)'
@@ -429,7 +429,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
                 disabled={editableSetup.position === 0}
                 onClick={() => context.undo()}
                 data-tooltip-id={GLOBAL_TOOLTIP_ID}
-                data-tooltip-content={`Undo (${modifier}+Z)`}
+                data-tooltip-content={`Undo (${modifier}Z)`}
               >
                 <i className="fas fa-undo" />
                 <span className="sr-only">Undo</span>
@@ -440,7 +440,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
                 }
                 onClick={() => context.redo()}
                 data-tooltip-id={GLOBAL_TOOLTIP_ID}
-                data-tooltip-content={`Redo (${modifier}+Y)`}
+                data-tooltip-content={`Redo (${modifier}Y)`}
               >
                 <i className="fas fa-redo" />
                 <span className="sr-only">Redo</span>
@@ -933,16 +933,16 @@ function KeyboardShortcutsModal({
   onClose: () => void;
 }) {
   const isApple = useIsApple();
-  const ctrl = isApple ? '⌘' : 'Ctrl';
-  const alt = isApple ? '⌥' : 'Alt';
+  const ctrl = isApple ? '⌘' : 'Ctrl+';
+  const alt = isApple ? '⌥' : 'Alt+';
 
   const shortcuts = [
     {
       category: 'Editing',
       items: [
-        { keys: [`${ctrl}+Z`], description: 'Undo' },
-        { keys: [`${ctrl}+Y`], description: 'Redo' },
-        { keys: [`${ctrl}+S`], description: 'Save setup draft' },
+        { keys: [`${ctrl}Z`], description: 'Undo' },
+        { keys: [`${ctrl}Y`], description: 'Redo' },
+        { keys: [`${ctrl}S`], description: 'Save setup draft' },
         { keys: ['?'], description: 'Show keyboard shortcuts' },
       ],
     },
@@ -951,9 +951,9 @@ function KeyboardShortcutsModal({
       items: [
         { keys: ['Click+Drag'], description: 'Select region' },
         { keys: ['Shift+Drag'], description: 'Force selection' },
-        { keys: [`${ctrl}+A`], description: 'Select all slots' },
-        { keys: [`${ctrl}+C`], description: 'Copy selection' },
-        { keys: [`${ctrl}+X`], description: 'Cut selection' },
+        { keys: [`${ctrl}A`], description: 'Select all slots' },
+        { keys: [`${ctrl}C`], description: 'Copy selection' },
+        { keys: [`${ctrl}X`], description: 'Cut selection' },
         { keys: [`V`], description: 'Cycle paste mode (Replace/Merge)' },
         { keys: ['Del'], description: 'Delete selection' },
         { keys: ['Esc'], description: 'Clear selection' },
@@ -964,7 +964,7 @@ function KeyboardShortcutsModal({
       items: [
         { keys: ['/'], description: 'Focus item search' },
         { keys: ['Esc'], description: 'Clear selected item / Close search' },
-        { keys: [`${alt}+Click`], description: 'Select item from slot' },
+        { keys: [`${alt}Click`], description: 'Select item from slot' },
       ],
     },
     {

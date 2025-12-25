@@ -43,8 +43,8 @@ function FormatButton({
 }) {
   let tooltip = action.tooltip;
   if (action.key) {
-    const modifier = isApple ? '⌘' : 'Ctrl';
-    tooltip += ` (${modifier}+${action.key.toUpperCase()})`;
+    const modifier = isApple ? '⌘' : 'Ctrl+';
+    tooltip += ` (${modifier}${action.key.toUpperCase()})`;
   }
 
   return (
@@ -289,6 +289,13 @@ export default function MarkdownEditor({
         wrapInline('![', '](https://i.imgur.com/image.png)', 'alt text'),
     };
 
+    const video: FormatAction = {
+      icon: 'fa-video',
+      tooltip: 'Video',
+      action: () =>
+        wrapInline('[', '](https://youtube.com/watch?v=VIDEO_ID)', 'Video'),
+    };
+
     const bulletList: FormatAction = {
       icon: 'fa-list-ul',
       tooltip: 'Bullet List',
@@ -347,6 +354,7 @@ export default function MarkdownEditor({
     const blockActions = [
       heading,
       image,
+      video,
       bulletList,
       numberedList,
       quote,
@@ -595,6 +603,10 @@ export default function MarkdownEditor({
                 <span>Image</span>
               </div>
               <div className={styles.helpItem}>
+                <code>[](video url)</code>
+                <span>Video embed</span>
+              </div>
+              <div className={styles.helpItem}>
                 <code>`code`</code>
                 <span>Inline code</span>
               </div>
@@ -630,7 +642,7 @@ export default function MarkdownEditor({
             <p className={styles.helpNote}>
               <i className="fas fa-info-circle" />
               Images must be hosted on trusted sites (imgur, discord, reddit).
-              Only HTTPS URLs are allowed.
+              Videos from YouTube and Streamable are automatically embedded.
             </p>
           </div>
         </div>

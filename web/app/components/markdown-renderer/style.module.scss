@@ -250,6 +250,21 @@
     margin: 0.5em 0;
   }
 
+  .videoWrapper {
+    margin: 1em 0;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--blert-divider-color);
+    max-width: 640px;
+
+    iframe {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      display: block;
+      border: none;
+    }
+  }
+
   del {
     text-decoration: line-through;
     color: var(--blert-font-color-secondary);
