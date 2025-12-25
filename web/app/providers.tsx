@@ -3,6 +3,7 @@
 import { SessionProvider } from 'next-auth/react';
 
 import ChallengeProvider from './challenge-context';
+import SettingsProvider from './components/settings-provider';
 import ToastProvider from './components/toast';
 import { DisplayWrapper } from './display';
 
@@ -15,7 +16,9 @@ export default function Providers({ children }: ProvidersProps) {
     <SessionProvider>
       <DisplayWrapper>
         <ChallengeProvider>
-          <ToastProvider>{children}</ToastProvider>
+          <ToastProvider>
+            <SettingsProvider>{children}</SettingsProvider>
+          </ToastProvider>
         </ChallengeProvider>
       </DisplayWrapper>
     </SessionProvider>
