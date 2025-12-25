@@ -1,9 +1,10 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { Suspense } from 'react';
 
 import { MAIN_LOGO } from '@/logo';
 
-import AccountStatus from './account-status';
+import AccountStatus, { AccountStatusSkeleton } from './account-status';
 import { LEFT_NAV_WIDTH } from './definitions';
 import { LeftNavWrapper } from './left-nav-wrapper';
 import NavPlayerSearch from './nav-player-search';
@@ -226,7 +227,9 @@ export function LeftNav() {
           </li>
         </ul>
 
-        <AccountStatus />
+        <Suspense fallback={<AccountStatusSkeleton />}>
+          <AccountStatus />
+        </Suspense>
 
         <div className={styles.leftNav__externalLinks}>
           <div className={styles.leftNav__externalLink}>
