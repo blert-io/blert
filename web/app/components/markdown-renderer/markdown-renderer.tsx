@@ -28,6 +28,77 @@ const ALLOWED_IMAGE_HOSTS = [
   'media0.giphy.com',
 ];
 
+type VideoEmbed = {
+  source: 'youtube' | 'streamable';
+  id: string;
+};
+
+/**
+ * Parses a URL to extract video embed information if it's a supported video URL.
+ */
+function parseVideoUrl(url: string): VideoEmbed | null {
+  try {
+    const parsed = new URL(url);
+
+    // YouTube: youtube.com/watch?v=ID, youtu.be/ID, youtube.com/embed/ID
+    if (
+      parsed.hostname === 'www.youtube.com' ||
+      parsed.hostname === 'youtube.com'
+    ) {
+      const videoId = parsed.searchParams.get('v');
+      if (videoId) {
+        return { source: 'youtube', id: videoId };
+      }
+      const embedMatch = /^\/embed\/([a-zA-Z0-9_-]+)/.exec(parsed.pathname);
+      if (embedMatch) {
+        return { source: 'youtube', id: embedMatch[1] };
+      }
+    }
+
+    if (parsed.hostname === 'youtu.be') {
+      const videoId = parsed.pathname.slice(1);
+      if (videoId) {
+        return { source: 'youtube', id: videoId };
+      }
+    }
+
+    // Streamable: streamable.com/ID
+    if (parsed.hostname === 'streamable.com') {
+      // Skip /e/ embed URLs to avoid recursion.
+      if (parsed.pathname.startsWith('/e/')) {
+        return null;
+      }
+      const videoId = parsed.pathname.slice(1);
+      if (videoId && !videoId.includes('/')) {
+        return { source: 'streamable', id: videoId };
+      }
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function VideoEmbedComponent({ video }: { video: VideoEmbed }) {
+  const src =
+    video.source === 'youtube'
+      ? `https://www.youtube-nocookie.com/embed/${video.id}`
+      : `https://streamable.com/e/${video.id}`;
+
+  return (
+    <div className={styles.videoWrapper}>
+      <iframe
+        src={src}
+        title={`${video.source === 'youtube' ? 'YouTube' : 'Streamable'} video`}
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        referrerPolicy="strict-origin-when-cross-origin"
+        allowFullScreen
+      />
+    </div>
+  );
+}
+
 /**
  * Validates if an image URL is from an allowed host and uses HTTPS.
  */
@@ -156,6 +227,11 @@ export default function MarkdownRenderer({
             a: ({ href, children, ...props }) => {
               if (!href) {
                 return <a {...props}>{children}</a>;
+              }
+
+              const video = parseVideoUrl(href);
+              if (video) {
+                return <VideoEmbedComponent video={video} />;
               }
 
               const isExternal =

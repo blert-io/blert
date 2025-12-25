@@ -94,7 +94,7 @@ export function ContextMenuWrapper({
       return items;
     }
 
-    const ctrl = isApple ? '⌘' : 'Ctrl';
+    const ctrl = isApple ? '⌘' : 'Ctrl+';
 
     const { playerIndex, container, index } = menuTargetId;
 
@@ -104,7 +104,7 @@ export function ContextMenuWrapper({
         customAction: () => {
           context?.copySelection();
         },
-        secondary: `${ctrl}+C`,
+        secondary: `${ctrl}C`,
       });
 
       items.push({
@@ -112,7 +112,7 @@ export function ContextMenuWrapper({
         customAction: () => {
           context?.cutSelection();
         },
-        secondary: `${ctrl}+X`,
+        secondary: `${ctrl}X`,
       });
 
       items.push({
