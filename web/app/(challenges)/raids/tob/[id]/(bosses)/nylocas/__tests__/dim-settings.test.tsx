@@ -3,9 +3,24 @@
  */
 import { render, screen, fireEvent } from '@testing-library/react';
 
+import SettingsProvider from '@/components/settings-provider';
+import ToastProvider from '@/components/toast';
+
 import NyloDimSettings, { DimThreshold, NyloDimConfig } from '../dim-settings';
 
-// Mock localStorage
+jest.mock('next-auth/react', () => ({
+  useSession: () => ({ status: 'unauthenticated', data: null }),
+  SessionProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
+jest.mock('@/actions/settings', () => ({
+  getUserSettings: jest.fn().mockResolvedValue(null),
+  setUserSetting: jest.fn().mockResolvedValue(undefined),
+  syncSettings: jest.fn().mockResolvedValue({}),
+}));
+
+const SETTINGS_KEY_PREFIX = 'blert-setting:';
+
 const localStorageMock = (() => {
   let store: Record<string, string> = {};
   return {
@@ -19,10 +34,22 @@ const localStorageMock = (() => {
     clear: () => {
       store = {};
     },
+    get length() {
+      return Object.keys(store).length;
+    },
+    key: (index: number) => Object.keys(store)[index] || null,
   };
 })();
 
 Object.defineProperty(window, 'localStorage', { value: localStorageMock });
+
+function TestWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <ToastProvider>
+      <SettingsProvider>{children}</SettingsProvider>
+    </ToastProvider>
+  );
+}
 
 describe('NyloDimSettings', () => {
   let onChangeMock: jest.Mock<void, [DimThreshold[]]>;
@@ -38,12 +65,14 @@ describe('NyloDimSettings', () => {
     props: Partial<Parameters<typeof NyloDimSettings>[0]> = {},
   ) => {
     return render(
-      <NyloDimSettings
-        scale={5}
-        onDimThresholdsChange={onChangeMock}
-        onShowLabelsChange={onShowLabelsChangeMock}
-        {...props}
-      />,
+      <TestWrapper>
+        <NyloDimSettings
+          scale={5}
+          onDimThresholdsChange={onChangeMock}
+          onShowLabelsChange={onShowLabelsChangeMock}
+          {...props}
+        />
+      </TestWrapper>,
     );
   };
 
@@ -298,7 +327,7 @@ describe('NyloDimSettings', () => {
       fireEvent.click(screen.getByLabelText('W27'));
 
       const stored = JSON.parse(
-        localStorageMock.getItem('nylo-dims-5')!,
+        localStorageMock.getItem(`${SETTINGS_KEY_PREFIX}nylo-dims-5`)!,
       ) as NyloDimConfig;
       expect(stored.preset).toEqual({ wave: 27, offset: 0 });
     });
@@ -308,13 +337,17 @@ describe('NyloDimSettings', () => {
 
       fireEvent.click(screen.getByLabelText('W26'));
 
-      expect(localStorageMock.getItem('nylo-dims-3')).toBeTruthy();
-      expect(localStorageMock.getItem('nylo-dims-5')).toBeNull();
+      expect(
+        localStorageMock.getItem(`${SETTINGS_KEY_PREFIX}nylo-dims-3`),
+      ).toBeTruthy();
+      expect(
+        localStorageMock.getItem(`${SETTINGS_KEY_PREFIX}nylo-dims-5`),
+      ).toBeNull();
     });
 
     it('restores preset from localStorage on mount', () => {
       localStorageMock.setItem(
-        'nylo-dims-5',
+        `${SETTINGS_KEY_PREFIX}nylo-dims-5`,
         JSON.stringify({ preset: { wave: 29, offset: 0 }, custom: [] }),
       );
 
@@ -326,7 +359,7 @@ describe('NyloDimSettings', () => {
 
     it('restores custom thresholds from localStorage on mount', () => {
       localStorageMock.setItem(
-        'nylo-dims-5',
+        `${SETTINGS_KEY_PREFIX}nylo-dims-5`,
         JSON.stringify({
           preset: null,
           custom: [{ wave: 21, offset: 2 }],
@@ -386,11 +419,16 @@ describe('NyloDimSettings', () => {
 
       fireEvent.click(screen.getByLabelText('Show wave numbers'));
 
-      expect(localStorageMock.getItem('nylo-show-labels')).toBe('false');
+      expect(
+        localStorageMock.getItem(`${SETTINGS_KEY_PREFIX}nylo-show-labels`),
+      ).toBe('false');
     });
 
     it('restores show wave numbers from localStorage on mount', () => {
-      localStorageMock.setItem('nylo-show-labels', 'false');
+      localStorageMock.setItem(
+        `${SETTINGS_KEY_PREFIX}nylo-show-labels`,
+        'false',
+      );
 
       renderComponent();
 

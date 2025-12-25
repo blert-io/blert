@@ -10,6 +10,7 @@ import Checkbox from '@/components/checkbox';
 import Menu from '@/components/menu';
 import Modal from '@/components/modal';
 import { DisplayContext } from '@/display';
+import { useSetting } from '@/utils/user-settings';
 
 import styles from './styles.module.scss';
 
@@ -21,7 +22,10 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [width, setWidth] = useState(0);
 
-  const [showKits, setShowKits] = useState(true);
+  const [showKits, setShowKits] = useSetting<boolean>({
+    key: 'timeline-show-kits',
+    defaultValue: true,
+  });
 
   useEffect(() => {
     const handleResize = () => setWidth(window.innerWidth);
@@ -75,20 +79,17 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
   return (
     <Card
       className={styles.attackTimelineCard}
+      fixed
       header={{
         title: 'Room Timeline',
         action: (
           <div className={styles.actionButtons}>
-            <button
-              className={styles.expandButton}
-              onClick={() => setShowFullTimeline(true)}
-            >
+            <button onClick={() => setShowFullTimeline(true)}>
               <i className="fas fa-expand" />
               Expand
             </button>
             <button
               ref={settingsButtonRef}
-              className={styles.settingsButton}
               id="timeline-settings-button"
               onClick={() => setShowSettings(true)}
             >
