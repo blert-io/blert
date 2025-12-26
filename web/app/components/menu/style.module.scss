@@ -5,6 +5,11 @@
 
 .menu {
   position: fixed;
+
+  &.rootMenu {
+    position: relative;
+  }
+
   background-color: var(--blert-surface-dark);
   border: 1px solid rgba(var(--blert-purple-base), 0.2);
   box-shadow:
@@ -124,5 +129,10 @@
       rgba(var(--blert-purple-base), 0.25),
       rgba(var(--blert-purple-base), 0.05)
     );
+  }
+
+  // Submenu flipped to the left side of parent.
+  &.flippedLeft {
+    border-radius: 5px 0 0 5px;
   }
 }

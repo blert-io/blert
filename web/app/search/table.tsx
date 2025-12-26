@@ -562,20 +562,9 @@ export default function Table(props: TableProps) {
       if (tableRef.current?.contains(e.target as Node)) {
         e.preventDefault();
 
-        let menuX: number;
-        if (isCompact) {
-          menuX = 60;
-        } else {
-          menuX =
-            e.clientX + MENU_WIDTH >
-            tableRef.current.getBoundingClientRect().right
-              ? e.clientX - MENU_WIDTH + 5
-              : e.clientX;
-        }
-
         const menu: ContextMenu = {
           y: e.clientY,
-          x: menuX,
+          x: isCompact ? 60 : e.clientX,
         };
 
         let target: HTMLElement | null = e.target as HTMLElement;
@@ -920,7 +909,6 @@ export default function Table(props: TableProps) {
 }
 
 const DOUBLE_CLICK_THRESHOLD = 300;
-const MENU_WIDTH = 300;
 
 function ContextMenu({
   challenges,
@@ -1065,15 +1053,7 @@ function ContextMenu({
     });
   }
 
-  return (
-    <Menu
-      items={items}
-      onClose={onClose}
-      open
-      position={context}
-      width={MENU_WIDTH}
-    />
-  );
+  return <Menu items={items} onClose={onClose} open position={context} />;
 }
 
 enum DraggingHighlight {

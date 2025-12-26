@@ -3,6 +3,7 @@ import {
   JSX,
   SetStateAction,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react';
@@ -68,10 +69,60 @@ type MenuImplProps = MenuProps & {
   depth: number;
   activeElements: (number | null)[];
   setActiveElements: Dispatch<SetStateAction<(number | null)[]>>;
+  parentFlippedLeft?: boolean;
 };
+
+const VIEWPORT_PADDING = 8;
 
 function MenuImpl(props: MenuImplProps) {
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const [positionAdjustment, setPositionAdjustment] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [flippedLeft, setFlippedLeft] = useState(false);
+
+  // Calculate initial position and adjust for viewport bounds after render.
+  useLayoutEffect(() => {
+    if (!menuRef.current || !props.parent) {
+      setPositionAdjustment(null);
+      setFlippedLeft(false);
+      return;
+    }
+
+    const rect = menuRef.current.getBoundingClientRect();
+    const parentRect = props.parent.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    let adjustX = 0;
+    let adjustY = 0;
+    let shouldFlipLeft = props.parentFlippedLeft ?? false;
+
+    if (!shouldFlipLeft && rect.right > vw - VIEWPORT_PADDING) {
+      // Flip to left side of parent.
+      shouldFlipLeft = true;
+      adjustX = -(parentRect.width + rect.width);
+    } else if (shouldFlipLeft) {
+      // Parent was flipped, so we should also render to the left.
+      adjustX = -(parentRect.width + rect.width);
+    }
+
+    if (rect.bottom > vh - VIEWPORT_PADDING) {
+      adjustY = vh - VIEWPORT_PADDING - rect.bottom;
+    }
+
+    if (rect.top + adjustY < VIEWPORT_PADDING) {
+      adjustY = VIEWPORT_PADDING - rect.top;
+    }
+
+    setFlippedLeft(shouldFlipLeft);
+    if (adjustX !== 0 || adjustY !== 0) {
+      setPositionAdjustment({ x: adjustX, y: adjustY });
+    } else {
+      setPositionAdjustment(null);
+    }
+  }, [props.parent, props.parentFlippedLeft, props.items]);
 
   const style: React.CSSProperties = {
     width: props.width,
@@ -82,6 +133,10 @@ function MenuImpl(props: MenuImplProps) {
     style.top = rect.top - 1;
     style.left = rect.right;
     style.borderRadius = '5px';
+
+    if (positionAdjustment) {
+      style.transform = `translate(${positionAdjustment.x}px, ${positionAdjustment.y}px)`;
+    }
   } else {
     if (props.attach === 'top') {
       style.borderRadius = '5px 5px 0 0';
@@ -95,8 +150,14 @@ function MenuImpl(props: MenuImplProps) {
   }
 
   let className = styles.menu;
+  if (!props.parent) {
+    className += ` ${styles.rootMenu}`;
+  }
   if (props.menuClass) {
     className += ` ${props.menuClass}`;
+  }
+  if (flippedLeft) {
+    className += ` ${styles.flippedLeft}`;
   }
 
   return (
@@ -201,6 +262,7 @@ function MenuImpl(props: MenuImplProps) {
                 depth={props.depth + 1}
                 items={item.subMenu}
                 parent={menuRef.current?.children[i] as HTMLElement}
+                parentFlippedLeft={flippedLeft}
               />
             )}
           </ElementType>
@@ -254,6 +316,12 @@ function isInteractive(item: MenuItem): boolean {
 export default function Menu(props: MenuProps) {
   const [ready, setReady] = useState(false);
   const [allowClose, setAllowClose] = useState(false);
+  const [wrapperAdjustment, setWrapperAdjustment] = useState<{
+    x: number;
+    y: number;
+    // Track which position/target this adjustment was calculated for.
+    for: string;
+  } | null>(null);
   const portalNode = useRef<HTMLElement | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -452,6 +520,55 @@ export default function Menu(props: MenuProps) {
     }
   }, [onClose, allowClose]);
 
+  const menuTarget = props.position
+    ? `position:${props.position.x},${props.position.y}`
+    : `targetId:${props.targetId}`;
+
+  // Adjust root menu position if it overflows the viewport.
+  useLayoutEffect(() => {
+    if (!wrapperRef.current || !ready || !props.position) {
+      return;
+    }
+
+    const menuElement = wrapperRef.current.firstElementChild;
+    if (!menuElement) {
+      return;
+    }
+
+    const rect = menuElement.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    let adjustX = 0;
+    let adjustY = 0;
+
+    if (rect.right > vw - VIEWPORT_PADDING) {
+      adjustX = vw - VIEWPORT_PADDING - rect.right;
+    }
+
+    if (rect.left + adjustX < VIEWPORT_PADDING) {
+      adjustX = VIEWPORT_PADDING - rect.left;
+    }
+
+    if (rect.bottom > vh - VIEWPORT_PADDING) {
+      adjustY = vh - VIEWPORT_PADDING - rect.bottom;
+    }
+
+    if (rect.top + adjustY < VIEWPORT_PADDING) {
+      adjustY = VIEWPORT_PADDING - rect.top;
+    }
+
+    if (adjustX !== 0 || adjustY !== 0) {
+      setWrapperAdjustment({
+        x: adjustX,
+        y: adjustY,
+        for: menuTarget,
+      });
+    } else {
+      setWrapperAdjustment(null);
+    }
+  }, [ready, menuTarget, props.position, props.items]);
+
   if (
     portalNode.current === null ||
     !ready ||
@@ -490,6 +607,12 @@ export default function Menu(props: MenuProps) {
   } else {
     console.error('Menu requires either a position or a targetId');
     return null;
+  }
+
+  const adjustmentMatchesPosition = wrapperAdjustment?.for === menuTarget;
+  if (adjustmentMatchesPosition) {
+    style.top += wrapperAdjustment.y;
+    style.left += wrapperAdjustment.x;
   }
 
   return createPortal(
