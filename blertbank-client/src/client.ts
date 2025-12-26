@@ -3,9 +3,22 @@ import {
   AccountNotFoundError,
   BlertbankApiError,
   BlertbankError,
+  InsufficientFundsError,
+  InvalidAmountError,
   UnauthorizedError,
+  UnbalancedTransactionError,
 } from './errors';
-import { ApiErrorResponse, UserAccount, UserAccountRaw } from './types';
+import {
+  ApiErrorResponse,
+  CreateTransactionWithEntriesRequest,
+  CreateTransactionWithParticipantsRequest,
+  TransactionResultWithEntries,
+  TransactionResultWithEntriesRaw,
+  TransactionResultWithParticipants,
+  TransactionResultWithParticipantsRaw,
+  UserAccount,
+  UserAccountRaw,
+} from './types';
 
 export type BlertbankClientConfig = {
   /**
@@ -166,6 +179,74 @@ export class BlertbankClient {
   }
 
   /**
+   * Creates a transaction using participants.
+   *
+   * @param request Transaction details with participants
+   * @param options Optional request options
+   * @returns The transaction result with participants
+   * @throws {InsufficientFundsError} If an account has insufficient funds
+   * @throws {InvalidAmountError} If a transaction amount is invalid
+   * @throws {UnbalancedTransactionError} If transaction entries don't sum to zero
+   * @throws {AccountNotFoundError} If a participant account is not found
+   */
+  public async createTransaction(
+    request: CreateTransactionWithParticipantsRequest,
+    options?: RequestOptions,
+  ): Promise<TransactionResultWithParticipants>;
+
+  /**
+   * Creates a transaction using entries.
+   *
+   * @param request Transaction details with entries
+   * @param options Optional request options
+   * @returns The transaction result with entries
+   * @throws {InsufficientFundsError} If an account has insufficient funds
+   * @throws {InvalidAmountError} If a transaction amount is invalid
+   * @throws {UnbalancedTransactionError} If transaction entries don't sum to zero
+   * @throws {AccountNotFoundError} If an account is not found
+   */
+  public async createTransaction(
+    request: CreateTransactionWithEntriesRequest,
+    options?: RequestOptions,
+  ): Promise<TransactionResultWithEntries>;
+
+  public async createTransaction(
+    request:
+      | CreateTransactionWithParticipantsRequest
+      | CreateTransactionWithEntriesRequest,
+    options?: RequestOptions,
+  ): Promise<TransactionResultWithParticipants | TransactionResultWithEntries> {
+    try {
+      const response = await this.request<
+        TransactionResultWithParticipantsRaw | TransactionResultWithEntriesRaw
+      >(
+        '/transactions',
+        {
+          method: 'POST',
+          body: JSON.stringify(request),
+        },
+        options,
+      );
+
+      return this.deserializeTransaction(response);
+    } catch (error) {
+      if (error instanceof BlertbankApiError) {
+        switch (error.errorCode) {
+          case 'INSUFFICIENT_FUNDS':
+            throw new InsufficientFundsError(error.message);
+          case 'INVALID_AMOUNT':
+            throw new InvalidAmountError(error.message);
+          case 'UNBALANCED_TRANSACTION':
+            throw new UnbalancedTransactionError(error.message);
+          case 'ACCOUNT_NOT_FOUND':
+            throw new AccountNotFoundError(0);
+        }
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Checks if the Blertbank service is healthy.
    *
    * @returns True if the service is healthy
@@ -247,6 +328,20 @@ export class BlertbankClient {
       ...account,
       createdAt: new Date(account.createdAt),
       updatedAt: new Date(account.updatedAt),
+    };
+  }
+
+  /**
+   * Deserializes a transaction response, converting date strings to Date objects.
+   */
+  private deserializeTransaction(
+    transaction:
+      | TransactionResultWithParticipantsRaw
+      | TransactionResultWithEntriesRaw,
+  ): TransactionResultWithParticipants | TransactionResultWithEntries {
+    return {
+      ...transaction,
+      createdAt: new Date(transaction.createdAt),
     };
   }
 }

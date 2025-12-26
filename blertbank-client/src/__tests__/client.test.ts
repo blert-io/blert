@@ -3,9 +3,19 @@ import {
   AccountNotFoundError,
   BlertbankApiError,
   BlertbankError,
+  InsufficientFundsError,
+  InvalidAmountError,
   UnauthorizedError,
+  UnbalancedTransactionError,
 } from '../errors';
-import { UserAccount, UserAccountRaw } from '../types';
+import {
+  CreateTransactionWithEntriesRequest,
+  CreateTransactionWithParticipantsRequest,
+  TransactionResultWithEntriesRaw,
+  TransactionResultWithParticipantsRaw,
+  UserAccount,
+  UserAccountRaw,
+} from '../types';
 
 describe('BlertbankClient', () => {
   let mockFetch: jest.Mock;
@@ -417,6 +427,206 @@ describe('BlertbankClient', () => {
       >;
       expect(headers['X-Request-ID']).toMatch(
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      );
+    });
+  });
+
+  describe('createTransaction', () => {
+    const mockParticipantsResultRaw: TransactionResultWithParticipantsRaw = {
+      transactionId: 789,
+      createdAt: '2025-11-16T12:00:00Z',
+      idempotent: false,
+      participants: [
+        { kind: 'user', userId: 1, amount: -100, balanceAfter: 900 },
+        { kind: 'user', userId: 2, amount: 100, balanceAfter: 100 },
+      ],
+    };
+
+    const mockEntriesResultRaw: TransactionResultWithEntriesRaw = {
+      transactionId: 789,
+      createdAt: '2025-11-16T12:00:00Z',
+      idempotent: false,
+      entries: [
+        { accountId: 1, amount: -100, balanceAfter: 900 },
+        { accountId: 2, amount: 100, balanceAfter: 100 },
+      ],
+    };
+
+    const mockParticipantsRequest: CreateTransactionWithParticipantsRequest = {
+      createdBy: 456,
+      reason: 'test_transfer',
+      participants: [
+        { kind: 'user', userId: 1, amount: -100 },
+        { kind: 'user', userId: 2, amount: 100 },
+      ],
+    };
+
+    it('should create a transaction with participants successfully', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => mockParticipantsResultRaw,
+      });
+
+      const result = await client.createTransaction(mockParticipantsRequest);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://localhost:3000/transactions',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            'Content-Type': 'application/json',
+            'X-Service-Token': 'test-token',
+            'X-Service-Name': 'test-service',
+          }),
+          body: JSON.stringify(mockParticipantsRequest),
+        }),
+      );
+
+      expect(result.transactionId).toBe(789);
+      expect(result.idempotent).toBe(false);
+      expect(result.createdAt).toBeInstanceOf(Date);
+      expect(result.participants).toHaveLength(2);
+      expect(result.participants[0]).toEqual({
+        kind: 'user',
+        userId: 1,
+        amount: -100,
+        balanceAfter: 900,
+      });
+    });
+
+    it('should handle idempotent transactions', async () => {
+      const idempotentRequest: CreateTransactionWithParticipantsRequest = {
+        ...mockParticipantsRequest,
+        idempotencyKey: 'unique-key-123',
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ ...mockParticipantsResultRaw, idempotent: true }),
+      });
+
+      const result = await client.createTransaction(idempotentRequest);
+
+      expect(result.idempotent).toBe(true);
+    });
+
+    it('should throw InsufficientFundsError when account has insufficient funds', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 422,
+        json: async () => ({
+          error: 'INSUFFICIENT_FUNDS',
+          message: 'Account has insufficient funds',
+          timestamp: '2025-11-16T12:00:00Z',
+        }),
+      });
+
+      await expect(
+        client.createTransaction(mockParticipantsRequest),
+      ).rejects.toThrow(InsufficientFundsError);
+    });
+
+    it('should throw InvalidAmountError when amount is invalid', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          error: 'INVALID_AMOUNT',
+          message: 'Zero-amount entries are not allowed',
+          timestamp: '2025-11-16T12:00:00Z',
+        }),
+      });
+
+      await expect(
+        client.createTransaction(mockParticipantsRequest),
+      ).rejects.toThrow(InvalidAmountError);
+    });
+
+    it('should throw UnbalancedTransactionError when entries do not sum to zero', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          error: 'UNBALANCED_TRANSACTION',
+          message: 'Transaction entries do not sum to zero',
+          timestamp: '2025-11-16T12:00:00Z',
+        }),
+      });
+
+      await expect(
+        client.createTransaction(mockParticipantsRequest),
+      ).rejects.toThrow(UnbalancedTransactionError);
+    });
+
+    it('should throw AccountNotFoundError when participant account not found', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        json: async () => ({
+          error: 'ACCOUNT_NOT_FOUND',
+          message: 'Account not found for user 999',
+          timestamp: '2025-11-16T12:00:00Z',
+        }),
+      });
+
+      await expect(
+        client.createTransaction(mockParticipantsRequest),
+      ).rejects.toThrow(AccountNotFoundError);
+    });
+
+    it('should create a transaction with entries successfully', async () => {
+      const entriesRequest: CreateTransactionWithEntriesRequest = {
+        createdBy: 456,
+        reason: 'test_transfer',
+        entries: [
+          { accountId: 1, amount: -100 },
+          { accountId: 2, amount: 100 },
+        ],
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockEntriesResultRaw,
+      });
+
+      const result = await client.createTransaction(entriesRequest);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://localhost:3000/transactions',
+        expect.objectContaining({
+          body: JSON.stringify(entriesRequest),
+        }),
+      );
+
+      expect(result.transactionId).toBe(789);
+      expect(result.entries).toHaveLength(2);
+      expect(result.entries[0]).toEqual({
+        accountId: 1,
+        amount: -100,
+        balanceAfter: 900,
+      });
+    });
+
+    it('should support transactions with metadata and source', async () => {
+      const requestWithMetadata: CreateTransactionWithParticipantsRequest = {
+        ...mockParticipantsRequest,
+        source: { table: 'challenges', id: 12345 },
+        metadata: { challengeType: 'tob', scale: 3 },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockParticipantsResultRaw,
+      });
+
+      await client.createTransaction(requestWithMetadata);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://localhost:3000/transactions',
+        expect.objectContaining({
+          body: JSON.stringify(requestWithMetadata),
+        }),
       );
     });
   });
