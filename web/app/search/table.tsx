@@ -30,74 +30,17 @@ import { ticksToFormattedSeconds } from '@/utils/tick';
 import { challengeUrl } from '@/utils/url';
 
 import { SearchContext } from './context';
+import {
+  Column,
+  DEFAULT_SELECTED_COLUMNS,
+  PresetColumns,
+  SelectedColumn,
+} from './types';
+import { useSearchPresets } from './use-search-presets';
 
 import styles from './style.module.scss';
 
-const enum Column {
-  UUID,
-  DATE,
-  TYPE,
-  STATUS,
-  SCALE,
-  PARTY,
-  CHALLENGE_TIME,
-  OVERALL_TIME,
-  TOTAL_DEATHS,
-
-  // Split columns.
-  MAIDEN_ROOM,
-  MAIDEN_70S,
-  MAIDEN_50S,
-  MAIDEN_30S,
-  BLOAT_ROOM,
-  NYLOCAS_ROOM,
-  NYLOCAS_BOSS_SPAWN,
-  NYLOCAS_BOSS,
-  SOTETSEG_ROOM,
-  SOTETSEG_66,
-  SOTETSEG_33,
-  XARPUS_ROOM,
-  XARPUS_SCREECH,
-  VERZIK_ROOM,
-  VERZIK_P1,
-  VERZIK_P2,
-  VERZIK_P3,
-  INFERNO_WAVE_9,
-  INFERNO_WAVE_18,
-  INFERNO_WAVE_25,
-  INFERNO_WAVE_35,
-  INFERNO_WAVE_42,
-  INFERNO_WAVE_50,
-  INFERNO_WAVE_57,
-  INFERNO_WAVE_60,
-  INFERNO_WAVE_63,
-  INFERNO_WAVE_66,
-  INFERNO_WAVE_68,
-  INFERNO_WAVE_69,
-  COLOSSEUM_WAVE_1,
-  COLOSSEUM_WAVE_2,
-  COLOSSEUM_WAVE_3,
-  COLOSSEUM_WAVE_4,
-  COLOSSEUM_WAVE_5,
-  COLOSSEUM_WAVE_6,
-  COLOSSEUM_WAVE_7,
-  COLOSSEUM_WAVE_8,
-  COLOSSEUM_WAVE_9,
-  COLOSSEUM_WAVE_10,
-  COLOSSEUM_WAVE_11,
-  COLOSSEUM_WAVE_12,
-  MOKHAIOTL_DELVE_1,
-  MOKHAIOTL_DELVE_2,
-  MOKHAIOTL_DELVE_3,
-  MOKHAIOTL_DELVE_4,
-  MOKHAIOTL_DELVE_5,
-  MOKHAIOTL_DELVE_6,
-  MOKHAIOTL_DELVE_7,
-  MOKHAIOTL_DELVE_8,
-
-  MOKHAIOTL_DELVE,
-  MOKHAIOTL_MAX_COMPLETED_DELVE,
-}
+export { Column, DEFAULT_SELECTED_COLUMNS };
 
 type ColumnRenderer = (challenge: ChallengeOverview) => React.ReactNode;
 type ColumnExtraFieldsToggler = (
@@ -567,62 +510,7 @@ type ContextMenu = {
   multipleChallenges?: number[];
 };
 
-type SelectedColumn = {
-  column: Column;
-};
-
 const UUID_COLUMN: SelectedColumn = { column: Column.UUID };
-const DEFAULT_SELECTED_COLUMNS: SelectedColumn[] = [
-  { column: Column.DATE },
-  { column: Column.TYPE },
-  { column: Column.STATUS },
-  { column: Column.SCALE },
-  { column: Column.PARTY },
-  { column: Column.CHALLENGE_TIME },
-  { column: Column.OVERALL_TIME },
-];
-
-type PresetStorage = {
-  presets: PresetColumns[];
-  activeColumns: SelectedColumn[];
-};
-
-class LocalStorageManager {
-  private key: string;
-
-  public constructor(key: string) {
-    this.key = key;
-  }
-
-  public get(): PresetStorage {
-    const data = localStorage.getItem(this.key);
-    if (data === null) {
-      return { presets: [], activeColumns: DEFAULT_SELECTED_COLUMNS };
-    }
-
-    try {
-      return JSON.parse(data) as PresetStorage;
-    } catch {
-      return { presets: [], activeColumns: DEFAULT_SELECTED_COLUMNS };
-    }
-  }
-
-  public set(
-    presets: PresetStorage | ((prev: PresetStorage) => PresetStorage),
-  ) {
-    if (typeof presets === 'function') {
-      const prev = this.get();
-      localStorage.setItem(this.key, JSON.stringify(presets(prev)));
-    } else {
-      localStorage.setItem(this.key, JSON.stringify(presets));
-    }
-  }
-}
-
-const SEARCH_PRESETS_STORAGE_KEY = 'search-column-presets';
-export const searchPresetsStorage = new LocalStorageManager(
-  SEARCH_PRESETS_STORAGE_KEY,
-);
 
 /**
  * Returns the extra fields that should be loaded based on the selected columns.
@@ -732,9 +620,12 @@ export default function Table(props: TableProps) {
     };
   }, [selectedChallenges, isCompact]);
 
-  const [selectedColumns, setSelectedColumns] = useState<SelectedColumn[]>(
-    DEFAULT_SELECTED_COLUMNS,
-  );
+  const {
+    activeColumns: selectedColumns,
+    setActiveColumns: setSelectedColumns,
+    presets,
+    setPresets,
+  } = useSearchPresets();
 
   useEffect(() => setSelectedChallenges([]), [props.challenges]);
 
@@ -743,7 +634,8 @@ export default function Table(props: TableProps) {
   const removeColumn = useCallback(
     (col: Column) => {
       const column = COLUMNS[col];
-      setSelectedColumns((columns) => columns.filter((c) => c.column !== col));
+      const newColumns = selectedColumns.filter((c) => c.column !== col);
+      setSelectedColumns(newColumns);
 
       if (column.toggleFields) {
         setContext((context) => ({
@@ -751,13 +643,8 @@ export default function Table(props: TableProps) {
           extraFields: column.toggleFields!(context.extraFields, false),
         }));
       }
-
-      searchPresetsStorage.set((prev) => ({
-        ...prev,
-        activeColumns: prev.activeColumns.filter((c) => c.column !== col),
-      }));
     },
-    [setSelectedColumns, setContext],
+    [selectedColumns, setSelectedColumns, setContext],
   );
 
   const setAllColumns = useCallback(
@@ -767,12 +654,15 @@ export default function Table(props: TableProps) {
         ...prev,
         extraFields: extraFieldsForColumns(columns),
       }));
-      searchPresetsStorage.set((prev) => ({
-        ...prev,
-        activeColumns: columns,
-      }));
     },
-    [setContext],
+    [setSelectedColumns, setContext],
+  );
+
+  const applyPreset = useCallback(
+    (preset: PresetColumns) => {
+      setAllColumns(preset.columns);
+    },
+    [setAllColumns],
   );
 
   const columnsModal = useMemo(
@@ -782,9 +672,11 @@ export default function Table(props: TableProps) {
         open={columnsModalOpen}
         selectedColumns={selectedColumns}
         setAllColumns={setAllColumns}
+        presets={presets}
+        setPresets={setPresets}
       />
     ),
-    [columnsModalOpen, selectedColumns, setAllColumns],
+    [columnsModalOpen, selectedColumns, setAllColumns, presets, setPresets],
   );
 
   const allColumns = [UUID_COLUMN, ...selectedColumns];
@@ -1018,6 +910,8 @@ export default function Table(props: TableProps) {
           removeColumn={removeColumn}
           router={router}
           setContext={props.setContext}
+          presets={presets}
+          applyPreset={applyPreset}
         />
       )}
       {columnsModal}
@@ -1036,6 +930,8 @@ function ContextMenu({
   setContext,
   removeColumn,
   router,
+  presets,
+  applyPreset,
 }: {
   challenges: ChallengeOverview[];
   context: ContextMenu;
@@ -1044,6 +940,8 @@ function ContextMenu({
   setContext: Dispatch<SetStateAction<SearchContext>>;
   removeColumn: (col: Column) => void;
   router: ReturnType<typeof useRouter>;
+  presets: PresetColumns[];
+  applyPreset: (preset: PresetColumns) => void;
 }) {
   const items: MenuItem[] = [];
 
@@ -1100,6 +998,19 @@ function ContextMenu({
         customAction: () => removeColumn(context.heading!.column),
       });
     }
+
+    const allPresets = [DEFAULT_PRESET, ...presets];
+    if (allPresets.length > 0) {
+      items.push({
+        label: 'Column presets',
+        icon: 'fas fa-layer-group',
+        subMenu: allPresets.map((preset) => ({
+          label: preset.name,
+          customAction: () => applyPreset(preset),
+        })),
+      });
+    }
+
     items.push({
       label: 'Manage columns…',
       customAction: openColumnsModal,
@@ -1185,12 +1096,6 @@ type ConfirmAction = {
   noButton?: string;
 };
 
-type PresetColumns = {
-  name: string;
-  id: number;
-  columns: SelectedColumn[];
-};
-
 const DEFAULT_PRESET: PresetColumns = {
   name: 'Default',
   id: 0,
@@ -1202,14 +1107,17 @@ function ColumnsModal({
   open,
   selectedColumns,
   setAllColumns,
+  presets,
+  setPresets,
 }: {
   close: () => void;
   open: boolean;
   selectedColumns: SelectedColumn[];
   setAllColumns: (columns: SelectedColumn[]) => void;
+  presets: PresetColumns[];
+  setPresets: (presets: PresetColumns[]) => void;
 }) {
   const [columns, setColumns] = useState<SelectedColumn[]>(selectedColumns);
-  const [presets, setPresets] = useState<PresetColumns[]>([]);
 
   const [dragging, setDragging] = useState<Column | null>(null);
   const [lastClick, setLastClick] = useState<[Column, number] | null>(null);
@@ -1234,14 +1142,6 @@ function ColumnsModal({
   useEffect(() => {
     setColumns(selectedColumns);
   }, [selectedColumns]);
-
-  useEffect(() => {
-    const presets = searchPresetsStorage.get();
-    setPresets(presets.presets);
-    if (presets.activeColumns) {
-      setAllColumns(presets.activeColumns);
-    }
-  }, [setAllColumns]);
 
   const allPresets = [DEFAULT_PRESET, ...presets];
 
@@ -1370,6 +1270,7 @@ function ColumnsModal({
 
   function tryClose() {
     if (confirmAction !== null) {
+      setConfirmAction(null);
       return;
     }
     if (modified) {
@@ -1487,9 +1388,7 @@ function ColumnsModal({
                       setConfirmAction({
                         message: `Delete preset ${preset.name}?`,
                         action: () => {
-                          setPresets((presets) =>
-                            presets.filter((p) => p.id !== preset.id),
-                          );
+                          setPresets(presets.filter((p) => p.id !== preset.id));
                         },
                       });
                     }}
@@ -1522,10 +1421,6 @@ function ColumnsModal({
                       },
                     ];
                     setPresets(newPresets);
-                    searchPresetsStorage.set((prev) => ({
-                      ...prev,
-                      presets: newPresets,
-                    }));
                   },
                   customContent: (
                     <div className={styles.presetInput}>

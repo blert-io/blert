@@ -10,6 +10,7 @@ import {
   SortableFields,
 } from '@/actions/challenge';
 import CollapsiblePanel from '@/components/collapsible-panel';
+import { getLocalSetting } from '@/utils/user-settings';
 import { UrlParams, queryString } from '@/utils/url';
 
 import {
@@ -19,7 +20,11 @@ import {
   filtersToUrlParams,
 } from './context';
 import Filters from './filters';
-import Table, { extraFieldsForColumns, searchPresetsStorage } from './table';
+import Table, {
+  extraFieldsForColumns,
+  DEFAULT_SELECTED_COLUMNS,
+} from './table';
+import { SelectedColumn } from './types';
 
 import styles from './style.module.scss';
 
@@ -114,6 +119,20 @@ function challengesQueryParams(
     sortParam.push('-startTime');
     if (keyChallenge !== null) {
       sortValues.push(keyChallenge.startTime.getTime());
+    }
+  }
+
+  // When sorting by a split column with accurate splits enabled, only include
+  // challenges which have that split set.
+  if (context.filters.accurateSplits) {
+    for (const sort of sorts) {
+      const sortField = sort.slice(1).split('#')[0];
+      if (sortField.startsWith('splits:')) {
+        const splitType = sortField.slice(7);
+        if (baseParams[`split:${splitType}`] === undefined) {
+          baseParams[`split:${splitType}`] = 'ge0';
+        }
+      }
     }
   }
 
@@ -258,12 +277,11 @@ export default function Search({
       const initialContext = contextFromUrlParams(
         Object.fromEntries(searchParams),
       );
-      const presets = searchPresetsStorage.get();
-      if (presets.activeColumns) {
-        initialContext.extraFields = extraFieldsForColumns(
-          presets.activeColumns,
-        );
-      }
+      const activeColumns = getLocalSetting<SelectedColumn[]>(
+        'search-active-columns',
+        DEFAULT_SELECTED_COLUMNS,
+      );
+      initialContext.extraFields = extraFieldsForColumns(activeColumns);
       await loadChallenges(FetchAction.LOAD, initialContext);
       setContext(initialContext);
       setInitialFetch(false);
