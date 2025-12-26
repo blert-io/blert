@@ -56,3 +56,33 @@ export class UnauthorizedError extends BlertbankApiError {
     this.name = 'UnauthorizedError';
   }
 }
+
+/**
+ * Error thrown when an account has insufficient funds for a transaction.
+ */
+export class InsufficientFundsError extends BlertbankApiError {
+  constructor(message: string = 'Account has insufficient funds') {
+    super(422, 'INSUFFICIENT_FUNDS', message);
+    this.name = 'InsufficientFundsError';
+  }
+}
+
+/**
+ * Error thrown when a transaction amount is invalid (e.g., zero).
+ */
+export class InvalidAmountError extends BlertbankApiError {
+  constructor(message: string = 'Invalid transaction amount') {
+    super(400, 'INVALID_AMOUNT', message);
+    this.name = 'InvalidAmountError';
+  }
+}
+
+/**
+ * Error thrown when transaction entries don't sum to zero.
+ */
+export class UnbalancedTransactionError extends BlertbankApiError {
+  constructor(message: string = 'Transaction entries do not sum to zero') {
+    super(400, 'UNBALANCED_TRANSACTION', message);
+    this.name = 'UnbalancedTransactionError';
+  }
+}
