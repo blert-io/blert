@@ -2,12 +2,43 @@
 
 import { useCallback, useRef } from 'react';
 
-import { useSettingsContext } from '@/components/settings-provider';
+import {
+  SETTINGS_KEY_PREFIX,
+  useSettingsContext,
+} from '@/components/settings-provider';
 
 type UseSettingOptions<T> = {
   key: string;
   defaultValue: T;
 };
+
+/**
+ * Reads a setting value directly from localStorage.
+ *
+ * This is useful for reading settings outside of React components or before
+ * the settings context is available. However, it may return stale settings
+ * values.
+ *
+ * @param key The settings key.
+ * @param defaultValue The default value if the setting is not found.
+ * @returns The setting value or the default value.
+ */
+export function getLocalSetting<T>(key: string, defaultValue: T): T {
+  if (typeof window === 'undefined') {
+    return defaultValue;
+  }
+
+  try {
+    const saved = localStorage.getItem(SETTINGS_KEY_PREFIX + key);
+    if (saved !== null) {
+      return JSON.parse(saved) as T;
+    }
+  } catch {
+    // Ignore parse errors.
+  }
+
+  return defaultValue;
+}
 
 /**
  * Hook for persisting user settings.

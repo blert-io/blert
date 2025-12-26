@@ -15,7 +15,7 @@ import { setUserSetting, syncSettings, UserSettings } from '@/actions/settings';
 
 import { useToast } from './toast';
 
-const SETTINGS_KEY_PREFIX = 'blert-setting:';
+export const SETTINGS_KEY_PREFIX = 'blert-setting:';
 
 type SettingsContextValue = {
   settings: UserSettings;
