@@ -97,10 +97,18 @@ export function SelectableContainer({
         return;
       }
 
+      const isItem =
+        e.target instanceof HTMLDivElement &&
+        e.target.closest('[data-slot-item]') !== null;
+
+      // In item placement mode with an item selected, allow click-through
+      // to place the item, unless mousedown is on an existing item (which
+      // should start a drag) or shift is held (for forced selection).
       if (
         context.operationMode === OperationMode.ITEM_PLACEMENT &&
         context.selectedItem !== null &&
-        !e.shiftKey
+        !e.shiftKey &&
+        !isItem
       ) {
         return;
       }
@@ -114,10 +122,6 @@ export function SelectableContainer({
       if (coords === null) {
         return;
       }
-
-      const isItem =
-        e.target instanceof HTMLDivElement &&
-        e.target.closest('[data-slot-item]') !== null;
 
       // Store the mouse down position and grid coordinates.
       mouseDownPos.current = { x: e.clientX, y: e.clientY };
