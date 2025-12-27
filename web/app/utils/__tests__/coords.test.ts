@@ -1,4 +1,4 @@
-import { coordsEqual, inRect } from './coords';
+import { coordsEqual, inRect } from '../coords';
 
 describe('coordsEqual', () => {
   it('returns true for identical coordinates', () => {

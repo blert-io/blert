@@ -235,6 +235,15 @@ describe('AccountStatus', () => {
       );
     });
 
+    it('signup link does not include next parameter when on login or register page', () => {
+      mockUsePathname.mockReturnValue('/login');
+
+      render(<AccountStatus />);
+
+      const signupLink = screen.getByText('Sign Up').closest('a');
+      expect(signupLink).toHaveAttribute('href', '/register');
+    });
+
     it('login link includes search params in next parameter', () => {
       mockUsePathname.mockReturnValue('/raids/tob');
       mockUseSearchParams.mockReturnValue(
