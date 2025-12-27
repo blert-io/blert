@@ -200,6 +200,22 @@ export default class ServerManager {
     }
   }
 
+  /**
+   * Broadcasts a message to all connected clients.
+   * @param message The message to broadcast.
+   */
+  public broadcastMessage(message: ServerMessage): void {
+    const activeClients = this.connectionManager.clients();
+    logger.info('server_broadcast', {
+      messageType: message.getType(),
+      clientCount: activeClients.length,
+    });
+
+    for (const client of activeClients) {
+      client.sendMessage(message);
+    }
+  }
+
   private nextShutdownMessageInterval(): number {
     const timeUntilShutdown = this.shutdownTime!.getTime() - Date.now();
     for (const interval of ServerManager.SHUTDOWN_MESSAGE_INTERVALS) {

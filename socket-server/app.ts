@@ -1,3 +1,5 @@
+import { S3Client } from '@aws-sdk/client-s3';
+import { DataRepository } from '@blert/common';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express, { NextFunction, Request, Response } from 'express';
@@ -5,6 +7,7 @@ import { readFile } from 'fs/promises';
 import { RedisClientType, createClient } from 'redis';
 import { WebSocket, WebSocketServer } from 'ws';
 
+import { AttackRepository, ValidationError } from './attack-definitions';
 import ChallengeManager from './challenge-manager';
 import Client from './client';
 import ConnectionManager from './connection-manager';
@@ -38,9 +41,18 @@ type ShutdownRequest = {
   force?: boolean;
 };
 
-function setupHttpRoutes(app: express.Express, serverManager: ServerManager) {
+function setupHttpRoutes(
+  app: express.Express,
+  serverManager: ServerManager,
+  attackRepository: AttackRepository,
+) {
   app.get('/ping', (_req, res) => {
     res.send('pong');
+  });
+
+  // Public endpoint to get current attack definitions.
+  app.get('/attack-definitions', (_req, res) => {
+    res.json(attackRepository.getDefinitionsJson());
   });
 
   app.use('/admin/*', (req, res, next) => {
@@ -71,6 +83,32 @@ function setupHttpRoutes(app: express.Express, serverManager: ServerManager) {
     }
     res.json(serverManager.getStatus());
   });
+
+  // Admin endpoint to upload new attack definitions.
+  app.post(
+    '/admin/attack-definitions',
+    asyncHandler(async (req, res) => {
+      try {
+        await attackRepository.uploadDefinitions(req.body);
+        serverManager.broadcastMessage(
+          attackRepository.createDefinitionsMessage(),
+        );
+        const definitions = attackRepository.getDefinitionsJson();
+        res.json({ success: true, count: definitions.length });
+      } catch (e) {
+        if (e instanceof ValidationError) {
+          res.status(400).json({ error: e.message });
+          return;
+        }
+        logger.error('attack_definitions_upload_failed', {
+          error: e instanceof Error ? e.message : String(e),
+        });
+        res.status(500).json({
+          error: e instanceof Error ? e.message : 'Upload failed',
+        });
+      }
+    }),
+  );
 
   app.get(
     '/metrics',
@@ -137,6 +175,55 @@ async function loadValidRevisions(): Promise<Set<string>> {
   }
 
   return validPluginRevisions;
+}
+
+/**
+ * Initializes the attack definitions repository with the configured backend.
+ */
+async function initializeAttackRepository(): Promise<AttackRepository> {
+  let repository: DataRepository | null = null;
+
+  const repositoryUri = process.env.BLERT_ATTACK_REPOSITORY;
+  if (repositoryUri) {
+    let backend: DataRepository.Backend;
+
+    if (repositoryUri.startsWith('file://')) {
+      const root = repositoryUri.slice('file://'.length);
+      logger.info('attack_repository_backend', { backend: 'filesystem', root });
+      backend = new DataRepository.FilesystemBackend(root);
+    } else if (repositoryUri.startsWith('s3://')) {
+      const s3Client = new S3Client({
+        forcePathStyle: false,
+        region: process.env.BLERT_REGION,
+        endpoint: process.env.BLERT_ENDPOINT,
+        credentials: {
+          accessKeyId: process.env.BLERT_ACCESS_KEY_ID!,
+          secretAccessKey: process.env.BLERT_SECRET_ACCESS_KEY!,
+        },
+      });
+      const bucket = repositoryUri.slice('s3://'.length);
+      logger.info('attack_repository_backend', { backend: 's3', bucket });
+      backend = new DataRepository.S3Backend(s3Client, bucket);
+    } else {
+      logger.error('attack_repository_backend_invalid', {
+        backend: repositoryUri,
+      });
+      process.exit(1);
+    }
+
+    repository = new DataRepository(backend);
+  }
+
+  if (!process.env.BLERT_ATTACK_DEFINITIONS_FALLBACK) {
+    throw new Error('BLERT_ATTACK_DEFINITIONS_FALLBACK is not set');
+  }
+  const attackRepository = new AttackRepository(
+    repository,
+    process.env.BLERT_ATTACK_DEFINITIONS_FALLBACK,
+  );
+  await attackRepository.initialize();
+
+  return attackRepository;
 }
 
 async function main(): Promise<void> {
@@ -243,7 +330,12 @@ async function main(): Promise<void> {
     });
   });
 
-  const connectionManager = new ConnectionManager(redisClient);
+  const attackRepository = await initializeAttackRepository();
+
+  const connectionManager = new ConnectionManager(
+    redisClient,
+    attackRepository,
+  );
   const serverManager = new ServerManager(connectionManager);
 
   const [challengeManager, playerManager] =
@@ -260,7 +352,7 @@ async function main(): Promise<void> {
     }
   });
 
-  setupHttpRoutes(app, serverManager);
+  setupHttpRoutes(app, serverManager, attackRepository);
 
   wss.on('connection', (_ws: WebSocket, _req: Request, client: Client) => {
     connectionManager.addClient(client);
