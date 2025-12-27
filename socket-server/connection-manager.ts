@@ -6,6 +6,7 @@ import {
 import { ServerMessage } from '@blert/common/generated/server_message_pb';
 import { RedisClientType } from 'redis';
 
+import { AttackRepository } from './attack-definitions';
 import Client from './client';
 import logger from './log';
 import { recordActiveClients, recordClientRegistration } from './metrics';
@@ -15,11 +16,16 @@ export default class ConnectionManager {
   private activeClients: Map<number, Client>;
   private nextSessionId;
   private pubsubClient: RedisClientType | null;
+  private attackRepository: AttackRepository;
 
-  public constructor(redisClient: RedisClientType | null) {
+  public constructor(
+    redisClient: RedisClientType | null,
+    attackRepository: AttackRepository,
+  ) {
     this.activeClients = new Map();
     this.nextSessionId = 1;
     this.pubsubClient = null;
+    this.attackRepository = attackRepository;
 
     if (redisClient !== null) {
       this.pubsubClient = redisClient.duplicate() as RedisClientType;
@@ -121,6 +127,10 @@ export default class ConnectionManager {
     connectionResponse.setUser(user);
 
     client.sendMessage(connectionResponse);
+
+    // Send the latest attack definitions on connection.
+    client.sendMessage(this.attackRepository.createDefinitionsMessage());
+
     client.startGameStateRequestCycle();
   }
 
