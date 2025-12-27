@@ -116,11 +116,12 @@ function FormFields({ errors }: { errors: RegistrationErrors | null }) {
   );
 }
 
-export default function RegisterForm() {
+export default function RegisterForm({ redirectTo }: { redirectTo: string }) {
   const [errors, formAction] = useActionState(register, null);
 
   return (
     <form action={formAction} className={styles.form}>
+      <input type="hidden" name="redirectTo" value={redirectTo} />
       <FormFields errors={errors} />
       {errors?.overall && <p className={styles.error}>{errors.overall}</p>}
     </form>

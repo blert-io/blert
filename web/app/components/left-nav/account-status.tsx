@@ -36,14 +36,19 @@ export default function AccountStatus() {
   const router = useRouter();
   const session = useSession();
 
+  if (session.status === 'loading') {
+    return <AccountStatusSkeleton />;
+  }
+
   const currentUrl =
     searchParams.size > 0
       ? `${currentPath}?${searchParams.toString()}`
       : currentPath;
 
-  if (session.status === 'loading') {
-    return <AccountStatusSkeleton />;
-  }
+  const shouldRedirect = !['/', '/login', '/register'].includes(currentPath);
+  const redirectParams = shouldRedirect
+    ? `?next=${encodeURIComponent(currentUrl)}`
+    : '';
 
   return (
     <div className={styles.account}>
@@ -88,14 +93,14 @@ export default function AccountStatus() {
         <div className={styles.authActions}>
           <Link
             className={`${styles.authAction} ${styles.login}`}
-            href={`/login?next=${encodeURIComponent(currentUrl)}`}
+            href={`/login${redirectParams}`}
           >
             <i className="fa-solid fa-right-to-bracket" />
             <span>Log In</span>
           </Link>
           <Link
             className={`${styles.authAction} ${styles.signup}`}
-            href={`/register?next=${encodeURIComponent(currentUrl)}`}
+            href={`/register${redirectParams}`}
           >
             <i className="fa-solid fa-user-plus" />
             <span>Sign Up</span>

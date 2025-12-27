@@ -13,6 +13,7 @@ import { isRedirectError } from 'next/dist/client/components/redirect-error';
 import { z } from 'zod';
 
 import { auth, signIn } from '@/auth';
+import { validateRedirectUrl } from '@/utils/url';
 import { sql } from './db';
 
 const SALT_ROUNDS = 10;
@@ -128,7 +129,10 @@ export async function register(
     return { overall: 'An error occurred while creating your account' };
   }
 
-  await signIn('credentials', { username, password, redirectTo: '/' });
+  const redirectTo = validateRedirectUrl(
+    formData.get('redirectTo') as string | undefined,
+  );
+  await signIn('credentials', { username, password, redirectTo });
   return null;
 }
 

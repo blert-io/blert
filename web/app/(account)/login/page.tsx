@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 
 import { auth } from '@/auth';
 import { MAIN_LOGO } from '@/logo';
+import { validateRedirectUrl } from '@/utils/url';
 
 import LoginForm from './login-form';
 
@@ -17,10 +18,11 @@ type LoginProps = {
 
 export default async function Login({ searchParams }: LoginProps) {
   const { next } = await searchParams;
+  const redirectTo = validateRedirectUrl(next);
 
   const session = await auth();
   if (session !== null) {
-    redirect(next ?? '/');
+    redirect(redirectTo);
   }
 
   return (
@@ -36,9 +38,18 @@ export default async function Login({ searchParams }: LoginProps) {
       </div>
       <h1>Welcome back!</h1>
       <p className={styles.subtitle}>Sign in to continue to Blert</p>
-      <LoginForm redirectTo={next} />
+      <LoginForm redirectTo={redirectTo} />
       <div className={styles.altLink}>
-        New to Blert?<Link href="/register">Create an account</Link>
+        New to Blert?
+        <Link
+          href={
+            redirectTo === '/'
+              ? '/register'
+              : `/register?next=${encodeURIComponent(redirectTo)}`
+          }
+        >
+          Create an account
+        </Link>
       </div>
     </div>
   );
