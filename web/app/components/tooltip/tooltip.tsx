@@ -110,7 +110,7 @@ export function Tooltip(props: TooltipProps) {
           '0 8px 32px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
         backdropFilter: 'blur(8px)',
         maxWidth,
-        zIndex: 999,
+        zIndex: 1001,
       }}
     >
       {children}

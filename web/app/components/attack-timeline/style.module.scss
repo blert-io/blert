@@ -241,10 +241,6 @@
     }
   }
 
-  &.cellInteractable {
-    cursor: pointer;
-  }
-
   &.cellDead {
     background: rgba(var(--blert-red-base), 0.15);
     opacity: 0.25;

@@ -1,14 +1,12 @@
 'use client';
 
 import {
-  DataSource,
   Npc,
   NpcAttack,
   PlayerAttack,
   Skill,
   SkillLevel,
   getNpcDefinition,
-  npcFriendlyName,
 } from '@blert/common';
 import Image from 'next/image';
 import React, {
@@ -19,7 +17,6 @@ import React, {
   useRef,
 } from 'react';
 
-import Tooltip from '@/components/tooltip';
 import HorizontalScrollable from '@/components/horizontal-scrollable';
 import Item from '@/components/item';
 import { BlertMemes, MemeContext } from '@/(challenges)/raids/meme-context';
@@ -28,308 +25,43 @@ import {
   RoomActorState,
 } from '@/(challenges)/challenge-context-provider';
 import {
-  CustomPlayerState,
   PlayerState,
   PlayerStateMap,
   RoomNpcMap,
 } from '@/utils/boss-room-state';
 import { BoostType, maxBoostedLevel } from '@/utils/combat';
 import { normalizeItemId } from '@/utils/item';
-import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import {
   ATTACK_METADATA,
   CombatStyle,
   NPC_ATTACK_METADATA,
 } from './attack-metadata';
-import PlayerSkill from '../player-skill';
-import KeyPrayers from '../key-prayers';
+import { TimelineTooltip } from './timeline-tooltip';
 
 import styles from './style.module.scss';
+
+const TIMELINE_TOOLTIP_ID = 'attack-timeline-tooltip';
 
 const DEFAULT_CELL_SIZE = 30;
 const COLUMN_MARGIN = 5;
 
-const TIMELINE_TOOLTIP_ID = 'attack-timeline-tooltip';
+// Legend dimensions. The "reserved" values include padding/margins for layout
+// calculations, while the actual widths are the rendered element widths.
+const LEGEND_WIDTH_SMALL = 50;
+const LEGEND_WIDTH_SMALL_RESERVED = 75;
+const LEGEND_WIDTH = 134;
+const LEGEND_WIDTH_RESERVED = 140;
 
-function TimelineTooltipRenderer({
-  activeAnchor,
-}: {
-  activeAnchor: HTMLElement | null;
-}) {
-  const { setSelectedPlayer } = useContext(ActorContext);
+// Scrolling thresholds for auto-scroll behavior.
+const SCROLL_THRESHOLD = 525;
+const SCROLL_OFFSET = 380;
 
-  if (!activeAnchor) {
-    return null;
-  }
-  if (activeAnchor.dataset.tooltipType === 'npc') {
-    const npcName = activeAnchor.dataset.tooltipNpcName;
-    const npcAttack = parseInt(activeAnchor.dataset.tooltipNpcAttack ?? '0');
-    const npcTarget = activeAnchor.dataset.tooltipNpcTarget;
-
-    const meta =
-      NPC_ATTACK_METADATA[npcAttack] ?? NPC_ATTACK_METADATA[NpcAttack.UNKNOWN];
-
-    const npcButton = <button className={styles.npc}>{npcName}</button>;
-    const target = npcTarget ? (
-      <button onClick={() => setSelectedPlayer(npcTarget)}>{npcTarget}</button>
-    ) : null;
-
-    return (
-      <div className={styles.tooltip}>
-        <div className={styles.npcTooltip}>
-          {meta.description(npcButton, target)}
-        </div>
-      </div>
-    );
-  }
-
-  const username = activeAnchor.dataset.tooltipUsername;
-  const tick = activeAnchor.dataset.tooltipTick;
-  const customState = JSON.parse(
-    activeAnchor.dataset.tooltipCustomState ?? '[]',
-  ) as CustomPlayerState[];
-
-  if (!username || !tick) {
-    return null;
-  }
-
-  const sections: React.ReactNode[] = [];
-
-  const headerSection = (
-    <div className={styles.tooltipHeader} key="header">
-      <button
-        className={styles.playerName}
-        onClick={() => setSelectedPlayer(username)}
-      >
-        {username}
-      </button>
-      <span className={styles.tickInfo}>Tick {tick}</span>
-      <span className={styles.timeInfo}>
-        {ticksToFormattedSeconds(parseInt(tick))}
-      </span>
-    </div>
-  );
-  sections.push(headerSection);
-
-  const attackType = activeAnchor.dataset.tooltipAttack;
-  if (attackType) {
-    const attack = parseInt(attackType) as PlayerAttack;
-    const hitpoints = activeAnchor.dataset.tooltipTargetHp;
-    const distance = activeAnchor.dataset.tooltipDistance;
-    const targetName = activeAnchor.dataset.tooltipTargetName;
-
-    const meta =
-      ATTACK_METADATA[attack] ?? ATTACK_METADATA[PlayerAttack.UNKNOWN];
-
-    const attackSection = (
-      <div className={styles.tooltipSection} key="attack">
-        <div className={styles.sectionHeader}>
-          <i className="fas fa-bolt" />
-          <span>Attack</span>
-        </div>
-        <div className={styles.attackInfo}>
-          <span className={styles.attackVerb}>{meta.verb}</span>
-          <button className={styles.npc}>
-            {targetName}
-            {hitpoints && (
-              <span className={styles.hitpoints}>
-                <i className="far fa-heart" />
-                {hitpoints}%
-              </span>
-            )}
-          </button>
-          {meta.ranged && (
-            <span className={styles.distanceInfo}>
-              from {distance} tile{distance === '1' ? '' : 's'} away
-            </span>
-          )}
-        </div>
-      </div>
-    );
-    sections.push(attackSection);
-  }
-
-  const rawStats = activeAnchor.dataset.tooltipStats;
-  const prayerSet = activeAnchor.dataset.tooltipPrayerSet;
-  if (rawStats) {
-    const [attack, strength, ranged, magic] = (
-      JSON.parse(rawStats) as number[]
-    ).map((s: number) => (s !== undefined ? SkillLevel.fromRaw(s) : undefined));
-
-    const combatThresholds = (boost: BoostType, level: number) => ({
-      high: maxBoostedLevel(boost, level),
-      low: level,
-    });
-
-    const stats = [];
-
-    const attackTypeParsed = activeAnchor.dataset.tooltipAttack
-      ? (parseInt(activeAnchor.dataset.tooltipAttack) as PlayerAttack)
-      : null;
-    const meta = attackTypeParsed
-      ? (ATTACK_METADATA[attackTypeParsed] ??
-        ATTACK_METADATA[PlayerAttack.UNKNOWN])
-      : null;
-    const emphasizedClass = (style: CombatStyle) =>
-      meta?.style === style
-        ? `${styles.combatStat} ${styles.emphasized}`
-        : styles.combatStat;
-
-    if (attack !== undefined) {
-      stats.push(
-        <PlayerSkill
-          className={emphasizedClass(CombatStyle.MELEE)}
-          key="attack"
-          skill={Skill.ATTACK}
-          level={attack}
-          thresholds={combatThresholds(
-            BoostType.SUPER_COMBAT,
-            attack.getBase(),
-          )}
-        />,
-      );
-    }
-    if (strength !== undefined) {
-      stats.push(
-        <PlayerSkill
-          className={emphasizedClass(CombatStyle.MELEE)}
-          key="strength"
-          skill={Skill.STRENGTH}
-          level={strength}
-          thresholds={combatThresholds(
-            BoostType.SUPER_COMBAT,
-            strength.getBase(),
-          )}
-        />,
-      );
-    }
-
-    if (ranged !== undefined) {
-      stats.push(
-        <PlayerSkill
-          className={emphasizedClass(CombatStyle.RANGED)}
-          key="ranged"
-          skill={Skill.RANGED}
-          level={ranged}
-          thresholds={combatThresholds(
-            BoostType.RANGING_POTION,
-            ranged.getBase(),
-          )}
-        />,
-      );
-    }
-
-    if (magic !== undefined) {
-      stats.push(
-        <PlayerSkill
-          className={emphasizedClass(CombatStyle.MAGIC)}
-          key="magic"
-          skill={Skill.MAGIC}
-          level={magic}
-          thresholds={combatThresholds(
-            BoostType.SATURATED_HEART,
-            magic.getBase(),
-          )}
-        />,
-      );
-    }
-
-    if (stats.length > 0) {
-      const statsSection = (
-        <div className={styles.tooltipSection} key="stats">
-          <div className={styles.sectionHeader}>
-            <i className="fas fa-chart-bar" />
-            <span>Combat Stats</span>
-          </div>
-          <div className={styles.statsGrid}>{stats}</div>
-          <KeyPrayers
-            combatOnly
-            prayerSet={parseInt(prayerSet ?? '0')}
-            source={DataSource.PRIMARY}
-          />
-        </div>
-      );
-      sections.push(statsSection);
-    }
-  }
-
-  if (activeAnchor.dataset.tooltipDeathState) {
-    const deathSection = (
-      <div className={styles.tooltipSection} key="death">
-        <div className={styles.sectionHeader}>
-          <i className="fas fa-skull" />
-          <span>Death</span>
-        </div>
-        <div className={styles.deathInfo}>
-          {activeAnchor.dataset.tooltipDeathState === 'tick'
-            ? 'Player died this tick'
-            : 'Player is dead'}
-        </div>
-      </div>
-    );
-    sections.push(deathSection);
-  }
-
-  if (customState.length > 0) {
-    const customStateSection = (
-      <div className={styles.tooltipSection} key="custom-state">
-        <div className={styles.sectionHeader}>
-          <i className="fas fa-info-circle" />
-          <span>Other</span>
-        </div>
-        <div className={styles.customStateList}>
-          {customState.map((cs: CustomPlayerState, i: number) => (
-            <div key={i} className={styles.customStateItem}>
-              <div className={styles.customStateIcon}>
-                {cs.icon ? (
-                  <Image
-                    src={cs.icon}
-                    alt={cs.label}
-                    height={16}
-                    width={16}
-                    style={{ objectFit: 'contain' }}
-                  />
-                ) : (
-                  <i className="fas fa-star" />
-                )}
-              </div>
-              <span className={styles.customStateLabel}>
-                {cs.fullText ?? cs.label}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-    sections.push(customStateSection);
-  }
-
-  if (sections.length === 1) {
-    // Only the header exists.
-    sections.push(
-      <div
-        className={`${styles.tooltipSection} ${styles.noContent}`}
-        key="no-content"
-      >
-        Nothing interesting happened.
-      </div>,
-    );
-  }
-
-  return (
-    <div className={styles.tooltip}>
-      {sections.map((section, index) => (
-        <React.Fragment key={index}>
-          {section}
-          {index < sections.length - 1 && (
-            <div className={styles.sectionDivider} />
-          )}
-        </React.Fragment>
-      ))}
-    </div>
-  );
-}
+// Active column indicator positioning.
+const INDICATOR_TOP_OFFSET = 67;
+const INDICATOR_LEFT_PADDING = 9;
+const INDICATOR_ROW_GAP = 23.5;
+const INDICATOR_HEIGHT_PADDING = 40;
 
 function npcAttackImage(attack: NpcAttack, size: number) {
   const meta =
@@ -582,70 +314,6 @@ type CellInfo = {
   backgroundColor?: string;
 };
 
-function buildPlayerTooltip(
-  context: TimelineContext,
-  state: PlayerState,
-  imageSize: number,
-): {
-  playerTooltip: Record<string, string>;
-  cellImage: React.ReactNode;
-} {
-  const cellImage = makeCellImage(
-    state,
-    imageSize,
-    context.memes,
-    context.normalizeItems,
-  );
-
-  const playerTooltip: Record<string, string> = {
-    'data-tooltip-username': state.player.name,
-    'data-tooltip-tick': state.tick.toString(),
-    'data-tooltip-custom-state': JSON.stringify(state.customState),
-  };
-
-  if (state.diedThisTick) {
-    playerTooltip['data-tooltip-death-state'] = 'tick';
-  } else if (state.isDead) {
-    playerTooltip['data-tooltip-death-state'] = 'dead';
-  }
-
-  const attack = state.attack;
-  if (attack !== undefined) {
-    playerTooltip['data-tooltip-attack'] = attack.type.toString();
-    playerTooltip['data-tooltip-distance'] = attack.distanceToTarget.toString();
-
-    const maybeTarget = attack.target;
-    if (maybeTarget !== undefined) {
-      const roomNpc = context.npcs.get(maybeTarget.roomId);
-      if (roomNpc !== undefined) {
-        playerTooltip['data-tooltip-target-name'] = npcFriendlyName(
-          roomNpc,
-          context.npcs,
-        );
-        const hitpoints = roomNpc.stateByTick[state.tick]?.hitpoints;
-        if (hitpoints !== undefined) {
-          playerTooltip['data-tooltip-target-hp'] = hitpoints
-            .percentage()
-            .toFixed(2);
-        }
-      }
-    }
-  }
-
-  if (state.player.source === DataSource.PRIMARY) {
-    playerTooltip['data-tooltip-stats'] = JSON.stringify([
-      state.skills[Skill.ATTACK]?.toRaw(),
-      state.skills[Skill.STRENGTH]?.toRaw(),
-      state.skills[Skill.RANGED]?.toRaw(),
-      state.skills[Skill.MAGIC]?.toRaw(),
-    ]);
-    playerTooltip['data-tooltip-prayer-set'] =
-      state.player.prayerSet.toString();
-  }
-
-  return { playerTooltip, cellImage };
-}
-
 const buildTickCell = (
   context: TimelineContext,
   actorIndex: number,
@@ -696,36 +364,24 @@ const buildTickCell = (
     );
   }
 
-  let tooltip: Record<string, string> | undefined = undefined;
-
   if (npcState !== null) {
     let cellImage;
     let className = styles.cell;
 
     if (npcState.attack !== null) {
       cellImage = npcAttackImage(npcState.attack, imageSize);
-      const npcName = getNpcDefinition(npcState.npcId)?.fullName ?? 'Unknown';
-
-      tooltip = {
-        'data-tooltip-type': 'npc',
-        'data-tooltip-npc-name': npcName,
-        'data-tooltip-npc-attack': npcState.attack.toString(),
-      };
-
-      if (npcState.target !== null) {
-        tooltip['data-tooltip-npc-target'] = npcState.target;
-      }
-
-      className += ` ${styles.npcCooldown} ${styles.cellInteractable}`;
+      className += ` ${styles.npcCooldown}`;
     }
 
     return (
       <div
         className={className}
         key={`npc-${npcState.roomId}-${npcState.tick}`}
-        data-tooltip-id={TIMELINE_TOOLTIP_ID}
         style={style}
-        {...tooltip}
+        data-tooltip-id={TIMELINE_TOOLTIP_ID}
+        data-tooltip-type="npc"
+        data-tooltip-room-id={npcState.roomId}
+        data-tooltip-tick={npcState.tick}
       >
         {cellImage}
         <span
@@ -746,10 +402,11 @@ const buildTickCell = (
     const diedThisTick = playerState.diedThisTick;
     const playerIsDead = playerState.isDead;
 
-    const { playerTooltip, cellImage } = buildPlayerTooltip(
-      context,
+    const cellImage = makeCellImage(
       playerState,
       imageSize,
+      context.memes,
+      context.normalizeItems,
     );
 
     if (playerState.attack !== undefined) {
@@ -796,9 +453,6 @@ const buildTickCell = (
     }
 
     let className = styles.cell;
-    if (tooltip !== undefined) {
-      className += ` ${styles.cellInteractable}`;
-    }
     if (
       playerIsOffCooldown ||
       diedThisTick ||
@@ -811,16 +465,15 @@ const buildTickCell = (
       style.backgroundColor = undefined;
     }
 
-    if (playerTooltip !== undefined) {
-      playerTooltip['data-tooltip-id'] = TIMELINE_TOOLTIP_ID;
-    }
-
     return (
       <div
         className={className}
         style={style}
         key={`player-cell-${username}-${playerState.tick}`}
-        {...playerTooltip}
+        data-tooltip-id={TIMELINE_TOOLTIP_ID}
+        data-tooltip-type="player"
+        data-tooltip-username={username}
+        data-tooltip-tick={playerState.tick}
       >
         {cellImage}
       </div>
@@ -1110,11 +763,11 @@ export function AttackTimeline(props: AttackTimelineProps) {
       attackTimelineRef.current !== null &&
       currentTickColumnRef.current !== null
     ) {
-      if (currentTick * totalColumnWidth < 525) {
+      if (currentTick * totalColumnWidth < SCROLL_THRESHOLD) {
         attackTimelineRef.current.scrollLeft = 0;
       } else {
         attackTimelineRef.current.scrollLeft =
-          (currentTick - 1) * totalColumnWidth - 380;
+          (currentTick - 1) * totalColumnWidth - SCROLL_OFFSET;
       }
     }
   }, [shouldScroll, currentTick, totalColumnWidth]);
@@ -1142,7 +795,10 @@ export function AttackTimeline(props: AttackTimelineProps) {
   let numRows = 1;
 
   if (wrapWidth !== undefined) {
-    const timelineWidth = wrapWidth - (props.smallLegend ? 75 : 140);
+    const legendReserved = props.smallLegend
+      ? LEGEND_WIDTH_SMALL_RESERVED
+      : LEGEND_WIDTH_RESERVED;
+    const timelineWidth = wrapWidth - legendReserved;
     ticksPerRow = Math.floor(timelineWidth / (cellSize + COLUMN_MARGIN));
     numRows = Math.ceil(timelineTicks / ticksPerRow);
   }
@@ -1221,16 +877,15 @@ export function AttackTimeline(props: AttackTimelineProps) {
   const row = Math.floor((currentTick - 1) / ticksPerRow);
   const tickOnRow = (currentTick - 1) % ticksPerRow;
   const rowHeight = legendElements.length * totalColumnWidth;
-  const ACTIVE_INDICATOR_OFFSET = 67;
 
   const activeColumnIndicator = (
     <div
       style={{
-        left: totalColumnWidth * tickOnRow + 9,
+        left: totalColumnWidth * tickOnRow + INDICATOR_LEFT_PADDING,
         top:
-          ACTIVE_INDICATOR_OFFSET +
-          row * (rowHeight + ACTIVE_INDICATOR_OFFSET + 23.5),
-        height: rowHeight + 40,
+          INDICATOR_TOP_OFFSET +
+          row * (rowHeight + INDICATOR_TOP_OFFSET + INDICATOR_ROW_GAP),
+        height: rowHeight + INDICATOR_HEIGHT_PADDING,
         width: totalColumnWidth + 1,
       }}
       className={styles.attackTimeline__ColumnActiveIndicator}
@@ -1243,7 +898,7 @@ export function AttackTimeline(props: AttackTimelineProps) {
     <div className={styles.attackTimeline__Inner}>
       <div
         className={styles.attackTimeline__Legend}
-        style={{ width: props.smallLegend ? 50 : 134 }}
+        style={{ width: props.smallLegend ? LEGEND_WIDTH_SMALL : LEGEND_WIDTH }}
       >
         {Array.from({ length: numRows }).map((_, i) => (
           <div className={styles.legendRow} key={i}>
@@ -1259,10 +914,10 @@ export function AttackTimeline(props: AttackTimelineProps) {
         {deferredColumnIndicator}
         {memoizedBaseTimeline}
       </HorizontalScrollable>
-      <Tooltip
-        clickable
-        tooltipId={TIMELINE_TOOLTIP_ID}
-        render={TimelineTooltipRenderer}
+      <TimelineTooltip
+        id={TIMELINE_TOOLTIP_ID}
+        playerState={playerState}
+        npcs={npcs}
       />
     </div>
   );
