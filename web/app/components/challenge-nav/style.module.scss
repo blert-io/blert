@@ -2,8 +2,8 @@
 
 .nav {
   width: calc(100vw - var(--left-nav-width, $LEFT_NAV_WIDTH));
-  background: var(--nav-bg);
-  border-bottom: 1px solid var(--nav-bg-lightened);
+  background: var(--blert-surface-dark);
+  border-bottom: 1px solid var(--blert-surface-light);
   padding: 0 20px;
   position: fixed;
   top: 0;
