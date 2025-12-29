@@ -418,7 +418,15 @@ function CameraRig({
       mapControls.reset();
       mapControls.enableDamping = wasDampingEnabled;
     });
-  }, [camera, initialX, initialZ, faceSouth, initialZoom, isFullscreen, controlsRef]);
+  }, [
+    camera,
+    initialX,
+    initialZ,
+    faceSouth,
+    initialZoom,
+    isFullscreen,
+    controlsRef,
+  ]);
 
   useEffect(() => {
     if (controls && !isInitialized.current) {

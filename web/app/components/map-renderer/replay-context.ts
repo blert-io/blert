@@ -23,7 +23,6 @@ type ReplayContextType = {
   isFullscreen: boolean;
 };
 
-
 export const ReplayContext = createContext<ReplayContextType>({
   config: DEFAULT_REPLAY_CONFIG,
   updateConfig: () => {

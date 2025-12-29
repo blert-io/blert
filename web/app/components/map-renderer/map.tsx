@@ -34,7 +34,10 @@ export type MapProps = {
   isFullscreen?: boolean;
 };
 
-function parseDimension(value: string | number | undefined, fallback: number): number {
+function parseDimension(
+  value: string | number | undefined,
+  fallback: number,
+): number {
   if (typeof value === 'number') {
     return value;
   }

@@ -45,7 +45,8 @@ export function AdaptiveZoomController({
   controlsRef: React.RefObject<MapControlsImpl | null>;
 }) {
   const { camera } = useThree();
-  const { mapDefinition, referenceWidth, referenceHeight, isFullscreen } = useReplayContext();
+  const { mapDefinition, referenceWidth, referenceHeight, isFullscreen } =
+    useReplayContext();
   const containerRef = useRef<HTMLElement | null>(null);
   const baseZoomValue = mapDefinition.initialZoom ?? 20;
 
@@ -71,7 +72,11 @@ export function AdaptiveZoomController({
     containerRef.current = container;
 
     const updateZoom = () => {
-      if (!containerRef.current || !camera || camera.type !== 'OrthographicCamera') {
+      if (
+        !containerRef.current ||
+        !camera ||
+        camera.type !== 'OrthographicCamera'
+      ) {
         return;
       }
 

@@ -16,7 +16,8 @@ import NavPlayerSearch from './nav-player-search';
 import styles from './styles.module.scss';
 
 export function LeftNav() {
-  const { sidebarCollapsed: collapsed, setSidebarCollapsed: setCollapsed } = useContext(NavbarContext);
+  const { sidebarCollapsed: collapsed, setSidebarCollapsed: setCollapsed } =
+    useContext(NavbarContext);
 
   return (
     <LeftNavWrapper collapsed={collapsed}>
