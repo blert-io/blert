@@ -9,7 +9,9 @@
   top: 0;
   left: var(--left-nav-width, $LEFT_NAV_WIDTH);
   z-index: 25;
-  transition: left 0.3s ease, width 0.3s ease;
+  transition:
+    left 0.3s ease,
+    width 0.3s ease;
 }
 
 .navItems {

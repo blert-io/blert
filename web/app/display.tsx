@@ -79,7 +79,14 @@ export function DisplayWrapper({ children }: { children: React.ReactNode }) {
 
   return (
     <DisplayContext.Provider value={display}>
-      <NavbarContext.Provider value={{ sidebarOpen, setSidebarOpen, sidebarCollapsed, setSidebarCollapsed }}>
+      <NavbarContext.Provider
+        value={{
+          sidebarOpen,
+          setSidebarOpen,
+          sidebarCollapsed,
+          setSidebarCollapsed,
+        }}
+      >
         {children}
       </NavbarContext.Provider>
     </DisplayContext.Provider>

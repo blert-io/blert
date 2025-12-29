@@ -11,7 +11,9 @@
   width: calc(100% - var(--left-nav-width, $LEFT_NAV_WIDTH));
   padding: 12px 20px;
   z-index: 49;
-  transition: left 0.3s ease, width 0.3s ease;
+  transition:
+    left 0.3s ease,
+    width 0.3s ease;
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     left: 0;
