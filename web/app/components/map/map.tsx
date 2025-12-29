@@ -177,7 +177,7 @@ export default function Map({
   return (
     <div
       className={styles.map}
-      // style={{ width: widthPx }}
+      style={{ width: widthPx }}
       onClick={() => setSelectedTile(null)}
     >
       {tiles.map((row) => (
