@@ -73,9 +73,9 @@
     width: 32px;
     height: 32px;
     border-radius: 6px;
-    border: 1px solid var(--font-color-nav-divider);
-    background: var(--nav-bg);
-    color: var(--font-color-nav);
+    border: 1px solid var(--blert-divider-color);
+    background: var(--blert-surface-dark);
+    color: var(--blert-font-color-secondary);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -84,9 +84,9 @@
     z-index: 10;
 
     &:hover {
-      background: var(--nav-bg-lightened);
-      border-color: var(--blert-button);
-      color: var(--blert-button);
+      background: var(--blert-surface-light);
+      border-color: var(--blert-purple);
+      color: var(--blert-purple);
     }
 
     i {
