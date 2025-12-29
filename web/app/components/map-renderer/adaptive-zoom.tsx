@@ -53,15 +53,13 @@ export function AdaptiveZoomController({
   const refHeight = referenceHeight ?? 604;
 
   useEffect(() => {
-    // Skip adaptive zoom in fullscreen mode - use base zoom instead
+    // In fullscreen mode, set zoom0 to base zoom initially and skip adaptive zoom
+    // The reset function will handle using base zoom on reset
     if (isFullscreen) {
-      if (camera && camera.type === 'OrthographicCamera') {
-        camera.zoom = baseZoomValue;
-        camera.updateProjectionMatrix();
-      }
       if (controlsRef.current) {
         controlsRef.current.zoom0 = baseZoomValue;
       }
+      // Don't run adaptive zoom logic in fullscreen
       return;
     }
 

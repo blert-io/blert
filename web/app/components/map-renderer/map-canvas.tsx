@@ -368,7 +368,7 @@ function CameraRig({
   initialZ: number;
   initialZoom: number;
 }) {
-  const { onResetAvailable } = useReplayContext();
+  const { onResetAvailable, isFullscreen } = useReplayContext();
   const { camera, controls } = useThree();
   const isInitialized = useRef(false);
 
@@ -398,23 +398,27 @@ function CameraRig({
       mapControls.position0.set(initialX, 100, initialZ);
 
       if (camera.type === 'OrthographicCamera') {
-        // Ensure zoom0 is set to the current adapted zoom
-        // AdaptiveZoomController sets zoom0, but we ensure it's current here
-        // This ensures the reset uses the properly adapted zoom, not the base zoom
-        const currentAdaptedZoom = mapControls.zoom0 || camera.zoom;
-        if (currentAdaptedZoom && currentAdaptedZoom !== initialZoom) {
-          // Use the adapted zoom if it's been set
-          mapControls.zoom0 = currentAdaptedZoom;
+        if (isFullscreen) {
+          // In fullscreen mode, always reset to base zoom (ignore any manual zoom adjustments)
+          mapControls.zoom0 = initialZoom;
         } else {
-          // Fallback to current camera zoom or initial zoom
-          mapControls.zoom0 = camera.zoom || initialZoom;
+          // In normal mode, use the adapted zoom set by AdaptiveZoomController
+          // If zoom0 hasn't been set by AdaptiveZoomController, use current camera zoom or initial zoom
+          const currentAdaptedZoom = mapControls.zoom0 || camera.zoom;
+          if (currentAdaptedZoom && currentAdaptedZoom !== initialZoom) {
+            // Use the adapted zoom if it's been set
+            mapControls.zoom0 = currentAdaptedZoom;
+          } else {
+            // Fallback to current camera zoom or initial zoom
+            mapControls.zoom0 = camera.zoom || initialZoom;
+          }
         }
       }
 
       mapControls.reset();
       mapControls.enableDamping = wasDampingEnabled;
     });
-  }, [camera, initialX, initialZ, faceSouth, controlsRef]);
+  }, [camera, initialX, initialZ, faceSouth, initialZoom, isFullscreen, controlsRef]);
 
   useEffect(() => {
     if (controls && !isInitialized.current) {
