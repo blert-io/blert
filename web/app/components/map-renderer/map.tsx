@@ -29,7 +29,23 @@ export type MapProps = {
 
   /** Container height. Defaults to 100%. */
   height?: string | number;
+
+  /** Whether the map is in fullscreen mode. */
+  isFullscreen?: boolean;
 };
+
+function parseDimension(value: string | number | undefined, fallback: number): number {
+  if (typeof value === 'number') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const match = value.match(/^(\d+(?:\.\d+)?)/);
+    if (match) {
+      return parseFloat(match[1]);
+    }
+  }
+  return fallback;
+}
 
 export default function Map({
   children,
@@ -39,9 +55,13 @@ export default function Map({
   mapDefinition,
   width = '100%',
   height = '100%',
+  isFullscreen = false,
 }: MapProps) {
   const replayTime = useRef(0);
   const [cameraResetFn, setCameraResetFn] = useState<(() => void) | null>(null);
+
+  const referenceWidth = parseDimension(width, 704);
+  const referenceHeight = parseDimension(height, 604);
 
   const contextValue = useMemo(
     () => ({
@@ -61,6 +81,9 @@ export default function Map({
       onResetAvailable: (resetFn: () => void) => {
         setCameraResetFn(() => resetFn);
       },
+      referenceWidth,
+      referenceHeight,
+      isFullscreen,
     }),
     [
       config,
@@ -70,11 +93,17 @@ export default function Map({
       replayTime,
       cameraResetFn,
       setCameraResetFn,
+      referenceWidth,
+      referenceHeight,
+      isFullscreen,
     ],
   );
 
   return (
-    <div className={styles.map} style={{ width, height }}>
+    <div
+      className={`${styles.map} ${isFullscreen ? styles.fullscreen : ''}`}
+      style={{ width, height }}
+    >
       <ReplayContext.Provider value={contextValue}>
         <EntityPositionProvider>{children}</EntityPositionProvider>
       </ReplayContext.Provider>

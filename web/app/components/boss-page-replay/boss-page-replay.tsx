@@ -102,6 +102,7 @@ export function BossPageReplay({
       config={config}
       mapDefinition={mapDef}
       height={fullscreen ? '100vh' : height}
+      isFullscreen={fullscreen}
       onConfigChange={setConfig}
       playing={playing}
       width={fullscreen ? '100vw' : width}

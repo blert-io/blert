@@ -4,6 +4,12 @@
   max-width: 500px !important;
   max-height: 400px !important;
 
+  &.fullscreen {
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+  }
+
   .mapCanvas {
     position: relative;
     width: 100%;

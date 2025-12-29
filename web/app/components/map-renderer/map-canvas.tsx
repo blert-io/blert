@@ -22,6 +22,7 @@ import Object from './object';
 import Player from './player';
 import { useReplayContext } from './replay-context';
 import StackIndicator from './stack-indicator';
+import { AdaptiveZoomController } from './adaptive-zoom';
 import TileHoverOverlay from './tile-hover-overlay';
 import {
   ActorInteractionState,
@@ -397,13 +398,23 @@ function CameraRig({
       mapControls.position0.set(initialX, 100, initialZ);
 
       if (camera.type === 'OrthographicCamera') {
-        mapControls.zoom0 = initialZoom;
+        // Ensure zoom0 is set to the current adapted zoom
+        // AdaptiveZoomController sets zoom0, but we ensure it's current here
+        // This ensures the reset uses the properly adapted zoom, not the base zoom
+        const currentAdaptedZoom = mapControls.zoom0 || camera.zoom;
+        if (currentAdaptedZoom && currentAdaptedZoom !== initialZoom) {
+          // Use the adapted zoom if it's been set
+          mapControls.zoom0 = currentAdaptedZoom;
+        } else {
+          // Fallback to current camera zoom or initial zoom
+          mapControls.zoom0 = camera.zoom || initialZoom;
+        }
       }
 
       mapControls.reset();
       mapControls.enableDamping = wasDampingEnabled;
     });
-  }, [camera, initialX, initialZ, faceSouth, initialZoom, controlsRef]);
+  }, [camera, initialX, initialZ, faceSouth, controlsRef]);
 
   useEffect(() => {
     if (controls && !isInitialized.current) {
@@ -551,6 +562,8 @@ export default function MapCanvas({
             RIGHT: THREE.MOUSE.PAN,
           }}
         />
+
+        <AdaptiveZoomController controlsRef={mapControlsRef} />
 
         <CameraRig
           controlsRef={mapControlsRef}
