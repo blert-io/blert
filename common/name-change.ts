@@ -4,6 +4,7 @@ export enum NameChangeStatus {
   OLD_STILL_IN_USE,
   NEW_DOES_NOT_EXIST,
   DECREASED_EXPERIENCE,
+  DEFERRED,
 }
 
 export type NameChange = {

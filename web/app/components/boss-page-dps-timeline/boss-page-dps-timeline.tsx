@@ -50,20 +50,20 @@ export function BossPageDPSTimeline(props: BossPageDPSTimelineProps) {
           </defs>
           <CartesianGrid
             strokeDasharray="3 3"
-            stroke="var(--nav-bg-lightened)"
+            stroke="var(--blert-surface-light)"
             opacity={0.9}
           />
           <XAxis
             dataKey="tick"
-            stroke="var(--font-color-nav)"
+            stroke="var(--blert-font-color-secondary)"
             tickLine={false}
-            axisLine={{ stroke: 'var(--nav-bg-lightened)' }}
+            axisLine={{ stroke: 'var(--blert-surface-light)' }}
           />
           <YAxis
             unit="%"
-            stroke="var(--font-color-nav)"
+            stroke="var(--blert-font-color-secondary)"
             tickLine={false}
-            axisLine={{ stroke: 'var(--nav-bg-lightened)' }}
+            axisLine={{ stroke: 'var(--blert-surface-light)' }}
           />
           <Area
             type="monotone"
@@ -74,17 +74,20 @@ export function BossPageDPSTimeline(props: BossPageDPSTimelineProps) {
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: 'var(--nav-bg)',
-              border: '1px solid var(--nav-bg-lightened)',
+              backgroundColor: 'var(--blert-surface-dark)',
+              border: '1px solid var(--blert-surface-light)',
               borderRadius: '8px',
-              color: 'var(--blert-text-color)',
+              color: 'var(--blert-font-color-primary)',
               padding: '8px',
             }}
             formatter={(value: number) => {
               return [`${value.toFixed(2)}%`, 'Health'];
             }}
             labelFormatter={(value: number) => `Tick: ${value}`}
-            cursor={{ stroke: 'var(--font-color-nav-divider)', strokeWidth: 1 }}
+            cursor={{
+              stroke: 'var(--blert-divider-color)',
+              strokeWidth: 1,
+            }}
           />
           <ReferenceLine
             x={props.currentTick}

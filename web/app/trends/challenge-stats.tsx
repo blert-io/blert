@@ -229,7 +229,7 @@ export default function ChallengeStats({
                   <XAxis
                     dataKey="name"
                     tick={{
-                      fill: 'var(--blert-text-color)',
+                      fill: 'var(--blert-font-color-primary)',
                       fontSize: display.isCompact() ? 12 : 14,
                     }}
                     axisLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
@@ -238,7 +238,7 @@ export default function ChallengeStats({
                   />
                   <YAxis
                     tick={{
-                      fill: 'var(--blert-text-color)',
+                      fill: 'var(--blert-font-color-primary)',
                       fontSize: 12,
                     }}
                     axisLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
@@ -246,10 +246,10 @@ export default function ChallengeStats({
                   />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: 'var(--panel-bg)',
-                      border: '1px solid var(--nav-bg-lightened)',
+                      backgroundColor: 'var(--blert-panel-background-color)',
+                      border: '1px solid var(--blert-surface-light)',
                       borderRadius: '6px',
-                      color: 'var(--blert-text-color)',
+                      color: 'var(--blert-font-color-primary)',
                       boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
                     }}
                     cursor={{ fill: 'rgba(139, 92, 246, 0.1)' }}
@@ -267,7 +267,7 @@ export default function ChallengeStats({
                         <span
                           style={{
                             fontWeight: 600,
-                            color: 'var(--font-color-nav)',
+                            color: 'var(--blert-font-color-secondary)',
                           }}
                         >
                           {label}
@@ -277,7 +277,7 @@ export default function ChallengeStats({
                     formatter={(value: number) => [
                       <span
                         key="deaths"
-                        style={{ color: 'var(--blert-text-color)' }}
+                        style={{ color: 'var(--blert-font-color-primary)' }}
                       >
                         {value.toLocaleString()} death{value === 1 ? '' : 's'}
                       </span>,

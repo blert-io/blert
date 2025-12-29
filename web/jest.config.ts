@@ -3,14 +3,13 @@
  * https://jestjs.io/docs/configuration
  */
 
-import type { Config } from 'jest';
 import nextJest from 'next/jest.js';
 
 const createJestConfig = nextJest({
   dir: '.',
 });
 
-const config: Config = {
+const config = {
   // All imported modules in your tests should be mocked automatically
   // automock: false,
 

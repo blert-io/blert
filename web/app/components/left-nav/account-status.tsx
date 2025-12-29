@@ -1,17 +1,54 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 
 const PROTECTED_ROUTES = ['/dashboard', '/settings'];
 
 import styles from './styles.module.scss';
 
+export function AccountStatusSkeleton() {
+  return (
+    <div className={styles.account}>
+      <div className={styles.userWrapper}>
+        <div className={styles.userInfo}>
+          <div className={`${styles.avatar} ${styles.skeleton}`} />
+          <div className={styles.details}>
+            <div className={`${styles.skeletonText} ${styles.skeletonLabel}`} />
+            <div
+              className={`${styles.skeletonText} ${styles.skeletonUsername}`}
+            />
+          </div>
+        </div>
+        <div className={styles.actions}>
+          <div className={`${styles.skeletonAction}`} />
+          <div className={`${styles.skeletonAction}`} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AccountStatus() {
   const currentPath = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const session = useSession();
+
+  if (session.status === 'loading') {
+    return <AccountStatusSkeleton />;
+  }
+
+  const currentUrl =
+    searchParams.size > 0
+      ? `${currentPath}?${searchParams.toString()}`
+      : currentPath;
+
+  const shouldRedirect = !['/', '/login', '/register'].includes(currentPath);
+  const redirectParams = shouldRedirect
+    ? `?next=${encodeURIComponent(currentUrl)}`
+    : '';
 
   return (
     <div className={styles.account}>
@@ -41,7 +78,7 @@ export default function AccountStatus() {
                     redirect: false,
                     callbackUrl: PROTECTED_ROUTES.includes(currentPath)
                       ? '/'
-                      : currentPath,
+                      : currentUrl,
                   });
                   router.replace(url);
                 })()
@@ -56,14 +93,14 @@ export default function AccountStatus() {
         <div className={styles.authActions}>
           <Link
             className={`${styles.authAction} ${styles.login}`}
-            href="/login"
+            href={`/login${redirectParams}`}
           >
             <i className="fa-solid fa-right-to-bracket" />
             <span>Log In</span>
           </Link>
           <Link
             className={`${styles.authAction} ${styles.signup}`}
-            href="/register"
+            href={`/register${redirectParams}`}
           >
             <i className="fa-solid fa-user-plus" />
             <span>Sign Up</span>

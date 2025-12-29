@@ -18,7 +18,7 @@
   h2 {
     font-size: 1.3em;
     margin: 0 0 20px 0;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
   }
 
   .delves {
@@ -38,8 +38,8 @@
 
       &:hover {
         transform: translateY(-2px);
-        background: var(--nav-bg-lightened);
-        outline: 1px solid var(--blert-button);
+        background: var(--blert-surface-light);
+        outline: 1px solid var(--blert-purple);
       }
 
       .delveImg {
@@ -49,7 +49,7 @@
         flex-shrink: 0;
         border-radius: 6px;
         overflow: hidden;
-        background: var(--nav-bg);
+        background: var(--blert-surface-dark);
       }
 
       .delveDetails {
@@ -66,7 +66,7 @@
         gap: 8px;
         font-size: 1.1em;
         margin: 0;
-        color: var(--blert-text-color);
+        color: var(--blert-font-color-primary);
         font-weight: 500;
 
         .time {
@@ -76,10 +76,10 @@
           margin-left: auto;
           font-size: 1em;
           font-family: var(--font-roboto-mono), monospace;
-          color: var(--font-color-nav);
+          color: var(--blert-font-color-secondary);
 
           i {
-            color: var(--blert-button);
+            color: var(--blert-purple);
           }
         }
       }
@@ -100,7 +100,7 @@
         bottom: 56px;
         left: 60px;
         position: absolute;
-        background: var(--blert-button);
+        background: var(--blert-purple);
         opacity: 0.3;
       }
     }

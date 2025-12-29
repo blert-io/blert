@@ -8,19 +8,19 @@
     h1 {
       margin: 0 0 0.5rem 0;
       font-size: 1.6rem;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
     }
 
     .subtitle {
       margin: 0;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
     }
   }
 
   .mainPanel {
     .controlsSection {
       padding: 0 1rem 1rem 1rem;
-      border-bottom: 1px solid rgba(var(--blert-text-color-base), 0.2);
+      border-bottom: 1px solid rgba(var(--blert-font-color-primary-base), 0.2);
     }
 
     .contentGrid {
@@ -67,7 +67,7 @@
   align-items: center;
   text-align: center;
   padding: 4rem 2rem;
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
   border-radius: 6px;
   gap: 1rem;
   width: 100%;
@@ -81,13 +81,13 @@
   .errorContent {
     h3 {
       margin: 0 0 8px 0;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
       font-size: 1.1em;
     }
 
     p {
       margin: 0;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
       font-size: 0.9em;
     }
   }
@@ -98,15 +98,15 @@
     gap: 8px;
     padding: 12px 24px;
     border-radius: 4px;
-    background: var(--panel-bg);
-    color: var(--blert-text-color);
+    background: var(--blert-panel-background-color);
+    color: var(--blert-font-color-primary);
     font-size: 0.9em;
     border: none;
     cursor: pointer;
     transition: all 0.2s ease;
 
     &:hover {
-      background: var(--nav-bg-lightened);
+      background: var(--blert-surface-light);
 
       i {
         transform: rotate(180deg);
@@ -146,7 +146,7 @@
     gap: 1px;
     width: 480px;
     height: 480px;
-    background: var(--panel-bg);
+    background: var(--blert-panel-background-color);
     border-radius: 4px;
     padding: 2px;
 
@@ -157,7 +157,7 @@
   }
 
   .skeletonTile {
-    background: var(--nav-bg);
+    background: var(--blert-surface-dark);
     border-radius: 1px;
     animation: pulse 2s ease-in-out infinite;
     animation-delay: calc(var(--i, 0) * 0.01s);
@@ -192,7 +192,7 @@
 
   .skeletonStatCard {
     padding: 1rem;
-    background: var(--nav-bg);
+    background: var(--blert-surface-dark);
     border-radius: 6px;
     min-height: 120px;
 
@@ -211,20 +211,20 @@
 
   .placeholderCard {
     padding: 1.5rem;
-    background: var(--nav-bg);
+    background: var(--blert-surface-dark);
     border-radius: 6px;
     border-left: 3px solid var(--blert-purple);
 
     h3 {
       margin: 0 0 1rem 0;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
       font-size: 1.1em;
       font-weight: 500;
     }
 
     p {
       margin: 0;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
       font-size: 0.9em;
       line-height: 1.5;
     }
@@ -232,7 +232,7 @@
     ul {
       margin: 0;
       padding-left: 1.2rem;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
       font-size: 0.9em;
       line-height: 1.6;
 
@@ -244,7 +244,7 @@
         }
 
         strong {
-          color: var(--blert-text-color);
+          color: var(--blert-font-color-primary);
           font-weight: 500;
         }
       }
@@ -260,7 +260,7 @@
 
 .skeletonLine {
   height: 16px;
-  background: var(--panel-bg);
+  background: var(--blert-panel-background-color);
   border-radius: 3px;
   animation: pulse 1.5s ease-in-out infinite;
 }

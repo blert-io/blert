@@ -467,9 +467,11 @@ export default class TheatreProcessor extends ChallengeProcessor {
           const y = hand.getY() - 4440;
 
           if (x < 0 || x > 15 || y < 0 || y > 15) {
-            logger.warn(
-              `Challenge ${this.getUuid()}: Bloat hand at invalid coordinates (${x}, ${y})`,
-            );
+            logger.warn('tob_bloat_hand_invalid_coordinates', {
+              tick: event.getTick(),
+              coords: { x, y },
+              worldCoords: { x: hand.getX(), y: hand.getY() },
+            });
             continue;
           }
 
@@ -635,9 +637,10 @@ export default class TheatreProcessor extends ChallengeProcessor {
           );
 
         if (attack === undefined) {
-          logger.warn(
-            `Challenge ${this.getUuid()} got VERZIK_BOUNCE without a matching NPC_ATTACK`,
-          );
+          logger.warn('challenge_event_missing_npc_attack', {
+            eventType: event.getType(),
+            tick: bounce.getNpcAttackTick(),
+          });
           return false;
         }
 
@@ -658,9 +661,10 @@ export default class TheatreProcessor extends ChallengeProcessor {
           );
 
         if (attackEvent === undefined) {
-          logger.warn(
-            `Challenge ${this.getUuid()} got VERZIK_ATTACK_STYLE without a matching NPC_ATTACK`,
-          );
+          logger.warn('challenge_event_missing_npc_attack', {
+            eventType: event.getType(),
+            tick: verzikAttackStyle.getNpcAttackTick(),
+          });
           return false;
         }
 
@@ -960,6 +964,14 @@ export default class TheatreProcessor extends ChallengeProcessor {
       return;
     }
 
+    const logMazeError = (type: string, data: Record<string, unknown>) => {
+      logger.error('tob_sote_maze_error', {
+        type,
+        maze: soteMaze.getMaze(),
+        ...data,
+      });
+    };
+
     const overworldPivots = soteMaze
       .getOverworldPivotsList()
       .map((pivot) => pivot.getX());
@@ -972,25 +984,26 @@ export default class TheatreProcessor extends ChallengeProcessor {
           (pivot, index) => pivot === overworldPivots[index],
         );
         if (!pivotsEqual) {
-          logger.error(
-            `Challenge ${this.getUuid()}: Overworld pivots do not match existing maze`,
-          );
+          logMazeError('mismatched_overworld_pivots', {
+            mazePivots: currentMaze.pivots,
+            overworldPivots,
+          });
         }
       }
       return;
     }
     if (overworldPivots.length > 0) {
-      logger.error(
-        `Challenge ${this.getUuid()}: Received partial overworld pivots: ${overworldPivots.join(', ')}`,
-      );
+      logMazeError('partial_overworld_pivots', {
+        pivots: overworldPivots,
+      });
     }
 
     // Received a partial maze path from HMT.
     for (const pivot of underworldPivots) {
       if (pivot.getY() % 2 !== 0) {
-        logger.error(
-          `Challenge ${this.getUuid()}: Invalid pivot on row ${pivot.getY()}`,
-        );
+        logMazeError('invalid_underworld_pivot', {
+          pivot: { x: pivot.getX(), y: pivot.getY() },
+        });
         continue;
       }
 
@@ -999,9 +1012,9 @@ export default class TheatreProcessor extends ChallengeProcessor {
       if (currentMaze.partialPivots[pivotIndex] === -1) {
         currentMaze.partialPivots[pivotIndex] = pivot.getX();
       } else {
-        logger.warn(
-          `Challenge ${this.getUuid()}: Duplicate pivot on row ${pivot.getY()}`,
-        );
+        logMazeError('duplicate_underworld_pivot', {
+          pivot: { x: pivot.getX(), y: pivot.getY() },
+        });
         continue;
       }
 
@@ -1013,9 +1026,10 @@ export default class TheatreProcessor extends ChallengeProcessor {
       }
     }
 
-    logger.debug(
-      `Challenge ${this.getUuid()}: Partial maze progress: ${currentMaze.partialPivots.join(', ')}`,
-    );
+    logger.debug('tob_sote_maze_progress', {
+      maze: soteMaze.getMaze(),
+      partialPivots: currentMaze.partialPivots,
+    });
   }
 
   private async updateChallengeStats(
@@ -1072,9 +1086,10 @@ export default class TheatreProcessor extends ChallengeProcessor {
       INSERT INTO bloat_hands ${sql(handsToInsert)}
     `;
 
-    logger.debug(
-      `Challenge ${this.getUuid()}: Saved ${this.bloatHands.length} bloat hand records`,
-    );
+    // TODO(frolv): Make this a metric.
+    logger.debug('tob_bloat_hands_saved', {
+      handsSaved: this.bloatHands.length,
+    });
 
     this.bloatHands = [];
   }

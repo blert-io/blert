@@ -282,7 +282,7 @@ function MapScene({
               isHovered={
                 interactionState.hoveredActorId === entity.getUniqueId()
               }
-              isDimmed={hoveredStack !== null && !inStack}
+              isDimmed={hoveredStack !== null ? !inStack : entity.dimmed}
               fanOutIndex={stackEntity?.fanOutIndex}
               stackSize={hoveredStack?.size ?? 1}
             />
@@ -343,8 +343,8 @@ function LoadingFallback() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'var(--panel-bg)',
-        color: 'var(--font-color-nav)',
+        background: 'var(--blert-panel-background-color)',
+        color: 'var(--blert-font-color-secondary)',
         fontSize: '0.9rem',
       }}
     >
@@ -519,7 +519,7 @@ export default function MapCanvas({
         style={{
           background: '#000',
           borderRadius: '8px',
-          border: '1px solid var(--nav-bg-lightened)',
+          border: '1px solid var(--blert-surface-light)',
           cursor: interactionState.hoveredActorId ? 'pointer' : 'default',
         }}
       >

@@ -6,7 +6,7 @@
   &.button {
     padding: 12px;
     border-radius: 5px;
-    background: var(--nav-bg);
+    background: var(--blert-surface-dark);
 
     &:hover {
       background: rgba(47, 39, 79, 0.4) !important;
@@ -32,7 +32,7 @@
     background: none;
     margin: 0;
     font-family: 'Font Awesome 6 Free';
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     font-size: 18px;
 
     &::before {

@@ -43,8 +43,8 @@
       margin: 0 0 0.5rem 0;
       background: linear-gradient(
         135deg,
-        var(--blert-text-color),
-        rgba(var(--blert-text-color-base), 0.8)
+        var(--blert-font-color-primary),
+        rgba(var(--blert-font-color-primary-base), 0.8)
       );
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
@@ -57,7 +57,7 @@
     }
 
     .subtitle {
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
       font-size: 1.1rem;
       margin: 0;
       line-height: 1.5;
@@ -78,7 +78,7 @@
     padding: 12px 24px;
     border-radius: 6px;
     font-weight: 500;
-    background: var(--blert-button);
+    background: var(--blert-purple);
     color: #fff;
     transition: all 0.2s ease;
     text-decoration: none;
@@ -86,7 +86,7 @@
     white-space: nowrap;
 
     &:hover {
-      background: rgba(var(--blert-button-base), 0.8);
+      background: rgba(var(--blert-purple-base), 0.8);
       transform: translateY(-1px);
 
       i {
@@ -142,10 +142,10 @@
   gap: 8px;
   font-size: 1.2em;
   font-weight: 600;
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
 
   i {
-    color: var(--blert-button);
+    color: var(--blert-purple);
     font-size: 1.1em;
   }
 }
@@ -154,14 +154,14 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--blert-button);
+  color: var(--blert-purple);
   text-decoration: none;
   font-size: 0.9rem;
   font-weight: 500;
   transition: all 0.2s ease;
 
   &:hover {
-    color: rgba(var(--blert-button-base), 0.8);
+    color: rgba(var(--blert-purple-base), 0.8);
 
     i {
       transform: translateX(2px);
@@ -192,15 +192,15 @@
   padding: 3rem 2rem;
   background: linear-gradient(
     135deg,
-    rgba(var(--blert-button-base), 0.05) 0%,
-    rgba(var(--nav-bg-base), 0.3) 100%
+    rgba(var(--blert-purple-base), 0.05) 0%,
+    rgba(var(--blert-surface-dark-base), 0.3) 100%
   );
   border-radius: 12px;
-  border: 1px solid rgba(var(--blert-button-base), 0.1);
+  border: 1px solid rgba(var(--blert-purple-base), 0.1);
 
   i {
     font-size: 3rem;
-    color: var(--blert-button);
+    color: var(--blert-purple);
     margin-bottom: 1rem;
     opacity: 0.8;
   }
@@ -209,11 +209,11 @@
     font-size: 1.5rem;
     font-weight: 600;
     margin: 0 0 0.5rem 0;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
   }
 
   p {
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     margin: 0 0 1.5rem 0;
     font-size: 1rem;
     line-height: 1.5;
@@ -225,18 +225,18 @@
     align-items: center;
     gap: 8px;
     padding: 10px 20px;
-    background: var(--nav-bg);
-    color: var(--blert-text-color);
-    border: 1px solid var(--font-color-nav-divider);
+    background: var(--blert-surface-dark);
+    color: var(--blert-font-color-primary);
+    border: 1px solid var(--blert-divider-color);
     border-radius: 6px;
     text-decoration: none;
     font-weight: 500;
     transition: all 0.2s ease;
 
     &:hover {
-      background: var(--nav-bg-lightened);
-      border-color: var(--blert-button);
-      color: var(--blert-button);
+      background: var(--blert-surface-light);
+      border-color: var(--blert-purple);
+      color: var(--blert-purple);
 
       i {
         transform: scale(1.1);

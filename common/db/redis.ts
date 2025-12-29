@@ -81,6 +81,35 @@ export type ChallengeServerUpdate = {
   action: ChallengeUpdateAction;
 };
 
+/** The key of the pubsub channel for name change updates. */
+export const NAME_CHANGE_PUBSUB_KEY = 'name-changes';
+
+export enum NameChangeUpdateType {
+  /** A player's username was updated without merging records. */
+  RENAMED,
+  /** Two player records were merged; the newer record was deleted. */
+  MERGED,
+}
+
+export type NameChangeRenamedUpdate = {
+  type: NameChangeUpdateType.RENAMED;
+  playerId: number;
+  oldName: string;
+  newName: string;
+};
+
+export type NameChangeMergedUpdate = {
+  type: NameChangeUpdateType.MERGED;
+  /** The player ID that was deleted (newer record). */
+  deletedPlayerId: number;
+  /** The player ID that remains (older record). */
+  remainingPlayerId: number;
+  oldName: string;
+  newName: string;
+};
+
+export type NameChangeUpdate = NameChangeRenamedUpdate | NameChangeMergedUpdate;
+
 /** The key of the list used for the activity feed. */
 export const ACTIVITY_FEED_KEY = 'activity-feed';
 
@@ -138,20 +167,19 @@ export enum StageStreamType {
   STAGE_END,
 }
 
-export interface ClientStageStream {
-  type: StageStreamType;
-  clientId: number;
-}
+export type ClientStageStream = StageStreamEvents | StageStreamEnd;
 
-export interface StageStreamEvents extends ClientStageStream {
+export type StageStreamEvents = {
   type: StageStreamType.STAGE_EVENTS;
+  clientId: number;
   events: Uint8Array;
-}
+};
 
-export interface StageStreamEnd extends ClientStageStream {
+export type StageStreamEnd = {
   type: StageStreamType.STAGE_END;
+  clientId: number;
   update: StageUpdate;
-}
+};
 
 /**
  * Returns the Redis key for the stream of events for a challenge stage.
@@ -190,10 +218,10 @@ export function stageStreamToRecord(
 
   switch (event.type) {
     case StageStreamType.STAGE_EVENTS:
-      evt.events = Buffer.from((event as StageStreamEvents).events);
+      evt.events = Buffer.from(event.events);
       break;
     case StageStreamType.STAGE_END:
-      evt.update = JSON.stringify((event as StageStreamEnd).update);
+      evt.update = JSON.stringify(event.update);
       break;
   }
 
@@ -222,7 +250,9 @@ export function stageStreamFromRecord(
       } as StageStreamEnd;
 
     default:
-      return { type, clientId };
+      throw new Error(
+        `Unknown stage stream type: ${type as unknown as number}`,
+      );
   }
 }
 

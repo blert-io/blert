@@ -42,7 +42,7 @@
     margin: 0 0 1rem 0;
     font-size: 2.25rem;
     font-weight: 700;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     line-height: 1.2;
 
     @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
@@ -59,21 +59,21 @@
     padding: 12px 16px;
     background: linear-gradient(
       135deg,
-      rgba(var(--blert-button-base), 0.1) 0%,
-      rgba(var(--blert-button-base), 0.05) 100%
+      rgba(var(--blert-purple-base), 0.1) 0%,
+      rgba(var(--blert-purple-base), 0.05) 100%
     );
-    border: 1px solid rgba(var(--blert-button-base), 0.2);
+    border: 1px solid rgba(var(--blert-purple-base), 0.2);
     border-radius: 8px;
     font-size: 0.9rem;
     line-height: 1.4;
 
     i {
-      color: var(--blert-button);
+      color: var(--blert-purple);
       font-size: 1em;
     }
 
     a {
-      color: var(--blert-button);
+      color: var(--blert-purple);
       text-decoration: none;
       font-weight: 500;
 
@@ -119,40 +119,40 @@
     gap: 6px;
     font-size: 0.9rem;
     font-weight: 500;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
 
     i {
-      color: var(--blert-button);
+      color: var(--blert-purple);
       font-size: 0.9em;
     }
   }
 
   .author {
     .username {
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
       font-weight: 600;
     }
   }
 
   .challenge {
-    background: var(--nav-bg-darkened);
+    background: var(--blert-surface-darker);
     padding: 6px 10px;
     border-radius: 12px;
     font-size: 0.85rem;
-    border: 1px solid rgba(var(--blert-button-base), 0.1);
-    color: var(--font-color-nav);
+    border: 1px solid rgba(var(--blert-purple-base), 0.1);
+    color: var(--blert-font-color-secondary);
   }
 
   .version {
-    background: var(--nav-bg-darkened);
+    background: var(--blert-surface-darker);
     padding: 6px 10px;
     border-radius: 12px;
     font-size: 0.85rem;
-    border: 1px solid rgba(var(--blert-button-base), 0.1);
+    border: 1px solid rgba(var(--blert-purple-base), 0.1);
   }
 
   .views {
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
   }
 }
 
@@ -229,10 +229,10 @@
   gap: 8px;
   font-size: 1.1rem;
   font-weight: 600;
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
 
   i {
-    color: var(--blert-button);
+    color: var(--blert-purple);
   }
 }
 
@@ -240,9 +240,9 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  background: var(--nav-bg);
-  border: 1px solid var(--font-color-nav-divider);
-  color: var(--font-color-nav);
+  background: var(--blert-surface-dark);
+  border: 1px solid var(--blert-divider-color);
+  color: var(--blert-font-color-secondary);
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 0.85rem;
@@ -250,9 +250,9 @@
   transition: all 0.2s ease;
 
   &:hover {
-    background: var(--nav-bg-lightened);
-    border-color: var(--blert-button);
-    color: var(--blert-text-color);
+    background: var(--blert-surface-light);
+    border-color: var(--blert-purple);
+    color: var(--blert-font-color-primary);
   }
 
   i {
@@ -264,7 +264,7 @@
 .currentRevision {
   margin-bottom: 1rem;
   padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--font-color-nav-divider);
+  border-bottom: 1px solid var(--blert-divider-color);
 }
 
 .revisions {
@@ -285,10 +285,10 @@
       gap: 8px;
       font-size: 1.2em;
       font-weight: 600;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
 
       i {
-        color: var(--blert-button);
+        color: var(--blert-purple);
         font-size: 1.1em;
       }
     }
@@ -296,10 +296,10 @@
     .current {
       font-size: 0.85rem;
       font-weight: 500;
-      background: var(--nav-bg-darkened);
+      background: var(--blert-surface-darker);
       padding: 4px 8px;
       border-radius: 10px;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
     }
   }
 
@@ -309,7 +309,7 @@
     justify-content: center;
     gap: 12px;
     padding: 2rem;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     font-style: italic;
 
     i {
@@ -328,14 +328,14 @@
     flex-direction: column;
     gap: 8px;
     padding: 12px 16px;
-    background: var(--nav-bg);
-    border: 1px solid rgba(var(--blert-button-base), 0.05);
+    background: var(--blert-surface-dark);
+    border: 1px solid rgba(var(--blert-purple-base), 0.05);
     border-radius: 8px;
     transition: all 0.2s ease;
 
     &:hover {
-      background: var(--nav-bg-lightened);
-      border-color: rgba(var(--blert-button-base), 0.15);
+      background: var(--blert-surface-light);
+      border-color: rgba(var(--blert-purple-base), 0.15);
     }
   }
 
@@ -348,10 +348,10 @@
   .revisionVersion {
     font-size: 0.85rem;
     font-weight: 500;
-    background: var(--nav-bg-darkened);
+    background: var(--blert-surface-darker);
     padding: 4px 8px;
     border-radius: 10px;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
 
     a {
       color: inherit;
@@ -359,7 +359,7 @@
       transition: color 0.2s ease;
 
       &:hover {
-        color: var(--blert-button);
+        color: var(--blert-purple);
       }
     }
   }
@@ -374,18 +374,18 @@
 
   .revisionAuthor {
     font-weight: 500;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
   }
 
   .revisionDate {
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
   }
 
   .revisionMessage {
     font-size: 0.9rem;
     line-height: 1.5;
     white-space: pre-wrap;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
   }
 }
 
@@ -415,10 +415,10 @@
     left: 50%;
     bottom: -8px;
     transform: translateX(-50%);
-    background: var(--nav-bg);
-    border: 1px solid rgba(var(--blert-button-base), 0.2);
+    background: var(--blert-surface-dark);
+    border: 1px solid rgba(var(--blert-purple-base), 0.2);
     border-radius: 20px;
-    color: var(--blert-button);
+    color: var(--blert-purple);
     font-size: 0.85rem;
     font-weight: 500;
     cursor: pointer;
@@ -427,8 +427,8 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 
     &:hover {
-      background: var(--nav-bg-lightened);
-      border-color: rgba(var(--blert-button-base), 0.3);
+      background: var(--blert-surface-light);
+      border-color: rgba(var(--blert-purple-base), 0.3);
       transform: translateX(-50%) translateY(-2px);
     }
 
@@ -467,16 +467,16 @@
   font-weight: 500;
   text-decoration: none;
   transition: all 0.2s ease;
-  background: var(--blert-button);
+  background: var(--blert-purple);
   color: #fff;
-  border: 1px solid var(--blert-button);
+  border: 1px solid var(--blert-purple);
 
   i {
     font-size: 0.9em;
   }
 
   &:hover {
-    background: rgba(var(--blert-button-base), 0.8);
+    background: rgba(var(--blert-purple-base), 0.8);
     transform: translateY(-1px);
   }
 }
@@ -490,18 +490,18 @@
   font-size: 0.9rem;
   font-weight: 500;
   transition: all 0.2s ease;
-  border: 1px solid var(--font-color-nav-divider);
+  border: 1px solid var(--blert-divider-color);
   cursor: pointer;
-  background: var(--nav-bg);
-  color: var(--blert-text-color);
+  background: var(--blert-surface-dark);
+  color: var(--blert-font-color-primary);
 
   i {
     font-size: 0.9em;
   }
 
   &:hover {
-    background: var(--nav-bg-lightened);
-    border-color: var(--blert-button);
+    background: var(--blert-surface-light);
+    border-color: var(--blert-purple);
     transform: translateY(-1px);
   }
 

@@ -17,8 +17,8 @@ services:
     volumes:
       - rediscache:/data
 
-  event-server:
-    image: node:22
+  socket-server:
+    image: node:24
     depends_on:
       - redis
       - postgres
@@ -33,16 +33,18 @@ services:
       - .:/app
     environment:
       NODE_ENV: development
+      ADMIN_TOKEN: blert
       BLERT_DATABASE_URI: postgres://blert:blert@postgres:5432/blert
       BLERT_DATA_REPOSITORY: file:///app/.data/challenges
       BLERT_CHALLENGE_SERVER_URI: http://challenge-server:3003
       BLERT_CLIENT_DATA_REPOSITORY: file:///app/.data/testing_data
       BLERT_REDIS_URI: redis://redis:6379
+      BLERT_STRUCTURED_LOGS: ${BLERT_STRUCTURED_LOGS:-false}
     working_dir: /app
-    command: npm run -w event-server dev
+    command: npm run -w socket-server dev
 
   challenge-server:
-    image: node:22
+    image: node:24
     depends_on:
       - redis
       - postgres
@@ -60,6 +62,7 @@ services:
       BLERT_TEST_DATA_REPOSITORY: file:///app/.data/testing_data
       BLERT_LOG_LEVEL: debug
       BLERT_REDIS_URI: redis://redis:6379
+      BLERT_STRUCTURED_LOGS: ${BLERT_STRUCTURED_LOGS:-false}
     working_dir: /app
     command: npm run -w challenge-server dev
 
@@ -81,8 +84,68 @@ services:
     working_dir: /app
     command: npm run -w blertbank dev
 
+  prometheus:
+    image: prom/prometheus:v3.8.0
+    profiles:
+      - observability
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheusdata:/prometheus
+
+  loki:
+    image: grafana/loki:3.6.2
+    profiles:
+      - observability
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/config.yml
+    volumes:
+      - ./docker/loki/config.yml:/etc/loki/config.yml:ro
+      - lokidata:/loki
+
+  promtail:
+    image: grafana/promtail:3.6.2
+    profiles:
+      - observability
+    depends_on:
+      - loki
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./docker/promtail/promtail.yml:/etc/promtail/config.yml:ro
+      - promtailpositions:/var/lib/promtail
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+
+  grafana:
+    image: grafana/grafana:12.3.0
+    profiles:
+      - observability
+    depends_on:
+      - loki
+      - prometheus
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: blert
+      GF_SECURITY_ADMIN_PASSWORD: blert
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+    volumes:
+      - grafanadata:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/grafana/dashboards:/etc/grafana/dashboards:ro
+
 volumes:
   rediscache:
     driver: local
   postgresdata:
+    driver: local
+  prometheusdata:
+    driver: local
+  grafanadata:
+    driver: local
+  lokidata:
+    driver: local
+  promtailpositions:
     driver: local

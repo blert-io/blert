@@ -22,7 +22,7 @@
 
 .noticeText {
   font-size: 0.8rem;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   line-height: 1.3;
   white-space: nowrap;
 
@@ -33,10 +33,10 @@
 
 .legacyButton {
   padding: 4px 8px;
-  border: 1px solid var(--font-color-nav-divider);
+  border: 1px solid var(--blert-divider-color);
   border-radius: 4px;
-  background: var(--nav-bg);
-  color: var(--font-color-nav);
+  background: var(--blert-surface-dark);
+  color: var(--blert-font-color-secondary);
   font-size: 0.75rem;
   font-weight: 500;
   cursor: pointer;
@@ -45,15 +45,15 @@
   white-space: nowrap;
 
   &:hover:not(:disabled) {
-    background: var(--panel-bg);
-    border-color: var(--blert-button);
-    color: var(--blert-button);
+    background: var(--blert-panel-background-color);
+    border-color: var(--blert-purple);
+    color: var(--blert-purple);
   }
 
   &:focus {
     outline: none;
-    border-color: var(--blert-button);
-    box-shadow: 0 0 0 2px rgba(var(--blert-button-base), 0.2);
+    border-color: var(--blert-purple);
+    box-shadow: 0 0 0 2px rgba(var(--blert-purple-base), 0.2);
   }
 
   &:disabled {
@@ -75,7 +75,7 @@
   margin: 0;
   padding: 0;
   border-radius: 0;
-  background: var(--page-bg);
+  background: var(--blert-panel-background-color);
   box-shadow: none;
   display: flex;
   align-items: center;

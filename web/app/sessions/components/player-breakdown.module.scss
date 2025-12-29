@@ -12,7 +12,7 @@
 }
 
 .playerCard {
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
   border-radius: 12px;
   padding: 1rem;
   border: 1px solid transparent;
@@ -27,12 +27,12 @@
     left: 0;
     right: 0;
     height: 3px;
-    background: linear-gradient(90deg, var(--blert-green), var(--blert-button));
+    background: linear-gradient(90deg, var(--blert-green), var(--blert-purple));
     opacity: 0.6;
   }
 
   &:hover {
-    border-color: rgba(var(--blert-button-base), 0.3);
+    border-color: rgba(var(--blert-purple-base), 0.3);
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
   }
@@ -44,7 +44,7 @@
   justify-content: space-between;
   margin-bottom: 1rem;
   padding-bottom: 0.75rem;
-  border-bottom: 1px solid rgba(var(--font-color-nav-base), 0.1);
+  border-bottom: 1px solid rgba(var(--blert-font-color-secondary-base), 0.1);
 }
 
 .playerTitle {
@@ -53,7 +53,7 @@
   gap: 0.75rem;
 
   i {
-    color: var(--blert-button);
+    color: var(--blert-purple);
     font-size: 1rem;
     width: 16px;
     text-align: center;
@@ -62,7 +62,7 @@
   span {
     font-weight: 600;
     font-size: 0.95rem;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
   }
 }
 
@@ -75,7 +75,7 @@
 
 .challenges {
   font-size: 0.7rem;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   opacity: 0.8;
   font-weight: 500;
 }
@@ -102,14 +102,14 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 0.5rem;
-  background: var(--panel-bg);
+  background: var(--blert-panel-background-color);
   border-radius: 8px;
-  border: 1px solid rgba(var(--blert-button-base), 0.1);
+  border: 1px solid rgba(var(--blert-purple-base), 0.1);
   transition: all 0.2s ease;
 
   &:hover {
-    border-color: rgba(var(--blert-button-base), 0.2);
-    background: rgba(var(--panel-bg-base), 1.05);
+    border-color: rgba(var(--blert-purple-base), 0.2);
+    background: rgba(var(--blert-panel-background-color-base), 1.05);
   }
 
   i {
@@ -126,7 +126,7 @@
 
   .statLabel {
     font-size: 0.6rem;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     opacity: 0.8;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -147,11 +147,11 @@
 
 .lowDeaths {
   .statValue {
-    color: var(--blert-button);
-    text-shadow: 0 0 3px rgba(var(--blert-button-base), 0.3);
+    color: var(--blert-purple);
+    text-shadow: 0 0 3px rgba(var(--blert-purple-base), 0.3);
   }
   i {
-    color: var(--blert-button);
+    color: var(--blert-purple);
   }
 }
 
@@ -200,7 +200,7 @@
 }
 
 .skeleton {
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
   border-radius: 4px;
   animation: pulse 1.5s ease-in-out infinite;
 }
@@ -240,13 +240,13 @@
   gap: 1rem;
   padding: 3rem 2rem;
   text-align: center;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   background: linear-gradient(
     135deg,
-    rgba(var(--panel-bg-base), 0.3) 0%,
-    rgba(var(--nav-bg-base), 0.1) 100%
+    rgba(var(--blert-panel-background-color-base), 0.3) 0%,
+    rgba(var(--blert-surface-dark-base), 0.1) 100%
   );
-  border: 2px dashed rgba(var(--font-color-nav-base), 0.3);
+  border: 2px dashed rgba(var(--blert-font-color-secondary-base), 0.3);
   border-radius: 12px;
 }
 
@@ -256,8 +256,8 @@
   border-radius: 50%;
   background: linear-gradient(
     135deg,
-    rgba(var(--blert-button-base), 0.1) 0%,
-    rgba(var(--blert-button-base), 0.05) 100%
+    rgba(var(--blert-purple-base), 0.1) 0%,
+    rgba(var(--blert-purple-base), 0.05) 100%
   );
   display: flex;
   align-items: center;
@@ -265,7 +265,7 @@
 
   i {
     font-size: 1.5rem;
-    color: var(--blert-button);
+    color: var(--blert-purple);
     opacity: 0.7;
   }
 }
@@ -286,13 +286,13 @@
   gap: 1rem;
   padding: 3rem;
   text-align: center;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   background: linear-gradient(
     135deg,
-    rgba(var(--panel-bg-base), 0.3) 0%,
-    rgba(var(--nav-bg-base), 0.1) 100%
+    rgba(var(--blert-panel-background-color-base), 0.3) 0%,
+    rgba(var(--blert-surface-dark-base), 0.1) 100%
   );
-  border: 2px dashed rgba(var(--font-color-nav-base), 0.3);
+  border: 2px dashed rgba(var(--blert-font-color-secondary-base), 0.3);
   border-radius: 12px;
 }
 
@@ -323,10 +323,10 @@
     gap: 0.5rem;
     font-weight: 600;
     font-size: 0.9rem;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     margin-bottom: 0.5rem;
     padding-bottom: 0.25rem;
-    border-bottom: 1px solid rgba(var(--nav-bg-lightened-base), 0.6);
+    border-bottom: 1px solid rgba(var(--blert-surface-light-base), 0.6);
 
     i {
       color: #ffd700;
@@ -349,7 +349,7 @@
 
   .pbTooltipSplit {
     font-size: 0.8rem;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     font-weight: 500;
     flex: 1;
   }

@@ -33,7 +33,7 @@ function FormFields({ errors }: { errors: PasswordResetErrors | null }) {
         fluid
         id="current-password"
         label="Current Password"
-        labelBg="var(--nav-bg)"
+        labelBg="var(--blert-surface-dark)"
         type="password"
         required
         faIcon="fa-solid fa-lock"
@@ -45,7 +45,7 @@ function FormFields({ errors }: { errors: PasswordResetErrors | null }) {
         fluid
         id="new-password"
         label="New Password"
-        labelBg="var(--nav-bg)"
+        labelBg="var(--blert-surface-dark)"
         type="password"
         required
         faIcon="fa-solid fa-key"
@@ -60,7 +60,7 @@ function FormFields({ errors }: { errors: PasswordResetErrors | null }) {
         fluid
         id="confirm-password"
         label="Confirm New Password"
-        labelBg="var(--nav-bg)"
+        labelBg="var(--blert-surface-dark)"
         type="password"
         required
         faIcon="fa-solid fa-key"

@@ -1,6 +1,27 @@
 import { ChallengeType } from '@blert/common';
 
 /**
+ * Validates that a redirect URL is safe for same-site redirects.
+ * Only allows relative paths starting with `/` to prevent open redirect attacks.
+ *
+ * @param url The URL to validate.
+ * @returns The validated URL if safe, or `/` as a fallback.
+ */
+export function validateRedirectUrl(url: string | undefined): string {
+  if (url === undefined || url === '') {
+    return '/';
+  }
+
+  // Must start with exactly one forward slash (relative path).
+  // Reject protocol-relative URLs (//), absolute URLs, and other schemes.
+  if (!url.startsWith('/') || url.startsWith('//') || url.startsWith('/\\')) {
+    return '/';
+  }
+
+  return url;
+}
+
+/**
  * Returns the Blert URL for the challenge with the given ID.
  * @param type Type of challenge.
  * @param id Challenge ID.

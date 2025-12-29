@@ -21,8 +21,8 @@
 
   .actor {
     cursor: pointer;
-    background: var(--panel-bg);
-    border: 1px solid var(--nav-bg-lightened);
+    background: var(--blert-panel-background-color);
+    border: 1px solid var(--blert-surface-light);
     border-radius: 8px;
     display: flex;
     flex-direction: column;
@@ -44,10 +44,10 @@
       white-space: nowrap;
       text-align: center;
       font-size: 1.1em;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
       font-weight: 500;
-      background: var(--nav-bg);
-      border-bottom: 1px solid var(--nav-bg-lightened);
+      background: var(--blert-surface-dark);
+      border-bottom: 1px solid var(--blert-surface-light);
 
       @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
         font-size: 1em;
@@ -56,15 +56,15 @@
     }
 
     .prayers {
-      background: rgba(var(--nav-bg-base), 0.5);
-      border-bottom: 1px solid var(--nav-bg-lightened);
+      background: rgba(var(--blert-surface-dark-base), 0.5);
+      border-bottom: 1px solid var(--blert-surface-light);
       display: flex;
       justify-content: center;
       width: 100%;
     }
 
     .equipment {
-      background: var(--panel-bg);
+      background: var(--blert-panel-background-color);
       display: flex;
       justify-content: center;
       width: 100%;
@@ -72,8 +72,8 @@
     }
 
     .skills {
-      background: rgba(var(--nav-bg-base), 0.5);
-      border-top: 1px solid var(--nav-bg-lightened);
+      background: rgba(var(--blert-surface-dark-base), 0.5);
+      border-top: 1px solid var(--blert-surface-light);
       margin-top: 0;
       flex-grow: 1;
       width: 100%;
@@ -84,12 +84,12 @@
     }
 
     &.selected {
-      border-color: var(--blert-button);
+      border-color: var(--blert-purple);
     }
 
     &:hover {
       transform: translateY(-1px);
-      border-color: rgba(var(--blert-button-base), 0.5);
+      border-color: rgba(var(--blert-purple-base), 0.5);
     }
   }
 }

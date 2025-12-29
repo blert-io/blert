@@ -1,14 +1,14 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
 import React, { useContext, useEffect, useState } from 'react';
 
-import { DisplayContext, NavbarContext } from '@/display';
+import { NavbarContext, useDisplay } from '@/display';
 import { clamp } from '@/utils/math';
 
 import { LEFT_NAV_WIDTH } from './definitions';
 
 import styles from './styles.module.scss';
-import { usePathname } from 'next/navigation';
 
 const enum ScrollDirection {
   VERTICAL,
@@ -19,6 +19,9 @@ type TouchInfo = {
   touch: Touch;
   direction: ScrollDirection | null;
 };
+
+/** Delay after a touch end event to prevent the sidebar from being closed. */
+const TOUCH_END_DELAY_MS = 100;
 
 /**
  * Determines whether starting a drag on the target element should prevent
@@ -73,16 +76,47 @@ export function LeftNavWrapper({
 }) {
   const pathname = usePathname();
 
-  const display = useContext(DisplayContext);
+  const display = useDisplay();
   const { sidebarOpen, setSidebarOpen } = useContext(NavbarContext);
 
   const [dragX, setDragX] = useState(0);
+  const [mounted, setMounted] = useState(false);
 
   const activeTouch = React.useRef<TouchInfo | null>(null);
+  const wrapperRef = React.useRef<HTMLDivElement>(null);
+  const lastTouchEnd = React.useRef<number>(0);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     setSidebarOpen(display.isFull());
   }, [display, pathname, setSidebarOpen]);
+
+  useEffect(() => {
+    // Close sidebar when clicking outside on compact displays.
+    if (!display.isCompact() || !sidebarOpen) {
+      return;
+    }
+
+    const handleClickOutside = (e: MouseEvent) => {
+      // Ignore mouse events that occur shortly after a touch event to avoid
+      // closing the sidebar when the user drags it open then releases.
+      if (Date.now() - lastTouchEnd.current < TOUCH_END_DELAY_MS) {
+        return;
+      }
+      if (
+        wrapperRef.current !== null &&
+        !wrapperRef.current.contains(e.target as Node)
+      ) {
+        setSidebarOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [display, sidebarOpen, setSidebarOpen]);
 
   useEffect(() => {
     const onTouchStart = (e: TouchEvent) => {
@@ -151,7 +185,8 @@ export function LeftNavWrapper({
       const dx =
         e.changedTouches[0].clientX - activeTouch.current.touch.clientX;
 
-      const isOpen = dx > LEFT_NAV_WIDTH / 2 - 40;
+      const threshold = LEFT_NAV_WIDTH / 2 - 40;
+      const isOpen = sidebarOpen ? dx > -threshold : dx > threshold;
       if (isOpen) {
         document.body.style.overflow = 'hidden';
       } else {
@@ -164,6 +199,7 @@ export function LeftNavWrapper({
       }
       setDragX(0);
       activeTouch.current = null;
+      lastTouchEnd.current = Date.now();
     };
     const onTouchCancel = (e: TouchEvent) => onTouchEnd(e);
 
@@ -184,7 +220,8 @@ export function LeftNavWrapper({
   let left = sidebarOpen ? 0 : -currentWidth;
   left += dragX;
 
-  const shouldAnimate = display.isCompact() && activeTouch.current === null;
+  const shouldAnimate =
+    mounted && display.isCompact() && activeTouch.current === null;
 
   const style: React.CSSProperties = {
     width: currentWidth,
@@ -192,8 +229,12 @@ export function LeftNavWrapper({
     transition: shouldAnimate ? 'left 0.2s, width 0.3s' : 'width 0.3s',
   };
 
+  const wrapperClassName = mounted
+    ? styles.leftNavWrapper
+    : `${styles.leftNavWrapper} ${styles.leftNavWrapperUnmounted}`;
+
   return (
-    <div className={styles.leftNavWrapper} style={style}>
+    <div ref={wrapperRef} className={wrapperClassName} style={style}>
       {children}
     </div>
   );

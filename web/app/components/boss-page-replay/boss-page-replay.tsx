@@ -73,6 +73,8 @@ type BossReplayProps = {
   currentTick: number;
   advanceTick: () => void;
   setUseLegacy?: () => void;
+  /** Custom controls to render above the map. */
+  customControls?: React.ReactNode;
 };
 
 export function BossPageReplay({
@@ -85,6 +87,7 @@ export function BossPageReplay({
   currentTick,
   advanceTick,
   setUseLegacy,
+  customControls,
 }: BossReplayProps) {
   const [config, setConfig] = useState({
     interpolationEnabled: true,
@@ -189,6 +192,7 @@ export function BossPageReplay({
         }}
         className={styles.replay}
       >
+        {customControls}
         {!isFullscreen && renderMap(false)}
       </Card>
 

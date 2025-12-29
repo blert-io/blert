@@ -24,13 +24,13 @@
         margin-right: 10px;
         width: 16px;
         text-align: center;
-        color: var(--blert-button);
+        color: var(--blert-purple);
       }
     }
   }
 }
 
-$disabledMazeTileColor: rgba(var(--blert-text-color-base), 0.5);
+$disabledMazeTileColor: rgba(var(--blert-font-color-primary-base), 0.5);
 $activeMazeTileColor: var(--blert-red);
 
 .mapTile {
@@ -66,7 +66,7 @@ $activeMazeTileColor: var(--blert-red);
     border: 1px solid $disabledMazeTileColor;
     font-size: 14px;
     font-style: italic;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
   }
 
   .mazeRow {
@@ -107,7 +107,7 @@ $activeMazeTileColor: var(--blert-red);
       }
 
       .pivot {
-        color: var(--blert-button);
+        color: var(--blert-purple);
         font-size: 8px;
         font-weight: bold;
       }

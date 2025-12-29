@@ -28,7 +28,7 @@
   }
 
   &:hover {
-    border-color: rgba(var(--blert-button-base), 0.3);
+    border-color: rgba(var(--blert-purple-base), 0.3);
     transform: translateY(-2px);
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
   }
@@ -38,7 +38,7 @@
   overflow: hidden;
 
   &:hover {
-    border-color: rgba(var(--blert-button-base), 0.3);
+    border-color: rgba(var(--blert-purple-base), 0.3);
     transform: translateY(-2px);
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
   }
@@ -46,14 +46,14 @@
 
 .cardHeader {
   padding: 1.25rem 1.5rem 0.75rem;
-  border-bottom: 1px solid rgba(var(--blert-button-base), 0.1);
+  border-bottom: 1px solid rgba(var(--blert-purple-base), 0.1);
 
   h3 {
     margin: 0;
     font-size: 1.1rem;
     font-weight: 600;
-    color: var(--blert-text-color);
-    text-shadow: 0 0 3px rgba(var(--blert-button-base), 0.4);
+    color: var(--blert-font-color-primary);
+    text-shadow: 0 0 3px rgba(var(--blert-purple-base), 0.4);
   }
 }
 
@@ -88,9 +88,9 @@
   font-size: 1.1rem;
   font-weight: 600;
   margin: 0 0 1.5rem 0;
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
   padding-bottom: 0.75rem;
-  border-bottom: 2px solid rgba(var(--blert-button-base), 0.2);
+  border-bottom: 2px solid rgba(var(--blert-purple-base), 0.2);
   position: relative;
 
   &::after {
@@ -100,11 +100,11 @@
     left: 0;
     width: 60px;
     height: 2px;
-    background: var(--blert-button);
+    background: var(--blert-purple);
   }
 
   i {
-    color: var(--blert-button);
+    color: var(--blert-purple);
     font-size: 1.2rem;
   }
 }
@@ -120,10 +120,10 @@
   font-size: 1rem;
   font-weight: 600;
   margin: 0 0 1rem 0;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
 
   i {
-    color: var(--blert-button);
+    color: var(--blert-purple);
   }
 }
 
@@ -157,7 +157,7 @@
 
 .legendItem {
   font-size: 0.8rem !important;
-  color: var(--blert-text-color) !important;
+  color: var(--blert-font-color-primary) !important;
 }
 
 // Skeleton Animations
@@ -186,7 +186,7 @@
 .skeletonCircle {
   width: 100px;
   height: 50px;
-  background: var(--font-color-nav-divider);
+  background: var(--blert-divider-color);
   border-radius: 100px 100px 0 0;
   animation: pulse 1.5s ease-in-out infinite;
   margin-top: 1rem;
@@ -202,7 +202,7 @@
 .skeletonLegendItem {
   width: 80px;
   height: 12px;
-  background: var(--font-color-nav-divider);
+  background: var(--blert-divider-color);
   border-radius: 6px;
   animation: pulse 1.5s ease-in-out infinite;
   animation-delay: calc(var(--item-index, 0) * 200ms);
@@ -236,7 +236,7 @@
 .skeletonLabel {
   width: 110px;
   height: 16px;
-  background: var(--font-color-nav-divider);
+  background: var(--blert-divider-color);
   border-radius: 4px;
   animation: pulse 1.5s ease-in-out infinite;
   animation-delay: calc(var(--row-index, 0) * 100ms);
@@ -244,7 +244,7 @@
 
 .skeletonBar {
   height: 20px;
-  background: rgba(var(--blert-button-base), 0.2);
+  background: rgba(var(--blert-purple-base), 0.2);
   border-radius: 0 4px 4px 0;
   animation: pulse 1.5s ease-in-out infinite;
   animation-delay: calc(var(--row-index, 0) * 100ms + 50ms);
@@ -283,19 +283,19 @@
   align-items: center;
   justify-content: center;
   gap: 1rem;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   background: linear-gradient(
     135deg,
-    rgba(var(--panel-bg-base), 0.3) 0%,
-    rgba(var(--nav-bg-base), 0.1) 100%
+    rgba(var(--blert-panel-background-color-base), 0.3) 0%,
+    rgba(var(--blert-surface-dark-base), 0.1) 100%
   );
-  border: 2px dashed rgba(var(--font-color-nav-base), 0.3);
+  border: 2px dashed rgba(var(--blert-font-color-secondary-base), 0.3);
   border-radius: 8px;
   padding: 2rem;
 
   i {
     font-size: 1.5rem;
-    color: var(--blert-button);
+    color: var(--blert-purple);
   }
 
   span {
@@ -313,12 +313,12 @@
   padding: 2rem;
   background: linear-gradient(
     135deg,
-    rgba(var(--panel-bg-base), 0.3) 0%,
-    rgba(var(--nav-bg-base), 0.1) 100%
+    rgba(var(--blert-panel-background-color-base), 0.3) 0%,
+    rgba(var(--blert-surface-dark-base), 0.1) 100%
   );
-  border: 2px dashed rgba(var(--font-color-nav-base), 0.3);
+  border: 2px dashed rgba(var(--blert-font-color-secondary-base), 0.3);
   border-radius: 12px;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
 
   .placeholderIcon {
     width: 60px;
@@ -326,8 +326,8 @@
     border-radius: 50%;
     background: linear-gradient(
       135deg,
-      rgba(var(--blert-button-base), 0.1) 0%,
-      rgba(var(--blert-button-base), 0.05) 100%
+      rgba(var(--blert-purple-base), 0.1) 0%,
+      rgba(var(--blert-purple-base), 0.05) 100%
     );
     display: flex;
     align-items: center;
@@ -336,7 +336,7 @@
 
     i {
       font-size: 1.5rem;
-      color: var(--blert-button);
+      color: var(--blert-purple);
       opacity: 0.7;
     }
   }
@@ -354,21 +354,21 @@
   align-items: center;
   background: linear-gradient(
     135deg,
-    var(--panel-bg) 0%,
-    rgba(var(--nav-bg-base), 0.8) 100%
+    var(--blert-panel-background-color) 0%,
+    rgba(var(--blert-surface-dark-base), 0.8) 100%
   );
   justify-content: space-between;
   padding: 1.5rem;
-  border: 1px solid rgba(var(--blert-button-base), 0.2);
+  border: 1px solid rgba(var(--blert-purple-base), 0.2);
   border-radius: 12px;
   transition: all 0.3s ease;
 
   &:hover {
-    border-color: rgba(var(--blert-button-base), 0.4);
+    border-color: rgba(var(--blert-purple-base), 0.4);
     background: linear-gradient(
       135deg,
-      rgba(var(--blert-button-base), 0.08) 0%,
-      rgba(var(--blert-button-base), 0.03) 100%
+      rgba(var(--blert-purple-base), 0.08) 0%,
+      rgba(var(--blert-purple-base), 0.03) 100%
     );
   }
 }
@@ -384,7 +384,7 @@
   font-size: 1.1rem;
   font-weight: 600;
   margin: 0 0 0.5rem 0;
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
 }
 
 .teamStats {
@@ -398,10 +398,10 @@
   align-items: center;
   gap: 0.75rem;
   font-size: 0.85rem;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
 
   i {
-    color: var(--blert-button);
+    color: var(--blert-purple);
     width: 12px;
     text-align: center;
   }
@@ -434,13 +434,13 @@
   padding: 1rem;
   background: linear-gradient(
     135deg,
-    rgba(var(--blert-button-base), 0.06) 0%,
-    rgba(var(--blert-button-base), 0.02) 100%
+    rgba(var(--blert-purple-base), 0.06) 0%,
+    rgba(var(--blert-purple-base), 0.02) 100%
   );
-  border: 1px solid rgba(var(--blert-button-base), 0.1);
+  border: 1px solid rgba(var(--blert-purple-base), 0.1);
   border-radius: 8px;
   text-decoration: none;
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
@@ -455,18 +455,18 @@
     background: linear-gradient(
       90deg,
       transparent,
-      rgba(var(--blert-button-base), 0.08),
+      rgba(var(--blert-purple-base), 0.08),
       transparent
     );
     transition: left 0.4s ease;
   }
 
   &:hover {
-    border-color: rgba(var(--blert-button-base), 0.25);
+    border-color: rgba(var(--blert-purple-base), 0.25);
     background: linear-gradient(
       135deg,
-      rgba(var(--blert-button-base), 0.1) 0%,
-      rgba(var(--blert-button-base), 0.04) 100%
+      rgba(var(--blert-purple-base), 0.1) 0%,
+      rgba(var(--blert-purple-base), 0.04) 100%
     );
     transform: translateX(4px);
 
@@ -486,8 +486,8 @@
     width: 32px;
     height: 32px;
     border-radius: 6px;
-    background: rgba(var(--blert-button-base), 0.15);
-    color: var(--blert-button);
+    background: rgba(var(--blert-purple-base), 0.15);
+    color: var(--blert-purple);
     font-size: 14px;
   }
 
@@ -501,17 +501,17 @@
   .linkTitle {
     font-weight: 600;
     font-size: 0.95rem;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
   }
 
   .linkDescription {
     font-size: 0.8rem;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     line-height: 1.3;
   }
 
   .linkArrow {
-    color: var(--blert-button);
+    color: var(--blert-purple);
     font-size: 0.9rem;
     transition: transform 0.3s ease;
   }

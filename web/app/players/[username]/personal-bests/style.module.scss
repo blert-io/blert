@@ -59,9 +59,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--nav-bg-lightened);
+    background: var(--blert-surface-light);
     border-radius: 8px;
-    color: var(--blert-button);
+    color: var(--blert-purple);
 
     svg {
       position: relative;
@@ -84,7 +84,7 @@
     p {
       font-size: 13px;
       margin: 0;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
       line-height: 1.3;
     }
   }
@@ -116,10 +116,10 @@
 .achievementCard {
   background: linear-gradient(
     135deg,
-    var(--nav-bg) 0%,
-    var(--nav-bg-lightened) 100%
+    var(--blert-surface-dark) 0%,
+    var(--blert-surface-light) 100%
   );
-  border: 1px solid var(--nav-bg-lightened);
+  border: 1px solid var(--blert-surface-light);
   border-radius: 8px;
   padding: 16px;
   display: flex;
@@ -133,15 +133,15 @@
 
     &:hover {
       transform: translateY(-2px);
-      border-color: var(--blert-button);
+      border-color: var(--blert-purple);
       background: linear-gradient(
         135deg,
-        var(--nav-bg-lightened) 0%,
-        rgba(var(--blert-button-base), 0.1) 100%
+        var(--blert-surface-light) 0%,
+        rgba(var(--blert-purple-base), 0.1) 100%
       );
 
       .achievementValue {
-        color: var(--blert-button);
+        color: var(--blert-purple);
       }
     }
   }
@@ -153,9 +153,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(var(--blert-button-base), 0.1);
+    background: rgba(var(--blert-purple-base), 0.1);
     border-radius: 8px;
-    color: var(--blert-button);
+    color: var(--blert-purple);
     flex-shrink: 0;
   }
 
@@ -166,7 +166,7 @@
       font-size: 0.8rem;
       font-weight: 500;
       margin-bottom: 2px;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
     }
 
     .achievementValue {
@@ -179,14 +179,14 @@
 
     .achievementDate {
       font-size: 0.7rem;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
     }
   }
 }
 
 .pbCard {
-  background: var(--nav-bg);
-  border: 1px solid var(--nav-bg-lightened);
+  background: var(--blert-surface-dark);
+  border: 1px solid var(--blert-surface-light);
   border-radius: 6px;
   padding: 12px;
   display: flex;
@@ -195,18 +195,18 @@
   text-align: center;
   transition: all 0.2s ease;
   text-decoration: none;
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
 
   &.hasTime {
     cursor: pointer;
 
     &:hover {
       transform: translateY(-2px);
-      border-color: var(--blert-button);
-      background: var(--nav-bg-lightened);
+      border-color: var(--blert-purple);
+      background: var(--blert-surface-light);
 
       .pbTime {
-        color: var(--blert-button);
+        color: var(--blert-purple);
       }
     }
   }
@@ -215,7 +215,7 @@
     font-size: 13px;
     font-weight: 500;
     margin-bottom: 4px;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
   }
 
   .pbTime {
@@ -228,7 +228,7 @@
 
   .pbDate {
     font-size: 11px;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
   }
 }
 

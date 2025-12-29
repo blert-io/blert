@@ -1,7 +1,11 @@
 import {
+  activePlayerKey,
   CamelToSnakeCase,
   HiscoresRateLimitError,
+  NAME_CHANGE_PUBSUB_KEY,
   NameChangeStatus,
+  NameChangeUpdate,
+  NameChangeUpdateType,
   PlayerExperience,
   PlayerStats,
   Skill,
@@ -9,6 +13,35 @@ import {
 } from '@blert/common';
 
 import { sql, type Db } from './db';
+import redis from './redis';
+
+async function publishNameChangeUpdate(
+  update: NameChangeUpdate,
+): Promise<void> {
+  const client = await redis();
+  await client.publish(NAME_CHANGE_PUBSUB_KEY, JSON.stringify(update));
+}
+
+/**
+ * Checks if a player is currently in an active challenge by looking up their
+ * active player key in Redis.
+ *
+ * @param oldName The player's old (current) username.
+ * @param newName The player's new username.
+ * @returns True if the player is in an active challenge under either name.
+ */
+async function isPlayerInActiveChallenge(
+  oldName: string,
+  newName: string,
+): Promise<boolean> {
+  const client = await redis();
+  const results = await client
+    .multi()
+    .get(activePlayerKey(oldName))
+    .get(activePlayerKey(newName))
+    .exec();
+  return results.some((result) => result !== null);
+}
 
 type PlayerStatsRow = CamelToSnakeCase<PlayerStats> & {
   id: number;
@@ -263,7 +296,10 @@ type NameChangeQueryResult = {
   magic_experience: number;
 };
 
-export async function processNameChange(changeId: number, db: Db = sql) {
+export async function processNameChange(
+  changeId: number,
+  db: Db = sql,
+): Promise<NameChangeUpdate | null> {
   const [nameChange]: [NameChangeQueryResult?] = await db`
     SELECT
       name_changes.id,
@@ -285,7 +321,7 @@ export async function processNameChange(changeId: number, db: Db = sql) {
   `;
   if (!nameChange) {
     console.log(`Name change not found: ${changeId}`);
-    return;
+    return null;
   }
 
   const {
@@ -297,6 +333,12 @@ export async function processNameChange(changeId: number, db: Db = sql) {
   console.log(
     `Processing name change request ${changeId}: ${oldName} -> ${newName}`,
   );
+
+  // Check if the player is in an active challenge. If so, defer the name
+  // change until they are no longer in a challenge.
+  if (await isPlayerInActiveChallenge(oldName, newName)) {
+    throw new PlayerInActiveChallengeError(changeId);
+  }
 
   let oldExperience: PlayerExperience | null = null;
   let newExperience: PlayerExperience | null = null;
@@ -311,12 +353,12 @@ export async function processNameChange(changeId: number, db: Db = sql) {
   } catch (e: any) {
     if (e instanceof HiscoresRateLimitError) {
       console.log('Hiscores rate limit reached, retrying later');
-      return;
+      return null;
     }
 
     console.error(`Failed to look up experience for name change ${changeId}`);
     console.error(e);
-    return;
+    return null;
   }
 
   let nameChangeStatus = NameChangeStatus.PENDING;
@@ -358,16 +400,17 @@ export async function processNameChange(changeId: number, db: Db = sql) {
         SET status = ${nameChangeStatus}, processed_at = ${new Date()}
         WHERE id = ${changeId}
       `;
-      return;
+      return null;
     }
 
-    nameChangeStatus = NameChangeStatus.ACCEPTED;
     console.log(
       `Name change ${changeId} ignoring rejection status ${nameChangeStatus} due to skip_checks`,
     );
+    nameChangeStatus = NameChangeStatus.ACCEPTED;
   }
 
   let migratedDocuments = 0;
+  let deletedPlayerId: number | null = null;
 
   const [newPlayer]: [{ id: number }?] = await db`
     SELECT id
@@ -467,6 +510,7 @@ export async function processNameChange(changeId: number, db: Db = sql) {
       `;
     } else {
       await db`DELETE FROM players WHERE id = ${newPlayer.id}`;
+      deletedPlayerId = newPlayer.id;
     }
   }
 
@@ -479,6 +523,12 @@ export async function processNameChange(changeId: number, db: Db = sql) {
     playerUpdates.ranged_experience = newExperience[Skill.RANGED];
     playerUpdates.prayer_experience = newExperience[Skill.PRAYER];
     playerUpdates.magic_experience = newExperience[Skill.MAGIC];
+  }
+
+  // Final check: if the player started a new challenge while we were
+  // processing, abort the transaction and defer the name change.
+  if (await isPlayerInActiveChallenge(oldName, newName)) {
+    throw new PlayerInActiveChallengeError(changeId);
   }
 
   const updatePlayer = db`
@@ -495,73 +545,187 @@ export async function processNameChange(changeId: number, db: Db = sql) {
   `;
 
   await Promise.all([updatePlayer, updateNameChange]);
-  console.log(`Name change accepted: ${oldName} -> ${newName}`);
+
+  if (deletedPlayerId !== null) {
+    return {
+      type: NameChangeUpdateType.MERGED,
+      deletedPlayerId,
+      remainingPlayerId: playerId,
+      oldName,
+      newName,
+    };
+  }
+
+  return {
+    type: NameChangeUpdateType.RENAMED,
+    playerId,
+    oldName,
+    newName,
+  };
 }
 
-class NameChangeProcessor {
-  private static readonly NAME_CHANGE_PERIOD = 1000 * 5;
-  private static readonly NAME_CHANGES_PER_BATCH = 5;
+class PlayerInActiveChallengeError extends Error {
+  public readonly changeId: number;
+
+  constructor(changeId: number) {
+    super(`Player in active challenge during name change processing`);
+    this.changeId = changeId;
+  }
+}
+
+export type BatchProcessingResult = {
+  /** Number of name changes successfully processed. */
+  processed: number;
+  /** Number of name changes deferred due to active challenges. */
+  deferred: number;
+  /** Number of deferred name changes promoted back to pending. */
+  promoted: number;
+};
+
+type NameChangeProcessorConfig = {
+  /** Interval between batch processing runs in milliseconds. */
+  period: number;
+  /** Maximum number of name changes to process per batch. */
+  batchSize: number;
+  /** Whether to automatically start processing on construction. */
+  autoStart: boolean;
+};
+
+const DEFAULT_CONFIG: NameChangeProcessorConfig = {
+  period: 1000 * 5,
+  batchSize: 5,
+  autoStart: process.env.NODE_ENV === 'production',
+};
+
+export class NameChangeProcessor {
+  private readonly config: NameChangeProcessorConfig;
 
   // For whatever reason, Next likes to create multiple instances of this class
   // sometimes, so we use a single global timeout.
   private static timeout: NodeJS.Timeout | null = null;
 
-  public constructor() {
-    if (process.env.NODE_ENV === 'production') {
-      NameChangeProcessor.timeout ??= setTimeout(
-        () => void this.processNameChangeBatch(),
-        NameChangeProcessor.NAME_CHANGE_PERIOD,
-      );
+  public constructor(config: Partial<NameChangeProcessorConfig> = {}) {
+    this.config = { ...DEFAULT_CONFIG, ...config };
+
+    if (this.config.autoStart) {
+      this.start();
     }
   }
 
-  public start() {
+  public start(): void {
     NameChangeProcessor.timeout ??= setTimeout(
-      () => void this.processNameChangeBatch(),
-      NameChangeProcessor.NAME_CHANGE_PERIOD,
+      () => void this.runBatchLoop(),
+      this.config.period,
     );
   }
 
-  public stop() {
+  public stop(): void {
     if (NameChangeProcessor.timeout !== null) {
       clearTimeout(NameChangeProcessor.timeout);
       NameChangeProcessor.timeout = null;
     }
   }
 
-  private async processNameChangeBatch() {
-    let processedCount = 0;
+  /**
+   * Processes a single batch of name changes.
+   */
+  public async processBatch(): Promise<BatchProcessingResult> {
+    const result: BatchProcessingResult = {
+      processed: 0,
+      deferred: 0,
+      promoted: 0,
+    };
 
-    for (let i = 0; i < NameChangeProcessor.NAME_CHANGES_PER_BATCH; i++) {
-      const claimed = await sql.begin(async (tx) => {
-        const [row]: [{ id: number }?] = await tx`
-          SELECT id
-          FROM name_changes
-          WHERE status = ${NameChangeStatus.PENDING}
-          ORDER BY id
-          FOR UPDATE SKIP LOCKED
-          LIMIT 1
-        `;
+    for (let i = 0; i < this.config.batchSize; i++) {
+      try {
+        const txResult = await sql.begin(async (tx) => {
+          const [row]: [{ id: number }?] = await tx`
+            SELECT id
+            FROM name_changes
+            WHERE status = ${NameChangeStatus.PENDING}
+            ORDER BY id
+            FOR UPDATE SKIP LOCKED
+            LIMIT 1
+          `;
 
-        if (!row) {
-          return false;
+          if (!row) {
+            return { processed: false, update: null };
+          }
+
+          const update = await processNameChange(row.id, tx);
+          return { processed: true, update };
+        });
+
+        if (!txResult.processed) {
+          break;
         }
 
-        await processNameChange(row.id, tx);
-        return true;
-      });
+        result.processed += 1;
+        if (txResult.update) {
+          const { oldName, newName } = txResult.update;
+          console.log(`Name change accepted: ${oldName} -> ${newName}`);
 
-      if (!claimed) {
-        break;
+          // Notify other services of the name change.
+          await publishNameChangeUpdate(txResult.update);
+        }
+      } catch (e) {
+        if (e instanceof PlayerInActiveChallengeError) {
+          await sql`
+            UPDATE name_changes
+            SET status = ${NameChangeStatus.DEFERRED}
+            WHERE id = ${e.changeId} AND status = ${NameChangeStatus.PENDING}
+          `;
+          result.deferred += 1;
+        } else {
+          console.error('Error processing name change:', e);
+        }
       }
-      processedCount += 1;
     }
 
-    console.log(`Processed ${processedCount} name change requests`);
+    // Check DEFERRED entries that may now be ready to process.
+    const deferredEntries = await sql<
+      { id: number; old_name: string; new_name: string }[]
+    >`
+      SELECT id, old_name, new_name
+      FROM name_changes
+      WHERE status = ${NameChangeStatus.DEFERRED}
+      ORDER BY id
+      LIMIT ${this.config.batchSize}
+    `;
+
+    for (const entry of deferredEntries) {
+      if (!(await isPlayerInActiveChallenge(entry.old_name, entry.new_name))) {
+        // Player is no longer in an active challenge. Promote to PENDING so
+        // normal processing will handle it on the next batch.
+        const [updated] = await sql<[{ id: number }?]>`
+          UPDATE name_changes
+          SET status = ${NameChangeStatus.PENDING}
+          WHERE id = ${entry.id} AND status = ${NameChangeStatus.DEFERRED}
+          RETURNING id
+        `;
+        if (updated) {
+          console.log(
+            `Name change ${entry.id} promoted from DEFERRED to PENDING`,
+          );
+          result.promoted += 1;
+        }
+      }
+    }
+
+    return result;
+  }
+
+  private async runBatchLoop(): Promise<void> {
+    try {
+      const result = await this.processBatch();
+      console.log(`Processed ${result.processed} name change requests`);
+    } catch (e) {
+      console.error('Error processing name change batch:', e);
+    }
 
     NameChangeProcessor.timeout = setTimeout(
-      () => void this.processNameChangeBatch(),
-      NameChangeProcessor.NAME_CHANGE_PERIOD,
+      () => void this.runBatchLoop(),
+      this.config.period,
     );
   }
 }

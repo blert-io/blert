@@ -2,13 +2,13 @@
   position: fixed;
   top: 80px;
   right: 20px;
-  background: rgba(var(--nav-bg-base), 0.95);
-  border: 1px solid rgba(var(--blert-button-base), 0.3);
+  background: rgba(var(--blert-surface-dark-base), 0.95);
+  border: 1px solid rgba(var(--blert-purple-base), 0.3);
   border-radius: 8px;
   padding: 12px;
   font-size: 12px;
   font-family: var(--font-roboto-mono), monospace;
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
   min-width: 200px;
   z-index: 9999;
   backdrop-filter: blur(8px);
@@ -22,8 +22,8 @@
   font-size: 13px;
   margin-bottom: 10px;
   padding-bottom: 8px;
-  border-bottom: 1px solid rgba(var(--blert-button-base), 0.2);
-  color: var(--blert-button);
+  border-bottom: 1px solid rgba(var(--blert-purple-base), 0.2);
+  color: var(--blert-purple);
 }
 
 .section {
@@ -36,7 +36,7 @@
 
 .label {
   font-size: 10px;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 2px;
@@ -44,12 +44,12 @@
 
 .value {
   font-weight: 500;
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
   margin-bottom: 2px;
 }
 
 .subValue {
   font-size: 10px;
-  color: var(--font-color-nav-active);
+  color: var(--blert-font-color-secondary-active);
   margin-left: 8px;
 }

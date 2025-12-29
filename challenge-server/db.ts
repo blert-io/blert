@@ -7,12 +7,12 @@ let connectionOptions: postgres.Options<Record<string, any>> | undefined =
 
 if (['development', 'test'].includes(process.env.NODE_ENV!)) {
   connectionOptions = {
-    debug: (_, query, params) => logger.debug('%s %o', query, params),
+    debug: (_, query, params) => logger.debug('sql_query', { query, params }),
   };
 }
 
 if (process.env.BLERT_DATABASE_URI === undefined) {
-  logger.error('BLERT_DATABASE_URI must be set');
+  logger.error('environment_missing', { variable: 'BLERT_DATABASE_URI' });
   process.exit(1);
 }
 

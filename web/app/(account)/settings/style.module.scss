@@ -29,7 +29,7 @@
   gap: 0;
   padding: 0;
   margin-bottom: 32px;
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
   border-radius: 8px;
   overflow: hidden;
 
@@ -48,7 +48,7 @@
     padding: 14px 20px;
     text-align: center;
     text-decoration: none;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     font-weight: 500;
     border-bottom: 3px solid transparent;
     transition: all 0.2s ease;
@@ -67,19 +67,19 @@
     }
 
     &:hover {
-      color: var(--blert-text-color);
-      border-bottom-color: rgba(var(--blert-button-base), 0.3);
-      background: rgba(var(--nav-bg-lightened-base), 0.5);
+      color: var(--blert-font-color-primary);
+      border-bottom-color: rgba(var(--blert-purple-base), 0.3);
+      background: rgba(var(--blert-surface-light-base), 0.5);
     }
 
     &[aria-current='page'] {
-      color: var(--blert-text-color);
-      border-bottom-color: var(--blert-button);
-      background: rgba(var(--blert-button-base), 0.05);
+      color: var(--blert-font-color-primary);
+      border-bottom-color: var(--blert-purple);
+      background: rgba(var(--blert-purple-base), 0.05);
       font-weight: 600;
 
       i {
-        color: var(--blert-button);
+        color: var(--blert-purple);
       }
     }
   }
@@ -89,7 +89,7 @@
   h1 {
     font-size: 1.8em;
     margin: 0 0 24px 0;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
 
     @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
       font-size: 1.5em;
@@ -111,7 +111,7 @@
   h2 {
     font-size: 1.5em;
     margin: 0;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
 
     @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
       font-size: 1.3em;
@@ -121,7 +121,7 @@
   h3 {
     font-size: 1.2em;
     margin: 0 0 16px 0;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
 
     @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
       font-size: 1.1em;
@@ -139,14 +139,14 @@
 
   .description {
     margin: 8px 0 0 0;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     font-size: 0.95em;
     line-height: 1.5;
   }
 
   i {
     margin-right: 12px;
-    color: var(--blert-button);
+    color: var(--blert-purple);
   }
 }
 
@@ -155,7 +155,7 @@
     label {
       display: block;
       font-size: 0.9em;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
       margin-bottom: 4px;
     }
 
@@ -164,7 +164,7 @@
       align-items: baseline;
       gap: 12px;
       font-size: 1.1em;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
 
       @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
         flex-direction: column;
@@ -173,7 +173,7 @@
 
       .memberSince {
         font-size: 0.85em;
-        color: var(--font-color-nav);
+        color: var(--blert-font-color-secondary);
       }
     }
   }
@@ -195,19 +195,19 @@
     align-items: center;
     text-align: center;
     padding: 32px;
-    background: var(--nav-bg);
+    background: var(--blert-surface-dark);
     border-radius: 6px;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
 
     i {
       font-size: 2em;
       margin-bottom: 16px;
-      color: var(--blert-button);
+      color: var(--blert-purple);
     }
 
     h3 {
       margin: 0 0 8px 0;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
       font-size: 1.2em;
     }
 
@@ -221,7 +221,7 @@
 }
 
 .apiKey {
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
   border-radius: 8px;
   padding: 16px;
 
@@ -251,11 +251,11 @@
 
     .dots {
       letter-spacing: 0px;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
     }
 
     .key {
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
       letter-spacing: 1px;
       user-select: all;
       word-break: break-all;
@@ -282,13 +282,13 @@
       border-radius: 6px;
       border: none;
       background: transparent;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
       cursor: pointer;
       transition: all 0.2s ease;
 
       &:hover {
-        background: var(--nav-bg-lightened);
-        color: var(--blert-button);
+        background: var(--blert-surface-light);
+        color: var(--blert-purple);
       }
 
       &:disabled {
@@ -303,7 +303,7 @@
     align-items: center;
     gap: 16px;
     font-size: 0.9em;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
 
     @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
       flex-direction: column;
@@ -312,17 +312,17 @@
     }
 
     strong {
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
     }
 
     .lastUsed {
-      color: var(--font-color-nav-dimmed);
+      color: var(--blert-font-color-secondary-dimmed);
     }
   }
 }
 
 .generateKey {
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
   border-radius: 8px;
   padding: 20px;
 
@@ -348,7 +348,7 @@
 }
 
 .passwordForm {
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
   border-radius: 8px;
   padding: 20px;
 
@@ -375,7 +375,7 @@
 
 .deleteModal {
   padding: 24px;
-  background: var(--panel-bg);
+  background: var(--blert-panel-background-color);
   border-radius: 8px;
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
@@ -384,17 +384,17 @@
 
   h3 {
     margin: 0 0 16px 0;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     font-size: 1.3em;
   }
 
   p {
     margin: 0 0 24px 0;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     line-height: 1.5;
 
     strong {
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
     }
   }
 
@@ -411,7 +411,7 @@
 
 .description {
   margin: 8px 0 0 0;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   font-size: 0.95em;
   line-height: 1.5;
 }
@@ -452,13 +452,13 @@
     h3 {
       margin: 0;
       font-size: 1.4em;
-      color: var(--blert-text-color);
+      color: var(--blert-font-color-primary);
     }
 
     p {
       margin: 0;
       font-size: 0.95em;
-      color: rgba(var(--blert-text-color-base), 0.85);
+      color: rgba(var(--blert-font-color-primary-base), 0.85);
 
       & > span {
         color: var(--blert-green);
@@ -469,7 +469,7 @@
 
     & > span {
       font-size: 0.85em;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
     }
   }
 }
@@ -479,7 +479,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 20px;
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
   border-radius: 8px;
   gap: 20px;
 
@@ -494,7 +494,7 @@
     gap: 16px;
 
     .linkedIcon {
-      color: var(--blert-button);
+      color: var(--blert-purple);
       font-size: 1.5em;
     }
 
@@ -505,13 +505,13 @@
 
       .accountLabel {
         font-size: 0.85em;
-        color: var(--font-color-nav);
+        color: var(--blert-font-color-secondary);
       }
 
       .accountValue {
         font-size: 1.1em;
         font-weight: 600;
-        color: var(--blert-text-color);
+        color: var(--blert-font-color-primary);
       }
     }
   }
@@ -555,8 +555,8 @@
     flex-direction: column;
     gap: 20px;
     padding: 20px;
-    background: rgba(var(--blert-button-base), 0.02);
-    border: 1px solid rgba(var(--blert-button-base), 0.15);
+    background: rgba(var(--blert-purple-base), 0.02);
+    border: 1px solid rgba(var(--blert-purple-base), 0.15);
     border-radius: 8px;
 
     @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
@@ -574,8 +574,8 @@
         justify-content: center;
         width: 28px;
         height: 28px;
-        background: rgba(var(--blert-button-base), 0.15);
-        color: var(--blert-button);
+        background: rgba(var(--blert-purple-base), 0.15);
+        color: var(--blert-purple);
         border-radius: 50%;
         font-weight: 600;
         font-size: 0.85em;
@@ -587,13 +587,13 @@
         h3 {
           margin: 0 0 8px 0;
           font-size: 1em;
-          color: var(--blert-text-color);
+          color: var(--blert-font-color-primary);
         }
 
         p {
           margin: 0;
           font-size: 0.9em;
-          color: var(--font-color-nav);
+          color: var(--blert-font-color-secondary);
           line-height: 1.5;
         }
       }
@@ -613,16 +613,16 @@
 
   code {
     padding: 3px 8px;
-    background: var(--nav-bg);
+    background: var(--blert-surface-dark);
     border-radius: 4px;
     font-family: var(--font-roboto-mono), monospace;
     font-size: 0.95em;
-    color: var(--blert-button);
+    color: var(--blert-purple);
     cursor: text;
     user-select: all;
 
     &::selection {
-      background: rgba(var(--blert-button-base), 0.3);
+      background: rgba(var(--blert-purple-base), 0.3);
     }
   }
 
@@ -638,10 +638,10 @@
       padding: 32px;
       background: linear-gradient(
         135deg,
-        rgba(var(--blert-button-base), 0.1) 0%,
-        rgba(var(--blert-button-base), 0.05) 100%
+        rgba(var(--blert-purple-base), 0.1) 0%,
+        rgba(var(--blert-purple-base), 0.05) 100%
       );
-      border: 2px dashed rgba(var(--blert-button-base), 0.3);
+      border: 2px dashed rgba(var(--blert-purple-base), 0.3);
       border-radius: 12px;
       gap: 12px;
 
@@ -651,7 +651,7 @@
 
       .codeLabel {
         font-size: 0.9em;
-        color: var(--font-color-nav);
+        color: var(--blert-font-color-secondary);
         font-weight: 500;
       }
 
@@ -663,7 +663,7 @@
         font-family: var(--font-roboto-mono), monospace;
         font-size: 2em;
         font-weight: 700;
-        color: var(--blert-button);
+        color: var(--blert-purple);
         letter-spacing: 0.2em;
         cursor: text;
 
@@ -677,7 +677,7 @@
         }
 
         &::selection {
-          background: rgba(var(--blert-button-base), 0.3);
+          background: rgba(var(--blert-purple-base), 0.3);
         }
       }
 
@@ -693,9 +693,9 @@
         width: 36px;
         height: 36px;
         border-radius: 6px;
-        border: 1px solid rgba(var(--blert-button-base), 0.3);
-        background: rgba(var(--nav-bg-base), 0.5);
-        color: var(--blert-button);
+        border: 1px solid rgba(var(--blert-purple-base), 0.3);
+        background: rgba(var(--blert-surface-dark-base), 0.5);
+        color: var(--blert-purple);
         cursor: pointer;
         transition: all 0.2s ease;
 
@@ -705,8 +705,8 @@
         }
 
         &:hover:not(:disabled) {
-          background: rgba(var(--blert-button-base), 0.15);
-          border-color: var(--blert-button);
+          background: rgba(var(--blert-purple-base), 0.15);
+          border-color: var(--blert-purple);
         }
 
         &:disabled {
@@ -726,9 +726,9 @@
         align-items: center;
         gap: 5px;
         font-size: 0.85em;
-        color: var(--font-color-nav);
+        color: var(--blert-font-color-secondary);
         padding: 6px 12px;
-        background: var(--nav-bg);
+        background: var(--blert-surface-dark);
         border-radius: 20px;
 
         .time {
@@ -740,7 +740,7 @@
 
     .codeHint {
       text-align: center;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
       font-size: 0.9em;
       line-height: 1.5;
       margin: 0;
@@ -753,7 +753,7 @@
     justify-content: center;
     gap: 10px;
     padding: 12px 24px;
-    background: rgba(var(--blert-button-base), 0.9);
+    background: rgba(var(--blert-purple-base), 0.9);
     border: none;
     border-radius: 8px;
     color: #fff;
@@ -764,9 +764,9 @@
     align-self: center;
 
     &:hover:not(:disabled) {
-      background: rgba(var(--blert-button-base), 0.8);
+      background: rgba(var(--blert-purple-base), 0.8);
       transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(var(--blert-button-base), 0.4);
+      box-shadow: 0 4px 12px rgba(var(--blert-purple-base), 0.4);
     }
 
     &:disabled {

@@ -8,18 +8,18 @@
     &.open {
       border-radius: 5px 5px 0 0;
       border-bottom: none;
-      border-color: rgba(var(--blert-button-base), 0.9);
+      border-color: rgba(var(--blert-purple-base), 0.9);
       box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
     }
   }
 }
 
 .suggestions {
-  border-color: rgba(var(--blert-button-base), 0.9) !important;
+  border-color: rgba(var(--blert-purple-base), 0.9) !important;
   background: linear-gradient(
     180deg,
-    var(--panel-bg) 0%,
-    rgba(var(--nav-bg-base), 0.98) 100%
+    var(--blert-panel-background-color) 0%,
+    rgba(var(--blert-surface-dark-base), 0.98) 100%
   );
   box-shadow:
     0 8px 24px rgba(0, 0, 0, 0.3),
@@ -27,18 +27,18 @@
 
   .suggestion {
     padding: 8px 12px;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     font-weight: 400;
     transition: all 0.15s ease;
     position: relative;
 
     &:hover {
-      background: rgba(var(--blert-button-base), 0.1);
+      background: rgba(var(--blert-purple-base), 0.1);
       padding-left: 16px;
     }
 
     &.active {
-      background: rgba(var(--blert-button-base), 0.15);
+      background: rgba(var(--blert-purple-base), 0.15);
       font-weight: 500;
       padding-left: 16px;
 
@@ -49,7 +49,7 @@
         top: 0;
         bottom: 0;
         width: 3px;
-        background: var(--blert-button);
+        background: var(--blert-purple);
         border-radius: 0 2px 2px 0;
       }
     }

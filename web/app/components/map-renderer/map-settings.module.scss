@@ -5,7 +5,7 @@
 
 .chevronIcon {
   font-size: 0.75rem !important;
-  color: var(--font-color-nav) !important;
+  color: var(--blert-font-color-secondary) !important;
   transition: transform 0.2s ease;
   margin-left: auto;
 
@@ -21,10 +21,10 @@
   margin-top: 0.5rem;
   background: linear-gradient(
     135deg,
-    var(--panel-bg) 0%,
-    rgba(var(--nav-bg-base), 0.95) 100%
+    var(--blert-panel-background-color) 0%,
+    rgba(var(--blert-surface-dark-base), 0.95) 100%
   );
-  border: 1px solid rgba(var(--blert-button-base), 0.15);
+  border: 1px solid rgba(var(--blert-purple-base), 0.15);
   border-radius: 8px;
   box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.3),
@@ -53,7 +53,7 @@
     background: linear-gradient(
       90deg,
       transparent,
-      rgba(var(--blert-button-base), 0.6),
+      rgba(var(--blert-purple-base), 0.6),
       transparent
     );
   }
@@ -74,16 +74,16 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
-  background: rgba(var(--blert-button-base), 0.1);
-  border: 1px solid rgba(var(--blert-button-base), 0.2);
+  background: rgba(var(--blert-purple-base), 0.1);
+  border: 1px solid rgba(var(--blert-purple-base), 0.2);
   border-radius: 6px;
   margin-bottom: 1rem;
   font-size: 0.8rem;
-  color: var(--blert-button);
+  color: var(--blert-purple);
 
   i {
     font-size: 0.75rem;
-    color: var(--blert-button);
+    color: var(--blert-purple);
   }
 
   span {
@@ -105,17 +105,17 @@
 .settingLabel {
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
   margin: 0;
   margin-bottom: 0.25rem;
 }
 
 .settingGroup :global(.checkbox) {
   font-size: 0.875rem;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
 
   input:checked + & {
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
   }
 }
 

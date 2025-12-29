@@ -22,7 +22,7 @@ export function statusNameAndColor(status: ChallengeStatus, stage?: Stage) {
   const prefix = stage ? `${stageName(stage)} ` : '';
 
   if (status === ChallengeStatus.RESET) {
-    return [`${prefix}Reset`, 'var(--blert-text-color)'];
+    return [`${prefix}Reset`, 'var(--blert-font-color-primary)'];
   }
   return [`${prefix}Wipe`, 'rgba(var(--blert-red-base), 0.9)'];
 }

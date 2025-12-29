@@ -5,7 +5,6 @@ import {
   DataRepository,
   RecordingType,
   Stage,
-  StageStreamEvents,
   StageStreamType,
 } from '@blert/common';
 import { ChallengeEvents } from '@blert/common/generated/challenge_storage_pb';
@@ -22,6 +21,11 @@ import sql from './db';
 import { ReportedTimes } from './event-processing';
 import logger, { runWithLogContext } from './log';
 import { ClientEvents, Merger } from './merging';
+import {
+  getMetricsSnapshot,
+  metricsContentType,
+  observeHttpRequest,
+} from './metrics';
 
 function asyncHandler(
   fn: (req: Request, res: Response) => Promise<void>,
@@ -32,15 +36,43 @@ function asyncHandler(
 }
 
 export function registerApiRoutes(app: Application): void {
-  app.get('/ping', (_req, res) => {
+  app.get('/ping', (req, res) => {
     res.send('pong');
   });
+
+  app.get(
+    '/metrics',
+    asyncHandler(async (_req, res) => {
+      try {
+        const metrics = await getMetricsSnapshot();
+        res.set('Content-Type', metricsContentType);
+        res.send(metrics);
+      } catch (err) {
+        logger.error('metrics_endpoint_failure', {
+          error: err instanceof Error ? err : new Error(String(err)),
+        });
+        res.status(500).send('metrics_unavailable');
+      }
+    }),
+  );
 
   app.post('/challenges/new', asyncHandler(newChallenge));
   app.post('/challenges/:challengeId', asyncHandler(updateChallenge));
   app.post('/challenges/:challengeId/finish', asyncHandler(finishChallenge));
   app.post('/challenges/:challengeId/join', asyncHandler(joinChallenge));
   app.post('/test/merge/:challengeId/:stage', asyncHandler(mergeTestEvents));
+}
+
+function recordHttpMetrics(
+  route: string,
+  req: Request,
+  res: Response,
+  start: bigint,
+): void {
+  const diff = process.hrtime.bigint() - start;
+  const durationMs = Number(diff) / 1_000_000;
+  const status = res.statusCode ?? 200;
+  observeHttpRequest(route, req.method, status, durationMs);
 }
 
 function errorStatus(e: unknown): number {
@@ -58,9 +90,36 @@ function errorStatus(e: unknown): number {
   return 500;
 }
 
-function sendErrorResponse(res: Response, e: unknown): void {
-  const message = e instanceof Error ? e.message : 'Internal server error';
-  res.status(errorStatus(e)).json({ error: { message } });
+function logAndSendErrorResponse(res: Response, e: unknown): void {
+  logger.error('challenge_api_error', {
+    error: e instanceof Error ? e.message : String(e),
+  });
+
+  // Only surface challenge error details.
+  const message =
+    e instanceof ChallengeError ? e.message : 'Internal server error';
+  const statusCode = errorStatus(e);
+  res.status(statusCode).json({ error: { message } });
+}
+
+async function challengeApiHandler(
+  req: Request,
+  res: Response,
+  route: string,
+  context: Record<string, unknown>,
+  handler: () => Promise<void>,
+) {
+  const start = process.hrtime.bigint();
+
+  await runWithLogContext(context, async () => {
+    try {
+      await handler();
+    } catch (e: unknown) {
+      logAndSendErrorResponse(res, e);
+    }
+  });
+
+  recordHttpMetrics(route, req, res, start);
 }
 
 type NewChallengeRequest = {
@@ -75,25 +134,21 @@ type NewChallengeRequest = {
 async function newChallenge(req: Request, res: Response): Promise<void> {
   const request = req.body as NewChallengeRequest;
 
-  await runWithLogContext(
+  await challengeApiHandler(
+    req,
+    res,
+    '/challenges/new',
     { userId: request.userId, action: 'new' },
     async () => {
-      try {
-        const result = await res.locals.challengeManager.createOrJoin(
-          request.userId,
-          request.type,
-          request.mode,
-          request.stage,
-          request.party,
-          request.recordingType,
-        );
-        res.json(result);
-      } catch (e: unknown) {
-        logger.error('challenge_api_error', {
-          error: e instanceof Error ? e : new Error(String(e)),
-        });
-        sendErrorResponse(res, e);
-      }
+      const result = await res.locals.challengeManager.createOrJoin(
+        request.userId,
+        request.type,
+        request.mode,
+        request.stage,
+        request.party,
+        request.recordingType,
+      );
+      res.json(result);
     },
   );
 }
@@ -107,25 +162,21 @@ async function updateChallenge(req: Request, res: Response): Promise<void> {
   const challengeId = req.params.challengeId;
   const request = req.body as UpdateChallengeRequest;
 
-  await runWithLogContext(
+  await challengeApiHandler(
+    req,
+    res,
+    '/challenges/:challengeId',
     { challengeUuid: challengeId, userId: request.userId, action: 'update' },
     async () => {
-      try {
-        const result = await res.locals.challengeManager.update(
-          challengeId,
-          request.userId,
-          request.update,
-        );
-        if (result === null) {
-          res.status(409).send();
-        } else {
-          res.json(result);
-        }
-      } catch (e: unknown) {
-        logger.error('Failed to update challenge', {
-          error: e instanceof Error ? e : new Error(String(e)),
-        });
-        sendErrorResponse(res, e);
+      const result = await res.locals.challengeManager.update(
+        challengeId,
+        request.userId,
+        request.update,
+      );
+      if (result === null) {
+        res.status(409).json({ error: { message: 'Update rejected' } });
+      } else {
+        res.json(result);
       }
     },
   );
@@ -140,22 +191,18 @@ async function finishChallenge(req: Request, res: Response): Promise<void> {
   const challengeId = req.params.challengeId;
   const request = req.body as FinishChallengeRequest;
 
-  await runWithLogContext(
+  await challengeApiHandler(
+    req,
+    res,
+    '/challenges/:challengeId/finish',
     { challengeUuid: challengeId, userId: request.userId, action: 'finish' },
     async () => {
-      try {
-        await res.locals.challengeManager.finish(
-          challengeId,
-          request.userId,
-          request.times,
-        );
-        res.status(200).send();
-      } catch (e: unknown) {
-        logger.error('Failed to finish challenge', {
-          error: e instanceof Error ? e : new Error(String(e)),
-        });
-        sendErrorResponse(res, e);
-      }
+      await res.locals.challengeManager.finish(
+        challengeId,
+        request.userId,
+        request.times,
+      );
+      res.status(200).send();
     },
   );
 }
@@ -169,27 +216,26 @@ async function joinChallenge(req: Request, res: Response): Promise<void> {
   const challengeId = req.params.challengeId;
   const request = req.body as JoinChallengeRequest;
 
-  await runWithLogContext(
+  await challengeApiHandler(
+    req,
+    res,
+    '/challenges/:challengeId/join',
     { challengeUuid: challengeId, userId: request.userId, action: 'join' },
     async () => {
-      try {
-        const status = await res.locals.challengeManager.addClient(
-          challengeId,
-          request.userId,
-          request.recordingType,
-        );
-        res.json(status);
-      } catch (e: unknown) {
-        logger.error('Failed to join challenge', {
-          error: e instanceof Error ? e : new Error(String(e)),
-        });
-        sendErrorResponse(res, e);
-      }
+      const status = await res.locals.challengeManager.addClient(
+        challengeId,
+        request.userId,
+        request.recordingType,
+      );
+      res.json(status);
     },
   );
 }
 
 async function mergeTestEvents(req: Request, res: Response): Promise<void> {
+  const route = '/test/merge/:challengeId/:stage';
+  const start = process.hrtime.bigint();
+
   // Processes challenge data stored in the testing data repository.
   // Each top-level directory in the repository is a challenge ID. Inside, it
   // contains a subdirectory for each recorded stage of the challenge, which
@@ -212,7 +258,7 @@ async function mergeTestEvents(req: Request, res: Response): Promise<void> {
         ...raw,
         rawEvents: raw.rawEvents.map((e) => {
           if (e.type === StageStreamType.STAGE_EVENTS) {
-            const events = (e as StageStreamEvents).events;
+            const events = e.events;
             return {
               ...e,
               events: Buffer.from(events),
@@ -283,4 +329,6 @@ async function mergeTestEvents(req: Request, res: Response): Promise<void> {
       .status(200)
       .send(Buffer.from(mergedEvents.serializeBinary()).toString('base64'));
   });
+
+  recordHttpMetrics(route, req, res, start);
 }

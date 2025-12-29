@@ -179,9 +179,10 @@ export default class MokhaiotlProcessor extends ChallengeProcessor {
           });
 
         if (attackEvent === undefined) {
-          logger.warn(
-            `Challenge ${this.getUuid()} got MOKHAIOTL_ATTACK_STYLE without a matching NPC_ATTACK`,
-          );
+          logger.warn('challenge_event_missing_npc_attack', {
+            eventType: event.getType(),
+            tick: mokhaiotlAttackStyle.getNpcAttackTick(),
+          });
           return Promise.resolve(false);
         }
 

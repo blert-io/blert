@@ -6,11 +6,11 @@
   }
 
   i {
-    color: var(--blert-button);
+    color: var(--blert-purple);
   }
 
   .arrow {
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
   }
 
   .walkTime {
@@ -19,7 +19,7 @@
 
   .walkTicks {
     font-size: 14px;
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     margin-left: 8px;
   }
 }

@@ -3,10 +3,19 @@ import winston from 'winston';
 
 const isDev = process.env.NODE_ENV !== 'production';
 
+const structuredLogsEnabled = (() => {
+  const flag = process.env.BLERT_STRUCTURED_LOGS;
+  if (flag === undefined) {
+    return false;
+  }
+  return flag === '1' || flag.toLowerCase() === 'true';
+})();
+
+const usePrettyFormatter = isDev && !structuredLogsEnabled;
+
 const addContext = winston.format((info) => {
   const context = getLogContext();
-  if (context && Object.keys(context).length > 0) {
-    info.context = { ...(info.context ?? {}), ...context };
+  if (context) {
     for (const [key, value] of Object.entries(context)) {
       info[key] ??= value;
     }
@@ -22,7 +31,7 @@ const logger = winston.createLogger({
     winston.format.timestamp(),
     winston.format.errors({ stack: true }),
     winston.format.splat(),
-    isDev
+    usePrettyFormatter
       ? winston.format.printf((info) => {
           const { timestamp, level, message, service, context, ...meta } = info;
           const mergedMeta = { ...(context ?? {}), ...meta };

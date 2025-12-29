@@ -148,7 +148,7 @@ export default function SessionHeader() {
                     stats.completionRate >= 80
                       ? 'var(--blert-green)'
                       : stats.completionRate >= 50
-                        ? 'var(--blert-button)'
+                        ? 'var(--blert-purple)'
                         : 'var(--blert-red)',
                 }}
               />

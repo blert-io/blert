@@ -5,8 +5,13 @@
 
 .menu {
   position: fixed;
-  background-color: var(--nav-bg);
-  border: 1px solid rgba(var(--blert-button-base), 0.2);
+
+  &.rootMenu {
+    position: relative;
+  }
+
+  background-color: var(--blert-surface-dark);
+  border: 1px solid rgba(var(--blert-purple-base), 0.2);
   box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.4),
     0 2px 8px rgba(0, 0, 0, 0.2);
@@ -25,7 +30,7 @@
     align-items: center;
     justify-content: flex-start;
     transition: all 0.2s ease;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     position: relative;
 
     &:not(.wrap) {
@@ -35,7 +40,7 @@
     &:disabled,
     &.inactive {
       opacity: 0.5;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
     }
 
     &.info {
@@ -46,8 +51,8 @@
     &.active {
       background: linear-gradient(
         90deg,
-        rgba(var(--blert-button-base), 0.15) 0%,
-        rgba(var(--blert-button-base), 0.08) 100%
+        rgba(var(--blert-purple-base), 0.15) 0%,
+        rgba(var(--blert-purple-base), 0.08) 100%
       );
       color: #fff;
 
@@ -58,7 +63,7 @@
         top: 0;
         bottom: 0;
         width: 3px;
-        background: var(--blert-button);
+        background: var(--blert-purple);
         border-radius: 0 2px 2px 0;
       }
 
@@ -67,7 +72,7 @@
       }
 
       & > .icon {
-        color: var(--blert-button);
+        color: var(--blert-purple);
       }
 
       .secondary {
@@ -77,7 +82,7 @@
 
     &:not(.inactive):not(.active):hover {
       cursor: pointer;
-      background: rgba(var(--blert-button-base), 0.08);
+      background: rgba(var(--blert-purple-base), 0.08);
 
       .icon:not(.subMenuIcon) {
         transform: translateX(2px);
@@ -100,12 +105,12 @@
       transition:
         transform 0.2s ease,
         color 0.2s ease;
-      color: var(--blert-button);
+      color: var(--blert-purple);
     }
 
     .secondary {
       margin-left: auto;
-      color: var(--font-color-nav);
+      color: var(--blert-font-color-secondary);
       font-size: 0.85rem;
       font-family: var(--font-roboto-mono), monospace;
       white-space: nowrap;
@@ -120,9 +125,14 @@
     margin: 0 auto;
     background: linear-gradient(
       90deg,
-      rgba(var(--blert-button-base), 0.05),
-      rgba(var(--blert-button-base), 0.25),
-      rgba(var(--blert-button-base), 0.05)
+      rgba(var(--blert-purple-base), 0.05),
+      rgba(var(--blert-purple-base), 0.25),
+      rgba(var(--blert-purple-base), 0.05)
     );
+  }
+
+  // Submenu flipped to the left side of parent.
+  &.flippedLeft {
+    border-radius: 5px 0 0 5px;
   }
 }

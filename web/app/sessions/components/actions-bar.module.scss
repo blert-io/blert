@@ -12,14 +12,14 @@
 }
 
 .actionGroup {
-  background: var(--nav-bg);
+  background: var(--blert-surface-dark);
   border-radius: 8px;
   padding: 1.25rem;
   border: 1px solid transparent;
   transition: all 0.2s ease;
 
   &:hover {
-    border-color: rgba(var(--blert-button-base), 0.2);
+    border-color: rgba(var(--blert-purple-base), 0.2);
     transform: translateY(-1px);
   }
 }
@@ -30,16 +30,16 @@
   gap: 0.5rem;
   margin-bottom: 1rem;
   padding-bottom: 0.75rem;
-  border-bottom: 1px solid rgba(var(--blert-button-base), 0.1);
+  border-bottom: 1px solid rgba(var(--blert-purple-base), 0.1);
 
   i {
-    color: var(--blert-button);
+    color: var(--blert-purple);
     font-size: 0.9rem;
   }
 
   span {
     font-weight: 600;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
     font-size: 0.95rem;
   }
 }
@@ -71,27 +71,27 @@
   }
 
   &.default {
-    color: var(--blert-text-color);
-    background: rgba(var(--blert-button-base), 0.1);
-    border-color: rgba(var(--blert-button-base), 0.2);
+    color: var(--blert-font-color-primary);
+    background: rgba(var(--blert-purple-base), 0.1);
+    border-color: rgba(var(--blert-purple-base), 0.2);
 
     &:hover:not(:disabled) {
-      background: rgba(var(--blert-button-base), 0.2);
-      border-color: rgba(var(--blert-button-base), 0.4);
+      background: rgba(var(--blert-purple-base), 0.2);
+      border-color: rgba(var(--blert-purple-base), 0.4);
       transform: translateY(-1px);
     }
   }
 
   &.primary {
     color: white;
-    background: var(--blert-button);
-    border-color: var(--blert-button);
+    background: var(--blert-purple);
+    border-color: var(--blert-purple);
 
     &:hover:not(:disabled) {
-      background: var(--blert-button-hover);
-      border-color: var(--blert-button-hover);
+      background: var(--blert-purple-hover);
+      border-color: var(--blert-purple-hover);
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(var(--blert-button-base), 0.3);
+      box-shadow: 0 4px 12px rgba(var(--blert-purple-base), 0.3);
     }
   }
 
@@ -126,7 +126,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 0.5rem 0;
-  border-bottom: 1px solid rgba(var(--blert-button-base), 0.05);
+  border-bottom: 1px solid rgba(var(--blert-purple-base), 0.05);
 
   &:last-child {
     border-bottom: none;
@@ -135,13 +135,13 @@
 
 .statLabel {
   font-size: 0.85rem;
-  color: var(--font-color-nav);
+  color: var(--blert-font-color-secondary);
   font-weight: 500;
 }
 
 .statValue {
   font-family: var(--font-roboto-mono), monospace;
   font-weight: 600;
-  color: var(--blert-text-color);
+  color: var(--blert-font-color-primary);
   font-size: 0.9rem;
 }

@@ -20,8 +20,8 @@
   width: 100%;
   max-width: 500px;
   position: relative;
-  background: var(--panel-bg);
-  border: 1px solid var(--font-color-nav-divider);
+  background: var(--blert-panel-background-color);
+  border: 1px solid var(--blert-divider-color);
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     padding: 24px;
@@ -31,16 +31,16 @@
     font-size: 1.8em;
     margin: 0 0 8px 0;
     text-align: center;
-    color: var(--blert-text-color);
+    color: var(--blert-font-color-primary);
   }
 
   .subtitle {
-    color: var(--font-color-nav);
+    color: var(--blert-font-color-secondary);
     font-size: 0.95em;
     margin: 12px 0 24px 0;
 
     a {
-      color: var(--blert-button);
+      color: var(--blert-purple);
       text-decoration: none;
 
       &:hover {

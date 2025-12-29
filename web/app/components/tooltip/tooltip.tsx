@@ -55,7 +55,7 @@ export function Tooltip(props: TooltipProps) {
     offset = 10,
     delayShow,
     delayHide,
-    border = '1px solid rgba(var(--blert-button-base), 0.15)',
+    border = '1px solid rgba(var(--blert-purple-base), 0.15)',
     opacity = 1,
   } = props;
   const [ready, setReady] = useState(false);
@@ -101,16 +101,16 @@ export function Tooltip(props: TooltipProps) {
       opacity={opacity}
       render={props.render}
       border={border}
-      arrowColor="rgba(var(--nav-bg-base), 0.95)"
+      arrowColor="rgba(var(--blert-surface-dark-base), 0.95)"
       style={{
         background:
-          'linear-gradient(135deg, var(--panel-bg) 0%, rgba(var(--nav-bg-base), 0.95) 100%)',
+          'linear-gradient(135deg, var(--blert-panel-background-color) 0%, rgba(var(--blert-surface-dark-base), 0.95) 100%)',
         borderRadius: '8px',
         boxShadow:
           '0 8px 32px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
         backdropFilter: 'blur(8px)',
         maxWidth,
-        zIndex: 999,
+        zIndex: 1001,
       }}
     >
       {children}
