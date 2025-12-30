@@ -7,7 +7,10 @@ import { readFile } from 'fs/promises';
 import { RedisClientType, createClient } from 'redis';
 import { WebSocket, WebSocketServer } from 'ws';
 
-import { AttackRepository, ValidationError } from './attack-definitions';
+import {
+  ActionDefinitionsRepository,
+  ValidationError,
+} from './action-definitions';
 import ChallengeManager from './challenge-manager';
 import Client from './client';
 import ConnectionManager from './connection-manager';
@@ -44,20 +47,24 @@ type ShutdownRequest = {
 function setupHttpRoutes(
   app: express.Express,
   serverManager: ServerManager,
-  attackRepository: AttackRepository,
+  definitionsRepository: ActionDefinitionsRepository,
 ) {
   app.get('/ping', (_req, res) => {
     res.send('pong');
   });
 
-  // Public endpoint to get current attack definitions.
-  app.get('/attack-definitions', (_req, res) => {
-    res.json(attackRepository.getDefinitionsJson());
+  // Public endpoints to get current definitions.
+  app.get('/definitions/attacks', (_req, res) => {
+    res.json(definitionsRepository.getAttackDefinitionsJson());
+  });
+
+  app.get('/definitions/spells', (_req, res) => {
+    res.json(definitionsRepository.getSpellDefinitionsJson());
   });
 
   app.use('/admin/*', (req, res, next) => {
     if (req.headers.authorization !== process.env.ADMIN_TOKEN) {
-      res.status(401).send('Unauthorized');
+      res.status(401).json({ error: 'Unauthorized' });
       return;
     }
 
@@ -86,14 +93,14 @@ function setupHttpRoutes(
 
   // Admin endpoint to upload new attack definitions.
   app.post(
-    '/admin/attack-definitions',
+    '/admin/definitions/attacks',
     asyncHandler(async (req, res) => {
       try {
-        await attackRepository.uploadDefinitions(req.body);
+        await definitionsRepository.uploadAttackDefinitions(req.body);
         serverManager.broadcastMessage(
-          attackRepository.createDefinitionsMessage(),
+          definitionsRepository.createAttackDefinitionsMessage(),
         );
-        const definitions = attackRepository.getDefinitionsJson();
+        const definitions = definitionsRepository.getAttackDefinitionsJson();
         res.json({ success: true, count: definitions.length });
       } catch (e) {
         if (e instanceof ValidationError) {
@@ -101,6 +108,32 @@ function setupHttpRoutes(
           return;
         }
         logger.error('attack_definitions_upload_failed', {
+          error: e instanceof Error ? e.message : String(e),
+        });
+        res.status(500).json({
+          error: e instanceof Error ? e.message : 'Upload failed',
+        });
+      }
+    }),
+  );
+
+  // Admin endpoint to upload new spell definitions.
+  app.post(
+    '/admin/definitions/spells',
+    asyncHandler(async (req, res) => {
+      try {
+        await definitionsRepository.uploadSpellDefinitions(req.body);
+        serverManager.broadcastMessage(
+          definitionsRepository.createSpellDefinitionsMessage(),
+        );
+        const definitions = definitionsRepository.getSpellDefinitionsJson();
+        res.json({ success: true, count: definitions.length });
+      } catch (e) {
+        if (e instanceof ValidationError) {
+          res.status(400).json({ error: e.message });
+          return;
+        }
+        logger.error('spell_definitions_upload_failed', {
           error: e instanceof Error ? e.message : String(e),
         });
         res.status(500).json({
@@ -178,18 +211,21 @@ async function loadValidRevisions(): Promise<Set<string>> {
 }
 
 /**
- * Initializes the attack definitions repository with the configured backend.
+ * Initializes the action definitions repository with the configured backend.
  */
-async function initializeAttackRepository(): Promise<AttackRepository> {
+async function initializeDefinitionsRepository(): Promise<ActionDefinitionsRepository> {
   let repository: DataRepository | null = null;
 
-  const repositoryUri = process.env.BLERT_ATTACK_REPOSITORY;
+  const repositoryUri = process.env.BLERT_DEFINITIONS_REPOSITORY;
   if (repositoryUri) {
     let backend: DataRepository.Backend;
 
     if (repositoryUri.startsWith('file://')) {
       const root = repositoryUri.slice('file://'.length);
-      logger.info('attack_repository_backend', { backend: 'filesystem', root });
+      logger.info('definitions_repository_backend', {
+        backend: 'filesystem',
+        root,
+      });
       backend = new DataRepository.FilesystemBackend(root);
     } else if (repositoryUri.startsWith('s3://')) {
       const s3Client = new S3Client({
@@ -202,10 +238,10 @@ async function initializeAttackRepository(): Promise<AttackRepository> {
         },
       });
       const bucket = repositoryUri.slice('s3://'.length);
-      logger.info('attack_repository_backend', { backend: 's3', bucket });
+      logger.info('definitions_repository_backend', { backend: 's3', bucket });
       backend = new DataRepository.S3Backend(s3Client, bucket);
     } else {
-      logger.error('attack_repository_backend_invalid', {
+      logger.error('definitions_repository_backend_invalid', {
         backend: repositoryUri,
       });
       process.exit(1);
@@ -217,13 +253,18 @@ async function initializeAttackRepository(): Promise<AttackRepository> {
   if (!process.env.BLERT_ATTACK_DEFINITIONS_FALLBACK) {
     throw new Error('BLERT_ATTACK_DEFINITIONS_FALLBACK is not set');
   }
-  const attackRepository = new AttackRepository(
-    repository,
-    process.env.BLERT_ATTACK_DEFINITIONS_FALLBACK,
-  );
-  await attackRepository.initialize();
+  if (!process.env.BLERT_SPELL_DEFINITIONS_FALLBACK) {
+    throw new Error('BLERT_SPELL_DEFINITIONS_FALLBACK is not set');
+  }
 
-  return attackRepository;
+  const definitionsRepository = new ActionDefinitionsRepository({
+    repository,
+    attackFallbackPath: process.env.BLERT_ATTACK_DEFINITIONS_FALLBACK,
+    spellFallbackPath: process.env.BLERT_SPELL_DEFINITIONS_FALLBACK,
+  });
+  await definitionsRepository.initialize();
+
+  return definitionsRepository;
 }
 
 async function main(): Promise<void> {
@@ -330,11 +371,11 @@ async function main(): Promise<void> {
     });
   });
 
-  const attackRepository = await initializeAttackRepository();
+  const definitionsRepository = await initializeDefinitionsRepository();
 
   const connectionManager = new ConnectionManager(
     redisClient,
-    attackRepository,
+    definitionsRepository,
   );
   const serverManager = new ServerManager(connectionManager);
 
@@ -352,7 +393,7 @@ async function main(): Promise<void> {
     }
   });
 
-  setupHttpRoutes(app, serverManager, attackRepository);
+  setupHttpRoutes(app, serverManager, definitionsRepository);
 
   wss.on('connection', (_ws: WebSocket, _req: Request, client: Client) => {
     connectionManager.addClient(client);

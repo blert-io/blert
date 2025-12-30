@@ -6,7 +6,7 @@ import {
 import { ServerMessage } from '@blert/common/generated/server_message_pb';
 import { RedisClientType } from 'redis';
 
-import { AttackRepository } from './attack-definitions';
+import { ActionDefinitionsRepository } from './action-definitions';
 import Client from './client';
 import logger from './log';
 import { recordActiveClients, recordClientRegistration } from './metrics';
@@ -16,16 +16,16 @@ export default class ConnectionManager {
   private activeClients: Map<number, Client>;
   private nextSessionId;
   private pubsubClient: RedisClientType | null;
-  private attackRepository: AttackRepository;
+  private definitionsRepository: ActionDefinitionsRepository;
 
   public constructor(
     redisClient: RedisClientType | null,
-    attackRepository: AttackRepository,
+    definitionsRepository: ActionDefinitionsRepository,
   ) {
     this.activeClients = new Map();
     this.nextSessionId = 1;
     this.pubsubClient = null;
-    this.attackRepository = attackRepository;
+    this.definitionsRepository = definitionsRepository;
 
     if (redisClient !== null) {
       this.pubsubClient = redisClient.duplicate() as RedisClientType;
@@ -128,8 +128,13 @@ export default class ConnectionManager {
 
     client.sendMessage(connectionResponse);
 
-    // Send the latest attack definitions on connection.
-    client.sendMessage(this.attackRepository.createDefinitionsMessage());
+    // Send the latest action definitions on connection.
+    client.sendMessage(
+      this.definitionsRepository.createAttackDefinitionsMessage(),
+    );
+    client.sendMessage(
+      this.definitionsRepository.createSpellDefinitionsMessage(),
+    );
 
     client.startGameStateRequestCycle();
   }

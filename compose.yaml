@@ -32,6 +32,7 @@ services:
     volumes:
       - .:/app
       - ./common/protos/attack_definitions.json:/app/attacks.json:ro
+      - ./common/protos/spell_definitions.json:/app/spells.json:ro
     environment:
       NODE_ENV: development
       ADMIN_TOKEN: blert
@@ -39,8 +40,9 @@ services:
       BLERT_CHALLENGE_SERVER_URI: http://challenge-server:3003
       BLERT_REDIS_URI: redis://redis:6379
       BLERT_STRUCTURED_LOGS: ${BLERT_STRUCTURED_LOGS:-false}
-      BLERT_ATTACK_REPOSITORY: file:///app/.data
+      BLERT_DEFINITIONS_REPOSITORY: file:///app/.data
       BLERT_ATTACK_DEFINITIONS_FALLBACK: /app/attacks.json
+      BLERT_SPELL_DEFINITIONS_FALLBACK: /app/spells.json
     working_dir: /app
     command: npm run -w socket-server dev
 
