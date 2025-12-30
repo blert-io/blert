@@ -5,9 +5,7 @@ import {
   EventType,
   Npc,
   NpcEvent,
-  PlayerUpdateEvent,
   SkillLevel,
-  SoteMazePathEvent,
   SplitType,
   Stage,
   TobRaid,
@@ -256,11 +254,8 @@ export default function SotetsegPage() {
 
       const tickEvents = eventsByTick[tick] ?? [];
       const activeTiles =
-        (
-          tickEvents.find(
-            (e) => e.type === EventType.TOB_SOTE_MAZE_PATH,
-          ) as SoteMazePathEvent
-        )?.soteMaze.activeTiles ?? [];
+        tickEvents.find((e) => e.type === EventType.TOB_SOTE_MAZE_PATH)
+          ?.soteMaze.activeTiles ?? [];
 
       for (let y = 0; y < MAZE_HEIGHT; ++y) {
         for (let x = 0; x < MAZE_WIDTH; ++x) {
@@ -304,16 +299,15 @@ export default function SotetsegPage() {
   for (const evt of eventsForCurrentTick) {
     switch (evt.type) {
       case EventType.PLAYER_UPDATE: {
-        const e = evt as PlayerUpdateEvent;
-        const hitpoints = e.player.hitpoints
-          ? SkillLevel.fromRaw(e.player.hitpoints)
+        const hitpoints = evt.player.hitpoints
+          ? SkillLevel.fromRaw(evt.player.hitpoints)
           : undefined;
         const player = new LegacyPlayerEntity(
-          e.xCoord,
-          e.yCoord,
-          e.player.name,
+          evt.xCoord,
+          evt.yCoord,
+          evt.player.name,
           hitpoints,
-          /*highlight=*/ e.player.name === selectedPlayer,
+          /*highlight=*/ evt.player.name === selectedPlayer,
         );
         legacyEntities.push(player);
         break;
@@ -343,11 +337,8 @@ export default function SotetsegPage() {
   );
 
   const activeTiles =
-    (
-      eventsForCurrentTick.find(
-        (e) => e.type === EventType.TOB_SOTE_MAZE_PATH,
-      ) as SoteMazePathEvent
-    )?.soteMaze.activeTiles ?? [];
+    eventsForCurrentTick.find((e) => e.type === EventType.TOB_SOTE_MAZE_PATH)
+      ?.soteMaze.activeTiles ?? [];
 
   for (let y = 0; y < MAZE_HEIGHT; ++y) {
     for (let x = 0; x < MAZE_WIDTH; ++x) {

@@ -9,7 +9,6 @@ import {
   EventType,
   Npc,
   NpcEvent,
-  PlayerUpdateEvent,
   SkillLevel,
   Stage,
   TobRaid,
@@ -315,14 +314,13 @@ export default function BloatPage() {
   for (const evt of eventsForCurrentTick) {
     switch (evt.type) {
       case EventType.PLAYER_UPDATE: {
-        const e = evt as PlayerUpdateEvent;
-        const hitpoints = e.player.hitpoints
-          ? SkillLevel.fromRaw(e.player.hitpoints)
+        const hitpoints = evt.player.hitpoints
+          ? SkillLevel.fromRaw(evt.player.hitpoints)
           : undefined;
         const player = new LegacyPlayerEntity(
-          e.xCoord,
-          e.yCoord,
-          e.player.name,
+          evt.xCoord,
+          evt.yCoord,
+          evt.player.name,
           hitpoints,
         );
         legacyEntities.push(player);

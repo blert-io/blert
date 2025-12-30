@@ -326,6 +326,7 @@ export class TickState {
   private mergeRegularEvents(other: TickState): void {
     const excludedTypes: number[] = [
       Event.Type.PLAYER_ATTACK,
+      Event.Type.PLAYER_SPELL,
       Event.Type.PLAYER_DEATH,
       Event.Type.PLAYER_UPDATE,
       Event.Type.NPC_ATTACK,

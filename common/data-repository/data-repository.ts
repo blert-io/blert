@@ -37,6 +37,7 @@ import {
   BloatDownEvent,
   BloatHandsDropEvent,
   BloatHandsSplatEvent,
+  BaseEvent,
   Event,
   EventType,
   MaidenBloodSplatsEvent,
@@ -50,9 +51,12 @@ import {
   NyloWaveStallEvent,
   PlayerAttackEvent,
   PlayerDeathEvent,
+  PlayerSpellEvent,
   PlayerUpdateEvent,
   SoteMazeEvent,
   SoteMazePathEvent,
+  Spell,
+  SpellTarget,
   VerzikDawnEvent,
   VerzikHealEvent,
   VerzikPhaseEvent,
@@ -983,7 +987,7 @@ function getName(player: EventProto.Player, party: string[]): string {
 }
 
 function eventFromProto(evt: EventProto, eventData: ChallengeEvents): Event {
-  const event: Partial<Event> = {
+  const event: Partial<BaseEvent> = {
     type: evt.getType(),
     stage: evt.getStage(),
     tick: evt.getTick(),
@@ -1056,6 +1060,38 @@ function eventFromProto(evt: EventProto, eventData: ChallengeEvents): Event {
           roomId: target.getRoomId(),
         };
       }
+      break;
+    }
+
+    case EventType.PLAYER_SPELL: {
+      const spell = evt.getPlayerSpell()!;
+      const e = event as PlayerSpellEvent;
+      e.player = { name: getName(evt.getPlayer()!, party) };
+
+      let target: Spell['target'];
+      switch (spell.getTargetCase()) {
+        case EventProto.Spell.TargetCase.TARGET_PLAYER:
+          target = {
+            type: SpellTarget.PLAYER,
+            player: spell.getTargetPlayer(),
+          };
+          break;
+        case EventProto.Spell.TargetCase.TARGET_NPC:
+          const npc = spell.getTargetNpc()!;
+          target = {
+            type: SpellTarget.NPC,
+            npc: { id: npc.getId(), roomId: npc.getRoomId() },
+          };
+          break;
+        default:
+          target = { type: SpellTarget.NONE };
+          break;
+      }
+
+      e.spell = {
+        type: spell.getType(),
+        target,
+      };
       break;
     }
 

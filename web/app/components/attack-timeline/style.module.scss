@@ -117,6 +117,16 @@
         color: white;
       }
     }
+
+    &.custom {
+      background: rgba(var(--blert-yellow-base), 0.1);
+      color: var(--blert-font-color-primary);
+
+      &:hover {
+        background: rgba(var(--blert-yellow-base), 0.3);
+        color: rgba(var(--blert-yellow-base), 1);
+      }
+    }
   }
 }
 
@@ -208,7 +218,7 @@
   color: var(--blert-font-color-primary);
   font-weight: bold;
   text-align: center;
-  opacity: 0.3;
+  opacity: 0.4;
   margin: 0 0 5px 0;
   position: relative;
   transition: all 0.2s ease;
@@ -349,27 +359,76 @@
 }
 
 .attackInfo {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
   font-size: 0.85rem;
 
   .attackVerb {
     text-transform: capitalize;
-    margin-right: 0.25rem;
   }
 
   .distanceInfo {
     color: var(--blert-font-color-secondary);
     font-size: 0.8rem;
   }
+}
 
-  .hitpoints {
-    font-size: 0.75rem;
-    margin-left: 6px;
-    text-decoration: none !important;
-    color: var(--blert-red);
+.spellInfo {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
 
-    i {
-      margin-right: 4px;
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+
+  img {
+    border-radius: 2px;
+  }
+
+  &.spell {
+    background: rgba(var(--blert-blue-base), 0.15);
+    color: var(--blert-blue);
+  }
+
+  &.player {
+    background: rgba(var(--blert-purple-base), 0.15);
+    color: var(--blert-purple);
+    cursor: pointer;
+    padding: 2px 8px;
+
+    &:hover {
+      background: rgba(var(--blert-purple-base), 0.25);
     }
+  }
+
+  &.npc {
+    background: rgba(var(--blert-red-base), 0.15);
+    color: var(--blert-red);
+  }
+}
+
+.chipHitpoints {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  margin-left: 0.25rem;
+  padding-left: 0.35rem;
+  border-left: 1px solid rgba(var(--blert-red-base), 0.3);
+  font-size: 0.85em;
+  opacity: 0.9;
+
+  i {
+    font-size: 0.8em;
   }
 }
 
@@ -439,13 +498,15 @@
 }
 
 .npcTooltip {
-  max-width: 240px;
+  max-width: 280px;
   text-align: center;
   padding: 0 10px 4px 10px;
-
-  .npcAttack {
-    margin-left: 4px;
-  }
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  line-height: 1.6;
 }
 
 .attackTimeline__CellImage {
@@ -480,7 +541,7 @@
   }
 }
 
-.attackTimeline__CellImage__InfoIcon {
+.infoIcon {
   z-index: 10;
   position: absolute;
   bottom: -1px;
@@ -488,6 +549,14 @@
   cursor: pointer;
   color: var(--blert-purple);
   font-size: 0.8em;
+}
+
+.spellIcon {
+  z-index: 10;
+  position: absolute;
+  bottom: -1px;
+  left: -1px;
+  cursor: pointer;
 }
 
 .attackTimeline__Nothing {

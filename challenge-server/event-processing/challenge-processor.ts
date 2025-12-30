@@ -1199,6 +1199,32 @@ export default abstract class ChallengeProcessor {
           break;
         }
 
+        case Event.Type.PLAYER_SPELL: {
+          const spell = event.getPlayerSpell()!;
+          const e = baseQueryableEvent(event);
+          e.subtype = spell.getType();
+          const playerIndex = this.party.indexOf(event.getPlayer()!.getName());
+          if (playerIndex !== -1) {
+            e.player_id = this.players[playerIndex].id;
+          }
+          switch (spell.getTargetCase()) {
+            case Event.Spell.TargetCase.TARGET_PLAYER:
+              const targetPlayerIndex = this.party.indexOf(
+                spell.getTargetPlayer(),
+              );
+              if (targetPlayerIndex !== -1) {
+                e[QueryableEventField.PLAYER_SPELL_TARGET_PLAYER] =
+                  this.players[targetPlayerIndex].id;
+              }
+              break;
+            case Event.Spell.TargetCase.TARGET_NPC:
+              e.npc_id = spell.getTargetNpc()!.getId();
+              break;
+          }
+          queryableEvents.push(e);
+          break;
+        }
+
         case Event.Type.PLAYER_DEATH: {
           const playerIndex = this.party.indexOf(event.getPlayer()!.getName());
           if (playerIndex !== -1) {

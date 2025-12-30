@@ -5,7 +5,6 @@ import {
   EventType,
   MokhaiotlChallenge,
   MokhaiotlOrbEvent,
-  MokhaiotlObjectsEvent,
   Stage,
   AttackStyle,
 } from '@blert/common';
@@ -160,7 +159,7 @@ export default function DelvePage({ params }: DelvePageProps) {
     for (let tick = 0; tick < totalTicks; tick++) {
       const objectsEvent = eventsByTick[tick]?.find(
         (event) => event.type === EventType.MOKHAIOTL_OBJECTS,
-      ) as MokhaiotlObjectsEvent | undefined;
+      );
 
       const key = (coords: Coords) => `${coords.x}-${coords.y}`;
       const coordsFromKey = (key: string) => {

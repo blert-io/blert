@@ -1,5 +1,6 @@
 import { Coords, getNpcDefinition, PrayerSet, SkillLevel } from '@blert/common';
 
+import { npcImageUrl } from '@/utils/url';
 import { Terrain } from './path';
 
 export type MapDefinition = {
@@ -177,8 +178,7 @@ export class NpcEntity implements Entity {
       this.name = npcDef.fullName;
       this.size = npcDef.size;
 
-      const imageId = npcDef.semanticId ? id : npcDef.canonicalId;
-      this.imageUrl = `/images/npcs/${imageId}.webp`;
+      this.imageUrl = npcImageUrl(id);
       this.maxSpeed = npcDef.maxSpeed ?? 1;
     } else {
       this.name = `Unknown NPC ${this.id}`;

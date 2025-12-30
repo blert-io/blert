@@ -6,6 +6,7 @@ import {
   Maze,
   NpcAttack,
   PlayerAttack,
+  PlayerSpell,
   RawSkillLevel,
   Stage,
   VerzikPhase,
@@ -16,6 +17,7 @@ export enum EventType {
   PLAYER_UPDATE = EventProto.Type.PLAYER_UPDATE,
   PLAYER_ATTACK = EventProto.Type.PLAYER_ATTACK,
   PLAYER_DEATH = EventProto.Type.PLAYER_DEATH,
+  PLAYER_SPELL = EventProto.Type.PLAYER_SPELL,
   NPC_SPAWN = EventProto.Type.NPC_SPAWN,
   NPC_UPDATE = EventProto.Type.NPC_UPDATE,
   NPC_DEATH = EventProto.Type.NPC_DEATH,
@@ -50,15 +52,16 @@ export enum EventType {
   MOKHAIOTL_SHOCKWAVE = EventProto.Type.MOKHAIOTL_SHOCKWAVE,
 }
 
-export const isPlayerEvent = (event: Event): event is PlayerEvent => {
+export const isPlayerEvent = (event: BaseEvent): event is PlayerEvent => {
   return (
     event.type === EventType.PLAYER_UPDATE ||
     event.type === EventType.PLAYER_ATTACK ||
-    event.type === EventType.PLAYER_DEATH
+    event.type === EventType.PLAYER_DEATH ||
+    event.type === EventType.PLAYER_SPELL
   );
 };
 
-export const isNpcEvent = (event: Event): event is NpcEvent => {
+export const isNpcEvent = (event: BaseEvent): event is NpcEvent => {
   return (
     event.type === EventType.NPC_SPAWN ||
     event.type === EventType.NPC_UPDATE ||
@@ -66,7 +69,7 @@ export const isNpcEvent = (event: Event): event is NpcEvent => {
   );
 };
 
-export interface Event {
+export interface BaseEvent {
   cId: string;
   type: EventType;
   stage: Stage;
@@ -76,112 +79,125 @@ export interface Event {
   acc?: boolean;
 }
 
-export interface PlayerEvent extends Event {
+export interface BasePlayerEvent extends BaseEvent {
   player: BasicPlayer;
 }
 
-export interface PlayerUpdateEvent extends PlayerEvent {
+export interface PlayerUpdateEvent extends BasePlayerEvent {
   type: EventType.PLAYER_UPDATE;
   player: Player;
 }
 
-export interface PlayerAttackEvent extends PlayerEvent {
+export interface PlayerAttackEvent extends BasePlayerEvent {
   type: EventType.PLAYER_ATTACK;
   attack: Attack;
 }
 
-export interface PlayerDeathEvent extends PlayerEvent {
+export interface PlayerSpellEvent extends BasePlayerEvent {
+  type: EventType.PLAYER_SPELL;
+  spell: Spell;
+}
+
+export interface PlayerDeathEvent extends BasePlayerEvent {
   type: EventType.PLAYER_DEATH;
 }
 
-export interface NpcEvent extends Event {
+export type PlayerEvent =
+  | PlayerUpdateEvent
+  | PlayerAttackEvent
+  | PlayerSpellEvent
+  | PlayerDeathEvent;
+
+export interface BaseNpcEvent extends BaseEvent {
   npc: EventNpc;
 }
 
-export interface NpcSpawnEvent extends NpcEvent {
+export interface NpcSpawnEvent extends BaseNpcEvent {
   type: EventType.NPC_SPAWN;
 }
 
-export interface NpcUpdateEvent extends NpcEvent {
+export interface NpcUpdateEvent extends BaseNpcEvent {
   type: EventType.NPC_UPDATE;
 }
 
-export interface NpcDeathEvent extends NpcEvent {
+export interface NpcDeathEvent extends BaseNpcEvent {
   type: EventType.NPC_DEATH;
 }
 
-export interface NpcAttackEvent extends Event {
+export type NpcEvent = NpcSpawnEvent | NpcUpdateEvent | NpcDeathEvent;
+
+export interface NpcAttackEvent extends BaseEvent {
   type: EventType.NPC_ATTACK;
   npc: BasicEventNpc;
   npcAttack: NpcAttackDesc;
 }
 
-export interface MaidenBloodSplatsEvent extends Event {
+export interface MaidenBloodSplatsEvent extends BaseEvent {
   type: EventType.TOB_MAIDEN_BLOOD_SPLATS;
   maidenBloodSplats: Coords[];
 }
 
-export interface BloatDownEvent extends Event {
+export interface BloatDownEvent extends BaseEvent {
   type: EventType.TOB_BLOAT_DOWN;
   bloatDown: BloatDown;
 }
 
-export interface BloatHandsDropEvent extends Event {
+export interface BloatHandsDropEvent extends BaseEvent {
   type: EventType.TOB_BLOAT_HANDS_DROP;
   bloatHands: Coords[];
 }
 
-export interface BloatHandsSplatEvent extends Event {
+export interface BloatHandsSplatEvent extends BaseEvent {
   type: EventType.TOB_BLOAT_HANDS_SPLAT;
   bloatHands: Coords[];
 }
 
-export interface NyloWaveSpawnEvent extends Event {
+export interface NyloWaveSpawnEvent extends BaseEvent {
   type: EventType.TOB_NYLO_WAVE_SPAWN;
   nyloWave: NyloWave;
 }
 
-export interface NyloWaveStallEvent extends Event {
+export interface NyloWaveStallEvent extends BaseEvent {
   type: EventType.TOB_NYLO_WAVE_STALL;
   nyloWave: NyloWave;
 }
 
-export interface SoteMazeEvent extends Event {
+export interface SoteMazeEvent extends BaseEvent {
   type: EventType.TOB_SOTE_MAZE_PROC | EventType.TOB_SOTE_MAZE_END;
   soteMaze: SoteMaze;
 }
 
-export interface SoteMazePathEvent extends Event {
+export interface SoteMazePathEvent extends BaseEvent {
   type: EventType.TOB_SOTE_MAZE_PATH;
   soteMaze: SoteMazePath;
 }
 
-export interface XarpusPhaseEvent extends Event {
+export interface XarpusPhaseEvent extends BaseEvent {
   type: EventType.TOB_XARPUS_PHASE;
   xarpusPhase: XarpusPhase;
 }
 
-export interface XarpusExhumedEvent extends Event {
+export interface XarpusExhumedEvent extends BaseEvent {
   type: EventType.TOB_XARPUS_EXHUMED;
   xarpusExhumed: XarpusExhumed;
 }
 
-export interface XarpusSplatEvent extends Event {
+export interface XarpusSplatEvent extends BaseEvent {
   type: EventType.TOB_XARPUS_SPLAT;
   xarpusSplat: XarpusSplat;
 }
 
-export interface VerzikPhaseEvent extends Event {
+export interface VerzikPhaseEvent extends BaseEvent {
   type: EventType.TOB_VERZIK_PHASE;
   verzikPhase: VerzikPhase;
 }
 
-export interface VerzikAttackStyleEvent extends Event {
+export interface VerzikAttackStyleEvent extends BaseEvent {
   type: EventType.TOB_VERZIK_ATTACK_STYLE;
   verzikAttack: NpcAttackStyle;
 }
 
-export interface VerzikDawnEvent extends Event {
+export interface VerzikDawnEvent extends BaseEvent {
   type: EventType.TOB_VERZIK_DAWN;
   verzikDawn: {
     attackTick: number;
@@ -190,12 +206,12 @@ export interface VerzikDawnEvent extends Event {
   };
 }
 
-export interface VerzikYellowsEvent extends Event {
+export interface VerzikYellowsEvent extends BaseEvent {
   type: EventType.TOB_VERZIK_YELLOWS;
   verzikYellows: Coords[];
 }
 
-export interface VerzikHealEvent extends Event {
+export interface VerzikHealEvent extends BaseEvent {
   type: EventType.TOB_VERZIK_HEAL;
   verzikHeal: {
     player: string;
@@ -203,22 +219,22 @@ export interface VerzikHealEvent extends Event {
   };
 }
 
-export interface HandicapChoiceEvent extends Event {
+export interface HandicapChoiceEvent extends BaseEvent {
   type: EventType.COLOSSEUM_HANDICAP_CHOICE;
   handicap: Handicap;
 }
 
-export interface MokhaiotlAttackStyleEvent extends Event {
+export interface MokhaiotlAttackStyleEvent extends BaseEvent {
   type: EventType.MOKHAIOTL_ATTACK_STYLE;
   mokhaiotlAttackStyle: NpcAttackStyle;
 }
 
-export interface MokhaiotlOrbEvent extends Event {
+export interface MokhaiotlOrbEvent extends BaseEvent {
   type: EventType.MOKHAIOTL_ORB;
   mokhaiotlOrb: MokhaiotlOrb;
 }
 
-export interface MokhaiotlObjectsEvent extends Event {
+export interface MokhaiotlObjectsEvent extends BaseEvent {
   type: EventType.MOKHAIOTL_OBJECTS;
   mokhaiotlObjects: {
     rocksSpawned: Coords[];
@@ -228,7 +244,7 @@ export interface MokhaiotlObjectsEvent extends Event {
   };
 }
 
-export interface MokhaiotlLarvaLeakEvent extends Event {
+export interface MokhaiotlLarvaLeakEvent extends BaseEvent {
   type: EventType.MOKHAIOTL_LARVA_LEAK;
   mokhaiotlLarvaLeak: {
     roomId: number;
@@ -236,7 +252,7 @@ export interface MokhaiotlLarvaLeakEvent extends Event {
   };
 }
 
-export interface MokhaiotlShockwaveEvent extends Event {
+export interface MokhaiotlShockwaveEvent extends BaseEvent {
   type: EventType.MOKHAIOTL_SHOCKWAVE;
   mokhaiotlShockwave: {
     tiles: Coords[];
@@ -262,35 +278,36 @@ export type NpcAttackStyle = {
   npcAttackTick: number;
 };
 
-export type MergedEvent = Event &
-  Omit<PlayerUpdateEvent, 'type'> &
-  Omit<PlayerAttackEvent, 'type'> &
-  Omit<PlayerDeathEvent, 'type'> &
-  Omit<NpcSpawnEvent, 'type'> &
-  Omit<NpcUpdateEvent, 'type'> &
-  Omit<NpcDeathEvent, 'type'> &
-  Omit<NpcAttackEvent, 'type'> &
-  Omit<MaidenBloodSplatsEvent, 'type'> &
-  Omit<BloatDownEvent, 'type'> &
-  Omit<BloatHandsDropEvent, 'type'> &
-  Omit<BloatHandsSplatEvent, 'type'> &
-  Omit<NyloWaveSpawnEvent, 'type'> &
-  Omit<NyloWaveStallEvent, 'type'> &
-  Omit<SoteMazePathEvent, 'type'> &
-  Omit<XarpusExhumedEvent, 'type'> &
-  Omit<XarpusSplatEvent, 'type'> &
-  Omit<XarpusPhaseEvent, 'type'> &
-  Omit<VerzikPhaseEvent, 'type'> &
-  Omit<VerzikAttackStyleEvent, 'type'> &
-  Omit<VerzikDawnEvent, 'type'> &
-  Omit<VerzikYellowsEvent, 'type'> &
-  Omit<VerzikHealEvent, 'type'> &
-  Omit<HandicapChoiceEvent, 'type'> &
-  Omit<MokhaiotlAttackStyleEvent, 'type'> &
-  Omit<MokhaiotlOrbEvent, 'type'> &
-  Omit<MokhaiotlObjectsEvent, 'type'> &
-  Omit<MokhaiotlLarvaLeakEvent, 'type'> &
-  Omit<MokhaiotlShockwaveEvent, 'type'>;
+export type Event =
+  | PlayerUpdateEvent
+  | PlayerAttackEvent
+  | PlayerDeathEvent
+  | PlayerSpellEvent
+  | NpcSpawnEvent
+  | NpcUpdateEvent
+  | NpcDeathEvent
+  | NpcAttackEvent
+  | MaidenBloodSplatsEvent
+  | BloatDownEvent
+  | BloatHandsDropEvent
+  | BloatHandsSplatEvent
+  | NyloWaveSpawnEvent
+  | NyloWaveStallEvent
+  | SoteMazePathEvent
+  | XarpusExhumedEvent
+  | XarpusSplatEvent
+  | XarpusPhaseEvent
+  | VerzikPhaseEvent
+  | VerzikAttackStyleEvent
+  | VerzikDawnEvent
+  | VerzikYellowsEvent
+  | VerzikHealEvent
+  | HandicapChoiceEvent
+  | MokhaiotlAttackStyleEvent
+  | MokhaiotlOrbEvent
+  | MokhaiotlObjectsEvent
+  | MokhaiotlLarvaLeakEvent
+  | MokhaiotlShockwaveEvent;
 
 export enum DataSource {
   PRIMARY = EventProto.Player.DataSource.PRIMARY,
@@ -351,6 +368,20 @@ export type Attack = {
   weapon?: Item;
   target?: BasicEventNpc;
   distanceToTarget: number;
+};
+
+export enum SpellTarget {
+  NONE,
+  PLAYER,
+  NPC,
+}
+
+export type Spell = {
+  type: PlayerSpell;
+  target:
+    | { type: SpellTarget.NONE }
+    | { type: SpellTarget.PLAYER; player: string }
+    | { type: SpellTarget.NPC; npc: BasicEventNpc };
 };
 
 export type NpcAttackDesc = {

@@ -12,11 +12,11 @@ import {
   NpcAttack,
   NpcAttackEvent,
   NpcEvent,
-  PlayerAttackEvent,
   PlayerUpdateEvent,
   RoomNpc,
   RoomNpcMap as RawRoomNpcMap,
   SkillLevel,
+  Spell,
   Stage,
   TobRaid,
   TobRooms,
@@ -183,6 +183,7 @@ export type PlayerEquipment = Record<EquipmentSlot, Item | null>;
 
 export type PlayerState = Omit<PlayerUpdateEvent, 'type' | 'stage' | 'cId'> & {
   attack?: Attack;
+  spell?: Spell;
   diedThisTick: boolean;
   isDead: boolean;
   equipment: PlayerEquipment;
@@ -482,11 +483,7 @@ function computePlayerState(
               isDead,
             };
           } else if (event.type === EventType.PLAYER_UPDATE) {
-            const {
-              type: _type,
-              stage: _stage,
-              ...rest
-            } = event as PlayerUpdateEvent;
+            const { type: _type, stage: _stage, ...rest } = event;
 
             if (rest.player.equipmentDeltas) {
               applyItemDeltas(
@@ -533,7 +530,7 @@ function computePlayerState(
 
             playerStateThisTick = { ...playerStateThisTick!, ...rest };
           } else if (event.type === EventType.PLAYER_ATTACK) {
-            const attack = (event as PlayerAttackEvent).attack;
+            const attack = event.attack;
             if (attack.weapon) {
               attack.weapon.name = simpleItemCache.getItemName(
                 attack.weapon.id,
@@ -542,6 +539,11 @@ function computePlayerState(
             playerStateThisTick = {
               ...playerStateThisTick!,
               attack,
+            };
+          } else if (event.type === EventType.PLAYER_SPELL) {
+            playerStateThisTick = {
+              ...playerStateThisTick!,
+              spell: event.spell,
             };
           }
         });
@@ -663,8 +665,7 @@ function computeNpcState(
 
       const attackEvent = eventsForThisTick.find(
         (e) =>
-          e.type === EventType.NPC_ATTACK &&
-          (e as NpcAttackEvent).npc.roomId === Number(roomId),
+          e.type === EventType.NPC_ATTACK && e.npc.roomId === Number(roomId),
       ) as NpcAttackEvent | undefined;
       if (attackEvent !== undefined) {
         if (npc.stateByTick[i] === null) {

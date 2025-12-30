@@ -3,7 +3,6 @@ import {
   ChallengeType,
   DataSource,
   EventType,
-  MergedEvent,
   SkillLevel,
   Stage,
   StageStatus,
@@ -24,9 +23,28 @@ import {
 
 type Proto<T> = T[keyof T];
 
-function createEvent(
-  event: Partial<MergedEvent> & { stage: Stage },
-): ProtoEvent {
+type TestEventInput = {
+  type?: EventType;
+  tick?: number;
+  xCoord?: number;
+  yCoord?: number;
+  stage: Stage;
+  player?: {
+    name: string;
+    source: DataSource;
+    offCooldownTick?: number;
+    prayerSet?: number;
+    attack?: number;
+    strength?: number;
+    defence?: number;
+    magic?: number;
+    ranged?: number;
+    hitpoints?: number;
+    prayer?: number;
+  };
+};
+
+function createEvent(event: TestEventInput): ProtoEvent {
   const evt = new ProtoEvent();
   evt.setType(event.type as Proto<ProtoEvent.TypeMap>);
   evt.setTick(event.tick ?? 0);

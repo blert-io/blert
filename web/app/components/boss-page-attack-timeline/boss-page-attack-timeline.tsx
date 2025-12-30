@@ -1,6 +1,6 @@
 'use client';
 
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import AttackTimeline, {
   AttackTimelineProps,
@@ -20,10 +20,18 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
 
   const [showFullTimeline, setShowFullTimeline] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsMenuPosition, setSettingsMenuPosition] = useState({
+    x: 0,
+    y: 0,
+  });
   const [width, setWidth] = useState(0);
 
   const [showKits, setShowKits] = useSetting<boolean>({
     key: 'timeline-show-kits',
+    defaultValue: true,
+  });
+  const [showSpells, setShowSpells] = useSetting<boolean>({
+    key: 'timeline-show-spells',
     defaultValue: true,
   });
 
@@ -33,6 +41,38 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
     handleResize();
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const menuItems = useMemo(
+    () => [
+      {
+        label: 'timeline-show-spells',
+        customAction: () => false,
+        customElement: (
+          <Checkbox
+            className={styles.settingsCheckbox}
+            label="Show spell icons"
+            checked={showSpells}
+            onChange={(checked) => setShowSpells(checked)}
+            simple
+          />
+        ),
+      },
+      {
+        label: 'timeline-show-kits',
+        customAction: () => false,
+        customElement: (
+          <Checkbox
+            className={styles.settingsCheckbox}
+            label="Show kitted weapons"
+            checked={showKits}
+            onChange={(checked) => setShowKits(checked)}
+            simple
+          />
+        ),
+      },
+    ],
+    [showSpells, showKits, setShowSpells, setShowKits],
+  );
 
   let fullTimeline = null;
   let modalWidth = 0;
@@ -64,17 +104,17 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
   }
 
   const settingsMenuWidth = 200;
-  let settingsMenuPosition = {
-    x: 0,
-    y: 0,
+
+  const openSettings = () => {
+    if (settingsButtonRef.current) {
+      const rect = settingsButtonRef.current.getBoundingClientRect();
+      setSettingsMenuPosition({
+        x: rect.x + rect.width - settingsMenuWidth,
+        y: rect.y + rect.height + 4,
+      });
+    }
+    setShowSettings(true);
   };
-  if (settingsButtonRef.current) {
-    const rect = settingsButtonRef.current.getBoundingClientRect();
-    settingsMenuPosition = {
-      x: rect.x + rect.width - settingsMenuWidth,
-      y: rect.y + rect.height,
-    };
-  }
 
   return (
     <Card
@@ -91,7 +131,7 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
             <button
               ref={settingsButtonRef}
               id="timeline-settings-button"
-              onClick={() => setShowSettings(true)}
+              onClick={openSettings}
             >
               <i className="fas fa-cog" />
               Settings
@@ -105,6 +145,7 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
         {...props}
         cellSize={cellSize}
         normalizeItems={!showKits}
+        showSpells={showSpells}
       />
       <Modal
         open={showFullTimeline}
@@ -117,21 +158,7 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
         open={showSettings}
         onClose={() => setShowSettings(false)}
         position={settingsMenuPosition}
-        items={[
-          {
-            label: 'Settings',
-            customAction: () => false,
-            customElement: (
-              <Checkbox
-                className={styles.settingsCheckbox}
-                label="Show kits"
-                checked={showKits}
-                onChange={(checked) => setShowKits(checked)}
-                simple
-              />
-            ),
-          },
-        ]}
+        items={menuItems}
         width={settingsMenuWidth}
       />
     </Card>
