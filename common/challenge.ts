@@ -4,6 +4,7 @@ import {
   ChallengeMode as ChallengeModeProto,
   Event as EventProto,
   PlayerAttack as PlayerAttackProto,
+  PlayerSpell as PlayerSpellProto,
   NpcAttack as NpcAttackProto,
   Stage as StageProto,
 } from './generated/event_pb';
@@ -676,6 +677,27 @@ export enum PlayerAttack {
   UNKNOWN_BOW = PlayerAttackProto.UNKNOWN_BOW,
   UNKNOWN_POWERED_STAFF = PlayerAttackProto.UNKNOWN_POWERED_STAFF,
   UNKNOWN = PlayerAttackProto.UNKNOWN,
+}
+
+export enum PlayerSpell {
+  UNKNOWN = PlayerSpellProto.UNKNOWN_SPELL,
+  SPELLBOOK_SWAP = PlayerSpellProto.SPELLBOOK_SWAP,
+  HUMIDIFY = PlayerSpellProto.HUMIDIFY,
+  HUNTER_KIT = PlayerSpellProto.HUNTER_KIT,
+  NPC_CONTACT = PlayerSpellProto.NPC_CONTACT,
+  VENGEANCE = PlayerSpellProto.VENGEANCE,
+  VENGEANCE_OTHER = PlayerSpellProto.VENGEANCE_OTHER,
+  HEAL_OTHER = PlayerSpellProto.HEAL_OTHER,
+  DEATH_CHARGE = PlayerSpellProto.DEATH_CHARGE,
+  LESSER_CORRUPTION = PlayerSpellProto.LESSER_CORRUPTION,
+  GREATER_CORRUPTION = PlayerSpellProto.GREATER_CORRUPTION,
+  SHADOW_VEIL = PlayerSpellProto.SHADOW_VEIL,
+  VILE_VIGOUR = PlayerSpellProto.VILE_VIGOUR,
+  WARD_OF_ARCEUUS = PlayerSpellProto.WARD_OF_ARCEUUS,
+  MARK_OF_DARKNESS = PlayerSpellProto.MARK_OF_DARKNESS,
+  RESURRECT_GREATER_GHOST = PlayerSpellProto.RESURRECT_GREATER_GHOST,
+  RESURRECT_GREATER_SKELETON = PlayerSpellProto.RESURRECT_GREATER_SKELETON,
+  RESURRECT_GREATER_ZOMBIE = PlayerSpellProto.RESURRECT_GREATER_ZOMBIE,
 }
 
 export enum NpcAttack {

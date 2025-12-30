@@ -4,12 +4,10 @@ import {
   ChallengeStatus,
   Coords,
   EventType,
-  MaidenBloodSplatsEvent,
   MaidenCrabPosition,
   MaidenCrabProperties,
   Npc,
   NpcEvent,
-  PlayerUpdateEvent,
   RoomNpcType,
   SkillLevel,
   SplitType,
@@ -307,7 +305,7 @@ export default function Maiden() {
     (tick: number): AnyEntity[] => {
       const bloodSplats = eventsByTick[tick]?.filter(
         (evt) => evt.type === EventType.TOB_MAIDEN_BLOOD_SPLATS,
-      ) as MaidenBloodSplatsEvent[];
+      );
       if (!bloodSplats) {
         return [BARRIER];
       }
@@ -362,16 +360,15 @@ export default function Maiden() {
   for (const evt of eventsForCurrentTick) {
     switch (evt.type) {
       case EventType.PLAYER_UPDATE: {
-        const e = evt as PlayerUpdateEvent;
-        const hitpoints = e.player.hitpoints
-          ? SkillLevel.fromRaw(e.player.hitpoints)
+        const hitpoints = evt.player.hitpoints
+          ? SkillLevel.fromRaw(evt.player.hitpoints)
           : undefined;
         const player = new LegacyPlayerEntity(
-          e.xCoord,
-          e.yCoord,
-          e.player.name,
+          evt.xCoord,
+          evt.yCoord,
+          evt.player.name,
           hitpoints,
-          /*highlight=*/ e.player.name === selectedPlayer,
+          /*highlight=*/ evt.player.name === selectedPlayer,
         );
         legacyEntities.push(player);
         break;
@@ -391,8 +388,7 @@ export default function Maiden() {
         break;
       }
       case EventType.TOB_MAIDEN_BLOOD_SPLATS:
-        const e = evt as MaidenBloodSplatsEvent;
-        for (const coord of e.maidenBloodSplats ?? []) {
+        for (const coord of evt.maidenBloodSplats ?? []) {
           legacyEntities.push(
             new LegacyMarkerEntity(coord.x, coord.y, BLOOD_SPLAT_COLOR),
           );

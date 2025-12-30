@@ -1,4 +1,4 @@
-import { ChallengeType } from '@blert/common';
+import { ChallengeType, getNpcDefinition } from '@blert/common';
 
 /**
  * Validates that a redirect URL is safe for same-site redirects.
@@ -78,6 +78,20 @@ export function challengeApiUrl(type: ChallengeType, id: string): string {
  */
 export function playerUrl(username: string): string {
   return `/players/${encodeURIComponent(username)}`;
+}
+
+/**
+ * Returns the image URL to for the given NPC ID.
+ * @param npcId NPC ID.
+ * @returns URL for the NPC's image.
+ */
+export function npcImageUrl(npcId: number): string {
+  const npcDef = getNpcDefinition(npcId);
+  if (npcDef !== null) {
+    const imageId = npcDef.semanticId ? npcId : npcDef.canonicalId;
+    return `/images/npcs/${imageId}.webp`;
+  }
+  return '/images/huh.png';
 }
 
 type SingleOrArray<T> = T | T[];

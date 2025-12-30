@@ -4,6 +4,7 @@ import {
   Npc,
   NpcAttack,
   PlayerAttack,
+  PlayerSpell,
   Skill,
   SkillLevel,
   getNpcDefinition,
@@ -36,6 +37,7 @@ import {
   ATTACK_METADATA,
   CombatStyle,
   NPC_ATTACK_METADATA,
+  SPELL_METADATA,
 } from './attack-metadata';
 import { TimelineTooltip } from './timeline-tooltip';
 
@@ -85,33 +87,34 @@ function makeCellImage(
   size: number,
   memes: BlertMemes,
   normalizeItems: boolean,
+  showSpells: boolean,
 ) {
   let baseImage = undefined;
   let attackIcon = undefined;
+  let spellIcon = undefined;
 
   const customStateEntries = [...state.customState];
 
-  const playerAttack = state.attack;
-  if (playerAttack === undefined) {
-    if (state.diedThisTick) {
-      baseImage = (
+  const playerAttack = state.attack ?? null;
+  const playerSpell = showSpells ? (state.spell ?? null) : null;
+
+  const hasBaseImage = playerAttack !== null || playerSpell !== null;
+
+  if (playerAttack !== null) {
+    // If a spell was cast alongside an attack, show it as an overlay icon.
+    if (playerSpell !== null) {
+      const spellMeta =
+        SPELL_METADATA[playerSpell.type] ?? SPELL_METADATA[PlayerSpell.UNKNOWN];
+      spellIcon = (
         <Image
-          src="/skull.webp"
-          alt="Player died"
-          height={size}
-          width={size}
+          className={styles.spellIcon}
+          src={spellMeta.imageUrl}
+          alt={spellMeta.name}
+          height={size / 2 + 2}
+          width={size / 2 + 2}
           style={{ objectFit: 'contain' }}
         />
       );
-    } else {
-      baseImage = <span className={styles.attackTimeline__Nothing}></span>;
-    }
-  } else {
-    if (state.diedThisTick) {
-      customStateEntries.push({
-        icon: '/skull.webp',
-        label: `${state.player.name} died this tick`,
-      });
     }
 
     const meta =
@@ -136,7 +139,7 @@ function makeCellImage(
     if (meta.special) {
       attackIcon = (
         <Image
-          className={styles.attackTimeline__CellImage__InfoIcon}
+          className={styles.infoIcon}
           src={'/spec.png'}
           alt="Special Attack"
           height={size / 2}
@@ -149,7 +152,7 @@ function makeCellImage(
       case PlayerAttack.DARK_DEMONBANE:
         attackIcon = (
           <Image
-            className={styles.attackTimeline__CellImage__InfoIcon}
+            className={styles.infoIcon}
             src={'/images/combat/dark-demonbane.webp'}
             alt="Dark Demonbane"
             height={size / 2}
@@ -172,7 +175,7 @@ function makeCellImage(
       case PlayerAttack.UNKNOWN_BARRAGE:
         attackIcon = (
           <Image
-            className={styles.attackTimeline__CellImage__InfoIcon}
+            className={styles.infoIcon}
             src={'/images/combat/barrage.png'}
             alt="Barrage"
             height={size / 2}
@@ -184,9 +187,9 @@ function makeCellImage(
       case PlayerAttack.ICE_RUSH:
         attackIcon = (
           <Image
-            className={styles.attackTimeline__CellImage__InfoIcon}
+            className={styles.infoIcon}
             src={'/images/combat/ice-rush.png'}
-            alt="Barrage"
+            alt="Ice Rush"
             height={size / 2 + 1}
             width={size / 2 + 1}
             style={{ objectFit: 'contain', bottom: -2 }}
@@ -267,6 +270,39 @@ function makeCellImage(
         />
       );
     }
+  } else if (playerSpell !== null) {
+    const meta =
+      SPELL_METADATA[playerSpell.type] ?? SPELL_METADATA[PlayerSpell.UNKNOWN];
+    baseImage = (
+      <Image
+        src={meta.imageUrl}
+        alt={meta.name}
+        height={size}
+        width={size}
+        style={{ objectFit: 'contain', opacity: meta.opacity }}
+      />
+    );
+  }
+
+  if (hasBaseImage) {
+    if (state.diedThisTick) {
+      customStateEntries.push({
+        icon: '/skull.webp',
+        label: `${state.player.name} died this tick`,
+      });
+    }
+  } else if (state.diedThisTick) {
+    baseImage = (
+      <Image
+        src="/skull.webp"
+        alt="Player died"
+        height={size}
+        width={size}
+        style={{ objectFit: 'contain' }}
+      />
+    );
+  } else {
+    baseImage = <span className={styles.attackTimeline__Nothing}></span>;
   }
 
   let customState;
@@ -292,6 +328,7 @@ function makeCellImage(
     <div className={styles.attackTimeline__CellImage}>
       {baseImage}
       {customState}
+      {spellIcon}
       {attackIcon}
     </div>
   );
@@ -407,6 +444,7 @@ const buildTickCell = (
       imageSize,
       context.memes,
       context.normalizeItems,
+      context.showSpells,
     );
 
     if (playerState.attack !== undefined) {
@@ -456,7 +494,8 @@ const buildTickCell = (
     if (
       playerIsOffCooldown ||
       diedThisTick ||
-      playerState.attack !== undefined
+      playerState.attack !== undefined ||
+      (context.showSpells && playerState.spell !== undefined)
     ) {
       className += ` ${styles.attackTimeline__CellOffCooldown}`;
     }
@@ -618,6 +657,7 @@ type BaseTimelineProps = {
   ticksPerRow: number;
   timelineTicks: number;
   normalizeItems: boolean;
+  showSpells: boolean;
 };
 
 type TimelineContext = Required<
@@ -630,6 +670,7 @@ type TimelineContext = Required<
     | 'normalizeItems'
     | 'npcs'
     | 'playerState'
+    | 'showSpells'
     | 'updateTickOnPage'
   >
 >;
@@ -649,6 +690,7 @@ function BaseTimeline(props: BaseTimelineProps) {
     ticksPerRow,
     timelineTicks,
     normalizeItems,
+    showSpells,
   } = props;
 
   const attackTimelineColumnElements = [];
@@ -660,8 +702,9 @@ function BaseTimeline(props: BaseTimelineProps) {
     memes,
     normalizeItems,
     npcs,
-    updateTickOnPage,
     playerState,
+    showSpells,
+    updateTickOnPage,
   };
 
   for (let row = 0; row < numRows; row++) {
@@ -725,6 +768,7 @@ export type AttackTimelineProps = {
   smallLegend?: boolean;
   wrapWidth?: number;
   normalizeItems?: boolean;
+  showSpells?: boolean;
 };
 
 type RowType = 'npc' | 'player' | 'custom';
@@ -742,6 +786,7 @@ export function AttackTimeline(props: AttackTimelineProps) {
     customRows,
     wrapWidth,
     normalizeItems = false,
+    showSpells = true,
   } = props;
 
   const totalColumnWidth = cellSize + COLUMN_MARGIN;
@@ -855,6 +900,7 @@ export function AttackTimeline(props: AttackTimelineProps) {
         ticksPerRow={ticksPerRow}
         timelineTicks={timelineTicks}
         normalizeItems={normalizeItems}
+        showSpells={showSpells}
       />
     ),
     [
@@ -871,6 +917,7 @@ export function AttackTimeline(props: AttackTimelineProps) {
       timelineTicks,
       normalizeItems,
       customRows,
+      showSpells,
     ],
   );
 

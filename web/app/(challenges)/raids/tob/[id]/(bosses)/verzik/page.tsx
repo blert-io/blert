@@ -9,12 +9,10 @@ import {
   NpcAttackEvent,
   NpcEvent,
   NpcId,
-  PlayerUpdateEvent,
   SkillLevel,
   SplitType,
   Stage,
   TobRaid,
-  VerzikYellowsEvent,
 } from '@blert/common';
 import Image from 'next/image';
 import { useCallback, useContext, useMemo, useRef, useState } from 'react';
@@ -304,7 +302,7 @@ export default function VerzikPage() {
 
       const yellowsEvent = eventsByTick[tick]?.find(
         (e) => e.type === EventType.TOB_VERZIK_YELLOWS,
-      ) as VerzikYellowsEvent | undefined;
+      );
       if (yellowsEvent !== undefined) {
         for (const yellow of yellowsEvent.verzikYellows) {
           entities.push(
@@ -349,16 +347,15 @@ export default function VerzikPage() {
   for (const evt of eventsForCurrentTick) {
     switch (evt.type) {
       case EventType.PLAYER_UPDATE: {
-        const e = evt as PlayerUpdateEvent;
-        const hitpoints = e.player.hitpoints
-          ? SkillLevel.fromRaw(e.player.hitpoints)
+        const hitpoints = evt.player.hitpoints
+          ? SkillLevel.fromRaw(evt.player.hitpoints)
           : undefined;
         const player = new LegacyPlayerEntity(
-          e.xCoord,
-          e.yCoord,
-          e.player.name,
+          evt.xCoord,
+          evt.yCoord,
+          evt.player.name,
           hitpoints,
-          /*highlight=*/ e.player.name === selectedPlayer,
+          /*highlight=*/ evt.player.name === selectedPlayer,
         );
         legacyEntities.push(player);
         break;
@@ -383,7 +380,7 @@ export default function VerzikPage() {
 
   const yellowsEvent = eventsForCurrentTick.find(
     (e) => e.type === EventType.TOB_VERZIK_YELLOWS,
-  ) as VerzikYellowsEvent | undefined;
+  );
   if (yellowsEvent !== undefined) {
     for (const yellow of yellowsEvent.verzikYellows) {
       legacyEntities.push(

@@ -1,4 +1,4 @@
-import { validateRedirectUrl } from '../url';
+import { npcImageUrl, validateRedirectUrl } from '../url';
 
 describe('validateRedirectUrl', () => {
   it('returns "/" for undefined', () => {
@@ -46,5 +46,24 @@ describe('validateRedirectUrl', () => {
   it('rejects backslash URLs (browser normalization bypass)', () => {
     expect(validateRedirectUrl('/\\evil.com')).toBe('/');
     expect(validateRedirectUrl('/\\\\evil.com')).toBe('/');
+  });
+});
+
+describe('npcImageUrl', () => {
+  it('returns fallback image for unknown NPC IDs', () => {
+    expect(npcImageUrl(999999)).toBe('/images/huh.png');
+    expect(npcImageUrl(-1)).toBe('/images/huh.png');
+    expect(npcImageUrl(0)).toBe('/images/huh.png');
+  });
+
+  it('uses canonicalId for NPCs with semanticId: false', () => {
+    expect(npcImageUrl(7691)).toBe('/images/npcs/7691.webp');
+    expect(npcImageUrl(10814)).toBe('/images/npcs/8360.webp');
+  });
+
+  it('uses npcId for NPCs with semanticId: true', () => {
+    expect(npcImageUrl(10804)).toBe('/images/npcs/10804.webp');
+    expect(npcImageUrl(10805)).toBe('/images/npcs/10805.webp');
+    expect(npcImageUrl(10806)).toBe('/images/npcs/10806.webp');
   });
 });

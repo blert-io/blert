@@ -3,7 +3,6 @@
 import {
   ChallengeStatus,
   EventType,
-  PlayerUpdateEvent,
   NpcEvent,
   Npc,
   NyloWaveSpawnEvent,
@@ -692,16 +691,15 @@ export default function NylocasPage() {
   for (const evt of eventsForCurrentTick) {
     switch (evt.type) {
       case EventType.PLAYER_UPDATE: {
-        const e = evt as PlayerUpdateEvent;
-        const hitpoints = e.player.hitpoints
-          ? SkillLevel.fromRaw(e.player.hitpoints)
+        const hitpoints = evt.player.hitpoints
+          ? SkillLevel.fromRaw(evt.player.hitpoints)
           : undefined;
         const player = new LegacyPlayerEntity(
-          e.xCoord,
-          e.yCoord,
-          e.player.name,
+          evt.xCoord,
+          evt.yCoord,
+          evt.player.name,
           hitpoints,
-          /*highlight=*/ e.player.name === selectedPlayer,
+          /*highlight=*/ evt.player.name === selectedPlayer,
         );
         legacyEntities.push(player);
         players.push(player);

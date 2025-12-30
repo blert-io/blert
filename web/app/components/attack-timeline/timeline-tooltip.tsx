@@ -4,7 +4,9 @@ import {
   DataSource,
   NpcAttack,
   PlayerAttack,
+  PlayerSpell,
   Skill,
+  SpellTarget,
   getNpcDefinition,
   npcFriendlyName,
 } from '@blert/common';
@@ -20,11 +22,13 @@ import {
 } from '@/utils/boss-room-state';
 import { BoostType, maxBoostedLevel } from '@/utils/combat';
 import { ticksToFormattedSeconds } from '@/utils/tick';
+import { npcImageUrl } from '@/utils/url';
 
 import {
   ATTACK_METADATA,
   CombatStyle,
   NPC_ATTACK_METADATA,
+  SPELL_METADATA,
 } from './attack-metadata';
 import PlayerSkill from '../player-skill';
 import KeyPrayers from '../key-prayers';
@@ -41,6 +45,78 @@ type TimelineDataContextType = {
 const TimelineDataContext = React.createContext<TimelineDataContextType | null>(
   null,
 );
+
+type PlayerChipProps = {
+  name: string;
+  onClick?: () => void;
+};
+
+function PlayerChip({ name, onClick }: PlayerChipProps) {
+  const className = `${styles.chip} ${styles.player}`;
+
+  if (onClick) {
+    return (
+      <button className={className} onClick={onClick}>
+        <i className="fas fa-user" />
+        {name}
+      </button>
+    );
+  }
+
+  return (
+    <span className={className}>
+      <i className="fas fa-user" />
+      {name}
+    </span>
+  );
+}
+
+type NpcChipProps = {
+  npcId: number;
+  name: string;
+  hitpoints?: string;
+};
+
+function NpcChip({ npcId, name, hitpoints }: NpcChipProps) {
+  return (
+    <span className={`${styles.chip} ${styles.npc}`}>
+      <Image
+        src={npcImageUrl(npcId)}
+        alt={name}
+        height={14}
+        width={14}
+        style={{ objectFit: 'contain' }}
+      />
+      {name}
+      {hitpoints && (
+        <span className={styles.chipHitpoints}>
+          <i className="far fa-heart" />
+          {hitpoints}%
+        </span>
+      )}
+    </span>
+  );
+}
+
+type SpellChipProps = {
+  imageUrl: string;
+  name: string;
+};
+
+function SpellChip({ imageUrl, name }: SpellChipProps) {
+  return (
+    <span className={`${styles.chip} ${styles.spell}`}>
+      <Image
+        src={imageUrl}
+        alt={name}
+        height={14}
+        width={14}
+        style={{ objectFit: 'contain' }}
+      />
+      {name}
+    </span>
+  );
+}
 
 function PlayerTooltipContent({ state }: { state: PlayerState }) {
   const { setSelectedPlayer } = useContext(ActorContext);
@@ -69,17 +145,22 @@ function PlayerTooltipContent({ state }: { state: PlayerState }) {
     const meta =
       ATTACK_METADATA[attack.type] ?? ATTACK_METADATA[PlayerAttack.UNKNOWN];
 
-    let targetName: string | undefined;
-    let hitpoints: string | undefined;
+    let targetChip: React.ReactNode = null;
 
     if (attack.target !== undefined && context !== null) {
       const roomNpc = context.npcs.get(attack.target.roomId);
       if (roomNpc !== undefined) {
-        targetName = npcFriendlyName(roomNpc, context.npcs);
+        const targetName = npcFriendlyName(roomNpc, context.npcs);
         const hp = roomNpc.stateByTick[state.tick]?.hitpoints;
-        if (hp !== undefined) {
-          hitpoints = hp.percentage().toFixed(2);
-        }
+        const hitpoints =
+          hp !== undefined ? hp.percentage().toFixed(2) : undefined;
+        targetChip = (
+          <NpcChip
+            npcId={roomNpc.spawnNpcId}
+            name={targetName}
+            hitpoints={hitpoints}
+          />
+        );
       }
     }
 
@@ -91,15 +172,7 @@ function PlayerTooltipContent({ state }: { state: PlayerState }) {
         </div>
         <div className={styles.attackInfo}>
           <span className={styles.attackVerb}>{meta.verb}</span>
-          <button className={styles.npc}>
-            {targetName}
-            {hitpoints && (
-              <span className={styles.hitpoints}>
-                <i className="far fa-heart" />
-                {hitpoints}%
-              </span>
-            )}
-          </button>
+          {targetChip}
           {meta.ranged && (
             <span className={styles.distanceInfo}>
               from {attack.distanceToTarget} tile
@@ -110,6 +183,52 @@ function PlayerTooltipContent({ state }: { state: PlayerState }) {
       </div>
     );
     sections.push(attackSection);
+  }
+
+  const spell = state.spell;
+  if (spell !== undefined) {
+    const spellMeta =
+      SPELL_METADATA[spell.type] ?? SPELL_METADATA[PlayerSpell.UNKNOWN];
+    const { target } = spell;
+
+    let targetElement: React.ReactNode = null;
+    if (target.type === SpellTarget.PLAYER) {
+      targetElement = (
+        <>
+          on
+          <PlayerChip
+            name={target.player}
+            onClick={() => setSelectedPlayer(target.player)}
+          />
+        </>
+      );
+    } else if (target.type === SpellTarget.NPC && context !== null) {
+      const roomNpc = context.npcs.get(target.npc.roomId);
+      if (roomNpc !== undefined) {
+        const npcName = npcFriendlyName(roomNpc, context.npcs);
+        targetElement = (
+          <>
+            on
+            <NpcChip npcId={roomNpc.spawnNpcId} name={npcName} />
+          </>
+        );
+      }
+    }
+
+    const spellSection = (
+      <div className={styles.tooltipSection} key="spell">
+        <div className={styles.sectionHeader}>
+          <i className="fas fa-magic" />
+          <span>Spell</span>
+        </div>
+        <div className={styles.spellInfo}>
+          <span>Cast</span>
+          <SpellChip imageUrl={spellMeta.imageUrl} name={spellMeta.name} />
+          {targetElement}
+        </div>
+      </div>
+    );
+    sections.push(spellSection);
   }
 
   if (state.player.source === DataSource.PRIMARY) {
@@ -308,17 +427,27 @@ function NpcTooltipContent({ roomId, tick }: { roomId: number; tick: number }) {
   const meta =
     NPC_ATTACK_METADATA[attack.type] ?? NPC_ATTACK_METADATA[NpcAttack.UNKNOWN];
 
-  const npcButton = <button className={styles.npc}>{npcName}</button>;
-  const target = attack.target ? (
-    <button onClick={() => setSelectedPlayer(attack.target)}>
-      {attack.target}
-    </button>
+  const targetChip = attack.target ? (
+    <PlayerChip
+      name={attack.target}
+      onClick={() => setSelectedPlayer(attack.target)}
+    />
   ) : null;
 
   return (
     <div className={styles.tooltip}>
-      <div className={styles.npcTooltip}>
-        {meta.description(npcButton, target)}
+      <div className={styles.tooltipHeader}>
+        <NpcChip npcId={npc.spawnNpcId} name={npcName} />
+        <span className={styles.tickInfo}>Tick {tick}</span>
+        <span className={styles.timeInfo}>{ticksToFormattedSeconds(tick)}</span>
+      </div>
+      <div className={styles.sectionDivider} />
+      <div className={styles.tooltipSection}>
+        <div className={styles.sectionHeader}>
+          <i className="fas fa-bolt" />
+          <span>Attack</span>
+        </div>
+        <div className={styles.attackInfo}>{meta.description(targetChip)}</div>
       </div>
     </div>
   );

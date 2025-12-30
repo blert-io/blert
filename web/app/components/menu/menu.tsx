@@ -478,6 +478,7 @@ export default function Menu(props: MenuProps) {
     }
 
     setAllowClose(false);
+    setWrapperAdjustment(null);
     closeTimeoutRef.current = setTimeout(() => {
       setAllowClose(true);
     }, 100);
@@ -567,7 +568,7 @@ export default function Menu(props: MenuProps) {
     } else {
       setWrapperAdjustment(null);
     }
-  }, [ready, menuTarget, props.position, props.items]);
+  }, [ready, menuTarget, props.position]);
 
   if (
     portalNode.current === null ||

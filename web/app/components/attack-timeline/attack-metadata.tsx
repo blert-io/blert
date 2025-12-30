@@ -1,4 +1,4 @@
-import { NpcAttack, PlayerAttack } from '@blert/common';
+import { NpcAttack, PlayerAttack, PlayerSpell } from '@blert/common';
 
 export const enum CombatStyle {
   MELEE,
@@ -16,13 +16,18 @@ type AttackMetadata = {
 };
 
 type NpcAttackDescriptionFunction = (
-  npcName: React.ReactNode,
   target: React.ReactNode | null,
 ) => React.ReactNode;
 
 type NpcAttackMetadata = {
   imageUrl: string;
   description: NpcAttackDescriptionFunction;
+};
+
+type SpellMetadata = {
+  imageUrl: string;
+  name: string;
+  opacity?: number;
 };
 
 export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
@@ -884,27 +889,102 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
   },
 };
 
+export const SPELL_METADATA: Record<PlayerSpell, SpellMetadata> = {
+  [PlayerSpell.UNKNOWN]: {
+    imageUrl: '/images/huh.png',
+    name: 'Unknown Spell',
+  },
+  [PlayerSpell.SPELLBOOK_SWAP]: {
+    imageUrl: '/images/spells/spellbook-swap.png',
+    name: 'Spellbook Swap',
+    opacity: 0.75,
+  },
+  [PlayerSpell.HUMIDIFY]: {
+    imageUrl: '/images/spells/humidify.png',
+    name: 'Humidify',
+    opacity: 0.9,
+  },
+  [PlayerSpell.HUNTER_KIT]: {
+    imageUrl: '/images/spells/hunter-kit.png',
+    name: 'Hunter Kit',
+  },
+  [PlayerSpell.NPC_CONTACT]: {
+    imageUrl: '/images/spells/npc-contact.png',
+    name: 'NPC Contact',
+  },
+  [PlayerSpell.VENGEANCE]: {
+    imageUrl: '/images/spells/vengeance.png',
+    name: 'Vengeance',
+    opacity: 0.9,
+  },
+  [PlayerSpell.VENGEANCE_OTHER]: {
+    imageUrl: '/images/spells/vengeance-other.png',
+    name: 'Vengeance Other',
+  },
+  [PlayerSpell.HEAL_OTHER]: {
+    imageUrl: '/images/spells/heal-other.png',
+    name: 'Heal Other',
+  },
+  [PlayerSpell.DEATH_CHARGE]: {
+    imageUrl: '/images/spells/death-charge.png',
+    name: 'Death Charge',
+  },
+  [PlayerSpell.LESSER_CORRUPTION]: {
+    imageUrl: '/images/spells/lesser-corruption.png',
+    name: 'Lesser Corruption',
+  },
+  [PlayerSpell.GREATER_CORRUPTION]: {
+    imageUrl: '/images/spells/greater-corruption.png',
+    name: 'Greater Corruption',
+    opacity: 0.9,
+  },
+  [PlayerSpell.SHADOW_VEIL]: {
+    imageUrl: '/images/spells/shadow-veil.png',
+    name: 'Shadow Veil',
+  },
+  [PlayerSpell.VILE_VIGOUR]: {
+    imageUrl: '/images/spells/vile-vigour.png',
+    name: 'Vile Vigour',
+  },
+  [PlayerSpell.WARD_OF_ARCEUUS]: {
+    imageUrl: '/images/spells/ward-of-arceuus.png',
+    name: 'Ward of Arceuus',
+  },
+  [PlayerSpell.MARK_OF_DARKNESS]: {
+    imageUrl: '/images/spells/mark-of-darkness.png',
+    name: 'Mark of Darkness',
+  },
+  [PlayerSpell.RESURRECT_GREATER_GHOST]: {
+    imageUrl: '/images/spells/resurrect-greater-ghost.png',
+    name: 'Resurrect Greater Ghost',
+  },
+  [PlayerSpell.RESURRECT_GREATER_SKELETON]: {
+    imageUrl: '/images/spells/resurrect-greater-skeleton.png',
+    name: 'Resurrect Greater Skeleton',
+  },
+  [PlayerSpell.RESURRECT_GREATER_ZOMBIE]: {
+    imageUrl: '/images/spells/resurrect-greater-zombie.png',
+    name: 'Resurrect Greater Zombie',
+  },
+};
+
 /**
  * Standard description for attacks that don't have a specific description.
  *
  * @param attackName A human-readable name for the attack, to be used to
- * complete the sentence "X targeted Y with ..." or "X did ..."
+ * complete the sentence "Targeted Y with ..." or "Did ..."
  * @returns Function that generates a simple description of the attack.
  */
 function basicDescription(attackName: string): NpcAttackDescriptionFunction {
-  const description: NpcAttackDescriptionFunction = (npcName, target) => {
+  const description: NpcAttackDescriptionFunction = (target) => {
     if (target) {
       return (
         <span>
-          {npcName} targeted {target} with {attackName}
+          Targeted {target} with {attackName}
         </span>
       );
     }
-    return (
-      <span>
-        {npcName} did {attackName}
-      </span>
-    );
+    return <span>Did {attackName}</span>;
   };
 
   return description;
@@ -921,15 +1001,13 @@ export const NPC_ATTACK_METADATA: Record<NpcAttack, NpcAttackMetadata> = {
   },
   [NpcAttack.TOB_MAIDEN_BLOOD_THROW]: {
     imageUrl: '/maiden_blood_throw.png',
-    description: (npcName, target) => (
-      <span>
-        {npcName} threw blood{target ? <> at {target}</> : ''}
-      </span>
+    description: (target) => (
+      <span>Threw blood{target ? <> at {target}</> : ''}</span>
     ),
   },
   [NpcAttack.TOB_BLOAT_STOMP]: {
     imageUrl: '/bloat_stomp.webp',
-    description: (npcName, _) => <span>{npcName} stomped</span>,
+    description: () => <span>Stomped</span>,
   },
   [NpcAttack.TOB_NYLO_BOSS_MELEE]: {
     imageUrl: '/nylo_boss_melee.png',
@@ -953,23 +1031,19 @@ export const NPC_ATTACK_METADATA: Record<NpcAttack, NpcAttackMetadata> = {
   },
   [NpcAttack.TOB_SOTE_DEATH_BALL]: {
     imageUrl: '/sote_death_ball.png',
-    description: (npcName, target) => (
-      <span>
-        {npcName} launched a death ball{target ? <> at {target}</> : ''}
-      </span>
+    description: (target) => (
+      <span>Launched a death ball{target ? <> at {target}</> : ''}</span>
     ),
   },
   [NpcAttack.TOB_XARPUS_SPIT]: {
     imageUrl: '/xarpus_spit.png',
-    description: (npcName, target) => (
-      <span>
-        {npcName} spat poison{target ? <> at {target}</> : ''}
-      </span>
+    description: (target) => (
+      <span>Spat poison{target ? <> at {target}</> : ''}</span>
     ),
   },
   [NpcAttack.TOB_XARPUS_TURN]: {
     imageUrl: '/xarpus_turn.webp',
-    description: (npcName, _) => <span>{npcName} turned</span>,
+    description: () => <span>Turned</span>,
   },
   [NpcAttack.TOB_VERZIK_P1_AUTO]: {
     imageUrl: '/verzik_p1_auto.png',
@@ -977,11 +1051,7 @@ export const NPC_ATTACK_METADATA: Record<NpcAttack, NpcAttackMetadata> = {
   },
   [NpcAttack.TOB_VERZIK_P2_BOUNCE]: {
     imageUrl: '/verzik_p2_bounce.png',
-    description: (npcName, target) => (
-      <span>
-        {npcName} bounced {target ?? 'someone'}
-      </span>
-    ),
+    description: (target) => <span>Bounced {target ?? 'someone'}</span>,
   },
   [NpcAttack.TOB_VERZIK_P2_CABBAGE]: {
     imageUrl: '/verzik_p2_cabbage.png',
@@ -1017,18 +1087,16 @@ export const NPC_ATTACK_METADATA: Record<NpcAttack, NpcAttackMetadata> = {
   },
   [NpcAttack.TOB_VERZIK_P3_WEBS]: {
     imageUrl: '/verzik_p3_webs.webp',
-    description: (npcName, _) => <span>{npcName} started releasing webs</span>,
+    description: () => <span>Started releasing webs</span>,
   },
   [NpcAttack.TOB_VERZIK_P3_YELLOWS]: {
     imageUrl: '/verzik_p3_yellow.webp',
-    description: (npcName, _) => <span>{npcName} spawned yellow pools</span>,
+    description: () => <span>Spawned yellow pools</span>,
   },
   [NpcAttack.TOB_VERZIK_P3_BALL]: {
     imageUrl: '/verzik_p3_ball.webp',
-    description: (npcName, target) => (
-      <span>
-        {npcName} launched a green ball{target ? <> at {target}</> : ''}
-      </span>
+    description: (target) => (
+      <span>Launched a green ball{target ? <> at {target}</> : ''}</span>
     ),
   },
   [NpcAttack.COLOSSEUM_BERSERKER_AUTO]: {
@@ -1129,7 +1197,7 @@ export const NPC_ATTACK_METADATA: Record<NpcAttack, NpcAttackMetadata> = {
   },
   [NpcAttack.INFERNO_MELEER_DIG]: {
     imageUrl: '/images/inferno/meleer-dig.png',
-    description: (npcName, _) => <span>{npcName} dug</span>,
+    description: () => <span>Dug</span>,
   },
   [NpcAttack.INFERNO_RANGER_AUTO]: {
     imageUrl: '/images/inferno/ranger-auto.png',
@@ -1149,11 +1217,7 @@ export const NPC_ATTACK_METADATA: Record<NpcAttack, NpcAttackMetadata> = {
   },
   [NpcAttack.INFERNO_MAGER_RESURRECT]: {
     imageUrl: '/images/inferno/mager-resurrect.png',
-    description: (npcName, target) => (
-      <span>
-        {npcName} resurrected {target ?? 'someone'}
-      </span>
-    ),
+    description: (target) => <span>Resurrected {target ?? 'someone'}</span>,
   },
   [NpcAttack.INFERNO_JAD_RANGED]: {
     imageUrl: '/images/inferno/jad-ranged.png',
@@ -1193,19 +1257,19 @@ export const NPC_ATTACK_METADATA: Record<NpcAttack, NpcAttackMetadata> = {
   },
   [NpcAttack.MOKHAIOTL_BALL]: {
     imageUrl: '/images/huh.png',
-    description: (npcName, _) => <span>{npcName} launched a ball</span>,
+    description: () => <span>Launched a ball</span>,
   },
   [NpcAttack.MOKHAIOTL_RANGED_BALL]: {
     imageUrl: '/images/mokhaiotl/ranged-ball.png',
-    description: (npcName, _) => <span>{npcName} launched a ranged ball</span>,
+    description: () => <span>Launched a ranged ball</span>,
   },
   [NpcAttack.MOKHAIOTL_MAGE_BALL]: {
     imageUrl: '/images/mokhaiotl/magic-ball.png',
-    description: (npcName, _) => <span>{npcName} launched a magic ball</span>,
+    description: () => <span>Launched a magic ball</span>,
   },
   [NpcAttack.MOKHAIOTL_CHARGE]: {
     imageUrl: '/images/mokhaiotl/charge.png',
-    description: (npcName, _) => <span>{npcName} started charging</span>,
+    description: () => <span>Started charging</span>,
   },
   [NpcAttack.MOKHAIOTL_BLAST]: {
     imageUrl: '/images/mokhaiotl/blast.png',
@@ -1213,19 +1277,17 @@ export const NPC_ATTACK_METADATA: Record<NpcAttack, NpcAttackMetadata> = {
   },
   [NpcAttack.MOKHAIOTL_RACECAR]: {
     imageUrl: '/images/mokhaiotl/racecar.webp',
-    description: (npcName, target) => (
-      <span>
-        {npcName} dug{target ? <> towards {target}</> : ''}
-      </span>
+    description: (target) => (
+      <span>Dug{target ? <> towards {target}</> : ''}</span>
     ),
   },
   [NpcAttack.MOKHAIOTL_SLAM]: {
     imageUrl: '/images/mokhaiotl/shockwave.png',
-    description: (npcName, _) => <span>{npcName} slammed the ground</span>,
+    description: () => <span>Slammed the ground</span>,
   },
   [NpcAttack.MOKHAIOTL_SHOCKWAVE]: {
     imageUrl: '/images/mokhaiotl/shockwave.png',
-    description: (npcName, _) => <span>{npcName} released a shockwave</span>,
+    description: () => <span>Released a shockwave</span>,
   },
   [NpcAttack.MOKHAIOTL_MELEE]: {
     imageUrl: '/images/mokhaiotl/melee.png',
