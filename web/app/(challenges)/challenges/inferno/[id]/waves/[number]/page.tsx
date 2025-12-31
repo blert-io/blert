@@ -17,7 +17,7 @@ import BossFightOverview, {
 import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
 import BossPageControls from '@/components/boss-page-controls';
 import BossPageParty from '@/components/boss-page-party';
-import { NewBossPageReplay } from '@/components/boss-page-replay';
+import BossPageReplay from '@/components/boss-page-replay';
 import Loading from '@/components/loading';
 import {
   AnyEntity,
@@ -226,7 +226,7 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
       </div>
 
       <div className={styles.replayAndParty}>
-        <NewBossPageReplay
+        <BossPageReplay
           entities={entitiesByTick.get(currentTick) ?? []}
           preloads={preloads}
           mapDef={mapDef}

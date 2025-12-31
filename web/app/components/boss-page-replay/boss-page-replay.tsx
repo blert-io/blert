@@ -3,11 +3,6 @@
 import { useCallback, useContext, useState } from 'react';
 
 import Card from '@/components/card';
-import LegacyMap, {
-  Entity as LegacyEntity,
-  EntityType as LegacyEntityType,
-  MapDefinition as LegacyMapDefinition,
-} from '@/components/map';
 import {
   AnyEntity,
   CameraResetButton,
@@ -25,43 +20,6 @@ import Modal from '@/components/modal';
 import { ActorContext } from '@/(challenges)/raids/tob/context';
 
 import styles from './styles.module.scss';
-
-const DEFAULT_MAP_TILE_SIZE = 25;
-
-type LegacyBossReplayProps = {
-  entities: LegacyEntity[];
-  mapDef: LegacyMapDefinition;
-  tileSize?: number;
-};
-
-export default function LegacyBossPageReplay({
-  entities,
-  mapDef,
-  tileSize = DEFAULT_MAP_TILE_SIZE,
-}: LegacyBossReplayProps) {
-  const { setSelectedPlayer } = useContext(ActorContext);
-  const onEntitySelected = (entity: LegacyEntity) => {
-    if (entity.type === LegacyEntityType.PLAYER) {
-      setSelectedPlayer(entity.name);
-    }
-  };
-
-  return (
-    <Card header={{ title: 'Room Replay' }} className={styles.replay}>
-      <LegacyMap
-        x={mapDef.baseX}
-        y={mapDef.baseY}
-        width={mapDef.width}
-        height={mapDef.height}
-        baseTiles={mapDef.baseTiles}
-        faceSouth={mapDef.faceSouth}
-        tileSize={tileSize}
-        entities={entities}
-        onEntityClicked={onEntitySelected}
-      />
-    </Card>
-  );
-}
 
 type BossReplayProps = {
   entities: AnyEntity[];
@@ -86,7 +44,6 @@ export function BossPageReplay({
   height,
   currentTick,
   advanceTick,
-  setUseLegacy,
   customControls,
 }: BossReplayProps) {
   const [config, setConfig] = useState({
@@ -95,7 +52,6 @@ export function BossPageReplay({
     debug: false,
   });
 
-  const canSwitchToLegacy = setUseLegacy !== undefined;
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // TODO(frolv): Switch to using a single selected entity.
@@ -172,26 +128,7 @@ export function BossPageReplay({
 
   return (
     <>
-      <Card
-        header={{
-          title: 'Room Replay',
-          action: canSwitchToLegacy ? (
-            <div className={styles.testingNotice}>
-              <span className={styles.noticeText}>
-                Previewing Blert&apos;s new replay system
-              </span>
-              <button
-                className={styles.legacyButton}
-                disabled={playing}
-                onClick={setUseLegacy}
-              >
-                Switch to original
-              </button>
-            </div>
-          ) : undefined,
-        }}
-        className={styles.replay}
-      >
+      <Card header={{ title: 'Room Replay' }} className={styles.replay}>
         {customControls}
         {!isFullscreen && renderMap(false)}
       </Card>

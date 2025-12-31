@@ -1,21 +1,5 @@
 @use '@/mixins.scss' as *;
 
-.statsWrapper {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  max-width: 1000px;
-
-  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    flex-direction: column;
-    align-items: center;
-
-    .spawn {
-      margin-top: 4px;
-    }
-  }
-}
-
 .spawn {
   min-width: 240px;
   display: flex;

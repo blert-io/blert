@@ -1,4 +1,1 @@
-export {
-  default,
-  BossPageReplay as NewBossPageReplay,
-} from './boss-page-replay';
+export { BossPageReplay as default } from './boss-page-replay';

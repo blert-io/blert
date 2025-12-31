@@ -40,7 +40,6 @@ import {
 } from '@blert/common';
 import { useSearchParams } from 'next/navigation';
 import {
-  SetStateAction,
   useCallback,
   useContext,
   useEffect,
@@ -53,46 +52,7 @@ import { ChallengeContext } from '@/challenge-context';
 import { AnyEntity, NpcEntity, PlayerEntity } from '@/components/map-renderer';
 
 import { simpleItemCache } from './item-cache/simple';
-import { TICK_MS } from './tick';
 import { challengeApiUrl } from './url';
-
-export const useLegacyTickTimeout = (
-  enabled: boolean,
-  playing: boolean,
-  currentTick: number,
-  setTick: (tick: number | SetStateAction<number>) => void,
-) => {
-  const tickTimeout = useRef<number | undefined>(undefined);
-
-  const clearTimeout = useCallback(() => {
-    window.clearTimeout(tickTimeout.current);
-    tickTimeout.current = undefined;
-  }, []);
-
-  const updateTickOnPage = useCallback(
-    (tick: number | SetStateAction<number>) => {
-      clearTimeout();
-      setTick(tick);
-    },
-    [clearTimeout, setTick],
-  );
-
-  useEffect(() => {
-    if (enabled && playing) {
-      tickTimeout.current = window.setTimeout(() => {
-        updateTickOnPage(currentTick + 1);
-      }, TICK_MS);
-    } else {
-      clearTimeout();
-    }
-
-    return () => clearTimeout();
-  }, [currentTick, updateTickOnPage, enabled, playing, clearTimeout]);
-
-  return {
-    updateTickOnPage,
-  };
-};
 
 export const usePlayingState = (totalTicks: number) => {
   const searchParams = useSearchParams();
