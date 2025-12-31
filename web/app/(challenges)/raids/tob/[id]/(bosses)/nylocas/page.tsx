@@ -40,18 +40,10 @@ import BossFightOverview from '@/components/boss-fight-overview';
 import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
 import BossPageParty from '@/components/boss-page-party';
 import BossPageControls from '@/components/boss-page-controls';
-import BossPageReplay, {
-  NewBossPageReplay,
-} from '@/components/boss-page-replay';
+import BossPageReplay from '@/components/boss-page-replay';
 import Card from '@/components/card';
 import HorizontalScrollable from '@/components/horizontal-scrollable';
 import Loading from '@/components/loading';
-import {
-  Entity as LegacyEntity,
-  NpcEntity as LegacyNpcEntity,
-  OverlayEntity as LegacyOverlayEntity,
-  PlayerEntity as LegacyPlayerEntity,
-} from '@/components/map';
 import {
   AnyEntity,
   EntityType,
@@ -65,7 +57,6 @@ import { useDisplay } from '@/display';
 import {
   EnhancedNylo,
   EventTickMap,
-  useLegacyTickTimeout,
   useMapEntities,
   usePlayingState,
   useStageEvents,
@@ -76,7 +67,6 @@ import { ticksToFormattedSeconds } from '@/utils/tick';
 import NyloDimSettings, { DimThreshold } from './dim-settings';
 import BarrierEntity from '../barrier';
 
-import nyloBaseTiles from './nylo-tiles.json';
 import bossStyles from '../style.module.scss';
 import styles from './style.module.scss';
 
@@ -122,69 +112,12 @@ const NYLOCAS_MAP_DEFINITION: MapDefinition = {
   terrain: new NylocasTerrain(),
 };
 
-const LEGACY_NYLOCAS_MAP_DEFINITION = {
-  baseX: 3279,
-  baseY: 4232,
-  width: 34,
-  height: 25,
-  faceSouth: true,
-  baseTiles: nyloBaseTiles,
-};
-
 const CAP_INCREASE_WAVE = 20;
 const LAST_NYLO_WAVE = 31;
 
 const GRAY_NYLO_COLOR = '#a9aaab';
 const GREEN_NYLO_COLOR = '#408d43';
 const BLUE_NYLO_COLOR = '#42c6d7';
-
-const NORTH_BARRIER = new LegacyOverlayEntity(
-  3299,
-  4255,
-  'barrier',
-  (
-    <div className={styles.barrierNorth}>
-      <div className={styles.entrance}></div>
-    </div>
-  ),
-  /*interactable=*/ false,
-);
-
-const WEST_BARRIER = new LegacyOverlayEntity(
-  3289,
-  4245,
-  'barrier',
-  (
-    <div className={styles.barrierWest}>
-      <div className={styles.entrance}></div>
-    </div>
-  ),
-  /*interactable=*/ false,
-);
-
-const SOUTH_BARRIER = new LegacyOverlayEntity(
-  3299,
-  4242,
-  'barrier',
-  (
-    <div className={styles.barrierSouth}>
-      <div className={styles.entrance}></div>
-    </div>
-  ),
-  /*interactable=*/ false,
-);
-
-const EAST_BARRIER = new LegacyOverlayEntity(
-  3302,
-  4245,
-  'barrier',
-  (
-    <div className={styles.barrierEast}>
-      <div className={styles.entrance}></div>
-    </div>
-  ),
-  /*interactable=*/ false,
-);
 
 /**
  * Returns the style-based color for a Nylocas NPC.
@@ -398,11 +331,8 @@ function getBarrierEntities(_tick: number): BarrierEntity[] {
   return [...BARRIERS];
 }
 
-const DEFAULT_USE_NEW_REPLAY = true;
-
 export default function NylocasPage() {
   const display = useDisplay();
-  const [useNewReplay, setUseNewReplay] = useState(DEFAULT_USE_NEW_REPLAY);
   const [dimThresholds, setDimThresholds] = useState<DimThreshold[]>([]);
   const [showLabels, setShowLabels] = useState(true);
 
@@ -429,12 +359,6 @@ export default function NylocasPage() {
 
   const { currentTick, setTick, playing, setPlaying, advanceTick } =
     usePlayingState(totalTicks);
-  const { updateTickOnPage } = useLegacyTickTimeout(
-    !useNewReplay,
-    playing,
-    currentTick,
-    setTick,
-  );
 
   const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
 
@@ -676,90 +600,6 @@ export default function NylocasPage() {
     return <>No Nylocas data for this raid</>;
   }
 
-  const eventsForCurrentTick = eventsByTick[currentTick] ?? [];
-
-  const legacyEntities: LegacyEntity[] = [
-    NORTH_BARRIER,
-    WEST_BARRIER,
-    SOUTH_BARRIER,
-    EAST_BARRIER,
-  ];
-  const players: LegacyPlayerEntity[] = [];
-
-  let nylosAlive = 0;
-
-  for (const evt of eventsForCurrentTick) {
-    switch (evt.type) {
-      case EventType.PLAYER_UPDATE: {
-        const hitpoints = evt.player.hitpoints
-          ? SkillLevel.fromRaw(evt.player.hitpoints)
-          : undefined;
-        const player = new LegacyPlayerEntity(
-          evt.xCoord,
-          evt.yCoord,
-          evt.player.name,
-          hitpoints,
-          /*highlight=*/ evt.player.name === selectedPlayer,
-        );
-        legacyEntities.push(player);
-        players.push(player);
-        break;
-      }
-      case EventType.NPC_SPAWN:
-      case EventType.NPC_UPDATE: {
-        const e = evt as NpcEvent;
-        if (Npc.isNylocas(e.npc.id)) {
-          nylosAlive++;
-        }
-        legacyEntities.push(
-          new LegacyNpcEntity(
-            e.xCoord,
-            e.yCoord,
-            e.npc.id,
-            e.npc.roomId,
-            SkillLevel.fromRaw(e.npc.hitpoints),
-            getNyloColor(e.npc.id as NpcId),
-          ),
-        );
-        break;
-      }
-    }
-  }
-
-  const currentWave = (
-    eventsByType[EventType.TOB_NYLO_WAVE_SPAWN] as NyloWaveSpawnEvent[]
-  )?.findLast((evt) => evt.tick <= currentTick)?.nyloWave;
-
-  const cleanupEvent = eventsByType[EventType.TOB_NYLO_CLEANUP_END]?.at(0);
-  const cleanupEnded =
-    cleanupEvent !== undefined && cleanupEvent.tick <= currentTick;
-
-  if (currentWave !== undefined && currentWave.wave > 0 && !cleanupEnded) {
-    const wave = currentWave.wave;
-    const waveTitle = wave < LAST_NYLO_WAVE ? `Wave ${wave}` : 'Cleanup';
-
-    const capColor =
-      nylosAlive >= currentWave.roomCap ? 'var(--blert-red)' : 'green';
-
-    const overlay = (
-      <div className={styles.waveIndicator}>
-        <div>{waveTitle}</div>
-        <div className={styles.cap} style={{ color: capColor }}>
-          {nylosAlive}/{currentWave.roomCap}
-        </div>
-      </div>
-    );
-
-    legacyEntities.push(
-      new LegacyOverlayEntity(
-        LEGACY_NYLOCAS_MAP_DEFINITION.baseX + (compact ? 7 : 2),
-        LEGACY_NYLOCAS_MAP_DEFINITION.baseY,
-        `nylo-wave-${currentWave.wave}-indicator`,
-        overlay,
-      ),
-    );
-  }
-
   const playerTickState = challenge.party.reduce(
     (acc, { username }) => ({
       ...acc,
@@ -925,7 +765,7 @@ export default function NylocasPage() {
                     data-tooltip-id={GLOBAL_TOOLTIP_ID}
                     data-tooltip-content={`${styleName} (Tick ${change.tick})`}
                     onClick={() => {
-                      updateTickOnPage(change.tick);
+                      setTick(change.tick);
                     }}
                   />
                 );
@@ -1008,7 +848,7 @@ export default function NylocasPage() {
           playing={playing}
           playerState={playerState}
           timelineTicks={totalTicks}
-          updateTickOnPage={updateTickOnPage}
+          updateTickOnPage={setTick}
           splits={splits}
           backgroundColors={backgroundColors}
           npcs={npcState}
@@ -1017,33 +857,24 @@ export default function NylocasPage() {
       </div>
 
       <div className={bossStyles.replayAndParty}>
-        {useNewReplay ? (
-          <NewBossPageReplay
-            entities={entitiesByTick.get(currentTick) ?? []}
-            preloads={preloads}
-            mapDef={mapDefinition}
-            playing={playing}
-            width={display.isCompact() ? 374 : 850}
-            height={display.isCompact() ? 275 : 625}
-            currentTick={currentTick}
-            advanceTick={advanceTick}
-            setUseLegacy={() => setUseNewReplay(false)}
-            customControls={
-              <NyloDimSettings
-                scale={challenge.party.length}
-                disabled={playing}
-                onDimThresholdsChange={setDimThresholds}
-                onShowLabelsChange={setShowLabels}
-              />
-            }
-          />
-        ) : (
-          <BossPageReplay
-            entities={legacyEntities}
-            mapDef={LEGACY_NYLOCAS_MAP_DEFINITION}
-            tileSize={display.isCompact() ? 11 : undefined}
-          />
-        )}
+        <BossPageReplay
+          entities={entitiesByTick.get(currentTick) ?? []}
+          preloads={preloads}
+          mapDef={mapDefinition}
+          playing={playing}
+          width={display.isCompact() ? 374 : 850}
+          height={display.isCompact() ? 275 : 625}
+          currentTick={currentTick}
+          advanceTick={advanceTick}
+          customControls={
+            <NyloDimSettings
+              scale={challenge.party.length}
+              disabled={playing}
+              onDimThresholdsChange={setDimThresholds}
+              onShowLabelsChange={setShowLabels}
+            />
+          }
+        />
         <BossPageParty
           playerTickState={playerTickState}
           selectedPlayer={selectedPlayer}
@@ -1071,7 +902,7 @@ export default function NylocasPage() {
         currentlyPlaying={playing}
         totalTicks={totalTicks}
         currentTick={currentTick}
-        updateTick={updateTickOnPage}
+        updateTick={setTick}
         updatePlayingState={setPlaying}
         splits={splits}
       />

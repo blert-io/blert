@@ -6,39 +6,22 @@ import {
   EventType,
   HANDICAP_LEVEL_VALUE_INCREMENT,
   Handicap,
-  Npc,
   NpcEvent,
-  SkillLevel,
   Stage,
 } from '@blert/common';
 import { notFound, useRouter } from 'next/navigation';
-import {
-  use,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import { use, useCallback, useContext, useEffect, useMemo } from 'react';
 
 import BossFightOverview from '@/components/boss-fight-overview';
 import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
 import BossPageControls from '@/components/boss-page-controls';
 import BossPageParty from '@/components/boss-page-party';
-import BossPageReplay, {
-  NewBossPageReplay,
-} from '@/components/boss-page-replay';
+import BossPageReplay from '@/components/boss-page-replay';
 import ColosseumHandicap from '@/components/colosseum-handicap';
 import Loading from '@/components/loading';
-import {
-  Entity as LegacyEntity,
-  NpcEntity as LegacyNpcEntity,
-  PlayerEntity as LegacyPlayerEntity,
-} from '@/components/map';
 import { MapDefinition, ObjectEntity } from '@/components/map-renderer';
 import { useDisplay } from '@/display';
 import {
-  useLegacyTickTimeout,
   useMapEntities,
   usePlayingState,
   useStageEvents,
@@ -48,7 +31,6 @@ import { challengeUrl } from '@/utils/url';
 import { ActorContext } from '../../../context';
 
 import styles from './style.module.scss';
-import colosseumBaseTiles from './colosseum-tiles.json';
 
 const COLOSSEUM_MAP_DEFINITION: MapDefinition = {
   baseX: 1792,
@@ -56,14 +38,6 @@ const COLOSSEUM_MAP_DEFINITION: MapDefinition = {
   width: 64,
   height: 64,
   initialCameraPosition: { x: 1824.5, y: 3107 },
-};
-
-const LEGACY_COLOSSEUM_MAP_DEFINITION = {
-  baseX: 1808,
-  baseY: 3090,
-  width: 34,
-  height: 34,
-  baseTiles: colosseumBaseTiles,
 };
 
 function imageForWave(waveNumber: number) {
@@ -80,32 +54,6 @@ function validWaveNumber(waveNumber: number) {
   return !isNaN(waveNumber) && waveNumber >= 1 && waveNumber <= 12;
 }
 
-function npcOutlineColor(npcId: number): string | undefined {
-  if (Npc.isFremennikSeer(npcId) || Npc.isSerpentShaman(npcId)) {
-    return '#42c6d7';
-  }
-  if (Npc.isFremennikArcher(npcId)) {
-    return '#408d43';
-  }
-  if (Npc.isFremennikBerserker(npcId)) {
-    return '#8b0e10';
-  }
-  if (Npc.isJavelinColossus(npcId)) {
-    return '#24d72b';
-  }
-  if (Npc.isManticore(npcId)) {
-    return '#9c27b0';
-  }
-  if (Npc.isShockwaveColossus(npcId)) {
-    return '#3f5fff';
-  }
-  if (Npc.isSolarflare(npcId)) {
-    return '#ff5e00';
-  }
-
-  return '#2d270c';
-}
-
 const PILLARS = [
   { x: 1816, y: 3098 },
   { x: 1831, y: 3098 },
@@ -113,12 +61,9 @@ const PILLARS = [
   { x: 1831, y: 3113 },
 ];
 
-const DEFAULT_USE_NEW_REPLAY = true;
-
 export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
   const router = useRouter();
   const display = useDisplay();
-  const [useNewReplay, setUseNewReplay] = useState(DEFAULT_USE_NEW_REPLAY);
 
   const compact = display.isCompact();
 
@@ -142,7 +87,6 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
   const waveIndex = validWaveNumber(waveNumber) ? waveNumber - 1 : 0;
   const {
     challenge,
-    eventsByTick,
     eventsByType,
     playerState,
     npcState,
@@ -154,12 +98,6 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
 
   const { currentTick, setTick, playing, setPlaying, advanceTick } =
     usePlayingState(totalTicks);
-  const { updateTickOnPage } = useLegacyTickTimeout(
-    !useNewReplay,
-    playing,
-    currentTick,
-    setTick,
-  );
 
   const customEntitiesForTick = useCallback(
     (_: number) =>
@@ -210,45 +148,6 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
       handicapsSoFar.push(handicap);
     } else {
       handicapsSoFar[index] = handicap;
-    }
-  }
-
-  const eventsForCurrentTick = eventsByTick[currentTick] ?? [];
-
-  const legacyEntities: LegacyEntity[] = [];
-
-  for (const evt of eventsForCurrentTick) {
-    switch (evt.type) {
-      case EventType.PLAYER_UPDATE: {
-        const hitpoints = evt.player.hitpoints
-          ? SkillLevel.fromRaw(evt.player.hitpoints)
-          : undefined;
-        const player = new LegacyPlayerEntity(
-          evt.xCoord,
-          evt.yCoord,
-          evt.player.name,
-          hitpoints,
-          /*highlight=*/ evt.player.name === selectedPlayer,
-        );
-        legacyEntities.push(player);
-        break;
-      }
-      case EventType.NPC_SPAWN:
-      case EventType.NPC_UPDATE: {
-        const e = evt as NpcEvent;
-        legacyEntities.push(
-          new LegacyNpcEntity(
-            e.xCoord,
-            e.yCoord,
-            e.npc.id,
-            e.npc.roomId,
-            SkillLevel.fromRaw(e.npc.hitpoints),
-            npcOutlineColor(e.npc.id),
-            Npc.isFremennik(e.npc.id) || Npc.isSerpentShaman(e.npc.id),
-          ),
-        );
-        break;
-      }
     }
   }
 
@@ -319,7 +218,7 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
           playing={playing}
           playerState={playerState}
           timelineTicks={totalTicks}
-          updateTickOnPage={updateTickOnPage}
+          updateTickOnPage={setTick}
           splits={timelineSplits}
           npcs={npcState}
           smallLegend={display.isCompact()}
@@ -327,25 +226,16 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
       </div>
 
       <div className={styles.replayAndParty}>
-        {useNewReplay ? (
-          <NewBossPageReplay
-            entities={entitiesByTick.get(currentTick) ?? []}
-            preloads={preloads}
-            mapDef={mapDef}
-            playing={playing}
-            width={compact ? 340 : 800}
-            height={compact ? 340 : 800}
-            currentTick={currentTick}
-            advanceTick={advanceTick}
-            setUseLegacy={() => setUseNewReplay(false)}
-          />
-        ) : (
-          <BossPageReplay
-            entities={legacyEntities}
-            mapDef={LEGACY_COLOSSEUM_MAP_DEFINITION}
-            tileSize={compact ? 12 : 20}
-          />
-        )}
+        <BossPageReplay
+          entities={entitiesByTick.get(currentTick) ?? []}
+          preloads={preloads}
+          mapDef={mapDef}
+          playing={playing}
+          width={compact ? 340 : 800}
+          height={compact ? 340 : 800}
+          currentTick={currentTick}
+          advanceTick={advanceTick}
+        />
         <BossPageParty
           playerTickState={playerTickState}
           selectedPlayer={selectedPlayer}
@@ -357,7 +247,7 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
         currentlyPlaying={playing}
         totalTicks={totalTicks}
         currentTick={currentTick}
-        updateTick={updateTickOnPage}
+        updateTick={setTick}
         updatePlayingState={setPlaying}
         splits={timelineSplits}
       />

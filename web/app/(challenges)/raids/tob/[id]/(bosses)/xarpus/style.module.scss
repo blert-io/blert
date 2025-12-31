@@ -43,22 +43,6 @@
   }
 }
 
-.healing {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-
-  .healStat {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  i {
-    color: var(--blert-purple);
-  }
-}
-
 .healingTable {
   width: 100%;
   border-collapse: collapse;
@@ -89,37 +73,5 @@
   .healingTableAmount {
     font-weight: 500;
     font-size: 1.1em;
-  }
-}
-
-.exhumedOverlay {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-
-  .exhumedHealCount {
-    position: absolute;
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    bottom: 2px;
-    left: 2px;
-
-    span {
-      font-size: 10px;
-      font-weight: 500;
-      color: #fff;
-      text-shadow: 0 0 1px rgba(0, 0, 0, 0.5);
-    }
-
-    .exhumedBall {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
-    }
   }
 }

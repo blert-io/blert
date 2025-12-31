@@ -9,12 +9,11 @@ import {
   Npc,
   NpcEvent,
   RoomNpcType,
-  SkillLevel,
   SplitType,
   Stage,
   TobRaid,
 } from '@blert/common';
-import { useCallback, useContext, useMemo, useState } from 'react';
+import { useCallback, useContext, useMemo } from 'react';
 
 import { TimelineSplit } from '@/components/attack-timeline';
 import BossFightOverview from '@/components/boss-fight-overview';
@@ -22,16 +21,8 @@ import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
 import BossPageControls from '@/components/boss-page-controls';
 import BossPageDPSTimeline from '@/components/boss-page-dps-timeline';
 import BossPageParty from '@/components/boss-page-party';
-import BossPageReplay, {
-  NewBossPageReplay,
-} from '@/components/boss-page-replay';
+import BossPageReplay from '@/components/boss-page-replay';
 import Card from '@/components/card';
-import {
-  Entity as LegacyEntity,
-  MarkerEntity as LegacyMarkerEntity,
-  NpcEntity as LegacyNpcEntity,
-  PlayerEntity as LegacyPlayerEntity,
-} from '@/components/map';
 import {
   AnyEntity,
   ObjectEntity,
@@ -44,7 +35,6 @@ import { ActorContext } from '@/(challenges)/raids/tob/context';
 import {
   EnhancedMaidenCrab,
   EnhancedRoomNpc,
-  useLegacyTickTimeout,
   useMapEntities,
   usePlayingState,
   useStageEvents,
@@ -54,19 +44,8 @@ import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import BarrierEntity from '../barrier';
 
-import maidenBaseTiles from './maiden.json';
 import bossStyles from '../style.module.scss';
 import styles from './style.module.scss';
-
-const DEFAULT_USE_NEW_REPLAY = true;
-
-const LEGACY_MAIDEN_MAP_DEFINITION = {
-  baseX: 3160,
-  baseY: 4435,
-  width: 28,
-  height: 24,
-  baseTiles: maidenBaseTiles,
-};
 
 class MaidenTerrain implements Terrain {
   isPassable(coords: Coords): boolean {
@@ -213,7 +192,6 @@ function CrabSpawn(props: CrabSpawnProps) {
 
 export default function Maiden() {
   const display = useContext(DisplayContext);
-  const [useNewReplay, setUseNewReplay] = useState(DEFAULT_USE_NEW_REPLAY);
 
   const compact = display.isCompact();
 
@@ -237,13 +215,6 @@ export default function Maiden() {
 
   const { currentTick, advanceTick, setTick, playing, setPlaying } =
     usePlayingState(totalTicks);
-
-  const { updateTickOnPage } = useLegacyTickTimeout(
-    !useNewReplay,
-    playing,
-    currentTick,
-    setTick,
-  );
 
   const bossHealthChartData = useMemo(() => {
     let maiden: EnhancedRoomNpc | null = null;
@@ -353,50 +324,6 @@ export default function Maiden() {
     return <>No Maiden data for raid</>;
   }
 
-  const eventsForCurrentTick = eventsByTick[currentTick] ?? [];
-
-  const legacyEntities: LegacyEntity[] = [];
-
-  for (const evt of eventsForCurrentTick) {
-    switch (evt.type) {
-      case EventType.PLAYER_UPDATE: {
-        const hitpoints = evt.player.hitpoints
-          ? SkillLevel.fromRaw(evt.player.hitpoints)
-          : undefined;
-        const player = new LegacyPlayerEntity(
-          evt.xCoord,
-          evt.yCoord,
-          evt.player.name,
-          hitpoints,
-          /*highlight=*/ evt.player.name === selectedPlayer,
-        );
-        legacyEntities.push(player);
-        break;
-      }
-      case EventType.NPC_SPAWN:
-      case EventType.NPC_UPDATE: {
-        const e = evt as NpcEvent;
-        legacyEntities.push(
-          new LegacyNpcEntity(
-            e.xCoord,
-            e.yCoord,
-            e.npc.id,
-            e.npc.roomId,
-            SkillLevel.fromRaw(e.npc.hitpoints),
-          ),
-        );
-        break;
-      }
-      case EventType.TOB_MAIDEN_BLOOD_SPLATS:
-        for (const coord of evt.maidenBloodSplats ?? []) {
-          legacyEntities.push(
-            new LegacyMarkerEntity(coord.x, coord.y, BLOOD_SPLAT_COLOR),
-          );
-        }
-        break;
-    }
-  }
-
   const playerTickState = challenge.party.reduce(
     (acc, { username }) => ({
       ...acc,
@@ -442,7 +369,7 @@ export default function Maiden() {
           playing={playing}
           playerState={playerState}
           timelineTicks={totalTicks}
-          updateTickOnPage={updateTickOnPage}
+          updateTickOnPage={setTick}
           splits={splits}
           npcs={npcState}
           smallLegend={display.isCompact()}
@@ -450,25 +377,16 @@ export default function Maiden() {
       </div>
 
       <div className={bossStyles.replayAndParty}>
-        {useNewReplay ? (
-          <NewBossPageReplay
-            entities={entitiesByTick.get(currentTick) ?? []}
-            preloads={preloads}
-            mapDef={mapDefinition}
-            playing={playing}
-            width={display.isCompact() ? 352 : 704}
-            height={display.isCompact() ? 302 : 604}
-            currentTick={currentTick}
-            advanceTick={advanceTick}
-            setUseLegacy={() => setUseNewReplay(false)}
-          />
-        ) : (
-          <BossPageReplay
-            entities={legacyEntities}
-            mapDef={LEGACY_MAIDEN_MAP_DEFINITION}
-            tileSize={display.isCompact() ? 12 : undefined}
-          />
-        )}
+        <BossPageReplay
+          entities={entitiesByTick.get(currentTick) ?? []}
+          preloads={preloads}
+          mapDef={mapDefinition}
+          playing={playing}
+          width={display.isCompact() ? 352 : 704}
+          height={display.isCompact() ? 302 : 604}
+          currentTick={currentTick}
+          advanceTick={advanceTick}
+        />
         <BossPageParty
           playerTickState={playerTickState}
           selectedPlayer={selectedPlayer}
@@ -494,7 +412,7 @@ export default function Maiden() {
         currentlyPlaying={playing}
         totalTicks={totalTicks}
         currentTick={currentTick}
-        updateTick={updateTickOnPage}
+        updateTick={setTick}
         updatePlayingState={setPlaying}
         splits={controlsSplits}
       />

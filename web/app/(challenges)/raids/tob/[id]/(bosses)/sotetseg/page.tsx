@@ -4,13 +4,11 @@ import {
   ChallengeStatus,
   EventType,
   Npc,
-  NpcEvent,
-  SkillLevel,
   SplitType,
   Stage,
   TobRaid,
 } from '@blert/common';
-import { useCallback, useContext, useMemo, useState } from 'react';
+import { useCallback, useContext, useMemo } from 'react';
 
 import { ActorContext } from '@/(challenges)/raids/tob/context';
 import BossFightOverview from '@/components/boss-fight-overview';
@@ -18,22 +16,13 @@ import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
 import BossPageControls from '@/components/boss-page-controls';
 import BossPageDPSTimeline from '@/components/boss-page-dps-timeline';
 import BossPageParty from '@/components/boss-page-party';
-import BossPageReplay, {
-  NewBossPageReplay,
-} from '@/components/boss-page-replay';
+import BossPageReplay from '@/components/boss-page-replay';
 import Card from '@/components/card';
 import Loading from '@/components/loading';
-import {
-  Entity as LegacyEntity,
-  NpcEntity as LegacyNpcEntity,
-  OverlayEntity as LegacyOverlayEntity,
-  PlayerEntity as LegacyPlayerEntity,
-} from '@/components/map';
 import { CustomEntity, MapDefinition } from '@/components/map-renderer';
 import { useDisplay } from '@/display';
 import {
   EnhancedRoomNpc,
-  useLegacyTickTimeout,
   useMapEntities,
   usePlayingState,
   useStageEvents,
@@ -43,7 +32,6 @@ import { ticksToFormattedSeconds } from '@/utils/tick';
 import BarrierEntity from '../barrier';
 import MazeTileEntity from './maze-tile';
 
-import soteBaseTiles from './sote-tiles.json';
 import bossStyles from '../style.module.scss';
 import styles from './style.module.scss';
 
@@ -53,14 +41,6 @@ const SOTETSEG_MAP_DEFINITION: MapDefinition = {
   width: 32,
   height: 40,
   initialCameraPosition: { x: 3280, y: 4318 },
-};
-
-const LEGACY_SOTETSEG_MAP_DEFINITION = {
-  baseX: 3272,
-  baseY: 4305,
-  width: 16,
-  height: 28,
-  baseTiles: soteBaseTiles,
 };
 
 const MAZE_START_X = 3273;
@@ -173,11 +153,8 @@ function Maze({ pivots, tileSize, showPivots = false }: MazeProps) {
 
 const BARRIER = new BarrierEntity({ x: 3280, y: 4307 }, 4);
 
-const DEFAULT_USE_NEW_REPLAY = true;
-
 export default function SotetsegPage() {
   const display = useDisplay();
-  const [useNewReplay, setUseNewReplay] = useState(DEFAULT_USE_NEW_REPLAY);
 
   const compact = display.isCompact();
 
@@ -200,12 +177,6 @@ export default function SotetsegPage() {
 
   const { currentTick, setTick, playing, setPlaying, advanceTick } =
     usePlayingState(totalTicks);
-  const { updateTickOnPage } = useLegacyTickTimeout(
-    !useNewReplay,
-    playing,
-    currentTick,
-    setTick,
-  );
 
   const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
 
@@ -290,73 +261,6 @@ export default function SotetsegPage() {
   const soteData = challenge.tobRooms.sotetseg;
   if (challenge.status !== ChallengeStatus.IN_PROGRESS && soteData === null) {
     return <>No Sotetseg data for this raid</>;
-  }
-
-  const eventsForCurrentTick = eventsByTick[currentTick] ?? [];
-
-  const legacyEntities: LegacyEntity[] = [];
-
-  for (const evt of eventsForCurrentTick) {
-    switch (evt.type) {
-      case EventType.PLAYER_UPDATE: {
-        const hitpoints = evt.player.hitpoints
-          ? SkillLevel.fromRaw(evt.player.hitpoints)
-          : undefined;
-        const player = new LegacyPlayerEntity(
-          evt.xCoord,
-          evt.yCoord,
-          evt.player.name,
-          hitpoints,
-          /*highlight=*/ evt.player.name === selectedPlayer,
-        );
-        legacyEntities.push(player);
-        break;
-      }
-      case EventType.NPC_SPAWN:
-      case EventType.NPC_UPDATE: {
-        const e = evt as NpcEvent;
-        legacyEntities.push(
-          new LegacyNpcEntity(
-            e.xCoord,
-            e.yCoord,
-            e.npc.id,
-            e.npc.roomId,
-            SkillLevel.fromRaw(e.npc.hitpoints),
-          ),
-        );
-        break;
-      }
-    }
-  }
-
-  // Render tiles for the maze.
-  const mazeTileOverlay = (active: boolean) => (
-    <div className={`${styles.mapTile} ${active ? styles.active : ''}`}>
-      <div className={styles.circle} />
-    </div>
-  );
-
-  const activeTiles =
-    eventsForCurrentTick.find((e) => e.type === EventType.TOB_SOTE_MAZE_PATH)
-      ?.soteMaze.activeTiles ?? [];
-
-  for (let y = 0; y < MAZE_HEIGHT; ++y) {
-    for (let x = 0; x < MAZE_WIDTH; ++x) {
-      const absX = MAZE_START_X + x;
-      const absY = MAZE_START_Y + y;
-
-      const active = activeTiles.some((tile) => tile.x === x && tile.y === y);
-
-      legacyEntities.push(
-        new LegacyOverlayEntity(
-          absX,
-          absY,
-          `maze-tile-${x}-${y}`,
-          mazeTileOverlay(active),
-          false,
-        ),
-      );
-    }
   }
 
   const playerTickState = challenge.party.reduce(
@@ -448,7 +352,7 @@ export default function SotetsegPage() {
           playing={playing}
           playerState={playerState}
           timelineTicks={totalTicks}
-          updateTickOnPage={updateTickOnPage}
+          updateTickOnPage={setTick}
           splits={splits}
           npcs={npcState}
           smallLegend={display.isCompact()}
@@ -456,25 +360,16 @@ export default function SotetsegPage() {
       </div>
 
       <div className={bossStyles.replayAndParty}>
-        {useNewReplay ? (
-          <NewBossPageReplay
-            entities={entitiesByTick.get(currentTick) ?? []}
-            preloads={preloads}
-            mapDef={mapDefinition}
-            playing={playing}
-            width={display.isCompact() ? 320 : 500}
-            height={display.isCompact() ? 560 : 700}
-            currentTick={currentTick}
-            advanceTick={advanceTick}
-            setUseLegacy={() => setUseNewReplay(false)}
-          />
-        ) : (
-          <BossPageReplay
-            entities={legacyEntities}
-            mapDef={LEGACY_SOTETSEG_MAP_DEFINITION}
-            tileSize={display.isCompact() ? 20 : undefined}
-          />
-        )}
+        <BossPageReplay
+          entities={entitiesByTick.get(currentTick) ?? []}
+          preloads={preloads}
+          mapDef={mapDefinition}
+          playing={playing}
+          width={display.isCompact() ? 320 : 500}
+          height={display.isCompact() ? 560 : 700}
+          currentTick={currentTick}
+          advanceTick={advanceTick}
+        />
         <BossPageParty
           playerTickState={playerTickState}
           selectedPlayer={selectedPlayer}
@@ -500,7 +395,7 @@ export default function SotetsegPage() {
         currentlyPlaying={playing}
         totalTicks={totalTicks}
         currentTick={currentTick}
-        updateTick={updateTickOnPage}
+        updateTick={setTick}
         updatePlayingState={setPlaying}
         splits={splits}
       />

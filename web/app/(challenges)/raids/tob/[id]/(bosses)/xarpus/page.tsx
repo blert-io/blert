@@ -4,16 +4,12 @@ import {
   ChallengeStatus,
   EventType,
   Npc,
-  NpcEvent,
-  SkillLevel,
   SplitType,
   Stage,
   TobRaid,
-  XarpusExhumed,
   XarpusExhumedEvent,
 } from '@blert/common';
-import Image from 'next/image';
-import { useCallback, useContext, useMemo, useState } from 'react';
+import { useCallback, useContext, useMemo } from 'react';
 
 import { TimelineSplit } from '@/components/attack-timeline';
 import BossFightOverview from '@/components/boss-fight-overview';
@@ -21,16 +17,8 @@ import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
 import BossPageControls from '@/components/boss-page-controls';
 import BossPageDPSTimeline from '@/components/boss-page-dps-timeline';
 import BossPageParty from '@/components/boss-page-party';
-import BossPageReplay, {
-  NewBossPageReplay,
-} from '@/components/boss-page-replay';
+import BossPageReplay from '@/components/boss-page-replay';
 import Card from '@/components/card';
-import {
-  Entity as LegacyEntity,
-  NpcEntity as LegacyNpcEntity,
-  OverlayEntity as LegacyOverlayEntity,
-  PlayerEntity as LegacyPlayerEntity,
-} from '@/components/map';
 import {
   AnyEntity,
   MapDefinition,
@@ -41,7 +29,6 @@ import { DisplayContext } from '@/display';
 import { ActorContext } from '@/(challenges)/raids/tob/context';
 import {
   EnhancedRoomNpc,
-  useLegacyTickTimeout,
   useMapEntities,
   usePlayingState,
   useStageEvents,
@@ -57,7 +44,6 @@ import {
 
 import bossStyles from '../style.module.scss';
 import styles from './style.module.scss';
-import xarpusBaseTiles from './xarpus-tiles.json';
 
 const XARPUS_MAP_DEFINITION: MapDefinition = {
   baseX: 3154,
@@ -67,65 +53,14 @@ const XARPUS_MAP_DEFINITION: MapDefinition = {
   plane: 1,
 };
 
-const LEGACY_XARPUS_MAP_DEFINITION = {
-  baseX: 3163,
-  baseY: 4380,
-  width: 15,
-  height: 15,
-  baseTiles: xarpusBaseTiles,
-};
-
-const POISON_COLOR = '#c7e917';
-
-function ExhumedOverlay({
-  tick,
-  exhumed,
-}: {
-  tick: number;
-  exhumed: XarpusExhumed;
-}) {
-  const healCount = exhumed.healTicks.filter((t) => t <= tick).length;
-  const ball = (key: number) => (
-    <div
-      key={key}
-      className={styles.exhumedBall}
-      style={{ backgroundColor: POISON_COLOR }}
-    />
-  );
-
-  return (
-    <div className={styles.exhumedOverlay}>
-      <Image
-        src="/images/objects/exhumed.png"
-        alt="Xarpus Exhumed"
-        fill
-        style={{ objectFit: 'contain' }}
-      />
-      <div className={styles.exhumedHealCount}>
-        {healCount < 5 ? (
-          Array.from({ length: healCount }).map((_, i) => ball(i))
-        ) : (
-          <>
-            <span>{healCount}×</span>
-            {ball(0)}
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
 const MAP_CENTER = { x: 3170, y: 4387 };
 const BARRIERS = [
   new BarrierEntity({ x: 3170, y: 4380 }, 3),
   new BarrierEntity({ x: 3170, y: 4395 }, 3, Math.PI),
 ];
 
-const DEFAULT_USE_NEW_REPLAY = true;
-
 export default function XarpusPage() {
   const display = useContext(DisplayContext);
-  const [useNewReplay, setUseNewReplay] = useState(DEFAULT_USE_NEW_REPLAY);
 
   const compact = display.isCompact();
 
@@ -140,7 +75,6 @@ export default function XarpusPage() {
   const {
     challenge,
     totalTicks,
-    eventsByTick,
     eventsByType,
     playerState,
     npcState,
@@ -149,12 +83,6 @@ export default function XarpusPage() {
 
   const { currentTick, setTick, playing, setPlaying, advanceTick } =
     usePlayingState(totalTicks);
-  const { updateTickOnPage } = useLegacyTickTimeout(
-    !useNewReplay,
-    playing,
-    currentTick,
-    setTick,
-  );
 
   const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
 
@@ -283,68 +211,6 @@ export default function XarpusPage() {
     return <>No Xarpus data for this raid</>;
   }
 
-  const eventsForCurrentTick = eventsByTick[currentTick] ?? [];
-
-  const legacyEntities: LegacyEntity[] = [];
-
-  if (!useNewReplay) {
-    for (const evt of eventsForCurrentTick) {
-      switch (evt.type) {
-        case EventType.PLAYER_UPDATE: {
-          const hitpoints = evt.player.hitpoints
-            ? SkillLevel.fromRaw(evt.player.hitpoints)
-            : undefined;
-          const player = new LegacyPlayerEntity(
-            evt.xCoord,
-            evt.yCoord,
-            evt.player.name,
-            hitpoints,
-            /*highlight=*/ evt.player.name === selectedPlayer,
-          );
-          legacyEntities.push(player);
-          break;
-        }
-        case EventType.NPC_SPAWN:
-        case EventType.NPC_UPDATE: {
-          const e = evt as NpcEvent;
-          legacyEntities.push(
-            new LegacyNpcEntity(
-              e.xCoord,
-              e.yCoord,
-              e.npc.id,
-              e.npc.roomId,
-              SkillLevel.fromRaw(e.npc.hitpoints),
-            ),
-          );
-          break;
-        }
-      }
-    }
-
-    (eventsByType[EventType.TOB_XARPUS_SPLAT] ?? [])
-      .filter((evt) => evt.tick <= currentTick)
-      .forEach((evt) => {
-        legacyEntities.push(
-          new LegacyOverlayEntity(
-            evt.xCoord,
-            evt.yCoord,
-            'splat',
-            (
-              <Image
-                src="/xarpus_spit.png"
-                alt="Splat"
-                fill
-                style={{ objectFit: 'contain' }}
-              />
-            ),
-            /*interactable=*/ false,
-            /*size=*/ 1,
-            /*customZIndex=*/ 0,
-          ),
-        );
-      });
-  }
-
   const exhumedHealing = {
     none: 0,
     once: 0,
@@ -358,24 +224,6 @@ export default function XarpusPage() {
   for (const evt of exhumedEvents) {
     const exhumed = evt.xarpusExhumed;
     healAmount = exhumed.healAmount;
-
-    if (
-      !useNewReplay &&
-      currentTick >= exhumed.spawnTick &&
-      currentTick < evt.tick
-    ) {
-      legacyEntities.push(
-        new LegacyOverlayEntity(
-          evt.xCoord,
-          evt.yCoord,
-          `exhumed-${exhumed.spawnTick}`,
-          <ExhumedOverlay tick={currentTick} exhumed={exhumed} />,
-          /*interactable=*/ false,
-          /*size=*/ 1,
-          /*customZIndex=*/ 0,
-        ),
-      );
-    }
 
     if (exhumed.healTicks.length === 0) {
       exhumedHealing.none++;
@@ -412,9 +260,7 @@ export default function XarpusPage() {
               <button
                 className={styles.phaseValue}
                 onClick={() => {
-                  updateTickOnPage(
-                    challenge.splits[SplitType.TOB_XARPUS_EXHUMES]!,
-                  );
+                  setTick(challenge.splits[SplitType.TOB_XARPUS_EXHUMES]!);
                 }}
               >
                 {ticksToFormattedSeconds(
@@ -429,9 +275,7 @@ export default function XarpusPage() {
               <button
                 className={styles.phaseValue}
                 onClick={() => {
-                  updateTickOnPage(
-                    challenge.splits[SplitType.TOB_XARPUS_SCREECH]!,
-                  );
+                  setTick(challenge.splits[SplitType.TOB_XARPUS_SCREECH]!);
                 }}
               >
                 {ticksToFormattedSeconds(
@@ -506,7 +350,7 @@ export default function XarpusPage() {
           playing={playing}
           playerState={playerState}
           timelineTicks={totalTicks}
-          updateTickOnPage={updateTickOnPage}
+          updateTickOnPage={setTick}
           splits={splits}
           npcs={npcState}
           smallLegend={display.isCompact()}
@@ -514,25 +358,16 @@ export default function XarpusPage() {
       </div>
 
       <div className={bossStyles.replayAndParty}>
-        {useNewReplay ? (
-          <NewBossPageReplay
-            entities={entitiesByTick.get(currentTick) ?? []}
-            preloads={preloads}
-            mapDef={mapDefinition}
-            playing={playing}
-            width={compact ? 330 : 540}
-            height={compact ? 330 : 540}
-            currentTick={currentTick}
-            advanceTick={advanceTick}
-            setUseLegacy={() => setUseNewReplay(false)}
-          />
-        ) : (
-          <BossPageReplay
-            entities={legacyEntities}
-            mapDef={LEGACY_XARPUS_MAP_DEFINITION}
-            tileSize={compact ? 22 : 28}
-          />
-        )}
+        <BossPageReplay
+          entities={entitiesByTick.get(currentTick) ?? []}
+          preloads={preloads}
+          mapDef={mapDefinition}
+          playing={playing}
+          width={compact ? 330 : 540}
+          height={compact ? 330 : 540}
+          currentTick={currentTick}
+          advanceTick={advanceTick}
+        />
         <BossPageParty
           playerTickState={playerTickState}
           selectedPlayer={selectedPlayer}
@@ -558,7 +393,7 @@ export default function XarpusPage() {
         currentlyPlaying={playing}
         totalTicks={totalTicks}
         currentTick={currentTick}
-        updateTick={updateTickOnPage}
+        updateTick={setTick}
         updatePlayingState={setPlaying}
         splits={splits}
       />
