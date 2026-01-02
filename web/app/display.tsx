@@ -45,6 +45,8 @@ export const DisplayContext = createContext<Display>(Display.FULL);
 type NavbarContextType = {
   sidebarOpen: boolean;
   setSidebarOpen: Dispatch<SetStateAction<boolean>>;
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: Dispatch<SetStateAction<boolean>>;
 };
 
 export const NavbarContext = createContext<NavbarContextType>({
@@ -52,11 +54,16 @@ export const NavbarContext = createContext<NavbarContextType>({
   setSidebarOpen: () => {
     /* noop */
   },
+  sidebarCollapsed: false,
+  setSidebarCollapsed: () => {
+    /* noop */
+  },
 });
 
 export function DisplayWrapper({ children }: { children: React.ReactNode }) {
   const [display, setDisplay] = useState<Display>(Display.FULL);
   const [sidebarOpen, setSidebarOpen] = useState(display.isFull());
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     // Set the initial display type based on the viewport width.
@@ -72,7 +79,14 @@ export function DisplayWrapper({ children }: { children: React.ReactNode }) {
 
   return (
     <DisplayContext.Provider value={display}>
-      <NavbarContext.Provider value={{ sidebarOpen, setSidebarOpen }}>
+      <NavbarContext.Provider
+        value={{
+          sidebarOpen,
+          setSidebarOpen,
+          sidebarCollapsed,
+          setSidebarCollapsed,
+        }}
+      >
         {children}
       </NavbarContext.Provider>
     </DisplayContext.Provider>

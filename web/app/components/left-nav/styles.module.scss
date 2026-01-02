@@ -9,7 +9,6 @@
 
 .leftNavWrapperUnmounted {
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    left: -$LEFT_NAV_WIDTH !important;
     visibility: hidden;
   }
 }
@@ -19,6 +18,7 @@
   @include panel;
   display: flex;
   height: 100%;
+  width: var(--left-nav-width, $LEFT_NAV_WIDTH);
   background: linear-gradient(
     to bottom,
     var(--blert-panel-background-color),
@@ -26,8 +26,37 @@
   );
   flex-direction: column;
   overflow-y: scroll;
-  transition: all 0.2s ease;
+  transition: width 0.3s ease;
   border-radius: 0;
+  position: relative;
+
+  &.collapsed {
+    .leftNav__logo,
+    .leftNav__playerSearch,
+    .leftNav__menuDivider,
+    .leftNav__menuDividerTwo,
+    .account,
+    .leftNav__externalLinks {
+      display: none;
+    }
+
+    .leftNav__menu {
+      padding-top: 48px;
+    }
+
+    .leftNav__menuItemInner {
+      justify-content: center;
+      padding: 8px;
+
+      span {
+        display: none;
+      }
+    }
+
+    .leftNav__menuItemIcon {
+      margin: 0;
+    }
+  }
 
   .homeImage {
     position: relative;
@@ -38,6 +67,34 @@
     @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
       height: 60px;
       width: 140px;
+    }
+  }
+
+  .collapseToggle {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    border: 1px solid var(--blert-divider-color);
+    background: var(--blert-surface-dark);
+    color: var(--blert-font-color-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    z-index: 10;
+
+    &:hover {
+      background: var(--blert-surface-light);
+      border-color: var(--blert-purple);
+      color: var(--blert-purple);
+    }
+
+    i {
+      font-size: 14px;
     }
   }
 

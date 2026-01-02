@@ -7,10 +7,13 @@
   border-top: 1px solid var(--blert-surface-light);
   box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.2);
   bottom: 0;
-  left: $LEFT_NAV_WIDTH;
-  width: calc(100% - $LEFT_NAV_WIDTH);
+  left: var(--left-nav-width, $LEFT_NAV_WIDTH);
+  width: calc(100% - var(--left-nav-width, $LEFT_NAV_WIDTH));
   padding: 12px 20px;
   z-index: 49;
+  transition:
+    left 0.3s ease,
+    width 0.3s ease;
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     left: 0;
