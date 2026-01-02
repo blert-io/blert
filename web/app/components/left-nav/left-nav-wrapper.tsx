@@ -69,15 +69,18 @@ const SCREEN_EDGE_THRESHOLD = 50;
 
 export function LeftNavWrapper({
   children,
-  collapsed,
 }: {
   children: React.ReactNode;
-  collapsed: boolean;
 }) {
   const pathname = usePathname();
 
   const display = useDisplay();
-  const { sidebarOpen, setSidebarOpen } = useContext(NavbarContext);
+  const {
+    sidebarOpen,
+    setSidebarOpen,
+    sidebarCollapsed,
+    setSidebarCollapsed,
+  } = useContext(NavbarContext);
 
   const [dragX, setDragX] = useState(0);
   const [mounted, setMounted] = useState(false);
@@ -92,7 +95,10 @@ export function LeftNavWrapper({
 
   useEffect(() => {
     setSidebarOpen(display.isFull());
-  }, [display, pathname, setSidebarOpen]);
+    if (display.isCompact() && sidebarCollapsed) {
+      setSidebarCollapsed(false);
+    }
+  }, [display, pathname, setSidebarOpen, sidebarCollapsed, setSidebarCollapsed]);
 
   useEffect(() => {
     // Close sidebar when clicking outside on compact displays.
@@ -216,17 +222,15 @@ export function LeftNavWrapper({
     };
   }, [display, sidebarOpen, setSidebarOpen]);
 
-  const currentWidth = collapsed ? 60 : LEFT_NAV_WIDTH;
-  let left = sidebarOpen ? 0 : -currentWidth;
+  let left = sidebarOpen ? 0 : -LEFT_NAV_WIDTH;
   left += dragX;
 
   const shouldAnimate =
     mounted && display.isCompact() && activeTouch.current === null;
 
   const style: React.CSSProperties = {
-    width: currentWidth,
     left,
-    transition: shouldAnimate ? 'left 0.2s, width 0.3s' : 'width 0.3s',
+    transition: shouldAnimate ? 'left 0.2s' : 'none',
   };
 
   const wrapperClassName = mounted

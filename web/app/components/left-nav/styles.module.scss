@@ -9,7 +9,6 @@
 
 .leftNavWrapperUnmounted {
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    left: -$LEFT_NAV_WIDTH !important;
     visibility: hidden;
   }
 }
@@ -19,6 +18,7 @@
   @include panel;
   display: flex;
   height: 100%;
+  width: var(--left-nav-width, $LEFT_NAV_WIDTH);
   background: linear-gradient(
     to bottom,
     var(--blert-panel-background-color),
