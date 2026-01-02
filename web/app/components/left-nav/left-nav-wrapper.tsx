@@ -67,20 +67,12 @@ function shouldSuppressSidebarDrag(target: EventTarget | null): boolean {
 
 const SCREEN_EDGE_THRESHOLD = 50;
 
-export function LeftNavWrapper({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function LeftNavWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   const display = useDisplay();
-  const {
-    sidebarOpen,
-    setSidebarOpen,
-    sidebarCollapsed,
-    setSidebarCollapsed,
-  } = useContext(NavbarContext);
+  const { sidebarOpen, setSidebarOpen, sidebarCollapsed, setSidebarCollapsed } =
+    useContext(NavbarContext);
 
   const [dragX, setDragX] = useState(0);
   const [mounted, setMounted] = useState(false);
@@ -98,7 +90,13 @@ export function LeftNavWrapper({
     if (display.isCompact() && sidebarCollapsed) {
       setSidebarCollapsed(false);
     }
-  }, [display, pathname, setSidebarOpen, sidebarCollapsed, setSidebarCollapsed]);
+  }, [
+    display,
+    pathname,
+    setSidebarOpen,
+    sidebarCollapsed,
+    setSidebarCollapsed,
+  ]);
 
   useEffect(() => {
     // Close sidebar when clicking outside on compact displays.

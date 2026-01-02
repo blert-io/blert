@@ -20,9 +20,7 @@ export function LeftNav() {
 
   return (
     <LeftNavWrapper>
-      <div
-        className={`${styles.leftNav} ${collapsed ? styles.collapsed : ''}`}
-      >
+      <div className={`${styles.leftNav} ${collapsed ? styles.collapsed : ''}`}>
         {display.isFull() && (
           <button
             className={styles.collapseToggle}
