@@ -15,7 +15,6 @@ import {
   Pie,
   PieChart,
   Cell,
-  Legend,
   LabelList,
 } from 'recharts';
 
@@ -24,7 +23,11 @@ import Card from '@/components/card';
 import Statistic from '@/components/statistic';
 import { useClientOnly } from '@/hooks/client-only';
 import { challengeLogo } from '@/logo';
-import { scaleNameAndColor, statusNameAndColor } from '@/utils/challenge';
+import {
+  challengeTerm,
+  scaleNameAndColor,
+  statusNameAndColor,
+} from '@/utils/challenge';
 import { ticksToFormattedDuration } from '@/utils/tick';
 import { formatDuration } from '@/utils/time';
 import { queryString } from '@/utils/url';
@@ -107,17 +110,20 @@ function EmptyPlaceholder({
   );
 }
 
-function PieChartSkeleton({ title }: { title: string }) {
+function DonutChartSkeleton({ title }: { title: string }) {
   return (
-    <div className={styles.pieChartContainer}>
-      <h4 className={styles.chartTitle}>{title}</h4>
-      <div className={styles.pieChartSkeleton}>
-        <div className={styles.skeletonLegend}>
-          <div className={styles.skeletonLegendItem}></div>
-          <div className={styles.skeletonLegendItem}></div>
-          <div className={styles.skeletonLegendItem}></div>
+    <div className={styles.donutChartContainer}>
+      <div className={styles.donutSkeletonWrapper}>
+        <div className={styles.skeletonDonut}></div>
+        <div className={styles.donutCenter}>
+          <span className={styles.donutCenterTitle}>{title}</span>
         </div>
-        <div className={styles.skeletonCircle}></div>
+      </div>
+      <div className={styles.skeletonLegend}>
+        <div className={styles.skeletonLegendItem}></div>
+        <div className={styles.skeletonLegendItem}></div>
+        <div className={styles.skeletonLegendItem}></div>
+        <div className={styles.skeletonLegendItem}></div>
       </div>
     </div>
   );
@@ -139,52 +145,108 @@ function BarChartSkeleton() {
   );
 }
 
-function PieChartComponent({
+function DonutTooltip({
+  challengeType,
+  active,
+  payload,
+  total,
+}: {
+  challengeType: ChallengeType;
+  active?: boolean;
+  payload?: { payload: ExtendedChartValue<any> }[];
+  total: number;
+}) {
+  if (!active || !payload || payload.length === 0) {
+    return null;
+  }
+
+  const item = payload[0].payload;
+  const percentage = ((item.value / total) * 100).toFixed(1);
+
+  return (
+    <div className={styles.donutTooltip}>
+      <div className={styles.tooltipHeader}>
+        <span
+          className={styles.tooltipSquare}
+          style={{ backgroundColor: item.color }}
+        />
+        <span className={styles.tooltipName}>{item.name}</span>
+      </div>
+      <div className={styles.tooltipStats}>
+        <span className={styles.tooltipValue}>
+          {item.value}{' '}
+          {challengeTerm(challengeType, item.value !== 1).toLowerCase()}
+        </span>
+        <span className={styles.tooltipPercent}>{percentage}%</span>
+      </div>
+    </div>
+  );
+}
+
+function DonutChartComponent({
+  challengeType,
   data,
   title,
   isLoading = false,
 }: {
+  challengeType: ChallengeType;
   data: ExtendedChartValue<any>[];
   title: string;
   isLoading?: boolean;
 }) {
   if (isLoading) {
-    return <PieChartSkeleton title={title} />;
+    return <DonutChartSkeleton title={title} />;
   }
 
   if (data.length === 0) {
     return <EmptyPlaceholder message="Nothing recorded yet today." />;
   }
 
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+
   return (
-    <div className={styles.pieChartContainer}>
-      <h4 className={styles.chartTitle}>{title}</h4>
-      <PieChart width={200} height={130}>
-        <Pie
-          data={data}
-          dataKey="value"
-          cx="50%"
-          cy="100%"
-          outerRadius="160%"
-          innerRadius="100%"
-          startAngle={180}
-          endAngle={0}
-          stroke="var(--blert-surface-dark)"
-        >
-          {data.map((v, i) => (
-            <Cell key={`cell-${i}`} fill={v.color} />
-          ))}
-        </Pie>
-        <Legend
-          verticalAlign="top"
-          height={30}
-          formatter={(value) => (
-            <span className={styles.legendItem}>
-              {value} ({data.find((s) => s.name === value)?.value})
-            </span>
-          )}
-        />
-      </PieChart>
+    <div className={styles.donutChartContainer}>
+      <div className={styles.donutWrapper}>
+        <PieChart width={120} height={120}>
+          <Pie
+            data={data}
+            dataKey="value"
+            cx="50%"
+            cy="50%"
+            outerRadius={55}
+            innerRadius={35}
+            startAngle={90}
+            endAngle={-270}
+            stroke="var(--blert-surface-dark)"
+            strokeWidth={2}
+          >
+            {data.map((v, i) => (
+              <Cell key={`cell-${i}`} fill={v.color} />
+            ))}
+          </Pie>
+          <Tooltip
+            content={
+              <DonutTooltip challengeType={challengeType} total={total} />
+            }
+            wrapperStyle={{ zIndex: 10 }}
+          />
+        </PieChart>
+        <div className={styles.donutCenter}>
+          <span className={styles.donutCenterTitle}>{title}</span>
+        </div>
+      </div>
+      <div className={styles.compactLegend}>
+        {data.map((item, i) => (
+          <span key={i} className={styles.legendItem}>
+            <span
+              className={styles.legendSquare}
+              style={{ backgroundColor: item.color }}
+            />
+            <span className={styles.legendText}>{item.name}</span>
+            <span className={styles.legendCount}>{item.value}</span>
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -447,7 +509,6 @@ export default function ActivityDashboard({
         <div className={styles.cardContent}>
           <div className={styles.statisticsGrid}>
             <Statistic
-              className={styles.statistic}
               name={isSolo ? 'Runs' : 'Raids'}
               value={dailyStats?.['*'].count ?? 0}
               width={STATISTIC_WIDTH}
@@ -457,7 +518,6 @@ export default function ActivityDashboard({
               maxFontSize={STATISTIC_FONT_SIZE}
             />
             <Statistic
-              className={styles.statistic}
               name="Time Played"
               value={
                 dailyStats
@@ -471,7 +531,6 @@ export default function ActivityDashboard({
               maxFontSize={STATISTIC_FONT_SIZE}
             />
             <Statistic
-              className={styles.statistic}
               name="Sessions"
               value={sessionStats.total}
               width={STATISTIC_WIDTH}
@@ -481,7 +540,6 @@ export default function ActivityDashboard({
               maxFontSize={STATISTIC_FONT_SIZE}
             />
             <Statistic
-              className={styles.statistic}
               name="Active Now"
               value={sessionStats.active}
               width={STATISTIC_WIDTH}
@@ -491,7 +549,6 @@ export default function ActivityDashboard({
               maxFontSize={STATISTIC_FONT_SIZE}
             />
             <Statistic
-              className={styles.statistic}
               name="Avg Length"
               value={formatDuration(sessionStats.avgLengthSeconds * 1000)}
               width={STATISTIC_WIDTH}
@@ -501,7 +558,6 @@ export default function ActivityDashboard({
               maxFontSize={STATISTIC_FONT_SIZE}
             />
             <Statistic
-              className={styles.statistic}
               name={isSolo ? 'Runs/Session' : 'Raids/Session'}
               value={sessionStats.avgChallenges.toFixed(1)}
               width={STATISTIC_WIDTH}
@@ -516,19 +572,21 @@ export default function ActivityDashboard({
 
       <Card>
         <SectionTitle icon="fa-chart-pie">
-          Today’s {isSolo ? 'Runs' : 'Raids'}
+          Today’s {challengeTerm(challengeType, true)}
         </SectionTitle>
         <div className={styles.chartsGrid}>
           {!isSolo && (
-            <PieChartComponent
+            <DonutChartComponent
+              challengeType={challengeType}
               data={scales}
-              title="By Scale"
+              title="Scale"
               isLoading={isLoading || !isClient}
             />
           )}
-          <PieChartComponent
+          <DonutChartComponent
+            challengeType={challengeType}
             data={statuses}
-            title="By Status"
+            title="Status"
             isLoading={isLoading || !isClient}
           />
         </div>
@@ -587,7 +645,8 @@ export default function ActivityDashboard({
                     key="challenges"
                     style={{ color: 'var(--blert-font-color-primary)' }}
                   >
-                    {value.toLocaleString()} raid{value === 1 ? '' : 's'}
+                    {value.toLocaleString()} {isSolo ? 'run' : 'raid'}
+                    {value === 1 ? '' : 's'}
                   </span>,
                 ]}
               />
