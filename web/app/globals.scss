@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;700;800&display=swap');
 
 :root {
   --topbar-height: 60px;
@@ -64,7 +64,7 @@ body {
   padding: 0;
   width: 100%;
   height: 100%;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
 body {
@@ -82,7 +82,7 @@ button {
   color: var(--blert-font-color-primary);
   background: none;
   border: none;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
 .sr-only {
