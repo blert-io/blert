@@ -71,7 +71,8 @@ export function LeftNavWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   const display = useDisplay();
-  const { sidebarOpen, setSidebarOpen } = useContext(NavbarContext);
+  const { sidebarOpen, setSidebarOpen, sidebarCollapsed, setSidebarCollapsed } =
+    useContext(NavbarContext);
 
   const [dragX, setDragX] = useState(0);
   const [mounted, setMounted] = useState(false);
@@ -86,7 +87,16 @@ export function LeftNavWrapper({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setSidebarOpen(display.isFull());
-  }, [display, pathname, setSidebarOpen]);
+    if (display.isCompact() && sidebarCollapsed) {
+      setSidebarCollapsed(false);
+    }
+  }, [
+    display,
+    pathname,
+    setSidebarOpen,
+    sidebarCollapsed,
+    setSidebarCollapsed,
+  ]);
 
   useEffect(() => {
     // Close sidebar when clicking outside on compact displays.
@@ -217,7 +227,6 @@ export function LeftNavWrapper({ children }: { children: React.ReactNode }) {
     mounted && display.isCompact() && activeTouch.current === null;
 
   const style: React.CSSProperties = {
-    width: LEFT_NAV_WIDTH,
     left,
     transition: shouldAnimate ? 'left 0.2s' : 'none',
   };

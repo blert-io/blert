@@ -3,10 +3,13 @@
 .siteParent {
   flex-direction: column;
   width: 100vw;
+  transition:
+    margin-left 0.3s ease,
+    width 0.3s ease;
 
   @media (min-width: $COMPACT_WIDTH_THRESHOLD) {
-    margin-left: $LEFT_NAV_WIDTH;
-    width: calc(100vw - $LEFT_NAV_WIDTH);
+    margin-left: var(--left-nav-width, $LEFT_NAV_WIDTH);
+    width: calc(100vw - var(--left-nav-width, $LEFT_NAV_WIDTH));
   }
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
