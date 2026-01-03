@@ -12,58 +12,14 @@ import { readFile } from 'fs/promises';
 import { z } from 'zod';
 
 import logger from './log';
+import { attackDefinitionSchema, spellDefinitionSchema } from './protocol';
 
 type PlayerAttackValue = PlayerAttackMap[keyof PlayerAttackMap];
 type PlayerSpellValue = PlayerSpellMap[keyof PlayerSpellMap];
 
-// Attack definition schemas.
-
-const projectileSchema = z.object({
-  id: z.number().int().nonnegative(),
-  startCycleOffset: z.number().int().nonnegative(),
-  weaponId: z.number().int().positive().optional(),
-});
-
-const weaponProjectileSchema = z.object({
-  id: z.number().int().nonnegative(),
-  startCycleOffset: z.number().int().nonnegative(),
-  weaponId: z.number().int().positive(),
-});
-
-const categorySchema = z.enum(['MELEE', 'RANGED', 'MAGIC']);
-
-const attackDefinitionSchema = z.object({
-  protoId: z.number().int().nonnegative(),
-  name: z.string(),
-  weaponIds: z.array(z.number().int()),
-  animationIds: z.array(z.number().int()),
-  cooldown: z.number().int().nonnegative(),
-  projectile: projectileSchema.optional(),
-  weaponProjectiles: z.array(weaponProjectileSchema).optional(),
-  continuousAnimation: z.boolean().optional(),
-  category: categorySchema,
-});
-
 const attackDefinitionsSchema = z.array(attackDefinitionSchema);
 
 export type AttackDefinitionJson = z.infer<typeof attackDefinitionSchema>;
-
-// Spell definition schemas.
-
-const graphicSchema = z.object({
-  id: z.number().int().nonnegative(),
-  durationTicks: z.number().int().nonnegative(),
-  maxFrame: z.number().int().nonnegative(),
-});
-
-const spellDefinitionSchema = z.object({
-  id: z.number().int().nonnegative(),
-  name: z.string(),
-  animationIds: z.array(z.number().int()),
-  graphics: z.array(graphicSchema).optional(),
-  targetGraphics: z.array(graphicSchema).optional(),
-  stallTicks: z.number().int().nonnegative(),
-});
 
 const spellDefinitionsSchema = z.array(spellDefinitionSchema);
 

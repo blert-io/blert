@@ -215,7 +215,7 @@ export default class MessageHandler {
           recordEventStreamBatch('error');
           logger.error('event_stream_processing_failed', {
             challengeUuid: challengeId,
-            error: e instanceof Error ? e : new Error(String(e)),
+            error: e instanceof Error ? e.message : String(e),
           });
         }
         break;
