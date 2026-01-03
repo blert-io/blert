@@ -1186,12 +1186,14 @@ export class RedisClient implements ChallengeReadOperations {
     while (true) {
       attempt++;
       try {
-        const result = this.client.executeIsolated(async (isolatedClient) => {
-          const txn = ctor(isolatedClient);
-          const res = await fn(txn);
-          await txn.exec();
-          return res;
-        });
+        const result = await this.client.executeIsolated(
+          async (isolatedClient) => {
+            const txn = ctor(isolatedClient);
+            const res = await fn(txn);
+            await txn.exec();
+            return res;
+          },
+        );
         return result;
       } catch (e) {
         if (e instanceof WatchError) {
