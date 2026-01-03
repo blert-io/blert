@@ -1,6 +1,7 @@
 import { Stage } from '@blert/common';
 import { ServerMessage } from '@blert/common/generated/server_message_pb';
-import { WebSocket } from 'ws';
+import { RawData, WebSocket } from 'ws';
+import { z } from 'zod';
 
 import MessageHandler from './message-handler';
 import { PluginVersions } from './verification';
@@ -11,6 +12,11 @@ import {
   recordClientDisconnection,
   recordInvalidMessage,
 } from './metrics';
+import {
+  jsonToServerMessage,
+  MessageFormat,
+  serverMessageToJson,
+} from './protocol';
 
 type Stats = {
   total: number;
@@ -28,13 +34,13 @@ class MessageStats {
     this.out = { total: 0, maxSize: 0, meanSize: 0, totalBytes: 0 };
   }
 
-  public recordIn(size: number): void {
-    observeMessageBytes('in', size);
+  public recordIn(format: MessageFormat, size: number): void {
+    observeMessageBytes('in', format, size);
     this.updateStats(this.in, size);
   }
 
-  public recordOut(size: number): void {
-    observeMessageBytes('out', size);
+  public recordOut(format: MessageFormat, size: number): void {
+    observeMessageBytes('out', format, size);
     this.updateStats(this.out, size);
   }
 
@@ -74,6 +80,7 @@ export default class Client {
 
   private user: BasicUser;
   private pluginVersions: PluginVersions;
+  private messageFormat: MessageFormat;
   private sessionId: number;
   private socket: WebSocket;
   private messageHandler: MessageHandler;
@@ -101,9 +108,11 @@ export default class Client {
     eventHandler: MessageHandler,
     user: BasicUser,
     pluginVersions: PluginVersions,
+    messageFormat: MessageFormat = MessageFormat.PROTOBUF,
   ) {
     this.user = user;
     this.pluginVersions = pluginVersions;
+    this.messageFormat = messageFormat;
     this.sessionId = -1;
     this.socket = socket;
     this.messageHandler = eventHandler;
@@ -144,39 +153,33 @@ export default class Client {
 
     // Messages received through the socket are pushed into a message queue
     // where they are processed synchronously through the message loop.
-    socket.on('message', (message: ArrayBuffer, isBinary) => {
-      if (isBinary) {
-        this.stats.recordIn(message.byteLength);
-
-        const now = Date.now();
-        if (now - this.lastMessageLog > Client.MESSAGE_STATS_INTERVAL_MS) {
-          logger.info(
-            'client_message_stats',
-            this.logContext({
-              inbound: this.stats.in,
-              outbound: this.stats.out,
-            }),
-          );
-          this.lastMessageLog = now;
-        }
-
-        try {
-          const serverMessage = ServerMessage.deserializeBinary(
-            new Uint8Array(message),
-          );
-          this.messageQueue.push(serverMessage);
-        } catch (e) {
-          recordInvalidMessage('protobuf');
-          logger.warn(
-            'client_invalid_protobuf',
-            this.logContext({
-              error: e instanceof Error ? e : new Error(String(e)),
-            }),
-          );
-        }
+    socket.on('message', (raw: RawData, isBinary: boolean) => {
+      let message: Buffer;
+      if (Buffer.isBuffer(raw)) {
+        message = raw;
+      } else if (raw instanceof ArrayBuffer) {
+        message = Buffer.from(raw);
       } else {
-        recordInvalidMessage('text');
-        logger.warn('client_received_text_message', this.logContext());
+        message = Buffer.concat(raw);
+      }
+
+      this.stats.recordIn(this.messageFormat, message.length);
+
+      const serverMessage = this.parseMessage(message, isBinary);
+      if (serverMessage !== null) {
+        this.messageQueue.push(serverMessage);
+      }
+
+      const now = Date.now();
+      if (now - this.lastMessageLog > Client.MESSAGE_STATS_INTERVAL_MS) {
+        logger.info(
+          'client_message_stats',
+          this.logContext({
+            inbound: this.stats.in,
+            outbound: this.stats.out,
+          }),
+        );
+        this.lastMessageLog = now;
       }
     });
 
@@ -235,6 +238,14 @@ export default class Client {
    */
   public getPluginVersions(): Readonly<PluginVersions> {
     return this.pluginVersions;
+  }
+
+  /**
+   * Returns the wire format used for communication with this client.
+   * @returns The message format (JSON or PROTOBUF).
+   */
+  public getMessageFormat(): MessageFormat {
+    return this.messageFormat;
   }
 
   public getActiveChallengeId(): string | null {
@@ -357,9 +368,19 @@ export default class Client {
 
   public sendMessage(message: ServerMessage): void {
     if (this.isOpen) {
-      const serialized = message.serializeBinary();
-      this.stats.recordOut(serialized.length);
-      this.socket.send(serialized);
+      if (this.messageFormat === MessageFormat.JSON) {
+        const json = serverMessageToJson(message);
+        const serialized = JSON.stringify(json);
+        this.socket.send(serialized);
+        this.stats.recordOut(
+          this.messageFormat,
+          Buffer.byteLength(serialized, 'utf8'),
+        );
+      } else {
+        const serialized = message.serializeBinary();
+        this.socket.send(serialized);
+        this.stats.recordOut(this.messageFormat, serialized.length);
+      }
     }
   }
 
@@ -407,8 +428,73 @@ export default class Client {
       pluginRevision: this.pluginVersions.getRevision(),
       runeLiteVersion: this.pluginVersions.getRuneLiteVersion(),
       challengeUuid: this.activeChallenge?.uuid ?? undefined,
+      messageFormat: this.messageFormat,
       ...extra,
     };
+  }
+
+  private parseMessage(
+    message: Buffer,
+    isBinary: boolean,
+  ): ServerMessage | null {
+    switch (this.messageFormat) {
+      case MessageFormat.JSON: {
+        if (isBinary) {
+          recordInvalidMessage('unexpected_binary');
+          logger.warn(
+            'client_unexpected_binary_message',
+            this.logContext({ messageLength: message.length }),
+          );
+          return null;
+        }
+
+        try {
+          const parsed: unknown = JSON.parse(message.toString());
+          return jsonToServerMessage(parsed);
+        } catch (e) {
+          if (e instanceof SyntaxError) {
+            recordInvalidMessage('json_syntax');
+          } else if (e instanceof z.ZodError) {
+            recordInvalidMessage('json_schema');
+          } else {
+            recordInvalidMessage('json_conversion');
+          }
+          logger.warn(
+            'client_invalid_json',
+            this.logContext({
+              error: e instanceof Error ? e : new Error(String(e)),
+            }),
+          );
+          return null;
+        }
+      }
+
+      case MessageFormat.PROTOBUF: {
+        if (!isBinary) {
+          recordInvalidMessage('text');
+          logger.warn(
+            'client_unexpected_text_message',
+            this.logContext({ messageLength: message.length }),
+          );
+          return null;
+        }
+
+        try {
+          return ServerMessage.deserializeBinary(new Uint8Array(message));
+        } catch (e) {
+          recordInvalidMessage('protobuf');
+          logger.warn(
+            'client_invalid_protobuf',
+            this.logContext({
+              error: e instanceof Error ? e : new Error(String(e)),
+            }),
+          );
+          return null;
+        }
+      }
+    }
+
+    return null;
   }
 
   private async processMessageLoop(): Promise<void> {
