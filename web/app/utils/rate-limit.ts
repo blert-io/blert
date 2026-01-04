@@ -21,13 +21,32 @@ function toUnixSeconds(value: number): number {
   return Math.floor(value / 1000);
 }
 
+function getOldestScore(entries: unknown): number {
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return Number.NaN;
+  }
+
+  const oldestEntry = entries[0] as unknown;
+  if (
+    !oldestEntry ||
+    typeof oldestEntry !== 'object' ||
+    !('score' in oldestEntry)
+  ) {
+    return Number.NaN;
+  }
+
+  const score = Number(oldestEntry.score);
+  return Number.isFinite(score) ? score : Number.NaN;
+}
+
 /**
  * Rate limit using Redis sorted sets (sliding window algorithm).
  *
  * @param key Unique identifier for the rate limit bucket.
  * @param limit Maximum requests allowed in the configured window.
  * @param windowSec Time window duration in seconds.
- * @returns Rate limit status for the current attempt.
+ * @returns Rate limit status for the current attempt. Reset reflects when the
+ *   oldest retained request exits the window.
  */
 export async function rateLimit(
   key: string,
@@ -44,17 +63,21 @@ export async function rateLimit(
     pipeline.zRemRangeByScore(key, 0, windowStart);
     pipeline.zAdd(key, [{ score: now, value: `${now}-${randomUUID()}` }]);
     pipeline.zCard(key);
+    pipeline.zRangeWithScores(key, 0, 0);
     pipeline.expire(key, windowSec * 2);
 
     const results = await pipeline.exec();
     const countResult = results?.[2];
+    const oldestResult = results?.[3];
     const count =
       typeof countResult === 'number'
         ? countResult
         : Number.parseInt(String(countResult ?? 0), 10) || 1;
+    const oldestScore = getOldestScore(oldestResult);
 
     const remaining = Math.max(0, limit - count);
-    const reset = toUnixSeconds(now + windowSec * 1000);
+    const resetBase = Number.isFinite(oldestScore) ? oldestScore : now;
+    const reset = toUnixSeconds(resetBase + windowSec * 1000);
 
     return {
       success: count <= limit,
@@ -68,7 +91,7 @@ export async function rateLimit(
     return {
       success: true,
       limit,
-      remaining: limit - 1,
+      remaining: limit,
       reset: toUnixSeconds(now + windowSec * 1000),
     };
   }
@@ -79,7 +102,8 @@ export async function rateLimit(
  * @param key Unique identifier for the rate limit bucket.
  * @param limit Maximum requests allowed in the configured window.
  * @param windowSec Time window duration in seconds.
- * @returns The current rate limit status.
+ * @returns The current rate limit status. Reset reflects when the oldest
+ *   retained request exits the window.
  */
 export async function getRateLimitStatus(
   key: string,
@@ -92,12 +116,17 @@ export async function getRateLimitStatus(
 
   try {
     await client.zRemRangeByScore(key, 0, windowStart);
-    const count = await client.zCard(key);
+    const [count, oldestEntries] = await Promise.all([
+      client.zCard(key),
+      client.zRangeWithScores(key, 0, 0),
+    ]);
+    const oldestScore = getOldestScore(oldestEntries);
+    const resetBase = Number.isFinite(oldestScore) ? oldestScore : now;
 
     return {
       limit,
       remaining: Math.max(0, limit - count),
-      reset: toUnixSeconds(now + windowSec * 1000),
+      reset: toUnixSeconds(resetBase + windowSec * 1000),
     };
   } catch (error) {
     console.error('Rate limit status error:', error);
