@@ -29,6 +29,11 @@ import {
   recordAuthSuccess,
   recordRedisEvent,
 } from './metrics';
+import {
+  SUBPROTOCOL_JSON,
+  SUBPROTOCOL_PROTOBUF,
+  subprotocolToFormat,
+} from './protocol';
 
 function asyncHandler(
   fn: (req: Request, res: Response) => Promise<void>,
@@ -306,7 +311,19 @@ async function main(): Promise<void> {
     logger.info('event_server_listening', { port });
   });
 
-  const wss = new WebSocketServer({ noServer: true });
+  const wss = new WebSocketServer({
+    noServer: true,
+    handleProtocols: (protocols) => {
+      if (protocols.has(SUBPROTOCOL_PROTOBUF)) {
+        return SUBPROTOCOL_PROTOBUF;
+      }
+      if (protocols.has(SUBPROTOCOL_JSON)) {
+        return SUBPROTOCOL_JSON;
+      }
+      // Default to protobuf for legacy clients.
+      return SUBPROTOCOL_PROTOBUF;
+    },
+  });
 
   let requestId = 0;
 
@@ -353,7 +370,14 @@ async function main(): Promise<void> {
 
         recordAuthSuccess();
         wss.handleUpgrade(request, socket, head, (ws) => {
-          const client = new Client(ws, messageHandler, user, pluginVersions);
+          const messageFormat = subprotocolToFormat(ws.protocol);
+          const client = new Client(
+            ws,
+            messageHandler,
+            user,
+            pluginVersions,
+            messageFormat,
+          );
           wss.emit('connection', ws, request, client);
         });
       } catch (e: any) {
@@ -406,6 +430,7 @@ async function main(): Promise<void> {
       pluginVersion: pluginVersions.getVersion(),
       pluginRevision: pluginVersions.getRevision(),
       runeLiteVersion: pluginVersions.getRuneLiteVersion(),
+      messageFormat: client.getMessageFormat(),
     });
   });
 }

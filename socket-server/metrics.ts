@@ -7,6 +7,8 @@ import {
   Registry,
 } from 'prom-client';
 
+import { MessageFormat } from './protocol';
+
 const register = new Registry();
 collectDefaultMetrics({ register });
 
@@ -79,7 +81,7 @@ const disconnectionsTotal = new Counter({
 const messageBytes = new Histogram({
   name: 'socket_server_message_bytes',
   help: 'Distribution of socket message sizes',
-  labelNames: ['direction'] as const,
+  labelNames: ['direction', 'format'] as const,
   buckets: [16, 64, 256, 1_024, 4_096, 16_384, 65_536, 262_144],
   registers: [register],
 });
@@ -87,7 +89,7 @@ const messageBytes = new Histogram({
 const messageCount = new Counter({
   name: 'socket_server_message_count_total',
   help: 'Number of socket messages processed',
-  labelNames: ['direction'] as const,
+  labelNames: ['direction', 'format'] as const,
   registers: [register],
 });
 
@@ -215,13 +217,22 @@ export const recordClientDisconnection = (
 
 export const observeMessageBytes = (
   direction: Direction,
+  format: MessageFormat,
   size: number,
 ): void => {
-  messageBytes.observe({ direction }, size);
-  messageCount.inc({ direction });
+  messageBytes.observe({ direction, format }, size);
+  messageCount.inc({ direction, format });
 };
 
-export const recordInvalidMessage = (type: 'protobuf' | 'text'): void => {
+export type InvalidMessageType =
+  | 'protobuf'
+  | 'text'
+  | 'json_syntax'
+  | 'json_schema'
+  | 'json_conversion'
+  | 'unexpected_binary';
+
+export const recordInvalidMessage = (type: InvalidMessageType): void => {
   invalidMessages.inc({ type });
 };
 
