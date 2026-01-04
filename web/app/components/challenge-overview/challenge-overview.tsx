@@ -10,9 +10,9 @@ import {
   stageName,
 } from '@blert/common';
 import Image from 'next/image';
-import Link from 'next/link';
 import TimeAgo from 'react-timeago';
 
+import PlayerLink from '@/components/player-link';
 import PvMContentLogo, { PvMContent } from '@/components/pvm-content-logo';
 import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 import { useClientOnly } from '@/hooks/client-only';
@@ -57,7 +57,7 @@ function PlayerCard({ player, role }: PlayerCardProps) {
   }
 
   return (
-    <Link href={`/players/${player.currentUsername}`} className={styles.player}>
+    <PlayerLink username={player.currentUsername} className={styles.player}>
       <div className={styles.imageWrapper}>
         <Image
           className={styles.playerImg}
@@ -81,7 +81,7 @@ function PlayerCard({ player, role }: PlayerCardProps) {
           <span>×{player.stageDeaths.length}</span>
         </div>
       )}
-    </Link>
+    </PlayerLink>
   );
 }
 

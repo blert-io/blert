@@ -20,6 +20,7 @@ import {
 
 import type { GroupedAggregationResult } from '@/actions/challenge';
 import Card from '@/components/card';
+import PlayerLink from '@/components/player-link';
 import Statistic from '@/components/statistic';
 import { useClientOnly } from '@/hooks/client-only';
 import { challengeLogo } from '@/logo';
@@ -142,6 +143,32 @@ function BarChartSkeleton() {
         </div>
       ))}
     </div>
+  );
+}
+
+function PlayerAxisTick({
+  x,
+  y,
+  payload,
+}: {
+  x: number;
+  y: number;
+  payload: { value: string };
+}) {
+  const width = 105;
+  const height = 20;
+
+  return (
+    <foreignObject
+      x={x - width}
+      y={y - height / 2}
+      width={width}
+      height={height}
+    >
+      <div className={styles.playerAxisTick}>
+        <PlayerLink username={payload.value} />
+      </div>
+    </foreignObject>
   );
 }
 
@@ -601,13 +628,13 @@ export default function ActivityDashboard({
             <BarChart data={playerData} layout="vertical">
               <CartesianGrid
                 strokeDasharray="3 3"
-                stroke="rgba(255, 255, 255, 0.1)"
+                stroke="rgba(94, 98, 136, 0.3)"
               />
               <XAxis
                 type="number"
                 tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 12 }}
-                axisLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
-                tickLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
+                axisLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
+                tickLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
                 allowDecimals={false}
                 domain={[0, 'dataMax']}
               />
@@ -615,19 +642,19 @@ export default function ActivityDashboard({
                 dataKey="key"
                 type="category"
                 width={110}
-                tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 12 }}
-                axisLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
-                tickLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
+                tick={PlayerAxisTick}
+                axisLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
+                tickLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
               />
               <Tooltip
                 contentStyle={{
                   backgroundColor: 'var(--blert-panel-background-color)',
-                  border: '1px solid var(--blert-surface-light)',
+                  border: '1px solid rgba(88, 101, 242, 0.15)',
                   borderRadius: '6px',
                   color: 'var(--blert-font-color-primary)',
                   boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
                 }}
-                cursor={{ fill: 'rgba(139, 92, 246, 0.1)' }}
+                cursor={{ fill: 'rgba(88, 101, 242, 0.1)' }}
                 labelFormatter={(label: string) => {
                   return (
                     <span
@@ -659,8 +686,16 @@ export default function ActivityDashboard({
               </Bar>
               <defs>
                 <linearGradient id="barGradient" x1="1" y1="0" x2="0" y2="0">
-                  <stop offset="0%" stopColor="#62429b" stopOpacity={0.9} />
-                  <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.8} />
+                  <stop
+                    offset="0%"
+                    stopColor="rgb(88, 101, 242)"
+                    stopOpacity={0.95}
+                  />
+                  <stop
+                    offset="100%"
+                    stopColor="rgb(68, 79, 191)"
+                    stopOpacity={0.8}
+                  />
                 </linearGradient>
               </defs>
             </BarChart>

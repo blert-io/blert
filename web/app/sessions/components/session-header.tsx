@@ -2,7 +2,6 @@
 
 import { challengeName, SessionStatus } from '@blert/common';
 import Image from 'next/image';
-import Link from 'next/link';
 import TimeAgo from 'react-timeago';
 
 import Card from '@/components/card';
@@ -18,6 +17,7 @@ import {
 import { useSessionContext } from './session-context-provider';
 
 import styles from './session-header.module.scss';
+import PlayerLink from '@/components/player-link';
 
 export default function SessionHeader() {
   const isClient = useClientOnly();
@@ -97,12 +97,12 @@ export default function SessionHeader() {
                 <h1 className={styles.partyNames}>
                   {session.party.map((player, index) => (
                     <span key={player}>
-                      <Link
-                        href={`/players/${encodeURIComponent(player)}`}
+                      <PlayerLink
+                        username={player}
                         className={styles.playerLink}
                       >
                         {player}
-                      </Link>
+                      </PlayerLink>
                       {index < session.party.length - 1 && (
                         <span className={styles.dotSeparator}> • </span>
                       )}
