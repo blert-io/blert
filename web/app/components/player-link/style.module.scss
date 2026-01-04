@@ -1,0 +1,114 @@
+.playerLink {
+  color: var(--blert-purple);
+  text-decoration: none;
+  transition: all 0.15s ease;
+
+  &:hover {
+    color: var(--blert-font-color-primary);
+    text-decoration: underline;
+  }
+}
+
+.tooltipContent {
+  min-width: 180px;
+  max-width: 280px;
+}
+
+.tooltipHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--blert-font-color-primary);
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid rgba(var(--blert-surface-light-base), 0.6);
+
+  i {
+    color: var(--blert-purple);
+  }
+}
+
+.username {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--blert-font-color-primary);
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+
+  &:last-child {
+    text-align: right;
+  }
+}
+
+.label {
+  font-size: 0.7rem;
+  color: var(--blert-font-color-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.value {
+  font-family: var(--font-roboto-mono), monospace;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--blert-font-color-primary);
+}
+
+.completionsGrid {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(var(--blert-surface-light-base), 0.4);
+}
+
+.completionStat {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  background: rgba(var(--blert-surface-dark-base), 0.5);
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.challengeIcon {
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.count {
+  font-family: var(--font-roboto-mono), monospace;
+  font-weight: 600;
+  color: var(--blert-font-color-primary);
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  color: var(--blert-font-color-secondary);
+  font-size: 0.85rem;
+}
+
+.error {
+  color: var(--blert-red);
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 0.5rem;
+}

@@ -6,6 +6,7 @@ import { WebSite, WithContext } from 'schema-dts';
 
 import LeftNav from './components/left-nav';
 import { LayoutContent } from './components/layout-content';
+import { PlayerLinkTooltip } from './components/player-link';
 import Tooltip, { GLOBAL_TOOLTIP_ID } from './components/tooltip';
 import Topbar from './components/topbar';
 import { MAIN_LOGO } from './logo';
@@ -32,7 +33,10 @@ const runescape = localFont({
 });
 
 const cinzel = Cinzel({ subsets: ['latin'], variable: '--font-cinzel' });
-const plusJakartaSans = Plus_Jakarta_Sans({ subsets: ['latin'] });
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  variable: '--font-plus-jakarta-sans',
+});
 const robotoMono = Roboto_Mono({
   subsets: ['latin'],
   variable: '--font-roboto-mono',
@@ -90,7 +94,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${styles.body} ${cinzel.variable} ${plusJakartaSans.className} ${robotoMono.variable} ${runescape.variable}`}
+        className={`${styles.body} ${cinzel.variable} ${plusJakartaSans.className} ${plusJakartaSans.variable} ${robotoMono.variable} ${runescape.variable}`}
         style={{ overflowX: 'hidden' }}
       >
         <Styler />
@@ -105,6 +109,7 @@ export default function RootLayout({
         <Tooltip maxWidth={360} tooltipId={GLOBAL_TOOLTIP_ID}>
           <div />
         </Tooltip>
+        <PlayerLinkTooltip />
       </body>
       {process.env.NODE_ENV === 'production' && (
         <GoogleAnalytics gaId="G-5W75H2B3LF" />
