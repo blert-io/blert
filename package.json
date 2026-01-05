@@ -2,6 +2,7 @@
   "name": "blert",
   "version": "0.1.0",
   "workspaces": [
+    "bcf/",
     "blertbank/",
     "blertbank-client/",
     "challenge-server/",
