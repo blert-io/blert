@@ -1,0 +1,56 @@
+name: Test BCF
+
+on:
+  pull_request:
+    paths:
+      - 'bcf/**'
+      - 'package.json'
+      - '.github/workflows/test-bcf.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'bcf/**'
+      - 'package.json'
+      - '.github/workflows/test-bcf.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24.8.0'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run -w bcf build
+
+      - name: Format check
+        run: npm run -w bcf format
+
+      - name: Lint
+        run: npm run -w bcf lint
+
+      - name: Type check
+        run: npm run -w bcf typecheck
+
+      - name: Run tests with coverage
+        run: npm run -w bcf test:coverage
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v5
+        if: always()
+        with:
+          files: ./bcf/coverage/lcov.info
+          flags: bcf
+          token: ${{ secrets.CODECOV_TOKEN }}
+        continue-on-error: true

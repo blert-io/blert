@@ -1,0 +1,31 @@
+{
+  "name": "@blert/bcf",
+  "version": "0.1.0",
+  "description": "Blert Chart Format (BCF) parser, validator, and types",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --check . --ignore-path ../.prettierignore",
+    "format:fix": "prettier --write . --ignore-path ../.prettierignore",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "schemas/bcf-1.0-strict.schema.json"
+  ],
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.11.5",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.3.3"
+  }
+}
