@@ -9,11 +9,13 @@ import addFormats from 'ajv-formats';
 //   - Versioned namespaces: `import { v1, v1_1 } from './types'`
 //
 import type {
-  BlertChartFormat,
+  BlertChartFormatLax,
+  BlertChartFormatStrict,
   BCFAction,
   BCFActor,
   BCFCell,
   BCFCustomRowCell,
+  BCFLaxAction,
 } from './types';
 
 import schemaV1Strict from '../schemas/bcf-1.0-strict.schema.json';
@@ -103,11 +105,20 @@ export interface ValidationError {
  * Result of validating a BCF document.
  */
 export type ValidationResult =
-  | { valid: true; document: BlertChartFormat; version: BCFVersion }
+  | { valid: true; document: BlertChartFormatStrict; version: BCFVersion }
+  | { valid: true; document: BlertChartFormatLax; version: BCFVersion }
+  | { valid: false; errors: ValidationError[] };
+
+export type ValidationResultStrict =
+  | { valid: true; document: BlertChartFormatStrict; version: BCFVersion }
+  | { valid: false; errors: ValidationError[] };
+
+export type ValidationResultLax =
+  | { valid: true; document: BlertChartFormatLax; version: BCFVersion }
   | { valid: false; errors: ValidationError[] };
 
 /** Cache of compiled schema validators by version and strictness. */
-const validatorCache = new Map<string, ValidateFunction<BlertChartFormat>>();
+const validatorCache = new Map<string, ValidateFunction<BlertChartFormatLax>>();
 
 function parseVersion(
   version: string | null | undefined,
@@ -132,7 +143,7 @@ function parseVersion(
 function getSchemaValidator(
   version: BCFVersion,
   strict: boolean,
-): ValidateFunction<BlertChartFormat> {
+): ValidateFunction<BlertChartFormatLax> {
   let cacheKey: string;
   if (strict) {
     cacheKey = `${version}-strict`;
@@ -159,7 +170,7 @@ function getSchemaValidator(
       throw new Error(`Unknown BCF version: ${version as string}`);
   }
 
-  const validator = ajv.compile<BlertChartFormat>(schema);
+  const validator = ajv.compile<BlertChartFormatLax>(schema);
   validatorCache.set(cacheKey, validator);
   return validator;
 }
@@ -209,7 +220,7 @@ function validateSchema(
  * Validates semantic constraints that can't be expressed in JSON Schema.
  */
 class SemanticValidator {
-  private readonly doc: BlertChartFormat;
+  private readonly doc: BlertChartFormatLax;
   private readonly errors: ValidationError[] = [];
 
   private readonly actors = new Map<string, BCFActor['type']>();
@@ -220,7 +231,7 @@ class SemanticValidator {
   private readonly maxTick: number;
   private readonly actionTypes: VersionActionTypes;
 
-  constructor(doc: BlertChartFormat, version: BCFVersion) {
+  constructor(doc: BlertChartFormatLax, version: BCFVersion) {
     this.doc = doc;
 
     const tickOffset = doc.config.tickOffset ?? 1;
@@ -385,7 +396,10 @@ class SemanticValidator {
     }
   }
 
-  private validateCells(cells: BCFCell[], tickIndex: number): void {
+  private validateCells(
+    cells: BCFCell<BCFLaxAction>[],
+    tickIndex: number,
+  ): void {
     const seenActorIds = new Set<string>();
 
     for (let j = 0; j < cells.length; j++) {
@@ -404,7 +418,7 @@ class SemanticValidator {
   }
 
   private validateCell(
-    cell: BCFCell,
+    cell: BCFCell<BCFLaxAction>,
     tickIndex: number,
     cellIndex: number,
   ): void {
@@ -421,7 +435,7 @@ class SemanticValidator {
   }
 
   private validateActions(
-    actions: BCFAction[],
+    actions: BCFLaxAction[],
     actorId: string,
     tickIndex: number,
     cellIndex: number,
@@ -436,8 +450,9 @@ class SemanticValidator {
       // Only validate actor-type constraints for known action types.
       // Unknown action types are allowed for any actor.
       if (cellActorType !== undefined) {
+        const actionType = action.type as BCFAction['type'];
         if (
-          this.actionTypes.npcActions.has(action.type) &&
+          this.actionTypes.npcActions.has(actionType) &&
           cellActorType !== 'npc'
         ) {
           this.error(
@@ -445,7 +460,7 @@ class SemanticValidator {
             `${cellActorType} actor cannot perform "${action.type}" action`,
           );
         } else if (
-          this.actionTypes.playerActions.has(action.type) &&
+          this.actionTypes.playerActions.has(actionType) &&
           cellActorType !== 'player'
         ) {
           this.error(
@@ -524,12 +539,20 @@ class SemanticValidator {
   }
 }
 
-function getTargetActorId(action: BCFAction): string | undefined {
-  return 'targetActorId' in action ? action.targetActorId : undefined;
+function getTargetActorId<ActionType extends { type: string }>(
+  action: ActionType,
+): string | undefined {
+  if (!('targetActorId' in action)) {
+    return undefined;
+  }
+
+  return typeof action.targetActorId === 'string'
+    ? action.targetActorId
+    : undefined;
 }
 
 function validateSemantics(
-  doc: BlertChartFormat,
+  doc: BlertChartFormatLax,
   version: BCFVersion,
 ): ValidationError[] {
   return new SemanticValidator(doc, version).validate();
@@ -561,8 +584,33 @@ function validateSemantics(
  */
 export function validate(
   data: unknown,
+  options: ValidateOptions & { strict: true },
+): ValidationResultStrict;
+
+export function validate(
+  data: unknown,
+  options: ValidateOptions & { version: BCFVersion; strict?: true },
+): ValidationResultStrict;
+
+export function validate(
+  data: unknown,
+  options: ValidateOptions & { strict: false },
+): ValidationResultLax;
+
+export function validate(
+  data: unknown,
+  options?: { version?: undefined; strict?: undefined },
+): ValidationResultLax;
+
+export function validate(
+  data: unknown,
   options?: ValidateOptions,
-): ValidationResult {
+): ValidationResultStrict | ValidationResultLax;
+
+export function validate(
+  data: unknown,
+  options?: ValidateOptions,
+): ValidationResultStrict | ValidationResultLax {
   const strict = options?.strict ?? options?.version !== undefined;
 
   const documentVersion = getDocumentVersion(data);
@@ -616,7 +664,7 @@ export function validate(
     return { valid: false, errors: schemaErrors };
   }
 
-  const doc = data as BlertChartFormat;
+  const doc = data as BlertChartFormatLax;
 
   const semanticErrors = validateSemantics(doc, version);
   if (semanticErrors.length > 0) {
@@ -643,8 +691,28 @@ export function validate(
  */
 export function parseAndValidate(
   json: string,
+  options: ValidateOptions & { strict: true },
+): ValidationResultStrict;
+
+export function parseAndValidate(
+  json: string,
+  options: ValidateOptions & { version: BCFVersion; strict?: true },
+): ValidationResultStrict;
+
+export function parseAndValidate(
+  json: string,
+  options: ValidateOptions & { strict: false },
+): ValidationResultLax;
+
+export function parseAndValidate(
+  json: string,
+  options?: { version?: undefined; strict?: undefined },
+): ValidationResultLax;
+
+export function parseAndValidate(
+  json: string,
   options?: ValidateOptions,
-): ValidationResult {
+): ValidationResultStrict | ValidationResultLax {
   let data: unknown;
   try {
     data = JSON.parse(json);

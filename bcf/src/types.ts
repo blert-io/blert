@@ -7,7 +7,9 @@
 /**
  * A BCF document representing a combat timeline.
  */
-export interface BlertChartFormat {
+export interface BlertChartFormat<
+  ActionType extends { type: string } = BCFAction,
+> {
   /** BCF specification version. Must be "1.0". */
   version: '1.0';
   /** Human-readable name for the chart. */
@@ -17,7 +19,7 @@ export interface BlertChartFormat {
   /** Timeline configuration. */
   config: BCFConfig;
   /** Core timeline data (actors and ticks). */
-  timeline: BCFTimeline;
+  timeline: BCFTimeline<ActionType>;
   /** Optional display hints for enhanced rendering. */
   augmentation?: BCFAugmentation;
 }
@@ -51,11 +53,11 @@ export interface BCFDefinitions {
 /**
  * Core timeline data containing actors and ticks.
  */
-export interface BCFTimeline {
+export interface BCFTimeline<ActionType extends { type: string } = BCFAction> {
   /** Actors (rows) in the timeline. */
   actors: BCFActor[];
   /** Sparse array of tick objects. */
-  ticks: BCFTick[];
+  ticks: BCFTick<ActionType>[];
 }
 
 /**
@@ -89,21 +91,21 @@ export interface BCFNpcActor extends BCFActorBase {
 /**
  * A single tick in the timeline.
  */
-export interface BCFTick {
+export interface BCFTick<ActionType extends { type: string } = BCFAction> {
   /** Tick number. */
   tick: number;
   /** Cells for actors that have data on this tick. */
-  cells: BCFCell[];
+  cells: BCFCell<ActionType>[];
 }
 
 /**
  * A cell representing an actor's data on a specific tick.
  */
-export interface BCFCell {
+export interface BCFCell<ActionType extends { type: string } = BCFAction> {
   /** References an actor's `id`. */
   actorId: string;
   /** Actions performed by the actor. */
-  actions?: BCFAction[];
+  actions?: ActionType[];
   /** Actor state on this tick. */
   state?: BCFState;
 }
@@ -118,6 +120,9 @@ export type BCFAction =
   | BCFNpcAttackAction;
 
 export type BCFLaxAction = BCFAction | BCFUnknownAction;
+
+export type BlertChartFormatStrict = BlertChartFormat<BCFAction>;
+export type BlertChartFormatLax = BlertChartFormat<BCFLaxAction>;
 
 /**
  * A player attack action.

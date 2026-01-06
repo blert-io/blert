@@ -722,9 +722,7 @@ describe('BCF Validator', () => {
         const doc = {
           ...minimalValidBCF,
           augmentation: {
-            backgroundColors: [
-              { tick: 1, color: '#ff0000', rowIds: ['p1'] },
-            ],
+            backgroundColors: [{ tick: 1, color: '#ff0000', rowIds: ['p1'] }],
           },
         };
         const result = validate(doc);

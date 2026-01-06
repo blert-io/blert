@@ -3,7 +3,11 @@
   "$id": "https://blert.io/schemas/bcf-1.x-lax.schema.json",
   "title": "Blert Chart Format (BCF) 1.x Lax",
   "type": "object",
-  "required": ["version", "config", "timeline"],
+  "required": [
+    "version",
+    "config",
+    "timeline"
+  ],
   "properties": {
     "version": {
       "type": "string",
@@ -33,7 +37,9 @@
     },
     "config": {
       "type": "object",
-      "required": ["totalTicks"],
+      "required": [
+        "totalTicks"
+      ],
       "properties": {
         "totalTicks": {
           "type": "integer",
@@ -75,7 +81,10 @@
     },
     "timeline": {
       "type": "object",
-      "required": ["actors", "ticks"],
+      "required": [
+        "actors",
+        "ticks"
+      ],
       "properties": {
         "actors": {
           "type": "array",
@@ -104,7 +113,11 @@
     },
     "playerActor": {
       "type": "object",
-      "required": ["type", "id", "name"],
+      "required": [
+        "type",
+        "id",
+        "name"
+      ],
       "properties": {
         "type": {
           "const": "player"
@@ -120,7 +133,12 @@
     },
     "npcActor": {
       "type": "object",
-      "required": ["type", "id", "npcId", "name"],
+      "required": [
+        "type",
+        "id",
+        "npcId",
+        "name"
+      ],
       "properties": {
         "type": {
           "const": "npc"
@@ -140,7 +158,10 @@
     },
     "tick": {
       "type": "object",
-      "required": ["tick", "cells"],
+      "required": [
+        "tick",
+        "cells"
+      ],
       "properties": {
         "tick": {
           "type": "integer",
@@ -156,7 +177,9 @@
     },
     "cell": {
       "type": "object",
-      "required": ["actorId"],
+      "required": [
+        "actorId"
+      ],
       "properties": {
         "actorId": {
           "$ref": "#/$defs/idString"
@@ -176,24 +199,50 @@
       }
     },
     "action": {
-      "oneOf": [
+      "anyOf": [
         {
-          "$ref": "#/$defs/attackAction"
+          "oneOf": [
+            {
+              "$ref": "#/$defs/attackAction"
+            },
+            {
+              "$ref": "#/$defs/spellAction"
+            },
+            {
+              "$ref": "#/$defs/deathAction"
+            },
+            {
+              "$ref": "#/$defs/npcAttackAction"
+            }
+          ]
         },
         {
-          "$ref": "#/$defs/spellAction"
-        },
-        {
-          "$ref": "#/$defs/deathAction"
-        },
-        {
-          "$ref": "#/$defs/npcAttackAction"
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "not": {
+                "enum": [
+                  "attack",
+                  "spell",
+                  "death",
+                  "npcAttack"
+                ]
+              }
+            }
+          }
         }
       ]
     },
     "attackAction": {
       "type": "object",
-      "required": ["type", "attackType"],
+      "required": [
+        "type",
+        "attackType"
+      ],
       "properties": {
         "type": {
           "const": "attack"
@@ -228,7 +277,10 @@
     },
     "spellAction": {
       "type": "object",
-      "required": ["type", "spellType"],
+      "required": [
+        "type",
+        "spellType"
+      ],
       "properties": {
         "type": {
           "const": "spell"
@@ -247,7 +299,9 @@
     },
     "deathAction": {
       "type": "object",
-      "required": ["type"],
+      "required": [
+        "type"
+      ],
       "properties": {
         "type": {
           "const": "death"
@@ -256,7 +310,10 @@
     },
     "npcAttackAction": {
       "type": "object",
-      "required": ["type", "attackType"],
+      "required": [
+        "type",
+        "attackType"
+      ],
       "properties": {
         "type": {
           "const": "npcAttack"
@@ -285,7 +342,11 @@
           "maxLength": 3
         },
         "style": {
-          "enum": ["melee", "ranged", "magic"]
+          "enum": [
+            "melee",
+            "ranged",
+            "magic"
+          ]
         }
       }
     },
@@ -338,7 +399,9 @@
     },
     "customState": {
       "type": "object",
-      "required": ["label"],
+      "required": [
+        "label"
+      ],
       "properties": {
         "label": {
           "type": "string",
@@ -377,7 +440,10 @@
     },
     "split": {
       "type": "object",
-      "required": ["tick", "name"],
+      "required": [
+        "tick",
+        "name"
+      ],
       "properties": {
         "tick": {
           "type": "integer",
@@ -395,7 +461,10 @@
     },
     "backgroundColor": {
       "type": "object",
-      "required": ["tick", "color"],
+      "required": [
+        "tick",
+        "color"
+      ],
       "properties": {
         "tick": {
           "type": "integer",
@@ -422,7 +491,11 @@
     },
     "customRow": {
       "type": "object",
-      "required": ["id", "name", "cells"],
+      "required": [
+        "id",
+        "name",
+        "cells"
+      ],
       "properties": {
         "id": {
           "$ref": "#/$defs/idString"
@@ -441,7 +514,9 @@
     },
     "customRowCell": {
       "type": "object",
-      "required": ["tick"],
+      "required": [
+        "tick"
+      ],
       "properties": {
         "tick": {
           "type": "integer",
@@ -464,10 +539,14 @@
       },
       "anyOf": [
         {
-          "required": ["iconUrl"]
+          "required": [
+            "iconUrl"
+          ]
         },
         {
-          "required": ["label"]
+          "required": [
+            "label"
+          ]
         }
       ]
     }
