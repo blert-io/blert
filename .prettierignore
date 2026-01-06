@@ -11,6 +11,7 @@ node_modules
 
 # Generated code
 **/generated/**
+bcf/schemas/**/*.json
 
 # Submodules
 common/protos

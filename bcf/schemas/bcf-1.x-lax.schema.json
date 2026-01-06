@@ -1,0 +1,555 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://blert.io/schemas/bcf-1.x-lax.schema.json",
+  "title": "Blert Chart Format (BCF) 1.x Lax",
+  "type": "object",
+  "required": [
+    "version",
+    "config",
+    "timeline"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^1\\.\\d+$"
+    },
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "config": {
+      "$ref": "#/$defs/config"
+    },
+    "timeline": {
+      "$ref": "#/$defs/timeline"
+    },
+    "augmentation": {
+      "$ref": "#/$defs/augmentation"
+    }
+  },
+  "$defs": {
+    "idString": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]+$",
+      "description": "URL-safe identifier (alphanumeric, underscore, hyphen)."
+    },
+    "config": {
+      "type": "object",
+      "required": [
+        "totalTicks"
+      ],
+      "properties": {
+        "totalTicks": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "tickOffset": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        },
+        "rowOrder": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/idString"
+          },
+          "uniqueItems": true
+        },
+        "definitions": {
+          "$ref": "#/$defs/definitions"
+        }
+      }
+    },
+    "definitions": {
+      "type": "object",
+      "properties": {
+        "attacks": {
+          "type": "string",
+          "format": "uri"
+        },
+        "spells": {
+          "type": "string",
+          "format": "uri"
+        },
+        "npcAttacks": {
+          "type": "string",
+          "format": "uri"
+        }
+      }
+    },
+    "timeline": {
+      "type": "object",
+      "required": [
+        "actors",
+        "ticks"
+      ],
+      "properties": {
+        "actors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/actor"
+          }
+        },
+        "ticks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/tick"
+          }
+        }
+      }
+    },
+    "actor": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/playerActor"
+        },
+        {
+          "$ref": "#/$defs/npcActor"
+        }
+      ]
+    },
+    "playerActor": {
+      "type": "object",
+      "required": [
+        "type",
+        "id",
+        "name"
+      ],
+      "properties": {
+        "type": {
+          "const": "player"
+        },
+        "id": {
+          "$ref": "#/$defs/idString"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "npcActor": {
+      "type": "object",
+      "required": [
+        "type",
+        "id",
+        "npcId",
+        "name"
+      ],
+      "properties": {
+        "type": {
+          "const": "npc"
+        },
+        "id": {
+          "$ref": "#/$defs/idString"
+        },
+        "npcId": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "tick": {
+      "type": "object",
+      "required": [
+        "tick",
+        "cells"
+      ],
+      "properties": {
+        "tick": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "cells": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/cell"
+          }
+        }
+      }
+    },
+    "cell": {
+      "type": "object",
+      "required": [
+        "actorId"
+      ],
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/idString"
+        },
+        "actions": {
+          "$ref": "#/$defs/actions"
+        },
+        "state": {
+          "$ref": "#/$defs/state"
+        }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/action"
+      }
+    },
+    "action": {
+      "anyOf": [
+        {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/attackAction"
+            },
+            {
+              "$ref": "#/$defs/spellAction"
+            },
+            {
+              "$ref": "#/$defs/deathAction"
+            },
+            {
+              "$ref": "#/$defs/npcAttackAction"
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "not": {
+                "enum": [
+                  "attack",
+                  "spell",
+                  "death",
+                  "npcAttack"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "attackAction": {
+      "type": "object",
+      "required": [
+        "type",
+        "attackType"
+      ],
+      "properties": {
+        "type": {
+          "const": "attack"
+        },
+        "attackType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "weaponId": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "weaponName": {
+          "type": "string"
+        },
+        "targetActorId": {
+          "$ref": "#/$defs/idString"
+        },
+        "distanceToTarget": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "specCost": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "display": {
+          "$ref": "#/$defs/attackDisplay"
+        }
+      }
+    },
+    "spellAction": {
+      "type": "object",
+      "required": [
+        "type",
+        "spellType"
+      ],
+      "properties": {
+        "type": {
+          "const": "spell"
+        },
+        "spellType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "targetActorId": {
+          "$ref": "#/$defs/idString"
+        },
+        "display": {
+          "$ref": "#/$defs/spellDisplay"
+        }
+      }
+    },
+    "deathAction": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "death"
+        }
+      }
+    },
+    "npcAttackAction": {
+      "type": "object",
+      "required": [
+        "type",
+        "attackType"
+      ],
+      "properties": {
+        "type": {
+          "const": "npcAttack"
+        },
+        "attackType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "targetActorId": {
+          "$ref": "#/$defs/idString"
+        },
+        "display": {
+          "$ref": "#/$defs/npcAttackDisplay"
+        }
+      }
+    },
+    "attackDisplay": {
+      "type": "object",
+      "properties": {
+        "iconUrl": {
+          "type": "string"
+        },
+        "letter": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 3
+        },
+        "style": {
+          "enum": [
+            "melee",
+            "ranged",
+            "magic"
+          ]
+        }
+      }
+    },
+    "spellDisplay": {
+      "type": "object",
+      "properties": {
+        "iconUrl": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "npcAttackDisplay": {
+      "type": "object",
+      "properties": {
+        "iconUrl": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "state": {
+      "type": "object",
+      "properties": {
+        "isDead": {
+          "type": "boolean"
+        },
+        "offCooldown": {
+          "type": "boolean"
+        },
+        "specEnergy": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "label": {
+          "type": "string"
+        },
+        "customStates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/customState"
+          }
+        }
+      }
+    },
+    "customState": {
+      "type": "object",
+      "required": [
+        "label"
+      ],
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fullText": {
+          "type": "string"
+        },
+        "iconUrl": {
+          "type": "string"
+        }
+      }
+    },
+    "augmentation": {
+      "type": "object",
+      "properties": {
+        "splits": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/split"
+          }
+        },
+        "backgroundColors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/backgroundColor"
+          }
+        },
+        "customRows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/customRow"
+          }
+        }
+      }
+    },
+    "split": {
+      "type": "object",
+      "required": [
+        "tick",
+        "name"
+      ],
+      "properties": {
+        "tick": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "isImportant": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "backgroundColor": {
+      "type": "object",
+      "required": [
+        "tick",
+        "color"
+      ],
+      "properties": {
+        "tick": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "length": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+        },
+        "rowIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/idString"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      }
+    },
+    "customRow": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "cells"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/idString"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cells": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/customRowCell"
+          }
+        }
+      }
+    },
+    "customRowCell": {
+      "type": "object",
+      "required": [
+        "tick"
+      ],
+      "properties": {
+        "tick": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "iconUrl": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 3
+        },
+        "opacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 1
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "iconUrl"
+          ]
+        },
+        {
+          "required": [
+            "label"
+          ]
+        }
+      ]
+    }
+  },
+  "$comment": "Generated from bcf-1.0-strict.schema.json. Do not edit manually."
+}

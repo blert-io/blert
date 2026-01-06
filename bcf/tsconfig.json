@@ -8,11 +8,12 @@
     "esModuleInterop": true,
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "resolveJsonModule": true,
     "isolatedModules": true,
     "incremental": true,
     "declaration": true
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "schemas/**/*.json"],
   "exclude": [
     "dist/**/*",
     "node_modules",
