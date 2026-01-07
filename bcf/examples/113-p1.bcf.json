@@ -1,0 +1,771 @@
+{
+  "version": "1.0",
+  "name": "113 Verzik P1",
+  "description": "Standard trio money P1 chart",
+  "config": {
+    "totalTicks": 62,
+    "rowOrder": ["verzik", "p1", "p2", "p3"]
+  },
+  "timeline": {
+    "actors": [
+      { "type": "npc", "id": "verzik", "npcId": 8370, "name": "Verzik Vitur" },
+      { "type": "player", "id": "p1", "name": "Player 1" },
+      { "type": "player", "id": "p2", "name": "Player 2" },
+      { "type": "player", "id": "p3", "name": "Player 3" }
+    ],
+    "ticks": [
+      {
+        "tick": 1,
+        "cells": [
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "DAWN_SPEC",
+                "weaponId": 22516,
+                "targetActorId": "verzik",
+                "specCost": 35
+              }
+            ],
+            "state": {
+              "specEnergy": 65
+            }
+          },
+          {
+            "actorId": "p2",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ],
+            "state": {
+              "specEnergy": 100
+            }
+          },
+          {
+            "actorId": "p3",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ],
+            "state": {
+              "specEnergy": 100
+            }
+          }
+        ]
+      },
+      {
+        "tick": 5,
+        "cells": [
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 6,
+        "cells": [
+          {
+            "actorId": "p2",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "DAWN_SPEC",
+                "weaponId": 22516,
+                "targetActorId": "verzik",
+                "specCost": 35
+              }
+            ],
+            "state": {
+              "specEnergy": 65
+            }
+          },
+          {
+            "actorId": "p3",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 7,
+        "cells": [
+          {
+            "actorId": "p2",
+            "state": {
+              "customStates": [
+                {
+                  "label": "!",
+                  "fullText": "Drank surge potion",
+                  "iconUrl": "https://chisel.weirdgloop.org/static/img/osrs-sprite/30875.png"
+                }
+              ],
+              "specEnergy": 90
+            }
+          }
+        ]
+      },
+      {
+        "tick": 10,
+        "cells": [
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ]
+          },
+          {
+            "actorId": "p2",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 11,
+        "cells": [
+          {
+            "actorId": "p3",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "DAWN_SPEC",
+                "weaponId": 22516,
+                "targetActorId": "verzik",
+                "specCost": 35
+              }
+            ],
+            "state": {
+              "specEnergy": 65
+            }
+          }
+        ]
+      },
+      {
+        "tick": 12,
+        "cells": [
+          {
+            "actorId": "p3",
+            "state": {
+              "customStates": [
+                {
+                  "label": "!",
+                  "fullText": "Drank surge potion",
+                  "iconUrl": "https://chisel.weirdgloop.org/static/img/osrs-sprite/30875.png"
+                }
+              ],
+              "specEnergy": 90
+            }
+          }
+        ]
+      },
+      {
+        "tick": 15,
+        "cells": [
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ]
+          },
+          {
+            "actorId": "p2",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ]
+          },
+          {
+            "actorId": "p3",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 19,
+        "cells": [
+          {
+            "actorId": "verzik",
+            "actions": [
+              {
+                "type": "npcAttack",
+                "attackType": "TOB_VERZIK_P1_AUTO"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 20,
+        "cells": [
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SANG",
+                "weaponId": 22323,
+                "targetActorId": "verzik"
+              }
+            ]
+          },
+          {
+            "actorId": "p2",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ]
+          },
+          {
+            "actorId": "p3",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "DAWN_SPEC",
+                "weaponId": 22516,
+                "targetActorId": "verzik",
+                "specCost": 35
+              }
+            ],
+            "state": {
+              "specEnergy": 55
+            }
+          }
+        ]
+      },
+      {
+        "tick": 24,
+        "cells": [
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ]
+          },
+          {
+            "actorId": "p3",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "DAWN_SPEC",
+                "weaponId": 22516,
+                "targetActorId": "verzik",
+                "specCost": 35
+              }
+            ],
+            "state": {
+              "specEnergy": 20
+            }
+          }
+        ]
+      },
+      {
+        "tick": 25,
+        "cells": [
+          {
+            "actorId": "p2",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 26,
+        "cells": [
+          {
+            "actorId": "p1",
+            "state": {
+              "specEnergy": 75
+            }
+          }
+        ]
+      },
+      {
+        "tick": 28,
+        "cells": [
+          {
+            "actorId": "p3",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 29,
+        "cells": [
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 30,
+        "cells": [
+          {
+            "actorId": "p2",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "DAWN_SPEC",
+                "weaponId": 22516,
+                "targetActorId": "verzik",
+                "specCost": 35
+              }
+            ],
+            "state": {
+              "specEnergy": 55
+            }
+          }
+        ]
+      },
+      {
+        "tick": 31,
+        "cells": [
+          {
+            "actorId": "p2",
+            "state": {
+              "specEnergy": 65
+            }
+          }
+        ]
+      },
+      {
+        "tick": 33,
+        "cells": [
+          {
+            "actorId": "verzik",
+            "actions": [
+              {
+                "type": "npcAttack",
+                "attackType": "TOB_VERZIK_P1_AUTO"
+              }
+            ]
+          },
+          {
+            "actorId": "p3",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 34,
+        "cells": [
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SANG",
+                "weaponId": 22323,
+                "targetActorId": "verzik"
+              }
+            ]
+          },
+          {
+            "actorId": "p2",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "DAWN_SPEC",
+                "weaponId": 22516,
+                "targetActorId": "verzik",
+                "specCost": 35
+              }
+            ],
+            "state": {
+              "specEnergy": 30
+            }
+          }
+        ]
+      },
+      {
+        "tick": 38,
+        "cells": [
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ]
+          },
+          {
+            "actorId": "p2",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ]
+          },
+          {
+            "actorId": "p3",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 43,
+        "cells": [
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "DAWN_SPEC",
+                "weaponId": 22516,
+                "targetActorId": "verzik",
+                "specCost": 35
+              }
+            ],
+            "state": {
+              "specEnergy": 40
+            }
+          },
+          {
+            "actorId": "p2",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ]
+          },
+          {
+            "actorId": "p3",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 44,
+        "cells": [
+          {
+            "actorId": "p1",
+            "state": {
+              "customStates": [
+                {
+                  "label": "!",
+                  "fullText": "Drank surge potion",
+                  "iconUrl": "https://chisel.weirdgloop.org/static/img/osrs-sprite/30875.png"
+                }
+              ],
+              "specEnergy": 65
+            }
+          }
+        ]
+      },
+      {
+        "tick": 47,
+        "cells": [
+          {
+            "actorId": "verzik",
+            "actions": [
+              {
+                "type": "npcAttack",
+                "attackType": "TOB_VERZIK_P1_AUTO"
+              }
+            ]
+          },
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "DAWN_SPEC",
+                "weaponId": 22516,
+                "targetActorId": "verzik",
+                "specCost": 35
+              }
+            ],
+            "state": {
+              "specEnergy": 30
+            }
+          }
+        ]
+      },
+      {
+        "tick": 49,
+        "cells": [
+          {
+            "actorId": "p2",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "BLOWPIPE",
+                "weaponId": 12926,
+                "targetActorId": "verzik"
+              }
+            ]
+          },
+          {
+            "actorId": "p3",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "BLOWPIPE",
+                "weaponId": 12926,
+                "targetActorId": "verzik"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 51,
+        "cells": [
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "DAWN_SPEC",
+                "weaponId": 22516,
+                "targetActorId": "verzik",
+                "specCost": 35
+              }
+            ],
+            "state": {
+              "specEnergy": 5
+            }
+          },
+          {
+            "actorId": "p2",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ]
+          },
+          {
+            "actorId": "p3",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 55,
+        "cells": [
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 56,
+        "cells": [
+          {
+            "actorId": "p2",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "DAWN_SPEC",
+                "weaponId": 22516,
+                "targetActorId": "verzik",
+                "specCost": 35
+              }
+            ],
+            "state": {
+              "specEnergy": 5
+            }
+          },
+          {
+            "actorId": "p3",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 60,
+        "cells": [
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ]
+          },
+          {
+            "actorId": "p2",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 61,
+        "cells": [
+          {
+            "actorId": "verzik",
+            "actions": [
+              {
+                "type": "npcAttack",
+                "attackType": "TOB_VERZIK_P1_AUTO"
+              }
+            ]
+          },
+          {
+            "actorId": "p3",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "verzik"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "augmentation": {
+    "backgroundColors": [
+      { "tick": 19, "color": "#391717" },
+      { "tick": 33, "color": "#391717" },
+      { "tick": 47, "color": "#391717" },
+      { "tick": 61, "color": "#391717" }
+    ]
+  }
+}
