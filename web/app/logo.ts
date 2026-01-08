@@ -12,7 +12,7 @@ enum Logos {
   MOKHAIOTL = '/images/mokhaiotl.webp',
 }
 
-export const MAIN_LOGO = Logos.CHRISTMAS;
+export const MAIN_LOGO = Logos.STANDARD;
 
 /**
  * Returns the logo for the challenge with the given type.
