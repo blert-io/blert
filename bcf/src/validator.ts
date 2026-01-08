@@ -234,9 +234,8 @@ class SemanticValidator {
   constructor(doc: BlertChartFormatLax, version: BCFVersion) {
     this.doc = doc;
 
-    const tickOffset = doc.config.tickOffset ?? 1;
-    this.minTick = tickOffset;
-    this.maxTick = tickOffset + doc.config.totalTicks - 1;
+    this.minTick = 1;
+    this.maxTick = doc.config.totalTicks;
     this.actionTypes = VERSION_ACTION_TYPES[version];
   }
 

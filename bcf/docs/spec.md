@@ -82,7 +82,6 @@ The `config` object defines timeline parameters:
 {
   "config": {
     "totalTicks": 113,
-    "tickOffset": 1,
     "rowOrder": ["verzik", "p1", "p2", "p3"],
     "definitions": {
       "attacks": "https://raw.githubusercontent.com/blert-io/protos/8b8d8981baa02a6bfb8fb7fb2e727d65ff7b8e1f/attack_definitions.json",
@@ -98,7 +97,6 @@ The `config` object defines timeline parameters:
 | Field         | Type     | Required | Default | Description                                                                            |
 | ------------- | -------- | -------- | ------- | -------------------------------------------------------------------------------------- |
 | `totalTicks`  | integer  | Yes      | -       | Total number of ticks in the timeline                                                  |
-| `tickOffset`  | integer  | No       | 1       | The tick number of the first tick. Usually 1, but can be higher for partial timelines  |
 | `rowOrder`    | string[] | No       | -       | Ordered list of actor IDs defining row display order. Custom row IDs may also be used. |
 | `definitions` | object   | No       | -       | Pinned canonical definition sources (see §3.2)                                         |
 
@@ -122,20 +120,21 @@ fetch the latest versions from the canonical sources.
 
 ### 3.3 Row Order
 
-When `rowOrder` is provided, rows are displayed in the specified order. When
-omitted, renderers should use a default order (typically NPCs, custom rows,
-players).
+When `rowOrder` is provided, it defines the set and order of rows that should be
+displayed. Rows not listed in `rowOrder` may still exist in the document but are
+omitted from rendering. When `rowOrder` is omitted, renderers should display all
+rows in a default order (typically NPCs, custom rows, players).
 
 - All entries in `rowOrder` must uniquely reference valid actor IDs or custom
   row IDs.
-- Actors/rows not listed in `rowOrder` are appended after the specified rows.
+- Actors/rows not listed in `rowOrder` are omitted from rendering.
+- `rowOrder` cannot be empty if present.
 
 ### 3.4 Validation
 
 - `totalTicks` must be a positive integer.
-- `tickOffset` must be a positive integer if provided.
-- All tick numbers in the timeline must fall within the range
-  `[tickOffset, tickOffset + totalTicks - 1]`.
+- All tick numbers in the timeline must be positive integers in the range
+  `[1, totalTicks]`.
 - All IDs in `rowOrder` must exist as actor IDs or custom row IDs referencing
   (`augmentation.customRows[].id`).
 
@@ -217,10 +216,10 @@ The ticks array is a sparse, ascending array of tick objects.
 
 #### 4.2.1 Tick Object
 
-| Field   | Type    | Required | Description                            |
-| ------- | ------- | -------- | -------------------------------------- |
-| `tick`  | integer | Yes      | Tick number starting from `tickOffset` |
-| `cells` | array   | Yes      | Array of cell objects for this tick    |
+| Field   | Type    | Required | Description                         |
+| ------- | ------- | -------- | ----------------------------------- |
+| `tick`  | integer | Yes      | Tick number (1 to `totalTicks`)     |
+| `cells` | array   | Yes      | Array of cell objects for this tick |
 
 #### 4.2.2 Tick Ordering and Sparsity
 
@@ -589,8 +588,8 @@ These fields carry forward across ticks until explicitly changed:
 | `isDead`     | Yes      | `false`     |
 | `specEnergy` | Yes      | `undefined` |
 
-At `tickOffset`, all actors start with default values for persistent fields
-unless explicitly specified in their first cell.
+At tick 1, all actors start with default values for persistent fields unless
+explicitly specified in their first cell.
 
 #### 6.3.2 Non-Persistent Fields
 
