@@ -45,17 +45,13 @@
           "type": "integer",
           "minimum": 1
         },
-        "tickOffset": {
-          "type": "integer",
-          "minimum": 1,
-          "default": 1
-        },
         "rowOrder": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/idString"
           },
-          "uniqueItems": true
+          "uniqueItems": true,
+          "minItems": 1
         },
         "definitions": {
           "$ref": "#/$defs/definitions"

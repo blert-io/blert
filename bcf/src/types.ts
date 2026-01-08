@@ -30,8 +30,6 @@ export interface BlertChartFormat<
 export interface BCFConfig {
   /** Total number of ticks in the timeline. */
   totalTicks: number;
-  /** The tick number of the first tick. Defaults to 1. */
-  tickOffset?: number;
   /** Ordered list of actor/custom row IDs defining display order. */
   rowOrder?: string[];
   /** Pinned canonical definition sources. */
