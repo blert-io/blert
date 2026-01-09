@@ -30,6 +30,10 @@ export interface BlertChartFormat<
 export interface BCFConfig {
   /** Total number of ticks in the timeline. */
   totalTicks: number;
+  /** First display tick in the timeline. */
+  startTick?: number;
+  /** Last display tick in the timeline (inclusive). */
+  endTick?: number;
   /** Ordered list of actor/custom row IDs defining display order. */
   rowOrder?: string[];
   /** Pinned canonical definition sources. */
@@ -111,11 +115,10 @@ export interface BCFCell<ActionType extends { type: string } = BCFAction> {
 /**
  * An action performed by an actor on a tick.
  */
-export type BCFAction =
-  | BCFAttackAction
-  | BCFSpellAction
-  | BCFDeathAction
-  | BCFNpcAttackAction;
+export type BCFAction = BCFPlayerAction | BCFNpcAction;
+
+export type BCFPlayerAction = BCFAttackAction | BCFSpellAction | BCFDeathAction;
+export type BCFNpcAction = BCFNpcAttackAction;
 
 export type BCFLaxAction = BCFAction | BCFUnknownAction;
 

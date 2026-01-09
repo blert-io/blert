@@ -227,15 +227,10 @@ class SemanticValidator {
   private readonly customRowIds = new Set<string>();
   private readonly allRowIds = new Set<string>();
 
-  private readonly minTick: number;
-  private readonly maxTick: number;
   private readonly actionTypes: VersionActionTypes;
 
   constructor(doc: BlertChartFormatLax, version: BCFVersion) {
     this.doc = doc;
-
-    this.minTick = 1;
-    this.maxTick = doc.config.totalTicks;
     this.actionTypes = VERSION_ACTION_TYPES[version];
   }
 
@@ -244,6 +239,7 @@ class SemanticValidator {
     this.validateCustomRows();
     this.buildAllRowIds();
     this.validateRowOrder();
+    this.validateDisplayRange();
     this.validateTicks();
     this.validateSplits();
     this.validateBackgroundColors();
@@ -255,7 +251,7 @@ class SemanticValidator {
   }
 
   private isTickInBounds(tick: number): boolean {
-    return tick >= this.minTick && tick <= this.maxTick;
+    return tick >= 0 && tick < this.doc.config.totalTicks;
   }
 
   private validateActors(): void {
@@ -313,7 +309,7 @@ class SemanticValidator {
       if (!this.isTickInBounds(cell.tick)) {
         this.error(
           path,
-          `Tick ${cell.tick} is out of bounds [${this.minTick}, ${this.maxTick}]`,
+          `Tick ${cell.tick} is out of bounds [0, ${this.doc.config.totalTicks})`,
         );
       }
       if (seenTicks.has(cell.tick)) {
@@ -360,6 +356,34 @@ class SemanticValidator {
     }
   }
 
+  private validateDisplayRange(): void {
+    const { totalTicks, startTick, endTick } = this.doc.config;
+
+    if (startTick !== undefined) {
+      if (startTick < 0 || startTick >= totalTicks) {
+        this.error(
+          '/config/startTick',
+          `startTick is out of bounds [0, ${totalTicks})`,
+        );
+      }
+      if (endTick !== undefined && startTick > endTick) {
+        this.error(
+          '/config/startTick',
+          `startTick must be less than or equal to endTick`,
+        );
+      }
+    }
+
+    if (endTick !== undefined) {
+      if (endTick < 0 || endTick >= totalTicks) {
+        this.error(
+          '/config/endTick',
+          `endTick is out of bounds [0, ${totalTicks})`,
+        );
+      }
+    }
+  }
+
   private validateTicks(): void {
     const { ticks } = this.doc.timeline;
     const seenTicks = new Set<number>();
@@ -387,7 +411,7 @@ class SemanticValidator {
       if (!this.isTickInBounds(tick.tick)) {
         this.error(
           `/timeline/ticks/${i}/tick`,
-          `Tick ${tick.tick} is out of bounds [${this.minTick}, ${this.maxTick}]`,
+          `Tick ${tick.tick} is out of bounds [0, ${this.doc.config.totalTicks})`,
         );
       }
 
@@ -495,7 +519,7 @@ class SemanticValidator {
       if (!this.isTickInBounds(split.tick)) {
         this.error(
           `/augmentation/splits/${i}/tick`,
-          `Split tick ${split.tick} is out of bounds [${this.minTick}, ${this.maxTick}]`,
+          `Split tick ${split.tick} is out of bounds [0, ${this.doc.config.totalTicks})`,
         );
       }
     }
@@ -507,21 +531,22 @@ class SemanticValidator {
       return;
     }
 
+    const { totalTicks } = this.doc.config;
     for (let i = 0; i < backgroundColors.length; i++) {
       const bg = backgroundColors[i];
       const length = bg.length ?? 1;
-      const endTick = bg.tick + length - 1;
+      const bgEndTick = bg.tick + length - 1;
 
       if (!this.isTickInBounds(bg.tick)) {
         this.error(
           `/augmentation/backgroundColors/${i}/tick`,
-          `Background color tick ${bg.tick} is out of bounds [${this.minTick}, ${this.maxTick}]`,
+          `Background color tick ${bg.tick} is out of bounds [0, ${totalTicks})`,
         );
       }
-      if (endTick > this.maxTick) {
+      if (bgEndTick >= totalTicks) {
         this.error(
           `/augmentation/backgroundColors/${i}/length`,
-          `Background color extends past timeline (ends at tick ${endTick}, max is ${this.maxTick})`,
+          `Background color extends past timeline (ends at tick ${bgEndTick}, max is ${totalTicks - 1})`,
         );
       }
       if (bg.rowIds) {

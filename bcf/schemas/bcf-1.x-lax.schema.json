@@ -45,6 +45,14 @@
           "type": "integer",
           "minimum": 1
         },
+        "startTick": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "endTick": {
+          "type": "integer",
+          "minimum": 0
+        },
         "rowOrder": {
           "type": "array",
           "items": {
@@ -161,7 +169,7 @@
       "properties": {
         "tick": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 0
         },
         "cells": {
           "type": "array",
@@ -443,7 +451,7 @@
       "properties": {
         "tick": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 0
         },
         "name": {
           "type": "string",
@@ -464,7 +472,7 @@
       "properties": {
         "tick": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 0
         },
         "length": {
           "type": "integer",
@@ -516,7 +524,7 @@
       "properties": {
         "tick": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 0
         },
         "iconUrl": {
           "type": "string"

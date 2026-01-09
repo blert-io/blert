@@ -37,7 +37,7 @@ data should use a supplementary context mechanism outside the BCF specification.
 | Term         | Definition                                                   |
 | ------------ | ------------------------------------------------------------ |
 | Actor        | An entity that can perform actions (player or NPC)           |
-| Tick         | OSRS game tick. BCF uses 1-indexed ticks                     |
+| Tick         | OSRS game tick                                               |
 | Cell         | The intersection of an actor and a tick in the timeline grid |
 | Action       | Something an actor does on a tick (attack, spell, death)     |
 | Augmentation | Optional display hints that enhance rendering                |
@@ -81,7 +81,9 @@ The `config` object defines timeline parameters:
 ```json
 {
   "config": {
-    "totalTicks": 113,
+    "totalTicks": 80,
+    "startTick": 1,
+    "endTick": 79,
     "rowOrder": ["verzik", "p1", "p2", "p3"],
     "definitions": {
       "attacks": "https://raw.githubusercontent.com/blert-io/protos/8b8d8981baa02a6bfb8fb7fb2e727d65ff7b8e1f/attack_definitions.json",
@@ -94,13 +96,33 @@ The `config` object defines timeline parameters:
 
 ### 3.1 Fields
 
-| Field         | Type     | Required | Default | Description                                                                            |
-| ------------- | -------- | -------- | ------- | -------------------------------------------------------------------------------------- |
-| `totalTicks`  | integer  | Yes      | -       | Total number of ticks in the timeline                                                  |
-| `rowOrder`    | string[] | No       | -       | Ordered list of actor IDs defining row display order. Custom row IDs may also be used. |
-| `definitions` | object   | No       | -       | Pinned canonical definition sources (see §3.2)                                         |
+| Field         | Type     | Required | Default          | Description                                                                            |
+| ------------- | -------- | -------- | ---------------- | -------------------------------------------------------------------------------------- |
+| `totalTicks`  | integer  | Yes      | -                | Total number of ticks in the timeline                                                  |
+| `startTick`   | integer  | No       | 0                | First display tick in the timeline                                                     |
+| `endTick`     | integer  | No       | `totalTicks - 1` | Last display tick in the timeline (inclusive)                                          |
+| `rowOrder`    | string[] | No       | -                | Ordered list of actor IDs defining row display order. Custom row IDs may also be used. |
+| `definitions` | object   | No       | -                | Pinned canonical definition sources (see §3.2)                                         |
 
-### 3.2 Definitions
+### 3.2. Tick Range
+
+A BCF timeline represents a combat encounter that lasts for `totalTicks` ticks,
+beginning at tick 0 and ending at tick `totalTicks - 1`.
+
+In practice, it is sometimes useful to only display a subset of the timeline.
+For example, in many encounters, tick 0 is not meaningful to players and does
+not align with their mental model of the encounter, even it it does contain
+relevant initial state information.
+
+To accommodate this, optional `startTick` and `endTick` fields can be used to
+specify the _display range_ of the timeline. Actions and state changes can (and
+typically do) occur outside of this range and must still be resolved (see §6.3),
+but should not be rendered.
+
+If `startTick` and `endTick` are omitted, the display range defaults to the
+entire timeline.
+
+### 3.3 Definitions
 
 The `definitions` object pins specific versions of canonical definition files.
 When provided, renderers should use these versions to resolve attack types,
@@ -118,7 +140,7 @@ URIs must be full URLs to a valid JSON or proto file.
 When `definitions` is omitted, renderers may use their bundled definitions or
 fetch the latest versions from the canonical sources.
 
-### 3.3 Row Order
+### 3.4 Row Order
 
 When `rowOrder` is provided, it defines the set and order of rows that should be
 displayed. Rows not listed in `rowOrder` may still exist in the document but are
@@ -130,11 +152,15 @@ rows in a default order (typically NPCs, custom rows, players).
 - Actors/rows not listed in `rowOrder` are omitted from rendering.
 - `rowOrder` cannot be empty if present.
 
-### 3.4 Validation
+### 3.5 Validation
 
 - `totalTicks` must be a positive integer.
-- All tick numbers in the timeline must be positive integers in the range
-  `[1, totalTicks]`.
+- `startTick` must be a non-negative integer less than `totalTicks`, and less
+  than or equal to `endTick` if provided.
+- `endTick` must be a non-negative integer less than `totalTicks`, and greater
+  than or equal to `startTick` if provided.
+- All tick numbers in the timeline must be integers in the range
+  `[0, totalTicks - 1]`.
 - All IDs in `rowOrder` must exist as actor IDs or custom row IDs referencing
   (`augmentation.customRows[].id`).
 
@@ -203,11 +229,11 @@ The ticks array is a sparse, ascending array of tick objects.
 {
   "ticks": [
     {
-      "tick": 1,
+      "tick": 0,
       "cells": [ ... ]
     },
     {
-      "tick": 2,
+      "tick": 1,
       "cells": [ ... ]
     }
   ]
@@ -218,7 +244,7 @@ The ticks array is a sparse, ascending array of tick objects.
 
 | Field   | Type    | Required | Description                         |
 | ------- | ------- | -------- | ----------------------------------- |
-| `tick`  | integer | Yes      | Tick number (1 to `totalTicks`)     |
+| `tick`  | integer | Yes      | Tick number (0 to `totalTicks - 1`) |
 | `cells` | array   | Yes      | Array of cell objects for this tick |
 
 #### 4.2.2 Tick Ordering and Sparsity
@@ -588,8 +614,10 @@ These fields carry forward across ticks until explicitly changed:
 | `isDead`     | Yes      | `false`     |
 | `specEnergy` | Yes      | `undefined` |
 
-At tick 1, all actors start with default values for persistent fields unless
+At tick 0, all actors start with default values for persistent fields unless
 explicitly specified in their first cell.
+
+Persistent state is computed over the entire `[0, totalTicks - 1]` domain.
 
 #### 6.3.2 Non-Persistent Fields
 
@@ -647,7 +675,7 @@ Splits mark significant points in the timeline:
 
 | Field         | Type    | Required | Default | Description                              |
 | ------------- | ------- | -------- | ------- | ---------------------------------------- |
-| `tick`        | integer | Yes      | -       | Tick where the split occurs              |
+| `tick`        | integer | Yes      | -       | Tick on which the split occurs           |
 | `name`        | string  | Yes      | -       | Split label                              |
 | `isImportant` | boolean | No       | true    | Whether to emphasize this split visually |
 
@@ -801,7 +829,6 @@ the BCF specification and is implementation-specific.
   "timeline": {
     "actors": [{ "type": "player", "id": "p1", "name": "Player" }],
     "ticks": [
-      { "tick": 1, "cells": [] },
       {
         "tick": 2,
         "cells": [
@@ -810,8 +837,7 @@ the BCF specification and is implementation-specific.
             "actions": [{ "type": "attack", "attackType": "SCYTHE" }]
           }
         ]
-      },
-      { "tick": 3, "cells": [] }
+      }
     ]
   }
 }
@@ -825,7 +851,8 @@ the BCF specification and is implementation-specific.
   "name": "Trio Verzik P1",
   "description": "Example P1 rotation for a trio",
   "config": {
-    "totalTicks": 25
+    "totalTicks": 25,
+    "startTick": 1
   },
   "timeline": {
     "actors": [
@@ -835,6 +862,23 @@ the BCF specification and is implementation-specific.
       { "type": "player", "id": "p3", "name": "Player3" }
     ],
     "ticks": [
+      {
+        "tick": 0,
+        "cells": [
+          {
+            "actorId": "p1",
+            "state": { "offCooldown": true, "specEnergy": 100 }
+          },
+          {
+            "actorId": "p2",
+            "state": { "offCooldown": true, "specEnergy": 100 }
+          },
+          {
+            "actorId": "p3",
+            "state": { "offCooldown": true, "specEnergy": 100 }
+          }
+        ]
+      },
       {
         "tick": 1,
         "cells": [
@@ -909,8 +953,8 @@ the BCF specification and is implementation-specific.
     ]
   },
   "augmentation": {
-    "splits": [{ "tick": 25, "name": "P1 End" }],
-    "backgroundColors": [{ "tick": 8, "color": "#391717" }]
+    "splits": [{ "tick": 24, "name": "P1 End" }],
+    "backgroundColors": [{ "tick": 19, "color": "#391717" }]
   }
 }
 ```

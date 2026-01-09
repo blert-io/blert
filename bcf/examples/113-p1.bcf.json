@@ -4,6 +4,7 @@
   "description": "Standard trio money P1 chart",
   "config": {
     "totalTicks": 62,
+    "startTick": 1,
     "rowOrder": ["verzik", "p1", "p2", "p3"]
   },
   "timeline": {

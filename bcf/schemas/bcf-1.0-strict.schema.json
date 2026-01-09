@@ -27,6 +27,8 @@
       "required": ["totalTicks"],
       "properties": {
         "totalTicks": { "type": "integer", "minimum": 1 },
+        "startTick": { "type": "integer", "minimum": 0 },
+        "endTick": { "type": "integer", "minimum": 0 },
         "rowOrder": {
           "type": "array",
           "items": { "$ref": "#/$defs/idString" },
@@ -99,7 +101,7 @@
       "additionalProperties": false,
       "required": ["tick", "cells"],
       "properties": {
-        "tick": { "type": "integer", "minimum": 1 },
+        "tick": { "type": "integer", "minimum": 0 },
         "cells": {
           "type": "array",
           "items": { "$ref": "#/$defs/cell" }
@@ -259,7 +261,7 @@
       "additionalProperties": false,
       "required": ["tick", "name"],
       "properties": {
-        "tick": { "type": "integer", "minimum": 1 },
+        "tick": { "type": "integer", "minimum": 0 },
         "name": { "type": "string", "minLength": 1 },
         "isImportant": { "type": "boolean", "default": true }
       }
@@ -270,7 +272,7 @@
       "additionalProperties": false,
       "required": ["tick", "color"],
       "properties": {
-        "tick": { "type": "integer", "minimum": 1 },
+        "tick": { "type": "integer", "minimum": 0 },
         "length": { "type": "integer", "minimum": 1, "default": 1 },
         "color": {
           "type": "string",
@@ -304,7 +306,7 @@
       "additionalProperties": false,
       "required": ["tick"],
       "properties": {
-        "tick": { "type": "integer", "minimum": 1 },
+        "tick": { "type": "integer", "minimum": 0 },
         "iconUrl": { "type": "string" },
         "label": { "type": "string", "minLength": 1, "maxLength": 3 },
         "opacity": {
