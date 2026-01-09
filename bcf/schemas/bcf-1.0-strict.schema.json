@@ -229,9 +229,9 @@
     "customState": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["label"],
+      "anyOf": [{ "required": ["label"] }, { "required": ["iconUrl"] }],
       "properties": {
-        "label": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1, "maxLength": 4 },
         "fullText": { "type": "string" },
         "iconUrl": { "type": "string" }
       }

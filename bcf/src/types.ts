@@ -242,14 +242,23 @@ export interface BCFNpcState extends BCFStateBase {
 /**
  * A custom state annotation.
  */
-export interface BCFCustomState {
-  /** Short label for display. */
-  label: string;
-  /** Full description for tooltips. */
-  fullText?: string;
-  /** Icon to display with the state. */
-  iconUrl?: string;
-}
+export type BCFCustomState =
+  | {
+      /** Short label for display. */
+      label: string;
+      /** Readable description. */
+      fullText?: string;
+      /** Icon to display with the state. */
+      iconUrl?: string;
+    }
+  | {
+      /** Icon to display with the state. */
+      iconUrl: string;
+      /** Short label for display. */
+      label?: string;
+      /** Readable description. */
+      fullText?: string;
+    };
 
 /**
  * Optional display hints that enhance rendering.

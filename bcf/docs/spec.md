@@ -597,9 +597,18 @@ Custom states allow challenge-specific annotations:
 
 | Field      | Type   | Required | Description                    |
 | ---------- | ------ | -------- | ------------------------------ |
-| `label`    | string | Yes      | Short label for display        |
-| `fullText` | string | No       | Full description for tooltips  |
+| `label`    | string | No       | Short label for display        |
 | `iconUrl`  | string | No       | Icon to display with the state |
+| `fullText` | string | No       | Readable description           |
+
+`label` and `iconUrl` control the display of the custom state on the cell.
+
+Ordering of custom states is not significant.
+
+**Validation**
+
+- At least one of `label` or `iconUrl` must be provided.
+- `label` must be 1-4 characters long if provided.
 
 ### 6.3 State Persistence and Merging
 
@@ -810,7 +819,14 @@ Renderers should resolve action types as follows:
 - Cells with `state.isDead = true` but no actions should indicate dead state
 - Cells with `state.offCooldown = true` may be visually distinguished
 
-### 8.4 Context Enhancement
+### 8.4. Custom State
+
+- Custom states should be displayed as secondary information attached to a cell.
+- Rendering context permitting, images are preferred over text labels when both
+  are provided.
+- Renderers may reorder custom states to improve visual hierarchy.
+
+### 8.5 Context Enhancement
 
 BCF documents may be rendered with additional context (e.g., full player state,
 NPC hitpoints) provided by the rendering environment. Such context is outside
