@@ -307,6 +307,65 @@ describe('BCF Validator', () => {
         }
       });
 
+      it('should accept a valid display range', () => {
+        const doc = {
+          ...minimalValidBCF,
+          config: { totalTicks: 10, startTick: 2, endTick: 8 },
+        };
+        const result = validate(doc);
+        expect(result.valid).toBe(true);
+      });
+
+      it('should allow endTick without startTick', () => {
+        const doc = {
+          ...minimalValidBCF,
+          config: { totalTicks: 10, endTick: 8 },
+        };
+        const result = validate(doc);
+        expect(result.valid).toBe(true);
+      });
+
+      it('should reject startTick greater than endTick', () => {
+        const doc = {
+          ...minimalValidBCF,
+          config: { totalTicks: 10, startTick: 8, endTick: 3 },
+        };
+        const result = validate(doc);
+        expect(result.valid).toBe(false);
+        if (!result.valid) {
+          expect(result.errors[0].path).toBe('/config/startTick');
+          expect(result.errors[0].message).toContain(
+            'less than or equal to endTick',
+          );
+        }
+      });
+
+      it('should reject startTick out of bounds', () => {
+        const doc = {
+          ...minimalValidBCF,
+          config: { totalTicks: 10, startTick: 10 },
+        };
+        const result = validate(doc);
+        expect(result.valid).toBe(false);
+        if (!result.valid) {
+          expect(result.errors[0].path).toBe('/config/startTick');
+          expect(result.errors[0].message).toContain('out of bounds');
+        }
+      });
+
+      it('should reject endTick out of bounds', () => {
+        const doc = {
+          ...minimalValidBCF,
+          config: { totalTicks: 10, endTick: 10 },
+        };
+        const result = validate(doc);
+        expect(result.valid).toBe(false);
+        if (!result.valid) {
+          expect(result.errors[0].path).toBe('/config/endTick');
+          expect(result.errors[0].message).toContain('out of bounds');
+        }
+      });
+
       it('should reject duplicate tick numbers', () => {
         const doc = {
           ...minimalValidBCF,
