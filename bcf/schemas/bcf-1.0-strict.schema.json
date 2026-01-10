@@ -21,6 +21,12 @@
       "description": "URL-safe identifier (alphanumeric, underscore, hyphen)."
     },
 
+    "actionType": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]*$",
+      "description": "UPPER_SNAKE_CASE action type identifier."
+    },
+
     "config": {
       "type": "object",
       "additionalProperties": false,
@@ -34,18 +40,7 @@
           "items": { "$ref": "#/$defs/idString" },
           "uniqueItems": true,
           "minItems": 1
-        },
-        "definitions": { "$ref": "#/$defs/definitions" }
-      }
-    },
-
-    "definitions": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "attacks": { "type": "string", "format": "uri" },
-        "spells": { "type": "string", "format": "uri" },
-        "npcAttacks": { "type": "string", "format": "uri" }
+        }
       }
     },
 
@@ -140,7 +135,7 @@
       "required": ["type", "attackType"],
       "properties": {
         "type": { "const": "attack" },
-        "attackType": { "type": "string", "minLength": 1 },
+        "attackType": { "$ref": "#/$defs/actionType" },
         "weaponId": { "type": "integer", "minimum": 1 },
         "weaponName": { "type": "string" },
         "targetActorId": { "$ref": "#/$defs/idString" },
@@ -156,7 +151,7 @@
       "required": ["type", "spellType"],
       "properties": {
         "type": { "const": "spell" },
-        "spellType": { "type": "string", "minLength": 1 },
+        "spellType": { "$ref": "#/$defs/actionType" },
         "targetActorId": { "$ref": "#/$defs/idString" },
         "display": { "$ref": "#/$defs/spellDisplay" }
       }
@@ -177,7 +172,7 @@
       "required": ["type", "attackType"],
       "properties": {
         "type": { "const": "npcAttack" },
-        "attackType": { "type": "string", "minLength": 1 },
+        "attackType": { "$ref": "#/$defs/actionType" },
         "targetActorId": { "$ref": "#/$defs/idString" },
         "display": { "$ref": "#/$defs/npcAttackDisplay" }
       }

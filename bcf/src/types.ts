@@ -36,20 +36,6 @@ export interface BCFConfig {
   endTick?: number;
   /** Ordered list of actor/custom row IDs defining display order. */
   rowOrder?: string[];
-  /** Pinned canonical definition sources. */
-  definitions?: BCFDefinitions;
-}
-
-/**
- * URLs to canonical definition files for attack/spell type resolution.
- */
-export interface BCFDefinitions {
-  /** URL to attack_definitions.json. */
-  attacks?: string;
-  /** URL to spell_definitions.json. */
-  spells?: string;
-  /** URL to event.proto (for NpcAttack enum). */
-  npcAttacks?: string;
 }
 
 /**
@@ -142,7 +128,7 @@ export interface BCFAttackAction {
   distanceToTarget?: number;
   /** Spec energy cost. Presence implies that this is a special attack. */
   specCost?: number;
-  /** Display overrides. */
+  /** Display hints for fallback rendering. */
   display?: BCFAttackDisplay;
 }
 
@@ -155,7 +141,7 @@ export interface BCFSpellAction {
   spellType: string;
   /** Target actor's ID (if applicable). */
   targetActorId?: string;
-  /** Display overrides. */
+  /** Display hints for fallback rendering. */
   display?: BCFSpellDisplay;
 }
 
@@ -175,7 +161,7 @@ export interface BCFNpcAttackAction {
   attackType: string;
   /** Target actor's ID. */
   targetActorId?: string;
-  /** Display overrides. */
+  /** Display hints for fallback rendering. */
   display?: BCFNpcAttackDisplay;
 }
 
@@ -187,7 +173,7 @@ export type BCFUnknownAction = {
 } & Record<string, unknown>;
 
 /**
- * Display override for player attacks.
+ * Display hints for player attacks.
  */
 export interface BCFAttackDisplay {
   /** URL or path to icon image. */
@@ -199,7 +185,7 @@ export interface BCFAttackDisplay {
 }
 
 /**
- * Display override for spells.
+ * Display hints for spells.
  */
 export interface BCFSpellDisplay {
   /** URL or path to spell icon. */
@@ -209,7 +195,7 @@ export interface BCFSpellDisplay {
 }
 
 /**
- * Display override for NPC attacks.
+ * Display hints for NPC attacks.
  */
 export interface BCFNpcAttackDisplay {
   /** URL or path to attack icon. */

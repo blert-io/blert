@@ -41,6 +41,7 @@ data should use a supplementary context mechanism outside the BCF specification.
 | Cell         | The intersection of an actor and a tick in the timeline grid |
 | Action       | Something an actor does on a tick (attack, spell, death)     |
 | Augmentation | Optional display hints that enhance rendering                |
+| Renderer     | A program that displays a BCF document as a visual chart     |
 
 ## 2. Document Structure
 
@@ -84,25 +85,19 @@ The `config` object defines timeline parameters:
     "totalTicks": 80,
     "startTick": 1,
     "endTick": 79,
-    "rowOrder": ["verzik", "p1", "p2", "p3"],
-    "definitions": {
-      "attacks": "https://raw.githubusercontent.com/blert-io/protos/8b8d8981baa02a6bfb8fb7fb2e727d65ff7b8e1f/attack_definitions.json",
-      "spells": "https://raw.githubusercontent.com/blert-io/protos/8b8d8981baa02a6bfb8fb7fb2e727d65ff7b8e1f/spell_definitions.json",
-      "npcAttacks": "https://raw.githubusercontent.com/blert-io/protos/8b8d8981baa02a6bfb8fb7fb2e727d65ff7b8e1f/event.proto"
-    }
+    "rowOrder": ["verzik", "p1", "p2", "p3"]
   }
 }
 ```
 
 ### 3.1 Fields
 
-| Field         | Type     | Required | Default          | Description                                                                            |
-| ------------- | -------- | -------- | ---------------- | -------------------------------------------------------------------------------------- |
-| `totalTicks`  | integer  | Yes      | -                | Total number of ticks in the timeline                                                  |
-| `startTick`   | integer  | No       | 0                | First display tick in the timeline                                                     |
-| `endTick`     | integer  | No       | `totalTicks - 1` | Last display tick in the timeline (inclusive)                                          |
-| `rowOrder`    | string[] | No       | -                | Ordered list of actor IDs defining row display order. Custom row IDs may also be used. |
-| `definitions` | object   | No       | -                | Pinned canonical definition sources (see §3.2)                                         |
+| Field        | Type     | Required | Default          | Description                                                                            |
+| ------------ | -------- | -------- | ---------------- | -------------------------------------------------------------------------------------- |
+| `totalTicks` | integer  | Yes      | -                | Total number of ticks in the timeline                                                  |
+| `startTick`  | integer  | No       | 0                | First display tick in the timeline                                                     |
+| `endTick`    | integer  | No       | `totalTicks - 1` | Last display tick in the timeline (inclusive)                                          |
+| `rowOrder`   | string[] | No       | -                | Ordered list of actor IDs defining row display order. Custom row IDs may also be used. |
 
 ### 3.2. Tick Range
 
@@ -111,7 +106,7 @@ beginning at tick 0 and ending at tick `totalTicks - 1`.
 
 In practice, it is sometimes useful to only display a subset of the timeline.
 For example, in many encounters, tick 0 is not meaningful to players and does
-not align with their mental model of the encounter, even it it does contain
+not align with their mental model of the encounter, even if it does contain
 relevant initial state information.
 
 To accommodate this, optional `startTick` and `endTick` fields can be used to
@@ -122,25 +117,7 @@ but should not be rendered.
 If `startTick` and `endTick` are omitted, the display range defaults to the
 entire timeline.
 
-### 3.3 Definitions
-
-The `definitions` object pins specific versions of canonical definition files.
-When provided, renderers should use these versions to resolve attack types,
-spell types, and NPC attack types. This ensures compatibility if the canonical
-definitions change over time.
-
-| Field        | Type   | Description                                 |
-| ------------ | ------ | ------------------------------------------- |
-| `attacks`    | string | URL to `attack_definitions.json`            |
-| `spells`     | string | URL to `spell_definitions.json`             |
-| `npcAttacks` | string | URL to `event.proto` (for `NpcAttack` enum) |
-
-URIs must be full URLs to a valid JSON or proto file.
-
-When `definitions` is omitted, renderers may use their bundled definitions or
-fetch the latest versions from the canonical sources.
-
-### 3.4 Row Order
+### 3.3 Row Order
 
 When `rowOrder` is provided, it defines the set and order of rows that should be
 displayed. Rows not listed in `rowOrder` may still exist in the document but are
@@ -152,7 +129,7 @@ rows in a default order (typically NPCs, custom rows, players).
 - Actors/rows not listed in `rowOrder` are omitted from rendering.
 - `rowOrder` cannot be empty if present.
 
-### 3.5 Validation
+### 3.4 Validation
 
 - `totalTicks` must be a positive integer.
 - `startTick` must be a non-negative integer less than `totalTicks`, and less
@@ -348,19 +325,18 @@ BCF defines four action types:
 | `targetActorId`    | string  | No       | Target actor's ID                                  |
 | `distanceToTarget` | integer | No       | Tiles away from target                             |
 | `specCost`         | integer | No       | Spec energy cost (presence implies special attack) |
-| `display`          | object  | No       | Display overrides (see §5.7)                       |
+| `display`          | object  | No       | Display hints (see §5.7)                           |
 
 #### 5.2.1 Field Derivation
 
-Many optional fields can be derived by the renderer from canonical sources when
+Some optional fields can be derived by the renderer from its metadata when
 omitted. This allows BCF documents to be concise while still supporting explicit
 values when needed.
 
-| Field        | Derivation                                         |
-| ------------ | -------------------------------------------------- |
-| `weaponName` | Looked up from OSRS item database using `weaponId` |
-| `specCost`   | Looked up from canonical attack definitions        |
-| `display`    | Resolved from canonical attack definitions         |
+| Field        | Example derivation                                    |
+| ------------ | ----------------------------------------------------- |
+| `weaponName` | Looked up from OSRS item database using `weaponId`    |
+| `specCost`   | Looked up in renderer metadata for known attack types |
 
 **Resolution order**: Explicit field values take precedence over derived values.
 If both `weaponName` and `weaponId` are provided, the renderer should use the
@@ -368,9 +344,10 @@ provided `weaponName`. If only `weaponId` is provided, the renderer may look up
 the name.
 
 **Special attacks**: The presence of `specCost` indicates a special attack.
-For standard attack types ending in `_SPEC`, the cost can be derived from
-canonical definitions and the field may be omitted. For custom/unknown special
-attacks, `specCost` should be provided explicitly.
+For known attack types, renderers may derive the cost from their metadata.
+If a custom attack type ends in `_SPEC`, renderers may assume that it is a
+special attack. Authors should provide `specCost` in these cases; if omitted,
+renderers should treat the cost as unknown.
 
 ### 5.3 Player Spell Action
 
@@ -388,7 +365,7 @@ attacks, `specCost` should be provided explicitly.
 | `type`          | string | Yes      | Must be `"spell"`                 |
 | `spellType`     | string | Yes      | Spell type identifier (see §5.6)  |
 | `targetActorId` | string | No       | Target actor's ID (if applicable) |
-| `display`       | object | No       | Display overrides (see §5.7)      |
+| `display`       | object | No       | Display hints (see §5.7)          |
 
 ### 5.4 Death Action
 
@@ -421,35 +398,59 @@ Death indicates the player died on this tick. A death action implies
 | `type`          | string | Yes      | Must be `"npcAttack"`                 |
 | `attackType`    | string | Yes      | NPC attack type identifier (see §5.6) |
 | `targetActorId` | string | No       | Target actor's ID                     |
-| `display`       | object | No       | Display overrides (see §5.7)          |
+| `display`       | object | No       | Display hints (see §5.7)              |
 
-### 5.6 Attack Type Identifiers
+### 5.6 Action Type Identifiers
 
-Attack type identifiers use string names that correspond to canonical attack
-definitions. The Blert project maintains public definition files that renderers
-can import to resolve attack types to display metadata.
+Action type identifiers use string names that correspond to canonical identifier
+lists maintained by Blert.
 
 #### 5.6.1 Canonical Sources
 
-| Action Type    | Canonical Source                                                                                                       | Key Field |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------- | --------- |
-| Player attacks | [`attack_definitions.json`](https://raw.githubusercontent.com/blert-io/protos/refs/heads/main/attack_definitions.json) | `name`    |
-| Player spells  | [`spell_definitions.json`](https://raw.githubusercontent.com/blert-io/protos/refs/heads/main/spell_definitions.json)   | `name`    |
-| NPC attacks    | [`event.proto`](https://raw.githubusercontent.com/blert-io/protos/refs/heads/main/event.proto) (`NpcAttack` enum)      | enum name |
+The canonical lists of action types defined by the Blert project exist as enums
+in [`event.proto`](https://raw.githubusercontent.com/blert-io/protos/refs/heads/main/event.proto).
+The names of the fields in these enums are valid action type identifiers that
+renderers should aim to support.
 
-BCF documents may pin specific versions of these files via `config.definitions`
-(see §3.2) to ensure compatibility as definitions evolve.
+The proto identifiers are provided as a reference for BCF renderer implementers.
+It is not necessary to fetch and parse the proto file itself.
 
-Examples of valid identifiers:
+| Action Type    | Enum name      | Examples                                                      |
+| -------------- | -------------- | ------------------------------------------------------------- |
+| Player attacks | `PlayerAttack` | `SCYTHE`, `SANG`, `DAWN_SPEC`                                 |
+| Player spells  | `PlayerSpell`  | `VENGEANCE`, `DEATH_CHARGE`, `VENGEANCE_OTHER`                |
+| NPC attacks    | `NpcAttack`    | `TOB_VERZIK_P2_BOUNCE`, `TOB_MAIDEN_AUTO`, `INFERNO_JAD_MAGE` |
 
-- **Player attacks**: `"SCYTHE"`, `"SANG"`, `"DAWN_SPEC"`, `"CLAW_SPEC"`
-- **Player spells**: `"VENGEANCE"`, `"DEATH_CHARGE"`, `"VENGEANCE_OTHER"`
-- **NPC attacks**: `"TOB_VERZIK_P2_BOUNCE"`, `"TOB_MAIDEN_AUTO"`, `"INFERNO_JAD_MAGE"`
+#### 5.6.2 Custom Action Types
 
-#### 5.6.2 Unknown/Custom Types
+BCF authors may choose to anticipate a future canonical type addition by setting
+a custom name following the naming convention of the canonical sources.
+Renderers that recognize the name will use their native display, while renderers
+that do not can fall back to display hints.
 
-For actions not in the canonical sources, use `"UNKNOWN"` with a `display`
-override to provide rendering metadata. This applies to all action types:
+For example, `DEMONBANE_CUTLASS` and `DEMONBANE_CUTLASS_SPEC` could be set on an
+`attack` to anticipate the addition of a hypothetical "Demonbane Cutlass"
+weapon.
+
+When naming a custom action type, the following rules should be followed:
+
+- Type names must be `UPPER_SNAKE_CASE`.
+- The name `UNKNOWN` is reserved for unknown action types.
+- The prefix `UNKNOWN_` is reserved for unknown action types.
+- The suffix `_SPEC` for attack actions must only be used for special attacks.
+  Specifying `specCost` for a custom `_SPEC` attack is recommended.
+
+When specifying a custom action type, BCF authors should include a `display`
+hint to provide fallback rendering information.
+
+### 5.6.3 Unknown Action Types
+
+An action type of `UNKNOWN` or prefixed with `UNKNOWN_` indicates that the
+action must be treated as unrecognized (i.e., never matched against renderer
+metadata). It is recommended to provide a `display` hint to provide fallback
+rendering; otherwise, the action will render as a generic unknown action.
+
+### 5.6.4 Examples
 
 ```json
 {
@@ -485,12 +486,12 @@ override to provide rendering metadata. This applies to all action types:
 }
 ```
 
-### 5.7 Display Overrides
+### 5.7 Display Hints
 
-The `display` object allows BCF documents to override default rendering for
-custom or unknown action types:
+The `display` object allows BCF documents to provide fallback rendering for
+custom or unknown action types.
 
-#### 5.7.1 Attack Display Override
+#### 5.7.1 Attack Display Hint
 
 ```json
 {
@@ -508,7 +509,7 @@ custom or unknown action types:
 | `letter`  | string | Short text for compact display mode               |
 | `style`   | string | Combat style: `"melee"`, `"ranged"`, or `"magic"` |
 
-#### 5.7.2 Spell Display Override
+#### 5.7.2 Spell Display Hint
 
 ```json
 {
@@ -524,7 +525,7 @@ custom or unknown action types:
 | `iconUrl` | string | URL or path to spell icon |
 | `name`    | string | Spell name for tooltips   |
 
-#### 5.7.3 NPC Attack Display Override
+#### 5.7.3 NPC Attack Display Hint
 
 ```json
 {
@@ -805,13 +806,14 @@ BCF represents a grid where:
 - **Rows** are actors, ordered by `config.rowOrder` if provided, otherwise using
   a default order (typically: NPCs, custom rows, players)
 
-### 8.2 Attack Type Resolution
+### 8.2 Action Type Resolution
 
 Renderers should resolve action types as follows:
 
-1. If the action has a `display` override, use those values.
-2. Otherwise, look up the action type in the renderer's metadata.
-3. If not found, fall back to unknown/default rendering.
+1. Look up the action type in the renderer's metadata. If found, use the
+   renderer's custom display for the action.
+2. If not found, attempt to use provided `display` hints.
+3. If no `display` hints exist, fall back to default "unknown" rendering.
 
 ### 8.3 Empty Cells
 
