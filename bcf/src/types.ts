@@ -270,6 +270,17 @@ export interface BCFSplit {
   isImportant?: boolean;
 }
 
+export type BCFColor =
+  | 'red'
+  | 'orange'
+  | 'yellow'
+  | 'green'
+  | 'cyan'
+  | 'blue'
+  | 'purple'
+  | 'gray';
+export type BCFColorIntensity = 'low' | 'medium' | 'high';
+
 /**
  * A background color highlight for a tick range.
  */
@@ -278,8 +289,10 @@ export interface BCFBackgroundColor {
   tick: number;
   /** Number of ticks to color. Defaults to 1. */
   length?: number;
-  /** Hex color (#RRGGBB or #RRGGBBAA). */
-  color: string;
+  /** Color token. */
+  color: BCFColor;
+  /** Color intensity. */
+  intensity?: BCFColorIntensity;
   /** Actor/custom row IDs to color. If omitted, applies to all rows. */
   rowIds?: string[];
 }

@@ -473,7 +473,25 @@
         },
         "color": {
           "type": "string",
-          "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+          "enum": [
+            "red",
+            "orange",
+            "yellow",
+            "green",
+            "cyan",
+            "blue",
+            "purple",
+            "gray"
+          ]
+        },
+        "intensity": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "default": "medium"
         },
         "rowIds": {
           "type": "array",

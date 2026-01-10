@@ -592,6 +592,19 @@
         ]
       },
       {
+        "tick": 48,
+        "cells": [
+          {
+            "actorId": "p2",
+            "state": { "offCooldown": true }
+          },
+          {
+            "actorId": "p3",
+            "state": { "offCooldown": true }
+          }
+        ]
+      },
+      {
         "tick": 49,
         "cells": [
           {
@@ -763,10 +776,10 @@
   },
   "augmentation": {
     "backgroundColors": [
-      { "tick": 19, "color": "#391717" },
-      { "tick": 33, "color": "#391717" },
-      { "tick": 47, "color": "#391717" },
-      { "tick": 61, "color": "#391717" }
+      { "tick": 19, "color": "red", "intensity": "high" },
+      { "tick": 33, "color": "red", "intensity": "high" },
+      { "tick": 47, "color": "red", "intensity": "high" },
+      { "tick": 61, "color": "red", "intensity": "high" }
     ]
   }
 }

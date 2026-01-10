@@ -781,7 +781,7 @@ describe('BCF Validator', () => {
         const doc = {
           ...minimalValidBCF,
           augmentation: {
-            backgroundColors: [{ tick: 1, color: '#ff0000', rowIds: ['p1'] }],
+            backgroundColors: [{ tick: 1, color: 'red', rowIds: ['p1'] }],
           },
         };
         const result = validate(doc);
@@ -794,7 +794,7 @@ describe('BCF Validator', () => {
           augmentation: {
             customRows: [{ id: 'orbs', name: 'Orbs', cells: [] }],
             backgroundColors: [
-              { tick: 1, color: '#ff0000', rowIds: ['p1', 'orbs'] },
+              { tick: 1, color: 'red', rowIds: ['p1', 'orbs'] },
             ],
           },
         };
@@ -807,7 +807,7 @@ describe('BCF Validator', () => {
           ...minimalValidBCF,
           augmentation: {
             backgroundColors: [
-              { tick: 1, color: '#ff0000', rowIds: ['nonexistent'] },
+              { tick: 1, color: 'red', rowIds: ['nonexistent'] },
             ],
           },
         };
@@ -826,7 +826,7 @@ describe('BCF Validator', () => {
           ...minimalValidBCF,
           augmentation: {
             backgroundColors: [
-              { tick: 1, color: '#ff0000', rowIds: ['p1', 'invalid'] },
+              { tick: 1, color: 'red', rowIds: ['p1', 'invalid'] },
             ],
           },
         };
