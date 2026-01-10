@@ -443,14 +443,14 @@ When naming a custom action type, the following rules should be followed:
 When specifying a custom action type, BCF authors should include a `display`
 hint to provide fallback rendering information.
 
-### 5.6.3 Unknown Action Types
+#### 5.6.3 Unknown Action Types
 
 An action type of `UNKNOWN` or prefixed with `UNKNOWN_` indicates that the
 action must be treated as unrecognized (i.e., never matched against renderer
 metadata). It is recommended to provide a `display` hint to provide fallback
 rendering; otherwise, the action will render as a generic unknown action.
 
-### 5.6.4 Examples
+#### 5.6.4 Examples
 
 ```json
 {
@@ -699,24 +699,56 @@ Background colors highlight tick ranges to draw attention to significant events:
     {
       "tick": 8,
       "length": 1,
-      "color": "#391717"
+      "color": "cyan"
     },
     {
       "tick": 20,
       "length": 5,
-      "color": "#39171780",
+      "color": "red",
+      "intensity": "high",
       "rowIds": ["p1", "p2"]
     }
   ]
 }
 ```
 
-| Field    | Type     | Required | Default | Description                                          |
-| -------- | -------- | -------- | ------- | ---------------------------------------------------- |
-| `tick`   | integer  | Yes      | -       | Starting tick                                        |
-| `length` | integer  | No       | 1       | Number of ticks to color                             |
-| `color`  | string   | Yes      | -       | Hex color (`#RRGGBB` or `#RRGGBBAA` with alpha)      |
-| `rowIds` | string[] | No       | -       | Actor/custom row IDs to color. If omitted, all rows. |
+| Field       | Type     | Required | Default  | Description                                                          |
+| ----------- | -------- | -------- | -------- | -------------------------------------------------------------------- |
+| `tick`      | integer  | Yes      | -        | Starting tick                                                        |
+| `length`    | integer  | No       | 1        | Number of ticks to color                                             |
+| `color`     | string   | Yes      | -        | `red`, `orange`, `yellow`, `green`, `cyan`, `blue`, `purple`, `gray` |
+| `intensity` | string   | No       | `medium` | `low`, `medium`, `high`                                              |
+| `rowIds`    | string[] | No       | -        | Actor/custom row IDs to color. If omitted, all rows.                 |
+
+#### 7.2.1 Supported Colors
+
+Instead of prescriptive hex color codes, BCF defines a small set of named color
+tokens. Renderers must map each token to a theme-appropriate color value. The
+exact mapping is left to the renderer to allow for visual consistency with its
+theme.
+
+#### 7.2.2 Color Intensity
+
+The `intensity` field hints at how visually prominent the background should be.
+Renderers commonly implement intensity via opacity, but may also adjust
+saturation/brightness as needed.
+
+Renderers should preserve relative ordering: `high` is more prominent than
+`medium`, which is more prominent than `low`.
+
+#### 7.2.3 Precedence
+
+When multiple background colors are defined for the same tick and row, the last
+one defined takes precedence.
+
+#### 7.2.4 Validation
+
+- `tick` must be in the range `[0, totalTicks - 1]`.
+- `length` must be a positive integer.
+- `tick + length` must be in the range `[1, totalTicks]`.
+- `rowIds` must not be empty if provided.
+- All entries in `rowIds` must be unique and reference valid actor IDs or custom
+  row IDs.
 
 ### 7.3 Custom Rows
 
@@ -972,7 +1004,7 @@ the BCF specification and is implementation-specific.
   },
   "augmentation": {
     "splits": [{ "tick": 24, "name": "P1 End" }],
-    "backgroundColors": [{ "tick": 19, "color": "#391717" }]
+    "backgroundColors": [{ "tick": 19, "color": "red", "intensity": "high" }]
   }
 }
 ```
