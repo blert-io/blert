@@ -60,8 +60,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build common (dependency)
-        run: npm run -w common build
+      - name: Build local dependencies
+        run: |
+          npm run -w bcf build
+          npm run -w common build
 
       - name: Run database migrations
         run: npm run -w common migration:run
