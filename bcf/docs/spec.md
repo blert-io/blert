@@ -911,16 +911,16 @@ This repository provides canonical, complete example BCF documents under
 `examples/`. These files are validated and are intended to serve as conformance
 fixtures for implementers.
 
-| File                                                                                | Description                                                                                                                                        |
-| ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`examples/config-options.bcf.json`](../examples/config-options.bcf.json)           | Demonstrates `startTick`/`endTick` display range and `rowOrder` actor reordering and exclusion.                                                    |
-| [`examples/multiple-actions.bcf.json`](../examples/multiple-actions.bcf.json)       | All 7 non-empty combinations of player cell actions (attack, spell, death).                                                                        |
-| [`examples/state-tracking.bcf.json`](../examples/state-tracking.bcf.json)           | Demonstrates state merging and persistence, non-persistent state fields, including sparse ticks and explicit `isDead` override.                    |
-| [`examples/background-colors.bcf.json`](../examples/background-colors.bcf.json)     | All combinations of background colors and intensities, with alternating on and off cooldown ticks.                                                 |
-| [`examples/splits.bcf.json`](../examples/splits.bcf.json)                           | Demonstrates split markers to annotate phase transitions.                                                                                          |
-| [`examples/custom-row.bcf.json`](../examples/custom-row.bcf.json)                   | Demonstrates custom row cells with icon-only, label-only, and icon+label, including opacity.                                                       |
-| [`examples/custom-action-types.bcf.json`](../examples/custom-action-types.bcf.json) | Demonstrates canonical, custom, and unknown action identifiers across player attacks, player spells, and NPC attacks, with display hint fallbacks. |
-| [`examples/113-p1.bcf.json`](../examples/113-p1.bcf.json)                           | A complete example of a Verzik P1 chart.                                                                                                           |
+| File                                                                       | Description                                                                                                                                        |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`config-options.bcf.json`](../examples/config-options.bcf.json)           | Demonstrates `startTick`/`endTick` display range and `rowOrder` actor reordering and exclusion.                                                    |
+| [`multiple-actions.bcf.json`](../examples/multiple-actions.bcf.json)       | All 7 non-empty combinations of player cell actions (attack, spell, death).                                                                        |
+| [`state-tracking.bcf.json`](../examples/state-tracking.bcf.json)           | Demonstrates state merging and persistence, non-persistent state fields, including sparse ticks and explicit `isDead` override.                    |
+| [`background-colors.bcf.json`](../examples/background-colors.bcf.json)     | All combinations of background colors and intensities, with alternating on and off cooldown ticks.                                                 |
+| [`splits.bcf.json`](../examples/splits.bcf.json)                           | Demonstrates split markers to annotate phase transitions.                                                                                          |
+| [`custom-row.bcf.json`](../examples/custom-row.bcf.json)                   | Demonstrates custom row cells with icon-only, label-only, and icon+label, including opacity.                                                       |
+| [`custom-action-types.bcf.json`](../examples/custom-action-types.bcf.json) | Demonstrates canonical, custom, and unknown action identifiers across player attacks, player spells, and NPC attacks, with display hint fallbacks. |
+| [`113-p1.bcf.json`](../examples/113-p1.bcf.json)                           | A complete example of a Verzik P1 chart.                                                                                                           |
 
 ## 10. Versioning
 
