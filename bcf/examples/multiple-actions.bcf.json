@@ -1,0 +1,130 @@
+{
+  "version": "1.0",
+  "name": "Multi-action cell combinations",
+  "config": {
+    "totalTicks": 7,
+    "rowOrder": [
+      "boss",
+      "atk",
+      "spl",
+      "dth",
+      "atk_spl",
+      "atk_dth",
+      "spl_dth",
+      "atk_spl_dth"
+    ]
+  },
+  "timeline": {
+    "actors": [
+      { "type": "npc", "id": "boss", "npcId": 99999, "name": "Boss" },
+
+      { "type": "player", "id": "atk", "name": "Atk" },
+      { "type": "player", "id": "spl", "name": "Spl" },
+      { "type": "player", "id": "dth", "name": "Death" },
+      { "type": "player", "id": "atk_spl", "name": "AtkSpl" },
+      { "type": "player", "id": "atk_dth", "name": "AtkDeath" },
+      { "type": "player", "id": "spl_dth", "name": "SplDeath" },
+      { "type": "player", "id": "atk_spl_dth", "name": "AtkSplDeath" }
+    ],
+    "ticks": [
+      {
+        "tick": 0,
+        "cells": [
+          {
+            "actorId": "atk",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "boss"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 1,
+        "cells": [
+          {
+            "actorId": "spl",
+            "actions": [{ "type": "spell", "spellType": "VENGEANCE" }]
+          }
+        ]
+      },
+      {
+        "tick": 2,
+        "cells": [
+          {
+            "actorId": "dth",
+            "actions": [{ "type": "death" }]
+          }
+        ]
+      },
+      {
+        "tick": 3,
+        "cells": [
+          {
+            "actorId": "atk_spl",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "boss"
+              },
+              { "type": "spell", "spellType": "VENGEANCE" }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 4,
+        "cells": [
+          {
+            "actorId": "atk_dth",
+            "actions": [
+              { "type": "death" },
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "boss"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 5,
+        "cells": [
+          {
+            "actorId": "spl_dth",
+            "actions": [
+              { "type": "spell", "spellType": "VENGEANCE" },
+              { "type": "death" }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 6,
+        "cells": [
+          {
+            "actorId": "atk_spl_dth",
+            "actions": [
+              { "type": "spell", "spellType": "VENGEANCE" },
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "boss"
+              },
+              { "type": "death" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

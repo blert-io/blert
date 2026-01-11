@@ -606,6 +606,92 @@ describe('BCF Validator', () => {
         const result = validate(doc);
         expect(result.valid).toBe(true);
       });
+
+      it('should allow specCost on _SPEC attacks', () => {
+        const doc = {
+          ...minimalValidBCF,
+          timeline: {
+            actors: [{ type: 'player' as const, id: 'p1', name: 'Player 1' }],
+            ticks: [
+              {
+                tick: 1,
+                cells: [
+                  {
+                    actorId: 'p1',
+                    actions: [
+                      {
+                        type: 'attack' as const,
+                        attackType: 'DAWN_SPEC',
+                        specCost: 35,
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        };
+        const result = validate(doc);
+        expect(result.valid).toBe(true);
+      });
+
+      it('should reject specCost on non-_SPEC attacks', () => {
+        const doc = {
+          ...minimalValidBCF,
+          timeline: {
+            actors: [{ type: 'player' as const, id: 'p1', name: 'Player 1' }],
+            ticks: [
+              {
+                tick: 1,
+                cells: [
+                  {
+                    actorId: 'p1',
+                    actions: [
+                      {
+                        type: 'attack' as const,
+                        attackType: 'SCYTHE',
+                        specCost: 50,
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        };
+        const result = validate(doc);
+        expect(result.valid).toBe(false);
+        if (!result.valid) {
+          expect(result.errors[0].path).toBe(
+            '/timeline/ticks/0/cells/0/actions/0/specCost',
+          );
+          expect(result.errors[0].message).toContain('_SPEC');
+        }
+      });
+
+      it('should allow _SPEC attacks without specCost', () => {
+        const doc = {
+          ...minimalValidBCF,
+          timeline: {
+            actors: [{ type: 'player' as const, id: 'p1', name: 'Player 1' }],
+            ticks: [
+              {
+                tick: 1,
+                cells: [
+                  {
+                    actorId: 'p1',
+                    actions: [
+                      { type: 'attack' as const, attackType: 'DAWN_SPEC' },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        };
+        const result = validate(doc);
+        expect(result.valid).toBe(true);
+      });
     });
 
     describe('custom row validation', () => {

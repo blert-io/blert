@@ -448,10 +448,6 @@
         "name": {
           "type": "string",
           "minLength": 1
-        },
-        "isImportant": {
-          "type": "boolean",
-          "default": true
         }
       }
     },

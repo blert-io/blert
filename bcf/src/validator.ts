@@ -498,6 +498,21 @@ class SemanticValidator {
       }
       actionTypes.add(action.type);
 
+      // Validate that `specCost` is only set for `_SPEC` attacks.
+      if (action.type === 'attack') {
+        const attackType =
+          'attackType' in action && typeof action.attackType === 'string'
+            ? action.attackType
+            : '';
+        const specCost = action.specCost;
+        if (specCost !== undefined && !attackType.endsWith('_SPEC')) {
+          this.error(
+            `${path}/specCost`,
+            `specCost can only be set for attacks with attackType ending in "_SPEC"`,
+          );
+        }
+      }
+
       const targetActorId = getTargetActorId(action);
       if (targetActorId !== undefined && !this.actors.has(targetActorId)) {
         this.error(
