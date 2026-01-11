@@ -5,5 +5,6 @@
  * documents. See docs/spec.md for the full specification.
  */
 
+export * from './resolver';
 export * from './types';
 export * from './validator';
