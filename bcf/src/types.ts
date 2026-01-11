@@ -126,7 +126,7 @@ export interface BCFAttackAction {
   targetActorId?: string;
   /** Tiles away from target. */
   distanceToTarget?: number;
-  /** Spec energy cost. Presence implies that this is a special attack. */
+  /** Spec energy cost for special attacks. */
   specCost?: number;
   /** Display hints for fallback rendering. */
   display?: BCFAttackDisplay;
@@ -266,8 +266,6 @@ export interface BCFSplit {
   tick: number;
   /** Split label. */
   name: string;
-  /** Whether to emphasize this split visually. Defaults to true. */
-  isImportant?: boolean;
 }
 
 export type BCFColor =

@@ -316,16 +316,16 @@ BCF defines four action types:
 }
 ```
 
-| Field              | Type    | Required | Description                                        |
-| ------------------ | ------- | -------- | -------------------------------------------------- |
-| `type`             | string  | Yes      | Must be `"attack"`                                 |
-| `attackType`       | string  | Yes      | Attack type identifier (see §5.6)                  |
-| `weaponId`         | integer | No       | OSRS item ID of the weapon                         |
-| `weaponName`       | string  | No       | Weapon name for display                            |
-| `targetActorId`    | string  | No       | Target actor's ID                                  |
-| `distanceToTarget` | integer | No       | Tiles away from target                             |
-| `specCost`         | integer | No       | Spec energy cost (presence implies special attack) |
-| `display`          | object  | No       | Display hints (see §5.7)                           |
+| Field              | Type    | Required | Description                                              |
+| ------------------ | ------- | -------- | -------------------------------------------------------- |
+| `type`             | string  | Yes      | Must be `"attack"`                                       |
+| `attackType`       | string  | Yes      | Attack type identifier (see §5.6)                        |
+| `weaponId`         | integer | No       | OSRS item ID of the weapon                               |
+| `weaponName`       | string  | No       | Weapon name for display                                  |
+| `targetActorId`    | string  | No       | ID of the attack's primary target                        |
+| `distanceToTarget` | integer | No       | Chebyshev distance between the attacker and target       |
+| `specCost`         | integer | No       | Spec energy cost, 0-100 (only valid for `_SPEC` attacks) |
+| `display`          | object  | No       | Display hints (see §5.7)                                 |
 
 #### 5.2.1 Field Derivation
 
@@ -343,11 +343,14 @@ If both `weaponName` and `weaponId` are provided, the renderer should use the
 provided `weaponName`. If only `weaponId` is provided, the renderer may look up
 the name.
 
-**Special attacks**: The presence of `specCost` indicates a special attack.
-For known attack types, renderers may derive the cost from their metadata.
-If a custom attack type ends in `_SPEC`, renderers may assume that it is a
-special attack. Authors should provide `specCost` in these cases; if omitted,
-renderers should treat the cost as unknown.
+#### 5.2.2 Special Attacks
+
+All attack type identifiers that end in `_SPEC` are considered special attacks.
+Including `specCost` on a `_SPEC` attack is recommended. If omitted, renderers
+may derive the cost from their metadata; otherwise, they should treat the cost
+as unknown.
+
+If the attack type does not end in `_SPEC`, `specCost` must not be set.
 
 ### 5.3 Player Spell Action
 
@@ -436,7 +439,7 @@ When naming a custom action type, the following rules should be followed:
 
 - Type names must be `UPPER_SNAKE_CASE`.
 - The name `UNKNOWN` is reserved for unknown action types.
-- The prefix `UNKNOWN_` is reserved for unknown action types.
+- The prefix `UNKNOWN_` is reserved for categories of unknown action types.
 - The suffix `_SPEC` for attack actions must only be used for special attacks.
   Specifying `specCost` for a custom `_SPEC` attack is recommended.
 
@@ -445,10 +448,16 @@ hint to provide fallback rendering information.
 
 #### 5.6.3 Unknown Action Types
 
-An action type of `UNKNOWN` or prefixed with `UNKNOWN_` indicates that the
-action must be treated as unrecognized (i.e., never matched against renderer
-metadata). It is recommended to provide a `display` hint to provide fallback
-rendering; otherwise, the action will render as a generic unknown action.
+An action type of `UNKNOWN` indicates that the action must be treated as
+unrecognized (i.e., never matched against renderer metadata). It is recommended
+to provide a `display` hint to provide fallback rendering; otherwise, the action
+will render as a generic unknown action.
+
+The `UNKNOWN_` prefix is reserved for categories of unknown action types,
+several of which exist in the canonical sources. Unlike the generic `UNKNOWN`,
+renderers may have additional category-specific native display information and
+treat these identifiers as recognized. A `display` hint is still recommended,
+but may be ignored by the renderer.
 
 #### 5.6.4 Examples
 
@@ -629,6 +638,9 @@ explicitly specified in their first cell.
 
 Persistent state is computed over the entire `[0, totalTicks - 1]` domain.
 
+When a persistent state (e.g., `isDead`) is in effect, renderers should reflect
+it even on ticks where the actor's cell is omitted.
+
 #### 6.3.2 Non-Persistent Fields
 
 These fields apply only to the tick where they are specified:
@@ -671,23 +683,20 @@ Splits mark significant points in the timeline:
   "splits": [
     {
       "tick": 25,
-      "name": "70s",
-      "isImportant": true
+      "name": "70s"
     },
     {
       "tick": 50,
-      "name": "50s",
-      "isImportant": true
+      "name": "50s"
     }
   ]
 }
 ```
 
-| Field         | Type    | Required | Default | Description                              |
-| ------------- | ------- | -------- | ------- | ---------------------------------------- |
-| `tick`        | integer | Yes      | -       | Tick on which the split occurs           |
-| `name`        | string  | Yes      | -       | Split label                              |
-| `isImportant` | boolean | No       | true    | Whether to emphasize this split visually |
+| Field  | Type    | Required | Default | Description                    |
+| ------ | ------- | -------- | ------- | ------------------------------ |
+| `tick` | integer | Yes      | -       | Tick on which the split occurs |
+| `name` | string  | Yes      | -       | Split label                    |
 
 ### 7.2 Background Colors
 
@@ -816,12 +825,12 @@ the player was praying correctly:
 
 #### 7.3.4 Custom Row Cell
 
-| Field     | Type    | Required | Description                       |
-| --------- | ------- | -------- | --------------------------------- |
-| `tick`    | integer | Yes      | Tick number for this cell         |
-| `iconUrl` | string  | No       | Icon URL to display               |
-| `label`   | string  | No       | Short text label (1-3 characters) |
-| `opacity` | number  | No       | Opacity (0.0-1.0), default 1.0    |
+| Field     | Type    | Required | Default | Description                       |
+| --------- | ------- | -------- | ------- | --------------------------------- |
+| `tick`    | integer | Yes      | -       | Tick number for this cell         |
+| `iconUrl` | string  | No       | -       | Icon URL to display               |
+| `label`   | string  | No       | -       | Short text label (1-3 characters) |
+| `opacity` | number  | No       | 1.0     | Opacity (0.0-1.0)                 |
 
 At least one of `iconUrl` or `label` should be provided for the cell to render
 content.
@@ -870,6 +879,9 @@ the BCF specification and is implementation-specific.
 
 ### 9.1 Minimal Document
 
+This document shows a 3-tick encounter with a single action in the sparse tick
+array.
+
 ```json
 {
   "version": "1.0",
@@ -893,162 +905,22 @@ the BCF specification and is implementation-specific.
 }
 ```
 
-### 9.2 Verzik P1 Chart
+### 9.2 Example files
 
-```json
-{
-  "version": "1.0",
-  "name": "Trio Verzik P1",
-  "description": "Example P1 rotation for a trio",
-  "config": {
-    "totalTicks": 25,
-    "startTick": 1
-  },
-  "timeline": {
-    "actors": [
-      { "type": "npc", "id": "verzik", "npcId": 8370, "name": "Verzik" },
-      { "type": "player", "id": "p1", "name": "Player1" },
-      { "type": "player", "id": "p2", "name": "Player2" },
-      { "type": "player", "id": "p3", "name": "Player3" }
-    ],
-    "ticks": [
-      {
-        "tick": 0,
-        "cells": [
-          {
-            "actorId": "p1",
-            "state": { "offCooldown": true, "specEnergy": 100 }
-          },
-          {
-            "actorId": "p2",
-            "state": { "offCooldown": true, "specEnergy": 100 }
-          },
-          {
-            "actorId": "p3",
-            "state": { "offCooldown": true, "specEnergy": 100 }
-          }
-        ]
-      },
-      {
-        "tick": 1,
-        "cells": [
-          {
-            "actorId": "p1",
-            "actions": [
-              {
-                "type": "attack",
-                "attackType": "DAWN_SPEC",
-                "weaponId": 22516,
-                "targetActorId": "verzik",
-                "specCost": 35
-              }
-            ],
-            "state": { "offCooldown": true, "specEnergy": 65 }
-          },
-          {
-            "actorId": "p2",
-            "actions": [
-              {
-                "type": "attack",
-                "attackType": "SCYTHE",
-                "weaponId": 22325,
-                "targetActorId": "verzik"
-              }
-            ]
-          },
-          {
-            "actorId": "p3",
-            "actions": [
-              {
-                "type": "attack",
-                "attackType": "SCYTHE",
-                "weaponId": 22325,
-                "targetActorId": "verzik"
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "tick": 5,
-        "cells": [
-          {
-            "actorId": "p1",
-            "actions": [
-              {
-                "type": "attack",
-                "attackType": "SCYTHE",
-                "weaponId": 22325,
-                "targetActorId": "verzik"
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "tick": 19,
-        "cells": [
-          {
-            "actorId": "verzik",
-            "actions": [
-              {
-                "type": "npcAttack",
-                "attackType": "TOB_VERZIK_P1_AUTO",
-                "targetActorId": "p2"
-              }
-            ]
-          }
-        ]
-      }
-    ]
-  },
-  "augmentation": {
-    "splits": [{ "tick": 24, "name": "P1 End" }],
-    "backgroundColors": [{ "tick": 19, "color": "red", "intensity": "high" }]
-  }
-}
-```
+This repository provides canonical, complete example BCF documents under
+`examples/`. These files are validated and are intended to serve as conformance
+fixtures for implementers.
 
-### 9.3 Chart with Custom States
-
-```json
-{
-  "version": "1.0",
-  "config": { "totalTicks": 10 },
-  "timeline": {
-    "actors": [
-      { "type": "npc", "id": "verzik", "npcId": 8370, "name": "Verzik" },
-      { "type": "player", "id": "p1", "name": "Healer" }
-    ],
-    "ticks": [
-      {
-        "tick": 5,
-        "cells": [
-          {
-            "actorId": "p1",
-            "actions": [
-              {
-                "type": "attack",
-                "attackType": "SANG",
-                "weaponId": 22323
-              }
-            ],
-            "state": {
-              "customStates": [
-                {
-                  "label": "24",
-                  "fullText": "Healed Verzik for 24",
-                  "iconUrl": "/images/verzik-tornado.png"
-                }
-              ]
-            }
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+| File                                                                                | Description                                                                                                                                        |
+| ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`examples/config-options.bcf.json`](../examples/config-options.bcf.json)           | Demonstrates `startTick`/`endTick` display range and `rowOrder` actor reordering and exclusion.                                                    |
+| [`examples/multiple-actions.bcf.json`](../examples/multiple-actions.bcf.json)       | All 7 non-empty combinations of player cell actions (attack, spell, death).                                                                        |
+| [`examples/state-tracking.bcf.json`](../examples/state-tracking.bcf.json)           | Demonstrates state merging and persistence, non-persistent state fields, including sparse ticks and explicit `isDead` override.                    |
+| [`examples/background-colors.bcf.json`](../examples/background-colors.bcf.json)     | All combinations of background colors and intensities, with alternating on and off cooldown ticks.                                                 |
+| [`examples/splits.bcf.json`](../examples/splits.bcf.json)                           | Demonstrates split markers to annotate phase transitions.                                                                                          |
+| [`examples/custom-row.bcf.json`](../examples/custom-row.bcf.json)                   | Demonstrates custom row cells with icon-only, label-only, and icon+label, including opacity.                                                       |
+| [`examples/custom-action-types.bcf.json`](../examples/custom-action-types.bcf.json) | Demonstrates canonical, custom, and unknown action identifiers across player attacks, player spells, and NPC attacks, with display hint fallbacks. |
+| [`examples/113-p1.bcf.json`](../examples/113-p1.bcf.json)                           | A complete example of a Verzik P1 chart.                                                                                                           |
 
 ## 10. Versioning
 
@@ -1075,13 +947,13 @@ Renderers should:
 
 ## Appendix A: JSON Schema
 
-A formal JSON Schema for BCF validation is available in the `@blert/bcf`
-package: `bcf/schemas/bcf-1.0-strict.schema.json`
+A formal JSON Schema for BCF structural validation is available in the
+`@blert/bcf` package: `bcf/schemas/bcf-1.0-strict.schema.json`
 
 ## Appendix B: Reference Implementation
 
 The reference implementation for BCF parsing and validation is the `@blert/bcf`
 package, located at `/bcf` in the Blert monorepo.
 
-The reference renderer is the Blert web application's attack timeline component:
-`web/app/components/attack-timeline/`
+The reference renderer is the Blert web application's BCF renderer component:
+`web/app/components/attack-timeline/bcf-renderer.tsx`

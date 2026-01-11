@@ -1,0 +1,148 @@
+{
+  "version": "1.0",
+  "name": "Display range and row filtering",
+  "description": "Demonstrates startTick/endTick display range and rowOrder actor exclusion and reordering",
+  "config": {
+    "totalTicks": 12,
+    "startTick": 2,
+    "endTick": 9,
+    "rowOrder": ["p2", "boss", "p1"]
+  },
+  "timeline": {
+    "actors": [
+      { "type": "npc", "id": "boss", "npcId": 99999, "name": "Boss" },
+      { "type": "player", "id": "p1", "name": "SpecedBefore" },
+      { "type": "player", "id": "p2", "name": "DiedBefore" },
+      { "type": "player", "id": "p3", "name": "Excluded" }
+    ],
+    "ticks": [
+      {
+        "tick": 0,
+        "cells": [
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "CLAW_SPEC",
+                "weaponId": 13652,
+                "specCost": 50,
+                "targetActorId": "boss"
+              }
+            ],
+            "state": { "specEnergy": 50 }
+          },
+          {
+            "actorId": "p3",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "boss"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 1,
+        "cells": [
+          {
+            "actorId": "p2",
+            "actions": [{ "type": "death" }]
+          }
+        ]
+      },
+      {
+        "tick": 3,
+        "cells": [
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "boss"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 6,
+        "cells": [
+          {
+            "actorId": "boss",
+            "actions": [
+              {
+                "type": "npcAttack",
+                "attackType": "TOB_MAIDEN_AUTO",
+                "targetActorId": "p1"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 8,
+        "cells": [
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "boss"
+              }
+            ]
+          },
+          {
+            "actorId": "p3",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "boss"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 10,
+        "cells": [
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SANG",
+                "weaponId": 22323,
+                "targetActorId": "boss"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 11,
+        "cells": [
+          {
+            "actorId": "boss",
+            "actions": [
+              {
+                "type": "npcAttack",
+                "attackType": "TOB_MAIDEN_AUTO",
+                "targetActorId": "p1"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

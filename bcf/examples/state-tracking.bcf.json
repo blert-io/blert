@@ -1,0 +1,202 @@
+{
+  "version": "1.0",
+  "name": "State tracking and persistence",
+  "description": "Demonstrates specEnergy, offCooldown, isDead persistence, customStates, and NPC labels",
+  "config": {
+    "totalTicks": 11,
+    "rowOrder": ["boss", "p1", "p2"]
+  },
+  "timeline": {
+    "actors": [
+      { "type": "npc", "id": "boss", "npcId": 99999, "name": "Boss" },
+      { "type": "player", "id": "p1", "name": "Specer" },
+      { "type": "player", "id": "p2", "name": "Victim" }
+    ],
+    "ticks": [
+      {
+        "tick": 0,
+        "cells": [
+          {
+            "actorId": "boss",
+            "state": { "label": "3" }
+          },
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "CLAW_SPEC",
+                "weaponId": 13652,
+                "specCost": 50,
+                "targetActorId": "boss"
+              }
+            ],
+            "state": { "specEnergy": 50 }
+          },
+          {
+            "actorId": "p2",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "boss"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 1,
+        "cells": [
+          {
+            "actorId": "boss",
+            "state": { "label": "2" }
+          },
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "CLAW_SPEC",
+                "weaponId": 13652,
+                "specCost": 50,
+                "targetActorId": "boss"
+              }
+            ],
+            "state": { "specEnergy": 0 }
+          }
+        ]
+      },
+      {
+        "tick": 2,
+        "cells": [
+          {
+            "actorId": "boss",
+            "state": { "label": "1" }
+          },
+          {
+            "actorId": "p1",
+            "state": { "offCooldown": true }
+          },
+          {
+            "actorId": "p2",
+            "state": { "offCooldown": true }
+          }
+        ]
+      },
+      {
+        "tick": 3,
+        "cells": [
+          {
+            "actorId": "boss",
+            "actions": [
+              {
+                "type": "npcAttack",
+                "attackType": "TOB_BLOAT_STOMP",
+                "targetActorId": "p2"
+              }
+            ],
+            "state": {
+              "label": "SLAM"
+            }
+          },
+          {
+            "actorId": "p2",
+            "actions": [{ "type": "death" }],
+            "state": {
+              "customStates": [
+                { "label": "67", "fullText": "Hit for 67 damage" }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "tick": 4,
+        "cells": [
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "weaponId": 22325,
+                "targetActorId": "boss"
+              }
+            ],
+            "state": {
+              "customStates": [
+                {
+                  "iconUrl": "https://blert.io/images/spells/energy-transfer.png",
+                  "fullText": "Received spec transfer"
+                },
+                {
+                  "iconUrl": "https://blert.io/images/prayers/overhead-magic.png",
+                  "fullText": "Protected from magic"
+                }
+              ],
+              "specEnergy": 100
+            }
+          }
+        ]
+      },
+      {
+        "tick": 5,
+        "cells": [
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "CLAW_SPEC",
+                "weaponId": 13652,
+                "specCost": 50,
+                "targetActorId": "boss"
+              }
+            ],
+            "state": { "specEnergy": 50 }
+          }
+        ]
+      },
+      {
+        "tick": 7,
+        "cells": [
+          {
+            "actorId": "p1",
+            "state": { "offCooldown": true }
+          }
+        ]
+      },
+      {
+        "tick": 9,
+        "cells": [
+          {
+            "actorId": "p2",
+            "state": {
+              "isDead": false,
+              "customStates": [
+                {
+                  "label": "res",
+                  "iconUrl": "https://blert.io/images/skills/prayer.webp",
+                  "fullText": "Resurrected"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "tick": 10,
+        "cells": [
+          {
+            "actorId": "p2",
+            "state": {
+              "offCooldown": true
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
