@@ -751,6 +751,11 @@ export function parseAndValidate(
 export function parseAndValidate(
   json: string,
   options?: ValidateOptions,
+): ValidationResultLax | ValidationResultStrict;
+
+export function parseAndValidate(
+  json: string,
+  options?: ValidateOptions,
 ): ValidationResultStrict | ValidationResultLax {
   let data: unknown;
   try {

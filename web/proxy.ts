@@ -12,6 +12,14 @@ type RouteMatcher = {
 
 const RATE_LIMITS: RouteMatcher[] = [
   {
+    test: (path) => path.startsWith('/api/v1/bcf'),
+    config: {
+      limit: 15,
+      windowSec: 60,
+      keyPrefix: 'ratelimit:v1:bcf',
+    },
+  },
+  {
     test: (path) => path.startsWith('/api/admin/verify-link'),
     config: {
       limit: 5,
