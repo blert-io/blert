@@ -1,11 +1,21 @@
 import { grantApiAccess, verifyDiscordLink } from '@/actions/admin';
 import { sql } from '@/actions/db';
+import redis from '@/actions/redis';
+
+jest.mock('@/actions/redis');
+
+const mockedRedis = redis as jest.MockedFunction<typeof redis>;
 
 describe('admin actions', () => {
   let testUserId: number;
   let testUserId2: number;
 
   beforeEach(async () => {
+    // Mock Redis to return no limit configured.
+    mockedRedis.mockResolvedValue({
+      get: jest.fn().mockResolvedValue(null),
+    } as unknown as Awaited<ReturnType<typeof redis>>);
+
     const users = await sql<{ id: number }[]>`
       INSERT INTO users (username, password, email)
       VALUES
@@ -20,6 +30,7 @@ describe('admin actions', () => {
   afterEach(async () => {
     await sql`DELETE FROM account_linking_codes`;
     await sql`DELETE FROM users`;
+    mockedRedis.mockReset();
   });
 
   afterAll(async () => {
@@ -188,6 +199,120 @@ describe('admin actions', () => {
     });
 
     it('should be idempotent when granting access twice', async () => {
+      await sql`
+        UPDATE users
+        SET discord_id = '123456789012345678',
+            discord_username = 'testuser#1234',
+            can_create_api_key = true
+        WHERE id = ${testUserId}
+      `;
+
+      const result = await grantApiAccess('123456789012345678');
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.user.canCreateApiKey).toBe(true);
+      }
+    });
+
+    it('should return limit_reached when at capacity', async () => {
+      mockedRedis.mockResolvedValue({
+        get: jest.fn().mockResolvedValue('1'),
+      } as unknown as Awaited<ReturnType<typeof redis>>);
+
+      // Create a user who already has API access to fill the limit.
+      await sql`
+        INSERT INTO users (username, password, email, can_create_api_key)
+        VALUES ('existing-user', 'hashed-password', 'existing@example.com', true)
+      `;
+
+      await sql`
+        UPDATE users
+        SET discord_id = '123456789012345678', discord_username = 'testuser#1234'
+        WHERE id = ${testUserId}
+      `;
+
+      const result = await grantApiAccess('123456789012345678');
+
+      expect(result).toEqual({ success: false, error: 'limit_reached' });
+
+      // The user should have been granted access.
+      const users = await sql<{ can_create_api_key: boolean }[]>`
+        SELECT can_create_api_key
+        FROM users
+        WHERE id = ${testUserId}
+      `;
+      expect(users[0].can_create_api_key).toBe(false);
+    });
+
+    it('should return unavailable when Redis is down and no env fallback', async () => {
+      mockedRedis.mockRejectedValue(new Error('Redis connection failed'));
+
+      const originalEnv = process.env.BLERT_API_KEY_USER_LIMIT;
+      delete process.env.BLERT_API_KEY_USER_LIMIT;
+
+      await sql`
+        UPDATE users
+        SET discord_id = '123456789012345678', discord_username = 'testuser#1234'
+        WHERE id = ${testUserId}
+      `;
+
+      const result = await grantApiAccess('123456789012345678');
+
+      expect(result).toEqual({ success: false, error: 'unavailable' });
+
+      if (originalEnv !== undefined) {
+        process.env.BLERT_API_KEY_USER_LIMIT = originalEnv;
+      }
+    });
+
+    it('should use env var fallback when Redis is unavailable', async () => {
+      mockedRedis.mockRejectedValue(new Error('Redis connection failed'));
+
+      const originalEnv = process.env.BLERT_API_KEY_USER_LIMIT;
+      process.env.BLERT_API_KEY_USER_LIMIT = '100';
+
+      await sql`
+        UPDATE users
+        SET discord_id = '123456789012345678', discord_username = 'testuser#1234'
+        WHERE id = ${testUserId}
+      `;
+
+      const result = await grantApiAccess('123456789012345678');
+
+      expect(result.success).toBe(true);
+
+      if (originalEnv !== undefined) {
+        process.env.BLERT_API_KEY_USER_LIMIT = originalEnv;
+      } else {
+        delete process.env.BLERT_API_KEY_USER_LIMIT;
+      }
+    });
+
+    it('should allow granting access when under limit', async () => {
+      mockedRedis.mockResolvedValue({
+        get: jest.fn().mockResolvedValue('10'),
+      } as unknown as Awaited<ReturnType<typeof redis>>);
+
+      await sql`
+        UPDATE users
+        SET discord_id = '123456789012345678', discord_username = 'testuser#1234'
+        WHERE id = ${testUserId}
+      `;
+
+      const result = await grantApiAccess('123456789012345678');
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.user.canCreateApiKey).toBe(true);
+      }
+    });
+
+    it('should skip limit check for user who already has access', async () => {
+      mockedRedis.mockResolvedValue({
+        get: jest.fn().mockResolvedValue('0'), // Limit is 0.
+      } as unknown as Awaited<ReturnType<typeof redis>>);
+
       await sql`
         UPDATE users
         SET discord_id = '123456789012345678',
