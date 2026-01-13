@@ -97,10 +97,12 @@ export default async function Home() {
               Create Account <i className="fas fa-arrow-right" />
             </Link>
             <Link
-              href="/guides/blert/install"
+              href="https://runelite.net/plugin-hub/show/blert"
               className={styles.secondaryButton}
+              target="_blank"
+              rel="noreferrer noopener"
             >
-              Get Plugin <i className="fas fa-arrow-right" />
+              Get Plugin <i className="fas fa-external-link-alt" />
             </Link>
           </div>
         </div>
