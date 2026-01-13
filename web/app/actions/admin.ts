@@ -3,6 +3,7 @@
 import { isPostgresUniqueViolation, User } from '@blert/common';
 
 import { sql } from './db';
+import redis from './redis';
 
 type LinkedUser = Pick<
   User,
@@ -125,7 +126,51 @@ export type GrantApiAccessResult =
       success: true;
       user: { id: number; username: string; canCreateApiKey: boolean };
     }
-  | { success: false; error: 'user_not_found' };
+  | {
+      success: false;
+      error: 'user_not_found' | 'limit_reached' | 'unavailable';
+    };
+
+const API_KEY_USER_LIMIT_KEY = 'blert:api_key_user_limit';
+
+type LimitResult =
+  | { success: true; limit: number }
+  | { success: false; error: 'unavailable' };
+
+async function getApiKeyUserLimit(): Promise<LimitResult> {
+  let redisAvailable = false;
+
+  try {
+    const redisClient = await redis();
+    const limitStr = await redisClient.get(API_KEY_USER_LIMIT_KEY);
+    redisAvailable = true;
+    if (limitStr !== null) {
+      const limit = parseInt(limitStr, 10);
+      if (!isNaN(limit)) {
+        return { success: true, limit };
+      }
+    }
+  } catch (e) {
+    console.error('Failed to get API key user limit from Redis:', e);
+  }
+
+  // Fall back to env var if Redis key is not set.
+  const envLimit = process.env.BLERT_API_KEY_USER_LIMIT;
+  if (envLimit !== undefined) {
+    const limit = parseInt(envLimit, 10);
+    if (!isNaN(limit)) {
+      return { success: true, limit };
+    }
+  }
+
+  // If Redis was unavailable and no env var fallback, fail closed.
+  if (!redisAvailable) {
+    return { success: false, error: 'unavailable' };
+  }
+
+  // Redis is available but no limit is configured anywhere; no limit enforced.
+  return { success: true, limit: Infinity };
+}
 
 /**
  * Grants API key creation access to a user by their Discord ID.
@@ -136,6 +181,44 @@ export type GrantApiAccessResult =
 export async function grantApiAccess(
   discordId: string,
 ): Promise<GrantApiAccessResult> {
+  // Check if the user already has access (idempotent operation).
+  const existingUser = await sql<
+    { id: number; username: string; can_create_api_key: boolean }[]
+  >`
+    SELECT id, username, can_create_api_key
+    FROM users
+    WHERE discord_id = ${discordId}
+  `;
+
+  if (existingUser.length === 0) {
+    return { success: false, error: 'user_not_found' };
+  }
+
+  // If the user already has access, return success without checking limit.
+  if (existingUser[0].can_create_api_key) {
+    return {
+      success: true,
+      user: {
+        id: existingUser[0].id,
+        username: existingUser[0].username,
+        canCreateApiKey: true,
+      },
+    };
+  }
+
+  // Check if the limit has been reached.
+  const limitResult = await getApiKeyUserLimit();
+  if (!limitResult.success) {
+    return { success: false, error: limitResult.error };
+  }
+
+  const [{ count }] = await sql<{ count: string }[]>`
+    SELECT COUNT(*) FROM users WHERE can_create_api_key = true
+  `;
+  if (parseInt(count, 10) >= limitResult.limit) {
+    return { success: false, error: 'limit_reached' };
+  }
+
   const result = await sql<
     { id: number; username: string; can_create_api_key: boolean }[]
   >`
@@ -144,10 +227,6 @@ export async function grantApiAccess(
     WHERE discord_id = ${discordId}
     RETURNING id, username, can_create_api_key
   `;
-
-  if (result.length === 0) {
-    return { success: false, error: 'user_not_found' };
-  }
 
   const user = result[0];
 

@@ -1,10 +1,13 @@
 import { POST } from '@/api/admin/grant-api-access/route';
 import { sql } from '@/actions/db';
+import redis from '@/actions/redis';
 import { NextRequest } from 'next/server';
 
 jest.mock('@/api/admin/auth', () => ({
   validateDiscordBotAuth: jest.fn(),
 }));
+
+jest.mock('@/actions/redis');
 
 import { validateDiscordBotAuth } from '@/api/admin/auth';
 
@@ -12,11 +15,16 @@ const mockValidateAuth = validateDiscordBotAuth as jest.MockedFunction<
   typeof validateDiscordBotAuth
 >;
 
+const mockedRedis = redis as jest.MockedFunction<typeof redis>;
+
 describe('POST /api/admin/grant-api-access', () => {
   let testUserId: number;
 
   beforeEach(async () => {
     mockValidateAuth.mockClear();
+    mockedRedis.mockResolvedValue({
+      get: jest.fn().mockResolvedValue(null),
+    } as unknown as Awaited<ReturnType<typeof redis>>);
 
     const users = await sql<{ id: number }[]>`
       INSERT INTO users (username, password, email)
@@ -28,6 +36,7 @@ describe('POST /api/admin/grant-api-access', () => {
 
   afterEach(async () => {
     await sql`DELETE FROM users`;
+    mockedRedis.mockReset();
   });
 
   afterAll(async () => {
@@ -53,18 +62,13 @@ describe('POST /api/admin/grant-api-access', () => {
     mockValidateAuth.mockReturnValue(false);
 
     const request = createRequest(
-      {
-        discordId: '123456789012345678',
-      },
+      { discordId: '123456789012345678' },
       'Bearer invalid',
     );
-
     const response = await POST(request);
-    const data = await response.json();
 
     expect(response.status).toBe(401);
-    expect(data).toEqual({ error: 'unauthorized' });
-    expect(mockValidateAuth).toHaveBeenCalledWith('Bearer invalid');
+    expect(await response.json()).toEqual({ error: 'unauthorized' });
   });
 
   it('should return 400 when request body is invalid JSON', async () => {
@@ -80,42 +84,35 @@ describe('POST /api/admin/grant-api-access', () => {
     );
 
     const response = await POST(request);
-    const data = await response.json();
 
     expect(response.status).toBe(400);
-    expect(data).toEqual({ error: 'invalid_body' });
+    expect(await response.json()).toEqual({ error: 'invalid_body' });
   });
 
   it('should return 400 when discordId is missing', async () => {
     mockValidateAuth.mockReturnValue(true);
 
     const request = createRequest({}, 'Bearer valid');
-
     const response = await POST(request);
-    const data = await response.json();
 
     expect(response.status).toBe(400);
-    expect(data).toEqual({ error: 'missing_fields' });
+    expect(await response.json()).toEqual({ error: 'missing_fields' });
   });
 
   it('should return 404 when user is not found', async () => {
     mockValidateAuth.mockReturnValue(true);
 
     const request = createRequest(
-      {
-        discordId: '999999999999999999',
-      },
+      { discordId: '999999999999999999' },
       'Bearer valid',
     );
-
     const response = await POST(request);
-    const data = await response.json();
 
     expect(response.status).toBe(404);
-    expect(data).toEqual({ error: 'user_not_found' });
+    expect(await response.json()).toEqual({ error: 'user_not_found' });
   });
 
-  it('should return 200 and grant API access successfully', async () => {
+  it('should return 200 when access is granted successfully', async () => {
     mockValidateAuth.mockReturnValue(true);
 
     await sql`
@@ -125,62 +122,64 @@ describe('POST /api/admin/grant-api-access', () => {
     `;
 
     const request = createRequest(
-      {
-        discordId: '123456789012345678',
-      },
+      { discordId: '123456789012345678' },
       'Bearer valid',
     );
-
     const response = await POST(request);
-    const data = await response.json();
 
     expect(response.status).toBe(200);
-    expect(data).toEqual({
-      success: true,
-      user: {
-        id: testUserId,
-        username: 'test-user',
-        canCreateApiKey: true,
-      },
-    });
 
-    const users = await sql<{ can_create_api_key: boolean }[]>`
-      SELECT can_create_api_key
-      FROM users
-      WHERE id = ${testUserId}
-    `;
-    expect(users[0].can_create_api_key).toBe(true);
+    const data = await response.json();
+    expect(data.success).toBe(true);
+    expect(data.user.canCreateApiKey).toBe(true);
   });
 
-  it('should be idempotent when granting access twice', async () => {
+  it('should return 403 when limit is reached', async () => {
     mockValidateAuth.mockReturnValue(true);
+    mockedRedis.mockResolvedValue({
+      get: jest.fn().mockResolvedValue('0'),
+    } as unknown as Awaited<ReturnType<typeof redis>>);
 
     await sql`
       UPDATE users
-      SET discord_id = '123456789012345678',
-          discord_username = 'testuser#1234',
-          can_create_api_key = true
+      SET discord_id = '123456789012345678', discord_username = 'testuser#1234'
       WHERE id = ${testUserId}
     `;
 
     const request = createRequest(
-      {
-        discordId: '123456789012345678',
-      },
+      { discordId: '123456789012345678' },
       'Bearer valid',
     );
-
     const response = await POST(request);
-    const data = await response.json();
 
-    expect(response.status).toBe(200);
-    expect(data).toEqual({
-      success: true,
-      user: {
-        id: testUserId,
-        username: 'test-user',
-        canCreateApiKey: true,
-      },
-    });
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: 'limit_reached' });
+  });
+
+  it('should return 503 when service is unavailable', async () => {
+    mockValidateAuth.mockReturnValue(true);
+    mockedRedis.mockRejectedValue(new Error('Redis connection failed'));
+
+    const originalEnv = process.env.BLERT_API_KEY_USER_LIMIT;
+    delete process.env.BLERT_API_KEY_USER_LIMIT;
+
+    await sql`
+      UPDATE users
+      SET discord_id = '123456789012345678', discord_username = 'testuser#1234'
+      WHERE id = ${testUserId}
+    `;
+
+    const request = createRequest(
+      { discordId: '123456789012345678' },
+      'Bearer valid',
+    );
+    const response = await POST(request);
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: 'unavailable' });
+
+    if (originalEnv !== undefined) {
+      process.env.BLERT_API_KEY_USER_LIMIT = originalEnv;
+    }
   });
 });

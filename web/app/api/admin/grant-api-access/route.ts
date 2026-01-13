@@ -37,7 +37,14 @@ export async function POST(request: NextRequest) {
     const result = await grantApiAccess(discordId);
 
     if (!result.success) {
-      return Response.json({ error: result.error }, { status: 404 });
+      switch (result.error) {
+        case 'user_not_found':
+          return Response.json({ error: result.error }, { status: 404 });
+        case 'limit_reached':
+          return Response.json({ error: result.error }, { status: 403 });
+        case 'unavailable':
+          return Response.json({ error: result.error }, { status: 503 });
+      }
     }
 
     return Response.json(result);
