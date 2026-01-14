@@ -1312,6 +1312,8 @@ export type SessionQuery = {
   startTime?: Comparator<Date>;
   status?: Comparator<SessionStatus>;
   party?: string[];
+  before?: number[];
+  after?: number[];
 };
 
 type SessionSortableFields = Pick<Session, 'startTime' | 'endTime' | 'status'>;
@@ -1321,13 +1323,76 @@ export type SessionWithChallenges = Omit<Session, 'partyHash'> & {
   challenges: ChallengeOverview[];
 };
 
+type SessionSortField = 'status' | 'startTime';
+
+type SessionSort = {
+  field: SessionSortField;
+  direction: SortDirection;
+};
+
+function sessionSorts(query: SessionQuery): SessionSort[] {
+  if (query.status === undefined) {
+    return [
+      { field: 'status', direction: '+' },
+      { field: 'startTime', direction: '-' },
+    ];
+  }
+
+  return [{ field: 'startTime', direction: '-' }];
+}
+
+function reverseSessionSorts(sorts: SessionSort[]): SessionSort[] {
+  return sorts.map((sort) => ({
+    ...sort,
+    direction: sort.direction === '+' ? '-' : '+',
+  }));
+}
+
+function sessionSortToQuery(
+  sort: SessionSort,
+): SortQuery<SessionSortableFields> {
+  return `${sort.direction}${sort.field}` as SortQuery<SessionSortableFields>;
+}
+
+function sessionSortFieldToColumn(field: SessionSortField): string {
+  switch (field) {
+    case 'status':
+      return 'status';
+    case 'startTime':
+      return 'start_time';
+  }
+}
+
+function sessionPaginationCondition(
+  sorts: SessionSort[],
+  values: number[],
+): postgres.Fragment {
+  if (sorts.length !== values.length) {
+    throw new InvalidQueryError('Invalid session cursor values');
+  }
+
+  const [sort, ...restSorts] = sorts;
+  const [value, ...restValues] = values;
+
+  const op = sort.direction === '+' ? sql`>` : sql`<`;
+  const column = sessionSortFieldToColumn(sort.field);
+  const field = sql`challenge_sessions.${sql(column)}`;
+  const comparatorValue = sort.field === 'startTime' ? new Date(value) : value;
+
+  if (restSorts.length === 0) {
+    return sql`${field} ${op} ${comparatorValue}`;
+  }
+
+  const restCondition = sessionPaginationCondition(restSorts, restValues);
+  return sql`(${field} ${op} ${comparatorValue} OR (${field} = ${comparatorValue} AND ${restCondition}))`;
+}
+
 function sessionFilters(query: SessionQuery): {
   conditions: postgres.Fragment[];
   defaultSort: SingleOrArray<SortQuery<SessionSortableFields>>;
 } {
   const conditions: postgres.Fragment[] = [];
-  let defaultSort: SingleOrArray<SortQuery<SessionSortableFields>> =
-    '-startTime';
+  let sorts = sessionSorts(query);
 
   if (query.type !== undefined) {
     conditions.push(
@@ -1358,10 +1423,22 @@ function sessionFilters(query: SessionQuery): {
     );
   } else {
     conditions.push(sql`challenge_sessions.status != ${SessionStatus.HIDDEN}`);
-
-    // Ensure active sessions are at the top.
-    defaultSort = ['+status', '-startTime'];
   }
+
+  if (query.before !== undefined && query.after !== undefined) {
+    throw new InvalidQueryError('Cannot specify both before and after');
+  }
+
+  const cursor = query.before ?? query.after;
+  if (cursor !== undefined) {
+    if (query.before !== undefined) {
+      sorts = reverseSessionSorts(sorts);
+    }
+    conditions.push(sessionPaginationCondition(sorts, cursor));
+  }
+
+  const sortQueries = sorts.map(sessionSortToQuery);
+  const defaultSort = sortQueries.length === 1 ? sortQueries[0] : sortQueries;
 
   if (query.party) {
     if (query.party.length === 1) {

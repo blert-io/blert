@@ -6,14 +6,11 @@ import {
   findChallenges,
 } from '@/actions/challenge';
 import { parseChallengeQuery } from '@/api/v1/challenges/query';
-import Card from '@/components/card';
 import { basicMetadata } from '@/utils/metadata';
 import { NextSearchParams } from '@/utils/url';
 
 import { contextFromUrlParams } from './context';
 import Search from './search';
-
-import styles from './style.module.scss';
 
 const INITIAL_RESULTS = 25;
 
@@ -61,21 +58,12 @@ export default async function SearchPage({
   }
 
   return (
-    <div className={styles.searchPage}>
-      <Card primary className={styles.header}>
-        <h1>Challenge search</h1>
-        <p>
-          Search for challenges by name, date, or other criteria. You can also
-          filter by status, scale, party size, and more.
-        </p>
-      </Card>
-      <Search
-        initialContext={initialContext}
-        initialChallenges={initialChallenges}
-        initialRemaining={initialRemaining}
-        initialStats={initialStats}
-      />
-    </div>
+    <Search
+      initialContext={initialContext}
+      initialChallenges={initialChallenges}
+      initialRemaining={initialRemaining}
+      initialStats={initialStats}
+    />
   );
 }
 

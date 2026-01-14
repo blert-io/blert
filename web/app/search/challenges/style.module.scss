@@ -1,4 +1,4 @@
-@use '../mixins.scss' as *;
+@use '@/mixins.scss' as *;
 
 .searchPage {
   display: flex;
@@ -27,7 +27,7 @@
   position: relative;
 
   .tableHeader {
-    margin-bottom: 12px;
+    margin: 12px 0;
     padding: 0 4px;
 
     h3 {
@@ -345,7 +345,9 @@
 }
 
 .filters {
-  padding: 20px 24px;
+  padding: 1rem;
+  background: var(--blert-surface-dark);
+  border: 1px solid var(--blert-surface-light);
   display: flex;
   flex-direction: column;
   max-width: 1250px;

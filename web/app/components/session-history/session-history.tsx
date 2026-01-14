@@ -331,15 +331,13 @@ function SkeletonSession() {
   );
 }
 
-function SessionList({
-  count,
-  sessions,
-  isLoading,
-}: {
+export type SessionListProps = {
   count: number;
   sessions: SessionWithChallenges[];
   isLoading: boolean;
-}) {
+};
+
+export function SessionList({ count, sessions, isLoading }: SessionListProps) {
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(
     new Set(),
   );

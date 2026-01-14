@@ -2,8 +2,12 @@ import { loadSessions } from '@/actions/challenge';
 
 import SessionHistoryCore, {
   SessionHistoryProps as CoreProps,
+  SessionList,
+  SessionListProps,
 } from './session-history';
 
+export { SessionList };
+export type { SessionListProps };
 export const ClientSessionHistory = SessionHistoryCore;
 
 type SessionHistoryProps = Omit<CoreProps, 'initialSessions'>;
