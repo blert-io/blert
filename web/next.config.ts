@@ -67,6 +67,11 @@ const nextConfig: NextConfig = {
         destination: '/challenges/mokhaiotl/:id/overview',
         permanent: true,
       },
+      {
+        source: '/search',
+        destination: '/search/challenges',
+        permanent: true,
+      },
     ];
   },
   turbopack: {

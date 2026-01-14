@@ -9,7 +9,7 @@ import {
   ChallengeOverview,
   SortableFields,
 } from '@/actions/challenge';
-import CollapsiblePanel from '@/components/collapsible-panel';
+import Card from '@/components/card';
 import { getLocalSetting } from '@/utils/user-settings';
 import { UrlParams, queryString } from '@/utils/url';
 
@@ -196,7 +196,7 @@ export default function Search({
       action,
     );
 
-    const updatedUrl = `/search?${queryString(paginationParams)}`;
+    const updatedUrl = `/search/challenges?${queryString(paginationParams)}`;
     window.history.replaceState(null, '', updatedUrl);
 
     paginationParams.limit = resultsPerPage;
@@ -322,13 +322,14 @@ export default function Search({
 
   return (
     <>
-      <CollapsiblePanel
-        defaultExpanded
-        panelTitle="Filters"
-        maxPanelHeight={2000}
+      <Card
+        header={{
+          title: 'Filters',
+        }}
+        fixed
       >
         <Filters context={context} setContext={setContext} loading={loading} />
-      </CollapsiblePanel>
+      </Card>
       <div className={styles.challenges}>
         <Table
           challenges={challenges}

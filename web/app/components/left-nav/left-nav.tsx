@@ -167,7 +167,10 @@ export function LeftNav() {
 
           {/* Search */}
           <li className={styles.leftNav__menuItem}>
-            <Link className={styles.leftNav__menuItemInner} href="/search">
+            <Link
+              className={styles.leftNav__menuItemInner}
+              href="/search/challenges"
+            >
               <div className={styles.leftNav__menuItemIcon}>
                 <i className="fa-solid fa-magnifying-glass"></i>
               </div>
