@@ -10,7 +10,7 @@ import { ChallengeType } from '@blert/common';
 
 export default function Page() {
   return (
-    <>
+    <div className={styles.toaPage}>
       <Card primary className={styles.logo}>
         <Image
           src={challengeLogo(ChallengeType.TOA)}
@@ -20,44 +20,51 @@ export default function Page() {
           style={{ objectFit: 'contain' }}
         />
       </Card>
-      <Card header={{ title: 'The Tombs of Amascut' }}>
-        <div className={styles.toaOverviewInner}>
-          <Image
-            className={styles.raid__Logo}
-            src="/tobdataegirl_toa.png"
-            alt="TOA Preview"
-            height={300}
-            width={300}
-            style={{ objectFit: 'cover' }}
-          />
 
-          <div className={styles.textGreeting}>
-            <p style={{ fontSize: '24px', padding: '0.5em 0' }}>
-              We are adding raid recording support for the Tombs of Amascut raid
-              soon! Stay tuned for updates. If you have any questions or, would
-              like to help out, provide feedback, or just want to chat, feel
-              free to join our{' '}
-              <Link
-                href="https://discord.gg/c5Hgv3NnYe"
-                target="_blank"
-                rel="noreferrer noopener"
-                style={{ textDecoration: 'underline' }}
-              >
-                Discord Server
-              </Link>
-              !
-              <br />
-              <br />
-              Also, read our{' '}
-              <Link href="/" style={{ textDecoration: 'underline' }}>
-                FAQ
-              </Link>
-              !
+      <Card
+        header={{ title: 'The Tombs of Amascut' }}
+        className={styles.toaCard}
+      >
+        <div className={styles.content}>
+          <div className={styles.mascot}>
+            <Image
+              src="/tobdataegirl_toa.png"
+              alt="ToA Preview"
+              height={234}
+              width={256}
+              style={{ objectFit: 'contain' }}
+            />
+          </div>
+
+          <div className={styles.info}>
+            <h2>Coming Soon!</h2>
+            <p>
+              We are adding raid recording support for the Tombs of Amascut
+              soon! Stay tuned for updates.
             </p>
+
+            <div className={styles.ctaSection}>
+              <p>
+                If you have any questions, would like to help out, provide
+                feedback, or just want to chat, feel free to join our{' '}
+                <Link
+                  href="https://discord.gg/c5Hgv3NnYe"
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  Discord Server
+                </Link>
+                !
+              </p>
+              <p>
+                Also, check out our <Link href="/guides">Guides</Link> for other
+                supported content!
+              </p>
+            </div>
           </div>
         </div>
       </Card>
-    </>
+    </div>
   );
 }
 
