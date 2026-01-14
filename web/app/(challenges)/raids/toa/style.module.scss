@@ -1,36 +1,107 @@
+@use '../../../mixins.scss' as *;
+
+.toaPage {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    padding: 16px;
+  }
+}
+
 .logo {
-  width: 340px;
+  width: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
-  margin: 2em 0;
+  padding: 24px 48px;
+  margin: 0 auto;
 }
 
-.toaOverviewInner {
-  padding: 20px;
-  max-width: 1200px;
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-around;
+.toaCard {
+  .content {
+    display: flex;
+    gap: 32px;
+    align-items: flex-start;
 
-  .textGreeting {
-    padding: 0 20px;
-    max-width: 800px;
-
-    h3 {
-      margin: 0;
-      padding: 0;
-    }
-
-    p {
-      margin: 0 0 10px 0;
-      padding: 0;
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
     }
   }
 
-  img {
-    display: inline-block;
+  .mascot {
+    flex-shrink: 0;
+    padding-top: 10px;
+
+    img {
+      border-radius: 12px;
+    }
+  }
+
+  .info {
+    flex: 1;
+
+    h2 {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.5em;
+      font-weight: 600;
+      margin: 0 0 16px 0;
+      background: linear-gradient(
+        135deg,
+        var(--blert-font-color-primary) 0%,
+        rgba(var(--blert-font-color-primary-base), 0.85) 60%,
+        rgba(var(--blert-purple-base), 0.9) 100%
+      );
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+
+      @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+        justify-content: center;
+      }
+    }
+
+    p {
+      margin: 0 0 16px 0;
+      line-height: 1.7;
+      font-size: 1.05em;
+      color: rgba(var(--blert-font-color-primary-base), 0.9);
+    }
+
+    a {
+      color: var(--blert-purple);
+      text-decoration: none;
+      font-weight: 500;
+      transition: all 0.2s ease;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+
+  .ctaSection {
+    margin-top: 24px;
+    padding: 20px;
+    background: var(--blert-surface-dark);
+    border-radius: 10px;
+    border: 1px solid rgba(var(--blert-purple-base), 0.1);
+
+    p {
+      margin: 0;
+      font-size: 1em;
+
+      &:not(:last-child) {
+        margin-bottom: 12px;
+      }
+    }
   }
 }

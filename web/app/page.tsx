@@ -7,7 +7,7 @@ import {
   findBestSplitTimes,
   RankedSplit,
 } from './actions/challenge';
-import CollapsiblePanel from './components/collapsible-panel';
+import Card from './components/card';
 import {
   ActivityFeed,
   ChallengeStats,
@@ -115,52 +115,50 @@ export default async function Home() {
 
         <ActivityFeed />
 
-        <CollapsiblePanel
-          panelTitle="Status Updates"
-          maxPanelHeight={9999}
-          defaultExpanded
+        <Card
+          header={{ title: 'Status Updates' }}
           className={styles.statusPanel}
-          disableExpansion
-          panelWidth="auto"
         >
-          <div className={styles.homeOverviewInner}>
-            <div className={styles.statusSection}>
-              <div className={styles.statusCard}>
-                <h3 className={`${styles.statusHeading} ${styles.info}`}>
-                  🔧 Service Update
-                </h3>
-                <span className={styles.statusTimestamp}>
-                  Last updated: Feb 26, 2025 17:00 UTC
-                </span>
-                <ul className={styles.statusList}>
-                  <li>
-                    Jagex have corrected the issue with NPCs and player events
-                    being sent to clients, so Blert is once again recording data
-                    correctly.
-                  </li>
-                  <li>
-                    Blert is now functioning properly for all players, and
-                    recording challenges as a spectator has been re-enabled.
-                  </li>
-                </ul>
-              </div>
-            </div>
+          <div className={styles.statusCard}>
+            <h3 className={styles.statusHeading}>🎉 Blert is Live!</h3>
+            <span className={styles.statusTimestamp}>
+              Last updated: Jan 14, 2026 05:00 UTC
+            </span>
+            <ul className={styles.statusList}>
+              <li>
+                Blert is now available on the{' '}
+                <a
+                  href="https://runelite.net/plugin-hub/show/blert"
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  RuneLite Plugin Hub
+                </a>
+                ! Search for &quot;Blert&quot; in the Plugin Hub to install.
+              </li>
+              <li>
+                Join our{' '}
+                <a
+                  href="https://discord.gg/c5Hgv3NnYe"
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  Discord server
+                </a>{' '}
+                to get an API key and start tracking your raids.
+              </li>
+            </ul>
           </div>
-        </CollapsiblePanel>
+        </Card>
 
-        <CollapsiblePanel
-          panelTitle="About Blert"
-          maxPanelHeight={9999}
-          defaultExpanded
-          className={styles.aboutPanel}
-        >
+        <Card header={{ title: 'About Blert' }} className={styles.aboutPanel}>
           <div className={styles.aboutContent}>
             <div className={styles.mascot}>
               <Image
                 src="/tobdataegirl.png"
                 alt="Tob Data Egirl waving"
-                width={200}
-                height={200}
+                width={256}
+                height={244}
                 style={{ objectFit: 'contain' }}
               />
             </div>
@@ -210,15 +208,25 @@ export default async function Home() {
                   to:
                 </p>
                 <ul>
-                  <li>Contribute code (Java, React, Next.js)</li>
-                  <li>Provide UX feedback</li>
-                  <li>Suggest new features</li>
-                  <li>Get help with the plugin</li>
+                  <li>
+                    <i className="fas fa-code" style={{ top: 1 }} /> Contribute
+                    code (Java, React, Next.js)
+                  </li>
+                  <li>
+                    <i className="fas fa-comments" /> Provide UX feedback
+                  </li>
+                  <li>
+                    <i className="fas fa-lightbulb" /> Suggest new features
+                  </li>
+                  <li>
+                    <i className="fas fa-question-circle" /> Get help with the
+                    plugin
+                  </li>
                 </ul>
               </div>
             </div>
           </div>
-        </CollapsiblePanel>
+        </Card>
       </div>
     </div>
   );
