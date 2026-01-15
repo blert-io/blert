@@ -39,13 +39,31 @@
 
 .replayAndParty {
   display: flex;
-  flex-flow: row wrap;
+  flex-flow: row nowrap;
   gap: 24px;
   justify-content: center;
   width: 100%;
+  align-items: flex-start;
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     gap: 12px;
+  }
+
+  > :first-child {
+    flex: 0 1 auto;
+    min-width: 0;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    width: fit-content;
+    max-width: 100%;
+  }
+  
+  > :last-child {
+    flex: 0 0 auto;
+  }
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    flex-flow: row wrap;
   }
 }
 

@@ -3,9 +3,38 @@
 
 .replay {
   width: fit-content;
-  // max-width: 550px;
-  // max-height: 400px;
-  overflow: auto;
+  max-width: 100%;
+  display: inline-flex;
+  flex-direction: column;
+
+  // Card content wrapper - allow full width for header and other content
+  > div {
+    width: 100%;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  // Card header should be full width and left-aligned
+  :global(.cardHeader) {
+    width: 100%;
+    align-self: stretch;
+  }
+  
+  // Map should shrink to fit canvas content
+  :global(.map) {
+    width: fit-content !important;
+    max-width: 100% !important;
+    transform-origin: center;
+    align-self: center;
+  }
+  
+  // Canvas container should determine the Map's width
+  :global(.mapCanvas) {
+    width: fit-content;
+    max-width: 100%;
+  }
 }
 
 .testingNotice {
