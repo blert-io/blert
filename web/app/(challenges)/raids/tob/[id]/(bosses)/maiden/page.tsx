@@ -13,7 +13,14 @@ import {
   Stage,
   TobRaid,
 } from '@blert/common';
-import { useCallback, useContext, useMemo, useRef, useEffect, useState } from 'react';
+import {
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useEffect,
+  useState,
+} from 'react';
 
 import { TimelineSplit } from '@/components/attack-timeline';
 import BossFightOverview from '@/components/boss-fight-overview';
@@ -201,25 +208,34 @@ export default function Maiden() {
 
   useEffect(() => {
     const updateReplayWidth = () => {
-      if (!replayAndPartyRef.current) { return; }
+      if (!replayAndPartyRef.current) {
+        return;
+      }
 
       const container = replayAndPartyRef.current;
       const containerWidth = container.offsetWidth;
       const gap = compact ? 12 : 24;
-      
+
       const partyElement = container.lastElementChild as HTMLElement;
-      const partyWidth = partyElement ? partyElement.offsetWidth : (compact ? 300 : 400);
-      
+      const partyWidth = partyElement
+        ? partyElement.offsetWidth
+        : compact
+          ? 300
+          : 400;
+
       const availableWidth = containerWidth - partyWidth - gap;
       const idealWidth = compact ? 352 : 704;
-      
-      const calculatedWidth = Math.max(200, Math.min(idealWidth, availableWidth));
+
+      const calculatedWidth = Math.max(
+        200,
+        Math.min(idealWidth, availableWidth),
+      );
       setReplayWidth(calculatedWidth);
     };
 
     updateReplayWidth();
     window.addEventListener('resize', updateReplayWidth);
-    
+
     const resizeObserver = new ResizeObserver(updateReplayWidth);
     if (replayAndPartyRef.current) {
       resizeObserver.observe(replayAndPartyRef.current);
