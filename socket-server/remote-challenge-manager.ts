@@ -430,8 +430,48 @@ export class RemoteChallengeManager extends ChallengeManager {
     path: string,
     init: RequestInit,
   ): Promise<Response> {
-    return timeRemoteOperation(operation, () =>
-      fetch(`${this.serverUrl}${path}`, init),
-    );
+    const maxRetries = 4;
+    const baseDelayMs = 100;
+
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const response = await timeRemoteOperation(operation, () =>
+          fetch(`${this.serverUrl}${path}`, init),
+        );
+
+        // Retry on transient reverse proxy errors (502/503).
+        if (response.status === 502 || response.status === 503) {
+          lastError = new Error(`Server error: ${response.status}`);
+          if (attempt < maxRetries - 1) {
+            const delayMs = baseDelayMs * Math.pow(2, attempt);
+            await this.sleep(delayMs);
+            continue;
+          }
+        }
+
+        return response;
+      } catch (e) {
+        lastError = e instanceof Error ? e : new Error(String(e));
+        if (attempt < maxRetries - 1) {
+          const delayMs = baseDelayMs * Math.pow(2, attempt);
+          logger.warn('remote_request_retry', {
+            operation,
+            path,
+            attempt: attempt + 1,
+            delayMs,
+            error: lastError,
+          });
+          await this.sleep(delayMs);
+        }
+      }
+    }
+
+    throw lastError ?? new Error('Request failed after retries');
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
