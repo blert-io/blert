@@ -387,9 +387,11 @@ function buildPersonalBestMap(pbs: PersonalBest[]): PersonalBestMap {
 function PersonalBestCard({
   pb,
   scale,
+  type,
 }: {
   pb: PersonalBest | null;
   scale: Scale;
+  type: ChallengeType;
 }) {
   if (pb === null) {
     return (
@@ -403,7 +405,7 @@ function PersonalBestCard({
 
   return (
     <Link
-      href={challengeUrl(ChallengeType.TOB, pb.cid)}
+      href={challengeUrl(type, pb.cid)}
       className={`${styles.pbCard} ${styles.hasTime}`}
     >
       <div className={styles.pbScale}>{scaleName(scale)}</div>
@@ -475,11 +477,13 @@ function AchievementSection({
 }
 
 function SplitTypeSection({
+  challengeType,
   pbs,
   mode,
   type,
   scales,
 }: {
+  challengeType: ChallengeType;
   mode: ChallengeMode;
   type: SplitMetadata;
   pbs: PersonalBestMap;
@@ -506,6 +510,7 @@ function SplitTypeSection({
         {scales.map((scale) => (
           <PersonalBestCard
             key={scale}
+            type={challengeType}
             pb={pbs[adjustSplitForMode(type.type, mode)]?.[scale] ?? null}
             scale={scale}
           />
@@ -756,22 +761,24 @@ export default function PlayerPersonalBests() {
         )}
         {isSolo ? (
           <div className={styles.splitsContainer}>
-            {splitTypes.map((type) => (
+            {splitTypes.map((splitType) => (
               <SplitTypeSection
-                key={type.type}
+                key={splitType.type}
+                challengeType={type}
                 mode={mode}
-                type={type}
+                type={splitType}
                 pbs={pbs}
                 scales={scales}
               />
             ))}
           </div>
         ) : (
-          splitTypes.map((type) => (
+          splitTypes.map((splitType) => (
             <SplitTypeSection
-              key={type.type}
+              key={splitType.type}
+              challengeType={type}
               mode={mode}
-              type={type}
+              type={splitType}
               pbs={pbs}
               scales={scales}
             />
