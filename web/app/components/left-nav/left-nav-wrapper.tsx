@@ -240,4 +240,4 @@ export function LeftNavWrapper({ children }: { children: React.ReactNode }) {
       {children}
     </div>
   );
-}
+} 
