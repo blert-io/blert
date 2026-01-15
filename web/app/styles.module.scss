@@ -10,8 +10,6 @@
   @media (min-width: $COMPACT_WIDTH_THRESHOLD) {
     margin-left: var(--left-nav-width, $LEFT_NAV_WIDTH);
     width: calc(100vw - var(--left-nav-width, $LEFT_NAV_WIDTH));
-    margin-left: var(--left-nav-width, $LEFT_NAV_WIDTH);
-    width: calc(100vw - var(--left-nav-width, $LEFT_NAV_WIDTH));
   }
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
