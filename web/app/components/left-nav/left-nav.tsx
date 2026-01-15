@@ -1,15 +1,14 @@
 'use client';
 
-'use client';
-
 import Image from 'next/image';
 import Link from 'next/link';
-import { useContext } from 'react';
+import { Suspense, useContext } from 'react';
 
 import { MAIN_LOGO } from '@/logo';
 import { NavbarContext } from '@/display';
 
 import AccountStatus, { AccountStatusSkeleton } from './account-status';
+import { LEFT_NAV_WIDTH } from './definitions';
 import { LeftNavWrapper } from './left-nav-wrapper';
 import NavPlayerSearch from './nav-player-search';
 
