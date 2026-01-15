@@ -42,7 +42,8 @@ function parseDimension(
     return value;
   }
   if (typeof value === 'string') {
-    const match = value.match(/^(\d+(?:\.\d+)?)/);
+    const regex = /^(\d+(?:\.\d+)?)/;
+    const match = regex.exec(value);
     if (match) {
       return parseFloat(match[1]);
     }

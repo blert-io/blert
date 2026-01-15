@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from 'react';
 import { useThree } from '@react-three/fiber';
-import * as THREE from 'three';
 import { MapControls as MapControlsImpl } from 'three-stdlib';
 
 import { useReplayContext } from './replay-context';
@@ -66,8 +65,10 @@ export function AdaptiveZoomController({
 
     const container = document.querySelector(
       '[data-camera-reset-container]',
-    ) as HTMLElement | null;
-    if (!container) return;
+    );
+    if (!container || !(container instanceof HTMLElement)) {
+      return;
+    }
 
     containerRef.current = container;
 
