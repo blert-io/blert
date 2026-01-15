@@ -63,9 +63,7 @@ export function AdaptiveZoomController({
       return;
     }
 
-    const container = document.querySelector(
-      '[data-camera-reset-container]',
-    );
+    const container = document.querySelector('[data-camera-reset-container]');
     if (!container || !(container instanceof HTMLElement)) {
       return;
     }
