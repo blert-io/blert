@@ -1,6 +1,12 @@
 .map {
   position: relative;
 
+  &.fullscreen {
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+  }
+
   .mapCanvas {
     position: relative;
     width: 100%;

@@ -16,11 +16,11 @@
 
 .attackTimeline__Scrollable {
   position: relative;
-  padding: 75px 10px 50px 12px;
+  padding: 70px 10px 10px 12px;
   display: flex;
   flex-flow: row wrap;
   overflow-x: auto;
-  overflow-y: visible;
+  overflow-y: hidden;
   width: 100%;
 
   .row {
@@ -66,7 +66,7 @@
   align-items: flex-end !important;
 
   .legendRow {
-    padding: 24px 0 10px 0;
+    padding: 19px 0 10px 0;
     width: 100%;
 
     &:not(:first-child) {

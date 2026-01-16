@@ -102,6 +102,7 @@ export function BossPageReplay({
       config={config}
       mapDefinition={mapDef}
       height={fullscreen ? '100vh' : height}
+      isFullscreen={fullscreen}
       onConfigChange={setConfig}
       playing={playing}
       width={fullscreen ? '100vw' : width}
@@ -129,8 +130,8 @@ export function BossPageReplay({
   return (
     <>
       <Card header={{ title: 'Room Replay' }} className={styles.replay}>
-        {customControls}
         {!isFullscreen && renderMap(false)}
+        {customControls}
       </Card>
 
       <Modal

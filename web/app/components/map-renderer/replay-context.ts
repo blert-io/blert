@@ -18,6 +18,9 @@ type ReplayContextType = {
   replayTime: RefObject<number>;
   resetCamera: () => void;
   onResetAvailable: (resetFn: () => void) => void;
+  referenceWidth: number | null;
+  referenceHeight: number | null;
+  isFullscreen: boolean;
 };
 
 export const ReplayContext = createContext<ReplayContextType>({
@@ -39,6 +42,9 @@ export const ReplayContext = createContext<ReplayContextType>({
   onResetAvailable: () => {
     /* noop */
   },
+  referenceWidth: null,
+  referenceHeight: null,
+  isFullscreen: false,
 });
 
 export function useReplayContext(): ReplayContextType {
