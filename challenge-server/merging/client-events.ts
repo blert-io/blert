@@ -93,6 +93,9 @@ const VERZIK_P2_CENTER_TILE = { x: 3168, y: 4314 };
 const VERZIK_P3_WEBS_AREA = { x: 3165, y: 4309, width: 7, height: 7 };
 const VERZIK_P3_WEBS_CENTER_TILE = { x: 3168, y: 4312 };
 
+// Tile to which players are teleported at the start of Colosseum's boss fight.
+const COLOSSEUM_BOSS_START_TILE = { x: 1825, y: 3103 };
+
 function isValidP2BounceDestination(coords: CoordsLike): boolean {
   const distance = chebyshev(coords, VERZIK_P2_CENTER_TILE);
   return distance === 5 || distance === 6;
@@ -673,7 +676,14 @@ export class ClientEvents {
     if (isMokhaiotlStage(this.stageInfo.stage)) {
       return false;
     }
+
     if (isColosseumStage(this.stageInfo.stage)) {
+      if (this.stageInfo.stage === Stage.COLOSSEUM_WAVE_12) {
+        // During the cutscene at the start of the boss, players remain on their
+        // original tile, and then are teleported to the fight start tile when
+        // the cutscene ends.
+        return tick < 5 && coordsEqual(current, COLOSSEUM_BOSS_START_TILE);
+      }
       return false;
     }
 
