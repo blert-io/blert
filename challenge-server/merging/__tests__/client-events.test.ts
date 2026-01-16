@@ -1026,6 +1026,197 @@ describe('ClientEvents', () => {
           });
         });
 
+        describe('Colosseum Sol Heredit start teleport', () => {
+          const colosseumChallengeInfo: ChallengeInfo = {
+            uuid: '11111111-2222-3333-4444-555555555555',
+            type: ChallengeType.COLOSSEUM,
+            party: ['player1'],
+          };
+
+          it('allows teleport to boss start tile during initial cutscene', () => {
+            const client = ClientEvents.fromRawEvents(
+              40,
+              colosseumChallengeInfo,
+              {
+                stage: Stage.COLOSSEUM_WAVE_12,
+                status: StageStatus.STARTED,
+                accurate: true,
+                recordedTicks: 2,
+                serverTicks: { count: 2, precise: true },
+              },
+              [
+                createPlayerUpdateEvent({
+                  tick: 0,
+                  name: 'player1',
+                  x: 1800,
+                  y: 3100,
+                  stage: Stage.COLOSSEUM_WAVE_12,
+                }),
+                createPlayerUpdateEvent({
+                  tick: 1,
+                  name: 'player1',
+                  x: 1825,
+                  y: 3103,
+                  stage: Stage.COLOSSEUM_WAVE_12,
+                }),
+              ],
+            );
+
+            expect(client.hasConsistencyIssues()).toBe(false);
+            expect(client.hasAnomaly(ClientAnomaly.CONSISTENCY_ISSUES)).toBe(
+              false,
+            );
+            expect(client.isAccurate()).toBe(true);
+          });
+
+          it('allows teleport to boss start tile at tick 4', () => {
+            const client = ClientEvents.fromRawEvents(
+              41,
+              colosseumChallengeInfo,
+              {
+                stage: Stage.COLOSSEUM_WAVE_12,
+                status: StageStatus.STARTED,
+                accurate: true,
+                recordedTicks: 5,
+                serverTicks: { count: 5, precise: true },
+              },
+              [
+                createPlayerUpdateEvent({
+                  tick: 3,
+                  name: 'player1',
+                  x: 1800,
+                  y: 3100,
+                  stage: Stage.COLOSSEUM_WAVE_12,
+                }),
+                createPlayerUpdateEvent({
+                  tick: 4,
+                  name: 'player1',
+                  x: 1825,
+                  y: 3103,
+                  stage: Stage.COLOSSEUM_WAVE_12,
+                }),
+              ],
+            );
+
+            expect(client.hasConsistencyIssues()).toBe(false);
+            expect(client.hasAnomaly(ClientAnomaly.CONSISTENCY_ISSUES)).toBe(
+              false,
+            );
+            expect(client.isAccurate()).toBe(true);
+          });
+
+          it('flags teleport to boss start tile at tick 5 or later', () => {
+            const client = ClientEvents.fromRawEvents(
+              42,
+              colosseumChallengeInfo,
+              {
+                stage: Stage.COLOSSEUM_WAVE_12,
+                status: StageStatus.STARTED,
+                accurate: true,
+                recordedTicks: 6,
+                serverTicks: { count: 6, precise: true },
+              },
+              [
+                createPlayerUpdateEvent({
+                  tick: 4,
+                  name: 'player1',
+                  x: 1800,
+                  y: 3100,
+                  stage: Stage.COLOSSEUM_WAVE_12,
+                }),
+                createPlayerUpdateEvent({
+                  tick: 5,
+                  name: 'player1',
+                  x: 1825,
+                  y: 3103,
+                  stage: Stage.COLOSSEUM_WAVE_12,
+                }),
+              ],
+            );
+
+            expect(client.hasConsistencyIssues()).toBe(true);
+            expect(client.hasAnomaly(ClientAnomaly.CONSISTENCY_ISSUES)).toBe(
+              true,
+            );
+          });
+
+          it('flags teleport to different tile even during cutscene', () => {
+            const client = ClientEvents.fromRawEvents(
+              43,
+              colosseumChallengeInfo,
+              {
+                stage: Stage.COLOSSEUM_WAVE_12,
+                status: StageStatus.STARTED,
+                accurate: true,
+                recordedTicks: 2,
+                serverTicks: { count: 2, precise: true },
+              },
+              [
+                createPlayerUpdateEvent({
+                  tick: 0,
+                  name: 'player1',
+                  x: 1800,
+                  y: 3100,
+                  stage: Stage.COLOSSEUM_WAVE_12,
+                }),
+                createPlayerUpdateEvent({
+                  tick: 1,
+                  name: 'player1',
+                  x: 1830,
+                  y: 3110,
+                  stage: Stage.COLOSSEUM_WAVE_12,
+                }),
+              ],
+            );
+
+            expect(client.hasConsistencyIssues()).toBe(true);
+            expect(client.hasAnomaly(ClientAnomaly.CONSISTENCY_ISSUES)).toBe(
+              true,
+            );
+          });
+
+          it('flags large movement in non-boss Colosseum waves', () => {
+            for (
+              let stage = Stage.COLOSSEUM_WAVE_1;
+              stage <= Stage.COLOSSEUM_WAVE_11;
+              stage++
+            ) {
+              const client = ClientEvents.fromRawEvents(
+                44,
+                colosseumChallengeInfo,
+                {
+                  stage,
+                  status: StageStatus.STARTED,
+                  accurate: true,
+                  recordedTicks: 2,
+                  serverTicks: { count: 2, precise: true },
+                },
+                [
+                  createPlayerUpdateEvent({
+                    tick: 0,
+                    name: 'player1',
+                    x: 1800,
+                    y: 3100,
+                    stage,
+                  }),
+                  createPlayerUpdateEvent({
+                    tick: 1,
+                    name: 'player1',
+                    x: 1825,
+                    y: 3103,
+                    stage,
+                  }),
+                ],
+              );
+
+              expect(client.hasConsistencyIssues()).toBe(true);
+              expect(client.hasAnomaly(ClientAnomaly.CONSISTENCY_ISSUES)).toBe(
+                true,
+              );
+            }
+          });
+        });
+
         describe('Verzik P3 webs push', () => {
           it('allows push out when player was inside Verzik', () => {
             const client = ClientEvents.fromRawEvents(
