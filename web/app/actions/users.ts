@@ -15,6 +15,7 @@ import { z } from 'zod';
 import { auth, signIn } from '@/auth';
 import { validateRedirectUrl } from '@/utils/url';
 import { sql } from './db';
+import { sendVerificationEmail } from './email';
 
 const SALT_ROUNDS = 10;
 
@@ -47,12 +48,28 @@ export async function userExists(username: string): Promise<boolean> {
   return result.length > 0;
 }
 
+export type VerifiedUser = {
+  id: string;
+  emailVerified: boolean;
+};
+
+export async function getEmailVerificationStatus(
+  userId: string,
+): Promise<boolean> {
+  const [user] = await sql<{ email_verified: boolean }[]>`
+    SELECT email_verified FROM users WHERE id = ${userId}
+  `;
+  return user?.email_verified ?? false;
+}
+
 export async function verifyUser(
   username: string,
   password: string,
-): Promise<string> {
-  const user = await sql<{ id: number; password: string }[]>`
-    SELECT id, password FROM users
+): Promise<VerifiedUser> {
+  const user = await sql<
+    { id: number; password: string; email_verified: boolean }[]
+  >`
+    SELECT id, password, email_verified FROM users
     WHERE lower(username) = ${username.toLowerCase()}
     LIMIT 1
   `;
@@ -60,7 +77,10 @@ export async function verifyUser(
   if (user.length > 0) {
     const validPassword = await bcrypt.compare(password, user[0].password);
     if (validPassword) {
-      return user[0].id.toString();
+      return {
+        id: user[0].id.toString(),
+        emailVerified: user[0].email_verified,
+      };
     }
   }
 
@@ -116,18 +136,25 @@ export async function register(
 
   const hash = await bcrypt.hash(password, SALT_ROUNDS);
 
+  let userId: number;
   try {
-    await sql`
-    INSERT INTO users (username, password, email)
-    VALUES (${username}, ${hash}, ${email.toLowerCase()})
-    RETURNING id
-  `;
-  } catch (e: any) {
+    const [newUser] = await sql<{ id: number }[]>`
+      INSERT INTO users (username, password, email)
+      VALUES (${username}, ${hash}, ${email.toLowerCase()})
+      RETURNING id
+    `;
+    userId = newUser.id;
+  } catch (e: unknown) {
     if (isPostgresUniqueViolation(e)) {
       return { email: ['Email address is already in use'] };
     }
     return { overall: 'An error occurred while creating your account' };
   }
+
+  // Send verification email (fire-and-forget).
+  void sendVerificationEmail(userId, email.toLowerCase()).catch((e) => {
+    console.error('Failed to send verification email on registration:', e);
+  });
 
   const redirectTo = validateRedirectUrl(
     formData.get('redirectTo') as string | undefined,
@@ -149,6 +176,7 @@ export async function getSignedInUser(): Promise<User | null> {
       email: string;
       created_at: Date;
       email_verified: boolean;
+      pending_email: string | null;
       can_create_api_key: boolean;
       discord_id: string | null;
       discord_username: string | null;
@@ -159,6 +187,7 @@ export async function getSignedInUser(): Promise<User | null> {
       email,
       created_at,
       email_verified,
+      pending_email,
       can_create_api_key,
       discord_id,
       discord_username
@@ -175,6 +204,7 @@ export async function getSignedInUser(): Promise<User | null> {
     email: user.email,
     createdAt: user.created_at,
     emailVerified: user.email_verified,
+    pendingEmail: user.pending_email,
     canCreateApiKey: user.can_create_api_key,
     discordId: user.discord_id,
     discordUsername: user.discord_username,

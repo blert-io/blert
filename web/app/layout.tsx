@@ -4,6 +4,7 @@ import { Cinzel, Plus_Jakarta_Sans, Roboto_Mono } from 'next/font/google';
 import localFont from 'next/font/local';
 import { WebSite, WithContext } from 'schema-dts';
 
+import EmailVerificationBanner from './components/email-verification-banner';
 import LeftNav from './components/left-nav';
 import { LayoutContent } from './components/layout-content';
 import { PlayerLinkTooltip } from './components/player-link';
@@ -103,6 +104,7 @@ export default function RootLayout({
           <LayoutContent className={styles.siteParent}>
             <LeftNav />
             <div id="portal-root" />
+            <EmailVerificationBanner />
             <div className={styles.pageParentContent}>{children}</div>
           </LayoutContent>
         </Providers>
