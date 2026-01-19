@@ -6,6 +6,16 @@ import { useSession, signOut } from 'next-auth/react';
 
 const PROTECTED_ROUTES = ['/dashboard', '/settings'];
 
+/** Routes to which users should not be redirected to after logging in. */
+const AVOID_REDIRECT_ROUTES = [
+  '/',
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/reset-password',
+  '/verify-email',
+];
+
 import styles from './styles.module.scss';
 
 export function AccountStatusSkeleton() {
@@ -45,7 +55,7 @@ export default function AccountStatus() {
       ? `${currentPath}?${searchParams.toString()}`
       : currentPath;
 
-  const shouldRedirect = !['/', '/login', '/register'].includes(currentPath);
+  const shouldRedirect = !AVOID_REDIRECT_ROUTES.includes(currentPath);
   const redirectParams = shouldRedirect
     ? `?next=${encodeURIComponent(currentUrl)}`
     : '';

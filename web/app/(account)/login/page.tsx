@@ -40,6 +40,10 @@ export default async function Login({ searchParams }: LoginProps) {
       <p className={styles.subtitle}>Sign in to continue to Blert</p>
       <LoginForm redirectTo={redirectTo} />
       <div className={styles.altLink}>
+        <Link href="/forgot-password">Forgot your password?</Link>
+      </div>
+      <div className={styles.divider}>or</div>
+      <div className={styles.altLink}>
         New to Blert?
         <Link
           href={

@@ -1,0 +1,138 @@
+@use '../../../mixins.scss' as *;
+
+.emailRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 0.95em;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  i {
+    position: relative;
+    top: 1px;
+  }
+
+  &.verified {
+    color: var(--blert-green);
+  }
+
+  &.unverified {
+    color: var(--blert-yellow);
+  }
+
+  &.pending {
+    color: var(--blert-yellow);
+  }
+}
+
+.resendButton {
+  margin-left: auto;
+  color: var(--blert-purple);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+
+  &:hover:not(:disabled) {
+    background: rgba(var(--blert-purple-base), 0.2);
+  }
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    margin-left: 0;
+  }
+}
+
+.pendingEmailBox {
+  margin-top: 20px;
+  padding: 16px 16px 16px 20px;
+  background: var(--blert-surface-dark);
+  border-radius: 8px;
+  border-left: 3px solid var(--blert-yellow);
+}
+
+.pendingEmailHint {
+  margin: 12px 0 0 0;
+  font-size: 0.9em;
+  color: var(--blert-font-color-secondary);
+  line-height: 1.5;
+
+  strong {
+    color: var(--blert-font-color-primary);
+  }
+}
+
+.cancelButton {
+  margin-top: 16px;
+
+  button {
+    background: transparent;
+    border: 1px solid var(--blert-divider-color);
+    color: var(--blert-font-color-primary);
+
+    &:hover:not(:disabled) {
+      border-color: var(--blert-red);
+      color: var(--blert-red);
+      background: rgba(var(--blert-red-base), 0.1);
+    }
+  }
+}
+
+.changeEmailHeader {
+  margin-top: 24px;
+  margin-bottom: 16px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    margin-top: 20px;
+    margin-bottom: 12px;
+  }
+
+  h3 {
+    font-size: 1.1em;
+    margin: 0 0 8px 0;
+    color: var(--blert-font-color-primary);
+  }
+
+  p {
+    margin: 0;
+    color: var(--blert-font-color-secondary);
+    font-size: 0.95em;
+    line-height: 1.5;
+  }
+}
+
+.emailForm {
+  background: var(--blert-surface-dark);
+  border-radius: 8px;
+  padding: 20px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    padding: 16px;
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+}
+
+.error {
+  color: var(--blert-red);
+  font-size: 0.9em;
+  text-align: center;
+  margin: 0;
+  padding: 8px 12px;
+  background: rgba(var(--blert-red-base), 0.1);
+  border-radius: 6px;
+}

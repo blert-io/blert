@@ -1,6 +1,7 @@
 import { getSignedInUser } from '@/actions/users';
 import Card from '@/components/card';
 
+import EmailSection from './email-section';
 import PasswordSection from './password-section';
 
 import styles from '../style.module.scss';
@@ -28,6 +29,7 @@ export default async function AccountSettings() {
         </div>
       </Card>
 
+      <EmailSection user={user} />
       <PasswordSection />
     </>
   );

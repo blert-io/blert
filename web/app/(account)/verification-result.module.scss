@@ -1,0 +1,53 @@
+@use '@/mixins.scss' as *;
+
+.verifyEmail {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 16px;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 480px;
+  padding: 48px;
+
+  img {
+    margin-bottom: 12px;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+  }
+
+  h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin: 0 0 16px;
+    color: var(--blert-font-color-primary);
+  }
+
+  p {
+    font-size: 1rem;
+    line-height: 1.6;
+    margin: 0 0 32px;
+    color: var(--blert-font-color-secondary);
+  }
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    padding: 32px 24px;
+  }
+}
+
+.successIcon {
+  font-size: 1.5rem;
+  color: var(--blert-green);
+  margin-right: 0.5rem;
+}
+
+.errorIcon {
+  font-size: 1.5rem;
+  color: var(--blert-red);
+  margin-right: 0.5rem;
+}
