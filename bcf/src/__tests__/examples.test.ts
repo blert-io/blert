@@ -3,7 +3,7 @@ import * as path from 'path';
 
 import { parseAndValidate } from '../validator';
 import { BCFResolver } from '../resolver';
-import { BCFLaxAction, BCFNpcAttackAction } from '../types';
+import { BCFLaxAction } from '../types';
 
 const EXAMPLES_DIR = path.join(__dirname, '../../examples');
 
@@ -50,22 +50,6 @@ describe('BCF Examples', () => {
       expect(resolver.getActor('p2')).toBeDefined();
       expect(resolver.getActor('p3')).toBeDefined();
       expect(resolver.getActor('verzik')).toBeDefined();
-    });
-
-    it('contains background colors on verzik attack ticks', () => {
-      for (const bgColor of resolver.backgroundColors) {
-        expect(bgColor.color).toBe('red');
-        expect(bgColor.intensity).toBe('high');
-        expect(bgColor.length).toBe(1);
-
-        const cell = resolver.getCell('verzik', bgColor.tick);
-        expect(cell).toBeDefined();
-        expect(cell?.actions).toHaveLength(1);
-        expect(cell?.actions?.[0].type).toBe('npcAttack');
-        expect((cell?.actions?.[0] as BCFNpcAttackAction).attackType).toBe(
-          'TOB_VERZIK_P1_AUTO',
-        );
-      }
     });
   });
 });

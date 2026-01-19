@@ -2,16 +2,10 @@ import type {
   BlertChartFormat,
   BCFAction,
   BCFActor,
+  BCFNpcPhaseAction,
+  BCFPhase,
   BCFTick,
   BCFCell,
-  BCFCustomRow,
-  BCFCustomRowCell,
-  BCFCustomState,
-  BCFSplit,
-  BCFBackgroundColor,
-  BCFColor,
-  BCFColorIntensity,
-  BCFNpcState,
 } from './types';
 
 /**
@@ -24,26 +18,27 @@ export interface ResolvedPlayerState {
   specEnergy?: number;
   /** Whether the player is off cooldown. */
   offCooldown?: boolean;
-  /** Custom state indicators. */
-  customStates: BCFCustomState[];
 }
 
 /**
  * Resolved state for an NPC at a specific tick.
+ *
+ * Currently empty as there is no NPC-specific state.
  */
-export interface ResolvedNpcState {
-  /** Text label to display. */
-  label?: string;
-  /** Custom state indicators. */
-  customStates: BCFCustomState[];
-}
-
-export type ResolvedBackgroundColor = BCFBackgroundColor & {
-  intensity: BCFColorIntensity;
-  length: number;
-};
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface ResolvedNpcState {}
 
 export type ResolvedActorState = ResolvedPlayerState | ResolvedNpcState;
+
+/**
+ * An NPC phase with its tick.
+ */
+export interface NpcPhase {
+  /** The tick at which the phase occurs. */
+  tick: number;
+  /** The phase type identifier. */
+  phaseType: string;
+}
 
 /**
  * Resolver for BCF documents.
@@ -76,10 +71,8 @@ export class BCFResolver<ActionType extends { type: string } = BCFAction> {
   private readonly actorTypeIndex: Map<string, BCFActor['type']>;
   private readonly tickIndex: Map<number, BCFTick<ActionType>>;
   private readonly cellIndex: Map<string, BCFCell<ActionType>>;
-  private readonly customRowIndex: Map<string, BCFCustomRow>;
-  private readonly customRowCellIndex: Map<string, BCFCustomRowCell>;
-  private readonly splitIndex: Map<number, BCFSplit>;
-  private readonly bgColors: ResolvedBackgroundColor[];
+  private readonly npcPhaseIndex: Map<string, NpcPhase[]>;
+  private readonly encounterPhases: BCFPhase[];
 
   // Cached sorted tick numbers for state resolution.
   private readonly sortedTicks: number[];
@@ -99,41 +92,36 @@ export class BCFResolver<ActionType extends { type: string } = BCFAction> {
 
     this.tickIndex = new Map();
     this.cellIndex = new Map();
+    this.npcPhaseIndex = new Map();
     const tickNumbers: number[] = [];
     for (const tick of document.timeline.ticks) {
       this.tickIndex.set(tick.tick, tick);
       tickNumbers.push(tick.tick);
       for (const cell of tick.cells) {
         this.cellIndex.set(this.cellKey(cell.actorId, tick.tick), cell);
+
+        // Index NPC phase actions.
+        if (cell.actions !== undefined) {
+          for (const action of cell.actions) {
+            if (action.type === 'npcPhase') {
+              const phaseAction = action as unknown as BCFNpcPhaseAction;
+              let phases = this.npcPhaseIndex.get(cell.actorId);
+              if (phases === undefined) {
+                phases = [];
+                this.npcPhaseIndex.set(cell.actorId, phases);
+              }
+              phases.push({
+                tick: tick.tick,
+                phaseType: phaseAction.phaseType,
+              });
+            }
+          }
+        }
       }
     }
     this.sortedTicks = tickNumbers.sort((a, b) => a - b);
 
-    this.customRowIndex = new Map();
-    this.customRowCellIndex = new Map();
-    const customRows = document.augmentation?.customRows ?? [];
-    for (const row of customRows) {
-      this.customRowIndex.set(row.id, row);
-      for (const cell of row.cells) {
-        this.customRowCellIndex.set(this.cellKey(row.id, cell.tick), cell);
-      }
-    }
-
-    this.splitIndex = new Map();
-    const splits = document.augmentation?.splits ?? [];
-    for (const split of splits) {
-      this.splitIndex.set(split.tick, split);
-    }
-
-    if (this.doc.augmentation?.backgroundColors !== undefined) {
-      this.bgColors = this.doc.augmentation.backgroundColors.map((bg) => ({
-        ...bg,
-        intensity: bg.intensity ?? 'medium',
-        length: bg.length ?? 1,
-      }));
-    } else {
-      this.bgColors = [];
-    }
+    this.encounterPhases = document.timeline.phases ?? [];
 
     this.stateCache = new Map();
   }
@@ -173,11 +161,6 @@ export class BCFResolver<ActionType extends { type: string } = BCFAction> {
     return this.endTick - this.startTick + 1;
   }
 
-  /** Configured background colors. */
-  get backgroundColors(): ResolvedBackgroundColor[] {
-    return this.bgColors;
-  }
-
   /**
    * Gets an actor by ID.
    * @param id Actor ID
@@ -193,6 +176,15 @@ export class BCFResolver<ActionType extends { type: string } = BCFAction> {
    */
   getActors(): BCFActor[] {
     return this.doc.timeline.actors;
+  }
+
+  /**
+   * @returns An iterator over all populated ticks in the timeline.
+   */
+  *ticks(): IterableIterator<BCFTick<ActionType>> {
+    for (const tick of this.sortedTicks) {
+      yield this.getTick(tick)!;
+    }
   }
 
   /**
@@ -278,6 +270,63 @@ export class BCFResolver<ActionType extends { type: string } = BCFAction> {
   }
 
   /**
+   * Gets all phase transitions for a specific NPC.
+   *
+   * Phases are returned in tick order (ascending).
+   *
+   * @param actorId Actor ID of the NPC
+   * @returns Array of phases, or an empty array if the actor is not an NPC or
+   *   has no phases.
+   */
+  getNpcPhases(actorId: string): NpcPhase[] {
+    if (this.getActor(actorId)?.type !== 'npc') {
+      return [];
+    }
+    return this.npcPhaseIndex.get(actorId) ?? [];
+  }
+
+  /**
+   * Gets the spawn tick for an NPC.
+   *
+   * @param actorId Actor ID of the NPC
+   * @returns The spawn tick, or `undefined` if the actor is not an NPC.
+   *   Defaults to 0 if not explicitly specified.
+   */
+  getNpcSpawnTick(actorId: string): number | undefined {
+    const actor = this.getActor(actorId);
+    if (actor?.type !== 'npc') {
+      return undefined;
+    }
+    return actor.spawnTick ?? 0;
+  }
+
+  /**
+   * Gets the death tick for an NPC.
+   *
+   * @param actorId Actor ID of the NPC
+   * @returns The death tick, or `undefined` if the actor is not an NPC or
+   *   does not have a death tick set.
+   */
+  getNpcDeathTick(actorId: string): number | undefined {
+    const actor = this.getActor(actorId);
+    if (actor?.type !== 'npc') {
+      return undefined;
+    }
+    return actor.deathTick;
+  }
+
+  /**
+   * Gets all encounter-level phase transitions.
+   *
+   * Phases are returned in tick order (ascending).
+   *
+   * @returns Array of encounter phases.
+   */
+  getEncounterPhases(): BCFPhase[] {
+    return this.encounterPhases;
+  }
+
+  /**
    * Gets the resolved state for an actor at a specific tick.
    *
    * State resolution applies persistent fields from previous ticks and
@@ -313,81 +362,6 @@ export class BCFResolver<ActionType extends { type: string } = BCFAction> {
    */
   getRowOrder(): string[] | undefined {
     return this.doc.config.rowOrder;
-  }
-
-  /**
-   * Gets a custom row by ID.
-   * @param id Custom row ID
-   * @returns The custom row, or undefined if not found
-   */
-  getCustomRow(id: string): BCFCustomRow | undefined {
-    return this.customRowIndex.get(id);
-  }
-
-  /**
-   * Gets all custom rows in document order.
-   * @returns Array of all custom rows
-   */
-  getCustomRows(): BCFCustomRow[] {
-    return this.doc.augmentation?.customRows ?? [];
-  }
-
-  /**
-   * Gets a custom row cell at a specific tick.
-   * @param rowId Custom row ID
-   * @param tick Tick number
-   * @returns The cell, or undefined if no data at that tick
-   */
-  getCustomRowCell(rowId: string, tick: number): BCFCustomRowCell | undefined {
-    return this.customRowCellIndex.get(this.cellKey(rowId, tick));
-  }
-
-  /**
-   * Gets the split at a specific tick, if any.
-   * @param tick Tick number
-   * @returns The split, or undefined if no split at that tick
-   */
-  getSplitAtTick(tick: number): BCFSplit | undefined {
-    return this.splitIndex.get(tick);
-  }
-
-  /**
-   * Gets all splits.
-   * @returns Array of all splits
-   */
-  getSplits(): BCFSplit[] {
-    return this.doc.augmentation?.splits ?? [];
-  }
-
-  /**
-   * Gets the background color at a specific tick.
-   * If multiple colors overlap, returns the last one defined.
-   *
-   * @param tick Tick number
-   * @param rowId Optional row ID to check row-specific colors
-   * @returns The color and intensity, or undefined if no color at that tick
-   */
-  getBackgroundColorAtTick(
-    tick: number,
-    rowId?: string,
-  ): { color: BCFColor; intensity: BCFColorIntensity } | undefined {
-    for (let i = this.bgColors.length - 1; i >= 0; i--) {
-      const bg = this.bgColors[i];
-      const end = bg.tick + bg.length;
-      if (tick < bg.tick || tick >= end) {
-        continue;
-      }
-
-      if (bg.rowIds === undefined) {
-        return { color: bg.color, intensity: bg.intensity };
-      }
-
-      if (rowId !== undefined && bg.rowIds.includes(rowId)) {
-        return { color: bg.color, intensity: bg.intensity };
-      }
-    }
-
-    return undefined;
   }
 
   private cellKey(id: string, tick: number): string {
@@ -533,12 +507,8 @@ export class BCFResolver<ActionType extends { type: string } = BCFAction> {
     const cellState = cell?.state;
 
     if (actorType === 'npc') {
-      // NPCs don't have persistent state.
-      const npcState = cellState as BCFNpcState | undefined;
-      return {
-        label: npcState?.label,
-        customStates: npcState?.customStates ?? [],
-      };
+      // NPCs don't have any state currently.
+      return {};
     }
 
     if (actorType === 'player') {
@@ -552,7 +522,6 @@ export class BCFResolver<ActionType extends { type: string } = BCFAction> {
       ) {
         result.offCooldown = cellState.offCooldown;
       }
-      result.customStates = cellState?.customStates ?? [];
 
       return result;
     }
