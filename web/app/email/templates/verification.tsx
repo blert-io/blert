@@ -22,16 +22,15 @@ export function VerificationEmail({ verificationUrl }: VerificationEmailProps) {
   return (
     <Html>
       <Head />
-      <Preview>Verify your Blert account</Preview>
+      <Preview>Verify your email address</Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
           <Section style={styles.logoContainer}>
             <Img src={styles.LOGO_URL} alt="Blert" style={styles.logo} />
           </Section>
-          <Heading style={styles.heading}>Welcome to Blert!</Heading>
+          <Heading style={styles.heading}>Verify Your Email</Heading>
           <Text style={styles.text}>
-            Thanks for signing up. Please verify your email address by clicking
-            the button below.
+            Click the button below to verify your email address.
           </Text>
           <Section style={styles.buttonContainer}>
             <Button style={styles.button} href={verificationUrl}>
@@ -45,8 +44,8 @@ export function VerificationEmail({ verificationUrl }: VerificationEmailProps) {
             {verificationUrl}
           </Link>
           <Text style={styles.footer}>
-            This link will expire in 24 hours. If you didn&apos;t create a Blert
-            account, you can safely ignore this email.
+            This link will expire in 24 hours. If you didn&apos;t request this,
+            you can safely ignore this email.
           </Text>
         </Container>
       </Body>

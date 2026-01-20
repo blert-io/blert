@@ -291,7 +291,7 @@ export class TickState {
       const current = state.equipment[slot];
 
       if (current) {
-        if (!previous || current.id !== previous.id) {
+        if (previous?.id !== current.id) {
           newDeltas.push(
             new ItemDelta(current.id, current.quantity, slot, true).toRaw(),
           );

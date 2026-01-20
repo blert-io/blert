@@ -2,7 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useSession, signOut } from 'next-auth/react';
+
+import { authClient } from '@/auth-client';
+import { useToast } from '@/components/toast';
+import { useClientOnly } from '@/hooks/client-only';
 
 const PROTECTED_ROUTES = ['/dashboard', '/settings'];
 
@@ -13,7 +16,7 @@ const AVOID_REDIRECT_ROUTES = [
   '/register',
   '/forgot-password',
   '/reset-password',
-  '/verify-email',
+  '/email-verified',
 ];
 
 import styles from './styles.module.scss';
@@ -40,13 +43,15 @@ export function AccountStatusSkeleton() {
   );
 }
 
-export default function AccountStatus() {
+export default function AccountStatus({}) {
   const currentPath = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const session = useSession();
+  const session = authClient.useSession();
+  const isMounted = useClientOnly();
+  const showToast = useToast();
 
-  if (session.status === 'loading') {
+  if (session.isPending || !isMounted) {
     return <AccountStatusSkeleton />;
   }
 
@@ -62,7 +67,7 @@ export default function AccountStatus() {
 
   return (
     <div className={styles.account}>
-      {session.status === 'authenticated' ? (
+      {session.data ? (
         <div className={styles.userWrapper}>
           <div className={styles.userInfo}>
             <div className={styles.avatar}>
@@ -71,7 +76,9 @@ export default function AccountStatus() {
             <div className={styles.details}>
               <div className={styles.label}>Signed in as</div>
               <div className={styles.username}>
-                {session.data.user.name ?? 'Unknown'}
+                {session.data.user.displayUsername ??
+                  session.data.user.username ??
+                  'Unknown'}
               </div>
             </div>
           </div>
@@ -83,15 +90,17 @@ export default function AccountStatus() {
             <button
               className={styles.action}
               onClick={() =>
-                void (async () => {
-                  const { url } = await signOut({
-                    redirect: false,
-                    callbackUrl: PROTECTED_ROUTES.includes(currentPath)
-                      ? '/'
-                      : currentUrl,
-                  });
-                  router.replace(url);
-                })()
+                void authClient.signOut({
+                  fetchOptions: {
+                    onSuccess: () => {
+                      const isProtected = PROTECTED_ROUTES.some((route) =>
+                        currentPath.startsWith(route),
+                      );
+                      router.replace(isProtected ? '/' : currentUrl);
+                      showToast('Logged out of Blert');
+                    },
+                  },
+                })
               }
             >
               <i className="fa-solid fa-right-from-bracket" />

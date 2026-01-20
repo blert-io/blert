@@ -1,45 +1,41 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
 import { useCallback, useState } from 'react';
 
-import { resendVerificationEmail } from '@/actions/email';
 import { useToast } from '@/components/toast';
 
 import styles from './style.module.scss';
+import { authClient } from '@/auth-client';
 
 export default function EmailVerificationBanner() {
-  const { data: session, status } = useSession();
+  const { isPending, data: session } = authClient.useSession();
   const [isResending, setIsResending] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const showToast = useToast();
 
+  const email = session?.user.email ?? '';
+
   const handleResend = useCallback(async () => {
     setIsResending(true);
     try {
-      const result = await resendVerificationEmail();
-      if (result.success) {
+      const result = await authClient.sendVerificationEmail({
+        email,
+        callbackURL: '/email-verified?type=new_email',
+      });
+      if (result.data?.status === true) {
         showToast('Verification email sent!', 'success');
-      } else if (result.error === 'rate_limited') {
-        showToast(
-          `Please wait ${result.retryAfter} seconds before requesting another email.`,
-          'error',
-        );
-      } else if (result.error === 'already_verified') {
-        showToast('Your email is already verified!', 'success');
-        setDismissed(true);
       } else {
         showToast('Failed to send verification email.', 'error');
       }
     } finally {
       setIsResending(false);
     }
-  }, [showToast]);
+  }, [showToast, email]);
 
   if (
-    status === 'loading' ||
-    status === 'unauthenticated' ||
-    session?.user.isEmailVerified ||
+    isPending ||
+    session === null ||
+    session?.user.emailVerified ||
     dismissed
   ) {
     return null;
@@ -50,7 +46,7 @@ export default function EmailVerificationBanner() {
       <div className={styles.content}>
         <i className="fas fa-envelope" aria-hidden="true" />
         <span>
-          Please verify your email address.{' '}
+          Please check your email inbox for a verification link.{' '}
           <button
             onClick={() => void handleResend()}
             disabled={isResending}

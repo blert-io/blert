@@ -1,3 +1,4 @@
+import { headers } from 'next/headers';
 import Image from 'next/image';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -20,7 +21,9 @@ export default async function Login({ searchParams }: LoginProps) {
   const { next } = await searchParams;
   const redirectTo = validateRedirectUrl(next);
 
-  const session = await auth();
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
   if (session !== null) {
     redirect(redirectTo);
   }

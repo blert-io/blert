@@ -1,8 +1,8 @@
 import { ResolvingMetadata } from 'next';
+import { headers } from 'next/headers';
 import Image from 'next/image';
 import { redirect } from 'next/navigation';
 
-import { validateResetToken } from '@/actions/email';
 import { auth } from '@/auth';
 import { MAIN_LOGO } from '@/logo';
 import { basicMetadata } from '@/utils/metadata';
@@ -15,34 +15,27 @@ import styles from '../style.module.scss';
 type ResetPasswordProps = {
   searchParams: Promise<{
     token?: string;
+    error?: string;
   }>;
-};
-
-const ERROR_MESSAGES: Record<string, string> = {
-  expired: 'This password reset link has expired. Please request a new one.',
-  already_used:
-    'This password reset link has already been used. Please request a new one if you still need to reset your password.',
-  invalid_token:
-    'This password reset link is invalid. Please request a new one.',
 };
 
 export default async function ResetPassword({
   searchParams,
 }: ResetPasswordProps) {
-  const session = await auth();
+  const session = await auth.api.getSession({ headers: await headers() });
   if (session !== null) {
     redirect('/');
   }
 
-  const { token } = await searchParams;
+  const { token, error } = await searchParams;
 
-  if (!token) {
+  if (error) {
     return (
       <VerificationResult
         error={{
-          title: 'Invalid Link',
+          title: 'Link Invalid',
           message:
-            'This password reset link is invalid. Please request a new one.',
+            'This password reset link is invalid or has expired. Please request a new one.',
           link: {
             href: '/forgot-password',
             label: 'Request New Link',
@@ -53,15 +46,13 @@ export default async function ResetPassword({
     );
   }
 
-  const validation = await validateResetToken(token);
-
-  if (!validation.success) {
+  if (!token) {
     return (
       <VerificationResult
         error={{
-          title: 'Link Invalid',
+          title: 'Invalid Link',
           message:
-            ERROR_MESSAGES[validation.error] ?? ERROR_MESSAGES.invalid_token,
+            'This password reset link is invalid. Please request a new one.',
           link: {
             href: '/forgot-password',
             label: 'Request New Link',

@@ -30,5 +30,8 @@
     "grpc-tools": "^1.12.4",
     "node-addon-api": "^8.0.0",
     "ts-protoc-gen": "^0.15.0"
+  },
+  "overrides": {
+    "postgres": "3.4.7"
   }
 }

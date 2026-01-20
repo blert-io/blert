@@ -12,7 +12,7 @@ import {
 } from '@blert/common';
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import ReactTimeago from 'react-timeago';
+import ReactTimeago, { Unit } from 'react-timeago';
 
 import { ActivityFeedItem, ChallengeEndFeedItem } from './actions/activity';
 import { RankedSplit } from './actions/challenge';
@@ -428,7 +428,7 @@ function FeedItem({ item, index }: { item: ActivityFeedItem; index: number }) {
       <span className={styles.feedTime}>
         <ReactTimeago
           date={item.time}
-          formatter={(value, unit) => `${value}${unit[0]} ago`}
+          formatter={(value: number, unit: Unit) => `${value}${unit[0]} ago`}
         />
       </span>
     </div>

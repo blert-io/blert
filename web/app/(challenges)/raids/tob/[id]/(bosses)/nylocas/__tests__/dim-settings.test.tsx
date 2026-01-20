@@ -8,9 +8,10 @@ import ToastProvider from '@/components/toast';
 
 import NyloDimSettings, { DimThreshold, NyloDimConfig } from '../dim-settings';
 
-jest.mock('next-auth/react', () => ({
-  useSession: () => ({ status: 'unauthenticated', data: null }),
-  SessionProvider: ({ children }: { children: React.ReactNode }) => children,
+jest.mock('@/auth-client', () => ({
+  authClient: {
+    useSession: () => ({ isPending: false, data: null }),
+  },
 }));
 
 jest.mock('@/actions/settings', () => ({

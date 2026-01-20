@@ -1,13 +1,13 @@
 'use client';
 
-import { getSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 
-import { login } from '@/actions/users';
+import { authClient } from '@/auth-client';
 import Input from '@/components/input';
 import Button from '@/components/button';
+import { validateRedirectUrl } from '@/utils/url';
 
 import styles from '../style.module.scss';
 
@@ -46,13 +46,20 @@ export default function LoginForm({ redirectTo }: { redirectTo?: string }) {
   const router = useRouter();
 
   const [error, formAction] = useActionState(
-    async (state: string | null, formData: FormData) => {
-      const error = await login(state, formData);
-      if (error === null) {
-        await getSession();
-        router.push(redirectTo ?? '/');
+    async (_state: string | null, formData: FormData) => {
+      const username = (formData.get('blert-username') ?? '') as string;
+      const password = (formData.get('blert-password') ?? '') as string;
+
+      const { error } = await authClient.signIn.username({
+        username,
+        password,
+      });
+      if (!error) {
+        router.push(validateRedirectUrl(redirectTo));
+        return null;
       }
-      return error;
+
+      return error?.message ?? 'Invalid username or password';
     },
     null,
   );

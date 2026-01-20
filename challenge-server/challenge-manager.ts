@@ -746,7 +746,7 @@ export default class ChallengeManager {
         txn.removeChallengeClient(challengeId, userId);
 
         const challenge = await txn.getChallenge(challengeId);
-        if (challenge === null || challenge.state !== LifecycleState.ACTIVE) {
+        if (challenge?.state !== LifecycleState.ACTIVE) {
           return {
             success: false,
             allClientsFinished: false,
@@ -1137,7 +1137,7 @@ export default class ChallengeManager {
           txn.getChallengeClients(challengeId),
         ]);
 
-        if (challenge === null || challenge.state !== LifecycleState.ACTIVE) {
+        if (challenge?.state !== LifecycleState.ACTIVE) {
           logger.warn('challenge_join_rejected', {
             userId,
             challengeUuid: challengeId,

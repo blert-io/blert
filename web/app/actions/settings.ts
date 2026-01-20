@@ -2,9 +2,8 @@
 
 import { JSONValue } from 'postgres';
 
-import { auth } from '@/auth';
-
 import { sql } from './db';
+import { getSignedInUserId } from './users';
 
 export type UserSettings = Record<string, unknown>;
 
@@ -13,12 +12,11 @@ export type UserSettings = Record<string, unknown>;
  * @returns Record of setting keys to values, or null if not authenticated.
  */
 export async function getUserSettings(): Promise<UserSettings | null> {
-  const session = await auth();
-  if (!session?.user.id) {
+  const userId = await getSignedInUserId();
+  if (userId === null) {
     return null;
   }
 
-  const userId = parseInt(session.user.id, 10);
   const rows = await sql<{ key: string; value: unknown }[]>`
     SELECT key, value FROM user_settings
     WHERE user_id = ${userId}
@@ -40,12 +38,11 @@ export async function setUserSetting(
   key: string,
   value: unknown,
 ): Promise<void> {
-  const session = await auth();
-  if (!session?.user.id) {
+  const userId = await getSignedInUserId();
+  if (userId === null) {
     throw new Error('Not authenticated');
   }
 
-  const userId = parseInt(session.user.id, 10);
   const jsonValue = sql.json(value as JSONValue);
   await sql`
     INSERT INTO user_settings (user_id, key, value, updated_at)
@@ -65,12 +62,11 @@ export async function setUserSetting(
 export async function syncSettings(
   settings: UserSettings,
 ): Promise<UserSettings> {
-  const session = await auth();
-  if (!session?.user.id) {
+  const userId = await getSignedInUserId();
+  if (userId === null) {
     throw new Error('Not authenticated');
   }
 
-  const userId = parseInt(session.user.id, 10);
   const entries = Object.entries(settings);
 
   if (entries.length > 0) {

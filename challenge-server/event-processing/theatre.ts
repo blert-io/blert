@@ -173,10 +173,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
     const firstChallengeOfDay = this.firstChallengeOfDay;
     const today = startOfDateUtc();
 
-    if (
-      firstChallengeOfDay.date === null ||
-      firstChallengeOfDay.date.getTime() !== today.getTime()
-    ) {
+    if (firstChallengeOfDay.date?.getTime() !== today.getTime()) {
       const [challenge] = await sql<[{ id: number }?]>`
         SELECT id FROM challenges
         WHERE start_time >= ${today}

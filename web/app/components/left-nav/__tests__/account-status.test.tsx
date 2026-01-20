@@ -6,26 +6,42 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import AccountStatus, { AccountStatusSkeleton } from '../account-status';
 
 const mockReplace = jest.fn();
-const mockSignOut = jest.fn<Promise<{ url: string }>, [unknown]>();
-const mockSearchParams = new URLSearchParams();
+const mockSignOut = jest.fn();
+const mockUseSession = jest.fn<
+  {
+    isPending: boolean;
+    data: {
+      user: { displayUsername: string | null; username: string | null };
+    } | null;
+  },
+  []
+>();
 
 jest.mock('next/navigation', () => ({
   usePathname: jest.fn(() => '/'),
   useRouter: jest.fn(() => ({
     replace: mockReplace,
   })),
-  useSearchParams: jest.fn(() => mockSearchParams),
+  useSearchParams: jest.fn(() => new URLSearchParams()),
 }));
 
-jest.mock('next-auth/react', () => ({
-  useSession: jest.fn(),
-  signOut: jest.fn((...args: [unknown]) => mockSignOut(...args)),
+jest.mock('@/auth-client', () => ({
+  authClient: {
+    useSession: () => mockUseSession(),
+    signOut: (options: { fetchOptions?: { onSuccess?: () => void } }) => {
+      mockSignOut(options);
+      options.fetchOptions?.onSuccess?.();
+      return Promise.resolve();
+    },
+  },
 }));
 
-import { useSession } from 'next-auth/react';
+jest.mock('@/hooks/client-only', () => ({
+  useClientOnly: () => true,
+}));
+
 import { usePathname, useSearchParams } from 'next/navigation';
 
-const mockUseSession = useSession as jest.Mock;
 const mockUsePathname = usePathname as jest.Mock;
 const mockUseSearchParams = useSearchParams as jest.Mock;
 
@@ -38,7 +54,7 @@ describe('AccountStatus', () => {
 
   describe('loading state', () => {
     beforeEach(() => {
-      mockUseSession.mockReturnValue({ status: 'loading', data: null });
+      mockUseSession.mockReturnValue({ isPending: true, data: null });
     });
 
     it('renders skeleton UI when loading', () => {
@@ -126,8 +142,8 @@ describe('AccountStatus', () => {
   describe('authenticated state', () => {
     beforeEach(() => {
       mockUseSession.mockReturnValue({
-        status: 'authenticated',
-        data: { user: { name: 'TestUser' } },
+        isPending: false,
+        data: { user: { displayUsername: 'TestUser', username: 'testuser' } },
       });
     });
 
@@ -137,16 +153,27 @@ describe('AccountStatus', () => {
       expect(screen.getByText('Signed in as')).toBeInTheDocument();
     });
 
-    it('displays the username', () => {
+    it('displays the display username', () => {
       render(<AccountStatus />);
 
       expect(screen.getByText('TestUser')).toBeInTheDocument();
     });
 
-    it('displays "Unknown" when username is null', () => {
+    it('displays username when displayUsername is null', () => {
       mockUseSession.mockReturnValue({
-        status: 'authenticated',
-        data: { user: { name: null } },
+        isPending: false,
+        data: { user: { displayUsername: null, username: 'testuser' } },
+      });
+
+      render(<AccountStatus />);
+
+      expect(screen.getByText('testuser')).toBeInTheDocument();
+    });
+
+    it('displays "Unknown" when both displayUsername and username are null', () => {
+      mockUseSession.mockReturnValue({
+        isPending: false,
+        data: { user: { displayUsername: null, username: null } },
       });
 
       render(<AccountStatus />);
@@ -199,7 +226,7 @@ describe('AccountStatus', () => {
 
   describe('unauthenticated state', () => {
     beforeEach(() => {
-      mockUseSession.mockReturnValue({ status: 'unauthenticated', data: null });
+      mockUseSession.mockReturnValue({ isPending: false, data: null });
     });
 
     it('renders login button', () => {
@@ -316,14 +343,12 @@ describe('AccountStatus', () => {
   describe('logout functionality', () => {
     beforeEach(() => {
       mockUseSession.mockReturnValue({
-        status: 'authenticated',
-        data: { user: { name: 'TestUser' } },
+        isPending: false,
+        data: { user: { displayUsername: 'TestUser', username: 'testuser' } },
       });
     });
 
     it('calls signOut when logout button is clicked', async () => {
-      mockSignOut.mockResolvedValue({ url: '/' });
-
       render(<AccountStatus />);
 
       fireEvent.click(screen.getByText('Log Out'));
@@ -335,61 +360,64 @@ describe('AccountStatus', () => {
 
     it('redirects to home when on protected route', async () => {
       mockUsePathname.mockReturnValue('/dashboard');
-      mockSignOut.mockResolvedValue({ url: '/' });
 
       render(<AccountStatus />);
 
       fireEvent.click(screen.getByText('Log Out'));
 
       await waitFor(() => {
-        expect(mockSignOut).toHaveBeenCalledWith({
-          redirect: false,
-          callbackUrl: '/',
-        });
+        expect(mockReplace).toHaveBeenCalledWith('/');
       });
     });
 
     it('redirects to current page when on non-protected route', async () => {
       mockUsePathname.mockReturnValue('/raids/123');
-      mockSignOut.mockResolvedValue({ url: '/raids/123' });
 
       render(<AccountStatus />);
 
       fireEvent.click(screen.getByText('Log Out'));
 
       await waitFor(() => {
-        expect(mockSignOut).toHaveBeenCalledWith({
-          redirect: false,
-          callbackUrl: '/raids/123',
-        });
+        expect(mockReplace).toHaveBeenCalledWith('/raids/123');
       });
     });
 
     it('redirects to home when on settings page', async () => {
       mockUsePathname.mockReturnValue('/settings');
-      mockSignOut.mockResolvedValue({ url: '/' });
 
       render(<AccountStatus />);
 
       fireEvent.click(screen.getByText('Log Out'));
 
       await waitFor(() => {
-        expect(mockSignOut).toHaveBeenCalledWith({
-          redirect: false,
-          callbackUrl: '/',
-        });
+        expect(mockReplace).toHaveBeenCalledWith('/');
       });
     });
 
-    it('calls router.replace with signOut url', async () => {
-      mockSignOut.mockResolvedValue({ url: '/custom-redirect' });
+    it('redirects to home when on nested settings page', async () => {
+      mockUsePathname.mockReturnValue('/settings/account');
 
       render(<AccountStatus />);
 
       fireEvent.click(screen.getByText('Log Out'));
 
       await waitFor(() => {
-        expect(mockReplace).toHaveBeenCalledWith('/custom-redirect');
+        expect(mockReplace).toHaveBeenCalledWith('/');
+      });
+    });
+
+    it('preserves search params on redirect for non-protected routes', async () => {
+      mockUsePathname.mockReturnValue('/raids/tob');
+      mockUseSearchParams.mockReturnValue(
+        new URLSearchParams('scale=5&status=1'),
+      );
+
+      render(<AccountStatus />);
+
+      fireEvent.click(screen.getByText('Log Out'));
+
+      await waitFor(() => {
+        expect(mockReplace).toHaveBeenCalledWith('/raids/tob?scale=5&status=1');
       });
     });
   });

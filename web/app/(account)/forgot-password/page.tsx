@@ -1,4 +1,5 @@
 import { ResolvingMetadata } from 'next';
+import { headers } from 'next/headers';
 import Image from 'next/image';
 import { redirect } from 'next/navigation';
 
@@ -11,7 +12,7 @@ import ForgotPasswordForm from './forgot-password-form';
 import styles from '../style.module.scss';
 
 export default async function ForgotPassword() {
-  const session = await auth();
+  const session = await auth.api.getSession({ headers: await headers() });
   if (session !== null) {
     redirect('/');
   }

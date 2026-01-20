@@ -24,8 +24,7 @@ import {
   PlayerEntity,
 } from './types';
 
-export interface PlayerComponentProps
-  extends InteractiveEntityProps<PlayerEntity> {
+export interface PlayerComponentProps extends InteractiveEntityProps<PlayerEntity> {
   /** Color assigned to this player in the party */
   partyColor?: string;
 }

@@ -8,10 +8,10 @@ export type ApiKey = {
 export type User = {
   id: number;
   username: string;
+  displayUsername: string | null;
   createdAt: Date;
   email: string;
   emailVerified: boolean;
-  pendingEmail: string | null;
 
   // TODO(frolv): This is temporary for controlling initial access to the API.
   canCreateApiKey: boolean;
