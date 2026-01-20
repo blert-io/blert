@@ -1,6 +1,5 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
 import {
   createContext,
   useCallback,
@@ -14,6 +13,7 @@ import {
 import { setUserSetting, syncSettings, UserSettings } from '@/actions/settings';
 
 import { useToast } from './toast';
+import { authClient } from '@/auth-client';
 
 export const SETTINGS_KEY_PREFIX = 'blert-setting:';
 
@@ -70,7 +70,7 @@ export default function SettingsProvider({
 }: {
   children?: React.ReactNode;
 }) {
-  const session = useSession();
+  const session = authClient.useSession();
   const showToast = useToast();
 
   const [settings, setSettings] = useState<UserSettings>({});
@@ -83,15 +83,18 @@ export default function SettingsProvider({
   const isSyncing = useRef(false);
   const pendingUpdates = useRef(Object.create(null) as UserSettings);
 
+  const isPending = session.isPending;
+  const isAuthenticated = session.data !== null;
+
   // Fetch and sync settings when user authenticates.
   useEffect(() => {
-    if (session.status === 'loading') {
+    if (isPending) {
       return;
     }
 
     const localSettings = getLocalStorageSettings();
 
-    if (session.status === 'unauthenticated') {
+    if (!isAuthenticated) {
       setSettings(localSettings);
       setIsLoading(false);
       hasSynced.current = false;
@@ -136,7 +139,7 @@ export default function SettingsProvider({
         pendingUpdates.current = Object.create(null) as UserSettings;
         setIsLoading(false);
       });
-  }, [session.status]);
+  }, [isPending, isAuthenticated]);
 
   const updateSetting = useCallback(
     <T,>(key: string, value: T) => {
@@ -144,7 +147,7 @@ export default function SettingsProvider({
       setSettings((prev) => ({ ...prev, [key]: value }));
       setLocalStorageSetting(key, value);
 
-      if (session.status === 'authenticated') {
+      if (isAuthenticated) {
         if (isSyncing.current) {
           // Track update to apply after sync completes.
           pendingUpdates.current[key] = value;
@@ -158,7 +161,7 @@ export default function SettingsProvider({
         }
       }
     },
-    [session.status, showToast],
+    [isAuthenticated, showToast],
   );
 
   const contextValue = useMemo(

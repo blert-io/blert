@@ -3,19 +3,20 @@
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 
-import { PasswordResetErrors, changePassword } from '@/actions/users';
+import { authClient } from '@/auth-client';
 import Button from '@/components/button';
 import Input from '@/components/input';
 import { useToast } from '@/components/toast';
 
 import styles from '../style.module.scss';
 
-function FormFields({ errors }: { errors: PasswordResetErrors | null }) {
+function FormFields() {
   const { pending } = useFormStatus();
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  const passwordTooShort = newPassword.length > 0 && newPassword.length < 8;
   const passwordUnconfirmed =
     newPassword.length > 0 &&
     confirmPassword.length > 0 &&
@@ -37,8 +38,6 @@ function FormFields({ errors }: { errors: PasswordResetErrors | null }) {
         type="password"
         required
         faIcon="fa-solid fa-lock"
-        invalid={!!errors?.currentPassword}
-        errorMessage={errors?.currentPassword?.[0]}
       />
       <Input
         disabled={pending}
@@ -49,8 +48,8 @@ function FormFields({ errors }: { errors: PasswordResetErrors | null }) {
         type="password"
         required
         faIcon="fa-solid fa-key"
-        invalid={!!errors?.newPassword}
-        errorMessage={errors?.newPassword?.[0]}
+        invalid={passwordTooShort}
+        errorMessage="Password must be at least 8 characters"
         minLength={8}
         onChange={(e) => setNewPassword(e.target.value)}
         value={newPassword}
@@ -64,12 +63,8 @@ function FormFields({ errors }: { errors: PasswordResetErrors | null }) {
         type="password"
         required
         faIcon="fa-solid fa-key"
-        invalid={passwordUnconfirmed || !!errors?.confirmPassword}
-        errorMessage={
-          passwordUnconfirmed
-            ? 'Passwords do not match'
-            : errors?.confirmPassword?.[0]
-        }
+        invalid={passwordUnconfirmed}
+        errorMessage="Passwords do not match"
         onChange={(e) => setConfirmPassword(e.target.value)}
         value={confirmPassword}
       />
@@ -80,30 +75,37 @@ function FormFields({ errors }: { errors: PasswordResetErrors | null }) {
   );
 }
 
-export default function PasswordResetForm() {
+export default function PasswordChangeForm() {
   const showToast = useToast();
   const [formKey, setFormKey] = useState(0);
 
-  const [state, formAction] = useActionState(
-    async (formState: PasswordResetErrors | null, formData: FormData) => {
-      const result = await changePassword(formState, formData);
+  const [error, formAction] = useActionState(
+    async (_state: string | null, formData: FormData) => {
+      const currentPassword = (formData.get('current-password') ??
+        '') as string;
+      const newPassword = (formData.get('new-password') ?? '') as string;
 
-      if (result === null) {
-        showToast('Password changed successfully!', 'success');
-        // Reset form.
-        setFormKey((prev) => prev + 1);
-        return null;
+      const result = await authClient.changePassword({
+        currentPassword,
+        newPassword,
+        revokeOtherSessions: false,
+      });
+
+      if (result.error) {
+        return result.error.message ?? 'An error occurred, please try again.';
       }
 
-      return result;
+      showToast('Password changed successfully!', 'success');
+      setFormKey((prev) => prev + 1);
+      return null;
     },
     null,
   );
 
   return (
     <form key={formKey} action={formAction}>
-      <FormFields errors={state} />
-      {state?.overall && <p className={styles.error}>{state.overall}</p>}
+      <FormFields />
+      {error && <p className={styles.error}>{error}</p>}
     </form>
   );
 }

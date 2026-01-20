@@ -296,32 +296,6 @@
       }
     }
   }
-
-  .colosseumWaves {
-    display: flex;
-    flex-flow: row wrap;
-    padding: 3px;
-    margin: 1px 0;
-    border-radius: 4px;
-    background: var(--blert-surface-dark);
-
-    .wave {
-      width: 20%;
-      margin: 1px 2.5%;
-      padding: 3px 0;
-      border-radius: 3px;
-      text-align: center;
-      font-size: 0.85em;
-      color: var(--blert-font-color-secondary);
-      transition: all 0.2s ease;
-
-      &:hover,
-      &.active {
-        background: var(--blert-surface-darker);
-        color: var(--blert-font-color-primary);
-      }
-    }
-  }
 }
 
 .leftNav__playerSearch {

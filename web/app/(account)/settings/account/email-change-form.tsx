@@ -2,16 +2,12 @@
 
 import { useActionState, useEffect, useRef, useState } from 'react';
 
-import { requestEmailChange, RequestEmailChangeResult } from '@/actions/email';
+import { authClient } from '@/auth-client';
 import Button from '@/components/button';
 import Input from '@/components/input';
 import { useToast } from '@/components/toast';
 
 import styles from './email-section.module.scss';
-
-type EmailChangeFormProps = {
-  onSuccess?: (email: string) => void;
-};
 
 type FormState = {
   error?: string;
@@ -27,36 +23,22 @@ async function submitEmailChange(
     return { error: 'Email is required' };
   }
 
-  const result: RequestEmailChangeResult = await requestEmailChange(email);
+  const result = await authClient.changeEmail({
+    newEmail: email,
+    callbackURL: '/email-verified?type=email_change',
+  });
 
-  if (!result.success) {
-    switch (result.error) {
-      case 'rate_limited':
-        return {
-          error: `Please wait ${result.retryAfter} seconds before trying again`,
-        };
-      case 'email_in_use':
-        return { error: 'This email address is already in use' };
-      case 'same_email':
-        return { error: 'This is already your current email address' };
-      case 'invalid_email':
-        return { error: 'Please enter a valid email address' };
-      case 'send_failed':
-        return {
-          error: 'Failed to send verification email. Please try again.',
-        };
-    }
+  if (result.data?.status === true) {
+    return { successEmail: email };
   }
 
-  return { successEmail: email };
+  return { error: result.error?.message ?? 'Failed to request email change' };
 }
 
-export default function EmailChangeForm({ onSuccess }: EmailChangeFormProps) {
+export default function EmailChangeForm() {
   const [state, action, isPending] = useActionState(submitEmailChange, {});
   const [inputValue, setInputValue] = useState('');
   const formRef = useRef<HTMLFormElement>(null);
-  const onSuccessRef = useRef(onSuccess);
-  onSuccessRef.current = onSuccess;
   const showToast = useToast();
 
   useEffect(() => {
@@ -64,7 +46,6 @@ export default function EmailChangeForm({ onSuccess }: EmailChangeFormProps) {
       showToast('Verification email sent to your new address', 'success');
       setInputValue('');
       formRef.current?.reset();
-      onSuccessRef.current?.(state.successEmail);
     }
   }, [state.successEmail, showToast]);
 

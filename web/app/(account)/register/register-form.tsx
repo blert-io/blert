@@ -1,15 +1,27 @@
 'use client';
 
-import { useActionState, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useActionState, useCallback, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 
-import { RegistrationErrors, register, userExists } from '@/actions/users';
+import { authClient } from '@/auth-client';
 import Button from '@/components/button';
 import Input from '@/components/input';
+import { validateRedirectUrl } from '@/utils/url';
 
 import styles from '../style.module.scss';
 
-function FormFields({ errors }: { errors: RegistrationErrors | null }) {
+const USERNAME_REGEX = /^[a-zA-Z0-9_-]*$/;
+
+function isValidUsername(username: string): boolean {
+  return (
+    username.length >= 2 &&
+    username.length <= 24 &&
+    USERNAME_REGEX.test(username)
+  );
+}
+
+function FormFields() {
   const { pending } = useFormStatus();
 
   const [username, setUsername] = useState('');
@@ -19,8 +31,36 @@ function FormFields({ errors }: { errors: RegistrationErrors | null }) {
   const [passwordConfirm, setPasswordConfirm] = useState('');
 
   const usernameCheckTimeout = useRef<number | null>(null);
+  const usernameCheckId = useRef(0);
 
-  const validUsername = /^[a-zA-Z0-9_-]*$/.test(username);
+  const checkUsernameAvailable = useCallback((username: string) => {
+    if (usernameCheckTimeout.current) {
+      window.clearTimeout(usernameCheckTimeout.current);
+    }
+
+    if (!isValidUsername(username)) {
+      return;
+    }
+
+    const checkId = ++usernameCheckId.current;
+
+    usernameCheckTimeout.current = window.setTimeout(() => {
+      usernameCheckTimeout.current = null;
+
+      void authClient
+        .isUsernameAvailable({ username })
+        .then(({ data, error }) => {
+          if (checkId !== usernameCheckId.current) {
+            return;
+          }
+          if (!error) {
+            setUsernameExists(!data?.available);
+          }
+        });
+    }, 500);
+  }, []);
+
+  const validUsername = isValidUsername(username);
 
   const passwordUnconfirmed =
     password.length > 0 &&
@@ -28,68 +68,61 @@ function FormFields({ errors }: { errors: RegistrationErrors | null }) {
     password !== passwordConfirm;
 
   const canSubmit =
-    username.length > 0 &&
     validUsername &&
     password.length > 0 &&
     !usernameExists &&
     !passwordUnconfirmed;
 
+  const getUsernameErrorMessage = () => {
+    if (usernameExists) {
+      return 'Username is already taken';
+    }
+    if (!USERNAME_REGEX.test(username)) {
+      return 'Only letters, numbers, hyphens, and underscores';
+    }
+    if (!validUsername) {
+      return 'Username must be between 2 and 24 characters';
+    }
+    return undefined;
+  };
+
   return (
     <>
       <Input
         disabled={pending}
-        errorMessage={
-          usernameExists
-            ? 'Username is already taken'
-            : 'Only letters, numbers, hyphens, and underscores'
-        }
+        errorMessage={getUsernameErrorMessage()}
         faIcon="fa-solid fa-user"
         fluid
         id="blert-username"
-        invalid={usernameExists || !validUsername}
+        invalid={usernameExists || (username.length > 0 && !validUsername)}
         label="Username"
         minLength={2}
         maxLength={24}
         onChange={(e) => {
           const nextUsername = e.target.value;
-
           setUsername(nextUsername);
           setUsernameExists(false);
-
-          if (usernameCheckTimeout.current) {
-            window.clearTimeout(usernameCheckTimeout.current);
-          }
-
-          if (nextUsername.length > 0) {
-            usernameCheckTimeout.current = window.setTimeout(() => {
-              usernameCheckTimeout.current = null;
-              void userExists(nextUsername).then((exists) => {
-                setUsernameExists(exists);
-              });
-            }, 500);
-          }
+          checkUsernameAvailable(nextUsername);
         }}
         required
         value={username}
       />
       <Input
         disabled={pending}
-        errorMessage={errors?.email?.[0]}
         faIcon="fa-solid fa-envelope"
         fluid
         id="blert-email"
-        invalid={errors?.email !== undefined}
         label="Email address"
         required
         type="email"
       />
       <Input
         disabled={pending}
-        errorMessage={errors?.password?.[0]}
+        errorMessage="Password must be at least 8 characters"
         faIcon="fa-solid fa-lock"
         fluid
         id="blert-password"
-        invalid={errors?.password !== undefined}
+        invalid={password.length > 0 && password.length < 8}
         label="Password"
         minLength={8}
         onChange={(e) => setPassword(e.target.value)}
@@ -99,6 +132,7 @@ function FormFields({ errors }: { errors: RegistrationErrors | null }) {
       />
       <Input
         disabled={pending}
+        errorMessage="Passwords do not match"
         faIcon="fa-solid fa-lock"
         fluid
         id="blert-password-confirm"
@@ -117,13 +151,36 @@ function FormFields({ errors }: { errors: RegistrationErrors | null }) {
 }
 
 export default function RegisterForm({ redirectTo }: { redirectTo: string }) {
-  const [errors, formAction] = useActionState(register, null);
+  const router = useRouter();
+
+  const [error, formAction] = useActionState(
+    async (_state: string | null, formData: FormData) => {
+      const username = (formData.get('blert-username') ?? '') as string;
+      const email = (formData.get('blert-email') ?? '') as string;
+      const password = (formData.get('blert-password') ?? '') as string;
+
+      const { error } = await authClient.signUp.email({
+        name: username,
+        username,
+        email,
+        password,
+        callbackURL: '/email-verified?type=new_email',
+      });
+
+      if (error) {
+        return error?.message ?? 'An error occurred, please try again.';
+      }
+
+      router.push(validateRedirectUrl(redirectTo));
+      return null;
+    },
+    null,
+  );
 
   return (
     <form action={formAction} className={styles.form}>
-      <input type="hidden" name="redirectTo" value={redirectTo} />
-      <FormFields errors={errors} />
-      {errors?.overall && <p className={styles.error}>{errors.overall}</p>}
+      <FormFields />
+      {error && <p className={styles.error}>{error}</p>}
     </form>
   );
 }

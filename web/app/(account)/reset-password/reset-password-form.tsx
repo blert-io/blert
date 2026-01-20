@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 
-import { resetPassword } from '@/actions/email';
+import { authClient } from '@/auth-client';
 import Button from '@/components/button';
 import Input from '@/components/input';
 
@@ -103,33 +103,18 @@ export default function ResetPasswordForm({ token }: { token: string }) {
         };
       }
 
-      const result = await resetPassword(token, newPassword);
+      const result = await authClient.resetPassword({
+        newPassword,
+        token,
+      });
 
-      if (!result.success) {
-        switch (result.error) {
-          case 'expired':
-            return {
-              success: false,
-              error: 'This reset link has expired. Please request a new one.',
-            };
-          case 'already_used':
-            return {
-              success: false,
-              error:
-                'This reset link has already been used. Please request a new one.',
-            };
-          case 'invalid_password':
-            return {
-              success: false,
-              error: 'Password must be between 8 and 96 characters.',
-            };
-          case 'invalid_token':
-          default:
-            return {
-              success: false,
-              error: 'This reset link is invalid. Please request a new one.',
-            };
-        }
+      if (result.error) {
+        return {
+          success: false,
+          error:
+            result.error.message ??
+            'This reset link is invalid or has expired. Please request a new one.',
+        };
       }
 
       return { success: true };

@@ -1,6 +1,5 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
@@ -12,18 +11,19 @@ import {
   hideDefaultItem as hideDefaultItemAction,
   showDefaultItem as showDefaultItemAction,
 } from '@/actions/setup';
+import { authClient } from '@/auth-client';
 
 export function useCustomItems(onError?: (message: string) => void) {
-  const session = useSession();
-  const status = session.status;
+  const session = authClient.useSession();
+  const isPending = session.isPending;
+  const useLocalStorage = session.data === null;
 
   const itemStorage = useMemo(() => {
-    if (status === 'loading') {
+    if (isPending) {
       return null;
     }
-    const useLocalStorage = status !== 'authenticated';
     return new CustomItemStorage(useLocalStorage);
-  }, [status]);
+  }, [isPending, useLocalStorage]);
 
   const [customItems, setCustomItems] = useState<CustomItems>({
     melee: { added: [], hidden: [] },

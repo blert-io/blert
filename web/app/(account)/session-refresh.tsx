@@ -1,14 +1,14 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
 import { useEffect } from 'react';
 
-export default function SessionRefresh() {
-  const { update } = useSession();
+import { authClient } from '@/auth-client';
 
+export default function SessionRefresh() {
   useEffect(() => {
-    void update();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void authClient.getSession({
+      query: { disableCookieCache: true },
+    });
   }, []);
 
   return null;

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 
-import { requestPasswordReset } from '@/actions/email';
+import { authClient } from '@/auth-client';
 import Button from '@/components/button';
 import Input from '@/components/input';
 
@@ -40,15 +40,20 @@ type FormState = {
 export default function ForgotPasswordForm() {
   const [state, formAction] = useActionState(
     async (_state: FormState, formData: FormData): Promise<FormState> => {
-      const email = formData.get('blert-email') as string;
-      const valid = await requestPasswordReset(email);
+      const email = (formData.get('blert-email') as string).trim();
 
-      if (!valid) {
+      if (!email) {
         return {
           submitted: false,
           error: 'Please enter a valid email address.',
         };
       }
+
+      // Always show success to prevent email enumeration.
+      await authClient.requestPasswordReset({
+        email,
+        redirectTo: '/reset-password',
+      });
 
       return { submitted: true };
     },

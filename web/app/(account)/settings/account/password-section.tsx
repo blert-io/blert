@@ -1,4 +1,4 @@
-import PasswordResetForm from './password-reset-form';
+import PasswordChangeForm from './password-change-form';
 
 import styles from '../style.module.scss';
 
@@ -14,7 +14,7 @@ export default function PasswordSection() {
       </div>
 
       <div className={styles.passwordForm}>
-        <PasswordResetForm />
+        <PasswordChangeForm />
       </div>
     </section>
   );

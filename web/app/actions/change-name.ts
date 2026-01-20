@@ -4,9 +4,9 @@ import { NameChange, NameChangeStatus } from '@blert/common';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
-import { auth } from '@/auth';
 import { sql } from './db';
 import processor from './name-change-processor';
+import { getSignedInUserId } from './users';
 
 const RSN_REGEX = /^[a-zA-Z0-9 _-]{1,12}$/;
 
@@ -24,7 +24,7 @@ export async function submitNameChangeForm(
     return 'Invalid new name';
   }
 
-  const session = await auth();
+  const userId = await getSignedInUserId();
 
   const [player] = await sql<[{ id: number; username: string }?]>`
     SELECT id, username
@@ -50,8 +50,8 @@ export async function submitNameChangeForm(
     player_id: player.id,
     submitted_at: new Date(),
   };
-  if (session?.user?.id) {
-    nameChange.submitter_id = session.user.id;
+  if (userId !== null) {
+    nameChange.submitter_id = userId.toString();
   }
 
   await sql`INSERT INTO name_changes ${sql(nameChange)}`;

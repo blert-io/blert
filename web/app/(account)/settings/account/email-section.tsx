@@ -1,14 +1,9 @@
 'use client';
 
 import { User } from '@blert/common';
-import { useState, useTransition } from 'react';
+import { useTransition } from 'react';
 
-import {
-  cancelEmailChange,
-  resendVerificationEmail,
-  SendVerificationResult,
-} from '@/actions/email';
-import Button from '@/components/button';
+import { authClient } from '@/auth-client';
 import { useToast } from '@/components/toast';
 
 import EmailChangeForm from './email-change-form';
@@ -23,32 +18,18 @@ type EmailSectionProps = {
 export default function EmailSection({ user }: EmailSectionProps) {
   const showToast = useToast();
   const [isResending, startResendTransition] = useTransition();
-  const [isCanceling, startCancelTransition] = useTransition();
-  const [pendingEmail, setPendingEmail] = useState(user.pendingEmail);
 
   const handleResendVerification = () => {
     startResendTransition(async () => {
-      const result: SendVerificationResult = await resendVerificationEmail();
-      if (result.success) {
+      const result = await authClient.sendVerificationEmail({
+        email: user.email,
+        callbackURL: '/email-verified?type=new_email',
+      });
+      if (result.data?.status === true) {
         showToast('Verification email sent', 'success');
-      } else if (result.error === 'rate_limited') {
-        showToast(
-          `Please wait ${result.retryAfter} seconds before trying again`,
-          'error',
-        );
-      } else if (result.error === 'already_verified') {
-        showToast('Your email is already verified', 'info');
       } else {
         showToast('Failed to send verification email', 'error');
       }
-    });
-  };
-
-  const handleCancelPendingEmail = () => {
-    startCancelTransition(async () => {
-      await cancelEmailChange();
-      setPendingEmail(null);
-      showToast('Email change request cancelled', 'info');
     });
   };
 
@@ -83,41 +64,14 @@ export default function EmailSection({ user }: EmailSectionProps) {
         )}
       </div>
 
-      {pendingEmail && (
-        <div className={styles.pendingEmailBox}>
-          <div className={styles.emailRow}>
-            <span>
-              <strong>Pending email change:</strong> {pendingEmail}
-            </span>
-            <span className={`${styles.status} ${styles.pending}`}>
-              <i className="fas fa-clock" />
-              Awaiting verification
-            </span>
-          </div>
-          <p className={styles.pendingEmailHint}>
-            Check your inbox at <strong>{pendingEmail}</strong> for a
-            confirmation link.
-          </p>
-          <div className={styles.cancelButton}>
-            <Button onClick={handleCancelPendingEmail} disabled={isCanceling}>
-              {isCanceling ? 'Cancelling...' : 'Cancel email change'}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {!pendingEmail && (
-        <>
-          <div className={styles.changeEmailHeader}>
-            <h3>Change Email</h3>
-            <p>
-              Enter your new email address below. We&apos;ll send a verification
-              link to confirm the change.
-            </p>
-          </div>
-          <EmailChangeForm onSuccess={setPendingEmail} />
-        </>
-      )}
+      <div className={styles.changeEmailHeader}>
+        <h3>Change Email</h3>
+        <p>
+          Enter your new email address below. We&apos;ll send a verification
+          link to confirm the change.
+        </p>
+      </div>
+      <EmailChangeForm />
     </section>
   );
 }

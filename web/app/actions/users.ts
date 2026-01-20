@@ -8,31 +8,10 @@ import {
   hiscoreLookup,
   isPostgresUniqueViolation,
 } from '@blert/common';
-import bcrypt from 'bcrypt';
-import { isRedirectError } from 'next/dist/client/components/redirect-error';
-import { z } from 'zod';
+import { headers } from 'next/headers';
 
-import { auth, signIn } from '@/auth';
-import { validateRedirectUrl } from '@/utils/url';
+import { auth } from '@/auth';
 import { sql } from './db';
-import { sendVerificationEmail } from './email';
-
-const SALT_ROUNDS = 10;
-
-const formSchema = z.object({
-  username: z
-    .string()
-    .regex(/^[a-zA-Z0-9_-]{2,24}$/, {
-      message: 'Only letters, numbers, hyphens, or underscores',
-    })
-    .trim(),
-  email: z.string().email({ message: 'Invalid email address' }),
-  password: z
-    .string()
-    .min(8, { message: 'Password must be at least 8 characters' })
-    .max(96, { message: 'Password must be at most 96 characters' })
-    .trim(),
-});
 
 /**
  * Checks if a user with the specified username exists in the database.
@@ -48,123 +27,20 @@ export async function userExists(username: string): Promise<boolean> {
   return result.length > 0;
 }
 
-export type VerifiedUser = {
-  id: string;
-  emailVerified: boolean;
-};
-
-export async function getEmailVerificationStatus(
-  userId: string,
-): Promise<boolean> {
-  const [user] = await sql<{ email_verified: boolean }[]>`
-    SELECT email_verified FROM users WHERE id = ${userId}
-  `;
-  return user?.email_verified ?? false;
-}
-
-export async function verifyUser(
-  username: string,
-  password: string,
-): Promise<VerifiedUser> {
-  const user = await sql<
-    { id: number; password: string; email_verified: boolean }[]
-  >`
-    SELECT id, password, email_verified FROM users
-    WHERE lower(username) = ${username.toLowerCase()}
-    LIMIT 1
-  `;
-
-  if (user.length > 0) {
-    const validPassword = await bcrypt.compare(password, user[0].password);
-    if (validPassword) {
-      return {
-        id: user[0].id.toString(),
-        emailVerified: user[0].email_verified,
-      };
-    }
-  }
-
-  throw new Error('Invalid username or password');
-}
-
-export async function login(
-  _state: string | null,
-  formData: FormData,
-): Promise<string | null> {
-  try {
-    await signIn('credentials', {
-      username: formData.get('blert-username'),
-      password: formData.get('blert-password'),
-      redirect: false,
-    });
-  } catch (e) {
-    if (isRedirectError(e)) {
-      throw e;
-    }
-    return 'Invalid username or password';
-  }
-
-  return null;
-}
-
-export type RegistrationErrors = {
-  username?: string[];
-  email?: string[];
-  password?: string[];
-  overall?: string;
-};
-
-export async function register(
-  _state: RegistrationErrors | null,
-  formData: FormData,
-): Promise<RegistrationErrors | null> {
-  const validatedFields = formSchema.safeParse({
-    username: formData.get('blert-username'),
-    email: formData.get('blert-email'),
-    password: formData.get('blert-password'),
+export async function getSignedInUserId(): Promise<number | null> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
   });
-
-  if (!validatedFields.success) {
-    return validatedFields.error.flatten().fieldErrors;
+  if (!session?.user.id) {
+    return null;
   }
-
-  const { username, password, email } = validatedFields.data;
-
-  if (await userExists(username)) {
-    return { username: [`Username ${username} is already taken`] };
-  }
-
-  const hash = await bcrypt.hash(password, SALT_ROUNDS);
-
-  let userId: number;
-  try {
-    const [newUser] = await sql<{ id: number }[]>`
-      INSERT INTO users (username, password, email)
-      VALUES (${username}, ${hash}, ${email.toLowerCase()})
-      RETURNING id
-    `;
-    userId = newUser.id;
-  } catch (e: unknown) {
-    if (isPostgresUniqueViolation(e)) {
-      return { email: ['Email address is already in use'] };
-    }
-    return { overall: 'An error occurred while creating your account' };
-  }
-
-  // Send verification email (fire-and-forget).
-  void sendVerificationEmail(userId, email.toLowerCase()).catch((e) => {
-    console.error('Failed to send verification email on registration:', e);
-  });
-
-  const redirectTo = validateRedirectUrl(
-    formData.get('redirectTo') as string | undefined,
-  );
-  await signIn('credentials', { username, password, redirectTo });
-  return null;
+  return parseInt(session.user.id, 10);
 }
 
 export async function getSignedInUser(): Promise<User | null> {
-  const session = await auth();
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
   if (!session?.user.id) {
     return null;
   }
@@ -173,10 +49,10 @@ export async function getSignedInUser(): Promise<User | null> {
     {
       id: number;
       username: string;
+      display_username: string | null;
       email: string;
       created_at: Date;
       email_verified: boolean;
-      pending_email: string | null;
       can_create_api_key: boolean;
       discord_id: string | null;
       discord_username: string | null;
@@ -184,10 +60,10 @@ export async function getSignedInUser(): Promise<User | null> {
   >`SELECT
       id,
       username,
+      display_username,
       email,
       created_at,
       email_verified,
-      pending_email,
       can_create_api_key,
       discord_id,
       discord_username
@@ -201,10 +77,10 @@ export async function getSignedInUser(): Promise<User | null> {
   return {
     id: user.id,
     username: user.username,
+    displayUsername: user.display_username,
     email: user.email,
     createdAt: user.created_at,
     emailVerified: user.email_verified,
-    pendingEmail: user.pending_email,
     canCreateApiKey: user.can_create_api_key,
     discordId: user.discord_id,
     discordUsername: user.discord_username,
@@ -212,13 +88,9 @@ export async function getSignedInUser(): Promise<User | null> {
 }
 
 async function ensureAuthenticated(): Promise<number> {
-  const session = await auth();
-  if (!session?.user.id) {
+  const userId = await getSignedInUserId();
+  if (userId === null) {
     throw new Error('Not authenticated');
-  }
-  const userId = Number.parseInt(session.user.id, 10);
-  if (!Number.isInteger(userId)) {
-    throw new Error('Invalid user ID');
   }
   return userId;
 }
@@ -405,83 +277,6 @@ export async function submitApiKeyForm(
   }
 
   return { apiKey };
-}
-
-const passwordResetSchema = z
-  .object({
-    currentPassword: z
-      .string()
-      .min(1, { message: 'Current password is required' }),
-    newPassword: z
-      .string()
-      .min(8, { message: 'Password must be at least 8 characters' })
-      .max(96, { message: 'Password must be at most 96 characters' })
-      .trim(),
-    confirmPassword: z
-      .string()
-      .min(1, { message: 'Password confirmation is required' }),
-  })
-  .refine((data) => data.newPassword === data.confirmPassword, {
-    message: 'Passwords do not match',
-    path: ['confirmPassword'],
-  });
-
-export type PasswordResetErrors = {
-  currentPassword?: string[];
-  newPassword?: string[];
-  confirmPassword?: string[];
-  overall?: string;
-};
-
-export async function changePassword(
-  _state: PasswordResetErrors | null,
-  formData: FormData,
-): Promise<PasswordResetErrors | null> {
-  const userId = await ensureAuthenticated();
-
-  const validatedFields = passwordResetSchema.safeParse({
-    currentPassword: formData.get('current-password'),
-    newPassword: formData.get('new-password'),
-    confirmPassword: formData.get('confirm-password'),
-  });
-
-  if (!validatedFields.success) {
-    return validatedFields.error.flatten().fieldErrors;
-  }
-
-  const { currentPassword, newPassword } = validatedFields.data;
-
-  const [user] = await sql<{ password: string }[]>`
-    SELECT password FROM users
-    WHERE id = ${userId}
-  `;
-
-  if (!user) {
-    return { overall: 'User not found' };
-  }
-
-  const validCurrentPassword = await bcrypt.compare(
-    currentPassword,
-    user.password,
-  );
-  if (!validCurrentPassword) {
-    return { currentPassword: ['Current password is incorrect'] };
-  }
-
-  const newPasswordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
-
-  try {
-    await sql`
-      UPDATE users
-      SET password = ${newPasswordHash}
-      WHERE id = ${userId}
-    `;
-  } catch (e: any) {
-    console.error('Error updating password:', e);
-    return { overall: 'An error occurred while updating your password' };
-  }
-
-  return null;
 }
 
 const LINKING_CODE_LENGTH = 8;

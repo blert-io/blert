@@ -9,14 +9,13 @@ import {
 import { randomBytes } from 'crypto';
 import postgres from 'postgres';
 
-import { auth } from '@/auth';
 import { GearSetup } from '@/setups/setup';
 
 import { webRepository } from './data-repository';
 import { sql } from './db';
-import redis from './redis';
 import { where } from './query';
-import { getSignedInUser } from './users';
+import redis from './redis';
+import { getSignedInUser, getSignedInUserId } from './users';
 
 export type SetupState = 'draft' | 'published' | 'archived';
 
@@ -402,12 +401,10 @@ export async function saveSetupDraft(
   publicId: string,
   setup: GearSetup,
 ): Promise<void> {
-  const session = await auth();
-
-  if (!session?.user?.id) {
+  const userId = await getSignedInUserId();
+  if (userId === null) {
     throw new Error('Not authorized');
   }
-  const userId = parseInt(session.user.id);
 
   const [current] = await sql<
     [{ id: number; author_id: number; state: SetupState }?]
@@ -461,12 +458,10 @@ export async function publishSetupRevision(
   setup: GearSetup,
   message: string | null,
 ): Promise<SetupMetadata> {
-  const session = await auth();
-
-  if (!session?.user?.id) {
+  const userId = await getSignedInUserId();
+  if (userId === null) {
     throw new Error('Not authorized');
   }
-  const userId = parseInt(session.user.id);
 
   if (setup.title.length === 0 || setup.description.length === 0) {
     throw new Error('Setup is missing required fields');
@@ -544,12 +539,10 @@ export async function publishSetupRevision(
  * @returns True if the setup was deleted, false if not authorized.
  */
 export async function deleteSetup(publicId: string): Promise<boolean> {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getSignedInUserId();
+  if (userId === null) {
     return false;
   }
-
-  const userId = parseInt(session.user.id);
 
   try {
     await sql.begin(async (client) => {
@@ -590,12 +583,10 @@ export async function deleteSetup(publicId: string): Promise<boolean> {
 export async function getCurrentVote(
   publicId: string,
 ): Promise<VoteType | null> {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getSignedInUserId();
+  if (userId === null) {
     return null;
   }
-
-  const userId = parseInt(session.user.id);
 
   const [vote] = await sql<[{ vote_type: VoteType } | undefined]>`
     SELECT vote_type::text
@@ -618,12 +609,10 @@ export async function voteSetup(
   publicId: string,
   voteType: VoteType,
 ): Promise<VoteCountsResult> {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getSignedInUserId();
+  if (userId === null) {
     return { error: 'Not authorized', counts: null };
   }
-
-  const userId = parseInt(session.user.id);
 
   try {
     const result = await sql.begin(async (client) => {
@@ -699,12 +688,10 @@ export async function voteSetup(
  * @returns The updated vote counts.
  */
 export async function removeVote(publicId: string): Promise<VoteCountsResult> {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getSignedInUserId();
+  if (userId === null) {
     return { error: 'Not authorized', counts: null };
   }
-
-  const userId = parseInt(session.user.id);
 
   try {
     const result = await sql.begin(async (client) => {
@@ -1030,12 +1017,12 @@ export async function getSetups(
 export async function getCurrentUserSetups(
   limit: number = 20,
 ): Promise<SetupList | null> {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getSignedInUserId();
+  if (userId === null) {
     return null;
   }
 
-  return getSetups({ author: parseInt(session.user.id) }, null, limit);
+  return getSetups({ author: userId }, null, limit);
 }
 
 const VIEW_EXPIRY_SECONDS = 1 * 60 * 60; // 1 hour
@@ -1050,8 +1037,10 @@ export async function incrementSetupViews(
   publicId: string,
   viewerIp: string,
 ): Promise<number> {
-  const [session, redisClient] = await Promise.all([auth(), redis()]);
-  const userId = session?.user?.id;
+  const [userId, redisClient] = await Promise.all([
+    getSignedInUserId(),
+    redis(),
+  ]);
 
   return sql.begin(async (client) => {
     const [setup] = await client<[{ id: number }?]>`
@@ -1171,11 +1160,10 @@ async function insertCustomItem(
   itemId: number,
   isAdded: boolean,
 ): Promise<void> {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getSignedInUserId();
+  if (userId === null) {
     throw new Error('Not authorized');
   }
-  const userId = parseInt(session.user.id);
 
   await sql`
     INSERT INTO user_custom_items (
@@ -1201,12 +1189,10 @@ async function deleteCustomItem(
   itemId: number,
   isAdded: boolean,
 ): Promise<void> {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getSignedInUserId();
+  if (userId === null) {
     throw new Error('Not authorized');
   }
-  const userId = parseInt(session.user.id);
-
   await sql`
     DELETE FROM user_custom_items
     WHERE user_id = ${userId}
@@ -1236,12 +1222,10 @@ export async function getCustomItems(
     runes: { added: [], hidden: [] },
   };
 
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getSignedInUserId();
+  if (userId === null) {
     return result;
   }
-
-  const userId = parseInt(session.user.id);
 
   const items = await sql<
     { item_id: number; category: ItemCategory; is_added: boolean }[]

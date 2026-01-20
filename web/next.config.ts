@@ -6,6 +6,7 @@ const emptyModulePath = './config/empty-browser-module.js';
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: repoRoot,
+  serverExternalPackages: ['@react-email/components', '@react-email/render'],
   images: {
     remotePatterns: [
       {

@@ -4,13 +4,13 @@ import { headers } from 'next/headers';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { auth } from '@/auth';
 import {
   getSetupByPublicId,
   getCurrentVote,
   loadSetupData,
   incrementSetupViews,
 } from '@/actions/setup';
+import { getSignedInUserId } from '@/actions/users';
 import Card from '@/components/card';
 import Tooltip from '@/components/tooltip';
 import { getRequestIp } from '@/utils/headers';
@@ -67,15 +67,14 @@ export default async function GearSetupPage({
   const headersList = await headers();
   const ip = getRequestIp(headersList);
 
-  const [session, currentVote] = await Promise.all([
-    auth(),
+  const [userId, currentVote] = await Promise.all([
+    getSignedInUserId(),
     getCurrentVote(id),
     incrementSetupViews(id, ip),
   ]);
 
-  const loggedIn = session !== null;
-  const isAuthor =
-    session !== null && parseInt(session.user.id ?? '0') === setup.authorId;
+  const loggedIn = userId !== null;
+  const isAuthor = userId !== null && userId === setup.authorId;
 
   const isLatestRevision = targetRevision === setup.latestRevision.version;
 

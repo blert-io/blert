@@ -21,7 +21,6 @@
     "@blert/common": "file:../common",
     "@types/cors": "^2.8.17",
     "@types/uuid": "^9.0.7",
-    "@types/winston": "^2.4.4",
     "@types/ws": "^8.5.10",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",

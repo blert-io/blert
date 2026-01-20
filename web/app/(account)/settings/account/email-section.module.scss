@@ -30,10 +30,6 @@
   &.unverified {
     color: var(--blert-yellow);
   }
-
-  &.pending {
-    color: var(--blert-yellow);
-  }
 }
 
 .resendButton {
@@ -50,41 +46,6 @@
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     margin-left: 0;
-  }
-}
-
-.pendingEmailBox {
-  margin-top: 20px;
-  padding: 16px 16px 16px 20px;
-  background: var(--blert-surface-dark);
-  border-radius: 8px;
-  border-left: 3px solid var(--blert-yellow);
-}
-
-.pendingEmailHint {
-  margin: 12px 0 0 0;
-  font-size: 0.9em;
-  color: var(--blert-font-color-secondary);
-  line-height: 1.5;
-
-  strong {
-    color: var(--blert-font-color-primary);
-  }
-}
-
-.cancelButton {
-  margin-top: 16px;
-
-  button {
-    background: transparent;
-    border: 1px solid var(--blert-divider-color);
-    color: var(--blert-font-color-primary);
-
-    &:hover:not(:disabled) {
-      border-color: var(--blert-red);
-      color: var(--blert-red);
-      background: rgba(var(--blert-red-base), 0.1);
-    }
   }
 }
 
