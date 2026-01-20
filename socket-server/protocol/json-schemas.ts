@@ -11,6 +11,11 @@ export const coordsSchema = z.object({
   y: z.number().int(),
 });
 
+export const timestampSchema = z.object({
+  seconds: z.number().int(),
+  nanos: z.number().int().nonnegative(),
+});
+
 // =============================================================================
 // server_message.proto schema
 // =============================================================================
@@ -56,17 +61,14 @@ export const pastChallengeSchema = z.object({
   mode: enumValueSchema,
   party: z.array(z.string()),
   challenge: enumValueSchema,
+  timestamp: timestampSchema.optional(),
+  challengeTicks: z.number().int().nonnegative(),
 });
 
 // ServerMessage.ServerStatus
 export const serverStatusSchema = z.object({
   status: enumValueSchema,
-  shutdownTime: z
-    .object({
-      seconds: z.number().int(),
-      nanos: z.number().int(),
-    })
-    .optional(),
+  shutdownTime: timestampSchema.optional(),
 });
 
 // ServerMessage.PlayerState
