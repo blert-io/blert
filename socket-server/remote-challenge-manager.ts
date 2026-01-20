@@ -135,7 +135,7 @@ export class RemoteChallengeManager extends ChallengeManager {
       }
     } catch (e) {
       logger.error('remote_complete_challenge_failed', {
-        error: e instanceof Error ? e : new Error(String(e)),
+        error: e instanceof Error ? e.message : String(e),
         challengeUuid: challengeId,
       });
     }
@@ -208,7 +208,7 @@ export class RemoteChallengeManager extends ChallengeManager {
     } catch (e) {
       logger.error('remote_challenge_update_exception', {
         challengeUuid: challengeId,
-        error: e instanceof Error ? e : new Error(String(e)),
+        error: e instanceof Error ? e.message : String(e),
       });
       return null;
     }
@@ -238,7 +238,7 @@ export class RemoteChallengeManager extends ChallengeManager {
     } catch (e) {
       logger.error('remote_challenge_info_exception', {
         challengeUuid: challengeId,
-        error: e instanceof Error ? e : new Error(String(e)),
+        error: e instanceof Error ? e.message : String(e),
       });
       return null;
     }
@@ -326,7 +326,7 @@ export class RemoteChallengeManager extends ChallengeManager {
     } catch (e) {
       logger.error('remote_challenge_join_exception', {
         challengeUuid: challengeId,
-        error: e instanceof Error ? e : new Error(String(e)),
+        error: e instanceof Error ? e.message : String(e),
       });
       return null;
     }
@@ -351,7 +351,7 @@ export class RemoteChallengeManager extends ChallengeManager {
     this.pubsubClient.on('error', (err) => {
       recordRedisEvent('error');
       logger.error('redis_error', {
-        error: err instanceof Error ? err : new Error(String(err)),
+        error: err instanceof Error ? err.message : String(err),
       });
     });
     await this.pubsubClient.subscribe(

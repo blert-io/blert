@@ -73,6 +73,13 @@ function serverMessageJsonToProto(json: ServerMessageJson): ServerMessage {
       rec.setMode(r.mode as AnyEnum);
       rec.setPartyList(r.party);
       rec.setChallenge(r.challenge as AnyEnum);
+      rec.setChallengeTicks(r.challengeTicks);
+      if (r.timestamp !== undefined) {
+        const timestamp = new Timestamp();
+        timestamp.setSeconds(r.timestamp.seconds);
+        timestamp.setNanos(r.timestamp.nanos);
+        rec.setTimestamp(timestamp);
+      }
       return rec;
     });
     msg.setRecentRecordingsList(recordings);
@@ -700,14 +707,22 @@ export function serverMessageToJson(msg: ServerMessage): ServerMessageJson {
 function pastChallengeToJson(
   obj: ServerMessage.PastChallenge.AsObject,
 ): z.infer<typeof pastChallengeSchema> {
-  return {
+  const json: z.infer<typeof pastChallengeSchema> = {
     id: obj.id,
     status: obj.status,
     stage: obj.stage,
     mode: obj.mode,
     party: obj.partyList,
     challenge: obj.challenge,
+    challengeTicks: obj.challengeTicks,
   };
+  if (obj.timestamp !== undefined) {
+    json.timestamp = {
+      seconds: obj.timestamp.seconds,
+      nanos: obj.timestamp.nanos,
+    };
+  }
+  return json;
 }
 
 function attackDefinitionToJson(

@@ -17,6 +17,7 @@ import {
   ServerMessage,
   ChallengeUpdate as ChallengeUpdateProto,
 } from '@blert/common/generated/server_message_pb';
+import { Timestamp } from 'google-protobuf/google/protobuf/timestamp_pb';
 
 import ChallengeManager, {
   ChallengeStatusResponse,
@@ -86,13 +87,22 @@ export default class MessageHandler {
         historyResponse.setRecentRecordingsList(
           history.map((challenge) => {
             const pastRaid = new ServerMessage.PastChallenge();
-            pastRaid.setChallenge(challenge.type as Proto<ChallengeMap>);
             pastRaid.setId(challenge.id);
+            pastRaid.setChallenge(challenge.type as Proto<ChallengeMap>);
+            pastRaid.setMode(challenge.mode as Proto<ChallengeModeMap>);
+            pastRaid.setStage(challenge.stage as Proto<StageMap>);
             pastRaid.setStatus(
               challenge.status as Proto<ServerMessage.PastChallenge.StatusMap>,
             );
-            pastRaid.setStage(challenge.stage as Proto<StageMap>);
-            pastRaid.setMode(challenge.mode as Proto<ChallengeModeMap>);
+            const timestamp = new Timestamp();
+            timestamp.setSeconds(
+              Math.floor(challenge.timestamp.getTime() / 1000),
+            );
+            timestamp.setNanos(
+              (challenge.timestamp.getTime() % 1000) * 1000000,
+            );
+            pastRaid.setTimestamp(timestamp);
+            pastRaid.setChallengeTicks(challenge.challengeTicks);
             pastRaid.setPartyList(challenge.party);
             return pastRaid;
           }),

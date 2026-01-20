@@ -3,6 +3,7 @@ import {
   AttackDefinition,
   ServerMessage,
 } from '@blert/common/generated/server_message_pb';
+import { Timestamp } from 'google-protobuf/google/protobuf/timestamp_pb';
 import { z } from 'zod';
 
 import {
@@ -778,6 +779,11 @@ describe('jsonToServerMessage', () => {
             mode: 11,
             party: ['Player1', 'Player2'],
             challenge: 1,
+            challengeTicks: 1200,
+            timestamp: {
+              seconds: 1768890941,
+              nanos: 123456789,
+            },
           },
         ],
       };
@@ -788,6 +794,9 @@ describe('jsonToServerMessage', () => {
       expect(recordings).toHaveLength(1);
       expect(recordings[0].getId()).toBe('uuid-1');
       expect(recordings[0].getPartyList()).toEqual(['Player1', 'Player2']);
+      expect(recordings[0].getChallengeTicks()).toBe(1200);
+      expect(recordings[0].getTimestamp()?.getSeconds()).toBe(1768890941);
+      expect(recordings[0].getTimestamp()?.getNanos()).toBe(123456789);
     });
   });
 
@@ -892,6 +901,11 @@ describe('serverMessageToJson', () => {
     recording.setMode(11);
     recording.setChallenge(1);
     recording.setPartyList(['Player1', 'Player2']);
+    recording.setChallengeTicks(1200);
+    const timestamp = new Timestamp();
+    timestamp.setSeconds(1768890941);
+    timestamp.setNanos(123456789);
+    recording.setTimestamp(timestamp);
     proto.setRecentRecordingsList([recording]);
 
     const json = serverMessageToJson(proto);
@@ -901,6 +915,9 @@ describe('serverMessageToJson', () => {
     expect(json.recentRecordings).toHaveLength(1);
     expect(json.recentRecordings![0].id).toBe('test-uuid');
     expect(json.recentRecordings![0].party).toEqual(['Player1', 'Player2']);
+    expect(json.recentRecordings![0].challengeTicks).toBe(1200);
+    expect(json.recentRecordings![0].timestamp?.seconds).toBe(1768890941);
+    expect(json.recentRecordings![0].timestamp?.nanos).toBe(123456789);
   });
 
   it('does not include client-to-server fields like challengeEvents', () => {

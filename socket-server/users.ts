@@ -17,10 +17,11 @@ export type BasicUser = {
 
 export type PastChallenge = Pick<
   Challenge,
-  'type' | 'stage' | 'status' | 'mode'
+  'type' | 'stage' | 'status' | 'mode' | 'challengeTicks'
 > & {
   id: string;
   party: string[];
+  timestamp: Date;
 };
 
 export class Users {
@@ -77,18 +78,24 @@ export class Users {
         id: number;
         uuid: string;
         type: ChallengeType;
+        mode: ChallengeMode;
         stage: Stage;
         status: ChallengeStatus;
-        mode: ChallengeMode;
+        challenge_ticks: number;
+        start_time: Date;
+        finish_time: Date | null;
       }[]
     >`
       SELECT
         challenges.id,
         challenges.uuid,
         challenges.type,
+        challenges.mode,
         challenges.stage,
         challenges.status,
-        challenges.mode
+        challenges.challenge_ticks,
+        challenges.start_time,
+        challenges.finish_time
       FROM challenges
       JOIN recorded_challenges ON challenges.id = recorded_challenges.challenge_id
       WHERE recorded_challenges.recorder_id = ${userId}
@@ -113,9 +120,11 @@ export class Users {
     return recordedChallenges.map((c) => ({
       id: c.uuid,
       type: c.type,
+      mode: c.mode,
       stage: c.stage,
       status: c.status,
-      mode: c.mode,
+      challengeTicks: c.challenge_ticks,
+      timestamp: c.finish_time ?? c.start_time,
       party: parties[c.id],
     }));
   }
