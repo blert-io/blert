@@ -1,4 +1,8 @@
-import { grantApiAccess, verifyDiscordLink } from '@/actions/admin';
+import {
+  getLinkedRsns,
+  grantApiAccess,
+  verifyDiscordLink,
+} from '@/actions/admin';
 import { sql } from '@/actions/db';
 import redis from '@/actions/redis';
 
@@ -327,6 +331,156 @@ describe('admin actions', () => {
       if (result.success) {
         expect(result.user.canCreateApiKey).toBe(true);
       }
+    });
+  });
+
+  describe('getLinkedRsns', () => {
+    let playerId1: number;
+    let playerId2: number;
+
+    beforeEach(async () => {
+      // Create test players.
+      const players = await sql<{ id: number }[]>`
+        INSERT INTO players (username)
+        VALUES ('PlayerOne'), ('PlayerTwo')
+        RETURNING id
+      `;
+      playerId1 = players[0].id;
+      playerId2 = players[1].id;
+    });
+
+    afterEach(async () => {
+      await sql`DELETE FROM api_keys`;
+      await sql`DELETE FROM players`;
+    });
+
+    it('should return RSNs for a user with linked API keys', async () => {
+      await sql`
+        UPDATE users
+        SET discord_id = '123456789012345678', discord_username = 'testuser#1234'
+        WHERE id = ${testUserId}
+      `;
+
+      await sql`
+        INSERT INTO api_keys (user_id, player_id, key, last_used)
+        VALUES (${testUserId}, ${playerId1}, 'test-key-1', NOW())
+      `;
+
+      const result = await getLinkedRsns(['123456789012345678']);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].discordId).toBe('123456789012345678');
+      expect(result[0].rsns).toEqual(['PlayerOne']);
+    });
+
+    it('should return multiple RSNs for a user with multiple API keys', async () => {
+      await sql`
+        UPDATE users
+        SET discord_id = '123456789012345678', discord_username = 'testuser#1234'
+        WHERE id = ${testUserId}
+      `;
+
+      await sql`
+        INSERT INTO api_keys (user_id, player_id, key, last_used)
+        VALUES
+          (${testUserId}, ${playerId1}, 'test-key-1', NOW()),
+          (${testUserId}, ${playerId2}, 'test-key-2', NOW())
+      `;
+
+      const result = await getLinkedRsns(['123456789012345678']);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].discordId).toBe('123456789012345678');
+      expect(result[0].rsns).toEqual(['PlayerOne', 'PlayerTwo']);
+    });
+
+    it('should return empty array for Discord ID with no linked RSNs', async () => {
+      await sql`
+        UPDATE users
+        SET discord_id = '123456789012345678', discord_username = 'testuser#1234'
+        WHERE id = ${testUserId}
+      `;
+
+      const result = await getLinkedRsns(['123456789012345678']);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].discordId).toBe('123456789012345678');
+      expect(result[0].rsns).toEqual([]);
+    });
+
+    it('should return empty array for unknown Discord ID', async () => {
+      const result = await getLinkedRsns(['999999999999999999']);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].discordId).toBe('999999999999999999');
+      expect(result[0].rsns).toEqual([]);
+    });
+
+    it('should return results for multiple Discord IDs', async () => {
+      await sql`
+        UPDATE users
+        SET discord_id = '123456789012345678', discord_username = 'testuser#1234'
+        WHERE id = ${testUserId}
+      `;
+      await sql`
+        UPDATE users
+        SET discord_id = '987654321098765432', discord_username = 'testuser2#5678'
+        WHERE id = ${testUserId2}
+      `;
+
+      await sql`
+        INSERT INTO api_keys (user_id, player_id, key, last_used)
+        VALUES
+          (${testUserId}, ${playerId1}, 'test-key-1', NOW()),
+          (${testUserId2}, ${playerId2}, 'test-key-2', NOW())
+      `;
+
+      const result = await getLinkedRsns([
+        '123456789012345678',
+        '987654321098765432',
+      ]);
+
+      expect(result).toHaveLength(2);
+
+      const user1Result = result.find(
+        (r) => r.discordId === '123456789012345678',
+      );
+      const user2Result = result.find(
+        (r) => r.discordId === '987654321098765432',
+      );
+
+      expect(user1Result?.rsns).toEqual(['PlayerOne']);
+      expect(user2Result?.rsns).toEqual(['PlayerTwo']);
+    });
+
+    it('should handle mix of found and not found Discord IDs', async () => {
+      await sql`
+        UPDATE users
+        SET discord_id = '123456789012345678', discord_username = 'testuser#1234'
+        WHERE id = ${testUserId}
+      `;
+
+      await sql`
+        INSERT INTO api_keys (user_id, player_id, key, last_used)
+        VALUES (${testUserId}, ${playerId1}, 'test-key-1', NOW())
+      `;
+
+      const result = await getLinkedRsns([
+        '123456789012345678',
+        '999999999999999999',
+      ]);
+
+      expect(result).toHaveLength(2);
+
+      const foundResult = result.find(
+        (r) => r.discordId === '123456789012345678',
+      );
+      const notFoundResult = result.find(
+        (r) => r.discordId === '999999999999999999',
+      );
+
+      expect(foundResult?.rsns).toEqual(['PlayerOne']);
+      expect(notFoundResult?.rsns).toEqual([]);
     });
   });
 });
