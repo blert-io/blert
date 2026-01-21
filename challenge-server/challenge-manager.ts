@@ -71,6 +71,7 @@ import {
   TimeoutState,
 } from './redis-client';
 import { timeOperation } from './time';
+import { DiscordClient, RecordsHandler, WebhookService } from './webhooks';
 
 export const enum ChallengeErrorType {
   FAILED_PRECONDITION,
@@ -211,6 +212,8 @@ export default class ChallengeManager {
   private timeoutTaskTimer: NodeJS.Timeout | null;
   private sessionWatchdog: SessionWatchdog;
 
+  private webhookService: WebhookService;
+
   private static readonly CHALLENGE_TIMEOUT_INTERVAL = 500;
 
   /** How long to wait before cleaning up a challenge with no clients. */
@@ -259,6 +262,11 @@ export default class ChallengeManager {
     } else {
       this.timeoutTaskTimer = null;
     }
+
+    // Initialize webhook service with handlers.
+    this.webhookService = new WebhookService();
+    const discordClient = new DiscordClient();
+    this.webhookService.registerHandler(new RecordsHandler(discordClient));
 
     setTimeout(() => {
       void this.processClientEvents();
@@ -1575,19 +1583,29 @@ export default class ChallengeManager {
           );
 
           this.recordMergeResult(stage, result);
+          let updates: Partial<ExtendedChallengeState> = {};
 
-          const updates = await timeOperation(
-            async () => await processor.processStage(stage, result.events),
-            (durationMs) => {
-              logger.info('challenge_stage_processed', {
-                challengeUuid: challenge.uuid,
-                stage,
-                status: result.events.getStatus(),
-                durationMs,
-              });
-              observeStageProcessingDuration(stage, durationMs);
-            },
-          );
+          try {
+            updates = await timeOperation(
+              async () => await processor.processStage(stage, result.events),
+              (durationMs) => {
+                logger.info('challenge_stage_processed', {
+                  challengeUuid: challenge.uuid,
+                  stage,
+                  status: result.events.getStatus(),
+                  durationMs,
+                });
+                observeStageProcessingDuration(stage, durationMs);
+              },
+            );
+          } catch (e: unknown) {
+            logger.error('challenge_stage_processing_failed', {
+              challengeUuid: challenge.uuid,
+              stage,
+              attempt,
+              error: e instanceof Error ? e.message : String(e),
+            });
+          }
 
           await this.redisClient.pipeline((pipeline) => {
             pipeline.setChallengeFields(challenge.uuid, {
@@ -1845,6 +1863,14 @@ export default class ChallengeManager {
         await this.redisClient.pipeline((txn) => {
           txn.addActivityFeedItem(ActivityFeedItemType.CHALLENGE_END, {
             challengeId,
+          });
+        });
+
+        // Notify webhook service (fire-and-forget, don't block cleanup).
+        this.webhookService.onChallengeComplete(challengeId).catch((e) => {
+          logger.error('webhook_service_error', {
+            challengeId,
+            error: e instanceof Error ? e.message : String(e),
           });
         });
       }
