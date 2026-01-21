@@ -239,3 +239,54 @@ export async function grantApiAccess(
     },
   };
 }
+
+export type LinkedRsnsResult = {
+  discordId: string;
+  rsns: string[];
+};
+
+/**
+ * Gets RSNs linked to a list of Discord accounts.
+ *
+ * @param discordIds List of Discord user IDs
+ * @returns Array of objects mapping each Discord ID to its linked RSNs
+ */
+export async function getLinkedRsns(
+  discordIds: string[],
+): Promise<LinkedRsnsResult[]> {
+  const rows = await sql<
+    {
+      discord_id: string;
+      rsn: string;
+    }[]
+  >`
+    SELECT
+      users.discord_id,
+      players.username AS rsn
+    FROM users
+    JOIN api_keys ON users.id = api_keys.user_id
+    JOIN players ON api_keys.player_id = players.id
+    WHERE users.discord_id = ANY(${discordIds})
+      AND api_keys.last_used IS NOT NULL
+    ORDER BY users.discord_id, players.username
+  `;
+
+  // Group RSNs by Discord ID.
+  const rsnsByDiscordId = new Map<string, string[]>();
+  for (const discordId of discordIds) {
+    rsnsByDiscordId.set(discordId, []);
+  }
+  for (const row of rows) {
+    const rsns = rsnsByDiscordId.get(row.discord_id);
+    if (rsns !== undefined) {
+      rsns.push(row.rsn);
+    }
+  }
+
+  const results: LinkedRsnsResult[] = [];
+  for (const [discordId, rsns] of rsnsByDiscordId) {
+    results.push({ discordId, rsns });
+  }
+
+  return results;
+}
