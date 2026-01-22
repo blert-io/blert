@@ -94,10 +94,8 @@ export function AdaptiveZoomController({
         baseZoomValue,
       );
 
-      if (camera.type === 'OrthographicCamera') {
-        camera.zoom = newZoom;
-        camera.updateProjectionMatrix();
-      }
+      camera.zoom = newZoom;
+      camera.updateProjectionMatrix();
 
       if (controlsRef.current) {
         controlsRef.current.zoom0 = newZoom;
