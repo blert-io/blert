@@ -506,10 +506,31 @@ export default class MessageHandler {
       if (isValid) {
         // When a player logs in, request a confirmation of their active
         // challenge state to synchronize with the server.
-        await Promise.all([
+        const results = await Promise.allSettled([
           this.requestChallengeStateConfirmation(client, rsn),
           Players.updateExperience(rsn, playerInfo.toObject()),
         ]);
+        const [challengeStateResult, experienceResult] = results;
+        if (challengeStateResult.status === 'rejected') {
+          logger.error('challenge_state_confirmation_failed', {
+            playerId,
+            username: rsn,
+            error:
+              challengeStateResult.reason instanceof Error
+                ? challengeStateResult.reason.message
+                : String(challengeStateResult.reason),
+          });
+        }
+        if (experienceResult.status === 'rejected') {
+          logger.error('player_experience_update_failed', {
+            playerId,
+            username: rsn,
+            error:
+              experienceResult.reason instanceof Error
+                ? experienceResult.reason.message
+                : String(experienceResult.reason),
+          });
+        }
       } else {
         const error = new ServerMessage();
         error.setType(ServerMessage.Type.ERROR);

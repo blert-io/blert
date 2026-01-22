@@ -505,7 +505,16 @@ export default class Client {
           this.heartbeatAcknowledged = true;
           this.missedHeartbeats = 0;
         } else {
-          await this.messageHandler.handleMessage(this, message);
+          try {
+            await this.messageHandler.handleMessage(this, message);
+          } catch (e) {
+            logger.error(
+              'client_message_handler_error',
+              this.logContext({
+                error: e instanceof Error ? e : new Error(String(e)),
+              }),
+            );
+          }
         }
       }
 

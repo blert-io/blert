@@ -135,10 +135,20 @@ export class Players {
       }
     });
 
+    const normalizedUsername = username.toLowerCase();
+    if (Object.keys(updates).length === 0) {
+      await sql`
+        UPDATE players
+        SET last_updated = NOW()
+        WHERE lower(username) = ${normalizedUsername}
+      `;
+      return;
+    }
+
     await sql`
       UPDATE players
       SET ${sql(updates)}, last_updated = NOW()
-      WHERE lower(username) = ${username.toLowerCase()}
+      WHERE lower(username) = ${normalizedUsername}
     `;
   }
 }
