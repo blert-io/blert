@@ -20,8 +20,6 @@ export interface BlertChartFormat<
   config: BCFConfig;
   /** Core timeline data (actors and ticks). */
   timeline: BCFTimeline<ActionType>;
-  /** Optional display hints for enhanced rendering. */
-  augmentation?: BCFAugmentation;
 }
 
 /**
@@ -34,7 +32,7 @@ export interface BCFConfig {
   startTick?: number;
   /** Last display tick in the timeline (inclusive). */
   endTick?: number;
-  /** Ordered list of actor/custom row IDs defining display order. */
+  /** Ordered list of actor IDs defining display order. */
   rowOrder?: string[];
 }
 
@@ -46,6 +44,18 @@ export interface BCFTimeline<ActionType extends { type: string } = BCFAction> {
   actors: BCFActor[];
   /** Sparse array of tick objects. */
   ticks: BCFTick<ActionType>[];
+  /** Encounter-level phase transitions. */
+  phases?: BCFPhase[];
+}
+
+/**
+ * An encounter-level phase transition.
+ */
+export interface BCFPhase {
+  /** Tick number when the phase begins. */
+  tick: number;
+  /** Phase type identifier (e.g., `"NYLOCAS_WAVE_5"`). */
+  phaseType: string;
 }
 
 /**
@@ -74,6 +84,10 @@ export interface BCFNpcActor extends BCFActorBase {
   type: 'npc';
   /** OSRS NPC ID at spawn. */
   npcId: number;
+  /** First tick the NPC exists. Defaults to 0 if omitted. */
+  spawnTick?: number;
+  /** Tick the NPC dies; permanent removal from the timeline. */
+  deathTick?: number;
 }
 
 /**
@@ -103,8 +117,12 @@ export interface BCFCell<ActionType extends { type: string } = BCFAction> {
  */
 export type BCFAction = BCFPlayerAction | BCFNpcAction;
 
-export type BCFPlayerAction = BCFAttackAction | BCFSpellAction | BCFDeathAction;
-export type BCFNpcAction = BCFNpcAttackAction;
+export type BCFPlayerAction =
+  | BCFAttackAction
+  | BCFSpellAction
+  | BCFUtilityAction
+  | BCFDeathAction;
+export type BCFNpcAction = BCFNpcAttackAction | BCFNpcPhaseAction;
 
 export type BCFLaxAction = BCFAction | BCFUnknownAction;
 
@@ -126,10 +144,10 @@ export interface BCFAttackAction {
   targetActorId?: string;
   /** Tiles away from target. */
   distanceToTarget?: number;
+  /** Damage dealt by the attack. */
+  damage?: number;
   /** Spec energy cost for special attacks. */
   specCost?: number;
-  /** Display hints for fallback rendering. */
-  display?: BCFAttackDisplay;
 }
 
 /**
@@ -141,8 +159,15 @@ export interface BCFSpellAction {
   spellType: string;
   /** Target actor's ID (if applicable). */
   targetActorId?: string;
-  /** Display hints for fallback rendering. */
-  display?: BCFSpellDisplay;
+}
+
+/**
+ * A player utility action.
+ */
+export interface BCFUtilityAction {
+  type: 'utility';
+  /** Utility type identifier (e.g., `"SURGE_POTION"`). */
+  utilityType: string;
 }
 
 /**
@@ -161,8 +186,15 @@ export interface BCFNpcAttackAction {
   attackType: string;
   /** Target actor's ID. */
   targetActorId?: string;
-  /** Display hints for fallback rendering. */
-  display?: BCFNpcAttackDisplay;
+}
+
+/**
+ * An NPC phase transition action.
+ */
+export interface BCFNpcPhaseAction {
+  type: 'npcPhase';
+  /** NPC phase type identifier (e.g., `"VERZIK_P2"`). */
+  phaseType: string;
 }
 
 /**
@@ -172,46 +204,12 @@ export type BCFUnknownAction = {
   type: string;
 } & Record<string, unknown>;
 
-/**
- * Display hints for player attacks.
- */
-export interface BCFAttackDisplay {
-  /** URL or path to icon image. */
-  iconUrl?: string;
-  /** Short text for compact display mode (1-3 characters). */
-  letter?: string;
-  /** Combat style. */
-  style?: 'melee' | 'ranged' | 'magic';
-}
-
-/**
- * Display hints for spells.
- */
-export interface BCFSpellDisplay {
-  /** URL or path to spell icon. */
-  iconUrl?: string;
-  /** Spell name for tooltips. */
-  name?: string;
-}
-
-/**
- * Display hints for NPC attacks.
- */
-export interface BCFNpcAttackDisplay {
-  /** URL or path to attack icon. */
-  iconUrl?: string;
-  /** Description for tooltips. */
-  description?: string;
-}
-
-interface BCFStateBase {
-  /** Additional state indicators. Does not persist. */
-  customStates?: BCFCustomState[];
-}
-
 export type BCFState = BCFPlayerState | BCFNpcState;
 
-export interface BCFPlayerState extends BCFStateBase {
+/**
+ * Player state on a tick.
+ */
+export interface BCFPlayerState {
   /** Whether the player is dead. Persists across ticks. */
   isDead?: boolean;
   /** Player was off attack cooldown. Does not persist. */
@@ -220,103 +218,10 @@ export interface BCFPlayerState extends BCFStateBase {
   specEnergy?: number;
 }
 
-export interface BCFNpcState extends BCFStateBase {
-  /** Text label to display. Does not persist. */
-  label?: string;
-}
-
 /**
- * A custom state annotation.
+ * NPC state on a tick.
+ *
+ * Currently empty as there is no NPC-specific state.
  */
-export type BCFCustomState =
-  | {
-      /** Short label for display. */
-      label: string;
-      /** Readable description. */
-      fullText?: string;
-      /** Icon to display with the state. */
-      iconUrl?: string;
-    }
-  | {
-      /** Icon to display with the state. */
-      iconUrl: string;
-      /** Short label for display. */
-      label?: string;
-      /** Readable description. */
-      fullText?: string;
-    };
-
-/**
- * Optional display hints that enhance rendering.
- */
-export interface BCFAugmentation {
-  /** Split markers at significant points. */
-  splits?: BCFSplit[];
-  /** Background color highlights for tick ranges. */
-  backgroundColors?: BCFBackgroundColor[];
-  /** Custom rows for challenge-specific data. */
-  customRows?: BCFCustomRow[];
-}
-
-/**
- * A split marker at a significant point in the timeline.
- */
-export interface BCFSplit {
-  /** Tick on which the split occurs. */
-  tick: number;
-  /** Split label. */
-  name: string;
-}
-
-export type BCFColor =
-  | 'red'
-  | 'orange'
-  | 'yellow'
-  | 'green'
-  | 'cyan'
-  | 'blue'
-  | 'purple'
-  | 'gray';
-export type BCFColorIntensity = 'low' | 'medium' | 'high';
-
-/**
- * A background color highlight for a tick range.
- */
-export interface BCFBackgroundColor {
-  /** Starting tick. */
-  tick: number;
-  /** Number of ticks to color. Defaults to 1. */
-  length?: number;
-  /** Color token. */
-  color: BCFColor;
-  /** Color intensity. */
-  intensity?: BCFColorIntensity;
-  /** Actor/custom row IDs to color. If omitted, applies to all rows. */
-  rowIds?: string[];
-}
-
-/**
- * A custom row for challenge-specific data.
- */
-export interface BCFCustomRow {
-  /** Unique identifier. Must not conflict with actor IDs. */
-  id: string;
-  /** Display name shown in the legend. */
-  name: string;
-  /** Sparse array of cells. */
-  cells: BCFCustomRowCell[];
-}
-
-/**
- * A cell in a custom row.
- */
-export interface BCFCustomRowCell {
-  /** Tick number for this cell. */
-  tick: number;
-  /** Icon URL to display. */
-  iconUrl?: string;
-  /** Short text label (1-3 characters). */
-  label?: string;
-  /** Opacity (0.0-1.0). Defaults to 1.0. */
-  opacity?: number;
-}
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface BCFNpcState {}

@@ -14,8 +14,8 @@ import type {
   BCFAction,
   BCFActor,
   BCFCell,
-  BCFCustomRowCell,
   BCFLaxAction,
+  BCFNpcActor,
 } from './types';
 
 import schemaV1Strict from '../schemas/bcf-1.0-strict.schema.json';
@@ -43,8 +43,8 @@ interface VersionActionTypes {
 
 const VERSION_ACTION_TYPES: Record<BCFVersion, VersionActionTypes> = {
   '1.0': {
-    playerActions: new Set(['attack', 'spell', 'death']),
-    npcActions: new Set(['npcAttack']),
+    playerActions: new Set(['attack', 'spell', 'utility', 'death']),
+    npcActions: new Set(['npcAttack', 'npcPhase']),
   },
 };
 
@@ -219,13 +219,17 @@ function validateSchema(
 /**
  * Validates semantic constraints that can't be expressed in JSON Schema.
  */
+interface NpcLifecycle {
+  spawnTick: number;
+  deathTick: number | undefined;
+}
+
 class SemanticValidator {
   private readonly doc: BlertChartFormatLax;
   private readonly errors: ValidationError[] = [];
 
   private readonly actors = new Map<string, BCFActor['type']>();
-  private readonly customRowIds = new Set<string>();
-  private readonly allRowIds = new Set<string>();
+  private readonly npcLifecycles = new Map<string, NpcLifecycle>();
 
   private readonly actionTypes: VersionActionTypes;
 
@@ -236,13 +240,10 @@ class SemanticValidator {
 
   validate(): ValidationError[] {
     this.validateActors();
-    this.validateCustomRows();
-    this.buildAllRowIds();
     this.validateRowOrder();
     this.validateDisplayRange();
     this.validateTicks();
-    this.validateSplits();
-    this.validateBackgroundColors();
+    this.validatePhases();
     return this.errors;
   }
 
@@ -264,79 +265,42 @@ class SemanticValidator {
         );
       }
       this.actors.set(actor.id, actor.type);
+
+      if (actor.type === 'npc') {
+        this.validateNpcLifecycle(actor, i);
+      }
     }
   }
 
-  private validateCustomRows(): void {
-    const { customRows } = this.doc.augmentation ?? {};
-    if (!customRows) {
-      return;
+  private validateNpcLifecycle(actor: BCFNpcActor, index: number): void {
+    const { totalTicks } = this.doc.config;
+    const spawnTick = actor.spawnTick ?? 0;
+    const deathTick = actor.deathTick;
+
+    if (spawnTick < 0 || spawnTick >= totalTicks) {
+      this.error(
+        `/timeline/actors/${index}/spawnTick`,
+        `spawnTick is out of bounds [0, ${totalTicks})`,
+      );
     }
 
-    for (let i = 0; i < customRows.length; i++) {
-      const row = customRows[i];
-
-      if (this.actors.has(row.id)) {
+    if (deathTick !== undefined) {
+      if (deathTick < 0 || deathTick >= totalTicks) {
         this.error(
-          `/augmentation/customRows/${i}/id`,
-          `Custom row ID "${row.id}" conflicts with actor ID`,
+          `/timeline/actors/${index}/deathTick`,
+          `deathTick is out of bounds [0, ${totalTicks})`,
         );
       }
-      if (this.customRowIds.has(row.id)) {
+
+      if (deathTick <= spawnTick) {
         this.error(
-          `/augmentation/customRows/${i}/id`,
-          `Duplicate custom row ID: "${row.id}"`,
+          `/timeline/actors/${index}/deathTick`,
+          `deathTick must be greater than spawnTick`,
         );
       }
-      this.customRowIds.add(row.id);
-
-      this.validateCustomRowCells(row.cells, row.id, i);
     }
-  }
 
-  private validateCustomRowCells(
-    cells: BCFCustomRowCell[],
-    rowId: string,
-    rowIndex: number,
-  ): void {
-    const seenTicks = new Set<number>();
-    let lastTick: number | null = null;
-
-    for (let j = 0; j < cells.length; j++) {
-      const cell = cells[j];
-      const path = `/augmentation/customRows/${rowIndex}/cells/${j}/tick`;
-
-      if (!this.isTickInBounds(cell.tick)) {
-        this.error(
-          path,
-          `Tick ${cell.tick} is out of bounds [0, ${this.doc.config.totalTicks})`,
-        );
-      }
-      if (seenTicks.has(cell.tick)) {
-        this.error(
-          path,
-          `Duplicate tick number ${cell.tick} in custom row "${rowId}"`,
-        );
-      }
-      seenTicks.add(cell.tick);
-
-      if (lastTick !== null && cell.tick < lastTick) {
-        this.error(
-          path,
-          `Tick ${cell.tick} is out of order (previous tick was ${lastTick})`,
-        );
-      }
-      lastTick = cell.tick;
-    }
-  }
-
-  private buildAllRowIds(): void {
-    for (const id of this.actors.keys()) {
-      this.allRowIds.add(id);
-    }
-    for (const id of this.customRowIds) {
-      this.allRowIds.add(id);
-    }
+    this.npcLifecycles.set(actor.id, { spawnTick, deathTick });
   }
 
   private validateRowOrder(): void {
@@ -347,10 +311,10 @@ class SemanticValidator {
 
     for (let i = 0; i < rowOrder.length; i++) {
       const rowId = rowOrder[i];
-      if (!this.allRowIds.has(rowId)) {
+      if (!this.actors.has(rowId)) {
         this.error(
           `/config/rowOrder/${i}`,
-          `Row ID "${rowId}" does not reference an actor or custom row`,
+          `Row ID "${rowId}" does not reference an actor`,
         );
       }
     }
@@ -384,44 +348,66 @@ class SemanticValidator {
     }
   }
 
-  private validateTicks(): void {
-    const { ticks } = this.doc.timeline;
+  /**
+   * Validates ordering, uniqueness, and bounds for an array of tick-indexed
+   * objects. Used for both ticks and phases.
+   */
+  private validateTickIndexedArray(
+    items: readonly { tick: number }[],
+    basePath: string,
+    itemName: string,
+  ): void {
     const seenTicks = new Set<number>();
     let lastTick: number | null = null;
 
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+
+      if (seenTicks.has(item.tick)) {
+        this.error(
+          `${basePath}/${i}/tick`,
+          `Duplicate ${itemName} number: ${item.tick}`,
+        );
+      }
+      seenTicks.add(item.tick);
+
+      if (lastTick !== null && item.tick < lastTick) {
+        this.error(
+          `${basePath}/${i}/tick`,
+          `${itemName} ${item.tick} is out of order (previous was ${lastTick})`,
+        );
+      }
+      lastTick = item.tick;
+
+      if (!this.isTickInBounds(item.tick)) {
+        this.error(
+          `${basePath}/${i}/tick`,
+          `${itemName} ${item.tick} is out of bounds [0, ${this.doc.config.totalTicks})`,
+        );
+      }
+    }
+  }
+
+  private validateTicks(): void {
+    const { ticks } = this.doc.timeline;
+    this.validateTickIndexedArray(ticks, '/timeline/ticks', 'tick');
+
     for (let i = 0; i < ticks.length; i++) {
-      const tick = ticks[i];
+      this.validateCells(ticks[i].cells, i, ticks[i].tick);
+    }
+  }
 
-      if (seenTicks.has(tick.tick)) {
-        this.error(
-          `/timeline/ticks/${i}/tick`,
-          `Duplicate tick number: ${tick.tick}`,
-        );
-      }
-      seenTicks.add(tick.tick);
-
-      if (lastTick !== null && tick.tick < lastTick) {
-        this.error(
-          `/timeline/ticks/${i}/tick`,
-          `Tick ${tick.tick} is out of order (previous tick was ${lastTick})`,
-        );
-      }
-      lastTick = tick.tick;
-
-      if (!this.isTickInBounds(tick.tick)) {
-        this.error(
-          `/timeline/ticks/${i}/tick`,
-          `Tick ${tick.tick} is out of bounds [0, ${this.doc.config.totalTicks})`,
-        );
-      }
-
-      this.validateCells(tick.cells, i);
+  private validatePhases(): void {
+    const { phases } = this.doc.timeline;
+    if (phases) {
+      this.validateTickIndexedArray(phases, '/timeline/phases', 'phase tick');
     }
   }
 
   private validateCells(
     cells: BCFCell<BCFLaxAction>[],
     tickIndex: number,
+    tickNumber: number,
   ): void {
     const seenActorIds = new Set<string>();
 
@@ -436,7 +422,7 @@ class SemanticValidator {
       }
       seenActorIds.add(cell.actorId);
 
-      this.validateCell(cell, tickIndex, j);
+      this.validateCell(cell, tickIndex, j, tickNumber);
     }
   }
 
@@ -444,12 +430,31 @@ class SemanticValidator {
     cell: BCFCell<BCFLaxAction>,
     tickIndex: number,
     cellIndex: number,
+    tickNumber: number,
   ): void {
     if (!this.actors.has(cell.actorId)) {
       this.error(
         `/timeline/ticks/${tickIndex}/cells/${cellIndex}/actorId`,
         `Actor ID "${cell.actorId}" does not exist`,
       );
+    }
+
+    // Validate NPC lifecycle bounds.
+    const lifecycle = this.npcLifecycles.get(cell.actorId);
+    if (lifecycle !== undefined) {
+      const { spawnTick, deathTick } = lifecycle;
+      if (tickNumber < spawnTick) {
+        this.error(
+          `/timeline/ticks/${tickIndex}/cells/${cellIndex}/actorId`,
+          `NPC "${cell.actorId}" has cell before spawnTick (${spawnTick})`,
+        );
+      }
+      if (deathTick !== undefined && tickNumber > deathTick) {
+        this.error(
+          `/timeline/ticks/${tickIndex}/cells/${cellIndex}/actorId`,
+          `NPC "${cell.actorId}" has cell after deathTick (${deathTick})`,
+        );
+      }
     }
 
     if (cell.actions) {
@@ -519,60 +524,6 @@ class SemanticValidator {
           `${path}/targetActorId`,
           `Target actor ID "${targetActorId}" does not exist`,
         );
-      }
-    }
-  }
-
-  private validateSplits(): void {
-    const { splits } = this.doc.augmentation ?? {};
-    if (!splits) {
-      return;
-    }
-
-    for (let i = 0; i < splits.length; i++) {
-      const split = splits[i];
-      if (!this.isTickInBounds(split.tick)) {
-        this.error(
-          `/augmentation/splits/${i}/tick`,
-          `Split tick ${split.tick} is out of bounds [0, ${this.doc.config.totalTicks})`,
-        );
-      }
-    }
-  }
-
-  private validateBackgroundColors(): void {
-    const { backgroundColors } = this.doc.augmentation ?? {};
-    if (!backgroundColors) {
-      return;
-    }
-
-    const { totalTicks } = this.doc.config;
-    for (let i = 0; i < backgroundColors.length; i++) {
-      const bg = backgroundColors[i];
-      const length = bg.length ?? 1;
-      const bgEndTick = bg.tick + length - 1;
-
-      if (!this.isTickInBounds(bg.tick)) {
-        this.error(
-          `/augmentation/backgroundColors/${i}/tick`,
-          `Background color tick ${bg.tick} is out of bounds [0, ${totalTicks})`,
-        );
-      }
-      if (bgEndTick >= totalTicks) {
-        this.error(
-          `/augmentation/backgroundColors/${i}/length`,
-          `Background color extends past timeline (ends at tick ${bgEndTick}, max is ${totalTicks - 1})`,
-        );
-      }
-      if (bg.rowIds) {
-        for (let j = 0; j < bg.rowIds.length; j++) {
-          if (!this.allRowIds.has(bg.rowIds[j])) {
-            this.error(
-              `/augmentation/backgroundColors/${i}/rowIds/${j}`,
-              `Row ID "${bg.rowIds[j]}" does not reference an actor or custom row`,
-            );
-          }
-        }
       }
     }
   }

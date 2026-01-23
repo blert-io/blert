@@ -1,0 +1,90 @@
+{
+  "version": "1.0",
+  "name": "Encounter phases",
+  "description": "Demonstrates encounter-level phases for wave-based content",
+  "config": {
+    "totalTicks": 20,
+    "startTick": 1,
+    "rowOrder": ["p1", "p2"]
+  },
+  "timeline": {
+    "actors": [
+      {
+        "type": "npc",
+        "id": "nylo-mage-small",
+        "npcId": 8344,
+        "name": "Nylocas hagios"
+      },
+      {
+        "type": "npc",
+        "id": "nylo-ranged-small",
+        "npcId": 8343,
+        "name": "Nylocas toxobolos"
+      },
+      { "type": "player", "id": "p1", "name": "Player1" },
+      { "type": "player", "id": "p2", "name": "Player2" }
+    ],
+    "ticks": [
+      {
+        "tick": 5,
+        "cells": [
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SANG",
+                "targetActorId": "nylo-mage-small"
+              }
+            ]
+          },
+          {
+            "actorId": "p2",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SANG",
+                "targetActorId": "nylo-mage-small"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 9,
+        "cells": [
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SANG",
+                "targetActorId": "nylo-mage-small"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 11,
+        "cells": [
+          {
+            "actorId": "p2",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "BLOWPIPE",
+                "targetActorId": "nylo-ranged-small"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "phases": [
+      { "tick": 4, "phaseType": "TOB_NYLO_WAVE_1" },
+      { "tick": 8, "phaseType": "TOB_NYLO_WAVE_2" },
+      { "tick": 12, "phaseType": "TOB_NYLO_WAVE_3" }
+    ]
+  }
+}

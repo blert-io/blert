@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "name": "State tracking and persistence",
-  "description": "Demonstrates specEnergy, offCooldown, isDead persistence, customStates, and NPC labels",
+  "description": "Demonstrates specEnergy, offCooldown, and isDead persistence rules",
   "config": {
     "totalTicks": 11,
     "rowOrder": ["boss", "p1", "p2"]
@@ -16,10 +16,6 @@
       {
         "tick": 0,
         "cells": [
-          {
-            "actorId": "boss",
-            "state": { "label": "3" }
-          },
           {
             "actorId": "p1",
             "actions": [
@@ -50,10 +46,6 @@
         "tick": 1,
         "cells": [
           {
-            "actorId": "boss",
-            "state": { "label": "2" }
-          },
-          {
             "actorId": "p1",
             "actions": [
               {
@@ -71,10 +63,6 @@
       {
         "tick": 2,
         "cells": [
-          {
-            "actorId": "boss",
-            "state": { "label": "1" }
-          },
           {
             "actorId": "p1",
             "state": { "offCooldown": true }
@@ -96,19 +84,11 @@
                 "attackType": "TOB_BLOAT_STOMP",
                 "targetActorId": "p2"
               }
-            ],
-            "state": {
-              "label": "SLAM"
-            }
+            ]
           },
           {
             "actorId": "p2",
-            "actions": [{ "type": "death" }],
-            "state": {
-              "customStates": [
-                { "label": "67", "fullText": "Hit for 67 damage" }
-              ]
-            }
+            "actions": [{ "type": "death" }]
           }
         ]
       },
@@ -125,19 +105,7 @@
                 "targetActorId": "boss"
               }
             ],
-            "state": {
-              "customStates": [
-                {
-                  "iconUrl": "https://blert.io/images/spells/energy-transfer.png",
-                  "fullText": "Received spec transfer"
-                },
-                {
-                  "iconUrl": "https://blert.io/images/prayers/overhead-magic.png",
-                  "fullText": "Protected from magic"
-                }
-              ],
-              "specEnergy": 100
-            }
+            "state": { "specEnergy": 100 }
           }
         ]
       },
@@ -173,16 +141,7 @@
         "cells": [
           {
             "actorId": "p2",
-            "state": {
-              "isDead": false,
-              "customStates": [
-                {
-                  "label": "res",
-                  "iconUrl": "https://blert.io/images/skills/prayer.webp",
-                  "fullText": "Resurrected"
-                }
-              ]
-            }
+            "state": { "isDead": false }
           }
         ]
       },
@@ -191,9 +150,7 @@
         "cells": [
           {
             "actorId": "p2",
-            "state": {
-              "offCooldown": true
-            }
+            "state": { "offCooldown": true }
           }
         ]
       }

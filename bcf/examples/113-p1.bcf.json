@@ -115,16 +115,8 @@
         "cells": [
           {
             "actorId": "p2",
-            "state": {
-              "customStates": [
-                {
-                  "label": "!",
-                  "fullText": "Drank surge potion",
-                  "iconUrl": "https://chisel.weirdgloop.org/static/img/osrs-sprite/30875.png"
-                }
-              ],
-              "specEnergy": 90
-            }
+            "actions": [{ "type": "utility", "utilityType": "SURGE_POTION" }],
+            "state": { "specEnergy": 90 }
           }
         ]
       },
@@ -180,16 +172,8 @@
         "cells": [
           {
             "actorId": "p3",
-            "state": {
-              "customStates": [
-                {
-                  "label": "!",
-                  "fullText": "Drank surge potion",
-                  "iconUrl": "https://chisel.weirdgloop.org/static/img/osrs-sprite/30875.png"
-                }
-              ],
-              "specEnergy": 90
-            }
+            "actions": [{ "type": "utility", "utilityType": "SURGE_POTION" }],
+            "state": { "specEnergy": 90 }
           }
         ]
       },
@@ -549,16 +533,8 @@
         "cells": [
           {
             "actorId": "p1",
-            "state": {
-              "customStates": [
-                {
-                  "label": "!",
-                  "fullText": "Drank surge potion",
-                  "iconUrl": "https://chisel.weirdgloop.org/static/img/osrs-sprite/30875.png"
-                }
-              ],
-              "specEnergy": 65
-            }
+            "actions": [{ "type": "utility", "utilityType": "SURGE_POTION" }],
+            "state": { "specEnergy": 65 }
           }
         ]
       },
@@ -772,14 +748,6 @@
           }
         ]
       }
-    ]
-  },
-  "augmentation": {
-    "backgroundColors": [
-      { "tick": 19, "color": "red", "intensity": "high" },
-      { "tick": 33, "color": "red", "intensity": "high" },
-      { "tick": 47, "color": "red", "intensity": "high" },
-      { "tick": 61, "color": "red", "intensity": "high" }
     ]
   }
 }

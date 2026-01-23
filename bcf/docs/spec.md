@@ -1,10 +1,11 @@
 # Blert Chart Format (BCF) Specification
 
-|                  |            |
-| ---------------- | ---------- |
-| **Version**      | 1.0        |
-| **Status**       | Draft      |
-| **Last Updated** | 2026-01-04 |
+|                   |                                                              |
+| ----------------- | ------------------------------------------------------------ |
+| **Version**       | 1.0                                                          |
+| **Status**        | Draft                                                        |
+| **Last Updated**  | 2026-01-17                                                   |
+| **Canonical URL** | https://github.com/blert-io/blert/blob/main/bcf/docs/spec.md |
 
 ## 1. Introduction
 
@@ -21,27 +22,29 @@ representing combat timelines in Old School RuneScape. BCF enables:
 
 ### 1.2 Scope
 
-BCF captures core combat data: player attacks, player spells, player deaths,
-and NPC attacks. It intentionally excludes:
+BCF is a curated timeline representation of a PvM encounter intended for
+visualization.
+
+BCF is not a complete replay of challenge events. BCF captures a subset of core
+combat data. It intentionally excludes:
 
 - Player positions and movement
 - Equipment and inventory state
 - Skill levels and boost tracking
-- NPC hitpoints over time including death
+- Actor hitpoints over time
 
-These exclusions keep BCF focused and portable. Renderers requiring additional
-data should use a supplementary context mechanism outside the BCF specification.
+BCF intentionally does not provide arbitrary extension fields. New
+encounter-relevant semantics must be introduced via the identifier registry.
 
 ### 1.3 Terminology
 
-| Term         | Definition                                                   |
-| ------------ | ------------------------------------------------------------ |
-| Actor        | An entity that can perform actions (player or NPC)           |
-| Tick         | OSRS game tick                                               |
-| Cell         | The intersection of an actor and a tick in the timeline grid |
-| Action       | Something an actor does on a tick (attack, spell, death)     |
-| Augmentation | Optional display hints that enhance rendering                |
-| Renderer     | A program that displays a BCF document as a visual chart     |
+| Term     | Definition                                                   |
+| -------- | ------------------------------------------------------------ |
+| Actor    | An entity that can perform actions (player or NPC)           |
+| Tick     | OSRS game tick                                               |
+| Cell     | The intersection of an actor and a tick in the timeline grid |
+| Action   | Something an actor does on a tick (attack, spell, death)     |
+| Renderer | A program that displays a BCF document as a visual chart     |
 
 ## 2. Document Structure
 
@@ -54,8 +57,7 @@ canonical file extension is `.bcf.json`.
   "name": "Optional chart name",
   "description": "Optional description",
   "config": { ... },
-  "timeline": { ... },
-  "augmentation": { ... }
+  "timeline": { ... }
 }
 ```
 
@@ -69,11 +71,10 @@ canonical file extension is `.bcf.json`.
 
 ### 2.2 Optional Fields
 
-| Field          | Type   | Description                          |
-| -------------- | ------ | ------------------------------------ |
-| `name`         | string | Human-readable name for the chart    |
-| `description`  | string | Longer description or notes          |
-| `augmentation` | object | Display hints for enhanced rendering |
+| Field         | Type   | Description                       |
+| ------------- | ------ | --------------------------------- |
+| `name`        | string | Human-readable name for the chart |
+| `description` | string | Longer description or notes       |
 
 ## 3. Configuration (`config`)
 
@@ -92,12 +93,12 @@ The `config` object defines timeline parameters:
 
 ### 3.1 Fields
 
-| Field        | Type     | Required | Default          | Description                                                                            |
-| ------------ | -------- | -------- | ---------------- | -------------------------------------------------------------------------------------- |
-| `totalTicks` | integer  | Yes      | -                | Total number of ticks in the timeline                                                  |
-| `startTick`  | integer  | No       | 0                | First display tick in the timeline                                                     |
-| `endTick`    | integer  | No       | `totalTicks - 1` | Last display tick in the timeline (inclusive)                                          |
-| `rowOrder`   | string[] | No       | -                | Ordered list of actor IDs defining row display order. Custom row IDs may also be used. |
+| Field        | Type     | Required | Default          | Description                                           |
+| ------------ | -------- | -------- | ---------------- | ----------------------------------------------------- |
+| `totalTicks` | integer  | Yes      | -                | Total number of ticks in the timeline                 |
+| `startTick`  | integer  | No       | 0                | First display tick in the timeline                    |
+| `endTick`    | integer  | No       | `totalTicks - 1` | Last display tick in the timeline (inclusive)         |
+| `rowOrder`   | string[] | No       | -                | Ordered list of actor IDs defining row display order. |
 
 ### 3.2. Tick Range
 
@@ -122,10 +123,9 @@ entire timeline.
 When `rowOrder` is provided, it defines the set and order of rows that should be
 displayed. Rows not listed in `rowOrder` may still exist in the document but are
 omitted from rendering. When `rowOrder` is omitted, renderers should display all
-rows in a default order (typically NPCs, custom rows, players).
+rows in a default order (typically NPCs then players).
 
-- All entries in `rowOrder` must uniquely reference valid actor IDs or custom
-  row IDs.
+- All entries in `rowOrder` must uniquely reference valid actor IDs.
 - Actors/rows not listed in `rowOrder` are omitted from rendering.
 - `rowOrder` cannot be empty if present.
 
@@ -136,10 +136,9 @@ rows in a default order (typically NPCs, custom rows, players).
   than or equal to `endTick` if provided.
 - `endTick` must be a non-negative integer less than `totalTicks`, and greater
   than or equal to `startTick` if provided.
-- All tick numbers in the timeline must be integers in the range
-  `[0, totalTicks - 1]`.
-- All IDs in `rowOrder` must exist as actor IDs or custom row IDs referencing
-  (`augmentation.customRows[].id`).
+- All tick numbers in the timeline (in `ticks` and `phases`) must be integers in
+  the range `[0, totalTicks - 1]`.
+- All IDs in `rowOrder` must exist as actor IDs.
 
 ## 4. Timeline (`timeline`)
 
@@ -149,7 +148,8 @@ The `timeline` object contains the core chart data:
 {
   "timeline": {
     "actors": [ ... ],
-    "ticks": [ ... ]
+    "ticks": [ ... ],
+    "phases": [ ... ]
   }
 }
 ```
@@ -181,22 +181,43 @@ Actors define the rows of the timeline grid. Each actor has a unique identifier.
   "type": "npc",
   "id": "verzik",
   "npcId": 8370,
-  "name": "Verzik Vitur"
+  "name": "Verzik Vitur",
+  "spawnTick": 0,
+  "deathTick": 287
 }
 ```
 
-| Field   | Type    | Required | Description                            |
-| ------- | ------- | -------- | -------------------------------------- |
-| `type`  | string  | Yes      | Must be `"npc"`                        |
-| `id`    | string  | Yes      | Unique identifier within this document |
-| `npcId` | integer | Yes      | OSRS NPC ID at spawn                   |
-| `name`  | string  | Yes      | Display name                           |
+| Field       | Type    | Required | Description                            |
+| ----------- | ------- | -------- | -------------------------------------- |
+| `type`      | string  | Yes      | Must be `"npc"`                        |
+| `id`        | string  | Yes      | Unique identifier within this document |
+| `npcId`     | integer | Yes      | OSRS NPC ID at spawn                   |
+| `name`      | string  | Yes      | Display name                           |
+| `spawnTick` | integer | No       | First tick the NPC exists (default 0)  |
+| `deathTick` | integer | No       | Tick the NPC dies; permanent removal   |
 
 #### 4.1.3 Actor ID Requirements
 
 - Actor IDs must be unique within the document
 - IDs should be URL-safe strings (alphanumeric, hyphens, underscores)
 - Recommended patterns: `"p1"`, `"player-1"`, `"verzik"`, `"nylo-boss"`
+
+#### 4.1.4 NPC Lifecycle
+
+NPCs may optionally define `spawnTick` and `deathTick` to describe their
+lifecycle in the timeline.
+
+- `spawnTick` defaults to `0` if omitted.
+- `deathTick` is optional and indicates permanent removal.
+- If `deathTick` is present, the NPC is considered dead from that tick onward.
+- If `deathTick` is omitted, the NPC exists through the end of the timeline.
+- Actions for an NPC must not appear outside `[spawnTick, deathTick]` (if
+  `deathTick` is present). The NPC may perform actions on `deathTick` itself.
+
+Validation:
+
+- `spawnTick` and `deathTick` must be integers in `[0, totalTicks - 1]`.
+- If both are present, `deathTick` must be strictly greater than `spawnTick`.
 
 ### 4.2 Ticks Array
 
@@ -287,20 +308,78 @@ Constraints:
 - An empty cell (no actions, no state) is equivalent to omitting the cell.
 - Renderers should treat missing cells as empty.
 
+### 4.4 Phases Array
+
+The optional `phases` array captures encounter-level phase transitions that are
+not tied to a specific actor. This is distinct from `npcPhase` actions, which
+represent phase transitions for a specific NPC.
+
+```json
+{
+  "timeline": {
+    "phases": [
+      { "tick": 8, "phaseType": "TOB_NYLO_WAVE_1" },
+      { "tick": 12, "phaseType": "TOB_NYLO_WAVE_2" }
+    ]
+  }
+}
+```
+
+#### 4.4.1 Phase Object
+
+| Field       | Type    | Required | Description                        |
+| ----------- | ------- | -------- | ---------------------------------- |
+| `tick`      | integer | Yes      | Tick number when the phase begins  |
+| `phaseType` | string  | Yes      | Phase type identifier (see §4.4.2) |
+
+#### 4.4.2 Phase Type Identifiers
+
+Phase type identifiers use string names that correspond to canonical identifier
+lists maintained by Blert.
+
+TODO: Add canonical sources.
+
+#### 4.4.3 Validation
+
+- Phases must be in ascending order by tick number
+- Each phase object must have a unique tick number
+- If `phases` is present, it may be empty
+
+#### 4.4.4 When to Use `phases` vs `npcPhase`
+
+Use `timeline.phases` for encounter-level transitions that are not specific to
+any single NPC:
+
+- Wave spawns (e.g. Nylocas, Apmeken)
+- Spawn events for groups of enemies (e.g. Maiden crabs, Colosseum adds)
+- Global fight phases that affect the entire encounter (e.g. Sotetseg mazes)
+
+Use `npcPhase` actions for phase transitions that belong to a specific NPC:
+
+- Boss phase changes which modify its behavior (e.g. Verzik P1/P2/P3)
+- Individual NPC state changes (e.g. Bloat up/down, Akkha combat style)
+
 ## 5. Actions
 
 Actions represent what an actor does on a specific tick.
 
 ### 5.1 Action Types
 
-BCF defines four action types:
+BCF defines the following action types:
 
 | Type        | Actor Type | Description             |
 | ----------- | ---------- | ----------------------- |
 | `attack`    | Player     | Player offensive action |
 | `spell`     | Player     | Player spell cast       |
-| `npcAttack` | NPC        | NPC attack              |
+| `utility`   | Player     | Player utility action   |
 | `death`     | Player     | Player death            |
+| `npcAttack` | NPC        | NPC attack              |
+| `npcPhase`  | NPC        | NPC phase transition    |
+
+Actors are only allowed to perform actions of their own type. If an invalid
+action type is specified for an actor type, it should be rejected.
+
+NPC deaths are represented by actor `deathTick` (see §4.1.4), not by actions.
 
 ### 5.2 Player Attack Action
 
@@ -312,20 +391,20 @@ BCF defines four action types:
   "weaponName": "Scythe of vitur",
   "targetActorId": "verzik",
   "distanceToTarget": 1,
-  "display": { ... }
+  "damage": 67
 }
 ```
 
 | Field              | Type    | Required | Description                                              |
 | ------------------ | ------- | -------- | -------------------------------------------------------- |
 | `type`             | string  | Yes      | Must be `"attack"`                                       |
-| `attackType`       | string  | Yes      | Attack type identifier (see §5.6)                        |
+| `attackType`       | string  | Yes      | Attack type identifier (see §5.8)                        |
 | `weaponId`         | integer | No       | OSRS item ID of the weapon                               |
 | `weaponName`       | string  | No       | Weapon name for display                                  |
 | `targetActorId`    | string  | No       | ID of the attack's primary target                        |
 | `distanceToTarget` | integer | No       | Chebyshev distance between the attacker and target       |
+| `damage`           | integer | No       | Total damage dealt directly by the attack to the target  |
 | `specCost`         | integer | No       | Spec energy cost, 0-100 (only valid for `_SPEC` attacks) |
-| `display`          | object  | No       | Display hints (see §5.7)                                 |
 
 #### 5.2.1 Field Derivation
 
@@ -358,19 +437,31 @@ If the attack type does not end in `_SPEC`, `specCost` must not be set.
 {
   "type": "spell",
   "spellType": "VENGEANCE_OTHER",
-  "targetActorId": "p2",
-  "display": { ... }
+  "targetActorId": "p2"
 }
 ```
 
 | Field           | Type   | Required | Description                       |
 | --------------- | ------ | -------- | --------------------------------- |
 | `type`          | string | Yes      | Must be `"spell"`                 |
-| `spellType`     | string | Yes      | Spell type identifier (see §5.6)  |
+| `spellType`     | string | Yes      | Spell type identifier (see §5.8)  |
 | `targetActorId` | string | No       | Target actor's ID (if applicable) |
-| `display`       | object | No       | Display hints (see §5.7)          |
 
-### 5.4 Death Action
+### 5.4 Utility Action
+
+```json
+{
+  "type": "utility",
+  "utilityType": "SURGE_POTION"
+}
+```
+
+| Field         | Type   | Required | Description                        |
+| ------------- | ------ | -------- | ---------------------------------- |
+| `type`        | string | Yes      | Must be `"utility"`                |
+| `utilityType` | string | Yes      | Utility type identifier (see §5.8) |
+
+### 5.5 Death Action
 
 ```json
 {
@@ -385,35 +476,52 @@ If the attack type does not end in `_SPEC`, `specCost` must not be set.
 Death indicates the player died on this tick. A death action implies
 `state.isDead = true` beginning from this tick unless explicitly overridden.
 
-### 5.5 NPC Attack Action
+NPCs must not use the `death` action. Use `deathTick` on the NPC actor instead.
+
+### 5.6 NPC Attack Action
 
 ```json
 {
   "type": "npcAttack",
   "attackType": "TOB_VERZIK_P2_BOUNCE",
-  "targetActorId": "p1",
-  "display": { ... }
+  "targetActorId": "p1"
 }
 ```
 
 | Field           | Type   | Required | Description                           |
 | --------------- | ------ | -------- | ------------------------------------- |
 | `type`          | string | Yes      | Must be `"npcAttack"`                 |
-| `attackType`    | string | Yes      | NPC attack type identifier (see §5.6) |
+| `attackType`    | string | Yes      | NPC attack type identifier (see §5.8) |
 | `targetActorId` | string | No       | Target actor's ID                     |
-| `display`       | object | No       | Display hints (see §5.7)              |
 
-### 5.6 Action Type Identifiers
+### 5.7 NPC Phase Action
+
+```json
+{
+  "type": "npcPhase",
+  "phaseType": "TOB_VERZIK_P2"
+}
+```
+
+| Field       | Type   | Required | Description                          |
+| ----------- | ------ | -------- | ------------------------------------ |
+| `type`      | string | Yes      | Must be `"npcPhase"`                 |
+| `phaseType` | string | Yes      | NPC phase type identifier (see §5.8) |
+
+### 5.8 Action Type Identifiers
 
 Action type identifiers use string names that correspond to canonical identifier
 lists maintained by Blert.
 
-#### 5.6.1 Canonical Sources
+#### 5.8.1 Canonical Sources
 
 The canonical lists of action types defined by the Blert project exist as enums
 in [`event.proto`](https://raw.githubusercontent.com/blert-io/protos/refs/heads/main/event.proto).
 The names of the fields in these enums are valid action type identifiers that
 renderers should aim to support.
+
+The list of canonical action type identifiers will expand over time as BCF
+evolves.
 
 The proto identifiers are provided as a reference for BCF renderer implementers.
 It is not necessary to fetch and parse the proto file itself.
@@ -424,131 +532,39 @@ It is not necessary to fetch and parse the proto file itself.
 | Player spells  | `PlayerSpell`  | `VENGEANCE`, `DEATH_CHARGE`, `VENGEANCE_OTHER`                |
 | NPC attacks    | `NpcAttack`    | `TOB_VERZIK_P2_BOUNCE`, `TOB_MAIDEN_AUTO`, `INFERNO_JAD_MAGE` |
 
-#### 5.6.2 Custom Action Types
-
-BCF authors may choose to anticipate a future canonical type addition by setting
-a custom name following the naming convention of the canonical sources.
-Renderers that recognize the name will use their native display, while renderers
-that do not can fall back to display hints.
-
-For example, `DEMONBANE_CUTLASS` and `DEMONBANE_CUTLASS_SPEC` could be set on an
-`attack` to anticipate the addition of a hypothetical "Demonbane Cutlass"
-weapon.
-
-When naming a custom action type, the following rules should be followed:
-
-- Type names must be `UPPER_SNAKE_CASE`.
-- The name `UNKNOWN` is reserved for unknown action types.
-- The prefix `UNKNOWN_` is reserved for categories of unknown action types.
-- The suffix `_SPEC` for attack actions must only be used for special attacks.
-  Specifying `specCost` for a custom `_SPEC` attack is recommended.
-
-When specifying a custom action type, BCF authors should include a `display`
-hint to provide fallback rendering information.
-
-#### 5.6.3 Unknown Action Types
+#### 5.8.2 Unknown Action Types
 
 An action type of `UNKNOWN` indicates that the action must be treated as
-unrecognized (i.e., never matched against renderer metadata). It is recommended
-to provide a `display` hint to provide fallback rendering; otherwise, the action
-will render as a generic unknown action.
+unrecognized (i.e., never matched against renderer metadata).
 
 The `UNKNOWN_` prefix is reserved for categories of unknown action types,
 several of which exist in the canonical sources. Unlike the generic `UNKNOWN`,
 renderers may have additional category-specific native display information and
-treat these identifiers as recognized. A `display` hint is still recommended,
-but may be ignored by the renderer.
+treat these identifiers as recognized.
 
-#### 5.6.4 Examples
+#### 5.8.3 Examples
 
 ```json
 {
   "type": "attack",
-  "attackType": "UNKNOWN",
-  "display": {
-    "iconUrl": "/images/custom-weapon.png",
-    "letter": "X",
-    "style": "melee"
-  }
+  "attackType": "UNKNOWN_BARRAGE",
+  "weaponId": 33333
 }
 ```
 
 ```json
 {
   "type": "spell",
-  "spellType": "UNKNOWN",
-  "display": {
-    "iconUrl": "/images/custom-spell.png",
-    "name": "Custom Spell"
-  }
+  "spellType": "UNKNOWN"
 }
 ```
 
 ```json
 {
   "type": "npcAttack",
-  "attackType": "UNKNOWN",
-  "display": {
-    "iconUrl": "/images/custom-npc-attack.png",
-    "description": "Custom NPC attack"
-  }
+  "attackType": "UNKNOWN"
 }
 ```
-
-### 5.7 Display Hints
-
-The `display` object allows BCF documents to provide fallback rendering for
-custom or unknown action types.
-
-#### 5.7.1 Attack Display Hint
-
-```json
-{
-  "display": {
-    "iconUrl": "/images/custom.png",
-    "letter": "X",
-    "style": "melee"
-  }
-}
-```
-
-| Field     | Type   | Description                                       |
-| --------- | ------ | ------------------------------------------------- |
-| `iconUrl` | string | URL or path to icon image                         |
-| `letter`  | string | Short text for compact display mode               |
-| `style`   | string | Combat style: `"melee"`, `"ranged"`, or `"magic"` |
-
-#### 5.7.2 Spell Display Hint
-
-```json
-{
-  "display": {
-    "iconUrl": "/images/spell.png",
-    "name": "Custom Spell"
-  }
-}
-```
-
-| Field     | Type   | Description               |
-| --------- | ------ | ------------------------- |
-| `iconUrl` | string | URL or path to spell icon |
-| `name`    | string | Spell name for tooltips   |
-
-#### 5.7.3 NPC Attack Display Hint
-
-```json
-{
-  "display": {
-    "iconUrl": "/images/npc-attack.png",
-    "description": "Custom attack description"
-  }
-}
-```
-
-| Field         | Type   | Description                |
-| ------------- | ------ | -------------------------- |
-| `iconUrl`     | string | URL or path to attack icon |
-| `description` | string | Description for tooltips   |
 
 ## 6. Cell State
 
@@ -560,9 +576,7 @@ beyond actions:
   "state": {
     "isDead": true,
     "offCooldown": false,
-    "specEnergy": 50,
-    "label": "32",
-    "customStates": [ ... ]
+    "specEnergy": 50
   }
 }
 ```
@@ -579,52 +593,14 @@ beyond actions:
 
 #### NPC State
 
-| Field   | Type   | Description           |
-| ------- | ------ | --------------------- |
-| `label` | string | Text label to display |
+At the moment, there is no NPC-specific state. NPC death is derived from
+actor `deathTick` rather than `state`.
 
-#### Common State
-
-| Field          | Type  | Description                 |
-| -------------- | ----- | --------------------------- |
-| `customStates` | array | Additional state indicators |
-
-### 6.2 Custom States
-
-Custom states allow challenge-specific annotations:
-
-```json
-{
-  "customStates": [
-    {
-      "label": "24",
-      "fullText": "Healed Verzik for 24",
-      "iconUrl": "/images/verzik-tornado.png"
-    }
-  ]
-}
-```
-
-| Field      | Type   | Required | Description                    |
-| ---------- | ------ | -------- | ------------------------------ |
-| `label`    | string | No       | Short label for display        |
-| `iconUrl`  | string | No       | Icon to display with the state |
-| `fullText` | string | No       | Readable description           |
-
-`label` and `iconUrl` control the display of the custom state on the cell.
-
-Ordering of custom states is not significant.
-
-**Validation**
-
-- At least one of `label` or `iconUrl` must be provided.
-- `label` must be 1-4 characters long if provided.
-
-### 6.3 State Persistence and Merging
+### 6.2 State Persistence and Merging
 
 State fields have different persistence behaviors:
 
-#### 6.3.1 Persistent Fields
+#### 6.2.1 Persistent Fields
 
 These fields carry forward across ticks until explicitly changed:
 
@@ -636,204 +612,29 @@ These fields carry forward across ticks until explicitly changed:
 At tick 0, all actors start with default values for persistent fields unless
 explicitly specified in their first cell.
 
+For NPCs, death is derived from actor `deathTick` and is not represented by
+`state.isDead`.
+
 Persistent state is computed over the entire `[0, totalTicks - 1]` domain.
 
 When a persistent state (e.g., `isDead`) is in effect, renderers should reflect
 it even on ticks where the actor's cell is omitted.
 
-#### 6.3.2 Non-Persistent Fields
+#### 6.2.2 Non-Persistent Fields
 
 These fields apply only to the tick where they are specified:
 
-| Field          | Persists | Default                                                      |
-| -------------- | -------- | ------------------------------------------------------------ |
-| `offCooldown`  | No       | If omitted, renderer may derive; otherwise, treat as unknown |
-| `label`        | No       | (none)                                                       |
-| `customStates` | No       | `[]`                                                         |
+| Field         | Persists | Default                                                      |
+| ------------- | -------- | ------------------------------------------------------------ |
+| `offCooldown` | No       | If omitted, renderer may derive; otherwise, treat as unknown |
 
-#### 6.3.3 Merging Behavior
+#### 6.2.3 Merging Behavior
 
 When `state` is provided on a cell, it merges with the current persistent state:
 
 1. Omitted ticks/cells: Persistent fields carry forward, non-persistent reset.
 2. Partial `state` object: Only specified fields are updated; unspecified
    persistent fields retain their previous values.
-
-## 7. Augmentation Layer
-
-The `augmentation` object provides optional display hints that enhance rendering
-but are not part of the core timeline data:
-
-```json
-{
-  "augmentation": {
-    "splits": [ ... ],
-    "backgroundColors": [ ... ],
-    "customRows": [ ... ]
-  }
-}
-```
-
-### 7.1 Splits
-
-Splits mark significant points in the timeline:
-
-```json
-{
-  "splits": [
-    {
-      "tick": 25,
-      "name": "70s"
-    },
-    {
-      "tick": 50,
-      "name": "50s"
-    }
-  ]
-}
-```
-
-| Field  | Type    | Required | Default | Description                    |
-| ------ | ------- | -------- | ------- | ------------------------------ |
-| `tick` | integer | Yes      | -       | Tick on which the split occurs |
-| `name` | string  | Yes      | -       | Split label                    |
-
-### 7.2 Background Colors
-
-Background colors highlight tick ranges to draw attention to significant events:
-
-```json
-{
-  "backgroundColors": [
-    {
-      "tick": 8,
-      "length": 1,
-      "color": "cyan"
-    },
-    {
-      "tick": 20,
-      "length": 5,
-      "color": "red",
-      "intensity": "high",
-      "rowIds": ["p1", "p2"]
-    }
-  ]
-}
-```
-
-| Field       | Type     | Required | Default  | Description                                                          |
-| ----------- | -------- | -------- | -------- | -------------------------------------------------------------------- |
-| `tick`      | integer  | Yes      | -        | Starting tick                                                        |
-| `length`    | integer  | No       | 1        | Number of ticks to color                                             |
-| `color`     | string   | Yes      | -        | `red`, `orange`, `yellow`, `green`, `cyan`, `blue`, `purple`, `gray` |
-| `intensity` | string   | No       | `medium` | `low`, `medium`, `high`                                              |
-| `rowIds`    | string[] | No       | -        | Actor/custom row IDs to color. If omitted, all rows.                 |
-
-#### 7.2.1 Supported Colors
-
-Instead of prescriptive hex color codes, BCF defines a small set of named color
-tokens. Renderers must map each token to a theme-appropriate color value. The
-exact mapping is left to the renderer to allow for visual consistency with its
-theme.
-
-#### 7.2.2 Color Intensity
-
-The `intensity` field hints at how visually prominent the background should be.
-Renderers commonly implement intensity via opacity, but may also adjust
-saturation/brightness as needed.
-
-Renderers should preserve relative ordering: `high` is more prominent than
-`medium`, which is more prominent than `low`.
-
-#### 7.2.3 Precedence
-
-When multiple background colors are defined for the same tick and row, the last
-one defined takes precedence.
-
-#### 7.2.4 Validation
-
-- `tick` must be in the range `[0, totalTicks - 1]`.
-- `length` must be a positive integer.
-- `tick + length` must be in the range `[1, totalTicks]`.
-- `rowIds` must not be empty if provided.
-- All entries in `rowIds` must be unique and reference valid actor IDs or custom
-  row IDs.
-
-### 7.3 Custom Rows
-
-Custom rows display challenge-specific data that doesn't fit into the actor
-model. They typically appear between NPC rows and player rows in the timeline
-grid.
-
-#### 7.3.1 When to Use Custom Rows
-
-Custom rows are appropriate for:
-
-- **Mechanics with their own timing**: Delayed damage application, hazards,
-  mechanics that occur independently of actor actions, etc.
-- **Event markers**: Notable events that affect the encounter but aren't actor
-  attacks (e.g. Dawnbringer drops).
-
-Custom rows are not appropriate for:
-
-- Data that belongs to a specific actor (use `customStates` in cells instead)
-- Split markers (use `augmentation.splits`)
-- Tick highlighting (use `augmentation.backgroundColors`)
-
-#### 7.3.2 Example: Mokhaiotl Orbs
-
-In the Mokhaiotl challenge, orbs deal delayed damage to players. The damage tick
-is offset from the attack tick and orbs can originate from multiple sources.
-A custom row tracks when orb damage is applied, allowing verification of whether
-the player was praying correctly:
-
-```json
-{
-  "customRows": [
-    {
-      "id": "orbs",
-      "name": "Orbs",
-      "cells": [
-        {
-          "tick": 15,
-          "iconUrl": "/images/mokhaiotl/ranged-orb.png",
-          "label": "R",
-          "opacity": 0.5
-        },
-        {
-          "tick": 23,
-          "iconUrl": "/images/mokhaiotl/magic-orb.png",
-          "label": "M",
-          "opacity": 0.5
-        }
-      ]
-    }
-  ]
-}
-```
-
-#### 7.3.3 Custom Row Definition
-
-| Field   | Type   | Required | Description                                  |
-| ------- | ------ | -------- | -------------------------------------------- |
-| `id`    | string | Yes      | Unique identifier for this row               |
-| `name`  | string | Yes      | Display name shown in the legend             |
-| `cells` | array  | Yes      | Sparse array of cells (only ticks with data) |
-
-`id` must be unique and must not conflict with any actor ID in
-`timeline.actors`.
-
-#### 7.3.4 Custom Row Cell
-
-| Field     | Type    | Required | Default | Description                       |
-| --------- | ------- | -------- | ------- | --------------------------------- |
-| `tick`    | integer | Yes      | -       | Tick number for this cell         |
-| `iconUrl` | string  | No       | -       | Icon URL to display               |
-| `label`   | string  | No       | -       | Short text label (1-3 characters) |
-| `opacity` | number  | No       | 1.0     | Opacity (0.0-1.0)                 |
-
-At least one of `iconUrl` or `label` should be provided for the cell to render
-content.
 
 ## 8. Rendering Guidance
 
@@ -845,16 +646,15 @@ BCF represents a grid where:
 
 - **Columns** are ticks
 - **Rows** are actors, ordered by `config.rowOrder` if provided, otherwise using
-  a default order (typically: NPCs, custom rows, players)
+  a default order (typically NPCs then players)
 
 ### 8.2 Action Type Resolution
 
 Renderers should resolve action types as follows:
 
 1. Look up the action type in the renderer's metadata. If found, use the
-   renderer's custom display for the action.
-2. If not found, attempt to use provided `display` hints.
-3. If no `display` hints exist, fall back to default "unknown" rendering.
+   renderer's native display for the action.
+2. If not found, use the default "unknown" rendering.
 
 ### 8.3 Empty Cells
 
@@ -862,14 +662,7 @@ Renderers should resolve action types as follows:
 - Cells with `state.isDead = true` but no actions should indicate dead state
 - Cells with `state.offCooldown = true` may be visually distinguished
 
-### 8.4. Custom State
-
-- Custom states should be displayed as secondary information attached to a cell.
-- Rendering context permitting, images are preferred over text labels when both
-  are provided.
-- Renderers may reorder custom states to improve visual hierarchy.
-
-### 8.5 Context Enhancement
+### 8.4 Context Enhancement
 
 BCF documents may be rendered with additional context (e.g., full player state,
 NPC hitpoints) provided by the rendering environment. Such context is outside
@@ -911,16 +704,14 @@ This repository provides canonical, complete example BCF documents under
 `examples/`. These files are validated and are intended to serve as conformance
 fixtures for implementers.
 
-| File                                                                       | Description                                                                                                                                        |
-| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`config-options.bcf.json`](../examples/config-options.bcf.json)           | Demonstrates `startTick`/`endTick` display range and `rowOrder` actor reordering and exclusion.                                                    |
-| [`multiple-actions.bcf.json`](../examples/multiple-actions.bcf.json)       | All 7 non-empty combinations of player cell actions (attack, spell, death).                                                                        |
-| [`state-tracking.bcf.json`](../examples/state-tracking.bcf.json)           | Demonstrates state merging and persistence, non-persistent state fields, including sparse ticks and explicit `isDead` override.                    |
-| [`background-colors.bcf.json`](../examples/background-colors.bcf.json)     | All combinations of background colors and intensities, with alternating on and off cooldown ticks.                                                 |
-| [`splits.bcf.json`](../examples/splits.bcf.json)                           | Demonstrates split markers to annotate phase transitions.                                                                                          |
-| [`custom-row.bcf.json`](../examples/custom-row.bcf.json)                   | Demonstrates custom row cells with icon-only, label-only, and icon+label, including opacity.                                                       |
-| [`custom-action-types.bcf.json`](../examples/custom-action-types.bcf.json) | Demonstrates canonical, custom, and unknown action identifiers across player attacks, player spells, and NPC attacks, with display hint fallbacks. |
-| [`113-p1.bcf.json`](../examples/113-p1.bcf.json)                           | A complete example of a Verzik P1 chart.                                                                                                           |
+| File                                                                 | Description                                                                                                                     |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| [`config-options.bcf.json`](../examples/config-options.bcf.json)     | Demonstrates `startTick`/`endTick` display range and `rowOrder` actor reordering and exclusion.                                 |
+| [`multiple-actions.bcf.json`](../examples/multiple-actions.bcf.json) | All 15 non-empty combinations of player cell actions (attack, spell, utility, death).                                           |
+| [`npc-lifecycle.bcf.json`](../examples/npc-lifecycle.bcf.json)       | Demonstrates NPC lifecycle (spawnTick, deathTick) and action types (npcAttack, npcPhase).                                       |
+| [`encounter-phases.bcf.json`](../examples/encounter-phases.bcf.json) | Demonstrates encounter-level `phases`.                                                                                          |
+| [`state-tracking.bcf.json`](../examples/state-tracking.bcf.json)     | Demonstrates state merging and persistence, non-persistent state fields, including sparse ticks and explicit `isDead` override. |
+| [`113-p1.bcf.json`](../examples/113-p1.bcf.json)                     | A complete example of a Verzik P1 chart.                                                                                        |
 
 ## 10. Versioning
 

@@ -1,0 +1,173 @@
+{
+  "version": "1.0",
+  "name": "NPC lifecycle and actions",
+  "description": "Demonstrates NPC lifecycle (spawnTick, deathTick) and action types (npcAttack, npcPhase)",
+  "config": {
+    "totalTicks": 20,
+    "rowOrder": ["verzik", "p1", "p2"]
+  },
+  "timeline": {
+    "actors": [
+      {
+        "type": "npc",
+        "id": "verzik",
+        "npcId": 8370,
+        "name": "Verzik Vitur"
+      },
+      {
+        "type": "npc",
+        "id": "purple",
+        "npcId": 8384,
+        "name": "Nylocas Athanatos",
+        "spawnTick": 11,
+        "deathTick": 16
+      },
+      { "type": "player", "id": "p1", "name": "Player 1" },
+      { "type": "player", "id": "p2", "name": "Player 2" }
+    ],
+    "ticks": [
+      {
+        "tick": 0,
+        "cells": [
+          {
+            "actorId": "verzik",
+            "actions": [{ "type": "npcPhase", "phaseType": "TOB_VERZIK_P1" }]
+          }
+        ]
+      },
+      {
+        "tick": 1,
+        "cells": [
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "SCYTHE",
+                "targetActorId": "verzik",
+                "damage": 7
+              }
+            ]
+          },
+          {
+            "actorId": "p2",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "DAWN_SPEC",
+                "targetActorId": "verzik",
+                "damage": 123,
+                "specCost": 35
+              }
+            ],
+            "state": { "specEnergy": 65 }
+          }
+        ]
+      },
+      {
+        "tick": 5,
+        "cells": [
+          {
+            "actorId": "verzik",
+            "actions": [
+              {
+                "type": "npcAttack",
+                "attackType": "TOB_VERZIK_P1_AUTO"
+              }
+            ]
+          },
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "DAWN_SPEC",
+                "targetActorId": "verzik",
+                "damage": 82,
+                "specCost": 35
+              }
+            ],
+            "state": { "specEnergy": 65 }
+          }
+        ]
+      },
+      {
+        "tick": 8,
+        "cells": [
+          {
+            "actorId": "verzik",
+            "actions": [{ "type": "npcPhase", "phaseType": "TOB_VERZIK_P2" }]
+          }
+        ]
+      },
+      {
+        "tick": 10,
+        "cells": [
+          {
+            "actorId": "verzik",
+            "actions": [
+              {
+                "type": "npcAttack",
+                "attackType": "TOB_VERZIK_P2_PURPLE",
+                "targetActorId": "p1"
+              }
+            ]
+          },
+          {
+            "actorId": "p1",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "CHALLY_SPEC",
+                "targetActorId": "verzik",
+                "damage": 91,
+                "specCost": 30
+              }
+            ],
+            "state": { "specEnergy": 35 }
+          }
+        ]
+      },
+      {
+        "tick": 12,
+        "cells": [
+          {
+            "actorId": "p2",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "BLOWPIPE",
+                "targetActorId": "purple"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tick": 14,
+        "cells": [
+          {
+            "actorId": "verzik",
+            "actions": [
+              {
+                "type": "npcAttack",
+                "attackType": "TOB_VERZIK_P2_CABBAGE",
+                "targetActorId": "p2"
+              }
+            ]
+          },
+          {
+            "actorId": "p2",
+            "actions": [
+              {
+                "type": "attack",
+                "attackType": "BLOWPIPE",
+                "targetActorId": "purple"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -149,6 +149,28 @@ describe('BCFResolver', () => {
       expect(resolver.getCell('p1', 2)).toBeUndefined();
       expect(resolver.getCell('unknown', 1)).toBeUndefined();
     });
+
+    it('should iterate over ticks with for...of', () => {
+      const resolver = new BCFResolver(doc);
+
+      const ticks: number[] = [];
+      for (const tick of resolver.ticks()) {
+        ticks.push(tick.tick);
+      }
+
+      expect(ticks).toEqual([1, 5]);
+    });
+
+    it('should return empty iterator for document with no ticks', () => {
+      const resolver = new BCFResolver(minimalDoc);
+
+      const ticks: number[] = [];
+      for (const tick of resolver.ticks()) {
+        ticks.push(tick.tick);
+      }
+
+      expect(ticks).toEqual([]);
+    });
   });
 
   describe('player state resolution', () => {
@@ -254,27 +276,6 @@ describe('BCFResolver', () => {
       expect(resolver.getPlayerState('p1', 2)?.offCooldown).toBe(true);
       expect(resolver.getPlayerState('p1', 3)?.offCooldown).toBeUndefined();
     });
-
-    it('does not persist customStates across ticks', () => {
-      const doc: BlertChartFormat = {
-        ...minimalDoc,
-        timeline: {
-          actors: [{ type: 'player', id: 'p1', name: 'Player1' }],
-          ticks: [
-            {
-              tick: 2,
-              cells: [
-                { actorId: 'p1', state: { customStates: [{ label: 'test' }] } },
-              ],
-            },
-          ],
-        },
-      };
-      const resolver = new BCFResolver(doc);
-
-      expect(resolver.getPlayerState('p1', 2)?.customStates).toHaveLength(1);
-      expect(resolver.getPlayerState('p1', 3)?.customStates).toHaveLength(0);
-    });
   });
 
   describe('NPC state resolution', () => {
@@ -282,220 +283,278 @@ describe('BCFResolver', () => {
       ...minimalDoc,
       timeline: {
         actors: [{ type: 'npc', id: 'boss', npcId: 1234, name: 'Boss' }],
-        ticks: [
-          { tick: 2, cells: [{ actorId: 'boss', state: { label: '50' } }] },
-        ],
+        ticks: [],
       },
     };
 
-    it('should return empty state for NPC with no cells', () => {
+    it('should return empty state for NPC', () => {
       const resolver = new BCFResolver(doc);
 
       const state = resolver.getActorState('boss', 1) as ResolvedNpcState;
       expect(state).toBeDefined();
-      expect(state.label).toBeUndefined();
+      expect(state).toEqual({});
     });
 
-    it('should not persist NPC label across ticks', () => {
-      const resolver = new BCFResolver(doc);
-
-      expect(
-        (resolver.getActorState('boss', 2) as ResolvedNpcState).label,
-      ).toBe('50');
-      expect(
-        (resolver.getActorState('boss', 3) as ResolvedNpcState).label,
-      ).toBeUndefined();
+    it('should return undefined for player actors', () => {
+      const resolver = new BCFResolver(minimalDoc);
+      expect(resolver.getNpcState('p1', 1)).toBeUndefined();
     });
+  });
 
-    it('should not persist NPC customStates across ticks', () => {
-      const npcDoc: BlertChartFormat = {
+  describe('NPC phases', () => {
+    it('returns empty array for NPC with no phases', () => {
+      const doc: BlertChartFormat = {
         ...minimalDoc,
         timeline: {
           actors: [{ type: 'npc', id: 'boss', npcId: 1234, name: 'Boss' }],
           ticks: [
             {
-              tick: 2,
+              tick: 1,
               cells: [
                 {
                   actorId: 'boss',
-                  state: { label: 'x', customStates: [{ label: 'test' }] },
+                  actions: [
+                    { type: 'npcAttack', attackType: 'TOB_MAIDEN_AUTO' },
+                  ],
                 },
               ],
             },
           ],
         },
       };
-      const resolver = new BCFResolver(npcDoc);
-
-      expect(
-        (resolver.getActorState('boss', 2) as ResolvedNpcState).customStates,
-      ).toHaveLength(1);
-      expect(
-        (resolver.getActorState('boss', 3) as ResolvedNpcState).customStates,
-      ).toHaveLength(0);
-    });
-  });
-
-  describe('custom rows', () => {
-    const doc: BlertChartFormat = {
-      ...minimalDoc,
-      augmentation: {
-        customRows: [
-          {
-            id: 'orbs',
-            name: 'Orbs',
-            cells: [
-              { tick: 3, label: 'R' },
-              { tick: 7, label: 'M' },
-            ],
-          },
-        ],
-      },
-    };
-
-    it('should get custom row by id', () => {
       const resolver = new BCFResolver(doc);
 
-      const row = resolver.getCustomRow('orbs');
-      expect(row).toBeDefined();
-      expect(row?.name).toBe('Orbs');
+      expect(resolver.getNpcPhases('boss')).toEqual([]);
     });
 
-    it('should return undefined for unknown custom row', () => {
-      const resolver = new BCFResolver(doc);
-      expect(resolver.getCustomRow('unknown')).toBeUndefined();
+    it('returns empty array for player actors', () => {
+      const resolver = new BCFResolver(minimalDoc);
+      expect(resolver.getNpcPhases('p1')).toEqual([]);
     });
 
-    it('should get all custom rows', () => {
-      const resolver = new BCFResolver(doc);
-      expect(resolver.getCustomRows()).toHaveLength(1);
+    it('returns empty array for unknown actors', () => {
+      const resolver = new BCFResolver(minimalDoc);
+      expect(resolver.getNpcPhases('unknown')).toEqual([]);
     });
 
-    it('should get custom row cell at tick', () => {
-      const resolver = new BCFResolver(doc);
-
-      expect(resolver.getCustomRowCell('orbs', 3)?.label).toBe('R');
-      expect(resolver.getCustomRowCell('orbs', 7)?.label).toBe('M');
-      expect(resolver.getCustomRowCell('orbs', 5)).toBeUndefined();
-    });
-  });
-
-  describe('splits', () => {
-    const doc: BlertChartFormat = {
-      ...minimalDoc,
-      augmentation: {
-        splits: [
-          { tick: 5, name: 'Phase 1' },
-          { tick: 10, name: 'Phase 2' },
-        ],
-      },
-    };
-
-    it('should get split at tick', () => {
-      const resolver = new BCFResolver(doc);
-
-      expect(resolver.getSplitAtTick(5)?.name).toBe('Phase 1');
-      expect(resolver.getSplitAtTick(10)?.name).toBe('Phase 2');
-    });
-
-    it('should return undefined for tick without split', () => {
-      const resolver = new BCFResolver(doc);
-      expect(resolver.getSplitAtTick(3)).toBeUndefined();
-    });
-
-    it('should get all splits', () => {
-      const resolver = new BCFResolver(doc);
-      expect(resolver.getSplits()).toHaveLength(2);
-    });
-  });
-
-  describe('background colors', () => {
-    const doc: BlertChartFormat = {
-      ...minimalDoc,
-      timeline: {
-        actors: [
-          { type: 'player', id: 'p1', name: 'Player1' },
-          { type: 'player', id: 'p2', name: 'Player2' },
-        ],
-        ticks: [],
-      },
-      augmentation: {
-        backgroundColors: [
-          { tick: 3, color: 'red' },
-          { tick: 5, length: 3, color: 'green', intensity: 'high' },
-          { tick: 8, color: 'blue', intensity: 'low', rowIds: ['p1'] },
-        ],
-      },
-    };
-
-    it('returns the background color at a specific tick', () => {
-      const resolver = new BCFResolver(doc);
-
-      expect(resolver.getBackgroundColorAtTick(3)).toEqual({
-        color: 'red',
-        intensity: 'medium',
-      });
-      expect(resolver.getBackgroundColorAtTick(4)).toBeUndefined();
-    });
-
-    it('returns the background color for a tick in range', () => {
-      const resolver = new BCFResolver(doc);
-
-      expect(resolver.getBackgroundColorAtTick(5)).toEqual({
-        color: 'green',
-        intensity: 'high',
-      });
-      expect(resolver.getBackgroundColorAtTick(6)).toEqual({
-        color: 'green',
-        intensity: 'high',
-      });
-      expect(resolver.getBackgroundColorAtTick(7)).toEqual({
-        color: 'green',
-        intensity: 'high',
-      });
-      expect(resolver.getBackgroundColorAtTick(8, 'p2')).toBeUndefined();
-    });
-
-    it('filters by rowId when specified', () => {
-      const resolver = new BCFResolver(doc);
-
-      expect(resolver.getBackgroundColorAtTick(8, 'p1')).toEqual({
-        color: 'blue',
-        intensity: 'low',
-      });
-      expect(resolver.getBackgroundColorAtTick(8, 'p2')).toBeUndefined();
-      expect(resolver.getBackgroundColorAtTick(8)).toBeUndefined();
-    });
-
-    it('returns the last defined color when overlapping', () => {
-      const overlappingDoc: BlertChartFormat = {
+    it('returns phases in tick order', () => {
+      const doc: BlertChartFormat = {
         ...minimalDoc,
-        augmentation: {
-          backgroundColors: [
-            { tick: 1, length: 5, color: 'gray', intensity: 'low' },
-            { tick: 3, color: 'purple' },
+        timeline: {
+          actors: [{ type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik' }],
+          ticks: [
+            {
+              tick: 0,
+              cells: [
+                {
+                  actorId: 'verzik',
+                  actions: [{ type: 'npcPhase', phaseType: 'TOB_VERZIK_P1' }],
+                },
+              ],
+            },
+            {
+              tick: 20,
+              cells: [
+                {
+                  actorId: 'verzik',
+                  actions: [{ type: 'npcPhase', phaseType: 'TOB_VERZIK_P2' }],
+                },
+              ],
+            },
+            {
+              tick: 50,
+              cells: [
+                {
+                  actorId: 'verzik',
+                  actions: [{ type: 'npcPhase', phaseType: 'TOB_VERZIK_P3' }],
+                },
+              ],
+            },
           ],
         },
       };
-      const resolver = new BCFResolver(overlappingDoc);
+      const resolver = new BCFResolver(doc);
 
-      expect(resolver.getBackgroundColorAtTick(2)).toEqual({
-        color: 'gray',
-        intensity: 'low',
+      const phases = resolver.getNpcPhases('verzik');
+      expect(phases).toEqual([
+        { tick: 0, phaseType: 'TOB_VERZIK_P1' },
+        { tick: 20, phaseType: 'TOB_VERZIK_P2' },
+        { tick: 50, phaseType: 'TOB_VERZIK_P3' },
+      ]);
+    });
+
+    it('returns phases from multiple NPCs independently', () => {
+      const doc: BlertChartFormat = {
+        ...minimalDoc,
+        timeline: {
+          actors: [
+            { type: 'npc', id: 'maiden', npcId: 8360, name: 'Maiden' },
+            { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik' },
+          ],
+          ticks: [
+            {
+              tick: 5,
+              cells: [
+                {
+                  actorId: 'maiden',
+                  actions: [{ type: 'npcPhase', phaseType: 'TOB_MAIDEN_70S' }],
+                },
+              ],
+            },
+            {
+              tick: 10,
+              cells: [
+                {
+                  actorId: 'verzik',
+                  actions: [{ type: 'npcPhase', phaseType: 'TOB_VERZIK_P2' }],
+                },
+              ],
+            },
+          ],
+        },
+      };
+      const resolver = new BCFResolver(doc);
+
+      expect(resolver.getNpcPhases('maiden')).toEqual([
+        { tick: 5, phaseType: 'TOB_MAIDEN_70S' },
+      ]);
+      expect(resolver.getNpcPhases('verzik')).toEqual([
+        { tick: 10, phaseType: 'TOB_VERZIK_P2' },
+      ]);
+    });
+  });
+
+  describe('encounter phases', () => {
+    it('returns empty array when no phases defined', () => {
+      const resolver = new BCFResolver(minimalDoc);
+      expect(resolver.getEncounterPhases()).toEqual([]);
+    });
+
+    it('returns empty array when phases is empty', () => {
+      const doc: BlertChartFormat = {
+        ...minimalDoc,
+        timeline: {
+          ...minimalDoc.timeline,
+          phases: [],
+        },
+      };
+      const resolver = new BCFResolver(doc);
+      expect(resolver.getEncounterPhases()).toEqual([]);
+    });
+
+    it('returns phases in order', () => {
+      const doc: BlertChartFormat = {
+        ...minimalDoc,
+        timeline: {
+          ...minimalDoc.timeline,
+          phases: [
+            { tick: 0, phaseType: 'NYLOCAS_WAVE_1' },
+            { tick: 5, phaseType: 'NYLOCAS_WAVE_2' },
+            { tick: 8, phaseType: 'NYLOCAS_WAVE_3' },
+          ],
+        },
+      };
+      const resolver = new BCFResolver(doc);
+
+      expect(resolver.getEncounterPhases()).toEqual([
+        { tick: 0, phaseType: 'NYLOCAS_WAVE_1' },
+        { tick: 5, phaseType: 'NYLOCAS_WAVE_2' },
+        { tick: 8, phaseType: 'NYLOCAS_WAVE_3' },
+      ]);
+    });
+  });
+
+  describe('NPC lifecycle', () => {
+    describe('getNpcSpawnTick', () => {
+      it('returns undefined for player actors', () => {
+        const resolver = new BCFResolver(minimalDoc);
+        expect(resolver.getNpcSpawnTick('p1')).toBeUndefined();
       });
-      expect(resolver.getBackgroundColorAtTick(3)).toEqual({
-        color: 'purple',
-        intensity: 'medium',
+
+      it('returns undefined for unknown actors', () => {
+        const resolver = new BCFResolver(minimalDoc);
+        expect(resolver.getNpcSpawnTick('unknown')).toBeUndefined();
       });
-      expect(resolver.getBackgroundColorAtTick(4)).toEqual({
-        color: 'gray',
-        intensity: 'low',
+
+      it('returns 0 for NPC without spawnTick', () => {
+        const doc: BlertChartFormat = {
+          ...minimalDoc,
+          timeline: {
+            actors: [
+              { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik' },
+            ],
+            ticks: [],
+          },
+        };
+        const resolver = new BCFResolver(doc);
+        expect(resolver.getNpcSpawnTick('verzik')).toBe(0);
+      });
+
+      it('returns explicit spawnTick value', () => {
+        const doc: BlertChartFormat = {
+          ...minimalDoc,
+          timeline: {
+            actors: [
+              {
+                type: 'npc',
+                id: 'crab',
+                npcId: 8366,
+                name: 'Crab',
+                spawnTick: 5,
+              },
+            ],
+            ticks: [],
+          },
+        };
+        const resolver = new BCFResolver(doc);
+        expect(resolver.getNpcSpawnTick('crab')).toBe(5);
       });
     });
 
-    it('exposes all background colors', () => {
-      const resolver = new BCFResolver(doc);
-      expect(resolver.backgroundColors).toHaveLength(3);
+    describe('getNpcDeathTick', () => {
+      it('returns undefined for player actors', () => {
+        const resolver = new BCFResolver(minimalDoc);
+        expect(resolver.getNpcDeathTick('p1')).toBeUndefined();
+      });
+
+      it('returns undefined for unknown actors', () => {
+        const resolver = new BCFResolver(minimalDoc);
+        expect(resolver.getNpcDeathTick('unknown')).toBeUndefined();
+      });
+
+      it('returns undefined for NPC without deathTick', () => {
+        const doc: BlertChartFormat = {
+          ...minimalDoc,
+          timeline: {
+            actors: [
+              { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik' },
+            ],
+            ticks: [],
+          },
+        };
+        const resolver = new BCFResolver(doc);
+        expect(resolver.getNpcDeathTick('verzik')).toBeUndefined();
+      });
+
+      it('returns explicit deathTick value', () => {
+        const doc: BlertChartFormat = {
+          ...minimalDoc,
+          timeline: {
+            actors: [
+              {
+                type: 'npc',
+                id: 'crab',
+                npcId: 8366,
+                name: 'Crab',
+                deathTick: 8,
+              },
+            ],
+            ticks: [],
+          },
+        };
+        const resolver = new BCFResolver(doc);
+        expect(resolver.getNpcDeathTick('crab')).toBe(8);
+      });
     });
   });
 });

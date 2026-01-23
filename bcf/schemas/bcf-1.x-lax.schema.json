@@ -24,9 +24,6 @@
     },
     "timeline": {
       "$ref": "#/$defs/timeline"
-    },
-    "augmentation": {
-      "$ref": "#/$defs/augmentation"
     }
   },
   "$defs": {
@@ -87,6 +84,28 @@
           "items": {
             "$ref": "#/$defs/tick"
           }
+        },
+        "phases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/phase"
+          }
+        }
+      }
+    },
+    "phase": {
+      "type": "object",
+      "required": [
+        "tick",
+        "phaseType"
+      ],
+      "properties": {
+        "tick": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "phaseType": {
+          "$ref": "#/$defs/actionType"
         }
       }
     },
@@ -142,6 +161,14 @@
         "name": {
           "type": "string",
           "minLength": 1
+        },
+        "spawnTick": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "deathTick": {
+          "type": "integer",
+          "minimum": 0
         }
       }
     },
@@ -198,10 +225,16 @@
               "$ref": "#/$defs/spellAction"
             },
             {
+              "$ref": "#/$defs/utilityAction"
+            },
+            {
               "$ref": "#/$defs/deathAction"
             },
             {
               "$ref": "#/$defs/npcAttackAction"
+            },
+            {
+              "$ref": "#/$defs/npcPhaseAction"
             }
           ]
         },
@@ -217,8 +250,10 @@
                 "enum": [
                   "attack",
                   "spell",
+                  "utility",
                   "death",
-                  "npcAttack"
+                  "npcAttack",
+                  "npcPhase"
                 ]
               }
             }
@@ -253,13 +288,14 @@
           "type": "integer",
           "minimum": 0
         },
+        "damage": {
+          "type": "integer",
+          "minimum": 0
+        },
         "specCost": {
           "type": "integer",
           "minimum": 0,
           "maximum": 100
-        },
-        "display": {
-          "$ref": "#/$defs/attackDisplay"
         }
       }
     },
@@ -278,9 +314,21 @@
         },
         "targetActorId": {
           "$ref": "#/$defs/idString"
+        }
+      }
+    },
+    "utilityAction": {
+      "type": "object",
+      "required": [
+        "type",
+        "utilityType"
+      ],
+      "properties": {
+        "type": {
+          "const": "utility"
         },
-        "display": {
-          "$ref": "#/$defs/spellDisplay"
+        "utilityType": {
+          "$ref": "#/$defs/actionType"
         }
       }
     },
@@ -310,51 +358,21 @@
         },
         "targetActorId": {
           "$ref": "#/$defs/idString"
-        },
-        "display": {
-          "$ref": "#/$defs/npcAttackDisplay"
         }
       }
     },
-    "attackDisplay": {
+    "npcPhaseAction": {
       "type": "object",
+      "required": [
+        "type",
+        "phaseType"
+      ],
       "properties": {
-        "iconUrl": {
-          "type": "string"
+        "type": {
+          "const": "npcPhase"
         },
-        "letter": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 3
-        },
-        "style": {
-          "enum": [
-            "melee",
-            "ranged",
-            "magic"
-          ]
-        }
-      }
-    },
-    "spellDisplay": {
-      "type": "object",
-      "properties": {
-        "iconUrl": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        }
-      }
-    },
-    "npcAttackDisplay": {
-      "type": "object",
-      "properties": {
-        "iconUrl": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
+        "phaseType": {
+          "$ref": "#/$defs/actionType"
         }
       }
     },
@@ -371,194 +389,8 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 100
-        },
-        "label": {
-          "type": "string"
-        },
-        "customStates": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/customState"
-          }
         }
       }
-    },
-    "customState": {
-      "type": "object",
-      "anyOf": [
-        {
-          "required": [
-            "label"
-          ]
-        },
-        {
-          "required": [
-            "iconUrl"
-          ]
-        }
-      ],
-      "properties": {
-        "label": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 4
-        },
-        "fullText": {
-          "type": "string"
-        },
-        "iconUrl": {
-          "type": "string"
-        }
-      }
-    },
-    "augmentation": {
-      "type": "object",
-      "properties": {
-        "splits": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/split"
-          }
-        },
-        "backgroundColors": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/backgroundColor"
-          }
-        },
-        "customRows": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/customRow"
-          }
-        }
-      }
-    },
-    "split": {
-      "type": "object",
-      "required": [
-        "tick",
-        "name"
-      ],
-      "properties": {
-        "tick": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1
-        }
-      }
-    },
-    "backgroundColor": {
-      "type": "object",
-      "required": [
-        "tick",
-        "color"
-      ],
-      "properties": {
-        "tick": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "length": {
-          "type": "integer",
-          "minimum": 1,
-          "default": 1
-        },
-        "color": {
-          "type": "string",
-          "enum": [
-            "red",
-            "orange",
-            "yellow",
-            "green",
-            "cyan",
-            "blue",
-            "purple",
-            "gray"
-          ]
-        },
-        "intensity": {
-          "type": "string",
-          "enum": [
-            "low",
-            "medium",
-            "high"
-          ],
-          "default": "medium"
-        },
-        "rowIds": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/idString"
-          },
-          "minItems": 1,
-          "uniqueItems": true
-        }
-      }
-    },
-    "customRow": {
-      "type": "object",
-      "required": [
-        "id",
-        "name",
-        "cells"
-      ],
-      "properties": {
-        "id": {
-          "$ref": "#/$defs/idString"
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1
-        },
-        "cells": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/customRowCell"
-          }
-        }
-      }
-    },
-    "customRowCell": {
-      "type": "object",
-      "required": [
-        "tick"
-      ],
-      "properties": {
-        "tick": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "iconUrl": {
-          "type": "string"
-        },
-        "label": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 3
-        },
-        "opacity": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 1,
-          "default": 1
-        }
-      },
-      "anyOf": [
-        {
-          "required": [
-            "iconUrl"
-          ]
-        },
-        {
-          "required": [
-            "label"
-          ]
-        }
-      ]
     }
   },
   "$comment": "Generated from bcf-1.0-strict.schema.json. Do not edit manually."
