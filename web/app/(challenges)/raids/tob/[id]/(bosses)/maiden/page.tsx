@@ -13,7 +13,14 @@ import {
   Stage,
   TobRaid,
 } from '@blert/common';
-import { useCallback, useContext, useMemo } from 'react';
+import {
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useEffect,
+  useState,
+} from 'react';
 
 import { TimelineSplit } from '@/components/attack-timeline';
 import BossFightOverview from '@/components/boss-fight-overview';
@@ -192,8 +199,53 @@ function CrabSpawn(props: CrabSpawnProps) {
 
 export default function Maiden() {
   const display = useContext(DisplayContext);
+  const replayAndPartyRef = useRef<HTMLDivElement>(null);
+  const [replayWidth, setReplayWidth] = useState<number>(
+    display.isCompact() ? 352 : 704,
+  );
 
   const compact = display.isCompact();
+
+  useEffect(() => {
+    const updateReplayWidth = () => {
+      if (!replayAndPartyRef.current) {
+        return;
+      }
+
+      const container = replayAndPartyRef.current;
+      const containerWidth = container.offsetWidth;
+      const gap = compact ? 12 : 24;
+
+      const partyElement = container.lastElementChild as HTMLElement;
+      const partyWidth = partyElement
+        ? partyElement.offsetWidth
+        : compact
+          ? 300
+          : 400;
+
+      const availableWidth = containerWidth - partyWidth - gap;
+      const idealWidth = compact ? 352 : 704;
+
+      const calculatedWidth = Math.max(
+        200,
+        Math.min(idealWidth, availableWidth),
+      );
+      setReplayWidth(calculatedWidth);
+    };
+
+    updateReplayWidth();
+    window.addEventListener('resize', updateReplayWidth);
+
+    const resizeObserver = new ResizeObserver(updateReplayWidth);
+    if (replayAndPartyRef.current) {
+      resizeObserver.observe(replayAndPartyRef.current);
+    }
+
+    return () => {
+      window.removeEventListener('resize', updateReplayWidth);
+      resizeObserver.disconnect();
+    };
+  }, [compact]);
 
   const mapDefinition = useMemo(() => {
     const initialZoom = compact ? 13 : 25;
@@ -376,13 +428,13 @@ export default function Maiden() {
         />
       </div>
 
-      <div className={bossStyles.replayAndParty}>
+      <div ref={replayAndPartyRef} className={bossStyles.replayAndParty}>
         <BossPageReplay
           entities={entitiesByTick.get(currentTick) ?? []}
           preloads={preloads}
           mapDef={mapDefinition}
           playing={playing}
-          width={display.isCompact() ? 352 : 704}
+          width={replayWidth}
           height={display.isCompact() ? 302 : 604}
           currentTick={currentTick}
           advanceTick={advanceTick}

@@ -3,6 +3,35 @@
 
 .replay {
   width: fit-content;
+  max-width: 100%;
+  display: inline-flex;
+  flex-direction: column;
+
+  // Card content wrapper - allow full width for header and other content
+  > div {
+    width: 100%;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.cardHeader {
+  width: 100%;
+  align-self: stretch;
+}
+
+.map {
+  width: fit-content !important;
+  max-width: 100% !important;
+  transform-origin: center;
+  align-self: center;
+}
+
+.mapCanvas {
+  width: fit-content;
+  max-width: 100%;
 }
 
 .testingNotice {

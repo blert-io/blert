@@ -24,11 +24,14 @@ export type MapProps = {
   /** Whether the replay is currently playing. */
   playing: boolean;
 
-  /** Container width. Defaults to 100%. */
-  width?: string | number;
+  /** Container width in px. */
+  width?: number;
 
-  /** Container height. Defaults to 100%. */
-  height?: string | number;
+  /** Container height in px. */
+  height?: number;
+
+  /** Whether the map is in fullscreen mode. */
+  isFullscreen?: boolean;
 };
 
 export default function Map({
@@ -37,11 +40,15 @@ export default function Map({
   onConfigChange,
   playing,
   mapDefinition,
-  width = '100%',
-  height = '100%',
+  width = 704,
+  height = 604,
+  isFullscreen = false,
 }: MapProps) {
   const replayTime = useRef(0);
   const [cameraResetFn, setCameraResetFn] = useState<(() => void) | null>(null);
+
+  const referenceWidth = width;
+  const referenceHeight = height;
 
   const contextValue = useMemo(
     () => ({
@@ -61,6 +68,9 @@ export default function Map({
       onResetAvailable: (resetFn: () => void) => {
         setCameraResetFn(() => resetFn);
       },
+      referenceWidth,
+      referenceHeight,
+      isFullscreen,
     }),
     [
       config,
@@ -70,11 +80,17 @@ export default function Map({
       replayTime,
       cameraResetFn,
       setCameraResetFn,
+      referenceWidth,
+      referenceHeight,
+      isFullscreen,
     ],
   );
 
   return (
-    <div className={styles.map} style={{ width, height }}>
+    <div
+      className={`${styles.map} ${isFullscreen ? styles.fullscreen : ''}`}
+      style={isFullscreen ? undefined : { width, height }}
+    >
       <ReplayContext.Provider value={contextValue}>
         <EntityPositionProvider>{children}</EntityPositionProvider>
       </ReplayContext.Provider>

@@ -22,6 +22,7 @@ import Object from './object';
 import Player from './player';
 import { useReplayContext } from './replay-context';
 import StackIndicator from './stack-indicator';
+import { AdaptiveZoomController } from './adaptive-zoom';
 import TileHoverOverlay from './tile-hover-overlay';
 import {
   ActorInteractionState,
@@ -367,7 +368,7 @@ function CameraRig({
   initialZ: number;
   initialZoom: number;
 }) {
-  const { onResetAvailable } = useReplayContext();
+  const { onResetAvailable, isFullscreen } = useReplayContext();
   const { camera, controls } = useThree();
   const isInitialized = useRef(false);
 
@@ -397,13 +398,35 @@ function CameraRig({
       mapControls.position0.set(initialX, 100, initialZ);
 
       if (camera.type === 'OrthographicCamera') {
-        mapControls.zoom0 = initialZoom;
+        if (isFullscreen) {
+          // In fullscreen mode, always reset to base zoom (ignore any manual zoom adjustments)
+          mapControls.zoom0 = initialZoom;
+        } else {
+          // In normal mode, use the adapted zoom set by AdaptiveZoomController
+          // If zoom0 hasn't been set by AdaptiveZoomController, use current camera zoom or initial zoom
+          const currentAdaptedZoom = mapControls.zoom0 || camera.zoom;
+          if (currentAdaptedZoom && currentAdaptedZoom !== initialZoom) {
+            // Use the adapted zoom if it's been set
+            mapControls.zoom0 = currentAdaptedZoom;
+          } else {
+            // Fallback to current camera zoom or initial zoom
+            mapControls.zoom0 = camera.zoom || initialZoom;
+          }
+        }
       }
 
       mapControls.reset();
       mapControls.enableDamping = wasDampingEnabled;
     });
-  }, [camera, initialX, initialZ, faceSouth, initialZoom, controlsRef]);
+  }, [
+    camera,
+    initialX,
+    initialZ,
+    faceSouth,
+    initialZoom,
+    isFullscreen,
+    controlsRef,
+  ]);
 
   useEffect(() => {
     if (controls && !isInitialized.current) {
@@ -551,6 +574,8 @@ export default function MapCanvas({
             RIGHT: THREE.MOUSE.PAN,
           }}
         />
+
+        <AdaptiveZoomController controlsRef={mapControlsRef} />
 
         <CameraRig
           controlsRef={mapControlsRef}

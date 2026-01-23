@@ -63,7 +63,7 @@ const SCROLL_OFFSET = 380;
 const INDICATOR_TOP_OFFSET = 67;
 const INDICATOR_LEFT_PADDING = 9;
 const INDICATOR_ROW_GAP = 23.5;
-const INDICATOR_HEIGHT_PADDING = 40;
+const INDICATOR_HEIGHT_PADDING = 32;
 
 function npcAttackImage(attack: NpcAttack, size: number) {
   const meta =

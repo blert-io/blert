@@ -26,8 +26,8 @@ type BossReplayProps = {
   preloads: string[];
   mapDef: MapDefinition;
   playing: boolean;
-  width: number | string;
-  height: number | string;
+  width: number;
+  height: number;
   currentTick: number;
   advanceTick: () => void;
   setUseLegacy?: () => void;
@@ -101,10 +101,11 @@ export function BossPageReplay({
     <Map
       config={config}
       mapDefinition={mapDef}
-      height={fullscreen ? '100vh' : height}
+      height={height}
+      isFullscreen={fullscreen}
       onConfigChange={setConfig}
       playing={playing}
-      width={fullscreen ? '100vw' : width}
+      width={width}
     >
       <MapCanvas
         entities={entities}
@@ -129,8 +130,8 @@ export function BossPageReplay({
   return (
     <>
       <Card header={{ title: 'Room Replay' }} className={styles.replay}>
-        {customControls}
         {!isFullscreen && renderMap(false)}
+        {customControls}
       </Card>
 
       <Modal

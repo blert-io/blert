@@ -184,9 +184,9 @@
 
 .dimSettings {
   display: flex;
-  gap: 12px;
+  gap: 6px;
   padding: 10px 12px;
-  margin-bottom: 12px;
+  margin-top: 6px;
   background: var(--blert-surface-dark);
   border-radius: 6px;
   flex-wrap: wrap;
@@ -194,7 +194,7 @@
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     gap: 8px;
     padding: 8px 10px;
-    margin-bottom: 10px;
+    margin-top: 10px;
   }
 }
 
@@ -202,7 +202,7 @@
   display: flex;
   align-items: flex-start;
   flex: 1;
-  gap: 12px;
+  gap: 6px;
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     gap: 8px;
