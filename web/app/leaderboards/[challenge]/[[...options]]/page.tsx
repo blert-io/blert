@@ -10,7 +10,11 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
-import { findBestSplitTimes, findChallenges } from '@/actions/challenge';
+import {
+  findBestSplitTimes,
+  findChallenges,
+  PlayerWithCurrentUsername,
+} from '@/actions/challenge';
 import Card from '@/components/card';
 import { challengeLogo } from '@/logo';
 import { scaleNameAndColor } from '@/utils/challenge';
@@ -33,7 +37,7 @@ function modeName(mode: ChallengeMode) {
 type Rank = {
   uuid: string;
   date: Date;
-  party: string[];
+  party: PlayerWithCurrentUsername[];
   value: number | string;
 };
 
@@ -82,7 +86,9 @@ function Leaderboard({ challengeType, ranks, title }: LeaderboardProps) {
                   })}
                 </span>
               </div>
-              <div className={styles.party}>{rank.party.join(', ')}</div>
+              <div className={styles.party}>
+                {rank.party.map((p) => p.username).join(', ')}
+              </div>
             </div>
           </Link>
         ))}
@@ -251,7 +257,10 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
         ranks: topDelves.map((challenge) => ({
           uuid: challenge.uuid,
           date: challenge.startTime,
-          party: challenge.party.map((player) => player.username),
+          party: challenge.party.map((player) => ({
+            username: player.username,
+            currentUsername: player.currentUsername,
+          })),
           value: challenge.mokhaiotlStats?.maxCompletedDelve
             ? `Delve ${challenge.mokhaiotlStats.maxCompletedDelve}`
             : 'N/A',

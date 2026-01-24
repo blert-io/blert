@@ -2174,19 +2174,31 @@ export async function aggregateSessions<
  */
 async function loadChallengeParties(
   challengeIds: number[],
-): Promise<Record<number, string[]>> {
-  const players = await sql<{ challenge_id: number; username: string }[]>`
-    SELECT challenge_id, username
+): Promise<Record<number, PlayerWithCurrentUsername[]>> {
+  const players = await sql<
+    { challenge_id: number; username: string; current_username: string }[]
+  >`
+    SELECT
+      challenge_players.challenge_id,
+      challenge_players.username,
+      players.username AS current_username
     FROM challenge_players
-    WHERE challenge_id = ANY(${challengeIds})
-    ORDER BY orb
+    JOIN players ON challenge_players.player_id = players.id
+    WHERE challenge_players.challenge_id = ANY(${challengeIds})
+    ORDER BY challenge_players.orb
   `;
 
-  return players.reduce<Record<number, string[]>>((acc, player) => {
-    acc[player.challenge_id] ??= [];
-    acc[player.challenge_id].push(player.username);
-    return acc;
-  }, {});
+  return players.reduce<Record<number, PlayerWithCurrentUsername[]>>(
+    (acc, player) => {
+      acc[player.challenge_id] ??= [];
+      acc[player.challenge_id].push({
+        username: player.username,
+        currentUsername: player.current_username,
+      });
+      return acc;
+    },
+    {},
+  );
 }
 
 /**
@@ -2481,11 +2493,16 @@ export async function getTotalDeathsByStage(
   return deathsByStage;
 }
 
+export type PlayerWithCurrentUsername = {
+  username: string;
+  currentUsername: string;
+};
+
 export type RankedSplit = {
   uuid: string;
   date: Date;
   ticks: number;
-  party: string[];
+  party: PlayerWithCurrentUsername[];
 };
 
 /**

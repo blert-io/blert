@@ -15,7 +15,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import ReactTimeago, { Unit } from 'react-timeago';
 
 import { ActivityFeedItem, ChallengeEndFeedItem } from './actions/activity';
-import { RankedSplit } from './actions/challenge';
+import { PlayerWithCurrentUsername, RankedSplit } from './actions/challenge';
 import { SetupListItem } from './actions/setup';
 import ActivityChart from './components/activity-chart';
 import Card, { CardLink } from './components/card';
@@ -695,7 +695,7 @@ export function GuidesCard() {
 type LeaderboardEntry = {
   rank: number;
   time: number;
-  party: string[];
+  party: PlayerWithCurrentUsername[];
   uuid: string;
   date: Date;
 };
@@ -746,7 +746,9 @@ function Leaderboard({ leaderboard }: { leaderboard: ScaleLeaderboard }) {
                 </div>
               </div>
               <div className={styles.partyInfo}>
-                <div className={styles.party}>{entry.party.join(', ')}</div>
+                <div className={styles.party}>
+                  {entry.party.map((p) => p.username).join(', ')}
+                </div>
               </div>
             </Link>
           ))
