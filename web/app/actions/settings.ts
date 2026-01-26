@@ -3,6 +3,7 @@
 import { JSONValue } from 'postgres';
 
 import { sql } from './db';
+import { AuthenticationError } from './errors';
 import { getSignedInUserId } from './users';
 
 export type UserSettings = Record<string, unknown>;
@@ -40,7 +41,7 @@ export async function setUserSetting(
 ): Promise<void> {
   const userId = await getSignedInUserId();
   if (userId === null) {
-    throw new Error('Not authenticated');
+    throw new AuthenticationError();
   }
 
   const jsonValue = sql.json(value as JSONValue);
@@ -64,7 +65,7 @@ export async function syncSettings(
 ): Promise<UserSettings> {
   const userId = await getSignedInUserId();
   if (userId === null) {
-    throw new Error('Not authenticated');
+    throw new AuthenticationError();
   }
 
   const entries = Object.entries(settings);

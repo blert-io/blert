@@ -4,3 +4,10 @@ export class InvalidQueryError extends Error {
     this.name = 'InvalidQueryError';
   }
 }
+
+export class AuthenticationError extends Error {
+  constructor(message: string = 'Not authenticated') {
+    super(message);
+    this.name = 'AuthenticationError';
+  }
+}

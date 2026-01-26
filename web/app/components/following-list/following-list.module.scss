@@ -1,0 +1,161 @@
+.followingList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.playerList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.playerItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+
+  &:hover {
+    background: var(--blert-surface-dark);
+  }
+}
+
+.playerInfo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+  text-decoration: none;
+
+  &:hover .playerName {
+    color: var(--blert-purple);
+  }
+}
+
+.playerName {
+  font-size: 0.9rem;
+  color: var(--blert-font-color-primary);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.2s ease;
+}
+
+.unfollowButton,
+.followButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  i {
+    position: relative;
+    top: 1px;
+    font-size: 0.8rem;
+  }
+}
+
+.unfollowButton {
+  background: rgba(var(--blert-red-base), 0.15);
+  color: rgba(var(--blert-red-base), 0.75);
+
+  &:hover:not(:disabled) {
+    background: rgba(var(--blert-red-base), 0.25);
+    color: var(--blert-red);
+  }
+}
+
+.followButton {
+  background: rgba(var(--blert-purple-base), 0.15);
+  color: var(--blert-purple);
+
+  &:hover:not(:disabled) {
+    background: rgba(var(--blert-purple-base), 0.25);
+  }
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 16px;
+  background: var(--blert-surface-dark);
+  border-radius: 6px;
+  color: var(--blert-font-color-secondary);
+  text-align: center;
+
+  i {
+    font-size: 1.25em;
+    opacity: 0.6;
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.9rem;
+  }
+}
+
+.sentinel {
+  height: 1px;
+  width: 100%;
+}
+
+// Skeleton styles
+.skeleton {
+  background: var(--blert-surface-dark);
+  border-radius: 4px;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.skeletonAvatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.skeletonName {
+  width: 100px;
+  height: 16px;
+}
+
+.skeletonButton {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}

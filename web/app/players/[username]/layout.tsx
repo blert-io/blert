@@ -11,7 +11,11 @@ import {
   loadPlayerWithStats,
   type PlayerWithStats,
 } from '@/actions/challenge';
+import { isFollowing } from '@/actions/feed';
+import { getConnectedPlayers, getSignedInUserId } from '@/actions/users';
 import { ticksToFormattedSeconds } from '@/utils/tick';
+
+import FollowButton from './follow-button';
 
 function scaleName(scale: number) {
   return scale === 1
@@ -40,9 +44,11 @@ type PlayerLayoutProps = {
 function PlayerInfo({
   player,
   totalRecordedTicks,
+  followButton,
 }: {
   player: PlayerWithStats;
   totalRecordedTicks: number;
+  followButton: React.ReactNode;
 }) {
   const totalHoursPlayed = (totalRecordedTicks / 6000).toFixed(1);
 
@@ -69,7 +75,10 @@ function PlayerInfo({
         />
       </div>
       <div className={styles.playerInfoText}>
-        <h1>{player.username}</h1>
+        <div className={styles.nameRow}>
+          <h1>{player.username}</h1>
+          {followButton}
+        </div>
         <div className={styles.playerStats}>
           <div className={styles.statRow}>
             <span className={styles.label}>
@@ -110,20 +119,41 @@ export default async function PlayerLayout({
   params,
 }: PlayerLayoutProps) {
   const username = await params.then((u) => decodeURIComponent(u.username));
-  const [player, totalRecordedTicks, personalBests] = await Promise.all([
-    loadPlayerWithStats(username),
-    aggregateChallenges(
-      {
-        party: [username],
-      },
-      { challengeTicks: 'sum' },
-    ),
-    loadPbsForPlayer(username),
-  ]);
+  const [player, totalRecordedTicks, personalBests, userId] = await Promise.all(
+    [
+      loadPlayerWithStats(username),
+      aggregateChallenges(
+        {
+          party: [username],
+        },
+        { challengeTicks: 'sum' },
+      ),
+      loadPbsForPlayer(username),
+      getSignedInUserId(),
+    ],
+  );
 
   if (player === null) {
     return notFound();
   }
+
+  const isSignedIn = userId !== null;
+  const connectedPlayers = isSignedIn ? await getConnectedPlayers() : [];
+  const isOwnPlayer = connectedPlayers.some(
+    (p) => p.username.toLowerCase() === player.username.toLowerCase(),
+  );
+
+  const following =
+    isSignedIn && !isOwnPlayer ? await isFollowing(player.id) : false;
+
+  const followButton = isOwnPlayer ? null : (
+    <FollowButton
+      playerId={player.id}
+      username={player.username}
+      isFollowing={following}
+      isSignedIn={isSignedIn}
+    />
+  );
 
   return (
     <PlayerProvider player={{ ...player, personalBests }}>
@@ -132,6 +162,7 @@ export default async function PlayerLayout({
           <PlayerInfo
             player={player}
             totalRecordedTicks={totalRecordedTicks?.challengeTicks.sum ?? 0}
+            followButton={followButton}
           />
           <Navigation username={username} />
         </div>

@@ -49,6 +49,20 @@ $NAV_MARGIN: 10px;
     flex: 1;
     min-width: 0;
 
+    .nameRow {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+
+      h1 {
+        font-size: 2.4em;
+        margin: 0;
+        color: var(--blert-font-color-primary);
+      }
+    }
+
     h1 {
       font-size: 2.4em;
       margin: 0 0 16px 0;
@@ -86,6 +100,88 @@ $NAV_MARGIN: 10px;
         }
       }
     }
+  }
+}
+
+.followButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: linear-gradient(
+    135deg,
+    var(--blert-purple) 0%,
+    rgba(var(--blert-purple-base), 0.85) 100%
+  );
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(var(--blert-purple-base), 0.3);
+
+  & > span {
+    position: relative;
+    top: -1px;
+    min-width: 70px;
+  }
+
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(var(--blert-purple-base), 0.4);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+
+  &.following {
+    background: rgba(var(--blert-green-base), 0.15);
+    color: var(--blert-green);
+    border: 1px solid rgba(var(--blert-green-base), 0.3);
+    box-shadow: none;
+
+    &:hover:not(:disabled) {
+      background: rgba(var(--blert-red-base), 0.15);
+      border-color: rgba(var(--blert-red-base), 0.4);
+      color: var(--blert-red);
+      transform: none;
+      box-shadow: none;
+
+      i {
+        color: var(--blert-red);
+      }
+    }
+
+    &:focus-visible {
+      outline: 2px solid rgba(var(--blert-green-base), 0.5);
+      outline-offset: 2px;
+    }
+
+    &:hover:focus-visible {
+      outline-color: rgba(var(--blert-red-base), 0.5);
+    }
+
+    i {
+      color: var(--blert-green);
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid rgba(var(--blert-purple-base), 0.5);
+    outline-offset: 2px;
+  }
+
+  i {
+    font-size: 0.95em;
   }
 }
 
@@ -175,6 +271,16 @@ $NAV_MARGIN: 10px;
     }
 
     .playerInfoText {
+      .nameRow {
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+
+        h1 {
+          font-size: 2em;
+        }
+      }
+
       h1 {
         font-size: 2em;
         margin-bottom: 12px;

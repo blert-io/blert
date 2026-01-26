@@ -1,0 +1,57 @@
+@use '@/mixins.scss' as *;
+
+.dashboard {
+  padding: 2rem 1rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    padding: 1rem 0.5rem;
+  }
+}
+
+.welcomeSection {
+  margin-bottom: 24px;
+}
+
+.feedPage {
+  h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0 0 16px 0;
+    color: var(--blert-font-color-primary);
+  }
+}
+
+.content {
+  display: flex;
+  gap: 24px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    flex-direction: column;
+  }
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+}
+
+.pickerContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  align-self: flex-start;
+  position: sticky;
+  top: 20px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    display: none;
+  }
+}

@@ -12,6 +12,7 @@ import { headers } from 'next/headers';
 
 import { auth } from '@/auth';
 import { sql } from './db';
+import { AuthenticationError } from './errors';
 
 /**
  * Checks if a user with the specified username exists in the database.
@@ -90,7 +91,7 @@ export async function getSignedInUser(): Promise<User | null> {
 async function ensureAuthenticated(): Promise<number> {
   const userId = await getSignedInUserId();
   if (userId === null) {
-    throw new Error('Not authenticated');
+    throw new AuthenticationError();
   }
   return userId;
 }
@@ -287,6 +288,28 @@ export type LinkingCode = {
   code: string;
   expiresAt: Date;
 };
+
+export type ConnectedPlayer = {
+  id: number;
+  username: string;
+};
+
+/**
+ * Gets the list of OSRS players connected to the current user's account.
+ *
+ * @returns List of players connected to the current user's account.
+ */
+export async function getConnectedPlayers(): Promise<ConnectedPlayer[]> {
+  const userId = await ensureAuthenticated();
+  const players = await sql<{ id: number; username: string }[]>`
+    SELECT p.id, p.username
+    FROM users u
+    JOIN api_keys a ON u.id = a.user_id
+    JOIN players p ON a.player_id = p.id
+    WHERE u.id = ${userId}
+  `;
+  return players.map((p) => ({ id: p.id, username: p.username }));
+}
 
 /**
  * Generates a new Discord linking code for the current user.
