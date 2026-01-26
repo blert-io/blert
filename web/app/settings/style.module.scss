@@ -1,14 +1,13 @@
-@use '../../mixins.scss' as *;
+@use '@/mixins.scss' as *;
 
 .settings {
   width: 100%;
-  max-width: 800px;
+  max-width: 1000px;
   margin: 0 auto;
   padding: 32px 20px;
-  min-height: calc(100vh - 120px);
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    padding: 0;
+    padding: 12px 0;
     width: 100%;
   }
 }
@@ -34,9 +33,9 @@
   overflow: hidden;
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     margin-bottom: 16px;
-    border-bottom-width: 1px;
-    border-radius: 0;
   }
 
   .tab {
@@ -57,8 +56,8 @@
     letter-spacing: -0.01em;
 
     @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-      padding: 12px 12px;
-      font-size: 0.9em;
+      padding: 12px 8px;
+      font-size: 0.85em;
       border-bottom-width: 2px;
     }
 
