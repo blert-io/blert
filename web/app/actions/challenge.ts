@@ -303,6 +303,8 @@ export type ChallengeQuery = {
   status?: Comparator<ChallengeStatus>;
   scale?: Comparator<number>;
   party?: string[];
+  /** Whether all players must be present ('all') or any player ('any'). Default: 'all' */
+  partyMatch?: 'all' | 'any';
   splits?: Map<SplitType, Comparator<number>>;
   sort?: SingleOrArray<SortQuery<SortableFields>>;
   startTime?: Comparator<Date>;
@@ -557,15 +559,26 @@ function applyFilters(
       );
       conditions.push(sql`lower(players.username) = ${username.toLowerCase()}`);
     } else {
-      baseTable = sql`(
-        SELECT challenges.*
-        FROM challenges
-        JOIN challenge_players ON challenges.id = challenge_players.challenge_id
-        JOIN players ON challenge_players.player_id = players.id
-        WHERE lower(players.username) = ANY(${query.party.map((u) => u.toLowerCase())})
-        GROUP BY challenges.id
-        HAVING COUNT(*) = ${query.party.length}
-      ) challenges`;
+      const matchAll = query.partyMatch !== 'any';
+      if (matchAll) {
+        baseTable = sql`(
+          SELECT challenges.*
+          FROM challenges
+          JOIN challenge_players ON challenges.id = challenge_players.challenge_id
+          JOIN players ON challenge_players.player_id = players.id
+          WHERE lower(players.username) = ANY(${query.party.map((u) => u.toLowerCase())})
+          GROUP BY challenges.id
+          HAVING COUNT(*) = ${query.party.length}
+        ) challenges`;
+      } else {
+        baseTable = sql`(
+          SELECT DISTINCT challenges.*
+          FROM challenges
+          JOIN challenge_players ON challenges.id = challenge_players.challenge_id
+          JOIN players ON challenge_players.player_id = players.id
+          WHERE lower(players.username) = ANY(${query.party.map((u) => u.toLowerCase())})
+        ) challenges`;
+      }
     }
   }
 
@@ -2237,6 +2250,7 @@ export async function loadEventsForStage(
 }
 
 export type PlayerWithStats = Pick<Player, 'username' | 'totalRecordings'> & {
+  id: number;
   stats: Omit<PlayerStats, 'playerId' | 'date'>;
   firstRecorded: Date;
 };
@@ -2257,11 +2271,13 @@ export async function loadPlayerWithStats(
 ): Promise<PlayerWithStats | null> {
   const [playerWithStats] = await sql<
     ({
+      player_id: number;
       username: string;
       total_recordings: number;
     } & PlayerStatsRow)[]
   >`
     SELECT
+      players.id as player_id,
       players.username,
       players.total_recordings,
       player_stats.*
@@ -2286,6 +2302,7 @@ export async function loadPlayerWithStats(
   const firstRecorded = firstStats?.date ?? new Date();
 
   return {
+    id: playerWithStats.player_id,
     username: playerWithStats.username,
     totalRecordings: playerWithStats.total_recordings,
     firstRecorded,

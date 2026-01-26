@@ -1,0 +1,242 @@
+@use '@/mixins.scss' as *;
+
+.welcomeStats {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.welcomeMain {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+}
+
+.welcomeText {
+  h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0 0 4px 0;
+    color: var(--blert-font-color-primary);
+  }
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--blert-font-color-secondary);
+  font-size: 0.9rem;
+}
+
+.quickStats {
+  display: flex;
+  gap: 24px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    gap: 20px;
+  }
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.statValue {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--blert-font-color-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.statLabel {
+  font-size: 0.75rem;
+  color: var(--blert-font-color-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.welcomeBottom {
+  display: flex;
+  gap: 24px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(var(--blert-purple-base), 0.15);
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    flex-direction: column;
+    gap: 16px;
+  }
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--blert-font-color-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+
+  i {
+    color: var(--blert-purple);
+    font-size: 0.8rem;
+  }
+}
+
+.lastChallenge {
+  flex-shrink: 0;
+}
+
+.lastChallengeContent {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  background: var(--blert-surface-dark);
+  border-radius: 6px;
+  text-decoration: none;
+  transition: background 0.2s ease;
+
+  &:hover {
+    background: var(--blert-surface-light);
+
+    .viewChallenge i {
+      transform: translateX(3px);
+    }
+  }
+}
+
+.challengeTop {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.challengeBottom {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.challengeType {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--blert-font-color-primary);
+}
+
+.challengeTime {
+  font-family: var(--font-roboto-mono), monospace;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--blert-green);
+}
+
+.challengeDate {
+  font-size: 0.75rem;
+  color: var(--blert-font-color-secondary);
+}
+
+.viewChallenge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--blert-purple);
+  margin-left: auto;
+
+  i {
+    font-size: 0.65rem;
+    transition: transform 0.2s ease;
+  }
+}
+
+.thisWeek {
+  flex: 1;
+  min-width: 0;
+  padding-left: 24px;
+  border-left: 1px solid rgba(var(--blert-purple-base), 0.15);
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    padding-left: 0;
+    padding-top: 16px;
+    border-left: none;
+    border-top: 1px solid rgba(var(--blert-purple-base), 0.15);
+  }
+}
+
+.thisWeekContent {
+  display: flex;
+  gap: 10px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    flex-wrap: wrap;
+  }
+}
+
+.activityCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--blert-surface-dark);
+  border-radius: 6px;
+  min-width: 0;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    flex: 1;
+    min-width: 120px;
+  }
+}
+
+.activityIcon {
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.activityInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.activityName {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--blert-font-color-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.activityCount {
+  font-size: 0.75rem;
+  color: var(--blert-font-color-secondary);
+}
+
+.noActivity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--blert-surface-dark);
+  border-radius: 6px;
+  color: var(--blert-font-color-secondary);
+  font-size: 0.85rem;
+
+  i {
+    color: var(--blert-purple);
+    font-size: 1rem;
+  }
+}

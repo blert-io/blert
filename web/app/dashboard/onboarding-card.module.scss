@@ -1,0 +1,123 @@
+@use '@/mixins.scss' as *;
+
+.onboarding {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.header {
+  h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0 0 4px 0;
+    color: var(--blert-font-color-primary);
+  }
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--blert-font-color-secondary);
+  font-size: 0.9rem;
+}
+
+.steps {
+  display: flex;
+  gap: 16px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    flex-direction: column;
+  }
+}
+
+.step {
+  flex: 1;
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  background: var(--blert-surface-dark);
+  border-radius: 8px;
+}
+
+.stepNumber {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: rgba(var(--blert-purple-base), 0.2);
+  color: var(--blert-purple);
+  border-radius: 50%;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.stepContent {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+
+  h3 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--blert-font-color-primary);
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--blert-font-color-secondary);
+    line-height: 1.4;
+  }
+}
+
+.command {
+  padding: 2px 6px;
+  background: var(--blert-surface-light);
+  border-radius: 4px;
+  font-family: var(--font-roboto-mono), monospace;
+  font-size: 0.8rem;
+  color: var(--blert-purple);
+}
+
+.discordLink,
+.settingsLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  width: fit-content;
+  color: #fff;
+
+  i {
+    font-size: 1rem;
+  }
+}
+
+.discordLink {
+  background: var(--blert-purple);
+
+  &:hover {
+    background: rgba(var(--blert-purple-base), 0.8);
+  }
+}
+
+.settingsLink {
+  background: var(--blert-surface-light);
+  color: var(--blert-font-color-primary);
+  border: 1px solid var(--blert-divider-color);
+
+  &:hover {
+    background: var(--blert-panel-background-color);
+    border-color: var(--blert-purple);
+  }
+}

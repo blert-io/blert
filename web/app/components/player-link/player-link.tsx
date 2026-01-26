@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { MouseEventHandler } from 'react';
 
 import { playerUrl } from '@/utils/url';
 
@@ -10,15 +11,22 @@ type PlayerLinkProps = {
   username: string;
   className?: string;
   children?: React.ReactNode;
+  onClick?: MouseEventHandler<HTMLAnchorElement>;
 };
 
-export function PlayerLink({ username, className, children }: PlayerLinkProps) {
+export function PlayerLink({
+  username,
+  className,
+  children,
+  onClick,
+}: PlayerLinkProps) {
   return (
     <Link
       href={playerUrl(username)}
       className={className}
       data-tooltip-id={PLAYER_LINK_TOOLTIP_ID}
       data-tooltip-username={username}
+      onClick={onClick}
     >
       {children ?? <span className={styles.playerLink}>{username}</span>}
     </Link>
