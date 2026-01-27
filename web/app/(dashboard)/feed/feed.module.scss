@@ -410,6 +410,10 @@
   justify-content: center;
   padding: 8px;
   margin-bottom: 8px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    top: 60px;
+  }
 }
 
 .newItemsButton {

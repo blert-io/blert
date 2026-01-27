@@ -434,7 +434,7 @@ async function fetchSessionFeedItems(
       ? buildCursorCondition({
           cursor,
           direction,
-          rowTime: sql`COALESCE(cs.end_time, cs.start_time)`,
+          rowTime: sql`cs.sort_time`,
           rowId: sql`cs.id`,
           rowType: 'session',
         })
@@ -445,7 +445,7 @@ async function fetchSessionFeedItems(
       SELECT DISTINCT
         c.session_id,
         cs.id as session_row_id,
-        COALESCE(cs.end_time, cs.start_time) as sort_time
+        cs.sort_time as sort_time
       FROM challenges c
       JOIN challenge_players cp ON c.id = cp.challenge_id
       JOIN challenge_sessions cs ON c.session_id = cs.id
@@ -489,7 +489,7 @@ async function fetchSessionFeedItems(
     FROM challenge_sessions cs
     JOIN followed_sessions fs ON cs.id = fs.session_id
     JOIN session_players sp ON cs.id = sp.session_id
-    ORDER BY COALESCE(cs.end_time, cs.start_time) DESC, cs.id DESC
+    ORDER BY cs.sort_time DESC, cs.id DESC
   `;
 
   if (sessions.length === 0) {
@@ -566,39 +566,80 @@ async function fetchPbFeedItems(
         })
       : sql``;
 
+  // TODO(frolv): Consider denormalization of split type and scale into personal
+  // best history as it grows.
   const pbs = await sql<PbHistoryRow[]>`
+    WITH pbh_page AS MATERIALIZED (
+      SELECT
+        pbh.id,
+        pbh.created_at,
+        pbh.player_id,
+        pbh.challenge_split_id,
+        cs.type AS split_type,
+        cs.scale AS split_scale,
+        cs.ticks,
+        cs.challenge_id
+      FROM personal_best_history pbh
+      JOIN user_follows uf
+        ON uf.user_id = ${userId} AND uf.player_id = pbh.player_id
+      JOIN challenge_splits cs
+        ON cs.id = pbh.challenge_split_id
+      WHERE cs.type = ANY(${RELEVANT_PB_SPLITS})
+        ${cursorCondition}
+      ORDER BY pbh.created_at DESC, pbh.id DESC
+      LIMIT ${limit * 2}
+    ),
+    page_rows AS (
+      SELECT
+        pbh.*,
+        LAG(pbh.ticks) OVER (
+          PARTITION BY pbh.player_id, pbh.split_type, pbh.split_scale
+          ORDER BY pbh.created_at, pbh.id
+        ) AS previous_ticks_in_page
+      FROM pbh_page pbh
+    ),
+    boundary_per_group AS (
+      SELECT DISTINCT ON (player_id, split_type, split_scale)
+        player_id, split_type, split_scale, created_at, id
+      FROM pbh_page
+      ORDER BY player_id, split_type, split_scale, created_at, id
+    ),
+    prev_outside_page AS (
+      SELECT
+        b.player_id, b.split_type, b.split_scale,
+        prev.ticks AS previous_ticks
+      FROM boundary_per_group b
+      JOIN LATERAL (
+        SELECT cs2.ticks
+        FROM personal_best_history pbh2
+        JOIN challenge_splits cs2 ON cs2.id = pbh2.challenge_split_id
+        WHERE pbh2.player_id = b.player_id
+          AND cs2.type = b.split_type
+          AND cs2.scale = b.split_scale
+          AND (pbh2.created_at, pbh2.id) < (b.created_at, b.id)
+        ORDER BY pbh2.created_at DESC, pbh2.id DESC
+        LIMIT 1
+      ) prev ON true
+    )
     SELECT
-      pbh.id,
-      pbh.created_at,
-      p.username,
-      cs.type as split_type,
-      cs.scale as split_scale,
-      cs.ticks,
-      prev.previous_ticks,
+      p.id,
+      p.created_at,
+      pl.username,
+      p.split_type,
+      p.split_scale,
+      p.ticks,
+      COALESCE(p.previous_ticks_in_page, po.previous_ticks) AS previous_ticks,
       c.uuid as challenge_uuid,
       c.type as challenge_type,
       c.mode as challenge_mode
-    FROM personal_best_history pbh
-    JOIN players p ON pbh.player_id = p.id
-    JOIN challenge_splits cs ON pbh.challenge_split_id = cs.id
-    JOIN challenges c ON cs.challenge_id = c.id
-    JOIN user_follows uf
-      ON pbh.player_id = uf.player_id AND uf.user_id = ${userId}
-    LEFT JOIN LATERAL (
-      SELECT cs2.ticks as previous_ticks
-      FROM personal_best_history pbh2
-      JOIN challenge_splits cs2 ON pbh2.challenge_split_id = cs2.id
-      WHERE pbh2.player_id = pbh.player_id
-        AND cs2.type = cs.type
-        AND cs2.scale = cs.scale
-        AND (pbh2.created_at, pbh2.id) < (pbh.created_at, pbh.id)
-      ORDER BY pbh2.created_at DESC, pbh2.id DESC
-      LIMIT 1
-    ) prev ON true
-    WHERE cs.type = ANY(${RELEVANT_PB_SPLITS})
-      ${cursorCondition}
-    ORDER BY pbh.created_at DESC, pbh.id DESC
-    LIMIT ${limit * 2}
+    FROM page_rows p
+    JOIN players pl ON pl.id = p.player_id
+    JOIN challenges c ON c.id = p.challenge_id
+    LEFT JOIN prev_outside_page po
+      ON po.player_id = p.player_id
+     AND po.split_type = p.split_type
+     AND po.split_scale = p.split_scale
+    ORDER BY p.created_at DESC, p.id DESC
   `;
 
   return pbs.map((pb) => ({
