@@ -7,11 +7,12 @@ import { authClient } from '@/auth-client';
 import { useToast } from '@/components/toast';
 import { useClientOnly } from '@/hooks/client-only';
 
-const PROTECTED_ROUTES = ['/dashboard', '/settings'];
+const PROTECTED_ROUTES = ['/settings'];
 
 /** Routes to which users should not be redirected to after logging in. */
 const AVOID_REDIRECT_ROUTES = [
   '/',
+  '/home',
   '/login',
   '/register',
   '/forgot-password',

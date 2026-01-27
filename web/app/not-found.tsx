@@ -24,7 +24,7 @@ export default function NotFound() {
         </p>
         <Link href="/" className={styles.homeButton}>
           <i className="fas fa-home" />
-          Return Home
+          Return to Blert
         </Link>
       </div>
     </div>

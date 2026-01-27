@@ -1,11 +1,13 @@
 'use client';
 
+import { ChallengeType } from '@blert/common';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Suspense, useContext } from 'react';
 
-import { MAIN_LOGO } from '@/logo';
+import { authClient } from '@/auth-client';
 import { NavbarContext, useDisplay } from '@/display';
+import { challengeLogo, MAIN_LOGO } from '@/logo';
 
 import AccountStatus, { AccountStatusSkeleton } from './account-status';
 import { LeftNavWrapper } from './left-nav-wrapper';
@@ -14,6 +16,9 @@ import NavPlayerSearch from './nav-player-search';
 import styles from './styles.module.scss';
 
 export function LeftNav() {
+  const { data: session } = authClient.useSession();
+  const isLoggedIn = !!session?.user;
+
   const display = useDisplay();
   const { sidebarCollapsed: collapsed, setSidebarCollapsed: setCollapsed } =
     useContext(NavbarContext);
@@ -44,9 +49,21 @@ export function LeftNav() {
         </div>
 
         <ul className={styles.leftNav__menu}>
+          {/* Dashboard (logged-in users only) */}
+          {isLoggedIn && (
+            <li className={styles.leftNav__menuItem}>
+              <Link className={styles.leftNav__menuItemInner} href="/">
+                <div className={styles.leftNav__menuItemIcon}>
+                  <i className="fas fa-newspaper" />
+                </div>
+                <span>Dashboard</span>
+              </Link>
+            </li>
+          )}
+
           {/* Home */}
           <li className={styles.leftNav__menuItem}>
-            <Link className={styles.leftNav__menuItemInner} href="/">
+            <Link className={styles.leftNav__menuItemInner} href="/home">
               <div className={styles.leftNav__menuItemIcon}>
                 <div className={styles.imageWrapper}>
                   <Image
@@ -58,9 +75,7 @@ export function LeftNav() {
                 </div>
               </div>
 
-              <span className="active" style={{ top: 1 }}>
-                Home
-              </span>
+              <span style={{ top: 1 }}>Home</span>
             </Link>
           </li>
 
@@ -75,14 +90,14 @@ export function LeftNav() {
               <div className={styles.leftNav__menuItemIcon}>
                 <div className={styles.imageWrapper}>
                   <Image
-                    src="/logo_tob.webp"
+                    src={challengeLogo(ChallengeType.TOB)}
                     alt="tob icon"
                     fill
                     style={{ objectFit: 'contain' }}
                   />
                 </div>
               </div>
-              <span className="active">ToB</span>
+              <span>ToB</span>
             </Link>
           </li>
           <li className={styles.leftNav__menuItem}>
@@ -93,14 +108,14 @@ export function LeftNav() {
               <div className={styles.leftNav__menuItemIcon}>
                 <div className={styles.imageWrapper}>
                   <Image
-                    src="/inferno.png"
+                    src={challengeLogo(ChallengeType.INFERNO)}
                     alt="Inferno icon"
                     fill
                     style={{ objectFit: 'contain' }}
                   />
                 </div>
               </div>
-              <span className="active">Inferno</span>
+              <span>Inferno</span>
             </Link>
           </li>
           <li className={styles.leftNav__menuItem}>
@@ -111,16 +126,14 @@ export function LeftNav() {
               <div className={styles.leftNav__menuItemIcon}>
                 <div className={styles.imageWrapper}>
                   <Image
-                    src="/varlamore.png"
+                    src={challengeLogo(ChallengeType.COLOSSEUM)}
                     alt="fortis colosseum icon"
                     fill
                     style={{ objectFit: 'contain' }}
                   />
                 </div>
               </div>
-              <span className="active" style={{ top: -1 }}>
-                Colosseum
-              </span>
+              <span style={{ top: -1 }}>Colosseum</span>
             </Link>
           </li>
 
@@ -133,16 +146,14 @@ export function LeftNav() {
               <div className={styles.leftNav__menuItemIcon}>
                 <div className={styles.imageWrapper}>
                   <Image
-                    src="/images/mokhaiotl.webp"
+                    src={challengeLogo(ChallengeType.MOKHAIOTL)}
                     alt="Mokhaiotl icon"
                     fill
                     style={{ objectFit: 'contain' }}
                   />
                 </div>
               </div>
-              <span className="active" style={{ top: -1 }}>
-                Mokhaiotl
-              </span>
+              <span style={{ top: -1 }}>Mokhaiotl</span>
             </Link>
           </li>
 
@@ -152,16 +163,14 @@ export function LeftNav() {
               <div className={styles.leftNav__menuItemIcon}>
                 <div className={styles.imageWrapper}>
                   <Image
-                    src="/logo_toa.webp"
+                    src={challengeLogo(ChallengeType.TOA)}
                     alt="toa icon"
                     fill
                     style={{ objectFit: 'contain' }}
                   />
                 </div>
               </div>
-              <span className="active" style={{ top: -1 }}>
-                ToA
-              </span>
+              <span style={{ top: -1 }}>ToA</span>
             </Link>
           </li>
 
@@ -175,7 +184,7 @@ export function LeftNav() {
                 <i className="fa-solid fa-magnifying-glass"></i>
               </div>
 
-              <span className="active">Search</span>
+              <span>Search</span>
             </Link>
           </li>
 
@@ -191,9 +200,7 @@ export function LeftNav() {
                 <i className="fa-solid fa-trophy"></i>
               </div>
 
-              <span className="active" style={{ top: -1 }}>
-                Leaderboards
-              </span>
+              <span style={{ top: -1 }}>Leaderboards</span>
             </Link>
           </li>
 
@@ -204,9 +211,7 @@ export function LeftNav() {
                 <i className="fa-solid fa-arrow-trend-up"></i>
               </div>
 
-              <span className="active" style={{ top: -1 }}>
-                Trends
-              </span>
+              <span style={{ top: -1 }}>Trends</span>
             </Link>
           </li>
 
@@ -216,7 +221,7 @@ export function LeftNav() {
               <div className={styles.leftNav__menuItemIcon}>
                 <i className="fas fa-shield-halved"></i>
               </div>
-              <span className="active">Gear Setups</span>
+              <span>Gear Setups</span>
             </Link>
           </li>
 
@@ -227,7 +232,7 @@ export function LeftNav() {
                 <i className="fa-solid fa-book"></i>
               </div>
 
-              <span className="active">Guides</span>
+              <span>Guides</span>
             </Link>
           </li>
 
@@ -241,7 +246,7 @@ export function LeftNav() {
                 <i className="fa-solid fa-pencil" />
               </div>
 
-              <span className="active">Name Changes</span>
+              <span>Name Changes</span>
             </Link>
           </li>
         </ul>

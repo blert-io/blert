@@ -6,8 +6,9 @@ import {
   aggregateChallenges,
   findBestSplitTimes,
   RankedSplit,
-} from './actions/challenge';
-import Card from './components/card';
+} from '@/actions/challenge';
+import { getSignedInUserId } from '@/actions/users';
+import Card from '@/components/card';
 import {
   ActivityFeed,
   ChallengeStats,
@@ -15,13 +16,15 @@ import {
   LeaderboardCard,
 } from './home-cards';
 
-import styles from './home.module.scss';
+import styles from './style.module.scss';
 
 const LEADERBOARD_SCALES = [5, 4, 3, 2];
 
 export default async function Home() {
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
+
+  const isLoggedIn = (await getSignedInUserId()) !== null;
 
   const statsQueries = Promise.all([
     aggregateChallenges(
@@ -93,9 +96,15 @@ export default async function Home() {
             </p>
           </div>
           <div className={styles.ctaButtons}>
-            <Link href="/register" className={styles.primaryButton}>
-              Create Account <i className="fas fa-arrow-right" />
-            </Link>
+            {isLoggedIn ? (
+              <Link href="/" className={styles.primaryButton}>
+                See Your Dashboard <i className="fas fa-arrow-right" />
+              </Link>
+            ) : (
+              <Link href="/register" className={styles.primaryButton}>
+                Create Account <i className="fas fa-arrow-right" />
+              </Link>
+            )}
             <Link
               href="https://runelite.net/plugin-hub/show/blert"
               className={styles.secondaryButton}
