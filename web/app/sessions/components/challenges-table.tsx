@@ -182,14 +182,13 @@ function ExpandedChallengeDetails({
             <i className="fas fa-skull" />
             Player Deaths
           </span>
-          <span className={styles.detailValue}>
-            {Object.entries(playerDeaths).map(([username, deaths], index) => (
+          <div className={styles.playerDeaths}>
+            {Object.entries(playerDeaths).map(([username, deaths]) => (
               <span key={username} className={styles.playerDeath}>
                 {username}: {deaths}
-                {index < Object.entries(playerDeaths).length - 1 && ', '}
               </span>
             ))}
-          </span>
+          </div>
         </div>
       </div>
 

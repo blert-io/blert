@@ -308,6 +308,10 @@
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     padding: 1rem;
+    width: fit-content;
+    max-width: calc(100vw - 4rem);
+    position: sticky;
+    left: 6px;
   }
 }
 
@@ -327,6 +331,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  min-width: 0;
 }
 
 .detailLabel {
@@ -342,6 +347,8 @@
   font-weight: 500;
   color: var(--blert-font-color-primary);
   font-family: var(--font-roboto-mono), monospace;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .splitsSection {
@@ -658,6 +665,8 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+  min-width: 0;
+  max-width: 100%;
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     gap: 0.25rem;
@@ -720,8 +729,18 @@
   }
 }
 
+.playerDeaths {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  font-weight: 500;
+  color: var(--blert-font-color-primary);
+  font-family: var(--font-roboto-mono), monospace;
+}
+
 .playerDeath {
   color: var(--blert-font-color-primary);
+  white-space: nowrap;
 }
 
 .detailLabel {

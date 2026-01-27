@@ -411,7 +411,7 @@ function StatisticsDisplay({
   data: AggregatedData;
   selectedStat: StatOption;
 }) {
-  const formatter = selectedStat.formatter ?? ((value) => value.toString());
+  const formatter = selectedStat.formatter ?? ((value) => value.toFixed(2));
 
   return (
     <div className={styles.statisticsGrid}>
