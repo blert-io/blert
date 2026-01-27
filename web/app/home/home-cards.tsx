@@ -14,19 +14,19 @@ import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ReactTimeago, { Unit } from 'react-timeago';
 
-import { ActivityFeedItem, ChallengeEndFeedItem } from './actions/activity';
-import { PlayerWithCurrentUsername, RankedSplit } from './actions/challenge';
-import { SetupListItem } from './actions/setup';
-import ActivityChart from './components/activity-chart';
-import Card, { CardLink } from './components/card';
-import Carousel from './components/carousel';
-import RadioInput from './components/radio-input';
-import { useClientOnly } from './hooks/client-only';
-import { challengePartyNames } from './utils/challenge-description';
-import { ticksToFormattedSeconds } from './utils/tick';
-import { challengeUrl, queryString } from './utils/url';
+import { ActivityFeedItem, ChallengeEndFeedItem } from '@/actions/activity';
+import { PlayerWithCurrentUsername, RankedSplit } from '@/actions/challenge';
+import { SetupListItem } from '@/actions/setup';
+import ActivityChart from '@/components/activity-chart';
+import Card, { CardLink } from '@/components/card';
+import Carousel from '@/components/carousel';
+import RadioInput from '@/components/radio-input';
+import { useClientOnly } from '@/hooks/client-only';
+import { challengePartyNames } from '@/utils/challenge-description';
+import { ticksToFormattedSeconds } from '@/utils/tick';
+import { challengeUrl, queryString } from '@/utils/url';
 
-import styles from './home.module.scss';
+import styles from './style.module.scss';
 
 const DEFAULT_REFRESH_INTERVAL = 15 * 1000;
 

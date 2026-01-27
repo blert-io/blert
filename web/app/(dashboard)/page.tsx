@@ -125,7 +125,7 @@ async function getQuickStats(usernames: string[]): Promise<QuickStats> {
 export default async function Dashboard() {
   const user = await getSignedInUser();
   if (user === null) {
-    redirect('/login');
+    redirect('/home');
   }
 
   const connectedPlayers = await getConnectedPlayers();

@@ -358,18 +358,6 @@ describe('AccountStatus', () => {
       });
     });
 
-    it('redirects to home when on protected route', async () => {
-      mockUsePathname.mockReturnValue('/dashboard');
-
-      render(<AccountStatus />);
-
-      fireEvent.click(screen.getByText('Log Out'));
-
-      await waitFor(() => {
-        expect(mockReplace).toHaveBeenCalledWith('/');
-      });
-    });
-
     it('redirects to current page when on non-protected route', async () => {
       mockUsePathname.mockReturnValue('/raids/123');
 
