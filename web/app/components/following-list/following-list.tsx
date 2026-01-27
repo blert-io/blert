@@ -65,7 +65,7 @@ export default function FollowingList({
     return () => observer.disconnect();
   }, [hasMore, isLoading, onLoadMore]);
 
-  if (players.length === 0 && !isLoading) {
+  if (players.length === 0 && !isLoading && !hasMore) {
     return (
       <div className={styles.emptyState}>
         <i className="fas fa-user-plus" />

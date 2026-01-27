@@ -10,6 +10,7 @@ export default function SettingsTabs() {
 
   const tabs = [
     { href: '/settings/account', label: 'Account', icon: 'fas fa-user' },
+    { href: '/settings/following', label: 'Following', icon: 'fas fa-users' },
     { href: '/settings/api-keys', label: 'API Keys', icon: 'fas fa-key' },
     {
       href: '/settings/linked-accounts',
