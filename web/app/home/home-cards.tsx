@@ -698,6 +698,7 @@ type LeaderboardEntry = {
   party: PlayerWithCurrentUsername[];
   uuid: string;
   date: Date;
+  tieCount?: number;
 };
 
 type ScaleLeaderboard = {
@@ -741,8 +742,15 @@ function Leaderboard({ leaderboard }: { leaderboard: ScaleLeaderboard }) {
                   </span>
                   {entry.rank}
                 </div>
-                <div className={styles.time}>
-                  {ticksToFormattedSeconds(entry.time)}
+                <div className={styles.timeRow}>
+                  <span className={styles.time}>
+                    {ticksToFormattedSeconds(entry.time)}
+                  </span>
+                  {entry.tieCount !== undefined && entry.tieCount > 0 && (
+                    <span className={styles.tieBadge}>
+                      <i className="fas fa-users" />+{entry.tieCount}
+                    </span>
+                  )}
                 </div>
               </div>
               <div className={styles.partyInfo}>
@@ -825,6 +833,7 @@ export function LeaderboardCard({
           party: entry.party,
           uuid: entry.uuid,
           date: entry.date,
+          tieCount: entry.tieCount,
         })),
       }));
 

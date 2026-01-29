@@ -838,10 +838,30 @@
     }
   }
 
+  .timeRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
   .time {
     font-family: var(--font-roboto-mono);
     color: var(--blert-font-color-primary);
-    width: 80px;
+  }
+
+  .tieBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(var(--blert-purple-base), 0.1);
+    font-size: 0.75em;
+    color: var(--blert-purple);
+
+    i {
+      font-size: 0.8em;
+    }
   }
 
   .partyInfo {
