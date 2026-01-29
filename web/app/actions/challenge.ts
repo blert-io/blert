@@ -1532,6 +1532,45 @@ export type SessionWithStats = Omit<Session, 'partyHash'> & {
   playerStats: SessionPlayerStats[];
 };
 
+export type SessionStatusUpdate = {
+  uuid: string;
+  status: SessionStatus;
+  endTime: Date | null;
+};
+
+/**
+ * Fetch current statuses for a list of sessions by UUID.
+ * Used to update live session cards when sessions end.
+ * @returns Statuses in the same order as the input UUIDs.
+ */
+export async function getSessionStatuses(
+  uuids: string[],
+): Promise<SessionStatusUpdate[]> {
+  if (uuids.length === 0) {
+    return [];
+  }
+
+  const sessions = await sql<
+    { uuid: string; status: SessionStatus; end_time: Date | null }[]
+  >`
+    SELECT uuid, status, end_time
+    FROM challenge_sessions
+    WHERE uuid = ANY(${uuids})
+  `;
+
+  const byUuid = new Map(sessions.map((s) => [s.uuid, s]));
+
+  return uuids
+    .map((uuid) => {
+      const s = byUuid.get(uuid);
+      if (s === undefined) {
+        return null;
+      }
+      return { uuid: s.uuid, status: s.status, endTime: s.end_time };
+    })
+    .filter((s) => s !== null);
+}
+
 /**
  * Loads detailed statistics for a session.
  *
