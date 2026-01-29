@@ -22,6 +22,8 @@ import {
   sessionKey,
   stageStreamFromRecord,
   challengeStreamsSetKey,
+  challengeProcessedStagesKey,
+  stageAttemptKey,
 } from '@blert/common';
 import { commandOptions, RedisClientType, WatchError } from 'redis';
 
@@ -89,14 +91,6 @@ const CHALLENGE_TIMEOUT_KEY = 'expiring-challenges';
 
 function challengeClientsKey(uuid: string): string {
   return `challenge:${uuid}:clients`;
-}
-
-function challengeProcessedStagesKey(uuid: string): string {
-  return `challenge:${uuid}:processed-stages`;
-}
-
-function stageAndAttempt(stage: Stage, attempt: number | null): string {
-  return `${String(stage)}${attempt !== null ? `:${attempt}` : ''}`;
 }
 
 function challengeToRedis(
@@ -636,7 +630,7 @@ class ChallengeReader implements ChallengeReadOperations {
   ): Promise<boolean> {
     const key = challengeProcessedStagesKey(uuid);
     await this.onRead?.(key);
-    return await this.client.sIsMember(key, stageAndAttempt(stage, attempt));
+    return await this.client.sIsMember(key, stageAttemptKey(stage, attempt));
   }
 
   async getChallengeTimeouts(): Promise<Map<string, ChallengeTimeout>> {
@@ -745,7 +739,7 @@ class ChallengeWriter implements ChallengeWriteOperations {
   setProcessedStage(uuid: string, stage: Stage, attempt: number | null): void {
     this.multi.sAdd(
       challengeProcessedStagesKey(uuid),
-      stageAndAttempt(stage, attempt),
+      stageAttemptKey(stage, attempt),
     );
     this.queuedOperations++;
   }

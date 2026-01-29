@@ -18,7 +18,9 @@ import {
   challengeStageStreamKey,
   challengesKey,
   ChallengeStatus,
+  challengeProcessedStagesKey,
   challengeStreamsSetKey,
+  stageAttemptKey,
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 import { ChallengeEvents } from '@blert/common/generated/challenge_storage_pb';
@@ -46,6 +48,8 @@ type ChallengeServerError = {
 };
 
 export class RemoteChallengeManager extends ChallengeManager {
+  private static readonly STAGE_STREAM_TTL_SECONDS = 60 * 60 * 24;
+
   private serverUrl: string;
   private redisClient: RedisClientType;
   private pubsubClient: RedisClientType;
@@ -156,20 +160,32 @@ export class RemoteChallengeManager extends ChallengeManager {
           update.stage.status === StageStatus.COMPLETED ||
           update.stage.status === StageStatus.WIPED
         ) {
-          const endEvent: StageStreamEnd = {
-            type: StageStreamType.STAGE_END,
-            clientId: client.getUserId(),
-            update: update.stage,
-          };
-          await this.redisClient.xAdd(
-            challengeStageStreamKey(
+          const attempt = client.getStageAttempt(update.stage.stage);
+          const canWrite = await this.shouldWriteStageEnd(
+            challengeId,
+            update.stage.stage,
+            attempt,
+          );
+          if (canWrite) {
+            const endEvent: StageStreamEnd = {
+              type: StageStreamType.STAGE_END,
+              clientId: client.getUserId(),
+              update: update.stage,
+            };
+            const streamKey = challengeStageStreamKey(
               challengeId,
               update.stage.stage,
-              client.getStageAttempt(update.stage.stage),
-            ),
-            '*',
-            stageStreamToRecord(endEvent),
-          );
+              attempt,
+            );
+            const multi = this.redisClient.multi();
+            multi.xAdd(streamKey, '*', stageStreamToRecord(endEvent));
+            multi.sAdd(challengeStreamsSetKey(challengeId), streamKey);
+            multi.expire(
+              streamKey,
+              RemoteChallengeManager.STAGE_STREAM_TTL_SECONDS,
+            );
+            await multi.exec();
+          }
         }
       }
 
@@ -249,6 +265,16 @@ export class RemoteChallengeManager extends ChallengeManager {
     challengeId: string,
     events: Event[],
   ): Promise<void> {
+    const challengeExists =
+      (await this.redisClient.exists(challengesKey(challengeId))) !== 0;
+    if (!challengeExists) {
+      logger.debug('remote_stage_events_dropped', {
+        challengeUuid: challengeId,
+        reason: 'challenge_missing',
+      });
+      return;
+    }
+
     const eventsByStage = new Map<Stage, Event[]>();
     for (const event of events) {
       const stage = event.getStage();
@@ -259,9 +285,47 @@ export class RemoteChallengeManager extends ChallengeManager {
       eventsByStage.get(stage)!.push(event);
     }
 
-    const multi = this.redisClient.multi();
+    const stageEntries = eventsByStage
+      .entries()
+      .map(([stage, stageEvents]) => ({
+        stage,
+        stageEvents,
+        attempt: client.getStageAttempt(stage),
+      }))
+      .toArray();
 
-    for (const [stage, stageEvents] of eventsByStage) {
+    const processedStagesKey = challengeProcessedStagesKey(challengeId);
+    const processedMulti = this.redisClient.multi();
+    stageEntries.forEach(({ stage, attempt }) => {
+      processedMulti.sIsMember(
+        processedStagesKey,
+        stageAttemptKey(stage, attempt),
+      );
+    });
+    const processedResults = await processedMulti.exec();
+    if (processedResults === null) {
+      logger.warn('remote_stage_events_dropped', {
+        challengeUuid: challengeId,
+        reason: 'processed_stage_check_failed',
+      });
+      return;
+    }
+    const processedFlags = processedResults.map(redisBoolean);
+
+    const multi = this.redisClient.multi();
+    let hasWrites = false;
+
+    stageEntries.forEach(({ stage, stageEvents, attempt }, index) => {
+      if (processedFlags[index]) {
+        logger.debug('remote_stage_events_dropped', {
+          challengeUuid: challengeId,
+          stage,
+          attempt,
+          reason: 'stage_processed',
+        });
+        return;
+      }
+
       const eventsMessage = new ChallengeEvents();
       eventsMessage.setEventsList(stageEvents);
 
@@ -270,26 +334,16 @@ export class RemoteChallengeManager extends ChallengeManager {
         clientId: client.getUserId(),
         events: eventsMessage.serializeBinary(),
       };
-      multi.xAdd(
-        challengeStageStreamKey(
-          challengeId,
-          stage,
-          client.getStageAttempt(stage),
-        ),
-        '*',
-        stageStreamToRecord(eventsStream),
-      );
-      multi.sAdd(
-        challengeStreamsSetKey(challengeId),
-        challengeStageStreamKey(
-          challengeId,
-          stage,
-          client.getStageAttempt(stage),
-        ),
-      );
-    }
+      const streamKey = challengeStageStreamKey(challengeId, stage, attempt);
+      multi.xAdd(streamKey, '*', stageStreamToRecord(eventsStream));
+      multi.sAdd(challengeStreamsSetKey(challengeId), streamKey);
+      multi.expire(streamKey, RemoteChallengeManager.STAGE_STREAM_TTL_SECONDS);
+      hasWrites = true;
+    });
 
-    await multi.exec();
+    if (hasWrites) {
+      await multi.exec();
+    }
   }
 
   public async addClient(
@@ -425,6 +479,48 @@ export class RemoteChallengeManager extends ChallengeManager {
     client.clearActiveChallenge();
   }
 
+  private async shouldWriteStageEnd(
+    challengeId: string,
+    stage: Stage,
+    attempt: number | null,
+  ): Promise<boolean> {
+    const results = await this.redisClient
+      .multi()
+      .exists(challengesKey(challengeId))
+      .sIsMember(
+        challengeProcessedStagesKey(challengeId),
+        stageAttemptKey(stage, attempt),
+      )
+      .exec();
+    if (results === null) {
+      return false;
+    }
+
+    const challengeExists = redisBoolean(results[0]);
+    if (!challengeExists) {
+      logger.warn('remote_stage_stream_write_skipped', {
+        challengeUuid: challengeId,
+        stage,
+        attempt,
+        reason: 'challenge_missing',
+      });
+      return false;
+    }
+
+    const processed = redisBoolean(results[1]);
+    if (processed) {
+      logger.warn('remote_stage_stream_write_skipped', {
+        challengeUuid: challengeId,
+        stage,
+        attempt,
+        reason: 'stage_processed',
+      });
+      return false;
+    }
+
+    return true;
+  }
+
   private async request(
     operation: RemoteOperation,
     path: string,
@@ -474,4 +570,8 @@ export class RemoteChallengeManager extends ChallengeManager {
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
+}
+
+function redisBoolean(value: unknown): boolean {
+  return typeof value === 'boolean' ? value : Number(value) > 0;
 }
