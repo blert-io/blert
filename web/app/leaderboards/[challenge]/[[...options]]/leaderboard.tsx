@@ -154,7 +154,9 @@ function TieBadge({ rank, rankIndex, challengeType, mode }: TieBadgeProps) {
       >
         <div className={styles.popoverHeader}>
           <i className="fas fa-users" />
-          <span>{tieCount} other challenges with this time</span>
+          <span>
+            {tieCount} other challenge{tieCount !== 1 ? 's' : ''} with this time
+          </span>
         </div>
         <div className={styles.popoverList}>
           {displayedTeams.map((team) => (

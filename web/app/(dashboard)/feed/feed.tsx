@@ -1,7 +1,9 @@
 'use client';
 
+import { SessionStatus } from '@blert/common';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { SessionStatusUpdate } from '@/actions/challenge';
 import { FeedItem, FeedResult, FollowedPlayer } from '@/actions/feed';
 
 import EmptyFeed from './empty-feed';
@@ -55,6 +57,29 @@ type FeedCursor = {
   cursor: string;
   direction: 'older' | 'newer';
 };
+
+async function fetchSessionStatuses(
+  uuids: string[],
+  signal?: AbortSignal,
+): Promise<SessionStatusUpdate[]> {
+  if (uuids.length === 0) {
+    return [];
+  }
+
+  const response = await fetch(
+    `/api/v1/sessions/status?uuids=${uuids.join(',')}`,
+    { cache: 'no-store', signal },
+  );
+  if (!response.ok) {
+    return [];
+  }
+
+  const data = (await response.json()) as SessionStatusUpdate[];
+  return data.map((s) => ({
+    ...s,
+    endTime: s.endTime !== null ? new Date(s.endTime) : null,
+  }));
+}
 
 async function fetchFeed(
   limit: number,
@@ -199,6 +224,21 @@ export default function Feed({
   }, [newerCursor]);
   const pollInFlight = useRef(false);
 
+  // Track live session UUIDs for status polling.
+  const liveSessionUuidsRef = useRef<string[]>([]);
+  useEffect(() => {
+    const uuids: string[] = [];
+    for (const item of items) {
+      if (
+        item.type === 'session' &&
+        item.session.status === SessionStatus.ACTIVE
+      ) {
+        uuids.push(item.session.uuid);
+      }
+    }
+    liveSessionUuidsRef.current = uuids;
+  }, [items]);
+
   const hasFollows = following.length > 0;
 
   // Poll for new feed items.
@@ -217,18 +257,68 @@ export default function Feed({
       pollInFlight.current = true;
 
       try {
-        let result: FeedResult | null;
-        if (pollCursorRef.current !== null) {
-          result = await fetchFeed(
-            50,
-            { cursor: pollCursorRef.current, direction: 'newer' },
-            abortController.signal,
-          );
-        } else {
-          result = await fetchFeed(50, undefined, abortController.signal);
+        const feedPromise =
+          pollCursorRef.current !== null
+            ? fetchFeed(
+                50,
+                { cursor: pollCursorRef.current, direction: 'newer' },
+                abortController.signal,
+              )
+            : fetchFeed(50, undefined, abortController.signal);
+
+        const liveUuids = liveSessionUuidsRef.current;
+        const statusPromise =
+          liveUuids.length > 0
+            ? fetchSessionStatuses(liveUuids, abortController.signal)
+            : Promise.resolve([]);
+
+        const [result, statuses] = await Promise.all([
+          feedPromise,
+          statusPromise,
+        ]);
+
+        if (abortController.signal.aborted) {
+          return;
         }
 
-        if (abortController.signal.aborted || result === null) {
+        // Update ended sessions.
+        if (statuses.length > 0) {
+          const statusByUuid = new Map(statuses.map((s) => [s.uuid, s]));
+          setItems((prev) => {
+            const next = [];
+
+            for (const item of prev) {
+              if (item.type !== 'session') {
+                next.push(item);
+                continue;
+              }
+              const update = statusByUuid.get(item.session.uuid);
+              if (
+                update === undefined ||
+                update.status === item.session.status
+              ) {
+                next.push(item);
+                continue;
+              }
+
+              if (update.status === SessionStatus.HIDDEN) {
+                continue;
+              }
+
+              next.push({
+                ...item,
+                session: {
+                  ...item.session,
+                  status: update.status,
+                  endTime: update.endTime,
+                },
+              });
+            }
+            return next;
+          });
+        }
+
+        if (result === null) {
           return;
         }
 
@@ -236,21 +326,19 @@ export default function Feed({
           setNewerCursor(result.newerCursor);
         }
 
-        if (result.items.length === 0) {
-          return;
-        }
+        if (result.items.length > 0) {
+          const newItems = result.items.filter((item) => {
+            const id = getFeedItemId(item);
+            if (seenIdsRef.current.has(id)) {
+              return false;
+            }
+            seenIdsRef.current.add(id);
+            return true;
+          });
 
-        const newItems = result.items.filter((item) => {
-          const id = getFeedItemId(item);
-          if (seenIdsRef.current.has(id)) {
-            return false;
+          if (newItems.length > 0) {
+            setPendingItems((prev) => [...newItems, ...prev]);
           }
-          seenIdsRef.current.add(id);
-          return true;
-        });
-
-        if (newItems.length > 0) {
-          setPendingItems((prev) => [...newItems, ...prev]);
         }
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') {
@@ -279,11 +367,13 @@ export default function Feed({
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    timeoutId = window.setTimeout(() => void poll(), POLL_INTERVAL_MS);
+
+    void poll();
 
     return () => {
       abortController.abort();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      pollInFlight.current = false;
       if (timeoutId !== null) {
         window.clearTimeout(timeoutId);
       }
