@@ -202,6 +202,7 @@ export {
   type StageStreamEvents,
   type StageUpdate,
   activePlayerKey,
+  challengeProcessedStagesKey,
   challengeStreamsSetKey,
   challengeStageStreamKey,
   challengesKey,
@@ -209,6 +210,7 @@ export {
   partyHash,
   partyKeyChallengeList,
   sessionKey,
+  stageAttemptKey,
   stageStreamFromRecord,
   stageStreamToRecord,
 } from './db/redis';

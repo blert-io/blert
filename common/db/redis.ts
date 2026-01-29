@@ -208,6 +208,24 @@ export function challengeStreamsSetKey(uuid: string) {
   return `challenge-streams:${uuid}`;
 }
 
+/**
+ * Returns the Redis key for the processed stages set for a challenge.
+ * @param uuid ID of the challenge.
+ */
+export function challengeProcessedStagesKey(uuid: string) {
+  return `challenge:${uuid}:processed-stages`;
+}
+
+/**
+ * Returns the identifier for a stage attempt stored in the processed stages
+ * set.
+ * @param stage Stage of the challenge.
+ * @param attempt Attempt number of the stage, if any.
+ */
+export function stageAttemptKey(stage: Stage, attempt: number | null): string {
+  return `${String(stage)}${attempt !== null ? `:${attempt}` : ''}`;
+}
+
 export function stageStreamToRecord(
   event: ClientStageStream,
 ): Record<string, string | Buffer> {
