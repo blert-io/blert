@@ -10,17 +10,13 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
-import {
-  findBestSplitTimes,
-  findChallenges,
-  PlayerWithCurrentUsername,
-} from '@/actions/challenge';
+import { findBestSplitTimes, findChallenges } from '@/actions/challenge';
 import Card from '@/components/card';
 import { challengeLogo } from '@/logo';
 import { scaleNameAndColor } from '@/utils/challenge';
 import { ticksToFormattedSeconds } from '@/utils/tick';
-import { challengeUrl } from '@/utils/url';
 
+import Leaderboard, { LeaderboardProps } from './leaderboard';
 import styles from './style.module.scss';
 
 function modeName(mode: ChallengeMode) {
@@ -32,69 +28,6 @@ function modeName(mode: ChallengeMode) {
     default:
       return '';
   }
-}
-
-type Rank = {
-  uuid: string;
-  date: Date;
-  party: PlayerWithCurrentUsername[];
-  value: number | string;
-};
-
-type LeaderboardProps = {
-  challengeType: ChallengeType;
-  ranks: Rank[];
-  title: string;
-};
-
-function Leaderboard({ challengeType, ranks, title }: LeaderboardProps) {
-  return (
-    <Card header={{ title }} className={styles.boardCard}>
-      <div className={styles.board}>
-        {ranks.map((rank, i) => (
-          <Link
-            key={i}
-            className={styles.entry}
-            href={challengeUrl(challengeType, rank.uuid)}
-          >
-            <div className={`${styles.rank}`}>
-              {i <= 2 && (
-                <span
-                  className={`${styles.medal} ${
-                    i === 0
-                      ? styles.gold
-                      : i === 1
-                        ? styles.silver
-                        : i === 2
-                          ? styles.bronze
-                          : ''
-                  }`}
-                >
-                  {i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}
-                </span>
-              )}
-              {i + 1}
-            </div>
-            <div className={styles.wrapper}>
-              <div className={styles.timeAndDate}>
-                <span className={styles.time}>{rank.value}</span>
-                <span className={styles.date}>
-                  {new Date(rank.date).toLocaleDateString(undefined, {
-                    year: 'numeric',
-                    month: 'numeric',
-                    day: 'numeric',
-                  })}
-                </span>
-              </div>
-              <div className={styles.party}>
-                {rank.party.map((p) => p.username).join(', ')}
-              </div>
-            </div>
-          </Link>
-        ))}
-      </div>
-    </Card>
-  );
 }
 
 type LeaderboardsPageProps = {
@@ -254,6 +187,7 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
       );
       customLeaderboards.push({
         challengeType: ChallengeType.MOKHAIOTL,
+        mode: ChallengeMode.NO_MODE,
         ranks: topDelves.map((challenge) => ({
           uuid: challenge.uuid,
           date: challenge.startTime,
@@ -351,13 +285,19 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
             <Leaderboard
               key={i}
               challengeType={challengeType}
+              mode={mode}
               title={splitName(split)}
               ranks={
-                rankedSplits[split]?.map((split) => ({
-                  uuid: split.uuid,
-                  date: split.date,
-                  party: split.party,
-                  value: ticksToFormattedSeconds(split.ticks),
+                rankedSplits[split]?.map((s) => ({
+                  uuid: s.uuid,
+                  date: s.date,
+                  party: s.party,
+                  value: ticksToFormattedSeconds(s.ticks),
+                  tieCount: s.tieCount,
+                  tiedTeams: s.tiedTeams,
+                  splitType: s.splitType,
+                  scale: s.scale,
+                  ticks: s.ticks,
                 })) ?? []
               }
             />
@@ -368,13 +308,19 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
             <Leaderboard
               key={i}
               challengeType={challengeType}
+              mode={mode}
               title={splitName(split)}
               ranks={
-                rankedSplits[split]?.map((split) => ({
-                  uuid: split.uuid,
-                  date: split.date,
-                  party: split.party,
-                  value: ticksToFormattedSeconds(split.ticks),
+                rankedSplits[split]?.map((s) => ({
+                  uuid: s.uuid,
+                  date: s.date,
+                  party: s.party,
+                  value: ticksToFormattedSeconds(s.ticks),
+                  tieCount: s.tieCount,
+                  tiedTeams: s.tiedTeams,
+                  splitType: s.splitType,
+                  scale: s.scale,
+                  ticks: s.ticks,
                 })) ?? []
               }
             />

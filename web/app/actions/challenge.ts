@@ -2515,24 +2515,38 @@ export type PlayerWithCurrentUsername = {
   currentUsername: string;
 };
 
+export type TiedTeam = {
+  uuid: string;
+  date: Date;
+  party: PlayerWithCurrentUsername[];
+};
+
 export type RankedSplit = {
   uuid: string;
   date: Date;
   ticks: number;
   party: PlayerWithCurrentUsername[];
+  splitType: SplitType;
+  scale: number;
+  tieCount: number;
+  tiedTeams?: TiedTeam[];
 };
 
 /**
  * Returns the top `numRanks` split times for each split type and scale.
  *
  * The returned split times are unique. If multiple challenges have the same
- * time, the earliest one recorded is returned.
+ * time, the earliest one recorded is returned. The `tieCount` field indicates
+ * how many other challenges share that time (excluding the first one), and
+ * `tiedTeams` contains up to `tiedTeamsLimit` other challenges with the time.
  *
  * @param types The split types to fetch.
  * @param scale The challenge scale.
  * @param numRanks How many split times to fetch for each split type.
  * @param startTime Only return splits from challenges that started after
  *   this time.
+ * @param tiedTeamsLimit Maximum number of tied teams to fetch per split
+ *   (default 10). Set to 0 to skip fetching tied teams.
  * @returns Object mapping split types to an array of ranked split times.
  */
 export async function findBestSplitTimes(
@@ -2540,9 +2554,11 @@ export async function findBestSplitTimes(
   scale: number,
   numRanks: number,
   startTime?: Date,
+  tiedTeamsLimit: number = 10,
 ): Promise<Partial<Record<SplitType, RankedSplit[]>>> {
   const rankedSplits: Partial<Record<SplitType, RankedSplit[]>> = {};
   const partiesToUpdate: [number, RankedSplit][] = [];
+  const tiedTeamsMap = new Map<SplitType, Map<number, [number, TiedTeam][]>>();
 
   await Promise.all(
     types.map(async (type) => {
@@ -2553,43 +2569,151 @@ export async function findBestSplitTimes(
         type: SplitType;
         scale: number;
         ticks: number;
+        total_count: string;
       }[] = await sql`
-        SELECT DISTINCT ON (ticks)
-          challenges.id,
-          challenges.uuid,
-          challenges.start_time,
-          challenge_splits.type,
-          challenge_splits.scale,
-          challenge_splits.ticks
-        FROM challenge_splits
-        JOIN challenges ON challenge_splits.challenge_id = challenges.id
-        WHERE
-          challenge_splits.accurate
-          AND challenge_splits.type = ${type}
-          AND challenge_splits.scale = ${scale}
-          ${startTime ? sql`AND challenges.start_time >= ${startTime}` : sql``}
-        ORDER BY challenge_splits.ticks, challenges.start_time
+        WITH ranked AS (
+          SELECT
+            challenges.id,
+            challenges.uuid,
+            challenges.start_time,
+            challenge_splits.type,
+            challenge_splits.scale,
+            challenge_splits.ticks,
+            COUNT(*) OVER (PARTITION BY challenge_splits.ticks) AS total_count,
+            ROW_NUMBER() OVER (
+              PARTITION BY challenge_splits.ticks
+              ORDER BY challenges.start_time
+            ) AS row_num
+          FROM challenge_splits
+          JOIN challenges ON challenge_splits.challenge_id = challenges.id
+          WHERE
+            challenge_splits.accurate
+            AND challenge_splits.type = ${type}
+            AND challenge_splits.scale = ${scale}
+            ${startTime ? sql`AND challenges.start_time >= ${startTime}` : sql``}
+        )
+        SELECT id, uuid, start_time, type, scale, ticks, total_count
+        FROM ranked
+        WHERE row_num = 1
+        ORDER BY ticks
         LIMIT ${numRanks};
       `;
 
+      const ticksWithTies: number[] = [];
+
       results.forEach((r) => {
         rankedSplits[type] ??= [];
-        const rankedSplit = {
+        const tieCount = parseInt(r.total_count, 10) - 1;
+        const rankedSplit: RankedSplit = {
           uuid: r.uuid,
           date: r.start_time,
           ticks: r.ticks,
           party: [],
+          splitType: type,
+          scale,
+          tieCount,
         };
 
         rankedSplits[type].push(rankedSplit);
         partiesToUpdate.push([r.id, rankedSplit]);
+
+        if (tieCount > 0) {
+          ticksWithTies.push(r.ticks);
+        }
       });
+
+      if (tiedTeamsLimit > 0 && ticksWithTies.length > 0) {
+        const tiedResults: {
+          id: number;
+          uuid: string;
+          start_time: Date;
+          ticks: number;
+        }[] = await sql`
+          WITH ranked AS (
+            SELECT
+              challenges.id,
+              challenges.uuid,
+              challenges.start_time,
+              challenge_splits.ticks,
+              ROW_NUMBER() OVER (
+                PARTITION BY challenge_splits.ticks
+                ORDER BY challenges.start_time
+              ) AS row_num
+            FROM challenge_splits
+            JOIN challenges ON challenge_splits.challenge_id = challenges.id
+            WHERE
+              challenge_splits.accurate
+              AND challenge_splits.type = ${type}
+              AND challenge_splits.scale = ${scale}
+              AND challenge_splits.ticks = ANY(${ticksWithTies})
+              ${startTime ? sql`AND challenges.start_time >= ${startTime}` : sql``}
+          )
+          SELECT id, uuid, start_time, ticks
+          FROM ranked
+          WHERE row_num <= ${tiedTeamsLimit + 1}
+          ORDER BY ticks, start_time;
+        `;
+
+        const ticksMap = new Map<number, [number, TiedTeam][]>();
+        for (const tr of tiedResults) {
+          if (!ticksMap.has(tr.ticks)) {
+            ticksMap.set(tr.ticks, []);
+          }
+          ticksMap
+            .get(tr.ticks)!
+            .push([tr.id, { uuid: tr.uuid, date: tr.start_time, party: [] }]);
+        }
+        tiedTeamsMap.set(type, ticksMap);
+      }
     }),
   );
 
   const parties = await loadChallengeParties(partiesToUpdate.map((p) => p[0]));
   for (const [id, desc] of partiesToUpdate) {
     desc.party = parties[id];
+  }
+
+  const allTiedIds: number[] = [];
+  for (const ticksMap of tiedTeamsMap.values()) {
+    for (const teams of ticksMap.values()) {
+      for (const [id] of teams) {
+        allTiedIds.push(id);
+      }
+    }
+  }
+
+  if (allTiedIds.length > 0) {
+    const tiedParties = await loadChallengeParties(allTiedIds);
+
+    for (const ticksMap of tiedTeamsMap.values()) {
+      for (const teams of ticksMap.values()) {
+        for (const [id, team] of teams) {
+          team.party = tiedParties[id] ?? [];
+        }
+      }
+    }
+
+    // Attach tied teams to ranked splits, excluding the primary team.
+    for (const [splitType, splits] of Object.entries(rankedSplits)) {
+      const ticksMap = tiedTeamsMap.get(parseInt(splitType) as SplitType);
+      if (ticksMap === undefined) {
+        continue;
+      }
+
+      for (const split of splits ?? []) {
+        if (split.tieCount > 0) {
+          const teams = ticksMap.get(split.ticks);
+          if (teams === undefined) {
+            continue;
+          }
+
+          split.tiedTeams = teams
+            .filter(([, team]) => team.uuid !== split.uuid)
+            .slice(0, tiedTeamsLimit)
+            .map(([, team]) => team);
+        }
+      }
+    }
   }
 
   return rankedSplits;

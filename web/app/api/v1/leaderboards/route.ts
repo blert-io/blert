@@ -10,8 +10,13 @@ export async function GET(request: NextRequest) {
     .map((s) => parseInt(s));
   const scale = parseInt(params.get('scale') ?? '-1');
   const limit = parseInt(params.get('limit') ?? '10');
+  const tiedTeamsLimit = parseInt(params.get('tiedTeamsLimit') ?? '10');
 
   if (scale === -1 || splits.length === 0 || splits.some(isNaN)) {
+    return Response.json(null, { status: 400 });
+  }
+
+  if (isNaN(tiedTeamsLimit) || tiedTeamsLimit < 0 || tiedTeamsLimit > 50) {
     return Response.json(null, { status: 400 });
   }
 
@@ -29,6 +34,7 @@ export async function GET(request: NextRequest) {
     scale,
     limit,
     startTime,
+    tiedTeamsLimit,
   );
   return Response.json(rankedSplits);
 }
