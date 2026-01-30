@@ -734,7 +734,7 @@ export namespace DataRepository {
           .filter((entry) => entry.isFile())
           .map(
             (entry) =>
-              entry.path.slice(this.root.length + 1) + '/' + entry.name,
+              entry.parentPath.slice(this.root.length + 1) + '/' + entry.name,
           );
       } catch (e: unknown) {
         const err = e as NodeJS.ErrnoException;
