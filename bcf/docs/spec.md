@@ -34,7 +34,8 @@ combat data. It intentionally excludes:
 - Actor hitpoints over time
 
 BCF intentionally does not provide arbitrary extension fields. New
-encounter-relevant semantics must be introduced via the identifier registry.
+encounter-relevant semantics must be introduced via the
+[`Identifier Registry`](./registry/README.md).
 
 ### 1.3 Terminology
 
@@ -335,9 +336,7 @@ represent phase transitions for a specific NPC.
 #### 4.4.2 Phase Type Identifiers
 
 Phase type identifiers use string names that correspond to canonical identifier
-lists maintained by Blert.
-
-TODO: Add canonical sources.
+lists maintained by Blert in the [`Identifier Registry`](./registry/README.md).
 
 #### 4.4.3 Validation
 
@@ -515,22 +514,20 @@ lists maintained by Blert.
 
 #### 5.8.1 Canonical Sources
 
-The canonical lists of action types defined by the Blert project exist as enums
-in [`event.proto`](https://raw.githubusercontent.com/blert-io/protos/refs/heads/main/event.proto).
-The names of the fields in these enums are valid action type identifiers that
-renderers should aim to support.
+Action type identifiers are documented in the
+[`Identifier Registry`](./registry/README.md), which provides human-readable
+descriptions and metadata for each identifier.
 
 The list of canonical action type identifiers will expand over time as BCF
 evolves.
 
-The proto identifiers are provided as a reference for BCF renderer implementers.
-It is not necessary to fetch and parse the proto file itself.
-
-| Action Type    | Enum name      | Examples                                                      |
-| -------------- | -------------- | ------------------------------------------------------------- |
-| Player attacks | `PlayerAttack` | `SCYTHE`, `SANG`, `DAWN_SPEC`                                 |
-| Player spells  | `PlayerSpell`  | `VENGEANCE`, `DEATH_CHARGE`, `VENGEANCE_OTHER`                |
-| NPC attacks    | `NpcAttack`    | `TOB_VERZIK_P2_BOUNCE`, `TOB_MAIDEN_AUTO`, `INFERNO_JAD_MAGE` |
+| Action Type    | Registry File          | Examples                                                      |
+| -------------- | ---------------------- | ------------------------------------------------------------- |
+| Player attacks | `attack-type.json`     | `SCYTHE`, `SANG`, `DAWN_SPEC`                                 |
+| Player spells  | `spell-type.json`      | `VENGEANCE`, `DEATH_CHARGE`, `VENGEANCE_OTHER`                |
+| Player utility | `utility-type.json`    | `SURGE_POTION`                                                |
+| NPC attacks    | `npc-attack-type.json` | `TOB_VERZIK_P2_BOUNCE`, `TOB_MAIDEN_AUTO`, `INFERNO_JAD_MAGE` |
+| NPC phases     | `npc-phase-type.json`  | `TOB_VERZIK_P2`, `TOB_BLOAT_DOWN`, `TOB_XARPUS_P3`            |
 
 #### 5.8.2 Unknown Action Types
 

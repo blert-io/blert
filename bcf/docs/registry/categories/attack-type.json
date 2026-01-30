@@ -1,0 +1,885 @@
+{
+  "category": "attackType",
+  "updatedAt": "2026-01-30",
+  "items": [
+    {
+      "id": "UNKNOWN",
+      "status": "active",
+      "summary": "Unknown attack",
+      "introduced": "2026-01-30",
+      "details": "An unrecognized player attack type."
+    },
+    {
+      "id": "UNKNOWN_BARRAGE",
+      "status": "active",
+      "summary": "Unknown barrage",
+      "introduced": "2026-01-30",
+      "details": "A barrage or burst spell cast with an unrecognized weapon.",
+      "tags": ["magic"]
+    },
+    {
+      "id": "UNKNOWN_BOW",
+      "status": "active",
+      "summary": "Unknown bow",
+      "introduced": "2026-01-30",
+      "details": "A ranged attack with an unrecognized bow.",
+      "tags": ["ranged"]
+    },
+    {
+      "id": "UNKNOWN_POWERED_STAFF",
+      "status": "active",
+      "summary": "Unknown powered staff",
+      "introduced": "2026-01-30",
+      "details": "A magic attack with an unrecognized powered staff.",
+      "tags": ["magic"]
+    },
+    {
+      "id": "ABYSSAL_BLUDGEON",
+      "status": "active",
+      "summary": "Abyssal bludgeon",
+      "introduced": "2026-01-30",
+      "details": "A melee attack with the Abyssal bludgeon.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "ACCURSED_SCEPTRE_AUTO",
+      "status": "active",
+      "summary": "Accursed sceptre auto",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with the Accursed sceptre.",
+      "tags": ["magic"]
+    },
+    {
+      "id": "ACCURSED_SCEPTRE_SPEC",
+      "status": "active",
+      "summary": "Accursed sceptre spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with the Accursed sceptre.",
+      "tags": ["magic", "spec"]
+    },
+    {
+      "id": "AGS_SPEC",
+      "status": "active",
+      "summary": "Armadyl godsword spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with the Armadyl godsword.",
+      "tags": ["melee", "spec"]
+    },
+    {
+      "id": "ARCLIGHT_AUTO",
+      "status": "active",
+      "summary": "Arclight auto",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with Arclight.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "ARCLIGHT_SPEC",
+      "status": "active",
+      "summary": "Arclight spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with Arclight.",
+      "tags": ["melee", "spec"]
+    },
+    {
+      "id": "ATLATL_AUTO",
+      "status": "active",
+      "summary": "Eclipse atlatl auto",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with the Eclipse atlatl.",
+      "tags": ["ranged"]
+    },
+    {
+      "id": "ATLATL_SPEC",
+      "status": "active",
+      "summary": "Eclipse atlatl spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with the Eclipse atlatl.",
+      "tags": ["ranged", "spec"]
+    },
+    {
+      "id": "BGS_SPEC",
+      "status": "active",
+      "summary": "Bandos godsword spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with the Bandos godsword.",
+      "tags": ["melee", "spec"]
+    },
+    {
+      "id": "BLOWPIPE",
+      "status": "active",
+      "summary": "Toxic blowpipe",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with the Toxic blowpipe.",
+      "tags": ["ranged"]
+    },
+    {
+      "id": "BLOWPIPE_SPEC",
+      "status": "active",
+      "summary": "Toxic blowpipe spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with the Toxic blowpipe.",
+      "tags": ["ranged", "spec"]
+    },
+    {
+      "id": "BOWFA",
+      "status": "active",
+      "summary": "Bow of faerdhinen",
+      "introduced": "2026-01-30",
+      "details": "An attack with the Bow of faerdhinen.",
+      "tags": ["ranged"]
+    },
+    {
+      "id": "BURNING_CLAW_SCRATCH",
+      "status": "active",
+      "summary": "Burning claws scratch",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with Burning claws.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "BURNING_CLAW_SPEC",
+      "status": "active",
+      "summary": "Burning claws spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with Burning claws.",
+      "tags": ["melee", "spec"]
+    },
+    {
+      "id": "CHALLY_SPEC",
+      "status": "active",
+      "summary": "Crystal halberd spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with the Crystal halberd.",
+      "tags": ["melee", "spec"]
+    },
+    {
+      "id": "CHALLY_SWIPE",
+      "status": "active",
+      "summary": "Crystal halberd swipe",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with the Crystal halberd.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "CHIN_BLACK",
+      "status": "active",
+      "summary": "Black chinchompa",
+      "introduced": "2026-01-30",
+      "details": "An attack with Black chinchompas.",
+      "tags": ["ranged"]
+    },
+    {
+      "id": "CHIN_GREY",
+      "status": "active",
+      "summary": "Grey chinchompa",
+      "introduced": "2026-01-30",
+      "details": "An attack with Grey chinchompas.",
+      "tags": ["ranged"]
+    },
+    {
+      "id": "CHIN_RED",
+      "status": "active",
+      "summary": "Red chinchompa",
+      "introduced": "2026-01-30",
+      "details": "An attack with Red chinchompas.",
+      "tags": ["ranged"]
+    },
+    {
+      "id": "CLAW_SCRATCH",
+      "status": "active",
+      "summary": "Dragon claws scratch",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with Dragon claws.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "CLAW_SPEC",
+      "status": "active",
+      "summary": "Dragon claws spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with Dragon claws.",
+      "tags": ["melee", "spec"]
+    },
+    {
+      "id": "DARK_DEMONBANE",
+      "status": "active",
+      "summary": "Dark demonbane",
+      "introduced": "2026-01-30",
+      "details": "An attack with the Demonbane spell.",
+      "tags": ["magic"]
+    },
+    {
+      "id": "DARKLIGHT_AUTO",
+      "status": "active",
+      "summary": "Darklight auto",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with Darklight.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "DARKLIGHT_SPEC",
+      "status": "active",
+      "summary": "Darklight spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with Darklight.",
+      "tags": ["melee", "spec"]
+    },
+    {
+      "id": "DART",
+      "status": "active",
+      "summary": "Dart",
+      "introduced": "2026-01-30",
+      "details": "An attack with a thrown dart.",
+      "tags": ["ranged"]
+    },
+    {
+      "id": "DAWN_AUTO",
+      "status": "active",
+      "summary": "Dawnbringer auto",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with the Dawnbringer.",
+      "tags": ["magic"]
+    },
+    {
+      "id": "DAWN_SPEC",
+      "status": "active",
+      "summary": "Dawnbringer spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with the Dawnbringer.",
+      "tags": ["spec"]
+    },
+    {
+      "id": "DDS_POKE",
+      "status": "active",
+      "summary": "Dragon dagger poke",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with the Dragon dagger.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "DDS_SPEC",
+      "status": "active",
+      "summary": "Dragon dagger spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with the Dragon dagger.",
+      "tags": ["melee", "spec"]
+    },
+    {
+      "id": "DHAROKS_GREATAXE",
+      "status": "active",
+      "summary": "Dharok's greataxe",
+      "introduced": "2026-01-30",
+      "details": "An attack with Dharok's greataxe.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "DINHS_BASH",
+      "status": "active",
+      "summary": "Dinh's bulwark bash",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with Dinh's bulwark.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "DINHS_SPEC",
+      "status": "active",
+      "summary": "Dinh's bulwark spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with Dinh's bulwark.",
+      "tags": ["melee", "spec"]
+    },
+    {
+      "id": "DRAGON_HUNTER_LANCE",
+      "status": "active",
+      "summary": "Dragon hunter lance",
+      "introduced": "2026-01-30",
+      "details": "An attack with the Dragon hunter lance.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "DRAGON_KNIFE_AUTO",
+      "status": "active",
+      "summary": "Dragon knife auto",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with Dragon knives.",
+      "tags": ["ranged"]
+    },
+    {
+      "id": "DRAGON_KNIFE_SPEC",
+      "status": "active",
+      "summary": "Dragon knife spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with Dragon knives.",
+      "tags": ["ranged", "spec"]
+    },
+    {
+      "id": "DRAGON_SCIMITAR",
+      "status": "active",
+      "summary": "Dragon scimitar",
+      "introduced": "2026-01-30",
+      "details": "An attack with the Dragon scimitar.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "DUAL_MACUAHUITL",
+      "status": "active",
+      "summary": "Dual macuahuitl",
+      "introduced": "2026-01-30",
+      "details": "An attack with Dual macuahuitl.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "EARTHBOUND_TECPATL",
+      "status": "active",
+      "summary": "Earthbound tecpatl",
+      "introduced": "2026-01-30",
+      "details": "An attack with the Earthbound tecpatl.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "ELDER_MAUL",
+      "status": "active",
+      "summary": "Elder maul",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with the Elder maul.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "ELDER_MAUL_SPEC",
+      "status": "active",
+      "summary": "Elder maul spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with the Elder maul.",
+      "tags": ["melee", "spec"]
+    },
+    {
+      "id": "EMBERLIGHT_AUTO",
+      "status": "active",
+      "summary": "Emberlight auto",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with Emberlight.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "EMBERLIGHT_SPEC",
+      "status": "active",
+      "summary": "Emberlight spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with Emberlight.",
+      "tags": ["melee", "spec"]
+    },
+    {
+      "id": "EYE_OF_AYAK_AUTO",
+      "status": "active",
+      "summary": "Eye of Ayak auto",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with the Eye of Ayak.",
+      "tags": ["magic"]
+    },
+    {
+      "id": "EYE_OF_AYAK_SPEC",
+      "status": "active",
+      "summary": "Eye of Ayak spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with the Eye of Ayak.",
+      "tags": ["magic", "spec"]
+    },
+    {
+      "id": "FANG_STAB",
+      "status": "active",
+      "summary": "Osmumten's fang",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with Osmumten's fang.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "FANG_SPEC",
+      "status": "active",
+      "summary": "Osmumten's fang spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with Osmumten's fang.",
+      "tags": ["melee", "spec"]
+    },
+    {
+      "id": "GLACIAL_TEMOTLI",
+      "status": "active",
+      "summary": "Glacial temotli",
+      "introduced": "2026-01-30",
+      "details": "An attack with the Glacial temotli.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "GOBLIN_PAINT_CANNON",
+      "status": "active",
+      "summary": "Goblin paint cannon",
+      "introduced": "2026-01-30",
+      "details": "An attack with the Goblin paint cannon.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "GODSWORD_SMACK",
+      "status": "active",
+      "summary": "Godsword smack",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with a godsword.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "GUTHANS_WARSPEAR",
+      "status": "active",
+      "summary": "Guthan's warspear",
+      "introduced": "2026-01-30",
+      "details": "An attack with Guthan's warspear.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "HAM_JOINT",
+      "status": "active",
+      "summary": "Ham joint",
+      "introduced": "2026-01-30",
+      "details": "An attack with a Ham joint.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "HAMMER_BOP",
+      "status": "active",
+      "summary": "Dragon warhammer bop",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with the Dragon warhammer.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "HAMMER_SPEC",
+      "status": "active",
+      "summary": "Dragon warhammer spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with the Dragon warhammer.",
+      "tags": ["melee", "spec"]
+    },
+    {
+      "id": "ICE_RUSH",
+      "status": "active",
+      "summary": "Ice Rush",
+      "introduced": "2026-01-30",
+      "details": "An Ice Rush spell cast.",
+      "tags": ["magic"]
+    },
+    {
+      "id": "INQUISITORS_MACE",
+      "status": "active",
+      "summary": "Inquisitor's mace",
+      "introduced": "2026-01-30",
+      "details": "An attack with the Inquisitor's mace.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "KARILS_CROSSBOW",
+      "status": "active",
+      "summary": "Karil's crossbow",
+      "introduced": "2026-01-30",
+      "details": "An attack with Karil's crossbow.",
+      "tags": ["ranged"]
+    },
+    {
+      "id": "KICK",
+      "status": "active",
+      "summary": "Kick",
+      "introduced": "2026-01-30",
+      "details": "An unarmed kick attack.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "KODAI_BARRAGE",
+      "status": "active",
+      "summary": "Kodai wand barrage",
+      "introduced": "2026-01-30",
+      "details": "A barrage or burst spell cast with the Kodai wand.",
+      "tags": ["magic"]
+    },
+    {
+      "id": "KODAI_BASH",
+      "status": "active",
+      "summary": "Kodai wand bash",
+      "introduced": "2026-01-30",
+      "details": "A melee attack with the Kodai wand.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "NM_STAFF_BARRAGE",
+      "status": "active",
+      "summary": "Nightmare staff barrage",
+      "introduced": "2026-01-30",
+      "details": "A barrage or burst spell cast with a Nightmare staff.",
+      "tags": ["magic"]
+    },
+    {
+      "id": "NM_STAFF_BASH",
+      "status": "active",
+      "summary": "Nightmare staff bash",
+      "introduced": "2026-01-30",
+      "details": "A melee attack with a Nightmare staff.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "NOXIOUS_HALBERD",
+      "status": "active",
+      "summary": "Noxious halberd",
+      "introduced": "2026-01-30",
+      "details": "An attack with the Noxious halberd.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "PUNCH",
+      "status": "active",
+      "summary": "Punch",
+      "introduced": "2026-01-30",
+      "details": "An unarmed punch attack.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "RAPIER",
+      "status": "active",
+      "summary": "Ghrazi rapier",
+      "introduced": "2026-01-30",
+      "details": "An attack with the Ghrazi rapier.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "SAELDOR",
+      "status": "active",
+      "summary": "Blade of saeldor",
+      "introduced": "2026-01-30",
+      "details": "An attack with the Blade of saeldor.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "SANG",
+      "status": "active",
+      "summary": "Sanguinesti staff",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with the Sanguinesti staff.",
+      "tags": ["magic"]
+    },
+    {
+      "id": "SANG_BARRAGE",
+      "status": "active",
+      "summary": "Sanguinesti staff barrage",
+      "introduced": "2026-01-30",
+      "details": "A barrage or burst spell cast with the Sanguinesti staff.",
+      "tags": ["magic"]
+    },
+    {
+      "id": "SCEPTRE_BARRAGE",
+      "status": "active",
+      "summary": "Sceptre barrage",
+      "introduced": "2026-01-30",
+      "details": "A barrage or burst spell cast with an ancient sceptre.",
+      "tags": ["magic"]
+    },
+    {
+      "id": "SCEPTRE_BASH",
+      "status": "active",
+      "summary": "Sceptre bash",
+      "introduced": "2026-01-30",
+      "details": "A melee attack with an ancient sceptre.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "SCORCHING_BOW_AUTO",
+      "status": "active",
+      "summary": "Scorching bow auto",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with the Scorching bow.",
+      "tags": ["ranged"]
+    },
+    {
+      "id": "SCORCHING_BOW_SPEC",
+      "status": "active",
+      "summary": "Scorching bow spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with the Scorching bow.",
+      "tags": ["ranged", "spec"]
+    },
+    {
+      "id": "SCYTHE",
+      "status": "active",
+      "summary": "Scythe of vitur",
+      "introduced": "2026-01-30",
+      "details": "An attack with the Scythe of vitur.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "SCYTHE_UNCHARGED",
+      "status": "active",
+      "summary": "Scythe of vitur (uncharged)",
+      "introduced": "2026-01-30",
+      "details": "An attack with an uncharged Scythe of vitur.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "SGS_SPEC",
+      "status": "active",
+      "summary": "Saradomin godsword spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with the Saradomin godsword.",
+      "tags": ["melee", "spec"]
+    },
+    {
+      "id": "SHADOW",
+      "status": "active",
+      "summary": "Tumeken's shadow",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with Tumeken's shadow.",
+      "tags": ["magic"]
+    },
+    {
+      "id": "SHADOW_BARRAGE",
+      "status": "active",
+      "summary": "Tumeken's shadow barrage",
+      "introduced": "2026-01-30",
+      "details": "A barrage or burst spell cast with Tumeken's shadow.",
+      "tags": ["magic"]
+    },
+    {
+      "id": "SOTD_BARRAGE",
+      "status": "active",
+      "summary": "Staff of the dead barrage",
+      "introduced": "2026-01-30",
+      "details": "A barrage or burst spell cast with the Staff of the dead.",
+      "tags": ["magic"]
+    },
+    {
+      "id": "SOULREAPER_AXE",
+      "status": "active",
+      "summary": "Soulreaper axe",
+      "introduced": "2026-01-30",
+      "details": "An attack with the Soulreaper axe.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "STAFF_OF_LIGHT_BARRAGE",
+      "status": "active",
+      "summary": "Staff of light barrage",
+      "introduced": "2026-01-30",
+      "details": "A barrage or burst spell cast with the Staff of light.",
+      "tags": ["magic"]
+    },
+    {
+      "id": "STAFF_OF_LIGHT_SWIPE",
+      "status": "active",
+      "summary": "Staff of light swipe",
+      "introduced": "2026-01-30",
+      "details": "A melee attack with the Staff of light.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "SULPHUR_BLADES",
+      "status": "active",
+      "summary": "Sulphur blades",
+      "introduced": "2026-01-30",
+      "details": "An attack with Sulphur blades.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "SWIFT_BLADE",
+      "status": "active",
+      "summary": "Swift blade",
+      "introduced": "2026-01-30",
+      "details": "An attack with the Swift blade.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "TENT_WHIP",
+      "status": "active",
+      "summary": "Abyssal tentacle",
+      "introduced": "2026-01-30",
+      "details": "An attack with the Abyssal tentacle (tent whip).",
+      "tags": ["melee"]
+    },
+    {
+      "id": "TONALZTICS_AUTO",
+      "status": "active",
+      "summary": "Tonalztics of ralos auto",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with the Tonalztics of ralos.",
+      "tags": ["ranged"]
+    },
+    {
+      "id": "TONALZTICS_SPEC",
+      "status": "active",
+      "summary": "Tonalztics of ralos spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with the Tonalztics of ralos.",
+      "tags": ["ranged", "spec"]
+    },
+    {
+      "id": "TONALZTICS_UNCHARGED",
+      "status": "active",
+      "summary": "Tonalztics of ralos (uncharged)",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with an uncharged Tonalztics of ralos.",
+      "tags": ["ranged", "spec"]
+    },
+    {
+      "id": "TORAGS_HAMMERS",
+      "status": "active",
+      "summary": "Torag's hammers",
+      "introduced": "2026-01-30",
+      "details": "An attack with Torag's hammers.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "TOXIC_STAFF_BARRAGE",
+      "status": "active",
+      "summary": "Toxic staff of the dead barrage",
+      "introduced": "2026-01-30",
+      "details": "A barrage or burst spell cast with the Toxic staff of the dead.",
+      "tags": ["magic"]
+    },
+    {
+      "id": "TOXIC_STAFF_SWIPE",
+      "status": "active",
+      "summary": "Toxic staff of the dead swipe",
+      "introduced": "2026-01-30",
+      "details": "A melee attack with the Toxic staff of the dead.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "TOXIC_TRIDENT",
+      "status": "active",
+      "summary": "Trident of the swamp",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with the Trident of the swamp.",
+      "tags": ["magic"]
+    },
+    {
+      "id": "TOXIC_TRIDENT_BARRAGE",
+      "status": "active",
+      "summary": "Trident of the swamp barrage",
+      "introduced": "2026-01-30",
+      "details": "A barrage or burst spell cast with the Trident of the swamp.",
+      "tags": ["magic"]
+    },
+    {
+      "id": "TRIDENT",
+      "status": "active",
+      "summary": "Trident of the seas",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with the Trident of the seas.",
+      "tags": ["magic"]
+    },
+    {
+      "id": "TRIDENT_BARRAGE",
+      "status": "active",
+      "summary": "Trident of the seas barrage",
+      "introduced": "2026-01-30",
+      "details": "A barrage or burst spell cast with the Trident of the seas.",
+      "tags": ["magic"]
+    },
+    {
+      "id": "TWISTED_BOW",
+      "status": "active",
+      "summary": "Twisted bow",
+      "introduced": "2026-01-30",
+      "details": "An attack with the Twisted bow.",
+      "tags": ["ranged"]
+    },
+    {
+      "id": "VENATOR_BOW",
+      "status": "active",
+      "summary": "Venator bow",
+      "introduced": "2026-01-30",
+      "details": "An attack with the Venator bow.",
+      "tags": ["ranged"]
+    },
+    {
+      "id": "VERACS_FLAIL",
+      "status": "active",
+      "summary": "Verac's flail",
+      "introduced": "2026-01-30",
+      "details": "An attack with Verac's flail.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "VOIDWAKER_AUTO",
+      "status": "active",
+      "summary": "Voidwaker auto",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with the Voidwaker.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "VOIDWAKER_SPEC",
+      "status": "active",
+      "summary": "Voidwaker spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with the Voidwaker.",
+      "tags": ["melee", "spec"]
+    },
+    {
+      "id": "VOLATILE_NM_SPEC",
+      "status": "active",
+      "summary": "Volatile nightmare staff spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with the Volatile nightmare staff.",
+      "tags": ["magic", "spec"]
+    },
+    {
+      "id": "WEBWEAVER_AUTO",
+      "status": "active",
+      "summary": "Webweaver bow auto",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with the Webweaver bow.",
+      "tags": ["ranged"]
+    },
+    {
+      "id": "WEBWEAVER_SPEC",
+      "status": "active",
+      "summary": "Webweaver bow spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with the Webweaver bow.",
+      "tags": ["ranged", "spec"]
+    },
+    {
+      "id": "XGS_SPEC",
+      "status": "active",
+      "summary": "Ancient godsword spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with the Ancient godsword.",
+      "tags": ["melee", "spec"]
+    },
+    {
+      "id": "ZCB_AUTO",
+      "status": "active",
+      "summary": "Zaryte crossbow auto",
+      "introduced": "2026-01-30",
+      "details": "An auto attack with the Zaryte crossbow.",
+      "tags": ["ranged"]
+    },
+    {
+      "id": "ZCB_SPEC",
+      "status": "active",
+      "summary": "Zaryte crossbow spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with the Zaryte crossbow.",
+      "tags": ["ranged", "spec"]
+    },
+    {
+      "id": "ZGS_SPEC",
+      "status": "active",
+      "summary": "Zamorak godsword spec",
+      "introduced": "2026-01-30",
+      "details": "A special attack with the Zamorak godsword.",
+      "tags": ["melee", "spec"]
+    },
+    {
+      "id": "ZOMBIE_AXE",
+      "status": "active",
+      "summary": "Zombie axe",
+      "introduced": "2026-01-30",
+      "details": "An attack with the Zombie axe.",
+      "tags": ["melee"]
+    }
+  ]
+}
