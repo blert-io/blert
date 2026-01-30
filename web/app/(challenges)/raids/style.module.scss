@@ -3,56 +3,83 @@
 .rat {
   --rat-width: 100px;
   --rat-height: 100px;
+  --rat-y-bleed: 24px;
 
   display: block;
-  position: absolute;
-  width: var(--rat-width);
-  height: var(--rat-height);
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   z-index: 9999;
-  filter: brightness(1.3);
-  transform: scale(1.1);
-
-  animation:
-    horizontal linear 6.8s infinite alternate,
-    vertical linear 17s infinite alternate;
-
-  .left {
-    position: absolute;
-    animation: swapOn 13.6s infinite;
-  }
-  .right {
-    position: absolute;
-    animation: swapOff 13.6s infinite;
-  }
+  pointer-events: none;
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     display: none;
   }
 }
 
-@keyframes vertical {
-  0% {
-    top: 0;
+.ratTrack {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(100% - var(--rat-width));
+  height: 100%;
+  will-change: transform;
+  animation: horizontal linear 6.8s infinite alternate;
+}
+
+.ratBounce {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--rat-width);
+  height: calc(100% - var(--rat-height));
+  will-change: transform;
+  animation: vertical linear 17s infinite;
+}
+
+.ratSprite {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--rat-width);
+  height: var(--rat-height);
+  filter: brightness(1.3);
+  transform: scale(1.1);
+  will-change: transform;
+
+  .left {
+    position: absolute;
+    opacity: 0;
+    animation: swapOn 13.6s infinite;
   }
-  48% {
-  }
-  50% {
-    top: calc(100% - var(--rat-height));
-  }
-  52% {
-  }
-  100% {
-    top: 0;
+
+  .right {
+    position: absolute;
+    opacity: 1;
+    animation: swapOff 13.6s infinite;
   }
 }
 
 @keyframes horizontal {
   0% {
-    left: 0;
+    transform: translate3d(0, 0, 0);
   }
 
   100% {
-    left: calc(100% - var(--rat-width));
+    transform: translate3d(100%, 0, 0);
+  }
+}
+
+@keyframes vertical {
+  0% {
+    transform: translate3d(0, calc(-1 * var(--rat-y-bleed)), 0);
+  }
+  50% {
+    transform: translate3d(0, calc(100% + var(--rat-y-bleed)), 0);
+  }
+  100% {
+    transform: translate3d(0, calc(-1 * var(--rat-y-bleed)), 0);
   }
 }
 
@@ -83,6 +110,15 @@
   }
   100% {
     opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ratTrack,
+  .ratBounce,
+  .left,
+  .right {
+    animation: none;
   }
 }
 

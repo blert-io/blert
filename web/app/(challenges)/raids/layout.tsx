@@ -26,21 +26,27 @@ export default function RaidLayout(props: RaidLayoutProps) {
       </Suspense>
       <MemeContext.Provider value={memes}>
         {memes.cursed && (
-          <div className={styles.rat}>
-            <Image
-              alt="Rat"
-              src="/images/rat-right.png"
-              className={styles.right}
-              width={100}
-              height={100}
-            />
-            <Image
-              alt="Rat"
-              src="/images/rat-left.png"
-              className={styles.left}
-              width={100}
-              height={100}
-            />
+          <div className={styles.rat} aria-hidden="true">
+            <div className={styles.ratTrack}>
+              <div className={styles.ratBounce}>
+                <div className={styles.ratSprite}>
+                  <Image
+                    alt=""
+                    src="/images/rat-right.png"
+                    className={styles.right}
+                    width={100}
+                    height={100}
+                  />
+                  <Image
+                    alt=""
+                    src="/images/rat-left.png"
+                    className={styles.left}
+                    width={100}
+                    height={100}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
         )}
         {memes.tenWTwoQ && (
