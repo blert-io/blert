@@ -53,6 +53,7 @@ export type InitializedFields = {
   reportedTimes?: ReportedTimes | null;
   customData?: object | null;
   stageAttempt?: number | null;
+  partyChangedMidChallenge?: boolean;
 };
 
 type ModifiableChallengeFieldKey =
@@ -101,6 +102,7 @@ export type ChallengeState = ModifiableChallengeFields &
     reportedChallengeTicks: number | null;
     reportedOverallTicks: number | null;
     stageAttempt: number | null;
+    partyChangedMidChallenge: boolean;
   };
 
 export type Session = Pick<
@@ -158,6 +160,7 @@ export default abstract class ChallengeProcessor {
   private totalChallengeTicks: number;
   private totalDeaths: number;
   private reportedTimes: ReportedTimes | null;
+  private partyChangedMidChallenge: boolean;
 
   private splits: Map<SplitType, number>;
   private stageState: StageState;
@@ -191,6 +194,7 @@ export default abstract class ChallengeProcessor {
       reportedChallengeTicks: this.reportedTimes?.challenge ?? null,
       reportedOverallTicks: this.reportedTimes?.overall ?? null,
       players: this.players,
+      partyChangedMidChallenge: this.partyChangedMidChallenge,
       customData: this.getCustomData(),
     };
   }
@@ -199,6 +203,27 @@ export default abstract class ChallengeProcessor {
     if (mode != ChallengeMode.NO_MODE && mode !== this.mode) {
       this.mode = mode;
       this.prepareUpdates({ mode });
+    }
+  }
+
+  public updateParty(party: string[]): void {
+    const hasChanged =
+      party.length !== this.party.length ||
+      party.some((p) => !this.party.includes(p));
+
+    if (hasChanged && !this.partyChangedMidChallenge) {
+      // A player has left the challenge part way through. In-game, this can
+      // cause some mechanics to scale down or change. Blert does not attempt
+      // to account for this, so we flag the challenge as inaccurate from this
+      // point onwards.
+      this.partyChangedMidChallenge = true;
+      this.prepareUpdates({ partyChangedMidChallenge: true });
+
+      logger.warn('challenge_party_changed', {
+        challengeUuid: this.uuid,
+        oldParty: this.party,
+        newParty: party,
+      });
     }
   }
 
@@ -349,6 +374,7 @@ export default abstract class ChallengeProcessor {
     ]);
 
     const timesAccurate =
+      !this.partyChangedMidChallenge &&
       this.hasFullyRecordedUpTo(this.lastStage) &&
       this.challengeStatus === ChallengeStatus.COMPLETED;
 
@@ -445,17 +471,15 @@ export default abstract class ChallengeProcessor {
 
     await this.onStageFinished(stage, events);
 
+    const accurate = !this.partyChangedMidChallenge && events.isAccurate();
+
     await Promise.all([
       this.addStageDeaths(),
-      this.writeStageEvents(
-        stage,
-        this.stageState.eventsToWrite,
-        events.isAccurate(),
-      ),
+      this.writeStageEvents(stage, this.stageState.eventsToWrite, accurate),
     ]);
 
-    const stageSplits = await this.createChallengeSplits(events.isAccurate());
-    if (events.isAccurate()) {
+    const stageSplits = await this.createChallengeSplits(accurate);
+    if (accurate) {
       await this.updatePersonalBests(stageSplits);
     }
 
@@ -1400,6 +1424,8 @@ export default abstract class ChallengeProcessor {
       extraFields.challengeStatus ?? ChallengeStatus.IN_PROGRESS;
     this.totalChallengeTicks = extraFields.totalChallengeTicks ?? 0;
     this.stageAttempt = extraFields.stageAttempt ?? null;
+    this.partyChangedMidChallenge =
+      extraFields.partyChangedMidChallenge ?? false;
   }
 
   /**

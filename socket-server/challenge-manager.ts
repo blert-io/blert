@@ -30,6 +30,7 @@ type StageUpdate = {
 export type ChallengeUpdate = {
   mode: ChallengeMode;
   stage?: StageUpdate;
+  party?: string[];
 };
 
 export type ChallengeStatusResponse = {
@@ -75,11 +76,14 @@ export default abstract class ChallengeManager {
    * @param client The client that is leaving.
    * @param challengeId The ID of the challenge.
    * @param times The client's recorded overall challenge times.
+   * @param soft Whether the completion was soft (i.e. the client left the
+   *   challenge without knowing whether it has fully terminated).
    */
   public abstract completeChallenge(
     client: Client,
     challengeId: string,
     times: RecordedTimes | null,
+    soft: boolean,
   ): Promise<void>;
 
   /**

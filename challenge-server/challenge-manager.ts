@@ -158,6 +158,7 @@ export type StageUpdate = SimpleStageUpdate & {
 export type ChallengeUpdate = {
   mode: ChallengeMode;
   stage?: SimpleStageUpdate;
+  party?: string[];
 };
 
 export type ChallengeStatusResponse = {
@@ -733,11 +734,14 @@ export default class ChallengeManager {
    * Indicates that the client with the given ID has finished a challenge.
    * @param challengeId The challenge ID.
    * @param userId ID of the challenge client.
+   * @param soft Whether the completion was soft (i.e. the client left the
+   *   challenge without knowing whether it has fully terminated).
    */
   public async finish(
     challengeId: string,
     userId: number,
     reportedTimes: ReportedTimes | null = null,
+    soft: boolean = false,
   ): Promise<void> {
     const { success, allClientsFinished, result, ...context } =
       await this.redisClient.transaction(async (txn) => {
@@ -788,7 +792,8 @@ export default class ChallengeManager {
           // Instead, start a longer cleanup timer which will end the challenge
           // unless other activity is detected.
           const hasDefinitelyFinished =
-            self.type === RecordingType.PARTICIPANT || reportedTimes !== null;
+            (!soft && self.type === RecordingType.PARTICIPANT) ||
+            reportedTimes !== null;
 
           if (
             hasDefinitelyFinished ||
@@ -926,6 +931,10 @@ export default class ChallengeManager {
         }
 
         processor.setMode(update.mode);
+      }
+
+      if (update.party !== undefined && update.party.length > 0) {
+        processor.updateParty(update.party);
       }
 
       if (update.stage !== undefined) {

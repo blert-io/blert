@@ -166,6 +166,9 @@ function serverMessageJsonToProto(json: ServerMessageJson): ServerMessage {
     const req = new ChallengeEndRequest();
     req.setOverallTimeTicks(json.challengeEndRequest.overallTimeTicks);
     req.setChallengeTimeTicks(json.challengeEndRequest.challengeTimeTicks);
+    if (json.challengeEndRequest.soft !== undefined) {
+      req.setSoft(json.challengeEndRequest.soft);
+    }
     msg.setChallengeEndRequest(req);
   }
 

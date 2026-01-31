@@ -185,6 +185,7 @@ async function updateChallenge(req: Request, res: Response): Promise<void> {
 type FinishChallengeRequest = {
   userId: number;
   times: ReportedTimes | null;
+  soft: boolean;
 };
 
 async function finishChallenge(req: Request, res: Response): Promise<void> {
@@ -201,6 +202,7 @@ async function finishChallenge(req: Request, res: Response): Promise<void> {
         challengeId,
         request.userId,
         request.times,
+        request.soft,
       );
       res.status(200).send();
     },
