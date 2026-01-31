@@ -119,6 +119,7 @@ export function loadChallengeProcessor(
       customData: state.customData,
       reportedTimes,
       stageAttempt: state.stageAttempt,
+      partyChangedMidChallenge: state.partyChangedMidChallenge,
     },
   );
 }

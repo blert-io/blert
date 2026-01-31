@@ -105,6 +105,7 @@ export class RemoteChallengeManager extends ChallengeManager {
     client: Client,
     challengeId: string,
     inGameTimes: RecordedTimes | null,
+    soft: boolean,
   ): Promise<void> {
     // The plugin uses -1 to indicate that a time was not reported. Also, it is
     // unlikely that one of of the two times would be captured and not the other
@@ -129,6 +130,7 @@ export class RemoteChallengeManager extends ChallengeManager {
           body: JSON.stringify({
             userId: client.getUserId(),
             times,
+            soft,
           }),
         },
       );

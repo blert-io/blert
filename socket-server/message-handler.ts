@@ -155,6 +155,7 @@ export default class MessageHandler {
             client,
             message.getActiveChallengeId(),
             null,
+            true,
           );
 
           logger.info('client_left_challenge', {
@@ -384,6 +385,7 @@ export default class MessageHandler {
           challenge: request.getChallengeTimeTicks(),
           overall: request.getOverallTimeTicks(),
         },
+        request.getSoft(),
       );
       recordRemoteOperation('complete', 'success');
       recordChallengeEnd('success');
@@ -415,6 +417,10 @@ export default class MessageHandler {
     const challengeUpdate: ChallengeUpdate = {
       mode: update.getMode(),
     };
+
+    if (update.getPartyList().length > 0) {
+      challengeUpdate.party = update.getPartyList();
+    }
 
     if (update.hasStageUpdate()) {
       const stageUpdate = update.getStageUpdate()!;

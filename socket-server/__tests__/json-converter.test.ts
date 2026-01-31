@@ -456,6 +456,7 @@ describe('jsonToServerMessage', () => {
         challengeEndRequest: {
           overallTimeTicks: 1000,
           challengeTimeTicks: 800,
+          soft: true,
         },
       };
 
@@ -464,6 +465,7 @@ describe('jsonToServerMessage', () => {
 
       expect(req?.getOverallTimeTicks()).toBe(1000);
       expect(req?.getChallengeTimeTicks()).toBe(800);
+      expect(req?.getSoft()).toBe(true);
     });
 
     it('converts challenge update', () => {

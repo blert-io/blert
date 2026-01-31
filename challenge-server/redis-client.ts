@@ -175,6 +175,7 @@ function challengeFromRedisComplete(
     customData: state.customData
       ? (JSON.parse(state.customData) as object)
       : null,
+    partyChangedMidChallenge: state.partyChangedMidChallenge === '1',
   };
 }
 
@@ -253,6 +254,9 @@ function challengeFromRedis(
     result.customData = state.customData
       ? (JSON.parse(state.customData) as object)
       : null;
+  }
+  if (state.partyChangedMidChallenge !== undefined) {
+    result.partyChangedMidChallenge = state.partyChangedMidChallenge === '1';
   }
 
   return result;

@@ -103,6 +103,7 @@ export const challengeStartRequestSchema = z.object({
 export const challengeEndRequestSchema = z.object({
   overallTimeTicks: z.number().int(),
   challengeTimeTicks: z.number().int(),
+  soft: z.boolean().optional(),
 });
 
 // ChallengeUpdate.StageUpdate
