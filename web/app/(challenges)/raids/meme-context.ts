@@ -1,9 +1,11 @@
+import { sendGAEvent } from '@next/third-parties/google';
 import { useSearchParams } from 'next/navigation';
 import {
   Dispatch,
   SetStateAction,
   createContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 
@@ -33,6 +35,14 @@ export function MemeContextUpdater({ setMemes }: MemeContextUpdaterProps) {
   const params = useSearchParams();
   const [capsLockPresses, setCapsLockPresses] = useState(0);
   const [wqIndex, setWqIndex] = useState(0);
+
+  // Track whether we've already sent analytics for each meme activation.
+  const analyticsRef = useRef({
+    capsLock: false,
+    tenWTwoQ: false,
+    cursed: false,
+    inventoryTags: false,
+  });
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -74,6 +84,27 @@ export function MemeContextUpdater({ setMemes }: MemeContextUpdaterProps) {
           memes.cursed = true;
           break;
       }
+    }
+
+    // Track meme activations.
+    if (memes.capsLock && !analyticsRef.current.capsLock) {
+      analyticsRef.current.capsLock = true;
+      sendGAEvent('event', 'meme_activated', { meme: 'capslock13' });
+    }
+    if (memes.tenWTwoQ && !analyticsRef.current.tenWTwoQ) {
+      analyticsRef.current.tenWTwoQ = true;
+      sendGAEvent('event', 'meme_activated', { meme: 'wwwwwwwwwwqq' });
+    }
+    if (memes.cursed && !analyticsRef.current.cursed) {
+      analyticsRef.current.cursed = true;
+      sendGAEvent('event', 'meme_activated', {
+        meme: 'rat',
+        trigger: memesToApply.includes('cursed') ? 'url' : 'random',
+      });
+    }
+    if (memes.inventoryTags && !analyticsRef.current.inventoryTags) {
+      analyticsRef.current.inventoryTags = true;
+      sendGAEvent('event', 'meme_activated', { meme: 'inventory_tags' });
     }
 
     setMemes(memes);
