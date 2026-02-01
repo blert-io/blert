@@ -180,6 +180,7 @@ export enum NpcId {
   JAGUAR_WARRIOR = 12810,
   SERPENT_SHAMAN = 12811,
   MINOTAUR = 12812,
+  MINOTAUR_RED_FLAG = 12813,
   FREMENNIK_ARCHER = 12814,
   FREMENNIK_SEER = 12815,
   FREMENNIK_BERSERKER = 12816,
@@ -602,7 +603,10 @@ export class Npc {
   }
 
   static isMinotaur(npcId: number): boolean {
-    return npcId === (NpcId.MINOTAUR as number);
+    return (
+      npcId === (NpcId.MINOTAUR as number) ||
+      npcId === (NpcId.MINOTAUR_RED_FLAG as number)
+    );
   }
 
   static isFremennikArcher(npcId: number): boolean {
