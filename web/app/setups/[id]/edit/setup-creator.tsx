@@ -982,14 +982,12 @@ function KeyboardShortcutsModal({
   ];
 
   return (
-    <Modal className={styles.shortcutsModal} open={open} onClose={onClose}>
-      <div className={styles.modalHeader}>
-        <h2>Keyboard Shortcuts</h2>
-        <button onClick={onClose}>
-          <i className="fas fa-times" />
-          <span className="sr-only">Close</span>
-        </button>
-      </div>
+    <Modal
+      className={styles.shortcutsModal}
+      header="Keyboard Shortcuts"
+      open={open}
+      onClose={onClose}
+    >
       <div className={styles.shortcutsContent}>
         {shortcuts.map((category) => (
           <div key={category.category} className={styles.shortcutCategory}>

@@ -24,6 +24,40 @@
     transition:
       transform 0.2s ease,
       opacity 0.2s ease;
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 24px;
+      border-bottom: 1px solid rgba(var(--blert-purple-base), 0.15);
+      background: linear-gradient(
+        135deg,
+        var(--blert-panel-background-color) 0%,
+        rgba(var(--blert-surface-dark-base), 0.8) 100%
+      );
+
+      h2 {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--blert-font-color-primary);
+      }
+
+      button {
+        background: none;
+        border: none;
+        padding: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 16px;
+        color: var(--blert-font-color-secondary);
+
+        &:hover {
+          color: var(--blert-font-color-primary);
+        }
+      }
+    }
   }
 
   &.closing .modal {

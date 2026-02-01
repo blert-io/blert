@@ -10,7 +10,6 @@
     button {
       margin: 0 0 0 auto;
       text-align: center;
-      width: 100px;
       font-size: 16px;
       transition: all 0.2s ease;
       color: var(--blert-purple);
@@ -21,6 +20,16 @@
 
       i {
         margin-right: 5px;
+
+        @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+          margin-right: 0;
+        }
+      }
+
+      span {
+        @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+          display: none;
+        }
       }
     }
   }
@@ -31,11 +40,17 @@
   padding: 4px 0;
 }
 
+.fullScreenModal {
+  max-height: 95vh;
+  display: flex;
+  flex-direction: column;
+}
+
 .timelineModal {
   @include styledScrollbar;
 
   width: 100%;
-  max-height: 90vh;
+  flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
 }
