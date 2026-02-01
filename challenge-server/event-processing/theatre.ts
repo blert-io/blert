@@ -962,7 +962,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
     }
 
     const logMazeError = (type: string, data: Record<string, unknown>) => {
-      logger.error('tob_sote_maze_error', {
+      logger.warn('tob_sote_maze_error', {
         type,
         maze: soteMaze.getMaze(),
         ...data,
