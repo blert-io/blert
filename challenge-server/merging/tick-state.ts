@@ -74,6 +74,8 @@ export type PlayerState = {
   prayers: PrayerSet;
 };
 
+export type TickStateArray = (TickState | null)[];
+
 export class TickState {
   private tick: number;
   private eventsByType: Map<EventType, Event[]>;

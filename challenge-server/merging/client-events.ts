@@ -22,7 +22,7 @@ import { Event } from '@blert/common/generated/event_pb';
 
 import logger from '../log';
 import { ChallengeInfo } from './merge';
-import { PlayerState, TickState } from './tick-state';
+import { PlayerState, TickState, TickStateArray } from './tick-state';
 
 export const enum ClientAnomaly {
   MULTIPLE_PRIMARY_PLAYERS = 'MULTIPLE_PRIMARY_PLAYERS',
@@ -397,6 +397,13 @@ export class ClientEvents {
    */
   public getReportedAccurate(): boolean {
     return this.stageInfo.accurate;
+  }
+
+  /**
+   * @returns The tick states for this client.
+   */
+  public getTickStates(): TickStateArray {
+    return [...this.tickState];
   }
 
   /**
