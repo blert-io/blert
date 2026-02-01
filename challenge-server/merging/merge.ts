@@ -7,6 +7,7 @@ import {
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
+import { TickAligner } from './alignment';
 import {
   ClassifiedClients,
   classifyClients,
@@ -352,26 +353,16 @@ export class MergedEvents {
         client: { id: client.getId(), accurate: client.isAccurate() },
       });
 
-      // TODO(frolv)
-      for (let i = 30; i < 50; i++) {
-        const base = this.ticks[i]!;
-        const target = client.getTickState(i);
-        if (target === null) {
-          continue;
-        }
-
-        const scorer = new SimilarityScorer();
-        const score = scorer.score(base, target);
-        console.log(`Score for tick ${i} -> ${i}: ${score}`);
-
-        const target2 = client.getTickState(i + 1);
-        if (target2 === null) {
-          continue;
-        }
-
-        const score2 = scorer.score(base, target2);
-        console.log(`Score for tick ${i} -> ${i + 1}: ${score2}`);
-      }
+      const now = Date.now();
+      const scorer = new SimilarityScorer();
+      const aligner = new TickAligner(
+        this.ticks,
+        client.getTickStates(),
+        (a, b) => scorer.score(a, b),
+      );
+      const alignment = aligner.align();
+      console.dir(alignment, { depth: null });
+      console.log('alignment time:', Date.now() - now, 'ms');
     }
 
     if (success) {
