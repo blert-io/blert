@@ -592,6 +592,7 @@ export default class ChallengeManager {
         stage,
         party,
         error: e instanceof Error ? e : new Error(String(e)),
+        stack: e instanceof Error ? e.stack : undefined,
       });
 
       await this.redisClient.deleteChallengeData(uuid, type, party);
@@ -1226,6 +1227,7 @@ export default class ChallengeManager {
         challengeUuid: challengeId,
         recordingType,
         error: e instanceof Error ? e : new Error(String(e)),
+        stack: e instanceof Error ? e.stack : undefined,
       });
       throw e;
     } finally {
@@ -1384,6 +1386,7 @@ export default class ChallengeManager {
     this.eventClient.onError((err) => {
       logger.error('client_event_queue_error', {
         error: err instanceof Error ? err : new Error(String(err)),
+        stack: err instanceof Error ? err.stack : undefined,
       });
     });
     await this.eventClient.connect();
@@ -1462,6 +1465,7 @@ export default class ChallengeManager {
         stage,
         attempt,
         error: e instanceof Error ? e.message : String(e),
+        stack: e instanceof Error ? e.stack : undefined,
       });
     }
   }
@@ -1613,6 +1617,7 @@ export default class ChallengeManager {
               stage,
               attempt,
               error: e instanceof Error ? e.message : String(e),
+              stack: e instanceof Error ? e.stack : undefined,
             });
           }
 
@@ -1880,6 +1885,7 @@ export default class ChallengeManager {
           logger.error('webhook_service_error', {
             challengeId,
             error: e instanceof Error ? e.message : String(e),
+            stack: e instanceof Error ? e.stack : undefined,
           });
         });
       }
@@ -2001,6 +2007,7 @@ export default class ChallengeManager {
     } catch (e: unknown) {
       logger.error('challenge_timeout_processing_failed', {
         error: e instanceof Error ? e.message : String(e),
+        stack: e instanceof Error ? e.stack : undefined,
       });
     }
 
@@ -2066,6 +2073,7 @@ export default class ChallengeManager {
         challengeUuid: challenge.uuid,
         stage,
         error: e instanceof Error ? e.message : String(e),
+        stack: e instanceof Error ? e.stack : undefined,
       });
     }
   }
@@ -2102,6 +2110,7 @@ class SessionWatchdog {
     this.client.on('error', (err) => {
       this.log.error('redis_error', {
         error: err instanceof Error ? err : new Error(String(err)),
+        stack: err instanceof Error ? err.stack : undefined,
       });
     });
 
@@ -2116,6 +2125,7 @@ class SessionWatchdog {
       } catch (e) {
         this.log.error('session_watchdog_error', {
           error: e instanceof Error ? e.message : String(e),
+          stack: e instanceof Error ? e.stack : undefined,
         });
         recordSessionWatchdogRun('error');
       }
