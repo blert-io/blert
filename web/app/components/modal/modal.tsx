@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 type ModalProps = {
   children: React.ReactNode;
   className?: string;
+  header?: string;
   onClose: () => void;
   open: boolean;
   width?: number | string;
@@ -106,6 +107,15 @@ export function Modal(props: ModalProps) {
 
   return createPortal(
     <div className={className} ref={modalRef} style={{ width: props.width }}>
+      {props.header !== undefined && (
+        <div className={styles.header}>
+          <h2>{props.header}</h2>
+          <button onClick={onClose}>
+            <i className="fas fa-times" />
+            <span className="sr-only">Close</span>
+          </button>
+        </div>
+      )}
       {props.children}
     </div>,
     modalPortal.current,

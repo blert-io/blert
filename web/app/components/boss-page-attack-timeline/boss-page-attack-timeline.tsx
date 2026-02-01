@@ -17,6 +17,7 @@ import styles from './styles.module.scss';
 export function BossPageAttackTimeline(props: AttackTimelineProps) {
   const display = useContext(DisplayContext);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   const [showFullTimeline, setShowFullTimeline] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -24,7 +25,7 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
     x: 0,
     y: 0,
   });
-  const [width, setWidth] = useState(0);
+  const [cardWidth, setCardWidth] = useState(0);
 
   const [showKits, setShowKits] = useSetting<boolean>({
     key: 'timeline-show-kits',
@@ -34,12 +35,24 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
     key: 'timeline-show-spells',
     defaultValue: true,
   });
+  const [expanded, setExpanded] = useSetting<boolean>({
+    key: 'timeline-expanded',
+    defaultValue: false,
+  });
 
   useEffect(() => {
-    const handleResize = () => setWidth(window.innerWidth);
-    window.addEventListener('resize', handleResize);
-    handleResize();
-    return () => window.removeEventListener('resize', handleResize);
+    if (cardRef.current === null) {
+      return;
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setCardWidth(entry.contentRect.width - 10);
+      }
+    });
+
+    observer.observe(cardRef.current);
+    return () => observer.disconnect();
   }, []);
 
   const menuItems = useMemo(
@@ -70,20 +83,35 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
           />
         ),
       },
+      {
+        label: 'timeline-expanded',
+        customAction: () => false,
+        customElement: (
+          <Checkbox
+            className={styles.settingsCheckbox}
+            label="Show expanded timeline"
+            checked={expanded}
+            onChange={(checked) => setExpanded(checked)}
+            simple
+          />
+        ),
+      },
     ],
-    [showSpells, showKits, setShowSpells, setShowKits],
+    [showSpells, showKits, expanded, setShowSpells, setShowKits, setExpanded],
   );
-
-  let fullTimeline = null;
-  let modalWidth = 0;
 
   let cellSize = props.cellSize;
   if (display.isCompact()) {
     cellSize = 24;
   }
 
+  // Calculate modal width when modal is open.
+  const modalWidth = showFullTimeline
+    ? Math.floor(window.innerWidth * 0.98)
+    : 0;
+
+  let fullTimeline = null;
   if (showFullTimeline) {
-    modalWidth = Math.floor(width * 0.95);
     const paddingY = display.isCompact() ? 20 : 10;
     const paddingX = display.isCompact() ? 12 : 30;
     const timelineWidth = modalWidth - 2 * paddingX;
@@ -96,14 +124,18 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
         <AttackTimeline
           {...props}
           normalizeItems={!showKits}
+          showSpells={showSpells}
           wrapWidth={timelineWidth}
-          cellSize={display.isFull() ? 32 : 24}
+          cellSize={display.isFull() ? 28 : 22}
         />
       </div>
     );
   }
 
-  const settingsMenuWidth = 200;
+  // Calculate inline wrapWidth when expanded mode is enabled.
+  const inlineWrapWidth = expanded && cardWidth > 0 ? cardWidth : undefined;
+
+  const settingsMenuWidth = 240;
 
   const openSettings = () => {
     if (settingsButtonRef.current) {
@@ -126,7 +158,7 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
           <div className={styles.actionButtons}>
             <button onClick={() => setShowFullTimeline(true)}>
               <i className="fas fa-expand" />
-              Expand
+              <span>Full Screen</span>
             </button>
             <button
               ref={settingsButtonRef}
@@ -134,20 +166,25 @@ export function BossPageAttackTimeline(props: AttackTimelineProps) {
               onClick={openSettings}
             >
               <i className="fas fa-cog" />
-              Settings
+              <span>Settings</span>
             </button>
           </div>
         ),
         styles: { marginBottom: 0 },
       }}
     >
-      <AttackTimeline
-        {...props}
-        cellSize={cellSize}
-        normalizeItems={!showKits}
-        showSpells={showSpells}
-      />
+      <div ref={cardRef}>
+        <AttackTimeline
+          {...props}
+          cellSize={cellSize}
+          normalizeItems={!showKits}
+          showSpells={showSpells}
+          wrapWidth={inlineWrapWidth}
+        />
+      </div>
       <Modal
+        className={styles.fullScreenModal}
+        header="Room Timeline"
         open={showFullTimeline}
         onClose={() => setShowFullTimeline(false)}
         width={modalWidth}
