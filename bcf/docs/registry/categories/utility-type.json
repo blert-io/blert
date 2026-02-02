@@ -1,0 +1,13 @@
+{
+  "category": "utilityType",
+  "updatedAt": "2026-01-30",
+  "items": [
+    {
+      "id": "SURGE_POTION",
+      "status": "active",
+      "summary": "Surge potion",
+      "introduced": "2026-01-30",
+      "details": "The player drank a surge potion."
+    }
+  ]
+}

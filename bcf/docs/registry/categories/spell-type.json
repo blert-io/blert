@@ -1,0 +1,150 @@
+{
+  "category": "spellType",
+  "updatedAt": "2026-01-30",
+  "items": [
+    {
+      "id": "UNKNOWN",
+      "status": "active",
+      "summary": "Unknown Spell",
+      "introduced": "2026-01-30",
+      "details": "An unrecognized player spell type.",
+      "tags": []
+    },
+    {
+      "id": "SPELLBOOK_SWAP",
+      "status": "active",
+      "summary": "Spellbook Swap",
+      "introduced": "2026-01-30",
+      "details": "The Spellbook Swap spell from the Lunar spellbook.",
+      "tags": ["lunar"]
+    },
+    {
+      "id": "HUMIDIFY",
+      "status": "active",
+      "summary": "Humidify",
+      "introduced": "2026-01-30",
+      "details": "The Humidify spell from the Lunar spellbook.",
+      "tags": ["lunar"]
+    },
+    {
+      "id": "HUNTER_KIT",
+      "status": "active",
+      "summary": "Hunter Kit",
+      "introduced": "2026-01-30",
+      "details": "The Hunter Kit spell from the Lunar spellbook.",
+      "tags": ["lunar"]
+    },
+    {
+      "id": "NPC_CONTACT",
+      "status": "active",
+      "summary": "NPC Contact",
+      "introduced": "2026-01-30",
+      "details": "The NPC Contact spell from the Lunar spellbook.",
+      "tags": ["lunar"]
+    },
+    {
+      "id": "VENGEANCE",
+      "status": "active",
+      "summary": "Vengeance",
+      "introduced": "2026-01-30",
+      "details": "The Vengeance spell from the Lunar spellbook.",
+      "tags": ["lunar"]
+    },
+    {
+      "id": "VENGEANCE_OTHER",
+      "status": "active",
+      "summary": "Vengeance Other",
+      "introduced": "2026-01-30",
+      "details": "The Vengeance Other spell from the Lunar spellbook.",
+      "tags": ["lunar"]
+    },
+    {
+      "id": "HEAL_OTHER",
+      "status": "active",
+      "summary": "Heal Other",
+      "introduced": "2026-01-30",
+      "details": "The Heal Other spell from the Lunar spellbook.",
+      "tags": ["lunar"]
+    },
+    {
+      "id": "DEATH_CHARGE",
+      "status": "active",
+      "summary": "Death Charge",
+      "introduced": "2026-01-30",
+      "details": "The Death Charge spell from the Arceuus spellbook.",
+      "tags": ["arceuus"]
+    },
+    {
+      "id": "LESSER_CORRUPTION",
+      "status": "active",
+      "summary": "Lesser Corruption",
+      "introduced": "2026-01-30",
+      "details": "The Lesser Corruption spell from the Arceuus spellbook.",
+      "tags": ["arceuus"]
+    },
+    {
+      "id": "GREATER_CORRUPTION",
+      "status": "active",
+      "summary": "Greater Corruption",
+      "introduced": "2026-01-30",
+      "details": "The Greater Corruption spell from the Arceuus spellbook.",
+      "tags": ["arceuus"]
+    },
+    {
+      "id": "SHADOW_VEIL",
+      "status": "active",
+      "summary": "Shadow Veil",
+      "introduced": "2026-01-30",
+      "details": "The Shadow Veil spell from the Arceuus spellbook.",
+      "tags": ["arceuus"]
+    },
+    {
+      "id": "VILE_VIGOUR",
+      "status": "active",
+      "summary": "Vile Vigour",
+      "introduced": "2026-01-30",
+      "details": "The Vile Vigour spell from the Arceuus spellbook.",
+      "tags": ["arceuus"]
+    },
+    {
+      "id": "WARD_OF_ARCEUUS",
+      "status": "active",
+      "summary": "Ward of Arceuus",
+      "introduced": "2026-01-30",
+      "details": "The Ward of Arceuus spell from the Arceuus spellbook.",
+      "tags": ["arceuus"]
+    },
+    {
+      "id": "MARK_OF_DARKNESS",
+      "status": "active",
+      "summary": "Mark of Darkness",
+      "introduced": "2026-01-30",
+      "details": "The Mark of Darkness spell from the Arceuus spellbook.",
+      "tags": ["arceuus"]
+    },
+    {
+      "id": "RESURRECT_GREATER_GHOST",
+      "status": "active",
+      "summary": "Resurrect Greater Ghost",
+      "introduced": "2026-01-30",
+      "details": "The Resurrect Greater Ghost spell from the Arceuus spellbook.",
+      "tags": ["arceuus", "thrall"]
+    },
+    {
+      "id": "RESURRECT_GREATER_SKELETON",
+      "status": "active",
+      "summary": "Resurrect Greater Skeleton",
+      "introduced": "2026-01-30",
+      "details": "The Resurrect Greater Skeleton spell from the Arceuus spellbook.",
+      "tags": ["arceuus", "thrall"]
+    },
+    {
+      "id": "RESURRECT_GREATER_ZOMBIE",
+      "status": "active",
+      "summary": "Resurrect Greater Zombie",
+      "introduced": "2026-01-30",
+      "details": "The Resurrect Greater Zombie spell from the Arceuus spellbook.",
+      "tags": ["arceuus", "thrall"]
+    }
+  ]
+}
