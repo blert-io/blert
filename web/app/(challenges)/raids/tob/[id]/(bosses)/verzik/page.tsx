@@ -89,6 +89,7 @@ export default function VerzikPage() {
     eventsByType,
     playerState,
     npcState,
+    bcf,
     loading,
   } = useStageEvents<TobRaid>(Stage.TOB_VERZIK);
 
@@ -120,7 +121,7 @@ export default function VerzikPage() {
     };
   }, [compact, eventsByTick, currentTick]);
 
-  const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
+  const { selectedActor, setSelectedActor } = useContext(ActorContext);
 
   const redCrabInfoRef = useRef<HTMLDivElement>(null);
 
@@ -406,6 +407,7 @@ export default function VerzikPage() {
           updateTickOnPage={setTick}
           splits={splits}
           npcs={npcState}
+          bcf={bcf}
           backgroundColors={backgroundColors}
           smallLegend={display.isCompact()}
         />
@@ -424,8 +426,8 @@ export default function VerzikPage() {
         />
         <BossPageParty
           playerTickState={playerTickState}
-          selectedPlayer={selectedPlayer}
-          setSelectedPlayer={setSelectedPlayer}
+          selectedActor={selectedActor}
+          setSelectedActor={setSelectedActor}
         />
       </div>
 

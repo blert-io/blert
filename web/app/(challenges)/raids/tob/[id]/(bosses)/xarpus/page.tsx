@@ -78,13 +78,14 @@ export default function XarpusPage() {
     eventsByType,
     playerState,
     npcState,
+    bcf,
     loading,
   } = useStageEvents<TobRaid>(Stage.TOB_XARPUS);
 
   const { currentTick, setTick, playing, setPlaying, advanceTick } =
     usePlayingState(totalTicks);
 
-  const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
+  const { selectedActor, setSelectedActor } = useContext(ActorContext);
 
   const splits = useMemo(() => {
     if (challenge === null) {
@@ -95,7 +96,7 @@ export default function XarpusPage() {
     if (challenge.splits[SplitType.TOB_XARPUS_EXHUMES]) {
       splits.push({
         tick: challenge.splits[SplitType.TOB_XARPUS_EXHUMES],
-        splitName: 'Exhumes',
+        splitName: 'Start',
       });
     }
     if (challenge.splits[SplitType.TOB_XARPUS_SCREECH]) {
@@ -353,6 +354,7 @@ export default function XarpusPage() {
           updateTickOnPage={setTick}
           splits={splits}
           npcs={npcState}
+          bcf={bcf}
           smallLegend={display.isCompact()}
         />
       </div>
@@ -370,8 +372,8 @@ export default function XarpusPage() {
         />
         <BossPageParty
           playerTickState={playerTickState}
-          selectedPlayer={selectedPlayer}
-          setSelectedPlayer={setSelectedPlayer}
+          selectedActor={selectedActor}
+          setSelectedActor={setSelectedActor}
         />
       </div>
 

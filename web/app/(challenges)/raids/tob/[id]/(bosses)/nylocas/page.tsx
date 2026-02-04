@@ -128,6 +128,7 @@ const BLUE_NYLO_COLOR = '#42c6d7';
  */
 function getNyloColor(npcId: NpcId, background?: boolean): string | undefined {
   let color = undefined;
+
   if (Npc.isNylocasIschyros(npcId)) {
     color = GRAY_NYLO_COLOR;
   } else if (Npc.isNylocasToxobolos(npcId)) {
@@ -198,9 +199,9 @@ function nyloBossBackgroundColors(
         evt.type === EventType.NPC_SPAWN ||
         evt.type === EventType.NPC_UPDATE
       ) {
-        const e = evt as NpcEvent;
         return (
-          Npc.isNylocasPrinkipas(e.npc.id) || Npc.isNylocasVasilias(e.npc.id)
+          Npc.isNylocasPrinkipas(evt.npc.id) ||
+          Npc.isNylocasVasilias(evt.npc.id)
         );
       }
       return false;
@@ -216,7 +217,7 @@ function nyloBossBackgroundColors(
         if (backgroundColor !== undefined) {
           colors.push({
             tick: startTick,
-            length: tick - startTick + 1,
+            length: tick - startTick,
             backgroundColor,
           });
         }
@@ -354,13 +355,14 @@ export default function NylocasPage() {
     eventsByType,
     playerState,
     npcState,
+    bcf,
     loading,
   } = useStageEvents<TobRaid>(Stage.TOB_NYLOCAS);
 
   const { currentTick, setTick, playing, setPlaying, advanceTick } =
     usePlayingState(totalTicks);
 
-  const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
+  const { selectedActor, setSelectedActor } = useContext(ActorContext);
 
   const backgroundColors = useMemo(
     () => nyloBossBackgroundColors(eventsByTick, totalTicks),
@@ -851,6 +853,7 @@ export default function NylocasPage() {
           updateTickOnPage={setTick}
           splits={splits}
           backgroundColors={backgroundColors}
+          bcf={bcf}
           npcs={npcState}
           smallLegend={display.isCompact()}
         />
@@ -877,8 +880,8 @@ export default function NylocasPage() {
         />
         <BossPageParty
           playerTickState={playerTickState}
-          selectedPlayer={selectedPlayer}
-          setSelectedPlayer={setSelectedPlayer}
+          selectedActor={selectedActor}
+          setSelectedActor={setSelectedActor}
         />
       </div>
 

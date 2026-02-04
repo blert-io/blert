@@ -90,11 +90,12 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
     eventsByType,
     playerState,
     npcState,
+    bcf,
     totalTicks,
     loading,
   } = useStageEvents<ColosseumChallenge>(Stage.COLOSSEUM_WAVE_1 + waveIndex);
 
-  const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
+  const { selectedActor, setSelectedActor } = useContext(ActorContext);
 
   const { currentTick, setTick, playing, setPlaying, advanceTick } =
     usePlayingState(totalTicks);
@@ -221,6 +222,7 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
           updateTickOnPage={setTick}
           splits={timelineSplits}
           npcs={npcState}
+          bcf={bcf}
           smallLegend={display.isCompact()}
         />
       </div>
@@ -238,8 +240,8 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
         />
         <BossPageParty
           playerTickState={playerTickState}
-          selectedPlayer={selectedPlayer}
-          setSelectedPlayer={setSelectedPlayer}
+          selectedActor={selectedActor}
+          setSelectedActor={setSelectedActor}
         />
       </div>
 

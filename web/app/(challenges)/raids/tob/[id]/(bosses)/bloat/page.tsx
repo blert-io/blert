@@ -99,13 +99,14 @@ export default function BloatPage() {
     eventsByType,
     playerState,
     npcState,
+    bcf,
     loading,
   } = useStageEvents<TobRaid>(Stage.TOB_BLOAT);
 
   const { currentTick, setTick, playing, setPlaying, advanceTick } =
     usePlayingState(totalTicks);
 
-  const { setSelectedPlayer, selectedPlayer } = useContext(ActorContext);
+  const { setSelectedActor, selectedActor } = useContext(ActorContext);
 
   const { downInfo, splits, backgroundColors } = useMemo(() => {
     const bloat: EnhancedRoomNpc | null =
@@ -338,6 +339,7 @@ export default function BloatPage() {
           timelineTicks={totalTicks}
           updateTickOnPage={setTick}
           npcs={npcState}
+          bcf={bcf}
           splits={splits}
           backgroundColors={backgroundColors}
         />
@@ -356,8 +358,8 @@ export default function BloatPage() {
         />
         <BossPageParty
           playerTickState={playerTickState}
-          selectedPlayer={selectedPlayer}
-          setSelectedPlayer={setSelectedPlayer}
+          selectedActor={selectedActor}
+          setSelectedActor={setSelectedActor}
         />
       </div>
 

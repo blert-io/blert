@@ -1,13 +1,22 @@
 import { NpcAttack, PlayerAttack, PlayerSpell } from '@blert/common';
 
+import attackDefinitions from '@blert/common/protos/attack_definitions.json';
+
 export const enum CombatStyle {
   MELEE,
   RANGED,
   MAGIC,
 }
 
+export const enum TagColor {
+  RED = 'red',
+  GREEN = 'green',
+  BLUE = 'blue',
+  YELLOW = 'yellow',
+}
+
 type AttackMetadata = {
-  tagColor: string | undefined;
+  tagColor: TagColor | undefined;
   letter: string;
   ranged: boolean;
   special: boolean;
@@ -32,7 +41,7 @@ type SpellMetadata = {
 
 export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
   [PlayerAttack.ABYSSAL_BLUDGEON]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'BLD',
     ranged: false,
     special: false,
@@ -40,7 +49,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'bludgeoned',
   },
   [PlayerAttack.ACCURSED_SCEPTRE_AUTO]: {
-    tagColor: 'yellow',
+    tagColor: TagColor.YELLOW,
     letter: 'as',
     ranged: false,
     special: false,
@@ -48,7 +57,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'sceptred',
   },
   [PlayerAttack.ACCURSED_SCEPTRE_SPEC]: {
-    tagColor: 'yellow',
+    tagColor: TagColor.YELLOW,
     letter: 'AS',
     ranged: false,
     special: true,
@@ -56,7 +65,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'sceptre specced',
   },
   [PlayerAttack.AGS_SPEC]: {
-    tagColor: 'yellow',
+    tagColor: TagColor.YELLOW,
     letter: 'AGS',
     ranged: false,
     special: true,
@@ -64,7 +73,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: "AGS'd",
   },
   [PlayerAttack.ARCLIGHT_AUTO]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'arc',
     ranged: false,
     special: false,
@@ -72,7 +81,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'arclighted',
   },
   [PlayerAttack.ARCLIGHT_SPEC]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'ARC',
     ranged: false,
     special: true,
@@ -80,7 +89,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'arclight specced',
   },
   [PlayerAttack.ATLATL_AUTO]: {
-    tagColor: 'green',
+    tagColor: TagColor.GREEN,
     letter: 'atl',
     ranged: true,
     special: false,
@@ -88,7 +97,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'atlatled',
   },
   [PlayerAttack.ATLATL_SPEC]: {
-    tagColor: 'green',
+    tagColor: TagColor.GREEN,
     letter: 'ATL',
     ranged: true,
     special: true,
@@ -96,7 +105,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'atlatled',
   },
   [PlayerAttack.BGS_SPEC]: {
-    tagColor: 'yellow',
+    tagColor: TagColor.YELLOW,
     letter: 'BGS',
     ranged: false,
     special: true,
@@ -104,7 +113,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: "BGS'd",
   },
   [PlayerAttack.BLOWPIPE]: {
-    tagColor: 'green',
+    tagColor: TagColor.GREEN,
     letter: 'BP',
     ranged: true,
     special: false,
@@ -112,7 +121,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'piped',
   },
   [PlayerAttack.BLOWPIPE_SPEC]: {
-    tagColor: 'green',
+    tagColor: TagColor.GREEN,
     letter: 'BPs',
     ranged: true,
     special: true,
@@ -120,7 +129,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'pipe specced',
   },
   [PlayerAttack.BOWFA]: {
-    tagColor: 'green',
+    tagColor: TagColor.GREEN,
     letter: 'BFa',
     ranged: true,
     special: false,
@@ -128,7 +137,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'bowed',
   },
   [PlayerAttack.BURNING_CLAW_SCRATCH]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'bc',
     ranged: false,
     special: false,
@@ -136,7 +145,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'claw scratched',
   },
   [PlayerAttack.BURNING_CLAW_SPEC]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'BC',
     ranged: false,
     special: true,
@@ -144,7 +153,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'clawed',
   },
   [PlayerAttack.CHALLY_SPEC]: {
-    tagColor: 'yellow',
+    tagColor: TagColor.YELLOW,
     letter: 'CH',
     ranged: false,
     special: true,
@@ -152,7 +161,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'challied',
   },
   [PlayerAttack.CHALLY_SWIPE]: {
-    tagColor: 'yellow',
+    tagColor: TagColor.YELLOW,
     letter: 'ch',
     ranged: false,
     special: false,
@@ -160,7 +169,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'swiped',
   },
   [PlayerAttack.CHIN_BLACK]: {
-    tagColor: 'green',
+    tagColor: TagColor.GREEN,
     letter: 'CCB',
     ranged: true,
     special: false,
@@ -168,7 +177,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'chinned',
   },
   [PlayerAttack.CHIN_GREY]: {
-    tagColor: 'green',
+    tagColor: TagColor.GREEN,
     letter: 'CCG',
     ranged: true,
     special: false,
@@ -176,7 +185,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'chinned',
   },
   [PlayerAttack.CHIN_RED]: {
-    tagColor: 'green',
+    tagColor: TagColor.GREEN,
     letter: 'CCR',
     ranged: true,
     special: false,
@@ -184,7 +193,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'chinned',
   },
   [PlayerAttack.CLAW_SCRATCH]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'c',
     ranged: false,
     special: false,
@@ -192,7 +201,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'claw scratched',
   },
   [PlayerAttack.CLAW_SPEC]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'C',
     ranged: false,
     special: true,
@@ -200,7 +209,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'clawed',
   },
   [PlayerAttack.DARK_DEMONBANE]: {
-    tagColor: 'blue',
+    tagColor: TagColor.BLUE,
     letter: 'DEM',
     ranged: true,
     special: false,
@@ -208,7 +217,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'demonbaned',
   },
   [PlayerAttack.DARKLIGHT_AUTO]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'dl',
     ranged: false,
     special: false,
@@ -216,7 +225,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'darklighted',
   },
   [PlayerAttack.DARKLIGHT_SPEC]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'DL',
     ranged: false,
     special: true,
@@ -224,7 +233,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'darklight specced',
   },
   [PlayerAttack.DAWN_AUTO]: {
-    tagColor: 'yellow',
+    tagColor: TagColor.YELLOW,
     letter: 'db',
     ranged: true,
     special: false,
@@ -232,7 +241,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'dawned',
   },
   [PlayerAttack.DAWN_SPEC]: {
-    tagColor: 'yellow',
+    tagColor: TagColor.YELLOW,
     letter: 'DB',
     ranged: true,
     special: true,
@@ -240,7 +249,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'dawned',
   },
   [PlayerAttack.DART]: {
-    tagColor: 'green',
+    tagColor: TagColor.GREEN,
     letter: 'D',
     ranged: true,
     special: false,
@@ -248,7 +257,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'threw a dart at',
   },
   [PlayerAttack.DDS_POKE]: {
-    tagColor: 'yellow',
+    tagColor: TagColor.YELLOW,
     letter: 'dds',
     ranged: false,
     special: false,
@@ -256,7 +265,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'poked',
   },
   [PlayerAttack.DDS_SPEC]: {
-    tagColor: 'yellow',
+    tagColor: TagColor.YELLOW,
     letter: 'DDS',
     ranged: false,
     special: true,
@@ -264,7 +273,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'DDSed',
   },
   [PlayerAttack.DHAROKS_GREATAXE]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'DH',
     ranged: false,
     special: false,
@@ -272,7 +281,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'hacked',
   },
   [PlayerAttack.DINHS_SPEC]: {
-    tagColor: 'yellow',
+    tagColor: TagColor.YELLOW,
     letter: 'BW',
     ranged: false,
     special: true,
@@ -280,7 +289,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'dinhsed',
   },
   [PlayerAttack.DRAGON_HUNTER_LANCE]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'DHL',
     ranged: false,
     special: false,
@@ -288,7 +297,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'poked',
   },
   [PlayerAttack.DRAGON_KNIFE_AUTO]: {
-    tagColor: 'green',
+    tagColor: TagColor.GREEN,
     letter: 'dk',
     ranged: true,
     special: false,
@@ -296,7 +305,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'knifed',
   },
   [PlayerAttack.DRAGON_KNIFE_SPEC]: {
-    tagColor: 'green',
+    tagColor: TagColor.GREEN,
     letter: 'DK',
     ranged: true,
     special: true,
@@ -304,7 +313,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'knifed',
   },
   [PlayerAttack.DRAGON_SCIMITAR]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'DS',
     ranged: false,
     special: false,
@@ -312,7 +321,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'slashed',
   },
   [PlayerAttack.DUAL_MACUAHUITL]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'DMC',
     ranged: false,
     special: false,
@@ -320,7 +329,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'pummeled',
   },
   [PlayerAttack.EARTHBOUND_TECPATL]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'ET',
     ranged: false,
     special: false,
@@ -328,7 +337,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'poked',
   },
   [PlayerAttack.ELDER_MAUL]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'eld',
     ranged: false,
     special: false,
@@ -336,7 +345,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'maul whacked',
   },
   [PlayerAttack.ELDER_MAUL_SPEC]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'ELD',
     ranged: false,
     special: true,
@@ -344,7 +353,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'mauled',
   },
   [PlayerAttack.EMBERLIGHT_AUTO]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'em',
     ranged: false,
     special: false,
@@ -352,7 +361,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'embered',
   },
   [PlayerAttack.EMBERLIGHT_SPEC]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'EMB',
     ranged: false,
     special: true,
@@ -360,7 +369,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'ember specced',
   },
   [PlayerAttack.EYE_OF_AYAK_AUTO]: {
-    tagColor: 'blue',
+    tagColor: TagColor.BLUE,
     letter: 'aya',
     ranged: true,
     special: false,
@@ -368,7 +377,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'ayaked',
   },
   [PlayerAttack.EYE_OF_AYAK_SPEC]: {
-    tagColor: 'blue',
+    tagColor: TagColor.BLUE,
     letter: 'AYA',
     ranged: true,
     special: true,
@@ -376,7 +385,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'ayak specced',
   },
   [PlayerAttack.FANG_STAB]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'FNG',
     ranged: false,
     special: false,
@@ -384,7 +393,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'fanged',
   },
   [PlayerAttack.GLACIAL_TEMOTLI]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'GT',
     ranged: false,
     special: false,
@@ -392,7 +401,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'pummeled',
   },
   [PlayerAttack.GOBLIN_PAINT_CANNON]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'GPC',
     ranged: false,
     special: false,
@@ -400,7 +409,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'kicked',
   },
   [PlayerAttack.GODSWORD_SMACK]: {
-    tagColor: 'yellow',
+    tagColor: TagColor.YELLOW,
     letter: 'gs',
     ranged: false,
     special: false,
@@ -408,7 +417,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'smacked',
   },
   [PlayerAttack.GUTHANS_WARSPEAR]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'GW',
     ranged: false,
     special: false,
@@ -416,7 +425,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'attacked',
   },
   [PlayerAttack.HAM_JOINT]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'HAM',
     ranged: false,
     special: false,
@@ -424,7 +433,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'hammed',
   },
   [PlayerAttack.HAMMER_BOP]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'h',
     ranged: false,
     special: false,
@@ -432,7 +441,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'hammer bopped',
   },
   [PlayerAttack.HAMMER_SPEC]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'H',
     ranged: false,
     special: true,
@@ -440,7 +449,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'hammered',
   },
   [PlayerAttack.ICE_RUSH]: {
-    tagColor: 'blue',
+    tagColor: TagColor.BLUE,
     letter: 'RSH',
     ranged: true,
     special: false,
@@ -448,7 +457,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'rushed',
   },
   [PlayerAttack.INQUISITORS_MACE]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'IM',
     ranged: false,
     special: false,
@@ -456,7 +465,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'bashed',
   },
   [PlayerAttack.KARILS_CROSSBOW]: {
-    tagColor: 'green',
+    tagColor: TagColor.GREEN,
     letter: 'KC',
     ranged: true,
     special: false,
@@ -472,7 +481,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'kicked',
   },
   [PlayerAttack.KODAI_BARRAGE]: {
-    tagColor: 'blue',
+    tagColor: TagColor.BLUE,
     letter: 'F',
     ranged: true,
     special: false,
@@ -480,7 +489,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'froze',
   },
   [PlayerAttack.KODAI_BASH]: {
-    tagColor: 'blue',
+    tagColor: TagColor.BLUE,
     letter: 'kb',
     ranged: false,
     special: false,
@@ -488,7 +497,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'kodai bashed',
   },
   [PlayerAttack.NM_STAFF_BARRAGE]: {
-    tagColor: 'blue',
+    tagColor: TagColor.BLUE,
     letter: 'F',
     ranged: true,
     special: false,
@@ -496,7 +505,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'froze',
   },
   [PlayerAttack.NM_STAFF_BASH]: {
-    tagColor: 'blue',
+    tagColor: TagColor.BLUE,
     letter: 'vnm',
     ranged: false,
     special: false,
@@ -504,7 +513,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'nightmare bashed',
   },
   [PlayerAttack.NOXIOUS_HALBERD]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'NH',
     ranged: false,
     special: false,
@@ -520,7 +529,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'punched',
   },
   [PlayerAttack.RAPIER]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'R',
     ranged: false,
     special: false,
@@ -528,7 +537,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'stabbed',
   },
   [PlayerAttack.SAELDOR]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'B',
     ranged: false,
     special: false,
@@ -536,7 +545,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'slashed',
   },
   [PlayerAttack.SANG]: {
-    tagColor: 'blue',
+    tagColor: TagColor.BLUE,
     letter: 'T',
     ranged: true,
     special: false,
@@ -544,7 +553,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'sanged',
   },
   [PlayerAttack.SANG_BARRAGE]: {
-    tagColor: 'blue',
+    tagColor: TagColor.BLUE,
     letter: 'F',
     ranged: true,
     special: false,
@@ -552,7 +561,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'froze',
   },
   [PlayerAttack.SCEPTRE_BARRAGE]: {
-    tagColor: 'blue',
+    tagColor: TagColor.BLUE,
     letter: 'F',
     ranged: true,
     special: false,
@@ -560,7 +569,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'froze',
   },
   [PlayerAttack.SCORCHING_BOW_AUTO]: {
-    tagColor: 'green',
+    tagColor: TagColor.GREEN,
     letter: 'sco',
     ranged: true,
     special: false,
@@ -568,7 +577,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'scobowed',
   },
   [PlayerAttack.SCORCHING_BOW_SPEC]: {
-    tagColor: 'green',
+    tagColor: TagColor.GREEN,
     letter: 'SCO',
     ranged: true,
     special: true,
@@ -576,7 +585,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'scobo specced',
   },
   [PlayerAttack.SCYTHE]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'S',
     ranged: false,
     special: false,
@@ -584,7 +593,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'scythed',
   },
   [PlayerAttack.SCYTHE_UNCHARGED]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 's',
     ranged: false,
     special: false,
@@ -592,7 +601,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'scythed',
   },
   [PlayerAttack.SGS_SPEC]: {
-    tagColor: 'yellow',
+    tagColor: TagColor.YELLOW,
     letter: 'SGS',
     ranged: false,
     special: true,
@@ -600,7 +609,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: "SGS'd",
   },
   [PlayerAttack.SHADOW]: {
-    tagColor: 'blue',
+    tagColor: TagColor.BLUE,
     letter: 'Sh',
     ranged: true,
     special: false,
@@ -608,7 +617,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'shadowed',
   },
   [PlayerAttack.SHADOW_BARRAGE]: {
-    tagColor: 'blue',
+    tagColor: TagColor.BLUE,
     letter: 'F',
     ranged: true,
     special: false,
@@ -616,7 +625,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'froze',
   },
   [PlayerAttack.SOTD_BARRAGE]: {
-    tagColor: 'blue',
+    tagColor: TagColor.BLUE,
     letter: 'F',
     ranged: true,
     special: false,
@@ -624,7 +633,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'froze',
   },
   [PlayerAttack.SOULREAPER_AXE]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'AXE',
     ranged: false,
     special: false,
@@ -632,7 +641,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'hacked at',
   },
   [PlayerAttack.STAFF_OF_LIGHT_BARRAGE]: {
-    tagColor: 'blue',
+    tagColor: TagColor.BLUE,
     letter: 'F',
     ranged: true,
     special: false,
@@ -640,7 +649,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'froze',
   },
   [PlayerAttack.STAFF_OF_LIGHT_SWIPE]: {
-    tagColor: 'blue',
+    tagColor: TagColor.BLUE,
     letter: 'SOL',
     ranged: false,
     special: false,
@@ -648,7 +657,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'swiped',
   },
   [PlayerAttack.SULPHUR_BLADES]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'SUL',
     ranged: false,
     special: false,
@@ -656,7 +665,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'slashed',
   },
   [PlayerAttack.SWIFT_BLADE]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'SB',
     ranged: false,
     special: false,
@@ -664,7 +673,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'swifted',
   },
   [PlayerAttack.TENT_WHIP]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'TW',
     ranged: false,
     special: false,
@@ -672,7 +681,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'whipped',
   },
   [PlayerAttack.TORAGS_HAMMERS]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'TH',
     ranged: false,
     special: false,
@@ -680,7 +689,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'attacked',
   },
   [PlayerAttack.TOXIC_TRIDENT]: {
-    tagColor: 'blue',
+    tagColor: TagColor.BLUE,
     letter: 'T',
     ranged: true,
     special: false,
@@ -688,7 +697,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'tridented',
   },
   [PlayerAttack.TOXIC_TRIDENT_BARRAGE]: {
-    tagColor: 'blue',
+    tagColor: TagColor.BLUE,
     letter: 'F',
     ranged: true,
     special: false,
@@ -696,7 +705,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'froze',
   },
   [PlayerAttack.TOXIC_STAFF_BARRAGE]: {
-    tagColor: 'blue',
+    tagColor: TagColor.BLUE,
     letter: 'F',
     ranged: true,
     special: false,
@@ -704,7 +713,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'froze',
   },
   [PlayerAttack.TOXIC_STAFF_SWIPE]: {
-    tagColor: 'blue',
+    tagColor: TagColor.BLUE,
     letter: 'TS',
     ranged: false,
     special: false,
@@ -712,7 +721,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'swiped',
   },
   [PlayerAttack.TRIDENT]: {
-    tagColor: 'blue',
+    tagColor: TagColor.BLUE,
     letter: 'T',
     ranged: true,
     special: false,
@@ -720,7 +729,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'tridented',
   },
   [PlayerAttack.TRIDENT_BARRAGE]: {
-    tagColor: 'blue',
+    tagColor: TagColor.BLUE,
     letter: 'F',
     ranged: true,
     special: false,
@@ -728,7 +737,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'froze',
   },
   [PlayerAttack.TONALZTICS_AUTO]: {
-    tagColor: 'yellow',
+    tagColor: TagColor.YELLOW,
     letter: 'ga',
     ranged: true,
     special: false,
@@ -736,7 +745,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'ralos tossed',
   },
   [PlayerAttack.TONALZTICS_SPEC]: {
-    tagColor: 'yellow',
+    tagColor: TagColor.YELLOW,
     letter: 'G',
     ranged: true,
     special: true,
@@ -744,7 +753,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'ralosed',
   },
   [PlayerAttack.TONALZTICS_UNCHARGED]: {
-    tagColor: 'yellow',
+    tagColor: TagColor.YELLOW,
     letter: 'g',
     ranged: true,
     special: true,
@@ -752,7 +761,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'ralos tossed',
   },
   [PlayerAttack.TWISTED_BOW]: {
-    tagColor: 'green',
+    tagColor: TagColor.GREEN,
     letter: 'TB',
     ranged: true,
     special: false,
@@ -760,7 +769,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'bowed',
   },
   [PlayerAttack.VENATOR_BOW]: {
-    tagColor: 'green',
+    tagColor: TagColor.GREEN,
     letter: 'VB',
     ranged: true,
     special: false,
@@ -768,7 +777,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'bowed',
   },
   [PlayerAttack.VERACS_FLAIL]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'VF',
     ranged: false,
     special: false,
@@ -776,7 +785,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'attacked',
   },
   [PlayerAttack.VOIDWAKER_AUTO]: {
-    tagColor: 'yellow',
+    tagColor: TagColor.YELLOW,
     letter: 'vw',
     ranged: false,
     special: false,
@@ -784,7 +793,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'slashed',
   },
   [PlayerAttack.VOIDWAKER_SPEC]: {
-    tagColor: 'yellow',
+    tagColor: TagColor.YELLOW,
     letter: 'VW',
     ranged: false,
     special: true,
@@ -792,7 +801,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'voidwakered',
   },
   [PlayerAttack.VOLATILE_NM_SPEC]: {
-    tagColor: 'blue',
+    tagColor: TagColor.BLUE,
     letter: 'VNM',
     ranged: true,
     special: true,
@@ -800,7 +809,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'volatiled',
   },
   [PlayerAttack.WEBWEAVER_AUTO]: {
-    tagColor: 'green',
+    tagColor: TagColor.GREEN,
     letter: 'ww',
     ranged: true,
     special: false,
@@ -808,7 +817,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'bowed',
   },
   [PlayerAttack.WEBWEAVER_SPEC]: {
-    tagColor: 'green',
+    tagColor: TagColor.GREEN,
     letter: 'WW',
     ranged: true,
     special: true,
@@ -816,7 +825,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'webweavered',
   },
   [PlayerAttack.XGS_SPEC]: {
-    tagColor: 'yellow',
+    tagColor: TagColor.YELLOW,
     letter: 'XGS',
     ranged: false,
     special: true,
@@ -824,7 +833,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: "XGS'd",
   },
   [PlayerAttack.ZCB_AUTO]: {
-    tagColor: 'green',
+    tagColor: TagColor.GREEN,
     letter: 'zcb',
     ranged: true,
     special: false,
@@ -832,7 +841,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: "ZCB'd",
   },
   [PlayerAttack.ZCB_SPEC]: {
-    tagColor: 'green',
+    tagColor: TagColor.GREEN,
     letter: 'ZCB',
     ranged: true,
     special: true,
@@ -840,7 +849,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: "ZCB'd",
   },
   [PlayerAttack.ZGS_SPEC]: {
-    tagColor: 'yellow',
+    tagColor: TagColor.YELLOW,
     letter: 'ZGS',
     ranged: false,
     special: true,
@@ -848,7 +857,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: "ZGS'd",
   },
   [PlayerAttack.ZOMBIE_AXE]: {
-    tagColor: 'red',
+    tagColor: TagColor.RED,
     letter: 'ZMB',
     ranged: false,
     special: false,
@@ -864,7 +873,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'froze',
   },
   [PlayerAttack.UNKNOWN_BOW]: {
-    tagColor: 'green',
+    tagColor: TagColor.GREEN,
     letter: 'UNK',
     ranged: true,
     special: false,
@@ -872,7 +881,7 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'bowed',
   },
   [PlayerAttack.UNKNOWN_POWERED_STAFF]: {
-    tagColor: 'blue',
+    tagColor: TagColor.BLUE,
     letter: 'UNK',
     ranged: true,
     special: false,
@@ -888,6 +897,28 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     verb: 'attacked',
   },
 };
+
+export function bcfToPlayerAttack(bcfIdentifier: string): PlayerAttack {
+  return (
+    PlayerAttack[bcfIdentifier as keyof typeof PlayerAttack] ??
+    PlayerAttack.UNKNOWN
+  );
+}
+
+export function bcfToNpcAttack(bcfIdentifier: string): NpcAttack {
+  return (
+    NpcAttack[bcfIdentifier as keyof typeof NpcAttack] ?? NpcAttack.UNKNOWN
+  );
+}
+
+/**
+ * Returns the combat style for an attack type.
+ * @param type The attack type.
+ * @returns The combat style for the attack type, or `null` if unknown.
+ */
+export function getAttackStyle(type: PlayerAttack): CombatStyle | null {
+  return ATTACK_METADATA[type]?.style ?? null;
+}
 
 export const SPELL_METADATA: Record<PlayerSpell, SpellMetadata> = {
   [PlayerSpell.UNKNOWN]: {
@@ -1294,3 +1325,22 @@ export const NPC_ATTACK_METADATA: Record<NpcAttack, NpcAttackMetadata> = {
     description: basicDescription('a melee attack'),
   },
 };
+
+const DEFAULT_WEAPON_IDS = new Map<PlayerAttack, number>(
+  attackDefinitions
+    .filter((def) => def.weaponIds?.length > 0 && def.weaponIds[0] !== -1)
+    .map((def) => {
+      const attackType = PlayerAttack[def.name as keyof typeof PlayerAttack];
+      return [attackType, def.weaponIds[0]] as const;
+    })
+    .filter(([type]) => type !== undefined),
+);
+
+/**
+ * Returns a default weapon ID for an attack type.
+ * @param type The attack type.
+ * @returns The default weapon ID for the attack type, or undefined if unknown.
+ */
+export function getDefaultWeaponId(type: PlayerAttack): number | undefined {
+  return DEFAULT_WEAPON_IDS.get(type);
+}

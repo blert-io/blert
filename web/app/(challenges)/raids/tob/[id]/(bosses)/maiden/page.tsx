@@ -262,6 +262,7 @@ export default function Maiden() {
     eventsByTick,
     playerState,
     npcState,
+    bcf,
     loading,
   } = useStageEvents<TobRaid>(Stage.TOB_MAIDEN);
 
@@ -286,7 +287,7 @@ export default function Maiden() {
     );
   }, [npcState]);
 
-  const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
+  const { selectedActor, setSelectedActor } = useContext(ActorContext);
 
   const { splits, spawns } = useMemo(() => {
     const splits: TimelineSplit[] = [];
@@ -421,6 +422,7 @@ export default function Maiden() {
           playing={playing}
           playerState={playerState}
           timelineTicks={totalTicks}
+          bcf={bcf}
           updateTickOnPage={setTick}
           splits={splits}
           npcs={npcState}
@@ -441,8 +443,8 @@ export default function Maiden() {
         />
         <BossPageParty
           playerTickState={playerTickState}
-          selectedPlayer={selectedPlayer}
-          setSelectedPlayer={setSelectedPlayer}
+          selectedActor={selectedActor}
+          setSelectedActor={setSelectedActor}
         />
       </div>
 

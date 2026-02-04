@@ -142,6 +142,10 @@ export interface BloatDownEvent extends BaseEvent {
   bloatDown: BloatDown;
 }
 
+export interface BloatUpEvent extends BaseEvent {
+  type: EventType.TOB_BLOAT_UP;
+}
+
 export interface BloatHandsDropEvent extends BaseEvent {
   type: EventType.TOB_BLOAT_HANDS_DROP;
   bloatHands: Coords[];
@@ -289,6 +293,7 @@ export type Event =
   | NpcAttackEvent
   | MaidenBloodSplatsEvent
   | BloatDownEvent
+  | BloatUpEvent
   | BloatHandsDropEvent
   | BloatHandsSplatEvent
   | NyloWaveSpawnEvent

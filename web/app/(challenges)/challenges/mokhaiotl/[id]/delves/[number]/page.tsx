@@ -45,7 +45,7 @@ export default function DelvePage({ params }: DelvePageProps) {
 
   const compact = display.isCompact();
 
-  const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
+  const { selectedActor, setSelectedActor } = useContext(ActorContext);
 
   const [delve, stage, attempt] = useMemo(() => {
     const delve = Number.parseInt(number, 10);
@@ -109,6 +109,7 @@ export default function DelvePage({ params }: DelvePageProps) {
     eventsByType,
     playerState,
     npcState,
+    bcf,
     totalTicks,
     loading,
   } = useStageEvents<MokhaiotlChallenge>(stage, attempt);
@@ -301,6 +302,7 @@ export default function DelvePage({ params }: DelvePageProps) {
           timelineTicks={totalTicks}
           updateTickOnPage={setTick}
           npcs={npcState}
+          bcf={bcf}
           smallLegend={display.isCompact()}
           customRows={[orbsRow]}
         />
@@ -320,8 +322,8 @@ export default function DelvePage({ params }: DelvePageProps) {
 
         <BossPageParty
           playerTickState={playerTickState}
-          selectedPlayer={selectedPlayer}
-          setSelectedPlayer={setSelectedPlayer}
+          selectedActor={selectedActor}
+          setSelectedActor={setSelectedActor}
         />
       </div>
 

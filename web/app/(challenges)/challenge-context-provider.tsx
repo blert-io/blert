@@ -2,7 +2,6 @@
 
 import { ChallengeType } from '@blert/common';
 import {
-  Context,
   Dispatch,
   ReactNode,
   SetStateAction,
@@ -34,32 +33,26 @@ type ChallengeProviderOptions<TChallenge> = {
 };
 
 export const ActorContext = createContext<RoomActorState>({
-  selectedPlayer: null,
-  setSelectedPlayer: missingPlayerDispatch,
-  selectedRoomNpc: null,
-  setSelectedRoomNpc: missingRoomNpcDispatch,
+  selectedActor: null,
+  setSelectedActor: missingActorDispatch,
 });
 
 type ChallengeProviderResult = {
-  ActorContext: Context<RoomActorState>;
+  ActorContext: typeof ActorContext;
   ChallengeProvider: (props: ChallengeProviderProps) => ReactNode;
 };
 
-type ActorStateDispatch<T> = Dispatch<SetStateAction<T>>;
+export type SelectedActor =
+  | { type: 'player'; name: string }
+  | { type: 'npc'; roomId: number };
 
 type RoomActorState = {
-  selectedPlayer: string | null;
-  setSelectedPlayer: ActorStateDispatch<string | null>;
-  selectedRoomNpc: number | null;
-  setSelectedRoomNpc: ActorStateDispatch<number | null>;
+  selectedActor: SelectedActor | null;
+  setSelectedActor: Dispatch<SetStateAction<SelectedActor | null>>;
 };
 
-function missingPlayerDispatch(): never {
-  throw new Error('setSelectedPlayer must be used within an ActorContext');
-}
-
-function missingRoomNpcDispatch(): never {
-  throw new Error('setSelectedRoomNpc must be used within an ActorContext');
+function missingActorDispatch(): never {
+  throw new Error('setSelectedActor must be used within an ActorContext');
 }
 
 export function createChallengeContextProvider<TChallenge>(
@@ -90,8 +83,9 @@ export function createChallengeContextProvider<TChallenge>(
       Dispatch<SetStateAction<TChallenge | null>>,
     ];
 
-    const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
-    const [selectedRoomNpc, setSelectedRoomNpc] = useState<number | null>(null);
+    const [selectedActor, setSelectedActor] = useState<SelectedActor | null>(
+      null,
+    );
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
     const challengeIdRef = useRef(challengeId);
@@ -178,10 +172,8 @@ export function createChallengeContextProvider<TChallenge>(
     return (
       <ActorContext.Provider
         value={{
-          selectedPlayer,
-          setSelectedPlayer,
-          selectedRoomNpc,
-          setSelectedRoomNpc,
+          selectedActor,
+          setSelectedActor,
         }}
       >
         {children}

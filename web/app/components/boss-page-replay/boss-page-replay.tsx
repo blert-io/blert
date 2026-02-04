@@ -54,47 +54,39 @@ export function BossPageReplay({
 
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // TODO(frolv): Switch to using a single selected entity.
-  const {
-    selectedPlayer,
-    setSelectedPlayer,
-    selectedRoomNpc,
-    setSelectedRoomNpc,
-  } = useContext(ActorContext);
+  const { selectedActor, setSelectedActor } = useContext(ActorContext);
 
-  const selectedEntity = selectedPlayer
-    ? entities.find(
-        (entity) =>
-          entity.type === EntityType.PLAYER && entity.name === selectedPlayer,
-      )
-    : selectedRoomNpc
+  const selectedEntity =
+    selectedActor?.type === 'player'
       ? entities.find(
           (entity) =>
-            entity.type === EntityType.NPC &&
-            (entity as NpcEntity).roomId === selectedRoomNpc,
+            entity.type === EntityType.PLAYER &&
+            entity.name === selectedActor.name,
         )
-      : null;
+      : selectedActor?.type === 'npc'
+        ? entities.find(
+            (entity) =>
+              entity.type === EntityType.NPC &&
+              (entity as NpcEntity).roomId === selectedActor.roomId,
+          )
+        : null;
 
   const onEntitySelected = useCallback(
     (entity: AnyEntity | null) => {
       if (entity === null) {
-        setSelectedRoomNpc(null);
-        setSelectedPlayer(null);
+        setSelectedActor(null);
         return;
       }
 
       if (entity.type === EntityType.PLAYER) {
-        setSelectedPlayer(entity.name);
-        setSelectedRoomNpc(null);
+        setSelectedActor({ type: 'player', name: entity.name });
       } else if (entity.type === EntityType.NPC) {
-        setSelectedRoomNpc((entity as NpcEntity).roomId);
-        setSelectedPlayer(null);
+        setSelectedActor({ type: 'npc', roomId: (entity as NpcEntity).roomId });
       } else {
-        setSelectedPlayer(null);
-        setSelectedRoomNpc(null);
+        setSelectedActor(null);
       }
     },
-    [setSelectedPlayer, setSelectedRoomNpc],
+    [setSelectedActor],
   );
 
   const renderMap = (fullscreen: boolean) => (

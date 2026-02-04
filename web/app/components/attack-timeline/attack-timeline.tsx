@@ -40,6 +40,7 @@ import {
   SPELL_METADATA,
 } from './attack-metadata';
 import { TimelineTooltip } from './timeline-tooltip';
+import { TimelineSplit } from './types';
 
 import styles from './style.module.scss';
 
@@ -529,7 +530,7 @@ const buildTickColumn = (
   const tickCells = [];
   const cellInfo: CellInfo[] = [];
 
-  const { selectedPlayer } = context.actorContext;
+  const { selectedActor } = context.actorContext;
 
   context.npcs.forEach((npc, _) => {
     if (!npc.hasAttacks) {
@@ -587,7 +588,8 @@ const buildTickColumn = (
       npcState: null,
       playerState: state ?? null,
       customRenderer: null,
-      highlighted: selectedPlayer === playerName,
+      highlighted:
+        selectedActor?.type === 'player' && selectedActor.name === playerName,
       backgroundColor,
     });
   });
@@ -736,13 +738,6 @@ function BaseTimeline(props: BaseTimelineProps) {
   return <>{attackTimelineColumnElements}</>;
 }
 
-export type TimelineSplit = {
-  tick: number;
-  splitName: string;
-  unimportant?: boolean;
-  splitCustomContent?: React.ReactNode;
-};
-
 export type TimelineColor = {
   tick: number;
   length?: number;
@@ -857,18 +852,28 @@ export function AttackTimeline(props: AttackTimelineProps) {
     let onClick;
 
     if (type === 'npc') {
-      onClick = () => actorContext.setSelectedRoomNpc(id);
+      onClick = () =>
+        actorContext.setSelectedActor({ type: 'npc', roomId: id });
       className += ` ${styles.npc}`;
-      if (id === actorContext.selectedRoomNpc) {
-        // TODO(frolv): Support selected NPCs.
-        // className += ` ${styles.selected}`;
+      if (
+        actorContext.selectedActor?.type === 'npc' &&
+        actorContext.selectedActor.roomId === id
+      ) {
+        className += ` ${styles.selected}`;
       }
     } else if (type === 'custom') {
       className += ` ${styles.custom}`;
     } else {
       onClick = () =>
-        actorContext.setSelectedPlayer((p) => (p === name ? null : name));
-      if (name === actorContext.selectedPlayer) {
+        actorContext.setSelectedActor((prev) =>
+          prev?.type === 'player' && prev.name === name
+            ? null
+            : { type: 'player', name },
+        );
+      if (
+        actorContext.selectedActor?.type === 'player' &&
+        actorContext.selectedActor.name === name
+      ) {
         className += ` ${styles.selected}`;
       }
     }

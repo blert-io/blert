@@ -186,8 +186,8 @@ The web frontend is run separately.
 
 ## Running Tests
 
-You can run tests each service's test from the root via the `test` command in
-the service's workspace:
+You can run each service's tests from the root via the `test` command in the
+service's workspace:
 
 ```bash
 npm run -w challenge-server test
