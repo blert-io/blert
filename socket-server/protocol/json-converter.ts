@@ -139,12 +139,24 @@ function serverMessageJsonToProto(json: ServerMessageJson): ServerMessage {
   if (json.challengeStateConfirmation !== undefined) {
     const conf = new ServerMessage.ChallengeStateConfirmation();
     conf.setIsValid(json.challengeStateConfirmation.isValid);
-    conf.setUsername(json.challengeStateConfirmation.username);
-    conf.setChallenge(json.challengeStateConfirmation.challenge as AnyEnum);
-    conf.setMode(json.challengeStateConfirmation.mode as AnyEnum);
-    conf.setStage(json.challengeStateConfirmation.stage as AnyEnum);
-    conf.setPartyList(json.challengeStateConfirmation.party);
-    conf.setSpectator(json.challengeStateConfirmation.spectator);
+    if (json.challengeStateConfirmation.username !== undefined) {
+      conf.setUsername(json.challengeStateConfirmation.username);
+    }
+    if (json.challengeStateConfirmation.challenge !== undefined) {
+      conf.setChallenge(json.challengeStateConfirmation.challenge as AnyEnum);
+    }
+    if (json.challengeStateConfirmation.mode !== undefined) {
+      conf.setMode(json.challengeStateConfirmation.mode as AnyEnum);
+    }
+    if (json.challengeStateConfirmation.stage !== undefined) {
+      conf.setStage(json.challengeStateConfirmation.stage as AnyEnum);
+    }
+    if (json.challengeStateConfirmation.party !== undefined) {
+      conf.setPartyList(json.challengeStateConfirmation.party);
+    }
+    if (json.challengeStateConfirmation.spectator !== undefined) {
+      conf.setSpectator(json.challengeStateConfirmation.spectator);
+    }
     msg.setChallengeStateConfirmation(conf);
   }
 

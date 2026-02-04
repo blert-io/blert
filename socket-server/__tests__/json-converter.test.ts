@@ -770,6 +770,22 @@ describe('jsonToServerMessage', () => {
       expect(conf?.getPartyList()).toEqual(['Player1', 'Player2']);
     });
 
+    it('converts minimal invalid challenge state confirmation', () => {
+      const json: ServerMessageJson = {
+        type: ServerMessage.Type.CHALLENGE_STATE_CONFIRMATION,
+        challengeStateConfirmation: {
+          isValid: false,
+        },
+      };
+
+      const proto = jsonToServerMessage(json);
+      const conf = proto.getChallengeStateConfirmation();
+
+      expect(conf?.getIsValid()).toBe(false);
+      expect(conf?.getUsername()).toBe('');
+      expect(conf?.getPartyList()).toEqual([]);
+    });
+
     it('converts recent recordings from JSON', () => {
       const json: ServerMessageJson = {
         type: ServerMessage.Type.HISTORY_RESPONSE,
