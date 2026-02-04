@@ -722,6 +722,9 @@ interface NavItemComponentProps {
   pathname: string;
   isStageAccessible: (stage: Stage) => boolean;
   activeItemRef: React.RefObject<HTMLAnchorElement | null>;
+  dropdownOpen: boolean;
+  onDropdownOpen: (stage: Stage) => void;
+  onDropdownClose: () => void;
 }
 
 function NavItemComponent({
@@ -731,8 +734,10 @@ function NavItemComponent({
   pathname,
   isStageAccessible,
   activeItemRef,
+  dropdownOpen,
+  onDropdownOpen,
+  onDropdownClose,
 }: NavItemComponentProps) {
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const display = useDisplay();
 
   if (item.children) {
@@ -749,15 +754,19 @@ function NavItemComponent({
 
     const handleInteraction = () => {
       if (display.isCompact()) {
-        setIsDropdownOpen(!isDropdownOpen);
+        if (dropdownOpen) {
+          onDropdownClose();
+        } else {
+          onDropdownOpen(item.stage);
+        }
       }
     };
 
     const handleMouseEvents = display.isCompact()
       ? {}
       : {
-          onMouseEnter: () => setIsDropdownOpen(true),
-          onMouseLeave: () => setIsDropdownOpen(false),
+          onMouseEnter: () => onDropdownOpen(item.stage),
+          onMouseLeave: onDropdownClose,
         };
 
     return (
@@ -773,12 +782,12 @@ function NavItemComponent({
           {item.label}
           <i className="fa-solid fa-chevron-down" />
         </div>
-        {isDropdownOpen && isAccessible && (
+        {dropdownOpen && isAccessible && (
           <div
             className={styles.dropdownContent}
             onClick={(e) => {
               if (display.isCompact() && e.target === e.currentTarget) {
-                setIsDropdownOpen(false);
+                onDropdownClose();
               }
             }}
           >
@@ -798,7 +807,7 @@ function NavItemComponent({
                     if (!isChildAccessible) {
                       e.preventDefault();
                     } else if (display.isCompact()) {
-                      setIsDropdownOpen(false);
+                      onDropdownClose();
                     }
                   }}
                   ref={isActive ? activeItemRef : null}
@@ -850,6 +859,32 @@ export default function ChallengeNav({ challengeId }: ChallengeNavProps) {
   ];
   const navRef = useRef<HTMLDivElement>(null);
   const activeItemRef = useRef<HTMLAnchorElement>(null);
+
+  const [openDropdown, setOpenDropdown] = useState<Stage | null>(null);
+  const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleDropdownOpen = (stage: Stage) => {
+    if (closeTimeoutRef.current !== null) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+    setOpenDropdown(stage);
+  };
+
+  const handleDropdownClose = () => {
+    closeTimeoutRef.current = setTimeout(() => {
+      setOpenDropdown(null);
+      closeTimeoutRef.current = null;
+    }, 150);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current !== null) {
+        clearTimeout(closeTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     // Scroll active item into view on mobile.
@@ -943,6 +978,9 @@ export default function ChallengeNav({ challengeId }: ChallengeNavProps) {
             pathname={pathname}
             isStageAccessible={isStageAccessible}
             activeItemRef={activeItemRef}
+            dropdownOpen={openDropdown === item.stage}
+            onDropdownOpen={handleDropdownOpen}
+            onDropdownClose={handleDropdownClose}
           />
         ))}
       </div>

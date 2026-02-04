@@ -7,10 +7,12 @@ import {
   NpcId,
   NpcSpawnEvent,
   Stage,
+  stageName,
 } from '@blert/common';
 import { notFound, useRouter } from 'next/navigation';
 import { use, useCallback, useContext, useEffect, useMemo } from 'react';
 
+import { TimelineSplit } from '@/components/attack-timeline';
 import BossFightOverview, {
   BossFightOverviewSection,
 } from '@/components/boss-fight-overview';
@@ -31,12 +33,12 @@ import {
   usePlayingState,
   useStageEvents,
 } from '@/utils/boss-room-state';
+import { ticksToFormattedSeconds } from '@/utils/tick';
 import { challengeUrl } from '@/utils/url';
 
 import { ActorContext } from '../../../context';
 
 import styles from './style.module.scss';
-import { ticksToFormattedSeconds } from '@/utils/tick';
 
 function validWaveNumber(waveNumber: number) {
   return !isNaN(waveNumber) && waveNumber >= 1 && waveNumber <= 69;
@@ -132,26 +134,14 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
     { modifyEntity },
   );
 
-  if (challenge === null || loading) {
-    return <Loading />;
-  }
+  const { sections, splits } = useMemo(() => {
+    if (stage !== Stage.INFERNO_WAVE_69) {
+      return { sections: [], splits: [] };
+    }
 
-  const waveInfo = challenge.inferno.waves.find((wave) => wave.stage === stage);
-  if (waveInfo === undefined) {
-    notFound();
-  }
-
-  const username = challenge.party[0].username;
-  const playerTickState = {
-    [username]: playerState.get(username)?.at(currentTick) ?? null,
-  };
-
-  const title = `Wave ${waveNumber}`;
-
-  const sections: BossFightOverviewSection[] = [];
-  if (stage === Stage.INFERNO_WAVE_69) {
+    const sections: BossFightOverviewSection[] = [];
     let setNumber = 0;
-    const splits = new Map<number, string>();
+    const splitsMap = new Map<number, string>();
 
     eventsByType[EventType.NPC_SPAWN]
       ?.filter((evt) => {
@@ -166,47 +156,70 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
         switch ((evt as NpcSpawnEvent).npc.id) {
           case NpcId.JAL_ZEK_ZUK as number:
             setNumber++;
-            splits.set(evt.tick, `Set ${setNumber}`);
+            splitsMap.set(evt.tick, `Set ${setNumber}`);
             return;
           case NpcId.JALTOK_JAD_ZUK as number:
-            splits.set(evt.tick, 'Jad');
+            splitsMap.set(evt.tick, 'Jad');
             return;
           case NpcId.JAL_MEJJAK as number:
-            splits.set(evt.tick, 'Healers');
+            splitsMap.set(evt.tick, 'Healers');
             return;
         }
       });
-    const zukSplits = Array.from(splits.entries()).sort((a, b) => a[0] - b[0]);
+
+    const zukSplits: TimelineSplit[] = Array.from(splitsMap.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([tick, label]) => ({
+        tick,
+        splitName: label,
+      }));
 
     sections.push({
-      title: 'Zuk Splits',
+      span: 2,
+      title: 'Splits',
       content: (
         <div className={styles.zukSplits}>
-          {zukSplits.map(([tick, label]) => (
-            <div key={tick} className={styles.splitItem}>
+          {zukSplits.map((split) => (
+            <div key={split.tick} className={styles.splitItem}>
               <div className={styles.splitInfo}>
-                <span className={styles.splitLabel}>{label}</span>
-                <span className={styles.splitTick}>Tick {tick}</span>
+                <span className={styles.splitLabel}>{split.splitName}</span>
+                <span className={styles.splitTick}>Tick {split.tick}</span>
               </div>
               <button
                 className={styles.splitTime}
-                onClick={() => setTick(tick)}
+                onClick={() => setTick(split.tick)}
               >
                 <i className="fas fa-play" />
-                {ticksToFormattedSeconds(tick)}
+                {ticksToFormattedSeconds(split.tick)}
               </button>
             </div>
           ))}
         </div>
       ),
     });
+
+    return { sections, splits: zukSplits };
+  }, [stage, eventsByType, setTick]);
+
+  if (challenge === null || loading) {
+    return <Loading />;
   }
+
+  const waveInfo = challenge.inferno.waves.find((wave) => wave.stage === stage);
+  if (waveInfo === undefined) {
+    notFound();
+  }
+
+  const username = challenge.party[0].username;
+  const playerTickState = {
+    [username]: playerState.get(username)?.at(currentTick) ?? null,
+  };
 
   return (
     <div className={styles.wavePage}>
       <div className={styles.overview}>
         <BossFightOverview
-          name={title}
+          name={stageName(stage)}
           image="/images/inferno.png"
           time={totalTicks}
           sections={sections}
@@ -222,6 +235,7 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
           updateTickOnPage={setTick}
           npcs={npcState}
           smallLegend={display.isCompact()}
+          splits={splits}
         />
       </div>
 
@@ -249,6 +263,7 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
         currentTick={currentTick}
         updateTick={setTick}
         updatePlayingState={setPlaying}
+        splits={splits}
       />
     </div>
   );
