@@ -119,7 +119,7 @@ function SpellChip({ imageUrl, name }: SpellChipProps) {
 }
 
 function PlayerTooltipContent({ state }: { state: PlayerState }) {
-  const { setSelectedPlayer } = useContext(ActorContext);
+  const { setSelectedActor } = useContext(ActorContext);
   const context = useContext(TimelineDataContext);
 
   const sections: React.ReactNode[] = [];
@@ -128,7 +128,9 @@ function PlayerTooltipContent({ state }: { state: PlayerState }) {
     <div className={styles.tooltipHeader} key="header">
       <button
         className={styles.playerName}
-        onClick={() => setSelectedPlayer(state.player.name)}
+        onClick={() =>
+          setSelectedActor({ type: 'player', name: state.player.name })
+        }
       >
         {state.player.name}
       </button>
@@ -198,7 +200,9 @@ function PlayerTooltipContent({ state }: { state: PlayerState }) {
           on
           <PlayerChip
             name={target.player}
-            onClick={() => setSelectedPlayer(target.player)}
+            onClick={() =>
+              setSelectedActor({ type: 'player', name: target.player })
+            }
           />
         </>
       );
@@ -406,7 +410,7 @@ function PlayerTooltipContent({ state }: { state: PlayerState }) {
 }
 
 function NpcTooltipContent({ roomId, tick }: { roomId: number; tick: number }) {
-  const { setSelectedPlayer } = useContext(ActorContext);
+  const { setSelectedActor } = useContext(ActorContext);
   const context = useContext(TimelineDataContext);
 
   if (context === null) {
@@ -427,10 +431,11 @@ function NpcTooltipContent({ roomId, tick }: { roomId: number; tick: number }) {
   const meta =
     NPC_ATTACK_METADATA[attack.type] ?? NPC_ATTACK_METADATA[NpcAttack.UNKNOWN];
 
-  const targetChip = attack.target ? (
+  const targetName = attack.target;
+  const targetChip = targetName ? (
     <PlayerChip
-      name={attack.target}
-      onClick={() => setSelectedPlayer(attack.target)}
+      name={targetName}
+      onClick={() => setSelectedActor({ type: 'player', name: targetName })}
     />
   ) : null;
 

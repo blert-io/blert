@@ -3,10 +3,8 @@
 import {
   ChallengeType,
   ColosseumChallenge,
-  EventType,
   HANDICAP_LEVEL_VALUE_INCREMENT,
   Handicap,
-  NpcEvent,
   Stage,
 } from '@blert/common';
 import { notFound, useRouter } from 'next/navigation';
@@ -85,16 +83,10 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
   }, [challengeId, waveNumber, router]);
 
   const waveIndex = validWaveNumber(waveNumber) ? waveNumber - 1 : 0;
-  const {
-    challenge,
-    eventsByType,
-    playerState,
-    npcState,
-    totalTicks,
-    loading,
-  } = useStageEvents<ColosseumChallenge>(Stage.COLOSSEUM_WAVE_1 + waveIndex);
+  const { challenge, playerState, npcState, bcf, totalTicks, loading } =
+    useStageEvents<ColosseumChallenge>(Stage.COLOSSEUM_WAVE_1 + waveIndex);
 
-  const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
+  const { selectedActor, setSelectedActor } = useContext(ActorContext);
 
   const { currentTick, setTick, playing, setPlaying, advanceTick } =
     usePlayingState(totalTicks);
@@ -158,12 +150,12 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
 
   const timelineSplits: { tick: number; splitName: string }[] = [];
   if (waveNumber < 12) {
-    const reinforcementTick =
-      eventsByType[EventType.NPC_SPAWN]?.find((e) => (e as NpcEvent).tick > 1)
-        ?.tick ?? 0;
-    if (reinforcementTick > 1) {
+    const reinforcementPhase = bcf.timeline.phases?.find(
+      (p) => p.phaseType === 'COLOSSEUM_REINFORCEMENTS',
+    );
+    if (reinforcementPhase !== undefined) {
       timelineSplits.push({
-        tick: reinforcementTick,
+        tick: reinforcementPhase.tick,
         splitName: 'Reinforcements',
       });
     }
@@ -221,6 +213,7 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
           updateTickOnPage={setTick}
           splits={timelineSplits}
           npcs={npcState}
+          bcf={bcf}
           smallLegend={display.isCompact()}
         />
       </div>
@@ -238,8 +231,8 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
         />
         <BossPageParty
           playerTickState={playerTickState}
-          selectedPlayer={selectedPlayer}
-          setSelectedPlayer={setSelectedPlayer}
+          selectedActor={selectedActor}
+          setSelectedActor={setSelectedActor}
         />
       </div>
 

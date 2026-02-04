@@ -89,6 +89,7 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
     eventsByType,
     playerState,
     npcState,
+    bcf,
     totalTicks,
     loading,
   } = useStageEvents<InfernoChallenge>(stage);
@@ -96,7 +97,7 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
   const { currentTick, setTick, playing, setPlaying, advanceTick } =
     usePlayingState(totalTicks);
 
-  const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
+  const { selectedActor, setSelectedActor } = useContext(ActorContext);
 
   const modifyEntity = useCallback((_: number, entity: AnyEntity) => {
     if (entity.type !== EntityType.NPC) {
@@ -234,6 +235,7 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
           timelineTicks={totalTicks}
           updateTickOnPage={setTick}
           npcs={npcState}
+          bcf={bcf}
           smallLegend={display.isCompact()}
           splits={splits}
         />
@@ -252,8 +254,8 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
         />
         <BossPageParty
           playerTickState={playerTickState}
-          selectedPlayer={selectedPlayer}
-          setSelectedPlayer={setSelectedPlayer}
+          selectedActor={selectedActor}
+          setSelectedActor={setSelectedActor}
         />
       </div>
 

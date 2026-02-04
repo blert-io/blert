@@ -1,12 +1,14 @@
 'use client';
 
 import {
+  AttackStyle,
   Coords,
   EventType,
   MokhaiotlChallenge,
   MokhaiotlOrbEvent,
+  MokhaiotlOrbSource,
+  NpcAttack,
   Stage,
-  AttackStyle,
 } from '@blert/common';
 import Image from 'next/image';
 import { use, useCallback, useContext, useMemo } from 'react';
@@ -45,7 +47,7 @@ export default function DelvePage({ params }: DelvePageProps) {
 
   const compact = display.isCompact();
 
-  const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
+  const { selectedActor, setSelectedActor } = useContext(ActorContext);
 
   const [delve, stage, attempt] = useMemo(() => {
     const delve = Number.parseInt(number, 10);
@@ -109,6 +111,7 @@ export default function DelvePage({ params }: DelvePageProps) {
     eventsByType,
     playerState,
     npcState,
+    bcf,
     totalTicks,
     loading,
   } = useStageEvents<MokhaiotlChallenge>(stage, attempt);
@@ -117,16 +120,53 @@ export default function DelvePage({ params }: DelvePageProps) {
     usePlayingState(totalTicks);
 
   const orbsRow = useMemo(() => {
+    const ballAttacks = new Set([
+      NpcAttack.MOKHAIOTL_BALL,
+      NpcAttack.MOKHAIOTL_MAGE_BALL,
+      NpcAttack.MOKHAIOTL_RANGED_BALL,
+    ]);
     const events =
       (eventsByType[EventType.MOKHAIOTL_ORB] as MokhaiotlOrbEvent[]) ?? [];
     const orbsByEndTick = new Map(
       events.map((event) => [event.mokhaiotlOrb.endTick, event.mokhaiotlOrb]),
     );
 
-    const styleString = {
+    // Collect ticks on which Mokhaiotl used a ball attack, sorted ascending.
+    const ballAttackTicks: [number, NpcAttack][] = [];
+    for (const [, npc] of npcState) {
+      for (let tick = 0; tick < totalTicks; tick++) {
+        const state = npc.stateByTick[tick];
+        if (state?.attack && ballAttacks.has(state.attack.type)) {
+          ballAttackTicks.push([tick, state.attack.type]);
+        }
+      }
+    }
+    ballAttackTicks.sort((a, b) => a[0] - b[0]);
+
+    /** Find the latest ball attack tick before `beforeTick`. */
+    function findBallAttackBefore(
+      beforeTick: number,
+    ): [number, NpcAttack] | undefined {
+      let result: [number, NpcAttack] | undefined;
+      for (const t of ballAttackTicks) {
+        if (t[0] >= beforeTick) {
+          break;
+        }
+        result = t;
+      }
+      return result;
+    }
+
+    const styleString: Record<AttackStyle, string> = {
       [AttackStyle.MELEE]: 'melee',
       [AttackStyle.RANGE]: 'ranged',
       [AttackStyle.MAGE]: 'magic',
+    };
+
+    const styleName: Record<AttackStyle, string> = {
+      [AttackStyle.MELEE]: 'Melee',
+      [AttackStyle.RANGE]: 'Ranged',
+      [AttackStyle.MAGE]: 'Magic',
     };
 
     return {
@@ -146,8 +186,48 @@ export default function DelvePage({ params }: DelvePageProps) {
           />
         );
       },
+      tooltipRenderer: (tick: number) => {
+        const orb = orbsByEndTick.get(tick);
+        if (orb === undefined) {
+          return null;
+        }
+
+        let source: string;
+        if (orb.source === MokhaiotlOrbSource.MOKHAIOTL) {
+          source = `Launched by boss on tick ${orb.startTick}`;
+        } else {
+          const sourceBall = findBallAttackBefore(orb.startTick);
+          if (sourceBall !== undefined) {
+            const ballType =
+              sourceBall[1] === NpcAttack.MOKHAIOTL_MAGE_BALL
+                ? 'magic ball'
+                : sourceBall[1] === NpcAttack.MOKHAIOTL_RANGED_BALL
+                  ? 'ranged ball'
+                  : 'unknown ball';
+            source = `From ${ballType} on tick ${sourceBall[0]}`;
+          } else {
+            source = 'From ball';
+          }
+        }
+
+        const travelTicks = orb.endTick - orb.startTick;
+        return (
+          <div style={{ fontSize: '0.85rem' }}>
+            <Image
+              src={`/images/mokhaiotl/${styleString[orb.style]}-orb.png`}
+              alt={styleName[orb.style]}
+              height={18}
+              width={18}
+              style={{ objectFit: 'contain', verticalAlign: 'middle' }}
+            />{' '}
+            {styleName[orb.style]} orb landed after {travelTicks} tick
+            {travelTicks === 1 ? '' : 's'}
+            <div className={styles.orbSource}>{source}</div>
+          </div>
+        );
+      },
     };
-  }, [eventsByType]);
+  }, [eventsByType, npcState, totalTicks]);
 
   const [rocksByTick, splatsByTick] = useMemo(() => {
     const rocks = new Map<number, Coords[]>();
@@ -301,6 +381,7 @@ export default function DelvePage({ params }: DelvePageProps) {
           timelineTicks={totalTicks}
           updateTickOnPage={setTick}
           npcs={npcState}
+          bcf={bcf}
           smallLegend={display.isCompact()}
           customRows={[orbsRow]}
         />
@@ -320,8 +401,8 @@ export default function DelvePage({ params }: DelvePageProps) {
 
         <BossPageParty
           playerTickState={playerTickState}
-          selectedPlayer={selectedPlayer}
-          setSelectedPlayer={setSelectedPlayer}
+          selectedActor={selectedActor}
+          setSelectedActor={setSelectedActor}
         />
       </div>
 

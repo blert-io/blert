@@ -35,3 +35,12 @@
     gap: 12px;
   }
 }
+
+.orbSource {
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+  color: var(--blert-font-color-secondary);
+  // TODO(frolv): Ball sources sent from the plugin are not always correct, so
+  // this is hidden until the plugin is fixed.
+  display: none;
+}
