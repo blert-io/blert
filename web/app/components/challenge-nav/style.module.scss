@@ -142,8 +142,19 @@
   border-radius: 6px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   padding: 8px 0;
+  padding-top: 12px;
   margin-top: 4px;
   backdrop-filter: blur(8px);
+
+  // Invisible bridge to connect nav item to dropdown content.
+  &::before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    left: 0;
+    right: 0;
+    height: 12px;
+  }
 }
 
 .dropdownItem {
