@@ -82,12 +82,12 @@ export const playerStateSchema = z.object({
 // ServerMessage.ChallengeStateConfirmation
 export const challengeStateConfirmationSchema = z.object({
   isValid: z.boolean(),
-  username: z.string(),
-  challenge: enumValueSchema,
-  mode: enumValueSchema,
-  stage: enumValueSchema,
-  party: z.array(z.string()),
-  spectator: z.boolean(),
+  username: z.string().optional(),
+  challenge: enumValueSchema.optional(),
+  mode: enumValueSchema.optional(),
+  stage: enumValueSchema.optional(),
+  party: z.array(z.string()).optional(),
+  spectator: z.boolean().optional(),
 });
 
 // ChallengeStartRequest

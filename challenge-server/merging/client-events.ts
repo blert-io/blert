@@ -26,6 +26,7 @@ export const enum ClientAnomaly {
   MULTIPLE_PRIMARY_PLAYERS = 'MULTIPLE_PRIMARY_PLAYERS',
   MISSING_STAGE_METADATA = 'MISSING_STAGE_METADATA',
   CONSISTENCY_ISSUES = 'CONSISTENCY_ISSUES',
+  EVENTS_BEYOND_RECORDED_TICKS = 'EVENTS_BEYOND_RECORDED_TICKS',
 }
 
 export type ConsistencyIssue = {
@@ -242,6 +243,8 @@ export class ClientEvents {
       () => [],
     );
 
+    let droppedEventCount = 0;
+
     for (const event of events) {
       if (
         event.getType() === Event.Type.PLAYER_UPDATE &&
@@ -250,7 +253,23 @@ export class ClientEvents {
         primaryPlayers.add(event.getPlayer()!.getName());
       }
 
-      eventsByTick[event.getTick()].push(event);
+      const tick = event.getTick();
+      if (tick <= stageInfo.recordedTicks) {
+        eventsByTick[tick].push(event);
+      } else {
+        droppedEventCount++;
+      }
+    }
+
+    if (droppedEventCount > 0) {
+      logger.warn('client_events_beyond_recorded_ticks', {
+        challengeUuid: challenge.uuid,
+        clientId,
+        stage: stageInfo.stage,
+        recordedTicks: stageInfo.recordedTicks,
+        droppedEventCount,
+      });
+      anomalies.add(ClientAnomaly.EVENTS_BEYOND_RECORDED_TICKS);
     }
 
     if (primaryPlayers.size > 1) {

@@ -1266,6 +1266,7 @@ export default class ChallengeManager {
         logger.info('challenge_reconnection_timer_started', {
           challengeUuid: challengeId,
           timeout: ChallengeManager.MAX_RECONNECTION_PERIOD,
+          reason: 'disconnect',
         });
         recordReconnectionTimer('disconnect');
       }
@@ -1371,6 +1372,7 @@ export default class ChallengeManager {
         logger.info('challenge_reconnection_timer_started', {
           challengeUuid: challengeId,
           timeout: ChallengeManager.MAX_INACTIVITY_PERIOD,
+          reason: 'all_inactive',
         });
         recordReconnectionTimer('all_inactive');
         txn.setChallengeTimeout(challengeId, TimeoutState.CLEANUP, {
@@ -1550,21 +1552,33 @@ export default class ChallengeManager {
         const clients: ClientEvents[] = [];
 
         for (const [clientId, events] of eventsByClient) {
-          const client = ClientEvents.fromClientStream(
-            clientId,
-            challengeInfo,
-            stage,
-            events,
-          );
-
-          const serverTicks = client.getServerTicks();
-          if (serverTicks !== null) {
-            recordClientReportedTimePrecision(
-              serverTicks.precise ? 'precise' : 'imprecise',
+          try {
+            const client = ClientEvents.fromClientStream(
+              clientId,
+              challengeInfo,
+              stage,
+              events,
             );
-          }
 
-          clients.push(client);
+            const serverTicks = client.getServerTicks();
+            if (serverTicks !== null) {
+              recordClientReportedTimePrecision(
+                serverTicks.precise ? 'precise' : 'imprecise',
+              );
+            }
+
+            clients.push(client);
+          } catch (e: unknown) {
+            logger.error('client_event_processing_failed', {
+              challengeUuid: challenge.uuid,
+              clientId,
+              stage,
+              attempt,
+              error: e instanceof Error ? e.message : String(e),
+              stack: e instanceof Error ? e.stack : undefined,
+            });
+            // Continue processing other clients.
+          }
         }
 
         const result = await timeOperation(
@@ -1574,6 +1588,8 @@ export default class ChallengeManager {
             logger.info('merge_duration', { stage, durationMs });
           },
         );
+
+        let updates: Partial<ExtendedChallengeState> = {};
 
         if (result !== null) {
           logger.info('stage_finished', {
@@ -1596,7 +1612,6 @@ export default class ChallengeManager {
           );
 
           this.recordMergeResult(stage, result);
-          let updates: Partial<ExtendedChallengeState> = {};
 
           try {
             updates = await timeOperation(
@@ -1621,14 +1636,6 @@ export default class ChallengeManager {
             });
           }
 
-          await this.redisClient.pipeline((pipeline) => {
-            pipeline.setChallengeFields(challenge.uuid, {
-              ...updates,
-              processingStage: null,
-            });
-            pipeline.deleteStageStream(challenge.uuid, stage, attempt);
-          });
-
           if (result.unmergedCount > 0) {
             const shouldSave = Math.random() < UNMERGED_EVENT_SAVE_RATE;
             if (shouldSave) {
@@ -1650,6 +1657,14 @@ export default class ChallengeManager {
             }
           }
         }
+
+        await this.redisClient.pipeline((pipeline) => {
+          pipeline.setChallengeFields(challenge.uuid, {
+            ...updates,
+            processingStage: null,
+          });
+          pipeline.deleteStageStream(challenge.uuid, stage, attempt);
+        });
       },
     );
   }
@@ -1926,6 +1941,7 @@ export default class ChallengeManager {
         logger.info('challenge_reconnection_timer_started', {
           challengeUuid: challengeId,
           timeout: ChallengeManager.MAX_RECONNECTION_PERIOD,
+          reason: 'all_inactive',
         });
         recordReconnectionTimer('all_inactive');
         txn.setChallengeTimeout(challengeId, TimeoutState.CLEANUP, {
