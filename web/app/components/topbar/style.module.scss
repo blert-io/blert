@@ -27,7 +27,7 @@
 
   .image {
     position: relative;
-    height: 50px;
+    height: $TOPBAR_HEIGHT - 10px;
     width: 80px;
   }
 

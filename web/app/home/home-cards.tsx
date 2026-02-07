@@ -351,12 +351,15 @@ function FeedItem({ item, index }: { item: ActivityFeedItem; index: number }) {
 
   let icon = '';
   let content: React.ReactNode;
+  let href: string = '';
 
   switch (item.type) {
     case ActivityFeedItemType.CHALLENGE_END: {
       const challenge = (item as ChallengeEndFeedItem).challenge;
       let name: string = challengeName(challenge.type);
       let status: string = '';
+
+      href = challengeUrl(challenge.type, challenge.uuid);
 
       if (challenge.type === ChallengeType.TOB) {
         if (challenge.mode === ChallengeMode.TOB_HARD) {
@@ -368,15 +371,15 @@ function FeedItem({ item, index }: { item: ActivityFeedItem; index: number }) {
 
       switch (challenge.status) {
         case ChallengeStatus.COMPLETED:
-          icon = '🏃';
+          icon = 'fa-solid fa-flag-checkered';
           status = 'completed';
           break;
         case ChallengeStatus.RESET:
-          icon = '🔄';
+          icon = 'fa-solid fa-rotate-left';
           status = `reset after ${stageName(challenge.stage)}`;
           break;
         case ChallengeStatus.WIPED:
-          icon = '💀';
+          icon = 'fa-solid fa-skull';
           status = `wiped at ${stageName(challenge.stage)}`;
           break;
       }
@@ -384,9 +387,7 @@ function FeedItem({ item, index }: { item: ActivityFeedItem; index: number }) {
       content = (
         <span>
           <strong>{challengePartyNames(challenge as Challenge)}</strong>{' '}
-          <Link href={challengeUrl(challenge.type, challenge.uuid)}>
-            {status}
-          </Link>
+          {status}
           {challenge.status === ChallengeStatus.COMPLETED ? ' a ' : ' in a '}
           {scaleName(challenge.scale).toLowerCase()} {name}
           {challenge.status === ChallengeStatus.COMPLETED && (
@@ -415,7 +416,8 @@ function FeedItem({ item, index }: { item: ActivityFeedItem; index: number }) {
   }
 
   return (
-    <div
+    <Link
+      href={href}
       className={`${styles.feedItem} ${mounted ? styles.newItem : ''}`}
       style={
         {
@@ -423,7 +425,9 @@ function FeedItem({ item, index }: { item: ActivityFeedItem; index: number }) {
         } as React.CSSProperties
       }
     >
-      <div className={styles.feedIcon}>{icon}</div>
+      <div className={styles.feedIcon}>
+        <i className={icon} />
+      </div>
       <div className={styles.feedContent}>{content}</div>
       <span className={styles.feedTime}>
         <ReactTimeago
@@ -431,7 +435,7 @@ function FeedItem({ item, index }: { item: ActivityFeedItem; index: number }) {
           formatter={(value: number, unit: Unit) => `${value}${unit[0]} ago`}
         />
       </span>
-    </div>
+    </Link>
   );
 }
 
