@@ -12,14 +12,13 @@ export type User = {
   createdAt: Date;
   email: string;
   emailVerified: boolean;
-
-  // TODO(frolv): This is temporary for controlling initial access to the API.
   canCreateApiKey: boolean;
-
   discordId: string | null;
   discordUsername: string | null;
 };
 
+// The ordering in this enum is significant as it is used for prioritization in
+// the database.
 export enum RecordingType {
   SPECTATOR = 0,
   PARTICIPANT = 1,

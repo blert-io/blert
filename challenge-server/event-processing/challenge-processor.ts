@@ -612,6 +612,7 @@ export default abstract class ChallengeProcessor {
 
   /**
    * Registers a user as a recorder for a challenge.
+   * @param uuid The UUID of the challenge.
    * @param userId The ID of the user.
    * @param recordingType The type of recording.
    */
@@ -620,18 +621,23 @@ export default abstract class ChallengeProcessor {
     userId: number,
     recordingType: RecordingType,
   ): Promise<void> {
-    const [challenge] = await sql<[{ id: number }?]>`
-      SELECT id FROM challenges WHERE uuid = ${uuid}
+    // Users can record the same challenge from multiple clients. If they do,
+    // prioritize a participant recording over a spectator recording.
+    const [result] = await sql<[{ id: number }?]>`
+      INSERT INTO recorded_challenges (challenge_id, recorder_id, recording_type)
+      SELECT id, ${userId}, ${recordingType}
+      FROM challenges WHERE uuid = ${uuid}
+      ON CONFLICT (challenge_id, recorder_id) DO UPDATE
+      SET recording_type = GREATEST(
+        recorded_challenges.recording_type,
+        EXCLUDED.recording_type
+      )
+      RETURNING id
     `;
 
-    if (challenge === undefined) {
+    if (result === undefined) {
       throw new Error(`Challenge ${uuid} does not exist`);
     }
-
-    await sql`
-      INSERT INTO recorded_challenges (challenge_id, recorder_id, recording_type)
-      VALUES (${challenge.id}, ${userId}, ${recordingType})
-    `;
   }
 
   private async processEvent(

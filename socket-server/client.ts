@@ -208,6 +208,14 @@ export default class Client {
   }
 
   /**
+   * Returns a stable unique identifier for the client.
+   * @returns The client ID.
+   */
+  public getClientId(): number {
+    return this.user.keyId;
+  }
+
+  /**
    * Returns the username of this client's user.
    * @returns The user's name.
    */
@@ -421,6 +429,7 @@ export default class Client {
   private logContext(extra?: Record<string, unknown>): Record<string, unknown> {
     return {
       userId: this.user.id,
+      clientId: this.getClientId(),
       username: this.user.username,
       sessionId: this.sessionId,
       loggedInRsn: this.loggedInRsn ?? undefined,
