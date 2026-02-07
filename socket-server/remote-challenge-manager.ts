@@ -83,6 +83,7 @@ export class RemoteChallengeManager extends ChallengeManager {
       },
       body: JSON.stringify({
         userId: client.getUserId(),
+        clientId: client.getClientId(),
         type: challengeType,
         mode,
         party,
@@ -129,6 +130,7 @@ export class RemoteChallengeManager extends ChallengeManager {
           },
           body: JSON.stringify({
             userId: client.getUserId(),
+            clientId: client.getClientId(),
             times,
             soft,
           }),
@@ -171,7 +173,7 @@ export class RemoteChallengeManager extends ChallengeManager {
           if (canWrite) {
             const endEvent: StageStreamEnd = {
               type: StageStreamType.STAGE_END,
-              clientId: client.getUserId(),
+              clientId: client.getClientId(),
               update: update.stage,
             };
             const streamKey = challengeStageStreamKey(
@@ -198,6 +200,7 @@ export class RemoteChallengeManager extends ChallengeManager {
         },
         body: JSON.stringify({
           userId: client.getUserId(),
+          clientId: client.getClientId(),
           update,
         }),
       });
@@ -333,7 +336,7 @@ export class RemoteChallengeManager extends ChallengeManager {
 
       const eventsStream: StageStreamEvents = {
         type: StageStreamType.STAGE_EVENTS,
-        clientId: client.getUserId(),
+        clientId: client.getClientId(),
         events: eventsMessage.serializeBinary(),
       };
       const streamKey = challengeStageStreamKey(challengeId, stage, attempt);
@@ -364,6 +367,7 @@ export class RemoteChallengeManager extends ChallengeManager {
           },
           body: JSON.stringify({
             userId: client.getUserId(),
+            clientId: client.getClientId(),
             recordingType,
           }),
         },
@@ -392,6 +396,7 @@ export class RemoteChallengeManager extends ChallengeManager {
     const event: ClientStatusEvent = {
       type: ClientEventType.STATUS,
       userId: client.getUserId(),
+      clientId: client.getClientId(),
       status,
     };
 

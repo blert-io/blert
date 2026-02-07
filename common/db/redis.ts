@@ -144,6 +144,7 @@ export enum ClientStatus {
 export type ClientEvent = {
   type: ClientEventType;
   userId: number;
+  clientId: number;
 };
 
 export type ClientStatusEvent = ClientEvent & {

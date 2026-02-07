@@ -208,6 +208,14 @@ export default class Client {
   }
 
   /**
+   * Returns a stable unique identifier for the client.
+   * @returns The client ID.
+   */
+  public getClientId(): number {
+    return this.user.keyId;
+  }
+
+  /**
    * Returns the username of this client's user.
    * @returns The user's name.
    */
