@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import { useContext } from 'react';
 
 import { DisplayContext, NavbarContext } from '@/display';
@@ -21,14 +22,14 @@ export default function Topbar() {
       <button className={styles.menu} onClick={() => setSidebarOpen(true)}>
         <span className="fa-solid fa-bars"></span>
       </button>
-      <div className={styles.image}>
+      <Link className={styles.image} href="/">
         <Image
           src={MAIN_LOGO}
           alt="Blert"
           fill
           style={{ objectFit: 'contain' }}
         />
-      </div>
+      </Link>
       <div className={styles.placeholder} />
     </div>
   );
