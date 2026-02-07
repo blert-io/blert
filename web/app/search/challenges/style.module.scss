@@ -508,14 +508,26 @@
         padding: 4px 12px;
 
         button.remove {
-          margin-left: 12px;
+          cursor: pointer;
+          margin: -12px 0 0 12px;
           font-size: 18px;
-          color: var(--blert-font-color-secondary);
-          transition: color 0.2s ease;
+          width: 26px;
+          height: 26px;
+          color: rgba(var(--blert-red-base), 0.5);
+          background: rgba(var(--blert-red-base), 0.1);
+          border: 1px solid rgba(var(--blert-red-base), 0.2);
+          border-radius: 6px;
+          padding: 0;
+          transition: all 0.2s ease;
+
+          i {
+            position: relative;
+            top: -1px;
+          }
 
           &:hover {
-            cursor: pointer;
-            color: var(--blert-purple);
+            color: var(--blert-red);
+            border-color: rgba(var(--blert-red-base), 0.5);
           }
         }
       }

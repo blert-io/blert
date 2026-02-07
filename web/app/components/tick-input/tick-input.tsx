@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 
 import Input, { InputProps } from '@/components/input';
+import Menu, { MenuItem } from '@/components/menu';
 import { ticksFromTime, ticksToFormattedSeconds } from '@/utils/tick';
 
 import { Comparator } from './comparator';
@@ -11,7 +12,7 @@ import styles from './style.module.scss';
 
 type TickInputProps = Omit<
   InputProps,
-  'horizontalPadding' | 'onChange' | 'type' | 'value'
+  'horizontalPadding' | 'onChange' | 'placeholder' | 'type' | 'value'
 > & {
   comparator?: boolean;
   initialTicks?: number;
@@ -23,17 +24,33 @@ type TickInputProps = Omit<
 function comparatorIcon(comparator: Comparator): string {
   switch (comparator) {
     case Comparator.EQUAL:
-      return 'equals';
+      return 'fa-equals';
     case Comparator.LESS_THAN:
-      return 'less-than';
+      return 'fa-less-than';
     case Comparator.GREATER_THAN:
-      return 'greater-than';
+      return 'fa-greater-than';
     case Comparator.LESS_THAN_OR_EQUAL:
-      return 'less-than-equal';
+      return 'fa-less-than-equal';
     case Comparator.GREATER_THAN_OR_EQUAL:
-      return 'greater-than-equal';
+      return 'fa-greater-than-equal';
   }
 }
+
+const COMPARATOR_MENU_ITEMS: MenuItem[] = [
+  { label: 'Equal to', secondary: '=', value: Comparator.EQUAL },
+  { label: 'Less than', secondary: '<', value: Comparator.LESS_THAN },
+  {
+    label: 'At most',
+    secondary: '\u2264',
+    value: Comparator.LESS_THAN_OR_EQUAL,
+  },
+  { label: 'Greater than', secondary: '>', value: Comparator.GREATER_THAN },
+  {
+    label: 'At least',
+    secondary: '\u2265',
+    value: Comparator.GREATER_THAN_OR_EQUAL,
+  },
+];
 
 function normalizeTimeString(time: string): string {
   if (time === ':') {
@@ -81,6 +98,10 @@ export default function TickInput(props: TickInputProps) {
   const [comparator, setComparator] = useState<Comparator>(
     props.initialComparator ?? Comparator.EQUAL,
   );
+  const [invalid, setInvalid] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const comparatorButtonId = `${props.id}-comparator`;
 
   function callOnChange(val?: string, cmp?: Comparator) {
     const v = val ?? value;
@@ -97,24 +118,14 @@ export default function TickInput(props: TickInputProps) {
     props.onChange?.(ticks, props.comparator ? c : undefined);
   }
 
-  const cycleComparator = () => {
-    const newComparator =
-      comparator === Comparator.EQUAL
-        ? Comparator.LESS_THAN
-        : comparator === Comparator.LESS_THAN
-          ? Comparator.GREATER_THAN
-          : Comparator.EQUAL;
-    setComparator(newComparator);
-    callOnChange(undefined, newComparator);
-  };
-
   function toggleTicks() {
     setDisplayTicks(!displayTicks);
     setValue(convertValue(value, !displayTicks));
+    setInvalid(false);
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
+    if (e.key === 't' || e.key === 'T') {
       e.preventDefault();
       toggleTicks();
     }
@@ -124,17 +135,28 @@ export default function TickInput(props: TickInputProps) {
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (/^[0-9:.]*$/.test(e.target.value)) {
       setValue(e.target.value);
+      setInvalid(false);
       callOnChange(e.target.value);
     }
   };
 
   const onBlur = () => {
-    if (!displayTicks && value !== '') {
+    if (value === '') {
+      setInvalid(false);
+      return;
+    }
+
+    if (!displayTicks) {
       let ticks = ticksFromTime(normalizeTimeString(value));
-      if (ticks !== null && props.round) {
+      if (ticks === null) {
+        setInvalid(true);
+        return;
+      }
+      setInvalid(false);
+      if (props.round) {
         ticks = Math.ceil(ticks / props.round) * props.round;
       }
-      const formatted = ticks !== null ? ticksToFormattedSeconds(ticks) : '';
+      const formatted = ticksToFormattedSeconds(ticks);
       if (formatted !== value) {
         setValue(formatted);
         props.onChange?.(ticks, props.comparator ? comparator : undefined);
@@ -144,34 +166,63 @@ export default function TickInput(props: TickInputProps) {
 
   return (
     <div className={styles.tickInput}>
-      <Input
-        {...props}
-        horizontalPadding={props.comparator ? 36 : undefined}
-        onBlur={onBlur}
-        onChange={onChange}
-        onKeyDown={onKeyDown}
-        maxLength={displayTicks ? 6 : 10}
-        ref={ref}
-        value={value}
-        type={displayTicks ? 'number' : 'text'}
-      />
-      <div className={styles.typeBar}>
-        <button disabled={!displayTicks} onClick={toggleTicks} type="button">
-          <i className="far fa-clock" />
-        </button>
-        <button disabled={displayTicks} onClick={toggleTicks} type="button">
-          <i className="fas fa-stopwatch" />
-        </button>
+      <div className={styles.inputArea}>
+        <Input
+          {...props}
+          errorMessage="Invalid time"
+          horizontalPadding={props.comparator ? 36 : undefined}
+          invalid={invalid}
+          onBlur={onBlur}
+          onChange={onChange}
+          onKeyDown={onKeyDown}
+          maxLength={displayTicks ? 6 : 10}
+          placeholder={displayTicks ? undefined : '0:00.0'}
+          ref={ref}
+          value={value}
+          type={displayTicks ? 'number' : 'text'}
+        />
+        {props.comparator && (
+          <>
+            <button
+              className={styles.comparator}
+              id={comparatorButtonId}
+              onClick={() => setMenuOpen(!menuOpen)}
+              type="button"
+            >
+              <i className={`fas ${comparatorIcon(comparator)}`} />
+            </button>
+            <Menu
+              attach="bottom"
+              items={COMPARATOR_MENU_ITEMS}
+              onClose={() => setMenuOpen(false)}
+              onSelection={(value) => {
+                const newComparator = value as Comparator;
+                setComparator(newComparator);
+                callOnChange(undefined, newComparator);
+              }}
+              open={menuOpen}
+              targetId={comparatorButtonId}
+              width={170}
+            />
+          </>
+        )}
       </div>
-      {props.comparator && (
+      <div className={styles.modeToggle}>
         <button
-          className={styles.comparator}
-          onClick={cycleComparator}
+          className={!displayTicks ? styles.active : undefined}
+          onClick={displayTicks ? toggleTicks : undefined}
           type="button"
         >
-          <i className={`fas fa-${comparatorIcon(comparator)}`} />
+          Time
         </button>
-      )}
+        <button
+          className={displayTicks ? styles.active : undefined}
+          onClick={!displayTicks ? toggleTicks : undefined}
+          type="button"
+        >
+          Ticks
+        </button>
+      </div>
     </div>
   );
 }

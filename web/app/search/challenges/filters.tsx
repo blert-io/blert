@@ -461,6 +461,7 @@ export default function Filters({
           <PlayerSearch
             disabled={loading || context.filters.party.length >= 5}
             label="Enter username"
+            labelBg="var(--blert-surface-dark)"
             id="filters-player"
             onSelection={(username) =>
               setContext((prev) => {
@@ -842,6 +843,7 @@ function CustomFilters({
                 id={`filters-split-${split}`}
                 initialComparator={splitInputs[split]?.comparator}
                 initialTicks={splitInputs[split]?.ticks ?? undefined}
+                labelBg="var(--blert-surface-dark)"
                 onChange={(ticks, comparator) => {
                   setModified(true);
                   setSplitInputs((prev) => ({

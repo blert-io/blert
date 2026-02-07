@@ -19,6 +19,7 @@ export type InputProps = {
   maxLength?: number;
   minLength?: number;
   pattern?: string;
+  placeholder?: string;
   onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void;
@@ -71,7 +72,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           onFocus={props.onFocus}
           onKeyDown={props.onKeyDown}
           pattern={props.pattern}
-          placeholder=" "
+          placeholder={props.placeholder ?? ' '}
           style={style}
           ref={ref}
           required={props.required}
