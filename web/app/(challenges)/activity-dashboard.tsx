@@ -172,6 +172,140 @@ function PlayerAxisTick({
   );
 }
 
+function niceAxisConfig(dataMax: number): { max: number; ticks: number[] } {
+  if (dataMax <= 0) {
+    return { max: 4, ticks: [0, 1, 2, 3, 4] };
+  }
+
+  const rawStep = dataMax / 5;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const normalized = rawStep / magnitude;
+
+  let niceStep: number;
+  if (normalized <= 1) {
+    niceStep = magnitude;
+  } else if (normalized <= 2) {
+    niceStep = 2 * magnitude;
+  } else if (normalized <= 5) {
+    niceStep = 5 * magnitude;
+  } else {
+    niceStep = 10 * magnitude;
+  }
+
+  niceStep = Math.max(1, niceStep);
+
+  const max = Math.max(4, (Math.floor(dataMax / niceStep) + 1) * niceStep);
+  const ticks: number[] = [];
+  for (let i = 0; i <= max; i += niceStep) {
+    ticks.push(i);
+  }
+
+  return { max, ticks };
+}
+
+function PlayerActivityChart({
+  challengeType,
+  playerData,
+  isSolo,
+  isLoading,
+}: {
+  challengeType: ChallengeType;
+  playerData: ChartValue<string>[];
+  isSolo: boolean;
+  isLoading: boolean;
+}) {
+  if (isLoading) {
+    return <BarChartSkeleton />;
+  }
+
+  if (playerData.length === 0) {
+    return (
+      <EmptyPlaceholder
+        message={EMPTY_PLAYERS_MESSAGES.map((m) =>
+          m.replace('{challenge}', challengeName(challengeType)),
+        )}
+        icon="fa-user"
+      />
+    );
+  }
+
+  const maxValue = Math.max(...playerData.map((d) => d.value));
+  const { max: axisMax, ticks: axisTicks } = niceAxisConfig(maxValue);
+
+  return (
+    <ResponsiveContainer width="100%" height={400}>
+      <BarChart data={playerData} layout="vertical">
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(94, 98, 136, 0.3)" />
+        <XAxis
+          type="number"
+          tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 12 }}
+          axisLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
+          tickLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
+          allowDecimals={false}
+          domain={[0, axisMax]}
+          ticks={axisTicks}
+        />
+        <YAxis
+          dataKey="key"
+          type="category"
+          width={110}
+          tick={PlayerAxisTick}
+          axisLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
+          tickLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
+        />
+        <Tooltip
+          contentStyle={{
+            backgroundColor: 'var(--blert-panel-background-color)',
+            border: '1px solid rgba(88, 101, 242, 0.15)',
+            borderRadius: '6px',
+            color: 'var(--blert-font-color-primary)',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+          }}
+          cursor={{ fill: 'rgba(88, 101, 242, 0.1)' }}
+          labelFormatter={(label: string) => {
+            return (
+              <span
+                style={{
+                  fontWeight: 600,
+                  color: 'var(--blert-font-color-secondary)',
+                }}
+              >
+                {label}
+              </span>
+            );
+          }}
+          formatter={(value: number) => [
+            <span
+              key="challenges"
+              style={{ color: 'var(--blert-font-color-primary)' }}
+            >
+              {value.toLocaleString()} {isSolo ? 'run' : 'raid'}
+              {value === 1 ? '' : 's'}
+            </span>,
+          ]}
+        />
+        <Bar dataKey="value" fill="url(#barGradient)" radius={[0, 4, 4, 0]}>
+          <LabelList dataKey="value" position="insideRight" fill="#fff" />
+        </Bar>
+        <defs>
+          <linearGradient id="barGradient" x1="1" y1="0" x2="0" y2="0">
+            <stop
+              offset="0%"
+              stopColor="rgb(88, 101, 242)"
+              stopOpacity={0.95}
+            />
+            <stop
+              offset="100%"
+              stopColor="rgb(68, 79, 191)"
+              stopOpacity={0.8}
+            />
+          </linearGradient>
+        </defs>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
 function DonutTooltip({
   challengeType,
   active,
@@ -621,93 +755,12 @@ export default function ActivityDashboard({
 
       <Card className={styles.playersCard}>
         <SectionTitle icon="fa-crown">Most Active Players</SectionTitle>
-        {isLoading || !isClient ? (
-          <BarChartSkeleton />
-        ) : playerData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={playerData} layout="vertical">
-              <CartesianGrid
-                strokeDasharray="3 3"
-                stroke="rgba(94, 98, 136, 0.3)"
-              />
-              <XAxis
-                type="number"
-                tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 12 }}
-                axisLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
-                tickLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
-                allowDecimals={false}
-                domain={[0, 'dataMax']}
-              />
-              <YAxis
-                dataKey="key"
-                type="category"
-                width={110}
-                tick={PlayerAxisTick}
-                axisLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
-                tickLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'var(--blert-panel-background-color)',
-                  border: '1px solid rgba(88, 101, 242, 0.15)',
-                  borderRadius: '6px',
-                  color: 'var(--blert-font-color-primary)',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-                }}
-                cursor={{ fill: 'rgba(88, 101, 242, 0.1)' }}
-                labelFormatter={(label: string) => {
-                  return (
-                    <span
-                      style={{
-                        fontWeight: 600,
-                        color: 'var(--blert-font-color-secondary)',
-                      }}
-                    >
-                      {label}
-                    </span>
-                  );
-                }}
-                formatter={(value: number) => [
-                  <span
-                    key="challenges"
-                    style={{ color: 'var(--blert-font-color-primary)' }}
-                  >
-                    {value.toLocaleString()} {isSolo ? 'run' : 'raid'}
-                    {value === 1 ? '' : 's'}
-                  </span>,
-                ]}
-              />
-              <Bar
-                dataKey="value"
-                fill="url(#barGradient)"
-                radius={[0, 4, 4, 0]}
-              >
-                <LabelList dataKey="value" position="insideRight" fill="#fff" />
-              </Bar>
-              <defs>
-                <linearGradient id="barGradient" x1="1" y1="0" x2="0" y2="0">
-                  <stop
-                    offset="0%"
-                    stopColor="rgb(88, 101, 242)"
-                    stopOpacity={0.95}
-                  />
-                  <stop
-                    offset="100%"
-                    stopColor="rgb(68, 79, 191)"
-                    stopOpacity={0.8}
-                  />
-                </linearGradient>
-              </defs>
-            </BarChart>
-          </ResponsiveContainer>
-        ) : (
-          <EmptyPlaceholder
-            message={EMPTY_PLAYERS_MESSAGES.map((m) =>
-              m.replace('{challenge}', challengeName(challengeType)),
-            )}
-            icon="fa-user"
-          />
-        )}
+        <PlayerActivityChart
+          challengeType={challengeType}
+          playerData={playerData}
+          isSolo={isSolo}
+          isLoading={isLoading || !isClient}
+        />
       </Card>
 
       <Card>

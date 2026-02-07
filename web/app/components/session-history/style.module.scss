@@ -130,6 +130,8 @@
 }
 
 .sessionName {
+  display: flex;
+  flex-wrap: wrap;
   width: fit-content;
   font-size: 1.25rem;
   font-weight: 600;
@@ -140,6 +142,37 @@
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     font-size: 1.1rem;
   }
+}
+
+.partyPlayerLink span {
+  color: var(--blert-font-color-primary);
+  text-decoration: none;
+  position: relative;
+
+  &::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: -1px;
+    width: 0;
+    height: 1px;
+    background: var(--blert-purple);
+    transform: translateX(-50%);
+    transition: width 0.2s ease;
+  }
+
+  &:hover {
+    color: var(--blert-font-color-primary);
+    text-decoration: none;
+
+    &::after {
+      width: 100%;
+    }
+  }
+}
+
+.partySeparator {
+  margin-right: 0.33rem;
 }
 
 .sessionMeta {
