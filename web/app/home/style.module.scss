@@ -509,7 +509,6 @@
         .feedIcon {
           transform: scale(1.1);
           background: rgba(var(--blert-purple-base), 0.2);
-          color: var(--blert-purple);
         }
       }
 
@@ -536,6 +535,18 @@
         border-radius: 8px;
         transition: all 0.2s ease;
         flex-shrink: 0;
+
+        .challengeCompleted {
+          color: var(--blert-green);
+        }
+
+        .challengeReset {
+          color: var(--blert-font-color-primary);
+        }
+
+        .challengeWiped {
+          color: var(--blert-red);
+        }
 
         &.skeleton {
           background: var(--blert-panel-background-color);

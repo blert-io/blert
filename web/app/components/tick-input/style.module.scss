@@ -1,55 +1,71 @@
 .tickInput {
-  position: relative;
   width: fit-content;
 
-  .input {
-    &.comparator {
-      padding-left: 40px;
-    }
+  .inputArea {
+    position: relative;
   }
 
-  .typeBar {
-    position: absolute;
-    right: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    height: 40px;
-    font-size: 14px;
+  .modeToggle {
     display: flex;
-    flex-direction: column;
-    justify-content: space-evenly;
-    align-items: center;
-    border-left: 1px solid rgba(var(--blert-purple-base), 0.1);
+    justify-content: center;
+    margin-top: -11px;
 
     button {
-      padding: 2px 6px;
+      padding: 3px 10px;
+      font-size: 11px;
+      font-weight: 500;
       color: var(--blert-font-color-secondary);
+      border: 1px solid var(--blert-divider-color);
+      transition: all 0.15s ease;
 
-      &:disabled {
-        color: var(--blert-purple);
+      &:first-child {
+        border-radius: 0 0 0 4px;
+        border-right: none;
       }
 
-      &:not(:disabled):hover {
+      &:last-child {
+        border-radius: 0 0 4px 0;
+        border-left: none;
+      }
+
+      &:not(.active):hover {
         cursor: pointer;
         color: var(--blert-font-color-primary);
+        background: rgba(var(--blert-surface-light-base), 0.4);
       }
+    }
+
+    .active {
+      color: var(--blert-purple);
+      background: rgba(var(--blert-purple-base), 0.1);
     }
   }
 
   .comparator {
     position: absolute;
-    left: 0;
+    left: 1px;
     top: 50%;
     transform: translateY(-50%);
-    height: 40px;
-    padding: 0 10px 0 14px;
+    width: 28px;
+    height: calc(100% - 22px);
     display: flex;
     align-items: center;
-    font-family: var(--font-roboto-mono), monospace;
+    justify-content: center;
+    color: var(--blert-purple);
+    background: rgba(var(--blert-surface-light-base), 0.2);
+    border-right: 1px solid var(--blert-divider-color);
+    font-size: 12px;
+    transition: all 0.15s ease;
+
+    i {
+      position: relative;
+      left: 1px;
+    }
 
     &:hover {
       cursor: pointer;
-      color: #fff;
+      color: var(--blert-font-color-primary);
+      background: rgba(var(--blert-surface-light-base), 0.45);
     }
   }
 }

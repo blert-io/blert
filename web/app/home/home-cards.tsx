@@ -371,15 +371,15 @@ function FeedItem({ item, index }: { item: ActivityFeedItem; index: number }) {
 
       switch (challenge.status) {
         case ChallengeStatus.COMPLETED:
-          icon = 'fa-solid fa-flag-checkered';
+          icon = `fa-solid fa-flag-checkered ${styles.challengeCompleted}`;
           status = 'completed';
           break;
         case ChallengeStatus.RESET:
-          icon = 'fa-solid fa-rotate-left';
+          icon = `fa-solid fa-rotate-left ${styles.challengeReset}`;
           status = `reset after ${stageName(challenge.stage)}`;
           break;
         case ChallengeStatus.WIPED:
-          icon = 'fa-solid fa-skull';
+          icon = `fa-solid fa-skull ${styles.challengeWiped}`;
           status = `wiped at ${stageName(challenge.stage)}`;
           break;
       }

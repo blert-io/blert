@@ -40,6 +40,15 @@
       visibility: hidden;
     }
 
+    &::placeholder {
+      color: transparent;
+      transition: color 0.2s;
+    }
+
+    &:focus::placeholder {
+      color: var(--blert-font-color-secondary);
+    }
+
     &:disabled {
       opacity: 0.5;
     }
