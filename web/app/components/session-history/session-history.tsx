@@ -11,6 +11,7 @@ import { useDeferredValue, useEffect, useState } from 'react';
 import TimeAgo from 'react-timeago';
 
 import { ChallengeOverview, SessionWithChallenges } from '@/actions/challenge';
+import PlayerLink from '@/components/player-link';
 import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 import { useClientOnly } from '@/hooks/client-only';
 import {
@@ -198,7 +199,20 @@ function SessionCard({
       <div className={styles.sessionHeader} onClick={onToggle}>
         <div className={styles.sessionTitle}>
           <div className={styles.sessionInfo}>
-            <h3 className={styles.sessionName}>{session.party.join(', ')}</h3>
+            <h3 className={styles.sessionName}>
+              {session.party.map((name, i) => (
+                <span key={name}>
+                  <PlayerLink
+                    username={name}
+                    className={styles.partyPlayerLink}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  {i < session.party.length - 1 && (
+                    <span className={styles.partySeparator}>, </span>
+                  )}
+                </span>
+              ))}
+            </h3>
             <div className={styles.sessionMeta}>
               {isActiveSession && (
                 <>
@@ -235,7 +249,7 @@ function SessionCard({
               data-tooltip-id={GLOBAL_TOOLTIP_ID}
               data-tooltip-content="View session details"
             >
-              <i className="fas fa-external-link-alt" />
+              <i className="fas fa-eye" />
             </Link>
             <button className={styles.expandButton}>
               <i className={`fas fa-chevron-${isExpanded ? 'up' : 'down'}`} />
