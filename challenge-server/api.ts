@@ -124,6 +124,7 @@ async function challengeApiHandler(
 
 type NewChallengeRequest = {
   userId: number;
+  clientId: number;
   type: ChallengeType;
   mode: ChallengeMode;
   stage: Stage;
@@ -138,10 +139,11 @@ async function newChallenge(req: Request, res: Response): Promise<void> {
     req,
     res,
     '/challenges/new',
-    { userId: request.userId, action: 'new' },
+    { userId: request.userId, clientId: request.clientId, action: 'new' },
     async () => {
       const result = await res.locals.challengeManager.createOrJoin(
         request.userId,
+        request.clientId,
         request.type,
         request.mode,
         request.stage,
@@ -155,6 +157,7 @@ async function newChallenge(req: Request, res: Response): Promise<void> {
 
 type UpdateChallengeRequest = {
   userId: number;
+  clientId: number;
   update: ChallengeUpdate;
 };
 
@@ -166,11 +169,17 @@ async function updateChallenge(req: Request, res: Response): Promise<void> {
     req,
     res,
     '/challenges/:challengeId',
-    { challengeUuid: challengeId, userId: request.userId, action: 'update' },
+    {
+      challengeUuid: challengeId,
+      userId: request.userId,
+      clientId: request.clientId,
+      action: 'update',
+    },
     async () => {
       const result = await res.locals.challengeManager.update(
         challengeId,
         request.userId,
+        request.clientId,
         request.update,
       );
       if (result === null) {
@@ -184,6 +193,7 @@ async function updateChallenge(req: Request, res: Response): Promise<void> {
 
 type FinishChallengeRequest = {
   userId: number;
+  clientId: number;
   times: ReportedTimes | null;
   soft: boolean;
 };
@@ -196,11 +206,17 @@ async function finishChallenge(req: Request, res: Response): Promise<void> {
     req,
     res,
     '/challenges/:challengeId/finish',
-    { challengeUuid: challengeId, userId: request.userId, action: 'finish' },
+    {
+      challengeUuid: challengeId,
+      userId: request.userId,
+      clientId: request.clientId,
+      action: 'finish',
+    },
     async () => {
       await res.locals.challengeManager.finish(
         challengeId,
         request.userId,
+        request.clientId,
         request.times,
         request.soft,
       );
@@ -211,6 +227,7 @@ async function finishChallenge(req: Request, res: Response): Promise<void> {
 
 type JoinChallengeRequest = {
   userId: number;
+  clientId: number;
   recordingType: RecordingType;
 };
 
@@ -222,11 +239,17 @@ async function joinChallenge(req: Request, res: Response): Promise<void> {
     req,
     res,
     '/challenges/:challengeId/join',
-    { challengeUuid: challengeId, userId: request.userId, action: 'join' },
+    {
+      challengeUuid: challengeId,
+      userId: request.userId,
+      clientId: request.clientId,
+      action: 'join',
+    },
     async () => {
       const status = await res.locals.challengeManager.addClient(
         challengeId,
         request.userId,
+        request.clientId,
         request.recordingType,
       );
       res.json(status);
