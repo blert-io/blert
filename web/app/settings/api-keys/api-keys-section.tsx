@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { ApiKeyWithUsername } from '@/actions/users';
 
@@ -17,6 +17,10 @@ export default function ApiKeysSection({
   initialApiKeys,
 }: ApiKeysSectionProps) {
   const [apiKeys, setApiKeys] = useState(initialApiKeys);
+  const existingPlayers = useMemo(
+    () => new Set(apiKeys.map((key) => key.rsn.toLowerCase())),
+    [apiKeys],
+  );
 
   const handleDelete = (deletedKey: ApiKeyWithUsername) => {
     setApiKeys(apiKeys.filter((key) => key.id !== deletedKey.id));
@@ -55,6 +59,7 @@ export default function ApiKeysSection({
         <h3>Generate new API key</h3>
         <ApiKeyForm
           onApiKeyGenerated={(key) => setApiKeys((prev) => [...prev, key])}
+          existingPlayers={existingPlayers}
         />
       </div>
     </section>

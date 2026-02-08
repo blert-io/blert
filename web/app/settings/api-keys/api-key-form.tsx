@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 
 import {
@@ -13,8 +13,13 @@ import Input from '@/components/input';
 
 import styles from '../style.module.scss';
 
-function FormFields() {
+function FormFields({ existingPlayers }: { existingPlayers: Set<string> }) {
   const { pending } = useFormStatus();
+
+  const [rsn, setRsn] = useState('');
+
+  const existingKey = existingPlayers.has(rsn.toLowerCase().trim());
+  const canSubmit = rsn.length > 0 && !existingKey;
 
   return (
     <>
@@ -27,8 +32,12 @@ function FormFields() {
         maxLength={12}
         required
         faIcon="fa-solid fa-user"
+        value={rsn}
+        onChange={(e) => setRsn(e.target.value)}
+        invalid={existingKey}
+        errorMessage="You already have an API key for this player"
       />
-      <Button loading={pending} type="submit" fluid>
+      <Button disabled={!canSubmit} loading={pending} type="submit" fluid>
         Generate API key
       </Button>
     </>
@@ -37,8 +46,10 @@ function FormFields() {
 
 export default function ApiKeyForm({
   onApiKeyGenerated,
+  existingPlayers,
 }: {
   onApiKeyGenerated: (apiKey: ApiKeyWithUsername) => void;
+  existingPlayers: Set<string>;
 }) {
   const [state, formAction] = useActionState(
     async (formState: ApiKeyFormState, formData: FormData) =>
@@ -53,7 +64,7 @@ export default function ApiKeyForm({
 
   return (
     <form action={formAction}>
-      <FormFields />
+      <FormFields existingPlayers={existingPlayers} />
       {state.error && <p className={styles.error}>{state.error}</p>}
     </form>
   );
