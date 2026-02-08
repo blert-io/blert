@@ -1358,7 +1358,13 @@ export default abstract class ChallengeProcessor {
     }
 
     if (queryableEvents.length > 0) {
-      await sql`INSERT INTO queryable_events ${sql(queryableEvents)}`;
+      const BATCH_SIZE = 300;
+      await sql.begin(async (tx) => {
+        for (let i = 0; i < queryableEvents.length; i += BATCH_SIZE) {
+          const batch = queryableEvents.slice(i, i + BATCH_SIZE);
+          await tx`INSERT INTO queryable_events ${sql(batch)}`;
+        }
+      });
     }
 
     return queryableEvents.length;
