@@ -292,17 +292,13 @@ $FIXED_TOC_MARGIN: 40px;
     transition: all 0.2s ease;
     font-weight: 500;
 
+    & > i:last-child {
+      margin-left: 0.25rem;
+    }
+
     &:hover {
       border-bottom-color: var(--blert-purple);
       color: rgba(var(--blert-purple-base), 0.8);
-
-      & > i:last-child {
-        transform: translateX(0.2rem);
-      }
-    }
-
-    & > i:last-child {
-      transition: transform 0.2s ease;
     }
   }
 

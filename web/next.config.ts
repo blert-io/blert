@@ -73,6 +73,11 @@ const nextConfig: NextConfig = {
         destination: '/search/challenges',
         permanent: true,
       },
+      {
+        source: '/guides/blert/install',
+        destination: '/guides/blert/getting-started',
+        permanent: true,
+      },
     ];
   },
   turbopack: {
@@ -88,6 +93,10 @@ const nextConfig: NextConfig = {
     rules: {
       '*.svg': {
         loaders: ['@svgr/webpack'],
+        as: '*.js',
+      },
+      '*.mdx': {
+        loaders: ['./config/raw-loader.js'],
         as: '*.js',
       },
     },

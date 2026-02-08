@@ -1,0 +1,175 @@
+# Blert Developer Installation Guide
+
+This guide will walk you through the steps to install Blert in a development
+RuneLite client.
+
+## Option 1: Full Setup (for new users)
+
+This is the recommended path if you don't already have a developer RuneLite
+client.
+
+### Step 1: Install Git
+
+Blert uses Git behind the scenes to manage its code. You'll need to install Git
+**system-wide**.
+
+<Notice type="warning">
+
+IntelliJ's bundled Git will not work. You must install Git system-wide for Blert
+to build correctly.
+
+</Notice>
+
+- [Download Git](https://git-scm.com/downloads)
+- Choose default settings during installation.
+
+### Step 2: Install IntelliJ IDEA
+
+- [Download IntelliJ IDEA](https://www.jetbrains.com/idea/download).
+- Install with default settings. You do not need to purchase a license.
+
+### Step 3: Clone the Blert Repository
+
+1. Open IntelliJ, then click **Get from VCS** on the welcome screen.
+
+   If you don&apos;t see the welcome screen, click **File** →
+   **New** →
+   **Project from Version Control…**
+
+2. Make sure the **Version Control** dropdown is set to
+   **Git**, then choose a folder to save the project and
+   paste the following into the **URL** field:
+
+   ```plaintext
+   https://github.com/blert-io/plugin
+   ```
+
+   <Image
+     src="/images/guides/blert/intellij-clone.png"
+     alt="IntelliJ clone repository"
+     width={589}
+     height={130}
+     unoptimized
+     sizes="(max-width: 768px) 100vw, 589px"
+     style={{ width: '100%', height: 'auto', maxWidth: '589px' }}
+   />
+
+3. Wait for Gradle sync to complete (watch the bottom status bar).
+
+### Step 4: Set Up the Run Configuration
+
+1. In the sidebar, navigate through the folders
+   <br />
+   <i className="fa-solid fa-folder-open" />
+   `plugin` → <i className="fa-solid fa-folder-open" />
+   `src` → <i className="fa-solid fa-folder-open" />
+   `main` → <i className="fa-solid fa-folder-open" />
+   `java` → <i className="fa-solid fa-folder-open" />
+   `io.blert`
+2. Right-click on `BlertPluginTest` and select
+   **Modify Run Configuration…**
+3. From the **Modify options** dropdown, select
+   **Add VM options**.
+4. In the **VM options** field, enter `-ea`.
+5. Click **OK** to save the configuration.
+
+Once complete, your run configuration should look similar to the image
+below (your Java version may differ).
+
+<Image
+  src="/images/guides/blert/intellij-run-configuration.png"
+  alt="IntelliJ run configuration"
+  width={500}
+  height={200}
+  unoptimized
+  sizes="(max-width: 768px) 100vw, 500px"
+  style={{ width: '100%', height: 'auto', maxWidth: '500px' }}
+/>
+
+### Step 5: Run Blert
+
+Either right-click on `BlertPluginTest` and select
+**Run 'BlertPluginTest.main()'**, or click the green
+Run <i style={{ color: 'var(--blert-green)' }} className="fas fa-play" />{' '}
+button in the top-right corner of IntelliJ. This will launch a RuneLite
+client with Blert loaded.
+
+<Notice type="success">
+
+If you see the Bloat icon in your RuneLite sidebar, you&apos;ve
+successfully installed Blert!
+
+</Notice>
+
+### Optional: Logging in with a Jagex Account
+
+If you use a **Jagex Account** to log in to Old School
+RuneScape, you&apos;ll need to enable support for it in your developer
+RuneLite client. Follow the official RuneLite guide here:
+
+[RuneLite Wiki: Using Jagex Accounts](https://github.com/runelite/runelite/wiki/Using-Jagex-Accounts)
+
+<Notice type="info">
+
+Jagex Account login requires extra configuration compared to email and
+password login. Make sure you complete these steps before trying to
+sign in with your Jagex Account.
+
+</Notice>
+
+## Option 2: Sideload Blert (for users with an existing dev RuneLite setup)
+
+### Step 1: Download the Blert JAR
+
+Ping a <strong style={{ color: '#e91e63' }}>@Support</strong> member in{' '}
+[Blert&apos;s Discord](https://discord.gg/c5Hgv3NnYe){' '}
+telling them you&apos;d like to sideload Blert. They&apos;ll give you access to a
+channel where you can download the latest plugin `.jar` file.
+
+### Step 2: Move the File into sideloaded-plugins
+
+Go to your RuneLite user folder and create a folder named
+`sideloaded-plugins`. Then move the `.jar` file into it.
+
+<Tabs
+  tabs={[
+    {
+      id: 'windows',
+      label: 'Windows',
+      content: (
+        <Code language="plaintext">
+          {'C:\\Users\\<yourname>\\.runelite\\sideloaded-plugins'}
+        </Code>
+      ),
+    },
+    {
+      id: 'macos',
+      label: 'macOS',
+      content: (
+        <Code language="plaintext">
+          {'/Users/<yourname>/.runelite/sideloaded-plugins'}
+        </Code>
+      ),
+    },
+    {
+      id: 'linux',
+      label: 'Linux',
+      content: (
+        <Code language="plaintext">{'~/.runelite/sideloaded-plugins'}</Code>
+      ),
+    },
+  ]}
+  defaultTab="windows"
+/>
+
+### Step 3: Launch Your Dev Client
+
+Open your development RuneLite client. Blert should appear in the plugin
+list automatically.
+
+## Next: Generate Your API Key
+
+Once Blert is running, you&apos;ll need to generate an API key and paste it
+into the plugin&apos;s settings.
+
+[Click here to continue setting up your plugin <i className="fas fa-arrow-right" />](/guides/blert/getting-started)

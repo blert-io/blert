@@ -1,0 +1,106 @@
+# Getting Started with Blert
+
+This guide will walk you through the steps to get Blert running in
+RuneLite and start recording your first challenge.
+
+## Step 1: Download the Blert Plugin
+
+Download the Blert plugin from the
+[RuneLite Plugin Hub](https://runelite.net/plugin-hub/show/blert).
+
+## Step 2: Create a Blert Account
+
+If you don't already have a Blert account,
+[sign up here](/register). Your Blert username doesn't have to be the same as
+your OSRS account. Verify your email address to ensure you don't lose access to
+your account.
+
+## Step 3: Request API Key Access
+
+Open your [Linked Accounts](/settings/linked-accounts) page and click the
+**Generate Linking Code** button under the **Discord** section. Copy the
+generated code, then run the `/verify <code>` command in
+[Blert's Discord](https://discord.gg/c5Hgv3NnYe).
+
+Once your Discord account is linked, ping a
+
+<strong style={{ color: '#e91e63' }}>@Support</strong> asking for API key
+access.
+
+## Step 4: Generate Your API Key
+
+1. Once you have API key access, go to the
+   [API Keys page](/settings/api-keys).
+2. Enter your OSRS username in the **Generate new API key**
+   section and click **Generate API Key**.
+3. Copy the generated key using the <i className="fas fa-copy" /> copy
+   icon.
+
+<Image
+  src="/images/guides/blert/api-key-panel.png"
+  alt="API key generation panel"
+  width={600}
+  height={168}
+  unoptimized
+  sizes="(max-width: 768px) 100vw, 600px"
+  style={{ width: '100%', height: 'auto', maxWidth: '600px' }}
+/>
+
+## Step 5: Enter the Key in RuneLite
+
+1. Open RuneLite and go to the **Blert** plugin settings.
+2. Paste your API key into the **Blert API Key** field.
+3. Close the settings tab and you're done!
+
+<Notice type="success">
+
+You can confirm the plugin is connected by clicking the Bloat icon in your
+RuneLite sidebar. If everything is working, you'll see your username and
+connection status listed at the top of the plugin panel.
+
+<Image
+  src="/images/guides/blert/plugin-connected.png"
+  alt="Plugin connected status"
+  width={460}
+  height={156}
+  unoptimized
+  style={{
+    margin: '1em 0 0 0',
+    width: '100%',
+    height: 'auto',
+    maxWidth: '320px',
+  }}
+  sizes="(max-width: 768px) 100vw, 460px"
+/>
+
+</Notice>
+
+## Step 6: Record Your First PvM Challenge
+
+You're now ready to start recording! Enter any PvM challenge like the
+Theatre of Blood or Inferno and Blert will automatically detect your run
+and begin tracking data.
+
+## Troubleshooting
+
+### Invalid API Key
+
+- Double-check that you copied the full key.
+- Ensure the key is associated with the OSRS name you're logged into.
+- If needed, regenerate the key from the
+  [API Keys page](/settings/api-keys).
+
+### No Data Uploading
+
+- Open the plugin sidebar and confirm you see your username connected.
+- Ensure the raid was properly started (e.g. not in a lobby).
+- Data is uploaded at the end of challenge stages (e.g. rooms/waves), so if
+  you're still in the middle of one, you won't see anything.
+- If you were spectating a raid and left early, it won't be uploaded.
+
+### No Permission to Generate Key
+
+- You haven't been granted API access yet.
+- [Link your Discord account](#step-3-request-api-key-access) and ping
+  <strong style={{ color: '#e91e63' }}>@Support</strong> in Discord to request
+  access.
