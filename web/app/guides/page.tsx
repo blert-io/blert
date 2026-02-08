@@ -48,18 +48,6 @@ export default function GuidesPage() {
         </div>
 
         <div className={styles.usageLinks}>
-          <Link className={`${styles.usageLink}`} href="/guides/blert/install">
-            <div className={styles.usageLinkContent}>
-              <i className="fas fa-download" />
-              <div>
-                <h4>Plugin Installation</h4>
-                <p>
-                  Step-by-step guide to installing the Blert RuneLite plugin
-                </p>
-              </div>
-            </div>
-          </Link>
-
           <Link
             className={`${styles.usageLink}`}
             href="/guides/blert/getting-started"

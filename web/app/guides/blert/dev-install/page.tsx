@@ -8,7 +8,7 @@ import styles from '../style.module.scss';
 
 import content from './content.mdx';
 
-export default function GettingStarted() {
+export default function BlertInstallGuide() {
   return <MdxGuide source={content} className={styles.blertGuide} />;
 }
 
@@ -17,10 +17,10 @@ export async function generateMetadata(
   parent: ResolvingMetadata,
 ) {
   return basicMetadata(await parent, {
-    title: 'Getting Started with Blert',
+    title: 'How to Install Blert',
     description:
-      'Learn how to generate and apply your Blert API key to link your RuneLite ' +
-      'plugin with your account and start recording your first challenge. ' +
-      'Includes account setup, permissions, and troubleshooting.',
+      'Step-by-step guide to installing the Blert plugin for Old School RuneScape ' +
+      'PvM tracking. Learn how to set up a developer RuneLite client and get Blert ' +
+      'running in minutes.',
   });
 }
