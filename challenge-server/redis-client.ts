@@ -76,6 +76,7 @@ type RedisChallengeState = {
 /** A client connected to an active challenge. */
 export type ChallengeClient = {
   userId: number;
+  clientId: number;
   type: RecordingType;
   active: boolean;
   stage: Stage;
@@ -300,26 +301,26 @@ interface ChallengeReadOperations {
   getChallengeClients(uuid: string): Promise<ChallengeClient[]>;
 
   /**
-   * Fetches the client belonging to a user connected to a challenge.
+   * Fetches the state of a client connected to a challenge.
    *
    * @param uuid ID of the challenge.
-   * @param userId ID of the user.
+   * @param clientId ID of the client.
    * @returns The client, or `null` if either the challenge does not exist or
-   *   the user is not connected to it.
+   *   the client is not connected to it.
    */
   getChallengeClient(
     uuid: string,
-    userId: number,
+    clientId: number,
   ): Promise<ChallengeClient | null>;
 
   /**
    * Fetches the ID of the active challenge for a client, if any.
    *
-   * @param userId ID of the user.
-   * @returns The active challenge, or `null` if the user is not connected to
+   * @param clientId ID of the client.
+   * @returns The active challenge, or `null` if the client is not connected to
    *   any active challenges.
    */
-  getActiveChallengeForClient(userId: number): Promise<string | null>;
+  getActiveChallengeForClient(clientId: number): Promise<string | null>;
 
   /**
    * Fetches the ID of the last challenge started for a party.
@@ -404,25 +405,25 @@ interface ChallengeWriteOperations {
   ): void;
 
   /**
-   * Sets metadata for a client belonging to a user in a challenge.
+   * Sets the state of a client connected to a challenge.
    *
    * @param uuid The challenge ID.
-   * @param userId The user's ID.
-   * @param client Client metadata.
+   * @param clientId The client's ID.
+   * @param client Client state.
    */
   setChallengeClient(
     uuid: string,
-    userId: number,
+    clientId: number,
     client: ChallengeClient,
   ): void;
 
   /**
-   * Removes a client belonging to a user from a challenge.
+   * Removes a client from a challenge.
    *
    * @param uuid The challenge ID.
-   * @param userId The user's ID.
+   * @param clientId The client's ID.
    */
-  removeChallengeClient(uuid: string, userId: number): void;
+  removeChallengeClient(uuid: string, clientId: number): void;
 
   /**
    * Deletes a stream of stage events for a challenge.
@@ -572,19 +573,19 @@ class ChallengeReader implements ChallengeReadOperations {
 
   async getChallengeClient(
     uuid: string,
-    userId: number,
+    clientId: number,
   ): Promise<ChallengeClient | null> {
     const key = challengeClientsKey(uuid);
     await this.onRead?.(key);
-    const client = await this.client.hGet(key, userId.toString());
+    const client = await this.client.hGet(key, clientId.toString());
     if (!client) {
       return null;
     }
     return JSON.parse(client) as ChallengeClient;
   }
 
-  async getActiveChallengeForClient(userId: number): Promise<string | null> {
-    const key = clientChallengesKey(userId);
+  async getActiveChallengeForClient(clientId: number): Promise<string | null> {
+    const key = clientChallengesKey(clientId);
     await this.onRead?.(key);
     return (await this.client.get(key)) ?? null;
   }
@@ -713,21 +714,21 @@ class ChallengeWriter implements ChallengeWriteOperations {
 
   setChallengeClient(
     uuid: string,
-    userId: number,
+    clientId: number,
     client: ChallengeClient,
   ): void {
     this.multi.hSet(
       challengeClientsKey(uuid),
-      userId.toString(),
+      clientId.toString(),
       JSON.stringify(client),
     );
-    this.multi.set(clientChallengesKey(userId), uuid);
+    this.multi.set(clientChallengesKey(clientId), uuid);
     this.queuedOperations += 2;
   }
 
-  removeChallengeClient(uuid: string, userId: number): void {
-    this.multi.hDel(challengeClientsKey(uuid), userId.toString());
-    this.multi.del(clientChallengesKey(userId));
+  removeChallengeClient(uuid: string, clientId: number): void {
+    this.multi.hDel(challengeClientsKey(uuid), clientId.toString());
+    this.multi.del(clientChallengesKey(clientId));
     this.queuedOperations += 2;
   }
 
@@ -880,13 +881,13 @@ export class TransactionClient
 
   getChallengeClient(
     uuid: string,
-    userId: number,
+    clientId: number,
   ): Promise<ChallengeClient | null> {
-    return this.reader.getChallengeClient(uuid, userId);
+    return this.reader.getChallengeClient(uuid, clientId);
   }
 
-  getActiveChallengeForClient(userId: number): Promise<string | null> {
-    return this.reader.getActiveChallengeForClient(userId);
+  getActiveChallengeForClient(clientId: number): Promise<string | null> {
+    return this.reader.getActiveChallengeForClient(clientId);
   }
 
   getLastChallengeForParty(
@@ -996,12 +997,12 @@ export class EventQueueClient {
   /**
    * Fetches the ID of the active challenge for a client, if any.
    *
-   * @param userId ID of the user.
-   * @returns The active challenge, or `null` if the user is not connected to
+   * @param clientId ID of the client.
+   * @returns The active challenge, or `null` if the client is not connected to
    *   any active challenges.
    */
-  getActiveChallengeForClient(userId: number): Promise<string | null> {
-    return this.reader.getActiveChallengeForClient(userId);
+  getActiveChallengeForClient(clientId: number): Promise<string | null> {
+    return this.reader.getActiveChallengeForClient(clientId);
   }
 }
 
@@ -1029,13 +1030,13 @@ export class RedisClient implements ChallengeReadOperations {
 
   getChallengeClient(
     uuid: string,
-    userId: number,
+    clientId: number,
   ): Promise<ChallengeClient | null> {
-    return this.reader.getChallengeClient(uuid, userId);
+    return this.reader.getChallengeClient(uuid, clientId);
   }
 
-  getActiveChallengeForClient(userId: number): Promise<string | null> {
-    return this.reader.getActiveChallengeForClient(userId);
+  getActiveChallengeForClient(clientId: number): Promise<string | null> {
+    return this.reader.getActiveChallengeForClient(clientId);
   }
 
   getLastChallengeForParty(

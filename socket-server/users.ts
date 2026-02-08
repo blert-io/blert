@@ -11,6 +11,7 @@ import { Players } from './players';
 
 export type BasicUser = {
   id: number;
+  keyId: number;
   username: string;
   linkedPlayerId: number;
 };
@@ -32,11 +33,12 @@ export class Users {
    * @returns The user's basic information, or null if the key is invalid.
    */
   static async findByApiKey(apiKey: string): Promise<BasicUser | null> {
-    const [key]: [{ user_id: number; player_id: number }?] = await sql`
+    const [key]: [{ id: number; user_id: number; player_id: number }?] =
+      await sql`
       UPDATE api_keys
       SET last_used = NOW()
       WHERE key = ${apiKey}
-      RETURNING user_id, player_id;
+      RETURNING id, user_id, player_id;
     `;
 
     if (key === undefined) {
@@ -57,6 +59,7 @@ export class Users {
 
     return {
       id: key.user_id,
+      keyId: key.id,
       username: user.username,
       linkedPlayerId: key.player_id,
     };
