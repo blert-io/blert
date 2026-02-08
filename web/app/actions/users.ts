@@ -145,7 +145,7 @@ async function getApiKeys(userId: number): Promise<ApiKeyWithUsername[]> {
 const API_KEY_HEX_LENGTH = 24;
 const API_KEY_BYTE_LENGTH = API_KEY_HEX_LENGTH / 2;
 
-const MAX_API_KEYS_PER_USER = 1;
+const MAX_API_KEYS_PER_USER = 3;
 
 export async function createApiKey(rsn: string): Promise<ApiKeyWithUsername> {
   const userId = await ensureAuthenticated();
@@ -154,7 +154,6 @@ export async function createApiKey(rsn: string): Promise<ApiKeyWithUsername> {
     throw new Error('Invalid RSN');
   }
 
-  // TODO(frolv): This is temporary.
   const canCreate = await sql`
     SELECT can_create_api_key FROM users WHERE id = ${userId}
   `;
@@ -214,6 +213,15 @@ export async function createApiKey(rsn: string): Promise<ApiKeyWithUsername> {
       ) RETURNING id
     `;
     player = { id, username: rsn };
+  } else {
+    const [existingKey] = await sql<{ id: number }[]>`
+      SELECT id
+      FROM api_keys
+      WHERE user_id = ${userId} AND player_id = ${player.id}
+    `;
+    if (existingKey) {
+      throw new Error('You already have an API key for this player');
+    }
   }
 
   let apiKey: ApiKey;
