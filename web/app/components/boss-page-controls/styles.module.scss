@@ -1,5 +1,5 @@
 @use 'sass:color';
-@use '../../mixins.scss' as *;
+@use '@/mixins.scss' as *;
 
 .controls {
   position: fixed;
@@ -149,16 +149,38 @@
     &:focus {
       outline: none;
     }
+
+    &:focus-visible {
+      outline: 2px solid var(--blert-purple);
+      outline-offset: 2px;
+      border-radius: 2px;
+    }
   }
 
   input[type='range']::-webkit-slider-runnable-track {
-    background: var(--blert-surface-light);
+    background: linear-gradient(
+      to right,
+      rgba(var(--blert-purple-base), 0.5) 0%,
+      var(--blert-purple) var(--progress, 0%),
+      var(--blert-surface-light) var(--progress, 0%),
+      var(--blert-surface-light) 100%
+    );
     height: 4px;
     border-radius: 2px;
   }
 
   input[type='range']::-moz-range-track {
     background: var(--blert-surface-light);
+    height: 4px;
+    border-radius: 2px;
+  }
+
+  input[type='range']::-moz-range-progress {
+    background: linear-gradient(
+      to right,
+      rgba(var(--blert-purple-base), 0.5),
+      var(--blert-purple)
+    );
     height: 4px;
     border-radius: 2px;
   }
@@ -194,6 +216,7 @@
 
 .controls__scrubber__splits {
   position: relative;
+  z-index: 2;
 }
 
 .controls__scrubber__split {
@@ -224,6 +247,7 @@
   position: relative;
   left: calc(-50% + 1px);
   cursor: pointer;
+  z-index: 1;
 
   span {
     transform: translateX(-50%);
@@ -246,6 +270,51 @@
   }
 }
 
+.controls__scrubber__hoverLabel {
+  position: absolute;
+  top: -30px;
+  left: 20px;
+  font-family: var(--font-roboto-mono), monospace;
+  font-size: 0.8em;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--blert-panel-background-color);
+  color: var(--blert-font-color-primary);
+  border: 1px solid rgba(var(--blert-purple-base), 0.5);
+  white-space: nowrap;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  &::after {
+    content: '';
+    position: absolute;
+    left: calc(50% - 1px);
+    top: calc(100% + 1px);
+    width: 2px;
+    // Stretch from bottom of label down to just above the ghost thumb.
+    height: 29px;
+    background: rgba(var(--blert-purple-base), 0.3);
+  }
+}
+
+.controls__scrubber__hoverTick {
+  color: var(--blert-font-color-secondary);
+  font-size: 0.9em;
+}
+
+.controls__scrubber__ghostThumb {
+  position: absolute;
+  top: 32px;
+  left: 20px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(var(--blert-purple-base), 0.35);
+  pointer-events: none;
+}
+
 .playbackButton {
   font-size: 1.33em;
   height: 40px;
@@ -262,6 +331,11 @@
   transition: all 0.2s ease;
   position: relative;
 
+  &:focus-visible {
+    outline: 2px solid var(--blert-purple);
+    outline-offset: 2px;
+  }
+
   &:hover:not(:disabled) {
     background: var(--blert-surface-light);
     transform: translateY(-1px);
@@ -274,6 +348,11 @@
   &:disabled {
     opacity: 0.3;
     cursor: not-allowed;
+  }
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    height: 44px;
+    width: 44px;
   }
 
   .icon {

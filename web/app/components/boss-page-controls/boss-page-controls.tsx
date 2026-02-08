@@ -42,6 +42,7 @@ export function BossPageControls(props: BossControlsProps) {
   // allow users to clear the input.
   const [value, setValue] = useState(currentTick.toString());
   const [inputFocused, setInputFocused] = useState(false);
+  const [hoverTick, setHoverTick] = useState<number | null>(null);
   const scrubber = useRef<HTMLDivElement>(null);
   const rangeRef = useRef<HTMLInputElement>(null);
   const [trackWidth, setTrackWidth] = useState<number>(0);
@@ -87,7 +88,7 @@ export function BossPageControls(props: BossControlsProps) {
     currentTick === undefined ||
     Number.isNaN(currentTick)
   ) {
-    return <div className={styles.contrls}>Loading...</div>;
+    return <div className={styles.controls}>Loading...</div>;
   }
 
   const thumbWidth = 16;
@@ -117,9 +118,64 @@ export function BossPageControls(props: BossControlsProps) {
           })
       : [];
 
+  const handleScrubberMouseMove = display.isFull()
+    ? (e: React.MouseEvent) => {
+        if (rangeRef.current === null) {
+          return;
+        }
+        const rect = rangeRef.current.getBoundingClientRect();
+        const offsetX = e.clientX - rect.left;
+        const percent = (offsetX - thumbWidth / 2) / (rect.width - thumbWidth);
+        const tick = clamp(
+          Math.round(percent * (totalTicks - 1)) + 1,
+          1,
+          totalTicks,
+        );
+        setHoverTick(tick);
+      }
+    : undefined;
+
+  const handleScrubberMouseLeave = display.isFull()
+    ? () => setHoverTick(null)
+    : undefined;
+
   const scrubberElement = (
-    <div className={styles.controls__scrubber} ref={scrubber}>
+    <div
+      className={styles.controls__scrubber}
+      ref={scrubber}
+      style={
+        {
+          '--progress': `${((currentTick - 1) / Math.max(totalTicks - 1, 1)) * 100}%`,
+        } as React.CSSProperties
+      }
+    >
       <div className={styles.controls__scrubber__splits}>{scrubberSplits}</div>
+      {hoverTick !== null &&
+        trackWidth > 0 &&
+        (() => {
+          const snappedPercent = (hoverTick - 1) / Math.max(totalTicks - 1, 1);
+          const snappedX =
+            snappedPercent * (trackWidth - thumbWidth) + thumbWidth / 2;
+          return (
+            <>
+              <div
+                className={styles.controls__scrubber__hoverLabel}
+                style={{ transform: `translateX(calc(${snappedX}px - 50%))` }}
+              >
+                {ticksToFormattedSeconds(hoverTick)}
+                <span className={styles.controls__scrubber__hoverTick}>
+                  t{hoverTick}
+                </span>
+              </div>
+              <div
+                className={styles.controls__scrubber__ghostThumb}
+                style={{
+                  transform: `translate(calc(${snappedX}px - 50%), -50%)`,
+                }}
+              />
+            </>
+          );
+        })()}
       <input
         type="range"
         id="timeline-scrubber"
@@ -127,10 +183,8 @@ export function BossPageControls(props: BossControlsProps) {
         min={1}
         value={currentTick}
         ref={rangeRef}
-        onBlur={() => {
-          setInputFocused(false);
-          updatePlayingState(false);
-        }}
+        onMouseMove={handleScrubberMouseMove}
+        onMouseLeave={handleScrubberMouseLeave}
         onChange={(event) => {
           try {
             let newValue = parseInt(event.target.value);
@@ -195,7 +249,6 @@ export function BossPageControls(props: BossControlsProps) {
                 min={1}
                 onBlur={() => {
                   setInputFocused(false);
-                  updatePlayingState(false);
                 }}
                 onChange={(event) => {
                   try {
