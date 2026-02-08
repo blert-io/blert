@@ -51,11 +51,13 @@ export default function ApiKeyForm({
   onApiKeyGenerated: (apiKey: ApiKeyWithUsername) => void;
   existingPlayers: Set<string>;
 }) {
+  const [formKey, setFormKey] = useState(0);
   const [state, formAction] = useActionState(
     async (formState: ApiKeyFormState, formData: FormData) =>
       submitApiKeyForm(formState, formData).then((newState) => {
         if (newState.apiKey) {
           onApiKeyGenerated(newState.apiKey);
+          setFormKey((k) => k + 1);
         }
         return newState;
       }),
@@ -64,7 +66,7 @@ export default function ApiKeyForm({
 
   return (
     <form action={formAction}>
-      <FormFields existingPlayers={existingPlayers} />
+      <FormFields key={formKey} existingPlayers={existingPlayers} />
       {state.error && <p className={styles.error}>{state.error}</p>}
     </form>
   );
