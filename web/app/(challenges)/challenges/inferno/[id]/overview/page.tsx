@@ -6,7 +6,6 @@ import { useContext } from 'react';
 import { ChallengeContext } from '@/challenge-context';
 import ChallengeOverview from '@/components/challenge-overview';
 import Loading from '@/components/loading';
-import { PvMContent } from '@/components/pvm-content-logo';
 
 import { InfernoWavesOverview } from './waves-overview';
 
@@ -36,7 +35,6 @@ export default function Overview() {
           stageDeaths: [],
         }))}
         startTime={challenge.startTime}
-        pvmContent={PvMContent.Inferno}
         extraInfo={[]}
       />
       <InfernoWavesOverview challenge={challenge} />

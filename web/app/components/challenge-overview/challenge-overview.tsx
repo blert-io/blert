@@ -2,20 +2,21 @@
 
 import {
   ChallengeMode,
+  challengeName,
+  ChallengePlayer,
   ChallengeStatus,
   ChallengeType,
-  Stage,
-  ChallengePlayer,
   PrimaryMeleeGear,
+  Stage,
   stageName,
 } from '@blert/common';
 import Image from 'next/image';
 import TimeAgo from 'react-timeago';
 
 import PlayerLink from '@/components/player-link';
-import PvMContentLogo, { PvMContent } from '@/components/pvm-content-logo';
 import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 import { useClientOnly } from '@/hooks/client-only';
+import { challengeLogo } from '@/logo';
 import { modeNameAndColor, statusNameAndColor } from '@/utils/challenge';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
@@ -41,7 +42,6 @@ interface ChallengeOverviewProps {
   deaths: number;
   party: ExtendedChallengePlayer[];
   startTime: Date;
-  pvmContent: PvMContent;
   extraInfo?: ExtraOverviewInfo[];
 }
 
@@ -110,7 +110,6 @@ export function ChallengeOverview(props: ChallengeOverviewProps) {
     deaths,
     party,
     startTime,
-    pvmContent,
     extraInfo,
   } = props;
 
@@ -127,12 +126,12 @@ export function ChallengeOverview(props: ChallengeOverviewProps) {
   return (
     <div className={styles.challengeOverview}>
       <div className={styles.logoSection}>
-        <PvMContentLogo
+        <Image
           className={styles.logo}
-          pvmContent={pvmContent}
+          src={challengeLogo(type)}
+          alt={challengeName(type)}
           height={80}
           width={152}
-          simple
         />
         <div className={styles.modeBadge}>
           <i className="fa-solid fa-trophy" />

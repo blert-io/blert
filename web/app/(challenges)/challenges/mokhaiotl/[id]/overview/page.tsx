@@ -13,12 +13,11 @@ import ChallengeOverview, {
   ExtraOverviewInfo,
 } from '@/components/challenge-overview';
 import Loading from '@/components/loading';
-import { PvMContent } from '@/components/pvm-content-logo';
+import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import DelvesOverview from './delves-overview';
 
 import styles from './style.module.scss';
-import { ticksToFormattedSeconds } from '@/utils/tick';
 
 export default function Overview() {
   const [challenge] = useContext(ChallengeContext) as [
@@ -63,7 +62,6 @@ export default function Overview() {
             challenge.status === ChallengeStatus.WIPED ? [challenge.stage] : [],
         }))}
         startTime={challenge.startTime}
-        pvmContent={PvMContent.Mokhaiotl}
         extraInfo={extraInfo}
       />
       <DelvesOverview challenge={challenge} />
