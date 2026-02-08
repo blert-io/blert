@@ -5,7 +5,6 @@ import { useContext } from 'react';
 
 import { ChallengeContext } from '@/challenge-context';
 import ChallengeOverview from '@/components/challenge-overview';
-import { PvMContent } from '@/components/pvm-content-logo';
 import Loading from '@/components/loading';
 
 import { RaidBossesOverview } from './raid-bosses-overview';
@@ -48,7 +47,6 @@ export default function Overview() {
           stageDeaths: deathsByStage[index],
         }))}
         startTime={raid.startTime}
-        pvmContent={PvMContent.TheatreOfBlood}
       />
 
       <section className={styles.section}>

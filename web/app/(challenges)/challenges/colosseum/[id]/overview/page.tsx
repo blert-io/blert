@@ -7,7 +7,6 @@ import { ChallengeContext } from '@/challenge-context';
 import ChallengeOverview from '@/components/challenge-overview';
 import ColosseumHandicap from '@/components/colosseum-handicap';
 import Loading from '@/components/loading';
-import { PvMContent } from '@/components/pvm-content-logo';
 
 import { ColosseumWavesOverview } from './waves-overview';
 
@@ -37,7 +36,6 @@ export default function Overview() {
           stageDeaths: [],
         }))}
         startTime={challenge.startTime}
-        pvmContent={PvMContent.Colosseum}
         extraInfo={[
           {
             label: 'Handicaps',
