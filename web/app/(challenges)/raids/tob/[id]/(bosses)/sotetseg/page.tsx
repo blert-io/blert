@@ -172,13 +172,14 @@ export default function SotetsegPage() {
     eventsByTick,
     playerState,
     npcState,
+    bcf,
     loading,
   } = useStageEvents<TobRaid>(Stage.TOB_SOTETSEG);
 
   const { currentTick, setTick, playing, setPlaying, advanceTick } =
     usePlayingState(totalTicks);
 
-  const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
+  const { selectedActor, setSelectedActor } = useContext(ActorContext);
 
   const splits = useMemo(() => {
     if (!challenge) {
@@ -355,6 +356,7 @@ export default function SotetsegPage() {
           updateTickOnPage={setTick}
           splits={splits}
           npcs={npcState}
+          bcf={bcf}
           smallLegend={display.isCompact()}
         />
       </div>
@@ -372,8 +374,8 @@ export default function SotetsegPage() {
         />
         <BossPageParty
           playerTickState={playerTickState}
-          selectedPlayer={selectedPlayer}
-          setSelectedPlayer={setSelectedPlayer}
+          selectedActor={selectedActor}
+          setSelectedActor={setSelectedActor}
         />
       </div>
 

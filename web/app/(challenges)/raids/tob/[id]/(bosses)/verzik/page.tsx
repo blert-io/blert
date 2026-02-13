@@ -13,12 +13,15 @@ import {
   SplitType,
   Stage,
   TobRaid,
+  VerzikHealEvent,
 } from '@blert/common';
 import { useCallback, useContext, useMemo, useRef } from 'react';
 
 import { TimelineColor, TimelineSplit } from '@/components/attack-timeline';
 import BossFightOverview from '@/components/boss-fight-overview';
-import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
+import BossPageAttackTimeline, {
+  CustomStateEntry,
+} from '@/components/boss-page-attack-timeline';
 import BossPageControls from '@/components/boss-page-controls';
 import BossPageParty from '@/components/boss-page-party';
 import BossPageReplay from '@/components/boss-page-replay';
@@ -89,6 +92,7 @@ export default function VerzikPage() {
     eventsByType,
     playerState,
     npcState,
+    bcf,
     loading,
   } = useStageEvents<TobRaid>(Stage.TOB_VERZIK);
 
@@ -120,7 +124,7 @@ export default function VerzikPage() {
     };
   }, [compact, eventsByTick, currentTick]);
 
-  const { selectedPlayer, setSelectedPlayer } = useContext(ActorContext);
+  const { selectedActor, setSelectedActor } = useContext(ActorContext);
 
   const redCrabInfoRef = useRef<HTMLDivElement>(null);
 
@@ -244,6 +248,30 @@ export default function VerzikPage() {
     }
     return [splits, info, backgroundColors];
   }, [challenge, eventsByType, eventsByTick]);
+
+  const customStates = useMemo(() => {
+    const entries: CustomStateEntry[] = [];
+
+    eventsByType[EventType.TOB_VERZIK_HEAL]?.forEach((event) => {
+      const { player, healAmount } = (event as VerzikHealEvent).verzikHeal;
+      entries.push({
+        playerName: player,
+        tick: event.tick,
+        states: [
+          {
+            iconUrl: '/images/npcs/8386.webp',
+            label: healAmount.toString(),
+            fullText:
+              healAmount > 0
+                ? `Healed Verzik for ${healAmount}`
+                : 'Healed Verzik',
+          },
+        ],
+      });
+    });
+
+    return entries;
+  }, [eventsByType]);
 
   const customEntitiesForTick = useCallback(
     (tick: number) => {
@@ -406,8 +434,10 @@ export default function VerzikPage() {
           updateTickOnPage={setTick}
           splits={splits}
           npcs={npcState}
+          bcf={bcf}
           backgroundColors={backgroundColors}
           smallLegend={display.isCompact()}
+          customStates={customStates}
         />
       </div>
 
@@ -424,8 +454,8 @@ export default function VerzikPage() {
         />
         <BossPageParty
           playerTickState={playerTickState}
-          selectedPlayer={selectedPlayer}
-          setSelectedPlayer={setSelectedPlayer}
+          selectedActor={selectedActor}
+          setSelectedActor={setSelectedActor}
         />
       </div>
 

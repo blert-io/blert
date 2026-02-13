@@ -26,7 +26,10 @@ export function HorizontalScrollable(props: HorizontalScrollableProps) {
     }
 
     const handleWheel = (e: WheelEvent) => {
-      if (!disable && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      if (disable || div.scrollWidth <= div.clientWidth) {
+        return;
+      }
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
         e.preventDefault();
         div.scrollLeft += e.deltaY;
       }

@@ -67,6 +67,11 @@ describe('HorizontalScrollable', () => {
   });
 
   describe('wheel event handling', () => {
+    function mockOverflowing(element: HTMLElement) {
+      Object.defineProperty(element, 'scrollWidth', { value: 2000 });
+      Object.defineProperty(element, 'clientWidth', { value: 500 });
+    }
+
     it('converts vertical scroll to horizontal scroll', () => {
       render(
         <HorizontalScrollable data-testid="scrollable">
@@ -75,6 +80,7 @@ describe('HorizontalScrollable', () => {
       );
 
       const scrollable = screen.getByTestId('scrollable');
+      mockOverflowing(scrollable);
       Object.defineProperty(scrollable, 'scrollLeft', {
         value: 0,
         writable: true,
@@ -93,6 +99,7 @@ describe('HorizontalScrollable', () => {
       );
 
       const scrollable = screen.getByTestId('scrollable');
+      mockOverflowing(scrollable);
       const wheelEvent = new WheelEvent('wheel', {
         deltaY: 10,
         deltaX: 100,
@@ -114,6 +121,7 @@ describe('HorizontalScrollable', () => {
       );
 
       const scrollable = screen.getByTestId('scrollable');
+      mockOverflowing(scrollable);
       const wheelEvent = new WheelEvent('wheel', {
         deltaY: 100,
         deltaX: 0,
@@ -134,6 +142,29 @@ describe('HorizontalScrollable', () => {
       );
 
       const scrollable = screen.getByTestId('scrollable');
+      mockOverflowing(scrollable);
+      const wheelEvent = new WheelEvent('wheel', {
+        deltaY: 100,
+        deltaX: 0,
+        bubbles: true,
+        cancelable: true,
+      });
+
+      const prevented = !scrollable.dispatchEvent(wheelEvent);
+
+      expect(prevented).toBe(false);
+    });
+
+    it('does not hijack scroll when content fits', () => {
+      render(
+        <HorizontalScrollable data-testid="scrollable">
+          <div>Short content</div>
+        </HorizontalScrollable>,
+      );
+
+      const scrollable = screen.getByTestId('scrollable');
+      Object.defineProperty(scrollable, 'scrollWidth', { value: 500 });
+      Object.defineProperty(scrollable, 'clientWidth', { value: 500 });
       const wheelEvent = new WheelEvent('wheel', {
         deltaY: 100,
         deltaX: 0,
@@ -154,6 +185,7 @@ describe('HorizontalScrollable', () => {
       );
 
       const scrollable = screen.getByTestId('scrollable');
+      mockOverflowing(scrollable);
       Object.defineProperty(scrollable, 'scrollLeft', {
         value: 200,
         writable: true,
@@ -172,6 +204,7 @@ describe('HorizontalScrollable', () => {
       );
 
       const scrollable = screen.getByTestId('scrollable');
+      mockOverflowing(scrollable);
       Object.defineProperty(scrollable, 'scrollLeft', {
         value: 50,
         writable: true,
@@ -191,6 +224,7 @@ describe('HorizontalScrollable', () => {
       );
 
       const scrollable = screen.getByTestId('scrollable');
+      mockOverflowing(scrollable);
       const wheelEvent = new WheelEvent('wheel', {
         deltaY: 50,
         deltaX: 50,
@@ -236,6 +270,8 @@ describe('HorizontalScrollable', () => {
       );
 
       const scrollable = screen.getByTestId('scrollable');
+      Object.defineProperty(scrollable, 'scrollWidth', { value: 2000 });
+      Object.defineProperty(scrollable, 'clientWidth', { value: 500 });
       const initialScrollLeft = scrollable.scrollLeft;
 
       fireEvent.wheel(scrollable, { deltaY: 100, deltaX: 0 });
@@ -251,6 +287,8 @@ describe('HorizontalScrollable', () => {
       );
 
       const scrollable = screen.getByTestId('scrollable');
+      Object.defineProperty(scrollable, 'scrollWidth', { value: 2000 });
+      Object.defineProperty(scrollable, 'clientWidth', { value: 500 });
       Object.defineProperty(scrollable, 'scrollLeft', {
         value: 0,
         writable: true,

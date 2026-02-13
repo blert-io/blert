@@ -1,0 +1,211 @@
+.tooltip {
+  font-size: 0.9rem;
+
+  button {
+    padding: 1px;
+    font-size: 0.9rem;
+    color: var(--blert-purple);
+    margin-bottom: 1px;
+    transition: all 0.2s ease;
+
+    &.npc {
+      color: rgba(var(--blert-red-base), 0.9);
+    }
+
+    &:hover {
+      cursor: pointer;
+    }
+  }
+}
+
+.tooltipHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+
+  .actorName {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--blert-font-color-primary);
+  }
+
+  .tickInfo {
+    font-family: var(--font-roboto-mono), monospace;
+    font-weight: 500;
+    font-size: 0.8rem;
+    color: var(--blert-font-color-secondary);
+  }
+
+  .timeInfo {
+    font-family: var(--font-roboto-mono), monospace;
+    font-weight: 500;
+    font-size: 0.8rem;
+    color: var(--blert-purple);
+  }
+}
+
+.tooltipSection {
+  margin: 0.5rem 0;
+
+  &:first-child {
+    margin-top: 0;
+  }
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--blert-font-color-primary);
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.25rem;
+
+  i {
+    color: var(--blert-purple);
+    font-size: 0.75rem;
+  }
+}
+
+.sectionDivider {
+  width: 100%;
+  height: 1px;
+  background: rgba(var(--blert-surface-light-base), 0.4);
+  margin: 0.75rem 0;
+}
+
+.noContent {
+  font-size: 0.8rem;
+  color: var(--blert-font-color-secondary);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 4px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+
+  img {
+    border-radius: 2px;
+  }
+
+  &.spell {
+    background: rgba(var(--blert-blue-base), 0.15);
+    color: var(--blert-blue);
+    padding: 2px 6px;
+  }
+
+  &.player {
+    background: rgba(var(--blert-purple-base), 0.15);
+    color: var(--blert-purple);
+    cursor: pointer;
+    padding: 2px 8px;
+
+    &:hover {
+      background: rgba(var(--blert-purple-base), 0.25);
+    }
+  }
+
+  &.npc {
+    background: rgba(var(--blert-red-base), 0.15);
+    color: var(--blert-red);
+    padding: 2px 6px;
+
+    &:hover {
+      background: rgba(var(--blert-red-base), 0.25);
+    }
+  }
+
+  .chipHitpoints {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    margin-left: 0.25rem;
+    padding-left: 0.35rem;
+    border-left: 1px solid rgba(var(--blert-red-base), 0.3);
+    font-size: 0.85em;
+    opacity: 0.9;
+
+    i {
+      font-size: 0.8em;
+    }
+  }
+}
+
+.attackInfo {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+
+  .attackVerb {
+    text-transform: capitalize;
+  }
+
+  .distanceInfo {
+    color: var(--blert-font-color-secondary);
+    font-size: 0.8rem;
+  }
+}
+
+.spellInfo {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.deathInfo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--blert-red);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.customStateList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.customStateItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.1rem 0;
+}
+
+.customStateIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+
+  i {
+    color: var(--blert-yellow);
+    font-size: 0.75rem;
+  }
+
+  img {
+    border-radius: 2px;
+  }
+}
+
+.customStateLabel {
+  font-size: 0.8rem;
+  color: var(--blert-font-color-primary);
+  font-weight: 500;
+}

@@ -35,6 +35,7 @@ export function BossPageControls(props: BossControlsProps) {
     updatePlayingState,
     splits = [],
   } = props;
+  const maxTick = Math.max(1, totalTicks - 1);
 
   const display = useContext(DisplayContext);
 
@@ -63,9 +64,9 @@ export function BossPageControls(props: BossControlsProps) {
       if (scrubber.current) {
         event.preventDefault();
         if (event.deltaY > 0) {
-          updateTick((tick) => clamp(tick + 1, 1, totalTicks));
+          updateTick((tick) => clamp(tick + 1, 1, maxTick));
         } else {
-          updateTick((tick) => clamp(tick - 1, 1, totalTicks));
+          updateTick((tick) => clamp(tick - 1, 1, maxTick));
         }
       }
     };
@@ -75,7 +76,7 @@ export function BossPageControls(props: BossControlsProps) {
     return () => {
       current?.removeEventListener('wheel', onWheel);
     };
-  }, [totalTicks, updateTick]);
+  }, [maxTick, updateTick]);
 
   useEffect(() => {
     if (!inputFocused) {
@@ -97,7 +98,9 @@ export function BossPageControls(props: BossControlsProps) {
       ? splits
           .filter((split) => !split.unimportant)
           .map((split) => {
-            const percent = (split.tick - 1) / (totalTicks - 1);
+            const boundedTick = clamp(split.tick, 1, maxTick);
+            const percent =
+              maxTick === 1 ? 0 : (boundedTick - 1) / (maxTick - 1);
             const left = percent * (trackWidth - thumbWidth) + thumbWidth / 2;
             return (
               <div
@@ -191,14 +194,14 @@ export function BossPageControls(props: BossControlsProps) {
             if (Number.isNaN(newValue)) {
               newValue = 1;
             }
-            const clampedValue = clamp(newValue, 1, totalTicks);
+            const clampedValue = clamp(newValue, 1, maxTick);
             updateTick(clampedValue);
             setValue(event.target.value);
           } catch {
             updateTick(1);
           }
         }}
-        max={totalTicks}
+        max={maxTick}
       />
     </div>
   );
@@ -256,7 +259,7 @@ export function BossPageControls(props: BossControlsProps) {
                     if (Number.isNaN(newValue)) {
                       newValue = 1;
                     }
-                    const clampedValue = clamp(newValue, 1, totalTicks);
+                    const clampedValue = clamp(newValue, 1, maxTick);
                     updateTick(clampedValue);
                     setValue(event.target.value);
                   } catch {
@@ -264,7 +267,7 @@ export function BossPageControls(props: BossControlsProps) {
                   }
                 }}
                 onFocus={() => setInputFocused(true)}
-                max={totalTicks}
+                max={maxTick}
                 value={value}
               />
             </div>

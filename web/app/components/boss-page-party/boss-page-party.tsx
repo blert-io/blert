@@ -1,5 +1,6 @@
 import { Skill } from '@blert/common';
 
+import { SelectedActor } from '@/(challenges)/challenge-context-provider';
 import Card from '@/components/card';
 import Carousel from '@/components/carousel';
 import EquipmentViewer from '@/components/equipment-viewer';
@@ -13,19 +14,24 @@ import styles from './style.module.scss';
 
 type BossPagePartyProps = {
   playerTickState: Record<string, PlayerState | null>;
-  selectedPlayer: string | null;
-  setSelectedPlayer: (player: string | null) => void;
+  selectedActor: SelectedActor | null;
+  setSelectedActor: (actor: SelectedActor | null) => void;
 };
 
 export default function BossPageParty({
   playerTickState,
-  selectedPlayer,
-  setSelectedPlayer,
+  selectedActor,
+  setSelectedActor,
 }: BossPagePartyProps) {
   const display = useDisplay();
 
+  const isSelectedPlayer = (username: string) =>
+    selectedActor?.type === 'player' && selectedActor.name === username;
+
   const toggleSelectedPlayer = (username: string) => {
-    setSelectedPlayer(selectedPlayer === username ? null : username);
+    setSelectedActor(
+      isSelectedPlayer(username) ? null : { type: 'player', name: username },
+    );
   };
 
   const combatThresholds = (boost: BoostType, level: number) => ({
@@ -36,7 +42,7 @@ export default function BossPageParty({
   const party = Object.entries(playerTickState).map(([username, state]) => (
     <div
       role="button"
-      className={`${styles.actor}${username === selectedPlayer ? ` ${styles.selected}` : ''}`}
+      className={`${styles.actor}${isSelectedPlayer(username) ? ` ${styles.selected}` : ''}`}
       key={username}
       onClick={() => toggleSelectedPlayer(username)}
     >
