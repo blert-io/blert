@@ -30,6 +30,7 @@ import {
   SESSION_ACTIVITY_DURATION_MS,
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
+import type { Sql } from 'postgres';
 import { v4 as uuidv4 } from 'uuid';
 
 import sql from '../db';
@@ -114,6 +115,11 @@ export type ModifiableSessionFields = Pick<
   ApiSession,
   'endTime' | 'challengeMode' | 'status'
 >;
+
+type SessionFinalizationOptions = {
+  defaultEndTime?: Date;
+  context: 'watchdog' | 'create';
+};
 
 export type ReportedTimes = {
   challenge: number;
@@ -333,7 +339,12 @@ export default abstract class ChallengeProcessor {
 
     if (this.totalChallengeTicks === 0) {
       logger.info('challenge_finished_no_data', { challengeUuid: this.uuid });
-      await this.deleteChallenge();
+      await Promise.all([
+        this.deleteChallenge(),
+        ChallengeProcessor.updateSession(this.sessionId, {
+          endTime: finishTime,
+        }),
+      ]);
       return false;
     }
 
@@ -527,7 +538,7 @@ export default abstract class ChallengeProcessor {
       FROM challenge_sessions
       WHERE status = ${SessionStatus.ACTIVE} AND
         (end_time < ${now - SESSION_ACTIVITY_DURATION_MS}
-        OR (end_time IS NULL AND start_time < ${now - SESSION_ACTIVITY_DURATION_MS * 2}))
+        OR (end_time IS NULL AND start_time < ${now - SESSION_ACTIVITY_DURATION_MS}))
     `;
 
     return sessions.map((session) => ({
@@ -539,18 +550,59 @@ export default abstract class ChallengeProcessor {
   }
 
   public static async finalizeSession(sessionId: number): Promise<void> {
-    const loadStatusCounts = sql<{ status: string; count: string }[]>`
+    const result = await sql.begin(async (tx) => {
+      await tx`
+        SELECT 1 FROM challenge_sessions WHERE id = ${sessionId} FOR UPDATE
+      `;
+      return await this.finalizeSessionWithSql(tx, sessionId, {
+        context: 'watchdog',
+      });
+    });
+
+    if (result === 'updated') {
+      recordSessionFinalized();
+    }
+  }
+
+  private static async updateSession(
+    sessionId: number,
+    updates: Partial<ModifiableSessionFields>,
+  ): Promise<void> {
+    await this.updateSessionWithSql(sql, sessionId, updates);
+  }
+
+  private static async updateSessionWithSql(
+    sqlClient: Sql,
+    sessionId: number,
+    updates: Partial<ModifiableSessionFields>,
+  ): Promise<void> {
+    const translated: Record<string, unknown> = camelToSnakeObject(updates);
+    if ('endTime' in updates && updates.endTime !== null) {
+      translated.end_time = updates.endTime!.getTime();
+    }
+
+    await sqlClient`
+      UPDATE challenge_sessions
+      SET ${sqlClient(translated)}
+      WHERE id = ${sessionId}
+    `;
+  }
+
+  private static async finalizeSessionWithSql(
+    sqlClient: Sql,
+    sessionId: number,
+    options: SessionFinalizationOptions,
+  ): Promise<'deleted' | 'updated'> {
+    const loadStatusCounts = sqlClient<{ status: string; count: string }[]>`
       SELECT status, COUNT(*) FROM challenges
       WHERE session_id = ${sessionId}
       GROUP BY status
     `;
-    const loadLastFinishTime = sql<{ finish_time: Date }[]>`
-      SELECT finish_time FROM challenges
+    const loadLastFinishTime = sqlClient<{ finish_time: Date | null }[]>`
+      SELECT MAX(finish_time) AS finish_time FROM challenges
       WHERE session_id = ${sessionId}
-      ORDER BY finish_time DESC NULLS FIRST
-      LIMIT 1
     `;
-    const loadMostFrequentMode = sql<{ mode: ChallengeMode }[]>`
+    const loadMostFrequentMode = sqlClient<{ mode: ChallengeMode }[]>`
       SELECT mode FROM challenges
       WHERE session_id = ${sessionId}
       GROUP BY mode ORDER BY COUNT(*) DESC, mode ASC LIMIT 1
@@ -563,9 +615,12 @@ export default abstract class ChallengeProcessor {
     ]);
 
     if (statusCounts.length === 0) {
-      logger.warn('session_no_challenges', { sessionId });
-      await sql`DELETE FROM challenge_sessions WHERE id = ${sessionId}`;
-      return;
+      logger.warn('session_no_challenges', {
+        sessionId,
+        context: options.context,
+      });
+      await sqlClient`DELETE FROM challenge_sessions WHERE id = ${sessionId}`;
+      return 'deleted';
     }
 
     const updates: Partial<ModifiableSessionFields> = {
@@ -577,37 +632,25 @@ export default abstract class ChallengeProcessor {
       (Number.parseInt(statusCounts[0].status) as ChallengeStatus) ===
         ChallengeStatus.ABANDONED
     ) {
-      logger.warn('session_only_abandoned_challenges', { sessionId });
+      logger.warn('session_only_abandoned_challenges', {
+        sessionId,
+        context: options.context,
+      });
       updates.status = SessionStatus.HIDDEN;
     }
 
     if (lastFinishTime?.[0]?.finish_time) {
       updates.endTime = lastFinishTime[0].finish_time;
+    } else if (options.defaultEndTime !== undefined) {
+      updates.endTime = options.defaultEndTime;
     }
 
     if (mostFrequentMode?.[0]?.mode) {
       updates.challengeMode = mostFrequentMode[0].mode;
     }
 
-    await this.updateSession(sessionId, updates);
-
-    recordSessionFinalized();
-  }
-
-  private static async updateSession(
-    sessionId: number,
-    updates: Partial<ModifiableSessionFields>,
-  ): Promise<void> {
-    const translated: Record<string, unknown> = camelToSnakeObject(updates);
-    if ('endTime' in updates && updates.endTime !== null) {
-      translated.end_time = updates.endTime!.getTime();
-    }
-
-    await sql`
-      UPDATE challenge_sessions
-      SET ${sql(translated)}
-      WHERE id = ${sessionId}
-    `;
+    await this.updateSessionWithSql(sqlClient, sessionId, updates);
+    return 'updated';
   }
 
   /**
@@ -743,6 +786,27 @@ export default abstract class ChallengeProcessor {
   ): Promise<void> {
     const [id, sid] = await sql.begin(async (sql) => {
       if (sessionId === null) {
+        const hash = partyHash(this.party);
+
+        // Close any stale active sessions for this party. This can happen
+        // if the Redis session key expired but the watchdog hasn't finalized
+        // the database session yet.
+        const staleSessions = await sql<{ id: number }[]>`
+          SELECT id
+          FROM challenge_sessions
+          WHERE challenge_type = ${this.type}
+            AND party_hash = ${hash}
+            AND end_time IS NULL
+          FOR UPDATE
+        `;
+
+        for (const session of staleSessions) {
+          await ChallengeProcessor.finalizeSessionWithSql(sql, session.id, {
+            defaultEndTime: startTime,
+            context: 'create',
+          });
+        }
+
         const sessionUuid = uuidv4();
 
         const [{ id }] = await sql<[{ id: number }]>`
@@ -755,13 +819,13 @@ export default abstract class ChallengeProcessor {
             start_time,
             status
           ) VALUES (
-           ${sessionUuid},
-           ${this.type},
-           ${this.mode},
-           ${this.getScale()},
-           ${partyHash(this.party)},
-           ${startTime},
-           ${SessionStatus.ACTIVE}
+            ${sessionUuid},
+            ${this.type},
+            ${this.mode},
+            ${this.getScale()},
+            ${hash},
+            ${startTime},
+            ${SessionStatus.ACTIVE}
           )
           RETURNING id
         `;
@@ -772,7 +836,7 @@ export default abstract class ChallengeProcessor {
           challengeType: this.type,
           challengeMode: this.mode,
           party: this.party,
-          partyHash: partyHash(this.party),
+          partyHash: hash,
         });
 
         sessionId = id;
