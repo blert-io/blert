@@ -3,35 +3,61 @@
 
   .inputArea {
     position: relative;
+
+    input {
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+    }
   }
 
-  .modeToggle {
+  .bottomBar {
     display: flex;
-    justify-content: center;
     margin-top: -11px;
 
     button {
-      padding: 3px 10px;
+      flex: 1 1 0;
+      padding: 3px 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-family: var(--font-roboto-mono), monospace;
       font-size: 11px;
       font-weight: 500;
       color: var(--blert-font-color-secondary);
       border: 1px solid var(--blert-divider-color);
+      border-left: none;
       transition: all 0.15s ease;
 
       &:first-child {
+        border-left: 1px solid var(--blert-divider-color);
         border-radius: 0 0 0 4px;
-        border-right: none;
       }
 
       &:last-child {
         border-radius: 0 0 4px 0;
-        border-left: none;
       }
 
-      &:not(.active):hover {
+      &:not(.active):not(:disabled):hover {
         cursor: pointer;
         color: var(--blert-font-color-primary);
         background: rgba(var(--blert-surface-light-base), 0.4);
+      }
+
+      &:disabled {
+        opacity: 0.3;
+      }
+    }
+
+    .modeButton {
+      font-family: inherit;
+      background: var(--blert-surface-dark);
+      border-left-width: 2px;
+      border-left-style: solid;
+      border-left-color: var(--blert-divider-color);
+
+      & + .modeButton {
+        border-left: none;
       }
     }
 
