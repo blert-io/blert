@@ -445,6 +445,61 @@ function eventJsonToProto(json: EventJson): Event {
     event.setHandicapOptionsList(json.handicapOptions as AnyEnum[]);
   }
 
+  if (json.colosseumTotemHeal !== undefined) {
+    const heal = new Event.ColosseumTotemHeal();
+    heal.setSource(npcJsonToProto(json.colosseumTotemHeal.source));
+    heal.setTarget(npcJsonToProto(json.colosseumTotemHeal.target));
+    heal.setStartTick(json.colosseumTotemHeal.startTick);
+    heal.setHealAmount(json.colosseumTotemHeal.healAmount);
+    event.setColosseumTotemHeal(heal);
+  }
+
+  if (json.colosseumReentryPools !== undefined) {
+    const pools = new Event.ColosseumReentryPools();
+    pools.setPrimarySpawnedList(
+      json.colosseumReentryPools.primarySpawned.map(coordsJsonToProto),
+    );
+    pools.setSecondarySpawnedList(
+      json.colosseumReentryPools.secondarySpawned.map(coordsJsonToProto),
+    );
+    pools.setPrimaryDespawnedList(
+      json.colosseumReentryPools.primaryDespawned.map(coordsJsonToProto),
+    );
+    pools.setSecondaryDespawnedList(
+      json.colosseumReentryPools.secondaryDespawned.map(coordsJsonToProto),
+    );
+    event.setColosseumReentryPools(pools);
+  }
+
+  if (json.colosseumSolDust !== undefined) {
+    const dust = new Event.ColosseumSolDust();
+    dust.setPattern(json.colosseumSolDust.pattern as AnyEnum);
+    if (json.colosseumSolDust.direction !== undefined) {
+      dust.setDirection(json.colosseumSolDust.direction as AnyEnum);
+    }
+    event.setColosseumSolDust(dust);
+  }
+
+  if (json.colosseumSolGrapple !== undefined) {
+    const grapple = new Event.ColosseumSolGrapple();
+    grapple.setAttackTick(json.colosseumSolGrapple.attackTick);
+    grapple.setTarget(json.colosseumSolGrapple.target as AnyEnum);
+    grapple.setOutcome(json.colosseumSolGrapple.outcome as AnyEnum);
+    event.setColosseumSolGrapple(grapple);
+  }
+
+  if (json.colosseumSolPools !== undefined) {
+    const pools = new Event.ColosseumSolPools();
+    pools.setPoolsList(json.colosseumSolPools.pools.map(coordsJsonToProto));
+    event.setColosseumSolPools(pools);
+  }
+
+  if (json.colosseumSolLasers !== undefined) {
+    const lasers = new Event.ColosseumSolLasers();
+    lasers.setPhase(json.colosseumSolLasers.phase as AnyEnum);
+    event.setColosseumSolLasers(lasers);
+  }
+
   // Mokhaiotl events
   if (json.mokhaiotlAttackStyle !== undefined) {
     const style = new Event.AttackStyle();

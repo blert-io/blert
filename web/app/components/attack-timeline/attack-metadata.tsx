@@ -1179,7 +1179,7 @@ export const NPC_ATTACK_METADATA: Record<NpcAttack, NpcAttackMetadata> = {
     description: basicDescription('an auto attack'),
   },
   [NpcAttack.COLOSSEUM_HEREDIT_THRUST]: {
-    imageUrl: '/images/huh.png',
+    imageUrl: '/images/colosseum/heredit-thrust.webp',
     description: basicDescription('a trident stab'),
   },
   [NpcAttack.COLOSSEUM_HEREDIT_SLAM]: {
@@ -1187,11 +1187,11 @@ export const NPC_ATTACK_METADATA: Record<NpcAttack, NpcAttackMetadata> = {
     description: basicDescription('a shield bash'),
   },
   [NpcAttack.COLOSSEUM_HEREDIT_COMBO]: {
-    imageUrl: '/images/huh.png',
+    imageUrl: '/images/colosseum/heredit-combo.webp',
     description: basicDescription('a combo attack'),
   },
   [NpcAttack.COLOSSEUM_HEREDIT_BREAK]: {
-    imageUrl: '/images/huh.png',
+    imageUrl: '/images/colosseum/heredit-grapple.webp',
     description: basicDescription('a grapple attack'),
   },
   [NpcAttack.INFERNO_BAT_AUTO]: {

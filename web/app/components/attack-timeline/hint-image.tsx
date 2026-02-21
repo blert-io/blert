@@ -38,7 +38,7 @@ export function HintImage({
     return null;
   }
 
-  const imageStyle: React.CSSProperties = { ...style };
+  const imageStyle: React.CSSProperties = { ...style, objectFit: 'contain' };
   if (outlineColor) {
     imageStyle.filter =
       `drop-shadow(1px 2px 0 ${outlineColor})` +

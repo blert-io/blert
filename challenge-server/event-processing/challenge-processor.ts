@@ -1418,6 +1418,18 @@ export default abstract class ChallengeProcessor {
           queryableEvents.push(e);
           break;
         }
+
+        case Event.Type.COLOSSEUM_SOL_GRAPPLE: {
+          const grapple = event.getColosseumSolGrapple()!;
+          const e = baseQueryableEvent(event);
+          if (this.party.length > 0) {
+            e.player_id = this.players[0].id;
+          }
+          e[QueryableEventField.SOL_GRAPPLE_TARGET] = grapple.getTarget();
+          e[QueryableEventField.SOL_GRAPPLE_OUTCOME] = grapple.getOutcome();
+          queryableEvents.push(e);
+          break;
+        }
       }
     }
 

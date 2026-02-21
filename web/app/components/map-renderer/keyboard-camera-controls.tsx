@@ -10,6 +10,10 @@ const KEY_BINDINGS = {
   back: ['s'],
   left: ['a'],
   right: ['d'],
+  rotateLeft: ['q'],
+  rotateRight: ['e'],
+  tiltDown: ['z'],
+  tiltUp: ['x'],
   sprint: ['shift'],
 };
 
@@ -31,6 +35,9 @@ function getMoveInput(keys: Record<string, boolean>) {
   return { moveForward, moveRight };
 }
 
+const ROTATE_SPEED = 1.5;
+const UP = new THREE.Vector3(0, 1, 0);
+
 export interface KeyboardCameraControlsProps {
   speed?: number;
   enabled?: boolean;
@@ -47,6 +54,8 @@ export default function KeyboardCameraControls({
   const rightVec = useRef(new THREE.Vector3());
   const cameraDir = useRef(new THREE.Vector3());
   const movementVec = useRef(new THREE.Vector3());
+  const offsetVec = useRef(new THREE.Vector3());
+  const sphericalRef = useRef(new THREE.Spherical());
 
   useEffect(() => {
     if (!enabled) {
@@ -94,7 +103,16 @@ export default function KeyboardCameraControls({
     const mapControls = controls as MapControls;
     const { moveForward, moveRight } = getMoveInput(keysRef.current);
 
-    if (moveForward === 0 && moveRight === 0) {
+    const rotateLeft = KEY_BINDINGS.rotateLeft.some((k) => keysRef.current[k]);
+    const rotateRight = KEY_BINDINGS.rotateRight.some(
+      (k) => keysRef.current[k],
+    );
+    const tiltDown = KEY_BINDINGS.tiltDown.some((k) => keysRef.current[k]);
+    const tiltUp = KEY_BINDINGS.tiltUp.some((k) => keysRef.current[k]);
+
+    const hasRotation = rotateLeft || rotateRight || tiltDown || tiltUp;
+
+    if (moveForward === 0 && moveRight === 0 && !hasRotation) {
       return;
     }
 
@@ -103,27 +121,54 @@ export default function KeyboardCameraControls({
       moveSpeed *= 2;
     }
 
-    const length = Math.sqrt(moveForward * moveForward + moveRight * moveRight);
-    const normForward = length > 0 ? moveForward / length : 0;
-    const normRight = length > 0 ? moveRight / length : 0;
+    if (hasRotation) {
+      const offset = offsetVec.current
+        .copy(camera.position)
+        .sub(mapControls.target);
+      const spherical = sphericalRef.current.setFromVector3(offset);
 
-    camera.getWorldDirection(cameraDir.current);
-    forwardVec.current
-      .set(cameraDir.current.x, 0, cameraDir.current.z)
-      .normalize();
-    rightVec.current
-      .crossVectors(forwardVec.current, new THREE.Vector3(0, 1, 0))
-      .normalize();
+      if (rotateLeft || rotateRight) {
+        const yawDir = (rotateLeft ? 1 : 0) + (rotateRight ? -1 : 0);
+        spherical.theta += yawDir * ROTATE_SPEED * delta;
+      }
 
-    movementVec.current.set(0, 0, 0);
-    movementVec.current
-      .addScaledVector(forwardVec.current, normForward * moveSpeed)
-      .addScaledVector(rightVec.current, normRight * moveSpeed);
+      if (tiltDown || tiltUp) {
+        const pitchDir = (tiltDown ? 1 : 0) + (tiltUp ? -1 : 0);
+        const minPhi = mapControls.minPolarAngle + 0.01;
+        const maxPhi = mapControls.maxPolarAngle - 0.01;
+        spherical.phi = Math.max(
+          minPhi,
+          Math.min(maxPhi, spherical.phi + pitchDir * ROTATE_SPEED * delta),
+        );
+      }
 
-    camera.position.add(movementVec.current);
+      offset.setFromSpherical(spherical);
+      camera.position.copy(mapControls.target).add(offset);
+      mapControls.update();
+    }
 
-    mapControls.target.add(movementVec.current);
-    mapControls.update();
+    if (moveForward !== 0 || moveRight !== 0) {
+      const length = Math.sqrt(
+        moveForward * moveForward + moveRight * moveRight,
+      );
+      const normForward = moveForward / length;
+      const normRight = moveRight / length;
+
+      camera.getWorldDirection(cameraDir.current);
+      forwardVec.current
+        .set(cameraDir.current.x, 0, cameraDir.current.z)
+        .normalize();
+      rightVec.current.crossVectors(forwardVec.current, UP).normalize();
+
+      movementVec.current.set(0, 0, 0);
+      movementVec.current
+        .addScaledVector(forwardVec.current, normForward * moveSpeed)
+        .addScaledVector(rightVec.current, normRight * moveSpeed);
+
+      camera.position.add(movementVec.current);
+      mapControls.target.add(movementVec.current);
+      mapControls.update();
+    }
   });
 
   return null;

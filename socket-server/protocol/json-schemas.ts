@@ -312,6 +312,45 @@ export const verzikDawnSchema = z.object({
   player: z.string(),
 });
 
+// Event.ColosseumTotemHeal
+export const colosseumTotemHealSchema = z.object({
+  source: npcSchema,
+  target: npcSchema,
+  startTick: z.number().int(),
+  healAmount: z.number().int(),
+});
+
+// Event.ColosseumReentryPools
+export const colosseumReentryPoolsSchema = z.object({
+  primarySpawned: z.array(coordsSchema),
+  secondarySpawned: z.array(coordsSchema),
+  primaryDespawned: z.array(coordsSchema),
+  secondaryDespawned: z.array(coordsSchema),
+});
+
+// Event.ColosseumSolDust
+export const colosseumSolDustSchema = z.object({
+  pattern: enumValueSchema,
+  direction: enumValueSchema.optional(),
+});
+
+// Event.ColosseumSolGrapple
+export const colosseumSolGrappleSchema = z.object({
+  attackTick: z.number().int(),
+  target: enumValueSchema,
+  outcome: enumValueSchema,
+});
+
+// Event.ColosseumSolPools
+export const colosseumSolPoolsSchema = z.object({
+  pools: z.array(coordsSchema),
+});
+
+// Event.ColosseumSolLasers
+export const colosseumSolLasersSchema = z.object({
+  phase: enumValueSchema,
+});
+
 // Event.MokhaiotlOrb
 export const mokhaiotlOrbSchema = z.object({
   source: enumValueSchema,
@@ -381,6 +420,12 @@ export const eventSchema = z.object({
   // Colosseum events
   handicap: enumValueSchema.optional(),
   handicapOptions: z.array(enumValueSchema).optional(),
+  colosseumTotemHeal: colosseumTotemHealSchema.optional(),
+  colosseumReentryPools: colosseumReentryPoolsSchema.optional(),
+  colosseumSolDust: colosseumSolDustSchema.optional(),
+  colosseumSolGrapple: colosseumSolGrappleSchema.optional(),
+  colosseumSolPools: colosseumSolPoolsSchema.optional(),
+  colosseumSolLasers: colosseumSolLasersSchema.optional(),
 
   // Mokhaiotl events
   mokhaiotlAttackStyle: attackStyleSchema.optional(),

@@ -130,6 +130,9 @@ export class TimelineDisplay {
       }
     }
 
+    let lastHereditAttack: NpcAttack | null = null;
+    let hereditAttackCount = 0;
+
     for (const tick of this.resolver.ticks()) {
       for (const cell of tick.cells) {
         const actor = this.resolver.getActor(cell.actorId);
@@ -145,6 +148,25 @@ export class TimelineDisplay {
               tick.tick,
               action.attackType,
             );
+
+            const attack = bcfToNpcAttack(action.attackType);
+            if (
+              attack === NpcAttack.COLOSSEUM_HEREDIT_THRUST ||
+              attack === NpcAttack.COLOSSEUM_HEREDIT_SLAM
+            ) {
+              if (attack === lastHereditAttack) {
+                hereditAttackCount++;
+              } else {
+                hereditAttackCount = 1;
+              }
+              lastHereditAttack = attack;
+              this.npcLabels.set(
+                `${cell.actorId}:${tick.tick}`,
+                hereditAttackCount % 2 === 1 ? 'I' : 'II',
+              );
+            } else if (Npc.isSolHeredit(actor.npcId)) {
+              lastHereditAttack = null;
+            }
           }
         }
       }
