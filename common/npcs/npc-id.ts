@@ -188,6 +188,9 @@ export enum NpcId {
   MANTICORE = 12818,
   SHOCKWAVE_COLOSSUS = 12819,
   SOL_HEREDIT = 12821,
+  BEE_SWARM = 12823,
+  LASER_PRISM = 12824,
+  HEALING_TOTEM = 12825,
   SOLARFLARE = 12826,
 
   // Mokhaiotl NPCs.
@@ -643,6 +646,18 @@ export class Npc {
 
   static isSolHeredit(npcId: number): boolean {
     return npcId === (NpcId.SOL_HEREDIT as number);
+  }
+
+  static isBeeSwarm(npcId: number): boolean {
+    return npcId === (NpcId.BEE_SWARM as number);
+  }
+
+  static isLaserPrism(npcId: number): boolean {
+    return npcId === (NpcId.LASER_PRISM as number);
+  }
+
+  static isHealingTotem(npcId: number): boolean {
+    return npcId === (NpcId.HEALING_TOTEM as number);
   }
 
   static isSolarflare(npcId: number): boolean {

@@ -845,6 +845,40 @@ export enum VerzikPhase {
   P3 = EventProto.VerzikPhase.VERZIK_P3,
 }
 
+export enum EquipmentSlot {
+  HEAD = EventProto.Player.EquipmentSlot.HEAD,
+  CAPE = EventProto.Player.EquipmentSlot.CAPE,
+  AMULET = EventProto.Player.EquipmentSlot.AMULET,
+  AMMO = EventProto.Player.EquipmentSlot.AMMO,
+  WEAPON = EventProto.Player.EquipmentSlot.WEAPON,
+  TORSO = EventProto.Player.EquipmentSlot.TORSO,
+  SHIELD = EventProto.Player.EquipmentSlot.SHIELD,
+  LEGS = EventProto.Player.EquipmentSlot.LEGS,
+  GLOVES = EventProto.Player.EquipmentSlot.GLOVES,
+  BOOTS = EventProto.Player.EquipmentSlot.BOOTS,
+  RING = EventProto.Player.EquipmentSlot.RING,
+  QUIVER = EventProto.Player.EquipmentSlot.QUIVER,
+}
+
+const EQUIPMENT_SLOT_NAMES = {
+  [EquipmentSlot.HEAD]: 'Head',
+  [EquipmentSlot.CAPE]: 'Cape',
+  [EquipmentSlot.AMULET]: 'Amulet',
+  [EquipmentSlot.AMMO]: 'Ammo',
+  [EquipmentSlot.WEAPON]: 'Weapon',
+  [EquipmentSlot.TORSO]: 'Torso',
+  [EquipmentSlot.SHIELD]: 'Shield',
+  [EquipmentSlot.LEGS]: 'Legs',
+  [EquipmentSlot.GLOVES]: 'Gloves',
+  [EquipmentSlot.BOOTS]: 'Boots',
+  [EquipmentSlot.RING]: 'Ring',
+  [EquipmentSlot.QUIVER]: 'Quiver',
+} as const;
+
+export function equipmentSlotName(slot: EquipmentSlot): string {
+  return EQUIPMENT_SLOT_NAMES[slot];
+}
+
 export enum PrimaryMeleeGear {
   UNKNOWN = 0,
   ELITE_VOID = 1,

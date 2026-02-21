@@ -38,6 +38,12 @@ import {
   BloatHandsDropEvent,
   BloatHandsSplatEvent,
   BaseEvent,
+  ColosseumTotemHealEvent,
+  ColosseumReentryPoolsEvent,
+  ColosseumSolDustEvent,
+  ColosseumSolGrappleEvent,
+  ColosseumSolPoolsEvent,
+  ColosseumSolLasersEvent,
   Event,
   EventType,
   MaidenBloodSplatsEvent,
@@ -1276,6 +1282,79 @@ function eventFromProto(evt: EventProto, eventData: ChallengeEvents): Event {
     case EventType.COLOSSEUM_HANDICAP_CHOICE:
       // These events are not serialized to the file.
       break;
+
+    case EventType.COLOSSEUM_TOTEM_HEAL: {
+      const e = event as ColosseumTotemHealEvent;
+      const totemHeal = evt.getColosseumTotemHeal()!;
+      const source = totemHeal.getSource()!;
+      const target = totemHeal.getTarget()!;
+      e.colosseumTotemHeal = {
+        source: { id: source.getId(), roomId: source.getRoomId() },
+        target: { id: target.getId(), roomId: target.getRoomId() },
+        startTick: totemHeal.getStartTick(),
+        healAmount: totemHeal.getHealAmount(),
+      };
+      break;
+    }
+
+    case EventType.COLOSSEUM_REENTRY_POOLS: {
+      const e = event as ColosseumReentryPoolsEvent;
+      const reentryPools = evt.getColosseumReentryPools()!;
+      e.colosseumReentryPools = {
+        primarySpawned: reentryPools
+          .getPrimarySpawnedList()
+          .map((coord) => coord.toObject()),
+        secondarySpawned: reentryPools
+          .getSecondarySpawnedList()
+          .map((coord) => coord.toObject()),
+        primaryDespawned: reentryPools
+          .getPrimaryDespawnedList()
+          .map((coord) => coord.toObject()),
+        secondaryDespawned: reentryPools
+          .getSecondaryDespawnedList()
+          .map((coord) => coord.toObject()),
+      };
+      break;
+    }
+
+    case EventType.COLOSSEUM_SOL_DUST: {
+      const e = event as ColosseumSolDustEvent;
+      const solDust = evt.getColosseumSolDust()!;
+      e.colosseumSolDust = {
+        pattern: solDust.getPattern(),
+        direction: solDust.getDirection(),
+      };
+      break;
+    }
+
+    case EventType.COLOSSEUM_SOL_GRAPPLE: {
+      const e = event as ColosseumSolGrappleEvent;
+      const solGrapple = evt.getColosseumSolGrapple()!;
+      e.colosseumSolGrapple = {
+        attackTick: solGrapple.getAttackTick(),
+        target: solGrapple.getTarget(),
+        outcome: solGrapple.getOutcome(),
+      };
+      break;
+    }
+
+    case EventType.COLOSSEUM_SOL_POOLS: {
+      const e = event as ColosseumSolPoolsEvent;
+      const solPools = evt.getColosseumSolPools()!;
+      e.colosseumSolPools = {
+        pools: solPools.getPoolsList().map((coord) => coord.toObject()),
+      };
+      break;
+    }
+
+    case EventType.COLOSSEUM_SOL_LASERS: {
+      const e = event as ColosseumSolLasersEvent;
+      const solLasers = evt.getColosseumSolLasers()!;
+      e.colosseumSolLasers = {
+        phase: solLasers.getPhase(),
+      };
+      break;
+    }
 
     case EventType.MOKHAIOTL_ORB: {
       const e = event as MokhaiotlOrbEvent;

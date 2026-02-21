@@ -11,4 +11,4 @@ export type {
   CustomRow,
   TimelineColor,
 } from './attack-timeline';
-export type { TimelineSplit } from './types';
+export type { CustomState, TimelineSplit } from './types';

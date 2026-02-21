@@ -2,6 +2,7 @@ import { Event as EventProto } from './generated/event_pb';
 import { RawItemDelta } from './item-delta';
 import { RawPrayerSet } from './prayer-set';
 import {
+  EquipmentSlot,
   Handicap,
   Maze,
   NpcAttack,
@@ -45,6 +46,13 @@ export enum EventType {
   TOB_VERZIK_YELLOWS = EventProto.Type.TOB_VERZIK_YELLOWS,
   TOB_VERZIK_HEAL = EventProto.Type.TOB_VERZIK_HEAL,
   COLOSSEUM_HANDICAP_CHOICE = EventProto.Type.COLOSSEUM_HANDICAP_CHOICE,
+  COLOSSEUM_DOOM_APPLIED = EventProto.Type.COLOSSEUM_DOOM_APPLIED,
+  COLOSSEUM_TOTEM_HEAL = EventProto.Type.COLOSSEUM_TOTEM_HEAL,
+  COLOSSEUM_REENTRY_POOLS = EventProto.Type.COLOSSEUM_REENTRY_POOLS,
+  COLOSSEUM_SOL_DUST = EventProto.Type.COLOSSEUM_SOL_DUST,
+  COLOSSEUM_SOL_GRAPPLE = EventProto.Type.COLOSSEUM_SOL_GRAPPLE,
+  COLOSSEUM_SOL_POOLS = EventProto.Type.COLOSSEUM_SOL_POOLS,
+  COLOSSEUM_SOL_LASERS = EventProto.Type.COLOSSEUM_SOL_LASERS,
   MOKHAIOTL_ATTACK_STYLE = EventProto.Type.MOKHAIOTL_ATTACK_STYLE,
   MOKHAIOTL_ORB = EventProto.Type.MOKHAIOTL_ORB,
   MOKHAIOTL_OBJECTS = EventProto.Type.MOKHAIOTL_OBJECTS,
@@ -228,6 +236,61 @@ export interface HandicapChoiceEvent extends BaseEvent {
   handicap: Handicap;
 }
 
+export interface ColosseumDoomAppliedEvent extends BaseEvent {
+  type: EventType.COLOSSEUM_DOOM_APPLIED;
+}
+
+export interface ColosseumTotemHealEvent extends BaseEvent {
+  type: EventType.COLOSSEUM_TOTEM_HEAL;
+  colosseumTotemHeal: {
+    source: BasicEventNpc;
+    target: BasicEventNpc;
+    startTick: number;
+    healAmount: number;
+  };
+}
+
+export interface ColosseumReentryPoolsEvent extends BaseEvent {
+  type: EventType.COLOSSEUM_REENTRY_POOLS;
+  colosseumReentryPools: {
+    primarySpawned: Coords[];
+    secondarySpawned: Coords[];
+    primaryDespawned: Coords[];
+    secondaryDespawned: Coords[];
+  };
+}
+
+export interface ColosseumSolDustEvent extends BaseEvent {
+  type: EventType.COLOSSEUM_SOL_DUST;
+  colosseumSolDust: {
+    pattern: SolDustPattern;
+    direction?: SolDustDirection;
+  };
+}
+
+export interface ColosseumSolGrappleEvent extends BaseEvent {
+  type: EventType.COLOSSEUM_SOL_GRAPPLE;
+  colosseumSolGrapple: {
+    attackTick: number;
+    target: EquipmentSlot;
+    outcome: SolGrappleOutcome;
+  };
+}
+
+export interface ColosseumSolPoolsEvent extends BaseEvent {
+  type: EventType.COLOSSEUM_SOL_POOLS;
+  colosseumSolPools: {
+    pools: Coords[];
+  };
+}
+
+export interface ColosseumSolLasersEvent extends BaseEvent {
+  type: EventType.COLOSSEUM_SOL_LASERS;
+  colosseumSolLasers: {
+    phase: SolLaserPhase;
+  };
+}
+
 export interface MokhaiotlAttackStyleEvent extends BaseEvent {
   type: EventType.MOKHAIOTL_ATTACK_STYLE;
   mokhaiotlAttackStyle: NpcAttackStyle;
@@ -308,6 +371,13 @@ export type Event =
   | VerzikYellowsEvent
   | VerzikHealEvent
   | HandicapChoiceEvent
+  | ColosseumDoomAppliedEvent
+  | ColosseumTotemHealEvent
+  | ColosseumReentryPoolsEvent
+  | ColosseumSolDustEvent
+  | ColosseumSolGrappleEvent
+  | ColosseumSolPoolsEvent
+  | ColosseumSolLasersEvent
   | MokhaiotlAttackStyleEvent
   | MokhaiotlOrbEvent
   | MokhaiotlObjectsEvent
@@ -342,21 +412,6 @@ export type Item = {
   name: string;
   quantity: number;
 };
-
-export enum EquipmentSlot {
-  HEAD = EventProto.Player.EquipmentSlot.HEAD,
-  CAPE = EventProto.Player.EquipmentSlot.CAPE,
-  AMULET = EventProto.Player.EquipmentSlot.AMULET,
-  AMMO = EventProto.Player.EquipmentSlot.AMMO,
-  WEAPON = EventProto.Player.EquipmentSlot.WEAPON,
-  TORSO = EventProto.Player.EquipmentSlot.TORSO,
-  SHIELD = EventProto.Player.EquipmentSlot.SHIELD,
-  LEGS = EventProto.Player.EquipmentSlot.LEGS,
-  GLOVES = EventProto.Player.EquipmentSlot.GLOVES,
-  BOOTS = EventProto.Player.EquipmentSlot.BOOTS,
-  RING = EventProto.Player.EquipmentSlot.RING,
-  QUIVER = EventProto.Player.EquipmentSlot.QUIVER,
-}
 
 export interface BasicEventNpc {
   id: number;
@@ -439,4 +494,29 @@ export enum AttackStyle {
   MELEE = EventProto.AttackStyle.Style.MELEE,
   RANGE = EventProto.AttackStyle.Style.RANGE,
   MAGE = EventProto.AttackStyle.Style.MAGE,
+}
+
+export enum SolDustPattern {
+  TRIDENT_1 = 0,
+  TRIDENT_2 = 1,
+  SHIELD_1 = 2,
+  SHIELD_2 = 3,
+}
+
+export enum SolDustDirection {
+  NORTH = 0,
+  EAST = 1,
+  SOUTH = 2,
+  WEST = 3,
+}
+
+export enum SolGrappleOutcome {
+  HIT = 0,
+  DEFEND = 1,
+  PARRY = 2,
+}
+
+export enum SolLaserPhase {
+  SCAN = 0,
+  SHOT = 1,
 }

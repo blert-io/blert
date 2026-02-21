@@ -576,6 +576,36 @@ const SOL_HEREDIT: NpcDefinition = {
   maxSpeed: 1,
 };
 
+const BEE_SWARM: NpcDefinition = {
+  fullName: 'Bee Swarm',
+  shortName: 'Bees',
+  canonicalId: NpcId.BEE_SWARM,
+  semanticId: false,
+  size: 2,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
+};
+
+const LASER_PRISM: NpcDefinition = {
+  fullName: '',
+  shortName: '',
+  canonicalId: NpcId.LASER_PRISM,
+  semanticId: false,
+  size: 1,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
+};
+
+const HEALING_TOTEM: NpcDefinition = {
+  fullName: 'Healing Totem',
+  shortName: 'Totem',
+  canonicalId: NpcId.HEALING_TOTEM,
+  semanticId: false,
+  size: 1,
+  mode: ChallengeMode.NO_MODE,
+  maxSpeed: 1,
+};
+
 const SOLARFLARE: NpcDefinition = {
   fullName: 'Solarflare',
   shortName: 'Solarflare',
@@ -897,6 +927,9 @@ const NPC_DEFINITIONS: Record<number, NpcDefinition> = {
   [NpcId.MANTICORE]: MANTICORE,
   [NpcId.SHOCKWAVE_COLOSSUS]: SHOCKWAVE_COLOSSUS,
   [NpcId.SOL_HEREDIT]: SOL_HEREDIT,
+  [NpcId.BEE_SWARM]: BEE_SWARM,
+  [NpcId.LASER_PRISM]: LASER_PRISM,
+  [NpcId.HEALING_TOTEM]: HEALING_TOTEM,
   [NpcId.SOLARFLARE]: SOLARFLARE,
 
   // Mokhaiotl NPCs.
