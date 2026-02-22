@@ -111,7 +111,14 @@ export function RoomInput({
           className={styles.roomImage}
         />
         {state.source === 'computed' && (
-          <span className={styles.computedLabel}>COMPUTED</span>
+          <span className={`${styles.sourceLabel} ${styles.computed}`}>
+            COMPUTED
+          </span>
+        )}
+        {state.source === 'imported' && (
+          <span className={`${styles.sourceLabel} ${styles.imported}`}>
+            IMPORTED
+          </span>
         )}
       </div>
       <div className={styles.roomInput}>
