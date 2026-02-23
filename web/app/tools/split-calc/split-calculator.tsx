@@ -4,6 +4,7 @@ import { ChallengeMode, adjustSplitForMode } from '@blert/common';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
+import { ChallengeOverview } from '@/actions/challenge';
 import Card from '@/components/card';
 import Checkbox from '@/components/checkbox';
 import RadioInput from '@/components/radio-input';
@@ -13,6 +14,7 @@ import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import { optimizeAllocation } from './allocation';
 import { DistributionChart } from './distribution-chart';
+import { ImportRaids } from './import-raids';
 import {
   convolveDistributions,
   convolvedPercentile,
@@ -460,6 +462,28 @@ export function SplitCalculator() {
     });
   }
 
+  function handleImport(challenge: ChallengeOverview) {
+    setMode(challenge.mode);
+    setScale(challenge.scale);
+
+    const newRooms = initialRoomState();
+    for (const room of TOB_ROOMS) {
+      const split = challenge.splits?.[room.splitType];
+      if (split !== undefined && split.ticks > 0) {
+        newRooms[room.key] = {
+          ticks: split.ticks,
+          source: 'imported',
+          locked: true,
+        };
+      }
+    }
+    setRooms(newRooms);
+
+    if (challenge.scale < 3) {
+      setTier(SplitTier.STANDARD);
+    }
+  }
+
   function handleModeChange(value: number | string) {
     setMode(value as ChallengeMode);
   }
@@ -550,13 +574,16 @@ export function SplitCalculator() {
         header={{
           title: 'Room Splits',
           action: (
-            <button
-              className={styles.clearButton}
-              onClick={() => setRooms(initialRoomState())}
-              type="button"
-            >
-              <i className="fas fa-eraser" /> Clear all
-            </button>
+            <div className={styles.cardActions}>
+              <ImportRaids mode={mode} scale={scale} onImport={handleImport} />
+              <button
+                className={styles.clearButton}
+                onClick={() => setRooms(initialRoomState())}
+                type="button"
+              >
+                <i className="fas fa-eraser" /> Clear all
+              </button>
+            </div>
           ),
         }}
       >
