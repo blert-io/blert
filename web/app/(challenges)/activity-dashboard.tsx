@@ -3,7 +3,7 @@
 import { challengeName, ChallengeStatus, ChallengeType } from '@blert/common';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -34,6 +34,7 @@ import { formatDuration } from '@/utils/time';
 import { queryString } from '@/utils/url';
 
 import { parseMostActiveTeam, parseSessionStats } from './query';
+import { AnalysisLink } from './types';
 
 import styles from './activity-dashboard.module.scss';
 
@@ -68,6 +69,7 @@ export type MostActiveTeam = {
 
 type ActivityDashboardProps = {
   challengeType: ChallengeType;
+  analysisLinks: AnalysisLink[];
   initialDailyStats: TodaysStats;
   initialMostActiveTeam: MostActiveTeam | null;
   initialPlayerData: ChartValue<string>[];
@@ -460,8 +462,16 @@ function toChartValues<T = string>(
     }));
 }
 
+const TRENDS_LINK: AnalysisLink = {
+  href: '/trends',
+  title: 'Data Trends',
+  description: 'Community performance insights',
+  icon: 'fas fa-chart-pie',
+};
+
 export default function ActivityDashboard({
   challengeType,
+  analysisLinks,
   initialDailyStats,
   initialMostActiveTeam = null,
   initialPlayerData = [],
@@ -651,6 +661,11 @@ export default function ActivityDashboard({
     return { name, color, ...v };
   });
 
+  const allAnalysisLinks = useMemo(
+    () => [...analysisLinks, TRENDS_LINK],
+    [analysisLinks],
+  );
+
   return (
     <div className={styles.dashboard}>
       <Card className={styles.logoCard} primary>
@@ -805,25 +820,33 @@ export default function ActivityDashboard({
         )}
       </Card>
 
-      <Card>
-        <SectionTitle icon="fa-chart-line">Analysis Tools</SectionTitle>
-        <div className={styles.analysisLinks}>
-          <Link href="/trends" className={styles.analysisLink}>
-            <div className={styles.linkIcon}>
-              <i className="fas fa-chart-pie" />
-            </div>
-            <div className={styles.linkContent}>
-              <div className={styles.linkTitle}>Data Trends</div>
-              <div className={styles.linkDescription}>
-                Community performance insights
-              </div>
-            </div>
-            <div className={styles.linkArrow}>
-              <i className="fas fa-arrow-right" />
-            </div>
-          </Link>
-        </div>
-      </Card>
+      {allAnalysisLinks.length > 0 && (
+        <Card>
+          <SectionTitle icon="fa-chart-line">Analysis Tools</SectionTitle>
+          <div className={styles.analysisLinks}>
+            {allAnalysisLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={styles.analysisLink}
+              >
+                <div className={styles.linkIcon}>
+                  <i className={link.icon} />
+                </div>
+                <div className={styles.linkContent}>
+                  <div className={styles.linkTitle}>{link.title}</div>
+                  <div className={styles.linkDescription}>
+                    {link.description}
+                  </div>
+                </div>
+                <div className={styles.linkArrow}>
+                  <i className="fas fa-arrow-right" />
+                </div>
+              </Link>
+            ))}
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

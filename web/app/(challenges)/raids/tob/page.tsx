@@ -2,10 +2,25 @@ import { ChallengeType } from '@blert/common';
 import { ResolvingMetadata } from 'next';
 
 import { basicMetadata } from '@/utils/metadata';
-import ChallengePage from '../../challenge-page';
+import ChallengePage from '@/(challenges)/challenge-page';
+import { AnalysisLink } from '@/(challenges)/types';
+
+const TOB_ANALYSIS_LINKS: AnalysisLink[] = [
+  {
+    href: '/tools/split-calc',
+    title: 'Split Calculator',
+    description: 'Statistically analyze ToB room times with raid data',
+    icon: 'fas fa-calculator',
+  },
+];
 
 export default function Page() {
-  return <ChallengePage type={ChallengeType.TOB} />;
+  return (
+    <ChallengePage
+      type={ChallengeType.TOB}
+      analysisLinks={TOB_ANALYSIS_LINKS}
+    />
+  );
 }
 
 export async function generateMetadata(

@@ -10,6 +10,7 @@ import {
 import ActivityDashboard, { MostActiveTeam } from './activity-dashboard';
 import FilteredSessionList from './filtered-session-list';
 import { parseMostActiveTeam, parseSessionStats } from './query';
+import { AnalysisLink } from './types';
 
 import styles from './style.module.scss';
 
@@ -24,9 +25,13 @@ function startOfDateUtc(): Date {
 
 type ChallengePageProps = {
   type: ChallengeType;
+  analysisLinks?: AnalysisLink[];
 };
 
-export default async function Page({ type }: ChallengePageProps) {
+export default async function Page({
+  type,
+  analysisLinks = [],
+}: ChallengePageProps) {
   const challengeFilter: ChallengeQuery = {
     type: ['==', type],
     startTime: ['>=', startOfDateUtc()],
@@ -122,6 +127,7 @@ export default async function Page({ type }: ChallengePageProps) {
         <div className={styles.dashboardSidebar}>
           <ActivityDashboard
             challengeType={type}
+            analysisLinks={analysisLinks}
             initialDailyStats={todaysStats}
             initialPlayerData={playerData}
             initialScaleData={scaleData}
