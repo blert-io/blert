@@ -1,0 +1,39 @@
+# Version control
+.git
+.gitignore
+
+# Dependencies
+node_modules
+
+# Build outputs
+dist
+.next
+common/generated
+
+# Local data
+.data
+
+# Dev tooling & editor configs
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Docker
+docker
+compose.yaml
+
+# Dev/CI files
+.github
+.prettierignore
+.prettierrc
+eslint.config.mjs
+README.md
+
+# Test artifacts
+coverage
+*.test.ts
+*.test.tsx
+__tests__
+jest.config.*

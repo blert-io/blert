@@ -1,10 +1,11 @@
 import type { NextConfig } from 'next';
 import path from 'path';
 
-const repoRoot = path.join(__dirname, '../../');
+const repoRoot = path.join(__dirname, '../');
 const emptyModulePath = './config/empty-browser-module.js';
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   outputFileTracingRoot: repoRoot,
   serverExternalPackages: ['@react-email/components', '@react-email/render'],
   images: {
