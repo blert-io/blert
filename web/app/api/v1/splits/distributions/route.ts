@@ -6,6 +6,7 @@ import {
   getSplitDistributions,
   SplitTier,
 } from '@/actions/split-distributions';
+import { withApiRoute } from '@/api/handler';
 import { expectSingle, numericListParam, numericParam } from '@/api/query';
 
 const VALID_TIERS = ['standard', 'speedrun'];
@@ -17,8 +18,9 @@ const CACHE_HEADERS = {
   'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
 };
 
-export async function GET(request: NextRequest) {
-  try {
+export const GET = withApiRoute(
+  { route: '/api/v1/splits/distributions' },
+  async (request: NextRequest) => {
     const params = Object.fromEntries(request.nextUrl.searchParams);
 
     const types = numericListParam<SplitType>(params, 'types');
@@ -40,12 +42,14 @@ export async function GET(request: NextRequest) {
       return Response.json({ error: 'Invalid tier' }, { status: 400 });
     }
 
-    const distributions = await getSplitDistributions(types, scale, tier);
-    return Response.json(distributions, { headers: CACHE_HEADERS });
-  } catch (e) {
-    if (e instanceof InvalidQueryError) {
-      return Response.json({ error: e.message }, { status: 400 });
+    try {
+      const distributions = await getSplitDistributions(types, scale, tier);
+      return Response.json(distributions, { headers: CACHE_HEADERS });
+    } catch (e) {
+      if (e instanceof InvalidQueryError) {
+        return Response.json({ error: e.message }, { status: 400 });
+      }
+      throw e;
     }
-    return Response.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
+  },
+);

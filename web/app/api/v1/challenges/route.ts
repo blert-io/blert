@@ -6,6 +6,7 @@ import {
   FindChallengesOptions,
   findChallenges,
 } from '@/actions/challenge';
+import { withApiRoute } from '@/api/handler';
 import { parseIntParam } from '@/utils/params';
 
 import { parseChallengeQueryParams } from './query';
@@ -37,88 +38,88 @@ function parseSplit(value: string): SplitType | null {
   return split;
 }
 
-export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
+export const GET = withApiRoute(
+  { route: '/api/v1/challenges' },
+  async (request: NextRequest) => {
+    const searchParams = request.nextUrl.searchParams;
 
-  const limit = parseIntParam<number>(searchParams, 'limit') ?? DEFAULT_LIMIT;
-  if (limit < 1 || limit > MAX_LIMIT) {
-    return new Response(null, { status: 400 });
-  }
-
-  let query: ChallengeQuery;
-
-  try {
-    const q = parseChallengeQueryParams(searchParams);
-    if (q === null) {
+    const limit = parseIntParam<number>(searchParams, 'limit') ?? DEFAULT_LIMIT;
+    if (limit < 1 || limit > MAX_LIMIT) {
       return new Response(null, { status: 400 });
     }
-    query = q;
-  } catch (e: any) {
-    console.error('Failed to parse invalid query:', e);
-    return new Response(null, { status: 400 });
-  }
 
-  const splits = new Set(DEFAULT_SPLITS);
-  let loadStats = false;
+    let query: ChallengeQuery;
 
-  const extraFields = searchParams.get('extraFields')?.split(',');
-  if (extraFields) {
-    for (const field of extraFields) {
-      if (field.startsWith('splits:')) {
-        const split = parseSplit(field);
+    try {
+      const q = parseChallengeQueryParams(searchParams);
+      if (q === null) {
+        return new Response(null, { status: 400 });
+      }
+      query = q;
+    } catch {
+      return new Response(null, { status: 400 });
+    }
+
+    const splits = new Set(DEFAULT_SPLITS);
+    let loadStats = false;
+
+    const extraFields = searchParams.get('extraFields')?.split(',');
+    if (extraFields) {
+      for (const field of extraFields) {
+        if (field.startsWith('splits:')) {
+          const split = parseSplit(field);
+          if (split === null) {
+            return new Response(null, { status: 400 });
+          }
+          splits.add(split);
+        }
+        if (field === 'stats') {
+          loadStats = true;
+        }
+      }
+    }
+
+    // If requesting to sort by splits, ensure that the split values are included
+    // in the result set.
+    const sorts = searchParams.get('sort')?.split(',') ?? [];
+    for (const sort of sorts) {
+      const sortField = sort.slice(1).split('#')[0];
+      if (sortField.startsWith('split:')) {
+        const split = parseSplit(sortField);
         if (split === null) {
           return new Response(null, { status: 400 });
         }
         splits.add(split);
       }
-      if (field === 'stats') {
-        loadStats = true;
+    }
+
+    const findOptions: Required<FindChallengesOptions> = {
+      accurateSplits: false,
+      fullRecordings: false,
+      count: true,
+      extraFields: {
+        splits: Array.from(splits),
+        stats: loadStats,
+      },
+    };
+
+    const optionsParam = searchParams.get('options');
+    if (optionsParam !== null) {
+      const options = optionsParam.split(',');
+      for (const option of options) {
+        switch (option) {
+          case 'accurateSplits':
+            findOptions.accurateSplits = true;
+            break;
+          case 'fullRecordings':
+            findOptions.fullRecordings = true;
+            break;
+          default:
+            return new Response(null, { status: 400 });
+        }
       }
     }
-  }
 
-  // If requesting to sort by splits, ensure that the split values are included
-  // in the result set.
-  const sorts = searchParams.get('sort')?.split(',') ?? [];
-  for (const sort of sorts) {
-    const sortField = sort.slice(1).split('#')[0];
-    if (sortField.startsWith('split:')) {
-      const split = parseSplit(sortField);
-      if (split === null) {
-        return new Response(null, { status: 400 });
-      }
-      splits.add(split);
-    }
-  }
-
-  const findOptions: Required<FindChallengesOptions> = {
-    accurateSplits: false,
-    fullRecordings: false,
-    count: true,
-    extraFields: {
-      splits: Array.from(splits),
-      stats: loadStats,
-    },
-  };
-
-  const optionsParam = searchParams.get('options');
-  if (optionsParam !== null) {
-    const options = optionsParam.split(',');
-    for (const option of options) {
-      switch (option) {
-        case 'accurateSplits':
-          findOptions.accurateSplits = true;
-          break;
-        case 'fullRecordings':
-          findOptions.fullRecordings = true;
-          break;
-        default:
-          return new Response(null, { status: 400 });
-      }
-    }
-  }
-
-  try {
     const [challenges, count] = await findChallenges(limit, query, findOptions);
     if (challenges === null) {
       return new Response(null, { status: 404 });
@@ -128,12 +129,5 @@ export async function GET(request: NextRequest) {
         'X-Total-Count': count ? count.toString() : '0',
       },
     });
-  } catch (e) {
-    if (e instanceof Error && e.name === 'InvalidQueryError') {
-      return new Response(null, { status: 400 });
-    }
-
-    console.error('Failed to find challenges:', e);
-    return new Response(null, { status: 500 });
-  }
-}
+  },
+);

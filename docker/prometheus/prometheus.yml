@@ -17,4 +17,8 @@ scrape_configs:
     static_configs:
       - targets:
           - challenge-server:3003
-  # TODO(frolv): Add other services here once they expose metrics.
+  - job_name: blert-web
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - host.docker.internal:3000

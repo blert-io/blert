@@ -276,22 +276,17 @@ describe('Blertbank actions', () => {
       consoleErrorSpy.mockRestore();
     });
 
-    it('should log BlertbankError details', async () => {
+    it('should return 0 for BlertbankError', async () => {
       mockGetSignedInUserId.mockResolvedValue(123);
 
       const error = new BlertbankError('Service unavailable');
       mockClient.getOrCreateBalance.mockRejectedValue(error);
 
-      await getUserBalance();
-
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        'Failed to fetch balance for user',
-        123,
-        error,
-      );
+      const balance = await getUserBalance();
+      expect(balance).toBe(0);
     });
 
-    it('should log UnauthorizedError details', async () => {
+    it('should throw for UnauthorizedError', async () => {
       mockGetSignedInUserId.mockResolvedValue(123);
 
       const error = new UnauthorizedError('Invalid token');
@@ -300,25 +295,16 @@ describe('Blertbank actions', () => {
       await expect(getUserBalance()).rejects.toThrow(
         'Service configuration error',
       );
-
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        'Blertbank authorization failed:',
-        error,
-      );
     });
 
-    it('should log unexpected errors', async () => {
+    it('should return 0 for unexpected errors', async () => {
       mockGetSignedInUserId.mockResolvedValue(123);
 
       const error = new Error('Unexpected error');
       mockClient.getOrCreateBalance.mockRejectedValue(error);
 
-      await getUserBalance();
-
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        'Unexpected error fetching balance:',
-        error,
-      );
+      const balance = await getUserBalance();
+      expect(balance).toBe(0);
     });
   });
 });

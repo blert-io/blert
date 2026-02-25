@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto';
 
 import redis from '@/actions/redis';
+import logger from '@/utils/log';
 
 export type RateLimitConfig = {
   limit: number;
@@ -86,7 +87,10 @@ export async function rateLimit(
       reset,
     };
   } catch (error) {
-    console.error('Rate limit error:', error);
+    logger.error('rate_limit_error', {
+      key,
+      error: error instanceof Error ? error.message : String(error),
+    });
     // Fail open: allow request on Redis errors.
     return {
       success: true,
@@ -129,7 +133,10 @@ export async function getRateLimitStatus(
       reset: toUnixSeconds(resetBase + windowSec * 1000),
     };
   } catch (error) {
-    console.error('Rate limit status error:', error);
+    logger.error('rate_limit_status_error', {
+      key,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return {
       limit,
       remaining: limit,

@@ -1,5 +1,7 @@
 import { timingSafeEqual } from 'crypto';
 
+import logger from '@/utils/log';
+
 /**
  * Validates the Discord bot secret from the Authorization header.
  *
@@ -13,7 +15,7 @@ export function validateDiscordBotAuth(authHeader: string | null): boolean {
 
   const secret = process.env.BLERT_DISCORD_BOT_SECRET;
   if (!secret) {
-    console.error('BLERT_DISCORD_BOT_SECRET is not configured');
+    logger.error('discord_bot_secret_not_configured');
     return false;
   }
 

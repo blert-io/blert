@@ -128,7 +128,6 @@ describe('GET /api/feed', () => {
   });
 
   it('should return 500 for unexpected errors', async () => {
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
     mockLoadFeed.mockRejectedValue(new Error('Database error'));
 
     const request = createRequest();
@@ -136,11 +135,5 @@ describe('GET /api/feed', () => {
 
     expect(response.status).toBe(500);
     expect(response.body).toBeNull();
-    expect(consoleSpy).toHaveBeenCalledWith(
-      'Failed to fetch personalized feed:',
-      expect.any(Error),
-    );
-
-    consoleSpy.mockRestore();
   });
 });

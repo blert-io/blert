@@ -38,6 +38,8 @@ import {
 import type { ChallengeRow, SessionRow } from '@blert/common/dist/db/challenge';
 import postgres from 'postgres';
 
+import logger from '@/utils/log';
+
 import { sql } from './db';
 import dataRepository from './data-repository';
 import { InvalidQueryError } from './errors';
@@ -1894,10 +1896,9 @@ export async function loadSessions(
   });
 
   if (challenges.length === 0) {
-    console.warn(
-      'No challenges found for sessions:',
-      sessions.map((s) => s.uuid),
-    );
+    logger.warn('no_challenges_for_sessions', {
+      sessionUuids: sessions.map((s) => s.uuid),
+    });
     return [];
   }
 

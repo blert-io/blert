@@ -2,15 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { getPlayerStatsHistory, PlayerStatsFilter } from '@/actions/challenge';
 import { InvalidQueryError } from '@/actions/errors';
+import { withApiRoute } from '@/api/handler';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ username: string }> },
-) {
-  const { username } = await params;
-  const searchParams = request.nextUrl.searchParams;
+export const GET = withApiRoute(
+  { route: '/api/v1/players/[username]/stats' },
+  async (request: NextRequest, { params }) => {
+    const { username } = await params;
+    const searchParams = request.nextUrl.searchParams;
 
-  try {
     const filter: PlayerStatsFilter = {};
 
     const after = searchParams.get('after');
@@ -56,13 +55,14 @@ export async function GET(
       filter.fields = which.split(',').map((f) => f.trim());
     }
 
-    const stats = await getPlayerStatsHistory(username, limit, filter);
-    return NextResponse.json(stats);
-  } catch (error: any) {
-    console.error('Error fetching player stats:', error);
-    if (error instanceof InvalidQueryError) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+    try {
+      const stats = await getPlayerStatsHistory(username, limit, filter);
+      return NextResponse.json(stats);
+    } catch (error: any) {
+      if (error instanceof InvalidQueryError) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      throw error;
     }
-    return new Response(null, { status: 500 });
-  }
-}
+  },
+);
