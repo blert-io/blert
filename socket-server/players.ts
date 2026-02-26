@@ -86,6 +86,7 @@ export class Players {
     oldName: string,
     newName: string,
     playerId: number,
+    skipChecks: boolean = false,
   ): Promise<void> {
     // Messages from each client are queued and processed sequentially, and it's
     // not possible to log into the same OSRS account multiple times. Therefore,
@@ -109,14 +110,16 @@ export class Players {
         new_name,
         player_id,
         status,
-        submitted_at
+        submitted_at,
+        skip_checks
       )
       VALUES (
         ${oldName},
         ${newName},
         ${playerId},
         ${NameChangeStatus.PENDING},
-        NOW()
+        NOW(),
+        ${skipChecks}
       )
     `;
   }
