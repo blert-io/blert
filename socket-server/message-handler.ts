@@ -643,7 +643,12 @@ export default class MessageHandler {
           existingPlayerId: playerId,
           newPlayerId: playerId,
         });
-        await Players.queueNameChange(storedUsername, clientRsn, playerId);
+        await Players.queueNameChange(
+          storedUsername,
+          clientRsn,
+          playerId,
+          true,
+        );
       }
       return isValid;
     }
@@ -686,6 +691,7 @@ export default class MessageHandler {
               existingPlayer.username,
               clientRsn,
               existingPlayer.id,
+              true,
             );
           }
         } else {
