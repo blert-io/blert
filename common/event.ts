@@ -218,6 +218,16 @@ export interface VerzikDawnEvent extends BaseEvent {
   };
 }
 
+export interface VerzikBounceEvent extends BaseEvent {
+  type: EventType.TOB_VERZIK_BOUNCE;
+  verzikBounce: {
+    npcAttackTick: number;
+    playersInRange: number;
+    playersNotInRange: number;
+    bouncedPlayer?: string;
+  };
+}
+
 export interface VerzikYellowsEvent extends BaseEvent {
   type: EventType.TOB_VERZIK_YELLOWS;
   verzikYellows: Coords[];
@@ -367,6 +377,7 @@ export type Event =
   | XarpusPhaseEvent
   | VerzikPhaseEvent
   | VerzikAttackStyleEvent
+  | VerzikBounceEvent
   | VerzikDawnEvent
   | VerzikYellowsEvent
   | VerzikHealEvent

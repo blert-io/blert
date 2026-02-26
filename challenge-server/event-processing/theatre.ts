@@ -619,30 +619,26 @@ export default class TheatreProcessor extends ChallengeProcessor {
       case Event.Type.TOB_VERZIK_BOUNCE: {
         const bounce = event.getVerzikBounce()!;
 
-        if (bounce.getNpcAttackTick() === -1) {
-          // If the tick is -1, no one got bounced, and the event just reports
-          // the number of players who were in bounce range.
-          return false;
+        if (bounce.getNpcAttackTick() !== -1) {
+          const attack = allEvents
+            .eventsForTick(bounce.getNpcAttackTick())
+            .find(
+              (e) =>
+                e.getType() === Event.Type.NPC_ATTACK &&
+                e.getNpcAttack()!.getAttack() ===
+                  NpcAttack.TOB_VERZIK_P2_BOUNCE,
+            );
+
+          if (attack !== undefined) {
+            attack.getNpcAttack()!.setTarget(bounce.getBouncedPlayer());
+          } else {
+            logger.warn('challenge_event_missing_npc_attack', {
+              eventType: event.getType(),
+              tick: bounce.getNpcAttackTick(),
+            });
+          }
         }
-
-        const attack = allEvents
-          .eventsForTick(bounce.getNpcAttackTick())
-          .find(
-            (e) =>
-              e.getType() === Event.Type.NPC_ATTACK &&
-              e.getNpcAttack()!.getAttack() === NpcAttack.TOB_VERZIK_P2_BOUNCE,
-          );
-
-        if (attack === undefined) {
-          logger.warn('challenge_event_missing_npc_attack', {
-            eventType: event.getType(),
-            tick: bounce.getNpcAttackTick(),
-          });
-          return false;
-        }
-
-        attack.getNpcAttack()!.setTarget(bounce.getBouncedPlayer());
-        return false; // Don't write this event.
+        break;
       }
 
       case Event.Type.TOB_VERZIK_ATTACK_STYLE: {

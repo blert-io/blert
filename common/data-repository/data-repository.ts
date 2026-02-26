@@ -63,6 +63,7 @@ import {
   SoteMazePathEvent,
   Spell,
   SpellTarget,
+  VerzikBounceEvent,
   VerzikDawnEvent,
   VerzikHealEvent,
   VerzikPhaseEvent,
@@ -1278,10 +1279,23 @@ function eventFromProto(evt: EventProto, eventData: ChallengeEvents): Event {
     }
 
     case EventType.TOB_VERZIK_ATTACK_STYLE:
-    case EventType.TOB_VERZIK_BOUNCE:
     case EventType.COLOSSEUM_HANDICAP_CHOICE:
       // These events are not serialized to the file.
       break;
+
+    case EventType.TOB_VERZIK_BOUNCE: {
+      const verzikBounce = evt.getVerzikBounce()!;
+      const e = event as VerzikBounceEvent;
+      e.verzikBounce = {
+        npcAttackTick: verzikBounce.getNpcAttackTick(),
+        playersInRange: verzikBounce.getPlayersInRange(),
+        playersNotInRange: verzikBounce.getPlayersNotInRange(),
+      };
+      if (verzikBounce.hasBouncedPlayer()) {
+        e.verzikBounce.bouncedPlayer = verzikBounce.getBouncedPlayer();
+      }
+      break;
+    }
 
     case EventType.COLOSSEUM_TOTEM_HEAL: {
       const e = event as ColosseumTotemHealEvent;

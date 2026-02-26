@@ -46,6 +46,13 @@ export const QueryableEventField = {
   TOB_NYLO_WAVE_NUMBER: 'custom_short_1',
   TOB_NYLO_WAVE_NYLO_COUNT: 'custom_short_2',
 
+  TOB_XARPUS_EXHUMED_HEAL_COUNT: 'custom_short_1',
+
+  TOB_VERZIK_BOUNCE_PLAYERS_IN_RANGE: 'custom_short_1',
+  TOB_VERZIK_BOUNCE_PLAYERS_NOT_IN_RANGE: 'custom_short_2',
+
+  TOB_VERZIK_HEAL_AMOUNT: 'custom_short_1',
+
   SOL_GRAPPLE_TARGET: 'custom_short_1',
   SOL_GRAPPLE_OUTCOME: 'custom_short_2',
 } as const;
