@@ -1419,6 +1419,45 @@ export default abstract class ChallengeProcessor {
           break;
         }
 
+        case Event.Type.TOB_XARPUS_EXHUMED: {
+          const exhumed = event.getXarpusExhumed()!;
+          const e = baseQueryableEvent(event);
+          e.tick = exhumed.getSpawnTick();
+          e[QueryableEventField.TOB_XARPUS_EXHUMED_HEAL_COUNT] =
+            exhumed.getHealTicksList().length;
+          queryableEvents.push(e);
+          break;
+        }
+
+        case Event.Type.TOB_VERZIK_BOUNCE: {
+          const bounce = event.getVerzikBounce()!;
+          const e = baseQueryableEvent(event);
+          if (bounce.hasBouncedPlayer()) {
+            const playerIndex = this.party.indexOf(bounce.getBouncedPlayer());
+            if (playerIndex !== -1) {
+              e.player_id = this.players[playerIndex].id;
+            }
+          }
+          e[QueryableEventField.TOB_VERZIK_BOUNCE_PLAYERS_IN_RANGE] =
+            bounce.getPlayersInRange();
+          e[QueryableEventField.TOB_VERZIK_BOUNCE_PLAYERS_NOT_IN_RANGE] =
+            bounce.getPlayersNotInRange();
+          queryableEvents.push(e);
+          break;
+        }
+
+        case Event.Type.TOB_VERZIK_HEAL: {
+          const heal = event.getVerzikHeal()!;
+          const e = baseQueryableEvent(event);
+          const playerIndex = this.party.indexOf(heal.getPlayer());
+          if (playerIndex !== -1) {
+            e.player_id = this.players[playerIndex].id;
+          }
+          e[QueryableEventField.TOB_VERZIK_HEAL_AMOUNT] = heal.getHealAmount();
+          queryableEvents.push(e);
+          break;
+        }
+
         case Event.Type.COLOSSEUM_SOL_GRAPPLE: {
           const grapple = event.getColosseumSolGrapple()!;
           const e = baseQueryableEvent(event);

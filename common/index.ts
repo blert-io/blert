@@ -61,6 +61,7 @@ export type {
   SoteMazePathEvent,
   Spell,
   VerzikAttackStyleEvent,
+  VerzikBounceEvent,
   VerzikDawnEvent,
   VerzikHealEvent,
   VerzikPhaseEvent,
