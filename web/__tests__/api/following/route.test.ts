@@ -86,7 +86,6 @@ describe('GET /api/following', () => {
   });
 
   it('should return 500 for unexpected errors', async () => {
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
     mockGetFollowing.mockRejectedValue(new Error('Database error'));
 
     const request = createRequest();
@@ -94,12 +93,6 @@ describe('GET /api/following', () => {
 
     expect(response.status).toBe(500);
     expect(response.body).toBeNull();
-    expect(consoleSpy).toHaveBeenCalledWith(
-      'Failed to fetch following list:',
-      expect.any(Error),
-    );
-
-    consoleSpy.mockRestore();
   });
 });
 

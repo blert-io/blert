@@ -11,6 +11,9 @@ import postgres from 'postgres';
 
 import { GearSetup } from '@/setups/setup';
 
+import logger from '@/utils/log';
+import { withServerAction } from '@/utils/metrics';
+
 import { webRepository } from './data-repository';
 import { sql } from './db';
 import { where } from './query';
@@ -241,13 +244,14 @@ export async function newGearSetup(
  * @returns The new setup metadata.
  */
 export async function cloneGearSetup(setup: GearSetup): Promise<SetupMetadata> {
-  const user = await getSignedInUser();
-  if (user === null) {
-    throw new Error('Not authorized');
-  }
+  return withServerAction('cloneGearSetup', async () => {
+    const user = await getSignedInUser();
+    if (user === null) {
+      throw new Error('Not authorized');
+    }
 
-  const newSetup = await newGearSetup(user, setup, true);
-  return newSetup;
+    return newGearSetup(user, setup, true);
+  });
 }
 
 /**
@@ -401,49 +405,51 @@ export async function saveSetupDraft(
   publicId: string,
   setup: GearSetup,
 ): Promise<void> {
-  const userId = await getSignedInUserId();
-  if (userId === null) {
-    throw new Error('Not authorized');
-  }
+  return withServerAction('saveSetupDraft', async () => {
+    const userId = await getSignedInUserId();
+    if (userId === null) {
+      throw new Error('Not authorized');
+    }
 
-  const [current] = await sql<
-    [{ id: number; author_id: number; state: SetupState }?]
-  >`
-    SELECT id, author_id, state
-    FROM gear_setups
-    WHERE public_id = ${publicId}
-    FOR UPDATE
-  `;
+    const [current] = await sql<
+      [{ id: number; author_id: number; state: SetupState }?]
+    >`
+      SELECT id, author_id, state
+      FROM gear_setups
+      WHERE public_id = ${publicId}
+      FOR UPDATE
+    `;
 
-  if (!current) {
-    throw new Error('Setup not found');
-  }
+    if (!current) {
+      throw new Error('Setup not found');
+    }
 
-  if (current.author_id !== userId) {
-    throw new Error('Not authorized to modify this setup');
-  }
+    if (current.author_id !== userId) {
+      throw new Error('Not authorized to modify this setup');
+    }
 
-  const updates: Record<string, unknown> = {
-    has_draft: true,
-  };
+    const updates: Record<string, unknown> = {
+      has_draft: true,
+    };
 
-  if (current.state === 'draft') {
-    // If the setup has not yet been published, change its name and scale to
-    // match the latest draft.
-    updates.name = setup.title;
-    updates.scale = setup.players.length;
-  }
+    if (current.state === 'draft') {
+      // If the setup has not yet been published, change its name and scale to
+      // match the latest draft.
+      updates.name = setup.title;
+      updates.scale = setup.players.length;
+    }
 
-  await sql`
-    UPDATE gear_setups
-    SET ${sql(updates)}
-    WHERE id = ${current.id}
-  `;
+    await sql`
+      UPDATE gear_setups
+      SET ${sql(updates)}
+      WHERE id = ${current.id}
+    `;
 
-  await webRepository.saveRaw(
-    draftDataKey(publicId),
-    new TextEncoder().encode(JSON.stringify(setup)),
-  );
+    await webRepository.saveRaw(
+      draftDataKey(publicId),
+      new TextEncoder().encode(JSON.stringify(setup)),
+    );
+  });
 }
 
 /**
@@ -458,79 +464,81 @@ export async function publishSetupRevision(
   setup: GearSetup,
   message: string | null,
 ): Promise<SetupMetadata> {
-  const userId = await getSignedInUserId();
-  if (userId === null) {
-    throw new Error('Not authorized');
-  }
-
-  if (setup.title.length === 0 || setup.description.length === 0) {
-    throw new Error('Setup is missing required fields');
-  }
-
-  const { version } = await sql.begin(async (client) => {
-    const [current] = await client<[{ id: number; author_id: number }?]>`
-      SELECT id, author_id
-      FROM gear_setups
-      WHERE public_id = ${publicId}
-      FOR UPDATE
-    `;
-
-    if (!current) {
-      throw new Error('Setup not found');
+  return withServerAction('publishSetupRevision', async () => {
+    const userId = await getSignedInUserId();
+    if (userId === null) {
+      throw new Error('Not authorized');
     }
 
-    if (current.author_id !== userId) {
-      throw new Error('Not authorized to modify this setup');
+    if (setup.title.length === 0 || setup.description.length === 0) {
+      throw new Error('Setup is missing required fields');
     }
 
-    const [revision] = await client<[{ id: number; version: number }]>`
-      INSERT INTO gear_setup_revisions (
-        setup_id,
-        version,
-        message,
-        created_by
-      )
-      SELECT
-        id,
-        COALESCE(
-          (
-            SELECT version + 1
-            FROM gear_setup_revisions
-            WHERE setup_id = gear_setups.id
-            ORDER BY version DESC
-            LIMIT 1
+    const { version } = await sql.begin(async (client) => {
+      const [current] = await client<[{ id: number; author_id: number }?]>`
+        SELECT id, author_id
+        FROM gear_setups
+        WHERE public_id = ${publicId}
+        FOR UPDATE
+      `;
+
+      if (!current) {
+        throw new Error('Setup not found');
+      }
+
+      if (current.author_id !== userId) {
+        throw new Error('Not authorized to modify this setup');
+      }
+
+      const [revision] = await client<[{ id: number; version: number }]>`
+        INSERT INTO gear_setup_revisions (
+          setup_id,
+          version,
+          message,
+          created_by
+        )
+        SELECT
+          id,
+          COALESCE(
+            (
+              SELECT version + 1
+              FROM gear_setup_revisions
+              WHERE setup_id = gear_setups.id
+              ORDER BY version DESC
+              LIMIT 1
+            ),
+            1
           ),
-          1
-        ),
-        ${message},
-        ${userId}
-      FROM gear_setups
-      WHERE public_id = ${publicId}
-      RETURNING id, version
-    `;
+          ${message},
+          ${userId}
+        FROM gear_setups
+        WHERE public_id = ${publicId}
+        RETURNING id, version
+      `;
 
-    await client`
-      UPDATE gear_setups
-      SET
-        name = ${setup.title},
-        challenge_type = ${setup.challenge},
-        scale = ${setup.players.length},
-        latest_revision_id = ${revision.id},
-        state = 'published',
-        has_draft = FALSE,
-        updated_at = NOW()
-      WHERE id = ${current.id}
-    `;
+      await client`
+        UPDATE gear_setups
+        SET
+          name = ${setup.title},
+          challenge_type = ${setup.challenge},
+          scale = ${setup.players.length},
+          latest_revision_id = ${revision.id},
+          state = 'published',
+          has_draft = FALSE,
+          updated_at = NOW()
+        WHERE id = ${current.id}
+      `;
 
-    return revision;
+      return revision;
+    });
+
+    await webRepository.saveRaw(
+      revisionDataKey(publicId, version),
+      new TextEncoder().encode(JSON.stringify(setup)),
+    );
+
+    return getSetupByPublicId(publicId) as Promise<SetupMetadata>;
   });
-
-  await webRepository.saveRaw(
-    revisionDataKey(publicId, version),
-    new TextEncoder().encode(JSON.stringify(setup)),
-  );
-
-  return getSetupByPublicId(publicId) as Promise<SetupMetadata>;
 }
 
 /**
@@ -539,40 +547,45 @@ export async function publishSetupRevision(
  * @returns True if the setup was deleted, false if not authorized.
  */
 export async function deleteSetup(publicId: string): Promise<boolean> {
-  const userId = await getSignedInUserId();
-  if (userId === null) {
-    return false;
-  }
+  return withServerAction('deleteSetup', async () => {
+    const userId = await getSignedInUserId();
+    if (userId === null) {
+      return false;
+    }
 
-  try {
-    await sql.begin(async (client) => {
-      const [setup] = await client<[{ id: number; author_id: number }?]>`
-        SELECT id, author_id
-        FROM gear_setups
-        WHERE public_id = ${publicId}
-        FOR UPDATE
-      `;
+    try {
+      await sql.begin(async (client) => {
+        const [setup] = await client<[{ id: number; author_id: number }?]>`
+          SELECT id, author_id
+          FROM gear_setups
+          WHERE public_id = ${publicId}
+          FOR UPDATE
+        `;
 
-      if (!setup) {
-        throw new Error('Setup not found');
-      }
+        if (!setup) {
+          throw new Error('Setup not found');
+        }
 
-      if (setup.author_id !== userId) {
-        throw new Error('Not authorized to delete this setup');
-      }
+        if (setup.author_id !== userId) {
+          throw new Error('Not authorized to delete this setup');
+        }
 
-      await client`
-        DELETE FROM gear_setups
-        WHERE id = ${setup.id}
-      `;
-    });
+        await client`
+          DELETE FROM gear_setups
+          WHERE id = ${setup.id}
+        `;
+      });
 
-    await webRepository.deleteDirectory(setupDataDir(publicId));
-    return true;
-  } catch (e) {
-    console.error('Failed to delete setup:', e);
-    return false;
-  }
+      await webRepository.deleteDirectory(setupDataDir(publicId));
+      return true;
+    } catch (e) {
+      logger.error('setup_delete_failed', {
+        publicId,
+        error: e instanceof Error ? e.message : String(e),
+      });
+      return false;
+    }
+  });
 }
 
 /**
@@ -609,77 +622,79 @@ export async function voteSetup(
   publicId: string,
   voteType: VoteType,
 ): Promise<VoteCountsResult> {
-  const userId = await getSignedInUserId();
-  if (userId === null) {
-    return { error: 'Not authorized', counts: null };
-  }
+  return withServerAction('voteSetup', async () => {
+    const userId = await getSignedInUserId();
+    if (userId === null) {
+      return { error: 'Not authorized', counts: null };
+    }
 
-  try {
-    const result = await sql.begin(async (client) => {
-      const [setup] = await client<[{ id: number; author_id: number }?]>`
-        SELECT id, author_id
-        FROM gear_setups
-        WHERE public_id = ${publicId}
-        FOR UPDATE
-    `;
+    try {
+      const result = await sql.begin(async (client) => {
+        const [setup] = await client<[{ id: number; author_id: number }?]>`
+          SELECT id, author_id
+          FROM gear_setups
+          WHERE public_id = ${publicId}
+          FOR UPDATE
+        `;
 
-      if (!setup) {
-        throw new Error('Setup not found');
-      }
+        if (!setup) {
+          throw new Error('Setup not found');
+        }
 
-      if (setup.author_id === userId) {
-        throw new Error('Cannot vote on own setup');
-      }
+        if (setup.author_id === userId) {
+          throw new Error('Cannot vote on own setup');
+        }
 
-      // Insert or update the vote.
-      await client`
-        INSERT INTO gear_setup_votes (
-          setup_id,
-          user_id,
-          vote_type
-        ) VALUES (
-          ${setup.id},
-          ${userId},
-          ${voteType}
-        )
-        ON CONFLICT (setup_id, user_id)
-        DO UPDATE SET
-          vote_type = EXCLUDED.vote_type,
-          created_at = NOW()
-      `;
-
-      const [counts] = await client<[{ likes: number; dislikes: number }]>`
-          UPDATE gear_setups
-        SET
-          likes = (
-            SELECT COUNT(*)
-            FROM gear_setup_votes
-            WHERE setup_id = gear_setups.id
-            AND vote_type = 'like'
-          ),
-          dislikes = (
-            SELECT COUNT(*)
-            FROM gear_setup_votes
-            WHERE setup_id = gear_setups.id
-            AND vote_type = 'dislike'
+        // Insert or update the vote.
+        await client`
+          INSERT INTO gear_setup_votes (
+            setup_id,
+            user_id,
+            vote_type
+          ) VALUES (
+            ${setup.id},
+            ${userId},
+            ${voteType}
           )
-        WHERE id = ${setup.id}
-        RETURNING likes, dislikes
-      `;
+          ON CONFLICT (setup_id, user_id)
+          DO UPDATE SET
+            vote_type = EXCLUDED.vote_type,
+            created_at = NOW()
+        `;
 
-      return counts;
-    });
+        const [counts] = await client<[{ likes: number; dislikes: number }]>`
+          UPDATE gear_setups
+          SET
+            likes = (
+              SELECT COUNT(*)
+              FROM gear_setup_votes
+              WHERE setup_id = gear_setups.id
+              AND vote_type = 'like'
+            ),
+            dislikes = (
+              SELECT COUNT(*)
+              FROM gear_setup_votes
+              WHERE setup_id = gear_setups.id
+              AND vote_type = 'dislike'
+            )
+          WHERE id = ${setup.id}
+          RETURNING likes, dislikes
+        `;
 
-    return {
-      error: null,
-      counts: result,
-    };
-  } catch (e) {
-    return {
-      error: (e as Error).message,
-      counts: null,
-    };
-  }
+        return counts;
+      });
+
+      return {
+        error: null,
+        counts: result,
+      };
+    } catch (e) {
+      return {
+        error: (e as Error).message,
+        counts: null,
+      };
+    }
+  });
 }
 
 /**
@@ -688,62 +703,64 @@ export async function voteSetup(
  * @returns The updated vote counts.
  */
 export async function removeVote(publicId: string): Promise<VoteCountsResult> {
-  const userId = await getSignedInUserId();
-  if (userId === null) {
-    return { error: 'Not authorized', counts: null };
-  }
+  return withServerAction('removeVote', async () => {
+    const userId = await getSignedInUserId();
+    if (userId === null) {
+      return { error: 'Not authorized', counts: null };
+    }
 
-  try {
-    const result = await sql.begin(async (client) => {
-      const [setup] = await client<[{ id: number }?]>`
-        SELECT id
-        FROM gear_setups
-        WHERE public_id = ${publicId}
-        FOR UPDATE
-    `;
+    try {
+      const result = await sql.begin(async (client) => {
+        const [setup] = await client<[{ id: number }?]>`
+          SELECT id
+          FROM gear_setups
+          WHERE public_id = ${publicId}
+          FOR UPDATE
+        `;
 
-      if (!setup) {
-        throw new Error('Setup not found');
-      }
+        if (!setup) {
+          throw new Error('Setup not found');
+        }
 
-      await client`
-        DELETE FROM gear_setup_votes
-        WHERE setup_id = ${setup.id}
-        AND user_id = ${userId}
-      `;
+        await client`
+          DELETE FROM gear_setup_votes
+          WHERE setup_id = ${setup.id}
+          AND user_id = ${userId}
+        `;
 
-      const [counts] = await client<[{ likes: number; dislikes: number }]>`
-        UPDATE gear_setups
-        SET
-          likes = (
-            SELECT COUNT(*)
-            FROM gear_setup_votes
-            WHERE setup_id = gear_setups.id
-            AND vote_type = 'like'
-          ),
-          dislikes = (
-            SELECT COUNT(*)
-            FROM gear_setup_votes
-            WHERE setup_id = gear_setups.id
-            AND vote_type = 'dislike'
-          )
-        WHERE id = ${setup.id}
-        RETURNING likes, dislikes
-      `;
+        const [counts] = await client<[{ likes: number; dislikes: number }]>`
+          UPDATE gear_setups
+          SET
+            likes = (
+              SELECT COUNT(*)
+              FROM gear_setup_votes
+              WHERE setup_id = gear_setups.id
+              AND vote_type = 'like'
+            ),
+            dislikes = (
+              SELECT COUNT(*)
+              FROM gear_setup_votes
+              WHERE setup_id = gear_setups.id
+              AND vote_type = 'dislike'
+            )
+          WHERE id = ${setup.id}
+          RETURNING likes, dislikes
+        `;
 
-      return counts;
-    });
+        return counts;
+      });
 
-    return {
-      error: null,
-      counts: result,
-    };
-  } catch (e) {
-    return {
-      error: (e as Error).message,
-      counts: null,
-    };
-  }
+      return {
+        error: null,
+        counts: result,
+      };
+    } catch (e) {
+      return {
+        error: (e as Error).message,
+        counts: null,
+      };
+    }
+  });
 }
 
 /**

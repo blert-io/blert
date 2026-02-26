@@ -2,14 +2,27 @@ import { POST } from '@/api/admin/verify-link/route';
 import { sql } from '@/actions/db';
 import { NextRequest } from 'next/server';
 
+jest.mock('@/actions/admin', () => {
+  const actual =
+    jest.requireActual<typeof import('@/actions/admin')>('@/actions/admin');
+  return {
+    ...actual,
+    verifyDiscordLink: jest.fn(actual.verifyDiscordLink),
+  };
+});
+
 jest.mock('@/api/admin/auth', () => ({
   validateDiscordBotAuth: jest.fn(),
 }));
 
 import { validateDiscordBotAuth } from '@/api/admin/auth';
+import { verifyDiscordLink } from '@/actions/admin';
 
 const mockValidateAuth = validateDiscordBotAuth as jest.MockedFunction<
   typeof validateDiscordBotAuth
+>;
+const mockVerifyDiscordLink = verifyDiscordLink as jest.MockedFunction<
+  typeof verifyDiscordLink
 >;
 
 describe('POST /api/admin/verify-link', () => {
@@ -17,6 +30,7 @@ describe('POST /api/admin/verify-link', () => {
 
   beforeEach(async () => {
     mockValidateAuth.mockClear();
+    mockVerifyDiscordLink.mockClear();
 
     const users = await sql<{ id: number }[]>`
       INSERT INTO users (username, password, email)
@@ -220,6 +234,26 @@ describe('POST /api/admin/verify-link', () => {
 
     expect(response.status).toBe(409);
     expect(data).toEqual({ error: 'conflict' });
+  });
+
+  it('should return 500 internal_error when verification throws unexpectedly', async () => {
+    mockValidateAuth.mockReturnValue(true);
+    mockVerifyDiscordLink.mockRejectedValueOnce(new Error('database failure'));
+
+    const request = createRequest(
+      {
+        code: 'VALID001',
+        discordId: '123456789012345678',
+        discordUsername: 'testuser#1234',
+      },
+      'Bearer valid',
+    );
+
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(data).toEqual({ error: 'internal_error' });
   });
 
   it('should return 200 and link Discord account successfully', async () => {

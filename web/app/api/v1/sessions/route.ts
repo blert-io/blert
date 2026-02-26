@@ -1,16 +1,18 @@
 import { NextRequest } from 'next/server';
 
 import { aggregateSessions, loadSessions } from '@/actions/challenge';
+import { withApiRoute } from '@/api/handler';
 import { clamp } from '@/utils/math';
 
 import { parseSessionQueryParams } from './query';
 
-export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
+export const GET = withApiRoute(
+  { route: '/api/v1/sessions' },
+  async (request: NextRequest) => {
+    const searchParams = request.nextUrl.searchParams;
 
-  const limit = clamp(parseInt(searchParams.get('limit') ?? '10'), 1, 100);
+    const limit = clamp(parseInt(searchParams.get('limit') ?? '10'), 1, 100);
 
-  try {
     const query = parseSessionQueryParams(searchParams);
 
     const countQuery = {
@@ -49,12 +51,5 @@ export async function GET(request: NextRequest) {
         'X-Remaining-Count': String(remaining),
       },
     });
-  } catch (e) {
-    if (e instanceof Error && e.name === 'InvalidQueryError') {
-      return new Response(null, { status: 400 });
-    }
-
-    console.error('Failed to load sessions:', e);
-    return new Response(null, { status: 500 });
-  }
-}
+  },
+);

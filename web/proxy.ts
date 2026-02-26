@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRateLimitKey, rateLimit } from '@/utils/rate-limit';
 import { getTrustedRequestIp } from '@/utils/headers';
 
+import logger from '@/utils/log';
 import { RateLimitConfig } from '@/utils/rate-limit';
 
 type RouteMatcher = {
@@ -110,7 +111,7 @@ export async function proxy(request: NextRequest) {
     remoteAddress: request.ip,
   });
   if (ip === null) {
-    console.warn('Rate limit proxy: missing client IP', {
+    logger.warn('rate_limit_proxy_missing_ip', {
       url: pathname,
       method: request.method,
     });

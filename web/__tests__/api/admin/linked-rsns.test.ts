@@ -2,15 +2,27 @@ import { POST } from '@/api/admin/linked-rsns/route';
 import { sql } from '@/actions/db';
 import { NextRequest } from 'next/server';
 
+jest.mock('@/actions/admin', () => {
+  const actual =
+    jest.requireActual<typeof import('@/actions/admin')>('@/actions/admin');
+  return {
+    ...actual,
+    getLinkedRsns: jest.fn(actual.getLinkedRsns),
+  };
+});
+
 jest.mock('@/api/admin/auth', () => ({
   validateDiscordBotAuth: jest.fn(),
 }));
 
 import { validateDiscordBotAuth } from '@/api/admin/auth';
-import { LinkedRsnsResult } from '@/actions/admin';
+import { getLinkedRsns, LinkedRsnsResult } from '@/actions/admin';
 
 const mockValidateAuth = validateDiscordBotAuth as jest.MockedFunction<
   typeof validateDiscordBotAuth
+>;
+const mockGetLinkedRsns = getLinkedRsns as jest.MockedFunction<
+  typeof getLinkedRsns
 >;
 
 describe('POST /api/admin/linked-rsns', () => {
@@ -21,6 +33,7 @@ describe('POST /api/admin/linked-rsns', () => {
 
   beforeEach(async () => {
     mockValidateAuth.mockClear();
+    mockGetLinkedRsns.mockClear();
 
     const users = await sql<{ id: number }[]>`
       INSERT INTO users (username, password, email)
@@ -268,5 +281,19 @@ describe('POST /api/admin/linked-rsns', () => {
     const data = await response.json();
     expect(data.results).toHaveLength(1);
     expect(data.results[0].rsns).toEqual(['PlayerOne', 'PlayerTwo']);
+  });
+
+  it('should return 500 internal_error when linked-rsns lookup throws unexpectedly', async () => {
+    mockValidateAuth.mockReturnValue(true);
+    mockGetLinkedRsns.mockRejectedValueOnce(new Error('database failure'));
+
+    const request = createRequest(
+      { discordIds: ['123456789012345678'] },
+      'Bearer valid',
+    );
+    const response = await POST(request);
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: 'internal_error' });
   });
 });

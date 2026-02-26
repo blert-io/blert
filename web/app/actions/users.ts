@@ -11,6 +11,9 @@ import {
 import { headers } from 'next/headers';
 
 import { auth } from '@/auth';
+import logger from '@/utils/log';
+import { withServerAction } from '@/utils/metrics';
+
 import { sql } from './db';
 import { AuthenticationError } from './errors';
 
@@ -148,119 +151,125 @@ const API_KEY_BYTE_LENGTH = API_KEY_HEX_LENGTH / 2;
 const MAX_API_KEYS_PER_USER = 3;
 
 export async function createApiKey(rsn: string): Promise<ApiKeyWithUsername> {
-  const userId = await ensureAuthenticated();
+  return withServerAction('createApiKey', async () => {
+    const userId = await ensureAuthenticated();
 
-  if (rsn.length < 1 || rsn.length > 12) {
-    throw new Error('Invalid RSN');
-  }
-
-  const canCreate = await sql`
-    SELECT can_create_api_key FROM users WHERE id = ${userId}
-  `;
-  if (canCreate.length === 0 || !canCreate[0].can_create_api_key) {
-    throw new Error('Not authorized to create API keys');
-  }
-
-  const [apiKeyCount] = await sql<{ count: string }[]>`
-    SELECT COUNT(*) FROM api_keys WHERE user_id = ${userId}
-  `;
-  if (parseInt(apiKeyCount.count) >= MAX_API_KEYS_PER_USER) {
-    throw new Error('Maximum number of API keys reached');
-  }
-
-  let [player] = await sql<{ id: number; username: string }[]>`
-    SELECT id, username
-    FROM players
-    WHERE lower(username) = ${rsn.toLowerCase()}
-  `;
-
-  if (!player) {
-    let experience;
-    try {
-      experience = await hiscoreLookup(rsn);
-    } catch {
-      throw new Error(
-        'Unable to create API key at this time, please try again later',
-      );
-    }
-    if (experience === null) {
-      throw new Error('Player does not exist on Hiscores');
+    if (rsn.length < 1 || rsn.length > 12) {
+      throw new Error('Invalid RSN');
     }
 
-    const [{ id }] = await sql<{ id: number }[]>`
-      INSERT INTO players (
-        username,
-        overall_experience,
-        attack_experience,
-        defence_experience,
-        strength_experience,
-        hitpoints_experience,
-        ranged_experience,
-        prayer_experience,
-        magic_experience,
-        last_updated
-      ) VALUES (
-        ${rsn},
-        ${experience[Skill.OVERALL]},
-        ${experience[Skill.ATTACK]},
-        ${experience[Skill.DEFENCE]},
-        ${experience[Skill.STRENGTH]},
-        ${experience[Skill.HITPOINTS]},
-        ${experience[Skill.RANGED]},
-        ${experience[Skill.PRAYER]},
-        ${experience[Skill.MAGIC]},
-        NOW()
-      ) RETURNING id
+    const canCreate = await sql`
+      SELECT can_create_api_key FROM users WHERE id = ${userId}
     `;
-    player = { id, username: rsn };
-  } else {
-    const [existingKey] = await sql<{ id: number }[]>`
-      SELECT id
-      FROM api_keys
-      WHERE user_id = ${userId} AND player_id = ${player.id}
-    `;
-    if (existingKey) {
-      throw new Error('You already have an API key for this player');
+    if (canCreate.length === 0 || !canCreate[0].can_create_api_key) {
+      throw new Error('Not authorized to create API keys');
     }
-  }
 
-  let apiKey: ApiKey;
-  while (true) {
-    const key = randomBytes(API_KEY_BYTE_LENGTH).toString('hex');
+    const [apiKeyCount] = await sql<{ count: string }[]>`
+      SELECT COUNT(*) FROM api_keys WHERE user_id = ${userId}
+    `;
+    if (parseInt(apiKeyCount.count) >= MAX_API_KEYS_PER_USER) {
+      throw new Error('Maximum number of API keys reached');
+    }
 
-    try {
-      const [{ id: keyId }] = await sql<{ id: number }[]>`
-        INSERT INTO api_keys (user_id, player_id, key)
-        VALUES (${userId}, ${player.id}, ${key})
-        RETURNING id
-      `;
-      apiKey = {
-        id: keyId,
-        key,
-        lastUsed: null,
-        active: true,
-      };
-      break;
-    } catch (e: any) {
-      if (isPostgresUniqueViolation(e)) {
-        // Try again if the key already exists.
-        continue;
+    let [player] = await sql<{ id: number; username: string }[]>`
+      SELECT id, username
+      FROM players
+      WHERE lower(username) = ${rsn.toLowerCase()}
+    `;
+
+    if (!player) {
+      let experience;
+      try {
+        experience = await hiscoreLookup(rsn);
+      } catch {
+        throw new Error(
+          'Unable to create API key at this time, please try again later',
+        );
       }
-      console.error(e);
-      throw new Error('Failed to create API key');
-    }
-  }
+      if (experience === null) {
+        throw new Error('Player does not exist on Hiscores');
+      }
 
-  return { ...apiKey, rsn: player.username };
+      const [{ id }] = await sql<{ id: number }[]>`
+        INSERT INTO players (
+          username,
+          overall_experience,
+          attack_experience,
+          defence_experience,
+          strength_experience,
+          hitpoints_experience,
+          ranged_experience,
+          prayer_experience,
+          magic_experience,
+          last_updated
+        ) VALUES (
+          ${rsn},
+          ${experience[Skill.OVERALL]},
+          ${experience[Skill.ATTACK]},
+          ${experience[Skill.DEFENCE]},
+          ${experience[Skill.STRENGTH]},
+          ${experience[Skill.HITPOINTS]},
+          ${experience[Skill.RANGED]},
+          ${experience[Skill.PRAYER]},
+          ${experience[Skill.MAGIC]},
+          NOW()
+        ) RETURNING id
+      `;
+      player = { id, username: rsn };
+    } else {
+      const [existingKey] = await sql<{ id: number }[]>`
+        SELECT id
+        FROM api_keys
+        WHERE user_id = ${userId} AND player_id = ${player.id}
+      `;
+      if (existingKey) {
+        throw new Error('You already have an API key for this player');
+      }
+    }
+
+    let apiKey: ApiKey;
+    while (true) {
+      const key = randomBytes(API_KEY_BYTE_LENGTH).toString('hex');
+
+      try {
+        const [{ id: keyId }] = await sql<{ id: number }[]>`
+          INSERT INTO api_keys (user_id, player_id, key)
+          VALUES (${userId}, ${player.id}, ${key})
+          RETURNING id
+        `;
+        apiKey = {
+          id: keyId,
+          key,
+          lastUsed: null,
+          active: true,
+        };
+        break;
+      } catch (e: any) {
+        if (isPostgresUniqueViolation(e)) {
+          // Try again if the key already exists.
+          continue;
+        }
+        logger.error('api_key_create_failed', {
+          error: e instanceof Error ? e.message : String(e),
+        });
+        throw new Error('Failed to create API key');
+      }
+    }
+
+    return { ...apiKey, rsn: player.username };
+  });
 }
 
 export async function deleteApiKey(key: string): Promise<void> {
-  const userId = await ensureAuthenticated();
+  return withServerAction('deleteApiKey', async () => {
+    const userId = await ensureAuthenticated();
 
-  await sql`
-    DELETE FROM api_keys
-    WHERE key = ${key} AND user_id = ${userId}
-  `;
+    await sql`
+      DELETE FROM api_keys
+      WHERE key = ${key} AND user_id = ${userId}
+    `;
+  });
 }
 
 export type ApiKeyFormState = {
@@ -325,51 +334,55 @@ export async function getConnectedPlayers(): Promise<ConnectedPlayer[]> {
  * @returns The linking code and its expiration time.
  */
 export async function generateDiscordLinkingCode(): Promise<LinkingCode> {
-  const userId = await ensureAuthenticated();
+  return withServerAction('generateDiscordLinkingCode', async () => {
+    const userId = await ensureAuthenticated();
 
-  const expiresAt = new Date(Date.now() + LINKING_CODE_EXPIRY_MS);
+    const expiresAt = new Date(Date.now() + LINKING_CODE_EXPIRY_MS);
 
-  const MAX_RETRIES = 20;
+    const MAX_RETRIES = 20;
 
-  for (let i = 0; i < MAX_RETRIES; i++) {
-    const code = Array.from(
-      { length: LINKING_CODE_LENGTH },
-      () => LINKING_CODE_CHARS[randomInt(0, LINKING_CODE_CHARS.length)],
-    ).join('');
+    for (let i = 0; i < MAX_RETRIES; i++) {
+      const code = Array.from(
+        { length: LINKING_CODE_LENGTH },
+        () => LINKING_CODE_CHARS[randomInt(0, LINKING_CODE_CHARS.length)],
+      ).join('');
 
-    try {
-      const [result] = await sql<{ code: string; expires_at: Date }[]>`
-        INSERT INTO account_linking_codes (user_id, type, code, expires_at)
-        VALUES (${userId}, 'discord', ${code}, ${expiresAt})
-        ON CONFLICT (user_id, type)
-        DO UPDATE SET
-          code = CASE
-            WHEN account_linking_codes.expires_at < NOW() THEN EXCLUDED.code
-            ELSE account_linking_codes.code
-          END,
-          expires_at = CASE
-            WHEN account_linking_codes.expires_at < NOW() THEN EXCLUDED.expires_at
-            ELSE account_linking_codes.expires_at
-          END
-        RETURNING code, expires_at
-      `;
+      try {
+        const [result] = await sql<{ code: string; expires_at: Date }[]>`
+          INSERT INTO account_linking_codes (user_id, type, code, expires_at)
+          VALUES (${userId}, 'discord', ${code}, ${expiresAt})
+          ON CONFLICT (user_id, type)
+          DO UPDATE SET
+            code = CASE
+              WHEN account_linking_codes.expires_at < NOW() THEN EXCLUDED.code
+              ELSE account_linking_codes.code
+            END,
+            expires_at = CASE
+              WHEN account_linking_codes.expires_at < NOW() THEN EXCLUDED.expires_at
+              ELSE account_linking_codes.expires_at
+            END
+          RETURNING code, expires_at
+        `;
 
-      return {
-        code: result.code,
-        expiresAt: result.expires_at,
-      };
-    } catch (e: unknown) {
-      if (isPostgresUniqueViolation(e)) {
-        continue;
+        return {
+          code: result.code,
+          expiresAt: result.expires_at,
+        };
+      } catch (e: unknown) {
+        if (isPostgresUniqueViolation(e)) {
+          continue;
+        }
+        logger.error('linking_code_create_failed', {
+          error: e instanceof Error ? e.message : String(e),
+        });
+        throw new Error('Failed to generate linking code');
       }
-      console.error(e);
-      throw new Error('Failed to generate linking code');
     }
-  }
 
-  throw new Error(
-    `Failed to generate linking code after ${MAX_RETRIES} retries`,
-  );
+    throw new Error(
+      `Failed to generate linking code after ${MAX_RETRIES} retries`,
+    );
+  });
 }
 
 /**
@@ -433,17 +446,19 @@ export async function getDiscordLinkStatus(): Promise<DiscordLinkStatus> {
  * Unlinks the Discord account from the current user.
  */
 export async function unlinkDiscord(): Promise<void> {
-  const userId = await ensureAuthenticated();
-  await Promise.all([
-    sql`
-      UPDATE users
-      SET discord_id = NULL, discord_username = NULL
-      WHERE id = ${userId}
-    `,
-    sql`
-      DELETE FROM account_linking_codes
-      WHERE user_id = ${userId}
-        AND type = 'discord'
-    `,
-  ]);
+  return withServerAction('unlinkDiscord', async () => {
+    const userId = await ensureAuthenticated();
+    await Promise.all([
+      sql`
+        UPDATE users
+        SET discord_id = NULL, discord_username = NULL
+        WHERE id = ${userId}
+      `,
+      sql`
+        DELETE FROM account_linking_codes
+        WHERE user_id = ${userId}
+          AND type = 'discord'
+      `,
+    ]);
+  });
 }

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 
 import { getPlayersPerHour, playerActivityByHour } from '@/actions/activity';
+import { withApiRoute } from '@/api/handler';
 
 function periodToStartTime(period: string) {
   const startTime = new Date();
@@ -24,18 +25,21 @@ function periodToStartTime(period: string) {
   return startTime;
 }
 
-export async function GET(request: NextRequest) {
-  const params = request.nextUrl.searchParams;
+export const GET = withApiRoute(
+  { route: '/api/activity/players' },
+  async (request: NextRequest) => {
+    const params = request.nextUrl.searchParams;
 
-  const period = params.get('period') ?? 'day';
-  const startTime = periodToStartTime(period);
+    const period = params.get('period') ?? 'day';
+    const startTime = periodToStartTime(period);
 
-  if (params.has('username')) {
-    const username = params.get('username')!;
-    const playersPerHour = await playerActivityByHour(username, startTime);
+    if (params.has('username')) {
+      const username = params.get('username')!;
+      const playersPerHour = await playerActivityByHour(username, startTime);
+      return Response.json(playersPerHour);
+    }
+
+    const playersPerHour = await getPlayersPerHour(startTime);
     return Response.json(playersPerHour);
-  }
-
-  const playersPerHour = await getPlayersPerHour(startTime);
-  return Response.json(playersPerHour);
-}
+  },
+);

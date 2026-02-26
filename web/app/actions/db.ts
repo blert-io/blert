@@ -1,5 +1,7 @@
 import postgres, { Sql, TransactionSql } from 'postgres';
 
+import logger from '@/utils/log';
+
 function initPostgres(): Sql<NonNullable<unknown>> {
   if (!process.env.BLERT_DATABASE_URI) {
     throw new Error('BLERT_DATABASE_URI is not set');
@@ -10,7 +12,7 @@ function initPostgres(): Sql<NonNullable<unknown>> {
 
   if (process.env.NODE_ENV === 'development') {
     connectionOptions = {
-      debug: (_, query, params) => console.log(query, params),
+      debug: (_, query, params) => logger.debug('sql_query', { query, params }),
       idle_timeout: 15,
       max_lifetime: 1,
     };

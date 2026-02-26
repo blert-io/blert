@@ -4,6 +4,8 @@ import { username } from 'better-auth/plugins';
 import { nextCookies } from 'better-auth/next-js';
 import { PostgresJSDialect } from 'kysely-postgres-js';
 
+import logger from '@/utils/log';
+
 import { sendPasswordResetEmail, sendVerificationEmail } from './email/send';
 import { sql } from './actions/db';
 
@@ -104,7 +106,10 @@ export const auth = betterAuth({
     sendResetPassword: ({ user, url }) => {
       if (user.emailVerified) {
         void sendPasswordResetEmail(user.email, url).catch((e) => {
-          console.error('Failed to send reset password email:', e);
+          logger.error('email_send_failed', {
+            type: 'reset_password',
+            error: e instanceof Error ? e.message : String(e),
+          });
         });
       }
       return Promise.resolve();
@@ -116,7 +121,10 @@ export const auth = betterAuth({
     sendVerificationEmail: ({ user, url }) => {
       // Don't block on email sending.
       void sendVerificationEmail(user.email, url).catch((e) => {
-        console.error('Failed to send verification email:', e);
+        logger.error('email_send_failed', {
+          type: 'verification',
+          error: e instanceof Error ? e.message : String(e),
+        });
       });
       return Promise.resolve();
     },

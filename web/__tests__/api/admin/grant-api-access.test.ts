@@ -3,6 +3,15 @@ import { sql } from '@/actions/db';
 import redis from '@/actions/redis';
 import { NextRequest } from 'next/server';
 
+jest.mock('@/actions/admin', () => {
+  const actual =
+    jest.requireActual<typeof import('@/actions/admin')>('@/actions/admin');
+  return {
+    ...actual,
+    grantApiAccess: jest.fn(actual.grantApiAccess),
+  };
+});
+
 jest.mock('@/api/admin/auth', () => ({
   validateDiscordBotAuth: jest.fn(),
 }));
@@ -10,9 +19,13 @@ jest.mock('@/api/admin/auth', () => ({
 jest.mock('@/actions/redis');
 
 import { validateDiscordBotAuth } from '@/api/admin/auth';
+import { grantApiAccess } from '@/actions/admin';
 
 const mockValidateAuth = validateDiscordBotAuth as jest.MockedFunction<
   typeof validateDiscordBotAuth
+>;
+const mockGrantApiAccess = grantApiAccess as jest.MockedFunction<
+  typeof grantApiAccess
 >;
 
 const mockedRedis = redis as jest.MockedFunction<typeof redis>;
@@ -22,6 +35,7 @@ describe('POST /api/admin/grant-api-access', () => {
 
   beforeEach(async () => {
     mockValidateAuth.mockClear();
+    mockGrantApiAccess.mockClear();
     mockedRedis.mockResolvedValue({
       get: jest.fn().mockResolvedValue(null),
     } as unknown as Awaited<ReturnType<typeof redis>>);
@@ -181,5 +195,19 @@ describe('POST /api/admin/grant-api-access', () => {
     if (originalEnv !== undefined) {
       process.env.BLERT_API_KEY_USER_LIMIT = originalEnv;
     }
+  });
+
+  it('should return 500 internal_error when grantApiAccess throws unexpectedly', async () => {
+    mockValidateAuth.mockReturnValue(true);
+    mockGrantApiAccess.mockRejectedValueOnce(new Error('database failure'));
+
+    const request = createRequest(
+      { discordId: '123456789012345678' },
+      'Bearer valid',
+    );
+    const response = await POST(request);
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: 'internal_error' });
   });
 });

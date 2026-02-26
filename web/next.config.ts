@@ -7,7 +7,12 @@ const emptyModulePath = './config/empty-browser-module.js';
 const nextConfig: NextConfig = {
   output: 'standalone',
   outputFileTracingRoot: repoRoot,
-  serverExternalPackages: ['@react-email/components', '@react-email/render'],
+  serverExternalPackages: [
+    '@react-email/components',
+    '@react-email/render',
+    'prom-client',
+    'winston',
+  ],
   images: {
     remotePatterns: [
       {

@@ -7,6 +7,9 @@ import {
   UnauthorizedError,
 } from '@blert/blertbank-client';
 
+import logger from '@/utils/log';
+import { withServerAction } from '@/utils/metrics';
+
 import { AuthenticationError } from './errors';
 import { getSignedInUserId } from './users';
 
@@ -51,27 +54,39 @@ function getBlertbankClient(): BlertbankClient {
  * @throws Error no user is authenticated or the request fails.
  */
 export async function getUserBalance(): Promise<number> {
-  const userId = await ensureAuthenticated();
-  const client = getBlertbankClient();
+  return withServerAction('getUserBalance', async () => {
+    const userId = await ensureAuthenticated();
+    const client = getBlertbankClient();
 
-  try {
-    const balance = await client.getOrCreateBalance(userId);
-    return balance;
-  } catch (error) {
-    if (error instanceof UnauthorizedError) {
-      console.error('Blertbank authorization failed:', error);
-      throw new Error('Service configuration error');
-    }
+    try {
+      const balance = await client.getOrCreateBalance(userId);
+      return balance;
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        logger.error('blertbank_auth_failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        throw new Error('Service configuration error');
+      }
 
-    if (error instanceof BlertbankError) {
-      console.error('Failed to fetch balance for user', userId, error);
-      // Return 0 for non-critical errors to degrade gracefully.
+      if (error instanceof BlertbankError) {
+        logger.error('blertbank_error', {
+          userId,
+          method: 'getOrCreateBalance',
+          error: error instanceof Error ? error.message : String(error),
+        });
+        // Return 0 for non-critical errors to degrade gracefully.
+        return 0;
+      }
+
+      logger.error('blertbank_unexpected_error', {
+        userId,
+        method: 'getOrCreateBalance',
+        error: error instanceof Error ? error.message : String(error),
+      });
       return 0;
     }
-
-    console.error('Unexpected error fetching balance:', error);
-    return 0;
-  }
+  });
 }
 
 /**
@@ -82,24 +97,36 @@ export async function getUserBalance(): Promise<number> {
  * @throws Error no user is authenticated or the request fails.
  */
 export async function getUserAccount(): Promise<UserAccount | null> {
-  const userId = await ensureAuthenticated();
-  const client = getBlertbankClient();
+  return withServerAction('getUserAccount', async () => {
+    const userId = await ensureAuthenticated();
+    const client = getBlertbankClient();
 
-  try {
-    const account = await client.getOrCreateAccountForUser(userId);
-    return account;
-  } catch (error) {
-    if (error instanceof UnauthorizedError) {
-      console.error('Blertbank authorization failed:', error);
-      throw new Error('Service configuration error');
-    }
+    try {
+      const account = await client.getOrCreateAccountForUser(userId);
+      return account;
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        logger.error('blertbank_auth_failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        throw new Error('Service configuration error');
+      }
 
-    if (error instanceof BlertbankError) {
-      console.error('Failed to fetch account for user', userId, error);
+      if (error instanceof BlertbankError) {
+        logger.error('blertbank_error', {
+          userId,
+          method: 'getOrCreateAccountForUser',
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return null;
+      }
+
+      logger.error('blertbank_unexpected_error', {
+        userId,
+        method: 'getOrCreateAccountForUser',
+        error: error instanceof Error ? error.message : String(error),
+      });
       return null;
     }
-
-    console.error('Unexpected error fetching account:', error);
-    return null;
-  }
+  });
 }

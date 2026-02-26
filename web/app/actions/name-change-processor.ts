@@ -12,6 +12,8 @@ import {
   hiscoreLookup,
 } from '@blert/common';
 
+import logger from '@/utils/log';
+
 import { sql, type Db } from './db';
 import redis from './redis';
 
@@ -320,7 +322,7 @@ export async function processNameChange(
     WHERE name_changes.id = ${changeId}
   `;
   if (!nameChange) {
-    console.log(`Name change not found: ${changeId}`);
+    logger.warn('name_change_not_found', { changeId });
     return null;
   }
 
@@ -330,9 +332,7 @@ export async function processNameChange(
     player_id: playerId,
   } = nameChange;
 
-  console.log(
-    `Processing name change request ${changeId}: ${oldName} -> ${newName}`,
-  );
+  logger.info('processing_name_change', { changeId, oldName, newName });
 
   // Check if the player is in an active challenge. If so, defer the name
   // change until they are no longer in a challenge.
@@ -352,12 +352,14 @@ export async function processNameChange(
     newExperience = expNew;
   } catch (e: any) {
     if (e instanceof HiscoresRateLimitError) {
-      console.log('Hiscores rate limit reached, retrying later');
+      logger.info('hiscores_rate_limited', { changeId });
       return null;
     }
 
-    console.error(`Failed to look up experience for name change ${changeId}`);
-    console.error(e);
+    logger.error('hiscores_lookup_failed', {
+      changeId,
+      error: e instanceof Error ? e.message : String(e),
+    });
     return null;
   }
 
@@ -369,10 +371,16 @@ export async function processNameChange(
 
   if (oldExperience !== null) {
     nameChangeStatus = NameChangeStatus.OLD_STILL_IN_USE;
-    console.log(`Name change ${changeId} rejected: old player still exists`);
+    logger.info('name_change_rejected', {
+      changeId,
+      reason: 'old_still_exists',
+    });
   } else if (newExperience === null) {
     nameChangeStatus = NameChangeStatus.NEW_DOES_NOT_EXIST;
-    console.log(`Name change ${changeId} rejected: new player does not exist`);
+    logger.info('name_change_rejected', {
+      changeId,
+      reason: 'new_does_not_exist',
+    });
   } else {
     const playerExperience = {
       [Skill.OVERALL]: parseInt(nameChange.overall_experience),
@@ -386,9 +394,11 @@ export async function processNameChange(
     };
     const decreasedSkills = compareExperience(playerExperience, newExperience);
     if (decreasedSkills.length > 0) {
-      console.log(
-        `Name change ${changeId} rejected: decreased experience in ${decreasedSkills.join(', ')}`,
-      );
+      logger.info('name_change_rejected', {
+        changeId,
+        reason: 'decreased_experience',
+        skills: decreasedSkills,
+      });
       nameChangeStatus = NameChangeStatus.DECREASED_EXPERIENCE;
     }
   }
@@ -403,9 +413,10 @@ export async function processNameChange(
       return null;
     }
 
-    console.log(
-      `Name change ${changeId} ignoring rejection status ${nameChangeStatus} due to skip_checks`,
-    );
+    logger.info('name_change_skip_checks', {
+      changeId,
+      status: nameChangeStatus,
+    });
     nameChangeStatus = NameChangeStatus.ACCEPTED;
   }
 
@@ -450,10 +461,11 @@ export async function processNameChange(
           AND start_time <= ${updateFrom}
         `;
       newPlayerPreviouslyExisted = challengesBefore !== undefined;
-      console.log(
-        `Player "${newName}" has recorded ${challengesToUpdate.length} ` +
-          `challenges since name change`,
-      );
+      logger.info('name_change_challenges_to_migrate', {
+        changeId,
+        newName,
+        count: challengesToUpdate.length,
+      });
 
       const updateChallengePlayers = db`
         UPDATE challenge_players
@@ -490,9 +502,7 @@ export async function processNameChange(
       // Additionally, reset all of the player's experience to 0, as their
       // current values reflect the experience of the player who has taken over
       // the username.
-      console.log(
-        `Previously-existing "${newName}" has been renamed to "*${newName}"`,
-      );
+      logger.info('name_change_zombie_player', { changeId, newName });
       await db`
         UPDATE players
         SET
@@ -663,7 +673,7 @@ export class NameChangeProcessor {
         result.processed += 1;
         if (txResult.update) {
           const { oldName, newName } = txResult.update;
-          console.log(`Name change accepted: ${oldName} -> ${newName}`);
+          logger.info('name_change_accepted', { oldName, newName });
 
           // Notify other services of the name change.
           await publishNameChangeUpdate(txResult.update);
@@ -677,7 +687,9 @@ export class NameChangeProcessor {
           `;
           result.deferred += 1;
         } else {
-          console.error('Error processing name change:', e);
+          logger.error('name_change_error', {
+            error: e instanceof Error ? e.message : String(e),
+          });
         }
       }
     }
@@ -704,9 +716,7 @@ export class NameChangeProcessor {
           RETURNING id
         `;
         if (updated) {
-          console.log(
-            `Name change ${entry.id} promoted from DEFERRED to PENDING`,
-          );
+          logger.info('name_change_promoted', { changeId: entry.id });
           result.promoted += 1;
         }
       }
@@ -718,9 +728,15 @@ export class NameChangeProcessor {
   private async runBatchLoop(): Promise<void> {
     try {
       const result = await this.processBatch();
-      console.log(`Processed ${result.processed} name change requests`);
+      logger.info('name_change_batch_complete', {
+        processed: result.processed,
+        deferred: result.deferred,
+        promoted: result.promoted,
+      });
     } catch (e) {
-      console.error('Error processing name change batch:', e);
+      logger.error('name_change_batch_error', {
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
 
     NameChangeProcessor.timeout = setTimeout(

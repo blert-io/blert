@@ -1,5 +1,8 @@
 import { createClient, RedisClientType } from 'redis';
 
+import logger from '@/utils/log';
+import { recordRedisEvent } from '@/utils/metrics';
+
 let redisClient: RedisClientType | null = null;
 
 function getRedisClient(): RedisClientType {
@@ -13,8 +16,16 @@ function getRedisClient(): RedisClientType {
 export default async function redis(): Promise<RedisClientType> {
   const client = getRedisClient();
   if (!client.isOpen) {
-    client.on('connect', () => console.log('Connected to Redis'));
-    client.on('error', (err) => console.error('Redis error:', err));
+    client.on('connect', () => {
+      logger.info('redis_connected');
+      recordRedisEvent('connect');
+    });
+    client.on('error', (err) => {
+      logger.error('redis_error', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      recordRedisEvent('error');
+    });
     await client.connect();
   }
 

@@ -2,6 +2,8 @@
 
 import { isPostgresUniqueViolation, User } from '@blert/common';
 
+import logger from '@/utils/log';
+
 import { sql } from './db';
 import redis from './redis';
 
@@ -109,7 +111,9 @@ export async function verifyDiscordLink(
     if (isPostgresUniqueViolation(e)) {
       return { success: false, error: 'conflict' };
     }
-    console.error('Error verifying Discord link:', e);
+    logger.error('discord_link_verify_failed', {
+      error: e instanceof Error ? e.message : String(e),
+    });
     return { success: false, error: 'internal_error' };
   }
 
@@ -151,7 +155,9 @@ async function getApiKeyUserLimit(): Promise<LimitResult> {
       }
     }
   } catch (e) {
-    console.error('Failed to get API key user limit from Redis:', e);
+    logger.error('api_key_limit_redis_failed', {
+      error: e instanceof Error ? e.message : String(e),
+    });
   }
 
   // Fall back to env var if Redis key is not set.

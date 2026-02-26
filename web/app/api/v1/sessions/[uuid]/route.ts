@@ -1,23 +1,15 @@
 import { NextRequest } from 'next/server';
 
 import { loadSessionWithStats } from '@/actions/challenge';
+import { withApiRoute } from '@/api/handler';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ uuid: string }> },
-) {
-  const { uuid } = await params;
+export const GET = withApiRoute(
+  { route: '/api/v1/sessions/[uuid]' },
+  async (_request: NextRequest, { params }) => {
+    const { uuid } = await params;
 
-  try {
-    const session = await loadSessionWithStats(uuid);
     // TODO(frolv): Cache the session if it is completed.
+    const session = await loadSessionWithStats(uuid);
     return Response.json(session);
-  } catch (e) {
-    if (e instanceof Error && e.name === 'InvalidQueryError') {
-      return new Response(null, { status: 400 });
-    }
-
-    console.error('Failed to load sessions:', e);
-    return new Response(null, { status: 500 });
-  }
-}
+  },
+);
