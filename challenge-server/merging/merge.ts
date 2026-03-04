@@ -7,6 +7,7 @@ import {
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
+import { TickAligner } from './alignment';
 import {
   ClassifiedClients,
   classifyClients,
@@ -19,7 +20,9 @@ import {
   ServerTicks,
 } from './client-events';
 import logger from '../log';
-import { TickState } from './tick-state';
+import { SimilarityScorer } from './similarity-scorer';
+import { TickState, TickStateArray } from './tick-state';
+import { MergeTracer, TickMergeDecisionType } from './trace';
 
 export type ChallengeInfo = {
   uuid: string;
@@ -98,7 +101,7 @@ export class Merger {
     this.referenceSelection = null;
   }
 
-  public merge(): MergeResult | null {
+  public merge(tracer?: MergeTracer): MergeResult | null {
     if (this.clients.length === 0) {
       logger.warn('merge_no_clients', { stage: this.stage });
       return null;
@@ -113,10 +116,33 @@ export class Merger {
       })),
     });
 
+    // Record input clients before classification may demote accuracy.
+    if (tracer !== undefined) {
+      for (const client of this.clients) {
+        tracer.recordInputClient(
+          client.getId(),
+          client.getFinalTick(),
+          client.isAccurate(),
+          client.getReportedAccurate(),
+          client.isSpectator(),
+          client.getTickStates(),
+        );
+      }
+    }
+
     const mergeClients: MergeClient[] = [];
 
-    const clients = this.classifyAndUpdateClients();
+    const clients = this.classifyAndUpdateClients(tracer);
     this.referenceSelection = clients.referenceTicks;
+
+    if (tracer !== undefined) {
+      tracer.recordClassification(
+        clients.referenceTicks,
+        clients.base.getId(),
+        clients.matching.map((c) => c.getId()),
+        clients.mismatched.map((c) => c.getId()),
+      );
+    }
 
     mergeClients.push(
       this.createMergeClient(
@@ -129,13 +155,29 @@ export class Merger {
 
     const merged = new MergedEvents(clients.base);
 
+    // Record the initial state (base client only) as the first snapshot.
+    if (tracer !== undefined) {
+      tracer.recordIntermediateSnapshot(merged.getTicks());
+    }
+
     const mergeFrom = (
       client: ClientEvents,
       classification: MergeClientClassification,
     ) => {
-      const status = merged.mergeEventsFrom(client)
+      if (tracer !== undefined) {
+        tracer.beginMergeStep(client.getId(), classification);
+      }
+
+      const success = merged.mergeEventsFrom(client, tracer);
+      const status = success
         ? MergeClientStatus.MERGED
         : MergeClientStatus.UNMERGED;
+
+      if (tracer !== undefined) {
+        tracer.endMergeStep(status);
+        tracer.recordIntermediateSnapshot(merged.getTicks());
+      }
+
       mergeClients.push(
         this.createMergeClient(
           client,
@@ -230,7 +272,7 @@ export class Merger {
     return { mergedCount, unmergedCount, skippedCount };
   }
 
-  private classifyAndUpdateClients(): ClassifiedClients {
+  private classifyAndUpdateClients(tracer?: MergeTracer): ClassifiedClients {
     const accurateClients = this.clients.filter((c) => c.isAccurate());
 
     if (accurateClients.length > 0) {
@@ -261,6 +303,7 @@ export class Merger {
         });
         for (const client of accurateClients) {
           client.setAccurate(false);
+          tracer?.recordAccuracyDemotion(client.getId());
         }
       } else {
         // Single mode. Demote any "accurate" clients that don't match.
@@ -274,6 +317,7 @@ export class Merger {
               actualTicks: client.getFinalTick(),
             });
             client.setAccurate(false);
+            tracer?.recordAccuracyDemotion(client.getId());
           }
         }
       }
@@ -284,7 +328,7 @@ export class Merger {
 }
 
 export class MergedEvents {
-  private ticks: (TickState | null)[];
+  private ticks: TickStateArray;
   private readonly status: StageStatus;
   private accurate: boolean;
 
@@ -312,6 +356,10 @@ export class MergedEvents {
     return this.accurate;
   }
 
+  public getTicks(): TickStateArray {
+    return [...this.ticks];
+  }
+
   public getStatus(): StageStatus {
     return this.status;
   }
@@ -331,25 +379,28 @@ export class MergedEvents {
   /**
    * Merges events from `client` into this merged event set.
    * @param client Client to merge events from.
+   * @param tracer Optional tracer for recording merge decisions.
    * @returns Whether the merge was successful.
    */
-  public mergeEventsFrom(client: ClientEvents): boolean {
+  public mergeEventsFrom(client: ClientEvents, tracer?: MergeTracer): boolean {
     let success = false;
 
     if (this.accurate) {
       if (client.isAccurate()) {
-        success = this.mergeAccurateEvents(client);
+        success = this.mergeAccurateEvents(client, tracer);
       } else {
         logger.warn('merge_unimplemented', {
           accurate: this.accurate,
           client: { id: client.getId(), accurate: client.isAccurate() },
         });
+        this.runAlignment(client, tracer);
       }
     } else {
       logger.warn('merge_unimplemented', {
         accurate: this.accurate,
         client: { id: client.getId(), accurate: client.isAccurate() },
       });
+      this.runAlignment(client, tracer);
     }
 
     if (success) {
@@ -367,6 +418,22 @@ export class MergedEvents {
     if (stage === Stage.TOB_MAIDEN) {
       this.correctOffsetMaidenSpawn();
     }
+  }
+
+  private runAlignment(client: ClientEvents, tracer?: MergeTracer): void {
+    if (tracer === undefined) {
+      // TODO(frolv): inaccurate merging is not fully implemented yet, so avoid
+      // running expensive alignments unless debugging is enabled.
+      return;
+    }
+    const scorer = new SimilarityScorer();
+    const aligner = new TickAligner(
+      this.ticks,
+      client.getTickStates(),
+      (a, b) => scorer.score(a, b),
+    );
+    const alignment = aligner.align();
+    tracer.recordAlignment(alignment);
   }
 
   private initializeBaseTicks(base: ClientEvents): void {
@@ -400,10 +467,17 @@ export class MergedEvents {
     }
   }
 
-  private mergeAccurateEvents(client: ClientEvents): boolean {
+  private mergeAccurateEvents(
+    client: ClientEvents,
+    tracer?: MergeTracer,
+  ): boolean {
     for (let tick = this.ticks.length - 1; tick >= 0; tick--) {
       const stateToMerge = client.getTickState(tick);
       if (stateToMerge === null) {
+        tracer?.recordTickDecision({
+          tick,
+          type: TickMergeDecisionType.SKIPPED,
+        });
         continue;
       }
 
@@ -416,8 +490,16 @@ export class MergedEvents {
           });
           return false;
         }
+        tracer?.recordTickDecision({
+          tick,
+          type: TickMergeDecisionType.MERGED,
+        });
       } else {
         this.ticks[tick] = stateToMerge.clone();
+        tracer?.recordTickDecision({
+          tick,
+          type: TickMergeDecisionType.FILLED,
+        });
       }
     }
 

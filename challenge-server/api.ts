@@ -1,3 +1,5 @@
+import { timingSafeEqual } from 'crypto';
+
 import {
   ChallengeMode,
   ChallengeType,
@@ -19,7 +21,7 @@ import {
 } from './challenge-manager';
 import { ReportedTimes } from './event-processing';
 import logger, { runWithLogContext } from './log';
-import { ClientEvents, Merger } from './merging';
+import { ClientEvents, Merger, MergeTracer } from './merging';
 import {
   getMetricsSnapshot,
   metricsContentType,
@@ -60,9 +62,49 @@ export function registerApiRoutes(app: Application): void {
   app.post('/challenges/:challengeId/finish', asyncHandler(finishChallenge));
   app.post('/challenges/:challengeId/join', asyncHandler(joinChallenge));
 
-  if (process.env.NODE_ENV === 'development') {
-    app.post('/test/merge/:challengeId/:stage', asyncHandler(mergeTestEvents));
+  app.use('/test', requireApiKey);
+  app.get('/test/merge/:challengeId/stages', asyncHandler(listMergeStages));
+  app.post('/test/merge/:challengeId/:stage', asyncHandler(mergeTestEvents));
+}
+
+function requireApiKey(req: Request, res: Response, next: NextFunction): void {
+  const apiKey = process.env.BLERT_CHALLENGE_SERVER_API_KEY;
+  if (!apiKey) {
+    logger.error('api_key_not_configured');
+    res.status(500).json({ error: 'API key not configured' });
+    return;
   }
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    res.status(401).json({ error: 'Missing Authorization header' });
+    return;
+  }
+
+  const parts = authHeader.split(' ');
+  if (parts.length !== 2 || parts[0] !== 'Bearer') {
+    res.status(401).json({ error: 'Invalid Authorization header format' });
+    return;
+  }
+
+  const provided = parts[1];
+  try {
+    const keyBuffer = Buffer.from(apiKey, 'utf-8');
+    const providedBuffer = Buffer.from(provided, 'utf-8');
+
+    if (
+      keyBuffer.length !== providedBuffer.length ||
+      !timingSafeEqual(keyBuffer, providedBuffer)
+    ) {
+      res.status(401).json({ error: 'Invalid API key' });
+      return;
+    }
+  } catch {
+    res.status(401).json({ error: 'Invalid API key' });
+    return;
+  }
+
+  next();
 }
 
 function recordHttpMetrics(
@@ -259,15 +301,75 @@ async function joinChallenge(req: Request, res: Response): Promise<void> {
   );
 }
 
+async function loadUnmergedData(
+  testDataRepository: DataRepository,
+  challengeId: string,
+  stage: number,
+): Promise<UnmergedEventData> {
+  const data = await testDataRepository.loadRaw(
+    unmergedEventsFile(challengeId, stage),
+  );
+  const raw = JSON.parse(data.toString()) as UnmergedEventData;
+  return {
+    ...raw,
+    rawEvents: raw.rawEvents.map((e) => {
+      if (e.type === StageStreamType.STAGE_EVENTS) {
+        return { ...e, events: Buffer.from(e.events) };
+      }
+      return e;
+    }),
+  };
+}
+
+async function listMergeStages(req: Request, res: Response): Promise<void> {
+  const route = '/test/merge/:challengeId/stages';
+  const start = process.hrtime.bigint();
+
+  const challengeId = req.params.challengeId;
+
+  await runWithLogContext({ challengeUuid: challengeId }, async () => {
+    const { testDataRepository } = res.locals;
+
+    try {
+      const files = await testDataRepository.listFiles('unmerged-events');
+      const prefix = `${challengeId}:`;
+      const stages: number[] = [];
+
+      for (const file of files) {
+        const basename = file.split('/').pop() ?? '';
+        if (basename.startsWith(prefix) && basename.endsWith('_events.json')) {
+          const stageStr = basename.slice(
+            prefix.length,
+            -'_events.json'.length,
+          );
+          const stageNum = Number.parseInt(stageStr);
+          if (!Number.isNaN(stageNum)) {
+            stages.push(stageNum);
+          }
+        }
+      }
+
+      stages.sort((a, b) => a - b);
+      res.json({ stages });
+    } catch (e) {
+      if (e instanceof DataRepository.NotFound) {
+        res.json({ stages: [] });
+        return;
+      }
+
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.error('list_merge_stages_error', { error: msg });
+      res.status(500).json({ error: 'Failed to list stages' });
+    }
+  });
+
+  recordHttpMetrics(route, req, res, start);
+}
+
 async function mergeTestEvents(req: Request, res: Response): Promise<void> {
   const route = '/test/merge/:challengeId/:stage';
   const start = process.hrtime.bigint();
 
-  // Processes challenge data stored in the testing data repository.
-  // Each top-level directory in the repository is a challenge ID. Inside, it
-  // contains a subdirectory for each recorded stage of the challenge, which
-  // stores the raw recorded events for each client as serialized protobuf
-  // files.
   const challengeId = req.params.challengeId;
   const stage = Number.parseInt(req.params.stage);
 
@@ -277,24 +379,11 @@ async function mergeTestEvents(req: Request, res: Response): Promise<void> {
     let mergeData: UnmergedEventData;
 
     try {
-      const data = await testDataRepository.loadRaw(
-        unmergedEventsFile(challengeId, stage),
+      mergeData = await loadUnmergedData(
+        testDataRepository,
+        challengeId,
+        stage,
       );
-      const raw = JSON.parse(data.toString()) as UnmergedEventData;
-      mergeData = {
-        ...raw,
-        rawEvents: raw.rawEvents.map((e) => {
-          if (e.type === StageStreamType.STAGE_EVENTS) {
-            const events = e.events;
-            return {
-              ...e,
-              events: Buffer.from(events),
-            };
-          }
-
-          return e;
-        }),
-      };
     } catch (e) {
       if (e instanceof DataRepository.NotFound) {
         logger.error('test_data_not_found');
@@ -329,8 +418,9 @@ async function mergeTestEvents(req: Request, res: Response): Promise<void> {
       );
     }
 
+    const tracer = new MergeTracer();
     const merger = new Merger(stage, clients);
-    const result = merger.merge();
+    const result = merger.merge(tracer);
     if (result === null) {
       res.status(500).send();
       return;
@@ -341,9 +431,15 @@ async function mergeTestEvents(req: Request, res: Response): Promise<void> {
 
     const mergedEvents = new ChallengeEvents();
     mergedEvents.setEventsList(Array.from(events));
-    res
-      .status(200)
-      .send(Buffer.from(mergedEvents.serializeBinary()).toString('base64'));
+    const mergedEventsBase64 = Buffer.from(
+      mergedEvents.serializeBinary(),
+    ).toString('base64');
+
+    res.json({
+      result: metadata,
+      trace: tracer.toTrace(),
+      mergedEventsBase64,
+    });
   });
 
   recordHttpMetrics(route, req, res, start);

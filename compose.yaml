@@ -59,6 +59,7 @@ services:
     environment:
       NODE_ENV: development
       BLERT_BASE_URL: http://localhost:3000
+      BLERT_CHALLENGE_SERVER_API_KEY: blert
       BLERT_DATABASE_URI: postgres://blert:blert@postgres:5432/blert
       BLERT_DATA_REPOSITORY: file:///app/.data/challenges
       BLERT_TEST_DATA_REPOSITORY: file:///app/.data/testing_data
