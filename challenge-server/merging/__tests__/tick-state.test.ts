@@ -7,20 +7,16 @@ import {
 import { Event as ProtoEvent } from '@blert/common/generated/event_pb';
 
 import {
+  createEvent,
+  createNpcDeathEvent,
   createNpcSpawnEvent,
+  createPlayerDeathEvent,
   createPlayerState,
   createPlayerUpdateEvent,
 } from './fixtures';
 import { TickState } from '../tick-state';
 
 describe('TickState', () => {
-  it('returns false when merging ticks with different indices', () => {
-    const tick0 = new TickState(0, [], new Map([['player1', null]]));
-    const tick1 = new TickState(1, [], new Map([['player1', null]]));
-
-    expect(tick0.merge(tick1)).toBe(false);
-  });
-
   it('overrides player state with primary data when merging', () => {
     const basePlayer = createPlayerState({
       username: 'player1',
@@ -207,6 +203,168 @@ describe('TickState', () => {
       itemId: 200,
       quantity: 1,
       slot: EquipmentSlot.HEAD,
+    });
+  });
+
+  it('only merges tick-state events from other, ignoring stream events', () => {
+    const baseNpc = createNpcSpawnEvent({
+      tick: 0,
+      npcId: 100,
+      roomId: 1,
+      x: 10,
+      y: 20,
+      hitpointsCurrent: 500,
+    });
+
+    const base = new TickState(
+      0,
+      [createPlayerUpdateEvent({ tick: 0, name: 'player1' }), baseNpc],
+      new Map([['player1', createPlayerState({ username: 'player1' })]]),
+    );
+    const target = new TickState(
+      0,
+      [
+        createPlayerUpdateEvent({ tick: 0, name: 'player2' }),
+        createPlayerDeathEvent({ tick: 0, name: 'player1' }),
+        createNpcDeathEvent({ tick: 0, roomId: 1, npcId: 100 }),
+        createNpcSpawnEvent({
+          tick: 0,
+          npcId: 200,
+          roomId: 2,
+          x: 30,
+          y: 40,
+          hitpointsCurrent: 300,
+        }),
+        createEvent(ProtoEvent.Type.TOB_BLOAT_DOWN, 0),
+        createEvent(ProtoEvent.Type.TOB_VERZIK_PHASE, 0),
+        createEvent(ProtoEvent.Type.TOB_MAIDEN_BLOOD_SPLATS, 0),
+      ],
+      new Map([
+        ['player1', createPlayerState({ username: 'player1' })],
+        ['player2', createPlayerState({ username: 'player2' })],
+      ]),
+    );
+
+    expect(base.merge(target)).toBe(true);
+
+    // The merged tick should contain exactly:
+    // - PLAYER_UPDATE for player1 (from base)
+    // - PLAYER_UPDATE for player2 (from targe)
+    // - NPC_SPAWN for roomId 1 (from base)
+    // - NPC_SPAWN for roomId 2 (from target)
+    // - TOB_MAIDEN_BLOOD_SPLATS (graphics, from target)
+    // Stream events (PLAYER_DEATH, NPC_DEATH, TOB_BLOAT_DOWN, TOB_VERZIK_PHASE)
+    // should not be present.
+    const types = base
+      .getEvents()
+      .map((e) => e.getType())
+      .sort();
+    expect(types).toEqual(
+      [
+        ProtoEvent.Type.PLAYER_UPDATE,
+        ProtoEvent.Type.PLAYER_UPDATE,
+        ProtoEvent.Type.NPC_SPAWN,
+        ProtoEvent.Type.NPC_SPAWN,
+        ProtoEvent.Type.TOB_MAIDEN_BLOOD_SPLATS,
+      ].sort(),
+    );
+  });
+
+  it('does not merge player death events when overriding with primary data', () => {
+    const base = new TickState(
+      0,
+      [createPlayerUpdateEvent({ tick: 0, name: 'player1' })],
+      new Map([['player1', createPlayerState({ username: 'player1' })]]),
+    );
+    const target = new TickState(
+      0,
+      [
+        createPlayerUpdateEvent({
+          tick: 0,
+          name: 'player1',
+          source: DataSource.PRIMARY,
+        }),
+        createPlayerDeathEvent({ tick: 0, name: 'player1' }),
+      ],
+      new Map([
+        [
+          'player1',
+          createPlayerState({
+            username: 'player1',
+            source: DataSource.PRIMARY,
+          }),
+        ],
+      ]),
+    );
+
+    expect(base.merge(target)).toBe(true);
+
+    // Should contain exactly one PLAYER_UPDATE with PRIMARY data.
+    const events = base.getEvents();
+    expect(events).toHaveLength(1);
+    expect(events[0].getType()).toBe(ProtoEvent.Type.PLAYER_UPDATE);
+    expect(events[0].getPlayer()!.getDataSource()).toBe(DataSource.PRIMARY);
+  });
+
+  it('keeps graphics events from both sides without deduplication', () => {
+    const base = new TickState(
+      0,
+      [createEvent(ProtoEvent.Type.TOB_MAIDEN_BLOOD_SPLATS, 0)],
+      new Map([['player1', null]]),
+    );
+    const target = new TickState(
+      0,
+      [createEvent(ProtoEvent.Type.TOB_MAIDEN_BLOOD_SPLATS, 0)],
+      new Map([['player1', null]]),
+    );
+
+    expect(base.merge(target)).toBe(true);
+
+    const events = base.getEvents();
+    expect(events).toHaveLength(2);
+    expect(
+      events.every(
+        (e) => e.getType() === ProtoEvent.Type.TOB_MAIDEN_BLOOD_SPLATS,
+      ),
+    ).toBe(true);
+  });
+
+  describe('extractEvents', () => {
+    it('removes and returns events of specified types', () => {
+      const base = new TickState(
+        0,
+        [
+          createPlayerUpdateEvent({ tick: 0, name: 'player1' }),
+          createPlayerDeathEvent({ tick: 0, name: 'player1' }),
+          createEvent(ProtoEvent.Type.TOB_BLOAT_DOWN, 0),
+          createEvent(ProtoEvent.Type.TOB_MAIDEN_BLOOD_SPLATS, 0),
+        ],
+        new Map([['player1', createPlayerState({ username: 'player1' })]]),
+      );
+
+      const streamTypes = new Set([
+        ProtoEvent.Type.PLAYER_DEATH,
+        ProtoEvent.Type.TOB_BLOAT_DOWN,
+      ] as const);
+
+      const extracted = base.extractEvents(streamTypes);
+
+      // Should return exactly the two stream events.
+      expect(extracted.map((e) => e.getType()).sort()).toEqual(
+        [ProtoEvent.Type.PLAYER_DEATH, ProtoEvent.Type.TOB_BLOAT_DOWN].sort(),
+      );
+
+      // Remaining events should be exactly the non-extracted ones.
+      const remaining = base
+        .getEvents()
+        .map((e) => e.getType())
+        .sort();
+      expect(remaining).toEqual(
+        [
+          ProtoEvent.Type.PLAYER_UPDATE,
+          ProtoEvent.Type.TOB_MAIDEN_BLOOD_SPLATS,
+        ].sort(),
+      );
     });
   });
 });

@@ -10,34 +10,12 @@ import {
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
-type EventType = Event.TypeMap[keyof Event.TypeMap];
-
-function offsetEventTick(event: Event, offset: number): void {
-  event.setTick(event.getTick() + offset);
-
-  switch (event.getType()) {
-    case Event.Type.PLAYER_UPDATE: {
-      const player = event.getPlayer()!;
-      player.setOffCooldownTick(player.getOffCooldownTick() + offset);
-      break;
-    }
-
-    case Event.Type.TOB_XARPUS_EXHUMED: {
-      const xarpusExhumed = event.getXarpusExhumed()!;
-      xarpusExhumed.setSpawnTick(xarpusExhumed.getSpawnTick() + offset);
-      break;
-    }
-
-    case Event.Type.TOB_VERZIK_ATTACK_STYLE:
-    case Event.Type.TOB_VERZIK_BOUNCE:
-    case Event.Type.TOB_VERZIK_DAWN:
-    case Event.Type.MOKHAIOTL_ATTACK_STYLE:
-      // TODO(frolv): These events all have fields which reference previous
-      // ticks. Instead of this function being given a single offset, it should
-      // be called with the complete mapping of old ticks to new ticks.
-      break;
-  }
-}
+import {
+  EventType,
+  GRAPHICS_EVENT_TYPES,
+  offsetEventTick,
+  PLAYER_TICK_STATE_TYPES,
+} from './event';
 
 type NpcAttacked = {
   type: NpcAttack;
@@ -81,7 +59,6 @@ export class TickState {
   private eventsByType: Map<EventType, Event[]>;
   private npcs: Map<number, NpcState>;
   private playerStates: Map<string, PlayerState | null>;
-  private requiresResync: boolean;
 
   public constructor(
     tick: number,
@@ -90,7 +67,6 @@ export class TickState {
   ) {
     this.tick = tick;
     this.playerStates = playerStates;
-    this.requiresResync = false;
 
     this.eventsByType = new Map();
     for (const event of events) {
@@ -255,10 +231,6 @@ export class TickState {
    * @returns Whether the merge was successful.
    */
   public merge(other: TickState): boolean {
-    if (this.tick !== other.tick) {
-      return false;
-    }
-
     for (const [player, otherState] of other.playerStates.entries()) {
       if (otherState === null) {
         continue;
@@ -272,7 +244,6 @@ export class TickState {
 
       if (shouldUpdate) {
         this.overridePlayerState(player, other);
-        this.requiresResync = true;
       }
     }
 
@@ -287,7 +258,7 @@ export class TickState {
       }
     }
 
-    this.mergeRegularEvents(other);
+    this.mergeGraphicsEvents(other);
 
     return true;
   }
@@ -298,15 +269,11 @@ export class TickState {
    * @param tickStates Updated tick states for the entire stage.
    */
   public resynchronize(tickStates: (TickState | null)[]): void {
-    if (!this.requiresResync) {
-      return;
-    }
-
     for (const player of this.playerStates.keys()) {
       this.resynchronizePlayer(player, tickStates);
     }
 
-    this.requiresResync = false;
+    // TODO(frolv): Resynchronize graphics events.
   }
 
   private resynchronizePlayer(
@@ -369,47 +336,63 @@ export class TickState {
   }
 
   /**
-   * Copies events that do not require special processing from `other` into this
-   * tick state, if they do not already exist.
+   * Merges graphics and positional events from `other` into this tick state.
+   * Graphics events from both sides are all kept because visibility may differ
+   * between clients, and some are delta-based. They will be resolved into
+   * single events during resynchronization.
+   *
    * @param other Tick state to merge.
    */
-  private mergeRegularEvents(other: TickState): void {
-    const excludedTypes: number[] = [
-      Event.Type.PLAYER_ATTACK,
-      Event.Type.PLAYER_SPELL,
-      Event.Type.PLAYER_DEATH,
-      Event.Type.PLAYER_UPDATE,
-      Event.Type.NPC_ATTACK,
-      Event.Type.NPC_DEATH,
-      Event.Type.NPC_UPDATE,
-      Event.Type.NPC_SPAWN,
-    ];
-    const missingEvents = other
+  private mergeGraphicsEvents(other: TickState): void {
+    const events = other
       .getEvents()
-      .filter(
-        (event) =>
-          !excludedTypes.includes(event.getType()) &&
-          !this.eventsByType.has(event.getType()),
-      );
-    this.addEvents(missingEvents);
+      .filter((event) => GRAPHICS_EVENT_TYPES.has(event.getType()));
+    if (events.length > 0) {
+      this.addEvents(events);
+    }
   }
 
   private overridePlayerState(player: string, other: TickState): void {
-    for (const [type, events] of this.eventsByType) {
-      const withoutPlayer = events.filter(
-        (e) => e.getPlayer()?.getName() !== player,
-      );
-      this.eventsByType.set(type, withoutPlayer);
+    for (const type of PLAYER_TICK_STATE_TYPES) {
+      const events = this.eventsByType.get(type);
+      if (events !== undefined) {
+        this.eventsByType.set(
+          type,
+          events.filter((e) => e.getPlayer()?.getName() !== player),
+        );
+      }
     }
 
     this.playerStates.set(player, { ...other.getPlayerState(player)! });
+
     const playerEvents = other
       .getEvents()
-      .filter((e) => e.getPlayer()?.getName() === player);
+      .filter(
+        (e) =>
+          PLAYER_TICK_STATE_TYPES.has(e.getType()) &&
+          e.getPlayer()?.getName() === player,
+      );
     this.addEvents(playerEvents);
   }
 
-  private addEvents(events: Event[]): void {
+  /**
+   * Removes and returns all events of the given types from this tick state.
+   * @param types Event types to extract.
+   * @returns The extracted events.
+   */
+  public extractEvents(types: ReadonlySet<EventType>): Event[] {
+    const extracted: Event[] = [];
+    for (const type of types) {
+      const events = this.eventsByType.get(type);
+      if (events !== undefined) {
+        extracted.push(...events);
+        this.eventsByType.delete(type);
+      }
+    }
+    return extracted;
+  }
+
+  public addEvents(events: Event[]): void {
     for (const event of events) {
       if (!this.eventsByType.has(event.getType())) {
         this.eventsByType.set(event.getType(), []);

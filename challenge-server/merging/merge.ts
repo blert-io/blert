@@ -8,7 +8,8 @@ import {
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
-import { TickAligner } from './alignment';
+import { AlignmentResult, TickAligner } from './alignment';
+import { EventConsolidator } from './event-consolidator';
 import {
   ClassifiedClients,
   classifyClients,
@@ -19,7 +20,9 @@ import { ConsistencyIssue } from './consistency';
 import logger from '../log';
 import { SimilarityScorer } from './similarity-scorer';
 import { TickState, TickStateArray } from './tick-state';
-import { MergeTracer, TickMergeDecisionType } from './trace';
+import { MergeTracer } from './trace';
+
+const MIN_ALIGNMENT_COVERAGE = 0.5;
 
 export type ChallengeInfo = {
   uuid: string;
@@ -74,6 +77,18 @@ export type MergeClient = {
   // TODO(frolv): Add alignment information if available.
 };
 
+export type MergeOptions = {
+  /**
+   * When true, attempt alignment-based merging for mismatched clients.
+   * When false (default), mismatched clients are skipped.
+   */
+  alignMismatched?: boolean;
+};
+
+const DEFAULT_MERGE_OPTIONS: MergeOptions = {
+  alignMismatched: false,
+};
+
 export type MergeResult = {
   events: MergedEvents;
   clients: MergeClient[];
@@ -99,7 +114,12 @@ export class Merger {
     this.referenceSelection = null;
   }
 
-  public merge(tracer?: MergeTracer): MergeResult | null {
+  public merge(
+    tracer?: MergeTracer,
+    options?: MergeOptions,
+  ): MergeResult | null {
+    const mergeOptions = { ...DEFAULT_MERGE_OPTIONS, ...options };
+
     if (this.clients.length === 0) {
       logger.warn('merge_no_clients', { stage: this.stage });
       return null;
@@ -177,7 +197,7 @@ export class Merger {
         tracer.beginMergeStep(client.getId(), classification);
       }
 
-      const success = merged.mergeEventsFrom(client, tracer);
+      const success = merged.mergeEventsFrom(client, mergeOptions, tracer);
       const status = success
         ? MergeClientStatus.MERGED
         : MergeClientStatus.UNMERGED;
@@ -405,34 +425,40 @@ export class MergedEvents {
    * Merges events from `client` into this merged event set.
    * @param client Client to merge events from.
    * @param tracer Optional tracer for recording merge decisions.
+   * @param options Merge options controlling alignment behavior.
    * @returns Whether the merge was successful.
    */
-  public mergeEventsFrom(client: ClientEvents, tracer?: MergeTracer): boolean {
-    let success = false;
+  public mergeEventsFrom(
+    client: ClientEvents,
+    options: MergeOptions,
+    tracer?: MergeTracer,
+  ): boolean {
+    let alignment: AlignmentResult | null = null;
 
-    if (this.accurate) {
-      if (client.isAccurate()) {
-        success = this.mergeAccurateEvents(client, tracer);
-      } else {
-        logger.warn('merge_unimplemented', {
-          accurate: this.accurate,
-          client: { id: client.getId(), accurate: client.isAccurate() },
-        });
-        this.runAlignment(client, tracer);
-      }
+    if (this.accurate && client.isAccurate()) {
+      // Accurate clients use identity mapping (null alignment).
     } else {
-      logger.warn('merge_unimplemented', {
-        accurate: this.accurate,
-        client: { id: client.getId(), accurate: client.isAccurate() },
-      });
-      this.runAlignment(client, tracer);
+      alignment = this.runAlignment(client, tracer);
+      if (!options.alignMismatched || alignment === null) {
+        return false;
+      }
     }
 
-    if (success) {
-      this.ticks.forEach((tick) => tick?.resynchronize(this.ticks));
-    }
+    const consolidator = new EventConsolidator(
+      this.ticks,
+      client.getTickStates(),
+      alignment,
+      tracer,
+    );
+    const result = consolidator.consolidate();
 
-    return success;
+    // TODO(frolv): Run post-merge consistency check on result.ticks.
+    // If the check fails, keep the original ticks and return false.
+
+    this.ticks = result.ticks;
+    this.ticks.forEach((tick) => tick?.resynchronize(this.ticks));
+
+    return true;
   }
 
   /**
@@ -445,12 +471,10 @@ export class MergedEvents {
     }
   }
 
-  private runAlignment(client: ClientEvents, tracer?: MergeTracer): void {
-    if (tracer === undefined) {
-      // TODO(frolv): inaccurate merging is not fully implemented yet, so avoid
-      // running expensive alignments unless debugging is enabled.
-      return;
-    }
+  private runAlignment(
+    client: ClientEvents,
+    tracer?: MergeTracer,
+  ): AlignmentResult | null {
     const scorer = new SimilarityScorer();
     const aligner = new TickAligner(
       this.ticks,
@@ -458,7 +482,20 @@ export class MergedEvents {
       (a, b) => scorer.score(a, b),
     );
     const alignment = aligner.align();
-    tracer.recordAlignment(alignment);
+    tracer?.recordAlignment(alignment);
+
+    // TODO(frolv): Replace with a proper merge confidence score that also
+    // considers per-tick similarity scores and gap count.
+    if (alignment.coverage < MIN_ALIGNMENT_COVERAGE) {
+      logger.info('merge_alignment_rejected', {
+        clientId: client.getId(),
+        coverage: alignment.coverage,
+        threshold: MIN_ALIGNMENT_COVERAGE,
+      });
+      return null;
+    }
+
+    return alignment;
   }
 
   private initializeBaseTicks(base: ClientEvents): void {
@@ -490,45 +527,6 @@ export class MergedEvents {
         this.ticks[i] = base.getTickState(i)?.clone() ?? null;
       }
     }
-  }
-
-  private mergeAccurateEvents(
-    client: ClientEvents,
-    tracer?: MergeTracer,
-  ): boolean {
-    for (let tick = this.ticks.length - 1; tick >= 0; tick--) {
-      const stateToMerge = client.getTickState(tick);
-      if (stateToMerge === null) {
-        tracer?.recordTickDecision({
-          tick,
-          type: TickMergeDecisionType.SKIPPED,
-        });
-        continue;
-      }
-
-      const existingState = this.ticks[tick];
-      if (existingState !== null) {
-        if (!existingState.merge(stateToMerge)) {
-          logger.error('merge_tick_conflict', {
-            tick,
-            clientId: client.getId(),
-          });
-          return false;
-        }
-        tracer?.recordTickDecision({
-          tick,
-          type: TickMergeDecisionType.MERGED,
-        });
-      } else {
-        this.ticks[tick] = stateToMerge.clone();
-        tracer?.recordTickDecision({
-          tick,
-          type: TickMergeDecisionType.FILLED,
-        });
-      }
-    }
-
-    return true;
   }
 
   private correctOffsetMaidenSpawn(): void {
