@@ -420,7 +420,7 @@ async function mergeTestEvents(req: Request, res: Response): Promise<void> {
 
     const tracer = new MergeTracer();
     const merger = new Merger(stage, clients);
-    const result = merger.merge(tracer);
+    const result = merger.merge(tracer, { alignMismatched: true });
     if (result === null) {
       res.status(500).send();
       return;

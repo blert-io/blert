@@ -19,6 +19,7 @@ import {
   MergeAlertType,
   MergeClientClassification,
   MergeClientStatus,
+  MergeOptions,
 } from '../merge';
 
 type Proto<T> = T[keyof T];
@@ -41,6 +42,12 @@ type TestEventInput = {
     ranged?: number;
     hitpoints?: number;
     prayer?: number;
+  };
+  npc?: {
+    roomId: number;
+    id: number;
+    hitpoints: number;
+    hitpointsBase: number;
   };
 };
 
@@ -84,7 +91,111 @@ function createEvent(event: TestEventInput): ProtoEvent {
     evt.setPlayer(player);
   }
 
+  if (event.npc) {
+    const npc = new ProtoEvent.Npc();
+    npc.setRoomId(event.npc.roomId);
+    npc.setId(event.npc.id);
+    npc.setHitpoints(
+      new SkillLevel(event.npc.hitpoints, event.npc.hitpointsBase).toRaw(),
+    );
+    evt.setNpc(npc);
+  }
+
   return evt;
+}
+
+const BOSS_HP_BASE = 100;
+
+/**
+ * Generates player update events and an NPC_UPDATE event for each tick.
+ *
+ * Players move 1 tile per tick (within the consistency check's 2-tile max).
+ * The NPC has tick-specific hitpoints (decreasing by 5 each tick) so the
+ * similarity scorer can unambiguously match corresponding ticks.
+ *
+ * @param realTickOffset When set, local tick `t` uses the positions and NPC
+ *   HP that would appear at real tick `t + realTickOffset`. This simulates
+ *   a client that joined late and missed the first `realTickOffset` ticks.
+ */
+function generateTickEvents(
+  numTicks: number,
+  opts?: {
+    startTick?: number;
+    primaryPlayer?: string;
+    realTickOffset?: number;
+  },
+): ProtoEvent[] {
+  const startTick = opts?.startTick ?? 0;
+  const primary = opts?.primaryPlayer ?? 'player1';
+  const realTickOffset = opts?.realTickOffset ?? 0;
+  const events: ProtoEvent[] = [];
+
+  for (let t = 0; t < numTicks; t++) {
+    const tick = startTick + t;
+    const realTick = tick + realTickOffset;
+    // Players move 1 tile per tick; player2 is offset 3 tiles to the right.
+    const p1x = realTick;
+    const p2x = realTick + 3;
+
+    events.push(
+      createEvent({
+        type: EventType.PLAYER_UPDATE,
+        tick,
+        xCoord: p1x,
+        yCoord: 0,
+        stage: Stage.TOB_MAIDEN,
+        player: {
+          name: 'player1',
+          source:
+            primary === 'player1' ? DataSource.PRIMARY : DataSource.SECONDARY,
+          offCooldownTick: 0,
+          prayerSet: 0,
+          attack: new SkillLevel(118, 99).toRaw(),
+          strength: new SkillLevel(118, 99).toRaw(),
+          defence: new SkillLevel(118, 99).toRaw(),
+        },
+      }),
+    );
+    events.push(
+      createEvent({
+        type: EventType.PLAYER_UPDATE,
+        tick,
+        xCoord: p2x,
+        yCoord: 0,
+        stage: Stage.TOB_MAIDEN,
+        player: {
+          name: 'player2',
+          source:
+            primary === 'player2' ? DataSource.PRIMARY : DataSource.SECONDARY,
+          offCooldownTick: 0,
+          prayerSet: 0,
+          attack: new SkillLevel(118, 99).toRaw(),
+          strength: new SkillLevel(118, 99).toRaw(),
+          defence: new SkillLevel(118, 99).toRaw(),
+        },
+      }),
+    );
+
+    // NPC_UPDATE with tick-specific HP so the scorer has a strong signal.
+    const hp = Math.max(BOSS_HP_BASE - realTick * 5, 1);
+    events.push(
+      createEvent({
+        type: EventType.NPC_UPDATE,
+        tick,
+        xCoord: 50,
+        yCoord: 50,
+        stage: Stage.TOB_MAIDEN,
+        npc: {
+          roomId: 1,
+          id: 8360,
+          hitpoints: hp,
+          hitpointsBase: BOSS_HP_BASE,
+        },
+      }),
+    );
+  }
+
+  return events;
 }
 
 const client1Events = [
@@ -362,5 +473,288 @@ describe('Merger', () => {
         accurateTickCounts: [[2, 1]],
       },
     });
+  });
+
+  const ALIGN_OPTIONS: MergeOptions = { alignMismatched: true };
+
+  it('merges an inaccurate target into an accurate base via alignment', () => {
+    const NUM_TICKS = 10;
+
+    // Base: accurate client with ticks 0-9, player1 primary.
+    const baseEvents = generateTickEvents(NUM_TICKS, {
+      primaryPlayer: 'player1',
+    });
+    const base = ClientEvents.fromRawEvents(
+      1,
+      fakeChallenge,
+      {
+        stage: Stage.TOB_MAIDEN,
+        status: StageStatus.COMPLETED,
+        accurate: true,
+        recordedTicks: NUM_TICKS,
+        serverTicks: { count: NUM_TICKS, precise: true },
+      },
+      baseEvents,
+    );
+
+    // Target: inaccurate client with the same tick data, player2 primary.
+    const targetEvents = generateTickEvents(NUM_TICKS, {
+      primaryPlayer: 'player2',
+    });
+    const target = ClientEvents.fromRawEvents(
+      2,
+      fakeChallenge,
+      {
+        stage: Stage.TOB_MAIDEN,
+        status: StageStatus.COMPLETED,
+        accurate: false,
+        recordedTicks: NUM_TICKS,
+        serverTicks: null,
+      },
+      targetEvents,
+    );
+
+    const merger = new Merger(Stage.TOB_MAIDEN, [base, target]);
+    const result = merger.merge(undefined, ALIGN_OPTIONS);
+
+    expect(result).not.toBeNull();
+    expect(result!.mergedCount).toBe(2);
+    expect(result!.unmergedCount).toBe(0);
+
+    const targetClient = result!.clients.find((c) => c.id === 2);
+    expect(targetClient).toBeDefined();
+    expect(targetClient!.status).toBe(MergeClientStatus.MERGED);
+    expect(targetClient!.classification).toBe(
+      MergeClientClassification.MISMATCHED,
+    );
+
+    // After merge, player2 should have PRIMARY data (contributed by target).
+    const events = result!.events;
+    for (let tick = 0; tick < NUM_TICKS; tick++) {
+      const tickEvents = events.eventsForTick(tick);
+      const p2Update = tickEvents.find(
+        (e) =>
+          e.getType() === EventType.PLAYER_UPDATE &&
+          e.getPlayer()?.getName() === 'player2',
+      );
+      expect(p2Update).toBeDefined();
+      expect(p2Update!.getPlayer()!.getDataSource()).toBe(DataSource.PRIMARY);
+    }
+  });
+
+  it('merges an inaccurate target with offset into an accurate base', () => {
+    const BASE_TICKS = 15;
+    const OFFSET = 3;
+    const TARGET_TICKS = BASE_TICKS - OFFSET;
+
+    // Base: accurate, ticks 0-14.
+    const baseEvents = generateTickEvents(BASE_TICKS, {
+      primaryPlayer: 'player1',
+    });
+    const base = ClientEvents.fromRawEvents(
+      1,
+      fakeChallenge,
+      {
+        stage: Stage.TOB_MAIDEN,
+        status: StageStatus.COMPLETED,
+        accurate: true,
+        recordedTicks: BASE_TICKS,
+        serverTicks: { count: BASE_TICKS, precise: true },
+      },
+      baseEvents,
+    );
+
+    // Target: inaccurate, 12 ticks. Local ticks 0-11 correspond to real ticks
+    // 3-14 (the target joined late, missing the first 3 ticks). Use positions
+    // matching base ticks 3-14 so the aligner maps correctly.
+    const targetEvents = generateTickEvents(TARGET_TICKS, {
+      primaryPlayer: 'player2',
+      realTickOffset: OFFSET,
+    });
+
+    const target = ClientEvents.fromRawEvents(
+      2,
+      fakeChallenge,
+      {
+        stage: Stage.TOB_MAIDEN,
+        status: StageStatus.COMPLETED,
+        accurate: false,
+        recordedTicks: TARGET_TICKS,
+        serverTicks: null,
+      },
+      targetEvents,
+    );
+
+    const merger = new Merger(Stage.TOB_MAIDEN, [base, target]);
+    const result = merger.merge(undefined, ALIGN_OPTIONS);
+
+    expect(result).not.toBeNull();
+    expect(result!.mergedCount).toBe(2);
+
+    // Target events should land at base ticks 3-14 (the ticks where positions
+    // match). Player2 should have PRIMARY data on those ticks.
+    const events = result!.events;
+    for (let tick = OFFSET; tick < BASE_TICKS; tick++) {
+      const tickEvents = events.eventsForTick(tick);
+      const p2Update = tickEvents.find(
+        (e) =>
+          e.getType() === EventType.PLAYER_UPDATE &&
+          e.getPlayer()?.getName() === 'player2',
+      );
+      expect(p2Update).toBeDefined();
+      expect(p2Update!.getPlayer()!.getDataSource()).toBe(DataSource.PRIMARY);
+    }
+
+    // Ticks 0-2 should still have the base's secondary data for player2.
+    for (let tick = 0; tick < OFFSET; tick++) {
+      const tickEvents = events.eventsForTick(tick);
+      const p2Update = tickEvents.find(
+        (e) =>
+          e.getType() === EventType.PLAYER_UPDATE &&
+          e.getPlayer()?.getName() === 'player2',
+      );
+      expect(p2Update).toBeDefined();
+      expect(p2Update!.getPlayer()!.getDataSource()).toBe(DataSource.SECONDARY);
+    }
+  });
+
+  it('inserts target ticks into the base timeline to fill gaps', () => {
+    const NUM_TICKS = 15;
+    const GAP_AT = 7;
+
+    // Base (ID 1): 14 local ticks. Missed real tick 7, so local ticks 7-13
+    // have data corresponding to real ticks 8-14. This simulates a client
+    // that lagged and compressed out a tick.
+    const baseEvents = [
+      ...generateTickEvents(GAP_AT, { primaryPlayer: 'player1' }),
+      ...generateTickEvents(NUM_TICKS - GAP_AT - 1, {
+        startTick: GAP_AT,
+        primaryPlayer: 'player1',
+        realTickOffset: 1,
+      }),
+    ];
+    const base = ClientEvents.fromRawEvents(
+      1,
+      fakeChallenge,
+      {
+        stage: Stage.TOB_MAIDEN,
+        status: StageStatus.COMPLETED,
+        accurate: false,
+        recordedTicks: NUM_TICKS - 1,
+        serverTicks: null,
+      },
+      baseEvents,
+    );
+
+    // Target (ID 2): 14 local ticks with all real ticks 0-13.
+    const targetEvents = generateTickEvents(NUM_TICKS - 1, {
+      primaryPlayer: 'player2',
+    });
+    const target = ClientEvents.fromRawEvents(
+      2,
+      fakeChallenge,
+      {
+        stage: Stage.TOB_MAIDEN,
+        status: StageStatus.COMPLETED,
+        accurate: false,
+        recordedTicks: NUM_TICKS - 1,
+        serverTicks: null,
+      },
+      targetEvents,
+    );
+
+    // Client 1 (gap) is selected as base (lower ID tiebreak). The alignment
+    // should INSERT target tick 7 to fill the gap in the base timeline.
+    const merger = new Merger(Stage.TOB_MAIDEN, [base, target]);
+    const result = merger.merge(undefined, ALIGN_OPTIONS);
+
+    expect(result).not.toBeNull();
+    expect(result!.mergedCount).toBe(2);
+
+    // Verify that the gap client (ID 1) was selected as base and the
+    // full-data client (ID 2) is the mismatched target being aligned in.
+    const baseClient = result!.clients.find((c) => c.id === 1);
+    expect(baseClient).toBeDefined();
+    expect(baseClient!.classification).toBe(
+      MergeClientClassification.REFERENCE,
+    );
+    const targetClient = result!.clients.find((c) => c.id === 2);
+    expect(targetClient).toBeDefined();
+    expect(targetClient!.classification).toBe(
+      MergeClientClassification.MISMATCHED,
+    );
+    expect(targetClient!.status).toBe(MergeClientStatus.MERGED);
+
+    const events = result!.events;
+
+    // The timeline should have grown by 1 due to the inserted tick.
+    expect(events.getLastTick()).toBe(NUM_TICKS);
+
+    // The inserted tick (new position 7) should have the target's data
+    // for real tick 7. NPC HP at real tick 7 = 100 - 7*5 = 65.
+    const insertedTickEvents = events.eventsForTick(GAP_AT);
+    const npcUpdate = insertedTickEvents.find(
+      (e) => e.getType() === EventType.NPC_UPDATE,
+    );
+    expect(npcUpdate).toBeDefined();
+    expect(
+      SkillLevel.fromRaw(npcUpdate!.getNpc()!.getHitpoints()).getCurrent(),
+    ).toBe(BOSS_HP_BASE - GAP_AT * 5);
+
+    // Player2 at the inserted tick should have PRIMARY data (from target).
+    const p2Update = insertedTickEvents.find(
+      (e) =>
+        e.getType() === EventType.PLAYER_UPDATE &&
+        e.getPlayer()?.getName() === 'player2',
+    );
+    expect(p2Update).toBeDefined();
+    expect(p2Update!.getPlayer()!.getDataSource()).toBe(DataSource.PRIMARY);
+  });
+
+  it('does not merge mismatched clients when alignMismatched is not set', () => {
+    const NUM_TICKS = 10;
+
+    const baseEvents = generateTickEvents(NUM_TICKS, {
+      primaryPlayer: 'player1',
+    });
+    const base = ClientEvents.fromRawEvents(
+      1,
+      fakeChallenge,
+      {
+        stage: Stage.TOB_MAIDEN,
+        status: StageStatus.COMPLETED,
+        accurate: true,
+        recordedTicks: NUM_TICKS,
+        serverTicks: { count: NUM_TICKS, precise: true },
+      },
+      baseEvents,
+    );
+
+    const targetEvents = generateTickEvents(NUM_TICKS, {
+      primaryPlayer: 'player2',
+    });
+    const target = ClientEvents.fromRawEvents(
+      2,
+      fakeChallenge,
+      {
+        stage: Stage.TOB_MAIDEN,
+        status: StageStatus.COMPLETED,
+        accurate: false,
+        recordedTicks: NUM_TICKS,
+        serverTicks: null,
+      },
+      targetEvents,
+    );
+
+    // No options — default behavior.
+    const merger = new Merger(Stage.TOB_MAIDEN, [base, target]);
+    const result = merger.merge();
+
+    expect(result).not.toBeNull();
+    expect(result!.mergedCount).toBe(1);
+    expect(result!.unmergedCount).toBe(1);
+
+    const targetClient = result!.clients.find((c) => c.id === 2);
+    expect(targetClient!.status).toBe(MergeClientStatus.UNMERGED);
   });
 });
