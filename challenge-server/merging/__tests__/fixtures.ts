@@ -22,6 +22,29 @@ type ProtoDataSource =
   ProtoEvent.Player.DataSourceMap[keyof ProtoEvent.Player.DataSourceMap];
 type ProtoNpcAttack = NpcAttackMap[keyof NpcAttackMap];
 
+export function createEvent(
+  type: ProtoEvent.TypeMap[keyof ProtoEvent.TypeMap],
+  tick: number,
+): ProtoEvent {
+  const event = new ProtoEvent();
+  event.setType(type);
+  event.setTick(tick);
+  return event;
+}
+
+export function createTickState(
+  tick: number,
+  players: PlayerState[],
+  events: ProtoEvent[] = [],
+): TickState {
+  const playerStates = new Map<string, PlayerState | null>();
+  for (const player of players) {
+    playerStates.set(player.username, player);
+  }
+
+  return new TickState(tick, events, playerStates);
+}
+
 export type PlayerAttackState = {
   type: PlayerAttack;
   weaponId: number;
@@ -113,6 +136,33 @@ export function createPlayerUpdateEvent({
   return event;
 }
 
+export function createPlayerDeathEvent({
+  tick,
+  name,
+  x = 0,
+  y = 0,
+  stage = Stage.TOB_MAIDEN,
+}: {
+  tick: number;
+  name: string;
+  x?: number;
+  y?: number;
+  stage?: Stage;
+}): ProtoEvent {
+  const event = new ProtoEvent();
+  event.setType(ProtoEvent.Type.PLAYER_DEATH);
+  event.setTick(tick);
+  event.setStage(stage as ProtoStage);
+  event.setXCoord(x);
+  event.setYCoord(y);
+
+  const player = new ProtoEvent.Player();
+  player.setName(name);
+  event.setPlayer(player);
+
+  return event;
+}
+
 export function createNpcSpawnEvent({
   tick,
   roomId,
@@ -147,19 +197,6 @@ export function createNpcSpawnEvent({
   event.setNpc(npc);
 
   return event;
-}
-
-export function createTickState(
-  tick: number,
-  players: PlayerState[],
-  events: ProtoEvent[] = [],
-): TickState {
-  const playerStates = new Map<string, PlayerState | null>();
-  for (const player of players) {
-    playerStates.set(player.username, player);
-  }
-
-  return new TickState(tick, events, playerStates);
 }
 
 export function createNpcAttackEvent({
@@ -209,55 +246,6 @@ export function createNpcAttackEvent({
   return event;
 }
 
-export function createPlayerDeathEvent({
-  tick,
-  name,
-  x = 0,
-  y = 0,
-  stage = Stage.TOB_MAIDEN,
-}: {
-  tick: number;
-  name: string;
-  x?: number;
-  y?: number;
-  stage?: Stage;
-}): ProtoEvent {
-  const event = new ProtoEvent();
-  event.setType(ProtoEvent.Type.PLAYER_DEATH);
-  event.setTick(tick);
-  event.setStage(stage as ProtoStage);
-  event.setXCoord(x);
-  event.setYCoord(y);
-
-  const player = new ProtoEvent.Player();
-  player.setName(name);
-  event.setPlayer(player);
-
-  return event;
-}
-
-export function createVerzikBounceEvent({
-  tick,
-  npcAttackTick,
-  bouncedPlayer,
-}: {
-  tick: number;
-  npcAttackTick: number;
-  bouncedPlayer: string;
-}): ProtoEvent {
-  const event = new ProtoEvent();
-  event.setType(ProtoEvent.Type.TOB_VERZIK_BOUNCE);
-  event.setTick(tick);
-  event.setStage(Stage.TOB_VERZIK as ProtoStage);
-
-  const bounce = new ProtoEvent.VerzikBounce();
-  bounce.setNpcAttackTick(npcAttackTick);
-  bounce.setBouncedPlayer(bouncedPlayer);
-  event.setVerzikBounce(bounce);
-
-  return event;
-}
-
 export function createNpcDeathEvent({
   tick,
   roomId,
@@ -284,6 +272,51 @@ export function createNpcDeathEvent({
   npc.setRoomId(roomId);
   npc.setId(npcId);
   event.setNpc(npc);
+
+  return event;
+}
+
+export function createVerzikBounceEvent({
+  tick,
+  npcAttackTick,
+  bouncedPlayer,
+}: {
+  tick: number;
+  npcAttackTick: number;
+  bouncedPlayer: string;
+}): ProtoEvent {
+  const event = new ProtoEvent();
+  event.setType(ProtoEvent.Type.TOB_VERZIK_BOUNCE);
+  event.setTick(tick);
+  event.setStage(Stage.TOB_VERZIK as ProtoStage);
+
+  const bounce = new ProtoEvent.VerzikBounce();
+  bounce.setNpcAttackTick(npcAttackTick);
+  bounce.setBouncedPlayer(bouncedPlayer);
+  event.setVerzikBounce(bounce);
+
+  return event;
+}
+
+export function createVerzikAttackStyleEvent({
+  tick,
+  npcAttackTick,
+  style,
+}: {
+  tick: number;
+  npcAttackTick: number;
+  style: number;
+}): ProtoEvent {
+  const event = new ProtoEvent();
+  event.setType(ProtoEvent.Type.TOB_VERZIK_ATTACK_STYLE);
+  event.setTick(tick);
+
+  const attackStyle = new ProtoEvent.AttackStyle();
+  attackStyle.setNpcAttackTick(npcAttackTick);
+  attackStyle.setStyle(
+    style as ProtoEvent.AttackStyle.StyleMap[keyof ProtoEvent.AttackStyle.StyleMap],
+  );
+  event.setVerzikAttackStyle(attackStyle);
 
   return event;
 }
