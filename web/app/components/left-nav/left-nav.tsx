@@ -255,25 +255,31 @@ export function LeftNav() {
           <AccountStatus />
         </Suspense>
 
-        <div className={styles.leftNav__externalLinks}>
-          <div className={styles.leftNav__externalLink}>
-            <Link
-              href="https://discord.gg/c5Hgv3NnYe"
-              target="_blank"
-              rel="noreferrer noopener"
-            >
-              <i className="fa-brands fa-discord"></i>
-            </Link>
-          </div>
-          <div className={styles.leftNav__externalLink}>
-            <Link
-              href="https://github.com/blert-io"
-              target="_blank"
-              rel="noreferrer noopener"
-            >
-              <i className="fa-brands fa-github"></i>
-            </Link>
-          </div>
+        <div className={styles.socialLinks}>
+          <Link
+            className={styles.socialLink}
+            href="https://discord.gg/c5Hgv3NnYe"
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            <i className="fa-brands fa-discord"></i>
+          </Link>
+          <Link
+            className={styles.socialLink}
+            href="https://patreon.com/blert"
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            <i className="fa-brands fa-patreon"></i>
+          </Link>
+          <Link
+            className={styles.socialLink}
+            href="https://github.com/blert-io"
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            <i className="fa-brands fa-github"></i>
+          </Link>
         </div>
       </div>
     </LeftNavWrapper>
