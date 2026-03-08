@@ -447,7 +447,7 @@ export function BossPageAttackTimeline(props: BossPageAttackTimelineProps) {
         className={styles.attackTimelineCard}
         fixed
         header={{
-          title: 'BCF Renderer',
+          title: 'Attack Timeline',
           action: (
             <div className={styles.actionButtons}>
               <button onClick={() => setShowFullTimeline(true)}>

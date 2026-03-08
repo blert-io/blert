@@ -36,7 +36,7 @@
     .leftNav__menuDivider,
     .leftNav__menuDividerTwo,
     .account,
-    .leftNav__externalLinks {
+    .socialLinks {
       display: none;
     }
 
@@ -516,7 +516,7 @@
   @include leftMenuDivider;
 }
 
-.leftNav__externalLinks {
+.socialLinks {
   display: flex;
   justify-content: center;
   gap: 16px;
@@ -526,29 +526,29 @@
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     margin: 12px 0;
   }
-}
 
-.leftNav__externalLink {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 20px;
-  height: 40px;
-  width: 40px;
-  color: var(--blert-font-color-secondary);
-  border: 1px solid var(--blert-divider-color);
-  border-radius: 6px;
-  transition: all 0.2s ease;
+  .socialLink {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 20px;
+    height: 40px;
+    width: 40px;
+    color: var(--blert-font-color-secondary);
+    border: 1px solid var(--blert-divider-color);
+    border-radius: 6px;
+    transition: all 0.2s ease;
 
-  &:hover {
-    background: var(--blert-surface-light);
-    border-color: var(--blert-purple);
-    color: var(--blert-purple);
-  }
+    &:hover {
+      background: var(--blert-surface-light);
+      border-color: var(--blert-purple);
+      color: var(--blert-font-color-primary);
+    }
 
-  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    font-size: 16px;
-    height: 36px;
-    width: 36px;
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      font-size: 16px;
+      height: 36px;
+      width: 36px;
+    }
   }
 }
