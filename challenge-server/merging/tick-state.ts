@@ -2,6 +2,9 @@ import {
   DataSource,
   EquipmentSlot,
   ItemDelta,
+  NpcAttack,
+  PlayerAttack,
+  PrayerSet,
   RawItemDelta,
   SkillLevel,
 } from '@blert/common';
@@ -36,16 +39,28 @@ function offsetEventTick(event: Event, offset: number): void {
   }
 }
 
+type NpcAttacked = {
+  type: NpcAttack;
+  target: string | null;
+};
+
 export type NpcState = {
   id: number;
   x: number;
   y: number;
-  hitpoints: number;
+  hitpoints: SkillLevel;
+  attack: NpcAttacked | null;
 };
 
 export type EquippedItem = {
   id: number;
   quantity: number;
+};
+
+type PlayerAttacked = {
+  type: PlayerAttack;
+  weaponId: number;
+  target: number | null;
 };
 
 export type PlayerState = {
@@ -55,19 +70,21 @@ export type PlayerState = {
   y: number;
   isDead: boolean;
   equipment: Record<EquipmentSlot, EquippedItem | null>;
+  attack: PlayerAttacked | null;
+  prayers: PrayerSet;
 };
 
 export class TickState {
   private tick: number;
   private eventsByType: Map<EventType, Event[]>;
   private npcs: Map<number, NpcState>;
-  private playerStates: Record<string, PlayerState | null>;
+  private playerStates: Map<string, PlayerState | null>;
   private requiresResync: boolean;
 
   public constructor(
     tick: number,
     events: Event[],
-    playerStates: Record<string, PlayerState | null>,
+    playerStates: Map<string, PlayerState | null>,
   ) {
     this.tick = tick;
     this.playerStates = playerStates;
@@ -96,9 +113,29 @@ export class TickState {
           id: npc.getId(),
           x: event.getXCoord(),
           y: event.getYCoord(),
-          hitpoints: SkillLevel.fromRaw(npc.getHitpoints()).getCurrent(),
+          hitpoints: SkillLevel.fromRaw(npc.getHitpoints()),
+          attack: null,
         });
       });
+
+    this.eventsByType.get(Event.Type.NPC_ATTACK)?.forEach((event) => {
+      const roomId = event.getNpc()?.getRoomId();
+      if (!roomId) {
+        return;
+      }
+
+      const state = this.npcs.get(roomId);
+      const attack = event.getNpcAttack();
+
+      if (!state || !attack) {
+        return;
+      }
+
+      state.attack = {
+        type: attack.getAttack(),
+        target: attack.getTarget() ?? null,
+      };
+    });
   }
 
   /**
@@ -147,7 +184,7 @@ export class TickState {
    * Returns the states of all players on this tick.
    * @returns A map of usernames to player states.
    */
-  public getPlayerStates(): Readonly<Record<string, PlayerState | null>> {
+  public getPlayerStates(): Readonly<Map<string, PlayerState | null>> {
     return this.playerStates;
   }
 
@@ -158,7 +195,7 @@ export class TickState {
    * @returns The player state, or `null` if the player is not present.
    */
   public getPlayerState(player: string): Readonly<PlayerState | null> {
-    return this.playerStates[player] ?? null;
+    return this.playerStates.get(player) ?? null;
   }
 
   /**
@@ -184,7 +221,19 @@ export class TickState {
    * @returns Cloned tick state.
    */
   public clone(): TickState {
-    const playerStates = structuredClone(this.playerStates);
+    const playerStates = new Map<string, PlayerState | null>();
+    for (const [player, state] of this.playerStates.entries()) {
+      if (state !== null) {
+        playerStates.set(player, {
+          ...state,
+          equipment: { ...state.equipment },
+          prayers: PrayerSet.fromRaw(state.prayers.getRaw()),
+        });
+      } else {
+        playerStates.set(player, null);
+      }
+    }
+
     return new TickState(
       this.tick,
       this.getEvents().map((e) => e.clone()),
@@ -208,13 +257,12 @@ export class TickState {
       return false;
     }
 
-    for (const player in other.playerStates) {
-      const otherState = other.playerStates[player];
+    for (const [player, otherState] of other.playerStates.entries()) {
       if (otherState === null) {
         continue;
       }
 
-      const currentState = this.playerStates[player];
+      const currentState = this.getPlayerState(player);
       const shouldUpdate =
         !currentState ||
         (currentState.source === DataSource.SECONDARY &&
@@ -252,7 +300,7 @@ export class TickState {
       return;
     }
 
-    for (const player in this.playerStates) {
+    for (const player of this.playerStates.keys()) {
       this.resynchronizePlayer(player, tickStates);
     }
 
@@ -263,7 +311,7 @@ export class TickState {
     player: string,
     tickStates: (TickState | null)[],
   ): void {
-    const state = this.playerStates[player];
+    const state = this.getPlayerState(player);
     if (!state) {
       return;
     }
@@ -352,7 +400,7 @@ export class TickState {
       this.eventsByType.set(type, withoutPlayer);
     }
 
-    this.playerStates[player] = { ...other.playerStates[player]! };
+    this.playerStates.set(player, { ...other.getPlayerState(player)! });
     const playerEvents = other
       .getEvents()
       .filter((e) => e.getPlayer()?.getName() === player);
