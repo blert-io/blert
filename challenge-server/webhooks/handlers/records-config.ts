@@ -30,12 +30,12 @@ const TRACKED_SPLITS: SplitConfig[] = [
   { split: SplitType.TOB_OVERALL, tier: RecordTier.POST_TIES },
 
   // Theatre of Blood rooms
-  { split: SplitType.TOB_MAIDEN, tier: RecordTier.POST_TIES },
-  { split: SplitType.TOB_BLOAT, tier: RecordTier.POST_TIES },
-  { split: SplitType.TOB_NYLO_ROOM, tier: RecordTier.POST_TIES },
-  { split: SplitType.TOB_SOTETSEG, tier: RecordTier.POST_TIES },
-  { split: SplitType.TOB_XARPUS, tier: RecordTier.POST_TIES },
-  { split: SplitType.TOB_VERZIK_ROOM, tier: RecordTier.POST_TIES },
+  { split: SplitType.TOB_MAIDEN, tier: RecordTier.NEW_RECORDS_ONLY },
+  { split: SplitType.TOB_BLOAT, tier: RecordTier.NEW_RECORDS_ONLY },
+  { split: SplitType.TOB_NYLO_ROOM, tier: RecordTier.NEW_RECORDS_ONLY },
+  { split: SplitType.TOB_SOTETSEG, tier: RecordTier.NEW_RECORDS_ONLY },
+  { split: SplitType.TOB_XARPUS, tier: RecordTier.NEW_RECORDS_ONLY },
+  { split: SplitType.TOB_VERZIK_ROOM, tier: RecordTier.NEW_RECORDS_ONLY },
 
   // Theatre of Blood misc
   { split: SplitType.TOB_NYLO_BOSS_SPAWN, tier: RecordTier.NEW_RECORDS_ONLY },
@@ -49,7 +49,6 @@ const TRACKED_SPLITS: SplitConfig[] = [
 
   // Inferno
   { split: SplitType.INFERNO_CHALLENGE, tier: RecordTier.POST_TIES },
-  { split: SplitType.INFERNO_OVERALL, tier: RecordTier.POST_TIES },
 
   // Mokhaiotl
   { split: SplitType.MOKHAIOTL_CHALLENGE, tier: RecordTier.POST_TIES },
