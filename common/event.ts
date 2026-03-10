@@ -45,6 +45,7 @@ export enum EventType {
   TOB_VERZIK_BOUNCE = EventProto.Type.TOB_VERZIK_BOUNCE,
   TOB_VERZIK_YELLOWS = EventProto.Type.TOB_VERZIK_YELLOWS,
   TOB_VERZIK_HEAL = EventProto.Type.TOB_VERZIK_HEAL,
+  TOB_VERZIK_DAWN_DROP = EventProto.Type.TOB_VERZIK_DAWN_DROP,
   COLOSSEUM_HANDICAP_CHOICE = EventProto.Type.COLOSSEUM_HANDICAP_CHOICE,
   COLOSSEUM_DOOM_APPLIED = EventProto.Type.COLOSSEUM_DOOM_APPLIED,
   COLOSSEUM_TOTEM_HEAL = EventProto.Type.COLOSSEUM_TOTEM_HEAL,
@@ -241,6 +242,13 @@ export interface VerzikHealEvent extends BaseEvent {
   };
 }
 
+export interface VerzikDawnDropEvent extends BaseEvent {
+  type: EventType.TOB_VERZIK_DAWN_DROP;
+  verzikDawnDrop: {
+    dropped: boolean;
+  };
+}
+
 export interface HandicapChoiceEvent extends BaseEvent {
   type: EventType.COLOSSEUM_HANDICAP_CHOICE;
   handicap: Handicap;
@@ -381,6 +389,7 @@ export type Event =
   | VerzikDawnEvent
   | VerzikYellowsEvent
   | VerzikHealEvent
+  | VerzikDawnDropEvent
   | HandicapChoiceEvent
   | ColosseumDoomAppliedEvent
   | ColosseumTotemHealEvent

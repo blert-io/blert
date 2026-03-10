@@ -3,6 +3,7 @@
 import {
   ChallengeStatus,
   Coords,
+  EquipmentSlot,
   EventType,
   Npc,
   NpcAttack,
@@ -13,6 +14,7 @@ import {
   SplitType,
   Stage,
   TobRaid,
+  VerzikDawnDropEvent,
   VerzikHealEvent,
 } from '@blert/common';
 import { useCallback, useContext, useMemo, useRef } from 'react';
@@ -70,6 +72,7 @@ class VerzikTerrain implements Terrain {
 }
 
 const VERZIK_ATTACK_BACKGROUND = '#391717';
+const DAWNBRINGER_ID = 22516;
 
 type RedCrabInfo = {
   tick: number;
@@ -249,8 +252,99 @@ export default function VerzikPage() {
     return [splits, info, backgroundColors];
   }, [challenge, eventsByType, eventsByTick]);
 
+  // Build a tick-by-tick map of Dawnbringer ownership during P1. On a given
+  // tick, the Dawnbringer is either held by a player or on the ground.
+  type DawnState = { owner: string } | { owner: null; position: Coords };
+  const dawnStates = useMemo((): DawnState[] => {
+    const drops = (eventsByType[EventType.TOB_VERZIK_DAWN_DROP] ??
+      []) as VerzikDawnDropEvent[];
+    if (drops.length === 0) {
+      // Don't infer state for old raids without Dawn drop events.
+      return [];
+    }
+
+    const p1End = challenge?.splits[SplitType.TOB_VERZIK_P1_END] ?? totalTicks;
+    const states = new Array<DawnState>(p1End + 1);
+
+    // Find who next equips the Dawnbringer starting from a given tick.
+    const findNextEquipper = (fromTick: number): string | null => {
+      for (let t = fromTick; t <= p1End; t++) {
+        for (const [username, playerStates] of playerState) {
+          if (
+            playerStates[t]?.equipment[EquipmentSlot.WEAPON]?.id ===
+            DAWNBRINGER_ID
+          ) {
+            return username;
+          }
+        }
+      }
+      return null;
+    };
+
+    // Initial owner is whoever first equips it.
+    const initialOwner = findNextEquipper(0);
+    let current: DawnState =
+      initialOwner !== null
+        ? { owner: initialOwner }
+        : { owner: null, position: { x: 0, y: 0 } };
+    let tick = 0;
+
+    for (const event of drops) {
+      const { dropped } = event.verzikDawnDrop;
+
+      for (; tick < event.tick && tick <= p1End; tick++) {
+        states[tick] = current;
+      }
+
+      if (dropped) {
+        current = {
+          owner: null,
+          position: { x: event.xCoord, y: event.yCoord },
+        };
+      } else {
+        const newOwner = findNextEquipper(event.tick);
+        current =
+          newOwner !== null
+            ? { owner: newOwner }
+            : { owner: null, position: { x: event.xCoord, y: event.yCoord } };
+      }
+    }
+
+    for (; tick <= p1End; tick++) {
+      states[tick] = current;
+    }
+
+    return states;
+  }, [challenge, eventsByType, playerState, totalTicks]);
+
   const customStates = useMemo(() => {
     const entries: CustomStateEntry[] = [];
+
+    eventsByType[EventType.TOB_VERZIK_DAWN_DROP]?.forEach((event) => {
+      const { dropped } = (event as VerzikDawnDropEvent).verzikDawnDrop;
+
+      // For drops, the owner before this tick is the dropper.
+      // For pickups, the owner after this tick is the picker.
+      const player = dropped
+        ? dawnStates[event.tick - 1]?.owner
+        : dawnStates[event.tick]?.owner;
+      if (player) {
+        entries.push({
+          playerName: player,
+          tick: event.tick,
+          states: [
+            {
+              iconUrl: dropped
+                ? '/images/combat/dawn-drop.png'
+                : '/images/combat/dawn-pickup.png',
+              fullText: dropped
+                ? 'Dropped the Dawnbringer'
+                : 'Picked up the Dawnbringer',
+            },
+          ],
+        });
+      }
+    });
 
     eventsByType[EventType.TOB_VERZIK_HEAL]?.forEach((event) => {
       const { player, healAmount } = (event as VerzikHealEvent).verzikHeal;
@@ -271,11 +365,22 @@ export default function VerzikPage() {
     });
 
     return entries;
-  }, [eventsByType]);
+  }, [dawnStates, eventsByType]);
 
   const customEntitiesForTick = useCallback(
     (tick: number) => {
       const entities: AnyEntity[] = [BARRIER];
+
+      const dawnState = dawnStates[tick];
+      if (dawnState?.owner === null) {
+        entities.push(
+          new ObjectEntity(
+            dawnState.position,
+            'https://chisel.weirdgloop.org/static/img/osrs-sprite/22516.png',
+            'Dawnbringer',
+          ),
+        );
+      }
 
       const yellowsEvent = eventsByTick[tick]?.find(
         (e) => e.type === EventType.TOB_VERZIK_YELLOWS,
@@ -297,7 +402,7 @@ export default function VerzikPage() {
 
       return entities;
     },
-    [eventsByTick],
+    [dawnStates, eventsByTick],
   );
 
   const { entitiesByTick, preloads } = useMapEntities(

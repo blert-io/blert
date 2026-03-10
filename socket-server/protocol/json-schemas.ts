@@ -312,6 +312,11 @@ export const verzikDawnSchema = z.object({
   player: z.string(),
 });
 
+// Event.VerzikDawnDrop
+export const verzikDawnDropSchema = z.object({
+  dropped: z.boolean(),
+});
+
 // Event.ColosseumTotemHeal
 export const colosseumTotemHealSchema = z.object({
   source: npcSchema,
@@ -416,6 +421,7 @@ export const eventSchema = z.object({
   verzikBounce: verzikBounceSchema.optional(),
   verzikHeal: verzikHealSchema.optional(),
   verzikDawn: verzikDawnSchema.optional(),
+  verzikDawnDrop: verzikDawnDropSchema.optional(),
 
   // Colosseum events
   handicap: enumValueSchema.optional(),

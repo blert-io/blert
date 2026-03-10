@@ -70,6 +70,7 @@ export type {
   XarpusPhaseEvent,
   XarpusSplat,
   XarpusSplatEvent,
+  VerzikDawnDropEvent,
   VerzikYellowsEvent,
 } from './event';
 export {
