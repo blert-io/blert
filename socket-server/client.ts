@@ -98,6 +98,7 @@ export default class Client {
   private stats: MessageStats;
 
   private loggedInRsn: string | null;
+  private validated: boolean;
 
   constructor(
     socket: WebSocket,
@@ -128,6 +129,7 @@ export default class Client {
     this.stats = new MessageStats();
 
     this.loggedInRsn = null;
+    this.validated = false;
 
     socket.binaryType = 'arraybuffer';
 
@@ -309,6 +311,14 @@ export default class Client {
     this.loggedInRsn = rsn;
   }
 
+  public setValidated(validated: boolean): void {
+    this.validated = validated;
+  }
+
+  public isValidated(): boolean {
+    return this.validated;
+  }
+
   /**
    * Starts the game state request cycle. After an initial delay, sends a
    * GAME_STATE_REQUEST to the client. If no valid GAME_STATE response is
@@ -429,6 +439,7 @@ export default class Client {
       username: this.user.username,
       sessionId: this.sessionId,
       loggedInRsn: this.loggedInRsn ?? undefined,
+      validated: this.validated,
       pluginVersion: this.pluginVersions.getVersion(),
       pluginRevision: this.pluginVersions.getRevision(),
       runeLiteVersion: this.pluginVersions.getRuneLiteVersion(),

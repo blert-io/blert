@@ -55,7 +55,13 @@ export default class MessageHandler {
   }
 
   public closeClient(client: Client): void {
-    this.challengeManager.updateClientStatus(client, ClientStatus.DISCONNECTED);
+    if (client.isValidated() || client.getActiveChallengeId() !== null) {
+      this.challengeManager.updateClientStatus(
+        client,
+        ClientStatus.DISCONNECTED,
+      );
+      client.setValidated(false);
+    }
   }
 
   public handleServerStatusUpdate = ({ status }: ServerStatusUpdate): void => {
@@ -176,6 +182,10 @@ export default class MessageHandler {
       }
 
       case ServerMessage.Type.CHALLENGE_START_REQUEST:
+        if (!client.isValidated()) {
+          logger.warn('unvalidated_challenge_request', { type: 'start' });
+          return;
+        }
         await this.handleChallengeStart(
           client,
           message,
@@ -184,6 +194,10 @@ export default class MessageHandler {
         break;
 
       case ServerMessage.Type.CHALLENGE_END_REQUEST:
+        if (!client.isValidated()) {
+          logger.warn('unvalidated_challenge_request', { type: 'end' });
+          return;
+        }
         await this.handleChallengeEnd(
           client,
           message,
@@ -192,6 +206,10 @@ export default class MessageHandler {
         break;
 
       case ServerMessage.Type.CHALLENGE_UPDATE:
+        if (!client.isValidated()) {
+          logger.warn('unvalidated_challenge_request', { type: 'update' });
+          return;
+        }
         if (message.getActiveChallengeId() !== '') {
           await this.handleChallengeUpdate(
             client,
@@ -204,6 +222,12 @@ export default class MessageHandler {
         break;
 
       case ServerMessage.Type.EVENT_STREAM: {
+        if (!client.isValidated()) {
+          logger.warn('unvalidated_challenge_request', {
+            type: 'event_stream',
+          });
+          return;
+        }
         const challengeId = message.getActiveChallengeId();
         if (challengeId === '') {
           logger.warn('event_stream_missing_id');
@@ -508,6 +532,7 @@ export default class MessageHandler {
         playerInfo.getUsername(), // Non-normalized display name
         username,
       );
+      client.setValidated(isValid);
 
       if (isValid) {
         // When a player logs in, request a confirmation of their active
@@ -553,11 +578,16 @@ export default class MessageHandler {
 
     switch (gameState.getState()) {
       case ServerMessage.GameState.State.LOGGED_IN:
-        this.challengeManager.updateClientStatus(client, ClientStatus.ACTIVE);
+        if (client.isValidated()) {
+          this.challengeManager.updateClientStatus(client, ClientStatus.ACTIVE);
+        }
         break;
 
       case ServerMessage.GameState.State.LOGGED_OUT:
-        this.challengeManager.updateClientStatus(client, ClientStatus.IDLE);
+        if (client.isValidated()) {
+          this.challengeManager.updateClientStatus(client, ClientStatus.IDLE);
+        }
+        client.setValidated(false);
         break;
 
       default:
