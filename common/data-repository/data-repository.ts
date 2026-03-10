@@ -64,6 +64,7 @@ import {
   Spell,
   SpellTarget,
   VerzikBounceEvent,
+  VerzikDawnDropEvent,
   VerzikDawnEvent,
   VerzikHealEvent,
   VerzikPhaseEvent,
@@ -1274,6 +1275,15 @@ function eventFromProto(evt: EventProto, eventData: ChallengeEvents): Event {
       e.verzikHeal = {
         player: verzikHeal.getPlayer(),
         healAmount: verzikHeal.getHealAmount(),
+      };
+      break;
+    }
+
+    case EventType.TOB_VERZIK_DAWN_DROP: {
+      const verzikDawnDrop = evt.getVerzikDawnDrop()!;
+      const e = event as VerzikDawnDropEvent;
+      e.verzikDawnDrop = {
+        dropped: verzikDawnDrop.getDropped(),
       };
       break;
     }

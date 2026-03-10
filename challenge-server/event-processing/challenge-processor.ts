@@ -1458,6 +1458,14 @@ export default abstract class ChallengeProcessor {
           break;
         }
 
+        case Event.Type.TOB_VERZIK_DAWN_DROP: {
+          const dawnDrop = event.getVerzikDawnDrop()!;
+          const e = baseQueryableEvent(event);
+          e.subtype = dawnDrop.getDropped() ? 1 : 0;
+          queryableEvents.push(e);
+          break;
+        }
+
         case Event.Type.COLOSSEUM_SOL_GRAPPLE: {
           const grapple = event.getColosseumSolGrapple()!;
           const e = baseQueryableEvent(event);

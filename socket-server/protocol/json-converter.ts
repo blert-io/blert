@@ -436,6 +436,12 @@ function eventJsonToProto(json: EventJson): Event {
     event.setVerzikDawn(dawn);
   }
 
+  if (json.verzikDawnDrop !== undefined) {
+    const dawnDrop = new Event.VerzikDawnDrop();
+    dawnDrop.setDropped(json.verzikDawnDrop.dropped);
+    event.setVerzikDawnDrop(dawnDrop);
+  }
+
   // Colosseum events
   if (json.handicap !== undefined) {
     event.setHandicap(json.handicap as AnyEnum);

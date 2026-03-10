@@ -234,6 +234,28 @@ describe('jsonToServerMessage', () => {
       expect(attack?.getWeapon()?.getId()).toBe(28688);
       expect(attack?.getTarget()?.getId()).toBe(10792);
     });
+
+    it('converts a VERZIK_DAWN_DROP event', () => {
+      const json: ServerMessageJson = {
+        type: ServerMessage.Type.EVENT_STREAM,
+        challengeEvents: [
+          {
+            type: Event.Type.TOB_VERZIK_DAWN_DROP,
+            stage: 12,
+            tick: 28,
+            xCoord: 3297,
+            yCoord: 4248,
+            verzikDawnDrop: {
+              dropped: true,
+            },
+          },
+        ],
+      };
+
+      const proto = jsonToServerMessage(json);
+      const event = proto.getChallengeEventsList()[0];
+      expect(event.getVerzikDawnDrop()?.getDropped()).toBe(true);
+    });
   });
 
   describe('attack definitions', () => {

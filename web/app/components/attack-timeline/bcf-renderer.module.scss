@@ -243,44 +243,40 @@ button.legendParticipant {
 .cell {
   height: var(--cell-size);
   width: var(--cell-size);
-  background: var(--blert-surface-light);
+  background: rgba(var(--blert-surface-light-base), 0.4);
   border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: bold;
   text-align: center;
-  opacity: 0.4;
   margin: 0 0 var(--bcf-cell-gap) 0;
   position: relative;
   transition: all 0.2s ease;
   outline: 1px solid transparent;
 
   &:hover {
-    outline-color: var(--blert-purple);
-    opacity: 0.7;
+    outline-color: rgba(var(--blert-purple-base), 0.7);
+    background: rgba(var(--blert-surface-light-base), 0.7);
   }
 
   &.npcAttack {
-    opacity: 1;
     background: rgba(var(--blert-red-base), 0.1);
     color: rgba(var(--blert-red-base), 0.9);
 
     &:hover {
       background: rgba(var(--blert-red-base), 0.3);
       outline-color: rgba(var(--blert-red-base), 0.9);
-      opacity: 0.9;
     }
   }
 
   &.highlighted {
-    opacity: 1;
     background: rgba(48, 51, 73, 0.5);
     color: rgba(var(--blert-purple-base), 0.9);
 
     &:hover {
       background: rgba(var(--blert-purple-base), 0.3);
-      opacity: 0.9;
+      outline-color: rgba(var(--blert-purple-base), 0.9);
     }
   }
 
