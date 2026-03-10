@@ -1,4 +1,4 @@
-import { Stage } from '@blert/common';
+import { jsonToServerMessage, serverMessageToJson, Stage } from '@blert/common';
 import { ServerMessage } from '@blert/common/generated/server_message_pb';
 import { RawData, WebSocket } from 'ws';
 import { z } from 'zod';
@@ -12,11 +12,7 @@ import {
   recordClientDisconnection,
   recordInvalidMessage,
 } from './metrics';
-import {
-  jsonToServerMessage,
-  MessageFormat,
-  serverMessageToJson,
-} from './protocol';
+import { MessageFormat } from './protocol';
 
 type Stats = {
   total: number;

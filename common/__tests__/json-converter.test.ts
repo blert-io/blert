@@ -1,8 +1,8 @@
-import { Event } from '@blert/common/generated/event_pb';
+import { Event } from '../generated/event_pb';
 import {
   AttackDefinition,
   ServerMessage,
-} from '@blert/common/generated/server_message_pb';
+} from '../generated/server_message_pb';
 import { Timestamp } from 'google-protobuf/google/protobuf/timestamp_pb';
 import { z } from 'zod';
 

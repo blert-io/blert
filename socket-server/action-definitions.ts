@@ -1,4 +1,8 @@
-import { DataRepository } from '@blert/common';
+import {
+  attackDefinitionSchema,
+  DataRepository,
+  spellDefinitionSchema,
+} from '@blert/common';
 import {
   PlayerAttackMap,
   PlayerSpellMap,
@@ -12,7 +16,6 @@ import { readFile } from 'fs/promises';
 import { z } from 'zod';
 
 import logger from './log';
-import { attackDefinitionSchema, spellDefinitionSchema } from './protocol';
 
 type PlayerAttackValue = PlayerAttackMap[keyof PlayerAttackMap];
 type PlayerSpellValue = PlayerSpellMap[keyof PlayerSpellMap];
