@@ -186,6 +186,34 @@ export {
 export { DataRepository } from './data-repository/data-repository';
 
 export {
+  jsonToServerMessage,
+  serverMessageToJson,
+  protoToJsonEvent,
+} from './protocol';
+
+export type {
+  ChallengeEndRequestJson,
+  ChallengeStartRequestJson,
+  ChallengeStateConfirmationJson,
+  ChallengeUpdateJson,
+  EventJson,
+  GameStateJson,
+  ServerMessageJson,
+} from './protocol';
+
+export {
+  attackDefinitionSchema,
+  challengeEndRequestSchema,
+  challengeStartRequestSchema,
+  challengeStateConfirmationSchema,
+  challengeUpdateSchema,
+  eventSchema,
+  gameStateSchema,
+  serverMessageSchema,
+  spellDefinitionSchema,
+} from './protocol';
+
+export {
   type QueryableEvent,
   type QueryableEventRow,
   QueryableEventField,

@@ -1,7 +1,11 @@
 /**
  * Conversion functions between JSON and Protobuf message formats.
  */
-import { Coords, Event } from '@blert/common/generated/event_pb';
+import { Empty } from 'google-protobuf/google/protobuf/empty_pb';
+import { Timestamp } from 'google-protobuf/google/protobuf/timestamp_pb';
+import { z } from 'zod';
+
+import { Coords, Event } from '../generated/event_pb';
 import {
   AttackDefinition,
   ChallengeEndRequest,
@@ -9,10 +13,7 @@ import {
   ChallengeUpdate,
   ServerMessage,
   SpellDefinition,
-} from '@blert/common/generated/server_message_pb';
-import { Empty } from 'google-protobuf/google/protobuf/empty_pb';
-import { Timestamp } from 'google-protobuf/google/protobuf/timestamp_pb';
-import { z } from 'zod';
+} from '../generated/server_message_pb';
 
 import {
   attackDefinitionSchema,

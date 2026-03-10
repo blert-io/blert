@@ -11,6 +11,7 @@ import {
   DataRepository,
   Event,
   EventType,
+  protoToJsonEvent,
   InfernoChallenge,
   InfernoChallengeStats,
   MokhaiotlChallenge,
@@ -2272,11 +2273,12 @@ export async function loadEventsForStage(
   attempt?: number,
 ): Promise<Event[] | null> {
   try {
-    const events = await dataRepository.loadStageEvents(
+    const protos = await dataRepository.loadStageEvents(
       challengeId,
       stage,
       attempt,
     );
+    const events = protos.map(protoToJsonEvent);
     if (type !== undefined) {
       return events.filter((e) => e.type === type);
     }
