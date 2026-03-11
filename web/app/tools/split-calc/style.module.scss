@@ -112,6 +112,22 @@
   }
 }
 
+.myRaidsButton {
+  font-size: 0.8rem;
+  color: var(--blert-font-color-primary);
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(var(--blert-purple-base), 0.4);
+  background: rgba(var(--blert-purple-base), 0.1);
+  transition: all 0.15s ease;
+
+  &:hover {
+    cursor: pointer;
+    background: rgba(var(--blert-purple-base), 0.2);
+    border-color: rgba(var(--blert-purple-base), 0.6);
+  }
+}
+
 .usageHints {
   display: flex;
   flex-wrap: wrap;
@@ -485,6 +501,25 @@
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--blert-font-color-primary);
+}
+
+.lowSampleWarning {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: var(--blert-yellow);
+  background: rgba(var(--blert-yellow-base), 0.08);
+  border: 1px solid rgba(var(--blert-yellow-base), 0.2);
+}
+
+.heroWarning {
+  font-size: 0.78rem;
+  color: var(--blert-yellow);
+  margin-top: 0.25rem;
 }
 
 .noData {

@@ -58,19 +58,26 @@ function niceStep(range: number, maxTicks: number): number {
 
 /**
  * Generates evenly-spaced tick values aligned to a nice step size.
+ * The step is guaranteed to be at least `minStep` (defaults to 1) to avoid
+ * fractional game tick values.
  */
-function generateTicks(min: number, max: number, maxTicks: number): number[] {
+function generateTicks(
+  min: number,
+  max: number,
+  maxTicks: number,
+  minStep: number = 1,
+): number[] {
   const range = max - min;
   if (range <= 0) {
     return [min];
   }
 
-  const step = niceStep(range, maxTicks);
+  const step = Math.max(niceStep(range, maxTicks), minStep);
   const start = Math.ceil(min / step) * step;
   const ticks: number[] = [];
 
   for (let t = start; t <= max; t += step) {
-    ticks.push(t);
+    ticks.push(Math.round(t));
   }
 
   return ticks;
@@ -165,20 +172,34 @@ export function DistributionChart({
       }
     }
 
-    // Extend domain to include reference ticks if outside range.
-    let domainMin = minTick;
-    let domainMax = maxTick;
+    // Add sentinel points so the CDF area starts at 0% and ends at 100%
+    // across the padded domain.
+    filled.unshift({ ticks: startTick - tickCycle, probability: 0, cdf: 0 });
+    filled.push({ ticks: maxTick + tickCycle, probability: 0, cdf: 100 });
+
+    // Extend domain beyond data range so edge bars aren't clipped, and
+    // include the reference tick if it falls outside the data range.
+    let domainMin = minTick - tickCycle;
+    let domainMax = maxTick + tickCycle;
     if (
       referenceTicks !== null &&
       referenceTicks !== undefined &&
       referenceTicks > 0
     ) {
       if (referenceTicks < domainMin) {
-        domainMin = referenceTicks;
+        domainMin = referenceTicks - tickCycle;
       }
       if (referenceTicks > domainMax) {
-        domainMax = referenceTicks;
+        domainMax = referenceTicks + tickCycle;
       }
+    }
+
+    const MIN_DOMAIN_RANGE = 10 * tickCycle;
+    const domainRange = domainMax - domainMin;
+    if (domainRange < MIN_DOMAIN_RANGE) {
+      const pad = Math.ceil((MIN_DOMAIN_RANGE - domainRange) / 2);
+      domainMin -= pad;
+      domainMax += pad;
     }
 
     // Compute CDF at the reference tick for the horizontal reference line.
@@ -209,7 +230,7 @@ export function DistributionChart({
   }, [bins, referenceTicks, tickCycle]);
 
   const xTicks = useMemo(() => {
-    const ticks = generateTicks(domain[0], domain[1], 10);
+    const ticks = generateTicks(domain[0], domain[1], 10, tickCycle);
     if (
       referenceTicks === null ||
       referenceTicks === undefined ||
@@ -221,7 +242,7 @@ export function DistributionChart({
     const range = domain[1] - domain[0];
     const minGap = range * 0.04;
     return ticks.filter((t) => Math.abs(t - referenceTicks) > minGap);
-  }, [domain, referenceTicks]);
+  }, [domain, referenceTicks, tickCycle]);
 
   const cdfTicks = useMemo(() => {
     if (refCdf === null) {

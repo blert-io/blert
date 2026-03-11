@@ -5,8 +5,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import { ChallengeOverview } from '@/actions/challenge';
+import { ConnectedPlayer } from '@/actions/users';
 import Card from '@/components/card';
 import Checkbox from '@/components/checkbox';
+import PlayerSearch from '@/components/player-search';
 import RadioInput from '@/components/radio-input';
 import TickInput from '@/components/tick-input';
 import { useToast } from '@/components/toast';
@@ -25,7 +27,9 @@ import {
 import { ProbabilityHero } from './probability-hero';
 import { RoomInput } from './room-input';
 import {
+  DataSource,
   DistributionBin,
+  LOW_SAMPLE_THRESHOLD,
   RoomDefinition,
   SplitDistribution,
   RoomState,
@@ -80,6 +84,7 @@ function parseQueryState(params: URLSearchParams): {
   tier: SplitTier;
   target: number | null;
   rooms: Record<string, RoomState>;
+  source: DataSource;
 } {
   const modeStr = params.get('mode') ?? 'reg';
   const mode = MODE_FROM_ID[modeStr] ?? ChallengeMode.TOB_REGULAR;
@@ -115,7 +120,13 @@ function parseQueryState(params: URLSearchParams): {
     }
   }
 
-  return { mode, scale, tier, target, rooms };
+  const sourceStr = params.get('source');
+  const source: DataSource =
+    sourceStr !== null && sourceStr !== 'global'
+      ? { kind: 'player', username: sourceStr }
+      : { kind: 'global' };
+
+  return { mode, scale, tier, target, rooms, source };
 }
 
 function buildQueryString(
@@ -124,6 +135,7 @@ function buildQueryString(
   tier: SplitTier,
   target: number | null,
   rooms: Record<string, RoomState>,
+  source: DataSource,
 ): string {
   const params = new URLSearchParams();
   params.set('mode', MODE_ID_MAP[mode] ?? 'reg');
@@ -134,6 +146,9 @@ function buildQueryString(
   if (target !== null) {
     params.set('target', target.toString());
   }
+  if (source.kind === 'player') {
+    params.set('source', source.username);
+  }
   for (const room of TOB_ROOMS) {
     const state = rooms[room.key];
     if (state.ticks !== null && state.source !== 'computed') {
@@ -143,7 +158,11 @@ function buildQueryString(
   return params.toString();
 }
 
-export function SplitCalculator() {
+type SplitCalculatorProps = {
+  connectedPlayers: ConnectedPlayer[];
+};
+
+export function SplitCalculator({ connectedPlayers }: SplitCalculatorProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const showToast = useToast();
@@ -156,6 +175,10 @@ export function SplitCalculator() {
   const [tier, setTier] = useState<SplitTier>(initial.tier);
   const [rooms, setRooms] = useState<Record<string, RoomState>>(initial.rooms);
   const [targetTicks, setTargetTicks] = useState<number | null>(initial.target);
+  const [dataSource, setDataSource] = useState<DataSource>(initial.source);
+  const [playerInput, setPlayerInput] = useState(
+    initial.source.kind === 'player' ? initial.source.username : '',
+  );
   const [distributions, setDistributions] = useState<
     Record<number, SplitDistribution>
   >({});
@@ -174,11 +197,24 @@ export function SplitCalculator() {
       urlUpdateRef.current = true;
       return;
     }
-    const qs = buildQueryString(mode, scale, tier, targetTicks, rooms);
+    const qs = buildQueryString(
+      mode,
+      scale,
+      tier,
+      targetTicks,
+      rooms,
+      dataSource,
+    );
     router.replace(`?${qs}`, { scroll: false });
-  }, [mode, scale, tier, targetTicks, rooms, router]);
+  }, [mode, scale, tier, targetTicks, rooms, dataSource, router]);
 
   useEffect(() => {
+    if (dataSource.kind === 'player' && dataSource.username.length === 0) {
+      setDistributions({});
+      setDistributionsLoading(false);
+      return;
+    }
+
     const requestId = distributionsRequestIdRef.current + 1;
     distributionsRequestIdRef.current = requestId;
     let cancelled = false;
@@ -195,11 +231,15 @@ export function SplitCalculator() {
         params.set('tier', tier);
       }
 
+      let endpoint = '/api/v1/splits/distributions';
+      if (dataSource.kind === 'player') {
+        endpoint = '/api/v1/splits/distributions/query';
+        params.set('party', dataSource.username);
+      }
+
       setDistributionsLoading(true);
       try {
-        const res = await fetch(
-          `/api/v1/splits/distributions?${params.toString()}`,
-        );
+        const res = await fetch(`${endpoint}?${params.toString()}`);
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`);
         }
@@ -243,7 +283,7 @@ export function SplitCalculator() {
     return () => {
       cancelled = true;
     };
-  }, [mode, scale, tier, showToast]);
+  }, [mode, scale, tier, dataSource, showToast]);
 
   const getDistribution = useCallback(
     (room: RoomDefinition) => {
@@ -502,6 +542,25 @@ export function SplitCalculator() {
     );
   }
 
+  function handleDataSourceChange(value: number | string) {
+    if (value === 'global') {
+      setDataSource({ kind: 'global' });
+    } else {
+      setDataSource({ kind: 'player', username: playerInput });
+    }
+  }
+
+  function handlePlayerSelection(username: string) {
+    if (username.length > 0) {
+      setPlayerInput(username);
+      setDataSource({ kind: 'player', username });
+    }
+  }
+
+  const isPlayerSource = dataSource.kind === 'player';
+  const lowSampleSize =
+    distStats !== null && distStats.total < LOW_SAMPLE_THRESHOLD;
+
   // Percentile for selected room.
   const selectedRoomState = effectiveRooms[selectedRoom];
   const selectedPct =
@@ -566,6 +625,51 @@ export function SplitCalculator() {
               simple
             />
           )}
+          <div className={styles.configGroup}>
+            <span className={styles.configLabel}>Data</span>
+            <RadioInput.Group
+              name="data-source"
+              onChange={handleDataSourceChange}
+              compact
+              joined
+            >
+              <RadioInput.Option
+                id="source-global"
+                label="Global"
+                value="global"
+                checked={dataSource.kind === 'global'}
+              />
+              <RadioInput.Option
+                id="source-player"
+                label="Player"
+                value="player"
+                checked={isPlayerSource}
+              />
+            </RadioInput.Group>
+          </div>
+          {isPlayerSource && (
+            <div className={styles.configGroup}>
+              <PlayerSearch
+                id="player-search"
+                label="Player name"
+                value={playerInput}
+                onChange={setPlayerInput}
+                onSelection={handlePlayerSelection}
+                width={160}
+              />
+              {connectedPlayers.length > 0 && (
+                <button
+                  className={styles.myRaidsButton}
+                  onClick={() =>
+                    handlePlayerSelection(connectedPlayers[0].username)
+                  }
+                  type="button"
+                >
+                  My raids
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </Card>
 
@@ -575,7 +679,12 @@ export function SplitCalculator() {
           title: 'Room Splits',
           action: (
             <div className={styles.cardActions}>
-              <ImportRaids mode={mode} scale={scale} onImport={handleImport} />
+              <ImportRaids
+                connectedPlayers={connectedPlayers}
+                mode={mode}
+                scale={scale}
+                onImport={handleImport}
+              />
               <button
                 className={styles.clearButton}
                 onClick={() => setRooms(initialRoomState())}
@@ -668,6 +777,7 @@ export function SplitCalculator() {
               allocation === null
             }
             loading={distributionsLoading}
+            lowSampleSize={lowSampleSize}
           />
         </div>
       </Card>
@@ -700,7 +810,9 @@ export function SplitCalculator() {
             </div>
           ) : selectedDist === null || selectedDist.bins.length === 0 ? (
             <div className={styles.noData}>
-              No recorded data for this mode/scale combination
+              {isPlayerSource && dataSource.username.length > 0
+                ? `No data found for ${dataSource.username} at this mode and scale`
+                : 'No recorded data for this mode/scale combination'}
             </div>
           ) : (
             <>
@@ -712,46 +824,55 @@ export function SplitCalculator() {
                 }
               />
               {distStats !== null && (
-                <div className={styles.statsRow}>
-                  <div className={styles.statItem}>
-                    <span className={styles.statLabel}>Min</span>
-                    <span className={styles.statValue}>
-                      {ticksToFormattedSeconds(distStats.min)}
-                    </span>
-                  </div>
-                  <div className={styles.statItem}>
-                    <span className={styles.statLabel}>Median</span>
-                    <span className={styles.statValue}>
-                      {ticksToFormattedSeconds(distStats.median)}
-                    </span>
-                  </div>
-                  <div className={styles.statItem}>
-                    <span className={styles.statLabel}>Mean</span>
-                    <span className={styles.statValue}>
-                      {ticksToFormattedSeconds(Math.round(distStats.mean))}
-                    </span>
-                  </div>
-                  <div className={styles.statItem}>
-                    <span className={styles.statLabel}>Max</span>
-                    <span className={styles.statValue}>
-                      {ticksToFormattedSeconds(distStats.max)}
-                    </span>
-                  </div>
-                  <div className={styles.statItem}>
-                    <span className={styles.statLabel}>Samples</span>
-                    <span className={styles.statValue}>
-                      {distStats.total.toLocaleString()}
-                    </span>
-                  </div>
-                  {selectedPct !== null && (
+                <>
+                  <div className={styles.statsRow}>
                     <div className={styles.statItem}>
-                      <span className={styles.statLabel}>Percentile</span>
+                      <span className={styles.statLabel}>Min</span>
                       <span className={styles.statValue}>
-                        {formatPercentile(selectedPct)}
+                        {ticksToFormattedSeconds(distStats.min)}
                       </span>
                     </div>
+                    <div className={styles.statItem}>
+                      <span className={styles.statLabel}>Median</span>
+                      <span className={styles.statValue}>
+                        {ticksToFormattedSeconds(distStats.median)}
+                      </span>
+                    </div>
+                    <div className={styles.statItem}>
+                      <span className={styles.statLabel}>Mean</span>
+                      <span className={styles.statValue}>
+                        {ticksToFormattedSeconds(Math.round(distStats.mean))}
+                      </span>
+                    </div>
+                    <div className={styles.statItem}>
+                      <span className={styles.statLabel}>Max</span>
+                      <span className={styles.statValue}>
+                        {ticksToFormattedSeconds(distStats.max)}
+                      </span>
+                    </div>
+                    <div className={styles.statItem}>
+                      <span className={styles.statLabel}>Samples</span>
+                      <span className={styles.statValue}>
+                        {distStats.total.toLocaleString()}
+                      </span>
+                    </div>
+                    {selectedPct !== null && (
+                      <div className={styles.statItem}>
+                        <span className={styles.statLabel}>Percentile</span>
+                        <span className={styles.statValue}>
+                          {formatPercentile(selectedPct)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  {lowSampleSize && (
+                    <div className={styles.lowSampleWarning}>
+                      <i className="fas fa-triangle-exclamation" />
+                      Low sample size ({distStats.total} raids) &mdash; results
+                      may be unreliable
+                    </div>
                   )}
-                </div>
+                </>
               )}
             </>
           )}

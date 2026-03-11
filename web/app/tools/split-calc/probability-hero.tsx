@@ -13,6 +13,8 @@ type ProbabilityHeroProps = {
   infeasible: boolean;
   /** True if distributions are still loading. */
   loading: boolean;
+  /** True if the underlying distribution data has a low sample size. */
+  lowSampleSize: boolean;
 };
 
 export function ProbabilityHero({
@@ -21,6 +23,7 @@ export function ProbabilityHero({
   overshoot,
   infeasible,
   loading,
+  lowSampleSize,
 }: ProbabilityHeroProps) {
   if (loading) {
     return (
@@ -85,6 +88,9 @@ export function ProbabilityHero({
           {' — '}
           {ticksToFormattedSeconds(confidenceInterval[1])}
         </span>
+      )}
+      {lowSampleSize && probability !== null && (
+        <span className={styles.heroWarning}>Based on limited data</span>
       )}
     </div>
   );
