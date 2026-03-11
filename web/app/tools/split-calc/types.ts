@@ -67,6 +67,12 @@ export enum SplitTier {
   SPEEDRUN = 'speedrun',
 }
 
+export type DataSource =
+  | { kind: 'global' }
+  | { kind: 'player'; username: string };
+
+export const LOW_SAMPLE_THRESHOLD = 50;
+
 export type RoomSource = 'user' | 'imported' | 'computed';
 
 export type RoomState = {

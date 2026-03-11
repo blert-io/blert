@@ -4,7 +4,7 @@ import { ChallengeMode, ChallengeStatus, ChallengeType } from '@blert/common';
 import { useEffect, useRef, useState } from 'react';
 
 import { ChallengeOverview } from '@/actions/challenge';
-import { getConnectedPlayers } from '@/actions/users';
+import { ConnectedPlayer } from '@/actions/users';
 import { scaleNameAndColor } from '@/utils/challenge';
 import { timeAgo } from '@/utils/time';
 import { queryString, UrlParams } from '@/utils/url';
@@ -20,6 +20,7 @@ import styles from './style.module.scss';
 const SPLIT_EXTRA_FIELDS = TOB_ROOMS.map((r) => `splits:${r.splitType}`);
 
 type ImportRaidsProps = {
+  connectedPlayers: ConnectedPlayer[];
   mode: ChallengeMode;
   scale: number;
   onImport: (challenge: ChallengeOverview) => void;
@@ -36,35 +37,41 @@ async function fetchChallenges(
   return res.json() as Promise<ChallengeOverview[]>;
 }
 
-export function ImportRaids({ mode, scale, onImport }: ImportRaidsProps) {
+export function ImportRaids({
+  connectedPlayers,
+  mode,
+  scale,
+  onImport,
+}: ImportRaidsProps) {
   const [open, setOpen] = useState(false);
   const [raids, setRaids] = useState<ChallengeOverview[]>([]);
   const [loading, setLoading] = useState(false);
   const [userRaid, setUserRaid] = useState<ChallengeOverview | null>(null);
-  const [userRaidLoading, setUserRaidLoading] = useState(true);
-  const connectedPlayersRef = useRef<string[]>([]);
+  const [userRaidLoading, setUserRaidLoading] = useState(
+    connectedPlayers.length > 0,
+  );
   const raidsRequestIdRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Try to detect user's active raid on mount.
   useEffect(() => {
-    getConnectedPlayers()
-      .then((players) => {
-        const usernames = players.map((p) => p.username);
-        connectedPlayersRef.current = usernames.map((u) => u.toLowerCase());
+    if (connectedPlayers.length === 0) {
+      return;
+    }
 
-        return Promise.all(
-          usernames.map((username) =>
-            fetchChallenges({
-              type: ChallengeType.TOB,
-              status: ChallengeStatus.IN_PROGRESS,
-              party: username,
-              limit: 1,
-              extraFields: SPLIT_EXTRA_FIELDS,
-            }),
-          ),
-        );
-      })
+    const usernames = connectedPlayers.map((p) => p.username);
+
+    Promise.all(
+      usernames.map((username) =>
+        fetchChallenges({
+          type: ChallengeType.TOB,
+          status: ChallengeStatus.IN_PROGRESS,
+          party: username,
+          limit: 1,
+          extraFields: SPLIT_EXTRA_FIELDS,
+        }),
+      ),
+    )
       .then((results) => {
         const raid = results.flat()[0];
         if (raid !== undefined) {
@@ -77,7 +84,7 @@ export function ImportRaids({ mode, scale, onImport }: ImportRaidsProps) {
       .finally(() => {
         setUserRaidLoading(false);
       });
-  }, []);
+  }, [connectedPlayers]);
 
   // Fetch active raids when the panel opens.
   useEffect(() => {
