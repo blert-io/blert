@@ -1,6 +1,9 @@
-import { NpcAttack, PlayerAttack, PlayerSpell } from '@blert/common';
-
-import attackDefinitions from '@blert/common/protos/attack_definitions.json';
+import {
+  NpcAttack,
+  PlayerAttack,
+  PlayerSpell,
+  attackDefinitions,
+} from '@blert/common';
 
 export const enum CombatStyle {
   MELEE,

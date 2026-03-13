@@ -50,6 +50,7 @@ RUN npm ci && npm prune --omit=dev
 # ==============================================================================
 FROM deps AS common-build
 
+COPY proto/ proto/
 COPY common/ common/
 RUN npm run -w common build
 
@@ -140,8 +141,8 @@ ENV PORT=3003
 COPY --from=deps-prod /app/node_modules/ node_modules/
 COPY --from=common-build /app/common/dist/ common/dist/
 COPY --from=common-build /app/common/generated/ common/generated/
-COPY --from=common-build /app/common/protos/attack_definitions.json .
-COPY --from=common-build /app/common/protos/spell_definitions.json .
+COPY --from=common-build /app/proto/attack_definitions.json .
+COPY --from=common-build /app/proto/spell_definitions.json .
 COPY --from=socket-server-build /app/socket-server/dist/ socket-server/dist/
 COPY common/package.json common/
 COPY socket-server/package.json socket-server/

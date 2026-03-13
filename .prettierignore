@@ -14,7 +14,7 @@ node_modules
 bcf/schemas/**/*.json
 
 # Submodules
-common/protos
+proto
 
 # Type definitions
 **/*.d.ts
