@@ -273,3 +273,6 @@ export type {
 export type { TobChallengeStatsRow } from './db/challenge-stats';
 
 export { default as PriceTracker } from './price-tracker';
+
+export { default as attackDefinitions } from './generated/attack_definitions.json';
+export { default as spellDefinitions } from './generated/spell_definitions.json';

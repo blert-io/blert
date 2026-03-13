@@ -10,6 +10,7 @@
     "moduleResolution": "NodeNext",
     "isolatedModules": true,
     "incremental": true,
+    "resolveJsonModule": true,
     "declaration": true
   },
   "include": ["**/*.ts", "generated/*_pb.js"],
