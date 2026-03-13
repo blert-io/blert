@@ -86,6 +86,26 @@ services:
     working_dir: /app
     command: npm run -w blertbank dev
 
+  live-server:
+    build:
+      context: docker/live-server
+      dockerfile: dev.Dockerfile
+    profiles:
+      - live
+    depends_on:
+      - redis
+    ports:
+      - "3010:3010"
+    volumes:
+      - .:/app
+      - cargo-cache:/usr/local/cargo/registry
+      - live-server-target:/app/target
+    environment:
+      BLERT_REDIS_URI: redis://redis:6379
+      BLERT_LOG_LEVEL: ${BLERT_LOG_LEVEL:-debug}
+    working_dir: /app
+    command: cargo watch -w live-server/src -w proto -x 'run -p live-server'
+
   prometheus:
     image: prom/prometheus:v3.8.0
     profiles:
@@ -150,4 +170,8 @@ volumes:
   lokidata:
     driver: local
   promtailpositions:
+    driver: local
+  cargo-cache:
+    driver: local
+  live-server-target:
     driver: local

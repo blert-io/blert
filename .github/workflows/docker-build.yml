@@ -18,7 +18,7 @@ jobs:
 
     strategy:
       matrix:
-        service: [web, socket-server, challenge-server, blertbank]
+        service: [web, socket-server, challenge-server, blertbank, live-server]
 
     steps:
       - name: Checkout

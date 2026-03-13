@@ -17,6 +17,7 @@ blert/
 ├── challenge-server/   # Processing and challenge handling
 ├── blertbank/          # Blertcoin accounts and ledger
 ├── common/             # Shared utilities and modules
+├── live-server/        # Live challenge streaming server (Rust)
 ├── proto/              # Shared .proto files (git submodule)
 └── compose.yaml        # Local development stack
 ```

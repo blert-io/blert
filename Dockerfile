@@ -185,3 +185,42 @@ COPY blertbank/package.json blertbank/
 
 EXPOSE 3003
 CMD ["node", "blertbank/dist/app.js"]
+
+# ==============================================================================
+# Build live-server (Rust)
+# ==============================================================================
+FROM rust:1-slim AS live-server-build
+
+WORKDIR /app
+
+# Install protobuf compiler for prost-build.
+RUN apt-get update && \
+    apt-get install -y protobuf-compiler && \
+    rm -rf /var/lib/apt/lists/*
+
+# Cache dependencies by building with a dummy main first.
+COPY live-server/Cargo.toml live-server/Cargo.lock* live-server/build.rs live-server/
+COPY Cargo.toml Cargo.lock ./
+COPY proto/ proto/
+RUN mkdir -p live-server/src && \
+    echo 'fn main() {}' > live-server/src/main.rs && \
+    cargo build --release -p live-server && \
+    rm -rf live-server/src
+
+COPY live-server/src/ live-server/src/
+RUN touch live-server/src/main.rs && cargo build --release -p live-server
+
+# ==============================================================================
+# Runtime: live-server
+# ==============================================================================
+FROM debian:bookworm-slim AS live-server
+
+RUN apt-get update && \
+    apt-get install -y ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=live-server-build /app/target/release/live-server /usr/local/bin/
+
+ENV PORT=3010
+EXPOSE 3010
+CMD ["live-server"]
