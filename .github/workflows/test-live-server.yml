@@ -1,0 +1,50 @@
+name: Test Live Server
+
+on:
+  pull_request:
+    paths:
+      - 'live-server/**'
+      - 'proto/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/test-live-server.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'live-server/**'
+      - 'proto/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/test-live-server.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - name: Install protobuf compiler
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Format check
+        run: cargo fmt -p live-server -- --check
+
+      - name: Lint
+        run: cargo clippy -p live-server -- -D warnings
+
+      - name: Build
+        run: cargo build -p live-server
+
+      - name: Run tests
+        run: cargo test -p live-server
