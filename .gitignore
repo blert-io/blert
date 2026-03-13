@@ -17,6 +17,7 @@ web/out/
 # production
 web/build
 **/dist
+target
 
 # compiled scripts
 web/public/scripts

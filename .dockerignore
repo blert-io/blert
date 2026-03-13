@@ -9,6 +9,7 @@ node_modules
 dist
 .next
 common/generated
+target
 
 # Local data
 .data
