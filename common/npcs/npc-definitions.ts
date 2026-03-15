@@ -1007,6 +1007,8 @@ function nyloSpawnToString(spawn: NyloSpawn): string {
       return 'south';
     case NyloSpawn.SPLIT:
       return 'split';
+    case NyloSpawn.UNKNOWN:
+      return 'unknown';
   }
 }
 
@@ -1055,11 +1057,11 @@ export function npcFriendlyName(
 
     case RoomNpcType.NYLO: {
       const nylo = (npc as Nylo).nylo;
-
+      const wave = nylo.wave === 0 ? 'Unknown' : nylo.wave;
       const style = nyloStyleToString(nylo.style);
 
-      if (nylo.spawnType === NyloSpawn.SPLIT) {
-        let name = `${nylo.wave} ${style} split`;
+      if (nylo.spawnType === NyloSpawn.SPLIT && !nylo.big) {
+        let name = `${wave} ${style} split`;
 
         if (allNpcs !== undefined) {
           const parent = allNpcs.get(nylo.parentRoomId);
@@ -1071,7 +1073,13 @@ export function npcFriendlyName(
         return name;
       }
 
-      let name = `${nylo.wave} ${nyloSpawnToString(nylo.spawnType)} ${style}`;
+      let name;
+      if (nylo.spawnType === NyloSpawn.UNKNOWN) {
+        name = `${wave} ${style}`;
+      } else {
+        name = `${wave} ${nyloSpawnToString(nylo.spawnType)} ${style}`;
+      }
+
       if (nylo.big) {
         name += ' big';
       }

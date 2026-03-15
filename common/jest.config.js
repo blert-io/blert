@@ -11,5 +11,6 @@ module.exports = {
     '!**/generated/**',
     '!**/__tests__/**',
     '!**/migrations/**',
+    '!**/npcs/**',
   ],
 };
