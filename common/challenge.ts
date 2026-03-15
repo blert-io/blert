@@ -556,7 +556,7 @@ export class SkillLevel {
   }
 
   public percentage(): number {
-    return (this.current / this.base) * 100;
+    return this.base === 0 ? 0 : (this.current / this.base) * 100;
   }
 
   public toPercent(fractionDigits: number = 2): string {
@@ -810,6 +810,7 @@ export enum NyloSpawn {
   SOUTH = EventProto.Npc.Nylo.SpawnType.SOUTH,
   WEST = EventProto.Npc.Nylo.SpawnType.WEST,
   SPLIT = EventProto.Npc.Nylo.SpawnType.SPLIT,
+  UNKNOWN = EventProto.Npc.Nylo.SpawnType.UNKNOWN,
 }
 
 export enum VerzikCrabSpawn {
