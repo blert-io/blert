@@ -73,13 +73,18 @@ export function partyKeyChallengeList(
 export const CHALLENGE_UPDATES_PUBSUB_KEY = 'challenge-updates';
 
 export enum ChallengeUpdateAction {
-  FINISH,
+  FINISH = 'FINISH',
+  STAGE_END = 'STAGE_END',
 }
 
-export type ChallengeServerUpdate = {
-  id: string;
-  action: ChallengeUpdateAction;
-};
+export type ChallengeServerUpdate =
+  | { action: ChallengeUpdateAction.FINISH; id: string }
+  | {
+      action: ChallengeUpdateAction.STAGE_END;
+      id: string;
+      stage: Stage;
+      attempt: number | null;
+    };
 
 /** The key of the pubsub channel for name change updates. */
 export const NAME_CHANGE_PUBSUB_KEY = 'name-changes';

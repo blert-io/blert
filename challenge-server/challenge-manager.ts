@@ -1707,6 +1707,12 @@ export default class ChallengeManager {
             processingStage: null,
           });
           pipeline.deleteStageStream(challenge.uuid, stage, attempt);
+          pipeline.publishChallengeUpdate({
+            action: ChallengeUpdateAction.STAGE_END,
+            id: challenge.uuid,
+            stage,
+            attempt,
+          });
         });
       },
     );
