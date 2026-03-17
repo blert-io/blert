@@ -572,12 +572,15 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "base64",
+ "pin-project-lite",
  "prometheus",
  "prost",
  "prost-build",
  "redis",
  "serde",
  "serde_json",
+ "serde_repr",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-stream",
  "tower-http",
@@ -1113,6 +1116,17 @@ dependencies = [
  "itoa",
  "serde",
  "serde_core",
+]
+
+[[package]]
+name = "serde_repr"
+version = "0.1.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "175ee3e80ae9982737ca543e96133087cbd9a485eecc3bc4de9c1a37b47ea59c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
