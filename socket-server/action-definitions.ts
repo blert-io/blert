@@ -1,12 +1,10 @@
 import {
+  attackDefinitionJsonToProto,
   attackDefinitionSchema,
   DataRepository,
+  spellDefinitionJsonToProto,
   spellDefinitionSchema,
 } from '@blert/common';
-import {
-  PlayerAttackMap,
-  PlayerSpellMap,
-} from '@blert/common/generated/event_pb';
 import {
   AttackDefinition,
   ServerMessage,
@@ -17,14 +15,15 @@ import { z } from 'zod';
 
 import logger from './log';
 
-type PlayerAttackValue = PlayerAttackMap[keyof PlayerAttackMap];
-type PlayerSpellValue = PlayerSpellMap[keyof PlayerSpellMap];
-
-const attackDefinitionsSchema = z.array(attackDefinitionSchema);
+const attackDefinitionsSchema = z
+  .array(attackDefinitionSchema)
+  .min(1, 'At least one attack definition is required');
 
 export type AttackDefinitionJson = z.infer<typeof attackDefinitionSchema>;
 
-const spellDefinitionsSchema = z.array(spellDefinitionSchema);
+const spellDefinitionsSchema = z
+  .array(spellDefinitionSchema)
+  .min(1, 'At least one spell definition is required');
 
 export type SpellDefinitionJson = z.infer<typeof spellDefinitionSchema>;
 
@@ -123,7 +122,7 @@ export class ActionDefinitionsRepository {
       'attacks',
       validateAttackDefinitions,
     );
-    this.attackDefinitions = definitions.map(attackJsonToProto);
+    this.attackDefinitions = definitions.map(attackDefinitionJsonToProto);
     this.attackJsonDefinitions = definitions;
   }
 
@@ -159,7 +158,7 @@ export class ActionDefinitionsRepository {
       definitions,
       validateAttackDefinitions,
     );
-    this.attackDefinitions = validated.map(attackJsonToProto);
+    this.attackDefinitions = validated.map(attackDefinitionJsonToProto);
     this.attackJsonDefinitions = validated;
   }
 
@@ -172,7 +171,7 @@ export class ActionDefinitionsRepository {
       'spells',
       validateSpellDefinitions,
     );
-    this.spellDefinitions = definitions.map(spellJsonToProto);
+    this.spellDefinitions = definitions.map(spellDefinitionJsonToProto);
     this.spellJsonDefinitions = definitions;
   }
 
@@ -208,7 +207,7 @@ export class ActionDefinitionsRepository {
       definitions,
       validateSpellDefinitions,
     );
-    this.spellDefinitions = validated.map(spellJsonToProto);
+    this.spellDefinitions = validated.map(spellDefinitionJsonToProto);
     this.spellJsonDefinitions = validated;
   }
 
@@ -301,91 +300,4 @@ export class ActionDefinitionsRepository {
 
     return validated;
   }
-}
-
-/**
- * Converts a JSON attack definition to a protobuf AttackDefinition.
- */
-function attackJsonToProto(json: AttackDefinitionJson): AttackDefinition {
-  const def = new AttackDefinition();
-  def.setId(json.protoId as PlayerAttackValue);
-  def.setName(json.name);
-  def.setWeaponIdsList(json.weaponIds);
-  def.setAnimationIdsList(json.animationIds);
-  def.setCooldown(json.cooldown);
-
-  if (json.projectile) {
-    const proj = new AttackDefinition.Projectile();
-    proj.setId(json.projectile.id);
-    proj.setStartCycleOffset(json.projectile.startCycleOffset);
-    if (json.projectile.weaponId !== undefined) {
-      proj.setWeaponId(json.projectile.weaponId);
-    }
-    def.setProjectile(proj);
-  }
-
-  if (json.weaponProjectiles) {
-    const projs = json.weaponProjectiles.map((p) => {
-      const proj = new AttackDefinition.Projectile();
-      proj.setId(p.id);
-      proj.setStartCycleOffset(p.startCycleOffset);
-      if (p.weaponId !== undefined) {
-        proj.setWeaponId(p.weaponId);
-      }
-      return proj;
-    });
-    def.setWeaponProjectilesList(projs);
-  }
-
-  def.setContinuousAnimation(json.continuousAnimation ?? false);
-
-  switch (json.category) {
-    case 'MELEE':
-      def.setCategory(AttackDefinition.Category.MELEE);
-      break;
-    case 'RANGED':
-      def.setCategory(AttackDefinition.Category.RANGED);
-      break;
-    case 'MAGIC':
-      def.setCategory(AttackDefinition.Category.MAGIC);
-      break;
-  }
-
-  return def;
-}
-
-/**
- * Converts a JSON spell definition to a protobuf SpellDefinition.
- */
-function spellJsonToProto(json: SpellDefinitionJson): SpellDefinition {
-  const def = new SpellDefinition();
-  def.setId(json.id as PlayerSpellValue);
-  def.setName(json.name);
-  def.setAnimationIdsList(json.animationIds);
-
-  if (json.graphics) {
-    const graphics = json.graphics.map((g) => {
-      const graphic = new SpellDefinition.Graphic();
-      graphic.setId(g.id);
-      graphic.setDurationTicks(g.durationTicks);
-      graphic.setMaxFrame(g.maxFrame);
-      return graphic;
-    });
-    def.setGraphicsList(graphics);
-  }
-
-  if (json.targetGraphics) {
-    const targetGraphics = json.targetGraphics.map((g) => {
-      const graphic = new SpellDefinition.Graphic();
-      graphic.setId(g.id);
-      graphic.setDurationTicks(g.durationTicks);
-      graphic.setMaxFrame(g.maxFrame);
-      return graphic;
-    });
-    def.setTargetGraphicsList(targetGraphics);
-  }
-
-  def.setStallTicks(json.stallTicks);
-
-  return def;
 }

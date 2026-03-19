@@ -186,9 +186,11 @@ export {
 export { DataRepository } from './data-repository/data-repository';
 
 export {
+  attackDefinitionJsonToProto,
   jsonToServerMessage,
-  serverMessageToJson,
   protoToJsonEvent,
+  serverMessageToJson,
+  spellDefinitionJsonToProto,
 } from './protocol';
 
 export type {

@@ -1,4 +1,9 @@
-export { jsonToServerMessage, serverMessageToJson } from './json-converter';
+export {
+  attackDefinitionJsonToProto,
+  jsonToServerMessage,
+  serverMessageToJson,
+  spellDefinitionJsonToProto,
+} from './json-converter';
 
 export type {
   ChallengeEndRequestJson,

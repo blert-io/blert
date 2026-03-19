@@ -146,6 +146,8 @@ export const attackDefinitionSchema = z.object({
   projectile: projectileSchema.optional(),
   weaponProjectiles: z.array(weaponProjectileSchema).optional(),
   continuousAnimation: z.boolean().optional(),
+  animationFrameMin: z.number().int().nonnegative().optional(),
+  animationFrameMax: z.number().int().nonnegative().optional(),
   category: attackCategorySchema,
 });
 

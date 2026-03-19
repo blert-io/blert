@@ -20,9 +20,11 @@ import {
   EventJson,
   npcSchema,
   pastChallengeSchema,
+  projectileSchema,
   ServerMessageJson,
   serverMessageSchema,
   spellDefinitionSchema,
+  weaponProjectileSchema,
 } from './json-schemas';
 
 // Type alias for enum values (to avoid verbose casts everywhere).
@@ -620,7 +622,7 @@ function coordsJsonToProto(json: { x: number; y: number }): Coords {
   return coords;
 }
 
-function attackDefinitionJsonToProto(
+export function attackDefinitionJsonToProto(
   json: z.infer<typeof attackDefinitionSchema>,
 ): AttackDefinition {
   const def = new AttackDefinition();
@@ -654,6 +656,12 @@ function attackDefinitionJsonToProto(
   }
 
   def.setContinuousAnimation(json.continuousAnimation ?? false);
+  if (json.animationFrameMin !== undefined) {
+    def.setAnimationFrameMin(json.animationFrameMin);
+  }
+  if (json.animationFrameMax !== undefined) {
+    def.setAnimationFrameMax(json.animationFrameMax);
+  }
 
   switch (json.category) {
     case 'MELEE':
@@ -670,7 +678,7 @@ function attackDefinitionJsonToProto(
   return def;
 }
 
-function spellDefinitionJsonToProto(
+export function spellDefinitionJsonToProto(
   json: z.infer<typeof spellDefinitionSchema>,
 ): SpellDefinition {
   const def = new SpellDefinition();
@@ -717,105 +725,147 @@ export function serverMessageToJson(msg: ServerMessage): ServerMessageJson {
   // Note: The protobuf toObject() method uses `*List` suffixes for repeated
   // fields (e.g., `recentRecordingsList`), but our JSON wire format omits the
   // suffix. This function transforms the output to match the wire format.
-  const obj = msg.toObject();
+  const json: ServerMessageJson = { type: msg.getType() };
 
-  const json: ServerMessageJson = { type: obj.type };
-
-  if (obj.user !== undefined) {
-    json.user = { id: obj.user.id, name: obj.user.name };
+  if (msg.hasUser()) {
+    const user = msg.getUser()!;
+    json.user = { id: user.getId(), name: user.getName() };
   }
 
-  if (obj.error !== undefined) {
-    json.error = { type: obj.error.type, username: obj.error.username };
-    if (obj.error.message !== undefined) {
-      json.error.message = obj.error.message;
+  if (msg.hasError()) {
+    const error = msg.getError()!;
+    json.error = { type: error.getType(), username: error.getUsername() };
+    if (error.hasMessage()) {
+      json.error.message = error.getMessage();
     }
   }
 
-  if (obj.activeChallengeId !== undefined) {
-    json.activeChallengeId = obj.activeChallengeId;
+  if (msg.hasActiveChallengeId()) {
+    json.activeChallengeId = msg.getActiveChallengeId();
   }
 
-  if (obj.recentRecordingsList !== undefined) {
-    json.recentRecordings = obj.recentRecordingsList.map(pastChallengeToJson);
+  if (msg.getRecentRecordingsList().length > 0) {
+    const recentRecordings = msg.getRecentRecordingsList();
+    json.recentRecordings = recentRecordings.map(pastChallengeToJson);
   }
 
-  if (obj.serverStatus !== undefined) {
-    json.serverStatus = obj.serverStatus;
+  if (msg.hasServerStatus()) {
+    const serverStatus = msg.getServerStatus()!;
+    json.serverStatus = serverStatus.toObject();
   }
 
-  if (obj.gameState !== undefined) {
-    json.gameState = obj.gameState;
+  if (msg.hasGameState()) {
+    const gameState = msg.getGameState()!;
+    json.gameState = gameState.toObject();
   }
 
-  if (obj.playerStateList !== undefined) {
-    json.playerState = obj.playerStateList;
+  if (msg.getPlayerStateList().length > 0) {
+    const playerStates = msg.getPlayerStateList();
+    json.playerState = playerStates.map((p) => ({
+      username: p.getUsername(),
+      challengeId: p.getChallengeId(),
+      challenge: p.getChallenge(),
+      mode: p.getMode(),
+    }));
   }
 
-  if (obj.challengeStateConfirmation !== undefined) {
+  if (msg.hasChallengeStateConfirmation()) {
+    const challengeStateConfirmation = msg.getChallengeStateConfirmation()!;
     json.challengeStateConfirmation = {
-      isValid: obj.challengeStateConfirmation.isValid,
-      username: obj.challengeStateConfirmation.username,
-      challenge: obj.challengeStateConfirmation.challenge,
-      mode: obj.challengeStateConfirmation.mode,
-      stage: obj.challengeStateConfirmation.stage,
-      party: obj.challengeStateConfirmation.partyList,
-      spectator: obj.challengeStateConfirmation.spectator,
+      isValid: challengeStateConfirmation.getIsValid(),
+      username: challengeStateConfirmation.getUsername(),
+      challenge: challengeStateConfirmation.getChallenge(),
+      mode: challengeStateConfirmation.getMode(),
+      stage: challengeStateConfirmation.getStage(),
+      party: challengeStateConfirmation.getPartyList(),
+      spectator: challengeStateConfirmation.getSpectator(),
     };
   }
 
-  if (obj.attackDefinitionsList !== undefined) {
-    json.attackDefinitions = obj.attackDefinitionsList.map(
-      attackDefinitionToJson,
-    );
+  if (msg.getAttackDefinitionsList().length > 0) {
+    const attackDefinitions = msg.getAttackDefinitionsList();
+    json.attackDefinitions = attackDefinitions.map(attackDefinitionToJson);
   }
 
-  if (obj.spellDefinitionsList !== undefined) {
-    json.spellDefinitions = obj.spellDefinitionsList.map(spellDefinitionToJson);
+  if (msg.getSpellDefinitionsList().length > 0) {
+    const spellDefinitions = msg.getSpellDefinitionsList();
+    json.spellDefinitions = spellDefinitions.map(spellDefinitionToJson);
   }
 
-  if (obj.requestId !== undefined) {
-    json.requestId = obj.requestId;
-  }
+  json.requestId = msg.getRequestId();
 
   return json;
 }
 
 function pastChallengeToJson(
-  obj: ServerMessage.PastChallenge.AsObject,
+  pastChallenge: ServerMessage.PastChallenge,
 ): z.infer<typeof pastChallengeSchema> {
   const json: z.infer<typeof pastChallengeSchema> = {
-    id: obj.id,
-    status: obj.status,
-    stage: obj.stage,
-    mode: obj.mode,
-    party: obj.partyList,
-    challenge: obj.challenge,
-    challengeTicks: obj.challengeTicks,
+    id: pastChallenge.getId(),
+    status: pastChallenge.getStatus(),
+    stage: pastChallenge.getStage(),
+    mode: pastChallenge.getMode(),
+    party: pastChallenge.getPartyList(),
+    challenge: pastChallenge.getChallenge(),
+    challengeTicks: pastChallenge.getChallengeTicks(),
   };
-  if (obj.timestamp !== undefined) {
+  if (pastChallenge.hasTimestamp()) {
+    const timestamp = pastChallenge.getTimestamp()!;
     json.timestamp = {
-      seconds: obj.timestamp.seconds,
-      nanos: obj.timestamp.nanos,
+      seconds: timestamp.getSeconds(),
+      nanos: timestamp.getNanos(),
     };
   }
   return json;
 }
 
 function attackDefinitionToJson(
-  obj: AttackDefinition.AsObject,
+  attackDefinition: AttackDefinition,
 ): z.infer<typeof attackDefinitionSchema> {
-  return {
-    protoId: obj.id,
-    name: obj.name,
-    weaponIds: obj.weaponIdsList,
-    animationIds: obj.animationIdsList,
-    cooldown: obj.cooldown,
-    projectile: obj.projectile,
-    weaponProjectiles: obj.weaponProjectilesList,
-    continuousAnimation: obj.continuousAnimation,
-    category: categoryEnumToString(obj.category),
+  const json: z.infer<typeof attackDefinitionSchema> = {
+    protoId: attackDefinition.getId(),
+    name: attackDefinition.getName(),
+    weaponIds: attackDefinition.getWeaponIdsList(),
+    animationIds: attackDefinition.getAnimationIdsList(),
+    cooldown: attackDefinition.getCooldown(),
+    continuousAnimation: attackDefinition.getContinuousAnimation(),
+    category: categoryEnumToString(attackDefinition.getCategory()),
   };
+
+  if (attackDefinition.hasProjectile()) {
+    json.projectile = projectileToJson(attackDefinition.getProjectile()!);
+  }
+
+  if (attackDefinition.getWeaponProjectilesList().length > 0) {
+    json.weaponProjectiles = attackDefinition
+      .getWeaponProjectilesList()
+      .map(projectileToJson<WeaponProjectileSchema>);
+  }
+
+  if (attackDefinition.hasAnimationFrameMin()) {
+    json.animationFrameMin = attackDefinition.getAnimationFrameMin();
+  }
+  if (attackDefinition.hasAnimationFrameMax()) {
+    json.animationFrameMax = attackDefinition.getAnimationFrameMax();
+  }
+
+  return json;
+}
+
+type ProjectileSchema = z.infer<typeof projectileSchema>;
+type WeaponProjectileSchema = z.infer<typeof weaponProjectileSchema>;
+
+function projectileToJson<
+  T extends ProjectileSchema | WeaponProjectileSchema = ProjectileSchema,
+>(weaponProjectile: AttackDefinition.Projectile): T {
+  const json: ProjectileSchema | WeaponProjectileSchema = {
+    id: weaponProjectile.getId(),
+    startCycleOffset: weaponProjectile.getStartCycleOffset(),
+  };
+  if (weaponProjectile.hasWeaponId()) {
+    json.weaponId = weaponProjectile.getWeaponId();
+  }
+  return json as T;
 }
 
 function categoryEnumToString(
@@ -834,14 +884,16 @@ function categoryEnumToString(
 }
 
 function spellDefinitionToJson(
-  obj: SpellDefinition.AsObject,
+  spellDefinition: SpellDefinition,
 ): z.infer<typeof spellDefinitionSchema> {
   return {
-    id: obj.id,
-    name: obj.name,
-    animationIds: obj.animationIdsList,
-    graphics: obj.graphicsList,
-    targetGraphics: obj.targetGraphicsList,
-    stallTicks: obj.stallTicks,
+    id: spellDefinition.getId(),
+    name: spellDefinition.getName(),
+    animationIds: spellDefinition.getAnimationIdsList(),
+    graphics: spellDefinition.getGraphicsList().map((g) => g.toObject()),
+    targetGraphics: spellDefinition
+      .getTargetGraphicsList()
+      .map((g) => g.toObject()),
+    stallTicks: spellDefinition.getStallTicks(),
   };
 }
