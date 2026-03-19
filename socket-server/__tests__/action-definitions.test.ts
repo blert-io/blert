@@ -36,6 +36,7 @@ const validAttackDefinitions: AttackDefinitionJson[] = [
     cooldown: 3,
     category: 'RANGED',
     projectile: { id: 500, startCycleOffset: 30 },
+    animationFrameMin: 1,
   },
 ];
 
@@ -83,6 +84,12 @@ describe('validateAttackDefinitions', () => {
     );
   });
 
+  it('should reject empty definitions', () => {
+    expect(() => validateAttackDefinitions([])).toThrow(
+      'At least one attack definition is required',
+    );
+  });
+
   it('should require weaponId in weaponProjectiles', () => {
     const defWithoutWeaponId = {
       ...validAttackDefinition,
@@ -115,6 +122,12 @@ describe('validateSpellDefinitions', () => {
     expect(() => validateSpellDefinitions(null)).toThrow(ValidationError);
     expect(() => validateSpellDefinitions([{ invalid: true }])).toThrow(
       ValidationError,
+    );
+  });
+
+  it('should reject empty definitions', () => {
+    expect(() => validateSpellDefinitions([])).toThrow(
+      'At least one spell definition is required',
     );
   });
 
@@ -406,6 +419,29 @@ describe('ActionDefinitionsRepository', () => {
       expect(mockRepo.saveRaw).not.toHaveBeenCalled();
     });
 
+    it('should reject empty definitions before uploading', async () => {
+      const mockRepo = createMockRepository();
+      mockRepo.loadRaw.mockImplementation((path: string) => {
+        if (path.includes('attack')) {
+          return Promise.resolve(encodeJson(validAttackDefinitions));
+        }
+        return Promise.resolve(encodeJson(validSpellDefinitions));
+      });
+
+      const repo = new ActionDefinitionsRepository({
+        repository: mockRepo,
+        attackFallbackPath: '/attacks.json',
+        spellFallbackPath: '/spells.json',
+      });
+      await repo.initialize();
+
+      await expect(repo.uploadAttackDefinitions([])).rejects.toThrow(
+        'At least one attack definition is required',
+      );
+
+      expect(mockRepo.saveRaw).not.toHaveBeenCalled();
+    });
+
     it('should save backup and current version', async () => {
       const mockRepo = createMockRepository();
       mockRepo.loadRaw.mockImplementation((path: string) => {
@@ -478,6 +514,29 @@ describe('ActionDefinitionsRepository', () => {
       await expect(
         repo.uploadSpellDefinitions(validSpellDefinitions),
       ).rejects.toThrow('No repository configured for upload');
+    });
+
+    it('should reject empty definitions before uploading', async () => {
+      const mockRepo = createMockRepository();
+      mockRepo.loadRaw.mockImplementation((path: string) => {
+        if (path.includes('attack')) {
+          return Promise.resolve(encodeJson(validAttackDefinitions));
+        }
+        return Promise.resolve(encodeJson(validSpellDefinitions));
+      });
+
+      const repo = new ActionDefinitionsRepository({
+        repository: mockRepo,
+        attackFallbackPath: '/attacks.json',
+        spellFallbackPath: '/spells.json',
+      });
+      await repo.initialize();
+
+      await expect(repo.uploadSpellDefinitions([])).rejects.toThrow(
+        'At least one spell definition is required',
+      );
+
+      expect(mockRepo.saveRaw).not.toHaveBeenCalled();
     });
 
     it('should save backup and current version', async () => {
