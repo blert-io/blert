@@ -5,19 +5,18 @@ use std::time::Instant;
 use axum::Router;
 use axum::routing::get;
 use tokio::net::TcpListener;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, mpsc};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
 
+mod backfill;
 mod broadcast;
 mod config;
 mod message;
-#[expect(dead_code)]
 mod reader;
 #[expect(dead_code)]
 mod redis;
 mod routes;
-#[expect(dead_code)]
 mod subscriber;
 
 use broadcast::BroadcastManager;
@@ -42,7 +41,17 @@ async fn main() {
 
     let redis_client = ::redis::Client::open(config.redis_uri.as_str()).expect("invalid redis URI");
 
-    let broadcast_manager = BroadcastManager::new(&redis_client)
+    // Set up backfill channels and manager.
+    let (backfill_request_tx, backfill_request_rx) = mpsc::unbounded_channel();
+    let (backfill_result_tx, backfill_result_rx) = mpsc::unbounded_channel();
+    let backfill_conn = redis_client
+        .get_multiplexed_async_connection()
+        .await
+        .expect("failed to connect to redis for backfill");
+    let backfill_manager =
+        backfill::BackfillManager::new(backfill_conn, backfill_request_rx, backfill_result_tx);
+
+    let broadcast_manager = BroadcastManager::new(&redis_client, backfill_request_tx)
         .await
         .expect("failed to connect to redis");
 
@@ -51,6 +60,11 @@ async fn main() {
         broadcast_manager: Arc::new(Mutex::new(broadcast_manager)),
     };
 
+    tokio::spawn(backfill_manager.run());
+    tokio::spawn(backfill::run_backfill_receiver(
+        state.broadcast_manager.clone(),
+        backfill_result_rx,
+    ));
     broadcast::spawn_pubsub_listener(state.broadcast_manager.clone(), &redis_client)
         .await
         .expect("failed to subscribe to challenge updates");

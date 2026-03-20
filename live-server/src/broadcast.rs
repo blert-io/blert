@@ -4,9 +4,12 @@ use std::time::Duration;
 
 use tokio::sync::{Mutex, mpsc};
 
+use crate::backfill::{BackfillRequest, BackfillResult};
 use crate::message::SseMessage;
 use crate::reader::ChallengeReader;
-use crate::redis::{self, ChallengeServerUpdate, ChallengeState, RedisQuery, RedisResponse};
+use crate::redis::{
+    self, ChallengeClient, ChallengeServerUpdate, ChallengeState, RedisQuery, RedisResponse,
+};
 use crate::subscriber::{Subscriber, SubscriberId};
 
 /// Interval between broadcast ticks (600ms = 1 OSRS game tick).
@@ -35,11 +38,16 @@ pub struct BroadcastManager {
     subscriber_challenges: HashMap<SubscriberId, String>,
     /// Count of queries sent to each reader.
     reader_query_counts: Vec<(String, usize)>,
+    /// Sender for backfill requests.
+    backfill_tx: mpsc::UnboundedSender<BackfillRequest>,
 }
 
 impl BroadcastManager {
     /// Creates a new broadcast manager with the given Redis client.
-    pub async fn new(redis_client: &::redis::Client) -> Result<Self, ::redis::RedisError> {
+    pub async fn new(
+        redis_client: &::redis::Client,
+        backfill_tx: mpsc::UnboundedSender<BackfillRequest>,
+    ) -> Result<Self, ::redis::RedisError> {
         let redis_conn = redis_client.get_multiplexed_async_connection().await?;
         Ok(Self {
             readers: HashMap::new(),
@@ -48,6 +56,7 @@ impl BroadcastManager {
             next_subscriber_id: 0,
             subscriber_challenges: HashMap::new(),
             reader_query_counts: Vec::new(),
+            backfill_tx,
         })
     }
 
@@ -69,15 +78,13 @@ impl BroadcastManager {
         self.grace_periods.remove(&challenge_id);
 
         if !self.readers.contains_key(&challenge_id) {
-            let state = self.fetch_challenge_state(&challenge_id).await?;
+            let (state, clients) = self.fetch_challenge_state(&challenge_id).await?;
 
             let reader = ChallengeReader::new(
                 challenge_id.clone(),
-                state.challenge_type,
-                state.mode,
-                state.stage,
-                state.stage_attempt,
-                state.party,
+                state,
+                &clients,
+                self.backfill_tx.clone(),
             );
             self.readers.insert(challenge_id.clone(), reader);
 
@@ -88,6 +95,7 @@ impl BroadcastManager {
             .readers
             .get_mut(&challenge_id)
             .expect("reader just inserted");
+
         reader.add_subscriber(subscriber);
         self.subscriber_challenges
             .insert(subscriber_id, challenge_id);
@@ -122,18 +130,26 @@ impl BroadcastManager {
     async fn fetch_challenge_state(
         &mut self,
         challenge_id: &str,
-    ) -> Result<ChallengeState, BroadcastError> {
-        let queries = [RedisQuery::ChallengeState {
-            uuid: challenge_id.to_string(),
-        }];
+    ) -> Result<(ChallengeState, HashMap<u64, ChallengeClient>), BroadcastError> {
+        let queries = [
+            RedisQuery::ChallengeState {
+                uuid: challenge_id.to_string(),
+            },
+            RedisQuery::ChallengeClients {
+                uuid: challenge_id.to_string(),
+            },
+        ];
         let mut responses = redis::execute(&mut self.redis_conn, &queries).await?;
 
-        match responses.pop() {
-            Some(RedisResponse::ChallengeState(Some(state))) => Ok(state),
-            Some(RedisResponse::ChallengeState(None)) => {
+        match (responses.pop(), responses.pop()) {
+            (
+                Some(RedisResponse::ChallengeClients(clients)),
+                Some(RedisResponse::ChallengeState(Some(state))),
+            ) => Ok((state, clients)),
+            (_, Some(RedisResponse::ChallengeState(None))) => {
                 Err(BroadcastError::ChallengeNotFound(challenge_id.to_string()))
             }
-            _ => Err(BroadcastError::UnexpectedResponse),
+            (_, _) => Err(BroadcastError::UnexpectedResponse),
         }
     }
 
@@ -172,11 +188,19 @@ impl BroadcastManager {
             let disconnected = reader.broadcast();
             for sub_id in disconnected {
                 reader.remove_subscriber(sub_id);
+                self.subscriber_challenges.remove(&sub_id);
             }
             if !reader.has_subscribers() && !self.grace_periods.contains_key(uuid) {
                 self.grace_periods
                     .insert(uuid.clone(), tokio::time::Instant::now());
             }
+        }
+    }
+
+    /// Applies a completed backfill result to the appropriate reader.
+    pub fn apply_backfill(&mut self, result: BackfillResult) {
+        if let Some(reader) = self.readers.get_mut(&result.challenge_id) {
+            reader.apply_backfill(result);
         }
     }
 
@@ -263,7 +287,7 @@ pub async fn run_tick_loop(manager: Arc<Mutex<BroadcastManager>>) {
                 Ok(r) => r,
                 Err(e) => {
                     tracing::error!("redis pipeline error: {e}");
-                    continue;
+                    Vec::new()
                 }
             }
         };
@@ -272,7 +296,9 @@ pub async fn run_tick_loop(manager: Arc<Mutex<BroadcastManager>>) {
         // manager, it should have per-reader locks.
         {
             let mut mgr = manager.lock().await;
-            mgr.broadcast_responses(responses);
+            if !responses.is_empty() {
+                mgr.broadcast_responses(responses);
+            }
             mgr.clean_up_expired_readers();
         }
     }

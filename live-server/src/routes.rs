@@ -1,3 +1,4 @@
+use base64::Engine as _;
 use std::convert::Infallible;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -72,11 +73,10 @@ pub async fn live(
         _unsub: unsub,
     };
 
-    Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
+    Ok(Sse::new(stream).keep_alive(KeepAlive::new().text("skitter")))
 }
 
 fn sse_event(msg: &SseMessage) -> Event {
-    // TODO(frolv): Full JSON serialization for data-carrying messages.
     match msg {
         SseMessage::Metadata {
             challenge_type,
@@ -96,20 +96,66 @@ fn sse_event(msg: &SseMessage) -> Event {
             })
             .to_string(),
         ),
-        SseMessage::Reset { .. } => Event::default().event("reset").data("{}"),
-        SseMessage::ReplayChunk { .. } => Event::default().event("replay-chunk").data("{}"),
-        SseMessage::ReplayEnd { .. } => Event::default().event("replay-end").data("{}"),
-        SseMessage::Tick { .. } => Event::default().event("tick").data("{}"),
+        SseMessage::Reset {
+            reason,
+            stage,
+            attempt,
+            stage_active,
+            generation,
+        } => Event::default().event("reset").data(
+            serde_json::json!({
+                "reason": reason.as_str(),
+                "stage": stage,
+                "attempt": attempt,
+                "stageActive": stage_active,
+                "generation": generation,
+            })
+            .to_string(),
+        ),
+        SseMessage::ReplayChunk {
+            generation,
+            start_tick,
+            tick_count,
+            data,
+        } => Event::default().event("replay-chunk").data(
+            serde_json::json!({
+                "generation": generation,
+                "startTick": start_tick,
+                "tickCount": tick_count,
+                "data": base64::engine::general_purpose::STANDARD.encode(data),
+            })
+            .to_string(),
+        ),
+        SseMessage::ReplayEnd { generation, tick } => Event::default()
+            .event("replay-end")
+            .data(serde_json::json!({"generation": generation, "tick": tick}).to_string()),
+        SseMessage::Tick {
+            generation,
+            tick,
+            tick_count,
+            data,
+        } => Event::default().event("tick").data(
+            serde_json::json!({
+                "generation": generation,
+                "tick": tick,
+                "tickCount": tick_count,
+                "data": base64::engine::general_purpose::STANDARD.encode(data),
+            })
+            .to_string(),
+        ),
         SseMessage::StageChange { stage, attempt } => Event::default()
             .event("stage-change")
             .data(serde_json::json!({"stage": stage, "attempt": attempt}).to_string()),
         SseMessage::StageEnd { stage, attempt } => Event::default()
             .event("stage-end")
             .data(serde_json::json!({"stage": stage, "attempt": attempt}).to_string()),
-        SseMessage::Stalled { .. } => Event::default().event("stalled").data("{}"),
+        SseMessage::Stalled { reason } => Event::default()
+            .event("stalled")
+            .data(serde_json::json!({"reason": reason.to_string()}).to_string()),
         SseMessage::Complete => Event::default().event("complete").data("{}"),
-        SseMessage::Shutdown { .. } => Event::default().event("shutdown").data("{}"),
-        SseMessage::KeepAlive => Event::default().comment("skitter"),
+        SseMessage::Shutdown { retry_window_secs } => Event::default()
+            .event("shutdown")
+            .data(serde_json::json!({"retryWindow": retry_window_secs}).to_string()),
     }
 }
 
