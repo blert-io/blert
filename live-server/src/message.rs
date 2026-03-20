@@ -1,3 +1,5 @@
+use bytes::Bytes;
+
 /// Messages sent to SSE subscribers.
 ///
 /// Each variant maps to an SSE `event:` type that the web client handles.
@@ -28,7 +30,7 @@ pub enum SseMessage {
         generation: u64,
         start_tick: u32,
         tick_count: u32,
-        data: Vec<u8>,
+        data: Bytes,
     },
 
     /// Marks the end of the catch-up sequence.
@@ -40,7 +42,7 @@ pub enum SseMessage {
         generation: u64,
         tick: u32,
         tick_count: u32,
-        data: Vec<u8>,
+        data: Bytes,
     },
 
     /// The challenge's current stage has changed.
@@ -50,16 +52,13 @@ pub enum SseMessage {
     StageEnd { stage: i32, attempt: Option<u32> },
 
     /// All recording clients have disconnected.
-    Stalled { reason: String },
+    Stalled { reason: StalledReason },
 
     /// The challenge has finished. Clients should close the stream and refetch.
     Complete,
 
     /// The server is shutting down. Clients should reconnect after a delay.
     Shutdown { retry_window_secs: u32 },
-
-    /// Keep-alive comment to prevent proxy/client timeouts.
-    KeepAlive,
 }
 
 /// Reason for a stream reset.
@@ -69,6 +68,31 @@ pub enum ResetReason {
     Reconnect,
     /// The primary recording client changed.
     PrimaryChange,
-    /// A new attempt started on the same stage.
-    NewAttempt,
+}
+
+/// Reason for a reader stall.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StalledReason {
+    /// All clients have disconnected.
+    NoClients,
+    /// All recording clients are inactive.
+    AllInactive,
+}
+
+impl ResetReason {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ResetReason::Reconnect => "RECONNECT",
+            ResetReason::PrimaryChange => "PRIMARY_CHANGE",
+        }
+    }
+}
+
+impl std::fmt::Display for StalledReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            StalledReason::NoClients => write!(f, "NO_CLIENTS"),
+            StalledReason::AllInactive => write!(f, "ALL_INACTIVE"),
+        }
+    }
 }

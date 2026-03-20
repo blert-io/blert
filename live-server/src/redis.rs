@@ -42,6 +42,17 @@ impl TryFrom<i32> for ChallengeStatus {
     }
 }
 
+/// Stage status as reported by each client.
+// Matches `StageStatus` in `//common/challenge.ts`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize_repr)]
+#[repr(i32)]
+pub enum StageStatus {
+    Entered = 0,
+    Started = 1,
+    Completed = 2,
+    Wiped = 3,
+}
+
 /// Type of client's recording.
 // Matches `RecordingType` in `//common/user.ts`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize_repr)]
@@ -155,7 +166,7 @@ pub struct ChallengeClient {
     pub active: bool,
     pub stage: i32,
     pub stage_attempt: Option<u32>,
-    pub stage_status: i32,
+    pub stage_status: StageStatus,
     pub last_completed: LastCompleted,
 }
 
@@ -176,6 +187,8 @@ pub struct StageStreamEntry {
     /// Raw protobuf bytes (serialized `ChallengeEvents`).
     pub events: Vec<u8>,
 }
+
+pub const STREAM_START_CURSOR: &str = "0-0";
 
 /// Update published on the `challenge-updates` pubsub channel.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -499,7 +512,7 @@ mod tests {
         assert!(client.active);
         assert_eq!(client.stage, 10);
         assert_eq!(client.stage_attempt, None);
-        assert_eq!(client.stage_status, 1);
+        assert_eq!(client.stage_status, StageStatus::Started);
         assert_eq!(client.last_completed.stage, 0);
         assert_eq!(client.last_completed.attempt, None);
     }
@@ -625,7 +638,7 @@ mod tests {
             uuid: "test".into(),
             stage: 10,
             attempt: None,
-            cursor: "0-0".into(),
+            cursor: STREAM_START_CURSOR.into(),
         };
         let event_bytes = vec![0x08, 0x01, 0x10, 0x02];
         let value = Value::Array(vec![stream_entry(
@@ -654,7 +667,7 @@ mod tests {
             uuid: "test".into(),
             stage: 10,
             attempt: None,
-            cursor: "0-0".into(),
+            cursor: STREAM_START_CURSOR.into(),
         };
         let value = Value::Array(vec![
             // STAGE_EVENTS entry (type=0) — should be kept.
@@ -689,7 +702,7 @@ mod tests {
             uuid: "test".into(),
             stage: 10,
             attempt: Some(1),
-            cursor: "0-0".into(),
+            cursor: STREAM_START_CURSOR.into(),
         };
         let value = Value::Array(vec![]);
         let resp = query.parse_response(value).unwrap();
