@@ -13,6 +13,19 @@ use crate::redis::{
 };
 use crate::subscriber::{Subscriber, SubscriberId, SubscriberState};
 
+/// Jitter buffer depth: broadcast cursor trails poll cursor by this many ticks.
+/// Prevents broadcasting incomplete ticks whose data arrives across poll
+/// boundaries due to the plugin's flush-on-tick-boundary behavior.
+const JITTER_DEPTH: usize = 2;
+
+/// If the buffer exceeds jitter depth by this many ticks, trigger lag recovery
+/// by bundling multiple ticks into a single message.
+const LAG_THRESHOLD: usize = 3;
+
+/// Number of broadcast ticks without new events before considering a client
+/// silent. At 600ms per tick, 5 ticks = 3 seconds.
+const SILENCE_THRESHOLD: u64 = 5;
+
 /// Lifecycle state of a `ChallengeReader`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ReaderState {
@@ -22,7 +35,7 @@ enum ReaderState {
     /// Polling for new events and broadcasting to subscribers.
     Active,
     /// All recording clients have disconnected.
-    Stalled,
+    Stalled { reason: StalledReason, since: u64 },
     /// The challenge has finished and is waiting for subscribers to drain.
     Completed,
 }
@@ -63,6 +76,10 @@ struct ClientState {
     /// Running count of stream entries received from this client
     /// for the current stage.
     event_count: u64,
+    /// The global broadcast tick at which this client last sent stream events.
+    /// Used to identify clients which have stopped transmitting for primary
+    /// switching.
+    last_active_tick: u64,
 }
 
 struct ReplayChunk {
@@ -86,12 +103,9 @@ pub struct ChallengeReader {
     /// Tracing span for this reader — all log calls scoped with `challenge_id`.
     span: tracing::Span,
 
-    /// Challenge UUID.
     uuid: String,
-    /// Challenge type (proto enum value).
     challenge_type: i32,
-    /// Challenge mode (proto enum value).
-    mode: i32,
+    challenge_mode: i32,
 
     /// Current stage of the challenge.
     stage: i32,
@@ -162,6 +176,7 @@ impl ChallengeReader {
                     ClientState {
                         active: c.active,
                         event_count: 0,
+                        last_active_tick: 0,
                     },
                 )
             })
@@ -171,7 +186,7 @@ impl ChallengeReader {
             span,
             uuid,
             challenge_type: state.challenge_type,
-            mode: state.mode,
+            challenge_mode: state.mode,
             stage: state.stage,
             stage_attempt: state.stage_attempt,
             stage_state: if stage_active {
@@ -229,7 +244,10 @@ impl ChallengeReader {
     }
 
     /// Processes the Redis responses corresponding to this reader's queries.
-    pub fn apply_poll_responses(&mut self, responses: Vec<RedisResponse>) {
+    ///
+    /// `tick` is the global broadcast tick from the manager, used for
+    /// silence-based primary switching.
+    pub fn apply_poll_responses(&mut self, responses: Vec<RedisResponse>, tick: u64) {
         let queried_stage = self.stage;
         let queried_attempt = self.stage_attempt;
         let mut stream_entries: Option<Vec<StageStreamEntry>> = None;
@@ -238,14 +256,14 @@ impl ChallengeReader {
             match response {
                 RedisResponse::ChallengeState(Some(state)) => {
                     if state.stage != self.stage || state.stage_attempt != self.stage_attempt {
-                        self.begin_stage(state.stage, state.stage_attempt);
+                        self.begin_stage(tick, state.stage, state.stage_attempt);
                     }
                 }
                 RedisResponse::ChallengeState(None) => {
                     self.finish_challenge();
                 }
                 RedisResponse::ChallengeClients(clients) => {
-                    self.process_clients(&clients);
+                    self.process_clients(&clients, tick);
                 }
                 RedisResponse::StageStream(entries) => {
                     // Stream entries must be processed after state updates.
@@ -256,7 +274,7 @@ impl ChallengeReader {
 
         if let Some(entries) = stream_entries {
             if self.stage == queried_stage && self.stage_attempt == queried_attempt {
-                self.process_stream_entries(&entries);
+                self.process_stream_entries(&entries, tick);
             } else {
                 tracing::warn!(
                     parent: &self.span,
@@ -288,47 +306,73 @@ impl ChallengeReader {
         }
     }
 
-    /// Broadcasts one tick's worth of events to live subscribers.
+    /// Broadcasts events to live subscribers.
+    ///
+    /// Normally sends one tick per cycle. During lag recovery, bundles multiple
+    /// ticks to catch up to the live edge.
     ///
     /// Returns IDs of disconnected subscribers for cleanup.
+    #[allow(clippy::cast_possible_truncation)]
     pub fn broadcast(&mut self) -> Vec<SubscriberId> {
         let available = self.tick_buffer.len() - self.broadcast_cursor;
 
-        // Hold the last tick: it may be incomplete due to the plugin's
-        // flush-on-tick-boundary behavior (straggler merges next cycle).
-        // When the stage is ending, flush everything as no next tick is coming.
-        // TODO(frolv): Implement proper jitter buffer (trail by 2-3 ticks).
-        if available <= 1 && self.stage_state != StageState::Ending {
+        // Hold back `JITTER_DEPTH` ticks so the plugin's flush-on-tick-boundary
+        // stragglers merge before broadcast. When the stage is ending, drain
+        // everything as no more ticks are coming.
+        let min_buffer = if self.stage_state == StageState::Ending {
+            1
+        } else {
+            JITTER_DEPTH + 1
+        };
+
+        if available < min_buffer {
+            // If ending with an empty buffer, finalize immediately.
+            if self.stage_state == StageState::Ending && available == 0 {
+                self.finish_stage();
+            }
             return Vec::new();
         }
 
-        // Basic lag recovery: if the buffer is too deep, skip ahead to near-live.
-        // Once replay is implemented, the skipped history will be sent via
-        // replay-chunks instead.
-        if available > 5 {
-            self.broadcast_cursor = self.tick_buffer.len() - 2;
-        }
+        let ticks_to_send =
+            if self.stage_state != StageState::Ending && available > JITTER_DEPTH + LAG_THRESHOLD {
+                available - JITTER_DEPTH
+            } else {
+                1
+            };
 
         let mut disconnected = Vec::new();
 
-        if self.broadcast_cursor < self.tick_buffer.len() {
-            let entry = self.tick_buffer[self.broadcast_cursor].clone();
+        let first = &self.tick_buffer[self.broadcast_cursor];
+        let msg = if ticks_to_send == 1 {
+            let entry = first.clone();
             self.broadcast_cursor += 1;
-
-            let msg = SseMessage::Tick {
+            SseMessage::Tick {
                 generation: self.generation,
                 tick: entry.tick,
                 tick_count: 1,
                 data: entry.data,
-            };
+            }
+        } else {
+            let start_tick = first.tick;
+            let mut combined = BytesMut::new();
+            for i in 0..ticks_to_send {
+                combined.extend_from_slice(&self.tick_buffer[self.broadcast_cursor + i].data);
+            }
+            self.broadcast_cursor += ticks_to_send;
+            SseMessage::Tick {
+                generation: self.generation,
+                tick: start_tick,
+                tick_count: ticks_to_send as u32,
+                data: combined.into(),
+            }
+        };
 
-            for (id, subscriber) in &self.subscribers {
-                if subscriber.state == SubscriberState::Live
-                    && subscriber.requested_stage == Some(self.stage)
-                    && !subscriber.send(msg.clone())
-                {
-                    disconnected.push(*id);
-                }
+        for (id, subscriber) in &self.subscribers {
+            if subscriber.state == SubscriberState::Live
+                && subscriber.requested_stage == Some(self.stage)
+                && !subscriber.send(msg.clone())
+            {
+                disconnected.push(*id);
             }
         }
 
@@ -338,7 +382,8 @@ impl ChallengeReader {
         //
         // If a fast stage transition preempts the drain, the remaining ticks
         // are discarded from the live view. The client can recover during
-        // loading of the processed static stage data.
+        // loading of the processed static stage data. Given that the fastest
+        // transition is 5-6t and the jitter buffer is 2t, this should be rare.
         if self.stage_state == StageState::Ending && self.broadcast_cursor >= self.tick_buffer.len()
         {
             self.finish_stage();
@@ -361,13 +406,14 @@ impl ChallengeReader {
                 .or_insert(ClientState {
                     active: false,
                     event_count: 0,
+                    last_active_tick: 0,
                 })
                 .event_count += 1;
         }
 
         self.primary_client_id = pre_selected_primary;
         if self.primary_client_id.is_none() {
-            self.select_primary_client(None);
+            self.primary_client_id = self.select_primary_client(None);
         }
 
         // If all clients are inactive and no primary is selected, some data is
@@ -399,7 +445,12 @@ impl ChallengeReader {
         );
 
         // Replay to all subscribers viewing this stage.
-        let replay = self.build_replay_messages(ResetReason::Reconnect);
+        let reason = if pre_selected_primary.is_some() {
+            ResetReason::PrimaryChange
+        } else {
+            ResetReason::Reconnect
+        };
+        let replay = self.build_replay_messages(reason);
         for subscriber in self.subscribers.values_mut() {
             if subscriber.requested_stage == Some(self.stage) {
                 for msg in &replay {
@@ -435,7 +486,7 @@ impl ChallengeReader {
     pub fn add_subscriber(&mut self, mut subscriber: Subscriber) {
         subscriber.send(SseMessage::Metadata {
             challenge_type: self.challenge_type,
-            mode: self.mode,
+            mode: self.challenge_mode,
             stage: self.stage,
             attempt: self.stage_attempt,
             stage_active: self.stage_state.is_open(),
@@ -443,12 +494,15 @@ impl ChallengeReader {
         });
 
         match self.state {
-            ReaderState::Active | ReaderState::Stalled => {
+            ReaderState::Active | ReaderState::Stalled { .. } => {
                 // Send cached replay if the subscriber wants this stage.
                 if subscriber.requested_stage == Some(self.stage) && !self.tick_buffer.is_empty() {
                     for msg in self.build_replay_messages(ResetReason::Reconnect) {
                         subscriber.send(msg);
                     }
+                }
+                if let ReaderState::Stalled { reason, .. } = self.state {
+                    subscriber.send(SseMessage::Stalled { reason });
                 }
                 subscriber.state = SubscriberState::Live;
             }
@@ -464,19 +518,18 @@ impl ChallengeReader {
         self.subscribers.insert(subscriber.id, subscriber);
     }
 
-    /// Removes a subscriber by ID.
     pub fn remove_subscriber(&mut self, id: SubscriberId) {
         self.subscribers.remove(&id);
     }
 
-    /// Returns `true` if this reader has any subscribers.
     pub fn has_subscribers(&self) -> bool {
         !self.subscribers.is_empty()
     }
 
     /// Processes stream entries from an incremental poll: counts events,
-    /// advances the cursor, and ingests the primary's events into the buffer.
-    fn process_stream_entries(&mut self, entries: &[StageStreamEntry]) {
+    /// advances the cursor, updates silence tracking, and ingests the
+    /// primary's events into the buffer.
+    fn process_stream_entries(&mut self, entries: &[StageStreamEntry], tick: u64) {
         if entries.is_empty() {
             return;
         }
@@ -486,16 +539,18 @@ impl ChallengeReader {
             self.poll_cursor.clone_from(&last.id);
         }
 
-        // Always count events per client, even without a primary — needed
-        // for primary selection on the next poll or backfill application.
+        // Count events per client and update silence tracking.
         for entry in entries {
-            self.client_states
+            let state = self
+                .client_states
                 .entry(entry.client_id)
                 .or_insert(ClientState {
                     active: false,
                     event_count: 0,
-                })
-                .event_count += 1;
+                    last_active_tick: 0,
+                });
+            state.event_count += 1;
+            state.last_active_tick = tick;
         }
 
         if let Some(primary) = self.primary_client_id
@@ -573,26 +628,18 @@ impl ChallengeReader {
 
     /// Selects a new primary client from `client_states`, optionally excluding
     /// the client specified by `exclude`.
-    fn select_primary_client(&mut self, exclude: Option<u64>) {
+    fn select_primary_client(&self, exclude: Option<u64>) -> Option<u64> {
         // Simple heuristic: pick the active client with the highest event count
         // for the current stage.
-        let best = self
-            .client_states
+        self.client_states
             .iter()
             .filter(|(id, _)| exclude.is_none_or(|e| e != **id))
             .filter(|(_, s)| s.active)
             .max_by_key(|(_, s)| s.event_count)
-            .map(|(id, _)| *id);
-
-        if let Some(client_id) = best {
-            tracing::info!(parent: &self.span, client_id, "selected primary client");
-            self.primary_client_id = Some(client_id);
-        } else {
-            tracing::warn!(parent: &self.span, "no primary client found");
-        }
+            .map(|(id, _)| *id)
     }
 
-    fn begin_stage(&mut self, stage: i32, attempt: Option<u32>) {
+    fn begin_stage(&mut self, tick: u64, stage: i32, attempt: Option<u32>) {
         match self.stage_state {
             StageState::Active => {
                 tracing::error!(
@@ -629,13 +676,16 @@ impl ChallengeReader {
         self.replay_chunks.clear();
         for state in self.client_states.values_mut() {
             state.event_count = 0;
+            if state.active {
+                state.last_active_tick = tick;
+            }
         }
 
         let message = SseMessage::StageChange { stage, attempt };
         self.send_to_all(&message);
     }
 
-    fn process_clients(&mut self, clients: &HashMap<u64, ChallengeClient>) {
+    fn process_clients(&mut self, clients: &HashMap<u64, ChallengeClient>, tick: u64) {
         // Sync active status into client_states from the latest poll data.
         for (id, client) in clients {
             self.client_states
@@ -643,6 +693,7 @@ impl ChallengeReader {
                 .or_insert(ClientState {
                     active: false,
                     event_count: 0,
+                    last_active_tick: 0,
                 })
                 .active = client.active;
         }
@@ -671,14 +722,14 @@ impl ChallengeReader {
                     attempt = self.stage_attempt,
                     "stage became active",
                 );
-                self.begin_stage(self.stage, self.stage_attempt);
+                self.begin_stage(tick, self.stage, self.stage_attempt);
             } else {
                 return;
             }
         }
 
         if clients.is_empty() {
-            self.stall(StalledReason::NoClients);
+            self.stall(StalledReason::NoClients, tick);
             return;
         }
 
@@ -689,20 +740,91 @@ impl ChallengeReader {
         }
 
         if !clients.values().any(|client| client.active) {
-            self.stall(StalledReason::AllInactive);
+            self.stall(StalledReason::AllInactive, tick);
             return;
         }
 
-        if self.state == ReaderState::Stalled {
+        if matches!(self.state, ReaderState::Stalled { .. }) {
             tracing::info!(parent: &self.span, "recording resumed");
             self.state = ReaderState::Active;
+            if let Some(primary_id) = self.select_primary_client(None) {
+                self.switch_to_primary(primary_id);
+            } else {
+                // Unreachable: the check above ensures a client is active,
+                // so `select_primary_client` will find it.
+                // But I'm not going to eat a hubris sandwich.
+                tracing::error!(parent: &self.span, "if you're reading this something is cooked");
+                self.stall(StalledReason::AllInactive, tick);
+            }
+            return;
         }
 
-        if self.primary_client_id.is_none() {
-            self.select_primary_client(None);
+        match self.primary_client_id {
+            Some(primary_id) => {
+                self.check_primary_switch(primary_id, tick);
+            }
+            None => {
+                self.primary_client_id = self.select_primary_client(None);
+            }
+        }
+    }
+
+    /// Checks if the primary client should be switched and initiates a backfill
+    /// from the new primary if so.
+    ///
+    /// Switch triggers:
+    /// - Primary went inactive (disconnected).
+    /// - Primary is silent for [`SILENCE_THRESHOLD`] ticks while another client
+    ///   is actively streaming.
+    fn check_primary_switch(&mut self, primary_id: u64, tick: u64) {
+        let should_switch = match self.client_states.get(&primary_id) {
+            None => true,
+            Some(ps) if !ps.active => true,
+            Some(ps) => {
+                if tick.saturating_sub(ps.last_active_tick) < SILENCE_THRESHOLD {
+                    // Client is healthy.
+                    return;
+                }
+                self.client_states.iter().any(|(id, s)| {
+                    *id != primary_id
+                        && s.active
+                        && tick.saturating_sub(s.last_active_tick) < SILENCE_THRESHOLD
+                })
+            }
+        };
+
+        if !should_switch {
+            // Our primary is silent and there is no one to switch to.
+            self.stall(StalledReason::AllInactive, tick);
+            return;
         }
 
-        // TODO(frolv): handle primary client change
+        let old_primary = primary_id;
+        let Some(new_primary) = self.select_primary_client(Some(old_primary)) else {
+            self.stall(StalledReason::AllInactive, tick);
+            return;
+        };
+
+        tracing::info!(
+            parent: &self.span,
+            old_primary,
+            new_primary,
+            "switching primary client",
+        );
+
+        self.switch_to_primary(new_primary);
+    }
+
+    /// Switches to a new primary client: increments generation, clears the
+    /// tick buffer, and requests a backfill from the new primary's stream.
+    fn switch_to_primary(&mut self, new_primary: u64) {
+        self.primary_client_id = Some(new_primary);
+        self.generation += 1;
+        self.tick_buffer.clear();
+        self.broadcast_cursor = 0;
+        self.high_water_tick = 0;
+        self.replay_chunks.clear();
+        self.request_backfill(Some(new_primary));
     }
 
     /// Returns `true` if the client has completed the reader's current stage.
@@ -752,16 +874,15 @@ impl ChallengeReader {
         self.send_to_all(&msg);
     }
 
-    fn stall(&mut self, reason: StalledReason) {
-        if self.state == ReaderState::Stalled {
+    fn stall(&mut self, reason: StalledReason, since: u64) {
+        if matches!(self.state, ReaderState::Stalled { .. }) {
             return;
         }
 
         tracing::warn!(parent: &self.span, reason = %reason.to_string(), "reader stalled");
-        self.state = ReaderState::Stalled;
+        self.primary_client_id = None;
+        self.state = ReaderState::Stalled { reason, since };
         self.send_to_all(&SseMessage::Stalled { reason });
-
-        // TODO(frolv): and then what?
     }
 
     /// Builds the full replay message sequence:
@@ -820,10 +941,17 @@ impl ChallengeReader {
         messages
     }
 
-    /// Sends a message to all subscribers, removing any that have disconnected.
-    fn send_to_all(&mut self, msg: &SseMessage) {
-        self.subscribers
-            .retain(|_, subscriber| subscriber.send(msg.clone()));
+    /// Notifies all subscribers that the server is shutting down, then drops
+    /// all senders so the SSE streams close and axum can finish draining.
+    pub fn notify_shutdown(&mut self, retry_window_secs: u32) {
+        self.send_to_all(&SseMessage::Shutdown { retry_window_secs });
+        self.subscribers.clear();
+    }
+
+    fn send_to_all(&self, msg: &SseMessage) {
+        for subscriber in self.subscribers.values() {
+            subscriber.send(msg.clone());
+        }
     }
 
     fn build_replay_chunks(&mut self, from_tick: u32) {
@@ -832,6 +960,7 @@ impl ChallengeReader {
             return;
         }
 
+        // Invalidate all chunks from the first one containing `from_tick`.
         let mut start_tick = self
             .replay_chunks
             .iter()
@@ -847,6 +976,7 @@ impl ChallengeReader {
 
         let mut size_bytes = 0;
 
+        // Concatenate tick data into chunks up to `MAX_SIZE_BYTES`.
         for entry in self.tick_buffer.iter().skip(start_tick as usize) {
             if size_bytes > 0 && size_bytes + entry.data.len() > ReplayChunk::MAX_SIZE_BYTES {
                 let mut data = BytesMut::with_capacity(size_bytes);
@@ -872,6 +1002,7 @@ impl ChallengeReader {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::cast_possible_truncation)]
     use std::collections::HashMap;
 
     use tokio::sync::mpsc;
@@ -971,11 +1102,14 @@ mod tests {
         let clients =
             HashMap::from([(1, challenge_client(1, true, 2, None, StageStatus::Started))]);
 
-        reader.apply_poll_responses(vec![
-            RedisResponse::ChallengeState(Some(challenge_state(2, None))),
-            RedisResponse::ChallengeClients(clients),
-            RedisResponse::StageStream(vec![stream_entry("1-0", 1, 3)]),
-        ]);
+        reader.apply_poll_responses(
+            vec![
+                RedisResponse::ChallengeState(Some(challenge_state(2, None))),
+                RedisResponse::ChallengeClients(clients),
+                RedisResponse::StageStream(vec![stream_entry("1-0", 1, 3)]),
+            ],
+            0,
+        );
 
         assert_eq!(reader.stage, 2);
         assert_eq!(reader.stage_attempt, None);
@@ -990,11 +1124,14 @@ mod tests {
         let clients =
             HashMap::from([(1, challenge_client(1, true, 1, None, StageStatus::Started))]);
 
-        reader.apply_poll_responses(vec![
-            RedisResponse::ChallengeState(Some(challenge_state(1, None))),
-            RedisResponse::ChallengeClients(clients),
-            RedisResponse::StageStream(vec![stream_entry("1-0", 1, 3)]),
-        ]);
+        reader.apply_poll_responses(
+            vec![
+                RedisResponse::ChallengeState(Some(challenge_state(1, None))),
+                RedisResponse::ChallengeClients(clients),
+                RedisResponse::StageStream(vec![stream_entry("1-0", 1, 3)]),
+            ],
+            0,
+        );
 
         assert_eq!(reader.poll_cursor, "1-0");
         assert_eq!(reader.tick_buffer.len(), 4);
@@ -1047,7 +1184,7 @@ mod tests {
         let entries: Vec<_> = (1..=3)
             .map(|t| stream_entry(&format!("{t}-0"), 1, t))
             .collect();
-        reader.process_stream_entries(&entries);
+        reader.process_stream_entries(&entries, 0);
 
         // New subscriber connects after data exists.
         let (tx, mut rx) = mpsc::unbounded_channel();
@@ -1221,7 +1358,7 @@ mod tests {
         let entries: Vec<_> = (1..=3)
             .map(|t| stream_entry(&format!("{t}-0"), 1, t))
             .collect();
-        reader.process_stream_entries(&entries);
+        reader.process_stream_entries(&entries, 0);
 
         // Broadcast one tick during normal operation.
         reader.broadcast();
@@ -1280,8 +1417,259 @@ mod tests {
 
         let started_clients =
             HashMap::from([(1, challenge_client(1, true, 10, None, StageStatus::Started))]);
-        reader.process_clients(&started_clients);
+        reader.process_clients(&started_clients, 0);
 
         assert_eq!(reader.stage_state, StageState::Active);
+    }
+
+    #[test]
+    fn jitter_buffer_holds_back_ticks() {
+        let mut reader = new_active_reader(1, None);
+
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        reader.add_subscriber(Subscriber::new(1, Some(1), tx));
+        drain_messages(&mut rx);
+
+        let entries: Vec<_> = (0..(JITTER_DEPTH + 1) as u32)
+            .map(|t| stream_entry(&format!("{t}-0"), 1, t))
+            .collect();
+        reader.process_stream_entries(&entries, 0);
+
+        reader.broadcast();
+        let msgs = drain_messages(&mut rx);
+        assert_eq!(msgs.len(), 1);
+
+        reader.broadcast();
+        let msgs = drain_messages(&mut rx);
+        assert_eq!(msgs.len(), 0);
+    }
+
+    #[test]
+    fn lag_recovery_bundles_ticks() {
+        let mut reader = new_active_reader(1, None);
+
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        reader.add_subscriber(Subscriber::new(1, Some(1), tx));
+        drain_messages(&mut rx);
+
+        let num_ticks = (JITTER_DEPTH + LAG_THRESHOLD + 1) as u32;
+
+        let entries: Vec<_> = (0..num_ticks)
+            .map(|t| stream_entry(&format!("{t}-0"), 1, t))
+            .collect();
+        reader.process_stream_entries(&entries, 0);
+
+        reader.broadcast();
+        let msgs = drain_messages(&mut rx);
+        assert_eq!(msgs.len(), 1);
+        match &msgs[0] {
+            SseMessage::Tick {
+                tick,
+                tick_count,
+                data,
+                ..
+            } => {
+                assert_eq!(*tick, 0);
+                assert_eq!(*tick_count, num_ticks - JITTER_DEPTH as u32);
+                assert!(!data.is_empty());
+            }
+            _ => panic!("expected Tick message"),
+        }
+
+        reader.broadcast();
+        let msgs = drain_messages(&mut rx);
+        assert_eq!(msgs.len(), 0);
+    }
+
+    #[test]
+    fn ending_stage_ignores_jitter_buffer() {
+        let mut reader = new_active_reader(1, None);
+
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        reader.add_subscriber(Subscriber::new(1, Some(1), tx));
+        drain_messages(&mut rx);
+
+        reader.process_stream_entries(&[stream_entry("0-0", 1, 0), stream_entry("1-0", 1, 1)], 0);
+
+        // Under normal broadcasting, no ticks should be sent as the reader is
+        // at the buffer.
+        reader.broadcast();
+        assert_eq!(drain_messages(&mut rx).len(), 0);
+
+        // When ending, this buffer should be drained.
+        reader.stage_state = StageState::Ending;
+        reader.broadcast();
+        let msgs = drain_messages(&mut rx);
+        assert_eq!(msgs.len(), 1);
+        assert!(matches!(msgs[0], SseMessage::Tick { .. }));
+        assert_eq!(reader.stage_state, StageState::Ending);
+
+        reader.broadcast();
+        let msgs = drain_messages(&mut rx);
+        assert_eq!(msgs.len(), 2);
+        assert!(matches!(msgs[0], SseMessage::Tick { .. }));
+        assert!(matches!(msgs[1], SseMessage::StageEnd { .. }));
+        assert_eq!(reader.stage_state, StageState::Inactive);
+    }
+
+    #[test]
+    fn ending_with_empty_buffer_finalizes_immediately() {
+        let mut reader = new_active_reader(1, None);
+
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        reader.add_subscriber(Subscriber::new(1, Some(1), tx));
+        drain_messages(&mut rx);
+
+        reader.stage_state = StageState::Ending;
+        reader.broadcast();
+
+        assert_eq!(reader.stage_state, StageState::Inactive);
+        let msgs = drain_messages(&mut rx);
+        assert_eq!(msgs.len(), 1);
+        assert!(matches!(msgs[0], SseMessage::StageEnd { .. }));
+    }
+
+    #[test]
+    fn primary_switches_when_inactive() {
+        let (backfill_tx, mut backfill_rx) = mpsc::unbounded_channel();
+        let clients = HashMap::from([
+            (1, challenge_client(1, true, 1, None, StageStatus::Started)),
+            (2, challenge_client(2, true, 1, None, StageStatus::Started)),
+        ]);
+        let mut reader = ChallengeReader::new(
+            "test".to_string(),
+            challenge_state(1, None),
+            &clients,
+            backfill_tx,
+        );
+        reader.state = ReaderState::Active;
+        reader.primary_client_id = Some(1);
+
+        // Drain the initial backfill request.
+        backfill_rx.try_recv().unwrap();
+
+        // Primary goes inactive.
+        let updated_clients = HashMap::from([
+            (1, challenge_client(1, false, 1, None, StageStatus::Started)),
+            (2, challenge_client(2, true, 1, None, StageStatus::Started)),
+        ]);
+        reader.process_clients(&updated_clients, 1);
+
+        // Should have switched to client 2 and requested backfill.
+        assert_eq!(reader.primary_client_id, Some(2));
+        assert!(matches!(reader.state, ReaderState::Backfilling(Some(2))));
+        assert_eq!(reader.generation, 1);
+        assert!(reader.tick_buffer.is_empty());
+
+        let req = backfill_rx.try_recv().unwrap();
+        assert_eq!(req.backfill_id, reader.backfill_id);
+    }
+
+    #[test]
+    fn primary_switches_when_silent() {
+        let (backfill_tx, mut backfill_rx) = mpsc::unbounded_channel();
+        let clients = HashMap::from([
+            (1, challenge_client(1, true, 1, None, StageStatus::Started)),
+            (2, challenge_client(2, true, 1, None, StageStatus::Started)),
+        ]);
+        let mut reader = ChallengeReader::new(
+            "test".to_string(),
+            challenge_state(1, None),
+            &clients,
+            backfill_tx,
+        );
+        reader.state = ReaderState::Active;
+        reader.primary_client_id = Some(1);
+        backfill_rx.try_recv().unwrap();
+
+        // Client 2 sends events at tick 10, client 1 does not.
+        reader.process_stream_entries(&[stream_entry("1-0", 2, 1)], 10);
+
+        reader.process_clients(&clients, 10);
+
+        assert_eq!(reader.primary_client_id, Some(2));
+        assert!(matches!(reader.state, ReaderState::Backfilling(Some(2))));
+        assert_eq!(reader.generation, 1);
+        backfill_rx.try_recv().unwrap();
+    }
+
+    #[test]
+    fn stalls_when_all_clients_are_silent() {
+        let mut reader = new_active_reader(1, None);
+
+        let clients = HashMap::from([
+            (1, challenge_client(1, true, 1, None, StageStatus::Started)),
+            (2, challenge_client(2, true, 1, None, StageStatus::Started)),
+        ]);
+
+        // Nobody has sent events by tick 10.
+        reader.process_clients(&clients, 10);
+
+        assert_eq!(reader.primary_client_id, None);
+        assert!(matches!(
+            reader.state,
+            ReaderState::Stalled {
+                reason: StalledReason::AllInactive,
+                since: 10
+            }
+        ));
+        assert_eq!(reader.generation, 0);
+    }
+
+    #[test]
+    fn no_switch_when_primary_is_healthy() {
+        let mut reader = new_active_reader(1, None);
+
+        // Primary sent events recently.
+        reader.process_stream_entries(&[stream_entry("1-0", 1, 1)], 8);
+
+        let clients = HashMap::from([
+            (1, challenge_client(1, true, 1, None, StageStatus::Started)),
+            (2, challenge_client(2, true, 1, None, StageStatus::Started)),
+        ]);
+        reader.process_clients(&clients, 10);
+
+        assert_eq!(reader.primary_client_id, Some(1));
+        assert_eq!(reader.state, ReaderState::Active);
+        assert_eq!(reader.generation, 0);
+    }
+
+    #[test]
+    fn backfill_after_primary_switch_uses_primary_change_reason() {
+        let (backfill_tx, _rx) = mpsc::unbounded_channel();
+        let clients = HashMap::from([
+            (1, challenge_client(1, true, 1, None, StageStatus::Started)),
+            (2, challenge_client(2, true, 1, None, StageStatus::Started)),
+        ]);
+        let mut reader = ChallengeReader::new(
+            "test".to_string(),
+            challenge_state(1, None),
+            &clients,
+            backfill_tx,
+        );
+        // Simulate initial backfill completing then primary switch.
+        reader.state = ReaderState::Backfilling(Some(2));
+        reader.primary_client_id = Some(2);
+        reader.generation = 1;
+
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        reader.add_subscriber(Subscriber::new(1, Some(1), tx));
+        drain_messages(&mut rx);
+
+        reader.apply_backfill(BackfillResult {
+            challenge_id: "test".to_string(),
+            backfill_id: reader.backfill_id,
+            entries: vec![stream_entry("1-0", 2, 1)],
+            last_stream_id: "1-0".to_string(),
+        });
+
+        let msgs = drain_messages(&mut rx);
+        assert!(msgs.len() >= 2);
+        match &msgs[0] {
+            SseMessage::Reset { reason, .. } => {
+                assert_eq!(*reason, ResetReason::PrimaryChange);
+            }
+            _ => panic!("expected Reset message"),
+        }
     }
 }

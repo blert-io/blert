@@ -1,11 +1,12 @@
 use base64::Engine as _;
 use std::convert::Infallible;
+use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use axum::Json;
-use axum::extract::{Path, Query, State};
+use axum::extract::{ConnectInfo, Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::response::sse::{Event, KeepAlive, Sse};
@@ -17,6 +18,7 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use crate::AppState;
 use crate::broadcast::{BroadcastError, BroadcastManager, SubscriberHandle};
 use crate::message::SseMessage;
+use crate::rate_limit::ConnectionGuard;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -43,17 +45,23 @@ pub struct LiveQuery {
 
 pub async fn live(
     State(state): State<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Path(challenge_id): Path<String>,
     Query(query): Query<LiveQuery>,
 ) -> Result<Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>>, StatusCode> {
+    let conn_guard = state
+        .rate_limiter
+        .try_acquire(addr.ip())
+        .map_err(|_| StatusCode::TOO_MANY_REQUESTS)?;
+
     let (handle, receiver) = {
         let mut mgr = state.broadcast_manager.lock().await;
         mgr.subscribe(challenge_id.clone(), query.stage)
             .await
-            .map_err(|e| {
-                if let BroadcastError::ChallengeNotFound(_) = e {
-                    StatusCode::NOT_FOUND
-                } else {
+            .map_err(|e| match e {
+                BroadcastError::ChallengeNotFound(_) => StatusCode::NOT_FOUND,
+                BroadcastError::ShuttingDown => StatusCode::SERVICE_UNAVAILABLE,
+                _ => {
                     tracing::error!(challenge_id = %challenge_id, "subscribe error: {e}");
                     StatusCode::INTERNAL_SERVER_ERROR
                 }
@@ -63,6 +71,7 @@ pub async fn live(
     let unsub = Unsubscribe {
         manager: state.broadcast_manager.clone(),
         handle: Some(handle),
+        _conn_guard: conn_guard,
     };
 
     let stream = UnboundedReceiverStream::new(receiver).map(|msg| Ok(sse_event(&msg)));
@@ -117,32 +126,39 @@ fn sse_event(msg: &SseMessage) -> Event {
             start_tick,
             tick_count,
             data,
-        } => Event::default().event("replay-chunk").data(
-            serde_json::json!({
-                "generation": generation,
-                "startTick": start_tick,
-                "tickCount": tick_count,
-                "data": base64::engine::general_purpose::STANDARD.encode(data),
-            })
-            .to_string(),
-        ),
+        } => Event::default()
+            .event("replay-chunk")
+            .id(format!("{generation}:{}", start_tick + tick_count - 1))
+            .data(
+                serde_json::json!({
+                    "generation": generation,
+                    "startTick": start_tick,
+                    "tickCount": tick_count,
+                    "data": base64::engine::general_purpose::STANDARD.encode(data),
+                })
+                .to_string(),
+            ),
         SseMessage::ReplayEnd { generation, tick } => Event::default()
             .event("replay-end")
+            .id(format!("{generation}:{tick}"))
             .data(serde_json::json!({"generation": generation, "tick": tick}).to_string()),
         SseMessage::Tick {
             generation,
             tick,
             tick_count,
             data,
-        } => Event::default().event("tick").data(
-            serde_json::json!({
-                "generation": generation,
-                "tick": tick,
-                "tickCount": tick_count,
-                "data": base64::engine::general_purpose::STANDARD.encode(data),
-            })
-            .to_string(),
-        ),
+        } => Event::default()
+            .event("tick")
+            .id(format!("{generation}:{}", tick + tick_count - 1))
+            .data(
+                serde_json::json!({
+                    "generation": generation,
+                    "tick": tick,
+                    "tickCount": tick_count,
+                    "data": base64::engine::general_purpose::STANDARD.encode(data),
+                })
+                .to_string(),
+            ),
         SseMessage::StageChange { stage, attempt } => Event::default()
             .event("stage-change")
             .data(serde_json::json!({"stage": stage, "attempt": attempt}).to_string()),
@@ -159,10 +175,12 @@ fn sse_event(msg: &SseMessage) -> Event {
     }
 }
 
-/// Drop guard that unsubscribes from the broadcast manager.
+/// Drop guard that unsubscribes from the broadcast manager and releases the
+/// rate limiter connection slot.
 struct Unsubscribe {
     manager: Arc<Mutex<BroadcastManager>>,
     handle: Option<SubscriberHandle>,
+    _conn_guard: ConnectionGuard,
 }
 
 impl Drop for Unsubscribe {

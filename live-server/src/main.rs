@@ -13,8 +13,8 @@ mod backfill;
 mod broadcast;
 mod config;
 mod message;
+mod rate_limit;
 mod reader;
-#[expect(dead_code)]
 mod redis;
 mod routes;
 mod subscriber;
@@ -26,6 +26,7 @@ use config::Config;
 pub struct AppState {
     pub start_time: Instant,
     pub broadcast_manager: Arc<Mutex<BroadcastManager>>,
+    pub rate_limiter: Arc<rate_limit::RateLimiter>,
 }
 
 #[tokio::main]
@@ -55,9 +56,16 @@ async fn main() {
         .await
         .expect("failed to connect to redis");
 
+    let rate_limiter = rate_limit::RateLimiter::new(
+        config.rate_limit.max_requests,
+        config.rate_limit.window,
+        config.rate_limit.max_concurrent_connections,
+    );
+
     let state = AppState {
         start_time: Instant::now(),
         broadcast_manager: Arc::new(Mutex::new(broadcast_manager)),
+        rate_limiter: Arc::new(rate_limiter),
     };
 
     tokio::spawn(backfill_manager.run());
@@ -77,6 +85,8 @@ async fn main() {
             .map(|o| o.parse().expect("invalid origin")),
     ));
 
+    let shutdown_manager = state.broadcast_manager.clone();
+
     let app = Router::new()
         .route("/health", get(routes::health))
         .route("/ping", get(routes::ping))
@@ -86,7 +96,31 @@ async fn main() {
 
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
     tracing::info!(port = config.port, "live server starting");
+    let shutdown_signal = async move {
+        #[cfg(unix)]
+        {
+            use tokio::signal::unix::{SignalKind, signal};
+            let mut sigterm =
+                signal(SignalKind::terminate()).expect("failed to install SIGTERM handler");
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {}
+                _ = sigterm.recv() => {}
+            }
+        }
+        #[cfg(not(unix))]
+        tokio::signal::ctrl_c().await.ok();
+
+        tracing::info!("shutdown signal received, notifying subscribers");
+        let mut mgr = shutdown_manager.lock().await;
+        mgr.shutdown_all(10);
+    };
 
     let listener = TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal)
+    .await
+    .unwrap();
 }

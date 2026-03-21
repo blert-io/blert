@@ -81,6 +81,7 @@ const CHALLENGE_UPDATES_PUBSUB_KEY: &str = "challenge-updates";
 
 /// Subset of challenge hash fields needed by the live-server.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct ChallengeState {
     pub status: ChallengeStatus,
     pub challenge_type: i32,
@@ -158,6 +159,7 @@ impl ChallengeState {
 // Matches `ChallengeClient` in `//common/challenge-server/redis-client.ts`.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct ChallengeClient {
     pub user_id: u64,
     pub client_id: u64,
