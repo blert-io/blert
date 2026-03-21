@@ -13,7 +13,7 @@ scrape_configs:
     pipeline_stages:
       - docker: {}
       - match:
-          selector: '{service=~"socket-server|challenge-server"}'
+          selector: '{service=~"socket-server|challenge-server|live-server"}'
           stages:
             - json:
                 expressions:

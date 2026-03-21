@@ -95,7 +95,9 @@ impl BackfillManager {
                 })
                 .collect();
 
+            let timer = crate::metrics::BACKFILL_DURATION.start_timer();
             let responses = redis::execute(&mut self.redis_conn, &queries).await;
+            timer.observe_duration();
 
             match responses {
                 Ok(responses) => {
