@@ -348,6 +348,11 @@ fn parse_stage_stream_response(value: Value) -> Result<Vec<StageStreamEntry>, Re
     Ok(result)
 }
 
+/// Pings Redis to check connectivity.
+pub async fn ping(conn: &mut impl redis::aio::ConnectionLike) -> bool {
+    redis::cmd("PING").query_async::<String>(conn).await.is_ok()
+}
+
 /// Execute a batch of queries in a single pipelined Redis round-trip.
 pub async fn execute(
     conn: &mut impl redis::aio::ConnectionLike,

@@ -24,18 +24,32 @@ use crate::rate_limit::ConnectionGuard;
 #[serde(rename_all = "camelCase")]
 pub struct HealthResponse {
     status: &'static str,
+    redis: &'static str,
     uptime_secs: u64,
 }
 
 pub async fn health(State(state): State<AppState>) -> Json<HealthResponse> {
+    let redis_ok = {
+        let mut mgr = state.broadcast_manager.lock().await;
+        mgr.ping_redis().await
+    };
     Json(HealthResponse {
-        status: "healthy",
+        status: if redis_ok { "healthy" } else { "unhealthy" },
+        redis: if redis_ok {
+            "connected"
+        } else {
+            "disconnected"
+        },
         uptime_secs: state.start_time.elapsed().as_secs(),
     })
 }
 
 pub async fn ping() -> impl IntoResponse {
     "pong"
+}
+
+pub async fn metrics() -> impl IntoResponse {
+    crate::metrics::encode_metrics()
 }
 
 #[derive(Deserialize)]

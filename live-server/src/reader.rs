@@ -100,11 +100,11 @@ impl ReplayChunk {
 
 /// Manages the state for a single live challenge being watched.
 pub struct ChallengeReader {
-    /// Tracing span for this reader — all log calls scoped with `challenge_id`.
+    /// Tracing span for this reader, scoping logs with `uuid`.
     span: tracing::Span,
 
     uuid: String,
-    challenge_type: i32,
+    challenge_type: proto::Challenge,
     challenge_mode: i32,
 
     /// Current stage of the challenge.
@@ -185,7 +185,8 @@ impl ChallengeReader {
         let mut reader = Self {
             span,
             uuid,
-            challenge_type: state.challenge_type,
+            challenge_type: proto::Challenge::try_from(state.challenge_type)
+                .unwrap_or(proto::Challenge::UnknownChallenge),
             challenge_mode: state.mode,
             stage: state.stage,
             stage_attempt: state.stage_attempt,
@@ -248,6 +249,10 @@ impl ChallengeReader {
     /// `tick` is the global broadcast tick from the manager, used for
     /// silence-based primary switching.
     pub fn apply_poll_responses(&mut self, responses: Vec<RedisResponse>, tick: u64) {
+        if self.state == ReaderState::Completed {
+            return;
+        }
+
         let queried_stage = self.stage;
         let queried_attempt = self.stage_attempt;
         let mut stream_entries: Option<Vec<StageStreamEntry>> = None;
@@ -353,6 +358,7 @@ impl ChallengeReader {
                 data: entry.data,
             }
         } else {
+            crate::metrics::LAG_RECOVERIES_TOTAL.inc();
             let start_tick = first.tick;
             let mut combined = BytesMut::new();
             for i in 0..ticks_to_send {
@@ -413,7 +419,7 @@ impl ChallengeReader {
 
         self.primary_client_id = pre_selected_primary;
         if self.primary_client_id.is_none() {
-            self.primary_client_id = self.select_primary_client(None);
+            self.primary_client_id = self.select_primary_client(0, None);
         }
 
         // If all clients are inactive and no primary is selected, some data is
@@ -432,8 +438,11 @@ impl ChallengeReader {
             self.build_replay_chunks(rebuild_from);
         }
 
-        // All backfill data is history; broadcast starts from the end.
-        self.broadcast_cursor = self.tick_buffer.len();
+        // Replay excludes the last JITTER_DEPTH ticks (they haven't been sent
+        // to subscribers yet). Set the broadcast cursor to match so those ticks
+        // enter the normal broadcast path once new events push the buffer past
+        // the jitter threshold.
+        self.broadcast_cursor = self.tick_buffer.len().saturating_sub(JITTER_DEPTH);
         self.poll_cursor = result.last_stream_id;
         self.state = ReaderState::Active;
 
@@ -485,7 +494,7 @@ impl ChallengeReader {
     /// Adds a subscriber to this reader and sends it initial metadata.
     pub fn add_subscriber(&mut self, mut subscriber: Subscriber) {
         subscriber.send(SseMessage::Metadata {
-            challenge_type: self.challenge_type,
+            challenge_type: self.challenge_type as i32,
             mode: self.challenge_mode,
             stage: self.stage,
             attempt: self.stage_attempt,
@@ -524,6 +533,14 @@ impl ChallengeReader {
 
     pub fn has_subscribers(&self) -> bool {
         !self.subscribers.is_empty()
+    }
+
+    pub fn subscriber_count(&self) -> usize {
+        self.subscribers.len()
+    }
+
+    pub fn challenge_type(&self) -> proto::Challenge {
+        self.challenge_type
     }
 
     /// Processes stream entries from an incremental poll: counts events,
@@ -626,15 +643,16 @@ impl ChallengeReader {
         dirty_from
     }
 
-    /// Selects a new primary client from `client_states`, optionally excluding
-    /// the client specified by `exclude`.
-    fn select_primary_client(&self, exclude: Option<u64>) -> Option<u64> {
-        // Simple heuristic: pick the active client with the highest event count
-        // for the current stage.
+    /// Selects a new primary client from `client_states`, considering clients
+    /// that have sent events since `active_since`, and optionally excluding the
+    /// client specified by `exclude`.
+    ///
+    /// Among candidates, the client with the highest event count is selected.
+    fn select_primary_client(&self, active_since: u64, exclude: Option<u64>) -> Option<u64> {
         self.client_states
             .iter()
             .filter(|(id, _)| exclude.is_none_or(|e| e != **id))
-            .filter(|(_, s)| s.active)
+            .filter(|(_, s)| s.active && s.last_active_tick >= active_since)
             .max_by_key(|(_, s)| s.event_count)
             .map(|(id, _)| *id)
     }
@@ -747,7 +765,7 @@ impl ChallengeReader {
         if matches!(self.state, ReaderState::Stalled { .. }) {
             tracing::info!(parent: &self.span, "recording resumed");
             self.state = ReaderState::Active;
-            if let Some(primary_id) = self.select_primary_client(None) {
+            if let Some(primary_id) = self.select_primary_client(0, None) {
                 self.switch_to_primary(primary_id);
             } else {
                 // Unreachable: the check above ensures a client is active,
@@ -764,7 +782,7 @@ impl ChallengeReader {
                 self.check_primary_switch(primary_id, tick);
             }
             None => {
-                self.primary_client_id = self.select_primary_client(None);
+                self.primary_client_id = self.select_primary_client(0, None);
             }
         }
     }
@@ -777,30 +795,33 @@ impl ChallengeReader {
     /// - Primary is silent for [`SILENCE_THRESHOLD`] ticks while another client
     ///   is actively streaming.
     fn check_primary_switch(&mut self, primary_id: u64, tick: u64) {
-        let should_switch = match self.client_states.get(&primary_id) {
-            None => true,
-            Some(ps) if !ps.active => true,
+        let (switch_reason, candidate_active_since) = match self.client_states.get(&primary_id) {
+            None => ("missing", 0),
+            Some(ps) if !ps.active => ("inactive", 0),
             Some(ps) => {
                 if tick.saturating_sub(ps.last_active_tick) < SILENCE_THRESHOLD {
                     // Client is healthy.
                     return;
                 }
-                self.client_states.iter().any(|(id, s)| {
-                    *id != primary_id
-                        && s.active
-                        && tick.saturating_sub(s.last_active_tick) < SILENCE_THRESHOLD
-                })
+                ("silent", tick.saturating_sub(SILENCE_THRESHOLD) + 1)
             }
         };
 
-        if !should_switch {
-            // Our primary is silent and there is no one to switch to.
-            self.stall(StalledReason::AllInactive, tick);
+        let has_other_clients = self.client_states.iter().any(|(id, s)| {
+            *id != primary_id
+                && s.active
+                && tick.saturating_sub(s.last_active_tick) < SILENCE_THRESHOLD
+        });
+        if !has_other_clients {
+            // Primary is gone and there is no one to switch to.
+            self.stall(StalledReason::AllSilent, tick);
             return;
         }
 
         let old_primary = primary_id;
-        let Some(new_primary) = self.select_primary_client(Some(old_primary)) else {
+        let Some(new_primary) =
+            self.select_primary_client(candidate_active_since, Some(old_primary))
+        else {
             self.stall(StalledReason::AllInactive, tick);
             return;
         };
@@ -809,8 +830,12 @@ impl ChallengeReader {
             parent: &self.span,
             old_primary,
             new_primary,
+            reason = switch_reason,
             "switching primary client",
         );
+        crate::metrics::PRIMARY_SWITCHES_TOTAL
+            .with_label_values(&[switch_reason])
+            .inc();
 
         self.switch_to_primary(new_primary);
     }
@@ -880,6 +905,7 @@ impl ChallengeReader {
         }
 
         tracing::warn!(parent: &self.span, reason = %reason.to_string(), "reader stalled");
+        crate::metrics::STALLED_CHALLENGES_TOTAL.inc();
         self.primary_client_id = None;
         self.state = ReaderState::Stalled { reason, since };
         self.send_to_all(&SseMessage::Stalled { reason });
@@ -895,6 +921,10 @@ impl ChallengeReader {
 
         let generation = self.generation;
         let mut messages = Vec::with_capacity(self.replay_chunks.len() + 3);
+
+        crate::metrics::RESETS_TOTAL
+            .with_label_values(&[reason.as_str()])
+            .inc();
 
         messages.push(SseMessage::Reset {
             reason,
@@ -918,10 +948,11 @@ impl ChallengeReader {
             .replay_chunks
             .last()
             .map_or(0, |c| (c.end_tick() + 1) as usize);
-        if tail_start < self.tick_buffer.len() {
-            let tick_count = self.tick_buffer.len() - tail_start;
+        let tail_end = self.tick_buffer.len().saturating_sub(JITTER_DEPTH);
+        if tail_start < tail_end {
+            let tick_count = tail_end - tail_start;
             let mut data = BytesMut::new();
-            for i in tail_start..self.tick_buffer.len() {
+            for i in tail_start..tail_end {
                 data.extend_from_slice(&self.tick_buffer[i].data);
             }
             messages.push(SseMessage::ReplayChunk {
@@ -932,7 +963,7 @@ impl ChallengeReader {
             });
         }
 
-        let last_tick = self.tick_buffer.len().saturating_sub(1) as u32;
+        let last_tick = self.tick_buffer.len().saturating_sub(JITTER_DEPTH) as u32;
         messages.push(SseMessage::ReplayEnd {
             generation,
             tick: last_tick,
@@ -1236,13 +1267,28 @@ mod tests {
         assert_eq!(reader.state, ReaderState::Active);
         assert_eq!(reader.primary_client_id, Some(2));
 
-        // A new subscriber receives a replay of the backfilled data.
+        // Subscriber receives a replay of the backfilled data.
         let msgs = drain_messages(&mut rx);
         assert!(msgs.len() >= 3);
         assert!(matches!(msgs[0], SseMessage::Reset { .. }));
         assert!(matches!(msgs.last().unwrap(), SseMessage::ReplayEnd { .. }));
-        for msg in &msgs[1..msgs.len() - 1] {
-            assert!(matches!(msg, SseMessage::ReplayChunk { .. }));
+        for (i, msg) in msgs[1..msgs.len() - 1].iter().enumerate() {
+            assert!(
+                matches!(msg, SseMessage::ReplayChunk { start_tick, .. } if *start_tick == i as u32)
+            );
+        }
+
+        // The replay excludes the last JITTER_DEPTH ticks from the backfill.
+        // Those ticks must still be delivered via normal broadcast once new
+        // events push the buffer past the jitter threshold.
+        reader.process_stream_entries(&[stream_entry("5-0", 2, 4), stream_entry("6-0", 2, 5)], 1);
+
+        reader.broadcast();
+        let msgs = drain_messages(&mut rx);
+        assert_eq!(msgs.len(), 1);
+        match &msgs[0] {
+            SseMessage::Tick { tick, .. } => assert_eq!(*tick, 2),
+            other => panic!("expected Tick, got {other:?}"),
         }
     }
 
@@ -1594,6 +1640,45 @@ mod tests {
     }
 
     #[test]
+    fn silent_switch_prefers_recently_active_client() {
+        let (backfill_tx, mut backfill_rx) = mpsc::unbounded_channel();
+        let clients = HashMap::from([
+            (1, challenge_client(1, true, 1, None, StageStatus::Started)),
+            (2, challenge_client(2, true, 1, None, StageStatus::Started)),
+            (3, challenge_client(3, true, 1, None, StageStatus::Started)),
+        ]);
+        let mut reader = ChallengeReader::new(
+            "test".to_string(),
+            challenge_state(1, None),
+            &clients,
+            backfill_tx,
+        );
+        reader.state = ReaderState::Active;
+        reader.primary_client_id = Some(1);
+        backfill_rx.try_recv().unwrap();
+
+        // Client 3 has high historic event count but stopped sending early.
+        reader.process_stream_entries(
+            &[
+                stream_entry("1-0", 3, 1),
+                stream_entry("2-0", 3, 2),
+                stream_entry("3-0", 3, 3),
+                stream_entry("4-0", 3, 4),
+                stream_entry("5-0", 3, 5),
+            ],
+            2,
+        );
+
+        // Client 2 has fewer events but sent them recently.
+        reader.process_stream_entries(&[stream_entry("6-0", 2, 1)], 10);
+
+        reader.process_clients(&clients, 10);
+        assert_eq!(reader.primary_client_id, Some(2));
+        assert!(matches!(reader.state, ReaderState::Backfilling(Some(2))));
+        backfill_rx.try_recv().unwrap();
+    }
+
+    #[test]
     fn stalls_when_all_clients_are_silent() {
         let mut reader = new_active_reader(1, None);
 
@@ -1609,7 +1694,7 @@ mod tests {
         assert!(matches!(
             reader.state,
             ReaderState::Stalled {
-                reason: StalledReason::AllInactive,
+                reason: StalledReason::AllSilent,
                 since: 10
             }
         ));

@@ -66,6 +66,11 @@ impl BroadcastManager {
         })
     }
 
+    /// Pings Redis to check connectivity. Returns `true` if reachable.
+    pub async fn ping_redis(&mut self) -> bool {
+        redis::ping(&mut self.redis_conn).await
+    }
+
     /// Subscribes to a challenge, creating a reader if one doesn't exist.
     ///
     /// Returns a handle for unsubscribing and a receiver for SSE messages.
@@ -106,9 +111,14 @@ impl BroadcastManager {
             .get_mut(&challenge_id)
             .expect("reader just inserted");
 
+        let challenge_type = reader.challenge_type().as_str_name();
         reader.add_subscriber(subscriber);
         self.subscriber_challenges
             .insert(subscriber_id, challenge_id);
+
+        crate::metrics::SUBSCRIBER_CONNECTIONS_TOTAL
+            .with_label_values(&[challenge_type])
+            .inc();
 
         Ok((SubscriberHandle { subscriber_id }, rx))
     }
@@ -126,6 +136,9 @@ impl BroadcastManager {
                 subscriber_id = handle.subscriber_id,
                 "subscriber disconnected",
             );
+            crate::metrics::SUBSCRIBER_DISCONNECTIONS_TOTAL
+                .with_label_values(&[reader.challenge_type().as_str_name(), "client_close"])
+                .inc();
             reader.remove_subscriber(handle.subscriber_id);
 
             if !reader.has_subscribers() {
@@ -193,18 +206,34 @@ impl BroadcastManager {
             }
         }
 
-        // Broadcast from each reader and collect disconnected subscribers.
+        // Broadcast from each reader and collect disconnected subscribers,
+        crate::metrics::ACTIVE_READERS.reset();
+        let mut total_subscribers = 0;
+
         for (uuid, reader) in &mut self.readers {
             let disconnected = reader.broadcast();
-            for sub_id in disconnected {
-                reader.remove_subscriber(sub_id);
-                self.subscriber_challenges.remove(&sub_id);
+            if !disconnected.is_empty() {
+                crate::metrics::SUBSCRIBER_DISCONNECTIONS_TOTAL
+                    .with_label_values(&[reader.challenge_type().as_str_name(), "send_failed"])
+                    .inc_by(disconnected.len() as u64);
+                for sub_id in disconnected {
+                    reader.remove_subscriber(sub_id);
+                    self.subscriber_challenges.remove(&sub_id);
+                }
             }
             if !reader.has_subscribers() && !self.grace_periods.contains_key(uuid) {
                 self.grace_periods
                     .insert(uuid.clone(), tokio::time::Instant::now());
             }
+
+            crate::metrics::ACTIVE_READERS
+                .with_label_values(&[reader.challenge_type().as_str_name()])
+                .inc();
+            total_subscribers += reader.subscriber_count();
         }
+
+        #[allow(clippy::cast_possible_wrap)]
+        crate::metrics::ACTIVE_SUBSCRIBERS.set(total_subscribers as i64);
     }
 
     /// Applies a completed backfill result to the appropriate reader.
@@ -253,6 +282,7 @@ impl BroadcastManager {
             reader.notify_shutdown(retry_window_secs);
         }
         self.subscriber_challenges.clear();
+        crate::metrics::ACTIVE_SUBSCRIBERS.set(0);
     }
 }
 
@@ -305,7 +335,10 @@ pub async fn run_tick_loop(manager: Arc<Mutex<BroadcastManager>>) {
         let responses = if queries.is_empty() {
             Vec::new()
         } else {
-            match redis::execute(&mut redis_conn, &queries).await {
+            let poll_timer = crate::metrics::REDIS_POLL_DURATION.start_timer();
+            let result = redis::execute(&mut redis_conn, &queries).await;
+            poll_timer.observe_duration();
+            match result {
                 Ok(r) => r,
                 Err(e) => {
                     tracing::error!("redis pipeline error: {e}");
@@ -315,13 +348,16 @@ pub async fn run_tick_loop(manager: Arc<Mutex<BroadcastManager>>) {
         };
 
         // TODO(frolv): Eventually, instead of holding the lock over the whole
-        // manager, it should have per-reader locks.
+        // manager, it should have per-reader locks. Not because it's needed
+        // (I bet this thing never gets more than 25 concurrent readers; 99%+ of
+        // the time it will be at zero), but because it's _right_.
         {
+            let broadcast_timer = crate::metrics::BROADCAST_TICK_DURATION.start_timer();
             let mut mgr = manager.lock().await;
             mgr.broadcast_responses(responses);
             mgr.clean_up_expired_readers();
-
             mgr.tick += 1;
+            broadcast_timer.observe_duration();
         }
     }
 }

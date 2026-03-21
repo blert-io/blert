@@ -77,6 +77,8 @@ pub enum StalledReason {
     NoClients,
     /// All recording clients are inactive.
     AllInactive,
+    /// Clients are connected but none are sending events.
+    AllSilent,
 }
 
 impl ResetReason {
@@ -93,6 +95,7 @@ impl std::fmt::Display for StalledReason {
         match self {
             StalledReason::NoClients => write!(f, "NO_CLIENTS"),
             StalledReason::AllInactive => write!(f, "ALL_INACTIVE"),
+            StalledReason::AllSilent => write!(f, "ALL_SILENT"),
         }
     }
 }

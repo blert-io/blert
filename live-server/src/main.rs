@@ -13,6 +13,7 @@ mod backfill;
 mod broadcast;
 mod config;
 mod message;
+mod metrics;
 mod rate_limit;
 mod reader;
 mod redis;
@@ -90,6 +91,7 @@ async fn main() {
     let app = Router::new()
         .route("/health", get(routes::health))
         .route("/ping", get(routes::ping))
+        .route("/metrics", get(routes::metrics))
         .route("/challenges/{challenge_id}/live", get(routes::live))
         .layer(cors)
         .with_state(state);
