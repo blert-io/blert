@@ -40,6 +40,10 @@ pub struct BroadcastManager {
     reader_query_counts: Vec<(String, usize)>,
     /// Sender for backfill requests.
     backfill_tx: mpsc::UnboundedSender<BackfillRequest>,
+    /// Monotonically increasing tick counter, incremented each broadcast cycle.
+    tick: u64,
+    /// Set on shutdown to reject new subscriptions.
+    shutting_down: bool,
 }
 
 impl BroadcastManager {
@@ -57,6 +61,8 @@ impl BroadcastManager {
             subscriber_challenges: HashMap::new(),
             reader_query_counts: Vec::new(),
             backfill_tx,
+            tick: 0,
+            shutting_down: false,
         })
     }
 
@@ -68,6 +74,10 @@ impl BroadcastManager {
         challenge_id: String,
         requested_stage: Option<i32>,
     ) -> Result<(SubscriberHandle, mpsc::UnboundedReceiver<SseMessage>), BroadcastError> {
+        if self.shutting_down {
+            return Err(BroadcastError::ShuttingDown);
+        }
+
         let subscriber_id = self.next_subscriber_id;
         self.next_subscriber_id += 1;
 
@@ -174,7 +184,7 @@ impl BroadcastManager {
             if let Some(reader) = self.readers.get_mut(uuid) {
                 let reader_responses: Vec<RedisResponse> =
                     (&mut response_iter).take(*count).collect();
-                reader.apply_poll_responses(reader_responses);
+                reader.apply_poll_responses(reader_responses, self.tick);
             } else {
                 // Reader was removed during I/O; skip its responses.
                 for _ in 0..*count {
@@ -231,6 +241,18 @@ impl BroadcastManager {
             self.grace_periods.remove(uuid);
             tracing::info!(challenge_id = %uuid, "reader removed after grace period");
         }
+    }
+
+    /// Notifies all subscribers across all readers that the server is shutting
+    /// down. Clients should close, wait a random delay within the retry window,
+    /// then reconnect to spread the thundering herd.
+    /// Following this, new subscriptions will be rejected.
+    pub fn shutdown_all(&mut self, retry_window_secs: u32) {
+        self.shutting_down = true;
+        for reader in self.readers.values_mut() {
+            reader.notify_shutdown(retry_window_secs);
+        }
+        self.subscriber_challenges.clear();
     }
 }
 
@@ -296,10 +318,10 @@ pub async fn run_tick_loop(manager: Arc<Mutex<BroadcastManager>>) {
         // manager, it should have per-reader locks.
         {
             let mut mgr = manager.lock().await;
-            if !responses.is_empty() {
-                mgr.broadcast_responses(responses);
-            }
+            mgr.broadcast_responses(responses);
             mgr.clean_up_expired_readers();
+
+            mgr.tick += 1;
         }
     }
 }
@@ -312,4 +334,6 @@ pub enum BroadcastError {
     ChallengeNotFound(String),
     #[error("unexpected redis response")]
     UnexpectedResponse,
+    #[error("server is shutting down")]
+    ShuttingDown,
 }
