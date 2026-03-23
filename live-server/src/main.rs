@@ -74,9 +74,7 @@ async fn main() {
         state.broadcast_manager.clone(),
         backfill_result_rx,
     ));
-    broadcast::spawn_pubsub_listener(state.broadcast_manager.clone(), &redis_client)
-        .await
-        .expect("failed to subscribe to challenge updates");
+    broadcast::spawn_pubsub_listener(state.broadcast_manager.clone(), redis_client.clone());
     tokio::spawn(broadcast::run_tick_loop(state.broadcast_manager.clone()));
 
     let cors = CorsLayer::new().allow_origin(AllowOrigin::list(

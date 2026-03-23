@@ -287,25 +287,31 @@ impl BroadcastManager {
 }
 
 /// Subscribes to challenge updates via Redis pubsub and spawns a task that
-/// dispatches them to the appropriate reader.
-pub async fn spawn_pubsub_listener(
-    manager: Arc<Mutex<BroadcastManager>>,
-    redis_client: &::redis::Client,
-) -> Result<(), redis::RedisQueryError> {
-    let mut receiver = redis::subscribe_challenge_updates(redis_client).await?;
-
+/// dispatches them to the appropriate reader. Automatically resubscribes
+/// if the connection drops.
+pub fn spawn_pubsub_listener(manager: Arc<Mutex<BroadcastManager>>, redis_client: ::redis::Client) {
     tokio::spawn(async move {
-        tracing::info!("pubsub listener started");
+        loop {
+            let mut receiver = match redis::subscribe_challenge_updates(&redis_client).await {
+                Ok(rx) => {
+                    tracing::info!("pubsub listener started");
+                    rx
+                }
+                Err(e) => {
+                    tracing::error!("failed to subscribe to challenge updates: {e}");
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                    continue;
+                }
+            };
 
-        while let Some(update) = receiver.recv().await {
-            let mut mgr = manager.lock().await;
-            mgr.apply_challenge_update(&update);
+            while let Some(update) = receiver.recv().await {
+                let mut mgr = manager.lock().await;
+                mgr.apply_challenge_update(&update);
+            }
+
+            tracing::warn!("pubsub connection lost, reconnecting");
         }
-
-        tracing::warn!("pubsub listener ended");
     });
-
-    Ok(())
 }
 
 /// The main broadcast tick loop.

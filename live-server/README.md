@@ -111,7 +111,8 @@ An SSE stream consists of the following message types:
 - `stage-change`: A new stage has started.
 - `complete`: The challenge has finished.
 - `reset`: The event stream for the current stage has changed. `reset` is
-  always followed by one or more `replay-chunk` messages, then a `replay-end`.
+  always followed by zero or more `replay-chunk` messages, then a
+  `replay-end`.
 - `replay-chunk`: A chunk of historical events during catch-up, in tick order.
   Chunks are split by byte size, not tick count, but are always split on tick
   boundaries so that no two chunks overlap in time.

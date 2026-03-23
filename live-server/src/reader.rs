@@ -277,7 +277,11 @@ impl ChallengeReader {
             }
         }
 
-        if let Some(entries) = stream_entries {
+        // `process_clients` could have triggered a state change from active, in
+        // which case the stream entries are stale.
+        if self.state == ReaderState::Active
+            && let Some(entries) = stream_entries
+        {
             if self.stage == queried_stage && self.stage_attempt == queried_attempt {
                 self.process_stream_entries(&entries, tick);
             } else {
@@ -292,6 +296,10 @@ impl ChallengeReader {
                 );
             }
         }
+
+        // Gauge the primary's health after processing the stream, so that it
+        // reflects data received in this poll.
+        self.update_primary(tick);
     }
 
     /// Handles a challenge update from the pubsub channel.
@@ -759,20 +767,27 @@ impl ChallengeReader {
 
         if !clients.values().any(|client| client.active) {
             self.stall(StalledReason::AllInactive, tick);
-            return;
         }
+    }
 
-        if matches!(self.state, ReaderState::Stalled { .. }) {
-            tracing::info!(parent: &self.span, "recording resumed");
-            self.state = ReaderState::Active;
-            if let Some(primary_id) = self.select_primary_client(0, None) {
-                self.switch_to_primary(primary_id);
+    /// Evaluates the primary client after stream entries have been processed,
+    /// so that `last_active_tick` reflects the current poll's data.
+    ///
+    /// Handles stall recovery and silence-based primary switching.
+    fn update_primary(&mut self, tick: u64) {
+        if let ReaderState::Stalled { reason, .. } = self.state {
+            let active_since = if reason == StalledReason::AllSilent {
+                // For silence-based stalls, require a client to have actually
+                // sent events recently before recovering.
+                tick.saturating_sub(SILENCE_THRESHOLD) + 1
             } else {
-                // Unreachable: the check above ensures a client is active,
-                // so `select_primary_client` will find it.
-                // But I'm not going to eat a hubris sandwich.
-                tracing::error!(parent: &self.span, "if you're reading this something is cooked");
-                self.stall(StalledReason::AllInactive, tick);
+                // Otherwise, pick any active client that becomes available.
+                0
+            };
+            if let Some(primary_id) = self.select_primary_client(active_since, None) {
+                tracing::info!(parent: &self.span, "recording resumed");
+                self.state = ReaderState::Active;
+                self.switch_to_primary(primary_id);
             }
             return;
         }
@@ -912,7 +927,7 @@ impl ChallengeReader {
     }
 
     /// Builds the full replay message sequence:
-    /// `reset` -> one or more `replay-chunk` -> `replay-end`.
+    /// `reset` -> zero or more `replay-chunk` -> `replay-end`.
     ///
     /// Uses cached complete chunks plus a trailing partial chunk built on
     /// demand from the remaining tick buffer entries.
@@ -934,25 +949,31 @@ impl ChallengeReader {
             generation,
         });
 
+        // Send only cached chunks that end strictly before the live cursor.
+        // A cached chunk can extend beyond `broadcast_cursor` because chunking
+        // is size-based rather than cursor-based; anything from the first such
+        // chunk onward must be rebuilt dynamically below.
+        let mut tail_start = 0;
         for chunk in &self.replay_chunks {
+            if (chunk.end_tick() + 1) as usize > self.broadcast_cursor {
+                break;
+            }
+
             messages.push(SseMessage::ReplayChunk {
                 generation,
                 start_tick: chunk.start_tick,
                 tick_count: chunk.tick_count,
                 data: chunk.data.clone(),
             });
+            tail_start = (chunk.end_tick() + 1) as usize;
         }
 
-        // Create trailing partial chunk from everything after the last cached chunk.
-        let tail_start = self
-            .replay_chunks
-            .last()
-            .map_or(0, |c| (c.end_tick() + 1) as usize);
-        let tail_end = self.tick_buffer.len().saturating_sub(JITTER_DEPTH);
-        if tail_start < tail_end {
-            let tick_count = tail_end - tail_start;
+        // Create a trailing partial chunk from everything after the last
+        // cursor-safe cached chunk.
+        if tail_start < self.broadcast_cursor {
+            let tick_count = self.broadcast_cursor - tail_start;
             let mut data = BytesMut::new();
-            for i in tail_start..tail_end {
+            for i in tail_start..self.broadcast_cursor {
                 data.extend_from_slice(&self.tick_buffer[i].data);
             }
             messages.push(SseMessage::ReplayChunk {
@@ -963,10 +984,12 @@ impl ChallengeReader {
             });
         }
 
-        let last_tick = self.tick_buffer.len().saturating_sub(JITTER_DEPTH) as u32;
         messages.push(SseMessage::ReplayEnd {
             generation,
-            tick: last_tick,
+            tick: self
+                .broadcast_cursor
+                .checked_sub(1)
+                .map(|i| self.tick_buffer[i].tick),
         });
 
         messages
@@ -1170,6 +1193,29 @@ mod tests {
     }
 
     #[test]
+    fn apply_poll_responses_discards_stream_entries_after_stall() {
+        let mut reader = new_active_reader(1, None);
+
+        // All clients go inactive, causing a stall. Stream entries from the
+        // same poll should be discarded.
+        let clients =
+            HashMap::from([(1, challenge_client(1, false, 1, None, StageStatus::Started))]);
+
+        reader.apply_poll_responses(
+            vec![
+                RedisResponse::ChallengeState(Some(challenge_state(1, None))),
+                RedisResponse::ChallengeClients(clients),
+                RedisResponse::StageStream(vec![stream_entry("5-0", 1, 5)]),
+            ],
+            0,
+        );
+
+        assert!(matches!(reader.state, ReaderState::Stalled { .. }));
+        assert!(reader.tick_buffer.is_empty());
+        assert_eq!(reader.poll_cursor, STREAM_START_CURSOR);
+    }
+
+    #[test]
     fn ingest_entries_gap_fills_for_contiguity() {
         let mut reader = new_active_reader(1, None);
 
@@ -1216,16 +1262,122 @@ mod tests {
             .map(|t| stream_entry(&format!("{t}-0"), 1, t))
             .collect();
         reader.process_stream_entries(&entries, 0);
+        reader.broadcast();
 
         // New subscriber connects after data exists.
         let (tx, mut rx) = mpsc::unbounded_channel();
         reader.add_subscriber(Subscriber::new(1, Some(1), tx));
 
         let msgs = drain_messages(&mut rx);
-        assert!(msgs.len() >= 4);
+        assert_eq!(msgs.len(), 4);
         assert!(matches!(msgs[0], SseMessage::Metadata { .. }));
         assert!(matches!(msgs[1], SseMessage::Reset { .. }));
-        assert!(matches!(msgs.last().unwrap(), SseMessage::ReplayEnd { .. }));
+        assert!(matches!(
+            msgs.last().unwrap(),
+            SseMessage::ReplayEnd { tick: Some(0), .. }
+        ));
+    }
+
+    #[test]
+    fn replay_while_stage_is_draining_uses_broadcast_cursor() {
+        let mut reader = new_active_reader(1, None);
+
+        let entries: Vec<_> = (0..=4)
+            .map(|t| stream_entry(&format!("{t}-0"), 1, t))
+            .collect();
+        reader.process_stream_entries(&entries, 0);
+
+        reader.broadcast();
+        reader.stage_state = StageState::Ending;
+        reader.broadcast();
+        reader.broadcast();
+        reader.broadcast();
+
+        assert_eq!(reader.broadcast_cursor, 4);
+        assert_eq!(reader.tick_buffer.len(), 5);
+
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        reader.add_subscriber(Subscriber::new(1, Some(1), tx));
+
+        let msgs = drain_messages(&mut rx);
+        assert!(matches!(msgs[0], SseMessage::Metadata { .. }));
+        assert!(matches!(msgs[1], SseMessage::Reset { .. }));
+        assert!(matches!(
+            msgs[2],
+            SseMessage::ReplayChunk {
+                start_tick: 0,
+                tick_count: 4,
+                ..
+            }
+        ));
+        assert!(matches!(
+            msgs[3],
+            SseMessage::ReplayEnd { tick: Some(3), .. }
+        ));
+    }
+
+    #[test]
+    fn replay_end_uses_none_when_no_ticks_are_replayable() {
+        let mut reader = new_active_reader(1, None);
+
+        reader.process_stream_entries(&[stream_entry("0-0", 1, 0), stream_entry("1-0", 1, 1)], 0);
+        assert_eq!(reader.broadcast_cursor, 0);
+
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        reader.add_subscriber(Subscriber::new(1, Some(1), tx));
+
+        let msgs = drain_messages(&mut rx);
+        assert_eq!(msgs.len(), 3);
+        assert!(matches!(msgs[0], SseMessage::Metadata { .. }));
+        assert!(matches!(msgs[1], SseMessage::Reset { .. }));
+        assert!(matches!(msgs[2], SseMessage::ReplayEnd { tick: None, .. }));
+    }
+
+    #[test]
+    fn replay_skips_cached_chunks_past_live_cursor() {
+        let mut reader = new_active_reader(1, None);
+        let entries: Vec<_> = (0..=3)
+            .map(|t| stream_entry(&format!("{t}-0"), 1, t))
+            .collect();
+        reader.process_stream_entries(&entries, 0);
+
+        reader.replay_chunks = vec![
+            ReplayChunk {
+                start_tick: 0,
+                tick_count: 2,
+                data: Bytes::from_static(b"chunk-a"),
+            },
+            ReplayChunk {
+                start_tick: 2,
+                tick_count: 2,
+                data: Bytes::from_static(b"chunk-b"),
+            },
+        ];
+        reader.broadcast_cursor = 3;
+
+        let replay = reader.build_replay_messages(ResetReason::Reconnect);
+        assert_eq!(replay.len(), 4);
+        assert!(matches!(replay[0], SseMessage::Reset { .. }));
+        assert!(matches!(
+            replay[1],
+            SseMessage::ReplayChunk {
+                start_tick: 0,
+                tick_count: 2,
+                ..
+            }
+        ));
+        assert!(matches!(
+            replay[2],
+            SseMessage::ReplayChunk {
+                start_tick: 2,
+                tick_count: 1,
+                ..
+            }
+        ));
+        assert!(matches!(
+            replay[3],
+            SseMessage::ReplayEnd { tick: Some(2), .. }
+        ));
     }
 
     #[test]
@@ -1599,9 +1751,14 @@ mod tests {
             (1, challenge_client(1, false, 1, None, StageStatus::Started)),
             (2, challenge_client(2, true, 1, None, StageStatus::Started)),
         ]);
-        reader.process_clients(&updated_clients, 1);
+        reader.apply_poll_responses(
+            vec![
+                RedisResponse::ChallengeState(Some(challenge_state(1, None))),
+                RedisResponse::ChallengeClients(updated_clients),
+            ],
+            1,
+        );
 
-        // Should have switched to client 2 and requested backfill.
         assert_eq!(reader.primary_client_id, Some(2));
         assert!(matches!(reader.state, ReaderState::Backfilling(Some(2))));
         assert_eq!(reader.generation, 1);
@@ -1628,10 +1785,18 @@ mod tests {
         reader.primary_client_id = Some(1);
         backfill_rx.try_recv().unwrap();
 
-        // Client 2 sends events at tick 10, client 1 does not.
+        // Prior poll: client 2 sent events, client 1 did not.
         reader.process_stream_entries(&[stream_entry("1-0", 2, 1)], 10);
 
-        reader.process_clients(&clients, 10);
+        // Current poll: no new events from client 1. Should switch to 2.
+        reader.apply_poll_responses(
+            vec![
+                RedisResponse::ChallengeState(Some(challenge_state(1, None))),
+                RedisResponse::ChallengeClients(clients),
+                RedisResponse::StageStream(vec![]),
+            ],
+            10,
+        );
 
         assert_eq!(reader.primary_client_id, Some(2));
         assert!(matches!(reader.state, ReaderState::Backfilling(Some(2))));
@@ -1657,7 +1822,8 @@ mod tests {
         reader.primary_client_id = Some(1);
         backfill_rx.try_recv().unwrap();
 
-        // Client 3 has high historic event count but stopped sending early.
+        // Prior polls: client 3 had high activity early, client 2 sent
+        // events recently.
         reader.process_stream_entries(
             &[
                 stream_entry("1-0", 3, 1),
@@ -1668,11 +1834,19 @@ mod tests {
             ],
             2,
         );
-
-        // Client 2 has fewer events but sent them recently.
         reader.process_stream_entries(&[stream_entry("6-0", 2, 1)], 10);
 
-        reader.process_clients(&clients, 10);
+        // Poll contains no new events. Should switch to recently active client
+        // 2 over client 3, which is still silent.
+        reader.apply_poll_responses(
+            vec![
+                RedisResponse::ChallengeState(Some(challenge_state(1, None))),
+                RedisResponse::ChallengeClients(clients),
+                RedisResponse::StageStream(vec![]),
+            ],
+            10,
+        );
+
         assert_eq!(reader.primary_client_id, Some(2));
         assert!(matches!(reader.state, ReaderState::Backfilling(Some(2))));
         backfill_rx.try_recv().unwrap();
@@ -1688,7 +1862,14 @@ mod tests {
         ]);
 
         // Nobody has sent events by tick 10.
-        reader.process_clients(&clients, 10);
+        reader.apply_poll_responses(
+            vec![
+                RedisResponse::ChallengeState(Some(challenge_state(1, None))),
+                RedisResponse::ChallengeClients(clients),
+                RedisResponse::StageStream(vec![]),
+            ],
+            10,
+        );
 
         assert_eq!(reader.primary_client_id, None);
         assert!(matches!(
@@ -1705,14 +1886,21 @@ mod tests {
     fn no_switch_when_primary_is_healthy() {
         let mut reader = new_active_reader(1, None);
 
-        // Primary sent events recently.
+        // Prior poll: primary sent events recently.
         reader.process_stream_entries(&[stream_entry("1-0", 1, 1)], 8);
 
         let clients = HashMap::from([
             (1, challenge_client(1, true, 1, None, StageStatus::Started)),
             (2, challenge_client(2, true, 1, None, StageStatus::Started)),
         ]);
-        reader.process_clients(&clients, 10);
+        reader.apply_poll_responses(
+            vec![
+                RedisResponse::ChallengeState(Some(challenge_state(1, None))),
+                RedisResponse::ChallengeClients(clients),
+                RedisResponse::StageStream(vec![]),
+            ],
+            10,
+        );
 
         assert_eq!(reader.primary_client_id, Some(1));
         assert_eq!(reader.state, ReaderState::Active);
