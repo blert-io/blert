@@ -154,7 +154,10 @@ fn sse_event(msg: &SseMessage) -> Event {
             ),
         SseMessage::ReplayEnd { generation, tick } => Event::default()
             .event("replay-end")
-            .id(format!("{generation}:{tick}"))
+            .id(match tick {
+                Some(tick) => format!("{generation}:{tick}"),
+                None => format!("{generation}:replay-end"),
+            })
             .data(serde_json::json!({"generation": generation, "tick": tick}).to_string()),
         SseMessage::Tick {
             generation,

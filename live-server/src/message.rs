@@ -34,7 +34,9 @@ pub enum SseMessage {
     },
 
     /// Marks the end of the catch-up sequence.
-    ReplayEnd { generation: u64, tick: u32 },
+    /// `tick` is the inclusive last tick delivered during replay, or `None`
+    /// when the replay contained no ticks.
+    ReplayEnd { generation: u64, tick: Option<u32> },
 
     /// A single live tick's events, broadcast at 600ms cadence.
     /// `tick_count` is normally 1 but may be higher during lag recovery.
