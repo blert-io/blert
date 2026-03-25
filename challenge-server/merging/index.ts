@@ -7,3 +7,4 @@ export {
   MergedEvents,
   Merger,
 } from './merge';
+export { MergeTracer, type MergeTrace } from './trace';
