@@ -1,7 +1,7 @@
 import { BCFPlayerAction } from '@blert/bcf';
 import React, { createContext } from 'react';
 
-import type { TimelineDisplay } from './display-utils';
+import { TimelineDisplay } from './display-utils';
 
 export type ChartColor =
   | 'red'
@@ -112,6 +112,7 @@ export const SCROLLABLE_PADDING_LEFT = 12;
 export const TICK_HEIGHT = 30;
 export const CELL_GAP = 5;
 export const ROW_MARGIN = 50;
+export const ROW_PADDING_BOTTOM = 10;
 
 // Derived indicator positioning values.
 export const INDICATOR_INITIAL_Y = SCROLLABLE_PADDING_TOP - 8;

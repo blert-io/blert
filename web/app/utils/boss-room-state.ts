@@ -1228,10 +1228,16 @@ function buildPlayerCell(
         ? npcActorIds.get(state.attack.target.roomId)
         : undefined;
 
+    const weaponId = state.attack.weapon?.id;
+
     actions.push({
       type: 'attack',
       attackType,
-      weaponId: state.attack.weapon?.id,
+      weaponId,
+      weaponName:
+        weaponId !== undefined
+          ? simpleItemCache.getItemName(weaponId)
+          : undefined,
       targetActorId,
       distanceToTarget: state.attack.distanceToTarget,
       damage: state.attack.damage,

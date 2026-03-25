@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import HorizontalScrollable from '@/components/horizontal-scrollable';
 
 import { BcfTooltip, BCF_TOOLTIP_ID } from './bcf-tooltip';
+import { CanvasTimeline } from './canvas/canvas-timeline';
 import { defaultRowOrder, TimelineDisplay } from './display-utils';
 import { CoreTimelineRenderer } from './timeline';
 import {
@@ -76,6 +77,9 @@ export type BcfRendererProps = {
    * tooltip is rendered with BCF spec only data.
    */
   tooltipId?: string;
+
+  /** Use the canvas-based renderer instead of DOM cells. Default: false. */
+  useCanvas?: boolean;
 };
 
 export function BcfRenderer({
@@ -95,6 +99,7 @@ export function BcfRenderer({
   tooltipId,
   onActorSelect,
   onTickSelect,
+  useCanvas = false,
 }: BcfRendererProps) {
   const resolver = useMemo(() => new BCFResolver(bcf), [bcf]);
 
@@ -139,13 +144,15 @@ export function BcfRenderer({
     const legendReserved = smallLegend
       ? LEGEND_WIDTH_SMALL_RESERVED
       : LEGEND_WIDTH_RESERVED;
-    const timelineWidth = wrapWidth - legendReserved;
+    const timelineWidth = wrapWidth - legendReserved - 10;
     ticksPerRow = Math.max(
       1,
       Math.floor(timelineWidth / (cellSize + CELL_GAP)),
     );
     numRows = Math.ceil(resolver.displayTicks / ticksPerRow);
   }
+
+  const maxTick = resolver.totalTicks - 1;
 
   // Auto-scroll to current tick when playing.
   useEffect(() => {
@@ -160,6 +167,9 @@ export function BcfRenderer({
 
       if (tickOffset * totalColumnWidth < scrollThreshold) {
         scrollableRef.current.scrollLeft = 0;
+      } else if (currentTick === maxTick) {
+        scrollableRef.current.scrollLeft =
+          scrollableRef.current.scrollWidth - scrollableRef.current.clientWidth;
       } else {
         scrollableRef.current.scrollLeft =
           tickOffset * totalColumnWidth - scrollOffset;
@@ -168,6 +178,7 @@ export function BcfRenderer({
   }, [
     shouldScroll,
     currentTick,
+    maxTick,
     totalColumnWidth,
     cellSize,
     scrollMinColumns,
@@ -176,17 +187,26 @@ export function BcfRenderer({
   ]);
 
   const memoizedCoreTimeline = useMemo(
-    () => (
-      <CoreTimelineRenderer
-        resolver={resolver}
-        rowOrder={rowOrder}
-        numRows={numRows}
-        ticksPerRow={ticksPerRow}
-        onTickSelect={onTickSelect}
-        actionEvaluator={actionEvaluator}
-      />
-    ),
-    [resolver, rowOrder, numRows, ticksPerRow, onTickSelect, actionEvaluator],
+    () =>
+      useCanvas ? null : (
+        <CoreTimelineRenderer
+          resolver={resolver}
+          rowOrder={rowOrder}
+          numRows={numRows}
+          ticksPerRow={ticksPerRow}
+          onTickSelect={onTickSelect}
+          actionEvaluator={actionEvaluator}
+        />
+      ),
+    [
+      useCanvas,
+      resolver,
+      rowOrder,
+      numRows,
+      ticksPerRow,
+      onTickSelect,
+      actionEvaluator,
+    ],
   );
 
   const legendElements = rowOrder.map((actorId) => {
@@ -321,7 +341,26 @@ export function BcfRenderer({
               className={styles.columnActiveIndicator}
             />
           )}
-          {memoizedCoreTimeline}
+          {useCanvas ? (
+            <CanvasTimeline
+              resolver={resolver}
+              display={display}
+              rowOrder={rowOrder}
+              numRows={numRows}
+              ticksPerRow={ticksPerRow}
+              cellSize={cellSize}
+              actionEvaluator={actionEvaluator}
+              stateProvider={stateProvider}
+              customRows={customRowsMap}
+              letterMode={letterMode}
+              showInventoryTags={showInventoryTags}
+              tooltipId={effectiveTooltipId}
+              onTickSelect={onTickSelect}
+              scrollContainerRef={scrollableRef}
+            />
+          ) : (
+            memoizedCoreTimeline
+          )}
         </HorizontalScrollable>
         {tooltipId === undefined && (
           <BcfTooltip resolver={resolver} onActorSelect={onActorSelect} />

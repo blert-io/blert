@@ -189,7 +189,16 @@ export default function DelvePage({ params }: DelvePageProps) {
       tooltipRenderer: (tick: number) => {
         const orb = orbsByEndTick.get(tick);
         if (orb === undefined) {
-          return null;
+          return (
+            <div
+              style={{
+                fontSize: '0.8rem',
+                color: 'var(--blert-font-color-secondary)',
+              }}
+            >
+              Nothing interesting happened.
+            </div>
+          );
         }
 
         let source: string;

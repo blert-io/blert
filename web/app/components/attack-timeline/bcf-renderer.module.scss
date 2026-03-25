@@ -1,5 +1,7 @@
 @use '../../mixins.scss' as *;
 
+// NOTE: These values are duplicated in canvas/colors.ts for the canvas
+// renderer. If you change them here, update that file to match.
 @mixin bcf-colors {
   /* --- RED --- */
   --bcf-color-red-low: rgba(160, 80, 80, 0.2);
@@ -137,7 +139,7 @@ button.legendParticipant {
 
 .scrollable {
   position: relative;
-  padding: var(--bcf-scrollable-padding-top) 10px 50px
+  padding: var(--bcf-scrollable-padding-top) 0 50px
     var(--bcf-scrollable-padding-left);
   display: flex;
   flex-flow: row wrap;
