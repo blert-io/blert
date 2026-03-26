@@ -419,6 +419,7 @@ export function BossPageAttackTimeline(props: BossPageAttackTimelineProps) {
     customRows: props.customRows,
     currentTick: props.currentTick,
     onTickSelect: props.updateTickOnPage,
+    useCanvas: true,
   };
 
   let fullTimeline = null;

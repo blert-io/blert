@@ -1,5 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;700;800&display=swap');
 
+// NOTE: Theme color values are duplicated as hardcoded constants in
+// components/attack-timeline/canvas/colors.ts for the canvas renderer.
+// If you change base color values here, update that file to match.
 :root {
   --topbar-height: 60px;
 
