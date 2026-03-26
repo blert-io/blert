@@ -255,7 +255,7 @@ export default function BloatPage() {
     [hands],
   );
 
-  const { entitiesByTick, preloads } = useMapEntities(
+  const { getEntities, preloads } = useMapEntities(
     challenge,
     playerState,
     npcState,
@@ -347,7 +347,7 @@ export default function BloatPage() {
 
       <div className={bossStyles.replayAndParty}>
         <BossPageReplay
-          entities={entitiesByTick.get(currentTick) ?? []}
+          entities={getEntities(currentTick)}
           preloads={preloads}
           mapDef={mapDefinition}
           playing={playing}

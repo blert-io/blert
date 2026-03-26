@@ -76,6 +76,9 @@ export function MemeContextUpdater({ setMemes }: MemeContextUpdaterProps) {
 
     for (const meme of memesToApply) {
       switch (meme) {
+        case 'caps':
+          memes.capsLock = true;
+          break;
         case 'invtags':
         case 'tags':
           memes.inventoryTags = true;

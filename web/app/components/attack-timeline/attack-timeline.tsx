@@ -533,7 +533,7 @@ const buildTickColumn = (
   const { selectedActor } = context.actorContext;
 
   context.npcs.forEach((npc, _) => {
-    if (!npc.hasAttacks) {
+    if (!npc.relevant) {
       return;
     }
 
@@ -814,7 +814,7 @@ export function AttackTimeline(props: AttackTimelineProps) {
 
   const attackTimelineParticipants: [RowType, string, number][] = [];
   npcs.forEach((npc, roomId) => {
-    if (npc.hasAttacks) {
+    if (npc.relevant) {
       attackTimelineParticipants.push([
         'npc',
         getNpcDefinition(npc.spawnNpcId)?.shortName ?? 'Unknown',

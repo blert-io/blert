@@ -8,7 +8,7 @@ import {
   Stage,
   TobRaid,
 } from '@blert/common';
-import { useCallback, useContext, useMemo } from 'react';
+import { useCallback, useContext, useMemo, useRef } from 'react';
 
 import { ActorContext } from '@/(challenges)/raids/tob/context';
 import BossFightOverview from '@/components/boss-fight-overview';
@@ -220,34 +220,32 @@ export default function SotetsegPage() {
     );
   }, [npcState]);
 
-  const customEntitiesForTick = useCallback(
-    (tick: number): CustomEntity[] => {
-      const entities: CustomEntity[] = [BARRIER];
+  const eventsByTickRef = useRef(eventsByTick);
+  eventsByTickRef.current = eventsByTick;
 
-      const tickEvents = eventsByTick[tick] ?? [];
-      const activeTiles =
-        tickEvents.find((e) => e.type === EventType.TOB_SOTE_MAZE_PATH)
-          ?.soteMaze.activeTiles ?? [];
+  const customEntitiesForTick = useCallback((tick: number): CustomEntity[] => {
+    const entities: CustomEntity[] = [BARRIER];
 
-      for (let y = 0; y < MAZE_HEIGHT; ++y) {
-        for (let x = 0; x < MAZE_WIDTH; ++x) {
-          const absX = MAZE_START_X + x;
-          const absY = MAZE_START_Y + y;
+    const tickEvents = eventsByTickRef.current[tick] ?? [];
+    const activeTiles =
+      tickEvents.find((e) => e.type === EventType.TOB_SOTE_MAZE_PATH)?.soteMaze
+        .activeTiles ?? [];
 
-          const active = activeTiles.some(
-            (tile) => tile.x === x && tile.y === y,
-          );
+    for (let y = 0; y < MAZE_HEIGHT; ++y) {
+      for (let x = 0; x < MAZE_WIDTH; ++x) {
+        const absX = MAZE_START_X + x;
+        const absY = MAZE_START_Y + y;
 
-          entities.push(new MazeTileEntity({ x: absX, y: absY }, active));
-        }
+        const active = activeTiles.some((tile) => tile.x === x && tile.y === y);
+
+        entities.push(new MazeTileEntity({ x: absX, y: absY }, active));
       }
+    }
 
-      return entities;
-    },
-    [eventsByTick],
-  );
+    return entities;
+  }, []);
 
-  const { entitiesByTick, preloads } = useMapEntities(
+  const { getEntities, preloads } = useMapEntities(
     challenge,
     playerState,
     npcState,
@@ -363,7 +361,7 @@ export default function SotetsegPage() {
 
       <div className={bossStyles.replayAndParty}>
         <BossPageReplay
-          entities={entitiesByTick.get(currentTick) ?? []}
+          entities={getEntities(currentTick)}
           preloads={preloads}
           mapDef={mapDefinition}
           playing={playing}
