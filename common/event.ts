@@ -79,7 +79,6 @@ export const isNpcEvent = (event: BaseEvent): event is NpcEvent => {
 };
 
 export interface BaseEvent {
-  cId: string;
   type: EventType;
   stage: Stage;
   tick: number;

@@ -207,7 +207,7 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
     [solCustomEntities, reentryPoolsByTick],
   );
 
-  const { entitiesByTick, preloads } = useMapEntities(
+  const { getEntities, preloads } = useMapEntities(
     challenge,
     playerState,
     npcState,
@@ -375,7 +375,7 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
 
       <div className={styles.replayAndParty}>
         <BossPageReplay
-          entities={entitiesByTick.get(currentTick) ?? []}
+          entities={getEntities(currentTick)}
           preloads={preloads}
           mapDef={mapDef}
           playing={playing}

@@ -325,36 +325,36 @@ export default function Maiden() {
     return { splits, spawns };
   }, [challenge, eventsByTick, npcState]);
 
-  const customEntitiesForTick = useCallback(
-    (tick: number): AnyEntity[] => {
-      const bloodSplats = eventsByTick[tick]?.filter(
-        (evt) => evt.type === EventType.TOB_MAIDEN_BLOOD_SPLATS,
-      );
-      if (!bloodSplats) {
-        return [BARRIER];
-      }
+  const eventsByTickRef = useRef(eventsByTick);
+  eventsByTickRef.current = eventsByTick;
 
-      const entities: AnyEntity[] = bloodSplats.flatMap((evt) =>
-        evt.maidenBloodSplats.map(
-          (coords) =>
-            new ObjectEntity(
-              coords,
-              '/images/objects/maiden_blood_splat.png',
-              'Blood Splat',
-              1,
-              BLOOD_SPLAT_COLOR,
-              true,
-            ),
-        ),
-      );
+  const customEntitiesForTick = useCallback((tick: number): AnyEntity[] => {
+    const bloodSplats = eventsByTickRef.current[tick]?.filter(
+      (evt) => evt.type === EventType.TOB_MAIDEN_BLOOD_SPLATS,
+    );
+    if (!bloodSplats) {
+      return [BARRIER];
+    }
 
-      entities.push(BARRIER);
-      return entities;
-    },
-    [eventsByTick],
-  );
+    const entities: AnyEntity[] = bloodSplats.flatMap((evt) =>
+      evt.maidenBloodSplats.map(
+        (coords) =>
+          new ObjectEntity(
+            coords,
+            '/images/objects/maiden_blood_splat.png',
+            'Blood Splat',
+            1,
+            BLOOD_SPLAT_COLOR,
+            true,
+          ),
+      ),
+    );
 
-  const { entitiesByTick, preloads } = useMapEntities(
+    entities.push(BARRIER);
+    return entities;
+  }, []);
+
+  const { getEntities, preloads } = useMapEntities(
     challenge,
     playerState,
     npcState,
@@ -432,7 +432,7 @@ export default function Maiden() {
 
       <div ref={replayAndPartyRef} className={bossStyles.replayAndParty}>
         <BossPageReplay
-          entities={entitiesByTick.get(currentTick) ?? []}
+          entities={getEntities(currentTick)}
           preloads={preloads}
           mapDef={mapDefinition}
           playing={playing}

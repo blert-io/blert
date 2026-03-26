@@ -127,7 +127,7 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
     return npc;
   }, []);
 
-  const { entitiesByTick, preloads } = useMapEntities(
+  const { getEntities, preloads } = useMapEntities(
     challenge,
     playerState,
     npcState,
@@ -243,7 +243,7 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
 
       <div className={styles.replayAndParty}>
         <BossPageReplay
-          entities={entitiesByTick.get(currentTick) ?? []}
+          entities={getEntities(currentTick)}
           preloads={preloads}
           mapDef={mapDef}
           playing={playing}

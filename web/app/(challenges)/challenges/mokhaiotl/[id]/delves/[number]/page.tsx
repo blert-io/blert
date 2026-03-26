@@ -350,7 +350,7 @@ export default function DelvePage({ params }: DelvePageProps) {
     [challenge, eventsByType, rocksByTick, splatsByTick],
   );
 
-  const { entitiesByTick, preloads } = useMapEntities(
+  const { getEntities, preloads } = useMapEntities(
     challenge,
     playerState,
     npcState,
@@ -398,7 +398,7 @@ export default function DelvePage({ params }: DelvePageProps) {
 
       <div className={styles.replayAndParty}>
         <BossPageReplay
-          entities={entitiesByTick.get(currentTick) ?? []}
+          entities={getEntities(currentTick)}
           preloads={preloads}
           mapDef={mapDefinition}
           playing={playing}
