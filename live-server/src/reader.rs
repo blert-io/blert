@@ -34,7 +34,7 @@ enum ReaderState {
     Backfilling(Option<u64>),
     /// Polling for new events and broadcasting to subscribers.
     Active,
-    /// All recording clients have disconnected.
+    /// All recording clients have disconnected or gone silent.
     Stalled { reason: StalledReason, since: u64 },
     /// The challenge has finished and is waiting for subscribers to drain.
     Completed,
@@ -278,9 +278,16 @@ impl ChallengeReader {
         }
 
         // `process_clients` could have triggered a state change from active, in
-        // which case the stream entries are stale.
-        if self.state == ReaderState::Active
-            && let Some(entries) = stream_entries
+        // which case the stream entries are stale. Silence-stalled readers must
+        // also process entries to enable recovery.
+        if matches!(
+            self.state,
+            ReaderState::Active
+                | ReaderState::Stalled {
+                    reason: StalledReason::AllSilent,
+                    ..
+                }
+        ) && let Some(entries) = stream_entries
         {
             if self.stage == queried_stage && self.stage_attempt == queried_attempt {
                 self.process_stream_entries(&entries, tick);
@@ -407,7 +414,7 @@ impl ChallengeReader {
     }
 
     /// Applies a completed backfill result to this reader.
-    pub fn apply_backfill(&mut self, result: BackfillResult) {
+    pub fn apply_backfill(&mut self, result: BackfillResult, most_recent_tick: u64) {
         let pre_selected_primary = match self.state {
             ReaderState::Backfilling(primary) if result.backfill_id == self.backfill_id => primary,
             _ => return,
@@ -453,6 +460,15 @@ impl ChallengeReader {
         self.broadcast_cursor = self.tick_buffer.len().saturating_sub(JITTER_DEPTH);
         self.poll_cursor = result.last_stream_id;
         self.state = ReaderState::Active;
+
+        // Initialize the primary's `last_active_tick` to the most recent
+        // broadcast tick to begin silence tracking.
+        if let Some(state) = self
+            .primary_client_id
+            .and_then(|id| self.client_states.get_mut(&id))
+        {
+            state.last_active_tick = most_recent_tick;
+        }
 
         tracing::info!(
             parent: &self.span,
@@ -1210,7 +1226,13 @@ mod tests {
             0,
         );
 
-        assert!(matches!(reader.state, ReaderState::Stalled { .. }));
+        assert!(matches!(
+            reader.state,
+            ReaderState::Stalled {
+                reason: StalledReason::AllInactive,
+                ..
+            }
+        ));
         assert!(reader.tick_buffer.is_empty());
         assert_eq!(reader.poll_cursor, STREAM_START_CURSOR);
     }
@@ -1414,10 +1436,11 @@ mod tests {
             ],
             last_stream_id: "4-0".to_string(),
         };
-        reader.apply_backfill(result);
+        reader.apply_backfill(result, 5);
 
         assert_eq!(reader.state, ReaderState::Active);
         assert_eq!(reader.primary_client_id, Some(2));
+        assert_eq!(reader.client_states[&2].last_active_tick, 5);
 
         // Subscriber receives a replay of the backfilled data.
         let msgs = drain_messages(&mut rx);
@@ -1461,12 +1484,15 @@ mod tests {
         drain_messages(&mut rx); // Consume metadata.
 
         // Send result with wrong backfill ID.
-        reader.apply_backfill(BackfillResult {
-            challenge_id: "test".to_string(),
-            backfill_id: 99,
-            entries: vec![stream_entry("1-0", 1, 1)],
-            last_stream_id: "1-0".to_string(),
-        });
+        reader.apply_backfill(
+            BackfillResult {
+                challenge_id: "test".to_string(),
+                backfill_id: 99,
+                entries: vec![stream_entry("1-0", 1, 1)],
+                last_stream_id: "1-0".to_string(),
+            },
+            0,
+        );
 
         assert!(matches!(reader.state, ReaderState::Backfilling(_)));
         assert!(drain_messages(&mut rx).is_empty());
@@ -1499,12 +1525,15 @@ mod tests {
         assert!(reader.subscribers.is_empty());
 
         // The late backfill result is rejected.
-        reader.apply_backfill(BackfillResult {
-            challenge_id: "test".to_string(),
-            backfill_id: 1,
-            entries: vec![stream_entry("1-0", 1, 1)],
-            last_stream_id: "1-0".to_string(),
-        });
+        reader.apply_backfill(
+            BackfillResult {
+                challenge_id: "test".to_string(),
+                backfill_id: 1,
+                entries: vec![stream_entry("1-0", 1, 1)],
+                last_stream_id: "1-0".to_string(),
+            },
+            0,
+        );
         assert_eq!(reader.state, ReaderState::Completed);
     }
 
@@ -1526,12 +1555,15 @@ mod tests {
 
         assert_eq!(reader.primary_client_id, None);
 
-        reader.apply_backfill(BackfillResult {
-            challenge_id: "test".to_string(),
-            backfill_id: reader.backfill_id,
-            entries: vec![stream_entry("1-0", 1, 1), stream_entry("2-0", 1, 2)],
-            last_stream_id: "2-0".to_string(),
-        });
+        reader.apply_backfill(
+            BackfillResult {
+                challenge_id: "test".to_string(),
+                backfill_id: reader.backfill_id,
+                entries: vec![stream_entry("1-0", 1, 1), stream_entry("2-0", 1, 2)],
+                last_stream_id: "2-0".to_string(),
+            },
+            0,
+        );
 
         // The backfill result is applied and sent to subscribers, but no
         // primary client is selected.
@@ -1876,10 +1908,48 @@ mod tests {
             reader.state,
             ReaderState::Stalled {
                 reason: StalledReason::AllSilent,
-                since: 10
+                since: 10,
+                ..
             }
         ));
         assert_eq!(reader.generation, 0);
+    }
+
+    #[test]
+    fn silence_stall_recovers_when_stream_entries_arrive() {
+        let mut reader = new_active_reader(1, None);
+
+        let clients =
+            HashMap::from([(1, challenge_client(1, true, 1, None, StageStatus::Started))]);
+
+        // No events by tick 10 triggers a stall.
+        reader.apply_poll_responses(
+            vec![
+                RedisResponse::ChallengeState(Some(challenge_state(1, None))),
+                RedisResponse::ChallengeClients(clients.clone()),
+                RedisResponse::StageStream(vec![]),
+            ],
+            10,
+        );
+        assert!(matches!(
+            reader.state,
+            ReaderState::Stalled {
+                reason: StalledReason::AllSilent,
+                ..
+            }
+        ));
+
+        // Stream entries arrive on the next poll.
+        reader.apply_poll_responses(
+            vec![
+                RedisResponse::ChallengeState(Some(challenge_state(1, None))),
+                RedisResponse::ChallengeClients(clients),
+                RedisResponse::StageStream(vec![stream_entry("5-0", 1, 5)]),
+            ],
+            11,
+        );
+        assert_eq!(reader.state, ReaderState::Backfilling(Some(1)));
+        assert_eq!(reader.poll_cursor, "5-0");
     }
 
     #[test]
@@ -1929,12 +1999,15 @@ mod tests {
         reader.add_subscriber(Subscriber::new(1, Some(1), tx));
         drain_messages(&mut rx);
 
-        reader.apply_backfill(BackfillResult {
-            challenge_id: "test".to_string(),
-            backfill_id: reader.backfill_id,
-            entries: vec![stream_entry("1-0", 2, 1)],
-            last_stream_id: "1-0".to_string(),
-        });
+        reader.apply_backfill(
+            BackfillResult {
+                challenge_id: "test".to_string(),
+                backfill_id: reader.backfill_id,
+                entries: vec![stream_entry("1-0", 2, 1)],
+                last_stream_id: "1-0".to_string(),
+            },
+            0,
+        );
 
         let msgs = drain_messages(&mut rx);
         assert!(msgs.len() >= 2);
