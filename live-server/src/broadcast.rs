@@ -239,7 +239,7 @@ impl BroadcastManager {
     /// Applies a completed backfill result to the appropriate reader.
     pub fn apply_backfill(&mut self, result: BackfillResult) {
         if let Some(reader) = self.readers.get_mut(&result.challenge_id) {
-            reader.apply_backfill(result);
+            reader.apply_backfill(result, self.tick);
         }
     }
 
