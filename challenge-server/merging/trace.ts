@@ -6,6 +6,7 @@ import { ReferenceSelection } from './classification';
 import { EventType } from './event';
 import { QualityFlag } from './event-consolidator';
 import { MergeClientClassification, MergeClientStatus } from './merge';
+import { MergeMapping, TickMapping } from './tick-mapping';
 import { NpcState, PlayerState, TickState, TickStateArray } from './tick-state';
 
 export type PlayerSummary = {
@@ -82,6 +83,8 @@ export type StreamReconciliationEntry = {
 /** A candidate event from one side that resolved to an attack tick. */
 export type AttackMappedCandidate = {
   source: 'base' | 'target';
+  /** Client ID from which the event originated. */
+  sourceClientId: number;
   /** Tick of the event in the source client's timeline. */
   clientTick: number;
   /** The attack tick referenced by the event, in the source client's space. */
@@ -126,12 +129,22 @@ export type ReconciliationTrace = {
   };
 };
 
+export type MergeStepMapping = {
+  /** Mapping from base client tick to merged tick.. */
+  base: Record<number, number>;
+  /** Mapping from target client tick to merged tick. */
+  target: Record<number, number>;
+  /** Tick count of the merged timeline. */
+  mergedTickCount: number;
+};
+
 export type MergeStepInfo = {
   clientId: number;
   classification: MergeClientClassification;
   status: MergeClientStatus;
   durationMs: number;
   alignment: SerializedAlignmentResult | null;
+  mapping: MergeStepMapping | null;
   tickDecisions: TickMergeDecision[];
   reconciliation: ReconciliationTrace | null;
   qualityFlags: QualityFlag[];
@@ -241,6 +254,17 @@ export function serializeAlignmentResult(
   };
 }
 
+function serializeTickMapping(mapping: TickMapping): Record<number, number> {
+  const result: Record<number, number> = {};
+  for (let i = 0; i < mapping.clientTickCount; i++) {
+    const merged = mapping.toMerged(i);
+    if (merged !== undefined) {
+      result[i] = merged;
+    }
+  }
+  return result;
+}
+
 export class MergeTracer {
   private inputClients: InputClientInfo[] = [];
   private classification: ClassificationInfo | null = null;
@@ -306,6 +330,23 @@ export class MergeTracer {
     if (this.currentStep !== null) {
       this.currentStep.alignment = serializeAlignmentResult(alignment);
     }
+  }
+
+  public recordMapping(mapping: MergeMapping): void {
+    if (this.currentStep === null) {
+      return;
+    }
+    const base = mapping.getBaseMapping();
+    const target = mapping.getTargetMapping();
+    const mergedTickCount = mapping.getMergedTickCount();
+    if (base === null || target === null || mergedTickCount === null) {
+      return;
+    }
+    this.currentStep.mapping = {
+      base: serializeTickMapping(base),
+      target: serializeTickMapping(target),
+      mergedTickCount,
+    };
   }
 
   public recordStreamResolution(
@@ -415,6 +456,7 @@ export class MergeTracer {
       status,
       durationMs,
       alignment: this.currentStep.alignment ?? null,
+      mapping: this.currentStep.mapping ?? null,
       tickDecisions: this.currentStep.tickDecisions!,
       reconciliation: this.currentStep.reconciliation ?? null,
       qualityFlags: this.currentStep.qualityFlags ?? [],

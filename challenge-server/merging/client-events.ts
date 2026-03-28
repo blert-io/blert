@@ -190,7 +190,7 @@ export class ClientEvents {
       (evts, tick) =>
         new TickState(
           tick,
-          evts,
+          evts.map((event) => ({ event, source: clientId })),
           new Map(
             challenge.party.map((player) => [
               player,
@@ -313,6 +313,14 @@ export class ClientEvents {
       return null;
     }
     return this.tickState[tick];
+  }
+
+  /**
+   * @returns The username of the client's primary player,
+   *   or `null` if the client is a spectator.
+   */
+  public getPrimaryPlayer(): string | null {
+    return this.primaryPlayer;
   }
 
   /**
