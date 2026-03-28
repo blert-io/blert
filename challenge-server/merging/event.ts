@@ -2,6 +2,20 @@ import { Event } from '@blert/common/generated/event_pb';
 
 export type EventType = Event.TypeMap[keyof Event.TypeMap];
 
+export const SYNTHETIC_EVENT_SOURCE = 0;
+
+/**
+ * An event paired with merge pipeline metadata.
+ *
+ * Mutated by stages of the merge pipeline to attach metadata.
+ * A `source` of `SYNTHETIC_EVENT_SOURCE` indicates that the event did not
+ * originate from any client.
+ */
+export type TaggedEvent = {
+  event: Event;
+  source: number;
+};
+
 /**
  * Utility type that asserts two types are equal. Used to enforce exhaustive
  * event classification at compile time.

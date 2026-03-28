@@ -1,8 +1,11 @@
 import { DataSource, NpcAttack } from '@blert/common';
 import { Event as ProtoEvent } from '@blert/common/generated/event_pb';
 
+import { MergeContext } from '../context';
 import { EventConsolidator } from '../event-consolidator';
+import { MergeMapping, TickMapping } from '../tick-mapping';
 import { TickStateArray } from '../tick-state';
+
 import {
   createEvent,
   createNpcAttackEvent,
@@ -13,6 +16,24 @@ import {
   createTickState,
   createVerzikAttackStyleEvent,
 } from './fixtures';
+
+const BASE_CLIENT_ID = 1;
+const TARGET_CLIENT_ID = 2;
+
+/**
+ * Creates a MergeContext with identity mappings begun for a single
+ * consolidation step.
+ */
+function testCtx(baseTickCount: number, targetTickCount: number): MergeContext {
+  const mapping = new MergeMapping(BASE_CLIENT_ID);
+  mapping.begin(
+    TARGET_CLIENT_ID,
+    TickMapping.identity(baseTickCount),
+    TickMapping.identity(targetTickCount),
+    baseTickCount,
+  );
+  return { clients: new Map(), mapping, tracer: undefined };
+}
 
 /**
  * Builds a simple timeline of ticks with player updates and optional extra
@@ -58,7 +79,11 @@ describe('EventConsolidator', () => {
         2: [createPlayerDeathEvent({ tick: 2, name: 'player1' })],
       });
 
-      const consolidator = new EventConsolidator(base, target, null);
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
       const result = consolidator.consolidate();
 
       // Player update should be overridden with PRIMARY on all ticks.
@@ -85,7 +110,11 @@ describe('EventConsolidator', () => {
         createTickState(2, [createPlayerState({ username: 'player1', x: 2 })]),
       ];
 
-      const consolidator = new EventConsolidator(base, target, null);
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
       const result = consolidator.consolidate();
 
       expect(result.ticks[1]).not.toBeNull();
@@ -105,7 +134,11 @@ describe('EventConsolidator', () => {
         2: [splats(2)],
       });
 
-      const consolidator = new EventConsolidator(base, target, null);
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
       const result = consolidator.consolidate();
 
       const splatEvents = result.ticks[2]
@@ -127,7 +160,11 @@ describe('EventConsolidator', () => {
         3: [death(3)],
       });
 
-      const consolidator = new EventConsolidator(base, target, null);
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
       const result = consolidator.consolidate();
 
       // Should have exactly one PLAYER_DEATH at tick 3, not two.
@@ -147,7 +184,11 @@ describe('EventConsolidator', () => {
         6: [createPlayerDeathEvent({ tick: 6, name: 'player1' })],
       });
 
-      const consolidator = new EventConsolidator(base, target, null);
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
       const result = consolidator.consolidate();
 
       // The earliest tick should win, placing the death event at 4
@@ -173,7 +214,11 @@ describe('EventConsolidator', () => {
         10: [createPlayerDeathEvent({ tick: 10, name: 'player1' })],
       });
 
-      const consolidator = new EventConsolidator(base, target, null);
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
       const result = consolidator.consolidate();
 
       // Both deaths should be present at their respective ticks.
@@ -201,7 +246,11 @@ describe('EventConsolidator', () => {
         5: [npcDeath(5)],
       });
 
-      const consolidator = new EventConsolidator(base, target, null);
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
       const result = consolidator.consolidate();
 
       const deaths = result.ticks[5]
@@ -220,7 +269,11 @@ describe('EventConsolidator', () => {
         5: [createNpcDeathEvent({ tick: 5, roomId: 2, npcId: 101 })],
       });
 
-      const consolidator = new EventConsolidator(base, target, null);
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
       const result = consolidator.consolidate();
 
       const deaths = result.ticks[5]
@@ -245,7 +298,11 @@ describe('EventConsolidator', () => {
         12: [phase(12)],
       });
 
-      const consolidator = new EventConsolidator(base, target, null);
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
       const result = consolidator.consolidate();
 
       // Unique events are paired regardless of distance, with earliest winning.
@@ -268,7 +325,11 @@ describe('EventConsolidator', () => {
       });
       const target = buildTimeline(10, 'player1', DataSource.PRIMARY);
 
-      const consolidator = new EventConsolidator(base, target, null);
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
       const result = consolidator.consolidate();
 
       const deaths = result.ticks[4]
@@ -285,7 +346,11 @@ describe('EventConsolidator', () => {
         7: [createPlayerDeathEvent({ tick: 7, name: 'player1' })],
       });
 
-      const consolidator = new EventConsolidator(base, target, null);
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
       const result = consolidator.consolidate();
 
       const deaths = result.ticks[7]
@@ -306,7 +371,11 @@ describe('EventConsolidator', () => {
         5: [createPlayerDeathEvent({ tick: 5, name: 'player1' })],
       });
 
-      const consolidator = new EventConsolidator(base, target, null);
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
       const result = consolidator.consolidate();
 
       expect(result.qualityFlags).toHaveLength(0);
@@ -323,8 +392,7 @@ describe('EventConsolidator', () => {
       const consolidator = new EventConsolidator(
         base,
         target,
-        null,
-        undefined,
+        testCtx(base.length, target.length),
         { largeGapThreshold: 2 },
       );
       const result = consolidator.consolidate();
@@ -353,8 +421,7 @@ describe('EventConsolidator', () => {
       const consolidator = new EventConsolidator(
         base,
         target,
-        null,
-        undefined,
+        testCtx(base.length, target.length),
         { largeGapThreshold: 2 },
       );
       const result = consolidator.consolidate();
@@ -407,7 +474,11 @@ describe('EventConsolidator', () => {
       });
       const target = buildTimeline(15, 'player1', DataSource.PRIMARY);
 
-      const consolidator = new EventConsolidator(base, target, null);
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
       const result = consolidator.consolidate();
 
       // The attack style event should be inserted the tick after the attack.
@@ -426,7 +497,11 @@ describe('EventConsolidator', () => {
         6: { npcAttackTick: 5, style: 1 },
       });
 
-      const consolidator = new EventConsolidator(base, target, null);
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
       const result = consolidator.consolidate();
 
       // Should have exactly one deduplicated attack style event.
@@ -446,7 +521,11 @@ describe('EventConsolidator', () => {
         6: { npcAttackTick: 5, style: 2 },
       });
 
-      const consolidator = new EventConsolidator(base, target, null);
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
       const result = consolidator.consolidate();
 
       // Should still have exactly one event, with the base preferred.
@@ -471,7 +550,11 @@ describe('EventConsolidator', () => {
       });
       const target = buildTimeline(15, 'player1', DataSource.PRIMARY);
 
-      const consolidator = new EventConsolidator(base, target, null);
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
       const result = consolidator.consolidate();
 
       // No attack style event should be inserted.

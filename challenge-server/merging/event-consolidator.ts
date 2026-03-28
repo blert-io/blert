@@ -1,6 +1,7 @@
+import { NpcAttack, PlayerAttack } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
-import { AlignmentAction, AlignmentResult } from './alignment';
+import { MergeContext } from './context';
 import {
   ATTACK_MAPPED_EVENT_TYPES,
   AttackMappedEventType,
@@ -9,18 +10,15 @@ import {
   STREAM_EVENT_CONFIGS,
   StreamEventConfig,
   StreamEventType,
+  TaggedEvent,
 } from './event';
 import logger from '../log';
+import { TickMapping } from './tick-mapping';
 import { TickState, TickStateArray } from './tick-state';
-import {
-  AttackMappedCandidate,
-  MergeTracer,
-  TickMergeDecisionType,
-} from './trace';
-import { NpcAttack, PlayerAttack } from '@blert/common';
+import { AttackMappedCandidate, TickMergeDecisionType } from './trace';
 
 export type BufferedEvent = {
-  event: Event;
+  tagged: TaggedEvent;
   mergedTick: number;
   clientTick: number;
 };
@@ -57,129 +55,6 @@ export type QualityFlag =
       attackTick: number;
       candidateCount: number;
     };
-
-/**
- * Maps tick indices between a client's local tick space and the merged
- * timeline's tick space.
- */
-export class TickMapping {
-  private readonly forward: (number | undefined)[];
-  private readonly reverse: (number | undefined)[];
-
-  private constructor(
-    forward: (number | undefined)[],
-    reverse: (number | undefined)[],
-  ) {
-    this.forward = forward;
-    this.reverse = reverse;
-  }
-
-  /**
-   * Creates an identity mapping where tick N maps to merged tick N.
-   */
-  public static identity(tickCount: number): TickMapping {
-    const mapping = Array.from({ length: tickCount }, (_, i) => i);
-    return new TickMapping([...mapping], [...mapping]);
-  }
-
-  /**
-   * Builds base and target tick mappings from an alignment result.
-   *
-   * Walks through the alignment entries in order, copying base ticks outside
-   * alignments at their natural positions. Within each local alignment:
-   * - MERGE maps both base and target to the same merged position
-   * - KEEP maps only the base tick
-   * - INSERT maps only the target tick, increasing the merged tick count
-   */
-  public static fromAlignment(
-    baseTickCount: number,
-    targetTickCount: number,
-    alignment: AlignmentResult,
-  ): { base: TickMapping; target: TickMapping; mergedTickCount: number } {
-    const baseToMerged = Array<number | undefined>(baseTickCount).fill(
-      undefined,
-    );
-    const targetToMerged = Array<number | undefined>(targetTickCount).fill(
-      undefined,
-    );
-
-    let mergedPos = 0;
-    let basePos = 0;
-
-    for (const localAlignment of alignment.alignments) {
-      // Alignments always start and end with a MERGE entry.
-      const firstBase = (localAlignment[0] as { baseIndex: number }).baseIndex;
-      const lastEntry = localAlignment[localAlignment.length - 1];
-      const lastBase = (lastEntry as { baseIndex: number }).baseIndex;
-
-      while (basePos < firstBase) {
-        baseToMerged[basePos] = mergedPos;
-        mergedPos++;
-        basePos++;
-      }
-
-      for (const entry of localAlignment) {
-        switch (entry.action) {
-          case AlignmentAction.MERGE:
-            baseToMerged[entry.baseIndex] = mergedPos;
-            targetToMerged[entry.targetIndex] = mergedPos;
-            break;
-          case AlignmentAction.KEEP:
-            baseToMerged[entry.baseIndex] = mergedPos;
-            break;
-          case AlignmentAction.INSERT:
-            targetToMerged[entry.targetIndex] = mergedPos;
-            break;
-        }
-        mergedPos++;
-      }
-
-      basePos = lastBase + 1;
-    }
-
-    while (basePos < baseTickCount) {
-      baseToMerged[basePos] = mergedPos;
-      mergedPos++;
-      basePos++;
-    }
-
-    const mergedTickCount = mergedPos;
-
-    const mergedToBase = Array<number | undefined>(mergedTickCount).fill(
-      undefined,
-    );
-    const mergedToTarget = Array<number | undefined>(mergedTickCount).fill(
-      undefined,
-    );
-
-    for (let i = 0; i < baseTickCount; i++) {
-      if (baseToMerged[i] !== undefined) {
-        mergedToBase[baseToMerged[i]!] = i;
-      }
-    }
-    for (let i = 0; i < targetTickCount; i++) {
-      if (targetToMerged[i] !== undefined) {
-        mergedToTarget[targetToMerged[i]!] = i;
-      }
-    }
-
-    return {
-      base: new TickMapping(baseToMerged, mergedToBase),
-      target: new TickMapping(targetToMerged, mergedToTarget),
-      mergedTickCount,
-    };
-  }
-
-  /** Maps a client tick index to its merged tick index. */
-  public toMerged(clientTick: number): number | undefined {
-    return this.forward[clientTick];
-  }
-
-  /** Maps a merged tick index to its client tick index. */
-  public toClient(mergedTick: number): number | undefined {
-    return this.reverse[mergedTick];
-  }
-}
 
 type AttackMappedEventConfig = {
   /** Extracts the referenced attack tick from the event's sub-message. */
@@ -250,12 +125,9 @@ const ATTACK_MAPPED_CONFIGS: Record<
 export class EventConsolidator {
   private readonly baseTicks: TickStateArray;
   private readonly targetTicks: TickStateArray;
-  private readonly alignment: AlignmentResult | null;
+  private readonly ctx: MergeContext;
   private readonly config: ConsolidatorConfig;
-  private readonly tracer: MergeTracer | undefined;
 
-  private baseMapping!: TickMapping;
-  private targetMapping!: TickMapping;
   private mergedTicks: TickStateArray = [];
   private baseBuffer: EventBuffer = new Map();
   private targetBuffer: EventBuffer = new Map();
@@ -264,15 +136,21 @@ export class EventConsolidator {
   public constructor(
     baseTicks: TickStateArray,
     targetTicks: TickStateArray,
-    alignment: AlignmentResult | null,
-    tracer?: MergeTracer,
+    ctx: MergeContext,
     config: Partial<ConsolidatorConfig> = {},
   ) {
     this.baseTicks = baseTicks;
     this.targetTicks = targetTicks;
-    this.alignment = alignment;
+    this.ctx = ctx;
     this.config = { ...DEFAULT_CONFIG, ...config };
-    this.tracer = tracer;
+  }
+
+  private get baseMapping(): TickMapping {
+    return this.ctx.mapping.getBaseMapping()!;
+  }
+
+  private get targetMapping(): TickMapping {
+    return this.ctx.mapping.getTargetMapping()!;
   }
 
   /**
@@ -281,13 +159,8 @@ export class EventConsolidator {
   public consolidate(): ConsolidationResult {
     this.qualityFlags = [];
 
-    // Build the merged tick array from the base timeline and establish the
-    // target tick mapping.
-    if (this.alignment === null) {
-      this.buildIdentityTimeline();
-    } else {
-      this.buildAlignedTimeline();
-    }
+    // Build the merged tick array using the mappings from the merge context.
+    this.buildTimeline();
 
     // Pass 1: walk the merged timeline and unify per-tick state.
     this.consolidateTicks();
@@ -297,11 +170,9 @@ export class EventConsolidator {
 
     // Renumber ticks to their correct merged positions, correcting cross-tick
     // references within the tick states' events.
-    if (this.alignment !== null) {
-      this.renumberTicks();
-    }
+    this.renumberTicks();
 
-    this.tracer?.recordQualityFlags(this.qualityFlags);
+    this.ctx.tracer?.recordQualityFlags(this.qualityFlags);
 
     return {
       ticks: this.mergedTicks,
@@ -309,56 +180,17 @@ export class EventConsolidator {
     };
   }
 
-  private buildIdentityTimeline(): void {
-    // Target and base lengths are guaranteed to be the same by the caller.
-    this.baseMapping = TickMapping.identity(this.baseTicks.length);
-    this.targetMapping = TickMapping.identity(this.targetTicks.length);
-
-    this.mergedTicks = this.baseTicks.map((t, i) => {
-      if (t !== null) {
-        const cloned = t.clone();
-        this.bufferEvents(
-          this.baseBuffer,
-          cloned.extractEvents(BUFFERED_EVENT_TYPES),
-          i,
-          t.getTick(),
-        );
-        return cloned;
-      }
-
-      const targetState =
-        i < this.targetTicks.length ? this.targetTicks[i] : null;
-      if (targetState !== null) {
-        const cloned = targetState.clone();
-        this.bufferEvents(
-          this.targetBuffer,
-          cloned.extractEvents(BUFFERED_EVENT_TYPES),
-          i,
-          i,
-        );
-        return cloned;
-      }
-
-      return null;
-    });
-  }
-
-  private buildAlignedTimeline(): void {
-    const result = TickMapping.fromAlignment(
-      this.baseTicks.length,
-      this.targetTicks.length,
-      this.alignment!,
-    );
-    this.baseMapping = result.base;
-    this.targetMapping = result.target;
-
-    this.mergedTicks = Array<TickState | null>(result.mergedTickCount).fill(
-      null,
-    );
+  /**
+   * Builds the merged tick array by placing base and target ticks at their
+   * mapped positions. Stream events are extracted into per-side buffers.
+   */
+  private buildTimeline(): void {
+    const mergedTickCount = this.ctx.mapping.getMergedTickCount()!;
+    this.mergedTicks = Array<TickState | null>(mergedTickCount).fill(null);
 
     // Place base ticks at their mapped positions, extracting stream events.
     for (let baseIdx = 0; baseIdx < this.baseTicks.length; baseIdx++) {
-      const mergedIdx = result.base.toMerged(baseIdx);
+      const mergedIdx = this.baseMapping.toMerged(baseIdx);
       if (mergedIdx === undefined || this.baseTicks[baseIdx] === null) {
         continue;
       }
@@ -372,9 +204,9 @@ export class EventConsolidator {
       this.mergedTicks[mergedIdx] = cloned;
     }
 
-    // Insert target ticks without a base, extracting stream events.
+    // Insert target ticks where the base has no data, extracting stream events.
     for (let targetIdx = 0; targetIdx < this.targetTicks.length; targetIdx++) {
-      const mergedIdx = result.target.toMerged(targetIdx);
+      const mergedIdx = this.targetMapping.toMerged(targetIdx);
       if (mergedIdx === undefined || this.mergedTicks[mergedIdx] !== null) {
         continue;
       }
@@ -418,7 +250,7 @@ export class EventConsolidator {
 
         const mergedState = this.mergedTicks[m]!;
         if (mergedState.merge(targetClone)) {
-          this.tracer?.recordTickDecision({
+          this.ctx.tracer?.recordTickDecision({
             tick: m,
             type: TickMergeDecisionType.MERGED,
           });
@@ -428,7 +260,7 @@ export class EventConsolidator {
             baseTick: baseIdx,
             targetTick: targetIdx,
           });
-          this.tracer?.recordTickDecision({
+          this.ctx.tracer?.recordTickDecision({
             tick: m,
             type: TickMergeDecisionType.SKIPPED,
           });
@@ -441,7 +273,7 @@ export class EventConsolidator {
         : hasTarget
           ? TickMergeDecisionType.FILLED
           : TickMergeDecisionType.SKIPPED;
-      this.tracer?.recordTickDecision({
+      this.ctx.tracer?.recordTickDecision({
         tick: m,
         type: decision,
       });
@@ -453,18 +285,18 @@ export class EventConsolidator {
    */
   private bufferEvents(
     buffer: EventBuffer,
-    events: Event[],
+    events: TaggedEvent[],
     mergedTick: number,
     clientTick: number,
   ): void {
-    for (const event of events) {
-      const type = event.getType() as EventType;
+    for (const tagged of events) {
+      const type = tagged.event.getType() as EventType;
       let list = buffer.get(type);
       if (list === undefined) {
         list = [];
         buffer.set(type, list);
       }
-      list.push({ event, mergedTick, clientTick });
+      list.push({ tagged, mergedTick, clientTick });
     }
   }
 
@@ -504,7 +336,7 @@ export class EventConsolidator {
   ): void {
     const baseByKey = new Map<string, BufferedEvent[]>();
     for (const e of baseEvents) {
-      const key = config.identityKey(e.event);
+      const key = config.identityKey(e.tagged.event);
       let list = baseByKey.get(key);
       if (list === undefined) {
         list = [];
@@ -515,7 +347,7 @@ export class EventConsolidator {
 
     const targetByKey = new Map<string, BufferedEvent[]>();
     for (const e of targetEvents) {
-      const key = config.identityKey(e.event);
+      const key = config.identityKey(e.tagged.event);
       let list = targetByKey.get(key);
       if (list === undefined) {
         list = [];
@@ -567,8 +399,8 @@ export class EventConsolidator {
 
     if (b !== null && t !== null) {
       const winner = b.mergedTick <= t.mergedTick ? b : t;
-      this.insertEvent(winner.mergedTick, winner.event);
-      this.tracer?.recordStreamResolution(
+      this.insertBufferedEvent(winner);
+      this.ctx.tracer?.recordStreamResolution(
         type,
         key,
         { mergedTick: b.mergedTick, clientTick: b.clientTick },
@@ -581,8 +413,8 @@ export class EventConsolidator {
       // are expected (e.g. a client joining late sees NPC spawns later). Don't
       // flag them.
     } else if (b !== null) {
-      this.insertEvent(b.mergedTick, b.event);
-      this.tracer?.recordStreamResolution(
+      this.insertBufferedEvent(b);
+      this.ctx.tracer?.recordStreamResolution(
         type,
         key,
         { mergedTick: b.mergedTick, clientTick: b.clientTick },
@@ -592,8 +424,8 @@ export class EventConsolidator {
         null,
       );
     } else if (t !== null) {
-      this.insertEvent(t.mergedTick, t.event);
-      this.tracer?.recordStreamResolution(
+      this.insertBufferedEvent(t);
+      this.ctx.tracer?.recordStreamResolution(
         type,
         key,
         null,
@@ -630,7 +462,7 @@ export class EventConsolidator {
           // Earliest tick wins: a client can delay seeing an event, but it
           // can't see an event before it actually occurs.
           const winner = b.mergedTick <= t.mergedTick ? b : t;
-          this.insertEvent(winner.mergedTick, winner.event);
+          this.insertBufferedEvent(winner);
 
           if (gap > this.config.largeGapThreshold) {
             this.qualityFlags.push({
@@ -642,7 +474,7 @@ export class EventConsolidator {
             });
           }
 
-          this.tracer?.recordStreamResolution(
+          this.ctx.tracer?.recordStreamResolution(
             type,
             key,
             { mergedTick: b.mergedTick, clientTick: b.clientTick },
@@ -657,8 +489,8 @@ export class EventConsolidator {
           ti++;
         } else if (b.mergedTick < t.mergedTick) {
           // This occurrence is unique to the base.
-          this.insertEvent(b.mergedTick, b.event);
-          this.tracer?.recordStreamResolution(
+          this.insertBufferedEvent(b);
+          this.ctx.tracer?.recordStreamResolution(
             type,
             key,
             { mergedTick: b.mergedTick, clientTick: b.clientTick },
@@ -670,8 +502,8 @@ export class EventConsolidator {
           bi++;
         } else {
           // This occurrence is unique to the target.
-          this.insertEvent(t.mergedTick, t.event);
-          this.tracer?.recordStreamResolution(
+          this.insertBufferedEvent(t);
+          this.ctx.tracer?.recordStreamResolution(
             type,
             key,
             null,
@@ -686,8 +518,8 @@ export class EventConsolidator {
       }
 
       if (b !== null) {
-        this.insertEvent(b.mergedTick, b.event);
-        this.tracer?.recordStreamResolution(
+        this.insertBufferedEvent(b);
+        this.ctx.tracer?.recordStreamResolution(
           type,
           key,
           { mergedTick: b.mergedTick, clientTick: b.clientTick },
@@ -698,8 +530,8 @@ export class EventConsolidator {
         );
         bi++;
       } else if (t !== null) {
-        this.insertEvent(t.mergedTick, t.event);
-        this.tracer?.recordStreamResolution(
+        this.insertBufferedEvent(t);
+        this.ctx.tracer?.recordStreamResolution(
           type,
           key,
           null,
@@ -724,7 +556,7 @@ export class EventConsolidator {
   ): void {
     const config = ATTACK_MAPPED_CONFIGS[type];
 
-    type Candidate = AttackMappedCandidate & { event: Event };
+    type Candidate = AttackMappedCandidate & { tagged: TaggedEvent };
 
     const groups = new Map<number, Candidate[]>();
 
@@ -733,9 +565,9 @@ export class EventConsolidator {
       mapping: TickMapping,
       source: 'base' | 'target',
     ) => {
-      const referencedTick = config.getReferencedTick(buffered.event);
+      const referencedTick = config.getReferencedTick(buffered.tagged.event);
       if (referencedTick === undefined) {
-        this.tracer?.recordAttackMappedDiscard(
+        this.ctx.tracer?.recordAttackMappedDiscard(
           type,
           source,
           buffered.clientTick,
@@ -747,7 +579,7 @@ export class EventConsolidator {
 
       const mergedTick = mapping.toMerged(referencedTick);
       if (mergedTick === undefined) {
-        this.tracer?.recordAttackMappedDiscard(
+        this.ctx.tracer?.recordAttackMappedDiscard(
           type,
           source,
           buffered.clientTick,
@@ -758,8 +590,11 @@ export class EventConsolidator {
       }
 
       const state = this.mergedTicks[mergedTick];
-      if (state === null || !config.validateAttack(state, buffered.event)) {
-        this.tracer?.recordAttackMappedDiscard(
+      if (
+        state === null ||
+        !config.validateAttack(state, buffered.tagged.event)
+      ) {
+        this.ctx.tracer?.recordAttackMappedDiscard(
           type,
           source,
           buffered.clientTick,
@@ -775,8 +610,9 @@ export class EventConsolidator {
         groups.set(mergedTick, group);
       }
       group.push({
-        event: buffered.event,
+        tagged: buffered.tagged,
         source,
+        sourceClientId: buffered.tagged.source,
         clientTick: buffered.clientTick,
         referencedTick,
       });
@@ -792,13 +628,16 @@ export class EventConsolidator {
     for (const [attackTick, candidates] of groups) {
       const insertTick = attackTick + 1;
 
-      const insert = (event: Event) => {
-        this.insertEvent(insertTick, event.clone());
+      const insert = (candidate: Candidate) => {
+        this.insertTaggedEvent(insertTick, {
+          event: candidate.tagged.event.clone(),
+          source: candidate.tagged.source,
+        });
       };
 
       if (candidates.length === 1) {
-        insert(candidates[0].event);
-        this.tracer?.recordAttackMappedResolution(
+        insert(candidates[0]);
+        this.ctx.tracer?.recordAttackMappedResolution(
           type,
           attackTick,
           candidates,
@@ -810,14 +649,16 @@ export class EventConsolidator {
         // Check if all candidates agree on the event content.
         const allAgree = candidates
           .slice(1)
-          .every((c) => config.candidatesAgree(candidates[0].event, c.event));
+          .every((c) =>
+            config.candidatesAgree(candidates[0].tagged.event, c.tagged.event),
+          );
 
         const base = candidates.find((c) => c.source === 'base');
         const winner = base ?? candidates[0];
-        insert(winner.event);
+        insert(winner);
 
         if (allAgree) {
-          this.tracer?.recordAttackMappedResolution(
+          this.ctx.tracer?.recordAttackMappedResolution(
             type,
             attackTick,
             candidates,
@@ -828,7 +669,7 @@ export class EventConsolidator {
         } else if (config.conflictExpected) {
           // TODO(frolv): Proximity-based resolution (for attack style)
           // requires per-event provenance. Default to base for now.
-          this.tracer?.recordAttackMappedResolution(
+          this.ctx.tracer?.recordAttackMappedResolution(
             type,
             attackTick,
             candidates,
@@ -848,7 +689,7 @@ export class EventConsolidator {
             attackTick,
             candidateCount: candidates.length,
           });
-          this.tracer?.recordAttackMappedResolution(
+          this.ctx.tracer?.recordAttackMappedResolution(
             type,
             attackTick,
             candidates,
@@ -861,9 +702,13 @@ export class EventConsolidator {
     }
   }
 
-  private insertEvent(mergedTick: number, event: Event): void {
+  private insertBufferedEvent(buffered: BufferedEvent): void {
+    this.insertTaggedEvent(buffered.mergedTick, buffered.tagged);
+  }
+
+  private insertTaggedEvent(mergedTick: number, tagged: TaggedEvent): void {
     if (mergedTick >= 0 && mergedTick < this.mergedTicks.length) {
-      this.mergedTicks[mergedTick]?.addEvents([event]);
+      this.mergedTicks[mergedTick]?.addTaggedEvents([tagged]);
     }
   }
 

@@ -6,6 +6,7 @@ import {
 } from '@blert/common';
 import { Event as ProtoEvent } from '@blert/common/generated/event_pb';
 
+import { SYNTHETIC_EVENT_SOURCE, TaggedEvent } from '../event';
 import {
   createEvent,
   createNpcDeathEvent,
@@ -15,6 +16,13 @@ import {
   createPlayerUpdateEvent,
 } from './fixtures';
 import { TickState } from '../tick-state';
+
+function tag(
+  events: ProtoEvent[],
+  source: number = SYNTHETIC_EVENT_SOURCE,
+): TaggedEvent[] {
+  return events.map((event) => ({ event, source }));
+}
 
 describe('TickState', () => {
   it('overrides player state with primary data when merging', () => {
@@ -31,20 +39,23 @@ describe('TickState', () => {
 
     const base = new TickState(
       0,
-      [createPlayerUpdateEvent({ tick: 0, name: 'player1' })],
+      tag([createPlayerUpdateEvent({ tick: 0, name: 'player1' })], 1),
       new Map([['player1', basePlayer]]),
     );
     const target = new TickState(
       0,
-      [
-        createPlayerUpdateEvent({
-          tick: 0,
-          name: 'player1',
-          source: DataSource.PRIMARY,
-          x: 5,
-          y: 7,
-        }),
-      ],
+      tag(
+        [
+          createPlayerUpdateEvent({
+            tick: 0,
+            name: 'player1',
+            source: DataSource.PRIMARY,
+            x: 5,
+            y: 7,
+          }),
+        ],
+        2,
+      ),
       new Map([['player1', targetPlayer]]),
     );
 
@@ -79,12 +90,18 @@ describe('TickState', () => {
 
     const base = new TickState(
       0,
-      [createPlayerUpdateEvent({ tick: 0, name: 'player1', x: 1, y: 2 })],
+      tag(
+        [createPlayerUpdateEvent({ tick: 0, name: 'player1', x: 1, y: 2 })],
+        1,
+      ),
       new Map([['player1', basePlayer]]),
     );
     const target = new TickState(
       0,
-      [createPlayerUpdateEvent({ tick: 0, name: 'player1', x: 9, y: 9 })],
+      tag(
+        [createPlayerUpdateEvent({ tick: 0, name: 'player1', x: 9, y: 9 })],
+        2,
+      ),
       new Map([['player1', targetPlayer]]),
     );
 
@@ -101,16 +118,19 @@ describe('TickState', () => {
     const base = new TickState(0, [], new Map([['player1', null]]));
     const target = new TickState(
       0,
-      [
-        createNpcSpawnEvent({
-          tick: 0,
-          npcId: 100,
-          roomId: 1,
-          x: 10,
-          y: 20,
-          hitpointsCurrent: 500,
-        }),
-      ],
+      tag(
+        [
+          createNpcSpawnEvent({
+            tick: 0,
+            npcId: 100,
+            roomId: 1,
+            x: 10,
+            y: 20,
+            hitpointsCurrent: 500,
+          }),
+        ],
+        2,
+      ),
       new Map([['player1', null]]),
     );
 
@@ -138,20 +158,23 @@ describe('TickState', () => {
     });
     const previousTick = new TickState(
       0,
-      [
-        createPlayerUpdateEvent({
-          tick: 0,
-          name: 'player1',
-          source: DataSource.PRIMARY,
-          equipmentDeltas: [new ItemDelta(100, 1, EquipmentSlot.HEAD, true)],
-        }),
-      ],
+      tag(
+        [
+          createPlayerUpdateEvent({
+            tick: 0,
+            name: 'player1',
+            source: DataSource.PRIMARY,
+            equipmentDeltas: [new ItemDelta(100, 1, EquipmentSlot.HEAD, true)],
+          }),
+        ],
+        1,
+      ),
       new Map([['player1', previousPlayer]]),
     );
 
     const base = new TickState(
       1,
-      [createPlayerUpdateEvent({ tick: 1, name: 'player1' })],
+      tag([createPlayerUpdateEvent({ tick: 1, name: 'player1' })], 1),
       new Map([
         [
           'player1',
@@ -165,14 +188,17 @@ describe('TickState', () => {
 
     const target = new TickState(
       1,
-      [
-        createPlayerUpdateEvent({
-          tick: 1,
-          name: 'player1',
-          source: DataSource.PRIMARY,
-          equipmentDeltas: [new ItemDelta(200, 1, EquipmentSlot.HEAD, true)],
-        }),
-      ],
+      tag(
+        [
+          createPlayerUpdateEvent({
+            tick: 1,
+            name: 'player1',
+            source: DataSource.PRIMARY,
+            equipmentDeltas: [new ItemDelta(200, 1, EquipmentSlot.HEAD, true)],
+          }),
+        ],
+        2,
+      ),
       new Map([
         [
           'player1',
@@ -218,27 +244,30 @@ describe('TickState', () => {
 
     const base = new TickState(
       0,
-      [createPlayerUpdateEvent({ tick: 0, name: 'player1' }), baseNpc],
+      tag([createPlayerUpdateEvent({ tick: 0, name: 'player1' }), baseNpc], 1),
       new Map([['player1', createPlayerState({ username: 'player1' })]]),
     );
     const target = new TickState(
       0,
-      [
-        createPlayerUpdateEvent({ tick: 0, name: 'player2' }),
-        createPlayerDeathEvent({ tick: 0, name: 'player1' }),
-        createNpcDeathEvent({ tick: 0, roomId: 1, npcId: 100 }),
-        createNpcSpawnEvent({
-          tick: 0,
-          npcId: 200,
-          roomId: 2,
-          x: 30,
-          y: 40,
-          hitpointsCurrent: 300,
-        }),
-        createEvent(ProtoEvent.Type.TOB_BLOAT_DOWN, 0),
-        createEvent(ProtoEvent.Type.TOB_VERZIK_PHASE, 0),
-        createEvent(ProtoEvent.Type.TOB_MAIDEN_BLOOD_SPLATS, 0),
-      ],
+      tag(
+        [
+          createPlayerUpdateEvent({ tick: 0, name: 'player2' }),
+          createPlayerDeathEvent({ tick: 0, name: 'player1' }),
+          createNpcDeathEvent({ tick: 0, roomId: 1, npcId: 100 }),
+          createNpcSpawnEvent({
+            tick: 0,
+            npcId: 200,
+            roomId: 2,
+            x: 30,
+            y: 40,
+            hitpointsCurrent: 300,
+          }),
+          createEvent(ProtoEvent.Type.TOB_BLOAT_DOWN, 0),
+          createEvent(ProtoEvent.Type.TOB_VERZIK_PHASE, 0),
+          createEvent(ProtoEvent.Type.TOB_MAIDEN_BLOOD_SPLATS, 0),
+        ],
+        2,
+      ),
       new Map([
         ['player1', createPlayerState({ username: 'player1' })],
         ['player2', createPlayerState({ username: 'player2' })],
@@ -273,19 +302,22 @@ describe('TickState', () => {
   it('does not merge player death events when overriding with primary data', () => {
     const base = new TickState(
       0,
-      [createPlayerUpdateEvent({ tick: 0, name: 'player1' })],
+      tag([createPlayerUpdateEvent({ tick: 0, name: 'player1' })], 1),
       new Map([['player1', createPlayerState({ username: 'player1' })]]),
     );
     const target = new TickState(
       0,
-      [
-        createPlayerUpdateEvent({
-          tick: 0,
-          name: 'player1',
-          source: DataSource.PRIMARY,
-        }),
-        createPlayerDeathEvent({ tick: 0, name: 'player1' }),
-      ],
+      tag(
+        [
+          createPlayerUpdateEvent({
+            tick: 0,
+            name: 'player1',
+            source: DataSource.PRIMARY,
+          }),
+          createPlayerDeathEvent({ tick: 0, name: 'player1' }),
+        ],
+        2,
+      ),
       new Map([
         [
           'player1',
@@ -309,12 +341,12 @@ describe('TickState', () => {
   it('keeps graphics events from both sides without deduplication', () => {
     const base = new TickState(
       0,
-      [createEvent(ProtoEvent.Type.TOB_MAIDEN_BLOOD_SPLATS, 0)],
+      tag([createEvent(ProtoEvent.Type.TOB_MAIDEN_BLOOD_SPLATS, 0)], 1),
       new Map([['player1', null]]),
     );
     const target = new TickState(
       0,
-      [createEvent(ProtoEvent.Type.TOB_MAIDEN_BLOOD_SPLATS, 0)],
+      tag([createEvent(ProtoEvent.Type.TOB_MAIDEN_BLOOD_SPLATS, 0)], 2),
       new Map([['player1', null]]),
     );
 
@@ -333,12 +365,15 @@ describe('TickState', () => {
     it('removes and returns events of specified types', () => {
       const base = new TickState(
         0,
-        [
-          createPlayerUpdateEvent({ tick: 0, name: 'player1' }),
-          createPlayerDeathEvent({ tick: 0, name: 'player1' }),
-          createEvent(ProtoEvent.Type.TOB_BLOAT_DOWN, 0),
-          createEvent(ProtoEvent.Type.TOB_MAIDEN_BLOOD_SPLATS, 0),
-        ],
+        tag(
+          [
+            createPlayerUpdateEvent({ tick: 0, name: 'player1' }),
+            createPlayerDeathEvent({ tick: 0, name: 'player1' }),
+            createEvent(ProtoEvent.Type.TOB_BLOAT_DOWN, 0),
+            createEvent(ProtoEvent.Type.TOB_MAIDEN_BLOOD_SPLATS, 0),
+          ],
+          1,
+        ),
         new Map([['player1', createPlayerState({ username: 'player1' })]]),
       );
 
@@ -350,7 +385,7 @@ describe('TickState', () => {
       const extracted = base.extractEvents(streamTypes);
 
       // Should return exactly the two stream events.
-      expect(extracted.map((e) => e.getType()).sort()).toEqual(
+      expect(extracted.map((t) => t.event.getType()).sort()).toEqual(
         [ProtoEvent.Type.PLAYER_DEATH, ProtoEvent.Type.TOB_BLOAT_DOWN].sort(),
       );
 

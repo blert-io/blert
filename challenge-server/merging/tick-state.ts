@@ -15,6 +15,8 @@ import {
   GRAPHICS_EVENT_TYPES,
   offsetEventTick,
   PLAYER_TICK_STATE_TYPES,
+  SYNTHETIC_EVENT_SOURCE,
+  TaggedEvent,
 } from './event';
 
 type NpcAttacked = {
@@ -56,54 +58,54 @@ export type TickStateArray = (TickState | null)[];
 
 export class TickState {
   private tick: number;
-  private eventsByType: Map<EventType, Event[]>;
+  private eventsByType: Map<EventType, TaggedEvent[]>;
   private npcs: Map<number, NpcState>;
   private playerStates: Map<string, PlayerState | null>;
 
   public constructor(
     tick: number,
-    events: Event[],
+    events: TaggedEvent[],
     playerStates: Map<string, PlayerState | null>,
   ) {
     this.tick = tick;
     this.playerStates = playerStates;
 
     this.eventsByType = new Map();
-    for (const event of events) {
-      if (!this.eventsByType.has(event.getType())) {
-        this.eventsByType.set(event.getType(), []);
+    for (const tagged of events) {
+      if (!this.eventsByType.has(tagged.event.getType())) {
+        this.eventsByType.set(tagged.event.getType(), []);
       }
-      this.eventsByType.get(event.getType())!.push(event);
+      this.eventsByType.get(tagged.event.getType())!.push(tagged);
     }
 
     this.npcs = new Map();
 
     events
       .filter(
-        (event) =>
-          event.getType() === Event.Type.NPC_SPAWN ||
-          event.getType() === Event.Type.NPC_UPDATE,
+        (tagged) =>
+          tagged.event.getType() === Event.Type.NPC_SPAWN ||
+          tagged.event.getType() === Event.Type.NPC_UPDATE,
       )
-      .forEach((event) => {
-        const npc = event.getNpc()!;
+      .forEach((tagged) => {
+        const npc = tagged.event.getNpc()!;
 
         this.npcs.set(npc.getRoomId(), {
           id: npc.getId(),
-          x: event.getXCoord(),
-          y: event.getYCoord(),
+          x: tagged.event.getXCoord(),
+          y: tagged.event.getYCoord(),
           hitpoints: SkillLevel.fromRaw(npc.getHitpoints()),
           attack: null,
         });
       });
 
-    this.eventsByType.get(Event.Type.NPC_ATTACK)?.forEach((event) => {
-      const roomId = event.getNpc()?.getRoomId();
+    this.eventsByType.get(Event.Type.NPC_ATTACK)?.forEach((tagged) => {
+      const roomId = tagged.event.getNpc()?.getRoomId();
       if (!roomId) {
         return;
       }
 
       const state = this.npcs.get(roomId);
-      const attack = event.getNpcAttack();
+      const attack = tagged.event.getNpcAttack();
 
       if (!state || !attack) {
         return;
@@ -131,30 +133,52 @@ export class TickState {
     const offset = tick - this.tick;
 
     this.tick = tick;
-    for (const [_, events] of this.eventsByType) {
-      for (const event of events) {
-        offsetEventTick(event, offset);
+    for (const [_, tagged] of this.eventsByType) {
+      for (const t of tagged) {
+        offsetEventTick(t.event, offset);
       }
     }
   }
 
   /**
-   * @returns All events recorded on this tick.
+   * @returns All events recorded on this tick (unwrapped).
    */
   public getEvents(): Event[] {
     const events: Event[] = [];
-    for (const evts of this.eventsByType.values()) {
-      events.push(...evts);
+    for (const tagged of this.eventsByType.values()) {
+      for (const t of tagged) {
+        events.push(t.event);
+      }
     }
     return events;
   }
 
   /**
-   * Retrieves all events of the given type recorded on this tick.
+   * Retrieves all events of the given type recorded on this tick (unwrapped).
    * @param type The type of events to retrieve.
    * @returns The events of the given type.
    */
   public getEventsByType(type: EventType): Event[] {
+    return (this.eventsByType.get(type) ?? []).map((t) => t.event);
+  }
+
+  /**
+   * @returns All tagged events recorded on this tick.
+   */
+  public getTaggedEvents(): TaggedEvent[] {
+    const events: TaggedEvent[] = [];
+    for (const tagged of this.eventsByType.values()) {
+      events.push(...tagged);
+    }
+    return events;
+  }
+
+  /**
+   * Retrieves all tagged events of the given type recorded on this tick.
+   * @param type The type of events to retrieve.
+   * @returns The tagged events of the given type.
+   */
+  public getTaggedEventsByType(type: EventType): TaggedEvent[] {
     return this.eventsByType.get(type) ?? [];
   }
 
@@ -214,7 +238,10 @@ export class TickState {
 
     return new TickState(
       this.tick,
-      this.getEvents().map((e) => e.clone()),
+      this.getTaggedEvents().map((t) => ({
+        event: t.event.clone(),
+        source: t.source,
+      })),
       playerStates,
     );
   }
@@ -251,10 +278,9 @@ export class TickState {
       if (!this.npcs.has(roomId)) {
         this.npcs.set(roomId, { ...state });
         const npcEvents = other
-          .getEvents()
-          .filter((e) => e.getNpc()?.getRoomId() === roomId);
-        this.addEvents(npcEvents);
-        // There is no need to resync when NPC state changes.
+          .getTaggedEvents()
+          .filter((t) => t.event.getNpc()?.getRoomId() === roomId);
+        this.addTaggedEvents(npcEvents);
       }
     }
 
@@ -285,10 +311,10 @@ export class TickState {
       return;
     }
 
-    const updateEvent = this.eventsByType
+    const updateTagged = this.eventsByType
       .get(Event.Type.PLAYER_UPDATE)
-      ?.find((e) => e.getPlayer()?.getName() === player);
-    if (!updateEvent) {
+      ?.find((t) => t.event.getPlayer()?.getName() === player);
+    if (!updateTagged) {
       return;
     }
 
@@ -332,7 +358,7 @@ export class TickState {
       }
     }
 
-    updateEvent.getPlayer()!.setEquipmentDeltasList(newDeltas);
+    updateTagged.event.getPlayer()!.setEquipmentDeltasList(newDeltas);
   }
 
   /**
@@ -345,20 +371,20 @@ export class TickState {
    */
   private mergeGraphicsEvents(other: TickState): void {
     const events = other
-      .getEvents()
-      .filter((event) => GRAPHICS_EVENT_TYPES.has(event.getType()));
+      .getTaggedEvents()
+      .filter((t) => GRAPHICS_EVENT_TYPES.has(t.event.getType()));
     if (events.length > 0) {
-      this.addEvents(events);
+      this.addTaggedEvents(events);
     }
   }
 
   private overridePlayerState(player: string, other: TickState): void {
     for (const type of PLAYER_TICK_STATE_TYPES) {
-      const events = this.eventsByType.get(type);
-      if (events !== undefined) {
+      const tagged = this.eventsByType.get(type);
+      if (tagged !== undefined) {
         this.eventsByType.set(
           type,
-          events.filter((e) => e.getPlayer()?.getName() !== player),
+          tagged.filter((t) => t.event.getPlayer()?.getName() !== player),
         );
       }
     }
@@ -366,38 +392,53 @@ export class TickState {
     this.playerStates.set(player, { ...other.getPlayerState(player)! });
 
     const playerEvents = other
-      .getEvents()
+      .getTaggedEvents()
       .filter(
-        (e) =>
-          PLAYER_TICK_STATE_TYPES.has(e.getType()) &&
-          e.getPlayer()?.getName() === player,
+        (t) =>
+          PLAYER_TICK_STATE_TYPES.has(t.event.getType()) &&
+          t.event.getPlayer()?.getName() === player,
       );
-    this.addEvents(playerEvents);
+    this.addTaggedEvents(playerEvents);
   }
 
   /**
-   * Removes and returns all events of the given types from this tick state.
+   * Removes and returns all tagged events of the given types from this tick
+   * state.
    * @param types Event types to extract.
-   * @returns The extracted events.
+   * @returns The extracted tagged events.
    */
-  public extractEvents(types: ReadonlySet<EventType>): Event[] {
-    const extracted: Event[] = [];
+  public extractEvents(types: ReadonlySet<EventType>): TaggedEvent[] {
+    const extracted: TaggedEvent[] = [];
     for (const type of types) {
-      const events = this.eventsByType.get(type);
-      if (events !== undefined) {
-        extracted.push(...events);
+      const tagged = this.eventsByType.get(type);
+      if (tagged !== undefined) {
+        extracted.push(...tagged);
         this.eventsByType.delete(type);
       }
     }
     return extracted;
   }
 
-  public addEvents(events: Event[]): void {
-    for (const event of events) {
-      if (!this.eventsByType.has(event.getType())) {
-        this.eventsByType.set(event.getType(), []);
+  /**
+   * Adds tagged events to this tick state, preserving their provenance.
+   * @param events The tagged events to add.
+   */
+  public addTaggedEvents(events: TaggedEvent[]): void {
+    for (const tagged of events) {
+      if (!this.eventsByType.has(tagged.event.getType())) {
+        this.eventsByType.set(tagged.event.getType(), []);
       }
-      this.eventsByType.get(event.getType())!.push(event);
+      this.eventsByType.get(tagged.event.getType())!.push(tagged);
     }
+  }
+
+  /**
+   * Adds events to this tick state with no provenance.
+   * @param events The events to add.
+   */
+  public addSyntheticEvents(events: Event[]): void {
+    this.addTaggedEvents(
+      events.map((event) => ({ event, source: SYNTHETIC_EVENT_SOURCE })),
+    );
   }
 }

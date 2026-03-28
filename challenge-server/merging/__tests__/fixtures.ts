@@ -15,6 +15,7 @@ import {
   StageMap,
 } from '@blert/common/generated/event_pb';
 
+import { SYNTHETIC_EVENT_SOURCE } from '../event';
 import { TickState, PlayerState, EquippedItem } from '../tick-state';
 
 type ProtoStage = StageMap[keyof StageMap];
@@ -36,13 +37,15 @@ export function createTickState(
   tick: number,
   players: PlayerState[],
   events: ProtoEvent[] = [],
+  source: number = SYNTHETIC_EVENT_SOURCE,
 ): TickState {
   const playerStates = new Map<string, PlayerState | null>();
   for (const player of players) {
     playerStates.set(player.username, player);
   }
 
-  return new TickState(tick, events, playerStates);
+  const tagged = events.map((event) => ({ event, source }));
+  return new TickState(tick, tagged, playerStates);
 }
 
 export type PlayerAttackState = {
