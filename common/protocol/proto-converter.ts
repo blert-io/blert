@@ -17,6 +17,7 @@ import {
   Event,
   EventType,
   MaidenBloodSplatsEvent,
+  MokhaiotlAttackStyleEvent,
   MokhaiotlLarvaLeakEvent,
   MokhaiotlObjectsEvent,
   MokhaiotlOrbEvent,
@@ -33,6 +34,7 @@ import {
   SoteMazePathEvent,
   Spell,
   SpellTarget,
+  VerzikAttackStyleEvent,
   VerzikBounceEvent,
   VerzikDawnDropEvent,
   VerzikDawnEvent,
@@ -179,6 +181,13 @@ export function protoToJsonEvent(evt: EventProto): Event {
         hitpoints: npc.getHitpoints(),
         prayers: npc.getActivePrayers(),
       };
+      if (npc.hasMaidenCrab()) {
+        e.npc.maidenCrab = npc.getMaidenCrab()!.toObject();
+      } else if (npc.hasNylo()) {
+        e.npc.nylo = npc.getNylo()!.toObject();
+      } else if (npc.hasVerzikCrab()) {
+        e.npc.verzikCrab = npc.getVerzikCrab()!.toObject();
+      }
       break;
     }
 
@@ -344,9 +353,17 @@ export function protoToJsonEvent(evt: EventProto): Event {
       break;
     }
 
-    case EventType.TOB_VERZIK_ATTACK_STYLE:
+    case EventType.TOB_VERZIK_ATTACK_STYLE: {
+      const verzikAttackStyle = evt.getVerzikAttackStyle()!;
+      const e = event as VerzikAttackStyleEvent;
+      e.verzikAttack = {
+        style: verzikAttackStyle.getStyle(),
+        npcAttackTick: verzikAttackStyle.getNpcAttackTick(),
+      };
+      break;
+    }
+
     case EventType.COLOSSEUM_HANDICAP_CHOICE:
-      // These events are not serialized to the file.
       break;
 
     case EventType.TOB_VERZIK_BOUNCE: {
@@ -475,6 +492,16 @@ export function protoToJsonEvent(evt: EventProto): Event {
       e.mokhaiotlLarvaLeak = {
         roomId: larvaLeak.getRoomId(),
         healAmount: larvaLeak.getHealAmount(),
+      };
+      break;
+    }
+
+    case EventType.MOKHAIOTL_ATTACK_STYLE: {
+      const mokhaiotlAttackStyle = evt.getMokhaiotlAttackStyle()!;
+      const e = event as MokhaiotlAttackStyleEvent;
+      e.mokhaiotlAttackStyle = {
+        style: mokhaiotlAttackStyle.getStyle(),
+        npcAttackTick: mokhaiotlAttackStyle.getNpcAttackTick(),
       };
       break;
     }

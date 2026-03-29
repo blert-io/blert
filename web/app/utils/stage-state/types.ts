@@ -6,7 +6,7 @@ import {
   EquipmentSlot,
   Event,
   MaidenCrabProperties,
-  NpcAttack,
+  NpcAttackAction,
   NyloProperties,
   PlayerUpdateEvent,
   PrayerSet,
@@ -44,7 +44,7 @@ export type CustomPlayerState = {
 };
 
 export type NpcState = {
-  attack: Nullable<{ type: NpcAttack; target: string | null }>;
+  attack: Nullable<NpcAttackAction>;
   position: Coords;
   hitpoints: SkillLevel;
   prayers: PrayerSet;
@@ -87,4 +87,7 @@ export type StageState<T extends Challenge> = EventState & {
   events: Event[];
   totalTicks: number;
   loading: boolean;
+  isLive: boolean;
+  /** Whether the live stage is actively producing events. */
+  isStreaming: boolean;
 };

@@ -6,6 +6,7 @@ import {
   ReactNode,
   SetStateAction,
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useRef,
@@ -18,6 +19,8 @@ import Loading from '@/components/loading';
 import { challengeLogo } from '@/logo';
 import { challengeTerm } from '@/utils/challenge';
 import { notFound, usePathname } from 'next/navigation';
+
+import LiveChallengeProvider from './live-challenge-provider';
 
 type ChallengeProviderProps = {
   children: ReactNode;
@@ -88,7 +91,12 @@ export function createChallengeContextProvider<TChallenge>(
     );
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
+    const [refreshKey, setRefreshKey] = useState(0);
     const challengeIdRef = useRef(challengeId);
+
+    const handleLiveRefresh = useCallback(() => {
+      setRefreshKey((k) => k + 1);
+    }, []);
 
     const challengeLoaded = challenge !== null;
 
@@ -120,6 +128,13 @@ export function createChallengeContextProvider<TChallenge>(
           if (!isActive) {
             return;
           }
+
+          // On background refreshes, keep the existing data rather than
+          // flashing an error page over a live view.
+          if (challengeLoaded && challengeIdRef.current === challengeId) {
+            return;
+          }
+
           console.warn(
             `Failed to load ${challengeNameLower} ${challengeId}`,
             error,
@@ -142,7 +157,7 @@ export function createChallengeContextProvider<TChallenge>(
       return () => {
         isActive = false;
       };
-    }, [challengeLoaded, challengeId, pathname, setChallenge]);
+    }, [challengeLoaded, challengeId, pathname, setChallenge, refreshKey]);
 
     useEffect(() => {
       return () => {
@@ -170,14 +185,16 @@ export function createChallengeContextProvider<TChallenge>(
     }
 
     return (
-      <ActorContext.Provider
-        value={{
-          selectedActor,
-          setSelectedActor,
-        }}
-      >
-        {children}
-      </ActorContext.Provider>
+      <LiveChallengeProvider onRefresh={handleLiveRefresh}>
+        <ActorContext.Provider
+          value={{
+            selectedActor,
+            setSelectedActor,
+          }}
+        >
+          {children}
+        </ActorContext.Provider>
+      </LiveChallengeProvider>
     );
   }
 

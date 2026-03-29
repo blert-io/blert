@@ -2,7 +2,7 @@ services:
   postgres:
     image: postgres:16
     ports:
-      - "5433:5432"
+      - '5433:5432'
     volumes:
       - postgresdata:/var/lib/postgresql/data
     environment:
@@ -13,7 +13,7 @@ services:
   redis:
     image: redis
     ports:
-      - "6379:6379"
+      - '6379:6379'
     volumes:
       - rediscache:/data
 
@@ -24,7 +24,7 @@ services:
       - postgres
       - challenge-server
     ports:
-      - "3003:3003"
+      - '3003:3003'
     links:
       - redis
       - postgres
@@ -50,7 +50,7 @@ services:
       - redis
       - postgres
     ports:
-      - "3009:3003"
+      - '3009:3003'
     links:
       - redis
       - postgres
@@ -74,7 +74,7 @@ services:
     depends_on:
       - postgres
     ports:
-      - "3013:3003"
+      - '3013:3003'
     links:
       - postgres
     volumes:
@@ -96,12 +96,13 @@ services:
     depends_on:
       - redis
     ports:
-      - "3010:3010"
+      - '3010:3010'
     volumes:
       - .:/app
       - cargo-cache:/usr/local/cargo/registry
       - live-server-target:/app/target
     environment:
+      BLERT_ALLOWED_ORIGINS: http://localhost:3000
       BLERT_REDIS_URI: redis://redis:6379
       BLERT_LOG_LEVEL: ${BLERT_LOG_LEVEL:-debug}
     working_dir: /app
@@ -112,7 +113,7 @@ services:
     profiles:
       - observability
     ports:
-      - "9090:9090"
+      - '9090:9090'
     volumes:
       - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheusdata:/prometheus
@@ -122,7 +123,7 @@ services:
     profiles:
       - observability
     ports:
-      - "3100:3100"
+      - '3100:3100'
     command: -config.file=/etc/loki/config.yml
     volumes:
       - ./docker/loki/config.yml:/etc/loki/config.yml:ro
@@ -149,7 +150,7 @@ services:
       - loki
       - prometheus
     ports:
-      - "3001:3000"
+      - '3001:3000'
     environment:
       GF_SECURITY_ADMIN_USER: blert
       GF_SECURITY_ADMIN_PASSWORD: blert

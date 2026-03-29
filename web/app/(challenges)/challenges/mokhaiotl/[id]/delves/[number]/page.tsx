@@ -136,8 +136,8 @@ export default function DelvePage({ params }: DelvePageProps) {
     for (const [, npc] of npcState) {
       for (let tick = 0; tick < totalTicks; tick++) {
         const state = npc.stateByTick[tick];
-        if (state?.attack && ballAttacks.has(state.attack.type)) {
-          ballAttackTicks.push([tick, state.attack.type]);
+        if (state?.attack && ballAttacks.has(state.attack.attack)) {
+          ballAttackTicks.push([tick, state.attack.attack]);
         }
       }
     }

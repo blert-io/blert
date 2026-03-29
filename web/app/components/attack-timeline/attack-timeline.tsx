@@ -552,8 +552,8 @@ const buildTickColumn = (
     if (attack !== null) {
       npcState = {
         ...partialNpcState,
-        attack: attack.type,
-        target: attack.target,
+        attack: attack.attack,
+        target: attack.target ?? null,
       };
     } else if (label !== undefined) {
       npcState = {

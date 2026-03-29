@@ -429,7 +429,8 @@ function NpcTooltipContent({ roomId, tick }: { roomId: number; tick: number }) {
 
   const npcName = getNpcDefinition(npc.spawnNpcId)?.fullName ?? 'Unknown';
   const meta =
-    NPC_ATTACK_METADATA[attack.type] ?? NPC_ATTACK_METADATA[NpcAttack.UNKNOWN];
+    NPC_ATTACK_METADATA[attack.attack] ??
+    NPC_ATTACK_METADATA[NpcAttack.UNKNOWN];
 
   const targetName = attack.target;
   const targetChip = targetName ? (

@@ -227,6 +227,78 @@ describe('protoToJsonEvent', () => {
       expect(result.npc.id).toBe(10792);
       expect(result.npc.roomId).toBe(59422);
       expect(result.npc.hitpoints).toBe(589833);
+      expect(result.npc.maidenCrab).toBeUndefined();
+      expect(result.npc.nylo).toBeUndefined();
+      expect(result.npc.verzikCrab).toBeUndefined();
+    });
+
+    it('converts NPC_SPAWN with maiden crab subtype', () => {
+      const evt = makeEvent(EventType.NPC_SPAWN);
+      const npc = new EventProto.Npc();
+      npc.setId(8366);
+      npc.setRoomId(1);
+      const crab = new EventProto.Npc.MaidenCrab();
+      crab.setSpawn(EventProto.Npc.MaidenCrab.Spawn.SEVENTIES);
+      crab.setPosition(EventProto.Npc.MaidenCrab.Position.S1);
+      crab.setScuffed(true);
+      npc.setMaidenCrab(crab);
+      evt.setNpc(npc);
+
+      const result = protoToJsonEvent(evt) as NpcEvent;
+
+      expect(result.npc.maidenCrab).toEqual({
+        spawn: EventProto.Npc.MaidenCrab.Spawn.SEVENTIES,
+        position: EventProto.Npc.MaidenCrab.Position.S1,
+        scuffed: true,
+      });
+      expect(result.npc.nylo).toBeUndefined();
+      expect(result.npc.verzikCrab).toBeUndefined();
+    });
+
+    it('converts NPC_SPAWN with nylo subtype', () => {
+      const evt = makeEvent(EventType.NPC_SPAWN);
+      const npc = new EventProto.Npc();
+      npc.setId(8342);
+      npc.setRoomId(2);
+      const nylo = new EventProto.Npc.Nylo();
+      nylo.setWave(1);
+      nylo.setParentRoomId(0);
+      nylo.setBig(false);
+      nylo.setStyle(EventProto.Npc.Nylo.Style.MELEE);
+      nylo.setSpawnType(EventProto.Npc.Nylo.SpawnType.EAST);
+      npc.setNylo(nylo);
+      evt.setNpc(npc);
+
+      const result = protoToJsonEvent(evt) as NpcEvent;
+
+      expect(result.npc.nylo).toEqual({
+        wave: 1,
+        parentRoomId: 0,
+        big: false,
+        style: EventProto.Npc.Nylo.Style.MELEE,
+        spawnType: EventProto.Npc.Nylo.SpawnType.EAST,
+      });
+      expect(result.npc.maidenCrab).toBeUndefined();
+    });
+
+    it('converts NPC_SPAWN with verzik crab subtype', () => {
+      const evt = makeEvent(EventType.NPC_SPAWN);
+      const npc = new EventProto.Npc();
+      npc.setId(8385);
+      npc.setRoomId(3);
+      const crab = new EventProto.Npc.VerzikCrab();
+      crab.setPhase(EventProto.VerzikPhase.VERZIK_P2);
+      crab.setSpawn(EventProto.Npc.VerzikCrab.Spawn.NORTH);
+      npc.setVerzikCrab(crab);
+      evt.setNpc(npc);
+
+      const result = protoToJsonEvent(evt) as NpcEvent;
+
+      expect(result.npc.verzikCrab).toEqual({
+        phase: EventProto.VerzikPhase.VERZIK_P2,
+        spawn: EventProto.Npc.VerzikCrab.Spawn.NORTH,
+      });
+      expect(result.npc.maidenCrab).toBeUndefined();
     });
 
     it('converts NPC_ATTACK with target', () => {
