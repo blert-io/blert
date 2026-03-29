@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  ChallengeStatus,
   Coords,
   EquipmentSlot,
   EventType,
@@ -39,12 +38,15 @@ import { useDisplay } from '@/display';
 import { ActorContext } from '@/(challenges)/raids/tob/context';
 import {
   useMapEntities,
+  usePreloads,
   usePlayingState,
+  useStableEvents,
   useStageEvents,
 } from '@/utils/boss-room-state';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import BarrierEntity from '../barrier';
+import MissingStageData from '../missing-stage-data';
 
 import bossStyles from '../style.module.scss';
 import styles from './style.module.scss';
@@ -97,10 +99,19 @@ export default function VerzikPage() {
     npcState,
     bcf,
     loading,
+    isLive,
+    isStreaming,
   } = useStageEvents<TobRaid>(Stage.TOB_VERZIK);
 
-  const { currentTick, setTick, playing, setPlaying, advanceTick } =
-    usePlayingState(totalTicks);
+  const {
+    currentTick,
+    setTick,
+    playing,
+    setPlaying,
+    advanceTick,
+    following,
+    jumpToLive,
+  } = usePlayingState(totalTicks, isStreaming);
 
   const mapDefinition = useMemo(() => {
     const pillarsThisTick: Coords[] = [];
@@ -131,10 +142,41 @@ export default function VerzikPage() {
 
   const redCrabInfoRef = useRef<HTMLDivElement>(null);
 
+  // During live, the full event/state maps get new references every tick.
+  // Stabilize the specific subsets used by expensive memos below.
+  const stageRef = useRef({ eventsByTick, playerState });
+  stageRef.current = { eventsByTick, playerState };
+
+  const highlightedAttacks = useStableEvents<NpcAttackEvent>(
+    eventsByType,
+    EventType.NPC_ATTACK,
+    (e) =>
+      e.npcAttack.attack === NpcAttack.TOB_VERZIK_P1_AUTO ||
+      e.npcAttack.attack === NpcAttack.TOB_VERZIK_P2_BOUNCE ||
+      e.npcAttack.attack === NpcAttack.TOB_VERZIK_P2_CABBAGE ||
+      e.npcAttack.attack === NpcAttack.TOB_VERZIK_P2_MAGE ||
+      e.npcAttack.attack === NpcAttack.TOB_VERZIK_P2_PURPLE ||
+      e.npcAttack.attack === NpcAttack.TOB_VERZIK_P2_ZAP,
+  );
+  const npcSpawns = useStableEvents<NpcEvent>(
+    eventsByType,
+    EventType.NPC_SPAWN,
+  );
+  const dawnDropEvents = useStableEvents<VerzikDawnDropEvent>(
+    eventsByType,
+    EventType.TOB_VERZIK_DAWN_DROP,
+  );
+  const healEvents = useStableEvents<VerzikHealEvent>(
+    eventsByType,
+    EventType.TOB_VERZIK_HEAL,
+  );
+
   const [splits, redsInfo, backgroundColors] = useMemo(() => {
     if (challenge === null) {
       return [[], [], []];
     }
+
+    const { eventsByTick } = stageRef.current;
 
     const splits: TimelineSplit[] = [];
     if (challenge.splits[SplitType.TOB_VERZIK_P1_END]) {
@@ -161,8 +203,8 @@ export default function VerzikPage() {
     }
 
     const backgroundColors: TimelineColor[] = [];
-    eventsByType[EventType.NPC_ATTACK]?.forEach((event) => {
-      switch ((event as NpcAttackEvent).npcAttack.attack) {
+    highlightedAttacks.forEach((event) => {
+      switch (event.npcAttack.attack) {
         case NpcAttack.TOB_VERZIK_P1_AUTO:
           backgroundColors.push({
             tick: event.tick,
@@ -184,8 +226,8 @@ export default function VerzikPage() {
     });
 
     const redsTicks: number[] = [];
-    eventsByType[EventType.NPC_SPAWN]?.forEach((event) => {
-      if (Npc.isVerzikMatomenos((event as NpcEvent).npc.id)) {
+    npcSpawns.forEach((event) => {
+      if (Npc.isVerzikMatomenos(event.npc.id)) {
         if (!redsTicks.includes(event.tick)) {
           redsTicks.push(event.tick);
         }
@@ -250,15 +292,15 @@ export default function VerzikPage() {
       });
     }
     return [splits, info, backgroundColors];
-  }, [challenge, eventsByType, eventsByTick]);
+  }, [challenge, highlightedAttacks, npcSpawns]);
 
   // Build a tick-by-tick map of Dawnbringer ownership during P1. On a given
   // tick, the Dawnbringer is either held by a player or on the ground.
   type DawnState = { owner: string } | { owner: null; position: Coords };
   const dawnStates = useMemo((): DawnState[] => {
-    const drops = (eventsByType[EventType.TOB_VERZIK_DAWN_DROP] ??
-      []) as VerzikDawnDropEvent[];
-    if (drops.length === 0) {
+    const { playerState } = stageRef.current;
+
+    if (dawnDropEvents.length === 0) {
       // Don't infer state for old raids without Dawn drop events.
       return [];
     }
@@ -289,7 +331,7 @@ export default function VerzikPage() {
         : { owner: null, position: { x: 0, y: 0 } };
     let tick = 0;
 
-    for (const event of drops) {
+    for (const event of dawnDropEvents) {
       const { dropped } = event.verzikDawnDrop;
 
       for (; tick < event.tick && tick <= p1End; tick++) {
@@ -315,13 +357,13 @@ export default function VerzikPage() {
     }
 
     return states;
-  }, [challenge, eventsByType, playerState, totalTicks]);
+  }, [challenge, dawnDropEvents, totalTicks]);
 
   const customStates = useMemo(() => {
     const entries: CustomStateEntry[] = [];
 
-    eventsByType[EventType.TOB_VERZIK_DAWN_DROP]?.forEach((event) => {
-      const { dropped } = (event as VerzikDawnDropEvent).verzikDawnDrop;
+    dawnDropEvents.forEach((event) => {
+      const { dropped } = event.verzikDawnDrop;
 
       // For drops, the owner before this tick is the dropper.
       // For pickups, the owner after this tick is the picker.
@@ -346,8 +388,8 @@ export default function VerzikPage() {
       }
     });
 
-    eventsByType[EventType.TOB_VERZIK_HEAL]?.forEach((event) => {
-      const { player, healAmount } = (event as VerzikHealEvent).verzikHeal;
+    healEvents.forEach((event) => {
+      const { player, healAmount } = event.verzikHeal;
       entries.push({
         playerName: player,
         tick: event.tick,
@@ -365,7 +407,7 @@ export default function VerzikPage() {
     });
 
     return entries;
-  }, [dawnStates, eventsByType]);
+  }, [dawnStates, dawnDropEvents, healEvents]);
 
   const customEntitiesForTick = useCallback(
     (tick: number) => {
@@ -405,21 +447,22 @@ export default function VerzikPage() {
     [dawnStates, eventsByTick],
   );
 
-  const { getEntities, preloads } = useMapEntities(
+  const getEntities = useMapEntities(
     challenge,
     playerState,
     npcState,
     totalTicks,
     { customEntitiesForTick },
   );
+  const preloads = usePreloads(npcState, isLive);
 
   if (loading || challenge === null) {
     return <Loading />;
   }
 
   const verzikData = challenge.tobRooms.verzik;
-  if (challenge.status !== ChallengeStatus.IN_PROGRESS && verzikData === null) {
-    return <>No Verzik data for this raid</>;
+  if (!isLive && verzikData === null) {
+    return <MissingStageData stage={Stage.TOB_VERZIK} />;
   }
 
   const playerTickState = challenge.party.reduce(
@@ -491,7 +534,8 @@ export default function VerzikPage() {
     });
   }
 
-  if (verzikData?.redsSpawnCount !== undefined) {
+  const redsSpawnCount = verzikData?.redsSpawnCount ?? redsInfo.length;
+  if (redsSpawnCount > 0) {
     sections.push({
       title: 'Stats',
       content: (
@@ -509,9 +553,7 @@ export default function VerzikPage() {
                 View Spawns
               </button>
             </div>
-            <span className={styles.redCrabValue}>
-              {verzikData.redsSpawnCount}
-            </span>
+            <span className={styles.redCrabValue}>{redsSpawnCount}</span>
           </div>
         </div>
       ),
@@ -564,7 +606,7 @@ export default function VerzikPage() {
         />
       </div>
 
-      {verzikData?.redsSpawnCount !== undefined && (
+      {redsSpawnCount > 0 && (
         <Card
           className={styles.redCrabAnalysis}
           header={{ title: 'Red Crabs Phases' }}
@@ -646,6 +688,8 @@ export default function VerzikPage() {
         updateTick={setTick}
         updatePlayingState={setPlaying}
         splits={splits}
+        following={following}
+        onJumpToLive={isStreaming ? jumpToLive : undefined}
       />
     </>
   );

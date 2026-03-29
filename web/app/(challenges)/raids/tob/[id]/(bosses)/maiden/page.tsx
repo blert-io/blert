@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  ChallengeStatus,
   Coords,
   EventType,
   MaidenCrabPosition,
@@ -43,6 +42,7 @@ import {
   EnhancedMaidenCrab,
   EnhancedRoomNpc,
   useMapEntities,
+  usePreloads,
   usePlayingState,
   useStageEvents,
 } from '@/utils/boss-room-state';
@@ -50,6 +50,7 @@ import { coordsEqual, inRect } from '@/utils/coords';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import BarrierEntity from '../barrier';
+import MissingStageData from '../missing-stage-data';
 
 import bossStyles from '../style.module.scss';
 import styles from './style.module.scss';
@@ -257,17 +258,25 @@ export default function Maiden() {
 
   const {
     challenge,
-    events,
     totalTicks,
     eventsByTick,
     playerState,
     npcState,
     bcf,
     loading,
+    isLive,
+    isStreaming,
   } = useStageEvents<TobRaid>(Stage.TOB_MAIDEN);
 
-  const { currentTick, advanceTick, setTick, playing, setPlaying } =
-    usePlayingState(totalTicks);
+  const {
+    currentTick,
+    advanceTick,
+    setTick,
+    playing,
+    setPlaying,
+    following,
+    jumpToLive,
+  } = usePlayingState(totalTicks, isStreaming);
 
   const bossHealthChartData = useMemo(() => {
     let maiden: EnhancedRoomNpc | null = null;
@@ -354,7 +363,7 @@ export default function Maiden() {
     return entities;
   }, []);
 
-  const { getEntities, preloads } = useMapEntities(
+  const getEntities = useMapEntities(
     challenge,
     playerState,
     npcState,
@@ -363,18 +372,15 @@ export default function Maiden() {
       customEntitiesForTick,
     },
   );
+  const preloads = usePreloads(npcState, isLive);
 
   if (loading || challenge === null) {
     return <Loading />;
   }
 
   const maidenData = challenge.tobRooms.maiden;
-  if (challenge.status === ChallengeStatus.IN_PROGRESS) {
-    if (events.length === 0) {
-      return <>This raid has not yet started Maiden.</>;
-    }
-  } else if (maidenData === null) {
-    return <>No Maiden data for raid</>;
+  if (!isLive && maidenData === null) {
+    return <MissingStageData stage={Stage.TOB_MAIDEN} />;
   }
 
   const playerTickState = challenge.party.reduce(
@@ -458,6 +464,7 @@ export default function Maiden() {
             data={bossHealthChartData}
             width="100%"
             height="100%"
+            animate={!isLive}
           />
         </Card>
       </div>
@@ -469,6 +476,8 @@ export default function Maiden() {
         updateTick={setTick}
         updatePlayingState={setPlaying}
         splits={controlsSplits}
+        following={following}
+        onJumpToLive={isStreaming ? jumpToLive : undefined}
       />
     </>
   );

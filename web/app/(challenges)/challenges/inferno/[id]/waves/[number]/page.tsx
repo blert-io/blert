@@ -30,6 +30,7 @@ import {
 import { useDisplay } from '@/display';
 import {
   useMapEntities,
+  usePreloads,
   usePlayingState,
   useStageEvents,
 } from '@/utils/boss-room-state';
@@ -92,10 +93,19 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
     bcf,
     totalTicks,
     loading,
+    isLive,
+    isStreaming,
   } = useStageEvents<InfernoChallenge>(stage);
 
-  const { currentTick, setTick, playing, setPlaying, advanceTick } =
-    usePlayingState(totalTicks);
+  const {
+    currentTick,
+    setTick,
+    playing,
+    setPlaying,
+    advanceTick,
+    following,
+    jumpToLive,
+  } = usePlayingState(totalTicks, isStreaming);
 
   const { selectedActor, setSelectedActor } = useContext(ActorContext);
 
@@ -127,13 +137,14 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
     return npc;
   }, []);
 
-  const { getEntities, preloads } = useMapEntities(
+  const getEntities = useMapEntities(
     challenge,
     playerState,
     npcState,
     totalTicks,
     { modifyEntity },
   );
+  const preloads = usePreloads(npcState, isLive);
 
   const { sections, splits } = useMemo(() => {
     if (stage !== Stage.INFERNO_WAVE_69) {
@@ -207,7 +218,7 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
   }
 
   const waveInfo = challenge.inferno.waves.find((wave) => wave.stage === stage);
-  if (waveInfo === undefined) {
+  if (!isLive && waveInfo === undefined) {
     notFound();
   }
 
@@ -266,6 +277,8 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
         updateTick={setTick}
         updatePlayingState={setPlaying}
         splits={splits}
+        following={following}
+        onJumpToLive={isStreaming ? jumpToLive : undefined}
       />
     </div>
   );

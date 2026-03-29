@@ -28,6 +28,7 @@ import {
 import { useDisplay } from '@/display';
 import {
   useMapEntities,
+  usePreloads,
   usePlayingState,
   useStageEvents,
 } from '@/utils/boss-room-state';
@@ -114,10 +115,19 @@ export default function DelvePage({ params }: DelvePageProps) {
     bcf,
     totalTicks,
     loading,
+    isLive,
+    isStreaming,
   } = useStageEvents<MokhaiotlChallenge>(stage, attempt);
 
-  const { currentTick, setTick, playing, setPlaying, advanceTick } =
-    usePlayingState(totalTicks);
+  const {
+    currentTick,
+    setTick,
+    playing,
+    setPlaying,
+    advanceTick,
+    following,
+    jumpToLive,
+  } = usePlayingState(totalTicks, isStreaming);
 
   const orbsRow = useMemo(() => {
     const ballAttacks = new Set([
@@ -350,13 +360,14 @@ export default function DelvePage({ params }: DelvePageProps) {
     [challenge, eventsByType, rocksByTick, splatsByTick],
   );
 
-  const { getEntities, preloads } = useMapEntities(
+  const getEntities = useMapEntities(
     challenge,
     playerState,
     npcState,
     totalTicks,
     { customEntitiesForTick },
   );
+  const preloads = usePreloads(npcState, isLive);
 
   if (challenge === null || loading) {
     return <Loading />;
@@ -421,6 +432,8 @@ export default function DelvePage({ params }: DelvePageProps) {
         currentTick={currentTick}
         updateTick={setTick}
         updatePlayingState={setPlaying}
+        following={following}
+        onJumpToLive={isStreaming ? jumpToLive : undefined}
       />
     </div>
   );

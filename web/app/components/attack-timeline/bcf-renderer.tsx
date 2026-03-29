@@ -278,7 +278,7 @@ export function BcfRenderer({
 
   // Calculate active column indicator position.
   let indicatorStyle: React.CSSProperties | undefined;
-  if (currentTick !== undefined) {
+  if (currentTick !== undefined && resolver.totalTicks > 0) {
     const tickOffset = currentTick - resolver.startTick;
     const row = Math.floor(tickOffset / ticksPerRow);
     const tickOnRow = tickOffset % ticksPerRow;

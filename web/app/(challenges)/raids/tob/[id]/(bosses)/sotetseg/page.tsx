@@ -1,13 +1,6 @@
 'use client';
 
-import {
-  ChallengeStatus,
-  EventType,
-  Npc,
-  SplitType,
-  Stage,
-  TobRaid,
-} from '@blert/common';
+import { EventType, Npc, SplitType, Stage, TobRaid } from '@blert/common';
 import { useCallback, useContext, useMemo, useRef } from 'react';
 
 import { ActorContext } from '@/(challenges)/raids/tob/context';
@@ -24,6 +17,7 @@ import { useDisplay } from '@/display';
 import {
   EnhancedRoomNpc,
   useMapEntities,
+  usePreloads,
   usePlayingState,
   useStageEvents,
 } from '@/utils/boss-room-state';
@@ -31,6 +25,7 @@ import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import BarrierEntity from '../barrier';
 import MazeTileEntity from './maze-tile';
+import MissingStageData from '../missing-stage-data';
 
 import bossStyles from '../style.module.scss';
 import styles from './style.module.scss';
@@ -174,10 +169,19 @@ export default function SotetsegPage() {
     npcState,
     bcf,
     loading,
+    isLive,
+    isStreaming,
   } = useStageEvents<TobRaid>(Stage.TOB_SOTETSEG);
 
-  const { currentTick, setTick, playing, setPlaying, advanceTick } =
-    usePlayingState(totalTicks);
+  const {
+    currentTick,
+    setTick,
+    playing,
+    setPlaying,
+    advanceTick,
+    following,
+    jumpToLive,
+  } = usePlayingState(totalTicks, isStreaming);
 
   const { selectedActor, setSelectedActor } = useContext(ActorContext);
 
@@ -245,21 +249,22 @@ export default function SotetsegPage() {
     return entities;
   }, []);
 
-  const { getEntities, preloads } = useMapEntities(
+  const getEntities = useMapEntities(
     challenge,
     playerState,
     npcState,
     totalTicks,
     { customEntitiesForTick },
   );
+  const preloads = usePreloads(npcState, isLive);
 
   if (loading || challenge === null) {
     return <Loading />;
   }
 
   const soteData = challenge.tobRooms.sotetseg;
-  if (challenge.status !== ChallengeStatus.IN_PROGRESS && soteData === null) {
-    return <>No Sotetseg data for this raid</>;
+  if (!isLive && soteData === null) {
+    return <MissingStageData stage={Stage.TOB_SOTETSEG} />;
   }
 
   const playerTickState = challenge.party.reduce(
@@ -387,6 +392,7 @@ export default function SotetsegPage() {
             data={bossHealthChartData}
             width="100%"
             height="100%"
+            animate={!isLive}
           />
         </Card>
       </div>
@@ -398,6 +404,8 @@ export default function SotetsegPage() {
         updateTick={setTick}
         updatePlayingState={setPlaying}
         splits={splits}
+        following={following}
+        onJumpToLive={isStreaming ? jumpToLive : undefined}
       />
     </>
   );

@@ -100,6 +100,7 @@
     color: inherit;
     min-height: 24px;
     padding: 0 4px;
+    font-size: 0.9rem;
 
     i {
       color: var(--blert-purple);
@@ -121,7 +122,36 @@
         font-weight: 400;
         font-size: 1em;
       }
+
+      &.liveStatus {
+        background: linear-gradient(
+          90deg,
+          #ffffff 0%,
+          #ffffff 35%,
+          rgba(var(--blert-purple-base), 0.75) 50%,
+          #ffffff 65%,
+          #ffffff 100%
+        );
+        background-size: 300% 100%;
+        background-clip: text;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: shimmer 5s linear infinite;
+
+        @media (prefers-reduced-motion: reduce) {
+          animation: none;
+        }
+      }
     }
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -100% 0;
   }
 }
 

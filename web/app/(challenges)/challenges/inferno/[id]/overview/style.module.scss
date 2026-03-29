@@ -25,8 +25,6 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
     gap: 1rem;
-    max-height: 80vh;
-    overflow-y: auto;
   }
 
   .waveGroup {
@@ -67,6 +65,27 @@
           i {
             font-size: 1em;
             color: var(--blert-purple);
+          }
+
+          .liveBadge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: rgba(var(--blert-red-base), 0.15);
+            color: var(--blert-red);
+            font-size: 0.65em;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+          }
+
+          .liveDot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--blert-red);
+            animation: live-pulse 1.5s ease-in-out infinite;
           }
         }
 
@@ -141,6 +160,19 @@
           color: #fff;
           transform: translateY(-1px);
         }
+
+        &.liveWaveLink {
+          border-color: var(--blert-blue);
+          color: var(--blert-blue);
+          animation: live-wave-pulse 1.5s ease-in-out infinite;
+
+          &:hover {
+            background: var(--blert-blue);
+            border-color: var(--blert-blue);
+            color: #fff;
+            animation: none;
+          }
+        }
       }
     }
   }
@@ -208,5 +240,29 @@
     .groups {
       grid-template-columns: repeat(3, 1fr);
     }
+  }
+}
+
+@keyframes live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.75);
+  }
+}
+
+@keyframes live-wave-pulse {
+  0%,
+  100% {
+    border-color: var(--blert-blue);
+    box-shadow: 0 0 4px rgba(var(--blert-blue-base), 0.3);
+  }
+  50% {
+    border-color: rgba(var(--blert-blue-base), 0.3);
+    box-shadow: none;
   }
 }

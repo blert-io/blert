@@ -113,20 +113,6 @@ export default function SessionSearch({
   const page = Math.ceil(offset / RESULTS_PER_PAGE);
   const totalPages = Math.ceil(stats.count / RESULTS_PER_PAGE);
 
-  console.log(
-    'RENDER',
-    'offset',
-    offset,
-    'stats.count',
-    stats.count,
-    'remaining',
-    remaining,
-    'page',
-    page,
-    'totalPages',
-    totalPages,
-  );
-
   const filtersEmpty =
     context.filters.type.length === 0 &&
     context.filters.mode.length === 0 &&
@@ -189,17 +175,6 @@ export default function SessionSearch({
       const shouldReverse =
         action === FetchAction.BACK ||
         (action === FetchAction.LOAD && ctx.pagination.before !== undefined);
-
-      console.log(
-        'totalCount',
-        totalCount,
-        'offset',
-        offset,
-        'parsed.length',
-        parsed.length,
-        'remaining (before)',
-        remaining,
-      );
 
       if (shouldReverse) {
         parsed.reverse();

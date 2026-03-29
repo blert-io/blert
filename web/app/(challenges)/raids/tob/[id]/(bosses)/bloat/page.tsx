@@ -4,7 +4,6 @@ import {
   BloatDownEvent,
   BloatHandsDropEvent,
   BloatHandsSplatEvent,
-  ChallengeStatus,
   Coords,
   EventType,
   Npc,
@@ -34,7 +33,9 @@ import { ActorContext } from '@/(challenges)/raids/tob/context';
 import {
   EnhancedRoomNpc,
   useMapEntities,
+  usePreloads,
   usePlayingState,
+  useStableEvents,
   useStageEvents,
 } from '@/utils/boss-room-state';
 import { inRect } from '@/utils/coords';
@@ -42,6 +43,7 @@ import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import BarrierEntity from '../barrier';
 import BloatHandRenderer, { BloatHandData, BloatHandState } from './bloat-hand';
+import MissingStageData from '../missing-stage-data';
 
 import bossStyles from '../style.module.scss';
 import styles from './style.module.scss';
@@ -96,32 +98,51 @@ export default function BloatPage() {
   const {
     challenge,
     totalTicks,
-    eventsByType,
     playerState,
     npcState,
+    eventsByType,
     bcf,
     loading,
+    isLive,
+    isStreaming,
   } = useStageEvents<TobRaid>(Stage.TOB_BLOAT);
 
-  const { currentTick, setTick, playing, setPlaying, advanceTick } =
-    usePlayingState(totalTicks);
+  const {
+    currentTick,
+    advanceTick,
+    setTick,
+    playing,
+    setPlaying,
+    following,
+    jumpToLive,
+  } = usePlayingState(totalTicks, isStreaming);
 
   const { setSelectedActor, selectedActor } = useContext(ActorContext);
+
+  const bloatDownEvents = useStableEvents<BloatDownEvent>(
+    eventsByType,
+    EventType.TOB_BLOAT_DOWN,
+  );
+  const bloatUpEvents = useStableEvents(eventsByType, EventType.TOB_BLOAT_UP);
+  const handsDropEvents = useStableEvents<BloatHandsDropEvent>(
+    eventsByType,
+    EventType.TOB_BLOAT_HANDS_DROP,
+  );
+  const handsSplatEvents = useStableEvents<BloatHandsSplatEvent>(
+    eventsByType,
+    EventType.TOB_BLOAT_HANDS_SPLAT,
+  );
 
   const { downInfo, splits, backgroundColors } = useMemo(() => {
     const bloat: EnhancedRoomNpc | null =
       npcState.values().next().value ?? null;
 
-    const downInfo: DownInfo[] =
-      eventsByType[EventType.TOB_BLOAT_DOWN]?.map((evt) => {
-        const bloatDownEvent = evt as BloatDownEvent;
-        return {
-          tick: evt.tick,
-          walkTime: bloatDownEvent.bloatDown.walkTime,
-          startHitpoints: bloat?.stateByTick[evt.tick]?.hitpoints,
-          endHitpoints: undefined,
-        };
-      }) ?? [];
+    const downInfo: DownInfo[] = bloatDownEvents.map((evt) => ({
+      tick: evt.tick,
+      walkTime: evt.bloatDown.walkTime,
+      startHitpoints: bloat?.stateByTick[evt.tick]?.hitpoints,
+      endHitpoints: undefined,
+    }));
 
     const splits = downInfo.map((down, i) => ({
       tick: down.tick,
@@ -138,7 +159,7 @@ export default function BloatPage() {
       backgroundColor: upColor,
     });
 
-    eventsByType[EventType.TOB_BLOAT_UP]?.forEach((evt, i) => {
+    bloatUpEvents.forEach((evt, i) => {
       splits.push({ tick: evt.tick, splitName: 'Moving' });
 
       const nextDownTick =
@@ -158,7 +179,7 @@ export default function BloatPage() {
     }
 
     return { downInfo, splits, backgroundColors };
-  }, [eventsByType, npcState, totalTicks]);
+  }, [bloatDownEvents, bloatUpEvents, npcState, totalTicks]);
 
   const bossHealthChartData = useMemo(() => {
     let bloat: EnhancedRoomNpc | null = null;
@@ -181,25 +202,17 @@ export default function BloatPage() {
   const hands = useMemo(() => {
     const handsByTick = new Map<number, TickHands>();
 
-    const unmatchedDropTicks = new Set<number>();
-    eventsByType[EventType.TOB_BLOAT_HANDS_DROP]?.forEach((evt) => {
-      unmatchedDropTicks.add(evt.tick);
-    });
+    const matchedDropTicks = new Set<number>();
 
-    const drops = (eventsByType[EventType.TOB_BLOAT_HANDS_DROP] ??
-      []) as BloatHandsDropEvent[];
-    const splats = (eventsByType[EventType.TOB_BLOAT_HANDS_SPLAT] ??
-      []) as BloatHandsSplatEvent[];
-
-    for (const splat of splats) {
+    for (const splat of handsSplatEvents) {
       const splatTick = splat.tick;
-      const correspondingDrop = drops.findLast(
+      const correspondingDrop = handsDropEvents.findLast(
         (drop) =>
           drop.tick < splatTick &&
           drop.tick >= splatTick - BLOAT_HAND_DROP_TICKS,
       );
       if (correspondingDrop !== undefined) {
-        unmatchedDropTicks.delete(correspondingDrop.tick);
+        matchedDropTicks.add(correspondingDrop.tick);
 
         for (let tick = correspondingDrop.tick; tick <= splatTick; tick++) {
           handsByTick.set(tick, {
@@ -211,12 +224,33 @@ export default function BloatPage() {
       }
     }
 
-    if (unmatchedDropTicks.size > 0) {
-      console.warn(`${unmatchedDropTicks.size} unmatched hand drops.`);
+    let unmatchedCount = 0;
+    for (const drop of handsDropEvents) {
+      if (matchedDropTicks.has(drop.tick)) {
+        continue;
+      }
+      if (!isLive) {
+        unmatchedCount++;
+        continue;
+      }
+      // During live, the splat event hasn't arrived yet for recent drops.
+      // Render using the drop event's coordinates with an assumed splat timing.
+      const assumedSplatTick = drop.tick + BLOAT_HAND_DROP_TICKS;
+      for (let tick = drop.tick; tick <= assumedSplatTick; tick++) {
+        handsByTick.set(tick, {
+          dropTick: drop.tick,
+          intensity: BLOAT_HAND_DROP_TICKS - (assumedSplatTick - tick),
+          hands: drop.bloatHands,
+        });
+      }
+    }
+
+    if (unmatchedCount > 0) {
+      console.warn(`${unmatchedCount} unmatched hand drops.`);
     }
 
     return handsByTick;
-  }, [eventsByType]);
+  }, [handsDropEvents, handsSplatEvents, isLive]);
 
   const customEntitiesForTick = useCallback(
     (tick: number): CustomEntity[] => {
@@ -255,7 +289,7 @@ export default function BloatPage() {
     [hands],
   );
 
-  const { getEntities, preloads } = useMapEntities(
+  const getEntities = useMapEntities(
     challenge,
     playerState,
     npcState,
@@ -264,14 +298,15 @@ export default function BloatPage() {
       customEntitiesForTick,
     },
   );
+  const preloads = usePreloads(npcState, isLive);
 
   if (loading || challenge === null) {
     return <Loading />;
   }
 
   const bloatData = challenge.tobRooms.bloat;
-  if (challenge.status !== ChallengeStatus.IN_PROGRESS && bloatData === null) {
-    return <>No Bloat data for this raid</>;
+  if (!isLive && bloatData === null) {
+    return <MissingStageData stage={Stage.TOB_BLOAT} />;
   }
 
   const playerTickState = challenge.party.reduce(
@@ -373,6 +408,7 @@ export default function BloatPage() {
             data={bossHealthChartData}
             width="100%"
             height="100%"
+            animate={!isLive}
           />
         </Card>
       </div>
@@ -384,6 +420,8 @@ export default function BloatPage() {
         updateTick={setTick}
         updatePlayingState={setPlaying}
         splits={splits}
+        following={following}
+        onJumpToLive={isStreaming ? jumpToLive : undefined}
       />
     </>
   );

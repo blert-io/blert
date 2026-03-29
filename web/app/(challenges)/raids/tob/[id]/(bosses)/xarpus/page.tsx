@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  ChallengeStatus,
   EventType,
   Npc,
   SplitType,
@@ -30,7 +29,9 @@ import { ActorContext } from '@/(challenges)/raids/tob/context';
 import {
   EnhancedRoomNpc,
   useMapEntities,
+  usePreloads,
   usePlayingState,
+  useStableEvents,
   useStageEvents,
 } from '@/utils/boss-room-state';
 import { ticksToFormattedSeconds } from '@/utils/tick';
@@ -41,6 +42,7 @@ import {
   PoisonBallEntity,
   ExhumedState,
 } from './exhumed-entity';
+import MissingStageData from '../missing-stage-data';
 
 import bossStyles from '../style.module.scss';
 import styles from './style.module.scss';
@@ -80,10 +82,19 @@ export default function XarpusPage() {
     npcState,
     bcf,
     loading,
+    isLive,
+    isStreaming,
   } = useStageEvents<TobRaid>(Stage.TOB_XARPUS);
 
-  const { currentTick, setTick, playing, setPlaying, advanceTick } =
-    usePlayingState(totalTicks);
+  const {
+    currentTick,
+    setTick,
+    playing,
+    setPlaying,
+    advanceTick,
+    following,
+    jumpToLive,
+  } = usePlayingState(totalTicks, isStreaming);
 
   const { selectedActor, setSelectedActor } = useContext(ActorContext);
 
@@ -126,12 +137,18 @@ export default function XarpusPage() {
     );
   }, [npcState]);
 
+  const splatEvents = useStableEvents(eventsByType, EventType.TOB_XARPUS_SPLAT);
+  const exhumedEvents = useStableEvents<XarpusExhumedEvent>(
+    eventsByType,
+    EventType.TOB_XARPUS_EXHUMED,
+  );
+
   const customEntitiesForTick = useCallback(
     (tick: number) => {
       const entities: AnyEntity[] = [...BARRIERS];
 
       entities.push(
-        ...(eventsByType[EventType.TOB_XARPUS_SPLAT] ?? [])
+        ...splatEvents
           .filter((evt) => evt.tick <= tick)
           .map(
             (evt) =>
@@ -146,9 +163,8 @@ export default function XarpusPage() {
           ),
       );
 
-      const exhumedEvents = eventsByType[EventType.TOB_XARPUS_EXHUMED] ?? [];
       for (const evt of exhumedEvents) {
-        const exhumed = (evt as XarpusExhumedEvent).xarpusExhumed;
+        const exhumed = evt.xarpusExhumed;
         const spawnTick = exhumed.spawnTick;
         const deathTick = evt.tick;
 
@@ -176,7 +192,7 @@ export default function XarpusPage() {
       }
 
       const balls = exhumedEvents.flatMap((evt) => {
-        const exhumed = (evt as XarpusExhumedEvent).xarpusExhumed;
+        const exhumed = evt.xarpusExhumed;
         return exhumed.healTicks
           .filter((t) => t === tick)
           .map(
@@ -192,24 +208,25 @@ export default function XarpusPage() {
 
       return entities;
     },
-    [eventsByType],
+    [splatEvents, exhumedEvents],
   );
 
-  const { getEntities, preloads } = useMapEntities(
+  const getEntities = useMapEntities(
     challenge,
     playerState,
     npcState,
     totalTicks,
     { customEntitiesForTick },
   );
+  const preloads = usePreloads(npcState, isLive);
 
   if (loading || challenge === null) {
     return <Loading />;
   }
 
   const xarpusData = challenge.tobRooms.xarpus;
-  if (challenge.status != ChallengeStatus.IN_PROGRESS && xarpusData === null) {
-    return <>No Xarpus data for this raid</>;
+  if (!isLive && xarpusData === null) {
+    return <MissingStageData stage={Stage.TOB_XARPUS} />;
   }
 
   const exhumedHealing = {
@@ -220,8 +237,6 @@ export default function XarpusPage() {
   };
   let healAmount = 0;
 
-  const exhumedEvents = (eventsByType[EventType.TOB_XARPUS_EXHUMED] ??
-    []) as XarpusExhumedEvent[];
   for (const evt of exhumedEvents) {
     const exhumed = evt.xarpusExhumed;
     healAmount = exhumed.healAmount;
@@ -387,6 +402,7 @@ export default function XarpusPage() {
             data={bossHealthChartData}
             width="100%"
             height="100%"
+            animate={!isLive}
           />
         </Card>
       </div>
@@ -398,6 +414,8 @@ export default function XarpusPage() {
         updateTick={setTick}
         updatePlayingState={setPlaying}
         splits={splits}
+        following={following}
+        onJumpToLive={isStreaming ? jumpToLive : undefined}
       />
     </>
   );

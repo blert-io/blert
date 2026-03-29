@@ -1,5 +1,3 @@
-import Image from 'next/image';
-
 import { getItemImageUrl } from '@/utils/item';
 
 import styles from './style.module.scss';
@@ -33,6 +31,10 @@ type ItemProps = {
   style?: React.CSSProperties;
   [key: `data-${string}`]: string | undefined;
 };
+
+// Lots of items are rendered on boss pages and Next's Image adds a lot of
+// unnecessary rendering overhead.
+/* eslint-disable @next/next/no-img-element */
 
 export default function Item({
   id,
@@ -68,7 +70,7 @@ export default function Item({
 
   return (
     <div className={cls} style={cssStyle} {...dataAttributes}>
-      <Image
+      <img
         src={imageUrl}
         alt={name}
         height={size}

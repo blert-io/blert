@@ -2,11 +2,14 @@ import {
   ChallengeType,
   ColosseumChallenge,
   ColosseumWave,
+  isColosseumStage,
   SplitType,
+  Stage,
 } from '@blert/common';
 import Image from 'next/image';
 import Link from 'next/link';
 
+import { useLiveChallenge } from '@/challenge-context';
 import ColosseumHandicap from '@/components/colosseum-handicap';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 import { challengeUrl } from '@/utils/url';
@@ -15,12 +18,13 @@ import styles from './style.module.scss';
 
 interface WaveProps {
   challengeId: string;
-  ticks: number;
-  wave: ColosseumWave;
+  ticks?: number;
+  wave?: ColosseumWave;
   waveNumber: number;
+  live?: boolean;
 }
 
-function Wave({ challengeId, ticks, wave, waveNumber }: WaveProps) {
+function Wave({ challengeId, ticks, wave, waveNumber, live }: WaveProps) {
   const title = waveNumber === 12 ? 'Sol Heredit' : `Wave ${waveNumber}`;
 
   return (
@@ -45,23 +49,32 @@ function Wave({ challengeId, ticks, wave, waveNumber }: WaveProps) {
       <div className={styles.waveDetails}>
         <div className={styles.waveHeader}>
           {title}
-          <div className={styles.time}>
-            <i className="fas fa-hourglass" />
-            {ticksToFormattedSeconds(ticks)}
+          {live ? (
+            <div className={styles.liveBadge}>
+              <span className={styles.liveDot} />
+              LIVE
+            </div>
+          ) : (
+            <div className={styles.time}>
+              <i className="fas fa-hourglass" />
+              {ticksToFormattedSeconds(ticks ?? 0)}
+            </div>
+          )}
+        </div>
+        {wave && (
+          <div className={styles.handicaps}>
+            <h4>Selected Handicap</h4>
+            <ul>
+              {wave.options.map((handicap) => (
+                <ColosseumHandicap
+                  key={handicap}
+                  handicap={handicap}
+                  dimmed={handicap !== wave.handicap}
+                />
+              ))}
+            </ul>
           </div>
-        </div>
-        <div className={styles.handicaps}>
-          <h4>Selected Handicap</h4>
-          <ul>
-            {wave.options.map((handicap) => (
-              <ColosseumHandicap
-                key={handicap}
-                handicap={handicap}
-                dimmed={handicap !== wave.handicap}
-              />
-            ))}
-          </ul>
-        </div>
+        )}
       </div>
     </Link>
   );
@@ -72,6 +85,21 @@ export function ColosseumWavesOverview({
 }: {
   challenge: ColosseumChallenge;
 }) {
+  const { currentStage, isStreaming, liveSplits } = useLiveChallenge();
+  const splits = { ...liveSplits, ...challenge.splits };
+
+  const liveStage =
+    currentStage?.stage && isStreaming ? currentStage.stage : null;
+
+  const processedWaves = challenge.colosseum.waves.length;
+  const liveWaveNumber =
+    liveStage !== null && isColosseumStage(liveStage)
+      ? liveStage - Stage.COLOSSEUM_WAVE_1 + 1
+      : null;
+
+  const showLiveWave =
+    liveWaveNumber !== null && liveWaveNumber > processedWaves;
+
   return (
     <div className={styles.wavesOverview}>
       <h2>Wave Progress</h2>
@@ -81,14 +109,20 @@ export function ColosseumWavesOverview({
             key={index}
             challengeId={challenge.uuid}
             ticks={
-              challenge.splits[
-                (SplitType.COLOSSEUM_WAVE_1 + index) as SplitType
-              ] ?? 0
+              splits[(SplitType.COLOSSEUM_WAVE_1 + index) as SplitType] ?? 0
             }
             wave={wave}
             waveNumber={index + 1}
           />
         ))}
+        {showLiveWave && (
+          <Wave
+            key="live"
+            challengeId={challenge.uuid}
+            waveNumber={liveWaveNumber}
+            live
+          />
+        )}
       </div>
     </div>
   );

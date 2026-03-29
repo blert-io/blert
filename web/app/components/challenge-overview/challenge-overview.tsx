@@ -13,6 +13,7 @@ import {
 import Image from 'next/image';
 import TimeAgo from 'react-timeago';
 
+import { useLiveChallenge } from '@/challenge-context';
 import PlayerLink from '@/components/player-link';
 import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 import { useClientOnly } from '@/hooks/client-only';
@@ -114,6 +115,7 @@ export function ChallengeOverview(props: ChallengeOverviewProps) {
   } = props;
 
   const isClient = useClientOnly();
+  const live = useLiveChallenge();
   const [statusString, statusColor] = statusNameAndColor(status, stage);
   const [modeString] = modeNameAndColor(type, mode);
   const iconForStatus = getIconForStatus(status, statusColor);
@@ -145,7 +147,12 @@ export function ChallengeOverview(props: ChallengeOverviewProps) {
             <div className={styles.statLabel}>Status</div>
             <div className={styles.statValue}>
               {iconForStatus}
-              <span style={{ color: statusColor }}>{statusString}</span>
+              <span
+                className={live.isLive ? styles.liveStatus : undefined}
+                style={{ color: statusColor }}
+              >
+                {statusString}
+              </span>
             </div>
           </div>
           <div className={styles.statItem} data-label="Team Size">

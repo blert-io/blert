@@ -13,9 +13,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useContext, useEffect, useRef, useState } from 'react';
 
-import { ChallengeContext } from '@/challenge-context';
+import { ChallengeContext, useLiveChallenge } from '@/challenge-context';
 import { useDisplay } from '@/display';
 import { challengeUrl } from '@/utils/url';
+import { useSetting } from '@/utils/user-settings';
 
 import MaidenIcon from '@/svg/maiden.svg';
 import BloatIcon from '@/svg/bloat.svg';
@@ -721,10 +722,22 @@ interface NavItemComponentProps {
   challengeId: string;
   pathname: string;
   isStageAccessible: (stage: Stage) => boolean;
+  liveStage: Stage | null;
+  transitionStage: Stage | null;
   activeItemRef: React.RefObject<HTMLAnchorElement | null>;
   dropdownOpen: boolean;
   onDropdownOpen: (stage: Stage) => void;
   onDropdownClose: () => void;
+}
+
+const STAGE_TRANSITION_DELAY = 8000;
+
+function StageTransitionPopup({ name, href }: { name: string; href: string }) {
+  return (
+    <Link href={href} className={styles.stageTransitionPopup}>
+      {name} has started &mdash; click to watch
+    </Link>
+  );
 }
 
 function NavItemComponent({
@@ -733,12 +746,31 @@ function NavItemComponent({
   challengeId,
   pathname,
   isStageAccessible,
+  liveStage,
+  transitionStage,
   activeItemRef,
   dropdownOpen,
   onDropdownOpen,
   onDropdownClose,
 }: NavItemComponentProps) {
   const display = useDisplay();
+
+  const baseUrl = challengeUrl(challengeType, challengeId);
+
+  const transitionChild =
+    transitionStage !== null
+      ? (item.children ?? [item]).find(
+          (child) => child.stage === transitionStage,
+        )
+      : null;
+
+  const transitionPopup = transitionChild !== null &&
+    transitionChild !== undefined && (
+      <StageTransitionPopup
+        name={transitionChild.label}
+        href={`${baseUrl}/${transitionChild.path}`}
+      />
+    );
 
   if (item.children) {
     const anyChildActive = item.children.some((child) => {
@@ -751,6 +783,10 @@ function NavItemComponent({
     );
 
     const isAccessible = anyChildAccessible;
+
+    const isLiveGroup =
+      liveStage !== null &&
+      item.children.some((child) => child.stage === liveStage);
 
     const handleInteraction = () => {
       if (display.isCompact()) {
@@ -780,6 +816,7 @@ function NavItemComponent({
         >
           {item.icon}
           {item.label}
+          {isLiveGroup && <span className={styles.liveIndicator} />}
           <i className="fa-solid fa-chevron-down" />
         </div>
         {dropdownOpen && isAccessible && (
@@ -795,6 +832,7 @@ function NavItemComponent({
               const path = `${challengeUrl(challengeType, challengeId)}/${child.path}`;
               const isChildAccessible = isStageAccessible(child.stage);
               const isActive = pathname === path;
+              const isChildLive = child.stage === liveStage;
 
               return (
                 <Link
@@ -815,36 +853,43 @@ function NavItemComponent({
                 >
                   {child.icon}
                   {child.label}
+                  {isChildLive && <span className={styles.liveIndicator} />}
                 </Link>
               );
             })}
           </div>
         )}
+        {!dropdownOpen && transitionPopup}
       </div>
     );
   } else {
     const path = `${challengeUrl(challengeType, challengeId)}/${item.path}`;
     const isAccessible = isStageAccessible(item.stage);
     const isActive = pathname === path;
+    const isLive = item.stage === liveStage;
 
     return (
-      <Link
-        key={item.stage}
-        href={isAccessible ? path : '#'}
-        className={`${styles.navItem} ${isActive ? styles.active : ''} ${
-          !isAccessible ? styles.disabled : ''
-        }`}
-        onClick={(e) => {
-          if (!isAccessible) {
-            e.preventDefault();
-          }
-        }}
-        ref={isActive ? activeItemRef : null}
-        style={item.styles}
-      >
-        {item.icon}
-        {item.label}
-      </Link>
+      <div className={styles.navItemWrapper}>
+        <Link
+          key={item.stage}
+          href={isAccessible ? path : '#'}
+          className={`${styles.navItem} ${isActive ? styles.active : ''} ${
+            !isAccessible ? styles.disabled : ''
+          }`}
+          onClick={(e) => {
+            if (!isAccessible) {
+              e.preventDefault();
+            }
+          }}
+          ref={isActive ? activeItemRef : null}
+          style={item.styles}
+        >
+          {item.icon}
+          {item.label}
+          {isLive && <span className={styles.liveIndicator} />}
+        </Link>
+        {transitionPopup}
+      </div>
     );
   }
 }
@@ -857,11 +902,19 @@ export default function ChallengeNav({ challengeId }: ChallengeNavProps) {
     Challenge | null,
     unknown,
   ];
+  const live = useLiveChallenge();
   const navRef = useRef<HTMLDivElement>(null);
   const activeItemRef = useRef<HTMLAnchorElement>(null);
 
+  const [autoNavigate] = useSetting({
+    key: 'live-auto-navigate',
+    defaultValue: false,
+  });
   const [openDropdown, setOpenDropdown] = useState<Stage | null>(null);
+  const [transitionStage, setTransitionStage] = useState<Stage | null>(null);
+  const prevLiveStageRef = useRef<Stage | null>(null);
   const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const transitionTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleDropdownOpen = (stage: Stage) => {
     if (closeTimeoutRef.current !== null) {
@@ -878,10 +931,34 @@ export default function ChallengeNav({ challengeId }: ChallengeNavProps) {
     }, 150);
   };
 
+  const liveStage =
+    live.isLive && live.isStreaming ? (live.currentStage?.stage ?? null) : null;
+
+  useEffect(() => {
+    if (
+      liveStage !== null &&
+      liveStage !== prevLiveStageRef.current &&
+      !autoNavigate
+    ) {
+      setTransitionStage(liveStage);
+      if (transitionTimerRef.current !== null) {
+        clearTimeout(transitionTimerRef.current);
+      }
+      transitionTimerRef.current = setTimeout(() => {
+        setTransitionStage(null);
+        transitionTimerRef.current = null;
+      }, STAGE_TRANSITION_DELAY);
+    }
+    prevLiveStageRef.current = liveStage;
+  }, [liveStage, autoNavigate]);
+
   useEffect(() => {
     return () => {
       if (closeTimeoutRef.current !== null) {
         clearTimeout(closeTimeoutRef.current);
+      }
+      if (transitionTimerRef.current !== null) {
+        clearTimeout(transitionTimerRef.current);
       }
     };
   }, []);
@@ -922,6 +999,15 @@ export default function ChallengeNav({ challengeId }: ChallengeNavProps) {
 
   const isStageAccessible = (stage: Stage): boolean => {
     if (stage === Stage.UNKNOWN) {
+      return true;
+    }
+
+    // The current live stage is always navigable.
+    if (
+      live.isLive &&
+      live.currentStage !== null &&
+      stage === live.currentStage.stage
+    ) {
       return true;
     }
 
@@ -977,6 +1063,8 @@ export default function ChallengeNav({ challengeId }: ChallengeNavProps) {
             challengeId={challengeId}
             pathname={pathname}
             isStageAccessible={isStageAccessible}
+            liveStage={liveStage}
+            transitionStage={transitionStage}
             activeItemRef={activeItemRef}
             dropdownOpen={openDropdown === item.stage}
             onDropdownOpen={handleDropdownOpen}

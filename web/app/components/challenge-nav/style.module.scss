@@ -26,6 +26,7 @@
 }
 
 .navItem {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -122,6 +123,97 @@
   }
 }
 
+@keyframes live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.75);
+  }
+}
+
+.liveIndicator {
+  position: absolute;
+  top: 8px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--blert-red);
+  animation: live-pulse 1.5s ease-in-out infinite;
+}
+
+.navItemWrapper {
+  position: relative;
+  display: inline-block;
+}
+
+@keyframes stage-transition {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-4px);
+  }
+  8% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.stageTransitionPopup {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  background: rgba(var(--blert-purple-base), 0.15);
+  border: 1px solid rgba(var(--blert-purple-base), 0.4);
+  border-radius: 6px;
+  color: var(--blert-font-color-primary);
+  font-size: 0.78em;
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: none;
+  z-index: 30;
+  animation: stage-transition 5s ease forwards;
+  pointer-events: auto;
+  cursor: pointer;
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.4),
+    0 0 12px rgba(var(--blert-purple-base), 0.15);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+  backdrop-filter: blur(8px);
+
+  // Arrow pointing up to the nav item.
+  &::before {
+    content: '';
+    position: absolute;
+    top: -5px;
+    left: 50%;
+    transform: translateX(-50%) rotate(45deg);
+    width: 10px;
+    height: 10px;
+    background: rgba(var(--blert-purple-base), 0.15);
+    border: 1px solid rgba(var(--blert-purple-base), 0.4);
+    clip-path: polygon(0 0, 100% 0, 0 100%);
+  }
+
+  &:hover {
+    background: rgba(var(--blert-purple-base), 0.25);
+    border-color: rgba(var(--blert-purple-base), 0.6);
+  }
+}
+
 .dropdown {
   position: relative;
   display: inline-block;
@@ -158,6 +250,7 @@
 }
 
 .dropdownItem {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;

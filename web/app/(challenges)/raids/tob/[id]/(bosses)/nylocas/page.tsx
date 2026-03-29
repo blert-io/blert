@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  ChallengeStatus,
   EventType,
   NpcEvent,
   Npc,
@@ -12,15 +11,22 @@ import {
   NyloWaveStallEvent,
   TobRaid,
   SplitType,
+  RoomNpc,
   RoomNpcType,
   Nylo,
   NyloSpawn,
   NyloStyle,
-  RoomNpcMap,
   ChallengeMode,
   Coords,
 } from '@blert/common';
-import { useCallback, useContext, useMemo, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useContext,
+  useDeferredValue,
+  useMemo,
+  useState,
+} from 'react';
 import {
   Area,
   AreaChart,
@@ -58,7 +64,9 @@ import {
   EnhancedNylo,
   EventTickMap,
   useMapEntities,
+  usePreloads,
   usePlayingState,
+  useStableEvents,
   useStageEvents,
 } from '@/utils/boss-room-state';
 import { inRect } from '@/utils/coords';
@@ -66,6 +74,7 @@ import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import NyloDimSettings, { DimThreshold } from './dim-settings';
 import BarrierEntity from '../barrier';
+import MissingStageData from '../missing-stage-data';
 
 import bossStyles from '../style.module.scss';
 import styles from './style.module.scss';
@@ -255,13 +264,13 @@ type SplitCounts = {
   postCap: Splits;
 };
 
-function countSplits(npcs: RoomNpcMap): SplitCounts {
+function countSplits(npcs: Iterable<RoomNpc>): SplitCounts {
   const preCap = { melee: 0, ranged: 0, mage: 0 };
   const postCap = { melee: 0, ranged: 0, mage: 0 };
 
-  Object.values(npcs).forEach((npc) => {
+  for (const npc of npcs) {
     if (npc.type !== RoomNpcType.NYLO) {
-      return;
+      continue;
     }
 
     const nylo = npc as Nylo;
@@ -279,7 +288,7 @@ function countSplits(npcs: RoomNpcMap): SplitCounts {
           break;
       }
     }
-  });
+  }
 
   return { preCap, postCap };
 }
@@ -350,19 +359,41 @@ export default function NylocasPage() {
   const {
     challenge,
     totalTicks,
-    events,
     eventsByTick,
     eventsByType,
     playerState,
     npcState,
     bcf,
     loading,
+    isLive,
+    isStreaming,
   } = useStageEvents<TobRaid>(Stage.TOB_NYLOCAS);
 
-  const { currentTick, setTick, playing, setPlaying, advanceTick } =
-    usePlayingState(totalTicks);
+  const {
+    currentTick,
+    setTick,
+    playing,
+    setPlaying,
+    advanceTick,
+    following,
+    jumpToLive,
+  } = usePlayingState(totalTicks, isStreaming);
 
   const { selectedActor, setSelectedActor } = useContext(ActorContext);
+
+  const waveSpawnEvents = useStableEvents<NyloWaveSpawnEvent>(
+    eventsByType,
+    EventType.TOB_NYLO_WAVE_SPAWN,
+  );
+  const waveStallEvents = useStableEvents<NyloWaveStallEvent>(
+    eventsByType,
+    EventType.TOB_NYLO_WAVE_STALL,
+  );
+  const bossUpdateEvents = useStableEvents<NpcEvent>(
+    eventsByType,
+    EventType.NPC_UPDATE,
+    (evt) => Npc.isNylocasVasilias(evt.npc.id),
+  );
 
   const backgroundColors = useMemo(
     () => nyloBossBackgroundColors(eventsByTick, totalTicks),
@@ -370,23 +401,22 @@ export default function NylocasPage() {
   );
 
   const splits = useMemo(() => {
-    if (challenge === null || events.length === 0) {
+    if (challenge === null || waveSpawnEvents.length === 0) {
       return [];
     }
-    const splits: TimelineSplit[] =
-      eventsByType[EventType.TOB_NYLO_WAVE_SPAWN]?.map((evt) => {
-        const wave = (evt as NyloWaveSpawnEvent).nyloWave.wave;
-        const importantWaves: Record<number, string> = {
-          [CAP_INCREASE_WAVE]: 'Cap',
-          [LAST_NYLO_WAVE]: 'Waves',
-        };
+    const splits: TimelineSplit[] = waveSpawnEvents.map((evt) => {
+      const wave = evt.nyloWave.wave;
+      const importantWaves: Record<number, string> = {
+        [CAP_INCREASE_WAVE]: 'Cap',
+        [LAST_NYLO_WAVE]: 'Waves',
+      };
 
-        return {
-          tick: evt.tick,
-          splitName: importantWaves[wave] ?? wave.toString(),
-          unimportant: importantWaves[wave] === undefined,
-        };
-      }) ?? [];
+      return {
+        tick: evt.tick,
+        splitName: importantWaves[wave] ?? wave.toString(),
+        unimportant: importantWaves[wave] === undefined,
+      };
+    });
 
     if (challenge.splits[SplitType.TOB_NYLO_CLEANUP]) {
       splits.push({
@@ -401,28 +431,21 @@ export default function NylocasPage() {
       });
     }
     return splits;
-  }, [events, eventsByType, challenge]);
+  }, [waveSpawnEvents, challenge]);
 
+  const nyloNpcs = challenge?.tobRooms.nylocas?.npcs;
   const nyloSplits = useMemo(
-    () => countSplits(challenge?.tobRooms.nylocas?.npcs ?? {}),
-    [challenge],
+    () => countSplits(nyloNpcs ? Object.values(nyloNpcs) : npcState.values()),
+    [nyloNpcs, npcState],
   );
 
   const bossRotation = useMemo((): BossRotation => {
-    if (!eventsByType) {
-      return { styleChanges: [], counts: { mage: 0, ranged: 0, melee: 0 } };
-    }
-
     const styleChanges: BossStyleChange[] = [];
     const counts = {
       mage: 0,
       ranged: 0,
       melee: 0,
     };
-
-    const bossUpdateEvents = (
-      (eventsByType[EventType.NPC_UPDATE] as NpcEvent[]) ?? []
-    ).filter((evt) => Npc.isNylocasVasilias(evt.npc.id));
 
     if (bossUpdateEvents.length === 0) {
       return { styleChanges, counts };
@@ -439,18 +462,16 @@ export default function NylocasPage() {
           style,
         });
 
-        if (prevStyle !== null) {
-          switch (style) {
-            case NyloStyle.MAGE:
-              counts.mage += 1;
-              break;
-            case NyloStyle.RANGE:
-              counts.ranged += 1;
-              break;
-            case NyloStyle.MELEE:
-              counts.melee += 1;
-              break;
-          }
+        switch (style) {
+          case NyloStyle.MAGE:
+            counts.mage += 1;
+            break;
+          case NyloStyle.RANGE:
+            counts.ranged += 1;
+            break;
+          case NyloStyle.MELEE:
+            counts.melee += 1;
+            break;
         }
 
         prevStyle = style;
@@ -458,7 +479,7 @@ export default function NylocasPage() {
     });
 
     return { styleChanges, counts };
-  }, [eventsByType]);
+  }, [bossUpdateEvents]);
 
   const nylosAliveByTick = useMemo(() => {
     const endTick = challenge?.splits[SplitType.TOB_NYLO_CLEANUP] ?? totalTicks;
@@ -483,16 +504,17 @@ export default function NylocasPage() {
     return nylosAlive;
   }, [eventsByTick, challenge, totalTicks]);
 
+  const deferredNylosAlive = useDeferredValue(nylosAliveByTick);
+  const deferredSpawns = useDeferredValue(waveSpawnEvents);
+  const deferredStalls = useDeferredValue(waveStallEvents);
+
   const dimStartByRoomId = useMemo(() => {
-    const waveEvents = eventsByType[EventType.TOB_NYLO_WAVE_SPAWN] as
-      | NyloWaveSpawnEvent[]
-      | undefined;
-    if (!waveEvents || dimThresholds.length === 0) {
+    if (waveSpawnEvents.length === 0 || dimThresholds.length === 0) {
       return new Map<number, number>();
     }
 
     const waveTick = new Map<number, number>();
-    for (const evt of waveEvents) {
+    for (const evt of waveSpawnEvents) {
       waveTick.set(evt.nyloWave.wave, evt.tick);
     }
 
@@ -526,7 +548,7 @@ export default function NylocasPage() {
     }
 
     return starts;
-  }, [dimThresholds, eventsByType, npcState]);
+  }, [dimThresholds, waveSpawnEvents, npcState]);
 
   const modifyNpcs = useCallback(
     (tick: number, entity: AnyEntity) => {
@@ -585,21 +607,22 @@ export default function NylocasPage() {
     [npcState, dimStartByRoomId, showLabels],
   );
 
-  const { getEntities, preloads } = useMapEntities(
+  const getEntities = useMapEntities(
     challenge,
     playerState,
     npcState,
     totalTicks,
     { customEntitiesForTick: getBarrierEntities, modifyEntity: modifyNpcs },
   );
+  const preloads = usePreloads(npcState, isLive);
 
   if (loading || challenge === null) {
     return <Loading />;
   }
 
   const nyloData = challenge.tobRooms.nylocas;
-  if (challenge.status !== ChallengeStatus.IN_PROGRESS && nyloData === null) {
-    return <>No Nylocas data for this raid</>;
+  if (!isLive && nyloData === null) {
+    return <MissingStageData stage={Stage.TOB_NYLOCAS} />;
   }
 
   const playerTickState = challenge.party.reduce(
@@ -610,10 +633,7 @@ export default function NylocasPage() {
     {},
   );
 
-  const stalls =
-    eventsByType[EventType.TOB_NYLO_WAVE_STALL]?.map(
-      (e) => (e as NyloWaveStallEvent).nyloWave,
-    ) ?? [];
+  const stalls = waveStallEvents.map((e) => e.nyloWave);
 
   const sections = [];
 
@@ -784,7 +804,8 @@ export default function NylocasPage() {
               style={{ color: GRAY_NYLO_COLOR }}
             >
               <span className={styles.count}>
-                {challenge.tobStats.nylocasBossMelee || 0}
+                {challenge.tobStats.nylocasBossMelee ||
+                  bossRotation.counts.melee}
               </span>
               <span className={styles.label}>Melee</span>
             </div>
@@ -793,7 +814,8 @@ export default function NylocasPage() {
               style={{ color: GREEN_NYLO_COLOR }}
             >
               <span className={styles.count}>
-                {challenge.tobStats.nylocasBossRanged || 0}
+                {challenge.tobStats.nylocasBossRanged ||
+                  bossRotation.counts.ranged}
               </span>
               <span className={styles.label}>Ranged</span>
             </div>
@@ -802,7 +824,7 @@ export default function NylocasPage() {
               style={{ color: BLUE_NYLO_COLOR }}
             >
               <span className={styles.count}>
-                {challenge.tobStats.nylocasBossMage || 0}
+                {challenge.tobStats.nylocasBossMage || bossRotation.counts.mage}
               </span>
               <span className={styles.label}>Mage</span>
             </div>
@@ -888,15 +910,10 @@ export default function NylocasPage() {
       <div className={bossStyles.charts}>
         <NyloWaveChart
           challenge={challenge}
-          nylosAliveByTick={nylosAliveByTick}
-          spawns={
-            (eventsByType[EventType.TOB_NYLO_WAVE_SPAWN] ??
-              []) as NyloWaveSpawnEvent[]
-          }
-          stalls={
-            (eventsByType[EventType.TOB_NYLO_WAVE_STALL] ??
-              []) as NyloWaveStallEvent[]
-          }
+          nylosAliveByTick={deferredNylosAlive}
+          spawns={deferredSpawns}
+          stalls={deferredStalls}
+          animate={!isLive}
           width={display.isFull() ? '100%' : 1350}
         />
       </div>
@@ -908,23 +925,45 @@ export default function NylocasPage() {
         updateTick={setTick}
         updatePlayingState={setPlaying}
         splits={splits}
+        following={following}
+        onJumpToLive={isStreaming ? jumpToLive : undefined}
       />
     </>
   );
 }
 
-function NyloWaveChart({
+const NYLO_CHART_MARGIN = { left: -10, bottom: 20 };
+const NYLO_AXIS_LINE = { stroke: 'var(--blert-surface-light)' };
+const NYLO_TOOLTIP_STYLE = {
+  backgroundColor: 'var(--blert-surface-dark)',
+  border: '1px solid var(--blert-surface-light)',
+  borderRadius: '8px',
+  color: 'var(--blert-font-color-primary)',
+  padding: '8px',
+};
+const NYLO_TOOLTIP_CURSOR = {
+  stroke: 'var(--blert-divider-color)',
+  strokeWidth: 1,
+};
+
+function formatNylosAlive(value: number) {
+  return [value, 'Nylos Alive'];
+}
+
+const NyloWaveChart = memo(function NyloWaveChart({
   challenge,
   nylosAliveByTick,
   spawns,
   stalls,
   width,
+  animate = true,
 }: {
   challenge: TobRaid;
   nylosAliveByTick: { tick: number; nylosAlive: number }[];
   spawns: NyloWaveSpawnEvent[];
   stalls: NyloWaveStallEvent[];
   width: number | string;
+  animate?: boolean;
 }) {
   const startingRoomCap = challenge.mode === ChallengeMode.TOB_HARD ? 15 : 12;
 
@@ -935,7 +974,7 @@ function NyloWaveChart({
     >
       <HorizontalScrollable className={bossStyles.scrollable}>
         <ResponsiveContainer width={width} height="100%">
-          <AreaChart data={nylosAliveByTick} margin={{ left: -10, bottom: 20 }}>
+          <AreaChart data={nylosAliveByTick} margin={NYLO_CHART_MARGIN}>
             <defs>
               <linearGradient
                 id="backgroundGradient"
@@ -965,13 +1004,13 @@ function NyloWaveChart({
               dataKey="tick"
               stroke="var(--blert-font-color-secondary)"
               tickLine={false}
-              axisLine={{ stroke: 'var(--blert-surface-light)' }}
+              axisLine={NYLO_AXIS_LINE}
               hide
             />
             <YAxis
               stroke="var(--blert-font-color-secondary)"
               tickLine={false}
-              axisLine={{ stroke: 'var(--blert-surface-light)' }}
+              axisLine={NYLO_AXIS_LINE}
               tickCount={8}
             />
             <Area
@@ -980,19 +1019,16 @@ function NyloWaveChart({
               stroke="rgba(var(--blert-purple-base), 0.7)"
               strokeWidth={2}
               fill="url(#backgroundGradient)"
+              isAnimationActive={animate}
             />
             <Tooltip
-              contentStyle={{
-                backgroundColor: 'var(--blert-surface-dark)',
-                border: '1px solid var(--blert-surface-light)',
-                borderRadius: '8px',
-                color: 'var(--blert-font-color-primary)',
-                padding: '8px',
-              }}
-              formatter={(value: number) => {
-                return [value, 'Nylos Alive'];
-              }}
+              contentStyle={NYLO_TOOLTIP_STYLE}
+              formatter={formatNylosAlive}
               labelFormatter={(tick: number) => {
+                if (spawns.length === 0) {
+                  return `Tick: ${tick} (No wave)`;
+                }
+
                 let waveSpawn;
                 for (let i = 1; i < spawns.length; i++) {
                   if (tick < spawns[i].tick) {
@@ -1004,10 +1040,7 @@ function NyloWaveChart({
 
                 return `Tick: ${tick} (Wave ${waveSpawn.nyloWave.wave})`;
               }}
-              cursor={{
-                stroke: 'var(--blert-divider-color)',
-                strokeWidth: 1,
-              }}
+              cursor={NYLO_TOOLTIP_CURSOR}
             />
             <ReferenceLine
               stroke="rgba(var(--blert-red-base), 0.7)"
@@ -1096,4 +1129,4 @@ function NyloWaveChart({
       </HorizontalScrollable>
     </Card>
   );
-}
+});

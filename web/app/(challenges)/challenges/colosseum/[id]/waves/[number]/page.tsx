@@ -31,6 +31,7 @@ import {
 import { useDisplay } from '@/display';
 import {
   useMapEntities,
+  usePreloads,
   usePlayingState,
   useStageEvents,
 } from '@/utils/boss-room-state';
@@ -103,12 +104,21 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
     bcf,
     totalTicks,
     loading,
+    isLive,
+    isStreaming,
   } = useStageEvents<ColosseumChallenge>(Stage.COLOSSEUM_WAVE_1 + waveIndex);
 
   const { selectedActor, setSelectedActor } = useContext(ActorContext);
 
-  const { currentTick, setTick, playing, setPlaying, advanceTick } =
-    usePlayingState(totalTicks);
+  const {
+    currentTick,
+    setTick,
+    playing,
+    setPlaying,
+    advanceTick,
+    following,
+    jumpToLive,
+  } = usePlayingState(totalTicks, isStreaming);
 
   const playerName = challenge?.party[0].username;
 
@@ -207,13 +217,14 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
     [solCustomEntities, reentryPoolsByTick],
   );
 
-  const { getEntities, preloads } = useMapEntities(
+  const getEntities = useMapEntities(
     challenge,
     playerState,
     npcState,
     totalTicks,
     { customEntitiesForTick },
   );
+  const preloads = usePreloads(npcState, isLive);
 
   const customStates = useMemo(() => {
     const items: CustomStateEntry[] = [];
@@ -273,7 +284,7 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
   }
 
   const waveInfo = challenge.colosseum.waves[waveNumber - 1];
-  if (waveInfo === undefined) {
+  if (!isLive && waveInfo === undefined) {
     notFound();
   }
 
@@ -282,7 +293,11 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
   // Collect all the handicaps that have been selected up to this wave.
   const handicapsSoFar: Handicap[] = [];
   for (let i = 0; i < waveNumber; i++) {
-    const handicap = challenge.colosseum.waves[i].handicap;
+    const wave = challenge.colosseum.waves[i];
+    if (wave === undefined) {
+      break;
+    }
+    const handicap = wave.handicap;
     const previousLevelHandicap = (handicap -
       HANDICAP_LEVEL_VALUE_INCREMENT) as Handicap;
     const index: number = handicapsSoFar.findIndex(
@@ -316,21 +331,23 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
   }
 
   const sections = [];
-  sections.push({
-    title: 'Handicaps This Wave',
-    content: (
-      <div className={styles.handicapOptions}>
-        {waveInfo.options.map((option) => (
-          <div className={styles.handicapOption} key={option}>
-            <ColosseumHandicap
-              handicap={option}
-              dimmed={option !== waveInfo.handicap}
-            />
-          </div>
-        ))}
-      </div>
-    ),
-  });
+  if (waveInfo !== undefined) {
+    sections.push({
+      title: 'Handicaps This Wave',
+      content: (
+        <div className={styles.handicapOptions}>
+          {waveInfo.options.map((option) => (
+            <div className={styles.handicapOption} key={option}>
+              <ColosseumHandicap
+                handicap={option}
+                dimmed={option !== waveInfo.handicap}
+              />
+            </div>
+          ))}
+        </div>
+      ),
+    });
+  }
 
   if (handicapsSoFar.length > 0) {
     sections.push({
@@ -398,6 +415,8 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
         updateTick={setTick}
         updatePlayingState={setPlaying}
         splits={timelineSplits}
+        following={following}
+        onJumpToLive={isStreaming ? jumpToLive : undefined}
       />
     </div>
   );

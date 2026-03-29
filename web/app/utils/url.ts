@@ -105,10 +105,10 @@ export function stagePath(stage: Stage, attempt?: number): string {
     return `waves/${stage - Stage.INFERNO_WAVE_1 + 1}`;
   }
   if (isMokhaiotlStage(stage)) {
-    let delve = stage - Stage.MOKHAIOTL_DELVE_1 + 1;
     if (stage === Stage.MOKHAIOTL_DELVE_8PLUS) {
-      delve += attempt ?? 0;
+      return `delves/${(attempt ?? 0) + 8}`;
     }
+    const delve = stage - Stage.MOKHAIOTL_DELVE_1 + 1;
     return `delves/${delve}`;
   }
 

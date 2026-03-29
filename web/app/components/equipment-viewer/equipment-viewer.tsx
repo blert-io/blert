@@ -1,5 +1,4 @@
 import { DataSource, EquipmentSlot } from '@blert/common';
-import Image from 'next/image';
 
 import Item from '@/components/item';
 import { PlayerEquipment } from '@/utils/boss-room-state';
@@ -30,6 +29,10 @@ const EQUIPMENT_OFFSETS: Record<string, React.CSSProperties> = {
 };
 
 const ITEM_SIZE = 36;
+
+// The equipment viewer needs to constantly re-render during live views, and
+// Next's Image adds a lot of unnecessary rendering overhead.
+/* eslint-disable @next/next/no-img-element */
 
 export default function EquipmentViewer(props: EquipmentViewerProps) {
   const { equipment, username, source = DataSource.SECONDARY } = props;
@@ -64,7 +67,7 @@ export default function EquipmentViewer(props: EquipmentViewerProps) {
             data-tooltip-id={GLOBAL_TOOLTIP_ID}
             data-tooltip-content={tooltipContent}
           >
-            <Image
+            <img
               style={{ position: 'absolute', zIndex: 1 }}
               src="/images/equipment-background.png"
               alt=""
@@ -123,12 +126,11 @@ export default function EquipmentViewer(props: EquipmentViewerProps) {
 
   return (
     <div className={className}>
-      <Image
+      <img
         src={`/images/equipment${hasQuiver ? '-quiver' : ''}.png`}
         alt="Equipment screen"
         width={182}
         height={240}
-        priority
       />
       {items}
     </div>
