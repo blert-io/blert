@@ -4,12 +4,15 @@ import { RawPrayerSet } from './prayer-set';
 import {
   EquipmentSlot,
   Handicap,
+  MaidenCrabProperties,
   Maze,
   NpcAttack,
+  NyloProperties,
   PlayerAttack,
   PlayerSpell,
   RawSkillLevel,
   Stage,
+  VerzikCrabProperties,
   VerzikPhase,
   XarpusPhase,
 } from './challenge';
@@ -137,7 +140,7 @@ export type NpcEvent = NpcSpawnEvent | NpcUpdateEvent | NpcDeathEvent;
 export interface NpcAttackEvent extends BaseEvent {
   type: EventType.NPC_ATTACK;
   npc: BasicEventNpc;
-  npcAttack: NpcAttackDesc;
+  npcAttack: NpcAttackAction;
 }
 
 export interface MaidenBloodSplatsEvent extends BaseEvent {
@@ -172,6 +175,14 @@ export interface NyloWaveSpawnEvent extends BaseEvent {
 export interface NyloWaveStallEvent extends BaseEvent {
   type: EventType.TOB_NYLO_WAVE_STALL;
   nyloWave: NyloWave;
+}
+
+export interface NyloCleanupEndEvent extends BaseEvent {
+  type: EventType.TOB_NYLO_CLEANUP_END;
+}
+
+export interface NyloBossSpawnEvent extends BaseEvent {
+  type: EventType.TOB_NYLO_BOSS_SPAWN;
 }
 
 export interface SoteMazeEvent extends BaseEvent {
@@ -378,6 +389,9 @@ export type Event =
   | BloatHandsSplatEvent
   | NyloWaveSpawnEvent
   | NyloWaveStallEvent
+  | NyloCleanupEndEvent
+  | NyloBossSpawnEvent
+  | SoteMazeEvent
   | SoteMazePathEvent
   | XarpusExhumedEvent
   | XarpusSplatEvent
@@ -440,6 +454,9 @@ export interface BasicEventNpc {
 export interface EventNpc extends BasicEventNpc {
   hitpoints: RawSkillLevel;
   prayers: RawPrayerSet;
+  maidenCrab?: MaidenCrabProperties;
+  nylo?: NyloProperties;
+  verzikCrab?: VerzikCrabProperties;
 }
 
 export type Attack = {
@@ -463,7 +480,7 @@ export type Spell = {
     | { type: SpellTarget.NPC; npc: BasicEventNpc };
 };
 
-export type NpcAttackDesc = {
+export type NpcAttackAction = {
   /** Style of the attack. */
   attack: NpcAttack;
   /** Username of the player the attack targets. Undefined if no target. */
