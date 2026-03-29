@@ -98,11 +98,11 @@ export function toBcf(
     eventsByType,
   );
 
-  for (const playerName of playerState.keys()) {
+  for (const { username } of challenge.party) {
     actors.push({
       type: 'player',
-      id: toBcfNormalizedPlayerName(playerName),
-      name: playerName,
+      id: toBcfNormalizedPlayerName(username),
+      name: username,
     });
   }
 
@@ -151,7 +151,7 @@ export function toBcf(
     ...Array.from(npcState.entries())
       .filter(([_, npc]) => npc.relevant)
       .map(([roomId]) => toNpcActorId(roomId)),
-    ...Array.from(playerState.keys()).map(toBcfNormalizedPlayerName),
+    ...challenge.party.map((p) => toBcfNormalizedPlayerName(p.username)),
   ];
 
   return {
@@ -422,13 +422,13 @@ function buildNpcCell(
   const state = npc.stateByTick[tick];
   if (state !== null) {
     if (state.attack) {
-      const attackType = NpcAttack[state.attack.type] ?? 'UNKNOWN';
+      const attackType = NpcAttack[state.attack.attack] ?? 'UNKNOWN';
       let targetActorId =
-        state.attack.target !== null
+        state.attack.target !== undefined
           ? toBcfNormalizedPlayerName(state.attack.target)
           : undefined;
 
-      if (state.attack.type === NpcAttack.INFERNO_MAGER_RESURRECT) {
+      if (state.attack.attack === NpcAttack.INFERNO_MAGER_RESURRECT) {
         const target = events.find(
           (event) =>
             event.type === EventType.NPC_SPAWN && !Npc.isBloblet(event.npc.id),

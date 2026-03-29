@@ -117,7 +117,7 @@ describe('computeNpcState', () => {
 
     expect(npc.relevant).toBe(true);
     expect(npc.stateByTick[2]!.attack).not.toBeNull();
-    expect(npc.stateByTick[2]!.attack!.type).toBe(NpcAttack.TOB_MAIDEN_AUTO);
+    expect(npc.stateByTick[2]!.attack!.attack).toBe(NpcAttack.TOB_MAIDEN_AUTO);
   });
 
   it('handles multiple NPCs independently', () => {
@@ -173,7 +173,7 @@ describe('NpcStateBuilder', () => {
           if (fullState.attack === null) {
             expect(incState!.attack).toBeNull();
           } else {
-            expect(incState!.attack!.type).toBe(fullState.attack.type);
+            expect(incState!.attack!.attack).toBe(fullState.attack.attack);
           }
         }
       }

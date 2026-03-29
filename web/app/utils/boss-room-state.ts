@@ -117,7 +117,7 @@ type StageInfo = {
   npcs: RawRoomNpcMap;
 };
 
-function getStageInfo(
+export function getStageInfo(
   challenge: Challenge | null,
   stage: Stage,
   attempt?: number,
@@ -280,7 +280,7 @@ export function useStageEvents<T extends Challenge>(
           eventsByType,
         );
 
-        const eventState = {
+        setEventState({
           eventsByTick,
           eventsByType,
           playerState,
@@ -294,9 +294,7 @@ export function useStageEvents<T extends Challenge>(
             playerState,
             npcState,
           ),
-        };
-
-        setEventState(eventState);
+        });
       }
 
       setLoading(false);
@@ -310,6 +308,8 @@ export function useStageEvents<T extends Challenge>(
     events,
     totalTicks,
     loading,
+    isLive: false,
+    isStreaming: false,
     ...eventState,
   };
 }

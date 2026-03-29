@@ -89,10 +89,7 @@ function processNpcTick(
     }
 
     npc.relevant = true;
-    npc.stateByTick[tick].attack = {
-      type: attackEvent.npcAttack.attack,
-      target: attackEvent.npcAttack.target ?? null,
-    };
+    npc.stateByTick[tick].attack = attackEvent.npcAttack;
   }
 }
 
@@ -130,7 +127,7 @@ function postprocessNpc(
       if (!attack) {
         continue;
       }
-      if (attack.type === NpcAttack.INFERNO_MAGER_RESURRECT) {
+      if (attack.attack === NpcAttack.INFERNO_MAGER_RESURRECT) {
         const target = (
           eventsByType[EventType.NPC_SPAWN] as NpcSpawnEvent[]
         )?.find((event) => {
@@ -138,7 +135,7 @@ function postprocessNpc(
           return !Npc.isBloblet(npcSpawn.id) && event.tick === tick;
         });
         if (target) {
-          attack.target = getNpcDefinition(target.npc.id)?.fullName ?? null;
+          attack.target = getNpcDefinition(target.npc.id)?.fullName;
         }
       }
     }

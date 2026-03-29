@@ -1,4 +1,10 @@
-import { Event, EventType } from '@blert/common';
+import {
+  AttackStyle,
+  Event,
+  EventType,
+  NpcAttack,
+  NpcAttackEvent,
+} from '@blert/common';
 
 import { EventMapBuilder, buildEventMaps } from '../event-maps';
 
@@ -75,5 +81,88 @@ describe('EventMapBuilder', () => {
 
     expect(builder.eventsByTick[0]).toBeUndefined();
     expect(builder.eventsByTick[5]).toHaveLength(1);
+  });
+});
+
+function npcAttackEvent(tick: number, attack: NpcAttack): NpcAttackEvent {
+  return {
+    tick,
+    type: EventType.NPC_ATTACK,
+    stage: 0,
+    xCoord: 0,
+    yCoord: 0,
+    npc: { id: 1, roomId: 1 },
+    npcAttack: { attack },
+  } as NpcAttackEvent;
+}
+
+describe('EventMapBuilder cross-referencing', () => {
+  it('resolves verzik P3 attack style to melee', () => {
+    const builder = new EventMapBuilder();
+    const attack = npcAttackEvent(10, NpcAttack.TOB_VERZIK_P3_AUTO);
+    builder.append([attack]);
+    builder.append([
+      {
+        ...makeEvent(11, EventType.TOB_VERZIK_ATTACK_STYLE),
+        verzikAttack: { style: AttackStyle.MELEE, npcAttackTick: 10 },
+      } as Event,
+    ]);
+
+    expect(attack.npcAttack.attack).toBe(NpcAttack.TOB_VERZIK_P3_MELEE);
+    expect(
+      builder.eventsByType[EventType.TOB_VERZIK_ATTACK_STYLE],
+    ).toBeUndefined();
+  });
+
+  it('resolves verzik bounce target', () => {
+    const builder = new EventMapBuilder();
+    const attack = npcAttackEvent(10, NpcAttack.TOB_VERZIK_P2_BOUNCE);
+    builder.append([attack]);
+    builder.append([
+      {
+        ...makeEvent(11, EventType.TOB_VERZIK_BOUNCE),
+        verzikBounce: {
+          npcAttackTick: 10,
+          playersInRange: 1,
+          playersNotInRange: 3,
+          bouncedPlayer: 'Player1',
+        },
+      } as Event,
+    ]);
+
+    expect(attack.npcAttack.target).toBe('Player1');
+    // Bounce events are kept in the maps.
+    expect(builder.eventsByType[EventType.TOB_VERZIK_BOUNCE]).toHaveLength(1);
+  });
+
+  it('resolves mokhaiotl auto attack style to ranged', () => {
+    const builder = new EventMapBuilder();
+    const attack = npcAttackEvent(5, NpcAttack.MOKHAIOTL_AUTO);
+    builder.append([attack]);
+    builder.append([
+      {
+        ...makeEvent(6, EventType.MOKHAIOTL_ATTACK_STYLE),
+        mokhaiotlAttackStyle: { style: AttackStyle.RANGE, npcAttackTick: 5 },
+      } as Event,
+    ]);
+
+    expect(attack.npcAttack.attack).toBe(NpcAttack.MOKHAIOTL_RANGED_AUTO);
+    expect(
+      builder.eventsByType[EventType.MOKHAIOTL_ATTACK_STYLE],
+    ).toBeUndefined();
+  });
+
+  it('resolves mokhaiotl ball attack style to mage ball', () => {
+    const builder = new EventMapBuilder();
+    const attack = npcAttackEvent(5, NpcAttack.MOKHAIOTL_BALL);
+    builder.append([attack]);
+    builder.append([
+      {
+        ...makeEvent(6, EventType.MOKHAIOTL_ATTACK_STYLE),
+        mokhaiotlAttackStyle: { style: AttackStyle.MAGE, npcAttackTick: 5 },
+      } as Event,
+    ]);
+
+    expect(attack.npcAttack.attack).toBe(NpcAttack.MOKHAIOTL_MAGE_BALL);
   });
 });

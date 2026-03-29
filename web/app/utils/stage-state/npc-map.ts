@@ -2,8 +2,12 @@ import {
   Coords,
   Event,
   EventType,
+  MaidenCrab,
+  Nylo,
   RoomNpcMap as RawRoomNpcMap,
   RoomNpcType,
+  VerzikCrab,
+  isNpcEvent,
 } from '@blert/common';
 
 const ZERO_COORDS: Coords = { x: 0, y: 0 };
@@ -38,6 +42,32 @@ export class NpcMapBuilder {
         if (npc !== undefined) {
           npc.deathTick = event.tick;
           npc.deathPoint = { x: event.xCoord, y: event.yCoord };
+        }
+      }
+
+      if (isNpcEvent(event)) {
+        const npc = this.map[event.npc.roomId];
+        if (npc === undefined) {
+          continue;
+        }
+        if (event.npc.maidenCrab !== undefined) {
+          this.map[event.npc.roomId] = {
+            ...npc,
+            type: RoomNpcType.MAIDEN_CRAB,
+            maidenCrab: event.npc.maidenCrab,
+          } as MaidenCrab;
+        } else if (event.npc.nylo !== undefined) {
+          this.map[event.npc.roomId] = {
+            ...npc,
+            type: RoomNpcType.NYLO,
+            nylo: event.npc.nylo,
+          } as Nylo;
+        } else if (event.npc.verzikCrab !== undefined) {
+          this.map[event.npc.roomId] = {
+            ...npc,
+            type: RoomNpcType.VERZIK_CRAB,
+            verzikCrab: event.npc.verzikCrab,
+          } as VerzikCrab;
         }
       }
     }

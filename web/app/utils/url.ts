@@ -1,4 +1,14 @@
-import { ChallengeType, getNpcDefinition } from '@blert/common';
+import {
+  ChallengeType,
+  ColosseumStage,
+  InfernoStage,
+  MokhaiotlStage,
+  Stage,
+  getNpcDefinition,
+  isColosseumStage,
+  isInfernoStage,
+  isMokhaiotlStage,
+} from '@blert/common';
 
 /**
  * Validates that a redirect URL is safe for same-site redirects.
@@ -44,6 +54,66 @@ export function challengeUrl(type: ChallengeType, id: string): string {
   }
 
   return '/';
+}
+
+type NonWaveStage = Exclude<
+  Stage,
+  ColosseumStage | InfernoStage | MokhaiotlStage
+>;
+
+const STAGE_PATHS: Record<NonWaveStage, string> = {
+  [Stage.UNKNOWN]: 'overview',
+  [Stage.TOB_MAIDEN]: 'maiden',
+  [Stage.TOB_BLOAT]: 'bloat',
+  [Stage.TOB_NYLOCAS]: 'nylocas',
+  [Stage.TOB_SOTETSEG]: 'sotetseg',
+  [Stage.TOB_XARPUS]: 'xarpus',
+  [Stage.TOB_VERZIK]: 'verzik',
+  [Stage.COX_TEKTON]: 'tekton',
+  [Stage.COX_CRABS]: 'crabs',
+  [Stage.COX_ICE_DEMON]: 'ice-demon',
+  [Stage.COX_SHAMANS]: 'shamans',
+  [Stage.COX_VANGUARDS]: 'vanguards',
+  [Stage.COX_THIEVING]: 'thieving',
+  [Stage.COX_VESPULA]: 'vespula',
+  [Stage.COX_TIGHTROPE]: 'tightrope',
+  [Stage.COX_GUARDIANS]: 'guardians',
+  [Stage.COX_VASA]: 'vasa',
+  [Stage.COX_MYSTICS]: 'mystics',
+  [Stage.COX_MUTTADILE]: 'muttadile',
+  [Stage.COX_OLM]: 'olm',
+  [Stage.TOA_APMEKEN]: 'apmeken',
+  [Stage.TOA_BABA]: 'baba',
+  [Stage.TOA_SCABARAS]: 'scabaras',
+  [Stage.TOA_KEPHRI]: 'kephri',
+  [Stage.TOA_HET]: 'het',
+  [Stage.TOA_AKKHA]: 'akkha',
+  [Stage.TOA_CRONDIS]: 'crondis',
+  [Stage.TOA_ZEBAK]: 'zebak',
+  [Stage.TOA_WARDENS]: 'wardens',
+};
+
+/**
+ * Returns the path segment for a given stage within a challenge URL.
+ * @returns The path segment, e.g. `'maiden'`, `'waves/3'`.
+ */
+export function stagePath(stage: Stage, attempt?: number): string {
+  if (isColosseumStage(stage)) {
+    return `waves/${stage - Stage.COLOSSEUM_WAVE_1 + 1}`;
+  }
+  if (isInfernoStage(stage)) {
+    return `waves/${stage - Stage.INFERNO_WAVE_1 + 1}`;
+  }
+  if (isMokhaiotlStage(stage)) {
+    let delve = stage - Stage.MOKHAIOTL_DELVE_1 + 1;
+    if (stage === Stage.MOKHAIOTL_DELVE_8PLUS) {
+      delve += attempt ?? 0;
+    }
+    return `delves/${delve}`;
+  }
+
+  const s: NonWaveStage = stage;
+  return STAGE_PATHS[s] ?? 'overview';
 }
 
 /**
