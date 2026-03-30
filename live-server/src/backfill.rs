@@ -45,19 +45,19 @@ impl BackfillResult {
 /// window for additional requests to coalesce, then builds a single
 /// pipelined XRANGE for all of them and returns the raw entries.
 pub struct BackfillManager {
-    redis_conn: ::redis::aio::MultiplexedConnection,
+    pool: deadpool_redis::Pool,
     request_rx: mpsc::UnboundedReceiver<BackfillRequest>,
     result_tx: mpsc::UnboundedSender<BackfillResult>,
 }
 
 impl BackfillManager {
     pub fn new(
-        redis_conn: ::redis::aio::MultiplexedConnection,
+        pool: deadpool_redis::Pool,
         request_rx: mpsc::UnboundedReceiver<BackfillRequest>,
         result_tx: mpsc::UnboundedSender<BackfillResult>,
     ) -> Self {
         Self {
-            redis_conn,
+            pool,
             request_rx,
             result_tx,
         }
@@ -96,7 +96,25 @@ impl BackfillManager {
                 .collect();
 
             let timer = crate::metrics::BACKFILL_DURATION.start_timer();
-            let responses = redis::execute(&mut self.redis_conn, &queries).await;
+            let responses = match self.pool.get().await {
+                Ok(mut conn) => redis::execute(&mut conn, &queries).await,
+                Err(e) => {
+                    tracing::error!("backfill pool error: {e}");
+                    timer.observe_duration();
+                    // Send readers empty backfills if Redis fails. They'll
+                    // still continue working, just without historical data.
+                    for req in requests {
+                        if self
+                            .result_tx
+                            .send(BackfillResult::empty(req.challenge_id, req.backfill_id))
+                            .is_err()
+                        {
+                            return;
+                        }
+                    }
+                    continue;
+                }
+            };
             timer.observe_duration();
 
             match responses {

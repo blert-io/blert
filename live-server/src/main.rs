@@ -41,21 +41,20 @@ async fn main() {
         .json()
         .init();
 
+    let pool = deadpool_redis::Config::from_url(&config.redis_uri)
+        .create_pool(Some(deadpool_redis::Runtime::Tokio1))
+        .expect("failed to create redis pool");
+
+    // A dedicated client is used for pubsub.
     let redis_client = ::redis::Client::open(config.redis_uri.as_str()).expect("invalid redis URI");
 
     // Set up backfill channels and manager.
     let (backfill_request_tx, backfill_request_rx) = mpsc::unbounded_channel();
     let (backfill_result_tx, backfill_result_rx) = mpsc::unbounded_channel();
-    let backfill_conn = redis_client
-        .get_multiplexed_async_connection()
-        .await
-        .expect("failed to connect to redis for backfill");
     let backfill_manager =
-        backfill::BackfillManager::new(backfill_conn, backfill_request_rx, backfill_result_tx);
+        backfill::BackfillManager::new(pool.clone(), backfill_request_rx, backfill_result_tx);
 
-    let broadcast_manager = BroadcastManager::new(&redis_client, backfill_request_tx)
-        .await
-        .expect("failed to connect to redis");
+    let broadcast_manager = BroadcastManager::new(pool.clone(), backfill_request_tx);
 
     let rate_limiter = rate_limit::RateLimiter::new(
         config.rate_limit.max_requests,
@@ -74,7 +73,7 @@ async fn main() {
         state.broadcast_manager.clone(),
         backfill_result_rx,
     ));
-    broadcast::spawn_pubsub_listener(state.broadcast_manager.clone(), redis_client.clone());
+    broadcast::spawn_pubsub_listener(state.broadcast_manager.clone(), redis_client);
     tokio::spawn(broadcast::run_tick_loop(state.broadcast_manager.clone()));
 
     let cors = CorsLayer::new().allow_origin(AllowOrigin::list(
