@@ -30,8 +30,8 @@ pub struct BroadcastManager {
     readers: HashMap<String, ChallengeReader>,
     /// Readers with no subscribers, pending grace-period expiry.
     grace_periods: HashMap<String, tokio::time::Instant>,
-    /// Redis connection for pipeline queries.
-    redis_conn: ::redis::aio::MultiplexedConnection,
+    /// Redis connection pool.
+    pool: deadpool_redis::Pool,
     /// Monotonically increasing subscriber ID counter.
     next_subscriber_id: u64,
     /// Reverse mapping from subscriber ID to challenge UUID.
@@ -47,28 +47,30 @@ pub struct BroadcastManager {
 }
 
 impl BroadcastManager {
-    /// Creates a new broadcast manager with the given Redis client.
-    pub async fn new(
-        redis_client: &::redis::Client,
+    /// Creates a new broadcast manager with the given Redis connection pool.
+    pub fn new(
+        pool: deadpool_redis::Pool,
         backfill_tx: mpsc::UnboundedSender<BackfillRequest>,
-    ) -> Result<Self, ::redis::RedisError> {
-        let redis_conn = redis_client.get_multiplexed_async_connection().await?;
-        Ok(Self {
+    ) -> Self {
+        Self {
             readers: HashMap::new(),
             grace_periods: HashMap::new(),
-            redis_conn,
+            pool,
             next_subscriber_id: 0,
             subscriber_challenges: HashMap::new(),
             reader_query_counts: Vec::new(),
             backfill_tx,
             tick: 0,
             shutting_down: false,
-        })
+        }
     }
 
     /// Pings Redis to check connectivity. Returns `true` if reachable.
     pub async fn ping_redis(&mut self) -> bool {
-        redis::ping(&mut self.redis_conn).await
+        let Ok(mut conn) = self.pool.get().await else {
+            return false;
+        };
+        redis::ping(&mut conn).await
     }
 
     /// Subscribes to a challenge, creating a reader if one doesn't exist.
@@ -162,7 +164,8 @@ impl BroadcastManager {
                 uuid: challenge_id.to_string(),
             },
         ];
-        let mut responses = redis::execute(&mut self.redis_conn, &queries).await?;
+        let mut conn = self.pool.get().await?;
+        let mut responses = redis::execute(&mut conn, &queries).await?;
 
         match (responses.pop(), responses.pop()) {
             (
@@ -325,32 +328,40 @@ pub async fn run_tick_loop(manager: Arc<Mutex<BroadcastManager>>) {
     let mut interval = tokio::time::interval(TICK_INTERVAL);
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
+    let pool = manager.lock().await.pool.clone();
+
     tracing::info!("tick loop started");
 
     loop {
         interval.tick().await;
 
-        let (queries, mut redis_conn) = {
+        let queries = {
             let mut mgr = manager.lock().await;
             if mgr.readers.is_empty() {
                 continue;
             }
-            (mgr.prepare_queries(), mgr.redis_conn.clone())
+            mgr.prepare_queries()
         };
 
         let responses = if queries.is_empty() {
             Vec::new()
         } else {
             let poll_timer = crate::metrics::REDIS_POLL_DURATION.start_timer();
-            let result = redis::execute(&mut redis_conn, &queries).await;
-            poll_timer.observe_duration();
-            match result {
-                Ok(r) => r,
+            let responses = match pool.get().await {
+                Ok(mut conn) => match redis::execute(&mut conn, &queries).await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        tracing::error!("redis pipeline error: {e}");
+                        Vec::new()
+                    }
+                },
                 Err(e) => {
-                    tracing::error!("redis pipeline error: {e}");
+                    tracing::error!("redis pool error: {e}");
                     Vec::new()
                 }
-            }
+            };
+            poll_timer.observe_duration();
+            responses
         };
 
         // TODO(frolv): Eventually, instead of holding the lock over the whole
@@ -372,6 +383,8 @@ pub async fn run_tick_loop(manager: Arc<Mutex<BroadcastManager>>) {
 pub enum BroadcastError {
     #[error("redis error: {0}")]
     Redis(#[from] crate::redis::RedisQueryError),
+    #[error("redis pool error: {0}")]
+    Pool(#[from] deadpool_redis::PoolError),
     #[error("challenge not found: {0}")]
     ChallengeNotFound(String),
     #[error("unexpected redis response")]
