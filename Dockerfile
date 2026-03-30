@@ -80,6 +80,7 @@ COPY --from=blertbank-client-build /app/blertbank-client/dist/ blertbank-client/
 
 # NEXT_PUBLIC_ vars must be present at build time
 ARG NEXT_PUBLIC_BASE_URL=http://localhost:3000
+ARG NEXT_PUBLIC_LIVE_SERVER_URL=http://localhost:3010
 ARG NEXT_PUBLIC_BLERTCOIN_ENABLED=false
 
 # Dummy values so server modules can be evaluated during page data collection.
