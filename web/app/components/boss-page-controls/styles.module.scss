@@ -127,6 +127,63 @@
   }
 }
 
+.liveButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 6px;
+  background: var(--blert-panel-background-color);
+  color: var(--blert-font-color-secondary);
+  font-size: 0.85em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover:not(.liveButtonActive):not(.liveButtonStalled) {
+    background: var(--blert-surface-light);
+  }
+
+  .liveDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--blert-font-color-secondary);
+    transition: background 0.2s ease;
+  }
+
+  &.liveButtonActive {
+    color: var(--blert-red);
+    background: rgba(var(--blert-red-base), 0.1);
+    cursor: default;
+
+    .liveDot {
+      background: var(--blert-red);
+      animation: live-pulse 1.8s ease-in-out infinite;
+    }
+  }
+
+  &.liveButtonStalled {
+    color: var(--blert-yellow);
+    background: rgba(var(--blert-yellow-base), 0.1);
+    cursor: default;
+  }
+}
+
+@keyframes live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.85);
+  }
+}
+
 .controls__scrubber {
   padding: 20px 20px 16px;
   flex: 1;
@@ -348,6 +405,19 @@
   &:disabled {
     opacity: 0.3;
     cursor: not-allowed;
+  }
+
+  &.playbackButtonActive {
+    background: var(--blert-purple);
+
+    .icon {
+      color: var(--blert-font-color-primary);
+    }
+
+    &:hover {
+      background: var(--blert-purple);
+      filter: brightness(1.15);
+    }
   }
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {

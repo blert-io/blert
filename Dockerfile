@@ -213,7 +213,7 @@ RUN touch live-server/src/main.rs && cargo build --release -p live-server
 # ==============================================================================
 # Runtime: live-server
 # ==============================================================================
-FROM debian:bookworm-slim AS live-server
+FROM debian:trixie-slim AS live-server
 
 RUN apt-get update && \
     apt-get install -y ca-certificates && \

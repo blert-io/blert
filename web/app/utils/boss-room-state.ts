@@ -4,6 +4,7 @@ import {
   ColosseumChallenge,
   Coords,
   Event,
+  EventType,
   InfernoChallenge,
   MokhaiotlChallenge,
   RoomNpcMap as RawRoomNpcMap,
@@ -25,11 +26,12 @@ import {
   useState,
 } from 'react';
 
-import { ChallengeContext } from '@/challenge-context';
+import { ChallengeContext, useLiveChallenge } from '@/challenge-context';
 import { AnyEntity, NpcEntity, PlayerEntity } from '@/components/map-renderer';
+import { useLiveStageState } from '@/utils/live-stage-state';
 import { clamp } from '@/utils/math';
 
-import { challengeApiUrl } from './url';
+import { challengeApiUrl, npcImageUrl } from './url';
 
 export * from './stage-state';
 
@@ -40,46 +42,130 @@ import {
   EventState,
   PlayerStateMap,
   RoomNpcMap,
+  StageState,
   toBcf,
 } from './stage-state';
 
-export const usePlayingState = (totalTicks: number) => {
+/**
+ * Returns a stable reference to the events of a given type from the event map.
+ * The reference only changes when the filtered contents change.
+ *
+ * @param eventsByType The event map from which to extract events.
+ * @param type The event type to extract.
+ * @param filter Optional filter function to restrict which events are included.
+ * @returns A stable reference to the filtered events of the given type.
+ */
+export function useStableEvents<T extends Event>(
+  eventsByType: Partial<Record<EventType, Event[]>>,
+  type: EventType,
+  filter?: (event: T) => boolean,
+): T[] {
+  const ref = useRef<T[]>([]);
+  const rawCountRef = useRef(0);
+  const rawCount = eventsByType[type]?.length ?? 0;
+
+  if (rawCountRef.current !== rawCount) {
+    rawCountRef.current = rawCount;
+    let result: T[];
+    if (filter !== undefined) {
+      result = ((eventsByType[type] ?? []) as T[]).filter(filter);
+    } else {
+      result = ((eventsByType[type] ?? []) as T[]).slice();
+    }
+    if (ref.current.length !== result.length) {
+      ref.current = result;
+    }
+  }
+
+  return ref.current;
+}
+
+export const usePlayingState = (totalTicks: number, isStreaming = false) => {
   const searchParams = useSearchParams();
   const initialTick = Number.parseInt(searchParams.get('tick') ?? '1', 10);
   const normalizedInitialTick = Number.isNaN(initialTick) ? 1 : initialTick;
   const maxTick = Math.max(1, totalTicks - 1);
 
   const [currentTick, setCurrentTick] = useState(() =>
-    clamp(normalizedInitialTick, 1, maxTick),
+    isStreaming ? maxTick : clamp(normalizedInitialTick, 1, maxTick),
   );
   const [playing, setPlaying] = useState(false);
+  const [following, setFollowing] = useState(isStreaming);
+  const effectiveTickRef = useRef(currentTick);
+
+  // Keep a synced tick reference for functional updates while following.
+  const displayTick = following ? maxTick : currentTick;
+  effectiveTickRef.current = displayTick;
 
   const setTick = useCallback(
     (tickOrUpdater: SetStateAction<number>) => {
-      setCurrentTick((currentTick) => {
-        const nextTick =
-          typeof tickOrUpdater === 'number'
-            ? tickOrUpdater
-            : tickOrUpdater(currentTick);
-        return clamp(Number.isNaN(nextTick) ? 1 : nextTick, 1, maxTick);
-      });
+      setFollowing(false);
+      const baseTick = effectiveTickRef.current;
+      const nextTick =
+        typeof tickOrUpdater === 'number'
+          ? tickOrUpdater
+          : tickOrUpdater(baseTick);
+      const clampedTick = clamp(
+        Number.isNaN(nextTick) ? 1 : nextTick,
+        1,
+        maxTick,
+      );
+      effectiveTickRef.current = clampedTick;
+      setCurrentTick(clampedTick);
     },
     [maxTick],
   );
 
   const advanceTick = useCallback(() => {
-    setCurrentTick((tick) => {
-      if (tick < maxTick) {
-        return tick + 1;
-      }
-      setPlaying(false);
-      return 1;
-    });
+    const tick = effectiveTickRef.current;
+
+    if (tick < maxTick) {
+      const nextTick = tick + 1;
+      effectiveTickRef.current = nextTick;
+      setCurrentTick(nextTick);
+      return;
+    }
+
+    if (isStreaming) {
+      setFollowing(true);
+      return;
+    }
+
+    setPlaying(false);
+    effectiveTickRef.current = 1;
+    setCurrentTick(1);
+  }, [maxTick, isStreaming]);
+
+  const jumpToLive = useCallback(() => {
+    effectiveTickRef.current = maxTick;
+    setFollowing(true);
+    setPlaying(false);
   }, [maxTick]);
 
+  // Clamp if totalTicks shrinks (e.g. stage change).
   useEffect(() => {
-    setCurrentTick((tick) => clamp(tick, 1, maxTick));
-  }, [maxTick]);
+    if (!following) {
+      setCurrentTick((tick) => {
+        const clampedTick = clamp(tick, 1, maxTick);
+        effectiveTickRef.current = clampedTick;
+        return clampedTick;
+      });
+    }
+  }, [following, maxTick]);
+
+  // Sync following with streaming state. When streaming stops, set
+  // `currentTick` to the last tick of the stage so the scrubber stays in place.
+  const liveTickRef = useRef({ tick: maxTick, wasStreaming: isStreaming });
+  liveTickRef.current.tick = maxTick;
+
+  useEffect(() => {
+    if (liveTickRef.current.wasStreaming && !isStreaming) {
+      effectiveTickRef.current = liveTickRef.current.tick;
+      setCurrentTick(liveTickRef.current.tick);
+    }
+    liveTickRef.current.wasStreaming = isStreaming;
+    setFollowing(isStreaming);
+  }, [isStreaming]);
 
   useEffect(() => {
     const listener = (e: KeyboardEvent) => {
@@ -95,20 +181,27 @@ export const usePlayingState = (totalTicks: number) => {
         setTick((tick) => tick + 1);
       } else if (e.key === ' ') {
         e.preventDefault();
+        setCurrentTick(effectiveTickRef.current);
+        setFollowing(false);
         setPlaying((playing) => !playing);
+      } else if (e.key === 'l' || e.key === 'L') {
+        e.preventDefault();
+        jumpToLive();
       }
     };
 
     window.addEventListener('keydown', listener);
     return () => window.removeEventListener('keydown', listener);
-  }, [setTick]);
+  }, [setTick, jumpToLive]);
 
   return {
-    currentTick,
+    currentTick: displayTick,
     advanceTick,
     setTick,
     playing,
     setPlaying,
+    following,
+    jumpToLive,
   };
 };
 
@@ -202,8 +295,44 @@ export function getStageInfo(
 export function useStageEvents<T extends Challenge>(
   stage: Stage,
   attempt?: number,
-) {
-  const [challenge] = useContext(ChallengeContext) as [T | null, unknown];
+): StageState<T> {
+  const [rawChallenge] = useContext(ChallengeContext) as [T | null, unknown];
+  const live = useLiveChallenge();
+
+  const { isLive, liveSplits, setRequestedStage } = live;
+
+  const challenge = useMemo<T | null>(
+    () =>
+      rawChallenge !== null
+        ? { ...rawChallenge, splits: { ...liveSplits, ...rawChallenge.splits } }
+        : null,
+    [rawChallenge, liveSplits],
+  );
+
+  const hasStaticData = getStageInfo(rawChallenge, stage, attempt).ticks > 0;
+
+  // Request live streaming for a stage that has not yet been processed.
+  useEffect(() => {
+    if (isLive && !hasStaticData) {
+      setRequestedStage(stage);
+    }
+    return () => setRequestedStage(null);
+  }, [isLive, hasStaticData, setRequestedStage, stage]);
+
+  const liveResult = useLiveStageState(
+    challenge,
+    hasStaticData,
+    stage,
+    attempt,
+  );
+
+  // Cache the last live result for bridging the live to processed transition.
+  const previousLiveRef = useRef<StageState<T> | null>(null);
+  if (liveResult !== null) {
+    previousLiveRef.current = liveResult;
+  }
+
+  const isLiveStage = liveResult !== null;
 
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<Event[]>([]);
@@ -235,7 +364,14 @@ export function useStageEvents<T extends Challenge>(
     challengeRef.current = challenge;
   }, [challenge]);
 
+  // Fetch events for the stage from the API when static data is available.
   useEffect(() => {
+    if (isLiveStage || !hasStaticData) {
+      setLoading(false);
+      return;
+    }
+
+    let isActive = true;
     const c = challengeRef.current;
     if (c === null) {
       return;
@@ -251,8 +387,14 @@ export function useStageEvents<T extends Challenge>(
         }`;
         evts = (await fetch(url).then((res) => res.json())) as Event[];
       } catch {
-        setEvents([]);
-        setLoading(false);
+        if (isActive) {
+          setEvents([]);
+          setLoading(false);
+        }
+        return;
+      }
+
+      if (!isActive) {
         return;
       }
 
@@ -262,7 +404,6 @@ export function useStageEvents<T extends Challenge>(
         const { ticks, npcs } = getStageInfo(c, stage, attempt);
         let totalTicks = ticks;
         if (totalTicks === -1) {
-          // The room is in progress, so get the last tick from the events.
           totalTicks = evts[evts.length - 1].tick;
         }
 
@@ -301,7 +442,23 @@ export function useStageEvents<T extends Challenge>(
     };
 
     void getEvents();
-  }, [stage, attempt]);
+
+    return () => {
+      isActive = false;
+    };
+  }, [stage, attempt, isLiveStage, hasStaticData]);
+
+  if (liveResult !== null) {
+    return liveResult;
+  }
+
+  // When transitioning out of live, bridge with cached live data until static
+  // data is fully available.
+  if (previousLiveRef.current !== null && (!hasStaticData || loading)) {
+    return previousLiveRef.current;
+  }
+
+  previousLiveRef.current = null;
 
   return {
     challenge,
@@ -328,7 +485,6 @@ function buildEntitiesForTick(
   partyOrb: Record<string, number>,
   playerState: PlayerStateMap,
   npcState: RoomNpcMap,
-  preloads: Set<string>,
   modifyEntity: ModifyEntityCallback,
   customEntitiesForTick: CustomEntitiesCallback,
 ): AnyEntity[] {
@@ -389,7 +545,6 @@ function buildEntitiesForTick(
     );
 
     npcEntity = modifyEntity(tick, npcEntity) as NpcEntity;
-    preloads.add(npcEntity.imageUrl);
     entitiesForTick.push(npcEntity);
   }
 
@@ -415,11 +570,9 @@ export function useMapEntities(
   npcState: RoomNpcMap,
   totalTicks: number,
   options: CustomEntitiesOptions = {},
-): { getEntities: (tick: number) => AnyEntity[]; preloads: string[] } {
+): (tick: number) => AnyEntity[] {
   const { customEntitiesForTick = () => [], modifyEntity = (_, e) => e } =
     options;
-
-  const preloadSet = useRef(new Set<string>());
 
   const partyOrb = useMemo(() => {
     if (challenge === null) {
@@ -434,7 +587,7 @@ export function useMapEntities(
     );
   }, [challenge]);
 
-  const getEntities = useCallback(
+  return useCallback(
     (tick: number): AnyEntity[] => {
       if (challenge === null || tick < 0 || tick >= totalTicks) {
         return [];
@@ -445,7 +598,6 @@ export function useMapEntities(
         partyOrb,
         playerState,
         npcState,
-        preloadSet.current,
         modifyEntity,
         customEntitiesForTick,
       );
@@ -460,13 +612,27 @@ export function useMapEntities(
       customEntitiesForTick,
     ],
   );
+}
 
-  const preloads = useMemo(
-    () => Array.from(preloadSet.current),
-    // `preloadSet` is populated whenever `getEntities` changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [getEntities],
-  );
-
-  return { getEntities, preloads };
+/**
+ * Collects sprite URLs from state maps for preloading.
+ *
+ * @param npcState NPC state for the stage.
+ * @returns Preload URLs for the stage.
+ */
+export function usePreloads(npcState: RoomNpcMap, skip = false): string[] {
+  return useMemo(() => {
+    if (skip) {
+      return [];
+    }
+    const urls = new Set<string>();
+    for (const [, npc] of npcState) {
+      for (const state of npc.stateByTick) {
+        if (state !== null) {
+          urls.add(npcImageUrl(state.id));
+        }
+      }
+    }
+    return Array.from(urls);
+  }, [npcState, skip]);
 }

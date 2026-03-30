@@ -90,6 +90,7 @@ export class TimelineController {
     }
 
     this.syncDpr();
+    this.resizeCanvases();
     this.drawAllSync();
   }
 

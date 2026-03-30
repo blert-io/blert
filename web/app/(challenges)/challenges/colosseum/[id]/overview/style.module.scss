@@ -92,6 +92,28 @@
           color: var(--blert-purple);
         }
       }
+
+      .liveBadge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        margin-left: auto;
+        padding: 2px 8px;
+        border-radius: 4px;
+        background: rgba(var(--blert-red-base), 0.15);
+        color: var(--blert-red);
+        font-size: 0.75em;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+      }
+
+      .liveDot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--blert-red);
+        animation: live-pulse 1.5s ease-in-out infinite;
+      }
     }
 
     .handicaps {
@@ -142,5 +164,17 @@
         align-self: center;
       }
     }
+  }
+}
+
+@keyframes live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.75);
   }
 }

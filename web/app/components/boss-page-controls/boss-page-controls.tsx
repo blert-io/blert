@@ -10,9 +10,12 @@ import {
   useLayoutEffect,
 } from 'react';
 
+import { useLiveChallenge } from '@/challenge-context';
 import { TimelineSplit } from '@/components/attack-timeline';
+import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 import { DisplayContext } from '@/display';
 import { clamp } from '@/utils/math';
+import { useSetting } from '@/utils/user-settings';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import styles from './styles.module.scss';
@@ -24,6 +27,10 @@ interface BossControlsProps {
   updateTick: Dispatch<SetStateAction<number>>;
   updatePlayingState: (isPlaying: boolean) => void;
   splits?: TimelineSplit[];
+  /** Whether the view is pinned to the latest live tick. */
+  following?: boolean;
+  /** Callback to jump back to the live edge. */
+  onJumpToLive?: () => void;
 }
 
 export function BossPageControls(props: BossControlsProps) {
@@ -34,10 +41,19 @@ export function BossPageControls(props: BossControlsProps) {
     updateTick,
     updatePlayingState,
     splits = [],
+    following = false,
+    onJumpToLive,
   } = props;
   const maxTick = Math.max(1, totalTicks - 1);
 
   const display = useContext(DisplayContext);
+  const { stalled } = useLiveChallenge();
+  const [autoNavigate, setAutoNavigate] = useSetting({
+    key: 'live-auto-navigate',
+    defaultValue: false,
+  });
+
+  const isLive = onJumpToLive !== undefined;
 
   // The value of the tick input field. Tracked separately to `currentTick` to
   // allow users to clear the input.
@@ -47,16 +63,16 @@ export function BossPageControls(props: BossControlsProps) {
   const scrubber = useRef<HTMLDivElement>(null);
   const rangeRef = useRef<HTMLInputElement>(null);
   const [trackWidth, setTrackWidth] = useState<number>(0);
-  // Update trackWidth on mount and when window resizes
   useLayoutEffect(() => {
-    function updateWidth() {
-      if (rangeRef.current) {
-        setTrackWidth(rangeRef.current.getBoundingClientRect().width);
-      }
+    const el = rangeRef.current;
+    if (el === null) {
+      return;
     }
-    updateWidth();
-    window.addEventListener('resize', updateWidth);
-    return () => window.removeEventListener('resize', updateWidth);
+    const observer = new ResizeObserver(() => {
+      setTrackWidth(el.getBoundingClientRect().width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -142,13 +158,19 @@ export function BossPageControls(props: BossControlsProps) {
     ? () => setHoverTick(null)
     : undefined;
 
+  const progressPercent = (currentTick - 1) / Math.max(maxTick - 1, 1);
+  const progressPx =
+    trackWidth > 0
+      ? progressPercent * (trackWidth - thumbWidth) + thumbWidth / 2
+      : 0;
+
   const scrubberElement = (
     <div
       className={styles.controls__scrubber}
       ref={scrubber}
       style={
         {
-          '--progress': `${((currentTick - 1) / Math.max(totalTicks - 1, 1)) * 100}%`,
+          '--progress': `${progressPx}px`,
         } as React.CSSProperties
       }
     >
@@ -206,8 +228,27 @@ export function BossPageControls(props: BossControlsProps) {
     </div>
   );
 
+  const liveButton = onJumpToLive !== undefined && (
+    <button
+      className={`${styles.liveButton} ${stalled ? styles.liveButtonStalled : following ? styles.liveButtonActive : ''}`}
+      onClick={() => {
+        if (!following && !stalled) {
+          onJumpToLive();
+        }
+      }}
+    >
+      {stalled ? (
+        <i className="fa-solid fa-triangle-exclamation" />
+      ) : (
+        <span className={styles.liveDot} />
+      )}
+      {stalled ? 'STALLED' : 'LIVE'}
+    </button>
+  );
+
   const roomTime = (
     <div className={styles.roomTime}>
+      {liveButton}
       <div className={styles.time}>{ticksToFormattedSeconds(currentTick)}</div>
       <span>/</span>
       <div className={styles.time}>{ticksToFormattedSeconds(totalTicks)}</div>
@@ -223,25 +264,43 @@ export function BossPageControls(props: BossControlsProps) {
           <div className={styles.controls__main}>
             <button
               className={styles.playbackButton}
-              onClick={() => updatePlayingState(!currentlyPlaying)}
-            >
-              <i
-                className={`${styles.icon} far fa-circle-${currentlyPlaying ? 'pause' : 'play'}`}
-              />
-            </button>
-            <button
-              className={styles.playbackButton}
-              disabled={currentTick === 1}
               onClick={() => {
-                if (currentTick === 1) {
-                  return;
+                if (following) {
+                  updateTick(currentTick);
+                  updatePlayingState(false);
+                } else {
+                  updatePlayingState(!currentlyPlaying);
                 }
-                updateTick(1);
-                updatePlayingState(false);
               }}
             >
-              <i className={`${styles.icon} fa-solid fa-rotate-left`} />
+              <i
+                className={`${styles.icon} far fa-circle-${following || currentlyPlaying ? 'pause' : 'play'}`}
+              />
             </button>
+            {isLive ? (
+              <button
+                className={`${styles.playbackButton} ${autoNavigate ? styles.playbackButtonActive : ''}`}
+                onClick={() => setAutoNavigate(!autoNavigate)}
+                data-tooltip-id={GLOBAL_TOOLTIP_ID}
+                data-tooltip-content={`Auto-follow live stages: ${autoNavigate ? 'on' : 'off'}`}
+              >
+                <i className={`${styles.icon} fa-solid fa-forward-step`} />
+              </button>
+            ) : (
+              <button
+                className={styles.playbackButton}
+                disabled={currentTick === 1}
+                onClick={() => {
+                  if (currentTick === 1) {
+                    return;
+                  }
+                  updateTick(1);
+                  updatePlayingState(false);
+                }}
+              >
+                <i className={`${styles.icon} fa-solid fa-rotate-left`} />
+              </button>
+            )}
             <div className={styles.tickInput}>
               <div className={styles.controls__tickInputLabel}>Tick:</div>
               <input

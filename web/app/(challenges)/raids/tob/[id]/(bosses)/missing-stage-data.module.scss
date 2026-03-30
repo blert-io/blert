@@ -1,0 +1,42 @@
+@use '@/mixins.scss' as *;
+
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 500px;
+  margin: 80px auto;
+  padding: 40px 24px;
+  background: var(--blert-surface-dark);
+  border: 1px solid var(--blert-surface-light);
+  border-radius: 12px;
+  text-align: center;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    margin: 40px auto;
+    padding: 32px 16px;
+  }
+}
+
+.icon {
+  font-size: 2rem;
+  color: var(--blert-font-color-secondary);
+  opacity: 0.6;
+  margin-bottom: 4px;
+}
+
+.message {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--blert-font-color-primary);
+}
+
+.details {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--blert-font-color-secondary);
+}

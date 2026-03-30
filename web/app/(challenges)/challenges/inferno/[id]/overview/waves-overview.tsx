@@ -1,6 +1,7 @@
 import {
   ChallengeType,
   InfernoChallenge,
+  isInfernoStage,
   SplitType,
   Stage,
 } from '@blert/common';
@@ -8,6 +9,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useMemo } from 'react';
 
+import { useLiveChallenge } from '@/challenge-context';
 import Card from '@/components/card';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 import { challengeUrl } from '@/utils/url';
@@ -122,6 +124,7 @@ interface WaveGroupOverviewProps {
   startTick: number | null;
   duration: number | null;
   reachedWaves: Set<number>;
+  liveWave?: number | null;
 }
 
 function WaveGroupOverview({
@@ -130,6 +133,7 @@ function WaveGroupOverview({
   startTick,
   duration,
   reachedWaves,
+  liveWave,
 }: WaveGroupOverviewProps) {
   const waveNumbers = Array.from(
     { length: group.endWave - group.startWave + 1 },
@@ -155,6 +159,12 @@ function WaveGroupOverview({
               </div>
             )}
             <span>{group.title}</span>
+            {liveWave !== null && (
+              <div className={styles.liveBadge}>
+                <span className={styles.liveDot} />
+                LIVE
+              </div>
+            )}
           </div>
           <div className={styles.groupTiming}>
             {startTick !== null && (
@@ -179,7 +189,7 @@ function WaveGroupOverview({
             <Link
               key={num}
               href={`${challengeUrl(ChallengeType.INFERNO, challengeId)}/waves/${num}`}
-              className={styles.waveLink}
+              className={`${styles.waveLink} ${num === liveWave ? styles.liveWaveLink : ''}`}
             >
               {num}
             </Link>
@@ -195,12 +205,26 @@ export function InfernoWavesOverview({
 }: {
   challenge: InfernoChallenge;
 }) {
+  const { currentStage, isStreaming, liveSplits } = useLiveChallenge();
+  const splits = { ...liveSplits, ...challenge.splits };
+
+  const liveStage =
+    currentStage?.stage && isStreaming ? currentStage.stage : null;
+  const liveWaveNumber =
+    liveStage !== null && isInfernoStage(liveStage)
+      ? liveStage - Stage.INFERNO_WAVE_1 + 1
+      : null;
+
   const waves = challenge.inferno.waves;
 
   const [reachedWaves, reachableGroups] = useMemo(() => {
     const reachedWaves = new Set(
       waves.map((wave) => wave.stage - Stage.INFERNO_WAVE_1 + 1),
     );
+
+    if (liveWaveNumber !== null) {
+      reachedWaves.add(liveWaveNumber);
+    }
 
     // Filter groups to only include those with at least one reached wave.
     const reachableGroups = WAVE_GROUPS.filter((group) =>
@@ -211,13 +235,13 @@ export function InfernoWavesOverview({
     );
 
     return [reachedWaves, reachableGroups];
-  }, [waves]);
+  }, [waves, liveWaveNumber]);
 
   const getGroupStartTick = (group: WaveGroup): number | null => {
     if (group.startSplit === null) {
       return 0;
     }
-    return challenge.splits[group.startSplit] ?? null;
+    return splits[group.startSplit] ?? null;
   };
 
   const getGroupDuration = (
@@ -251,6 +275,10 @@ export function InfernoWavesOverview({
           const nextGroup = reachableGroups[index + 1];
           const startTick = getGroupStartTick(group);
           const duration = getGroupDuration(group, nextGroup);
+          const isLiveGroup =
+            liveWaveNumber !== null &&
+            liveWaveNumber >= group.startWave &&
+            liveWaveNumber <= group.endWave;
 
           return (
             <WaveGroupOverview
@@ -260,6 +288,7 @@ export function InfernoWavesOverview({
               startTick={startTick}
               duration={duration}
               reachedWaves={reachedWaves}
+              liveWave={isLiveGroup ? liveWaveNumber : null}
             />
           );
         })}
