@@ -164,8 +164,7 @@ impl BroadcastManager {
                 uuid: challenge_id.to_string(),
             },
         ];
-        let mut conn = self.pool.get().await?;
-        let mut responses = redis::execute(&mut conn, &queries).await?;
+        let mut responses = redis::pool_execute(&self.pool, &queries).await?;
 
         match (responses.pop(), responses.pop()) {
             (
@@ -347,21 +346,15 @@ pub async fn run_tick_loop(manager: Arc<Mutex<BroadcastManager>>) {
             Vec::new()
         } else {
             let poll_timer = crate::metrics::REDIS_POLL_DURATION.start_timer();
-            let responses = match pool.get().await {
-                Ok(mut conn) => match redis::execute(&mut conn, &queries).await {
-                    Ok(r) => r,
-                    Err(e) => {
-                        tracing::error!("redis pipeline error: {e}");
-                        Vec::new()
-                    }
-                },
+            let result = redis::pool_execute(&pool, &queries).await;
+            poll_timer.observe_duration();
+            match result {
+                Ok(r) => r,
                 Err(e) => {
-                    tracing::error!("redis pool error: {e}");
+                    tracing::error!("redis pipeline error: {e}");
                     Vec::new()
                 }
-            };
-            poll_timer.observe_duration();
-            responses
+            }
         };
 
         // TODO(frolv): Eventually, instead of holding the lock over the whole
@@ -383,8 +376,6 @@ pub async fn run_tick_loop(manager: Arc<Mutex<BroadcastManager>>) {
 pub enum BroadcastError {
     #[error("redis error: {0}")]
     Redis(#[from] crate::redis::RedisQueryError),
-    #[error("redis pool error: {0}")]
-    Pool(#[from] deadpool_redis::PoolError),
     #[error("challenge not found: {0}")]
     ChallengeNotFound(String),
     #[error("unexpected redis response")]

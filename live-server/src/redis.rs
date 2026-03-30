@@ -212,6 +212,8 @@ pub enum RedisQueryError {
     Redis(#[from] redis::RedisError),
     #[error("redis parse error: {0}")]
     RedisParse(#[from] redis::ParsingError),
+    #[error("pool error: {0}")]
+    Pool(#[from] deadpool_redis::PoolError),
     #[error("missing field: {0}")]
     MissingField(&'static str),
     #[error("parse error: {0}")]
@@ -346,6 +348,27 @@ fn parse_stage_stream_response(value: Value) -> Result<Vec<StageStreamEntry>, Re
     }
 
     Ok(result)
+}
+
+/// Gets a Redis connection from a pool, retrying once if it fails to
+/// immediately correct a broken pipe.
+pub async fn get_conn(
+    pool: &deadpool_redis::Pool,
+) -> Result<deadpool_redis::Connection, deadpool_redis::PoolError> {
+    match pool.get().await {
+        Ok(conn) => Ok(conn),
+        Err(_) => pool.get().await,
+    }
+}
+
+/// Execute queries using a pooled connection. Retries once if the
+/// connection cannot be obtained (via [`get_conn`]).
+pub async fn pool_execute(
+    pool: &deadpool_redis::Pool,
+    queries: &[RedisQuery],
+) -> Result<Vec<RedisResponse>, RedisQueryError> {
+    let mut conn = get_conn(pool).await?;
+    execute(&mut conn, queries).await
 }
 
 /// Pings Redis to check connectivity.

@@ -96,25 +96,7 @@ impl BackfillManager {
                 .collect();
 
             let timer = crate::metrics::BACKFILL_DURATION.start_timer();
-            let responses = match self.pool.get().await {
-                Ok(mut conn) => redis::execute(&mut conn, &queries).await,
-                Err(e) => {
-                    tracing::error!("backfill pool error: {e}");
-                    timer.observe_duration();
-                    // Send readers empty backfills if Redis fails. They'll
-                    // still continue working, just without historical data.
-                    for req in requests {
-                        if self
-                            .result_tx
-                            .send(BackfillResult::empty(req.challenge_id, req.backfill_id))
-                            .is_err()
-                        {
-                            return;
-                        }
-                    }
-                    continue;
-                }
-            };
+            let responses = redis::pool_execute(&self.pool, &queries).await;
             timer.observe_duration();
 
             match responses {
