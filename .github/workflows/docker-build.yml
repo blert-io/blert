@@ -57,4 +57,5 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
           build-args: |
             NEXT_PUBLIC_BASE_URL=${{ vars.NEXT_PUBLIC_BASE_URL }}
+            NEXT_PUBLIC_LIVE_SERVER_URL=${{ vars.NEXT_PUBLIC_LIVE_SERVER_URL }}
             NEXT_PUBLIC_BLERTCOIN_ENABLED=${{ vars.NEXT_PUBLIC_BLERTCOIN_ENABLED }}
