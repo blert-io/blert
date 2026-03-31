@@ -735,7 +735,7 @@ const STAGE_TRANSITION_DELAY = 8000;
 function StageTransitionPopup({ name, href }: { name: string; href: string }) {
   return (
     <Link href={href} className={styles.stageTransitionPopup}>
-      {name} has started &mdash; click to watch
+      The team has started {name}. Click to watch!
     </Link>
   );
 }

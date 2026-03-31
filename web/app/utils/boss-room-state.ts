@@ -332,9 +332,19 @@ export function useStageEvents<T extends Challenge>(
     previousLiveRef.current = liveResult;
   }
 
+  const [loading, setLoading] = useState(true);
+
   const isLiveStage = liveResult !== null;
 
-  const [loading, setLoading] = useState(true);
+  // Atomically set loading to true when transitioning from live to static.
+  const [wasLiveStage, setWasLiveStage] = useState(isLiveStage);
+  if (wasLiveStage !== isLiveStage) {
+    setWasLiveStage(isLiveStage);
+    if (wasLiveStage && hasStaticData) {
+      setLoading(true);
+    }
+  }
+
   const [events, setEvents] = useState<Event[]>([]);
   const [eventState, setEventState] = useState<EventState>({
     eventsByTick: {},
@@ -366,7 +376,10 @@ export function useStageEvents<T extends Challenge>(
 
   // Fetch events for the stage from the API when static data is available.
   useEffect(() => {
-    if (isLiveStage || !hasStaticData) {
+    if (isLiveStage) {
+      return;
+    }
+    if (!hasStaticData) {
       setLoading(false);
       return;
     }
