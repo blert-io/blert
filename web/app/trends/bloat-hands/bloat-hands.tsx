@@ -1,27 +1,15 @@
 'use client';
 
+import { ChallengeMode } from '@blert/common';
 import { useState, useEffect, useCallback } from 'react';
+
+import { BloatHandsResponse } from '@/actions/bloat-hands';
 
 import BloatHandsControls, { BloatHandsFilters, DisplayMode } from './controls';
 import BloatHandsStats from './stats';
 import BloatHandsVisualizer from './visualizer';
 
 import styles from './style.module.scss';
-
-export type BloatHandsView = 'total' | 'wave' | 'chunk' | 'intraChunkOrder';
-
-export type BloatHandsData = {
-  totalChallenges: number;
-  totalHands: number;
-  data:
-    | { view: 'total'; byTile: Record<string, number> }
-    | { view: 'wave'; byWave: Record<string, Record<string, number>> }
-    | { view: 'chunk'; byChunk: Record<string, number> }
-    | {
-        view: 'intraChunkOrder';
-        byOrder: Record<string, Record<string, number>>;
-      };
-};
 
 function ErrorState({ onRetry }: { onRetry: () => void }) {
   return (
@@ -108,13 +96,13 @@ function ErrorStatsPlaceholder() {
 export default function BloatHands() {
   const [hoveredTile, setHoveredTile] = useState<number | null>(null);
   const [selectedTile, setSelectedTile] = useState<number | null>(null);
-  const [data, setData] = useState<BloatHandsData | null>(null);
+  const [data, setData] = useState<BloatHandsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [displayMode, setDisplayMode] = useState<DisplayMode>('percentage');
 
   const [filters, setFilters] = useState<BloatHandsFilters>({
-    mode: undefined,
+    mode: ChallengeMode.TOB_REGULAR,
     intraChunkOrder: undefined,
     startDate: null,
     endDate: null,
@@ -126,7 +114,6 @@ export default function BloatHands() {
 
     try {
       const params = new URLSearchParams();
-      params.set('view', 'total');
       if (filters.mode !== undefined) {
         params.set('mode', filters.mode.toString());
       }
@@ -152,13 +139,10 @@ export default function BloatHands() {
       const response = await fetch(`/api/v1/trends/bloat-hands?${params}`);
 
       if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error('No data found for the specified filters');
-        }
         throw new Error(`Failed to fetch data: ${response.status}`);
       }
 
-      const result = (await response.json()) as BloatHandsData;
+      const result = (await response.json()) as BloatHandsResponse;
       setData(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch data');

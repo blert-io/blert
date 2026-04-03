@@ -1,6 +1,6 @@
 import { ChallengeMode } from '@blert/common';
 
-import { BloatHandsResponse } from '@/actions/challenge';
+import { BloatHandsResponse } from '@/actions/bloat-hands';
 import { getOrdinal } from '@/utils/path-util';
 
 import { BloatHandsFilters, DisplayMode } from './controls';
@@ -69,7 +69,8 @@ export default function BloatHandsStats({
   displayMode,
   filters,
 }: BloatHandsStatsProps) {
-  const avgHandsPerRaid = data.totalHands / data.totalChallenges;
+  const avgHandsPerRaid =
+    data.totalChallenges > 0 ? data.totalHands / data.totalChallenges : 0;
   const passableTileCount = 256 - 36; // 16x16 grid minus 6x6 impassable area
   const avgHandsPerTile = data.totalHands / passableTileCount;
 

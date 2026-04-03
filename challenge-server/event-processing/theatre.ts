@@ -41,7 +41,7 @@ type SoteMazeState = {
 
 type BloatHandData = {
   waveNumber: number;
-  tileId: number | null;
+  tileId: number;
   chunk: number;
   intraChunkOrder: number;
 };

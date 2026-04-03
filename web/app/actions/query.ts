@@ -86,6 +86,26 @@ export function join(joins: Join[]) {
     : sql``;
 }
 
+export type ComparableValue = number | string | Date;
+
+export function comparatorToSql(
+  table: postgres.Helper<string>,
+  column: string,
+  comparator: Comparator<ComparableValue>,
+): postgres.Fragment {
+  if (comparator[0] === 'in') {
+    return sql`${table}.${sql(column)} = ANY(${comparator[1]})`;
+  }
+
+  if (comparator[0] === 'range') {
+    const [start, end] = comparator[1];
+    return sql`${table}.${sql(column)} >= ${start} AND ${table}.${sql(column)} < ${end}`;
+  }
+
+  const op = operator(comparator[0]);
+  return sql`${table}.${sql(column)} ${op} ${comparator[1]}`;
+}
+
 export type BaseOperand = number | string | null;
 export type Operand = BaseOperand | Condition;
 export type Condition = [Operand, Operator, Operand];
