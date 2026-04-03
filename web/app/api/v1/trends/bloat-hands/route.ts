@@ -1,51 +1,41 @@
+import { ChallengeMode } from '@blert/common';
 import { NextRequest } from 'next/server';
 
-import {
-  aggregateBloatHands,
-  BloatHandsQuery,
-  BloatHandsView,
-} from '@/actions/challenge';
+import { aggregateBloatHands, BloatHandsQuery } from '@/actions/bloat-hands';
 import { withApiRoute } from '@/api/handler';
-import { numericComparatorParam } from '@/api/query';
-
-import { parseChallengeQueryParams } from '../../challenges/query';
-
-function isValidView(view: string): view is BloatHandsView {
-  return ['total', 'wave', 'chunk', 'intraChunkOrder'].includes(view);
-}
+import { dateComparatorParam, expectSingle } from '@/api/query';
 
 export const GET = withApiRoute(
   { route: '/api/v1/trends/bloat-hands' },
   async (request: NextRequest) => {
-    const searchParams = request.nextUrl.searchParams;
+    const searchParams = Object.fromEntries(request.nextUrl.searchParams);
 
-    let query: BloatHandsQuery | null = null;
-    try {
-      query = parseChallengeQueryParams(searchParams);
-      if (query === null) {
+    const query: BloatHandsQuery = {};
+
+    const mode = expectSingle(searchParams, 'mode');
+    if (mode !== undefined) {
+      query.mode = mode
+        .split(',')
+        .map((m) => parseInt(m))
+        .filter((m) => !isNaN(m)) as ChallengeMode[];
+    }
+
+    const order = expectSingle(searchParams, 'intraChunkOrder');
+    if (order !== undefined) {
+      const parsed = parseInt(order);
+      if (isNaN(parsed)) {
         return new Response(null, { status: 400 });
       }
+      query.intraChunkOrder = parsed;
+    }
+
+    try {
+      query.startTime = dateComparatorParam(searchParams, 'startTime');
     } catch {
       return new Response(null, { status: 400 });
     }
 
-    const searchParamsObj = Object.fromEntries(searchParams);
-    query.wave = numericComparatorParam(searchParamsObj, 'wave');
-    query.chunk = numericComparatorParam(searchParamsObj, 'chunk');
-    query.intraChunkOrder = numericComparatorParam(
-      searchParamsObj,
-      'intraChunkOrder',
-    );
-
-    const view = searchParams.get('view') ?? 'total';
-    if (!isValidView(view)) {
-      return new Response(null, { status: 400 });
-    }
-
-    const result = await aggregateBloatHands(query, view);
-    if (result === null) {
-      return new Response(null, { status: 404 });
-    }
+    const result = await aggregateBloatHands(query);
     return Response.json(result);
   },
 );

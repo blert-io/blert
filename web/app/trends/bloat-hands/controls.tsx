@@ -9,9 +9,6 @@ export type DisplayMode = 'percentage' | 'relative';
 
 export type BloatHandsFilters = {
   mode?: ChallengeMode;
-  party?: string;
-  wave?: string;
-  chunk?: string;
   intraChunkOrder?: string;
   startDate: Date | null;
   endDate: Date | null;
@@ -38,7 +35,7 @@ export default function BloatHandsControls({
     <div className={styles.controls}>
       <div className={styles.section}>
         <h3 className={styles.sectionTitle}>Display Mode</h3>
-        <div className={styles.displayModeSelector}>
+        <div>
           <div className={styles.filterGroup}>
             <label htmlFor="display-mode">Data Display</label>
             <select
@@ -64,7 +61,7 @@ export default function BloatHandsControls({
             <select
               id="mode-filter"
               className={styles.filterSelect}
-              value={filters.mode ?? ''}
+              value={filters.mode ?? ChallengeMode.TOB_REGULAR}
               onChange={(e) =>
                 setFilters({
                   ...filters,
@@ -76,7 +73,6 @@ export default function BloatHandsControls({
               }
               disabled={loading}
             >
-              <option value="">All Modes</option>
               <option value={ChallengeMode.TOB_REGULAR}>Regular Mode</option>
               <option value={ChallengeMode.TOB_HARD}>Hard Mode</option>
             </select>

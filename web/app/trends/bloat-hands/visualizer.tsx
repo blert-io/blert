@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 
-import { BloatHandsResponse } from '@/actions/challenge';
+import { BloatHandsResponse } from '@/actions/bloat-hands';
 import Tooltip from '@/components/tooltip';
 
 import { DisplayMode } from './controls';
@@ -149,25 +149,10 @@ export default function BloatHandsVisualizer({
     const handCounts: Record<string, number> = {};
     let maxCount = 0;
 
-    if (data.data.view === 'total') {
-      Object.entries(data.data.byTile).forEach(([tileId, count]) => {
-        handCounts[tileId] = count;
-        maxCount = Math.max(maxCount, count);
-      });
-    } else if (data.data.view === 'chunk') {
-      Object.entries(data.data.byChunk).forEach(([chunk, count]) => {
-        const chunkNum = parseInt(chunk);
-        for (let y = 0; y < BLOAT_ROOM_SIZE; y++) {
-          for (let x = 0; x < BLOAT_ROOM_SIZE; x++) {
-            if (coordsToChunk(x, y) === chunkNum) {
-              const tileId = coordsToTileId(x, y);
-              handCounts[tileId] = Math.floor(count / 64);
-              maxCount = Math.max(maxCount, handCounts[tileId]);
-            }
-          }
-        }
-      });
-    }
+    Object.entries(data.byTile).forEach(([tileId, count]) => {
+      handCounts[tileId] = count;
+      maxCount = Math.max(maxCount, count);
+    });
 
     const displayValues: Record<string, { value: number; text: string }> = {};
     let minDisplayValue = 0;
@@ -283,16 +268,14 @@ export default function BloatHandsVisualizer({
     count: number;
     percentage: number;
   }[] = [];
-  if (data.data.view === 'total') {
-    topTiles = Object.entries(data.data.byTile)
-      .map(([tileId, count]) => ({
-        tileId: parseInt(tileId),
-        count,
-        percentage: (count / data.totalHands) * 100,
-      }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 6);
-  }
+  topTiles = Object.entries(data.byTile)
+    .map(([tileId, count]) => ({
+      tileId: parseInt(tileId),
+      count,
+      percentage: (count / data.totalHands) * 100,
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
 
   return (
     <div className={styles.visualizer}>
