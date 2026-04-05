@@ -10,6 +10,7 @@ import {
   SkillLevel,
 } from '@blert/common';
 import {
+  NpcAttackMap,
   Event as ProtoEvent,
   StageMap,
 } from '@blert/common/generated/event_pb';
@@ -19,6 +20,7 @@ import { TickState, PlayerState, EquippedItem } from '../tick-state';
 type ProtoStage = StageMap[keyof StageMap];
 type ProtoDataSource =
   ProtoEvent.Player.DataSourceMap[keyof ProtoEvent.Player.DataSourceMap];
+type ProtoNpcAttack = NpcAttackMap[keyof NpcAttackMap];
 
 export type PlayerAttackState = {
   type: PlayerAttack;
@@ -198,7 +200,7 @@ export function createNpcAttackEvent({
   event.setNpc(npc);
 
   const npcAttack = new ProtoEvent.NpcAttacked();
-  npcAttack.setAttack(attackType);
+  npcAttack.setAttack(attackType as ProtoNpcAttack);
   if (target !== undefined) {
     npcAttack.setTarget(target);
   }
@@ -230,6 +232,28 @@ export function createPlayerDeathEvent({
   const player = new ProtoEvent.Player();
   player.setName(name);
   event.setPlayer(player);
+
+  return event;
+}
+
+export function createVerzikBounceEvent({
+  tick,
+  npcAttackTick,
+  bouncedPlayer,
+}: {
+  tick: number;
+  npcAttackTick: number;
+  bouncedPlayer: string;
+}): ProtoEvent {
+  const event = new ProtoEvent();
+  event.setType(ProtoEvent.Type.TOB_VERZIK_BOUNCE);
+  event.setTick(tick);
+  event.setStage(Stage.TOB_VERZIK as ProtoStage);
+
+  const bounce = new ProtoEvent.VerzikBounce();
+  bounce.setNpcAttackTick(npcAttackTick);
+  bounce.setBouncedPlayer(bouncedPlayer);
+  event.setVerzikBounce(bounce);
 
   return event;
 }

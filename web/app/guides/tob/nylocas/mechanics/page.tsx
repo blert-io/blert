@@ -1,4 +1,10 @@
-import { ChallengeType } from '@blert/common';
+import {
+  ChallengeType,
+  LaneSpawnJson,
+  NYLOCAS_WAVES,
+  NyloJson,
+  NyloStyleJson,
+} from '@blert/common';
 import { ResolvingMetadata } from 'next';
 import Link from 'next/link';
 
@@ -8,33 +14,6 @@ import GuideTags from '@/guides/guide-tags';
 import { basicMetadata } from '@/utils/metadata';
 
 import styles from './style.module.scss';
-import wavesJson from './waves.json';
-
-const WAVES = wavesJson as Wave[];
-
-type Style = 'melee' | 'magic' | 'ranged';
-
-export type Nylo = {
-  rotation: Style[];
-  big: boolean;
-  aggro: boolean;
-};
-
-type LaneSpawn = [Nylo, Nylo] | [Nylo | null, null];
-
-export type Wave = {
-  /** Wave number. */
-  num: number;
-  /** Ticks until next wave spawns. */
-  naturalStall: number;
-
-  // [0]: north, [1]: south
-  east: LaneSpawn;
-  // [0]: east, [1]: west
-  south: LaneSpawn;
-  // [0]: north, [1]: south
-  west: LaneSpawn;
-};
 
 export default function NyloMechanics() {
   return (
@@ -124,8 +103,8 @@ export default function NyloMechanics() {
             </tr>
           </thead>
           <tbody>
-            {WAVES.map((wave) => {
-              function spawn(lane: LaneSpawn) {
+            {NYLOCAS_WAVES.map((wave) => {
+              function spawn(lane: LaneSpawnJson) {
                 if (lane[1] === null) {
                   return (
                     <td colSpan={2}>
@@ -347,7 +326,7 @@ export default function NyloMechanics() {
             </tr>
           </thead>
           <tbody>
-            {WAVES.slice(0, 30).map(({ num, naturalStall }) => {
+            {NYLOCAS_WAVES.slice(0, 30).map(({ num, naturalStall }) => {
               const cycles = Math.floor(naturalStall / 4);
 
               return (
@@ -528,7 +507,7 @@ export default function NyloMechanics() {
   );
 }
 
-function StyleChip({ rotation }: { rotation: Style[] }) {
+function StyleChip({ rotation }: { rotation: NyloStyleJson[] }) {
   return (
     <span className={styles.chip} aria-label={rotation.join(' then ')}>
       {rotation.map((s, i) => (
@@ -538,7 +517,7 @@ function StyleChip({ rotation }: { rotation: Style[] }) {
   );
 }
 
-function NyloChips({ n }: { n: Nylo }) {
+function NyloChips({ n }: { n: NyloJson }) {
   const classes = [styles.nylo, n.big && styles.big, n.aggro && styles.aggro]
     .filter(Boolean)
     .join(' ');
