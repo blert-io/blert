@@ -14,6 +14,7 @@ import {
 import { Event } from '@blert/common/generated/event_pb';
 
 import { PlayerState, TickState, TickStateArray } from './tick-state';
+import { AreaLike, chebyshev, coordsEqual, CoordsLike, inArea } from './world';
 
 export const enum ConsistencyIssueType {
   INVALID_MOVEMENT = 'INVALID_MOVEMENT',
@@ -68,35 +69,6 @@ export abstract class ConsistencyChecker {
    * @returns Any consistency issues found in the timeline.
    */
   public abstract check(ticks: TickStateArray): ConsistencyIssue[];
-}
-
-interface CoordsLike {
-  x: number;
-  y: number;
-}
-
-interface AreaLike {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-function coordsEqual(a: CoordsLike, b: CoordsLike): boolean {
-  return a.x === b.x && a.y === b.y;
-}
-
-function inArea(coords: CoordsLike, area: AreaLike): boolean {
-  return (
-    coords.x >= area.x &&
-    coords.x < area.x + area.width &&
-    coords.y >= area.y &&
-    coords.y < area.y + area.height
-  );
-}
-
-function chebyshev(a: CoordsLike, b: CoordsLike): number {
-  return Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 }
 
 // Tile to which players are teleported at the start of Sotetseg's maze.

@@ -35,7 +35,7 @@ export type ServerTicks = {
   precise: boolean;
 };
 
-export type StageInfo = {
+type StageInfo = {
   stage: Stage;
   status: StageStatus;
   accurate: boolean;
@@ -276,6 +276,13 @@ export class ClientEvents {
    */
   public getFinalTick(): number {
     return this.stageInfo.recordedTicks;
+  }
+
+  /**
+   * @returns The total number of ticks in the stage.
+   */
+  public getTickCount(): number {
+    return this.stageInfo.recordedTicks + 1;
   }
 
   /**
