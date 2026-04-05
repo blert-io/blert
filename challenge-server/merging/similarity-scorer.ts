@@ -1,6 +1,7 @@
-import { EquipmentSlot, Npc, NpcAttack, PlayerAttack } from '@blert/common';
+import { EquipmentSlot, Npc } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
+import { normalizeAttackType } from './event';
 import { TickState, NpcState } from './tick-state';
 
 const VISIBLE_EQUIPMENT_SLOTS: EquipmentSlot[] = [
@@ -57,27 +58,6 @@ const ScoringConstants = {
   DEATHS_MAX_SCORE: 3,
   DEATHS_MIN_SCORE: -3,
 } as const;
-
-// Some player and NPC attacks share the same animation and are identified by
-// which projectile is fired. However, projectiles have a shorter render
-// distance than actors, so two clients could report contradictory attacks from
-// the same actor on what is legitimately the same tick. These attacks are
-// listed below and don't penalize scores.
-const ATTACKS_NORMALIZED_FOR_PROJECTILE = new Map<number, number>([
-  // Deliberately ignore DAWN_AUTO/DAWN_SPEC as there isn't a realistic case
-  // where someone would be out of render distance of the projectile.
-  [PlayerAttack.BLOWPIPE, PlayerAttack.BLOWPIPE],
-  [PlayerAttack.BLOWPIPE_SPEC, PlayerAttack.BLOWPIPE],
-  [PlayerAttack.ZCB_AUTO, PlayerAttack.ZCB_AUTO],
-  [PlayerAttack.ZCB_SPEC, PlayerAttack.ZCB_AUTO],
-
-  [NpcAttack.TOB_SOTE_BALL, NpcAttack.TOB_SOTE_BALL],
-  [NpcAttack.TOB_SOTE_DEATH_BALL, NpcAttack.TOB_SOTE_BALL],
-]);
-
-function normalizeAttackType(attack: number): number {
-  return ATTACKS_NORMALIZED_FOR_PROJECTILE.get(attack) ?? attack;
-}
 
 const enum AttackComparison {
   MATCH,

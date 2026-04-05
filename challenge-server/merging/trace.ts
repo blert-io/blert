@@ -4,7 +4,11 @@ import { Event } from '@blert/common/generated/event_pb';
 import { AlignmentResult, LocalAlignment } from './alignment';
 import { ReferenceSelection } from './classification';
 import { EventType } from './event';
-import { QualityFlag } from './event-consolidator';
+import {
+  AttackMappedCandidate,
+  QualityFlag,
+  ResolutionStrategy,
+} from './event-consolidator';
 import { MergeClientClassification, MergeClientStatus } from './merge';
 import { MergeMapping, TickMapping } from './tick-mapping';
 import { NpcState, PlayerState, TickState, TickStateArray } from './tick-state';
@@ -80,22 +84,12 @@ export type StreamReconciliationEntry = {
   reason: string | null;
 };
 
-/** A candidate event from one side that resolved to an attack tick. */
-export type AttackMappedCandidate = {
-  source: 'base' | 'target';
-  /** Client ID from which the event originated. */
-  sourceClientId: number;
-  /** Tick of the event in the source client's timeline. */
-  clientTick: number;
-  /** The attack tick referenced by the event, in the source client's space. */
-  referencedTick: number;
-};
-
 /** Result of resolving attack-mapped events for a single attack tick. */
 export type AttackMappedResolutionEntry = {
   eventType: string;
   /** The attack tick in the merged timeline that candidates resolved to. */
   attackTick: number;
+  strategy: ResolutionStrategy['strategy'];
   candidates: AttackMappedCandidate[];
   /** Tick in the merged timeline where the resolved event was placed. */
   resolvedTick: number;
@@ -119,6 +113,23 @@ export type AttackMappedDiscardEntry = {
   outcome: 'NO_REFERENCE' | 'UNMAPPED_TICK' | 'ATTACK_NOT_FOUND';
 };
 
+/** One side's data in a projectile-ambiguous player attack conflict. */
+export type AmbiguousAttackSide = {
+  sourceClientId: number;
+  primaryPlayer: string;
+  attackType: number;
+  distance: number;
+};
+
+/** Result of resolving a projectile-ambiguous player attack conflict. */
+export type AmbiguousAttackResolutionEntry = {
+  tick: number;
+  attacker: string;
+  base: AmbiguousAttackSide;
+  target: AmbiguousAttackSide;
+  winner: 'base' | 'target';
+};
+
 /** Full trace of the stream reconciliation pass. */
 export type ReconciliationTrace = {
   /** Stream dedup results, keyed by "eventType:identityKey". */
@@ -127,6 +138,7 @@ export type ReconciliationTrace = {
     resolved: AttackMappedResolutionEntry[];
     discarded: AttackMappedDiscardEntry[];
   };
+  ambiguousAttacks: AmbiguousAttackResolutionEntry[];
 };
 
 export type MergeStepMapping = {
@@ -387,6 +399,7 @@ export class MergeTracer {
   public recordAttackMappedResolution(
     eventType: EventType,
     attackTick: number,
+    strategy: ResolutionStrategy['strategy'],
     candidates: AttackMappedCandidate[],
     resolvedTick: number,
     outcome: AttackMappedResolutionEntry['outcome'],
@@ -399,6 +412,7 @@ export class MergeTracer {
     reconciliation.attackMapped.resolved.push({
       eventType: eventTypeName(eventType),
       attackTick,
+      strategy,
       candidates,
       resolvedTick,
       outcome,
@@ -426,6 +440,16 @@ export class MergeTracer {
     });
   }
 
+  public recordAmbiguousAttackResolution(
+    entry: AmbiguousAttackResolutionEntry,
+  ): void {
+    if (this.currentStep === null) {
+      return;
+    }
+    const reconciliation = this.ensureReconciliation();
+    reconciliation.ambiguousAttacks.push(entry);
+  }
+
   public recordQualityFlags(flags: QualityFlag[]): void {
     if (this.currentStep !== null) {
       this.currentStep.qualityFlags = flags;
@@ -437,6 +461,7 @@ export class MergeTracer {
       this.currentStep!.reconciliation = {
         stream: {},
         attackMapped: { resolved: [], discarded: [] },
+        ambiguousAttacks: [],
       };
     }
     return this.currentStep!.reconciliation!;

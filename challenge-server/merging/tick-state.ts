@@ -13,7 +13,6 @@ import { Event } from '@blert/common/generated/event_pb';
 import {
   EventType,
   GRAPHICS_EVENT_TYPES,
-  offsetEventTick,
   PLAYER_TICK_STATE_TYPES,
   SYNTHETIC_EVENT_SOURCE,
   TaggedEvent,
@@ -123,21 +122,6 @@ export class TickState {
    */
   public getTick(): number {
     return this.tick;
-  }
-
-  /**
-   * Sets the tick whose state is represented, updating all events accordingly.
-   * @param tick The new tick.
-   */
-  public setTick(tick: number): void {
-    const offset = tick - this.tick;
-
-    this.tick = tick;
-    for (const [_, tagged] of this.eventsByType) {
-      for (const t of tagged) {
-        offsetEventTick(t.event, offset);
-      }
-    }
   }
 
   /**
@@ -399,6 +383,27 @@ export class TickState {
           t.event.getPlayer()?.getName() === player,
       );
     this.addTaggedEvents(playerEvents);
+  }
+
+  /**
+   * Replaces a player's attack event and state with the given replacement.
+   *
+   * @param player The player whose attack to replace.
+   * @param attackEvent The new attack event.
+   */
+  public replacePlayerAttack(player: string, attackEvent: TaggedEvent): void {
+    const state = this.playerStates.get(player);
+    const attacks = this.eventsByType.get(Event.Type.PLAYER_ATTACK) ?? [];
+
+    const idx = attacks.findIndex(
+      (t) => t.event.getPlayer()?.getName() === player,
+    );
+    if (!state || idx === -1) {
+      return;
+    }
+
+    attacks[idx] = attackEvent;
+    state.attack!.type = attackEvent.event.getPlayerAttack()!.getType();
   }
 
   /**

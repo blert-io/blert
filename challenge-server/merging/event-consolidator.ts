@@ -1,12 +1,14 @@
-import { NpcAttack, PlayerAttack } from '@blert/common';
+import { getNpcDefinition, Npc, NpcAttack, PlayerAttack } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
 import { MergeContext } from './context';
 import {
+  areProjectileAmbiguous,
   ATTACK_MAPPED_EVENT_TYPES,
   AttackMappedEventType,
   BUFFERED_EVENT_TYPES,
   EventType,
+  remapEventTick,
   STREAM_EVENT_CONFIGS,
   StreamEventConfig,
   StreamEventType,
@@ -15,7 +17,16 @@ import {
 import logger from '../log';
 import { TickMapping } from './tick-mapping';
 import { TickState, TickStateArray } from './tick-state';
-import { AttackMappedCandidate, TickMergeDecisionType } from './trace';
+import { AttackMappedResolutionEntry, TickMergeDecisionType } from './trace';
+import { CoordsLike, euclidean } from './world';
+
+export type AttackMappedCandidate = {
+  source: 'base' | 'target';
+  sourceClientId: number;
+  clientTick: number;
+  referencedTick: number;
+  tagged: TaggedEvent;
+};
 
 export type BufferedEvent = {
   tagged: TaggedEvent;
@@ -54,6 +65,28 @@ export type QualityFlag =
       eventType: EventType;
       attackTick: number;
       candidateCount: number;
+    }
+  | {
+      kind: 'UNMAPPED_CROSS_TICK_REFERENCE';
+      eventType: EventType;
+      mergedTick: number;
+      sourceTick: number;
+      resolvedTick: number;
+    };
+
+/**
+ * Strategy for resolving conflicts when multiple clients disagree about
+ * an event's content.
+ */
+export type ResolutionStrategy =
+  | { strategy: 'unexpected' }
+  | {
+      /**
+       * Resolves conflicts by preferring the candidate whose source client's
+       * primary player is nearest to a specific NPC.
+       */
+      strategy: 'npc_proximity';
+      getNpcPosition: (state: TickState) => CoordsLike | null;
     };
 
 type AttackMappedEventConfig = {
@@ -61,8 +94,8 @@ type AttackMappedEventConfig = {
   getReferencedTick: (event: Event) => number | undefined;
   /** Checks whether the referenced attack exists at the given tick state. */
   validateAttack: (state: TickState, event: Event) => boolean;
-  /** Whether conflicts between clients are expected for this event type. */
-  conflictExpected: boolean;
+  /** How to resolve conflicts when candidates disagree. */
+  conflictResolution: ResolutionStrategy;
   /** Checks whether two candidates agree on the event content. */
   candidatesAgree: (a: Event, b: Event) => boolean;
 };
@@ -81,7 +114,22 @@ const ATTACK_MAPPED_CONFIGS: Record<
     getReferencedTick: (e) => e.getVerzikAttackStyle()?.getNpcAttackTick(),
     validateAttack: (state) =>
       hasNpcAttack(state, NpcAttack.TOB_VERZIK_P3_AUTO),
-    conflictExpected: true,
+    conflictResolution: {
+      strategy: 'npc_proximity',
+      getNpcPosition: (state) => {
+        for (const npc of state.getNpcs().values()) {
+          // Assuming that projectiles originate from roughly Verzik's center.
+          const def = getNpcDefinition(npc.id);
+          if (Npc.isVerzik(npc.id) && def !== null) {
+            return {
+              x: Math.floor(npc.x + def.size / 2),
+              y: Math.floor(npc.y + def.size / 2),
+            };
+          }
+        }
+        return null;
+      },
+    },
     candidatesAgree: (a, b) =>
       a.getVerzikAttackStyle()?.getStyle() ===
       b.getVerzikAttackStyle()?.getStyle(),
@@ -90,7 +138,7 @@ const ATTACK_MAPPED_CONFIGS: Record<
     getReferencedTick: (e) => e.getVerzikBounce()?.getNpcAttackTick(),
     validateAttack: (state) =>
       hasNpcAttack(state, NpcAttack.TOB_VERZIK_P2_BOUNCE),
-    conflictExpected: false,
+    conflictResolution: { strategy: 'unexpected' },
     candidatesAgree: (a, b) =>
       a.getVerzikBounce()?.getBouncedPlayer() ===
       b.getVerzikBounce()?.getBouncedPlayer(),
@@ -106,7 +154,7 @@ const ATTACK_MAPPED_CONFIGS: Record<
               (event.getVerzikDawn()?.getPlayer() ?? '') &&
             e.getPlayerAttack()!.getType() === PlayerAttack.DAWN_SPEC,
         ),
-    conflictExpected: false,
+    conflictResolution: { strategy: 'unexpected' },
     candidatesAgree: (a, b) =>
       a.getVerzikDawn()?.getPlayer() === b.getVerzikDawn()?.getPlayer() &&
       a.getVerzikDawn()?.getDamage() === b.getVerzikDawn()?.getDamage(),
@@ -168,9 +216,8 @@ export class EventConsolidator {
     // Pass 2: reconcile stream events from both buffers.
     this.reconcileStreams();
 
-    // Renumber ticks to their correct merged positions, correcting cross-tick
-    // references within the tick states' events.
-    this.renumberTicks();
+    // Remap all event tick references from client tick space to merged space.
+    this.remapToMergedSpace();
 
     this.ctx.tracer?.recordQualityFlags(this.qualityFlags);
 
@@ -250,6 +297,8 @@ export class EventConsolidator {
 
         const mergedState = this.mergedTicks[m]!;
         if (mergedState.merge(targetClone)) {
+          this.resolveAmbiguousPlayerAttacks(mergedState, targetClone);
+
           this.ctx.tracer?.recordTickDecision({
             tick: m,
             type: TickMergeDecisionType.MERGED,
@@ -319,7 +368,12 @@ export class EventConsolidator {
       const baseEvents = this.baseBuffer.get(type) ?? [];
       const targetEvents = this.targetBuffer.get(type) ?? [];
       if (baseEvents.length > 0 || targetEvents.length > 0) {
-        this.resolveAttackMappedEvents(type, baseEvents, targetEvents);
+        const groups = this.groupAttackMappedEvents(
+          type,
+          baseEvents,
+          targetEvents,
+        );
+        this.resolveAttackMappedEvents(type, groups);
       }
     }
   }
@@ -546,19 +600,20 @@ export class EventConsolidator {
   }
 
   /**
-   * Resolves events that reference a previous NPC attack by mapping them
-   * back to the merged timeline.
+   * Groups attack-mapped events by the attack tick they reference.
+   * @param type Type of attack-mapped event.
+   * @param baseEvents Buffered base events of `type`.
+   * @param targetEvents Buffered target events of `type`.
+   * @returns Mapping of merged tick to events in the streams referencing it.
    */
-  private resolveAttackMappedEvents(
+  private groupAttackMappedEvents(
     type: AttackMappedEventType,
     baseEvents: BufferedEvent[],
     targetEvents: BufferedEvent[],
-  ): void {
+  ): Map<number, AttackMappedCandidate[]> {
     const config = ATTACK_MAPPED_CONFIGS[type];
 
-    type Candidate = AttackMappedCandidate & { tagged: TaggedEvent };
-
-    const groups = new Map<number, Candidate[]>();
+    const groups = new Map<number, AttackMappedCandidate[]>();
 
     const tryResolve = (
       buffered: BufferedEvent,
@@ -625,10 +680,38 @@ export class EventConsolidator {
       tryResolve(buffered, this.targetMapping, 'target');
     }
 
+    return groups;
+  }
+
+  /**
+   * Resolves events that reference a previous NPC attack by mapping them
+   * back to the merged timeline.
+   */
+  private resolveAttackMappedEvents(
+    type: AttackMappedEventType,
+    groups: Map<number, AttackMappedCandidate[]>,
+  ): void {
+    const config = ATTACK_MAPPED_CONFIGS[type];
+
     for (const [attackTick, candidates] of groups) {
       const insertTick = attackTick + 1;
 
-      const insert = (candidate: Candidate) => {
+      const trace = (
+        outcome: AttackMappedResolutionEntry['outcome'],
+        reason?: string,
+      ) => {
+        this.ctx.tracer?.recordAttackMappedResolution(
+          type,
+          attackTick,
+          config.conflictResolution.strategy,
+          candidates,
+          insertTick,
+          outcome,
+          reason ?? null,
+        );
+      };
+
+      const insert = (candidate: AttackMappedCandidate) => {
         this.insertTaggedEvent(insertTick, {
           event: candidate.tagged.event.clone(),
           source: candidate.tagged.source,
@@ -637,68 +720,199 @@ export class EventConsolidator {
 
       if (candidates.length === 1) {
         insert(candidates[0]);
-        this.ctx.tracer?.recordAttackMappedResolution(
-          type,
-          attackTick,
-          candidates,
-          insertTick,
-          'RESOLVED',
-          null,
+        trace('RESOLVED');
+        continue;
+      }
+
+      // Check if all candidates agree on the event content.
+      const allAgree = candidates
+        .slice(1)
+        .every((c) =>
+          config.candidatesAgree(candidates[0].tagged.event, c.tagged.event),
         );
+
+      const base = candidates.find((c) => c.source === 'base');
+
+      if (allAgree) {
+        insert(base ?? candidates[0]);
+        trace('RESOLVED');
       } else {
-        // Check if all candidates agree on the event content.
-        const allAgree = candidates
-          .slice(1)
-          .every((c) =>
-            config.candidatesAgree(candidates[0].tagged.event, c.tagged.event),
-          );
+        const resolution = config.conflictResolution;
 
-        const base = candidates.find((c) => c.source === 'base');
-        const winner = base ?? candidates[0];
-        insert(winner);
+        switch (resolution.strategy) {
+          case 'npc_proximity': {
+            const winner =
+              this.resolveByNpcProximity(
+                attackTick,
+                candidates,
+                resolution.getNpcPosition,
+              ) ??
+              base ??
+              candidates[0];
+            insert(winner);
+            trace('CONFLICT_RESOLVED', `preferred ${winner.source}`);
+            break;
+          }
 
-        if (allAgree) {
-          this.ctx.tracer?.recordAttackMappedResolution(
-            type,
-            attackTick,
-            candidates,
-            insertTick,
-            'RESOLVED',
-            null,
-          );
-        } else if (config.conflictExpected) {
-          // TODO(frolv): Proximity-based resolution (for attack style)
-          // requires per-event provenance. Default to base for now.
-          this.ctx.tracer?.recordAttackMappedResolution(
-            type,
-            attackTick,
-            candidates,
-            insertTick,
-            'CONFLICT_RESOLVED',
-            `preferred ${winner.source}`,
-          );
-        } else {
-          logger.warn('consolidate_unexpected_attack_mapped_conflict', {
-            eventType: type,
-            attackTick,
-            candidateCount: candidates.length,
-          });
-          this.qualityFlags.push({
-            kind: 'UNEXPECTED_CONFLICT',
-            eventType: type,
-            attackTick,
-            candidateCount: candidates.length,
-          });
-          this.ctx.tracer?.recordAttackMappedResolution(
-            type,
-            attackTick,
-            candidates,
-            insertTick,
-            'CONFLICT_UNEXPECTED',
-            `preferred ${winner.source}`,
-          );
+          case 'unexpected': {
+            const winner = base ?? candidates[0];
+            insert(winner);
+            logger.warn('consolidate_unexpected_attack_mapped_conflict', {
+              eventType: type,
+              attackTick,
+              candidateCount: candidates.length,
+            });
+            this.qualityFlags.push({
+              kind: 'UNEXPECTED_CONFLICT',
+              eventType: type,
+              attackTick,
+              candidateCount: candidates.length,
+            });
+            trace('CONFLICT_UNEXPECTED', `preferred ${winner.source}`);
+            break;
+          }
         }
       }
+    }
+  }
+
+  /**
+   * Resolves an attack-mapped conflict by preferring the candidate whose
+   * source client's primary player is nearest to the attacking NPC.
+   *
+   * Attack style disambiguation depends on projectile visibility, which is
+   * affected by render distance from the client's primary player to the NPC.
+   *
+   * @returns The preferred candidate, or `null` if proximity cannot be
+   *   determined (e.g. spectator clients or missing state).
+   */
+  private resolveByNpcProximity(
+    attackTick: number,
+    candidates: AttackMappedCandidate[],
+    getNpcPosition: (state: TickState) => CoordsLike | null,
+  ): AttackMappedCandidate | null {
+    const state = this.mergedTicks[attackTick];
+    if (state === null) {
+      return null;
+    }
+
+    const npcPos = getNpcPosition(state);
+    if (npcPos === null) {
+      return null;
+    }
+
+    let best: AttackMappedCandidate | null = null;
+    let bestDist = Infinity;
+
+    for (const candidate of candidates) {
+      const client = this.ctx.clients.get(candidate.sourceClientId)?.client;
+      const primaryPlayer = client?.getPrimaryPlayer();
+      if (!primaryPlayer) {
+        continue;
+      }
+
+      const playerState = state.getPlayerState(primaryPlayer);
+      if (playerState === null) {
+        continue;
+      }
+
+      const dist = euclidean(playerState, npcPos);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = candidate;
+      }
+    }
+
+    return best;
+  }
+
+  /**
+   * Checks for projectile-ambiguous player attack conflicts between the base
+   * and target at a merged tick and resolves them by primary proximity to the
+   * attacker.
+   *
+   * @param merged Merged tick state whose events to resolve.
+   * @param target The target tick state.
+   */
+  private resolveAmbiguousPlayerAttacks(
+    merged: TickState,
+    target: TickState,
+  ): void {
+    const mergedAttacks = merged.getTaggedEventsByType(
+      Event.Type.PLAYER_ATTACK,
+    );
+    const targetAttacks = target.getTaggedEventsByType(
+      Event.Type.PLAYER_ATTACK,
+    );
+
+    for (const mergedAttack of mergedAttacks) {
+      const attacker = mergedAttack.event.getPlayer()!.getName();
+
+      const targetAttack = targetAttacks.find(
+        (t) => t.event.getPlayer()?.getName() === attacker,
+      );
+      if (targetAttack === undefined) {
+        continue;
+      }
+
+      // If the merged attack is already from the target, this tick was a gap
+      // in the base timeline which was filled, so there is nothing to resolve.
+      if (mergedAttack.source === targetAttack.source) {
+        continue;
+      }
+
+      const baseType = mergedAttack.event.getPlayerAttack()!.getType();
+      const targetType = targetAttack.event.getPlayerAttack()!.getType();
+      if (!areProjectileAmbiguous(baseType, targetType)) {
+        continue;
+      }
+
+      const attackerState = merged.getPlayerState(attacker);
+      if (attackerState === null) {
+        continue;
+      }
+
+      const basePrimary = this.ctx.clients
+        .get(mergedAttack.source)
+        ?.client?.getPrimaryPlayer();
+      const targetPrimary = this.ctx.clients
+        .get(targetAttack.source)
+        ?.client?.getPrimaryPlayer();
+      if (!basePrimary || !targetPrimary) {
+        continue;
+      }
+
+      const basePrimaryState = merged.getPlayerState(basePrimary);
+      const targetPrimaryState = target.getPlayerState(targetPrimary);
+      if (basePrimaryState === null || targetPrimaryState === null) {
+        continue;
+      }
+
+      const baseDist = euclidean(basePrimaryState, attackerState);
+      const targetDist = euclidean(targetPrimaryState, attackerState);
+
+      const winner = targetDist < baseDist ? 'target' : 'base';
+      if (winner === 'target') {
+        merged.replacePlayerAttack(attacker, targetAttack);
+      }
+
+      this.ctx.tracer?.recordAmbiguousAttackResolution({
+        tick: merged.getTick(),
+        attacker,
+        base: {
+          sourceClientId: mergedAttack.source,
+          primaryPlayer: basePrimary,
+          attackType: baseType,
+          distance: baseDist,
+        },
+        target: {
+          sourceClientId: targetAttack.source,
+          primaryPlayer: targetPrimary,
+          attackType: targetType,
+          distance: targetDist,
+        },
+        winner,
+      });
     }
   }
 
@@ -713,21 +927,73 @@ export class EventConsolidator {
   }
 
   /**
-   * Renumbers all ticks in the merged timeline sequentially, preserving the
-   * start tick offset from the base timeline.
+   * Remaps all events in the merged timeline from client tick space to merged
+   * tick space, reconstructing merged tick states with the remapped events.
    */
-  private renumberTicks(): void {
-    let startTick = 0;
-    for (let i = 0; i < this.baseTicks.length; i++) {
-      if (this.baseTicks[i] !== null) {
-        startTick = this.baseTicks[i]!.getTick() - i;
-        break;
-      }
-    }
+  private remapToMergedSpace(): void {
+    const targetClientId = this.ctx.mapping.getTargetClientId()!;
 
     for (let i = 0; i < this.mergedTicks.length; i++) {
-      // TODO(frolv): properly handle cross-tick references
-      this.mergedTicks[i]?.setTick(startTick + i);
+      const tickState = this.mergedTicks[i];
+      if (tickState === null) {
+        continue;
+      }
+
+      const remappedEvents: TaggedEvent[] = [];
+
+      for (const tagged of tickState.getTaggedEvents()) {
+        const mapping =
+          tagged.source === targetClientId
+            ? this.targetMapping
+            : this.baseMapping;
+
+        const mainMerged = mapping.toMerged(tagged.event.getTick());
+        const offset =
+          mainMerged !== undefined ? mainMerged - tagged.event.getTick() : 0;
+
+        remappedEvents.push(
+          remapEventTick(tagged, (tick) => {
+            const merged = mapping.toMerged(tick);
+            if (merged !== undefined) {
+              return merged;
+            }
+
+            // The cross-tick reference points to a client tick with no merged
+            // mapping (alignment gap or beyond recorded range). Approximate
+            // with the offset between the event's own tick and its mapped
+            // position. This preserves the relative distance but can be wrong
+            // if insertions exist between the two ticks.
+            // TODO(frolv): This is a temporary solution that will be replaced
+            // by state-level merging instead of event merging.
+            const resolved = tick + offset;
+
+            logger.warn('unmapped_cross_tick_reference', {
+              eventType: tagged.event.getType(),
+              source: tagged.source,
+              clientTick: tagged.event.getTick(),
+              crossTickRef: tick,
+              mergedTick: i,
+              offset,
+              resolvedTick: resolved,
+            });
+            this.qualityFlags.push({
+              kind: 'UNMAPPED_CROSS_TICK_REFERENCE',
+              eventType: tagged.event.getType() as EventType,
+              mergedTick: i,
+              sourceTick: tick,
+              resolvedTick: resolved,
+            });
+
+            return resolved;
+          }),
+        );
+      }
+
+      this.mergedTicks[i] = new TickState(
+        i,
+        remappedEvents,
+        new Map(tickState.getPlayerStates()),
+      );
     }
   }
 }
