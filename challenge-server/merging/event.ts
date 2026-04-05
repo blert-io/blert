@@ -1,3 +1,4 @@
+import { NpcAttack, PlayerAttack } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
 export type EventType = Event.TypeMap[keyof Event.TypeMap];
@@ -306,31 +307,94 @@ export const BUFFERED_EVENT_TYPES: ReadonlySet<EventType> = new Set([
 ]);
 
 /**
- * Adjusts tick references within an event by a fixed offset.
+ * Creates a copy of an event with all its tick references remapped using the
+ * provided mapping function.
+ *
+ * @param tagged The event to remap.
+ * @param remap Maps a tick in the event's source tick space to the merged
+ *   tick space.
+ * @returns The remapped event.
  */
-export function offsetEventTick(event: Event, offset: number): void {
-  event.setTick(event.getTick() + offset);
+export function remapEventTick(
+  tagged: TaggedEvent,
+  remap: (tick: number) => number,
+): TaggedEvent {
+  const remapped = {
+    ...tagged,
+    event: tagged.event.clone(),
+  };
 
-  switch (event.getType()) {
+  remapped.event.setTick(remap(remapped.event.getTick()));
+
+  switch (remapped.event.getType()) {
     case Event.Type.PLAYER_UPDATE: {
-      const player = event.getPlayer()!;
-      player.setOffCooldownTick(player.getOffCooldownTick() + offset);
+      const player = remapped.event.getPlayer()!;
+      player.setOffCooldownTick(remap(player.getOffCooldownTick()));
       break;
     }
 
     case Event.Type.TOB_XARPUS_EXHUMED: {
-      const xarpusExhumed = event.getXarpusExhumed()!;
-      xarpusExhumed.setSpawnTick(xarpusExhumed.getSpawnTick() + offset);
+      const xarpusExhumed = remapped.event.getXarpusExhumed()!;
+      xarpusExhumed.setSpawnTick(remap(xarpusExhumed.getSpawnTick()));
+      xarpusExhumed.setHealTicksList(
+        xarpusExhumed.getHealTicksList().map(remap),
+      );
       break;
     }
 
-    case Event.Type.TOB_VERZIK_ATTACK_STYLE:
-    case Event.Type.TOB_VERZIK_BOUNCE:
-    case Event.Type.TOB_VERZIK_DAWN:
-    case Event.Type.MOKHAIOTL_ATTACK_STYLE:
-      // TODO(frolv): These events all have fields which reference previous
-      // ticks. Instead of this function being given a single offset, it should
-      // be called with the complete mapping of old ticks to new ticks.
+    case Event.Type.TOB_VERZIK_ATTACK_STYLE: {
+      const style = remapped.event.getVerzikAttackStyle()!;
+      style.setNpcAttackTick(remap(style.getNpcAttackTick()));
       break;
+    }
+
+    case Event.Type.TOB_VERZIK_BOUNCE: {
+      const bounce = remapped.event.getVerzikBounce()!;
+      bounce.setNpcAttackTick(remap(bounce.getNpcAttackTick()));
+      break;
+    }
+
+    case Event.Type.TOB_VERZIK_DAWN: {
+      const dawn = remapped.event.getVerzikDawn()!;
+      dawn.setAttackTick(remap(dawn.getAttackTick()));
+      break;
+    }
+
+    case Event.Type.MOKHAIOTL_ATTACK_STYLE: {
+      const style = remapped.event.getMokhaiotlAttackStyle()!;
+      style.setNpcAttackTick(remap(style.getNpcAttackTick()));
+      break;
+    }
   }
+
+  return remapped;
+}
+
+// Some player and NPC attacks share the same animation and are identified by
+// which projectile is fired. However, projectiles have a shorter render
+// distance than actors, so two clients could report contradictory attacks from
+// the same actor on what is legitimately the same tick.
+const ATTACKS_NORMALIZED_FOR_PROJECTILE = new Map<number, number>([
+  // Deliberately ignore DAWN_AUTO/DAWN_SPEC as there isn't a realistic case
+  // where someone would be out of render distance of the projectile.
+  [PlayerAttack.BLOWPIPE, PlayerAttack.BLOWPIPE],
+  [PlayerAttack.BLOWPIPE_SPEC, PlayerAttack.BLOWPIPE],
+  [PlayerAttack.ZCB_AUTO, PlayerAttack.ZCB_AUTO],
+  [PlayerAttack.ZCB_SPEC, PlayerAttack.ZCB_AUTO],
+
+  [NpcAttack.TOB_SOTE_BALL, NpcAttack.TOB_SOTE_BALL],
+  [NpcAttack.TOB_SOTE_DEATH_BALL, NpcAttack.TOB_SOTE_BALL],
+]);
+
+/**
+ * Normalizes an attack type by collapsing projectile-ambiguous variants to
+ * a canonical value.
+ */
+export function normalizeAttackType(attack: number): number {
+  return ATTACKS_NORMALIZED_FOR_PROJECTILE.get(attack) ?? attack;
+}
+
+/** Returns whether two attack types differ only by projectile. */
+export function areProjectileAmbiguous(a: number, b: number): boolean {
+  return a !== b && normalizeAttackType(a) === normalizeAttackType(b);
 }

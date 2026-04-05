@@ -10,6 +10,7 @@ import { Event } from '@blert/common/generated/event_pb';
 
 import { AlignmentResult, TickAligner } from './alignment';
 import { MergeContext } from './context';
+import { remapEventTick } from './event';
 import { EventConsolidator } from './event-consolidator';
 import { MergeMapping, TickMapping } from './tick-mapping';
 import {
@@ -131,7 +132,7 @@ export class Merger {
       stage: this.stage,
       clientMetadata: this.clients.map((c) => ({
         id: c.getId(),
-        tickCount: c.getFinalTick(),
+        tickCount: c.getTickCount(),
         accurate: c.isAccurate(),
       })),
     });
@@ -142,7 +143,7 @@ export class Merger {
       registeredClients.set(client.getId(), { client });
       tracer?.recordInputClient(
         client.getId(),
-        client.getFinalTick(),
+        client.getTickCount(),
         client.isAccurate(),
         client.getReportedAccurate(),
         client.isSpectator(),
@@ -199,13 +200,21 @@ export class Merger {
     ) => {
       ctx.tracer?.beginMergeStep(client.getId(), classification);
 
-      const success = merged.mergeEventsFrom(client, mergeOptions);
-      const status = success
-        ? MergeClientStatus.MERGED
-        : MergeClientStatus.UNMERGED;
+      let status = MergeClientStatus.UNMERGED;
+      try {
+        if (merged.mergeEventsFrom(client, mergeOptions)) {
+          status = MergeClientStatus.MERGED;
+          ctx.tracer?.recordIntermediateSnapshot(merged.getTicks());
+        }
+      } catch (e) {
+        logger.error('merge_client_error', {
+          stage: this.stage,
+          clientId: client.getId(),
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
 
       ctx.tracer?.endMergeStep(status);
-      ctx.tracer?.recordIntermediateSnapshot(merged.getTicks());
 
       mergeClients.push(
         this.createMergeClient(
@@ -276,7 +285,7 @@ export class Merger {
       status,
       classification,
       sequenceNumber,
-      recordedTicks: client.getFinalTick(),
+      recordedTicks: client.getTickCount(),
       serverTicks: client.getServerTicks(),
       reportedAccurate: client.getReportedAccurate(),
       derivedAccurate: client.isAccurate(),
@@ -520,7 +529,10 @@ export class MergedEvents {
       for (let i = 0; i <= base.getFinalTick(); i++) {
         this.ticks[i] = base.getTickState(i)?.clone() ?? null;
       }
-    } else if (base.getServerTicks() !== null) {
+      return;
+    }
+
+    if (base.getServerTicks() !== null) {
       // If the base client is not accurate but has reported an in-game tick
       // count, it has completed the stage, so it is initially assumed that its
       // events are offset from the end of the stage.
@@ -529,12 +541,20 @@ export class MergedEvents {
         accurate: false,
         offset,
       });
+
+      const remap = (tick: number): number => tick + offset;
       for (let i = 0; i <= base.getFinalTick(); i++) {
         const state = base.getTickState(i);
         if (state !== null) {
-          const tickState = state.clone();
-          tickState.setTick(i + offset);
-          this.ticks[i + offset] = tickState;
+          const newTick = remap(i);
+          const events = state
+            .getTaggedEvents()
+            .map((t) => remapEventTick(t, remap));
+          this.ticks[newTick] = new TickState(
+            newTick,
+            events,
+            new Map(state.getPlayerStates()),
+          );
         }
       }
     } else {

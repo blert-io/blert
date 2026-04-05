@@ -1,7 +1,15 @@
-import { DataSource, NpcAttack } from '@blert/common';
+import {
+  ChallengeType,
+  DataSource,
+  NpcAttack,
+  PlayerAttack,
+  Stage,
+  StageStatus,
+} from '@blert/common';
 import { Event as ProtoEvent } from '@blert/common/generated/event_pb';
 
-import { MergeContext } from '../context';
+import { ClientEvents } from '../client-events';
+import { MergeContext, RegisteredClient } from '../context';
 import { EventConsolidator } from '../event-consolidator';
 import { MergeMapping, TickMapping } from '../tick-mapping';
 import { TickStateArray } from '../tick-state';
@@ -10,6 +18,8 @@ import {
   createEvent,
   createNpcAttackEvent,
   createNpcDeathEvent,
+  createNpcUpdateEvent,
+  createPlayerAttackEvent,
   createPlayerDeathEvent,
   createPlayerState,
   createPlayerUpdateEvent,
@@ -21,10 +31,47 @@ const BASE_CLIENT_ID = 1;
 const TARGET_CLIENT_ID = 2;
 
 /**
+ * Creates a minimal ClientEvents for registering in the merge context.
+ * The client will have a single PRIMARY player used as its primary player.
+ */
+function createClient(
+  clientId: number,
+  primaryPlayer: string,
+  numTicks: number,
+): ClientEvents {
+  const events: ProtoEvent[] = [];
+  for (let i = 0; i < numTicks; i++) {
+    events.push(
+      createPlayerUpdateEvent({
+        tick: i,
+        name: primaryPlayer,
+        source: DataSource.PRIMARY,
+      }),
+    );
+  }
+  return ClientEvents.fromRawEvents(
+    clientId,
+    { uuid: 'test', type: ChallengeType.TOB, party: [primaryPlayer] },
+    {
+      stage: Stage.TOB_VERZIK,
+      status: StageStatus.COMPLETED,
+      accurate: true,
+      recordedTicks: numTicks - 1,
+      serverTicks: { count: numTicks - 1, precise: true },
+    },
+    events,
+  );
+}
+
+/**
  * Creates a MergeContext with identity mappings begun for a single
  * consolidation step.
  */
-function testCtx(baseTickCount: number, targetTickCount: number): MergeContext {
+function testCtx(
+  baseTickCount: number,
+  targetTickCount: number,
+  clients?: Map<number, RegisteredClient>,
+): MergeContext {
   const mapping = new MergeMapping(BASE_CLIENT_ID);
   mapping.begin(
     TARGET_CLIENT_ID,
@@ -32,7 +79,7 @@ function testCtx(baseTickCount: number, targetTickCount: number): MergeContext {
     TickMapping.identity(targetTickCount),
     baseTickCount,
   );
-  return { clients: new Map(), mapping, tracer: undefined };
+  return { clients: clients ?? new Map(), mapping, tracer: undefined };
 }
 
 /**
@@ -513,7 +560,149 @@ describe('EventConsolidator', () => {
       expect(result.qualityFlags).toHaveLength(0);
     });
 
-    it('resolves disagreeing candidates as CONFLICT_RESOLVED for expected conflicts', () => {
+    it('resolves disagreeing candidates by NPC proximity', () => {
+      // Verzik P3 at (10, 10). player1 (base primary) is far at (0, 0),
+      // player2 (target primary) is close at (9, 10).
+      const VERZIK_P3_ID = 8374;
+      const verzikNpcUpdate = (tick: number) =>
+        createNpcUpdateEvent({
+          tick,
+          roomId: 1,
+          npcId: VERZIK_P3_ID,
+          x: 10,
+          y: 10,
+          hitpointsCurrent: 100,
+          stage: Stage.TOB_VERZIK,
+        });
+
+      const base: TickStateArray = [];
+      const target: TickStateArray = [];
+
+      for (let i = 0; i < 15; i++) {
+        const extraBase: ProtoEvent[] = [verzikNpcUpdate(i)];
+        const extraTarget: ProtoEvent[] = [verzikNpcUpdate(i)];
+
+        if (i === 5) {
+          const npcAttack = createNpcAttackEvent({
+            tick: 5,
+            roomId: 1,
+            npcId: VERZIK_P3_ID,
+            attackType: NpcAttack.TOB_VERZIK_P3_AUTO,
+            target: 'player1',
+            x: 10,
+            y: 10,
+            stage: Stage.TOB_VERZIK,
+          });
+          extraBase.push(npcAttack);
+          extraTarget.push(npcAttack.clone());
+        }
+        if (i === 6) {
+          extraBase.push(
+            createVerzikAttackStyleEvent({
+              tick: 6,
+              npcAttackTick: 5,
+              style: 1,
+            }),
+          );
+          extraTarget.push(
+            createVerzikAttackStyleEvent({
+              tick: 6,
+              npcAttackTick: 5,
+              style: 2,
+            }),
+          );
+        }
+
+        base.push(
+          createTickState(
+            i,
+            [
+              createPlayerState({ username: 'player1', x: 0, y: 0 }),
+              createPlayerState({ username: 'player2', x: 9, y: 10 }),
+            ],
+            [
+              createPlayerUpdateEvent({
+                tick: i,
+                name: 'player1',
+                source: DataSource.PRIMARY,
+                x: 0,
+                y: 0,
+                stage: Stage.TOB_VERZIK,
+              }),
+              createPlayerUpdateEvent({
+                tick: i,
+                name: 'player2',
+                source: DataSource.SECONDARY,
+                x: 9,
+                y: 10,
+                stage: Stage.TOB_VERZIK,
+              }),
+              ...extraBase,
+            ],
+            BASE_CLIENT_ID,
+          ),
+        );
+
+        target.push(
+          createTickState(
+            i,
+            [
+              createPlayerState({ username: 'player1', x: 0, y: 0 }),
+              createPlayerState({ username: 'player2', x: 9, y: 10 }),
+            ],
+            [
+              createPlayerUpdateEvent({
+                tick: i,
+                name: 'player1',
+                source: DataSource.SECONDARY,
+                x: 0,
+                y: 0,
+                stage: Stage.TOB_VERZIK,
+              }),
+              createPlayerUpdateEvent({
+                tick: i,
+                name: 'player2',
+                source: DataSource.PRIMARY,
+                x: 9,
+                y: 10,
+                stage: Stage.TOB_VERZIK,
+              }),
+              ...extraTarget,
+            ],
+            TARGET_CLIENT_ID,
+          ),
+        );
+      }
+
+      const clients = new Map<number, RegisteredClient>([
+        [
+          BASE_CLIENT_ID,
+          { client: createClient(BASE_CLIENT_ID, 'player1', 15) },
+        ],
+        [
+          TARGET_CLIENT_ID,
+          { client: createClient(TARGET_CLIENT_ID, 'player2', 15) },
+        ],
+      ]);
+
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length, clients),
+      );
+      const result = consolidator.consolidate();
+
+      // Style from the target should win.
+      const tick6Events = result.ticks[6]
+        ?.getEvents()
+        .filter((e) => e.getType() === ProtoEvent.Type.TOB_VERZIK_ATTACK_STYLE);
+      expect(tick6Events).toHaveLength(1);
+      expect(tick6Events![0].getVerzikAttackStyle()?.getStyle()).toBe(2);
+
+      expect(result.qualityFlags).toHaveLength(0);
+    });
+
+    it('falls back to base when proximity cannot be determined', () => {
       const base = buildVerzikTimeline(15, 'player1', DataSource.SECONDARY, 5, {
         6: { npcAttackTick: 5, style: 1 },
       });
@@ -528,12 +717,11 @@ describe('EventConsolidator', () => {
       );
       const result = consolidator.consolidate();
 
-      // Should still have exactly one event, with the base preferred.
-      // TODO(frolv): Update this test when proper resolution is implemented.
       const tick6Events = result.ticks[6]
         ?.getEvents()
         .filter((e) => e.getType() === ProtoEvent.Type.TOB_VERZIK_ATTACK_STYLE);
       expect(tick6Events).toHaveLength(1);
+      expect(tick6Events![0].getVerzikAttackStyle()?.getStyle()).toBe(1);
 
       expect(result.qualityFlags).toHaveLength(0);
     });
@@ -562,6 +750,443 @@ describe('EventConsolidator', () => {
         ?.getEvents()
         .filter((e) => e.getType() === ProtoEvent.Type.TOB_VERZIK_ATTACK_STYLE);
       expect(tick6Events).toHaveLength(0);
+    });
+  });
+
+  describe('projectile-ambiguous player attacks', () => {
+    it('resolves ambiguous attacks by player proximity to the attacker', () => {
+      // attacker attacks with ZCB at tick 5. player1 (base primary, far from
+      // attacker) sees ZCB_AUTO. player2 (target primary, close to attacker)
+      // sees ZCB_SPEC. The target's observation should win.
+      const numTicks = 10;
+
+      const makeTimeline = (
+        source: DataSource,
+        clientId: number,
+        attackType: PlayerAttack,
+      ): TickStateArray => {
+        const ticks: TickStateArray = [];
+        for (let i = 0; i < numTicks; i++) {
+          const events: ProtoEvent[] = [
+            createPlayerUpdateEvent({
+              tick: i,
+              name: 'player1',
+              source:
+                clientId === BASE_CLIENT_ID
+                  ? DataSource.PRIMARY
+                  : DataSource.SECONDARY,
+              x: 0,
+              y: 0,
+            }),
+            createPlayerUpdateEvent({
+              tick: i,
+              name: 'player2',
+              source:
+                clientId === TARGET_CLIENT_ID
+                  ? DataSource.PRIMARY
+                  : DataSource.SECONDARY,
+              x: 10,
+              y: 10,
+            }),
+            createPlayerUpdateEvent({
+              tick: i,
+              name: 'attacker',
+              source: DataSource.SECONDARY,
+              x: 9,
+              y: 10,
+            }),
+          ];
+
+          if (i === 5) {
+            events.push(
+              createPlayerAttackEvent({
+                tick: 5,
+                name: 'attacker',
+                attackType,
+                targetRoomId: 1,
+              }),
+            );
+          }
+
+          ticks.push(
+            createTickState(
+              i,
+              [
+                createPlayerState({ username: 'player1', x: 0, y: 0 }),
+                createPlayerState({ username: 'player2', x: 10, y: 10 }),
+                createPlayerState({
+                  username: 'attacker',
+                  x: 9,
+                  y: 10,
+                  attack:
+                    i === 5
+                      ? { type: attackType, weaponId: 0, target: 1 }
+                      : null,
+                }),
+              ],
+              events,
+              clientId,
+            ),
+          );
+        }
+        return ticks;
+      };
+
+      const base = makeTimeline(
+        DataSource.SECONDARY,
+        BASE_CLIENT_ID,
+        PlayerAttack.ZCB_AUTO,
+      );
+      const target = makeTimeline(
+        DataSource.SECONDARY,
+        TARGET_CLIENT_ID,
+        PlayerAttack.ZCB_SPEC,
+      );
+
+      const clients = new Map<number, RegisteredClient>([
+        [
+          BASE_CLIENT_ID,
+          { client: createClient(BASE_CLIENT_ID, 'player1', numTicks) },
+        ],
+        [
+          TARGET_CLIENT_ID,
+          { client: createClient(TARGET_CLIENT_ID, 'player2', numTicks) },
+        ],
+      ]);
+
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length, clients),
+      );
+      const result = consolidator.consolidate();
+
+      const tick5Attacks = result.ticks[5]
+        ?.getEvents()
+        .filter((e) => e.getType() === ProtoEvent.Type.PLAYER_ATTACK);
+      expect(tick5Attacks).toHaveLength(1);
+      // player2 is closer to attacker so the target's ZCB_SPEC should win.
+      expect(tick5Attacks![0].getPlayerAttack()?.getType()).toBe(
+        PlayerAttack.ZCB_SPEC,
+      );
+    });
+
+    it('prefers the client whose primary player is the attacker', () => {
+      // player1 (base primary) attacks with ZCB_SPEC. player2 sees player1
+      // attacking with ZCB_AUTO.
+      const numTicks = 10;
+
+      const makeTimeline = (
+        clientId: number,
+        attackType: PlayerAttack,
+      ): TickStateArray => {
+        const ticks: TickStateArray = [];
+        for (let i = 0; i < numTicks; i++) {
+          const events: ProtoEvent[] = [
+            createPlayerUpdateEvent({
+              tick: i,
+              name: 'player1',
+              source:
+                clientId === BASE_CLIENT_ID
+                  ? DataSource.PRIMARY
+                  : DataSource.SECONDARY,
+              x: 5,
+              y: 5,
+            }),
+            createPlayerUpdateEvent({
+              tick: i,
+              name: 'player2',
+              source:
+                clientId === TARGET_CLIENT_ID
+                  ? DataSource.PRIMARY
+                  : DataSource.SECONDARY,
+              x: 20,
+              y: 20,
+            }),
+          ];
+
+          if (i === 5) {
+            events.push(
+              createPlayerAttackEvent({
+                tick: 5,
+                name: 'player1',
+                attackType,
+                targetRoomId: 1,
+              }),
+            );
+          }
+
+          ticks.push(
+            createTickState(
+              i,
+              [
+                createPlayerState({
+                  username: 'player1',
+                  x: 5,
+                  y: 5,
+                  attack:
+                    i === 5
+                      ? { type: attackType, weaponId: 0, target: 1 }
+                      : null,
+                }),
+                createPlayerState({ username: 'player2', x: 20, y: 20 }),
+              ],
+              events,
+              clientId,
+            ),
+          );
+        }
+        return ticks;
+      };
+
+      const base = makeTimeline(BASE_CLIENT_ID, PlayerAttack.ZCB_SPEC);
+      const target = makeTimeline(TARGET_CLIENT_ID, PlayerAttack.ZCB_AUTO);
+
+      const clients = new Map<number, RegisteredClient>([
+        [
+          BASE_CLIENT_ID,
+          { client: createClient(BASE_CLIENT_ID, 'player1', numTicks) },
+        ],
+        [
+          TARGET_CLIENT_ID,
+          { client: createClient(TARGET_CLIENT_ID, 'player2', numTicks) },
+        ],
+      ]);
+
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length, clients),
+      );
+      const result = consolidator.consolidate();
+
+      const tick5Attacks = result.ticks[5]
+        ?.getEvents()
+        .filter((e) => e.getType() === ProtoEvent.Type.PLAYER_ATTACK);
+      expect(tick5Attacks).toHaveLength(1);
+      expect(tick5Attacks![0].getPlayerAttack()?.getType()).toBe(
+        PlayerAttack.ZCB_SPEC,
+      );
+    });
+
+    it('does not resolve when only one client reports the attack', () => {
+      // Only the base reports a ZCB_AUTO attack.
+      const numTicks = 10;
+      const base: TickStateArray = [];
+      const target: TickStateArray = [];
+
+      for (let i = 0; i < numTicks; i++) {
+        const baseEvents: ProtoEvent[] = [
+          createPlayerUpdateEvent({
+            tick: i,
+            name: 'player1',
+            source: DataSource.PRIMARY,
+            x: 0,
+            y: 0,
+          }),
+          createPlayerUpdateEvent({
+            tick: i,
+            name: 'player2',
+            source: DataSource.SECONDARY,
+            x: 10,
+            y: 10,
+          }),
+        ];
+        const targetEvents: ProtoEvent[] = [
+          createPlayerUpdateEvent({
+            tick: i,
+            name: 'player1',
+            source: DataSource.SECONDARY,
+            x: 0,
+            y: 0,
+          }),
+          createPlayerUpdateEvent({
+            tick: i,
+            name: 'player2',
+            source: DataSource.PRIMARY,
+            x: 10,
+            y: 10,
+          }),
+        ];
+
+        if (i === 5) {
+          baseEvents.push(
+            createPlayerAttackEvent({
+              tick: 5,
+              name: 'player1',
+              attackType: PlayerAttack.ZCB_AUTO,
+              targetRoomId: 1,
+            }),
+          );
+        }
+
+        base.push(
+          createTickState(
+            i,
+            [
+              createPlayerState({
+                username: 'player1',
+                x: 0,
+                y: 0,
+                attack:
+                  i === 5
+                    ? {
+                        type: PlayerAttack.ZCB_AUTO,
+                        weaponId: 0,
+                        target: 1,
+                      }
+                    : null,
+              }),
+              createPlayerState({ username: 'player2', x: 10, y: 10 }),
+            ],
+            baseEvents,
+            BASE_CLIENT_ID,
+          ),
+        );
+
+        target.push(
+          createTickState(
+            i,
+            [
+              createPlayerState({ username: 'player1', x: 0, y: 0 }),
+              createPlayerState({ username: 'player2', x: 10, y: 10 }),
+            ],
+            targetEvents,
+            TARGET_CLIENT_ID,
+          ),
+        );
+      }
+
+      const clients = new Map<number, RegisteredClient>([
+        [
+          BASE_CLIENT_ID,
+          { client: createClient(BASE_CLIENT_ID, 'player1', numTicks) },
+        ],
+        [
+          TARGET_CLIENT_ID,
+          { client: createClient(TARGET_CLIENT_ID, 'player2', numTicks) },
+        ],
+      ]);
+
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length, clients),
+      );
+      const result = consolidator.consolidate();
+
+      const tick5Attacks = result.ticks[5]
+        ?.getEvents()
+        .filter((e) => e.getType() === ProtoEvent.Type.PLAYER_ATTACK);
+      expect(tick5Attacks).toHaveLength(1);
+      expect(tick5Attacks![0].getPlayerAttack()?.getType()).toBe(
+        PlayerAttack.ZCB_AUTO,
+      );
+    });
+
+    it('does not resolve when both clients report the same attack type', () => {
+      const numTicks = 10;
+
+      const makeTimeline = (clientId: number): TickStateArray => {
+        const ticks: TickStateArray = [];
+        for (let i = 0; i < numTicks; i++) {
+          const events: ProtoEvent[] = [
+            createPlayerUpdateEvent({
+              tick: i,
+              name: 'player1',
+              source:
+                clientId === BASE_CLIENT_ID
+                  ? DataSource.PRIMARY
+                  : DataSource.SECONDARY,
+              x: 0,
+              y: 0,
+            }),
+            createPlayerUpdateEvent({
+              tick: i,
+              name: 'player2',
+              source:
+                clientId === TARGET_CLIENT_ID
+                  ? DataSource.PRIMARY
+                  : DataSource.SECONDARY,
+              x: 10,
+              y: 10,
+            }),
+            createPlayerUpdateEvent({
+              tick: i,
+              name: 'attacker',
+              source: DataSource.SECONDARY,
+              x: 9,
+              y: 10,
+            }),
+          ];
+
+          if (i === 5) {
+            events.push(
+              createPlayerAttackEvent({
+                tick: 5,
+                name: 'attacker',
+                attackType: PlayerAttack.ZCB_AUTO,
+                targetRoomId: 1,
+              }),
+            );
+          }
+
+          ticks.push(
+            createTickState(
+              i,
+              [
+                createPlayerState({ username: 'player1', x: 0, y: 0 }),
+                createPlayerState({ username: 'player2', x: 10, y: 10 }),
+                createPlayerState({
+                  username: 'attacker',
+                  x: 9,
+                  y: 10,
+                  attack:
+                    i === 5
+                      ? {
+                          type: PlayerAttack.ZCB_AUTO,
+                          weaponId: 0,
+                          target: 1,
+                        }
+                      : null,
+                }),
+              ],
+              events,
+              clientId,
+            ),
+          );
+        }
+        return ticks;
+      };
+
+      const base = makeTimeline(BASE_CLIENT_ID);
+      const target = makeTimeline(TARGET_CLIENT_ID);
+
+      const clients = new Map<number, RegisteredClient>([
+        [
+          BASE_CLIENT_ID,
+          { client: createClient(BASE_CLIENT_ID, 'player1', numTicks) },
+        ],
+        [
+          TARGET_CLIENT_ID,
+          { client: createClient(TARGET_CLIENT_ID, 'player2', numTicks) },
+        ],
+      ]);
+
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length, clients),
+      );
+      const result = consolidator.consolidate();
+
+      const tick5Attacks = result.ticks[5]
+        ?.getEvents()
+        .filter((e) => e.getType() === ProtoEvent.Type.PLAYER_ATTACK);
+      expect(tick5Attacks).toHaveLength(1);
+      expect(tick5Attacks![0].getPlayerAttack()?.getType()).toBe(
+        PlayerAttack.ZCB_AUTO,
+      );
     });
   });
 });

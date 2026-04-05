@@ -197,6 +197,14 @@ export class MergeMapping {
   }
 
   /**
+   * Returns the target client ID for the current in-flight merge step, or
+   * `null` if no step is in progress.
+   */
+  public getTargetClientId(): number | null {
+    return this.inFlight?.targetClientId ?? null;
+  }
+
+  /**
    * Returns the base mapping for the current in-flight merge step, or
    * `null` if no step is in progress.
    */

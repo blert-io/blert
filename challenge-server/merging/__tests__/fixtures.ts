@@ -11,6 +11,7 @@ import {
 } from '@blert/common';
 import {
   NpcAttackMap,
+  PlayerAttackMap,
   Event as ProtoEvent,
   StageMap,
 } from '@blert/common/generated/event_pb';
@@ -139,6 +140,53 @@ export function createPlayerUpdateEvent({
   return event;
 }
 
+export function createPlayerAttackEvent({
+  tick,
+  name,
+  attackType,
+  weaponId = 0,
+  targetRoomId,
+  x = 0,
+  y = 0,
+  stage = Stage.TOB_MAIDEN,
+}: {
+  tick: number;
+  name: string;
+  attackType: PlayerAttack;
+  weaponId?: number;
+  targetRoomId?: number;
+  x?: number;
+  y?: number;
+  stage?: Stage;
+}): ProtoEvent {
+  const event = new ProtoEvent();
+  event.setType(ProtoEvent.Type.PLAYER_ATTACK);
+  event.setTick(tick);
+  event.setStage(stage as ProtoStage);
+  event.setXCoord(x);
+  event.setYCoord(y);
+
+  const player = new ProtoEvent.Player();
+  player.setName(name);
+  event.setPlayer(player);
+
+  const attack = new ProtoEvent.Attack();
+  attack.setType(attackType as PlayerAttackMap[keyof PlayerAttackMap]);
+  if (weaponId !== 0) {
+    const weapon = new ProtoEvent.Player.EquippedItem();
+    weapon.setId(weaponId);
+    attack.setWeapon(weapon);
+  }
+  if (targetRoomId !== undefined) {
+    const target = new ProtoEvent.Npc();
+    target.setRoomId(targetRoomId);
+    attack.setTarget(target);
+  }
+  event.setPlayerAttack(attack);
+
+  return event;
+}
+
 export function createPlayerDeathEvent({
   tick,
   name,
@@ -166,16 +214,7 @@ export function createPlayerDeathEvent({
   return event;
 }
 
-export function createNpcSpawnEvent({
-  tick,
-  roomId,
-  npcId,
-  x,
-  y,
-  hitpointsCurrent,
-  hitpointsBase,
-  stage = Stage.TOB_MAIDEN,
-}: {
+type NpcEventOptions = {
   tick: number;
   roomId: number;
   npcId: number;
@@ -184,9 +223,23 @@ export function createNpcSpawnEvent({
   hitpointsCurrent: number;
   hitpointsBase?: number;
   stage?: Stage;
-}): ProtoEvent {
+};
+
+export function createNpcEvent(
+  type: ProtoEvent.TypeMap[keyof ProtoEvent.TypeMap],
+  {
+    tick,
+    roomId,
+    npcId,
+    x,
+    y,
+    hitpointsCurrent,
+    hitpointsBase,
+    stage = Stage.TOB_MAIDEN,
+  }: NpcEventOptions,
+): ProtoEvent {
   const event = new ProtoEvent();
-  event.setType(ProtoEvent.Type.NPC_SPAWN);
+  event.setType(type);
   event.setTick(tick);
   event.setStage(stage as ProtoStage);
   event.setXCoord(x);
@@ -200,6 +253,14 @@ export function createNpcSpawnEvent({
   event.setNpc(npc);
 
   return event;
+}
+
+export function createNpcSpawnEvent(options: NpcEventOptions): ProtoEvent {
+  return createNpcEvent(ProtoEvent.Type.NPC_SPAWN, options);
+}
+
+export function createNpcUpdateEvent(options: NpcEventOptions): ProtoEvent {
+  return createNpcEvent(ProtoEvent.Type.NPC_UPDATE, options);
 }
 
 export function createNpcAttackEvent({
