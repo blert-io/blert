@@ -278,3 +278,11 @@ export { default as PriceTracker } from './price-tracker';
 
 export { default as attackDefinitions } from './generated/attack_definitions.json';
 export { default as spellDefinitions } from './generated/spell_definitions.json';
+
+export {
+  type LaneSpawnJson,
+  NYLOCAS_WAVES,
+  type NylocasWaveJson,
+  type NyloJson,
+  type NyloStyleJson,
+} from './data/nylocas-waves';

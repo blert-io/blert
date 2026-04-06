@@ -1,4 +1,5 @@
 import {
+  ChallengeMode,
   ChallengeType,
   Npc,
   SkillLevel,
@@ -13,12 +14,8 @@ import {
   classifyClients,
   ReferenceSelection,
 } from './classification';
-import {
-  ClientAnomaly,
-  ClientEvents,
-  ConsistencyIssue,
-  ServerTicks,
-} from './client-events';
+import { ClientAnomaly, ClientEvents, ServerTicks } from './client-events';
+import { ConsistencyIssue } from './consistency';
 import logger from '../log';
 import { SimilarityScorer } from './similarity-scorer';
 import { TickState, TickStateArray } from './tick-state';
@@ -27,6 +24,7 @@ import { MergeTracer, TickMergeDecisionType } from './trace';
 export type ChallengeInfo = {
   uuid: string;
   type: ChallengeType;
+  mode: ChallengeMode;
   party: string[];
 };
 
@@ -88,8 +86,8 @@ export type MergeResult = {
 
 export class Merger {
   private readonly stage: Stage;
-  private readonly clients: ClientEvents[];
   private readonly alerts: MergeAlert[];
+  private clients: ClientEvents[];
   private referenceSelection: ReferenceSelection | null;
 
   public constructor(stage: Stage, clients: ClientEvents[]) {
@@ -131,6 +129,17 @@ export class Merger {
     }
 
     const mergeClients: MergeClient[] = [];
+
+    const badDataClients = this.clients.filter((c) =>
+      c.hasAnomaly(ClientAnomaly.BAD_DATA),
+    );
+    this.clients = this.clients.filter(
+      (c) => !c.hasAnomaly(ClientAnomaly.BAD_DATA),
+    );
+    if (this.clients.length === 0) {
+      logger.warn('merge_no_clients', { stage: this.stage });
+      return null;
+    }
 
     const clients = this.classifyAndUpdateClients(tracer);
     this.referenceSelection = clients.referenceTicks;
@@ -194,6 +203,17 @@ export class Merger {
 
     for (const client of clients.mismatched) {
       mergeFrom(client, MergeClientClassification.MISMATCHED);
+    }
+
+    for (const client of badDataClients) {
+      mergeClients.push(
+        this.createMergeClient(
+          client,
+          MergeClientClassification.MISMATCHED,
+          MergeClientStatus.SKIPPED,
+          mergeClients.length,
+        ),
+      );
     }
 
     const { mergedCount, unmergedCount, skippedCount } =

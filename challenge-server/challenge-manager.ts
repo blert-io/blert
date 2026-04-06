@@ -1589,6 +1589,7 @@ export default class ChallengeManager {
         const challengeInfo = {
           uuid: challenge.uuid,
           type: challenge.type,
+          mode: challenge.mode,
           party: challenge.party,
         };
 
