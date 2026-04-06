@@ -5,8 +5,49 @@ import {
   Registry,
 } from 'prom-client';
 
-const register = new Registry();
-collectDefaultMetrics({ register });
+// Use a globalThis singleton so that every Next.js bundle (API routes, server
+// actions, instrumentation) shares the same Registry instance.  Without this,
+// server actions get a separate module evaluation and their counters are never
+// visible to the /api/metrics endpoint.
+const GLOBAL_KEY = Symbol.for('blert.metrics.registry');
+
+type GlobalWithRegistry = typeof globalThis & {
+  [key: symbol]: Registry | undefined;
+};
+
+function getOrCreateRegistry(): Registry {
+  const g = globalThis as GlobalWithRegistry;
+  if (!g[GLOBAL_KEY]) {
+    const r = new Registry();
+    collectDefaultMetrics({ register: r });
+    g[GLOBAL_KEY] = r;
+  }
+  return g[GLOBAL_KEY]!;
+}
+
+const register = getOrCreateRegistry();
+
+// When the shared registry is reused across bundles the metric may already
+// exist.  Retrieve the existing instance or create a new one.
+function getOrCreateCounter<T extends string>(
+  opts: ConstructorParameters<typeof Counter<T>>[0],
+): Counter<T> {
+  try {
+    return new Counter<T>({ ...opts, registers: [register] });
+  } catch {
+    return register.getSingleMetric(opts.name) as Counter<T>;
+  }
+}
+
+function getOrCreateHistogram<T extends string>(
+  opts: ConstructorParameters<typeof Histogram<T>>[0],
+): Histogram<T> {
+  try {
+    return new Histogram<T>({ ...opts, registers: [register] });
+  } catch {
+    return register.getSingleMetric(opts.name) as Histogram<T>;
+  }
+}
 
 function sanitizeLabel(
   value: string | null | undefined,
@@ -15,19 +56,17 @@ function sanitizeLabel(
   return value?.slice(0, 64) ?? fallback;
 }
 
-const httpRequestCounter = new Counter({
+const httpRequestCounter = getOrCreateCounter({
   name: 'web_http_requests_total',
   help: 'HTTP request results',
   labelNames: ['route', 'method', 'status'] as const,
-  registers: [register],
 });
 
-const httpRequestDuration = new Histogram({
+const httpRequestDuration = getOrCreateHistogram({
   name: 'web_http_request_duration_ms',
   help: 'HTTP request latency in milliseconds',
   labelNames: ['route', 'method', 'status'] as const,
   buckets: [5, 15, 30, 60, 120, 250, 500, 1_000, 2_000, 5_000, 10_000],
-  registers: [register],
 });
 
 export function observeHttpRequest(
@@ -45,19 +84,17 @@ export function observeHttpRequest(
   httpRequestDuration.observe(labels, durationMs);
 }
 
-const serverActionCounter = new Counter({
+const serverActionCounter = getOrCreateCounter({
   name: 'web_server_action_total',
   help: 'Server action invocations',
   labelNames: ['action', 'result'] as const,
-  registers: [register],
 });
 
-const serverActionDuration = new Histogram({
+const serverActionDuration = getOrCreateHistogram({
   name: 'web_server_action_duration_ms',
   help: 'Server action latency in milliseconds',
   labelNames: ['action', 'result'] as const,
   buckets: [5, 15, 30, 60, 120, 250, 500, 1_000, 2_000, 5_000, 10_000],
-  registers: [register],
 });
 
 export function observeServerAction(
@@ -87,22 +124,20 @@ export async function withServerAction<T>(
   }
 }
 
-const redisEventsCounter = new Counter({
+const redisEventsCounter = getOrCreateCounter({
   name: 'web_redis_events_total',
   help: 'Redis client events',
   labelNames: ['type'] as const,
-  registers: [register],
 });
 
 export function recordRedisEvent(type: 'connect' | 'error'): void {
   redisEventsCounter.inc({ type });
 }
 
-const emailSendCounter = new Counter({
+const emailSendCounter = getOrCreateCounter({
   name: 'web_email_send_total',
   help: 'Email send attempts',
   labelNames: ['type', 'result'] as const,
-  registers: [register],
 });
 
 export function recordEmailSend(
