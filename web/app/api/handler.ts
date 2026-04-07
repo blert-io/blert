@@ -17,6 +17,11 @@ type ApiRouteOptions = {
   route: string;
 };
 
+const SLOW_REQUEST_THRESHOLD_MS = parseInt(
+  process.env.BLERT_SLOW_REQUEST_THRESHOLD_MS ?? '500',
+  10,
+);
+
 const NO_PARAMS = Promise.resolve({} as Record<string, string>);
 
 export function withApiRoute(
@@ -25,6 +30,8 @@ export function withApiRoute(
 ): (req: NextRequest, ctx?: RouteHandlerContext) => Promise<Response> {
   return async (request, context) => {
     const start = process.hrtime.bigint();
+    const route = request.nextUrl.pathname;
+    const params = Object.fromEntries(request.nextUrl.searchParams);
     const method = request.method;
 
     const ctx: HandlerContext = {
@@ -49,6 +56,15 @@ export function withApiRoute(
 
       const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
       observeHttpRequest(options.route, method, response.status, durationMs);
+
+      if (durationMs > SLOW_REQUEST_THRESHOLD_MS) {
+        logger.warn('slow_api_request', {
+          route,
+          params,
+          method,
+          durationMs,
+        });
+      }
 
       return response;
     }) as Promise<Response>;
