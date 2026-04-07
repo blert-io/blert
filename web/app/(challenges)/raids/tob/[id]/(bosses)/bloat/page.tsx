@@ -332,8 +332,8 @@ export default function BloatPage() {
                 <span className="sr-only">Walk time</span>
               </td>
               <td className={styles.walkTime}>
-                {ticksToFormattedSeconds(down.walkTime - 1)}
-                <span className={styles.walkTicks}>({down.walkTime - 1})</span>
+                {ticksToFormattedSeconds(down.walkTime)}
+                <span className={styles.walkTicks}>({down.walkTime})</span>
               </td>
             </tr>
             <tr>

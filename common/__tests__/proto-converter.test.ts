@@ -355,13 +355,14 @@ describe('protoToJsonEvent', () => {
       const evt = makeEvent(EventType.TOB_BLOAT_DOWN, { stage: 11 });
       const down = new EventProto.BloatDown();
       down.setDownNumber(1);
-      down.setWalkTime(32);
+      down.setUpTicks(40);
       evt.setBloatDown(down);
 
       const result = protoToJsonEvent(evt) as BloatDownEvent;
 
       expect(result.bloatDown.downNumber).toBe(1);
-      expect(result.bloatDown.walkTime).toBe(32);
+      expect(result.bloatDown.upTicks).toBe(40);
+      expect(result.bloatDown.walkTime).toBe(39);
     });
 
     it('converts nylo wave spawn', () => {
@@ -594,12 +595,12 @@ describe('protoToJsonEvent', () => {
     it('converts sol lasers', () => {
       const evt = makeEvent(EventType.COLOSSEUM_SOL_LASERS);
       const lasers = new EventProto.ColosseumSolLasers();
-      lasers.setPhase(2);
+      lasers.setPhase(1);
       evt.setColosseumSolLasers(lasers);
 
       const result = protoToJsonEvent(evt) as ColosseumSolLasersEvent;
 
-      expect(result.colosseumSolLasers.phase).toBe(2);
+      expect(result.colosseumSolLasers.phase).toBe(1);
     });
   });
 });

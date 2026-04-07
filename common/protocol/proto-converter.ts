@@ -221,9 +221,11 @@ export function protoToJsonEvent(evt: EventProto): Event {
     case EventType.TOB_BLOAT_DOWN: {
       const bloatDown = evt.getBloatDown()!;
       const e = event as BloatDownEvent;
+      const upTicks = bloatDown.getUpTicks();
       e.bloatDown = {
         downNumber: bloatDown.getDownNumber(),
-        walkTime: bloatDown.getWalkTime(),
+        upTicks,
+        walkTime: upTicks - 1,
       };
       break;
     }

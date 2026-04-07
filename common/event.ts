@@ -494,6 +494,7 @@ export type Coords = {
 
 export type BloatDown = {
   downNumber: number;
+  upTicks: number;
   walkTime: number;
 };
 

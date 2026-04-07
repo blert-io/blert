@@ -337,7 +337,11 @@ function eventJsonToProto(json: EventJson): Event {
   if (json.bloatDown !== undefined) {
     const down = new Event.BloatDown();
     down.setDownNumber(json.bloatDown.downNumber);
-    down.setWalkTime(json.bloatDown.walkTime);
+    down.setUpTicks(
+      'upTicks' in json.bloatDown
+        ? json.bloatDown.upTicks
+        : json.bloatDown.walkTime,
+    );
     event.setBloatDown(down);
   }
 
