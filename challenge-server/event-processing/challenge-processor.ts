@@ -1404,7 +1404,8 @@ export default abstract class ChallengeProcessor {
           const down = event.getBloatDown()!;
           const e = baseQueryableEvent(event);
           e[QueryableEventField.TOB_BLOAT_DOWN_NUMBER] = down.getDownNumber();
-          e[QueryableEventField.TOB_BLOAT_DOWN_WALK_TIME] = down.getWalkTime();
+          e[QueryableEventField.TOB_BLOAT_DOWN_WALK_TIME] =
+            down.getUpTicks() - 1;
           queryableEvents.push(e);
           break;
         }

@@ -372,6 +372,31 @@ describe('jsonToServerMessage', () => {
             yCoord: 0,
             bloatDown: {
               downNumber: 1,
+              upTicks: 32,
+            },
+          },
+        ],
+      };
+
+      const proto = jsonToServerMessage(json);
+      const down = proto.getChallengeEventsList()[0].getBloatDown();
+
+      expect(down?.getDownNumber()).toBe(1);
+      expect(down?.getUpTicks()).toBe(32);
+    });
+
+    it('converts bloat down event with legacy walkTime field', () => {
+      const json: ServerMessageJson = {
+        type: ServerMessage.Type.EVENT_STREAM,
+        challengeEvents: [
+          {
+            type: Event.Type.TOB_BLOAT_DOWN,
+            stage: 11,
+            tick: 33,
+            xCoord: 0,
+            yCoord: 0,
+            bloatDown: {
+              downNumber: 1,
               walkTime: 32,
             },
           },
@@ -382,7 +407,7 @@ describe('jsonToServerMessage', () => {
       const down = proto.getChallengeEventsList()[0].getBloatDown();
 
       expect(down?.getDownNumber()).toBe(1);
-      expect(down?.getWalkTime()).toBe(32);
+      expect(down?.getUpTicks()).toBe(32);
     });
 
     it('converts nylo wave spawn event', () => {

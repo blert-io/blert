@@ -259,10 +259,16 @@ export const attackStyleSchema = z.object({
 });
 
 // Event.BloatDown
-export const bloatDownSchema = z.object({
-  downNumber: z.number().int(),
-  walkTime: z.number().int(),
-});
+export const bloatDownSchema = z
+  .object({
+    downNumber: z.number().int(),
+  })
+  .and(
+    z.union([
+      z.object({ upTicks: z.number().int() }),
+      z.object({ walkTime: z.number().int() }),
+    ]),
+  );
 
 // Event.NyloWave
 export const nyloWaveSchema = z.object({
