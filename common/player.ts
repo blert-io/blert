@@ -1,7 +1,19 @@
 import { Skill } from './challenge';
 
+/**
+ * Normalizes an OSRS username for identity comparison. In OSRS, spaces,
+ * hyphens, and underscores are interchangeable and names are case-insensitive.
+ *
+ * @param name The RSN to normalize.
+ * @returns The normalized form of the name.
+ */
+export function normalizeRsn(name: string): string {
+  return name.toLowerCase().replaceAll(/[- ]/g, '_');
+}
+
 export type Player = {
   username: string;
+  normalizedUsername: string;
   totalRecordings: number;
   overallExperience: number;
   attackExperience: number;

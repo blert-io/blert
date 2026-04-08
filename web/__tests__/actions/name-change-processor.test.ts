@@ -5,6 +5,7 @@ import {
   NameChangeUpdateType,
   PlayerExperience,
   Skill,
+  normalizeRsn,
 } from '@blert/common';
 
 import { sql } from '@/actions/db';
@@ -98,6 +99,7 @@ describe('processNameChange', () => {
     const players = [
       {
         username: 'Old Name',
+        normalized_username: normalizeRsn('Old Name'),
         total_recordings: 2,
         overall_experience: 150_000_000,
         attack_experience: 6_500_000,
@@ -110,6 +112,7 @@ describe('processNameChange', () => {
       },
       {
         username: 'New Name',
+        normalized_username: normalizeRsn('New Name'),
         total_recordings: 2,
         overall_experience: 200_000_000,
         attack_experience: 6_900_000,
@@ -122,6 +125,7 @@ describe('processNameChange', () => {
       },
       {
         username: 'SomeRandom',
+        normalized_username: normalizeRsn('SomeRandom'),
         total_recordings: 4,
         overall_experience: 300_000_000,
         attack_experience: 7_000_000,
@@ -961,6 +965,43 @@ describe('processNameChange', () => {
     expect(updatedRequest.migratedDocuments).toBe(0);
   });
 
+  it('updates only the display name for separator-only changes', async () => {
+    global.fetch = jest.fn();
+
+    const id = await createNameChangeRequest(
+      'Old Name',
+      oldPlayerId,
+      'Old_Name',
+    );
+    const result = await processNameChange(id);
+
+    expect(result).toEqual({
+      type: NameChangeUpdateType.RENAMED,
+      playerId: oldPlayerId,
+      oldName: 'Old Name',
+      newName: 'Old_Name',
+    });
+
+    // Display name should be updated but normalized form is unchanged.
+    const [updatedPlayer] = await sql<
+      [{ username: string; normalized_username: string }?]
+    >`
+      SELECT username, normalized_username FROM players WHERE id = ${oldPlayerId}
+    `;
+    expect(updatedPlayer).not.toBeUndefined();
+    expect(updatedPlayer!.username).toBe('Old_Name');
+    expect(updatedPlayer!.normalized_username).toBe(normalizeRsn('Old Name'));
+
+    // No data should have been migrated.
+    const updatedRequest = await loadNameChangeRequest(id);
+    expect(updatedRequest.status).toBe(NameChangeStatus.ACCEPTED);
+    expect(updatedRequest.processedAt).not.toBeNull();
+    expect(updatedRequest.migratedDocuments).toBe(0);
+
+    // Hiscores should not have been called.
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
   it('throws PlayerInActiveChallengeError if player is in active challenge', async () => {
     // Mock Redis to indicate the old player is in an active challenge.
     const mockMulti = {
@@ -1095,6 +1136,7 @@ describe('NameChangeProcessor.processBatch', () => {
     const [{ id }] = await sql`
       INSERT INTO players (
         username,
+        normalized_username,
         total_recordings,
         overall_experience,
         attack_experience,
@@ -1106,6 +1148,7 @@ describe('NameChangeProcessor.processBatch', () => {
         magic_experience
       ) VALUES (
         'BatchPlayer',
+        ${normalizeRsn('BatchPlayer')},
         0,
         100000000,
         5000000,
@@ -1259,9 +1302,10 @@ describe('NameChangeProcessor.processBatch', () => {
 
     // Insert 3 PENDING name changes.
     for (let i = 0; i < 3; i++) {
+      const name = 'Bp' + i;
       const [{ id: pid }] = await sql<[{ id: number }]>`
-        INSERT INTO players (username, total_recordings, overall_experience)
-        VALUES (${'Bp' + i}, 0, 100000000)
+        INSERT INTO players (username, normalized_username, total_recordings, overall_experience)
+        VALUES (${name}, ${normalizeRsn(name)}, 0, 100000000)
         RETURNING id
       `;
       await sql`

@@ -12,5 +12,7 @@ module.exports = {
     '!**/__tests__/**',
     '!**/migrations/**',
     '!**/npcs/**',
+    '!**/db/**',
+    '!index.ts',
   ],
 };

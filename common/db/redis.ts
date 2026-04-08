@@ -1,13 +1,10 @@
 import { createHash } from 'crypto';
 
 import { ChallengeType, Stage, StageStatus } from '../challenge';
-
-function normalizeUsername(username: string): string {
-  return username.toLowerCase().replaceAll(' ', '_');
-}
+import { normalizeRsn } from '../player';
 
 function challengePartyKey(type: ChallengeType, partyMembers: string[]) {
-  const party = partyMembers.toSorted().map(normalizeUsername).join('-');
+  const party = partyMembers.toSorted().map(normalizeRsn).join('-');
   return `${type}-${party}`;
 }
 
@@ -36,7 +33,7 @@ export function clientChallengesKey(id: number) {
  */
 export function partyHash(party: string[]) {
   return createHash('sha256')
-    .update(party.toSorted().map(normalizeUsername).join('-'))
+    .update(party.toSorted().map(normalizeRsn).join('-'))
     .digest('hex');
 }
 
@@ -287,5 +284,5 @@ export function stageStreamFromRecord(
  * @returns Key for the player's information.
  */
 export function activePlayerKey(username: string) {
-  return `player:${normalizeUsername(username)}`;
+  return `player:${normalizeRsn(username)}`;
 }

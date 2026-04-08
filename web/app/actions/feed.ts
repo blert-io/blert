@@ -7,6 +7,7 @@ import {
   RELEVANT_PB_SPLITS,
   SessionStatus,
   SplitType,
+  normalizeRsn,
   splitName,
 } from '@blert/common';
 import type { SessionRow } from '@blert/common/dist/db/challenge';
@@ -96,7 +97,7 @@ export async function followPlayer(
   const [player] = await sql<{ id: number; username: string }[]>`
     SELECT id, username
     FROM players
-    WHERE lower(username) = ${username.toLowerCase()}
+    WHERE normalized_username = ${normalizeRsn(username)}
   `;
 
   if (!player) {
@@ -259,7 +260,7 @@ export async function isFollowingByUsername(
     SELECT uf.user_id
     FROM user_follows uf
     JOIN players p ON uf.player_id = p.id
-    WHERE uf.user_id = ${userId} AND lower(p.username) = ${username.toLowerCase()}
+    WHERE uf.user_id = ${userId} AND p.normalized_username = ${normalizeRsn(username)}
     LIMIT 1
   `;
 

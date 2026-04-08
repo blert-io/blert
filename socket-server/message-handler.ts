@@ -2,6 +2,7 @@ import {
   ChallengeType,
   ClientStatus,
   isPostgresUniqueViolation,
+  normalizeRsn,
   RecordingType,
   Stage,
 } from '@blert/common';
@@ -646,7 +647,7 @@ export default class MessageHandler {
   ): Promise<boolean> {
     const storedAccountHash = await Players.getAccountHash(playerId);
     const displayNameMatches =
-      clientRsn.toLowerCase() === storedUsername.toLowerCase();
+      normalizeRsn(clientRsn) === normalizeRsn(storedUsername);
 
     if (storedAccountHash !== null) {
       // Account hash is stored; use it for validation.

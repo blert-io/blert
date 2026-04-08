@@ -1,3 +1,5 @@
+import { normalizeRsn } from '@blert/common';
+
 import {
   getLinkedRsns,
   grantApiAccess,
@@ -341,8 +343,10 @@ describe('admin actions', () => {
     beforeEach(async () => {
       // Create test players.
       const players = await sql<{ id: number }[]>`
-        INSERT INTO players (username)
-        VALUES ('PlayerOne'), ('PlayerTwo')
+        INSERT INTO players (username, normalized_username)
+        VALUES
+          ('PlayerOne', ${normalizeRsn('PlayerOne')}),
+          ('PlayerTwo', ${normalizeRsn('PlayerTwo')})
         RETURNING id
       `;
       playerId1 = players[0].id;

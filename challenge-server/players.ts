@@ -4,6 +4,7 @@ import {
   camelToSnakeObject,
   CamelToSnakeCase,
   camelToSnake,
+  normalizeRsn,
 } from '@blert/common';
 
 import sql from './db';
@@ -28,14 +29,15 @@ export class Players {
    * @returns The IDs of the players, in the same order as the input usernames.
    */
   public static async lookupIds(usernames: string[]): Promise<number[]> {
-    const rows = await sql<{ id: number; username: string }[]>`
-      SELECT id, username
+    const normalized = usernames.map(normalizeRsn);
+    const rows = await sql<{ id: number; normalized_username: string }[]>`
+      SELECT id, normalized_username
       FROM players
-      WHERE lower(username) = ANY(${usernames.map((u) => u.toLowerCase())})
+      WHERE normalized_username = ANY(${normalized})
     `;
     const result: number[] = [];
-    for (const username of usernames) {
-      const row = rows.find((r) => r.username === username);
+    for (const norm of normalized) {
+      const row = rows.find((r) => r.normalized_username === norm);
       if (row !== undefined) {
         result.push(row.id);
       }
@@ -75,6 +77,7 @@ export class Players {
     }
 
     fields.username = username;
+    fields.normalized_username = normalizeRsn(username);
 
     const [player]: [{ id: number }?] = await sql`
       INSERT INTO players ${sql(fields)} RETURNING id;
@@ -87,7 +90,7 @@ export class Players {
     const [player]: [{ id: number }?] = await sql`
       UPDATE players
       SET total_recordings = total_recordings + 1
-      WHERE lower(username) = ${username.toLowerCase()}
+      WHERE normalized_username = ${normalizeRsn(username)}
       RETURNING id;
     `;
 

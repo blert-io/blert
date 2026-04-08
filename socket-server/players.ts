@@ -5,6 +5,7 @@ import {
   CamelToSnakeCase,
   camelToSnake,
   NameChangeStatus,
+  normalizeRsn,
 } from '@blert/common';
 import { RedisClientType } from 'redis';
 
@@ -138,12 +139,12 @@ export class Players {
       }
     });
 
-    const normalizedUsername = username.toLowerCase();
+    const normalized = normalizeRsn(username);
     if (Object.keys(updates).length === 0) {
       await sql`
         UPDATE players
         SET last_updated = NOW()
-        WHERE lower(username) = ${normalizedUsername}
+        WHERE normalized_username = ${normalized}
       `;
       return;
     }
@@ -151,7 +152,7 @@ export class Players {
     await sql`
       UPDATE players
       SET ${sql(updates)}, last_updated = NOW()
-      WHERE lower(username) = ${normalizedUsername}
+      WHERE normalized_username = ${normalized}
     `;
   }
 }
@@ -173,30 +174,29 @@ export class PlayerManager {
   }
 
   public setPlayerActive(username: string, challengeId: string): void {
-    this.activePlayers.set(username.toLowerCase(), { challengeId });
+    const normalized = normalizeRsn(username);
+    this.activePlayers.set(normalized, { challengeId });
     this.statusUpdateListeners
-      .get(username.toLowerCase())
+      .get(normalized)
       ?.forEach((cb) => cb(challengeId));
   }
 
   public setPlayerInactive(username: string, challengeId: string): void {
-    username = username.toLowerCase();
-    const activePlayer = this.activePlayers.get(username);
+    const normalized = normalizeRsn(username);
+    const activePlayer = this.activePlayers.get(normalized);
     if (activePlayer === undefined) {
       return;
     }
     if (activePlayer.challengeId !== challengeId) {
       logger.warn('player_challenge_mismatch', {
-        username,
+        username: normalized,
         expectedChallengeUuid: challengeId,
         actualChallengeUuid: activePlayer.challengeId,
       });
       return;
     }
-    this.activePlayers.delete(username);
-    this.statusUpdateListeners
-      .get(username.toLowerCase())
-      ?.forEach((cb) => cb(null));
+    this.activePlayers.delete(normalized);
+    this.statusUpdateListeners.get(normalized)?.forEach((cb) => cb(null));
   }
 
   public async getCurrentChallengeId(username: string): Promise<string | null> {
@@ -204,31 +204,31 @@ export class PlayerManager {
       const challengeId = await this.redisClient.get(activePlayerKey(username));
       return challengeId ?? null;
     }
-    return this.activePlayers.get(username.toLowerCase())?.challengeId ?? null;
+    return this.activePlayers.get(normalizeRsn(username))?.challengeId ?? null;
   }
 
   public subscribeToPlayer(
     username: string,
     callback: PlayerStatusCallback,
   ): void {
-    username = username.toLowerCase();
-    if (!this.statusUpdateListeners.has(username)) {
-      this.statusUpdateListeners.set(username, []);
+    const normalized = normalizeRsn(username);
+    if (!this.statusUpdateListeners.has(normalized)) {
+      this.statusUpdateListeners.set(normalized, []);
     }
 
-    this.statusUpdateListeners.get(username)!.push(callback);
+    this.statusUpdateListeners.get(normalized)!.push(callback);
   }
 
   public unsubscribeFromPlayer(
     username: string,
     callback: PlayerStatusCallback,
   ): void {
-    username = username.toLowerCase();
-    if (!this.statusUpdateListeners.has(username)) {
+    const normalized = normalizeRsn(username);
+    if (!this.statusUpdateListeners.has(normalized)) {
       return;
     }
 
-    const listeners = this.statusUpdateListeners.get(username)!;
+    const listeners = this.statusUpdateListeners.get(normalized)!;
     const index = listeners.indexOf(callback);
     if (index !== -1) {
       listeners.splice(index, 1);

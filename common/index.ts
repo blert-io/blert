@@ -9,6 +9,7 @@ export {
   type PlayerExperience,
   HiscoresRateLimitError,
   hiscoreLookup,
+  normalizeRsn,
 } from './player';
 export {
   SplitType,

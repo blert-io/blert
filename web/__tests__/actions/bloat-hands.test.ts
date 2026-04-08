@@ -1,4 +1,9 @@
-import { ChallengeMode, ChallengeStatus, ChallengeType } from '@blert/common';
+import {
+  ChallengeMode,
+  ChallengeStatus,
+  ChallengeType,
+  normalizeRsn,
+} from '@blert/common';
 
 import { sql } from '@/actions/db';
 import { aggregateBloatHands } from '@/actions/bloat-hands';
@@ -10,6 +15,7 @@ describe('aggregateBloatHands', () => {
     const players = [
       {
         username: 'Player1',
+        normalized_username: normalizeRsn('Player1'),
         total_recordings: 5,
         overall_experience: 200_000_000,
         attack_experience: 13_000_000,

@@ -10,6 +10,7 @@ import {
   PlayerStats,
   Skill,
   hiscoreLookup,
+  normalizeRsn,
 } from '@blert/common';
 
 import logger from '@/utils/log';
@@ -334,6 +335,30 @@ export async function processNameChange(
 
   logger.info('processing_name_change', { changeId, oldName, newName });
 
+  // If the names normalize to the same value, this is just a display name
+  // update. Skip validation and simply update the stored display name.
+  if (normalizeRsn(oldName) === normalizeRsn(newName)) {
+    logger.info('name_change_display_only', { changeId, oldName, newName });
+
+    await Promise.all([
+      db`UPDATE players SET username = ${newName} WHERE id = ${playerId}`,
+      db`
+        UPDATE name_changes
+        SET
+          status = ${NameChangeStatus.ACCEPTED},
+          processed_at = ${new Date()}
+        WHERE id = ${changeId}
+      `,
+    ]);
+
+    return {
+      type: NameChangeUpdateType.RENAMED,
+      playerId,
+      oldName,
+      newName,
+    };
+  }
+
   // Check if the player is in an active challenge. If so, defer the name
   // change until they are no longer in a challenge.
   if (await isPlayerInActiveChallenge(oldName, newName)) {
@@ -367,6 +392,7 @@ export async function processNameChange(
 
   const playerUpdates: Record<string, any> = {
     username: newName,
+    normalized_username: normalizeRsn(newName),
   };
 
   if (oldExperience !== null) {
@@ -426,7 +452,7 @@ export async function processNameChange(
   const [newPlayer]: [{ id: number }?] = await db`
     SELECT id
     FROM players
-    WHERE lower(username) = ${newName.toLowerCase()}
+    WHERE normalized_username = ${normalizeRsn(newName)}
   `;
 
   if (newPlayer) {
@@ -503,10 +529,12 @@ export async function processNameChange(
       // current values reflect the experience of the player who has taken over
       // the username.
       logger.info('name_change_zombie_player', { changeId, newName });
+      const zombieName = `*${newName}`;
       await db`
         UPDATE players
         SET
-          username = ${`*${newName}`},
+          username = ${zombieName},
+          normalized_username = ${normalizeRsn(zombieName)},
           total_recordings = total_recordings - ${challengesUpdated},
           overall_experience = 0,
           attack_experience = 0,

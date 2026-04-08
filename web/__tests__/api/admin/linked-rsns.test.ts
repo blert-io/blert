@@ -1,3 +1,5 @@
+import { normalizeRsn } from '@blert/common';
+
 import { POST } from '@/api/admin/linked-rsns/route';
 import { sql } from '@/actions/db';
 import { NextRequest } from 'next/server';
@@ -46,8 +48,10 @@ describe('POST /api/admin/linked-rsns', () => {
     testUserId2 = users[1].id;
 
     const players = await sql<{ id: number }[]>`
-      INSERT INTO players (username)
-      VALUES ('PlayerOne'), ('PlayerTwo')
+      INSERT INTO players (username, normalized_username)
+      VALUES
+        ('PlayerOne', ${normalizeRsn('PlayerOne')}),
+        ('PlayerTwo', ${normalizeRsn('PlayerTwo')})
       RETURNING id
     `;
     playerId1 = players[0].id;
