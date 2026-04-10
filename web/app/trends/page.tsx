@@ -12,6 +12,13 @@ import styles from './style.module.scss';
 // Define analysis links for each challenge type
 const TOB_ANALYSIS_LINKS: AnalysisLink[] = [
   {
+    href: '/trends/bloat-downs',
+    title: 'Bloat Down Analysis',
+    description:
+      'Walk time distributions for Bloat downs across Theatre of Blood raids',
+    icon: <BloatIcon width={32} height={32} />,
+  },
+  {
     href: '/trends/bloat-hands',
     title: 'Bloat Hand Spawn Analysis',
     description:
@@ -22,6 +29,14 @@ const TOB_ANALYSIS_LINKS: AnalysisLink[] = [
 
 const COLOSSEUM_ANALYSIS_LINKS: AnalysisLink[] = [
   // Add Colosseum-specific analysis links here when they become available
+];
+
+const INFERNO_ANALYSIS_LINKS: AnalysisLink[] = [
+  // Add Inferno-specific analysis links here when they become available
+];
+
+const MOKHAIOTL_ANALYSIS_LINKS: AnalysisLink[] = [
+  // Add Mokhaiotl-specific analysis links here when they become available
 ];
 
 export default function TrendsPage() {
@@ -42,6 +57,14 @@ export default function TrendsPage() {
         <ChallengeStats
           challenge={ChallengeType.COLOSSEUM}
           analysisLinks={COLOSSEUM_ANALYSIS_LINKS}
+        />
+        <ChallengeStats
+          challenge={ChallengeType.INFERNO}
+          analysisLinks={INFERNO_ANALYSIS_LINKS}
+        />
+        <ChallengeStats
+          challenge={ChallengeType.MOKHAIOTL}
+          analysisLinks={MOKHAIOTL_ANALYSIS_LINKS}
         />
       </div>
     </div>

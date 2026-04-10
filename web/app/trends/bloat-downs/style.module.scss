@@ -1,0 +1,208 @@
+@use '../../mixins.scss' as *;
+
+.bloatDowns {
+  width: 100%;
+  max-width: 1200px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    max-width: 100%;
+  }
+
+  .header {
+    text-align: center;
+    margin: 2rem 0;
+
+    h1 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1.6rem;
+      color: var(--blert-font-color-primary);
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--blert-font-color-secondary);
+    }
+  }
+
+  .mainPanel {
+    padding: 1.5rem;
+    min-width: 0;
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      padding: 1rem;
+    }
+  }
+}
+
+.seriesBlock {
+  padding-bottom: 1.25rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid rgba(var(--blert-font-color-primary-base), 0.15);
+
+  &:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+    margin-bottom: 0;
+  }
+}
+
+.seriesHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+
+  .seriesLabel {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--blert-font-color-primary);
+
+    .swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+  }
+
+  .removeButton {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    background: transparent;
+    border: 1px solid rgba(var(--blert-red-base), 0.4);
+    color: var(--blert-red);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &:hover {
+      background: rgba(var(--blert-red-base), 0.1);
+      border-color: var(--blert-red);
+    }
+  }
+}
+
+.compareButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 5px;
+  background: rgba(var(--blert-purple-base), 0.15);
+  border: 1px dashed rgba(var(--blert-purple-base), 0.5);
+  color: var(--blert-purple);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-top: 0.5rem;
+
+  &:hover {
+    background: rgba(var(--blert-purple-base), 0.25);
+    border-color: var(--blert-purple);
+  }
+}
+
+.chartSection {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.chartWrapper {
+  width: 100%;
+  min-height: 360px;
+}
+
+.errorState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 3rem 2rem;
+  background: var(--blert-surface-dark);
+  border-radius: 6px;
+  gap: 1rem;
+
+  .errorIcon {
+    font-size: 2em;
+    color: var(--blert-red);
+  }
+
+  .errorContent {
+    h3 {
+      margin: 0 0 8px 0;
+      color: var(--blert-font-color-primary);
+      font-size: 1.1em;
+    }
+
+    p {
+      margin: 0;
+      color: var(--blert-font-color-secondary);
+      font-size: 0.9em;
+    }
+  }
+
+  .retryButton {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 4px;
+    background: var(--blert-panel-background-color);
+    color: var(--blert-font-color-primary);
+    font-size: 0.9em;
+    border: none;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--blert-surface-light);
+    }
+  }
+}
+
+.skeletonChart {
+  width: 100%;
+  height: 360px;
+  background: var(--blert-surface-dark);
+  border-radius: 6px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.skeletonTable {
+  width: 100%;
+  height: 200px;
+  background: var(--blert-surface-dark);
+  border-radius: 6px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.emptyState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  color: var(--blert-font-color-secondary);
+  font-size: 0.95rem;
+  background: var(--blert-surface-dark);
+  border-radius: 6px;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}

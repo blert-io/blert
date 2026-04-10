@@ -1,0 +1,20 @@
+import { useEffect, useState } from 'react';
+
+/**
+ * Returns a version of `value` that only updates after `delayMs` milliseconds
+ * have passed without further changes.
+ *
+ * @param value The value to debounce.
+ * @param delayMs Delay before the value is updated, in milliseconds.
+ * @returns The debounced value.
+ */
+export function useDebounced<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(timer);
+  }, [value, delayMs]);
+
+  return debounced;
+}
