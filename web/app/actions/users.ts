@@ -7,6 +7,7 @@ import {
   User,
   hiscoreLookup,
   isPostgresUniqueViolation,
+  normalizeRsn,
 } from '@blert/common';
 import { headers } from 'next/headers';
 
@@ -175,7 +176,7 @@ export async function createApiKey(rsn: string): Promise<ApiKeyWithUsername> {
     let [player] = await sql<{ id: number; username: string }[]>`
       SELECT id, username
       FROM players
-      WHERE lower(username) = ${rsn.toLowerCase()}
+      WHERE normalized_username = ${normalizeRsn(rsn)}
     `;
 
     if (!player) {
@@ -194,6 +195,7 @@ export async function createApiKey(rsn: string): Promise<ApiKeyWithUsername> {
       const [{ id }] = await sql<{ id: number }[]>`
         INSERT INTO players (
           username,
+          normalized_username,
           overall_experience,
           attack_experience,
           defence_experience,
@@ -205,6 +207,7 @@ export async function createApiKey(rsn: string): Promise<ApiKeyWithUsername> {
           last_updated
         ) VALUES (
           ${rsn},
+          ${normalizeRsn(rsn)},
           ${experience[Skill.OVERALL]},
           ${experience[Skill.ATTACK]},
           ${experience[Skill.DEFENCE]},

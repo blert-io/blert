@@ -3,6 +3,7 @@ import {
   ActivityFeedItem as RedisActivityFeedItem,
   ActivityFeedItemType,
   ActivityFeedData,
+  normalizeRsn,
 } from '@blert/common';
 
 import { ChallengeOverview, findChallenges } from './challenge';
@@ -120,7 +121,7 @@ export async function playerActivityByHour(username: string, startTime: Date) {
     FROM challenges c
     JOIN challenge_players cp ON c.id = cp.challenge_id
     JOIN players p ON cp.player_id = p.id
-    WHERE LOWER(p.username) = ${username.toLowerCase()}
+    WHERE p.normalized_username = ${normalizeRsn(username)}
       AND c.start_time >= ${startTime}
   `;
 

@@ -31,6 +31,7 @@ import {
   generalizeSplit,
   isPostgresInvalidTextRepresentation,
   isPostgresUndefinedColumn,
+  normalizeRsn,
   snakeToCamel,
   snakeToCamelObject,
 } from '@blert/common';
@@ -539,7 +540,9 @@ function applyFilters(
           tableName: 'players',
         },
       );
-      conditions.push(sql`lower(players.username) = ${username.toLowerCase()}`);
+      conditions.push(
+        sql`players.normalized_username = ${normalizeRsn(username)}`,
+      );
     } else {
       const matchAll = query.partyMatch !== 'any';
       if (matchAll) {
@@ -548,7 +551,7 @@ function applyFilters(
           FROM challenges
           JOIN challenge_players ON challenges.id = challenge_players.challenge_id
           JOIN players ON challenge_players.player_id = players.id
-          WHERE lower(players.username) = ANY(${query.party.map((u) => u.toLowerCase())})
+          WHERE players.normalized_username = ANY(${query.party.map(normalizeRsn)})
           GROUP BY challenges.id
           HAVING COUNT(*) = ${query.party.length}
         ) challenges`;
@@ -558,7 +561,7 @@ function applyFilters(
           FROM challenges
           JOIN challenge_players ON challenges.id = challenge_players.challenge_id
           JOIN players ON challenge_players.player_id = players.id
-          WHERE lower(players.username) = ANY(${query.party.map((u) => u.toLowerCase())})
+          WHERE players.normalized_username = ANY(${query.party.map(normalizeRsn)})
         ) challenges`;
       }
     }
@@ -1444,7 +1447,7 @@ function sessionFilters(query: SessionQuery): {
             FROM challenge_players cp
             JOIN players p ON p.id = cp.player_id
             JOIN challenges c ON c.id = cp.challenge_id
-            WHERE LOWER(p.username) = ${query.party[0].toLowerCase()}
+            WHERE p.normalized_username = ${normalizeRsn(query.party[0])}
           )
         `,
       );
@@ -1456,7 +1459,7 @@ function sessionFilters(query: SessionQuery): {
             FROM challenge_players cp
             JOIN players p ON p.id = cp.player_id
             JOIN challenges c ON c.id = cp.challenge_id
-            WHERE LOWER(p.username) = ANY(${query.party.map((u) => u.toLowerCase())})
+            WHERE p.normalized_username = ANY(${query.party.map(normalizeRsn)})
             GROUP BY c.id
             HAVING COUNT(*) = ${query.party.length}
           )
@@ -2304,7 +2307,7 @@ export async function loadPlayerWithStats(
       player_stats.*
     FROM players
     JOIN player_stats ON players.id = player_stats.player_id
-    WHERE lower(players.username) = ${username.toLowerCase()}
+    WHERE players.normalized_username = ${normalizeRsn(username)}
     ORDER BY player_stats.date DESC
     LIMIT 1
   `;
@@ -2403,7 +2406,7 @@ export async function loadPbsForPlayer(
     WITH player_id_cte AS (
       SELECT id
       FROM players
-      WHERE lower(username) = ${username.toLowerCase()}
+      WHERE normalized_username = ${normalizeRsn(username)}
       LIMIT 1
     ),
     player_pbs AS (
@@ -2758,7 +2761,7 @@ export async function getPlayerStatsHistory(
   filter: PlayerStatsFilter = {},
 ): Promise<Partial<PlayerStats>[]> {
   const conditions: postgres.Fragment[] = [
-    sql`lower(players.username) = ${username.toLowerCase()}`,
+    sql`players.normalized_username = ${normalizeRsn(username)}`,
   ];
   const fields: postgres.Fragment[] = [];
 
@@ -2936,7 +2939,7 @@ export async function topPartnersForPlayer(
   } = options;
 
   const playerId = await sql<{ id: number }[]>`
-    SELECT id FROM players WHERE LOWER(username) = ${username.toLowerCase()}
+    SELECT id FROM players WHERE normalized_username = ${normalizeRsn(username)}
   `.then((rows) => rows[0]?.id);
 
   if (!playerId) {

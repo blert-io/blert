@@ -1,6 +1,6 @@
 'use server';
 
-import { NameChange, NameChangeStatus } from '@blert/common';
+import { NameChange, NameChangeStatus, normalizeRsn } from '@blert/common';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -8,7 +8,7 @@ import { sql } from './db';
 import processor from './name-change-processor';
 import { getSignedInUserId } from './users';
 
-const RSN_REGEX = /^[a-zA-Z0-9 _-]{1,12}$/;
+const RSN_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9 _-]{0,11}$/;
 
 export async function submitNameChangeForm(
   _state: string | null,
@@ -29,11 +29,21 @@ export async function submitNameChangeForm(
   const [player] = await sql<[{ id: number; username: string }?]>`
     SELECT id, username
     FROM players
-    WHERE lower(username) = ${oldName.toLowerCase()}
+    WHERE normalized_username = ${normalizeRsn(oldName)}
   `;
 
   if (!player) {
     return `No Blert player found with the name ${oldName}`;
+  }
+
+  const [existingPending] = await sql`
+    SELECT 1 FROM name_changes
+    WHERE player_id = ${player.id}
+      AND status IN (${NameChangeStatus.PENDING}, ${NameChangeStatus.DEFERRED})
+    LIMIT 1
+  `;
+  if (existingPending) {
+    return 'This player already has a pending name change';
   }
 
   const nameChange: {
@@ -111,7 +121,7 @@ export async function getNameChangesForPlayer(
       nc.processed_at
     FROM name_changes nc
     JOIN players p ON nc.player_id = p.id
-    WHERE lower(p.username) = ${username.toLowerCase()}
+    WHERE p.normalized_username = ${normalizeRsn(username)}
       AND nc.status = ${NameChangeStatus.ACCEPTED}
       AND nc.hidden = FALSE
     ORDER BY nc.processed_at DESC

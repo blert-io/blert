@@ -1,6 +1,6 @@
 'use server';
 
-import { ChallengeType, SplitType } from '@blert/common';
+import { ChallengeType, SplitType, normalizeRsn } from '@blert/common';
 
 import { sql } from './db';
 
@@ -99,13 +99,13 @@ export async function getFilteredSplitDistributions(
   after?: Date,
   before?: Date,
 ): Promise<SplitDistribution[]> {
-  const lowercaseParty = party.map((u) => u.toLowerCase());
+  const normalizedParty = party.map(normalizeRsn);
 
   const matchingChallenges = sql`
     SELECT cp.challenge_id AS id
     FROM challenge_players cp
     JOIN players p ON p.id = cp.player_id
-    WHERE lower(p.username) = ANY(${lowercaseParty})
+    WHERE p.normalized_username = ANY(${normalizedParty})
     GROUP BY cp.challenge_id
     HAVING COUNT(DISTINCT cp.player_id) = ${party.length}
   `;

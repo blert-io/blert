@@ -3,6 +3,7 @@ import {
   ChallengeStatus,
   ChallengeType,
   SessionStatus,
+  normalizeRsn,
   partyHash,
 } from '@blert/common';
 
@@ -18,12 +19,12 @@ describe('aggregateSessions', () => {
 
   beforeEach(async () => {
     const players = [
-      { username: 'PlayerA' },
-      { username: 'PlayerB' },
-      { username: 'PlayerC' },
+      { username: 'PlayerA', normalized_username: normalizeRsn('PlayerA') },
+      { username: 'PlayerB', normalized_username: normalizeRsn('PlayerB') },
+      { username: 'PlayerC', normalized_username: normalizeRsn('PlayerC') },
     ];
     const playerResults = await sql`
-      INSERT INTO players ${sql(players, ['username'])} RETURNING id
+      INSERT INTO players ${sql(players, ['username', 'normalized_username'])} RETURNING id
     `;
     playerIds = playerResults.map((p) => p.id);
 
