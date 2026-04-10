@@ -66,32 +66,4 @@
       background: rgba(var(--blert-purple-base), 0.1);
     }
   }
-
-  .comparator {
-    position: absolute;
-    left: 1px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 28px;
-    height: calc(100% - 22px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--blert-purple);
-    background: rgba(var(--blert-surface-light-base), 0.2);
-    border-right: 1px solid var(--blert-divider-color);
-    font-size: 12px;
-    transition: all 0.15s ease;
-
-    i {
-      position: relative;
-      left: 1px;
-    }
-
-    &:hover {
-      cursor: pointer;
-      color: var(--blert-font-color-primary);
-      background: rgba(var(--blert-surface-light-base), 0.45);
-    }
-  }
 }

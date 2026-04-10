@@ -1,3 +1,4 @@
+// These values are written to local storage and user settings; do not reorder.
 export const enum Column {
   UUID,
   DATE,
@@ -9,7 +10,6 @@ export const enum Column {
   OVERALL_TIME,
   TOTAL_DEATHS,
 
-  // Split columns.
   MAIDEN_ROOM,
   MAIDEN_70S,
   MAIDEN_50S,
@@ -62,6 +62,12 @@ export const enum Column {
 
   MOKHAIOTL_DELVE,
   MOKHAIOTL_MAX_COMPLETED_DELVE,
+
+  NYLOCAS_CLEANUP,
+  TOB_BLOAT_DOWN_COUNT,
+  TOB_NYLOCAS_PRE_CAP_STALLS,
+  TOB_NYLOCAS_POST_CAP_STALLS,
+  TOB_VERZIK_REDS_COUNT,
 }
 
 export type SelectedColumn = {

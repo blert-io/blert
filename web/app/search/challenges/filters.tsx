@@ -4,22 +4,27 @@ import {
   ChallengeType,
   SplitType,
   Stage,
-  splitName,
 } from '@blert/common';
 import React, { Dispatch, SetStateAction, useContext, useState } from 'react';
 
 import Button from '@/components/button';
 import Checkbox from '@/components/checkbox';
+import ComparableInput, { Comparator } from '@/components/comparable-input';
 import DatePicker from '@/components/date-picker';
 import Menu, { MenuItem } from '@/components/menu';
 import Modal from '@/components/modal';
 import PlayerSearch from '@/components/player-search';
 import TagList from '@/components/tag-list';
-import TickInput, { Comparator } from '@/components/tick-input';
+import TickInput from '@/components/tick-input';
 import Tooltip from '@/components/tooltip';
 import { DisplayContext } from '@/display';
 
-import { SearchContext, SearchFilters } from './context';
+import {
+  SearchContext,
+  SearchFilters,
+  emptyTobFilters,
+  hasTobFilters,
+} from './context';
 
 import styles from './style.module.scss';
 
@@ -228,6 +233,8 @@ export default function Filters({
     context.filters.type.length === 0 ||
     context.filters.type.includes(ChallengeType.TOB);
 
+  const tobFiltersActive = hasTobFilters(context.filters.tob);
+
   return (
     <div className={styles.filters}>
       <div className={styles.filterGroup}>
@@ -290,9 +297,19 @@ export default function Filters({
             label="ToB Hard"
             simple
           />
-          {checkbox('type', ChallengeType.INFERNO, 'Inferno')}
-          {checkbox('type', ChallengeType.COLOSSEUM, 'Colosseum')}
-          {checkbox('type', ChallengeType.MOKHAIOTL, 'Mokhaiotl')}
+          {checkbox('type', ChallengeType.INFERNO, 'Inferno', tobFiltersActive)}
+          {checkbox(
+            'type',
+            ChallengeType.COLOSSEUM,
+            'Colosseum',
+            tobFiltersActive,
+          )}
+          {checkbox(
+            'type',
+            ChallengeType.MOKHAIOTL,
+            'Mokhaiotl',
+            tobFiltersActive,
+          )}
         </div>
         <div className={`${styles.checkGroup} ${styles.item}`}>
           {clearLabel('Status', 'status')}
@@ -599,65 +616,345 @@ export default function Filters({
   );
 }
 
+type FilterValue = [Comparator, number];
+
+type IsFilterCollection<T> =
+  T extends Map<number, FilterValue>
+    ? true
+    : string extends keyof T
+      ? T extends Record<string, FilterValue>
+        ? true
+        : false
+      : false;
+
+type ScalarFilterPaths<T, Prefix extends string = ''> = {
+  [K in keyof T & string]: T[K] extends FilterValue | null
+    ? `${Prefix}${K}`
+    : IsFilterCollection<T[K]> extends true
+      ? never
+      : T[K] extends unknown[] | Map<unknown, unknown>
+        ? never
+        : T[K] extends object
+          ? ScalarFilterPaths<T[K], `${Prefix}${K}.`>
+          : never;
+}[keyof T & string];
+
+type KeyedFilterPaths<T, Prefix extends string = ''> = {
+  [K in keyof T & string]: IsFilterCollection<T[K]> extends true
+    ? `${Prefix}${K}`
+    : T[K] extends unknown[] | Map<unknown, unknown>
+      ? never
+      : T[K] extends object
+        ? KeyedFilterPaths<T[K], `${Prefix}${K}.`>
+        : never;
+}[keyof T & string];
+
+type PathValue<T, P extends string> = P extends `${infer K}.${infer Rest}`
+  ? K extends keyof T
+    ? PathValue<T[K], Rest>
+    : never
+  : P extends keyof T
+    ? T[P]
+    : never;
+
+type InputKind = 'time' | 'ticks' | 'number';
+
+type ScalarTarget = {
+  [P in ScalarFilterPaths<SearchFilters>]: {
+    path: P;
+    inputKind: InputKind;
+  };
+}[ScalarFilterPaths<SearchFilters>];
+
+type KeyedTarget = {
+  [P in KeyedFilterPaths<SearchFilters>]: {
+    path: P;
+    key: PathValue<SearchFilters, P> extends Map<infer K, FilterValue>
+      ? K
+      : PathValue<SearchFilters, P> extends Record<infer K, FilterValue>
+        ? K
+        : never;
+    inputKind: InputKind;
+  };
+}[KeyedFilterPaths<SearchFilters>];
+
+type FilterTarget = ScalarTarget | KeyedTarget;
+
+type FilterDef = FilterTarget & { label: string; round?: number };
+
+function filterKey(target: FilterTarget): string {
+  if ('key' in target) {
+    return `${target.path}:${target.key}`;
+  }
+  return target.path;
+}
+
+function resolve<P extends string>(
+  obj: SearchFilters,
+  path: P,
+): PathValue<SearchFilters, P> {
+  const parts = path.split('.');
+  let current: unknown = obj;
+  for (const part of parts) {
+    current = (current as Record<string, unknown>)[part];
+  }
+  return current as PathValue<SearchFilters, P>;
+}
+
+function getFilterValue(
+  filters: SearchFilters,
+  target: FilterTarget,
+): FilterValue | null {
+  if ('key' in target) {
+    const collection = resolve(filters, target.path);
+    return collection.get(target.key) ?? null;
+  }
+  return resolve(filters, target.path);
+}
+
+function setFilterValue(
+  filters: SearchFilters,
+  target: FilterTarget,
+  value: FilterValue | null,
+): void {
+  if ('key' in target) {
+    const collection = resolve(filters, target.path);
+    if (value === null) {
+      collection.delete(target.key);
+    } else {
+      collection.set(target.key, value);
+    }
+  } else {
+    const parts = target.path.split('.');
+    const parentPath = parts.slice(0, -1).join('.');
+    const key = parts[parts.length - 1];
+    const parent = parentPath
+      ? resolve(filters, parentPath as ScalarFilterPaths<SearchFilters>)
+      : filters;
+    (parent as Record<string, unknown>)[key] = value;
+  }
+}
+
+// Filter definitions referenced by custom filter items.
+const FILTER_DEFS: Record<string, FilterDef> = {};
+
+function def(label: string, target: FilterTarget): FilterDef & { id: string } {
+  const id = filterKey(target);
+  const d = { ...target, label };
+  FILTER_DEFS[id] = d;
+  return { ...d, id };
+}
+
+function splitDef(label: string, split: SplitType, round?: number) {
+  const id = filterKey({ path: 'splits', key: split, inputKind: 'time' });
+  const d: FilterDef = {
+    path: 'splits',
+    key: split,
+    inputKind: 'time',
+    label,
+    round,
+  };
+  FILTER_DEFS[id] = d;
+  return { ...d, id };
+}
+
+function bloatDownDef(label: string, downNumber: number) {
+  return def(label, {
+    path: 'tob.bloatDowns',
+    key: downNumber,
+    inputKind: 'ticks',
+  });
+}
+
+const s = splitDef;
+const bd = bloatDownDef;
+
 const CUSTOM_FILTERS_ITEMS: MenuItem[] = [
+  {
+    label: 'ToB',
+    subMenu: [
+      {
+        label: 'Bloat',
+        subMenu: [
+          {
+            label: 'Down count',
+            value: def('Bloat down count', {
+              path: 'tob.bloatDownCount',
+              inputKind: 'number',
+            }).id,
+          },
+          { label: '1st down walk', value: bd('1st down walk', 1).id },
+          { label: '2nd down walk', value: bd('2nd down walk', 2).id },
+          { label: '3rd down walk', value: bd('3rd down walk', 3).id },
+        ],
+      },
+      {
+        label: 'Nylocas',
+        subMenu: [
+          {
+            label: 'Pre-cap stalls',
+            value: def('Nylo pre-cap stalls', {
+              path: 'tob.nylocasPreCapStalls',
+              inputKind: 'number',
+            }).id,
+          },
+          {
+            label: 'Post-cap stalls',
+            value: def('Nylo post-cap stalls', {
+              path: 'tob.nylocasPostCapStalls',
+              inputKind: 'number',
+            }).id,
+          },
+        ],
+      },
+      {
+        label: 'Verzik',
+        subMenu: [
+          {
+            label: 'Reds spawns',
+            value: def('Verzik reds spawns', {
+              path: 'tob.verzikRedsCount',
+              inputKind: 'number',
+            }).id,
+          },
+        ],
+      },
+    ],
+  },
   {
     label: 'Splits',
     subMenu: [
       {
         label: 'ToB',
         subMenu: [
-          { label: 'Challenge time', value: SplitType.TOB_CHALLENGE },
-          { label: 'Overall time', value: SplitType.TOB_OVERALL },
+          {
+            label: 'Challenge time',
+            value: s('Challenge time', SplitType.TOB_CHALLENGE).id,
+          },
+          {
+            label: 'Overall time',
+            value: s('Overall time', SplitType.TOB_OVERALL).id,
+          },
           {
             label: 'Maiden',
             subMenu: [
-              { label: 'Room time', value: SplitType.TOB_MAIDEN },
-              { label: '70s spawn', value: SplitType.TOB_MAIDEN_70S },
-              { label: '50s spawn', value: SplitType.TOB_MAIDEN_50S },
-              { label: '30s spawn', value: SplitType.TOB_MAIDEN_30S },
-              { label: '70s-50s push', value: SplitType.TOB_MAIDEN_70S_50S },
-              { label: '50s-30s push', value: SplitType.TOB_MAIDEN_50S_30S },
-              { label: '30s-end', value: SplitType.TOB_MAIDEN_30S_END },
+              {
+                label: 'Room time',
+                value: s('Maiden room', SplitType.TOB_MAIDEN).id,
+              },
+              {
+                label: '70s spawn',
+                value: s('Maiden 70s', SplitType.TOB_MAIDEN_70S).id,
+              },
+              {
+                label: '50s spawn',
+                value: s('Maiden 50s', SplitType.TOB_MAIDEN_50S).id,
+              },
+              {
+                label: '30s spawn',
+                value: s('Maiden 30s', SplitType.TOB_MAIDEN_30S).id,
+              },
+              {
+                label: '70s-50s push',
+                value: s('Maiden 70s-50s', SplitType.TOB_MAIDEN_70S_50S).id,
+              },
+              {
+                label: '50s-30s push',
+                value: s('Maiden 50s-30s', SplitType.TOB_MAIDEN_50S_30S).id,
+              },
+              {
+                label: '30s-end',
+                value: s('Maiden 30s-end', SplitType.TOB_MAIDEN_30S_END).id,
+              },
             ],
           },
           {
             label: 'Bloat time',
-            value: SplitType.TOB_BLOAT,
+            value: s('Bloat time', SplitType.TOB_BLOAT).id,
           },
           {
             label: 'Nylocas',
             subMenu: [
-              { label: 'Room time', value: SplitType.TOB_NYLO_ROOM },
-              { label: 'Boss spawn', value: SplitType.TOB_NYLO_BOSS_SPAWN },
-              { label: 'Boss time', value: SplitType.TOB_NYLO_BOSS },
+              {
+                label: 'Room time',
+                value: s('Nylo room', SplitType.TOB_NYLO_ROOM).id,
+              },
+              {
+                label: 'Boss spawn',
+                value: s('Nylo boss spawn', SplitType.TOB_NYLO_BOSS_SPAWN, 4)
+                  .id,
+              },
+              {
+                label: 'Boss time',
+                value: s('Nylo boss', SplitType.TOB_NYLO_BOSS, 4).id,
+              },
             ],
           },
           {
             label: 'Sotetseg',
             subMenu: [
-              { label: 'Room time', value: SplitType.TOB_SOTETSEG },
-              { label: 'Maze 1 proc', value: SplitType.TOB_SOTETSEG_66 },
-              { label: 'Maze 1 time', value: SplitType.TOB_SOTETSEG_MAZE_1 },
-              { label: 'Maze 2 proc', value: SplitType.TOB_SOTETSEG_33 },
-              { label: 'Maze 2 time', value: SplitType.TOB_SOTETSEG_MAZE_2 },
+              {
+                label: 'Room time',
+                value: s('Sote room', SplitType.TOB_SOTETSEG).id,
+              },
+              {
+                label: 'Maze 1 proc',
+                value: s('Sote 66', SplitType.TOB_SOTETSEG_66).id,
+              },
+              {
+                label: 'Maze 1 time',
+                value: s('Sote maze 1', SplitType.TOB_SOTETSEG_MAZE_1).id,
+              },
+              {
+                label: 'Maze 2 proc',
+                value: s('Sote 33', SplitType.TOB_SOTETSEG_33).id,
+              },
+              {
+                label: 'Maze 2 time',
+                value: s('Sote maze 2', SplitType.TOB_SOTETSEG_MAZE_2).id,
+              },
             ],
           },
           {
             label: 'Xarpus',
             subMenu: [
-              { label: 'Room time', value: SplitType.TOB_XARPUS },
-              { label: 'Screech time', value: SplitType.TOB_XARPUS_SCREECH },
+              {
+                label: 'Room time',
+                value: s('Xarpus room', SplitType.TOB_XARPUS).id,
+              },
+              {
+                label: 'Screech time',
+                value: s('Xarpus screech', SplitType.TOB_XARPUS_SCREECH).id,
+              },
             ],
           },
           {
             label: 'Verzik',
             subMenu: [
-              { label: 'Room time', value: SplitType.TOB_VERZIK_ROOM },
-              { label: 'P1 time', value: SplitType.TOB_VERZIK_P1 },
-              { label: 'Reds spawn', value: SplitType.TOB_VERZIK_REDS },
-              { label: 'P2 end', value: SplitType.TOB_VERZIK_P2_END },
-              { label: 'P2 time', value: SplitType.TOB_VERZIK_P2 },
-              { label: 'P3 time', value: SplitType.TOB_VERZIK_P3 },
+              {
+                label: 'Room time',
+                value: s('Verzik room', SplitType.TOB_VERZIK_ROOM).id,
+              },
+              {
+                label: 'P1 time',
+                value: s('Verzik P1', SplitType.TOB_VERZIK_P1).id,
+              },
+              {
+                label: 'Reds spawn',
+                value: s('Verzik reds', SplitType.TOB_VERZIK_REDS).id,
+              },
+              {
+                label: 'P2 end',
+                value: s('Verzik P2 end', SplitType.TOB_VERZIK_P2_END).id,
+              },
+              {
+                label: 'P2 time',
+                value: s('Verzik P2', SplitType.TOB_VERZIK_P2).id,
+              },
+              {
+                label: 'P3 time',
+                value: s('Verzik P3', SplitType.TOB_VERZIK_P3).id,
+              },
             ],
           },
         ],
@@ -665,48 +962,144 @@ const CUSTOM_FILTERS_ITEMS: MenuItem[] = [
       {
         label: 'Inferno',
         subMenu: [
-          { label: 'Wave 9 entry', value: SplitType.INFERNO_WAVE_9_START },
-          { label: 'Wave 18 entry', value: SplitType.INFERNO_WAVE_18_START },
-          { label: 'Wave 25 entry', value: SplitType.INFERNO_WAVE_25_START },
-          { label: 'Wave 35 entry', value: SplitType.INFERNO_WAVE_35_START },
-          { label: 'Wave 42 entry', value: SplitType.INFERNO_WAVE_42_START },
-          { label: 'Wave 50 entry', value: SplitType.INFERNO_WAVE_50_START },
-          { label: 'Wave 57 entry', value: SplitType.INFERNO_WAVE_57_START },
-          { label: 'Wave 60 entry', value: SplitType.INFERNO_WAVE_60_START },
-          { label: 'Wave 63 entry', value: SplitType.INFERNO_WAVE_63_START },
-          { label: 'Wave 66 entry', value: SplitType.INFERNO_WAVE_66_START },
-          { label: 'Wave 68 entry', value: SplitType.INFERNO_WAVE_68_START },
-          { label: 'Wave 69 entry', value: SplitType.INFERNO_WAVE_69_START },
+          {
+            label: 'Wave 9 entry',
+            value: s('Wave 9 entry', SplitType.INFERNO_WAVE_9_START).id,
+          },
+          {
+            label: 'Wave 18 entry',
+            value: s('Wave 18 entry', SplitType.INFERNO_WAVE_18_START).id,
+          },
+          {
+            label: 'Wave 25 entry',
+            value: s('Wave 25 entry', SplitType.INFERNO_WAVE_25_START).id,
+          },
+          {
+            label: 'Wave 35 entry',
+            value: s('Wave 35 entry', SplitType.INFERNO_WAVE_35_START).id,
+          },
+          {
+            label: 'Wave 42 entry',
+            value: s('Wave 42 entry', SplitType.INFERNO_WAVE_42_START).id,
+          },
+          {
+            label: 'Wave 50 entry',
+            value: s('Wave 50 entry', SplitType.INFERNO_WAVE_50_START).id,
+          },
+          {
+            label: 'Wave 57 entry',
+            value: s('Wave 57 entry', SplitType.INFERNO_WAVE_57_START).id,
+          },
+          {
+            label: 'Wave 60 entry',
+            value: s('Wave 60 entry', SplitType.INFERNO_WAVE_60_START).id,
+          },
+          {
+            label: 'Wave 63 entry',
+            value: s('Wave 63 entry', SplitType.INFERNO_WAVE_63_START).id,
+          },
+          {
+            label: 'Wave 66 entry',
+            value: s('Wave 66 entry', SplitType.INFERNO_WAVE_66_START).id,
+          },
+          {
+            label: 'Wave 68 entry',
+            value: s('Wave 68 entry', SplitType.INFERNO_WAVE_68_START).id,
+          },
+          {
+            label: 'Wave 69 entry',
+            value: s('Wave 69 entry', SplitType.INFERNO_WAVE_69_START).id,
+          },
         ],
       },
       {
         label: 'Colosseum',
         subMenu: [
-          { label: 'Wave 1 time', value: SplitType.COLOSSEUM_WAVE_1 },
-          { label: 'Wave 2 time', value: SplitType.COLOSSEUM_WAVE_2 },
-          { label: 'Wave 3 time', value: SplitType.COLOSSEUM_WAVE_3 },
-          { label: 'Wave 4 time', value: SplitType.COLOSSEUM_WAVE_4 },
-          { label: 'Wave 5 time', value: SplitType.COLOSSEUM_WAVE_5 },
-          { label: 'Wave 6 time', value: SplitType.COLOSSEUM_WAVE_6 },
-          { label: 'Wave 7 time', value: SplitType.COLOSSEUM_WAVE_7 },
-          { label: 'Wave 8 time', value: SplitType.COLOSSEUM_WAVE_8 },
-          { label: 'Wave 9 time', value: SplitType.COLOSSEUM_WAVE_9 },
-          { label: 'Wave 10 time', value: SplitType.COLOSSEUM_WAVE_10 },
-          { label: 'Wave 11 time', value: SplitType.COLOSSEUM_WAVE_11 },
-          { label: 'Sol Heredit time', value: SplitType.COLOSSEUM_WAVE_12 },
+          {
+            label: 'Wave 1',
+            value: s('Wave 1', SplitType.COLOSSEUM_WAVE_1).id,
+          },
+          {
+            label: 'Wave 2',
+            value: s('Wave 2', SplitType.COLOSSEUM_WAVE_2).id,
+          },
+          {
+            label: 'Wave 3',
+            value: s('Wave 3', SplitType.COLOSSEUM_WAVE_3).id,
+          },
+          {
+            label: 'Wave 4',
+            value: s('Wave 4', SplitType.COLOSSEUM_WAVE_4).id,
+          },
+          {
+            label: 'Wave 5',
+            value: s('Wave 5', SplitType.COLOSSEUM_WAVE_5).id,
+          },
+          {
+            label: 'Wave 6',
+            value: s('Wave 6', SplitType.COLOSSEUM_WAVE_6).id,
+          },
+          {
+            label: 'Wave 7',
+            value: s('Wave 7', SplitType.COLOSSEUM_WAVE_7).id,
+          },
+          {
+            label: 'Wave 8',
+            value: s('Wave 8', SplitType.COLOSSEUM_WAVE_8).id,
+          },
+          {
+            label: 'Wave 9',
+            value: s('Wave 9', SplitType.COLOSSEUM_WAVE_9).id,
+          },
+          {
+            label: 'Wave 10',
+            value: s('Wave 10', SplitType.COLOSSEUM_WAVE_10).id,
+          },
+          {
+            label: 'Wave 11',
+            value: s('Wave 11', SplitType.COLOSSEUM_WAVE_11).id,
+          },
+          {
+            label: 'Sol Heredit',
+            value: s('Sol Heredit', SplitType.COLOSSEUM_WAVE_12).id,
+          },
         ],
       },
       {
         label: 'Mokhaiotl',
         subMenu: [
-          { label: 'Delve 1 time', value: SplitType.MOKHAIOTL_DELVE_1 },
-          { label: 'Delve 2 time', value: SplitType.MOKHAIOTL_DELVE_2 },
-          { label: 'Delve 3 time', value: SplitType.MOKHAIOTL_DELVE_3 },
-          { label: 'Delve 4 time', value: SplitType.MOKHAIOTL_DELVE_4 },
-          { label: 'Delve 5 time', value: SplitType.MOKHAIOTL_DELVE_5 },
-          { label: 'Delve 6 time', value: SplitType.MOKHAIOTL_DELVE_6 },
-          { label: 'Delve 7 time', value: SplitType.MOKHAIOTL_DELVE_7 },
-          { label: 'Delve 8 time', value: SplitType.MOKHAIOTL_DELVE_8 },
+          {
+            label: 'Delve 1',
+            value: s('Delve 1', SplitType.MOKHAIOTL_DELVE_1).id,
+          },
+          {
+            label: 'Delve 2',
+            value: s('Delve 2', SplitType.MOKHAIOTL_DELVE_2).id,
+          },
+          {
+            label: 'Delve 3',
+            value: s('Delve 3', SplitType.MOKHAIOTL_DELVE_3).id,
+          },
+          {
+            label: 'Delve 4',
+            value: s('Delve 4', SplitType.MOKHAIOTL_DELVE_4).id,
+          },
+          {
+            label: 'Delve 5',
+            value: s('Delve 5', SplitType.MOKHAIOTL_DELVE_5).id,
+          },
+          {
+            label: 'Delve 6',
+            value: s('Delve 6', SplitType.MOKHAIOTL_DELVE_6).id,
+          },
+          {
+            label: 'Delve 7',
+            value: s('Delve 7', SplitType.MOKHAIOTL_DELVE_7).id,
+          },
+          {
+            label: 'Delve 8',
+            value: s('Delve 8', SplitType.MOKHAIOTL_DELVE_8).id,
+          },
         ],
       },
     ],
@@ -730,31 +1123,30 @@ function CustomFilters({
   const display = useContext(DisplayContext);
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const [splitInputs, setSplitInputs] = useState<Record<string, SplitValues>>(
+  const [customInputs, setCustomInputs] = useState<Record<string, SplitValues>>(
     () => {
       const inputs: Record<string, SplitValues> = {};
-      Object.entries(context.filters.splits).forEach(
-        ([split, [comparator, ticks]]) => {
-          inputs[split] = { ticks, comparator };
-        },
-      );
+      for (const [id, filterDef] of Object.entries(FILTER_DEFS)) {
+        const value = getFilterValue(context.filters, filterDef);
+        if (value !== null) {
+          inputs[id] = { ticks: value[1], comparator: value[0] };
+        }
+      }
       return inputs;
     },
   );
   const [modified, setModified] = useState(false);
 
-  const addInput = (split: string | number) => {
+  const addInput = (id: string | number) => {
+    const key = String(id);
     setModified(true);
-    setSplitInputs((prev) => {
-      if (prev[split] !== undefined) {
+    setCustomInputs((prev) => {
+      if (prev[key] !== undefined) {
         return prev;
       }
       return {
         ...prev,
-        [split]: {
-          ticks: null,
-          comparator: Comparator.EQUAL,
-        },
+        [key]: { ticks: null, comparator: Comparator.EQUAL },
       };
     });
   };
@@ -768,14 +1160,26 @@ function CustomFilters({
 
     setModified(false);
     setContext((prev) => {
-      const next = { ...prev };
-      next.filters.splits = {};
-      Object.entries(splitInputs).forEach(([split, { ticks, comparator }]) => {
-        if (ticks !== null) {
-          next.filters.splits[split] = [comparator, ticks ?? 0];
+      const next = {
+        ...prev,
+        filters: {
+          ...prev.filters,
+          splits: new Map<number, [Comparator, number]>(),
+          tob: emptyTobFilters(),
+        },
+        pagination: {},
+      };
+
+      for (const [id, { ticks, comparator }] of Object.entries(customInputs)) {
+        if (ticks === null) {
+          continue;
         }
-      });
-      next.pagination = {};
+        const filterDef = FILTER_DEFS[id];
+        if (filterDef !== undefined) {
+          setFilterValue(next.filters, filterDef, [comparator, ticks]);
+        }
+      }
+
       return next;
     });
   };
@@ -826,47 +1230,69 @@ function CustomFilters({
         </div>
       </div>
       <div className={styles.inputs}>
-        {Object.keys(splitInputs).map((s) => {
-          const split = Number(s) as SplitType;
-          const name = splitName(split, true);
-          const round =
-            split === SplitType.TOB_NYLO_BOSS_SPAWN ||
-            split === SplitType.TOB_NYLO_BOSS
-              ? 4
-              : 1;
+        {Object.keys(customInputs).map((id) => {
+          const filterDef = FILTER_DEFS[id];
+          if (filterDef === undefined) {
+            return null;
+          }
+
+          const input = customInputs[id];
+          const removeFilter = () => {
+            setModified(true);
+            setCustomInputs((prev) => {
+              const next = { ...prev };
+              delete next[id];
+              return next;
+            });
+          };
+          const onChange = (value: number | null, cmp?: Comparator) => {
+            setModified(true);
+            setCustomInputs((prev) => ({
+              ...prev,
+              [id]: { ticks: value, comparator: cmp ?? Comparator.EQUAL },
+            }));
+          };
 
           return (
-            <div key={split} className={styles.customInput}>
-              <TickInput
-                comparator
-                label={name}
-                id={`filters-split-${split}`}
-                initialComparator={splitInputs[split]?.comparator}
-                initialTicks={splitInputs[split]?.ticks ?? undefined}
-                labelBg="var(--blert-surface-dark)"
-                onChange={(ticks, comparator) => {
-                  setModified(true);
-                  setSplitInputs((prev) => ({
-                    ...prev,
-                    [split]: { ticks, comparator },
-                  }));
-                }}
-                round={round}
-              />
+            <div key={id} className={styles.customInput}>
+              {filterDef.inputKind === 'number' ? (
+                <ComparableInput
+                  id={`filters-custom-${id}`}
+                  label={filterDef.label}
+                  labelBg="var(--blert-surface-dark)"
+                  type="number"
+                  comparator={input.comparator}
+                  onComparatorChange={(c) => onChange(input.ticks, c)}
+                  value={input.ticks?.toString() ?? ''}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value);
+                    onChange(isNaN(v) ? null : v, input.comparator);
+                  }}
+                />
+              ) : (
+                <TickInput
+                  comparator
+                  label={filterDef.label}
+                  id={`filters-custom-${id}`}
+                  initialComparator={input.comparator}
+                  initialTicks={input.ticks ?? undefined}
+                  inputMode={
+                    filterDef.inputKind === 'ticks' ? 'ticks' : undefined
+                  }
+                  labelBg="var(--blert-surface-dark)"
+                  onChange={onChange}
+                  round={filterDef.round}
+                />
+              )}
               <button
                 className={styles.remove}
-                onClick={() => {
-                  setModified(true);
-                  setSplitInputs((prev) => {
-                    const next = { ...prev };
-                    delete next[split];
-                    return next;
-                  });
-                }}
+                onClick={removeFilter}
                 type="button"
               >
                 <i className="fas fa-times" />
-                <label className="sr-only">Remove filter {name}</label>
+                <label className="sr-only">
+                  Remove filter {filterDef.label}
+                </label>
               </button>
             </div>
           );

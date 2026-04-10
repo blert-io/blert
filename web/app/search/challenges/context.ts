@@ -55,6 +55,61 @@ function parseComparatorParam<T extends number>(
   return [comparator, num as T];
 }
 
+export type TobFilters = {
+  bloatDowns: Map<number, [Comparator, number]>;
+  bloatDownCount: [Comparator, number] | null;
+  nylocasPreCapStalls: [Comparator, number] | null;
+  nylocasPostCapStalls: [Comparator, number] | null;
+  verzikRedsCount: [Comparator, number] | null;
+};
+
+function parseTobParam(tob: TobFilters, key: string, value: string): void {
+  if (key.startsWith('bloatDown:')) {
+    const down = parseInt(key.slice(10));
+    if (!isNaN(down)) {
+      const parsed = parseComparatorParam(value);
+      if (parsed !== null) {
+        tob.bloatDowns.set(down, parsed);
+      }
+    }
+    return;
+  }
+
+  const scalarFields: Exclude<keyof TobFilters, 'bloatDowns'>[] = [
+    'bloatDownCount',
+    'nylocasPreCapStalls',
+    'nylocasPostCapStalls',
+    'verzikRedsCount',
+  ];
+  const field = scalarFields.find((f) => f === key);
+  if (field !== undefined) {
+    const parsed = parseComparatorParam(value);
+    if (parsed !== null) {
+      tob[field] = parsed;
+    }
+  }
+}
+
+export function emptyTobFilters(): TobFilters {
+  return {
+    bloatDowns: new Map(),
+    bloatDownCount: null,
+    nylocasPreCapStalls: null,
+    nylocasPostCapStalls: null,
+    verzikRedsCount: null,
+  };
+}
+
+export function hasTobFilters(tob: TobFilters): boolean {
+  return (
+    tob.bloatDowns.size > 0 ||
+    tob.bloatDownCount !== null ||
+    tob.nylocasPreCapStalls !== null ||
+    tob.nylocasPostCapStalls !== null ||
+    tob.verzikRedsCount !== null
+  );
+}
+
 export type SearchFilters = {
   party: string[];
   mode: ChallengeMode[];
@@ -64,7 +119,8 @@ export type SearchFilters = {
   stage: [Comparator, Stage] | null;
   startDate: Date | null;
   endDate: Date | null;
-  splits: Record<string, [Comparator, number]>;
+  splits: Map<number, [Comparator, number]>;
+  tob: TobFilters;
   accurateSplits: boolean;
   fullRecordings: boolean;
 };
@@ -129,9 +185,28 @@ export function filtersToUrlParams(filters: SearchFilters): UrlParams {
     params.stage = `${serializeComparator(comparator)}${value}`;
   }
 
-  Object.entries(filters.splits).forEach(([split, [comparator, value]]) => {
+  for (const [split, [comparator, value]] of filters.splits) {
     params[`split:${split}`] = `${serializeComparator(comparator)}${value}`;
-  });
+  }
+
+  for (const [down, [comparator, value]] of filters.tob.bloatDowns) {
+    params[`tob.bloatDown:${down}`] =
+      `${serializeComparator(comparator)}${value}`;
+  }
+
+  const tobScalarFields: Exclude<keyof TobFilters, 'bloatDowns'>[] = [
+    'bloatDownCount',
+    'nylocasPreCapStalls',
+    'nylocasPostCapStalls',
+    'verzikRedsCount',
+  ];
+  for (const field of tobScalarFields) {
+    const v = filters.tob[field];
+    if (v !== null) {
+      const [comparator, value] = v;
+      params[`tob.${field}`] = `${serializeComparator(comparator)}${value}`;
+    }
+  }
 
   return params;
 }
@@ -171,7 +246,8 @@ export function contextFromUrlParams(params: NextSearchParams): SearchContext {
       stage: null,
       startDate: null,
       endDate: null,
-      splits: {},
+      splits: new Map(),
+      tob: emptyTobFilters(),
       accurateSplits: false,
       fullRecordings: false,
     },
@@ -257,11 +333,15 @@ export function contextFromUrlParams(params: NextSearchParams): SearchContext {
 
       default:
         if (key.startsWith('split:')) {
-          const split = key.slice(6);
-          const parsed = parseComparatorParam(value);
-          if (parsed !== null) {
-            context.filters.splits[split] = parsed;
+          const split = parseInt(key.slice(6));
+          if (!isNaN(split)) {
+            const parsed = parseComparatorParam(value);
+            if (parsed !== null) {
+              context.filters.splits.set(split, parsed);
+            }
           }
+        } else if (key.startsWith('tob.')) {
+          parseTobParam(context.filters.tob, key.slice(4), value);
         }
         break;
     }
