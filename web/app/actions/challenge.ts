@@ -300,6 +300,11 @@ export type SortableFields =
 
 type SingleOrArray<T> = T | T[];
 
+export type TobQuery = {
+  bloatDowns?: Map<number, Comparator<number>>;
+  bloatDownCount?: Comparator<number>;
+};
+
 export type ChallengeQuery = {
   uuid?: string[];
   session?: number[] | string[];
@@ -311,6 +316,7 @@ export type ChallengeQuery = {
   /** Whether all players must be present ('all') or any player ('any'). Default: 'all' */
   partyMatch?: 'all' | 'any';
   splits?: Map<SplitType, Comparator<number>>;
+  tob?: TobQuery;
   sort?: SingleOrArray<SortQuery<SortableFields>>;
   startTime?: Comparator<Date>;
   challengeTicks?: Comparator<number>;
@@ -594,6 +600,53 @@ function applyFilters(
       on: sql`${sqlChallenges}.id = filtered_splits.challenge_id`,
       tableName: 'challenges_with_splits',
     });
+  }
+
+  if (query.tob !== undefined) {
+    const { bloatDowns, bloatDownCount } = query.tob;
+    const bloatDownConditions: postgres.Fragment[] = [];
+
+    if (bloatDowns !== undefined && bloatDowns.size > 0) {
+      for (const [downNumber, comparator] of bloatDowns) {
+        const condition = comparatorToSql(
+          sql('bloat_downs'),
+          'walk_ticks',
+          comparator,
+        );
+        bloatDownConditions.push(
+          sql`(bloat_downs.down_number = ${downNumber} AND ${condition})`,
+        );
+      }
+    }
+
+    if (bloatDownConditions.length > 0) {
+      joins.push({
+        table: sql`(
+          SELECT challenge_id
+          FROM bloat_downs
+          WHERE accurate
+          GROUP BY challenge_id
+          HAVING COUNT(*) FILTER (${where(bloatDownConditions, 'or')}) = ${bloatDownConditions.length}
+        ) filtered_bloat_downs`,
+        on: sql`${sqlChallenges}.id = filtered_bloat_downs.challenge_id`,
+        tableName: 'filtered_bloat_downs',
+      });
+    }
+
+    if (bloatDownCount !== undefined) {
+      joins.push({
+        table: sql`tob_challenge_stats`,
+        on: sql`${sqlChallenges}.id = tob_challenge_stats.challenge_id`,
+        tableName: 'tob_challenge_stats',
+      });
+      conditions.push(
+        comparatorToSql(
+          sql('tob_challenge_stats'),
+          'bloat_down_count',
+          bloatDownCount,
+        ),
+      );
+    }
   }
 
   if (query.sort !== undefined) {
@@ -1142,6 +1195,13 @@ export async function aggregateChallenges<
 
     if (!Array.isArray(aggs)) {
       aggs = [aggs];
+    }
+
+    const invalidAggregations = aggs.filter((agg) => !isAggregation(agg));
+    if (invalidAggregations.length > 0) {
+      throw new InvalidQueryError(
+        `Invalid aggregations: ${invalidAggregations.join(', ')}`,
+      );
     }
 
     const [tableField, table] = shorthandToFullField(camelToSnake(field));
@@ -2018,6 +2078,13 @@ export async function aggregateSessions<
 
     if (!Array.isArray(aggs)) {
       aggs = [aggs];
+    }
+
+    const invalidAggregations = aggs.filter((agg) => !isAggregation(agg));
+    if (invalidAggregations.length > 0) {
+      throw new InvalidQueryError(
+        `Invalid aggregations: ${invalidAggregations.join(', ')}`,
+      );
     }
 
     const fieldExpression = sessionFieldToExpression(field);

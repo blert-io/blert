@@ -480,9 +480,9 @@ export default abstract class ChallengeProcessor {
       this.challengeStatus = ChallengeStatus.WIPED;
     }
 
-    await this.onStageFinished(stage, events);
-
     const accurate = !this.partyChangedMidChallenge && events.isAccurate();
+
+    await this.onStageFinished(stage, events, accurate);
 
     await Promise.all([
       this.addStageDeaths(),
@@ -1579,10 +1579,12 @@ export default abstract class ChallengeProcessor {
    * Invoked after all events have been processed for a stage.
    * @param stage The stage of the events.
    * @param events The events that were processed.
+   * @param accurate Whether the stage data is considered accurate.
    */
   protected abstract onStageFinished(
     stage: Stage,
     events: MergedEvents,
+    accurate: boolean,
   ): Promise<void>;
 
   /**

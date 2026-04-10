@@ -1,7 +1,7 @@
 import { ChallengeMode, SplitType } from '@blert/common';
 
 import { ChallengeQuery, SortQuery, SortableFields } from '@/actions/challenge';
-import { Condition, Operator, parseQuery } from '@/actions/query';
+import { Comparator, Condition, Operator, parseQuery } from '@/actions/query';
 import {
   dateComparatorParam,
   expectSingle,
@@ -9,6 +9,29 @@ import {
   numericComparatorValue,
 } from '@/api/query';
 import { NextSearchParams } from '@/utils/url';
+
+type NamespacedParamHandler = {
+  validateKey?: (id: number) => boolean;
+  apply: (
+    query: ChallengeQuery,
+    id: number,
+    comparator: Comparator<number>,
+  ) => void;
+};
+
+const namespacedParams: Record<string, NamespacedParamHandler> = {
+  split: {
+    apply: (query, id, comparator) => {
+      (query.splits ??= new Map()).set(id as SplitType, comparator);
+    },
+  },
+  'tob.bloatDown': {
+    validateKey: (id) => id >= 1,
+    apply: (query, id, comparator) => {
+      ((query.tob ??= {}).bloatDowns ??= new Map()).set(id, comparator);
+    },
+  },
+};
 
 export function parseChallengeQueryParams(
   searchParams: URLSearchParams,
@@ -86,26 +109,33 @@ export function parseChallengeQuery(
   }
 
   for (const [key, value] of Object.entries(searchParams)) {
-    if (key.startsWith('split:')) {
-      if (value === undefined || Array.isArray(value)) {
-        return null;
-      }
+    const colonIndex = key.indexOf(':');
+    if (colonIndex === -1) {
+      continue;
+    }
 
-      const parts = key.split(':');
-      if (parts.length !== 2) {
-        return null;
-      }
+    const handler = namespacedParams[key.slice(0, colonIndex)];
+    if (handler === undefined) {
+      continue;
+    }
 
-      const split = parseInt(parts[1]) as SplitType;
-      if (Number.isNaN(split)) {
-        return null;
-      }
+    if (value === undefined || Array.isArray(value)) {
+      return null;
+    }
 
-      try {
-        query.splits!.set(split, numericComparatorValue(value));
-      } catch {
-        return null;
-      }
+    const id = parseInt(key.slice(colonIndex + 1));
+    if (Number.isNaN(id)) {
+      return null;
+    }
+
+    if (handler.validateKey !== undefined && !handler.validateKey(id)) {
+      return null;
+    }
+
+    try {
+      handler.apply(query, id, numericComparatorValue(value));
+    } catch {
+      return null;
     }
   }
 
@@ -119,6 +149,14 @@ export function parseChallengeQuery(
       'challengeTicks',
     );
     query.stage = numericComparatorParam(searchParams, 'stage');
+
+    const bloatDownCount = numericComparatorParam(
+      searchParams,
+      'tob.bloatDownCount',
+    );
+    if (bloatDownCount !== undefined) {
+      (query.tob ??= {}).bloatDownCount = bloatDownCount;
+    }
   } catch {
     return null;
   }

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 
-import { BloatHandsResponse } from '@/actions/bloat-hands';
+import { BloatHandsResponse } from '@/actions/theatre';
 import Tooltip from '@/components/tooltip';
 
 import { DisplayMode } from './controls';

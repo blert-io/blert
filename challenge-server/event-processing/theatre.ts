@@ -39,6 +39,12 @@ type SoteMazeState = {
   chosenPlayer: string | null;
 };
 
+type BloatDownData = {
+  downNumber: number;
+  tick: number;
+  walkTime: number;
+};
+
 type BloatHandData = {
   waveNumber: number;
   tileId: number;
@@ -102,7 +108,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
   private rooms: TobRooms;
 
   private stageStats: Partial<TobChallengeStats>;
-  private bloatDownTicks: number[];
+  private bloatDowns: BloatDownData[];
   private bloatHands: BloatHandData[];
   private bloatWaveNumber: number;
   private stalledNyloWaves: number[];
@@ -141,7 +147,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
     );
 
     this.stageStats = {};
-    this.bloatDownTicks = [];
+    this.bloatDowns = [];
     this.bloatHands = [];
     this.bloatWaveNumber = 1;
     this.stalledNyloWaves = [];
@@ -226,6 +232,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
   protected override async onStageFinished(
     stage: Stage,
     events: MergedEvents,
+    accurate: boolean,
   ): Promise<void> {
     const stageTicks = events.getLastTick();
     let stageSplit: SplitType;
@@ -252,19 +259,23 @@ export default class TheatreProcessor extends ChallengeProcessor {
         this.stageStats.maidenDeaths = this.rooms.maiden.deaths.length;
         break;
 
-      case Stage.TOB_BLOAT:
+      case Stage.TOB_BLOAT: {
         stageSplit = SplitType.TOB_BLOAT;
         this.rooms.bloat = {
           ...roomData,
           stage: Stage.TOB_BLOAT,
-          downTicks: this.bloatDownTicks,
+          downTicks: this.bloatDowns.map((d) => d.tick),
         };
         this.stageStats.bloatDeaths = this.rooms.bloat.deaths.length;
+        this.stageStats.bloatDownCount = this.bloatDowns.length;
 
-        if (events.isAccurate()) {
-          await this.saveBloatHands();
+        const bloatSaves: Promise<void>[] = [this.saveBloatDowns(accurate)];
+        if (accurate) {
+          bloatSaves.push(this.saveBloatHands());
         }
+        await Promise.all(bloatSaves);
         break;
+      }
 
       case Stage.TOB_NYLOCAS: {
         stageSplit = SplitType.TOB_NYLO_ROOM;
@@ -434,9 +445,14 @@ export default class TheatreProcessor extends ChallengeProcessor {
       }
 
       case Event.Type.TOB_BLOAT_DOWN: {
-        this.bloatDownTicks.push(event.getTick());
+        const bloatDown = event.getBloatDown()!;
+        this.bloatDowns.push({
+          downNumber: bloatDown.getDownNumber(),
+          tick: event.getTick(),
+          walkTime: bloatDown.getUpTicks() - 1,
+        });
 
-        if (event.getBloatDown()!.getDownNumber() === 1) {
+        if (bloatDown.getDownNumber() === 1) {
           const bloat = allEvents
             .eventsForTick(event.getTick())
             .find(
@@ -1033,6 +1049,23 @@ export default class TheatreProcessor extends ChallengeProcessor {
       SET ${sql(camelToSnakeObject(updates))}
       WHERE challenge_id = ${this.getDatabaseId()};
     `;
+  }
+
+  private async saveBloatDowns(accurate: boolean): Promise<void> {
+    if (this.bloatDowns.length === 0) {
+      return;
+    }
+
+    const challengeId = this.getDatabaseId();
+    const rows = this.bloatDowns.map((down) => ({
+      challenge_id: challengeId,
+      down_number: down.downNumber,
+      down_tick: down.tick,
+      walk_ticks: down.walkTime,
+      accurate,
+    }));
+
+    await sql`INSERT INTO bloat_downs ${sql(rows)}`;
   }
 
   private async saveBloatHands(): Promise<void> {

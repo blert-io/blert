@@ -180,6 +180,7 @@ export default class InfernoProcessor extends ChallengeProcessor {
   protected override async onStageFinished(
     stage: Stage,
     events: MergedEvents,
+    _accurate: boolean,
   ): Promise<void> {
     if (this.waveStartTick !== null) {
       // Override total challenge ticks based on reported start time.

@@ -103,6 +103,7 @@ export default class ColosseumProcessor extends ChallengeProcessor {
   protected override async onStageFinished(
     stage: Stage,
     events: MergedEvents,
+    _accurate: boolean,
   ): Promise<void> {
     const state = this.getStageState();
 

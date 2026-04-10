@@ -74,3 +74,59 @@ export async function aggregateBloatHands(
     ),
   };
 }
+
+export type BloatDownsQuery = {
+  mode?: ChallengeMode[];
+  scale?: number[];
+  startTime?: Comparator<Date>;
+  downNumber?: Comparator<number>;
+};
+
+export type BloatDownsResponse = {
+  totalDowns: number;
+  byWalkTicks: Record<string, number>;
+};
+
+/**
+ * Aggregates bloat down walk time distributions filtered by mode, scale, date
+ * range, and down number.
+ */
+export async function aggregateBloatDowns(
+  query: BloatDownsQuery,
+): Promise<BloatDownsResponse> {
+  const mv = sql('mv_bloat_downs_daily');
+  const conditions: postgres.Fragment[] = [];
+
+  if (query.mode !== undefined) {
+    conditions.push(sql`${mv}.mode = ANY(${query.mode})`);
+  }
+
+  if (query.scale !== undefined) {
+    conditions.push(sql`${mv}.scale = ANY(${query.scale})`);
+  }
+
+  if (query.startTime !== undefined) {
+    conditions.push(comparatorToSql(mv, 'day', query.startTime));
+  }
+
+  if (query.downNumber !== undefined) {
+    conditions.push(comparatorToSql(mv, 'down_number', query.downNumber));
+  }
+
+  const rows = await sql<{ walk_ticks: number; count: number }[]>`
+    SELECT
+      walk_ticks,
+      SUM(count)::int AS count
+    FROM ${mv}
+    ${where(conditions)}
+    GROUP BY walk_ticks
+    ORDER BY walk_ticks
+  `;
+
+  return {
+    totalDowns: rows.reduce((sum, row) => sum + row.count, 0),
+    byWalkTicks: Object.fromEntries(
+      rows.map((row) => [row.walk_ticks.toString(), row.count]),
+    ),
+  };
+}
