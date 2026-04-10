@@ -1123,19 +1123,33 @@ function CustomFilters({
   const display = useContext(DisplayContext);
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const [customInputs, setCustomInputs] = useState<Record<string, SplitValues>>(
-    () => {
+  const customInputsFromFilters = React.useCallback(
+    (filters: SearchFilters) => {
       const inputs: Record<string, SplitValues> = {};
       for (const [id, filterDef] of Object.entries(FILTER_DEFS)) {
-        const value = getFilterValue(context.filters, filterDef);
+        const value = getFilterValue(filters, filterDef);
         if (value !== null) {
           inputs[id] = { ticks: value[1], comparator: value[0] };
         }
       }
       return inputs;
     },
+    [],
+  );
+  const [customInputs, setCustomInputs] = useState<Record<string, SplitValues>>(
+    () => customInputsFromFilters(context.filters),
   );
   const [modified, setModified] = useState(false);
+
+  // Sync from context.filters on external changes (e.g. browser back/forward),
+  // but don't clobber the user's in-progress edits.
+  React.useEffect(() => {
+    if (modified) {
+      return;
+    }
+    setCustomInputs(customInputsFromFilters(context.filters));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [context.filters, customInputsFromFilters]);
 
   const addInput = (id: string | number) => {
     const key = String(id);
@@ -1256,19 +1270,21 @@ function CustomFilters({
           return (
             <div key={id} className={styles.customInput}>
               {filterDef.inputKind === 'number' ? (
-                <ComparableInput
-                  id={`filters-custom-${id}`}
-                  label={filterDef.label}
-                  labelBg="var(--blert-surface-dark)"
-                  type="number"
-                  comparator={input.comparator}
-                  onComparatorChange={(c) => onChange(input.ticks, c)}
-                  value={input.ticks?.toString() ?? ''}
-                  onChange={(e) => {
-                    const v = parseInt(e.target.value);
-                    onChange(isNaN(v) ? null : v, input.comparator);
-                  }}
-                />
+                <div className={styles.comparable}>
+                  <ComparableInput
+                    id={`filters-custom-${id}`}
+                    label={filterDef.label}
+                    labelBg="var(--blert-surface-dark)"
+                    type="number"
+                    comparator={input.comparator}
+                    onComparatorChange={(c) => onChange(input.ticks, c)}
+                    value={input.ticks?.toString() ?? ''}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value);
+                      onChange(isNaN(v) ? null : v, input.comparator);
+                    }}
+                  />
+                </div>
               ) : (
                 <TickInput
                   comparator

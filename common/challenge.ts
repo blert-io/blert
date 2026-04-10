@@ -104,6 +104,13 @@ export type TobRooms = {
   verzik: Nullable<TobRoom & { redsSpawnCount: number }>;
 };
 
+export type BloatDown = {
+  downNumber: number;
+  downTick: number;
+  walkTicks: number;
+  accurate: boolean;
+};
+
 export type TobChallengeStats = {
   maidenDeaths: number;
   maidenFullLeaks: number | null;
@@ -111,6 +118,7 @@ export type TobChallengeStats = {
   bloatDeaths: number;
   bloatDownCount: number | null;
   bloatFirstDownHpPercent: number | null;
+  downs?: BloatDown[];
   nylocasDeaths: number;
   nylocasPreCapStalls: number | null;
   nylocasPostCapStalls: number | null;

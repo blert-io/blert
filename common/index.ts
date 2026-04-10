@@ -90,6 +90,7 @@ export {
 } from './event';
 
 export type {
+  BloatDown,
   Challenge,
   ChallengePlayer,
   ColosseumChallenge,
