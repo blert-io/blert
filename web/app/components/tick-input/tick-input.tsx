@@ -2,11 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+import ComparableInput, { Comparator } from '@/components/comparable-input';
 import Input, { InputProps } from '@/components/input';
-import Menu, { MenuItem } from '@/components/menu';
 import { ticksFromTime, ticksToFormattedSeconds } from '@/utils/tick';
-
-import { Comparator } from './comparator';
 
 import styles from './style.module.scss';
 
@@ -29,37 +27,6 @@ type TickInputProps = Omit<
   /** Round time-mode input up to a tick multiple; tick-mode values are untouched. */
   round?: number;
 };
-
-function comparatorIcon(comparator: Comparator): string {
-  switch (comparator) {
-    case Comparator.EQUAL:
-      return 'fa-equals';
-    case Comparator.LESS_THAN:
-      return 'fa-less-than';
-    case Comparator.GREATER_THAN:
-      return 'fa-greater-than';
-    case Comparator.LESS_THAN_OR_EQUAL:
-      return 'fa-less-than-equal';
-    case Comparator.GREATER_THAN_OR_EQUAL:
-      return 'fa-greater-than-equal';
-  }
-}
-
-const COMPARATOR_MENU_ITEMS: MenuItem[] = [
-  { label: 'Equal to', secondary: '=', value: Comparator.EQUAL },
-  { label: 'Less than', secondary: '<', value: Comparator.LESS_THAN },
-  {
-    label: 'At most',
-    secondary: '\u2264',
-    value: Comparator.LESS_THAN_OR_EQUAL,
-  },
-  { label: 'Greater than', secondary: '>', value: Comparator.GREATER_THAN },
-  {
-    label: 'At least',
-    secondary: '\u2265',
-    value: Comparator.GREATER_THAN_OR_EQUAL,
-  },
-];
 
 function normalizeTimeString(time: string): string {
   if (time === ':') {
@@ -119,7 +86,6 @@ export default function TickInput(props: TickInputProps) {
     props.initialComparator ?? Comparator.EQUAL,
   );
   const [invalid, setInvalid] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
 
   // Sync internal value when controlled `ticks` prop changes externally.
   // The parent is responsible for not updating `ticks` while the user is
@@ -141,8 +107,6 @@ export default function TickInput(props: TickInputProps) {
     // Only react to external ticks changes, not internal state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.ticks]);
-
-  const comparatorButtonId = `${props.id}-comparator`;
 
   function callOnChange(val?: string, cmp?: Comparator) {
     const v = val ?? value;
@@ -242,47 +206,34 @@ export default function TickInput(props: TickInputProps) {
     }
   };
 
+  const inputProps: InputProps = {
+    ...props,
+    errorMessage: 'Invalid time',
+    invalid,
+    onBlur,
+    onChange,
+    onKeyDown,
+    maxLength: displayTicks ? 6 : 10,
+    placeholder: displayTicks ? undefined : '0:00.0',
+    value,
+    type: displayTicks ? 'number' : 'text',
+  };
+
   return (
     <div className={styles.tickInput}>
       <div className={styles.inputArea}>
-        <Input
-          {...props}
-          errorMessage="Invalid time"
-          horizontalPadding={props.comparator ? 36 : undefined}
-          invalid={invalid}
-          onBlur={onBlur}
-          onChange={onChange}
-          onKeyDown={onKeyDown}
-          maxLength={displayTicks ? 6 : 10}
-          placeholder={displayTicks ? undefined : '0:00.0'}
-          ref={ref}
-          value={value}
-          type={displayTicks ? 'number' : 'text'}
-        />
-        {props.comparator && (
-          <>
-            <button
-              className={styles.comparator}
-              id={comparatorButtonId}
-              onClick={() => setMenuOpen(!menuOpen)}
-              type="button"
-            >
-              <i className={`fas ${comparatorIcon(comparator)}`} />
-            </button>
-            <Menu
-              attach="bottom"
-              items={COMPARATOR_MENU_ITEMS}
-              onClose={() => setMenuOpen(false)}
-              onSelection={(value) => {
-                const newComparator = value as Comparator;
-                setComparator(newComparator);
-                callOnChange(undefined, newComparator);
-              }}
-              open={menuOpen}
-              targetId={comparatorButtonId}
-              width={170}
-            />
-          </>
+        {props.comparator ? (
+          <ComparableInput
+            {...inputProps}
+            comparator={comparator}
+            onComparatorChange={(c) => {
+              setComparator(c);
+              callOnChange(undefined, c);
+            }}
+            ref={ref}
+          />
+        ) : (
+          <Input {...inputProps} ref={ref} />
         )}
       </div>
       <div className={styles.bottomBar}>

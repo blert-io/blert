@@ -192,6 +192,38 @@ describe('parseChallengeQuery', () => {
     });
   });
 
+  describe('tob stat params', () => {
+    it('should parse nylocas pre-cap stalls', () => {
+      const query = parse({ 'tob.nylocasPreCapStalls': 'eq0' });
+      expect(query!.tob!.nylocasPreCapStalls).toEqual(['==', 0]);
+    });
+
+    it('should parse nylocas post-cap stalls', () => {
+      const query = parse({ 'tob.nylocasPostCapStalls': 'le2' });
+      expect(query!.tob!.nylocasPostCapStalls).toEqual(['<=', 2]);
+    });
+
+    it('should parse verzik reds count', () => {
+      const query = parse({ 'tob.verzikRedsCount': 'ge2' });
+      expect(query!.tob!.verzikRedsCount).toEqual(['>=', 2]);
+    });
+
+    it('should parse multiple tob stat filters together', () => {
+      const query = parse({
+        'tob.bloatDownCount': 'eq3',
+        'tob.nylocasPreCapStalls': 'eq0',
+        'tob.verzikRedsCount': 'ge2',
+      });
+      expect(query!.tob!.bloatDownCount).toEqual(['==', 3]);
+      expect(query!.tob!.nylocasPreCapStalls).toEqual(['==', 0]);
+      expect(query!.tob!.verzikRedsCount).toEqual(['>=', 2]);
+    });
+
+    it('should reject invalid stat comparator value', () => {
+      expect(parse({ 'tob.verzikRedsCount': 'invalid' })).toBeNull();
+    });
+  });
+
   describe('unknown namespaced params', () => {
     it('should ignore unknown namespaces', () => {
       const query = parse({ 'unknown:1': 'eq5' });

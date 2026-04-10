@@ -29,7 +29,7 @@ import { modeNameAndColor, statusNameAndColor } from '@/utils/challenge';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 import { challengeUrl } from '@/utils/url';
 
-import { SearchContext } from './context';
+import { SearchContext, emptyTobFilters } from './context';
 import {
   Column,
   DEFAULT_SELECTED_COLUMNS,
@@ -125,6 +125,108 @@ function splitColumn(
     sortKey: `splits:${type}`,
   };
 }
+
+type ColumnGroup = {
+  label: string;
+  columns: Column[];
+};
+
+const COLUMN_GROUPS: ColumnGroup[] = [
+  {
+    label: 'General',
+    columns: [
+      Column.DATE,
+      Column.TYPE,
+      Column.STATUS,
+      Column.SCALE,
+      Column.PARTY,
+      Column.CHALLENGE_TIME,
+      Column.OVERALL_TIME,
+      Column.TOTAL_DEATHS,
+    ],
+  },
+  {
+    label: 'ToB Splits',
+    columns: [
+      Column.MAIDEN_ROOM,
+      Column.MAIDEN_70S,
+      Column.MAIDEN_50S,
+      Column.MAIDEN_30S,
+      Column.BLOAT_ROOM,
+      Column.NYLOCAS_ROOM,
+      Column.NYLOCAS_CLEANUP,
+      Column.NYLOCAS_BOSS_SPAWN,
+      Column.NYLOCAS_BOSS,
+      Column.SOTETSEG_ROOM,
+      Column.SOTETSEG_66,
+      Column.SOTETSEG_33,
+      Column.XARPUS_ROOM,
+      Column.XARPUS_SCREECH,
+      Column.VERZIK_ROOM,
+      Column.VERZIK_P1,
+      Column.VERZIK_P2,
+      Column.VERZIK_P3,
+    ],
+  },
+  {
+    label: 'ToB Stats',
+    columns: [
+      Column.TOB_BLOAT_DOWN_COUNT,
+      Column.TOB_NYLOCAS_PRE_CAP_STALLS,
+      Column.TOB_NYLOCAS_POST_CAP_STALLS,
+      Column.TOB_VERZIK_REDS_COUNT,
+    ],
+  },
+  {
+    label: 'Inferno',
+    columns: [
+      Column.INFERNO_WAVE_9,
+      Column.INFERNO_WAVE_18,
+      Column.INFERNO_WAVE_25,
+      Column.INFERNO_WAVE_35,
+      Column.INFERNO_WAVE_42,
+      Column.INFERNO_WAVE_50,
+      Column.INFERNO_WAVE_57,
+      Column.INFERNO_WAVE_60,
+      Column.INFERNO_WAVE_63,
+      Column.INFERNO_WAVE_66,
+      Column.INFERNO_WAVE_68,
+      Column.INFERNO_WAVE_69,
+    ],
+  },
+  {
+    label: 'Colosseum',
+    columns: [
+      Column.COLOSSEUM_WAVE_1,
+      Column.COLOSSEUM_WAVE_2,
+      Column.COLOSSEUM_WAVE_3,
+      Column.COLOSSEUM_WAVE_4,
+      Column.COLOSSEUM_WAVE_5,
+      Column.COLOSSEUM_WAVE_6,
+      Column.COLOSSEUM_WAVE_7,
+      Column.COLOSSEUM_WAVE_8,
+      Column.COLOSSEUM_WAVE_9,
+      Column.COLOSSEUM_WAVE_10,
+      Column.COLOSSEUM_WAVE_11,
+      Column.COLOSSEUM_WAVE_12,
+    ],
+  },
+  {
+    label: 'Mokhaiotl',
+    columns: [
+      Column.MOKHAIOTL_DELVE_1,
+      Column.MOKHAIOTL_DELVE_2,
+      Column.MOKHAIOTL_DELVE_3,
+      Column.MOKHAIOTL_DELVE_4,
+      Column.MOKHAIOTL_DELVE_5,
+      Column.MOKHAIOTL_DELVE_6,
+      Column.MOKHAIOTL_DELVE_7,
+      Column.MOKHAIOTL_DELVE_8,
+      Column.MOKHAIOTL_DELVE,
+      Column.MOKHAIOTL_MAX_COMPLETED_DELVE,
+    ],
+  },
+];
 
 const COLUMNS: Record<Column, ColumnInfo> = {
   [Column.UUID]: {
@@ -237,6 +339,12 @@ const COLUMNS: Record<Column, ColumnInfo> = {
     SplitType.TOB_NYLO_ROOM,
     100,
     'Nylocas Time',
+  ),
+  [Column.NYLOCAS_CLEANUP]: splitColumn(
+    'Nylo - Cleanup',
+    SplitType.TOB_NYLO_CLEANUP,
+    120,
+    'Nylocas - Cleanup',
   ),
   [Column.NYLOCAS_BOSS_SPAWN]: splitColumn(
     'Nylo - Boss Spawn',
@@ -481,6 +589,36 @@ const COLUMNS: Record<Column, ColumnInfo> = {
     100,
     'Mokhaiotl - Delve 8',
   ),
+
+  [Column.TOB_BLOAT_DOWN_COUNT]: {
+    name: 'Down count',
+    fullName: 'Bloat down count',
+    align: 'right',
+    renderer: (challenge) => challenge.tobStats?.bloatDownCount ?? '-',
+    toggleFields: includeStats,
+  },
+  [Column.TOB_NYLOCAS_PRE_CAP_STALLS]: {
+    name: 'Pre-cap stalls',
+    fullName: 'Nylocas pre-cap stalls',
+    align: 'right',
+    renderer: (challenge) => challenge.tobStats?.nylocasPreCapStalls ?? '-',
+    toggleFields: includeStats,
+  },
+  [Column.TOB_NYLOCAS_POST_CAP_STALLS]: {
+    name: 'Post-cap stalls',
+    fullName: 'Nylocas post-cap stalls',
+    align: 'right',
+    renderer: (challenge) => challenge.tobStats?.nylocasPostCapStalls ?? '-',
+    toggleFields: includeStats,
+  },
+  [Column.TOB_VERZIK_REDS_COUNT]: {
+    name: 'Reds spawns',
+    fullName: 'Verzik reds spawns',
+    align: 'right',
+    renderer: (challenge) => challenge.tobStats?.verzikRedsCount ?? '-',
+    toggleFields: includeStats,
+  },
+
   [Column.MOKHAIOTL_DELVE]: {
     name: 'Mok - Delve',
     fullName: 'Mokhaiotl Delve',
@@ -871,7 +1009,8 @@ export default function Table(props: TableProps) {
                                 stage: null,
                                 startDate: null,
                                 endDate: null,
-                                splits: {},
+                                splits: new Map(),
+                                tob: emptyTobFilters(),
                                 accurateSplits: false,
                                 fullRecordings: false,
                               },
@@ -1098,6 +1237,7 @@ function ColumnsModal({
   setPresets: (presets: PresetColumns[]) => void;
 }) {
   const [columns, setColumns] = useState<SelectedColumn[]>(selectedColumns);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [dragging, setDragging] = useState<Column | null>(null);
   const [lastClick, setLastClick] = useState<[Column, number] | null>(null);
@@ -1331,16 +1471,44 @@ function ColumnsModal({
             <i className="fas fa-plus-circle" />
             Available
           </label>
+          <input
+            className={styles.columnSearch}
+            type="text"
+            placeholder="Search columns..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
           <div className={styles.listWrapper}>
-            {Object.keys(COLUMNS)
-              .filter((key) => {
-                const column = Number(key) as Column;
+            {(() => {
+              const query = searchQuery.trim().toLowerCase();
+              const matches = (col: Column) => {
+                const info = COLUMNS[col];
+                if (query === '') {
+                  return true;
+                }
                 return (
-                  columns.every((c) => c.column !== column) &&
-                  COLUMNS[column].name !== ''
+                  info.name.toLowerCase().includes(query) ||
+                  (info.fullName?.toLowerCase().includes(query) ?? false)
                 );
-              })
-              .map((key) => columnListEntry(Number(key) as Column))}
+              };
+              return COLUMN_GROUPS.map((group) => {
+                const available = group.columns.filter(
+                  (col) =>
+                    columns.every((c) => c.column !== col) &&
+                    COLUMNS[col].name !== '' &&
+                    matches(col),
+                );
+                if (available.length === 0) {
+                  return null;
+                }
+                return (
+                  <div key={group.label} className={styles.columnGroup}>
+                    <div className={styles.groupHeading}>{group.label}</div>
+                    {available.map((col) => columnListEntry(col))}
+                  </div>
+                );
+              });
+            })()}
           </div>
         </div>
         <div className={styles.columnsList}>

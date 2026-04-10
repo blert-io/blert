@@ -303,6 +303,9 @@ type SingleOrArray<T> = T | T[];
 export type TobQuery = {
   bloatDowns?: Map<number, Comparator<number>>;
   bloatDownCount?: Comparator<number>;
+  nylocasPreCapStalls?: Comparator<number>;
+  nylocasPostCapStalls?: Comparator<number>;
+  verzikRedsCount?: Comparator<number>;
 };
 
 export type ChallengeQuery = {
@@ -476,6 +479,72 @@ type QueryComponents = {
   conditions: postgres.Fragment[];
 };
 
+function applyTobFilters(
+  tob: TobQuery,
+  baseTable: postgres.Helper<string>,
+  joins: Join[],
+  conditions: postgres.Fragment[],
+) {
+  const { bloatDowns, ...statsFilters } = tob;
+  const bloatDownConditions: postgres.Fragment[] = [];
+
+  if (bloatDowns !== undefined && bloatDowns.size > 0) {
+    for (const [downNumber, comparator] of bloatDowns) {
+      const condition = comparatorToSql(
+        sql('bloat_downs'),
+        'walk_ticks',
+        comparator,
+      );
+      bloatDownConditions.push(
+        sql`(bloat_downs.down_number = ${downNumber} AND ${condition})`,
+      );
+    }
+  }
+
+  if (bloatDownConditions.length > 0) {
+    joins.push({
+      table: sql`(
+        SELECT challenge_id
+        FROM bloat_downs
+        WHERE accurate
+        GROUP BY challenge_id
+        HAVING COUNT(*) FILTER (${where(bloatDownConditions, 'or')}) = ${bloatDownConditions.length}
+      ) filtered_bloat_downs`,
+      on: sql`${baseTable}.id = filtered_bloat_downs.challenge_id`,
+      tableName: 'filtered_bloat_downs',
+    });
+  }
+
+  const statsColumns: Record<keyof typeof statsFilters, string> = {
+    bloatDownCount: 'bloat_down_count',
+    nylocasPreCapStalls: 'nylocas_pre_cap_stalls',
+    nylocasPostCapStalls: 'nylocas_post_cap_stalls',
+    verzikRedsCount: 'verzik_reds_count',
+  };
+
+  let statsJoined = false;
+  for (const [field, column] of Object.entries(statsColumns) as [
+    keyof typeof statsFilters,
+    string,
+  ][]) {
+    const comparator = statsFilters[field];
+    if (comparator === undefined) {
+      continue;
+    }
+    if (!statsJoined) {
+      joins.push({
+        table: sql`tob_challenge_stats`,
+        on: sql`${baseTable}.id = tob_challenge_stats.challenge_id`,
+        tableName: 'tob_challenge_stats',
+      });
+      statsJoined = true;
+    }
+    conditions.push(
+      comparatorToSql(sql('tob_challenge_stats'), column, comparator),
+    );
+  }
+}
+
 function addSplitsTable(
   split: SplitType,
   baseTable: postgres.Helper<string, string[]>,
@@ -603,50 +672,7 @@ function applyFilters(
   }
 
   if (query.tob !== undefined) {
-    const { bloatDowns, bloatDownCount } = query.tob;
-    const bloatDownConditions: postgres.Fragment[] = [];
-
-    if (bloatDowns !== undefined && bloatDowns.size > 0) {
-      for (const [downNumber, comparator] of bloatDowns) {
-        const condition = comparatorToSql(
-          sql('bloat_downs'),
-          'walk_ticks',
-          comparator,
-        );
-        bloatDownConditions.push(
-          sql`(bloat_downs.down_number = ${downNumber} AND ${condition})`,
-        );
-      }
-    }
-
-    if (bloatDownConditions.length > 0) {
-      joins.push({
-        table: sql`(
-          SELECT challenge_id
-          FROM bloat_downs
-          WHERE accurate
-          GROUP BY challenge_id
-          HAVING COUNT(*) FILTER (${where(bloatDownConditions, 'or')}) = ${bloatDownConditions.length}
-        ) filtered_bloat_downs`,
-        on: sql`${sqlChallenges}.id = filtered_bloat_downs.challenge_id`,
-        tableName: 'filtered_bloat_downs',
-      });
-    }
-
-    if (bloatDownCount !== undefined) {
-      joins.push({
-        table: sql`tob_challenge_stats`,
-        on: sql`${sqlChallenges}.id = tob_challenge_stats.challenge_id`,
-        tableName: 'tob_challenge_stats',
-      });
-      conditions.push(
-        comparatorToSql(
-          sql('tob_challenge_stats'),
-          'bloat_down_count',
-          bloatDownCount,
-        ),
-      );
-    }
+    applyTobFilters(query.tob, sqlChallenges, joins, conditions);
   }
 
   if (query.sort !== undefined) {

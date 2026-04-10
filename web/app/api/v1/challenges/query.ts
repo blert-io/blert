@@ -150,12 +150,17 @@ export function parseChallengeQuery(
     );
     query.stage = numericComparatorParam(searchParams, 'stage');
 
-    const bloatDownCount = numericComparatorParam(
-      searchParams,
-      'tob.bloatDownCount',
-    );
-    if (bloatDownCount !== undefined) {
-      (query.tob ??= {}).bloatDownCount = bloatDownCount;
+    const tobScalarParams = [
+      'bloatDownCount',
+      'nylocasPreCapStalls',
+      'nylocasPostCapStalls',
+      'verzikRedsCount',
+    ] as const;
+    for (const field of tobScalarParams) {
+      const value = numericComparatorParam(searchParams, `tob.${field}`);
+      if (value !== undefined) {
+        (query.tob ??= {})[field] = value;
+      }
     }
   } catch {
     return null;
