@@ -114,35 +114,6 @@ export default function ChallengeStats({
   return (
     <Card header={{ title: challengeName(challenge) }} className={styles.panel}>
       <div className={styles.content}>
-        {analysisLinks.length > 0 && (
-          <div className={styles.analysisSection}>
-            <h3 className={styles.sectionTitle}>
-              <i className="fas fa-chart-line" />
-              Analysis Tools
-            </h3>
-            <div className={styles.navigationLinks}>
-              {analysisLinks.map((link, index) => (
-                <Link
-                  key={index}
-                  href={link.href}
-                  className={styles.analysisLink}
-                >
-                  <div className={styles.linkIcon}>{link.icon}</div>
-                  <div className={styles.linkContent}>
-                    <div className={styles.linkTitle}>{link.title}</div>
-                    <div className={styles.linkDescription}>
-                      {link.description}
-                    </div>
-                  </div>
-                  <div className={styles.linkArrow}>
-                    <i className="fas fa-arrow-right" />
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
-
         <div className={styles.statisticsSection}>
           <h3 className={styles.sectionTitle}>
             <i className="fas fa-chart-bar" />
@@ -300,6 +271,35 @@ export default function ChallengeStats({
             )}
           </div>
         </div>
+
+        {analysisLinks.length > 0 && (
+          <div className={styles.analysisSection}>
+            <h3 className={styles.sectionTitle}>
+              <i className="fas fa-chart-line" />
+              Analysis Tools
+            </h3>
+            <div className={styles.navigationLinks}>
+              {analysisLinks.map((link, index) => (
+                <Link
+                  key={index}
+                  href={link.href}
+                  className={styles.analysisLink}
+                >
+                  <div className={styles.linkIcon}>{link.icon}</div>
+                  <div className={styles.linkContent}>
+                    <div className={styles.linkTitle}>{link.title}</div>
+                    <div className={styles.linkDescription}>
+                      {link.description}
+                    </div>
+                  </div>
+                  <div className={styles.linkArrow}>
+                    <i className="fas fa-arrow-right" />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </Card>
   );

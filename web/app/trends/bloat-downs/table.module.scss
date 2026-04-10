@@ -1,0 +1,121 @@
+@use '../../mixins.scss' as *;
+
+.tableWrapper {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid rgba(var(--blert-font-color-primary-base), 0.15);
+  border-radius: 6px;
+  background: var(--blert-surface-dark);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+
+  th,
+  td {
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid rgba(var(--blert-font-color-primary-base), 0.1);
+    white-space: nowrap;
+  }
+
+  thead {
+    th {
+      background: rgba(var(--blert-font-color-primary-base), 0.05);
+      color: var(--blert-font-color-secondary);
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      position: sticky;
+      top: 0;
+    }
+
+    .seriesHeader {
+      text-align: center;
+      border-left: 1px solid rgba(var(--blert-font-color-primary-base), 0.2);
+
+      .swatch {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 2px;
+        margin-right: 6px;
+        vertical-align: middle;
+      }
+    }
+  }
+
+  .seriesStart {
+    border-left: 1px solid rgba(var(--blert-font-color-primary-base), 0.2);
+  }
+
+  tbody {
+    tr {
+      transition: background 0.1s ease;
+
+      &:hover {
+        background: rgba(var(--blert-purple-base), 0.06);
+      }
+
+      &:last-child td {
+        border-bottom: none;
+      }
+    }
+
+    td {
+      color: var(--blert-font-color-primary);
+      font-family: var(--font-roboto-mono), monospace;
+    }
+  }
+
+  tfoot {
+    td {
+      background: rgba(var(--blert-font-color-primary-base), 0.05);
+      font-weight: 600;
+      color: var(--blert-font-color-primary);
+      border-top: 1px solid rgba(var(--blert-font-color-primary-base), 0.2);
+      border-bottom: none;
+    }
+  }
+
+  .walkTimeCol {
+    min-width: 110px;
+    width: 110px;
+  }
+
+  .walkTimeContent {
+    display: flex;
+    flex-direction: column;
+
+    .ticks {
+      color: var(--blert-font-color-primary);
+      font-weight: 600;
+    }
+  }
+
+  .numeric {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-family: var(--font-roboto-mono), monospace;
+  }
+
+  tbody td.zero {
+    color: rgba(var(--blert-font-color-primary-base), 0.35);
+  }
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 2rem;
+  color: var(--blert-font-color-secondary);
+  font-size: 0.9rem;
+  background: var(--blert-surface-dark);
+  border-radius: 6px;
+}
