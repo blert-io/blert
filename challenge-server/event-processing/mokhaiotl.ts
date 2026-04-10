@@ -111,6 +111,7 @@ export default class MokhaiotlProcessor extends ChallengeProcessor {
   protected override async onStageFinished(
     stage: Stage,
     events: MergedEvents,
+    _accurate: boolean,
   ): Promise<void> {
     if (stage !== Stage.MOKHAIOTL_DELVE_8PLUS) {
       if (stage === Stage.MOKHAIOTL_DELVE_8) {

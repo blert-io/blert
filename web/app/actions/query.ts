@@ -92,18 +92,40 @@ export function comparatorToSql(
   table: postgres.Helper<string>,
   column: string,
   comparator: Comparator<ComparableValue>,
+): postgres.Fragment;
+
+export function comparatorToSql(
+  expression: postgres.Fragment,
+  comparator: Comparator<ComparableValue>,
+): postgres.Fragment;
+
+export function comparatorToSql(
+  ...args:
+    | [postgres.Helper<string>, string, Comparator<ComparableValue>]
+    | [postgres.Fragment, Comparator<ComparableValue>]
 ): postgres.Fragment {
+  let lhs: postgres.Fragment;
+  let comparator: Comparator<ComparableValue>;
+
+  if (args.length === 3) {
+    const [table, column] = args;
+    lhs = sql`${table}.${sql(column)}`;
+    comparator = args[2];
+  } else {
+    [lhs, comparator] = args;
+  }
+
   if (comparator[0] === 'in') {
-    return sql`${table}.${sql(column)} = ANY(${comparator[1]})`;
+    return sql`${lhs} = ANY(${comparator[1]})`;
   }
 
   if (comparator[0] === 'range') {
     const [start, end] = comparator[1];
-    return sql`${table}.${sql(column)} >= ${start} AND ${table}.${sql(column)} < ${end}`;
+    return sql`${lhs} >= ${start} AND ${lhs} < ${end}`;
   }
 
   const op = operator(comparator[0]);
-  return sql`${table}.${sql(column)} ${op} ${comparator[1]}`;
+  return sql`${lhs} ${op} ${comparator[1]}`;
 }
 
 export type BaseOperand = number | string | null;

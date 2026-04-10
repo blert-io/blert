@@ -109,6 +109,7 @@ export type TobChallengeStats = {
   maidenFullLeaks: number | null;
   maidenScuffedSpawns: boolean;
   bloatDeaths: number;
+  bloatDownCount: number | null;
   bloatFirstDownHpPercent: number | null;
   nylocasDeaths: number;
   nylocasPreCapStalls: number | null;

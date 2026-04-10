@@ -3,7 +3,7 @@
 import { ChallengeMode } from '@blert/common';
 import { useState, useEffect, useCallback } from 'react';
 
-import { BloatHandsResponse } from '@/actions/bloat-hands';
+import { BloatHandsResponse } from '@/actions/theatre';
 
 import BloatHandsControls, { BloatHandsFilters, DisplayMode } from './controls';
 import BloatHandsStats from './stats';

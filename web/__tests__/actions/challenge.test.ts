@@ -2,13 +2,22 @@ import {
   ChallengeMode,
   ChallengeStatus,
   ChallengeType,
+  Stage,
   SessionStatus,
   normalizeRsn,
   partyHash,
 } from '@blert/common';
 
-import { aggregateSessions, SessionQuery } from '@/actions/challenge';
+import {
+  aggregateSessions,
+  findChallenges,
+  SessionQuery,
+} from '@/actions/challenge';
 import { sql } from '@/actions/db';
+
+afterAll(async () => {
+  await sql.end();
+});
 
 describe('aggregateSessions', () => {
   let playerIds: number[];
@@ -265,10 +274,6 @@ describe('aggregateSessions', () => {
     await sql`DELETE FROM players`;
   });
 
-  afterAll(async () => {
-    await sql.end();
-  });
-
   describe('basic aggregations', () => {
     it('should aggregate count and duration for all non-hidden sessions', async () => {
       const query: SessionQuery = {};
@@ -386,6 +391,147 @@ describe('aggregateSessions', () => {
       );
 
       expect(Object.keys(result!)).toHaveLength(2);
+    });
+  });
+});
+
+describe('findChallenges', () => {
+  describe('bloat down filters', () => {
+    let playerId: number;
+    let sessionId: number;
+    let zeroDownChallengeId: number;
+    let oneDownChallengeId: number;
+
+    beforeEach(async () => {
+      [{ id: playerId }] = await sql<{ id: number }[]>`
+        INSERT INTO players ${sql([
+          {
+            username: 'PlayerA',
+            normalized_username: normalizeRsn('PlayerA'),
+          },
+        ])} RETURNING id
+      `;
+
+      [{ id: sessionId }] = await sql<{ id: number }[]>`
+        INSERT INTO challenge_sessions ${sql([
+          {
+            uuid: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+            challenge_type: ChallengeType.TOB,
+            challenge_mode: ChallengeMode.TOB_REGULAR,
+            scale: 2,
+            party_hash: partyHash(['PlayerA']),
+            start_time: new Date('2024-01-01T10:00:00Z'),
+            end_time: new Date('2024-01-01T10:30:00Z'),
+            status: SessionStatus.COMPLETED,
+          },
+        ])} RETURNING id
+      `;
+
+      const challenges = await sql<{ id: number }[]>`
+        INSERT INTO challenges ${sql([
+          {
+            session_id: sessionId,
+            uuid: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+            type: ChallengeType.TOB,
+            mode: ChallengeMode.TOB_REGULAR,
+            stage: Stage.TOB_BLOAT,
+            status: ChallengeStatus.WIPED,
+            start_time: new Date('2024-01-01T10:00:00Z'),
+            finish_time: new Date('2024-01-01T10:10:00Z'),
+            scale: 2,
+            challenge_ticks: 600,
+            overall_ticks: 650,
+            total_deaths: 2,
+          },
+          {
+            session_id: sessionId,
+            uuid: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+            type: ChallengeType.TOB,
+            mode: ChallengeMode.TOB_REGULAR,
+            stage: Stage.TOB_VERZIK,
+            status: ChallengeStatus.COMPLETED,
+            start_time: new Date('2024-01-01T11:00:00Z'),
+            finish_time: new Date('2024-01-01T11:20:00Z'),
+            scale: 2,
+            challenge_ticks: 1200,
+            overall_ticks: 1250,
+            total_deaths: 0,
+          },
+        ])} RETURNING id
+      `;
+      [zeroDownChallengeId, oneDownChallengeId] = challenges.map((c) => c.id);
+
+      await sql`
+        INSERT INTO challenge_players ${sql([
+          {
+            challenge_id: zeroDownChallengeId,
+            player_id: playerId,
+            username: 'PlayerA',
+            orb: 0,
+            primary_gear: 0,
+          },
+          {
+            challenge_id: oneDownChallengeId,
+            player_id: playerId,
+            username: 'PlayerA',
+            orb: 0,
+            primary_gear: 0,
+          },
+        ])}
+      `;
+
+      await sql`
+        INSERT INTO tob_challenge_stats ${sql([
+          {
+            challenge_id: zeroDownChallengeId,
+            bloat_down_count: 0,
+          },
+          {
+            challenge_id: oneDownChallengeId,
+            bloat_down_count: 1,
+          },
+        ])}
+      `;
+
+      await sql`
+        INSERT INTO bloat_downs ${sql([
+          {
+            challenge_id: oneDownChallengeId,
+            down_number: 1,
+            down_tick: 41,
+            walk_ticks: 41,
+            accurate: true,
+          },
+        ])}
+      `;
+    });
+
+    afterEach(async () => {
+      await sql`DELETE FROM challenge_players`;
+      await sql`DELETE FROM challenges`;
+      await sql`DELETE FROM challenge_sessions`;
+      await sql`DELETE FROM players`;
+    });
+
+    it('matches zero-down raids for tob.bloatDownCount=eq0', async () => {
+      const [challenges] = await findChallenges(10, {
+        tob: { bloatDownCount: ['==', 0] },
+      });
+
+      expect(challenges).toHaveLength(1);
+      expect(challenges[0].uuid).toBe('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
+    });
+
+    it('combines persisted down count and bloat down filters', async () => {
+      const [challenges] = await findChallenges(10, {
+        tob: {
+          bloatDowns: new Map([[1, ['==', 41]]]),
+          bloatDownCount: ['==', 1],
+        },
+      });
+
+      expect(challenges).toHaveLength(1);
+      expect(challenges[0].uuid).toBe('cccccccc-cccc-cccc-cccc-cccccccccccc');
     });
   });
 });

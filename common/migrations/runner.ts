@@ -82,16 +82,16 @@ async function runScript(dir: string, script: string, sql: Sql) {
     throw new Error(`Script "${srcPath}" not found`);
   }
 
-  try {
-    const { scriptMain } = (await import(fullPath)) as {
-      scriptMain: (sql: Sql, args: string[]) => Promise<void>;
-    };
-    await scriptMain(sql, process.argv.slice(4));
-  } catch {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const mod = require(fullPath) as {
+    scriptMain?: (sql: Sql, args: string[]) => Promise<void>;
+  };
+  if (typeof mod.scriptMain !== 'function') {
     throw new Error(
       `Script "${srcPath}" does not export a scriptMain function`,
     );
   }
+  await mod.scriptMain(sql, process.argv.slice(4));
 }
 
 export async function runMigrationsCli(options: MigrationRunnerOptions) {

@@ -1,6 +1,6 @@
 import { ChallengeMode } from '@blert/common';
 
-import { BloatHandsResponse } from '@/actions/bloat-hands';
+import { BloatHandsResponse } from '@/actions/theatre';
 import { getOrdinal } from '@/utils/path-util';
 
 import { BloatHandsFilters, DisplayMode } from './controls';

@@ -1,16 +1,20 @@
 import { ChallengeMode } from '@blert/common';
 import { NextRequest } from 'next/server';
 
-import { aggregateBloatHands, BloatHandsQuery } from '@/actions/theatre';
+import { aggregateBloatDowns, BloatDownsQuery } from '@/actions/theatre';
 import { withApiRoute } from '@/api/handler';
-import { dateComparatorParam, expectSingle } from '@/api/query';
+import {
+  dateComparatorParam,
+  expectSingle,
+  numericComparatorParam,
+} from '@/api/query';
 
 export const GET = withApiRoute(
-  { route: '/api/v1/trends/bloat-hands' },
+  { route: '/api/v1/trends/bloat-downs' },
   async (request: NextRequest) => {
     const searchParams = Object.fromEntries(request.nextUrl.searchParams);
 
-    const query: BloatHandsQuery = {};
+    const query: BloatDownsQuery = {};
 
     const mode = expectSingle(searchParams, 'mode');
     if (mode !== undefined) {
@@ -20,22 +24,22 @@ export const GET = withApiRoute(
         .filter((m) => !isNaN(m)) as ChallengeMode[];
     }
 
-    const order = expectSingle(searchParams, 'intraChunkOrder');
-    if (order !== undefined) {
-      const parsed = parseInt(order);
-      if (isNaN(parsed)) {
-        return new Response(null, { status: 400 });
-      }
-      query.intraChunkOrder = parsed;
+    const scale = expectSingle(searchParams, 'scale');
+    if (scale !== undefined) {
+      query.scale = scale
+        .split(',')
+        .map((s) => parseInt(s))
+        .filter((s) => !isNaN(s));
     }
 
     try {
       query.startTime = dateComparatorParam(searchParams, 'startTime');
+      query.downNumber = numericComparatorParam(searchParams, 'downNumber');
     } catch {
       return new Response(null, { status: 400 });
     }
 
-    const result = await aggregateBloatHands(query);
+    const result = await aggregateBloatDowns(query);
     return Response.json(result);
   },
 );
