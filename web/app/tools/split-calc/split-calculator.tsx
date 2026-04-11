@@ -692,6 +692,20 @@ export function SplitCalculator({ connectedPlayers }: SplitCalculatorProps) {
               >
                 <i className="fas fa-eraser" /> Clear all
               </button>
+              <button
+                className={styles.clearButton}
+                onClick={() => {
+                  navigator.clipboard
+                    .writeText(window.location.href)
+                    .then(() =>
+                      showToast('Link copied to clipboard', 'success'),
+                    )
+                    .catch(() => showToast('Failed to copy link', 'error'));
+                }}
+                type="button"
+              >
+                <i className="fas fa-share-nodes" /> Share
+              </button>
             </div>
           ),
         }}
