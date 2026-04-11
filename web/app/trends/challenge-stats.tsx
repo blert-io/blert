@@ -4,6 +4,7 @@ import {
   challengeName,
   ChallengeStatus,
   ChallengeType,
+  Stage,
   stageName,
   stagesForChallenge,
 } from '@blert/common';
@@ -157,23 +158,47 @@ export default function ChallengeStats({
     void fetchData();
   }, [challenge]);
 
-  const deathData = Object.entries(deathsByStage).map(([stage, deaths]) => {
-    const n = Number(stage);
-    const stats = wipeStatsByStage[n];
-    const wipes = stats?.wipes ?? 0;
-    const reached = stats?.reached ?? 0;
-    return {
-      stage: n,
-      name: stageName(n, true),
-      deaths,
-      wipes,
-      reached,
-      wipeRate: reached > 0 ? (wipes / reached) * 100 : null,
-    };
-  });
+  const deathData = Object.entries(deathsByStage)
+    .map(([stage, deaths]) => {
+      const n = Number(stage);
+      if (n === Stage.MOKHAIOTL_DELVE_8PLUS) {
+        return null;
+      }
+
+      const stats = wipeStatsByStage[n];
+      const wipes = stats?.wipes ?? 0;
+      const reached = stats?.reached ?? 0;
+      return {
+        stage: n,
+        name: stageName(n, true),
+        deaths,
+        wipes,
+        reached,
+        wipeRate: reached > 0 ? (wipes / reached) * 100 : null,
+      };
+    })
+    .filter((d) => d !== null);
 
   const hasDeathData =
     deathData.length > 0 && deathData.some((d) => d.deaths > 0);
+
+  let customTicks = undefined;
+  if (challenge === ChallengeType.INFERNO) {
+    customTicks = [
+      'W1',
+      'W9',
+      'W15',
+      'W21',
+      'W27',
+      'W33',
+      'W39',
+      'W45',
+      'W51',
+      'W57',
+      'W63',
+      'Zuk',
+    ];
+  }
 
   return (
     <Card header={{ title: challengeName(challenge) }} className={styles.panel}>
@@ -265,6 +290,7 @@ export default function ChallengeStats({
                     stroke="var(--blert-font-color-secondary)"
                     tick={{ fontSize: display.isCompact() ? 10 : 12 }}
                     tickLine={false}
+                    ticks={customTicks}
                     interval={0}
                   />
                   <YAxis
