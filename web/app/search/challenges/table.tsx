@@ -1504,7 +1504,7 @@ function ColumnsModal({
                 return (
                   <div key={group.label} className={styles.columnGroup}>
                     <div className={styles.groupHeading}>{group.label}</div>
-                    {available.map((col) => columnListEntry(col))}
+                    {available.map(columnListEntry)}
                   </div>
                 );
               });

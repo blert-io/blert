@@ -77,11 +77,14 @@ export default function TickInput(props: TickInputProps) {
   const lockedMode = props.inputMode;
   const [displayTicks, setDisplayTicks] = useState(lockedMode === 'ticks');
   const ref = useRef<HTMLInputElement>(null);
-  const [value, setValue] = useState(() =>
-    props.initialTicks !== undefined
-      ? ticksToFormattedSeconds(props.initialTicks)
-      : '',
-  );
+  const [value, setValue] = useState(() => {
+    if (props.initialTicks === undefined) {
+      return '';
+    }
+    return lockedMode === 'ticks'
+      ? props.initialTicks.toString()
+      : ticksToFormattedSeconds(props.initialTicks);
+  });
   const [comparator, setComparator] = useState<Comparator>(
     props.initialComparator ?? Comparator.EQUAL,
   );

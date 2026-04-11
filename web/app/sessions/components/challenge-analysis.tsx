@@ -50,6 +50,16 @@ type StatOption = {
   unit?: string;
   filter?: StatFilter;
   formatter?: (value: number) => string;
+  /**
+   * Custom value extractor for stats that aren't a flat field on the
+   * per-challenge stats object. When provided, the aggregator uses this
+   * instead of looking up `challenge[<typeStats>][key]`. Return `null` to
+   * skip the challenge.
+   */
+  getValue?: (
+    challenge: SessionChallenge,
+    requireAccurate: boolean,
+  ) => number | null;
 };
 
 type AggregatedData = {
@@ -125,6 +135,26 @@ function getAvailableStats(
       },
       {
         type: StatType.CHALLENGE_SPECIFIC,
+        key: 'bloatFirstDownWalkTime',
+        label: 'Bloat First Down Walk Time',
+        unit: 'count',
+        formatter: (value) => `${Math.round(value)}t`,
+        filter: stageFilter(Stage.TOB_BLOAT),
+        getValue: (challenge, requireAccurate) => {
+          const first = challenge.tobStats?.downs?.find(
+            (d) => d.downNumber === 1,
+          );
+          if (first === undefined) {
+            return null;
+          }
+          if (requireAccurate && !first.accurate) {
+            return null;
+          }
+          return first.walkTicks;
+        },
+      },
+      {
+        type: StatType.CHALLENGE_SPECIFIC,
         key: 'nylocasDeaths',
         label: 'Nylocas Deaths',
         unit: 'count',
@@ -163,7 +193,7 @@ function getAvailableStats(
         key: 'nylocasMeleeSplits',
         label: 'Nylocas Melee Splits',
         unit: 'count',
-        filter: stageFilter(Stage.TOB_SOTETSEG),
+        filter: stageFilter(Stage.TOB_NYLOCAS),
       },
       {
         type: StatType.CHALLENGE_SPECIFIC,
@@ -250,6 +280,9 @@ function getAvailableStats(
 
   return stats.filter((stat) => {
     return challenges.some((challenge) => {
+      if (stat.getValue !== undefined) {
+        return stat.getValue(challenge, false) !== null;
+      }
       if (stat.type === StatType.SPLIT) {
         const generalizedSplit = parseInt(stat.key) as SplitType;
         return Object.keys(challenge.splits || {}).some((splitKey) => {
@@ -295,7 +328,9 @@ function aggregateStatData(
       return;
     }
 
-    if (selectedStat.type === StatType.SPLIT) {
+    if (selectedStat.getValue !== undefined) {
+      value = selectedStat.getValue(challenge, requireAccurateSplits);
+    } else if (selectedStat.type === StatType.SPLIT) {
       const generalizedSplit = parseInt(selectedStat.key) as SplitType;
       const splitEntries = Object.entries(challenge.splits || {});
       for (const [splitKey, splitValue] of splitEntries) {
@@ -512,19 +547,27 @@ function DistributionChart({
               x2="0"
               y2="1"
             >
-              <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.9} />
-              <stop offset="100%" stopColor="#62429b" stopOpacity={0.8} />
+              <stop
+                offset="0%"
+                stopColor="rgb(88, 101, 242)"
+                stopOpacity={0.95}
+              />
+              <stop
+                offset="100%"
+                stopColor="rgb(68, 79, 191)"
+                stopOpacity={0.8}
+              />
             </linearGradient>
           </defs>
           <CartesianGrid
             strokeDasharray="3 3"
-            stroke="rgba(255, 255, 255, 0.1)"
+            stroke="rgba(94, 98, 136, 0.3)"
           />
           <XAxis
             dataKey="value"
             tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 12 }}
-            axisLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
-            tickLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
+            axisLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
+            tickLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
             angle={selectedStat.type === StatType.SPLIT ? -45 : undefined}
             textAnchor="end"
             height={60}
@@ -532,8 +575,8 @@ function DistributionChart({
           />
           <YAxis
             tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 12 }}
-            axisLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
-            tickLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
+            axisLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
+            tickLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
             label={{
               value: 'Frequency',
               angle: -90,
@@ -547,12 +590,12 @@ function DistributionChart({
           <Tooltip
             contentStyle={{
               backgroundColor: 'var(--blert-panel-background-color)',
-              border: '1px solid var(--blert-surface-light)',
+              border: '1px solid rgba(88, 101, 242, 0.15)',
               borderRadius: '6px',
               color: 'var(--blert-font-color-primary)',
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
             }}
-            cursor={{ fill: 'rgba(139, 92, 246, 0.1)' }}
+            cursor={{ fill: 'rgba(88, 101, 242, 0.1)' }}
             formatter={(
               value: number,
               _name: string,
@@ -615,12 +658,12 @@ function ChartDisplay({
     <Tooltip
       contentStyle={{
         backgroundColor: 'var(--blert-panel-background-color)',
-        border: '1px solid var(--blert-surface-light)',
+        border: '1px solid rgba(88, 101, 242, 0.15)',
         borderRadius: '6px',
         color: 'var(--blert-font-color-primary)',
         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
       }}
-      cursor={{ fill: 'rgba(139, 92, 246, 0.1)' }}
+      cursor={{ fill: 'rgba(88, 101, 242, 0.1)' }}
       formatter={(value: number, _name: string, _props: any) => [
         <span key={value} style={{ color: 'var(--blert-font-color-primary)' }}>
           {selectedStat.formatter ? selectedStat.formatter(value) : value}
@@ -655,25 +698,33 @@ function ChartDisplay({
                 x2="0"
                 y2="1"
               >
-                <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.9} />
-                <stop offset="100%" stopColor="#62429b" stopOpacity={0.8} />
+                <stop
+                  offset="0%"
+                  stopColor="rgb(88, 101, 242)"
+                  stopOpacity={0.95}
+                />
+                <stop
+                  offset="100%"
+                  stopColor="rgb(68, 79, 191)"
+                  stopOpacity={0.8}
+                />
               </linearGradient>
             </defs>
             <CartesianGrid
               strokeDasharray="3 3"
-              stroke="rgba(255, 255, 255, 0.1)"
+              stroke="rgba(94, 98, 136, 0.3)"
             />
             <XAxis
               dataKey="challengeIndex"
               tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 12 }}
-              axisLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
-              tickLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
+              axisLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
+              tickLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
               tickFormatter={(value: number) => `#${value}`}
             />
             <YAxis
               tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 12 }}
-              axisLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
-              tickLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
+              axisLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
+              tickLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
               tickFormatter={selectedStat.formatter}
             />
             {tooltip}
@@ -690,33 +741,33 @@ function ChartDisplay({
           >
             <CartesianGrid
               strokeDasharray="3 3"
-              stroke="rgba(255, 255, 255, 0.1)"
+              stroke="rgba(94, 98, 136, 0.3)"
             />
             <XAxis
               dataKey="challengeIndex"
               tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 12 }}
-              axisLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
-              tickLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
+              axisLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
+              tickLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
               tickFormatter={(value: number) => `#${value}`}
             />
             <YAxis
               tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 12 }}
-              axisLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
-              tickLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
+              axisLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
+              tickLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
               tickFormatter={selectedStat.formatter}
             />
             {tooltip}
             <Line
               type="monotone"
               dataKey="value"
-              stroke="#8b5cf6"
+              stroke="rgb(88, 101, 242)"
               strokeWidth={3}
-              dot={{ fill: '#8b5cf6', strokeWidth: 2, r: 4 }}
+              dot={{ fill: 'rgb(88, 101, 242)', strokeWidth: 2, r: 4 }}
               activeDot={{
                 r: 6,
-                stroke: '#8b5cf6',
+                stroke: 'rgb(88, 101, 242)',
                 strokeWidth: 2,
-                fill: '#a855f7',
+                fill: 'rgb(118, 131, 255)',
               }}
             />
           </LineChart>
@@ -739,7 +790,6 @@ export default function ChallengeAnalysis() {
     if (!session) {
       return [];
     }
-
     return getAvailableStats(session.challengeType, session.challenges);
   }, [session]);
 

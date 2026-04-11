@@ -11,6 +11,7 @@ import {
 import {
   aggregateSessions,
   findChallenges,
+  loadSessionWithStats,
   SessionQuery,
 } from '@/actions/challenge';
 import { sql } from '@/actions/db';
@@ -19,7 +20,7 @@ afterAll(async () => {
   await sql.end();
 });
 
-describe('aggregateSessions', () => {
+describe('sessions', () => {
   let playerIds: number[];
   let sessionIds: number[];
   let partyHash1: string;
@@ -274,123 +275,243 @@ describe('aggregateSessions', () => {
     await sql`DELETE FROM players`;
   });
 
-  describe('basic aggregations', () => {
-    it('should aggregate count and duration for all non-hidden sessions', async () => {
-      const query: SessionQuery = {};
-      const result = await aggregateSessions(query, {
-        '*': 'count',
-        duration: ['sum', 'avg', 'min', 'max'],
-        challenges: ['sum', 'avg'],
+  describe('aggregateSessions', () => {
+    describe('basic aggregations', () => {
+      it('should aggregate count and duration for all non-hidden sessions', async () => {
+        const query: SessionQuery = {};
+        const result = await aggregateSessions(query, {
+          '*': 'count',
+          duration: ['sum', 'avg', 'min', 'max'],
+          challenges: ['sum', 'avg'],
+        });
+
+        expect(result).not.toBeNull();
+        expect(result!['*'].count).toBe(4);
+        // Durations: 3600, 2700, 1800, 900.
+        expect(result!.duration.sum).toBe(3600 + 2700 + 1800 + 900);
+        expect(result!.duration.avg).toBeCloseTo(
+          (3600 + 2700 + 1800 + 900) / 4,
+        );
+        expect(result!.duration.min).toBe(900);
+        expect(result!.duration.max).toBe(3600);
+        // Challenges (non-abandoned): 2, 2, 1, 1 -> sum=6, avg=1.5
+        expect(result!.challenges.sum).toBe(6);
+        expect(result!.challenges.avg).toBe(1.5);
+      });
+    });
+
+    describe('filtering', () => {
+      it('should filter by session status', async () => {
+        const query: SessionQuery = { status: ['==', SessionStatus.COMPLETED] };
+        const result = await aggregateSessions(query, { '*': 'count' });
+        expect(result!['*'].count).toBe(3);
       });
 
-      expect(result).not.toBeNull();
-      expect(result!['*'].count).toBe(4);
-      // Durations: 3600, 2700, 1800, 900.
-      expect(result!.duration.sum).toBe(3600 + 2700 + 1800 + 900);
-      expect(result!.duration.avg).toBeCloseTo((3600 + 2700 + 1800 + 900) / 4);
-      expect(result!.duration.min).toBe(900);
-      expect(result!.duration.max).toBe(3600);
-      // Challenges (non-abandoned): 2, 2, 1, 1 -> sum=6, avg=1.5
-      expect(result!.challenges.sum).toBe(6);
-      expect(result!.challenges.avg).toBe(1.5);
+      it('should filter by challenge type', async () => {
+        const query: SessionQuery = { type: ['==', ChallengeType.COLOSSEUM] };
+        const result = await aggregateSessions(query, { '*': 'count' });
+        expect(result!['*'].count).toBe(1);
+      });
+    });
+
+    describe('grouping', () => {
+      it('should group by challenge mode', async () => {
+        const query: SessionQuery = {};
+        const result = await aggregateSessions(
+          query,
+          { '*': 'count' },
+          {},
+          'mode',
+        );
+
+        expect(result).not.toBeNull();
+        const regular = ChallengeMode.TOB_REGULAR.toString();
+        const hard = ChallengeMode.TOB_HARD.toString();
+        const colo = ChallengeMode.NO_MODE.toString();
+        expect(result![regular]['*'].count).toBe(2);
+        expect(result![hard]['*'].count).toBe(1);
+        expect(result![colo]['*'].count).toBe(1);
+      });
+
+      it('should group by party and return usernames', async () => {
+        const query: SessionQuery = {};
+        const result = await aggregateSessions(
+          query,
+          { '*': 'count' },
+          {},
+          'party',
+        );
+
+        expect(result).not.toBeNull();
+        const party1Usernames = 'PlayerA,PlayerB';
+        const party2Usernames = 'PlayerA,PlayerB,PlayerC';
+        const party3Usernames = 'PlayerA';
+
+        expect(Object.keys(result!)).toHaveLength(3);
+        expect(result![party1Usernames]['*'].count).toBe(2);
+        expect(result![party2Usernames]['*'].count).toBe(1);
+        expect(result![party3Usernames]['*'].count).toBe(1);
+      });
+
+      it('should group by multiple fields', async () => {
+        const query: SessionQuery = {};
+        const result = await aggregateSessions(query, { '*': 'count' }, {}, [
+          'type',
+          'scale',
+        ] as const);
+
+        expect(result).not.toBeNull();
+        const tob = ChallengeType.TOB.toString();
+        const colo = ChallengeType.COLOSSEUM.toString();
+
+        expect(result![tob]['2']['*'].count).toBe(2);
+        expect(result![tob]['3']['*'].count).toBe(1);
+        expect(result![colo]['1']['*'].count).toBe(1);
+      });
+    });
+
+    describe('sorting and limiting', () => {
+      it('should sort by an aggregated field', async () => {
+        const query: SessionQuery = {};
+        const result = await aggregateSessions(
+          query,
+          { duration: 'max' },
+          { sort: '-duration:max', limit: 2 },
+          'scale',
+        );
+
+        expect(Object.keys(result!)).toHaveLength(2);
+        expect(result!['2'].duration.max).toBe(3600);
+        expect(result!['1'].duration.max).toBe(1800);
+      });
+
+      it('should limit the number of results', async () => {
+        const query: SessionQuery = {};
+        const result = await aggregateSessions(
+          query,
+          { '*': 'count' },
+          { limit: 2 },
+          'scale',
+        );
+
+        expect(Object.keys(result!)).toHaveLength(2);
+      });
     });
   });
 
-  describe('filtering', () => {
-    it('should filter by session status', async () => {
-      const query: SessionQuery = { status: ['==', SessionStatus.COMPLETED] };
-      const result = await aggregateSessions(query, { '*': 'count' });
-      expect(result!['*'].count).toBe(3);
+  describe('loadSessionWithStats', () => {
+    const SESSION_UUID = '11111111-1111-1111-1111-111111111111';
+    const CHALLENGE_WITH_DOWNS_UUID = '11111111-1111-1111-1111-111111111111';
+    const CHALLENGE_WITHOUT_DOWNS_UUID = '22222222-2222-2222-2222-222222222222';
+
+    let withDownsId: number;
+    let withoutDownsId: number;
+
+    beforeEach(async () => {
+      const rows = await sql<{ id: number; uuid: string }[]>`
+        SELECT id, uuid FROM challenges
+        WHERE uuid IN (
+          ${CHALLENGE_WITH_DOWNS_UUID},
+          ${CHALLENGE_WITHOUT_DOWNS_UUID}
+        )
+      `;
+      const byUuid = new Map(rows.map((r) => [r.uuid, r.id]));
+      withDownsId = byUuid.get(CHALLENGE_WITH_DOWNS_UUID)!;
+      withoutDownsId = byUuid.get(CHALLENGE_WITHOUT_DOWNS_UUID)!;
+
+      await sql`
+        INSERT INTO tob_challenge_stats ${sql([
+          { challenge_id: withDownsId, bloat_down_count: 3 },
+          { challenge_id: withoutDownsId, bloat_down_count: 0 },
+        ])}
+      `;
+
+      await sql`
+        INSERT INTO bloat_downs ${sql([
+          {
+            challenge_id: withDownsId,
+            down_number: 1,
+            down_tick: 40,
+            walk_ticks: 40,
+            accurate: true,
+          },
+          {
+            challenge_id: withDownsId,
+            down_number: 2,
+            down_tick: 80,
+            walk_ticks: 35,
+            accurate: true,
+          },
+          {
+            challenge_id: withDownsId,
+            down_number: 3,
+            down_tick: 120,
+            walk_ticks: 38,
+            accurate: false,
+          },
+        ])}
+      `;
     });
 
-    it('should filter by challenge type', async () => {
-      const query: SessionQuery = { type: ['==', ChallengeType.COLOSSEUM] };
-      const result = await aggregateSessions(query, { '*': 'count' });
-      expect(result!['*'].count).toBe(1);
-    });
-  });
+    it('attaches bloat downs to the matching challenge', async () => {
+      const session = await loadSessionWithStats(SESSION_UUID);
+      expect(session).not.toBeNull();
+      expect(session!.challenges).toHaveLength(2);
 
-  describe('grouping', () => {
-    it('should group by challenge mode', async () => {
-      const query: SessionQuery = {};
-      const result = await aggregateSessions(
-        query,
-        { '*': 'count' },
-        {},
-        'mode',
+      const withDowns = session!.challenges.find(
+        (c) => c.uuid === CHALLENGE_WITH_DOWNS_UUID,
+      );
+      expect(withDowns).toBeDefined();
+      expect(withDowns!.tobStats).toBeDefined();
+      expect(withDowns!.tobStats!.bloatDownCount).toBe(3);
+      expect(withDowns!.tobStats!.downs).toEqual([
+        { downNumber: 1, downTick: 40, walkTicks: 40, accurate: true },
+        { downNumber: 2, downTick: 80, walkTicks: 35, accurate: true },
+        { downNumber: 3, downTick: 120, walkTicks: 38, accurate: false },
+      ]);
+    });
+
+    it('returns an empty downs array for challenges without bloat_downs rows', async () => {
+      const session = await loadSessionWithStats(SESSION_UUID);
+      const withoutDowns = session!.challenges.find(
+        (c) => c.uuid === CHALLENGE_WITHOUT_DOWNS_UUID,
       );
 
-      expect(result).not.toBeNull();
-      const regular = ChallengeMode.TOB_REGULAR.toString();
-      const hard = ChallengeMode.TOB_HARD.toString();
-      const colo = ChallengeMode.NO_MODE.toString();
-      expect(result![regular]['*'].count).toBe(2);
-      expect(result![hard]['*'].count).toBe(1);
-      expect(result![colo]['*'].count).toBe(1);
+      expect(withoutDowns).toBeDefined();
+      expect(withoutDowns!.tobStats).toBeDefined();
+      expect(withoutDowns!.tobStats!.bloatDownCount).toBe(0);
+      expect(withoutDowns!.tobStats!.downs).toEqual([]);
     });
 
-    it('should group by party and return usernames', async () => {
-      const query: SessionQuery = {};
-      const result = await aggregateSessions(
-        query,
-        { '*': 'count' },
-        {},
-        'party',
-      );
+    it('orders downs by down_number ascending regardless of insertion order', async () => {
+      // Add two more rows for the other challenge in reversed order.
+      await sql`
+        INSERT INTO bloat_downs ${sql([
+          {
+            challenge_id: withoutDownsId,
+            down_number: 2,
+            down_tick: 90,
+            walk_ticks: 45,
+            accurate: true,
+          },
+          {
+            challenge_id: withoutDownsId,
+            down_number: 1,
+            down_tick: 45,
+            walk_ticks: 45,
+            accurate: true,
+          },
+        ])}
+      `;
 
-      expect(result).not.toBeNull();
-      const party1Usernames = 'PlayerA,PlayerB';
-      const party2Usernames = 'PlayerA,PlayerB,PlayerC';
-      const party3Usernames = 'PlayerA';
+      const session = await loadSessionWithStats(SESSION_UUID);
+      const challenge = session!.challenges.find(
+        (c) => c.uuid === CHALLENGE_WITHOUT_DOWNS_UUID,
+      )!;
 
-      expect(Object.keys(result!)).toHaveLength(3);
-      expect(result![party1Usernames]['*'].count).toBe(2);
-      expect(result![party2Usernames]['*'].count).toBe(1);
-      expect(result![party3Usernames]['*'].count).toBe(1);
-    });
-
-    it('should group by multiple fields', async () => {
-      const query: SessionQuery = {};
-      const result = await aggregateSessions(query, { '*': 'count' }, {}, [
-        'type',
-        'scale',
-      ] as const);
-
-      expect(result).not.toBeNull();
-      const tob = ChallengeType.TOB.toString();
-      const colo = ChallengeType.COLOSSEUM.toString();
-
-      expect(result![tob]['2']['*'].count).toBe(2);
-      expect(result![tob]['3']['*'].count).toBe(1);
-      expect(result![colo]['1']['*'].count).toBe(1);
-    });
-  });
-
-  describe('sorting and limiting', () => {
-    it('should sort by an aggregated field', async () => {
-      const query: SessionQuery = {};
-      const result = await aggregateSessions(
-        query,
-        { duration: 'max' },
-        { sort: '-duration:max', limit: 2 },
-        'scale',
-      );
-
-      expect(Object.keys(result!)).toHaveLength(2);
-      expect(result!['2'].duration.max).toBe(3600);
-      expect(result!['1'].duration.max).toBe(1800);
-    });
-
-    it('should limit the number of results', async () => {
-      const query: SessionQuery = {};
-      const result = await aggregateSessions(
-        query,
-        { '*': 'count' },
-        { limit: 2 },
-        'scale',
-      );
-
-      expect(Object.keys(result!)).toHaveLength(2);
+      expect(challenge.tobStats!.downs!.map((d) => d.downNumber)).toEqual([
+        1, 2,
+      ]);
     });
   });
 });

@@ -1,6 +1,7 @@
 'use server';
 
 import {
+  BloatDown,
   CamelToSnakeCase,
   Challenge,
   ChallengeMode,
@@ -201,25 +202,6 @@ export async function loadChallenge(
   return challenge;
 }
 
-function statsTableAndField(type: ChallengeType): {
-  table: string;
-  field: keyof Pick<
-    SessionChallenge,
-    'tobStats' | 'mokhaiotlStats' | 'infernoStats'
-  >;
-} | null {
-  switch (type) {
-    case ChallengeType.TOB:
-      return { table: 'tob_challenge_stats', field: 'tobStats' };
-    case ChallengeType.MOKHAIOTL:
-      return { table: 'mokhaiotl_challenge_stats', field: 'mokhaiotlStats' };
-    case ChallengeType.INFERNO:
-      return { table: 'inferno_challenge_stats', field: 'infernoStats' };
-    default:
-      return null;
-  }
-}
-
 type StatsObject =
   | TobChallengeStats
   | MokhaiotlChallengeStats
@@ -229,6 +211,135 @@ function statsObject<T extends StatsObject>(rawRow: Record<string, any>): T {
   delete rawRow.id;
   delete rawRow.challenge_id;
   return snakeToCamelObject(rawRow) as T;
+}
+
+type StatsTarget = {
+  tobStats?: TobChallengeStats;
+  mokhaiotlStats?: MokhaiotlChallengeStats;
+  infernoStats?: InfernoChallengeStats;
+};
+
+type StatsLoadEntry<T extends StatsTarget> = {
+  id: number;
+  type: ChallengeType;
+  target: T;
+};
+
+/**
+ * Loads per-challenge stats rows for a heterogeneous set of challenges and
+ * attaches them to each entry's `target`.
+ */
+async function attachChallengeStats<T extends StatsTarget>(
+  entries: StatsLoadEntry<T>[],
+): Promise<void> {
+  const targetsById = new Map<number, T>();
+  const idsByType = new Map<ChallengeType, number[]>();
+  for (const entry of entries) {
+    const id = Number(entry.id);
+    targetsById.set(id, entry.target);
+    const list = idsByType.get(entry.type) ?? [];
+    list.push(id);
+    idsByType.set(entry.type, list);
+  }
+
+  const promises: Promise<void>[] = [];
+
+  const tobIds = idsByType.get(ChallengeType.TOB);
+  if (tobIds !== undefined && tobIds.length > 0) {
+    promises.push(
+      (async () => {
+        const [statsRows, downsRows] = await Promise.all([
+          sql<(StatsObject & { challenge_id: number })[]>`
+            SELECT * FROM tob_challenge_stats
+            WHERE challenge_id = ANY(${tobIds})
+          `,
+          sql<
+            {
+              challenge_id: number;
+              down_number: number;
+              down_tick: number;
+              walk_ticks: number;
+              accurate: boolean;
+            }[]
+          >`
+            SELECT challenge_id, down_number, down_tick, walk_ticks, accurate
+            FROM bloat_downs
+            WHERE challenge_id = ANY(${tobIds})
+            ORDER BY challenge_id, down_number
+          `,
+        ]);
+
+        const downsByChallenge = new Map<number, BloatDown[]>();
+        for (const row of downsRows) {
+          const cid = Number(row.challenge_id);
+          let list = downsByChallenge.get(cid);
+          if (list === undefined) {
+            list = [];
+            downsByChallenge.set(cid, list);
+          }
+          list.push({
+            downNumber: row.down_number,
+            downTick: row.down_tick,
+            walkTicks: row.walk_ticks,
+            accurate: row.accurate,
+          });
+        }
+
+        for (const row of statsRows) {
+          const challengeId = Number(
+            (row as { challenge_id: number }).challenge_id,
+          );
+          const target = targetsById.get(challengeId);
+          if (target === undefined) {
+            continue;
+          }
+          const tobStats = statsObject<TobChallengeStats>(row);
+          tobStats.downs = downsByChallenge.get(challengeId) ?? [];
+          target.tobStats = tobStats;
+        }
+      })(),
+    );
+  }
+
+  const mokhaiotlIds = idsByType.get(ChallengeType.MOKHAIOTL);
+  if (mokhaiotlIds !== undefined && mokhaiotlIds.length > 0) {
+    promises.push(
+      sql<(StatsObject & { challenge_id: number })[]>`
+        SELECT * FROM mokhaiotl_challenge_stats
+        WHERE challenge_id = ANY(${mokhaiotlIds})
+      `.then((rows) => {
+        for (const row of rows) {
+          const challengeId = (row as { challenge_id: number }).challenge_id;
+          const target = targetsById.get(challengeId);
+          if (target === undefined) {
+            continue;
+          }
+          target.mokhaiotlStats = statsObject<MokhaiotlChallengeStats>(row);
+        }
+      }),
+    );
+  }
+
+  const infernoIds = idsByType.get(ChallengeType.INFERNO);
+  if (infernoIds !== undefined && infernoIds.length > 0) {
+    promises.push(
+      sql<(StatsObject & { challenge_id: number })[]>`
+        SELECT * FROM inferno_challenge_stats
+        WHERE challenge_id = ANY(${infernoIds})
+      `.then((rows) => {
+        for (const row of rows) {
+          const challengeId = (row as { challenge_id: number }).challenge_id;
+          const target = targetsById.get(challengeId);
+          if (target === undefined) {
+            continue;
+          }
+          target.infernoStats = statsObject<InfernoChallengeStats>(row);
+        }
+      }),
+    );
+  }
+
+  await Promise.all(promises);
 }
 
 export type SplitValue = {
@@ -902,66 +1013,15 @@ export async function findChallenges(
   }
 
   if (options.extraFields?.stats) {
-    const types = new Map<ChallengeType, number[]>();
-    for (const c of rawChallenges) {
-      const list = types.get(c.type) ?? [];
-      types.set(c.type, [...list, c.id]);
-    }
-
-    if (types.has(ChallengeType.TOB)) {
-      loadPromises.push(
-        sql<({ challenge_id?: number; id?: number } & TobChallengeStats)[]>`
-          SELECT *
-          FROM tob_challenge_stats
-          WHERE challenge_id = ANY(${types.get(ChallengeType.TOB)!})
-        `.then((stats) => {
-          stats.forEach((s) => {
-            const challengeId = s.challenge_id!;
-            delete s.id;
-            delete s.challenge_id;
-            extra[challengeId].tobStats = snakeToCamelObject(
-              s,
-            ) as TobChallengeStats;
-          });
-        }),
-      );
-    }
-
-    if (types.has(ChallengeType.MOKHAIOTL)) {
-      loadPromises.push(
-        sql<
-          ({ challenge_id?: number; id?: number } & MokhaiotlChallengeStats)[]
-        >`
-          SELECT *
-          FROM mokhaiotl_challenge_stats
-          WHERE challenge_id = ANY(${types.get(ChallengeType.MOKHAIOTL)!})
-        `.then((stats) => {
-          stats.forEach((s) => {
-            const challengeId = s.challenge_id!;
-            delete s.id;
-            delete s.challenge_id;
-            extra[challengeId].mokhaiotlStats = snakeToCamelObject(s);
-          });
-        }),
-      );
-    }
-
-    if (types.has(ChallengeType.INFERNO)) {
-      loadPromises.push(
-        sql<({ challenge_id?: number; id?: number } & InfernoChallengeStats)[]>`
-          SELECT *
-          FROM inferno_challenge_stats
-          WHERE challenge_id = ANY(${types.get(ChallengeType.INFERNO)!})
-        `.then((stats) => {
-          stats.forEach((s) => {
-            const challengeId = s.challenge_id!;
-            delete s.id;
-            delete s.challenge_id;
-            extra[challengeId].infernoStats = snakeToCamelObject(s);
-          });
-        }),
-      );
-    }
+    loadPromises.push(
+      attachChallengeStats(
+        rawChallenges.map((c) => ({
+          id: c.id,
+          type: c.type,
+          target: extra[c.id],
+        })),
+      ),
+    );
   }
 
   loadPromises.push(
@@ -1750,24 +1810,20 @@ export async function loadSessionWithStats(
     ORDER BY pbh.created_at ASC
   `;
 
-  let challengeStatsQuery: Promise<(StatsObject & { challenge_id: number })[]>;
-  const statsMeta = statsTableAndField(rawChallenges[0].type);
-  if (statsMeta !== null) {
-    challengeStatsQuery = sql<(StatsObject & { challenge_id: number })[]>`
-      SELECT * FROM ${sql(statsMeta.table)}
-      WHERE challenge_id = ANY(${challengeIds})
-    `;
-  } else {
-    challengeStatsQuery = Promise.resolve([]);
-  }
+  const challengeStatsAttach = attachChallengeStats(
+    rawChallenges.map((c) => ({
+      id: c.id,
+      type: c.type,
+      target: extraChallengeData[c.id],
+    })),
+  );
 
-  const [challengePlayers, challengeSplits, personalBests, challengeStats] =
-    await Promise.all([
-      challengePlayersQuery,
-      challengeSplitsQuery,
-      personalBestsQuery,
-      challengeStatsQuery,
-    ]);
+  const [challengePlayers, challengeSplits, personalBests] = await Promise.all([
+    challengePlayersQuery,
+    challengeSplitsQuery,
+    personalBestsQuery,
+    challengeStatsAttach,
+  ]);
 
   for (const player of challengePlayers) {
     extraChallengeData[player.challenge_id].party.push({
@@ -1803,12 +1859,6 @@ export async function loadSessionWithStats(
 
     // PB rows are sorted by creation date, so the latest row is the fastest.
     pbsByPlayer.get(pb.username)?.set(pb.type, pb.ticks);
-  }
-
-  for (const stat of challengeStats) {
-    const challengeId = stat.challenge_id;
-    // @ts-expect-error `stat` is guaranteed to have the correct type.
-    extraChallengeData[challengeId][statsMeta!.field] = statsObject(stat);
   }
 
   const challenges: SessionChallenge[] = rawChallenges.map((c) => ({
