@@ -1985,38 +1985,27 @@ export async function loadSessionWithStats(
  * @param query The query to filter sessions by.
  * @returns Sessions matching the query.
  */
-export async function loadSessions(
-  limit: number = 10,
-  query: SessionQuery = {},
+async function shapeSessions(
+  rawSessions: SessionRow[],
 ): Promise<SessionWithChallenges[]> {
-  const { conditions, defaultSort } = sessionFilters(query);
-
-  const sessions = await sql<SessionRow[]>`
-    SELECT "challenge_sessions".*
-    FROM challenge_sessions
-    ${where(conditions)}
-    ${order(defaultSort)}
-    LIMIT ${limit}
-  `;
-
-  if (sessions.length === 0) {
+  if (rawSessions.length === 0) {
     return [];
   }
 
   const sessionsByUuid = new Map(
-    sessions.map((s) => [
+    rawSessions.map((s) => [
       s.uuid,
       { ...s, challenges: [] as ChallengeOverview[] },
     ]),
   );
 
   const [challenges] = await findChallenges(null, {
-    session: sessions.map((s) => s.id),
+    session: rawSessions.map((s) => s.id),
   });
 
   if (challenges.length === 0) {
     logger.warn('no_challenges_for_sessions', {
-      sessionUuids: sessions.map((s) => s.uuid),
+      sessionUuids: rawSessions.map((s) => s.uuid),
     });
     return [];
   }
@@ -2025,7 +2014,7 @@ export async function loadSessions(
     sessionsByUuid.get(c.sessionUuid)?.challenges.push(c);
   }
 
-  return sessions.map((session) => ({
+  return rawSessions.map((session) => ({
     uuid: session.uuid,
     challengeType: session.challenge_type,
     challengeMode: session.challenge_mode,
@@ -2043,6 +2032,110 @@ export async function loadSessions(
         (a, b) => b.startTime.getTime() - a.startTime.getTime(),
       ) ?? [],
   }));
+}
+
+export async function loadSessions(
+  limit: number = 10,
+  query: SessionQuery = {},
+): Promise<SessionWithChallenges[]> {
+  const { conditions, defaultSort } = sessionFilters(query);
+
+  const sessions = await sql<SessionRow[]>`
+    SELECT "challenge_sessions".*
+    FROM challenge_sessions
+    ${where(conditions)}
+    ${order(defaultSort)}
+    LIMIT ${limit}
+  `;
+
+  return shapeSessions(sessions);
+}
+
+export type SessionsPage = {
+  sessions: SessionWithChallenges[];
+  total: number;
+  remaining: number;
+};
+
+/**
+ * Loads a page of sessions along with total and remaining counts for
+ * pagination.
+ *
+ * @param limit The maximum number of sessions to load.
+ * @param query The query to filter sessions by.
+ * @returns The page of sessions with pagination counts.
+ */
+export async function loadSessionsPage(
+  limit: number,
+  query: SessionQuery = {},
+): Promise<SessionsPage> {
+  const { conditions, defaultSort } = sessionFilters(query);
+  const hasCursor = query.before !== undefined || query.after !== undefined;
+
+  const mainQuery = sql<(SessionRow & { total_count: string })[]>`
+    SELECT
+      "challenge_sessions".*,
+      COUNT(*) OVER () AS total_count
+    FROM challenge_sessions
+    ${where(conditions)}
+    ${order(defaultSort)}
+    LIMIT ${limit}
+  `;
+
+  // With a cursor, the window count above measures the cursor-filtered set,
+  // not the absolute total; fetch the unfiltered total in parallel.
+  let totalPromise: Promise<number | null> = Promise.resolve(null);
+  if (hasCursor) {
+    const unfilteredQuery: SessionQuery = {
+      ...query,
+      before: undefined,
+      after: undefined,
+    };
+    totalPromise = aggregateSessions(unfilteredQuery, { '*': 'count' }).then(
+      (r) => r?.['*']?.count ?? 0,
+    );
+  }
+
+  const [rawSessions, unfilteredTotal] = await Promise.all([
+    mainQuery,
+    totalPromise,
+  ]);
+
+  if (rawSessions.length === 0) {
+    return {
+      sessions: [],
+      total: unfilteredTotal ?? 0,
+      remaining: 0,
+    };
+  }
+
+  const windowCount = parseInt(rawSessions[0].total_count, 10);
+  const sessions = await shapeSessions(rawSessions);
+
+  if (sessions.length === 0) {
+    return {
+      sessions: [],
+      total: hasCursor ? (unfilteredTotal ?? 0) : windowCount,
+      remaining: 0,
+    };
+  }
+
+  // `remaining` is the number of sessions beyond the current page in the
+  // forward direction.
+  let total: number;
+  let remaining: number;
+  if (!hasCursor) {
+    total = windowCount;
+    remaining = Math.max(0, total - sessions.length);
+  } else if (query.before !== undefined) {
+    total = unfilteredTotal ?? 0;
+    remaining = Math.max(0, total - windowCount);
+  } else {
+    total = unfilteredTotal ?? 0;
+    remaining = Math.max(0, windowCount - sessions.length);
+  }
+
+  return { sessions, total, remaining };
 }
 
 function sessionFieldToExpression(field: string): postgres.Fragment {
@@ -2653,16 +2746,15 @@ export async function getTotalDeathsByStage(
   }
 
   if (otherStages.length > 0) {
-    // TODO(frolv): The only other challenge recorded currently is Colosseum,
-    // which is solo only, so this hack works for now. Eventually, all deaths
-    // should be tracked with player stats.
+    // TODO(frolv): The only other challenge recorded currently are solo only,
+    // so this hack works for now. Eventually, all deaths should be tracked
+    // with player stats.
     promises.push(
       sql<{ stage: Stage; deaths: string }[]>`
         SELECT stage, COUNT(*) as deaths
         FROM challenges
         WHERE
-          type = ${ChallengeType.COLOSSEUM}
-          AND stage = ANY(${otherStages})
+          stage = ANY(${otherStages})
           AND status = ${ChallengeStatus.WIPED}
         GROUP BY stage
       `.then((stagesAndDeaths) => {
@@ -2729,27 +2821,56 @@ export async function findBestSplitTimes(
 
   await Promise.all(
     types.map(async (type) => {
-      const results: {
+      const topNTicks: {
         id: number;
         uuid: string;
         start_time: Date;
-        type: SplitType;
-        scale: number;
+        ticks: number;
+      }[] = await sql`
+        SELECT DISTINCT ON (challenge_splits.ticks)
+          challenges.id,
+          challenges.uuid,
+          challenges.start_time,
+          challenge_splits.ticks
+        FROM challenge_splits
+        JOIN challenges ON challenge_splits.challenge_id = challenges.id
+        WHERE
+          challenge_splits.accurate
+          AND challenge_splits.type = ${type}
+          AND challenge_splits.scale = ${scale}
+          ${startTime ? sql`AND challenges.start_time >= ${startTime}` : sql``}
+        ORDER BY
+          challenge_splits.ticks ASC,
+          challenges.start_time ASC,
+          challenges.id ASC
+        LIMIT ${numRanks};
+      `;
+
+      if (topNTicks.length === 0) {
+        return;
+      }
+
+      const winningTicks = topNTicks.map((r) => r.ticks);
+      const rowsPerTick = Math.max(1, tiedTeamsLimit + 1);
+
+      const tiedResults: {
+        id: number;
+        uuid: string;
+        start_time: Date;
         ticks: number;
         total_count: string;
+        row_num: string;
       }[] = await sql`
         WITH ranked AS (
           SELECT
             challenges.id,
             challenges.uuid,
             challenges.start_time,
-            challenge_splits.type,
-            challenge_splits.scale,
             challenge_splits.ticks,
             COUNT(*) OVER (PARTITION BY challenge_splits.ticks) AS total_count,
             ROW_NUMBER() OVER (
               PARTITION BY challenge_splits.ticks
-              ORDER BY challenges.start_time
+              ORDER BY challenges.start_time ASC, challenges.id ASC
             ) AS row_num
           FROM challenge_splits
           JOIN challenges ON challenge_splits.challenge_id = challenges.id
@@ -2757,24 +2878,43 @@ export async function findBestSplitTimes(
             challenge_splits.accurate
             AND challenge_splits.type = ${type}
             AND challenge_splits.scale = ${scale}
+            AND challenge_splits.ticks = ANY(${winningTicks})
             ${startTime ? sql`AND challenges.start_time >= ${startTime}` : sql``}
         )
-        SELECT id, uuid, start_time, type, scale, ticks, total_count
+        SELECT id, uuid, start_time, ticks, total_count, row_num
         FROM ranked
-        WHERE row_num = 1
-        ORDER BY ticks
-        LIMIT ${numRanks};
+        WHERE row_num <= ${rowsPerTick}
+        ORDER BY ticks, row_num;
       `;
 
-      const ticksWithTies: number[] = [];
+      const rowsByTick = new Map<
+        number,
+        {
+          id: number;
+          uuid: string;
+          start_time: Date;
+          total_count: string;
+        }[]
+      >();
+      for (const row of tiedResults) {
+        if (!rowsByTick.has(row.ticks)) {
+          rowsByTick.set(row.ticks, []);
+        }
+        rowsByTick.get(row.ticks)!.push(row);
+      }
 
-      results.forEach((r) => {
-        rankedSplits[type] ??= [];
-        const tieCount = parseInt(r.total_count, 10) - 1;
+      rankedSplits[type] = [];
+      const ticksMap = new Map<number, [number, TiedTeam][]>();
+
+      for (const w of topNTicks) {
+        const rows = rowsByTick.get(w.ticks) ?? [];
+        const tieCount =
+          rows.length > 0 ? parseInt(rows[0].total_count, 10) - 1 : 0;
+
         const rankedSplit: RankedSplit = {
-          uuid: r.uuid,
-          date: r.start_time,
-          ticks: r.ticks,
+          uuid: w.uuid,
+          date: w.start_time,
+          ticks: w.ticks,
           party: [],
           splitType: type,
           scale,
@@ -2782,54 +2922,20 @@ export async function findBestSplitTimes(
         };
 
         rankedSplits[type].push(rankedSplit);
-        partiesToUpdate.push([r.id, rankedSplit]);
+        partiesToUpdate.push([w.id, rankedSplit]);
 
-        if (tieCount > 0) {
-          ticksWithTies.push(r.ticks);
+        if (tiedTeamsLimit > 0 && tieCount > 0 && rows.length > 0) {
+          ticksMap.set(
+            w.ticks,
+            rows.map((r) => [
+              r.id,
+              { uuid: r.uuid, date: r.start_time, party: [] },
+            ]),
+          );
         }
-      });
+      }
 
-      if (tiedTeamsLimit > 0 && ticksWithTies.length > 0) {
-        const tiedResults: {
-          id: number;
-          uuid: string;
-          start_time: Date;
-          ticks: number;
-        }[] = await sql`
-          WITH ranked AS (
-            SELECT
-              challenges.id,
-              challenges.uuid,
-              challenges.start_time,
-              challenge_splits.ticks,
-              ROW_NUMBER() OVER (
-                PARTITION BY challenge_splits.ticks
-                ORDER BY challenges.start_time
-              ) AS row_num
-            FROM challenge_splits
-            JOIN challenges ON challenge_splits.challenge_id = challenges.id
-            WHERE
-              challenge_splits.accurate
-              AND challenge_splits.type = ${type}
-              AND challenge_splits.scale = ${scale}
-              AND challenge_splits.ticks = ANY(${ticksWithTies})
-              ${startTime ? sql`AND challenges.start_time >= ${startTime}` : sql``}
-          )
-          SELECT id, uuid, start_time, ticks
-          FROM ranked
-          WHERE row_num <= ${tiedTeamsLimit + 1}
-          ORDER BY ticks, start_time;
-        `;
-
-        const ticksMap = new Map<number, [number, TiedTeam][]>();
-        for (const tr of tiedResults) {
-          if (!ticksMap.has(tr.ticks)) {
-            ticksMap.set(tr.ticks, []);
-          }
-          ticksMap
-            .get(tr.ticks)!
-            .push([tr.id, { uuid: tr.uuid, date: tr.start_time, party: [] }]);
-        }
+      if (ticksMap.size > 0) {
         tiedTeamsMap.set(type, ticksMap);
       }
     }),

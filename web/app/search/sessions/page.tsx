@@ -1,10 +1,6 @@
 import { ResolvingMetadata } from 'next';
 
-import {
-  SessionQuery,
-  aggregateSessions,
-  loadSessions,
-} from '@/actions/challenge';
+import { SessionQuery, loadSessionsPage } from '@/actions/challenge';
 import { basicMetadata } from '@/utils/metadata';
 import { NextSearchParams } from '@/utils/url';
 
@@ -33,39 +29,14 @@ export default async function SessionSearchPage({
     // Ignore invalid queries.
   }
 
-  const baseQuery: SessionQuery = {
-    ...initialQuery,
-    before: undefined,
-    after: undefined,
-  };
-
-  const [initialSessions, initialStats] = await Promise.all([
-    loadSessions(INITIAL_RESULTS, initialQuery),
-    aggregateSessions(baseQuery, { '*': 'count' }).then((result) =>
-      result !== null
-        ? {
-            count: result['*'].count,
-          }
-        : { count: 0 },
-    ),
-  ]);
+  const {
+    sessions: initialSessions,
+    total,
+    remaining: initialRemaining,
+  } = await loadSessionsPage(INITIAL_RESULTS, initialQuery);
 
   if (params.before !== undefined) {
     initialSessions.reverse();
-  }
-
-  let initialRemaining = 0;
-  if (initialSessions.length > 0) {
-    const includeStatus = baseQuery.status === undefined;
-    const boundarySession = initialSessions[initialSessions.length - 1];
-    const cursor = includeStatus
-      ? [boundarySession.status, boundarySession.startTime.getTime()]
-      : [boundarySession.startTime.getTime()];
-    const remainingResult = await aggregateSessions(
-      { ...baseQuery, after: cursor },
-      { '*': 'count' },
-    );
-    initialRemaining = remainingResult?.['*']?.count ?? 0;
   }
 
   return (
@@ -73,7 +44,7 @@ export default async function SessionSearchPage({
       initialContext={initialContext}
       initialSessions={initialSessions}
       initialRemaining={initialRemaining}
-      initialStats={initialStats}
+      initialStats={{ count: total }}
     />
   );
 }
