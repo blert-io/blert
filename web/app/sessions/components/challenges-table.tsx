@@ -20,6 +20,7 @@ import SectionTitle from '@/components/section-title';
 import { useToast } from '@/components/toast';
 import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 import { useClientOnly } from '@/hooks/client-only';
+import { useRestorableScrollState } from '@/hooks/history-state';
 import {
   challengeTerm,
   relevantSplitsForStage,
@@ -307,6 +308,58 @@ function TableSkeleton({ rows = 5 }: { rows?: number }) {
   );
 }
 
+type PersistedTableState = {
+  expanded: string[];
+  statusFilter: StatusFilter;
+  sortState: SortState;
+};
+
+function validatePersistedTableState(raw: unknown): PersistedTableState | null {
+  if (raw === null || typeof raw !== 'object') {
+    return null;
+  }
+  const candidate = raw as Partial<PersistedTableState>;
+  if (
+    !Array.isArray(candidate.expanded) ||
+    !candidate.expanded.every((id) => typeof id === 'string')
+  ) {
+    return null;
+  }
+  if (
+    candidate.statusFilter !== 'all' &&
+    candidate.statusFilter !== ChallengeStatus.COMPLETED &&
+    candidate.statusFilter !== ChallengeStatus.WIPED &&
+    candidate.statusFilter !== ChallengeStatus.RESET &&
+    candidate.statusFilter !== ChallengeStatus.IN_PROGRESS
+  ) {
+    return null;
+  }
+  if (
+    candidate.sortState === undefined ||
+    candidate.sortState === null ||
+    typeof candidate.sortState !== 'object'
+  ) {
+    return null;
+  }
+  const { field, direction } = candidate.sortState;
+  const validFields: readonly string[] = [
+    'index',
+    'status',
+    'startTime',
+    'challengeTicks',
+    'overallTicks',
+    'deaths',
+  ];
+  if (
+    typeof field !== 'string' ||
+    !validFields.includes(field) ||
+    (direction !== SortDirection.ASC && direction !== SortDirection.DESC)
+  ) {
+    return null;
+  }
+  return candidate as PersistedTableState;
+}
+
 export default function ChallengesTable() {
   const { session, isInitialLoad } = useSessionContext();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -317,6 +370,26 @@ export default function ChallengesTable() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const isClient = useClientOnly();
   const showToast = useToast();
+
+  // Preserve the table's view state (expanded rows, filter, sort) and the
+  // tbody's scroll position across navigation.
+  const { scrollRef: tbodyRef } = useRestorableScrollState<
+    PersistedTableState,
+    HTMLTableSectionElement
+  >({
+    scope: 'challenges-table',
+    state: {
+      expanded: Array.from(expandedRows),
+      statusFilter,
+      sortState,
+    },
+    onRestore: (saved) => {
+      setExpandedRows(new Set(saved.expanded));
+      setStatusFilter(saved.statusFilter);
+      setSortState(saved.sortState);
+    },
+    validate: validatePersistedTableState,
+  });
 
   const [challengesByStatus, accurateSplitCounts, bestSessionSplits] =
     useMemo(() => {
@@ -625,7 +698,7 @@ export default function ChallengesTable() {
               <th>Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody ref={tbodyRef}>
             {filteredChallenges.map((challenge) => {
               const challengeNumber = session.challenges.indexOf(challenge) + 1;
               const isExpanded = expandedRows.has(challenge.uuid);
