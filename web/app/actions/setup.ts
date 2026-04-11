@@ -20,7 +20,7 @@ import { where } from './query';
 import redis from './redis';
 import { getSignedInUser, getSignedInUserId } from './users';
 
-export type SetupState = 'draft' | 'published' | 'archived';
+export type SetupState = 'draft' | 'published' | 'archived' | 'unlisted';
 
 export type SetupRevision = {
   version: number;
@@ -114,6 +114,7 @@ export async function newGearSetup(
   author: User,
   template?: GearSetup,
   clone: boolean = false,
+  overrideName?: string,
 ): Promise<SetupMetadata> {
   let name = 'Untitled setup';
   let challengeType = ChallengeType.TOB;
@@ -124,7 +125,7 @@ export async function newGearSetup(
     if (template === undefined) {
       throw new Error('Template is required for cloning');
     }
-    name = `Copy of ${template.title}`;
+    name = overrideName ?? `Copy of ${template.title}`;
     challengeType = template.challenge;
     scale = template.players.length;
     hasDraft = true;
@@ -134,7 +135,7 @@ export async function newGearSetup(
       title: name,
     };
   } else if (template !== undefined) {
-    name = template.title;
+    name = overrideName ?? template.title;
     challengeType = template.challenge;
     scale = template.players.length;
     hasDraft = true;
@@ -241,16 +242,21 @@ export async function newGearSetup(
 /**
  * Clones a gear setup for the logged in user.
  * @param setup The setup to clone.
+ * @param name Optional title override for the clone. Defaults to
+ *   `Copy of <original title>` if not provided.
  * @returns The new setup metadata.
  */
-export async function cloneGearSetup(setup: GearSetup): Promise<SetupMetadata> {
+export async function cloneGearSetup(
+  setup: GearSetup,
+  name?: string,
+): Promise<SetupMetadata> {
   return withServerAction('cloneGearSetup', async () => {
     const user = await getSignedInUser();
     if (user === null) {
       throw new Error('Not authorized');
     }
 
-    return newGearSetup(user, setup, true);
+    return newGearSetup(user, setup, true, name);
   });
 }
 
@@ -463,6 +469,7 @@ export async function publishSetupRevision(
   publicId: string,
   setup: GearSetup,
   message: string | null,
+  targetState: 'published' | 'unlisted' = 'published',
 ): Promise<SetupMetadata> {
   return withServerAction('publishSetupRevision', async () => {
     const userId = await getSignedInUserId();
@@ -523,7 +530,7 @@ export async function publishSetupRevision(
           challenge_type = ${setup.challenge},
           scale = ${setup.players.length},
           latest_revision_id = ${revision.id},
-          state = 'published',
+          state = ${targetState},
           has_draft = FALSE,
           updated_at = NOW()
         WHERE id = ${current.id}
@@ -538,6 +545,41 @@ export async function publishSetupRevision(
     );
 
     return getSetupByPublicId(publicId) as Promise<SetupMetadata>;
+  });
+}
+
+/**
+ * Updates the visibility of an already-published setup between 'published'
+ * and 'unlisted' without creating a new revision.
+ * @param publicId The public ID of the setup.
+ * @param state The new visibility state.
+ * @returns The updated setup metadata, or null if not authorized or the
+ *   setup is not in a state that can be toggled.
+ */
+export async function updateSetupVisibility(
+  publicId: string,
+  state: 'published' | 'unlisted',
+): Promise<SetupMetadata | null> {
+  return withServerAction('updateSetupVisibility', async () => {
+    const userId = await getSignedInUserId();
+    if (userId === null) {
+      return null;
+    }
+
+    const [updated] = await sql<[{ id: number }?]>`
+      UPDATE gear_setups
+      SET state = ${state}, updated_at = NOW()
+      WHERE public_id = ${publicId}
+        AND author_id = ${userId}
+        AND state IN ('published', 'unlisted')
+      RETURNING id
+    `;
+
+    if (!updated) {
+      return null;
+    }
+
+    return getSetupByPublicId(publicId);
   });
 }
 

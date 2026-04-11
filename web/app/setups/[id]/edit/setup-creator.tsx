@@ -190,7 +190,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
   const isLocal = context.isLocal;
 
   const handlePublish = useCallback(
-    async (publishMessage: string) => {
+    async (publishMessage: string, targetState: 'published' | 'unlisted') => {
       try {
         if (isLocal) {
           // This should not be called by the publish modal.
@@ -202,6 +202,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
           setup.publicId,
           gearSetup,
           publishMessage || null,
+          targetState,
         );
 
         showToast('Published setup');
@@ -696,12 +697,18 @@ function PublishModal({
   isLocal: boolean;
   open: boolean;
   onClose: () => void;
-  onPublish: (message: string) => void | Promise<void>;
+  onPublish: (
+    message: string,
+    targetState: 'published' | 'unlisted',
+  ) => void | Promise<void>;
   publishIssues: { message: string; type: 'warning' | 'error' }[];
   publishLoading: boolean;
 }) {
   const router = useRouter();
   const [publishMessage, setPublishMessage] = useState('');
+  const [visibility, setVisibility] = useState<'published' | 'unlisted'>(
+    setup.state === 'unlisted' ? 'unlisted' : 'published',
+  );
 
   const migrationUrl = `/setups/my?migrate=${setup.publicId}`;
 
@@ -863,6 +870,53 @@ function PublishModal({
         )}
 
         <div className={styles.field}>
+          <label>
+            <i className="fas fa-eye" />
+            Visibility
+          </label>
+          <RadioInput.Group
+            name="publish-visibility"
+            simple
+            onChange={(value) =>
+              setVisibility(value as 'published' | 'unlisted')
+            }
+          >
+            <RadioInput.Option
+              checked={visibility === 'published'}
+              id="publish-visibility-published"
+              label={
+                <span className={styles.visibilityLabel}>
+                  <span className={styles.visibilityTitle}>
+                    <i className="fas fa-globe" />
+                    Published
+                  </span>
+                  <span className={styles.visibilityDescription}>
+                    Visible in the community feed
+                  </span>
+                </span>
+              }
+              value="published"
+            />
+            <RadioInput.Option
+              checked={visibility === 'unlisted'}
+              id="publish-visibility-unlisted"
+              label={
+                <span className={styles.visibilityLabel}>
+                  <span className={styles.visibilityTitle}>
+                    <i className="fas fa-eye-slash" />
+                    Unlisted
+                  </span>
+                  <span className={styles.visibilityDescription}>
+                    Only accessible via direct link
+                  </span>
+                </span>
+              }
+              value="unlisted"
+            />
+          </RadioInput.Group>
+        </div>
+
+        <div className={styles.field}>
           <label htmlFor="publish-message">
             <i className="fas fa-message" />
             Revision message <span className={styles.optional}>(optional)</span>
@@ -891,7 +945,7 @@ function PublishModal({
           <Button
             disabled={publishIssues.some((w) => w.type === 'error')}
             loading={publishLoading}
-            onClick={() => void onPublish(publishMessage)}
+            onClick={() => void onPublish(publishMessage, visibility)}
             className={styles.publishButton}
           >
             <i className="fas fa-upload" />
@@ -905,21 +959,18 @@ function PublishModal({
   }
 
   return (
-    <Modal className={styles.publishModal} open={open} onClose={onClose}>
-      <div className={styles.modalHeader}>
-        <h2>
-          <i className="fas fa-upload" />
-          {isLocal
+    <Modal
+      className={styles.publishModal}
+      open={open}
+      onClose={onClose}
+      header={
+        isLocal
+          ? 'Publish Setup'
+          : setup.latestRevision === null
             ? 'Publish Setup'
-            : setup.latestRevision === null
-              ? 'Publish Setup'
-              : 'Publish New Revision'}
-        </h2>
-        <button onClick={onClose}>
-          <i className="fas fa-times" />
-          <span className="sr-only">Close</span>
-        </button>
-      </div>
+            : 'Publish New Revision'
+      }
+    >
       {content}
     </Modal>
   );

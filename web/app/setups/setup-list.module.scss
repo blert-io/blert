@@ -406,6 +406,10 @@
             background: rgba(var(--blert-green-base), 0.5);
           }
 
+          &.unlisted {
+            background: rgba(var(--blert-yellow-base), 0.5);
+          }
+
           &.archived {
             background: rgba(var(--blert-red-base), 0.5);
           }

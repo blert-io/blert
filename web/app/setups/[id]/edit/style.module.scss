@@ -1130,6 +1130,34 @@
       color: var(--blert-font-color-secondary);
       font-size: 0.8rem;
     }
+
+    .visibilityLabel {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      text-align: left;
+
+      .visibilityTitle {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: var(--blert-font-color-primary);
+
+        i {
+          color: var(--blert-purple);
+          font-size: 0.9rem;
+        }
+      }
+
+      .visibilityDescription {
+        font-size: 0.85rem;
+        font-weight: 400;
+        color: var(--blert-font-color-secondary);
+        line-height: 1.4;
+      }
+    }
   }
 
   .actions {

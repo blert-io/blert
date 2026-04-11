@@ -20,6 +20,7 @@ import CollapsibleDescription from './collapsible-description';
 import Panels from './panels';
 import { SlotTooltipRenderer } from '../slot';
 import { SetupViewingContextProvider } from '../viewing-context';
+import { VisibilityToggleButton } from './visibility-actions';
 import VoteBar from '../vote-bar';
 
 import styles from './style.module.scss';
@@ -96,6 +97,21 @@ export default async function GearSetupPage({
                   </span>
                 </div>
               )}
+              {isAuthor && setup.state === 'unlisted' && (
+                <div className={styles.unlistedBanner}>
+                  <i className="fas fa-eye-slash" />
+                  <span>
+                    This setup is unlisted. Only people with the link can view
+                    it.
+                  </span>
+                  {isLatestRevision && (
+                    <VisibilityToggleButton
+                      publicId={setup.publicId}
+                      currentState="unlisted"
+                    />
+                  )}
+                </div>
+              )}
               <div className={styles.setupInfo}>
                 <div className={styles.setupMeta}>
                   <span className={styles.author}>
@@ -113,6 +129,14 @@ export default async function GearSetupPage({
                     <i className="fas fa-eye" />
                     <span>{setup.views.toLocaleString()}</span>
                   </span>
+                  {isAuthor &&
+                    isLatestRevision &&
+                    setup.state === 'published' && (
+                      <VisibilityToggleButton
+                        publicId={setup.publicId}
+                        currentState="published"
+                      />
+                    )}
                 </div>
                 <div className={styles.voteSection}>
                   <VoteBar
@@ -131,6 +155,8 @@ export default async function GearSetupPage({
                 showClone={loggedIn}
                 showDelete={isAuthor}
                 showEdit={isAuthor && isLatestRevision}
+                currentRevision={targetRevision}
+                isLatestRevision={isLatestRevision}
                 setup={setup}
                 gearSetup={gearSetup}
               />
@@ -187,5 +213,9 @@ export async function generateMetadata(
       ...metadata.twitter,
       title,
     },
+    robots:
+      setupMetadata.state === 'unlisted'
+        ? { index: false, follow: false }
+        : undefined,
   };
 }

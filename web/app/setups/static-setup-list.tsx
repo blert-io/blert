@@ -3,7 +3,7 @@
 import { challengeName } from '@blert/common';
 import Link from 'next/link';
 
-import { SetupListItem } from '@/actions/setup';
+import { SetupListItem, SetupState } from '@/actions/setup';
 import VoteBar from '@/components/vote-bar';
 
 import styles from './setup-list.module.scss';
@@ -15,6 +15,13 @@ function formatDate(date: Date | string): string {
     day: 'numeric',
   });
 }
+
+const SETUP_STATE_ICONS: Record<SetupState, string> = {
+  draft: 'fa-edit',
+  published: 'fa-check-circle',
+  archived: 'fa-archive',
+  unlisted: 'fa-eye-slash',
+};
 
 type StaticSetupListProps = {
   setups: SetupListItem[];
@@ -58,13 +65,7 @@ export function StaticSetupList({
                         className={`${styles.meta} ${styles.state} ${styles[setup.state]}`}
                       >
                         <i
-                          className={`fas ${
-                            setup.state === 'draft'
-                              ? 'fa-edit'
-                              : setup.state === 'published'
-                                ? 'fa-check-circle'
-                                : 'fa-archive'
-                          }`}
+                          className={`fas ${SETUP_STATE_ICONS[setup.state]}`}
                         />
                         {setup.state}
                       </span>
