@@ -12,8 +12,8 @@ import {
 
 import { BloatDownsResponse } from '@/actions/theatre';
 import { Comparator } from '@/components/comparable-input';
+import { useDebounced } from '@/hooks/debounce';
 import { scaleNameAndColor } from '@/utils/challenge';
-import { useDebounced } from '@/utils/hooks';
 import { getOrdinal } from '@/utils/path-util';
 
 import BloatDownsChart from './chart';

@@ -1179,6 +1179,7 @@ export default abstract class ChallengeProcessor {
         challengeUuid: this.uuid,
         stage,
         error: e instanceof Error ? e.message : String(e),
+        stack: e instanceof Error ? e.stack : undefined,
       });
     }
   }
