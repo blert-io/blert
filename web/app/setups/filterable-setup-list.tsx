@@ -26,6 +26,13 @@ type FilterableSetupListProps = {
 
 const MAX_SCALE = 8;
 
+const SETUP_STATE_ICONS: Record<SetupState, string> = {
+  draft: 'fa-edit',
+  published: 'fa-check-circle',
+  archived: 'fa-archive',
+  unlisted: 'fa-eye-slash',
+};
+
 function scaleName(scale: number) {
   switch (scale) {
     case 1:
@@ -250,6 +257,7 @@ export function FilterableSetupList({
                 <option value="">All States</option>
                 <option value="draft">Draft</option>
                 <option value="published">Published</option>
+                <option value="unlisted">Unlisted</option>
                 <option value="archived">Archived</option>
               </select>
             </div>
@@ -364,13 +372,7 @@ export function FilterableSetupList({
                           className={`${styles.meta} ${styles.state} ${styles[setup.state]}`}
                         >
                           <i
-                            className={`fas ${
-                              setup.state === 'draft'
-                                ? 'fa-edit'
-                                : setup.state === 'published'
-                                  ? 'fa-check-circle'
-                                  : 'fa-archive'
-                            }`}
+                            className={`fas ${SETUP_STATE_ICONS[setup.state]}`}
                           />
                           {setup.state}
                         </span>

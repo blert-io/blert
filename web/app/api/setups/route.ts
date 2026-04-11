@@ -12,7 +12,12 @@ import { withApiRoute } from '@/api/handler';
 import { clamp } from '@/utils/math';
 
 function isSetupState(state: string): state is SetupState {
-  return state === 'draft' || state === 'published' || state === 'archived';
+  return (
+    state === 'draft' ||
+    state === 'published' ||
+    state === 'archived' ||
+    state === 'unlisted'
+  );
 }
 
 export const GET = withApiRoute(

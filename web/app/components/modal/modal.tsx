@@ -19,7 +19,12 @@ export function Modal(props: ModalProps) {
 
   const modalPortal = useRef<HTMLDivElement | null>(null);
   const modalRef = useRef<HTMLDivElement | null>(null);
+  const onCloseRef = useRef(onClose);
   const [shouldRender, setShouldRender] = useState(open);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     const root = document.getElementById('portal-root');
@@ -46,13 +51,13 @@ export function Modal(props: ModalProps) {
         event.target instanceof HTMLTextAreaElement ||
         event.target instanceof HTMLSelectElement;
       if (event.key === 'Escape' && !isInput) {
-        onClose();
+        onCloseRef.current();
       }
     };
 
     const onClick = (event: MouseEvent) => {
       if (!modalRef.current?.contains(event.target as Node)) {
-        onClose();
+        onCloseRef.current();
       }
     };
 
@@ -94,7 +99,7 @@ export function Modal(props: ModalProps) {
     }
 
     return () => hidePortal();
-  }, [open, onClose]);
+  }, [open]);
 
   if (modalPortal.current === null || !shouldRender) {
     return null;

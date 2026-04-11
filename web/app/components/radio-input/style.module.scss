@@ -64,7 +64,7 @@
       color: var(--blert-font-color-secondary);
 
       label {
-        border: 1px solid rgba(var(--blert-divider-color), 0.5);
+        border: 1px solid var(--blert-divider-color);
         border-radius: 8px;
         background: rgba(var(--blert-panel-background-color-base), 0.3);
         transition: all 0.2s ease;
