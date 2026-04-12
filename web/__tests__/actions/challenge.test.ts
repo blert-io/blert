@@ -11,6 +11,7 @@ import {
 import {
   aggregateSessions,
   findChallenges,
+  loadSessionsPage,
   loadSessionWithStats,
   SessionQuery,
 } from '@/actions/challenge';
@@ -182,7 +183,7 @@ describe('sessions', () => {
     const challengeIds = challengeResults.map((c) => c.id);
 
     const challengePlayers = [
-      // Session 0, first challenge (for party hash lookup)
+      // Session 0, both challenges
       {
         challenge_id: challengeIds[0],
         player_id: playerIds[0],
@@ -197,7 +198,21 @@ describe('sessions', () => {
         orb: 1,
         primary_gear: 0,
       },
-      // Session 1, first challenge
+      {
+        challenge_id: challengeIds[1],
+        player_id: playerIds[0],
+        username: 'PlayerA',
+        orb: 0,
+        primary_gear: 0,
+      },
+      {
+        challenge_id: challengeIds[1],
+        player_id: playerIds[1],
+        username: 'PlayerB',
+        orb: 1,
+        primary_gear: 0,
+      },
+      // Session 1, both challenges
       {
         challenge_id: challengeIds[2],
         player_id: playerIds[0],
@@ -214,6 +229,27 @@ describe('sessions', () => {
       },
       {
         challenge_id: challengeIds[2],
+        player_id: playerIds[2],
+        username: 'PlayerC',
+        orb: 2,
+        primary_gear: 0,
+      },
+      {
+        challenge_id: challengeIds[3],
+        player_id: playerIds[0],
+        username: 'PlayerA',
+        orb: 0,
+        primary_gear: 0,
+      },
+      {
+        challenge_id: challengeIds[3],
+        player_id: playerIds[1],
+        username: 'PlayerB',
+        orb: 1,
+        primary_gear: 0,
+      },
+      {
+        challenge_id: challengeIds[3],
         player_id: playerIds[2],
         username: 'PlayerC',
         orb: 2,
@@ -395,6 +431,137 @@ describe('sessions', () => {
         );
 
         expect(Object.keys(result!)).toHaveLength(2);
+      });
+    });
+  });
+
+  describe('loadSessionsPage', () => {
+    const COMPLETED_2_CHALLENGES = '11111111-1111-1111-1111-111111111111';
+    const ACTIVE_2_CHALLENGES = '22222222-2222-2222-2222-222222222222';
+    const COMPLETED_1_CHALLENGE = '33333333-3333-3333-3333-333333333333';
+    const COMPLETED_1_WIPE_1_ABANDON = '44444444-4444-4444-4444-444444444444';
+
+    describe('challengeCount filter', () => {
+      it('returns sessions with exactly N non-abandoned challenges', async () => {
+        const page = await loadSessionsPage(20, {
+          challengeCount: ['==', 2],
+        });
+        expect(page.sessions.map((s) => s.uuid)).toEqual([
+          ACTIVE_2_CHALLENGES,
+          COMPLETED_2_CHALLENGES,
+        ]);
+        expect(page.total).toBe(2);
+        expect(page.remaining).toBe(0);
+      });
+
+      it('excludes abandoned challenges from the count', async () => {
+        const page = await loadSessionsPage(20, {
+          challengeCount: ['==', 1],
+        });
+        expect(page.sessions.map((s) => s.uuid)).toEqual([
+          COMPLETED_1_WIPE_1_ABANDON,
+          COMPLETED_1_CHALLENGE,
+        ]);
+        expect(page.total).toBe(2);
+      });
+
+      it('supports greater-than-or-equal', async () => {
+        const page = await loadSessionsPage(20, {
+          challengeCount: ['>=', 2],
+        });
+        expect(page.sessions.map((s) => s.uuid)).toEqual([
+          ACTIVE_2_CHALLENGES,
+          COMPLETED_2_CHALLENGES,
+        ]);
+      });
+
+      it('supports less-than-or-equal', async () => {
+        const page = await loadSessionsPage(20, {
+          challengeCount: ['<=', 1],
+        });
+        expect(page.sessions.map((s) => s.uuid)).toEqual([
+          COMPLETED_1_WIPE_1_ABANDON,
+          COMPLETED_1_CHALLENGE,
+        ]);
+      });
+
+      it('supports a half-open range spread', async () => {
+        const page = await loadSessionsPage(20, {
+          challengeCount: ['range', [1, 3]],
+        });
+        expect(page.sessions.map((s) => s.uuid)).toEqual([
+          ACTIVE_2_CHALLENGES,
+          COMPLETED_1_WIPE_1_ABANDON,
+          COMPLETED_1_CHALLENGE,
+          COMPLETED_2_CHALLENGES,
+        ]);
+        expect(page.total).toBe(4);
+      });
+
+      it('returns no sessions when the count matches nothing', async () => {
+        const page = await loadSessionsPage(20, {
+          challengeCount: ['>=', 3],
+        });
+        expect(page.sessions).toEqual([]);
+        expect(page.total).toBe(0);
+      });
+
+      it('composes with other filters', async () => {
+        const page = await loadSessionsPage(20, {
+          challengeCount: ['==', 2],
+          status: ['==', SessionStatus.COMPLETED],
+        });
+        expect(page.sessions.map((s) => s.uuid)).toEqual([
+          COMPLETED_2_CHALLENGES,
+        ]);
+        expect(page.total).toBe(1);
+      });
+    });
+
+    describe('duration filter', () => {
+      it('filters by minimum duration in seconds', async () => {
+        const page = await loadSessionsPage(20, {
+          duration: ['>=', 2700],
+        });
+        expect(page.sessions.map((s) => s.uuid)).toEqual([
+          COMPLETED_1_WIPE_1_ABANDON,
+          COMPLETED_2_CHALLENGES,
+        ]);
+      });
+
+      it('filters by maximum duration', async () => {
+        const page = await loadSessionsPage(20, {
+          duration: ['<=', 1800],
+        });
+        expect(page.sessions.map((s) => s.uuid)).toEqual([
+          ACTIVE_2_CHALLENGES,
+          COMPLETED_1_CHALLENGE,
+        ]);
+      });
+
+      it('excludes sessions with null end_time', async () => {
+        await sql`
+          UPDATE challenge_sessions
+          SET end_time = NULL
+          WHERE uuid = ${ACTIVE_2_CHALLENGES}
+        `;
+        const page = await loadSessionsPage(20, {
+          duration: ['>=', 1],
+        });
+        expect(page.sessions.map((s) => s.uuid)).not.toContain(
+          ACTIVE_2_CHALLENGES,
+        );
+        expect(page.sessions).toHaveLength(3);
+      });
+
+      it('supports a range', async () => {
+        const page = await loadSessionsPage(20, {
+          duration: ['range', [1800, 3600]],
+        });
+        expect(page.sessions.map((s) => s.uuid)).toEqual([
+          COMPLETED_1_WIPE_1_ABANDON,
+          COMPLETED_1_CHALLENGE,
+        ]);
       });
     });
   });

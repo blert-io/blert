@@ -1,8 +1,9 @@
 import { ChallengeMode, ChallengeType, SessionStatus } from '@blert/common';
-import { Dispatch, SetStateAction } from 'react';
+import { Dispatch, SetStateAction, useEffect, useState } from 'react';
 
 import Checkbox from '@/components/checkbox';
 import DatePicker from '@/components/date-picker';
+import Input from '@/components/input';
 import PlayerSearch from '@/components/player-search';
 import TagList from '@/components/tag-list';
 
@@ -58,6 +59,97 @@ const NO_MODE_CHALLENGE_TYPES = new Set([
   ChallengeType.INFERNO,
   ChallengeType.MOKHAIOTL,
 ]);
+
+type RangeFilterProps = {
+  label: string;
+  id: string;
+  minValue: number | null;
+  maxValue: number | null;
+  minField: keyof SessionSearchFilters;
+  maxField: keyof SessionSearchFilters;
+  inputWidth?: number;
+  setContext: FiltersProps['setContext'];
+  loading: boolean;
+};
+
+function RangeFilter({
+  label,
+  id,
+  minValue,
+  maxValue,
+  minField,
+  maxField,
+  inputWidth = 90,
+  setContext,
+  loading,
+}: RangeFilterProps) {
+  const [minText, setMinText] = useState(minValue?.toString() ?? '');
+  const [maxText, setMaxText] = useState(maxValue?.toString() ?? '');
+
+  useEffect(() => setMinText(minValue?.toString() ?? ''), [minValue]);
+  useEffect(() => setMaxText(maxValue?.toString() ?? ''), [maxValue]);
+
+  function commit(field: keyof SessionSearchFilters, text: string) {
+    const parsed = parseInt(text);
+    const value = isNaN(parsed) || parsed < 1 ? null : parsed;
+    setContext((prev) => {
+      if (value === prev.filters[field]) {
+        return prev;
+      }
+      return {
+        ...prev,
+        filters: { ...prev.filters, [field]: value },
+        pagination: {},
+      };
+    });
+  }
+
+  function handleKeyDown(
+    e: React.KeyboardEvent<HTMLInputElement>,
+    field: keyof SessionSearchFilters,
+    text: string,
+  ) {
+    if (e.key === 'Enter') {
+      commit(field, text);
+      (e.target as HTMLInputElement).blur();
+    }
+  }
+
+  return (
+    <div className={styles.filterGroup}>
+      <div className={styles.filterLabel}>
+        <label>{label}</label>
+      </div>
+      <div className={styles.rangeContainer}>
+        <Input
+          disabled={loading}
+          id={`filters-min-${id}`}
+          label="Min"
+          labelBg="var(--blert-surface-dark)"
+          type="number"
+          value={minText}
+          width={inputWidth}
+          onChange={(e) => setMinText(e.target.value)}
+          onBlur={() => commit(minField, minText)}
+          onKeyDown={(e) => handleKeyDown(e, minField, minText)}
+        />
+        <span className={styles.rangeSeparator}>&ndash;</span>
+        <Input
+          disabled={loading}
+          id={`filters-max-${id}`}
+          label="Max"
+          labelBg="var(--blert-surface-dark)"
+          type="number"
+          value={maxText}
+          width={inputWidth}
+          onChange={(e) => setMaxText(e.target.value)}
+          onBlur={() => commit(maxField, maxText)}
+          onKeyDown={(e) => handleKeyDown(e, maxField, maxText)}
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function Filters({
   context,
@@ -234,6 +326,19 @@ export default function Filters({
             </div>
           </div>
 
+          <RangeFilter
+            label="Challenges"
+            id="challenge-count"
+            minValue={context.filters.minChallengeCount}
+            maxValue={context.filters.maxChallengeCount}
+            minField="minChallengeCount"
+            maxField="maxChallengeCount"
+            setContext={setContext}
+            loading={loading}
+          />
+        </div>
+
+        <div className={styles.filterRow}>
           {/* Party filter */}
           <div className={styles.filterGroup}>
             <div className={styles.filterLabel}>
@@ -305,8 +410,8 @@ export default function Filters({
                   width={DATE_INPUT_WIDTH}
                 />
               </div>
+              <span className={styles.dateFieldLabel}>&ndash;</span>
               <div className={styles.dateField}>
-                <span className={styles.dateFieldLabel}>To</span>
                 <DatePicker
                   disabled={loading}
                   icon="fas fa-calendar-alt"
@@ -329,6 +434,17 @@ export default function Filters({
               </div>
             </div>
           </div>
+
+          <RangeFilter
+            label="Duration (mins)"
+            id="duration"
+            minValue={context.filters.minDurationMinutes}
+            maxValue={context.filters.maxDurationMinutes}
+            minField="minDurationMinutes"
+            maxField="maxDurationMinutes"
+            setContext={setContext}
+            loading={loading}
+          />
         </div>
       </div>
     </div>

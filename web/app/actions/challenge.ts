@@ -1456,6 +1456,14 @@ export type SessionQuery = {
   startTime?: Comparator<Date>;
   status?: Comparator<SessionStatus>;
   party?: string[];
+  challengeCount?: Comparator<number>;
+
+  /**
+   * Session duration in seconds. Only completed sessions have a finalized
+   * duration, so active sessions are excluded.
+   */
+  duration?: Comparator<number>;
+
   before?: number[];
   after?: number[];
 };
@@ -1612,6 +1620,29 @@ function sessionFilters(query: SessionQuery): {
         `,
       );
     }
+  }
+
+  if (query.challengeCount !== undefined) {
+    const having = comparatorToSql(sql`COUNT(*)`, query.challengeCount);
+    conditions.push(
+      sql`
+        challenge_sessions.id IN (
+          SELECT c.session_id
+          FROM challenges c
+          WHERE c.status != ${ChallengeStatus.ABANDONED}
+          GROUP BY c.session_id
+          HAVING ${having}
+        )
+      `,
+    );
+  }
+
+  if (query.duration !== undefined) {
+    conditions.push(sql`challenge_sessions.end_time IS NOT NULL`);
+    const durationExpr = sql`
+      EXTRACT(EPOCH FROM (challenge_sessions.end_time - challenge_sessions.start_time))
+    `;
+    conditions.push(comparatorToSql(durationExpr, query.duration));
   }
 
   return { conditions, defaultSort };

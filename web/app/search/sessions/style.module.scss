@@ -72,12 +72,11 @@
 
 .filterRow {
   display: flex;
-  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 1.5rem 1rem;
+  gap: 1.5rem 2rem;
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    justify-content: flex-start;
+    flex-wrap: wrap;
     gap: 1.25rem 2rem;
   }
 }
@@ -121,8 +120,9 @@
 
 .dateContainer {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 0.5rem;
+  padding-top: 10px;
 }
 
 .dateField {
@@ -134,7 +134,27 @@
 .dateFieldLabel {
   font-size: 0.8rem;
   color: var(--blert-font-color-secondary);
-  min-width: 32px;
+}
+
+.rangeContainer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type='number'] {
+    -moz-appearance: textfield;
+  }
+}
+
+.rangeSeparator {
+  font-size: 0.8rem;
+  color: var(--blert-font-color-secondary);
 }
 
 .resultsCard {

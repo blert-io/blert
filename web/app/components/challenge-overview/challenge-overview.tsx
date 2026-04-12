@@ -11,6 +11,7 @@ import {
   stageName,
 } from '@blert/common';
 import Image from 'next/image';
+import Link from 'next/link';
 import TimeAgo from 'react-timeago';
 
 import { useLiveChallenge } from '@/challenge-context';
@@ -44,6 +45,7 @@ interface ChallengeOverviewProps {
   party: ExtendedChallengePlayer[];
   startTime: Date;
   extraInfo?: ExtraOverviewInfo[];
+  sessionUuid?: string;
 }
 
 interface PlayerCardProps {
@@ -112,6 +114,7 @@ export function ChallengeOverview(props: ChallengeOverviewProps) {
     party,
     startTime,
     extraInfo,
+    sessionUuid,
   } = props;
 
   const isClient = useClientOnly();
@@ -139,6 +142,15 @@ export function ChallengeOverview(props: ChallengeOverviewProps) {
           <i className="fa-solid fa-trophy" />
           {modeString}
         </div>
+        {sessionUuid && (
+          <Link
+            href={`/sessions/${sessionUuid}`}
+            className={styles.sessionLink}
+          >
+            <i className="fa-solid fa-eye" />
+            <span>View session</span>
+          </Link>
+        )}
       </div>
 
       <div className={styles.content}>

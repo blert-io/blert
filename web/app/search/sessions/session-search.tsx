@@ -119,6 +119,10 @@ export default function SessionSearch({
     context.filters.scale.length === 0 &&
     context.filters.status.length === 0 &&
     context.filters.party.length === 0 &&
+    context.filters.minChallengeCount === null &&
+    context.filters.maxChallengeCount === null &&
+    context.filters.minDurationMinutes === null &&
+    context.filters.maxDurationMinutes === null &&
     context.filters.startDate === null &&
     context.filters.endDate === null;
 
