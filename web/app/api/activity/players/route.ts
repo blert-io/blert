@@ -1,7 +1,9 @@
+import { ChallengeType } from '@blert/common';
 import { NextRequest } from 'next/server';
 
 import { getPlayersPerHour, playerActivityByHour } from '@/actions/activity';
 import { withApiRoute } from '@/api/handler';
+import { expectSingle, numericParam } from '@/api/query';
 
 function periodToStartTime(period: string) {
   const startTime = new Date();
@@ -28,18 +30,21 @@ function periodToStartTime(period: string) {
 export const GET = withApiRoute(
   { route: '/api/activity/players' },
   async (request: NextRequest) => {
-    const params = request.nextUrl.searchParams;
+    const searchParams = request.nextUrl.searchParams;
+    const params = Object.fromEntries(searchParams);
 
-    const period = params.get('period') ?? 'day';
+    const period = expectSingle(params, 'period') ?? 'day';
     const startTime = periodToStartTime(period);
 
-    if (params.has('username')) {
-      const username = params.get('username')!;
+    const challengeType = numericParam<ChallengeType>(params, 'type');
+
+    if (searchParams.has('username')) {
+      const username = searchParams.get('username')!;
       const playersPerHour = await playerActivityByHour(username, startTime);
       return Response.json(playersPerHour);
     }
 
-    const playersPerHour = await getPlayersPerHour(startTime);
+    const playersPerHour = await getPlayersPerHour(startTime, challengeType);
     return Response.json(playersPerHour);
   },
 );

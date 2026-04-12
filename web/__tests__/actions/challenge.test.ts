@@ -10,6 +10,7 @@ import {
 
 import {
   aggregateSessions,
+  countUniquePlayers,
   findChallenges,
   loadSessionsPage,
   loadSessionWithStats,
@@ -683,143 +684,220 @@ describe('sessions', () => {
   });
 });
 
-describe('findChallenges', () => {
-  describe('bloat down filters', () => {
-    let playerId: number;
-    let sessionId: number;
-    let zeroDownChallengeId: number;
-    let oneDownChallengeId: number;
+describe('challenges', () => {
+  let playerIds: number[];
+  let sessionId: number;
+  let challengeIds: number[];
 
-    beforeEach(async () => {
-      [{ id: playerId }] = await sql<{ id: number }[]>`
-        INSERT INTO players ${sql([
-          {
-            username: 'PlayerA',
-            normalized_username: normalizeRsn('PlayerA'),
-          },
-        ])} RETURNING id
-      `;
+  beforeEach(async () => {
+    const players = [
+      { username: 'PlayerA', normalized_username: normalizeRsn('PlayerA') },
+      { username: 'PlayerB', normalized_username: normalizeRsn('PlayerB') },
+      { username: 'PlayerC', normalized_username: normalizeRsn('PlayerC') },
+    ];
+    const playerResults = await sql`
+      INSERT INTO players ${sql(players, ['username', 'normalized_username'])} RETURNING id
+    `;
+    playerIds = playerResults.map((p) => p.id);
 
-      [{ id: sessionId }] = await sql<{ id: number }[]>`
-        INSERT INTO challenge_sessions ${sql([
-          {
-            uuid: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-            challenge_type: ChallengeType.TOB,
-            challenge_mode: ChallengeMode.TOB_REGULAR,
-            scale: 2,
-            party_hash: partyHash(['PlayerA']),
-            start_time: new Date('2024-01-01T10:00:00Z'),
-            end_time: new Date('2024-01-01T10:30:00Z'),
-            status: SessionStatus.COMPLETED,
-          },
-        ])} RETURNING id
-      `;
-
-      const challenges = await sql<{ id: number }[]>`
-        INSERT INTO challenges ${sql([
-          {
-            session_id: sessionId,
-            uuid: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-            type: ChallengeType.TOB,
-            mode: ChallengeMode.TOB_REGULAR,
-            stage: Stage.TOB_BLOAT,
-            status: ChallengeStatus.WIPED,
-            start_time: new Date('2024-01-01T10:00:00Z'),
-            finish_time: new Date('2024-01-01T10:10:00Z'),
-            scale: 2,
-            challenge_ticks: 600,
-            overall_ticks: 650,
-            total_deaths: 2,
-          },
-          {
-            session_id: sessionId,
-            uuid: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
-            type: ChallengeType.TOB,
-            mode: ChallengeMode.TOB_REGULAR,
-            stage: Stage.TOB_VERZIK,
-            status: ChallengeStatus.COMPLETED,
-            start_time: new Date('2024-01-01T11:00:00Z'),
-            finish_time: new Date('2024-01-01T11:20:00Z'),
-            scale: 2,
-            challenge_ticks: 1200,
-            overall_ticks: 1250,
-            total_deaths: 0,
-          },
-        ])} RETURNING id
-      `;
-      [zeroDownChallengeId, oneDownChallengeId] = challenges.map((c) => c.id);
-
-      await sql`
-        INSERT INTO challenge_players ${sql([
-          {
-            challenge_id: zeroDownChallengeId,
-            player_id: playerId,
-            username: 'PlayerA',
-            orb: 0,
-            primary_gear: 0,
-          },
-          {
-            challenge_id: oneDownChallengeId,
-            player_id: playerId,
-            username: 'PlayerA',
-            orb: 0,
-            primary_gear: 0,
-          },
-        ])}
-      `;
-
-      await sql`
-        INSERT INTO tob_challenge_stats ${sql([
-          {
-            challenge_id: zeroDownChallengeId,
-            bloat_down_count: 0,
-          },
-          {
-            challenge_id: oneDownChallengeId,
-            bloat_down_count: 1,
-          },
-        ])}
-      `;
-
-      await sql`
-        INSERT INTO bloat_downs ${sql([
-          {
-            challenge_id: oneDownChallengeId,
-            down_number: 1,
-            down_tick: 41,
-            walk_ticks: 41,
-            accurate: true,
-          },
-        ])}
-      `;
-    });
-
-    afterEach(async () => {
-      await sql`DELETE FROM challenge_players`;
-      await sql`DELETE FROM challenges`;
-      await sql`DELETE FROM challenge_sessions`;
-      await sql`DELETE FROM players`;
-    });
-
-    it('matches zero-down raids for tob.bloatDownCount=eq0', async () => {
-      const [challenges] = await findChallenges(10, {
-        tob: { bloatDownCount: ['==', 0] },
-      });
-
-      expect(challenges).toHaveLength(1);
-      expect(challenges[0].uuid).toBe('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
-    });
-
-    it('combines persisted down count and bloat down filters', async () => {
-      const [challenges] = await findChallenges(10, {
-        tob: {
-          bloatDowns: new Map([[1, ['==', 41]]]),
-          bloatDownCount: ['==', 1],
+    [{ id: sessionId }] = await sql<{ id: number }[]>`
+      INSERT INTO challenge_sessions ${sql([
+        {
+          uuid: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+          challenge_type: ChallengeType.TOB,
+          challenge_mode: ChallengeMode.TOB_REGULAR,
+          scale: 2,
+          party_hash: partyHash(['PlayerA']),
+          start_time: new Date('2024-01-01T10:00:00Z'),
+          end_time: new Date('2024-01-01T10:30:00Z'),
+          status: SessionStatus.COMPLETED,
         },
+      ])} RETURNING id
+    `;
+
+    // 0: TOB wiped at bloat — PlayerA, PlayerB
+    // 1: TOB completed — PlayerA, PlayerB, PlayerC
+    // 2: Colosseum completed — PlayerA
+    // 3: TOB abandoned — PlayerA, PlayerB (excluded by default)
+    const challenges = [
+      {
+        session_id: sessionId,
+        uuid: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        type: ChallengeType.TOB,
+        status: ChallengeStatus.WIPED,
+        start_time: new Date('2024-01-01T10:00:00Z'),
+        scale: 2,
+      },
+      {
+        session_id: sessionId,
+        uuid: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+        type: ChallengeType.TOB,
+        status: ChallengeStatus.COMPLETED,
+        start_time: new Date('2024-01-01T11:00:00Z'),
+        scale: 2,
+      },
+      {
+        session_id: sessionId,
+        uuid: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+        type: ChallengeType.COLOSSEUM,
+        status: ChallengeStatus.COMPLETED,
+        start_time: new Date('2024-01-01T12:00:00Z'),
+        scale: 1,
+      },
+      {
+        session_id: sessionId,
+        uuid: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+        type: ChallengeType.TOB,
+        status: ChallengeStatus.ABANDONED,
+        start_time: new Date('2024-01-01T13:00:00Z'),
+        scale: 2,
+      },
+    ];
+    const challengeResults = await sql`
+      INSERT INTO challenges ${sql(challenges, ['session_id', 'uuid', 'type', 'status', 'start_time', 'scale'])} RETURNING id
+    `;
+    challengeIds = challengeResults.map((c) => c.id);
+
+    // Set TOB-specific fields on the first two challenges.
+    await sql`
+      UPDATE challenges SET
+        mode = ${ChallengeMode.TOB_REGULAR},
+        stage = ${Stage.TOB_BLOAT},
+        finish_time = '2024-01-01T10:10:00Z',
+        challenge_ticks = 600,
+        overall_ticks = 650,
+        total_deaths = 2
+      WHERE id = ${challengeIds[0]}
+    `;
+    await sql`
+      UPDATE challenges SET
+        mode = ${ChallengeMode.TOB_REGULAR},
+        stage = ${Stage.TOB_VERZIK},
+        finish_time = '2024-01-01T11:20:00Z',
+        challenge_ticks = 1200,
+        overall_ticks = 1250,
+        total_deaths = 0
+      WHERE id = ${challengeIds[1]}
+    `;
+
+    const cp = (cIdx: number, pIdx: number, username: string) => ({
+      challenge_id: challengeIds[cIdx],
+      player_id: playerIds[pIdx],
+      username,
+      orb: pIdx,
+      primary_gear: 0,
+    });
+
+    await sql`
+      INSERT INTO challenge_players ${sql(
+        [
+          cp(0, 0, 'PlayerA'),
+          cp(0, 1, 'PlayerB'),
+          cp(1, 0, 'PlayerA'),
+          cp(1, 1, 'PlayerB'),
+          cp(1, 2, 'PlayerC'),
+          cp(2, 0, 'PlayerA'),
+          cp(3, 0, 'PlayerA'),
+          cp(3, 1, 'PlayerB'),
+        ],
+        ['challenge_id', 'player_id', 'username', 'orb', 'primary_gear'],
+      )}
+    `;
+  });
+
+  afterEach(async () => {
+    await sql`DELETE FROM bloat_downs`;
+    await sql`DELETE FROM tob_challenge_stats`;
+    await sql`DELETE FROM challenge_players`;
+    await sql`DELETE FROM challenges`;
+    await sql`DELETE FROM challenge_sessions`;
+    await sql`DELETE FROM players`;
+  });
+
+  describe('findChallenges', () => {
+    describe('bloat down filters', () => {
+      beforeEach(async () => {
+        await sql`
+          INSERT INTO tob_challenge_stats ${sql([
+            { challenge_id: challengeIds[0], bloat_down_count: 0 },
+            { challenge_id: challengeIds[1], bloat_down_count: 1 },
+          ])}
+        `;
+
+        await sql`
+          INSERT INTO bloat_downs ${sql([
+            {
+              challenge_id: challengeIds[1],
+              down_number: 1,
+              down_tick: 41,
+              walk_ticks: 41,
+              accurate: true,
+            },
+          ])}
+        `;
       });
 
-      expect(challenges).toHaveLength(1);
-      expect(challenges[0].uuid).toBe('cccccccc-cccc-cccc-cccc-cccccccccccc');
+      it('matches zero-down raids for tob.bloatDownCount=eq0', async () => {
+        const [challenges] = await findChallenges(10, {
+          tob: { bloatDownCount: ['==', 0] },
+        });
+
+        expect(challenges).toHaveLength(1);
+        expect(challenges[0].uuid).toBe('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
+      });
+
+      it('combines persisted down count and bloat down filters', async () => {
+        const [challenges] = await findChallenges(10, {
+          tob: {
+            bloatDowns: new Map([[1, ['==', 41]]]),
+            bloatDownCount: ['==', 1],
+          },
+        });
+
+        expect(challenges).toHaveLength(1);
+        expect(challenges[0].uuid).toBe('cccccccc-cccc-cccc-cccc-cccccccccccc');
+      });
+    });
+  });
+
+  describe('countUniquePlayers', () => {
+    it('should count all distinct players across non-abandoned challenges', async () => {
+      const count = await countUniquePlayers({});
+      expect(count).toBe(3);
+    });
+
+    it('should filter by challenge type', async () => {
+      const tobCount = await countUniquePlayers({
+        type: ['==', ChallengeType.TOB],
+      });
+      expect(tobCount).toBe(3);
+
+      const coloCount = await countUniquePlayers({
+        type: ['==', ChallengeType.COLOSSEUM],
+      });
+      expect(coloCount).toBe(1);
+    });
+
+    it('should count all participants in a party-filtered query', async () => {
+      // PlayerA appears in challenges with B and C.
+      const count = await countUniquePlayers({ party: ['PlayerA'] });
+      expect(count).toBe(3);
+    });
+
+    it('should combine party and type filters', async () => {
+      // PlayerC only has TOB challenges.
+      const count = await countUniquePlayers({
+        party: ['PlayerC'],
+        type: ['==', ChallengeType.COLOSSEUM],
+      });
+      expect(count).toBe(0);
+    });
+
+    it('should return 0 for no matching challenges', async () => {
+      const count = await countUniquePlayers({
+        type: ['==', ChallengeType.INFERNO],
+      });
+      expect(count).toBe(0);
     });
   });
 });

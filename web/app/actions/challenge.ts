@@ -664,13 +664,11 @@ function addSplitsTable(
   accurateSplits?: boolean,
 ) {
   const table = splitsTableName(split);
+  const types = allSplitModes(generalizeSplit(split));
   joins.push({
-    table: sql`(
-        SELECT challenge_id, ticks, accurate
-        FROM challenge_splits
-        WHERE type = ANY(${allSplitModes(generalizeSplit(split))})
-      ) ${sql(table)}`,
-    on: sql`${baseTable}.id = ${sql(table)}.challenge_id`,
+    table: sql`challenge_splits ${sql(table)}`,
+    on: sql`${baseTable}.id = ${sql(table)}.challenge_id
+        AND ${sql(table)}.type = ANY(${types})`,
     type: 'left',
     tableName: table,
   });
@@ -1447,6 +1445,41 @@ export async function aggregateChallenges<
   });
 
   return result as GroupedAggregationResult<F, G>;
+}
+
+/**
+ * Counts the number of distinct players that participated in any challenge
+ * matching the given query.
+ */
+export async function countUniquePlayers(
+  query: ChallengeQuery,
+): Promise<number> {
+  const components = applyFilters(query);
+  if (components === null) {
+    return 0;
+  }
+
+  const { baseTable, joins, conditions } = components;
+
+  // Use a dedicated alias so the count isn't restricted by a party filter's
+  // challenge_players join.
+  const allJoins: Join[] = [
+    ...joins,
+    {
+      table: sql`challenge_players cp_count`,
+      on: sql`challenges.id = cp_count.challenge_id`,
+      tableName: 'cp_count',
+    },
+  ];
+
+  const [row] = await sql<[{ count: string }]>`
+    SELECT COUNT(DISTINCT cp_count.player_id) AS count
+    FROM ${baseTable}
+    ${join(allJoins)}
+    ${where(conditions)}
+  `;
+
+  return parseInt(row.count);
 }
 
 export type SessionQuery = {

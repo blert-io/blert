@@ -1,88 +1,14 @@
-import { ChallengeStatus, SplitType } from '@blert/common';
 import Image from 'next/image';
 import Link from 'next/link';
 
-import {
-  aggregateChallenges,
-  findBestSplitTimes,
-  RankedSplit,
-} from '@/actions/challenge';
 import { getSignedInUserId } from '@/actions/users';
 import Card from '@/components/card';
-import {
-  ActivityFeed,
-  ChallengeStats,
-  GuidesCard,
-  LeaderboardCard,
-} from './home-cards';
+import { ActivityFeed, GuidesCard, HomeCards } from './home-cards';
 
 import styles from './style.module.scss';
 
-const LEADERBOARD_SCALES = [5, 4, 3, 2];
-
 export default async function Home() {
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
-
   const isLoggedIn = (await getSignedInUserId()) !== null;
-
-  const statsQueries = Promise.all([
-    aggregateChallenges(
-      { startTime: ['>=', today] },
-      { '*': 'count' },
-      {},
-      'scale',
-    ),
-    aggregateChallenges(
-      { startTime: ['>=', today] },
-      { '*': 'count' },
-      {},
-      'status',
-    ),
-  ]);
-
-  const leaderboardQueries = Promise.all(
-    LEADERBOARD_SCALES.map((scale) =>
-      findBestSplitTimes([SplitType.TOB_REG_CHALLENGE], scale, 3, today),
-    ),
-  );
-
-  const [[byScale, byStatus], leaderboardData] = await Promise.all([
-    statsQueries,
-    leaderboardQueries,
-  ]);
-
-  let totalChallenges = 0;
-  let mostPopularScale = 0;
-  let mostPopularScaleCount = 0;
-  Object.entries(byScale ?? {}).forEach(([scale, count]) => {
-    totalChallenges += count['*'].count;
-    if (count['*'].count > mostPopularScaleCount) {
-      mostPopularScale = parseInt(scale);
-      mostPopularScaleCount = count['*'].count;
-    }
-  });
-  const stats = {
-    total: totalChallenges,
-    completions: byStatus?.[ChallengeStatus.COMPLETED]?.['*']?.count ?? 0,
-    mostPopularScale: {
-      scale: mostPopularScale,
-      percentage: (mostPopularScaleCount / totalChallenges) * 100,
-    },
-  };
-
-  const leaderboards = leaderboardData.map((res, i) => ({
-    scale: 5 - i,
-    entries: (res[SplitType.TOB_REG_CHALLENGE] ?? []).map(
-      (entry: RankedSplit, i: number) => ({
-        rank: i + 1,
-        time: entry.ticks,
-        party: entry.party,
-        uuid: entry.uuid,
-        date: entry.date,
-      }),
-    ),
-  }));
 
   return (
     <div className={styles.home}>
@@ -92,7 +18,7 @@ export default async function Home() {
             <h1>Track Your PvM Progress</h1>
             <p>
               Join hundreds of players using Blert to analyze and improve their
-              Theatre of Blood raids.
+              Old School RuneScape PvM abilities.
             </p>
           </div>
           <div className={styles.ctaButtons}>
@@ -116,13 +42,11 @@ export default async function Home() {
           </div>
         </div>
 
-        <div className={styles.statsGrid}>
-          <ChallengeStats initialStats={stats} />
-          <GuidesCard />
-          <LeaderboardCard initialLeaderboards={leaderboards} />
-        </div>
+        <HomeCards />
 
         <ActivityFeed />
+
+        <GuidesCard />
 
         <Card
           header={{ title: 'Status Updates' }}
