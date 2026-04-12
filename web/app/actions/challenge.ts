@@ -597,7 +597,6 @@ function applyTobFilters(
   conditions: postgres.Fragment[],
 ) {
   const { bloatDowns, ...statsFilters } = tob;
-  const bloatDownConditions: postgres.Fragment[] = [];
 
   if (bloatDowns !== undefined && bloatDowns.size > 0) {
     for (const [downNumber, comparator] of bloatDowns) {
@@ -606,24 +605,16 @@ function applyTobFilters(
         'walk_ticks',
         comparator,
       );
-      bloatDownConditions.push(
-        sql`(bloat_downs.down_number = ${downNumber} AND ${condition})`,
+      conditions.push(
+        sql`EXISTS (
+          SELECT 1 FROM bloat_downs
+          WHERE bloat_downs.challenge_id = ${baseTable}.id
+          AND bloat_downs.down_number = ${downNumber}
+          AND ${condition}
+          AND bloat_downs.accurate
+        )`,
       );
     }
-  }
-
-  if (bloatDownConditions.length > 0) {
-    joins.push({
-      table: sql`(
-        SELECT challenge_id
-        FROM bloat_downs
-        WHERE accurate
-        GROUP BY challenge_id
-        HAVING COUNT(*) FILTER (${where(bloatDownConditions, 'or')}) = ${bloatDownConditions.length}
-      ) filtered_bloat_downs`,
-      on: sql`${baseTable}.id = filtered_bloat_downs.challenge_id`,
-      tableName: 'filtered_bloat_downs',
-    });
   }
 
   const statsColumns: Record<keyof typeof statsFilters, string> = {
@@ -712,20 +703,13 @@ function applyFilters(
 
     if (query.party.length === 1) {
       const username = query.party[0];
-      joins.push(
-        {
-          table: sql`challenge_players`,
-          on: sql`challenges.id = challenge_players.challenge_id`,
-          tableName: 'challenge_players',
-        },
-        {
-          table: sql`players`,
-          on: sql`challenge_players.player_id = players.id`,
-          tableName: 'players',
-        },
-      );
       conditions.push(
-        sql`players.normalized_username = ${normalizeRsn(username)}`,
+        sql`EXISTS (
+          SELECT 1 FROM challenge_players
+          JOIN players ON challenge_players.player_id = players.id
+          WHERE challenge_players.challenge_id = challenges.id
+          AND players.normalized_username = ${normalizeRsn(username)}
+        )`,
       );
     } else {
       const matchAll = query.partyMatch !== 'any';
@@ -754,7 +738,6 @@ function applyFilters(
   const sqlChallenges = sql('challenges');
 
   if (query.splits !== undefined && query.splits.size > 0) {
-    const splitConditions: postgres.Fragment[] = [];
     for (const [type, comparator] of query.splits) {
       const types = allSplitModes(generalizeSplit(type));
       const condition = comparatorToSql(
@@ -762,22 +745,16 @@ function applyFilters(
         'ticks',
         comparator,
       );
-      splitConditions.push(
-        sql`(challenge_splits.type = ANY(${types}) AND ${condition})`,
+      conditions.push(
+        sql`EXISTS (
+          SELECT 1 FROM challenge_splits
+          WHERE challenge_splits.challenge_id = ${sqlChallenges}.id
+          AND challenge_splits.type = ANY(${types})
+          AND ${condition}
+          AND challenge_splits.accurate
+        )`,
       );
     }
-
-    joins.push({
-      table: sql`(
-        SELECT challenge_id
-        FROM challenge_splits
-        ${where(splitConditions, 'or')} AND accurate
-        GROUP BY challenge_id
-        HAVING COUNT(*) = ${splitConditions.length}
-      ) filtered_splits`,
-      on: sql`${sqlChallenges}.id = filtered_splits.challenge_id`,
-      tableName: 'challenges_with_splits',
-    });
   }
 
   if (query.tob !== undefined) {
