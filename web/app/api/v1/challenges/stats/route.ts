@@ -34,15 +34,17 @@ export const GET = withApiRoute(
       .split(',')
       .filter((g) => g !== '');
 
-    const options: QueryOptions = {};
+    const options: QueryOptions = { accurateSplits: true };
 
     const optionsParam = searchParams.get('options');
     if (optionsParam !== null) {
       const opts = optionsParam.split(',');
       for (const opt of opts) {
         switch (opt) {
-          case 'accurateSplits':
-            options.accurateSplits = true;
+          case 'accurateSplits': // TODO(frolv): Remove this.
+            break;
+          case 'noAccurateSplits':
+            options.accurateSplits = false;
             break;
           case 'fullRecordings':
             options.fullRecordings = true;

@@ -125,6 +125,23 @@ export type SearchFilters = {
   fullRecordings: boolean;
 };
 
+export function defaultSearchFilters(): SearchFilters {
+  return {
+    party: [],
+    mode: [],
+    scale: [],
+    status: [],
+    type: [],
+    stage: null,
+    startDate: null,
+    endDate: null,
+    splits: new Map(),
+    tob: emptyTobFilters(),
+    accurateSplits: true,
+    fullRecordings: false,
+  };
+}
+
 export type SearchContext = {
   filters: SearchFilters;
   sort: SortQuery<SortableFields>[];
@@ -144,8 +161,8 @@ export type SearchContext = {
 export function filtersToUrlParams(filters: SearchFilters): UrlParams {
   const options: string[] = [];
 
-  if (filters.accurateSplits) {
-    options.push('accurateSplits');
+  if (!filters.accurateSplits) {
+    options.push('noAccurateSplits');
   }
   if (filters.fullRecordings) {
     options.push('fullRecordings');
@@ -237,20 +254,7 @@ export function extraFieldsToUrlParam(
 
 export function contextFromUrlParams(params: NextSearchParams): SearchContext {
   const context: SearchContext = {
-    filters: {
-      party: [],
-      mode: [],
-      scale: [],
-      status: [],
-      type: [],
-      stage: null,
-      startDate: null,
-      endDate: null,
-      splits: new Map(),
-      tob: emptyTobFilters(),
-      accurateSplits: false,
-      fullRecordings: false,
-    },
+    filters: defaultSearchFilters(),
     sort: [],
     extraFields: {},
     pagination: {},
@@ -304,8 +308,8 @@ export function contextFromUrlParams(params: NextSearchParams): SearchContext {
         const options = value.split(',');
         for (const option of options) {
           switch (option) {
-            case 'accurateSplits':
-              context.filters.accurateSplits = true;
+            case 'noAccurateSplits':
+              context.filters.accurateSplits = false;
               break;
             case 'fullRecordings':
               context.filters.fullRecordings = true;

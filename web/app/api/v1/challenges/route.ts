@@ -94,7 +94,7 @@ export const GET = withApiRoute(
     }
 
     const findOptions: Required<FindChallengesOptions> = {
-      accurateSplits: false,
+      accurateSplits: true,
       fullRecordings: false,
       count: true,
       extraFields: {
@@ -108,8 +108,10 @@ export const GET = withApiRoute(
       const options = optionsParam.split(',');
       for (const option of options) {
         switch (option) {
-          case 'accurateSplits':
-            findOptions.accurateSplits = true;
+          case 'accurateSplits': // TODO(frolv): Remove this.
+            break;
+          case 'noAccurateSplits':
+            findOptions.accurateSplits = false;
             break;
           case 'fullRecordings':
             findOptions.fullRecordings = true;

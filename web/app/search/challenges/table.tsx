@@ -29,7 +29,7 @@ import { modeNameAndColor, statusNameAndColor } from '@/utils/challenge';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 import { challengeUrl } from '@/utils/url';
 
-import { SearchContext, emptyTobFilters } from './context';
+import { defaultSearchFilters, SearchContext } from './context';
 import {
   Column,
   DEFAULT_SELECTED_COLUMNS,
@@ -1000,20 +1000,7 @@ export default function Table(props: TableProps) {
                           onClick={() =>
                             props.setContext((prev) => ({
                               ...prev,
-                              filters: {
-                                party: [],
-                                mode: [],
-                                scale: [],
-                                status: [],
-                                type: [],
-                                stage: null,
-                                startDate: null,
-                                endDate: null,
-                                splits: new Map(),
-                                tob: emptyTobFilters(),
-                                accurateSplits: false,
-                                fullRecordings: false,
-                              },
+                              filters: defaultSearchFilters(),
                               pagination: {},
                             }))
                           }
