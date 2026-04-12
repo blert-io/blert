@@ -3,6 +3,7 @@ import {
   ActivityFeedItem as RedisActivityFeedItem,
   ActivityFeedItemType,
   ActivityFeedData,
+  ChallengeType,
   normalizeRsn,
 } from '@blert/common';
 
@@ -83,12 +84,16 @@ type ChallengePlayerRow = {
   player_id: string;
 };
 
-export async function getPlayersPerHour(startTime: Date) {
+export async function getPlayersPerHour(
+  startTime: Date,
+  challengeType?: ChallengeType,
+) {
   const players = await sql<ChallengePlayerRow[]>`
     SELECT c.id, c.start_time, cp.player_id
     FROM challenges c
     JOIN challenge_players cp ON c.id = cp.challenge_id
     WHERE c.start_time >= ${startTime}
+      ${challengeType !== undefined ? sql`AND c.type = ${challengeType}` : sql``}
   `;
 
   const byHour = Array.from({ length: 25 }, () => new Set<string>());

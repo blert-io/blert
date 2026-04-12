@@ -47,7 +47,7 @@ const RATE_LIMITS: RouteMatcher[] = [
   {
     test: (path) => path.startsWith('/api/v1/challenges/stats'),
     config: {
-      limit: 60,
+      limit: 80,
       windowSec: 60,
       keyPrefix: 'ratelimit:v1:challenge-stats',
     },
@@ -71,7 +71,7 @@ const RATE_LIMITS: RouteMatcher[] = [
   {
     test: (path) => path.startsWith('/api/v1/'),
     config: {
-      limit: 80,
+      limit: 100,
       windowSec: 60,
       keyPrefix: 'ratelimit:v1:default',
     },
