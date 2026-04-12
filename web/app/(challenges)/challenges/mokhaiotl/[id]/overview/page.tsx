@@ -62,6 +62,7 @@ export default function Overview() {
             challenge.status === ChallengeStatus.WIPED ? [challenge.stage] : [],
         }))}
         startTime={challenge.startTime}
+        sessionUuid={challenge.sessionUuid}
         extraInfo={extraInfo}
       />
       <DelvesOverview challenge={challenge} />

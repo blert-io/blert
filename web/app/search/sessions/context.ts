@@ -8,6 +8,10 @@ export type SessionSearchFilters = {
   scale: number[];
   status: SessionStatus[];
   party: string[];
+  minChallengeCount: number | null;
+  maxChallengeCount: number | null;
+  minDurationMinutes: number | null;
+  maxDurationMinutes: number | null;
   startDate: Date | null;
   endDate: Date | null;
 };
@@ -27,6 +31,10 @@ export function emptyFilters(): SessionSearchFilters {
     scale: [],
     status: [],
     party: [],
+    minChallengeCount: null,
+    maxChallengeCount: null,
+    minDurationMinutes: null,
+    maxDurationMinutes: null,
     startDate: null,
     endDate: null,
   };
@@ -37,6 +45,44 @@ export function emptyContext(): SessionSearchContext {
     filters: emptyFilters(),
     pagination: {},
   };
+}
+
+type RangeFormatOptions = {
+  scale?: number;
+  upperBoundStep?: number;
+};
+
+function rangeToUrlParam(
+  min: number | null,
+  max: number | null,
+  { scale = 1, upperBoundStep = 1 }: RangeFormatOptions = {},
+): string | undefined {
+  if (min !== null && max !== null) {
+    return `${min * scale}..${max * scale + upperBoundStep}`;
+  } else if (min !== null) {
+    return `ge${min * scale}`;
+  } else if (max !== null) {
+    return `le${max * scale}`;
+  }
+  return undefined;
+}
+
+function urlParamToRange(
+  value: string,
+  { scale = 1, upperBoundStep = 1 }: RangeFormatOptions = {},
+): { min: number | null; max: number | null } {
+  if (value.startsWith('>=') || value.startsWith('ge')) {
+    return { min: Math.ceil(parseInt(value.slice(2)) / scale), max: null };
+  } else if (value.startsWith('<=') || value.startsWith('le')) {
+    return { min: null, max: Math.floor(parseInt(value.slice(2)) / scale) };
+  } else if (value.includes('..')) {
+    const [lo, hi] = value.split('..').map((n) => parseInt(n));
+    return {
+      min: isNaN(lo) ? null : Math.ceil(lo / scale),
+      max: isNaN(hi) ? null : Math.floor((hi - upperBoundStep) / scale),
+    };
+  }
+  return { min: null, max: null };
 }
 
 /**
@@ -64,6 +110,15 @@ export function filtersToUrlParams(filters: SessionSearchFilters): UrlParams {
     mode: filters.mode,
     type: filters.type,
     startTime,
+    challengeCount: rangeToUrlParam(
+      filters.minChallengeCount,
+      filters.maxChallengeCount,
+    ),
+    duration: rangeToUrlParam(
+      filters.minDurationMinutes,
+      filters.maxDurationMinutes,
+      { scale: 60, upperBoundStep: 1 },
+    ),
   };
 }
 
@@ -120,6 +175,20 @@ export function contextFromUrlParams(
           context.filters.endDate = new Date(end);
         }
         break;
+
+      case 'challengeCount': {
+        const cc = urlParamToRange(value);
+        context.filters.minChallengeCount = cc.min;
+        context.filters.maxChallengeCount = cc.max;
+        break;
+      }
+
+      case 'duration': {
+        const dur = urlParamToRange(value, { scale: 60, upperBoundStep: 1 });
+        context.filters.minDurationMinutes = dur.min;
+        context.filters.maxDurationMinutes = dur.max;
+        break;
+      }
 
       case 'before':
         context.pagination.before = value;

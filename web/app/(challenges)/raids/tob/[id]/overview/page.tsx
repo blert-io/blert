@@ -67,6 +67,7 @@ export default function Overview() {
           stageDeaths: deathsByStage[index],
         }))}
         startTime={raid.startTime}
+        sessionUuid={raid.sessionUuid}
       />
 
       <section className={styles.section}>

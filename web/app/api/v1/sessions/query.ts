@@ -62,6 +62,8 @@ export function parseSessionQuery(params: NextSearchParams): SessionQuery {
     party: expectSingle(params, 'party')
       ?.split(',')
       .map((p) => p.trim()),
+    challengeCount: numericComparatorParam(params, 'challengeCount'),
+    duration: numericComparatorParam(params, 'duration'),
     before,
     after,
   };

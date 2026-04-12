@@ -35,6 +35,7 @@ export default function Overview() {
           stageDeaths: [],
         }))}
         startTime={challenge.startTime}
+        sessionUuid={challenge.sessionUuid}
         extraInfo={[]}
       />
       <InfernoWavesOverview challenge={challenge} />
