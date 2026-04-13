@@ -88,11 +88,15 @@ export default async function SearchPage({
   baseQuery.sort = undefined;
   baseQuery.customConditions = undefined;
 
-  const [[initialChallenges, remaining], initialStats] = await Promise.all([
-    findChallenges(INITIAL_RESULTS, initialQuery, {
-      ...queryOptions,
-      count: true,
-    }),
+  const [initialChallenges, initialStats] = await Promise.all([
+    findChallenges(INITIAL_RESULTS, initialQuery, queryOptions).then(
+      ([challenges]) => {
+        if (params.before !== undefined) {
+          challenges.reverse();
+        }
+        return challenges;
+      },
+    ),
     aggregateChallenges(baseQuery, { '*': 'count' }, queryOptions).then(
       (result) =>
         result !== null
@@ -103,20 +107,10 @@ export default async function SearchPage({
     ),
   ]);
 
-  let initialRemaining: number;
-  if (params.before !== undefined) {
-    initialRemaining =
-      initialStats.count - (remaining ?? initialStats.count) + INITIAL_RESULTS;
-    initialChallenges.reverse();
-  } else {
-    initialRemaining = remaining ?? initialStats.count;
-  }
-
   return (
     <Search
       initialContext={initialContext}
       initialChallenges={initialChallenges}
-      initialRemaining={initialRemaining}
       initialStats={initialStats}
     />
   );
