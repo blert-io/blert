@@ -140,6 +140,19 @@ export function recordRedisEvent(type: 'connect' | 'error'): void {
   redisEventsCounter.inc({ type });
 }
 
+const cacheCounter = getOrCreateCounter({
+  name: 'web_cache_requests_total',
+  help: 'Cache lookup results',
+  labelNames: ['key', 'result'] as const,
+});
+
+export function recordCacheResult(
+  key: string,
+  result: 'hit' | 'miss' | 'error',
+): void {
+  cacheCounter.inc({ key: sanitizeLabel(key), result });
+}
+
 const emailSendCounter = getOrCreateCounter({
   name: 'web_email_send_total',
   help: 'Email send attempts',

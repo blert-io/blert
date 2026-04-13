@@ -409,7 +409,7 @@ export type SortableFields =
   | SplitSortableFields
   | MokhaiotlSortableFields;
 
-type SingleOrArray<T> = T | T[];
+export type SingleOrArray<T> = T | T[];
 
 export type TobQuery = {
   bloatDowns?: Map<number, Comparator<number>>;
