@@ -36,7 +36,6 @@ type SearchProps = {
   initialContext: SearchContext;
   initialChallenges: ChallengeOverview[];
   initialStats: FilteredStats;
-  initialRemaining: number;
 };
 
 class LoadChallengeError extends Error {
@@ -153,7 +152,6 @@ export default function Search({
   initialContext,
   initialChallenges,
   initialStats,
-  initialRemaining,
 }: SearchProps) {
   const [initialFetch, setInitialFetch] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -163,13 +161,13 @@ export default function Search({
   const [challenges, setChallenges] =
     useState<ChallengeOverview[]>(initialChallenges);
   const [stats, setStats] = useState<FilteredStats>(initialStats);
-  const [remaining, setRemaining] = useState(initialRemaining);
 
   const resultsPerPage = 25; // TODO(frolv): Make this configurable.
-  const offset = stats.count - remaining;
 
-  const page = Math.floor(offset / resultsPerPage) + 1;
-  const totalPages = Math.ceil(stats.count / resultsPerPage);
+  const [hasMore, setHasMore] = useState(
+    initialChallenges.length >= resultsPerPage,
+  );
+  const [hasPrevious, setHasPrevious] = useState(false);
 
   const errorForStatus = (status?: number): LoadErrorState => {
     if (status === 429) {
@@ -199,57 +197,77 @@ export default function Search({
     const updatedUrl = `/search/challenges?${queryString(paginationParams)}`;
     window.history.replaceState(null, '', updatedUrl);
 
-    paginationParams.limit = resultsPerPage;
+    paginationParams.limit = resultsPerPage + 1;
     paginationParams.extraFields = extraFieldsToUrlParam(ctx.extraFields);
 
     setLoading(true);
     setLoadError(null);
 
     try {
-      const [[newChallenges, newRemaining], newStats] = await Promise.all([
-        fetch(`/api/v1/challenges?${queryString(paginationParams)}`).then(
-          async (res) => {
-            if (!res.ok) {
-              throw new LoadChallengeError('Search request failed', res.status);
-            }
-            const rem = res.headers.get('X-Total-Count');
-            const payload = (await res.json()) as ChallengeOverview[];
-            const parsed = payload.map((c) => ({
-              ...c,
-              startTime: new Date(c.startTime),
-            }));
-            return [
-              parsed,
-              rem !== null && !Number.isNaN(parseInt(rem, 10))
-                ? parseInt(rem, 10)
-                : null,
-            ] as [ChallengeOverview[], number | null];
-          },
-        ),
-        fetch(`/api/v1/challenges/stats?${queryString(baseParams)}`).then(
-          async (res) => {
-            if (!res.ok) {
-              throw new LoadChallengeError('Stats request failed', res.status);
-            }
-            return (await res.json()) as { '*': { count: number } | undefined };
-          },
-        ),
+      const challengesPromise = fetch(
+        `/api/v1/challenges?${queryString(paginationParams)}`,
+      ).then(async (res) => {
+        if (!res.ok) {
+          throw new LoadChallengeError('Search request failed', res.status);
+        }
+        const payload = (await res.json()) as ChallengeOverview[];
+        return payload.map((c) => ({
+          ...c,
+          startTime: new Date(c.startTime),
+        }));
+      });
+
+      const isPaginating =
+        action === FetchAction.FORWARD || action === FetchAction.BACK;
+
+      const statsPromise = isPaginating
+        ? Promise.resolve(null)
+        : fetch(`/api/v1/challenges/stats?${queryString(baseParams)}`).then(
+            async (res) => {
+              if (!res.ok) {
+                throw new LoadChallengeError(
+                  'Stats request failed',
+                  res.status,
+                );
+              }
+              return (await res.json()) as {
+                '*': { count: number } | undefined;
+              };
+            },
+          );
+
+      const [fetchedChallenges, newStats] = await Promise.all([
+        challengesPromise,
+        statsPromise,
       ]);
 
-      const totalCount = newStats['*']?.count ?? 0;
+      const totalCount = newStats?.['*']?.count ?? stats.count;
 
-      if (
-        action === FetchAction.BACK ||
-        paginationParams.before !== undefined
-      ) {
-        newChallenges.reverse();
-        setRemaining(
-          newRemaining !== null
-            ? totalCount - newRemaining + resultsPerPage
-            : totalCount,
-        );
+      const isBack =
+        action === FetchAction.BACK || paginationParams.before !== undefined;
+
+      const overfetched = fetchedChallenges.length > resultsPerPage;
+      let newChallenges;
+
+      if (isBack) {
+        fetchedChallenges.reverse();
+        newChallenges = overfetched
+          ? fetchedChallenges.slice(fetchedChallenges.length - resultsPerPage)
+          : fetchedChallenges;
+        setHasPrevious(overfetched);
+        setHasMore(true);
+      } else if (action === FetchAction.FORWARD) {
+        newChallenges = fetchedChallenges.slice(0, resultsPerPage);
+        setHasMore(overfetched);
+        setHasPrevious(true);
       } else {
-        setRemaining(newRemaining ?? totalCount);
+        // Initial load or filter change.
+        newChallenges = fetchedChallenges.slice(0, resultsPerPage);
+        setHasMore(overfetched);
+        setHasPrevious(
+          ctx.pagination.after !== undefined ||
+            ctx.pagination.before !== undefined,
+        );
       }
 
       setChallenges(newChallenges);
@@ -309,16 +327,16 @@ export default function Search({
         return;
       }
 
-      if (e.key === 'ArrowLeft' && page > 1) {
+      if (e.key === 'ArrowLeft' && hasPrevious) {
         void loadChallenges(FetchAction.BACK);
-      } else if (e.key === 'ArrowRight' && page < totalPages) {
+      } else if (e.key === 'ArrowRight' && hasMore) {
         void loadChallenges(FetchAction.FORWARD);
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [context, challenges, loading, loadError, page, totalPages]);
+  }, [context, challenges, loading, loadError, hasPrevious, hasMore]);
 
   return (
     <>
@@ -343,22 +361,18 @@ export default function Search({
         <div className={styles.pagination}>
           <div className={styles.controls}>
             <button
-              disabled={loading || loadError !== null || page <= 1}
+              disabled={loading || loadError !== null || !hasPrevious}
               onClick={() => void loadChallenges(FetchAction.BACK)}
             >
               <i className="fas fa-chevron-left" />
-              <span className="sr-only">Previous</span>
+              <span>Back</span>
             </button>
-            <p>
-              Page {page}
-              {totalPages > 0 && ` of ${totalPages}`}
-            </p>
             <button
-              disabled={loading || loadError !== null || page >= totalPages}
+              disabled={loading || loadError !== null || !hasMore}
               onClick={() => void loadChallenges(FetchAction.FORWARD)}
             >
+              <span>Next</span>
               <i className="fas fa-chevron-right" />
-              <span className="sr-only">Next</span>
             </button>
           </div>
         </div>

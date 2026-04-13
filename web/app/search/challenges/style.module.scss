@@ -299,7 +299,7 @@
   .pagination {
     display: flex;
     justify-content: center;
-    margin: 1em 0;
+    margin: 0.8em 0;
 
     .controls {
       display: flex;
@@ -307,10 +307,12 @@
       flex-direction: row;
       padding: 12px 16px;
       border-radius: 8px;
-      gap: 8px;
+      gap: 16px;
 
       button {
-        width: 36px;
+        width: 70px;
+        display: flex;
+        gap: 8px;
         height: 36px;
         border-radius: 6px;
         background: rgba(var(--blert-purple-base), 0.1);
@@ -330,6 +332,11 @@
         &:not(:disabled):hover {
           background: rgba(var(--blert-purple-base), 0.2);
           transform: translateY(-1px);
+        }
+
+        i {
+          position: relative;
+          top: 2px;
         }
       }
 

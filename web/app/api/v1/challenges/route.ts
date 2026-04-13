@@ -96,7 +96,7 @@ export const GET = withApiRoute(
     const findOptions: Required<FindChallengesOptions> = {
       accurateSplits: true,
       fullRecordings: false,
-      count: true,
+      count: false,
       extraFields: {
         splits: Array.from(splits),
         stats: loadStats,
@@ -122,14 +122,10 @@ export const GET = withApiRoute(
       }
     }
 
-    const [challenges, count] = await findChallenges(limit, query, findOptions);
+    const [challenges] = await findChallenges(limit, query, findOptions);
     if (challenges === null) {
       return new Response(null, { status: 404 });
     }
-    return NextResponse.json(challenges, {
-      headers: {
-        'X-Total-Count': count ? count.toString() : '0',
-      },
-    });
+    return NextResponse.json(challenges);
   },
 );
