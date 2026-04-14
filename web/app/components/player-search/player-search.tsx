@@ -1,4 +1,11 @@
-import { forwardRef, useCallback, useMemo, useRef, useState } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import Input, { InputProps } from '@/components/input';
 import Menu, { MenuItem } from '@/components/menu';
@@ -9,6 +16,8 @@ type PlayerSearchProps = Omit<InputProps, 'inputRef' | 'onChange' | 'type'> & {
   onChange?: (value: string) => void;
   onSelection?: (value: string) => void;
 };
+
+const DEBOUNCE_MS = 200;
 
 function toMenuItem(value: string): MenuItem {
   return { label: value, value };
@@ -49,6 +58,48 @@ const PlayerSearch = forwardRef<HTMLInputElement, PlayerSearchProps>(
       [onChange],
     );
 
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const handleChange = useCallback(
+      (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+
+        if (timeoutRef.current !== null) {
+          clearTimeout(timeoutRef.current);
+        }
+        timeoutRef.current = setTimeout(() => {
+          if (value !== '') {
+            const suggestions = cache.getAndUpdate(value, setIfCurrent(value));
+            if (suggestions !== undefined) {
+              setSuggestions(suggestions.map(toMenuItem));
+            }
+          } else {
+            setSuggestions([]);
+          }
+        }, DEBOUNCE_MS);
+
+        onChange?.(value);
+      },
+      [onChange, setIfCurrent],
+    );
+
+    const closeMenu = useCallback(() => {
+      if (timeoutRef.current !== null) {
+        clearTimeout(timeoutRef.current);
+      }
+      if (suggestions.length > 0) {
+        setSuggestions([]);
+      }
+    }, [suggestions]);
+
+    useEffect(() => {
+      return () => {
+        if (timeoutRef.current !== null) {
+          clearTimeout(timeoutRef.current);
+        }
+      };
+    }, []);
+
     const isControlled = props.value !== undefined;
 
     const menu = useMemo(() => {
@@ -60,7 +111,7 @@ const PlayerSearch = forwardRef<HTMLInputElement, PlayerSearchProps>(
           items={suggestions}
           menuClass={styles.suggestions}
           onSelection={(value) => {
-            setSuggestions([]);
+            closeMenu();
             onSelection?.(value as string);
             if (!isControlled) {
               inputRef.current!.value = '';
@@ -70,7 +121,7 @@ const PlayerSearch = forwardRef<HTMLInputElement, PlayerSearchProps>(
           targetId={props.id}
         />
       );
-    }, [suggestions, props.id, isControlled, onBrowse, onSelection]);
+    }, [suggestions, props.id, isControlled, onBrowse, onSelection, closeMenu]);
 
     let inputClassName = styles.input;
     if (className) {
@@ -89,25 +140,12 @@ const PlayerSearch = forwardRef<HTMLInputElement, PlayerSearchProps>(
           {...inputProps}
           inputClassName={inputClassName}
           onBlur={() => {
-            setSuggestions([]);
+            closeMenu();
           }}
-          onChange={(e) => {
-            if (e.target.value !== '') {
-              const suggestions = cache.getAndUpdate(
-                e.target.value,
-                setIfCurrent(e.target.value),
-              );
-              if (suggestions !== undefined) {
-                setSuggestions(suggestions.map(toMenuItem));
-              }
-            } else {
-              setSuggestions([]);
-            }
-            onChange?.(e.target.value);
-          }}
+          onChange={handleChange}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
-              setSuggestions([]);
+              closeMenu();
               onSelection?.(props.value ?? inputRef.current!.value);
               if (!isControlled) {
                 inputRef.current!.value = '';
