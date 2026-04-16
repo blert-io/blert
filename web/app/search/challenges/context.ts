@@ -67,6 +67,10 @@ export type TobFilters = {
   verzikRedsCount: [Comparator, number] | null;
 };
 
+export type MokhaiotlFilters = {
+  maxCompletedDelve: [Comparator, number] | null;
+};
+
 function parseTobParam(tob: TobFilters, key: string, value: string): void {
   if (key.startsWith('bloatDown:')) {
     const down = parseInt(key.slice(10));
@@ -94,6 +98,21 @@ function parseTobParam(tob: TobFilters, key: string, value: string): void {
   }
 }
 
+function parseMokhaiotlParam(
+  mokhaiotl: MokhaiotlFilters,
+  key: string,
+  value: string,
+): void {
+  const scalarFields: (keyof MokhaiotlFilters)[] = ['maxCompletedDelve'];
+  const field = scalarFields.find((f) => f === key);
+  if (field !== undefined) {
+    const parsed = parseComparatorParam(value);
+    if (parsed !== null) {
+      mokhaiotl[field] = parsed;
+    }
+  }
+}
+
 export function emptyTobFilters(): TobFilters {
   return {
     bloatDowns: new Map(),
@@ -105,13 +124,11 @@ export function emptyTobFilters(): TobFilters {
 }
 
 export function hasTobFilters(tob: TobFilters): boolean {
-  return (
-    tob.bloatDowns.size > 0 ||
-    tob.bloatDownCount !== null ||
-    tob.nylocasPreCapStalls !== null ||
-    tob.nylocasPostCapStalls !== null ||
-    tob.verzikRedsCount !== null
-  );
+  return countTobFilters(tob) > 0;
+}
+
+export function hasMokhaiotlFilters(mokhaiotl: MokhaiotlFilters): boolean {
+  return countMokhaiotlFilters(mokhaiotl) > 0;
 }
 
 function countTobFilters(tob: TobFilters): number {
@@ -131,6 +148,20 @@ function countTobFilters(tob: TobFilters): number {
   return count;
 }
 
+export function emptyMokhaiotlFilters(): MokhaiotlFilters {
+  return {
+    maxCompletedDelve: null,
+  };
+}
+
+function countMokhaiotlFilters(mokhaiotl: MokhaiotlFilters): number {
+  let count = 0;
+  if (mokhaiotl.maxCompletedDelve !== null) {
+    count++;
+  }
+  return count;
+}
+
 export function countActiveFilters(filters: SearchFilters): number {
   let count = countSharedFilters(filters);
   if (filters.status.length > 0) {
@@ -141,6 +172,7 @@ export function countActiveFilters(filters: SearchFilters): number {
   }
   count += filters.splits.size;
   count += countTobFilters(filters.tob);
+  count += countMokhaiotlFilters(filters.mokhaiotl);
   if (filters.accurateSplits) {
     count++;
   }
@@ -155,6 +187,7 @@ export type SearchFilters = SharedFilters & {
   stage: [Comparator, Stage] | null;
   splits: Map<number, [Comparator, number]>;
   tob: TobFilters;
+  mokhaiotl: MokhaiotlFilters;
   accurateSplits: boolean;
   fullRecordings: boolean;
 };
@@ -166,6 +199,7 @@ export function defaultSearchFilters(): SearchFilters {
     stage: null,
     splits: new Map(),
     tob: emptyTobFilters(),
+    mokhaiotl: emptyMokhaiotlFilters(),
     accurateSplits: true,
     fullRecordings: false,
   };
@@ -236,6 +270,17 @@ export function filtersToUrlParams(filters: SearchFilters): UrlParams {
     if (v !== null) {
       const [comparator, value] = v;
       params[`tob.${field}`] = `${serializeComparator(comparator)}${value}`;
+    }
+  }
+
+  const mokhaiotlScalarFields: (keyof MokhaiotlFilters)[] = [
+    'maxCompletedDelve',
+  ];
+  for (const field of mokhaiotlScalarFields) {
+    const v = filters.mokhaiotl[field];
+    if (v !== null) {
+      const [comparator, value] = v;
+      params[`mok.${field}`] = `${serializeComparator(comparator)}${value}`;
     }
   }
 
@@ -329,6 +374,8 @@ export function contextFromUrlParams(params: NextSearchParams): SearchContext {
           }
         } else if (key.startsWith('tob.')) {
           parseTobParam(context.filters.tob, key.slice(4), value);
+        } else if (key.startsWith('mok.')) {
+          parseMokhaiotlParam(context.filters.mokhaiotl, key.slice(4), value);
         }
         break;
     }

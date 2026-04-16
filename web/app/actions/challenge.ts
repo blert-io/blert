@@ -419,6 +419,10 @@ export type TobQuery = {
   verzikRedsCount?: Comparator<number>;
 };
 
+export type MokhaiotlQuery = {
+  maxCompletedDelve?: Comparator<number>;
+};
+
 export type ChallengeQuery = {
   uuid?: string[];
   session?: number[] | string[];
@@ -431,6 +435,7 @@ export type ChallengeQuery = {
   partyMatch?: 'all' | 'any';
   splits?: Map<SplitType, Comparator<number>>;
   tob?: TobQuery;
+  mokhaiotl?: MokhaiotlQuery;
   sort?: SingleOrArray<SortQuery<SortableFields>>;
   startTime?: Comparator<Date>;
   challengeTicks?: Comparator<number>;
@@ -647,6 +652,39 @@ function applyTobFilters(
   }
 }
 
+function applyMokhaiotlFilters(
+  mokhaiotl: MokhaiotlQuery,
+  baseTable: postgres.Helper<string>,
+  joins: Join[],
+  conditions: postgres.Fragment[],
+) {
+  const statsColumns: Record<keyof MokhaiotlQuery, string> = {
+    maxCompletedDelve: 'max_completed_delve',
+  };
+
+  let statsJoined = false;
+  for (const [field, column] of Object.entries(statsColumns) as [
+    keyof MokhaiotlQuery,
+    string,
+  ][]) {
+    const comparator = mokhaiotl[field];
+    if (comparator === undefined) {
+      continue;
+    }
+    if (!statsJoined) {
+      joins.push({
+        table: sql`mokhaiotl_challenge_stats`,
+        on: sql`${baseTable}.id = mokhaiotl_challenge_stats.challenge_id`,
+        tableName: 'mokhaiotl_challenge_stats',
+      });
+      statsJoined = true;
+    }
+    conditions.push(
+      comparatorToSql(sql('mokhaiotl_challenge_stats'), column, comparator),
+    );
+  }
+}
+
 function addSplitsTable(
   split: SplitType,
   baseTable: postgres.Helper<string, string[]>,
@@ -761,6 +799,10 @@ function applyFilters(
     applyTobFilters(query.tob, sqlChallenges, joins, conditions);
   }
 
+  if (query.mokhaiotl !== undefined) {
+    applyMokhaiotlFilters(query.mokhaiotl, sqlChallenges, joins, conditions);
+  }
+
   if (query.sort !== undefined) {
     const sorts = Array.isArray(query.sort) ? query.sort : [query.sort];
     for (const sort of sorts) {
@@ -774,6 +816,7 @@ function applyFilters(
         joins.push({
           table: sql`mokhaiotl_challenge_stats`,
           on: sql`${sqlChallenges}.id = mokhaiotl_challenge_stats.challenge_id`,
+          type: 'left',
           tableName: 'mokhaiotl_challenge_stats',
         });
       }

@@ -14,6 +14,7 @@ import {
   contextFromUrlParams,
   countActiveFilters,
   defaultSearchFilters,
+  emptyMokhaiotlFilters,
   emptyTobFilters,
   filtersToUrlParams,
 } from '../context';
@@ -124,6 +125,26 @@ describe('challenges filter URL round-trip', () => {
     expect(result.tob.verzikRedsCount).toEqual([Comparator.LESS_THAN, 5]);
   });
 
+  it('preserves Mokhaiotl sub-filters', () => {
+    const filters: SearchFilters = {
+      ...defaultSearchFilters(),
+      mokhaiotl: {
+        maxCompletedDelve: [Comparator.GREATER_THAN_OR_EQUAL, 40],
+      },
+    };
+    const result = roundTrip(filters);
+    expect(result.mokhaiotl.maxCompletedDelve).toEqual([
+      Comparator.GREATER_THAN_OR_EQUAL,
+      40,
+    ]);
+  });
+
+  it('omits Mokhaiotl sub-filter params when null', () => {
+    const filters = defaultSearchFilters();
+    const params = filtersToUrlParams(filters);
+    expect(params['mok.maxCompletedDelve']).toBeUndefined();
+  });
+
   it('preserves options', () => {
     const filters: SearchFilters = {
       ...defaultSearchFilters(),
@@ -193,5 +214,16 @@ describe('countActiveFilters', () => {
       },
     };
     expect(countActiveFilters(filters)).toBe(4);
+  });
+
+  it('counts Mokhaiotl sub-filters individually', () => {
+    const filters: SearchFilters = {
+      ...defaultSearchFilters(),
+      mokhaiotl: {
+        ...emptyMokhaiotlFilters(),
+        maxCompletedDelve: [Comparator.GREATER_THAN_OR_EQUAL, 40],
+      },
+    };
+    expect(countActiveFilters(filters)).toBe(2);
   });
 });

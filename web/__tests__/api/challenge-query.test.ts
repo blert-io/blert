@@ -224,6 +224,27 @@ describe('parseChallengeQuery', () => {
     });
   });
 
+  describe('mokhaiotl stat params', () => {
+    it('should parse max completed delve', () => {
+      const query = parse({ 'mok.maxCompletedDelve': 'ge40' });
+      expect(query!.mokhaiotl!.maxCompletedDelve).toEqual(['>=', 40]);
+    });
+
+    it('should parse range max completed delve', () => {
+      const query = parse({ 'mok.maxCompletedDelve': '30..50' });
+      expect(query!.mokhaiotl!.maxCompletedDelve).toEqual(['range', [30, 50]]);
+    });
+
+    it('should leave mokhaiotl undefined when no mok params', () => {
+      const query = parse({});
+      expect(query!.mokhaiotl).toBeUndefined();
+    });
+
+    it('should reject invalid max completed delve value', () => {
+      expect(parse({ 'mok.maxCompletedDelve': 'invalid' })).toBeNull();
+    });
+  });
+
   describe('unknown namespaced params', () => {
     it('should ignore unknown namespaces', () => {
       const query = parse({ 'unknown:1': 'eq5' });
