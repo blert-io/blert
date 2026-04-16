@@ -35,7 +35,12 @@ import ItemCounts from '../../item-counts';
 import { setupLocalStorage } from '../../local-storage';
 import { ItemSelector } from './item-selector';
 import PlayerList from '../../player-list';
-import { GearSetup, hasAllItems, newGearSetupPlayer } from '../../setup';
+import {
+  GearSetup,
+  hasAllItems,
+  newGearSetupPlayer,
+  setupScale,
+} from '../../setup';
 
 import setupStyles from '../../style.module.scss';
 import styles from './style.module.scss';
@@ -845,6 +850,29 @@ function PublishModal({
               </div>
             </>
           )}
+        </div>
+
+        <div className={styles.setupPreview}>
+          <div className={styles.previewLabel}>Setup to be published:</div>
+          <div className={styles.previewCard}>
+            <div className={styles.previewIcon}>
+              <i className="fas fa-shield" />
+            </div>
+            <div className={styles.previewInfo}>
+              <span className={styles.previewName}>{gearSetup.title}</span>
+              <div className={styles.previewMeta}>
+                <span>
+                  <i className="fas fa-shield" />
+                  {challengeName(gearSetup.challenge)}
+                </span>
+                <span>
+                  <i className="fas fa-users" />
+                  {setupScale(gearSetup)} player
+                  {setupScale(gearSetup) !== 1 ? 's' : ''}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {publishIssues.length > 0 && (

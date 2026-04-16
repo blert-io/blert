@@ -22,6 +22,9 @@ export default function ItemCounts({ setup, selectedItemId }: ItemCountsProps) {
   const counts = new Map<number, number>();
 
   for (const player of setup.players) {
+    if (player.optional) {
+      continue;
+    }
     for (const container of [
       Container.INVENTORY,
       Container.EQUIPMENT,

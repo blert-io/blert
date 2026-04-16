@@ -9,7 +9,7 @@ import {
 import { randomBytes } from 'crypto';
 import postgres from 'postgres';
 
-import { GearSetup } from '@/setups/setup';
+import { GearSetup, setupScale } from '@/setups/setup';
 
 import logger from '@/utils/log';
 import { withServerAction } from '@/utils/metrics';
@@ -127,7 +127,7 @@ export async function newGearSetup(
     }
     name = overrideName ?? `Copy of ${template.title}`;
     challengeType = template.challenge;
-    scale = template.players.length;
+    scale = setupScale(template);
     hasDraft = true;
 
     template = {
@@ -137,7 +137,7 @@ export async function newGearSetup(
   } else if (template !== undefined) {
     name = overrideName ?? template.title;
     challengeType = template.challenge;
-    scale = template.players.length;
+    scale = setupScale(template);
     hasDraft = true;
   }
 
@@ -442,7 +442,7 @@ export async function saveSetupDraft(
       // If the setup has not yet been published, change its name and scale to
       // match the latest draft.
       updates.name = setup.title;
-      updates.scale = setup.players.length;
+      updates.scale = setupScale(setup);
     }
 
     await sql`
@@ -528,7 +528,7 @@ export async function publishSetupRevision(
         SET
           name = ${setup.title},
           challenge_type = ${setup.challenge},
-          scale = ${setup.players.length},
+          scale = ${setupScale(setup)},
           latest_revision_id = ${revision.id},
           state = ${targetState},
           has_draft = FALSE,

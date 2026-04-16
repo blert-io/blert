@@ -5,7 +5,14 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
-import { ComponentPropsWithoutRef, useState, useEffect } from 'react';
+import {
+  Children,
+  ComponentPropsWithoutRef,
+  Fragment,
+  isValidElement,
+  useState,
+  useEffect,
+} from 'react';
 import { createPortal } from 'react-dom';
 
 import 'katex/dist/katex.min.css';
@@ -325,6 +332,19 @@ export default function MarkdownRenderer({
                 return <input type="checkbox" disabled {...props} />;
               }
               return <input type={type} {...props} />;
+            },
+            p: ({ children, node: _node, ...props }) => {
+              const meaningful = Children.toArray(children).filter(
+                (c) => !(typeof c === 'string' && c.trim() === ''),
+              );
+              if (
+                meaningful.length === 1 &&
+                isValidElement(meaningful[0]) &&
+                meaningful[0].type === VideoEmbedComponent
+              ) {
+                return <Fragment>{meaningful[0]}</Fragment>;
+              }
+              return <p {...props}>{children}</p>;
             },
             h1: ({ children, node: _node, ...props }) => (
               <h3 {...props}>{children}</h3>

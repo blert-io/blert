@@ -1,6 +1,6 @@
 import { SetupListItem, SetupMetadata } from '@/actions/setup';
 
-import { GearSetup } from './setup';
+import { GearSetup, setupScale } from './setup';
 
 class SetupLocalStorage {
   private static readonly PREFIX = 'blert:setup';
@@ -37,7 +37,7 @@ class SetupLocalStorage {
       publicId: id,
       name: setup.title,
       challengeType: setup.challenge,
-      scale: setup.players.length,
+      scale: setupScale(setup),
       authorId: 0,
       author: '',
       state: 'draft',

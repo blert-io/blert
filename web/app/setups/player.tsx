@@ -7,6 +7,7 @@ import { useCallback, useContext, useRef, useState } from 'react';
 import EditableTextField from '@/components/editable-text-field';
 import Menu, { MenuItem } from '@/components/menu';
 import { useToast } from '@/components/toast';
+import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 
 import { EditingContext, SetupEditingContext } from './editing-context';
 import { getSlotMetadata, SLOT_SIZE_PX } from './container-grid';
@@ -20,6 +21,7 @@ import {
   QUIVER_SLOT_INDEX,
   Spellbook,
   newGearSetupPlayer,
+  setupScale,
   spellbookName,
 } from './setup';
 import { Slot } from './slot';
@@ -79,7 +81,19 @@ export function Player({ index, player }: PlayerProps) {
   };
 
   const isHighlighted = highlightedPlayerIndex === index;
-  const className = `${styles.player}${isHighlighted ? ` ${styles.highlighted}` : ''}`;
+  const isOptional = player.optional === true;
+  const isLastRequired =
+    !isOptional &&
+    editingContext !== null &&
+    setupScale(editingContext.setup) <= 1;
+  const classNames = [styles.player];
+  if (isHighlighted) {
+    classNames.push(styles.highlighted);
+  }
+  if (isOptional) {
+    classNames.push(styles.optional);
+  }
+  const className = classNames.join(' ');
 
   const handleExport = useCallback(
     (format: ExportFormat) => {
@@ -109,7 +123,10 @@ export function Player({ index, player }: PlayerProps) {
     try {
       const text = await clipboard.readText();
       const setup = importSetup(text);
-      editingContext.updatePlayer(index, (_) => setup);
+      editingContext.updatePlayer(index, (prev) => ({
+        ...setup,
+        optional: prev.optional,
+      }));
     } catch (error: unknown) {
       if (error instanceof TranslateError) {
         sendToast(
@@ -143,7 +160,7 @@ export function Player({ index, player }: PlayerProps) {
           />
         ) : (
           <h2 className={styles.name}>
-            {player.name}
+            <span className={styles.nameText}>{player.name}</span>
             <div className={styles.playerActions}>
               <button
                 className={styles.shareButton}
@@ -273,6 +290,16 @@ export function Player({ index, player }: PlayerProps) {
           readonly={editingContext === null}
         />
       </div>
+      {isOptional && editingContext === null && (
+        <span
+          className={styles.optionalIndicator}
+          data-tooltip-id={GLOBAL_TOOLTIP_ID}
+          data-tooltip-content="Situational setup"
+        >
+          <i className="fas fa-user-slash" />
+          Optional
+        </span>
+      )}
       {editingContext !== null && (
         <div className={styles.editActions}>
           <button className={styles.import} onClick={() => void handleImport()}>
@@ -280,7 +307,37 @@ export function Player({ index, player }: PlayerProps) {
             Import from clipboard
           </button>
           <button
+            type="button"
+            className={`${styles.optionalToggle} ${isOptional ? styles.active : ''}`}
+            disabled={isLastRequired}
+            onClick={() =>
+              editingContext.updatePlayer(index, (prev) => ({
+                ...prev,
+                optional: prev.optional ? undefined : true,
+              }))
+            }
+            aria-pressed={isOptional}
+            data-tooltip-id={GLOBAL_TOOLTIP_ID}
+            data-tooltip-content={
+              isLastRequired
+                ? 'Add another player before marking this one as optional'
+                : isOptional
+                  ? 'Include this setup in the required items summary'
+                  : 'Mark as a situational setup. Its items will be excluded from the required items summary.'
+            }
+          >
+            <i className="fas fa-user-slash" />
+            <span>{isOptional ? 'Mark required' : 'Mark optional'}</span>
+          </button>
+          <button
             className={styles.remove}
+            disabled={isLastRequired}
+            data-tooltip-id={isLastRequired ? GLOBAL_TOOLTIP_ID : undefined}
+            data-tooltip-content={
+              isLastRequired
+                ? 'Add another player before removing the last required one'
+                : undefined
+            }
             onClick={() =>
               editingContext.update((prev) => {
                 let newPlayers;

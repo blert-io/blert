@@ -123,12 +123,34 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  position: relative;
 
   .header {
     display: flex;
     align-items: center;
     gap: 8px;
     margin-bottom: 0.5em;
+    max-width: 100%;
+  }
+
+  .optionalIndicator {
+    position: absolute;
+    left: 6px;
+    bottom: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    color: rgba(var(--blert-blue-base), 0.7);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    pointer-events: auto;
+    cursor: help;
+
+    i {
+      font-size: 11px;
+    }
   }
 
   .name {
@@ -138,6 +160,15 @@
     font-size: 18px;
     margin: 0;
     position: relative;
+    min-width: 0;
+    max-width: 100%;
+
+    .nameText {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
 
     .playerActions {
       position: absolute;
@@ -209,13 +240,19 @@
         margin-right: 8px;
       }
 
-      &:hover {
+      &:not(:disabled):hover {
         cursor: pointer;
         filter: brightness(1.4);
 
         i {
           transform: scale(1.1);
         }
+      }
+
+      &:disabled {
+        color: var(--blert-font-color-secondary);
+        opacity: 0.6;
+        cursor: not-allowed;
       }
     }
 
@@ -225,6 +262,37 @@
 
     .remove {
       color: var(--blert-red);
+    }
+
+    .optionalToggle {
+      display: inline-flex;
+      align-items: center;
+      color: var(--blert-purple);
+      border-radius: 4px;
+
+      &.active {
+        color: var(--blert-blue);
+        background: rgba(var(--blert-blue-base), 0.12);
+      }
+    }
+  }
+
+  &.optional {
+    background: rgba(var(--blert-blue-base), 0.03);
+    border-radius: 8px;
+    opacity: 0.8;
+
+    .slotContainer {
+      opacity: 0.8;
+    }
+
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border: 2px dashed rgba(var(--blert-blue-base), 0.4);
+      border-radius: 8px;
+      pointer-events: none;
     }
   }
 
