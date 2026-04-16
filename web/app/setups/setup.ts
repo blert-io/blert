@@ -19,6 +19,7 @@ export type GearSetupPlayer = {
   equipment: PlayerEquipment;
   pouch: PlayerPouch;
   spellbook: Spellbook;
+  optional?: boolean;
 };
 
 export type SlotContainer = {
@@ -80,6 +81,10 @@ export function getContainer(
     case Container.POUCH:
       return player.pouch.slots;
   }
+}
+
+export function setupScale(setup: GearSetup): number {
+  return setup.players.filter((p) => !p.optional).length;
 }
 
 export const NEW_GEAR_SETUP: GearSetup = {
