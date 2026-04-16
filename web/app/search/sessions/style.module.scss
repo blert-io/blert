@@ -1,139 +1,9 @@
 @use '@/mixins.scss' as *;
 
-.sessionSearch {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
-  gap: 16px;
-}
-
-.header {
-  margin: 0.5em 0;
-  text-align: center;
-  max-width: 600px;
-
-  h1 {
-    font-size: 1.5em;
-    margin: 0;
-  }
-
-  p {
-    margin-bottom: 0;
-    color: var(--blert-font-color-secondary);
-  }
-}
-
-.filtersCard {
-  width: 100%;
-  max-width: 1200px;
-
-  .filtersTitle {
-    font-size: 1.2rem;
-    font-weight: 500;
-  }
-}
-
-.clearAllButton {
-  font-size: 0.85rem;
-  color: var(--blert-purple);
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  transition: all 0.2s ease;
-
-  &:hover:not(:disabled) {
-    background: rgba(var(--blert-purple-base), 0.1);
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-}
-
-.filtersContainer {
+.filters {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-}
-
-.filterSection {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  padding: 1rem;
-  background: var(--blert-surface-dark);
-  border-radius: 8px;
-  border: 1px solid var(--blert-surface-light);
-}
-
-.filterRow {
-  display: flex;
-  justify-content: space-between;
-  gap: 1.5rem 2rem;
-
-  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    flex-wrap: wrap;
-    gap: 1.25rem 2rem;
-  }
-}
-
-.filterGroup {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.filterLabel {
-  label {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--blert-font-color-primary);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-}
-
-.checkboxList {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-
-  .checkbox {
-    padding: 0.2rem 0;
-  }
-}
-
-.playerSearchContainer {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  min-width: 260px;
-
-  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    min-width: 100%;
-  }
-}
-
-.dateContainer {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding-top: 10px;
-}
-
-.dateField {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.dateFieldLabel {
-  font-size: 0.8rem;
-  color: var(--blert-font-color-secondary);
 }
 
 .rangeContainer {
@@ -158,8 +28,9 @@
 }
 
 .resultsCard {
+  flex: 1;
+  min-width: 0;
   width: 100%;
-  max-width: 1200px;
 
   .resultsTitle {
     display: flex;

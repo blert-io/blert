@@ -1,17 +1,22 @@
-import { ChallengeMode, ChallengeType, SessionStatus } from '@blert/common';
+import { SessionStatus } from '@blert/common';
 import { Dispatch, SetStateAction, useEffect, useState } from 'react';
 
-import Checkbox from '@/components/checkbox';
-import DatePicker from '@/components/date-picker';
 import Input from '@/components/input';
-import PlayerSearch from '@/components/player-search';
-import TagList from '@/components/tag-list';
+
+import {
+  DateRangeFilter,
+  FilterField,
+  FilterRow,
+  FilterSection,
+  PartyFilter,
+  ScaleFilter,
+  StatusFilter,
+  TypeFilter,
+} from '../filter-controls';
 
 import { SessionSearchContext, SessionSearchFilters } from './context';
 
 import styles from './style.module.scss';
-
-const DATE_INPUT_WIDTH = 150;
 
 type FiltersProps = {
   context: SessionSearchContext;
@@ -19,46 +24,10 @@ type FiltersProps = {
   loading: boolean;
 };
 
-type ArrayFields<T> = Pick<
-  T,
-  { [K in keyof T]: T[K] extends any[] ? K : never }[keyof T]
->;
-
-function isTobMode(mode: ChallengeMode) {
-  return mode >= ChallengeMode.TOB_ENTRY && mode <= ChallengeMode.TOB_HARD;
-}
-
-function toggleTobMode(
-  filters: SessionSearchFilters,
-  mode: ChallengeMode,
-): SessionSearchFilters {
-  const remove = filters.mode.includes(mode);
-  if (remove) {
-    const tobModes = filters.mode.filter(isTobMode).length;
-    return {
-      ...filters,
-      mode: filters.mode.filter((v) => v !== mode),
-      type:
-        tobModes === 1
-          ? filters.type.filter((v) => v !== ChallengeType.TOB)
-          : filters.type,
-    };
-  }
-
-  return {
-    ...filters,
-    mode: [...filters.mode, mode],
-    type: filters.type.includes(ChallengeType.TOB)
-      ? filters.type
-      : [...filters.type, ChallengeType.TOB],
-  };
-}
-
-const NO_MODE_CHALLENGE_TYPES = new Set([
-  ChallengeType.COLOSSEUM,
-  ChallengeType.INFERNO,
-  ChallengeType.MOKHAIOTL,
-]);
+const STATUS_OPTIONS = [
+  { value: SessionStatus.COMPLETED, label: 'Completed' },
+  { value: SessionStatus.ACTIVE, label: 'Active' },
+];
 
 type RangeFilterProps = {
   label: string;
@@ -110,22 +79,19 @@ function RangeFilter({
     text: string,
   ) {
     if (e.key === 'Enter') {
+      e.preventDefault();
       commit(field, text);
-      (e.target as HTMLInputElement).blur();
     }
   }
 
   return (
-    <div className={styles.filterGroup}>
-      <div className={styles.filterLabel}>
-        <label>{label}</label>
-      </div>
+    <FilterField label={label}>
       <div className={styles.rangeContainer}>
         <Input
           disabled={loading}
           id={`filters-min-${id}`}
           label="Min"
-          labelBg="var(--blert-surface-dark)"
+          labelBg="var(--blert-filter-surface)"
           type="number"
           value={minText}
           width={inputWidth}
@@ -138,7 +104,7 @@ function RangeFilter({
           disabled={loading}
           id={`filters-max-${id}`}
           label="Max"
-          labelBg="var(--blert-surface-dark)"
+          labelBg="var(--blert-filter-surface)"
           type="number"
           value={maxText}
           width={inputWidth}
@@ -147,7 +113,7 @@ function RangeFilter({
           onKeyDown={(e) => handleKeyDown(e, maxField, maxText)}
         />
       </div>
-    </div>
+    </FilterField>
   );
 }
 
@@ -156,297 +122,73 @@ export default function Filters({
   setContext,
   loading,
 }: FiltersProps) {
-  function toggle<
-    K extends keyof ArrayFields<SessionSearchFilters>,
-    V = SessionSearchFilters[K][number],
-  >(key: K, value: V) {
+  function updateFilters(update: Partial<SessionSearchFilters>) {
     setContext((prev) => ({
       ...prev,
-      filters: {
-        ...prev.filters,
-        [key]: (prev.filters[key] as V[]).includes(value)
-          ? prev.filters[key].filter((v) => v !== value)
-          : [...prev.filters[key], value],
-      },
+      filters: { ...prev.filters, ...update },
       pagination: {},
     }));
   }
 
-  function checkbox<
-    K extends keyof ArrayFields<SessionSearchFilters>,
-    V = SessionSearchFilters[K][number],
-  >(key: K, value: V, label: string, disabled: boolean = false) {
-    const checked = (context.filters[key] as V[]).includes(value);
-    const isDisabled = disabled && !checked;
-
-    return (
-      <Checkbox
-        checked={checked}
-        className={styles.checkbox}
-        disabled={loading || isDisabled}
-        onChange={() => toggle(key, value)}
-        label={label}
-        simple
-      />
-    );
-  }
-
-  function toggleNoMode(challengeType: ChallengeType) {
-    return setContext((prev) => {
-      const remove = prev.filters.type.includes(challengeType);
-      if (remove) {
-        const keepNoMode = prev.filters.type.some(
-          (t) => t !== challengeType && NO_MODE_CHALLENGE_TYPES.has(t),
-        );
-        return {
-          ...prev,
-          filters: {
-            ...prev.filters,
-            type: prev.filters.type.filter((t) => t !== challengeType),
-            mode: keepNoMode
-              ? prev.filters.mode
-              : prev.filters.mode.filter((m) => m !== ChallengeMode.NO_MODE),
-          },
-          pagination: {},
-        };
-      }
-
-      const hasNoMode = prev.filters.mode.includes(ChallengeMode.NO_MODE);
-      return {
-        ...prev,
-        filters: {
-          ...prev.filters,
-          type: [...prev.filters.type, challengeType],
-          mode: hasNoMode
-            ? prev.filters.mode
-            : [...prev.filters.mode, ChallengeMode.NO_MODE],
-        },
-        pagination: {},
-      };
-    });
-  }
-
-  function noModeChallengeCheckbox(
-    challengeType: ChallengeType,
-    label: string,
-  ) {
-    return (
-      <Checkbox
-        checked={context.filters.type.includes(challengeType)}
-        className={styles.checkbox}
-        disabled={loading}
-        onChange={() => toggleNoMode(challengeType)}
-        label={label}
-        simple
-      />
-    );
-  }
-  const hasTeamChallenges =
-    context.filters.type.length === 0 ||
-    context.filters.type.includes(ChallengeType.TOB);
-
   return (
-    <div className={styles.filtersContainer}>
-      <div className={styles.filterSection}>
-        <div className={styles.filterRow}>
-          {/* Type filter */}
-          <div className={styles.filterGroup}>
-            <div className={styles.filterLabel}>
-              <label>Type</label>
-            </div>
-            <div className={styles.checkboxList}>
-              <Checkbox
-                checked={
-                  context.filters.type.includes(ChallengeType.TOB) &&
-                  context.filters.mode.includes(ChallengeMode.TOB_REGULAR)
-                }
-                className={styles.checkbox}
-                disabled={loading}
-                onChange={() =>
-                  setContext((prev) => ({
-                    ...prev,
-                    filters: toggleTobMode(
-                      prev.filters,
-                      ChallengeMode.TOB_REGULAR,
-                    ),
-                    pagination: {},
-                  }))
-                }
-                label="ToB Regular"
-                simple
-              />
-              <Checkbox
-                checked={
-                  context.filters.type.includes(ChallengeType.TOB) &&
-                  context.filters.mode.includes(ChallengeMode.TOB_HARD)
-                }
-                className={styles.checkbox}
-                disabled={loading}
-                onChange={() =>
-                  setContext((prev) => ({
-                    ...prev,
-                    filters: toggleTobMode(
-                      prev.filters,
-                      ChallengeMode.TOB_HARD,
-                    ),
-                    pagination: {},
-                  }))
-                }
-                label="ToB Hard"
-                simple
-              />
-              {noModeChallengeCheckbox(ChallengeType.INFERNO, 'Inferno')}
-              {noModeChallengeCheckbox(ChallengeType.COLOSSEUM, 'Colosseum')}
-              {noModeChallengeCheckbox(ChallengeType.MOKHAIOTL, 'Mokhaiotl')}
-            </div>
-          </div>
+    <div className={styles.filters}>
+      <FilterRow>
+        <TypeFilter
+          type={context.filters.type}
+          mode={context.filters.mode}
+          onChange={(type, mode) => updateFilters({ type, mode })}
+          disabled={loading}
+        />
+        <ScaleFilter
+          scale={context.filters.scale}
+          type={context.filters.type}
+          onChange={(scale) => updateFilters({ scale })}
+          disabled={loading}
+        />
+      </FilterRow>
 
-          {/* Status filter */}
-          <div className={styles.filterGroup}>
-            <div className={styles.filterLabel}>
-              <label>Status</label>
-            </div>
-            <div className={styles.checkboxList}>
-              {checkbox('status', SessionStatus.COMPLETED, 'Completed')}
-              {checkbox('status', SessionStatus.ACTIVE, 'Active')}
-            </div>
-          </div>
+      <StatusFilter
+        status={context.filters.status}
+        options={STATUS_OPTIONS}
+        onChange={(status) => updateFilters({ status })}
+        disabled={loading}
+      />
 
-          {/* Scale filter */}
-          <div className={styles.filterGroup}>
-            <div className={styles.filterLabel}>
-              <label>Scale</label>
-            </div>
-            <div className={styles.checkboxList}>
-              {checkbox('scale', 1, 'Solo')}
-              {checkbox('scale', 2, 'Duo', !hasTeamChallenges)}
-              {checkbox('scale', 3, 'Trio', !hasTeamChallenges)}
-              {checkbox('scale', 4, '4s', !hasTeamChallenges)}
-              {checkbox('scale', 5, '5s', !hasTeamChallenges)}
-            </div>
-          </div>
+      <DateRangeFilter
+        startDate={context.filters.startDate}
+        endDate={context.filters.endDate}
+        onChange={(startDate, endDate) => updateFilters({ startDate, endDate })}
+        disabled={loading}
+      />
 
-          <RangeFilter
-            label="Challenges"
-            id="challenge-count"
-            minValue={context.filters.minChallengeCount}
-            maxValue={context.filters.maxChallengeCount}
-            minField="minChallengeCount"
-            maxField="maxChallengeCount"
-            setContext={setContext}
-            loading={loading}
-          />
-        </div>
+      <PartyFilter
+        party={context.filters.party}
+        onChange={(party) => updateFilters({ party })}
+        disabled={loading}
+      />
 
-        <div className={styles.filterRow}>
-          {/* Party filter */}
-          <div className={styles.filterGroup}>
-            <div className={styles.filterLabel}>
-              <label>Party</label>
-            </div>
-            <div className={styles.playerSearchContainer}>
-              <PlayerSearch
-                disabled={loading || context.filters.party.length >= 5}
-                label="Enter username"
-                labelBg="var(--blert-surface-dark)"
-                id="filters-player"
-                onSelection={(username) =>
-                  setContext((prev) => {
-                    if (prev.filters.party.includes(username)) {
-                      return prev;
-                    }
-                    return {
-                      ...prev,
-                      filters: {
-                        ...prev.filters,
-                        party: [...prev.filters.party, username],
-                      },
-                      pagination: {},
-                    };
-                  })
-                }
-              />
-              <TagList
-                onRemove={(username) =>
-                  setContext((prev) => ({
-                    ...prev,
-                    filters: {
-                      ...prev.filters,
-                      party: prev.filters.party.filter((u) => u !== username),
-                    },
-                    pagination: {},
-                  }))
-                }
-                tags={context.filters.party}
-                width={260}
-              />
-            </div>
-          </div>
-
-          {/* Date filter */}
-          <div className={styles.filterGroup}>
-            <div className={styles.filterLabel}>
-              <label>Date</label>
-            </div>
-            <div className={styles.dateContainer}>
-              <div className={styles.dateField}>
-                <span className={styles.dateFieldLabel}>From</span>
-                <DatePicker
-                  disabled={loading}
-                  icon="fas fa-calendar-alt"
-                  isClearable
-                  maxDate={context.filters.endDate ?? new Date()}
-                  placeholderText="Any"
-                  popperPlacement="bottom"
-                  selected={context.filters.startDate}
-                  onChange={(date) =>
-                    setContext((prev) => ({
-                      ...prev,
-                      filters: { ...prev.filters, startDate: date },
-                      pagination: {},
-                    }))
-                  }
-                  showIcon
-                  width={DATE_INPUT_WIDTH}
-                />
-              </div>
-              <span className={styles.dateFieldLabel}>&ndash;</span>
-              <div className={styles.dateField}>
-                <DatePicker
-                  disabled={loading}
-                  icon="fas fa-calendar-alt"
-                  isClearable
-                  maxDate={new Date()}
-                  minDate={context.filters.startDate ?? undefined}
-                  placeholderText="Any"
-                  popperPlacement="bottom"
-                  selected={context.filters.endDate}
-                  onChange={(date) =>
-                    setContext((prev) => ({
-                      ...prev,
-                      filters: { ...prev.filters, endDate: date },
-                      pagination: {},
-                    }))
-                  }
-                  showIcon
-                  width={DATE_INPUT_WIDTH}
-                />
-              </div>
-            </div>
-          </div>
-
-          <RangeFilter
-            label="Duration (mins)"
-            id="duration"
-            minValue={context.filters.minDurationMinutes}
-            maxValue={context.filters.maxDurationMinutes}
-            minField="minDurationMinutes"
-            maxField="maxDurationMinutes"
-            setContext={setContext}
-            loading={loading}
-          />
-        </div>
-      </div>
+      <FilterSection title="Session metrics">
+        <RangeFilter
+          label="Challenge count"
+          id="challenge-count"
+          minValue={context.filters.minChallengeCount}
+          maxValue={context.filters.maxChallengeCount}
+          minField="minChallengeCount"
+          maxField="maxChallengeCount"
+          setContext={setContext}
+          loading={loading}
+        />
+        <RangeFilter
+          label="Duration (mins)"
+          id="duration"
+          minValue={context.filters.minDurationMinutes}
+          maxValue={context.filters.maxDurationMinutes}
+          minField="minDurationMinutes"
+          maxField="maxDurationMinutes"
+          setContext={setContext}
+          loading={loading}
+        />
+      </FilterSection>
     </div>
   );
 }

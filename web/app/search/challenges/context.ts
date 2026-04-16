@@ -1,9 +1,4 @@
-import {
-  ChallengeMode,
-  ChallengeStatus,
-  ChallengeType,
-  Stage,
-} from '@blert/common';
+import { ChallengeStatus, Stage } from '@blert/common';
 
 import {
   ExtraChallengeFields,
@@ -12,6 +7,15 @@ import {
 } from '@/actions/challenge';
 import { Comparator } from '@/components/tick-input';
 import { NextSearchParams, UrlParam, UrlParams } from '@/utils/url';
+
+import {
+  SharedFilters,
+  applySharedFilterParam,
+  countSharedFilters,
+  emptySharedFilters,
+  numericList,
+  sharedFiltersToUrlParams,
+} from '../shared-filters';
 
 function serializeComparator(comparator: Comparator): string {
   switch (comparator) {
@@ -110,15 +114,45 @@ export function hasTobFilters(tob: TobFilters): boolean {
   );
 }
 
-export type SearchFilters = {
-  party: string[];
-  mode: ChallengeMode[];
-  scale: number[];
+function countTobFilters(tob: TobFilters): number {
+  let count = tob.bloatDowns.size;
+  if (tob.bloatDownCount !== null) {
+    count++;
+  }
+  if (tob.nylocasPreCapStalls !== null) {
+    count++;
+  }
+  if (tob.nylocasPostCapStalls !== null) {
+    count++;
+  }
+  if (tob.verzikRedsCount !== null) {
+    count++;
+  }
+  return count;
+}
+
+export function countActiveFilters(filters: SearchFilters): number {
+  let count = countSharedFilters(filters);
+  if (filters.status.length > 0) {
+    count++;
+  }
+  if (filters.stage !== null) {
+    count++;
+  }
+  count += filters.splits.size;
+  count += countTobFilters(filters.tob);
+  if (filters.accurateSplits) {
+    count++;
+  }
+  if (filters.fullRecordings) {
+    count++;
+  }
+  return count;
+}
+
+export type SearchFilters = SharedFilters & {
   status: ChallengeStatus[];
-  type: ChallengeType[];
   stage: [Comparator, Stage] | null;
-  startDate: Date | null;
-  endDate: Date | null;
   splits: Map<number, [Comparator, number]>;
   tob: TobFilters;
   accurateSplits: boolean;
@@ -127,19 +161,22 @@ export type SearchFilters = {
 
 export function defaultSearchFilters(): SearchFilters {
   return {
-    party: [],
-    mode: [],
-    scale: [],
+    ...emptySharedFilters(),
     status: [],
-    type: [],
     stage: null,
-    startDate: null,
-    endDate: null,
     splits: new Map(),
     tob: emptyTobFilters(),
     accurateSplits: true,
     fullRecordings: false,
   };
+}
+
+/**
+ * Whether every filter is at its default value. At defaults the only active
+ * contributor to {@link countActiveFilters} is `accurateSplits=true`.
+ */
+export function isDefaultSearchFilters(filters: SearchFilters): boolean {
+  return filters.accurateSplits && countActiveFilters(filters) === 1;
 }
 
 export type SearchContext = {
@@ -168,32 +205,9 @@ export function filtersToUrlParams(filters: SearchFilters): UrlParams {
     options.push('fullRecordings');
   }
 
-  const modes = [...filters.mode];
-  if (filters.type.includes(ChallengeType.COLOSSEUM)) {
-    modes.push(ChallengeMode.NO_MODE);
-  }
-
-  let startTime;
-
-  if (filters.startDate !== null && filters.endDate !== null) {
-    const endDate = new Date(filters.endDate);
-    endDate.setDate(endDate.getDate() + 1);
-    startTime = `${filters.startDate.getTime()}..${endDate.getTime()}`;
-  } else if (filters.startDate !== null) {
-    startTime = `>=${filters.startDate.getTime()}`;
-  } else if (filters.endDate !== null) {
-    const endDate = new Date(filters.endDate);
-    endDate.setDate(endDate.getDate() + 1);
-    startTime = `<${filters.endDate.getTime()}`;
-  }
-
   const params: UrlParams = {
-    party: filters.party,
-    scale: filters.scale,
+    ...sharedFiltersToUrlParams(filters),
     status: filters.status,
-    mode: modes,
-    type: filters.type,
-    startTime,
     options,
   };
 
@@ -228,13 +242,6 @@ export function filtersToUrlParams(filters: SearchFilters): UrlParams {
   return params;
 }
 
-function numericList<T = number>(value: string): T[] {
-  return value
-    .split(',')
-    .map((n) => parseInt(n))
-    .filter((n) => !isNaN(n)) as T[];
-}
-
 export function extraFieldsToUrlParam(
   extraFields: ExtraChallengeFields,
 ): UrlParam {
@@ -263,25 +270,13 @@ export function contextFromUrlParams(params: NextSearchParams): SearchContext {
   for (const [key, v] of Object.entries(params)) {
     const value = v as string;
 
+    if (applySharedFilterParam(context.filters, key, value)) {
+      continue;
+    }
+
     switch (key) {
-      case 'party':
-        context.filters.party = value.split(',');
-        break;
-
-      case 'mode':
-        context.filters.mode = numericList<ChallengeMode>(value);
-        break;
-
-      case 'scale':
-        context.filters.scale = numericList(value);
-        break;
-
       case 'status':
         context.filters.status = numericList<ChallengeStatus>(value);
-        break;
-
-      case 'type':
-        context.filters.type = numericList<ChallengeType>(value);
         break;
 
       case 'stage': {
@@ -291,18 +286,6 @@ export function contextFromUrlParams(params: NextSearchParams): SearchContext {
         }
         break;
       }
-
-      case 'startTime':
-        if (value.startsWith('>=')) {
-          context.filters.startDate = new Date(parseInt(value.slice(2)));
-        } else if (value.startsWith('<')) {
-          context.filters.endDate = new Date(parseInt(value.slice(1)));
-        } else {
-          const [start, end] = value.split('..').map((time) => parseInt(time));
-          context.filters.startDate = new Date(start);
-          context.filters.endDate = new Date(end);
-        }
-        break;
 
       case 'options': {
         const options = value.split(',');

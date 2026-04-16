@@ -52,6 +52,13 @@ export const MENU_DIVIDER: MenuItem = { label: '' };
 
 type MenuProps = {
   attach?: 'top' | 'bottom';
+  /**
+   * Default direction in which submenus should cascade, as a hint to the menu
+   * renderer. Individual levels still flip to the opposite side if they would
+   * overflow.
+   * @default 'right'
+   */
+  cascadeDirection?: 'left' | 'right';
   itemClass?: string;
   items: MenuItem[];
   menuClass?: string;
@@ -99,12 +106,19 @@ function MenuImpl(props: MenuImplProps) {
     let adjustY = 0;
     let shouldFlipLeft = props.parentFlippedLeft ?? false;
 
-    if (!shouldFlipLeft && rect.right > vw - VIEWPORT_PADDING) {
-      // Flip to left side of parent.
+    // Treat overflow symmetrically: if the preferred direction would overflow
+    // and the opposite fits, flip. If both fit, or both overflow, keep the
+    // preferred direction.
+    const wouldOverflowLeft = parentRect.left - rect.width < VIEWPORT_PADDING;
+    const wouldOverflowRight = rect.right > vw - VIEWPORT_PADDING;
+
+    if (shouldFlipLeft && wouldOverflowLeft && !wouldOverflowRight) {
+      shouldFlipLeft = false;
+    } else if (!shouldFlipLeft && wouldOverflowRight && !wouldOverflowLeft) {
       shouldFlipLeft = true;
-      adjustX = -(parentRect.width + rect.width);
-    } else if (shouldFlipLeft) {
-      // Parent was flipped, so we should also render to the left.
+    }
+
+    if (shouldFlipLeft) {
       adjustX = -(parentRect.width + rect.width);
     }
 
@@ -130,13 +144,10 @@ function MenuImpl(props: MenuImplProps) {
 
   if (props.parent) {
     const rect = props.parent.getBoundingClientRect();
-    style.top = rect.top - 1;
-    style.left = rect.right;
+    style.top = rect.top - 1 + (positionAdjustment?.y ?? 0);
+    style.left = rect.right + (positionAdjustment?.x ?? 0);
     style.borderRadius = '5px';
-
-    if (positionAdjustment) {
-      style.transform = `translate(${positionAdjustment.x}px, ${positionAdjustment.y}px)`;
-    }
+    style.zIndex = 1000 + props.depth;
   } else {
     if (props.attach === 'top') {
       style.borderRadius = '5px 5px 0 0';
@@ -161,7 +172,12 @@ function MenuImpl(props: MenuImplProps) {
   }
 
   return (
-    <div className={className} ref={menuRef} style={style}>
+    <div
+      className={className}
+      ref={menuRef}
+      style={style}
+      data-menu-depth={props.depth}
+    >
       {props.items.map((item, i) => {
         let ElementType: keyof JSX.IntrinsicElements;
         let onMouseDown;
@@ -262,7 +278,10 @@ function MenuImpl(props: MenuImplProps) {
                 depth={props.depth + 1}
                 items={item.subMenu}
                 parent={menuRef.current?.children[i] as HTMLElement}
-                parentFlippedLeft={flippedLeft}
+                parentFlippedLeft={
+                  flippedLeft ||
+                  (props.depth === 0 && props.cascadeDirection === 'left')
+                }
               />
             )}
           </ElementType>
@@ -469,6 +488,22 @@ export default function Menu(props: MenuProps) {
   }, [activeElements, items, open, onBrowse, onSelection, onClose]);
 
   useEffect(() => {
+    const root = document.getElementById('portal-root');
+    const menuPortal = document.createElement('div');
+    menuPortal.classList.add('menu-portal');
+    root?.appendChild(menuPortal);
+    portalNode.current = menuPortal as HTMLElement;
+    setReady(true);
+
+    return () => {
+      if (portalNode.current !== null) {
+        root?.removeChild(portalNode.current);
+        portalNode.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!open) {
       if (closeTimeoutRef.current) {
         clearTimeout(closeTimeoutRef.current);
@@ -478,24 +513,11 @@ export default function Menu(props: MenuProps) {
     }
 
     setAllowClose(false);
-    setWrapperAdjustment(null);
     closeTimeoutRef.current = setTimeout(() => {
       setAllowClose(true);
     }, 100);
 
-    const root = document.getElementById('portal-root');
-
-    const menuPortal = document.createElement('div');
-    menuPortal.classList.add('menu-portal');
-    root?.appendChild(menuPortal);
-    portalNode.current = menuPortal as HTMLElement;
-
-    setReady(true);
-
     return () => {
-      if (portalNode.current !== null) {
-        document.getElementById('portal-root')?.removeChild(portalNode.current);
-      }
       if (closeTimeoutRef.current) {
         clearTimeout(closeTimeoutRef.current);
       }
@@ -527,7 +549,7 @@ export default function Menu(props: MenuProps) {
 
   // Adjust root menu position if it overflows the viewport.
   useLayoutEffect(() => {
-    if (!wrapperRef.current || !ready || !props.position) {
+    if (!wrapperRef.current || !ready || !props.open) {
       return;
     }
 
@@ -536,27 +558,54 @@ export default function Menu(props: MenuProps) {
       return;
     }
 
-    const rect = menuElement.getBoundingClientRect();
+    const menuRect = menuElement.getBoundingClientRect();
     const vw = window.innerWidth;
     const vh = window.innerHeight;
+
+    let rawLeft: number;
+    let rawTop: number;
+
+    if (props.position) {
+      rawLeft = props.position.x;
+      rawTop = props.position.y;
+    } else if (props.targetId) {
+      const target = document.getElementById(props.targetId);
+      if (target === null) {
+        return;
+      }
+      const targetRect = target.getBoundingClientRect();
+      rawLeft = targetRect.left;
+      if (props.attach === 'top') {
+        rawTop = targetRect.top;
+      } else if (props.attach === 'bottom') {
+        rawTop = targetRect.top + targetRect.height;
+      } else {
+        rawTop = targetRect.top + targetRect.height + 5;
+      }
+    } else {
+      return;
+    }
 
     let adjustX = 0;
     let adjustY = 0;
 
-    if (rect.right > vw - VIEWPORT_PADDING) {
-      adjustX = vw - VIEWPORT_PADDING - rect.right;
+    const rawRight = rawLeft + menuRect.width;
+    const rawBottom = rawTop + menuRect.height;
+
+    if (rawRight > vw - VIEWPORT_PADDING) {
+      adjustX = vw - VIEWPORT_PADDING - rawRight;
     }
 
-    if (rect.left + adjustX < VIEWPORT_PADDING) {
-      adjustX = VIEWPORT_PADDING - rect.left;
+    if (rawLeft + adjustX < VIEWPORT_PADDING) {
+      adjustX = VIEWPORT_PADDING - rawLeft;
     }
 
-    if (rect.bottom > vh - VIEWPORT_PADDING) {
-      adjustY = vh - VIEWPORT_PADDING - rect.bottom;
+    if (rawBottom > vh - VIEWPORT_PADDING) {
+      adjustY = vh - VIEWPORT_PADDING - rawBottom;
     }
 
-    if (rect.top + adjustY < VIEWPORT_PADDING) {
-      adjustY = VIEWPORT_PADDING - rect.top;
+    if (rawTop + adjustY < VIEWPORT_PADDING) {
+      adjustY = VIEWPORT_PADDING - rawTop;
     }
 
     if (adjustX !== 0 || adjustY !== 0) {
@@ -568,7 +617,14 @@ export default function Menu(props: MenuProps) {
     } else {
       setWrapperAdjustment(null);
     }
-  }, [ready, menuTarget, props.position]);
+  }, [
+    ready,
+    menuTarget,
+    props.open,
+    props.position,
+    props.attach,
+    props.targetId,
+  ]);
 
   if (
     portalNode.current === null ||

@@ -2,24 +2,27 @@
 
 import { SplitType } from '@blert/common';
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   BasicSortableFields,
   ChallengeOverview,
   SortableFields,
 } from '@/actions/challenge';
-import Card from '@/components/card';
 import { getLocalSetting } from '@/utils/user-settings';
 import { UrlParams, queryString } from '@/utils/url';
 
 import {
   SearchContext,
   contextFromUrlParams,
+  countActiveFilters,
   extraFieldsToUrlParam,
   filtersToUrlParams,
+  isDefaultSearchFilters,
 } from './context';
-import Filters from './filters';
+import Filters, { resetChallengeFilters } from './filters';
+import FilterPanel from '../filter-panel';
+import { useFilterPanel } from '../filter-panel-context';
 import Table, {
   extraFieldsForColumns,
   DEFAULT_SELECTED_COLUMNS,
@@ -161,6 +164,12 @@ export default function Search({
   const [challenges, setChallenges] =
     useState<ChallengeOverview[]>(initialChallenges);
   const [stats, setStats] = useState<FilteredStats>(initialStats);
+  const lastLoadedQuery = useRef<string | null>(null);
+
+  const { setActiveCount } = useFilterPanel();
+  useEffect(() => {
+    setActiveCount(countActiveFilters(context.filters));
+  }, [context.filters, setActiveCount]);
 
   const resultsPerPage = 25; // TODO(frolv): Make this configurable.
 
@@ -199,6 +208,12 @@ export default function Search({
 
     paginationParams.limit = resultsPerPage + 1;
     paginationParams.extraFields = extraFieldsToUrlParam(ctx.extraFields);
+
+    const queryKey = queryString(paginationParams);
+    if (queryKey === lastLoadedQuery.current) {
+      return;
+    }
+    lastLoadedQuery.current = queryKey;
 
     setLoading(true);
     setLoadError(null);
@@ -273,6 +288,7 @@ export default function Search({
       setChallenges(newChallenges);
       setStats({ count: totalCount });
     } catch (error) {
+      lastLoadedQuery.current = null;
       if (error instanceof LoadChallengeError) {
         setLoadError(errorForStatus(error.status));
         return;
@@ -282,7 +298,6 @@ export default function Search({
         message: 'Unable to load challenges right now.',
         details: 'Please try again later.',
       });
-      return;
     } finally {
       setLoading(false);
     }
@@ -340,14 +355,6 @@ export default function Search({
 
   return (
     <>
-      <Card
-        header={{
-          title: 'Filters',
-        }}
-        fixed
-      >
-        <Filters context={context} setContext={setContext} loading={loading} />
-      </Card>
       <div className={styles.challenges}>
         <Table
           challenges={challenges}
@@ -377,6 +384,12 @@ export default function Search({
           </div>
         </div>
       </div>
+      <FilterPanel
+        onReset={() => setContext(resetChallengeFilters)}
+        canReset={!isDefaultSearchFilters(context.filters)}
+      >
+        <Filters context={context} setContext={setContext} loading={loading} />
+      </FilterPanel>
     </>
   );
 }

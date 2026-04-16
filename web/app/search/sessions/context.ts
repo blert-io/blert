@@ -1,19 +1,22 @@
-import { ChallengeMode, ChallengeType, SessionStatus } from '@blert/common';
+import { SessionStatus } from '@blert/common';
 
 import { NextSearchParams, UrlParams } from '@/utils/url';
 
-export type SessionSearchFilters = {
-  type: ChallengeType[];
-  mode: ChallengeMode[];
-  scale: number[];
+import {
+  SharedFilters,
+  applySharedFilterParam,
+  countSharedFilters,
+  emptySharedFilters,
+  numericList,
+  sharedFiltersToUrlParams,
+} from '../shared-filters';
+
+export type SessionSearchFilters = SharedFilters & {
   status: SessionStatus[];
-  party: string[];
   minChallengeCount: number | null;
   maxChallengeCount: number | null;
   minDurationMinutes: number | null;
   maxDurationMinutes: number | null;
-  startDate: Date | null;
-  endDate: Date | null;
 };
 
 export type SessionSearchContext = {
@@ -26,22 +29,29 @@ export type SessionSearchContext = {
 
 export function emptyFilters(): SessionSearchFilters {
   return {
-    type: [],
-    mode: [],
-    scale: [],
+    ...emptySharedFilters(),
     status: [],
-    party: [],
     minChallengeCount: null,
     maxChallengeCount: null,
     minDurationMinutes: null,
     maxDurationMinutes: null,
-    startDate: null,
-    endDate: null,
   };
 }
 
-export function emptyContext(): SessionSearchContext {
+/**
+ * Whether every filter is at its default value.
+ */
+export function isDefaultSessionFilters(
+  filters: SessionSearchFilters,
+): boolean {
+  return countActiveFilters(filters) === 0;
+}
+
+export function resetSessionFilters(
+  prev: SessionSearchContext,
+): SessionSearchContext {
   return {
+    ...prev,
     filters: emptyFilters(),
     pagination: {},
   };
@@ -90,26 +100,9 @@ function urlParamToRange(
  * URL query string.
  */
 export function filtersToUrlParams(filters: SessionSearchFilters): UrlParams {
-  let startTime;
-  if (filters.startDate !== null && filters.endDate !== null) {
-    const endDate = new Date(filters.endDate);
-    endDate.setDate(endDate.getDate() + 1);
-    startTime = `${filters.startDate.getTime()}..${endDate.getTime()}`;
-  } else if (filters.startDate !== null) {
-    startTime = `>=${filters.startDate.getTime()}`;
-  } else if (filters.endDate !== null) {
-    const endDate = new Date(filters.endDate);
-    endDate.setDate(endDate.getDate() + 1);
-    startTime = `<${endDate.getTime()}`;
-  }
-
   return {
-    party: filters.party,
-    scale: filters.scale,
+    ...sharedFiltersToUrlParams(filters),
     status: filters.status,
-    mode: filters.mode,
-    type: filters.type,
-    startTime,
     challengeCount: rangeToUrlParam(
       filters.minChallengeCount,
       filters.maxChallengeCount,
@@ -120,13 +113,6 @@ export function filtersToUrlParams(filters: SessionSearchFilters): UrlParams {
       { scale: 60, upperBoundStep: 1 },
     ),
   };
-}
-
-function numericList<T = number>(value: string): T[] {
-  return value
-    .split(',')
-    .map((n) => parseInt(n))
-    .filter((n) => !isNaN(n)) as T[];
 }
 
 /**
@@ -143,37 +129,13 @@ export function contextFromUrlParams(
   for (const [key, v] of Object.entries(params)) {
     const value = v as string;
 
+    if (applySharedFilterParam(context.filters, key, value)) {
+      continue;
+    }
+
     switch (key) {
-      case 'party':
-        context.filters.party = value.split(',').map((p) => p.trim());
-        break;
-
-      case 'mode':
-        context.filters.mode = numericList<ChallengeMode>(value);
-        break;
-
-      case 'scale':
-        context.filters.scale = numericList(value);
-        break;
-
       case 'status':
         context.filters.status = numericList<SessionStatus>(value);
-        break;
-
-      case 'type':
-        context.filters.type = numericList<ChallengeType>(value);
-        break;
-
-      case 'startTime':
-        if (value.startsWith('>=')) {
-          context.filters.startDate = new Date(parseInt(value.slice(2)));
-        } else if (value.startsWith('<')) {
-          context.filters.endDate = new Date(parseInt(value.slice(1)));
-        } else {
-          const [start, end] = value.split('..').map((time) => parseInt(time));
-          context.filters.startDate = new Date(start);
-          context.filters.endDate = new Date(end);
-        }
         break;
 
       case 'challengeCount': {
@@ -201,4 +163,24 @@ export function contextFromUrlParams(
   }
 
   return context;
+}
+
+export function countActiveFilters(filters: SessionSearchFilters): number {
+  let count = countSharedFilters(filters);
+  if (filters.status.length > 0) {
+    count++;
+  }
+  if (
+    filters.minChallengeCount !== null ||
+    filters.maxChallengeCount !== null
+  ) {
+    count++;
+  }
+  if (
+    filters.minDurationMinutes !== null ||
+    filters.maxDurationMinutes !== null
+  ) {
+    count++;
+  }
+  return count;
 }
