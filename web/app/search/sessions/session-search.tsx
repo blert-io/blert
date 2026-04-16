@@ -1,7 +1,7 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { SessionWithChallenges } from '@/actions/challenge';
 import Card from '@/components/card';
@@ -11,10 +11,14 @@ import { queryString } from '@/utils/url';
 import {
   SessionSearchContext,
   contextFromUrlParams,
-  emptyContext,
+  countActiveFilters,
   filtersToUrlParams,
+  isDefaultSessionFilters,
+  resetSessionFilters,
 } from './context';
 import Filters from './filters';
+import FilterPanel from '../filter-panel';
+import { useFilterPanel } from '../filter-panel-context';
 
 import styles from './style.module.scss';
 
@@ -108,23 +112,16 @@ export default function SessionSearch({
   );
   const [stats, setStats] = useState<FilteredStats>(initialStats);
   const [remaining, setRemaining] = useState(initialRemaining);
+  const lastLoadedQuery = useRef<string | null>(null);
+
+  const { setActiveCount } = useFilterPanel();
+  useEffect(() => {
+    setActiveCount(countActiveFilters(context.filters));
+  }, [context.filters, setActiveCount]);
 
   const offset = stats.count - remaining;
   const page = Math.ceil(offset / RESULTS_PER_PAGE);
   const totalPages = Math.ceil(stats.count / RESULTS_PER_PAGE);
-
-  const filtersEmpty =
-    context.filters.type.length === 0 &&
-    context.filters.mode.length === 0 &&
-    context.filters.scale.length === 0 &&
-    context.filters.status.length === 0 &&
-    context.filters.party.length === 0 &&
-    context.filters.minChallengeCount === null &&
-    context.filters.maxChallengeCount === null &&
-    context.filters.minDurationMinutes === null &&
-    context.filters.maxDurationMinutes === null &&
-    context.filters.startDate === null &&
-    context.filters.endDate === null;
 
   const errorForStatus = (status?: number): LoadErrorState => {
     if (status === 429) {
@@ -149,6 +146,11 @@ export default function SessionSearch({
 
     const updatedUrl = `/search/sessions?${queryParams}`;
     window.history.replaceState(null, '', updatedUrl);
+
+    if (queryParams === lastLoadedQuery.current) {
+      return;
+    }
+    lastLoadedQuery.current = queryParams;
 
     setLoading(true);
     setLoadError(null);
@@ -193,6 +195,7 @@ export default function SessionSearch({
       setSessions(parsed);
       setStats({ count: totalCount });
     } catch (error) {
+      lastLoadedQuery.current = null;
       if (error instanceof LoadSessionError) {
         setLoadError(errorForStatus(error.status));
         return;
@@ -202,7 +205,6 @@ export default function SessionSearch({
         message: 'Unable to load sessions right now.',
         details: 'Please try again later.',
       });
-      return;
     } finally {
       setLoading(false);
     }
@@ -254,25 +256,7 @@ export default function SessionSearch({
   }, [context, sessions, loading, loadError, page, totalPages]);
 
   return (
-    <div className={styles.sessionSearch}>
-      <Card
-        className={styles.filtersCard}
-        fixed
-        header={{
-          title: <span className={styles.filtersTitle}>Filters</span>,
-          action: (
-            <button
-              className={styles.clearAllButton}
-              disabled={loading || filtersEmpty}
-              onClick={() => setContext(emptyContext())}
-            >
-              Clear all
-            </button>
-          ),
-        }}
-      >
-        <Filters context={context} setContext={setContext} loading={loading} />
-      </Card>
+    <>
       <Card
         className={styles.resultsCard}
         fixed
@@ -343,6 +327,12 @@ export default function SessionSearch({
           </div>
         )}
       </Card>
-    </div>
+      <FilterPanel
+        onReset={() => setContext(resetSessionFilters)}
+        canReset={!isDefaultSessionFilters(context.filters)}
+      >
+        <Filters context={context} setContext={setContext} loading={loading} />
+      </FilterPanel>
+    </>
   );
 }

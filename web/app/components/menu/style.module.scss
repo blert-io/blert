@@ -11,13 +11,27 @@
   }
 
   background-color: var(--blert-surface-dark);
-  border: 1px solid rgba(var(--blert-purple-base), 0.2);
+  border: 1px solid rgba(var(--blert-purple-base), 0.45);
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.4),
-    0 2px 8px rgba(0, 0, 0, 0.2);
+    0 8px 32px rgba(0, 0, 0, 0.55),
+    0 2px 8px rgba(0, 0, 0, 0.35);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+
+  // Progressive background lift per submenu depth so cascades stay
+  // distinguishable even when they stack on top of each other.
+  &[data-menu-depth='1'] {
+    background-color: rgb(27, 28, 37);
+  }
+  &[data-menu-depth='2'] {
+    background-color: rgb(31, 32, 42);
+  }
+  &[data-menu-depth='3'],
+  &[data-menu-depth='4'],
+  &[data-menu-depth='5'] {
+    background-color: rgb(34, 36, 47);
+  }
 
   .entry {
     padding: 4px 8px;

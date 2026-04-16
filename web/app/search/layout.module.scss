@@ -3,63 +3,55 @@
 .searchLayout {
   display: flex;
   flex-direction: column;
-  align-items: center;
   width: 100%;
+  padding: 12px 16px 24px;
+  gap: 16px;
+  box-sizing: border-box;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    padding: 8px 0;
+    gap: 12px;
+  }
 }
 
-.header {
-  margin: 1em 0;
+.topbar {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  text-align: center;
+  gap: 12px;
+  padding: 6px 12px;
+  background: rgba(var(--blert-surface-dark-base), 0.5);
+  border: 1px solid rgba(var(--blert-purple-base), 0.08);
+  border-radius: 10px;
+  width: 100%;
+  box-sizing: border-box;
 
-  h1 {
-    font-size: 1.5em;
-    margin: 0;
-  }
-
-  p {
-    margin: 0.5em 0 1em;
-    color: var(--blert-font-color-secondary);
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    gap: 8px;
+    padding: 4px 8px;
   }
 }
 
-.tabs {
-  display: flex;
-  gap: 4px;
-  padding: 4px;
-  background: var(--blert-surface-dark);
-  border-radius: 8px;
-  border: 1px solid rgba(var(--blert-purple-base), 0.1);
-}
-
-.tab {
+.topbarActions {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 20px;
-  border-radius: 6px;
-  font-weight: 500;
-  color: var(--blert-font-color-secondary);
-  text-decoration: none;
-  transition: all 0.2s ease;
+  margin-left: auto;
+}
 
-  i {
-    font-size: 0.9em;
-  }
+// Empty placeholder while EntitySelector hydrates. Matches the active button's
+// height so the topbar doesn't jump on first paint.
+.selectorFallback {
+  height: 40px;
+}
 
-  &:hover:not(.active) {
-    color: var(--blert-font-color-primary);
-    background: rgba(var(--blert-purple-base), 0.08);
-  }
+.body {
+  display: flex;
+  gap: 16px;
+  width: 100%;
+  align-items: flex-start;
 
-  &.active {
-    color: var(--blert-font-color-primary);
-    background: rgba(var(--blert-purple-base), 0.15);
-
-    i {
-      color: var(--blert-purple);
-    }
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    flex-direction: column;
+    gap: 12px;
   }
 }

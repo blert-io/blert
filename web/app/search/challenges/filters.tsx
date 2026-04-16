@@ -1,34 +1,44 @@
 import {
-  ChallengeMode,
   ChallengeStatus,
   ChallengeType,
   SplitType,
   Stage,
 } from '@blert/common';
-import React, { Dispatch, SetStateAction, useContext, useState } from 'react';
+import {
+  Dispatch,
+  SetStateAction,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
-import Button from '@/components/button';
 import Checkbox from '@/components/checkbox';
 import ComparableInput, { Comparator } from '@/components/comparable-input';
-import DatePicker from '@/components/date-picker';
 import Menu, { MenuItem } from '@/components/menu';
-import Modal from '@/components/modal';
-import PlayerSearch from '@/components/player-search';
-import TagList from '@/components/tag-list';
 import TickInput from '@/components/tick-input';
-import Tooltip from '@/components/tooltip';
-import { DisplayContext } from '@/display';
+import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
+
+import {
+  DateRangeFilter,
+  FilterField,
+  FilterRow,
+  FilterSection,
+  PartyFilter,
+  ScaleFilter,
+  StatusFilter,
+  TypeFilter,
+} from '../filter-controls';
 
 import {
   SearchContext,
   SearchFilters,
-  emptyTobFilters,
+  defaultSearchFilters,
   hasTobFilters,
 } from './context';
 
 import styles from './style.module.scss';
 
-const DATE_WIDTH = 300;
 const DATE_INPUT_WIDTH = 140;
 
 type FiltersProps = {
@@ -37,38 +47,18 @@ type FiltersProps = {
   loading: boolean;
 };
 
-type ArrayFields<T> = Pick<
-  T,
-  { [K in keyof T]: T[K] extends any[] ? K : never }[keyof T]
->;
+const STATUS_OPTIONS = [
+  { value: ChallengeStatus.IN_PROGRESS, label: 'In Progress' },
+  { value: ChallengeStatus.COMPLETED, label: 'Completion' },
+  { value: ChallengeStatus.WIPED, label: 'Wipe' },
+  { value: ChallengeStatus.RESET, label: 'Reset' },
+];
 
-function isTobMode(mode: ChallengeMode) {
-  return mode >= ChallengeMode.TOB_ENTRY && mode <= ChallengeMode.TOB_HARD;
-}
-
-function toggleTobMode(
-  filters: SearchFilters,
-  mode: ChallengeMode,
-): SearchFilters {
-  const remove = filters.mode.includes(mode);
-  if (remove) {
-    const tobModes = filters.mode.filter(isTobMode).length;
-    return {
-      ...filters,
-      mode: filters.mode.filter((v) => v !== mode),
-      type:
-        tobModes === 1
-          ? filters.type.filter((v) => v !== ChallengeType.TOB)
-          : filters.type,
-    };
-  }
-
+export function resetChallengeFilters(prev: SearchContext): SearchContext {
   return {
-    ...filters,
-    mode: [...filters.mode, mode],
-    type: filters.type.includes(ChallengeType.TOB)
-      ? filters.type
-      : [...filters.type, ChallengeType.TOB],
+    ...prev,
+    filters: defaultSearchFilters(),
+    pagination: {},
   };
 }
 
@@ -144,22 +134,6 @@ export default function Filters({
   setContext,
   loading,
 }: FiltersProps) {
-  const [useDateRange, setUseDateRange] = useState(() => {
-    if (
-      context.filters.startDate !== null &&
-      context.filters.endDate !== null
-    ) {
-      return (
-        context.filters.startDate.getTime() !==
-        context.filters.endDate.getTime()
-      );
-    }
-
-    return (
-      context.filters.startDate !== null || context.filters.endDate !== null
-    );
-  });
-
   const [stageMenuOpen, setStageMenuOpen] = useState(false);
   const [stageOperatorMenuOpen, setStageOperatorMenuOpen] = useState(false);
 
@@ -168,445 +142,151 @@ export default function Filters({
   );
   const selectedStage = context.filters.stage?.[1] ?? null;
 
-  function toggle<
-    K extends keyof ArrayFields<SearchFilters>,
-    V = SearchFilters[K][number],
-  >(key: K, value: V) {
+  function updateFilters(update: Partial<SearchFilters>) {
     setContext((prev) => ({
       ...prev,
-      filters: {
-        ...prev.filters,
-        [key]: (prev.filters[key] as V[]).includes(value)
-          ? prev.filters[key].filter((v) => v !== value)
-          : [...prev.filters[key], value],
-      },
+      filters: { ...prev.filters, ...update },
       pagination: {},
     }));
   }
 
-  function checkbox<
-    K extends keyof ArrayFields<SearchFilters>,
-    V = SearchFilters[K][number],
-  >(key: K, value: V, label: string, disabled: boolean = false) {
-    const checked = (context.filters[key] as V[]).includes(value);
-    const isDisabled = disabled && !checked; // Allow unchecking if disabled.
-
-    return (
-      <Checkbox
-        checked={checked}
-        className={styles.checkbox}
-        disabled={loading || isDisabled}
-        onChange={() => toggle(key, value)}
-        label={label}
-        simple
-      />
-    );
-  }
-
-  function clearLabel(label: string, key: keyof ArrayFields<SearchFilters>) {
-    return (
-      <div className={styles.label}>
-        <label>{label}</label>
-        <button
-          className={styles.action}
-          disabled={loading}
-          onClick={() =>
-            setContext((prev) => {
-              if (prev.filters[key].length === 0) {
-                return prev;
-              }
-              return {
-                ...prev,
-                filters: { ...prev.filters, [key]: [] },
-                pagination: {},
-              };
-            })
-          }
-        >
-          Clear
-        </button>
-      </div>
-    );
-  }
-
-  const hasTeamChallenges =
-    context.filters.type.length === 0 ||
-    context.filters.type.includes(ChallengeType.TOB);
-
   const tobFiltersActive = hasTobFilters(context.filters.tob);
+  const disabledTypes = tobFiltersActive
+    ? [ChallengeType.INFERNO, ChallengeType.COLOSSEUM, ChallengeType.MOKHAIOTL]
+    : undefined;
 
   return (
     <div className={styles.filters}>
-      <div className={styles.filterGroup}>
-        <div className={`${styles.checkGroup} ${styles.item}`}>
-          <div className={styles.label}>
-            <label>Type</label>
-            <button
-              className={styles.action}
+      <FilterRow>
+        <TypeFilter
+          type={context.filters.type}
+          mode={context.filters.mode}
+          onChange={(type, mode) => updateFilters({ type, mode })}
+          disabled={loading}
+          disabledTypes={disabledTypes}
+          disabledTypesMessage="Clear ToB-only filters to select non-ToB challenge types"
+        />
+        <ScaleFilter
+          scale={context.filters.scale}
+          type={context.filters.type}
+          onChange={(scale) => updateFilters({ scale })}
+          disabled={loading}
+        />
+      </FilterRow>
+
+      <FilterRow>
+        <StatusFilter
+          status={context.filters.status}
+          options={STATUS_OPTIONS}
+          onChange={(status) => updateFilters({ status })}
+          disabled={loading}
+        />
+        <FilterField label="Options">
+          <div
+            data-tooltip-id={GLOBAL_TOOLTIP_ID}
+            data-tooltip-content="When sorting by split times, exclude those which are inaccurate."
+          >
+            <Checkbox
+              checked={context.filters.accurateSplits}
               disabled={loading}
-              onClick={() =>
-                setContext((prev) => {
-                  if (
-                    prev.filters.type.length === 0 &&
-                    prev.filters.mode.length === 0
-                  ) {
-                    return prev;
-                  }
-                  return {
-                    ...prev,
-                    filters: { ...prev.filters, type: [], mode: [] },
-                    pagination: {},
-                  };
+              onChange={() =>
+                updateFilters({
+                  accurateSplits: !context.filters.accurateSplits,
                 })
               }
-            >
-              Clear
-            </button>
-          </div>
-          <Checkbox
-            checked={
-              context.filters.type.includes(ChallengeType.TOB) &&
-              context.filters.mode.includes(ChallengeMode.TOB_REGULAR)
-            }
-            className={styles.checkbox}
-            disabled={loading}
-            onChange={() =>
-              setContext((prev) => ({
-                ...prev,
-                filters: toggleTobMode(prev.filters, ChallengeMode.TOB_REGULAR),
-                pagination: {},
-              }))
-            }
-            label="ToB Regular"
-            simple
-          />
-          <Checkbox
-            checked={
-              context.filters.type.includes(ChallengeType.TOB) &&
-              context.filters.mode.includes(ChallengeMode.TOB_HARD)
-            }
-            className={styles.checkbox}
-            disabled={loading}
-            onChange={() =>
-              setContext((prev) => ({
-                ...prev,
-                filters: toggleTobMode(prev.filters, ChallengeMode.TOB_HARD),
-                pagination: {},
-              }))
-            }
-            label="ToB Hard"
-            simple
-          />
-          {checkbox('type', ChallengeType.INFERNO, 'Inferno', tobFiltersActive)}
-          {checkbox(
-            'type',
-            ChallengeType.COLOSSEUM,
-            'Colosseum',
-            tobFiltersActive,
-          )}
-          {checkbox(
-            'type',
-            ChallengeType.MOKHAIOTL,
-            'Mokhaiotl',
-            tobFiltersActive,
-          )}
-        </div>
-        <div className={`${styles.checkGroup} ${styles.item}`}>
-          {clearLabel('Status', 'status')}
-          {checkbox('status', ChallengeStatus.IN_PROGRESS, 'In Progress')}
-          {checkbox('status', ChallengeStatus.COMPLETED, 'Completion')}
-          {checkbox('status', ChallengeStatus.WIPED, 'Wipe')}
-          {checkbox('status', ChallengeStatus.RESET, 'Reset')}
-        </div>
-        <div className={`${styles.checkGroup} ${styles.item}`}>
-          {clearLabel('Scale', 'scale')}
-          {checkbox('scale', 1, 'Solo')}
-          {checkbox('scale', 2, 'Duo', !hasTeamChallenges)}
-          {checkbox('scale', 3, 'Trio', !hasTeamChallenges)}
-          {checkbox('scale', 4, '4s', !hasTeamChallenges)}
-          {checkbox('scale', 5, '5s', !hasTeamChallenges)}
-        </div>
-        <div className={`${styles.checkGroup} ${styles.item}`}>
-          <div className={styles.label}>
-            <label>Stage</label>
-            <button
-              className={styles.action}
-              disabled={loading}
-              onClick={() => {
-                setStageOperator(Comparator.EQUAL);
-                setContext((prev) => ({
-                  ...prev,
-                  filters: { ...prev.filters, stage: null },
-                  pagination: {},
-                }));
-              }}
-            >
-              Clear
-            </button>
-          </div>
-          <div className={styles.stageFilter}>
-            <button
-              id="stage-operator-select"
-              className={styles.action}
-              onClick={() => setStageOperatorMenuOpen(true)}
-            >
-              {STAGE_OPERATORS.find((op) => op.value === stageOperator)
-                ?.label ?? 'Select operator'}
-              <i className="fas fa-chevron-down" style={{ marginLeft: 8 }} />
-            </button>
-            <button
-              id="stage-select"
-              className={styles.action}
-              onClick={() => setStageMenuOpen(true)}
-            >
-              {selectedStage
-                ? STAGE_MENU_ITEMS.flatMap((m) => m.subMenu!).find(
-                    (item) => item.value === selectedStage,
-                  )?.label
-                : 'Select stage'}
-              <i className="fas fa-chevron-down" style={{ marginLeft: 8 }} />
-            </button>
-            <Menu
-              onClose={() => setStageOperatorMenuOpen(false)}
-              onSelection={(value) => {
-                const operator = value as Comparator;
-                setStageOperator(operator);
-                setStageOperatorMenuOpen(false);
-                if (selectedStage !== null) {
-                  setContext((prev) => ({
-                    ...prev,
-                    filters: {
-                      ...prev.filters,
-                      stage: [operator, selectedStage],
-                    },
-                    pagination: {},
-                  }));
-                } else {
-                  setContext((prev) => ({
-                    ...prev,
-                    filters: {
-                      ...prev.filters,
-                      stage: null,
-                    },
-                    pagination: {},
-                  }));
-                }
-              }}
-              open={stageOperatorMenuOpen}
-              items={STAGE_OPERATORS}
-              targetId="stage-operator-select"
-              width={DATE_INPUT_WIDTH}
-            />
-            <Menu
-              onClose={() => setStageMenuOpen(false)}
-              onSelection={(value) => {
-                const stage = parseInt(value as string, 10);
-                setStageMenuOpen(false);
-                setContext((prev) => ({
-                  ...prev,
-                  filters: {
-                    ...prev.filters,
-                    stage: [stageOperator, stage],
-                  },
-                  pagination: {},
-                }));
-              }}
-              open={stageMenuOpen}
-              items={STAGE_MENU_ITEMS}
-              targetId="stage-select"
-              width={DATE_INPUT_WIDTH}
-            />
-          </div>
-        </div>
-        <div className={`${styles.checkGroup} ${styles.item}`}>
-          <div className={styles.label}>
-            <label>Extra options</label>
-          </div>
-          <Tooltip tooltipId="accurate-splits-tooltip">
-            <span>
-              When sorting by split times, exclude those which are inaccurate.
-            </span>
-          </Tooltip>
-          <div className={styles.checkbox}>
-            <div data-tooltip-id="accurate-splits-tooltip">
-              <Checkbox
-                checked={context.filters.accurateSplits}
-                disabled={loading}
-                onChange={() =>
-                  setContext((prev) => ({
-                    ...prev,
-                    filters: {
-                      ...prev.filters,
-                      accurateSplits: !prev.filters.accurateSplits,
-                    },
-                    pagination: {},
-                  }))
-                }
-                label="Accurate splits"
-                simple
-              />
-            </div>
-          </div>
-          <Tooltip tooltipId="full-recordings-tooltip">
-            <span>Exclude challenges that are missing data for any stage.</span>
-          </Tooltip>
-          <div className={styles.checkbox}>
-            <div data-tooltip-id="full-recordings-tooltip">
-              <Checkbox
-                checked={context.filters.fullRecordings}
-                disabled={loading}
-                onChange={() =>
-                  setContext((prev) => ({
-                    ...prev,
-                    filters: {
-                      ...prev.filters,
-                      fullRecordings: !prev.filters.fullRecordings,
-                    },
-                    pagination: {},
-                  }))
-                }
-                label="Full recordings"
-                simple
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className={styles.filterGroup}>
-        <div className={styles.item}>
-          {clearLabel('Party', 'party')}
-          <PlayerSearch
-            disabled={loading || context.filters.party.length >= 5}
-            label="Enter username"
-            labelBg="var(--blert-surface-dark)"
-            id="filters-player"
-            onSelection={(username) =>
-              setContext((prev) => {
-                if (prev.filters.party.includes(username)) {
-                  return prev;
-                }
-                return {
-                  ...prev,
-                  filters: {
-                    ...prev.filters,
-                    party: [...prev.filters.party, username],
-                  },
-                  pagination: {},
-                };
-              })
-            }
-          />
-          <TagList
-            onRemove={(username) =>
-              setContext((prev) => ({
-                ...prev,
-                filters: {
-                  ...prev.filters,
-                  party: prev.filters.party.filter((u) => u !== username),
-                },
-                pagination: {},
-              }))
-            }
-            tags={context.filters.party}
-            width={300}
-          />
-        </div>
-        <div className={styles.item}>
-          <div className={styles.label}>
-            <label>Date</label>
-          </div>
-          <div className={styles.dateWrapper}>
-            <div className={styles.date} style={{ width: DATE_WIDTH }}>
-              <DatePicker
-                disabled={loading}
-                icon="fas fa-calendar-alt"
-                isClearable
-                maxDate={
-                  useDateRange
-                    ? (context.filters.endDate ?? undefined)
-                    : undefined
-                }
-                placeholderText={useDateRange ? 'Start date' : undefined}
-                popperPlacement="bottom"
-                selected={context.filters.startDate}
-                onChange={(date) => {
-                  const endDate = useDateRange ? context.filters.endDate : date;
-                  setContext((prev) => ({
-                    ...prev,
-                    filters: {
-                      ...prev.filters,
-                      startDate: date,
-                      endDate,
-                    },
-                    pagination: {},
-                  }));
-                }}
-                showIcon
-                width={useDateRange ? DATE_INPUT_WIDTH : DATE_WIDTH}
-              />
-              {useDateRange && (
-                <>
-                  <i className="fas fa-minus" />
-                  <DatePicker
-                    disabled={loading}
-                    icon="fas fa-calendar-alt"
-                    isClearable
-                    minDate={
-                      useDateRange
-                        ? (context.filters.startDate ?? undefined)
-                        : undefined
-                    }
-                    placeholderText="End date"
-                    popperPlacement="bottom"
-                    selected={context.filters.endDate}
-                    onChange={(date) =>
-                      setContext((prev) => ({
-                        ...prev,
-                        filters: { ...prev.filters, endDate: date },
-                        pagination: {},
-                      }))
-                    }
-                    showIcon
-                    width={DATE_INPUT_WIDTH}
-                  />
-                </>
-              )}
-            </div>
-            <Checkbox
-              checked={useDateRange}
-              className={styles.dateRangeCheckbox}
-              disabled={loading}
-              onChange={() => {
-                if (useDateRange) {
-                  if (context.filters.startDate !== null) {
-                    setContext((prev) => ({
-                      ...prev,
-                      filters: {
-                        ...prev.filters,
-                        endDate: prev.filters.startDate,
-                      },
-                      pagination: {},
-                    }));
-                  } else if (context.filters.endDate !== null) {
-                    setContext((prev) => ({
-                      ...prev,
-                      filters: {
-                        ...prev.filters,
-                        startDate: prev.filters.endDate,
-                      },
-                      pagination: {},
-                    }));
-                  }
-                }
-                setUseDateRange((prev) => !prev);
-              }}
-              label="Date range"
+              label="Accurate splits"
               simple
             />
           </div>
+          <div
+            data-tooltip-id={GLOBAL_TOOLTIP_ID}
+            data-tooltip-content="Exclude challenges that are missing data for any stage."
+          >
+            <Checkbox
+              checked={context.filters.fullRecordings}
+              disabled={loading}
+              onChange={() =>
+                updateFilters({
+                  fullRecordings: !context.filters.fullRecordings,
+                })
+              }
+              label="Full recordings"
+              simple
+            />
+          </div>
+        </FilterField>
+      </FilterRow>
+
+      <FilterField label="Stage">
+        <div className={styles.stageFilter}>
+          <button
+            id="stage-operator-select"
+            onClick={() => setStageOperatorMenuOpen(true)}
+            type="button"
+            disabled={loading}
+          >
+            {STAGE_OPERATORS.find((op) => op.value === stageOperator)?.label ??
+              'Select operator'}
+            <i className="fas fa-chevron-down" style={{ marginLeft: 8 }} />
+          </button>
+          <button
+            id="stage-select"
+            onClick={() => setStageMenuOpen(true)}
+            type="button"
+            disabled={loading}
+          >
+            {selectedStage
+              ? STAGE_MENU_ITEMS.flatMap((m) => m.subMenu!).find(
+                  (item) => item.value === selectedStage,
+                )?.label
+              : 'Select stage'}
+            <i className="fas fa-chevron-down" style={{ marginLeft: 8 }} />
+          </button>
+          <Menu
+            onClose={() => setStageOperatorMenuOpen(false)}
+            onSelection={(value) => {
+              const operator = value as Comparator;
+              setStageOperator(operator);
+              setStageOperatorMenuOpen(false);
+              if (selectedStage !== null) {
+                updateFilters({ stage: [operator, selectedStage] });
+              } else {
+                updateFilters({ stage: null });
+              }
+            }}
+            open={stageOperatorMenuOpen}
+            items={STAGE_OPERATORS}
+            targetId="stage-operator-select"
+            width={DATE_INPUT_WIDTH}
+          />
+          <Menu
+            onClose={() => setStageMenuOpen(false)}
+            onSelection={(value) => {
+              const stage = parseInt(value as string, 10);
+              setStageMenuOpen(false);
+              updateFilters({ stage: [stageOperator, stage] });
+            }}
+            open={stageMenuOpen}
+            items={STAGE_MENU_ITEMS}
+            targetId="stage-select"
+            width={DATE_INPUT_WIDTH}
+          />
         </div>
-      </div>
-      <div className={styles.divider} />
+      </FilterField>
+
+      <DateRangeFilter
+        startDate={context.filters.startDate}
+        endDate={context.filters.endDate}
+        onChange={(startDate, endDate) => updateFilters({ startDate, endDate })}
+        disabled={loading}
+      />
+
+      <PartyFilter
+        party={context.filters.party}
+        onChange={(party) => updateFilters({ party })}
+        disabled={loading}
+      />
+
       <CustomFilters
         context={context}
         loading={loading}
@@ -659,11 +339,16 @@ type PathValue<T, P extends string> = P extends `${infer K}.${infer Rest}`
 
 type InputKind = 'time' | 'ticks' | 'number';
 
+type BaseTarget = {
+  inputKind: InputKind;
+  min?: number;
+  max?: number;
+};
+
 type ScalarTarget = {
   [P in ScalarFilterPaths<SearchFilters>]: {
     path: P;
-    inputKind: InputKind;
-  };
+  } & BaseTarget;
 }[ScalarFilterPaths<SearchFilters>];
 
 type KeyedTarget = {
@@ -674,13 +359,17 @@ type KeyedTarget = {
       : PathValue<SearchFilters, P> extends Record<infer K, FilterValue>
         ? K
         : never;
-    inputKind: InputKind;
-  };
+  } & BaseTarget;
 }[KeyedFilterPaths<SearchFilters>];
 
 type FilterTarget = ScalarTarget | KeyedTarget;
 
-type FilterDef = FilterTarget & { label: string; round?: number };
+type FilterDef = FilterTarget & {
+  label: string;
+  round?: number;
+  min?: number;
+  max?: number;
+};
 
 function filterKey(target: FilterTarget): string {
   if ('key' in target) {
@@ -781,6 +470,8 @@ const CUSTOM_FILTERS_ITEMS: MenuItem[] = [
             value: def('Bloat down count', {
               path: 'tob.bloatDownCount',
               inputKind: 'number',
+              min: 0,
+              max: 20,
             }).id,
           },
           { label: '1st down walk', value: bd('1st down walk', 1).id },
@@ -1111,6 +802,52 @@ type SplitValues = {
   comparator: Comparator;
 };
 
+function cloneFiltersForCustomEdit(filters: SearchFilters): SearchFilters {
+  return {
+    ...filters,
+    splits: new Map(filters.splits),
+    tob: {
+      ...filters.tob,
+      bloatDowns: new Map(filters.tob.bloatDowns),
+    },
+  };
+}
+
+function filterValueEqual(
+  a: [Comparator, number] | null,
+  b: [Comparator, number] | null,
+): boolean {
+  if (a === null) {
+    return b === null;
+  }
+  if (b === null) {
+    return false;
+  }
+  return a[0] === b[0] && a[1] === b[1];
+}
+
+/**
+ * Whether two filter sets are equal across every custom-filter path registered
+ * in {@link FILTER_DEFS}.
+ */
+function customFiltersEqual(a: SearchFilters, b: SearchFilters): boolean {
+  for (const filterDef of Object.values(FILTER_DEFS)) {
+    if (
+      !filterValueEqual(
+        getFilterValue(a, filterDef),
+        getFilterValue(b, filterDef),
+      )
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function customFilterId(key: string): string {
+  return `filters-custom-${key}`;
+}
+
 function CustomFilters({
   context,
   loading,
@@ -1120,412 +857,229 @@ function CustomFilters({
   loading: boolean;
   setContext: Dispatch<SetStateAction<SearchContext>>;
 }) {
-  const display = useContext(DisplayContext);
-
   const [menuOpen, setMenuOpen] = useState(false);
-  const customInputsFromFilters = React.useCallback(
-    (filters: SearchFilters) => {
-      const inputs: Record<string, SplitValues> = {};
-      for (const [id, filterDef] of Object.entries(FILTER_DEFS)) {
-        const value = getFilterValue(filters, filterDef);
-        if (value !== null) {
-          inputs[id] = { ticks: value[1], comparator: value[0] };
-        }
+  const customInputsFromFilters = useCallback((filters: SearchFilters) => {
+    const inputs: Record<string, SplitValues> = {};
+    for (const [id, filterDef] of Object.entries(FILTER_DEFS)) {
+      const value = getFilterValue(filters, filterDef);
+      if (value !== null) {
+        inputs[id] = { ticks: value[1], comparator: value[0] };
       }
-      return inputs;
-    },
-    [],
-  );
+    }
+    return inputs;
+  }, []);
   const [customInputs, setCustomInputs] = useState<Record<string, SplitValues>>(
     () => customInputsFromFilters(context.filters),
   );
-  const [modified, setModified] = useState(false);
+  const pendingScrollRef = useRef<string | null>(null);
 
-  // Sync from context.filters on external changes (e.g. browser back/forward),
-  // but don't clobber the user's in-progress edits.
-  React.useEffect(() => {
-    if (modified) {
-      return;
-    }
-    setCustomInputs(customInputsFromFilters(context.filters));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [context.filters, customInputsFromFilters]);
-
-  const addInput = (id: string | number) => {
-    const key = String(id);
-    setModified(true);
+  // Re-sync from URL changes (e.g. browser back/forward). Preserve the user's
+  // insertion order — rebuilding from FILTER_DEFS would snap entries to their
+  // registration order and cause them to jump around after a commit.
+  useEffect(() => {
     setCustomInputs((prev) => {
-      if (prev[key] !== undefined) {
-        return prev;
-      }
-      return {
-        ...prev,
-        [key]: { ticks: null, comparator: Comparator.EQUAL },
-      };
-    });
-  };
+      const fromContext = customInputsFromFilters(context.filters);
+      const next: Record<string, SplitValues> = {};
 
-  const applyFilters = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (loading) {
-      return;
-    }
-
-    setModified(false);
-    setContext((prev) => {
-      const next = {
-        ...prev,
-        filters: {
-          ...prev.filters,
-          splits: new Map<number, [Comparator, number]>(),
-          tob: emptyTobFilters(),
-        },
-        pagination: {},
-      };
-
-      for (const [id, { ticks, comparator }] of Object.entries(customInputs)) {
-        if (ticks === null) {
+      for (const [id, input] of Object.entries(prev)) {
+        if (FILTER_DEFS[id] === undefined) {
           continue;
         }
-        const filterDef = FILTER_DEFS[id];
-        if (filterDef !== undefined) {
-          setFilterValue(next.filters, filterDef, [comparator, ticks]);
+        if (id in fromContext) {
+          next[id] = fromContext[id];
+        } else if (input.ticks === null) {
+          next[id] = input;
+        }
+      }
+
+      // Any context entries that weren't already in prev (e.g. loaded from URL
+      // on initial mount) go at the end in FILTER_DEFS order.
+      for (const [id, input] of Object.entries(fromContext)) {
+        if (!(id in next)) {
+          next[id] = input;
         }
       }
 
       return next;
     });
-  };
+  }, [context.filters, customInputsFromFilters]);
 
-  return (
-    <form
-      className={`${styles.filterGroup} ${styles.custom}`}
-      onSubmit={applyFilters}
-    >
-      <div className={styles.customHeading}>
-        <label>Custom filters</label>
-        <div className={styles.actions}>
-          <Button
-            id="filters-add-custom"
-            className={styles.action}
-            onClick={() => {
-              setTimeout(() => setMenuOpen(true), 25);
-            }}
-            simple
-          >
-            <i className="fas fa-plus-circle" />
-            Add filter
-          </Button>
-          <Button
-            className={styles.action}
-            disabled={loading || !modified}
-            simple
-            type="submit"
-          >
-            Apply
-          </Button>
-          {display.isFull() ? (
-            <Menu
-              onClose={() => setMenuOpen(false)}
-              onSelection={addInput}
-              open={menuOpen}
-              items={CUSTOM_FILTERS_ITEMS}
-              targetId="filters-add-custom"
-              width="auto"
-            />
-          ) : (
-            <CustomFiltersModal
-              onClose={() => setMenuOpen(false)}
-              onSelection={addInput}
-              open={menuOpen}
-            />
-          )}
-        </div>
-      </div>
-      <div className={styles.inputs}>
-        {Object.keys(customInputs).map((id) => {
-          const filterDef = FILTER_DEFS[id];
-          if (filterDef === undefined) {
-            return null;
+  // After a filter is added (or re-selected), scroll it into view and focus
+  // its input so the user can start typing immediately.
+  useEffect(() => {
+    const key = pendingScrollRef.current;
+    if (key === null) {
+      return;
+    }
+    pendingScrollRef.current = null;
+    const raf = requestAnimationFrame(() => {
+      const id = customFilterId(key);
+      const field = document.querySelector<HTMLElement>(
+        `[data-field-id="${id}"]`,
+      );
+      field?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      const input = document.getElementById(id);
+      input?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [customInputs]);
+
+  const commitAll = useCallback(
+    (inputs: Record<string, SplitValues>) => {
+      setContext((prev) => {
+        const filters = cloneFiltersForCustomEdit(prev.filters);
+        for (const [id, filterDef] of Object.entries(FILTER_DEFS)) {
+          const input = inputs[id];
+          // eslint-disable-next-line @typescript-eslint/prefer-optional-chain
+          if (input === undefined || input.ticks === null) {
+            setFilterValue(filters, filterDef, null);
+          } else {
+            setFilterValue(filters, filterDef, [input.comparator, input.ticks]);
           }
-
-          const input = customInputs[id];
-          const removeFilter = () => {
-            setModified(true);
-            setCustomInputs((prev) => {
-              const next = { ...prev };
-              delete next[id];
-              return next;
-            });
-          };
-          const onChange = (value: number | null, cmp?: Comparator) => {
-            setModified(true);
-            setCustomInputs((prev) => ({
-              ...prev,
-              [id]: { ticks: value, comparator: cmp ?? Comparator.EQUAL },
-            }));
-          };
-
-          return (
-            <div key={id} className={styles.customInput}>
-              {filterDef.inputKind === 'number' ? (
-                <div className={styles.comparable}>
-                  <ComparableInput
-                    id={`filters-custom-${id}`}
-                    label={filterDef.label}
-                    labelBg="var(--blert-surface-dark)"
-                    type="number"
-                    comparator={input.comparator}
-                    onComparatorChange={(c) => onChange(input.ticks, c)}
-                    value={input.ticks?.toString() ?? ''}
-                    onChange={(e) => {
-                      const v = parseInt(e.target.value);
-                      onChange(isNaN(v) ? null : v, input.comparator);
-                    }}
-                  />
-                </div>
-              ) : (
-                <TickInput
-                  comparator
-                  label={filterDef.label}
-                  id={`filters-custom-${id}`}
-                  initialComparator={input.comparator}
-                  initialTicks={input.ticks ?? undefined}
-                  inputMode={
-                    filterDef.inputKind === 'ticks' ? 'ticks' : undefined
-                  }
-                  labelBg="var(--blert-surface-dark)"
-                  onChange={onChange}
-                  round={filterDef.round}
-                />
-              )}
-              <button
-                className={styles.remove}
-                onClick={removeFilter}
-                type="button"
-              >
-                <i className="fas fa-times" />
-                <label className="sr-only">
-                  Remove filter {filterDef.label}
-                </label>
-              </button>
-            </div>
-          );
-        })}
-      </div>
-    </form>
+        }
+        if (customFiltersEqual(prev.filters, filters)) {
+          return prev;
+        }
+        return { ...prev, filters, pagination: {} };
+      });
+    },
+    [setContext],
   );
-}
 
-function CollapsibleList({
-  items,
-  onSelection,
-  searchTerm = '',
-  level = 0,
-}: {
-  items: MenuItem[];
-  onSelection: (split: number) => void;
-  searchTerm?: string;
-  level?: number;
-}) {
-  const [open, setOpen] = useState<Record<string, boolean>>({});
-
-  const itemMatchesSearch = (item: MenuItem, term: string): boolean => {
-    if (term === '') {
-      return true;
-    }
-
-    if (item.label.toLowerCase().includes(term.toLowerCase())) {
-      return true;
-    }
-
-    if (item.subMenu) {
-      return item.subMenu.some((subItem) => itemMatchesSearch(subItem, term));
-    }
-
-    return false;
+  const stageInputChange = (id: string) => {
+    return (ticks: number | null, cmp?: Comparator) => {
+      const prevComparator = customInputs[id]?.comparator ?? Comparator.EQUAL;
+      const comparator = cmp ?? prevComparator;
+      const next = { ...customInputs, [id]: { ticks, comparator } };
+      setCustomInputs(next);
+      // Only a genuine comparator change is discrete; TickInput re-emits its
+      // current comparator on every keystroke.
+      if (cmp !== undefined && cmp !== prevComparator) {
+        commitAll(next);
+      }
+    };
   };
 
-  const filteredItems = items
-    .map((item) => {
-      if (!itemMatchesSearch(item, searchTerm)) {
-        return null;
-      }
+  const commitInput = (id: string) => {
+    return (ticks: number | null, cmp?: Comparator) => {
+      const comparator =
+        cmp ?? customInputs[id]?.comparator ?? Comparator.EQUAL;
+      const next = { ...customInputs, [id]: { ticks, comparator } };
+      setCustomInputs(next);
+      commitAll(next);
+    };
+  };
 
-      if (!item.subMenu) {
-        return item;
-      }
+  const handleAdd = (id: string | number) => {
+    const key = String(id);
+    pendingScrollRef.current = key;
+    if (customInputs[key] !== undefined) {
+      // Already exists; force an effect run so we still scroll to it.
+      setCustomInputs({ ...customInputs });
+      return;
+    }
+    setCustomInputs({
+      ...customInputs,
+      [key]: { ticks: null, comparator: Comparator.EQUAL },
+    });
+  };
 
-      const itemDirectlyMatches = item.label
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase());
+  const handleRemove = (id: string) => {
+    const next = { ...customInputs };
+    delete next[id];
+    setCustomInputs(next);
+    commitAll(next);
+  };
 
-      if (itemDirectlyMatches) {
-        return item;
-      }
-
-      const filteredSubMenu = item.subMenu
-        .map((subItem) => {
-          if (!itemMatchesSearch(subItem, searchTerm)) {
-            return null;
-          }
-
-          if (!subItem.subMenu) {
-            return subItem;
-          }
-
-          // If subItem directly matches, show all its children.
-          const subItemDirectlyMatches = subItem.label
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase());
-
-          if (subItemDirectlyMatches) {
-            return subItem;
-          }
-
-          const filteredSubSubMenu = subItem.subMenu.filter((subSubItem) =>
-            itemMatchesSearch(subSubItem, searchTerm),
-          );
-
-          return filteredSubSubMenu.length > 0
-            ? { ...subItem, subMenu: filteredSubSubMenu }
-            : null;
-        })
-        .filter(Boolean) as MenuItem[];
-
-      return filteredSubMenu.length > 0
-        ? { ...item, subMenu: filteredSubMenu }
-        : null;
-    })
-    .filter(Boolean) as MenuItem[];
-
-  const shouldExpand = searchTerm.length > 0;
+  const addButton = (
+    <>
+      <button
+        id="filters-add-custom"
+        className={styles.addFilter}
+        onClick={() => setTimeout(() => setMenuOpen(true), 25)}
+        type="button"
+        disabled={loading}
+      >
+        <i className="fas fa-plus" aria-hidden />
+        <span>Add</span>
+      </button>
+      <Menu
+        onClose={() => setMenuOpen(false)}
+        onSelection={handleAdd}
+        open={menuOpen}
+        items={CUSTOM_FILTERS_ITEMS}
+        targetId="filters-add-custom"
+        width="auto"
+        cascadeDirection="left"
+      />
+    </>
+  );
 
   return (
-    <ul
-      className={`${styles.customFiltersList} ${styles[`level${level}`] || ''}`}
-    >
-      {filteredItems.map((item) => {
-        const itemKey = `${level}-${item.label}`;
-        const isExpanded = shouldExpand || open[itemKey] || false;
+    <FilterSection title="Custom filters" action={addButton}>
+      {Object.keys(customInputs).map((id) => {
+        const filterDef = FILTER_DEFS[id];
+        if (filterDef === undefined) {
+          return null;
+        }
 
-        const element = item.subMenu ? (
-          <button
-            className={styles.collapsible}
-            onClick={() =>
-              setOpen((prev) => ({
-                ...prev,
-                [itemKey]: !prev[itemKey],
-              }))
-            }
-          >
-            <i className={`fas fa-folder${isExpanded ? '-open' : ''}`} />
-            {item.label}
-            <i className={`fas fa-chevron-${isExpanded ? 'up' : 'down'}`} />
-          </button>
-        ) : (
-          <button
-            className={styles.filterItem}
-            onClick={() => onSelection(item.value! as number)}
-          >
-            <i className="fas fa-plus" />
-            {item.label}
-          </button>
-        );
+        const input = customInputs[id];
+        const stage = stageInputChange(id);
+        const commit = commitInput(id);
+
+        const fieldId = customFilterId(id);
 
         return (
-          <li key={item.label}>
-            {element}
-            {item.subMenu && isExpanded && (
-              <CollapsibleList
-                items={item.subMenu}
-                onSelection={onSelection}
-                searchTerm={
-                  item.label.toLowerCase().includes(searchTerm.toLowerCase())
-                    ? '' // Don't filter children if parent directly matched.
-                    : searchTerm
+          <FilterField
+            key={id}
+            label={filterDef.label}
+            htmlFor={fieldId}
+            fieldId={fieldId}
+            onRemove={() => handleRemove(id)}
+          >
+            {filterDef.inputKind === 'number' ? (
+              <ComparableInput
+                id={fieldId}
+                label={filterDef.label}
+                labelBg="var(--blert-filter-surface)"
+                type="number"
+                comparator={input.comparator}
+                onComparatorChange={(c) => commit(input.ticks, c)}
+                value={input.ticks?.toString() ?? ''}
+                min={filterDef.min}
+                max={filterDef.max}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value);
+                  stage(isNaN(v) ? null : v);
+                }}
+                onBlur={() => commitAll(customInputs)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    commitAll(customInputs);
+                  }
+                }}
+              />
+            ) : (
+              <TickInput
+                comparator
+                label={filterDef.label}
+                id={fieldId}
+                initialComparator={input.comparator}
+                initialTicks={input.ticks ?? undefined}
+                inputMode={
+                  filterDef.inputKind === 'ticks' ? 'ticks' : undefined
                 }
-                level={level + 1}
+                labelBg="var(--blert-filter-surface)"
+                onChange={stage}
+                onBlur={commit}
+                onConfirm={commit}
+                round={filterDef.round}
               />
             )}
-          </li>
+          </FilterField>
         );
       })}
-    </ul>
-  );
-}
-
-function CustomFiltersModal({
-  open,
-  onClose,
-  onSelection,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onSelection: (split: number) => void;
-}) {
-  const [searchTerm, setSearchTerm] = useState('');
-
-  React.useEffect(() => {
-    if (open) {
-      setSearchTerm('');
-    }
-  }, [open]);
-
-  return (
-    <Modal className={styles.customFiltersModal} onClose={onClose} open={open}>
-      <div className={styles.modalHeader}>
-        <h2>Add Custom Filter</h2>
-        <button className={styles.closeButton} onClick={onClose} type="button">
-          <i className="fas fa-times" />
-          <span className="sr-only">Close</span>
-        </button>
-      </div>
-
-      <div className={styles.searchWrapper}>
-        <div className={styles.searchInput}>
-          <i className="fas fa-search" />
-          <input
-            type="text"
-            placeholder="Search filters..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            autoFocus
-          />
-          {searchTerm && (
-            <button
-              className={styles.clearSearch}
-              onClick={() => setSearchTerm('')}
-              type="button"
-            >
-              <i className="fas fa-times" />
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className={styles.customFiltersContent}>
-        {searchTerm && (
-          <div className={styles.searchInfo}>
-            Showing filters matching &quot;{searchTerm}&quot;
-          </div>
-        )}
-        <CollapsibleList
-          items={CUSTOM_FILTERS_ITEMS}
-          searchTerm={searchTerm}
-          onSelection={(value) => {
-            onSelection(value);
-            onClose();
-          }}
-        />
-      </div>
-
-      <div className={styles.modalFooter}>
-        <Button simple onClick={onClose}>
-          Cancel
-        </Button>
-      </div>
-    </Modal>
+    </FilterSection>
   );
 }

@@ -10,7 +10,7 @@ import styles from './style.module.scss';
 
 type TickInputProps = Omit<
   InputProps,
-  'horizontalPadding' | 'onChange' | 'placeholder' | 'type' | 'value'
+  'horizontalPadding' | 'onBlur' | 'onChange' | 'placeholder' | 'type' | 'value'
 > & {
   comparator?: boolean;
   initialTicks?: number;
@@ -18,12 +18,17 @@ type TickInputProps = Omit<
   ticks?: number | null;
   initialComparator?: Comparator;
   onChange?: (ticks: number | null, comparator?: Comparator) => void;
+  /** Fires after the input loses focus, with its normalized tick value. */
+  onBlur?: (ticks: number | null, comparator?: Comparator) => void;
   /** Large tick adjustment step for +/- buttons. Defaults to 5. */
   adjustStep?: number;
   /** Lock input to 'time' or 'ticks' mode. Omit to allow toggling. */
   inputMode?: 'time' | 'ticks';
-  /** Called when the user presses Enter to confirm the current value. */
-  onConfirm?: (ticks: number | null) => void;
+  /**
+   * Called when the user confirms an edit, either by pressing Enter or
+   * clicking an adjustment button.
+   */
+  onConfirm?: (ticks: number | null, comparator?: Comparator) => void;
   /** Round time-mode input up to a tick multiple; tick-mode values are untouched. */
   round?: number;
 };
@@ -154,7 +159,9 @@ export default function TickInput(props: TickInputProps) {
       : ticksToFormattedSeconds(adjusted);
     setValue(newValue);
     setInvalid(false);
-    props.onChange?.(adjusted, props.comparator ? comparator : undefined);
+    const reportedComparator = props.comparator ? comparator : undefined;
+    props.onChange?.(adjusted, reportedComparator);
+    props.onConfirm?.(adjusted, reportedComparator);
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -172,7 +179,7 @@ export default function TickInput(props: TickInputProps) {
       if (ticks !== null && props.round && !displayTicks) {
         ticks = Math.ceil(ticks / props.round) * props.round;
       }
-      props.onConfirm(ticks);
+      props.onConfirm(ticks, props.comparator ? comparator : undefined);
     }
     props.onKeyDown?.(e);
   };
@@ -186,13 +193,20 @@ export default function TickInput(props: TickInputProps) {
   };
 
   const onBlur = () => {
+    const reportedComparator = props.comparator ? comparator : undefined;
+
     if (value === '') {
       setInvalid(false);
+      props.onBlur?.(null, reportedComparator);
       return;
     }
 
-    if (!displayTicks) {
-      let ticks = ticksFromTime(normalizeTimeString(value));
+    let ticks: number | null;
+    if (displayTicks) {
+      const parsed = Number(value);
+      ticks = Number.isFinite(parsed) ? parsed : null;
+    } else {
+      ticks = ticksFromTime(normalizeTimeString(value));
       if (ticks === null) {
         setInvalid(true);
         return;
@@ -204,9 +218,11 @@ export default function TickInput(props: TickInputProps) {
       const formatted = ticksToFormattedSeconds(ticks);
       if (formatted !== value) {
         setValue(formatted);
-        props.onChange?.(ticks, props.comparator ? comparator : undefined);
+        props.onChange?.(ticks, reportedComparator);
       }
     }
+
+    props.onBlur?.(ticks, reportedComparator);
   };
 
   const inputProps: InputProps = {

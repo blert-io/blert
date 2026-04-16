@@ -1,0 +1,46 @@
+@use '@/mixins.scss' as *;
+
+.selector {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.entity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--blert-font-color-secondary);
+  text-decoration: none;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+
+  i {
+    font-size: 0.9em;
+  }
+
+  &:hover:not(.active) {
+    color: var(--blert-font-color-primary);
+    background: rgba(var(--blert-purple-base), 0.08);
+  }
+
+  &.active {
+    color: var(--blert-font-color-primary);
+    background: rgba(var(--blert-purple-base), 0.15);
+    border-color: rgba(var(--blert-purple-base), 0.3);
+
+    i {
+      color: var(--blert-purple);
+    }
+  }
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    padding: 6px 10px;
+    gap: 8px;
+    font-size: 0.85rem;
+  }
+}

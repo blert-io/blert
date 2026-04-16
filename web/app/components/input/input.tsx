@@ -16,6 +16,8 @@ export type InputProps = {
   invalid?: boolean;
   label: string;
   labelBg?: string;
+  min?: number;
+  max?: number;
   maxLength?: number;
   minLength?: number;
   pattern?: string;
@@ -68,6 +70,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           maxLength={props.maxLength}
           minLength={props.minLength}
           name={props.id}
+          min={props.min}
+          max={props.max}
           onBlur={props.onBlur}
           onChange={props.onChange}
           onFocus={props.onFocus}
