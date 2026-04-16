@@ -184,8 +184,10 @@ type TypeFilterProps = {
   mode: ChallengeMode[];
   onChange: (type: ChallengeType[], mode: ChallengeMode[]) => void;
   disabled?: boolean;
-  disabledTypes?: ChallengeType[];
-  disabledTypesMessage?: string;
+  /** When set, restricts selectable types to this allowlist. */
+  allowedTypes?: ChallengeType[];
+  /** Tooltip shown on types excluded by `allowedTypes`. */
+  restrictionMessage?: string;
 };
 
 export function toggleTobMode(
@@ -236,8 +238,8 @@ export function TypeFilter({
   mode,
   onChange,
   disabled = false,
-  disabledTypes = [],
-  disabledTypesMessage,
+  allowedTypes,
+  restrictionMessage,
 }: TypeFilterProps) {
   const tobRegularChecked =
     type.includes(ChallengeType.TOB) &&
@@ -245,14 +247,17 @@ export function TypeFilter({
   const tobHardChecked =
     type.includes(ChallengeType.TOB) && mode.includes(ChallengeMode.TOB_HARD);
 
+  const isRestricted = (target: ChallengeType) =>
+    allowedTypes !== undefined && !allowedTypes.includes(target);
+
   function maybeWrapDisabled(checkboxEl: React.ReactNode, isDisabled: boolean) {
-    if (!isDisabled || disabledTypesMessage === undefined) {
+    if (!isDisabled || restrictionMessage === undefined) {
       return checkboxEl;
     }
     return (
       <div
         data-tooltip-id={GLOBAL_TOOLTIP_ID}
-        data-tooltip-content={disabledTypesMessage}
+        data-tooltip-content={restrictionMessage}
       >
         {checkboxEl}
       </div>
@@ -260,8 +265,7 @@ export function TypeFilter({
   }
 
   const tobDisabled =
-    disabledTypes.includes(ChallengeType.TOB) &&
-    !type.includes(ChallengeType.TOB);
+    isRestricted(ChallengeType.TOB) && !type.includes(ChallengeType.TOB);
 
   function tobModeCheckbox(
     target: ChallengeMode,
@@ -285,7 +289,7 @@ export function TypeFilter({
 
   function noModeCheckbox(target: ChallengeType, label: string) {
     const checked = type.includes(target);
-    const isDisabled = disabledTypes.includes(target) && !checked;
+    const isDisabled = isRestricted(target) && !checked;
     return maybeWrapDisabled(
       <Checkbox
         checked={checked}

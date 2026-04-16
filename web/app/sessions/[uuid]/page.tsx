@@ -7,7 +7,7 @@ import {
   modeNameAndColor,
   scaleNameAndColor,
 } from '@/utils/challenge';
-import { partyNames } from '@/utils/challenge-description';
+import { oxford } from '@/utils/copy';
 import { basicMetadata } from '@/utils/metadata';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
@@ -90,7 +90,7 @@ export async function generateMetadata(
 
   const stats = session.stats;
 
-  const party = partyNames(session.party);
+  const party = oxford(session.party);
   const mode = modeNameAndColor(
     session.challengeType,
     session.challengeMode,

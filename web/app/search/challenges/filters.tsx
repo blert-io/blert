@@ -18,6 +18,7 @@ import ComparableInput, { Comparator } from '@/components/comparable-input';
 import Menu, { MenuItem } from '@/components/menu';
 import TickInput from '@/components/tick-input';
 import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
+import { oxford } from '@/utils/copy';
 
 import {
   DateRangeFilter,
@@ -34,6 +35,7 @@ import {
   SearchContext,
   SearchFilters,
   defaultSearchFilters,
+  hasMokhaiotlFilters,
   hasTobFilters,
 } from './context';
 
@@ -150,10 +152,20 @@ export default function Filters({
     }));
   }
 
-  const tobFiltersActive = hasTobFilters(context.filters.tob);
-  const disabledTypes = tobFiltersActive
-    ? [ChallengeType.INFERNO, ChallengeType.COLOSSEUM, ChallengeType.MOKHAIOTL]
-    : undefined;
+  const allowedTypes: ChallengeType[] = [];
+  const restrictions: string[] = [];
+  if (hasTobFilters(context.filters.tob)) {
+    allowedTypes.push(ChallengeType.TOB);
+    restrictions.push('ToB-only');
+  }
+  if (hasMokhaiotlFilters(context.filters.mokhaiotl)) {
+    allowedTypes.push(ChallengeType.MOKHAIOTL);
+    restrictions.push('Mokhaiotl-only');
+  }
+  const restrictionMessage =
+    restrictions.length > 0
+      ? `Clear ${oxford(restrictions)} filters to change challenge type`
+      : undefined;
 
   return (
     <div className={styles.filters}>
@@ -163,8 +175,8 @@ export default function Filters({
           mode={context.filters.mode}
           onChange={(type, mode) => updateFilters({ type, mode })}
           disabled={loading}
-          disabledTypes={disabledTypes}
-          disabledTypesMessage="Clear ToB-only filters to select non-ToB challenge types"
+          allowedTypes={allowedTypes.length > 0 ? allowedTypes : undefined}
+          restrictionMessage={restrictionMessage}
         />
         <ScaleFilter
           scale={context.filters.scale}
@@ -513,6 +525,19 @@ const CUSTOM_FILTERS_ITEMS: MenuItem[] = [
     ],
   },
   {
+    label: 'Mokhaiotl',
+    subMenu: [
+      {
+        label: 'Deepest delve',
+        value: def('Deepest delve', {
+          path: 'mokhaiotl.maxCompletedDelve',
+          inputKind: 'number',
+          min: 0,
+        }).id,
+      },
+    ],
+  },
+  {
     label: 'Splits',
     subMenu: [
       {
@@ -810,6 +835,7 @@ function cloneFiltersForCustomEdit(filters: SearchFilters): SearchFilters {
       ...filters.tob,
       bloatDowns: new Map(filters.tob.bloatDowns),
     },
+    mokhaiotl: { ...filters.mokhaiotl },
   };
 }
 

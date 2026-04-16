@@ -631,6 +631,7 @@ const COLUMNS: Record<Column, ColumnInfo> = {
     fullName: 'Mokhaiotl Completed',
     align: 'right',
     renderer: (challenge) => challenge.mokhaiotlStats?.maxCompletedDelve ?? '-',
+    sortKey: 'mok:maxCompletedDelve',
     toggleFields: includeStats,
   },
 };

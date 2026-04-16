@@ -162,6 +162,14 @@ export function parseChallengeQuery(
         (query.tob ??= {})[field] = value;
       }
     }
+
+    const mokhaiotlScalarParams = ['maxCompletedDelve'] as const;
+    for (const field of mokhaiotlScalarParams) {
+      const value = numericComparatorParam(searchParams, `mok.${field}`);
+      if (value !== undefined) {
+        (query.mokhaiotl ??= {})[field] = value;
+      }
+    }
   } catch {
     return null;
   }

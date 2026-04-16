@@ -5,22 +5,10 @@ import {
   stageName,
 } from '@blert/common';
 
-export function partyNames(party: string[]): string {
-  if (party.length === 1) {
-    return party[0];
-  }
-  if (party.length === 2) {
-    return party.join(' and ');
-  }
-  return (
-    party.slice(0, party.length - 1).join(', ') +
-    ', and ' +
-    party[party.length - 1]
-  );
-}
+import { oxford } from './copy';
 
 export function challengePartyNames(challenge: Challenge): string {
-  return partyNames(challenge.party.map((p) => p.username));
+  return oxford(challenge.party.map((p) => p.username));
 }
 
 export function challengePageDescription(challenge: Challenge): string {
