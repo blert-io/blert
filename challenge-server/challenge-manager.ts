@@ -69,6 +69,7 @@ import {
   LifecycleState,
   RedisClient,
   TimeoutState,
+  TransactionClient,
 } from './redis-client';
 import { timeOperation } from './time';
 import { DiscordClient, RecordsHandler, WebhookService } from './webhooks';
@@ -177,16 +178,33 @@ type StartActionDecision =
       response: ChallengeStatusResponse;
     };
 
-function createChallengeClient(
+async function createChallengeClient(
+  txn: TransactionClient,
+  challengeUuid: string,
   userId: number,
   clientId: number,
+  sessionToken: string,
   recordingType: RecordingType,
   stage: Stage,
   stageAttempt: number | null = null,
-): ChallengeClient {
+): Promise<ChallengeClient> {
+  const existing = await txn.getChallengeClient(challengeUuid, clientId);
+  if (existing !== null) {
+    // If rejoining, maintain the last completed stage.
+    return {
+      ...existing,
+      stage,
+      stageAttempt,
+      stageStatus: StageStatus.ENTERED,
+      sessionToken,
+      active: true,
+    };
+  }
+
   return {
     userId,
     clientId,
+    sessionToken,
     type: recordingType,
     active: true,
     stage,
@@ -281,6 +299,7 @@ export default class ChallengeManager {
    *
    * @param userId ID of the user.
    * @param clientId ID of the client.
+   * @param sessionToken Unique identifier for the client's session.
    * @param type Type of challenge.
    * @param mode Mode of challenge.
    * @param stage Stage of challenge.
@@ -292,6 +311,7 @@ export default class ChallengeManager {
   public async createOrJoin(
     userId: number,
     clientId: number,
+    sessionToken: string,
     type: ChallengeType,
     mode: ChallengeMode,
     stage: Stage,
@@ -315,6 +335,7 @@ export default class ChallengeManager {
       const decision = await this.determineStartAction(
         userId,
         clientId,
+        sessionToken,
         type,
         recordingType,
         stage,
@@ -331,6 +352,7 @@ export default class ChallengeManager {
             decision.sessionId,
             userId,
             clientId,
+            sessionToken,
             recordingType,
             type,
             mode,
@@ -346,6 +368,7 @@ export default class ChallengeManager {
             decision.uuid,
             userId,
             clientId,
+            sessionToken,
             recordingType,
           );
           requestDecision = 'deferred';
@@ -382,6 +405,7 @@ export default class ChallengeManager {
   private async determineStartAction(
     userId: number,
     clientId: number,
+    sessionToken: string,
     type: ChallengeType,
     recordingType: RecordingType,
     stage: Stage,
@@ -495,9 +519,12 @@ export default class ChallengeManager {
               },
             };
 
-            const challengeClient = createChallengeClient(
+            const challengeClient = await createChallengeClient(
+              txn,
+              lastChallengeForParty,
               userId,
               clientId,
+              sessionToken,
               recordingType,
               startDecision.response.stage,
               startDecision.response.stageAttempt,
@@ -570,6 +597,7 @@ export default class ChallengeManager {
     sessionId: number | null,
     userId: number,
     clientId: number,
+    sessionToken: string,
     recordingType: RecordingType,
     type: ChallengeType,
     mode: ChallengeMode,
@@ -619,23 +647,25 @@ export default class ChallengeManager {
       );
     }
 
-    const challengeClient = createChallengeClient(
-      userId,
-      clientId,
-      recordingType,
-      stage,
-    );
-
-    await this.redisClient.pipeline((pipeline) => {
-      pipeline.setChallengeFields(uuid, {
+    await this.redisClient.transaction(async (txn) => {
+      const challengeClient = await createChallengeClient(
+        txn,
+        uuid,
+        userId,
+        clientId,
+        sessionToken,
+        recordingType,
+        stage,
+      );
+      txn.setChallengeFields(uuid, {
         ...processor.getState(),
         state: LifecycleState.ACTIVE,
       });
-      pipeline.setChallengeClient(uuid, clientId, challengeClient);
-      pipeline.setSessionChallenge(processor.getSessionId(), type, party);
+      txn.setChallengeClient(uuid, clientId, challengeClient);
+      txn.setSessionChallenge(processor.getSessionId(), type, party);
 
       for (const player of party) {
-        pipeline.setPlayerActiveChallenge(player, uuid);
+        txn.setPlayerActiveChallenge(player, uuid);
       }
     });
 
@@ -662,6 +692,7 @@ export default class ChallengeManager {
     uuid: string,
     userId: number,
     clientId: number,
+    sessionToken: string,
     recordingType: RecordingType,
   ): Promise<ChallengeStatusResponse> {
     // Another client is simultaneously creating the challenge. Wait until
@@ -711,9 +742,12 @@ export default class ChallengeManager {
           stageAttempt,
         };
 
-        const challengeClient = createChallengeClient(
+        const challengeClient = await createChallengeClient(
+          txn,
+          uuid,
           userId,
           clientId,
+          sessionToken,
           recordingType,
           statusResponse.stage,
           statusResponse.stageAttempt,
@@ -1153,6 +1187,7 @@ export default class ChallengeManager {
    * @param challengeId ID of the challenge to join.
    * @param userId ID of the user.
    * @param clientId ID of the client.
+   * @param sessionToken Unique identifier for the client's session.
    * @param recordingType Type of client recording.
    * @returns The current status of the joined challenge.
    * @throws ChallengeError if the join fails.
@@ -1161,6 +1196,7 @@ export default class ChallengeManager {
     challengeId: string,
     userId: number,
     clientId: number,
+    sessionToken: string,
     recordingType: RecordingType,
   ): Promise<ChallengeStatusResponse> {
     let metricDecision: ChallengeRequestDecision = 'error';
@@ -1168,7 +1204,7 @@ export default class ChallengeManager {
     try {
       const currentChallenge =
         await this.redisClient.getActiveChallengeForClient(clientId);
-      if (currentChallenge !== null) {
+      if (currentChallenge !== null && currentChallenge !== challengeId) {
         logger.warn('challenge_join_rejected', {
           userId,
           clientId,
@@ -1204,9 +1240,12 @@ export default class ChallengeManager {
           return;
         }
 
-        const clientInfo = createChallengeClient(
+        const clientInfo = await createChallengeClient(
+          txn,
+          challengeId,
           userId,
           clientId,
+          sessionToken,
           recordingType,
           challenge.stage,
           challenge.stageAttempt ?? null,
@@ -1275,8 +1314,14 @@ export default class ChallengeManager {
   private async removeClient(
     clientId: number,
     challengeId: string,
+    sessionToken: string,
   ): Promise<void> {
     await this.redisClient.transaction(async (txn) => {
+      const existing = await txn.getChallengeClient(challengeId, clientId);
+      if (existing?.sessionToken !== sessionToken) {
+        return;
+      }
+
       txn.removeChallengeClient(challengeId, clientId);
 
       const [{ state: lifecycleState }, clients] = await Promise.all([
@@ -1327,6 +1372,7 @@ export default class ChallengeManager {
   private async setClientActive(
     clientId: number,
     challengeId: string,
+    sessionToken: string,
   ): Promise<void> {
     await this.redisClient.transaction(async (txn) => {
       const [activeChallenge, challenge, us] = await Promise.all([
@@ -1334,6 +1380,10 @@ export default class ChallengeManager {
         txn.getChallenge(challengeId),
         txn.getChallengeClient(challengeId, clientId),
       ]);
+
+      if (us?.sessionToken !== sessionToken) {
+        return;
+      }
 
       if (activeChallenge !== challengeId || challenge === null) {
         txn.removeChallengeClient(challengeId, clientId);
@@ -1373,6 +1423,7 @@ export default class ChallengeManager {
   private async setClientInactive(
     clientId: number,
     challengeId: string,
+    sessionToken: string,
   ): Promise<void> {
     await this.redisClient.transaction(async (txn) => {
       const [activeChallenge, challenge, clients] = await Promise.all([
@@ -1381,11 +1432,6 @@ export default class ChallengeManager {
         txn.getChallengeClients(challengeId),
       ]);
 
-      if (activeChallenge !== challengeId || challenge === null) {
-        txn.removeChallengeClient(challengeId, clientId);
-        return;
-      }
-
       const us = clients.find((c) => c.clientId === clientId);
       if (us === undefined) {
         logger.warn('client_not_in_challenge', {
@@ -1393,6 +1439,15 @@ export default class ChallengeManager {
           challengeUuid: challengeId,
           operation: 'set_client_inactive',
         });
+        txn.removeChallengeClient(challengeId, clientId);
+        return;
+      }
+
+      if (us.sessionToken !== sessionToken) {
+        return;
+      }
+
+      if (activeChallenge !== challengeId || challenge === null) {
         txn.removeChallengeClient(challengeId, clientId);
         return;
       }
@@ -1457,15 +1512,27 @@ export default class ChallengeManager {
         let statusLabel: ClientEventStatusLabel | null = null;
         switch (statusEvent.status) {
           case ClientStatus.ACTIVE:
-            await this.setClientActive(event.clientId, clientChallenge);
+            await this.setClientActive(
+              event.clientId,
+              clientChallenge,
+              event.sessionToken,
+            );
             statusLabel = 'active';
             break;
           case ClientStatus.IDLE:
-            await this.setClientInactive(event.clientId, clientChallenge);
+            await this.setClientInactive(
+              event.clientId,
+              clientChallenge,
+              event.sessionToken,
+            );
             statusLabel = 'idle';
             break;
           case ClientStatus.DISCONNECTED:
-            await this.removeClient(event.clientId, clientChallenge);
+            await this.removeClient(
+              event.clientId,
+              clientChallenge,
+              event.sessionToken,
+            );
             statusLabel = 'disconnected';
             break;
         }
