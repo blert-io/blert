@@ -77,6 +77,7 @@ type RedisChallengeState = {
 export type ChallengeClient = {
   userId: number;
   clientId: number;
+  sessionToken: string;
   type: RecordingType;
   active: boolean;
   stage: Stage;
@@ -728,7 +729,15 @@ class ChallengeWriter implements ChallengeWriteOperations {
 
   removeChallengeClient(uuid: string, clientId: number): void {
     this.multi.hDel(challengeClientsKey(uuid), clientId.toString());
-    this.multi.del(clientChallengesKey(clientId));
+    this.multi.eval(
+      `
+        if redis.call('GET', KEYS[1]) == ARGV[1] then
+          return redis.call('DEL', KEYS[1])
+        end
+        return 0
+      `,
+      { keys: [clientChallengesKey(clientId)], arguments: [uuid] },
+    );
     this.queuedOperations += 2;
   }
 

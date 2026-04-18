@@ -147,6 +147,7 @@ export type ClientEvent = {
   type: ClientEventType;
   userId: number;
   clientId: number;
+  sessionToken: string;
 };
 
 export type ClientStatusEvent = ClientEvent & {

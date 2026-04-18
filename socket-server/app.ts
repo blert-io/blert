@@ -427,6 +427,7 @@ async function main(): Promise<void> {
       userId: client.getUserId(),
       username: client.getUsername(),
       sessionId: client.getSessionId(),
+      sessionToken: client.getSessionToken(),
       pluginVersion: pluginVersions.getVersion(),
       pluginRevision: pluginVersions.getRevision(),
       runeLiteVersion: pluginVersions.getRuneLiteVersion(),
