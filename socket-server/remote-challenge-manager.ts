@@ -84,6 +84,7 @@ export class RemoteChallengeManager extends ChallengeManager {
       body: JSON.stringify({
         userId: client.getUserId(),
         clientId: client.getClientId(),
+        sessionToken: client.getSessionToken(),
         type: challengeType,
         mode,
         party,
@@ -131,6 +132,7 @@ export class RemoteChallengeManager extends ChallengeManager {
           body: JSON.stringify({
             userId: client.getUserId(),
             clientId: client.getClientId(),
+            sessionToken: client.getSessionToken(),
             times,
             soft,
           }),
@@ -201,6 +203,7 @@ export class RemoteChallengeManager extends ChallengeManager {
         body: JSON.stringify({
           userId: client.getUserId(),
           clientId: client.getClientId(),
+          sessionToken: client.getSessionToken(),
           update,
         }),
       });
@@ -368,6 +371,7 @@ export class RemoteChallengeManager extends ChallengeManager {
           body: JSON.stringify({
             userId: client.getUserId(),
             clientId: client.getClientId(),
+            sessionToken: client.getSessionToken(),
             recordingType,
           }),
         },
@@ -397,6 +401,7 @@ export class RemoteChallengeManager extends ChallengeManager {
       type: ClientEventType.STATUS,
       userId: client.getUserId(),
       clientId: client.getClientId(),
+      sessionToken: client.getSessionToken(),
       status,
     };
 

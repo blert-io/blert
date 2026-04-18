@@ -61,6 +61,11 @@ type ActiveChallengeInfo = {
   stages: Map<Stage, number | null>;
 };
 
+export type Session = {
+  id: number;
+  token: string;
+};
+
 export default class Client {
   private static readonly HEARTBEAT_INTERVAL_MS = 5000;
   private static readonly HEARTBEAT_DISCONNECT_THRESHOLD = 10;
@@ -77,7 +82,7 @@ export default class Client {
   private user: BasicUser;
   private pluginVersions: PluginVersions;
   private messageFormat: MessageFormat;
-  private sessionId: number;
+  private session: Session | null;
   private socket: WebSocket;
   private messageHandler: MessageHandler;
   private activeChallenge: ActiveChallengeInfo | null;
@@ -110,7 +115,7 @@ export default class Client {
     this.user = user;
     this.pluginVersions = pluginVersions;
     this.messageFormat = messageFormat;
-    this.sessionId = -1;
+    this.session = null;
     this.socket = socket;
     this.messageHandler = eventHandler;
     this.activeChallenge = null;
@@ -181,8 +186,8 @@ export default class Client {
       }
     });
 
-    void this.withLogContext(() => this.processMessageLoop());
-    void this.withLogContext(() => this.heartbeatLoop());
+    void this.processMessageLoop();
+    void this.heartbeatLoop();
   }
 
   /**
@@ -190,11 +195,18 @@ export default class Client {
    * @returns The session ID.
    */
   public getSessionId(): number {
-    return this.sessionId;
+    return this.session?.id ?? -1;
   }
 
-  public setSessionId(sessionId: number): void {
-    this.sessionId = sessionId;
+  /**
+   * @returns The client's session token.
+   */
+  public getSessionToken(): string {
+    return this.session?.token ?? '';
+  }
+
+  public setSession(session: Session): void {
+    this.session = session;
   }
 
   /**
@@ -422,7 +434,7 @@ export default class Client {
   }
 
   public toString(): string {
-    return `Client#${this.sessionId}[${this.user.username}]`;
+    return `Client#${this.getSessionId()}[${this.user.username}]`;
   }
 
   private withLogContext<T>(
@@ -437,7 +449,8 @@ export default class Client {
       userId: this.user.id,
       clientId: this.getClientId(),
       username: this.user.username,
-      sessionId: this.sessionId,
+      sessionId: this.session?.id ?? undefined,
+      sessionToken: this.session?.token ?? undefined,
       loggedInRsn: this.loggedInRsn ?? undefined,
       validated: this.validated,
       pluginVersion: this.pluginVersions.getVersion(),
@@ -522,7 +535,9 @@ export default class Client {
           this.missedHeartbeats = 0;
         } else {
           try {
-            await this.messageHandler.handleMessage(this, message);
+            await this.withLogContext(() =>
+              this.messageHandler.handleMessage(this, message),
+            );
           } catch (e) {
             logger.error(
               'client_message_handler_error',
@@ -590,7 +605,7 @@ export default class Client {
     });
 
     this.messageHandler.closeClient(this);
-    this.sessionId = -1;
+    this.session = null;
     this.closeCallbacks = [];
     this.activeChallenge = null;
   }

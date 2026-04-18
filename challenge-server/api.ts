@@ -169,6 +169,7 @@ async function challengeApiHandler(
 type NewChallengeRequest = {
   userId: number;
   clientId: number;
+  sessionToken: string;
   type: ChallengeType;
   mode: ChallengeMode;
   stage: Stage;
@@ -188,6 +189,7 @@ async function newChallenge(req: Request, res: Response): Promise<void> {
       const result = await res.locals.challengeManager.createOrJoin(
         request.userId,
         request.clientId,
+        request.sessionToken,
         request.type,
         request.mode,
         request.stage,
@@ -202,6 +204,7 @@ async function newChallenge(req: Request, res: Response): Promise<void> {
 type UpdateChallengeRequest = {
   userId: number;
   clientId: number;
+  sessionToken: string;
   update: ChallengeUpdate;
 };
 
@@ -238,6 +241,7 @@ async function updateChallenge(req: Request, res: Response): Promise<void> {
 type FinishChallengeRequest = {
   userId: number;
   clientId: number;
+  sessionToken: string;
   times: ReportedTimes | null;
   soft: boolean;
 };
@@ -272,6 +276,7 @@ async function finishChallenge(req: Request, res: Response): Promise<void> {
 type JoinChallengeRequest = {
   userId: number;
   clientId: number;
+  sessionToken: string;
   recordingType: RecordingType;
 };
 
@@ -294,6 +299,7 @@ async function joinChallenge(req: Request, res: Response): Promise<void> {
         challengeId,
         request.userId,
         request.clientId,
+        request.sessionToken,
         request.recordingType,
       );
       res.json(status);
