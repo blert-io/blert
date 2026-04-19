@@ -67,9 +67,13 @@
     font-size: 0.9rem;
     line-height: 1.4;
 
-    i {
+    > i {
       color: var(--blert-purple);
       font-size: 1em;
+    }
+
+    > span {
+      flex: 1;
     }
 
     a {
@@ -83,6 +87,7 @@
     }
 
     @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      flex-wrap: wrap;
       text-align: center;
       justify-content: center;
     }
@@ -123,9 +128,11 @@
   }
 }
 
-.unlistedBannerAction {
+.unlistedBannerAction,
+.revisionBannerAction {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   padding: 6px 12px;
   background: var(--blert-surface-dark);
@@ -150,6 +157,10 @@
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    flex-basis: 100%;
   }
 }
 

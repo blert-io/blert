@@ -18,6 +18,7 @@ import { getRequestIp } from '@/utils/headers';
 import SetupActions from './actions';
 import CollapsibleDescription from './collapsible-description';
 import Panels from './panels';
+import { RevertButton } from './revert-button';
 import { SlotTooltipRenderer } from '../slot';
 import { SetupViewingContextProvider } from '../viewing-context';
 import { VisibilityToggleButton } from './visibility-actions';
@@ -95,6 +96,13 @@ export default async function GearSetupPage({
                       View latest version
                     </Link>
                   </span>
+                  {isAuthor && (
+                    <RevertButton
+                      publicId={setup.publicId}
+                      gearSetup={gearSetup}
+                      currentRevision={targetRevision}
+                    />
+                  )}
                 </div>
               )}
               {isAuthor && setup.state === 'unlisted' && (
