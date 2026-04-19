@@ -154,6 +154,7 @@ export function parseChallengeQuery(
       'bloatDownCount',
       'nylocasPreCapStalls',
       'nylocasPostCapStalls',
+      'xarpusHealing',
       'verzikRedsCount',
     ] as const;
     for (const field of tobScalarParams) {

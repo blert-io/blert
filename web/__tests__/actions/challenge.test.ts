@@ -9,6 +9,7 @@ import {
 } from '@blert/common';
 
 import {
+  aggregateChallenges,
   aggregateSessions,
   countUniquePlayers,
   findChallenges,
@@ -857,6 +858,136 @@ describe('challenges', () => {
         expect(challenges).toHaveLength(1);
         expect(challenges[0].uuid).toBe('cccccccc-cccc-cccc-cccc-cccccccccccc');
       });
+    });
+
+    describe('xarpus healing filter', () => {
+      beforeEach(async () => {
+        await sql`
+          INSERT INTO tob_challenge_stats ${sql([
+            { challenge_id: challengeIds[0], xarpus_healing: 50 },
+            { challenge_id: challengeIds[1], xarpus_healing: 200 },
+          ])}
+        `;
+      });
+
+      it('matches challenges above a threshold', async () => {
+        const [challenges] = await findChallenges(10, {
+          tob: { xarpusHealing: ['>', 100] },
+        });
+
+        expect(challenges.map((c) => c.uuid)).toEqual([
+          'cccccccc-cccc-cccc-cccc-cccccccccccc',
+        ]);
+      });
+
+      it('matches challenges below a threshold', async () => {
+        const [challenges] = await findChallenges(10, {
+          tob: { xarpusHealing: ['<=', 50] },
+        });
+
+        expect(challenges.map((c) => c.uuid)).toEqual([
+          'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        ]);
+      });
+
+      it('excludes challenges without a tob_challenge_stats row', async () => {
+        // dddd is Colosseum and has no row; it should never match a tob filter.
+        const [challenges] = await findChallenges(10, {
+          tob: { xarpusHealing: ['>=', 0] },
+        });
+
+        expect(challenges.map((c) => c.uuid).sort()).toEqual([
+          'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+          'cccccccc-cccc-cccc-cccc-cccccccccccc',
+        ]);
+      });
+    });
+
+    describe('sort by tob:xarpusHealing', () => {
+      beforeEach(async () => {
+        await sql`
+          INSERT INTO tob_challenge_stats ${sql([
+            { challenge_id: challengeIds[0], xarpus_healing: 200 },
+            { challenge_id: challengeIds[1], xarpus_healing: 50 },
+          ])}
+        `;
+      });
+
+      it('sorts descending with non-tob challenges coming last (null)', async () => {
+        const [challenges] = await findChallenges(10, {
+          sort: '-tob:xarpusHealing#nl',
+        });
+
+        // bbbb (200), cccc (50), then dddd (Colosseum, null) last.
+        expect(challenges.map((c) => c.uuid)).toEqual([
+          'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+          'cccccccc-cccc-cccc-cccc-cccccccccccc',
+          'dddddddd-dddd-dddd-dddd-dddddddddddd',
+        ]);
+      });
+
+      it('sorts ascending with nulls last', async () => {
+        const [challenges] = await findChallenges(10, {
+          sort: '+tob:xarpusHealing#nl',
+        });
+
+        expect(challenges.map((c) => c.uuid)).toEqual([
+          'cccccccc-cccc-cccc-cccc-cccccccccccc',
+          'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+          'dddddddd-dddd-dddd-dddd-dddddddddddd',
+        ]);
+      });
+    });
+  });
+
+  describe('aggregateChallenges', () => {
+    beforeEach(async () => {
+      await sql`
+        INSERT INTO tob_challenge_stats ${sql([
+          { challenge_id: challengeIds[0], xarpus_healing: 50 },
+          { challenge_id: challengeIds[1], xarpus_healing: 200 },
+        ])}
+      `;
+    });
+
+    it('aggregates tob:xarpusHealing across all operations', async () => {
+      const result = await aggregateChallenges(
+        {},
+        { 'tob:xarpusHealing': ['avg', 'count', 'sum', 'min', 'max'] },
+      );
+
+      expect(result).not.toBeNull();
+      expect(result!['tob:xarpusHealing'].count).toBe(2);
+      expect(result!['tob:xarpusHealing'].sum).toBe(250);
+      expect(result!['tob:xarpusHealing'].avg).toBe(125);
+      expect(result!['tob:xarpusHealing'].min).toBe(50);
+      expect(result!['tob:xarpusHealing'].max).toBe(200);
+    });
+
+    it('does not drop challenges without a tob_challenge_stats row', async () => {
+      // Colosseum challenge (dddd) has no tob stats; the LEFT JOIN should
+      // still include it in the total count while its healing is null.
+      const result = await aggregateChallenges(
+        {},
+        { '*': 'count', 'tob:xarpusHealing': 'count' },
+      );
+
+      expect(result!['*'].count).toBe(3);
+      expect(result!['tob:xarpusHealing'].count).toBe(2);
+    });
+
+    it('groups tob:xarpusHealing by scale', async () => {
+      const result = await aggregateChallenges(
+        { type: ['==', ChallengeType.TOB] },
+        { 'tob:xarpusHealing': ['avg', 'count'] },
+        {},
+        'scale',
+      );
+
+      expect(result).not.toBeNull();
+      // Both ToB challenges are scale 2.
+      expect(result!['2']['tob:xarpusHealing'].count).toBe(2);
+      expect(result!['2']['tob:xarpusHealing'].avg).toBe(125);
     });
   });
 

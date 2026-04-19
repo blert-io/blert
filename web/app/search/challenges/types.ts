@@ -68,6 +68,7 @@ export const enum Column {
   TOB_NYLOCAS_PRE_CAP_STALLS,
   TOB_NYLOCAS_POST_CAP_STALLS,
   TOB_VERZIK_REDS_COUNT,
+  TOB_XARPUS_HEALING,
 }
 
 export type SelectedColumn = {

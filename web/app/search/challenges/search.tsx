@@ -68,6 +68,13 @@ function getSortKeyValue(challenge: ChallengeOverview, key: SortableFields) {
     return challenge.splits?.[split]?.ticks ?? null;
   }
 
+  if (key.startsWith('tob:')) {
+    const field = key.slice(4) as keyof NonNullable<
+      ChallengeOverview['tobStats']
+    >;
+    return (challenge.tobStats?.[field] as number | null | undefined) ?? null;
+  }
+
   const k = key as BasicSortableFields;
   return challenge[k] ?? null;
 }

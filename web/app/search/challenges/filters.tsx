@@ -511,6 +511,19 @@ const CUSTOM_FILTERS_ITEMS: MenuItem[] = [
         ],
       },
       {
+        label: 'Xarpus',
+        subMenu: [
+          {
+            label: 'Healing',
+            value: def('Xarpus healing', {
+              path: 'tob.xarpusHealing',
+              inputKind: 'number',
+              min: 0,
+            }).id,
+          },
+        ],
+      },
+      {
         label: 'Verzik',
         subMenu: [
           {
