@@ -599,6 +599,12 @@ function order(
 
 type QueryComponents = {
   baseTable: postgres.Fragment;
+  /**
+   * Whether `baseTable` is a derived subquery rather than the `challenges`
+   * table directly. Some callers need to know this to avoid embedding the
+   * subquery in a context that would re-execute it per row.
+   */
+  baseTableIsSubquery: boolean;
   queryTable: postgres.Helper<string>;
   joins: Join[];
   conditions: postgres.Fragment[];
@@ -724,6 +730,7 @@ function applyFilters(
   fullRecordings?: boolean,
 ): QueryComponents | null {
   let baseTable = sql`challenges`;
+  let baseTableIsSubquery = false;
   const joins: Join[] = defaultJoins;
   const conditions = [];
 
@@ -780,6 +787,7 @@ function applyFilters(
           WHERE players.normalized_username = ANY(${query.party.map(normalizeRsn)})
         ) challenges`;
       }
+      baseTableIsSubquery = true;
     }
   }
 
@@ -890,6 +898,7 @@ function applyFilters(
 
   return {
     baseTable,
+    baseTableIsSubquery,
     queryTable: sqlChallenges,
     joins,
     conditions,
@@ -1508,24 +1517,67 @@ export async function countUniquePlayers(
     return 0;
   }
 
-  const { baseTable, joins, conditions } = components;
+  const { baseTable, baseTableIsSubquery, joins, conditions } = components;
 
-  // Use a dedicated alias so the count isn't restricted by a party filter's
-  // challenge_players join.
-  const allJoins: Join[] = [
-    ...joins,
-    {
-      table: sql`challenge_players cp_count`,
-      on: sql`challenges.id = cp_count.challenge_id`,
-      tableName: 'cp_count',
-    },
-  ];
+  if (baseTableIsSubquery) {
+    // The loose index scan below could re-execute the baseTable subquery
+    // once per candidate player; fall back to the hash-DISTINCT form.
+    const allJoins: Join[] = [
+      ...joins,
+      {
+        table: sql`challenge_players cp_count`,
+        on: sql`challenges.id = cp_count.challenge_id`,
+        tableName: 'cp_count',
+      },
+    ];
+
+    const [row] = await sql<[{ count: string }]>`
+      SELECT COUNT(DISTINCT cp_count.player_id) AS count
+      FROM ${baseTable}
+      ${join(allJoins)}
+      ${where(conditions)}
+    `;
+
+    return parseInt(row.count);
+  }
+
+  // Loose index scan over challenge_players.player_id: hop from one
+  // distinct player_id to the next, stopping at the first matching challenge
+  // per player.
+  // Work scales with distinct players rather than the fully-joined row count.
+  const matchesChallenge = sql`
+    EXISTS (
+      SELECT 1
+      FROM ${baseTable}
+      ${join(joins)}
+      ${where([...conditions, sql`challenges.id = cp.challenge_id`])}
+    )
+  `;
 
   const [row] = await sql<[{ count: string }]>`
-    SELECT COUNT(DISTINCT cp_count.player_id) AS count
-    FROM ${baseTable}
-    ${join(allJoins)}
-    ${where(conditions)}
+    WITH RECURSIVE distinct_players AS (
+      (
+        SELECT cp.player_id
+        FROM challenge_players cp
+        WHERE ${matchesChallenge}
+        ORDER BY cp.player_id
+        LIMIT 1
+      )
+      UNION ALL
+      SELECT (
+        SELECT cp.player_id
+        FROM challenge_players cp
+        WHERE cp.player_id > dp.player_id
+          AND ${matchesChallenge}
+        ORDER BY cp.player_id
+        LIMIT 1
+      )
+      FROM distinct_players dp
+      WHERE dp.player_id IS NOT NULL
+    )
+    SELECT COUNT(*) AS count
+    FROM distinct_players
+    WHERE player_id IS NOT NULL
   `;
 
   return parseInt(row.count);
