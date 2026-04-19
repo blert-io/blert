@@ -30,10 +30,9 @@ import {
   SESSION_ACTIVITY_DURATION_MS,
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
-import type { Sql } from 'postgres';
 import { v4 as uuidv4 } from 'uuid';
 
-import sql from '../db';
+import sql, { Sql } from '../db';
 import logger from '../log';
 import { MergedEvents } from '../merging';
 import {

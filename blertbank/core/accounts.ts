@@ -1,7 +1,6 @@
 import { isPostgresUniqueViolation } from '@blert/common';
-import { Sql } from 'postgres';
 
-import sql from '@/db';
+import sql, { Sql } from '@/db';
 
 export type AccountKind = 'user' | 'treasury' | 'sink' | 'liability' | 'escrow';
 

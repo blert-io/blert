@@ -1,4 +1,4 @@
-import postgres from 'postgres';
+import postgres, { TransactionSql } from 'postgres';
 
 import logger from './log';
 
@@ -25,6 +25,8 @@ if (process.env.BLERTBANK_DATABASE_URI === undefined) {
   logger.error('BLERTBANK_DATABASE_URI must be set');
   process.exit(1);
 }
+
+export type Sql = postgres.Sql | TransactionSql;
 
 const sql = postgres(process.env.BLERTBANK_DATABASE_URI, connectionOptions);
 export default sql;
