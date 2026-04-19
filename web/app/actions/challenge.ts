@@ -402,11 +402,14 @@ export type BasicSortableFields = keyof Omit<
   'party' | 'finishTime'
 >;
 export type SplitSortableFields = `splits:${SplitType}`;
+export type TobSortableFields =
+  `tob:${keyof Pick<TobChallengeStats, 'xarpusHealing'>}`;
 export type MokhaiotlSortableFields =
   `mok:${keyof Pick<MokhaiotlChallengeStats, 'maxCompletedDelve'>}`;
 export type SortableFields =
   | BasicSortableFields
   | SplitSortableFields
+  | TobSortableFields
   | MokhaiotlSortableFields;
 
 export type SingleOrArray<T> = T | T[];
@@ -416,6 +419,7 @@ export type TobQuery = {
   bloatDownCount?: Comparator<number>;
   nylocasPreCapStalls?: Comparator<number>;
   nylocasPostCapStalls?: Comparator<number>;
+  xarpusHealing?: Comparator<number>;
   verzikRedsCount?: Comparator<number>;
 };
 
@@ -466,6 +470,11 @@ function shorthandToFullField(field: string): [string, string] {
   if (field.startsWith('splits:')) {
     const split = field.slice(7);
     return ['ticks', splitsTableName(parseInt(split))];
+  }
+
+  if (field.startsWith('tob:')) {
+    const tobField = field.slice(4);
+    return [tobField, 'tob_challenge_stats'];
   }
 
   if (field.startsWith('mok:')) {
@@ -626,6 +635,7 @@ function applyTobFilters(
     bloatDownCount: 'bloat_down_count',
     nylocasPreCapStalls: 'nylocas_pre_cap_stalls',
     nylocasPostCapStalls: 'nylocas_post_cap_stalls',
+    xarpusHealing: 'xarpus_healing',
     verzikRedsCount: 'verzik_reds_count',
   };
 
@@ -810,6 +820,15 @@ function applyFilters(
       if (sortKey.startsWith('splits:')) {
         const split = parseInt(sortKey.slice(7)) as SplitType;
         addSplitsTable(split, sqlChallenges, joins, conditions, accurateSplits);
+      }
+
+      if (sortKey.startsWith('tob:')) {
+        joins.push({
+          table: sql`tob_challenge_stats`,
+          on: sql`${sqlChallenges}.id = tob_challenge_stats.challenge_id`,
+          type: 'left',
+          tableName: 'tob_challenge_stats',
+        });
       }
 
       if (sortKey.startsWith('mok:')) {
@@ -1320,6 +1339,16 @@ export async function aggregateChallenges<
         conditions,
         options.accurateSplits,
       );
+    } else if (
+      table !== 'challenges' &&
+      joins.find((j) => j.tableName === table) === undefined
+    ) {
+      joins.push({
+        table: sqlTable,
+        on: sql`${queryTable}.id = ${sqlTable}.challenge_id`,
+        type: 'left',
+        tableName: table,
+      });
     }
 
     return aggs.map((agg) => {

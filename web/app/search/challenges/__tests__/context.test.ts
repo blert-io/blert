@@ -107,6 +107,7 @@ describe('challenges filter URL round-trip', () => {
         bloatDownCount: [Comparator.GREATER_THAN_OR_EQUAL, 3],
         nylocasPreCapStalls: [Comparator.EQUAL, 2],
         nylocasPostCapStalls: null,
+        xarpusHealing: [Comparator.GREATER_THAN, 100],
         verzikRedsCount: [Comparator.LESS_THAN, 5],
       },
     };
@@ -122,6 +123,7 @@ describe('challenges filter URL round-trip', () => {
     ]);
     expect(result.tob.nylocasPreCapStalls).toEqual([Comparator.EQUAL, 2]);
     expect(result.tob.nylocasPostCapStalls).toBeNull();
+    expect(result.tob.xarpusHealing).toEqual([Comparator.GREATER_THAN, 100]);
     expect(result.tob.verzikRedsCount).toEqual([Comparator.LESS_THAN, 5]);
   });
 

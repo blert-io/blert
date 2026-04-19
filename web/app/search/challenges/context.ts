@@ -64,6 +64,7 @@ export type TobFilters = {
   bloatDownCount: [Comparator, number] | null;
   nylocasPreCapStalls: [Comparator, number] | null;
   nylocasPostCapStalls: [Comparator, number] | null;
+  xarpusHealing: [Comparator, number] | null;
   verzikRedsCount: [Comparator, number] | null;
 };
 
@@ -87,6 +88,7 @@ function parseTobParam(tob: TobFilters, key: string, value: string): void {
     'bloatDownCount',
     'nylocasPreCapStalls',
     'nylocasPostCapStalls',
+    'xarpusHealing',
     'verzikRedsCount',
   ];
   const field = scalarFields.find((f) => f === key);
@@ -119,6 +121,7 @@ export function emptyTobFilters(): TobFilters {
     bloatDownCount: null,
     nylocasPreCapStalls: null,
     nylocasPostCapStalls: null,
+    xarpusHealing: null,
     verzikRedsCount: null,
   };
 }
@@ -140,6 +143,9 @@ function countTobFilters(tob: TobFilters): number {
     count++;
   }
   if (tob.nylocasPostCapStalls !== null) {
+    count++;
+  }
+  if (tob.xarpusHealing !== null) {
     count++;
   }
   if (tob.verzikRedsCount !== null) {
@@ -263,6 +269,7 @@ export function filtersToUrlParams(filters: SearchFilters): UrlParams {
     'bloatDownCount',
     'nylocasPreCapStalls',
     'nylocasPostCapStalls',
+    'xarpusHealing',
     'verzikRedsCount',
   ];
   for (const field of tobScalarFields) {

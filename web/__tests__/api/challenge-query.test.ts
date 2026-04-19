@@ -84,6 +84,27 @@ describe('parseChallengeQuery', () => {
         parse({ sort: '-startTime', before: '100', after: '200' }),
       ).toBeNull();
     });
+
+    it('builds an after cursor for a tob:xarpusHealing sort', () => {
+      const query = parse({ sort: '-tob:xarpusHealing', after: '100' });
+      expect(query!.sort).toEqual(['-tob:xarpusHealing#nl']);
+      expect(query!.customConditions).toEqual([
+        [
+          ['tob:xarpusHealing', '<', 100],
+          '||',
+          ['tob:xarpusHealing', 'is', null],
+        ],
+      ]);
+    });
+
+    it('builds a before cursor for a tob:xarpusHealing sort', () => {
+      const query = parse({ sort: '-tob:xarpusHealing', before: '200' });
+      // before reverses the direction so nulls come first.
+      expect(query!.sort).toEqual(['+tob:xarpusHealing#nf']);
+      expect(query!.customConditions).toEqual([
+        ['tob:xarpusHealing', '>', 200],
+      ]);
+    });
   });
 
   describe('comparator params', () => {
@@ -203,6 +224,11 @@ describe('parseChallengeQuery', () => {
       expect(query!.tob!.nylocasPostCapStalls).toEqual(['<=', 2]);
     });
 
+    it('should parse xarpus healing', () => {
+      const query = parse({ 'tob.xarpusHealing': 'gt100' });
+      expect(query!.tob!.xarpusHealing).toEqual(['>', 100]);
+    });
+
     it('should parse verzik reds count', () => {
       const query = parse({ 'tob.verzikRedsCount': 'ge2' });
       expect(query!.tob!.verzikRedsCount).toEqual(['>=', 2]);
@@ -212,10 +238,12 @@ describe('parseChallengeQuery', () => {
       const query = parse({
         'tob.bloatDownCount': 'eq3',
         'tob.nylocasPreCapStalls': 'eq0',
+        'tob.xarpusHealing': 'lt50',
         'tob.verzikRedsCount': 'ge2',
       });
       expect(query!.tob!.bloatDownCount).toEqual(['==', 3]);
       expect(query!.tob!.nylocasPreCapStalls).toEqual(['==', 0]);
+      expect(query!.tob!.xarpusHealing).toEqual(['<', 50]);
       expect(query!.tob!.verzikRedsCount).toEqual(['>=', 2]);
     });
 

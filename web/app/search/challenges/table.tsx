@@ -174,6 +174,7 @@ const COLUMN_GROUPS: ColumnGroup[] = [
       Column.TOB_BLOAT_DOWN_COUNT,
       Column.TOB_NYLOCAS_PRE_CAP_STALLS,
       Column.TOB_NYLOCAS_POST_CAP_STALLS,
+      Column.TOB_XARPUS_HEALING,
       Column.TOB_VERZIK_REDS_COUNT,
     ],
   },
@@ -616,6 +617,14 @@ const COLUMNS: Record<Column, ColumnInfo> = {
     fullName: 'Verzik reds spawns',
     align: 'right',
     renderer: (challenge) => challenge.tobStats?.verzikRedsCount ?? '-',
+    toggleFields: includeStats,
+  },
+  [Column.TOB_XARPUS_HEALING]: {
+    name: 'Xarpus heal',
+    fullName: 'Xarpus healing',
+    align: 'right',
+    renderer: (challenge) => challenge.tobStats?.xarpusHealing ?? '-',
+    sortKey: 'tob:xarpusHealing',
     toggleFields: includeStats,
   },
 
@@ -1359,8 +1368,6 @@ function ColumnsModal({
           { column: dragging },
           ...columns.slice(newIndex),
         ];
-
-        return [];
       });
     }
 

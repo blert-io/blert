@@ -91,6 +91,9 @@ export const GET = withApiRoute(
         }
         splits.add(split);
       }
+      if (sortField.startsWith('tob:')) {
+        loadStats = true;
+      }
     }
 
     const findOptions: Required<FindChallengesOptions> = {
