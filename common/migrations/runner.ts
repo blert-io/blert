@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import postgres, { Sql } from 'postgres';
+import postgres, { Sql, TransactionSql } from 'postgres';
 
 export type MigrationRunnerOptions = {
   dbUriEnvVar: string;
@@ -8,9 +8,9 @@ export type MigrationRunnerOptions = {
   tableName?: string;
 };
 
-const MIGRATION_TEMPLATE = `import { Sql } from 'postgres';
+const MIGRATION_TEMPLATE = `import { TransactionSql } from 'postgres';
 
-export async function migrate(sql: Sql) {
+export async function migrate(sql: TransactionSql) {
   // Write your migration here
 }
 `;
@@ -48,9 +48,12 @@ async function ensureMigrationsTable(sql: Sql, tableName: string) {
   }
 }
 
-async function migrateFile(sql: Sql, path: string) {
+async function migrateFile(
+  sql: TransactionSql<Record<string, unknown>>,
+  path: string,
+) {
   const { migrate } = (await import(path)) as {
-    migrate: (sql: Sql) => Promise<void>;
+    migrate: (sql: TransactionSql<Record<string, unknown>>) => Promise<void>;
   };
   await migrate(sql);
 }

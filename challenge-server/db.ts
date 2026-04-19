@@ -1,4 +1,4 @@
-import postgres from 'postgres';
+import postgres, { TransactionSql } from 'postgres';
 
 import logger from './log';
 
@@ -15,6 +15,8 @@ if (process.env.BLERT_DATABASE_URI === undefined) {
   logger.error('environment_missing', { variable: 'BLERT_DATABASE_URI' });
   process.exit(1);
 }
+
+export type Sql = postgres.Sql | TransactionSql;
 
 const sql = postgres(process.env.BLERT_DATABASE_URI, connectionOptions);
 export default sql;
