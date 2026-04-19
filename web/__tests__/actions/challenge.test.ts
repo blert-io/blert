@@ -992,43 +992,83 @@ describe('challenges', () => {
   });
 
   describe('countUniquePlayers', () => {
-    it('should count all distinct players across non-abandoned challenges', async () => {
-      const count = await countUniquePlayers({});
-      expect(count).toBe(3);
+    describe('loose index scan', () => {
+      it('should count all distinct players across non-abandoned challenges', async () => {
+        const count = await countUniquePlayers({});
+        expect(count).toBe(3);
+      });
+
+      it('should filter by challenge type', async () => {
+        const tobCount = await countUniquePlayers({
+          type: ['==', ChallengeType.TOB],
+        });
+        expect(tobCount).toBe(3);
+
+        const coloCount = await countUniquePlayers({
+          type: ['==', ChallengeType.COLOSSEUM],
+        });
+        expect(coloCount).toBe(1);
+      });
+
+      it('should count all participants in a party-filtered query', async () => {
+        // PlayerA appears in challenges with B and C.
+        const count = await countUniquePlayers({ party: ['PlayerA'] });
+        expect(count).toBe(3);
+      });
+
+      it('should combine party and type filters', async () => {
+        // PlayerC only has TOB challenges.
+        const count = await countUniquePlayers({
+          party: ['PlayerC'],
+          type: ['==', ChallengeType.COLOSSEUM],
+        });
+        expect(count).toBe(0);
+      });
+
+      it('should return 0 for no matching challenges', async () => {
+        const count = await countUniquePlayers({
+          type: ['==', ChallengeType.INFERNO],
+        });
+        expect(count).toBe(0);
+      });
     });
 
-    it('should filter by challenge type', async () => {
-      const tobCount = await countUniquePlayers({
-        type: ['==', ChallengeType.TOB],
+    // Multi-player party filters rewrite baseTable into a subquery and fall
+    // back to the hash-DISTINCT form.
+    describe('subquery fallback', () => {
+      it('should count distinct players for a multi-player matchAll party', async () => {
+        // Challenges 0 and 1 both include PlayerA and PlayerB; challenge 1
+        // additionally includes PlayerC.
+        const count = await countUniquePlayers({
+          party: ['PlayerA', 'PlayerB'],
+        });
+        expect(count).toBe(3);
       });
-      expect(tobCount).toBe(3);
 
-      const coloCount = await countUniquePlayers({
-        type: ['==', ChallengeType.COLOSSEUM],
+      it('should count distinct players for a multi-player matchAny party', async () => {
+        const count = await countUniquePlayers({
+          party: ['PlayerA', 'PlayerC'],
+          partyMatch: 'any',
+        });
+        expect(count).toBe(3);
       });
-      expect(coloCount).toBe(1);
-    });
 
-    it('should count all participants in a party-filtered query', async () => {
-      // PlayerA appears in challenges with B and C.
-      const count = await countUniquePlayers({ party: ['PlayerA'] });
-      expect(count).toBe(3);
-    });
-
-    it('should combine party and type filters', async () => {
-      // PlayerC only has TOB challenges.
-      const count = await countUniquePlayers({
-        party: ['PlayerC'],
-        type: ['==', ChallengeType.COLOSSEUM],
+      it('should combine a multi-player matchAny party with a type filter', async () => {
+        const count = await countUniquePlayers({
+          party: ['PlayerA', 'PlayerB'],
+          partyMatch: 'any',
+          type: ['==', ChallengeType.COLOSSEUM],
+        });
+        expect(count).toBe(1);
       });
-      expect(count).toBe(0);
-    });
 
-    it('should return 0 for no matching challenges', async () => {
-      const count = await countUniquePlayers({
-        type: ['==', ChallengeType.INFERNO],
+      it('should return 0 when no challenge satisfies matchAll', async () => {
+        const count = await countUniquePlayers({
+          party: ['PlayerA', 'PlayerB'],
+          type: ['==', ChallengeType.COLOSSEUM],
+        });
+        expect(count).toBe(0);
       });
-      expect(count).toBe(0);
     });
   });
 });
