@@ -169,6 +169,7 @@ async function challengeApiHandler(
 type NewChallengeRequest = {
   userId: number;
   clientId: number;
+  sessionToken: string;
   type: ChallengeType;
   mode: ChallengeMode;
   stage: Stage;
@@ -183,11 +184,17 @@ async function newChallenge(req: Request, res: Response): Promise<void> {
     req,
     res,
     '/challenges/new',
-    { userId: request.userId, clientId: request.clientId, action: 'new' },
+    {
+      userId: request.userId,
+      clientId: request.clientId,
+      sessionToken: request.sessionToken,
+      action: 'new',
+    },
     async () => {
       const result = await res.locals.challengeManager.createOrJoin(
         request.userId,
         request.clientId,
+        request.sessionToken,
         request.type,
         request.mode,
         request.stage,
@@ -202,6 +209,7 @@ async function newChallenge(req: Request, res: Response): Promise<void> {
 type UpdateChallengeRequest = {
   userId: number;
   clientId: number;
+  sessionToken: string;
   update: ChallengeUpdate;
 };
 
@@ -217,9 +225,12 @@ async function updateChallenge(req: Request, res: Response): Promise<void> {
       challengeUuid: challengeId,
       userId: request.userId,
       clientId: request.clientId,
+      sessionToken: request.sessionToken,
       action: 'update',
     },
     async () => {
+      // The session token is not needed here as challenge state is a property
+      // of OSRS, not Blert's system.
       const result = await res.locals.challengeManager.update(
         challengeId,
         request.userId,
@@ -238,6 +249,7 @@ async function updateChallenge(req: Request, res: Response): Promise<void> {
 type FinishChallengeRequest = {
   userId: number;
   clientId: number;
+  sessionToken: string;
   times: ReportedTimes | null;
   soft: boolean;
 };
@@ -254,9 +266,12 @@ async function finishChallenge(req: Request, res: Response): Promise<void> {
       challengeUuid: challengeId,
       userId: request.userId,
       clientId: request.clientId,
+      sessionToken: request.sessionToken,
       action: 'finish',
     },
     async () => {
+      // The session token is not needed here as challenge state is a property
+      // of OSRS, not Blert's system.
       await res.locals.challengeManager.finish(
         challengeId,
         request.userId,
@@ -272,6 +287,7 @@ async function finishChallenge(req: Request, res: Response): Promise<void> {
 type JoinChallengeRequest = {
   userId: number;
   clientId: number;
+  sessionToken: string;
   recordingType: RecordingType;
 };
 
@@ -287,6 +303,7 @@ async function joinChallenge(req: Request, res: Response): Promise<void> {
       challengeUuid: challengeId,
       userId: request.userId,
       clientId: request.clientId,
+      sessionToken: request.sessionToken,
       action: 'join',
     },
     async () => {
@@ -294,6 +311,7 @@ async function joinChallenge(req: Request, res: Response): Promise<void> {
         challengeId,
         request.userId,
         request.clientId,
+        request.sessionToken,
         request.recordingType,
       );
       res.json(status);

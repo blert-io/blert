@@ -7,7 +7,7 @@ import { ServerMessage } from '@blert/common/generated/server_message_pb';
 import { RedisClientType } from 'redis';
 
 import { ActionDefinitionsRepository } from './action-definitions';
-import Client from './client';
+import Client, { Session } from './client';
 import logger from './log';
 import { recordActiveClients, recordClientRegistration } from './metrics';
 import { BasicUser, Users } from './users';
@@ -106,11 +106,11 @@ export default class ConnectionManager {
    * @param client The connected client.
    */
   public addClient(client: Client) {
-    const sessionId = this.newSessionId();
-    client.setSessionId(sessionId);
+    const session = this.newSession();
+    client.setSession(session);
     client.onClose(() => this.removeClient(client));
 
-    this.activeClients.set(sessionId, client);
+    this.activeClients.set(session.id, client);
 
     const pluginInfo = client.getPluginVersions();
     recordClientRegistration({
@@ -157,8 +157,11 @@ export default class ConnectionManager {
     return Array.from(this.activeClients.values());
   }
 
-  private newSessionId(): number {
-    // 2**53 session IDs ought to be enough for anybody.
-    return this.nextSessionId++;
+  private newSession(): Session {
+    return {
+      // 2**53 session IDs ought to be enough for anybody.
+      id: this.nextSessionId++,
+      token: crypto.randomUUID(),
+    };
   }
 }
