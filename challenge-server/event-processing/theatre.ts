@@ -52,6 +52,21 @@ type BloatHandData = {
   intraChunkOrder: number;
 };
 
+function nextStageEntrySplit(stage: Stage): SplitType | null {
+  switch (stage) {
+    case Stage.TOB_BLOAT:
+      return SplitType.TOB_NYLO_START;
+    case Stage.TOB_NYLOCAS:
+      return SplitType.TOB_SOTETSEG_START;
+    case Stage.TOB_SOTETSEG:
+      return SplitType.TOB_XARPUS_START;
+    case Stage.TOB_XARPUS:
+      return SplitType.TOB_VERZIK_START;
+    default:
+      return null;
+  }
+}
+
 function roomsKey(stage: Stage): keyof TobRooms {
   switch (stage) {
     case Stage.TOB_MAIDEN:
@@ -365,6 +380,20 @@ export default class TheatreProcessor extends ChallengeProcessor {
     this.stageStats = {};
 
     this.setSplit(stageSplit!, stageTicks);
+
+    if (
+      events.getStatus() === StageStatus.COMPLETED &&
+      this.hasFullyRecordedUpTo(stage)
+    ) {
+      const nextEntry = nextStageEntrySplit(stage);
+      if (nextEntry !== null) {
+        this.setSplit(
+          nextEntry,
+          this.getTotalChallengeTicks(),
+          this.isPartyUnchanged() && events.hasPreciseServerTickCount(),
+        );
+      }
+    }
 
     await this.getDataRepository().saveTobChallengeData(
       this.getUuid(),

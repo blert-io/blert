@@ -14,5 +14,6 @@ module.exports = {
     '!**/npcs/**',
     '!**/db/**',
     '!index.ts',
+    '!split.ts',
   ],
 };

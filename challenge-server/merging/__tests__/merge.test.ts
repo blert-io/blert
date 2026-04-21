@@ -227,6 +227,7 @@ describe('Merger', () => {
 
     const events = result!.events;
     expect(events.isAccurate()).toBe(true);
+    expect(events.hasPreciseServerTickCount()).toBe(true);
     expect(events.getMissingTickCount()).toBe(0);
     const allEvents = Array.from(events);
     expect(allEvents.length).toBe(4);

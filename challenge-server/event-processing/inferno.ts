@@ -182,11 +182,13 @@ export default class InfernoProcessor extends ChallengeProcessor {
     events: MergedEvents,
     _accurate: boolean,
   ): Promise<void> {
+    const wave = stageToWave(stage);
+
     if (this.waveStartTick !== null) {
       // Override total challenge ticks based on reported start time.
       this.setTotalChallengeTicks(this.waveStartTick + events.getLastTick());
 
-      const split = waveToSplit(stageToWave(stage));
+      const split = waveToSplit(wave);
       if (split !== null) {
         this.setSplit(split, this.waveStartTick);
       }
@@ -195,6 +197,11 @@ export default class InfernoProcessor extends ChallengeProcessor {
       // 6 ticks is the interval between waves.
       this.setTotalChallengeTicks(this.getTotalChallengeTicks() + 6);
     }
+
+    this.setSplit(
+      SplitType.INFERNO_WAVE_1_TIME + (wave - 1),
+      events.getLastTick(),
+    );
 
     const state = this.getStageState();
     this.infernoData.waves.push({

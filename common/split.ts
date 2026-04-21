@@ -189,6 +189,31 @@ export enum SplitType {
   TOB_HM_VERZIK_P3 = 101,
   TOB_VERZIK_P3 = TOB_ENTRY_VERZIK_P3,
 
+  TOB_ENTRY_BLOAT_START = TOB_ENTRY_MAIDEN,
+  TOB_REG_BLOAT_START = TOB_REG_MAIDEN,
+  TOB_HM_BLOAT_START = TOB_HM_MAIDEN,
+  TOB_BLOAT_START = TOB_MAIDEN,
+
+  TOB_ENTRY_NYLO_START = 102,
+  TOB_REG_NYLO_START = 103,
+  TOB_HM_NYLO_START = 104,
+  TOB_NYLO_START = TOB_ENTRY_NYLO_START,
+
+  TOB_ENTRY_SOTETSEG_START = 105,
+  TOB_REG_SOTETSEG_START = 106,
+  TOB_HM_SOTETSEG_START = 107,
+  TOB_SOTETSEG_START = TOB_ENTRY_SOTETSEG_START,
+
+  TOB_ENTRY_XARPUS_START = 108,
+  TOB_REG_XARPUS_START = 109,
+  TOB_HM_XARPUS_START = 110,
+  TOB_XARPUS_START = TOB_ENTRY_XARPUS_START,
+
+  TOB_ENTRY_VERZIK_START = 111,
+  TOB_REG_VERZIK_START = 112,
+  TOB_HM_VERZIK_START = 113,
+  TOB_VERZIK_START = TOB_ENTRY_VERZIK_START,
+
   // Colosseum wave times.
   COLOSSEUM_CHALLENGE = 150,
   COLOSSEUM_OVERALL = 151,
@@ -205,6 +230,18 @@ export enum SplitType {
   COLOSSEUM_WAVE_11 = 162,
   COLOSSEUM_WAVE_12 = 163,
 
+  COLOSSEUM_WAVE_2_START = COLOSSEUM_WAVE_1,
+  COLOSSEUM_WAVE_3_START = 164,
+  COLOSSEUM_WAVE_4_START = 165,
+  COLOSSEUM_WAVE_5_START = 166,
+  COLOSSEUM_WAVE_6_START = 167,
+  COLOSSEUM_WAVE_7_START = 168,
+  COLOSSEUM_WAVE_8_START = 169,
+  COLOSSEUM_WAVE_9_START = 170,
+  COLOSSEUM_WAVE_10_START = 171,
+  COLOSSEUM_WAVE_11_START = 172,
+  COLOSSEUM_WAVE_12_START = 173,
+
   // Mokhaiotl splits.
   MOKHAIOTL_CHALLENGE = 200,
   MOKHAIOTL_OVERALL = 201,
@@ -216,6 +253,14 @@ export enum SplitType {
   MOKHAIOTL_DELVE_6 = 207,
   MOKHAIOTL_DELVE_7 = 208,
   MOKHAIOTL_DELVE_8 = 209,
+
+  MOKHAIOTL_DELVE_2_START = MOKHAIOTL_DELVE_1,
+  MOKHAIOTL_DELVE_3_START = 210,
+  MOKHAIOTL_DELVE_4_START = 211,
+  MOKHAIOTL_DELVE_5_START = 212,
+  MOKHAIOTL_DELVE_6_START = 213,
+  MOKHAIOTL_DELVE_7_START = 214,
+  MOKHAIOTL_DELVE_8_START = 215,
 
   // Inferno splits.
   INFERNO_CHALLENGE = 220,
@@ -233,8 +278,76 @@ export enum SplitType {
   INFERNO_WAVE_67_START = 232,
   INFERNO_WAVE_68_START = 233,
   INFERNO_WAVE_69_START = 234,
-  INFERNO_WAVE_68_TIME = 235,
-  INFERNO_WAVE_69_TIME = 236,
+
+  INFERNO_WAVE_1_TIME = 235,
+  INFERNO_WAVE_2_TIME = 236,
+  INFERNO_WAVE_3_TIME = 237,
+  INFERNO_WAVE_4_TIME = 238,
+  INFERNO_WAVE_5_TIME = 239,
+  INFERNO_WAVE_6_TIME = 240,
+  INFERNO_WAVE_7_TIME = 241,
+  INFERNO_WAVE_8_TIME = 242,
+  INFERNO_WAVE_9_TIME = 243,
+  INFERNO_WAVE_10_TIME = 244,
+  INFERNO_WAVE_11_TIME = 245,
+  INFERNO_WAVE_12_TIME = 246,
+  INFERNO_WAVE_13_TIME = 247,
+  INFERNO_WAVE_14_TIME = 248,
+  INFERNO_WAVE_15_TIME = 249,
+  INFERNO_WAVE_16_TIME = 250,
+  INFERNO_WAVE_17_TIME = 251,
+  INFERNO_WAVE_18_TIME = 252,
+  INFERNO_WAVE_19_TIME = 253,
+  INFERNO_WAVE_20_TIME = 254,
+  INFERNO_WAVE_21_TIME = 255,
+  INFERNO_WAVE_22_TIME = 256,
+  INFERNO_WAVE_23_TIME = 257,
+  INFERNO_WAVE_24_TIME = 258,
+  INFERNO_WAVE_25_TIME = 259,
+  INFERNO_WAVE_26_TIME = 260,
+  INFERNO_WAVE_27_TIME = 261,
+  INFERNO_WAVE_28_TIME = 262,
+  INFERNO_WAVE_29_TIME = 263,
+  INFERNO_WAVE_30_TIME = 264,
+  INFERNO_WAVE_31_TIME = 265,
+  INFERNO_WAVE_32_TIME = 266,
+  INFERNO_WAVE_33_TIME = 267,
+  INFERNO_WAVE_34_TIME = 268,
+  INFERNO_WAVE_35_TIME = 269,
+  INFERNO_WAVE_36_TIME = 270,
+  INFERNO_WAVE_37_TIME = 271,
+  INFERNO_WAVE_38_TIME = 272,
+  INFERNO_WAVE_39_TIME = 273,
+  INFERNO_WAVE_40_TIME = 274,
+  INFERNO_WAVE_41_TIME = 275,
+  INFERNO_WAVE_42_TIME = 276,
+  INFERNO_WAVE_43_TIME = 277,
+  INFERNO_WAVE_44_TIME = 278,
+  INFERNO_WAVE_45_TIME = 279,
+  INFERNO_WAVE_46_TIME = 280,
+  INFERNO_WAVE_47_TIME = 281,
+  INFERNO_WAVE_48_TIME = 282,
+  INFERNO_WAVE_49_TIME = 283,
+  INFERNO_WAVE_50_TIME = 284,
+  INFERNO_WAVE_51_TIME = 285,
+  INFERNO_WAVE_52_TIME = 286,
+  INFERNO_WAVE_53_TIME = 287,
+  INFERNO_WAVE_54_TIME = 288,
+  INFERNO_WAVE_55_TIME = 289,
+  INFERNO_WAVE_56_TIME = 290,
+  INFERNO_WAVE_57_TIME = 291,
+  INFERNO_WAVE_58_TIME = 292,
+  INFERNO_WAVE_59_TIME = 293,
+  INFERNO_WAVE_60_TIME = 294,
+  INFERNO_WAVE_61_TIME = 295,
+  INFERNO_WAVE_62_TIME = 296,
+  INFERNO_WAVE_63_TIME = 297,
+  INFERNO_WAVE_64_TIME = 298,
+  INFERNO_WAVE_65_TIME = 299,
+  INFERNO_WAVE_66_TIME = 300,
+  INFERNO_WAVE_67_TIME = 301,
+  INFERNO_WAVE_68_TIME = 302,
+  INFERNO_WAVE_69_TIME = 303,
 }
 
 const genericTobSplits = [
@@ -275,6 +388,11 @@ const genericTobSplits = [
   SplitType.TOB_VERZIK_P1,
   SplitType.TOB_VERZIK_P2,
   SplitType.TOB_VERZIK_P3,
+  SplitType.TOB_BLOAT_START,
+  SplitType.TOB_NYLO_START,
+  SplitType.TOB_SOTETSEG_START,
+  SplitType.TOB_XARPUS_START,
+  SplitType.TOB_VERZIK_START,
 ];
 
 /**
@@ -311,7 +429,10 @@ export function adjustSplitForMode(
  * @returns The generic split type.
  */
 export function generalizeSplit(split: SplitType): SplitType {
-  if (split >= SplitType.TOB_CHALLENGE && split <= SplitType.TOB_HM_VERZIK_P3) {
+  if (
+    split >= SplitType.TOB_CHALLENGE &&
+    split <= SplitType.TOB_HM_VERZIK_START
+  ) {
     return split - (split % 3);
   }
 
@@ -351,7 +472,17 @@ export function splitName(
   full: boolean = false,
   excludeStage: boolean = false,
 ): string {
-  switch (generalizeSplit(split)) {
+  const generic = generalizeSplit(split);
+
+  if (
+    generic >= SplitType.INFERNO_WAVE_1_TIME &&
+    generic <= SplitType.INFERNO_WAVE_69_TIME
+  ) {
+    const wave = generic - SplitType.INFERNO_WAVE_1_TIME + 1;
+    return full ? `Inferno Wave ${wave} time` : `Wave ${wave} time`;
+  }
+
+  switch (generic) {
     case SplitType.TOB_CHALLENGE:
       return full ? 'ToB challenge time' : 'Challenge time';
     case SplitType.TOB_OVERALL:
@@ -429,6 +560,16 @@ export function splitName(
       return excludeStage ? 'P2' : 'Verzik P2';
     case SplitType.TOB_VERZIK_P3:
       return excludeStage ? 'P3' : 'Verzik P3';
+    case SplitType.TOB_BLOAT_START:
+      return full ? 'Bloat entry time' : 'Bloat entry';
+    case SplitType.TOB_NYLO_START:
+      return full ? 'Nylocas entry time' : 'Nylocas entry';
+    case SplitType.TOB_SOTETSEG_START:
+      return full ? 'Sotetseg entry time' : 'Sotetseg entry';
+    case SplitType.TOB_XARPUS_START:
+      return full ? 'Xarpus entry time' : 'Xarpus entry';
+    case SplitType.TOB_VERZIK_START:
+      return full ? 'Verzik entry time' : 'Verzik entry';
     case SplitType.COLOSSEUM_CHALLENGE:
       return full ? 'Colosseum challenge time' : 'Challenge time';
     case SplitType.COLOSSEUM_OVERALL:
@@ -457,6 +598,28 @@ export function splitName(
       return full ? 'Colosseum Wave 11' : 'Wave 11';
     case SplitType.COLOSSEUM_WAVE_12:
       return full ? 'Sol Heredit time' : 'Sol Heredit';
+    case SplitType.COLOSSEUM_WAVE_2_START:
+      return full ? 'Colosseum Wave 2 entry' : 'Wave 2 entry';
+    case SplitType.COLOSSEUM_WAVE_3_START:
+      return full ? 'Colosseum Wave 3 entry' : 'Wave 3 entry';
+    case SplitType.COLOSSEUM_WAVE_4_START:
+      return full ? 'Colosseum Wave 4 entry' : 'Wave 4 entry';
+    case SplitType.COLOSSEUM_WAVE_5_START:
+      return full ? 'Colosseum Wave 5 entry' : 'Wave 5 entry';
+    case SplitType.COLOSSEUM_WAVE_6_START:
+      return full ? 'Colosseum Wave 6 entry' : 'Wave 6 entry';
+    case SplitType.COLOSSEUM_WAVE_7_START:
+      return full ? 'Colosseum Wave 7 entry' : 'Wave 7 entry';
+    case SplitType.COLOSSEUM_WAVE_8_START:
+      return full ? 'Colosseum Wave 8 entry' : 'Wave 8 entry';
+    case SplitType.COLOSSEUM_WAVE_9_START:
+      return full ? 'Colosseum Wave 9 entry' : 'Wave 9 entry';
+    case SplitType.COLOSSEUM_WAVE_10_START:
+      return full ? 'Colosseum Wave 10 entry' : 'Wave 10 entry';
+    case SplitType.COLOSSEUM_WAVE_11_START:
+      return full ? 'Colosseum Wave 11 entry' : 'Wave 11 entry';
+    case SplitType.COLOSSEUM_WAVE_12_START:
+      return full ? 'Sol Heredit entry' : 'Sol Heredit entry';
     case SplitType.MOKHAIOTL_CHALLENGE:
       return full
         ? 'Mokhaiotl Delve 1-8 challenge time'
@@ -481,6 +644,20 @@ export function splitName(
       return full ? 'Mokhaiotl Delve 7' : 'Delve 7';
     case SplitType.MOKHAIOTL_DELVE_8:
       return full ? 'Mokhaiotl Delve 8' : 'Delve 8';
+    case SplitType.MOKHAIOTL_DELVE_2_START:
+      return full ? 'Mokhaiotl Delve 2 entry' : 'Delve 2 entry';
+    case SplitType.MOKHAIOTL_DELVE_3_START:
+      return full ? 'Mokhaiotl Delve 3 entry' : 'Delve 3 entry';
+    case SplitType.MOKHAIOTL_DELVE_4_START:
+      return full ? 'Mokhaiotl Delve 4 entry' : 'Delve 4 entry';
+    case SplitType.MOKHAIOTL_DELVE_5_START:
+      return full ? 'Mokhaiotl Delve 5 entry' : 'Delve 5 entry';
+    case SplitType.MOKHAIOTL_DELVE_6_START:
+      return full ? 'Mokhaiotl Delve 6 entry' : 'Delve 6 entry';
+    case SplitType.MOKHAIOTL_DELVE_7_START:
+      return full ? 'Mokhaiotl Delve 7 entry' : 'Delve 7 entry';
+    case SplitType.MOKHAIOTL_DELVE_8_START:
+      return full ? 'Mokhaiotl Delve 8 entry' : 'Delve 8 entry';
 
     case SplitType.INFERNO_CHALLENGE:
       return full ? 'Inferno challenge time' : 'Challenge time';
@@ -512,11 +689,6 @@ export function splitName(
       return full ? 'Inferno Wave 68' : 'Wave 68';
     case SplitType.INFERNO_WAVE_69_START:
       return full ? 'Inferno Wave 69' : 'Wave 69';
-    case SplitType.INFERNO_WAVE_68_TIME:
-      return full ? 'Inferno Wave 68 time' : 'Wave 68 time';
-    case SplitType.INFERNO_WAVE_69_TIME:
-      return full ? 'Inferno Wave 69 time' : 'Wave 69 time';
-
     default:
       return 'Unknown split';
   }
@@ -583,6 +755,14 @@ export function splitToStage(split: SplitType): Stage {
     split <= SplitType.MOKHAIOTL_DELVE_8
   ) {
     return Stage.MOKHAIOTL_DELVE_1 + (split - SplitType.MOKHAIOTL_DELVE_1);
+  }
+
+  const generic = generalizeSplit(split);
+  if (
+    generic >= SplitType.INFERNO_WAVE_1_TIME &&
+    generic <= SplitType.INFERNO_WAVE_69_TIME
+  ) {
+    return Stage.INFERNO_WAVE_1 + (generic - SplitType.INFERNO_WAVE_1_TIME);
   }
 
   return Stage.UNKNOWN;

@@ -120,6 +120,19 @@ export default class ColosseumProcessor extends ChallengeProcessor {
       events.getLastTick(),
     );
 
+    if (
+      events.getStatus() === StageStatus.COMPLETED &&
+      stage > Stage.COLOSSEUM_WAVE_1 &&
+      stage < Stage.COLOSSEUM_WAVE_12 &&
+      this.hasFullyRecordedUpTo(stage)
+    ) {
+      this.setSplit(
+        SplitType.COLOSSEUM_WAVE_3_START + (waveIndex(stage) - 1),
+        this.getTotalChallengeTicks(),
+        this.isPartyUnchanged() && events.hasPreciseServerTickCount(),
+      );
+    }
+
     await this.getDataRepository().saveColosseumChallengeData(
       this.getUuid(),
       this.colosseumData,

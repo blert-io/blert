@@ -119,6 +119,19 @@ export default class MokhaiotlProcessor extends ChallengeProcessor {
       }
       const index = stage - Stage.MOKHAIOTL_DELVE_1;
       this.setSplit(SplitType.MOKHAIOTL_DELVE_1 + index, events.getLastTick());
+
+      if (
+        events.getStatus() === StageStatus.COMPLETED &&
+        stage > Stage.MOKHAIOTL_DELVE_1 &&
+        stage < Stage.MOKHAIOTL_DELVE_8 &&
+        this.hasFullyRecordedUpTo(stage)
+      ) {
+        this.setSplit(
+          SplitType.MOKHAIOTL_DELVE_3_START + (index - 1),
+          this.getTotalChallengeTicks(),
+          this.isPartyUnchanged() && events.hasPreciseServerTickCount(),
+        );
+      }
     }
 
     const delve = this.getDelve();
