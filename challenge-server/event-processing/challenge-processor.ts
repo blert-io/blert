@@ -167,7 +167,7 @@ export default abstract class ChallengeProcessor {
   private reportedTimes: ReportedTimes | null;
   private partyChangedMidChallenge: boolean;
 
-  private splits: Map<SplitType, number>;
+  private splits: Map<SplitType, { ticks: number; accurate?: boolean }>;
   private stageState: StageState;
 
   private pendingUpdates: {
@@ -949,13 +949,13 @@ export default abstract class ChallengeProcessor {
 
     const splitsToInsert: (ChallengeSplit & { challenge_id: number })[] = [];
 
-    this.splits.forEach((ticks, split) => {
+    this.splits.forEach((entry, split) => {
       splitsToInsert.push({
         challenge_id: this.databaseId,
         type: adjustSplitForMode(split, this.mode),
         scale: this.getScale(),
-        ticks,
-        accurate,
+        ticks: entry.ticks,
+        accurate: entry.accurate ?? accurate,
       });
     });
 
@@ -1641,14 +1641,18 @@ export default abstract class ChallengeProcessor {
     return this.reportedTimes?.overall ?? 0;
   }
 
-  protected setSplit(type: SplitType, ticks: number): void {
+  protected setSplit(type: SplitType, ticks: number, accurate?: boolean): void {
     if (ticks > 0) {
-      this.splits.set(type, ticks);
+      this.splits.set(type, { ticks, accurate });
     }
   }
 
   protected getSplit(type: SplitType): number | undefined {
-    return this.splits.get(type);
+    return this.splits.get(type)?.ticks;
+  }
+
+  protected isPartyUnchanged(): boolean {
+    return !this.partyChangedMidChallenge;
   }
 
   protected getStageState(): StageState {

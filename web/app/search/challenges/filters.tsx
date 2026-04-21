@@ -605,6 +605,10 @@ const CUSTOM_FILTERS_ITEMS: MenuItem[] = [
             label: 'Nylocas',
             subMenu: [
               {
+                label: 'Room entry',
+                value: s('Nylo entry', SplitType.TOB_NYLO_START).id,
+              },
+              {
                 label: 'Room time',
                 value: s('Nylo room', SplitType.TOB_NYLO_ROOM).id,
               },
@@ -622,6 +626,10 @@ const CUSTOM_FILTERS_ITEMS: MenuItem[] = [
           {
             label: 'Sotetseg',
             subMenu: [
+              {
+                label: 'Room entry',
+                value: s('Sote entry', SplitType.TOB_SOTETSEG_START).id,
+              },
               {
                 label: 'Room time',
                 value: s('Sote room', SplitType.TOB_SOTETSEG).id,
@@ -648,6 +656,10 @@ const CUSTOM_FILTERS_ITEMS: MenuItem[] = [
             label: 'Xarpus',
             subMenu: [
               {
+                label: 'Room entry',
+                value: s('Xarpus entry', SplitType.TOB_XARPUS_START).id,
+              },
+              {
                 label: 'Room time',
                 value: s('Xarpus room', SplitType.TOB_XARPUS).id,
               },
@@ -660,6 +672,10 @@ const CUSTOM_FILTERS_ITEMS: MenuItem[] = [
           {
             label: 'Verzik',
             subMenu: [
+              {
+                label: 'Room entry',
+                value: s('Verzik entry', SplitType.TOB_VERZIK_START).id,
+              },
               {
                 label: 'Room time',
                 value: s('Verzik room', SplitType.TOB_VERZIK_ROOM).id,
@@ -754,43 +770,134 @@ const CUSTOM_FILTERS_ITEMS: MenuItem[] = [
           },
           {
             label: 'Wave 3',
-            value: s('Wave 3', SplitType.COLOSSEUM_WAVE_3).id,
+            subMenu: [
+              {
+                label: 'Wave entry',
+                value: s('Wave 3 entry', SplitType.COLOSSEUM_WAVE_3_START).id,
+              },
+              {
+                label: 'Wave time',
+                value: s('Wave 3', SplitType.COLOSSEUM_WAVE_3).id,
+              },
+            ],
           },
           {
             label: 'Wave 4',
-            value: s('Wave 4', SplitType.COLOSSEUM_WAVE_4).id,
+            subMenu: [
+              {
+                label: 'Wave entry',
+                value: s('Wave 4 entry', SplitType.COLOSSEUM_WAVE_4_START).id,
+              },
+              {
+                label: 'Wave time',
+                value: s('Wave 4', SplitType.COLOSSEUM_WAVE_4).id,
+              },
+            ],
           },
           {
             label: 'Wave 5',
-            value: s('Wave 5', SplitType.COLOSSEUM_WAVE_5).id,
+            subMenu: [
+              {
+                label: 'Wave entry',
+                value: s('Wave 5 entry', SplitType.COLOSSEUM_WAVE_5_START).id,
+              },
+              {
+                label: 'Wave time',
+                value: s('Wave 5', SplitType.COLOSSEUM_WAVE_5).id,
+              },
+            ],
           },
           {
             label: 'Wave 6',
-            value: s('Wave 6', SplitType.COLOSSEUM_WAVE_6).id,
+            subMenu: [
+              {
+                label: 'Wave entry',
+                value: s('Wave 6 entry', SplitType.COLOSSEUM_WAVE_6_START).id,
+              },
+              {
+                label: 'Wave time',
+                value: s('Wave 6', SplitType.COLOSSEUM_WAVE_6).id,
+              },
+            ],
           },
           {
             label: 'Wave 7',
-            value: s('Wave 7', SplitType.COLOSSEUM_WAVE_7).id,
+            subMenu: [
+              {
+                label: 'Wave entry',
+                value: s('Wave 7 entry', SplitType.COLOSSEUM_WAVE_7_START).id,
+              },
+              {
+                label: 'Wave time',
+                value: s('Wave 7', SplitType.COLOSSEUM_WAVE_7).id,
+              },
+            ],
           },
           {
             label: 'Wave 8',
-            value: s('Wave 8', SplitType.COLOSSEUM_WAVE_8).id,
+            subMenu: [
+              {
+                label: 'Wave entry',
+                value: s('Wave 8 entry', SplitType.COLOSSEUM_WAVE_8_START).id,
+              },
+              {
+                label: 'Wave time',
+                value: s('Wave 8', SplitType.COLOSSEUM_WAVE_8).id,
+              },
+            ],
           },
           {
             label: 'Wave 9',
-            value: s('Wave 9', SplitType.COLOSSEUM_WAVE_9).id,
+            subMenu: [
+              {
+                label: 'Wave entry',
+                value: s('Wave 9 entry', SplitType.COLOSSEUM_WAVE_9_START).id,
+              },
+              {
+                label: 'Wave time',
+                value: s('Wave 9', SplitType.COLOSSEUM_WAVE_9).id,
+              },
+            ],
           },
           {
             label: 'Wave 10',
-            value: s('Wave 10', SplitType.COLOSSEUM_WAVE_10).id,
+            subMenu: [
+              {
+                label: 'Wave entry',
+                value: s('Wave 10 entry', SplitType.COLOSSEUM_WAVE_10_START).id,
+              },
+              {
+                label: 'Wave time',
+                value: s('Wave 10', SplitType.COLOSSEUM_WAVE_10).id,
+              },
+            ],
           },
           {
             label: 'Wave 11',
-            value: s('Wave 11', SplitType.COLOSSEUM_WAVE_11).id,
+            subMenu: [
+              {
+                label: 'Wave entry',
+                value: s('Wave 11 entry', SplitType.COLOSSEUM_WAVE_11_START).id,
+              },
+              {
+                label: 'Wave time',
+                value: s('Wave 11', SplitType.COLOSSEUM_WAVE_11).id,
+              },
+            ],
           },
           {
             label: 'Sol Heredit',
-            value: s('Sol Heredit', SplitType.COLOSSEUM_WAVE_12).id,
+            subMenu: [
+              {
+                label: 'Sol entry',
+                value: s('Sol Heredit entry', SplitType.COLOSSEUM_WAVE_12_START)
+                  .id,
+              },
+              {
+                label: 'Sol time',
+                value: s('Sol Heredit', SplitType.COLOSSEUM_WAVE_12).id,
+              },
+            ],
           },
         ],
       },
@@ -807,27 +914,81 @@ const CUSTOM_FILTERS_ITEMS: MenuItem[] = [
           },
           {
             label: 'Delve 3',
-            value: s('Delve 3', SplitType.MOKHAIOTL_DELVE_3).id,
+            subMenu: [
+              {
+                label: 'Delve entry',
+                value: s('Delve 3 entry', SplitType.MOKHAIOTL_DELVE_3_START).id,
+              },
+              {
+                label: 'Delve time',
+                value: s('Delve 3', SplitType.MOKHAIOTL_DELVE_3).id,
+              },
+            ],
           },
           {
             label: 'Delve 4',
-            value: s('Delve 4', SplitType.MOKHAIOTL_DELVE_4).id,
+            subMenu: [
+              {
+                label: 'Delve entry',
+                value: s('Delve 4 entry', SplitType.MOKHAIOTL_DELVE_4_START).id,
+              },
+              {
+                label: 'Delve time',
+                value: s('Delve 4', SplitType.MOKHAIOTL_DELVE_4).id,
+              },
+            ],
           },
           {
             label: 'Delve 5',
-            value: s('Delve 5', SplitType.MOKHAIOTL_DELVE_5).id,
+            subMenu: [
+              {
+                label: 'Delve entry',
+                value: s('Delve 5 entry', SplitType.MOKHAIOTL_DELVE_5_START).id,
+              },
+              {
+                label: 'Delve time',
+                value: s('Delve 5', SplitType.MOKHAIOTL_DELVE_5).id,
+              },
+            ],
           },
           {
             label: 'Delve 6',
-            value: s('Delve 6', SplitType.MOKHAIOTL_DELVE_6).id,
+            subMenu: [
+              {
+                label: 'Delve entry',
+                value: s('Delve 6 entry', SplitType.MOKHAIOTL_DELVE_6_START).id,
+              },
+              {
+                label: 'Delve time',
+                value: s('Delve 6', SplitType.MOKHAIOTL_DELVE_6).id,
+              },
+            ],
           },
           {
             label: 'Delve 7',
-            value: s('Delve 7', SplitType.MOKHAIOTL_DELVE_7).id,
+            subMenu: [
+              {
+                label: 'Delve entry',
+                value: s('Delve 7 entry', SplitType.MOKHAIOTL_DELVE_7_START).id,
+              },
+              {
+                label: 'Delve time',
+                value: s('Delve 7', SplitType.MOKHAIOTL_DELVE_7).id,
+              },
+            ],
           },
           {
             label: 'Delve 8',
-            value: s('Delve 8', SplitType.MOKHAIOTL_DELVE_8).id,
+            subMenu: [
+              {
+                label: 'Delve entry',
+                value: s('Delve 8 entry', SplitType.MOKHAIOTL_DELVE_8_START).id,
+              },
+              {
+                label: 'Delve time',
+                value: s('Delve 8', SplitType.MOKHAIOTL_DELVE_8).id,
+              },
+            ],
           },
         ],
       },

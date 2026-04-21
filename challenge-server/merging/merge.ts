@@ -350,15 +350,16 @@ export class Merger {
 export class MergedEvents {
   private ticks: TickStateArray;
   private readonly status: StageStatus;
+  private readonly preciseServerTickCount: boolean;
   private accurate: boolean;
 
   constructor(base: ClientEvents) {
+    const serverTicks = base.getServerTicks();
     const tickCount =
-      base.getServerTicks() !== null
-        ? base.getServerTicks()!.count
-        : base.getFinalTick();
+      serverTicks !== null ? serverTicks.count : base.getFinalTick();
 
     this.status = base.getStatus();
+    this.preciseServerTickCount = serverTicks?.precise === true;
     this.accurate = base.isAccurate();
     this.ticks = Array<TickState | null>(tickCount + 1).fill(null);
     this.initializeBaseTicks(base);
@@ -374,6 +375,10 @@ export class MergedEvents {
 
   public isAccurate(): boolean {
     return this.accurate;
+  }
+
+  public hasPreciseServerTickCount(): boolean {
+    return this.preciseServerTickCount;
   }
 
   public getTicks(): TickStateArray {
