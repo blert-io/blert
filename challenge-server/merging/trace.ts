@@ -6,10 +6,10 @@ import { ReferenceSelection } from './classification';
 import { EventType } from './event';
 import {
   AttackMappedCandidate,
-  QualityFlag,
   ResolutionStrategy,
 } from './event-consolidator';
 import { MergeClientClassification, MergeClientStatus } from './merge';
+import { QualityFlag } from './quality';
 import { MergeMapping, TickMapping } from './tick-mapping';
 import { NpcState, PlayerState, TickState, TickStateArray } from './tick-state';
 
@@ -189,13 +189,14 @@ function serializePlayer(state: Readonly<PlayerState>): PlayerSummary {
     x: state.x,
     y: state.y,
     isDead: state.isDead,
-    attack: state.attack
-      ? {
-          type: state.attack.type,
-          weaponId: state.attack.weaponId,
-          target: state.attack.target,
-        }
-      : null,
+    attack:
+      state.attack !== null
+        ? {
+            type: state.attack.type,
+            weaponId: state.attack.weaponId,
+            target: state.attack.target?.roomId ?? null,
+          }
+        : null,
   };
 }
 

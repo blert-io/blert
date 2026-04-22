@@ -1,8 +1,10 @@
 import {
+  ChallengeMode,
   ChallengeStatus,
   ChallengeType,
   DataSource,
   EventType,
+  PlayerAttack,
   SkillLevel,
   Stage,
   StageStatus,
@@ -14,13 +16,14 @@ import {
 
 import { ReferenceSelectionMethod } from '../classification';
 import { ClientEvents } from '../client-events';
+import { createPlayerAttackEvent } from './fixtures';
 import {
   Merger,
-  MergeAlertType,
   MergeClientClassification,
   MergeClientStatus,
   MergeOptions,
 } from '../merge';
+import { MergeAlertType } from '../quality';
 
 type Proto<T> = T[keyof T];
 
@@ -198,6 +201,9 @@ function generateTickEvents(
   return events;
 }
 
+const SCYTHE_COOLDOWN = 5;
+const SCYTHE_WEAPON_ID = 22325;
+
 const client1Events = [
   createEvent({
     type: EventType.PLAYER_UPDATE,
@@ -231,7 +237,7 @@ const client1Events = [
     player: {
       name: 'player1',
       source: DataSource.PRIMARY,
-      offCooldownTick: 0,
+      offCooldownTick: SCYTHE_COOLDOWN + 1,
       prayerSet: 0,
       attack: new SkillLevel(118, 99).toRaw(),
       strength: new SkillLevel(118, 99).toRaw(),
@@ -249,12 +255,20 @@ const client1Events = [
       prayerSet: 0,
     },
   }),
+  createPlayerAttackEvent({
+    tick: 1,
+    name: 'player1',
+    attackType: PlayerAttack.SCYTHE,
+    weaponId: SCYTHE_WEAPON_ID,
+    stage: Stage.TOB_MAIDEN,
+  }),
 ];
 
 const fakeChallenge = {
   id: 99,
   uuid: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeffffff',
   type: ChallengeType.TOB,
+  mode: ChallengeMode.TOB_REGULAR,
   status: ChallengeStatus.WIPED,
   stage: Stage.TOB_SOTETSEG,
   party: ['player1', 'player2'],
@@ -298,7 +312,7 @@ describe('Merger', () => {
     expect(events.isAccurate()).toBe(false);
     expect(events.getMissingTickCount()).toBe(0);
     const allEvents = Array.from(events);
-    expect(allEvents.length).toBe(4);
+    expect(allEvents.length).toBe(client1Events.length);
 
     expect(allEvents.map((e) => e.toObject())).toEqual(
       client1Events.map((e) => e.toObject()),
@@ -341,7 +355,7 @@ describe('Merger', () => {
     expect(events.hasPreciseServerTickCount()).toBe(true);
     expect(events.getMissingTickCount()).toBe(0);
     const allEvents = Array.from(events);
-    expect(allEvents.length).toBe(4);
+    expect(allEvents.length).toBe(client1Events.length);
 
     expect(allEvents.map((e) => e.toObject())).toEqual(
       client1Events.map((e) => e.toObject()),
@@ -431,14 +445,26 @@ describe('Merger', () => {
     expect(events.isAccurate()).toBe(false);
     expect(events.getMissingTickCount()).toBe(MISSING_TICKS);
     const allEvents = Array.from(events);
-    expect(allEvents.length).toBe(4);
+    expect(allEvents.length).toBe(client1Events.length);
+
+    const attack = client1Events.find(
+      (e) => e.getType() === EventType.PLAYER_ATTACK,
+    )!;
 
     expect(allEvents.map((e) => e.toObject())).toEqual(
       client1Events.map((e) => {
         const obj = e.toObject();
         obj.tick += MISSING_TICKS;
-        if (obj.player) {
-          obj.player.offCooldownTick += MISSING_TICKS;
+        if (obj.type === EventType.PLAYER_UPDATE && obj.player) {
+          if (obj.player.name === attack.getPlayer()?.getName()) {
+            if (e.getTick() < attack.getTick()) {
+              obj.player.offCooldownTick = 0;
+            } else {
+              obj.player.offCooldownTick += MISSING_TICKS;
+            }
+          } else {
+            obj.player.offCooldownTick = 0;
+          }
         }
         return obj;
       }),

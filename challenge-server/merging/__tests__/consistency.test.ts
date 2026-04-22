@@ -51,7 +51,7 @@ function createNyloWaveSpawnEvent(tick: number, wave: number): ProtoEvent {
   return event;
 }
 
-const defaultPlayer = createPlayerState({ username: 'player1' });
+const defaultPlayer = createPlayerState({ username: 'player1', clientId: 1 });
 
 function buildTicks(
   length: number,
@@ -92,7 +92,12 @@ function buildPlayerTicks(
       .filter((name) => tickPositions?.has(name))
       .map((name) => {
         const pos = tickPositions!.get(name)!;
-        return createPlayerState({ username: name, x: pos.x, y: pos.y });
+        return createPlayerState({
+          username: name,
+          clientId: 1,
+          x: pos.x,
+          y: pos.y,
+        });
       });
     ticks.push(createTickState(i, players, tickEvents[i] ?? []));
   }
@@ -161,11 +166,12 @@ describe('MovementConsistencyChecker', () => {
       ]);
       const ticks: TickStateArray = [
         createTickState(0, [
-          createPlayerState({ username: 'player1', x: 0, y: 0 }),
+          createPlayerState({ username: 'player1', clientId: 1, x: 0, y: 0 }),
         ]),
         createTickState(1, [
           createPlayerState({
             username: 'player1',
+            clientId: 1,
             x: 50,
             y: 50,
             isDead: true,
@@ -207,11 +213,11 @@ describe('MovementConsistencyChecker', () => {
       ]);
       const ticks: TickStateArray = [
         createTickState(0, [
-          createPlayerState({ username: 'player1', x: 0, y: 0 }),
+          createPlayerState({ username: 'player1', clientId: 1, x: 0, y: 0 }),
         ]),
         null,
         createTickState(2, [
-          createPlayerState({ username: 'player1', x: 2, y: 2 }),
+          createPlayerState({ username: 'player1', clientId: 1, x: 2, y: 2 }),
         ]),
       ];
 

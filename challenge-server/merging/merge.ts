@@ -21,8 +21,9 @@ import {
 import { ClientAnomaly, ClientEvents, ServerTicks } from './client-events';
 import { ConsistencyIssue } from './consistency';
 import logger from '../log';
+import { MergeAlert, MergeAlertType } from './quality';
 import { SimilarityScorer } from './similarity-scorer';
-import { TickState, TickStateArray } from './tick-state';
+import { resynchronizeTicks, TickState, TickStateArray } from './tick-state';
 import { MergeTracer } from './trace';
 
 const MIN_ALIGNMENT_COVERAGE = 0.5;
@@ -32,15 +33,6 @@ export type ChallengeInfo = {
   type: ChallengeType;
   mode: ChallengeMode;
   party: string[];
-};
-
-export const enum MergeAlertType {
-  MULTIPLE_ACCURATE_TICK_MODES = 'MULTIPLE_ACCURATE_TICK_MODES',
-}
-
-export type MergeAlert = {
-  type: MergeAlertType;
-  details?: Record<string, unknown>;
 };
 
 export const enum MergeClientStatus {
@@ -168,6 +160,7 @@ export class Merger {
     this.referenceSelection = clients.referenceTicks;
 
     const ctx: MergeContext = {
+      stage: this.stage,
       clients: registeredClients,
       mapping: new MergeMapping(clients.base.getId()),
       tracer,
@@ -244,6 +237,8 @@ export class Merger {
         ),
       );
     }
+
+    merged.finalizeMerge();
 
     const { mergedCount, unmergedCount, skippedCount } =
       this.getMergeCounts(mergeClients);
@@ -384,6 +379,7 @@ export class MergedEvents {
   private readonly ctx: MergeContext;
   private readonly preciseServerTickCount: boolean;
   private accurate: boolean;
+  private finalized: boolean;
 
   constructor(base: ClientEvents, ctx: MergeContext) {
     const serverTicks = base.getServerTicks();
@@ -394,11 +390,15 @@ export class MergedEvents {
     this.ctx = ctx;
     this.preciseServerTickCount = serverTicks?.precise === true;
     this.accurate = base.isAccurate();
+    this.finalized = false;
     this.ticks = Array<TickState | null>(tickCount + 1).fill(null);
     this.initializeBaseTicks(base);
   }
 
   public events(): EventIterator {
+    if (!this.finalized) {
+      throw new Error('Merge not finalized');
+    }
     return new EventIterator(this.ticks);
   }
 
@@ -488,10 +488,20 @@ export class MergedEvents {
     }
 
     this.ctx.mapping.commit();
-    this.ticks = result.ticks;
-    this.ticks.forEach((tick) => tick?.resynchronize(this.ticks));
 
+    this.ticks = result.ticks;
     return true;
+  }
+
+  /**
+   * Commits the base event timeline of the merge.
+   */
+  public finalizeMerge(): void {
+    if (this.finalized) {
+      return;
+    }
+    resynchronizeTicks(this.ctx.stage, this.ticks);
+    this.finalized = true;
   }
 
   /**
@@ -499,6 +509,10 @@ export class MergedEvents {
    * @param stage Stage that the events are being merged for.
    */
   public postprocess(stage: Stage): void {
+    if (!this.finalized) {
+      throw new Error('Merge not finalized');
+    }
+
     if (stage === Stage.TOB_MAIDEN) {
       this.correctOffsetMaidenSpawn();
     }
@@ -555,7 +569,7 @@ export class MergedEvents {
           const events = state
             .getTaggedEvents()
             .map((t) => remapEventTick(t, remap));
-          this.ticks[newTick] = new TickState(
+          this.ticks[newTick] = TickState.fromEvents(
             newTick,
             events,
             new Map(state.getPlayerStates()),
@@ -619,7 +633,7 @@ export class MergedEvents {
       return;
     }
 
-    this.ticks[tick] = new TickState(
+    this.ticks[tick] = TickState.fromEvents(
       tick,
       taggedEvents.filter((_, i) => i !== spawnIdx),
       tickState.getPlayerStates(),

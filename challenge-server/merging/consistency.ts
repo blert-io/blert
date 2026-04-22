@@ -96,6 +96,19 @@ function isValidP3WebsPushDestination(coords: CoordsLike): boolean {
   return chebyshev(coords, VERZIK_P3_WEBS_CENTER_TILE) === 4;
 }
 
+function hasNpcAttack(
+  tickState: TickState | null,
+  idMatches: (id: number) => boolean,
+  attackType: NpcAttack,
+): boolean {
+  for (const npc of tickState?.getNpcs().values() ?? []) {
+    if (idMatches(npc.id) && npc.attack?.type === attackType) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function checkForP3WebsPush(
   ticks: TickStateArray,
   tick: number,
@@ -112,14 +125,12 @@ function checkForP3WebsPush(
       continue;
     }
 
-    const websAttack = tickState
-      .getEventsByType(Event.Type.NPC_ATTACK)
-      ?.find((evt) => {
-        const attack = evt.getNpcAttack()!;
-        return attack.getAttack() === NpcAttack.TOB_VERZIK_P3_WEBS;
-      });
-    if (websAttack !== undefined) {
-      isWebs = true;
+    isWebs = hasNpcAttack(
+      tickState,
+      (id) => Npc.isVerzikP3(id),
+      NpcAttack.TOB_VERZIK_P3_WEBS,
+    );
+    if (isWebs) {
       break;
     }
   }
@@ -401,11 +412,10 @@ export class MovementConsistencyChecker extends ConsistencyChecker {
     // present, we ensure that only the player we are checking made a
     // bounce-like movement.
     const hasBounce = (tickState: TickState | null): boolean => {
-      return (
-        tickState?.getEventsByType(Event.Type.NPC_ATTACK)?.find((evt) => {
-          const attack = evt.getNpcAttack()!;
-          return attack.getAttack() === NpcAttack.TOB_VERZIK_P2_BOUNCE;
-        }) !== undefined
+      return hasNpcAttack(
+        tickState,
+        (id) => Npc.isVerzikP2(id),
+        NpcAttack.TOB_VERZIK_P2_BOUNCE,
       );
     };
 

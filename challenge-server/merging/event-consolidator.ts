@@ -1,4 +1,11 @@
-import { getNpcDefinition, Npc, NpcAttack, PlayerAttack } from '@blert/common';
+import {
+  getNpcDefinition,
+  Npc,
+  NpcAttack,
+  PlayerAttack,
+  PlayerSpell,
+  spellDefinitionsById,
+} from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
 import { MergeContext } from './context';
@@ -15,8 +22,16 @@ import {
   TaggedEvent,
 } from './event';
 import logger from '../log';
+import { QualityFlag } from './quality';
 import { TickMapping } from './tick-mapping';
-import { TickState, TickStateArray } from './tick-state';
+import {
+  PlayerAttacked,
+  SpellCast,
+  SpellTarget,
+  TickState,
+  TickStateArray,
+  WithProvenance,
+} from './tick-state';
 import { AttackMappedResolutionEntry, TickMergeDecisionType } from './trace';
 import { CoordsLike, euclidean } from './world';
 
@@ -52,28 +67,6 @@ export type ConsolidationResult = {
   qualityFlags: QualityFlag[];
 };
 
-export type QualityFlag =
-  | {
-      kind: 'LARGE_TEMPORAL_GAP';
-      eventType: EventType;
-      tickGap: number;
-      baseTick: number;
-      targetTick: number;
-    }
-  | {
-      kind: 'UNEXPECTED_CONFLICT';
-      eventType: EventType;
-      attackTick: number;
-      candidateCount: number;
-    }
-  | {
-      kind: 'UNMAPPED_CROSS_TICK_REFERENCE';
-      eventType: EventType;
-      mergedTick: number;
-      sourceTick: number;
-      resolvedTick: number;
-    };
-
 /**
  * Strategy for resolving conflicts when multiple clients disagree about
  * an event's content.
@@ -101,9 +94,30 @@ type AttackMappedEventConfig = {
 };
 
 function hasNpcAttack(state: TickState, attack: NpcAttack): boolean {
-  return state
-    .getEventsByType(Event.Type.NPC_ATTACK)
-    .some((e) => e.getNpcAttack()!.getAttack() === attack);
+  for (const npc of state.getNpcs().values()) {
+    if (npc.attack?.type === attack) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isTargetedSpell(spell: PlayerSpell): boolean {
+  const def = spellDefinitionsById.get(spell);
+  return (def?.targetGraphics?.length ?? 0) > 0;
+}
+
+function spellTargetsEqual(a: SpellTarget, b: SpellTarget): boolean {
+  if (a.kind !== b.kind) {
+    return false;
+  }
+  if (a.kind === 'player' && b.kind === 'player') {
+    return a.name === b.name;
+  }
+  if (a.kind === 'npc' && b.kind === 'npc') {
+    return a.roomId === b.roomId;
+  }
+  return false;
 }
 
 const ATTACK_MAPPED_CONFIGS: Record<
@@ -296,24 +310,15 @@ export class EventConsolidator {
         );
 
         const mergedState = this.mergedTicks[m]!;
-        if (mergedState.merge(targetClone)) {
-          this.resolveAmbiguousPlayerAttacks(mergedState, targetClone);
+        const mergeFlags = mergedState.merge(targetClone);
+        this.qualityFlags.push(...mergeFlags);
+        this.mergePlayerAttacks(mergedState, targetClone);
+        this.mergePlayerSpells(mergedState, targetClone);
 
-          this.ctx.tracer?.recordTickDecision({
-            tick: m,
-            type: TickMergeDecisionType.MERGED,
-          });
-        } else {
-          logger.warn('consolidate_tick_conflict', {
-            mergedTick: m,
-            baseTick: baseIdx,
-            targetTick: targetIdx,
-          });
-          this.ctx.tracer?.recordTickDecision({
-            tick: m,
-            type: TickMergeDecisionType.SKIPPED,
-          });
-        }
+        this.ctx.tracer?.recordTickDecision({
+          tick: m,
+          type: TickMergeDecisionType.MERGED,
+        });
         continue;
       }
 
@@ -827,93 +832,303 @@ export class EventConsolidator {
   }
 
   /**
-   * Checks for projectile-ambiguous player attack conflicts between the base
-   * and target at a merged tick and resolves them by primary proximity to the
-   * attacker.
+   * Merges player attack observations between the merged and target tick states
+   * by filling missing data and resolving conflicts.
    *
-   * @param merged Merged tick state whose events to resolve.
-   * @param target The target tick state.
+   * For each player whose attack is present on either side, decides which
+   * client's view to keep, then reconciles the target field.
    */
-  private resolveAmbiguousPlayerAttacks(
-    merged: TickState,
-    target: TickState,
-  ): void {
-    const mergedAttacks = merged.getTaggedEventsByType(
-      Event.Type.PLAYER_ATTACK,
-    );
-    const targetAttacks = target.getTaggedEventsByType(
-      Event.Type.PLAYER_ATTACK,
-    );
-
-    for (const mergedAttack of mergedAttacks) {
-      const attacker = mergedAttack.event.getPlayer()!.getName();
-
-      const targetAttack = targetAttacks.find(
-        (t) => t.event.getPlayer()?.getName() === attacker,
-      );
-      if (targetAttack === undefined) {
+  private mergePlayerAttacks(merged: TickState, target: TickState): void {
+    for (const [player, attackerState] of merged.getPlayerStates()) {
+      if (!attackerState) {
         continue;
       }
 
-      // If the merged attack is already from the target, this tick was a gap
-      // in the base timeline which was filled, so there is nothing to resolve.
-      if (mergedAttack.source === targetAttack.source) {
+      const baseAttack = attackerState.attack;
+      const otherAttack = target.getPlayerState(player)?.attack ?? null;
+
+      if (baseAttack === null && otherAttack === null) {
         continue;
       }
 
-      const baseType = mergedAttack.event.getPlayerAttack()!.getType();
-      const targetType = targetAttack.event.getPlayerAttack()!.getType();
-      if (!areProjectileAmbiguous(baseType, targetType)) {
+      if (baseAttack === null) {
+        merged.setPlayerAttack(player, otherAttack);
         continue;
       }
 
-      const attackerState = merged.getPlayerState(attacker);
-      if (attackerState === null) {
+      if (otherAttack === null) {
         continue;
       }
 
-      const basePrimary = this.ctx.clients
-        .get(mergedAttack.source)
-        ?.client?.getPrimaryPlayer();
-      const targetPrimary = this.ctx.clients
-        .get(targetAttack.source)
-        ?.client?.getPrimaryPlayer();
-      if (!basePrimary || !targetPrimary) {
+      if (baseAttack.sourceClientId === otherAttack.sourceClientId) {
         continue;
       }
 
-      const basePrimaryState = merged.getPlayerState(basePrimary);
-      const targetPrimaryState = target.getPlayerState(targetPrimary);
-      if (basePrimaryState === null || targetPrimaryState === null) {
-        continue;
+      let winner: WithProvenance<PlayerAttacked> = baseAttack;
+      let loser: WithProvenance<PlayerAttacked> = otherAttack;
+
+      if (baseAttack.type !== otherAttack.type) {
+        if (!areProjectileAmbiguous(baseAttack.type, otherAttack.type)) {
+          // The clients disagree on the attack type. Flag and keep the base.
+          this.qualityFlags.push({
+            kind: 'ATTACK_TYPE_MISMATCH',
+            tick: merged.getTick(),
+            player,
+            keptType: baseAttack.type,
+            discardedType: otherAttack.type,
+            keptSourceClientId: baseAttack.sourceClientId,
+            discardedSourceClientId: otherAttack.sourceClientId,
+          });
+          logger.warn('consolidate_attack_type_mismatch', {
+            tick: merged.getTick(),
+            player,
+            baseAttackType: baseAttack.type,
+            otherAttackType: otherAttack.type,
+            baseAttackSourceClientId: baseAttack.sourceClientId,
+            otherAttackSourceClientId: otherAttack.sourceClientId,
+          });
+          continue;
+        }
+
+        const override = this.resolveProjectileAmbiguousAttack(
+          merged,
+          baseAttack,
+          target,
+          otherAttack,
+          player,
+          attackerState,
+        );
+        if (override) {
+          winner = otherAttack;
+          loser = baseAttack;
+        }
       }
 
-      const baseDist = euclidean(basePrimaryState, attackerState);
-      const targetDist = euclidean(targetPrimaryState, attackerState);
-
-      const winner = targetDist < baseDist ? 'target' : 'base';
-      if (winner === 'target') {
-        merged.replacePlayerAttack(attacker, targetAttack);
-      }
-
-      this.ctx.tracer?.recordAmbiguousAttackResolution({
-        tick: merged.getTick(),
-        attacker,
-        base: {
-          sourceClientId: mergedAttack.source,
-          primaryPlayer: basePrimary,
-          attackType: baseType,
-          distance: baseDist,
-        },
-        target: {
-          sourceClientId: targetAttack.source,
-          primaryPlayer: targetPrimary,
-          attackType: targetType,
-          distance: targetDist,
-        },
+      const reconciled = this.reconcileAttackTarget(
         winner,
+        loser,
+        merged.getTick(),
+        player,
+      );
+      merged.setPlayerAttack(player, reconciled);
+    }
+  }
+
+  /**
+   * Resolves a projectile-ambiguous attack disagreement by primary-player
+   * proximity to the attacker. Returns true when the target client's attack
+   * should be preferred, false otherwise.
+   *
+   * @returns true if the target attack should be preferred, false otherwise.
+   */
+  private resolveProjectileAmbiguousAttack(
+    merged: TickState,
+    mergedAttack: WithProvenance<PlayerAttacked>,
+    target: TickState,
+    targetAttack: WithProvenance<PlayerAttacked>,
+    attacker: string,
+    attackerPos: CoordsLike,
+  ): boolean {
+    const basePrimary = this.ctx.clients
+      .get(mergedAttack.sourceClientId)
+      ?.client?.getPrimaryPlayer();
+    const targetPrimary = this.ctx.clients
+      .get(targetAttack.sourceClientId)
+      ?.client?.getPrimaryPlayer();
+    if (!basePrimary || !targetPrimary) {
+      return false;
+    }
+
+    const basePrimaryState = merged.getPlayerState(basePrimary);
+    const targetPrimaryState = target.getPlayerState(targetPrimary);
+    if (basePrimaryState === null || targetPrimaryState === null) {
+      return false;
+    }
+
+    const baseDist = euclidean(basePrimaryState, attackerPos);
+    const targetDist = euclidean(targetPrimaryState, attackerPos);
+
+    const winner = targetDist < baseDist ? 'target' : 'base';
+    this.ctx.tracer?.recordAmbiguousAttackResolution({
+      tick: merged.getTick(),
+      attacker,
+      base: {
+        sourceClientId: mergedAttack.sourceClientId,
+        primaryPlayer: basePrimary,
+        attackType: mergedAttack.type,
+        distance: baseDist,
+      },
+      target: {
+        sourceClientId: targetAttack.sourceClientId,
+        primaryPlayer: targetPrimary,
+        attackType: targetAttack.type,
+        distance: targetDist,
+      },
+      winner,
+    });
+
+    return winner === 'target';
+  }
+
+  /**
+   * Reconciles two attacks' targets, returning the final merged attack.
+   */
+  private reconcileAttackTarget(
+    winner: WithProvenance<PlayerAttacked>,
+    loser: WithProvenance<PlayerAttacked>,
+    tick: number,
+    player: string,
+  ): WithProvenance<PlayerAttacked> | null {
+    if (winner.target === null) {
+      if (loser.target === null) {
+        return winner;
+      }
+      return {
+        ...winner,
+        target: loser.target,
+        distanceToTarget: loser.distanceToTarget,
+      };
+    }
+
+    if (loser.target !== null && winner.target.roomId !== loser.target.roomId) {
+      this.qualityFlags.push({
+        kind: 'ATTACK_TARGET_MISMATCH',
+        tick,
+        player,
+        keptRoomId: winner.target.roomId,
+        discardedRoomId: loser.target.roomId,
+        keptSourceClientId: winner.sourceClientId,
+        discardedSourceClientId: loser.sourceClientId,
+      });
+      logger.warn('consolidate_attack_target_mismatch', {
+        tick,
+        player,
+        keptRoomId: winner.target.roomId,
+        discardedRoomId: loser.target.roomId,
+        keptSourceClientId: winner.sourceClientId,
+        discardedSourceClientId: loser.sourceClientId,
       });
     }
+
+    return winner;
+  }
+
+  /**
+   * Merges player spells between the base and target tick states by filling in
+   * missing data and resolving conflicts.
+   */
+  private mergePlayerSpells(merged: TickState, target: TickState): void {
+    for (const [player, casterState] of merged.getPlayerStates()) {
+      if (!casterState) {
+        continue;
+      }
+
+      const baseSpell = casterState.spell;
+      const otherSpell = target.getPlayerState(player)?.spell ?? null;
+
+      if (baseSpell === null && otherSpell === null) {
+        continue;
+      }
+
+      if (baseSpell === null) {
+        merged.setPlayerSpell(player, otherSpell);
+        continue;
+      }
+
+      if (otherSpell === null) {
+        continue;
+      }
+
+      if (baseSpell.sourceClientId === otherSpell.sourceClientId) {
+        continue;
+      }
+
+      if (baseSpell.type !== otherSpell.type) {
+        this.qualityFlags.push({
+          kind: 'SPELL_TYPE_MISMATCH',
+          tick: merged.getTick(),
+          player,
+          keptType: baseSpell.type,
+          discardedType: otherSpell.type,
+          keptSourceClientId: baseSpell.sourceClientId,
+          discardedSourceClientId: otherSpell.sourceClientId,
+        });
+        logger.warn('consolidate_spell_type_mismatch', {
+          tick: merged.getTick(),
+          player,
+          baseSpellType: baseSpell.type,
+          otherSpellType: otherSpell.type,
+          baseSpellSourceClientId: baseSpell.sourceClientId,
+          otherSpellSourceClientId: otherSpell.sourceClientId,
+        });
+        continue;
+      }
+
+      const reconciled = this.reconcileSpellTarget(
+        baseSpell,
+        otherSpell,
+        merged.getTick(),
+        player,
+      );
+      merged.setPlayerSpell(player, reconciled);
+    }
+  }
+
+  /**
+   * Reconciles two spells' targets, returning the final merged spell.
+   * Flags target mismatches for targeted spells.
+   */
+  private reconcileSpellTarget(
+    winner: WithProvenance<SpellCast>,
+    loser: WithProvenance<SpellCast>,
+    tick: number,
+    player: string,
+  ): WithProvenance<SpellCast> {
+    if (!isTargetedSpell(winner.type)) {
+      // Untargeted spells should never carry a target. Clear any spurious one
+      // from either side rather than fall through to the fill/mismatch logic.
+      return winner.target !== null ? { ...winner, target: null } : winner;
+    }
+
+    if (winner.target === null) {
+      if (loser.target === null) {
+        return winner;
+      }
+      return { ...winner, target: loser.target };
+    }
+
+    if (
+      loser.target !== null &&
+      !spellTargetsEqual(winner.target, loser.target)
+    ) {
+      this.qualityFlags.push({
+        kind: 'SPELL_TARGET_MISMATCH',
+        tick,
+        player,
+        keptTargetKind: winner.target.kind,
+        keptTargetId:
+          winner.target.kind === 'player'
+            ? winner.target.name
+            : winner.target.roomId,
+        discardedTargetKind: loser.target.kind,
+        discardedTargetId:
+          loser.target.kind === 'player'
+            ? loser.target.name
+            : loser.target.roomId,
+        keptSourceClientId: winner.sourceClientId,
+        discardedSourceClientId: loser.sourceClientId,
+      });
+      logger.warn('consolidate_spell_target_mismatch', {
+        tick,
+        player,
+        keptTargetKind: winner.target.kind,
+        discardedTargetKind: loser.target.kind,
+        keptSourceClientId: winner.sourceClientId,
+        discardedSourceClientId: loser.sourceClientId,
+      });
+    }
+
+    return winner;
   }
 
   private insertBufferedEvent(buffered: BufferedEvent): void {
@@ -989,7 +1204,7 @@ export class EventConsolidator {
         );
       }
 
-      this.mergedTicks[i] = new TickState(
+      this.mergedTicks[i] = TickState.fromEvents(
         i,
         remappedEvents,
         new Map(tickState.getPlayerStates()),

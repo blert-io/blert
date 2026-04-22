@@ -285,7 +285,7 @@ export class SimilarityScorer {
 
           return {
             actor: playerState.username,
-            target: playerState.attack.target?.toString() ?? null,
+            target: playerState.attack.target?.roomId.toString() ?? null,
             typeId: playerState.attack.type,
             secondaryId: playerState.attack.weaponId,
           };

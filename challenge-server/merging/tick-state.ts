@@ -1,59 +1,111 @@
 import {
+  attackDefinitionsById,
   DataSource,
   EquipmentSlot,
+  EventJson,
   ItemDelta,
+  jsonToProtoEvent,
   NpcAttack,
   PlayerAttack,
+  PlayerSpell,
   PrayerSet,
   RawItemDelta,
   SkillLevel,
+  Stage,
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
 import {
   EventType,
   GRAPHICS_EVENT_TYPES,
-  PLAYER_TICK_STATE_TYPES,
+  PlayerTickStateEventType,
   SYNTHETIC_EVENT_SOURCE,
   TaggedEvent,
+  TICK_STATE_EVENT_TYPES,
 } from './event';
+import { QualityFlag } from './quality';
+
+export type WithProvenance<T> = T & {
+  sourceClientId: number;
+};
 
 type NpcAttacked = {
   type: NpcAttack;
   target: string | null;
 };
 
-export type NpcState = {
+export type NpcState = WithProvenance<{
   id: number;
   x: number;
   y: number;
   hitpoints: SkillLevel;
-  attack: NpcAttacked | null;
-};
+  attack: WithProvenance<NpcAttacked> | null;
+}>;
 
 export type EquippedItem = {
   id: number;
   quantity: number;
 };
 
-type PlayerAttacked = {
+export type PlayerAttacked = {
   type: PlayerAttack;
   weaponId: number;
-  target: number | null;
+  distanceToTarget: number;
+  target: WithProvenance<{
+    id: number;
+    roomId: number;
+  }> | null;
 };
 
-export type PlayerState = {
+export type SpellTarget =
+  | { kind: 'player'; name: string }
+  | { kind: 'npc'; id: number; roomId: number };
+
+export type SpellCast = {
+  type: PlayerSpell;
+  target: WithProvenance<SpellTarget> | null;
+};
+
+export type PlayerStats = {
+  hitpoints: SkillLevel | null;
+  prayer: SkillLevel | null;
+  attack: SkillLevel | null;
+  strength: SkillLevel | null;
+  defence: SkillLevel | null;
+  ranged: SkillLevel | null;
+  magic: SkillLevel | null;
+};
+
+export type PlayerState = WithProvenance<{
   source: DataSource;
   username: string;
   x: number;
   y: number;
   isDead: boolean;
   equipment: Record<EquipmentSlot, EquippedItem | null>;
-  attack: PlayerAttacked | null;
   prayers: PrayerSet;
-};
+  attack: WithProvenance<PlayerAttacked> | null;
+  spell: WithProvenance<SpellCast> | null;
+  stats: PlayerStats | null;
+  offCooldownTick: number | null;
+}>;
 
 export type TickStateArray = (TickState | null)[];
+
+/**
+ * Resynchronizes a timeline of tick states, modifying them in place.
+ * @param ticks Timeline to resynchronize.
+ */
+export function resynchronizeTicks(stage: Stage, ticks: TickStateArray): void {
+  let prev: TickState | null = null;
+
+  for (const tick of ticks) {
+    if (tick !== null) {
+      tick.resynchronize(stage, prev);
+      prev = tick;
+    }
+  }
+}
 
 export class TickState {
   private tick: number;
@@ -61,23 +113,42 @@ export class TickState {
   private npcs: Map<number, NpcState>;
   private playerStates: Map<string, PlayerState | null>;
 
-  public constructor(
+  public static fromEvents(
     tick: number,
     events: TaggedEvent[],
     playerStates: Map<string, PlayerState | null>,
+  ): TickState {
+    return new TickState(tick, events, playerStates, new Map());
+  }
+
+  private constructor(
+    tick: number,
+    events: TaggedEvent[],
+    playerStates: Map<string, PlayerState | null>,
+    npcs: Map<number, NpcState>,
   ) {
     this.tick = tick;
     this.playerStates = playerStates;
 
     this.eventsByType = new Map();
     for (const tagged of events) {
+      if (TICK_STATE_EVENT_TYPES.has(tagged.event.getType())) {
+        // Don't store raw state-level events, only the rebuilt state. Canonical
+        // events will be reconstructed during resynchronization.
+        continue;
+      }
+
       if (!this.eventsByType.has(tagged.event.getType())) {
         this.eventsByType.set(tagged.event.getType(), []);
       }
       this.eventsByType.get(tagged.event.getType())!.push(tagged);
     }
 
-    this.npcs = new Map();
+    if (npcs.size > 0) {
+      this.npcs = npcs;
+    } else {
+      this.npcs = new Map();
+    }
 
     events
       .filter(
@@ -87,34 +158,37 @@ export class TickState {
       )
       .forEach((tagged) => {
         const npc = tagged.event.getNpc()!;
-
         this.npcs.set(npc.getRoomId(), {
           id: npc.getId(),
           x: tagged.event.getXCoord(),
           y: tagged.event.getYCoord(),
           hitpoints: SkillLevel.fromRaw(npc.getHitpoints()),
           attack: null,
+          sourceClientId: tagged.source,
         });
       });
 
-    this.eventsByType.get(Event.Type.NPC_ATTACK)?.forEach((tagged) => {
-      const roomId = tagged.event.getNpc()?.getRoomId();
-      if (!roomId) {
-        return;
-      }
+    events
+      .filter((tagged) => tagged.event.getType() === Event.Type.NPC_ATTACK)
+      .forEach((tagged) => {
+        const roomId = tagged.event.getNpc()?.getRoomId();
+        if (!roomId) {
+          return;
+        }
 
-      const state = this.npcs.get(roomId);
-      const attack = tagged.event.getNpcAttack();
+        const state = this.npcs.get(roomId);
+        const attack = tagged.event.getNpcAttack();
 
-      if (!state || !attack) {
-        return;
-      }
+        if (!state || !attack) {
+          return;
+        }
 
-      state.attack = {
-        type: attack.getAttack(),
-        target: attack.getTarget() ?? null,
-      };
-    });
+        state.attack = {
+          type: attack.getAttack(),
+          target: attack.getTarget() ?? null,
+          sourceClientId: tagged.source,
+        };
+      });
   }
 
   /**
@@ -220,6 +294,14 @@ export class TickState {
       }
     }
 
+    const npcs = new Map<number, NpcState>();
+    for (const [roomId, state] of this.npcs.entries()) {
+      npcs.set(roomId, {
+        ...state,
+        attack: state.attack ? { ...state.attack } : null,
+      });
+    }
+
     return new TickState(
       this.tick,
       this.getTaggedEvents().map((t) => ({
@@ -227,6 +309,7 @@ export class TickState {
         source: t.source,
       })),
       playerStates,
+      npcs,
     );
   }
 
@@ -239,22 +322,25 @@ export class TickState {
    * data will overwrite an event containing third-party data.
    *
    * @param other The state to merge.
-   * @returns Whether the merge was successful.
+   * @returns Quality flags describing any anomalies encountered during the
+   *   merge. An empty array indicates a clean merge.
    */
-  public merge(other: TickState): boolean {
+  public merge(other: TickState): QualityFlag[] {
+    const flags: QualityFlag[] = [];
+
     for (const [player, otherState] of other.playerStates.entries()) {
       if (otherState === null) {
         continue;
       }
 
       const currentState = this.getPlayerState(player);
-      const shouldUpdate =
-        !currentState ||
-        (currentState.source === DataSource.SECONDARY &&
-          otherState.source === DataSource.PRIMARY);
-
-      if (shouldUpdate) {
-        this.overridePlayerState(player, other);
+      if (currentState === null) {
+        this.playerStates.set(player, { ...otherState });
+      } else {
+        const flag = this.mergePlayerState(player, currentState, otherState);
+        if (flag !== null) {
+          flags.push(flag);
+        }
       }
     }
 
@@ -270,79 +356,33 @@ export class TickState {
 
     this.mergeGraphicsEvents(other);
 
-    return true;
+    return flags;
   }
 
   /**
    * Updates the events representing this tick state to reflect any changes in
    * the overall stage state following a merge.
-   * @param tickStates Updated tick states for the entire stage.
+   * @param previous The previous tick state, or null if this is the first tick.
    */
-  public resynchronize(tickStates: (TickState | null)[]): void {
-    for (const player of this.playerStates.keys()) {
-      this.resynchronizePlayer(player, tickStates);
+  public resynchronize(stage: Stage, previous: TickState | null): void {
+    for (const type of TICK_STATE_EVENT_TYPES) {
+      this.eventsByType.delete(type);
     }
+
+    for (const player of this.playerStates.keys()) {
+      const state = this.getPlayerState(player);
+      if (state === null) {
+        continue;
+      }
+      const previousState = previous?.getPlayerState(player) ?? null;
+
+      this.resynchronizePlayerState(player, state, previousState);
+      this.createPlayerStateEvents(stage, player, state, previousState);
+    }
+
+    // TODO(frolv): Resynchronize NPC events.
 
     // TODO(frolv): Resynchronize graphics events.
-  }
-
-  private resynchronizePlayer(
-    player: string,
-    tickStates: (TickState | null)[],
-  ): void {
-    const state = this.getPlayerState(player);
-    if (!state) {
-      return;
-    }
-
-    const updateTagged = this.eventsByType
-      .get(Event.Type.PLAYER_UPDATE)
-      ?.find((t) => t.event.getPlayer()?.getName() === player);
-    if (!updateTagged) {
-      return;
-    }
-
-    let lastState = null;
-    for (let tick = this.tick - 1; tick >= 0; tick--) {
-      const previous = tickStates[tick]?.getPlayerState(player) ?? null;
-      if (previous !== null) {
-        lastState = previous;
-        break;
-      }
-    }
-
-    const newDeltas: RawItemDelta[] = [];
-
-    for (let slot = EquipmentSlot.HEAD; slot <= EquipmentSlot.QUIVER; slot++) {
-      const previous = lastState?.equipment[slot];
-      const current = state.equipment[slot];
-
-      if (current) {
-        if (previous?.id !== current.id) {
-          newDeltas.push(
-            new ItemDelta(current.id, current.quantity, slot, true).toRaw(),
-          );
-        } else {
-          const delta = current.quantity - previous.quantity;
-          if (delta !== 0) {
-            newDeltas.push(
-              new ItemDelta(
-                current.id,
-                Math.abs(delta),
-                slot,
-                delta > 0,
-              ).toRaw(),
-            );
-          }
-        }
-      } else if (previous) {
-        newDeltas.push(
-          new ItemDelta(previous.id, previous.quantity, slot, false).toRaw(),
-        );
-      }
-    }
-
-    updateTagged.event.getPlayer()!.setEquipmentDeltasList(newDeltas);
   }
 
   /**
@@ -362,53 +402,60 @@ export class TickState {
     }
   }
 
-  private overridePlayerState(player: string, other: TickState): void {
-    for (const type of PLAYER_TICK_STATE_TYPES) {
-      const tagged = this.eventsByType.get(type);
-      if (tagged !== undefined) {
-        this.eventsByType.set(
-          type,
-          tagged.filter((t) => t.event.getPlayer()?.getName() !== player),
-        );
-      }
+  private mergePlayerState(
+    player: string,
+    currentState: PlayerState,
+    otherState: PlayerState,
+  ): QualityFlag | null {
+    const override =
+      currentState.source === DataSource.SECONDARY &&
+      otherState.source === DataSource.PRIMARY;
+
+    if (override) {
+      this.playerStates.set(player, {
+        ...otherState,
+        attack: currentState.attack,
+        spell: currentState.spell,
+      });
     }
 
-    this.playerStates.set(player, { ...other.getPlayerState(player)! });
-
-    const playerEvents = other
-      .getTaggedEvents()
-      .filter(
-        (t) =>
-          PLAYER_TICK_STATE_TYPES.has(t.event.getType()) &&
-          t.event.getPlayer()?.getName() === player,
-      );
-    this.addTaggedEvents(playerEvents);
+    return null;
   }
 
   /**
-   * Replaces a player's attack event and state with the given replacement.
+   * Sets a player's attack on this tick.
    *
-   * @param player The player whose attack to replace.
-   * @param attackEvent The new attack event.
+   * @param player The player who attacked.
+   * @param attack The attack to set.
    */
-  public replacePlayerAttack(player: string, attackEvent: TaggedEvent): void {
+  public setPlayerAttack(
+    player: string,
+    attack: WithProvenance<PlayerAttacked> | null,
+  ): void {
     const state = this.playerStates.get(player);
-    const attacks = this.eventsByType.get(Event.Type.PLAYER_ATTACK) ?? [];
-
-    const idx = attacks.findIndex(
-      (t) => t.event.getPlayer()?.getName() === player,
-    );
-    if (!state || idx === -1) {
-      return;
+    if (state) {
+      state.attack = attack;
     }
-
-    attacks[idx] = attackEvent;
-    state.attack!.type = attackEvent.event.getPlayerAttack()!.getType();
   }
 
   /**
-   * Removes and returns all tagged events of the given types from this tick
-   * state.
+   * Sets a player's spell on this tick.
+   *
+   * @param player The player who cast the spell.
+   * @param spell The spell to set.
+   */
+  public setPlayerSpell(
+    player: string,
+    spell: WithProvenance<SpellCast> | null,
+  ): void {
+    const state = this.playerStates.get(player);
+    if (state) {
+      state.spell = spell;
+    }
+  }
+
+  /**
+   * Removes and returns all tagged events of the given types from this tick.
    * @param types Event types to extract.
    * @returns The extracted tagged events.
    */
@@ -425,7 +472,7 @@ export class TickState {
   }
 
   /**
-   * Adds tagged events to this tick state, preserving their provenance.
+   * Adds tagged events to this tick, preserving their provenance.
    * @param events The tagged events to add.
    */
   public addTaggedEvents(events: TaggedEvent[]): void {
@@ -438,7 +485,7 @@ export class TickState {
   }
 
   /**
-   * Adds events to this tick state with no provenance.
+   * Adds events to this tick without provenance.
    * @param events The events to add.
    */
   public addSyntheticEvents(events: Event[]): void {
@@ -446,4 +493,165 @@ export class TickState {
       events.map((event) => ({ event, source: SYNTHETIC_EVENT_SOURCE })),
     );
   }
+
+  /**
+   * Resynchronizes the state of the given player on this tick.
+   * @param player The player whose state to resynchronize.
+   * @param state The current state of the player.
+   * @param previous The previous state of the player, or null if this is the
+   *   first tick.
+   */
+  private resynchronizePlayerState(
+    player: string,
+    state: PlayerState,
+    previous: PlayerState | null,
+  ): void {
+    if (state.attack !== null) {
+      const cooldown = attackDefinitionsById.get(state.attack.type)?.cooldown;
+      if (cooldown !== undefined) {
+        state.offCooldownTick = this.tick + cooldown;
+      }
+    }
+
+    state.offCooldownTick ??= previous?.offCooldownTick ?? 0;
+  }
+
+  private createPlayerStateEvents(
+    stage: Stage,
+    player: string,
+    state: PlayerState,
+    previous: PlayerState | null,
+  ): void {
+    const events: TaggedEvent[] = [];
+
+    const basePlayerEvent = (type: PlayerTickStateEventType): EventJson => ({
+      type,
+      stage,
+      tick: this.tick,
+      xCoord: state.x,
+      yCoord: state.y,
+      player: { name: player },
+    });
+
+    const updateEvent = basePlayerEvent(Event.Type.PLAYER_UPDATE);
+    const p = updateEvent.player!;
+    p.dataSource = state.source;
+    p.activePrayers = state.prayers.getRaw();
+    p.equipmentDeltas = createEquipmentDeltas(state, previous);
+    p.offCooldownTick = state.offCooldownTick!; // Safe after resync
+    if (state.stats !== null) {
+      if (state.stats.hitpoints !== null) {
+        p.hitpoints = state.stats.hitpoints.toRaw();
+      }
+      if (state.stats.prayer !== null) {
+        p.prayer = state.stats.prayer.toRaw();
+      }
+      if (state.stats.attack !== null) {
+        p.attack = state.stats.attack.toRaw();
+      }
+      if (state.stats.strength !== null) {
+        p.strength = state.stats.strength.toRaw();
+      }
+      if (state.stats.defence !== null) {
+        p.defence = state.stats.defence.toRaw();
+      }
+      if (state.stats.ranged !== null) {
+        p.ranged = state.stats.ranged.toRaw();
+      }
+      if (state.stats.magic !== null) {
+        p.magic = state.stats.magic.toRaw();
+      }
+    }
+    events.push({
+      event: jsonToProtoEvent(updateEvent),
+      source: state.sourceClientId,
+    });
+
+    if (state.attack !== null) {
+      const attackEvent: EventJson = {
+        ...basePlayerEvent(Event.Type.PLAYER_ATTACK),
+        playerAttack: {
+          type: state.attack.type,
+          distanceToTarget: state.attack.distanceToTarget,
+          weapon: {
+            slot: EquipmentSlot.WEAPON,
+            id: state.attack.weaponId,
+            quantity: 1,
+          },
+        },
+      };
+
+      if (state.attack.target !== null) {
+        attackEvent.playerAttack!.target = {
+          id: state.attack.target.id,
+          roomId: state.attack.target.roomId,
+        };
+      }
+
+      events.push({
+        event: jsonToProtoEvent(attackEvent),
+        source: state.attack.sourceClientId,
+      });
+    }
+
+    if (state.spell !== null) {
+      const spellEvent: EventJson = {
+        ...basePlayerEvent(Event.Type.PLAYER_SPELL),
+        playerSpell: { type: state.spell.type },
+      };
+
+      if (state.spell.target !== null) {
+        if (state.spell.target.kind === 'player') {
+          spellEvent.playerSpell!.targetPlayer = state.spell.target.name;
+        } else {
+          spellEvent.playerSpell!.targetNpc = {
+            id: state.spell.target.id,
+            roomId: state.spell.target.roomId,
+          };
+        }
+      }
+
+      events.push({
+        event: jsonToProtoEvent(spellEvent),
+        source: state.spell.sourceClientId,
+      });
+    }
+
+    if (events.length > 0) {
+      this.addTaggedEvents(events);
+    }
+  }
+}
+
+function createEquipmentDeltas(
+  state: PlayerState,
+  previous: PlayerState | null,
+): RawItemDelta[] {
+  const newDeltas: RawItemDelta[] = [];
+
+  for (let slot = EquipmentSlot.HEAD; slot <= EquipmentSlot.QUIVER; slot++) {
+    const prev = previous?.equipment[slot];
+    const curr = state.equipment[slot];
+
+    if (curr) {
+      if (prev?.id !== curr.id) {
+        newDeltas.push(
+          new ItemDelta(curr.id, curr.quantity, slot, true).toRaw(),
+        );
+      } else {
+        const delta = curr.quantity - prev.quantity;
+        if (delta !== 0) {
+          newDeltas.push(
+            new ItemDelta(curr.id, Math.abs(delta), slot, delta > 0).toRaw(),
+          );
+        }
+      }
+    } else if (prev) {
+      newDeltas.push(
+        new ItemDelta(prev.id, prev.quantity, slot, false).toRaw(),
+      );
+    }
+  }
+
+  return newDeltas;
 }
