@@ -1,8 +1,10 @@
 import {
+  ChallengeMode,
   ChallengeType,
   DataSource,
   NpcAttack,
   PlayerAttack,
+  PlayerSpell,
   Stage,
   StageStatus,
 } from '@blert/common';
@@ -51,7 +53,12 @@ function createClient(
   }
   return ClientEvents.fromRawEvents(
     clientId,
-    { uuid: 'test', type: ChallengeType.TOB, party: [primaryPlayer] },
+    {
+      uuid: 'test',
+      type: ChallengeType.TOB,
+      mode: ChallengeMode.TOB_REGULAR,
+      party: [primaryPlayer],
+    },
     {
       stage: Stage.TOB_VERZIK,
       status: StageStatus.COMPLETED,
@@ -71,6 +78,7 @@ function testCtx(
   baseTickCount: number,
   targetTickCount: number,
   clients?: Map<number, RegisteredClient>,
+  stage: Stage = Stage.TOB_VERZIK,
 ): MergeContext {
   const mapping = new MergeMapping(BASE_CLIENT_ID);
   mapping.begin(
@@ -79,7 +87,7 @@ function testCtx(
     TickMapping.identity(targetTickCount),
     baseTickCount,
   );
-  return { clients: clients ?? new Map(), mapping, tracer: undefined };
+  return { stage, clients: clients ?? new Map(), mapping, tracer: undefined };
 }
 
 /**
@@ -87,6 +95,7 @@ function testCtx(
  * events per tick. Each tick has a player at position (tick, 0).
  */
 function buildTimeline(
+  clientId: number,
   numTicks: number,
   player: string,
   source: DataSource,
@@ -101,7 +110,7 @@ function buildTimeline(
     ticks.push(
       createTickState(
         i,
-        [createPlayerState({ username: player, source, x: i, y: 0 })],
+        [createPlayerState({ username: player, clientId, source, x: i, y: 0 })],
         events,
       ),
     );
@@ -121,10 +130,21 @@ function getEventTypes(ticks: TickStateArray, tick: number): number[] {
 describe('EventConsolidator', () => {
   describe('identity consolidation', () => {
     it('merges tick-state events and extracts stream events', () => {
-      const base = buildTimeline(5, 'player1', DataSource.SECONDARY);
-      const target = buildTimeline(5, 'player1', DataSource.PRIMARY, {
-        2: [createPlayerDeathEvent({ tick: 2, name: 'player1' })],
-      });
+      const base = buildTimeline(
+        BASE_CLIENT_ID,
+        5,
+        'player1',
+        DataSource.SECONDARY,
+      );
+      const target = buildTimeline(
+        TARGET_CLIENT_ID,
+        5,
+        'player1',
+        DataSource.PRIMARY,
+        {
+          2: [createPlayerDeathEvent({ tick: 2, name: 'player1' })],
+        },
+      );
 
       const consolidator = new EventConsolidator(
         base,
@@ -147,14 +167,44 @@ describe('EventConsolidator', () => {
 
     it('fills gaps in the base from the target', () => {
       const base: TickStateArray = [
-        createTickState(0, [createPlayerState({ username: 'player1', x: 0 })]),
+        createTickState(0, [
+          createPlayerState({
+            username: 'player1',
+            clientId: BASE_CLIENT_ID,
+            x: 0,
+          }),
+        ]),
         null,
-        createTickState(2, [createPlayerState({ username: 'player1', x: 2 })]),
+        createTickState(2, [
+          createPlayerState({
+            username: 'player1',
+            clientId: BASE_CLIENT_ID,
+            x: 2,
+          }),
+        ]),
       ];
       const target: TickStateArray = [
-        createTickState(0, [createPlayerState({ username: 'player1', x: 0 })]),
-        createTickState(1, [createPlayerState({ username: 'player1', x: 1 })]),
-        createTickState(2, [createPlayerState({ username: 'player1', x: 2 })]),
+        createTickState(0, [
+          createPlayerState({
+            username: 'player1',
+            clientId: TARGET_CLIENT_ID,
+            x: 0,
+          }),
+        ]),
+        createTickState(1, [
+          createPlayerState({
+            username: 'player1',
+            clientId: TARGET_CLIENT_ID,
+            x: 1,
+          }),
+        ]),
+        createTickState(2, [
+          createPlayerState({
+            username: 'player1',
+            clientId: TARGET_CLIENT_ID,
+            x: 2,
+          }),
+        ]),
       ];
 
       const consolidator = new EventConsolidator(
@@ -170,16 +220,43 @@ describe('EventConsolidator', () => {
       expect(result.qualityFlags).toHaveLength(0);
     });
 
-    it('keeps graphics events from both sides in the merged tick', () => {
-      const splats = (tick: number) =>
-        createEvent(ProtoEvent.Type.TOB_MAIDEN_BLOOD_SPLATS, tick);
+    it('preserves NPC state through the post-reconciliation rebuild', () => {
+      // The consolidator's `remapToMergedSpace` reconstructs each merged
+      // tick's `TickState` after reconciliation. Verify that the NPC state
+      // tracked on the input ticks survives that rebuild.
+      const npcEvent = (tick: number, hp: number) =>
+        createNpcUpdateEvent({
+          tick,
+          roomId: 1,
+          npcId: 8360,
+          x: 50,
+          y: 50,
+          hitpointsCurrent: hp,
+          hitpointsBase: 3000,
+        });
 
-      const base = buildTimeline(5, 'player1', DataSource.SECONDARY, {
-        2: [splats(2)],
-      });
-      const target = buildTimeline(5, 'player1', DataSource.PRIMARY, {
-        2: [splats(2)],
-      });
+      const base = buildTimeline(
+        BASE_CLIENT_ID,
+        3,
+        'player1',
+        DataSource.PRIMARY,
+        {
+          0: [npcEvent(0, 100)],
+          1: [npcEvent(1, 95)],
+          2: [npcEvent(2, 90)],
+        },
+      );
+      const target = buildTimeline(
+        TARGET_CLIENT_ID,
+        3,
+        'player1',
+        DataSource.PRIMARY,
+        {
+          0: [npcEvent(0, 100)],
+          1: [npcEvent(1, 95)],
+          2: [npcEvent(2, 90)],
+        },
+      );
 
       const consolidator = new EventConsolidator(
         base,
@@ -188,10 +265,12 @@ describe('EventConsolidator', () => {
       );
       const result = consolidator.consolidate();
 
-      const splatEvents = result.ticks[2]
-        ?.getEvents()
-        .filter((e) => e.getType() === ProtoEvent.Type.TOB_MAIDEN_BLOOD_SPLATS);
-      expect(splatEvents).toHaveLength(2);
+      for (let i = 0; i < 3; i++) {
+        const npc = result.ticks[i]?.getNpcs().get(1);
+        expect(npc).toBeDefined();
+        expect(npc!.id).toBe(8360);
+        expect(npc!.hitpoints.getCurrent()).toBe(100 - i * 5);
+      }
     });
   });
 
@@ -200,12 +279,24 @@ describe('EventConsolidator', () => {
       const death = (tick: number) =>
         createPlayerDeathEvent({ tick, name: 'player1' });
 
-      const base = buildTimeline(5, 'player1', DataSource.SECONDARY, {
-        3: [death(3)],
-      });
-      const target = buildTimeline(5, 'player1', DataSource.PRIMARY, {
-        3: [death(3)],
-      });
+      const base = buildTimeline(
+        BASE_CLIENT_ID,
+        5,
+        'player1',
+        DataSource.SECONDARY,
+        {
+          3: [death(3)],
+        },
+      );
+      const target = buildTimeline(
+        TARGET_CLIENT_ID,
+        5,
+        'player1',
+        DataSource.PRIMARY,
+        {
+          3: [death(3)],
+        },
+      );
 
       const consolidator = new EventConsolidator(
         base,
@@ -224,12 +315,24 @@ describe('EventConsolidator', () => {
     });
 
     it('deduplicates deaths seen on different ticks within the temporal window', () => {
-      const base = buildTimeline(10, 'player1', DataSource.SECONDARY, {
-        4: [createPlayerDeathEvent({ tick: 4, name: 'player1' })],
-      });
-      const target = buildTimeline(10, 'player1', DataSource.PRIMARY, {
-        6: [createPlayerDeathEvent({ tick: 6, name: 'player1' })],
-      });
+      const base = buildTimeline(
+        BASE_CLIENT_ID,
+        10,
+        'player1',
+        DataSource.SECONDARY,
+        {
+          4: [createPlayerDeathEvent({ tick: 4, name: 'player1' })],
+        },
+      );
+      const target = buildTimeline(
+        TARGET_CLIENT_ID,
+        10,
+        'player1',
+        DataSource.PRIMARY,
+        {
+          6: [createPlayerDeathEvent({ tick: 6, name: 'player1' })],
+        },
+      );
 
       const consolidator = new EventConsolidator(
         base,
@@ -254,12 +357,24 @@ describe('EventConsolidator', () => {
     });
 
     it('treats deaths outside the temporal window as distinct', () => {
-      const base = buildTimeline(15, 'player1', DataSource.SECONDARY, {
-        2: [createPlayerDeathEvent({ tick: 2, name: 'player1' })],
-      });
-      const target = buildTimeline(15, 'player1', DataSource.PRIMARY, {
-        10: [createPlayerDeathEvent({ tick: 10, name: 'player1' })],
-      });
+      const base = buildTimeline(
+        BASE_CLIENT_ID,
+        15,
+        'player1',
+        DataSource.SECONDARY,
+        {
+          2: [createPlayerDeathEvent({ tick: 2, name: 'player1' })],
+        },
+      );
+      const target = buildTimeline(
+        TARGET_CLIENT_ID,
+        15,
+        'player1',
+        DataSource.PRIMARY,
+        {
+          10: [createPlayerDeathEvent({ tick: 10, name: 'player1' })],
+        },
+      );
 
       const consolidator = new EventConsolidator(
         base,
@@ -286,12 +401,24 @@ describe('EventConsolidator', () => {
       const npcDeath = (tick: number) =>
         createNpcDeathEvent({ tick, roomId: 1, npcId: 100 });
 
-      const base = buildTimeline(10, 'player1', DataSource.SECONDARY, {
-        5: [npcDeath(5)],
-      });
-      const target = buildTimeline(10, 'player1', DataSource.PRIMARY, {
-        5: [npcDeath(5)],
-      });
+      const base = buildTimeline(
+        BASE_CLIENT_ID,
+        10,
+        'player1',
+        DataSource.SECONDARY,
+        {
+          5: [npcDeath(5)],
+        },
+      );
+      const target = buildTimeline(
+        TARGET_CLIENT_ID,
+        10,
+        'player1',
+        DataSource.PRIMARY,
+        {
+          5: [npcDeath(5)],
+        },
+      );
 
       const consolidator = new EventConsolidator(
         base,
@@ -309,12 +436,24 @@ describe('EventConsolidator', () => {
     });
 
     it('does not deduplicate NPC deaths with different room IDs', () => {
-      const base = buildTimeline(10, 'player1', DataSource.SECONDARY, {
-        5: [createNpcDeathEvent({ tick: 5, roomId: 1, npcId: 100 })],
-      });
-      const target = buildTimeline(10, 'player1', DataSource.PRIMARY, {
-        5: [createNpcDeathEvent({ tick: 5, roomId: 2, npcId: 101 })],
-      });
+      const base = buildTimeline(
+        BASE_CLIENT_ID,
+        10,
+        'player1',
+        DataSource.SECONDARY,
+        {
+          5: [createNpcDeathEvent({ tick: 5, roomId: 1, npcId: 100 })],
+        },
+      );
+      const target = buildTimeline(
+        TARGET_CLIENT_ID,
+        10,
+        'player1',
+        DataSource.PRIMARY,
+        {
+          5: [createNpcDeathEvent({ tick: 5, roomId: 2, npcId: 101 })],
+        },
+      );
 
       const consolidator = new EventConsolidator(
         base,
@@ -338,12 +477,24 @@ describe('EventConsolidator', () => {
         return e;
       };
 
-      const base = buildTimeline(15, 'player1', DataSource.SECONDARY, {
-        3: [phase(3)],
-      });
-      const target = buildTimeline(15, 'player1', DataSource.PRIMARY, {
-        12: [phase(12)],
-      });
+      const base = buildTimeline(
+        BASE_CLIENT_ID,
+        15,
+        'player1',
+        DataSource.SECONDARY,
+        {
+          3: [phase(3)],
+        },
+      );
+      const target = buildTimeline(
+        TARGET_CLIENT_ID,
+        15,
+        'player1',
+        DataSource.PRIMARY,
+        {
+          12: [phase(12)],
+        },
+      );
 
       const consolidator = new EventConsolidator(
         base,
@@ -367,10 +518,21 @@ describe('EventConsolidator', () => {
     });
 
     it('handles events only present in the base', () => {
-      const base = buildTimeline(10, 'player1', DataSource.SECONDARY, {
-        4: [createPlayerDeathEvent({ tick: 4, name: 'player1' })],
-      });
-      const target = buildTimeline(10, 'player1', DataSource.PRIMARY);
+      const base = buildTimeline(
+        BASE_CLIENT_ID,
+        10,
+        'player1',
+        DataSource.SECONDARY,
+        {
+          4: [createPlayerDeathEvent({ tick: 4, name: 'player1' })],
+        },
+      );
+      const target = buildTimeline(
+        TARGET_CLIENT_ID,
+        10,
+        'player1',
+        DataSource.PRIMARY,
+      );
 
       const consolidator = new EventConsolidator(
         base,
@@ -388,10 +550,21 @@ describe('EventConsolidator', () => {
     });
 
     it('handles events only present in the target', () => {
-      const base = buildTimeline(10, 'player1', DataSource.SECONDARY);
-      const target = buildTimeline(10, 'player1', DataSource.PRIMARY, {
-        7: [createPlayerDeathEvent({ tick: 7, name: 'player1' })],
-      });
+      const base = buildTimeline(
+        BASE_CLIENT_ID,
+        10,
+        'player1',
+        DataSource.SECONDARY,
+      );
+      const target = buildTimeline(
+        TARGET_CLIENT_ID,
+        10,
+        'player1',
+        DataSource.PRIMARY,
+        {
+          7: [createPlayerDeathEvent({ tick: 7, name: 'player1' })],
+        },
+      );
 
       const consolidator = new EventConsolidator(
         base,
@@ -411,12 +584,24 @@ describe('EventConsolidator', () => {
 
   describe('quality flags', () => {
     it('emits no quality flags for a clean merge', () => {
-      const base = buildTimeline(10, 'player1', DataSource.SECONDARY, {
-        5: [createPlayerDeathEvent({ tick: 5, name: 'player1' })],
-      });
-      const target = buildTimeline(10, 'player1', DataSource.PRIMARY, {
-        5: [createPlayerDeathEvent({ tick: 5, name: 'player1' })],
-      });
+      const base = buildTimeline(
+        BASE_CLIENT_ID,
+        10,
+        'player1',
+        DataSource.SECONDARY,
+        {
+          5: [createPlayerDeathEvent({ tick: 5, name: 'player1' })],
+        },
+      );
+      const target = buildTimeline(
+        TARGET_CLIENT_ID,
+        10,
+        'player1',
+        DataSource.PRIMARY,
+        {
+          5: [createPlayerDeathEvent({ tick: 5, name: 'player1' })],
+        },
+      );
 
       const consolidator = new EventConsolidator(
         base,
@@ -429,12 +614,24 @@ describe('EventConsolidator', () => {
     });
 
     it('flags a large temporal gap between paired stream events', () => {
-      const base = buildTimeline(10, 'player1', DataSource.SECONDARY, {
-        1: [createPlayerDeathEvent({ tick: 1, name: 'player1' })],
-      });
-      const target = buildTimeline(10, 'player1', DataSource.PRIMARY, {
-        4: [createPlayerDeathEvent({ tick: 4, name: 'player1' })],
-      });
+      const base = buildTimeline(
+        BASE_CLIENT_ID,
+        10,
+        'player1',
+        DataSource.SECONDARY,
+        {
+          1: [createPlayerDeathEvent({ tick: 1, name: 'player1' })],
+        },
+      );
+      const target = buildTimeline(
+        TARGET_CLIENT_ID,
+        10,
+        'player1',
+        DataSource.PRIMARY,
+        {
+          4: [createPlayerDeathEvent({ tick: 4, name: 'player1' })],
+        },
+      );
 
       const consolidator = new EventConsolidator(
         base,
@@ -458,12 +655,24 @@ describe('EventConsolidator', () => {
     });
 
     it('does not flag a gap below the threshold', () => {
-      const base = buildTimeline(10, 'player1', DataSource.SECONDARY, {
-        3: [createPlayerDeathEvent({ tick: 3, name: 'player1' })],
-      });
-      const target = buildTimeline(10, 'player1', DataSource.PRIMARY, {
-        4: [createPlayerDeathEvent({ tick: 4, name: 'player1' })],
-      });
+      const base = buildTimeline(
+        BASE_CLIENT_ID,
+        10,
+        'player1',
+        DataSource.SECONDARY,
+        {
+          3: [createPlayerDeathEvent({ tick: 3, name: 'player1' })],
+        },
+      );
+      const target = buildTimeline(
+        TARGET_CLIENT_ID,
+        10,
+        'player1',
+        DataSource.PRIMARY,
+        {
+          4: [createPlayerDeathEvent({ tick: 4, name: 'player1' })],
+        },
+      );
 
       const consolidator = new EventConsolidator(
         base,
@@ -479,6 +688,7 @@ describe('EventConsolidator', () => {
 
   describe('attack-mapped events', () => {
     function buildVerzikTimeline(
+      clientId: number,
       numTicks: number,
       player: string,
       source: DataSource,
@@ -500,6 +710,21 @@ describe('EventConsolidator', () => {
         ],
       };
 
+      for (let i = 0; i < numTicks; i++) {
+        extra[i] = [
+          ...(extra[i] ?? []),
+          createNpcUpdateEvent({
+            tick: i,
+            roomId: 1,
+            npcId: 8374,
+            x: 10,
+            y: 10,
+            hitpointsCurrent: 100,
+            stage: Stage.TOB_VERZIK,
+          }),
+        ];
+      }
+
       if (attackStyleEvents !== undefined) {
         for (const [tick, { npcAttackTick, style }] of Object.entries(
           attackStyleEvents,
@@ -512,14 +737,26 @@ describe('EventConsolidator', () => {
         }
       }
 
-      return buildTimeline(numTicks, player, source, extra);
+      return buildTimeline(clientId, numTicks, player, source, extra);
     }
 
     it('resolves a single attack style candidate', () => {
-      const base = buildVerzikTimeline(15, 'player1', DataSource.SECONDARY, 5, {
-        6: { npcAttackTick: 5, style: 0 },
-      });
-      const target = buildTimeline(15, 'player1', DataSource.PRIMARY);
+      const base = buildVerzikTimeline(
+        BASE_CLIENT_ID,
+        15,
+        'player1',
+        DataSource.SECONDARY,
+        5,
+        {
+          6: { npcAttackTick: 5, style: 0 },
+        },
+      );
+      const target = buildTimeline(
+        TARGET_CLIENT_ID,
+        15,
+        'player1',
+        DataSource.PRIMARY,
+      );
 
       const consolidator = new EventConsolidator(
         base,
@@ -537,12 +774,26 @@ describe('EventConsolidator', () => {
     });
 
     it('resolves agreeing candidates as RESOLVED, not conflict', () => {
-      const base = buildVerzikTimeline(15, 'player1', DataSource.SECONDARY, 5, {
-        6: { npcAttackTick: 5, style: 1 },
-      });
-      const target = buildVerzikTimeline(15, 'player1', DataSource.PRIMARY, 5, {
-        6: { npcAttackTick: 5, style: 1 },
-      });
+      const base = buildVerzikTimeline(
+        BASE_CLIENT_ID,
+        15,
+        'player1',
+        DataSource.SECONDARY,
+        5,
+        {
+          6: { npcAttackTick: 5, style: 1 },
+        },
+      );
+      const target = buildVerzikTimeline(
+        TARGET_CLIENT_ID,
+        15,
+        'player1',
+        DataSource.PRIMARY,
+        5,
+        {
+          6: { npcAttackTick: 5, style: 1 },
+        },
+      );
 
       const consolidator = new EventConsolidator(
         base,
@@ -617,8 +868,18 @@ describe('EventConsolidator', () => {
           createTickState(
             i,
             [
-              createPlayerState({ username: 'player1', x: 0, y: 0 }),
-              createPlayerState({ username: 'player2', x: 9, y: 10 }),
+              createPlayerState({
+                username: 'player1',
+                clientId: BASE_CLIENT_ID,
+                x: 0,
+                y: 0,
+              }),
+              createPlayerState({
+                username: 'player2',
+                clientId: BASE_CLIENT_ID,
+                x: 9,
+                y: 10,
+              }),
             ],
             [
               createPlayerUpdateEvent({
@@ -647,8 +908,18 @@ describe('EventConsolidator', () => {
           createTickState(
             i,
             [
-              createPlayerState({ username: 'player1', x: 0, y: 0 }),
-              createPlayerState({ username: 'player2', x: 9, y: 10 }),
+              createPlayerState({
+                username: 'player1',
+                clientId: TARGET_CLIENT_ID,
+                x: 0,
+                y: 0,
+              }),
+              createPlayerState({
+                username: 'player2',
+                clientId: TARGET_CLIENT_ID,
+                x: 9,
+                y: 10,
+              }),
             ],
             [
               createPlayerUpdateEvent({
@@ -703,12 +974,26 @@ describe('EventConsolidator', () => {
     });
 
     it('falls back to base when proximity cannot be determined', () => {
-      const base = buildVerzikTimeline(15, 'player1', DataSource.SECONDARY, 5, {
-        6: { npcAttackTick: 5, style: 1 },
-      });
-      const target = buildVerzikTimeline(15, 'player1', DataSource.PRIMARY, 5, {
-        6: { npcAttackTick: 5, style: 2 },
-      });
+      const base = buildVerzikTimeline(
+        BASE_CLIENT_ID,
+        15,
+        'player1',
+        DataSource.SECONDARY,
+        5,
+        {
+          6: { npcAttackTick: 5, style: 1 },
+        },
+      );
+      const target = buildVerzikTimeline(
+        TARGET_CLIENT_ID,
+        15,
+        'player1',
+        DataSource.PRIMARY,
+        5,
+        {
+          6: { npcAttackTick: 5, style: 2 },
+        },
+      );
 
       const consolidator = new EventConsolidator(
         base,
@@ -727,16 +1012,27 @@ describe('EventConsolidator', () => {
     });
 
     it('discards attack style events when no matching attack exists', () => {
-      const base = buildTimeline(15, 'player1', DataSource.SECONDARY, {
-        6: [
-          createVerzikAttackStyleEvent({
-            tick: 6,
-            npcAttackTick: 5,
-            style: 0,
-          }),
-        ],
-      });
-      const target = buildTimeline(15, 'player1', DataSource.PRIMARY);
+      const base = buildTimeline(
+        BASE_CLIENT_ID,
+        15,
+        'player1',
+        DataSource.SECONDARY,
+        {
+          6: [
+            createVerzikAttackStyleEvent({
+              tick: 6,
+              npcAttackTick: 5,
+              style: 0,
+            }),
+          ],
+        },
+      );
+      const target = buildTimeline(
+        TARGET_CLIENT_ID,
+        15,
+        'player1',
+        DataSource.PRIMARY,
+      );
 
       const consolidator = new EventConsolidator(
         base,
@@ -812,15 +1108,30 @@ describe('EventConsolidator', () => {
             createTickState(
               i,
               [
-                createPlayerState({ username: 'player1', x: 0, y: 0 }),
-                createPlayerState({ username: 'player2', x: 10, y: 10 }),
+                createPlayerState({
+                  username: 'player1',
+                  clientId,
+                  x: 0,
+                  y: 0,
+                }),
+                createPlayerState({
+                  username: 'player2',
+                  clientId,
+                  x: 10,
+                  y: 10,
+                }),
                 createPlayerState({
                   username: 'attacker',
+                  clientId,
                   x: 9,
                   y: 10,
                   attack:
                     i === 5
-                      ? { type: attackType, weaponId: 0, target: 1 }
+                      ? {
+                          type: attackType,
+                          weaponId: 26374,
+                          target: 1,
+                        }
                       : null,
                 }),
               ],
@@ -861,18 +1172,15 @@ describe('EventConsolidator', () => {
       );
       const result = consolidator.consolidate();
 
-      const tick5Attacks = result.ticks[5]
-        ?.getEvents()
-        .filter((e) => e.getType() === ProtoEvent.Type.PLAYER_ATTACK);
-      expect(tick5Attacks).toHaveLength(1);
+      const tick5Attack =
+        result.ticks[5]?.getPlayerState('attacker')?.attack ?? null;
+      expect(tick5Attack).not.toBeNull();
       // player2 is closer to attacker so the target's ZCB_SPEC should win.
-      expect(tick5Attacks![0].getPlayerAttack()?.getType()).toBe(
-        PlayerAttack.ZCB_SPEC,
-      );
+      expect(tick5Attack?.type).toBe(PlayerAttack.ZCB_SPEC);
     });
 
     it('prefers the client whose primary player is the attacker', () => {
-      // player1 (base primary) attacks with ZCB_SPEC. player2 sees player1
+      // player2 (target primary) attacks with ZCB_SPEC. player1 sees player2
       // attacking with ZCB_AUTO.
       const numTicks = 10;
 
@@ -909,7 +1217,7 @@ describe('EventConsolidator', () => {
             events.push(
               createPlayerAttackEvent({
                 tick: 5,
-                name: 'player1',
+                name: 'player2',
                 attackType,
                 targetRoomId: 1,
               }),
@@ -922,14 +1230,24 @@ describe('EventConsolidator', () => {
               [
                 createPlayerState({
                   username: 'player1',
+                  clientId,
+                  x: 20,
+                  y: 20,
+                }),
+                createPlayerState({
+                  username: 'player2',
+                  clientId,
                   x: 5,
                   y: 5,
                   attack:
                     i === 5
-                      ? { type: attackType, weaponId: 0, target: 1 }
+                      ? {
+                          type: attackType,
+                          weaponId: 26374,
+                          target: 1,
+                        }
                       : null,
                 }),
-                createPlayerState({ username: 'player2', x: 20, y: 20 }),
               ],
               events,
               clientId,
@@ -939,8 +1257,8 @@ describe('EventConsolidator', () => {
         return ticks;
       };
 
-      const base = makeTimeline(BASE_CLIENT_ID, PlayerAttack.ZCB_SPEC);
-      const target = makeTimeline(TARGET_CLIENT_ID, PlayerAttack.ZCB_AUTO);
+      const base = makeTimeline(BASE_CLIENT_ID, PlayerAttack.ZCB_AUTO);
+      const target = makeTimeline(TARGET_CLIENT_ID, PlayerAttack.ZCB_SPEC);
 
       const clients = new Map<number, RegisteredClient>([
         [
@@ -960,13 +1278,10 @@ describe('EventConsolidator', () => {
       );
       const result = consolidator.consolidate();
 
-      const tick5Attacks = result.ticks[5]
-        ?.getEvents()
-        .filter((e) => e.getType() === ProtoEvent.Type.PLAYER_ATTACK);
-      expect(tick5Attacks).toHaveLength(1);
-      expect(tick5Attacks![0].getPlayerAttack()?.getType()).toBe(
-        PlayerAttack.ZCB_SPEC,
-      );
+      const tick5Attack =
+        result.ticks[5]?.getPlayerState('player2')?.attack ?? null;
+      expect(tick5Attack).not.toBeNull();
+      expect(tick5Attack?.type).toBe(PlayerAttack.ZCB_SPEC);
     });
 
     it('does not resolve when only one client reports the attack', () => {
@@ -1026,18 +1341,24 @@ describe('EventConsolidator', () => {
             [
               createPlayerState({
                 username: 'player1',
+                clientId: BASE_CLIENT_ID,
                 x: 0,
                 y: 0,
                 attack:
                   i === 5
                     ? {
                         type: PlayerAttack.ZCB_AUTO,
-                        weaponId: 0,
+                        weaponId: 26374,
                         target: 1,
                       }
                     : null,
               }),
-              createPlayerState({ username: 'player2', x: 10, y: 10 }),
+              createPlayerState({
+                username: 'player2',
+                clientId: BASE_CLIENT_ID,
+                x: 10,
+                y: 10,
+              }),
             ],
             baseEvents,
             BASE_CLIENT_ID,
@@ -1048,8 +1369,18 @@ describe('EventConsolidator', () => {
           createTickState(
             i,
             [
-              createPlayerState({ username: 'player1', x: 0, y: 0 }),
-              createPlayerState({ username: 'player2', x: 10, y: 10 }),
+              createPlayerState({
+                username: 'player1',
+                clientId: TARGET_CLIENT_ID,
+                x: 0,
+                y: 0,
+              }),
+              createPlayerState({
+                username: 'player2',
+                clientId: TARGET_CLIENT_ID,
+                x: 10,
+                y: 10,
+              }),
             ],
             targetEvents,
             TARGET_CLIENT_ID,
@@ -1075,13 +1406,10 @@ describe('EventConsolidator', () => {
       );
       const result = consolidator.consolidate();
 
-      const tick5Attacks = result.ticks[5]
-        ?.getEvents()
-        .filter((e) => e.getType() === ProtoEvent.Type.PLAYER_ATTACK);
-      expect(tick5Attacks).toHaveLength(1);
-      expect(tick5Attacks![0].getPlayerAttack()?.getType()).toBe(
-        PlayerAttack.ZCB_AUTO,
-      );
+      const tick5Attack =
+        result.ticks[5]?.getPlayerState('player1')?.attack ?? null;
+      expect(tick5Attack).not.toBeNull();
+      expect(tick5Attack?.type).toBe(PlayerAttack.ZCB_AUTO);
     });
 
     it('does not resolve when both clients report the same attack type', () => {
@@ -1135,17 +1463,28 @@ describe('EventConsolidator', () => {
             createTickState(
               i,
               [
-                createPlayerState({ username: 'player1', x: 0, y: 0 }),
-                createPlayerState({ username: 'player2', x: 10, y: 10 }),
+                createPlayerState({
+                  username: 'player1',
+                  clientId,
+                  x: 0,
+                  y: 0,
+                }),
+                createPlayerState({
+                  username: 'player2',
+                  clientId,
+                  x: 10,
+                  y: 10,
+                }),
                 createPlayerState({
                   username: 'attacker',
+                  clientId,
                   x: 9,
                   y: 10,
                   attack:
                     i === 5
                       ? {
                           type: PlayerAttack.ZCB_AUTO,
-                          weaponId: 0,
+                          weaponId: 26374,
                           target: 1,
                         }
                       : null,
@@ -1180,12 +1519,743 @@ describe('EventConsolidator', () => {
       );
       const result = consolidator.consolidate();
 
-      const tick5Attacks = result.ticks[5]
-        ?.getEvents()
-        .filter((e) => e.getType() === ProtoEvent.Type.PLAYER_ATTACK);
-      expect(tick5Attacks).toHaveLength(1);
-      expect(tick5Attacks![0].getPlayerAttack()?.getType()).toBe(
-        PlayerAttack.ZCB_AUTO,
+      const tick5Attack =
+        result.ticks[5]?.getPlayerState('attacker')?.attack ?? null;
+      expect(tick5Attack).not.toBeNull();
+      expect(tick5Attack?.type).toBe(PlayerAttack.ZCB_AUTO);
+    });
+  });
+
+  describe('player attack target merging', () => {
+    function attackEvent(
+      tick: number,
+      name: string,
+      attackType: PlayerAttack,
+      targetRoomId?: number,
+    ): ProtoEvent {
+      return createPlayerAttackEvent({
+        tick,
+        name,
+        attackType,
+        targetRoomId,
+      });
+    }
+
+    function singleTickWithAttack(
+      tick: number,
+      clientId: number,
+      source: DataSource,
+      attackType: PlayerAttack | null,
+      targetRoomId?: number,
+    ): TickStateArray {
+      const events: ProtoEvent[] = [
+        createPlayerUpdateEvent({ tick, name: 'p1', source }),
+      ];
+      if (attackType !== null) {
+        events.push(attackEvent(tick, 'p1', attackType, targetRoomId));
+      }
+      return [
+        createTickState(
+          tick,
+          [
+            createPlayerState({
+              username: 'p1',
+              clientId,
+              source,
+              attack:
+                attackType !== null
+                  ? {
+                      type: attackType,
+                      weaponId: 0,
+                      target: targetRoomId ?? null,
+                    }
+                  : null,
+            }),
+          ],
+          events,
+          clientId,
+        ),
+      ];
+    }
+
+    it('emits no flag when both clients agree on the target', () => {
+      const base = singleTickWithAttack(
+        0,
+        BASE_CLIENT_ID,
+        DataSource.SECONDARY,
+        PlayerAttack.PUNCH,
+        8370,
+      );
+      const target = singleTickWithAttack(
+        0,
+        TARGET_CLIENT_ID,
+        DataSource.SECONDARY,
+        PlayerAttack.PUNCH,
+        8370,
+      );
+
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
+      const result = consolidator.consolidate();
+      expect(result.qualityFlags).toEqual([]);
+    });
+
+    it("fills in target info from other when base's target is null", () => {
+      const base = singleTickWithAttack(
+        0,
+        BASE_CLIENT_ID,
+        DataSource.SECONDARY,
+        PlayerAttack.PUNCH,
+      );
+      const target = singleTickWithAttack(
+        0,
+        TARGET_CLIENT_ID,
+        DataSource.SECONDARY,
+        PlayerAttack.PUNCH,
+        8370,
+      );
+
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
+      const result = consolidator.consolidate();
+      expect(result.qualityFlags).toEqual([]);
+      expect(result.ticks[0]?.getPlayerState('p1')?.attack?.target).toEqual({
+        id: 8370,
+        roomId: 8370,
+        sourceClientId: TARGET_CLIENT_ID,
+      });
+    });
+
+    it('keeps base target and emits no flag when other has no target', () => {
+      const base = singleTickWithAttack(
+        0,
+        BASE_CLIENT_ID,
+        DataSource.SECONDARY,
+        PlayerAttack.PUNCH,
+        8370,
+      );
+      const target = singleTickWithAttack(
+        0,
+        TARGET_CLIENT_ID,
+        DataSource.SECONDARY,
+        PlayerAttack.PUNCH,
+      );
+
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
+      const result = consolidator.consolidate();
+      expect(result.qualityFlags).toEqual([]);
+      expect(
+        result.ticks[0]?.getPlayerState('p1')?.attack?.target?.roomId,
+      ).toBe(8370);
+    });
+
+    it('emits ATTACK_TARGET_MISMATCH on disagreeing roomIds', () => {
+      const base = singleTickWithAttack(
+        0,
+        BASE_CLIENT_ID,
+        DataSource.SECONDARY,
+        PlayerAttack.PUNCH,
+        8370,
+      );
+      const target = singleTickWithAttack(
+        0,
+        TARGET_CLIENT_ID,
+        DataSource.SECONDARY,
+        PlayerAttack.PUNCH,
+        8371,
+      );
+
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
+      const result = consolidator.consolidate();
+      expect(result.qualityFlags).toEqual([
+        {
+          kind: 'ATTACK_TARGET_MISMATCH',
+          tick: 0,
+          player: 'p1',
+          keptRoomId: 8370,
+          discardedRoomId: 8371,
+          keptSourceClientId: BASE_CLIENT_ID,
+          discardedSourceClientId: TARGET_CLIENT_ID,
+        },
+      ]);
+      // Base wins; its target is preserved.
+      expect(
+        result.ticks[0]?.getPlayerState('p1')?.attack?.target?.roomId,
+      ).toBe(8370);
+    });
+
+    it('fills attack from target when base has no attack on the same tick', () => {
+      const base = singleTickWithAttack(
+        0,
+        BASE_CLIENT_ID,
+        DataSource.SECONDARY,
+        null,
+      );
+      const target = singleTickWithAttack(
+        0,
+        TARGET_CLIENT_ID,
+        DataSource.SECONDARY,
+        PlayerAttack.SCYTHE,
+        8370,
+      );
+
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
+      const result = consolidator.consolidate();
+      expect(result.qualityFlags).toEqual([]);
+      const attack = result.ticks[0]?.getPlayerState('p1')?.attack;
+      expect(attack?.type).toBe(PlayerAttack.SCYTHE);
+      expect(attack?.sourceClientId).toBe(TARGET_CLIENT_ID);
+    });
+  });
+
+  describe('attack type mismatch', () => {
+    function singleTick(
+      tick: number,
+      clientId: number,
+      attackType: PlayerAttack,
+    ): TickStateArray {
+      return [
+        createTickState(
+          tick,
+          [
+            createPlayerState({
+              username: 'p1',
+              clientId,
+              attack: {
+                type: attackType,
+                weaponId: 0,
+                target: 8370,
+              },
+            }),
+          ],
+          [
+            createPlayerUpdateEvent({
+              tick,
+              name: 'p1',
+              source: DataSource.SECONDARY,
+            }),
+            createPlayerAttackEvent({
+              tick,
+              name: 'p1',
+              attackType,
+              targetRoomId: 8370,
+            }),
+          ],
+          clientId,
+        ),
+      ];
+    }
+
+    it('emits ATTACK_TYPE_MISMATCH for non-projectile-ambiguous type difference', () => {
+      const base = singleTick(0, BASE_CLIENT_ID, PlayerAttack.SCYTHE);
+      const target = singleTick(0, TARGET_CLIENT_ID, PlayerAttack.PUNCH);
+
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
+      const result = consolidator.consolidate();
+      expect(result.qualityFlags).toEqual([
+        {
+          kind: 'ATTACK_TYPE_MISMATCH',
+          tick: 0,
+          player: 'p1',
+          keptType: PlayerAttack.SCYTHE,
+          discardedType: PlayerAttack.PUNCH,
+          keptSourceClientId: BASE_CLIENT_ID,
+          discardedSourceClientId: TARGET_CLIENT_ID,
+        },
+      ]);
+      // Base attack is preserved.
+      expect(result.ticks[0]?.getPlayerState('p1')?.attack?.type).toBe(
+        PlayerAttack.SCYTHE,
+      );
+    });
+
+    it('does not emit ATTACK_TYPE_MISMATCH for projectile-ambiguous types', () => {
+      const base = singleTick(0, BASE_CLIENT_ID, PlayerAttack.ZCB_AUTO);
+      const target = singleTick(0, TARGET_CLIENT_ID, PlayerAttack.ZCB_SPEC);
+
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
+      const result = consolidator.consolidate();
+      expect(
+        result.qualityFlags.filter((f) => f.kind === 'ATTACK_TYPE_MISMATCH'),
+      ).toEqual([]);
+    });
+  });
+
+  describe('player spell merging', () => {
+    function singleSpellTick(
+      tick: number,
+      clientId: number,
+      spell: {
+        type: PlayerSpell;
+        target?: string | number | null;
+      } | null,
+    ): TickStateArray {
+      return [
+        createTickState(
+          tick,
+          [
+            createPlayerState({
+              username: 'p1',
+              clientId,
+              spell: spell ?? null,
+            }),
+          ],
+          [
+            createPlayerUpdateEvent({
+              tick,
+              name: 'p1',
+              source: DataSource.SECONDARY,
+            }),
+          ],
+          clientId,
+        ),
+      ];
+    }
+
+    it('emits no flag when both clients agree on a targeted spell', () => {
+      const base = singleSpellTick(0, BASE_CLIENT_ID, {
+        type: PlayerSpell.HEAL_OTHER,
+        target: 'player2',
+      });
+      const target = singleSpellTick(0, TARGET_CLIENT_ID, {
+        type: PlayerSpell.HEAL_OTHER,
+        target: 'player2',
+      });
+
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
+      const result = consolidator.consolidate();
+      expect(result.qualityFlags).toEqual([]);
+    });
+
+    it("fills in spell target from other when base's target is null", () => {
+      const base = singleSpellTick(0, BASE_CLIENT_ID, {
+        type: PlayerSpell.HEAL_OTHER,
+        target: null,
+      });
+      const target = singleSpellTick(0, TARGET_CLIENT_ID, {
+        type: PlayerSpell.HEAL_OTHER,
+        target: 'player2',
+      });
+
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
+      const result = consolidator.consolidate();
+      expect(result.qualityFlags).toEqual([]);
+      const merged = result.ticks[0]?.getPlayerState('p1')?.spell;
+      expect(merged?.target?.kind).toBe('player');
+      if (merged?.target?.kind === 'player') {
+        expect(merged.target.name).toBe('player2');
+      }
+    });
+
+    it('keeps untargeted spells unchanged when neither side has a target', () => {
+      const base = singleSpellTick(0, BASE_CLIENT_ID, {
+        type: PlayerSpell.SPELLBOOK_SWAP,
+      });
+      const target = singleSpellTick(0, TARGET_CLIENT_ID, {
+        type: PlayerSpell.SPELLBOOK_SWAP,
+      });
+
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
+      const result = consolidator.consolidate();
+      expect(result.qualityFlags).toEqual([]);
+      expect(result.ticks[0]?.getPlayerState('p1')?.spell?.target).toBeNull();
+    });
+
+    it('clears a spurious target on a base-side untargeted spell', () => {
+      const base = singleSpellTick(0, BASE_CLIENT_ID, {
+        type: PlayerSpell.SPELLBOOK_SWAP,
+        target: 'player2',
+      });
+      const target = singleSpellTick(0, TARGET_CLIENT_ID, {
+        type: PlayerSpell.SPELLBOOK_SWAP,
+      });
+
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
+      const result = consolidator.consolidate();
+      expect(result.ticks[0]?.getPlayerState('p1')?.spell?.target).toBeNull();
+    });
+
+    it('does not adopt a spurious target from an untargeted spell', () => {
+      const base = singleSpellTick(0, BASE_CLIENT_ID, {
+        type: PlayerSpell.SPELLBOOK_SWAP,
+      });
+      const target = singleSpellTick(0, TARGET_CLIENT_ID, {
+        type: PlayerSpell.SPELLBOOK_SWAP,
+        target: 'player2',
+      });
+
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
+      const result = consolidator.consolidate();
+      expect(result.ticks[0]?.getPlayerState('p1')?.spell?.target).toBeNull();
+    });
+
+    it('emits SPELL_TARGET_MISMATCH on disagreeing player targets', () => {
+      const base = singleSpellTick(0, BASE_CLIENT_ID, {
+        type: PlayerSpell.HEAL_OTHER,
+        target: 'player2',
+      });
+      const target = singleSpellTick(0, TARGET_CLIENT_ID, {
+        type: PlayerSpell.HEAL_OTHER,
+        target: 'player3',
+      });
+
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
+      const result = consolidator.consolidate();
+      expect(result.qualityFlags).toEqual([
+        {
+          kind: 'SPELL_TARGET_MISMATCH',
+          tick: 0,
+          player: 'p1',
+          keptTargetKind: 'player',
+          keptTargetId: 'player2',
+          discardedTargetKind: 'player',
+          discardedTargetId: 'player3',
+          keptSourceClientId: BASE_CLIENT_ID,
+          discardedSourceClientId: TARGET_CLIENT_ID,
+        },
+      ]);
+    });
+
+    it('emits SPELL_TYPE_MISMATCH on different spell types', () => {
+      const base = singleSpellTick(0, BASE_CLIENT_ID, {
+        type: PlayerSpell.HEAL_OTHER,
+        target: 'player2',
+      });
+      const target = singleSpellTick(0, TARGET_CLIENT_ID, {
+        type: PlayerSpell.VENGEANCE_OTHER,
+        target: 'player2',
+      });
+
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
+      const result = consolidator.consolidate();
+      expect(result.qualityFlags).toEqual([
+        {
+          kind: 'SPELL_TYPE_MISMATCH',
+          tick: 0,
+          player: 'p1',
+          keptType: PlayerSpell.HEAL_OTHER,
+          discardedType: PlayerSpell.VENGEANCE_OTHER,
+          keptSourceClientId: BASE_CLIENT_ID,
+          discardedSourceClientId: TARGET_CLIENT_ID,
+        },
+      ]);
+      // Base spell is preserved.
+      expect(result.ticks[0]?.getPlayerState('p1')?.spell?.type).toBe(
+        PlayerSpell.HEAL_OTHER,
+      );
+    });
+
+    it('fills spell from target when base has no spell on the same tick', () => {
+      const base = singleSpellTick(0, BASE_CLIENT_ID, null);
+      const target = singleSpellTick(0, TARGET_CLIENT_ID, {
+        type: PlayerSpell.HEAL_OTHER,
+        target: 'player2',
+      });
+
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
+      const result = consolidator.consolidate();
+      expect(result.qualityFlags).toEqual([]);
+      expect(result.ticks[0]?.getPlayerState('p1')?.spell?.type).toBe(
+        PlayerSpell.HEAL_OTHER,
+      );
+    });
+  });
+
+  describe('npc attack merging', () => {
+    function singleTickWithNpcAttack(
+      tick: number,
+      clientId: number,
+      attackType: NpcAttack | null,
+      target?: string,
+      npcId: number = 8360,
+      npcCoords: { x: number; y: number } = { x: 50, y: 50 },
+      primaryPlayer: { name: string; x: number; y: number } = {
+        name: 'p1',
+        x: 0,
+        y: 0,
+      },
+    ): TickStateArray {
+      const events: ProtoEvent[] = [
+        createPlayerUpdateEvent({
+          tick,
+          name: primaryPlayer.name,
+          source: DataSource.PRIMARY,
+          x: primaryPlayer.x,
+          y: primaryPlayer.y,
+        }),
+        createNpcUpdateEvent({
+          tick,
+          roomId: 1,
+          npcId,
+          x: npcCoords.x,
+          y: npcCoords.y,
+          hitpointsCurrent: 500,
+        }),
+      ];
+      if (attackType !== null) {
+        events.push(
+          createNpcAttackEvent({
+            tick,
+            roomId: 1,
+            npcId,
+            attackType,
+            target,
+          }),
+        );
+      }
+      return [
+        createTickState(
+          tick,
+          [
+            createPlayerState({
+              username: primaryPlayer.name,
+              clientId,
+              source: DataSource.PRIMARY,
+              x: primaryPlayer.x,
+              y: primaryPlayer.y,
+            }),
+          ],
+          events,
+          clientId,
+        ),
+      ];
+    }
+
+    it('emits no flag when both clients agree on the attack and target', () => {
+      const base = singleTickWithNpcAttack(
+        0,
+        BASE_CLIENT_ID,
+        NpcAttack.TOB_MAIDEN_AUTO,
+        'p1',
+      );
+      const target = singleTickWithNpcAttack(
+        0,
+        TARGET_CLIENT_ID,
+        NpcAttack.TOB_MAIDEN_AUTO,
+        'p1',
+      );
+
+      const result = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      ).consolidate();
+
+      expect(result.qualityFlags).toEqual([]);
+      const attack = result.ticks[0]?.getNpcs().get(1)?.attack;
+      expect(attack?.type).toBe(NpcAttack.TOB_MAIDEN_AUTO);
+      expect(attack?.target).toBe('p1');
+    });
+
+    it("fills the attack from target when base's NPC has none", () => {
+      const base = singleTickWithNpcAttack(0, BASE_CLIENT_ID, null);
+      const target = singleTickWithNpcAttack(
+        0,
+        TARGET_CLIENT_ID,
+        NpcAttack.TOB_MAIDEN_AUTO,
+        'p1',
+      );
+
+      const result = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      ).consolidate();
+
+      expect(result.qualityFlags).toEqual([]);
+      const attack = result.ticks[0]?.getNpcs().get(1)?.attack;
+      expect(attack?.type).toBe(NpcAttack.TOB_MAIDEN_AUTO);
+      expect(attack?.target).toBe('p1');
+      expect(attack?.sourceClientId).toBe(TARGET_CLIENT_ID);
+    });
+
+    it("fills target on the kept attack when base's target is null", () => {
+      const base = singleTickWithNpcAttack(
+        0,
+        BASE_CLIENT_ID,
+        NpcAttack.TOB_MAIDEN_AUTO,
+      );
+      const target = singleTickWithNpcAttack(
+        0,
+        TARGET_CLIENT_ID,
+        NpcAttack.TOB_MAIDEN_AUTO,
+        'p1',
+      );
+
+      const result = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      ).consolidate();
+
+      expect(result.qualityFlags).toEqual([]);
+      const attack = result.ticks[0]?.getNpcs().get(1)?.attack;
+      expect(attack?.target).toBe('p1');
+    });
+
+    it('emits NPC_ATTACK_TARGET_MISMATCH when clients disagree on target', () => {
+      const base = singleTickWithNpcAttack(
+        0,
+        BASE_CLIENT_ID,
+        NpcAttack.TOB_MAIDEN_AUTO,
+        'p1',
+      );
+      const target = singleTickWithNpcAttack(
+        0,
+        TARGET_CLIENT_ID,
+        NpcAttack.TOB_MAIDEN_AUTO,
+        'p2',
+      );
+
+      const result = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      ).consolidate();
+
+      expect(result.qualityFlags).toHaveLength(1);
+      expect(result.qualityFlags[0]).toMatchObject({
+        kind: 'NPC_ATTACK_TARGET_MISMATCH',
+        roomId: 1,
+        npcId: 8360,
+        keptTarget: 'p1',
+        discardedTarget: 'p2',
+      });
+      // Base's target is kept on the merged attack.
+      expect(result.ticks[0]?.getNpcs().get(1)?.attack?.target).toBe('p1');
+    });
+
+    it('emits NPC_ATTACK_TYPE_MISMATCH on non-ambiguous type disagreement', () => {
+      const base = singleTickWithNpcAttack(
+        0,
+        BASE_CLIENT_ID,
+        NpcAttack.TOB_MAIDEN_AUTO,
+        'p1',
+      );
+      const target = singleTickWithNpcAttack(
+        0,
+        TARGET_CLIENT_ID,
+        NpcAttack.TOB_MAIDEN_BLOOD_THROW,
+        'p1',
+      );
+
+      const result = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      ).consolidate();
+
+      expect(result.qualityFlags).toHaveLength(1);
+      expect(result.qualityFlags[0]).toMatchObject({
+        kind: 'NPC_ATTACK_TYPE_MISMATCH',
+        roomId: 1,
+        npcId: 8360,
+        keptType: NpcAttack.TOB_MAIDEN_AUTO,
+        discardedType: NpcAttack.TOB_MAIDEN_BLOOD_THROW,
+      });
+      expect(result.ticks[0]?.getNpcs().get(1)?.attack?.type).toBe(
+        NpcAttack.TOB_MAIDEN_AUTO,
+      );
+    });
+
+    it('resolves projectile-ambiguous types by primary-player proximity', () => {
+      const base = singleTickWithNpcAttack(
+        0,
+        BASE_CLIENT_ID,
+        NpcAttack.TOB_SOTE_BALL,
+        'p1',
+        8388,
+        { x: 50, y: 50 },
+        { name: 'p1', x: 0, y: 0 },
+      );
+      const target = singleTickWithNpcAttack(
+        0,
+        TARGET_CLIENT_ID,
+        NpcAttack.TOB_SOTE_DEATH_BALL,
+        'p1',
+        8388,
+        { x: 50, y: 50 },
+        { name: 'p2', x: 49, y: 50 },
+      );
+
+      const clients = new Map<number, RegisteredClient>([
+        [
+          BASE_CLIENT_ID,
+          { client: createClient(BASE_CLIENT_ID, 'p1', base.length) },
+        ],
+        [
+          TARGET_CLIENT_ID,
+          { client: createClient(TARGET_CLIENT_ID, 'p2', target.length) },
+        ],
+      ]);
+
+      const result = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length, clients),
+      ).consolidate();
+
+      expect(result.qualityFlags).toEqual([]);
+      expect(result.ticks[0]?.getNpcs().get(1)?.attack?.type).toBe(
+        NpcAttack.TOB_SOTE_DEATH_BALL,
       );
     });
   });

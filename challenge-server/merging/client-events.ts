@@ -5,6 +5,7 @@ import {
   ItemDelta,
   PrayerBook,
   PrayerSet,
+  SkillLevel,
   Stage,
   StageStatus,
   StageStreamType,
@@ -13,8 +14,16 @@ import { ChallengeEvents } from '@blert/common/generated/challenge_storage_pb';
 import { Event } from '@blert/common/generated/event_pb';
 
 import logger from '../log';
+import { buildGraphicsStates } from './graphics';
 import { ChallengeInfo } from './merge';
-import { PlayerState, TickState, TickStateArray } from './tick-state';
+import {
+  buildNpcStates,
+  PlayerState,
+  PlayerStats,
+  TickState,
+  TickStateArray,
+  WithProvenance,
+} from './tick-state';
 import {
   consistencyCheckerForStage,
   ConsistencyIssue,
@@ -185,18 +194,29 @@ export class ClientEvents {
     const primaryPlayer =
       primaryPlayers.size === 1 ? primaryPlayers.values().next().value : null;
 
-    const playerStates = this.buildPlayerStates(eventsByTick, challenge.party);
-    const tickState = eventsByTick.map(
-      (evts, tick) =>
+    const playerStates = this.buildPlayerStates(
+      clientId,
+      eventsByTick,
+      challenge.party,
+    );
+    const taggedByTick = eventsByTick.map((evts) =>
+      evts.map((event) => ({ event, source: clientId })),
+    );
+    const npcsByTick = buildNpcStates(taggedByTick);
+    const graphicsByTick = buildGraphicsStates(taggedByTick);
+    const tickState = taggedByTick.map(
+      (tagged, tick) =>
         new TickState(
           tick,
-          evts.map((event) => ({ event, source: clientId })),
+          tagged,
           new Map(
             challenge.party.map((player) => [
               player,
               playerStates[player][tick],
             ]),
           ),
+          npcsByTick[tick],
+          graphicsByTick[tick],
         ),
     );
 
@@ -433,14 +453,16 @@ export class ClientEvents {
   }
 
   private static buildPlayerStates(
+    clientId: number,
     eventsByTick: Event[][],
     party: string[],
-  ): Record<string, (PlayerState | null)[]> {
-    const playerStates: Record<string, (PlayerState | null)[]> = {};
+  ): Record<string, (WithProvenance<PlayerState> | null)[]> {
+    const playerStates: Record<string, (WithProvenance<PlayerState> | null)[]> =
+      {};
 
     for (const player of party) {
       const states = Array(eventsByTick.length).fill(null);
-      let lastState: PlayerState | null = null;
+      let lastState: WithProvenance<PlayerState> | null = null;
 
       let isDead = false;
 
@@ -456,6 +478,7 @@ export class ClientEvents {
           (event) =>
             (event.getType() === Event.Type.PLAYER_UPDATE ||
               event.getType() === Event.Type.PLAYER_ATTACK ||
+              event.getType() === Event.Type.PLAYER_SPELL ||
               event.getType() === Event.Type.PLAYER_DEATH) &&
             event.getPlayer()?.getName() === player,
         );
@@ -464,7 +487,7 @@ export class ClientEvents {
           continue;
         }
 
-        const state: PlayerState = {
+        const state: WithProvenance<PlayerState> = {
           source: DataSource.SECONDARY,
           username: player,
           x: lastState?.x ?? 0,
@@ -487,7 +510,11 @@ export class ClientEvents {
                 [EquipmentSlot.QUIVER]: null,
               },
           attack: null,
+          spell: null,
+          stats: null,
+          offCooldownTick: null,
           prayers: PrayerSet.empty(PrayerBook.NORMAL),
+          sourceClientId: clientId,
         };
 
         playerEvents.forEach((event) => {
@@ -499,6 +526,7 @@ export class ClientEvents {
               state.x = event.getXCoord();
               state.y = event.getYCoord();
               state.prayers = PrayerSet.fromRaw(player.getActivePrayers());
+              state.stats = readPlayerStats(player);
 
               player.getEquipmentDeltasList().forEach((rawDelta) => {
                 const delta = ItemDelta.fromRaw(rawDelta);
@@ -545,8 +573,43 @@ export class ClientEvents {
               state.attack = {
                 type: attack.getType(),
                 weaponId: attack.getWeapon()?.getId() ?? 0,
-                target: attack.getTarget()?.getRoomId() ?? null,
+                distanceToTarget: attack.getDistanceToTarget(),
+                target: null,
+                sourceClientId: clientId,
               };
+              const target = attack.getTarget();
+              if (target !== undefined) {
+                state.attack.target = {
+                  id: target.getId(),
+                  roomId: target.getRoomId(),
+                  sourceClientId: clientId,
+                };
+              }
+              break;
+            }
+
+            case Event.Type.PLAYER_SPELL: {
+              const spell = event.getPlayerSpell()!;
+              state.spell = {
+                type: spell.getType(),
+                target: null,
+                sourceClientId: clientId,
+              };
+              if (spell.hasTargetPlayer()) {
+                state.spell.target = {
+                  kind: 'player',
+                  name: spell.getTargetPlayer(),
+                  sourceClientId: clientId,
+                };
+              } else if (spell.hasTargetNpc()) {
+                const npc = spell.getTargetNpc()!;
+                state.spell.target = {
+                  kind: 'npc',
+                  id: npc.getId(),
+                  roomId: npc.getRoomId(),
+                  sourceClientId: clientId,
+                };
+              }
               break;
             }
           }
@@ -561,4 +624,26 @@ export class ClientEvents {
 
     return playerStates;
   }
+}
+
+function readPlayerStats(player: Event.Player): PlayerStats | null {
+  const stats: PlayerStats = {
+    hitpoints: player.hasHitpoints()
+      ? SkillLevel.fromRaw(player.getHitpoints())
+      : null,
+    prayer: player.hasPrayer() ? SkillLevel.fromRaw(player.getPrayer()) : null,
+    attack: player.hasAttack() ? SkillLevel.fromRaw(player.getAttack()) : null,
+    strength: player.hasStrength()
+      ? SkillLevel.fromRaw(player.getStrength())
+      : null,
+    defence: player.hasDefence()
+      ? SkillLevel.fromRaw(player.getDefence())
+      : null,
+    ranged: player.hasRanged() ? SkillLevel.fromRaw(player.getRanged()) : null,
+    magic: player.hasMagic() ? SkillLevel.fromRaw(player.getMagic()) : null,
+  };
+  if (Object.values(stats).every((v) => v === null)) {
+    return null;
+  }
+  return stats;
 }

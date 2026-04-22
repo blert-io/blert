@@ -21,8 +21,12 @@ export type TaggedEvent = {
  * Utility type that asserts two types are equal. Used to enforce exhaustive
  * event classification at compile time.
  */
-type Assert<_T extends true> = never;
-type Equals<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+export type Assert<_T extends true> = never;
+export type Equals<A, B> = [A] extends [B]
+  ? [B] extends [A]
+    ? true
+    : false
+  : false;
 
 /**
  * Event types that no longer exist in the protocol and are never processed.
@@ -116,6 +120,15 @@ type NpcTickStateEventType =
   | typeof Event.Type.NPC_UPDATE
   | typeof Event.Type.NPC_ATTACK;
 
+const NPC_TICK_STATE_RECORD: Record<NpcTickStateEventType, true> = {
+  [Event.Type.NPC_UPDATE]: true,
+  [Event.Type.NPC_ATTACK]: true,
+};
+
+export const NPC_TICK_STATE_TYPES: ReadonlySet<EventType> = new Set(
+  Object.keys(NPC_TICK_STATE_RECORD).map(Number) as EventType[],
+);
+
 /**
  * All event types representing per-tick game state, merged on a tick-by-tick
  * basis.
@@ -124,6 +137,11 @@ export type TickStateEventType =
   | PlayerTickStateEventType
   | NpcTickStateEventType
   | GraphicsEventType;
+
+export const TICK_STATE_EVENT_TYPES =
+  PLAYER_TICK_STATE_TYPES.union(NPC_TICK_STATE_TYPES).union(
+    GRAPHICS_EVENT_TYPES,
+  );
 
 /**
  * Event types that are deferred from the tick-by-tick merge and collected
@@ -339,6 +357,10 @@ export function remapEventTick(
   tagged: TaggedEvent,
   remap: (tick: number) => number,
 ): TaggedEvent {
+  if (TICK_STATE_EVENT_TYPES.has(tagged.event.getType())) {
+    throw new Error('remapEventTick called with a tick-state event');
+  }
+
   const remapped = {
     ...tagged,
     event: tagged.event.clone(),
@@ -347,12 +369,6 @@ export function remapEventTick(
   remapped.event.setTick(remap(remapped.event.getTick()));
 
   switch (remapped.event.getType()) {
-    case Event.Type.PLAYER_UPDATE: {
-      const player = remapped.event.getPlayer()!;
-      player.setOffCooldownTick(remap(player.getOffCooldownTick()));
-      break;
-    }
-
     case Event.Type.TOB_XARPUS_EXHUMED: {
       const xarpusExhumed = remapped.event.getXarpusExhumed()!;
       xarpusExhumed.setSpawnTick(remap(xarpusExhumed.getSpawnTick()));

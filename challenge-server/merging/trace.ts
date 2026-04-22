@@ -6,11 +6,12 @@ import { ReferenceSelection } from './classification';
 import { EventType } from './event';
 import {
   AttackMappedCandidate,
-  QualityFlag,
   ResolutionStrategy,
 } from './event-consolidator';
 import { MergeClientClassification, MergeClientStatus } from './merge';
+import { QualityFlag } from './quality';
 import { MergeMapping, TickMapping } from './tick-mapping';
+import { GraphicsType } from './graphics';
 import { NpcState, PlayerState, TickState, TickStateArray } from './tick-state';
 
 export type PlayerSummary = {
@@ -31,10 +32,17 @@ export type NpcSummary = {
   attack: { type: number; target: string | null } | null;
 };
 
+/** Summary of a single graphics type's per-tick state. */
+export type GraphicsSummary = {
+  type: GraphicsType;
+  countsBySource: Record<number, number>;
+};
+
 export type TickSummary = {
   tick: number;
   players: PlayerSummary[];
   npcs: NpcSummary[];
+  graphics: GraphicsSummary[];
   eventCounts: Record<string, number>;
 };
 
@@ -189,13 +197,14 @@ function serializePlayer(state: Readonly<PlayerState>): PlayerSummary {
     x: state.x,
     y: state.y,
     isDead: state.isDead,
-    attack: state.attack
-      ? {
-          type: state.attack.type,
-          weaponId: state.attack.weaponId,
-          target: state.attack.target,
-        }
-      : null,
+    attack:
+      state.attack !== null
+        ? {
+            type: state.attack.type,
+            weaponId: state.attack.weaponId,
+            target: state.attack.target?.roomId ?? null,
+          }
+        : null,
   };
 }
 
@@ -228,13 +237,22 @@ export function serializeTick(tick: TickState): TickSummary {
     npcs.push(serializeNpc(roomId, state));
   }
 
+  const graphics: GraphicsSummary[] = [];
+  for (const [type, coords] of tick.getGraphics()) {
+    const countsBySource: Record<number, number> = {};
+    for (const source of coords.values()) {
+      countsBySource[source] = (countsBySource[source] ?? 0) + 1;
+    }
+    graphics.push({ type, countsBySource });
+  }
+
   const eventCounts: Record<string, number> = {};
   for (const event of tick.getEvents()) {
     const typeName = eventTypeName(event.getType());
     eventCounts[typeName] = (eventCounts[typeName] ?? 0) + 1;
   }
 
-  return { tick: tick.getTick(), players, npcs, eventCounts };
+  return { tick: tick.getTick(), players, npcs, graphics, eventCounts };
 }
 
 export function serializeTicks(ticks: TickStateArray): TickSummary[] {

@@ -190,6 +190,7 @@ export { DataRepository } from './data-repository/data-repository';
 export {
   attackDefinitionJsonToProto,
   jsonToServerMessage,
+  jsonToProtoEvent,
   protoToJsonEvent,
   serverMessageToJson,
   spellDefinitionJsonToProto,
@@ -278,8 +279,29 @@ export type { TobChallengeStatsRow } from './db/challenge-stats';
 
 export { default as PriceTracker } from './price-tracker';
 
-export { default as attackDefinitions } from './generated/attack_definitions.json';
-export { default as spellDefinitions } from './generated/spell_definitions.json';
+import {
+  PlayerAttack as PlayerAttackEnum,
+  PlayerSpell as PlayerSpellEnum,
+} from './challenge';
+import attackDefinitionsJson from './generated/attack_definitions.json';
+import spellDefinitionsJson from './generated/spell_definitions.json';
+
+export const attackDefinitions = attackDefinitionsJson;
+export const spellDefinitions = spellDefinitionsJson;
+
+/** Lookup table of attack metadata keyed by `PlayerAttack`. */
+export const attackDefinitionsById: ReadonlyMap<
+  PlayerAttackEnum,
+  (typeof attackDefinitionsJson)[number]
+> = new Map(
+  attackDefinitionsJson.map((d) => [d.protoId as PlayerAttackEnum, d]),
+);
+
+/** Lookup table of spell metadata keyed by `PlayerSpell`. */
+export const spellDefinitionsById: ReadonlyMap<
+  PlayerSpellEnum,
+  (typeof spellDefinitionsJson)[number]
+> = new Map(spellDefinitionsJson.map((d) => [d.id as PlayerSpellEnum, d]));
 
 export {
   type LaneSpawnJson,
