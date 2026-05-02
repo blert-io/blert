@@ -249,6 +249,7 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
           bcf={bcf}
           smallLegend={display.isCompact()}
           splits={splits}
+          liveFollowing={following}
         />
       </div>
 

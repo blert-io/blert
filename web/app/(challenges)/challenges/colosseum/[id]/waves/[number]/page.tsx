@@ -387,6 +387,7 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
           bcf={bcf}
           customStates={customStates}
           smallLegend={display.isCompact()}
+          liveFollowing={following}
         />
       </div>
 

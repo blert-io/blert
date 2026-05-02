@@ -361,6 +361,7 @@ export default function SotetsegPage() {
           npcs={npcState}
           bcf={bcf}
           smallLegend={display.isCompact()}
+          liveFollowing={following}
         />
       </div>
 

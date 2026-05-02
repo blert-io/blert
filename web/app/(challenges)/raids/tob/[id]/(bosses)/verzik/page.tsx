@@ -585,6 +585,7 @@ export default function VerzikPage() {
           backgroundColors={backgroundColors}
           smallLegend={display.isCompact()}
           customStates={customStates}
+          liveFollowing={following}
         />
       </div>
 

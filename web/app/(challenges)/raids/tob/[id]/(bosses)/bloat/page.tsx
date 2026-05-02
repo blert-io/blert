@@ -377,6 +377,7 @@ export default function BloatPage() {
           bcf={bcf}
           splits={splits}
           backgroundColors={backgroundColors}
+          liveFollowing={following}
         />
       </div>
 
