@@ -158,6 +158,7 @@ export type CustomStateEntry = {
 type BossPageAttackTimelineProps = AttackTimelineProps & {
   bcf: BlertChartFormat;
   customStates?: CustomStateEntry[];
+  liveFollowing?: boolean;
 };
 
 export function BossPageAttackTimeline(props: BossPageAttackTimelineProps) {
@@ -420,6 +421,7 @@ export function BossPageAttackTimeline(props: BossPageAttackTimelineProps) {
     currentTick: props.currentTick,
     onTickSelect: props.updateTickOnPage,
     useCanvas: true,
+    liveFollowing: props.liveFollowing,
   };
 
   let fullTimeline = null;

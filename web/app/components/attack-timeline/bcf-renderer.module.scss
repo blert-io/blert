@@ -409,3 +409,52 @@ button.legendParticipant {
   transition: transform 0.25s ease-out;
   will-change: transform;
 }
+
+.returnToLiveButton {
+  position: absolute;
+  bottom: 14px;
+  right: 14px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 10px;
+  background: rgba(var(--blert-red-base), 0.2);
+  border: 1px solid transparent;
+  color: var(--blert-red);
+  font-size: 0.85em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  transition: border-color 0.2s ease;
+
+  &:hover {
+    border-color: rgba(var(--blert-red-base), 0.5);
+  }
+
+  i {
+    font-size: 0.8em;
+  }
+}
+
+.returnToLiveDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--blert-red);
+  animation: return-to-live-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes return-to-live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.85);
+  }
+}

@@ -404,6 +404,7 @@ export default function DelvePage({ params }: DelvePageProps) {
           bcf={bcf}
           smallLegend={display.isCompact()}
           customRows={[orbsRow]}
+          liveFollowing={following}
         />
       </div>
 

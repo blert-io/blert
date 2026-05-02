@@ -878,6 +878,7 @@ export default function NylocasPage() {
           bcf={bcf}
           npcs={npcState}
           smallLegend={display.isCompact()}
+          liveFollowing={following}
         />
       </div>
 

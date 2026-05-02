@@ -371,6 +371,7 @@ export default function XarpusPage() {
           npcs={npcState}
           bcf={bcf}
           smallLegend={display.isCompact()}
+          liveFollowing={following}
         />
       </div>
 

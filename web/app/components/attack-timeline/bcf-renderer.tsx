@@ -1,7 +1,7 @@
 'use client';
 
 import { BCFResolver, BlertChartFormat } from '@blert/bcf';
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import HorizontalScrollable from '@/components/horizontal-scrollable';
 
@@ -80,6 +80,12 @@ export type BcfRendererProps = {
 
   /** Use the canvas-based renderer instead of DOM cells. Default: false. */
   useCanvas?: boolean;
+
+  /**
+   * Whether the timeline is auto-following a live challenge. When true, the
+   * timeline detects manual horizontal scrolling and pauses auto-follow.
+   */
+  liveFollowing?: boolean;
 };
 
 export function BcfRenderer({
@@ -100,6 +106,7 @@ export function BcfRenderer({
   onActorSelect,
   onTickSelect,
   useCanvas = false,
+  liveFollowing = false,
 }: BcfRendererProps) {
   const resolver = useMemo(() => new BCFResolver(bcf), [bcf]);
 
@@ -133,6 +140,8 @@ export function BcfRenderer({
   }, [resolver, customRowsMap]);
 
   const scrollableRef = useRef<HTMLDivElement | null>(null);
+  const liveScrollTargetRef = useRef<number | null>(null);
+  const [scrolledAwayFromLive, setScrolledAwayFromLive] = useState(false);
 
   const totalColumnWidth = cellSize + CELL_GAP;
   const shouldScroll = wrapWidth === undefined;
@@ -154,37 +163,110 @@ export function BcfRenderer({
 
   const maxTick = resolver.totalTicks - 1;
 
+  const computeScrollTarget = useCallback(
+    (tick: number) => {
+      const el = scrollableRef.current;
+      if (el === null) {
+        return null;
+      }
+      const tickOffset = tick - resolver.startTick;
+      const scrollThreshold = scrollMinColumns * totalColumnWidth;
+      const scrollOffset = scrollVisibleColumns * totalColumnWidth + cellSize;
+      if (tickOffset * totalColumnWidth < scrollThreshold) {
+        return 0;
+      }
+      if (tick === maxTick) {
+        return el.scrollWidth - el.clientWidth;
+      }
+      return tickOffset * totalColumnWidth - scrollOffset;
+    },
+    [
+      resolver.startTick,
+      scrollMinColumns,
+      scrollVisibleColumns,
+      totalColumnWidth,
+      cellSize,
+      maxTick,
+    ],
+  );
+
   // Auto-scroll to current tick when playing.
   useEffect(() => {
     if (!shouldScroll || currentTick === undefined) {
+      liveScrollTargetRef.current = null;
       return;
     }
 
-    if (scrollableRef.current !== null) {
-      const tickOffset = currentTick - resolver.startTick;
-      const scrollThreshold = scrollMinColumns * totalColumnWidth;
-      const scrollOffset = scrollVisibleColumns * totalColumnWidth + cellSize;
-
-      if (tickOffset * totalColumnWidth < scrollThreshold) {
-        scrollableRef.current.scrollLeft = 0;
-      } else if (currentTick === maxTick) {
-        scrollableRef.current.scrollLeft =
-          scrollableRef.current.scrollWidth - scrollableRef.current.clientWidth;
-      } else {
-        scrollableRef.current.scrollLeft =
-          tickOffset * totalColumnWidth - scrollOffset;
-      }
+    const el = scrollableRef.current;
+    if (el === null) {
+      liveScrollTargetRef.current = null;
+      return;
     }
+
+    const target = computeScrollTarget(currentTick);
+    if (target === null) {
+      liveScrollTargetRef.current = null;
+      return;
+    }
+
+    liveScrollTargetRef.current = target;
+    if (liveFollowing && scrolledAwayFromLive) {
+      return;
+    }
+    el.scrollLeft = target;
   }, [
     shouldScroll,
     currentTick,
-    maxTick,
-    totalColumnWidth,
-    cellSize,
-    scrollMinColumns,
-    scrollVisibleColumns,
-    resolver.startTick,
+    liveFollowing,
+    scrolledAwayFromLive,
+    computeScrollTarget,
   ]);
+
+  // Detect whether the user has moved away from the current live scroll
+  // target and pause auto-follow until they scroll back near it.
+  useEffect(() => {
+    if (!liveFollowing || !shouldScroll) {
+      return;
+    }
+    const el = scrollableRef.current;
+    if (el === null) {
+      return;
+    }
+
+    const handleScroll = () => {
+      const liveTarget = liveScrollTargetRef.current;
+      if (liveTarget === null) {
+        return;
+      }
+
+      const nearLiveTarget =
+        Math.abs(el.scrollLeft - liveTarget) <= totalColumnWidth * 2;
+      setScrolledAwayFromLive(!nearLiveTarget);
+    };
+
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    return () => el.removeEventListener('scroll', handleScroll);
+  }, [liveFollowing, shouldScroll, totalColumnWidth]);
+
+  useEffect(() => {
+    if (!liveFollowing) {
+      setScrolledAwayFromLive(false);
+    }
+  }, [liveFollowing]);
+
+  const handleReturnToLive = useCallback(() => {
+    const el = scrollableRef.current;
+    if (el === null || currentTick === undefined) {
+      return;
+    }
+    setScrolledAwayFromLive(false);
+    const target = computeScrollTarget(currentTick);
+    if (target === null) {
+      return;
+    }
+    liveScrollTargetRef.current = target;
+    el.scrollLeft = target;
+  }, [currentTick, computeScrollTarget]);
 
   const memoizedCoreTimeline = useMemo(
     () =>
@@ -362,6 +444,17 @@ export function BcfRenderer({
             memoizedCoreTimeline
           )}
         </HorizontalScrollable>
+        {liveFollowing && scrolledAwayFromLive && (
+          <button
+            type="button"
+            className={styles.returnToLiveButton}
+            onClick={handleReturnToLive}
+          >
+            <span className={styles.returnToLiveDot} />
+            LIVE
+            <i className="fa-solid fa-arrow-right" />
+          </button>
+        )}
         {tooltipId === undefined && (
           <BcfTooltip resolver={resolver} onActorSelect={onActorSelect} />
         )}

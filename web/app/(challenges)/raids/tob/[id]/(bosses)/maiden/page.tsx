@@ -433,6 +433,7 @@ export default function Maiden() {
           splits={splits}
           npcs={npcState}
           smallLegend={display.isCompact()}
+          liveFollowing={following}
         />
       </div>
 
