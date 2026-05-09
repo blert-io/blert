@@ -89,7 +89,7 @@ function serverMessageJsonToProto(json: ServerMessageJson): ServerMessage {
   }
 
   if (json.challengeEvents !== undefined) {
-    const events = json.challengeEvents.map(eventJsonToProto);
+    const events = json.challengeEvents.map(jsonToProtoEvent);
     msg.setChallengeEventsList(events);
   }
 
@@ -231,7 +231,7 @@ function serverMessageJsonToProto(json: ServerMessageJson): ServerMessage {
   return msg;
 }
 
-function eventJsonToProto(json: EventJson): Event {
+export function jsonToProtoEvent(json: EventJson): Event {
   const event = new Event();
   event.setType(json.type as AnyEnum);
   if (json.challengeId !== undefined) {

@@ -1,6 +1,7 @@
 export {
   attackDefinitionJsonToProto,
   jsonToServerMessage,
+  jsonToProtoEvent,
   serverMessageToJson,
   spellDefinitionJsonToProto,
 } from './json-converter';
