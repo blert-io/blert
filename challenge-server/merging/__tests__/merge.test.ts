@@ -276,7 +276,7 @@ const fakeChallenge = {
 
 describe('Merger', () => {
   it('fails when there are no clients to merge', () => {
-    const merger = new Merger(Stage.TOB_MAIDEN, []);
+    const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, []);
     expect(merger.merge()).toBeNull();
   });
 
@@ -293,7 +293,7 @@ describe('Merger', () => {
       },
       client1Events,
     );
-    const merger = new Merger(Stage.TOB_MAIDEN, [client1]);
+    const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [client1]);
     const result = merger.merge();
 
     expect(result).not.toBeNull();
@@ -335,7 +335,7 @@ describe('Merger', () => {
       },
       client1Events,
     );
-    const merger = new Merger(Stage.TOB_MAIDEN, [client1]);
+    const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [client1]);
     const result = merger.merge();
 
     expect(result).not.toBeNull();
@@ -389,7 +389,7 @@ describe('Merger', () => {
       client1Events,
     );
 
-    const merger = new Merger(Stage.TOB_MAIDEN, [
+    const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [
       accurateClientA,
       accurateClientB,
     ]);
@@ -426,7 +426,7 @@ describe('Merger', () => {
       },
       client1Events,
     );
-    const merger = new Merger(Stage.TOB_MAIDEN, [client1]);
+    const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [client1]);
     const result = merger.merge();
 
     expect(result).not.toBeNull();
@@ -488,7 +488,7 @@ describe('Merger', () => {
       client1Events,
     );
 
-    const merger = new Merger(Stage.TOB_MAIDEN, [client1]);
+    const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [client1]);
 
     const result = merger.merge();
     expect(result).not.toBeNull();
@@ -541,7 +541,7 @@ describe('Merger', () => {
       targetEvents,
     );
 
-    const merger = new Merger(Stage.TOB_MAIDEN, [base, target]);
+    const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [base, target]);
     const result = merger.merge(undefined, ALIGN_OPTIONS);
 
     expect(result).not.toBeNull();
@@ -612,7 +612,7 @@ describe('Merger', () => {
       targetEvents,
     );
 
-    const merger = new Merger(Stage.TOB_MAIDEN, [base, target]);
+    const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [base, target]);
     const result = merger.merge(undefined, ALIGN_OPTIONS);
 
     expect(result).not.toBeNull();
@@ -692,7 +692,7 @@ describe('Merger', () => {
 
     // Client 1 (gap) is selected as base (lower ID tiebreak). The alignment
     // should INSERT target tick 7 to fill the gap in the base timeline.
-    const merger = new Merger(Stage.TOB_MAIDEN, [base, target]);
+    const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [base, target]);
     const result = merger.merge(undefined, ALIGN_OPTIONS);
 
     expect(result).not.toBeNull();
@@ -773,8 +773,8 @@ describe('Merger', () => {
       targetEvents,
     );
 
-    // No options — default behavior.
-    const merger = new Merger(Stage.TOB_MAIDEN, [base, target]);
+    // No options: default behavior.
+    const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [base, target]);
     const result = merger.merge();
 
     expect(result).not.toBeNull();

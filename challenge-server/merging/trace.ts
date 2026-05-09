@@ -1,8 +1,9 @@
-import { DataSource } from '@blert/common';
+import { DataSource, Maze } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
 import { AlignmentResult, LocalAlignment } from './alignment';
 import { ReferenceSelection } from './classification';
+import { StageData } from './client-events';
 import { EventType } from './event';
 import {
   AttackMappedCandidate,
@@ -12,7 +13,14 @@ import { MergeClientClassification, MergeClientStatus } from './merge';
 import { QualityFlag } from './quality';
 import { MergeMapping, TickMapping } from './tick-mapping';
 import { GraphicsType } from './graphics';
-import { NpcState, PlayerState, TickState, TickStateArray } from './tick-state';
+import {
+  NpcState,
+  PlayerState,
+  TickState,
+  TickStateArray,
+  WithProvenance,
+} from './tick-state';
+import { CoordsLike } from './world';
 
 export type PlayerSummary = {
   username: string;
@@ -54,11 +62,12 @@ export type SerializedAlignmentResult = {
 
 export type InputClientInfo = {
   clientId: number;
+  primaryPlayer: string | null;
   recordedTicks: number;
   accurate: boolean;
   reportedAccurate: boolean;
-  spectator: boolean;
   ticks: TickSummary[];
+  stageData: StageData;
 };
 
 export type ClassificationInfo = {
@@ -183,11 +192,26 @@ export type TickMergeDecision = {
   score?: number;
 };
 
+export type SotePivotTrace = {
+  maze: Maze;
+  /** Tick the consolidated event was emitted on, or null if no maze-end. */
+  emittedAtTick: number | null;
+  merged: {
+    overworld: WithProvenance<CoordsLike>[];
+    underworld: WithProvenance<CoordsLike>[];
+  };
+};
+
+export type StageDataTrace = {
+  sotePivots?: SotePivotTrace[];
+};
+
 export type MergeTrace = {
   inputClients: InputClientInfo[];
   classification: ClassificationInfo;
   mergeSteps: MergeStepInfo[];
   intermediateSnapshots: TickSummary[][];
+  stageData?: StageDataTrace;
 };
 
 function serializePlayer(state: Readonly<PlayerState>): PlayerSummary {
@@ -301,25 +325,28 @@ export class MergeTracer {
   private mergeSteps: MergeStepInfo[] = [];
   private intermediateSnapshots: TickSummary[][] = [];
   private accuracyDemotions: number[] = [];
+  private stageData: StageDataTrace = {};
 
   private currentStep: Partial<MergeStepInfo> | null = null;
   private currentStepStart: bigint = 0n;
 
   public recordInputClient(
     clientId: number,
+    primaryPlayer: string | null,
     recordedTicks: number,
     accurate: boolean,
     reportedAccurate: boolean,
-    spectator: boolean,
     ticks: TickStateArray,
+    stageData: StageData,
   ): void {
     this.inputClients.push({
       clientId,
+      primaryPlayer,
       recordedTicks,
       accurate,
       reportedAccurate,
-      spectator,
       ticks: serializeTicks(ticks),
+      stageData,
     });
   }
 
@@ -512,6 +539,10 @@ export class MergeTracer {
     this.intermediateSnapshots.push(serializeTicks(ticks));
   }
 
+  public recordSotePivots(traces: SotePivotTrace[]): void {
+    this.stageData.sotePivots = traces;
+  }
+
   public toTrace(): MergeTrace {
     if (this.classification === null) {
       throw new Error('Cannot build trace without classification');
@@ -522,6 +553,7 @@ export class MergeTracer {
       classification: this.classification,
       mergeSteps: this.mergeSteps,
       intermediateSnapshots: this.intermediateSnapshots,
+      stageData: this.stageData,
     };
   }
 }

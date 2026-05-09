@@ -1,30 +1,15 @@
 import { EventJson, jsonToProtoEvent, Stage } from '@blert/common';
-import { Coords, Event } from '@blert/common/generated/event_pb';
+import { Event } from '@blert/common/generated/event_pb';
 
 import { EventType, TaggedEvent } from './event';
-import { CoordsLike } from './world';
-
-export type CoordKey = `${number},${number}`;
-
-export function coordKey({ x, y }: CoordsLike): CoordKey {
-  return `${x},${y}`;
-}
-
-export function fromCoordKey(key: CoordKey): CoordsLike {
-  const [x, y] = key.split(',').map(Number);
-  return { x, y };
-}
-
-function protoCoords({ x, y }: CoordsLike): Coords {
-  const c = new Coords();
-  c.setX(x);
-  c.setY(y);
-  return c;
-}
-
-function coordsFromProto(c: Coords): CoordsLike {
-  return { x: c.getX(), y: c.getY() };
-}
+import {
+  coordKey,
+  CoordKey,
+  CoordsLike,
+  coordsFromProto,
+  fromCoordKey,
+  protoCoords,
+} from './world';
 
 /**
  * Fine-grained graphics types. A single event type can store multiple graphics.

@@ -3,6 +3,7 @@ import {
   DataSource,
   EquipmentSlot,
   ItemDelta,
+  Maze,
   PrayerBook,
   PrayerSet,
   SkillLevel,
@@ -13,9 +14,16 @@ import {
 import { ChallengeEvents } from '@blert/common/generated/challenge_storage_pb';
 import { Event } from '@blert/common/generated/event_pb';
 
+import {
+  consistencyCheckerForStage,
+  ConsistencyIssue,
+  ConsistencyIssueType,
+  MovementConsistencyChecker,
+} from './consistency';
+import { ChallengeInfo } from './context';
 import logger from '../log';
+import { DERIVED_EVENT_TYPES } from './event';
 import { buildGraphicsStates } from './graphics';
-import { ChallengeInfo } from './merge';
 import {
   buildNpcStates,
   PlayerState,
@@ -24,12 +32,6 @@ import {
   TickStateArray,
   WithProvenance,
 } from './tick-state';
-import {
-  consistencyCheckerForStage,
-  ConsistencyIssue,
-  ConsistencyIssueType,
-  MovementConsistencyChecker,
-} from './consistency';
 
 export const enum ClientAnomaly {
   MULTIPLE_PRIMARY_PLAYERS = 'MULTIPLE_PRIMARY_PLAYERS',
@@ -42,6 +44,22 @@ export const enum ClientAnomaly {
 export type ServerTicks = {
   count: number;
   precise: boolean;
+};
+
+/**
+ * Stage-scoped data extracted from a client's raw events.
+ *
+ * This data does not fit a per-client, per-tick merge model and is handled
+ * separately at the end of the client merge process.
+ */
+export type StageData = {
+  sotePivots: SotePivotEvent[];
+};
+
+type SotePivotEvent = {
+  maze: Maze;
+  overworld: { x: number; y: number }[];
+  underworld: { x: number; y: number }[];
 };
 
 type StageInfo = {
@@ -57,6 +75,7 @@ export class ClientEvents {
   private readonly challenge: ChallengeInfo;
   private readonly stageInfo: Readonly<StageInfo>;
   private readonly tickState: TickState[];
+  private readonly stageData: Readonly<StageData>;
   private readonly primaryPlayer: string | null;
   private readonly invalidTickCount: boolean;
   private readonly anomalies: Set<ClientAnomaly>;
@@ -153,13 +172,35 @@ export class ClientEvents {
     );
 
     let droppedEventCount = 0;
+    let derivedEventCount = 0;
+    const stageData: StageData = { sotePivots: [] };
 
     for (const event of events) {
+      if (DERIVED_EVENT_TYPES.has(event.getType())) {
+        derivedEventCount++;
+        continue;
+      }
+
       if (
         event.getType() === Event.Type.PLAYER_UPDATE &&
         event.getPlayer()!.getDataSource() === DataSource.PRIMARY
       ) {
         primaryPlayers.add(event.getPlayer()!.getName());
+      }
+
+      if (event.getType() === Event.Type.TOB_SOTE_MAZE_PATH) {
+        const soteMaze = event.getSoteMaze();
+        if (soteMaze?.getOverworldTilesList().length === 0) {
+          const overworld = soteMaze.getOverworldPivotsList();
+          const underworld = soteMaze.getUnderworldPivotsList();
+          if (overworld.length > 0 || underworld.length > 0) {
+            stageData.sotePivots.push({
+              maze: soteMaze.getMaze() as Maze,
+              overworld: overworld.map((c) => ({ x: c.getX(), y: c.getY() })),
+              underworld: underworld.map((c) => ({ x: c.getX(), y: c.getY() })),
+            });
+          }
+        }
       }
 
       const tick = event.getTick();
@@ -168,6 +209,15 @@ export class ClientEvents {
       } else {
         droppedEventCount++;
       }
+    }
+
+    if (derivedEventCount > 0) {
+      logger.debug('client_derived_events_filtered', {
+        challengeUuid: challenge.uuid,
+        clientId,
+        stage: stageInfo.stage,
+        derivedEventCount,
+      });
     }
 
     if (droppedEventCount > 0) {
@@ -257,6 +307,7 @@ export class ClientEvents {
       stageInfo,
       finalAccurate,
       tickState,
+      stageData,
       primaryPlayer ?? null,
       invalidTickCount,
       anomalies,
@@ -340,6 +391,13 @@ export class ClientEvents {
       return null;
     }
     return this.tickState[tick];
+  }
+
+  /**
+   * @returns Stage-scoped data extracted from the client's raw events.
+   */
+  public getStageData(): Readonly<StageData> {
+    return this.stageData;
   }
 
   /**
@@ -435,6 +493,7 @@ export class ClientEvents {
     stageInfo: StageInfo,
     accurate: boolean,
     tickState: TickState[],
+    stageData: StageData,
     primaryPlayer: string | null,
     invalidTickCount: boolean,
     anomalies: Set<ClientAnomaly>,
@@ -443,6 +502,7 @@ export class ClientEvents {
     this.challenge = challenge;
     this.stageInfo = stageInfo;
     this.tickState = tickState;
+    this.stageData = stageData;
     this.primaryPlayer = primaryPlayer;
     this.invalidTickCount = invalidTickCount;
     this.anomalies = anomalies;

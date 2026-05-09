@@ -61,11 +61,22 @@ type SoloEventType =
  * Event types that are derived from the final merged timeline rather than
  * being reconciled from client data.
  */
-type DerivedEventType =
+export type DerivedEventType =
   | typeof Event.Type.TOB_NYLO_WAVE_STALL
   | typeof Event.Type.TOB_NYLO_CLEANUP_END
   | typeof Event.Type.TOB_NYLO_BOSS_SPAWN
   | typeof Event.Type.TOB_VERZIK_REDS_SPAWN;
+
+const DERIVED_EVENT_RECORD: Record<DerivedEventType, true> = {
+  [Event.Type.TOB_NYLO_WAVE_STALL]: true,
+  [Event.Type.TOB_NYLO_CLEANUP_END]: true,
+  [Event.Type.TOB_NYLO_BOSS_SPAWN]: true,
+  [Event.Type.TOB_VERZIK_REDS_SPAWN]: true,
+};
+
+export const DERIVED_EVENT_TYPES: ReadonlySet<EventType> = new Set(
+  Object.keys(DERIVED_EVENT_RECORD).map(Number) as EventType[],
+);
 
 /**
  * Player event types that are merged tick-by-tick using PRIMARY/SECONDARY

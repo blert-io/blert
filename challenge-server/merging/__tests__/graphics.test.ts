@@ -6,7 +6,6 @@ import {
   buildGraphicsForTick,
   buildGraphicsStates,
   cloneGraphics,
-  coordKey,
   createGraphicsEvents,
   GraphicsState,
   GraphicsType,
@@ -16,6 +15,7 @@ import {
   createSoteMazePathEvent,
   createVerzikYellowsEvent,
 } from './fixtures';
+import { coordKey } from '../world';
 
 const CLIENT_A = 1;
 const CLIENT_B = 2;

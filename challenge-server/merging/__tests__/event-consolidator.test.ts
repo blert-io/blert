@@ -11,7 +11,7 @@ import {
 import { Event as ProtoEvent } from '@blert/common/generated/event_pb';
 
 import { ClientEvents } from '../client-events';
-import { MergeContext, RegisteredClient } from '../context';
+import { ChallengeInfo, MergeContext, RegisteredClient } from '../context';
 import { EventConsolidator } from '../event-consolidator';
 import { MergeMapping, TickMapping } from '../tick-mapping';
 import { TickStateArray } from '../tick-state';
@@ -31,6 +31,13 @@ import {
 
 const BASE_CLIENT_ID = 1;
 const TARGET_CLIENT_ID = 2;
+
+const TEST_CHALLENGE: ChallengeInfo = {
+  uuid: 'test',
+  type: ChallengeType.TOB,
+  mode: ChallengeMode.TOB_REGULAR,
+  party: ['player1'],
+};
 
 /**
  * Creates a minimal ClientEvents for registering in the merge context.
@@ -53,12 +60,7 @@ function createClient(
   }
   return ClientEvents.fromRawEvents(
     clientId,
-    {
-      uuid: 'test',
-      type: ChallengeType.TOB,
-      mode: ChallengeMode.TOB_REGULAR,
-      party: [primaryPlayer],
-    },
+    { ...TEST_CHALLENGE, party: [primaryPlayer] },
     {
       stage: Stage.TOB_VERZIK,
       status: StageStatus.COMPLETED,
@@ -87,7 +89,19 @@ function testCtx(
     TickMapping.identity(targetTickCount),
     baseTickCount,
   );
-  return { stage, clients: clients ?? new Map(), mapping, tracer: undefined };
+  const challenge = { ...TEST_CHALLENGE };
+  if (clients !== undefined) {
+    challenge.party = Array.from(clients.values()).map(
+      (c) => c.client.getPrimaryPlayer()!,
+    );
+  }
+  return {
+    challenge,
+    stage,
+    clients: clients ?? new Map(),
+    mapping,
+    tracer: undefined,
+  };
 }
 
 /**

@@ -21,7 +21,7 @@ import {
 import { Event as ProtoEvent } from '@blert/common/generated/event_pb';
 
 import { SYNTHETIC_EVENT_SOURCE, TaggedEvent } from '../event';
-import { coordKey, GraphicsState, GraphicsType } from '../graphics';
+import { GraphicsState, GraphicsType } from '../graphics';
 import {
   createEvent,
   createNpcAttackEvent,
@@ -43,6 +43,7 @@ import {
   TickState,
   TickStateArray,
 } from '../tick-state';
+import { coordKey } from '../world';
 
 function tag(
   events: ProtoEvent[],

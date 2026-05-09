@@ -1,18 +1,7 @@
-import {
-  ChallengeMode,
-  ChallengeType,
-  Npc,
-  SkillLevel,
-  Stage,
-  StageStatus,
-} from '@blert/common';
+import { Npc, SkillLevel, Stage, StageStatus } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
 import { AlignmentResult, TickAligner } from './alignment';
-import { MergeContext } from './context';
-import { remapEventTick } from './event';
-import { EventConsolidator } from './event-consolidator';
-import { MergeMapping, TickMapping } from './tick-mapping';
 import {
   ClassifiedClients,
   classifyClients,
@@ -20,20 +9,18 @@ import {
 } from './classification';
 import { ClientAnomaly, ClientEvents, ServerTicks } from './client-events';
 import { ConsistencyIssue } from './consistency';
+import { ChallengeInfo, MergeContext } from './context';
+import { derivedEventGeneratorForStage, mergeStageData } from './derivation';
+import { remapEventTick } from './event';
+import { EventConsolidator } from './event-consolidator';
 import logger from '../log';
 import { MergeAlert, MergeAlertType } from './quality';
 import { SimilarityScorer } from './similarity-scorer';
+import { MergeMapping, TickMapping } from './tick-mapping';
 import { resynchronizeTicks, TickState, TickStateArray } from './tick-state';
 import { MergeTracer } from './trace';
 
 const MIN_ALIGNMENT_COVERAGE = 0.5;
-
-export type ChallengeInfo = {
-  uuid: string;
-  type: ChallengeType;
-  mode: ChallengeMode;
-  party: string[];
-};
 
 export const enum MergeClientStatus {
   /** The client was successfully merged into the merged events. */
@@ -59,6 +46,7 @@ export const enum MergeClientClassification {
 
 export type MergeClient = {
   id: number;
+  primaryPlayer: string | null;
   status: MergeClientStatus;
   classification: MergeClientClassification;
   sequenceNumber: number;
@@ -68,7 +56,6 @@ export type MergeClient = {
   derivedAccurate: boolean;
   anomalies: ClientAnomaly[];
   consistencyIssues: ConsistencyIssue[];
-  spectator: boolean;
   // TODO(frolv): Add alignment information if available.
 };
 
@@ -95,12 +82,18 @@ export type MergeResult = {
 };
 
 export class Merger {
+  private readonly challenge: ChallengeInfo;
   private readonly stage: Stage;
   private readonly alerts: MergeAlert[];
   private clients: ClientEvents[];
   private referenceSelection: ReferenceSelection | null;
 
-  public constructor(stage: Stage, clients: ClientEvents[]) {
+  public constructor(
+    challenge: ChallengeInfo,
+    stage: Stage,
+    clients: ClientEvents[],
+  ) {
+    this.challenge = challenge;
     this.stage = stage;
     this.clients = clients.toSorted(
       (a, b) => b.getFinalTick() - a.getFinalTick(),
@@ -135,11 +128,12 @@ export class Merger {
       registeredClients.set(client.getId(), { client });
       tracer?.recordInputClient(
         client.getId(),
+        client.getPrimaryPlayer(),
         client.getTickCount(),
         client.isAccurate(),
         client.getReportedAccurate(),
-        client.isSpectator(),
         client.getTickStates(),
+        client.getStageData(),
       );
     }
 
@@ -160,6 +154,7 @@ export class Merger {
     this.referenceSelection = clients.referenceTicks;
 
     const ctx: MergeContext = {
+      challenge: this.challenge,
       stage: this.stage,
       clients: registeredClients,
       mapping: new MergeMapping(clients.base.getId()),
@@ -277,6 +272,7 @@ export class Merger {
   ): MergeClient {
     return {
       id: client.getId(),
+      primaryPlayer: client.getPrimaryPlayer(),
       status,
       classification,
       sequenceNumber,
@@ -286,7 +282,6 @@ export class Merger {
       derivedAccurate: client.isAccurate(),
       anomalies: client.getAnomalies(),
       consistencyIssues: client.getConsistencyIssues(),
-      spectator: client.isSpectator(),
     };
   }
 
@@ -501,6 +496,15 @@ export class MergedEvents {
       return;
     }
     resynchronizeTicks(this.ctx.stage, this.ticks);
+
+    const derivedEvents = derivedEventGeneratorForStage(
+      this.ctx.stage,
+      this.ctx.challenge.mode,
+    );
+    derivedEvents?.derive(this.ticks);
+
+    mergeStageData(this.ctx, this.ticks);
+
     this.finalized = true;
   }
 

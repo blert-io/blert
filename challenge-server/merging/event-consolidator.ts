@@ -4,6 +4,7 @@ import {
   NpcAttack,
   PlayerAttack,
   PlayerSpell,
+  protoToJsonEvent,
   spellDefinitionsById,
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
@@ -356,12 +357,6 @@ export class EventConsolidator {
     }
   }
 
-  // TODO(frolv): Sotetseg maze pivots (carried by `TOB_SOTE_MAZE_PATH` at
-  // maze-end) don't fit either stream events or graphics state cleanly:
-  // identity is per-(maze, side), each client may see only partial pivots,
-  // and merging requires coord-level union across all observers. Likely
-  // wants a stage-scoped accumulator with union-merge semantics, distinct
-  // from the per-tick `TOB_SOTE_OVERWORLD_TILES` graphics state.
   private reconcileStreams(): void {
     for (const [type, config] of Object.entries(STREAM_EVENT_CONFIGS)) {
       const eventType = Number(type) as StreamEventType;
@@ -459,6 +454,10 @@ export class EventConsolidator {
         baseCount: base.length,
         targetCount: target.length,
       });
+      console.log(
+        base.map((b) => protoToJsonEvent(b.tagged.event)),
+        target.map((t) => protoToJsonEvent(t.tagged.event)),
+      );
     }
 
     const b = base[0] ?? null;
