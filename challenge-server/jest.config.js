@@ -4,6 +4,7 @@ module.exports = {
   testMatch: ['**/*.test.ts'],
   coveragePathIgnorePatterns: [
     '/__tests__/fixtures\\.ts$',
+    '/merging/event\\.ts$', // Classification only, no logic.
     '/merging/trace\\.ts$',
   ],
   transform: {
