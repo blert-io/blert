@@ -13,7 +13,7 @@ module.exports = {
     '!**/migrations/**',
     '!**/npcs/**',
     '!**/db/**',
-    '!index.ts',
+    '!**/index.ts',
     '!split.ts',
   ],
 };
