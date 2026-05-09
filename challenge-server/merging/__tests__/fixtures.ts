@@ -10,23 +10,36 @@ import {
   SkillLevel,
 } from '@blert/common';
 import {
+  Coords,
   NpcAttackMap,
   Event as ProtoEvent,
   StageMap,
 } from '@blert/common/generated/event_pb';
 
 import { TickState, PlayerState, EquippedItem } from '../tick-state';
+import { CoordsLike } from '../world';
 
-type ProtoStage = StageMap[keyof StageMap];
-type ProtoDataSource =
-  ProtoEvent.Player.DataSourceMap[keyof ProtoEvent.Player.DataSourceMap];
-type ProtoNpcAttack = NpcAttackMap[keyof NpcAttackMap];
+type Proto<T> = T[keyof T];
+
+type ProtoStage = Proto<StageMap>;
+type ProtoDataSource = Proto<ProtoEvent.Player.DataSourceMap>;
+type ProtoNpcAttack = Proto<NpcAttackMap>;
 
 export type PlayerAttackState = {
   type: PlayerAttack;
   weaponId: number;
   target: number | null;
 };
+
+export function createEvent(
+  type: Proto<ProtoEvent.TypeMap>,
+  tick: number,
+): ProtoEvent {
+  const event = new ProtoEvent();
+  event.setType(type);
+  event.setTick(tick);
+  return event;
+}
 
 export type PlayerStateOptions = {
   username: string;
@@ -236,28 +249,6 @@ export function createPlayerDeathEvent({
   return event;
 }
 
-export function createVerzikBounceEvent({
-  tick,
-  npcAttackTick,
-  bouncedPlayer,
-}: {
-  tick: number;
-  npcAttackTick: number;
-  bouncedPlayer: string;
-}): ProtoEvent {
-  const event = new ProtoEvent();
-  event.setType(ProtoEvent.Type.TOB_VERZIK_BOUNCE);
-  event.setTick(tick);
-  event.setStage(Stage.TOB_VERZIK as ProtoStage);
-
-  const bounce = new ProtoEvent.VerzikBounce();
-  bounce.setNpcAttackTick(npcAttackTick);
-  bounce.setBouncedPlayer(bouncedPlayer);
-  event.setVerzikBounce(bounce);
-
-  return event;
-}
-
 export function createNpcDeathEvent({
   tick,
   roomId,
@@ -284,6 +275,99 @@ export function createNpcDeathEvent({
   npc.setRoomId(roomId);
   npc.setId(npcId);
   event.setNpc(npc);
+
+  return event;
+}
+
+function protoCoords({ x, y }: CoordsLike): Coords {
+  const c = new Coords();
+  c.setX(x);
+  c.setY(y);
+  return c;
+}
+
+export function createMaidenBloodSplatsEvent({
+  tick,
+  coords,
+}: {
+  tick: number;
+  coords: CoordsLike[];
+}): ProtoEvent {
+  const event = createEvent(ProtoEvent.Type.TOB_MAIDEN_BLOOD_SPLATS, tick);
+  event.setStage(Stage.TOB_MAIDEN as ProtoStage);
+  event.setMaidenBloodSplatsList(coords.map(protoCoords));
+  return event;
+}
+
+export function createSoteMazePathEvent({
+  tick,
+  overworldTiles,
+}: {
+  tick: number;
+  overworldTiles: CoordsLike[];
+}): ProtoEvent {
+  const event = createEvent(ProtoEvent.Type.TOB_SOTE_MAZE_PATH, tick);
+  event.setStage(Stage.TOB_SOTETSEG as ProtoStage);
+  const maze = new ProtoEvent.SoteMaze();
+  maze.setOverworldTilesList(overworldTiles.map(protoCoords));
+  event.setSoteMaze(maze);
+  return event;
+}
+
+export function createVerzikYellowsEvent({
+  tick,
+  coords,
+}: {
+  tick: number;
+  coords: CoordsLike[];
+}): ProtoEvent {
+  const event = createEvent(ProtoEvent.Type.TOB_VERZIK_YELLOWS, tick);
+  event.setStage(Stage.TOB_VERZIK as ProtoStage);
+  event.setVerzikYellowsList(coords.map(protoCoords));
+  return event;
+}
+
+export function createVerzikBounceEvent({
+  tick,
+  npcAttackTick,
+  bouncedPlayer,
+}: {
+  tick: number;
+  npcAttackTick: number;
+  bouncedPlayer: string;
+}): ProtoEvent {
+  const event = new ProtoEvent();
+  event.setType(ProtoEvent.Type.TOB_VERZIK_BOUNCE);
+  event.setTick(tick);
+  event.setStage(Stage.TOB_VERZIK as ProtoStage);
+
+  const bounce = new ProtoEvent.VerzikBounce();
+  bounce.setNpcAttackTick(npcAttackTick);
+  bounce.setBouncedPlayer(bouncedPlayer);
+  event.setVerzikBounce(bounce);
+
+  return event;
+}
+
+export function createVerzikAttackStyleEvent({
+  tick,
+  npcAttackTick,
+  style,
+}: {
+  tick: number;
+  npcAttackTick: number;
+  style: number;
+}): ProtoEvent {
+  const event = new ProtoEvent();
+  event.setType(ProtoEvent.Type.TOB_VERZIK_ATTACK_STYLE);
+  event.setTick(tick);
+
+  const attackStyle = new ProtoEvent.AttackStyle();
+  attackStyle.setNpcAttackTick(npcAttackTick);
+  attackStyle.setStyle(
+    style as ProtoEvent.AttackStyle.StyleMap[keyof ProtoEvent.AttackStyle.StyleMap],
+  );
+  event.setVerzikAttackStyle(attackStyle);
 
   return event;
 }
