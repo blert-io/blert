@@ -14,12 +14,8 @@ import {
 
 import { ReferenceSelectionMethod } from '../classification';
 import { ClientEvents } from '../client-events';
-import {
-  Merger,
-  MergeAlertType,
-  MergeClientClassification,
-  MergeClientStatus,
-} from '../merge';
+import { Merger, MergeClientClassification, MergeClientStatus } from '../merge';
+import { MergeAlertType } from '../quality';
 
 type Proto<T> = T[keyof T];
 
