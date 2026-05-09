@@ -20,11 +20,11 @@ import {
   Registry,
 } from 'prom-client';
 import {
+  ClientAnomaly,
   MergeAlertType,
   MergeClientClassification,
   MergeClientStatus,
-} from './merging/merge';
-import { ClientAnomaly } from './merging/client-events';
+} from './merging';
 
 const register = new Registry();
 collectDefaultMetrics({ register });

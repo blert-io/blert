@@ -17,6 +17,7 @@ import {
 import { ClientAnomaly, ClientEvents, ServerTicks } from './client-events';
 import { ConsistencyIssue } from './consistency';
 import logger from '../log';
+import { MergeAlert, MergeAlertType } from './quality';
 import { SimilarityScorer } from './similarity-scorer';
 import { TickState, TickStateArray } from './tick-state';
 import { MergeTracer, TickMergeDecisionType } from './trace';
@@ -26,15 +27,6 @@ export type ChallengeInfo = {
   type: ChallengeType;
   mode: ChallengeMode;
   party: string[];
-};
-
-export const enum MergeAlertType {
-  MULTIPLE_ACCURATE_TICK_MODES = 'MULTIPLE_ACCURATE_TICK_MODES',
-}
-
-export type MergeAlert = {
-  type: MergeAlertType;
-  details?: Record<string, unknown>;
 };
 
 export const enum MergeClientStatus {
