@@ -5,6 +5,7 @@ import { AlignmentResult, LocalAlignment } from './alignment';
 import { ReferenceSelection } from './classification';
 import { MergeClientClassification, MergeClientStatus } from './merge';
 import { NpcState, PlayerState, TickState, TickStateArray } from './tick-state';
+import { TickMapping } from './tick-mapping';
 
 export type PlayerSummary = {
   username: string;
@@ -163,6 +164,18 @@ export function serializeAlignmentResult(
     coverage: result.coverage,
     gapCount: result.gapCount,
   };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function serializeTickMapping(mapping: TickMapping): Record<number, number> {
+  const result: Record<number, number> = {};
+  for (let i = 0; i < mapping.clientTickCount; i++) {
+    const merged = mapping.toMerged(i);
+    if (merged !== undefined) {
+      result[i] = merged;
+    }
+  }
+  return result;
 }
 
 export class MergeTracer {
