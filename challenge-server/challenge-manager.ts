@@ -1693,7 +1693,7 @@ export default class ChallengeManager {
         }
 
         const result = await timeOperation(
-          () => new Merger(stage, clients).merge(),
+          () => new Merger(challengeInfo, stage, clients).merge(),
           (durationMs) => {
             observeMergeDuration(stage, durationMs);
             logger.info('merge_duration', { stage, durationMs });
