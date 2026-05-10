@@ -1,4 +1,5 @@
 import {
+  ChallengeMode,
   ChallengeStatus,
   ChallengeType,
   Stage,
@@ -12,6 +13,7 @@ const fakeChallenge = {
   id: 99,
   uuid: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeffffff',
   type: ChallengeType.TOB,
+  mode: ChallengeMode.TOB_REGULAR,
   status: ChallengeStatus.WIPED,
   stage: Stage.TOB_SOTETSEG,
   party: ['player1', 'player2'],

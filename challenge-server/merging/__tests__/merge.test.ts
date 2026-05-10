@@ -1,4 +1,5 @@
 import {
+  ChallengeMode,
   ChallengeStatus,
   ChallengeType,
   DataSource,
@@ -140,6 +141,7 @@ const fakeChallenge = {
   id: 99,
   uuid: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeffffff',
   type: ChallengeType.TOB,
+  mode: ChallengeMode.TOB_REGULAR,
   status: ChallengeStatus.WIPED,
   stage: Stage.TOB_SOTETSEG,
   party: ['player1', 'player2'],
@@ -147,7 +149,7 @@ const fakeChallenge = {
 
 describe('Merger', () => {
   it('fails when there are no clients to merge', () => {
-    const merger = new Merger(Stage.TOB_MAIDEN, []);
+    const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, []);
     expect(merger.merge()).toBeNull();
   });
 
@@ -164,7 +166,7 @@ describe('Merger', () => {
       },
       client1Events,
     );
-    const merger = new Merger(Stage.TOB_MAIDEN, [client1]);
+    const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [client1]);
     const result = merger.merge();
 
     expect(result).not.toBeNull();
@@ -206,7 +208,7 @@ describe('Merger', () => {
       },
       client1Events,
     );
-    const merger = new Merger(Stage.TOB_MAIDEN, [client1]);
+    const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [client1]);
     const result = merger.merge();
 
     expect(result).not.toBeNull();
@@ -260,7 +262,7 @@ describe('Merger', () => {
       client1Events,
     );
 
-    const merger = new Merger(Stage.TOB_MAIDEN, [
+    const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [
       accurateClientA,
       accurateClientB,
     ]);
@@ -297,7 +299,7 @@ describe('Merger', () => {
       },
       client1Events,
     );
-    const merger = new Merger(Stage.TOB_MAIDEN, [client1]);
+    const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [client1]);
     const result = merger.merge();
 
     expect(result).not.toBeNull();
@@ -347,7 +349,7 @@ describe('Merger', () => {
       client1Events,
     );
 
-    const merger = new Merger(Stage.TOB_MAIDEN, [client1]);
+    const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [client1]);
 
     const result = merger.merge();
     expect(result).not.toBeNull();

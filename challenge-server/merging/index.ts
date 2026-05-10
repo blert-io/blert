@@ -3,8 +3,8 @@ export {
   ClientEvents,
   type ServerTicks,
 } from './client-events';
+export { type ChallengeInfo } from './context';
 export {
-  type ChallengeInfo,
   type MergeClient,
   MergeClientClassification,
   MergeClientStatus,

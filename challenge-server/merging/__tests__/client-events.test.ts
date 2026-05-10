@@ -16,8 +16,8 @@ import {
 } from '@blert/common/generated/event_pb';
 
 import { ClientEvents, ClientAnomaly } from '../client-events';
+import { ChallengeInfo } from '../context';
 import { createPlayerUpdateEvent } from './fixtures';
-import { ChallengeInfo } from '../merge';
 
 type ProtoEventType = ProtoEvent.TypeMap[keyof ProtoEvent.TypeMap];
 type ProtoStage = StageMap[keyof StageMap];

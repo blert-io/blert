@@ -1,11 +1,4 @@
-import {
-  ChallengeMode,
-  ChallengeType,
-  Npc,
-  SkillLevel,
-  Stage,
-  StageStatus,
-} from '@blert/common';
+import { Npc, SkillLevel, Stage, StageStatus } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
 import { TickAligner } from './alignment';
@@ -16,18 +9,12 @@ import {
 } from './classification';
 import { ClientAnomaly, ClientEvents, ServerTicks } from './client-events';
 import { ConsistencyIssue } from './consistency';
+import { ChallengeInfo } from './context';
 import logger from '../log';
 import { MergeAlert, MergeAlertType } from './quality';
 import { SimilarityScorer } from './similarity-scorer';
 import { TickState, TickStateArray } from './tick-state';
 import { MergeTracer, TickMergeDecisionType } from './trace';
-
-export type ChallengeInfo = {
-  uuid: string;
-  type: ChallengeType;
-  mode: ChallengeMode;
-  party: string[];
-};
 
 export const enum MergeClientStatus {
   /** The client was successfully merged into the merged events. */
@@ -77,12 +64,18 @@ export type MergeResult = {
 };
 
 export class Merger {
+  private readonly challenge: ChallengeInfo;
   private readonly stage: Stage;
   private readonly alerts: MergeAlert[];
   private clients: ClientEvents[];
   private referenceSelection: ReferenceSelection | null;
 
-  public constructor(stage: Stage, clients: ClientEvents[]) {
+  public constructor(
+    challenge: ChallengeInfo,
+    stage: Stage,
+    clients: ClientEvents[],
+  ) {
+    this.challenge = challenge;
     this.stage = stage;
     this.clients = clients.toSorted(
       (a, b) => b.getFinalTick() - a.getFinalTick(),
