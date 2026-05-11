@@ -18,7 +18,7 @@ import {
 
 import { ClientEvents, ClientAnomaly } from '../client-events';
 import { ChallengeInfo } from '../context';
-import { createPlayerUpdateEvent } from './fixtures';
+import { createEvent, createPlayerUpdateEvent } from './fixtures';
 
 type ProtoEventType = ProtoEvent.TypeMap[keyof ProtoEvent.TypeMap];
 type ProtoStage = StageMap[keyof StageMap];
@@ -107,6 +107,38 @@ describe('ClientEvents', () => {
 
       expect(client.hasInvalidTickCount()).toBe(true);
       expect(client.isAccurate()).toBe(false);
+    });
+
+    it('filters derived events from client input', () => {
+      const client = ClientEvents.fromRawEvents(
+        7,
+        challengeInfo,
+        {
+          stage: Stage.TOB_NYLOCAS,
+          status: StageStatus.STARTED,
+          accurate: false,
+          recordedTicks: 5,
+          serverTicks: null,
+        },
+        [
+          createPlayerUpdateEvent({ tick: 0, name: 'player1' }),
+          createEvent(ProtoEvent.Type.TOB_NYLO_WAVE_STALL, 1),
+          createEvent(ProtoEvent.Type.TOB_NYLO_BOSS_SPAWN, 2),
+          createPlayerUpdateEvent({ tick: 3, name: 'player1' }),
+          createEvent(ProtoEvent.Type.TOB_NYLO_CLEANUP_END, 4),
+          createEvent(ProtoEvent.Type.TOB_VERZIK_REDS_SPAWN, 5),
+        ],
+      );
+
+      const allEvents = client
+        .getTickStates()
+        .flatMap((t) => t?.getEvents() ?? []);
+      const eventTypes = new Set(allEvents.map((e) => e.getType()));
+
+      expect(eventTypes.has(ProtoEvent.Type.TOB_NYLO_WAVE_STALL)).toBe(false);
+      expect(eventTypes.has(ProtoEvent.Type.TOB_NYLO_BOSS_SPAWN)).toBe(false);
+      expect(eventTypes.has(ProtoEvent.Type.TOB_NYLO_CLEANUP_END)).toBe(false);
+      expect(eventTypes.has(ProtoEvent.Type.TOB_VERZIK_REDS_SPAWN)).toBe(false);
     });
 
     it('flags missing stage metadata when no stage end update is present', () => {

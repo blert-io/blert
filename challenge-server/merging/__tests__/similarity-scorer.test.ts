@@ -18,11 +18,15 @@ import {
 } from './fixtures';
 import { SimilarityScorer } from '../similarity-scorer';
 
+const BASE_CLIENT_ID = 1;
+const TARGET_CLIENT_ID = 2;
+
 describe('SimilarityScorer', () => {
   describe('consistency checks', () => {
     it('returns a finite score when overlapping players match', () => {
       const player1 = createPlayerState({
         username: 'player1',
+        clientId: BASE_CLIENT_ID,
         source: DataSource.PRIMARY,
         x: 10,
         y: 20,
@@ -30,12 +34,18 @@ describe('SimilarityScorer', () => {
           [EquipmentSlot.WEAPON]: { id: 100, quantity: 1 },
         },
       });
-      const player2 = createPlayerState({ username: 'player2', x: 15, y: 30 });
+      const player2 = createPlayerState({
+        username: 'player2',
+        clientId: BASE_CLIENT_ID,
+        x: 15,
+        y: 30,
+      });
 
       const base = createTickState(5, [player1, player2]);
       const target = createTickState(5, [
         createPlayerState({
           username: 'player1',
+          clientId: TARGET_CLIENT_ID,
           source: DataSource.PRIMARY,
           x: 10,
           y: 20,
@@ -52,10 +62,20 @@ describe('SimilarityScorer', () => {
 
     it('returns -Infinity when player positions differ', () => {
       const base = createTickState(1, [
-        createPlayerState({ username: 'player1', x: 5, y: 5 }),
+        createPlayerState({
+          username: 'player1',
+          clientId: BASE_CLIENT_ID,
+          x: 5,
+          y: 5,
+        }),
       ]);
       const target = createTickState(1, [
-        createPlayerState({ username: 'player1', x: 6, y: 5 }),
+        createPlayerState({
+          username: 'player1',
+          clientId: TARGET_CLIENT_ID,
+          x: 6,
+          y: 5,
+        }),
       ]);
 
       expect(new SimilarityScorer().score(base, target)).toBe(-Infinity);
@@ -65,6 +85,7 @@ describe('SimilarityScorer', () => {
       const base = createTickState(2, [
         createPlayerState({
           username: 'player1',
+          clientId: BASE_CLIENT_ID,
           x: 5,
           y: 5,
           equipment: {
@@ -75,6 +96,7 @@ describe('SimilarityScorer', () => {
       const target = createTickState(2, [
         createPlayerState({
           username: 'player1',
+          clientId: TARGET_CLIENT_ID,
           x: 5,
           y: 5,
           equipment: {
@@ -98,12 +120,17 @@ describe('SimilarityScorer', () => {
 
       const base = createTickState(
         3,
-        [createPlayerState({ username: 'player1' })],
+        [createPlayerState({ username: 'player1', clientId: BASE_CLIENT_ID })],
         [npcEvent],
       );
       const target = createTickState(
         3,
-        [createPlayerState({ username: 'player1' })],
+        [
+          createPlayerState({
+            username: 'player1',
+            clientId: TARGET_CLIENT_ID,
+          }),
+        ],
         [npcEvent.clone()],
       );
 
@@ -115,7 +142,7 @@ describe('SimilarityScorer', () => {
     it('returns -Infinity when overlapping NPC positions differ', () => {
       const base = createTickState(
         4,
-        [createPlayerState({ username: 'player1' })],
+        [createPlayerState({ username: 'player1', clientId: BASE_CLIENT_ID })],
         [
           createNpcSpawnEvent({
             tick: 4,
@@ -129,7 +156,12 @@ describe('SimilarityScorer', () => {
       );
       const target = createTickState(
         4,
-        [createPlayerState({ username: 'player1' })],
+        [
+          createPlayerState({
+            username: 'player1',
+            clientId: TARGET_CLIENT_ID,
+          }),
+        ],
         [
           createNpcSpawnEvent({
             tick: 4,
@@ -148,7 +180,7 @@ describe('SimilarityScorer', () => {
     it('returns -Infinity when overlapping NPC IDs differ', () => {
       const base = createTickState(
         4,
-        [createPlayerState({ username: 'player1' })],
+        [createPlayerState({ username: 'player1', clientId: BASE_CLIENT_ID })],
         [
           createNpcSpawnEvent({
             tick: 4,
@@ -162,7 +194,12 @@ describe('SimilarityScorer', () => {
       );
       const target = createTickState(
         4,
-        [createPlayerState({ username: 'player1' })],
+        [
+          createPlayerState({
+            username: 'player1',
+            clientId: TARGET_CLIENT_ID,
+          }),
+        ],
         [
           createNpcSpawnEvent({
             tick: 4,
@@ -193,12 +230,17 @@ describe('SimilarityScorer', () => {
 
       const base = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [createPlayerState({ username: 'player1', clientId: BASE_CLIENT_ID })],
         [npcEvent],
       );
       const target = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [
+          createPlayerState({
+            username: 'player1',
+            clientId: TARGET_CLIENT_ID,
+          }),
+        ],
         [npcEvent.clone()],
       );
 
@@ -228,24 +270,34 @@ describe('SimilarityScorer', () => {
 
       const base = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [createPlayerState({ username: 'player1', clientId: BASE_CLIENT_ID })],
         [baseNpc],
       );
       const target = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [
+          createPlayerState({
+            username: 'player1',
+            clientId: TARGET_CLIENT_ID,
+          }),
+        ],
         [targetNpc],
       );
 
       // Compare to exact match
       const exactBase = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [createPlayerState({ username: 'player1', clientId: BASE_CLIENT_ID })],
         [baseNpc],
       );
       const exactTarget = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [
+          createPlayerState({
+            username: 'player1',
+            clientId: TARGET_CLIENT_ID,
+          }),
+        ],
         [baseNpc.clone()],
       );
 
@@ -278,12 +330,17 @@ describe('SimilarityScorer', () => {
 
       const base = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [createPlayerState({ username: 'player1', clientId: BASE_CLIENT_ID })],
         [baseNpc],
       );
       const target = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [
+          createPlayerState({
+            username: 'player1',
+            clientId: TARGET_CLIENT_ID,
+          }),
+        ],
         [targetNpc],
       );
 
@@ -305,6 +362,7 @@ describe('SimilarityScorer', () => {
 
       const basePlayer = createPlayerState({
         username: 'player1',
+        clientId: BASE_CLIENT_ID,
         attack: {
           type: PlayerAttack.SCYTHE_UNCHARGED,
           weaponId: 22325,
@@ -313,6 +371,7 @@ describe('SimilarityScorer', () => {
       });
       const targetPlayer = createPlayerState({
         username: 'player1',
+        clientId: TARGET_CLIENT_ID,
         attack: {
           type: PlayerAttack.SCYTHE_UNCHARGED,
           weaponId: 22325,
@@ -339,6 +398,7 @@ describe('SimilarityScorer', () => {
 
       const basePlayer = createPlayerState({
         username: 'player1',
+        clientId: BASE_CLIENT_ID,
         attack: {
           type: PlayerAttack.SCYTHE_UNCHARGED,
           weaponId: 22325,
@@ -347,6 +407,7 @@ describe('SimilarityScorer', () => {
       });
       const targetPlayer = createPlayerState({
         username: 'player1',
+        clientId: TARGET_CLIENT_ID,
         attack: {
           type: PlayerAttack.BLOWPIPE,
           weaponId: 12926,
@@ -361,12 +422,17 @@ describe('SimilarityScorer', () => {
 
       const noAttackBase = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [createPlayerState({ username: 'player1', clientId: BASE_CLIENT_ID })],
         [npcEvent],
       );
       const noAttackTarget = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [
+          createPlayerState({
+            username: 'player1',
+            clientId: TARGET_CLIENT_ID,
+          }),
+        ],
         [npcEvent.clone()],
       );
       const noAttackScore = new SimilarityScorer().score(
@@ -389,6 +455,7 @@ describe('SimilarityScorer', () => {
 
       const basePlayer = createPlayerState({
         username: 'player1',
+        clientId: BASE_CLIENT_ID,
         attack: {
           type: PlayerAttack.ZCB_AUTO,
           weaponId: 26374,
@@ -397,6 +464,7 @@ describe('SimilarityScorer', () => {
       });
       const targetPlayer = createPlayerState({
         username: 'player1',
+        clientId: TARGET_CLIENT_ID,
         attack: {
           type: PlayerAttack.ZCB_SPEC,
           weaponId: 26374,
@@ -409,12 +477,17 @@ describe('SimilarityScorer', () => {
 
       const noAttackBase = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [createPlayerState({ username: 'player1', clientId: BASE_CLIENT_ID })],
         [npcEvent],
       );
       const noAttackTarget = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [
+          createPlayerState({
+            username: 'player1',
+            clientId: TARGET_CLIENT_ID,
+          }),
+        ],
         [npcEvent.clone()],
       );
 
@@ -447,6 +520,7 @@ describe('SimilarityScorer', () => {
 
       const basePlayer = createPlayerState({
         username: 'player1',
+        clientId: BASE_CLIENT_ID,
         attack: {
           type: PlayerAttack.BLOWPIPE,
           weaponId: 12926,
@@ -455,6 +529,7 @@ describe('SimilarityScorer', () => {
       });
       const targetPlayer = createPlayerState({
         username: 'player1',
+        clientId: TARGET_CLIENT_ID,
         attack: {
           type: PlayerAttack.BLOWPIPE_SPEC,
           weaponId: 12926,
@@ -471,12 +546,17 @@ describe('SimilarityScorer', () => {
 
       const noAttackBase = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [createPlayerState({ username: 'player1', clientId: BASE_CLIENT_ID })],
         [npcSpawn1, npcSpawn2],
       );
       const noAttackTarget = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [
+          createPlayerState({
+            username: 'player1',
+            clientId: TARGET_CLIENT_ID,
+          }),
+        ],
         [npcSpawn1.clone(), npcSpawn2.clone()],
       );
 
@@ -501,6 +581,7 @@ describe('SimilarityScorer', () => {
 
       const basePlayer = createPlayerState({
         username: 'player1',
+        clientId: BASE_CLIENT_ID,
         attack: {
           type: PlayerAttack.BLOWPIPE,
           weaponId: 12926,
@@ -509,6 +590,7 @@ describe('SimilarityScorer', () => {
       });
       const targetPlayer = createPlayerState({
         username: 'player1',
+        clientId: TARGET_CLIENT_ID,
         attack: {
           type: PlayerAttack.BLOWPIPE_SPEC,
           weaponId: 12926,
@@ -521,12 +603,17 @@ describe('SimilarityScorer', () => {
 
       const noAttackBase = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [createPlayerState({ username: 'player1', clientId: BASE_CLIENT_ID })],
         [npcEvent],
       );
       const noAttackTarget = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [
+          createPlayerState({
+            username: 'player1',
+            clientId: TARGET_CLIENT_ID,
+          }),
+        ],
         [npcEvent.clone()],
       );
 
@@ -551,13 +638,17 @@ describe('SimilarityScorer', () => {
 
       const attackingPlayer = createPlayerState({
         username: 'player1',
+        clientId: BASE_CLIENT_ID,
         attack: {
           type: PlayerAttack.SCYTHE_UNCHARGED,
           weaponId: 22325,
           target: 5,
         },
       });
-      const nonAttackingPlayer = createPlayerState({ username: 'player1' });
+      const nonAttackingPlayer = createPlayerState({
+        username: 'player1',
+        clientId: TARGET_CLIENT_ID,
+      });
 
       const base = createTickState(1, [attackingPlayer], [npcEvent]);
       const target = createTickState(
@@ -568,12 +659,17 @@ describe('SimilarityScorer', () => {
 
       const noAttackBase = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [createPlayerState({ username: 'player1', clientId: BASE_CLIENT_ID })],
         [npcEvent],
       );
       const noAttackTarget = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [
+          createPlayerState({
+            username: 'player1',
+            clientId: TARGET_CLIENT_ID,
+          }),
+        ],
         [npcEvent.clone()],
       );
 
@@ -614,23 +710,33 @@ describe('SimilarityScorer', () => {
 
       const base = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [createPlayerState({ username: 'player1', clientId: BASE_CLIENT_ID })],
         [npcSpawn, baseAttack],
       );
       const target = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [
+          createPlayerState({
+            username: 'player1',
+            clientId: TARGET_CLIENT_ID,
+          }),
+        ],
         [npcSpawn.clone(), targetAttack],
       );
 
       const noAttackBase = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [createPlayerState({ username: 'player1', clientId: BASE_CLIENT_ID })],
         [npcSpawn],
       );
       const noAttackTarget = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [
+          createPlayerState({
+            username: 'player1',
+            clientId: TARGET_CLIENT_ID,
+          }),
+        ],
         [npcSpawn.clone()],
       );
 
@@ -662,12 +768,17 @@ describe('SimilarityScorer', () => {
 
       const base = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [createPlayerState({ username: 'player1', clientId: BASE_CLIENT_ID })],
         [npcSpawn, npcAttack],
       );
       const target = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [
+          createPlayerState({
+            username: 'player1',
+            clientId: TARGET_CLIENT_ID,
+          }),
+        ],
         [npcSpawn.clone(), npcAttack.clone()],
       );
 
@@ -702,16 +813,27 @@ describe('SimilarityScorer', () => {
       const base = createTickState(
         1,
         [
-          createPlayerState({ username: 'player1' }),
-          createPlayerState({ username: 'player2', x: 5 }),
+          createPlayerState({ username: 'player1', clientId: BASE_CLIENT_ID }),
+          createPlayerState({
+            username: 'player2',
+            clientId: BASE_CLIENT_ID,
+            x: 5,
+          }),
         ],
         [npcSpawn, baseAttack],
       );
       const target = createTickState(
         1,
         [
-          createPlayerState({ username: 'player1' }),
-          createPlayerState({ username: 'player2', x: 5 }),
+          createPlayerState({
+            username: 'player1',
+            clientId: TARGET_CLIENT_ID,
+          }),
+          createPlayerState({
+            username: 'player2',
+            clientId: TARGET_CLIENT_ID,
+            x: 5,
+          }),
         ],
         [npcSpawn.clone(), targetAttack],
       );
@@ -719,16 +841,27 @@ describe('SimilarityScorer', () => {
       const noAttackBase = createTickState(
         1,
         [
-          createPlayerState({ username: 'player1' }),
-          createPlayerState({ username: 'player2', x: 5 }),
+          createPlayerState({ username: 'player1', clientId: BASE_CLIENT_ID }),
+          createPlayerState({
+            username: 'player2',
+            clientId: BASE_CLIENT_ID,
+            x: 5,
+          }),
         ],
         [npcSpawn],
       );
       const noAttackTarget = createTickState(
         1,
         [
-          createPlayerState({ username: 'player1' }),
-          createPlayerState({ username: 'player2', x: 5 }),
+          createPlayerState({
+            username: 'player1',
+            clientId: TARGET_CLIENT_ID,
+          }),
+          createPlayerState({
+            username: 'player2',
+            clientId: TARGET_CLIENT_ID,
+            x: 5,
+          }),
         ],
         [npcSpawn.clone()],
       );
@@ -747,6 +880,7 @@ describe('SimilarityScorer', () => {
     it('scores positively when overhead prayers match', () => {
       const basePlayer = createPlayerState({
         username: 'player1',
+        clientId: BASE_CLIENT_ID,
         prayers: PrayerSet.fromPrayers(PrayerBook.NORMAL, [
           Prayer.PROTECT_FROM_MAGIC,
           Prayer.RIGOUR,
@@ -754,6 +888,7 @@ describe('SimilarityScorer', () => {
       });
       const targetPlayer = createPlayerState({
         username: 'player1',
+        clientId: TARGET_CLIENT_ID,
         prayers: PrayerSet.fromPrayers(PrayerBook.NORMAL, [
           Prayer.PROTECT_FROM_MAGIC,
           Prayer.PIETY,
@@ -770,12 +905,14 @@ describe('SimilarityScorer', () => {
     it('scores negatively when overhead prayers differ', () => {
       const basePlayer = createPlayerState({
         username: 'player1',
+        clientId: BASE_CLIENT_ID,
         prayers: PrayerSet.fromPrayers(PrayerBook.NORMAL, [
           Prayer.PROTECT_FROM_MAGIC,
         ]),
       });
       const targetPlayer = createPlayerState({
         username: 'player1',
+        clientId: TARGET_CLIENT_ID,
         prayers: PrayerSet.fromPrayers(PrayerBook.NORMAL, [
           Prayer.PROTECT_FROM_MISSILES,
         ]),
@@ -788,6 +925,7 @@ describe('SimilarityScorer', () => {
       const matchTarget = createTickState(1, [
         createPlayerState({
           username: 'player1',
+          clientId: TARGET_CLIENT_ID,
           prayers: PrayerSet.fromPrayers(PrayerBook.NORMAL, [
             Prayer.PROTECT_FROM_MAGIC,
           ]),
@@ -803,10 +941,12 @@ describe('SimilarityScorer', () => {
     it('ignores overheads when both are empty', () => {
       const basePlayer = createPlayerState({
         username: 'player1',
+        clientId: BASE_CLIENT_ID,
         prayers: PrayerSet.fromPrayers(PrayerBook.NORMAL, [Prayer.RIGOUR]),
       });
       const targetPlayer = createPlayerState({
         username: 'player1',
+        clientId: TARGET_CLIENT_ID,
         prayers: PrayerSet.fromPrayers(PrayerBook.NORMAL, [Prayer.PIETY]),
       });
 
@@ -824,20 +964,32 @@ describe('SimilarityScorer', () => {
 
       const base = createTickState(
         1,
-        [createPlayerState({ username: 'player1', isDead: true })],
+        [
+          createPlayerState({
+            username: 'player1',
+            clientId: BASE_CLIENT_ID,
+            isDead: true,
+          }),
+        ],
         [deathEvent],
       );
       const target = createTickState(
         1,
-        [createPlayerState({ username: 'player1', isDead: true })],
+        [
+          createPlayerState({
+            username: 'player1',
+            clientId: TARGET_CLIENT_ID,
+            isDead: true,
+          }),
+        ],
         [deathEvent.clone()],
       );
 
       const noDeathBase = createTickState(1, [
-        createPlayerState({ username: 'player1' }),
+        createPlayerState({ username: 'player1', clientId: BASE_CLIENT_ID }),
       ]);
       const noDeathTarget = createTickState(1, [
-        createPlayerState({ username: 'player1' }),
+        createPlayerState({ username: 'player1', clientId: TARGET_CLIENT_ID }),
       ]);
 
       const deathScore = new SimilarityScorer().score(base, target);
@@ -854,18 +1006,24 @@ describe('SimilarityScorer', () => {
 
       const base = createTickState(
         1,
-        [createPlayerState({ username: 'player1', isDead: true })],
+        [
+          createPlayerState({
+            username: 'player1',
+            clientId: BASE_CLIENT_ID,
+            isDead: true,
+          }),
+        ],
         [deathEvent],
       );
       const target = createTickState(1, [
-        createPlayerState({ username: 'player1' }),
+        createPlayerState({ username: 'player1', clientId: TARGET_CLIENT_ID }),
       ]);
 
       const noDeathBase = createTickState(1, [
-        createPlayerState({ username: 'player1' }),
+        createPlayerState({ username: 'player1', clientId: BASE_CLIENT_ID }),
       ]);
       const noDeathTarget = createTickState(1, [
-        createPlayerState({ username: 'player1' }),
+        createPlayerState({ username: 'player1', clientId: TARGET_CLIENT_ID }),
       ]);
 
       const mismatchScore = new SimilarityScorer().score(base, target);
@@ -895,12 +1053,17 @@ describe('SimilarityScorer', () => {
 
       const base = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [createPlayerState({ username: 'player1', clientId: BASE_CLIENT_ID })],
         [npcSpawn, npcDeath],
       );
       const target = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [
+          createPlayerState({
+            username: 'player1',
+            clientId: TARGET_CLIENT_ID,
+          }),
+        ],
         [npcSpawn.clone(), npcDeath.clone()],
       );
 
@@ -914,12 +1077,17 @@ describe('SimilarityScorer', () => {
       });
       const noDeathBase = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [createPlayerState({ username: 'player1', clientId: BASE_CLIENT_ID })],
         [noDeathSpawn],
       );
       const noDeathTarget = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [
+          createPlayerState({
+            username: 'player1',
+            clientId: TARGET_CLIENT_ID,
+          }),
+        ],
         [noDeathSpawn.clone()],
       );
 
@@ -950,12 +1118,17 @@ describe('SimilarityScorer', () => {
 
       const base = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [createPlayerState({ username: 'player1', clientId: BASE_CLIENT_ID })],
         [npcSpawn, npcDeath],
       );
       const target = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [
+          createPlayerState({
+            username: 'player1',
+            clientId: TARGET_CLIENT_ID,
+          }),
+        ],
         [npcSpawn.clone()],
       );
 
@@ -969,12 +1142,17 @@ describe('SimilarityScorer', () => {
       });
       const noDeathBase = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [createPlayerState({ username: 'player1', clientId: BASE_CLIENT_ID })],
         [noDeathSpawn],
       );
       const noDeathTarget = createTickState(
         1,
-        [createPlayerState({ username: 'player1' })],
+        [
+          createPlayerState({
+            username: 'player1',
+            clientId: TARGET_CLIENT_ID,
+          }),
+        ],
         [noDeathSpawn.clone()],
       );
 

@@ -1,11 +1,27 @@
-import { DataSource } from '@blert/common';
+import { DataSource, Maze } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
 import { AlignmentResult, LocalAlignment } from './alignment';
 import { ReferenceSelection } from './classification';
-import { MergeClientClassification, MergeClientStatus } from './merge';
-import { NpcState, PlayerState, TickState, TickStateArray } from './tick-state';
-import { TickMapping } from './tick-mapping';
+import { StageData } from './client-events';
+import { MergeClientStatus } from './context';
+import { EventType } from './event';
+import {
+  AttackMappedCandidate,
+  ResolutionStrategy,
+} from './event-consolidator';
+import { GraphicsType } from './graphics';
+import { MergeClientClassification } from './merge';
+import { QualityFlag } from './quality';
+import { MergeMapping, TickMapping } from './tick-mapping';
+import {
+  NpcState,
+  PlayerState,
+  TickState,
+  TickStateArray,
+  WithProvenance,
+} from './tick-state';
+import { CoordsLike } from './world';
 
 export type PlayerSummary = {
   username: string;
@@ -25,10 +41,17 @@ export type NpcSummary = {
   attack: { type: number; target: string | null } | null;
 };
 
+/** Summary of a single graphics type's per-tick state. */
+export type GraphicsSummary = {
+  type: GraphicsType;
+  countsBySource: Record<number, number>;
+};
+
 export type TickSummary = {
   tick: number;
   players: PlayerSummary[];
   npcs: NpcSummary[];
+  graphics: GraphicsSummary[];
   eventCounts: Record<string, number>;
 };
 
@@ -40,11 +63,12 @@ export type SerializedAlignmentResult = {
 
 export type InputClientInfo = {
   clientId: number;
+  primaryPlayer: string | null;
   recordedTicks: number;
   accurate: boolean;
   reportedAccurate: boolean;
-  spectator: boolean;
   ticks: TickSummary[];
+  stageData: StageData;
 };
 
 export type ClassificationInfo = {
@@ -55,24 +79,132 @@ export type ClassificationInfo = {
   accuracyDemotions: number[];
 };
 
+/** Result of temporal matching for a single stream event occurrence. */
+export type StreamReconciliationEntry = {
+  eventType: string;
+  /** Dedup identity key (e.g. player name, NPC room ID). */
+  identityKey: string;
+  /** Base side occurrence, null if only target had this event. */
+  base: {
+    mergedTick: number;
+    clientTick: number;
+  } | null;
+  /** Target side occurrence, null if only base had this event. */
+  target: {
+    mergedTick: number;
+    clientTick: number;
+  } | null;
+  /** Tick in the merged timeline where the event was placed, null if discarded. */
+  resolvedTick: number | null;
+  /** Absolute tick gap between base and target when paired. */
+  tickGap: number | null;
+  outcome: 'PAIRED' | 'UNPAIRED_BASE' | 'UNPAIRED_TARGET';
+  reason: string | null;
+};
+
+/** Result of resolving attack-mapped events for a single attack tick. */
+export type AttackMappedResolutionEntry = {
+  eventType: string;
+  /** The attack tick in the merged timeline that candidates resolved to. */
+  attackTick: number;
+  strategy: ResolutionStrategy['strategy'];
+  candidates: AttackMappedCandidate[];
+  /** Tick in the merged timeline where the resolved event was placed. */
+  resolvedTick: number;
+  outcome:
+    | 'RESOLVED'
+    | 'CONFLICT_RESOLVED'
+    | 'CONFLICT_UNEXPECTED'
+    | 'CONFLICT_DISCARDED';
+  reason: string | null;
+};
+
+/** An attack-mapped event that was discarded before reaching resolution. */
+export type AttackMappedDiscardEntry = {
+  /** Human-readable event type name. */
+  eventType: string;
+  source: 'base' | 'target';
+  /** Tick of the event in the source client's timeline. */
+  clientTick: number;
+  /** The referenced attack tick in client space, null if extraction failed. */
+  referencedTick: number | null;
+  outcome: 'NO_REFERENCE' | 'UNMAPPED_TICK' | 'ATTACK_NOT_FOUND';
+};
+
+/** One side's data in a projectile-ambiguous player attack conflict. */
+export type AmbiguousAttackSide = {
+  sourceClientId: number;
+  primaryPlayer: string;
+  attackType: number;
+  distance: number;
+};
+
+/** Result of resolving a projectile-ambiguous player attack conflict. */
+export type AmbiguousAttackResolutionEntry = {
+  tick: number;
+  attacker: string;
+  base: AmbiguousAttackSide;
+  target: AmbiguousAttackSide;
+  winner: 'base' | 'target';
+};
+
+/** Full trace of the stream reconciliation pass. */
+export type ReconciliationTrace = {
+  /** Stream dedup results, keyed by "eventType:identityKey". */
+  stream: Record<string, StreamReconciliationEntry[]>;
+  attackMapped: {
+    resolved: AttackMappedResolutionEntry[];
+    discarded: AttackMappedDiscardEntry[];
+  };
+  ambiguousAttacks: AmbiguousAttackResolutionEntry[];
+};
+
+export type MergeStepMapping = {
+  /** Mapping from base client tick to merged tick.. */
+  base: Record<number, number>;
+  /** Mapping from target client tick to merged tick. */
+  target: Record<number, number>;
+  /** Tick count of the merged timeline. */
+  mergedTickCount: number;
+};
+
 export type MergeStepInfo = {
   clientId: number;
   classification: MergeClientClassification;
   status: MergeClientStatus;
   durationMs: number;
   alignment: SerializedAlignmentResult | null;
+  mapping: MergeStepMapping | null;
   tickDecisions: TickMergeDecision[];
+  reconciliation: ReconciliationTrace | null;
+  qualityFlags: QualityFlag[];
 };
 
 export const enum TickMergeDecisionType {
   MERGED = 'MERGED',
   FILLED = 'FILLED',
   SKIPPED = 'SKIPPED',
+  RETAINED = 'RETAINED',
 }
 
 export type TickMergeDecision = {
   tick: number;
   type: TickMergeDecisionType;
+  score?: number;
+};
+
+export type SotePivotTrace = {
+  maze: Maze;
+  /** Tick the consolidated event was emitted on, or null if no maze-end. */
+  emittedAtTick: number | null;
+  merged: {
+    overworld: WithProvenance<CoordsLike>[];
+    underworld: WithProvenance<CoordsLike>[];
+  };
+};
+
+export type StageDataTrace = {
+  sotePivots?: SotePivotTrace[];
 };
 
 export type MergeTrace = {
@@ -80,6 +212,7 @@ export type MergeTrace = {
   classification: ClassificationInfo;
   mergeSteps: MergeStepInfo[];
   intermediateSnapshots: TickSummary[][];
+  stageData?: StageDataTrace;
 };
 
 function serializePlayer(state: Readonly<PlayerState>): PlayerSummary {
@@ -89,13 +222,14 @@ function serializePlayer(state: Readonly<PlayerState>): PlayerSummary {
     x: state.x,
     y: state.y,
     isDead: state.isDead,
-    attack: state.attack
-      ? {
-          type: state.attack.type,
-          weaponId: state.attack.weaponId,
-          target: state.attack.target,
-        }
-      : null,
+    attack:
+      state.attack !== null
+        ? {
+            type: state.attack.type,
+            weaponId: state.attack.weaponId,
+            target: state.attack.target?.roomId ?? null,
+          }
+        : null,
   };
 }
 
@@ -128,13 +262,22 @@ export function serializeTick(tick: TickState): TickSummary {
     npcs.push(serializeNpc(roomId, state));
   }
 
+  const graphics: GraphicsSummary[] = [];
+  for (const [type, coords] of tick.getGraphics()) {
+    const countsBySource: Record<number, number> = {};
+    for (const source of coords.values()) {
+      countsBySource[source] = (countsBySource[source] ?? 0) + 1;
+    }
+    graphics.push({ type, countsBySource });
+  }
+
   const eventCounts: Record<string, number> = {};
   for (const event of tick.getEvents()) {
     const typeName = eventTypeName(event.getType());
     eventCounts[typeName] = (eventCounts[typeName] ?? 0) + 1;
   }
 
-  return { tick: tick.getTick(), players, npcs, eventCounts };
+  return { tick: tick.getTick(), players, npcs, graphics, eventCounts };
 }
 
 export function serializeTicks(ticks: TickStateArray): TickSummary[] {
@@ -166,7 +309,6 @@ export function serializeAlignmentResult(
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function serializeTickMapping(mapping: TickMapping): Record<number, number> {
   const result: Record<number, number> = {};
   for (let i = 0; i < mapping.clientTickCount; i++) {
@@ -184,25 +326,28 @@ export class MergeTracer {
   private mergeSteps: MergeStepInfo[] = [];
   private intermediateSnapshots: TickSummary[][] = [];
   private accuracyDemotions: number[] = [];
+  private stageData: StageDataTrace = {};
 
   private currentStep: Partial<MergeStepInfo> | null = null;
   private currentStepStart: bigint = 0n;
 
   public recordInputClient(
     clientId: number,
+    primaryPlayer: string | null,
     recordedTicks: number,
     accurate: boolean,
     reportedAccurate: boolean,
-    spectator: boolean,
     ticks: TickStateArray,
+    stageData: StageData,
   ): void {
     this.inputClients.push({
       clientId,
+      primaryPlayer,
       recordedTicks,
       accurate,
       reportedAccurate,
-      spectator,
       ticks: serializeTicks(ticks),
+      stageData,
     });
   }
 
@@ -245,6 +390,129 @@ export class MergeTracer {
     }
   }
 
+  public recordMapping(mapping: MergeMapping): void {
+    if (this.currentStep === null) {
+      return;
+    }
+    const base = mapping.getBaseMapping();
+    const target = mapping.getTargetMapping();
+    const mergedTickCount = mapping.getMergedTickCount();
+    if (base === null || target === null || mergedTickCount === null) {
+      return;
+    }
+    this.currentStep.mapping = {
+      base: serializeTickMapping(base),
+      target: serializeTickMapping(target),
+      mergedTickCount,
+    };
+  }
+
+  public recordStreamResolution(
+    eventType: EventType,
+    identityKey: string,
+    base: { mergedTick: number; clientTick: number } | null,
+    target: { mergedTick: number; clientTick: number } | null,
+    resolvedTick: number | null,
+    outcome: StreamReconciliationEntry['outcome'],
+    reason: string | null,
+  ): void {
+    if (this.currentStep === null) {
+      return;
+    }
+    const reconciliation = this.ensureReconciliation();
+    const typeName = eventTypeName(eventType);
+    const key = `${typeName}:${identityKey}`;
+
+    reconciliation.stream[key] ??= [];
+
+    const tickGap =
+      base !== null && target !== null
+        ? Math.abs(base.mergedTick - target.mergedTick)
+        : null;
+
+    reconciliation.stream[key].push({
+      eventType: typeName,
+      identityKey,
+      base,
+      target,
+      resolvedTick,
+      tickGap,
+      outcome,
+      reason,
+    });
+  }
+
+  public recordAttackMappedResolution(
+    eventType: EventType,
+    attackTick: number,
+    strategy: ResolutionStrategy['strategy'],
+    candidates: AttackMappedCandidate[],
+    resolvedTick: number,
+    outcome: AttackMappedResolutionEntry['outcome'],
+    reason: string | null,
+  ): void {
+    if (this.currentStep === null) {
+      return;
+    }
+    const reconciliation = this.ensureReconciliation();
+    reconciliation.attackMapped.resolved.push({
+      eventType: eventTypeName(eventType),
+      attackTick,
+      strategy,
+      candidates,
+      resolvedTick,
+      outcome,
+      reason,
+    });
+  }
+
+  public recordAttackMappedDiscard(
+    eventType: EventType,
+    source: 'base' | 'target',
+    clientTick: number,
+    referencedTick: number | null,
+    outcome: AttackMappedDiscardEntry['outcome'],
+  ): void {
+    if (this.currentStep === null) {
+      return;
+    }
+    const reconciliation = this.ensureReconciliation();
+    reconciliation.attackMapped.discarded.push({
+      eventType: eventTypeName(eventType),
+      source,
+      clientTick,
+      referencedTick,
+      outcome,
+    });
+  }
+
+  public recordAmbiguousAttackResolution(
+    entry: AmbiguousAttackResolutionEntry,
+  ): void {
+    if (this.currentStep === null) {
+      return;
+    }
+    const reconciliation = this.ensureReconciliation();
+    reconciliation.ambiguousAttacks.push(entry);
+  }
+
+  public recordQualityFlags(flags: QualityFlag[]): void {
+    if (this.currentStep !== null) {
+      this.currentStep.qualityFlags = flags;
+    }
+  }
+
+  private ensureReconciliation(): ReconciliationTrace {
+    if (this.currentStep!.reconciliation === undefined) {
+      this.currentStep!.reconciliation = {
+        stream: {},
+        attackMapped: { resolved: [], discarded: [] },
+        ambiguousAttacks: [],
+      };
+    }
+    return this.currentStep!.reconciliation!;
+  }
+
   public endMergeStep(status: MergeClientStatus): void {
     if (this.currentStep === null) {
       return;
@@ -259,7 +527,10 @@ export class MergeTracer {
       status,
       durationMs,
       alignment: this.currentStep.alignment ?? null,
+      mapping: this.currentStep.mapping ?? null,
       tickDecisions: this.currentStep.tickDecisions!,
+      reconciliation: this.currentStep.reconciliation ?? null,
+      qualityFlags: this.currentStep.qualityFlags ?? [],
     });
 
     this.currentStep = null;
@@ -267,6 +538,10 @@ export class MergeTracer {
 
   public recordIntermediateSnapshot(ticks: TickStateArray): void {
     this.intermediateSnapshots.push(serializeTicks(ticks));
+  }
+
+  public recordSotePivots(traces: SotePivotTrace[]): void {
+    this.stageData.sotePivots = traces;
   }
 
   public toTrace(): MergeTrace {
@@ -279,6 +554,7 @@ export class MergeTracer {
       classification: this.classification,
       mergeSteps: this.mergeSteps,
       intermediateSnapshots: this.intermediateSnapshots,
+      stageData: this.stageData,
     };
   }
 }
