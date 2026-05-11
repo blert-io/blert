@@ -40,7 +40,7 @@ export class ConfigManager {
   public async verify(pluginVersions: PluginVersions): Promise<boolean> {
     const config = await this.get();
     const isVersionValid =
-      /^\d+\.\d+\.\d(-RUNELITE|-SNAPSHOT|-dev)?$/.exec(
+      /^\d+\.\d+\.\d+(-RUNELITE|-SNAPSHOT|-dev)?$/.exec(
         pluginVersions.getVersion(),
       ) !== null;
     return (
