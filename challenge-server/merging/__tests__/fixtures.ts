@@ -4,6 +4,7 @@ import {
   ItemDelta,
   NpcAttack,
   PlayerAttack,
+  PlayerSpell,
   PrayerBook,
   PrayerSet,
   Stage,
@@ -12,11 +13,20 @@ import {
 import {
   Coords,
   NpcAttackMap,
+  PlayerAttackMap,
   Event as ProtoEvent,
   StageMap,
 } from '@blert/common/generated/event_pb';
 
-import { TickState, PlayerState, EquippedItem } from '../tick-state';
+import { SYNTHETIC_EVENT_SOURCE } from '../event';
+import { buildGraphicsForTick } from '../graphics';
+import {
+  buildNpcsForTick,
+  EquippedItem,
+  PlayerState,
+  TickState,
+  WithProvenance,
+} from '../tick-state';
 import { CoordsLike } from '../world';
 
 type Proto<T> = T[keyof T];
@@ -24,12 +34,6 @@ type Proto<T> = T[keyof T];
 type ProtoStage = Proto<StageMap>;
 type ProtoDataSource = Proto<ProtoEvent.Player.DataSourceMap>;
 type ProtoNpcAttack = Proto<NpcAttackMap>;
-
-export type PlayerAttackState = {
-  type: PlayerAttack;
-  weaponId: number;
-  target: number | null;
-};
 
 export function createEvent(
   type: Proto<ProtoEvent.TypeMap>,
@@ -41,19 +45,57 @@ export function createEvent(
   return event;
 }
 
+export function createTickState(
+  tick: number,
+  players: PlayerState[],
+  events: ProtoEvent[] = [],
+  source: number = SYNTHETIC_EVENT_SOURCE,
+): TickState {
+  const playerStates = new Map<string, PlayerState | null>();
+  for (const player of players) {
+    playerStates.set(player.username, player);
+  }
+
+  const tagged = events.map((event) => ({ event, source }));
+  return new TickState(
+    tick,
+    tagged,
+    playerStates,
+    buildNpcsForTick(tagged, null),
+    buildGraphicsForTick(tagged, null),
+  );
+}
+
+type PlayerAttackOptions = Partial<
+  Omit<NonNullable<PlayerState['attack']>, 'target'>
+> &
+  Pick<NonNullable<PlayerState['attack']>, 'type' | 'weaponId'> & {
+    target: NonNullable<PlayerState['attack']>['target'] | number;
+  };
+
+type PlayerSpellOptions = {
+  type: PlayerSpell;
+  target?: string | number | { id: number; roomId: number } | null;
+};
+
 export type PlayerStateOptions = {
   username: string;
+  clientId: number;
   source?: DataSource;
   x?: number;
   y?: number;
   isDead?: boolean;
   equipment?: Partial<Record<EquipmentSlot, EquippedItem | null>>;
   prayers?: PrayerSet;
-  attack?: PlayerAttackState | null;
+  attack?: PlayerAttackOptions | null;
+  spell?: PlayerSpellOptions | null;
+  stats?: NonNullable<PlayerState['stats']> | null;
+  offCooldownTick?: number;
 };
 
 export function createPlayerState({
   username,
+  clientId,
   source = DataSource.SECONDARY,
   x = 0,
   y = 0,
@@ -61,7 +103,10 @@ export function createPlayerState({
   equipment = {},
   prayers,
   attack = null,
-}: PlayerStateOptions): PlayerState {
+  spell = null,
+  stats = null,
+  offCooldownTick,
+}: PlayerStateOptions): WithProvenance<PlayerState> {
   const emptyEquipment: Record<EquipmentSlot, EquippedItem | null> = {
     [EquipmentSlot.HEAD]: null,
     [EquipmentSlot.CAPE]: null,
@@ -81,7 +126,56 @@ export function createPlayerState({
     emptyEquipment[slot as unknown as EquipmentSlot] = item ?? null;
   }
 
+  const attackState: PlayerState['attack'] | null =
+    attack !== null
+      ? {
+          sourceClientId: attack.sourceClientId ?? clientId,
+          type: attack.type,
+          weaponId: attack.weaponId,
+          distanceToTarget: attack.distanceToTarget ?? 1,
+          target:
+            typeof attack.target === 'number'
+              ? {
+                  id: attack.target,
+                  roomId: attack.target,
+                  sourceClientId: clientId,
+                }
+              : (attack.target ?? null),
+        }
+      : null;
+
+  let spellState: PlayerState['spell'] | null = null;
+  if (spell !== null) {
+    spellState = {
+      sourceClientId: clientId,
+      type: spell.type,
+      target: null,
+    };
+    if (typeof spell.target === 'string') {
+      spellState.target = {
+        kind: 'player',
+        name: spell.target,
+        sourceClientId: clientId,
+      };
+    } else if (typeof spell.target === 'number') {
+      spellState.target = {
+        kind: 'npc',
+        id: spell.target,
+        roomId: spell.target,
+        sourceClientId: clientId,
+      };
+    } else if (spell.target) {
+      spellState.target = {
+        kind: 'npc',
+        id: spell.target.id,
+        roomId: spell.target.roomId,
+        sourceClientId: clientId,
+      };
+    }
+  }
+
   return {
+    sourceClientId: clientId,
     username,
     source,
     x,
@@ -89,7 +183,10 @@ export function createPlayerState({
     isDead,
     equipment: emptyEquipment,
     prayers: prayers ?? PrayerSet.empty(PrayerBook.NORMAL),
-    attack,
+    attack: attackState,
+    spell: spellState,
+    stats,
+    offCooldownTick: offCooldownTick ?? null,
   };
 }
 
@@ -129,6 +226,103 @@ export function createPlayerUpdateEvent({
   return event;
 }
 
+export function createPlayerAttackEvent({
+  tick,
+  name,
+  attackType,
+  weaponId = 0,
+  targetRoomId,
+  x = 0,
+  y = 0,
+  stage = Stage.TOB_MAIDEN,
+}: {
+  tick: number;
+  name: string;
+  attackType: PlayerAttack;
+  weaponId?: number;
+  targetRoomId?: number;
+  x?: number;
+  y?: number;
+  stage?: Stage;
+}): ProtoEvent {
+  const event = new ProtoEvent();
+  event.setType(ProtoEvent.Type.PLAYER_ATTACK);
+  event.setTick(tick);
+  event.setStage(stage as ProtoStage);
+  event.setXCoord(x);
+  event.setYCoord(y);
+
+  const player = new ProtoEvent.Player();
+  player.setName(name);
+  event.setPlayer(player);
+
+  const attack = new ProtoEvent.Attack();
+  attack.setType(attackType as PlayerAttackMap[keyof PlayerAttackMap]);
+  if (weaponId !== 0) {
+    const weapon = new ProtoEvent.Player.EquippedItem();
+    weapon.setSlot(
+      EquipmentSlot.WEAPON as Proto<ProtoEvent.Player.EquipmentSlotMap>,
+    );
+    weapon.setId(weaponId);
+    weapon.setQuantity(1);
+    attack.setWeapon(weapon);
+  }
+  if (targetRoomId !== undefined) {
+    const target = new ProtoEvent.Npc();
+    target.setRoomId(targetRoomId);
+    attack.setTarget(target);
+  }
+  event.setPlayerAttack(attack);
+
+  return event;
+}
+
+export function createPlayerDeathEvent({
+  tick,
+  name,
+  x = 0,
+  y = 0,
+  stage = Stage.TOB_MAIDEN,
+}: {
+  tick: number;
+  name: string;
+  x?: number;
+  y?: number;
+  stage?: Stage;
+}): ProtoEvent {
+  const event = new ProtoEvent();
+  event.setType(ProtoEvent.Type.PLAYER_DEATH);
+  event.setTick(tick);
+  event.setStage(stage as ProtoStage);
+  event.setXCoord(x);
+  event.setYCoord(y);
+
+  const player = new ProtoEvent.Player();
+  player.setName(name);
+  event.setPlayer(player);
+
+  return event;
+}
+
+type NpcMaidenCrabFixture = {
+  spawn: number;
+  position: number;
+  scuffed: boolean;
+};
+
+type NpcNyloFixture = {
+  wave: number;
+  parentRoomId: number;
+  big: boolean;
+  style: number;
+  spawnType: number;
+};
+
+type NpcVerzikCrabFixture = {
+  phase: number;
+  spawn: number;
+};
+
 type NpcEventOptions = {
   tick: number;
   roomId: number;
@@ -137,6 +331,10 @@ type NpcEventOptions = {
   y: number;
   hitpointsCurrent: number;
   hitpointsBase?: number;
+  prayers?: number;
+  maidenCrab?: NpcMaidenCrabFixture;
+  nylo?: NpcNyloFixture;
+  verzikCrab?: NpcVerzikCrabFixture;
   stage?: Stage;
 };
 
@@ -150,6 +348,10 @@ function createNpcEvent(
     y,
     hitpointsCurrent,
     hitpointsBase,
+    prayers,
+    maidenCrab,
+    nylo,
+    verzikCrab,
     stage = Stage.TOB_MAIDEN,
   }: NpcEventOptions,
 ): ProtoEvent {
@@ -165,6 +367,35 @@ function createNpcEvent(
   npc.setId(npcId);
   const base = hitpointsBase ?? hitpointsCurrent;
   npc.setHitpoints(new SkillLevel(hitpointsCurrent, base).toRaw());
+  if (prayers !== undefined) {
+    npc.setActivePrayers(prayers);
+  }
+  if (maidenCrab !== undefined) {
+    const crab = new ProtoEvent.Npc.MaidenCrab();
+    crab.setSpawn(
+      maidenCrab.spawn as Proto<ProtoEvent.Npc.MaidenCrab.SpawnMap>,
+    );
+    crab.setPosition(
+      maidenCrab.position as Proto<ProtoEvent.Npc.MaidenCrab.PositionMap>,
+    );
+    crab.setScuffed(maidenCrab.scuffed);
+    npc.setMaidenCrab(crab);
+  } else if (nylo !== undefined) {
+    const n = new ProtoEvent.Npc.Nylo();
+    n.setWave(nylo.wave);
+    n.setParentRoomId(nylo.parentRoomId);
+    n.setBig(nylo.big);
+    n.setStyle(nylo.style as Proto<ProtoEvent.Npc.Nylo.StyleMap>);
+    n.setSpawnType(nylo.spawnType as Proto<ProtoEvent.Npc.Nylo.SpawnTypeMap>);
+    npc.setNylo(n);
+  } else if (verzikCrab !== undefined) {
+    const crab = new ProtoEvent.Npc.VerzikCrab();
+    crab.setPhase(verzikCrab.phase as Proto<ProtoEvent.VerzikPhaseMap>);
+    crab.setSpawn(
+      verzikCrab.spawn as Proto<ProtoEvent.Npc.VerzikCrab.SpawnMap>,
+    );
+    npc.setVerzikCrab(crab);
+  }
   event.setNpc(npc);
 
   return event;
@@ -176,19 +407,6 @@ export function createNpcSpawnEvent(options: NpcEventOptions): ProtoEvent {
 
 export function createNpcUpdateEvent(options: NpcEventOptions): ProtoEvent {
   return createNpcEvent(ProtoEvent.Type.NPC_UPDATE, options);
-}
-
-export function createTickState(
-  tick: number,
-  players: PlayerState[],
-  events: ProtoEvent[] = [],
-): TickState {
-  const playerStates = new Map<string, PlayerState | null>();
-  for (const player of players) {
-    playerStates.set(player.username, player);
-  }
-
-  return new TickState(tick, events, playerStates);
 }
 
 export function createNpcAttackEvent({
@@ -234,33 +452,6 @@ export function createNpcAttackEvent({
     npcAttack.setTarget(target);
   }
   event.setNpcAttack(npcAttack);
-
-  return event;
-}
-
-export function createPlayerDeathEvent({
-  tick,
-  name,
-  x = 0,
-  y = 0,
-  stage = Stage.TOB_MAIDEN,
-}: {
-  tick: number;
-  name: string;
-  x?: number;
-  y?: number;
-  stage?: Stage;
-}): ProtoEvent {
-  const event = new ProtoEvent();
-  event.setType(ProtoEvent.Type.PLAYER_DEATH);
-  event.setTick(tick);
-  event.setStage(stage as ProtoStage);
-  event.setXCoord(x);
-  event.setYCoord(y);
-
-  const player = new ProtoEvent.Player();
-  player.setName(name);
-  event.setPlayer(player);
 
   return event;
 }

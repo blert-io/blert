@@ -84,6 +84,19 @@ export abstract class ConsistencyChecker {
   public abstract check(ticks: TickStateArray): ConsistencyIssue[];
 }
 
+function hasNpcAttack(
+  tickState: TickState | null,
+  idMatches: (id: number) => boolean,
+  attackType: NpcAttack,
+): boolean {
+  for (const npc of tickState?.getNpcs().values() ?? []) {
+    if (idMatches(npc.id) && npc.attack?.type === attackType) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function checkForP3WebsPush(
   ticks: TickStateArray,
   tick: number,
@@ -100,14 +113,12 @@ function checkForP3WebsPush(
       continue;
     }
 
-    const websAttack = tickState
-      .getEventsByType(Event.Type.NPC_ATTACK)
-      ?.find((evt) => {
-        const attack = evt.getNpcAttack()!;
-        return attack.getAttack() === NpcAttack.TOB_VERZIK_P3_WEBS;
-      });
-    if (websAttack !== undefined) {
-      isWebs = true;
+    isWebs = hasNpcAttack(
+      tickState,
+      (id) => Npc.isVerzikP3(id),
+      NpcAttack.TOB_VERZIK_P3_WEBS,
+    );
+    if (isWebs) {
       break;
     }
   }
@@ -365,11 +376,10 @@ export class MovementConsistencyChecker extends ConsistencyChecker {
     // single-target, we can check that only the player we are testing made a
     // bounce-like movement and allow it if so.
     const hasBounce = (tickState: TickState | null): boolean => {
-      return (
-        tickState?.getEventsByType(Event.Type.NPC_ATTACK)?.find((evt) => {
-          const attack = evt.getNpcAttack()!;
-          return attack.getAttack() === NpcAttack.TOB_VERZIK_P2_BOUNCE;
-        }) !== undefined
+      return hasNpcAttack(
+        tickState,
+        (id) => Npc.isVerzikP2(id),
+        NpcAttack.TOB_VERZIK_P2_BOUNCE,
       );
     };
 
