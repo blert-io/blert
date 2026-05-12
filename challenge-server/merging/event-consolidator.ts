@@ -150,9 +150,34 @@ const ATTACK_MAPPED_CONFIGS: Record<
       b.getVerzikAttackStyle()?.getStyle(),
   },
   [Event.Type.TOB_VERZIK_BOUNCE]: {
-    getReferencedTick: (e) => e.getVerzikBounce()?.getNpcAttackTick(),
-    validateAttack: (state) =>
-      hasNpcAttack(state, NpcAttack.TOB_VERZIK_P2_BOUNCE),
+    getReferencedTick: (e) => {
+      const bounceTick = e.getVerzikBounce()?.getNpcAttackTick();
+      if (bounceTick === undefined) {
+        return undefined;
+      }
+      // Plugin versions prior to 0.9.10 did not set a referenced attack tick
+      // for bounce chance events without a target. Those events are dispatched
+      // on the same tick as Verzik's attack.
+      return bounceTick === -1 ? e.getTick() : bounceTick;
+    },
+    validateAttack: (state, event) => {
+      for (const npc of state.getNpcs().values()) {
+        if (!Npc.isVerzikP2(npc.id)) {
+          continue;
+        }
+
+        // Bounce events are dispatched on every Verzik attack regardless of
+        // whether a bounce happened to track bounce chances (players in range).
+        // If there is a bounced player in the event, we expect a bounce attack;
+        // otherwise any Verzik attack will do.
+        const bounced = event.getVerzikBounce()?.getBouncedPlayer();
+        if (!bounced || bounced.length === 0) {
+          return npc.attack !== null;
+        }
+        return npc.attack?.type === NpcAttack.TOB_VERZIK_P2_BOUNCE;
+      }
+      return false;
+    },
     conflictResolution: { strategy: 'unexpected' },
     candidatesAgree: (a, b) =>
       a.getVerzikBounce()?.getBouncedPlayer() ===

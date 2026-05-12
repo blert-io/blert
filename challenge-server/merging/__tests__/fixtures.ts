@@ -541,7 +541,7 @@ export function createVerzikBounceEvent({
 }: {
   tick: number;
   npcAttackTick: number;
-  bouncedPlayer: string;
+  bouncedPlayer?: string;
 }): ProtoEvent {
   const event = new ProtoEvent();
   event.setType(ProtoEvent.Type.TOB_VERZIK_BOUNCE);
@@ -550,7 +550,9 @@ export function createVerzikBounceEvent({
 
   const bounce = new ProtoEvent.VerzikBounce();
   bounce.setNpcAttackTick(npcAttackTick);
-  bounce.setBouncedPlayer(bouncedPlayer);
+  if (bouncedPlayer !== undefined) {
+    bounce.setBouncedPlayer(bouncedPlayer);
+  }
   event.setVerzikBounce(bounce);
 
   return event;

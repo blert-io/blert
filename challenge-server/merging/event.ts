@@ -397,7 +397,14 @@ export function remapEventTick(
 
     case Event.Type.TOB_VERZIK_BOUNCE: {
       const bounce = remapped.event.getVerzikBounce()!;
-      bounce.setNpcAttackTick(remap(bounce.getNpcAttackTick()));
+      // Plugin versions prior to 0.9.10 did not set a referenced attack tick
+      // for bounce chance events without a target. Those events are dispatched
+      // on the same tick as Verzik's attack.
+      const npcAttackTick =
+        bounce.getNpcAttackTick() === -1
+          ? remapped.event.getTick()
+          : bounce.getNpcAttackTick();
+      bounce.setNpcAttackTick(remap(npcAttackTick));
       break;
     }
 

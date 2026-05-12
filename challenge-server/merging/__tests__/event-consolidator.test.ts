@@ -32,6 +32,7 @@ import {
   createPlayerUpdateEvent,
   createTickState,
   createVerzikAttackStyleEvent,
+  createVerzikBounceEvent,
 } from './fixtures';
 
 const BASE_CLIENT_ID = 1;
@@ -1111,6 +1112,232 @@ describe('EventConsolidator', () => {
         ?.getEvents()
         .filter((e) => e.getType() === ProtoEvent.Type.TOB_VERZIK_ATTACK_STYLE);
       expect(tick6Events).toHaveLength(0);
+    });
+
+    describe('verzik bounce events', () => {
+      const VERZIK_P2_ID = 8372;
+
+      function buildVerzikP2Timeline(
+        clientId: number,
+        numTicks: number,
+        player: string,
+        source: DataSource,
+        attackTick: number,
+        attackType: NpcAttack,
+        bounceEvents?: Record<
+          number,
+          { npcAttackTick: number; bouncedPlayer?: string }
+        >,
+      ): TickStateArray {
+        const extra: Record<number, ProtoEvent[]> = {
+          [attackTick]: [
+            createNpcAttackEvent({
+              tick: attackTick,
+              roomId: 1,
+              npcId: VERZIK_P2_ID,
+              attackType,
+              x: 10,
+              y: 10,
+              stage: Stage.TOB_VERZIK,
+            }),
+          ],
+        };
+
+        for (let i = 0; i < numTicks; i++) {
+          extra[i] = [
+            ...(extra[i] ?? []),
+            createNpcUpdateEvent({
+              tick: i,
+              roomId: 1,
+              npcId: VERZIK_P2_ID,
+              x: 10,
+              y: 10,
+              hitpointsCurrent: 100,
+              stage: Stage.TOB_VERZIK,
+            }),
+          ];
+        }
+
+        if (bounceEvents !== undefined) {
+          for (const [tick, opts] of Object.entries(bounceEvents)) {
+            const t = Number(tick);
+            extra[t] = [
+              ...(extra[t] ?? []),
+              createVerzikBounceEvent({
+                tick: t,
+                npcAttackTick: opts.npcAttackTick,
+                bouncedPlayer: opts.bouncedPlayer,
+              }),
+            ];
+          }
+        }
+
+        return buildTimeline(clientId, numTicks, player, source, extra);
+      }
+
+      it('resolves a legacy bounce chance event with an npcAttackTick of -1', () => {
+        const base = buildVerzikP2Timeline(
+          BASE_CLIENT_ID,
+          15,
+          'player1',
+          DataSource.SECONDARY,
+          5,
+          NpcAttack.TOB_VERZIK_P2_BOUNCE,
+          { 5: { npcAttackTick: -1 } },
+        );
+        const target = buildTimeline(
+          TARGET_CLIENT_ID,
+          15,
+          'player1',
+          DataSource.PRIMARY,
+        );
+
+        const consolidator = new EventConsolidator(
+          base,
+          target,
+          testCtx(base.length, target.length),
+        );
+        const result = consolidator.consolidate();
+
+        // The event should be resolved at attackTick + 1 = 6, and the legacy
+        // -1 npcAttackTick rewritten to the merged attack tick (5).
+        const tick5Bounces = result.ticks[5]
+          ?.getEvents()
+          .filter((e) => e.getType() === ProtoEvent.Type.TOB_VERZIK_BOUNCE);
+        const tick6Bounces = result.ticks[6]
+          ?.getEvents()
+          .filter((e) => e.getType() === ProtoEvent.Type.TOB_VERZIK_BOUNCE);
+        expect(tick5Bounces).toHaveLength(0);
+        expect(tick6Bounces).toHaveLength(1);
+        expect(tick6Bounces![0].getVerzikBounce()?.getNpcAttackTick()).toBe(5);
+        expect(tick6Bounces![0].getVerzikBounce()?.hasBouncedPlayer()).toBe(
+          false,
+        );
+      });
+
+      it('resolves an untargeted bounce against any Verzik P2 attack on the tick', () => {
+        const base = buildVerzikP2Timeline(
+          BASE_CLIENT_ID,
+          15,
+          'player1',
+          DataSource.SECONDARY,
+          5,
+          NpcAttack.TOB_VERZIK_P2_MAGE,
+          { 5: { npcAttackTick: -1 } },
+        );
+        const target = buildTimeline(
+          TARGET_CLIENT_ID,
+          15,
+          'player1',
+          DataSource.PRIMARY,
+        );
+
+        const consolidator = new EventConsolidator(
+          base,
+          target,
+          testCtx(base.length, target.length),
+        );
+        const result = consolidator.consolidate();
+
+        const tick6Bounces = result.ticks[6]
+          ?.getEvents()
+          .filter((e) => e.getType() === ProtoEvent.Type.TOB_VERZIK_BOUNCE);
+        expect(tick6Bounces).toHaveLength(1);
+      });
+
+      it('resolves a targeted bounce against a bounce attack', () => {
+        const base = buildVerzikP2Timeline(
+          BASE_CLIENT_ID,
+          15,
+          'player1',
+          DataSource.SECONDARY,
+          5,
+          NpcAttack.TOB_VERZIK_P2_BOUNCE,
+          { 6: { npcAttackTick: 5, bouncedPlayer: 'player1' } },
+        );
+        const target = buildTimeline(
+          TARGET_CLIENT_ID,
+          15,
+          'player1',
+          DataSource.PRIMARY,
+        );
+
+        const consolidator = new EventConsolidator(
+          base,
+          target,
+          testCtx(base.length, target.length),
+        );
+        const result = consolidator.consolidate();
+
+        const tick6Bounces = result.ticks[6]
+          ?.getEvents()
+          .filter((e) => e.getType() === ProtoEvent.Type.TOB_VERZIK_BOUNCE);
+        expect(tick6Bounces).toHaveLength(1);
+        expect(tick6Bounces![0].getVerzikBounce()?.getBouncedPlayer()).toBe(
+          'player1',
+        );
+        expect(tick6Bounces![0].getVerzikBounce()?.getNpcAttackTick()).toBe(5);
+      });
+
+      it('discards a targeted bounce when the attack is not a bounce attack', () => {
+        const base = buildVerzikP2Timeline(
+          BASE_CLIENT_ID,
+          15,
+          'player1',
+          DataSource.SECONDARY,
+          5,
+          NpcAttack.TOB_VERZIK_P2_MAGE,
+          { 6: { npcAttackTick: 5, bouncedPlayer: 'player1' } },
+        );
+        const target = buildTimeline(
+          TARGET_CLIENT_ID,
+          15,
+          'player1',
+          DataSource.PRIMARY,
+        );
+
+        const consolidator = new EventConsolidator(
+          base,
+          target,
+          testCtx(base.length, target.length),
+        );
+        const result = consolidator.consolidate();
+
+        const bounces = result.ticks
+          .flatMap((t) => t?.getEvents() ?? [])
+          .filter((e) => e.getType() === ProtoEvent.Type.TOB_VERZIK_BOUNCE);
+        expect(bounces).toHaveLength(0);
+      });
+
+      it('discards a bounce when no Verzik P2 NPC exists on the referenced tick', () => {
+        const base = buildTimeline(
+          BASE_CLIENT_ID,
+          15,
+          'player1',
+          DataSource.SECONDARY,
+          {
+            5: [createVerzikBounceEvent({ tick: 5, npcAttackTick: -1 })],
+          },
+        );
+        const target = buildTimeline(
+          TARGET_CLIENT_ID,
+          15,
+          'player1',
+          DataSource.PRIMARY,
+        );
+
+        const consolidator = new EventConsolidator(
+          base,
+          target,
+          testCtx(base.length, target.length),
+        );
+        const result = consolidator.consolidate();
+
+        const bounces = result.ticks
+          .flatMap((t) => t?.getEvents() ?? [])
+          .filter((e) => e.getType() === ProtoEvent.Type.TOB_VERZIK_BOUNCE);
+        expect(bounces).toHaveLength(0);
+      });
     });
   });
 
