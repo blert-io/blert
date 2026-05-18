@@ -17,12 +17,17 @@ import {
 import { ReferenceSelectionMethod } from '../classification';
 import { ClientEvents } from '../client-events';
 import { MergeClientStatus } from '../context';
+import { EventConsolidator } from '../event-consolidator';
 import {
+  buildTickTimeline,
   createMaidenBloodSplatsEvent,
   createPlayerAttackEvent,
+  createPlayerDeathEvent,
 } from './fixtures';
+import { MergeConsistencyIssue, RejectionReason } from '../merge-consistency';
 import { Merger, MergeClientClassification, MergeOptions } from '../merge';
 import { MergeAlertType } from '../quality';
+import { MergeTracer } from '../trace';
 
 type Proto<T> = T[keyof T];
 
@@ -876,6 +881,110 @@ describe('Merger', () => {
           (e) => e.getType() === EventType.TOB_MAIDEN_BLOOD_SPLATS,
         ),
       ).toBe(true);
+    });
+  });
+
+  describe('post-merge consistency rejection', () => {
+    let consolidateSpy: jest.SpyInstance;
+
+    afterEach(() => {
+      consolidateSpy?.mockRestore();
+    });
+
+    it('rolls back the step and surfaces issues when the checker flags a duplicate', () => {
+      const NUM_TICKS = 6;
+      const baseEvents = generateTickEvents(NUM_TICKS, {
+        primaryPlayer: 'player1',
+      });
+      const base = ClientEvents.fromRawEvents(
+        1,
+        fakeChallenge,
+        {
+          stage: Stage.TOB_MAIDEN,
+          status: StageStatus.COMPLETED,
+          accurate: true,
+          recordedTicks: NUM_TICKS,
+          serverTicks: { count: NUM_TICKS, precise: true },
+        },
+        baseEvents,
+      );
+
+      const targetEvents = generateTickEvents(NUM_TICKS, {
+        primaryPlayer: 'player1',
+      });
+      const target = ClientEvents.fromRawEvents(
+        2,
+        fakeChallenge,
+        {
+          stage: Stage.TOB_MAIDEN,
+          status: StageStatus.COMPLETED,
+          accurate: true,
+          recordedTicks: NUM_TICKS,
+          serverTicks: { count: NUM_TICKS, precise: true },
+        },
+        targetEvents,
+      );
+
+      const fabricatedTicks = buildTickTimeline(NUM_TICKS, {
+        2: [createPlayerDeathEvent({ tick: 2, name: 'player1' })],
+        5: [createPlayerDeathEvent({ tick: 5, name: 'player1' })],
+      });
+      consolidateSpy = jest
+        .spyOn(EventConsolidator.prototype, 'consolidate')
+        .mockReturnValue({ ticks: fabricatedTicks, qualityFlags: [] });
+
+      const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [
+        base,
+        target,
+      ]);
+      const tracer = new MergeTracer();
+      const result = merger.merge(tracer);
+
+      expect(result).not.toBeNull();
+      expect(result!.unmergedCount).toBe(1);
+
+      const targetClient = result!.clients.find((c) => c.id === 2);
+      expect(targetClient).toBeDefined();
+      expect(targetClient!.status).toBe(MergeClientStatus.UNMERGED);
+      expect(targetClient!.mergeIssues).toEqual<MergeConsistencyIssue[]>([
+        {
+          kind: 'DUPLICATE_PLAYER_DEATH',
+          player: 'player1',
+          ticks: [2, 5],
+        },
+      ]);
+
+      // Rollback: the fabricated ticks (which contained the duplicate) do
+      // not appear in the merged output.
+      let deathCount = 0;
+      for (let tick = 0; tick < NUM_TICKS; tick++) {
+        deathCount += result!.events
+          .eventsForTick(tick)
+          .filter((e) => e.getType() === EventType.PLAYER_DEATH).length;
+      }
+      expect(deathCount).toBe(0);
+
+      const trace = tracer.toTrace();
+      const targetStep = trace.mergeSteps.find((s) => s.clientId === 2);
+      expect(targetStep).toBeDefined();
+      expect(targetStep!.rejection).toEqual({
+        reason: RejectionReason.POST_MERGE_CONSISTENCY,
+        issues: [
+          {
+            kind: 'DUPLICATE_PLAYER_DEATH',
+            player: 'player1',
+            ticks: [2, 5],
+          },
+        ],
+      });
+
+      expect(result!.alerts).toContainEqual({
+        type: MergeAlertType.POST_MERGE_CONSISTENCY_REJECTIONS,
+        details: {
+          rejectedClientIds: [2],
+          totalIssues: 1,
+        },
+      });
     });
   });
 });

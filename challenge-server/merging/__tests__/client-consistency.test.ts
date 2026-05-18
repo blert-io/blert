@@ -15,7 +15,7 @@ import {
   ConsistencyIssueType,
   MovementConsistencyChecker,
   NylocasConsistencyChecker,
-} from '../consistency';
+} from '../client-consistency';
 import { TickStateArray } from '../tick-state';
 import {
   createNpcAttackEvent,
@@ -1200,7 +1200,7 @@ describe('NylocasConsistencyChecker', () => {
     const issues = checker.check(ticks);
     expect(issues).toHaveLength(1);
     expect(issues[0]).toMatchObject({
-      type: ConsistencyIssueType.INVALID_EVENT_SEQUENCE,
+      type: ConsistencyIssueType.INVALID_TICK_GAP,
       eventType: EventType.TOB_NYLO_WAVE_SPAWN,
       tick: 2,
     });
@@ -1251,7 +1251,7 @@ describe('NylocasConsistencyChecker', () => {
     const issues = checker.check(ticks);
     expect(issues).toHaveLength(1);
     expect(issues[0]).toMatchObject({
-      type: ConsistencyIssueType.INVALID_EVENT_SEQUENCE,
+      type: ConsistencyIssueType.INVALID_TICK_GAP,
       eventType: EventType.TOB_NYLO_WAVE_SPAWN,
       tick: 15,
     });
@@ -1310,7 +1310,7 @@ describe('NylocasConsistencyChecker', () => {
       const issues = checker.check(ticks);
       expect(issues).toHaveLength(1);
       expect(issues[0]).toMatchObject({
-        type: ConsistencyIssueType.INVALID_EVENT_SEQUENCE,
+        type: ConsistencyIssueType.INVALID_TICK_GAP,
       });
     });
 

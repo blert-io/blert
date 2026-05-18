@@ -8,7 +8,7 @@ import {
   ReferenceSelection,
 } from './classification';
 import { ClientAnomaly, ClientEvents, ServerTicks } from './client-events';
-import { ConsistencyIssue } from './consistency';
+import { ConsistencyIssue } from './client-consistency';
 import {
   ChallengeInfo,
   MergeClientStatus,
@@ -19,6 +19,13 @@ import { derivedEventGeneratorForStage, mergeStageData } from './derivation';
 import { remapEventTick } from './event';
 import { EventConsolidator } from './event-consolidator';
 import logger from '../log';
+import {
+  MergeConsistencyChecker,
+  MergeConsistencyIssue,
+  RejectionReason,
+  StepRejection,
+} from './merge-consistency';
+
 import { MergeAlert, MergeAlertType } from './quality';
 import { SimilarityScorer } from './similarity-scorer';
 import { MergeMapping, TickMapping } from './tick-mapping';
@@ -50,6 +57,12 @@ export type MergeClient = {
   derivedAccurate: boolean;
   anomalies: ClientAnomaly[];
   consistencyIssues: ConsistencyIssue[];
+  /**
+   * Post-merge consistency issues that caused this client's merge step to be
+   * rejected. Empty unless `status === MergeClientStatus.UNMERGED` and the
+   * rejection came from the post-merge consistency check.
+   */
+  mergeIssues: MergeConsistencyIssue[];
   // TODO(frolv): Add alignment information if available.
 };
 
@@ -75,11 +88,27 @@ export type MergeResult = {
   referenceSelection: ReferenceSelection;
 };
 
+function surfaceAlerts(mergeClients: MergeClient[]): MergeAlert[] {
+  const alerts: MergeAlert[] = [];
+  const rejected = mergeClients.filter((c) => c.mergeIssues.length > 0);
+  if (rejected.length > 0) {
+    alerts.push({
+      type: MergeAlertType.POST_MERGE_CONSISTENCY_REJECTIONS,
+      details: {
+        rejectedClientIds: rejected.map((c) => c.id),
+        totalIssues: rejected.reduce((sum, c) => sum + c.mergeIssues.length, 0),
+      },
+    });
+  }
+  return alerts;
+}
+
 function createMergeClient(
   client: ClientEvents,
   classification: MergeClientClassification,
   status: MergeClientStatus,
   sequenceNumber: number,
+  mergeIssues: MergeConsistencyIssue[] = [],
 ): MergeClient {
   return {
     id: client.getId(),
@@ -93,6 +122,7 @@ function createMergeClient(
     derivedAccurate: client.isAccurate(),
     anomalies: client.getAnomalies(),
     consistencyIssues: client.getConsistencyIssues(),
+    mergeIssues,
   };
 }
 
@@ -189,19 +219,26 @@ export class Merger {
     const recordMergeResult = (
       client: ClientEvents,
       classification: MergeClientClassification,
-      status: MergeClientStatus,
+      outcome: MergeStepOutcome,
     ) => {
+      const status = statusFromOutcome(outcome);
+      const mergeIssues =
+        outcome.kind === 'rejected' ? outcome.rejection.issues : [];
       mergeClients.push(
-        createMergeClient(client, classification, status, mergeClients.length),
+        createMergeClient(
+          client,
+          classification,
+          status,
+          mergeClients.length,
+          mergeIssues,
+        ),
       );
       ctx.clients.get(client.getId())!.status = status;
     };
 
-    recordMergeResult(
-      clients.base,
-      MergeClientClassification.REFERENCE,
-      MergeClientStatus.MERGED,
-    );
+    recordMergeResult(clients.base, MergeClientClassification.REFERENCE, {
+      kind: 'merged',
+    });
 
     const merged = new MergedEvents(clients.base, ctx);
 
@@ -214,22 +251,31 @@ export class Merger {
     ) => {
       ctx.tracer?.beginMergeStep(client.getId(), classification);
 
-      let status = MergeClientStatus.UNMERGED;
+      let outcome: MergeStepOutcome = { kind: 'unmerged' };
       try {
-        if (merged.mergeEventsFrom(client, mergeOptions)) {
-          status = MergeClientStatus.MERGED;
+        outcome = merged.mergeEventsFrom(client, mergeOptions);
+        if (outcome.kind === 'merged') {
           ctx.tracer?.recordIntermediateSnapshot(merged.getTicks());
+        } else if (outcome.kind === 'rejected') {
+          ctx.tracer?.recordStepRejection(outcome.rejection);
+          logger.warn('merge_step_rejected', {
+            stage: this.stage,
+            clientId: client.getId(),
+            reason: outcome.rejection.reason,
+            issueCount: outcome.rejection.issues.length,
+          });
         }
       } catch (e) {
         logger.error('merge_client_error', {
           stage: this.stage,
           clientId: client.getId(),
           error: e instanceof Error ? e.message : String(e),
+          stack: e instanceof Error ? e.stack : undefined,
         });
       }
 
-      ctx.tracer?.endMergeStep(status);
-      recordMergeResult(client, classification, status);
+      ctx.tracer?.endMergeStep(statusFromOutcome(outcome));
+      recordMergeResult(client, classification, outcome);
     };
 
     for (const client of clients.matching) {
@@ -241,11 +287,9 @@ export class Merger {
     }
 
     for (const client of badDataClients) {
-      recordMergeResult(
-        client,
-        MergeClientClassification.MISMATCHED,
-        MergeClientStatus.SKIPPED,
-      );
+      recordMergeResult(client, MergeClientClassification.MISMATCHED, {
+        kind: 'skipped',
+      });
     }
 
     merged.finalizeMerge();
@@ -254,6 +298,8 @@ export class Merger {
       this.getMergeCounts(mergeClients);
 
     merged.postprocess(this.stage);
+
+    this.alerts.push(...surfaceAlerts(mergeClients));
 
     logger.info('merge_result', {
       mergedCount,
@@ -362,6 +408,24 @@ export class Merger {
   }
 }
 
+type MergeStepOutcome =
+  | { kind: 'merged' }
+  | { kind: 'unmerged' }
+  | { kind: 'skipped' }
+  | { kind: 'rejected'; rejection: StepRejection };
+
+function statusFromOutcome(outcome: MergeStepOutcome): MergeClientStatus {
+  switch (outcome.kind) {
+    case 'merged':
+      return MergeClientStatus.MERGED;
+    case 'skipped':
+      return MergeClientStatus.SKIPPED;
+    case 'unmerged':
+    case 'rejected':
+      return MergeClientStatus.UNMERGED;
+  }
+}
+
 export class MergedEvents {
   private ticks: TickStateArray;
   private readonly status: StageStatus;
@@ -425,11 +489,15 @@ export class MergedEvents {
 
   /**
    * Merges events from `client` into this merged event set.
+   *
    * @param client Client to merge events from.
    * @param options Merge options controlling alignment behavior.
-   * @returns Whether the merge was successful.
+   * @returns A tagged outcome describing what happened.
    */
-  public mergeEventsFrom(client: ClientEvents, options: MergeOptions): boolean {
+  public mergeEventsFrom(
+    client: ClientEvents,
+    options: MergeOptions,
+  ): MergeStepOutcome {
     const targetTicks = client.getTickStates();
     let baseMapping: TickMapping;
     let targetMapping: TickMapping;
@@ -442,11 +510,11 @@ export class MergedEvents {
       mergedTickCount = this.ticks.length;
     } else {
       if (!options.alignMismatched) {
-        return false;
+        return { kind: 'unmerged' };
       }
       const alignment = this.runAlignment(client);
       if (alignment === null) {
-        return false;
+        return { kind: 'unmerged' };
       }
       const result = TickMapping.fromAlignment(
         this.ticks.length,
@@ -466,23 +534,35 @@ export class MergedEvents {
     );
     this.ctx.tracer?.recordMapping(this.ctx.mapping);
 
-    const consolidator = new EventConsolidator(
-      this.ticks,
-      targetTicks,
-      this.ctx,
-    );
-    const result = consolidator.consolidate();
+    try {
+      const consolidator = new EventConsolidator(
+        this.ticks,
+        targetTicks,
+        this.ctx,
+      );
+      const result = consolidator.consolidate();
 
-    // TODO(frolv): Run post-merge consistency check on result.ticks.
-    if (false) {
+      const consistencyChecker = new MergeConsistencyChecker(this.ctx);
+      const issues = consistencyChecker.check(result.ticks);
+      if (issues.length > 0) {
+        this.ctx.mapping.discard();
+        return {
+          kind: 'rejected',
+          rejection: {
+            reason: RejectionReason.POST_MERGE_CONSISTENCY,
+            issues,
+          },
+        };
+      }
+
+      this.ctx.mapping.commit();
+
+      this.ticks = result.ticks;
+      return { kind: 'merged' };
+    } catch (e) {
       this.ctx.mapping.discard();
-      return false;
+      throw e;
     }
-
-    this.ctx.mapping.commit();
-
-    this.ticks = result.ticks;
-    return true;
   }
 
   /**

@@ -12,6 +12,7 @@ import {
 } from './event-consolidator';
 import { GraphicsType } from './graphics';
 import { MergeClientClassification } from './merge';
+import { StepRejection } from './merge-consistency';
 import { QualityFlag } from './quality';
 import { MergeMapping, TickMapping } from './tick-mapping';
 import {
@@ -178,6 +179,7 @@ export type MergeStepInfo = {
   tickDecisions: TickMergeDecision[];
   reconciliation: ReconciliationTrace | null;
   qualityFlags: QualityFlag[];
+  rejection: StepRejection | null;
 };
 
 export const enum TickMergeDecisionType {
@@ -502,6 +504,12 @@ export class MergeTracer {
     }
   }
 
+  public recordStepRejection(rejection: StepRejection): void {
+    if (this.currentStep !== null) {
+      this.currentStep.rejection = rejection;
+    }
+  }
+
   private ensureReconciliation(): ReconciliationTrace {
     if (this.currentStep!.reconciliation === undefined) {
       this.currentStep!.reconciliation = {
@@ -531,6 +539,7 @@ export class MergeTracer {
       tickDecisions: this.currentStep.tickDecisions!,
       reconciliation: this.currentStep.reconciliation ?? null,
       qualityFlags: this.currentStep.qualityFlags ?? [],
+      rejection: this.currentStep.rejection ?? null,
     });
 
     this.currentStep = null;

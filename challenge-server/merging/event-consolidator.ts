@@ -52,15 +52,6 @@ export type BufferedEvent = {
 
 export type EventBuffer = Map<EventType, BufferedEvent[]>;
 
-export type ConsolidatorConfig = {
-  /** Tick gap above which a paired stream event is flagged as suspicious. */
-  largeGapThreshold: number;
-};
-
-const DEFAULT_CONFIG: ConsolidatorConfig = {
-  largeGapThreshold: 10,
-};
-
 export type ConsolidationResult = {
   /** The merged timeline. */
   ticks: TickStateArray;
@@ -126,7 +117,7 @@ const ATTACK_MAPPED_CONFIGS: Record<
   AttackMappedEventConfig
 > = {
   [Event.Type.TOB_VERZIK_ATTACK_STYLE]: {
-    getReferencedTick: (e) => e.getVerzikAttackStyle()?.getNpcAttackTick(),
+    getReferencedTick: (e) => e.getVerzikAttackStyle()!.getNpcAttackTick(),
     validateAttack: (state) =>
       hasNpcAttack(state, NpcAttack.TOB_VERZIK_P3_AUTO),
     conflictResolution: {
@@ -146,15 +137,12 @@ const ATTACK_MAPPED_CONFIGS: Record<
       },
     },
     candidatesAgree: (a, b) =>
-      a.getVerzikAttackStyle()?.getStyle() ===
-      b.getVerzikAttackStyle()?.getStyle(),
+      a.getVerzikAttackStyle()!.getStyle() ===
+      b.getVerzikAttackStyle()!.getStyle(),
   },
   [Event.Type.TOB_VERZIK_BOUNCE]: {
     getReferencedTick: (e) => {
-      const bounceTick = e.getVerzikBounce()?.getNpcAttackTick();
-      if (bounceTick === undefined) {
-        return undefined;
-      }
+      const bounceTick = e.getVerzikBounce()!.getNpcAttackTick();
       // Plugin versions prior to 0.9.10 did not set a referenced attack tick
       // for bounce chance events without a target. Those events are dispatched
       // on the same tick as Verzik's attack.
@@ -170,7 +158,7 @@ const ATTACK_MAPPED_CONFIGS: Record<
         // whether a bounce happened to track bounce chances (players in range).
         // If there is a bounced player in the event, we expect a bounce attack;
         // otherwise any Verzik attack will do.
-        const bounced = event.getVerzikBounce()?.getBouncedPlayer();
+        const bounced = event.getVerzikBounce()!.getBouncedPlayer();
         if (!bounced || bounced.length === 0) {
           return npc.attack !== null;
         }
@@ -180,18 +168,18 @@ const ATTACK_MAPPED_CONFIGS: Record<
     },
     conflictResolution: { strategy: 'unexpected' },
     candidatesAgree: (a, b) =>
-      a.getVerzikBounce()?.getBouncedPlayer() ===
-      b.getVerzikBounce()?.getBouncedPlayer(),
+      a.getVerzikBounce()!.getBouncedPlayer() ===
+      b.getVerzikBounce()!.getBouncedPlayer(),
   },
   [Event.Type.TOB_VERZIK_DAWN]: {
-    getReferencedTick: (e) => e.getVerzikDawn()?.getAttackTick(),
+    getReferencedTick: (e) => e.getVerzikDawn()!.getAttackTick(),
     validateAttack: (state, event) =>
-      state.getPlayerState(event.getVerzikDawn()?.getPlayer() ?? '')?.attack
-        ?.type === PlayerAttack.DAWN_SPEC,
+      state.getPlayerState(event.getVerzikDawn()!.getPlayer())?.attack?.type ===
+      PlayerAttack.DAWN_SPEC,
     conflictResolution: { strategy: 'unexpected' },
     candidatesAgree: (a, b) =>
-      a.getVerzikDawn()?.getPlayer() === b.getVerzikDawn()?.getPlayer() &&
-      a.getVerzikDawn()?.getDamage() === b.getVerzikDawn()?.getDamage(),
+      a.getVerzikDawn()!.getPlayer() === b.getVerzikDawn()!.getPlayer() &&
+      a.getVerzikDawn()!.getDamage() === b.getVerzikDawn()!.getDamage(),
   },
 };
 
@@ -208,7 +196,6 @@ export class EventConsolidator {
   private readonly baseTicks: TickStateArray;
   private readonly targetTicks: TickStateArray;
   private readonly ctx: MergeContext;
-  private readonly config: ConsolidatorConfig;
 
   private mergedTicks: TickStateArray = [];
   private baseBuffer: EventBuffer = new Map();
@@ -219,12 +206,10 @@ export class EventConsolidator {
     baseTicks: TickStateArray,
     targetTicks: TickStateArray,
     ctx: MergeContext,
-    config: Partial<ConsolidatorConfig> = {},
   ) {
     this.baseTicks = baseTicks;
     this.targetTicks = targetTicks;
     this.ctx = ctx;
-    this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
   private get baseMapping(): TickMapping {
@@ -447,11 +432,38 @@ export class EventConsolidator {
       );
 
       if (config.temporalWindow === null) {
-        this.matchUnique(type, key, base, target);
+        this.matchUnique(type, key, base, target, config.largeGapThreshold);
       } else {
-        this.matchTemporal(type, key, base, target, config.temporalWindow);
+        this.matchTemporal(
+          type,
+          key,
+          base,
+          target,
+          config.temporalWindow,
+          config.largeGapThreshold,
+        );
       }
     }
+  }
+
+  private flagLargeGap(
+    type: StreamEventType,
+    threshold: number | null,
+    gap: number,
+    b: BufferedEvent,
+    t: BufferedEvent,
+  ): string | null {
+    if (threshold === null || gap <= threshold) {
+      return null;
+    }
+    this.qualityFlags.push({
+      kind: 'LARGE_TEMPORAL_GAP',
+      eventType: type,
+      tickGap: gap,
+      baseTick: b.mergedTick,
+      targetTick: t.mergedTick,
+    });
+    return `large gap: ${gap} ticks`;
   }
 
   /**
@@ -464,6 +476,7 @@ export class EventConsolidator {
     key: string,
     base: BufferedEvent[],
     target: BufferedEvent[],
+    largeGapThreshold: number | null,
   ): void {
     if (base.length > 1 || target.length > 1) {
       logger.warn('consolidate_duplicate_unique_event', {
@@ -480,6 +493,8 @@ export class EventConsolidator {
     if (b !== null && t !== null) {
       const winner = b.mergedTick <= t.mergedTick ? b : t;
       this.insertBufferedEvent(winner);
+      const gap = Math.abs(b.mergedTick - t.mergedTick);
+      const reason = this.flagLargeGap(type, largeGapThreshold, gap, b, t);
       this.ctx.tracer?.recordStreamResolution(
         type,
         key,
@@ -487,11 +502,8 @@ export class EventConsolidator {
         { mergedTick: t.mergedTick, clientTick: t.clientTick },
         winner.mergedTick,
         'PAIRED',
-        null,
+        reason,
       );
-      // Unique events match by identity regardless of timing, so large gaps
-      // are expected (e.g. a client joining late sees NPC spawns later). Don't
-      // flag them.
     } else if (b !== null) {
       this.insertBufferedEvent(b);
       this.ctx.tracer?.recordStreamResolution(
@@ -528,6 +540,7 @@ export class EventConsolidator {
     base: BufferedEvent[],
     target: BufferedEvent[],
     window: number,
+    largeGapThreshold: number | null,
   ): void {
     let bi = 0;
     let ti = 0;
@@ -544,15 +557,7 @@ export class EventConsolidator {
           const winner = b.mergedTick <= t.mergedTick ? b : t;
           this.insertBufferedEvent(winner);
 
-          if (gap > this.config.largeGapThreshold) {
-            this.qualityFlags.push({
-              kind: 'LARGE_TEMPORAL_GAP',
-              eventType: type,
-              tickGap: gap,
-              baseTick: b.mergedTick,
-              targetTick: t.mergedTick,
-            });
-          }
+          const reason = this.flagLargeGap(type, largeGapThreshold, gap, b, t);
 
           this.ctx.tracer?.recordStreamResolution(
             type,
@@ -561,9 +566,7 @@ export class EventConsolidator {
             { mergedTick: t.mergedTick, clientTick: t.clientTick },
             winner.mergedTick,
             'PAIRED',
-            gap > this.config.largeGapThreshold
-              ? `large gap: ${gap} ticks`
-              : null,
+            reason,
           );
           bi++;
           ti++;

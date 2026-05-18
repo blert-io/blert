@@ -19,7 +19,7 @@ import {
   ConsistencyIssue,
   ConsistencyIssueType,
   MovementConsistencyChecker,
-} from './consistency';
+} from './client-consistency';
 import { ChallengeInfo } from './context';
 import logger from '../log';
 import { DERIVED_EVENT_TYPES } from './event';
@@ -462,19 +462,31 @@ export class ClientEvents {
    * @returns `false` if any major inconsistencies are found, `true` otherwise.
    */
   private checkForConsistency(): boolean {
-    const issues: ConsistencyIssue[] = [
-      ...new MovementConsistencyChecker(
-        this.stageInfo.stage,
-        this.challenge.party,
-      ).check(this.tickState),
-    ];
+    const issues: ConsistencyIssue[] = [];
 
-    const stageChecker = consistencyCheckerForStage(
-      this.stageInfo.stage,
-      this.challenge.mode,
-    );
-    if (stageChecker !== null) {
-      issues.push(...stageChecker.check(this.tickState));
+    try {
+      issues.push(
+        ...new MovementConsistencyChecker(
+          this.stageInfo.stage,
+          this.challenge.party,
+        ).check(this.tickState),
+      );
+
+      const stageChecker = consistencyCheckerForStage(
+        this.stageInfo.stage,
+        this.challenge.mode,
+      );
+      if (stageChecker !== null) {
+        issues.push(...stageChecker.check(this.tickState));
+      }
+    } catch (e) {
+      logger.error('client_consistency_check_error', {
+        challengeUuid: this.challenge.uuid,
+        clientId: this.clientId,
+        error: e instanceof Error ? e.message : String(e),
+        stack: e instanceof Error ? e.stack : undefined,
+      });
+      this.anomalies.add(ClientAnomaly.BAD_DATA);
     }
 
     for (const issue of issues) {
