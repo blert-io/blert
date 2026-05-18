@@ -4,12 +4,16 @@ import {
   TickAligner,
   SimilarityFn,
 } from '../alignment';
-import { createPlayerState, createTickState } from './fixtures';
+import {
+  buildTickTimeline,
+  createPlayerState,
+  createTickState,
+} from './fixtures';
 import { TickState, TickStateArray } from '../tick-state';
 
 /**
- * Creates a TickStateArray from tick numbers. Each tick gets a single dummy
- * player so it's non-null.
+ * Creates a TickStateArray from a non-contiguous list of tick numbers. Each
+ * tick gets a single dummy player so it's non-null.
  */
 function makeTimeline(ticks: number[], clientId: number): TickStateArray {
   return ticks.map((t) =>
@@ -17,14 +21,10 @@ function makeTimeline(ticks: number[], clientId: number): TickStateArray {
   );
 }
 
-/**
- * Creates a TickStateArray with tick values matching their array indices.
- */
 function makeIndexedTimeline(length: number, clientId: number): TickStateArray {
-  return makeTimeline(
-    Array.from({ length }, (_, i) => i),
-    clientId,
-  );
+  return buildTickTimeline(length, {}, [
+    createPlayerState({ username: 'player1', clientId }),
+  ]);
 }
 
 /**

@@ -1,6 +1,4 @@
 import {
-  ChallengeMode,
-  ChallengeType,
   DataSource,
   NpcAttack,
   PlayerAttack,
@@ -11,18 +9,15 @@ import {
 import { Event as ProtoEvent } from '@blert/common/generated/event_pb';
 
 import { ClientEvents } from '../client-events';
-import {
-  ChallengeInfo,
-  MergeClientStatus,
-  MergeContext,
-  RegisteredClient,
-} from '../context';
+import { MergeClientStatus, MergeContext, RegisteredClient } from '../context';
 import { EventConsolidator } from '../event-consolidator';
-import { MergeMapping, TickMapping } from '../tick-mapping';
+import { TickMapping } from '../tick-mapping';
 import { TickStateArray } from '../tick-state';
 
 import {
+  TEST_CHALLENGE,
   createEvent,
+  createMergeContext,
   createNpcAttackEvent,
   createNpcDeathEvent,
   createNpcUpdateEvent,
@@ -37,13 +32,6 @@ import {
 
 const BASE_CLIENT_ID = 1;
 const TARGET_CLIENT_ID = 2;
-
-const TEST_CHALLENGE: ChallengeInfo = {
-  uuid: 'test',
-  type: ChallengeType.TOB,
-  mode: ChallengeMode.TOB_REGULAR,
-  party: ['player1'],
-};
 
 /**
  * Creates a minimal ClientEvents for registering in the merge context.
@@ -88,26 +76,22 @@ function testCtx(
   clients?: Map<number, RegisteredClient>,
   stage: Stage = Stage.TOB_VERZIK,
 ): MergeContext {
-  const mapping = new MergeMapping(BASE_CLIENT_ID);
-  mapping.begin(
+  const ctx = createMergeContext({ stage, clients });
+  ctx.mapping.begin(
     TARGET_CLIENT_ID,
     TickMapping.identity(baseTickCount),
     TickMapping.identity(targetTickCount),
     baseTickCount,
   );
-  const challenge = { ...TEST_CHALLENGE };
   if (clients !== undefined) {
-    challenge.party = Array.from(clients.values()).map(
-      (c) => c.client.getPrimaryPlayer()!,
-    );
+    ctx.challenge = {
+      ...ctx.challenge,
+      party: Array.from(clients.values()).map(
+        (c) => c.client.getPrimaryPlayer()!,
+      ),
+    };
   }
-  return {
-    challenge,
-    stage,
-    clients: clients ?? new Map(),
-    mapping,
-    tracer: undefined,
-  };
+  return ctx;
 }
 
 /**
@@ -379,7 +363,7 @@ describe('EventConsolidator', () => {
     it('treats deaths outside the temporal window as distinct', () => {
       const base = buildTimeline(
         BASE_CLIENT_ID,
-        15,
+        20,
         'player1',
         DataSource.SECONDARY,
         {
@@ -388,11 +372,11 @@ describe('EventConsolidator', () => {
       );
       const target = buildTimeline(
         TARGET_CLIENT_ID,
-        15,
+        20,
         'player1',
         DataSource.PRIMARY,
         {
-          10: [createPlayerDeathEvent({ tick: 10, name: 'player1' })],
+          15: [createPlayerDeathEvent({ tick: 15, name: 'player1' })],
         },
       );
 
@@ -403,16 +387,17 @@ describe('EventConsolidator', () => {
       );
       const result = consolidator.consolidate();
 
-      // Both deaths should be present at their respective ticks.
+      // PLAYER_DEATH has a window of 8; gap of 13 puts the two deaths well
+      // outside it, so both are kept as distinct events.
       const deathAt2 = result.ticks[2]
         ?.getEvents()
         .filter((e) => e.getType() === ProtoEvent.Type.PLAYER_DEATH);
       expect(deathAt2).toHaveLength(1);
 
-      const deathAt10 = result.ticks[10]
+      const deathAt15 = result.ticks[15]
         ?.getEvents()
         .filter((e) => e.getType() === ProtoEvent.Type.PLAYER_DEATH);
-      expect(deathAt10).toHaveLength(1);
+      expect(deathAt15).toHaveLength(1);
 
       expect(result.qualityFlags).toHaveLength(0);
     });
@@ -636,7 +621,7 @@ describe('EventConsolidator', () => {
     it('flags a large temporal gap between paired stream events', () => {
       const base = buildTimeline(
         BASE_CLIENT_ID,
-        10,
+        15,
         'player1',
         DataSource.SECONDARY,
         {
@@ -645,11 +630,11 @@ describe('EventConsolidator', () => {
       );
       const target = buildTimeline(
         TARGET_CLIENT_ID,
-        10,
+        15,
         'player1',
         DataSource.PRIMARY,
         {
-          4: [createPlayerDeathEvent({ tick: 4, name: 'player1' })],
+          7: [createPlayerDeathEvent({ tick: 7, name: 'player1' })],
         },
       );
 
@@ -657,7 +642,6 @@ describe('EventConsolidator', () => {
         base,
         target,
         testCtx(base.length, target.length),
-        { largeGapThreshold: 2 },
       );
       const result = consolidator.consolidate();
 
@@ -668,9 +652,9 @@ describe('EventConsolidator', () => {
       expect(gapFlags[0]).toMatchObject({
         kind: 'LARGE_TEMPORAL_GAP',
         eventType: ProtoEvent.Type.PLAYER_DEATH,
-        tickGap: 3,
+        tickGap: 6,
         baseTick: 1,
-        targetTick: 4,
+        targetTick: 7,
       });
     });
 
@@ -698,7 +682,6 @@ describe('EventConsolidator', () => {
         base,
         target,
         testCtx(base.length, target.length),
-        { largeGapThreshold: 2 },
       );
       const result = consolidator.consolidate();
 

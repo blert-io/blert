@@ -32,6 +32,7 @@ import {
 export const enum ConsistencyIssueType {
   INVALID_MOVEMENT = 'INVALID_MOVEMENT',
   INVALID_EVENT_SEQUENCE = 'INVALID_EVENT_SEQUENCE',
+  INVALID_TICK_GAP = 'INVALID_TICK_GAP',
   BAD_DATA = 'BAD_DATA',
 }
 
@@ -52,6 +53,14 @@ export type InvalidEventSequenceIssue = {
   tick: number;
 };
 
+export type InvalidTickGapIssue = {
+  type: ConsistencyIssueType.INVALID_TICK_GAP;
+  eventType: EventType;
+  tick: number;
+  observedGap: number;
+  minGap: number;
+};
+
 export type BadDataIssue = {
   type: ConsistencyIssueType.BAD_DATA;
   tick: number;
@@ -61,6 +70,7 @@ export type BadDataIssue = {
 export type ConsistencyIssue =
   | InvalidMovementIssue
   | InvalidEventSequenceIssue
+  | InvalidTickGapIssue
   | BadDataIssue;
 
 /**
@@ -501,11 +511,7 @@ export class NylocasConsistencyChecker extends ConsistencyChecker {
         continue;
       }
 
-      const wave = spawn[0].getNyloWave()?.getWave();
-      if (wave === undefined) {
-        continue;
-      }
-
+      const wave = spawn[0].getNyloWave()!.getWave();
       if (wave < 1 || wave > 31) {
         issues.push({
           type: ConsistencyIssueType.BAD_DATA,
@@ -529,9 +535,11 @@ export class NylocasConsistencyChecker extends ConsistencyChecker {
         const minDelta = sumNaturalStalls(this.mode, this.lastWave, wave);
         if (delta < minDelta) {
           issues.push({
-            type: ConsistencyIssueType.INVALID_EVENT_SEQUENCE,
+            type: ConsistencyIssueType.INVALID_TICK_GAP,
             eventType: Event.Type.TOB_NYLO_WAVE_SPAWN,
             tick: tick.getTick(),
+            observedGap: delta,
+            minGap: minDelta,
           });
         }
       }

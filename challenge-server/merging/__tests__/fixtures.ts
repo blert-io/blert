@@ -1,4 +1,6 @@
 import {
+  ChallengeMode,
+  ChallengeType,
   DataSource,
   EquipmentSlot,
   ItemDelta,
@@ -18,22 +20,69 @@ import {
   StageMap,
 } from '@blert/common/generated/event_pb';
 
+import { ChallengeInfo, MergeContext, RegisteredClient } from '../context';
 import { SYNTHETIC_EVENT_SOURCE } from '../event';
 import { buildGraphicsForTick } from '../graphics';
+import { MergeMapping } from '../tick-mapping';
 import {
   buildNpcsForTick,
   EquippedItem,
   PlayerState,
   TickState,
+  TickStateArray,
   WithProvenance,
 } from '../tick-state';
 import { CoordsLike } from '../world';
 
-type Proto<T> = T[keyof T];
+export type Proto<T> = T[keyof T];
 
 type ProtoStage = Proto<StageMap>;
 type ProtoDataSource = Proto<ProtoEvent.Player.DataSourceMap>;
 type ProtoNpcAttack = Proto<NpcAttackMap>;
+
+export const TEST_CHALLENGE: ChallengeInfo = {
+  uuid: 'test',
+  type: ChallengeType.TOB,
+  mode: ChallengeMode.TOB_REGULAR,
+  party: ['player1'],
+};
+
+/**
+ * Builds a `MergeContext` with sensible defaults.
+ * @param overrides Optional per-field overrides.
+ */
+export function createMergeContext(
+  overrides: Partial<MergeContext> = {},
+): MergeContext {
+  return {
+    challenge: overrides.challenge ?? TEST_CHALLENGE,
+    stage: overrides.stage ?? Stage.TOB_MAIDEN,
+    clients: overrides.clients ?? new Map<number, RegisteredClient>(),
+    mapping: overrides.mapping ?? new MergeMapping(1),
+    tracer: overrides.tracer,
+  };
+}
+
+/**
+ * Builds a `TickStateArray` of length `numTicks`, attaching the events from
+ * `eventsByTick` to their corresponding ticks. Ticks not present in
+ * `eventsByTick` are created with no events.
+ *
+ * `players` may be a constant list applied to every tick, or a function that
+ * returns the per-tick player list.
+ */
+export function buildTickTimeline(
+  numTicks: number,
+  eventsByTick: Record<number, ProtoEvent[]> = {},
+  players: PlayerState[] | ((tick: number) => PlayerState[]) = [],
+): TickStateArray {
+  const ticks: TickStateArray = [];
+  for (let i = 0; i < numTicks; i++) {
+    const tickPlayers = typeof players === 'function' ? players(i) : players;
+    ticks.push(createTickState(i, tickPlayers, eventsByTick[i] ?? []));
+  }
+  return ticks;
+}
 
 export function createEvent(
   type: Proto<ProtoEvent.TypeMap>,
