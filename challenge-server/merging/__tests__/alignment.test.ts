@@ -64,7 +64,7 @@ function runAligner(
 function extractMapping(result: AlignmentResult): [number, number][] {
   const pairs: [number, number][] = [];
   for (const alignment of result.alignments) {
-    for (const entry of alignment) {
+    for (const entry of alignment.entries) {
       if (entry.action === AlignmentAction.MERGE) {
         pairs.push([entry.targetIndex, entry.baseIndex]);
       }
@@ -80,7 +80,7 @@ function extractMapping(result: AlignmentResult): [number, number][] {
 function extractScores(result: AlignmentResult): Map<number, number> {
   const scores = new Map<number, number>();
   for (const alignment of result.alignments) {
-    for (const entry of alignment) {
+    for (const entry of alignment.entries) {
       if (entry.action === AlignmentAction.MERGE) {
         scores.set(entry.targetIndex, entry.score);
       }
@@ -134,9 +134,26 @@ describe('TickAligner', () => {
       const result = runAligner(base, target, tickMatchScorer());
 
       expect(result.alignments).toHaveLength(1);
-      for (const entry of result.alignments[0]) {
+      const la = result.alignments[0];
+      for (const entry of la.entries) {
         expect(entry.action).toBe(AlignmentAction.MERGE);
       }
+      expect(la.similarity.length).toBe(la.range.baseEnd - la.range.baseStart);
+      expect(la.margin.length).toBe(la.similarity.length);
+    });
+
+    it('records per-cell decision margins along the path', () => {
+      const base = makeTimeline([1, 2, 3], BASE_CLIENT_ID);
+      const target = makeTimeline([1, 2, 3], TARGET_CLIENT_ID);
+
+      const result = runAligner(base, target, tickMatchScorer(3));
+
+      expect(result.alignments).toHaveLength(1);
+      const { margin } = result.alignments[0];
+      // No alternative branches, so the margins are the cumulative score.
+      expect(margin[0][0]).toBe(3);
+      expect(margin[1][1]).toBe(6);
+      expect(margin[2][2]).toBe(9);
     });
   });
 
@@ -209,7 +226,7 @@ describe('TickAligner', () => {
       expect(result.gapCount).toBe(2);
 
       const keepEntries = result.alignments.flatMap((a) =>
-        a.filter((e) => e.action === AlignmentAction.KEEP),
+        a.entries.filter((e) => e.action === AlignmentAction.KEEP),
       );
 
       // There should be KEEP entries for the base ticks the target missed.
@@ -243,13 +260,13 @@ describe('TickAligner', () => {
 
       // There should be an INSERT entry for the tick that the base missed.
       const insertEntries = result.alignments.flatMap((a) =>
-        a.filter((e) => e.action === AlignmentAction.INSERT),
+        a.entries.filter((e) => e.action === AlignmentAction.INSERT),
       );
       expect(insertEntries).toHaveLength(1);
       expect(insertEntries[0].targetIndex).toBe(4);
 
       const keepEntries = result.alignments.flatMap((a) =>
-        a.filter((e) => e.action === AlignmentAction.KEEP),
+        a.entries.filter((e) => e.action === AlignmentAction.KEEP),
       );
       expect(keepEntries).toHaveLength(0);
 
@@ -278,13 +295,13 @@ describe('TickAligner', () => {
       ]);
 
       const keepEntries = result.alignments.flatMap((a) =>
-        a.filter((e) => e.action === AlignmentAction.KEEP),
+        a.entries.filter((e) => e.action === AlignmentAction.KEEP),
       );
       expect(keepEntries).toHaveLength(1);
       expect(keepEntries[0].baseIndex).toBe(4);
 
       const insertEntries = result.alignments.flatMap((a) =>
-        a.filter((e) => e.action === AlignmentAction.INSERT),
+        a.entries.filter((e) => e.action === AlignmentAction.INSERT),
       );
       expect(insertEntries).toHaveLength(1);
       expect(insertEntries[0].targetIndex).toBe(4);
@@ -393,7 +410,7 @@ describe('TickAligner', () => {
 
       // Each local alignment should contain only MERGE entries.
       for (const alignment of result.alignments) {
-        for (const entry of alignment) {
+        for (const entry of alignment.entries) {
           expect(entry.action).toBe(AlignmentAction.MERGE);
         }
       }
@@ -431,7 +448,7 @@ describe('TickAligner', () => {
       for (const alignment of result.alignments) {
         let lastBase = -1;
         let lastTarget = -1;
-        for (const entry of alignment) {
+        for (const entry of alignment.entries) {
           if (entry.action === AlignmentAction.MERGE) {
             expect(entry.baseIndex).toBeGreaterThan(lastBase);
             expect(entry.targetIndex).toBeGreaterThan(lastTarget);
@@ -488,8 +505,8 @@ describe('TickAligner', () => {
       expect(result.alignments.length).toBeGreaterThanOrEqual(2);
 
       for (const alignment of result.alignments) {
-        const first = alignment[0];
-        const last = alignment[alignment.length - 1];
+        const first = alignment.entries[0];
+        const last = alignment.entries[alignment.entries.length - 1];
 
         expect(first).toBeDefined();
         expect(last).toBeDefined();
@@ -516,7 +533,9 @@ describe('TickAligner', () => {
       expect(result.alignments.length).toBeGreaterThanOrEqual(2);
 
       const mergesByAlignment = result.alignments.map((alignment) =>
-        alignment.filter((entry) => entry.action === AlignmentAction.MERGE),
+        alignment.entries.filter(
+          (entry) => entry.action === AlignmentAction.MERGE,
+        ),
       );
 
       let hasBaseOverlap = false;
@@ -581,8 +600,8 @@ describe('TickAligner', () => {
 
       expect(result.alignments.length).toBeGreaterThan(0);
       const alignment = result.alignments[0];
-      expect(alignment[0].action).toBe(AlignmentAction.MERGE);
-      expect(alignment[alignment.length - 1].action).toBe(
+      expect(alignment.entries[0].action).toBe(AlignmentAction.MERGE);
+      expect(alignment.entries[alignment.entries.length - 1].action).toBe(
         AlignmentAction.MERGE,
       );
     });

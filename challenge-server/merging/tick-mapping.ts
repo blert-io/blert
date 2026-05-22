@@ -1,4 +1,4 @@
-import { AlignmentAction, AlignmentResult } from './alignment';
+import { Alignment, AlignmentAction } from './alignment';
 
 /**
  * Maps tick indices between a client's local tick space and the merged
@@ -26,7 +26,7 @@ export class TickMapping {
   }
 
   /**
-   * Builds base and target tick mappings from an alignment result.
+   * Builds base and target tick mappings from a list of local alignments.
    *
    * Walks through the alignment entries in order, copying base ticks outside
    * alignments at their natural positions. Within each local alignment:
@@ -36,13 +36,13 @@ export class TickMapping {
    *
    * @param baseTickCount The number of base ticks in the alignment.
    * @param targetTickCount The number of target ticks in the alignment.
-   * @param alignment The alignment result to build mappings from.
+   * @param alignments List of local alignment entries.
    * @returns The base and target mappings, and the combined tick count.
    */
   public static fromAlignment(
     baseTickCount: number,
     targetTickCount: number,
-    alignment: AlignmentResult,
+    alignments: readonly Alignment[],
   ): { base: TickMapping; target: TickMapping; mergedTickCount: number } {
     const baseToMerged = Array<number | undefined>(baseTickCount).fill(
       undefined,
@@ -54,10 +54,10 @@ export class TickMapping {
     let mergedPos = 0;
     let basePos = 0;
 
-    for (const localAlignment of alignment.alignments) {
+    for (const entries of alignments) {
       // Alignments always start and end with a MERGE entry.
-      const firstBase = (localAlignment[0] as { baseIndex: number }).baseIndex;
-      const lastEntry = localAlignment[localAlignment.length - 1];
+      const firstBase = (entries[0] as { baseIndex: number }).baseIndex;
+      const lastEntry = entries[entries.length - 1];
       const lastBase = (lastEntry as { baseIndex: number }).baseIndex;
 
       while (basePos < firstBase) {
@@ -66,7 +66,7 @@ export class TickMapping {
         basePos++;
       }
 
-      for (const entry of localAlignment) {
+      for (const entry of entries) {
         switch (entry.action) {
           case AlignmentAction.MERGE:
             baseToMerged[entry.baseIndex] = mergedPos;

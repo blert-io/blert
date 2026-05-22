@@ -631,13 +631,16 @@ export class ClientEvents {
                 target: null,
                 sourceClientId: clientId,
               };
-              const target = attack.getTarget();
-              if (target !== undefined) {
-                state.attack.target = {
-                  id: target.getId(),
-                  roomId: target.getRoomId(),
-                  sourceClientId: clientId,
-                };
+              if (attack.hasTarget()) {
+                const target = attack.getTarget()!;
+                // Jagex moment: defend against invalid target data.
+                if (target.getId() > 0 && target.getRoomId() > 0) {
+                  state.attack.target = {
+                    id: target.getId(),
+                    roomId: target.getRoomId(),
+                    sourceClientId: clientId,
+                  };
+                }
               }
               break;
             }

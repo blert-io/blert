@@ -931,7 +931,17 @@ describe('Merger', () => {
       });
       consolidateSpy = jest
         .spyOn(EventConsolidator.prototype, 'consolidate')
-        .mockReturnValue({ ticks: fabricatedTicks, qualityFlags: [] });
+        .mockReturnValue({
+          ticks: fabricatedTicks,
+          qualityFlags: [],
+          counters: {
+            playerAttacks: 0,
+            playerSpells: 0,
+            npcAttacks: 0,
+            streamEventPairs: 0,
+            attackMappedEvents: 0,
+          },
+        });
 
       const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [
         base,
@@ -976,6 +986,13 @@ describe('Merger', () => {
             ticks: [2, 5],
           },
         ],
+      });
+      expect(targetStep!.counters).toEqual({
+        playerAttacks: 0,
+        playerSpells: 0,
+        npcAttacks: 0,
+        streamEventPairs: 0,
+        attackMappedEvents: 0,
       });
 
       expect(result!.alerts).toContainEqual({

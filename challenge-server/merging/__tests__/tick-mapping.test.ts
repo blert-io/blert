@@ -1,4 +1,4 @@
-import { AlignmentAction, AlignmentResult } from '../alignment';
+import { Alignment, AlignmentAction } from '../alignment';
 import { MergeMapping, TickMapping } from '../tick-mapping';
 
 describe('TickMapping', () => {
@@ -22,47 +22,43 @@ describe('TickMapping', () => {
     it('maps ticks correctly with an INSERT', () => {
       // base:   0,1,_,2,3,4
       // target: 0,1,2,3,4,5
-      const alignment: AlignmentResult = {
-        alignments: [
-          [
-            {
-              action: AlignmentAction.MERGE,
-              baseIndex: 0,
-              targetIndex: 0,
-              score: 1,
-            },
-            {
-              action: AlignmentAction.MERGE,
-              baseIndex: 1,
-              targetIndex: 1,
-              score: 1,
-            },
-            { action: AlignmentAction.INSERT, targetIndex: 2 },
-            {
-              action: AlignmentAction.MERGE,
-              baseIndex: 2,
-              targetIndex: 3,
-              score: 1,
-            },
-            {
-              action: AlignmentAction.MERGE,
-              baseIndex: 3,
-              targetIndex: 4,
-              score: 1,
-            },
-            {
-              action: AlignmentAction.MERGE,
-              baseIndex: 4,
-              targetIndex: 5,
-              score: 1,
-            },
-          ],
+      const alignments: Alignment[] = [
+        [
+          {
+            action: AlignmentAction.MERGE,
+            baseIndex: 0,
+            targetIndex: 0,
+            score: 1,
+          },
+          {
+            action: AlignmentAction.MERGE,
+            baseIndex: 1,
+            targetIndex: 1,
+            score: 1,
+          },
+          { action: AlignmentAction.INSERT, targetIndex: 2 },
+          {
+            action: AlignmentAction.MERGE,
+            baseIndex: 2,
+            targetIndex: 3,
+            score: 1,
+          },
+          {
+            action: AlignmentAction.MERGE,
+            baseIndex: 3,
+            targetIndex: 4,
+            score: 1,
+          },
+          {
+            action: AlignmentAction.MERGE,
+            baseIndex: 4,
+            targetIndex: 5,
+            score: 1,
+          },
         ],
-        coverage: 0.8,
-        gapCount: 1,
-      };
+      ];
 
-      const result = TickMapping.fromAlignment(5, 5, alignment);
+      const result = TickMapping.fromAlignment(5, 5, alignments);
       expect(result.mergedTickCount).toBe(6);
 
       expect(result.base.toMerged(0)).toBe(0);
@@ -90,35 +86,31 @@ describe('TickMapping', () => {
     it('maps ticks correctly with a KEEP', () => {
       // base:   0,1,2,3
       // target: 0,_,1,2
-      const alignment: AlignmentResult = {
-        alignments: [
-          [
-            {
-              action: AlignmentAction.MERGE,
-              baseIndex: 0,
-              targetIndex: 0,
-              score: 1,
-            },
-            { action: AlignmentAction.KEEP, baseIndex: 1 },
-            {
-              action: AlignmentAction.MERGE,
-              baseIndex: 2,
-              targetIndex: 1,
-              score: 1,
-            },
-            {
-              action: AlignmentAction.MERGE,
-              baseIndex: 3,
-              targetIndex: 2,
-              score: 1,
-            },
-          ],
+      const alignments: Alignment[] = [
+        [
+          {
+            action: AlignmentAction.MERGE,
+            baseIndex: 0,
+            targetIndex: 0,
+            score: 1,
+          },
+          { action: AlignmentAction.KEEP, baseIndex: 1 },
+          {
+            action: AlignmentAction.MERGE,
+            baseIndex: 2,
+            targetIndex: 1,
+            score: 1,
+          },
+          {
+            action: AlignmentAction.MERGE,
+            baseIndex: 3,
+            targetIndex: 2,
+            score: 1,
+          },
         ],
-        coverage: 0.75,
-        gapCount: 1,
-      };
+      ];
 
-      const result = TickMapping.fromAlignment(4, 3, alignment);
+      const result = TickMapping.fromAlignment(4, 3, alignments);
       expect(result.mergedTickCount).toBe(4);
 
       expect(result.base.toMerged(0)).toBe(0);
@@ -136,28 +128,24 @@ describe('TickMapping', () => {
     it('handles base ticks before and after the alignment', () => {
       // base:   0,1,2,3,4,5
       // target: _,_,0,1,_,_
-      const alignment: AlignmentResult = {
-        alignments: [
-          [
-            {
-              action: AlignmentAction.MERGE,
-              baseIndex: 2,
-              targetIndex: 0,
-              score: 1,
-            },
-            {
-              action: AlignmentAction.MERGE,
-              baseIndex: 3,
-              targetIndex: 1,
-              score: 1,
-            },
-          ],
+      const alignments: Alignment[] = [
+        [
+          {
+            action: AlignmentAction.MERGE,
+            baseIndex: 2,
+            targetIndex: 0,
+            score: 1,
+          },
+          {
+            action: AlignmentAction.MERGE,
+            baseIndex: 3,
+            targetIndex: 1,
+            score: 1,
+          },
         ],
-        coverage: 1 / 3,
-        gapCount: 0,
-      };
+      ];
 
-      const result = TickMapping.fromAlignment(6, 2, alignment);
+      const result = TickMapping.fromAlignment(6, 2, alignments);
       expect(result.mergedTickCount).toBe(6);
 
       expect(result.base.toMerged(0)).toBe(0);
@@ -172,26 +160,22 @@ describe('TickMapping', () => {
     });
 
     it('exposes clientTickCount', () => {
-      const result = TickMapping.fromAlignment(6, 3, {
-        alignments: [
-          [
-            {
-              action: AlignmentAction.MERGE,
-              baseIndex: 0,
-              targetIndex: 0,
-              score: 1,
-            },
-            {
-              action: AlignmentAction.MERGE,
-              baseIndex: 1,
-              targetIndex: 1,
-              score: 1,
-            },
-          ],
+      const result = TickMapping.fromAlignment(6, 3, [
+        [
+          {
+            action: AlignmentAction.MERGE,
+            baseIndex: 0,
+            targetIndex: 0,
+            score: 1,
+          },
+          {
+            action: AlignmentAction.MERGE,
+            baseIndex: 1,
+            targetIndex: 1,
+            score: 1,
+          },
         ],
-        coverage: 1 / 3,
-        gapCount: 0,
-      });
+      ]);
 
       expect(result.base.clientTickCount).toBe(6);
       expect(result.target.clientTickCount).toBe(3);
@@ -221,40 +205,36 @@ describe('MergeMapping', () => {
   }
 
   function buildStep2Mappings() {
-    const alignment: AlignmentResult = {
-      alignments: [
-        [
-          {
-            action: AlignmentAction.MERGE,
-            baseIndex: 0,
-            targetIndex: 0,
-            score: 1,
-          },
-          {
-            action: AlignmentAction.MERGE,
-            baseIndex: 1,
-            targetIndex: 1,
-            score: 1,
-          },
-          { action: AlignmentAction.INSERT, targetIndex: 2 },
-          {
-            action: AlignmentAction.MERGE,
-            baseIndex: 2,
-            targetIndex: 3,
-            score: 1,
-          },
-          {
-            action: AlignmentAction.MERGE,
-            baseIndex: 3,
-            targetIndex: 4,
-            score: 1,
-          },
-        ],
+    const alignments: Alignment[] = [
+      [
+        {
+          action: AlignmentAction.MERGE,
+          baseIndex: 0,
+          targetIndex: 0,
+          score: 1,
+        },
+        {
+          action: AlignmentAction.MERGE,
+          baseIndex: 1,
+          targetIndex: 1,
+          score: 1,
+        },
+        { action: AlignmentAction.INSERT, targetIndex: 2 },
+        {
+          action: AlignmentAction.MERGE,
+          baseIndex: 2,
+          targetIndex: 3,
+          score: 1,
+        },
+        {
+          action: AlignmentAction.MERGE,
+          baseIndex: 3,
+          targetIndex: 4,
+          score: 1,
+        },
       ],
-      coverage: 0.8,
-      gapCount: 1,
-    };
-    const result = TickMapping.fromAlignment(5, 5, alignment);
+    ];
+    const result = TickMapping.fromAlignment(5, 5, alignments);
     return { base: result.base, target: result.target };
   }
 
