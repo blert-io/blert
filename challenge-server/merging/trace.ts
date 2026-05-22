@@ -1,13 +1,14 @@
 import { DataSource, Maze } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
-import { AlignmentResult, LocalAlignment } from './alignment';
+import { AlignmentEntry, AlignmentRange, AlignmentResult } from './alignment';
 import { ReferenceSelection } from './classification';
 import { StageData } from './client-events';
 import { MergeClientStatus } from './context';
 import { EventType } from './event';
 import {
   AttackMappedCandidate,
+  ReconciliationCounters,
   ResolutionStrategy,
 } from './event-consolidator';
 import { GraphicsType } from './graphics';
@@ -56,8 +57,13 @@ export type TickSummary = {
   eventCounts: Record<string, number>;
 };
 
+export type SerializedLocalAlignment = {
+  entries: AlignmentEntry[];
+  range: AlignmentRange;
+};
+
 export type SerializedAlignmentResult = {
-  alignments: LocalAlignment[];
+  alignments: SerializedLocalAlignment[];
   coverage: number;
   gapCount: number;
 };
@@ -179,6 +185,7 @@ export type MergeStepInfo = {
   tickDecisions: TickMergeDecision[];
   reconciliation: ReconciliationTrace | null;
   qualityFlags: QualityFlag[];
+  counters: ReconciliationCounters;
   rejection: StepRejection | null;
 };
 
@@ -305,7 +312,10 @@ export function serializeAlignmentResult(
   result: AlignmentResult,
 ): SerializedAlignmentResult {
   return {
-    alignments: result.alignments,
+    alignments: result.alignments.map((a) => ({
+      entries: a.entries,
+      range: a.range,
+    })),
     coverage: result.coverage,
     gapCount: result.gapCount,
   };
@@ -504,6 +514,12 @@ export class MergeTracer {
     }
   }
 
+  public recordCounters(counters: ReconciliationCounters): void {
+    if (this.currentStep !== null) {
+      this.currentStep.counters = counters;
+    }
+  }
+
   public recordStepRejection(rejection: StepRejection): void {
     if (this.currentStep !== null) {
       this.currentStep.rejection = rejection;
@@ -539,6 +555,13 @@ export class MergeTracer {
       tickDecisions: this.currentStep.tickDecisions!,
       reconciliation: this.currentStep.reconciliation ?? null,
       qualityFlags: this.currentStep.qualityFlags ?? [],
+      counters: this.currentStep.counters ?? {
+        playerAttacks: 0,
+        playerSpells: 0,
+        npcAttacks: 0,
+        streamEventPairs: 0,
+        attackMappedEvents: 0,
+      },
       rejection: this.currentStep.rejection ?? null,
     });
 

@@ -52,11 +52,27 @@ export type BufferedEvent = {
 
 export type EventBuffer = Map<EventType, BufferedEvent[]>;
 
+/** Action counters captured during consolidation. */
+export type ReconciliationCounters = {
+  /** Player-attack reconciliations where both sides held an attack. */
+  playerAttacks: number;
+  /** Player-spell reconciliations where both sides held a spell. */
+  playerSpells: number;
+  /** NPC-attack reconciliations where both sides held an attack. */
+  npcAttacks: number;
+  /** Stream-event pairs formed during reconciliation. */
+  streamEventPairs: number;
+  /** Attack-mapped events processed. */
+  attackMappedEvents: number;
+};
+
 export type ConsolidationResult = {
   /** The merged timeline. */
   ticks: TickStateArray;
   /** Temporal gaps and other quality signals from stream reconciliation. */
   qualityFlags: QualityFlag[];
+  /** Opportunity counts collected during consolidation. */
+  counters: ReconciliationCounters;
 };
 
 /**
@@ -201,6 +217,13 @@ export class EventConsolidator {
   private baseBuffer: EventBuffer = new Map();
   private targetBuffer: EventBuffer = new Map();
   private qualityFlags: QualityFlag[] = [];
+  private counters: ReconciliationCounters = {
+    playerAttacks: 0,
+    playerSpells: 0,
+    npcAttacks: 0,
+    streamEventPairs: 0,
+    attackMappedEvents: 0,
+  };
 
   public constructor(
     baseTicks: TickStateArray,
@@ -225,6 +248,13 @@ export class EventConsolidator {
    */
   public consolidate(): ConsolidationResult {
     this.qualityFlags = [];
+    this.counters = {
+      playerAttacks: 0,
+      playerSpells: 0,
+      npcAttacks: 0,
+      streamEventPairs: 0,
+      attackMappedEvents: 0,
+    };
 
     // Build the merged tick array using the mappings from the merge context.
     this.buildTimeline();
@@ -239,10 +269,12 @@ export class EventConsolidator {
     this.remapToMergedSpace();
 
     this.ctx.tracer?.recordQualityFlags(this.qualityFlags);
+    this.ctx.tracer?.recordCounters(this.counters);
 
     return {
       ticks: this.mergedTicks,
       qualityFlags: this.qualityFlags,
+      counters: this.counters,
     };
   }
 
@@ -493,6 +525,7 @@ export class EventConsolidator {
     if (b !== null && t !== null) {
       const winner = b.mergedTick <= t.mergedTick ? b : t;
       this.insertBufferedEvent(winner);
+      this.counters.streamEventPairs++;
       const gap = Math.abs(b.mergedTick - t.mergedTick);
       const reason = this.flagLargeGap(type, largeGapThreshold, gap, b, t);
       this.ctx.tracer?.recordStreamResolution(
@@ -556,6 +589,7 @@ export class EventConsolidator {
           // can't see an event before it actually occurs.
           const winner = b.mergedTick <= t.mergedTick ? b : t;
           this.insertBufferedEvent(winner);
+          this.counters.streamEventPairs++;
 
           const reason = this.flagLargeGap(type, largeGapThreshold, gap, b, t);
 
@@ -649,6 +683,7 @@ export class EventConsolidator {
       mapping: TickMapping,
       source: 'base' | 'target',
     ) => {
+      this.counters.attackMappedEvents++;
       const referencedTick = config.getReferencedTick(buffered.tagged.event);
       if (referencedTick === undefined) {
         this.ctx.tracer?.recordAttackMappedDiscard(
@@ -685,6 +720,13 @@ export class EventConsolidator {
           referencedTick,
           'ATTACK_NOT_FOUND',
         );
+        this.qualityFlags.push({
+          kind: 'ATTACK_MAPPED_NOT_FOUND',
+          eventType: type,
+          source,
+          clientTick: buffered.clientTick,
+          referencedTick,
+        });
         return;
       }
 
@@ -887,6 +929,7 @@ export class EventConsolidator {
       if (baseAttack.sourceClientId === otherAttack.sourceClientId) {
         continue;
       }
+      this.counters.playerAttacks++;
 
       let winner: WithProvenance<PlayerAttacked> = baseAttack;
       let loser: WithProvenance<PlayerAttacked> = otherAttack;
@@ -1065,6 +1108,7 @@ export class EventConsolidator {
       if (baseSpell.sourceClientId === otherSpell.sourceClientId) {
         continue;
       }
+      this.counters.playerSpells++;
 
       if (baseSpell.type !== otherSpell.type) {
         this.qualityFlags.push({
@@ -1178,6 +1222,7 @@ export class EventConsolidator {
       if (baseAttack.sourceClientId === otherAttack.sourceClientId) {
         continue;
       }
+      this.counters.npcAttacks++;
 
       let winner: WithProvenance<NpcAttacked> = baseAttack;
       let loser: WithProvenance<NpcAttacked> = otherAttack;

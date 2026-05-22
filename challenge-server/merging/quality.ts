@@ -124,6 +124,18 @@ export type NpcAttackTargetMismatchFlag = {
 };
 
 /**
+ * Emitted when an attack-mapped event references an NPC attack that did not
+ * survive consolidation in the merged tick state. The event is discarded.
+ */
+export type AttackMappedNotFoundFlag = {
+  kind: 'ATTACK_MAPPED_NOT_FOUND';
+  eventType: EventType;
+  source: 'base' | 'target';
+  clientTick: number;
+  referencedTick: number;
+};
+
+/**
  * A diagnostic signal emitted during merge consolidation. Quality flags
  * describe data anomalies, conflicts, or alignment issues encountered while
  * merging two timelines.
@@ -137,7 +149,8 @@ export type QualityFlag =
   | SpellTargetMismatchFlag
   | SpellTypeMismatchFlag
   | NpcAttackTypeMismatchFlag
-  | NpcAttackTargetMismatchFlag;
+  | NpcAttackTargetMismatchFlag
+  | AttackMappedNotFoundFlag;
 
 export const enum MergeAlertType {
   MULTIPLE_ACCURATE_TICK_MODES = 'MULTIPLE_ACCURATE_TICK_MODES',

@@ -519,7 +519,7 @@ export class MergedEvents {
       const result = TickMapping.fromAlignment(
         this.ticks.length,
         targetTicks.length,
-        alignment,
+        alignment.alignments.map((a) => a.entries),
       );
       baseMapping = result.base;
       targetMapping = result.target;

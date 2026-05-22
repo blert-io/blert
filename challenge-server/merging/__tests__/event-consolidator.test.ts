@@ -167,6 +167,13 @@ describe('EventConsolidator', () => {
       expect(tick2Types).toContain(ProtoEvent.Type.PLAYER_DEATH);
 
       expect(result.qualityFlags).toHaveLength(0);
+      expect(result.counters).toEqual({
+        playerAttacks: 0,
+        playerSpells: 0,
+        npcAttacks: 0,
+        streamEventPairs: 0,
+        attackMappedEvents: 0,
+      });
     });
 
     it('fills gaps in the base from the target', () => {
@@ -316,6 +323,7 @@ describe('EventConsolidator', () => {
       expect(deathEvents).toHaveLength(1);
 
       expect(result.qualityFlags).toHaveLength(0);
+      expect(result.counters.streamEventPairs).toBe(1);
     });
 
     it('deduplicates deaths seen on different ticks within the temporal window', () => {
@@ -774,6 +782,7 @@ describe('EventConsolidator', () => {
         .filter((e) => e.getType() === ProtoEvent.Type.TOB_VERZIK_ATTACK_STYLE);
       expect(tick6Events).toHaveLength(1);
       expect(tick6Events![0].getVerzikAttackStyle()?.getStyle()).toBe(0);
+      expect(result.counters.attackMappedEvents).toBe(1);
     });
 
     it('sets a relocated attack-mapped event tick to its merged tick', () => {
@@ -1095,6 +1104,16 @@ describe('EventConsolidator', () => {
         ?.getEvents()
         .filter((e) => e.getType() === ProtoEvent.Type.TOB_VERZIK_ATTACK_STYLE);
       expect(tick6Events).toHaveLength(0);
+
+      expect(result.qualityFlags).toEqual([
+        {
+          kind: 'ATTACK_MAPPED_NOT_FOUND',
+          eventType: ProtoEvent.Type.TOB_VERZIK_ATTACK_STYLE,
+          source: 'base',
+          clientTick: 6,
+          referencedTick: 5,
+        },
+      ]);
     });
 
     describe('verzik bounce events', () => {
@@ -1900,6 +1919,7 @@ describe('EventConsolidator', () => {
       );
       const result = consolidator.consolidate();
       expect(result.qualityFlags).toEqual([]);
+      expect(result.counters.playerAttacks).toBe(1);
     });
 
     it("fills in target info from other when base's target is null", () => {
@@ -2154,6 +2174,7 @@ describe('EventConsolidator', () => {
       );
       const result = consolidator.consolidate();
       expect(result.qualityFlags).toEqual([]);
+      expect(result.counters.playerSpells).toBe(1);
     });
 
     it("fills in spell target from other when base's target is null", () => {
@@ -2402,6 +2423,7 @@ describe('EventConsolidator', () => {
       const attack = result.ticks[0]?.getNpcs().get(1)?.attack;
       expect(attack?.type).toBe(NpcAttack.TOB_MAIDEN_AUTO);
       expect(attack?.target).toBe('p1');
+      expect(result.counters.npcAttacks).toBe(1);
     });
 
     it("fills the attack from target when base's NPC has none", () => {
