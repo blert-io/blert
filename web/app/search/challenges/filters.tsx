@@ -54,6 +54,7 @@ const STATUS_OPTIONS = [
   { value: ChallengeStatus.COMPLETED, label: 'Completion' },
   { value: ChallengeStatus.WIPED, label: 'Wipe' },
   { value: ChallengeStatus.RESET, label: 'Reset' },
+  { value: ChallengeStatus.ABANDONED, label: 'Abandoned' },
 ];
 
 export function resetChallengeFilters(prev: SearchContext): SearchContext {

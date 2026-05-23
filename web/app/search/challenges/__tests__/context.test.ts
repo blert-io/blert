@@ -56,12 +56,17 @@ describe('challenges filter URL round-trip', () => {
   it('preserves status', () => {
     const filters: SearchFilters = {
       ...defaultSearchFilters(),
-      status: [ChallengeStatus.COMPLETED, ChallengeStatus.WIPED],
+      status: [
+        ChallengeStatus.COMPLETED,
+        ChallengeStatus.WIPED,
+        ChallengeStatus.ABANDONED,
+      ],
     };
     const result = roundTrip(filters);
     expect(result.status).toEqual([
       ChallengeStatus.COMPLETED,
       ChallengeStatus.WIPED,
+      ChallengeStatus.ABANDONED,
     ]);
   });
 

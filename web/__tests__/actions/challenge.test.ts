@@ -816,6 +816,40 @@ describe('challenges', () => {
   });
 
   describe('findChallenges', () => {
+    describe('status filter', () => {
+      it('excludes abandoned challenges by default', async () => {
+        const [challenges] = await findChallenges(10, {});
+        expect(challenges.map((c) => c.uuid).sort()).toEqual([
+          'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+          'cccccccc-cccc-cccc-cccc-cccccccccccc',
+          'dddddddd-dddd-dddd-dddd-dddddddddddd',
+        ]);
+      });
+
+      it('returns only abandoned when status filter selects it', async () => {
+        const [challenges] = await findChallenges(10, {
+          status: ['==', ChallengeStatus.ABANDONED],
+        });
+        expect(challenges.map((c) => c.uuid)).toEqual([
+          'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+        ]);
+      });
+
+      it('includes abandoned alongside other statuses via in-list', async () => {
+        const [challenges] = await findChallenges(10, {
+          status: [
+            'in',
+            [ChallengeStatus.COMPLETED, ChallengeStatus.ABANDONED],
+          ],
+        });
+        expect(challenges.map((c) => c.uuid).sort()).toEqual([
+          'cccccccc-cccc-cccc-cccc-cccccccccccc',
+          'dddddddd-dddd-dddd-dddd-dddddddddddd',
+          'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+        ]);
+      });
+    });
+
     describe('bloat down filters', () => {
       beforeEach(async () => {
         await sql`
