@@ -50,25 +50,26 @@ type PlayerStatsRow = CamelToSnakeCase<PlayerStats> & {
   id: number;
 };
 
-async function updatePlayerStats(
-  oldPlayerId: number,
-  newPlayerId: number,
+export async function updatePlayerStats(
+  targetPlayerId: number,
+  sourcePlayerId: number,
   fromDate: Date,
+  toDate: Date | null = null,
   db: Db = sql,
 ): Promise<number> {
-  const [lastStats] = await db<[PlayerStatsRow?]>`
+  const [targetPlayerLastStats] = await db<[PlayerStatsRow?]>`
     SELECT *
     FROM player_stats
-    WHERE player_id = ${oldPlayerId}
+    WHERE player_id = ${targetPlayerId}
     AND date <= ${fromDate}
     ORDER BY date DESC
     LIMIT 1
   `;
 
-  const [newPlayerLastStats] = await db<[PlayerStatsRow?]>`
+  const [sourcePlayerLastStats] = await db<[PlayerStatsRow?]>`
     SELECT *
     FROM player_stats
-    WHERE player_id = ${newPlayerId}
+    WHERE player_id = ${sourcePlayerId}
     AND date <= ${fromDate}
     ORDER BY date DESC
     LIMIT 1
@@ -77,55 +78,105 @@ async function updatePlayerStats(
   const statsToMigrate = await db<PlayerStatsRow[]>`
     SELECT *
     FROM player_stats
-    WHERE player_id = ${newPlayerId}
+    WHERE player_id = ${sourcePlayerId}
     AND date > ${fromDate}
+    ${toDate !== null ? sql`AND date <= ${toDate}` : sql``}
+    ORDER BY date ASC
   `;
 
   // Reassign the new player's stats to the old player, adjusting the values by
   // the difference accumulated since the fromDate.
+  let lastInWindowDeltas: Record<string, number> = {};
   for (const stats of statsToMigrate) {
     const newStats: Record<string, number> = {
-      player_id: oldPlayerId,
+      player_id: targetPlayerId,
     };
+    const deltas: Record<string, number> = {};
 
     Object.entries(stats).forEach(([key, value]) => {
       if (key === 'id' || key === 'player_id' || typeof value !== 'number') {
         return;
       }
       const k = key as keyof PlayerStatsRow;
-      const base = (newPlayerLastStats?.[k] as number | undefined) ?? 0;
+      const base = (sourcePlayerLastStats?.[k] as number | undefined) ?? 0;
       const delta = value - base;
-      const old = (lastStats?.[k] as number | undefined) ?? 0;
+      deltas[key] = delta;
+      const old = (targetPlayerLastStats?.[k] as number | undefined) ?? 0;
       newStats[key] = old + delta;
     });
+
+    lastInWindowDeltas = deltas;
 
     await db`
       UPDATE player_stats SET ${sql(newStats)} WHERE id = ${stats.id}
     `;
   }
 
+  // Per-player activity counters need symmetric adjustment for any rows that
+  // exist after `toDate`:
+  //
+  // - source player's post-window rows still include the in-window contribution
+  //   they recorded at the time: subtract the window delta.
+  // - target player's post-window rows never saw the in-window activity (it was
+  //   credited to the source): add the window delta.
+  //
+  if (toDate !== null && statsToMigrate.length > 0) {
+    const nonZero = Object.entries(lastInWindowDeltas).filter(
+      ([, v]) => v !== 0,
+    );
+    if (nonZero.length > 0) {
+      const [firstCol, firstDelta] = nonZero[0];
+
+      let tgtClause = sql`${sql(firstCol)} = ${sql(firstCol)} + ${firstDelta}`;
+      let srcClause = sql`${sql(firstCol)} = ${sql(firstCol)} - ${firstDelta}`;
+
+      for (let i = 1; i < nonZero.length; i++) {
+        const [col, delta] = nonZero[i];
+        tgtClause = sql`${tgtClause}, ${sql(col)} = ${sql(col)} + ${delta}`;
+        srcClause = sql`${srcClause}, ${sql(col)} = ${sql(col)} - ${delta}`;
+      }
+      await Promise.all([
+        db`
+          UPDATE player_stats SET ${tgtClause}
+          WHERE player_id = ${targetPlayerId} AND date > ${toDate}
+        `,
+        db`
+          UPDATE player_stats SET ${srcClause}
+          WHERE player_id = ${sourcePlayerId} AND date > ${toDate}
+        `,
+      ]);
+    }
+  }
+
   return statsToMigrate.length;
 }
 
-async function updateApiKeys(
-  oldPlayerId: number,
-  newPlayerId: number,
+/**
+ * Reassigns API keys whose `last_used` falls within a migration window from
+ * source to target. Keys outside the window are left in place.
+ *
+ * @param targetPlayerId ID of the target player.
+ * @param sourcePlayerId ID of the source player.
+ * @param fromDate Start date of the migration window.
+ * @param toDate Optional end date of the migration window.
+ * @param db The database connection.
+ * @returns The number of API keys reassigned.
+ */
+export async function updateApiKeys(
+  targetPlayerId: number,
+  sourcePlayerId: number,
   fromDate: Date,
+  toDate: Date | null = null,
   db: Db = sql,
 ): Promise<number> {
   const updated = await db`
     UPDATE api_keys
-    SET player_id = ${oldPlayerId}
-    WHERE player_id = ${newPlayerId} AND last_used > ${fromDate}
+    SET player_id = ${targetPlayerId}
+    WHERE player_id = ${sourcePlayerId}
+      AND last_used > ${fromDate}
+      ${toDate !== null ? sql`AND last_used <= ${toDate}` : sql``}
   `;
-
-  // Delete unused keys for the new player.
-  const deleted = await db`
-    DELETE FROM api_keys
-    WHERE player_id = ${newPlayerId} AND last_used IS NULL
-  `;
-
-  return updated.count + deleted.count;
+  return updated.count;
 }
 
 type SplitRow = {
@@ -136,9 +187,9 @@ type SplitRow = {
   finish_time: Date;
 };
 
-async function updatePersonalBestHistory(
-  oldPlayerId: number,
-  newPlayerId: number,
+export async function updatePersonalBestHistory(
+  targetPlayerId: number,
+  sourcePlayerId: number,
   challengeIds: number[],
   db: Db = sql,
 ): Promise<number> {
@@ -146,10 +197,9 @@ async function updatePersonalBestHistory(
     return 0;
   }
 
-  // Find all splits from the challenges that are being migrated from the new
-  // player to the old player. These are ordered chronologically to correctly
-  // determine the PB progression.
-  const newPlayerSplits = await db<SplitRow[]>`
+  // Find all splits from the challenges that are being migrated from the source
+  // player to the target player.
+  const sourcePlayerSplits = await db<SplitRow[]>`
     SELECT
       cs.id,
       cs.type,
@@ -162,13 +212,11 @@ async function updatePersonalBestHistory(
     ORDER BY c.finish_time ASC
   `;
 
-  if (newPlayerSplits.length === 0) {
+  if (sourcePlayerSplits.length === 0) {
     return 0;
   }
 
-  // For each distinct split type (type and scale), get the old player's current
-  // personal best.
-  const distinctSplitTypes = newPlayerSplits
+  const distinctSplitTypes: [number, number][] = sourcePlayerSplits
     .filter(
       (split: SplitRow, index: number, self: SplitRow[]) =>
         index ===
@@ -176,60 +224,113 @@ async function updatePersonalBestHistory(
           (s: SplitRow) => s.type === split.type && s.scale === split.scale,
         ),
     )
-    .map((split: SplitRow) => sql([split.type, split.scale]));
+    .map((split: SplitRow) => [split.type, split.scale]);
 
-  const oldPlayerPbs = await db<
-    { type: number; scale: number; best_time: number }[]
+  // Recompute the PB history for both players to account for the moved
+  // challenges, starting from the first migrated challenge.
+  const cutoffChallengeId = Math.min(...challengeIds);
+  let recomputedCount = 0;
+
+  recomputedCount += await recomputePbHistoryFrom(
+    sourcePlayerId,
+    distinctSplitTypes,
+    cutoffChallengeId,
+    db,
+  );
+  recomputedCount += await recomputePbHistoryFrom(
+    targetPlayerId,
+    distinctSplitTypes,
+    cutoffChallengeId,
+    db,
+  );
+
+  return recomputedCount;
+}
+
+/**
+ * Rebuilds a player's PB history for a set of splits and scales over challenges
+ * with an `id` starting at `cutoffChallengeId`.
+ *
+ * @param playerId ID of the player.
+ * @param splitsToRecompute Array of split (type, scale) pairs to recompute.
+ * @param cutoffChallengeId First challenge ID to recompute.
+ * @param db The database connection.
+ * @returns Number of PB history rows affected.
+ */
+export async function recomputePbHistoryFrom(
+  playerId: number,
+  splitsToRecompute: [number, number][],
+  cutoffChallengeId: number,
+  db: Db = sql,
+): Promise<number> {
+  if (splitsToRecompute.length === 0) {
+    return 0;
+  }
+
+  const splitFragments = splitsToRecompute.map(([t, s]) => sql([t, s]));
+
+  const deleted = await db`
+    DELETE FROM personal_best_history pbh
+    USING challenge_splits cs
+    WHERE pbh.challenge_split_id = cs.id
+      AND pbh.player_id = ${playerId}
+      AND cs.challenge_id >= ${cutoffChallengeId}
+      AND (cs.type, cs.scale) IN ${sql(splitFragments)}
+  `;
+
+  const bestRows = await db<
+    { type: number; scale: number; best: number | null }[]
   >`
-    SELECT
-      cs.type,
-      cs.scale,
-      MIN(cs.ticks) as best_time
-    FROM personal_best_history pbh
-    JOIN challenge_splits cs ON pbh.challenge_split_id = cs.id
-    WHERE
-      pbh.player_id = ${oldPlayerId}
-      AND (cs.type, cs.scale) IN ${sql(distinctSplitTypes)}
+    SELECT cs.type, cs.scale, MIN(cs.ticks) AS best
+    FROM challenge_splits cs
+    JOIN challenge_players cp ON cp.challenge_id = cs.challenge_id
+    WHERE cp.player_id = ${playerId}
+      AND (cs.type, cs.scale) IN ${sql(splitFragments)}
+      AND cs.accurate
+      AND cs.challenge_id < ${cutoffChallengeId}
     GROUP BY cs.type, cs.scale
   `;
 
   const splitKey = (type: number, scale: number) => `${type}-${scale}`;
+  const bestMap: Record<string, number> = {};
+  for (const r of bestRows) {
+    if (r.best !== null) {
+      bestMap[splitKey(r.type, r.scale)] = r.best;
+    }
+  }
 
-  const oldPlayerPbMap: Record<string, number> = oldPlayerPbs.reduce(
-    (
-      acc: Record<string, number>,
-      pb: { type: number; scale: number; best_time: number },
-    ) => {
-      acc[splitKey(pb.type, pb.scale)] = pb.best_time;
-      return acc;
-    },
-    {} as Record<string, number>,
-  );
+  const splits = await db<SplitRow[]>`
+    SELECT cs.id, cs.type, cs.scale, cs.ticks, c.finish_time
+    FROM challenge_splits cs
+    JOIN challenges c ON cs.challenge_id = c.id
+    JOIN challenge_players cp ON cp.challenge_id = c.id
+    WHERE cp.player_id = ${playerId}
+      AND (cs.type, cs.scale) IN ${sql(splitFragments)}
+      AND cs.accurate
+      AND cs.challenge_id >= ${cutoffChallengeId}
+    ORDER BY c.finish_time ASC
+  `;
 
-  // Iterate through all of the chronologically-sorted splits from the new
-  // player, inserting a new PB history record if it beats the old player's
-  // previous best.
   const pbsToInsert: {
     player_id: number;
     challenge_split_id: number;
     created_at: Date;
   }[] = [];
 
-  for (const split of newPlayerSplits) {
-    const key = splitKey(split.type, split.scale);
-    const currentBest = oldPlayerPbMap[key];
-
+  for (const split of splits) {
+    const k = splitKey(split.type, split.scale);
+    const currentBest = bestMap[k];
     if (currentBest === undefined || split.ticks < currentBest) {
       pbsToInsert.push({
-        player_id: oldPlayerId,
+        player_id: playerId,
         challenge_split_id: split.id,
         created_at: split.finish_time,
       });
-      oldPlayerPbMap[key] = split.ticks;
+      bestMap[k] = split.ticks;
     }
   }
 
-  let insertedCount = 0;
+  let inserted = 0;
   if (pbsToInsert.length > 0) {
     const result = await db`
       INSERT INTO personal_best_history ${sql(
@@ -239,32 +340,10 @@ async function updatePersonalBestHistory(
         'created_at',
       )}
     `;
-    insertedCount = result.count;
+    inserted = result.count;
   }
 
-  // Delete all of the new player's personal bests that were associated with the
-  // migrated challenges. This effectively rolls back their PB history to the
-  // state before the name change, as the underlying challenges now belong to
-  // the old player.
-  const splitsInMigratedChallengesRows = await db<{ id: number }[]>`
-    SELECT id FROM challenge_splits WHERE challenge_id = ANY(${challengeIds})
-  `;
-  const splitsInMigratedChallenges = splitsInMigratedChallengesRows.map(
-    (r) => r.id,
-  );
-
-  let deletedCount = 0;
-  if (splitsInMigratedChallenges.length > 0) {
-    const result = await db`
-      DELETE FROM personal_best_history
-      WHERE
-        player_id = ${newPlayerId}
-        AND challenge_split_id = ANY(${splitsInMigratedChallenges})
-    `;
-    deletedCount = result.count;
-  }
-
-  return insertedCount + deletedCount;
+  return deleted.count + inserted;
 }
 
 function compareExperience(
@@ -493,24 +572,26 @@ export async function processNameChange(
         count: challengesToUpdate.length,
       });
 
-      const updateChallengePlayers = db`
+      // Update players serially as the other migrations depend on
+      // player-challenge associations.
+      const updatedPlayerCount = await db`
         UPDATE challenge_players
         SET player_id = ${playerId}
         WHERE
           player_id = ${newPlayer.id}
           AND challenge_id = ANY(${challengesToUpdate})
       `.then((res) => res.count);
+      migratedDocuments += updatedPlayerCount;
 
       const modifiedDocuments = await Promise.all([
-        updateChallengePlayers,
-        updateApiKeys(playerId, newPlayer.id, updateFrom, db),
+        updateApiKeys(playerId, newPlayer.id, updateFrom, null, db),
         updatePersonalBestHistory(
           playerId,
           newPlayer.id,
           challengesToUpdate,
           db,
         ),
-        updatePlayerStats(playerId, newPlayer.id, updateFrom, db),
+        updatePlayerStats(playerId, newPlayer.id, updateFrom, null, db),
       ]);
 
       challengesUpdated = challengesToUpdate.length;
