@@ -1,4 +1,10 @@
-import { ChallengeMode, EventType, NpcAttack, Stage } from '@blert/common';
+import {
+  ChallengeMode,
+  EventType,
+  NpcAttack,
+  NpcId,
+  Stage,
+} from '@blert/common';
 import {
   Event as ProtoEvent,
   StageMap,
@@ -14,6 +20,7 @@ import { TickStateArray } from '../tick-state';
 import {
   createNpcAttackEvent,
   createNpcSpawnEvent,
+  createNpcUpdateEvent,
   createPlayerState,
   createTickState,
   createVerzikBounceEvent,
@@ -650,6 +657,141 @@ describe('MovementConsistencyChecker', () => {
                 tick: 0,
                 roomId: 1,
                 npcId: 8372,
+                x: 3168,
+                y: 4314,
+                hitpointsCurrent: 1000,
+                stage: Stage.TOB_VERZIK,
+              }),
+            ],
+          },
+        );
+
+        expect(checker.check(ticks)).toHaveLength(1);
+      });
+    });
+
+    describe('P3 transition fallback', () => {
+      it('allows bounce when Verzik enters P3 transition on the next tick', () => {
+        const checker = new MovementConsistencyChecker(Stage.TOB_VERZIK, [
+          'player1',
+          'player2',
+        ]);
+        const ticks = buildPlayerTicks(
+          ['player1', 'player2'],
+          {
+            player1: [
+              { tick: 0, x: 3168, y: 4313 },
+              { tick: 1, x: 3168, y: 4309 },
+            ],
+            player2: [
+              { tick: 0, x: 3160, y: 4310 },
+              { tick: 1, x: 3160, y: 4310 },
+            ],
+          },
+          {
+            0: [
+              createNpcSpawnEvent({
+                tick: 0,
+                roomId: 1,
+                npcId: NpcId.VERZIK_P2_REGULAR,
+                x: 3168,
+                y: 4314,
+                hitpointsCurrent: 0,
+                stage: Stage.TOB_VERZIK,
+              }),
+            ],
+            2: [
+              createNpcUpdateEvent({
+                tick: 2,
+                roomId: 1,
+                npcId: NpcId.VERZIK_P3_TRANSITION_REGULAR,
+                x: 3167,
+                y: 4313,
+                hitpointsCurrent: 0,
+                stage: Stage.TOB_VERZIK,
+              }),
+            ],
+          },
+        );
+
+        expect(checker.check(ticks)).toHaveLength(0);
+      });
+
+      it('flags when multiple players moved during the transition', () => {
+        const checker = new MovementConsistencyChecker(Stage.TOB_VERZIK, [
+          'player1',
+          'player2',
+        ]);
+        const ticks = buildPlayerTicks(
+          ['player1', 'player2'],
+          {
+            player1: [
+              { tick: 0, x: 3168, y: 4313 },
+              { tick: 1, x: 3168, y: 4309 },
+            ],
+            player2: [
+              { tick: 0, x: 3169, y: 4313 },
+              { tick: 1, x: 3173, y: 4314 },
+            ],
+          },
+          {
+            0: [
+              createNpcSpawnEvent({
+                tick: 0,
+                roomId: 1,
+                npcId: NpcId.VERZIK_P2_REGULAR,
+                x: 3168,
+                y: 4314,
+                hitpointsCurrent: 0,
+                stage: Stage.TOB_VERZIK,
+              }),
+            ],
+            2: [
+              createNpcUpdateEvent({
+                tick: 2,
+                roomId: 1,
+                npcId: NpcId.VERZIK_P3_TRANSITION_REGULAR,
+                x: 3167,
+                y: 4313,
+                hitpointsCurrent: 0,
+                stage: Stage.TOB_VERZIK,
+              }),
+            ],
+          },
+        );
+
+        expect(checker.check(ticks).length).toBeGreaterThanOrEqual(1);
+      });
+
+      it("flags when the next tick's Verzik is still P2", () => {
+        const checker = new MovementConsistencyChecker(Stage.TOB_VERZIK, [
+          'player1',
+        ]);
+        const ticks = buildPlayerTicks(
+          ['player1'],
+          {
+            player1: [
+              { tick: 0, x: 3168, y: 4313 },
+              { tick: 1, x: 3168, y: 4309 },
+            ],
+          },
+          {
+            0: [
+              createNpcSpawnEvent({
+                tick: 0,
+                roomId: 1,
+                npcId: NpcId.VERZIK_P2_REGULAR,
+                x: 3168,
+                y: 4314,
+                hitpointsCurrent: 1000,
+                stage: Stage.TOB_VERZIK,
+              }),
+            ],
+            2: [
+              createNpcUpdateEvent({
+                tick: 2,
+                roomId: 1,
+                npcId: NpcId.VERZIK_P2_REGULAR,
                 x: 3168,
                 y: 4314,
                 hitpointsCurrent: 1000,

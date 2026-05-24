@@ -121,8 +121,7 @@ function checkForP3WebsPush(
 
 /**
  * Detects invalid player movements that exceed the maximum possible distance
- * per tick, accounting for stage-specific teleports (Sotetseg maze, Verzik
- * bounce/webs, Colosseum boss cutscene, death areas).
+ * per tick, accounting for stage-specific teleports.
  */
 export class MovementConsistencyChecker extends ConsistencyChecker {
   private readonly stage: Stage;
@@ -271,16 +270,23 @@ export class MovementConsistencyChecker extends ConsistencyChecker {
 
         // Check the previous tick's NPC because a bounce can happen right on a
         // phase transition.
-        const verzikNpc = ticks[tick - 1]
+        const verzikEntry = ticks[tick - 1]
           ?.getNpcs()
-          .values()
-          .find((npc) => Npc.isVerzik(npc.id));
-        if (verzikNpc === undefined) {
+          .entries()
+          .find(([_, npc]) => Npc.isVerzik(npc.id));
+        if (verzikEntry === undefined) {
           return false;
         }
+        const [verzikRoomId, verzikNpc] = verzikEntry;
 
         if (Npc.isVerzikP2(verzikNpc.id)) {
-          return this.checkForP2Bounce(ticks, tick, last, current);
+          return this.checkForP2Bounce(
+            verzikRoomId,
+            ticks,
+            tick,
+            last,
+            current,
+          );
         }
 
         if (Npc.isVerzikP3(verzikNpc.id)) {
@@ -311,6 +317,7 @@ export class MovementConsistencyChecker extends ConsistencyChecker {
   }
 
   private checkForP2Bounce(
+    verzikRoomId: number,
     ticks: TickStateArray,
     tick: number,
     last: PlayerState,
@@ -331,6 +338,7 @@ export class MovementConsistencyChecker extends ConsistencyChecker {
       if (!tickState) {
         continue;
       }
+
       const event = tickState.getEventsByType(Event.Type.TOB_VERZIK_BOUNCE);
       if (event.length === 0) {
         continue;
@@ -344,14 +352,18 @@ export class MovementConsistencyChecker extends ConsistencyChecker {
       }
     }
 
-    // It's possible for a client to miss the bounce event, in which case we
-    // fall back to the presence of a bounce attack, which indicates that
-    // Verzik performed the bounce animation, but without knowing the
-    // target.
+    // It's possible for a client to not send a bounce event, which could happen
+    // in two ways:
     //
-    // Verzik's bounce targets a single player, so if the bounce attack is
-    // present, we ensure that only the player we are checking made a
-    // bounce-like movement.
+    // 1. The bounce occurred right at the transition from P2 to P3, so Verzik's
+    //    bounce animation was superseded by the transition animation.
+    // 2. The plugin didn't attribute the bounce event due to its state machine
+    //    becoming desynced. In this case, the client should still have sent a
+    //    bounce attack for Verzik.
+    //
+    // In both cases, the target of the bounce is not known. However, since it's
+    // single-target, we can check that only the player we are testing made a
+    // bounce-like movement and allow it if so.
     const hasBounce = (tickState: TickState | null): boolean => {
       return (
         tickState?.getEventsByType(Event.Type.NPC_ATTACK)?.find((evt) => {
@@ -361,7 +373,17 @@ export class MovementConsistencyChecker extends ConsistencyChecker {
       );
     };
 
-    if (!hasBounce(ticks[potentialBounceTick]) && !hasBounce(ticks[tick])) {
+    let isAtP3Transition = false;
+    const verzik = ticks[tick + 1]?.getNpcs().get(verzikRoomId);
+    if (verzik !== undefined && Npc.isVerzikP3Transition(verzik.id)) {
+      isAtP3Transition = true;
+    }
+
+    if (
+      !isAtP3Transition &&
+      !hasBounce(ticks[potentialBounceTick]) &&
+      !hasBounce(ticks[tick])
+    ) {
       return false;
     }
 

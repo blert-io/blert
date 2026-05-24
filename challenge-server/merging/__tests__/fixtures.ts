@@ -126,16 +126,7 @@ export function createPlayerUpdateEvent({
   return event;
 }
 
-export function createNpcSpawnEvent({
-  tick,
-  roomId,
-  npcId,
-  x,
-  y,
-  hitpointsCurrent,
-  hitpointsBase,
-  stage = Stage.TOB_MAIDEN,
-}: {
+type NpcEventOptions = {
   tick: number;
   roomId: number;
   npcId: number;
@@ -144,9 +135,23 @@ export function createNpcSpawnEvent({
   hitpointsCurrent: number;
   hitpointsBase?: number;
   stage?: Stage;
-}): ProtoEvent {
+};
+
+function createNpcEvent(
+  type: Proto<ProtoEvent.TypeMap>,
+  {
+    tick,
+    roomId,
+    npcId,
+    x,
+    y,
+    hitpointsCurrent,
+    hitpointsBase,
+    stage = Stage.TOB_MAIDEN,
+  }: NpcEventOptions,
+): ProtoEvent {
   const event = new ProtoEvent();
-  event.setType(ProtoEvent.Type.NPC_SPAWN);
+  event.setType(type);
   event.setTick(tick);
   event.setStage(stage as ProtoStage);
   event.setXCoord(x);
@@ -160,6 +165,14 @@ export function createNpcSpawnEvent({
   event.setNpc(npc);
 
   return event;
+}
+
+export function createNpcSpawnEvent(options: NpcEventOptions): ProtoEvent {
+  return createNpcEvent(ProtoEvent.Type.NPC_SPAWN, options);
+}
+
+export function createNpcUpdateEvent(options: NpcEventOptions): ProtoEvent {
+  return createNpcEvent(ProtoEvent.Type.NPC_UPDATE, options);
 }
 
 export function createTickState(
