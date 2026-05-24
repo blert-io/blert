@@ -139,11 +139,12 @@ export enum NpcId {
   VERZIK_P1_HARD_10849 = 10849,
 
   VERZIK_P2_ENTRY = 10833,
-  VERZIK_P2_ENTRY_10834 = 10834,
   VERZIK_P2_REGULAR = 8372,
-  VERZIK_P2_REGULAR_8373 = 8373,
   VERZIK_P2_HARD = 10850,
-  VERZIK_P2_HARD_10851 = 10851,
+
+  VERZIK_P3_TRANSITION_ENTRY = 10834,
+  VERZIK_P3_TRANSITION_REGULAR = 8373,
+  VERZIK_P3_TRANSITION_HARD = 10851,
 
   VERZIK_P3_ENTRY = 10835,
   VERZIK_P3_ENTRY_10836 = 10836,
@@ -509,15 +510,22 @@ export class Npc {
 
   private static readonly VERZIK_P2_IDS: number[] = [
     NpcId.VERZIK_P2_ENTRY,
-    NpcId.VERZIK_P2_ENTRY_10834,
     NpcId.VERZIK_P2_REGULAR,
-    NpcId.VERZIK_P2_REGULAR_8373,
     NpcId.VERZIK_P2_HARD,
-    NpcId.VERZIK_P2_HARD_10851,
   ];
 
   static isVerzikP2(npcId: number): boolean {
     return Npc.VERZIK_P2_IDS.includes(npcId);
+  }
+
+  private static readonly VERZIK_P3_TRANSITION_IDS: number[] = [
+    NpcId.VERZIK_P3_TRANSITION_ENTRY,
+    NpcId.VERZIK_P3_TRANSITION_REGULAR,
+    NpcId.VERZIK_P3_TRANSITION_HARD,
+  ];
+
+  static isVerzikP3Transition(npcId: number): boolean {
+    return Npc.VERZIK_P3_TRANSITION_IDS.includes(npcId);
   }
 
   private static readonly VERZIK_P3_IDS: number[] = [
@@ -535,7 +543,10 @@ export class Npc {
 
   static isVerzik(npcId: number): boolean {
     return (
-      Npc.isVerzikP1(npcId) || Npc.isVerzikP2(npcId) || Npc.isVerzikP3(npcId)
+      Npc.isVerzikP1(npcId) ||
+      Npc.isVerzikP2(npcId) ||
+      Npc.isVerzikP3Transition(npcId) ||
+      Npc.isVerzikP3(npcId)
     );
   }
 
