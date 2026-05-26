@@ -663,6 +663,9 @@ export default class TheatreProcessor extends ChallengeProcessor {
 
       case Event.Type.TOB_VERZIK_BOUNCE: {
         const bounce = event.getVerzikBounce()!;
+        if (!bounce.hasBouncedPlayer()) {
+          break;
+        }
 
         if (bounce.getNpcAttackTick() !== -1) {
           const attack = allEvents
