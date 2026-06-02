@@ -414,6 +414,47 @@ describe('Merger', () => {
     ]);
   });
 
+  it('flags disagreeing server tick counts among non-accurate clients', () => {
+    const clientA = ClientEvents.fromRawEvents(
+      1,
+      fakeChallenge,
+      {
+        stage: Stage.TOB_MAIDEN,
+        status: StageStatus.WIPED,
+        accurate: false,
+        recordedTicks: 1,
+        serverTicks: { count: 1, precise: true },
+      },
+      client1Events,
+    );
+    const clientB = ClientEvents.fromRawEvents(
+      2,
+      fakeChallenge,
+      {
+        stage: Stage.TOB_MAIDEN,
+        status: StageStatus.WIPED,
+        accurate: false,
+        recordedTicks: 1,
+        serverTicks: { count: 2, precise: true },
+      },
+      client1Events,
+    );
+
+    const result = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [
+      clientA,
+      clientB,
+    ]).merge();
+
+    expect(result).not.toBeNull();
+    expect(result!.alerts).toContainEqual({
+      type: MergeAlertType.MULTIPLE_SERVER_TICK_COUNTS,
+      details: {
+        method: ReferenceSelectionMethod.PRECISE_SERVER,
+        counts: [1, 2],
+      },
+    });
+  });
+
   it('offsets ticks for an inaccurate client with a reported stage update', () => {
     const MISSING_TICKS = 8;
 

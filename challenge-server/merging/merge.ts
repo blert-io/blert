@@ -391,6 +391,7 @@ export class Merger {
   private classifyAndUpdateClients(
     tracer: MergeTracer | undefined,
   ): ClassifiedClients {
+    let accuracyConflict = false;
     const accurateClients = this.clients.filter((c) => c.isAccurate());
 
     if (accurateClients.length > 0) {
@@ -410,6 +411,8 @@ export class Merger {
       );
 
       if (modes.length > 1) {
+        accuracyConflict = true;
+
         const tickCounts = modes.toSorted((a, b) => a - b);
         logger.warn('merge_multiple_accurate_tick_modes', {
           stage: this.stage,
@@ -441,7 +444,28 @@ export class Merger {
       }
     }
 
-    return classifyClients(this.clients);
+    const clients = classifyClients(this.clients);
+
+    if (!accuracyConflict) {
+      // Flag any server tick count disagreements.
+      const serverTickCounts = clients.referenceTicks.details?.serverTickCounts;
+      if (Array.isArray(serverTickCounts) && serverTickCounts.length > 1) {
+        logger.warn('merge_multiple_server_tick_counts', {
+          stage: this.stage,
+          method: clients.referenceTicks.method,
+          counts: serverTickCounts,
+        });
+        this.alerts.push({
+          type: MergeAlertType.MULTIPLE_SERVER_TICK_COUNTS,
+          details: {
+            method: clients.referenceTicks.method,
+            counts: serverTickCounts,
+          },
+        });
+      }
+    }
+
+    return clients;
   }
 }
 
