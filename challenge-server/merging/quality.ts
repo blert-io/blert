@@ -154,6 +154,11 @@ export type QualityFlag =
 
 export const enum MergeAlertType {
   MULTIPLE_ACCURATE_TICK_MODES = 'MULTIPLE_ACCURATE_TICK_MODES',
+  /**
+   * The server-reported tick counts disagree across clients (precise or
+   * imprecise). Non-consensus likely indicates a bad client.
+   */
+  MULTIPLE_SERVER_TICK_COUNTS = 'MULTIPLE_SERVER_TICK_COUNTS',
   POST_MERGE_CONSISTENCY_REJECTIONS = 'POST_MERGE_CONSISTENCY_REJECTIONS',
   /**
    * A client was merged but a segment of its alignment scored below the
