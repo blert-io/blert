@@ -1,5 +1,5 @@
 import { Alignment, AlignmentAction } from '../alignment';
-import { MergeMapping, TickMapping } from '../tick-mapping';
+import { Mappings, MergeMapping, TickMapping } from '../tick-mapping';
 
 describe('TickMapping', () => {
   describe('identity', () => {
@@ -197,14 +197,15 @@ describe('MergeMapping', () => {
   const CLIENT_B = 2;
   const CLIENT_C = 3;
 
-  function buildStep1Mappings() {
+  function buildStep1Mappings(): Mappings {
     return {
       base: TickMapping.identity(5),
       target: TickMapping.identity(5),
+      mergedTickCount: 5,
     };
   }
 
-  function buildStep2Mappings() {
+  function buildStep2Mappings(): Mappings {
     const alignments: Alignment[] = [
       [
         {
@@ -234,8 +235,7 @@ describe('MergeMapping', () => {
         },
       ],
     ];
-    const result = TickMapping.fromAlignment(5, 5, alignments);
-    return { base: result.base, target: result.target };
+    return TickMapping.fromAlignment(5, 5, alignments);
   }
 
   describe('resolveClientTick', () => {
@@ -243,11 +243,11 @@ describe('MergeMapping', () => {
       const mm = new MergeMapping(CLIENT_A);
 
       const step1 = buildStep1Mappings();
-      mm.begin(CLIENT_B, step1.base, step1.target, 5);
+      mm.begin(CLIENT_B, step1);
       mm.commit();
 
       const step2 = buildStep2Mappings();
-      mm.begin(CLIENT_C, step2.base, step2.target, 6);
+      mm.begin(CLIENT_C, step2);
       mm.commit();
 
       expect(mm.resolveClientTick(0, CLIENT_A)).toBe(0);
@@ -259,11 +259,11 @@ describe('MergeMapping', () => {
       const mm = new MergeMapping(CLIENT_A);
 
       const step1 = buildStep1Mappings();
-      mm.begin(CLIENT_B, step1.base, step1.target, 5);
+      mm.begin(CLIENT_B, step1);
       mm.commit();
 
       const step2 = buildStep2Mappings();
-      mm.begin(CLIENT_C, step2.base, step2.target, 6);
+      mm.begin(CLIENT_C, step2);
       mm.commit();
 
       expect(mm.resolveClientTick(0, CLIENT_B)).toBe(0);
@@ -275,11 +275,11 @@ describe('MergeMapping', () => {
       const mm = new MergeMapping(CLIENT_A);
 
       const step1 = buildStep1Mappings();
-      mm.begin(CLIENT_B, step1.base, step1.target, 5);
+      mm.begin(CLIENT_B, step1);
       mm.commit();
 
       const step2 = buildStep2Mappings();
-      mm.begin(CLIENT_C, step2.base, step2.target, 6);
+      mm.begin(CLIENT_C, step2);
       mm.commit();
 
       expect(mm.resolveClientTick(2, CLIENT_C)).toBe(2);
@@ -289,7 +289,7 @@ describe('MergeMapping', () => {
     it('returns undefined for an unknown client', () => {
       const mm = new MergeMapping(CLIENT_A);
       const step1 = buildStep1Mappings();
-      mm.begin(CLIENT_B, step1.base, step1.target, 5);
+      mm.begin(CLIENT_B, step1);
       mm.commit();
 
       expect(mm.resolveClientTick(0, 999)).toBeUndefined();
@@ -299,7 +299,7 @@ describe('MergeMapping', () => {
       const mm = new MergeMapping(CLIENT_A);
 
       const step2 = buildStep2Mappings();
-      mm.begin(CLIENT_C, step2.base, step2.target, 6);
+      mm.begin(CLIENT_C, step2);
       mm.commit();
 
       // Tick 2 was inserted from C, it has no mapping in the other clients.
@@ -314,7 +314,7 @@ describe('MergeMapping', () => {
       const mm = new MergeMapping(CLIENT_A);
 
       const step1 = buildStep1Mappings();
-      mm.begin(CLIENT_B, step1.base, step1.target, 5);
+      mm.begin(CLIENT_B, step1);
 
       expect(mm.resolveClientTick(2, CLIENT_B)).toBe(2);
       expect(mm.resolveClientTick(2, CLIENT_A)).toBe(2);
@@ -324,7 +324,7 @@ describe('MergeMapping', () => {
       const mm = new MergeMapping(CLIENT_A);
 
       const step1 = buildStep1Mappings();
-      mm.begin(CLIENT_B, step1.base, step1.target, 5);
+      mm.begin(CLIENT_B, step1);
       mm.discard();
 
       expect(mm.resolveClientTick(0, CLIENT_B)).toBeUndefined();
@@ -335,12 +335,12 @@ describe('MergeMapping', () => {
       const mm = new MergeMapping(CLIENT_A);
 
       const step1 = buildStep1Mappings();
-      mm.begin(CLIENT_B, step1.base, step1.target, 5);
+      mm.begin(CLIENT_B, step1);
       mm.commit();
 
       // Begin a new in-flight for C.
       const step2 = buildStep2Mappings();
-      mm.begin(CLIENT_C, step2.base, step2.target, 6);
+      mm.begin(CLIENT_C, step2);
       expect(mm.resolveClientTick(4, CLIENT_B)).toBe(3);
       expect(mm.resolveClientTick(2, CLIENT_A)).toBeUndefined();
       expect(mm.resolveClientTick(2, CLIENT_B)).toBeUndefined();

@@ -155,6 +155,11 @@ export type QualityFlag =
 export const enum MergeAlertType {
   MULTIPLE_ACCURATE_TICK_MODES = 'MULTIPLE_ACCURATE_TICK_MODES',
   POST_MERGE_CONSISTENCY_REJECTIONS = 'POST_MERGE_CONSISTENCY_REJECTIONS',
+  /**
+   * A client was merged but a segment of its alignment scored below the
+   * structural confidence warning threshold.
+   */
+  LOW_STRUCTURAL_CONFIDENCE = 'LOW_STRUCTURAL_CONFIDENCE',
 }
 
 /**

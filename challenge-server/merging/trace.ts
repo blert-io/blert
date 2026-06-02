@@ -4,6 +4,7 @@ import { Event } from '@blert/common/generated/event_pb';
 import { AlignmentEntry, AlignmentRange, AlignmentResult } from './alignment';
 import { ReferenceSelection } from './classification';
 import { StageData } from './client-events';
+import { StepConfidence } from './confidence';
 import { MergeClientStatus } from './context';
 import { EventType } from './event';
 import {
@@ -64,7 +65,8 @@ export type SerializedLocalAlignment = {
 
 export type SerializedAlignmentResult = {
   alignments: SerializedLocalAlignment[];
-  coverage: number;
+  baseCoverage: number;
+  targetCoverage: number;
   gapCount: number;
 };
 
@@ -186,6 +188,7 @@ export type MergeStepInfo = {
   reconciliation: ReconciliationTrace | null;
   qualityFlags: QualityFlag[];
   counters: ReconciliationCounters;
+  confidence: StepConfidence | null;
   rejection: StepRejection | null;
 };
 
@@ -316,7 +319,8 @@ export function serializeAlignmentResult(
       entries: a.entries,
       range: a.range,
     })),
-    coverage: result.coverage,
+    baseCoverage: result.baseCoverage,
+    targetCoverage: result.targetCoverage,
     gapCount: result.gapCount,
   };
 }
@@ -520,6 +524,12 @@ export class MergeTracer {
     }
   }
 
+  public recordConfidence(confidence: StepConfidence): void {
+    if (this.currentStep !== null) {
+      this.currentStep.confidence = confidence;
+    }
+  }
+
   public recordStepRejection(rejection: StepRejection): void {
     if (this.currentStep !== null) {
       this.currentStep.rejection = rejection;
@@ -562,6 +572,7 @@ export class MergeTracer {
         streamEventPairs: 0,
         attackMappedEvents: 0,
       },
+      confidence: this.currentStep.confidence ?? null,
       rejection: this.currentStep.rejection ?? null,
     });
 

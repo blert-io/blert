@@ -77,12 +77,11 @@ function testCtx(
   stage: Stage = Stage.TOB_VERZIK,
 ): MergeContext {
   const ctx = createMergeContext({ stage, clients });
-  ctx.mapping.begin(
-    TARGET_CLIENT_ID,
-    TickMapping.identity(baseTickCount),
-    TickMapping.identity(targetTickCount),
-    baseTickCount,
-  );
+  ctx.mapping.begin(TARGET_CLIENT_ID, {
+    base: TickMapping.identity(baseTickCount),
+    target: TickMapping.identity(targetTickCount),
+    mergedTickCount: baseTickCount,
+  });
   if (clients !== undefined) {
     ctx.challenge = {
       ...ctx.challenge,
