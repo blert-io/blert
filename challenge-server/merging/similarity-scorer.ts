@@ -2,6 +2,7 @@ import { EquipmentSlot, Npc } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
 import { normalizeAttackType } from './event';
+import { clamp } from './math';
 import { TickState, NpcState } from './tick-state';
 
 const VISIBLE_EQUIPMENT_SLOTS: EquipmentSlot[] = [
@@ -76,10 +77,6 @@ function compareAttacks(a: Attack, b: Attack): AttackComparison {
     return AttackComparison.AMBIGUOUS_PROJECTILE;
   }
   return AttackComparison.MISMATCH;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(value, max));
 }
 
 /**

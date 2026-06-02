@@ -1,5 +1,11 @@
 import { Alignment, AlignmentAction } from './alignment';
 
+export type Mappings = {
+  base: TickMapping;
+  target: TickMapping;
+  mergedTickCount: number;
+};
+
 /**
  * Maps tick indices between a client's local tick space and the merged
  * timeline's tick space.
@@ -43,7 +49,7 @@ export class TickMapping {
     baseTickCount: number,
     targetTickCount: number,
     alignments: readonly Alignment[],
-  ): { base: TickMapping; target: TickMapping; mergedTickCount: number } {
+  ): Mappings {
     const baseToMerged = Array<number | undefined>(baseTickCount).fill(
       undefined,
     );
@@ -136,9 +142,7 @@ export class TickMapping {
 
 type MappingChainEntry = {
   targetClientId: number;
-  baseMapping: TickMapping;
-  targetMapping: TickMapping;
-  mergedTickCount: number;
+  mappings: Mappings;
 };
 
 /**
@@ -165,21 +169,12 @@ export class MergeMapping {
    * Sets the in-flight entry for the current merge step.
    *
    * @param targetClientId The ID of the target client.
-   * @param baseMapping The tick mapping for base timeline.
-   * @param targetMapping The tick mapping for target client's timeline.
-   * @param mergedTickCount The merged tick count for the merge step.
+   * @param mappings The tick mappings for the merge step.
    */
-  public begin(
-    targetClientId: number,
-    baseMapping: TickMapping,
-    targetMapping: TickMapping,
-    mergedTickCount: number,
-  ): void {
+  public begin(targetClientId: number, mappings: Mappings): void {
     this.inFlight = {
       targetClientId,
-      baseMapping,
-      targetMapping,
-      mergedTickCount,
+      mappings,
     };
   }
 
@@ -209,7 +204,7 @@ export class MergeMapping {
    * `null` if no step is in progress.
    */
   public getBaseMapping(): TickMapping | null {
-    return this.inFlight?.baseMapping ?? null;
+    return this.inFlight?.mappings.base ?? null;
   }
 
   /**
@@ -217,7 +212,7 @@ export class MergeMapping {
    * `null` if no step is in progress.
    */
   public getTargetMapping(): TickMapping | null {
-    return this.inFlight?.targetMapping ?? null;
+    return this.inFlight?.mappings.target ?? null;
   }
 
   /**
@@ -225,7 +220,7 @@ export class MergeMapping {
    * `null` if no step is in progress.
    */
   public getMergedTickCount(): number | null {
-    return this.inFlight?.mergedTickCount ?? null;
+    return this.inFlight?.mappings.mergedTickCount ?? null;
   }
 
   /**
@@ -245,9 +240,9 @@ export class MergeMapping {
 
     if (this.inFlight !== null) {
       if (this.inFlight.targetClientId === clientId) {
-        return this.inFlight.targetMapping.toClient(current);
+        return this.inFlight.mappings.target.toClient(current);
       }
-      current = this.inFlight.baseMapping.toClient(current);
+      current = this.inFlight.mappings.base.toClient(current);
       if (current === undefined) {
         return undefined;
       }
@@ -257,10 +252,10 @@ export class MergeMapping {
       const entry = this.chain[i];
 
       if (entry.targetClientId === clientId) {
-        return entry.targetMapping.toClient(current);
+        return entry.mappings.target.toClient(current);
       }
 
-      current = entry.baseMapping.toClient(current);
+      current = entry.mappings.base.toClient(current);
       if (current === undefined) {
         return undefined;
       }

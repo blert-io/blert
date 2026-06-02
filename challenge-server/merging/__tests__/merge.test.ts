@@ -130,11 +130,13 @@ function generateTickEvents(
     startTick?: number;
     primaryPlayer?: string;
     realTickOffset?: number;
+    playerY?: number;
   },
 ): ProtoEvent[] {
   const startTick = opts?.startTick ?? 0;
   const primary = opts?.primaryPlayer ?? 'player1';
   const realTickOffset = opts?.realTickOffset ?? 0;
+  const playerY = opts?.playerY ?? 0;
   const events: ProtoEvent[] = [];
 
   for (let t = 0; t < numTicks; t++) {
@@ -149,7 +151,7 @@ function generateTickEvents(
         type: EventType.PLAYER_UPDATE,
         tick,
         xCoord: p1x,
-        yCoord: 0,
+        yCoord: playerY,
         stage: Stage.TOB_MAIDEN,
         player: {
           name: 'player1',
@@ -168,7 +170,7 @@ function generateTickEvents(
         type: EventType.PLAYER_UPDATE,
         tick,
         xCoord: p2x,
-        yCoord: 0,
+        yCoord: playerY,
         stage: Stage.TOB_MAIDEN,
         player: {
           name: 'player2',
@@ -546,7 +548,8 @@ describe('Merger', () => {
     );
 
     const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [base, target]);
-    const result = merger.merge(undefined, ALIGN_OPTIONS);
+    const tracer = new MergeTracer();
+    const result = merger.merge(tracer, ALIGN_OPTIONS);
 
     expect(result).not.toBeNull();
     expect(result!.mergedCount).toBe(2);
@@ -559,7 +562,21 @@ describe('Merger', () => {
       MergeClientClassification.MISMATCHED,
     );
 
-    // After merge, player2 should have PRIMARY data (contributed by target).
+    // The target was merged by alignment, not identity, with confidence
+    // reflecting the alignment coverage, with matching content.
+    const targetStep = tracer
+      .toTrace()
+      .mergeSteps.find((s) => s.clientId === 2);
+    expect(targetStep!.confidence).not.toBeNull();
+    const confidence = targetStep!.confidence!;
+    expect(confidence.structural.identity).toBe(false);
+    expect(confidence.structural.targetCoverage).toBeGreaterThan(0.8);
+    expect(confidence.structural.targetCoverage).toBeLessThanOrEqual(1);
+    expect(confidence.content.value).toBe(1);
+    expect(confidence.overall).toBeGreaterThanOrEqual(0.8);
+    expect(confidence.overall).toBeLessThanOrEqual(1);
+
+    // After merge, player2 should have PRIMARY data contributed by the target.
     const events = result!.events;
     for (let tick = 0; tick < NUM_TICKS; tick++) {
       const tickEvents = events.eventsForTick(tick);
@@ -789,6 +806,82 @@ describe('Merger', () => {
     expect(targetClient!.status).toBe(MergeClientStatus.UNMERGED);
   });
 
+  it('leaves a client unmerged when alignment finds no overlapping region', () => {
+    const NUM_TICKS = 12;
+
+    const baseEvents = generateTickEvents(NUM_TICKS, {
+      primaryPlayer: 'player1',
+    });
+    const base = ClientEvents.fromRawEvents(
+      1,
+      fakeChallenge,
+      {
+        stage: Stage.TOB_MAIDEN,
+        status: StageStatus.COMPLETED,
+        accurate: true,
+        recordedTicks: NUM_TICKS,
+        serverTicks: { count: NUM_TICKS, precise: true },
+      },
+      baseEvents,
+    );
+
+    // The target's shared players sit at a different y coordinate.
+    const targetEvents = generateTickEvents(NUM_TICKS, {
+      primaryPlayer: 'player2',
+      playerY: 100,
+    });
+    const target = ClientEvents.fromRawEvents(
+      2,
+      fakeChallenge,
+      {
+        stage: Stage.TOB_MAIDEN,
+        status: StageStatus.COMPLETED,
+        accurate: false,
+        recordedTicks: NUM_TICKS,
+        serverTicks: null,
+      },
+      targetEvents,
+    );
+
+    const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [base, target]);
+    const tracer = new MergeTracer();
+    const result = merger.merge(tracer, ALIGN_OPTIONS);
+
+    expect(result).not.toBeNull();
+    // Only the base is merged.
+    expect(result!.mergedCount).toBe(1);
+    expect(result!.unmergedCount).toBe(1);
+
+    const targetClient = result!.clients.find((c) => c.id === 2);
+    expect(targetClient!.classification).toBe(
+      MergeClientClassification.MISMATCHED,
+    );
+    expect(targetClient!.status).toBe(MergeClientStatus.UNMERGED);
+    expect(targetClient!.mergeIssues).toEqual([]);
+
+    const targetStep = tracer
+      .toTrace()
+      .mergeSteps.find((s) => s.clientId === 2);
+    expect(targetStep!.status).toBe(MergeClientStatus.UNMERGED);
+    expect(targetStep!.alignment!.alignments).toHaveLength(0);
+    expect(targetStep!.confidence).toBeNull();
+
+    // The base timeline is untouched.
+    const events = result!.events;
+    expect(events.getLastTick()).toBe(base.getFinalTick());
+    for (let tick = 0; tick < NUM_TICKS; tick++) {
+      const p2Update = events
+        .eventsForTick(tick)
+        .find(
+          (e) =>
+            e.getType() === EventType.PLAYER_UPDATE &&
+            e.getPlayer()?.getName() === 'player2',
+        );
+      expect(p2Update).toBeDefined();
+      expect(p2Update!.getPlayer()!.getDataSource()).toBe(DataSource.SECONDARY);
+    }
+  });
+
   describe('postprocessing', () => {
     it('preserves finalized tick events when correcting delayed Maiden spawn', () => {
       const playerUpdate = (tick: number) =>
@@ -993,6 +1086,24 @@ describe('Merger', () => {
         npcAttacks: 0,
         streamEventPairs: 0,
         attackMappedEvents: 0,
+      });
+
+      // Both clients are accurate, so this is a full confidence identity merge.
+      expect(targetStep!.confidence).toEqual({
+        overall: 1,
+        structural: {
+          value: 1,
+          identity: true,
+          targetCoverage: 1,
+          segments: [],
+          worstSegmentIdx: null,
+        },
+        content: {
+          value: 1,
+          disagreementRate: 0,
+          largeGapRate: 0,
+          attackMappedFailureRate: 0,
+        },
       });
 
       expect(result!.alerts).toContainEqual({

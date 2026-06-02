@@ -162,10 +162,12 @@ export type ExclusiveEventViolationIssue = {
 
 /**
  * Why a merge step was rejected.
- * TODO(frolv): Low merge confidence score as a rejection reason.
  */
 export const enum RejectionReason {
+  /** The merged timeline violated a game invariant. */
   POST_MERGE_CONSISTENCY = 'POST_MERGE_CONSISTENCY',
+  /** The merge step's confidence score fell below the acceptance threshold. */
+  LOW_MERGE_CONFIDENCE = 'LOW_MERGE_CONFIDENCE',
 }
 
 export type StepRejection = {

@@ -9,6 +9,7 @@ import {
 } from './classification';
 import { ClientAnomaly, ClientEvents, ServerTicks } from './client-events';
 import { ConsistencyIssue } from './client-consistency';
+import { scoreStepConfidence, StepConfidence } from './confidence';
 import {
   ChallengeInfo,
   MergeClientStatus,
@@ -28,11 +29,17 @@ import {
 
 import { MergeAlert, MergeAlertType } from './quality';
 import { SimilarityScorer } from './similarity-scorer';
-import { MergeMapping, TickMapping } from './tick-mapping';
+import { Mappings, MergeMapping, TickMapping } from './tick-mapping';
 import { resynchronizeTicks, TickState, TickStateArray } from './tick-state';
 import { MergeTracer } from './trace';
 
-const MIN_ALIGNMENT_COVERAGE = 0.5;
+// Provisional confidence acceptance threshold.
+// TODO(frolv): Calibrate against real data and consider if it should look at
+// individual components instead of a flat threshold.
+const MIN_MERGE_CONFIDENCE_THRESHOLD = 0.75;
+
+// Worst-segment score below which a merged client is flagged for review.
+const LOW_CONFIDENCE_WARN_THRESHOLD = 0.4;
 
 export const enum MergeClientClassification {
   /** The client was selected as the reference client. */
@@ -63,7 +70,11 @@ export type MergeClient = {
    * rejection came from the post-merge consistency check.
    */
   mergeIssues: MergeConsistencyIssue[];
-  // TODO(frolv): Add alignment information if available.
+  /**
+   * Lowest segment score from this client's merge-step confidence, or null for
+   * the reference client or a step with no scored segments.
+   */
+  worstSegmentScore: number | null;
 };
 
 export type MergeOptions = {
@@ -100,6 +111,22 @@ function surfaceAlerts(mergeClients: MergeClient[]): MergeAlert[] {
       },
     });
   }
+
+  const lowConfidence = mergeClients.filter(
+    (c) =>
+      c.status === MergeClientStatus.MERGED &&
+      c.worstSegmentScore !== null &&
+      c.worstSegmentScore < LOW_CONFIDENCE_WARN_THRESHOLD,
+  );
+  if (lowConfidence.length > 0) {
+    alerts.push({
+      type: MergeAlertType.LOW_STRUCTURAL_CONFIDENCE,
+      details: {
+        clientIds: lowConfidence.map((c) => c.id),
+        worstSegmentScores: lowConfidence.map((c) => c.worstSegmentScore),
+      },
+    });
+  }
   return alerts;
 }
 
@@ -109,7 +136,13 @@ function createMergeClient(
   status: MergeClientStatus,
   sequenceNumber: number,
   mergeIssues: MergeConsistencyIssue[] = [],
+  confidence: StepConfidence | null = null,
 ): MergeClient {
+  const worstIdx = confidence?.structural.worstSegmentIdx ?? null;
+  const worstSegmentScore =
+    confidence !== null && worstIdx !== null
+      ? confidence.structural.segments[worstIdx].score
+      : null;
   return {
     id: client.getId(),
     primaryPlayer: client.getPrimaryPlayer(),
@@ -123,6 +156,7 @@ function createMergeClient(
     anomalies: client.getAnomalies(),
     consistencyIssues: client.getConsistencyIssues(),
     mergeIssues,
+    worstSegmentScore,
   };
 }
 
@@ -224,6 +258,7 @@ export class Merger {
       const status = statusFromOutcome(outcome);
       const mergeIssues =
         outcome.kind === 'rejected' ? outcome.rejection.issues : [];
+      const confidence = outcome.kind === 'merged' ? outcome.confidence : null;
       mergeClients.push(
         createMergeClient(
           client,
@@ -231,6 +266,7 @@ export class Merger {
           status,
           mergeClients.length,
           mergeIssues,
+          confidence,
         ),
       );
       ctx.clients.get(client.getId())!.status = status;
@@ -238,6 +274,7 @@ export class Merger {
 
     recordMergeResult(clients.base, MergeClientClassification.REFERENCE, {
       kind: 'merged',
+      confidence: null,
     });
 
     const merged = new MergedEvents(clients.base, ctx);
@@ -409,7 +446,7 @@ export class Merger {
 }
 
 type MergeStepOutcome =
-  | { kind: 'merged' }
+  | { kind: 'merged'; confidence: StepConfidence | null }
   | { kind: 'unmerged' }
   | { kind: 'skipped' }
   | { kind: 'rejected'; rejection: StepRejection };
@@ -499,39 +536,33 @@ export class MergedEvents {
     options: MergeOptions,
   ): MergeStepOutcome {
     const targetTicks = client.getTickStates();
-    let baseMapping: TickMapping;
-    let targetMapping: TickMapping;
-    let mergedTickCount: number;
+    let mappings: Mappings;
+    let alignment: AlignmentResult | null = null;
 
     if (this.accurate && client.isAccurate()) {
       // Accurate clients use identity mapping.
-      baseMapping = TickMapping.identity(this.ticks.length);
-      targetMapping = TickMapping.identity(targetTicks.length);
-      mergedTickCount = this.ticks.length;
+      mappings = {
+        base: TickMapping.identity(this.ticks.length),
+        target: TickMapping.identity(targetTicks.length),
+        mergedTickCount: this.ticks.length,
+      };
     } else {
       if (!options.alignMismatched) {
         return { kind: 'unmerged' };
       }
-      const alignment = this.runAlignment(client);
-      if (alignment === null) {
+      alignment = this.runAlignment(client);
+      if (alignment === null || alignment.alignments.length === 0) {
+        // The aligner found no alignable regions; nothing to merge.
         return { kind: 'unmerged' };
       }
-      const result = TickMapping.fromAlignment(
+      mappings = TickMapping.fromAlignment(
         this.ticks.length,
         targetTicks.length,
         alignment.alignments.map((a) => a.entries),
       );
-      baseMapping = result.base;
-      targetMapping = result.target;
-      mergedTickCount = result.mergedTickCount;
     }
 
-    this.ctx.mapping.begin(
-      client.getId(),
-      baseMapping,
-      targetMapping,
-      mergedTickCount,
-    );
+    this.ctx.mapping.begin(client.getId(), mappings);
     this.ctx.tracer?.recordMapping(this.ctx.mapping);
 
     try {
@@ -542,14 +573,26 @@ export class MergedEvents {
       );
       const result = consolidator.consolidate();
 
+      const confidence = scoreStepConfidence(
+        alignment,
+        result.counters,
+        result.qualityFlags,
+      );
+      this.ctx.tracer?.recordConfidence(confidence);
+
       const consistencyChecker = new MergeConsistencyChecker(this.ctx);
       const issues = consistencyChecker.check(result.ticks);
-      if (issues.length > 0) {
+
+      const lowConfidence = confidence.overall < MIN_MERGE_CONFIDENCE_THRESHOLD;
+      if (issues.length > 0 || lowConfidence) {
         this.ctx.mapping.discard();
         return {
           kind: 'rejected',
           rejection: {
-            reason: RejectionReason.POST_MERGE_CONSISTENCY,
+            reason:
+              issues.length > 0
+                ? RejectionReason.POST_MERGE_CONSISTENCY
+                : RejectionReason.LOW_MERGE_CONFIDENCE,
             issues,
           },
         };
@@ -558,7 +601,7 @@ export class MergedEvents {
       this.ctx.mapping.commit();
 
       this.ticks = result.ticks;
-      return { kind: 'merged' };
+      return { kind: 'merged', confidence };
     } catch (e) {
       this.ctx.mapping.discard();
       throw e;
@@ -608,18 +651,6 @@ export class MergedEvents {
     );
     const alignment = aligner.align();
     this.ctx.tracer?.recordAlignment(alignment);
-
-    // TODO(frolv): Replace with a proper merge confidence score that also
-    // considers per-tick similarity scores and gap count.
-    if (alignment.coverage < MIN_ALIGNMENT_COVERAGE) {
-      logger.info('merge_alignment_rejected', {
-        clientId: client.getId(),
-        coverage: alignment.coverage,
-        threshold: MIN_ALIGNMENT_COVERAGE,
-      });
-      return null;
-    }
-
     return alignment;
   }
 

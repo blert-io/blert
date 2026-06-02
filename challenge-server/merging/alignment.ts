@@ -55,13 +55,24 @@ export type LocalAlignment = {
    * chosen action and its best alternative. Indexed the same as `similarity`.
    */
   margin: number[][];
+  /**
+   * Absolute indices of null base/target ticks within the range.
+   * A null tick scores 0 in `similarity`, so these sets let consumers tell
+   * "no data" apart from a genuine low score.
+   */
+  baseNull: ReadonlySet<number>;
+  targetNull: ReadonlySet<number>;
 };
 
 export type AlignmentResult = {
   /** Ordered local alignments extracted from the scoring matrix. */
   alignments: LocalAlignment[];
-  /** Fraction of base ticks covered by MERGE actions (0-1). */
-  coverage: number;
+  /** Fraction of base ticks placed in a local alignment, merged or kept. */
+  baseCoverage: number;
+  /**
+   * Fraction of target ticks placed in a local alignment, merged or inserted.
+   */
+  targetCoverage: number;
   /** Total number of gap actions (INSERT + KEEP) across all alignments. */
   gapCount: number;
 };
@@ -143,21 +154,33 @@ export class TickAligner {
     });
 
     let mergeCount = 0;
-    let gapCount = 0;
+    let keepCount = 0;
+    let insertCount = 0;
     for (const alignment of this.alignments) {
       for (const entry of alignment.entries) {
-        if (entry.action === AlignmentAction.MERGE) {
-          mergeCount++;
-        } else {
-          gapCount++;
+        switch (entry.action) {
+          case AlignmentAction.MERGE:
+            mergeCount++;
+            break;
+          case AlignmentAction.KEEP:
+            keepCount++;
+            break;
+          case AlignmentAction.INSERT:
+            insertCount++;
+            break;
         }
       }
     }
 
+    const basePlaced = mergeCount + keepCount;
+    const targetPlaced = mergeCount + insertCount;
+
     return {
       alignments: this.alignments,
-      coverage: this.base.length > 0 ? mergeCount / this.base.length : 0,
-      gapCount,
+      baseCoverage: this.base.length > 0 ? basePlaced / this.base.length : 0,
+      targetCoverage:
+        this.target.length > 0 ? targetPlaced / this.target.length : 0,
+      gapCount: keepCount + insertCount,
     };
   }
 
@@ -203,11 +226,26 @@ export class TickAligner {
     if (entries === null || entries.length < this.config.minLength) {
       return null;
     }
+    const baseNull = new Set<number>();
+    for (let i = range.baseStart; i < range.baseEnd; i++) {
+      if (this.base[i] === null) {
+        baseNull.add(i);
+      }
+    }
+    const targetNull = new Set<number>();
+    for (let j = range.targetStart; j < range.targetEnd; j++) {
+      if (this.target[j] === null) {
+        targetNull.add(j);
+      }
+    }
+
     return {
       entries,
       range,
       similarity: matrices.similarity,
       margin: matrices.margin,
+      baseNull,
+      targetNull,
     };
   }
 

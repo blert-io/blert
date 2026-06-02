@@ -123,7 +123,8 @@ describe('TickAligner', () => {
         [8, 8],
         [9, 9],
       ]);
-      expect(result.coverage).toBe(1);
+      expect(result.baseCoverage).toBe(1);
+      expect(result.targetCoverage).toBe(1);
       expect(result.gapCount).toBe(0);
     });
 
@@ -176,7 +177,9 @@ describe('TickAligner', () => {
         [4, 8],
         [5, 9],
       ]);
-      expect(result.coverage).toBe(0.6);
+      // 6 of 10 base ticks placed; all 6 target ticks placed.
+      expect(result.baseCoverage).toBe(0.6);
+      expect(result.targetCoverage).toBe(1);
       expect(result.gapCount).toBe(0);
     });
 
@@ -196,7 +199,8 @@ describe('TickAligner', () => {
         [3, 3],
         [4, 4],
       ]);
-      expect(result.coverage).toBe(0.5);
+      expect(result.baseCoverage).toBe(0.5);
+      expect(result.targetCoverage).toBe(1);
       expect(result.gapCount).toBe(0);
     });
   });
@@ -222,7 +226,9 @@ describe('TickAligner', () => {
         [6, 8],
         [7, 9],
       ]);
-      expect(result.coverage).toBe(0.8);
+      // All 10 base ticks are placed (8 merge, 2 keep), as are all 8 target.
+      expect(result.baseCoverage).toBe(1);
+      expect(result.targetCoverage).toBe(1);
       expect(result.gapCount).toBe(2);
 
       const keepEntries = result.alignments.flatMap((a) =>
@@ -319,7 +325,8 @@ describe('TickAligner', () => {
 
       expect(mergeCount(result)).toBe(0);
       expect(result.alignments).toHaveLength(0);
-      expect(result.coverage).toBe(0);
+      expect(result.baseCoverage).toBe(0);
+      expect(result.targetCoverage).toBe(0);
     });
   });
 
@@ -428,7 +435,8 @@ describe('TickAligner', () => {
         [11, 13],
         [12, 14],
       ]);
-      expect(result.coverage).toBe(10 / 15);
+      expect(result.baseCoverage).toBe(10 / 15);
+      expect(result.targetCoverage).toBe(10 / 13);
       expect(result.gapCount).toBe(0);
     });
   });
