@@ -486,7 +486,12 @@ describe('Merger', () => {
     expect(result!.mergedCount).toBe(1);
     expect(result!.unmergedCount).toBe(0);
     expect(result!.skippedCount).toBe(0);
-    expect(result!.alerts).toEqual([]);
+    expect(result!.alerts).toEqual([
+      {
+        type: MergeAlertType.TIMELINE_OFFSET_APPLIED,
+        details: { offset: MISSING_TICKS, referenceCount: 2 + MISSING_TICKS },
+      },
+    ]);
 
     const events = result!.events;
     expect(events.isAccurate()).toBe(false);

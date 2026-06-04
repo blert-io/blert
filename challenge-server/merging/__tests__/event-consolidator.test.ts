@@ -8,6 +8,7 @@ import {
 } from '@blert/common';
 import { Event as ProtoEvent } from '@blert/common/generated/event_pb';
 
+import { Alignment, AlignmentAction } from '../alignment';
 import { ClientEvents } from '../client-events';
 import { MergeClientStatus, MergeContext, RegisteredClient } from '../context';
 import { EventConsolidator } from '../event-consolidator';
@@ -282,6 +283,64 @@ describe('EventConsolidator', () => {
         expect(npc!.hitpoints.getCurrent()).toBe(100 - i * 5);
       }
     });
+  });
+
+  it('populates leading or trailing ticks from the target', () => {
+    // base:   _,_,0,1,2,3,4,5
+    // target: 0,1,2,3,_,_,_,_
+    const base = buildTimeline(
+      BASE_CLIENT_ID,
+      6,
+      'player1',
+      DataSource.SECONDARY,
+      { 5: [createPlayerDeathEvent({ tick: 5, name: 'player1' })] },
+    );
+    const target = buildTimeline(
+      TARGET_CLIENT_ID,
+      4,
+      'player1',
+      DataSource.PRIMARY,
+    );
+
+    const alignments: Alignment[] = [
+      [
+        {
+          action: AlignmentAction.MERGE,
+          baseIndex: 0,
+          targetIndex: 2,
+          score: 1,
+        },
+        {
+          action: AlignmentAction.MERGE,
+          baseIndex: 1,
+          targetIndex: 3,
+          score: 1,
+        },
+      ],
+    ];
+    const ctx = createMergeContext({ stage: Stage.TOB_VERZIK });
+    ctx.mapping.begin(
+      TARGET_CLIENT_ID,
+      TickMapping.fromAlignment(6, 4, alignments),
+    );
+
+    const result = new EventConsolidator(base, target, ctx).consolidate();
+
+    expect(result.ticks).toHaveLength(8);
+
+    for (let i = 0; i < result.ticks.length; i++) {
+      expect(result.ticks[i]).not.toBeNull();
+      const state = result.ticks[i]?.getPlayerState('player1');
+      expect(state).toBeDefined();
+      if (i < target.length) {
+        expect(state?.source).toBe(DataSource.PRIMARY);
+      } else {
+        expect(state?.source).toBe(DataSource.SECONDARY);
+      }
+    }
+    expect(getEventTypes(result.ticks, 7)).toContain(
+      ProtoEvent.Type.PLAYER_DEATH,
+    );
   });
 
   describe('stream dedup', () => {

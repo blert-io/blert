@@ -1,4 +1,4 @@
-import { Alignment, AlignmentAction } from './alignment';
+import { Alignment, AlignmentAction, MergeEntry } from './alignment';
 
 export type Mappings = {
   base: TickMapping;
@@ -60,11 +60,22 @@ export class TickMapping {
     let mergedPos = 0;
     let basePos = 0;
 
+    // When the first MERGE is at base tick 0, any target ticks before it are
+    // one-sided and unambiguous; prepend them.
+    if (alignments.length > 0) {
+      const firstMerge = alignments[0][0] as MergeEntry;
+      if (firstMerge.baseIndex === 0 && firstMerge.targetIndex > 0) {
+        for (let t = 0; t < firstMerge.targetIndex; t++) {
+          targetToMerged[t] = mergedPos;
+          mergedPos++;
+        }
+      }
+    }
+
     for (const entries of alignments) {
       // Alignments always start and end with a MERGE entry.
-      const firstBase = (entries[0] as { baseIndex: number }).baseIndex;
-      const lastEntry = entries[entries.length - 1];
-      const lastBase = (lastEntry as { baseIndex: number }).baseIndex;
+      const firstBase = (entries[0] as MergeEntry).baseIndex;
+      const lastBase = (entries.at(-1) as MergeEntry).baseIndex;
 
       while (basePos < firstBase) {
         baseToMerged[basePos] = mergedPos;
@@ -95,6 +106,22 @@ export class TickMapping {
       baseToMerged[basePos] = mergedPos;
       mergedPos++;
       basePos++;
+    }
+
+    // When the last MERGE is at the base's final tick, any target ticks after
+    // it are one-sided and unambiguous; append them.
+    if (alignments.length > 0) {
+      const lastEntries = alignments[alignments.length - 1];
+      const lastMerge = lastEntries[lastEntries.length - 1] as MergeEntry;
+      if (
+        lastMerge.baseIndex === baseTickCount - 1 &&
+        lastMerge.targetIndex < targetTickCount - 1
+      ) {
+        for (let t = lastMerge.targetIndex + 1; t < targetTickCount; t++) {
+          targetToMerged[t] = mergedPos;
+          mergedPos++;
+        }
+      }
     }
 
     const mergedTickCount = mergedPos;

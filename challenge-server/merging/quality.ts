@@ -159,6 +159,11 @@ export const enum MergeAlertType {
    * imprecise). Non-consensus likely indicates a bad client.
    */
   MULTIPLE_SERVER_TICK_COUNTS = 'MULTIPLE_SERVER_TICK_COUNTS',
+  /**
+   * The merged timeline was shorter than the reported server tick count, so it
+   * was aligned to the stage end, leaving an unverified empty prefix.
+   */
+  TIMELINE_OFFSET_APPLIED = 'TIMELINE_OFFSET_APPLIED',
   POST_MERGE_CONSISTENCY_REJECTIONS = 'POST_MERGE_CONSISTENCY_REJECTIONS',
   /**
    * A client was merged but a segment of its alignment scored below the

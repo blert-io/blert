@@ -159,6 +159,77 @@ describe('TickMapping', () => {
       expect(result.target.toMerged(1)).toBe(3);
     });
 
+    it('prepends leading target ticks when the base starts at the first merge', () => {
+      // base:   _,_,0,1,2,3,4,5
+      // target: 0,1,2,3,_,_,_,_
+      const alignments: Alignment[] = [
+        [
+          {
+            action: AlignmentAction.MERGE,
+            baseIndex: 0,
+            targetIndex: 2,
+            score: 1,
+          },
+          {
+            action: AlignmentAction.MERGE,
+            baseIndex: 1,
+            targetIndex: 3,
+            score: 1,
+          },
+        ],
+      ];
+      const result = TickMapping.fromAlignment(6, 4, alignments);
+      expect(result.mergedTickCount).toBe(8);
+
+      expect(result.target.toMerged(0)).toBe(0);
+      expect(result.target.toMerged(1)).toBe(1);
+      expect(result.target.toMerged(2)).toBe(2);
+      expect(result.target.toMerged(3)).toBe(3);
+      expect(result.base.toMerged(0)).toBe(2);
+      expect(result.base.toMerged(1)).toBe(3);
+      expect(result.base.toMerged(5)).toBe(7);
+
+      expect(result.base.toClient(0)).toBeUndefined();
+      expect(result.base.toClient(1)).toBeUndefined();
+      expect(result.target.toClient(0)).toBe(0);
+      expect(result.target.toClient(1)).toBe(1);
+    });
+
+    it('appends trailing target ticks when the base ends at the last merge', () => {
+      // base:   0,1,2,3,4,5,_,_
+      // target: _,_,_,_,0,1,2,3
+      const alignments: Alignment[] = [
+        [
+          {
+            action: AlignmentAction.MERGE,
+            baseIndex: 4,
+            targetIndex: 0,
+            score: 1,
+          },
+          {
+            action: AlignmentAction.MERGE,
+            baseIndex: 5,
+            targetIndex: 1,
+            score: 1,
+          },
+        ],
+      ];
+      const result = TickMapping.fromAlignment(6, 4, alignments);
+      expect(result.mergedTickCount).toBe(8);
+
+      expect(result.base.toMerged(0)).toBe(0);
+      expect(result.base.toMerged(5)).toBe(5);
+      expect(result.target.toMerged(0)).toBe(4);
+      expect(result.target.toMerged(1)).toBe(5);
+      expect(result.target.toMerged(2)).toBe(6);
+      expect(result.target.toMerged(3)).toBe(7);
+
+      expect(result.base.toClient(6)).toBeUndefined();
+      expect(result.base.toClient(7)).toBeUndefined();
+      expect(result.target.toClient(6)).toBe(2);
+      expect(result.target.toClient(7)).toBe(3);
+    });
+
     it('exposes clientTickCount', () => {
       const result = TickMapping.fromAlignment(6, 3, [
         [

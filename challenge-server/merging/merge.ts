@@ -6,6 +6,7 @@ import {
   ClassifiedClients,
   classifyClients,
   ReferenceSelection,
+  ReferenceSelectionMethod,
 } from './classification';
 import { ClientAnomaly, ClientEvents, ServerTicks } from './client-events';
 import { ConsistencyIssue } from './client-consistency';
@@ -277,7 +278,7 @@ export class Merger {
       confidence: null,
     });
 
-    const merged = new MergedEvents(clients.base, ctx);
+    const merged = new MergedEvents(clients.base, ctx, clients.referenceTicks);
 
     // Record the initial state (base client only) as the first snapshot.
     ctx.tracer?.recordIntermediateSnapshot(merged.getTicks());
@@ -330,6 +331,38 @@ export class Merger {
     }
 
     merged.finalizeMerge();
+
+    const appliedOffset = merged.getAppliedOffset();
+    if (appliedOffset > 0) {
+      logger.warn('merge_timeline_offset_applied', {
+        stage: this.stage,
+        offset: appliedOffset,
+        referenceCount: clients.referenceTicks.count,
+      });
+      this.alerts.push({
+        type: MergeAlertType.TIMELINE_OFFSET_APPLIED,
+        details: {
+          offset: appliedOffset,
+          referenceCount: clients.referenceTicks.count,
+        },
+      });
+
+      // In the rare case where the base client left before stage end and the
+      // only stream that saw the end was rejected, the merged timeline will not
+      // match the reference count. End alignment will then shift the timeline
+      // even though base tick 0 may have been the true stage tick 0. Log it for
+      // traceability into whether this ever actually occurs.
+      const endSeenByContributor = mergeClients.some(
+        (c) => c.status === MergeClientStatus.MERGED && c.serverTicks !== null,
+      );
+      if (!endSeenByContributor) {
+        logger.warn('merge_offset_no_merged_end_stream', {
+          stage: this.stage,
+          offset: appliedOffset,
+          referenceCount: clients.referenceTicks.count,
+        });
+      }
+    }
 
     const { mergedCount, unmergedCount, skippedCount } =
       this.getMergeCounts(mergeClients);
@@ -488,24 +521,31 @@ function statusFromOutcome(outcome: MergeStepOutcome): MergeClientStatus {
 }
 
 export class MergedEvents {
-  private ticks: TickStateArray;
+  private ticks!: TickStateArray;
   private readonly status: StageStatus;
   private readonly ctx: MergeContext;
+  private readonly referenceCount: number;
   private readonly preciseServerTickCount: boolean;
   private accurate: boolean;
   private finalized: boolean;
+  private appliedOffset: number;
 
-  constructor(base: ClientEvents, ctx: MergeContext) {
-    const serverTicks = base.getServerTicks();
-    const tickCount =
-      serverTicks !== null ? serverTicks.count : base.getFinalTick();
-
+  constructor(
+    base: ClientEvents,
+    ctx: MergeContext,
+    reference: ReferenceSelection,
+  ) {
     this.status = base.getStatus();
     this.ctx = ctx;
-    this.preciseServerTickCount = serverTicks?.precise === true;
+    this.referenceCount = reference.count;
+    this.preciseServerTickCount =
+      reference.method === ReferenceSelectionMethod.PRECISE_SERVER ||
+      reference.method === ReferenceSelectionMethod.ACCURATE_MODAL;
     this.accurate = base.isAccurate();
+
     this.finalized = false;
-    this.ticks = Array<TickState | null>(tickCount + 1).fill(null);
+    this.appliedOffset = 0;
+
     this.initializeBaseTicks(base);
   }
 
@@ -639,6 +679,7 @@ export class MergedEvents {
     if (this.finalized) {
       return;
     }
+    this.endAlignToReference();
     resynchronizeTicks(this.ctx.stage, this.ticks);
 
     const derivedEvents = derivedEventGeneratorForStage(
@@ -650,6 +691,53 @@ export class MergedEvents {
     mergeStageData(this.ctx, this.ticks);
 
     this.finalized = true;
+  }
+
+  /**
+   * The number of leading ticks the merged timeline was shifted by to align
+   * with the reference count. Nonzero means that empty ticks were inserted at
+   * the start.
+   */
+  public getAppliedOffset(): number {
+    return this.appliedOffset;
+  }
+
+  private endAlignToReference(): void {
+    // If a client reported an in-game tick count, the stage has been completed,
+    // so assume that the events are offset from the end of the stage.
+    const lastTick = this.ticks.length - 1;
+    const offset = this.referenceCount - lastTick;
+    if (offset <= 0) {
+      return;
+    }
+
+    this.appliedOffset = offset;
+    logger.debug('merge_end_align', {
+      offset,
+      referenceCount: this.referenceCount,
+      mergedTicks: lastTick + 1,
+    });
+
+    const remap = (tick: number): number => tick + offset;
+    const shifted = Array<TickState | null>(this.referenceCount + 1).fill(null);
+    for (let i = 0; i <= lastTick; i++) {
+      const state = this.ticks[i];
+      if (state === null) {
+        continue;
+      }
+      const newTick = remap(i);
+      const events = state
+        .getTaggedEvents()
+        .map((t) => remapEventTick(t, remap));
+      shifted[newTick] = new TickState(
+        newTick,
+        events,
+        new Map(state.getPlayerStates()),
+        new Map(state.getNpcs()),
+        new Map(state.getGraphics()),
+      );
+    }
+    this.ticks = shifted;
   }
 
   /**
@@ -679,46 +767,9 @@ export class MergedEvents {
   }
 
   private initializeBaseTicks(base: ClientEvents): void {
-    if (base.isAccurate()) {
-      logger.debug('merge_base_ticks', { accurate: true });
-      for (let i = 0; i <= base.getFinalTick(); i++) {
-        this.ticks[i] = base.getTickState(i)?.clone() ?? null;
-      }
-      return;
-    }
-
-    if (base.getServerTicks() !== null) {
-      // If the base client is not accurate but has reported an in-game tick
-      // count, it has completed the stage, so it is initially assumed that its
-      // events are offset from the end of the stage.
-      const offset = base.getServerTicks()!.count - base.getFinalTick();
-      logger.debug('merge_base_ticks', {
-        accurate: false,
-        offset,
-      });
-
-      const remap = (tick: number): number => tick + offset;
-      for (let i = 0; i <= base.getFinalTick(); i++) {
-        const state = base.getTickState(i);
-        if (state !== null) {
-          const newTick = remap(i);
-          const events = state
-            .getTaggedEvents()
-            .map((t) => remapEventTick(t, remap));
-          this.ticks[newTick] = new TickState(
-            newTick,
-            events,
-            new Map(state.getPlayerStates()),
-            new Map(state.getNpcs()),
-            new Map(state.getGraphics()),
-          );
-        }
-      }
-    } else {
-      logger.debug('merge_base_ticks', { accurate: false, offset: 0 });
-      for (let i = 0; i <= base.getFinalTick(); i++) {
-        this.ticks[i] = base.getTickState(i)?.clone() ?? null;
-      }
+    this.ticks = Array<TickState | null>(base.getFinalTick() + 1).fill(null);
+    for (let i = 0; i <= base.getFinalTick(); i++) {
+      this.ticks[i] = base.getTickState(i)?.clone() ?? null;
     }
   }
 
