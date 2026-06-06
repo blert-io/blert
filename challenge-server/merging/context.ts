@@ -32,5 +32,7 @@ export type MergeContext = {
   stage: Stage;
   clients: Map<number, RegisteredClient>;
   mapping: MergeMapping;
+  /** Per-client local tick numbers at which conflicts occurred. */
+  contestedTicks: Map<number, Set<number>>;
   tracer: MergeTracer | undefined;
 };

@@ -315,7 +315,8 @@ describe('Merger', () => {
     expect(result!.alerts).toEqual([]);
 
     const events = result!.events;
-    expect(events.isAccurate()).toBe(false);
+    expect(events.accurateUntil()).toBe(0);
+    expect(events.queryableUntil()).toBe(0);
     expect(events.getMissingTickCount()).toBe(0);
     const allEvents = Array.from(events);
     expect(allEvents.length).toBe(client1Events.length);
@@ -357,7 +358,8 @@ describe('Merger', () => {
     expect(result!.alerts).toEqual([]);
 
     const events = result!.events;
-    expect(events.isAccurate()).toBe(true);
+    expect(events.accurateUntil()).toBe(3);
+    expect(events.queryableUntil()).toBe(3);
     expect(events.hasPreciseServerTickCount()).toBe(true);
     expect(events.getMissingTickCount()).toBe(0);
     const allEvents = Array.from(events);
@@ -494,7 +496,8 @@ describe('Merger', () => {
     ]);
 
     const events = result!.events;
-    expect(events.isAccurate()).toBe(false);
+    expect(events.accurateUntil()).toBe(0);
+    expect(events.queryableUntil()).toBe(0);
     expect(events.getMissingTickCount()).toBe(MISSING_TICKS);
     const allEvents = Array.from(events);
     expect(allEvents.length).toBe(client1Events.length);

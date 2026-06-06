@@ -827,6 +827,7 @@ export class EventConsolidator {
 
           case 'unexpected': {
             const winner = base ?? candidates[0];
+            const loser = candidates.find((c) => c !== winner)!;
             insert(winner);
             logger.warn('consolidate_unexpected_attack_mapped_conflict', {
               eventType: type,
@@ -837,7 +838,8 @@ export class EventConsolidator {
               kind: 'UNEXPECTED_CONFLICT',
               eventType: type,
               attackTick,
-              candidateCount: candidates.length,
+              keptSourceClientId: winner.sourceClientId,
+              discardedSourceClientId: loser.sourceClientId,
             });
             trace('CONFLICT_UNEXPECTED', `preferred ${winner.source}`);
             break;

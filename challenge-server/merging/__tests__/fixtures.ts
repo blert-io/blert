@@ -60,6 +60,7 @@ export function createMergeContext(
     clients: overrides.clients ?? new Map<number, RegisteredClient>(),
     mapping: overrides.mapping ?? new MergeMapping(1),
     tracer: overrides.tracer,
+    contestedTicks: overrides.contestedTicks ?? new Map<number, Set<number>>(),
   };
 }
 
