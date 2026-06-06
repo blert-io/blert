@@ -28,6 +28,7 @@ import { TickStateArray } from '../tick-state';
 import { protoCoords } from '../world';
 
 import {
+  createMergeContext,
   createNpcSpawnEvent,
   createNpcUpdateEvent,
   createPlayerUpdateEvent,
@@ -543,14 +544,12 @@ describe('mergeStageData', () => {
       clients: Map<number, RegisteredClient>,
       stage: Stage = Stage.TOB_SOTETSEG,
     ): MergeContext {
-      const ids = [...clients.keys()];
-      return {
+      return createMergeContext({
         challenge: SOTE_TEST_CHALLENGE,
         stage,
         clients,
-        mapping: new MergeMapping(ids[0] ?? 0),
-        tracer: undefined,
-      };
+        mapping: new MergeMapping(clients.keys().next().value ?? 0),
+      });
     }
 
     it('emits a consolidated event at the maze-end tick with unioned pivots', () => {

@@ -28,11 +28,16 @@ import {
   StepRejection,
 } from './merge-consistency';
 
-import { MergeAlert, MergeAlertType } from './quality';
+import { MergeAlert, MergeAlertType, QualityFlag } from './quality';
 import { SimilarityScorer } from './similarity-scorer';
 import { Mappings, MergeMapping, TickMapping } from './tick-mapping';
 import { resynchronizeTicks, TickState, TickStateArray } from './tick-state';
 import { MergeTracer } from './trace';
+import {
+  computeTrustedPrefixes,
+  recordContestedTicks,
+  TrustedPrefixes,
+} from './trusted-prefixes';
 
 // Provisional confidence acceptance threshold.
 // TODO(frolv): Calibrate against real data and consider if it should look at
@@ -65,6 +70,7 @@ export type MergeClient = {
   derivedAccurate: boolean;
   anomalies: ClientAnomaly[];
   consistencyIssues: ConsistencyIssue[];
+  qualityFlags: QualityFlag[];
   /**
    * Post-merge consistency issues that caused this client's merge step to be
    * rejected. Empty unless `status === MergeClientStatus.UNMERGED` and the
@@ -136,6 +142,7 @@ function createMergeClient(
   classification: MergeClientClassification,
   status: MergeClientStatus,
   sequenceNumber: number,
+  qualityFlags: QualityFlag[] = [],
   mergeIssues: MergeConsistencyIssue[] = [],
   confidence: StepConfidence | null = null,
 ): MergeClient {
@@ -156,6 +163,7 @@ function createMergeClient(
     derivedAccurate: client.isAccurate(),
     anomalies: client.getAnomalies(),
     consistencyIssues: client.getConsistencyIssues(),
+    qualityFlags,
     mergeIssues,
     worstSegmentScore,
   };
@@ -241,6 +249,7 @@ export class Merger {
       stage: this.stage,
       clients: registeredClients,
       mapping: new MergeMapping(clients.base.getId()),
+      contestedTicks: new Map(),
       tracer,
     };
 
@@ -266,6 +275,7 @@ export class Merger {
           classification,
           status,
           mergeClients.length,
+          outcome.flags,
           mergeIssues,
           confidence,
         ),
@@ -275,6 +285,7 @@ export class Merger {
 
     recordMergeResult(clients.base, MergeClientClassification.REFERENCE, {
       kind: 'merged',
+      flags: [],
       confidence: null,
     });
 
@@ -289,7 +300,7 @@ export class Merger {
     ) => {
       ctx.tracer?.beginMergeStep(client.getId(), classification);
 
-      let outcome: MergeStepOutcome = { kind: 'unmerged' };
+      let outcome: MergeStepOutcome;
       try {
         outcome = merged.mergeEventsFrom(client, mergeOptions);
         if (outcome.kind === 'merged') {
@@ -310,6 +321,7 @@ export class Merger {
           error: e instanceof Error ? e.message : String(e),
           stack: e instanceof Error ? e.stack : undefined,
         });
+        outcome = { kind: 'unmerged', flags: [] };
       }
 
       ctx.tracer?.endMergeStep(statusFromOutcome(outcome));
@@ -327,6 +339,7 @@ export class Merger {
     for (const client of badDataClients) {
       recordMergeResult(client, MergeClientClassification.MISMATCHED, {
         kind: 'skipped',
+        flags: [],
       });
     }
 
@@ -378,6 +391,8 @@ export class Merger {
       alerts: this.alerts,
       referenceSelection: this.referenceSelection,
       accurate: merged.isAccurate(),
+      accurateUntil: merged.accurateUntil(),
+      queryableUntil: merged.queryableUntil(),
     });
 
     return {
@@ -502,11 +517,12 @@ export class Merger {
   }
 }
 
-type MergeStepOutcome =
+type MergeStepOutcomeType =
   | { kind: 'merged'; confidence: StepConfidence | null }
   | { kind: 'unmerged' }
   | { kind: 'skipped' }
   | { kind: 'rejected'; rejection: StepRejection };
+type MergeStepOutcome = MergeStepOutcomeType & { flags: QualityFlag[] };
 
 function statusFromOutcome(outcome: MergeStepOutcome): MergeClientStatus {
   switch (outcome.kind) {
@@ -524,9 +540,10 @@ export class MergedEvents {
   private ticks!: TickStateArray;
   private readonly status: StageStatus;
   private readonly ctx: MergeContext;
-  private readonly referenceCount: number;
+  private readonly reference: ReferenceSelection;
   private readonly preciseServerTickCount: boolean;
-  private accurate: boolean;
+  private accurate: boolean; // TODO(frolv): remove
+  private trustedPrefixes: TrustedPrefixes | null;
   private finalized: boolean;
   private appliedOffset: number;
 
@@ -537,7 +554,7 @@ export class MergedEvents {
   ) {
     this.status = base.getStatus();
     this.ctx = ctx;
-    this.referenceCount = reference.count;
+    this.reference = reference;
     this.preciseServerTickCount =
       reference.method === ReferenceSelectionMethod.PRECISE_SERVER ||
       reference.method === ReferenceSelectionMethod.ACCURATE_MODAL;
@@ -545,6 +562,7 @@ export class MergedEvents {
 
     this.finalized = false;
     this.appliedOffset = 0;
+    this.trustedPrefixes = null;
 
     this.initializeBaseTicks(base);
   }
@@ -560,8 +578,25 @@ export class MergedEvents {
     return this.events();
   }
 
+  // TODO(frolv): remove
   public isAccurate(): boolean {
     return this.accurate;
+  }
+
+  /**
+   * The exclusive tick at which the merged timeline can no longer be trusted to
+   * match the true server tick count.
+   */
+  public accurateUntil(): number {
+    return this.trustedPrefixes?.accurateUntil ?? 0;
+  }
+
+  /**
+   * The exclusive tick at which the merged event stream can no longer be fully
+   * corroborated for strict analysis.
+   */
+  public queryableUntil(): number {
+    return this.trustedPrefixes?.queryableUntil ?? 0;
   }
 
   public hasPreciseServerTickCount(): boolean {
@@ -612,12 +647,12 @@ export class MergedEvents {
       };
     } else {
       if (!options.alignMismatched) {
-        return { kind: 'unmerged' };
+        return { kind: 'unmerged', flags: [] };
       }
       alignment = this.runAlignment(client);
       if (alignment === null || alignment.alignments.length === 0) {
         // The aligner found no alignable regions; nothing to merge.
-        return { kind: 'unmerged' };
+        return { kind: 'unmerged', flags: [] };
       }
       mappings = TickMapping.fromAlignment(
         this.ticks.length,
@@ -652,6 +687,7 @@ export class MergedEvents {
         this.ctx.mapping.discard();
         return {
           kind: 'rejected',
+          flags: result.qualityFlags,
           rejection: {
             reason:
               issues.length > 0
@@ -663,9 +699,10 @@ export class MergedEvents {
       }
 
       this.ctx.mapping.commit();
+      recordContestedTicks(this.ctx, client.getId(), result.qualityFlags);
 
       this.ticks = result.ticks;
-      return { kind: 'merged', confidence };
+      return { kind: 'merged', flags: result.qualityFlags, confidence };
     } catch (e) {
       this.ctx.mapping.discard();
       throw e;
@@ -690,6 +727,15 @@ export class MergedEvents {
 
     mergeStageData(this.ctx, this.ticks);
 
+    const trustedPrefixes = computeTrustedPrefixes(this.ctx, {
+      totalTicks: this.ticks.length,
+      offset: this.appliedOffset,
+      inheritedAccuracy: this.accurate,
+      referenceMethod: this.reference.method,
+    });
+    this.trustedPrefixes = trustedPrefixes;
+    this.ctx.tracer?.recordTrustedPrefixes(trustedPrefixes);
+
     this.finalized = true;
   }
 
@@ -706,7 +752,7 @@ export class MergedEvents {
     // If a client reported an in-game tick count, the stage has been completed,
     // so assume that the events are offset from the end of the stage.
     const lastTick = this.ticks.length - 1;
-    const offset = this.referenceCount - lastTick;
+    const offset = this.reference.count - lastTick;
     if (offset <= 0) {
       return;
     }
@@ -714,12 +760,14 @@ export class MergedEvents {
     this.appliedOffset = offset;
     logger.debug('merge_end_align', {
       offset,
-      referenceCount: this.referenceCount,
+      referenceCount: this.reference.count,
       mergedTicks: lastTick + 1,
     });
 
     const remap = (tick: number): number => tick + offset;
-    const shifted = Array<TickState | null>(this.referenceCount + 1).fill(null);
+    const shifted = Array<TickState | null>(this.reference.count + 1).fill(
+      null,
+    );
     for (let i = 0; i <= lastTick; i++) {
       const state = this.ticks[i];
       if (state === null) {

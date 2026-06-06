@@ -24,6 +24,7 @@ import {
   TickStateArray,
   WithProvenance,
 } from './tick-state';
+import { TrustedPrefixes } from './trusted-prefixes';
 import { CoordsLike } from './world';
 
 export type PlayerSummary = {
@@ -222,6 +223,7 @@ export type StageDataTrace = {
 export type MergeTrace = {
   inputClients: InputClientInfo[];
   classification: ClassificationInfo;
+  trustedPrefixes: TrustedPrefixes | null;
   mergeSteps: MergeStepInfo[];
   intermediateSnapshots: TickSummary[][];
   stageData?: StageDataTrace;
@@ -343,6 +345,7 @@ export class MergeTracer {
   private intermediateSnapshots: TickSummary[][] = [];
   private accuracyDemotions: number[] = [];
   private stageData: StageDataTrace = {};
+  private trustedPrefixes: TrustedPrefixes | null = null;
 
   private currentStep: Partial<MergeStepInfo> | null = null;
   private currentStepStart: bigint = 0n;
@@ -587,6 +590,10 @@ export class MergeTracer {
     this.stageData.sotePivots = traces;
   }
 
+  public recordTrustedPrefixes(prefixes: TrustedPrefixes): void {
+    this.trustedPrefixes = prefixes;
+  }
+
   public toTrace(): MergeTrace {
     if (this.classification === null) {
       throw new Error('Cannot build trace without classification');
@@ -595,6 +602,7 @@ export class MergeTracer {
     return {
       inputClients: this.inputClients,
       classification: this.classification,
+      trustedPrefixes: this.trustedPrefixes,
       mergeSteps: this.mergeSteps,
       intermediateSnapshots: this.intermediateSnapshots,
       stageData: this.stageData,
