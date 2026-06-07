@@ -27,12 +27,12 @@ const KEEP = AlignmentAction.KEEP;
 function buildSimilarity(
   range: AlignmentRange,
   compatible: [number, number][],
-): number[][] {
+): Float64Array[] {
   const rows = range.baseEnd - range.baseStart;
   const cols = range.targetEnd - range.targetStart;
-  const matrix: number[][] = [];
+  const matrix: Float64Array[] = [];
   for (let i = 0; i < rows; i++) {
-    matrix.push(Array<number>(cols).fill(-Infinity));
+    matrix.push(new Float64Array(cols).fill(-Infinity));
   }
   for (const [b, t] of compatible) {
     matrix[b - range.baseStart][t - range.targetStart] = 1;
@@ -40,11 +40,16 @@ function buildSimilarity(
   return matrix;
 }
 
+/** Wraps a 2D number array as the Float64Array rows the aligner produces. */
+function grid(rows: number[][]): Float64Array[] {
+  return rows.map((r) => Float64Array.from(r));
+}
+
 function makeLocalAlignment(
   entries: Alignment,
   range: AlignmentRange,
   compatible: [number, number][],
-  margin?: number[][],
+  margin?: Float64Array[],
   nulls?: { baseNull?: number[]; targetNull?: number[] },
 ): LocalAlignment {
   const similarity = buildSimilarity(range, compatible);
@@ -55,7 +60,7 @@ function makeLocalAlignment(
     range,
     similarity,
     margin:
-      margin ?? Array.from({ length: rows }, () => Array<number>(cols).fill(0)),
+      margin ?? Array.from({ length: rows }, () => new Float64Array(cols)),
     baseNull: new Set(nulls?.baseNull ?? []),
     targetNull: new Set(nulls?.targetNull ?? []),
   };
@@ -531,8 +536,12 @@ describe('segmentBonusSupport', () => {
     { action: MERGE, baseIndex: 2, targetIndex: 2, score: 3 },
   ];
 
-  function diagonalMargins(...diagonal: number[]): number[][] {
-    return diagonal.map((m, i) => diagonal.map((_, j) => (i === j ? m : 0)));
+  function diagonalMargins(...diagonal: number[]): Float64Array[] {
+    return diagonal.map((m, i) => {
+      const row = new Float64Array(diagonal.length);
+      row[i] = m;
+      return row;
+    });
   }
 
   it('scores zero when no step is decisive', () => {
@@ -601,11 +610,11 @@ describe('segmentBonusSupport', () => {
       { action: KEEP, baseIndex: 1 }, // (1, 0)
       { action: MERGE, baseIndex: 2, targetIndex: 1, score: 3 },
     ];
-    const margin = [
+    const margin = grid([
       [50, 0],
       [0, 50],
       [0, 50],
-    ];
+    ]);
     const la = makeLocalAlignment(
       entries,
       { baseStart: 0, baseEnd: 3, targetStart: 0, targetEnd: 2 },
@@ -666,11 +675,11 @@ describe('segmentBonusSupport', () => {
       { action: MERGE, baseIndex: 2, targetIndex: 1, score: 3 },
     ];
     // The KEEP gap occupies the weakest (binding) cell; the merges are strong.
-    const margin = [
+    const margin = grid([
       [50, 0],
       [5, 0],
       [0, 50],
-    ];
+    ]);
     const la = makeLocalAlignment(
       entries,
       { baseStart: 0, baseEnd: 3, targetStart: 0, targetEnd: 2 },

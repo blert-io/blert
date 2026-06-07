@@ -49,12 +49,12 @@ export type LocalAlignment = {
    * `similarity[i - range.baseStart][j - range.targetStart]`.
    * A value of `-Infinity` indicates absolute incompatibility.
    */
-  similarity: number[][];
+  similarity: Float64Array[];
   /**
    * Per-cell decision margin from `fillMatrices`: the difference between the
    * chosen action and its best alternative. Indexed the same as `similarity`.
    */
-  margin: number[][];
+  margin: Float64Array[];
   /**
    * Absolute indices of null base/target ticks within the range.
    * A null tick scores 0 in `similarity`, so these sets let consumers tell
@@ -89,10 +89,10 @@ const enum Direction {
 }
 
 type AlignmentMatrices = {
-  matrix: number[][];
-  direction: Direction[][];
-  similarity: number[][];
-  margin: number[][];
+  matrix: Float64Array[];
+  direction: Uint8Array[];
+  similarity: Float64Array[];
+  margin: Float64Array[];
 };
 
 export type SimilarityFn = (base: TickState, target: TickState) => number;
@@ -281,8 +281,12 @@ export class TickAligner {
     let i = maxI;
     let j = maxJ;
 
-    while (i >= 0 && j >= 0 && matrices.direction[i][j] !== Direction.NONE) {
-      const dir = matrices.direction[i][j];
+    while (
+      i >= 0 &&
+      j >= 0 &&
+      (matrices.direction[i][j] as Direction) !== Direction.NONE
+    ) {
+      const dir = matrices.direction[i][j] as Direction;
 
       switch (dir) {
         case Direction.MATCH:
@@ -317,26 +321,33 @@ export class TickAligner {
   }
 
   private fillMatrices(range: AlignmentRange): AlignmentMatrices {
-    const matrix: number[][] = [];
-    const direction: Direction[][] = [];
-    const similarity: number[][] = [];
-    const margin: number[][] = [];
+    const rows = range.baseEnd - range.baseStart;
+    const cols = range.targetEnd - range.targetStart;
 
-    for (let i = range.baseStart; i < range.baseEnd; i++) {
-      matrix.push(Array<number>(range.targetEnd - range.targetStart).fill(0));
-      direction.push(
-        Array<Direction>(range.targetEnd - range.targetStart).fill(
-          Direction.NONE,
-        ),
-      );
-      similarity.push(
-        Array<number>(range.targetEnd - range.targetStart).fill(0),
-      );
-      margin.push(Array<number>(range.targetEnd - range.targetStart).fill(0));
+    const matrixBuf = new Float64Array(rows * cols);
+    const directionBuf = new Uint8Array(rows * cols);
+    const similarityBuf = new Float64Array(rows * cols);
+    const marginBuf = new Float64Array(rows * cols);
+
+    const matrix: Float64Array[] = [];
+    const direction: Uint8Array[] = [];
+    const similarity: Float64Array[] = [];
+    const margin: Float64Array[] = [];
+    for (let r = 0; r < rows; r++) {
+      const lo = r * cols;
+      const hi = lo + cols;
+      matrix.push(matrixBuf.subarray(lo, hi));
+      direction.push(directionBuf.subarray(lo, hi));
+      similarity.push(similarityBuf.subarray(lo, hi));
+      margin.push(marginBuf.subarray(lo, hi));
     }
 
-    const set = <T>(m: T[][], i: number, j: number, value: T) =>
-      (m[i - range.baseStart][j - range.targetStart] = value);
+    const set = (
+      m: Float64Array[] | Uint8Array[],
+      i: number,
+      j: number,
+      value: number,
+    ) => (m[i - range.baseStart][j - range.targetStart] = value);
     const h = (i: number, j: number) =>
       matrix[i - range.baseStart]?.[j - range.targetStart] ?? 0;
 
