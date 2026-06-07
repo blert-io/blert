@@ -10,7 +10,11 @@ import {
 } from './classification';
 import { ClientAnomaly, ClientEvents, ServerTicks } from './client-events';
 import { ConsistencyIssue } from './client-consistency';
-import { scoreStepConfidence, StepConfidence } from './confidence';
+import {
+  DEFAULT_CONFIDENCE_WEIGHTS,
+  scoreStepConfidence,
+  StepConfidence,
+} from './confidence';
 import {
   ChallengeInfo,
   MergeClientStatus,
@@ -29,7 +33,10 @@ import {
 } from './merge-consistency';
 
 import { MergeAlert, MergeAlertType, QualityFlag } from './quality';
-import { SimilarityScorer } from './similarity-scorer';
+import {
+  DEFAULT_BASELINE_COMPATIBILITY_WEIGHT,
+  SimilarityScorer,
+} from './similarity-scorer';
 import { Mappings, MergeMapping, TickMapping } from './tick-mapping';
 import { resynchronizeTicks, TickState, TickStateArray } from './tick-state';
 import { MergeTracer } from './trace';
@@ -676,6 +683,8 @@ export class MergedEvents {
         alignment,
         result.counters,
         result.qualityFlags,
+        DEFAULT_CONFIDENCE_WEIGHTS,
+        DEFAULT_BASELINE_COMPATIBILITY_WEIGHT,
       );
       this.ctx.tracer?.recordConfidence(confidence);
 
