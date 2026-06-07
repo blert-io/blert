@@ -412,6 +412,7 @@ export function segmentBonusSupport(
   segment: Segment,
   supportScale: number,
   temperature: number,
+  baselineMergeWeight = 0,
 ): number {
   const { baseStart, targetStart } = la.range;
 
@@ -422,11 +423,13 @@ export function segmentBonusSupport(
   let curBase = 0;
   let curTarget = 0;
   for (const entry of segment.entries) {
+    let isMerge = false;
     let nullMerge = false;
     if (entry.action === AlignmentAction.MERGE) {
       curBase = entry.baseIndex;
       curTarget = entry.targetIndex;
       nullMerge = isNullMerge(la, entry);
+      isMerge = true;
     } else if (entry.action === AlignmentAction.KEEP) {
       curBase = entry.baseIndex;
     } else {
@@ -437,7 +440,17 @@ export function segmentBonusSupport(
     if (nullMerge) {
       continue;
     }
-    const margin = la.margin[curBase - baseStart][curTarget - targetStart];
+
+    let margin = la.margin[curBase - baseStart][curTarget - targetStart];
+
+    // A merge cell's margin includes the flat compatibility baseline the
+    // similarity scorer adds to every shared-actor match. That reward is
+    // uniform and non-discriminative, so remove it before measuring how
+    // decisively the path was chosen.
+    if (isMerge) {
+      margin = Math.max(0, margin - baselineMergeWeight);
+    }
+
     supports.push(1 - Math.exp(-margin / supportScale));
   }
 
@@ -503,6 +516,7 @@ function computeContentConfidence(
 function computeStructuralConfidence(
   alignment: AlignmentResult | null,
   weights: ConfidenceWeights['structural'],
+  baselineMergeWeight: number,
 ): StructuralConfidence {
   if (alignment === null) {
     return {
@@ -534,6 +548,7 @@ function computeStructuralConfidence(
         part,
         weights.supportScale,
         weights.supportTemperature,
+        baselineMergeWeight,
       );
       const score = noisyOr(discriminability, bonusSupport);
 
@@ -594,13 +609,18 @@ export function scoreStepConfidence(
   counters: ReconciliationCounters,
   qualityFlags: QualityFlag[],
   weights: ConfidenceWeights = DEFAULT_CONFIDENCE_WEIGHTS,
+  baselineMergeWeight = 0,
 ): StepConfidence {
   const content = computeContentConfidence(
     counters,
     qualityFlags,
     weights.content,
   );
-  const structural = computeStructuralConfidence(alignment, weights.structural);
+  const structural = computeStructuralConfidence(
+    alignment,
+    weights.structural,
+    baselineMergeWeight,
+  );
 
   const overall =
     weights.axis * structural.value + (1 - weights.axis) * content.value;

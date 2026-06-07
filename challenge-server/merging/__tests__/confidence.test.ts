@@ -638,6 +638,51 @@ describe('segmentBonusSupport', () => {
       segmentBonusSupport(la, segment(entries), SCALE, TEMP),
     ).toBeGreaterThan(0.99);
   });
+
+  it('subtracts the baseline weight from merge-cell margins', () => {
+    const la = makeLocalAlignment(
+      DIAGONAL,
+      RANGE,
+      [],
+      diagonalMargins(9, 9, 9),
+    );
+
+    // Margin 9 minus a baseline of 4 leaves an effective margin of 5,
+    // which maps to 1 - e^(-5 / SCALE).
+    expect(
+      segmentBonusSupport(la, segment(DIAGONAL), SCALE, TEMP, 4),
+    ).toBeCloseTo(0.632, 3);
+
+    // Without baseline subtraction, the support is much stronger.
+    expect(
+      segmentBonusSupport(la, segment(DIAGONAL), SCALE, TEMP, 0),
+    ).toBeGreaterThan(0.8);
+  });
+
+  it('does not subtract the baseline from gap-cell margins', () => {
+    const entries: Alignment = [
+      { action: MERGE, baseIndex: 0, targetIndex: 0, score: 3 },
+      { action: KEEP, baseIndex: 1 }, // (1, 0)
+      { action: MERGE, baseIndex: 2, targetIndex: 1, score: 3 },
+    ];
+    // The KEEP gap occupies the weakest (binding) cell; the merges are strong.
+    const margin = [
+      [50, 0],
+      [5, 0],
+      [0, 50],
+    ];
+    const la = makeLocalAlignment(
+      entries,
+      { baseStart: 0, baseEnd: 3, targetStart: 0, targetEnd: 2 },
+      [],
+      margin,
+    );
+
+    // The baseline only applies to merge cells.
+    expect(
+      segmentBonusSupport(la, segment(entries), SCALE, TEMP, 4),
+    ).toBeCloseTo(segmentBonusSupport(la, segment(entries), SCALE, TEMP, 0));
+  });
 });
 
 describe('scoreStepConfidence', () => {

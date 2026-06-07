@@ -60,6 +60,53 @@ describe('SimilarityScorer', () => {
       expect(Number.isFinite(score)).toBe(true);
     });
 
+    it('awards the compatibility baseline when a shared entity corroborates', () => {
+      const base = createTickState(1, [
+        createPlayerState({
+          username: 'player1',
+          clientId: BASE_CLIENT_ID,
+          x: 5,
+          y: 5,
+        }),
+      ]);
+      const target = createTickState(1, [
+        createPlayerState({
+          username: 'player1',
+          clientId: TARGET_CLIENT_ID,
+          x: 5,
+          y: 5,
+        }),
+      ]);
+
+      // A compatible tick whose only signal is the shared player scores
+      // exactly the baseline.
+      expect(new SimilarityScorer().score(base, target)).toBe(4);
+    });
+
+    it('withholds the baseline when no actors are shared between ticks', () => {
+      const base = createTickState(1, [
+        createPlayerState({
+          username: 'player1',
+          clientId: BASE_CLIENT_ID,
+          x: 5,
+          y: 5,
+        }),
+      ]);
+
+      const emptyTarget = createTickState(1, []);
+      expect(new SimilarityScorer().score(base, emptyTarget)).toBe(0);
+
+      const disjointTarget = createTickState(1, [
+        createPlayerState({
+          username: 'player2',
+          clientId: TARGET_CLIENT_ID,
+          x: 9,
+          y: 9,
+        }),
+      ]);
+      expect(new SimilarityScorer().score(base, disjointTarget)).toBe(0);
+    });
+
     it('returns -Infinity when player positions differ', () => {
       const base = createTickState(1, [
         createPlayerState({
@@ -344,8 +391,9 @@ describe('SimilarityScorer', () => {
         [targetNpc],
       );
 
+      // The large HP delta is ignored, so the score is exactly the baseline.
       const score = new SimilarityScorer().score(base, target);
-      expect(score).toBe(0);
+      expect(score).toBe(4);
     });
   });
 
@@ -953,8 +1001,9 @@ describe('SimilarityScorer', () => {
       const base = createTickState(1, [basePlayer]);
       const target = createTickState(1, [targetPlayer]);
 
+      // Non-overhead prayers produce no signal, so the score is the baseline.
       const score = new SimilarityScorer().score(base, target);
-      expect(score).toBe(0);
+      expect(score).toBe(4);
     });
   });
 
