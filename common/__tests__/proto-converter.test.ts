@@ -90,6 +90,7 @@ describe('protoToJsonEvent', () => {
       player.setRanged(99);
       player.setMagic(99);
       player.setEquipmentDeltasList([1234, 5678]);
+      player.setSnapshot(true);
       evt.setPlayer(player);
 
       const result = protoToJsonEvent(evt) as PlayerUpdateEvent;
@@ -103,6 +104,7 @@ describe('protoToJsonEvent', () => {
       expect(result.player.attack).toBe(99);
       expect(result.player.defence).toBe(99);
       expect(result.player.equipmentDeltas).toEqual([1234, 5678]);
+      expect(result.player.snapshot).toBe(true);
     });
 
     it('omits optional stats when not set', () => {
@@ -115,6 +117,7 @@ describe('protoToJsonEvent', () => {
       expect(result.player.hitpoints).toBeUndefined();
       expect(result.player.prayer).toBeUndefined();
       expect(result.player.equipmentDeltas).toBeUndefined();
+      expect(result.player.snapshot).toBeUndefined();
     });
 
     it('converts PLAYER_ATTACK with weapon and target', () => {

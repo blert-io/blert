@@ -194,6 +194,7 @@ export const playerSchema = z.object({
   activePrayers: z.number().int().optional(),
   dataSource: enumValueSchema.optional(),
   partyIndex: z.number().int().optional(),
+  snapshot: z.boolean().optional(),
 });
 
 // Event.Npc.MaidenCrab

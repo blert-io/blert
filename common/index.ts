@@ -166,8 +166,12 @@ export {
   isTobStage,
 } from './challenge';
 
-export { ItemDelta } from './item-delta';
-export type { RawItemDelta } from './item-delta';
+export {
+  ItemDelta,
+  type ItemStack,
+  applyItemDeltas,
+  type RawItemDelta,
+} from './item-delta';
 
 export { Prayer, PrayerBook, PrayerSet } from './prayer-set';
 export type { RawPrayerSet } from './prayer-set';

@@ -1,8 +1,8 @@
 import {
+  applyItemDeltas,
   ClientStageStream,
   DataSource,
   EquipmentSlot,
-  ItemDelta,
   PrayerBook,
   PrayerSet,
   Stage,
@@ -21,6 +21,21 @@ import {
 import { ChallengeInfo } from './context';
 import logger from '../log';
 import { PlayerState, TickState, TickStateArray } from './tick-state';
+
+const EMPTY_EQUIPMENT: PlayerState['equipment'] = {
+  [EquipmentSlot.HEAD]: null,
+  [EquipmentSlot.CAPE]: null,
+  [EquipmentSlot.AMULET]: null,
+  [EquipmentSlot.AMMO]: null,
+  [EquipmentSlot.WEAPON]: null,
+  [EquipmentSlot.TORSO]: null,
+  [EquipmentSlot.SHIELD]: null,
+  [EquipmentSlot.LEGS]: null,
+  [EquipmentSlot.GLOVES]: null,
+  [EquipmentSlot.BOOTS]: null,
+  [EquipmentSlot.RING]: null,
+  [EquipmentSlot.QUIVER]: null,
+};
 
 export const enum ClientAnomaly {
   MULTIPLE_PRIMARY_PLAYERS = 'MULTIPLE_PRIMARY_PLAYERS',
@@ -457,20 +472,7 @@ export class ClientEvents {
           isDead,
           equipment: lastState?.equipment
             ? { ...lastState.equipment }
-            : {
-                [EquipmentSlot.HEAD]: null,
-                [EquipmentSlot.CAPE]: null,
-                [EquipmentSlot.AMULET]: null,
-                [EquipmentSlot.AMMO]: null,
-                [EquipmentSlot.WEAPON]: null,
-                [EquipmentSlot.TORSO]: null,
-                [EquipmentSlot.SHIELD]: null,
-                [EquipmentSlot.LEGS]: null,
-                [EquipmentSlot.GLOVES]: null,
-                [EquipmentSlot.BOOTS]: null,
-                [EquipmentSlot.RING]: null,
-                [EquipmentSlot.QUIVER]: null,
-              },
+            : { ...EMPTY_EQUIPMENT },
           attack: null,
           prayers: PrayerSet.empty(PrayerBook.NORMAL),
         };
@@ -485,37 +487,15 @@ export class ClientEvents {
               state.y = event.getYCoord();
               state.prayers = PrayerSet.fromRaw(player.getActivePrayers());
 
-              player.getEquipmentDeltasList().forEach((rawDelta) => {
-                const delta = ItemDelta.fromRaw(rawDelta);
-                const previous = state.equipment[delta.getSlot()];
-
-                if (delta.isAdded()) {
-                  if (previous?.id !== delta.getItemId()) {
-                    state.equipment[delta.getSlot()] = {
-                      id: delta.getItemId(),
-                      quantity: delta.getQuantity(),
-                    };
-                  } else {
-                    state.equipment[delta.getSlot()] = {
-                      id: delta.getItemId(),
-                      quantity: previous.quantity + delta.getQuantity(),
-                    };
-                  }
-                } else {
-                  if (previous !== null && previous.id === delta.getItemId()) {
-                    if (delta.getQuantity() < previous.quantity) {
-                      state.equipment[delta.getSlot()] = {
-                        id: delta.getItemId(),
-                        quantity: previous.quantity - delta.getQuantity(),
-                      };
-                    } else {
-                      state.equipment[delta.getSlot()] = null;
-                    }
-                  } else {
-                    state.equipment[delta.getSlot()] = null;
-                  }
-                }
-              });
+              // A snapshot carries the player's full equipment, so reconstruct
+              // from an empty container rather than the previous tick's state.
+              state.equipment = {
+                ...EMPTY_EQUIPMENT,
+                ...applyItemDeltas(
+                  player.getEquipmentDeltasList(),
+                  player.getSnapshot() ? null : state.equipment,
+                ),
+              };
               break;
             }
 

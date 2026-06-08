@@ -1,6 +1,8 @@
 import {
   DataSource,
+  EquipmentSlot,
   EventType,
+  ItemDelta,
   PlayerAttackEvent,
   PlayerDeathEvent,
   PlayerUpdateEvent,
@@ -10,6 +12,7 @@ import {
 
 import { buildEventMaps } from '../event-maps';
 import { PlayerStateBuilder, computePlayerState } from '../player-state';
+import { PlayerEquipment } from '../types';
 
 function playerUpdate(
   tick: number,
@@ -56,6 +59,13 @@ function playerAttack(tick: number, name: string): PlayerAttackEvent {
     },
     attack: { type: 1, distanceToTarget: 0 },
   };
+}
+
+/** Returns the slot keys holding an item, in ascending order. */
+function occupiedSlots(equipment: PlayerEquipment): number[] {
+  return Object.keys(equipment)
+    .map(Number)
+    .filter((slot) => equipment[slot as EquipmentSlot] !== null);
 }
 
 describe('computePlayerState', () => {
@@ -114,6 +124,54 @@ describe('computePlayerState', () => {
 
     expect(state[0]!.skills[Skill.HITPOINTS]?.getCurrent()).toBe(99);
     expect(state[0]!.skills[Skill.HITPOINTS]?.getBase()).toBe(99);
+  });
+
+  it('reconstructs equipment, rebuilding from empty on a snapshot', () => {
+    const added = (id: number, slot: EquipmentSlot) =>
+      new ItemDelta(id, 1, slot, true).toRaw();
+
+    const events = [
+      playerUpdate(0, 'Alice', {
+        equipmentDeltas: [
+          added(1234, EquipmentSlot.WEAPON),
+          added(5678, EquipmentSlot.RING),
+        ],
+      }),
+      playerUpdate(2, 'Alice', {
+        equipmentDeltas: [added(9012, EquipmentSlot.CAPE)],
+      }),
+      playerUpdate(4, 'Alice', {
+        equipmentDeltas: [added(3456, EquipmentSlot.BOOTS)],
+        snapshot: true,
+      }),
+    ];
+    const [byTick, byType] = buildEventMaps(events);
+    const state = computePlayerState(['Alice'], 5, byTick, byType).get(
+      'Alice',
+    )!;
+
+    expect(occupiedSlots(state[0]!.equipment)).toEqual([
+      EquipmentSlot.WEAPON,
+      EquipmentSlot.RING,
+    ]);
+    expect(state[0]!.equipment[EquipmentSlot.WEAPON]).toMatchObject({
+      id: 1234,
+      quantity: 1,
+    });
+
+    // A non-snapshot update carries the prior tick's equipment forward.
+    expect(occupiedSlots(state[2]!.equipment)).toEqual([
+      EquipmentSlot.CAPE,
+      EquipmentSlot.WEAPON,
+      EquipmentSlot.RING,
+    ]);
+
+    // A snapshot rebuilds from empty.
+    expect(occupiedSlots(state[4]!.equipment)).toEqual([EquipmentSlot.BOOTS]);
+    expect(state[4]!.equipment[EquipmentSlot.BOOTS]).toMatchObject({
+      id: 3456,
+      quantity: 1,
+    });
   });
 
   it('handles multiple players independently', () => {

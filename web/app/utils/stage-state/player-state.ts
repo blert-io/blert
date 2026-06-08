@@ -3,12 +3,11 @@ import {
   EquipmentSlot,
   Event,
   EventType,
-  ItemDelta,
-  RawItemDelta,
   Skill,
   SkillLevel,
   VerzikDawnEvent,
   VerzikHealEvent,
+  applyItemDeltas,
   isPlayerEvent,
 } from '@blert/common';
 
@@ -45,45 +44,6 @@ export type PlayerCursor = {
 
 function eventBelongsToPlayer(event: Event, playerName: string): boolean {
   return isPlayerEvent(event) && event.player.name === playerName;
-}
-
-function applyItemDeltas(
-  equipment: PlayerEquipment,
-  rawDeltas: RawItemDelta[],
-): void {
-  for (const rawDelta of rawDeltas) {
-    const delta = ItemDelta.fromRaw(rawDelta);
-    const previousItem = equipment[delta.getSlot()];
-
-    if (delta.isAdded()) {
-      if (previousItem?.id !== delta.getItemId()) {
-        const itemName = simpleItemCache.getItemName(delta.getItemId());
-        equipment[delta.getSlot()] = {
-          id: delta.getItemId(),
-          name: itemName,
-          quantity: delta.getQuantity(),
-        };
-      } else {
-        equipment[delta.getSlot()] = {
-          id: previousItem.id,
-          name: previousItem.name,
-          quantity: previousItem.quantity + delta.getQuantity(),
-        };
-      }
-    } else {
-      if (
-        previousItem !== null &&
-        previousItem.quantity - delta.getQuantity() > 0
-      ) {
-        equipment[delta.getSlot()] = {
-          ...previousItem,
-          quantity: previousItem.quantity - delta.getQuantity(),
-        };
-      } else {
-        equipment[delta.getSlot()] = null;
-      }
-    }
-  }
 }
 
 /**
@@ -139,11 +99,19 @@ function processPlayerTick(
       } else if (event.type === EventType.PLAYER_UPDATE) {
         const { type: _type, stage: _stage, ...rest } = event;
 
-        if (rest.player.equipmentDeltas) {
-          applyItemDeltas(
-            playerStateThisTick!.equipment,
-            rest.player.equipmentDeltas,
+        if (rest.player.snapshot || rest.player.equipmentDeltas) {
+          // A snapshot carries the player's full equipment, so reconstruct from
+          // an empty container rather than the previous tick's state.
+          const equipment = applyItemDeltas(
+            rest.player.equipmentDeltas ?? [],
+            rest.player.snapshot ? null : playerStateThisTick!.equipment,
+            (id, quantity) => ({
+              id,
+              quantity,
+              name: simpleItemCache.getItemName(id),
+            }),
           );
+          playerStateThisTick!.equipment = { ...EMPTY_EQUIPMENT, ...equipment };
         }
 
         if (rest.player.attack !== undefined) {

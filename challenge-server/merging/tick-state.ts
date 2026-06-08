@@ -366,6 +366,7 @@ export class TickState {
     }
 
     updateEvent.getPlayer()!.setEquipmentDeltasList(newDeltas);
+    updateEvent.getPlayer()!.setSnapshot(false);
   }
 
   /**

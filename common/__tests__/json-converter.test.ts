@@ -107,6 +107,7 @@ describe('jsonToServerMessage', () => {
               activePrayers: 262144,
               dataSource: 1,
               partyIndex: 0,
+              snapshot: true,
             },
           },
         ],
@@ -127,6 +128,7 @@ describe('jsonToServerMessage', () => {
       expect(player?.getHitpoints()).toBe(200674294);
       expect(player?.getActivePrayers()).toBe(262144);
       expect(player?.getEquipmentDeltasList()).toEqual([1234, 5678]);
+      expect(player?.getSnapshot()).toBe(true);
     });
 
     it('converts an NPC_SPAWN event with basic NPC', () => {
