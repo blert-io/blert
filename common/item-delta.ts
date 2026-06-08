@@ -68,3 +68,89 @@ export class ItemDelta {
     return Number(raw);
   }
 }
+
+/** An item occupying a single container slot. */
+export type ItemStack = { id: number; quantity: number };
+
+/**
+ * Applies a list of raw item deltas on top of a previous container and returns
+ * the resulting container.
+ *
+ * Containers are sparse maps of slot keys to items, with either `null` or a
+ * nonexistent entry representing an empty slot.
+ *
+ * @param deltas The list of item deltas to apply.
+ * @param previous The previous container to start from, or `null` to start from
+ *   an empty container.
+ * @returns The resulting container.
+ */
+export function applyItemDeltas(
+  deltas: RawItemDelta[],
+  previous: Record<number, ItemStack | null> | null,
+): Record<number, ItemStack>;
+
+/**
+ * Applies a list of raw item deltas on top of a previous container and returns
+ * the resulting container.
+ *
+ * Containers are sparse maps of slot keys to items, with either `null` or a
+ * nonexistent entry representing an empty slot.
+ *
+ * @param deltas The list of item deltas to apply.
+ * @param previous The previous container to start from, or `null` to start from
+ *   an empty container.
+ * @param createItem Function to create an item object from an ID and quantity.
+ * @returns The resulting container.
+ */
+export function applyItemDeltas<T extends ItemStack>(
+  deltas: RawItemDelta[],
+  previous: Record<number, T | null> | null,
+  createItem: (id: number, quantity: number) => T,
+): Record<number, T>;
+
+export function applyItemDeltas<T extends ItemStack>(
+  deltas: RawItemDelta[],
+  previous: Record<number, T | null> | null,
+  createItem: (id: number, quantity: number) => T = (id, quantity) =>
+    ({ id, quantity }) as T,
+): Record<number, T> {
+  const container: Record<number, T> = {};
+  if (previous !== null) {
+    for (const key of Object.keys(previous)) {
+      const item = previous[Number(key)];
+      if (item !== null) {
+        container[Number(key)] = item;
+      }
+    }
+  }
+
+  for (const raw of deltas) {
+    const delta = ItemDelta.fromRaw(raw);
+    const slot = delta.getSlot();
+    const current = container[slot] ?? null;
+
+    if (delta.isAdded()) {
+      if (current?.id !== delta.getItemId()) {
+        container[slot] = createItem(delta.getItemId(), delta.getQuantity());
+      } else {
+        container[slot] = createItem(
+          delta.getItemId(),
+          current.quantity + delta.getQuantity(),
+        );
+      }
+    } else if (
+      current !== null &&
+      current.id === delta.getItemId() &&
+      delta.getQuantity() < current.quantity
+    ) {
+      container[slot] = createItem(
+        delta.getItemId(),
+        current.quantity - delta.getQuantity(),
+      );
+    } else {
+      delete container[slot];
+    }
+  }
+
+  return container;
+}

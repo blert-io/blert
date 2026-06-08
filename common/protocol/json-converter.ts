@@ -281,6 +281,9 @@ export function jsonToProtoEvent(json: EventJson): Event {
     if (json.player.partyIndex !== undefined) {
       player.setPartyIndex(json.player.partyIndex);
     }
+    if (json.player.snapshot !== undefined) {
+      player.setSnapshot(json.player.snapshot);
+    }
     event.setPlayer(player);
   }
 

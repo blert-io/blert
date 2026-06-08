@@ -2,6 +2,7 @@ import {
   ChallengeMode,
   ChallengeType,
   DataSource,
+  EquipmentSlot,
   EventType,
   ItemDelta,
   Stage,
@@ -261,6 +262,45 @@ describe('ClientEvents', () => {
       });
       const tick1State = client.getTickState(1)?.getPlayerState('player1');
       expect(tick1State?.equipment[1]).toBeNull();
+    });
+
+    it('rebuilds equipment from empty on a snapshot update', () => {
+      const client = ClientEvents.fromRawEvents(
+        8,
+        challengeInfo,
+        {
+          stage: Stage.TOB_MAIDEN,
+          status: StageStatus.STARTED,
+          accurate: true,
+          recordedTicks: 2,
+          serverTicks: null,
+        },
+        [
+          createPlayerUpdateEvent({
+            tick: 0,
+            name: 'player1',
+            source: DataSource.PRIMARY,
+            equipmentDeltas: [
+              new ItemDelta(11840, 1, EquipmentSlot.WEAPON, true),
+            ],
+          }),
+          createPlayerUpdateEvent({
+            tick: 1,
+            name: 'player1',
+            source: DataSource.PRIMARY,
+            snapshot: true,
+            equipmentDeltas: [new ItemDelta(6570, 1, EquipmentSlot.CAPE, true)],
+          }),
+        ],
+      );
+
+      const tick1State = client.getTickState(1)?.getPlayerState('player1');
+      expect(tick1State?.equipment[EquipmentSlot.CAPE]).toMatchObject({
+        id: 6570,
+        quantity: 1,
+      });
+      // The snapshot rebuilds from empty, dropping the tick 0 weapon.
+      expect(tick1State?.equipment[EquipmentSlot.WEAPON]).toBeNull();
     });
   });
 });

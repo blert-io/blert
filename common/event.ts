@@ -438,6 +438,11 @@ export interface Player extends BasicPlayer {
   magic?: RawSkillLevel;
   prayerSet: RawPrayerSet;
   equipmentDeltas?: RawItemDelta[];
+  /**
+   * If true, this event carries the player's complete state. Delta-based fields
+   * should be applied as if the previous state was null.
+   */
+  snapshot?: boolean;
 }
 
 export type Item = {

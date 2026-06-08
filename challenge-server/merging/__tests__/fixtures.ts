@@ -100,6 +100,7 @@ export function createPlayerUpdateEvent({
   x = 0,
   y = 0,
   equipmentDeltas = [],
+  snapshot = false,
   stage = Stage.TOB_MAIDEN,
 }: {
   tick: number;
@@ -108,6 +109,7 @@ export function createPlayerUpdateEvent({
   x?: number;
   y?: number;
   equipmentDeltas?: ItemDelta[];
+  snapshot?: boolean;
   stage?: Stage;
 }): ProtoEvent {
   const event = new ProtoEvent();
@@ -121,6 +123,7 @@ export function createPlayerUpdateEvent({
   player.setName(name);
   player.setDataSource(source as ProtoDataSource);
   player.setEquipmentDeltasList(equipmentDeltas.map((delta) => delta.toRaw()));
+  player.setSnapshot(snapshot);
   event.setPlayer(player);
 
   return event;

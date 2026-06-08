@@ -99,6 +99,9 @@ export function protoToJsonEvent(evt: EventProto): Event {
       if (equipmentDeltas.length > 0) {
         e.player.equipmentDeltas = equipmentDeltas;
       }
+      if (player.getSnapshot()) {
+        e.player.snapshot = true;
+      }
       break;
     }
 
