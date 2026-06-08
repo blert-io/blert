@@ -59,6 +59,8 @@ type ActiveChallengeInfo = {
   uuid: string;
   /** Mapping of stage to attempt number. */
   stages: Map<Stage, number | null>;
+  /** Set of stage streams to which the client has written its metadata. */
+  metadataWritten: Set<string>;
 };
 
 export type Session = {
@@ -270,13 +272,11 @@ export default class Client {
     return this.activeChallenge?.uuid ?? null;
   }
 
-  public setActiveChallenge(
-    challengeId: string,
-    stages?: Map<Stage, number | null>,
-  ): void {
+  public setActiveChallenge(challengeId: string): void {
     this.activeChallenge = {
       uuid: challengeId,
-      stages: stages ?? new Map<Stage, number | null>(),
+      stages: new Map<Stage, number | null>(),
+      metadataWritten: new Set<string>(),
     };
     logger.info(
       'client_active_challenge_set',
@@ -313,6 +313,16 @@ export default class Client {
 
   public getStageAttempt(stage: Stage): number | null {
     return this.activeChallenge?.stages.get(stage) ?? null;
+  }
+
+  public hasWrittenMetadata(streamKey: string): boolean {
+    return this.activeChallenge?.metadataWritten.has(streamKey) ?? false;
+  }
+
+  public recordMetadataWritten(streamKey: string): void {
+    if (this.activeChallenge !== null) {
+      this.activeChallenge.metadataWritten.add(streamKey);
+    }
   }
 
   public getLoggedInRsn(): string | null {

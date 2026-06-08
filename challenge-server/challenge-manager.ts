@@ -178,17 +178,23 @@ type StartActionDecision =
       response: ChallengeStatusResponse;
     };
 
+export type ConnectingClient = {
+  userId: number;
+  clientId: number;
+  sessionToken: string;
+  pluginVersion: string;
+  runeLiteVersion: string;
+};
+
 async function createChallengeClient(
   txn: TransactionClient,
   challengeUuid: string,
-  userId: number,
-  clientId: number,
-  sessionToken: string,
+  client: ConnectingClient,
   recordingType: RecordingType,
   stage: Stage,
   stageAttempt: number | null = null,
 ): Promise<ChallengeClient> {
-  const existing = await txn.getChallengeClient(challengeUuid, clientId);
+  const existing = await txn.getChallengeClient(challengeUuid, client.clientId);
   if (existing !== null) {
     // If rejoining, maintain the last completed stage.
     return {
@@ -196,15 +202,15 @@ async function createChallengeClient(
       stage,
       stageAttempt,
       stageStatus: StageStatus.ENTERED,
-      sessionToken,
+      sessionToken: client.sessionToken,
       active: true,
+      pluginVersion: client.pluginVersion,
+      runeLiteVersion: client.runeLiteVersion,
     };
   }
 
   return {
-    userId,
-    clientId,
-    sessionToken,
+    ...client,
     type: recordingType,
     active: true,
     stage,
@@ -297,9 +303,7 @@ export default class ChallengeManager {
   /**
    * Creates a new challenge for the given party or joins an existing one.
    *
-   * @param userId ID of the user.
-   * @param clientId ID of the client.
-   * @param sessionToken Unique identifier for the client's session.
+   * @param client The client connecting to the challenge.
    * @param type Type of challenge.
    * @param mode Mode of challenge.
    * @param stage Stage of challenge.
@@ -309,9 +313,7 @@ export default class ChallengeManager {
    * @throws ChallengeError if a challenge could not be created or joined.
    */
   public async createOrJoin(
-    userId: number,
-    clientId: number,
-    sessionToken: string,
+    client: ConnectingClient,
     type: ChallengeType,
     mode: ChallengeMode,
     stage: Stage,
@@ -333,9 +335,7 @@ export default class ChallengeManager {
       let statusResponse: ChallengeStatusResponse | null = null;
 
       const decision = await this.determineStartAction(
-        userId,
-        clientId,
-        sessionToken,
+        client,
         type,
         recordingType,
         stage,
@@ -350,9 +350,7 @@ export default class ChallengeManager {
           statusResponse = await this.handleChallengeCreate(
             decision.uuid,
             decision.sessionId,
-            userId,
-            clientId,
-            sessionToken,
+            client,
             recordingType,
             type,
             mode,
@@ -366,9 +364,7 @@ export default class ChallengeManager {
         case StartAction.DEFERRED_JOIN: {
           statusResponse = await this.handleChallengeDeferredJoin(
             decision.uuid,
-            userId,
-            clientId,
-            sessionToken,
+            client,
             recordingType,
           );
           requestDecision = 'deferred';
@@ -386,7 +382,7 @@ export default class ChallengeManager {
 
       await ChallengeProcessor.addRecorder(
         decision.uuid,
-        userId,
+        client.userId,
         recordingType,
       );
 
@@ -403,9 +399,7 @@ export default class ChallengeManager {
   }
 
   private async determineStartAction(
-    userId: number,
-    clientId: number,
-    sessionToken: string,
+    client: ConnectingClient,
     type: ChallengeType,
     recordingType: RecordingType,
     stage: Stage,
@@ -418,8 +412,8 @@ export default class ChallengeManager {
       level: 'info' | 'warn' = 'info',
     ) => {
       logger[level]('challenge_join_decision', {
-        userId,
-        clientId,
+        userId: client.userId,
+        clientId: client.clientId,
         type,
         stage,
         party,
@@ -522,16 +516,14 @@ export default class ChallengeManager {
             const challengeClient = await createChallengeClient(
               txn,
               lastChallengeForParty,
-              userId,
-              clientId,
-              sessionToken,
+              client,
               recordingType,
               startDecision.response.stage,
               startDecision.response.stageAttempt,
             );
             txn.setChallengeClient(
               lastChallengeForParty,
-              clientId,
+              client.clientId,
               challengeClient,
             );
 
@@ -580,8 +572,8 @@ export default class ChallengeManager {
       // This should never happen as the transaction should always set these
       // values, but log some basic debugging information just in case.
       logger.error('challenge_start_failed', {
-        userId,
-        clientId,
+        userId: client.userId,
+        clientId: client.clientId,
         type,
         stage,
         party,
@@ -595,9 +587,7 @@ export default class ChallengeManager {
   private async handleChallengeCreate(
     uuid: string,
     sessionId: number | null,
-    userId: number,
-    clientId: number,
-    sessionToken: string,
+    client: ConnectingClient,
     recordingType: RecordingType,
     type: ChallengeType,
     mode: ChallengeMode,
@@ -625,8 +615,8 @@ export default class ChallengeManager {
       await processor.createNew(startTime, sessionId);
     } catch (e: unknown) {
       logger.error('challenge_create_failed', {
-        userId,
-        clientId,
+        userId: client.userId,
+        clientId: client.clientId,
         challengeUuid: uuid,
         type,
         mode,
@@ -651,9 +641,7 @@ export default class ChallengeManager {
       const challengeClient = await createChallengeClient(
         txn,
         uuid,
-        userId,
-        clientId,
-        sessionToken,
+        client,
         recordingType,
         stage,
       );
@@ -661,7 +649,7 @@ export default class ChallengeManager {
         ...processor.getState(),
         state: LifecycleState.ACTIVE,
       });
-      txn.setChallengeClient(uuid, clientId, challengeClient);
+      txn.setChallengeClient(uuid, client.clientId, challengeClient);
       txn.setSessionChallenge(processor.getSessionId(), type, party);
 
       for (const player of party) {
@@ -670,8 +658,8 @@ export default class ChallengeManager {
     });
 
     logger.info('challenge_created', {
-      userId,
-      clientId,
+      userId: client.userId,
+      clientId: client.clientId,
       challengeUuid: uuid,
       sessionId: processor.getSessionId(),
       type,
@@ -690,9 +678,7 @@ export default class ChallengeManager {
 
   private async handleChallengeDeferredJoin(
     uuid: string,
-    userId: number,
-    clientId: number,
-    sessionToken: string,
+    client: ConnectingClient,
     recordingType: RecordingType,
   ): Promise<ChallengeStatusResponse> {
     // Another client is simultaneously creating the challenge. Wait until
@@ -721,8 +707,8 @@ export default class ChallengeManager {
         ) {
           logger.error('deferred_join_missing_challenge', {
             challengeUuid: uuid,
-            userId,
-            clientId,
+            userId: client.userId,
+            clientId: client.clientId,
             lifecycleState,
           });
           throw new ChallengeError(
@@ -745,14 +731,12 @@ export default class ChallengeManager {
         const challengeClient = await createChallengeClient(
           txn,
           uuid,
-          userId,
-          clientId,
-          sessionToken,
+          client,
           recordingType,
           statusResponse.stage,
           statusResponse.stageAttempt,
         );
-        txn.setChallengeClient(uuid, clientId, challengeClient);
+        txn.setChallengeClient(uuid, client.clientId, challengeClient);
         return true;
       }, 'deferred_join');
 
@@ -768,20 +752,20 @@ export default class ChallengeManager {
     if (retries === DEFERRED_JOIN_MAX_RETRIES) {
       logger.error('deferred_join_max_retries', {
         challengeUuid: uuid,
-        userId,
-        clientId,
+        userId: client.userId,
+        clientId: client.clientId,
         retries,
       });
       throw new ChallengeError(
         ChallengeErrorType.INTERNAL,
-        `Failed to join challenge ${uuid} for client ${clientId} after ${retries} attempts`,
+        `Failed to join challenge ${uuid} for client ${client.clientId} after ${retries} attempts`,
       );
     }
 
     logger.info('deferred_join_success', {
       challengeUuid: uuid,
-      userId,
-      clientId,
+      userId: client.userId,
+      clientId: client.clientId,
       retries,
     });
 
@@ -1185,29 +1169,25 @@ export default class ChallengeManager {
   /**
    * Adds a client to an existing challenge.
    * @param challengeId ID of the challenge to join.
-   * @param userId ID of the user.
-   * @param clientId ID of the client.
-   * @param sessionToken Unique identifier for the client's session.
+   * @param client The client joining the challenge.
    * @param recordingType Type of client recording.
    * @returns The current status of the joined challenge.
    * @throws ChallengeError if the join fails.
    */
   public async addClient(
     challengeId: string,
-    userId: number,
-    clientId: number,
-    sessionToken: string,
+    client: ConnectingClient,
     recordingType: RecordingType,
   ): Promise<ChallengeStatusResponse> {
     let metricDecision: ChallengeRequestDecision = 'error';
 
     try {
       const currentChallenge =
-        await this.redisClient.getActiveChallengeForClient(clientId);
+        await this.redisClient.getActiveChallengeForClient(client.clientId);
       if (currentChallenge !== null && currentChallenge !== challengeId) {
         logger.warn('challenge_join_rejected', {
-          userId,
-          clientId,
+          userId: client.userId,
+          clientId: client.clientId,
           challengeUuid: challengeId,
           reason: 'already_in_challenge',
           currentChallenge,
@@ -1231,8 +1211,8 @@ export default class ChallengeManager {
 
         if (challenge?.state !== LifecycleState.ACTIVE) {
           logger.warn('challenge_join_rejected', {
-            userId,
-            clientId,
+            userId: client.userId,
+            clientId: client.clientId,
             challengeUuid: challengeId,
             reason: 'non_existent',
           });
@@ -1243,21 +1223,19 @@ export default class ChallengeManager {
         const clientInfo = await createChallengeClient(
           txn,
           challengeId,
-          userId,
-          clientId,
-          sessionToken,
+          client,
           recordingType,
           challenge.stage,
           challenge.stageAttempt ?? null,
         );
 
-        txn.setChallengeClient(challengeId, clientId, clientInfo);
+        txn.setChallengeClient(challengeId, client.clientId, clientInfo);
 
         const allInactive = clients.every((c) => !c.active);
         if (allInactive && challenge.timeoutState === TimeoutState.CLEANUP) {
           logger.info('challenge_cleanup_canceled', {
-            userId,
-            clientId,
+            userId: client.userId,
+            clientId: client.clientId,
             challengeUuid: challengeId,
             stage: clientInfo.stage,
             attempt: clientInfo.stageAttempt,
@@ -1287,8 +1265,8 @@ export default class ChallengeManager {
       const response = statusResponse as ChallengeStatusResponse;
 
       logger.info('client_reconnected', {
-        userId,
-        clientId,
+        userId: client.userId,
+        clientId: client.clientId,
         challengeUuid: challengeId,
         stage: response.stage,
         attempt: response.stageAttempt,
@@ -1298,8 +1276,8 @@ export default class ChallengeManager {
       return response;
     } catch (e) {
       logger.error('client_reconnect_error', {
-        userId,
-        clientId,
+        userId: client.userId,
+        clientId: client.clientId,
         challengeUuid: challengeId,
         recordingType,
         error: e instanceof Error ? e : new Error(String(e)),

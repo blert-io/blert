@@ -169,9 +169,21 @@ export type StageUpdate = {
 export enum StageStreamType {
   STAGE_EVENTS,
   STAGE_END,
+  CLIENT_METADATA,
 }
 
-export type ClientStageStream = StageStreamEvents | StageStreamEnd;
+export type ClientStageStream =
+  | StageStreamMetadata
+  | StageStreamEvents
+  | StageStreamEnd;
+
+export type StageStreamMetadata = {
+  type: StageStreamType.CLIENT_METADATA;
+  clientId: number;
+  userId: number;
+  pluginVersion: string;
+  runeLiteVersion: string;
+};
 
 export type StageStreamEvents = {
   type: StageStreamType.STAGE_EVENTS;
@@ -239,6 +251,11 @@ export function stageStreamToRecord(
   };
 
   switch (event.type) {
+    case StageStreamType.CLIENT_METADATA:
+      evt.userId = event.userId.toString();
+      evt.pluginVersion = event.pluginVersion;
+      evt.runeLiteVersion = event.runeLiteVersion;
+      break;
     case StageStreamType.STAGE_EVENTS:
       evt.events = Buffer.from(event.events);
       break;
@@ -271,11 +288,18 @@ export function stageStreamFromRecord(
         update: JSON.parse(event.update.toString()) as StageUpdate,
       } as StageStreamEnd;
 
-    default:
-      throw new Error(
-        `Unknown stage stream type: ${type as unknown as number}`,
-      );
+    case StageStreamType.CLIENT_METADATA:
+      return {
+        type,
+        clientId,
+        userId: Number.parseInt(event.userId.toString()),
+        pluginVersion: event.pluginVersion.toString(),
+        runeLiteVersion: event.runeLiteVersion.toString(),
+      } as StageStreamMetadata;
   }
+
+  const _exhaustive: never = type;
+  throw new Error(`Unknown stage stream type: ${type as unknown as number}`);
 }
 
 /**

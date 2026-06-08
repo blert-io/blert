@@ -247,6 +247,7 @@ export {
   StageStreamType,
   type StageStreamEnd,
   type StageStreamEvents,
+  type StageStreamMetadata,
   type StageUpdate,
   activePlayerKey,
   challengeProcessedStagesKey,

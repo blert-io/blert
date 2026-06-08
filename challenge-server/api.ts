@@ -170,6 +170,8 @@ type NewChallengeRequest = {
   userId: number;
   clientId: number;
   sessionToken: string;
+  pluginVersion: string;
+  runeLiteVersion: string;
   type: ChallengeType;
   mode: ChallengeMode;
   stage: Stage;
@@ -192,9 +194,13 @@ async function newChallenge(req: Request, res: Response): Promise<void> {
     },
     async () => {
       const result = await res.locals.challengeManager.createOrJoin(
-        request.userId,
-        request.clientId,
-        request.sessionToken,
+        {
+          userId: request.userId,
+          clientId: request.clientId,
+          sessionToken: request.sessionToken,
+          pluginVersion: request.pluginVersion,
+          runeLiteVersion: request.runeLiteVersion,
+        },
         request.type,
         request.mode,
         request.stage,
@@ -288,6 +294,8 @@ type JoinChallengeRequest = {
   userId: number;
   clientId: number;
   sessionToken: string;
+  pluginVersion: string;
+  runeLiteVersion: string;
   recordingType: RecordingType;
 };
 
@@ -309,9 +317,13 @@ async function joinChallenge(req: Request, res: Response): Promise<void> {
     async () => {
       const status = await res.locals.challengeManager.addClient(
         challengeId,
-        request.userId,
-        request.clientId,
-        request.sessionToken,
+        {
+          userId: request.userId,
+          clientId: request.clientId,
+          sessionToken: request.sessionToken,
+          pluginVersion: request.pluginVersion,
+          runeLiteVersion: request.runeLiteVersion,
+        },
         request.recordingType,
       );
       res.json(status);
