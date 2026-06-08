@@ -21,6 +21,7 @@ import {
   challengeProcessedStagesKey,
   challengeStreamsSetKey,
   stageAttemptKey,
+  StageStreamMetadata,
 } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 import { ChallengeEvents } from '@blert/common/generated/challenge_storage_pb';
@@ -76,6 +77,8 @@ export class RemoteChallengeManager extends ChallengeManager {
     stage: Stage,
     recordingType: RecordingType,
   ): Promise<ChallengeStatusResponse> {
+    const versions = client.getPluginVersions();
+
     const res = await this.request('start', '/challenges/new', {
       method: 'POST',
       headers: {
@@ -85,6 +88,8 @@ export class RemoteChallengeManager extends ChallengeManager {
         userId: client.getUserId(),
         clientId: client.getClientId(),
         sessionToken: client.getSessionToken(),
+        pluginVersion: versions.getVersion(),
+        runeLiteVersion: versions.getRuneLiteVersion(),
         type: challengeType,
         mode,
         party,
@@ -334,6 +339,21 @@ export class RemoteChallengeManager extends ChallengeManager {
         return;
       }
 
+      const streamKey = challengeStageStreamKey(challengeId, stage, attempt);
+
+      if (!client.hasWrittenMetadata(streamKey)) {
+        const metadata: StageStreamMetadata = {
+          type: StageStreamType.CLIENT_METADATA,
+          clientId: client.getClientId(),
+          userId: client.getUserId(),
+          pluginVersion: client.getPluginVersions().getVersion(),
+          runeLiteVersion: client.getPluginVersions().getRuneLiteVersion(),
+        };
+        multi.xAdd(streamKey, '*', stageStreamToRecord(metadata));
+        client.recordMetadataWritten(streamKey);
+        hasWrites = true;
+      }
+
       const eventsMessage = new ChallengeEvents();
       eventsMessage.setEventsList(stageEvents);
 
@@ -342,7 +362,6 @@ export class RemoteChallengeManager extends ChallengeManager {
         clientId: client.getClientId(),
         events: eventsMessage.serializeBinary(),
       };
-      const streamKey = challengeStageStreamKey(challengeId, stage, attempt);
       multi.xAdd(streamKey, '*', stageStreamToRecord(eventsStream));
       multi.sAdd(challengeStreamsSetKey(challengeId), streamKey);
       multi.expire(streamKey, RemoteChallengeManager.STAGE_STREAM_TTL_SECONDS);
@@ -360,6 +379,8 @@ export class RemoteChallengeManager extends ChallengeManager {
     recordingType: RecordingType,
   ): Promise<ChallengeStatusResponse | null> {
     try {
+      const versions = client.getPluginVersions();
+
       const res = await this.request(
         'join',
         `/challenges/${challengeId}/join`,
@@ -372,6 +393,8 @@ export class RemoteChallengeManager extends ChallengeManager {
             userId: client.getUserId(),
             clientId: client.getClientId(),
             sessionToken: client.getSessionToken(),
+            pluginVersion: versions.getVersion(),
+            runeLiteVersion: versions.getRuneLiteVersion(),
             recordingType,
           }),
         },

@@ -78,6 +78,8 @@ export type ChallengeClient = {
   userId: number;
   clientId: number;
   sessionToken: string;
+  pluginVersion: string;
+  runeLiteVersion: string;
   type: RecordingType;
   active: boolean;
   stage: Stage;
