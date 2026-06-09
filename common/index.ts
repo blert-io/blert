@@ -9,6 +9,7 @@ export {
   type PlayerExperience,
   HiscoresRateLimitError,
   hiscoreLookup,
+  isValidRsn,
   normalizeRsn,
 } from './player';
 export {

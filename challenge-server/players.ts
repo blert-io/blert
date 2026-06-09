@@ -4,6 +4,7 @@ import {
   camelToSnakeObject,
   CamelToSnakeCase,
   camelToSnake,
+  isValidRsn,
   normalizeRsn,
 } from '@blert/common';
 
@@ -13,8 +14,6 @@ import { startOfDateUtc } from './time';
 export type ModifiablePlayerStats = Omit<PlayerStats, 'date' | 'playerId'>;
 
 export class Players {
-  private static readonly USERNAME_REGEX = /^[a-zA-Z0-9 _-]{1,12}$/;
-
   public static async lookupUsername(id: number): Promise<string | null> {
     const [player] = await sql<
       [{ username: string }?]
@@ -72,7 +71,7 @@ export class Players {
       fields = camelToSnakeObject(initialFields);
     }
 
-    if (!Players.USERNAME_REGEX.test(username)) {
+    if (!isValidRsn(username)) {
       throw new Error(`Invalid RuneScape username: ${username}`);
     }
 
