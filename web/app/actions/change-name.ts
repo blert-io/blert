@@ -1,14 +1,17 @@
 'use server';
 
-import { NameChange, NameChangeStatus, normalizeRsn } from '@blert/common';
+import {
+  NameChange,
+  NameChangeStatus,
+  isValidRsn,
+  normalizeRsn,
+} from '@blert/common';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { sql } from './db';
 import processor from './name-change-processor';
 import { getSignedInUserId } from './users';
-
-const RSN_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9 _-]{0,11}$/;
 
 export async function submitNameChangeForm(
   _state: string | null,
@@ -17,10 +20,10 @@ export async function submitNameChangeForm(
   const oldName = formData.get('blert-old-name') as string;
   const newName = formData.get('blert-new-name') as string;
 
-  if (!RSN_REGEX.test(oldName)) {
+  if (!isValidRsn(oldName)) {
     return 'Invalid old name';
   }
-  if (!RSN_REGEX.test(newName)) {
+  if (!isValidRsn(newName)) {
     return 'Invalid new name';
   }
 

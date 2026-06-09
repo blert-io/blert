@@ -11,6 +11,21 @@ export function normalizeRsn(name: string): string {
   return name.toLowerCase().replaceAll(/[- ]/g, '_');
 }
 
+// Prior to 2020-09-07, RSNs could have leading hyphens/underscores:
+// https://secure.runescape.com/m=news/this-week-in-runescape---070920#patch-notes
+// These names are grandfathered in and must still be accepted.
+const RSN_REGEX = /^[a-zA-Z0-9_-]([a-zA-Z0-9 _-]{0,10}[a-zA-Z0-9_-])?$/;
+
+/**
+ * Whether a string is a syntactically valid OSRS username.
+ *
+ * @param name The candidate RSN.
+ * @returns True if the name is a valid RSN.
+ */
+export function isValidRsn(name: string): boolean {
+  return RSN_REGEX.test(name);
+}
+
 export type Player = {
   username: string;
   normalizedUsername: string;
