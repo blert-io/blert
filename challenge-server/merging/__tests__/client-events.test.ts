@@ -1,6 +1,7 @@
 import {
   ChallengeMode,
   ChallengeType,
+  ClientStageStream,
   DataSource,
   EquipmentSlot,
   EventType,
@@ -162,6 +163,50 @@ describe('ClientEvents', () => {
       expect(client.hasAnomaly(ClientAnomaly.MISSING_STAGE_METADATA)).toBe(
         true,
       );
+    });
+
+    it('flags bad data when a stream chunk fails to decode, keeping the rest', () => {
+      const eventsMessage = new ChallengeEvents();
+      eventsMessage.setEventsList([
+        createPlayerUpdateEvent({
+          tick: 0,
+          name: 'player1',
+          source: DataSource.PRIMARY,
+        }),
+      ]);
+      const stream: ClientStageStream[] = [
+        {
+          type: StageStreamType.STAGE_EVENTS,
+          clientId: 6,
+          events: new Uint8Array([0xff, 0xff, 0xff, 0xff]),
+        },
+        {
+          type: StageStreamType.STAGE_EVENTS,
+          clientId: 6,
+          events: eventsMessage.serializeBinary(),
+        },
+        {
+          type: StageStreamType.STAGE_END,
+          clientId: 6,
+          update: {
+            stage: Stage.TOB_MAIDEN,
+            status: StageStatus.COMPLETED,
+            accurate: true,
+            recordedTicks: 1,
+            serverTicks: { count: 1, precise: true },
+          },
+        },
+      ];
+
+      const client = ClientEvents.fromClientStream(
+        6,
+        challengeInfo,
+        Stage.TOB_MAIDEN,
+        stream,
+      );
+
+      expect(client.hasAnomaly(ClientAnomaly.BAD_DATA)).toBe(true);
+      expect(client.getPrimaryPlayer()).toBe('player1');
     });
 
     describe('consistency', () => {

@@ -1,5 +1,6 @@
 import { Npc, SkillLevel, Stage, StageStatus } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
+import { ChallengeEvents } from '@blert/common/generated/challenge_storage_pb';
 
 import { AlignmentResult, TickAligner } from './alignment';
 import {
@@ -296,7 +297,11 @@ export class Merger {
       confidence: null,
     });
 
-    const merged = new MergedEvents(clients.base, ctx, clients.referenceTicks);
+    const merged = new MergedTimeline(
+      clients.base,
+      ctx,
+      clients.referenceTicks,
+    );
 
     // Record the initial state (base client only) as the first snapshot.
     ctx.tracer?.recordIntermediateSnapshot(merged.getTicks());
@@ -389,6 +394,8 @@ export class Merger {
 
     merged.postprocess(this.stage);
 
+    const mergedEvents = merged.toMergedEvents();
+
     this.alerts.push(...surfaceAlerts(mergeClients));
 
     logger.info('merge_result', {
@@ -397,13 +404,13 @@ export class Merger {
       skippedCount,
       alerts: this.alerts,
       referenceSelection: this.referenceSelection,
-      accurate: merged.isAccurate(),
-      accurateUntil: merged.accurateUntil(),
-      queryableUntil: merged.queryableUntil(),
+      accurate: mergedEvents.isAccurate(),
+      accurateUntil: mergedEvents.accurateUntil(),
+      queryableUntil: mergedEvents.queryableUntil(),
     });
 
     return {
-      events: merged,
+      events: mergedEvents,
       clients: mergeClients,
       mergedCount,
       unmergedCount,
@@ -543,7 +550,106 @@ function statusFromOutcome(outcome: MergeStepOutcome): MergeClientStatus {
   }
 }
 
+type MergedEventsMetadata = {
+  status: StageStatus;
+  lastTick: number;
+  missingTickCount: number;
+  preciseServerTickCount: boolean;
+  accurateUntil: number;
+  queryableUntil: number;
+};
+
+type SerializedMergedEvents = {
+  events: string;
+  metadata: MergedEventsMetadata;
+};
+
 export class MergedEvents {
+  private byTick: Map<number, Event[]> | null = null;
+
+  constructor(
+    private readonly flatEvents: Event[],
+    private readonly metadata: MergedEventsMetadata,
+  ) {}
+
+  [Symbol.iterator](): Iterator<Event> {
+    return this.flatEvents[Symbol.iterator]();
+  }
+
+  public eventsForTick(tick: number): Event[] {
+    if (this.byTick === null) {
+      this.byTick = new Map();
+      for (const event of this.flatEvents) {
+        const t = event.getTick();
+        const bucket = this.byTick.get(t);
+        if (bucket === undefined) {
+          this.byTick.set(t, [event]);
+        } else {
+          bucket.push(event);
+        }
+      }
+    }
+    return this.byTick.get(tick) ?? [];
+  }
+
+  public getStatus(): StageStatus {
+    return this.metadata.status;
+  }
+
+  public getLastTick(): number {
+    return this.metadata.lastTick;
+  }
+
+  public getMissingTickCount(): number {
+    return this.metadata.missingTickCount;
+  }
+
+  // TODO(frolv): remove
+  public isAccurate(): boolean {
+    return this.metadata.accurateUntil > this.metadata.lastTick;
+  }
+
+  public hasPreciseServerTickCount(): boolean {
+    return this.metadata.preciseServerTickCount;
+  }
+
+  /**
+   * The exclusive tick at which the merged timeline can no longer be trusted to
+   * match the true server tick count.
+   */
+  public accurateUntil(): number {
+    return this.metadata.accurateUntil;
+  }
+
+  /**
+   * The exclusive tick at which the merged event stream can no longer be fully
+   * corroborated for strict analysis.
+   */
+  public queryableUntil(): number {
+    return this.metadata.queryableUntil;
+  }
+
+  public serialize(): string {
+    const wrapper = new ChallengeEvents();
+    wrapper.setEventsList(this.flatEvents);
+    return JSON.stringify({
+      events: Buffer.from(wrapper.serializeBinary()).toString('base64'),
+      metadata: this.metadata,
+    });
+  }
+
+  public static deserialize(serialized: string): MergedEvents {
+    const { events, metadata } = JSON.parse(
+      serialized,
+    ) as SerializedMergedEvents;
+    const wrapper = ChallengeEvents.deserializeBinary(
+      Buffer.from(events, 'base64'),
+    );
+    return new MergedEvents(wrapper.getEventsList(), metadata);
+  }
+}
+
+class MergedTimeline {
   private ticks!: TickStateArray;
   private readonly status: StageStatus;
   private readonly ctx: MergeContext;
@@ -574,60 +680,29 @@ export class MergedEvents {
     this.initializeBaseTicks(base);
   }
 
-  public events(): EventIterator {
+  [Symbol.iterator](): EventIterator {
     if (!this.finalized) {
       throw new Error('Merge not finalized');
     }
     return new EventIterator(this.ticks);
   }
 
-  [Symbol.iterator](): EventIterator {
-    return this.events();
-  }
-
-  // TODO(frolv): remove
-  public isAccurate(): boolean {
-    return this.accurate;
-  }
-
-  /**
-   * The exclusive tick at which the merged timeline can no longer be trusted to
-   * match the true server tick count.
-   */
-  public accurateUntil(): number {
-    return this.trustedPrefixes?.accurateUntil ?? 0;
-  }
-
-  /**
-   * The exclusive tick at which the merged event stream can no longer be fully
-   * corroborated for strict analysis.
-   */
-  public queryableUntil(): number {
-    return this.trustedPrefixes?.queryableUntil ?? 0;
-  }
-
-  public hasPreciseServerTickCount(): boolean {
-    return this.preciseServerTickCount;
-  }
-
   public getTicks(): TickStateArray {
     return [...this.ticks];
   }
 
-  public getStatus(): StageStatus {
-    return this.status;
-  }
-
-  public getLastTick(): number {
-    return this.ticks.length - 1;
-  }
-
-  public getMissingTickCount(): number {
-    return this.ticks.filter((tick) => tick === null).length;
-  }
-
-  public eventsForTick(tick: number): Event[] {
-    return this.ticks[tick]?.getEvents() ?? [];
+  public toMergedEvents(): MergedEvents {
+    if (!this.finalized) {
+      throw new Error('Merge not finalized');
+    }
+    return new MergedEvents(Array.from(this), {
+      status: this.status,
+      lastTick: this.ticks.length - 1,
+      missingTickCount: this.ticks.filter((tick) => tick === null).length,
+      preciseServerTickCount: this.preciseServerTickCount,
+      accurateUntil: this.trustedPrefixes?.accurateUntil ?? 0,
+      queryableUntil: this.trustedPrefixes?.queryableUntil ?? 0,
+    });
   }
 
   /**
