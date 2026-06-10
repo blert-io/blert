@@ -133,8 +133,18 @@ export class ClientEvents {
         stageInfo.serverTicks = update.serverTicks;
         sawStageEnd = true;
       } else if (stream.type === StageStreamType.STAGE_EVENTS) {
-        const message = ChallengeEvents.deserializeBinary(stream.events);
-        events.push(...message.getEventsList());
+        try {
+          const message = ChallengeEvents.deserializeBinary(stream.events);
+          events.push(...message.getEventsList());
+        } catch (e: unknown) {
+          logger.error('client_events_deserialization_failed', {
+            challengeUuid: challenge.uuid,
+            clientId,
+            stage,
+            error: e instanceof Error ? e.message : String(e),
+          });
+          anomalies.add(ClientAnomaly.BAD_DATA);
+        }
       }
     }
 

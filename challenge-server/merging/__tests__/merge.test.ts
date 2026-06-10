@@ -25,7 +25,12 @@ import {
   createPlayerDeathEvent,
 } from './fixtures';
 import { MergeConsistencyIssue, RejectionReason } from '../merge-consistency';
-import { Merger, MergeClientClassification, MergeOptions } from '../merge';
+import {
+  MergedEvents,
+  Merger,
+  MergeClientClassification,
+  MergeOptions,
+} from '../merge';
 import { MergeAlertType } from '../quality';
 import { MergeTracer } from '../trace';
 
@@ -1163,5 +1168,49 @@ describe('Merger', () => {
         },
       });
     });
+  });
+});
+
+describe('MergedEvents', () => {
+  it('round-trips events and metadata through serialize/deserialize', () => {
+    const client1 = ClientEvents.fromRawEvents(
+      1,
+      fakeChallenge,
+      {
+        stage: Stage.TOB_MAIDEN,
+        status: StageStatus.COMPLETED,
+        accurate: true,
+        recordedTicks: 2,
+        serverTicks: { count: 2, precise: true },
+      },
+      client1Events,
+    );
+    const result = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [
+      client1,
+    ]).merge();
+    expect(result).not.toBeNull();
+    const original = result!.events;
+
+    const restored = MergedEvents.deserialize(original.serialize());
+
+    expect(restored.getStatus()).toBe(original.getStatus());
+    expect(restored.getLastTick()).toBe(original.getLastTick());
+    expect(restored.getMissingTickCount()).toBe(original.getMissingTickCount());
+    expect(restored.isAccurate()).toBe(original.isAccurate());
+    expect(restored.hasPreciseServerTickCount()).toBe(
+      original.hasPreciseServerTickCount(),
+    );
+    expect(restored.accurateUntil()).toBe(original.accurateUntil());
+    expect(restored.queryableUntil()).toBe(original.queryableUntil());
+
+    expect(Array.from(restored).map((e) => e.toObject())).toEqual(
+      Array.from(original).map((e) => e.toObject()),
+    );
+
+    for (let tick = 0; tick <= original.getLastTick(); tick++) {
+      expect(restored.eventsForTick(tick).map((e) => e.toObject())).toEqual(
+        original.eventsForTick(tick).map((e) => e.toObject()),
+      );
+    }
   });
 });

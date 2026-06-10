@@ -5,7 +5,6 @@ import {
   ChallengeType,
   ChallengeUpdateAction,
   ClientEventType,
-  ClientStageStream,
   ClientStatus,
   ClientStatusEvent,
   DataRepository,
@@ -14,7 +13,6 @@ import {
   Stage,
   StageStatus,
   sessionKey,
-  StageStreamType,
 } from '@blert/common';
 import { RedisClientType } from 'redis';
 import { v4 as uuidv4 } from 'uuid';
@@ -28,32 +26,17 @@ import {
   newChallengeProcessor,
 } from './event-processing';
 import logger, { runWithLogContext } from './log';
-import {
-  ChallengeInfo,
-  ClientEvents,
-  MergeClient,
-  MergeClientStatus,
-  MergeResult,
-  Merger,
-} from './merging';
+import { MergeService } from './merge-service';
 import {
   incrementClientEventProcessed,
-  observeMergeDuration,
   observeStageProcessingDuration,
   recordChallengeFinalization,
   recordChallengeRequest,
   recordCleanupAttempt,
-  recordClientAnomaly,
   recordClientReconnect,
-  recordClientReportedTimePrecision,
   recordFinishRequest,
-  recordMergeAlert,
-  recordMergeClient,
   recordReconnectionTimer,
-  recordRepositoryWrite,
   recordSessionWatchdogRun,
-  recordStageCompletion,
-  recordStageEventPayload,
   recordStageStart,
   recordTimeoutEvent,
   setClientEventQueueDepth,
@@ -229,7 +212,7 @@ function delay(ms: number): Promise<void> {
 
 export default class ChallengeManager {
   private challengeDataRepository: DataRepository;
-  private testDataRepository: DataRepository;
+  private mergeService: MergeService;
   private priceTracker: PriceTracker;
   private redisClient: RedisClient;
   private eventClient: EventQueueClient;
@@ -267,12 +250,12 @@ export default class ChallengeManager {
 
   public constructor(
     challengeDataRepository: DataRepository,
-    testDataRepository: DataRepository,
+    mergeService: MergeService,
     client: RedisClientType,
     manageTimeouts: boolean,
   ) {
     this.challengeDataRepository = challengeDataRepository;
-    this.testDataRepository = testDataRepository;
+    this.mergeService = mergeService;
     this.priceTracker = new PriceTracker();
     this.redisClient = new RedisClient(client);
     this.eventClient = new EventQueueClient(client.duplicate());
@@ -1606,20 +1589,7 @@ export default class ChallengeManager {
           stage,
           attempt,
         );
-        let totalSize = 0;
-
-        const eventsByClient = new Map<number, ClientStageStream[]>();
-        for (const evt of stageEvents) {
-          if (!eventsByClient.has(evt.clientId)) {
-            eventsByClient.set(evt.clientId, []);
-          }
-          eventsByClient.get(evt.clientId)!.push(evt);
-          if (evt.type === StageStreamType.STAGE_EVENTS) {
-            totalSize += evt.events.length;
-          }
-        }
-
-        if (eventsByClient.size === 0) {
+        if (stageEvents.length === 0) {
           await this.redisClient.pipeline((pipeline) => {
             pipeline.deleteStageStream(challenge.uuid, stage, attempt);
             pipeline.setChallengeFields(challenge.uuid, {
@@ -1629,8 +1599,6 @@ export default class ChallengeManager {
           return;
         }
 
-        recordStageEventPayload(stage, totalSize, eventsByClient.size);
-
         const challengeInfo = {
           uuid: challenge.uuid,
           type: challenge.type,
@@ -1638,78 +1606,32 @@ export default class ChallengeManager {
           party: challenge.party,
         };
 
-        const clients: ClientEvents[] = [];
-
-        for (const [clientId, events] of eventsByClient) {
-          try {
-            const client = ClientEvents.fromClientStream(
-              clientId,
-              challengeInfo,
-              stage,
-              events,
-            );
-
-            const serverTicks = client.getServerTicks();
-            if (serverTicks !== null) {
-              recordClientReportedTimePrecision(
-                serverTicks.precise ? 'precise' : 'imprecise',
-              );
-            }
-
-            clients.push(client);
-          } catch (e: unknown) {
-            logger.error('client_event_processing_failed', {
-              challengeUuid: challenge.uuid,
-              clientId,
-              stage,
-              attempt,
-              error: e instanceof Error ? e.message : String(e),
-              stack: e instanceof Error ? e.stack : undefined,
-            });
-            // Continue processing other clients.
-          }
-        }
-
-        const result = await timeOperation(
-          () => new Merger(challengeInfo, stage, clients).merge(),
-          (durationMs) => {
-            observeMergeDuration(stage, durationMs);
-            logger.info('merge_duration', { stage, durationMs });
-          },
+        const events = await this.mergeService.merge(
+          challengeInfo,
+          stage,
+          attempt,
+          stageEvents,
         );
 
         let updates: Partial<ExtendedChallengeState> = {};
 
-        if (result !== null) {
+        if (events !== null) {
           logger.info('stage_finished', {
             challengeUuid: challenge.uuid,
             stage,
             attempt,
-            status: result.events.getStatus(),
-            ticks: result.events.getLastTick(),
-            mergedCount: result.mergedCount,
-            unmergedCount: result.unmergedCount,
-            skippedCount: result.skippedCount,
+            status: events.getStatus(),
+            ticks: events.getLastTick(),
           });
-
-          recordStageCompletion(
-            stage,
-            result.events.getStatus(),
-            result.events.isAccurate(),
-            result.unmergedCount > 0,
-            result.skippedCount > 0,
-          );
-
-          this.recordMergeResult(stage, result);
 
           try {
             updates = await timeOperation(
-              async () => await processor.processStage(stage, result.events),
+              async () => await processor.processStage(stage, events),
               (durationMs) => {
                 logger.info('challenge_stage_processed', {
                   challengeUuid: challenge.uuid,
                   stage,
-                  status: result.events.getStatus(),
+                  status: events.getStatus(),
                   durationMs,
                 });
                 observeStageProcessingDuration(stage, durationMs);
@@ -1723,27 +1645,6 @@ export default class ChallengeManager {
               error: e instanceof Error ? e.message : String(e),
               stack: e instanceof Error ? e.stack : undefined,
             });
-          }
-
-          if (result.unmergedCount > 0) {
-            const shouldSave = Math.random() < UNMERGED_EVENT_SAVE_RATE;
-            if (shouldSave) {
-              setTimeout(() => {
-                void runWithLogContext(
-                  { challengeUuid: challenge.uuid, stage, attempt },
-                  () =>
-                    this.saveUnmergedEvents(
-                      challengeInfo,
-                      stage,
-                      eventsByClient
-                        .values()
-                        .flatMap((s) => s)
-                        .toArray(),
-                      result,
-                    ),
-                );
-              }, 0);
-            }
           }
         }
 
@@ -2128,80 +2029,6 @@ export default class ChallengeManager {
       }, ChallengeManager.CHALLENGE_TIMEOUT_INTERVAL);
     }
   }
-
-  private recordMergeResult(stage: Stage, result: MergeResult): void {
-    for (const client of result.clients) {
-      recordMergeClient(client.classification, client.status);
-      for (const anomaly of client.anomalies) {
-        recordClientAnomaly(stage, anomaly);
-      }
-    }
-    for (const alert of result.alerts) {
-      recordMergeAlert(stage, alert.type);
-    }
-
-    // TODO(frolv): Persist merge result in the data repository.
-  }
-
-  private async saveUnmergedEvents(
-    challenge: ChallengeInfo,
-    stage: Stage,
-    events: ClientStageStream[],
-    result: MergeResult,
-  ): Promise<void> {
-    // Save all event data as a single JSON file. This is inefficient as the
-    // files are quite large, but it's simple to work with and debug. Ideally,
-    // the amount of merge failures should reduce over time, making this less
-    // of a concern :)
-    const stageEventData: UnmergedEventData = {
-      challengeInfo: challenge,
-      stage,
-      mergedClients: result.clients.filter(
-        (client) => client.status === MergeClientStatus.MERGED,
-      ),
-      unmergedClients: result.clients.filter(
-        (client) => client.status === MergeClientStatus.UNMERGED,
-      ),
-      rawEvents: events,
-    };
-
-    try {
-      await this.testDataRepository.saveRaw(
-        unmergedEventsFile(challenge.uuid, stage),
-        Buffer.from(JSON.stringify(stageEventData)),
-      );
-      recordRepositoryWrite('test', 'unmerged_events', 'success');
-      logger.info('unmerged_events_saved', {
-        challengeUuid: challenge.uuid,
-        stage,
-        mergedCount: result.mergedCount,
-        unmergedCount: result.unmergedCount,
-        skippedCount: result.skippedCount,
-      });
-    } catch (e) {
-      recordRepositoryWrite('test', 'unmerged_events', 'error');
-      logger.error('unmerged_events_save_error', {
-        challengeUuid: challenge.uuid,
-        stage,
-        error: e instanceof Error ? e.message : String(e),
-        stack: e instanceof Error ? e.stack : undefined,
-      });
-    }
-  }
-}
-
-export type UnmergedEventData = {
-  challengeInfo: ChallengeInfo;
-  stage: Stage;
-  mergedClients: MergeClient[];
-  unmergedClients: MergeClient[];
-  rawEvents: ClientStageStream[];
-};
-
-const UNMERGED_EVENT_SAVE_RATE = 0.1;
-const UNMERGED_EVENTS_DIR = 'unmerged-events';
-export function unmergedEventsFile(challengeId: string, stage: Stage): string {
-  return `${UNMERGED_EVENTS_DIR}/${challengeId}:${stage}_events.json`;
 }
 
 class SessionWatchdog {

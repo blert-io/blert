@@ -16,17 +16,18 @@ import {
   ChallengeError,
   ChallengeErrorType,
   ChallengeUpdate,
-  UnmergedEventData,
-  unmergedEventsFile,
 } from './challenge-manager';
 import { ReportedTimes } from './event-processing';
 import logger, { runWithLogContext } from './log';
-import { ClientEvents, Merger, MergeTracer } from './merging';
 import {
-  getMetricsSnapshot,
-  metricsContentType,
-  observeHttpRequest,
-} from './metrics';
+  type CaptureFilters,
+  type CaptureReason,
+  parseUnmergedEventsFile,
+  UnmergedEventData,
+  unmergedEventsFile,
+} from './merge-service';
+import { ClientEvents, Merger, MergeTracer } from './merging';
+import { MetricsCollector, observeHttpRequest } from './metrics';
 
 function asyncHandler(
   fn: (req: Request, res: Response) => Promise<void>,
@@ -36,7 +37,10 @@ function asyncHandler(
   };
 }
 
-export function registerApiRoutes(app: Application): void {
+export function registerApiRoutes(
+  app: Application,
+  collector: MetricsCollector,
+): void {
   app.get('/ping', (req, res) => {
     res.send('pong');
   });
@@ -45,8 +49,8 @@ export function registerApiRoutes(app: Application): void {
     '/metrics',
     asyncHandler(async (_req, res) => {
       try {
-        const metrics = await getMetricsSnapshot();
-        res.set('Content-Type', metricsContentType);
+        const metrics = await collector.getMetricsSnapshot();
+        res.set('Content-Type', MetricsCollector.contentType);
         res.send(metrics);
       } catch (err) {
         logger.error('metrics_endpoint_failure', {
@@ -63,6 +67,7 @@ export function registerApiRoutes(app: Application): void {
   app.post('/challenges/:challengeId/join', asyncHandler(joinChallenge));
 
   app.use('/test', requireApiKey);
+  app.get('/test/merge/captures', asyncHandler(listMergeCaptures));
   app.get('/test/merge/:challengeId/stages', asyncHandler(listMergeStages));
   app.post('/test/merge/:challengeId/:stage', asyncHandler(mergeTestEvents));
 }
@@ -351,6 +356,60 @@ async function loadUnmergedData(
   };
 }
 
+async function listMergeCaptures(req: Request, res: Response): Promise<void> {
+  const route = '/test/merge/captures';
+  const start = process.hrtime.bigint();
+
+  const { mergeService } = res.locals;
+
+  const filters: CaptureFilters = {};
+  if (typeof req.query.reason === 'string') {
+    filters.reason = req.query.reason as CaptureReason;
+  }
+  if (typeof req.query.challengeId === 'string') {
+    filters.challengeId = req.query.challengeId;
+  }
+  if (typeof req.query.stage === 'string') {
+    const stage = Number.parseInt(req.query.stage);
+    if (Number.isNaN(stage)) {
+      res.status(400).json({ error: 'Invalid stage' });
+      recordHttpMetrics(route, req, res, start);
+      return;
+    }
+    filters.stage = stage;
+  }
+  if (typeof req.query.attempt === 'string') {
+    const attempt = Number.parseInt(req.query.attempt);
+    if (Number.isNaN(attempt)) {
+      res.status(400).json({ error: 'Invalid attempt' });
+      recordHttpMetrics(route, req, res, start);
+      return;
+    }
+    filters.attempt = attempt;
+  }
+
+  let limit = 50;
+  if (typeof req.query.limit === 'string') {
+    limit = Number.parseInt(req.query.limit);
+    if (Number.isNaN(limit) || limit < 1) {
+      res.status(400).json({ error: 'Invalid limit' });
+      recordHttpMetrics(route, req, res, start);
+      return;
+    }
+  }
+
+  try {
+    const captures = await mergeService.listCaptures(filters, limit);
+    res.json({ captures });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.error('list_merge_captures_error', { error: msg });
+    res.status(500).json({ error: 'Failed to list captures' });
+  }
+
+  recordHttpMetrics(route, req, res, start);
+}
+
 async function listMergeStages(req: Request, res: Response): Promise<void> {
   const route = '/test/merge/:challengeId/stages';
   const start = process.hrtime.bigint();
@@ -362,25 +421,16 @@ async function listMergeStages(req: Request, res: Response): Promise<void> {
 
     try {
       const files = await testDataRepository.listFiles('unmerged-events');
-      const prefix = `${challengeId}:`;
-      const stages: number[] = [];
+      const stages = new Set<number>();
 
       for (const file of files) {
-        const basename = file.split('/').pop() ?? '';
-        if (basename.startsWith(prefix) && basename.endsWith('_events.json')) {
-          const stageStr = basename.slice(
-            prefix.length,
-            -'_events.json'.length,
-          );
-          const stageNum = Number.parseInt(stageStr);
-          if (!Number.isNaN(stageNum)) {
-            stages.push(stageNum);
-          }
+        const info = parseUnmergedEventsFile(file);
+        if (info !== null && info.challengeId === challengeId) {
+          stages.add(info.stage);
         }
       }
 
-      stages.sort((a, b) => a - b);
-      res.json({ stages });
+      res.json({ stages: [...stages].sort((a, b) => a - b) });
     } catch (e) {
       if (e instanceof DataRepository.NotFound) {
         res.json({ stages: [] });
@@ -449,10 +499,22 @@ async function mergeTestEvents(req: Request, res: Response): Promise<void> {
     }
 
     const tracer = new MergeTracer();
-    const merger = new Merger(mergeData.challengeInfo, stage, clients);
-    const result = merger.merge(tracer, { alignMismatched: true });
-    if (result === null) {
+    let result;
+    try {
+      const merger = new Merger(mergeData.challengeInfo, stage, clients);
+      result = merger.merge(tracer, { alignMismatched: true });
+    } catch (e) {
+      logger.error('test_merge_error', {
+        error: e instanceof Error ? e.message : String(e),
+        stack: e instanceof Error ? e.stack : undefined,
+      });
       res.status(500).send();
+      return;
+    }
+
+    if (result === null) {
+      logger.warn('test_merge_no_result', { clientCount: clients.length });
+      res.status(422).json({ error: 'No mergeable clients' });
       return;
     }
 
