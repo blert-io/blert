@@ -3,7 +3,7 @@ import { Event } from '@blert/common/generated/event_pb';
 
 import { AlignmentEntry, AlignmentRange, AlignmentResult } from './alignment';
 import { ReferenceSelection } from './classification';
-import { StageData } from './client-events';
+import { ClientMetadata, StageData } from './client-events';
 import { StepConfidence } from './confidence';
 import { MergeClientStatus } from './context';
 import { EventType } from './event';
@@ -74,6 +74,7 @@ export type SerializedAlignmentResult = {
 export type InputClientInfo = {
   clientId: number;
   primaryPlayer: string | null;
+  metadata: ClientMetadata | null;
   recordedTicks: number;
   accurate: boolean;
   reportedAccurate: boolean;
@@ -353,6 +354,7 @@ export class MergeTracer {
   public recordInputClient(
     clientId: number,
     primaryPlayer: string | null,
+    metadata: ClientMetadata | null,
     recordedTicks: number,
     accurate: boolean,
     reportedAccurate: boolean,
@@ -362,6 +364,7 @@ export class MergeTracer {
     this.inputClients.push({
       clientId,
       primaryPlayer,
+      metadata,
       recordedTicks,
       accurate,
       reportedAccurate,

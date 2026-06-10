@@ -12,6 +12,7 @@ import {
   recordClientReportedTimePrecision,
   recordMergeAlert,
   recordMergeClient,
+  recordMergeResultWrite,
   recordRepositoryWrite,
   recordStageCompletion,
   recordStageEventPayload,
@@ -19,6 +20,7 @@ import {
   recordStreamCaptureSuppressed,
 } from '../metrics';
 import { CaptureReason, captureReasons, sampleCapture } from './policy';
+import { MergeResultStore, StageMerge } from './store';
 import {
   MergeReply,
   MergeResultMetadata,
@@ -34,6 +36,8 @@ export type MergeServiceConfig = {
    * regressions from inflating a capture signal and filling up the repository.
    */
   maxCapturesPerHour?: number;
+  /** Optional data store recording the outcome of every processed merge. */
+  resultStore?: MergeResultStore;
 };
 
 const DEFAULT_MAX_CAPTURES_PER_HOUR = 25;
@@ -136,11 +140,16 @@ export class MergeService {
       recordMergeAlert(stage, alert.type);
     }
 
+    let capture: StageMerge['capture'] = null;
     if (this.config.samplingRepository !== undefined) {
       const reasons = captureReasons(result);
       if (sampleCapture(reasons)) {
         if (this.tryReserveCapture()) {
           reasons.forEach(recordStreamCapture);
+          capture = {
+            reasons,
+            file: unmergedEventsFile(challengeInfo.uuid, stage, attempt),
+          };
           setTimeout(
             () =>
               void this.saveRawStreams(
@@ -177,6 +186,18 @@ export class MergeService {
       result.unmergedCount > 0,
       result.skippedCount > 0,
     );
+
+    if (this.config.resultStore !== undefined) {
+      await this.persistMergeResult({
+        challengeInfo,
+        stage,
+        attempt,
+        result,
+        events,
+        capture,
+      });
+    }
+
     return events;
   }
 
@@ -215,6 +236,22 @@ export class MergeService {
       .slice(0, limit);
   }
 
+  private async persistMergeResult(merge: StageMerge): Promise<void> {
+    try {
+      await this.config.resultStore!.saveStageMerge(merge);
+      recordMergeResultWrite('success');
+    } catch (e: unknown) {
+      recordMergeResultWrite('error');
+      logger.error('merge_result_persist_failed', {
+        challengeUuid: merge.challengeInfo.uuid,
+        stage: merge.stage,
+        attempt: merge.attempt,
+        error: e instanceof Error ? e.message : String(e),
+        stack: e instanceof Error ? e.stack : undefined,
+      });
+    }
+  }
+
   private async saveRawStreams(
     challengeInfo: ChallengeInfo,
     stage: Stage,
@@ -242,9 +279,11 @@ export class MergeService {
     };
 
     const repository = this.config.samplingRepository!;
+    const file = unmergedEventsFile(challengeInfo.uuid, stage, attempt);
+
     try {
       await repository.saveRaw(
-        unmergedEventsFile(challengeInfo.uuid, stage, attempt),
+        file,
         Buffer.from(JSON.stringify(stageEventData)),
       );
       recordRepositoryWrite('test', 'unmerged_events', 'success');
@@ -270,7 +309,7 @@ export class MergeService {
 
     try {
       await this.appendToCaptureIndex({
-        file: unmergedEventsFile(challengeInfo.uuid, stage, attempt),
+        file,
         challengeId: challengeInfo.uuid,
         stage,
         attempt,

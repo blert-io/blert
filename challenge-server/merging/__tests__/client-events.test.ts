@@ -163,6 +163,7 @@ describe('ClientEvents', () => {
       expect(client.hasAnomaly(ClientAnomaly.MISSING_STAGE_METADATA)).toBe(
         true,
       );
+      expect(client.getMetadata()).toBeNull();
     });
 
     it('flags bad data when a stream chunk fails to decode, keeping the rest', () => {
@@ -175,6 +176,13 @@ describe('ClientEvents', () => {
         }),
       ]);
       const stream: ClientStageStream[] = [
+        {
+          type: StageStreamType.CLIENT_METADATA,
+          clientId: 6,
+          userId: 42,
+          pluginVersion: '0.9.11',
+          runeLiteVersion: '1.12.28',
+        },
         {
           type: StageStreamType.STAGE_EVENTS,
           clientId: 6,
@@ -207,6 +215,11 @@ describe('ClientEvents', () => {
 
       expect(client.hasAnomaly(ClientAnomaly.BAD_DATA)).toBe(true);
       expect(client.getPrimaryPlayer()).toBe('player1');
+      expect(client.getMetadata()).toEqual({
+        userId: 42,
+        pluginVersion: '0.9.11',
+        runeLiteVersion: '1.12.28',
+      });
     });
 
     describe('consistency', () => {
