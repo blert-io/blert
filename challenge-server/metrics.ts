@@ -563,6 +563,17 @@ export const recordStreamCapture = (reason: string): void => {
   streamCaptures.inc({ reason });
 };
 
+const mergeResultWrites = new Counter({
+  name: 'challenge_server_merge_result_writes_total',
+  help: 'Merge result database write outcomes',
+  labelNames: ['status'] as const,
+  registers: [register],
+});
+
+export const recordMergeResultWrite = (status: 'success' | 'error'): void => {
+  mergeResultWrites.inc({ status });
+};
+
 const streamCapturesSuppressed = new Counter({
   name: 'challenge_server_merge_stream_captures_suppressed_total',
   help: 'Stream captures dropped by the hourly rate cap',

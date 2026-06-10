@@ -1,4 +1,9 @@
-export { ClientAnomaly, ClientEvents, type ServerTicks } from './client-events';
+export {
+  ClientAnomaly,
+  ClientEvents,
+  type ClientMetadata,
+  type ServerTicks,
+} from './client-events';
 export { type ChallengeInfo, MergeClientStatus } from './context';
 export {
   type MergeClient,

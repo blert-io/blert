@@ -9,7 +9,12 @@ import {
   ReferenceSelection,
   ReferenceSelectionMethod,
 } from './classification';
-import { ClientAnomaly, ClientEvents, ServerTicks } from './client-events';
+import {
+  ClientAnomaly,
+  ClientEvents,
+  ClientMetadata,
+  ServerTicks,
+} from './client-events';
 import { ConsistencyIssue } from './client-consistency';
 import {
   DEFAULT_CONFIDENCE_WEIGHTS,
@@ -69,6 +74,8 @@ export const enum MergeClientClassification {
 export type MergeClient = {
   id: number;
   primaryPlayer: string | null;
+  /** Connection metadata reported by the client, if it sent any. */
+  metadata: ClientMetadata | null;
   status: MergeClientStatus;
   classification: MergeClientClassification;
   sequenceNumber: number;
@@ -162,6 +169,7 @@ function createMergeClient(
   return {
     id: client.getId(),
     primaryPlayer: client.getPrimaryPlayer(),
+    metadata: client.getMetadata(),
     status,
     classification,
     sequenceNumber,
@@ -228,6 +236,7 @@ export class Merger {
       tracer?.recordInputClient(
         client.getId(),
         client.getPrimaryPlayer(),
+        client.getMetadata(),
         client.getTickCount(),
         client.isAccurate(),
         client.getReportedAccurate(),

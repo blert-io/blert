@@ -61,6 +61,13 @@ export type ServerTicks = {
   precise: boolean;
 };
 
+/** Connection metadata reported by a client alongside its stage stream. */
+export type ClientMetadata = {
+  userId: number;
+  pluginVersion: string;
+  runeLiteVersion: string;
+};
+
 /**
  * Stage-scoped data extracted from a client's raw events.
  *
@@ -91,6 +98,7 @@ export class ClientEvents {
   private readonly stageInfo: Readonly<StageInfo>;
   private readonly tickState: TickState[];
   private readonly stageData: Readonly<StageData>;
+  private readonly metadata: ClientMetadata | null;
   private readonly primaryPlayer: string | null;
   private readonly invalidTickCount: boolean;
   private readonly anomalies: Set<ClientAnomaly>;
@@ -122,10 +130,17 @@ export class ClientEvents {
 
     const events: Event[] = [];
     const anomalies = new Set<ClientAnomaly>();
+    let metadata: ClientMetadata | null = null;
     let sawStageEnd = false;
 
     for (const stream of streamEvents) {
-      if (stream.type === StageStreamType.STAGE_END) {
+      if (stream.type === StageStreamType.CLIENT_METADATA) {
+        metadata = {
+          userId: stream.userId,
+          pluginVersion: stream.pluginVersion,
+          runeLiteVersion: stream.runeLiteVersion,
+        };
+      } else if (stream.type === StageStreamType.STAGE_END) {
         const update = stream.update;
         stageInfo.status = update.status;
         stageInfo.accurate = update.accurate;
@@ -162,6 +177,7 @@ export class ClientEvents {
       challenge,
       stageInfo,
       events,
+      metadata,
       anomalies,
     );
   }
@@ -173,6 +189,8 @@ export class ClientEvents {
    * @param challenge The challenge to which the events belong.
    * @param stageInfo Information about the stage of the challenge.
    * @param rawEvents Raw list of stage events.
+   * @param metadata Connection metadata reported by the client.
+   * @param anomalies Optional set of anomalies detected in the client's events.
    * @returns Structured client events.
    */
   public static fromRawEvents(
@@ -180,6 +198,7 @@ export class ClientEvents {
     challenge: ChallengeInfo,
     stageInfo: StageInfo,
     rawEvents: Event[],
+    metadata: ClientMetadata | null = null,
     anomaliesParam?: Set<ClientAnomaly>,
   ): ClientEvents {
     const anomalies = anomaliesParam ?? new Set<ClientAnomaly>();
@@ -335,6 +354,7 @@ export class ClientEvents {
       finalAccurate,
       tickState,
       stageData,
+      metadata,
       primaryPlayer ?? null,
       invalidTickCount,
       anomalies,
@@ -425,6 +445,13 @@ export class ClientEvents {
    */
   public getStageData(): Readonly<StageData> {
     return this.stageData;
+  }
+
+  /**
+   * @returns The connection metadata reported by the client.
+   */
+  public getMetadata(): ClientMetadata | null {
+    return this.metadata;
   }
 
   /**
@@ -533,6 +560,7 @@ export class ClientEvents {
     accurate: boolean,
     tickState: TickState[],
     stageData: StageData,
+    metadata: ClientMetadata | null,
     primaryPlayer: string | null,
     invalidTickCount: boolean,
     anomalies: Set<ClientAnomaly>,
@@ -542,6 +570,7 @@ export class ClientEvents {
     this.stageInfo = stageInfo;
     this.tickState = tickState;
     this.stageData = stageData;
+    this.metadata = metadata;
     this.primaryPlayer = primaryPlayer;
     this.invalidTickCount = invalidTickCount;
     this.anomalies = anomalies;

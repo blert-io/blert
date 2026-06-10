@@ -12,6 +12,11 @@ export {
   unmergedEventsFile,
   type UnmergedEventsFileInfo,
 } from './service';
+export {
+  type MergeResultStore,
+  PostgresMergeResultStore,
+  type StageMerge,
+} from './store';
 
 export { type UnmergedEventData } from './types';
 

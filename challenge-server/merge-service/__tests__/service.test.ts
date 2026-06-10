@@ -26,6 +26,7 @@ import {
   parseUnmergedEventsFile,
   unmergedEventsFile,
 } from '../service';
+import { MergeResultStore, StageMerge } from '../store';
 import { MergeReply, MergeRunner, UnmergedEventData } from '../types';
 import { runMergeJob } from '../worker';
 
@@ -343,6 +344,112 @@ describe('MergeService captures', () => {
 
     const noRepository = new MergeService(runnerReturning({ kind: 'empty' }));
     expect(await noRepository.listCaptures()).toEqual([]);
+  });
+});
+
+describe('MergeService result persistence', () => {
+  const stream = buildStream();
+
+  function reply(): MergeReply {
+    const r = runMergeJob({
+      challengeInfo,
+      stage: Stage.TOB_MAIDEN,
+      attempt: 7,
+      stream,
+    });
+    if (r.kind !== 'merged') {
+      throw new Error('expected a merged reply');
+    }
+    return {
+      ...r,
+      result: {
+        ...r.result,
+        alerts: [{ type: MergeAlertType.MULTIPLE_ACCURATE_TICK_MODES }],
+      },
+    };
+  }
+
+  it('saves every merge, linking its capture when one was taken', async () => {
+    const saved: StageMerge[] = [];
+    const store: MergeResultStore = {
+      saveStageMerge: async (merge) => {
+        saved.push(merge);
+      },
+    };
+    const service = new MergeService(runnerReturning(reply()), {
+      samplingRepository: fakeRepository(new Map()),
+      resultStore: store,
+    });
+
+    const events = await service.merge(
+      challengeInfo,
+      Stage.TOB_MAIDEN,
+      7,
+      stream,
+    );
+
+    expect(saved).toHaveLength(1);
+    const merge = saved[0];
+    expect(merge.challengeInfo).toEqual(challengeInfo);
+    expect(merge.stage).toBe(Stage.TOB_MAIDEN);
+    expect(merge.attempt).toBe(7);
+    expect(merge.events).toBe(events);
+    expect(merge.result.alerts).toEqual([
+      { type: MergeAlertType.MULTIPLE_ACCURATE_TICK_MODES },
+    ]);
+    expect(merge.capture).toEqual({
+      reasons: [CaptureReason.ACCURATE_TICK_DISAGREEMENT],
+      file: `unmerged-events/${challengeInfo.uuid}:${Stage.TOB_MAIDEN}:7_events.json`,
+    });
+  });
+
+  it('saves without capture when sampling is not configured', async () => {
+    const saved: StageMerge[] = [];
+    const store: MergeResultStore = {
+      saveStageMerge: async (merge) => {
+        saved.push(merge);
+      },
+    };
+    const service = new MergeService(runnerReturning(reply()), {
+      resultStore: store,
+    });
+
+    const events = await service.merge(
+      challengeInfo,
+      Stage.TOB_MAIDEN,
+      7,
+      stream,
+    );
+
+    expect(saved).toHaveLength(1);
+    const merge = saved[0];
+    expect(merge.challengeInfo).toEqual(challengeInfo);
+    expect(merge.stage).toBe(Stage.TOB_MAIDEN);
+    expect(merge.attempt).toBe(7);
+    expect(merge.events).toBe(events);
+    expect(merge.result.alerts).toEqual([
+      { type: MergeAlertType.MULTIPLE_ACCURATE_TICK_MODES },
+    ]);
+    expect(merge.capture).toBeNull();
+  });
+
+  it('returns the merged events even if the store fails', async () => {
+    const store: MergeResultStore = {
+      saveStageMerge: async () => {
+        throw new Error('database down');
+      },
+    };
+    const service = new MergeService(runnerReturning(reply()), {
+      resultStore: store,
+    });
+
+    const events = await service.merge(
+      challengeInfo,
+      Stage.TOB_MAIDEN,
+      7,
+      stream,
+    );
+    expect(events).not.toBeNull();
   });
 });
 

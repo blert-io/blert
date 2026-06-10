@@ -6,7 +6,11 @@ import { RedisClientType, createClient } from 'redis';
 
 import { registerApiRoutes } from './api';
 import ChallengeManager from './challenge-manager';
-import { mergeServiceWithWorkerPool } from './merge-service';
+import sql from './db';
+import {
+  mergeServiceWithWorkerPool,
+  PostgresMergeResultStore,
+} from './merge-service';
 import { MetricsCollector } from './metrics';
 import logger from './log';
 
@@ -96,6 +100,7 @@ async function main() {
     },
     {
       samplingRepository: testDataRepository,
+      resultStore: new PostgresMergeResultStore(sql),
     },
   );
 

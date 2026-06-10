@@ -13,6 +13,7 @@ function makeClient(overrides: Partial<MergeClient> = {}): MergeClient {
   return {
     id: 1,
     primaryPlayer: 'player1',
+    metadata: null,
     status: MergeClientStatus.MERGED,
     classification: MergeClientClassification.MATCHING,
     sequenceNumber: 0,

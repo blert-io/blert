@@ -25,6 +25,8 @@ export const enum CaptureReason {
   TIMELINE_OFFSET = 'timeline_offset',
   /** Background sample of a clean merge, keeping the corpus representative. */
   BASELINE = 'baseline',
+  /** Merges captured in a development environment. */
+  DEVELOPMENT = 'development',
 }
 
 /**
@@ -44,6 +46,7 @@ const CAPTURE_RATES: Record<CaptureReason, number> = {
   [CaptureReason.QUALITY_FLAGS]: 0.25,
   [CaptureReason.TIMELINE_OFFSET]: 0.05,
   [CaptureReason.BASELINE]: 0.005,
+  [CaptureReason.DEVELOPMENT]: 1,
 };
 
 /**
@@ -144,6 +147,10 @@ export function captureReasons(result: MergeResultMetadata): CaptureReason[] {
 
   if (result.unmergedCount > 0 || result.skippedCount > 0) {
     reasons.add(CaptureReason.UNMERGED_CLIENTS);
+  }
+
+  if (process.env.NODE_ENV === 'development' && result.clients.length > 1) {
+    reasons.add(CaptureReason.DEVELOPMENT);
   }
 
   if (reasons.size === 0) {
