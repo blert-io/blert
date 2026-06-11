@@ -200,7 +200,7 @@ export class Merger {
     this.challenge = challenge;
     this.stage = stage;
     this.clients = clients.toSorted(
-      (a, b) => b.getFinalTick() - a.getFinalTick(),
+      (a, b) => b.getFinalTick() - a.getFinalTick() || a.getId() - b.getId(),
     );
     this.alerts = [];
     this.referenceSelection = null;
