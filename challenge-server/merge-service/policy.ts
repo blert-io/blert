@@ -23,6 +23,10 @@ export const enum CaptureReason {
   QUALITY_FLAGS = 'quality_flags',
   /** The merged timeline was offset to the end of the stage. */
   TIMELINE_OFFSET = 'timeline_offset',
+  /**
+   * The merge failed outright; the captured streams are its reproduction case.
+   */
+  MERGE_FAILED = 'merge_failed',
   /** Background sample of a clean merge, keeping the corpus representative. */
   BASELINE = 'baseline',
   /** Merges captured in a development environment. */
@@ -45,6 +49,7 @@ const CAPTURE_RATES: Record<CaptureReason, number> = {
   [CaptureReason.UNMERGED_CLIENTS]: 0.25,
   [CaptureReason.QUALITY_FLAGS]: 0.25,
   [CaptureReason.TIMELINE_OFFSET]: 0.05,
+  [CaptureReason.MERGE_FAILED]: 1,
   [CaptureReason.BASELINE]: 0.005,
   [CaptureReason.DEVELOPMENT]: 1,
 };
@@ -86,6 +91,7 @@ export function captureReasons(result: MergeResultMetadata): CaptureReason[] {
         reasons.add(CaptureReason.SERVER_TICK_DISAGREEMENT);
         break;
       case MergeAlertType.POST_MERGE_CONSISTENCY_REJECTIONS:
+      case MergeAlertType.LOW_CONFIDENCE_REJECTIONS:
         reasons.add(CaptureReason.MERGE_REJECTION);
         break;
       case MergeAlertType.TIMELINE_OFFSET_APPLIED:

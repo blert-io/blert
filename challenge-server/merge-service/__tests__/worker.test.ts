@@ -98,17 +98,17 @@ describe('runMergeJob', () => {
     expect(reply.result.clients).toEqual(direct!.clients);
   });
 
-  it('returns empty when the stream has no mergeable clients', () => {
+  it('reports bad data when the stream has no mergeable clients', () => {
     const reply = runMergeJob({
       challengeInfo,
       stage: Stage.TOB_MAIDEN,
       attempt: 0,
       stream: [],
     });
-    expect(reply.kind).toBe('empty');
+    expect(reply.kind).toBe('bad_data');
   });
 
-  it('returns empty when no client data survives decoding', () => {
+  it('reports bad data when no client data survives decoding', () => {
     const reply = runMergeJob({
       challengeInfo,
       stage: Stage.TOB_MAIDEN,
@@ -121,6 +121,6 @@ describe('runMergeJob', () => {
         },
       ],
     });
-    expect(reply.kind).toBe('empty');
+    expect(reply.kind).toBe('bad_data');
   });
 });

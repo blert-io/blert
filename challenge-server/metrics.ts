@@ -563,6 +563,24 @@ export const recordStreamCapture = (reason: string): void => {
   streamCaptures.inc({ reason });
 };
 
+export type MergeOutcome =
+  | 'merged'
+  | 'bad_data'
+  | 'exception'
+  | 'runner_failed'
+  | 'deserialize_failed';
+
+const mergeRequests = new Counter({
+  name: 'challenge_server_merge_requests_total',
+  help: 'Merge request outcomes',
+  labelNames: ['outcome'] as const,
+  registers: [register],
+});
+
+export const recordMergeOutcome = (outcome: MergeOutcome): void => {
+  mergeRequests.inc({ outcome });
+};
+
 const mergeResultWrites = new Counter({
   name: 'challenge_server_merge_result_writes_total',
   help: 'Merge result database write outcomes',

@@ -19,8 +19,8 @@ export type MergeResultMetadata = Omit<MergeResult, 'events'>;
  */
 export type MergeReply =
   | { kind: 'merged'; events: string; result: MergeResultMetadata }
-  | { kind: 'empty' }
-  | { kind: 'error' };
+  | { kind: 'bad_data' }
+  | { kind: 'exception' };
 
 /** A long-running merge job executor. */
 export interface MergeRunner {

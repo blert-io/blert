@@ -24,6 +24,7 @@ function makeClient(overrides: Partial<MergeClient> = {}): MergeClient {
     anomalies: [],
     consistencyIssues: [],
     qualityFlags: [],
+    rejectionReason: null,
     mergeIssues: [],
     worstSegmentScore: null,
     ...overrides,
@@ -66,11 +67,26 @@ describe('captureReasons', () => {
       MergeAlertType.POST_MERGE_CONSISTENCY_REJECTIONS,
       CaptureReason.MERGE_REJECTION,
     ],
-    [MergeAlertType.TIMELINE_OFFSET_APPLIED, CaptureReason.TIMELINE_OFFSET],
+    [MergeAlertType.LOW_CONFIDENCE_REJECTIONS, CaptureReason.MERGE_REJECTION],
     [MergeAlertType.LOW_STRUCTURAL_CONFIDENCE, CaptureReason.LOW_CONFIDENCE],
   ])('maps a %s alert to %s', (alertType, reason) => {
     const result = makeResult({ alerts: [{ type: alertType }] });
     expect(captureReasons(result)).toEqual([reason]);
+  });
+
+  it('does not capture a single-client timeline offset', () => {
+    const result = makeResult({
+      clients: [makeClient()],
+      alerts: [{ type: MergeAlertType.TIMELINE_OFFSET_APPLIED }],
+    });
+    expect(captureReasons(result)).toEqual([CaptureReason.BASELINE]);
+  });
+
+  it('captures a multi-client timeline offset', () => {
+    const result = makeResult({
+      alerts: [{ type: MergeAlertType.TIMELINE_OFFSET_APPLIED }],
+    });
+    expect(captureReasons(result)).toEqual([CaptureReason.TIMELINE_OFFSET]);
   });
 
   it.each([
