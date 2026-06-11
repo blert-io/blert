@@ -12,6 +12,7 @@ import {
   recordClientReportedTimePrecision,
   recordMergeAlert,
   recordMergeClient,
+  recordMergeOutcome,
   recordMergeResultWrite,
   recordRepositoryWrite,
   recordStageCompletion,
@@ -22,6 +23,7 @@ import {
 import { CaptureReason, captureReasons, sampleCapture } from './policy';
 import { MergeResultStore, StageMerge } from './store';
 import {
+  MergeJob,
   MergeReply,
   MergeResultMetadata,
   MergeRunner,
@@ -42,6 +44,10 @@ export type MergeServiceConfig = {
 
 const DEFAULT_MAX_CAPTURES_PER_HOUR = 25;
 const CAPTURE_WINDOW_MS = 60 * 60 * 1000;
+
+// A runner failure is almost always transient (e.g. a worker recycled mid-job),
+// so one quick retry attempts to run the merge on a replacement worker.
+const RUNNER_RETRY_DELAY_MS = 100;
 
 /** A capture index record describing one saved raw stream file. */
 export type CaptureIndexEntry = {
@@ -85,8 +91,8 @@ export class MergeService {
    * @param stage Stage to which the stream belongs.
    * @param attempt Stage attempt number.
    * @param stream The raw client streams.
-   * @returns The merged events, or `null` either if there is nothing to merge
-   *   or the merge failed.
+   * @returns The merged events, or `null` if there is nothing to merge or the
+   *    merge failed.
    */
   public async merge(
     challengeInfo: ChallengeInfo,
@@ -109,17 +115,36 @@ export class MergeService {
 
     let reply: MergeReply;
     try {
-      reply = await this.runner.run({ challengeInfo, stage, attempt, stream });
+      reply = await this.runWithRetry({
+        challengeInfo,
+        stage,
+        attempt,
+        stream,
+      });
     } catch (e: unknown) {
+      recordMergeOutcome('runner_failed');
       logger.error('merge_runner_run_failed', {
         stage,
         error: e instanceof Error ? e.message : String(e),
       });
+      // TODO(frolv): Failing due to a runner issue should probably be reported
+      // instead of being silently swallowed to prevent the caller from deleting
+      // the stage streams.
       return null;
     }
 
     if (reply.kind !== 'merged') {
-      // Errors are logged within the runner.
+      // Failure details are logged within the runner.
+      recordMergeOutcome(reply.kind);
+      this.captureFailedMerge(
+        challengeInfo,
+        stage,
+        attempt,
+        stream,
+        reply.kind === 'bad_data'
+          ? CaptureReason.BAD_DATA
+          : CaptureReason.MERGE_FAILED,
+      );
       return null;
     }
 
@@ -173,12 +198,21 @@ export class MergeService {
     try {
       events = MergedEvents.deserialize(reply.events);
     } catch (e: unknown) {
+      recordMergeOutcome('deserialize_failed');
       logger.error('merge_events_deserialization_failed', {
         stage,
         error: e instanceof Error ? e.message : String(e),
       });
+      this.captureFailedMerge(
+        challengeInfo,
+        stage,
+        attempt,
+        stream,
+        CaptureReason.MERGE_FAILED,
+      );
       return null;
     }
+    recordMergeOutcome('merged');
     recordStageCompletion(
       stage,
       events.getStatus(),
@@ -236,6 +270,56 @@ export class MergeService {
       .slice(0, limit);
   }
 
+  private async runWithRetry(job: MergeJob): Promise<MergeReply> {
+    try {
+      return await this.runner.run(job);
+    } catch (e: unknown) {
+      logger.warn('merge_runner_retrying', {
+        stage: job.stage,
+        error: e instanceof Error ? e.message : String(e),
+      });
+      await new Promise((resolve) =>
+        setTimeout(resolve, RUNNER_RETRY_DELAY_MS),
+      );
+      return this.runner.run(job);
+    }
+  }
+
+  /**
+   * Captures the raw streams of a merge which failed in an unexpected way.
+   * Always captured, but still subject to the hourly rate cap.
+   */
+  private captureFailedMerge(
+    challengeInfo: ChallengeInfo,
+    stage: Stage,
+    attempt: number | null,
+    stream: ClientStageStream[],
+    reason: CaptureReason,
+  ): void {
+    if (this.config.samplingRepository === undefined) {
+      return;
+    }
+    const reasons = [reason];
+    if (!this.tryReserveCapture()) {
+      recordStreamCaptureSuppressed();
+      logger.warn('stream_capture_rate_limited', { stage, reasons });
+      return;
+    }
+    recordStreamCapture(reason);
+    setTimeout(
+      () =>
+        void this.saveRawStreams(
+          challengeInfo,
+          stage,
+          attempt,
+          stream,
+          null,
+          reasons,
+        ),
+      0,
+    );
+  }
+
   private async persistMergeResult(merge: StageMerge): Promise<void> {
     try {
       await this.config.resultStore!.saveStageMerge(merge);
@@ -257,7 +341,7 @@ export class MergeService {
     stage: Stage,
     attempt: number | null,
     stream: ClientStageStream[],
-    result: MergeResultMetadata,
+    result: MergeResultMetadata | null,
     reasons: CaptureReason[],
   ): Promise<void> {
     // Save all event data as a single JSON file. This is inefficient as the
@@ -269,12 +353,14 @@ export class MergeService {
       stage,
       attempt,
       captureReasons: reasons,
-      mergedClients: result.clients.filter(
-        (client) => client.status === MergeClientStatus.MERGED,
-      ),
-      unmergedClients: result.clients.filter(
-        (client) => client.status === MergeClientStatus.UNMERGED,
-      ),
+      mergedClients:
+        result?.clients.filter(
+          (client) => client.status === MergeClientStatus.MERGED,
+        ) ?? [],
+      unmergedClients:
+        result?.clients.filter(
+          (client) => client.status === MergeClientStatus.UNMERGED,
+        ) ?? [],
       rawEvents: stream,
     };
 
@@ -292,9 +378,9 @@ export class MergeService {
         stage,
         attempt,
         reasons,
-        mergedCount: result.mergedCount,
-        unmergedCount: result.unmergedCount,
-        skippedCount: result.skippedCount,
+        mergedCount: result?.mergedCount ?? 0,
+        unmergedCount: result?.unmergedCount ?? 0,
+        skippedCount: result?.skippedCount ?? 0,
       });
     } catch (e) {
       recordRepositoryWrite('test', 'unmerged_events', 'error');

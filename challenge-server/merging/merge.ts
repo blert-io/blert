@@ -87,6 +87,12 @@ export type MergeClient = {
   consistencyIssues: ConsistencyIssue[];
   qualityFlags: QualityFlag[];
   /**
+   * Why this client's merge step was rejected, or `null` if it was not
+   * rejected. A client may be `UNMERGED` without a rejection reason when its
+   * alignment produced nothing to merge.
+   */
+  rejectionReason: RejectionReason | null;
+  /**
    * Post-merge consistency issues that caused this client's merge step to be
    * rejected. Empty unless `status === MergeClientStatus.UNMERGED` and the
    * rejection came from the post-merge consistency check.
@@ -134,6 +140,16 @@ function surfaceAlerts(mergeClients: MergeClient[]): MergeAlert[] {
     });
   }
 
+  const confidenceRejected = mergeClients.filter(
+    (c) => c.rejectionReason === RejectionReason.LOW_MERGE_CONFIDENCE,
+  );
+  if (confidenceRejected.length > 0) {
+    alerts.push({
+      type: MergeAlertType.LOW_CONFIDENCE_REJECTIONS,
+      details: { rejectedClientIds: confidenceRejected.map((c) => c.id) },
+    });
+  }
+
   const lowConfidence = mergeClients.filter(
     (c) =>
       c.status === MergeClientStatus.MERGED &&
@@ -158,6 +174,7 @@ function createMergeClient(
   status: MergeClientStatus,
   sequenceNumber: number,
   qualityFlags: QualityFlag[] = [],
+  rejectionReason: RejectionReason | null = null,
   mergeIssues: MergeConsistencyIssue[] = [],
   confidence: StepConfidence | null = null,
 ): MergeClient {
@@ -180,6 +197,7 @@ function createMergeClient(
     anomalies: client.getAnomalies(),
     consistencyIssues: client.getConsistencyIssues(),
     qualityFlags,
+    rejectionReason,
     mergeIssues,
     worstSegmentScore,
   };
@@ -254,7 +272,10 @@ export class Merger {
       (c) => !c.hasAnomaly(ClientAnomaly.BAD_DATA),
     );
     if (this.clients.length === 0) {
-      logger.warn('merge_no_clients', { stage: this.stage });
+      logger.warn('merge_all_clients_bad_data', {
+        stage: this.stage,
+        clientIds: badDataClients.map((c) => c.getId()),
+      });
       return null;
     }
 
@@ -283,8 +304,7 @@ export class Merger {
       outcome: MergeStepOutcome,
     ) => {
       const status = statusFromOutcome(outcome);
-      const mergeIssues =
-        outcome.kind === 'rejected' ? outcome.rejection.issues : [];
+      const rejection = outcome.kind === 'rejected' ? outcome.rejection : null;
       const confidence = outcome.kind === 'merged' ? outcome.confidence : null;
       mergeClients.push(
         createMergeClient(
@@ -293,7 +313,8 @@ export class Merger {
           status,
           mergeClients.length,
           outcome.flags,
-          mergeIssues,
+          rejection?.reason ?? null,
+          rejection?.issues ?? [],
           confidence,
         ),
       );
@@ -844,6 +865,10 @@ class MergedTimeline {
   private endAlignToReference(): void {
     // If a client reported an in-game tick count, the stage has been completed,
     // so assume that the events are offset from the end of the stage.
+    if (this.reference.method === ReferenceSelectionMethod.RECORDED_TICKS) {
+      return;
+    }
+
     const lastTick = this.ticks.length - 1;
     const offset = this.reference.count - lastTick;
     if (offset <= 0) {

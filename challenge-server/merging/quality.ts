@@ -158,6 +158,11 @@ export const enum MergeAlertType {
   TIMELINE_OFFSET_APPLIED = 'TIMELINE_OFFSET_APPLIED',
   POST_MERGE_CONSISTENCY_REJECTIONS = 'POST_MERGE_CONSISTENCY_REJECTIONS',
   /**
+   * A client's merge step was rejected because its confidence score fell
+   * below the acceptance threshold.
+   */
+  LOW_CONFIDENCE_REJECTIONS = 'LOW_CONFIDENCE_REJECTIONS',
+  /**
    * A client was merged but a segment of its alignment scored below the
    * structural confidence warning threshold.
    */

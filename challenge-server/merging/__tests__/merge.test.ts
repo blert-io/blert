@@ -1167,6 +1167,11 @@ describe('Merger', () => {
           totalIssues: 1,
         },
       });
+
+      const rejectedClient = result!.clients.find((c) => c.id === 2)!;
+      expect(rejectedClient.rejectionReason).toBe(
+        RejectionReason.POST_MERGE_CONSISTENCY,
+      );
     });
   });
 });

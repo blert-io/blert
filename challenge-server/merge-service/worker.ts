@@ -33,17 +33,33 @@ export function runMergeJob(job: MergeJob): MergeReply {
           }
         }
 
-        const clients = byClient
-          .entries()
-          .map(([clientId, streams]) =>
-            ClientEvents.fromClientStream(
+        const clients: ClientEvents[] = [];
+        for (const [clientId, streams] of byClient) {
+          try {
+            clients.push(
+              ClientEvents.fromClientStream(
+                clientId,
+                job.challengeInfo,
+                job.stage,
+                streams,
+              ),
+            );
+          } catch (e: unknown) {
+            logger.error('client_event_processing_failed', {
+              challengeUuid: job.challengeInfo.uuid,
               clientId,
-              job.challengeInfo,
-              job.stage,
-              streams,
-            ),
-          )
-          .toArray();
+              stage: job.stage,
+              attempt: job.attempt,
+              error: e instanceof Error ? e.message : String(e),
+              stack: e instanceof Error ? e.stack : undefined,
+            });
+            // Continue processing other clients.
+          }
+        }
+
+        if (clients.length === 0) {
+          return { kind: 'bad_data' };
+        }
 
         const start = process.hrtime.bigint();
         const result = new Merger(job.challengeInfo, job.stage, clients).merge(
@@ -55,7 +71,9 @@ export function runMergeJob(job: MergeJob): MergeReply {
           Number(process.hrtime.bigint() - start) / 1e6,
         );
         if (result === null) {
-          return { kind: 'empty' };
+          // `clients` is never empty, so a null results can only be due to
+          // every client failing data validation.
+          return { kind: 'bad_data' };
         }
 
         const { events, ...metadata } = result;
@@ -65,7 +83,7 @@ export function runMergeJob(job: MergeJob): MergeReply {
           error: e instanceof Error ? e.message : String(e),
           stack: e instanceof Error ? e.stack : undefined,
         });
-        return { kind: 'error' };
+        return { kind: 'exception' };
       }
     },
   ) as MergeReply;

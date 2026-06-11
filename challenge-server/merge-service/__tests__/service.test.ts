@@ -18,6 +18,7 @@ import {
   MergeAlertType,
   Merger,
 } from '../../merging';
+import { recordMergeOutcome } from '../../metrics';
 import { createPlayerUpdateEvent } from '../../merging/__tests__/fixtures';
 import { CaptureReason } from '../policy';
 import {
@@ -108,20 +109,23 @@ describe('MergeService.merge', () => {
     expect(Array.from(events!).map((e) => e.toObject())).toEqual(
       Array.from(direct!.events).map((e) => e.toObject()),
     );
+    expect(recordMergeOutcome).toHaveBeenCalledWith('merged');
   });
 
-  it('returns null for an empty reply', async () => {
-    const service = new MergeService(runnerReturning({ kind: 'empty' }));
+  it('returns null for a bad data reply', async () => {
+    const service = new MergeService(runnerReturning({ kind: 'bad_data' }));
     expect(
       await service.merge(challengeInfo, Stage.TOB_MAIDEN, 0, stream),
     ).toBeNull();
+    expect(recordMergeOutcome).toHaveBeenCalledWith('bad_data');
   });
 
-  it('returns null for an error reply', async () => {
-    const service = new MergeService(runnerReturning({ kind: 'error' }));
+  it('returns null for an exception reply', async () => {
+    const service = new MergeService(runnerReturning({ kind: 'exception' }));
     expect(
       await service.merge(challengeInfo, Stage.TOB_MAIDEN, 0, stream),
     ).toBeNull();
+    expect(recordMergeOutcome).toHaveBeenCalledWith('exception');
   });
 
   it('returns null without dispatching when the stream has no clients', async () => {
@@ -129,7 +133,7 @@ describe('MergeService.merge', () => {
     const runner: MergeRunner = {
       run: async () => {
         dispatched = true;
-        return { kind: 'empty' };
+        return { kind: 'bad_data' };
       },
       destroy: () => Promise.resolve(),
     };
@@ -159,11 +163,14 @@ describe('MergeService.merge', () => {
     expect(
       await service.merge(challengeInfo, Stage.TOB_MAIDEN, 0, stream),
     ).toBeNull();
+    expect(recordMergeOutcome).toHaveBeenCalledWith('deserialize_failed');
   });
 
-  it('returns null when the runner rejects', async () => {
+  it('returns null when the runner repeatedly rejects', async () => {
+    let attempts = 0;
     const runner: MergeRunner = {
       run: async () => {
+        attempts++;
         throw new Error('worker died');
       },
       destroy: () => Promise.resolve(),
@@ -173,6 +180,39 @@ describe('MergeService.merge', () => {
     expect(
       await service.merge(challengeInfo, Stage.TOB_MAIDEN, 0, stream),
     ).toBeNull();
+    expect(attempts).toBe(2);
+    expect(recordMergeOutcome).toHaveBeenCalledWith('runner_failed');
+  });
+
+  it('recovers when the runner fails transiently', async () => {
+    const reply = runMergeJob({
+      challengeInfo,
+      stage: Stage.TOB_MAIDEN,
+      attempt: 0,
+      stream,
+    });
+    let attempts = 0;
+    const runner: MergeRunner = {
+      run: async () => {
+        attempts++;
+        if (attempts === 1) {
+          throw new Error('worker recycled');
+        }
+        return reply;
+      },
+      destroy: () => Promise.resolve(),
+    };
+    const service = new MergeService(runner);
+
+    const events = await service.merge(
+      challengeInfo,
+      Stage.TOB_MAIDEN,
+      0,
+      stream,
+    );
+    expect(events).not.toBeNull();
+    expect(attempts).toBe(2);
+    expect(recordMergeOutcome).toHaveBeenCalledWith('merged');
   });
 });
 
@@ -260,6 +300,53 @@ describe('MergeService captures', () => {
     });
   });
 
+  it('captures the streams of a merge that fails outright', async () => {
+    const store = new Map<string, Buffer>();
+    const service = new MergeService(runnerReturning({ kind: 'exception' }), {
+      samplingRepository: fakeRepository(store),
+    });
+
+    expect(
+      await service.merge(challengeInfo, Stage.TOB_MAIDEN, 3, stream),
+    ).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    const captureFile = `unmerged-events/${challengeInfo.uuid}:${Stage.TOB_MAIDEN}:3_events.json`;
+    const capture = JSON.parse(
+      store.get(captureFile)!.toString(),
+    ) as UnmergedEventData;
+    expect(capture.captureReasons).toEqual([CaptureReason.MERGE_FAILED]);
+    expect(capture.mergedClients).toEqual([]);
+    expect(capture.unmergedClients).toEqual([]);
+    expect(capture.rawEvents).toHaveLength(stream.length);
+
+    const index = JSON.parse(
+      store.get(INDEX_FILE)!.toString(),
+    ) as CaptureIndexEntry[];
+    expect(index.map((e) => ({ file: e.file, reasons: e.reasons }))).toEqual([
+      { file: captureFile, reasons: [CaptureReason.MERGE_FAILED] },
+    ]);
+  });
+
+  it('captures the streams of an all-bad-data merge', async () => {
+    const store = new Map<string, Buffer>();
+    const service = new MergeService(runnerReturning({ kind: 'bad_data' }), {
+      samplingRepository: fakeRepository(store),
+    });
+
+    expect(
+      await service.merge(challengeInfo, Stage.TOB_MAIDEN, 3, stream),
+    ).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    const captureFile = `unmerged-events/${challengeInfo.uuid}:${Stage.TOB_MAIDEN}:3_events.json`;
+    const capture = JSON.parse(
+      store.get(captureFile)!.toString(),
+    ) as UnmergedEventData;
+    expect(capture.captureReasons).toEqual([CaptureReason.BAD_DATA]);
+    expect(capture.rawEvents).toHaveLength(stream.length);
+  });
+
   it('stops capturing once the rate cap is reached', async () => {
     const store = new Map<string, Buffer>();
     const service = new MergeService(runnerReturning(mergedReplyWithAlert()), {
@@ -310,7 +397,7 @@ describe('MergeService captures', () => {
     const store = new Map<string, Buffer>([
       [INDEX_FILE, Buffer.from(JSON.stringify(entries))],
     ]);
-    const service = new MergeService(runnerReturning({ kind: 'empty' }), {
+    const service = new MergeService(runnerReturning({ kind: 'bad_data' }), {
       samplingRepository: fakeRepository(store),
     });
 
@@ -337,12 +424,14 @@ describe('MergeService captures', () => {
   });
 
   it('lists no captures without an index or repository', async () => {
-    const service = new MergeService(runnerReturning({ kind: 'empty' }), {
+    const service = new MergeService(runnerReturning({ kind: 'bad_data' }), {
       samplingRepository: fakeRepository(new Map()),
     });
     expect(await service.listCaptures()).toEqual([]);
 
-    const noRepository = new MergeService(runnerReturning({ kind: 'empty' }));
+    const noRepository = new MergeService(
+      runnerReturning({ kind: 'bad_data' }),
+    );
     expect(await noRepository.listCaptures()).toEqual([]);
   });
 });
