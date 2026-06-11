@@ -1,0 +1,17 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`merge integration aligns a laggy mismatched client across gaps 1`] = `"2a36d63d5b3b73c0b5e490f14cff8288b191ab21b2536b1da4e7909c3348d8bd"`;
+
+exports[`merge integration cuts the queryable prefix at a cross-client content disagreement 1`] = `"026c169a06b7b21625d9e89f65e8142e2beb44671f9a16a67ac81b2d0a42d82c"`;
+
+exports[`merge integration flags a merged client whose confidence falls below the warn threshold 1`] = `"53346c732983c4fc4fe25a9300df56aa440af007393d119e62940a11640930ed"`;
+
+exports[`merge integration leaves a client unmerged when alignment finds nothing 1`] = `"3b77dbc0e51445de5f6433908fb33957addf99b1229af95a749f35aa6fe4a58b"`;
+
+exports[`merge integration merges a clean three-client completion identically 1`] = `"adb1857b8d47c959efe22b7da52fa783f48a8091f54f3240b3aecbe87ca3f41d"`;
+
+exports[`merge integration offsets a short timeline to the stage end under a precise count 1`] = `"22463b3c7aa43468fb194b44ddb248a85de575b654ba9d1482f7eb59026d9be0"`;
+
+exports[`merge integration promotes accuracy from inaccurate clients up to the contiguity cut 1`] = `"afa703e45976cbce951bf7b100ab02ff35c76e94594f34e2167ba64a24be3b9c"`;
+
+exports[`merge integration rejects a drifted client on weapon cooldown violations 1`] = `"4cd9f8f31aa7c2f27c32a57ad672e5a4f24bf9655a88460f3221eb367ead8e96"`;
