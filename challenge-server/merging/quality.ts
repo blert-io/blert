@@ -1,5 +1,10 @@
 import { EventType } from './event';
 
+type ConflictSources = {
+  keptSourceClientId: number;
+  discardedSourceClientId: number;
+};
+
 /**
  * Emitted when a paired stream event has a temporal gap between base and
  * target larger than the configured threshold.
@@ -20,8 +25,7 @@ export type UnexpectedConflictFlag = {
   kind: 'UNEXPECTED_CONFLICT';
   eventType: EventType;
   attackTick: number;
-  candidateCount: number;
-};
+} & ConflictSources;
 
 /**
  * Emitted when an event's cross-tick reference (e.g. `npcAttackTick`) points
@@ -46,9 +50,7 @@ export type AttackTargetMismatchFlag = {
   player: string;
   keptRoomId: number;
   discardedRoomId: number;
-  keptSourceClientId: number;
-  discardedSourceClientId: number;
-};
+} & ConflictSources;
 
 /**
  * Emitted when two clients disagree on a player attack's type.
@@ -59,9 +61,7 @@ export type AttackTypeMismatchFlag = {
   player: string;
   keptType: number;
   discardedType: number;
-  keptSourceClientId: number;
-  discardedSourceClientId: number;
-};
+} & ConflictSources;
 
 /**
  * Emitted when two clients disagree on a player spell's target on the same
@@ -75,9 +75,7 @@ export type SpellTargetMismatchFlag = {
   keptTargetId: number | string;
   discardedTargetKind: 'player' | 'npc';
   discardedTargetId: number | string;
-  keptSourceClientId: number;
-  discardedSourceClientId: number;
-};
+} & ConflictSources;
 
 /**
  * Emitted when two clients disagree on a player spell's type on the same
@@ -89,9 +87,7 @@ export type SpellTypeMismatchFlag = {
   player: string;
   keptType: number;
   discardedType: number;
-  keptSourceClientId: number;
-  discardedSourceClientId: number;
-};
+} & ConflictSources;
 
 /**
  * Emitted when two clients disagree on an NPC attack's type for the same NPC
@@ -104,9 +100,7 @@ export type NpcAttackTypeMismatchFlag = {
   npcId: number;
   keptType: number;
   discardedType: number;
-  keptSourceClientId: number;
-  discardedSourceClientId: number;
-};
+} & ConflictSources;
 
 /**
  * Emitted when two clients disagree on an NPC attack's target on the same
@@ -119,8 +113,18 @@ export type NpcAttackTargetMismatchFlag = {
   npcId: number;
   keptTarget: string | null;
   discardedTarget: string | null;
-  keptSourceClientId: number;
-  discardedSourceClientId: number;
+} & ConflictSources;
+
+/**
+ * Emitted when an attack-mapped event references an NPC attack that did not
+ * survive consolidation in the merged tick state. The event is discarded.
+ */
+export type AttackMappedNotFoundFlag = {
+  kind: 'ATTACK_MAPPED_NOT_FOUND';
+  eventType: EventType;
+  source: 'base' | 'target';
+  clientTick: number;
+  referencedTick: number;
 };
 
 /**
@@ -137,10 +141,32 @@ export type QualityFlag =
   | SpellTargetMismatchFlag
   | SpellTypeMismatchFlag
   | NpcAttackTypeMismatchFlag
-  | NpcAttackTargetMismatchFlag;
+  | NpcAttackTargetMismatchFlag
+  | AttackMappedNotFoundFlag;
 
 export const enum MergeAlertType {
   MULTIPLE_ACCURATE_TICK_MODES = 'MULTIPLE_ACCURATE_TICK_MODES',
+  /**
+   * The server-reported tick counts disagree across clients (precise or
+   * imprecise). Non-consensus likely indicates a bad client.
+   */
+  MULTIPLE_SERVER_TICK_COUNTS = 'MULTIPLE_SERVER_TICK_COUNTS',
+  /**
+   * The merged timeline was shorter than the reported server tick count, so it
+   * was aligned to the stage end, leaving an unverified empty prefix.
+   */
+  TIMELINE_OFFSET_APPLIED = 'TIMELINE_OFFSET_APPLIED',
+  POST_MERGE_CONSISTENCY_REJECTIONS = 'POST_MERGE_CONSISTENCY_REJECTIONS',
+  /**
+   * A client's merge step was rejected because its confidence score fell
+   * below the acceptance threshold.
+   */
+  LOW_CONFIDENCE_REJECTIONS = 'LOW_CONFIDENCE_REJECTIONS',
+  /**
+   * A client was merged but a segment of its alignment scored below the
+   * structural confidence warning threshold.
+   */
+  LOW_STRUCTURAL_CONFIDENCE = 'LOW_STRUCTURAL_CONFIDENCE',
 }
 
 /**
@@ -150,3 +176,32 @@ export type MergeAlert = {
   type: MergeAlertType;
   details?: Record<string, unknown>;
 };
+
+/**
+ * Returns the tick of a quality flag that represents a content disagreement
+ * between clients, or `null` if the flag is not a disagreement.
+ */
+export function contestedFlagTick(flag: QualityFlag): number | null {
+  switch (flag.kind) {
+    case 'ATTACK_TYPE_MISMATCH':
+    case 'ATTACK_TARGET_MISMATCH':
+    case 'SPELL_TYPE_MISMATCH':
+    case 'SPELL_TARGET_MISMATCH':
+    case 'NPC_ATTACK_TYPE_MISMATCH':
+    case 'NPC_ATTACK_TARGET_MISMATCH':
+      return flag.tick;
+
+    case 'UNEXPECTED_CONFLICT':
+      return flag.attackTick;
+
+    // These flags do not represent disagreements and are ignored for the
+    // prefix computation.
+    case 'LARGE_TEMPORAL_GAP':
+    case 'UNMAPPED_CROSS_TICK_REFERENCE':
+    case 'ATTACK_MAPPED_NOT_FOUND':
+      return null;
+  }
+
+  const _exhaustive: never = flag;
+  return null;
+}

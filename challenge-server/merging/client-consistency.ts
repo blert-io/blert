@@ -32,6 +32,7 @@ import {
 export const enum ConsistencyIssueType {
   INVALID_MOVEMENT = 'INVALID_MOVEMENT',
   INVALID_EVENT_SEQUENCE = 'INVALID_EVENT_SEQUENCE',
+  INVALID_TICK_GAP = 'INVALID_TICK_GAP',
   BAD_DATA = 'BAD_DATA',
 }
 
@@ -52,6 +53,14 @@ export type InvalidEventSequenceIssue = {
   tick: number;
 };
 
+export type InvalidTickGapIssue = {
+  type: ConsistencyIssueType.INVALID_TICK_GAP;
+  eventType: EventType;
+  tick: number;
+  observedGap: number;
+  minGap: number;
+};
+
 export type BadDataIssue = {
   type: ConsistencyIssueType.BAD_DATA;
   tick: number;
@@ -61,6 +70,7 @@ export type BadDataIssue = {
 export type ConsistencyIssue =
   | InvalidMovementIssue
   | InvalidEventSequenceIssue
+  | InvalidTickGapIssue
   | BadDataIssue;
 
 /**
@@ -84,6 +94,19 @@ export abstract class ConsistencyChecker {
   public abstract check(ticks: TickStateArray): ConsistencyIssue[];
 }
 
+function hasNpcAttack(
+  tickState: TickState | null,
+  idMatches: (id: number) => boolean,
+  attackType: NpcAttack,
+): boolean {
+  for (const npc of tickState?.getNpcs().values() ?? []) {
+    if (idMatches(npc.id) && npc.attack?.type === attackType) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function checkForP3WebsPush(
   ticks: TickStateArray,
   tick: number,
@@ -100,14 +123,12 @@ function checkForP3WebsPush(
       continue;
     }
 
-    const websAttack = tickState
-      .getEventsByType(Event.Type.NPC_ATTACK)
-      ?.find((evt) => {
-        const attack = evt.getNpcAttack()!;
-        return attack.getAttack() === NpcAttack.TOB_VERZIK_P3_WEBS;
-      });
-    if (websAttack !== undefined) {
-      isWebs = true;
+    isWebs = hasNpcAttack(
+      tickState,
+      (id) => Npc.isVerzikP3(id),
+      NpcAttack.TOB_VERZIK_P3_WEBS,
+    );
+    if (isWebs) {
       break;
     }
   }
@@ -365,11 +386,10 @@ export class MovementConsistencyChecker extends ConsistencyChecker {
     // single-target, we can check that only the player we are testing made a
     // bounce-like movement and allow it if so.
     const hasBounce = (tickState: TickState | null): boolean => {
-      return (
-        tickState?.getEventsByType(Event.Type.NPC_ATTACK)?.find((evt) => {
-          const attack = evt.getNpcAttack()!;
-          return attack.getAttack() === NpcAttack.TOB_VERZIK_P2_BOUNCE;
-        }) !== undefined
+      return hasNpcAttack(
+        tickState,
+        (id) => Npc.isVerzikP2(id),
+        NpcAttack.TOB_VERZIK_P2_BOUNCE,
       );
     };
 
@@ -491,11 +511,7 @@ export class NylocasConsistencyChecker extends ConsistencyChecker {
         continue;
       }
 
-      const wave = spawn[0].getNyloWave()?.getWave();
-      if (wave === undefined) {
-        continue;
-      }
-
+      const wave = spawn[0].getNyloWave()!.getWave();
       if (wave < 1 || wave > 31) {
         issues.push({
           type: ConsistencyIssueType.BAD_DATA,
@@ -519,9 +535,11 @@ export class NylocasConsistencyChecker extends ConsistencyChecker {
         const minDelta = sumNaturalStalls(this.mode, this.lastWave, wave);
         if (delta < minDelta) {
           issues.push({
-            type: ConsistencyIssueType.INVALID_EVENT_SEQUENCE,
+            type: ConsistencyIssueType.INVALID_TICK_GAP,
             eventType: Event.Type.TOB_NYLO_WAVE_SPAWN,
             tick: tick.getTick(),
+            observedGap: delta,
+            minGap: minDelta,
           });
         }
       }

@@ -2,6 +2,7 @@ import { EquipmentSlot, Npc } from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
 import { normalizeAttackType } from './event';
+import { clamp } from './math';
 import { TickState, NpcState } from './tick-state';
 
 const VISIBLE_EQUIPMENT_SLOTS: EquipmentSlot[] = [
@@ -15,6 +16,12 @@ const VISIBLE_EQUIPMENT_SLOTS: EquipmentSlot[] = [
   EquipmentSlot.GLOVES,
   EquipmentSlot.BOOTS,
 ];
+
+/**
+ * The flat reward a compatible tick pair earns when it corroborates on at least
+ * one shared actor (see `SimilarityScorer.score`).
+ */
+export const DEFAULT_BASELINE_COMPATIBILITY_WEIGHT: number = 4.0;
 
 // Values determined purely based off vibes, or as software engineers like to
 // call them, "heuristics".
@@ -78,10 +85,6 @@ function compareAttacks(a: Attack, b: Attack): AttackComparison {
   return AttackComparison.MISMATCH;
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(value, max));
-}
-
 /**
  * Checks whether the given NPC has a hitpoints varbit, thus giving all clients
  * a shared view of the NPC's hitpoints.
@@ -121,6 +124,15 @@ function getHitpointsScoringConstants(npcId: number): [number, number] {
 
 export class SimilarityScorer {
   /**
+   * @param baselineWeight Flat reward applied to a compatible tick pair that
+   *   shares at least one actor. Defaults to
+   *   {@link DEFAULT_BASELINE_COMPATIBILITY_WEIGHT}.
+   */
+  public constructor(
+    private readonly baselineWeight: number = DEFAULT_BASELINE_COMPATIBILITY_WEIGHT,
+  ) {}
+
+  /**
    * Scores the similarity of the two tick states, with a higher score
    * indicating a likelihood that the two tick states represent the same moment
    * in time.
@@ -130,7 +142,8 @@ export class SimilarityScorer {
    * @returns The similarity score.
    */
   public score(tickA: TickState, tickB: TickState): number {
-    if (!this.checkForCompatibility(tickA, tickB)) {
+    const compatibility = this.checkForCompatibility(tickA, tickB);
+    if (!compatibility.compatible) {
       return -Infinity;
     }
 
@@ -142,7 +155,11 @@ export class SimilarityScorer {
 
     // TODO(frolv): stage-specific events.
 
+    // Apply a baseline reward when the two ticks corroborate on some actors.
+    const baseline = compatibility.count > 0 ? this.baselineWeight : 0;
+
     return (
+      baseline +
       hitpointsScore * ScoringConstants.COMPONENT_HITPOINTS_WEIGHT +
       (playerAttacksScore + npcAttacksScore) *
         ScoringConstants.COMPONENT_ATTACKS_WEIGHT +
@@ -151,11 +168,24 @@ export class SimilarityScorer {
     );
   }
 
-  private checkForCompatibility(tickA: TickState, tickB: TickState): boolean {
-    return (
-      this.checkPlayerCompatibility(tickA, tickB) &&
-      this.checkNpcCompatibility(tickA, tickB)
-    );
+  private checkForCompatibility(
+    tickA: TickState,
+    tickB: TickState,
+  ): CompatibilityResult {
+    const players = this.checkPlayerCompatibility(tickA, tickB);
+    if (!players.compatible) {
+      return players;
+    }
+
+    const npcs = this.checkNpcCompatibility(tickA, tickB);
+    if (!npcs.compatible) {
+      return npcs;
+    }
+
+    return {
+      compatible: true,
+      count: players.count + npcs.count,
+    };
   }
 
   /**
@@ -165,14 +195,16 @@ export class SimilarityScorer {
    * Each player visible to both tick states must be in the same position, and
    * have the same visible gear equipped.
    *
-   * @returns Whether the players are compatible.
+   * @returns Whether the players are compatible, and how many were compared.
    */
   private checkPlayerCompatibility(
     tickA: TickState,
     tickB: TickState,
-  ): boolean {
+  ): CompatibilityResult {
     const tickAPlayers = tickA.getPlayerStates();
     const tickBPlayers = tickB.getPlayerStates();
+
+    let count = 0;
 
     for (const player of tickAPlayers.keys()) {
       const stateA = tickAPlayers.get(player);
@@ -181,24 +213,26 @@ export class SimilarityScorer {
         continue;
       }
 
+      count++;
+
       // Note: `isDead` is deliberately ignored, as it can come from various
       // sources (HP reaching 0, orb varbits, etc.) which can be affected by lag
       // or internal game client delays.
 
       if (stateA.x !== stateB.x || stateA.y !== stateB.y) {
-        return false;
+        return { compatible: false, count };
       }
 
       for (const slot of VISIBLE_EQUIPMENT_SLOTS) {
         const equipmentA = stateA.equipment[slot];
         const equipmentB = stateB.equipment[slot];
         if (equipmentA?.id !== equipmentB?.id) {
-          return false;
+          return { compatible: false, count };
         }
       }
     }
 
-    return true;
+    return { compatible: true, count };
   }
 
   /**
@@ -208,11 +242,16 @@ export class SimilarityScorer {
    * Each NPC visible to both tick states must have the same NPC ID and be in
    * the same position.
    *
-   * @returns Whether the NPCs are compatible.
+   * @returns Whether the NPCs are compatible, and how many were compared.
    */
-  private checkNpcCompatibility(tickA: TickState, tickB: TickState): boolean {
+  private checkNpcCompatibility(
+    tickA: TickState,
+    tickB: TickState,
+  ): CompatibilityResult {
     const npcsA = tickA.getNpcs();
     const npcsB = tickB.getNpcs();
+
+    let count = 0;
 
     for (const roomId of npcsA.keys()) {
       const stateA = npcsA.get(roomId);
@@ -221,16 +260,18 @@ export class SimilarityScorer {
         continue;
       }
 
+      count++;
+
       if (stateA.id !== stateB.id) {
-        return false;
+        return { compatible: false, count };
       }
 
       if (stateA.x !== stateB.x || stateA.y !== stateB.y) {
-        return false;
+        return { compatible: false, count };
       }
     }
 
-    return true;
+    return { compatible: true, count };
   }
 
   private scoreNpcHitpoints(tickA: TickState, tickB: TickState): number {
@@ -285,7 +326,7 @@ export class SimilarityScorer {
 
           return {
             actor: playerState.username,
-            target: playerState.attack.target?.toString() ?? null,
+            target: playerState.attack.target?.roomId.toString() ?? null,
             typeId: playerState.attack.type,
             secondaryId: playerState.attack.weaponId,
           };
@@ -566,6 +607,13 @@ export class SimilarityScorer {
     );
   }
 }
+
+type CompatibilityResult = {
+  /** Whether the two tick states could represent the same moment in time. */
+  compatible: boolean;
+  /** Number of actors compared. */
+  count: number;
+};
 
 type Attack = {
   actor: string;

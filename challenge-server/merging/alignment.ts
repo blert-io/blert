@@ -9,42 +9,72 @@ export const enum AlignmentAction {
   KEEP = 'KEEP',
 }
 
-type MergeEntry = {
+export type MergeEntry = {
   action: AlignmentAction.MERGE;
   baseIndex: number;
   targetIndex: number;
   score: number;
 };
 
-type InsertEntry = {
+export type InsertEntry = {
   action: AlignmentAction.INSERT;
   targetIndex: number;
 };
 
-type KeepEntry = {
+export type KeepEntry = {
   action: AlignmentAction.KEEP;
   baseIndex: number;
 };
 
 export type AlignmentEntry = MergeEntry | InsertEntry | KeepEntry;
 
-/** An ordered sequence of alignment actions from a single local alignment. */
-export type LocalAlignment = AlignmentEntry[];
+/** An ordered sequence of alignment actions. */
+export type Alignment = AlignmentEntry[];
 
-export type AlignmentResult = {
-  /** Ordered local alignments extracted from the scoring matrix. */
-  alignments: LocalAlignment[];
-  /** Fraction of base ticks covered by MERGE actions (0-1). */
-  coverage: number;
-  /** Total number of gap actions (INSERT + KEEP) across all alignments. */
-  gapCount: number;
-};
-
-type AlignmentRange = {
+/** Half-open range of base and target tick indices for one local alignment. */
+export type AlignmentRange = {
   baseStart: number;
   baseEnd: number;
   targetStart: number;
   targetEnd: number;
+};
+
+export type LocalAlignment = {
+  /** Sequence of actions for this alignment. */
+  entries: Alignment;
+  /** The base/target range the aligner ran over to produce this alignment. */
+  range: AlignmentRange;
+  /**
+   * Per-cell similarity scores from `fillMatrices`. Indexed as
+   * `similarity[i - range.baseStart][j - range.targetStart]`.
+   * A value of `-Infinity` indicates absolute incompatibility.
+   */
+  similarity: Float64Array[];
+  /**
+   * Per-cell decision margin from `fillMatrices`: the difference between the
+   * chosen action and its best alternative. Indexed the same as `similarity`.
+   */
+  margin: Float64Array[];
+  /**
+   * Absolute indices of null base/target ticks within the range.
+   * A null tick scores 0 in `similarity`, so these sets let consumers tell
+   * "no data" apart from a genuine low score.
+   */
+  baseNull: ReadonlySet<number>;
+  targetNull: ReadonlySet<number>;
+};
+
+export type AlignmentResult = {
+  /** Ordered local alignments extracted from the scoring matrix. */
+  alignments: LocalAlignment[];
+  /** Fraction of base ticks placed in a local alignment, merged or kept. */
+  baseCoverage: number;
+  /**
+   * Fraction of target ticks placed in a local alignment, merged or inserted.
+   */
+  targetCoverage: number;
+  /** Total number of gap actions (INSERT + KEEP) across all alignments. */
+  gapCount: number;
 };
 
 const enum Direction {
@@ -59,9 +89,10 @@ const enum Direction {
 }
 
 type AlignmentMatrices = {
-  matrix: number[][];
-  direction: Direction[][];
-  similarity: number[][];
+  matrix: Float64Array[];
+  direction: Uint8Array[];
+  similarity: Float64Array[];
+  margin: Float64Array[];
 };
 
 export type SimilarityFn = (base: TickState, target: TickState) => number;
@@ -123,21 +154,33 @@ export class TickAligner {
     });
 
     let mergeCount = 0;
-    let gapCount = 0;
+    let keepCount = 0;
+    let insertCount = 0;
     for (const alignment of this.alignments) {
-      for (const entry of alignment) {
-        if (entry.action === AlignmentAction.MERGE) {
-          mergeCount++;
-        } else {
-          gapCount++;
+      for (const entry of alignment.entries) {
+        switch (entry.action) {
+          case AlignmentAction.MERGE:
+            mergeCount++;
+            break;
+          case AlignmentAction.KEEP:
+            keepCount++;
+            break;
+          case AlignmentAction.INSERT:
+            insertCount++;
+            break;
         }
       }
     }
 
+    const basePlaced = mergeCount + keepCount;
+    const targetPlaced = mergeCount + insertCount;
+
     return {
       alignments: this.alignments,
-      coverage: this.base.length > 0 ? mergeCount / this.base.length : 0,
-      gapCount,
+      baseCoverage: this.base.length > 0 ? basePlaced / this.base.length : 0,
+      targetCoverage:
+        this.target.length > 0 ? targetPlaced / this.target.length : 0,
+      gapCount: keepCount + insertCount,
     };
   }
 
@@ -154,8 +197,9 @@ export class TickAligner {
       return false;
     }
 
-    const first = localAlignment[0] as MergeEntry;
-    const last = localAlignment[localAlignment.length - 1] as MergeEntry;
+    // Alignments always start and end with a MERGE entry.
+    const first = localAlignment.entries.at(0) as MergeEntry;
+    const last = localAlignment.entries.at(-1) as MergeEntry;
 
     this.alignOver({
       baseStart: range.baseStart,
@@ -182,13 +226,32 @@ export class TickAligner {
     if (entries === null || entries.length < this.config.minLength) {
       return null;
     }
-    return entries;
+    const baseNull = new Set<number>();
+    for (let i = range.baseStart; i < range.baseEnd; i++) {
+      if (this.base[i] === null) {
+        baseNull.add(i);
+      }
+    }
+    const targetNull = new Set<number>();
+    for (let j = range.targetStart; j < range.targetEnd; j++) {
+      if (this.target[j] === null) {
+        targetNull.add(j);
+      }
+    }
+
+    return {
+      entries,
+      range,
+      similarity: matrices.similarity,
+      margin: matrices.margin,
+      baseNull,
+      targetNull,
+    };
   }
 
   /**
-   * Finds the highest-scoring cell in the matrix, backtracks to extract the
-   * alignment, and zeroes out visited cells so subsequent calls find the next
-   * best alignment.
+   * Finds the highest-scoring cell in the matrix and backtracks
+   * to extract the alignment.
    */
   private backtrackBest(
     range: AlignmentRange,
@@ -218,8 +281,12 @@ export class TickAligner {
     let i = maxI;
     let j = maxJ;
 
-    while (i >= 0 && j >= 0 && matrices.direction[i][j] !== Direction.NONE) {
-      const dir = matrices.direction[i][j];
+    while (
+      i >= 0 &&
+      j >= 0 &&
+      (matrices.direction[i][j] as Direction) !== Direction.NONE
+    ) {
+      const dir = matrices.direction[i][j] as Direction;
 
       switch (dir) {
         case Direction.MATCH:
@@ -254,24 +321,33 @@ export class TickAligner {
   }
 
   private fillMatrices(range: AlignmentRange): AlignmentMatrices {
-    const matrix: number[][] = [];
-    const direction: Direction[][] = [];
-    const similarity: number[][] = [];
+    const rows = range.baseEnd - range.baseStart;
+    const cols = range.targetEnd - range.targetStart;
 
-    for (let i = range.baseStart; i < range.baseEnd; i++) {
-      matrix.push(Array<number>(range.targetEnd - range.targetStart).fill(0));
-      direction.push(
-        Array<Direction>(range.targetEnd - range.targetStart).fill(
-          Direction.NONE,
-        ),
-      );
-      similarity.push(
-        Array<number>(range.targetEnd - range.targetStart).fill(0),
-      );
+    const matrixBuf = new Float64Array(rows * cols);
+    const directionBuf = new Uint8Array(rows * cols);
+    const similarityBuf = new Float64Array(rows * cols);
+    const marginBuf = new Float64Array(rows * cols);
+
+    const matrix: Float64Array[] = [];
+    const direction: Uint8Array[] = [];
+    const similarity: Float64Array[] = [];
+    const margin: Float64Array[] = [];
+    for (let r = 0; r < rows; r++) {
+      const lo = r * cols;
+      const hi = lo + cols;
+      matrix.push(matrixBuf.subarray(lo, hi));
+      direction.push(directionBuf.subarray(lo, hi));
+      similarity.push(similarityBuf.subarray(lo, hi));
+      margin.push(marginBuf.subarray(lo, hi));
     }
 
-    const set = <T>(m: T[][], i: number, j: number, value: T) =>
-      (m[i - range.baseStart][j - range.targetStart] = value);
+    const set = (
+      m: Float64Array[] | Uint8Array[],
+      i: number,
+      j: number,
+      value: number,
+    ) => (m[i - range.baseStart][j - range.targetStart] = value);
     const h = (i: number, j: number) =>
       matrix[i - range.baseStart]?.[j - range.targetStart] ?? 0;
 
@@ -292,19 +368,35 @@ export class TickAligner {
         set(matrix, i, j, maxScore);
 
         // Record direction based on which path gave the max score.
+        let winner: number;
         if (maxScore === scores[1] && Number.isFinite(similarityScore)) {
           set(direction, i, j, Direction.MATCH);
+          winner = 1;
         } else if (maxScore === scores[2]) {
           set(direction, i, j, Direction.GAP_TARGET);
+          winner = 2;
         } else if (maxScore === scores[3]) {
           set(direction, i, j, Direction.GAP_BASE);
+          winner = 3;
         } else {
           set(direction, i, j, Direction.NONE);
+          winner = 0;
+        }
+
+        // How decisively the chosen branch beat the next best alternative.
+        if (winner !== 0) {
+          let secondBest = -Infinity;
+          for (let k = 0; k < scores.length; k++) {
+            if (k !== winner && scores[k] > secondBest) {
+              secondBest = scores[k];
+            }
+          }
+          set(margin, i, j, maxScore - secondBest);
         }
       }
     }
 
-    return { matrix, direction, similarity };
+    return { matrix, direction, similarity, margin };
   }
 
   private scoreSimilarity(i: number, j: number): number {

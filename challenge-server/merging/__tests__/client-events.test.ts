@@ -1,6 +1,7 @@
 import {
   ChallengeMode,
   ChallengeType,
+  ClientStageStream,
   DataSource,
   EquipmentSlot,
   EventType,
@@ -18,7 +19,7 @@ import {
 
 import { ClientEvents, ClientAnomaly } from '../client-events';
 import { ChallengeInfo } from '../context';
-import { createPlayerUpdateEvent } from './fixtures';
+import { createEvent, createPlayerUpdateEvent } from './fixtures';
 
 type ProtoEventType = ProtoEvent.TypeMap[keyof ProtoEvent.TypeMap];
 type ProtoStage = StageMap[keyof StageMap];
@@ -109,6 +110,38 @@ describe('ClientEvents', () => {
       expect(client.isAccurate()).toBe(false);
     });
 
+    it('filters derived events from client input', () => {
+      const client = ClientEvents.fromRawEvents(
+        7,
+        challengeInfo,
+        {
+          stage: Stage.TOB_NYLOCAS,
+          status: StageStatus.STARTED,
+          accurate: false,
+          recordedTicks: 5,
+          serverTicks: null,
+        },
+        [
+          createPlayerUpdateEvent({ tick: 0, name: 'player1' }),
+          createEvent(ProtoEvent.Type.TOB_NYLO_WAVE_STALL, 1),
+          createEvent(ProtoEvent.Type.TOB_NYLO_BOSS_SPAWN, 2),
+          createPlayerUpdateEvent({ tick: 3, name: 'player1' }),
+          createEvent(ProtoEvent.Type.TOB_NYLO_CLEANUP_END, 4),
+          createEvent(ProtoEvent.Type.TOB_VERZIK_REDS_SPAWN, 5),
+        ],
+      );
+
+      const allEvents = client
+        .getTickStates()
+        .flatMap((t) => t?.getEvents() ?? []);
+      const eventTypes = new Set(allEvents.map((e) => e.getType()));
+
+      expect(eventTypes.has(ProtoEvent.Type.TOB_NYLO_WAVE_STALL)).toBe(false);
+      expect(eventTypes.has(ProtoEvent.Type.TOB_NYLO_BOSS_SPAWN)).toBe(false);
+      expect(eventTypes.has(ProtoEvent.Type.TOB_NYLO_CLEANUP_END)).toBe(false);
+      expect(eventTypes.has(ProtoEvent.Type.TOB_VERZIK_REDS_SPAWN)).toBe(false);
+    });
+
     it('flags missing stage metadata when no stage end update is present', () => {
       const eventsMessage = new ChallengeEvents();
       eventsMessage.setEventsList([
@@ -130,6 +163,63 @@ describe('ClientEvents', () => {
       expect(client.hasAnomaly(ClientAnomaly.MISSING_STAGE_METADATA)).toBe(
         true,
       );
+      expect(client.getMetadata()).toBeNull();
+    });
+
+    it('flags bad data when a stream chunk fails to decode, keeping the rest', () => {
+      const eventsMessage = new ChallengeEvents();
+      eventsMessage.setEventsList([
+        createPlayerUpdateEvent({
+          tick: 0,
+          name: 'player1',
+          source: DataSource.PRIMARY,
+        }),
+      ]);
+      const stream: ClientStageStream[] = [
+        {
+          type: StageStreamType.CLIENT_METADATA,
+          clientId: 6,
+          userId: 42,
+          pluginVersion: '0.9.11',
+          runeLiteVersion: '1.12.28',
+        },
+        {
+          type: StageStreamType.STAGE_EVENTS,
+          clientId: 6,
+          events: new Uint8Array([0xff, 0xff, 0xff, 0xff]),
+        },
+        {
+          type: StageStreamType.STAGE_EVENTS,
+          clientId: 6,
+          events: eventsMessage.serializeBinary(),
+        },
+        {
+          type: StageStreamType.STAGE_END,
+          clientId: 6,
+          update: {
+            stage: Stage.TOB_MAIDEN,
+            status: StageStatus.COMPLETED,
+            accurate: true,
+            recordedTicks: 1,
+            serverTicks: { count: 1, precise: true },
+          },
+        },
+      ];
+
+      const client = ClientEvents.fromClientStream(
+        6,
+        challengeInfo,
+        Stage.TOB_MAIDEN,
+        stream,
+      );
+
+      expect(client.hasAnomaly(ClientAnomaly.BAD_DATA)).toBe(true);
+      expect(client.getPrimaryPlayer()).toBe('player1');
+      expect(client.getMetadata()).toEqual({
+        userId: 42,
+        pluginVersion: '0.9.11',
+        runeLiteVersion: '1.12.28',
+      });
     });
 
     describe('consistency', () => {

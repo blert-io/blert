@@ -1,13 +1,13 @@
 export {
-  type ClientAnomaly,
+  ClientAnomaly,
   ClientEvents,
+  type ClientMetadata,
   type ServerTicks,
 } from './client-events';
-export { type ChallengeInfo } from './context';
+export { type ChallengeInfo, MergeClientStatus } from './context';
 export {
   type MergeClient,
   MergeClientClassification,
-  MergeClientStatus,
   type MergeResult,
   MergedEvents,
   Merger,

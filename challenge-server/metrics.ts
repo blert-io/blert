@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto';
+import { BroadcastChannel } from 'node:worker_threads';
+
 import {
   ChallengeMode,
   ChallengeStatus,
@@ -13,6 +16,7 @@ import {
   StageStatus,
 } from '@blert/common';
 import {
+  AggregatorRegistry,
   collectDefaultMetrics,
   Counter,
   Gauge,
@@ -548,6 +552,134 @@ export const recordSessionFinalized = (): void => {
   sessionsFinalized.inc();
 };
 
-export const metricsContentType = register.contentType;
+const streamCaptures = new Counter({
+  name: 'challenge_server_merge_stream_captures_total',
+  help: 'Raw stage stream captures by triggering reason',
+  labelNames: ['reason'] as const,
+  registers: [register],
+});
 
-export const getMetricsSnapshot = (): Promise<string> => register.metrics();
+export const recordStreamCapture = (reason: string): void => {
+  streamCaptures.inc({ reason });
+};
+
+export type MergeOutcome =
+  | 'merged'
+  | 'bad_data'
+  | 'exception'
+  | 'runner_failed'
+  | 'deserialize_failed';
+
+const mergeRequests = new Counter({
+  name: 'challenge_server_merge_requests_total',
+  help: 'Merge request outcomes',
+  labelNames: ['outcome'] as const,
+  registers: [register],
+});
+
+export const recordMergeOutcome = (outcome: MergeOutcome): void => {
+  mergeRequests.inc({ outcome });
+};
+
+const mergeResultWrites = new Counter({
+  name: 'challenge_server_merge_result_writes_total',
+  help: 'Merge result database write outcomes',
+  labelNames: ['status'] as const,
+  registers: [register],
+});
+
+export const recordMergeResultWrite = (status: 'success' | 'error'): void => {
+  mergeResultWrites.inc({ status });
+};
+
+const streamCapturesSuppressed = new Counter({
+  name: 'challenge_server_merge_stream_captures_suppressed_total',
+  help: 'Stream captures dropped by the hourly rate cap',
+  registers: [register],
+});
+
+export const recordStreamCaptureSuppressed = (): void => {
+  streamCapturesSuppressed.inc();
+};
+
+const METRICS_CHANNEL = 'blert:merge-pool-metrics';
+// Workers only answer between jobs, so this must cover a typical worst-case
+// single merge or busy workers will drop out of a scrape, making aggregated
+// counters dip non-monotonically. Every snapshot waits out the full window.
+const WORKER_METRICS_TIMEOUT_MS = 1000;
+
+type MetricsJson = Awaited<ReturnType<Registry['getMetricsAsJSON']>>;
+type CollectRequest = { type: 'collect'; id: string };
+type MetricsReply = { type: 'metrics'; id: string; data: MetricsJson };
+
+/**
+ * Answers the main thread's metrics scrapes from this worker thread's registry.
+ * All worker scripts must hold an instance globally for the worker's lifetime.
+ */
+export class WorkerMetricsResponder {
+  private readonly channel: BroadcastChannel;
+
+  public constructor() {
+    this.channel = new BroadcastChannel(METRICS_CHANNEL);
+    this.channel.unref();
+    this.channel.onmessage = (event) => {
+      const request = (event as { data?: Partial<CollectRequest> }).data;
+      if (request?.type !== 'collect' || request.id === undefined) {
+        return;
+      }
+      const { id } = request;
+      void register.getMetricsAsJSON().then((data) => {
+        const reply: MetricsReply = { type: 'metrics', id, data };
+        this.channel.postMessage(reply);
+      });
+    };
+  }
+}
+
+/**
+ * Collects metrics from across all workers in the server.
+ */
+export class MetricsCollector {
+  public static readonly contentType = register.contentType;
+
+  private readonly channel: BroadcastChannel;
+  // Each metrics scrape tags its request with a nonce to identify stale or
+  // overlapping requests.
+  private pendingScrapes = new Map<string, MetricsJson[]>();
+
+  public constructor() {
+    this.channel = new BroadcastChannel(METRICS_CHANNEL);
+    this.channel.unref();
+    this.channel.onmessage = (event) => {
+      const reply = (event as { data?: Partial<MetricsReply> }).data;
+      if (reply?.type === 'metrics' && reply.id !== undefined && reply.data) {
+        this.pendingScrapes.get(reply.id)?.push(reply.data);
+      }
+    };
+  }
+
+  public async getMetricsSnapshot(): Promise<string> {
+    const workerMetrics = await this.gatherWorkerMetrics();
+    if (workerMetrics.length === 0) {
+      return register.metrics();
+    }
+    return AggregatorRegistry.aggregate([
+      await register.getMetricsAsJSON(),
+      ...workerMetrics,
+    ]).metrics();
+  }
+
+  private gatherWorkerMetrics(): Promise<MetricsJson[]> {
+    const id = randomUUID();
+    const collected: MetricsJson[] = [];
+    this.pendingScrapes.set(id, collected);
+    const request: CollectRequest = { type: 'collect', id };
+    this.channel.postMessage(request);
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        this.pendingScrapes.delete(id);
+        resolve(collected);
+      }, WORKER_METRICS_TIMEOUT_MS);
+    });
+  }
+}

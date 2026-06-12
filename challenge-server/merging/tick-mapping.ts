@@ -1,4 +1,10 @@
-import { AlignmentAction, AlignmentResult } from './alignment';
+import { Alignment, AlignmentAction, MergeEntry } from './alignment';
+
+export type Mappings = {
+  base: TickMapping;
+  target: TickMapping;
+  mergedTickCount: number;
+};
 
 /**
  * Maps tick indices between a client's local tick space and the merged
@@ -26,7 +32,7 @@ export class TickMapping {
   }
 
   /**
-   * Builds base and target tick mappings from an alignment result.
+   * Builds base and target tick mappings from a list of local alignments.
    *
    * Walks through the alignment entries in order, copying base ticks outside
    * alignments at their natural positions. Within each local alignment:
@@ -36,14 +42,14 @@ export class TickMapping {
    *
    * @param baseTickCount The number of base ticks in the alignment.
    * @param targetTickCount The number of target ticks in the alignment.
-   * @param alignment The alignment result to build mappings from.
+   * @param alignments List of local alignment entries.
    * @returns The base and target mappings, and the combined tick count.
    */
   public static fromAlignment(
     baseTickCount: number,
     targetTickCount: number,
-    alignment: AlignmentResult,
-  ): { base: TickMapping; target: TickMapping; mergedTickCount: number } {
+    alignments: readonly Alignment[],
+  ): Mappings {
     const baseToMerged = Array<number | undefined>(baseTickCount).fill(
       undefined,
     );
@@ -54,11 +60,22 @@ export class TickMapping {
     let mergedPos = 0;
     let basePos = 0;
 
-    for (const localAlignment of alignment.alignments) {
+    // When the first MERGE is at base tick 0, any target ticks before it are
+    // one-sided and unambiguous; prepend them.
+    if (alignments.length > 0) {
+      const firstMerge = alignments[0][0] as MergeEntry;
+      if (firstMerge.baseIndex === 0 && firstMerge.targetIndex > 0) {
+        for (let t = 0; t < firstMerge.targetIndex; t++) {
+          targetToMerged[t] = mergedPos;
+          mergedPos++;
+        }
+      }
+    }
+
+    for (const entries of alignments) {
       // Alignments always start and end with a MERGE entry.
-      const firstBase = (localAlignment[0] as { baseIndex: number }).baseIndex;
-      const lastEntry = localAlignment[localAlignment.length - 1];
-      const lastBase = (lastEntry as { baseIndex: number }).baseIndex;
+      const firstBase = (entries[0] as MergeEntry).baseIndex;
+      const lastBase = (entries.at(-1) as MergeEntry).baseIndex;
 
       while (basePos < firstBase) {
         baseToMerged[basePos] = mergedPos;
@@ -66,7 +83,7 @@ export class TickMapping {
         basePos++;
       }
 
-      for (const entry of localAlignment) {
+      for (const entry of entries) {
         switch (entry.action) {
           case AlignmentAction.MERGE:
             baseToMerged[entry.baseIndex] = mergedPos;
@@ -89,6 +106,22 @@ export class TickMapping {
       baseToMerged[basePos] = mergedPos;
       mergedPos++;
       basePos++;
+    }
+
+    // When the last MERGE is at the base's final tick, any target ticks after
+    // it are one-sided and unambiguous; append them.
+    if (alignments.length > 0) {
+      const lastEntries = alignments[alignments.length - 1];
+      const lastMerge = lastEntries[lastEntries.length - 1] as MergeEntry;
+      if (
+        lastMerge.baseIndex === baseTickCount - 1 &&
+        lastMerge.targetIndex < targetTickCount - 1
+      ) {
+        for (let t = lastMerge.targetIndex + 1; t < targetTickCount; t++) {
+          targetToMerged[t] = mergedPos;
+          mergedPos++;
+        }
+      }
     }
 
     const mergedTickCount = mergedPos;
@@ -136,9 +169,7 @@ export class TickMapping {
 
 type MappingChainEntry = {
   targetClientId: number;
-  baseMapping: TickMapping;
-  targetMapping: TickMapping;
-  mergedTickCount: number;
+  mappings: Mappings;
 };
 
 /**
@@ -165,21 +196,12 @@ export class MergeMapping {
    * Sets the in-flight entry for the current merge step.
    *
    * @param targetClientId The ID of the target client.
-   * @param baseMapping The tick mapping for base timeline.
-   * @param targetMapping The tick mapping for target client's timeline.
-   * @param mergedTickCount The merged tick count for the merge step.
+   * @param mappings The tick mappings for the merge step.
    */
-  public begin(
-    targetClientId: number,
-    baseMapping: TickMapping,
-    targetMapping: TickMapping,
-    mergedTickCount: number,
-  ): void {
+  public begin(targetClientId: number, mappings: Mappings): void {
     this.inFlight = {
       targetClientId,
-      baseMapping,
-      targetMapping,
-      mergedTickCount,
+      mappings,
     };
   }
 
@@ -209,7 +231,7 @@ export class MergeMapping {
    * `null` if no step is in progress.
    */
   public getBaseMapping(): TickMapping | null {
-    return this.inFlight?.baseMapping ?? null;
+    return this.inFlight?.mappings.base ?? null;
   }
 
   /**
@@ -217,7 +239,7 @@ export class MergeMapping {
    * `null` if no step is in progress.
    */
   public getTargetMapping(): TickMapping | null {
-    return this.inFlight?.targetMapping ?? null;
+    return this.inFlight?.mappings.target ?? null;
   }
 
   /**
@@ -225,7 +247,7 @@ export class MergeMapping {
    * `null` if no step is in progress.
    */
   public getMergedTickCount(): number | null {
-    return this.inFlight?.mergedTickCount ?? null;
+    return this.inFlight?.mappings.mergedTickCount ?? null;
   }
 
   /**
@@ -245,9 +267,9 @@ export class MergeMapping {
 
     if (this.inFlight !== null) {
       if (this.inFlight.targetClientId === clientId) {
-        return this.inFlight.targetMapping.toClient(current);
+        return this.inFlight.mappings.target.toClient(current);
       }
-      current = this.inFlight.baseMapping.toClient(current);
+      current = this.inFlight.mappings.base.toClient(current);
       if (current === undefined) {
         return undefined;
       }
@@ -257,10 +279,10 @@ export class MergeMapping {
       const entry = this.chain[i];
 
       if (entry.targetClientId === clientId) {
-        return entry.targetMapping.toClient(current);
+        return entry.mappings.target.toClient(current);
       }
 
-      current = entry.baseMapping.toClient(current);
+      current = entry.mappings.base.toClient(current);
       if (current === undefined) {
         return undefined;
       }

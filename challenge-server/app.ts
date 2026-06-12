@@ -6,6 +6,12 @@ import { RedisClientType, createClient } from 'redis';
 
 import { registerApiRoutes } from './api';
 import ChallengeManager from './challenge-manager';
+import sql from './db';
+import {
+  mergeServiceWithWorkerPool,
+  PostgresMergeResultStore,
+} from './merge-service';
+import { MetricsCollector } from './metrics';
 import logger from './log';
 
 /**
@@ -75,12 +81,37 @@ async function main() {
     'BLERT_TEST_DATA_REPOSITORY',
   );
 
+  let mergeWorkers: number | undefined = undefined;
+  if (process.env.BLERT_MERGE_WORKERS !== undefined) {
+    mergeWorkers = Number(process.env.BLERT_MERGE_WORKERS);
+    if (!Number.isInteger(mergeWorkers) || mergeWorkers < 1) {
+      logger.error('environment_invalid', {
+        variable: 'BLERT_MERGE_WORKERS',
+        value: process.env.BLERT_MERGE_WORKERS,
+      });
+      process.exit(1);
+    }
+  }
+
+  const mergeService = mergeServiceWithWorkerPool(
+    {
+      size: mergeWorkers,
+      maxOldGenerationSizeMb: 256,
+    },
+    {
+      samplingRepository: testDataRepository,
+      resultStore: new PostgresMergeResultStore(sql),
+    },
+  );
+
   const challengeManager = new ChallengeManager(
     challengeDataRepository,
-    testDataRepository,
+    mergeService,
     redisClient,
     true,
   );
+
+  const metricsCollector = new MetricsCollector();
 
   const app = express();
   const port = process.env.PORT ?? 3003;
@@ -107,11 +138,12 @@ async function main() {
   app.use((_req, res, next) => {
     res.locals.challengeDataRepository = challengeDataRepository;
     res.locals.challengeManager = challengeManager;
+    res.locals.mergeService = mergeService;
     res.locals.testDataRepository = testDataRepository;
     next();
   });
 
-  registerApiRoutes(app);
+  registerApiRoutes(app, metricsCollector);
 
   app.listen(port, () => {
     logger.info('challenge_server_listening', { port });

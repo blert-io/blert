@@ -2,12 +2,14 @@ import {
   ChallengeMode,
   ChallengeStatus,
   ChallengeType,
+  DataSource,
   Stage,
   StageStatus,
 } from '@blert/common';
 
 import { classifyClients, ReferenceSelectionMethod } from '../classification';
 import { ClientEvents } from '../client-events';
+import { createPlayerUpdateEvent } from './fixtures';
 
 const fakeChallenge = {
   id: 99,
@@ -25,7 +27,19 @@ describe('classifyClients', () => {
     accurate: boolean,
     recordedTicks: number,
     serverTicks: { count: number; precise: boolean } | null,
+    primaryPlayer?: string,
   ) {
+    // Add an update for the primary player if present.
+    const events =
+      primaryPlayer !== undefined
+        ? [
+            createPlayerUpdateEvent({
+              tick: 0,
+              name: primaryPlayer,
+              source: DataSource.PRIMARY,
+            }),
+          ]
+        : [];
     return ClientEvents.fromRawEvents(
       id,
       fakeChallenge,
@@ -36,7 +50,7 @@ describe('classifyClients', () => {
         recordedTicks,
         serverTicks,
       },
-      [],
+      events,
     );
   }
 
@@ -205,13 +219,76 @@ describe('classifyClients', () => {
   });
 
   it('handles a server tick count of 0', () => {
+    // The precise client supplies the count but is too short to be the base.
     const client1 = createClient(1, false, 0, { count: 0, precise: true });
-    const client2 = createClient(2, false, 10, null);
+    const client2 = createClient(2, false, 10, { count: 0, precise: false });
     const { base, referenceTicks } = classifyClients([client1, client2]);
-    expect(base).toBe(client1);
+    expect(base).toBe(client2);
     expect(referenceTicks).toMatchObject({
       method: ReferenceSelectionMethod.PRECISE_SERVER,
       count: 0,
     });
+  });
+
+  it('selects the base client independently of the reference count', () => {
+    const preciseShort = createClient(1, false, 25, {
+      count: 270,
+      precise: true,
+    });
+    const longParticipant = createClient(
+      2,
+      false,
+      270,
+      {
+        count: 270,
+        precise: false,
+      },
+      'player1',
+    );
+    const { base, referenceTicks } = classifyClients([
+      preciseShort,
+      longParticipant,
+    ]);
+    expect(base).toBe(longParticipant);
+    expect(referenceTicks).toMatchObject({
+      method: ReferenceSelectionMethod.PRECISE_SERVER,
+      count: 270,
+    });
+  });
+
+  it('breaks a recorded tick tie toward a participant over a spectator', () => {
+    const spectator = createClient(1, false, 100, null);
+    const participant = createClient(2, false, 100, null, 'player1');
+    const { base } = classifyClients([spectator, participant]);
+    expect(base).toBe(participant);
+  });
+
+  it('takes the consensus of imprecise counts rather than the maximum', () => {
+    const i1 = createClient(1, false, 50, { count: 90, precise: false });
+    const i2 = createClient(2, false, 50, { count: 90, precise: false });
+    const i3 = createClient(3, false, 50, { count: 95, precise: false });
+    const { referenceTicks } = classifyClients([i1, i2, i3]);
+    expect(referenceTicks).toMatchObject({
+      method: ReferenceSelectionMethod.IMPRECISE_SERVER,
+      count: 90,
+    });
+    expect(referenceTicks.details?.serverTickCounts).toEqual([90, 95]);
+  });
+
+  it('surfaces disagreeing server tick counts for flagging', () => {
+    const p1 = createClient(1, false, 50, { count: 100, precise: true });
+    const p2 = createClient(2, false, 50, { count: 101, precise: true });
+    const { referenceTicks } = classifyClients([p1, p2]);
+    expect(referenceTicks.method).toBe(ReferenceSelectionMethod.PRECISE_SERVER);
+    expect(referenceTicks.count).toBe(101);
+    expect(referenceTicks.details?.serverTickCounts).toEqual([100, 101]);
+  });
+
+  it('reports a single server count when they agree', () => {
+    const p1 = createClient(1, false, 50, { count: 500, precise: true });
+    const p2 = createClient(2, false, 50, { count: 500, precise: true });
+    const { referenceTicks } = classifyClients([p1, p2]);
+    expect(referenceTicks.count).toBe(500);
+    expect(referenceTicks.details?.serverTickCounts).toEqual([500]);
   });
 });

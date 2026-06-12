@@ -49,6 +49,63 @@ function getConsensusTicks(
 }
 
 /**
+ * Selects the base client for a merge timeline. The most complete client is
+ * preferred, with participants and client IDs as tiebreakers.
+ */
+function selectBaseClient(clients: ClientEvents[]): ClientEvents {
+  return clients.toSorted(
+    (a, b) =>
+      b.getFinalTick() - a.getFinalTick() ||
+      Number(a.isSpectator()) - Number(b.isSpectator()) ||
+      a.getId() - b.getId(),
+  )[0];
+}
+
+/**
+ * Selects the stage's reference tick count for a non-accurate stage.
+ *
+ * - Server counts are taken by consensus (modal count, ties broken toward the
+ *   larger), preferring precise over imprecise. Either should be consistent
+ *   across clients, so any disagreement is surfaced in `details.serverTickCounts`.
+ * - With no server count at all, the longest recorded timeline is used.
+ */
+function selectReferenceCount(clients: ClientEvents[]): {
+  count: number;
+  method: ReferenceSelectionMethod;
+  details: Record<string, unknown>;
+} {
+  const precise = clients.filter((c) => c.getServerTicks()?.precise === true);
+  const serverClients =
+    precise.length > 0
+      ? precise
+      : clients.filter((c) => c.getServerTicks()?.precise === false);
+  if (serverClients.length > 0) {
+    const distinctCounts = [
+      ...new Set(serverClients.map((c) => c.getServerTicks()!.count)),
+    ].sort((a, b) => a - b);
+    return {
+      count: getConsensusTicks(serverClients, (c) => c.getServerTicks()!.count),
+      method:
+        precise.length > 0
+          ? ReferenceSelectionMethod.PRECISE_SERVER
+          : ReferenceSelectionMethod.IMPRECISE_SERVER,
+      details: {
+        candidateClientIds: serverClients.map((c) => c.getId()),
+        serverTickCounts: distinctCounts,
+      },
+    };
+  }
+
+  return {
+    count: Math.max(...clients.map((c) => c.getFinalTick())),
+    method: ReferenceSelectionMethod.RECORDED_TICKS,
+    details: {
+      candidateClientIds: clients.map((c) => c.getId()).sort((a, b) => a - b),
+    },
+  };
+}
+
+/**
  * Splits clients into three categories: a single reference client, clients with
  * complete tick data, and clients with partial tick data.
  *
@@ -94,56 +151,16 @@ export function classifyClients(clients: ClientEvents[]): ClassifiedClients {
     };
   }
 
-  // 2. If no accurate client exists, pick a precise client with the highest
-  //    recorded tick count.
+  // 2. With no accurate client, the base and the reference count decouple.
+  //    The base is the most complete client; the reference count is sourced
+  //    separately (see `selectReferenceCount`). This prevents short clients
+  //    with precise timers from dragging the base timeline.
   if (baseClient === null) {
-    const preciseClients = clients.filter(
-      (c) => c.getServerTicks()?.precise === true,
-    );
-    if (preciseClients.length > 0) {
-      preciseClients.sort(
-        (a, b) => b.getFinalTick() - a.getFinalTick() || a.getId() - b.getId(),
-      );
-      baseClient = preciseClients[0];
-      referenceTicks = baseClient.getServerTicks()!.count;
-      selectionMethod = ReferenceSelectionMethod.PRECISE_SERVER;
-      selectionDetails = {
-        candidateClientIds: preciseClients.map((c) => c.getId()),
-      };
-    }
-  }
-
-  // 3. If no precise client exists, pick a client with an imprecise server tick
-  //    count, again with the highest recorded tick count.
-  if (baseClient === null) {
-    const impreciseClients = clients.filter(
-      (c) => c.getServerTicks()?.precise === false,
-    );
-    if (impreciseClients.length > 0) {
-      impreciseClients.sort(
-        (a, b) => b.getFinalTick() - a.getFinalTick() || a.getId() - b.getId(),
-      );
-      baseClient = impreciseClients[0];
-      referenceTicks = baseClient.getServerTicks()!.count;
-      selectionMethod = ReferenceSelectionMethod.IMPRECISE_SERVER;
-      selectionDetails = {
-        candidateClientIds: impreciseClients.map((c) => c.getId()),
-      };
-    }
-  }
-
-  // 4. Finally, if no client has a server tick count, use the one with the
-  //    highest recorded tick count.
-  if (baseClient === null) {
-    const sortedClients = clients.toSorted(
-      (a, b) => b.getFinalTick() - a.getFinalTick() || a.getId() - b.getId(),
-    );
-    baseClient = sortedClients[0];
-    referenceTicks = baseClient.getFinalTick();
-    selectionMethod = ReferenceSelectionMethod.RECORDED_TICKS;
-    selectionDetails = {
-      candidateClientIds: sortedClients.map((c) => c.getId()),
-    };
+    baseClient = selectBaseClient(clients);
+    const reference = selectReferenceCount(clients);
+    referenceTicks = reference.count;
+    selectionMethod = reference.method;
+    selectionDetails = reference.details;
   }
 
   if (baseClient === null) {
@@ -152,6 +169,7 @@ export function classifyClients(clients: ClientEvents[]): ClassifiedClients {
   }
 
   logger.debug('merge_classification_reference_selection', {
+    baseClientId: baseClient.getId(),
     referenceTicks,
     selectionMethod: selectionMethod!,
     selectionDetails,

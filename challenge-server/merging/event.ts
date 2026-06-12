@@ -219,6 +219,12 @@ export type StreamEventConfig = {
    * If null, the event is unique within the stage.
    */
   temporalWindow: number | null;
+  /**
+   * Tick gap between two paired occurrences above which the consolidator
+   * emits a `LARGE_TEMPORAL_GAP` quality flag, or null to disable the
+   * signal for this event type.
+   */
+  largeGapThreshold: number | null;
 };
 
 function actorIdKey(event: Event): string {
@@ -253,84 +259,114 @@ export const STREAM_EVENT_CONFIGS: Record<StreamEventType, StreamEventConfig> =
   {
     // Deaths are keyed by actor with a moderate window since clients can see
     // them several ticks apart depending on how they detect the death.
-    [Event.Type.PLAYER_DEATH]: { identityKey: actorIdKey, temporalWindow: 5 },
-    [Event.Type.NPC_DEATH]: { identityKey: actorIdKey, temporalWindow: 5 },
+    [Event.Type.PLAYER_DEATH]: {
+      identityKey: actorIdKey,
+      temporalWindow: 8,
+      largeGapThreshold: 5,
+    },
+    [Event.Type.NPC_DEATH]: {
+      identityKey: actorIdKey,
+      temporalWindow: 8,
+      largeGapThreshold: 5,
+    },
 
-    [Event.Type.NPC_SPAWN]: { identityKey: actorIdKey, temporalWindow: null },
+    [Event.Type.NPC_SPAWN]: {
+      identityKey: actorIdKey,
+      temporalWindow: null,
+      largeGapThreshold: null, // Emitted when NPC first enters render distance.
+    },
 
     [Event.Type.TOB_MAIDEN_CRAB_LEAK]: {
       identityKey: actorIdKey,
       temporalWindow: null,
+      largeGapThreshold: 10,
     },
 
     // Bloat downs are distinguished temporally.
     [Event.Type.TOB_BLOAT_DOWN]: {
       identityKey: singletonKey,
       temporalWindow: 32,
+      largeGapThreshold: 16,
     },
     [Event.Type.TOB_BLOAT_UP]: {
       identityKey: singletonKey,
       temporalWindow: 32,
+      largeGapThreshold: 16,
     },
 
     // Bloat hands drops and splats are distinguished by their coord set.
     [Event.Type.TOB_BLOAT_HANDS_DROP]: {
       identityKey: bloatHandsKey,
       temporalWindow: 5,
+      largeGapThreshold: null,
     },
     [Event.Type.TOB_BLOAT_HANDS_SPLAT]: {
       identityKey: bloatHandsKey,
       temporalWindow: 5,
+      largeGapThreshold: null,
     },
 
     // Nylocas wave spawns keyed by wave number.
     [Event.Type.TOB_NYLO_WAVE_SPAWN]: {
-      identityKey: (e) => String(e.getNyloWave()?.getWave() ?? 0),
-      temporalWindow: 3,
+      identityKey: (e) => String(e.getNyloWave()!.getWave()),
+      temporalWindow: null,
+      largeGapThreshold: 10,
     },
 
     // Sotetseg maze events keyed by maze number.
     [Event.Type.TOB_SOTE_MAZE_PROC]: {
-      identityKey: (e) => String(e.getSoteMaze()?.getMaze() ?? 0),
+      identityKey: (e) => String(e.getSoteMaze()!.getMaze()),
       temporalWindow: null,
+      largeGapThreshold: 20,
     },
     [Event.Type.TOB_SOTE_MAZE_END]: {
-      identityKey: (e) => String(e.getSoteMaze()?.getMaze() ?? 0),
+      identityKey: (e) => String(e.getSoteMaze()!.getMaze()),
       temporalWindow: null,
+      largeGapThreshold: 10,
     },
 
     [Event.Type.TOB_XARPUS_PHASE]: {
       identityKey: (e) => String(e.getXarpusPhase()),
       temporalWindow: null,
+      largeGapThreshold: 10,
     },
     [Event.Type.TOB_XARPUS_EXHUMED]: {
       identityKey: (e) => `${e.getXCoord()},${e.getYCoord()}`,
       temporalWindow: 16,
+      largeGapThreshold: 10,
     },
     // Xarpus splats are permanent; the same coord across the fight always
     // refers to the same splat regardless of when each client first saw it.
     [Event.Type.TOB_XARPUS_SPLAT]: {
       identityKey: (e) => `${e.getXCoord()},${e.getYCoord()}`,
       temporalWindow: null,
+      largeGapThreshold: null, // Late joiners emit all existing splats on join.
     },
 
     [Event.Type.TOB_VERZIK_PHASE]: {
       identityKey: (e) => String(e.getVerzikPhase()),
       temporalWindow: null,
+      largeGapThreshold: null, // Late joiners emit current phase on join.
     },
     // Dawn drops repeat every 4 ticks with alternating dropped values.
     // Key by dropped value with a tight window to avoid crossing cycles.
     [Event.Type.TOB_VERZIK_DAWN_DROP]: {
-      identityKey: (e) => String(e.getVerzikDawnDrop()?.getDropped() ?? false),
+      identityKey: (e) => String(e.getVerzikDawnDrop()!.getDropped()),
       temporalWindow: 3,
+      largeGapThreshold: null,
     },
 
     // Verzik heals keyed by player name and distinct temporally.
     [Event.Type.TOB_VERZIK_HEAL]: {
-      identityKey: (e) => e.getVerzikHeal()?.getPlayer() ?? '',
+      identityKey: (e) => e.getVerzikHeal()!.getPlayer(),
       temporalWindow: 30,
+      largeGapThreshold: 10,
     },
   };
+
+export function isStreamEventType(type: EventType): type is StreamEventType {
+  return type in STREAM_EVENT_CONFIGS;
+}
 
 const ATTACK_MAPPED_EVENT_RECORD: Record<AttackMappedEventType, true> = {
   [Event.Type.TOB_VERZIK_ATTACK_STYLE]: true,
@@ -397,7 +433,14 @@ export function remapEventTick(
 
     case Event.Type.TOB_VERZIK_BOUNCE: {
       const bounce = remapped.event.getVerzikBounce()!;
-      bounce.setNpcAttackTick(remap(bounce.getNpcAttackTick()));
+      // Plugin versions prior to 0.9.10 did not set a referenced attack tick
+      // for bounce chance events without a target. Those events are dispatched
+      // on the same tick as Verzik's attack.
+      const npcAttackTick =
+        bounce.getNpcAttackTick() === -1
+          ? remapped.event.getTick()
+          : bounce.getNpcAttackTick();
+      bounce.setNpcAttackTick(remap(npcAttackTick));
       break;
     }
 

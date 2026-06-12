@@ -4,24 +4,27 @@ import {
   TickAligner,
   SimilarityFn,
 } from '../alignment';
-import { createPlayerState, createTickState } from './fixtures';
+import {
+  buildTickTimeline,
+  createPlayerState,
+  createTickState,
+} from './fixtures';
 import { TickState, TickStateArray } from '../tick-state';
 
 /**
- * Creates a TickStateArray from tick numbers. Each tick gets a single dummy
- * player so it's non-null.
+ * Creates a TickStateArray from a non-contiguous list of tick numbers. Each
+ * tick gets a single dummy player so it's non-null.
  */
-function makeTimeline(ticks: number[]): TickStateArray {
+function makeTimeline(ticks: number[], clientId: number): TickStateArray {
   return ticks.map((t) =>
-    createTickState(t, [createPlayerState({ username: 'player1' })]),
+    createTickState(t, [createPlayerState({ username: 'player1', clientId })]),
   );
 }
 
-/**
- * Creates a TickStateArray with tick values matching their array indices.
- */
-function makeIndexedTimeline(length: number): TickStateArray {
-  return makeTimeline(Array.from({ length }, (_, i) => i));
+function makeIndexedTimeline(length: number, clientId: number): TickStateArray {
+  return buildTickTimeline(length, {}, [
+    createPlayerState({ username: 'player1', clientId }),
+  ]);
 }
 
 /**
@@ -61,7 +64,7 @@ function runAligner(
 function extractMapping(result: AlignmentResult): [number, number][] {
   const pairs: [number, number][] = [];
   for (const alignment of result.alignments) {
-    for (const entry of alignment) {
+    for (const entry of alignment.entries) {
       if (entry.action === AlignmentAction.MERGE) {
         pairs.push([entry.targetIndex, entry.baseIndex]);
       }
@@ -77,7 +80,7 @@ function extractMapping(result: AlignmentResult): [number, number][] {
 function extractScores(result: AlignmentResult): Map<number, number> {
   const scores = new Map<number, number>();
   for (const alignment of result.alignments) {
-    for (const entry of alignment) {
+    for (const entry of alignment.entries) {
       if (entry.action === AlignmentAction.MERGE) {
         scores.set(entry.targetIndex, entry.score);
       }
@@ -91,11 +94,20 @@ function mergeCount(result: AlignmentResult): number {
   return extractMapping(result).length;
 }
 
+const BASE_CLIENT_ID = 1;
+const TARGET_CLIENT_ID = 2;
+
 describe('TickAligner', () => {
   describe('identical timelines', () => {
     it('produces a 1:1 mapping with full coverage', () => {
-      const base = makeTimeline([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-      const target = makeTimeline([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+      const base = makeTimeline(
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        BASE_CLIENT_ID,
+      );
+      const target = makeTimeline(
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        TARGET_CLIENT_ID,
+      );
 
       const result = runAligner(base, target, tickMatchScorer());
 
@@ -111,27 +123,48 @@ describe('TickAligner', () => {
         [8, 8],
         [9, 9],
       ]);
-      expect(result.coverage).toBe(1);
+      expect(result.baseCoverage).toBe(1);
+      expect(result.targetCoverage).toBe(1);
       expect(result.gapCount).toBe(0);
     });
 
     it('returns a single local alignment with only MERGE entries', () => {
-      const base = makeTimeline([1, 2, 3, 4, 5]);
-      const target = makeTimeline([1, 2, 3, 4, 5]);
+      const base = makeTimeline([1, 2, 3, 4, 5], BASE_CLIENT_ID);
+      const target = makeTimeline([1, 2, 3, 4, 5], TARGET_CLIENT_ID);
 
       const result = runAligner(base, target, tickMatchScorer());
 
       expect(result.alignments).toHaveLength(1);
-      for (const entry of result.alignments[0]) {
+      const la = result.alignments[0];
+      for (const entry of la.entries) {
         expect(entry.action).toBe(AlignmentAction.MERGE);
       }
+      expect(la.similarity.length).toBe(la.range.baseEnd - la.range.baseStart);
+      expect(la.margin.length).toBe(la.similarity.length);
+    });
+
+    it('records per-cell decision margins along the path', () => {
+      const base = makeTimeline([1, 2, 3], BASE_CLIENT_ID);
+      const target = makeTimeline([1, 2, 3], TARGET_CLIENT_ID);
+
+      const result = runAligner(base, target, tickMatchScorer(3));
+
+      expect(result.alignments).toHaveLength(1);
+      const { margin } = result.alignments[0];
+      // No alternative branches, so the margins are the cumulative score.
+      expect(margin[0][0]).toBe(3);
+      expect(margin[1][1]).toBe(6);
+      expect(margin[2][2]).toBe(9);
     });
   });
 
   describe('offset target', () => {
     it('aligns target to the correct region of the base', () => {
-      const base = makeTimeline([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-      const target = makeTimeline([5, 6, 7, 8, 9, 10]);
+      const base = makeTimeline(
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        BASE_CLIENT_ID,
+      );
+      const target = makeTimeline([5, 6, 7, 8, 9, 10], TARGET_CLIENT_ID);
 
       const result = runAligner(base, target, tickMatchScorer());
 
@@ -144,13 +177,18 @@ describe('TickAligner', () => {
         [4, 8],
         [5, 9],
       ]);
-      expect(result.coverage).toBe(0.6);
+      // 6 of 10 base ticks placed; all 6 target ticks placed.
+      expect(result.baseCoverage).toBe(0.6);
+      expect(result.targetCoverage).toBe(1);
       expect(result.gapCount).toBe(0);
     });
 
     it('aligns target that ends early', () => {
-      const base = makeTimeline([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-      const target = makeTimeline([1, 2, 3, 4, 5]);
+      const base = makeTimeline(
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        BASE_CLIENT_ID,
+      );
+      const target = makeTimeline([1, 2, 3, 4, 5], TARGET_CLIENT_ID);
 
       const result = runAligner(base, target, tickMatchScorer());
 
@@ -161,7 +199,8 @@ describe('TickAligner', () => {
         [3, 3],
         [4, 4],
       ]);
-      expect(result.coverage).toBe(0.5);
+      expect(result.baseCoverage).toBe(0.5);
+      expect(result.targetCoverage).toBe(1);
       expect(result.gapCount).toBe(0);
     });
   });
@@ -169,8 +208,11 @@ describe('TickAligner', () => {
   describe('target with gaps', () => {
     it('emits KEEP entries for base ticks the target missed', () => {
       // Base has ticks 1-10, target is missing ticks 5-6.
-      const base = makeTimeline([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-      const target = makeTimeline([1, 2, 3, 4, 7, 8, 9, 10]);
+      const base = makeTimeline(
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        BASE_CLIENT_ID,
+      );
+      const target = makeTimeline([1, 2, 3, 4, 7, 8, 9, 10], TARGET_CLIENT_ID);
 
       const result = runAligner(base, target, tickMatchScorer());
 
@@ -184,11 +226,13 @@ describe('TickAligner', () => {
         [6, 8],
         [7, 9],
       ]);
-      expect(result.coverage).toBe(0.8);
+      // All 10 base ticks are placed (8 merge, 2 keep), as are all 8 target.
+      expect(result.baseCoverage).toBe(1);
+      expect(result.targetCoverage).toBe(1);
       expect(result.gapCount).toBe(2);
 
       const keepEntries = result.alignments.flatMap((a) =>
-        a.filter((e) => e.action === AlignmentAction.KEEP),
+        a.entries.filter((e) => e.action === AlignmentAction.KEEP),
       );
 
       // There should be KEEP entries for the base ticks the target missed.
@@ -200,8 +244,11 @@ describe('TickAligner', () => {
 
     it('emits INSERT entries when the target has ticks the base missed', () => {
       // Base is missing tick 5; target has the full range.
-      const base = makeTimeline([1, 2, 3, 4, 6, 7, 8, 9, 10]);
-      const target = makeTimeline([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+      const base = makeTimeline([1, 2, 3, 4, 6, 7, 8, 9, 10], BASE_CLIENT_ID);
+      const target = makeTimeline(
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        TARGET_CLIENT_ID,
+      );
 
       const result = runAligner(base, target, tickMatchScorer());
 
@@ -219,13 +266,13 @@ describe('TickAligner', () => {
 
       // There should be an INSERT entry for the tick that the base missed.
       const insertEntries = result.alignments.flatMap((a) =>
-        a.filter((e) => e.action === AlignmentAction.INSERT),
+        a.entries.filter((e) => e.action === AlignmentAction.INSERT),
       );
       expect(insertEntries).toHaveLength(1);
       expect(insertEntries[0].targetIndex).toBe(4);
 
       const keepEntries = result.alignments.flatMap((a) =>
-        a.filter((e) => e.action === AlignmentAction.KEEP),
+        a.entries.filter((e) => e.action === AlignmentAction.KEEP),
       );
       expect(keepEntries).toHaveLength(0);
 
@@ -234,8 +281,11 @@ describe('TickAligner', () => {
 
     it('emits both KEEP and INSERT when each side is missing a different tick', () => {
       // Base is missing tick 6; target is missing tick 5.
-      const base = makeTimeline([1, 2, 3, 4, 5, 7, 8, 9, 10]);
-      const target = makeTimeline([1, 2, 3, 4, 6, 7, 8, 9, 10]);
+      const base = makeTimeline([1, 2, 3, 4, 5, 7, 8, 9, 10], BASE_CLIENT_ID);
+      const target = makeTimeline(
+        [1, 2, 3, 4, 6, 7, 8, 9, 10],
+        TARGET_CLIENT_ID,
+      );
 
       const result = runAligner(base, target, tickMatchScorer());
 
@@ -251,13 +301,13 @@ describe('TickAligner', () => {
       ]);
 
       const keepEntries = result.alignments.flatMap((a) =>
-        a.filter((e) => e.action === AlignmentAction.KEEP),
+        a.entries.filter((e) => e.action === AlignmentAction.KEEP),
       );
       expect(keepEntries).toHaveLength(1);
       expect(keepEntries[0].baseIndex).toBe(4);
 
       const insertEntries = result.alignments.flatMap((a) =>
-        a.filter((e) => e.action === AlignmentAction.INSERT),
+        a.entries.filter((e) => e.action === AlignmentAction.INSERT),
       );
       expect(insertEntries).toHaveLength(1);
       expect(insertEntries[0].targetIndex).toBe(4);
@@ -268,21 +318,22 @@ describe('TickAligner', () => {
 
   describe('no overlap', () => {
     it('returns empty alignments when timelines are disjoint', () => {
-      const base = makeTimeline([1, 2, 3, 4, 5]);
-      const target = makeTimeline([20, 21, 22, 23, 24]);
+      const base = makeTimeline([1, 2, 3, 4, 5], BASE_CLIENT_ID);
+      const target = makeTimeline([20, 21, 22, 23, 24], TARGET_CLIENT_ID);
 
       const result = runAligner(base, target, tickMatchScorer());
 
       expect(mergeCount(result)).toBe(0);
       expect(result.alignments).toHaveLength(0);
-      expect(result.coverage).toBe(0);
+      expect(result.baseCoverage).toBe(0);
+      expect(result.targetCoverage).toBe(0);
     });
   });
 
   describe('short sequences', () => {
     it('rejects alignments shorter than MIN_ALIGNMENT_LENGTH', () => {
-      const base = makeTimeline([1, 2, 3, 4, 5]);
-      const target = makeTimeline([4, 5, 20, 21, 22]);
+      const base = makeTimeline([1, 2, 3, 4, 5], BASE_CLIENT_ID);
+      const target = makeTimeline([4, 5, 20, 21, 22], TARGET_CLIENT_ID);
 
       const result = runAligner(base, target, tickMatchScorer());
 
@@ -290,8 +341,8 @@ describe('TickAligner', () => {
     });
 
     it('accepts alignments exactly at MIN_ALIGNMENT_LENGTH', () => {
-      const base = makeTimeline([1, 2, 3, 4, 5]);
-      const target = makeTimeline([3, 4, 5, 20, 21]);
+      const base = makeTimeline([1, 2, 3, 4, 5], BASE_CLIENT_ID);
+      const target = makeTimeline([3, 4, 5, 20, 21], TARGET_CLIENT_ID);
 
       const result = runAligner(base, target, tickMatchScorer());
 
@@ -301,8 +352,11 @@ describe('TickAligner', () => {
 
   describe('null tick states', () => {
     it('scores null ticks as 0 without breaking the alignment', () => {
-      const base = makeTimeline([1, 2, 3, 4, 5, 6, 7]);
-      const target: TickStateArray = makeTimeline([1, 2, 3, 4, 5, 6, 7]);
+      const base = makeTimeline([1, 2, 3, 4, 5, 6, 7], BASE_CLIENT_ID);
+      const target: TickStateArray = makeTimeline(
+        [1, 2, 3, 4, 5, 6, 7],
+        TARGET_CLIENT_ID,
+      );
       target[2] = null;
       target[3] = null;
 
@@ -331,8 +385,8 @@ describe('TickAligner', () => {
 
   describe('scoring', () => {
     it('records per-pair similarity scores', () => {
-      const base = makeTimeline([1, 2, 3, 4, 5]);
-      const target = makeTimeline([1, 2, 3, 4, 5]);
+      const base = makeTimeline([1, 2, 3, 4, 5], BASE_CLIENT_ID);
+      const target = makeTimeline([1, 2, 3, 4, 5], TARGET_CLIENT_ID);
       const score = 7;
 
       const result = runAligner(base, target, tickMatchScorer(score));
@@ -348,10 +402,14 @@ describe('TickAligner', () => {
 
   describe('multiple local alignments', () => {
     it('extracts two separate alignments when a large gap splits them', () => {
-      const base = makeTimeline([
-        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
-      ]);
-      const target = makeTimeline([1, 2, 3, 4, 5, 0, 0, 0, 11, 12, 13, 14, 15]);
+      const base = makeTimeline(
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+        BASE_CLIENT_ID,
+      );
+      const target = makeTimeline(
+        [1, 2, 3, 4, 5, 0, 0, 0, 11, 12, 13, 14, 15],
+        TARGET_CLIENT_ID,
+      );
 
       const result = runAligner(base, target, tickMatchScorer());
 
@@ -359,7 +417,7 @@ describe('TickAligner', () => {
 
       // Each local alignment should contain only MERGE entries.
       for (const alignment of result.alignments) {
-        for (const entry of alignment) {
+        for (const entry of alignment.entries) {
           expect(entry.action).toBe(AlignmentAction.MERGE);
         }
       }
@@ -377,15 +435,19 @@ describe('TickAligner', () => {
         [11, 13],
         [12, 14],
       ]);
-      expect(result.coverage).toBe(10 / 15);
+      expect(result.baseCoverage).toBe(10 / 15);
+      expect(result.targetCoverage).toBe(10 / 13);
       expect(result.gapCount).toBe(0);
     });
   });
 
   describe('action ordering', () => {
     it('preserves action order within a local alignment', () => {
-      const base = makeTimeline([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-      const target = makeTimeline([1, 2, 3, 4, 7, 8, 9, 10]);
+      const base = makeTimeline(
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        BASE_CLIENT_ID,
+      );
+      const target = makeTimeline([1, 2, 3, 4, 7, 8, 9, 10], TARGET_CLIENT_ID);
 
       const result = runAligner(base, target, tickMatchScorer());
 
@@ -394,7 +456,7 @@ describe('TickAligner', () => {
       for (const alignment of result.alignments) {
         let lastBase = -1;
         let lastTarget = -1;
-        for (const entry of alignment) {
+        for (const entry of alignment.entries) {
           if (entry.action === AlignmentAction.MERGE) {
             expect(entry.baseIndex).toBeGreaterThan(lastBase);
             expect(entry.targetIndex).toBeGreaterThan(lastTarget);
@@ -441,15 +503,18 @@ describe('TickAligner', () => {
     boundaryPressureMatrix[7][6] = 5;
 
     it('ensures each local alignment starts and ends with MERGE entries', () => {
-      const base = makeIndexedTimeline(disjointMatrix.length);
-      const target = makeIndexedTimeline(disjointMatrix[0].length);
+      const base = makeIndexedTimeline(disjointMatrix.length, BASE_CLIENT_ID);
+      const target = makeIndexedTimeline(
+        disjointMatrix[0].length,
+        TARGET_CLIENT_ID,
+      );
 
       const result = runAligner(base, target, matrixScorer(disjointMatrix));
       expect(result.alignments.length).toBeGreaterThanOrEqual(2);
 
       for (const alignment of result.alignments) {
-        const first = alignment[0];
-        const last = alignment[alignment.length - 1];
+        const first = alignment.entries[0];
+        const last = alignment.entries[alignment.entries.length - 1];
 
         expect(first).toBeDefined();
         expect(last).toBeDefined();
@@ -459,8 +524,14 @@ describe('TickAligner', () => {
     });
 
     it('does not reuse base or target indices across local alignments', () => {
-      const base = makeIndexedTimeline(boundaryPressureMatrix.length);
-      const target = makeIndexedTimeline(boundaryPressureMatrix[0].length);
+      const base = makeIndexedTimeline(
+        boundaryPressureMatrix.length,
+        BASE_CLIENT_ID,
+      );
+      const target = makeIndexedTimeline(
+        boundaryPressureMatrix[0].length,
+        TARGET_CLIENT_ID,
+      );
 
       const result = runAligner(
         base,
@@ -470,7 +541,9 @@ describe('TickAligner', () => {
       expect(result.alignments.length).toBeGreaterThanOrEqual(2);
 
       const mergesByAlignment = result.alignments.map((alignment) =>
-        alignment.filter((entry) => entry.action === AlignmentAction.MERGE),
+        alignment.entries.filter(
+          (entry) => entry.action === AlignmentAction.MERGE,
+        ),
       );
 
       let hasBaseOverlap = false;
@@ -512,8 +585,14 @@ describe('TickAligner', () => {
         [2, -8, -2, -3],
       ];
 
-      const base = makeIndexedTimeline(invalidPenaltyMatrix.length);
-      const target = makeIndexedTimeline(invalidPenaltyMatrix[0].length);
+      const base = makeIndexedTimeline(
+        invalidPenaltyMatrix.length,
+        BASE_CLIENT_ID,
+      );
+      const target = makeIndexedTimeline(
+        invalidPenaltyMatrix[0].length,
+        TARGET_CLIENT_ID,
+      );
 
       const result = new TickAligner(
         base,
@@ -529,8 +608,8 @@ describe('TickAligner', () => {
 
       expect(result.alignments.length).toBeGreaterThan(0);
       const alignment = result.alignments[0];
-      expect(alignment[0].action).toBe(AlignmentAction.MERGE);
-      expect(alignment[alignment.length - 1].action).toBe(
+      expect(alignment.entries[0].action).toBe(AlignmentAction.MERGE);
+      expect(alignment.entries[alignment.entries.length - 1].action).toBe(
         AlignmentAction.MERGE,
       );
     });
