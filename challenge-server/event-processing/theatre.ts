@@ -223,8 +223,8 @@ export default class TheatreProcessor extends ChallengeProcessor {
   }
 
   protected override onFinish(finalChallengeTicks: number): Promise<void> {
-    this.setSplit(SplitType.TOB_CHALLENGE, finalChallengeTicks);
-    this.setSplit(SplitType.TOB_OVERALL, this.getOverallTicks());
+    this.setChallengeSplit(SplitType.TOB_CHALLENGE, finalChallengeTicks);
+    this.setChallengeSplit(SplitType.TOB_OVERALL, this.getOverallTicks());
 
     for (const username of this.getParty()) {
       const stats = this.getCurrentStageStats(username);
@@ -247,7 +247,6 @@ export default class TheatreProcessor extends ChallengeProcessor {
   protected override async onStageFinished(
     stage: Stage,
     events: MergedEvents,
-    accurate: boolean,
   ): Promise<void> {
     const stageTicks = events.getLastTick();
     let stageSplit: SplitType;
@@ -263,9 +262,14 @@ export default class TheatreProcessor extends ChallengeProcessor {
     switch (stage) {
       case Stage.TOB_MAIDEN:
         stageSplit = SplitType.TOB_MAIDEN;
-        const thirties = this.getSplit(SplitType.TOB_MAIDEN_30S);
+        const thirties = this.getStageSplit(SplitType.TOB_MAIDEN_30S);
         if (thirties !== undefined) {
-          this.setSplit(SplitType.TOB_MAIDEN_30S_END, stageTicks - thirties);
+          this.setStageSplit(
+            SplitType.TOB_MAIDEN_30S_END,
+            stageTicks,
+            thirties.tick,
+            true,
+          );
         }
         this.rooms.maiden = {
           ...roomData,
@@ -284,8 +288,10 @@ export default class TheatreProcessor extends ChallengeProcessor {
         this.stageStats.bloatDeaths = this.rooms.bloat.deaths.length;
         this.stageStats.bloatDownCount = this.bloatDowns.length;
 
-        const bloatSaves: Promise<void>[] = [this.saveBloatDowns(accurate)];
-        if (accurate) {
+        const bloatSaves: Promise<void>[] = [
+          this.saveBloatDowns(events.accurateUntil()),
+        ];
+        if (events.fullyQueryable()) {
           bloatSaves.push(this.saveBloatHands());
         }
         await Promise.all(bloatSaves);
@@ -294,9 +300,14 @@ export default class TheatreProcessor extends ChallengeProcessor {
 
       case Stage.TOB_NYLOCAS: {
         stageSplit = SplitType.TOB_NYLO_ROOM;
-        const bossSpawn = this.getSplit(SplitType.TOB_NYLO_BOSS_SPAWN);
+        const bossSpawn = this.getStageSplit(SplitType.TOB_NYLO_BOSS_SPAWN);
         if (bossSpawn !== undefined) {
-          this.setSplit(SplitType.TOB_NYLO_BOSS, stageTicks - bossSpawn);
+          this.setStageSplit(
+            SplitType.TOB_NYLO_BOSS,
+            stageTicks,
+            bossSpawn.tick,
+            true,
+          );
         }
         this.rooms.nylocas = {
           ...roomData,
@@ -327,9 +338,11 @@ export default class TheatreProcessor extends ChallengeProcessor {
       case Stage.TOB_SOTETSEG:
         stageSplit = SplitType.TOB_SOTETSEG;
         if (this.soteMazes.length == 2) {
-          this.setSplit(
+          this.setStageSplit(
             SplitType.TOB_SOTETSEG_P3,
-            stageTicks - this.soteMazes[1].endTick,
+            stageTicks,
+            this.soteMazes[1].endTick,
+            true,
           );
         }
         this.rooms.sotetseg = {
@@ -345,9 +358,14 @@ export default class TheatreProcessor extends ChallengeProcessor {
 
       case Stage.TOB_XARPUS:
         stageSplit = SplitType.TOB_XARPUS;
-        const p3Start = this.getSplit(SplitType.TOB_XARPUS_SCREECH);
+        const p3Start = this.getStageSplit(SplitType.TOB_XARPUS_SCREECH);
         if (p3Start !== undefined) {
-          this.setSplit(SplitType.TOB_XARPUS_P3, stageTicks - p3Start);
+          this.setStageSplit(
+            SplitType.TOB_XARPUS_P3,
+            stageTicks,
+            p3Start.tick,
+            true,
+          );
         }
         this.rooms.xarpus = {
           ...roomData,
@@ -359,12 +377,14 @@ export default class TheatreProcessor extends ChallengeProcessor {
 
       case Stage.TOB_VERZIK:
         stageSplit = SplitType.TOB_VERZIK_ROOM;
-        const p2End = this.getSplit(SplitType.TOB_VERZIK_P2_END);
+        const p2End = this.getStageSplit(SplitType.TOB_VERZIK_P2_END);
         if (p2End !== undefined) {
           const P2_TRANSITION_TICKS = 6;
-          this.setSplit(
+          this.setStageSplit(
             SplitType.TOB_VERZIK_P3,
-            stageTicks - (p2End + P2_TRANSITION_TICKS),
+            stageTicks,
+            p2End.tick + P2_TRANSITION_TICKS,
+            true,
           );
         }
         this.rooms.verzik = {
@@ -379,7 +399,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
     await this.updateChallengeStats(this.stageStats);
     this.stageStats = {};
 
-    this.setSplit(stageSplit!, stageTicks);
+    this.setStageSplit(stageSplit!, stageTicks, 0, true);
 
     if (
       events.getStatus() === StageStatus.COMPLETED &&
@@ -387,7 +407,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
     ) {
       const nextEntry = nextStageEntrySplit(stage);
       if (nextEntry !== null) {
-        this.setSplit(
+        this.setChallengeSplit(
           nextEntry,
           this.getTotalChallengeTicks(),
           this.isPartyUnchanged() && events.hasPreciseServerTickCount(),
@@ -544,9 +564,9 @@ export default class TheatreProcessor extends ChallengeProcessor {
       case Event.Type.TOB_NYLO_WAVE_SPAWN:
         const spawnedWave = event.getNyloWave()!.getWave();
         if (spawnedWave === 20) {
-          this.setSplit(SplitType.TOB_NYLO_CAP, event.getTick());
+          this.setStageSplit(SplitType.TOB_NYLO_CAP, event.getTick());
         } else if (spawnedWave === 31) {
-          this.setSplit(SplitType.TOB_NYLO_WAVES, event.getTick());
+          this.setStageSplit(SplitType.TOB_NYLO_WAVES, event.getTick());
         }
         break;
 
@@ -556,24 +576,25 @@ export default class TheatreProcessor extends ChallengeProcessor {
         break;
 
       case Event.Type.TOB_NYLO_CLEANUP_END:
-        this.setSplit(SplitType.TOB_NYLO_CLEANUP, event.getTick());
+        this.setStageSplit(SplitType.TOB_NYLO_CLEANUP, event.getTick());
         break;
 
       case Event.Type.TOB_NYLO_BOSS_SPAWN:
-        this.setSplit(SplitType.TOB_NYLO_BOSS_SPAWN, event.getTick());
+        this.setStageSplit(SplitType.TOB_NYLO_BOSS_SPAWN, event.getTick());
         break;
 
       case Event.Type.TOB_SOTE_MAZE_PROC: {
         const maze = event.getSoteMaze()!.getMaze();
         if (maze === Maze.MAZE_66) {
-          this.setSplit(SplitType.TOB_SOTETSEG_66, event.getTick());
+          this.setStageSplit(SplitType.TOB_SOTETSEG_66, event.getTick());
         } else {
-          this.setSplit(SplitType.TOB_SOTETSEG_33, event.getTick());
+          this.setStageSplit(SplitType.TOB_SOTETSEG_33, event.getTick());
           if (this.soteMazes.length > 0) {
             const maze1End = this.soteMazes[0].endTick;
-            this.setSplit(
+            this.setStageSplit(
               SplitType.TOB_SOTETSEG_P2,
-              event.getTick() - maze1End,
+              event.getTick(),
+              maze1End,
             );
           }
         }
@@ -609,14 +630,16 @@ export default class TheatreProcessor extends ChallengeProcessor {
         }
 
         if (maze === Maze.MAZE_66) {
-          this.setSplit(
+          this.setStageSplit(
             SplitType.TOB_SOTETSEG_MAZE_1,
-            event.getTick() - activeMaze.startTick,
+            event.getTick(),
+            activeMaze.startTick,
           );
         } else {
-          this.setSplit(
+          this.setStageSplit(
             SplitType.TOB_SOTETSEG_MAZE_2,
-            event.getTick() - activeMaze.startTick,
+            event.getTick(),
+            activeMaze.startTick,
           );
         }
         return false;
@@ -634,12 +657,16 @@ export default class TheatreProcessor extends ChallengeProcessor {
       case Event.Type.TOB_XARPUS_PHASE:
         const xarpusPhase = event.getXarpusPhase();
         if (xarpusPhase === XarpusPhase.P2) {
-          this.setSplit(SplitType.TOB_XARPUS_EXHUMES, event.getTick());
+          this.setStageSplit(SplitType.TOB_XARPUS_EXHUMES, event.getTick());
         } else if (xarpusPhase === XarpusPhase.P3) {
-          this.setSplit(SplitType.TOB_XARPUS_SCREECH, event.getTick());
-          const p2Start = this.getSplit(SplitType.TOB_XARPUS_EXHUMES);
+          this.setStageSplit(SplitType.TOB_XARPUS_SCREECH, event.getTick());
+          const p2Start = this.getStageSplit(SplitType.TOB_XARPUS_EXHUMES);
           if (p2Start !== undefined) {
-            this.setSplit(SplitType.TOB_XARPUS_P2, event.getTick() - p2Start);
+            this.setStageSplit(
+              SplitType.TOB_XARPUS_P2,
+              event.getTick(),
+              p2Start.tick,
+            );
           }
         }
         break;
@@ -647,15 +674,16 @@ export default class TheatreProcessor extends ChallengeProcessor {
       case Event.Type.TOB_VERZIK_PHASE:
         const verzikPhase = event.getVerzikPhase();
         if (verzikPhase === VerzikPhase.P2) {
-          this.setSplit(SplitType.TOB_VERZIK_P1_END, event.getTick());
+          this.setStageSplit(SplitType.TOB_VERZIK_P1_END, event.getTick());
         } else if (verzikPhase === VerzikPhase.P3) {
-          this.setSplit(SplitType.TOB_VERZIK_P2_END, event.getTick());
-          const p1End = this.getSplit(SplitType.TOB_VERZIK_P1_END);
+          this.setStageSplit(SplitType.TOB_VERZIK_P2_END, event.getTick());
+          const p1End = this.getStageSplit(SplitType.TOB_VERZIK_P1_END);
           if (p1End !== undefined) {
             const P1_TRANSITION_TICKS = 13;
-            this.setSplit(
+            this.setStageSplit(
               SplitType.TOB_VERZIK_P2,
-              event.getTick() - (p1End + P1_TRANSITION_TICKS),
+              event.getTick(),
+              p1End.tick + P1_TRANSITION_TICKS,
             );
           }
         }
@@ -794,8 +822,8 @@ export default class TheatreProcessor extends ChallengeProcessor {
 
         if (attack.getType() !== PlayerAttack.TONALZTICS_AUTO) {
           const inCleanup =
-            this.getSplit(SplitType.TOB_NYLO_WAVES) !== undefined &&
-            this.getSplit(SplitType.TOB_NYLO_CLEANUP) === undefined;
+            this.getStageSplit(SplitType.TOB_NYLO_WAVES) !== undefined &&
+            this.getStageSplit(SplitType.TOB_NYLO_CLEANUP) === undefined;
 
           if (this.getStage() === Stage.TOB_NYLOCAS && inCleanup) {
             // Ok to overkill a nylo during cleanup.
@@ -895,7 +923,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
     if (Npc.isVerzikMatomenos(npc.getId())) {
       if (this.verzikRedSpawns.length === 0) {
         // First red spawn is recorded as a stage split.
-        this.setSplit(SplitType.TOB_VERZIK_REDS, event.getTick());
+        this.setStageSplit(SplitType.TOB_VERZIK_REDS, event.getTick());
         this.verzikRedSpawns.push(event.getTick());
         this.stageStats.verzikRedsCount = 1;
       } else if (
@@ -912,25 +940,27 @@ export default class TheatreProcessor extends ChallengeProcessor {
       // Record Maiden spawns as stage splits.
       switch (npc.getMaidenCrab()!.getSpawn()) {
         case MaidenCrabSpawn.SEVENTIES:
-          this.setSplit(SplitType.TOB_MAIDEN_70S, event.getTick());
+          this.setStageSplit(SplitType.TOB_MAIDEN_70S, event.getTick());
           break;
         case MaidenCrabSpawn.FIFTIES:
-          this.setSplit(SplitType.TOB_MAIDEN_50S, event.getTick());
-          const seventies = this.getSplit(SplitType.TOB_MAIDEN_70S);
+          this.setStageSplit(SplitType.TOB_MAIDEN_50S, event.getTick());
+          const seventies = this.getStageSplit(SplitType.TOB_MAIDEN_70S);
           if (seventies !== undefined) {
-            this.setSplit(
+            this.setStageSplit(
               SplitType.TOB_MAIDEN_70S_50S,
-              event.getTick() - seventies,
+              event.getTick(),
+              seventies.tick,
             );
           }
           break;
         case MaidenCrabSpawn.THIRTIES:
-          this.setSplit(SplitType.TOB_MAIDEN_30S, event.getTick());
-          const fifties = this.getSplit(SplitType.TOB_MAIDEN_50S);
+          this.setStageSplit(SplitType.TOB_MAIDEN_30S, event.getTick());
+          const fifties = this.getStageSplit(SplitType.TOB_MAIDEN_50S);
           if (fifties !== undefined) {
-            this.setSplit(
+            this.setStageSplit(
               SplitType.TOB_MAIDEN_50S_30S,
-              event.getTick() - fifties,
+              event.getTick(),
+              fifties.tick,
             );
           }
           break;
@@ -1083,7 +1113,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
     `;
   }
 
-  private async saveBloatDowns(accurate: boolean): Promise<void> {
+  private async saveBloatDowns(accurateUntil: number): Promise<void> {
     if (this.bloatDowns.length === 0) {
       return;
     }
@@ -1094,7 +1124,7 @@ export default class TheatreProcessor extends ChallengeProcessor {
       down_number: down.downNumber,
       down_tick: down.tick,
       walk_ticks: down.walkTime,
-      accurate,
+      accurate: down.tick < accurateUntil,
     }));
 
     await sql`INSERT INTO bloat_downs ${sql(rows)}`;

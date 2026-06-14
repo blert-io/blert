@@ -167,7 +167,14 @@ export default abstract class ChallengeProcessor {
   private reportedTimes: ReportedTimes | null;
   private partyChangedMidChallenge: boolean;
 
-  private splits: Map<SplitType, { ticks: number; accurate?: boolean }>;
+  private stageSplits: Map<
+    SplitType,
+    { tick: number; start: number; requiresCompletion: boolean }
+  >;
+  private challengeSplits: Map<
+    SplitType,
+    { ticks: number; accurate?: boolean }
+  >;
   private stageState: StageState;
 
   private pendingUpdates: {
@@ -333,7 +340,8 @@ export default abstract class ChallengeProcessor {
   public async finish(finishTime: Date): Promise<boolean> {
     await this.loadIds();
 
-    this.splits.clear();
+    this.stageSplits.clear();
+    this.challengeSplits.clear();
     this.stageState = this.initialStageState();
 
     if (this.totalChallengeTicks === 0) {
@@ -439,7 +447,8 @@ export default abstract class ChallengeProcessor {
   ): Promise<Partial<ModifiableChallengeFields & CustomData>> {
     await this.loadIds();
 
-    this.splits.clear();
+    this.stageSplits.clear();
+    this.challengeSplits.clear();
     this.stageState = this.initialStageState();
 
     for (const event of events) {
@@ -479,19 +488,29 @@ export default abstract class ChallengeProcessor {
       this.challengeStatus = ChallengeStatus.WIPED;
     }
 
-    const accurate = !this.partyChangedMidChallenge && events.isAccurate();
+    if (this.partyChangedMidChallenge) {
+      events.restrictAccuracyTo(0);
+    }
 
-    await this.onStageFinished(stage, events, accurate);
+    await this.onStageFinished(stage, events);
 
     await Promise.all([
       this.addStageDeaths(),
-      this.writeStageEvents(stage, this.stageState.eventsToWrite, accurate),
+      this.writeStageEvents(
+        stage,
+        this.stageState.eventsToWrite,
+        events.queryableUntil(),
+      ),
     ]);
 
-    const stageSplits = await this.createChallengeSplits(accurate);
-    if (accurate) {
-      await this.updatePersonalBests(stageSplits);
-    }
+    const splits = await Promise.all([
+      this.createStageSplits(
+        events.accurateUntil(),
+        events.getStatus() === StageStatus.COMPLETED,
+      ),
+      this.createChallengeSplits(false),
+    ]);
+    await this.updatePersonalBests(splits.flat());
 
     await this.updateAllPlayersStats();
 
@@ -940,24 +959,53 @@ export default abstract class ChallengeProcessor {
     });
   }
 
-  private async createChallengeSplits(
-    accurate: boolean,
+  private createStageSplits(
+    accurateUntil: number,
+    completed: boolean,
   ): Promise<ChallengeSplitWithId[]> {
-    if (this.splits.size === 0) {
+    const splits = this.stageSplits
+      .entries()
+      .map(([type, { tick, start, requiresCompletion }]) => ({
+        type,
+        ticks: tick - start,
+        accurate: tick < accurateUntil && (!requiresCompletion || completed),
+      }))
+      .toArray();
+
+    return this.insertSplits(splits);
+  }
+
+  private createChallengeSplits(
+    defaultAccurate: boolean,
+  ): Promise<ChallengeSplitWithId[]> {
+    const splits = this.challengeSplits
+      .entries()
+      .map(([type, { ticks, accurate }]) => ({
+        type,
+        ticks,
+        accurate: accurate ?? defaultAccurate,
+      }))
+      .toArray();
+
+    return this.insertSplits(splits);
+  }
+
+  private async insertSplits(
+    splits: Pick<ChallengeSplit, 'type' | 'ticks' | 'accurate'>[],
+  ): Promise<ChallengeSplitWithId[]> {
+    if (splits.length === 0) {
       return [];
     }
 
-    const splitsToInsert: (ChallengeSplit & { challenge_id: number })[] = [];
-
-    this.splits.forEach((entry, split) => {
-      splitsToInsert.push({
-        challenge_id: this.databaseId,
-        type: adjustSplitForMode(split, this.mode),
-        scale: this.getScale(),
-        ticks: entry.ticks,
-        accurate: entry.accurate ?? accurate,
-      });
-    });
+    const splitsToInsert: (CamelToSnakeCase<ChallengeSplit> & {
+      challenge_id: number;
+    })[] = splits.map((split) => ({
+      challenge_id: this.databaseId,
+      type: adjustSplitForMode(split.type, this.mode),
+      scale: this.getScale(),
+      ticks: split.ticks,
+      accurate: split.accurate,
+    }));
 
     try {
       const ids: { id: number }[] = await sql`
@@ -988,18 +1036,20 @@ export default abstract class ChallengeProcessor {
   /**
    * Compares the provided splits to the current personal bests for each player
    * in this challenge, updating the personal bests if the new times are better.
+   * Only splits that are accurate are considered.
    *
-   * @param splits Splits to check.
+   * @param allSplits All splits for the stage.
    */
   protected async updatePersonalBests(
-    splits: ChallengeSplitWithId[],
+    allSplits: ChallengeSplitWithId[],
   ): Promise<void> {
-    if (splits.length === 0) {
+    const accurateSplits = allSplits.filter((s) => s.accurate);
+    if (accurateSplits.length === 0) {
       return;
     }
 
     const playerIds = this.players.map((p) => p.id);
-    const splitTypes = splits.map((s) => s.type);
+    const splitTypes = accurateSplits.map((s) => s.type);
     const scale = this.getScale();
 
     const currentPbs = await sql<
@@ -1055,7 +1105,7 @@ export default abstract class ChallengeProcessor {
       updated: {},
     };
 
-    for (const split of splits) {
+    for (const split of accurateSplits) {
       playerIds.forEach((playerId, i) => {
         const currentPb = pbsByPlayer.get(playerId)!.get(split.type);
         const playerKey = `${this.party[i]}#${playerId}`;
@@ -1146,11 +1196,11 @@ export default abstract class ChallengeProcessor {
   private async writeStageEvents(
     stage: Stage,
     events: Event[],
-    accurate: boolean,
+    queryableUntil: number,
   ): Promise<void> {
     let dbEventsCount = 0;
-    if (accurate) {
-      dbEventsCount = await this.writeQueryableEvents(events);
+    if (queryableUntil > 0) {
+      dbEventsCount = await this.writeQueryableEvents(events, queryableUntil);
       recordQueryableEvents(stage, dbEventsCount);
     }
 
@@ -1170,7 +1220,7 @@ export default abstract class ChallengeProcessor {
         stage,
         totalEvents: events.length,
         queryableEvents: dbEventsCount,
-        accurate,
+        queryableUntil,
       });
     } catch (e) {
       recordRepositoryWrite('challenge', 'stage_events', 'error');
@@ -1249,7 +1299,10 @@ export default abstract class ChallengeProcessor {
     }
   }
 
-  private async writeQueryableEvents(events: Event[]): Promise<number> {
+  private async writeQueryableEvents(
+    events: Event[],
+    queryableUntil: number,
+  ): Promise<number> {
     const queryableEvents: QueryableEventRow[] = [];
 
     const baseQueryableEvent = (event: Event): QueryableEventRow => ({
@@ -1269,7 +1322,8 @@ export default abstract class ChallengeProcessor {
       custom_short_2: null,
     });
 
-    for (const event of events) {
+    const eligibleEvents = events.filter((e) => e.getTick() < queryableUntil);
+    for (const event of eligibleEvents) {
       switch (event.getType()) {
         case Event.Type.PLAYER_ATTACK: {
           const attack = event.getPlayerAttack()!;
@@ -1542,7 +1596,8 @@ export default abstract class ChallengeProcessor {
     this.stageStatus = stageStatus;
     this.party = party;
 
-    this.splits = new Map();
+    this.stageSplits = new Map();
+    this.challengeSplits = new Map();
     this.pendingUpdates = {
       database: {},
       redis: {},
@@ -1579,12 +1634,10 @@ export default abstract class ChallengeProcessor {
    * Invoked after all events have been processed for a stage.
    * @param stage The stage of the events.
    * @param events The events that were processed.
-   * @param accurate Whether the stage data is considered accurate.
    */
   protected abstract onStageFinished(
     stage: Stage,
     events: MergedEvents,
-    accurate: boolean,
   ): Promise<void>;
 
   /**
@@ -1641,14 +1694,46 @@ export default abstract class ChallengeProcessor {
     return this.reportedTimes?.overall ?? 0;
   }
 
-  protected setSplit(type: SplitType, ticks: number, accurate?: boolean): void {
-    if (ticks > 0) {
-      this.splits.set(type, { ticks, accurate });
+  /**
+   * Records a split whose timer is local to the current stage.
+   *
+   * `tick` is the tick at which the split occurred. By default, the split is
+   * counted as ticks elapsed from the start of the stage. This can be
+   * overridden by passing a different `start`.
+   *
+   * `requiresCompletion` indicates whether the split lasts until the end of the
+   * stage. When set, accuracy is contingent on stage completion.
+   */
+  protected setStageSplit(
+    type: SplitType,
+    tick: number,
+    start: number = 0,
+    requiresCompletion: boolean = false,
+  ): void {
+    if (start >= 0 && tick > start) {
+      this.stageSplits.set(type, {
+        tick,
+        start,
+        requiresCompletion,
+      });
     }
   }
 
-  protected getSplit(type: SplitType): number | undefined {
-    return this.splits.get(type)?.ticks;
+  protected getStageSplit(
+    type: SplitType,
+  ): { tick: number; start: number } | undefined {
+    return this.stageSplits.get(type);
+  }
+
+  /** Records a split whose timer is scoped across the entire challenge. */
+  protected setChallengeSplit(
+    type: SplitType,
+    ticks: number,
+    accurate?: boolean,
+  ): void {
+    if (ticks > 0) {
+      this.challengeSplits.set(type, { ticks, accurate });
+    }
   }
 
   protected isPartyUnchanged(): boolean {

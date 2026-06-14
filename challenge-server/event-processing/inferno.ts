@@ -147,8 +147,8 @@ export default class InfernoProcessor extends ChallengeProcessor {
   protected override async onFinish(
     finalChallengeTicks: number,
   ): Promise<void> {
-    this.setSplit(SplitType.INFERNO_CHALLENGE, finalChallengeTicks);
-    this.setSplit(SplitType.INFERNO_OVERALL, finalChallengeTicks);
+    this.setChallengeSplit(SplitType.INFERNO_CHALLENGE, finalChallengeTicks);
+    this.setChallengeSplit(SplitType.INFERNO_OVERALL, finalChallengeTicks);
 
     for (const username of this.getParty()) {
       const stats = this.getCurrentStageStats(username);
@@ -180,7 +180,6 @@ export default class InfernoProcessor extends ChallengeProcessor {
   protected override async onStageFinished(
     stage: Stage,
     events: MergedEvents,
-    _accurate: boolean,
   ): Promise<void> {
     const wave = stageToWave(stage);
 
@@ -190,7 +189,7 @@ export default class InfernoProcessor extends ChallengeProcessor {
 
       const split = waveToSplit(wave);
       if (split !== null) {
-        this.setSplit(split, this.waveStartTick);
+        this.setChallengeSplit(split, this.waveStartTick);
       }
     } else {
       // The base processor has already included this wave's tick count.
@@ -198,9 +197,11 @@ export default class InfernoProcessor extends ChallengeProcessor {
       this.setTotalChallengeTicks(this.getTotalChallengeTicks() + 6);
     }
 
-    this.setSplit(
+    this.setStageSplit(
       SplitType.INFERNO_WAVE_1_TIME + (wave - 1),
       events.getLastTick(),
+      0,
+      true,
     );
 
     const state = this.getStageState();

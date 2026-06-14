@@ -80,7 +80,7 @@ export default class ColosseumProcessor extends ChallengeProcessor {
   }
 
   protected override onFinish(finalChallengeTicks: number): Promise<void> {
-    this.setSplit(SplitType.COLOSSEUM_CHALLENGE, finalChallengeTicks);
+    this.setChallengeSplit(SplitType.COLOSSEUM_CHALLENGE, finalChallengeTicks);
 
     for (const username of this.getParty()) {
       const stats = this.getCurrentStageStats(username);
@@ -103,7 +103,6 @@ export default class ColosseumProcessor extends ChallengeProcessor {
   protected override async onStageFinished(
     stage: Stage,
     events: MergedEvents,
-    _accurate: boolean,
   ): Promise<void> {
     const state = this.getStageState();
 
@@ -115,9 +114,11 @@ export default class ColosseumProcessor extends ChallengeProcessor {
       npcs: Object.fromEntries(state?.npcs ?? []),
     });
 
-    this.setSplit(
+    this.setStageSplit(
       SplitType.COLOSSEUM_WAVE_1 + waveIndex(stage),
       events.getLastTick(),
+      0,
+      true,
     );
 
     if (
@@ -126,7 +127,7 @@ export default class ColosseumProcessor extends ChallengeProcessor {
       stage < Stage.COLOSSEUM_WAVE_12 &&
       this.hasFullyRecordedUpTo(stage)
     ) {
-      this.setSplit(
+      this.setChallengeSplit(
         SplitType.COLOSSEUM_WAVE_3_START + (waveIndex(stage) - 1),
         this.getTotalChallengeTicks(),
         this.isPartyUnchanged() && events.hasPreciseServerTickCount(),

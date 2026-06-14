@@ -434,7 +434,6 @@ export class Merger {
       skippedCount,
       alerts: this.alerts,
       referenceSelection: this.referenceSelection,
-      accurate: mergedEvents.isAccurate(),
       accurateUntil: mergedEvents.accurateUntil(),
       queryableUntil: mergedEvents.queryableUntil(),
     });
@@ -634,11 +633,6 @@ export class MergedEvents {
     return this.metadata.missingTickCount;
   }
 
-  // TODO(frolv): remove
-  public isAccurate(): boolean {
-    return this.metadata.accurateUntil > this.metadata.lastTick;
-  }
-
   public hasPreciseServerTickCount(): boolean {
     return this.metadata.preciseServerTickCount;
   }
@@ -651,12 +645,31 @@ export class MergedEvents {
     return this.metadata.accurateUntil;
   }
 
+  /** Whether accuracy covers the entire stage. */
+  public fullyAccurate(): boolean {
+    return this.metadata.lastTick < this.metadata.accurateUntil;
+  }
+
   /**
    * The exclusive tick at which the merged event stream can no longer be fully
    * corroborated for strict analysis.
    */
   public queryableUntil(): number {
     return this.metadata.queryableUntil;
+  }
+
+  /** Whether queryability covers the entire stage. */
+  public fullyQueryable(): boolean {
+    return this.metadata.lastTick < this.metadata.queryableUntil;
+  }
+
+  /**
+   * Limits the accuracy and queryability of the event stream to the given tick.
+   * @param tick Exclusive tick to which to restrict trust.
+   */
+  public restrictAccuracyTo(tick: number): void {
+    this.metadata.accurateUntil = Math.min(this.metadata.accurateUntil, tick);
+    this.metadata.queryableUntil = Math.min(this.metadata.queryableUntil, tick);
   }
 
   public serialize(): string {
@@ -685,7 +698,7 @@ class MergedTimeline {
   private readonly ctx: MergeContext;
   private readonly reference: ReferenceSelection;
   private readonly preciseServerTickCount: boolean;
-  private accurate: boolean; // TODO(frolv): remove
+  private readonly inheritedAccurate: boolean;
   private trustedPrefixes: TrustedPrefixes | null;
   private finalized: boolean;
   private appliedOffset: number;
@@ -701,7 +714,7 @@ class MergedTimeline {
     this.preciseServerTickCount =
       reference.method === ReferenceSelectionMethod.PRECISE_SERVER ||
       reference.method === ReferenceSelectionMethod.ACCURATE_MODAL;
-    this.accurate = base.isAccurate();
+    this.inheritedAccurate = base.isAccurate();
 
     this.finalized = false;
     this.appliedOffset = 0;
@@ -750,7 +763,7 @@ class MergedTimeline {
     let mappings: Mappings;
     let alignment: AlignmentResult | null = null;
 
-    if (this.accurate && client.isAccurate()) {
+    if (this.inheritedAccurate && client.isAccurate()) {
       // Accurate clients use identity mapping.
       mappings = {
         base: TickMapping.identity(this.ticks.length),
@@ -844,7 +857,7 @@ class MergedTimeline {
     const trustedPrefixes = computeTrustedPrefixes(this.ctx, {
       totalTicks: this.ticks.length,
       offset: this.appliedOffset,
-      inheritedAccuracy: this.accurate,
+      inheritedAccuracy: this.inheritedAccurate,
       referenceMethod: this.reference.method,
     });
     this.trustedPrefixes = trustedPrefixes;
