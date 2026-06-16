@@ -80,10 +80,9 @@ function merge(
   if (clientOrder === 'reversed') {
     clients.reverse();
   }
-  return new Merger(fixture.challengeInfo, fixture.stage, clients).merge(
+  return new Merger(fixture.challengeInfo, fixture.stage, clients).merge({
     tracer,
-    { alignMismatched: true },
-  );
+  });
 }
 
 function digest(events: MergedEvents): string {

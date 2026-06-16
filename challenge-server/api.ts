@@ -502,7 +502,7 @@ async function mergeTestEvents(req: Request, res: Response): Promise<void> {
     let result;
     try {
       const merger = new Merger(mergeData.challengeInfo, stage, clients);
-      result = merger.merge(tracer, { alignMismatched: true });
+      result = merger.merge({ tracer });
     } catch (e) {
       logger.error('test_merge_error', {
         error: e instanceof Error ? e.message : String(e),

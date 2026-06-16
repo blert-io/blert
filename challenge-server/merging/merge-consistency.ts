@@ -292,7 +292,7 @@ export class MergeConsistencyChecker {
 
   private checkStreamEvents(ticks: TickStateArray): void {
     // Every `temporalWindow: null` stream event is expected to appear at most
-    // once per (type, identity). Actor-lifecycle events are handled separately
+    // once per (type, identity). Actor lifecycle events are handled separately
     // by `checkActorLifecycles` and excluded here to avoid double-reporting.
     const occurrences = new Map<StreamEventType, Map<string, number[]>>();
     const excluded: ReadonlySet<StreamEventType> = new Set([

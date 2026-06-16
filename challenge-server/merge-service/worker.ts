@@ -62,16 +62,17 @@ export function runMergeJob(job: MergeJob): MergeReply {
         }
 
         const start = process.hrtime.bigint();
-        const result = new Merger(job.challengeInfo, job.stage, clients).merge(
-          undefined,
-          { alignMismatched: true },
-        );
+        const result = new Merger(
+          job.challengeInfo,
+          job.stage,
+          clients,
+        ).merge();
         observeMergeDuration(
           job.stage,
           Number(process.hrtime.bigint() - start) / 1e6,
         );
         if (result === null) {
-          // `clients` is never empty, so a null results can only be due to
+          // `clients` is never empty, so a null result can only be due to
           // every client failing data validation.
           return { kind: 'bad_data' };
         }

@@ -100,10 +100,9 @@ describe('MergeService.merge', () => {
       Stage.TOB_MAIDEN,
       stream,
     );
-    const direct = new Merger(challengeInfo, Stage.TOB_MAIDEN, [client]).merge(
-      undefined,
-      { alignMismatched: true },
-    );
+    const direct = new Merger(challengeInfo, Stage.TOB_MAIDEN, [
+      client,
+    ]).merge();
 
     expect(events).not.toBeNull();
     expect(Array.from(events!).map((e) => e.toObject())).toEqual(
