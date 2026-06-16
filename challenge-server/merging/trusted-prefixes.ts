@@ -40,10 +40,10 @@ export function recordContestedTicks(
 /**
  * The two trust prefixes of a finalized merged timeline.
  *
- * `accurateUntil` defines the first tick beyond which the merged timeline can
+ * `accurateUntil` defines the exclusive tick at which the merged timeline can
  * no longer be trusted to match the true server tick count.
  *
- * `queryableUntil` defines the first tick beyond which the merged event stream
+ * `queryableUntil` defines the exclusive tick at which the merged event stream
  * can no longer be trusted for strict analysis.
  */
 export type TrustedPrefixes = {

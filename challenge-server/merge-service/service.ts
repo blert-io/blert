@@ -216,7 +216,7 @@ export class MergeService {
     recordStageCompletion(
       stage,
       events.getStatus(),
-      events.isAccurate(),
+      events.fullyAccurate(),
       result.unmergedCount > 0,
       result.skippedCount > 0,
     );

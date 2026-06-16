@@ -322,6 +322,8 @@ describe('Merger', () => {
     const events = result!.events;
     expect(events.accurateUntil()).toBe(0);
     expect(events.queryableUntil()).toBe(0);
+    expect(events.fullyAccurate()).toBe(false);
+    expect(events.fullyQueryable()).toBe(false);
     expect(events.getMissingTickCount()).toBe(0);
     const allEvents = Array.from(events);
     expect(allEvents.length).toBe(client1Events.length);
@@ -365,6 +367,8 @@ describe('Merger', () => {
     const events = result!.events;
     expect(events.accurateUntil()).toBe(3);
     expect(events.queryableUntil()).toBe(3);
+    expect(events.fullyAccurate()).toBe(true);
+    expect(events.fullyQueryable()).toBe(true);
     expect(events.hasPreciseServerTickCount()).toBe(true);
     expect(events.getMissingTickCount()).toBe(0);
     const allEvents = Array.from(events);
@@ -1201,12 +1205,13 @@ describe('MergedEvents', () => {
     expect(restored.getStatus()).toBe(original.getStatus());
     expect(restored.getLastTick()).toBe(original.getLastTick());
     expect(restored.getMissingTickCount()).toBe(original.getMissingTickCount());
-    expect(restored.isAccurate()).toBe(original.isAccurate());
     expect(restored.hasPreciseServerTickCount()).toBe(
       original.hasPreciseServerTickCount(),
     );
     expect(restored.accurateUntil()).toBe(original.accurateUntil());
     expect(restored.queryableUntil()).toBe(original.queryableUntil());
+    expect(restored.fullyAccurate()).toBe(original.fullyAccurate());
+    expect(restored.fullyQueryable()).toBe(original.fullyQueryable());
 
     expect(Array.from(restored).map((e) => e.toObject())).toEqual(
       Array.from(original).map((e) => e.toObject()),
@@ -1217,5 +1222,38 @@ describe('MergedEvents', () => {
         original.eventsForTick(tick).map((e) => e.toObject()),
       );
     }
+  });
+
+  it('restricts accuracy and queryability to the given tick', () => {
+    const client1 = ClientEvents.fromRawEvents(
+      1,
+      fakeChallenge,
+      {
+        stage: Stage.TOB_MAIDEN,
+        status: StageStatus.COMPLETED,
+        accurate: true,
+        recordedTicks: 2,
+        serverTicks: {
+          count: 2,
+          precise: true,
+        },
+      },
+      client1Events,
+    );
+    const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [client1]);
+    const result = merger.merge();
+    expect(result).not.toBeNull();
+
+    const events = result!.events;
+    expect(events.accurateUntil()).toBe(3);
+    expect(events.queryableUntil()).toBe(3);
+    expect(events.fullyAccurate()).toBe(true);
+    expect(events.fullyQueryable()).toBe(true);
+
+    events.restrictAccuracyTo(1);
+    expect(events.accurateUntil()).toBe(1);
+    expect(events.queryableUntil()).toBe(1);
+    expect(events.fullyAccurate()).toBe(false);
+    expect(events.fullyQueryable()).toBe(false);
   });
 });

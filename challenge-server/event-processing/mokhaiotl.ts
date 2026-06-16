@@ -88,7 +88,7 @@ export default class MokhaiotlProcessor extends ChallengeProcessor {
   }
 
   protected override onFinish(finalChallengeTicks: number): Promise<void> {
-    this.setSplit(SplitType.MOKHAIOTL_CHALLENGE, finalChallengeTicks);
+    this.setChallengeSplit(SplitType.MOKHAIOTL_CHALLENGE, finalChallengeTicks);
 
     for (const username of this.getParty()) {
       const stats = this.getCurrentStageStats(username);
@@ -111,14 +111,18 @@ export default class MokhaiotlProcessor extends ChallengeProcessor {
   protected override async onStageFinished(
     stage: Stage,
     events: MergedEvents,
-    _accurate: boolean,
   ): Promise<void> {
     if (stage !== Stage.MOKHAIOTL_DELVE_8PLUS) {
       if (stage === Stage.MOKHAIOTL_DELVE_8) {
         this.delve1To8Ticks = this.getTotalChallengeTicks();
       }
       const index = stage - Stage.MOKHAIOTL_DELVE_1;
-      this.setSplit(SplitType.MOKHAIOTL_DELVE_1 + index, events.getLastTick());
+      this.setStageSplit(
+        SplitType.MOKHAIOTL_DELVE_1 + index,
+        events.getLastTick(),
+        0,
+        true,
+      );
 
       if (
         events.getStatus() === StageStatus.COMPLETED &&
@@ -126,7 +130,7 @@ export default class MokhaiotlProcessor extends ChallengeProcessor {
         stage < Stage.MOKHAIOTL_DELVE_8 &&
         this.hasFullyRecordedUpTo(stage)
       ) {
-        this.setSplit(
+        this.setChallengeSplit(
           SplitType.MOKHAIOTL_DELVE_3_START + (index - 1),
           this.getTotalChallengeTicks(),
           this.isPartyUnchanged() && events.hasPreciseServerTickCount(),
