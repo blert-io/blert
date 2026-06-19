@@ -25,12 +25,7 @@ import {
   createPlayerDeathEvent,
 } from './fixtures';
 import { MergeConsistencyIssue, RejectionReason } from '../merge-consistency';
-import {
-  MergedEvents,
-  Merger,
-  MergeClientClassification,
-  MergeOptions,
-} from '../merge';
+import { MergedEvents, Merger, MergeClientClassification } from '../merge';
 import { MergeAlertType } from '../quality';
 import { MergeTracer } from '../trace';
 
@@ -566,8 +561,6 @@ describe('Merger', () => {
     });
   });
 
-  const ALIGN_OPTIONS: MergeOptions = { alignMismatched: true };
-
   it('merges an inaccurate target into an accurate base via alignment', () => {
     const NUM_TICKS = 10;
 
@@ -607,7 +600,7 @@ describe('Merger', () => {
 
     const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [base, target]);
     const tracer = new MergeTracer();
-    const result = merger.merge(tracer, ALIGN_OPTIONS);
+    const result = merger.merge({ tracer });
 
     expect(result).not.toBeNull();
     expect(result!.mergedCount).toBe(2);
@@ -692,7 +685,7 @@ describe('Merger', () => {
     );
 
     const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [base, target]);
-    const result = merger.merge(undefined, ALIGN_OPTIONS);
+    const result = merger.merge();
 
     expect(result).not.toBeNull();
     expect(result!.mergedCount).toBe(2);
@@ -772,7 +765,7 @@ describe('Merger', () => {
     // Client 1 (gap) is selected as base (lower ID tiebreak). The alignment
     // should INSERT target tick 7 to fill the gap in the base timeline.
     const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [base, target]);
-    const result = merger.merge(undefined, ALIGN_OPTIONS);
+    const result = merger.merge();
 
     expect(result).not.toBeNull();
     expect(result!.mergedCount).toBe(2);
@@ -854,7 +847,7 @@ describe('Merger', () => {
 
     // No options: default behavior.
     const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [base, target]);
-    const result = merger.merge();
+    const result = merger.merge({ alignMismatched: false });
 
     expect(result).not.toBeNull();
     expect(result!.mergedCount).toBe(1);
@@ -903,7 +896,7 @@ describe('Merger', () => {
 
     const merger = new Merger(fakeChallenge, Stage.TOB_MAIDEN, [base, target]);
     const tracer = new MergeTracer();
-    const result = merger.merge(tracer, ALIGN_OPTIONS);
+    const result = merger.merge({ tracer });
 
     expect(result).not.toBeNull();
     // Only the base is merged.
@@ -1099,7 +1092,7 @@ describe('Merger', () => {
         target,
       ]);
       const tracer = new MergeTracer();
-      const result = merger.merge(tracer);
+      const result = merger.merge({ tracer });
 
       expect(result).not.toBeNull();
       expect(result!.unmergedCount).toBe(1);

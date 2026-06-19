@@ -76,10 +76,9 @@ describe('runMergeJob', () => {
       Stage.TOB_MAIDEN,
       stream,
     );
-    const direct = new Merger(challengeInfo, Stage.TOB_MAIDEN, [client]).merge(
-      undefined,
-      { alignMismatched: true },
-    );
+    const direct = new Merger(challengeInfo, Stage.TOB_MAIDEN, [
+      client,
+    ]).merge();
     expect(direct).not.toBeNull();
 
     const reply = runMergeJob(job);

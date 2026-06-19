@@ -63,11 +63,9 @@ const LOW_CONFIDENCE_WARN_THRESHOLD = 0.4;
 export const enum MergeClientClassification {
   /** The client was selected as the reference client. */
   REFERENCE = 'REFERENCE',
-
-  /** The client was classified as matching. */
+  /** The client matches the tick count of the reference. */
   MATCHING = 'MATCHING',
-
-  /** The client was classified as mismatched. */
+  /** The client differs from the reference in tick count. */
   MISMATCHED = 'MISMATCHED',
 }
 
@@ -99,22 +97,23 @@ export type MergeClient = {
    */
   mergeIssues: MergeConsistencyIssue[];
   /**
-   * Lowest segment score from this client's merge-step confidence, or null for
-   * the reference client or a step with no scored segments.
+   * Lowest segment score reported by merge step's confidence check.
+   * `null` for the reference client or a merge with no scored segments.
    */
   worstSegmentScore: number | null;
 };
 
 export type MergeOptions = {
+  tracer?: MergeTracer;
   /**
    * When true, attempt alignment-based merging for mismatched clients.
-   * When false (default), mismatched clients are skipped.
+   * When false, mismatched clients are skipped.
    */
-  alignMismatched?: boolean;
+  alignMismatched: boolean;
 };
 
 const DEFAULT_MERGE_OPTIONS: MergeOptions = {
-  alignMismatched: false,
+  alignMismatched: true,
 };
 
 export type MergeResult = {
@@ -224,10 +223,17 @@ export class Merger {
     this.referenceSelection = null;
   }
 
-  public merge(
-    tracer?: MergeTracer,
-    options?: MergeOptions,
-  ): MergeResult | null {
+  /**
+   * Combines events from the input clients into a single merged event stream.
+   *
+   * Must only be called once per instance.
+   *
+   * @param options Configuration for the merge.
+   * @returns Result containing the merged stream and metadata. Returns `null`
+   *   if no clients could be merged, either because none were provided or all
+   *   failed data validation.
+   */
+  public merge(options?: Partial<MergeOptions>): MergeResult | null {
     const mergeOptions = { ...DEFAULT_MERGE_OPTIONS, ...options };
 
     if (this.clients.length === 0) {
@@ -244,7 +250,9 @@ export class Merger {
       })),
     });
 
-    // Record input clients before classification may demote accuracy.
+    const tracer = mergeOptions.tracer;
+
+    // Record input clients before classification as it may demote accuracy.
     const registeredClients = new Map<number, RegisteredClient>();
     for (const client of this.clients) {
       registeredClients.set(client.getId(), {
@@ -344,7 +352,7 @@ export class Merger {
 
       let outcome: MergeStepOutcome;
       try {
-        outcome = merged.mergeEventsFrom(client, mergeOptions);
+        outcome = merged.mergeEventsFrom(client, mergeOptions.alignMismatched);
         if (outcome.kind === 'merged') {
           ctx.tracer?.recordIntermediateSnapshot(merged.getTicks());
         } else if (outcome.kind === 'rejected') {
@@ -723,11 +731,16 @@ class MergedTimeline {
     this.initializeBaseTicks(base);
   }
 
-  [Symbol.iterator](): EventIterator {
+  *[Symbol.iterator](): Generator<Event> {
     if (!this.finalized) {
       throw new Error('Merge not finalized');
     }
-    return new EventIterator(this.ticks);
+    for (const tick of this.ticks) {
+      if (tick === null) {
+        continue;
+      }
+      yield* tick.getEvents();
+    }
   }
 
   public getTicks(): TickStateArray {
@@ -752,12 +765,12 @@ class MergedTimeline {
    * Merges events from `client` into this merged event set.
    *
    * @param client Client to merge events from.
-   * @param options Merge options controlling alignment behavior.
+   * @param alignMismatched Whether to align mismatched clients.
    * @returns A tagged outcome describing what happened.
    */
   public mergeEventsFrom(
     client: ClientEvents,
-    options: MergeOptions,
+    alignMismatched: boolean,
   ): MergeStepOutcome {
     const targetTicks = client.getTickStates();
     let mappings: Mappings;
@@ -771,7 +784,7 @@ class MergedTimeline {
         mergedTickCount: this.ticks.length,
       };
     } else {
-      if (!options.alignMismatched) {
+      if (!alignMismatched) {
         return { kind: 'unmerged', flags: [] };
       }
       alignment = this.runAlignment(client);
@@ -1022,38 +1035,5 @@ class MergedTimeline {
 
       state.addSyntheticEvents([newEvent]);
     }
-  }
-}
-
-class EventIterator implements Iterator<Event, Event | null> {
-  private readonly ticks: (TickState | null)[];
-  private tick: number;
-  private eventIndex: number;
-
-  constructor(ticks: (TickState | null)[]) {
-    this.ticks = ticks;
-    this.tick = 0;
-    this.eventIndex = 0;
-  }
-
-  public next(): IteratorResult<Event, Event | null> {
-    for (; this.tick < this.ticks.length; this.tick++) {
-      if (this.ticks[this.tick] === null) {
-        this.eventIndex = 0;
-        continue;
-      }
-
-      const tickEvents = this.ticks[this.tick]!.getEvents();
-      while (this.eventIndex < tickEvents.length) {
-        return {
-          done: false,
-          value: tickEvents[this.eventIndex++],
-        };
-      }
-
-      this.eventIndex = 0;
-    }
-
-    return { done: true, value: null };
   }
 }
