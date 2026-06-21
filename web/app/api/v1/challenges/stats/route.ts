@@ -1,15 +1,18 @@
 import { NextRequest } from 'next/server';
 
-import { isAggregation } from '@/api/query';
+import { AggregationKey, SortQuery } from '@/actions/query';
 import {
-  Aggregation,
-  AggregationQuery,
   ChallengeQuery,
   QueryOptions,
-  SortQuery,
   aggregateChallenges,
 } from '@/actions/challenge';
 import { withApiRoute } from '@/api/handler';
+import {
+  restoreAggregateAliases,
+  parseAggregateParams,
+  parseAggregationParam,
+  normalizeSortAggregation,
+} from '@/api/query';
 
 import { parseChallengeQueryParams } from '../query';
 
@@ -64,29 +67,23 @@ export const GET = withApiRoute(
     }
 
     if (searchParams.has('sort')) {
-      const sort = searchParams.get('sort')!;
-      if (!sort.startsWith('-') && !sort.startsWith('+')) {
+      const raw = searchParams.get('sort')!;
+      if (!raw.startsWith('-') && !raw.startsWith('+')) {
         return new Response(null, { status: 400 });
       }
-      if (!isAggregation(sort.slice(1))) {
+      const sort = normalizeSortAggregation(raw);
+      if (parseAggregationParam(sort.slice(1)) === null) {
         return new Response(null, { status: 400 });
       }
 
-      options.sort = sort as SortQuery<Aggregation>;
+      options.sort = sort as SortQuery<AggregationKey>;
     }
 
-    const aggregations: AggregationQuery = { '*': 'count' };
-    for (const aggregationOption of searchParams.getAll('aggregate')) {
-      const separator = aggregationOption.lastIndexOf(':');
-      const field = aggregationOption.slice(0, separator);
-      const operations = aggregationOption.slice(separator + 1).split(',');
-
-      if (operations.length === 0 || !operations.every(isAggregation)) {
-        return new Response(null, { status: 400 });
-      }
-
-      aggregations[field] = operations;
+    const parsed = parseAggregateParams(searchParams.getAll('aggregate'));
+    if (parsed === null) {
+      return new Response(null, { status: 400 });
     }
+    const { aggregations, aliases } = parsed;
 
     const result = await aggregateChallenges(
       query,
@@ -98,6 +95,11 @@ export const GET = withApiRoute(
       return new Response(null, { status: 404 });
     }
 
+    restoreAggregateAliases(
+      result as Record<string, unknown>,
+      groupings.length,
+      aliases,
+    );
     return Response.json(result);
   },
 );

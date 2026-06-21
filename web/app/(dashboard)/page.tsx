@@ -60,7 +60,7 @@ async function getThisWeekActivity(
       partyMatch: 'any',
       startTime: ['>=', oneWeekAgo],
     },
-    { '*': 'count' },
+    { '*': { type: 'count' } },
     {},
     ['type', 'mode', 'scale'] as const,
   );
@@ -102,7 +102,7 @@ async function getQuickStats(usernames: string[]): Promise<QuickStats> {
   const [allStats, completedStats] = await Promise.all([
     aggregateChallenges(
       { party: usernames, partyMatch: 'any' },
-      { '*': 'count', challengeTicks: 'sum' },
+      { '*': { type: 'count' }, challengeTicks: { type: 'sum' } },
     ),
     aggregateChallenges(
       {
@@ -110,7 +110,7 @@ async function getQuickStats(usernames: string[]): Promise<QuickStats> {
         partyMatch: 'any',
         status: ['==', ChallengeStatus.COMPLETED],
       },
-      { '*': 'count' },
+      { '*': { type: 'count' } },
     ),
   ]);
 

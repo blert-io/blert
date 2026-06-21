@@ -1,9 +1,120 @@
-import { Aggregation } from '@/actions/challenge';
+import { AggregationQuery } from '@/actions/challenge';
 import { InvalidQueryError } from '@/actions/errors';
-import { Comparator, Operator } from '@/actions/query';
+import {
+  Aggregation,
+  aggregationKey,
+  Comparator,
+  Operator,
+  parseAggregation,
+  parseSort,
+} from '@/actions/query';
 import { NextSearchParams } from '@/utils/url';
 
-const COMPARATOR_REGEX = /^(lt|gt|le|ge|eq|ne|>|<|>=|<=|=|==|!=)(\d+)$/;
+/**
+ * Parses an aggregation token from a request, accepting convenience aliases.
+ * @returns The parsed aggregation, or `null` if the token is invalid.
+ */
+export function parseAggregationParam(token: string): Aggregation | null {
+  return parseAggregation(token === 'median' ? 'p50' : token);
+}
+
+/**
+ * Normalizes the aggregation token in a sort string to its canonical key,
+ * applying the same aliases as {@link parseAggregationParam}.
+ * Non-aggregation sort fields are left untouched.
+ */
+export function normalizeSortAggregation(sort: string): string {
+  const { direction, field, options } = parseSort(sort);
+
+  const colon = field.lastIndexOf(':');
+  const prefix = colon === -1 ? '' : field.slice(0, colon + 1);
+  const token = colon === -1 ? field : field.slice(colon + 1);
+
+  const parsed = parseAggregationParam(token);
+  const normalized = parsed === null ? token : aggregationKey(parsed);
+  const suffix = options === undefined ? '' : `#${options}`;
+  return `${direction}${prefix}${normalized}${suffix}`;
+}
+
+type RequestedKeyAliases = Record<string, Record<string, string>>;
+
+/**
+ * Parses aggregation query URL parameters into an aggregation query and an
+ * alias mapping back to the requested tokens.
+ *
+ * @param params Raw URL parameters.
+ * @returns Parsed aggregations and aliases, or `null` if any param is invalid.
+ */
+export function parseAggregateParams(
+  params: string[],
+): { aggregations: AggregationQuery; aliases: RequestedKeyAliases } | null {
+  const aggregations: AggregationQuery = { '*': { type: 'count' } };
+  const aliases: RequestedKeyAliases = {};
+
+  for (const param of params) {
+    const separator = param.lastIndexOf(':');
+    const field = param.slice(0, separator);
+    const tokens = param.slice(separator + 1).split(',');
+    const parsed = tokens.map(parseAggregationParam);
+    if (parsed.length === 0 || parsed.some((agg) => agg === null)) {
+      return null;
+    }
+
+    const aggs = parsed as Aggregation[];
+    aggregations[field] = aggs;
+    tokens.forEach((token, i) => {
+      const key = aggregationKey(aggs[i]);
+      if (key !== token) {
+        (aliases[field] ??= {})[key] = token;
+      }
+    });
+  }
+
+  return { aggregations, aliases };
+}
+
+/**
+ * Replaces canonical aggregation keys with user-requested aliases in place.
+ *
+ * @param result Aggregation result returned by the query.
+ * @param depth Number of grouping levels in the result.
+ * @param aliases User's field alias mapping.
+ */
+export function restoreAggregateAliases(
+  result: Record<string, unknown>,
+  depth: number,
+  aliases: RequestedKeyAliases,
+): void {
+  if (Object.keys(aliases).length === 0) {
+    return;
+  }
+
+  if (depth > 0) {
+    for (const group of Object.values(result)) {
+      restoreAggregateAliases(
+        group as Record<string, unknown>,
+        depth - 1,
+        aliases,
+      );
+    }
+    return;
+  }
+
+  for (const [field, renames] of Object.entries(aliases)) {
+    const aggs = result[field] as Record<string, number> | undefined;
+    if (aggs === undefined) {
+      continue;
+    }
+    for (const [key, token] of Object.entries(renames)) {
+      if (key in aggs) {
+        aggs[token] = aggs[key];
+        delete aggs[key];
+      }
+    }
+  }
+}
+
+const COMPARATOR_REGEX = /^(lt|gt|le|ge|eq|ne|>=|<=|==|!=|=|>|<)(\d+)$/;
 const SPREAD_REGEX = /^(\d+)?(\.\.)(\d+)?$/;
 const VALUE_REGEX = /^[a-zA-Z0-9_]+$/;
 
@@ -135,8 +246,8 @@ export function numericComparatorParam(
   param: string,
 ): Comparator<number> | undefined {
   return comparatorParam(searchParams, param, (v) => {
-    const value = parseInt(v);
-    if (isNaN(value)) {
+    const value = Number(v);
+    if (!Number.isFinite(value)) {
       throw new InvalidQueryError(`${param}: Invalid numeric value ${v}`);
     }
     return value;
@@ -169,16 +280,6 @@ export function expectSingle(
   }
 
   return value;
-}
-
-/**
- * Returns true if the given string is a valid aggregation.
- *
- * @param agg The string to check.
- * @returns True if the string is a valid aggregation, false otherwise.
- */
-export function isAggregation(agg: string): agg is Aggregation {
-  return ['count', 'sum', 'avg', 'min', 'max'].includes(agg);
 }
 
 /**

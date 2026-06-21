@@ -128,6 +128,239 @@ export function comparatorToSql(
   return sql`${lhs} ${op} ${comparator[1]}`;
 }
 
+/**
+ * A `SortQuery` is a string that represents a field to sort by. It consists of
+ * three parts:
+ * - A prefix that indicates the sort order: `+` for ascending, `-` for
+ *   descending.
+ * - The name of the field to sort by.
+ * - Optionally, a suffix specifying additional sorting options. This can be
+ *   one of the following:
+ *   * `#nf` to indicate that null values should be sorted first.
+ *   * `#nl` to indicate that null values should be sorted last.
+ */
+export type SortQuery<T> = `${SortDirection}${T extends object
+  ? keyof T & string
+  : T extends string
+    ? T
+    : never}${`#${SortOptions}` | ''}`;
+
+export type SortDirection = '+' | '-';
+export type SortOptions = 'nf' | 'nl';
+
+function isSortDirection(s: string): s is SortDirection {
+  return s === '+' || s === '-';
+}
+
+function isSortOptions(s: string): s is SortOptions {
+  return s === 'nf' || s === 'nl';
+}
+
+/**
+ * Parses a sort string of the form `[+-]field[#nf|#nl]` into its parts.
+ *
+ * @throws InvalidQueryError if the direction or options are invalid.
+ */
+export function parseSort(sort: string): {
+  direction: SortDirection;
+  field: string;
+  options: SortOptions | undefined;
+} {
+  const direction = sort[0];
+  if (!isSortDirection(direction)) {
+    throw new InvalidQueryError(`Invalid sort direction: ${direction}`);
+  }
+
+  const [field, options] = sort.slice(1).split('#');
+  if (options !== undefined && !isSortOptions(options)) {
+    throw new InvalidQueryError(`Invalid sort options: ${options}`);
+  }
+
+  return { direction, field, options };
+}
+
+/**
+ * An aggregation operation.
+ *
+ * `percentile` carries the requested percentile in `[0, 100]` and is computed
+ * using `PERCENTILE_CONT`.
+ */
+export type Aggregation =
+  | { type: 'count' }
+  | { type: 'sum' }
+  | { type: 'avg' }
+  | { type: 'min' }
+  | { type: 'max' }
+  | { type: 'percentile'; value: number };
+
+/**
+ * The string key an aggregation produces in result objects and SQL aliases.
+ * Percentiles serialize to `pN` (e.g. `p50`); every other variant uses its
+ * `type`.
+ */
+export type AggregationKey<A extends Aggregation = Aggregation> = A extends {
+  type: 'percentile';
+  value: infer V;
+}
+  ? V extends number
+    ? `p${V}`
+    : never
+  : A extends { type: infer T }
+    ? T & string
+    : never;
+
+const PERCENTILE_PATTERN = /^p(\d+(?:\.\d+)?)$/;
+
+/**
+ * Parses a raw aggregation string into an {@link Aggregation}.
+ *
+ * @returns The parsed aggregation, or `null` if the input is invalid.
+ */
+export function parseAggregation(raw: string): Aggregation | null {
+  switch (raw) {
+    case 'count':
+    case 'sum':
+    case 'avg':
+    case 'min':
+    case 'max':
+      return { type: raw };
+  }
+
+  const match = PERCENTILE_PATTERN.exec(raw);
+  if (match === null) {
+    return null;
+  }
+  const value = parseFloat(match[1]);
+  if (value < 0 || value > 100) {
+    return null;
+  }
+  return { type: 'percentile', value };
+}
+
+/**
+ * Returns the string key for an aggregation.
+ */
+export function aggregationKey(agg: Aggregation): AggregationKey {
+  return agg.type === 'percentile' ? `p${agg.value}` : agg.type;
+}
+
+/**
+ * Returns the SQL fragment for an aggregation function applied to `column`.
+ */
+export function aggregationToSql(
+  agg: Aggregation,
+  column: postgres.Fragment,
+): postgres.Fragment {
+  switch (agg.type) {
+    case 'count':
+      return sql`COUNT(${column})`;
+    case 'sum':
+      return sql`SUM(${column})`;
+    case 'avg':
+      return sql`AVG(${column})`;
+    case 'min':
+      return sql`MIN(${column})`;
+    case 'max':
+      return sql`MAX(${column})`;
+    case 'percentile':
+      if (agg.value < 0 || agg.value > 100) {
+        throw new InvalidQueryError(`Invalid percentile: ${agg.value}`);
+      }
+      return sql`PERCENTILE_CONT(${
+        agg.value / 100
+      }::float8) WITHIN GROUP (ORDER BY ${column})`;
+    default: {
+      const _exhaustive: never = agg;
+      throw new InvalidQueryError(
+        `Unknown aggregation: ${JSON.stringify(_exhaustive)}`,
+      );
+    }
+  }
+}
+
+/**
+ * Throws {@link InvalidQueryError} if any aggregation is semantically invalid.
+ */
+export function assertValidAggregations(aggregations: Aggregation[]): void {
+  // Currently, the only runtime invalid case is a bad percentile value.
+  const invalid = aggregations.filter(
+    (agg): agg is { type: 'percentile'; value: number } =>
+      agg.type === 'percentile' && (agg.value < 0 || agg.value > 100),
+  );
+  if (invalid.length > 0) {
+    throw new InvalidQueryError(
+      `Invalid percentile(s): ${invalid.map((agg) => agg.value).join(', ')}`,
+    );
+  }
+}
+
+/**
+ * Maps a SQL column alias back to its original field and aggregation key
+ * from which it was produced.
+ */
+export type AggregateAliases = Record<
+  string,
+  { field: string; aggKey: AggregationKey }
+>;
+
+/** Returns the column alias for an aggregation. */
+export function aggregateAlias(aggKey: AggregationKey, suffix: string): string {
+  // A percentile key (`pN`) may contain '.', which postgres reads as an
+  // identifier separator, so it is sanitized.
+  return `${aggKey.replace(/\./g, '_')}_${suffix}`;
+}
+
+/**
+ * Builds `<aggregation> AS <alias>` SELECT fragments for `aggregations` over
+ * `column`, recording each alias.
+ */
+export function aggregateSelectColumns(
+  field: string,
+  suffix: string,
+  column: postgres.Fragment,
+  aggregations: Aggregation[],
+): [postgres.Fragment[], AggregateAliases] {
+  const aliases: AggregateAliases = {};
+  const fragments = [];
+
+  for (const agg of aggregations) {
+    const aggKey = aggregationKey(agg);
+    const alias = aggregateAlias(aggKey, suffix);
+    aliases[alias] = { field, aggKey };
+    fragments.push(sql`${aggregationToSql(agg, column)} AS ${sql(alias)}`);
+  }
+
+  return [fragments, aliases];
+}
+
+function floatOrZero(value: unknown): number {
+  const num = parseFloat(value as string);
+  return Number.isNaN(num) ? 0 : num;
+}
+
+/**
+ * Unpacks one query result row into an aggregation result of per-field
+ * aggregations using an alias mapping.
+ */
+export function rowToAggregations(
+  row: Record<string, unknown>,
+  aliases: AggregateAliases,
+): Record<string, Record<string, number>> {
+  const result: Record<string, Record<string, number>> = {};
+  for (const [column, value] of Object.entries(row)) {
+    if (column === 'count') {
+      result['*'] = { count: parseInt(value as string) };
+      continue;
+    }
+    const alias = aliases[column];
+    if (alias === undefined) {
+      continue;
+    }
+    (result[alias.field] ??= {})[alias.aggKey] = floatOrZero(value as string);
+  }
+  return result;
+}
+
 export type BaseOperand = number | string | null;
 export type Operand = BaseOperand | Condition;
 export type Condition = [Operand, Operator, Operand];

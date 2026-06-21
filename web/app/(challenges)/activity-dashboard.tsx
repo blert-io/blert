@@ -568,8 +568,8 @@ export default function ActivityDashboard({
       const teamPromise = fetchJsonOrNull<
         GroupedAggregationResult<
           {
-            '*': 'count';
-            duration: ('max' | 'sum')[];
+            '*': { type: 'count' };
+            duration: ({ type: 'max' } | { type: 'sum' })[];
           },
           'party'
         >

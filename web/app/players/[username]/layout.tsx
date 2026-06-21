@@ -126,7 +126,7 @@ export default async function PlayerLayout({
         {
           party: [username],
         },
-        { challengeTicks: 'sum' },
+        { challengeTicks: { type: 'sum' } },
       ),
       loadPbsForPlayer(username),
       getSignedInUserId(),

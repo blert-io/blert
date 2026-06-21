@@ -1,4 +1,9 @@
-import { numericComparatorParam } from '@/api/query';
+import {
+  normalizeSortAggregation,
+  numericComparatorParam,
+  parseAggregateParams,
+  restoreAggregateAliases,
+} from '@/api/query';
 
 describe('comparatorParam', () => {
   const params = new URLSearchParams();
@@ -126,5 +131,95 @@ describe('comparatorParam', () => {
     expect(() =>
       numericComparatorParam(searchParams, 'invalidComparator4'),
     ).toThrow();
+  });
+});
+
+describe('parseAggregateParams', () => {
+  it('parses tokens into aggregations with an implicit count', () => {
+    expect(parseAggregateParams(['challengeTicks:avg,p90'])).toEqual({
+      aggregations: {
+        '*': { type: 'count' },
+        challengeTicks: [{ type: 'avg' }, { type: 'percentile', value: 90 }],
+      },
+      aliases: {},
+    });
+  });
+
+  it('aliases p50 as median', () => {
+    expect(parseAggregateParams(['challengeTicks:median'])).toEqual({
+      aggregations: {
+        '*': { type: 'count' },
+        challengeTicks: [{ type: 'percentile', value: 50 }],
+      },
+      aliases: { challengeTicks: { p50: 'median' } },
+    });
+  });
+
+  it('parses field from ops on the last colon', () => {
+    expect(parseAggregateParams(['splits:1234:median'])).toEqual({
+      aggregations: {
+        '*': { type: 'count' },
+        'splits:1234': [{ type: 'percentile', value: 50 }],
+      },
+      aliases: { 'splits:1234': { p50: 'median' } },
+    });
+  });
+
+  it('returns null for an invalid token', () => {
+    expect(parseAggregateParams(['challengeTicks:p150'])).toBeNull();
+    expect(parseAggregateParams(['challengeTicks:nonsense'])).toBeNull();
+  });
+});
+
+describe('restoreAggregateAliases', () => {
+  it('renames result keys back to the requested token', () => {
+    const result = {
+      '*': { count: 5 },
+      challengeTicks: { avg: 760, p50: 500 },
+    };
+    restoreAggregateAliases(result, 0, { challengeTicks: { p50: 'median' } });
+    expect(result).toEqual({
+      '*': { count: 5 },
+      challengeTicks: { avg: 760, median: 500 },
+    });
+  });
+
+  it('renames within each group of a grouped result', () => {
+    const result = {
+      '2': { challengeTicks: { p50: 500 } },
+      '3': { challengeTicks: { p50: 700 } },
+    };
+    restoreAggregateAliases(result, 1, { challengeTicks: { p50: 'median' } });
+    expect(result).toEqual({
+      '2': { challengeTicks: { median: 500 } },
+      '3': { challengeTicks: { median: 700 } },
+    });
+  });
+
+  it('leaves the result untouched when there are no aliases', () => {
+    const result = { challengeTicks: { p50: 500 } };
+    restoreAggregateAliases(result, 0, {});
+    expect(result).toEqual({ challengeTicks: { p50: 500 } });
+  });
+});
+
+describe('normalizeSortAggregation', () => {
+  it('rewrites a median sort suffix to p50', () => {
+    expect(normalizeSortAggregation('-duration:median')).toBe('-duration:p50');
+  });
+
+  it('rewrites a bare median sort to p50', () => {
+    expect(normalizeSortAggregation('-median')).toBe('-p50');
+  });
+
+  it('preserves the sort direction and options', () => {
+    expect(normalizeSortAggregation('+duration:median#nl')).toBe(
+      '+duration:p50#nl',
+    );
+  });
+
+  it('leaves non-alias aggregations and plain fields untouched', () => {
+    expect(normalizeSortAggregation('-duration:max')).toBe('-duration:max');
+    expect(normalizeSortAggregation('+challengeTicks')).toBe('+challengeTicks');
   });
 });

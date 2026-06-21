@@ -97,13 +97,16 @@ export default async function SearchPage({
         return challenges;
       },
     ),
-    aggregateChallenges(baseQuery, { '*': 'count' }, queryOptions).then(
-      (result) =>
-        result !== null
-          ? {
-              count: result['*'].count,
-            }
-          : { count: 0 },
+    aggregateChallenges(
+      baseQuery,
+      { '*': { type: 'count' } },
+      queryOptions,
+    ).then((result) =>
+      result !== null
+        ? {
+            count: result['*'].count,
+          }
+        : { count: 0 },
     ),
   ]);
 

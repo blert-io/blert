@@ -47,6 +47,13 @@ import { sql } from './db';
 import dataRepository from './data-repository';
 import { InvalidQueryError } from './errors';
 import {
+  AggregateAliases,
+  aggregateAlias,
+  aggregateSelectColumns,
+  Aggregation,
+  AggregationKey,
+  aggregationKey,
+  assertValidAggregations,
   BaseOperand,
   Comparator,
   comparatorToSql,
@@ -54,6 +61,11 @@ import {
   Join,
   join,
   operator,
+  parseAggregation,
+  parseSort,
+  rowToAggregations,
+  SortDirection,
+  SortQuery,
   where,
 } from './query';
 
@@ -370,33 +382,6 @@ export type ChallengeOverview = Pick<
       Pick<InfernoChallenge, 'infernoStats'>
   >;
 
-type SortDirection = '+' | '-';
-type SortOptions = 'nf' | 'nl';
-
-/**
- * A `SortQuery` is a string that represents a field to sort by. It consists of
- * three parts:
- * - A prefix that indicates the sort order: `+` for ascending, `-` for
- *   descending.
- * - The name of the field to sort by.
- * - Optionally, a suffix specifying additional sorting options. This can be
- *   one of the following:
- *   * `#nf` to indicate that null values should be sorted first.
- *   * `#nl` to indicate that null values should be sorted last.
- */
-export type SortQuery<T> = `${SortDirection}${T extends object
-  ? keyof T & string
-  : T extends string
-    ? T
-    : never}${`#${SortOptions}` | ''}`;
-
-function isSortDirection(s: string): s is SortDirection {
-  return s === '+' || s === '-';
-}
-function isSortOptions(s: string): s is SortOptions {
-  return s === 'nf' || s === 'nl';
-}
-
 export type BasicSortableFields = keyof Omit<
   ChallengeOverview,
   'party' | 'finishTime'
@@ -452,7 +437,7 @@ export type QueryOptions = {
   fullRecordings?: boolean;
   limit?: number;
   sort?: SortQuery<
-    Omit<ChallengeOverview, 'party' | 'finishTime'> | Aggregation
+    Omit<ChallengeOverview, 'party' | 'finishTime'> | AggregationKey
   >;
 };
 
@@ -533,24 +518,6 @@ function conditionToSql(
         : sql`${columnOrLiteral(conditions[2])}`
     }
   )`;
-}
-
-function parseSort(sort: string): {
-  direction: SortDirection;
-  field: string;
-  options: SortOptions | undefined;
-} {
-  const direction = sort[0];
-  if (!isSortDirection(direction)) {
-    throw new InvalidQueryError(`Invalid sort direction: ${direction}`);
-  }
-
-  const [field, options] = sort.slice(1).split('#');
-  if (options !== undefined && !isSortOptions(options)) {
-    throw new InvalidQueryError(`Invalid sort options: ${options}`);
-  }
-
-  return { direction, field, options };
 }
 
 function order(
@@ -1143,21 +1110,16 @@ function groupExpression(groupField: GroupField): postgres.Fragment {
   return sql`${groupField.groupExpression} AS ${sql(groupField.renamed)}`;
 }
 
-export type Aggregation = 'count' | 'sum' | 'avg' | 'min' | 'max';
 type Aggregations = Aggregation | Aggregation[];
-
-function isAggregation(agg: string): agg is Aggregation {
-  return ['count', 'sum', 'avg', 'min', 'max'].includes(agg);
-}
 
 export type AggregationQuery = Record<string, Aggregations>;
 
-export type FieldAggregation<T extends string> = `${T}:${Aggregation}`;
+export type FieldAggregation<T extends string> = `${T}:${AggregationKey}`;
 
 type FieldAggregations<As extends Aggregations> = As extends Aggregation
-  ? Record<As, number>
+  ? Record<AggregationKey<As>, number>
   : As extends Aggregation[]
-    ? Record<As[number], number>
+    ? Record<AggregationKey<As[number]>, number>
     : never;
 
 export type AggregationResult<F extends AggregationQuery> = {
@@ -1191,7 +1153,7 @@ type NestedGroupedAggregationResult<
  * ```typescript
  * const results = await aggregateChallenges(
  *  { from: new Date('2021-01-01') },
- *  { '*': 'count', challengeTicks: ['sum', 'avg'] },
+ *  { '*': { type: 'count' }, challengeTicks: [{ type: 'sum' }, { type: 'avg' }] },
  * );
  *
  * // {
@@ -1221,7 +1183,7 @@ export async function aggregateChallenges<F extends AggregationQuery>(
  * ```typescript
  * const results = await aggregateChallenges(
  *  { from: new Date('2021-01-01') },
- *  { '*': 'count', challengeTicks: ['sum', 'avg'] },
+ *  { '*': { type: 'count' }, challengeTicks: [{ type: 'sum' }, { type: 'avg' }] },
  * );
  *
  * // {
@@ -1255,7 +1217,7 @@ export async function aggregateChallenges<F extends AggregationQuery>(
  * ```typescript
  * const results = await aggregateChallenges(
  *  { from: new Date('2021-01-01') },
- *  { '*': 'count', challengeTicks: ['sum', 'avg'] },
+ *  { '*': { type: 'count' }, challengeTicks: [{ type: 'sum' }, { type: 'avg' }] },
  *  'status',
  * );
  *
@@ -1305,18 +1267,12 @@ export async function aggregateChallenges<
 
   const { baseTable, queryTable, joins, conditions } = components;
 
-  const aggregateName = (
-    table: string,
-    field: string,
-    agg: Aggregation,
-  ): string => `${agg}_${table}_${field}`;
-
-  const originalFields: Record<string, string> = {};
+  const aliases: AggregateAliases = {};
   let hasCount = false;
 
   const aggregateFields = Object.entries(fields).flatMap(([field, aggs]) => {
     if (field === '*') {
-      if (aggs !== 'count') {
+      if (Array.isArray(aggs) || aggs.type !== 'count') {
         throw new InvalidQueryError(
           'Cannot aggregate all fields with non-count aggregation',
         );
@@ -1325,16 +1281,8 @@ export async function aggregateChallenges<
       return sql`COUNT(*) as count`;
     }
 
-    if (!Array.isArray(aggs)) {
-      aggs = [aggs];
-    }
-
-    const invalidAggregations = aggs.filter((agg) => !isAggregation(agg));
-    if (invalidAggregations.length > 0) {
-      throw new InvalidQueryError(
-        `Invalid aggregations: ${invalidAggregations.join(', ')}`,
-      );
-    }
+    const aggregations = Array.isArray(aggs) ? aggs : [aggs];
+    assertValidAggregations(aggregations);
 
     const [tableField, table] = shorthandToFullField(camelToSnake(field));
     const sqlTable = table === 'challenges' ? queryTable : sql(table);
@@ -1360,11 +1308,15 @@ export async function aggregateChallenges<
       });
     }
 
-    return aggs.map((agg) => {
-      const name = aggregateName(table, tableField, agg);
-      originalFields[name] = field;
-      return sql`${sql(agg)}(${sqlTable}.${sql(tableField)}) as ${sql(name)}`;
-    });
+    const column = sql`${sqlTable}.${sql(tableField)}`;
+    const [fragments, fieldAliases] = aggregateSelectColumns(
+      field,
+      `${table}_${tableField}`,
+      column,
+      aggregations,
+    );
+    Object.assign(aliases, fieldAliases);
+    return fragments;
   });
 
   const groupFields: GroupField[] = [];
@@ -1395,10 +1347,28 @@ export async function aggregateChallenges<
     });
   }
 
-  const floatOrZero = (value: string | number | null | undefined): number => {
-    const num = parseFloat(value as string);
-    return Number.isNaN(num) ? 0 : num;
-  };
+  let sortClause: postgres.Fragment = sql``;
+  if (options.sort !== undefined) {
+    const { direction, field, options: sortOptions } = parseSort(options.sort);
+    let column = field;
+    const parsedAgg = parseAggregation(field);
+    // A field aggregation is selected under a generated alias, so resolve the
+    // sort to that alias.
+    if (parsedAgg !== null && parsedAgg.type !== 'count') {
+      const aggKey = aggregationKey(parsedAgg);
+      const matches = Object.keys(aliases).filter(
+        (alias) => aliases[alias].aggKey === aggKey,
+      );
+      if (matches.length !== 1) {
+        throw new InvalidQueryError(
+          `Sort aggregation '${aggKey}' must match exactly one selected field`,
+        );
+      }
+      column = matches[0];
+    }
+    const suffix = sortOptions === undefined ? '' : `#${sortOptions}`;
+    sortClause = order(`${direction}${column}${suffix}`);
+  }
 
   const rows = await sql`
     SELECT
@@ -1416,7 +1386,7 @@ export async function aggregateChallenges<
         ? sql`GROUP BY ${sql(groupFields.map((g) => g.renamed))}`
         : sql``
     }
-    ${options.sort ? order(options.sort) : sql``}
+    ${sortClause}
     ${options.limit ? sql`LIMIT ${options.limit}` : sql``}
   `;
 
@@ -1431,51 +1401,16 @@ export async function aggregateChallenges<
   }
 
   if (groupFields.length === 0) {
-    const result = {} as AggregationResult<AggregationQuery>;
-
-    const row = rows[0];
-
-    Object.entries(row).forEach(([key, value]) => {
-      if (key === 'count') {
-        result['*'] = { count: parseInt(value as string) };
-        return;
-      }
-
-      const agg = key.split('_')[0] as Aggregation;
-      const field = originalFields[key];
-
-      result[field] ??= {} as Record<Aggregation, number>;
-      (result[field] as Record<Aggregation, number>)[agg] = floatOrZero(
-        value as string,
-      );
-    });
-
-    return result as AggregationResult<F>;
+    return rowToAggregations(rows[0], aliases) as AggregationResult<F>;
   }
 
   const result = {} as GroupedAggregationResult<AggregationQuery, string>;
 
   rows.forEach((row) => {
-    const groupResult = {} as AggregationResult<AggregationQuery>;
-
-    Object.entries(row).forEach(([key, value]) => {
-      if (key === 'count') {
-        groupResult['*'] = { count: parseInt(value as string) };
-        return;
-      }
-
-      if (groupFields.some((g) => g.renamed === key)) {
-        return;
-      }
-
-      const agg = key.split('_')[0];
-      const field = originalFields[key];
-
-      groupResult[field] ??= {} as Record<Aggregation, number>;
-      (groupResult[field] as Record<string, number>)[agg] = floatOrZero(
-        value as string,
-      );
-    });
+    const groupResult = rowToAggregations(
+      row,
+      aliases,
+    ) as AggregationResult<AggregationQuery>;
 
     let parent = result;
 
@@ -2256,9 +2191,9 @@ export async function loadSessionsPage(
       before: undefined,
       after: undefined,
     };
-    totalPromise = aggregateSessions(unfilteredQuery, { '*': 'count' }).then(
-      (r) => r?.['*']?.count ?? 0,
-    );
+    totalPromise = aggregateSessions(unfilteredQuery, {
+      '*': { type: 'count' },
+    }).then((r) => r?.['*']?.count ?? 0);
   }
 
   const [rawSessions, unfilteredTotal] = await Promise.all([
@@ -2351,7 +2286,9 @@ export type SessionAggregationOptions<
   F extends AggregationQuery = Record<string, Aggregations>,
 > = {
   limit?: number;
-  sort?: SortQuery<Aggregation | FieldAggregation<keyof Omit<F, '*'> & string>>;
+  sort?: SortQuery<
+    AggregationKey | FieldAggregation<keyof Omit<F, '*'> & string>
+  >;
 };
 
 /**
@@ -2393,15 +2330,12 @@ export async function aggregateSessions<
 ): Promise<AggregationResult<F> | GroupedAggregationResult<F, G> | null> {
   const { conditions } = sessionFilters(query);
 
-  const aggregateName = (field: string, agg: Aggregation): string =>
-    `${agg}_${field}`;
-
-  const originalFields: Record<string, string> = {};
+  const aliases: AggregateAliases = {};
   let hasCount = false;
 
   const aggregateFields = Object.entries(fields).flatMap(([field, aggs]) => {
     if (field === '*') {
-      if (aggs !== 'count') {
+      if (Array.isArray(aggs) || aggs.type !== 'count') {
         throw new InvalidQueryError(
           'Cannot aggregate all fields with non-count aggregation',
         );
@@ -2410,24 +2344,18 @@ export async function aggregateSessions<
       return sql`COUNT(*) as count`;
     }
 
-    if (!Array.isArray(aggs)) {
-      aggs = [aggs];
-    }
-
-    const invalidAggregations = aggs.filter((agg) => !isAggregation(agg));
-    if (invalidAggregations.length > 0) {
-      throw new InvalidQueryError(
-        `Invalid aggregations: ${invalidAggregations.join(', ')}`,
-      );
-    }
+    const aggregations = Array.isArray(aggs) ? aggs : [aggs];
+    assertValidAggregations(aggregations);
 
     const fieldExpression = sessionFieldToExpression(field);
-
-    return aggs.map((agg) => {
-      const name = aggregateName(field, agg);
-      originalFields[name] = field;
-      return sql`${sql(agg)}(${fieldExpression}) as ${sql(name)}`;
-    });
+    const [fragments, fieldAliases] = aggregateSelectColumns(
+      field,
+      field,
+      fieldExpression,
+      aggregations,
+    );
+    Object.assign(aliases, fieldAliases);
+    return fragments;
   });
 
   let groupFields: string[] = [];
@@ -2435,11 +2363,6 @@ export async function aggregateSessions<
     const fields = Array.isArray(grouping) ? grouping : [grouping];
     groupFields = (fields as string[]).map(sessionGroupingFieldToDb);
   }
-
-  const floatOrZero = (value: string | number | null | undefined): number => {
-    const num = parseFloat(value as string);
-    return Number.isNaN(num) ? 0 : num;
-  };
 
   let sort = undefined;
   if (options.sort) {
@@ -2451,10 +2374,12 @@ export async function aggregateSessions<
 
     if (agg === undefined) {
       sort = `${direction}${field}`;
-    } else if (isAggregation(agg)) {
-      sort = `${direction}${aggregateName(fieldName, agg)}#nl`;
     } else {
-      throw new InvalidQueryError(`Invalid aggregation: ${agg}`);
+      const parsed = parseAggregation(agg);
+      if (parsed === null) {
+        throw new InvalidQueryError(`Invalid aggregation: ${agg}`);
+      }
+      sort = `${direction}${aggregateAlias(aggregationKey(parsed), fieldName)}#nl`;
     }
   }
 
@@ -2486,23 +2411,7 @@ export async function aggregateSessions<
   }
 
   if (groupFields.length === 0) {
-    const result = {} as AggregationResult<any>;
-    const row = rows[0];
-
-    Object.entries(row).forEach(([key, value]) => {
-      if (key === 'count') {
-        result['*'] = { count: parseInt(value as string) };
-        return;
-      }
-
-      const agg = key.split('_')[0];
-      const field = originalFields[key];
-
-      result[field] ??= {};
-      result[field][agg] = floatOrZero(value as string);
-    });
-
-    return result;
+    return rowToAggregations(rows[0], aliases) as AggregationResult<F>;
   }
 
   const result = {} as GroupedAggregationResult<AggregationQuery, string>;
@@ -2557,26 +2466,10 @@ export async function aggregateSessions<
   }
 
   rows.forEach((row) => {
-    const groupResult = {} as AggregationResult<AggregationQuery>;
-
-    Object.entries(row).forEach(([key, value]) => {
-      if (key === 'count') {
-        groupResult['*'] = { count: parseInt(value as string) };
-        return;
-      }
-
-      if (groupFields.includes(key)) {
-        return;
-      }
-
-      const agg = key.split('_')[0];
-      const field = originalFields[key];
-
-      groupResult[field] ??= {} as Record<Aggregation, number>;
-      (groupResult[field] as Record<string, number>)[agg] = floatOrZero(
-        value as string,
-      );
-    });
+    const groupResult = rowToAggregations(
+      row,
+      aliases,
+    ) as AggregationResult<AggregationQuery>;
 
     let parent = result;
 

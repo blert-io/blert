@@ -1,7 +1,13 @@
 import { ChallengeMode, SplitType } from '@blert/common';
 
-import { ChallengeQuery, SortQuery, SortableFields } from '@/actions/challenge';
-import { Comparator, Condition, Operator, parseQuery } from '@/actions/query';
+import { ChallengeQuery, SortableFields } from '@/actions/challenge';
+import {
+  Comparator,
+  Condition,
+  Operator,
+  parseQuery,
+  SortQuery,
+} from '@/actions/query';
 import {
   dateComparatorParam,
   expectSingle,
