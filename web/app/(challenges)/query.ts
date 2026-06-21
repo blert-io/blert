@@ -48,8 +48,8 @@ export function parseSessionStats(
 export function parseMostActiveTeam(
   result: GroupedAggregationResult<
     {
-      '*': 'count';
-      duration: ('max' | 'sum')[];
+      '*': { type: 'count' };
+      duration: ({ type: 'max' } | { type: 'sum' })[];
     },
     'party'
   > | null,

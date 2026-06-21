@@ -40,40 +40,44 @@ export default async function Page({
   const statsQuery = aggregateChallenges(
     challengeFilter,
     {
-      '*': 'count',
-      challengeTicks: 'sum',
-      totalDeaths: 'sum',
+      '*': { type: 'count' },
+      challengeTicks: { type: 'sum' },
+      totalDeaths: { type: 'sum' },
     },
     {},
   );
 
   const statusQuery = aggregateChallenges(
     challengeFilter,
-    { '*': 'count' },
+    { '*': { type: 'count' } },
     {},
     'status',
   );
   const scaleQuery = aggregateChallenges(
     challengeFilter,
-    { '*': 'count' },
+    { '*': { type: 'count' } },
     {},
     'scale',
   );
   const playerQuery = aggregateChallenges(
     challengeFilter,
-    { '*': 'count' },
+    { '*': { type: 'count' } },
     { limit: 10, sort: '-count' },
     'username',
   );
   const sessionQuery = aggregateSessions(
     challengeFilter as SessionQuery,
-    { '*': 'count', duration: 'avg', challenges: 'sum' },
+    {
+      '*': { type: 'count' },
+      duration: { type: 'avg' },
+      challenges: { type: 'sum' },
+    },
     {},
     'status',
   );
   const mostActiveTeamQuery = aggregateSessions(
     challengeFilter as SessionQuery,
-    { '*': 'count', duration: ['max', 'sum'] },
+    { '*': { type: 'count' }, duration: [{ type: 'max' }, { type: 'sum' }] },
     { sort: '-duration:sum', limit: 3 },
     'party',
   );

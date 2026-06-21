@@ -83,7 +83,12 @@ export default function ChallengeStats({
           fetch(`/api/v1/challenges/stats?type=${challenge}&group=status`)
             .then((res) => res.json())
             .then(
-              (res: GroupedAggregationResult<{ '*': 'count' }, ['status']>) => {
+              (
+                res: GroupedAggregationResult<
+                  { '*': { type: 'count' } },
+                  ['status']
+                >,
+              ) => {
                 const completions =
                   res[ChallengeStatus.COMPLETED]?.['*'].count ?? 0;
                 const resets = res[ChallengeStatus.RESET]?.['*'].count ?? 0;
@@ -101,7 +106,7 @@ export default function ChallengeStats({
             .then(
               (
                 res: GroupedAggregationResult<
-                  { '*': 'count' },
+                  { '*': { type: 'count' } },
                   ['stage', 'status']
                 >,
               ) => {

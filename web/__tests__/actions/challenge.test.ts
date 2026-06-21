@@ -18,6 +18,7 @@ import {
   SessionQuery,
 } from '@/actions/challenge';
 import { sql } from '@/actions/db';
+import { InvalidQueryError } from '@/actions/errors';
 
 afterAll(async () => {
   await sql.end();
@@ -318,9 +319,14 @@ describe('sessions', () => {
       it('should aggregate count and duration for all non-hidden sessions', async () => {
         const query: SessionQuery = {};
         const result = await aggregateSessions(query, {
-          '*': 'count',
-          duration: ['sum', 'avg', 'min', 'max'],
-          challenges: ['sum', 'avg'],
+          '*': { type: 'count' },
+          duration: [
+            { type: 'sum' },
+            { type: 'avg' },
+            { type: 'min' },
+            { type: 'max' },
+          ],
+          challenges: [{ type: 'sum' }, { type: 'avg' }],
         });
 
         expect(result).not.toBeNull();
@@ -336,18 +342,40 @@ describe('sessions', () => {
         expect(result!.challenges.sum).toBe(6);
         expect(result!.challenges.avg).toBe(1.5);
       });
+
+      it('computes percentiles over session duration', async () => {
+        const result = await aggregateSessions(
+          {},
+          {
+            duration: [
+              { type: 'percentile', value: 25 },
+              { type: 'percentile', value: 50 },
+              { type: 'percentile', value: 75 },
+            ],
+          },
+        );
+
+        // Non-hidden durations sorted: 900, 1800, 2700, 3600.
+        expect(result!.duration.p25).toBeCloseTo(1575);
+        expect(result!.duration.p50).toBeCloseTo(2250);
+        expect(result!.duration.p75).toBeCloseTo(2925);
+      });
     });
 
     describe('filtering', () => {
       it('should filter by session status', async () => {
         const query: SessionQuery = { status: ['==', SessionStatus.COMPLETED] };
-        const result = await aggregateSessions(query, { '*': 'count' });
+        const result = await aggregateSessions(query, {
+          '*': { type: 'count' },
+        });
         expect(result!['*'].count).toBe(3);
       });
 
       it('should filter by challenge type', async () => {
         const query: SessionQuery = { type: ['==', ChallengeType.COLOSSEUM] };
-        const result = await aggregateSessions(query, { '*': 'count' });
+        const result = await aggregateSessions(query, {
+          '*': { type: 'count' },
+        });
         expect(result!['*'].count).toBe(1);
       });
     });
@@ -357,7 +385,7 @@ describe('sessions', () => {
         const query: SessionQuery = {};
         const result = await aggregateSessions(
           query,
-          { '*': 'count' },
+          { '*': { type: 'count' } },
           {},
           'mode',
         );
@@ -375,7 +403,7 @@ describe('sessions', () => {
         const query: SessionQuery = {};
         const result = await aggregateSessions(
           query,
-          { '*': 'count' },
+          { '*': { type: 'count' } },
           {},
           'party',
         );
@@ -393,10 +421,12 @@ describe('sessions', () => {
 
       it('should group by multiple fields', async () => {
         const query: SessionQuery = {};
-        const result = await aggregateSessions(query, { '*': 'count' }, {}, [
-          'type',
-          'scale',
-        ] as const);
+        const result = await aggregateSessions(
+          query,
+          { '*': { type: 'count' } },
+          {},
+          ['type', 'scale'] as const,
+        );
 
         expect(result).not.toBeNull();
         const tob = ChallengeType.TOB.toString();
@@ -413,7 +443,7 @@ describe('sessions', () => {
         const query: SessionQuery = {};
         const result = await aggregateSessions(
           query,
-          { duration: 'max' },
+          { duration: { type: 'max' } },
           { sort: '-duration:max', limit: 2 },
           'scale',
         );
@@ -427,7 +457,7 @@ describe('sessions', () => {
         const query: SessionQuery = {};
         const result = await aggregateSessions(
           query,
-          { '*': 'count' },
+          { '*': { type: 'count' } },
           { limit: 2 },
           'scale',
         );
@@ -987,7 +1017,15 @@ describe('challenges', () => {
     it('aggregates tob:xarpusHealing across all operations', async () => {
       const result = await aggregateChallenges(
         {},
-        { 'tob:xarpusHealing': ['avg', 'count', 'sum', 'min', 'max'] },
+        {
+          'tob:xarpusHealing': [
+            { type: 'avg' },
+            { type: 'count' },
+            { type: 'sum' },
+            { type: 'min' },
+            { type: 'max' },
+          ],
+        },
       );
 
       expect(result).not.toBeNull();
@@ -1003,7 +1041,7 @@ describe('challenges', () => {
       // still include it in the total count while its healing is null.
       const result = await aggregateChallenges(
         {},
-        { '*': 'count', 'tob:xarpusHealing': 'count' },
+        { '*': { type: 'count' }, 'tob:xarpusHealing': { type: 'count' } },
       );
 
       expect(result!['*'].count).toBe(3);
@@ -1013,7 +1051,7 @@ describe('challenges', () => {
     it('groups tob:xarpusHealing by scale', async () => {
       const result = await aggregateChallenges(
         { type: ['==', ChallengeType.TOB] },
-        { 'tob:xarpusHealing': ['avg', 'count'] },
+        { 'tob:xarpusHealing': [{ type: 'avg' }, { type: 'count' }] },
         {},
         'scale',
       );
@@ -1022,6 +1060,156 @@ describe('challenges', () => {
       // Both ToB challenges are scale 2.
       expect(result!['2']['tob:xarpusHealing'].count).toBe(2);
       expect(result!['2']['tob:xarpusHealing'].avg).toBe(125);
+    });
+
+    describe('percentiles', () => {
+      beforeEach(async () => {
+        // Five scale-5 ToB challenges keep this distribution isolated from the
+        // fixture's scale 1-3 rows. Mean: 760, Median: 500.
+        const ticks = [300, 400, 500, 600, 2000];
+        const healing = [100, null, 200, null, 900];
+        const challenges = ticks.map((challenge_ticks, i) => ({
+          session_id: sessionId,
+          uuid: `f000000${i}-0000-0000-0000-000000000000`,
+          type: ChallengeType.TOB,
+          status: ChallengeStatus.COMPLETED,
+          start_time: new Date('2024-02-01T10:00:00Z'),
+          scale: 5,
+          challenge_ticks,
+        }));
+        const inserted = await sql`
+          INSERT INTO challenges ${sql(challenges, [
+            'session_id',
+            'uuid',
+            'type',
+            'status',
+            'start_time',
+            'scale',
+            'challenge_ticks',
+          ])} RETURNING id
+        `;
+
+        const stats = inserted
+          .map((row, i) => ({
+            challenge_id: row.id as number,
+            xarpus_healing: healing[i],
+          }))
+          .filter(
+            (s): s is { challenge_id: number; xarpus_healing: number } => {
+              return s.xarpus_healing !== null;
+            },
+          );
+        await sql`
+          INSERT INTO tob_challenge_stats ${sql(stats, [
+            'challenge_id',
+            'xarpus_healing',
+          ])}
+        `;
+      });
+
+      it('computes count, mean, and percentiles on data points', async () => {
+        const result = await aggregateChallenges(
+          { scale: ['==', 5] },
+          {
+            challengeTicks: [
+              { type: 'count' },
+              { type: 'avg' },
+              { type: 'min' },
+              { type: 'max' },
+              { type: 'percentile', value: 25 },
+              { type: 'percentile', value: 50 },
+              { type: 'percentile', value: 75 },
+            ],
+          },
+        );
+
+        expect(result!.challengeTicks).toEqual({
+          count: 5,
+          avg: 760,
+          min: 300,
+          max: 2000,
+          p25: 400,
+          p50: 500,
+          p75: 600,
+        });
+      });
+
+      it('interpolates percentiles between data points', async () => {
+        const result = await aggregateChallenges(
+          { scale: ['==', 5] },
+          {
+            challengeTicks: [
+              { type: 'percentile', value: 10 },
+              { type: 'percentile', value: 90 },
+            ],
+          },
+        );
+
+        // p10 = 300 + 0.4 * (400 - 300); p90 = 600 + 0.6 * (2000 - 600).
+        expect(result!.challengeTicks.p10).toBeCloseTo(340);
+        expect(result!.challengeTicks.p90).toBeCloseTo(1440);
+      });
+
+      it('supports fractional percentiles', async () => {
+        const result = await aggregateChallenges(
+          { scale: ['==', 5] },
+          { challengeTicks: [{ type: 'percentile', value: 99.9 }] },
+        );
+
+        // 600 + 0.996 * (2000 - 600).
+        expect(result!.challengeTicks['p99.9']).toBeCloseTo(1994.4);
+      });
+
+      it('takes a percentile over a joined column, ignoring nulls', async () => {
+        const result = await aggregateChallenges(
+          { scale: ['==', 5] },
+          {
+            '*': { type: 'count' },
+            'tob:xarpusHealing': [
+              { type: 'count' },
+              { type: 'percentile', value: 50 },
+            ],
+          },
+        );
+
+        // Healing recorded on three of five rows: 100, 200, 900.
+        expect(result!['*'].count).toBe(5);
+        expect(result!['tob:xarpusHealing'].count).toBe(3);
+        expect(result!['tob:xarpusHealing'].p50).toBe(200);
+      });
+
+      it('rejects a percentile outside [0, 100]', async () => {
+        await expect(
+          aggregateChallenges(
+            { scale: ['==', 5] },
+            { challengeTicks: [{ type: 'percentile', value: 150 }] },
+          ),
+        ).rejects.toThrow(InvalidQueryError);
+      });
+
+      it('sorts grouped results by a percentile alias', async () => {
+        const result = await aggregateChallenges(
+          { scale: ['==', 5] },
+          { challengeTicks: [{ type: 'percentile', value: 50 }] },
+          { sort: '-p50' },
+          'scale',
+        );
+        expect(result!['5'].challengeTicks.p50).toBe(500);
+      });
+
+      it('rejects an aggregate sort matching multiple fields', async () => {
+        await expect(
+          aggregateChallenges(
+            { scale: ['==', 5] },
+            {
+              challengeTicks: [{ type: 'percentile', value: 50 }],
+              overallTicks: [{ type: 'percentile', value: 50 }],
+            },
+            { sort: '-p50' },
+            'scale',
+          ),
+        ).rejects.toThrow(InvalidQueryError);
+      });
     });
   });
 

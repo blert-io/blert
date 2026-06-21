@@ -32,11 +32,11 @@ export default async function PlayerOverview({
     topPartners,
   ] = await Promise.all([
     loadPbsForPlayer(username),
-    aggregateChallenges(query, { '*': 'count' }, {}, 'status'),
-    aggregateChallenges(query, { '*': 'count' }, {}, 'scale'),
+    aggregateChallenges(query, { '*': { type: 'count' } }, {}, 'status'),
+    aggregateChallenges(query, { '*': { type: 'count' } }, {}, 'scale'),
     aggregateChallenges(
       { ...query, startTime: ['>=', oneYearAgo] },
-      { '*': 'count' },
+      { '*': { type: 'count' } },
       {},
       'startTime',
     ),

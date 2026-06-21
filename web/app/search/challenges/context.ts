@@ -1,10 +1,7 @@
 import { ChallengeStatus, Stage } from '@blert/common';
 
-import {
-  ExtraChallengeFields,
-  SortQuery,
-  SortableFields,
-} from '@/actions/challenge';
+import { ExtraChallengeFields, SortableFields } from '@/actions/challenge';
+import { SortQuery } from '@/actions/query';
 import { Comparator } from '@/components/tick-input';
 import { NextSearchParams, UrlParam, UrlParams } from '@/utils/url';
 
