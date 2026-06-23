@@ -1,4 +1,4 @@
-import { ChallengeStatus, Stage } from '@blert/common';
+import { ChallengeStatus, ChallengeType, Stage } from '@blert/common';
 
 import { ExtraChallengeFields, SortableFields } from '@/actions/challenge';
 import { SortQuery } from '@/actions/query';
@@ -214,6 +214,33 @@ export function defaultSearchFilters(): SearchFilters {
  */
 export function isDefaultSearchFilters(filters: SearchFilters): boolean {
   return filters.accurateSplits && countActiveFilters(filters) === 1;
+}
+
+/**
+ * Whether the filters define a result set over which aggregates are meaningful.
+ */
+export function aggregatesAreMeaningful(filters: SearchFilters): boolean {
+  if (filters.type.length !== 1) {
+    return false;
+  }
+  const [type] = filters.type;
+
+  switch (type) {
+    case ChallengeType.TOB:
+    case ChallengeType.COX:
+    case ChallengeType.TOA:
+      return filters.mode.length === 1 && filters.scale.length === 1;
+
+    // Solo challenges.
+    case ChallengeType.COLOSSEUM:
+    case ChallengeType.INFERNO:
+    case ChallengeType.MOKHAIOTL:
+      return true;
+
+    default:
+      const _exhaustive: never = type;
+      return false;
+  }
 }
 
 export type SearchContext = {

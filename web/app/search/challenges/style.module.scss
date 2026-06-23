@@ -267,6 +267,19 @@
         background: rgba(var(--blert-purple-base), 0.2);
         animation: summaryPulse 1.2s ease-in-out infinite;
       }
+
+      .summaryHint {
+        text-align: center;
+        font-size: 0.85em;
+        font-style: italic;
+        color: var(--blert-font-color-secondary);
+
+        i {
+          margin: 0 6px 0 0;
+          font-style: normal;
+          color: var(--blert-purple);
+        }
+      }
     }
 
     @keyframes summaryPulse {
