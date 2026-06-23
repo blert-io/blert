@@ -17,6 +17,7 @@ import {
 import {
   ChallengeOverview,
   ExtraChallengeFields,
+  QueryableField,
   SortableFields,
 } from '@/actions/challenge';
 import { SortQuery } from '@/actions/query';
@@ -36,6 +37,7 @@ import {
   PresetColumns,
   SelectedColumn,
 } from './types';
+import { ColumnAggregates, useAggregateStats } from './use-aggregate-stats';
 import { useSearchPresets } from './use-search-presets';
 
 import styles from './style.module.scss';
@@ -48,6 +50,10 @@ type ColumnExtraFieldsToggler = (
   add: boolean,
 ) => ExtraChallengeFields;
 
+type AggregateInfo = {
+  renderer: (value: number) => React.ReactNode;
+};
+
 type ColumnInfo = {
   name: string;
   fullName?: string;
@@ -55,8 +61,21 @@ type ColumnInfo = {
   toggleFields?: ColumnExtraFieldsToggler;
   align?: 'left' | 'right' | 'center';
   width?: number;
-  sortKey?: SortableFields;
+  /** The column's identity in the challenges API, if it has one. */
+  field?: QueryableField;
+  /** Whether the column can be sorted. Requires `field`. */
+  sortable?: boolean;
+  /** Whether and how the column can be aggregated. Requires `field`. */
+  aggregate?: AggregateInfo;
 };
+
+function aggregateTicks(value: number): string {
+  return ticksToFormattedSeconds(Math.round(value));
+}
+
+function aggregateNumber(value: number): string {
+  return value.toLocaleString(undefined, { maximumFractionDigits: 1 });
+}
 
 type PickType<T, U> = Pick<
   T,
@@ -122,7 +141,9 @@ function splitColumn(
     renderer: splitsRenderer(type),
     toggleFields: toggleSplitField(type),
     width,
-    sortKey: `splits:${type}`,
+    field: `splits:${type}`,
+    sortable: true,
+    aggregate: { renderer: aggregateTicks },
   };
 }
 
@@ -269,7 +290,8 @@ const COLUMNS: Record<Column, ColumnInfo> = {
       return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
     },
     width: 110,
-    sortKey: 'startTime',
+    field: 'startTime',
+    sortable: true,
   },
   [Column.TYPE]: {
     name: 'Type',
@@ -298,7 +320,8 @@ const COLUMNS: Record<Column, ColumnInfo> = {
     name: 'Scale',
     align: 'right',
     renderer: (challenge) => challenge.party.length,
-    sortKey: 'scale',
+    field: 'scale',
+    sortable: true,
   },
   [Column.PARTY]: {
     name: 'Party',
@@ -310,7 +333,9 @@ const COLUMNS: Record<Column, ColumnInfo> = {
     fullName: 'Challenge Time',
     align: 'right',
     renderer: ticksRenderer('challengeTicks'),
-    sortKey: 'challengeTicks',
+    field: 'challengeTicks',
+    sortable: true,
+    aggregate: { renderer: aggregateTicks },
     width: 120,
   },
   [Column.OVERALL_TIME]: {
@@ -318,7 +343,9 @@ const COLUMNS: Record<Column, ColumnInfo> = {
     fullName: 'Overall Time',
     align: 'right',
     renderer: ticksRenderer('overallTicks'),
-    sortKey: 'overallTicks',
+    field: 'overallTicks',
+    sortable: true,
+    aggregate: { renderer: aggregateTicks },
     width: 100,
   },
   [Column.TOTAL_DEATHS]: {
@@ -326,7 +353,9 @@ const COLUMNS: Record<Column, ColumnInfo> = {
     fullName: 'Total Deaths',
     align: 'right',
     renderer: valueRenderer('totalDeaths'),
-    sortKey: 'totalDeaths',
+    field: 'totalDeaths',
+    sortable: true,
+    aggregate: { renderer: aggregateNumber },
   },
   [Column.MAIDEN_ROOM]: splitColumn(
     'Maiden',
@@ -623,6 +652,8 @@ const COLUMNS: Record<Column, ColumnInfo> = {
     fullName: 'Nylocas pre-cap stalls',
     align: 'right',
     renderer: (challenge) => challenge.tobStats?.nylocasPreCapStalls ?? '-',
+    field: 'tob:nylocasPreCapStalls',
+    aggregate: { renderer: aggregateNumber },
     toggleFields: includeStats,
   },
   [Column.TOB_NYLOCAS_POST_CAP_STALLS]: {
@@ -630,6 +661,8 @@ const COLUMNS: Record<Column, ColumnInfo> = {
     fullName: 'Nylocas post-cap stalls',
     align: 'right',
     renderer: (challenge) => challenge.tobStats?.nylocasPostCapStalls ?? '-',
+    field: 'tob:nylocasPostCapStalls',
+    aggregate: { renderer: aggregateNumber },
     toggleFields: includeStats,
   },
   [Column.TOB_VERZIK_REDS_COUNT]: {
@@ -637,6 +670,8 @@ const COLUMNS: Record<Column, ColumnInfo> = {
     fullName: 'Verzik reds spawns',
     align: 'right',
     renderer: (challenge) => challenge.tobStats?.verzikRedsCount ?? '-',
+    field: 'tob:verzikRedsCount',
+    aggregate: { renderer: aggregateNumber },
     toggleFields: includeStats,
   },
   [Column.TOB_XARPUS_HEALING]: {
@@ -644,7 +679,9 @@ const COLUMNS: Record<Column, ColumnInfo> = {
     fullName: 'Xarpus healing',
     align: 'right',
     renderer: (challenge) => challenge.tobStats?.xarpusHealing ?? '-',
-    sortKey: 'tob:xarpusHealing',
+    field: 'tob:xarpusHealing',
+    sortable: true,
+    aggregate: { renderer: aggregateNumber },
     toggleFields: includeStats,
   },
 
@@ -660,7 +697,8 @@ const COLUMNS: Record<Column, ColumnInfo> = {
     fullName: 'Mokhaiotl Completed',
     align: 'right',
     renderer: (challenge) => challenge.mokhaiotlStats?.maxCompletedDelve ?? '-',
-    sortKey: 'mok:maxCompletedDelve',
+    field: 'mok:maxCompletedDelve',
+    sortable: true,
     toggleFields: includeStats,
   },
 
@@ -803,6 +841,12 @@ export function extraFieldsForColumns(
   return extraFields;
 }
 
+const SUMMARY_ROWS: { key: keyof ColumnAggregates; label: string }[] = [
+  { key: 'p50', label: 'Median' },
+  { key: 'avg', label: 'Average' },
+  { key: 'count', label: 'n' },
+];
+
 type TableProps = {
   challenges: ChallengeOverview[];
   context: SearchContext;
@@ -889,6 +933,23 @@ export default function Table(props: TableProps) {
     setPresets,
   } = useSearchPresets();
 
+  const aggregateFields = useMemo(
+    () =>
+      selectedColumns
+        .map((c) => COLUMNS[c.column])
+        .filter(
+          (info) => info.aggregate !== undefined && info.field !== undefined,
+        )
+        .map((info) => info.field!),
+    [selectedColumns],
+  );
+  const { stats: aggregateStats, loading: aggregateLoading } =
+    useAggregateStats(
+      props.context.filters,
+      aggregateFields,
+      props.context.sort,
+    );
+
   useEffect(() => setSelectedChallenges([]), [props.challenges]);
 
   const { setContext } = props;
@@ -962,25 +1023,26 @@ export default function Table(props: TableProps) {
                 const column = COLUMNS[c.column];
                 let content;
 
-                if (props.context.sort && column.sortKey) {
+                if (props.context.sort && column.sortable && column.field) {
+                  const field = column.field as SortableFields;
                   const mainSort = props.context.sort[0];
                   let icon;
                   let nextSort: SortQuery<SortableFields>[];
                   const currentSort = mainSort.slice(1);
-                  if (currentSort === column.sortKey) {
+                  if (currentSort === field) {
                     icon = (
                       <i
                         className={`fas fa-sort-${mainSort.startsWith('+') ? 'up' : 'down'}`}
                       />
                     );
                     nextSort = mainSort.startsWith('+')
-                      ? [`-${column.sortKey}`]
+                      ? [`-${field}`]
                       : currentSort === 'startTime'
                         ? ['+startTime']
                         : ['-startTime'];
                   } else {
                     icon = <i className="fas fa-sort" />;
-                    nextSort = [`+${column.sortKey}`];
+                    nextSort = [`+${field}`];
                   }
                   content = (
                     <button
@@ -1149,6 +1211,64 @@ export default function Table(props: TableProps) {
               )
             )}
           </tbody>
+          {aggregateFields.length > 0 &&
+            props.loadError === null &&
+            props.challenges.length > 0 && (
+              <tfoot className={styles.summary}>
+                {SUMMARY_ROWS.map((row) => (
+                  <tr key={row.key}>
+                    {allColumns.map((c, idx) => {
+                      const column = COLUMNS[c.column];
+                      let width = column.width;
+                      if (width !== undefined && display.isCompact()) {
+                        width = Math.floor(width * 0.9);
+                      }
+
+                      if (idx === 0) {
+                        return (
+                          <td
+                            key={c.column}
+                            className={styles.summaryLabel}
+                            style={{ width }}
+                          >
+                            {row.label}
+                          </td>
+                        );
+                      }
+
+                      const { field, aggregate, align } = column;
+                      let content: React.ReactNode = null;
+                      if (field !== undefined && aggregate !== undefined) {
+                        const values = aggregateStats?.[field];
+                        if (values === undefined) {
+                          content = aggregateLoading ? (
+                            <span className={styles.summarySkeleton} />
+                          ) : (
+                            '-'
+                          );
+                        } else if (row.key === 'count') {
+                          content = values.count.toLocaleString();
+                        } else if (values.count === 0) {
+                          content = '-';
+                        } else {
+                          content = aggregate.renderer(values[row.key]!);
+                        }
+                      }
+
+                      return (
+                        <td
+                          key={c.column}
+                          style={{ textAlign: align ?? 'left', width }}
+                        >
+                          {content}
+                        </td>
+                      );
+                    })}
+                    <td style={{ width: 40, padding: 0 }} />
+                  </tr>
+                ))}
+              </tfoot>
+            )}
         </table>
       </div>
       {contextMenu && (
@@ -1215,14 +1335,15 @@ function ContextMenu({
     const column = COLUMNS[context.heading.column];
 
     if (column.name !== '') {
-      if (column.sortKey) {
+      if (column.sortable && column.field) {
+        const field = column.field as SortableFields;
         items.push({
           label: `Sort by ${column.fullName ?? column.name}`,
           icon: 'fas fa-arrow-up-wide-short',
           customAction: () =>
             setContext((context) => ({
               ...context,
-              sort: [`+${column.sortKey!}`],
+              sort: [`+${field}`],
               pagination: {},
             })),
         });
@@ -1232,7 +1353,7 @@ function ContextMenu({
           customAction: () =>
             setContext((context) => ({
               ...context,
-              sort: [`-${column.sortKey!}`],
+              sort: [`-${field}`],
               pagination: {},
             })),
         });

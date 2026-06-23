@@ -2,6 +2,7 @@ import {
   ChallengeMode,
   ChallengeStatus,
   ChallengeType,
+  SplitType,
   Stage,
   SessionStatus,
   normalizeRsn,
@@ -1209,6 +1210,67 @@ describe('challenges', () => {
             'scale',
           ),
         ).rejects.toThrow(InvalidQueryError);
+      });
+    });
+
+    describe('split aggregates', () => {
+      beforeEach(async () => {
+        const ticks = [1150, 1200, 1250, 1300];
+        const challenges = ticks.map((challenge_ticks, i) => ({
+          session_id: sessionId,
+          uuid: `e000000${i}-0000-0000-0000-000000000000`,
+          type: ChallengeType.TOB,
+          status: ChallengeStatus.COMPLETED,
+          start_time: new Date('2024-03-01T10:00:00Z'),
+          scale: 5,
+          challenge_ticks,
+        }));
+        const inserted = await sql`
+          INSERT INTO challenges ${sql(challenges, [
+            'session_id',
+            'uuid',
+            'type',
+            'status',
+            'start_time',
+            'scale',
+            'challenge_ticks',
+          ])} RETURNING id
+        `;
+        const ids = inserted.map((row) => row.id as number);
+
+        // Two accurate Bloat splits, one inaccurate, and one challenge with no
+        // split at all, so the split's sample diverges from the full four.
+        const splits = [
+          { challenge_id: ids[0], ticks: 65, accurate: true },
+          { challenge_id: ids[1], ticks: 70, accurate: true },
+          { challenge_id: ids[2], ticks: 83, accurate: false },
+        ].map((s) => ({ ...s, type: SplitType.TOB_BLOAT, scale: 5 }));
+        await sql`
+          INSERT INTO challenge_splits ${sql(splits, [
+            'challenge_id',
+            'type',
+            'scale',
+            'ticks',
+            'accurate',
+          ])}
+        `;
+      });
+
+      it('aggregates a split without restricting unrelated columns', async () => {
+        const bloat = `splits:${SplitType.TOB_BLOAT}`;
+        const result = await aggregateChallenges(
+          { scale: ['==', 5] },
+          {
+            challengeTicks: [{ type: 'count' }, { type: 'avg' }],
+            [bloat]: [{ type: 'count' }, { type: 'avg' }],
+          },
+          { accurateSplits: true },
+        );
+
+        // All four challenges count despite only three having a split and only
+        // two an accurate one.
+        expect(result!.challengeTicks).toEqual({ count: 4, avg: 1225 });
+        expect(result![bloat]).toEqual({ count: 2, avg: 67.5 });
       });
     });
   });

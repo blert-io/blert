@@ -291,6 +291,28 @@ export function filtersToUrlParams(filters: SearchFilters): UrlParams {
   return params;
 }
 
+/**
+ * Sorting by a split with accurate splits enabled implicitly limits results to
+ * challenges that have that split recorded. Returns the URL params encoding that
+ * filter, so results and aggregate stats summarize the same set of challenges.
+ */
+export function implicitSplitFilters(
+  filters: SearchFilters,
+  sort: SortQuery<SortableFields>[],
+): Record<string, string> {
+  const params: Record<string, string> = {};
+  if (!filters.accurateSplits) {
+    return params;
+  }
+  for (const entry of sort) {
+    const field = entry.slice(1).split('#')[0];
+    if (field.startsWith('splits:')) {
+      params[`split:${field.slice(7)}`] = 'ge0';
+    }
+  }
+  return params;
+}
+
 export function extraFieldsToUrlParam(
   extraFields: ExtraChallengeFields,
 ): UrlParam {
