@@ -30,14 +30,19 @@ import { modeNameAndColor, statusNameAndColor } from '@/utils/challenge';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 import { challengeUrl } from '@/utils/url';
 
-import { defaultSearchFilters, SearchContext } from './context';
+import {
+  aggregatesAreMeaningful,
+  defaultSearchFilters,
+  SearchContext,
+} from './context';
 import {
   Column,
   DEFAULT_SELECTED_COLUMNS,
   PresetColumns,
   SelectedColumn,
 } from './types';
-import { ColumnAggregates, useAggregateStats } from './use-aggregate-stats';
+import SummaryFooter, { SummaryColumn } from './summary-footer';
+import { useAggregateStats } from './use-aggregate-stats';
 import { useSearchPresets } from './use-search-presets';
 
 import styles from './style.module.scss';
@@ -841,12 +846,6 @@ export function extraFieldsForColumns(
   return extraFields;
 }
 
-const SUMMARY_ROWS: { key: keyof ColumnAggregates; label: string }[] = [
-  { key: 'p50', label: 'Median' },
-  { key: 'avg', label: 'Average' },
-  { key: 'count', label: 'n' },
-];
-
 type TableProps = {
   challenges: ChallengeOverview[];
   context: SearchContext;
@@ -943,10 +942,16 @@ export default function Table(props: TableProps) {
         .map((info) => info.field!),
     [selectedColumns],
   );
+
+  // Only request aggregates if the selected filters define a meaningful
+  // result set.
+  const showAggregates =
+    aggregateFields.length > 0 &&
+    aggregatesAreMeaningful(props.context.filters);
   const { stats: aggregateStats, loading: aggregateLoading } =
     useAggregateStats(
       props.context.filters,
-      aggregateFields,
+      showAggregates ? aggregateFields : [],
       props.context.sort,
     );
 
@@ -1003,6 +1008,21 @@ export default function Table(props: TableProps) {
   );
 
   const allColumns = [UUID_COLUMN, ...selectedColumns];
+
+  const summaryColumns: SummaryColumn[] = allColumns.map((c) => {
+    const column = COLUMNS[c.column];
+    let width = column.width;
+    if (width !== undefined && display.isCompact()) {
+      width = Math.floor(width * 0.9);
+    }
+    return {
+      key: c.column,
+      field: column.field,
+      render: column.aggregate?.renderer,
+      align: column.align,
+      width,
+    };
+  });
 
   return (
     <>
@@ -1214,60 +1234,12 @@ export default function Table(props: TableProps) {
           {aggregateFields.length > 0 &&
             props.loadError === null &&
             props.challenges.length > 0 && (
-              <tfoot className={styles.summary}>
-                {SUMMARY_ROWS.map((row) => (
-                  <tr key={row.key}>
-                    {allColumns.map((c, idx) => {
-                      const column = COLUMNS[c.column];
-                      let width = column.width;
-                      if (width !== undefined && display.isCompact()) {
-                        width = Math.floor(width * 0.9);
-                      }
-
-                      if (idx === 0) {
-                        return (
-                          <td
-                            key={c.column}
-                            className={styles.summaryLabel}
-                            style={{ width }}
-                          >
-                            {row.label}
-                          </td>
-                        );
-                      }
-
-                      const { field, aggregate, align } = column;
-                      let content: React.ReactNode = null;
-                      if (field !== undefined && aggregate !== undefined) {
-                        const values = aggregateStats?.[field];
-                        if (values === undefined) {
-                          content = aggregateLoading ? (
-                            <span className={styles.summarySkeleton} />
-                          ) : (
-                            '-'
-                          );
-                        } else if (row.key === 'count') {
-                          content = values.count.toLocaleString();
-                        } else if (values.count === 0) {
-                          content = '-';
-                        } else {
-                          content = aggregate.renderer(values[row.key]!);
-                        }
-                      }
-
-                      return (
-                        <td
-                          key={c.column}
-                          style={{ textAlign: align ?? 'left', width }}
-                        >
-                          {content}
-                        </td>
-                      );
-                    })}
-                    <td style={{ width: 40, padding: 0 }} />
-                  </tr>
-                ))}
-              </tfoot>
+              <SummaryFooter
+                columns={summaryColumns}
+                stats={aggregateStats}
+                loading={aggregateLoading}
+                meaningful={showAggregates}
+              />
             )}
         </table>
       </div>

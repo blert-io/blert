@@ -11,6 +11,7 @@ import { NextSearchParams, queryString } from '@/utils/url';
 
 import {
   SearchFilters,
+  aggregatesAreMeaningful,
   contextFromUrlParams,
   countActiveFilters,
   defaultSearchFilters,
@@ -232,5 +233,57 @@ describe('countActiveFilters', () => {
       },
     };
     expect(countActiveFilters(filters)).toBe(2);
+  });
+});
+
+describe('aggregatesAreMeaningful', () => {
+  function withFilters(
+    type: ChallengeType[],
+    scale: number[],
+    mode: ChallengeMode[] = [],
+  ): SearchFilters {
+    return { ...defaultSearchFilters(), type, scale, mode };
+  }
+
+  it('is false without a single type', () => {
+    expect(aggregatesAreMeaningful(defaultSearchFilters())).toBe(false);
+    expect(
+      aggregatesAreMeaningful(
+        withFilters([ChallengeType.TOB, ChallengeType.COLOSSEUM], [3]),
+      ),
+    ).toBe(false);
+  });
+
+  it('requires a single scale and mode for a variable-scale type', () => {
+    expect(aggregatesAreMeaningful(withFilters([ChallengeType.TOB], []))).toBe(
+      false,
+    );
+    expect(
+      aggregatesAreMeaningful(withFilters([ChallengeType.TOB], [3, 4])),
+    ).toBe(false);
+    expect(
+      aggregatesAreMeaningful(
+        withFilters(
+          [ChallengeType.TOB],
+          [3],
+          [ChallengeMode.TOB_REGULAR, ChallengeMode.TOB_HARD],
+        ),
+      ),
+    ).toBe(false);
+    expect(
+      aggregatesAreMeaningful(
+        withFilters([ChallengeType.TOB], [5], [ChallengeMode.TOB_HARD]),
+      ),
+    ).toBe(true);
+  });
+
+  it('needs no scale for solo-only types', () => {
+    for (const type of [
+      ChallengeType.COLOSSEUM,
+      ChallengeType.INFERNO,
+      ChallengeType.MOKHAIOTL,
+    ]) {
+      expect(aggregatesAreMeaningful(withFilters([type], []))).toBe(true);
+    }
   });
 });
