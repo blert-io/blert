@@ -397,6 +397,22 @@ export type SortableFields =
   | TobSortableFields
   | MokhaiotlSortableFields;
 
+export type TobQueryableField = `tob:${keyof Pick<
+  TobChallengeStats,
+  | 'bloatDownCount'
+  | 'nylocasPreCapStalls'
+  | 'nylocasPostCapStalls'
+  | 'xarpusHealing'
+  | 'verzikRedsCount'
+>}`;
+export type MokhaiotlQueryableField =
+  `mok:${keyof Pick<MokhaiotlChallengeStats, 'delve' | 'maxCompletedDelve'>}`;
+export type QueryableField =
+  | BasicSortableFields
+  | SplitSortableFields
+  | TobQueryableField
+  | MokhaiotlQueryableField;
+
 export type SingleOrArray<T> = T | T[];
 
 export type TobQuery = {
@@ -1287,15 +1303,16 @@ export async function aggregateChallenges<
     const [tableField, table] = shorthandToFullField(camelToSnake(field));
     const sqlTable = table === 'challenges' ? queryTable : sql(table);
 
+    // Per-aggregate filter so a split's accuracy restriction applies only to
+    // its own aggregate rather than the whole query's WHERE clause.
+    let filter: postgres.Fragment | undefined;
+
     if (field.startsWith('splits:')) {
       const split = parseInt(field.slice(7)) as SplitType;
-      addSplitsTable(
-        split,
-        queryTable,
-        joins,
-        conditions,
-        options.accurateSplits,
-      );
+      addSplitsTable(split, queryTable, joins, conditions);
+      if (options.accurateSplits) {
+        filter = sql`${sqlTable}.accurate`;
+      }
     } else if (
       table !== 'challenges' &&
       joins.find((j) => j.tableName === table) === undefined
@@ -1314,6 +1331,7 @@ export async function aggregateChallenges<
       `${table}_${tableField}`,
       column,
       aggregations,
+      filter,
     );
     Object.assign(aliases, fieldAliases);
     return fragments;

@@ -18,6 +18,7 @@ import {
   countActiveFilters,
   extraFieldsToUrlParam,
   filtersToUrlParams,
+  implicitSplitFilters,
   isDefaultSearchFilters,
 } from './context';
 import Filters, { resetChallengeFilters } from './filters';
@@ -86,7 +87,6 @@ function challengesQueryParams(
 ): [UrlParams, UrlParams] {
   const baseParams = filtersToUrlParams(context.filters);
 
-  const params: UrlParams = { ...baseParams };
   const sortParam = [];
 
   let hasTime = false;
@@ -131,19 +131,14 @@ function challengesQueryParams(
     }
   }
 
-  // When sorting by a split column with accurate splits enabled, only include
-  // challenges which have that split set.
-  if (context.filters.accurateSplits) {
-    for (const sort of sorts) {
-      const sortField = sort.slice(1).split('#')[0];
-      if (sortField.startsWith('splits:')) {
-        const splitType = sortField.slice(7);
-        if (baseParams[`split:${splitType}`] === undefined) {
-          baseParams[`split:${splitType}`] = 'ge0';
-        }
-      }
-    }
+  // Forward the implicit split filter without overriding an explicit one.
+  for (const [key, value] of Object.entries(
+    implicitSplitFilters(context.filters, sorts),
+  )) {
+    baseParams[key] ??= value;
   }
+
+  const params: UrlParams = { ...baseParams };
 
   if (action === FetchAction.LOAD) {
     params.after = context.pagination.after;

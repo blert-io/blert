@@ -319,6 +319,7 @@ export function aggregateSelectColumns(
   suffix: string,
   column: postgres.Fragment,
   aggregations: Aggregation[],
+  filter?: postgres.Fragment,
 ): [postgres.Fragment[], AggregateAliases] {
   const aliases: AggregateAliases = {};
   const fragments = [];
@@ -327,7 +328,12 @@ export function aggregateSelectColumns(
     const aggKey = aggregationKey(agg);
     const alias = aggregateAlias(aggKey, suffix);
     aliases[alias] = { field, aggKey };
-    fragments.push(sql`${aggregationToSql(agg, column)} AS ${sql(alias)}`);
+    const aggregate = aggregationToSql(agg, column);
+    const filtered =
+      filter === undefined
+        ? aggregate
+        : sql`${aggregate} FILTER (WHERE ${filter})`;
+    fragments.push(sql`${filtered} AS ${sql(alias)}`);
   }
 
   return [fragments, aliases];
