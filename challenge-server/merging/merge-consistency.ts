@@ -413,14 +413,19 @@ export class MergeConsistencyChecker {
 
   private checkAttackTargetPresence(ticks: TickStateArray): void {
     // When an attack carries a non-null target, the target must be present in
-    // the same tick's state map. The plugin only sets a target it can
-    // observe, so passthrough preserves this. The merger combines attack and
-    // target data across multiple clients, so a merge bug could drop the
-    // target's state while keeping the attack's reference to it.
+    // the same tick's state map. The merger combines attack and target data
+    // across multiple clients, so a merge bug could drop the target's state
+    // while keeping the attack's reference to it.
+    //
+    // The exception to this is players who have died; some boss NPC attack
+    // have long wind-up times and can target a player who has recently died.
+    const deadPlayers = new Set<string>();
+
     for (const tickState of ticks) {
       if (tickState === null) {
         continue;
       }
+
       const tick = tickState.getTick();
       const npcs = tickState.getNpcs();
       const players = tickState.getPlayerStates();
@@ -450,6 +455,14 @@ export class MergeConsistencyChecker {
         if (targetName === null || targetName === undefined) {
           continue;
         }
+        if (deadPlayers.has(targetName)) {
+          // Ignore NPC attacks on dead players.
+          // TODO(frolv): This would ideally be smarter, but that requires
+          // investigating what exact patterns attacks on dead players take.
+          // Duplicate player deaths might also throw this off, but those are
+          // a hard rejection anyway so it doesn't affect the outcome.
+          continue;
+        }
         if (!players.get(targetName)) {
           this.issues.push({
             kind: 'ATTACK_TARGET_MISSING',
@@ -461,6 +474,10 @@ export class MergeConsistencyChecker {
           });
         }
       }
+
+      tickState.getEventsByType(Event.Type.PLAYER_DEATH).forEach((event) => {
+        deadPlayers.add(event.getPlayer()!.getName());
+      });
     }
   }
 

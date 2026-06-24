@@ -853,6 +853,52 @@ describe('MergeConsistencyChecker', () => {
       });
     });
 
+    it('ignores when an NPC targets a dead player', () => {
+      const ticks: TickStateArray = [
+        createTickState(
+          0,
+          [createPlayerState({ username: 'player1', clientId: 1 })],
+          [
+            createPlayerDeathEvent({
+              tick: 0,
+              name: 'player1',
+            }),
+            createNpcUpdateEvent({
+              tick: 0,
+              roomId: ROOM_ID_A,
+              npcId: NPC_ID,
+              x: 0,
+              y: 0,
+              hitpointsCurrent: 100,
+            }),
+          ],
+        ),
+        createTickState(
+          1,
+          [],
+          [
+            createNpcUpdateEvent({
+              tick: 1,
+              roomId: ROOM_ID_A,
+              npcId: NPC_ID,
+              x: 0,
+              y: 0,
+              hitpointsCurrent: 100,
+            }),
+            createNpcAttackEvent({
+              tick: 1,
+              roomId: ROOM_ID_A,
+              npcId: NPC_ID,
+              attackType: NpcAttack.TOB_VERZIK_P3_AUTO,
+              target: 'player1',
+            }),
+          ],
+        ),
+      ];
+
+      expect(runChecker(ticks)).toEqual([]);
+    });
+
     it('emits no issue when an attack has a null target', () => {
       const ticks: TickStateArray = [
         createTickState(
