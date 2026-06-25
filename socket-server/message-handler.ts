@@ -66,7 +66,10 @@ export default class MessageHandler {
   }
 
   public handleServerStatusUpdate = ({ status }: ServerStatusUpdate): void => {
-    if (status === ServerStatus.SHUTDOWN_PENDING) {
+    if (
+      status === ServerStatus.SHUTDOWN_PENDING ||
+      status === ServerStatus.DRAINING
+    ) {
       this.allowStartingChallenges = false;
       logger.warn('message_handler_start_blocked', { status });
     } else if (status === ServerStatus.SHUTDOWN_CANCELED) {

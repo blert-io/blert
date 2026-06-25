@@ -13,14 +13,11 @@ import {
 } from './action-definitions';
 import ChallengeManager from './challenge-manager';
 import Client from './client';
-import ConnectionManager from './connection-manager';
-import MessageHandler from './message-handler';
-import { PlayerManager } from './players';
-import { RemoteChallengeManager } from './remote-challenge-manager';
-import ServerManager, { ServerStatus } from './server-manager';
-import { PluginVersions } from './verification';
 import { ConfigManager } from './config';
+import ConnectionManager from './connection-manager';
+import { closeDb } from './db';
 import logger, { runWithLogContext } from './log';
+import MessageHandler from './message-handler';
 import {
   AuthFailureReason,
   getMetricsSnapshot,
@@ -29,11 +26,15 @@ import {
   recordAuthSuccess,
   recordRedisEvent,
 } from './metrics';
+import { PlayerManager } from './players';
 import {
   SUBPROTOCOL_JSON,
   SUBPROTOCOL_PROTOBUF,
   subprotocolToFormat,
 } from './protocol';
+import { RemoteChallengeManager } from './remote-challenge-manager';
+import ServerManager, { ServerStatus } from './server-manager';
+import { PluginVersions } from './verification';
 
 function asyncHandler(
   fn: (req: Request, res: Response) => Promise<void>,
@@ -49,13 +50,30 @@ type ShutdownRequest = {
   force?: boolean;
 };
 
+type DrainRequest = {
+  gracePeriod?: number;
+  settleDelay?: number;
+  cancel?: boolean;
+};
+
 function setupHttpRoutes(
   app: express.Express,
   serverManager: ServerManager,
   definitionsRepository: ActionDefinitionsRepository,
+  onDrainComplete: () => void,
 ) {
   app.get('/ping', (_req, res) => {
     res.send('pong');
+  });
+
+  // Load balancer health check.
+  // Reports unhealthy once the instance begins draining so the balancer stops
+  // routing new connections to it.
+  app.get('/health', (_req, res) => {
+    const { status } = serverManager.getStatus();
+    const healthy =
+      status !== ServerStatus.DRAINING && status !== ServerStatus.OFFLINE;
+    res.status(healthy ? 200 : 503).json({ status });
   });
 
   // Public endpoints to get current definitions.
@@ -92,6 +110,20 @@ function setupHttpRoutes(
       }
     } else {
       serverManager.scheduleShutdown(shutdownTime, force);
+    }
+    res.json(serverManager.getStatus());
+  });
+
+  app.post('/admin/drain', (req, res) => {
+    const {
+      gracePeriod,
+      settleDelay,
+      cancel = false,
+    } = req.body as DrainRequest;
+    if (cancel) {
+      serverManager.cancelDrain();
+    } else {
+      serverManager.startDrain(onDrainComplete, { gracePeriod, settleDelay });
     }
     res.json(serverManager.getStatus());
   });
@@ -337,6 +369,19 @@ async function main(): Promise<void> {
       };
 
       try {
+        // A draining instance refuses new connections so a reconnecting client
+        // lands on a healthy instance instead of latching back onto this one.
+        const { status } = serverManager.getStatus();
+        if (
+          status === ServerStatus.DRAINING ||
+          status === ServerStatus.OFFLINE
+        ) {
+          logger.debug('websocket_upgrade_rejected_draining', { status });
+          socket.write('HTTP/1.1 503 Service Unavailable\r\n\r\n');
+          socket.destroy();
+          return;
+        }
+
         const auth = request.headers.authorization?.split(' ') ?? [];
         if (auth.length !== 2 || auth[0] !== 'Basic') {
           reject('HTTP/1.1 401 Unauthorized', 'missing_token');
@@ -417,7 +462,19 @@ async function main(): Promise<void> {
     }
   });
 
-  setupHttpRoutes(app, serverManager, definitionsRepository);
+  // Invoked once a cooperative drain finishes. The OFFLINE handler above will
+  // already have closed the HTTP server, and clients have been dropped; release
+  // the remaining resources and exit so the orchestrator can replace us.
+  const drainTeardown = (): void => {
+    void (async () => {
+      wss.close();
+      await Promise.allSettled([redisClient.quit(), closeDb()]);
+      logger.info('server_teardown_complete');
+      process.exit(0);
+    })();
+  };
+
+  setupHttpRoutes(app, serverManager, definitionsRepository, drainTeardown);
 
   wss.on('connection', (_ws: WebSocket, _req: Request, client: Client) => {
     connectionManager.addClient(client);

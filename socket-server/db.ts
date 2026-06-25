@@ -27,3 +27,8 @@ if (process.env.BLERT_DATABASE_URI === undefined) {
 
 const sql = postgres(process.env.BLERT_DATABASE_URI, connectionOptions);
 export default sql;
+
+/** Gracefully closes the database connection pool. */
+export function closeDb(): Promise<void> {
+  return sql.end({ timeout: 5 });
+}

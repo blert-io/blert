@@ -144,13 +144,51 @@ export default class ConnectionManager {
     recordActiveClients(this.activeClients.size);
   }
 
-  public closeAllClients() {
+  /**
+   * Closes every connected client and resolves once their closing handshakes
+   * have completed, forcibly terminating any that has not finished closing
+   * within `timeoutMs`.
+   */
+  public async closeAllClients(timeoutMs: number = 5000): Promise<void> {
     const clients = Array.from(this.activeClients.values());
-    for (const client of clients) {
-      // Client's onClose callback handles removing the client from the map.
-      client.close(1001);
+    if (clients.length === 0) {
+      return;
     }
-    recordActiveClients(0);
+
+    const allClosed = new Promise<void>((resolve) => {
+      let remaining = clients.length;
+      for (const client of clients) {
+        // The onClose callback removes the client from the map.
+        client.onClose(() => {
+          if (--remaining === 0) {
+            resolve();
+          }
+        });
+        client.close(1001);
+      }
+    });
+
+    let handshakeTimer: NodeJS.Timeout | undefined;
+    await Promise.race([
+      allClosed,
+      new Promise<void>((resolve) => {
+        handshakeTimer = setTimeout(resolve, timeoutMs);
+      }),
+    ]);
+    clearTimeout(handshakeTimer);
+
+    // Force-close any client that did not complete its closing handshake, then
+    // wait for the resulting close handlers to run so each disconnect is
+    // propagated.
+    const stragglers = Array.from(this.activeClients.values());
+    if (stragglers.length > 0) {
+      for (const client of stragglers) {
+        client.terminate();
+      }
+      await allClosed;
+    }
+
+    recordActiveClients(this.activeClients.size);
   }
 
   public clients(): readonly Client[] {
