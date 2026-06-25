@@ -439,6 +439,11 @@ export default class Client {
     this.socket.close(code ?? 1000);
   }
 
+  /** Forcibly destroys the underlying socket without a closing handshake. */
+  public terminate(): void {
+    this.socket.terminate();
+  }
+
   public onClose(callback: () => void): void {
     this.closeCallbacks.push(callback);
   }

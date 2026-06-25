@@ -1005,6 +1005,24 @@ describe('serverMessageToJson', () => {
 });
 
 describe('round-trip conversion', () => {
+  it('preserves a DRAINING server status and its grace deadline', () => {
+    const originalJson: ServerMessageJson = {
+      type: ServerMessage.Type.SERVER_STATUS,
+      serverStatus: {
+        status: ServerMessage.ServerStatus.Status.DRAINING,
+        shutdownTime: { seconds: 1700000000, nanos: 1 },
+      },
+    };
+
+    const proto = jsonToServerMessage(originalJson);
+    expect(proto.getServerStatus()?.getStatus()).toBe(
+      ServerMessage.ServerStatus.Status.DRAINING,
+    );
+
+    const resultJson = serverMessageToJson(proto);
+    expect(resultJson.serverStatus).toEqual(originalJson.serverStatus);
+  });
+
   it('preserves attack definitions through JSON -> Proto -> JSON', () => {
     const originalJson: ServerMessageJson = {
       type: ServerMessage.Type.ATTACK_DEFINITIONS,

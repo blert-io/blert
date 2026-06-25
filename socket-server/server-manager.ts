@@ -6,13 +6,35 @@ import ConnectionManager from './connection-manager';
 import logger from './log';
 import { recordShutdownBroadcast, setServerStatusMetric } from './metrics';
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export enum ServerStatus {
   RUNNING = 'RUNNING',
   SHUTDOWN_PENDING = 'SHUTDOWN_PENDING',
   SHUTDOWN_CANCELED = 'SHUTDOWN_CANCELED',
   SHUTDOWN_IMMINENT = 'SHUTDOWN_IMMINENT',
+  DRAINING = 'DRAINING',
   OFFLINE = 'OFFLINE',
 }
+
+export type DrainOptions = {
+  /** How long clients have to leave voluntarily before being force-closed. */
+  gracePeriod?: number;
+  /**
+   * How long to wait after flipping unhealthy before asking clients to
+   * reconnect, giving the load balancer time to stop routing to this instance.
+   */
+  settleDelay?: number;
+};
+
+/** All state for an in-progress cooperative drain; null when not draining. */
+type DrainState = {
+  settleTimer: NodeJS.Timeout | null;
+  lastRemaining: number;
+  onComplete: () => void;
+};
 
 export type ServerStatusUpdate = {
   status: ServerStatus;
@@ -32,6 +54,17 @@ export default class ServerManager {
     1 * 60 * 1000,
   ];
 
+  // How long a cooperative drain lets clients leave voluntarily before the
+  // remaining clients are force-closed.
+  public static DEFAULT_DRAIN_GRACE_PERIOD_MS = 45 * 60 * 1000;
+
+  // How long to wait after flipping unhealthy before asking clients to leave,
+  // so a load balancer observes the unhealthy state first.
+  public static DEFAULT_DRAIN_SETTLE_MS = 30 * 1000;
+
+  // How often the drain monitor checks whether all clients have left.
+  private static DRAIN_TICK_MS = 5 * 1000;
+
   private connectionManager: ConnectionManager;
   private status: ServerStatus;
   private shutdownTime: Date | null;
@@ -39,6 +72,8 @@ export default class ServerManager {
 
   private shutdownTimer: NodeJS.Timeout | null = null;
   private shutdownMessageTimer: NodeJS.Timeout | null = null;
+
+  private drain: DrainState | null = null;
 
   public constructor(connectionManager: ConnectionManager) {
     this.connectionManager = connectionManager;
@@ -147,13 +182,145 @@ export default class ServerManager {
     this.notifyAllClientsOfState();
 
     setTimeout(() => {
-      this.connectionManager.closeAllClients();
+      void this.connectionManager.closeAllClients();
       this.updateStatus(ServerStatus.OFFLINE);
 
       // Don't actually exit the process to prevent it from being restarted by
       // a system service. Leave it in a zombie state to be restarted manually.
       logger.info('server_shutdown_complete');
     }, 2000);
+  }
+
+  /**
+   * Begins a cooperative drain of this instance to another.
+   *
+   * The instance is marked unhealthy (so a load balancer stops routing new
+   * connections to it) and, after a settle delay, asks connected clients to
+   * reconnect elsewhere once they are idle. Clients leave at their own
+   * convenience; any still connected after the grace period are force-closed.
+   * When the last client leaves, or the grace period elapses, `onComplete` is
+   * invoked so the caller can release resources and exit the process.
+   */
+  public startDrain(onComplete: () => void, options: DrainOptions = {}): void {
+    if (this.drain !== null || this.status === ServerStatus.OFFLINE) {
+      logger.debug('server_drain_ignored', { status: this.status });
+      return;
+    }
+
+    // A drain supersedes a pending timed shutdown; both end in process death,
+    // but the drain exits cleanly.
+    if (this.shutdownTimer !== null) {
+      clearTimeout(this.shutdownTimer);
+      this.shutdownTimer = null;
+    }
+    if (this.shutdownMessageTimer !== null) {
+      clearTimeout(this.shutdownMessageTimer);
+      this.shutdownMessageTimer = null;
+    }
+
+    const gracePeriod =
+      options.gracePeriod ?? ServerManager.DEFAULT_DRAIN_GRACE_PERIOD_MS;
+    const settleDelay =
+      options.settleDelay ?? ServerManager.DEFAULT_DRAIN_SETTLE_MS;
+
+    this.shutdownTime = new Date(Date.now() + settleDelay + gracePeriod);
+    this.drain = {
+      settleTimer: setTimeout(() => void this.runDrain(), settleDelay),
+      lastRemaining: -1,
+      onComplete,
+    };
+
+    logger.info('server_drain_started', {
+      gracePeriod,
+      settleDelay,
+      deadline: this.shutdownTime.toISOString(),
+    });
+
+    // Flip to DRAINING so the rest of the system can take appropriate action,
+    // such as switching the health check to unhealthy, then wait out the settle
+    // delay before taking further action.
+    this.updateStatus(ServerStatus.DRAINING);
+  }
+
+  /**
+   * Cancels an in-progress drain, returning the server to a running state.
+   */
+  public cancelDrain(): void {
+    if (this.drain === null) {
+      return;
+    }
+
+    if (this.drain.settleTimer !== null) {
+      clearTimeout(this.drain.settleTimer);
+    }
+    this.drain = null;
+    this.shutdownTime = null;
+
+    logger.info('server_drain_canceled');
+
+    this.updateStatus(ServerStatus.SHUTDOWN_CANCELED);
+    this.notifyAllClientsOfState();
+
+    setTimeout(() => this.updateStatus(ServerStatus.RUNNING), 10_000);
+  }
+
+  /**
+   * Asks all connected clients to reconnect elsewhere, then polls until they
+   * have all left or the grace period has elapsed.
+   */
+  private async runDrain(): Promise<void> {
+    if (this.drain === null) {
+      // Canceled during the settle delay.
+      return;
+    }
+    this.drain.settleTimer = null;
+
+    logger.info('server_drain_settled', {
+      clientCount: this.connectionManager.clients().length,
+    });
+
+    this.notifyAllClientsOfState();
+
+    while (this.drain !== null && !this.hasDrained()) {
+      const remaining = this.connectionManager.clients().length;
+      if (remaining !== this.drain.lastRemaining) {
+        this.drain.lastRemaining = remaining;
+        logger.info('server_drain_progress', { remaining });
+      }
+
+      await sleep(ServerManager.DRAIN_TICK_MS);
+    }
+
+    if (this.drain !== null) {
+      const drain = this.drain;
+      this.drain = null;
+      await this.completeDrain(drain);
+    }
+  }
+
+  private hasDrained(): boolean {
+    return (
+      this.connectionManager.clients().length === 0 ||
+      Date.now() >= this.shutdownTime!.getTime()
+    );
+  }
+
+  /**
+   * Finishes the drain by force-closing any remaining clients and invoking the
+   * drain completion callback so the process can tear down and exit.
+   */
+  private async completeDrain(drain: DrainState): Promise<void> {
+    const { onComplete } = drain;
+
+    const forceClosed = this.connectionManager.clients().length;
+    if (forceClosed > 0) {
+      await this.connectionManager.closeAllClients();
+    }
+
+    logger.info('server_drain_complete', { forceClosed });
+
+    this.updateStatus(ServerStatus.OFFLINE);
+    onComplete();
   }
 
   private updateStatus(newStatus: ServerStatus): void {
@@ -268,6 +435,10 @@ export default class ServerManager {
         serverStatus.setStatus(
           ServerMessage.ServerStatus.Status.SHUTDOWN_IMMINENT,
         );
+        break;
+      case ServerStatus.DRAINING:
+        serverStatus.setStatus(ServerMessage.ServerStatus.Status.DRAINING);
+        serverStatus.setShutdownTime(Timestamp.fromDate(this.shutdownTime!));
         break;
     }
 
