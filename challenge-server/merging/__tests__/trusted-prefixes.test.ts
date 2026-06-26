@@ -18,6 +18,7 @@ type ClientSpec = {
   spectator?: boolean;
   presentUntil?: number;
   firstIssueTick?: number;
+  firstCorrectionTick?: number;
 };
 
 function buildClients(specs: ClientSpec[]): Map<number, RegisteredClient> {
@@ -33,11 +34,28 @@ function buildClients(specs: ClientSpec[]): Map<number, RegisteredClient> {
             },
           ]
         : [];
+    const corrections =
+      spec.firstCorrectionTick !== undefined
+        ? [
+            {
+              type: 'osrs_238_nylocas' as const,
+              applied: [
+                {
+                  action: 'drop_death' as const,
+                  tick: spec.firstCorrectionTick,
+                  roomId: 1,
+                  npcId: 1,
+                },
+              ],
+            },
+          ]
+        : [];
     clients.set(spec.id, {
       status: MergeClientStatus.MERGED,
       client: {
         getId: () => spec.id,
         getConsistencyIssues: () => issues,
+        getCorrections: () => corrections,
         isSpectator: () => spec.spectator ?? false,
       } as unknown as ClientEvents,
     });
@@ -179,6 +197,26 @@ describe('computeTrustedPrefixes', () => {
     expect(computeTrustedPrefixes(ctx, inherited(10))).toEqual({
       accurateUntil: 10,
       queryableUntil: 6,
+    });
+  });
+
+  it('tightens only queryableUntil at a corrected tick', () => {
+    const ctx = buildContext([{ id: 1 }, { id: 2, firstCorrectionTick: 6 }]);
+    expect(computeTrustedPrefixes(ctx, inherited(10))).toEqual({
+      accurateUntil: 10,
+      queryableUntil: 6,
+    });
+  });
+
+  it('does not tighten queryableUntil when corrections leave two clean clients', () => {
+    const ctx = buildContext([
+      { id: 1 },
+      { id: 2 },
+      { id: 3, firstCorrectionTick: 6 },
+    ]);
+    expect(computeTrustedPrefixes(ctx, inherited(10))).toEqual({
+      accurateUntil: 10,
+      queryableUntil: 10,
     });
   });
 

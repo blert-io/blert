@@ -23,6 +23,8 @@ export const enum CaptureReason {
   QUALITY_FLAGS = 'quality_flags',
   /** The merged timeline was offset to the end of the stage. */
   TIMELINE_OFFSET = 'timeline_offset',
+  /** A game correction was applied to a client's events. */
+  GAME_CORRECTION = 'game_correction',
   /**
    * The merge failed outright; the captured streams are its reproduction case.
    */
@@ -49,6 +51,7 @@ const CAPTURE_RATES: Record<CaptureReason, number> = {
   [CaptureReason.UNMERGED_CLIENTS]: 0.25,
   [CaptureReason.QUALITY_FLAGS]: 0.25,
   [CaptureReason.TIMELINE_OFFSET]: 0.05,
+  [CaptureReason.GAME_CORRECTION]: 0.1,
   [CaptureReason.MERGE_FAILED]: 1,
   [CaptureReason.BASELINE]: 0.005,
   [CaptureReason.DEVELOPMENT]: 1,
@@ -121,6 +124,9 @@ export function captureReasons(result: MergeResultMetadata): CaptureReason[] {
           break;
         case ClientAnomaly.EVENTS_BEYOND_RECORDED_TICKS:
           reasons.add(CaptureReason.EVENTS_BEYOND_RECORDED_TICKS);
+          break;
+        case ClientAnomaly.GAME_CORRECTION_APPLIED:
+          reasons.add(CaptureReason.GAME_CORRECTION);
           break;
         // Consistency issues are almost exclusively client lag, and missing
         // stage metadata is routine disconnect noise; neither warrants a

@@ -99,6 +99,7 @@ describe('captureReasons', () => {
       ClientAnomaly.EVENTS_BEYOND_RECORDED_TICKS,
       CaptureReason.EVENTS_BEYOND_RECORDED_TICKS,
     ],
+    [ClientAnomaly.GAME_CORRECTION_APPLIED, CaptureReason.GAME_CORRECTION],
   ])('maps a %s anomaly to %s', (anomaly, reason) => {
     const result = makeResult({
       clients: [makeClient({ anomalies: [anomaly] })],

@@ -3,7 +3,11 @@ import { Event } from '@blert/common/generated/event_pb';
 
 import { AlignmentEntry, AlignmentRange, AlignmentResult } from './alignment';
 import { ReferenceSelection } from './classification';
-import { ClientMetadata, StageData } from './client-events';
+import {
+  ClientGameCorrection,
+  ClientMetadata,
+  StageData,
+} from './client-events';
 import { StepConfidence } from './confidence';
 import { MergeClientStatus } from './context';
 import { EventType } from './event';
@@ -80,6 +84,7 @@ export type InputClientInfo = {
   reportedAccurate: boolean;
   ticks: TickSummary[];
   stageData: StageData;
+  corrections: ClientGameCorrection[];
 };
 
 export type ClassificationInfo = {
@@ -360,6 +365,7 @@ export class MergeTracer {
     reportedAccurate: boolean,
     ticks: TickStateArray,
     stageData: StageData,
+    corrections: ClientGameCorrection[],
   ): void {
     this.inputClients.push({
       clientId,
@@ -370,6 +376,7 @@ export class MergeTracer {
       reportedAccurate,
       ticks: serializeTicks(ticks),
       stageData,
+      corrections,
     });
   }
 
