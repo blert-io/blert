@@ -121,13 +121,17 @@ describe('NylocasDerivedEvents', () => {
   it('emits stalls every 4 ticks after the natural stall, until next wave', () => {
     // Wave 1's natural stall is 4. Wave 2 spawns at tick 14, before what
     // would be the 4th stall.
-    const ticks = buildTimeline(
-      [
-        { tick: 0, events: [createNyloWaveSpawnEvent(0, 1)] },
-        { tick: 14, events: [createNyloWaveSpawnEvent(14, 2)] },
-      ],
-      20,
-    );
+    const timeline: { tick: number; events: ProtoEvent[] }[] = [];
+    for (let t = 0; t <= 18; t++) {
+      const events: ProtoEvent[] = [nyloUpdate(t, 1)];
+      if (t === 0) {
+        events.unshift(createNyloWaveSpawnEvent(0, 1, { roomCap: 1 }));
+      } else if (t === 14) {
+        events.unshift(createNyloWaveSpawnEvent(14, 2, { roomCap: 1 }));
+      }
+      timeline.push({ tick: t, events });
+    }
+    const ticks = buildTimeline(timeline, 20);
 
     new NylocasDerivedEvents(ChallengeMode.TOB_REGULAR).derive(ticks);
 
@@ -283,10 +287,9 @@ describe('NylocasDerivedEvents', () => {
         {
           tick: 0,
           events: [
-            createNyloWaveSpawnEvent(0, 1, { roomCap: 12 }),
+            createNyloWaveSpawnEvent(0, 1, { roomCap: 2 }),
             nyloUpdate(0, 1),
             nyloUpdate(0, 2),
-            nyloUpdate(0, 3),
           ],
         },
         {
@@ -306,7 +309,7 @@ describe('NylocasDerivedEvents', () => {
     const wave = stalls[0].getNyloWave()!;
     expect(wave.getWave()).toBe(1);
     expect(wave.getNylosAlive()).toBe(2);
-    expect(wave.getRoomCap()).toBe(12);
+    expect(wave.getRoomCap()).toBe(2);
   });
 
   it('populates coords on boss_spawn events', () => {
@@ -328,29 +331,42 @@ describe('NylocasDerivedEvents', () => {
     expect(bossEvents[0].getYCoord()).toBe(4248);
   });
 
-  it('synthesizes a tick state when a stall lands on a null tick', () => {
+  it('does not emit a stall on a null tick', () => {
     const ticks: TickStateArray = [
       createTickState(0, [], [createNyloWaveSpawnEvent(0, 1)]),
       null,
       null,
       null,
-      null, // tick 4: stall would fire here, but the tick is null
+      null, // would-be stall tick
       null,
       null,
       null,
     ];
 
     new NylocasDerivedEvents(ChallengeMode.TOB_REGULAR).derive(ticks);
+    expect(ticks[4]).toBeNull();
+  });
 
-    expect(ticks[4]).not.toBeNull();
+  it('does not emit a stall while below room capacity', () => {
+    const ticks = buildTimeline(
+      [
+        {
+          tick: 0,
+          events: [
+            createNyloWaveSpawnEvent(0, 1, { roomCap: 3 }),
+            nyloUpdate(0, 1),
+          ],
+        },
+        { tick: 4, events: [nyloUpdate(4, 1)] }, // one nylo alive, cap 3
+      ],
+      6,
+    );
+
+    new NylocasDerivedEvents(ChallengeMode.TOB_REGULAR).derive(ticks);
+
     expect(
-      ticks[4]!.getEventsByType(ProtoEvent.Type.TOB_NYLO_WAVE_STALL),
-    ).toHaveLength(1);
-    expect(
-      ticks[4]!
-        .getEventsByType(ProtoEvent.Type.TOB_NYLO_WAVE_STALL)[0]
-        .getTick(),
-    ).toBe(4);
+      tickEventsByTick(ticks, ProtoEvent.Type.TOB_NYLO_WAVE_STALL),
+    ).toEqual([]);
   });
 });
 

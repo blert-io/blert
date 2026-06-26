@@ -105,12 +105,13 @@ export class NylocasDerivedEvents extends DerivedEventGenerator {
         }
       } else if (t === nextStallTick) {
         nextStallTick += NYLO_WAVE_CYCLE;
-        let target = tick;
+        const target = tick;
         if (target === null) {
-          target = new TickState(t, [], new Map(), new Map(), new Map());
-          ticks[t] = target;
+          continue;
         }
-        this.emit(target, this.stallEvent(target, wave, roomCap));
+        if (countNylosAlive(target) >= roomCap) {
+          this.emit(target, this.stallEvent(target, wave, roomCap));
+        }
       }
     }
   }
