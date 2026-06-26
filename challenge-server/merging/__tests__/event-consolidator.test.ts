@@ -426,10 +426,10 @@ describe('EventConsolidator', () => {
       expect(result.qualityFlags).toHaveLength(0);
     });
 
-    it('treats deaths outside the temporal window as distinct', () => {
+    it('consolidates same-player deaths across any gap in permadeath challenges', () => {
       const base = buildTimeline(
         BASE_CLIENT_ID,
-        20,
+        25,
         'player1',
         DataSource.SECONDARY,
         {
@@ -438,11 +438,11 @@ describe('EventConsolidator', () => {
       );
       const target = buildTimeline(
         TARGET_CLIENT_ID,
-        20,
+        25,
         'player1',
         DataSource.PRIMARY,
         {
-          15: [createPlayerDeathEvent({ tick: 15, name: 'player1' })],
+          20: [createPlayerDeathEvent({ tick: 20, name: 'player1' })],
         },
       );
 
@@ -453,19 +453,101 @@ describe('EventConsolidator', () => {
       );
       const result = consolidator.consolidate();
 
-      // PLAYER_DEATH has a window of 8; gap of 13 puts the two deaths well
-      // outside it, so both are kept as distinct events.
+      // Earliest observation wins: one death at tick 2, none at 20.
       const deathAt2 = result.ticks[2]
         ?.getEvents()
         .filter((e) => e.getType() === ProtoEvent.Type.PLAYER_DEATH);
       expect(deathAt2).toHaveLength(1);
 
-      const deathAt15 = result.ticks[15]
+      const deathAt20 = result.ticks[20]
         ?.getEvents()
         .filter((e) => e.getType() === ProtoEvent.Type.PLAYER_DEATH);
-      expect(deathAt15).toHaveLength(1);
+      expect(deathAt20).toHaveLength(0);
 
+      expect(result.counters.streamEventPairs).toBe(1);
+      // Gap of 18 is below the threshold.
       expect(result.qualityFlags).toHaveLength(0);
+    });
+
+    it('flags an unusually large permadeath death gap', () => {
+      const base = buildTimeline(
+        BASE_CLIENT_ID,
+        30,
+        'player1',
+        DataSource.SECONDARY,
+        {
+          2: [createPlayerDeathEvent({ tick: 2, name: 'player1' })],
+        },
+      );
+      const target = buildTimeline(
+        TARGET_CLIENT_ID,
+        30,
+        'player1',
+        DataSource.PRIMARY,
+        {
+          25: [createPlayerDeathEvent({ tick: 25, name: 'player1' })],
+        },
+      );
+
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length),
+      );
+      const result = consolidator.consolidate();
+
+      const deathAt2 = result.ticks[2]
+        ?.getEvents()
+        .filter((e) => e.getType() === ProtoEvent.Type.PLAYER_DEATH);
+      expect(deathAt2).toHaveLength(1);
+
+      expect(result.qualityFlags).toEqual([
+        {
+          kind: 'LARGE_TEMPORAL_GAP',
+          eventType: ProtoEvent.Type.PLAYER_DEATH,
+          tickGap: 23,
+          baseTick: 2,
+          targetTick: 25,
+        },
+      ]);
+    });
+
+    it("keeps a player's distinct re-deaths separate in respawn challenges", () => {
+      const base = buildTimeline(
+        BASE_CLIENT_ID,
+        25,
+        'player1',
+        DataSource.SECONDARY,
+        {
+          2: [createPlayerDeathEvent({ tick: 2, name: 'player1' })],
+        },
+      );
+      const target = buildTimeline(
+        TARGET_CLIENT_ID,
+        25,
+        'player1',
+        DataSource.PRIMARY,
+        {
+          22: [createPlayerDeathEvent({ tick: 22, name: 'player1' })],
+        },
+      );
+
+      const consolidator = new EventConsolidator(
+        base,
+        target,
+        testCtx(base.length, target.length, undefined, Stage.COX_OLM),
+      );
+      const result = consolidator.consolidate();
+
+      const deathAt2 = result.ticks[2]
+        ?.getEvents()
+        .filter((e) => e.getType() === ProtoEvent.Type.PLAYER_DEATH);
+      expect(deathAt2).toHaveLength(1);
+
+      const deathAt22 = result.ticks[22]
+        ?.getEvents()
+        .filter((e) => e.getType() === ProtoEvent.Type.PLAYER_DEATH);
+      expect(deathAt22).toHaveLength(1);
     });
 
     it('deduplicates NPC deaths by room ID', () => {
@@ -691,7 +773,7 @@ describe('EventConsolidator', () => {
         'player1',
         DataSource.SECONDARY,
         {
-          1: [createPlayerDeathEvent({ tick: 1, name: 'player1' })],
+          1: [createNpcDeathEvent({ tick: 1, roomId: 1, npcId: 100 })],
         },
       );
       const target = buildTimeline(
@@ -700,7 +782,7 @@ describe('EventConsolidator', () => {
         'player1',
         DataSource.PRIMARY,
         {
-          7: [createPlayerDeathEvent({ tick: 7, name: 'player1' })],
+          7: [createNpcDeathEvent({ tick: 7, roomId: 1, npcId: 100 })],
         },
       );
 
@@ -717,7 +799,7 @@ describe('EventConsolidator', () => {
       expect(gapFlags).toHaveLength(1);
       expect(gapFlags[0]).toMatchObject({
         kind: 'LARGE_TEMPORAL_GAP',
-        eventType: ProtoEvent.Type.PLAYER_DEATH,
+        eventType: ProtoEvent.Type.NPC_DEATH,
         tickGap: 6,
         baseTick: 1,
         targetTick: 7,
@@ -731,7 +813,7 @@ describe('EventConsolidator', () => {
         'player1',
         DataSource.SECONDARY,
         {
-          3: [createPlayerDeathEvent({ tick: 3, name: 'player1' })],
+          3: [createNpcDeathEvent({ tick: 3, roomId: 1, npcId: 100 })],
         },
       );
       const target = buildTimeline(
@@ -740,7 +822,7 @@ describe('EventConsolidator', () => {
         'player1',
         DataSource.PRIMARY,
         {
-          4: [createPlayerDeathEvent({ tick: 4, name: 'player1' })],
+          4: [createNpcDeathEvent({ tick: 4, roomId: 1, npcId: 100 })],
         },
       );
 

@@ -143,6 +143,7 @@ export {
   SessionStatus,
   Skill,
   SkillLevel,
+  stageHasRespawns,
   StageStatus,
   stageName,
   stagesForChallenge,

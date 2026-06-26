@@ -5,7 +5,7 @@ import { MergeContext } from './context';
 import {
   EventType,
   isStreamEventType,
-  STREAM_EVENT_CONFIGS,
+  DEFAULT_STREAM_EVENT_CONFIGS,
   StreamEventType,
 } from './event';
 import { TickStateArray } from './tick-state';
@@ -319,7 +319,7 @@ export class MergeConsistencyChecker {
         if (!isStreamEventType(type) || excluded.has(type)) {
           continue;
         }
-        const config = STREAM_EVENT_CONFIGS[type];
+        const config = DEFAULT_STREAM_EVENT_CONFIGS[type];
         if (config.temporalWindow !== null) {
           continue;
         }
