@@ -19,7 +19,13 @@ import {
 
 import { ClientEvents, ClientAnomaly } from '../client-events';
 import { ChallengeInfo } from '../context';
-import { createEvent, createPlayerUpdateEvent } from './fixtures';
+import {
+  createEvent,
+  createNpcDeathEvent,
+  createNpcSpawnEvent,
+  createNpcUpdateEvent,
+  createPlayerUpdateEvent,
+} from './fixtures';
 
 type ProtoEventType = ProtoEvent.TypeMap[keyof ProtoEvent.TypeMap];
 type ProtoStage = StageMap[keyof StageMap];
@@ -391,6 +397,174 @@ describe('ClientEvents', () => {
       });
       // The snapshot rebuilds from empty, dropping the tick 0 weapon.
       expect(tick1State?.equipment[EquipmentSlot.WEAPON]).toBeNull();
+    });
+  });
+
+  describe('OSRS 238 Nylocas correction', () => {
+    const NYLO_ROOM = 100;
+
+    function nyloStage(stage = Stage.TOB_NYLOCAS) {
+      return {
+        stage,
+        status: StageStatus.STARTED,
+        accurate: true,
+        recordedTicks: 0,
+        serverTicks: null,
+      };
+    }
+
+    function nyloSpawn(
+      tick: number,
+      x: number,
+      y: number,
+      stage = Stage.TOB_NYLOCAS,
+    ) {
+      return createNpcSpawnEvent({
+        tick,
+        roomId: NYLO_ROOM,
+        npcId: 8342,
+        x,
+        y,
+        hitpointsCurrent: 8,
+        nylo: { wave: 1, parentRoomId: 0, big: false, style: 0, spawnType: 3 },
+        stage,
+      });
+    }
+
+    function nyloUpdate(tick: number, x: number, y: number) {
+      return createNpcUpdateEvent({
+        tick,
+        roomId: NYLO_ROOM,
+        npcId: 8342,
+        x,
+        y,
+        hitpointsCurrent: 8,
+        stage: Stage.TOB_NYLOCAS,
+      });
+    }
+
+    function nyloDeath(
+      tick: number,
+      x: number,
+      y: number,
+      stage = Stage.TOB_NYLOCAS,
+    ) {
+      return createNpcDeathEvent({
+        tick,
+        roomId: NYLO_ROOM,
+        npcId: 8342,
+        x,
+        y,
+        stage,
+      });
+    }
+
+    function deathCount(client: ClientEvents): number {
+      let count = 0;
+      for (const tickState of client.getTickStates()) {
+        count +=
+          tickState?.getEventsByType(ProtoEvent.Type.NPC_DEATH).length ?? 0;
+      }
+      return count;
+    }
+
+    it('interpolates a spurious death across an unambiguous straight-line move', () => {
+      const client = ClientEvents.fromRawEvents(1, challengeInfo, nyloStage(), [
+        nyloSpawn(1, 10, 10),
+        nyloUpdate(2, 11, 10),
+        nyloDeath(3, 11, 10), // frozen at the tick 2 tile
+        nyloSpawn(4, 13, 10), // respawn one tick later, two tiles east
+        nyloUpdate(5, 14, 10),
+        nyloDeath(6, 15, 10), // real death
+      ]);
+
+      // Only the terminal death survives; the spurious one becomes an update.
+      expect(deathCount(client)).toBe(1);
+      const corrected = client.getTickState(3)?.getNpcState(NYLO_ROOM);
+      expect(corrected).not.toBeNull();
+      expect(corrected!.x).toBe(12);
+      expect(corrected!.y).toBe(10);
+      const spawn = client.getTickState(4)?.getNpcState(NYLO_ROOM);
+      expect(spawn).not.toBeNull();
+      expect(spawn!.x).toBe(13);
+      expect(spawn!.y).toBe(10);
+    });
+
+    it('drops a spurious death when the implied move is ambiguous', () => {
+      const client = ClientEvents.fromRawEvents(1, challengeInfo, nyloStage(), [
+        nyloSpawn(1, 10, 10),
+        nyloUpdate(2, 11, 10),
+        nyloDeath(3, 11, 10),
+        nyloSpawn(4, 13, 11), // L-shaped move with no unique midpoint
+        nyloUpdate(5, 14, 11),
+        nyloDeath(6, 15, 11),
+      ]);
+
+      expect(deathCount(client)).toBe(1);
+      expect(client.getTickState(3)?.getNpcState(NYLO_ROOM)).toBeNull();
+    });
+
+    it('drops rather than interpolates when the boundary shows lag', () => {
+      const client = ClientEvents.fromRawEvents(1, challengeInfo, nyloStage(), [
+        nyloSpawn(1, 10, 10),
+        nyloUpdate(2, 11, 10),
+        nyloDeath(3, 11, 10),
+        nyloSpawn(4, 13, 10),
+        nyloUpdate(5, 14, 10),
+        nyloDeath(6, 15, 10),
+        createPlayerUpdateEvent({ tick: 3, name: 'player1', x: 0, y: 0 }),
+        createPlayerUpdateEvent({ tick: 4, name: 'player1', x: 4, y: 0 }),
+      ]);
+
+      expect(deathCount(client)).toBe(1);
+      expect(client.getTickState(3)?.getNpcState(NYLO_ROOM)).toBeNull();
+    });
+
+    it('collapses multiple spurious lifecycle events', () => {
+      const client = ClientEvents.fromRawEvents(1, challengeInfo, nyloStage(), [
+        nyloSpawn(1, 10, 10),
+        nyloDeath(2, 10, 10),
+        nyloSpawn(3, 10, 10),
+        nyloDeath(4, 10, 10),
+        nyloSpawn(5, 10, 10),
+        nyloDeath(6, 10, 10),
+      ]);
+
+      expect(deathCount(client)).toBe(1);
+      expect(
+        client.getTickState(6)?.getEventsByType(ProtoEvent.Type.NPC_DEATH)
+          .length,
+      ).toBe(1);
+    });
+
+    it('leaves a normal spawn/death lifecycle untouched', () => {
+      const client = ClientEvents.fromRawEvents(1, challengeInfo, nyloStage(), [
+        nyloSpawn(1, 10, 10),
+        nyloUpdate(2, 11, 10),
+        nyloDeath(3, 12, 10),
+      ]);
+
+      expect(deathCount(client)).toBe(1);
+      expect(
+        client.getTickState(3)?.getEventsByType(ProtoEvent.Type.NPC_DEATH)
+          .length,
+      ).toBe(1);
+    });
+
+    it('does not correct stages other than Nylocas', () => {
+      const client = ClientEvents.fromRawEvents(
+        1,
+        challengeInfo,
+        nyloStage(Stage.TOB_MAIDEN),
+        [
+          nyloSpawn(1, 10, 10, Stage.TOB_MAIDEN),
+          nyloDeath(2, 10, 10, Stage.TOB_MAIDEN),
+          nyloSpawn(3, 10, 10, Stage.TOB_MAIDEN),
+          nyloDeath(4, 10, 10, Stage.TOB_MAIDEN),
+        ],
+      );
+
+      expect(deathCount(client)).toBe(2);
     });
   });
 });

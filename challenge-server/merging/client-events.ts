@@ -24,6 +24,7 @@ import { ChallengeInfo } from './context';
 import logger from '../log';
 import { DERIVED_EVENT_TYPES } from './event';
 import { buildGraphicsStates } from './graphics';
+import { recordGameCorrection } from '../metrics';
 import {
   buildNpcStates,
   PlayerState,
@@ -32,6 +33,7 @@ import {
   TickStateArray,
   WithProvenance,
 } from './tick-state';
+import { chebyshev } from './world';
 
 const EMPTY_EQUIPMENT: PlayerState['equipment'] = {
   [EquipmentSlot.HEAD]: null,
@@ -91,6 +93,152 @@ type StageInfo = {
   recordedTicks: number;
   serverTicks: ServerTicks | null;
 };
+
+/**
+ * OSRS cache version 238 (2026-05-06) introduced some regressions into
+ * RuneLite's NPC tracking, where RuneLite's NPC map sometimes drops an NPC
+ * from its local world state. Since RuneLite emits spawn and respawn events
+ * based on deltas in its local state, this results in spurious events being
+ * fired, which the plugin then picks up.
+ *
+ * A plugin-side mitigation for this is not viable as it would require holding
+ * and delaying events. Instead, we correct the events on ingestion here. This
+ * is deliberately scoped to only Nylocas, as that is so far the only stage
+ * where issues have been observed.
+ *
+ * Specifically, this looks for intermediate death/spawn pairs for a specific
+ * room ID within its full lifecycle, and applies the following corrections:
+ *
+ * - Rewrites the spurious spawn event as an `NPC_UPDATE` as the two events
+ *   carry the same information, differing only by whether it was the first
+ *   time the NPC was seen.
+ *
+ * - Deletes the spurious death event, leaving a gap in the NPC's timeline, or:
+ *
+ * - If possible, rewrites the death event as an `NPC_UPDATE` at an interpolated
+ *   midpoint tile. This requires three conditions:
+ *
+ *   1. The death and respawn must occur on consecutive ticks.
+ *   2. The implied movement between the death and respawn must be unambiguous.
+ *      Nylos move 1 tile per tick, so this requires a straight line two tile
+ *      move in any direction.
+ *   3. No lag (impossible player movement) is detected at the boundary, since a
+ *      stall can leave the recorded tick numbers consecutive while losing real
+ *      ticks, which would invalidate the midpoint.
+ *
+ * @param events Client events for a Nylocas stage, sorted by tick.
+ * @param context Identifying information for logging.
+ * @returns The corrected event list.
+ */
+function tryApplyOsrs238NylocasCorrection(
+  events: Event[],
+  context: { challengeUuid: string; clientId: number },
+): Event[] {
+  const lifecycleById = new Map<number, Event[]>();
+  // Ticks where a player moved more than 2 tiles, signalling lost ticks.
+  const laggedTicks = new Set<number>();
+  const lastPlayer = new Map<string, { tick: number; x: number; y: number }>();
+
+  for (const event of events) {
+    const type = event.getType();
+    if (type === Event.Type.NPC_SPAWN || type === Event.Type.NPC_DEATH) {
+      const roomId = event.getNpc()!.getRoomId();
+      const list = lifecycleById.get(roomId);
+      if (list === undefined) {
+        lifecycleById.set(roomId, [event]);
+      } else {
+        list.push(event);
+      }
+    } else if (type === Event.Type.PLAYER_UPDATE) {
+      const name = event.getPlayer()!.getName();
+      const tick = event.getTick();
+      const position = { x: event.getXCoord(), y: event.getYCoord() };
+      const last = lastPlayer.get(name);
+      if (
+        last !== undefined &&
+        chebyshev(position, last) > 2 * (tick - last.tick)
+      ) {
+        laggedTicks.add(tick);
+      }
+      lastPlayer.set(name, { tick, ...position });
+    }
+  }
+
+  // Identify corrections without mutating, so the spawn/death scan below sees
+  // original event types.
+  const respawns = new Set<Event>();
+  const interpolatedDeaths: { event: Event; x: number; y: number }[] = [];
+  const droppedDeaths = new Set<Event>();
+
+  for (const lifecycle of lifecycleById.values()) {
+    for (let i = 0; i < lifecycle.length; i++) {
+      const death = lifecycle[i];
+      if (death.getType() !== Event.Type.NPC_DEATH) {
+        continue;
+      }
+      const respawn = lifecycle
+        .slice(i + 1)
+        .find((e) => e.getType() === Event.Type.NPC_SPAWN);
+      if (respawn === undefined) {
+        // Terminal death.
+        continue;
+      }
+      respawns.add(respawn);
+
+      // A stalled death on tick t freezes at the t-1 tile, and the spurious
+      // respawn carries the real t+1 tile. The intermediate (t) tile is only
+      // unique when the two-tick move is a straight line of length 2.
+      const dx = respawn.getXCoord() - death.getXCoord();
+      const dy = respawn.getYCoord() - death.getYCoord();
+      const consecutive = respawn.getTick() === death.getTick() + 1;
+      const unambiguous =
+        dx % 2 === 0 &&
+        dy % 2 === 0 &&
+        Math.abs(dx) <= 2 &&
+        Math.abs(dy) <= 2 &&
+        (dx !== 0 || dy !== 0);
+
+      const lagFree =
+        !laggedTicks.has(death.getTick()) &&
+        !laggedTicks.has(respawn.getTick());
+      if (consecutive && unambiguous && lagFree) {
+        interpolatedDeaths.push({
+          event: death,
+          x: death.getXCoord() + dx / 2,
+          y: death.getYCoord() + dy / 2,
+        });
+      } else {
+        droppedDeaths.add(death);
+      }
+    }
+  }
+
+  if (respawns.size === 0) {
+    return events;
+  }
+
+  for (const respawn of respawns) {
+    respawn.setType(Event.Type.NPC_UPDATE);
+  }
+  for (const { event, x, y } of interpolatedDeaths) {
+    event.setType(Event.Type.NPC_UPDATE);
+    event.setXCoord(x);
+    event.setYCoord(y);
+  }
+
+  logger.warn('osrs_238_nylocas_correction', {
+    challengeUuid: context.challengeUuid,
+    clientId: context.clientId,
+    respawnsRewritten: respawns.size,
+    deathsInterpolated: interpolatedDeaths.length,
+    deathsDropped: droppedDeaths.size,
+  });
+  recordGameCorrection('osrs238_nylocas');
+
+  return droppedDeaths.size === 0
+    ? events
+    : events.filter((e) => !droppedDeaths.has(e));
+}
 
 export class ClientEvents {
   private readonly clientId: number;
@@ -203,7 +351,16 @@ export class ClientEvents {
   ): ClientEvents {
     const anomalies = anomaliesParam ?? new Set<ClientAnomaly>();
 
-    const events = [...rawEvents].sort((a, b) => a.getTick() - b.getTick());
+    const sortedEvents = rawEvents.toSorted(
+      (a, b) => a.getTick() - b.getTick(),
+    );
+    const events =
+      stageInfo.stage === Stage.TOB_NYLOCAS
+        ? tryApplyOsrs238NylocasCorrection(sortedEvents, {
+            challengeUuid: challenge.uuid,
+            clientId,
+          })
+        : sortedEvents;
     if (stageInfo.recordedTicks === 0 && events.length > 0) {
       stageInfo.recordedTicks = events[events.length - 1].getTick();
     }

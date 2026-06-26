@@ -199,6 +199,20 @@ export const recordClientReconnect = (
   });
 };
 
+/** A class of game data correction applied to a client's events on ingestion. */
+export type GameCorrectionType = 'osrs238_nylocas';
+
+const gameCorrections = new Counter({
+  name: 'challenge_server_game_corrections_total',
+  help: 'Game data corrections applied to client events during ingestion',
+  labelNames: ['type'] as const,
+  registers: [register],
+});
+
+export const recordGameCorrection = (type: GameCorrectionType): void => {
+  gameCorrections.inc({ type });
+};
+
 type ChallengeLifecycleState = 'active' | 'cleanup';
 
 const activeChallenges = new Gauge({
