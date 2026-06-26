@@ -58,12 +58,15 @@ type Contributor = {
    * or `Infinity` if none.
    */
   firstIssueTick: number;
+  firstCorrectionTick: number;
   isParticipant: boolean;
 };
 
 type TickSupport = {
   /** Number of internally contiguous clients contributing to this tick. */
   contiguousCount: number;
+  /** Subset of internally contiguous clients without game corrections. */
+  cleanCount: number;
   /** Whether any contiguous contributor is a participant. */
   hasParticipant: boolean;
   /** Whether any contributor's data was contested by other clients. */
@@ -72,9 +75,20 @@ type TickSupport = {
 
 const NO_SUPPORT: TickSupport = {
   contiguousCount: 0,
+  cleanCount: 0,
   hasParticipant: false,
   contested: false,
 };
+
+function minTick<T extends { tick: number }>(items: T[]): number {
+  let min = Infinity;
+  for (const item of items) {
+    if (item.tick < min) {
+      min = item.tick;
+    }
+  }
+  return min;
+}
 
 function collectContributors(ctx: MergeContext): Contributor[] {
   const contributors: Contributor[] = [];
@@ -82,11 +96,12 @@ function collectContributors(ctx: MergeContext): Contributor[] {
     if (status !== MergeClientStatus.MERGED) {
       continue;
     }
-    const issues = client.getConsistencyIssues();
     contributors.push({
       id: client.getId(),
-      firstIssueTick:
-        issues.length > 0 ? Math.min(...issues.map((i) => i.tick)) : Infinity,
+      firstIssueTick: minTick(client.getConsistencyIssues()),
+      firstCorrectionTick: minTick(
+        client.getCorrections().flatMap((c) => c.applied),
+      ),
       isParticipant: !client.isSpectator(),
     });
   }
@@ -103,6 +118,7 @@ function supportAtTick(
   contested: ReadonlyMap<number, ReadonlySet<number>>,
 ): TickSupport {
   let contiguousCount = 0;
+  let cleanCount = 0;
   let hasParticipant = false;
   let isContested = false;
 
@@ -111,18 +127,28 @@ function supportAtTick(
     if (localTick === undefined) {
       continue;
     }
+
     if (contested.get(c.id)?.has(localTick)) {
       isContested = true;
     }
+
     if (c.firstIssueTick > localTick) {
       contiguousCount++;
       if (c.isParticipant) {
         hasParticipant = true;
       }
+      if (c.firstCorrectionTick > localTick) {
+        cleanCount++;
+      }
     }
   }
 
-  return { contiguousCount, hasParticipant, contested: isContested };
+  return {
+    contiguousCount,
+    cleanCount,
+    hasParticipant,
+    contested: isContested,
+  };
 }
 
 /**
@@ -169,11 +195,15 @@ export function computeTrustedPrefixes(
     if (accurateUntil < 0 && lacksSufficientContributors) {
       accurateUntil = m;
     }
-    if (
-      queryableUntil < 0 &&
-      ((!inheritedAccuracy && lacksSufficientContributors) || support.contested)
-    ) {
-      queryableUntil = m;
+
+    if (queryableUntil < 0) {
+      const hasTimingIssues = !inheritedAccuracy && lacksSufficientContributors;
+      const lacksUncorrectedClients =
+        support.cleanCount < Math.min(2, support.contiguousCount);
+      const hasDataIssues = support.contested || lacksUncorrectedClients;
+      if (hasTimingIssues || hasDataIssues) {
+        queryableUntil = m;
+      }
     }
 
     if (accurateUntil >= 0 && queryableUntil >= 0) {

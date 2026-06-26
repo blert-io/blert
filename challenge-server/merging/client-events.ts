@@ -55,8 +55,18 @@ export const enum ClientAnomaly {
   MISSING_STAGE_METADATA = 'MISSING_STAGE_METADATA',
   CONSISTENCY_ISSUES = 'CONSISTENCY_ISSUES',
   EVENTS_BEYOND_RECORDED_TICKS = 'EVENTS_BEYOND_RECORDED_TICKS',
+  GAME_CORRECTION_APPLIED = 'GAME_CORRECTION_APPLIED',
   BAD_DATA = 'BAD_DATA',
 }
+
+export type ClientGameCorrection = {
+  type: 'osrs_238_nylocas';
+  applied: {
+    action: 'rewrite_spawn' | 'rewrite_death' | 'drop_death';
+    tick: number;
+    roomId: number;
+  }[];
+};
 
 export type ServerTicks = {
   count: number;
@@ -133,7 +143,7 @@ type StageInfo = {
 function tryApplyOsrs238NylocasCorrection(
   events: Event[],
   context: { challengeUuid: string; clientId: number },
-): Event[] {
+): { events: Event[]; correction: ClientGameCorrection | null } {
   const lifecycleById = new Map<number, Event[]>();
   // Ticks where a player moved more than 2 tiles, signalling lost ticks.
   const laggedTicks = new Set<number>();
@@ -214,16 +224,40 @@ function tryApplyOsrs238NylocasCorrection(
   }
 
   if (respawns.size === 0) {
-    return events;
+    return { events, correction: null };
   }
+
+  const correction: ClientGameCorrection = {
+    type: 'osrs_238_nylocas',
+    applied: [],
+  };
 
   for (const respawn of respawns) {
     respawn.setType(Event.Type.NPC_UPDATE);
+    correction.applied.push({
+      action: 'rewrite_spawn',
+      tick: respawn.getTick(),
+      roomId: respawn.getNpc()!.getRoomId(),
+    });
   }
+
   for (const { event, x, y } of interpolatedDeaths) {
     event.setType(Event.Type.NPC_UPDATE);
     event.setXCoord(x);
     event.setYCoord(y);
+    correction.applied.push({
+      action: 'rewrite_death',
+      tick: event.getTick(),
+      roomId: event.getNpc()!.getRoomId(),
+    });
+  }
+
+  for (const death of droppedDeaths) {
+    correction.applied.push({
+      action: 'drop_death',
+      tick: death.getTick(),
+      roomId: death.getNpc()!.getRoomId(),
+    });
   }
 
   logger.warn('osrs_238_nylocas_correction', {
@@ -232,12 +266,17 @@ function tryApplyOsrs238NylocasCorrection(
     respawnsRewritten: respawns.size,
     deathsInterpolated: interpolatedDeaths.length,
     deathsDropped: droppedDeaths.size,
+    corrections: correction.applied,
   });
   recordGameCorrection('osrs238_nylocas');
 
-  return droppedDeaths.size === 0
-    ? events
-    : events.filter((e) => !droppedDeaths.has(e));
+  return {
+    events:
+      droppedDeaths.size === 0
+        ? events
+        : events.filter((e) => !droppedDeaths.has(e)),
+    correction,
+  };
 }
 
 export class ClientEvents {
@@ -250,6 +289,7 @@ export class ClientEvents {
   private readonly primaryPlayer: string | null;
   private readonly invalidTickCount: boolean;
   private readonly anomalies: Set<ClientAnomaly>;
+  private readonly corrections: ClientGameCorrection[];
   private accurate: boolean;
   private consistencyIssues: ConsistencyIssue[];
 
@@ -350,17 +390,26 @@ export class ClientEvents {
     anomaliesParam?: Set<ClientAnomaly>,
   ): ClientEvents {
     const anomalies = anomaliesParam ?? new Set<ClientAnomaly>();
+    const corrections: ClientGameCorrection[] = [];
 
     const sortedEvents = rawEvents.toSorted(
       (a, b) => a.getTick() - b.getTick(),
     );
-    const events =
-      stageInfo.stage === Stage.TOB_NYLOCAS
-        ? tryApplyOsrs238NylocasCorrection(sortedEvents, {
-            challengeUuid: challenge.uuid,
-            clientId,
-          })
-        : sortedEvents;
+
+    let events = sortedEvents;
+    if (stageInfo.stage === Stage.TOB_NYLOCAS) {
+      const { events: correctedEvents, correction } =
+        tryApplyOsrs238NylocasCorrection(sortedEvents, {
+          challengeUuid: challenge.uuid,
+          clientId,
+        });
+      events = correctedEvents;
+      if (correction !== null) {
+        corrections.push(correction);
+        anomalies.add(ClientAnomaly.GAME_CORRECTION_APPLIED);
+      }
+    }
+
     if (stageInfo.recordedTicks === 0 && events.length > 0) {
       stageInfo.recordedTicks = events[events.length - 1].getTick();
     }
@@ -515,6 +564,7 @@ export class ClientEvents {
       primaryPlayer ?? null,
       invalidTickCount,
       anomalies,
+      corrections,
     );
   }
 
@@ -650,6 +700,10 @@ export class ClientEvents {
     return this.anomalies.has(anomaly);
   }
 
+  public getCorrections(): ClientGameCorrection[] {
+    return [...this.corrections];
+  }
+
   /**
    * Performs a cursory check for consistency in the client's recorded events,
    * looking for obvious indications of tick loss.
@@ -721,6 +775,7 @@ export class ClientEvents {
     primaryPlayer: string | null,
     invalidTickCount: boolean,
     anomalies: Set<ClientAnomaly>,
+    corrections: ClientGameCorrection[],
   ) {
     this.clientId = clientId;
     this.challenge = challenge;
@@ -731,6 +786,7 @@ export class ClientEvents {
     this.primaryPlayer = primaryPlayer;
     this.invalidTickCount = invalidTickCount;
     this.anomalies = anomalies;
+    this.corrections = corrections;
     this.consistencyIssues = [];
 
     const ok = this.checkForConsistency();

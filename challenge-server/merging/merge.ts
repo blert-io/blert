@@ -268,6 +268,7 @@ export class Merger {
         client.getReportedAccurate(),
         client.getTickStates(),
         client.getStageData(),
+        client.getCorrections(),
       );
     }
 

@@ -488,6 +488,19 @@ describe('ClientEvents', () => {
       expect(spawn).not.toBeNull();
       expect(spawn!.x).toBe(13);
       expect(spawn!.y).toBe(10);
+
+      expect(client.hasAnomaly(ClientAnomaly.GAME_CORRECTION_APPLIED)).toBe(
+        true,
+      );
+      expect(client.getCorrections()).toEqual([
+        {
+          type: 'osrs_238_nylocas',
+          applied: [
+            { action: 'rewrite_spawn', tick: 4, roomId: NYLO_ROOM },
+            { action: 'rewrite_death', tick: 3, roomId: NYLO_ROOM },
+          ],
+        },
+      ]);
     });
 
     it('drops a spurious death when the implied move is ambiguous', () => {
@@ -502,6 +515,15 @@ describe('ClientEvents', () => {
 
       expect(deathCount(client)).toBe(1);
       expect(client.getTickState(3)?.getNpcState(NYLO_ROOM)).toBeNull();
+      expect(client.getCorrections()).toEqual([
+        {
+          type: 'osrs_238_nylocas',
+          applied: [
+            { action: 'rewrite_spawn', tick: 4, roomId: NYLO_ROOM },
+            { action: 'drop_death', tick: 3, roomId: NYLO_ROOM },
+          ],
+        },
+      ]);
     });
 
     it('drops rather than interpolates when the boundary shows lag', () => {
@@ -549,6 +571,10 @@ describe('ClientEvents', () => {
         client.getTickState(3)?.getEventsByType(ProtoEvent.Type.NPC_DEATH)
           .length,
       ).toBe(1);
+      expect(client.getCorrections()).toEqual([]);
+      expect(client.hasAnomaly(ClientAnomaly.GAME_CORRECTION_APPLIED)).toBe(
+        false,
+      );
     });
 
     it('does not correct stages other than Nylocas', () => {
@@ -565,6 +591,10 @@ describe('ClientEvents', () => {
       );
 
       expect(deathCount(client)).toBe(2);
+      expect(client.getCorrections()).toEqual([]);
+      expect(client.hasAnomaly(ClientAnomaly.GAME_CORRECTION_APPLIED)).toBe(
+        false,
+      );
     });
   });
 });
