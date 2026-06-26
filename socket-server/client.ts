@@ -470,6 +470,7 @@ export default class Client {
       validated: this.validated,
       pluginVersion: this.pluginVersions.getVersion(),
       pluginRevision: this.pluginVersions.getRevision(),
+      pluginJarHash: this.pluginVersions.getJarHash(),
       runeLiteVersion: this.pluginVersions.getRuneLiteVersion(),
       challengeUuid: this.activeChallenge?.uuid ?? undefined,
       messageFormat: this.messageFormat,

@@ -45,7 +45,11 @@ export class ConfigManager {
       ) !== null;
     return (
       isVersionValid &&
-      verifyRevision(config.allowedRevisions, pluginVersions.getRevision()) &&
+      verifyRevision(
+        config.allowedRevisions,
+        pluginVersions.getRevision(),
+        pluginVersions.getJarHash(),
+      ) &&
       verifyRuneLiteVersion(
         pluginVersions.getRuneLiteVersion(),
         config.minRuneLiteVersion,

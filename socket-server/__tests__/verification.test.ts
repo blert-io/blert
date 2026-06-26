@@ -1,5 +1,6 @@
 import {
   compareRuneLiteVersions,
+  PluginVersions,
   verifyRuneLiteVersion,
   verifyRevision,
 } from '../verification';
@@ -132,25 +133,67 @@ describe('verifyRuneLiteVersion', () => {
 describe('verifyRevision', () => {
   it('should return true when revisions are empty', () => {
     const revisions = new Set<string>();
-    expect(verifyRevision(revisions, 'xyz789')).toBe(true);
-    expect(verifyRevision(revisions, undefined)).toBe(true);
+    expect(verifyRevision(revisions, 'xyz789', 'hashA')).toBe(true);
+    expect(verifyRevision(revisions, undefined, undefined)).toBe(true);
   });
 
   it('should return false when revision is undefined and revisions are not empty', () => {
-    const revisions = new Set(['abc123', 'def456']);
-    expect(verifyRevision(revisions, undefined)).toBe(false);
+    const revisions = new Set(['abc123:hashA']);
+    expect(verifyRevision(revisions, undefined, 'hashA')).toBe(false);
   });
 
-  it('should return true for valid revisions', () => {
-    const revisions = new Set(['abc123', 'def456', 'ghi789']);
-    expect(verifyRevision(revisions, 'abc123')).toBe(true);
-    expect(verifyRevision(revisions, 'def456')).toBe(true);
-    expect(verifyRevision(revisions, 'ghi789')).toBe(true);
+  it('should match an exact revision and jar hash pair', () => {
+    const revisions = new Set(['abc123:hashA', 'def456:hashB']);
+    expect(verifyRevision(revisions, 'abc123', 'hashA')).toBe(true);
+    expect(verifyRevision(revisions, 'def456', 'hashB')).toBe(true);
   });
 
-  it('should return false for invalid revisions', () => {
-    const revisions = new Set(['abc123', 'def456']);
-    expect(verifyRevision(revisions, 'xyz789')).toBe(false);
-    expect(verifyRevision(revisions, 'invalid')).toBe(false);
+  it('should reject a matching revision with the wrong jar hash', () => {
+    const revisions = new Set(['abc123:hashA']);
+    expect(verifyRevision(revisions, 'abc123', 'hashB')).toBe(false);
+    expect(verifyRevision(revisions, 'abc123', undefined)).toBe(false);
+  });
+
+  it('should reject an unknown revision', () => {
+    const revisions = new Set(['abc123:hashA', 'def456:*']);
+    expect(verifyRevision(revisions, 'xyz789', 'hashA')).toBe(false);
+  });
+
+  it('should allow any jar hash for a wildcard revision', () => {
+    const revisions = new Set(['abc123:*']);
+    expect(verifyRevision(revisions, 'abc123', 'hashA')).toBe(true);
+    expect(verifyRevision(revisions, 'abc123', 'hashZ')).toBe(true);
+    expect(verifyRevision(revisions, 'abc123', undefined)).toBe(true);
+  });
+
+  it('should not treat a literal jar hash as a wildcard match', () => {
+    const revisions = new Set(['abc123:hashA']);
+    expect(verifyRevision(revisions, 'abc123', '*')).toBe(false);
+  });
+});
+
+describe('PluginVersions', () => {
+  const validHeaders = {
+    'blert-version': '0.9.12-RUNELITE',
+    'blert-revision': 'abc12345:0',
+    'blert-jar-hash': '1213141516171819',
+    'blert-runelite-version': '1.11.10.1',
+  };
+
+  it('parses all fields and strips the revision suffix', () => {
+    const versions = PluginVersions.fromHeaders(validHeaders);
+    expect(versions).not.toBeNull();
+    expect(versions!.getVersion()).toBe('0.9.12-RUNELITE');
+    expect(versions!.getRevision()).toBe('abc12345');
+    expect(versions!.getJarHash()).toBe('1213141516171819');
+    expect(versions!.getRuneLiteVersion()).toBe('1.11.10.1');
+  });
+
+  it('should reject when any required header is missing', () => {
+    for (const key of Object.keys(validHeaders)) {
+      const { [key as keyof typeof validHeaders]: _omit, ...headers } =
+        validHeaders;
+      expect(PluginVersions.fromHeaders(headers)).toBeNull();
+    }
   });
 });
