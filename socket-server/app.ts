@@ -407,6 +407,7 @@ async function main(): Promise<void> {
           logger.warn('websocket_auth_plugin_not_allowed', {
             pluginVersion: pluginVersions.getVersion(),
             pluginRevision: pluginVersions.getRevision(),
+            pluginJarHash: pluginVersions.getJarHash(),
             runeLiteVersion: pluginVersions.getRuneLiteVersion(),
           });
           reject('HTTP/1.1 403 Forbidden', 'plugin_not_allowed');
@@ -487,6 +488,7 @@ async function main(): Promise<void> {
       sessionToken: client.getSessionToken(),
       pluginVersion: pluginVersions.getVersion(),
       pluginRevision: pluginVersions.getRevision(),
+      pluginJarHash: pluginVersions.getJarHash(),
       runeLiteVersion: pluginVersions.getRuneLiteVersion(),
       messageFormat: client.getMessageFormat(),
     });

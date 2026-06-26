@@ -6,6 +6,7 @@ import { IncomingHttpHeaders } from 'http';
 export class PluginVersions {
   private static readonly VERSION_HEADER = 'blert-version';
   private static readonly REVISION_HEADER = 'blert-revision';
+  private static readonly JAR_HASH_HEADER = 'blert-jar-hash';
   private static readonly RUNELITE_VERSION_HEADER = 'blert-runelite-version';
 
   public static fromHeaders(
@@ -18,15 +19,18 @@ export class PluginVersions {
       | string
       | undefined;
     revision = revision?.split(':')[0];
+    const jarHash = headers[PluginVersions.JAR_HASH_HEADER] as
+      | string
+      | undefined;
     const runeLiteVersion = headers[PluginVersions.RUNELITE_VERSION_HEADER] as
       | string
       | undefined;
 
-    if (!revision || !version || !runeLiteVersion) {
+    if (!revision || !version || !jarHash || !runeLiteVersion) {
       return null;
     }
 
-    return new PluginVersions(version, revision, runeLiteVersion);
+    return new PluginVersions(version, revision, jarHash, runeLiteVersion);
   }
 
   public getVersion(): string {
@@ -35,6 +39,10 @@ export class PluginVersions {
 
   public getRevision(): string {
     return this.revision;
+  }
+
+  public getJarHash(): string {
+    return this.jarHash;
   }
 
   public getRuneLiteVersion(): string {
@@ -50,6 +58,7 @@ export class PluginVersions {
   private constructor(
     public readonly version: string,
     public readonly revision: string,
+    public readonly jarHash: string,
     public readonly runeLiteVersion: string,
   ) {}
 }
@@ -136,16 +145,18 @@ export function verifyRuneLiteVersion(
 }
 
 /**
- * Verify that a revision is in the set of valid revisions.
+ * Verifies that a plugin revision and jar hash are allowed.
  *
- * @param validRevisions The set of valid revisions.
+ * @param validRevisions The set of allowed revision entries.
  * @param revision The revision to verify.
- * @returns True if the revision is in the set of valid revisions. If the set
- * is empty, the revision is always considered valid.
+ * @param jarHash The jar hash to verify.
+ * @returns True if the revision/jar hash pair is allowed. If the set is empty,
+ * any revision is considered valid.
  */
 export function verifyRevision(
   validRevisions: Set<string>,
   revision: string | undefined,
+  jarHash: string | undefined,
 ): boolean {
   if (validRevisions.size === 0) {
     return true;
@@ -155,5 +166,9 @@ export function verifyRevision(
     return false;
   }
 
-  return validRevisions.has(revision);
+  if (jarHash !== undefined && validRevisions.has(`${revision}:${jarHash}`)) {
+    return true;
+  }
+
+  return validRevisions.has(`${revision}:*`);
 }
