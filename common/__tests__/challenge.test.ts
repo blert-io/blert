@@ -7,6 +7,7 @@ import {
   isToaStage,
   isTobStage,
   Stage,
+  stageHasRespawns,
   stagesForChallenge,
 } from '../challenge';
 
@@ -81,6 +82,25 @@ describe('Stage classification', () => {
         expect(tobStages.has(stage)).toBe(true);
       } else {
         expect(tobStages.has(stage)).toBe(false);
+      }
+    }
+  });
+
+  it('marks only non-permadeath challenge stages as having respawns', () => {
+    for (const stage of stagesForChallenge(ChallengeType.COX)) {
+      expect(stageHasRespawns(stage)).toBe(true);
+    }
+
+    const permadeathChallenges = [
+      ChallengeType.TOB,
+      ChallengeType.TOA,
+      ChallengeType.COLOSSEUM,
+      ChallengeType.INFERNO,
+      ChallengeType.MOKHAIOTL,
+    ];
+    for (const type of permadeathChallenges) {
+      for (const stage of stagesForChallenge(type)) {
+        expect(stageHasRespawns(stage)).toBe(false);
       }
     }
   });

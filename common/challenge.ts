@@ -943,6 +943,13 @@ export function challengeName(type: ChallengeType): string {
   return 'Unknown';
 }
 
+/**
+ * Returns whether a player can respawn and die again within a single stage.
+ */
+export function stageHasRespawns(stage: Stage): boolean {
+  return isCoxStage(stage);
+}
+
 export function stageName(stage: Stage, short: boolean = false): string {
   switch (stage) {
     case Stage.TOB_MAIDEN:

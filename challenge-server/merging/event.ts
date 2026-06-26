@@ -1,4 +1,9 @@
-import { NpcAttack, PlayerAttack } from '@blert/common';
+import {
+  NpcAttack,
+  PlayerAttack,
+  Stage,
+  stageHasRespawns,
+} from '@blert/common';
 import { Event } from '@blert/common/generated/event_pb';
 
 export type EventType = Event.TypeMap[keyof Event.TypeMap];
@@ -252,120 +257,148 @@ function bloatHandsKey(event: Event): string {
 }
 
 /**
- * Record ensuring every stream event type has a dedup config. Adding a new
- * StreamEventType without a config entry here will cause a compile error.
+ * Default deduplication configs for stream events.
+ *
+ * Individual stages can override any of these in `streamEventConfigsForStage`.
  */
-export const STREAM_EVENT_CONFIGS: Record<StreamEventType, StreamEventConfig> =
-  {
-    // Deaths are keyed by actor with a moderate window since clients can see
-    // them several ticks apart depending on how they detect the death.
-    [Event.Type.PLAYER_DEATH]: {
-      identityKey: actorIdKey,
-      temporalWindow: 8,
-      largeGapThreshold: 5,
-    },
-    [Event.Type.NPC_DEATH]: {
-      identityKey: actorIdKey,
-      temporalWindow: 8,
-      largeGapThreshold: 5,
-    },
+export const DEFAULT_STREAM_EVENT_CONFIGS: Record<
+  StreamEventType,
+  StreamEventConfig
+> = {
+  // A player dies at most once per stage in typical challenges, so a death
+  // is identified by actor alone.
+  [Event.Type.PLAYER_DEATH]: {
+    identityKey: actorIdKey,
+    temporalWindow: null,
+    largeGapThreshold: 20,
+  },
+  [Event.Type.NPC_DEATH]: {
+    identityKey: actorIdKey,
+    temporalWindow: 8,
+    largeGapThreshold: 5,
+  },
 
-    [Event.Type.NPC_SPAWN]: {
-      identityKey: actorIdKey,
-      temporalWindow: null,
-      largeGapThreshold: null, // Emitted when NPC first enters render distance.
-    },
+  [Event.Type.NPC_SPAWN]: {
+    identityKey: actorIdKey,
+    temporalWindow: null,
+    largeGapThreshold: null, // Emitted when NPC first enters render distance.
+  },
 
-    [Event.Type.TOB_MAIDEN_CRAB_LEAK]: {
-      identityKey: actorIdKey,
-      temporalWindow: null,
-      largeGapThreshold: 10,
-    },
+  [Event.Type.TOB_MAIDEN_CRAB_LEAK]: {
+    identityKey: actorIdKey,
+    temporalWindow: null,
+    largeGapThreshold: 10,
+  },
 
-    // Bloat downs are distinguished temporally.
-    [Event.Type.TOB_BLOAT_DOWN]: {
-      identityKey: singletonKey,
-      temporalWindow: 32,
-      largeGapThreshold: 16,
-    },
-    [Event.Type.TOB_BLOAT_UP]: {
-      identityKey: singletonKey,
-      temporalWindow: 32,
-      largeGapThreshold: 16,
-    },
+  // Bloat downs are distinguished temporally.
+  [Event.Type.TOB_BLOAT_DOWN]: {
+    identityKey: singletonKey,
+    temporalWindow: 32,
+    largeGapThreshold: 16,
+  },
+  [Event.Type.TOB_BLOAT_UP]: {
+    identityKey: singletonKey,
+    temporalWindow: 32,
+    largeGapThreshold: 16,
+  },
 
-    // Bloat hands drops and splats are distinguished by their coord set.
-    [Event.Type.TOB_BLOAT_HANDS_DROP]: {
-      identityKey: bloatHandsKey,
-      temporalWindow: 5,
-      largeGapThreshold: null,
-    },
-    [Event.Type.TOB_BLOAT_HANDS_SPLAT]: {
-      identityKey: bloatHandsKey,
-      temporalWindow: 5,
-      largeGapThreshold: null,
-    },
+  // Bloat hands drops and splats are distinguished by their coord set.
+  [Event.Type.TOB_BLOAT_HANDS_DROP]: {
+    identityKey: bloatHandsKey,
+    temporalWindow: 5,
+    largeGapThreshold: null,
+  },
+  [Event.Type.TOB_BLOAT_HANDS_SPLAT]: {
+    identityKey: bloatHandsKey,
+    temporalWindow: 5,
+    largeGapThreshold: null,
+  },
 
-    // Nylocas wave spawns keyed by wave number.
-    [Event.Type.TOB_NYLO_WAVE_SPAWN]: {
-      identityKey: (e) => String(e.getNyloWave()!.getWave()),
-      temporalWindow: null,
-      largeGapThreshold: 10,
-    },
+  // Nylocas wave spawns keyed by wave number.
+  [Event.Type.TOB_NYLO_WAVE_SPAWN]: {
+    identityKey: (e) => String(e.getNyloWave()!.getWave()),
+    temporalWindow: null,
+    largeGapThreshold: 10,
+  },
 
-    // Sotetseg maze events keyed by maze number.
-    [Event.Type.TOB_SOTE_MAZE_PROC]: {
-      identityKey: (e) => String(e.getSoteMaze()!.getMaze()),
-      temporalWindow: null,
-      largeGapThreshold: 20,
-    },
-    [Event.Type.TOB_SOTE_MAZE_END]: {
-      identityKey: (e) => String(e.getSoteMaze()!.getMaze()),
-      temporalWindow: null,
-      largeGapThreshold: 10,
-    },
+  // Sotetseg maze events keyed by maze number.
+  [Event.Type.TOB_SOTE_MAZE_PROC]: {
+    identityKey: (e) => String(e.getSoteMaze()!.getMaze()),
+    temporalWindow: null,
+    largeGapThreshold: 20,
+  },
+  [Event.Type.TOB_SOTE_MAZE_END]: {
+    identityKey: (e) => String(e.getSoteMaze()!.getMaze()),
+    temporalWindow: null,
+    largeGapThreshold: 10,
+  },
 
-    [Event.Type.TOB_XARPUS_PHASE]: {
-      identityKey: (e) => String(e.getXarpusPhase()),
-      temporalWindow: null,
-      largeGapThreshold: 10,
-    },
-    [Event.Type.TOB_XARPUS_EXHUMED]: {
-      identityKey: (e) => `${e.getXCoord()},${e.getYCoord()}`,
-      temporalWindow: 16,
-      largeGapThreshold: 10,
-    },
-    // Xarpus splats are permanent; the same coord across the fight always
-    // refers to the same splat regardless of when each client first saw it.
-    [Event.Type.TOB_XARPUS_SPLAT]: {
-      identityKey: (e) => `${e.getXCoord()},${e.getYCoord()}`,
-      temporalWindow: null,
-      largeGapThreshold: null, // Late joiners emit all existing splats on join.
-    },
+  [Event.Type.TOB_XARPUS_PHASE]: {
+    identityKey: (e) => String(e.getXarpusPhase()),
+    temporalWindow: null,
+    largeGapThreshold: 10,
+  },
+  [Event.Type.TOB_XARPUS_EXHUMED]: {
+    identityKey: (e) => `${e.getXCoord()},${e.getYCoord()}`,
+    temporalWindow: 16,
+    largeGapThreshold: 10,
+  },
+  // Xarpus splats are permanent; the same coord across the fight always
+  // refers to the same splat regardless of when each client first saw it.
+  [Event.Type.TOB_XARPUS_SPLAT]: {
+    identityKey: (e) => `${e.getXCoord()},${e.getYCoord()}`,
+    temporalWindow: null,
+    largeGapThreshold: null, // Late joiners emit all existing splats on join.
+  },
 
-    [Event.Type.TOB_VERZIK_PHASE]: {
-      identityKey: (e) => String(e.getVerzikPhase()),
-      temporalWindow: null,
-      largeGapThreshold: null, // Late joiners emit current phase on join.
-    },
-    // Dawn drops repeat every 4 ticks with alternating dropped values.
-    // Key by dropped value with a tight window to avoid crossing cycles.
-    [Event.Type.TOB_VERZIK_DAWN_DROP]: {
-      identityKey: (e) => String(e.getVerzikDawnDrop()!.getDropped()),
-      temporalWindow: 3,
-      largeGapThreshold: null,
-    },
+  [Event.Type.TOB_VERZIK_PHASE]: {
+    identityKey: (e) => String(e.getVerzikPhase()),
+    temporalWindow: null,
+    largeGapThreshold: null, // Late joiners emit current phase on join.
+  },
+  // Dawn drops repeat every 4 ticks with alternating dropped values.
+  // Key by dropped value with a tight window to avoid crossing cycles.
+  [Event.Type.TOB_VERZIK_DAWN_DROP]: {
+    identityKey: (e) => String(e.getVerzikDawnDrop()!.getDropped()),
+    temporalWindow: 3,
+    largeGapThreshold: null,
+  },
 
-    // Verzik heals keyed by player name and distinct temporally.
-    [Event.Type.TOB_VERZIK_HEAL]: {
-      identityKey: (e) => e.getVerzikHeal()!.getPlayer(),
-      temporalWindow: 30,
-      largeGapThreshold: 10,
-    },
-  };
+  // Verzik heals keyed by player name and distinct temporally.
+  [Event.Type.TOB_VERZIK_HEAL]: {
+    identityKey: (e) => e.getVerzikHeal()!.getPlayer(),
+    temporalWindow: 30,
+    largeGapThreshold: 10,
+  },
+};
 
 export function isStreamEventType(type: EventType): type is StreamEventType {
-  return type in STREAM_EVENT_CONFIGS;
+  return type in DEFAULT_STREAM_EVENT_CONFIGS;
+}
+
+/**
+ * Tick window within which two deaths for a player are treated as one event in
+ * a stage with respawns. Must be configured below the minimum time for a player
+ * to run back to the boss and die again so two genuine deaths are not deduped.
+ */
+const PLAYER_DEATH_RESPAWN_WINDOW = 15;
+
+/**
+ * Returns the stream event deduplication configs to use for a given stage.
+ */
+export function streamEventConfigsForStage(
+  stage: Stage,
+): Record<StreamEventType, StreamEventConfig> {
+  if (!stageHasRespawns(stage)) {
+    return DEFAULT_STREAM_EVENT_CONFIGS;
+  }
+  return {
+    ...DEFAULT_STREAM_EVENT_CONFIGS,
+    [Event.Type.PLAYER_DEATH]: {
+      ...DEFAULT_STREAM_EVENT_CONFIGS[Event.Type.PLAYER_DEATH],
+      temporalWindow: PLAYER_DEATH_RESPAWN_WINDOW,
+    },
+  };
 }
 
 const ATTACK_MAPPED_EVENT_RECORD: Record<AttackMappedEventType, true> = {
@@ -387,7 +420,7 @@ export const ATTACK_MAPPED_EVENT_TYPES: ReadonlySet<AttackMappedEventType> =
  * types.
  */
 export const BUFFERED_EVENT_TYPES: ReadonlySet<EventType> = new Set([
-  ...(Object.keys(STREAM_EVENT_CONFIGS).map(Number) as EventType[]),
+  ...(Object.keys(DEFAULT_STREAM_EVENT_CONFIGS).map(Number) as EventType[]),
   ...(Object.keys(ATTACK_MAPPED_EVENT_RECORD).map(Number) as EventType[]),
 ]);
 

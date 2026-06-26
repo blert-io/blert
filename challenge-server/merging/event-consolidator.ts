@@ -16,7 +16,7 @@ import {
   BUFFERED_EVENT_TYPES,
   EventType,
   remapEventTick,
-  STREAM_EVENT_CONFIGS,
+  streamEventConfigsForStage,
   StreamEventConfig,
   StreamEventType,
   TaggedEvent,
@@ -393,7 +393,9 @@ export class EventConsolidator {
   }
 
   private reconcileStreams(): void {
-    for (const [type, config] of Object.entries(STREAM_EVENT_CONFIGS)) {
+    const configs = streamEventConfigsForStage(this.ctx.stage);
+
+    for (const [type, config] of Object.entries(configs)) {
       const eventType = Number(type) as StreamEventType;
       const baseEvents = this.baseBuffer.get(eventType) ?? [];
       const targetEvents = this.targetBuffer.get(eventType) ?? [];
