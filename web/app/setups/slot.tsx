@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 
 import Item from '@/components/item';
 import ItemSearchInput from '@/components/item-search';
+import { useModifierKey } from '@/hooks/modifier-key';
 import {
   ExtendedItemData,
   extendedItemCache,
@@ -35,8 +36,10 @@ export function Slot(props: SlotProps) {
   const { highlightedItemId } = useContext(SetupViewingContext);
   const slotRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const [altHeld, setAltHeld] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+
+  // Outside of placement mode, Alt-click selects the slot's item.
+  const altHeld = useModifierKey('Alt', !context?.isPlacementMode);
 
   const id = slotIdToString({
     playerIndex: props.playerIndex,
@@ -90,18 +93,9 @@ export function Slot(props: SlotProps) {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!context?.isPlacementMode && e.key === 'Alt') {
-        setAltHeld(true);
-      }
       if (isSearchActive && e.key === 'Escape') {
         context?.setActiveSearchSlot(null);
         searchRef.current?.blur();
-      }
-    };
-
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'Alt') {
-        setAltHeld(false);
       }
     };
 
@@ -128,11 +122,9 @@ export function Slot(props: SlotProps) {
     }
 
     window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
     window.addEventListener('click', handleClick);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('click', handleClick);
     };
   }, [isSearchActive, context, id]);
