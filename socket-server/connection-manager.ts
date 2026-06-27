@@ -6,7 +6,11 @@ import {
 import { ServerMessage } from '@blert/common/generated/server_message_pb';
 import { RedisClientType } from 'redis';
 
-import { ActionDefinitionsRepository } from './action-definitions';
+import {
+  ActionDefinitionsRepository,
+  DEFINITIONS_RELOAD_PUBSUB_KEY,
+  DefinitionsReloadUpdate,
+} from './action-definitions';
 import Client, { Session } from './client';
 import logger from './log';
 import { recordActiveClients, recordClientRegistration } from './metrics';
@@ -51,7 +55,64 @@ export default class ConnectionManager {
       this.handleNameChangeUpdate.bind(this),
     );
 
+    await this.pubsubClient.subscribe(
+      DEFINITIONS_RELOAD_PUBSUB_KEY,
+      this.handleDefinitionsUpdate.bind(this),
+    );
+
     logger.debug('connection_manager_pubsub_started');
+  }
+
+  /**
+   * Handles a definitions update notification by reloading the affected set
+   * and pushing them out to all connected clients.
+   */
+  private async handleDefinitionsUpdate(message: string): Promise<void> {
+    let update: DefinitionsReloadUpdate;
+    try {
+      update = JSON.parse(message) as DefinitionsReloadUpdate;
+    } catch (e) {
+      logger.error('definitions_reload_parse_error', {
+        key: DEFINITIONS_RELOAD_PUBSUB_KEY,
+        message: e instanceof Error ? e.message : String(e),
+      });
+      return;
+    }
+
+    try {
+      let broadcast: ServerMessage;
+      switch (update.type) {
+        case 'attacks':
+          await this.definitionsRepository.reloadAttacks();
+          broadcast =
+            this.definitionsRepository.createAttackDefinitionsMessage();
+          break;
+        case 'spells':
+          await this.definitionsRepository.reloadSpells();
+          broadcast =
+            this.definitionsRepository.createSpellDefinitionsMessage();
+          break;
+        default: {
+          const _exhaustive: never = update.type;
+          logger.warn('definitions_reload_unknown_type', { type: _exhaustive });
+          return;
+        }
+      }
+
+      for (const client of this.activeClients.values()) {
+        client.sendMessage(broadcast);
+      }
+
+      logger.info('definitions_reloaded', {
+        type: update.type,
+        clientCount: this.activeClients.size,
+      });
+    } catch (e) {
+      logger.error('definitions_reload_failed', {
+        type: update.type,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
   }
 
   private handleNameChangeUpdate(message: string): void {

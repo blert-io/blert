@@ -11,6 +11,7 @@ import {
   SpellDefinition,
 } from '@blert/common/generated/server_message_pb';
 import { readFile } from 'fs/promises';
+import { RedisClientType } from 'redis';
 import { z } from 'zod';
 
 import logger from './log';
@@ -58,7 +59,19 @@ export function validateSpellDefinitions(data: unknown): SpellDefinitionJson[] {
   return result.data;
 }
 
-type DefinitionType = 'attacks' | 'spells';
+export type DefinitionType = 'attacks' | 'spells';
+
+/**
+ * Pubsub channel socket-server instances use to coordinate definition reloads
+ * across the fleet. After one instance accepts an upload, it broadcasts a
+ * fire-and-forget update message so the others reload the affected set from
+ * the data repository and push it to their own connected clients.
+ */
+export const DEFINITIONS_RELOAD_PUBSUB_KEY = 'definitions-reload';
+
+export type DefinitionsReloadUpdate = {
+  type: DefinitionType;
+};
 
 type DefinitionConfig = {
   repositoryPath: string;
@@ -85,6 +98,11 @@ export interface ActionDefinitionsConfig {
   attackFallbackPath: string;
   /** Path to a local JSON file for spell definitions fallback. */
   spellFallbackPath: string;
+  /**
+   * Optional Redis client used to notify other instances when definitions are
+   * uploaded. When omitted, uploads are not propagated across the fleet.
+   */
+  redis?: RedisClientType;
 }
 
 export class ActionDefinitionsRepository {
@@ -95,6 +113,7 @@ export class ActionDefinitionsRepository {
 
   private repository: DataRepository | null;
   private fallbackPaths: Record<DefinitionType, string>;
+  private redis: RedisClientType | null;
 
   constructor(config: ActionDefinitionsConfig) {
     this.repository = config.repository;
@@ -102,6 +121,7 @@ export class ActionDefinitionsRepository {
       attacks: config.attackFallbackPath,
       spells: config.spellFallbackPath,
     };
+    this.redis = config.redis ?? null;
   }
 
   /**
@@ -109,18 +129,23 @@ export class ActionDefinitionsRepository {
    * configured data repository or local fallback files.
    */
   public async initialize(): Promise<void> {
-    await this.reloadAttacks();
-    await this.reloadSpells();
+    await this.refreshAttacks(true);
+    await this.refreshSpells(true);
   }
 
   /**
-   * Reloads attack definitions from the repository, falling back to the local
-   * file if the repository is unavailable or not configured.
+   * Reloads attack definitions from the data repository without falling back
+   * to a bundled file.
    */
   public async reloadAttacks(): Promise<void> {
+    await this.refreshAttacks(false);
+  }
+
+  private async refreshAttacks(allowFallback: boolean): Promise<void> {
     const definitions = await this.loadDefinitions(
       'attacks',
       validateAttackDefinitions,
+      allowFallback,
     );
     this.attackDefinitions = definitions.map(attackDefinitionJsonToProto);
     this.attackJsonDefinitions = definitions;
@@ -152,7 +177,9 @@ export class ActionDefinitionsRepository {
    * @throws ValidationError if the definitions are invalid.
    * @throws Error if no repository is configured.
    */
-  public async uploadAttackDefinitions(definitions: unknown): Promise<void> {
+  public async uploadAttackDefinitions(
+    definitions: unknown,
+  ): Promise<AttackDefinitionJson[]> {
     const validated = await this.uploadDefinitions(
       'attacks',
       definitions,
@@ -160,16 +187,22 @@ export class ActionDefinitionsRepository {
     );
     this.attackDefinitions = validated.map(attackDefinitionJsonToProto);
     this.attackJsonDefinitions = validated;
+    return validated;
   }
 
   /**
-   * Reloads spell definitions from the repository, falling back to the local
-   * file if the repository is unavailable or not configured.
+   * Reloads spell definitions from the data repository without falling back
+   * to a bundled file.
    */
   public async reloadSpells(): Promise<void> {
+    await this.refreshSpells(false);
+  }
+
+  private async refreshSpells(allowFallback: boolean): Promise<void> {
     const definitions = await this.loadDefinitions(
       'spells',
       validateSpellDefinitions,
+      allowFallback,
     );
     this.spellDefinitions = definitions.map(spellDefinitionJsonToProto);
     this.spellJsonDefinitions = definitions;
@@ -201,7 +234,9 @@ export class ActionDefinitionsRepository {
    * @throws ValidationError if the definitions are invalid.
    * @throws Error if no repository is configured.
    */
-  public async uploadSpellDefinitions(definitions: unknown): Promise<void> {
+  public async uploadSpellDefinitions(
+    definitions: unknown,
+  ): Promise<SpellDefinitionJson[]> {
     const validated = await this.uploadDefinitions(
       'spells',
       definitions,
@@ -209,15 +244,18 @@ export class ActionDefinitionsRepository {
     );
     this.spellDefinitions = validated.map(spellDefinitionJsonToProto);
     this.spellJsonDefinitions = validated;
+    return validated;
   }
 
   /**
-   * Loads definitions from the repository, falling back to the local file if
-   * the repository is unavailable or not configured.
+   * Loads definitions from the repository. If `allowFallback` is set, falls
+   * back to reading from the local file if the repository is unavailable or
+   * unconfigured. Otherwise, keeps its last known definitions on failure.
    */
   private async loadDefinitions<T>(
     type: DefinitionType,
     validate: (data: unknown) => T[],
+    allowFallback: boolean,
   ): Promise<T[]> {
     const config = DEFINITION_CONFIGS[type];
     const fallbackPath = this.fallbackPaths[type];
@@ -241,7 +279,12 @@ export class ActionDefinitionsRepository {
             error: e instanceof Error ? e.message : String(e),
           });
         }
+        if (!allowFallback) {
+          throw e;
+        }
       }
+    } else if (!allowFallback) {
+      throw new Error(`No repository configured to reload ${type} definitions`);
     }
 
     try {
@@ -298,6 +341,29 @@ export class ActionDefinitionsRepository {
       count: validated.length,
     });
 
+    await this.publishReload(type);
+
     return validated;
+  }
+
+  /** Publishes a definitions update notification for the specified type. */
+  private async publishReload(type: DefinitionType): Promise<void> {
+    if (this.redis === null) {
+      return;
+    }
+
+    const update: DefinitionsReloadUpdate = { type };
+    try {
+      await this.redis.publish(
+        DEFINITIONS_RELOAD_PUBSUB_KEY,
+        JSON.stringify(update),
+      );
+    } catch (e) {
+      logger.error('definitions_reload_publish_failed', {
+        key: DEFINITIONS_RELOAD_PUBSUB_KEY,
+        type,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
   }
 }

@@ -133,12 +133,10 @@ function setupHttpRoutes(
     '/admin/definitions/attacks',
     asyncHandler(async (req, res) => {
       try {
-        await definitionsRepository.uploadAttackDefinitions(req.body);
-        serverManager.broadcastMessage(
-          definitionsRepository.createAttackDefinitionsMessage(),
+        const updated = await definitionsRepository.uploadAttackDefinitions(
+          req.body,
         );
-        const definitions = definitionsRepository.getAttackDefinitionsJson();
-        res.json({ success: true, count: definitions.length });
+        res.json({ success: true, count: updated.length });
       } catch (e) {
         if (e instanceof ValidationError) {
           res.status(400).json({ error: e.message });
@@ -159,12 +157,10 @@ function setupHttpRoutes(
     '/admin/definitions/spells',
     asyncHandler(async (req, res) => {
       try {
-        await definitionsRepository.uploadSpellDefinitions(req.body);
-        serverManager.broadcastMessage(
-          definitionsRepository.createSpellDefinitionsMessage(),
+        const updated = await definitionsRepository.uploadSpellDefinitions(
+          req.body,
         );
-        const definitions = definitionsRepository.getSpellDefinitionsJson();
-        res.json({ success: true, count: definitions.length });
+        res.json({ success: true, count: updated.length });
       } catch (e) {
         if (e instanceof ValidationError) {
           res.status(400).json({ error: e.message });
@@ -250,7 +246,9 @@ async function loadValidRevisions(): Promise<Set<string>> {
 /**
  * Initializes the action definitions repository with the configured backend.
  */
-async function initializeDefinitionsRepository(): Promise<ActionDefinitionsRepository> {
+async function initializeDefinitionsRepository(
+  redisClient: RedisClientType,
+): Promise<ActionDefinitionsRepository> {
   let repository: DataRepository | null = null;
 
   const repositoryUri = process.env.BLERT_DEFINITIONS_REPOSITORY;
@@ -298,6 +296,7 @@ async function initializeDefinitionsRepository(): Promise<ActionDefinitionsRepos
     repository,
     attackFallbackPath: process.env.BLERT_ATTACK_DEFINITIONS_FALLBACK,
     spellFallbackPath: process.env.BLERT_SPELL_DEFINITIONS_FALLBACK,
+    redis: redisClient,
   });
   await definitionsRepository.initialize();
 
@@ -441,7 +440,8 @@ async function main(): Promise<void> {
     });
   });
 
-  const definitionsRepository = await initializeDefinitionsRepository();
+  const definitionsRepository =
+    await initializeDefinitionsRepository(redisClient);
 
   const connectionManager = new ConnectionManager(
     redisClient,
