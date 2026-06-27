@@ -112,6 +112,7 @@ export class Players {
         player_id,
         status,
         submitted_at,
+        effective_from,
         skip_checks
       )
       VALUES (
@@ -119,6 +120,7 @@ export class Players {
         ${newName},
         ${playerId},
         ${NameChangeStatus.PENDING},
+        NOW(),
         NOW(),
         ${skipChecks}
       )

@@ -67,6 +67,7 @@ services:
       BLERT_TEST_DATA_REPOSITORY: file:///app/.data/testing_data
       BLERT_LOG_LEVEL: debug
       BLERT_REDIS_URI: redis://redis:6379
+      BLERT_MERGE_WORKERS: 1
       BLERT_STRUCTURED_LOGS: ${BLERT_STRUCTURED_LOGS:-false}
     working_dir: /app
     command: npm run -w challenge-server dev

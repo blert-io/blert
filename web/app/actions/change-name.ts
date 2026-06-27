@@ -1,6 +1,7 @@
 'use server';
 
 import {
+  CamelToSnakeCase,
   NameChange,
   NameChangeStatus,
   isValidRsn,
@@ -12,6 +13,13 @@ import { redirect } from 'next/navigation';
 import { sql } from './db';
 import processor from './name-change-processor';
 import { getSignedInUserId } from './users';
+
+type NameChangeRow = CamelToSnakeCase<NameChange> & {
+  player_id: number;
+  submitter_id: string | null;
+  hidden_from_feed: boolean;
+  hidden_from_profile: boolean;
+};
 
 export async function submitNameChangeForm(
   _state: string | null,
@@ -49,19 +57,14 @@ export async function submitNameChangeForm(
     return 'This player already has a pending name change';
   }
 
-  const nameChange: {
-    status: NameChangeStatus;
-    old_name: string;
-    new_name: string;
-    player_id: number;
-    submitted_at: Date;
-    submitter_id?: string;
-  } = {
+  const now = new Date();
+  const nameChange: Partial<NameChangeRow> = {
     status: NameChangeStatus.PENDING,
     old_name: player.username,
     new_name: newName,
     player_id: player.id,
-    submitted_at: new Date(),
+    submitted_at: now,
+    effective_from: now,
   };
   if (userId !== null) {
     nameChange.submitter_id = userId.toString();
@@ -74,14 +77,20 @@ export async function submitNameChangeForm(
   redirect('/name-changes');
 }
 
-type NameChangeRow = {
-  id: number;
-  old_name: string;
-  new_name: string;
-  status: NameChangeStatus;
-  submitted_at: Date;
-  processed_at: Date | null;
-};
+function rowToNameChange(nc: NameChangeRow): NameChange {
+  return {
+    id: nc.id,
+    oldName: nc.old_name,
+    newName: nc.new_name,
+    status: nc.status,
+    submittedAt: nc.submitted_at,
+    processedAt: nc.processed_at,
+    kind: nc.kind,
+    effectiveFrom: nc.effective_from,
+    effectiveTo: nc.effective_to,
+    sequenceId: nc.sequence_id,
+  };
+}
 
 export async function getRecentNameChanges(
   limit: number = 10,
@@ -93,21 +102,18 @@ export async function getRecentNameChanges(
       new_name,
       status,
       submitted_at,
-      processed_at
+      processed_at,
+      kind,
+      effective_from,
+      effective_to,
+      sequence_id
     FROM name_changes
-    WHERE hidden = FALSE
-    ORDER BY id DESC
+    WHERE hidden_from_feed = FALSE
+    ORDER BY effective_from DESC
     LIMIT ${limit}
   `;
 
-  return nameChanges.map((nc) => ({
-    id: nc.id,
-    oldName: nc.old_name,
-    newName: nc.new_name,
-    status: nc.status,
-    submittedAt: nc.submitted_at,
-    processedAt: nc.processed_at,
-  }));
+  return nameChanges.map(rowToNameChange);
 }
 
 export async function getNameChangesForPlayer(
@@ -121,22 +127,19 @@ export async function getNameChangesForPlayer(
       nc.new_name,
       nc.status,
       nc.submitted_at,
-      nc.processed_at
+      nc.processed_at,
+      nc.kind,
+      nc.effective_from,
+      nc.effective_to,
+      nc.sequence_id
     FROM name_changes nc
     JOIN players p ON nc.player_id = p.id
     WHERE p.normalized_username = ${normalizeRsn(username)}
       AND nc.status = ${NameChangeStatus.ACCEPTED}
-      AND nc.hidden = FALSE
-    ORDER BY nc.processed_at DESC
+      AND nc.hidden_from_profile = FALSE
+    ORDER BY nc.effective_from DESC
     LIMIT ${limit}
   `;
 
-  return nameChanges.map((nc) => ({
-    id: nc.id,
-    oldName: nc.old_name,
-    newName: nc.new_name,
-    status: nc.status,
-    submittedAt: nc.submitted_at,
-    processedAt: nc.processed_at,
-  }));
+  return nameChanges.map(rowToNameChange);
 }

@@ -33,6 +33,8 @@ function nameChangeInfo(nameChange: NameChange): [string, string | null] {
         'Rejected',
         `This name change was rejected because the account "${nameChange.newName}" has less experience than "${nameChange.oldName}" previously had.`,
       ];
+    case NameChangeStatus.FAILED:
+      return ['Failed', null];
   }
 }
 
