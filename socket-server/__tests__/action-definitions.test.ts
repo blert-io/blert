@@ -6,9 +6,12 @@ import { ServerMessage } from '@blert/common/generated/server_message_pb';
 jest.mock('fs/promises');
 
 import { readFile } from 'fs/promises';
+import { RedisClientType } from 'redis';
+
 import {
   ActionDefinitionsRepository,
   AttackDefinitionJson,
+  DEFINITIONS_RELOAD_PUBSUB_KEY,
   SpellDefinitionJson,
   ValidationError,
   validateAttackDefinitions,
@@ -277,6 +280,55 @@ describe('ActionDefinitionsRepository', () => {
       await repo.reloadAttacks();
 
       expect(repo.getAttackDefinitionsJson()).toHaveLength(2);
+    });
+  });
+
+  describe('reload resilience', () => {
+    it('keeps current definitions when a reload repository read fails', async () => {
+      const mockRepo = createMockRepository();
+      mockRepo.loadRaw.mockImplementation((path: string) =>
+        path.includes('attack')
+          ? Promise.resolve(encodeJson(validAttackDefinitions))
+          : Promise.resolve(encodeJson(validSpellDefinitions)),
+      );
+      // A differing bundled fallback makes a wrong fall-back detectable.
+      mockedReadFile.mockResolvedValue(JSON.stringify([validAttackDefinition]));
+
+      const repo = new ActionDefinitionsRepository({
+        repository: mockRepo,
+        attackFallbackPath: '/attacks.json',
+        spellFallbackPath: '/spells.json',
+      });
+      await repo.initialize();
+      expect(repo.getAttackDefinitionsJson()).toEqual(validAttackDefinitions);
+
+      mockRepo.loadRaw.mockRejectedValue(new Error('s3 unavailable'));
+
+      await expect(repo.reloadAttacks()).rejects.toThrow('s3 unavailable');
+
+      expect(repo.getAttackDefinitionsJson()).toEqual(validAttackDefinitions);
+      expect(mockedReadFile).not.toHaveBeenCalled();
+    });
+
+    it('falls back to bundled definitions when the repository fails at startup', async () => {
+      const mockRepo = createMockRepository();
+      mockRepo.loadRaw.mockRejectedValue(new Error('s3 unavailable'));
+      mockedReadFile.mockImplementation((path) =>
+        String(path).includes('attack')
+          ? Promise.resolve(JSON.stringify(validAttackDefinitions))
+          : Promise.resolve(JSON.stringify(validSpellDefinitions)),
+      );
+
+      const repo = new ActionDefinitionsRepository({
+        repository: mockRepo,
+        attackFallbackPath: '/attacks.json',
+        spellFallbackPath: '/spells.json',
+      });
+      await repo.initialize();
+
+      expect(repo.getAttackDefinitionsJson()).toEqual(validAttackDefinitions);
+      expect(repo.getSpellDefinitionsJson()).toEqual(validSpellDefinitions);
+      expect(mockedReadFile).toHaveBeenCalled();
     });
   });
 
@@ -588,6 +640,72 @@ describe('ActionDefinitionsRepository', () => {
 
       expect(repo.getSpellDefinitionsJson()).toHaveLength(2);
       expect(repo.getSpellDefinitionsJson()).toEqual(validSpellDefinitions);
+    });
+  });
+
+  describe('reload propagation', () => {
+    function uploadableRepo(redis?: RedisClientType) {
+      const mockRepo = createMockRepository();
+      mockRepo.loadRaw.mockImplementation((path: string) => {
+        if (path.includes('attack')) {
+          return Promise.resolve(encodeJson(validAttackDefinitions));
+        }
+        return Promise.resolve(encodeJson(validSpellDefinitions));
+      });
+      mockRepo.saveRaw.mockResolvedValue(undefined);
+      return new ActionDefinitionsRepository({
+        repository: mockRepo,
+        attackFallbackPath: '/attacks.json',
+        spellFallbackPath: '/spells.json',
+        redis,
+      });
+    }
+
+    it('publishes an attacks reload after uploading attack definitions', async () => {
+      const publish = jest.fn().mockResolvedValue(0);
+      const repo = uploadableRepo({ publish } as unknown as RedisClientType);
+      await repo.initialize();
+
+      await repo.uploadAttackDefinitions(validAttackDefinitions);
+
+      expect(publish).toHaveBeenCalledTimes(1);
+      const [channel, message] = publish.mock.calls[0] as [string, string];
+      expect(channel).toBe(DEFINITIONS_RELOAD_PUBSUB_KEY);
+      expect(JSON.parse(message)).toEqual({ type: 'attacks' });
+    });
+
+    it('publishes a spells reload after uploading spell definitions', async () => {
+      const publish = jest.fn().mockResolvedValue(0);
+      const repo = uploadableRepo({ publish } as unknown as RedisClientType);
+      await repo.initialize();
+
+      await repo.uploadSpellDefinitions(validSpellDefinitions);
+
+      expect(publish).toHaveBeenCalledTimes(1);
+      const [channel, message] = publish.mock.calls[0] as [string, string];
+      expect(channel).toBe(DEFINITIONS_RELOAD_PUBSUB_KEY);
+      expect(JSON.parse(message)).toEqual({ type: 'spells' });
+    });
+
+    it('does not publish when no redis client is configured', async () => {
+      const repo = uploadableRepo();
+      await repo.initialize();
+
+      await expect(
+        repo.uploadAttackDefinitions(validAttackDefinitions),
+      ).resolves.toEqual(validAttackDefinitions);
+    });
+
+    it('completes the upload even when publishing fails', async () => {
+      const publish = jest.fn().mockRejectedValue(new Error('redis down'));
+      const repo = uploadableRepo({ publish } as unknown as RedisClientType);
+      await repo.initialize();
+
+      await expect(
+        repo.uploadAttackDefinitions(validAttackDefinitions),
+      ).resolves.toEqual(validAttackDefinitions);
+      expect(repo.getAttackDefinitionsJson()).toEqual(validAttackDefinitions);
+      expect(publish).toHaveBeenCalledTimes(1);
     });
   });
 });
