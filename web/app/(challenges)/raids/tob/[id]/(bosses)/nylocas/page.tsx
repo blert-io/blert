@@ -7,7 +7,6 @@ import {
   NyloWaveSpawnEvent,
   NpcId,
   Stage,
-  SkillLevel,
   NyloWaveStallEvent,
   TobRaid,
   SplitType,
@@ -40,7 +39,7 @@ import {
 } from 'recharts';
 
 import { ActorContext } from '@/(challenges)/raids/tob/context';
-import { TimelineColor, TimelineSplit } from '@/components/attack-timeline';
+import { TimelineSplit } from '@/components/attack-timeline';
 import Badge from '@/components/badge';
 import BossFightOverview from '@/components/boss-fight-overview';
 import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
@@ -62,7 +61,6 @@ import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 import { useDisplay } from '@/display';
 import {
   EnhancedNylo,
-  EventTickMap,
   useMapEntities,
   usePreloads,
   usePlayingState,
@@ -127,136 +125,6 @@ const LAST_NYLO_WAVE = 31;
 const GRAY_NYLO_COLOR = '#a9aaab';
 const GREEN_NYLO_COLOR = '#408d43';
 const BLUE_NYLO_COLOR = '#42c6d7';
-
-/**
- * Returns the style-based color for a Nylocas NPC.
- *
- * @param npcId ID of the Nylo.
- * @param background If true, the color will be dimmed.
- * @returns Hex color code for the Nylo.
- */
-function getNyloColor(npcId: NpcId, background?: boolean): string | undefined {
-  let color = undefined;
-
-  if (Npc.isNylocasIschyros(npcId)) {
-    color = GRAY_NYLO_COLOR;
-  } else if (Npc.isNylocasToxobolos(npcId)) {
-    color = GREEN_NYLO_COLOR;
-  } else if (Npc.isNylocasHagios(npcId)) {
-    color = BLUE_NYLO_COLOR;
-  } else {
-    switch (npcId) {
-      case NpcId.NYLOCAS_PRINKIPAS_DROPPING:
-      case NpcId.NYLOCAS_PRINKIPAS_MELEE:
-      case NpcId.NYLOCAS_VASILIAS_DROPPING_ENTRY:
-      case NpcId.NYLOCAS_VASILIAS_DROPPING_REGULAR:
-      case NpcId.NYLOCAS_VASILIAS_DROPPING_HARD:
-      case NpcId.NYLOCAS_VASILIAS_MELEE_ENTRY:
-      case NpcId.NYLOCAS_VASILIAS_MELEE_REGULAR:
-      case NpcId.NYLOCAS_VASILIAS_MELEE_HARD:
-        color = GRAY_NYLO_COLOR;
-        break;
-
-      case NpcId.NYLOCAS_PRINKIPAS_RANGE:
-      case NpcId.NYLOCAS_VASILIAS_RANGE_ENTRY:
-      case NpcId.NYLOCAS_VASILIAS_RANGE_REGULAR:
-      case NpcId.NYLOCAS_VASILIAS_RANGE_HARD:
-        color = GREEN_NYLO_COLOR;
-        break;
-
-      case NpcId.NYLOCAS_PRINKIPAS_MAGE:
-      case NpcId.NYLOCAS_VASILIAS_MAGE_ENTRY:
-      case NpcId.NYLOCAS_VASILIAS_MAGE_REGULAR:
-      case NpcId.NYLOCAS_VASILIAS_MAGE_HARD:
-        color = BLUE_NYLO_COLOR;
-        break;
-    }
-  }
-
-  if (color !== undefined && background) {
-    // Apply an alpha value to the color to dim it.
-    color = `${color}40`;
-  }
-
-  return color;
-}
-
-/**
- * Returns an array of timeline background color ranges for the ticks at which
- * a Nylo boss is alive.
- *
- * @param eventsByTick All room events, indexed by tick.
- * @param totalTicks Total number of ticks in the room.
- * @returns List of background colors to apply.
- */
-function nyloBossBackgroundColors(
-  eventsByTick: EventTickMap,
-  totalTicks: number,
-): TimelineColor[] {
-  if (totalTicks === 0) {
-    return [];
-  }
-
-  const colors: TimelineColor[] = [];
-
-  let startTick: number | undefined = undefined;
-  let bossId: NpcId | undefined = undefined;
-
-  for (let tick = 0; tick <= totalTicks; tick++) {
-    const bossEvent = eventsByTick[tick]?.find((evt) => {
-      if (
-        evt.type === EventType.NPC_SPAWN ||
-        evt.type === EventType.NPC_UPDATE
-      ) {
-        return (
-          Npc.isNylocasPrinkipas(evt.npc.id) ||
-          Npc.isNylocasVasilias(evt.npc.id)
-        );
-      }
-      return false;
-    });
-
-    const nyloBoss = (bossEvent as NpcEvent)?.npc;
-    if (
-      nyloBoss === undefined ||
-      SkillLevel.fromRaw(nyloBoss.hitpoints).getCurrent() === 0
-    ) {
-      if (startTick !== undefined) {
-        const backgroundColor = getNyloColor(bossId!, true);
-        if (backgroundColor !== undefined) {
-          colors.push({
-            tick: startTick,
-            length: tick - startTick,
-            backgroundColor,
-          });
-        }
-      }
-
-      startTick = undefined;
-      bossId = undefined;
-      continue;
-    }
-
-    const nyloBossId = nyloBoss.id as NpcId;
-    if (nyloBossId !== bossId) {
-      if (startTick !== undefined) {
-        const backgroundColor = getNyloColor(bossId!, true);
-        if (backgroundColor !== undefined) {
-          colors.push({
-            tick: startTick,
-            length: tick - startTick,
-            backgroundColor,
-          });
-        }
-      }
-
-      startTick = tick;
-      bossId = nyloBossId;
-    }
-  }
-
-  return colors;
-}
 
 type Splits = { melee: number; ranged: number; mage: number };
 type SplitCounts = {
@@ -393,11 +261,6 @@ export default function NylocasPage() {
     eventsByType,
     EventType.NPC_UPDATE,
     (evt) => Npc.isNylocasVasilias(evt.npc.id),
-  );
-
-  const backgroundColors = useMemo(
-    () => nyloBossBackgroundColors(eventsByTick, totalTicks),
-    [eventsByTick, totalTicks],
   );
 
   const splits = useMemo(() => {
@@ -869,15 +732,10 @@ export default function NylocasPage() {
       <div className={bossStyles.timeline}>
         <BossPageAttackTimeline
           currentTick={currentTick}
-          playing={playing}
           playerState={playerState}
-          timelineTicks={totalTicks}
           updateTickOnPage={setTick}
-          splits={splits}
-          backgroundColors={backgroundColors}
           bcf={bcf}
           npcs={npcState}
-          smallLegend={display.isCompact()}
           liveFollowing={following}
         />
       </div>

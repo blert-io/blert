@@ -241,14 +241,10 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
       <div className={styles.timeline}>
         <BossPageAttackTimeline
           currentTick={currentTick}
-          playing={playing}
           playerState={playerState}
-          timelineTicks={totalTicks}
           updateTickOnPage={setTick}
           npcs={npcState}
           bcf={bcf}
-          smallLegend={display.isCompact()}
-          splits={splits}
           liveFollowing={following}
         />
       </div>

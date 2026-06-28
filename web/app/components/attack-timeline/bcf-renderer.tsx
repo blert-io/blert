@@ -8,7 +8,6 @@ import HorizontalScrollable from '@/components/horizontal-scrollable';
 import { BcfTooltip, BCF_TOOLTIP_ID } from './bcf-tooltip';
 import { CanvasTimeline } from './canvas/canvas-timeline';
 import { defaultRowOrder, TimelineDisplay } from './display-utils';
-import { CoreTimelineRenderer } from './timeline';
 import {
   ActionEvaluator,
   CELL_GAP,
@@ -78,9 +77,6 @@ export type BcfRendererProps = {
    */
   tooltipId?: string;
 
-  /** Use the canvas-based renderer instead of DOM cells. Default: false. */
-  useCanvas?: boolean;
-
   /**
    * Whether the timeline is auto-following a live challenge. When true, the
    * timeline detects manual horizontal scrolling and pauses auto-follow.
@@ -105,7 +101,6 @@ export function BcfRenderer({
   tooltipId,
   onActorSelect,
   onTickSelect,
-  useCanvas = false,
   liveFollowing = false,
 }: BcfRendererProps) {
   const resolver = useMemo(() => new BCFResolver(bcf), [bcf]);
@@ -268,29 +263,6 @@ export function BcfRenderer({
     el.scrollLeft = target;
   }, [currentTick, computeScrollTarget]);
 
-  const memoizedCoreTimeline = useMemo(
-    () =>
-      useCanvas ? null : (
-        <CoreTimelineRenderer
-          resolver={resolver}
-          rowOrder={rowOrder}
-          numRows={numRows}
-          ticksPerRow={ticksPerRow}
-          onTickSelect={onTickSelect}
-          actionEvaluator={actionEvaluator}
-        />
-      ),
-    [
-      useCanvas,
-      resolver,
-      rowOrder,
-      numRows,
-      ticksPerRow,
-      onTickSelect,
-      actionEvaluator,
-    ],
-  );
-
   const legendElements = rowOrder.map((actorId) => {
     const actor = resolver.getActor(actorId);
     if (actor !== undefined) {
@@ -423,26 +395,22 @@ export function BcfRenderer({
               className={styles.columnActiveIndicator}
             />
           )}
-          {useCanvas ? (
-            <CanvasTimeline
-              resolver={resolver}
-              display={display}
-              rowOrder={rowOrder}
-              numRows={numRows}
-              ticksPerRow={ticksPerRow}
-              cellSize={cellSize}
-              actionEvaluator={actionEvaluator}
-              stateProvider={stateProvider}
-              customRows={customRowsMap}
-              letterMode={letterMode}
-              showInventoryTags={showInventoryTags}
-              tooltipId={effectiveTooltipId}
-              onTickSelect={onTickSelect}
-              scrollContainerRef={scrollableRef}
-            />
-          ) : (
-            memoizedCoreTimeline
-          )}
+          <CanvasTimeline
+            resolver={resolver}
+            display={display}
+            rowOrder={rowOrder}
+            numRows={numRows}
+            ticksPerRow={ticksPerRow}
+            cellSize={cellSize}
+            actionEvaluator={actionEvaluator}
+            stateProvider={stateProvider}
+            customRows={customRowsMap}
+            letterMode={letterMode}
+            showInventoryTags={showInventoryTags}
+            tooltipId={effectiveTooltipId}
+            onTickSelect={onTickSelect}
+            scrollContainerRef={scrollableRef}
+          />
         </HorizontalScrollable>
         {liveFollowing && scrolledAwayFromLive && (
           <button

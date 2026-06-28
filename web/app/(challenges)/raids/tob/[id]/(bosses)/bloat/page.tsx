@@ -14,7 +14,6 @@ import {
 
 import { useCallback, useContext, useMemo } from 'react';
 
-import { TimelineColor } from '@/components/attack-timeline';
 import BossFightOverview from '@/components/boss-fight-overview';
 import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
 import BossPageControls from '@/components/boss-page-controls';
@@ -133,7 +132,7 @@ export default function BloatPage() {
     EventType.TOB_BLOAT_HANDS_SPLAT,
   );
 
-  const { downInfo, splits, backgroundColors } = useMemo(() => {
+  const { downInfo, splits } = useMemo(() => {
     const bloat: EnhancedRoomNpc | null =
       npcState.values().next().value ?? null;
 
@@ -149,27 +148,8 @@ export default function BloatPage() {
       splitName: `Down ${i + 1}`,
     }));
 
-    const upColor = 'rgba(100, 56, 70, 0.3)';
-    const backgroundColors: TimelineColor[] = [];
-
-    // First up from the start of the room.
-    backgroundColors.push({
-      tick: 0,
-      length: downInfo.length > 0 ? downInfo[0].tick : totalTicks,
-      backgroundColor: upColor,
-    });
-
     bloatUpEvents.forEach((evt, i) => {
       splits.push({ tick: evt.tick, splitName: 'Moving' });
-
-      const nextDownTick =
-        downInfo.find((down) => down.tick > evt.tick)?.tick ?? totalTicks;
-      backgroundColors.push({
-        tick: evt.tick,
-        length: nextDownTick - evt.tick,
-        backgroundColor: upColor,
-      });
-
       downInfo[i].endHitpoints = bloat?.stateByTick[evt.tick]?.hitpoints;
     });
 
@@ -178,7 +158,7 @@ export default function BloatPage() {
         bloat?.stateByTick[totalTicks - 1]?.hitpoints;
     }
 
-    return { downInfo, splits, backgroundColors };
+    return { downInfo, splits };
   }, [bloatDownEvents, bloatUpEvents, npcState, totalTicks]);
 
   const bossHealthChartData = useMemo(() => {
@@ -369,14 +349,10 @@ export default function BloatPage() {
       <div className={bossStyles.timeline}>
         <BossPageAttackTimeline
           currentTick={currentTick}
-          playing={playing}
           playerState={playerState}
-          timelineTicks={totalTicks}
           updateTickOnPage={setTick}
           npcs={npcState}
           bcf={bcf}
-          splits={splits}
-          backgroundColors={backgroundColors}
           liveFollowing={following}
         />
       </div>

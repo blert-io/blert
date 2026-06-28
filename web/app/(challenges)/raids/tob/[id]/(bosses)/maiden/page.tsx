@@ -425,14 +425,10 @@ export default function Maiden() {
       <div className={bossStyles.timeline}>
         <BossPageAttackTimeline
           currentTick={currentTick}
-          playing={playing}
           playerState={playerState}
-          timelineTicks={totalTicks}
           bcf={bcf}
           updateTickOnPage={setTick}
-          splits={splits}
           npcs={npcState}
-          smallLegend={display.isCompact()}
           liveFollowing={following}
         />
       </div>

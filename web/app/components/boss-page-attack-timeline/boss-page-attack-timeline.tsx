@@ -19,19 +19,18 @@ import {
 import { ActorContext } from '@/(challenges)/challenge-context-provider';
 import { MemeContext } from '@/(challenges)/raids/meme-context';
 import {
-  AttackTimelineProps,
   bcfToPlayerAttack,
   CombatStyle,
   getAttackStyle,
 } from '@/components/attack-timeline';
-import {
+import AttackTimeline, {
   ActionEvaluation,
   ActionOutline,
-  BcfRenderer,
-  BcfRendererProps,
+  AttackTimelineProps,
+  CustomRow,
   CustomState,
   StateProvider,
-} from '@/components/attack-timeline/bcf-renderer';
+} from '@/components/attack-timeline';
 import Card from '@/components/card';
 import Checkbox from '@/components/checkbox';
 import Menu from '@/components/menu';
@@ -45,6 +44,7 @@ import {
   toNpcActorId,
   isNpcActorId,
   extractNpcRoomId,
+  PlayerStateMap,
 } from '@/utils/boss-room-state';
 import { BoostType, maxBoostedLevel } from '@/utils/combat';
 import { normalizeItemId } from '@/utils/item';
@@ -155,8 +155,14 @@ export type CustomStateEntry = {
   states: CustomState[];
 };
 
-type BossPageAttackTimelineProps = AttackTimelineProps & {
+type BossPageAttackTimelineProps = {
   bcf: BlertChartFormat;
+  playerState: PlayerStateMap;
+  npcs: RoomNpcMap;
+  cellSize?: number;
+  currentTick: number;
+  updateTickOnPage: (tick: number) => void;
+  customRows?: CustomRow[];
   customStates?: CustomStateEntry[];
   liveFollowing?: boolean;
 };
@@ -401,7 +407,7 @@ export function BossPageAttackTimeline(props: BossPageAttackTimelineProps) {
     };
   }, [props.customStates]);
 
-  const compactTimelineProps: Partial<BcfRendererProps> = {};
+  const compactTimelineProps: Partial<AttackTimelineProps> = {};
   if (display.isCompact()) {
     compactTimelineProps.smallLegend = true;
     compactTimelineProps.scrollMinColumns = 8;
@@ -435,7 +441,7 @@ export function BossPageAttackTimeline(props: BossPageAttackTimelineProps) {
         className={styles.timelineModal}
         style={{ padding: `${paddingY}px ${paddingX}px` }}
       >
-        <BcfRenderer
+        <AttackTimeline
           cellSize={display.isFull() ? 28 : 22}
           wrapWidth={timelineWidth}
           {...sharedRendererProps}
@@ -471,7 +477,7 @@ export function BossPageAttackTimeline(props: BossPageAttackTimelineProps) {
         }}
       >
         <div ref={cardRef}>
-          <BcfRenderer
+          <AttackTimeline
             cellSize={cellSize ?? 30}
             wrapWidth={inlineWrapWidth}
             {...sharedRendererProps}

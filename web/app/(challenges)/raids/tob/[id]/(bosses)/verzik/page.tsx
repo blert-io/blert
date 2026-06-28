@@ -5,8 +5,6 @@ import {
   EquipmentSlot,
   EventType,
   Npc,
-  NpcAttack,
-  NpcAttackEvent,
   NpcEvent,
   NpcId,
   SkillLevel,
@@ -18,7 +16,7 @@ import {
 } from '@blert/common';
 import { useCallback, useContext, useMemo, useRef } from 'react';
 
-import { TimelineColor, TimelineSplit } from '@/components/attack-timeline';
+import { TimelineSplit } from '@/components/attack-timeline';
 import BossFightOverview from '@/components/boss-fight-overview';
 import BossPageAttackTimeline, {
   CustomStateEntry,
@@ -73,7 +71,6 @@ class VerzikTerrain implements Terrain {
   }
 }
 
-const VERZIK_ATTACK_BACKGROUND = '#391717';
 const DAWNBRINGER_ID = 22516;
 
 type RedCrabInfo = {
@@ -147,17 +144,6 @@ export default function VerzikPage() {
   const stageRef = useRef({ eventsByTick, playerState });
   stageRef.current = { eventsByTick, playerState };
 
-  const highlightedAttacks = useStableEvents<NpcAttackEvent>(
-    eventsByType,
-    EventType.NPC_ATTACK,
-    (e) =>
-      e.npcAttack.attack === NpcAttack.TOB_VERZIK_P1_AUTO ||
-      e.npcAttack.attack === NpcAttack.TOB_VERZIK_P2_BOUNCE ||
-      e.npcAttack.attack === NpcAttack.TOB_VERZIK_P2_CABBAGE ||
-      e.npcAttack.attack === NpcAttack.TOB_VERZIK_P2_MAGE ||
-      e.npcAttack.attack === NpcAttack.TOB_VERZIK_P2_PURPLE ||
-      e.npcAttack.attack === NpcAttack.TOB_VERZIK_P2_ZAP,
-  );
   const npcSpawns = useStableEvents<NpcEvent>(
     eventsByType,
     EventType.NPC_SPAWN,
@@ -171,9 +157,9 @@ export default function VerzikPage() {
     EventType.TOB_VERZIK_HEAL,
   );
 
-  const [splits, redsInfo, backgroundColors] = useMemo(() => {
+  const [splits, redsInfo] = useMemo(() => {
     if (challenge === null) {
-      return [[], [], []];
+      return [[], []];
     }
 
     const { eventsByTick } = stageRef.current;
@@ -201,29 +187,6 @@ export default function VerzikPage() {
         splitName: 'P3',
       });
     }
-
-    const backgroundColors: TimelineColor[] = [];
-    highlightedAttacks.forEach((event) => {
-      switch (event.npcAttack.attack) {
-        case NpcAttack.TOB_VERZIK_P1_AUTO:
-          backgroundColors.push({
-            tick: event.tick,
-            backgroundColor: VERZIK_ATTACK_BACKGROUND,
-          });
-          break;
-        case NpcAttack.TOB_VERZIK_P2_BOUNCE:
-        case NpcAttack.TOB_VERZIK_P2_CABBAGE:
-        case NpcAttack.TOB_VERZIK_P2_MAGE:
-        case NpcAttack.TOB_VERZIK_P2_PURPLE:
-        case NpcAttack.TOB_VERZIK_P2_ZAP:
-          // Highlight the P2 danger tick, which is the tick before her attacks.
-          backgroundColors.push({
-            tick: event.tick - 1,
-            backgroundColor: VERZIK_ATTACK_BACKGROUND,
-          });
-          break;
-      }
-    });
 
     const redsTicks: number[] = [];
     npcSpawns.forEach((event) => {
@@ -291,8 +254,8 @@ export default function VerzikPage() {
         verzikLowestHpPercentage,
       });
     }
-    return [splits, info, backgroundColors];
-  }, [challenge, highlightedAttacks, npcSpawns]);
+    return [splits, info];
+  }, [challenge, npcSpawns]);
 
   // Build a tick-by-tick map of Dawnbringer ownership during P1. On a given
   // tick, the Dawnbringer is either held by a player or on the ground.
@@ -575,15 +538,10 @@ export default function VerzikPage() {
       <div className={bossStyles.timeline}>
         <BossPageAttackTimeline
           currentTick={currentTick}
-          playing={playing}
           playerState={playerState}
-          timelineTicks={totalTicks}
           updateTickOnPage={setTick}
-          splits={splits}
           npcs={npcState}
           bcf={bcf}
-          backgroundColors={backgroundColors}
-          smallLegend={display.isCompact()}
           customStates={customStates}
           liveFollowing={following}
         />

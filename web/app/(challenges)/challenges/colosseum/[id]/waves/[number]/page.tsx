@@ -378,15 +378,11 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
       <div className={styles.timeline}>
         <BossPageAttackTimeline
           currentTick={currentTick}
-          playing={playing}
           playerState={playerState}
-          timelineTicks={totalTicks}
           updateTickOnPage={setTick}
-          splits={timelineSplits}
           npcs={npcState}
           bcf={bcf}
           customStates={customStates}
-          smallLegend={display.isCompact()}
           liveFollowing={following}
         />
       </div>
