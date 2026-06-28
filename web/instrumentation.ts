@@ -4,6 +4,7 @@ export async function register() {
     logger.info('web_server_starting', {
       nodeEnv: process.env.NODE_ENV,
       port: process.env.PORT ?? '3000',
+      commit: process.env.BLERT_COMMIT_SHA ?? 'unknown',
     });
 
     // Eagerly initialize the metrics registry so collectDefaultMetrics starts.

@@ -128,6 +128,9 @@ COPY --from=web-build /app/web/.next/standalone/ ./
 COPY --from=web-build /app/web/.next/static/ web/.next/static/
 COPY --from=web-build /app/web/public/ web/public/
 
+ARG BLERT_COMMIT_SHA
+ENV BLERT_COMMIT_SHA=$BLERT_COMMIT_SHA
+
 EXPOSE 3000
 CMD ["node", "web/server.js"]
 
@@ -148,6 +151,9 @@ COPY --from=socket-server-build /app/socket-server/dist/ socket-server/dist/
 COPY common/package.json common/
 COPY socket-server/package.json socket-server/
 
+ARG BLERT_COMMIT_SHA
+ENV BLERT_COMMIT_SHA=$BLERT_COMMIT_SHA
+
 EXPOSE 3003
 CMD ["node", "socket-server/dist/app.js"]
 
@@ -166,6 +172,9 @@ COPY --from=challenge-server-build /app/challenge-server/dist/ challenge-server/
 COPY common/package.json common/
 COPY challenge-server/package.json challenge-server/
 
+ARG BLERT_COMMIT_SHA
+ENV BLERT_COMMIT_SHA=$BLERT_COMMIT_SHA
+
 EXPOSE 3003
 CMD ["node", "challenge-server/dist/app.js"]
 
@@ -183,6 +192,9 @@ COPY --from=common-build /app/common/generated/ common/generated/
 COPY --from=blertbank-build /app/blertbank/dist/ blertbank/dist/
 COPY common/package.json common/
 COPY blertbank/package.json blertbank/
+
+ARG BLERT_COMMIT_SHA
+ENV BLERT_COMMIT_SHA=$BLERT_COMMIT_SHA
 
 EXPOSE 3003
 CMD ["node", "blertbank/dist/app.js"]
@@ -221,6 +233,9 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=live-server-build /app/target/release/live-server /usr/local/bin/
+
+ARG BLERT_COMMIT_SHA
+ENV BLERT_COMMIT_SHA=$BLERT_COMMIT_SHA
 
 ENV PORT=3010
 EXPOSE 3010

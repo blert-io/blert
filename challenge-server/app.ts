@@ -149,7 +149,10 @@ async function main() {
   registerApiRoutes(app, metricsCollector);
 
   const server = app.listen(port, () => {
-    logger.info('challenge_server_listening', { port });
+    logger.info('challenge_server_listening', {
+      port,
+      commit: process.env.BLERT_COMMIT_SHA ?? 'unknown',
+    });
   });
 
   let shuttingDown = false;

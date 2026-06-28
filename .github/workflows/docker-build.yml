@@ -56,6 +56,7 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
           build-args: |
+            BLERT_COMMIT_SHA=${{ github.sha }}
             NEXT_PUBLIC_BASE_URL=${{ vars.NEXT_PUBLIC_BASE_URL }}
             NEXT_PUBLIC_LIVE_SERVER_URL=${{ vars.NEXT_PUBLIC_LIVE_SERVER_URL }}
             NEXT_PUBLIC_BLERTCOIN_ENABLED=${{ vars.NEXT_PUBLIC_BLERTCOIN_ENABLED }}

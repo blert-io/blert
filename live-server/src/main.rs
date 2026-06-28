@@ -94,7 +94,8 @@ async fn main() {
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
-    tracing::info!(port = config.port, "live server starting");
+    let commit = std::env::var("BLERT_COMMIT_SHA").unwrap_or_else(|_| "unknown".to_string());
+    tracing::info!(port = config.port, commit, "live server starting");
     let shutdown_signal = async move {
         #[cfg(unix)]
         {
