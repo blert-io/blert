@@ -4,10 +4,25 @@ import type Client from '../client';
 import type ConnectionManager from '../connection-manager';
 import ServerManager, { ServerStatus } from '../server-manager';
 
-const DRAINING = ServerMessage.ServerStatus.Status.DRAINING;
-
 class FakeClient {
   public readonly sent: ServerMessage[] = [];
+
+  constructor(
+    public readonly sessionId: number = 0,
+    private activeChallengeId: string | null = null,
+  ) {}
+
+  public getSessionId(): number {
+    return this.sessionId;
+  }
+
+  public getActiveChallengeId(): string | null {
+    return this.activeChallengeId;
+  }
+
+  public setActiveChallenge(challengeId: string | null): void {
+    this.activeChallengeId = challengeId;
+  }
 
   public sendMessage(message: ServerMessage): void {
     this.sent.push(message);
@@ -20,6 +35,10 @@ class FakeConnectionManager {
 
   public clients(): readonly FakeClient[] {
     return this.list;
+  }
+
+  public getClient(sessionId: number): FakeClient | undefined {
+    return this.list.find((c) => c.getSessionId() === sessionId);
   }
 
   public closeAllClients(): void {
@@ -39,6 +58,8 @@ function makeManager(clients: FakeClient[] = []): {
 }
 
 describe('draining', () => {
+  const DRAINING = ServerMessage.ServerStatus.Status.DRAINING;
+
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => {
     jest.clearAllTimers();
@@ -211,5 +232,200 @@ describe('draining', () => {
 
     await jest.advanceTimersByTimeAsync(30_000);
     expect(manager.getStatus().status).toBe(ServerStatus.DRAINING);
+  });
+});
+
+describe('rebalancing', () => {
+  const REBALANCING = ServerMessage.ServerStatus.Status.REBALANCING;
+
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => {
+    jest.clearAllTimers();
+    jest.useRealTimers();
+  });
+
+  const rebalanceStatus = (client: FakeClient): number | undefined =>
+    client.sent[0]?.getServerStatus()?.getStatus();
+
+  const signaledClients = (clients: FakeClient[]): FakeClient[] =>
+    clients.filter((c) => rebalanceStatus(c) === REBALANCING);
+
+  it('signals only idle clients', () => {
+    const idle = [new FakeClient(1), new FakeClient(2), new FakeClient(3)];
+    const busy = [new FakeClient(4, 'c-a'), new FakeClient(5, 'c-b')];
+    const { manager } = makeManager([...idle, ...busy]);
+
+    const result = manager.startRebalance({ target: 2 });
+
+    expect(result).toEqual({
+      started: true,
+      total: 5,
+      idle: 3,
+      target: 2,
+      selected: 3,
+    });
+
+    for (const client of idle) {
+      expect(client.sent).toHaveLength(1);
+      expect(client.sent[0].getType()).toBe(ServerMessage.Type.SERVER_STATUS);
+      expect(rebalanceStatus(client)).toBe(REBALANCING);
+      expect(client.sent[0].getServerStatus()?.hasShutdownTime()).toBe(false);
+    }
+    for (const client of busy) {
+      expect(client.sent).toHaveLength(0);
+    }
+
+    // The server stays healthy.
+    expect(manager.getStatus().status).toBe(ServerStatus.RUNNING);
+  });
+
+  it('caps the selected count at the idle count', () => {
+    const clients = [
+      new FakeClient(1),
+      new FakeClient(2, 'c-a'),
+      new FakeClient(3, 'c-b'),
+      new FakeClient(4, 'c-c'),
+    ];
+    const { manager } = makeManager(clients);
+
+    const result = manager.startRebalance({ target: 0 });
+
+    expect(result.selected).toBe(1);
+    expect(signaledClients(clients)).toEqual([clients[0]]);
+  });
+
+  it('does nothing when already at or below the target', () => {
+    const clients = [new FakeClient(1), new FakeClient(2)];
+    const { manager } = makeManager(clients);
+
+    const result = manager.startRebalance({ target: 5 });
+
+    expect(result).toEqual({
+      started: true,
+      total: 2,
+      idle: 2,
+      target: 5,
+      selected: 0,
+    });
+    expect(signaledClients(clients)).toEqual([]);
+  });
+
+  it('spreads notifications across batches with the batch interval', () => {
+    const clients = [1, 2, 3, 4, 5].map((id) => new FakeClient(id));
+    const { manager } = makeManager(clients);
+
+    manager.startRebalance({ target: 0, batchSize: 2, batchIntervalMs: 1000 });
+
+    // First batch fires synchronously.
+    expect(signaledClients(clients)).toHaveLength(2);
+
+    jest.advanceTimersByTime(1000);
+    expect(signaledClients(clients)).toHaveLength(4);
+
+    jest.advanceTimersByTime(1000);
+    expect(signaledClients(clients)).toHaveLength(5);
+
+    expect(clients.every((c) => c.sent.length === 1)).toBe(true);
+  });
+
+  it('skips a selected client that entered a challenge before its batch', () => {
+    const clients = [1, 2, 3, 4].map((id) => new FakeClient(id));
+    const { manager } = makeManager(clients);
+
+    manager.startRebalance({ target: 0, batchSize: 2, batchIntervalMs: 1000 });
+
+    expect(signaledClients(clients)).toEqual([clients[0], clients[1]]);
+
+    clients[2].setActiveChallenge('c-late');
+    jest.advanceTimersByTime(1000);
+
+    expect(signaledClients(clients)).toEqual([
+      clients[0],
+      clients[1],
+      clients[3],
+    ]);
+    expect(clients[2].sent).toHaveLength(0);
+  });
+
+  it('skips a selected client that disconnected before its batch', () => {
+    const clients = [1, 2, 3, 4].map((id) => new FakeClient(id));
+    const { manager, cm } = makeManager(clients);
+
+    manager.startRebalance({ target: 0, batchSize: 2, batchIntervalMs: 1000 });
+
+    cm.list = cm.list.filter((c) => c.getSessionId() !== 3);
+    jest.advanceTimersByTime(1000);
+
+    expect(clients[2].sent).toHaveLength(0);
+    expect(clients[3].sent).toHaveLength(1);
+    expect(rebalanceStatus(clients[3])).toBe(REBALANCING);
+  });
+
+  it('is rejected while the instance is draining', () => {
+    const clients = [new FakeClient(1), new FakeClient(2)];
+    const { manager } = makeManager(clients);
+
+    manager.startDrain(jest.fn(), { settleDelay: 30_000, gracePeriod: 60_000 });
+    const result = manager.startRebalance({ target: 0 });
+
+    expect(result.started).toBe(false);
+    expect(result.selected).toBe(0);
+    expect(signaledClients(clients)).toEqual([]);
+    expect(manager.getStatus().status).toBe(ServerStatus.DRAINING);
+  });
+
+  it('is rejected while a rebalance is already in progress', () => {
+    const clients = [1, 2, 3].map((id) => new FakeClient(id));
+    const { manager } = makeManager(clients);
+
+    const first = manager.startRebalance({
+      target: 0,
+      batchSize: 1,
+      batchIntervalMs: 1000,
+    });
+    expect(first.started).toBe(true);
+    expect(signaledClients(clients)).toHaveLength(1);
+
+    const second = manager.startRebalance({ target: 0 });
+    expect(second.started).toBe(false);
+
+    // The second request notified no new clients.
+    expect(signaledClients(clients)).toHaveLength(1);
+  });
+
+  it('aborts a rebalance when a drain begins', () => {
+    const clients = [1, 2, 3, 4].map((id) => new FakeClient(id));
+    const { manager } = makeManager(clients);
+
+    manager.startRebalance({ target: 0, batchSize: 1, batchIntervalMs: 1000 });
+    expect(signaledClients(clients)).toHaveLength(1);
+
+    manager.startDrain(jest.fn(), { settleDelay: 30_000, gracePeriod: 60_000 });
+
+    jest.advanceTimersByTime(10_000);
+    expect(signaledClients(clients)).toHaveLength(1);
+  });
+
+  it('falls back to the default batch size when given a nonpositive one', () => {
+    const clients = [1, 2, 3].map((id) => new FakeClient(id));
+    const { manager } = makeManager(clients);
+
+    manager.startRebalance({ target: 0, batchSize: 0, batchIntervalMs: 1000 });
+    expect(signaledClients(clients)).toHaveLength(3);
+
+    jest.advanceTimersByTime(5000);
+    expect(signaledClients(clients)).toHaveLength(3);
+  });
+
+  it('does not change the server status or fire status callbacks', () => {
+    const updates: ServerStatus[] = [];
+    const { manager } = makeManager([new FakeClient(1)]);
+    manager.onStatusUpdate(({ status }) => updates.push(status));
+
+    manager.startRebalance({ target: 0 });
+
+    expect(manager.getStatus().status).toBe(ServerStatus.RUNNING);
+    expect(manager.getStatus().shutdownTime).toBeNull();
+    expect(updates).toEqual([]);
   });
 });

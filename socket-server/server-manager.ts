@@ -4,7 +4,11 @@ import { Timestamp } from 'google-protobuf/google/protobuf/timestamp_pb';
 import Client from './client';
 import ConnectionManager from './connection-manager';
 import logger from './log';
-import { recordShutdownBroadcast, setServerStatusMetric } from './metrics';
+import {
+  recordRebalanceShed,
+  recordShutdownBroadcast,
+  setServerStatusMetric,
+} from './metrics';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -36,6 +40,47 @@ type DrainState = {
   onComplete: () => void;
 };
 
+export type RebalanceOptions = {
+  /**
+   * The number of clients this instance should aim to retain. The number to
+   * shed is fixed when the rebalance begins as `(connected - target)`, so new
+   * connections arriving mid-rebalance neither inflate the shed count nor keep
+   * the target perpetually out of reach.
+   */
+  target: number;
+  /** Number of clients to ask to move per batch. */
+  batchSize?: number;
+  /** Delay between batches. */
+  batchIntervalMs?: number;
+};
+
+export type RebalanceResult = {
+  /** Whether a rebalance was initiated. `false` if rejected. */
+  started: boolean;
+  /** Total number of connected clients when the rebalance was requested. */
+  total: number;
+  /** Idle clients when the rebalance was requested. */
+  idle: number;
+  /** The requested retained client count. */
+  target: number;
+  /**
+   * Number of clients selected to reconnect. Capped by the idle count as
+   * clients in an active challenge are never disturbed, so a target below the
+   * number of busy clients cannot be fully reached.
+   */
+  selected: number;
+};
+
+type RebalanceState = {
+  /** Session IDs of selected clients still waiting to be signaled. */
+  queue: number[];
+  batchSize: number;
+  batchInterval: number;
+  batchTimer: NodeJS.Timeout | null;
+  /** Running total of clients signaled (excluding those skipped). */
+  shed: number;
+};
+
 export type ServerStatusUpdate = {
   status: ServerStatus;
   shutdownTime: Date | null;
@@ -65,6 +110,11 @@ export default class ServerManager {
   // How often the drain monitor checks whether all clients have left.
   private static DRAIN_TICK_MS = 5 * 1000;
 
+  // How many clients a rebalance asks to reconnect per batch, and how long it
+  // waits between batches, to control connection load on other instances.
+  public static DEFAULT_REBALANCE_BATCH_SIZE = 25;
+  public static DEFAULT_REBALANCE_BATCH_INTERVAL_MS = 1000;
+
   private connectionManager: ConnectionManager;
   private status: ServerStatus;
   private shutdownTime: Date | null;
@@ -74,6 +124,7 @@ export default class ServerManager {
   private shutdownMessageTimer: NodeJS.Timeout | null = null;
 
   private drain: DrainState | null = null;
+  private rebalance: RebalanceState | null = null;
 
   public constructor(connectionManager: ConnectionManager) {
     this.connectionManager = connectionManager;
@@ -218,6 +269,9 @@ export default class ServerManager {
       this.shutdownMessageTimer = null;
     }
 
+    // A drain supersedes a rebalance; the instance is leaving.
+    this.stopRebalance();
+
     const gracePeriod =
       options.gracePeriod ?? ServerManager.DEFAULT_DRAIN_GRACE_PERIOD_MS;
     const settleDelay =
@@ -321,6 +375,137 @@ export default class ServerManager {
 
     this.updateStatus(ServerStatus.OFFLINE);
     onComplete();
+  }
+
+  /**
+   * Voluntarily moves a subset of this instance's clients to other instances
+   * to even out load.
+   *
+   * Unlike a drain, the instance stays healthy and in service. It simply asks a
+   * selected set of clients not recording a challenge to reconnect, which the
+   * load balancer then spreads across the healthy pool.
+   */
+  public startRebalance(options: RebalanceOptions): RebalanceResult {
+    const clients = this.connectionManager.clients();
+    const idle = clients.filter((c) => c.getActiveChallengeId() === null);
+
+    const result: RebalanceResult = {
+      started: false,
+      total: clients.length,
+      idle: idle.length,
+      target: options.target,
+      selected: 0,
+    };
+
+    if (this.status !== ServerStatus.RUNNING || this.rebalance !== null) {
+      logger.info('server_rebalance_ignored', {
+        status: this.status,
+        inProgress: this.rebalance !== null,
+      });
+      return result;
+    }
+
+    const toShed = Math.max(0, clients.length - options.target);
+    const selected = idle.slice(0, toShed).map((c) => c.getSessionId());
+    result.started = true;
+    result.selected = selected.length;
+
+    logger.info('server_rebalance_started', {
+      total: clients.length,
+      idle: idle.length,
+      target: options.target,
+      toShed,
+      selected: selected.length,
+    });
+
+    if (selected.length === 0) {
+      return result;
+    }
+
+    const batchSize =
+      options.batchSize !== undefined && options.batchSize >= 1
+        ? Math.floor(options.batchSize)
+        : ServerManager.DEFAULT_REBALANCE_BATCH_SIZE;
+
+    this.rebalance = {
+      queue: selected,
+      batchSize,
+      batchInterval:
+        options.batchIntervalMs ??
+        ServerManager.DEFAULT_REBALANCE_BATCH_INTERVAL_MS,
+      batchTimer: null,
+      shed: 0,
+    };
+
+    // Send the first batch immediately; the rest follow on the batch interval.
+    this.sendRebalanceBatch();
+
+    return result;
+  }
+
+  private sendRebalanceBatch(): void {
+    if (this.rebalance === null) {
+      return;
+    }
+
+    const message = this.rebalanceMessage();
+    const batch = this.rebalance.queue.splice(0, this.rebalance.batchSize);
+
+    let sent = 0;
+    for (const sessionId of batch) {
+      const client = this.connectionManager.getClient(sessionId);
+      if (client === undefined) {
+        continue;
+      }
+      // Skip clients who have since started a challenge.
+      if (client.getActiveChallengeId() !== null) {
+        continue;
+      }
+      client.sendMessage(message);
+      sent += 1;
+    }
+
+    this.rebalance.shed += sent;
+    recordRebalanceShed(sent);
+    logger.info('server_rebalance_batch', {
+      sent,
+      remaining: this.rebalance.queue.length,
+    });
+
+    if (this.rebalance.queue.length === 0) {
+      logger.info('server_rebalance_complete', { shed: this.rebalance.shed });
+      this.rebalance = null;
+      return;
+    }
+
+    this.rebalance.batchTimer = setTimeout(
+      () => this.sendRebalanceBatch(),
+      this.rebalance.batchInterval,
+    );
+  }
+
+  private stopRebalance(): void {
+    if (this.rebalance === null) {
+      return;
+    }
+
+    if (this.rebalance.batchTimer !== null) {
+      clearTimeout(this.rebalance.batchTimer);
+    }
+    logger.info('server_rebalance_stopped', {
+      shed: this.rebalance.shed,
+      remaining: this.rebalance.queue.length,
+    });
+    this.rebalance = null;
+  }
+
+  private rebalanceMessage(): ServerMessage {
+    const message = new ServerMessage();
+    message.setType(ServerMessage.Type.SERVER_STATUS);
+    const serverStatus = new ServerMessage.ServerStatus();
+    serverStatus.setStatus(ServerMessage.ServerStatus.Status.REBALANCING);
+    message.setServerStatus(serverStatus);
+    return message;
   }
 
   private updateStatus(newStatus: ServerStatus): void {

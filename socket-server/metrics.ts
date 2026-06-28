@@ -164,6 +164,12 @@ const shutdownBroadcastsCounter = new Counter({
   registers: [register],
 });
 
+const rebalanceShedCounter = new Counter({
+  name: 'socket_server_rebalance_shed_total',
+  help: 'Clients asked to reconnect for load rebalancing',
+  registers: [register],
+});
+
 const SERVER_STATUSES = [
   'RUNNING',
   'SHUTDOWN_PENDING',
@@ -284,6 +290,12 @@ export const setServerStatusMetric = (status: ServerStatus): void => {
 
 export const recordShutdownBroadcast = (status: ServerStatus): void => {
   shutdownBroadcastsCounter.inc({ status });
+};
+
+export const recordRebalanceShed = (count: number): void => {
+  if (count > 0) {
+    rebalanceShedCounter.inc(count);
+  }
 };
 
 export async function timeRemoteOperation<T>(
