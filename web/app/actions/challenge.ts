@@ -1114,17 +1114,10 @@ export async function findChallenges(
 }
 
 type GroupField = {
-  field: string;
+  /** Output column name the grouped value is selected as. */
   renamed: string;
-  groupExpression: postgres.Fragment | null;
+  expression: postgres.Fragment;
 };
-
-function groupExpression(groupField: GroupField): postgres.Fragment {
-  if (groupField.groupExpression === null) {
-    return sql`${sql(groupField.field)}`;
-  }
-  return sql`${groupField.groupExpression} AS ${sql(groupField.renamed)}`;
-}
 
 type Aggregations = Aggregation | Aggregation[];
 
@@ -1343,25 +1336,28 @@ export async function aggregateChallenges<
     const fields: string[] = Array.isArray(grouping) ? grouping : [grouping];
     fields.forEach((field) => {
       const [f, table] = shorthandToFullField(camelToSnake(field));
-      let groupExpression = null;
-      let renamed = f;
+      const sqlTable = table === 'challenges' ? queryTable : sql(table);
 
       if (
-        table === 'challenges' ||
-        joins.find((j) => j.tableName === table) !== undefined
+        table !== 'challenges' &&
+        joins.find((j) => j.tableName === table) === undefined
       ) {
-        if (field === 'startTime') {
-          renamed = 'start_date';
-          groupExpression = sql`${sql(f)}::date`;
-        }
-      } else {
         joins.push({
           table: sql(table),
-          on: sql`challenges.id = ${sql(table)}.challenge_id`,
+          on: sql`${queryTable}.id = ${sqlTable}.challenge_id`,
           tableName: table,
         });
       }
-      groupFields.push({ field: f, renamed, groupExpression });
+
+      const column = sql`${sqlTable}.${sql(f)}`;
+      if (field === 'startTime') {
+        groupFields.push({
+          renamed: 'start_date',
+          expression: sql`${column}::date`,
+        });
+      } else {
+        groupFields.push({ renamed: f, expression: column });
+      }
     });
   }
 
@@ -1392,7 +1388,7 @@ export async function aggregateChallenges<
     SELECT
       ${
         groupFields.length > 0
-          ? sql`${groupFields.map((g) => sql`${groupExpression(g)},`)}`
+          ? sql`${groupFields.map((g) => sql`${g.expression} AS ${sql(g.renamed)},`)}`
           : sql``
       }
       ${aggregateFields.flatMap((f, i) => (i === 0 ? f : [sql`, `, f]))}
@@ -1401,7 +1397,9 @@ export async function aggregateChallenges<
     ${where(conditions)}
     ${
       groupFields.length > 0
-        ? sql`GROUP BY ${sql(groupFields.map((g) => g.renamed))}`
+        ? sql`GROUP BY ${groupFields.flatMap((g, i) =>
+            i === 0 ? g.expression : [sql`, `, g.expression],
+          )}`
         : sql``
     }
     ${sortClause}

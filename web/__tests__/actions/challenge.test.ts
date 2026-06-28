@@ -1063,6 +1063,94 @@ describe('challenges', () => {
       expect(result!['2']['tob:xarpusHealing'].avg).toBe(125);
     });
 
+    it('groups a split aggregation by scale across scales', async () => {
+      const inserted = await sql`
+        INSERT INTO challenges ${sql(
+          [
+            {
+              session_id: sessionId,
+              uuid: 'a1a1a1a1-a1a1-a1a1-a1a1-a1a1a1a1a1a1',
+              type: ChallengeType.TOB,
+              status: ChallengeStatus.COMPLETED,
+              start_time: new Date('2024-01-02T10:00:00Z'),
+              scale: 3,
+            },
+          ],
+          ['session_id', 'uuid', 'type', 'status', 'start_time', 'scale'],
+        )} RETURNING id
+      `;
+      const scale3Id = inserted[0].id as number;
+
+      const split = (challenge_id: number, scale: number, ticks: number) => ({
+        challenge_id,
+        type: SplitType.TOB_REG_MAIDEN,
+        scale,
+        ticks,
+        accurate: true,
+      });
+      await sql`
+        INSERT INTO challenge_splits ${sql(
+          [
+            split(challengeIds[0], 2, 100),
+            split(challengeIds[1], 2, 200),
+            split(scale3Id, 3, 300),
+          ],
+          ['challenge_id', 'type', 'scale', 'ticks', 'accurate'],
+        )}
+      `;
+
+      const field = `splits:${SplitType.TOB_REG_MAIDEN}`;
+      const result = await aggregateChallenges(
+        { type: ['==', ChallengeType.TOB] },
+        { [field]: [{ type: 'avg' }, { type: 'count' }] },
+        {},
+        'scale',
+      );
+
+      expect(result).toEqual({
+        '2': { [field]: { avg: 150, count: 2 } },
+        '3': { [field]: { avg: 300, count: 1 } },
+      });
+    });
+
+    it('groups by startTime, truncating time of day to a date', async () => {
+      await sql`
+        INSERT INTO challenges ${sql(
+          [
+            {
+              session_id: sessionId,
+              uuid: 'b2b2b2b2-b2b2-b2b2-b2b2-b2b2b2b2b2b2',
+              type: ChallengeType.TOB,
+              status: ChallengeStatus.COMPLETED,
+              start_time: new Date('2026-06-28T09:00:00Z'),
+              scale: 2,
+            },
+            {
+              session_id: sessionId,
+              uuid: 'c3c3c3c3-c3c3-c3c3-c3c3-c3c3c3c3c3c3',
+              type: ChallengeType.TOB,
+              status: ChallengeStatus.COMPLETED,
+              start_time: new Date('2026-06-28T21:00:00Z'),
+              scale: 2,
+            },
+          ],
+          ['session_id', 'uuid', 'type', 'status', 'start_time', 'scale'],
+        )}
+      `;
+
+      const result = await aggregateChallenges(
+        {},
+        { '*': { type: 'count' } },
+        {},
+        'startTime',
+      );
+
+      expect(result).toEqual({
+        '2024-01-01': { '*': { count: 3 } },
+        '2026-06-28': { '*': { count: 2 } },
+      });
+    });
+
     describe('percentiles', () => {
       beforeEach(async () => {
         // Five scale-5 ToB challenges keep this distribution isolated from the
