@@ -56,6 +56,12 @@ type DrainRequest = {
   cancel?: boolean;
 };
 
+type RebalanceRequest = {
+  target?: number;
+  batchSize?: number;
+  batchIntervalMs?: number;
+};
+
 function setupHttpRoutes(
   app: express.Express,
   serverManager: ServerManager,
@@ -126,6 +132,38 @@ function setupHttpRoutes(
       serverManager.startDrain(onDrainComplete, { gracePeriod, settleDelay });
     }
     res.json(serverManager.getStatus());
+  });
+
+  app.post('/admin/rebalance', (req, res) => {
+    const { target, batchSize, batchIntervalMs } = req.body as RebalanceRequest;
+    if (typeof target !== 'number' || !Number.isFinite(target) || target < 0) {
+      res.status(400).json({ error: 'target must be a nonnegative number' });
+      return;
+    }
+    if (
+      batchSize !== undefined &&
+      (!Number.isInteger(batchSize) || batchSize < 1)
+    ) {
+      res.status(400).json({ error: 'batchSize must be a positive integer' });
+      return;
+    }
+    if (
+      batchIntervalMs !== undefined &&
+      (typeof batchIntervalMs !== 'number' ||
+        !Number.isFinite(batchIntervalMs) ||
+        batchIntervalMs < 0)
+    ) {
+      res
+        .status(400)
+        .json({ error: 'batchIntervalMs must be a nonnegative number' });
+      return;
+    }
+    const result = serverManager.startRebalance({
+      target,
+      batchSize,
+      batchIntervalMs,
+    });
+    res.json(result);
   });
 
   // Admin endpoint to upload new attack definitions.

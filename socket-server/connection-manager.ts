@@ -256,6 +256,11 @@ export default class ConnectionManager {
     return Array.from(this.activeClients.values());
   }
 
+  /** Returns the client with the given session ID if it is connected. */
+  public getClient(sessionId: number): Client | undefined {
+    return this.activeClients.get(sessionId);
+  }
+
   private newSession(): Session {
     return {
       // 2**53 session IDs ought to be enough for anybody.
