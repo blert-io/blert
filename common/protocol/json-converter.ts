@@ -587,7 +587,8 @@ export function jsonToProtoEvent(json: EventJson): Event {
 
 function npcJsonToProto(json: z.infer<typeof npcSchema>): Event.Npc {
   const npc = new Event.Npc();
-  npc.setId(json.id);
+  // Normalize RuneLite's -1 NPC IDs to 0 as proto stores them unsigned.
+  npc.setId(json.id < 0 ? 0 : json.id);
   npc.setRoomId(json.roomId);
   if (json.hitpoints !== undefined) {
     npc.setHitpoints(json.hitpoints);

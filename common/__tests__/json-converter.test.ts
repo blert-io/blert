@@ -163,6 +163,33 @@ describe('jsonToServerMessage', () => {
       expect(npc?.hasNylo()).toBe(false);
     });
 
+    it('normalizes an NPC id of -1 to 0', () => {
+      const json: ServerMessageJson = {
+        type: ServerMessage.Type.EVENT_STREAM,
+        challengeEvents: [
+          {
+            type: Event.Type.NPC_UPDATE,
+            stage: 12,
+            tick: 28,
+            xCoord: 3292,
+            yCoord: 4244,
+            npc: {
+              id: -1,
+              roomId: 59422,
+              hitpoints: 589833,
+              basic: {},
+            },
+          },
+        ],
+      };
+
+      const proto = jsonToServerMessage(json);
+      const npc = proto.getChallengeEventsList()[0].getNpc();
+
+      expect(npc?.getId()).toBe(0);
+      expect(npc?.getRoomId()).toBe(59422);
+    });
+
     it('converts an NPC_SPAWN event with nylo data', () => {
       const json: ServerMessageJson = {
         type: ServerMessage.Type.EVENT_STREAM,
@@ -871,27 +898,6 @@ describe('jsonToServerMessage', () => {
     it('throws on invalid message type', () => {
       const json = {
         type: 'invalid',
-      };
-
-      expect(() => jsonToServerMessage(json)).toThrow(z.ZodError);
-    });
-
-    it('throws on negative NPC id', () => {
-      const json = {
-        type: ServerMessage.Type.EVENT_STREAM,
-        challengeEvents: [
-          {
-            type: Event.Type.NPC_SPAWN,
-            stage: 12,
-            tick: 28,
-            xCoord: 0,
-            yCoord: 0,
-            npc: {
-              id: -1,
-              roomId: 100,
-            },
-          },
-        ],
       };
 
       expect(() => jsonToServerMessage(json)).toThrow(z.ZodError);

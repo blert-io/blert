@@ -221,7 +221,7 @@ export const verzikCrabSchema = z.object({
 
 // Event.Npc
 export const npcSchema = z.object({
-  id: z.number().int().nonnegative(),
+  id: z.number().int(),
   roomId: z.number().int(),
   hitpoints: z.number().int().optional(),
   activePrayers: z.number().int().optional(),
