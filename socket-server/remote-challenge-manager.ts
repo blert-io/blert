@@ -561,8 +561,12 @@ export class RemoteChallengeManager extends ChallengeManager {
     path: string,
     init: RequestInit,
   ): Promise<Response> {
-    const maxRetries = 4;
-    const baseDelayMs = 100;
+    const maxRetries = 8;
+    const baseDelayMs = 250;
+    const maxDelayMs = 2000;
+
+    const backoffMs = (attempt: number) =>
+      Math.min(maxDelayMs, baseDelayMs * Math.pow(2, attempt));
 
     let lastError: Error | null = null;
 
@@ -576,8 +580,7 @@ export class RemoteChallengeManager extends ChallengeManager {
         if (response.status === 502 || response.status === 503) {
           lastError = new Error(`Server error: ${response.status}`);
           if (attempt < maxRetries - 1) {
-            const delayMs = baseDelayMs * Math.pow(2, attempt);
-            await this.sleep(delayMs);
+            await this.sleep(backoffMs(attempt));
             continue;
           }
         }
@@ -586,7 +589,7 @@ export class RemoteChallengeManager extends ChallengeManager {
       } catch (e) {
         lastError = e instanceof Error ? e : new Error(String(e));
         if (attempt < maxRetries - 1) {
-          const delayMs = baseDelayMs * Math.pow(2, attempt);
+          const delayMs = backoffMs(attempt);
           logger.warn('remote_request_retry', {
             operation,
             path,

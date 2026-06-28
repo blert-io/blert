@@ -4,6 +4,7 @@ import {
   ChallengeStatus,
   ChallengeType,
   ChallengeUpdateAction,
+  ClientEvent,
   ClientEventType,
   ClientStatus,
   ClientStatusEvent,
@@ -54,6 +55,7 @@ import {
   TimeoutState,
   TransactionClient,
 } from './redis-client';
+import { IntervalTask, PendingTasks } from './task';
 import { timeOperation } from './time';
 import { DiscordClient, RecordsHandler, WebhookService } from './webhooks';
 
@@ -219,7 +221,8 @@ export default class ChallengeManager {
   private eventQueueActive: boolean;
 
   private manageTimeouts: boolean;
-  private timeoutTaskTimer: NodeJS.Timeout | null;
+  private timeoutTask: IntervalTask | null;
+  private backgroundTasks: PendingTasks;
   private sessionWatchdog: SessionWatchdog;
 
   private webhookService: WebhookService;
@@ -260,17 +263,27 @@ export default class ChallengeManager {
     this.redisClient = new RedisClient(client);
     this.eventClient = new EventQueueClient(client.duplicate());
     this.eventQueueActive = true;
+    this.backgroundTasks = new PendingTasks();
 
     this.sessionWatchdog = new SessionWatchdog(client.duplicate());
 
     this.manageTimeouts = manageTimeouts;
     if (this.manageTimeouts) {
-      this.timeoutTaskTimer = setTimeout(() => {
-        void this.processChallengeTimeouts();
-      }, ChallengeManager.CHALLENGE_TIMEOUT_INTERVAL);
+      this.timeoutTask = new IntervalTask(
+        () => this.processOneChallengeTimeout(),
+        {
+          intervalMs: ChallengeManager.CHALLENGE_TIMEOUT_INTERVAL,
+          onError: (e: unknown) =>
+            logger.error('challenge_timeout_processing_failed', {
+              error: e instanceof Error ? e.message : String(e),
+              stack: e instanceof Error ? e.stack : undefined,
+            }),
+        },
+      );
+      this.timeoutTask.start();
       void this.sessionWatchdog.run();
     } else {
-      this.timeoutTaskTimer = null;
+      this.timeoutTask = null;
     }
 
     // Initialize webhook service with handlers.
@@ -278,9 +291,24 @@ export default class ChallengeManager {
     const discordClient = new DiscordClient();
     this.webhookService.registerHandler(new RecordsHandler(discordClient));
 
-    setTimeout(() => {
-      void this.processClientEvents();
-    }, 100);
+    this.backgroundTasks.add(this.processClientEvents());
+  }
+
+  /**
+   * Gracefully stops all of the manager's background tasks ahead of a restart.
+   */
+  public async shutdown(): Promise<void> {
+    this.eventQueueActive = false;
+    this.sessionWatchdog.stop();
+
+    // Drain tasks before shutting down the merge pool.
+    await Promise.all([
+      this.timeoutTask?.stop(),
+      this.eventClient.disconnect(),
+    ]);
+
+    await this.backgroundTasks.drain();
+    await Promise.all([this.mergeService.shutdown()]);
   }
 
   /**
@@ -1137,13 +1165,16 @@ export default class ChallengeManager {
           processingStage: Date.now(),
         });
       });
-      setTimeout(() => {
-        void this.loadAndCompleteChallengeStage(
-          challengeId,
-          stageToComplete,
-          attemptToComplete,
-        );
-      }, 0);
+
+      this.backgroundTasks.add(
+        delay(0).then(() =>
+          this.loadAndCompleteChallengeStage(
+            challengeId,
+            stageToComplete,
+            attemptToComplete,
+          ),
+        ),
+      );
     }
 
     return result;
@@ -1455,7 +1486,17 @@ export default class ChallengeManager {
     while (this.eventQueueActive) {
       // Set a timeout per pop as some production Redis servers don't like long
       // blocking operations. If the timeout is reached, simply try again.
-      const event = await this.eventClient.popEvent(60_000);
+      let event: ClientEvent | null;
+      try {
+        event = await this.eventClient.popEvent(60_000);
+      } catch (e: unknown) {
+        // A shutdown disconnects the client to interrupt the blocking pop;
+        // exit cleanly rather than treating the rejection as a failure.
+        if (!this.eventQueueActive) {
+          break;
+        }
+        throw e;
+      }
       if (event === null) {
         continue;
       }
@@ -1503,8 +1544,6 @@ export default class ChallengeManager {
         }
       }
     }
-
-    await this.eventClient.disconnect();
   }
 
   private async loadAndCompleteChallengeStage(
@@ -2008,25 +2047,6 @@ export default class ChallengeManager {
       }
 
       break;
-    }
-  }
-
-  private async processChallengeTimeouts() {
-    this.timeoutTaskTimer = null;
-
-    try {
-      await this.processOneChallengeTimeout();
-    } catch (e: unknown) {
-      logger.error('challenge_timeout_processing_failed', {
-        error: e instanceof Error ? e.message : String(e),
-        stack: e instanceof Error ? e.stack : undefined,
-      });
-    }
-
-    if (this.manageTimeouts) {
-      this.timeoutTaskTimer = setTimeout(() => {
-        void this.processChallengeTimeouts();
-      }, ChallengeManager.CHALLENGE_TIMEOUT_INTERVAL);
     }
   }
 }
