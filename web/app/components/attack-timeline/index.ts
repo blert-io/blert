@@ -1,14 +1,16 @@
-import { AttackTimeline } from './attack-timeline';
-export default AttackTimeline;
+export {
+  type ActionEvaluation,
+  type ActionEvaluator,
+  type ActionOutline,
+  BcfRenderer as default,
+  type BcfRendererProps as AttackTimelineProps,
+  type CustomRow,
+  type StateProvider,
+} from './bcf-renderer';
 
 export {
   bcfToPlayerAttack,
   CombatStyle,
   getAttackStyle,
 } from './attack-metadata';
-export type {
-  AttackTimelineProps,
-  CustomRow,
-  TimelineColor,
-} from './attack-timeline';
 export type { CustomState, TimelineSplit } from './types';

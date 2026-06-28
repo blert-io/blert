@@ -396,13 +396,10 @@ export default function DelvePage({ params }: DelvePageProps) {
       <div className={styles.timeline}>
         <BossPageAttackTimeline
           currentTick={currentTick}
-          playing={playing}
           playerState={playerState}
-          timelineTicks={totalTicks}
           updateTickOnPage={setTick}
           npcs={npcState}
           bcf={bcf}
-          smallLegend={display.isCompact()}
           customRows={[orbsRow]}
           liveFollowing={following}
         />

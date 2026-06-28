@@ -353,14 +353,10 @@ export default function SotetsegPage() {
       <div className={bossStyles.timeline}>
         <BossPageAttackTimeline
           currentTick={currentTick}
-          playing={playing}
           playerState={playerState}
-          timelineTicks={totalTicks}
           updateTickOnPage={setTick}
-          splits={splits}
           npcs={npcState}
           bcf={bcf}
-          smallLegend={display.isCompact()}
           liveFollowing={following}
         />
       </div>
