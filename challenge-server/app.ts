@@ -14,6 +14,9 @@ import {
 import { MetricsCollector } from './metrics';
 import logger from './log';
 
+/** Maximum time to wait for a graceful shutdown before forcibly exiting. */
+const SHUTDOWN_TIMEOUT_MS = 10_000;
+
 /**
  * Initializes the repository for Blert's static challenge data files, with a
  * backend set based on the BLERT_DATA_REPOSITORY environment variable.
@@ -145,9 +148,50 @@ async function main() {
 
   registerApiRoutes(app, metricsCollector);
 
-  app.listen(port, () => {
+  const server = app.listen(port, () => {
     logger.info('challenge_server_listening', { port });
   });
+
+  let shuttingDown = false;
+  const shutdown = async (signal: string): Promise<void> => {
+    if (shuttingDown) {
+      return;
+    }
+    shuttingDown = true;
+    logger.info('shutdown_started', { signal });
+
+    const failsafe = setTimeout(() => {
+      logger.error('shutdown_timed_out');
+      process.exit(1);
+    }, SHUTDOWN_TIMEOUT_MS);
+    failsafe.unref();
+
+    try {
+      // Stop accepting new requests.
+      const closed = new Promise<void>((resolve, reject) => {
+        server.close((err) => (err !== undefined ? reject(err) : resolve()));
+      });
+      server.closeIdleConnections();
+      await closed;
+
+      await challengeManager.shutdown();
+
+      // Release shared connections now that nothing else will use them.
+      await Promise.allSettled([redisClient.quit(), sql.end()]);
+
+      logger.info('shutdown_complete');
+      process.exit(0);
+    } catch (e) {
+      logger.error('shutdown_error', {
+        error: e instanceof Error ? e.message : String(e),
+        stack: e instanceof Error ? e.stack : undefined,
+      });
+      process.exit(1);
+    }
+  };
+
+  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  process.on('SIGINT', () => void shutdown('SIGINT'));
 }
 
 void main();
