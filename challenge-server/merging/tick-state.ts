@@ -218,9 +218,17 @@ export function buildNpcsForTick(
     }
     const npc = tagged.event.getNpc()!;
     const roomId = npc.getRoomId();
+
+    // An NPC ID should never be 0 when it is initially reported; it can only
+    // become 0 if its cached object is later hollowed out client-side.
+    // Therefore, this should always result in a valid ID carried forward.
+    const id =
+      npc.getId() === 0 ? (previous?.get(roomId)?.id ?? 0) : npc.getId();
+
     const fresh = extractNpcSubtype(npc);
+
     npcs.set(roomId, {
-      id: npc.getId(),
+      id,
       x: tagged.event.getXCoord(),
       y: tagged.event.getYCoord(),
       hitpoints: SkillLevel.fromRaw(npc.getHitpoints()),
@@ -309,6 +317,21 @@ export function resynchronizeTicks(stage: Stage, ticks: TickStateArray): void {
       deadNpcs,
     });
 
+    // Mark actor deaths starting from the following tick.
+    for (const death of tick.getEventsByType(Event.Type.PLAYER_DEATH)) {
+      const name = death.getPlayer()?.getName();
+      if (name) {
+        deadPlayers.add(name);
+      }
+    }
+    for (const death of tick.getEventsByType(Event.Type.NPC_DEATH)) {
+      const npc = death.getNpc()!;
+      deadNpcs.add(npc.getRoomId());
+      if (npc.getId() === 0) {
+        npc.setId(previousNpcs.get(npc.getRoomId())?.id ?? 0);
+      }
+    }
+
     for (const [player, state] of tick.getPlayerStates()) {
       if (state !== null) {
         previousPlayers.set(player, state);
@@ -318,20 +341,6 @@ export function resynchronizeTicks(stage: Stage, ticks: TickStateArray): void {
       previousNpcs.set(roomId, state);
     }
     previousGraphics = tick.getGraphics();
-
-    // Mark actor deaths starting from the following tick.
-    for (const death of tick.getEventsByType(Event.Type.PLAYER_DEATH)) {
-      const name = death.getPlayer()?.getName();
-      if (name) {
-        deadPlayers.add(name);
-      }
-    }
-    for (const death of tick.getEventsByType(Event.Type.NPC_DEATH)) {
-      const roomId = death.getNpc()?.getRoomId();
-      if (roomId !== undefined) {
-        deadNpcs.add(roomId);
-      }
-    }
   }
 }
 
