@@ -22,7 +22,11 @@ function main() {
   const port = process.env.PORT ?? 3003;
 
   app.listen(port, () => {
-    logger.info('Blertbank server started on port %d', port);
+    logger.info(
+      'Blertbank server started on port %d (commit %s)',
+      port,
+      process.env.BLERT_COMMIT_SHA ?? 'unknown',
+    );
   });
 }
 

@@ -377,7 +377,10 @@ async function main(): Promise<void> {
   app.use(express.json());
 
   const server = app.listen(port, () => {
-    logger.info('event_server_listening', { port });
+    logger.info('event_server_listening', {
+      port,
+      commit: process.env.BLERT_COMMIT_SHA ?? 'unknown',
+    });
   });
 
   const wss = new WebSocketServer({
