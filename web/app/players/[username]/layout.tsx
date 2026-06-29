@@ -7,6 +7,7 @@ import { ResolvingMetadata } from 'next';
 
 import {
   aggregateChallenges,
+  findChallenges,
   loadPbsForPlayer,
   loadPlayerWithStats,
   type PlayerWithStats,
@@ -16,6 +17,7 @@ import { getConnectedPlayers, getSignedInUserId } from '@/actions/users';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import FollowButton from './follow-button';
+import RecentChallengeCard, { RecentChallenge } from './recent-challenge-card';
 
 function scaleName(scale: number) {
   return scale === 1
@@ -43,12 +45,16 @@ type PlayerLayoutProps = {
 
 function PlayerInfo({
   player,
+  username,
   totalRecordedTicks,
   followButton,
+  recentChallenge,
 }: {
   player: PlayerWithStats;
+  username: string;
   totalRecordedTicks: number;
   followButton: React.ReactNode;
+  recentChallenge: RecentChallenge | null;
 }) {
   const totalHoursPlayed = (totalRecordedTicks / 6000).toFixed(1);
 
@@ -109,6 +115,11 @@ function PlayerInfo({
             <span className={styles.value}>{totalHoursPlayed} hours</span>
           </div>
         </div>
+        <RecentChallengeCard
+          key={username}
+          username={username}
+          initial={recentChallenge}
+        />
       </div>
     </div>
   );
@@ -119,8 +130,8 @@ export default async function PlayerLayout({
   params,
 }: PlayerLayoutProps) {
   const username = await params.then((u) => decodeURIComponent(u.username));
-  const [player, totalRecordedTicks, personalBests, userId] = await Promise.all(
-    [
+  const [player, totalRecordedTicks, personalBests, userId, [challenges]] =
+    await Promise.all([
       loadPlayerWithStats(username),
       aggregateChallenges(
         {
@@ -130,12 +141,26 @@ export default async function PlayerLayout({
       ),
       loadPbsForPlayer(username),
       getSignedInUserId(),
-    ],
-  );
+      findChallenges(1, { party: [username] }),
+    ]);
 
   if (player === null) {
     return notFound();
   }
+
+  const latestChallenge = challenges[0] ?? null;
+  const initialRecentChallenge: RecentChallenge | null =
+    latestChallenge !== null
+      ? {
+          uuid: latestChallenge.uuid,
+          type: latestChallenge.type,
+          status: latestChallenge.status,
+          stage: latestChallenge.stage,
+          mode: latestChallenge.mode,
+          scale: latestChallenge.scale,
+          startTime: latestChallenge.startTime.toISOString(),
+        }
+      : null;
 
   const isSignedIn = userId !== null;
   const connectedPlayers = isSignedIn ? await getConnectedPlayers() : [];
@@ -161,8 +186,10 @@ export default async function PlayerLayout({
         <div className={styles.header}>
           <PlayerInfo
             player={player}
+            username={username}
             totalRecordedTicks={totalRecordedTicks?.challengeTicks.sum ?? 0}
             followButton={followButton}
+            recentChallenge={initialRecentChallenge}
           />
           <Navigation username={username} />
         </div>
