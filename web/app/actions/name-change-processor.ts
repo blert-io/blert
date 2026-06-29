@@ -3,6 +3,7 @@ import {
   CamelToSnakeCase,
   HiscoresRateLimitError,
   NAME_CHANGE_PUBSUB_KEY,
+  NameChangeKind,
   NameChangeStatus,
   NameChangeUpdate,
   NameChangeUpdateType,
@@ -10,6 +11,7 @@ import {
   PlayerStats,
   Skill,
   hiscoreLookup,
+  isValidRsn,
   normalizeRsn,
 } from '@blert/common';
 
@@ -346,6 +348,463 @@ export async function recomputePbHistoryFrom(
   return deleted.count + inserted;
 }
 
+/** A single rename in a player's known name history. */
+export type ChainTransition = {
+  oldName: string;
+  newName: string;
+  effectiveFrom: Date;
+};
+
+/** Why a submitted name change chain is not well-formed. */
+export type ChainError =
+  | 'empty'
+  | 'invalid_rsn'
+  | 'not_chronological'
+  | 'inconsistent_link';
+
+/**
+ * Checks that a name change chain is well-formed: nonempty, every name valid,
+ * transitions strictly ordered by `effectiveFrom`, and with each transition's
+ * new name matching the next transition's old name.
+ *
+ * @returns The first problem found, or `null` if the chain is well-formed.
+ */
+export function validateChain(chain: ChainTransition[]): ChainError | null {
+  if (chain.length === 0) {
+    return 'empty';
+  }
+
+  for (const transition of chain) {
+    if (!isValidRsn(transition.oldName) || !isValidRsn(transition.newName)) {
+      return 'invalid_rsn';
+    }
+  }
+
+  for (let i = 1; i < chain.length; i++) {
+    if (chain[i].effectiveFrom <= chain[i - 1].effectiveFrom) {
+      return 'not_chronological';
+    }
+    if (normalizeRsn(chain[i - 1].newName) !== normalizeRsn(chain[i].oldName)) {
+      return 'inconsistent_link';
+    }
+  }
+
+  return null;
+}
+
+/** A contiguous time interval during which a player held a single RSN. */
+export type NameWindow = {
+  normalizedRsn: string;
+  from: Date | null;
+  to: Date | null;
+};
+
+function inWindow(t: Date, w: NameWindow): boolean {
+  const afterFrom = w.from === null || t > w.from;
+  const beforeTo = w.to === null || t <= w.to;
+  return afterFrom && beforeTo;
+}
+
+/**
+ * Derives a player's RSN history windows from a chronological chain.
+ *
+ * Produces `chain.length + 1` windows to cover the open-ended periods before
+ * the first name change and after the last name change.
+ */
+export function deriveNameWindows(chain: ChainTransition[]): NameWindow[] {
+  if (chain.length === 0) {
+    throw new Error('chain must be non-empty');
+  }
+
+  const windows: NameWindow[] = [
+    {
+      normalizedRsn: normalizeRsn(chain[0].oldName),
+      from: null,
+      to: chain[0].effectiveFrom,
+    },
+  ];
+  for (let i = 0; i < chain.length; i++) {
+    windows.push({
+      normalizedRsn: normalizeRsn(chain[i].newName),
+      from: chain[i].effectiveFrom,
+      to: i + 1 < chain.length ? chain[i + 1].effectiveFrom : null,
+    });
+  }
+  return windows;
+}
+
+/**
+ * Returns the normalized name the player held at time `t`
+ * from a list of windows.
+ */
+export function nameInWindowsAt(windows: NameWindow[], t: Date): string {
+  const window = windows.find((w) => inWindow(t, w));
+  // A well-formed chain spans all of time.
+  return window!.normalizedRsn;
+}
+
+/** Checks whether a name belongs to the chain's player at a given time. */
+export function belongsToChainTarget(
+  windows: NameWindow[],
+  normalizedRsn: string,
+  startTime: Date,
+): boolean {
+  return nameInWindowsAt(windows, startTime) === normalizedRsn;
+}
+
+function _chainFromHistoricSequence(
+  rows: NameChangeQueryResult[],
+): ChainTransition[] {
+  return rows
+    .toSorted((a, b) => a.effective_from.getTime() - b.effective_from.getTime())
+    .map((r) => ({
+      oldName: r.old_name,
+      newName: r.new_name,
+      effectiveFrom: r.effective_from,
+    }));
+}
+
+type TargetPlayer =
+  | { action: 'use'; playerId: number }
+  | { action: 'create'; currentName: string };
+
+/**
+ * The player ID of a source record for a historic name change sequence, with
+ * the challenges they participated in during a single name window.
+ * `windowIndex` references the migration plan's `windows`.
+ */
+type SourcePlayer = {
+  playerId: number;
+  windowIndex: number;
+  challengeIds: number[];
+};
+
+/**
+ * Description of what a historic name change sequence would change.
+ */
+export type MigrationPlan = {
+  target: TargetPlayer;
+  windows: NameWindow[];
+  sourcePlayers: SourcePlayer[];
+  /**
+   * Source records who are entirely absorbed by the target and can be deleted.
+   */
+  emptiedSourceIds: number[];
+};
+
+/**
+ * Read-only resolution of the target player in a historic name change sequence.
+ */
+async function resolveTarget(
+  chain: ChainTransition[],
+  db: Db = sql,
+): Promise<TargetPlayer> {
+  const currentName = chain[chain.length - 1].newName;
+
+  const [existing]: [{ id: number }?] = await db`
+    SELECT id FROM players WHERE normalized_username = ${normalizeRsn(currentName)}
+  `;
+  if (existing !== undefined) {
+    return { action: 'use', playerId: existing.id };
+  }
+
+  return { action: 'create', currentName };
+}
+
+/**
+ * Finds the `challenge_players` rows that belong to a historic sequence's
+ * target, grouped by source record and name window, ignoring those already
+ * attributed to the target.
+ */
+async function gatherSourcePlayers(
+  windows: NameWindow[],
+  target: TargetPlayer,
+  db: Db = sql,
+): Promise<SourcePlayer[]> {
+  const targetPlayerId = target.action === 'use' ? target.playerId : null;
+  const sources: SourcePlayer[] = [];
+
+  for (let windowIndex = 0; windowIndex < windows.length; windowIndex++) {
+    const window = windows[windowIndex];
+
+    const matched = await db<{ player_id: number; challenge_id: number }[]>`
+      SELECT cp.player_id, cp.challenge_id
+      FROM challenge_players cp
+      JOIN challenges c ON c.id = cp.challenge_id
+      WHERE translate(lower(cp.username), ' -', '__') = ${window.normalizedRsn}
+        ${window.from !== null ? db`AND c.start_time > ${window.from}` : db``}
+        ${window.to !== null ? db`AND c.start_time <= ${window.to}` : db``}
+        ${targetPlayerId !== null ? db`AND cp.player_id <> ${targetPlayerId}` : db``}
+      ORDER BY cp.player_id, cp.challenge_id
+    `;
+
+    const byPlayer = new Map<number, number[]>();
+    for (const { player_id, challenge_id } of matched) {
+      const ids = byPlayer.get(player_id) ?? [];
+      ids.push(challenge_id);
+      byPlayer.set(player_id, ids);
+    }
+
+    for (const [playerId, challengeIds] of byPlayer) {
+      sources.push({ playerId, windowIndex, challengeIds });
+    }
+  }
+
+  return sources;
+}
+
+/**
+ * Returns the IDs of source records in a migration that would lose all of
+ * their `challenge_players` rows to the target.
+ */
+async function findEmptiedSources(
+  sourcePlayers: SourcePlayer[],
+  db: Db = sql,
+): Promise<number[]> {
+  const movedCountByPlayer = new Map<number, number>();
+  for (const source of sourcePlayers) {
+    const prior = movedCountByPlayer.get(source.playerId) ?? 0;
+    movedCountByPlayer.set(source.playerId, prior + source.challengeIds.length);
+  }
+
+  const emptied: number[] = [];
+  for (const [playerId, movedCount] of movedCountByPlayer) {
+    const [{ count }] = await db<[{ count: string }]>`
+      SELECT COUNT(*) FROM challenge_players WHERE player_id = ${playerId}
+    `;
+    if (parseInt(count) === movedCount) {
+      emptied.push(playerId);
+    }
+  }
+
+  return emptied;
+}
+
+/** Computes the migration plan for a historic name change chain. Read-only. */
+export async function decide(
+  chain: ChainTransition[],
+  db: Db = sql,
+): Promise<MigrationPlan> {
+  const windows = deriveNameWindows(chain);
+  const target = await resolveTarget(chain, db);
+  const sourcePlayers = await gatherSourcePlayers(windows, target, db);
+  const emptiedSourceIds = await findEmptiedSources(sourcePlayers, db);
+
+  return { target, windows, sourcePlayers, emptiedSourceIds };
+}
+
+/**
+ * A human-readable projection of a {@link MigrationPlan}, resolving the plan's
+ * internal IDs and window indices into names, counts, and dates for review
+ * before committing a historic name change.
+ */
+export type DisplayPlan = {
+  target: {
+    name: string;
+    isNew: boolean;
+    challengesBefore: number;
+    challengesAfter: number;
+    /**
+     * Date of the earliest challenge ID moving onto the target, from which its
+     * personal bests are recomputed, or `null` if none move.
+     */
+    pbRecomputedFrom: Date | null;
+  };
+  /** One entry per source record and name window contributing data. */
+  contributions: DisplayContribution[];
+  /** One entry per source record, describing its overall fate. */
+  sources: DisplaySource[];
+};
+
+/** The data a single source record contributes under a single name window. */
+type DisplayContribution = {
+  sourceName: string;
+  /** Name under which the data was recorded. */
+  asName: string;
+  span: { from: Date; to: Date };
+  challenges: number;
+  stats: number;
+  apiKeys: number;
+};
+
+/**
+ * What happens to a single source record overall. A deleted record is fully
+ * absorbed by the target; a kept record retains data, and its personal bests
+ * are recomputed from the given date.
+ */
+type DisplaySource =
+  | { name: string; outcome: 'deleted' }
+  | { name: string; outcome: 'kept'; pbRecomputedFrom: Date };
+
+async function countChallenges(playerId: number, db: Db): Promise<number> {
+  const [{ count }] = await db<[{ count: string }]>`
+    SELECT COUNT(*) FROM challenge_players WHERE player_id = ${playerId}
+  `;
+  return parseInt(count);
+}
+
+/** Builds per-contribution display rows for a migration plan. */
+async function describeContributions(
+  plan: MigrationPlan,
+  usernames: Map<number, string>,
+  challengeDates: Map<number, Date>,
+  db: Db,
+): Promise<DisplayContribution[]> {
+  const contributions: DisplayContribution[] = [];
+  for (const source of plan.sourcePlayers) {
+    const window = plan.windows[source.windowIndex];
+
+    const times = source.challengeIds.map((id) =>
+      challengeDates.get(id)!.getTime(),
+    );
+    const span = {
+      from: new Date(Math.min(...times)),
+      to: new Date(Math.max(...times)),
+    };
+
+    const [{ count: stats }] = await db<[{ count: string }]>`
+      SELECT COUNT(*) FROM player_stats
+      WHERE player_id = ${source.playerId}
+        ${window.from !== null ? db`AND date > ${window.from}` : db``}
+        ${window.to !== null ? db`AND date <= ${window.to}` : db``}
+    `;
+
+    const [{ count: apiKeys }] = await db<[{ count: string }]>`
+      SELECT COUNT(*) FROM api_keys
+      WHERE player_id = ${source.playerId}
+        ${window.from !== null ? db`AND last_used > ${window.from}` : db``}
+        ${window.to !== null ? db`AND last_used <= ${window.to}` : db``}
+    `;
+
+    contributions.push({
+      sourceName: usernames.get(source.playerId)!,
+      asName: window.normalizedRsn,
+      span,
+      challenges: source.challengeIds.length,
+      stats: parseInt(stats),
+      apiKeys: parseInt(apiKeys),
+    });
+  }
+
+  return contributions;
+}
+
+/** Builds per-source display rows for a migration plan. */
+function describeSources(
+  plan: MigrationPlan,
+  usernames: Map<number, string>,
+  challengeDates: Map<number, Date>,
+): DisplaySource[] {
+  const idsByPlayer = new Map<number, number[]>();
+  for (const source of plan.sourcePlayers) {
+    const ids = idsByPlayer.get(source.playerId) ?? [];
+    ids.push(...source.challengeIds);
+    idsByPlayer.set(source.playerId, ids);
+  }
+
+  const sources: DisplaySource[] = [];
+  for (const [playerId, challengeIds] of idsByPlayer) {
+    const name = usernames.get(playerId)!;
+    if (plan.emptiedSourceIds.includes(playerId)) {
+      sources.push({ name, outcome: 'deleted' });
+    } else {
+      const cutoffId = Math.min(...challengeIds);
+      sources.push({
+        name,
+        outcome: 'kept',
+        pbRecomputedFrom: challengeDates.get(cutoffId)!,
+      });
+    }
+  }
+
+  return sources;
+}
+
+/** Resolves a migration plan into a human-readable preview. Read-only. */
+export async function formatPlan(
+  plan: MigrationPlan,
+  db: Db = sql,
+): Promise<DisplayPlan> {
+  const movedIds = plan.sourcePlayers.flatMap((s) => s.challengeIds);
+
+  // Resolve the names and dates the projection needs in one batch each.
+  const sourceIds = [...new Set(plan.sourcePlayers.map((s) => s.playerId))];
+  const nameRows = sourceIds.length
+    ? await db<{ id: number; username: string }[]>`
+        SELECT id, username FROM players WHERE id = ANY(${sourceIds})
+      `
+    : [];
+  const usernames = new Map(nameRows.map((r) => [r.id, r.username]));
+
+  const dateRows = movedIds.length
+    ? await db<{ id: number; start_time: Date }[]>`
+        SELECT id, start_time FROM challenges WHERE id = ANY(${movedIds})
+      `
+    : [];
+  const challengeDates = new Map(dateRows.map((r) => [r.id, r.start_time]));
+
+  let name: string;
+  let challengesBefore: number;
+  if (plan.target.action === 'use') {
+    const [player]: [{ username: string }?] = await db`
+      SELECT username FROM players WHERE id = ${plan.target.playerId}
+    `;
+    name = player!.username;
+    challengesBefore = await countChallenges(plan.target.playerId, db);
+  } else {
+    name = plan.target.currentName;
+    challengesBefore = 0;
+  }
+
+  // The target's PBs recompute from the first moved challenge.
+  const targetCutoffId = movedIds.length > 0 ? Math.min(...movedIds) : null;
+  const targetPbRecomputedFrom =
+    targetCutoffId !== null ? challengeDates.get(targetCutoffId)! : null;
+
+  const contributions = await describeContributions(
+    plan,
+    usernames,
+    challengeDates,
+    db,
+  );
+  const sources = describeSources(plan, usernames, challengeDates);
+
+  return {
+    target: {
+      name,
+      isNew: plan.target.action === 'create',
+      challengesBefore,
+      challengesAfter: challengesBefore + movedIds.length,
+      pbRecomputedFrom: targetPbRecomputedFrom,
+    },
+    contributions,
+    sources,
+  };
+}
+
+export type DryRunResult =
+  | { ok: true; plan: DisplayPlan }
+  | { ok: false; error: ChainError };
+
+/**
+ * Previews a historic name change chain without mutating any data.
+ *
+ * @param chain The historic sequence of name changes.
+ * @returns Plan detailing how the sequence would be migrated, or a validation
+ *   error if the sequence is invalid.
+ */
+export async function dryRunHistoricNameChange(
+  chain: ChainTransition[],
+): Promise<DryRunResult> {
+  const error = validateChain(chain);
+  if (error !== null) {
+    return { ok: false, error };
+  }
+
+  const plan = await decide(chain);
+  return { ok: true, plan: await formatPlan(plan) };
+}
+
 function compareExperience(
   before: PlayerExperience,
   after: PlayerExperience,
@@ -368,6 +827,10 @@ type NameChangeQueryResult = {
   new_name: string;
   player_id: number;
   skip_checks: boolean;
+  kind: NameChangeKind;
+  effective_from: Date;
+  effective_to: Date | null;
+  sequence_id: string | null;
   overall_experience: string;
   attack_experience: number;
   defence_experience: number;
@@ -389,6 +852,10 @@ export async function processNameChange(
       name_changes.new_name,
       name_changes.player_id,
       name_changes.skip_checks,
+      name_changes.kind,
+      name_changes.effective_from,
+      name_changes.effective_to,
+      name_changes.sequence_id,
       players.overall_experience,
       players.attack_experience,
       players.defence_experience,
@@ -406,7 +873,21 @@ export async function processNameChange(
     return null;
   }
 
+  if (nameChange.kind === NameChangeKind.HISTORIC) {
+    throw new Error(
+      'historic name changes should not be processed via processNameChange',
+    );
+  }
+
+  return processStandardNameChange(nameChange, db);
+}
+
+async function processStandardNameChange(
+  nameChange: NameChangeQueryResult,
+  db: Db,
+): Promise<NameChangeUpdate | null> {
   const {
+    id: changeId,
     old_name: oldName,
     new_name: newName,
     player_id: playerId,
@@ -419,13 +900,15 @@ export async function processNameChange(
   if (normalizeRsn(oldName) === normalizeRsn(newName)) {
     logger.info('name_change_display_only', { changeId, oldName, newName });
 
+    const now = new Date();
     await Promise.all([
       db`UPDATE players SET username = ${newName} WHERE id = ${playerId}`,
       db`
         UPDATE name_changes
         SET
           status = ${NameChangeStatus.ACCEPTED},
-          processed_at = ${new Date()}
+          processed_at = ${now},
+          effective_from = ${now}
         WHERE id = ${changeId}
       `,
     ]);
@@ -654,11 +1137,13 @@ export async function processNameChange(
     UPDATE players SET ${sql(playerUpdates)} WHERE id = ${playerId}
   `;
 
+  const acceptedAt = new Date();
   const updateNameChange = db`
     UPDATE name_changes
     SET
       status = ${NameChangeStatus.ACCEPTED},
-      processed_at = ${new Date()},
+      processed_at = ${acceptedAt},
+      effective_from = ${acceptedAt},
       migrated_documents = ${migratedDocuments}
     WHERE id = ${changeId}
   `;

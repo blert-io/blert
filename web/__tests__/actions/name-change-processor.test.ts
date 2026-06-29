@@ -10,12 +10,20 @@ import {
 
 import { sql } from '@/actions/db';
 import {
+  ChainTransition,
   NameChangeProcessor,
+  belongsToChainTarget,
+  decide,
+  deriveNameWindows,
+  dryRunHistoricNameChange,
+  formatPlan,
+  nameInWindowsAt,
   processNameChange,
   recomputePbHistoryFrom,
   updateApiKeys,
   updatePersonalBestHistory,
   updatePlayerStats,
+  validateChain,
 } from '@/actions/name-change-processor';
 import redis from '@/actions/redis';
 
@@ -1021,12 +1029,14 @@ async function createNameChangeRequest(
       old_name,
       new_name,
       status,
-      submitted_at
+      submitted_at,
+      effective_from
     ) VALUES (
       ${playerId},
       ${oldName},
       ${newName},
       ${NameChangeStatus.PENDING},
+      NOW(),
       NOW()
     ) RETURNING id;
   `;
@@ -1051,6 +1061,10 @@ async function loadNameChangeRequest(id: number): Promise<FullNameChange> {
     status: nameChange.status,
     submittedAt: nameChange.submitted_at,
     processedAt: nameChange.processed_at,
+    kind: nameChange.kind,
+    effectiveFrom: nameChange.effective_from,
+    effectiveTo: nameChange.effective_to,
+    sequenceId: nameChange.sequence_id,
     playerId: nameChange.player_id,
     submitterId: nameChange.submitter_id,
     migratedDocuments: nameChange.migrated_documents,
@@ -1158,8 +1172,8 @@ describe('NameChangeProcessor.processBatch', () => {
       });
 
     await sql`
-      INSERT INTO name_changes (player_id, old_name, new_name, status, submitted_at)
-      VALUES (${playerId}, 'BatchPlayer', 'NewBatch', ${NameChangeStatus.PENDING}, NOW())
+      INSERT INTO name_changes (player_id, old_name, new_name, status, submitted_at, effective_from)
+      VALUES (${playerId}, 'BatchPlayer', 'NewBatch', ${NameChangeStatus.PENDING}, NOW(), NOW())
     `;
 
     const result = await processor.processBatch();
@@ -1194,8 +1208,8 @@ describe('NameChangeProcessor.processBatch', () => {
       });
 
     await sql`
-      INSERT INTO name_changes (player_id, old_name, new_name, status, submitted_at)
-      VALUES (${playerId}, 'BatchPlayer', 'NewBatch', ${NameChangeStatus.PENDING}, NOW())
+      INSERT INTO name_changes (player_id, old_name, new_name, status, submitted_at, effective_from)
+      VALUES (${playerId}, 'BatchPlayer', 'NewBatch', ${NameChangeStatus.PENDING}, NOW(), NOW())
     `;
 
     const result = await processor.processBatch();
@@ -1212,8 +1226,8 @@ describe('NameChangeProcessor.processBatch', () => {
 
   it('promotes DEFERRED entries when player is no longer in active challenge', async () => {
     await sql`
-      INSERT INTO name_changes (player_id, old_name, new_name, status, submitted_at)
-      VALUES (${playerId}, 'BatchPlayer', 'NewBatch', ${NameChangeStatus.DEFERRED}, NOW())
+      INSERT INTO name_changes (player_id, old_name, new_name, status, submitted_at, effective_from)
+      VALUES (${playerId}, 'BatchPlayer', 'NewBatch', ${NameChangeStatus.DEFERRED}, NOW(), NOW())
     `;
 
     // Mock Redis to indicate player is not in active challenge.
@@ -1237,8 +1251,8 @@ describe('NameChangeProcessor.processBatch', () => {
 
   it('does not promote DEFERRED entries when player is still in active challenge', async () => {
     await sql`
-      INSERT INTO name_changes (player_id, old_name, new_name, status, submitted_at)
-      VALUES (${playerId}, 'BatchPlayer', 'NewBatch', ${NameChangeStatus.DEFERRED}, NOW())
+      INSERT INTO name_changes (player_id, old_name, new_name, status, submitted_at, effective_from)
+      VALUES (${playerId}, 'BatchPlayer', 'NewBatch', ${NameChangeStatus.DEFERRED}, NOW(), NOW())
     `;
 
     // Mock Redis to indicate player is in an active challenge.
@@ -1282,8 +1296,8 @@ describe('NameChangeProcessor.processBatch', () => {
         RETURNING id
       `;
       await sql`
-        INSERT INTO name_changes (player_id, old_name, new_name, status, submitted_at)
-        VALUES (${pid}, ${'Bp' + i}, ${'Nn' + i}, ${NameChangeStatus.PENDING}, NOW())
+        INSERT INTO name_changes (player_id, old_name, new_name, status, submitted_at, effective_from)
+        VALUES (${pid}, ${'Bp' + i}, ${'Nn' + i}, ${NameChangeStatus.PENDING}, NOW(), NOW())
       `;
     }
 
@@ -1565,8 +1579,8 @@ describe('updateApiKeys', () => {
 
   it('reassigns keys with last_used > fromDate when toDate is null', async () => {
     await seedKeys(sourcePlayerId, [
-      { key: 'pre-fromdate', lastUsed: '2026-01-01' },
-      { key: 'post-fromdate', lastUsed: '2026-03-01' },
+      { key: 'pre-from-date', lastUsed: '2026-01-01' },
+      { key: 'post-from-date', lastUsed: '2026-03-01' },
       { key: 'unused', lastUsed: null },
     ]);
 
@@ -1580,11 +1594,11 @@ describe('updateApiKeys', () => {
     const rows = await loadKeys();
     expect(rows).toEqual([
       expect.objectContaining({
-        key: 'post-fromdate',
+        key: 'post-from-date',
         player_id: targetPlayerId,
       }),
       expect.objectContaining({
-        key: 'pre-fromdate',
+        key: 'pre-from-date',
         player_id: sourcePlayerId,
       }),
       expect.objectContaining({ key: 'unused', player_id: sourcePlayerId }),
@@ -1620,8 +1634,8 @@ describe('updateApiKeys', () => {
 
   it('does not touch keys whose last_used is exactly fromDate or toDate boundaries', async () => {
     await seedKeys(sourcePlayerId, [
-      { key: 'at-fromdate', lastUsed: '2026-02-01' },
-      { key: 'at-todate', lastUsed: '2026-04-01' },
+      { key: 'at-from-date', lastUsed: '2026-02-01' },
+      { key: 'at-to-date', lastUsed: '2026-04-01' },
     ]);
 
     await updateApiKeys(
@@ -1633,10 +1647,10 @@ describe('updateApiKeys', () => {
     );
 
     const rows = await loadKeys();
-    expect(rows.find((r) => r.key === 'at-fromdate')?.player_id).toBe(
+    expect(rows.find((r) => r.key === 'at-from-date')?.player_id).toBe(
       sourcePlayerId,
     );
-    expect(rows.find((r) => r.key === 'at-todate')?.player_id).toBe(
+    expect(rows.find((r) => r.key === 'at-to-date')?.player_id).toBe(
       targetPlayerId,
     );
   });
@@ -2313,6 +2327,579 @@ describe('updatePersonalBestHistory', () => {
 
       const newRows = await pbHistoryFor(newPlayerId);
       expect(newRows.map((r) => r.challenge_split_id)).toEqual([post.splitId]);
+    });
+  });
+});
+
+describe('historic name changes', () => {
+  let createdPlayerIds: number[] = [];
+  let userId: number;
+  let keyCounter = 0;
+
+  beforeAll(async () => {
+    const [{ id }] = await sql<{ id: number }[]>`
+      INSERT INTO users (username, email, password)
+      VALUES ('Historic User', 'historic@b.com', 'password')
+      RETURNING id
+    `;
+    userId = id;
+  });
+
+  afterAll(async () => {
+    await sql`DELETE FROM users WHERE id = ${userId}`;
+  });
+
+  async function makePlayer(username: string): Promise<number> {
+    const [{ id }] = await sql<{ id: number }[]>`
+      INSERT INTO players (username, normalized_username)
+      VALUES (${username}, ${normalizeRsn(username)})
+      RETURNING id
+    `;
+    createdPlayerIds.push(id);
+    return id;
+  }
+
+  async function makeChallenge(
+    playerId: number,
+    username: string,
+    startTime: string,
+  ): Promise<number> {
+    const [{ id }] = await sql<{ id: number }[]>`
+      INSERT INTO challenges (uuid, start_time, finish_time, type, scale)
+      VALUES (gen_random_uuid(), ${startTime}, ${startTime}, ${ChallengeType.TOB}, 1)
+      RETURNING id
+    `;
+    await sql`
+      INSERT INTO challenge_players (challenge_id, player_id, username, orb, primary_gear)
+      VALUES (${id}, ${playerId}, ${username}, 0, 1)
+    `;
+    return id;
+  }
+
+  async function makeStats(
+    playerId: number,
+    ...dates: string[]
+  ): Promise<void> {
+    if (dates.length === 0) {
+      return;
+    }
+    await sql`
+      INSERT INTO player_stats ${sql(
+        dates.map((date) => ({ player_id: playerId, date })),
+      )}
+    `;
+  }
+
+  async function makeKeys(
+    playerId: number,
+    ...lastUsed: string[]
+  ): Promise<void> {
+    if (lastUsed.length === 0) {
+      return;
+    }
+    await sql`
+      INSERT INTO api_keys ${sql(
+        lastUsed.map((last_used) => {
+          keyCounter += 1;
+          return {
+            user_id: userId,
+            player_id: playerId,
+            key: `hist-key-${keyCounter}`,
+            last_used,
+          };
+        }),
+      )}
+    `;
+  }
+
+  afterEach(async () => {
+    if (createdPlayerIds.length > 0) {
+      await sql`
+        DELETE FROM challenges
+        WHERE id IN (
+          SELECT challenge_id
+          FROM challenge_players
+          WHERE player_id = ANY(${createdPlayerIds})
+        )
+      `;
+      await sql`DELETE FROM players WHERE id = ANY(${createdPlayerIds})`;
+      createdPlayerIds = [];
+    }
+  });
+
+  // Renames are spaced > 30 days apart, mirroring the OSRS username hold so
+  // each name's challenges fall unambiguously in one window.
+  const FEB = '2026-02-01';
+  const APR = '2026-04-01';
+  const JUN = '2026-06-01';
+
+  function transition(
+    oldName: string,
+    newName: string,
+    effectiveFrom: string,
+  ): ChainTransition {
+    return {
+      oldName,
+      newName,
+      effectiveFrom: new Date(effectiveFrom),
+    };
+  }
+
+  describe('name change chains', () => {
+    describe('nameInWindowsAt', () => {
+      const windows = deriveNameWindows([
+        transition('Foo', 'Bar', FEB),
+        transition('Bar', 'Baz', APR),
+      ]);
+
+      it('returns the original name before the first breakpoint', () => {
+        expect(nameInWindowsAt(windows, new Date('2026-01-01'))).toBe('foo');
+      });
+
+      it('attributes the first breakpoint instant to the original name', () => {
+        expect(nameInWindowsAt(windows, new Date(FEB))).toBe('foo');
+      });
+
+      it('returns the intermediate name within its window', () => {
+        expect(nameInWindowsAt(windows, new Date('2026-03-01'))).toBe('bar');
+      });
+
+      it('attributes a later breakpoint instant to the preceding name', () => {
+        expect(nameInWindowsAt(windows, new Date(APR))).toBe('bar');
+      });
+
+      it('returns the current name after the last breakpoint', () => {
+        expect(nameInWindowsAt(windows, new Date('2026-05-01'))).toBe('baz');
+      });
+
+      it('returns the reverted name in its later window for a revert chain', () => {
+        const revert = deriveNameWindows([
+          transition('foo', 'bar', FEB),
+          transition('bar', 'foo', APR),
+        ]);
+        expect(nameInWindowsAt(revert, new Date('2026-01-01'))).toBe('foo');
+        expect(nameInWindowsAt(revert, new Date('2026-03-01'))).toBe('bar');
+        expect(nameInWindowsAt(revert, new Date('2026-05-01'))).toBe('foo');
+      });
+    });
+
+    describe('deriveNameWindows', () => {
+      it('produces an open-ended first and last window for a single transition', () => {
+        const windows = deriveNameWindows([transition('foo', 'bar', FEB)]);
+        expect(windows).toEqual([
+          { normalizedRsn: 'foo', from: null, to: new Date(FEB) },
+          { normalizedRsn: 'bar', from: new Date(FEB), to: null },
+        ]);
+      });
+
+      it('emits a window per held name bounded by the next breakpoint', () => {
+        const windows = deriveNameWindows([
+          transition('foo', 'bar', FEB),
+          transition('bar', 'baz', APR),
+        ]);
+        expect(windows).toEqual([
+          { normalizedRsn: 'foo', from: null, to: new Date(FEB) },
+          {
+            normalizedRsn: 'bar',
+            from: new Date(FEB),
+            to: new Date(APR),
+          },
+          { normalizedRsn: 'baz', from: new Date(APR), to: null },
+        ]);
+      });
+
+      it('represents a revert as the same name in two separate windows', () => {
+        const windows = deriveNameWindows([
+          transition('foo', 'bar', FEB),
+          transition('bar', 'foo', APR),
+        ]);
+        expect(windows.map((w) => w.normalizedRsn)).toEqual([
+          'foo',
+          'bar',
+          'foo',
+        ]);
+      });
+
+      it('tiles the timeline contiguously', () => {
+        const windows = deriveNameWindows([
+          transition('foo', 'bar', FEB),
+          transition('bar', 'baz', APR),
+        ]);
+        for (let i = 0; i < windows.length - 1; i++) {
+          expect(windows[i].to).toEqual(windows[i + 1].from);
+        }
+        expect(windows[0].from).toBeNull();
+        expect(windows[windows.length - 1].to).toBeNull();
+      });
+
+      it('throws on an empty chain', () => {
+        expect(() => deriveNameWindows([])).toThrow();
+      });
+    });
+
+    describe('belongsToChainTarget', () => {
+      const windows = deriveNameWindows([
+        transition('foo', 'bar', FEB),
+        transition('bar', 'baz', APR),
+      ]);
+
+      it('matches a name held during its own window', () => {
+        expect(
+          belongsToChainTarget(windows, 'foo', new Date('2026-01-01')),
+        ).toBe(true);
+        expect(
+          belongsToChainTarget(windows, 'bar', new Date('2026-03-01')),
+        ).toBe(true);
+        expect(
+          belongsToChainTarget(windows, 'baz', new Date('2026-05-01')),
+        ).toBe(true);
+      });
+
+      it('rejects a chain name used outside its window', () => {
+        expect(
+          belongsToChainTarget(windows, 'foo', new Date('2026-03-01')),
+        ).toBe(false);
+        expect(
+          belongsToChainTarget(windows, 'bar', new Date('2026-05-01')),
+        ).toBe(false);
+      });
+
+      it('rejects a name that never appears in the chain', () => {
+        expect(
+          belongsToChainTarget(windows, 'qux', new Date('2026-03-01')),
+        ).toBe(false);
+      });
+    });
+
+    describe('validateChain', () => {
+      it('accepts a well-formed chain', () => {
+        expect(validateChain([transition('foo', 'bar', FEB)])).toBeNull();
+        expect(
+          validateChain([
+            transition('foo', 'bar', FEB),
+            transition('bar', 'baz', APR),
+          ]),
+        ).toBeNull();
+      });
+
+      it('accepts links that match after normalization', () => {
+        expect(
+          validateChain([
+            transition('foo', 'mid bar', FEB),
+            transition('Mid-Bar', 'baz', APR),
+          ]),
+        ).toBeNull();
+      });
+
+      it('rejects an empty chain', () => {
+        expect(validateChain([])).toBe('empty');
+      });
+
+      it('rejects invalid names', () => {
+        expect(validateChain([transition('foo@', 'bar', FEB)])).toBe(
+          'invalid_rsn',
+        );
+        expect(
+          validateChain([transition('foo', 'this name is too long', FEB)]),
+        ).toBe('invalid_rsn');
+      });
+
+      it('rejects out-of-order or coincident transitions', () => {
+        expect(
+          validateChain([
+            transition('foo', 'bar', APR),
+            transition('bar', 'baz', FEB),
+          ]),
+        ).toBe('not_chronological');
+        expect(
+          validateChain([
+            transition('foo', 'bar', FEB),
+            transition('bar', 'baz', FEB),
+          ]),
+        ).toBe('not_chronological');
+      });
+
+      it('rejects a broken link between transitions', () => {
+        expect(
+          validateChain([
+            transition('foo', 'bar', FEB),
+            transition('qux', 'baz', APR),
+          ]),
+        ).toBe('inconsistent_link');
+      });
+    });
+  });
+
+  describe('decide', () => {
+    it('targets the existing record holding the current name', async () => {
+      const [{ id }] = await sql<{ id: number }[]>`
+      INSERT INTO players (username, normalized_username)
+      VALUES ('baz', ${normalizeRsn('baz')})
+      RETURNING id
+    `;
+      createdPlayerIds.push(id);
+
+      const plan = await decide([
+        transition('foo', 'bar', '2026-02-01'),
+        transition('bar', 'baz', '2026-04-01'),
+      ]);
+
+      expect(plan.target).toEqual({ action: 'use', playerId: id });
+    });
+
+    it('plans to create a target when no record holds the current name', async () => {
+      const plan = await decide([transition('foo', 'qux', '2026-02-01')]);
+      expect(plan.target).toEqual({ action: 'create', currentName: 'qux' });
+    });
+
+    it('gathers each scattered record by name window, skipping the target', async () => {
+      // The chain foo -> bar -> baz, current record holds baz.
+      const targetId = await makePlayer('baz');
+      const fooRecordId = await makePlayer('foo');
+      const barRecordId = await makePlayer('bar');
+
+      // foo's challenge lives on the foo record (in the foo window).
+      const fooChallenge = await makeChallenge(
+        fooRecordId,
+        'foo',
+        '2026-01-15',
+      );
+      // bar's challenge lives on the bar record (in the bar window).
+      const barChallenge = await makeChallenge(
+        barRecordId,
+        'bar',
+        '2026-03-15',
+      );
+      // baz's challenge is already on the target — not a move.
+      await makeChallenge(targetId, 'baz', '2026-05-15');
+
+      const plan = await decide([
+        transition('foo', 'bar', FEB),
+        transition('bar', 'baz', APR),
+      ]);
+
+      // windows[0]=foo, [1]=bar, [2]=baz.
+      expect(plan.sourcePlayers).toEqual([
+        { playerId: fooRecordId, windowIndex: 0, challengeIds: [fooChallenge] },
+        { playerId: barRecordId, windowIndex: 1, challengeIds: [barChallenge] },
+      ]);
+    });
+
+    it("does not gather a same-named challenge outside the player's window", async () => {
+      // Chain foo -> baz, renamed at FEB, so the foo window ends at FEB.
+      await makePlayer('baz');
+      const foo = await makePlayer('foo');
+
+      const ourChallenge = await makeChallenge(foo, 'foo', '2026-01-15');
+      // A later foo challenge falls after the rename: it is no longer the
+      // player's, so it is excluded even though it sits on the same record.
+      await makeChallenge(foo, 'foo', '2026-05-15');
+
+      const plan = await decide([transition('foo', 'baz', FEB)]);
+
+      expect(plan.sourcePlayers).toEqual([
+        { playerId: foo, windowIndex: 0, challengeIds: [ourChallenge] },
+      ]);
+    });
+
+    it('ignores windows without source records', async () => {
+      // Chain foo -> bar -> baz -> qux. The player recorded as foo
+      // (window 0) and as baz (window 2) but never as bar (window 1).
+      await makePlayer('qux');
+      const fooRecordId = await makePlayer('foo');
+      const bazRecordId = await makePlayer('baz');
+      const fooChallenge = await makeChallenge(
+        fooRecordId,
+        'foo',
+        '2026-01-15',
+      );
+      const bazChallenge = await makeChallenge(
+        bazRecordId,
+        'baz',
+        '2026-05-15',
+      );
+
+      const plan = await decide([
+        transition('foo', 'bar', FEB),
+        transition('bar', 'baz', APR),
+        transition('baz', 'qux', JUN),
+      ]);
+
+      // bar window (index 1) is skipped.
+      expect(plan.sourcePlayers).toEqual([
+        { playerId: fooRecordId, windowIndex: 0, challengeIds: [fooChallenge] },
+        { playerId: bazRecordId, windowIndex: 2, challengeIds: [bazChallenge] },
+      ]);
+    });
+
+    it('marks a source emptied when all of its rows move', async () => {
+      // The foo record's only challenge moves to the target, emptying it.
+      await makePlayer('baz');
+      const fooRecordId = await makePlayer('foo');
+      await makeChallenge(fooRecordId, 'foo', '2026-01-15');
+
+      const plan = await decide([
+        transition('foo', 'bar', FEB),
+        transition('bar', 'baz', APR),
+      ]);
+
+      expect(plan.emptiedSourceIds).toEqual([fooRecordId]);
+    });
+
+    it('does not mark a source emptied when it keeps a row', async () => {
+      // The foo record has one in-window challenge and one later challenge,
+      // so it is not emptied.
+      await makePlayer('baz');
+      const fooRecordId = await makePlayer('foo');
+      await makeChallenge(fooRecordId, 'foo', '2026-01-15');
+      await makeChallenge(fooRecordId, 'foo', '2026-05-15');
+
+      const plan = await decide([
+        transition('foo', 'bar', FEB),
+        transition('bar', 'baz', APR),
+      ]);
+
+      expect(plan.emptiedSourceIds).toEqual([]);
+    });
+  });
+
+  describe('formatPlan', () => {
+    it('reports an existing target with its challenge counts before and after', async () => {
+      const targetId = await makePlayer('baz');
+      const fooRecordId = await makePlayer('foo');
+      // foo (0c) -> bar (1c) -> baz (1c)
+      await makeChallenge(targetId, 'baz', '2026-05-15');
+      await makeChallenge(fooRecordId, 'foo', '2026-01-15');
+
+      const plan = await decide([
+        transition('foo', 'bar', FEB),
+        transition('bar', 'baz', APR),
+      ]);
+      const display = await formatPlan(plan);
+
+      expect(display.target).toEqual({
+        name: 'baz',
+        isNew: false,
+        challengesBefore: 1,
+        challengesAfter: 2,
+        pbRecomputedFrom: new Date('2026-01-15'),
+      });
+    });
+
+    it('reports a target that would be created with a zero before count', async () => {
+      const fooRecordId = await makePlayer('foo');
+      await makeChallenge(fooRecordId, 'foo', '2026-01-15');
+
+      const plan = await decide([transition('foo', 'qux', FEB)]);
+      const display = await formatPlan(plan);
+
+      expect(display.target).toEqual({
+        name: 'qux',
+        isNew: true,
+        challengesBefore: 0,
+        challengesAfter: 1,
+        pbRecomputedFrom: new Date('2026-01-15'),
+      });
+    });
+
+    it('describes each contribution with in-window stat and key counts', async () => {
+      // foo -> bar -> baz (target baz).
+      await makePlayer('baz');
+      const fooRecordId = await makePlayer('foo');
+      const barRecordId = await makePlayer('bar');
+
+      await makeChallenge(fooRecordId, 'foo', '2026-01-10');
+      await makeChallenge(fooRecordId, 'foo', '2026-01-20');
+      await makeChallenge(barRecordId, 'bar', '2026-03-15');
+
+      // Two foo stats in window, one after the rename.
+      await makeStats(fooRecordId, '2026-01-10', '2026-01-20', '2026-05-01');
+      // One foo key in window, one after.
+      await makeKeys(fooRecordId, '2026-01-15', '2026-05-01');
+      // One bar stat in window; no bar keys.
+      await makeStats(barRecordId, '2026-03-15');
+
+      const plan = await decide([
+        transition('foo', 'bar', FEB),
+        transition('bar', 'baz', APR),
+      ]);
+      const display = await formatPlan(plan);
+
+      expect(display.contributions).toEqual([
+        {
+          sourceName: 'foo',
+          asName: 'foo',
+          span: { from: new Date('2026-01-10'), to: new Date('2026-01-20') },
+          challenges: 2,
+          stats: 2,
+          apiKeys: 1,
+        },
+        {
+          sourceName: 'bar',
+          asName: 'bar',
+          span: { from: new Date('2026-03-15'), to: new Date('2026-03-15') },
+          challenges: 1,
+          stats: 1,
+          apiKeys: 0,
+        },
+      ]);
+    });
+
+    it('summarizes each source with its outcome and pb cutoff date', async () => {
+      // foo -> bar -> baz. foo is deleted; bar is kept.
+      await makePlayer('baz');
+      const fooRecordId = await makePlayer('foo');
+      const barRecordId = await makePlayer('bar');
+
+      await makeChallenge(fooRecordId, 'foo', '2026-01-10');
+      await makeChallenge(barRecordId, 'bar', '2026-03-15');
+      // One later bar challenge.
+      await makeChallenge(barRecordId, 'bar', '2026-05-15');
+
+      const plan = await decide([
+        transition('foo', 'bar', FEB),
+        transition('bar', 'baz', APR),
+      ]);
+      const display = await formatPlan(plan);
+
+      expect(display.sources).toEqual([
+        { name: 'foo', outcome: 'deleted' },
+        {
+          name: 'bar',
+          outcome: 'kept',
+          pbRecomputedFrom: new Date('2026-03-15'),
+        },
+      ]);
+    });
+  });
+
+  describe('dryRunHistoricNameChange', () => {
+    it('rejects a malformed chain without touching the database', async () => {
+      const result = await dryRunHistoricNameChange([
+        transition('foo', 'bar', APR),
+        transition('bar', 'baz', FEB),
+      ]);
+      expect(result).toEqual({ ok: false, error: 'not_chronological' });
+    });
+
+    it('returns the display plan for a valid chain', async () => {
+      await makePlayer('baz');
+      const fooRecordId = await makePlayer('foo');
+      await makeChallenge(fooRecordId, 'foo', '2026-01-15');
+
+      const result = await dryRunHistoricNameChange([
+        transition('foo', 'bar', FEB),
+        transition('bar', 'baz', APR),
+      ]);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.plan.target.name).toBe('baz');
+        expect(result.plan.contributions).toHaveLength(1);
+        expect(result.plan.sources).toEqual([
+          { name: 'foo', outcome: 'deleted' },
+        ]);
+      }
     });
   });
 });

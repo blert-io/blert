@@ -689,7 +689,7 @@ async function fetchNameChangeFeedItems(
     JOIN user_follows uf
       ON nc.player_id = uf.player_id AND uf.user_id = ${userId}
     WHERE nc.status = ${NameChangeStatus.ACCEPTED}
-      AND nc.hidden = FALSE
+      AND nc.hidden_from_feed = FALSE
       AND nc.processed_at IS NOT NULL
       ${cursorCondition}
     ORDER BY nc.processed_at DESC, nc.id DESC

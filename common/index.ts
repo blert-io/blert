@@ -178,7 +178,11 @@ export {
 export { Prayer, PrayerBook, PrayerSet } from './prayer-set';
 export type { RawPrayerSet } from './prayer-set';
 
-export { type NameChange, NameChangeStatus } from './name-change';
+export {
+  type NameChange,
+  NameChangeKind,
+  NameChangeStatus,
+} from './name-change';
 
 export {
   type CamelToSnakeCase,
