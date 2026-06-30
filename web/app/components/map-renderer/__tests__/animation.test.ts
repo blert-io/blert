@@ -3,8 +3,8 @@ import {
   createInterpolationState,
   osrsToThreePosition,
   updateInterpolation,
-} from './animation';
-import { PlayerEntity, ReplayConfig } from './types';
+} from '../animation';
+import { PlayerEntity, ReplayConfig } from '../types';
 
 let mockTime = 0;
 

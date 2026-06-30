@@ -3,7 +3,7 @@
 import { Coords, Prayer, PrayerSet } from '@blert/common';
 import { Billboard, Plane, Text, useTexture } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
-import { useRef, useMemo, useEffect, useState, Suspense } from 'react';
+import { useRef, useMemo, useEffect, useState } from 'react';
 import * as THREE from 'three';
 // @ts-expect-error - troika-three-text has no type declarations
 import { Text as TroikaText } from 'troika-three-text';
@@ -17,6 +17,7 @@ import {
 import { useEntityPositions } from './entity-position-context';
 import HealthBar from './health-bar';
 import { useReplayContext } from './replay-context';
+import TextureBoundary from './texture-boundary';
 import {
   EntityType,
   InteractiveEntityProps,
@@ -451,7 +452,7 @@ export default function Npc({
           onClick={handleClick}
           userData={{ entityId: entity.getUniqueId() }}
         >
-          <Suspense
+          <TextureBoundary
             fallback={<NpcFallback width={spriteWidth} height={spriteHeight} />}
           >
             <NpcSpriteMesh
@@ -463,7 +464,7 @@ export default function Npc({
               npcEntity={npcEntity}
               setAspect={setAspect}
             />
-          </Suspense>
+          </TextureBoundary>
         </group>
 
         {!isDimmed && (
@@ -499,9 +500,9 @@ export default function Npc({
 
             {!npcEntity.prayers.isEmpty() && (
               <group position={[0, 2.0 + (entity.size - 1) * 0.5, 0]}>
-                <Suspense fallback={null}>
+                <TextureBoundary fallback={null}>
                   <PrayerSprite prayers={npcEntity.prayers} />
-                </Suspense>
+                </TextureBoundary>
               </group>
             )}
 
