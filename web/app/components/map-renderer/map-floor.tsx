@@ -2,8 +2,10 @@
 
 import { useTexture } from '@react-three/drei';
 import { Plane } from '@react-three/drei';
-import { useMemo, Suspense } from 'react';
+import { useMemo } from 'react';
 import * as THREE from 'three';
+
+import TextureBoundary from './texture-boundary';
 
 type BaseTile = {
   x: number;
@@ -49,8 +51,7 @@ function getTileUrl(chunkX: number, chunkY: number, plane: number) {
   const x = chunkX - offsetX;
   const y = chunkY - offsetY;
 
-  // TODO(frolv): Host this ourselves.
-  return `https://raw.githubusercontent.com/Explv/osrs_map_tiles/refs/heads/master/${plane}/${ZOOM}/${x}/${y}.png`;
+  return `https://tiles.blert.io/${plane}/${ZOOM}/${x}/${y}.png`;
 }
 
 function LoadedMapChunk({
@@ -159,9 +160,11 @@ function MapChunk({
   plane: number;
 }) {
   return (
-    <Suspense fallback={<FallbackMapChunk chunkX={chunkX} chunkY={chunkY} />}>
+    <TextureBoundary
+      fallback={<FallbackMapChunk chunkX={chunkX} chunkY={chunkY} />}
+    >
       <LoadedMapChunk chunkX={chunkX} chunkY={chunkY} plane={plane} />
-    </Suspense>
+    </TextureBoundary>
   );
 }
 

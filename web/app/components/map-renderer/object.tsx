@@ -1,10 +1,11 @@
 'use client';
 
 import { Billboard, useTexture } from '@react-three/drei';
-import { useRef, useMemo, useState, Suspense } from 'react';
+import { useRef, useMemo, useState } from 'react';
 import * as THREE from 'three';
 
 import { osrsToThreePosition } from './animation';
+import TextureBoundary from './texture-boundary';
 import { EntityType, ObjectEntity } from './types';
 
 export interface ObjectComponentProps {
@@ -149,7 +150,7 @@ export default function Object({ entity }: ObjectComponentProps) {
   if (entity.layFlat) {
     objectGroup = (
       <group ref={groupRef} position={position}>
-        <Suspense
+        <TextureBoundary
           fallback={
             <ObjectFallback
               size={entity.size * 0.9}
@@ -158,15 +159,15 @@ export default function Object({ entity }: ObjectComponentProps) {
           }
         >
           <ObjectSpriteMesh entity={entity} size={entity.size * 0.9} />
-        </Suspense>
+        </TextureBoundary>
       </group>
     );
   } else {
     objectGroup = (
       <Billboard ref={groupRef} position={position}>
-        <Suspense fallback={<ObjectFallback size={entity.size * 0.9} />}>
+        <TextureBoundary fallback={<ObjectFallback size={entity.size * 0.9} />}>
           <ObjectSpriteMesh entity={entity} size={entity.size * 0.9} />
-        </Suspense>
+        </TextureBoundary>
       </Billboard>
     );
   }
