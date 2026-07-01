@@ -28,6 +28,12 @@ import { ChallengeEvents } from '@blert/common/generated/challenge_storage_pb';
 import { ServerMessage } from '@blert/common/generated/server_message_pb';
 import { RedisClientType } from 'redis';
 
+import {
+  CAPTURE_COMMANDS_KEY,
+  CAPTURE_ENABLED_KEY,
+  CaptureOp,
+  type CaptureRecord,
+} from './capture';
 import ChallengeManager, {
   ChallengeInfo,
   ChallengeStatusResponse,
@@ -51,11 +57,17 @@ type ChallengeServerError = {
 export class RemoteChallengeManager extends ChallengeManager {
   private static readonly STAGE_STREAM_TTL_SECONDS = 60 * 60 * 24;
 
+  private static readonly CAPTURE_STREAM_MAXLEN = 5_000_000;
+  private static readonly CAPTURE_REFRESH_INTERVAL_MS = 3000;
+
   private serverUrl: string;
   private redisClient: RedisClientType;
   private pubsubClient: RedisClientType;
 
   private clientsByChallenge: Map<string, Client[]>;
+
+  private captureEnabled: boolean = false;
+  private capturedChallenges = new Set<string>();
 
   public constructor(serverUrl: string, redisClient: RedisClientType) {
     super();
@@ -66,7 +78,12 @@ export class RemoteChallengeManager extends ChallengeManager {
 
     setTimeout(() => {
       void this.startPubsub();
+      void this.refreshCaptureFlag();
     }, 100);
+
+    setInterval(() => {
+      void this.refreshCaptureFlag();
+    }, RemoteChallengeManager.CAPTURE_REFRESH_INTERVAL_MS);
   }
 
   public override async startOrJoin(
@@ -77,25 +94,28 @@ export class RemoteChallengeManager extends ChallengeManager {
     stage: Stage,
     recordingType: RecordingType,
   ): Promise<ChallengeStatusResponse> {
+    const ts = Date.now();
     const versions = client.getPluginVersions();
+
+    const body = {
+      userId: client.getUserId(),
+      clientId: client.getClientId(),
+      sessionToken: client.getSessionToken(),
+      pluginVersion: versions.getVersion(),
+      runeLiteVersion: versions.getRuneLiteVersion(),
+      type: challengeType,
+      mode,
+      party,
+      stage,
+      recordingType,
+    };
 
     const res = await this.request('start', '/challenges/new', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        userId: client.getUserId(),
-        clientId: client.getClientId(),
-        sessionToken: client.getSessionToken(),
-        pluginVersion: versions.getVersion(),
-        runeLiteVersion: versions.getRuneLiteVersion(),
-        type: challengeType,
-        mode,
-        party,
-        stage,
-        recordingType,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!res.ok) {
@@ -105,6 +125,14 @@ export class RemoteChallengeManager extends ChallengeManager {
 
     const status = (await res.json()) as ChallengeStatusResponse;
     this.addClientToChallenge(client, status.uuid);
+
+    this.markForCapture(status.uuid);
+    this.capture(ts, CaptureOp.START, status.uuid, client, body, {
+      ok: true,
+      statusCode: res.status,
+      response: status,
+    });
+
     return status;
   }
 
@@ -120,10 +148,20 @@ export class RemoteChallengeManager extends ChallengeManager {
     //
     // TODO(frolv): The behavior of the plugin should be made consistent with
     // the logic below so that its times can be sent directly.
+    const ts = Date.now();
+
     let times = null;
     if (inGameTimes && inGameTimes.challenge > 0 && inGameTimes.overall > 0) {
       times = inGameTimes;
     }
+
+    const body = {
+      userId: client.getUserId(),
+      clientId: client.getClientId(),
+      sessionToken: client.getSessionToken(),
+      times,
+      soft,
+    };
 
     try {
       const res = await this.request(
@@ -134,15 +172,15 @@ export class RemoteChallengeManager extends ChallengeManager {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            userId: client.getUserId(),
-            clientId: client.getClientId(),
-            sessionToken: client.getSessionToken(),
-            times,
-            soft,
-          }),
+          body: JSON.stringify(body),
         },
       );
+
+      this.capture(ts, CaptureOp.FINISH, challengeId, client, body, {
+        ok: res.ok,
+        statusCode: res.status,
+        response: null,
+      });
 
       if (!res.ok) {
         const error = (await res.json()) as ChallengeServerError;
@@ -165,6 +203,8 @@ export class RemoteChallengeManager extends ChallengeManager {
     challengeId: string,
     update: ChallengeUpdate,
   ): Promise<ChallengeStatusResponse | null> {
+    const ts = Date.now();
+
     try {
       if (update.stage !== undefined) {
         if (
@@ -200,25 +240,37 @@ export class RemoteChallengeManager extends ChallengeManager {
         }
       }
 
+      const body = {
+        userId: client.getUserId(),
+        clientId: client.getClientId(),
+        sessionToken: client.getSessionToken(),
+        update,
+      };
+
       const res = await this.request('update', `/challenges/${challengeId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          userId: client.getUserId(),
-          clientId: client.getClientId(),
-          sessionToken: client.getSessionToken(),
-          update,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (res.ok) {
         const response = (await res.json()) as ChallengeStatusResponse;
+        this.capture(ts, CaptureOp.UPDATE, challengeId, client, body, {
+          ok: true,
+          statusCode: res.status,
+          response,
+        });
         return response;
       }
 
       const { error } = (await res.json()) as ChallengeServerError;
+      this.capture(ts, CaptureOp.UPDATE, challengeId, client, body, {
+        ok: false,
+        statusCode: res.status,
+        response: error,
+      });
 
       if (res.status === 409) {
         logger.warn('remote_challenge_update_rejected', {
@@ -378,8 +430,19 @@ export class RemoteChallengeManager extends ChallengeManager {
     challengeId: string,
     recordingType: RecordingType,
   ): Promise<ChallengeStatusResponse | null> {
+    const ts = Date.now();
+
     try {
       const versions = client.getPluginVersions();
+
+      const body = {
+        userId: client.getUserId(),
+        clientId: client.getClientId(),
+        sessionToken: client.getSessionToken(),
+        pluginVersion: versions.getVersion(),
+        runeLiteVersion: versions.getRuneLiteVersion(),
+        recordingType,
+      };
 
       const res = await this.request(
         'join',
@@ -389,19 +452,17 @@ export class RemoteChallengeManager extends ChallengeManager {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            userId: client.getUserId(),
-            clientId: client.getClientId(),
-            sessionToken: client.getSessionToken(),
-            pluginVersion: versions.getVersion(),
-            runeLiteVersion: versions.getRuneLiteVersion(),
-            recordingType,
-          }),
+          body: JSON.stringify(body),
         },
       );
 
       if (!res.ok) {
         const { error } = (await res.json()) as ChallengeServerError;
+        this.capture(ts, CaptureOp.JOIN, challengeId, client, body, {
+          ok: false,
+          statusCode: res.status,
+          response: error,
+        });
         logger.warn('remote_challenge_join_failed', {
           challengeUuid: challengeId,
           message: error.message,
@@ -409,7 +470,14 @@ export class RemoteChallengeManager extends ChallengeManager {
         return null;
       }
 
-      return (await res.json()) as ChallengeStatusResponse;
+      const response = (await res.json()) as ChallengeStatusResponse;
+      this.markForCapture(challengeId);
+      this.capture(ts, CaptureOp.JOIN, challengeId, client, body, {
+        ok: true,
+        statusCode: res.status,
+        response,
+      });
+      return response;
     } catch (e) {
       logger.error('remote_challenge_join_exception', {
         challengeUuid: challengeId,
@@ -429,6 +497,14 @@ export class RemoteChallengeManager extends ChallengeManager {
     };
 
     void this.redisClient.lPush(CLIENT_EVENTS_KEY, JSON.stringify(event));
+
+    this.capture(
+      Date.now(),
+      CaptureOp.STATUS,
+      client.getActiveChallengeId(),
+      client,
+      event,
+    );
 
     if (status === ClientStatus.DISCONNECTED) {
       this.removeClientFromChallenge(client);
@@ -456,6 +532,8 @@ export class RemoteChallengeManager extends ChallengeManager {
 
     const update = JSON.parse(message) as ChallengeServerUpdate;
 
+    this.capture(Date.now(), CaptureOp.SERVER_UPDATE, update.id, null, update);
+
     switch (update.action) {
       case ChallengeUpdateAction.FINISH: {
         const clients = this.clientsByChallenge.get(update.id);
@@ -479,6 +557,8 @@ export class RemoteChallengeManager extends ChallengeManager {
 
           this.clientsByChallenge.delete(update.id);
         }
+
+        this.capturedChallenges.delete(update.id);
         break;
       }
     }
@@ -554,6 +634,64 @@ export class RemoteChallengeManager extends ChallengeManager {
     }
 
     return true;
+  }
+
+  private async refreshCaptureFlag(): Promise<void> {
+    try {
+      this.captureEnabled =
+        (await this.redisClient.get(CAPTURE_ENABLED_KEY)) ===
+        process.env.HOSTNAME;
+    } catch {
+      // Best-effort; keep the previous value.
+    }
+  }
+
+  private markForCapture(challengeUuid: string): void {
+    if (this.captureEnabled) {
+      this.capturedChallenges.add(challengeUuid);
+    }
+  }
+
+  private capture(
+    ts: number,
+    op: CaptureOp,
+    challengeUuid: string | null,
+    client: Client | null,
+    request: unknown,
+    http: CaptureRecord['http'] = null,
+  ): void {
+    if (challengeUuid === null || !this.capturedChallenges.has(challengeUuid)) {
+      return;
+    }
+
+    const record: CaptureRecord = {
+      ts,
+      op,
+      challengeUuid,
+      clientId: client?.getClientId() ?? null,
+      userId: client?.getUserId() ?? null,
+      request,
+      http,
+    };
+
+    void this.redisClient
+      .xAdd(
+        CAPTURE_COMMANDS_KEY,
+        '*',
+        { data: JSON.stringify(record) },
+        {
+          TRIM: {
+            strategy: 'MAXLEN',
+            strategyModifier: '~',
+            threshold: RemoteChallengeManager.CAPTURE_STREAM_MAXLEN,
+          },
+        },
+      )
+      .catch((e) => {
+        logger.error('capture_write_failed', {
+          error: e instanceof Error ? e.message : String(e),
+        });
+      });
   }
 
   private async request(
