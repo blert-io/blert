@@ -1,0 +1,14 @@
+# Replay-determinism rules for the pure challenge lifecycle processor.
+#
+# These lists only apply in submodules where the
+# disallowed_methods/disallowed_types lints are enabled; the crate root allows
+# them everywhere else.
+disallowed-methods = [
+  { path = "std::time::Instant::now", reason = "time must come from within events" },
+  { path = "std::time::SystemTime::now", reason = "time must come from within events" },
+  { path = "tokio::time::Instant::now", reason = "time must come from within events" },
+]
+disallowed-types = [
+  { path = "std::collections::HashMap", reason = "use BTreeMap for deterministic iteration" },
+  { path = "std::collections::HashSet", reason = "use BTreeSet for deterministic iteration" },
+]

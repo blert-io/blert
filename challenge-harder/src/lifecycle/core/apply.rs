@@ -1,0 +1,381 @@
+//! Journal event handling.
+//!
+//! This module represents the application half of challenge command processing,
+//! building up challenge state from journal decisions.
+
+use super::event::{JournalEntry, LifecycleEvent};
+use super::state::{ChallengeState, ClientState, StageState};
+use super::types::{StageExt, StageStatus};
+
+pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
+    state.cursor = entry.caused_by;
+
+    match entry.event {
+        LifecycleEvent::ChallengeCreated {
+            uuid,
+            challenge_type,
+            mode,
+            party,
+            stage,
+        } => {
+            state.uuid = uuid;
+            state.challenge_type = challenge_type;
+            state.mode = mode;
+            state.party = party;
+            state.stage = stage;
+            state.stage_attempt = None;
+            state.stage_state = StageState::InProgress;
+        }
+        LifecycleEvent::ClientJoined {
+            client_id,
+            user_id,
+            session_token,
+            recording_type,
+        } => {
+            state.clients.insert(
+                client_id,
+                ClientState {
+                    user_id,
+                    session_token,
+                    recording_type,
+                    active: true,
+                    stage: state.stage,
+                    stage_status: StageStatus::Entered,
+                    stage_attempt: state.stage_attempt,
+                },
+            );
+        }
+        LifecycleEvent::ClientStageReported {
+            client_id,
+            attempt,
+            update,
+        } => {
+            if let Some(client) = state.clients.get_mut(&client_id) {
+                client.stage = update.stage;
+                client.stage_status = update.status;
+                client.stage_attempt = attempt;
+                client.active = true;
+            }
+
+            let finished =
+                update.status == StageStatus::Completed || update.status == StageStatus::Wiped;
+            if finished && state.stage_state == StageState::InProgress {
+                state.stage_state = StageState::Ending { since: entry.at };
+            }
+        }
+        LifecycleEvent::StageStarted { stage } => {
+            state.stage = stage;
+            state.stage_attempt = stage.is_retriable().then_some(1);
+            state.stage_state = StageState::InProgress;
+        }
+        LifecycleEvent::StageSealed { .. } => {
+            state.stage_state = StageState::Complete;
+        }
+        LifecycleEvent::ClientFinished {
+            client_id, times, ..
+        } => {
+            state.clients.remove(&client_id);
+            state.reported_times = state.reported_times.or(times);
+        }
+        LifecycleEvent::ChallengeTerminated { status, empty: _ } => {
+            state.status = status;
+            state.reported_times = None;
+        }
+        LifecycleEvent::ModeChanged { mode } => {
+            state.mode = mode;
+        }
+        LifecycleEvent::PartyChanged { .. }
+        | LifecycleEvent::StageRetried { .. }
+        | LifecycleEvent::StageProcessingStarted { .. }
+        | LifecycleEvent::StageProcessingFinished { .. }
+        | LifecycleEvent::StageProcessingFailed { .. }
+        | LifecycleEvent::StageProcessingTimedOut { .. }
+        | LifecycleEvent::ClientActivated { .. }
+        | LifecycleEvent::ClientIdled { .. }
+        | LifecycleEvent::ClientRemoved { .. } => todo!(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lifecycle::core::command::StageProgress;
+    use crate::lifecycle::core::types::{
+        ChallengeMode, ChallengeStatus, ChallengeType, ClientId, JournalSeq, MsgId, RecordingType,
+        ReportedTimes, Stage, Timestamp, UserId, Uuid,
+    };
+
+    const CLIENT: ClientId = ClientId(10);
+
+    fn entry(at_ms: u64, msg: u64, event: LifecycleEvent) -> JournalEntry {
+        JournalEntry {
+            seq: JournalSeq(0),
+            at: Timestamp::from_millis(at_ms),
+            caused_by: MsgId(msg),
+            event,
+        }
+    }
+
+    fn created_state() -> ChallengeState {
+        let uuid = Uuid::from_u128(0xb1e47);
+        let mut state = ChallengeState {
+            uuid,
+            ..ChallengeState::default()
+        };
+        apply(
+            &mut state,
+            entry(
+                0,
+                1,
+                LifecycleEvent::ChallengeCreated {
+                    uuid,
+                    challenge_type: ChallengeType::Tob,
+                    mode: ChallengeMode::TobRegular,
+                    party: vec!["Skitter".into()],
+                    stage: Stage::TobMaiden,
+                },
+            ),
+        );
+        apply(
+            &mut state,
+            entry(
+                0,
+                1,
+                LifecycleEvent::ClientJoined {
+                    client_id: CLIENT,
+                    user_id: UserId(1),
+                    session_token: "tok".into(),
+                    recording_type: RecordingType::Participant,
+                },
+            ),
+        );
+        state
+    }
+
+    fn report(stage: Stage, status: StageStatus) -> LifecycleEvent {
+        LifecycleEvent::ClientStageReported {
+            client_id: CLIENT,
+            attempt: None,
+            update: StageProgress { stage, status },
+        }
+    }
+
+    #[test]
+    fn challenge_created_initializes_state() {
+        let state = created_state();
+        assert_eq!(state.challenge_type, ChallengeType::Tob);
+        assert_eq!(state.mode, ChallengeMode::TobRegular);
+        assert_eq!(state.party, vec!["Skitter".to_string()]);
+        assert_eq!(state.stage, Stage::TobMaiden);
+        assert_eq!(state.stage_attempt, None);
+        assert_eq!(state.stage_state, StageState::InProgress);
+        assert_eq!(state.cursor, MsgId(1));
+
+        let client = &state.clients[&CLIENT];
+        assert!(client.active);
+        assert_eq!(client.stage, Stage::TobMaiden);
+        assert_eq!(client.stage_status, StageStatus::Entered);
+        assert_eq!(client.stage_attempt, None);
+    }
+
+    #[test]
+    fn stage_report_updates_client() {
+        let mut state = created_state();
+        apply(
+            &mut state,
+            entry(1_000, 2, report(Stage::TobMaiden, StageStatus::Started)),
+        );
+        let client = &state.clients[&CLIENT];
+        assert_eq!(client.stage_status, StageStatus::Started);
+        assert_eq!(state.stage_state, StageState::InProgress);
+        assert_eq!(state.cursor, MsgId(2));
+    }
+
+    #[test]
+    fn finished_report_opens_straggler_window() {
+        let mut state = created_state();
+        apply(
+            &mut state,
+            entry(5_000, 2, report(Stage::TobMaiden, StageStatus::Completed)),
+        );
+        assert_eq!(
+            state.stage_state,
+            StageState::Ending {
+                since: Timestamp::from_millis(5_000)
+            }
+        );
+
+        // The window opens at the first finisher and stays put.
+        apply(
+            &mut state,
+            entry(6_500, 3, report(Stage::TobMaiden, StageStatus::Wiped)),
+        );
+        assert_eq!(
+            state.stage_state,
+            StageState::Ending {
+                since: Timestamp::from_millis(5_000)
+            }
+        );
+    }
+
+    #[test]
+    fn stage_sealed_finalizes_stream() {
+        let mut state = created_state();
+        apply(
+            &mut state,
+            entry(5_000, 2, report(Stage::TobMaiden, StageStatus::Completed)),
+        );
+        apply(
+            &mut state,
+            entry(
+                5_000,
+                2,
+                LifecycleEvent::StageSealed {
+                    stage: Stage::TobMaiden,
+                    attempt: None,
+                    forced: false,
+                },
+            ),
+        );
+        assert_eq!(state.stage_state, StageState::Complete);
+    }
+
+    #[test]
+    fn stage_started_advances_challenge() {
+        let mut state = created_state();
+        state.stage_state = StageState::Complete;
+        apply(
+            &mut state,
+            entry(
+                9_000,
+                4,
+                LifecycleEvent::StageStarted {
+                    stage: Stage::TobBloat,
+                },
+            ),
+        );
+        assert_eq!(state.stage, Stage::TobBloat);
+        assert_eq!(state.stage_attempt, None);
+        assert_eq!(state.stage_state, StageState::InProgress);
+    }
+
+    #[test]
+    fn retriable_stage_starts_at_attempt_one() {
+        let mut state = ChallengeState::default();
+        apply(
+            &mut state,
+            entry(
+                0,
+                1,
+                LifecycleEvent::ChallengeCreated {
+                    uuid: Uuid::default(),
+                    challenge_type: ChallengeType::Mokhaiotl,
+                    mode: ChallengeMode::NoMode,
+                    party: vec!["Skitter".into()],
+                    stage: Stage::MokhaiotlDelve1,
+                },
+            ),
+        );
+        apply(
+            &mut state,
+            entry(
+                60_000,
+                2,
+                LifecycleEvent::StageStarted {
+                    stage: Stage::MokhaiotlDelve8plus,
+                },
+            ),
+        );
+        assert_eq!(state.stage_attempt, Some(1));
+    }
+
+    #[test]
+    fn client_joined_inherits_challenge_position() {
+        let mut state = created_state();
+        apply(
+            &mut state,
+            entry(
+                9_000,
+                4,
+                LifecycleEvent::StageStarted {
+                    stage: Stage::TobBloat,
+                },
+            ),
+        );
+        apply(
+            &mut state,
+            entry(
+                10_000,
+                5,
+                LifecycleEvent::ClientJoined {
+                    client_id: ClientId(20),
+                    user_id: UserId(1),
+                    session_token: "tok".into(),
+                    recording_type: RecordingType::Spectator,
+                },
+            ),
+        );
+        let client = &state.clients[&ClientId(20)];
+        assert!(client.active);
+        assert_eq!(client.stage, Stage::TobBloat);
+        assert_eq!(client.stage_status, StageStatus::Entered);
+        assert_eq!(client.stage_attempt, None);
+    }
+
+    #[test]
+    fn client_finished_removes_client_and_keeps_first_times() {
+        let mut state = created_state();
+        let times = ReportedTimes {
+            challenge: 1_437,
+            overall: 1_500,
+        };
+        apply(
+            &mut state,
+            entry(
+                9_000,
+                2,
+                LifecycleEvent::ClientFinished {
+                    client_id: CLIENT,
+                    definitive: true,
+                    soft: false,
+                    times: Some(times),
+                },
+            ),
+        );
+        assert!(state.clients.is_empty());
+        assert_eq!(state.reported_times, Some(times));
+
+        // A later finish without times must not clear the stored ones.
+        apply(
+            &mut state,
+            entry(
+                9_500,
+                3,
+                LifecycleEvent::ClientFinished {
+                    client_id: ClientId(99),
+                    definitive: false,
+                    soft: true,
+                    times: None,
+                },
+            ),
+        );
+        assert_eq!(state.reported_times, Some(times));
+    }
+
+    #[test]
+    fn challenge_terminated_sets_status() {
+        let mut state = created_state();
+        apply(
+            &mut state,
+            entry(
+                9_000,
+                2,
+                LifecycleEvent::ChallengeTerminated {
+                    status: ChallengeStatus::Reset,
+                    empty: false,
+                },
+            ),
+        );
+        assert_eq!(state.status, ChallengeStatus::Reset);
+    }
+}

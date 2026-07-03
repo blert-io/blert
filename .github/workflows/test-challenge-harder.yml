@@ -1,0 +1,50 @@
+name: Test 2 Challenge 2 Server
+
+on:
+  pull_request:
+    paths:
+      - 'challenge-harder/**'
+      - 'proto/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/test-challenge-harder.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'challenge-harder/**'
+      - 'proto/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/test-challenge-harder.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Install protobuf compiler
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Format check
+        run: cargo fmt -p challenge-harder -- --check
+
+      - name: Lint
+        run: cargo clippy -p challenge-harder -- -D warnings
+
+      - name: Build
+        run: cargo build -p challenge-harder
+
+      - name: Run tests
+        run: cargo test -p challenge-harder
