@@ -63,8 +63,8 @@ export function getChartColor(
 
 // Cell backgrounds
 
-export const CELL_BG_DEFAULT = 'rgba(33, 35, 48, 0.4)';
-export const CELL_BG_DEFAULT_HOVER = 'rgba(33, 35, 48, 0.7)';
+export const CELL_BG_DEFAULT = 'rgba(33, 35, 48, 0.5)';
+export const CELL_BG_DEFAULT_HOVER = 'rgba(33, 35, 48, 0.6)';
 
 export const CELL_BG_HIGHLIGHTED = 'rgba(48, 51, 73, 0.5)';
 export const CELL_BG_HIGHLIGHTED_HOVER = 'rgba(88, 101, 242, 0.3)';
@@ -98,7 +98,7 @@ export const OUTLINE_NPC_ATTACK_HOVER = 'rgba(239, 68, 68, 0.9)';
 
 // Text colors
 
-export const TEXT_TICK_HEADER = 'rgb(94, 98, 136)';
+export const TEXT_TICK_HEADER = 'rgba(195, 199, 201, 0.9)';
 export const TEXT_PRIMARY = 'rgb(195, 199, 201)';
 export const TEXT_NPC_ATTACK = 'rgba(239, 68, 68, 0.9)';
 export const TEXT_HIGHLIGHTED = 'rgba(88, 101, 242, 0.9)';
