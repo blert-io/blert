@@ -12,7 +12,7 @@ import {
 
 import { drawPlayerCell, drawNpcCell } from './cell-content';
 import { CellCategory, drawCell, resolveCellStyle } from './cell';
-import { getChartColor, TEXT_PRIMARY, TEXT_TICK_HEADER } from './colors';
+import { BLERT_PURPLE, getChartColor, TEXT_TICK_HEADER } from './colors';
 import { ImageCache } from './image-cache';
 import { Point, TimelineHover } from './types';
 
@@ -187,7 +187,7 @@ export function drawTimeline(
     const isTickHovered =
       hover !== null && hover.type === 'tick-header' && hover.tick === tick;
     ctx.font = `${Math.floor(cellSize / 2) - 1}px 'Plus Jakarta Sans', sans-serif`;
-    ctx.fillStyle = isTickHovered ? TEXT_PRIMARY : TEXT_TICK_HEADER;
+    ctx.fillStyle = isTickHovered ? BLERT_PURPLE : TEXT_TICK_HEADER;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(String(tick), colX + cellSize / 2, TICK_HEIGHT / 2);
