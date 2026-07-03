@@ -37,7 +37,7 @@ services:
       NODE_ENV: development
       ADMIN_TOKEN: blert
       BLERT_DATABASE_URI: postgres://blert:blert@postgres:5432/blert
-      BLERT_CHALLENGE_SERVER_URI: http://challenge-server:3003
+      BLERT_CHALLENGE_SERVER_URI: ${BLERT_CHALLENGE_SERVER_URI:-http://challenge-server:3003}
       BLERT_REDIS_URI: redis://redis:6379
       BLERT_STRUCTURED_LOGS: ${BLERT_STRUCTURED_LOGS:-false}
       BLERT_DEFINITIONS_REPOSITORY: file:///app/.data
@@ -71,6 +71,36 @@ services:
       BLERT_STRUCTURED_LOGS: ${BLERT_STRUCTURED_LOGS:-false}
     working_dir: /app
     command: npm run -w challenge-server dev
+
+  challenge-server-2:
+    build:
+      context: docker/challenge-server-2
+      dockerfile: dev.Dockerfile
+    depends_on:
+      - redis
+      - postgres
+    ports:
+      - '3019:3003'
+    links:
+      - redis
+      - postgres
+    volumes:
+      - .:/app
+      - cargo-cache:/usr/local/cargo/registry
+      - challenge-server-2-target:/app/target
+    environment:
+      NODE_ENV: development
+      BLERT_BASE_URL: http://localhost:3000
+      BLERT_CHALLENGE_SERVER_API_KEY: blert
+      BLERT_COMMIT_SHA: development
+      BLERT_DATABASE_URI: postgres://blert:blert@postgres:5432/blert
+      BLERT_DATA_REPOSITORY: file:///app/.data/challenges
+      BLERT_TEST_DATA_REPOSITORY: file:///app/.data/testing_data
+      BLERT_LOG_LEVEL: debug
+      BLERT_REDIS_URI: redis://redis:6379
+      BLERT_STRUCTURED_LOGS: ${BLERT_STRUCTURED_LOGS:-false}
+    working_dir: /app
+    command: cargo watch -w challenge-harder/src -w proto -x 'run -p challenge-harder'
 
   blertbank:
     image: node:24
@@ -181,4 +211,6 @@ volumes:
   cargo-cache:
     driver: local
   live-server-target:
+    driver: local
+  challenge-server-2-target:
     driver: local
