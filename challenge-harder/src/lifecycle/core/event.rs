@@ -52,7 +52,6 @@ pub enum LifecycleEvent {
     /// A client reported stage progress.
     ClientStageReported {
         client_id: ClientId,
-        #[serde(skip_serializing_if = "Option::is_none")]
         attempt: Option<u32>,
         update: StageProgress,
     },
@@ -70,37 +69,36 @@ pub enum LifecycleEvent {
     /// the grace period.
     StageSealed {
         stage: Stage,
-        #[serde(skip_serializing_if = "Option::is_none")]
         attempt: Option<u32>,
         forced: bool,
     },
     StageProcessingStarted {
         stage: Stage,
-        #[serde(skip_serializing_if = "Option::is_none")]
         attempt: Option<u32>,
     },
     StageProcessingFinished {
         stage: Stage,
-        #[serde(skip_serializing_if = "Option::is_none")]
         attempt: Option<u32>,
         outcome: StageProcessingOutcome,
     },
     StageProcessingFailed {
         stage: Stage,
-        #[serde(skip_serializing_if = "Option::is_none")]
         attempt: Option<u32>,
         error: StageProcessingError,
     },
     StageProcessingTimedOut {
         stage: Stage,
-        #[serde(skip_serializing_if = "Option::is_none")]
         attempt: Option<u32>,
+    },
+    /// A client definitively finished the challenge, entering its finishing phase.
+    ChallengeFinishing {
+        // TODO(frolv): Temporary until stage processing is implemented.
+        status: ChallengeStatus,
     },
     ClientFinished {
         client_id: ClientId,
         definitive: bool,
         soft: bool,
-        #[serde(skip_serializing_if = "Option::is_none")]
         times: Option<ReportedTimes>,
     },
     ClientActivated {
@@ -111,11 +109,6 @@ pub enum LifecycleEvent {
     },
     ClientRemoved {
         client_id: ClientId,
-    },
-    /// A cleanup deadline came due when the conditions for cleanup were no
-    /// longer met, so it was ignored.
-    CleanupDeferred {
-        kind: DeadlineKind,
     },
     /// Terminal challenge event.
     /// `empty` marks a challenge with no recorded data which should be deleted.
@@ -145,7 +138,7 @@ mod tests {
         let json = serde_json::to_string(&entry).unwrap();
         assert_eq!(
             json,
-            r#"{"seq":4,"at":1500,"caused_by":9,"event":{"StageSealed":{"stage":11,"forced":true}}}"#
+            r#"{"seq":4,"at":1500,"caused_by":9,"event":{"StageSealed":{"stage":11,"attempt":null,"forced":true}}}"#
         );
         assert_eq!(serde_json::from_str::<JournalEntry>(&json).unwrap(), entry);
 
@@ -162,7 +155,7 @@ mod tests {
         let json = serde_json::to_string(&forced).unwrap();
         assert_eq!(
             json,
-            r#"{"seq":5,"at":3500,"caused_by":"StageEnd","event":{"StageSealed":{"stage":11,"forced":true}}}"#
+            r#"{"seq":5,"at":3500,"caused_by":"StageEnd","event":{"StageSealed":{"stage":11,"attempt":null,"forced":true}}}"#
         );
         assert_eq!(serde_json::from_str::<JournalEntry>(&json).unwrap(), forced);
     }
