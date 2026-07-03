@@ -5,6 +5,7 @@
 //! applied.
 
 use super::command::{Command, Create, Finish, Update};
+use super::deadline::{Deadline, DeadlineKind, LifecycleConfig, next_deadline};
 use super::event::LifecycleEvent;
 use super::state::{ChallengeState, StageState};
 use super::types::{
@@ -14,7 +15,11 @@ use super::types::{
 
 /// Produces a series of journal events from a received command, detailing the
 /// actions the challenge should take in response to the command.
-pub fn decide(state: &ChallengeState, cmd: &Command) -> Vec<LifecycleEvent> {
+pub fn decide(
+    state: &ChallengeState,
+    config: &LifecycleConfig,
+    cmd: &Command,
+) -> Vec<LifecycleEvent> {
     if state.status != ChallengeStatus::InProgress {
         todo!("commands after termination");
     }
@@ -23,6 +28,7 @@ pub fn decide(state: &ChallengeState, cmd: &Command) -> Vec<LifecycleEvent> {
         Command::Create(c) => create(state, c),
         Command::Update(u) => update(state, u),
         Command::Finish(f) => finish(state, f),
+        Command::DeadlineFired(d) => deadline_fired(state, config, *d),
         Command::Join(_) | Command::ClientStatus(_) | Command::StageProcessed(_) => todo!(),
     }
 }
@@ -143,6 +149,30 @@ fn update(state: &ChallengeState, update: &Update) -> Vec<LifecycleEvent> {
     events
 }
 
+fn deadline_fired(
+    state: &ChallengeState,
+    config: &LifecycleConfig,
+    fired: Deadline,
+) -> Vec<LifecycleEvent> {
+    // Check if the deadline is still valid for the current state or if it has
+    // been implicitly superseded or canceled.
+    if next_deadline(state, config) != Some(fired) {
+        return Vec::new();
+    }
+
+    match fired.kind {
+        DeadlineKind::StageEnd => vec![LifecycleEvent::StageSealed {
+            stage: state.stage,
+            attempt: state.stage_attempt,
+            forced: true,
+        }],
+        DeadlineKind::ChallengeEnd
+        | DeadlineKind::CleanupDisconnect
+        | DeadlineKind::CleanupNonDefinitiveFinish
+        | DeadlineKind::CleanupAllIdle => todo!(),
+    }
+}
+
 fn finish(state: &ChallengeState, finish: &Finish) -> Vec<LifecycleEvent> {
     let Some(client) = state.clients.get(&finish.client_id) else {
         todo!("finishes from unknown clients");
@@ -198,7 +228,9 @@ mod tests {
     use super::*;
     use crate::lifecycle::core::command::StageProgress;
     use crate::lifecycle::core::state::ClientState;
-    use crate::lifecycle::core::types::{ClientId, RecordingType, ReportedTimes, UserId, Uuid};
+    use crate::lifecycle::core::types::{
+        ClientId, RecordingType, ReportedTimes, Timestamp, UserId, Uuid,
+    };
 
     const CLIENT_A: ClientId = ClientId(10);
     const CLIENT_B: ClientId = ClientId(20);
@@ -265,7 +297,7 @@ mod tests {
             recording_type: RecordingType::Participant,
         });
         assert_eq!(
-            decide(&state, &create),
+            decide(&state, &LifecycleConfig::default(), &create),
             vec![
                 LifecycleEvent::ChallengeCreated {
                     uuid: state.uuid,
@@ -293,6 +325,7 @@ mod tests {
         assert_eq!(
             decide(
                 &state,
+                &LifecycleConfig::default(),
                 &stage_update(CLIENT_A, Stage::TobMaiden, StageStatus::Started),
             ),
             vec![report(CLIENT_A, Stage::TobMaiden, StageStatus::Started)],
@@ -308,6 +341,7 @@ mod tests {
         assert_eq!(
             decide(
                 &state,
+                &LifecycleConfig::default(),
                 &stage_update(CLIENT_A, Stage::TobBloat, StageStatus::Started),
             ),
             vec![
@@ -328,6 +362,7 @@ mod tests {
         assert_eq!(
             decide(
                 &state,
+                &LifecycleConfig::default(),
                 &stage_update(CLIENT_A, Stage::TobMaiden, StageStatus::Completed),
             ),
             vec![
@@ -356,6 +391,7 @@ mod tests {
         assert_eq!(
             decide(
                 &state,
+                &LifecycleConfig::default(),
                 &stage_update(CLIENT_A, Stage::TobMaiden, StageStatus::Completed),
             ),
             vec![report(CLIENT_A, Stage::TobMaiden, StageStatus::Completed)],
@@ -377,6 +413,7 @@ mod tests {
         assert_eq!(
             decide(
                 &state,
+                &LifecycleConfig::default(),
                 &stage_update(CLIENT_B, Stage::TobMaiden, StageStatus::Wiped),
             ),
             vec![
@@ -405,6 +442,7 @@ mod tests {
         assert_eq!(
             decide(
                 &state,
+                &LifecycleConfig::default(),
                 &stage_update(CLIENT_A, Stage::TobMaiden, StageStatus::Completed),
             ),
             vec![
@@ -428,6 +466,7 @@ mod tests {
         assert_eq!(
             decide(
                 &state,
+                &LifecycleConfig::default(),
                 &stage_update(CLIENT_A, Stage::TobMaiden, StageStatus::Completed),
             ),
             vec![report(CLIENT_A, Stage::TobMaiden, StageStatus::Completed)],
@@ -450,7 +489,11 @@ mod tests {
         spectator.recording_type = RecordingType::Spectator;
         let state = tob_state(vec![(CLIENT_A, spectator)]);
         assert_eq!(
-            decide(&state, &finish_cmd(CLIENT_A, true, None)),
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &finish_cmd(CLIENT_A, true, None)
+            ),
             vec![
                 LifecycleEvent::ClientFinished {
                     client_id: CLIENT_A,
@@ -473,7 +516,11 @@ mod tests {
             client(Stage::TobMaiden, StageStatus::Wiped, None),
         )]);
         assert_eq!(
-            decide(&state, &finish_cmd(CLIENT_A, false, None)),
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &finish_cmd(CLIENT_A, false, None)
+            ),
             vec![
                 LifecycleEvent::ClientFinished {
                     client_id: CLIENT_A,
@@ -496,7 +543,11 @@ mod tests {
             client(Stage::TobMaiden, StageStatus::Completed, None),
         )]);
         assert_eq!(
-            decide(&state, &finish_cmd(CLIENT_A, false, None)),
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &finish_cmd(CLIENT_A, false, None)
+            ),
             vec![
                 LifecycleEvent::ClientFinished {
                     client_id: CLIENT_A,
@@ -523,7 +574,11 @@ mod tests {
             client(Stage::TobVerzik, StageStatus::Completed, None),
         )]);
         assert_eq!(
-            decide(&state, &finish_cmd(CLIENT_A, false, Some(times))),
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &finish_cmd(CLIENT_A, false, Some(times))
+            ),
             vec![
                 LifecycleEvent::ClientFinished {
                     client_id: CLIENT_A,
@@ -558,7 +613,7 @@ mod tests {
             party: None,
         });
         assert_eq!(
-            decide(&state, &cmd),
+            decide(&state, &LifecycleConfig::default(), &cmd),
             vec![
                 LifecycleEvent::ModeChanged {
                     mode: ChallengeMode::TobHard,
@@ -572,7 +627,7 @@ mod tests {
             u.mode = Some(ChallengeMode::TobRegular);
         }
         assert_eq!(
-            decide(&state, &cmd),
+            decide(&state, &LifecycleConfig::default(), &cmd),
             vec![report(CLIENT_A, Stage::TobMaiden, StageStatus::Started)],
         );
 
@@ -581,7 +636,7 @@ mod tests {
             u.mode = Some(ChallengeMode::NoMode);
         }
         assert_eq!(
-            decide(&state, &cmd),
+            decide(&state, &LifecycleConfig::default(), &cmd),
             vec![report(CLIENT_A, Stage::TobMaiden, StageStatus::Started)],
         );
     }
@@ -598,9 +653,88 @@ mod tests {
         assert_eq!(
             decide(
                 &state,
+                &LifecycleConfig::default(),
                 &stage_update(CLIENT_A, Stage::TobBloat, StageStatus::Entered),
             ),
             vec![report(CLIENT_A, Stage::TobBloat, StageStatus::Entered)],
+        );
+    }
+
+    #[test]
+    fn due_stage_end_deadline_forces_a_seal() {
+        let mut state = tob_state(vec![
+            (
+                CLIENT_A,
+                client(Stage::TobMaiden, StageStatus::Completed, None),
+            ),
+            (
+                CLIENT_B,
+                client(Stage::TobMaiden, StageStatus::Started, None),
+            ),
+        ]);
+        state.stage_state = StageState::Ending {
+            since: Timestamp::from_millis(5_000),
+        };
+
+        let fired = next_deadline(&state, &LifecycleConfig::default())
+            .expect("stage ending implies a deadline");
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &Command::DeadlineFired(fired),
+            ),
+            vec![LifecycleEvent::StageSealed {
+                stage: Stage::TobMaiden,
+                attempt: None,
+                forced: true,
+            }],
+        );
+    }
+
+    #[test]
+    fn superseded_deadline_fire_is_ignored() {
+        let mut state = tob_state(vec![
+            (
+                CLIENT_A,
+                client(Stage::TobMaiden, StageStatus::Completed, None),
+            ),
+            (
+                CLIENT_B,
+                client(Stage::TobMaiden, StageStatus::Started, None),
+            ),
+        ]);
+
+        // A fire armed for an earlier stage end than the current one.
+        state.stage_state = StageState::Ending {
+            since: Timestamp::from_millis(5_000),
+        };
+        let stale_deadline = Deadline {
+            kind: DeadlineKind::StageEnd,
+            at: Timestamp::from_millis(2_000),
+        };
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &Command::DeadlineFired(stale_deadline),
+            ),
+            vec![],
+        );
+
+        // A fire for a stage that has since been sealed normally.
+        state.stage_state = StageState::Complete;
+        let sealed = Deadline {
+            kind: DeadlineKind::StageEnd,
+            at: Timestamp::from_millis(7_000),
+        };
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &Command::DeadlineFired(sealed),
+            ),
+            vec![],
         );
     }
 }
