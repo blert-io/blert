@@ -33,7 +33,7 @@ async fn main() {
         .expect("failed to bind server port");
     tracing::info!(
         port,
-        commit = env!("BLERT_COMMIT_SHA"),
+        commit = option_env!("BLERT_COMMIT_SHA").unwrap_or("dev"),
         "challenge_server_listening"
     );
 

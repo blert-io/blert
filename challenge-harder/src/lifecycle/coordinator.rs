@@ -8,6 +8,7 @@ use tokio::sync::watch;
 
 use super::challenge::{ActiveChallenge, CommandSender, inbox};
 use super::core::command::{Command, Create, Finish, Update};
+use super::core::deadline::LifecycleConfig;
 use super::core::state::Snapshot;
 use super::core::types::{ChallengeStatus, ChallengeType, MsgId, Uuid};
 
@@ -50,6 +51,7 @@ struct Registry {
 #[derive(Default)]
 pub struct Coordinator {
     registry: Mutex<Registry>,
+    config: LifecycleConfig,
 }
 
 impl Coordinator {
@@ -87,7 +89,7 @@ impl Coordinator {
                 client_id = create.client_id.0,
                 "challenge_created",
             );
-            let mut challenge = ActiveChallenge::new(uuid);
+            let mut challenge = ActiveChallenge::new(uuid, self.config.clone());
             let (sender, rx) = inbox();
             let (snapshot_tx, snapshot_rx) =
                 watch::channel(Snapshot::of(&challenge.state, MsgId(0)));

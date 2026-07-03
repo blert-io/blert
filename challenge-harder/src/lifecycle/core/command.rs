@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
+use super::deadline::Deadline;
 use super::types::{
     ChallengeMode, ChallengeType, ClientId, JournalSeq, MsgId, RecordingType, ReportedTimes, Stage,
     StageProcessingError, StageProcessingOutcome, StageStatus, UserId,
@@ -108,6 +109,7 @@ pub enum Command {
     Finish(Finish),
     ClientStatus(ClientStatusChange),
     StageProcessed(StageProcessed),
+    DeadlineFired(Deadline),
 }
 
 /// A command as stored in the inbox.

@@ -3,18 +3,28 @@
 use serde::{Deserialize, Serialize};
 
 use super::command::StageProgress;
+use super::deadline::DeadlineKind;
 use super::types::{
     ChallengeMode, ChallengeStatus, ChallengeType, ClientId, JournalSeq, MsgId, RecordingType,
     ReportedTimes, Stage, StageProcessingError, StageProcessingOutcome, Timestamp, UserId, Uuid,
 };
+
+/// What triggered a lifecycle event.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Cause {
+    /// An inbox command.
+    Command(MsgId),
+    /// A deadline coming due.
+    Deadline(DeadlineKind),
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JournalEntry {
     pub seq: JournalSeq,
     /// Apply time from the challenge's clock.
     pub at: Timestamp,
-    /// Inbox message that produced this entry.
-    pub caused_by: MsgId,
+    pub caused_by: Cause,
     pub event: LifecycleEvent,
 }
 
@@ -125,7 +135,7 @@ mod tests {
         let entry = JournalEntry {
             seq: JournalSeq(4),
             at: Timestamp::from_millis(1_500),
-            caused_by: MsgId(9),
+            caused_by: Cause::Command(MsgId(9)),
             event: LifecycleEvent::StageSealed {
                 stage: Stage::TobBloat,
                 attempt: None,
@@ -138,5 +148,22 @@ mod tests {
             r#"{"seq":4,"at":1500,"caused_by":9,"event":{"StageSealed":{"stage":11,"forced":true}}}"#
         );
         assert_eq!(serde_json::from_str::<JournalEntry>(&json).unwrap(), entry);
+
+        let forced = JournalEntry {
+            seq: JournalSeq(5),
+            at: Timestamp::from_millis(3_500),
+            caused_by: Cause::Deadline(DeadlineKind::StageEnd),
+            event: LifecycleEvent::StageSealed {
+                stage: Stage::TobBloat,
+                attempt: None,
+                forced: true,
+            },
+        };
+        let json = serde_json::to_string(&forced).unwrap();
+        assert_eq!(
+            json,
+            r#"{"seq":5,"at":3500,"caused_by":"StageEnd","event":{"StageSealed":{"stage":11,"forced":true}}}"#
+        );
+        assert_eq!(serde_json::from_str::<JournalEntry>(&json).unwrap(), forced);
     }
 }

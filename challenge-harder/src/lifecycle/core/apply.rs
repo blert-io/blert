@@ -3,12 +3,14 @@
 //! This module represents the application half of challenge command processing,
 //! building up challenge state from journal decisions.
 
-use super::event::{JournalEntry, LifecycleEvent};
+use super::event::{Cause, JournalEntry, LifecycleEvent};
 use super::state::{ChallengeState, ClientState, StageState};
 use super::types::{StageExt, StageStatus};
 
 pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
-    state.cursor = entry.caused_by;
+    if let Cause::Command(id) = entry.caused_by {
+        state.cursor = id;
+    }
 
     match entry.event {
         LifecycleEvent::ChallengeCreated {
@@ -92,7 +94,8 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
         | LifecycleEvent::StageProcessingTimedOut { .. }
         | LifecycleEvent::ClientActivated { .. }
         | LifecycleEvent::ClientIdled { .. }
-        | LifecycleEvent::ClientRemoved { .. } => todo!(),
+        | LifecycleEvent::ClientRemoved { .. }
+        | LifecycleEvent::CleanupDeferred { .. } => todo!(),
     }
 }
 
@@ -100,6 +103,7 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
 mod tests {
     use super::*;
     use crate::lifecycle::core::command::StageProgress;
+    use crate::lifecycle::core::deadline::DeadlineKind;
     use crate::lifecycle::core::types::{
         ChallengeMode, ChallengeStatus, ChallengeType, ClientId, JournalSeq, MsgId, RecordingType,
         ReportedTimes, Stage, Timestamp, UserId, Uuid,
@@ -111,7 +115,7 @@ mod tests {
         JournalEntry {
             seq: JournalSeq(0),
             at: Timestamp::from_millis(at_ms),
-            caused_by: MsgId(msg),
+            caused_by: Cause::Command(MsgId(msg)),
             event,
         }
     }
@@ -238,6 +242,30 @@ mod tests {
             ),
         );
         assert_eq!(state.stage_state, StageState::Complete);
+    }
+
+    #[test]
+    fn deadline_caused_entry_does_not_advance_cursor() {
+        let mut state = created_state();
+        apply(
+            &mut state,
+            entry(5_000, 2, report(Stage::TobMaiden, StageStatus::Completed)),
+        );
+        apply(
+            &mut state,
+            JournalEntry {
+                seq: JournalSeq(1),
+                at: Timestamp::from_millis(7_000),
+                caused_by: Cause::Deadline(DeadlineKind::StageEnd),
+                event: LifecycleEvent::StageSealed {
+                    stage: Stage::TobMaiden,
+                    attempt: None,
+                    forced: true,
+                },
+            },
+        );
+        assert_eq!(state.stage_state, StageState::Complete);
+        assert_eq!(state.cursor, MsgId(2));
     }
 
     #[test]

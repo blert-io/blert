@@ -1,5 +1,6 @@
 //! Live challenge state processing.
 
+use core::time::Duration;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -7,8 +8,9 @@ use tokio::sync::{mpsc, watch};
 
 use super::core::apply::apply;
 use super::core::command::{Command, Envelope};
+use super::core::deadline::{LifecycleConfig, next_deadline};
 use super::core::decide::decide;
-use super::core::event::JournalEntry;
+use super::core::event::{Cause, JournalEntry};
 use super::core::state::{ChallengeState, Snapshot};
 use super::core::types::{ChallengeStatus, JournalSeq, MsgId, Timestamp, Uuid};
 
@@ -46,40 +48,58 @@ pub fn inbox() -> (CommandSender, mpsc::UnboundedReceiver<Envelope>) {
 pub struct ActiveChallenge {
     pub state: ChallengeState,
     pub journal: Vec<JournalEntry>,
+    config: LifecycleConfig,
     next_seq: u64,
 }
 
 impl ActiveChallenge {
     #[must_use]
-    pub fn new(uuid: Uuid) -> Self {
+    pub fn new(uuid: Uuid, config: LifecycleConfig) -> Self {
         ActiveChallenge {
             state: ChallengeState {
                 uuid,
                 ..ChallengeState::default()
             },
             journal: Vec::new(),
+            config,
             next_seq: 0,
         }
     }
 
-    /// Serially applies inbox commands until the challenge terminates,
-    /// publishing a fresh state snapshot after each one.
+    /// Serially applies inbox commands and their implied deadline timers until
+    /// the challenge terminates, publishing a fresh state snapshot after each.
     pub async fn run(
         &mut self,
         mut inbox: mpsc::UnboundedReceiver<Envelope>,
         snapshot: watch::Sender<Snapshot>,
     ) {
         let started = tokio::time::Instant::now();
+        let mut cursor = self.state.cursor;
 
-        while let Some(envelope) = inbox.recv().await {
+        loop {
+            let deadline = next_deadline(&self.state, &self.config);
+            let wake_at = deadline.map_or(started, |d| {
+                started + Duration::from_millis(d.at.as_millis())
+            });
+
+            let input = tokio::select! {
+                envelope = inbox.recv() => envelope.map(|e| (Cause::Command(e.id), e.cmd)),
+                () = tokio::time::sleep_until(wake_at), if deadline.is_some() => {
+                    deadline.map(|d| (Cause::Deadline(d.kind), Command::DeadlineFired(d)))
+                }
+            };
+            let Some((cause, cmd)) = input else {
+                break;
+            };
+
             let elapsed = started.elapsed().as_millis();
             let at = Timestamp::from_millis(u64::try_from(elapsed).unwrap_or(u64::MAX));
 
-            for event in decide(&self.state, &envelope.cmd) {
+            for event in decide(&self.state, &self.config, &cmd) {
                 let entry = JournalEntry {
                     seq: JournalSeq(self.next_seq),
                     at,
-                    caused_by: envelope.id,
+                    caused_by: cause,
                     event,
                 };
                 self.next_seq += 1;
@@ -87,7 +107,10 @@ impl ActiveChallenge {
                 apply(&mut self.state, entry);
             }
 
-            snapshot.send_replace(Snapshot::of(&self.state, envelope.id));
+            if let Cause::Command(id) = cause {
+                cursor = id;
+            }
+            snapshot.send_replace(Snapshot::of(&self.state, cursor));
 
             if self.state.status != ChallengeStatus::InProgress {
                 break;
@@ -100,6 +123,9 @@ impl ActiveChallenge {
 mod tests {
     use super::*;
     use crate::lifecycle::core::command::{Create, Finish, StageProgress, Update};
+    use crate::lifecycle::core::deadline::DeadlineKind;
+    use crate::lifecycle::core::event::LifecycleEvent;
+    use crate::lifecycle::core::state::{ClientState, StageState};
     use crate::lifecycle::core::types::{
         ChallengeMode, ChallengeType, ClientId, RecordingType, Stage, StageStatus, UserId,
     };
@@ -120,7 +146,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn live_run_and_journal_replay_produce_the_same_state() {
         let uuid = Uuid::from_u128(0xb1e47);
-        let mut challenge = ActiveChallenge::new(uuid);
+        let mut challenge = ActiveChallenge::new(uuid, LifecycleConfig::default());
         let (sender, rx) = inbox();
         let (snapshot_tx, snapshot_rx) = watch::channel(Snapshot::of(&challenge.state, MsgId(0)));
 
@@ -167,5 +193,90 @@ mod tests {
             apply(&mut replayed, entry);
         }
         assert_eq!(replayed, challenge.state);
+    }
+
+    fn mid_stage_client() -> ClientState {
+        ClientState {
+            user_id: UserId(1),
+            session_token: "tok".into(),
+            recording_type: RecordingType::Participant,
+            active: true,
+            stage: Stage::TobMaiden,
+            stage_status: StageStatus::Started,
+            stage_attempt: None,
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn stage_end_window_expiry_forces_a_seal() {
+        let uuid = Uuid::from_u128(0xb1e47);
+        let straggler = ClientId(20);
+        let mut challenge = ActiveChallenge::new(uuid, LifecycleConfig::default());
+        challenge.state = ChallengeState {
+            uuid,
+            challenge_type: ChallengeType::Tob,
+            mode: ChallengeMode::TobRegular,
+            party: vec!["WWWWWWWWWWQQ".into(), "715".into()],
+            stage: Stage::TobMaiden,
+            clients: [
+                (CLIENT, mid_stage_client()),
+                (straggler, mid_stage_client()),
+            ]
+            .into_iter()
+            .collect(),
+            ..ChallengeState::default()
+        };
+
+        let (sender, rx) = inbox();
+        let (snapshot_tx, snapshot_rx) = watch::channel(Snapshot::of(&challenge.state, MsgId(0)));
+        let task = tokio::spawn(async move {
+            challenge.run(rx, snapshot_tx).await;
+            challenge
+        });
+
+        let id = sender.send(stage_update(Stage::TobMaiden, StageStatus::Completed));
+        let mut watcher = snapshot_rx.clone();
+        watcher
+            .wait_for(|s| s.cursor >= id)
+            .await
+            .expect("challenge should process the completion");
+
+        // The straggler doesn't send their stage end within the window.
+        tokio::time::sleep(Duration::from_millis(2_500)).await;
+        drop(sender);
+        let challenge = task.await.expect("challenge task should finish");
+
+        assert_eq!(challenge.state.stage_state, StageState::Complete);
+        assert_eq!(
+            challenge.journal,
+            vec![
+                JournalEntry {
+                    seq: JournalSeq(0),
+                    at: Timestamp::ZERO,
+                    caused_by: Cause::Command(id),
+                    event: LifecycleEvent::ClientStageReported {
+                        client_id: CLIENT,
+                        attempt: None,
+                        update: StageProgress {
+                            stage: Stage::TobMaiden,
+                            status: StageStatus::Completed,
+                        },
+                    },
+                },
+                JournalEntry {
+                    seq: JournalSeq(1),
+                    at: Timestamp::from_millis(2_000),
+                    caused_by: Cause::Deadline(DeadlineKind::StageEnd),
+                    event: LifecycleEvent::StageSealed {
+                        stage: Stage::TobMaiden,
+                        attempt: None,
+                        forced: true,
+                    },
+                },
+            ],
+        );
+
+        // The deadline is not an inbox message, so the cursor must stay put.
+        assert_eq!(snapshot_rx.borrow().cursor, id);
     }
 }
