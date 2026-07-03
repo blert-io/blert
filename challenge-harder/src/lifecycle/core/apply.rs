@@ -4,7 +4,7 @@
 //! building up challenge state from journal decisions.
 
 use super::event::{Cause, JournalEntry, LifecycleEvent};
-use super::state::{ChallengeState, ClientState, StageState};
+use super::state::{ChallengePhase, ChallengeState, ClientState, StageState};
 use super::types::{StageExt, StageStatus};
 
 pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
@@ -71,7 +71,13 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
             state.stage_state = StageState::InProgress;
         }
         LifecycleEvent::StageSealed { .. } => {
-            state.stage_state = StageState::Complete;
+            state.stage_state = StageState::Complete { since: entry.at };
+        }
+        LifecycleEvent::ChallengeFinishing { status } => {
+            state.phase = ChallengePhase::Finishing {
+                since: entry.at,
+                status,
+            };
         }
         LifecycleEvent::ClientFinished {
             client_id, times, ..
@@ -79,8 +85,11 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
             state.clients.remove(&client_id);
             state.reported_times = state.reported_times.or(times);
         }
+        LifecycleEvent::ClientRemoved { client_id } => {
+            state.clients.remove(&client_id);
+        }
         LifecycleEvent::ChallengeTerminated { status, empty: _ } => {
-            state.status = status;
+            state.phase = ChallengePhase::Terminated { status };
             state.reported_times = None;
         }
         LifecycleEvent::ModeChanged { mode } => {
@@ -93,9 +102,7 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
         | LifecycleEvent::StageProcessingFailed { .. }
         | LifecycleEvent::StageProcessingTimedOut { .. }
         | LifecycleEvent::ClientActivated { .. }
-        | LifecycleEvent::ClientIdled { .. }
-        | LifecycleEvent::ClientRemoved { .. }
-        | LifecycleEvent::CleanupDeferred { .. } => todo!(),
+        | LifecycleEvent::ClientIdled { .. } => todo!(),
     }
 }
 
@@ -241,7 +248,12 @@ mod tests {
                 },
             ),
         );
-        assert_eq!(state.stage_state, StageState::Complete);
+        assert_eq!(
+            state.stage_state,
+            StageState::Complete {
+                since: Timestamp::from_millis(5_000)
+            }
+        );
     }
 
     #[test]
@@ -264,14 +276,21 @@ mod tests {
                 },
             },
         );
-        assert_eq!(state.stage_state, StageState::Complete);
+        assert_eq!(
+            state.stage_state,
+            StageState::Complete {
+                since: Timestamp::from_millis(7_000)
+            }
+        );
         assert_eq!(state.cursor, MsgId(2));
     }
 
     #[test]
     fn stage_started_advances_challenge() {
         let mut state = created_state();
-        state.stage_state = StageState::Complete;
+        state.stage_state = StageState::Complete {
+            since: Timestamp::from_millis(5_000),
+        };
         apply(
             &mut state,
             entry(
@@ -353,6 +372,22 @@ mod tests {
     #[test]
     fn client_finished_removes_client_and_keeps_first_times() {
         let mut state = created_state();
+        for client_id in [ClientId(20), ClientId(30)] {
+            apply(
+                &mut state,
+                entry(
+                    0,
+                    1,
+                    LifecycleEvent::ClientJoined {
+                        client_id,
+                        user_id: UserId(2),
+                        session_token: "tok2".into(),
+                        recording_type: RecordingType::Participant,
+                    },
+                ),
+            );
+        }
+
         let times = ReportedTimes {
             challenge: 1_437,
             overall: 1_500,
@@ -370,7 +405,7 @@ mod tests {
                 },
             ),
         );
-        assert!(state.clients.is_empty());
+        assert_eq!(state.clients.len(), 2);
         assert_eq!(state.reported_times, Some(times));
 
         // A later finish without times must not clear the stored ones.
@@ -380,7 +415,7 @@ mod tests {
                 9_500,
                 3,
                 LifecycleEvent::ClientFinished {
-                    client_id: ClientId(99),
+                    client_id: ClientId(20),
                     definitive: false,
                     soft: true,
                     times: None,
@@ -388,6 +423,81 @@ mod tests {
             ),
         );
         assert_eq!(state.reported_times, Some(times));
+
+        // A later update does not change stored times.
+        apply(
+            &mut state,
+            entry(
+                9_800,
+                4,
+                LifecycleEvent::ClientFinished {
+                    client_id: ClientId(30),
+                    definitive: true,
+                    soft: false,
+                    times: Some(ReportedTimes {
+                        challenge: 1_440,
+                        overall: 1_503,
+                    }),
+                },
+            ),
+        );
+        assert!(state.clients.is_empty());
+        assert_eq!(state.reported_times, Some(times));
+    }
+
+    #[test]
+    fn challenge_finishing_enters_finishing_phase() {
+        let mut state = created_state();
+        apply(
+            &mut state,
+            entry(
+                9_000,
+                2,
+                LifecycleEvent::ChallengeFinishing {
+                    status: ChallengeStatus::Wiped,
+                },
+            ),
+        );
+        assert_eq!(
+            state.phase,
+            ChallengePhase::Finishing {
+                since: Timestamp::from_millis(9_000),
+                status: ChallengeStatus::Wiped,
+            }
+        );
+    }
+
+    #[test]
+    fn client_removed_drops_client() {
+        let mut state = created_state();
+        apply(
+            &mut state,
+            entry(
+                0,
+                1,
+                LifecycleEvent::ClientJoined {
+                    client_id: ClientId(20),
+                    user_id: UserId(2),
+                    session_token: "tok2".into(),
+                    recording_type: RecordingType::Participant,
+                },
+            ),
+        );
+        assert_eq!(state.clients.len(), 2);
+
+        apply(
+            &mut state,
+            entry(
+                9_000,
+                2,
+                LifecycleEvent::ClientRemoved {
+                    client_id: ClientId(20),
+                },
+            ),
+        );
+
+        assert_eq!(state.clients.len(), 1);
+        assert_eq!(state.clients.get(&ClientId(20)), None);
     }
 
     #[test]
@@ -404,6 +514,11 @@ mod tests {
                 },
             ),
         );
-        assert_eq!(state.status, ChallengeStatus::Reset);
+        assert_eq!(
+            state.phase,
+            ChallengePhase::Terminated {
+                status: ChallengeStatus::Reset
+            }
+        );
     }
 }

@@ -18,7 +18,37 @@ pub enum StageState {
     /// Some but not all clients have completed the stage.
     Ending { since: Timestamp },
     /// The stage's event streams are finalized.
-    Complete,
+    Complete { since: Timestamp },
+}
+
+/// Overall lifecycle phase of a challenge.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ChallengePhase {
+    /// Clients are recording the challenge.
+    #[default]
+    Active,
+    /// At least one client has definitively finished.
+    Finishing {
+        /// Time of the first client finish.
+        since: Timestamp,
+        // TODO(frolv): Remove once stage processing is added.
+        status: ChallengeStatus,
+    },
+    /// The challenge has ended.
+    Terminated { status: ChallengeStatus },
+}
+
+impl ChallengePhase {
+    /// The phase's user-facing status.
+    #[must_use]
+    pub fn status(self) -> ChallengeStatus {
+        match self {
+            ChallengePhase::Active | ChallengePhase::Finishing { .. } => {
+                ChallengeStatus::InProgress
+            }
+            ChallengePhase::Terminated { status } => status,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -41,7 +71,7 @@ pub struct Snapshot {
     pub stage: Stage,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stage_attempt: Option<u32>,
-    pub status: ChallengeStatus,
+    pub phase: ChallengePhase,
     /// Last inbox message the challenge has processed, whether or not it had
     /// any effect. Lets a caller await the application of its own command.
     pub cursor: MsgId,
@@ -55,9 +85,14 @@ impl Snapshot {
             mode: state.mode,
             stage: state.stage,
             stage_attempt: state.stage_attempt,
-            status: state.status,
+            phase: state.phase,
             cursor,
         }
+    }
+
+    #[must_use]
+    pub fn status(&self) -> ChallengeStatus {
+        self.phase.status()
     }
 }
 
@@ -67,7 +102,7 @@ pub struct ChallengeState {
     pub challenge_type: ChallengeType,
     pub mode: ChallengeMode,
     pub party: Vec<String>,
-    pub status: ChallengeStatus,
+    pub phase: ChallengePhase,
     /// Completion times reported by a finishing client.
     pub reported_times: Option<ReportedTimes>,
     pub stage: Stage,

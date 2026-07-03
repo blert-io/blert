@@ -4,10 +4,10 @@
 //! converting incoming commands to a set of intended actions that are later
 //! applied.
 
-use super::command::{Command, Create, Finish, Update};
+use super::command::{Command, Create, Finish, Join, Update};
 use super::deadline::{Deadline, DeadlineKind, LifecycleConfig, next_deadline};
 use super::event::LifecycleEvent;
-use super::state::{ChallengeState, StageState};
+use super::state::{ChallengePhase, ChallengeState, ClientState, StageState};
 use super::types::{
     ChallengeMode, ChallengeStatus, ChallengeType, ChallengeTypeExt, RecordingType, Stage,
     StageExt, StageStatus,
@@ -20,16 +20,17 @@ pub fn decide(
     config: &LifecycleConfig,
     cmd: &Command,
 ) -> Vec<LifecycleEvent> {
-    if state.status != ChallengeStatus::InProgress {
+    if let ChallengePhase::Terminated { .. } = state.phase {
         todo!("commands after termination");
     }
 
     match cmd {
         Command::Create(c) => create(state, c),
+        Command::Join(j) => join(state, j),
         Command::Update(u) => update(state, u),
         Command::Finish(f) => finish(state, f),
         Command::DeadlineFired(d) => deadline_fired(state, config, *d),
-        Command::Join(_) | Command::ClientStatus(_) | Command::StageProcessed(_) => todo!(),
+        Command::ClientStatus(_) | Command::StageProcessed(_) => todo!(),
     }
 }
 
@@ -57,6 +58,22 @@ fn create(state: &ChallengeState, c: &Create) -> Vec<LifecycleEvent> {
             recording_type: c.recording_type,
         },
     ]
+}
+
+fn join(state: &ChallengeState, join: &Join) -> Vec<LifecycleEvent> {
+    if state.clients.contains_key(&join.client_id) {
+        // Happens when a client's dying socket has not yet been detected before
+        // its replacement connection joins. Client record should be refreshed.
+        // challenge-manager.ts:184
+        todo!("overlapping-socket rejoin");
+    }
+
+    vec![LifecycleEvent::ClientJoined {
+        client_id: join.client_id,
+        user_id: join.user_id,
+        session_token: join.session_token.clone(),
+        recording_type: join.recording_type,
+    }]
 }
 
 fn update(state: &ChallengeState, update: &Update) -> Vec<LifecycleEvent> {
@@ -105,7 +122,7 @@ fn update(state: &ChallengeState, update: &Update) -> Vec<LifecycleEvent> {
                 }
             });
 
-            if all_finished && state.stage_state != StageState::Complete {
+            if all_finished && !matches!(state.stage_state, StageState::Complete { .. }) {
                 events.push(LifecycleEvent::StageSealed {
                     stage: progress.stage,
                     attempt: client.stage_attempt,
@@ -166,10 +183,25 @@ fn deadline_fired(
             attempt: state.stage_attempt,
             forced: true,
         }],
-        DeadlineKind::ChallengeEnd
-        | DeadlineKind::CleanupDisconnect
-        | DeadlineKind::CleanupNonDefinitiveFinish
-        | DeadlineKind::CleanupAllIdle => todo!(),
+        DeadlineKind::ChallengeEnd => {
+            let ChallengePhase::Finishing { status, .. } = state.phase else {
+                unreachable!("ChallengeEnd is only derivable when finishing");
+            };
+
+            // Clients which never sent their finish requests are cut off.
+            let mut events: Vec<LifecycleEvent> = state
+                .clients
+                .keys()
+                .map(|&client_id| LifecycleEvent::ClientRemoved { client_id })
+                .collect();
+            events.push(LifecycleEvent::ChallengeTerminated {
+                status,
+                // TODO(frolv): Set based on recorded data once stage processing exists.
+                empty: false,
+            });
+            events
+        }
+        DeadlineKind::CleanupDisconnect | DeadlineKind::CleanupAllIdle => todo!(),
     }
 }
 
@@ -177,22 +209,58 @@ fn finish(state: &ChallengeState, finish: &Finish) -> Vec<LifecycleEvent> {
     let Some(client) = state.clients.get(&finish.client_id) else {
         todo!("finishes from unknown clients");
     };
-    if state.clients.len() > 1 {
-        todo!("finishes with other clients still connected");
-    }
 
-    // TODO(frolv): If there are still clients connected, set a timeout to allow
-    // their own finish requests to complete.
-    //
-    // Spectators may just leave a challenge early before it has actually
-    // finished, so don't count their finish events as definitive.
-    // TODO(frolv): Instead, start a longer cleanup timer which will end the challenge
-    // unless other activity is detected.
+    // Spectators may leave a challenge early before it has actually finished,
+    // so their finish events don't count as definitive.
     let definitive = (!finish.soft && client.recording_type == RecordingType::Participant)
         || finish.times.is_some();
 
-    // TODO(frolv): This should come from the result of processing, not a client.
-    let status = match client.stage_status {
+    let finished = LifecycleEvent::ClientFinished {
+        client_id: finish.client_id,
+        definitive,
+        soft: finish.soft,
+        times: finish.times,
+    };
+
+    if state.clients.len() > 1 {
+        // Wait for other clients to report their finishes.
+        let mut events = Vec::new();
+        if definitive && matches!(state.phase, ChallengePhase::Active) {
+            events.push(LifecycleEvent::ChallengeFinishing {
+                status: client_terminal_status(state, client),
+            });
+        }
+        events.push(finished);
+        return events;
+    }
+
+    let mut events = vec![finished];
+    if let StageState::Ending { .. } = state.stage_state {
+        // Once the last client leaves, there is no longer a state end to
+        // receive, so finalize the stage if it is still open.
+        events.push(LifecycleEvent::StageSealed {
+            stage: state.stage,
+            attempt: state.stage_attempt,
+            forced: true,
+        });
+    }
+
+    let status = if let ChallengePhase::Finishing { status, .. } = state.phase {
+        status
+    } else {
+        client_terminal_status(state, client)
+    };
+    events.push(LifecycleEvent::ChallengeTerminated {
+        status,
+        // TODO(frolv): Set based on recorded data once stage processing exists.
+        empty: false,
+    });
+    events
+}
+
+// TODO(frolv): Temporary single-client status until stage processing exists.
+fn client_terminal_status(state: &ChallengeState, client: &ClientState) -> ChallengeStatus {
+    match client.stage_status {
         StageStatus::Started | StageStatus::Entered => ChallengeStatus::Abandoned,
         StageStatus::Wiped => ChallengeStatus::Wiped,
         StageStatus::Completed => {
@@ -206,21 +274,7 @@ fn finish(state: &ChallengeState, finish: &Finish) -> Vec<LifecycleEvent> {
                 ChallengeStatus::Reset
             }
         }
-    };
-
-    vec![
-        LifecycleEvent::ClientFinished {
-            client_id: finish.client_id,
-            definitive,
-            soft: finish.soft,
-            times: finish.times,
-        },
-        LifecycleEvent::ChallengeTerminated {
-            status,
-            // TODO(frolv): Set based on recorded data once stage processing exists.
-            empty: false,
-        },
-    ]
+    }
 }
 
 #[cfg(test)]
@@ -462,7 +516,9 @@ mod tests {
             CLIENT_A,
             client(Stage::TobMaiden, StageStatus::Completed, None),
         )]);
-        state.stage_state = StageState::Complete;
+        state.stage_state = StageState::Complete {
+            since: Timestamp::from_millis(5_000),
+        };
         assert_eq!(
             decide(
                 &state,
@@ -661,6 +717,31 @@ mod tests {
     }
 
     #[test]
+    fn join_adds_new_client() {
+        let state = tob_state(vec![(
+            CLIENT_A,
+            client(Stage::TobMaiden, StageStatus::Started, None),
+        )]);
+        let join = Command::Join(super::Join {
+            user_id: UserId(2),
+            client_id: CLIENT_B,
+            session_token: "tok2".into(),
+            plugin_version: "0.9.14".into(),
+            runelite_version: "1.12.31.1".into(),
+            recording_type: RecordingType::Spectator,
+        });
+        assert_eq!(
+            decide(&state, &LifecycleConfig::default(), &join),
+            vec![LifecycleEvent::ClientJoined {
+                client_id: CLIENT_B,
+                user_id: UserId(2),
+                session_token: "tok2".into(),
+                recording_type: RecordingType::Spectator,
+            }],
+        );
+    }
+
+    #[test]
     fn due_stage_end_deadline_forces_a_seal() {
         let mut state = tob_state(vec![
             (
@@ -723,7 +804,9 @@ mod tests {
         );
 
         // A fire for a stage that has since been sealed normally.
-        state.stage_state = StageState::Complete;
+        state.stage_state = StageState::Complete {
+            since: Timestamp::from_millis(6_000),
+        };
         let sealed = Deadline {
             kind: DeadlineKind::StageEnd,
             at: Timestamp::from_millis(7_000),
@@ -733,6 +816,187 @@ mod tests {
                 &state,
                 &LifecycleConfig::default(),
                 &Command::DeadlineFired(sealed),
+            ),
+            vec![],
+        );
+    }
+
+    #[test]
+    fn finish_with_other_clients_remaining_does_not_terminate() {
+        let state = tob_state(vec![
+            (CLIENT_A, client(Stage::TobMaiden, StageStatus::Wiped, None)),
+            (
+                CLIENT_B,
+                client(Stage::TobMaiden, StageStatus::Started, None),
+            ),
+        ]);
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &finish_cmd(CLIENT_A, false, None),
+            ),
+            vec![
+                LifecycleEvent::ChallengeFinishing {
+                    status: ChallengeStatus::Wiped,
+                },
+                LifecycleEvent::ClientFinished {
+                    client_id: CLIENT_A,
+                    definitive: true,
+                    soft: false,
+                    times: None,
+                },
+            ],
+        );
+    }
+
+    #[test]
+    fn spectator_finish_with_others_remaining_is_not_definitive() {
+        let mut spectator = client(Stage::TobMaiden, StageStatus::Wiped, None);
+        spectator.recording_type = RecordingType::Spectator;
+        let state = tob_state(vec![
+            (CLIENT_A, spectator),
+            (
+                CLIENT_B,
+                client(Stage::TobMaiden, StageStatus::Started, None),
+            ),
+        ]);
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &finish_cmd(CLIENT_A, true, None),
+            ),
+            vec![LifecycleEvent::ClientFinished {
+                client_id: CLIENT_A,
+                definitive: false,
+                soft: true,
+                times: None,
+            }],
+        );
+    }
+
+    #[test]
+    fn second_definitive_finish_does_not_reenter_finishing() {
+        let mut state = tob_state(vec![
+            (CLIENT_A, client(Stage::TobMaiden, StageStatus::Wiped, None)),
+            (CLIENT_B, client(Stage::TobMaiden, StageStatus::Wiped, None)),
+        ]);
+        state.phase = ChallengePhase::Finishing {
+            since: Timestamp::from_millis(5_000),
+            status: ChallengeStatus::Wiped,
+        };
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &finish_cmd(CLIENT_A, false, None),
+            ),
+            vec![LifecycleEvent::ClientFinished {
+                client_id: CLIENT_A,
+                definitive: true,
+                soft: false,
+                times: None,
+            }],
+        );
+    }
+
+    #[test]
+    fn last_finish_seals_an_open_stage() {
+        let mut state = tob_state(vec![(
+            CLIENT_A,
+            client(Stage::TobMaiden, StageStatus::Wiped, None),
+        )]);
+        state.stage_state = StageState::Ending {
+            since: Timestamp::from_millis(5_000),
+        };
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &finish_cmd(CLIENT_A, false, None),
+            ),
+            vec![
+                LifecycleEvent::ClientFinished {
+                    client_id: CLIENT_A,
+                    definitive: true,
+                    soft: false,
+                    times: None,
+                },
+                LifecycleEvent::StageSealed {
+                    stage: Stage::TobMaiden,
+                    attempt: None,
+                    forced: true,
+                },
+                LifecycleEvent::ChallengeTerminated {
+                    status: ChallengeStatus::Wiped,
+                    empty: false,
+                },
+            ],
+        );
+    }
+
+    #[test]
+    fn challenge_end_deadline_cuts_off_remaining_clients() {
+        let mut state = tob_state(vec![(
+            CLIENT_B,
+            client(Stage::TobMaiden, StageStatus::Started, None),
+        )]);
+        state.phase = ChallengePhase::Finishing {
+            since: Timestamp::from_millis(5_000),
+            status: ChallengeStatus::Wiped,
+        };
+        state.stage_state = StageState::Complete {
+            since: Timestamp::from_millis(5_500),
+        };
+
+        let fired = next_deadline(&state, &LifecycleConfig::default())
+            .expect("finishing phase implies a deadline");
+        assert_eq!(fired.kind, DeadlineKind::ChallengeEnd);
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &Command::DeadlineFired(fired),
+            ),
+            vec![
+                LifecycleEvent::ClientRemoved {
+                    client_id: CLIENT_B,
+                },
+                LifecycleEvent::ChallengeTerminated {
+                    status: ChallengeStatus::Wiped,
+                    empty: false,
+                },
+            ],
+        );
+    }
+
+    #[test]
+    fn challenge_end_does_not_fire_with_an_open_stage() {
+        let mut state = tob_state(vec![
+            (CLIENT_A, client(Stage::TobMaiden, StageStatus::Wiped, None)),
+            (
+                CLIENT_B,
+                client(Stage::TobMaiden, StageStatus::Started, None),
+            ),
+        ]);
+        state.phase = ChallengePhase::Finishing {
+            since: Timestamp::from_millis(5_100),
+            status: ChallengeStatus::Wiped,
+        };
+        state.stage_state = StageState::Ending {
+            since: Timestamp::from_millis(5_000),
+        };
+
+        let premature = Deadline {
+            kind: DeadlineKind::ChallengeEnd,
+            at: Timestamp::from_millis(9_600),
+        };
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &Command::DeadlineFired(premature),
             ),
             vec![],
         );

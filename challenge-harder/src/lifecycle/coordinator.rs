@@ -7,10 +7,10 @@ use std::sync::Mutex;
 use tokio::sync::watch;
 
 use super::challenge::{ActiveChallenge, CommandSender, inbox};
-use super::core::command::{Command, Create, Finish, Update};
+use super::core::command::{Command, Create, Finish, Join, Update};
 use super::core::deadline::LifecycleConfig;
-use super::core::state::Snapshot;
-use super::core::types::{ChallengeStatus, ChallengeType, MsgId, Uuid};
+use super::core::state::{ChallengePhase, Snapshot};
+use super::core::types::{ChallengeType, MsgId, Uuid};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum CommandError {
@@ -64,53 +64,80 @@ impl Coordinator {
     /// the challenge's state once the request has been applied.
     /// `None` means the challenge shut down before the request could be processed.
     pub async fn create_or_join_challenge(&self, create: Create) -> Option<Snapshot> {
-        let (id, handle) = {
+        let (id, handle, joined) = {
             let key = party_key(create.challenge_type, &create.party);
             let mut registry = self.registry.lock().expect("coordinator lock poisoned");
 
-            if let Some(incumbent) = registry.directory.get(&key) {
-                // TODO(frolv): Move this to a lua script
-                let live = registry
-                    .challenges
-                    .get(incumbent)
-                    .is_some_and(|h| h.snapshot.borrow().status == ChallengeStatus::InProgress);
-                if live {
-                    todo!("joining a party's live challenge");
-                }
+            // TODO(frolv): Move this to a lua script
+            let incumbent = registry
+                .directory
+                .get(&key)
+                .and_then(|uuid| registry.challenges.get(uuid))
+                .filter(|h| {
+                    h.snapshot.has_changed().is_ok()
+                        && h.snapshot.borrow().phase == ChallengePhase::Active
+                })
+                .cloned();
+
+            if let Some(handle) = incumbent {
+                let uuid = handle.snapshot.borrow().uuid;
+                tracing::info!(
+                    %uuid,
+                    user_id = %create.user_id,
+                    client_id = %create.client_id,
+                    "challenge_joined",
+                );
+                let id = handle.sender.send(Command::Join(Join {
+                    user_id: create.user_id,
+                    client_id: create.client_id,
+                    session_token: create.session_token,
+                    plugin_version: create.plugin_version,
+                    runelite_version: create.runelite_version,
+                    recording_type: create.recording_type,
+                }));
+                (id, handle, true)
+            } else {
+                let uuid = Uuid::new_v4();
+                tracing::info!(
+                    %uuid,
+                    challenge_type = ?create.challenge_type,
+                    party = ?create.party,
+                    stage = ?create.stage,
+                    user_id = %create.user_id,
+                    client_id = %create.client_id,
+                    "challenge_created",
+                );
+                let mut challenge = ActiveChallenge::new(uuid, self.config.clone());
+                let (sender, rx) = inbox();
+                let (snapshot_tx, snapshot_rx) =
+                    watch::channel(Snapshot::of(&challenge.state, MsgId(0)));
+
+                tokio::spawn(async move {
+                    challenge.run(rx, snapshot_tx).await;
+                    challenge
+                });
+
+                let handle = ChallengeHandle {
+                    sender,
+                    snapshot: snapshot_rx,
+                };
+                registry.challenges.insert(uuid, handle.clone());
+                registry.directory.insert(key, uuid);
+
+                let id = handle.sender.send(Command::Create(create));
+                (id, handle, false)
             }
-
-            let uuid = Uuid::new_v4();
-            tracing::info!(
-                %uuid,
-                challenge_type = ?create.challenge_type,
-                party = ?create.party,
-                stage = ?create.stage,
-                user_id = create.user_id.0,
-                client_id = create.client_id.0,
-                "challenge_created",
-            );
-            let mut challenge = ActiveChallenge::new(uuid, self.config.clone());
-            let (sender, rx) = inbox();
-            let (snapshot_tx, snapshot_rx) =
-                watch::channel(Snapshot::of(&challenge.state, MsgId(0)));
-
-            tokio::spawn(async move {
-                challenge.run(rx, snapshot_tx).await;
-                challenge
-            });
-
-            let handle = ChallengeHandle {
-                sender,
-                snapshot: snapshot_rx,
-            };
-            registry.challenges.insert(uuid, handle.clone());
-            registry.directory.insert(key, uuid);
-
-            let id = handle.sender.send(Command::Create(create));
-            (id, handle)
         };
 
-        applied(handle, id).await
+        let snapshot = applied(handle, id).await;
+        if snapshot.is_none() && joined {
+            // In theory, a new challenge's start could race the existing one's
+            // termination and be incorrectly handled as a join. Given the
+            // minimum time between two challenges in game, though, there isn't
+            // a realistic path for this to happen. Just log if it ever occurs.
+            tracing::error!(msg_id = %id, "challenge_join_incumbent_terminated");
+        }
+        snapshot
     }
 
     /// Updates the state of an active challenge, returning its new state.
@@ -119,8 +146,8 @@ impl Coordinator {
             %uuid,
             stage = ?update.stage,
             mode = ?update.mode,
-            user_id = update.user_id.0,
-            client_id = update.client_id.0,
+            user_id = %update.user_id,
+            client_id = %update.client_id,
             "challenge_update",
         );
         self.send_command(uuid, Command::Update(update)).await
@@ -130,15 +157,17 @@ impl Coordinator {
     pub async fn finish(&self, uuid: Uuid, finish: Finish) -> Result<Snapshot, CommandError> {
         tracing::info!(
             %uuid,
-            user_id = finish.user_id.0,
-            client_id = finish.client_id.0,
+            user_id = %finish.user_id,
+            client_id = %finish.client_id,
             soft = finish.soft,
             times = ?finish.times,
             "challenge_finish",
         );
         let result = self.send_command(uuid, Command::Finish(finish)).await;
-        if let Ok(p) = &result {
-            tracing::info!(%uuid, status = ?p.status, "challenge_terminated");
+        if let Ok(p) = &result
+            && let ChallengePhase::Terminated { status } = p.phase
+        {
+            tracing::info!(%uuid, ?status, "challenge_terminated");
         }
         result
     }
@@ -174,7 +203,10 @@ async fn applied(mut handle: ChallengeHandle, id: MsgId) -> Option<Snapshot> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lifecycle::core::types::{ChallengeMode, ClientId, RecordingType, Stage, UserId};
+    use crate::lifecycle::core::command::StageProgress;
+    use crate::lifecycle::core::types::{
+        ChallengeMode, ClientId, RecordingType, Stage, StageStatus, UserId,
+    };
 
     fn create_request() -> Create {
         Create {
@@ -232,5 +264,115 @@ mod tests {
             .await
             .expect("second challenge should start");
         assert_ne!(first.uuid, second.uuid);
+    }
+
+    #[tokio::test]
+    async fn party_member_joins_live_challenge() {
+        let coordinator = Coordinator::new();
+
+        // First client starts the challenge and advances to the next stage.
+        let first = coordinator
+            .create_or_join_challenge(create_request())
+            .await
+            .expect("challenge should start");
+
+        coordinator
+            .update(
+                first.uuid,
+                Update {
+                    user_id: UserId(1),
+                    client_id: ClientId(10),
+                    session_token: "tok".into(),
+                    mode: None,
+                    stage: Some(StageProgress {
+                        stage: Stage::TobBloat,
+                        status: StageStatus::Started,
+                    }),
+                    party: None,
+                },
+            )
+            .await
+            .expect("update should apply");
+
+        // Second client now joins.
+        let joined = coordinator
+            .create_or_join_challenge(Create {
+                user_id: UserId(2),
+                client_id: ClientId(20),
+                session_token: "tok2".into(),
+                ..create_request()
+            })
+            .await
+            .expect("second client should join");
+
+        assert_eq!(joined.uuid, first.uuid);
+        assert_eq!(joined.stage, Stage::TobBloat);
+
+        // Second client's reports are accepted.
+        let synced = coordinator
+            .update(
+                joined.uuid,
+                Update {
+                    user_id: UserId(2),
+                    client_id: ClientId(20),
+                    session_token: "tok2".into(),
+                    mode: None,
+                    stage: Some(StageProgress {
+                        stage: Stage::TobBloat,
+                        status: StageStatus::Started,
+                    }),
+                    party: None,
+                },
+            )
+            .await
+            .expect("joiner's update should apply");
+        assert_eq!(synced.stage, Stage::TobBloat);
+    }
+
+    #[tokio::test]
+    async fn finishing_challenge_is_not_joined() {
+        let coordinator = Coordinator::new();
+
+        let first = coordinator
+            .create_or_join_challenge(create_request())
+            .await
+            .expect("challenge should start");
+        coordinator
+            .create_or_join_challenge(Create {
+                user_id: UserId(2),
+                client_id: ClientId(20),
+                session_token: "tok2".into(),
+                ..create_request()
+            })
+            .await
+            .expect("second client should join");
+
+        // First client finishes the challenge.
+        let finished = coordinator
+            .finish(
+                first.uuid,
+                Finish {
+                    user_id: UserId(1),
+                    client_id: ClientId(10),
+                    session_token: "tok".into(),
+                    times: None,
+                    soft: false,
+                },
+            )
+            .await
+            .expect("finish should apply");
+        assert!(matches!(finished.phase, ChallengePhase::Finishing { .. }));
+
+        // A new start request with the same party creates a new challenge.
+        let successor = coordinator
+            .create_or_join_challenge(Create {
+                user_id: UserId(3),
+                client_id: ClientId(30),
+                session_token: "tok3".into(),
+                ..create_request()
+            })
+            .await
+            .expect("successor challenge should start");
+        assert_ne!(successor.uuid, first.uuid);
     }
 }
