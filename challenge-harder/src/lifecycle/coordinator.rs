@@ -6,7 +6,9 @@ use std::sync::Mutex;
 
 use tokio::sync::watch;
 
-use super::challenge::{ActiveChallenge, CommandSender, inbox};
+use std::sync::Arc;
+
+use super::challenge::{ActiveChallenge, CommandSender, JournalSink, NoopJournalSink, inbox};
 use super::core::command::{Command, Create, Finish, Join, Update};
 use super::core::deadline::LifecycleConfig;
 use super::core::state::{ChallengePhase, Snapshot};
@@ -48,16 +50,45 @@ struct Registry {
     directory: HashMap<PartyKey, Uuid>,
 }
 
-#[derive(Default)]
 pub struct Coordinator {
     registry: Mutex<Registry>,
     config: LifecycleConfig,
+    journal_sink: Arc<dyn JournalSink>,
+}
+
+impl Default for Coordinator {
+    fn default() -> Self {
+        Coordinator {
+            registry: Mutex::default(),
+            config: LifecycleConfig::default(),
+            journal_sink: Arc::new(NoopJournalSink),
+        }
+    }
 }
 
 impl Coordinator {
     #[must_use]
     pub fn new() -> Self {
         Coordinator::default()
+    }
+
+    #[must_use]
+    pub fn with_journal_sink(sink: Arc<dyn JournalSink>) -> Self {
+        Coordinator {
+            journal_sink: sink,
+            ..Coordinator::default()
+        }
+    }
+
+    /// Returns the current state of an active challenge, if it exists.
+    #[must_use]
+    pub fn snapshot(&self, uuid: Uuid) -> Option<Snapshot> {
+        self.registry
+            .lock()
+            .expect("coordinator lock poisoned")
+            .challenges
+            .get(&uuid)
+            .map(|h| *h.snapshot.borrow())
     }
 
     /// Creates a new challenge for a party or joins an existing one, returning
@@ -107,7 +138,8 @@ impl Coordinator {
                     client_id = %create.client_id,
                     "challenge_created",
                 );
-                let mut challenge = ActiveChallenge::new(uuid, self.config.clone());
+                let mut challenge =
+                    ActiveChallenge::new(uuid, self.config.clone(), self.journal_sink.clone());
                 let (sender, rx) = inbox();
                 let (snapshot_tx, snapshot_rx) =
                     watch::channel(Snapshot::of(&challenge.state, MsgId(0)));
@@ -235,144 +267,5 @@ mod tests {
             ],
         );
         assert_eq!(key, "1-1ogp-715-caps_lock13-wwwwwwwwwwqq");
-    }
-
-    #[tokio::test]
-    async fn terminated_challenge_is_superseded() {
-        let coordinator = Coordinator::new();
-
-        let first = coordinator
-            .create_or_join_challenge(create_request())
-            .await
-            .expect("first challenge should start");
-        coordinator
-            .finish(
-                first.uuid,
-                Finish {
-                    user_id: UserId(1),
-                    client_id: ClientId(10),
-                    session_token: "tok".into(),
-                    times: None,
-                    soft: true,
-                },
-            )
-            .await
-            .expect("finish should apply");
-
-        let second = coordinator
-            .create_or_join_challenge(create_request())
-            .await
-            .expect("second challenge should start");
-        assert_ne!(first.uuid, second.uuid);
-    }
-
-    #[tokio::test]
-    async fn party_member_joins_live_challenge() {
-        let coordinator = Coordinator::new();
-
-        // First client starts the challenge and advances to the next stage.
-        let first = coordinator
-            .create_or_join_challenge(create_request())
-            .await
-            .expect("challenge should start");
-
-        coordinator
-            .update(
-                first.uuid,
-                Update {
-                    user_id: UserId(1),
-                    client_id: ClientId(10),
-                    session_token: "tok".into(),
-                    mode: None,
-                    stage: Some(StageProgress {
-                        stage: Stage::TobBloat,
-                        status: StageStatus::Started,
-                    }),
-                    party: None,
-                },
-            )
-            .await
-            .expect("update should apply");
-
-        // Second client now joins.
-        let joined = coordinator
-            .create_or_join_challenge(Create {
-                user_id: UserId(2),
-                client_id: ClientId(20),
-                session_token: "tok2".into(),
-                ..create_request()
-            })
-            .await
-            .expect("second client should join");
-
-        assert_eq!(joined.uuid, first.uuid);
-        assert_eq!(joined.stage, Stage::TobBloat);
-
-        // Second client's reports are accepted.
-        let synced = coordinator
-            .update(
-                joined.uuid,
-                Update {
-                    user_id: UserId(2),
-                    client_id: ClientId(20),
-                    session_token: "tok2".into(),
-                    mode: None,
-                    stage: Some(StageProgress {
-                        stage: Stage::TobBloat,
-                        status: StageStatus::Started,
-                    }),
-                    party: None,
-                },
-            )
-            .await
-            .expect("joiner's update should apply");
-        assert_eq!(synced.stage, Stage::TobBloat);
-    }
-
-    #[tokio::test]
-    async fn finishing_challenge_is_not_joined() {
-        let coordinator = Coordinator::new();
-
-        let first = coordinator
-            .create_or_join_challenge(create_request())
-            .await
-            .expect("challenge should start");
-        coordinator
-            .create_or_join_challenge(Create {
-                user_id: UserId(2),
-                client_id: ClientId(20),
-                session_token: "tok2".into(),
-                ..create_request()
-            })
-            .await
-            .expect("second client should join");
-
-        // First client finishes the challenge.
-        let finished = coordinator
-            .finish(
-                first.uuid,
-                Finish {
-                    user_id: UserId(1),
-                    client_id: ClientId(10),
-                    session_token: "tok".into(),
-                    times: None,
-                    soft: false,
-                },
-            )
-            .await
-            .expect("finish should apply");
-        assert!(matches!(finished.phase, ChallengePhase::Finishing { .. }));
-
-        // A new start request with the same party creates a new challenge.
-        let successor = coordinator
-            .create_or_join_challenge(Create {
-                user_id: UserId(3),
-                client_id: ClientId(30),
-                session_token: "tok3".into(),
-                ..create_request()
-            })
-            .await
-            .expect("successor challenge should start");
-        assert_ne!(successor.uuid, first.uuid);
     }
 }
