@@ -7,3 +7,5 @@ pub mod challenge;
 pub mod coordinator;
 #[deny(clippy::disallowed_methods, clippy::disallowed_types)]
 pub mod core;
+#[cfg(test)]
+mod sim;

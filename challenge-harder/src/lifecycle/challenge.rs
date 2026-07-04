@@ -14,6 +14,17 @@ use super::core::event::{Cause, JournalEntry};
 use super::core::state::{ChallengePhase, ChallengeState, Snapshot};
 use super::core::types::{JournalSeq, MsgId, Timestamp, Uuid};
 
+/// Receives every journal entry a challenge writes, in order.
+pub trait JournalSink: Send + Sync + 'static {
+    fn append(&self, uuid: Uuid, entry: &JournalEntry);
+}
+
+pub struct NoopJournalSink;
+
+impl JournalSink for NoopJournalSink {
+    fn append(&self, _uuid: Uuid, _entry: &JournalEntry) {}
+}
+
 // TODO(frolv): This is temporary for initial testing.
 #[derive(Clone)]
 pub struct CommandSender {
@@ -49,12 +60,13 @@ pub struct ActiveChallenge {
     pub state: ChallengeState,
     journal: Vec<JournalEntry>,
     config: LifecycleConfig,
+    sink: Arc<dyn JournalSink>,
     next_seq: u64,
 }
 
 impl ActiveChallenge {
     #[must_use]
-    pub fn new(uuid: Uuid, config: LifecycleConfig) -> Self {
+    pub fn new(uuid: Uuid, config: LifecycleConfig, sink: Arc<dyn JournalSink>) -> Self {
         ActiveChallenge {
             state: ChallengeState {
                 uuid,
@@ -62,6 +74,7 @@ impl ActiveChallenge {
             },
             journal: Vec::new(),
             config,
+            sink,
             next_seq: 0,
         }
     }
@@ -83,6 +96,8 @@ impl ActiveChallenge {
             });
 
             let input = tokio::select! {
+                // Commands should be processed before deadlines.
+                biased;
                 envelope = inbox.recv() => envelope.map(|e| (Cause::Command(e.id), e.cmd)),
                 () = tokio::time::sleep_until(wake_at), if deadline.is_some() => {
                     deadline.map(|d| (Cause::Deadline(d.kind), Command::DeadlineFired(d)))
@@ -103,6 +118,7 @@ impl ActiveChallenge {
                     event,
                 };
                 self.next_seq += 1;
+                self.sink.append(self.state.uuid, &entry);
                 self.journal.push(entry.clone());
                 apply(&mut self.state, entry);
             }
@@ -116,297 +132,5 @@ impl ActiveChallenge {
                 break;
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::too_many_lines)]
-
-    use super::*;
-    use crate::lifecycle::core::command::{Create, Finish, Join, StageProgress, Update};
-    use crate::lifecycle::core::deadline::DeadlineKind;
-    use crate::lifecycle::core::event::LifecycleEvent;
-    use crate::lifecycle::core::state::{ClientState, StageState};
-    use crate::lifecycle::core::types::{
-        ChallengeMode, ChallengeStatus, ChallengeType, ClientId, RecordingType, Stage, StageStatus,
-        UserId,
-    };
-
-    const CLIENT: ClientId = ClientId(10);
-
-    fn stage_update(stage: Stage, status: StageStatus) -> Command {
-        Command::Update(Update {
-            user_id: UserId(1),
-            client_id: CLIENT,
-            session_token: "tok".into(),
-            mode: None,
-            stage: Some(StageProgress { stage, status }),
-            party: None,
-        })
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn live_run_and_journal_replay_produce_the_same_state() {
-        let uuid = Uuid::from_u128(0xb1e47);
-        let mut challenge = ActiveChallenge::new(uuid, LifecycleConfig::default());
-        let (sender, rx) = inbox();
-        let (snapshot_tx, snapshot_rx) = watch::channel(Snapshot::of(&challenge.state, MsgId(0)));
-
-        sender.send(Command::Create(Create {
-            user_id: UserId(1),
-            client_id: CLIENT,
-            session_token: "tok".into(),
-            plugin_version: "0.9.14".into(),
-            runelite_version: "1.12.31.1".into(),
-            challenge_type: ChallengeType::Colosseum,
-            mode: ChallengeMode::NoMode,
-            party: vec!["Skitter".into()],
-            stage: Stage::ColosseumWave1,
-            recording_type: RecordingType::Participant,
-        }));
-        sender.send(stage_update(Stage::ColosseumWave1, StageStatus::Started));
-        sender.send(stage_update(Stage::ColosseumWave1, StageStatus::Completed));
-        sender.send(stage_update(Stage::ColosseumWave2, StageStatus::Started));
-        sender.send(stage_update(Stage::ColosseumWave2, StageStatus::Wiped));
-        sender.send(Command::Finish(Finish {
-            user_id: UserId(1),
-            client_id: CLIENT,
-            session_token: "tok".into(),
-            times: None,
-            soft: false,
-        }));
-
-        challenge.run(rx, snapshot_tx).await;
-
-        assert_eq!(
-            challenge.state.phase,
-            ChallengePhase::Terminated {
-                status: ChallengeStatus::Wiped
-            }
-        );
-        assert_eq!(challenge.state.stage, Stage::ColosseumWave2);
-        assert!(challenge.state.clients.is_empty());
-
-        let snapshot = *snapshot_rx.borrow();
-        assert_eq!(snapshot.status(), ChallengeStatus::Wiped);
-        assert_eq!(snapshot.stage, Stage::ColosseumWave2);
-        assert_eq!(snapshot.cursor, MsgId(6));
-
-        let mut replayed = ChallengeState {
-            uuid,
-            ..ChallengeState::default()
-        };
-        for entry in challenge.journal.clone() {
-            apply(&mut replayed, entry);
-        }
-        assert_eq!(replayed, challenge.state);
-    }
-
-    fn mid_stage_client() -> ClientState {
-        ClientState {
-            user_id: UserId(1),
-            session_token: "tok".into(),
-            recording_type: RecordingType::Participant,
-            active: true,
-            stage: Stage::TobMaiden,
-            stage_status: StageStatus::Started,
-            stage_attempt: None,
-        }
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn stage_end_window_expiry_forces_a_seal() {
-        let uuid = Uuid::from_u128(0xb1e47);
-        let straggler = ClientId(20);
-        let mut challenge = ActiveChallenge::new(uuid, LifecycleConfig::default());
-        challenge.state = ChallengeState {
-            uuid,
-            challenge_type: ChallengeType::Tob,
-            mode: ChallengeMode::TobRegular,
-            party: vec!["WWWWWWWWWWQQ".into(), "715".into()],
-            stage: Stage::TobMaiden,
-            clients: [
-                (CLIENT, mid_stage_client()),
-                (straggler, mid_stage_client()),
-            ]
-            .into_iter()
-            .collect(),
-            ..ChallengeState::default()
-        };
-
-        let (sender, rx) = inbox();
-        let (snapshot_tx, snapshot_rx) = watch::channel(Snapshot::of(&challenge.state, MsgId(0)));
-        let task = tokio::spawn(async move {
-            challenge.run(rx, snapshot_tx).await;
-            challenge
-        });
-
-        let id = sender.send(stage_update(Stage::TobMaiden, StageStatus::Completed));
-        let mut watcher = snapshot_rx.clone();
-        watcher
-            .wait_for(|s| s.cursor >= id)
-            .await
-            .expect("challenge should process the completion");
-
-        // The straggler doesn't send their stage end within the window.
-        tokio::time::sleep(Duration::from_millis(2_500)).await;
-        drop(sender);
-        let challenge = task.await.expect("challenge task should finish");
-
-        assert_eq!(
-            challenge.state.stage_state,
-            StageState::Complete {
-                since: Timestamp::from_millis(2_000)
-            }
-        );
-        assert_eq!(
-            challenge.journal,
-            vec![
-                JournalEntry {
-                    seq: JournalSeq(0),
-                    at: Timestamp::ZERO,
-                    caused_by: Cause::Command(id),
-                    event: LifecycleEvent::ClientStageReported {
-                        client_id: CLIENT,
-                        attempt: None,
-                        update: StageProgress {
-                            stage: Stage::TobMaiden,
-                            status: StageStatus::Completed,
-                        },
-                    },
-                },
-                JournalEntry {
-                    seq: JournalSeq(1),
-                    at: Timestamp::from_millis(2_000),
-                    caused_by: Cause::Deadline(DeadlineKind::StageEnd),
-                    event: LifecycleEvent::StageSealed {
-                        stage: Stage::TobMaiden,
-                        attempt: None,
-                        forced: true,
-                    },
-                },
-            ],
-        );
-
-        // The deadline is not an inbox message, so the cursor must stay put.
-        assert_eq!(snapshot_rx.borrow().cursor, id);
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn challenge_terminates_after_grace_period_with_unfinished_clients() {
-        let uuid = Uuid::from_u128(0xb1e47);
-        let straggler = ClientId(20);
-
-        let config = LifecycleConfig {
-            challenge_end_grace: Duration::from_secs(4),
-            stage_end_timeout: Duration::from_secs(2),
-        };
-        let mut challenge = ActiveChallenge::new(uuid, config);
-
-        let (sender, rx) = inbox();
-        let (snapshot_tx, snapshot_rx) = watch::channel(Snapshot::of(&challenge.state, MsgId(0)));
-        let task = tokio::spawn(async move {
-            challenge.run(rx, snapshot_tx).await;
-            challenge
-        });
-
-        sender.send(Command::Create(Create {
-            user_id: UserId(1),
-            client_id: CLIENT,
-            session_token: "tok".into(),
-            plugin_version: "0.9.14".into(),
-            runelite_version: "1.12.31.1".into(),
-            challenge_type: ChallengeType::Tob,
-            mode: ChallengeMode::TobRegular,
-            party: vec!["WWWWWWWWWWQQ".into(), "715".into()],
-            stage: Stage::TobMaiden,
-            recording_type: RecordingType::Participant,
-        }));
-        sender.send(Command::Join(Join {
-            user_id: UserId(2),
-            client_id: straggler,
-            session_token: "tok2".into(),
-            plugin_version: "0.9.14".into(),
-            runelite_version: "1.12.31.1".into(),
-            recording_type: RecordingType::Participant,
-        }));
-        sender.send(stage_update(Stage::TobMaiden, StageStatus::Started));
-        sender.send(stage_update(Stage::TobMaiden, StageStatus::Wiped));
-        sender.send(Command::Finish(Finish {
-            user_id: UserId(1),
-            client_id: CLIENT,
-            session_token: "tok".into(),
-            times: None,
-            soft: false,
-        }));
-
-        // The straggler sends neither its stage end nor its finish.
-        // The stage window runs out first, followed by the finish grace period.
-        let challenge = task.await.expect("challenge task should finish");
-
-        assert_eq!(
-            challenge.state.phase,
-            ChallengePhase::Terminated {
-                status: ChallengeStatus::Wiped
-            }
-        );
-        assert!(challenge.state.clients.is_empty());
-
-        let tail: Vec<_> = challenge
-            .journal
-            .iter()
-            .map(|e| (e.at, e.caused_by, e.event.clone()))
-            .skip(5)
-            .collect();
-        assert_eq!(
-            tail,
-            vec![
-                (
-                    Timestamp::ZERO,
-                    Cause::Command(MsgId(5)),
-                    LifecycleEvent::ChallengeFinishing {
-                        status: ChallengeStatus::Wiped,
-                    },
-                ),
-                (
-                    Timestamp::ZERO,
-                    Cause::Command(MsgId(5)),
-                    LifecycleEvent::ClientFinished {
-                        client_id: CLIENT,
-                        definitive: true,
-                        soft: false,
-                        times: None,
-                    },
-                ),
-                (
-                    Timestamp::from_millis(2_000),
-                    Cause::Deadline(DeadlineKind::StageEnd),
-                    LifecycleEvent::StageSealed {
-                        stage: Stage::TobMaiden,
-                        attempt: None,
-                        forced: true,
-                    },
-                ),
-                (
-                    Timestamp::from_millis(6_000),
-                    Cause::Deadline(DeadlineKind::ChallengeEnd),
-                    LifecycleEvent::ClientRemoved {
-                        client_id: straggler,
-                    },
-                ),
-                (
-                    Timestamp::from_millis(6_000),
-                    Cause::Deadline(DeadlineKind::ChallengeEnd),
-                    LifecycleEvent::ChallengeTerminated {
-                        status: ChallengeStatus::Wiped,
-                        empty: false,
-                    },
-                ),
-            ],
-        );
-
-        // Timer fires never advance the cursor past the last real command.
-        assert_eq!(snapshot_rx.borrow().cursor, MsgId(5));
     }
 }
