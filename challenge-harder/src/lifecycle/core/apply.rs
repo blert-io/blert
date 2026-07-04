@@ -61,13 +61,20 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
 
             let finished =
                 update.status == StageStatus::Completed || update.status == StageStatus::Wiped;
-            if finished && state.stage_state == StageState::InProgress {
+            if finished
+                && attempt == state.stage_attempt
+                && state.stage_state == StageState::InProgress
+            {
                 state.stage_state = StageState::Ending { since: entry.at };
             }
         }
         LifecycleEvent::StageStarted { stage } => {
             state.stage = stage;
             state.stage_attempt = stage.is_retriable().then_some(1);
+            state.stage_state = StageState::InProgress;
+        }
+        LifecycleEvent::StageAttemptStarted { attempt, .. } => {
+            state.stage_attempt = Some(attempt);
             state.stage_state = StageState::InProgress;
         }
         LifecycleEvent::StageSealed { .. } => {
@@ -96,7 +103,6 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
             state.mode = mode;
         }
         LifecycleEvent::PartyChanged { .. }
-        | LifecycleEvent::StageRetried { .. }
         | LifecycleEvent::StageProcessingStarted { .. }
         | LifecycleEvent::StageProcessingFinished { .. }
         | LifecycleEvent::StageProcessingFailed { .. }
@@ -127,7 +133,12 @@ mod tests {
         }
     }
 
-    fn created_state() -> ChallengeState {
+    fn created_state(
+        challenge_type: ChallengeType,
+        mode: ChallengeMode,
+        stage: Stage,
+    ) -> ChallengeState {
+        #![allow(clippy::similar_names)]
         let uuid = Uuid::from_u128(0xb1e47);
         let mut state = ChallengeState {
             uuid,
@@ -140,10 +151,10 @@ mod tests {
                 1,
                 LifecycleEvent::ChallengeCreated {
                     uuid,
-                    challenge_type: ChallengeType::Tob,
-                    mode: ChallengeMode::TobRegular,
+                    challenge_type,
+                    mode,
                     party: vec!["Skitter".into()],
-                    stage: Stage::TobMaiden,
+                    stage,
                 },
             ),
         );
@@ -163,6 +174,14 @@ mod tests {
         state
     }
 
+    fn created_tob_state() -> ChallengeState {
+        created_state(
+            ChallengeType::Tob,
+            ChallengeMode::TobRegular,
+            Stage::TobMaiden,
+        )
+    }
+
     fn report(stage: Stage, status: StageStatus) -> LifecycleEvent {
         LifecycleEvent::ClientStageReported {
             client_id: CLIENT,
@@ -173,7 +192,7 @@ mod tests {
 
     #[test]
     fn challenge_created_initializes_state() {
-        let state = created_state();
+        let state = created_tob_state();
         assert_eq!(state.challenge_type, ChallengeType::Tob);
         assert_eq!(state.mode, ChallengeMode::TobRegular);
         assert_eq!(state.party, vec!["Skitter".to_string()]);
@@ -191,7 +210,7 @@ mod tests {
 
     #[test]
     fn stage_report_updates_client() {
-        let mut state = created_state();
+        let mut state = created_tob_state();
         apply(
             &mut state,
             entry(1_000, 2, report(Stage::TobMaiden, StageStatus::Started)),
@@ -204,7 +223,7 @@ mod tests {
 
     #[test]
     fn finished_report_opens_straggler_window() {
-        let mut state = created_state();
+        let mut state = created_tob_state();
         apply(
             &mut state,
             entry(5_000, 2, report(Stage::TobMaiden, StageStatus::Completed)),
@@ -231,7 +250,7 @@ mod tests {
 
     #[test]
     fn stage_sealed_finalizes_stream() {
-        let mut state = created_state();
+        let mut state = created_tob_state();
         apply(
             &mut state,
             entry(5_000, 2, report(Stage::TobMaiden, StageStatus::Completed)),
@@ -258,7 +277,7 @@ mod tests {
 
     #[test]
     fn deadline_caused_entry_does_not_advance_cursor() {
-        let mut state = created_state();
+        let mut state = created_tob_state();
         apply(
             &mut state,
             entry(5_000, 2, report(Stage::TobMaiden, StageStatus::Completed)),
@@ -287,7 +306,7 @@ mod tests {
 
     #[test]
     fn stage_started_advances_challenge() {
-        let mut state = created_state();
+        let mut state = created_tob_state();
         state.stage_state = StageState::Complete {
             since: Timestamp::from_millis(5_000),
         };
@@ -338,7 +357,7 @@ mod tests {
 
     #[test]
     fn client_joined_inherits_challenge_position() {
-        let mut state = created_state();
+        let mut state = created_tob_state();
         apply(
             &mut state,
             entry(
@@ -371,7 +390,7 @@ mod tests {
 
     #[test]
     fn client_finished_removes_client_and_keeps_first_times() {
-        let mut state = created_state();
+        let mut state = created_tob_state();
         for client_id in [ClientId(20), ClientId(30)] {
             apply(
                 &mut state,
@@ -447,7 +466,7 @@ mod tests {
 
     #[test]
     fn challenge_finishing_enters_finishing_phase() {
-        let mut state = created_state();
+        let mut state = created_tob_state();
         apply(
             &mut state,
             entry(
@@ -469,7 +488,7 @@ mod tests {
 
     #[test]
     fn client_removed_drops_client() {
-        let mut state = created_state();
+        let mut state = created_tob_state();
         apply(
             &mut state,
             entry(
@@ -502,7 +521,7 @@ mod tests {
 
     #[test]
     fn challenge_terminated_sets_status() {
-        let mut state = created_state();
+        let mut state = created_tob_state();
         apply(
             &mut state,
             entry(
@@ -518,6 +537,81 @@ mod tests {
             state.phase,
             ChallengePhase::Terminated {
                 status: ChallengeStatus::Reset
+            }
+        );
+    }
+
+    #[test]
+    fn stage_attempt_started_begins_new_attempt() {
+        let mut state = created_state(ChallengeType::Toa, ChallengeMode::NoMode, Stage::ToaBaba);
+        apply(
+            &mut state,
+            entry(
+                5_000,
+                2,
+                LifecycleEvent::StageAttemptStarted {
+                    stage: Stage::ToaBaba,
+                    attempt: 2,
+                },
+            ),
+        );
+        assert_eq!(state.stage, Stage::ToaBaba);
+        assert_eq!(state.stage_attempt, Some(2));
+        assert_eq!(state.stage_state, StageState::InProgress);
+    }
+
+    #[test]
+    fn superseded_attempt_report_does_not_open_window() {
+        let mut state = created_state(ChallengeType::Toa, ChallengeMode::NoMode, Stage::ToaBaba);
+        apply(
+            &mut state,
+            entry(
+                5_000,
+                2,
+                LifecycleEvent::StageAttemptStarted {
+                    stage: Stage::ToaBaba,
+                    attempt: 2,
+                },
+            ),
+        );
+
+        // A late report for the superseded attempt.
+        apply(
+            &mut state,
+            entry(
+                6_000,
+                3,
+                LifecycleEvent::ClientStageReported {
+                    client_id: CLIENT,
+                    attempt: Some(1),
+                    update: StageProgress {
+                        stage: Stage::ToaBaba,
+                        status: StageStatus::Wiped,
+                    },
+                },
+            ),
+        );
+        assert_eq!(state.stage_state, StageState::InProgress);
+
+        apply(
+            &mut state,
+            entry(
+                7_000,
+                4,
+                LifecycleEvent::ClientStageReported {
+                    client_id: CLIENT,
+                    attempt: Some(2),
+                    update: StageProgress {
+                        stage: Stage::ToaBaba,
+                        status: StageStatus::Wiped,
+                    },
+                },
+            ),
+        );
+        assert_eq!(
+            state.stage_state,
+            StageState::Ending {
+                since: Timestamp::from_millis(7_000)
             }
         );
     }

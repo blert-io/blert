@@ -74,6 +74,29 @@ impl std::fmt::Display for UserId {
     }
 }
 
+/// Token authenticating a client's requests within a challenge.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct SessionToken(String);
+
+impl std::fmt::Debug for SessionToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("SessionToken(..)")
+    }
+}
+
+impl From<String> for SessionToken {
+    fn from(token: String) -> Self {
+        SessionToken(token)
+    }
+}
+
+impl From<&str> for SessionToken {
+    fn from(token: &str) -> Self {
+        SessionToken(token.to_owned())
+    }
+}
+
 /// Status of a challenge, matching `ChallengeStatus` in `//common/challenge.ts`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize_repr, Deserialize_repr)]
 #[repr(u8)]

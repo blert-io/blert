@@ -21,7 +21,8 @@ use super::core::command::{Create, Finish, StageProgress, Update};
 use super::core::event::{JournalEntry, LifecycleEvent};
 use super::core::state::{ChallengeState, Snapshot};
 use super::core::types::{
-    ChallengeMode, ChallengeType, ClientId, RecordingType, ReportedTimes, Stage, UserId, Uuid,
+    ChallengeMode, ChallengeType, ClientId, RecordingType, ReportedTimes, SessionToken, Stage,
+    UserId, Uuid,
 };
 
 /// A scripted client action, issued at a scenario-relative time.
@@ -47,7 +48,7 @@ struct Identity {
     name: &'static str,
     user_id: UserId,
     client_id: ClientId,
-    session_token: String,
+    session_token: SessionToken,
     recording_type: RecordingType,
 }
 
@@ -71,7 +72,7 @@ impl Client {
                 name,
                 user_id: UserId(id),
                 client_id: ClientId(10 * id),
-                session_token: format!("tok{id}"),
+                session_token: format!("tok{id}").into(),
                 recording_type,
             },
             actions: Vec::new(),

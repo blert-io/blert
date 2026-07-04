@@ -6,7 +6,8 @@ use super::command::StageProgress;
 use super::deadline::DeadlineKind;
 use super::types::{
     ChallengeMode, ChallengeStatus, ChallengeType, ClientId, JournalSeq, MsgId, RecordingType,
-    ReportedTimes, Stage, StageProcessingError, StageProcessingOutcome, Timestamp, UserId, Uuid,
+    ReportedTimes, SessionToken, Stage, StageProcessingError, StageProcessingOutcome, Timestamp,
+    UserId, Uuid,
 };
 
 /// What triggered a lifecycle event.
@@ -40,7 +41,7 @@ pub enum LifecycleEvent {
     ClientJoined {
         client_id: ClientId,
         user_id: UserId,
-        session_token: String,
+        session_token: SessionToken,
         recording_type: RecordingType,
     },
     ModeChanged {
@@ -60,7 +61,7 @@ pub enum LifecycleEvent {
         stage: Stage,
     },
     /// A `STARTED` update for the current retriable stage began a new attempt.
-    StageRetried {
+    StageAttemptStarted {
         stage: Stage,
         attempt: u32,
     },

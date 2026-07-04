@@ -132,15 +132,40 @@ fn update(state: &ChallengeState, update: &Update) -> Vec<LifecycleEvent> {
         }
         StageStatus::Started => {
             if progress.stage == state.stage {
-                if state.stage_attempt.is_some() && client.stage_attempt == state.stage_attempt {
-                    todo!("stage retries");
+                match state.stage_attempt {
+                    // The first client to restart the stage's current attempt
+                    // begins a new one.
+                    Some(attempt)
+                        if client.stage == state.stage && client.stage_attempt == Some(attempt) =>
+                    {
+                        if !matches!(state.stage_state, StageState::Complete { .. }) {
+                            // Seal the last stage now that a new one has begun.
+                            events.push(LifecycleEvent::StageSealed {
+                                stage: state.stage,
+                                attempt: Some(attempt),
+                                forced: true,
+                            });
+                        }
+                        events.push(LifecycleEvent::StageAttemptStarted {
+                            stage: state.stage,
+                            attempt: attempt + 1,
+                        });
+                        events.push(LifecycleEvent::ClientStageReported {
+                            client_id: update.client_id,
+                            attempt: Some(attempt + 1),
+                            update: *progress,
+                        });
+                    }
+                    _ => {
+                        // The client is syncing to the challenge's current
+                        // stage and attempt.
+                        events.push(LifecycleEvent::ClientStageReported {
+                            client_id: update.client_id,
+                            attempt: state.stage_attempt,
+                            update: *progress,
+                        });
+                    }
                 }
-                // The client is syncing to the challenge's current stage.
-                events.push(LifecycleEvent::ClientStageReported {
-                    client_id: update.client_id,
-                    attempt: state.stage_attempt,
-                    update: *progress,
-                });
             } else {
                 events.push(LifecycleEvent::StageStarted {
                     stage: progress.stage,
@@ -260,15 +285,19 @@ fn finish(state: &ChallengeState, finish: &Finish) -> Vec<LifecycleEvent> {
 
 // TODO(frolv): Temporary single-client status until stage processing exists.
 fn client_terminal_status(state: &ChallengeState, client: &ClientState) -> ChallengeStatus {
+    let last_stage = state.challenge_type.last_stage();
+
+    // Some challenges can continue past their last stage. They should always
+    // count as completed as long as the last stage is completed.
+    if last_stage.is_some_and(|last| client.stage > last) {
+        return ChallengeStatus::Completed;
+    }
+
     match client.stage_status {
         StageStatus::Started | StageStatus::Entered => ChallengeStatus::Abandoned,
         StageStatus::Wiped => ChallengeStatus::Wiped,
         StageStatus::Completed => {
-            let past_last = state
-                .challenge_type
-                .last_stage()
-                .is_some_and(|last| client.stage >= last);
-            if past_last {
+            if last_stage.is_some_and(|last| client.stage == last) {
                 ChallengeStatus::Completed
             } else {
                 ChallengeStatus::Reset
@@ -529,6 +558,165 @@ mod tests {
         );
     }
 
+    fn toa_state(clients: Vec<(ClientId, ClientState)>) -> ChallengeState {
+        ChallengeState {
+            uuid: Uuid::from_u128(0xb1e47),
+            challenge_type: ChallengeType::Toa,
+            mode: ChallengeMode::ToaNormal,
+            party: vec!["715".into(), "WWWWWWWWWWQQ".into()],
+            stage: Stage::ToaKephri,
+            stage_attempt: Some(1),
+            clients: clients.into_iter().collect(),
+            ..ChallengeState::default()
+        }
+    }
+
+    fn toa_update(client_id: ClientId, stage: Stage, status: StageStatus) -> Command {
+        Command::Update(super::Update {
+            user_id: UserId(1),
+            client_id,
+            session_token: "tok".into(),
+            mode: None,
+            stage: Some(StageProgress { stage, status }),
+            party: None,
+        })
+    }
+
+    fn report_attempt(
+        client_id: ClientId,
+        stage: Stage,
+        status: StageStatus,
+        attempt: u32,
+    ) -> LifecycleEvent {
+        LifecycleEvent::ClientStageReported {
+            client_id,
+            attempt: Some(attempt),
+            update: StageProgress { stage, status },
+        }
+    }
+
+    #[test]
+    fn restart_during_stage_end_window_seals_previous_attempt() {
+        let mut state = toa_state(vec![
+            (
+                CLIENT_A,
+                client(Stage::ToaKephri, StageStatus::Wiped, Some(1)),
+            ),
+            (
+                CLIENT_B,
+                client(Stage::ToaKephri, StageStatus::Started, Some(1)),
+            ),
+        ]);
+        state.stage_state = StageState::Ending {
+            since: Timestamp::from_millis(5_000),
+        };
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &toa_update(CLIENT_A, Stage::ToaKephri, StageStatus::Started),
+            ),
+            vec![
+                LifecycleEvent::StageSealed {
+                    stage: Stage::ToaKephri,
+                    attempt: Some(1),
+                    forced: true,
+                },
+                LifecycleEvent::StageAttemptStarted {
+                    stage: Stage::ToaKephri,
+                    attempt: 2,
+                },
+                report_attempt(CLIENT_A, Stage::ToaKephri, StageStatus::Started, 2),
+            ],
+        );
+    }
+
+    #[test]
+    fn stale_attempt_start_syncs_to_current() {
+        let mut state = toa_state(vec![
+            (
+                CLIENT_A,
+                client(Stage::ToaKephri, StageStatus::Started, Some(2)),
+            ),
+            (
+                CLIENT_B,
+                client(Stage::ToaKephri, StageStatus::Wiped, Some(1)),
+            ),
+        ]);
+        state.stage_attempt = Some(2);
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &toa_update(CLIENT_B, Stage::ToaKephri, StageStatus::Started),
+            ),
+            vec![report_attempt(
+                CLIENT_B,
+                Stage::ToaKephri,
+                StageStatus::Started,
+                2
+            )],
+        );
+    }
+
+    #[test]
+    fn stale_attempt_wipe_does_not_seal_current_attempt() {
+        let mut state = toa_state(vec![
+            (
+                CLIENT_A,
+                client(Stage::ToaKephri, StageStatus::Started, Some(2)),
+            ),
+            (
+                CLIENT_B,
+                client(Stage::ToaKephri, StageStatus::Started, Some(1)),
+            ),
+        ]);
+        state.stage_attempt = Some(2);
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &toa_update(CLIENT_B, Stage::ToaKephri, StageStatus::Wiped),
+            ),
+            vec![report_attempt(
+                CLIENT_B,
+                Stage::ToaKephri,
+                StageStatus::Wiped,
+                1
+            )],
+        );
+    }
+
+    #[test]
+    fn catchup_start_with_matching_attempt_syncs() {
+        // B's last report is a stage behind, but its stale attempt number
+        // happens to equal the new stage's; it should not be treated as a
+        // restart of the current stage.
+        let state = toa_state(vec![
+            (
+                CLIENT_A,
+                client(Stage::ToaKephri, StageStatus::Started, Some(1)),
+            ),
+            (
+                CLIENT_B,
+                client(Stage::ToaCrondis, StageStatus::Completed, Some(1)),
+            ),
+        ]);
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &toa_update(CLIENT_B, Stage::ToaKephri, StageStatus::Started),
+            ),
+            vec![report_attempt(
+                CLIENT_B,
+                Stage::ToaKephri,
+                StageStatus::Started,
+                1
+            )],
+        );
+    }
+
     fn finish_cmd(client_id: ClientId, soft: bool, times: Option<ReportedTimes>) -> Command {
         Command::Finish(super::Finish {
             user_id: UserId(1),
@@ -641,6 +829,44 @@ mod tests {
                     definitive: true,
                     soft: false,
                     times: Some(times),
+                },
+                LifecycleEvent::ChallengeTerminated {
+                    status: ChallengeStatus::Completed,
+                    empty: false,
+                },
+            ],
+        );
+    }
+
+    #[test]
+    fn finish_after_deep_delve_wipe_completes() {
+        let state = ChallengeState {
+            uuid: Uuid::from_u128(0xb1e47),
+            challenge_type: ChallengeType::Mokhaiotl,
+            mode: ChallengeMode::NoMode,
+            party: vec!["Plondreim".into()],
+            stage: Stage::MokhaiotlDelve8plus,
+            stage_attempt: Some(4),
+            clients: [(
+                CLIENT_A,
+                client(Stage::MokhaiotlDelve8plus, StageStatus::Wiped, Some(4)),
+            )]
+            .into_iter()
+            .collect(),
+            ..ChallengeState::default()
+        };
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &finish_cmd(CLIENT_A, false, None)
+            ),
+            vec![
+                LifecycleEvent::ClientFinished {
+                    client_id: CLIENT_A,
+                    definitive: true,
+                    soft: false,
+                    times: None,
                 },
                 LifecycleEvent::ChallengeTerminated {
                     status: ChallengeStatus::Completed,
