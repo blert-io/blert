@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use super::types::{
     ChallengeMode, ChallengeStatus, ChallengeType, ClientId, MsgId, RecordingType, ReportedTimes,
-    Stage, StageStatus, Timestamp, UserId, Uuid,
+    SessionToken, Stage, StageStatus, Timestamp, UserId, Uuid,
 };
 
 /// Progress of the challenge's current stage attempt.
@@ -54,7 +54,7 @@ impl ChallengePhase {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ClientState {
     pub user_id: UserId,
-    pub session_token: String,
+    pub session_token: SessionToken,
     pub recording_type: RecordingType,
     pub active: bool,
     pub stage: Stage,

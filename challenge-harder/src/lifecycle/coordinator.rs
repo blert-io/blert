@@ -112,7 +112,7 @@ impl Coordinator {
 
             if let Some(handle) = incumbent {
                 let uuid = handle.snapshot.borrow().uuid;
-                tracing::info!(
+                tracing::debug!(
                     %uuid,
                     user_id = %create.user_id,
                     client_id = %create.client_id,
@@ -129,7 +129,7 @@ impl Coordinator {
                 (id, handle, true)
             } else {
                 let uuid = Uuid::new_v4();
-                tracing::info!(
+                tracing::debug!(
                     %uuid,
                     challenge_type = ?create.challenge_type,
                     party = ?create.party,
@@ -174,7 +174,7 @@ impl Coordinator {
 
     /// Updates the state of an active challenge, returning its new state.
     pub async fn update(&self, uuid: Uuid, update: Update) -> Result<Snapshot, CommandError> {
-        tracing::info!(
+        tracing::debug!(
             %uuid,
             stage = ?update.stage,
             mode = ?update.mode,
@@ -187,7 +187,7 @@ impl Coordinator {
 
     /// Marks a challenge as having been completed by a client.
     pub async fn finish(&self, uuid: Uuid, finish: Finish) -> Result<Snapshot, CommandError> {
-        tracing::info!(
+        tracing::debug!(
             %uuid,
             user_id = %finish.user_id,
             client_id = %finish.client_id,
@@ -199,7 +199,7 @@ impl Coordinator {
         if let Ok(p) = &result
             && let ChallengePhase::Terminated { status } = p.phase
         {
-            tracing::info!(%uuid, ?status, "challenge_terminated");
+            tracing::debug!(%uuid, ?status, "challenge_terminated");
         }
         result
     }

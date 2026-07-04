@@ -1,9 +1,12 @@
 //! Scripted lifecycle scenarios, asserting full transition traces.
 
+#![allow(clippy::too_many_lines)]
+
 mod challenge_end;
 mod creation;
 mod determinism;
 mod progression;
+mod retries;
 mod stage_end;
 
 use super::{Action, Client, Scenario};
@@ -63,11 +66,24 @@ pub fn reported(client: i64, stage: Stage, status: StageStatus) -> LifecycleEven
     }
 }
 
+pub fn reported_attempt(
+    client: i64,
+    stage: Stage,
+    status: StageStatus,
+    attempt: u32,
+) -> LifecycleEvent {
+    LifecycleEvent::ClientStageReported {
+        client_id: client_id(client),
+        attempt: Some(attempt),
+        update: StageProgress { stage, status },
+    }
+}
+
 pub fn joined(client: i64, recording_type: RecordingType) -> LifecycleEvent {
     LifecycleEvent::ClientJoined {
         client_id: client_id(client),
         user_id: UserId(client),
-        session_token: format!("tok{client}"),
+        session_token: format!("tok{client}").into(),
         recording_type,
     }
 }

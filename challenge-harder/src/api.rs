@@ -15,7 +15,8 @@ use crate::lifecycle::coordinator::{CommandError, Coordinator};
 use crate::lifecycle::core::command::{Create, Finish, StageProgress, Update};
 use crate::lifecycle::core::state::Snapshot;
 use crate::lifecycle::core::types::{
-    ChallengeMode, ChallengeType, ClientId, RecordingType, ReportedTimes, Stage, UserId, Uuid,
+    ChallengeMode, ChallengeType, ClientId, RecordingType, ReportedTimes, SessionToken, Stage,
+    UserId, Uuid,
 };
 
 pub fn router(coordinator: Arc<Coordinator>) -> Router {
@@ -31,7 +32,7 @@ pub fn router(coordinator: Arc<Coordinator>) -> Router {
 struct NewChallengeRequest {
     user_id: UserId,
     client_id: ClientId,
-    session_token: String,
+    session_token: SessionToken,
     plugin_version: String,
     rune_lite_version: String,
     #[serde(rename = "type")]
@@ -47,7 +48,7 @@ struct NewChallengeRequest {
 struct UpdateChallengeRequest {
     user_id: UserId,
     client_id: ClientId,
-    session_token: String,
+    session_token: SessionToken,
     update: ChallengeUpdate,
 }
 
@@ -64,7 +65,7 @@ struct ChallengeUpdate {
 struct FinishChallengeRequest {
     user_id: UserId,
     client_id: ClientId,
-    session_token: String,
+    session_token: SessionToken,
     times: Option<ReportedTimes>,
     soft: bool,
 }

@@ -5,8 +5,8 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use super::deadline::Deadline;
 use super::types::{
-    ChallengeMode, ChallengeType, ClientId, JournalSeq, MsgId, RecordingType, ReportedTimes, Stage,
-    StageProcessingError, StageProcessingOutcome, StageStatus, UserId,
+    ChallengeMode, ChallengeType, ClientId, JournalSeq, MsgId, RecordingType, ReportedTimes,
+    SessionToken, Stage, StageProcessingError, StageProcessingOutcome, StageStatus, UserId,
 };
 
 /// A client's stage progress report.
@@ -31,7 +31,7 @@ pub enum ClientStatus {
 pub struct Create {
     pub user_id: UserId,
     pub client_id: ClientId,
-    pub session_token: String,
+    pub session_token: SessionToken,
     pub plugin_version: String,
     pub runelite_version: String,
     pub challenge_type: ChallengeType,
@@ -47,7 +47,7 @@ pub struct Create {
 pub struct Join {
     pub user_id: UserId,
     pub client_id: ClientId,
-    pub session_token: String,
+    pub session_token: SessionToken,
     pub plugin_version: String,
     pub runelite_version: String,
     pub recording_type: RecordingType,
@@ -59,7 +59,7 @@ pub struct Join {
 pub struct Update {
     pub user_id: UserId,
     pub client_id: ClientId,
-    pub session_token: String,
+    pub session_token: SessionToken,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mode: Option<ChallengeMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -74,7 +74,7 @@ pub struct Update {
 pub struct Finish {
     pub user_id: UserId,
     pub client_id: ClientId,
-    pub session_token: String,
+    pub session_token: SessionToken,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub times: Option<ReportedTimes>,
     pub soft: bool,
@@ -85,7 +85,7 @@ pub struct Finish {
 pub struct ClientStatusChange {
     pub user_id: UserId,
     pub client_id: ClientId,
-    pub session_token: String,
+    pub session_token: SessionToken,
     pub status: ClientStatus,
 }
 

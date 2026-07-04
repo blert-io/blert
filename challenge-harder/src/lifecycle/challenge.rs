@@ -10,7 +10,7 @@ use super::core::apply::apply;
 use super::core::command::{Command, Envelope};
 use super::core::deadline::{LifecycleConfig, next_deadline};
 use super::core::decide::decide;
-use super::core::event::{Cause, JournalEntry};
+use super::core::event::{Cause, JournalEntry, LifecycleEvent};
 use super::core::state::{ChallengePhase, ChallengeState, Snapshot};
 use super::core::types::{JournalSeq, MsgId, Timestamp, Uuid};
 
@@ -118,6 +118,13 @@ impl ActiveChallenge {
                     event,
                 };
                 self.next_seq += 1;
+                tracing::info!(
+                    uuid = %self.state.uuid,
+                    seq = entry.seq.0,
+                    caused_by = ?entry.caused_by,
+                    event = ?entry.event,
+                    "journal_entry",
+                );
                 self.sink.append(self.state.uuid, &entry);
                 self.journal.push(entry.clone());
                 apply(&mut self.state, entry);
