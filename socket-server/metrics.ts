@@ -20,7 +20,8 @@ export type RemoteOperation =
   | 'update'
   | 'complete'
   | 'process_events'
-  | 'join';
+  | 'join'
+  | 'status';
 
 export type AuthFailureReason =
   | 'missing_token'

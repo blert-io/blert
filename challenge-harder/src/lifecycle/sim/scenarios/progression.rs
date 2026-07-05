@@ -29,16 +29,24 @@ async fn solo_colosseum_wipe_full_trace() {
                 2,
                 10,
                 cmd(2),
-                reported(1, Stage::ColosseumWave1, StageStatus::Started),
+                LifecycleEvent::StageStarted {
+                    stage: Stage::ColosseumWave1,
+                },
             ),
             entry(
                 3,
+                10,
+                cmd(2),
+                reported(1, Stage::ColosseumWave1, StageStatus::Started),
+            ),
+            entry(
+                4,
                 500,
                 cmd(3),
                 reported(1, Stage::ColosseumWave1, StageStatus::Completed),
             ),
             entry(
-                4,
+                5,
                 500,
                 cmd(3),
                 LifecycleEvent::StageSealed {
@@ -48,7 +56,7 @@ async fn solo_colosseum_wipe_full_trace() {
                 },
             ),
             entry(
-                5,
+                6,
                 600,
                 cmd(4),
                 LifecycleEvent::StageStarted {
@@ -56,19 +64,19 @@ async fn solo_colosseum_wipe_full_trace() {
                 },
             ),
             entry(
-                6,
+                7,
                 600,
                 cmd(4),
                 reported(1, Stage::ColosseumWave2, StageStatus::Started),
             ),
             entry(
-                7,
+                8,
                 900,
                 cmd(5),
                 reported(1, Stage::ColosseumWave2, StageStatus::Wiped),
             ),
             entry(
-                8,
+                9,
                 900,
                 cmd(5),
                 LifecycleEvent::StageSealed {
@@ -78,7 +86,7 @@ async fn solo_colosseum_wipe_full_trace() {
                 },
             ),
             entry(
-                9,
+                10,
                 1_000,
                 cmd(6),
                 LifecycleEvent::ClientFinished {
@@ -89,7 +97,7 @@ async fn solo_colosseum_wipe_full_trace() {
                 },
             ),
             entry(
-                10,
+                11,
                 1_000,
                 cmd(6),
                 LifecycleEvent::ChallengeTerminated {

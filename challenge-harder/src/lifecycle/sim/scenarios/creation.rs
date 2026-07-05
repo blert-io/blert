@@ -101,11 +101,11 @@ async fn late_start_joins_at_current_stage() {
 
     let (_, journal) = result.only_challenge();
     assert_eq!(
-        journal[7..],
+        journal[8..],
         vec![
-            entry(7, 700, cmd(5), joined(2, RecordingType::Participant)),
+            entry(8, 700, cmd(5), joined(2, RecordingType::Participant)),
             entry(
-                8,
+                9,
                 800,
                 cmd(6),
                 reported(2, Stage::TobBloat, StageStatus::Started),
@@ -132,11 +132,11 @@ async fn terminated_incumbent_is_superseded() {
     let second = result.outcomes[2].response.as_ref().unwrap().uuid;
     assert_ne!(first, second);
 
-    // First challenge was abandoned mid-stage.
+    // First challenge ended before any stage began.
     assert!(result.journals[&first].iter().any(|e| matches!(
         e.event,
         LifecycleEvent::ChallengeTerminated {
-            status: ChallengeStatus::Abandoned,
+            status: ChallengeStatus::Reset,
             ..
         },
     )));
@@ -185,7 +185,7 @@ async fn finishing_challenge_is_not_joined() {
                 5_100,
                 Cause::Deadline(DeadlineKind::ChallengeEnd),
                 LifecycleEvent::ChallengeTerminated {
-                    status: ChallengeStatus::Abandoned,
+                    status: ChallengeStatus::Reset,
                     empty: false,
                 },
             ),
