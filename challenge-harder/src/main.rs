@@ -9,6 +9,7 @@
 mod api;
 mod lifecycle;
 mod proto;
+mod store;
 
 use std::sync::Arc;
 
@@ -26,7 +27,14 @@ async fn main() {
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(3003);
-    let coordinator = Arc::new(Coordinator::new());
+
+    let redis_uri = std::env::var("BLERT_REDIS_URI").expect("BLERT_REDIS_URI must be set");
+    let store = store::Store::connect(&redis_uri)
+        .await
+        .expect("failed to connect to Redis");
+    tracing::info!("redis_connected");
+
+    let coordinator = Arc::new(Coordinator::with_store(Arc::new(store)));
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port))
         .await

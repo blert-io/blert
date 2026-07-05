@@ -22,6 +22,12 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -48,3 +54,5 @@ jobs:
 
       - name: Run tests
         run: cargo test -p challenge-harder
+        env:
+          BLERT_TEST_REDIS_URI: redis://localhost:6379

@@ -8,10 +8,12 @@ use tokio::sync::watch;
 
 use std::sync::Arc;
 
-use super::challenge::{ActiveChallenge, CommandSender, JournalSink, NoopJournalSink, inbox};
+use super::challenge::{
+    ActiveChallenge, ChallengeStore, CommandSender, NoopStore, claim_challenge, inbox,
+};
 use super::core::command::{ClientStatusChange, Command, Create, Finish, Join, Update};
 use super::core::deadline::LifecycleConfig;
-use super::core::state::{ChallengePhase, Snapshot};
+use super::core::state::{ChallengePhase, ChallengeState, Snapshot};
 use super::core::types::{ChallengeType, ClientId, MsgId, Uuid};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -55,7 +57,7 @@ struct Registry {
 pub struct Coordinator {
     registry: Arc<Mutex<Registry>>,
     config: LifecycleConfig,
-    journal_sink: Arc<dyn JournalSink>,
+    store: Arc<dyn ChallengeStore>,
 }
 
 impl Default for Coordinator {
@@ -63,7 +65,7 @@ impl Default for Coordinator {
         Coordinator {
             registry: Arc::default(),
             config: LifecycleConfig::default(),
-            journal_sink: Arc::new(NoopJournalSink),
+            store: Arc::new(NoopStore),
         }
     }
 }
@@ -75,9 +77,9 @@ impl Coordinator {
     }
 
     #[must_use]
-    pub fn with_journal_sink(sink: Arc<dyn JournalSink>) -> Self {
+    pub fn with_store(store: Arc<dyn ChallengeStore>) -> Self {
         Coordinator {
-            journal_sink: sink,
+            store,
             ..Coordinator::default()
         }
     }
@@ -147,15 +149,26 @@ impl Coordinator {
                     client_id = %create.client_id,
                     "challenge_created",
                 );
-                let mut challenge =
-                    ActiveChallenge::new(uuid, self.config.clone(), self.journal_sink.clone());
                 let (sender, rx) = inbox();
-                let (snapshot_tx, snapshot_rx) =
-                    watch::channel(Snapshot::of(&challenge.state, MsgId(0)));
+                let initial = ChallengeState {
+                    uuid,
+                    ..ChallengeState::default()
+                };
+                let (snapshot_tx, snapshot_rx) = watch::channel(Snapshot::of(&initial, MsgId(0)));
 
+                let store = Arc::clone(&self.store);
+                let config = self.config.clone();
                 tokio::spawn(async move {
-                    challenge.run(rx, snapshot_tx).await;
-                    challenge
+                    match claim_challenge(store.as_ref(), uuid).await {
+                        Ok(claim) => {
+                            let mut challenge = ActiveChallenge::new(uuid, config, claim);
+                            challenge.run(rx, snapshot_tx).await;
+                        }
+                        Err(error) => {
+                            // Reaper will immediately clean up the challenge.
+                            tracing::error!(%uuid, %error, "challenge_claim_failed");
+                        }
+                    }
                 });
 
                 let handle = ChallengeHandle {
@@ -165,6 +178,7 @@ impl Coordinator {
                 registry.challenges.insert(uuid, handle.clone());
                 registry.directory.insert(key.clone(), uuid);
                 registry.clients.insert(create.client_id, uuid);
+
                 tokio::spawn(reap(
                     Arc::clone(&self.registry),
                     key,

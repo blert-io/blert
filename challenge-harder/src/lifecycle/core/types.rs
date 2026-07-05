@@ -40,6 +40,21 @@ impl Add<Duration> for Timestamp {
     }
 }
 
+/// Fencing epoch of one challenge actor incarnation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Epoch(pub u64);
+
+impl Epoch {
+    /// The epoch assigned when a challenge is created.
+    pub const INITIAL: Epoch = Epoch(1);
+}
+
+impl std::fmt::Display for Epoch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// Position of a message in a challenge's inbox, assigned in send order.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct MsgId(pub u64);
