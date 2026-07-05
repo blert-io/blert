@@ -82,6 +82,12 @@ impl Coordinator {
         }
     }
 
+    #[must_use]
+    pub fn with_config(mut self, config: LifecycleConfig) -> Self {
+        self.config = config;
+        self
+    }
+
     /// Returns the current state of an active challenge, if it exists.
     #[must_use]
     pub fn snapshot(&self, uuid: Uuid) -> Option<Snapshot> {

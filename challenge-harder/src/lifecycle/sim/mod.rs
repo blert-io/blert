@@ -1,8 +1,9 @@
 //! Deterministic scenario harness for the challenge lifecycle.
 //!
 //! A scenario scripts clients issuing timed commands against a real
-//! [`Coordinator`] under tokio's paused clock. Each client individually issues
-//! actions, which may arrive concurrently with other clients' actions.
+//! [`Coordinator`] under tokio's paused clock. Actions sharing an instant are
+//! issued serially in declaration order, so arrival order is always scripted
+//! rather than raced at the scheduler.
 //!
 //! Following a run, structural invariants of the output are checked.
 
@@ -10,6 +11,8 @@ mod scenarios;
 
 use core::time::Duration;
 use std::collections::BTreeMap;
+use std::ops::Index;
+use std::slice;
 use std::sync::{Arc, Mutex};
 
 use tokio::time::Instant;
@@ -20,6 +23,7 @@ use super::core::apply::apply;
 use super::core::command::{
     ClientStatus, ClientStatusChange, Create, Finish, StageProgress, Update,
 };
+use super::core::deadline::LifecycleConfig;
 use super::core::event::{JournalEntry, LifecycleEvent};
 use super::core::state::{ChallengeState, Snapshot};
 use super::core::types::{
@@ -111,7 +115,7 @@ pub struct Outcome {
 }
 
 pub struct ScenarioResult {
-    pub journals: BTreeMap<Uuid, Vec<JournalEntry>>,
+    pub journals: CollectedJournals,
     pub outcomes: Vec<Outcome>,
     pub snapshots: BTreeMap<Uuid, Snapshot>,
 }
@@ -125,34 +129,180 @@ impl ScenarioResult {
             "scenario produced {} challenges",
             self.journals.len(),
         );
-        let (uuid, journal) = self.journals.first_key_value().unwrap();
+        let (uuid, journal) = self.journals.into_iter().next().unwrap();
         (*uuid, journal)
     }
 
     /// A canonical serialization of every challenge's journal.
     pub fn trace(&self) -> String {
-        serde_json::to_string(&self.journals).expect("journals should serialize")
+        serde_json::to_string(&self.journals.journals).expect("journals should serialize")
+    }
+
+    /// Returns the trace with each uuid replaced by its creation index.
+    pub fn normalized_trace(&self) -> String {
+        let ordered: Vec<&Vec<JournalEntry>> = self
+            .journals
+            .into_iter()
+            .map(|(_, journal)| journal)
+            .collect();
+        let mut trace = serde_json::to_string(&ordered).expect("journals should serialize");
+        for (index, (uuid, _)) in self.journals.into_iter().enumerate() {
+            trace = trace.replace(&uuid.to_string(), &format!("challenge-{index}"));
+        }
+        trace
+    }
+}
+
+/// FNV-1a hash.
+pub fn hash(s: &str) -> u64 {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in s.bytes() {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x100_0000_01b3);
+    }
+    hash
+}
+
+/// A deterministic PRNG.
+pub struct Rng(u64);
+
+impl Rng {
+    pub fn new(seed: u64) -> Self {
+        Rng(seed)
+    }
+
+    pub fn draw(&mut self) -> u64 {
+        // splitmix64
+        self.0 = self.0.wrapping_add(0x9e37_79b9_7f4a_7c15);
+        let mut z = self.0;
+        z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+        z ^ (z >> 31)
+    }
+
+    /// Returns a uniform value in `0..bound`.
+    pub fn below(&mut self, bound: u64) -> u64 {
+        self.draw() % bound
+    }
+}
+
+/// Milliseconds per jitter step. Deltas are quantized so that perturbed
+/// actions can still collide on the same instant instead of jitter breaking
+/// every tie.
+const JITTER_STEP_MS: u64 = 10;
+
+/// Reshapes a scenario's cross-client interleaving without changing any
+/// client's own action order.
+///
+/// Clients are shuffled to vary delivery order, and jitter is applied to
+/// gaps between actions.
+pub fn perturb(scenario: &mut Scenario, rng: &mut Rng, jitter_ms: u64) {
+    let mut keyed: Vec<(u64, Client)> = scenario
+        .clients
+        .drain(..)
+        .map(|client| (rng.draw(), client))
+        .collect();
+    keyed.sort_by_key(|(key, _)| *key);
+    scenario
+        .clients
+        .extend(keyed.into_iter().map(|(_, client)| client));
+
+    let steps = jitter_ms / JITTER_STEP_MS;
+    for client in &mut scenario.clients {
+        let mut original = 0;
+        let mut perturbed = 0;
+        for (at, _) in &mut client.actions {
+            let gap = *at - original;
+            original = *at;
+            // gap + [-steps, +steps] * STEP, clamped at zero.
+            let stretched = gap + rng.below(2 * steps + 1) * JITTER_STEP_MS;
+            perturbed += stretched.saturating_sub(steps * JITTER_STEP_MS);
+            *at = perturbed;
+        }
     }
 }
 
 #[derive(Default)]
-struct Collector(Mutex<BTreeMap<Uuid, Vec<JournalEntry>>>);
+struct Collector(Mutex<CollectedJournals>);
+
+/// Journals of every challenge in a run.
+#[derive(Clone, Default)]
+pub struct CollectedJournals {
+    journals: BTreeMap<Uuid, Vec<JournalEntry>>,
+    creation_order: Vec<Uuid>,
+}
+
+impl CollectedJournals {
+    pub fn len(&self) -> usize {
+        self.journals.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.journals.is_empty()
+    }
+}
+
+impl Index<&Uuid> for CollectedJournals {
+    type Output = Vec<JournalEntry>;
+
+    fn index(&self, uuid: &Uuid) -> &Vec<JournalEntry> {
+        &self.journals[uuid]
+    }
+}
+
+/// Iterates journals in challenge creation order.
+pub struct JournalsIter<'a> {
+    journals: &'a CollectedJournals,
+    order: slice::Iter<'a, Uuid>,
+}
+
+impl<'a> Iterator for JournalsIter<'a> {
+    type Item = (&'a Uuid, &'a Vec<JournalEntry>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let uuid = self.order.next()?;
+        Some((uuid, &self.journals.journals[uuid]))
+    }
+}
+
+impl<'a> IntoIterator for &'a CollectedJournals {
+    type Item = (&'a Uuid, &'a Vec<JournalEntry>);
+    type IntoIter = JournalsIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        JournalsIter {
+            journals: self,
+            order: self.creation_order.iter(),
+        }
+    }
+}
 
 impl JournalSink for Collector {
     fn append(&self, uuid: Uuid, entry: &JournalEntry) {
-        self.0
-            .lock()
-            .expect("collector lock poisoned")
+        let mut collected = self.0.lock().expect("collector lock poisoned");
+        if !collected.journals.contains_key(&uuid) {
+            collected.creation_order.push(uuid);
+        }
+        collected
+            .journals
             .entry(uuid)
             .or_default()
             .push(entry.clone());
     }
 }
 
-/// Runs a scenario to completion and checks structural invariants.
+/// Runs a scenario to completion under default lifecycle timings and checks
+/// structural invariants.
 pub async fn run(scenario: Scenario) -> ScenarioResult {
+    run_with(LifecycleConfig::default(), scenario).await
+}
+
+/// Runs a scenario to completion under specific lifecycle timings and checks
+/// structural invariants.
+pub async fn run_with(config: LifecycleConfig, scenario: Scenario) -> ScenarioResult {
     let collector = Arc::new(Collector::default());
-    let coordinator = Arc::new(Coordinator::with_journal_sink(collector.clone()));
+    let coordinator =
+        Arc::new(Coordinator::with_journal_sink(collector.clone()).with_config(config));
     let started = Instant::now();
 
     let mut identities = Vec::new();
@@ -171,33 +321,17 @@ pub async fn run(scenario: Scenario) -> ScenarioResult {
     for (at, group) in schedule {
         tokio::time::sleep_until(started + Duration::from_millis(at)).await;
 
-        // Each client's actions within the instant stay serial, but all clients
-        // issue concurrently.
-        let mut per_client: Vec<(usize, Vec<Action>)> = Vec::new();
+        // Same-instant actions issue serially in declaration order.
         for (index, action) in group {
-            match per_client.last_mut() {
-                Some((last, actions)) if *last == index => actions.push(action),
-                _ => per_client.push((index, vec![action])),
-            }
-        }
-
-        let tasks: Vec<_> = per_client
-            .into_iter()
-            .map(|(index, actions)| {
-                let coordinator = coordinator.clone();
-                let identity = identities[index].clone();
-                let uuid_slot = uuid_slots[index].clone();
-                tokio::spawn(async move {
-                    let mut outcomes = Vec::new();
-                    for action in actions {
-                        outcomes.push(issue(&coordinator, &identity, &uuid_slot, at, action).await);
-                    }
-                    outcomes
-                })
-            })
-            .collect();
-        for task in tasks {
-            outcomes.extend(task.await.expect("client task panicked"));
+            let outcome = issue(
+                &coordinator,
+                &identities[index],
+                &uuid_slots[index],
+                at,
+                action,
+            )
+            .await;
+            outcomes.push(outcome);
         }
     }
 
@@ -207,8 +341,8 @@ pub async fn run(scenario: Scenario) -> ScenarioResult {
 
     let journals = collector.0.lock().expect("collector lock poisoned").clone();
     let snapshots = journals
-        .keys()
-        .filter_map(|uuid| coordinator.snapshot(*uuid).map(|s| (*uuid, s)))
+        .into_iter()
+        .filter_map(|(uuid, _)| coordinator.snapshot(*uuid).map(|s| (*uuid, s)))
         .collect();
 
     let result = ScenarioResult {

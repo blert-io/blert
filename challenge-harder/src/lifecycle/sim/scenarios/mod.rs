@@ -9,6 +9,7 @@ mod determinism;
 mod progression;
 mod retries;
 mod stage_end;
+mod sweep;
 
 use super::{Action, Client, Scenario};
 use crate::lifecycle::core::command::StageProgress;
