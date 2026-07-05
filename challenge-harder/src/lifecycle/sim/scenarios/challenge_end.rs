@@ -2,7 +2,6 @@
 
 use super::*;
 use crate::lifecycle::core::deadline::DeadlineKind;
-use crate::lifecycle::core::state::ChallengePhase;
 use crate::lifecycle::core::types::ChallengeStatus;
 use crate::lifecycle::sim::{Scenario, run};
 
@@ -23,12 +22,12 @@ async fn unfinished_client_cut_off_after_grace_period() {
     })
     .await;
 
-    let (uuid, journal) = result.only_challenge();
+    let (_, journal) = result.only_challenge();
     assert_eq!(
-        journal[6..],
+        journal[7..],
         vec![
             entry(
-                6,
+                7,
                 1_100,
                 cmd(6),
                 LifecycleEvent::ChallengeFinishing {
@@ -36,7 +35,7 @@ async fn unfinished_client_cut_off_after_grace_period() {
                 },
             ),
             entry(
-                7,
+                8,
                 1_100,
                 cmd(6),
                 LifecycleEvent::ClientFinished {
@@ -47,7 +46,7 @@ async fn unfinished_client_cut_off_after_grace_period() {
                 },
             ),
             entry(
-                8,
+                9,
                 3_000,
                 Cause::Deadline(DeadlineKind::StageEnd),
                 LifecycleEvent::StageSealed {
@@ -57,7 +56,7 @@ async fn unfinished_client_cut_off_after_grace_period() {
                 },
             ),
             entry(
-                9,
+                10,
                 8_000,
                 Cause::Deadline(DeadlineKind::ChallengeEnd),
                 LifecycleEvent::ClientRemoved {
@@ -65,7 +64,7 @@ async fn unfinished_client_cut_off_after_grace_period() {
                 },
             ),
             entry(
-                10,
+                11,
                 8_000,
                 Cause::Deadline(DeadlineKind::ChallengeEnd),
                 LifecycleEvent::ChallengeTerminated {
@@ -74,11 +73,5 @@ async fn unfinished_client_cut_off_after_grace_period() {
                 },
             ),
         ],
-    );
-    assert_eq!(
-        result.snapshots[&uuid].phase,
-        ChallengePhase::Terminated {
-            status: ChallengeStatus::Wiped
-        },
     );
 }

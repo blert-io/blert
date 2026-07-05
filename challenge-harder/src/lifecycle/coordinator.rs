@@ -9,10 +9,10 @@ use tokio::sync::watch;
 use std::sync::Arc;
 
 use super::challenge::{ActiveChallenge, CommandSender, JournalSink, NoopJournalSink, inbox};
-use super::core::command::{Command, Create, Finish, Join, Update};
+use super::core::command::{ClientStatusChange, Command, Create, Finish, Join, Update};
 use super::core::deadline::LifecycleConfig;
 use super::core::state::{ChallengePhase, Snapshot};
-use super::core::types::{ChallengeType, MsgId, Uuid};
+use super::core::types::{ChallengeType, ClientId, MsgId, Uuid};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum CommandError {
@@ -48,10 +48,12 @@ fn party_key(challenge_type: ChallengeType, party: &[String]) -> PartyKey {
 struct Registry {
     challenges: HashMap<Uuid, ChallengeHandle>,
     directory: HashMap<PartyKey, Uuid>,
+    /// Which challenge a client is recording, if any.
+    clients: HashMap<ClientId, Uuid>,
 }
 
 pub struct Coordinator {
-    registry: Mutex<Registry>,
+    registry: Arc<Mutex<Registry>>,
     config: LifecycleConfig,
     journal_sink: Arc<dyn JournalSink>,
 }
@@ -59,7 +61,7 @@ pub struct Coordinator {
 impl Default for Coordinator {
     fn default() -> Self {
         Coordinator {
-            registry: Mutex::default(),
+            registry: Arc::default(),
             config: LifecycleConfig::default(),
             journal_sink: Arc::new(NoopJournalSink),
         }
@@ -118,6 +120,7 @@ impl Coordinator {
                     client_id = %create.client_id,
                     "challenge_joined",
                 );
+                registry.clients.insert(create.client_id, uuid);
                 let id = handle.sender.send(Command::Join(Join {
                     user_id: create.user_id,
                     client_id: create.client_id,
@@ -154,7 +157,14 @@ impl Coordinator {
                     snapshot: snapshot_rx,
                 };
                 registry.challenges.insert(uuid, handle.clone());
-                registry.directory.insert(key, uuid);
+                registry.directory.insert(key.clone(), uuid);
+                registry.clients.insert(create.client_id, uuid);
+                tokio::spawn(reap(
+                    Arc::clone(&self.registry),
+                    key,
+                    uuid,
+                    handle.snapshot.clone(),
+                ));
 
                 let id = handle.sender.send(Command::Create(create));
                 (id, handle, false)
@@ -183,6 +193,35 @@ impl Coordinator {
             "challenge_update",
         );
         self.send_command(uuid, Command::Update(update)).await
+    }
+
+    /// Reports a change in a client's connection state.
+    /// Returns a snapshot of the client's active challenge if they are in one.
+    pub async fn update_client_status(
+        &self,
+        change: ClientStatusChange,
+    ) -> Result<Option<Snapshot>, CommandError> {
+        let Some(uuid) = self
+            .registry
+            .lock()
+            .expect("coordinator lock poisoned")
+            .clients
+            .get(&change.client_id)
+            .copied()
+        else {
+            return Ok(None);
+        };
+
+        tracing::debug!(
+            uuid = %uuid,
+            user_id = %change.user_id,
+            client_id = %change.client_id,
+            status = ?change.status,
+            "client_status_update",
+        );
+        self.send_command(uuid, Command::ClientStatus(change))
+            .await
+            .map(Some)
     }
 
     /// Marks a challenge as having been completed by a client.
@@ -220,6 +259,25 @@ impl Coordinator {
     }
 }
 
+/// Removes a terminated challenge's registry entries once its actor exits.
+async fn reap(
+    registry: Arc<Mutex<Registry>>,
+    key: PartyKey,
+    uuid: Uuid,
+    mut snapshot: watch::Receiver<Snapshot>,
+) {
+    // The snapshot channel closes when the challenge's actor exits.
+    while snapshot.changed().await.is_ok() {}
+
+    let mut registry = registry.lock().expect("coordinator lock poisoned");
+    registry.challenges.remove(&uuid);
+    if registry.directory.get(&key) == Some(&uuid) {
+        // A newer challenge for the same party may have taken over the entry.
+        registry.directory.remove(&key);
+    }
+    registry.clients.retain(|_, challenge| *challenge != uuid);
+}
+
 /// Waits until the challenge has processed the message at `id`, returning its
 /// state at that point.
 async fn applied(mut handle: ChallengeHandle, id: MsgId) -> Option<Snapshot> {
@@ -241,10 +299,14 @@ mod tests {
     };
 
     fn create_request() -> Create {
+        create_request_for(1)
+    }
+
+    fn create_request_for(user: i64) -> Create {
         Create {
-            user_id: UserId(1),
-            client_id: ClientId(10),
-            session_token: "tok".into(),
+            user_id: UserId(user),
+            client_id: ClientId(10 * user),
+            session_token: format!("tok{user}").into(),
             plugin_version: "0.9.14".into(),
             runelite_version: "1.12.31.1".into(),
             challenge_type: ChallengeType::Tob,
@@ -253,6 +315,67 @@ mod tests {
             stage: Stage::TobMaiden,
             recording_type: RecordingType::Participant,
         }
+    }
+
+    fn finish_request(user: i64) -> Finish {
+        Finish {
+            user_id: UserId(user),
+            client_id: ClientId(10 * user),
+            session_token: format!("tok{user}").into(),
+            times: None,
+            soft: false,
+        }
+    }
+
+    #[tokio::test]
+    async fn terminated_challenge_is_reaped() {
+        let coordinator = Coordinator::new();
+        let created = coordinator
+            .create_or_join_challenge(create_request())
+            .await
+            .expect("challenge should start");
+        coordinator
+            .finish(created.uuid, finish_request(1))
+            .await
+            .expect("finish should apply");
+        tokio::task::yield_now().await;
+
+        assert!(coordinator.snapshot(created.uuid).is_none());
+
+        let next = coordinator
+            .create_or_join_challenge(create_request())
+            .await
+            .expect("challenge should start");
+        assert_ne!(next.uuid, created.uuid);
+    }
+
+    #[tokio::test]
+    async fn reap_leaves_replacement_directory_entry() {
+        let coordinator = Coordinator::new();
+        let first = coordinator
+            .create_or_join_challenge(create_request())
+            .await
+            .expect("challenge should start");
+        coordinator
+            .finish(first.uuid, finish_request(1))
+            .await
+            .expect("finish should apply");
+
+        // The party starts a new challenge before the first one's reaper has
+        // run, taking over its directory entry.
+        let second = coordinator
+            .create_or_join_challenge(create_request())
+            .await
+            .expect("challenge should start");
+        assert_ne!(second.uuid, first.uuid);
+        tokio::task::yield_now().await;
+
+        assert!(coordinator.snapshot(first.uuid).is_none());
+        let joined = coordinator
+            .create_or_join_challenge(create_request_for(2))
+            .await
+            .expect("challenge should start");
+        assert_eq!(joined.uuid, second.uuid);
     }
 
     #[test]

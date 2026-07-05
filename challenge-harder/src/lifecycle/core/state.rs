@@ -107,8 +107,14 @@ pub struct ChallengeState {
     pub reported_times: Option<ReportedTimes>,
     pub stage: Stage,
     pub stage_attempt: Option<u32>,
+    /// Status of the challenge's current stage.
+    // TODO(frolv): Derived from client reports until stage processing
+    // provides merged outcomes.
+    pub stage_status: StageStatus,
     pub stage_state: StageState,
     pub clients: BTreeMap<ClientId, ClientState>,
+    /// When the challenge lost its last active client.
+    pub dormant_since: Option<Timestamp>,
     /// Last applied inbox message.
     pub cursor: MsgId,
 }

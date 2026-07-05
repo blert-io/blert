@@ -3,14 +3,19 @@
 //! This module represents the application half of challenge command processing,
 //! building up challenge state from journal decisions.
 
+use super::command::StageProgress;
 use super::event::{Cause, JournalEntry, LifecycleEvent};
 use super::state::{ChallengePhase, ChallengeState, ClientState, StageState};
-use super::types::{StageExt, StageStatus};
+use super::types::{ClientId, StageExt, StageStatus, Timestamp};
 
+// it's an exhaustive enum folks
+#[allow(clippy::too_many_lines)]
 pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
     if let Cause::Command(id) = entry.caused_by {
         state.cursor = id;
     }
+
+    let before = Dormancy::of(state);
 
     match entry.event {
         LifecycleEvent::ChallengeCreated {
@@ -26,6 +31,7 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
             state.party = party;
             state.stage = stage;
             state.stage_attempt = None;
+            state.stage_status = StageStatus::Entered;
             state.stage_state = StageState::InProgress;
         }
         LifecycleEvent::ClientJoined {
@@ -51,30 +57,16 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
             client_id,
             attempt,
             update,
-        } => {
-            if let Some(client) = state.clients.get_mut(&client_id) {
-                client.stage = update.stage;
-                client.stage_status = update.status;
-                client.stage_attempt = attempt;
-                client.active = true;
-            }
-
-            let finished =
-                update.status == StageStatus::Completed || update.status == StageStatus::Wiped;
-            if finished
-                && attempt == state.stage_attempt
-                && state.stage_state == StageState::InProgress
-            {
-                state.stage_state = StageState::Ending { since: entry.at };
-            }
-        }
+        } => stage_reported(state, entry.at, client_id, attempt, update),
         LifecycleEvent::StageStarted { stage } => {
             state.stage = stage;
             state.stage_attempt = stage.is_retriable().then_some(1);
+            state.stage_status = StageStatus::Started;
             state.stage_state = StageState::InProgress;
         }
         LifecycleEvent::StageAttemptStarted { attempt, .. } => {
             state.stage_attempt = Some(attempt);
+            state.stage_status = StageStatus::Started;
             state.stage_state = StageState::InProgress;
         }
         LifecycleEvent::StageSealed { .. } => {
@@ -92,6 +84,16 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
             state.clients.remove(&client_id);
             state.reported_times = state.reported_times.or(times);
         }
+        LifecycleEvent::ClientActivated { client_id } => {
+            if let Some(client) = state.clients.get_mut(&client_id) {
+                client.active = true;
+            }
+        }
+        LifecycleEvent::ClientIdled { client_id } => {
+            if let Some(client) = state.clients.get_mut(&client_id) {
+                client.active = false;
+            }
+        }
         LifecycleEvent::ClientRemoved { client_id } => {
             state.clients.remove(&client_id);
         }
@@ -106,9 +108,58 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
         | LifecycleEvent::StageProcessingStarted { .. }
         | LifecycleEvent::StageProcessingFinished { .. }
         | LifecycleEvent::StageProcessingFailed { .. }
-        | LifecycleEvent::StageProcessingTimedOut { .. }
-        | LifecycleEvent::ClientActivated { .. }
-        | LifecycleEvent::ClientIdled { .. } => todo!(),
+        | LifecycleEvent::StageProcessingTimedOut { .. } => todo!(),
+    }
+
+    // Check whether the challenge's clients have gone inactive.
+    let after = Dormancy::of(state);
+    if after == Dormancy::Active {
+        state.dormant_since = None;
+    } else if after != before {
+        state.dormant_since = Some(entry.at);
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Dormancy {
+    /// At least one client is connected and active.
+    Active,
+    /// Clients are connected, but all are idle.
+    Idle,
+    /// No clients remain.
+    Empty,
+}
+
+impl Dormancy {
+    fn of(state: &ChallengeState) -> Self {
+        if state.clients.is_empty() {
+            Self::Empty
+        } else if state.clients.values().all(|client| !client.active) {
+            Self::Idle
+        } else {
+            Self::Active
+        }
+    }
+}
+
+fn stage_reported(
+    state: &mut ChallengeState,
+    at: Timestamp,
+    client_id: ClientId,
+    attempt: Option<u32>,
+    update: StageProgress,
+) {
+    if let Some(client) = state.clients.get_mut(&client_id) {
+        client.stage = update.stage;
+        client.stage_status = update.status;
+        client.stage_attempt = attempt;
+        client.active = true;
+    }
+
+    let finished = update.status == StageStatus::Completed || update.status == StageStatus::Wiped;
+    if finished && attempt == state.stage_attempt && state.stage_state == StageState::InProgress {
+        state.stage_status = update.status;
+        state.stage_state = StageState::Ending { since: at };
     }
 }
 
@@ -198,6 +249,7 @@ mod tests {
         assert_eq!(state.party, vec!["Skitter".to_string()]);
         assert_eq!(state.stage, Stage::TobMaiden);
         assert_eq!(state.stage_attempt, None);
+        assert_eq!(state.stage_status, StageStatus::Entered);
         assert_eq!(state.stage_state, StageState::InProgress);
         assert_eq!(state.cursor, MsgId(1));
 
@@ -217,6 +269,8 @@ mod tests {
         );
         let client = &state.clients[&CLIENT];
         assert_eq!(client.stage_status, StageStatus::Started);
+        // A client report alone does not start a stage.
+        assert_eq!(state.stage_status, StageStatus::Entered);
         assert_eq!(state.stage_state, StageState::InProgress);
         assert_eq!(state.cursor, MsgId(2));
     }
@@ -234,6 +288,7 @@ mod tests {
                 since: Timestamp::from_millis(5_000)
             }
         );
+        assert_eq!(state.stage_status, StageStatus::Completed);
 
         // The window opens at the first finisher and stays put.
         apply(
@@ -246,6 +301,8 @@ mod tests {
                 since: Timestamp::from_millis(5_000)
             }
         );
+        // The first finisher's view of the stage outcome also stays put.
+        assert_eq!(state.stage_status, StageStatus::Completed);
     }
 
     #[test]
@@ -273,6 +330,7 @@ mod tests {
                 since: Timestamp::from_millis(5_000)
             }
         );
+        assert_eq!(state.stage_status, StageStatus::Completed);
     }
 
     #[test]
@@ -322,6 +380,7 @@ mod tests {
         );
         assert_eq!(state.stage, Stage::TobBloat);
         assert_eq!(state.stage_attempt, None);
+        assert_eq!(state.stage_status, StageStatus::Started);
         assert_eq!(state.stage_state, StageState::InProgress);
     }
 
@@ -520,6 +579,26 @@ mod tests {
     }
 
     #[test]
+    fn client_status_events_toggle_active() {
+        let mut state = created_tob_state();
+        apply(
+            &mut state,
+            entry(1_000, 2, LifecycleEvent::ClientIdled { client_id: CLIENT }),
+        );
+        assert!(!state.clients[&CLIENT].active);
+
+        apply(
+            &mut state,
+            entry(
+                2_000,
+                3,
+                LifecycleEvent::ClientActivated { client_id: CLIENT },
+            ),
+        );
+        assert!(state.clients[&CLIENT].active);
+    }
+
+    #[test]
     fn challenge_terminated_sets_status() {
         let mut state = created_tob_state();
         apply(
@@ -557,6 +636,7 @@ mod tests {
         );
         assert_eq!(state.stage, Stage::ToaBaba);
         assert_eq!(state.stage_attempt, Some(2));
+        assert_eq!(state.stage_status, StageStatus::Started);
         assert_eq!(state.stage_state, StageState::InProgress);
     }
 
@@ -592,6 +672,7 @@ mod tests {
             ),
         );
         assert_eq!(state.stage_state, StageState::InProgress);
+        assert_eq!(state.stage_status, StageStatus::Started);
 
         apply(
             &mut state,
@@ -614,5 +695,6 @@ mod tests {
                 since: Timestamp::from_millis(7_000)
             }
         );
+        assert_eq!(state.stage_status, StageStatus::Wiped);
     }
 }

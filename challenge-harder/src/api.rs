@@ -10,9 +10,12 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Json, Response};
 use axum::routing::post;
 use serde::{Deserialize, Serialize};
+use tower_http::trace::TraceLayer;
 
 use crate::lifecycle::coordinator::{CommandError, Coordinator};
-use crate::lifecycle::core::command::{Create, Finish, StageProgress, Update};
+use crate::lifecycle::core::command::{
+    ClientStatus, ClientStatusChange, Create, Finish, StageProgress, Update,
+};
 use crate::lifecycle::core::state::Snapshot;
 use crate::lifecycle::core::types::{
     ChallengeMode, ChallengeType, ClientId, RecordingType, ReportedTimes, SessionToken, Stage,
@@ -24,6 +27,8 @@ pub fn router(coordinator: Arc<Coordinator>) -> Router {
         .route("/challenges/new", post(new_challenge))
         .route("/challenges/{challenge_id}", post(update_challenge))
         .route("/challenges/{challenge_id}/finish", post(finish_challenge))
+        .route("/client-status", post(client_status))
+        .layer(TraceLayer::new_for_http())
         .with_state(coordinator)
 }
 
@@ -68,6 +73,15 @@ struct FinishChallengeRequest {
     session_token: SessionToken,
     times: Option<ReportedTimes>,
     soft: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ClientStatusRequest {
+    user_id: UserId,
+    client_id: ClientId,
+    session_token: SessionToken,
+    status: ClientStatus,
 }
 
 #[derive(Serialize)]
@@ -148,6 +162,23 @@ async fn update_challenge(
 
     match coordinator.update(challenge_id, update).await {
         Ok(p) => Json(ChallengeResponse::from(p)).into_response(),
+        Err(e) => command_error(e),
+    }
+}
+
+async fn client_status(
+    State(coordinator): State<Arc<Coordinator>>,
+    Json(req): Json<ClientStatusRequest>,
+) -> Response {
+    let change = ClientStatusChange {
+        user_id: req.user_id,
+        client_id: req.client_id,
+        session_token: req.session_token,
+        status: req.status,
+    };
+
+    match coordinator.update_client_status(change).await {
+        Ok(_) => StatusCode::OK.into_response(),
         Err(e) => command_error(e),
     }
 }
@@ -247,6 +278,22 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(body["stage"], 11);
 
+        // The client briefly logs out and back in.
+        let (status, _) = post(
+            &router,
+            "/client-status",
+            &json!({ "userId": 1, "clientId": 10, "sessionToken": "tok", "status": 1 }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let (status, _) = post(
+            &router,
+            "/client-status",
+            &json!({ "userId": 1, "clientId": 10, "sessionToken": "tok", "status": 0 }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+
         let (status, _) = post(
             &router,
             &format!("/challenges/{uuid}/finish"),
@@ -254,6 +301,19 @@ mod tests {
         )
         .await;
         assert_eq!(status, StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn status_without_challenge_is_accepted() {
+        let router = router(Arc::new(Coordinator::new()));
+        let (status, body) = post(
+            &router,
+            "/client-status",
+            &json!({ "userId": 1, "clientId": 10, "sessionToken": "tok", "status": 2 }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body, Value::Null);
     }
 
     #[tokio::test]

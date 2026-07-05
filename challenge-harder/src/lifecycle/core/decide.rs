@@ -4,7 +4,7 @@
 //! converting incoming commands to a set of intended actions that are later
 //! applied.
 
-use super::command::{Command, Create, Finish, Join, Update};
+use super::command::{ClientStatus, ClientStatusChange, Command, Create, Finish, Join, Update};
 use super::deadline::{Deadline, DeadlineKind, LifecycleConfig, next_deadline};
 use super::event::LifecycleEvent;
 use super::state::{ChallengePhase, ChallengeState, ClientState, StageState};
@@ -29,8 +29,9 @@ pub fn decide(
         Command::Join(j) => join(state, j),
         Command::Update(u) => update(state, u),
         Command::Finish(f) => finish(state, f),
+        Command::ClientStatus(c) => client_status(state, c),
         Command::DeadlineFired(d) => deadline_fired(state, config, *d),
-        Command::ClientStatus(_) | Command::StageProcessed(_) => todo!(),
+        Command::StageProcessed(_) => todo!(),
     }
 }
 
@@ -131,7 +132,16 @@ fn update(state: &ChallengeState, update: &Update) -> Vec<LifecycleEvent> {
             }
         }
         StageStatus::Started => {
-            if progress.stage == state.stage {
+            if progress.stage != state.stage || state.stage_status == StageStatus::Entered {
+                events.push(LifecycleEvent::StageStarted {
+                    stage: progress.stage,
+                });
+                events.push(LifecycleEvent::ClientStageReported {
+                    client_id: update.client_id,
+                    attempt: progress.stage.is_retriable().then_some(1),
+                    update: *progress,
+                });
+            } else {
                 match state.stage_attempt {
                     // The first client to restart the stage's current attempt
                     // begins a new one.
@@ -166,15 +176,6 @@ fn update(state: &ChallengeState, update: &Update) -> Vec<LifecycleEvent> {
                         });
                     }
                 }
-            } else {
-                events.push(LifecycleEvent::StageStarted {
-                    stage: progress.stage,
-                });
-                events.push(LifecycleEvent::ClientStageReported {
-                    client_id: update.client_id,
-                    attempt: progress.stage.is_retriable().then_some(1),
-                    update: *progress,
-                });
             }
         }
         StageStatus::Entered => {
@@ -189,6 +190,31 @@ fn update(state: &ChallengeState, update: &Update) -> Vec<LifecycleEvent> {
     }
 
     events
+}
+
+fn client_status(state: &ChallengeState, change: &ClientStatusChange) -> Vec<LifecycleEvent> {
+    let Some(client) = state.clients.get(&change.client_id) else {
+        // The client has already finished or been removed.
+        return Vec::new();
+    };
+
+    // Ensure that this connection still owns the client state instead of a stale report.
+    if client.session_token != change.session_token {
+        return Vec::new();
+    }
+
+    match change.status {
+        ClientStatus::Active if !client.active => vec![LifecycleEvent::ClientActivated {
+            client_id: change.client_id,
+        }],
+        ClientStatus::Idle if client.active => vec![LifecycleEvent::ClientIdled {
+            client_id: change.client_id,
+        }],
+        ClientStatus::Active | ClientStatus::Idle => Vec::new(),
+        ClientStatus::Disconnected => vec![LifecycleEvent::ClientRemoved {
+            client_id: change.client_id,
+        }],
+    }
 }
 
 fn deadline_fired(
@@ -226,7 +252,24 @@ fn deadline_fired(
             });
             events
         }
-        DeadlineKind::CleanupDisconnect | DeadlineKind::CleanupAllIdle => todo!(),
+        DeadlineKind::CleanupDisconnect => vec![LifecycleEvent::ChallengeTerminated {
+            status: terminal_status(state.challenge_type, state.stage, state.stage_status),
+            // TODO(frolv): Set based on recorded data once stage processing exists.
+            empty: false,
+        }],
+        DeadlineKind::CleanupAllIdle => {
+            let mut events: Vec<LifecycleEvent> = state
+                .clients
+                .keys()
+                .map(|&client_id| LifecycleEvent::ClientRemoved { client_id })
+                .collect();
+            events.push(LifecycleEvent::ChallengeTerminated {
+                status: terminal_status(state.challenge_type, state.stage, state.stage_status),
+                // TODO(frolv): Set based on recorded data once stage processing exists.
+                empty: false,
+            });
+            events
+        }
     }
 }
 
@@ -252,7 +295,7 @@ fn finish(state: &ChallengeState, finish: &Finish) -> Vec<LifecycleEvent> {
         let mut events = Vec::new();
         if definitive && matches!(state.phase, ChallengePhase::Active) {
             events.push(LifecycleEvent::ChallengeFinishing {
-                status: client_terminal_status(state, client),
+                status: terminal_status(state.challenge_type, client.stage, client.stage_status),
             });
         }
         events.push(finished);
@@ -273,7 +316,7 @@ fn finish(state: &ChallengeState, finish: &Finish) -> Vec<LifecycleEvent> {
     let status = if let ChallengePhase::Finishing { status, .. } = state.phase {
         status
     } else {
-        client_terminal_status(state, client)
+        terminal_status(state.challenge_type, client.stage, client.stage_status)
     };
     events.push(LifecycleEvent::ChallengeTerminated {
         status,
@@ -283,21 +326,27 @@ fn finish(state: &ChallengeState, finish: &Finish) -> Vec<LifecycleEvent> {
     events
 }
 
-// TODO(frolv): Temporary single-client status until stage processing exists.
-fn client_terminal_status(state: &ChallengeState, client: &ClientState) -> ChallengeStatus {
-    let last_stage = state.challenge_type.last_stage();
+// TODO(frolv): Temporary until stage processing exists. Callers pass either a
+// client's view of the challenge or the challenge's own last known progress.
+fn terminal_status(
+    challenge_type: ChallengeType,
+    stage: Stage,
+    stage_status: StageStatus,
+) -> ChallengeStatus {
+    let last_stage = challenge_type.last_stage();
 
     // Some challenges can continue past their last stage. They should always
     // count as completed as long as the last stage is completed.
-    if last_stage.is_some_and(|last| client.stage > last) {
+    if last_stage.is_some_and(|last| stage > last) {
         return ChallengeStatus::Completed;
     }
 
-    match client.stage_status {
-        StageStatus::Started | StageStatus::Entered => ChallengeStatus::Abandoned,
+    match stage_status {
+        StageStatus::Started => ChallengeStatus::Abandoned,
+        StageStatus::Entered => ChallengeStatus::Reset,
         StageStatus::Wiped => ChallengeStatus::Wiped,
         StageStatus::Completed => {
-            if last_stage.is_some_and(|last| client.stage == last) {
+            if last_stage.is_some_and(|last| stage == last) {
                 ChallengeStatus::Completed
             } else {
                 ChallengeStatus::Reset
@@ -337,6 +386,7 @@ mod tests {
             mode: ChallengeMode::TobRegular,
             party: vec!["Skitter".into()],
             stage: Stage::TobMaiden,
+            stage_status: StageStatus::Started,
             clients: clients.into_iter().collect(),
             ..ChallengeState::default()
         }
@@ -412,6 +462,30 @@ mod tests {
                 &stage_update(CLIENT_A, Stage::TobMaiden, StageStatus::Started),
             ),
             vec![report(CLIENT_A, Stage::TobMaiden, StageStatus::Started)],
+        );
+    }
+
+    #[test]
+    fn creation_stage_start_begins_stage() {
+        let state = ChallengeState {
+            stage_status: StageStatus::Entered,
+            ..tob_state(vec![(
+                CLIENT_A,
+                client(Stage::TobMaiden, StageStatus::Entered, None),
+            )])
+        };
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &stage_update(CLIENT_A, Stage::TobMaiden, StageStatus::Started),
+            ),
+            vec![
+                LifecycleEvent::StageStarted {
+                    stage: Stage::TobMaiden,
+                },
+                report(CLIENT_A, Stage::TobMaiden, StageStatus::Started),
+            ],
         );
     }
 
@@ -566,6 +640,7 @@ mod tests {
             party: vec!["715".into(), "WWWWWWWWWWQQ".into()],
             stage: Stage::ToaKephri,
             stage_attempt: Some(1),
+            stage_status: StageStatus::Started,
             clients: clients.into_iter().collect(),
             ..ChallengeState::default()
         }
@@ -870,6 +945,264 @@ mod tests {
                 },
                 LifecycleEvent::ChallengeTerminated {
                     status: ChallengeStatus::Completed,
+                    empty: false,
+                },
+            ],
+        );
+    }
+
+    #[test]
+    fn terminal_status_reflects_stage_position_and_outcome() {
+        let cases = [
+            (
+                ChallengeType::Tob,
+                Stage::TobMaiden,
+                StageStatus::Started,
+                ChallengeStatus::Abandoned,
+            ),
+            (
+                ChallengeType::Tob,
+                Stage::TobMaiden,
+                StageStatus::Wiped,
+                ChallengeStatus::Wiped,
+            ),
+            (
+                ChallengeType::Tob,
+                Stage::TobBloat,
+                StageStatus::Completed,
+                ChallengeStatus::Reset,
+            ),
+            (
+                ChallengeType::Tob,
+                Stage::TobNylocas,
+                StageStatus::Entered,
+                ChallengeStatus::Reset,
+            ),
+            (
+                ChallengeType::Tob,
+                Stage::TobVerzik,
+                StageStatus::Completed,
+                ChallengeStatus::Completed,
+            ),
+            (
+                ChallengeType::Mokhaiotl,
+                Stage::MokhaiotlDelve8,
+                StageStatus::Started,
+                ChallengeStatus::Abandoned,
+            ),
+            (
+                ChallengeType::Mokhaiotl,
+                Stage::MokhaiotlDelve8plus,
+                StageStatus::Started,
+                ChallengeStatus::Completed,
+            ),
+            (
+                ChallengeType::Mokhaiotl,
+                Stage::MokhaiotlDelve8plus,
+                StageStatus::Wiped,
+                ChallengeStatus::Completed,
+            ),
+        ];
+        for (challenge_type, stage, stage_status, expected) in cases {
+            assert_eq!(
+                terminal_status(challenge_type, stage, stage_status),
+                expected,
+                "{challenge_type:?} at {stage:?} with {stage_status:?}",
+            );
+        }
+    }
+
+    fn status_change(client_id: ClientId, status: ClientStatus) -> Command {
+        Command::ClientStatus(ClientStatusChange {
+            user_id: UserId(1),
+            client_id,
+            session_token: "tok".into(),
+            status,
+        })
+    }
+
+    fn idle_client(stage: Stage, status: StageStatus, attempt: Option<u32>) -> ClientState {
+        ClientState {
+            active: false,
+            ..client(stage, status, attempt)
+        }
+    }
+
+    #[test]
+    fn status_active_reactivates_idle_client() {
+        let state = tob_state(vec![(
+            CLIENT_A,
+            idle_client(Stage::TobMaiden, StageStatus::Started, None),
+        )]);
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &status_change(CLIENT_A, ClientStatus::Active),
+            ),
+            vec![LifecycleEvent::ClientActivated {
+                client_id: CLIENT_A
+            }],
+        );
+    }
+
+    #[test]
+    fn status_idle_idles_active_client() {
+        let state = tob_state(vec![(
+            CLIENT_A,
+            client(Stage::TobMaiden, StageStatus::Started, None),
+        )]);
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &status_change(CLIENT_A, ClientStatus::Idle),
+            ),
+            vec![LifecycleEvent::ClientIdled {
+                client_id: CLIENT_A
+            }],
+        );
+    }
+
+    #[test]
+    fn status_matching_client_state_is_a_noop() {
+        let state = tob_state(vec![(
+            CLIENT_A,
+            client(Stage::TobMaiden, StageStatus::Started, None),
+        )]);
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &status_change(CLIENT_A, ClientStatus::Active),
+            ),
+            vec![],
+        );
+
+        let state = tob_state(vec![(
+            CLIENT_A,
+            idle_client(Stage::TobMaiden, StageStatus::Started, None),
+        )]);
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &status_change(CLIENT_A, ClientStatus::Idle),
+            ),
+            vec![],
+        );
+    }
+
+    #[test]
+    fn status_disconnected_removes_client() {
+        let state = tob_state(vec![(
+            CLIENT_A,
+            client(Stage::TobMaiden, StageStatus::Started, None),
+        )]);
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &status_change(CLIENT_A, ClientStatus::Disconnected),
+            ),
+            vec![LifecycleEvent::ClientRemoved {
+                client_id: CLIENT_A
+            }],
+        );
+    }
+
+    #[test]
+    fn status_with_stale_token_is_ignored() {
+        let state = tob_state(vec![(
+            CLIENT_A,
+            client(Stage::TobMaiden, StageStatus::Started, None),
+        )]);
+        let from_old_socket = Command::ClientStatus(ClientStatusChange {
+            user_id: UserId(1),
+            client_id: CLIENT_A,
+            session_token: "stale".into(),
+            status: ClientStatus::Disconnected,
+        });
+        assert_eq!(
+            decide(&state, &LifecycleConfig::default(), &from_old_socket),
+            vec![],
+        );
+    }
+
+    #[test]
+    fn status_for_unknown_client_is_ignored() {
+        let state = tob_state(vec![(
+            CLIENT_A,
+            client(Stage::TobMaiden, StageStatus::Started, None),
+        )]);
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &status_change(CLIENT_B, ClientStatus::Disconnected),
+            ),
+            vec![],
+        );
+    }
+
+    #[test]
+    fn due_cleanup_disconnect_terminates_challenge() {
+        let state = ChallengeState {
+            stage: Stage::TobBloat,
+            dormant_since: Some(Timestamp::from_millis(700)),
+            ..tob_state(vec![])
+        };
+        let fired = Deadline {
+            kind: DeadlineKind::CleanupDisconnect,
+            at: Timestamp::from_millis(300_700),
+        };
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &Command::DeadlineFired(fired),
+            ),
+            vec![LifecycleEvent::ChallengeTerminated {
+                status: ChallengeStatus::Abandoned,
+                empty: false,
+            }],
+        );
+    }
+
+    #[test]
+    fn due_cleanup_all_idle_removes_clients_and_terminates() {
+        let state = ChallengeState {
+            dormant_since: Some(Timestamp::from_millis(5_000)),
+            ..tob_state(vec![
+                (
+                    CLIENT_A,
+                    idle_client(Stage::TobMaiden, StageStatus::Started, None),
+                ),
+                (
+                    CLIENT_B,
+                    idle_client(Stage::TobMaiden, StageStatus::Started, None),
+                ),
+            ])
+        };
+        let fired = Deadline {
+            kind: DeadlineKind::CleanupAllIdle,
+            at: Timestamp::from_millis(905_000),
+        };
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &Command::DeadlineFired(fired),
+            ),
+            vec![
+                LifecycleEvent::ClientRemoved {
+                    client_id: CLIENT_A
+                },
+                LifecycleEvent::ClientRemoved {
+                    client_id: CLIENT_B
+                },
+                LifecycleEvent::ChallengeTerminated {
+                    status: ChallengeStatus::Abandoned,
                     empty: false,
                 },
             ],

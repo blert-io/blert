@@ -37,6 +37,11 @@ pub struct LifecycleConfig {
     /// Maximum time to wait for every client to send its finish request after
     /// the first definitive finish.
     pub challenge_end_grace: Duration,
+    /// Time to wait for a client to reconnect after the last one disconnects.
+    pub reconnection_window: Duration,
+    /// Time to wait for a client to become active while every connected
+    /// client is idle.
+    pub inactivity_timeout: Duration,
 }
 
 impl Default for LifecycleConfig {
@@ -44,6 +49,8 @@ impl Default for LifecycleConfig {
         LifecycleConfig {
             challenge_end_grace: Duration::from_secs(5),
             stage_end_timeout: Duration::from_secs(2),
+            reconnection_window: Duration::from_mins(5),
+            inactivity_timeout: Duration::from_mins(15),
         }
     }
 }
@@ -73,6 +80,21 @@ pub fn next_deadline(state: &ChallengeState, config: &LifecycleConfig) -> Option
             kind: DeadlineKind::ChallengeEnd,
             at: anchor + config.challenge_end_grace,
         });
+    }
+
+    if let Some(since) = state.dormant_since {
+        let deadline = if state.clients.is_empty() {
+            Deadline {
+                kind: DeadlineKind::CleanupDisconnect,
+                at: since + config.reconnection_window,
+            }
+        } else {
+            Deadline {
+                kind: DeadlineKind::CleanupAllIdle,
+                at: since + config.inactivity_timeout,
+            }
+        };
+        return Some(deadline);
     }
 
     None
@@ -109,6 +131,8 @@ mod tests {
         LifecycleConfig {
             stage_end_timeout: Duration::from_secs(2),
             challenge_end_grace: Duration::from_millis(4_500),
+            reconnection_window: Duration::from_mins(5),
+            inactivity_timeout: Duration::from_mins(15),
         }
     }
 
@@ -199,6 +223,67 @@ mod tests {
             Some(Deadline {
                 kind: DeadlineKind::ChallengeEnd,
                 at: Timestamp::from_millis(9_500),
+            }),
+        );
+    }
+
+    #[test]
+    fn dormant_challenge_derives_cleanup() {
+        let mut state = mid_stage_state();
+        for client in state.clients.values_mut() {
+            client.active = false;
+        }
+        state.dormant_since = Some(Timestamp::from_millis(10_000));
+        assert_eq!(
+            next_deadline(&state, &test_config()),
+            Some(Deadline {
+                kind: DeadlineKind::CleanupAllIdle,
+                at: Timestamp::from_millis(910_000),
+            }),
+        );
+
+        // The last idle client disconnects, restarting the window.
+        state.clients.clear();
+        state.dormant_since = Some(Timestamp::from_millis(20_000));
+        assert_eq!(
+            next_deadline(&state, &test_config()),
+            Some(Deadline {
+                kind: DeadlineKind::CleanupDisconnect,
+                at: Timestamp::from_millis(320_000),
+            }),
+        );
+    }
+
+    #[test]
+    fn settlement_deadlines_precede_cleanup() {
+        let mut state = ChallengeState {
+            stage_state: StageState::Ending {
+                since: Timestamp::from_millis(5_000),
+            },
+            dormant_since: Some(Timestamp::from_millis(5_050)),
+            ..mid_stage_state()
+        };
+        state.clients.clear();
+        assert_eq!(
+            next_deadline(&state, &test_config()),
+            Some(Deadline {
+                kind: DeadlineKind::StageEnd,
+                at: Timestamp::from_millis(7_000),
+            }),
+        );
+
+        state.stage_state = StageState::Complete {
+            since: Timestamp::from_millis(7_000),
+        };
+        state.phase = ChallengePhase::Finishing {
+            since: Timestamp::from_millis(7_100),
+            status: ChallengeStatus::Wiped,
+        };
+        assert_eq!(
+            next_deadline(&state, &test_config()),
+            Some(Deadline {
+                kind: DeadlineKind::ChallengeEnd,
+                at: Timestamp::from_millis(11_600),
             }),
         );
     }

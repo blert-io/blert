@@ -17,7 +17,9 @@ use tokio::time::Instant;
 use super::challenge::JournalSink;
 use super::coordinator::Coordinator;
 use super::core::apply::apply;
-use super::core::command::{Create, Finish, StageProgress, Update};
+use super::core::command::{
+    ClientStatus, ClientStatusChange, Create, Finish, StageProgress, Update,
+};
 use super::core::event::{JournalEntry, LifecycleEvent};
 use super::core::state::{ChallengeState, Snapshot};
 use super::core::types::{
@@ -41,6 +43,7 @@ pub enum Action {
         times: Option<ReportedTimes>,
         soft: bool,
     },
+    Status(ClientStatus),
 }
 
 #[derive(Clone)]
@@ -83,6 +86,13 @@ impl Client {
     #[must_use]
     pub fn at(mut self, at: u64, action: Action) -> Self {
         self.actions.push((at, action));
+        self
+    }
+
+    /// Overrides the client's user ID.
+    #[must_use]
+    pub fn with_user(mut self, id: i64) -> Self {
+        self.identity.user_id = UserId(id);
         self
     }
 }
@@ -276,6 +286,16 @@ async fn issue(
                 .await
                 .ok()
         }
+        Action::Status(status) => coordinator
+            .update_client_status(ClientStatusChange {
+                user_id: identity.user_id,
+                client_id: identity.client_id,
+                session_token: identity.session_token.clone(),
+                status,
+            })
+            .await
+            .ok()
+            .flatten(),
     };
 
     Outcome {
@@ -294,6 +314,21 @@ fn current_challenge(identity: &Identity, current_uuid: &Mutex<Option<Uuid>>) ->
 
 fn check_invariants(result: &ScenarioResult) {
     for (uuid, journal) in &result.journals {
+        let terminated = journal
+            .last()
+            .is_some_and(|entry| matches!(entry.event, LifecycleEvent::ChallengeTerminated { .. }));
+        if terminated {
+            assert!(
+                !result.snapshots.contains_key(uuid),
+                "terminated challenge was not reaped: {uuid}",
+            );
+        } else {
+            assert!(
+                result.snapshots.contains_key(uuid),
+                "live challenge missing from the registry: {uuid}",
+            );
+        }
+
         // Compare computed state to what the journal produces.
         let mut folded = ChallengeState {
             uuid: *uuid,

@@ -98,67 +98,67 @@ async fn deep_delve_progression_retries_each_delve() {
 
     let (_, journal) = result.only_challenge();
     assert_eq!(
-        journal[5..],
+        journal[6..],
         vec![
-            entry(5, 600, cmd(4), stage_started(Stage::MokhaiotlDelve8plus)),
+            entry(6, 600, cmd(4), stage_started(Stage::MokhaiotlDelve8plus)),
             entry(
-                6,
+                7,
                 600,
                 cmd(4),
                 reported_attempt(1, Stage::MokhaiotlDelve8plus, StageStatus::Started, 1)
             ),
             entry(
-                7,
+                8,
                 900,
                 cmd(5),
                 reported_attempt(1, Stage::MokhaiotlDelve8plus, StageStatus::Completed, 1)
             ),
             entry(
-                8,
+                9,
                 900,
                 cmd(5),
                 sealed(Stage::MokhaiotlDelve8plus, Some(1), false)
             ),
-            entry(9, 1_000, cmd(6), deep_delve(2)),
+            entry(10, 1_000, cmd(6), deep_delve(2)),
             entry(
-                10,
+                11,
                 1_000,
                 cmd(6),
                 reported_attempt(1, Stage::MokhaiotlDelve8plus, StageStatus::Started, 2)
             ),
             entry(
-                11,
+                12,
                 1_300,
                 cmd(7),
                 reported_attempt(1, Stage::MokhaiotlDelve8plus, StageStatus::Completed, 2)
             ),
             entry(
-                12,
+                13,
                 1_300,
                 cmd(7),
                 sealed(Stage::MokhaiotlDelve8plus, Some(2), false)
             ),
-            entry(13, 1_400, cmd(8), deep_delve(3)),
+            entry(14, 1_400, cmd(8), deep_delve(3)),
             entry(
-                14,
+                15,
                 1_400,
                 cmd(8),
                 reported_attempt(1, Stage::MokhaiotlDelve8plus, StageStatus::Started, 3)
             ),
             entry(
-                15,
+                16,
                 1_700,
                 cmd(9),
                 reported_attempt(1, Stage::MokhaiotlDelve8plus, StageStatus::Wiped, 3)
             ),
             entry(
-                16,
+                17,
                 1_700,
                 cmd(9),
                 sealed(Stage::MokhaiotlDelve8plus, Some(3), false)
             ),
-            client_finished(17, 1_750, cmd(10)),
-            completed(18, 1_750, cmd(10)),
+            client_finished(18, 1_750, cmd(10)),
+            completed(19, 1_750, cmd(10)),
         ],
     );
 }
@@ -196,42 +196,42 @@ async fn start_after_missed_stage_end_seals_previous_attempt() {
             .all(|e| matches!(e.caused_by, Cause::Command(_))),
     );
     assert_eq!(
-        journal[5..],
+        journal[6..],
         vec![
-            entry(5, 600, cmd(4), stage_started(Stage::MokhaiotlDelve8plus)),
+            entry(6, 600, cmd(4), stage_started(Stage::MokhaiotlDelve8plus)),
             entry(
-                6,
+                7,
                 600,
                 cmd(4),
                 reported_attempt(1, Stage::MokhaiotlDelve8plus, StageStatus::Started, 1)
             ),
             entry(
-                7,
+                8,
                 1_500,
                 cmd(5),
                 sealed(Stage::MokhaiotlDelve8plus, Some(1), true)
             ),
-            entry(8, 1_500, cmd(5), deep_delve(2)),
+            entry(9, 1_500, cmd(5), deep_delve(2)),
             entry(
-                9,
+                10,
                 1_500,
                 cmd(5),
                 reported_attempt(1, Stage::MokhaiotlDelve8plus, StageStatus::Started, 2)
             ),
             entry(
-                10,
+                11,
                 1_800,
                 cmd(6),
                 reported_attempt(1, Stage::MokhaiotlDelve8plus, StageStatus::Wiped, 2)
             ),
             entry(
-                11,
+                12,
                 1_800,
                 cmd(6),
                 sealed(Stage::MokhaiotlDelve8plus, Some(2), false)
             ),
-            client_finished(12, 1_900, cmd(7)),
-            completed(13, 1_900, cmd(7)),
+            client_finished(13, 1_900, cmd(7)),
+            completed(14, 1_900, cmd(7)),
         ],
     );
 }

@@ -29,16 +29,16 @@ async fn all_reports_inside_window_seals_normally() {
         "no deadline should have fired",
     );
     assert_eq!(
-        journal[6..],
+        journal[7..],
         vec![
             entry(
-                6,
+                7,
                 2_999,
                 cmd(6),
                 reported(2, Stage::TobMaiden, StageStatus::Wiped),
             ),
             entry(
-                7,
+                8,
                 2_999,
                 cmd(6),
                 LifecycleEvent::StageSealed {
@@ -69,9 +69,9 @@ async fn window_expiry_forces_seal() {
 
     let (_, journal) = result.only_challenge();
     assert_eq!(
-        journal[6..],
+        journal[7..],
         vec![entry(
-            6,
+            7,
             3_000,
             Cause::Deadline(DeadlineKind::StageEnd),
             LifecycleEvent::StageSealed {

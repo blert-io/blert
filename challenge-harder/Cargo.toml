@@ -18,6 +18,7 @@ tokio = { version = "1.52.3", features = [
   "sync",
   "time",
 ] }
+tower-http = { version = "0.7.0", features = ["trace"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
 uuid = { version = "1.23.4", features = ["serde", "v4"] }

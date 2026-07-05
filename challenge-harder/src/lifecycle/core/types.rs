@@ -55,7 +55,7 @@ impl std::fmt::Display for MsgId {
 pub struct JournalSeq(pub u64);
 
 /// Unique identifier for a Blert client.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ClientId(pub i64);
 
 impl std::fmt::Display for ClientId {

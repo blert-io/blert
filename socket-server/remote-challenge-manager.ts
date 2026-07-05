@@ -496,7 +496,11 @@ export class RemoteChallengeManager extends ChallengeManager {
       status,
     };
 
-    void this.redisClient.lPush(CLIENT_EVENTS_KEY, JSON.stringify(event));
+    if (process.env.BLERT_CLIENT_STATUS_HTTP) {
+      void this.postClientStatus(event);
+    } else {
+      void this.redisClient.lPush(CLIENT_EVENTS_KEY, JSON.stringify(event));
+    }
 
     this.capture(
       Date.now(),
@@ -508,6 +512,39 @@ export class RemoteChallengeManager extends ChallengeManager {
 
     if (status === ClientStatus.DISCONNECTED) {
       this.removeClientFromChallenge(client);
+    }
+  }
+
+  private async postClientStatus(event: ClientStatusEvent): Promise<void> {
+    try {
+      const res = await this.request('status', '/client-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: event.userId,
+          clientId: event.clientId,
+          sessionToken: event.sessionToken,
+          status: event.status,
+        }),
+      });
+
+      if (!res.ok) {
+        const { error } = (await res.json()) as ChallengeServerError;
+        logger.error('remote_client_status_failed', {
+          clientId: event.clientId,
+          status: event.status,
+          statusCode: res.status,
+          message: error.message,
+        });
+      }
+    } catch (e) {
+      logger.warn('remote_client_status_failed', {
+        clientId: event.clientId,
+        status: event.status,
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
   }
 
