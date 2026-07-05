@@ -17,7 +17,7 @@ use std::sync::{Arc, Mutex};
 
 use tokio::time::Instant;
 
-use super::challenge::JournalSink;
+use super::challenge::{AppendFuture, ChallengeClaim, ChallengeStore, ClaimFuture};
 use super::coordinator::Coordinator;
 use super::core::apply::apply;
 use super::core::command::{
@@ -222,8 +222,16 @@ pub fn perturb(scenario: &mut Scenario, rng: &mut Rng, jitter_ms: u64) {
     }
 }
 
-#[derive(Default)]
-struct Collector(Mutex<CollectedJournals>);
+#[derive(Clone, Default)]
+struct Collector {
+    journals: Arc<Mutex<CollectedJournals>>,
+}
+
+/// Claim on one challenge, journaling into its collector.
+struct CollectorClaim {
+    uuid: Uuid,
+    journals: Arc<Mutex<CollectedJournals>>,
+}
 
 /// Journals of every challenge in a run.
 #[derive(Clone, Default)]
@@ -277,17 +285,29 @@ impl<'a> IntoIterator for &'a CollectedJournals {
     }
 }
 
-impl JournalSink for Collector {
-    fn append(&self, uuid: Uuid, entry: &JournalEntry) {
-        let mut collected = self.0.lock().expect("collector lock poisoned");
-        if !collected.journals.contains_key(&uuid) {
-            collected.creation_order.push(uuid);
-        }
-        collected
-            .journals
-            .entry(uuid)
-            .or_default()
-            .push(entry.clone());
+impl ChallengeStore for Collector {
+    fn claim(&self, uuid: Uuid) -> ClaimFuture<'_> {
+        let journals = self.journals.clone();
+        Box::pin(async move {
+            Ok(Box::new(CollectorClaim { uuid, journals }) as Box<dyn ChallengeClaim>)
+        })
+    }
+}
+
+impl ChallengeClaim for CollectorClaim {
+    fn append<'a>(&'a self, batch: &'a [JournalEntry]) -> AppendFuture<'a> {
+        Box::pin(async move {
+            let mut collected = self.journals.lock().expect("collector lock poisoned");
+            if !collected.journals.contains_key(&self.uuid) {
+                collected.creation_order.push(self.uuid);
+            }
+            collected
+                .journals
+                .entry(self.uuid)
+                .or_default()
+                .extend(batch.iter().cloned());
+            Ok(())
+        })
     }
 }
 
@@ -300,9 +320,9 @@ pub async fn run(scenario: Scenario) -> ScenarioResult {
 /// Runs a scenario to completion under specific lifecycle timings and checks
 /// structural invariants.
 pub async fn run_with(config: LifecycleConfig, scenario: Scenario) -> ScenarioResult {
-    let collector = Arc::new(Collector::default());
+    let collector = Collector::default();
     let coordinator =
-        Arc::new(Coordinator::with_journal_sink(collector.clone()).with_config(config));
+        Arc::new(Coordinator::with_store(Arc::new(collector.clone())).with_config(config));
     let started = Instant::now();
 
     let mut identities = Vec::new();
@@ -339,7 +359,11 @@ pub async fn run_with(config: LifecycleConfig, scenario: Scenario) -> ScenarioRe
     tokio::time::sleep_until(started + Duration::from_millis(scenario.run_until)).await;
     tokio::time::sleep(Duration::from_millis(1)).await;
 
-    let journals = collector.0.lock().expect("collector lock poisoned").clone();
+    let journals = collector
+        .journals
+        .lock()
+        .expect("collector lock poisoned")
+        .clone();
     let snapshots = journals
         .into_iter()
         .filter_map(|(uuid, _)| coordinator.snapshot(*uuid).map(|s| (*uuid, s)))
