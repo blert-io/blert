@@ -1,4 +1,4 @@
-//! HTTP API through which the socket server drives challenges.
+//! HTTP API through which clients drive challenges.
 //!
 //! Routes and body shapes mirror the current `challenge-server/api.ts`.
 
@@ -211,6 +211,13 @@ mod tests {
     use tower::ServiceExt;
 
     use super::*;
+    use crate::lifecycle::sim::Collector;
+
+    fn test_router() -> Router {
+        router(Arc::new(Coordinator::with_store(Arc::new(
+            Collector::default(),
+        ))))
+    }
 
     async fn post(router: &Router, path: &str, body: &Value) -> (StatusCode, Value) {
         let response = router
@@ -242,7 +249,7 @@ mod tests {
 
     #[tokio::test]
     async fn drives_a_challenge_over_http() {
-        let router = router(Arc::new(Coordinator::new()));
+        let router = test_router();
 
         let (status, body) = post(
             &router,
@@ -305,7 +312,7 @@ mod tests {
 
     #[tokio::test]
     async fn status_without_challenge_is_accepted() {
-        let router = router(Arc::new(Coordinator::new()));
+        let router = test_router();
         let (status, body) = post(
             &router,
             "/client-status",
@@ -318,7 +325,7 @@ mod tests {
 
     #[tokio::test]
     async fn unknown_challenge_is_rejected() {
-        let router = router(Arc::new(Coordinator::new()));
+        let router = test_router();
         let (status, body) = post(
             &router,
             &format!("/challenges/{}", Uuid::from_u128(7)),

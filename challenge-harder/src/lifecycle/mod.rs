@@ -8,4 +8,4 @@ pub mod coordinator;
 #[deny(clippy::disallowed_methods, clippy::disallowed_types)]
 pub mod core;
 #[cfg(test)]
-mod sim;
+pub(crate) mod sim;
