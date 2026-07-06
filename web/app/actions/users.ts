@@ -159,13 +159,6 @@ export async function createApiKey(rsn: string): Promise<ApiKeyWithUsername> {
       throw new Error('Invalid RSN');
     }
 
-    const canCreate = await sql`
-      SELECT can_create_api_key FROM users WHERE id = ${userId}
-    `;
-    if (canCreate.length === 0 || !canCreate[0].can_create_api_key) {
-      throw new Error('Not authorized to create API keys');
-    }
-
     const [apiKeyCount] = await sql<{ count: string }[]>`
       SELECT COUNT(*) FROM api_keys WHERE user_id = ${userId}
     `;

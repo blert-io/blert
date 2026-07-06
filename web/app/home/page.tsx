@@ -53,6 +53,24 @@ export default async function Home() {
           className={styles.statusPanel}
         >
           <div className={styles.statusCard}>
+            <h3 className={styles.statusHeading}>API keys without Discord</h3>
+            <span className={styles.statusTimestamp}>
+              Last updated: Jul 5, 2026 19:00 UTC
+            </span>
+            <ul className={styles.statusList}>
+              <li>
+                You can now generate an API key from your{' '}
+                <Link href="/settings/api-keys">account settings</Link> straight
+                after registering, without linking a Discord account.
+              </li>
+              <li>
+                Linking Discord is still available and recommended for bot
+                integration and account support, but it&apos;s optional.
+              </li>
+            </ul>
+          </div>
+
+          <div className={styles.statusCard}>
             <h3 className={styles.statusHeading}>🎉 Blert is Live!</h3>
             <span className={styles.statusTimestamp}>
               Last updated: Jan 14, 2026 05:00 UTC
