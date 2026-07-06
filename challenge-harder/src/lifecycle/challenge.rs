@@ -28,35 +28,42 @@ pub enum StoreError {
 
 pub type ClaimFuture<'a> =
     Pin<Box<dyn Future<Output = Result<Box<dyn ChallengeClaim>, StoreError>> + Send + 'a>>;
-pub type AppendFuture<'a> = Pin<Box<dyn Future<Output = Result<(), StoreError>> + Send + 'a>>;
+pub type WriteFuture<'a> = Pin<Box<dyn Future<Output = Result<(), StoreError>> + Send + 'a>>;
+pub type ReadFuture<'a> =
+    Pin<Box<dyn Future<Output = Result<Option<Snapshot>, StoreError>> + Send + 'a>>;
 
 /// Durable storage for challenge state, granting exclusive access through claims.
 pub trait ChallengeStore: Send + Sync + 'static {
     /// Opens a new epoch claim on challenge `uuid`.
     fn claim(&self, uuid: Uuid) -> ClaimFuture<'_>;
+
+    /// Reads the last projected state of challenge `uuid`.
+    fn read(&self, uuid: Uuid) -> ReadFuture<'_>;
+
+    /// Delivers notifications of all challenge state updates to `sink`.
+    fn subscribe(&self, sink: mpsc::Sender<(Uuid, MsgId)>);
+}
+
+/// A lifecycle milestone broadcast to external consumers.
+/// Mirrors `ChallengeServerUpdate` in `//common/db/redis.ts`.
+// TODO(frolv): STAGE_END should be added alongside the stage processor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChallengeServerUpdate {
+    /// The challenge has ended.
+    Finish,
 }
 
 /// An exclusive handle to a challenge's durable state. Gives access to writes
 /// to the state, as long as the epoch is still valid.
 pub trait ChallengeClaim: Send + Sync + 'static {
     /// Appends a decision's entries to the challenge's journal as a single atomic batch.
-    fn append<'a>(&'a self, batch: &'a [JournalEntry]) -> AppendFuture<'a>;
-}
+    fn append<'a>(&'a self, batch: &'a [JournalEntry]) -> WriteFuture<'a>;
 
-pub struct NoopStore;
+    /// Publishes a snapshot of the challenge's state, signaling its update.
+    fn project<'a>(&'a self, snapshot: &'a Snapshot) -> WriteFuture<'a>;
 
-impl ChallengeStore for NoopStore {
-    fn claim(&self, _uuid: Uuid) -> ClaimFuture<'_> {
-        Box::pin(async { Ok(Box::new(NoopClaim) as Box<dyn ChallengeClaim>) })
-    }
-}
-
-struct NoopClaim;
-
-impl ChallengeClaim for NoopClaim {
-    fn append<'a>(&'a self, _batch: &'a [JournalEntry]) -> AppendFuture<'a> {
-        Box::pin(async { Ok(()) })
-    }
+    /// Broadcasts a lifecycle milestone to consumers.
+    fn announce<'a>(&'a self, update: &'a ChallengeServerUpdate) -> WriteFuture<'a>;
 }
 
 /// Claims challenge `uuid`, retrying transient failures.
@@ -144,11 +151,7 @@ impl ActiveChallenge {
 
     /// Serially applies inbox commands and their implied deadline timers until
     /// the challenge terminates, publishing a fresh state snapshot after each.
-    pub async fn run(
-        &mut self,
-        mut inbox: mpsc::UnboundedReceiver<Envelope>,
-        snapshot: watch::Sender<Snapshot>,
-    ) {
+    pub async fn run(&mut self, mut inbox: mpsc::UnboundedReceiver<Envelope>) {
         let started = tokio::time::Instant::now();
         let mut cursor = self.state.cursor;
 
@@ -187,7 +190,8 @@ impl ActiveChallenge {
                 })
                 .collect();
 
-            if !batch.is_empty() {
+            let decided = !batch.is_empty();
+            if decided {
                 if let Err(error) = self.append(&batch).await {
                     tracing::error!(uuid = %self.state.uuid, %error, "journal_append_failed");
                     return;
@@ -207,9 +211,26 @@ impl ActiveChallenge {
             if let Cause::Command(id) = cause {
                 cursor = id;
             }
-            snapshot.send_replace(Snapshot::of(&self.state, cursor));
+
+            // Only publish if the state changed.
+            let changed = decided || matches!(cause, Cause::Command(_));
+            if changed {
+                let current = Snapshot::of(&self.state, cursor);
+                if let Err(error) =
+                    with_retries(self.state.uuid, || self.claim.project(&current)).await
+                {
+                    tracing::error!(uuid = %self.state.uuid, %error, "projection_failed");
+                    return;
+                }
+            }
 
             if let ChallengePhase::Terminated { .. } = self.state.phase {
+                let finish = ChallengeServerUpdate::Finish;
+                if let Err(error) =
+                    with_retries(self.state.uuid, || self.claim.announce(&finish)).await
+                {
+                    tracing::error!(uuid = %self.state.uuid, %error, "announce_failed");
+                }
                 break;
             }
         }
@@ -233,21 +254,28 @@ mod tests {
 
     #[derive(Default)]
     struct ClaimLog {
-        /// Errors for upcoming appends; once drained, appends succeed.
-        failures: Mutex<VecDeque<StoreError>>,
+        /// Outcomes of upcoming store operations, popped per call in order;
+        /// once drained, operations succeed.
+        results: Mutex<VecDeque<Result<(), StoreError>>>,
         appended: Mutex<Vec<JournalEntry>>,
+        projected: Mutex<Vec<Snapshot>>,
+        announced: Mutex<Vec<ChallengeServerUpdate>>,
         calls: AtomicU64,
+    }
+
+    impl ClaimLog {
+        fn next_result(&self) -> Result<(), StoreError> {
+            self.calls.fetch_add(1, Ordering::Relaxed);
+            self.results.lock().unwrap().pop_front().unwrap_or(Ok(()))
+        }
     }
 
     struct ScriptedClaim(Arc<ClaimLog>);
 
     impl ChallengeClaim for ScriptedClaim {
-        fn append<'a>(&'a self, batch: &'a [JournalEntry]) -> AppendFuture<'a> {
+        fn append<'a>(&'a self, batch: &'a [JournalEntry]) -> WriteFuture<'a> {
             Box::pin(async move {
-                self.0.calls.fetch_add(1, Ordering::Relaxed);
-                if let Some(failure) = self.0.failures.lock().unwrap().pop_front() {
-                    return Err(failure);
-                }
+                self.0.next_result()?;
                 self.0
                     .appended
                     .lock()
@@ -256,21 +284,35 @@ mod tests {
                 Ok(())
             })
         }
+
+        fn project<'a>(&'a self, snapshot: &'a Snapshot) -> WriteFuture<'a> {
+            Box::pin(async move {
+                self.0.next_result()?;
+                self.0.projected.lock().unwrap().push(snapshot.clone());
+                Ok(())
+            })
+        }
+
+        fn announce<'a>(&'a self, update: &'a ChallengeServerUpdate) -> WriteFuture<'a> {
+            Box::pin(async move {
+                self.0.next_result()?;
+                self.0.announced.lock().unwrap().push(*update);
+                Ok(())
+            })
+        }
     }
 
     struct RunOutcome {
         log: Arc<ClaimLog>,
         uuid: Uuid,
-        initial: Snapshot,
-        last: Snapshot,
     }
 
-    /// Runs a challenge over a single create command whose appends are
-    /// scripted to fail with `failures` before succeeding.
-    async fn run_solo_create(failures: Vec<StoreError>) -> RunOutcome {
+    /// Runs a challenge over a single create command whose store operations
+    /// resolve with the scripted results, in call order.
+    async fn run_solo_create(script: Vec<Result<(), StoreError>>) -> RunOutcome {
         let uuid = Uuid::new_v4();
         let log = Arc::new(ClaimLog {
-            failures: Mutex::new(failures.into()),
+            results: Mutex::new(script.into()),
             ..ClaimLog::default()
         });
         let mut challenge = ActiveChallenge::new(
@@ -280,9 +322,6 @@ mod tests {
         );
 
         let (sender, rx) = inbox();
-        let (tx, snapshot_rx) = watch::channel(Snapshot::of(&challenge.state, MsgId(0)));
-        let initial = *snapshot_rx.borrow();
-
         sender.send(Command::Create(Create {
             user_id: UserId(1),
             client_id: ClientId(10),
@@ -296,26 +335,21 @@ mod tests {
             recording_type: RecordingType::Participant,
         }));
         drop(sender);
-        challenge.run(rx, tx).await;
+        challenge.run(rx).await;
 
-        let last = *snapshot_rx.borrow();
-        RunOutcome {
-            log,
-            uuid,
-            initial,
-            last,
-        }
+        RunOutcome { log, uuid }
     }
 
-    fn unavailable() -> StoreError {
-        StoreError::Unavailable("scripted".into())
+    fn unavailable() -> Result<(), StoreError> {
+        Err(StoreError::Unavailable("scripted".into()))
     }
 
     #[tokio::test(start_paused = true)]
     async fn transient_append_retries_until_durable() {
         let outcome = run_solo_create(vec![unavailable()]).await;
 
-        assert_eq!(outcome.log.calls.load(Ordering::Relaxed), 2);
+        // A failed append, its successful retry, and the projection.
+        assert_eq!(outcome.log.calls.load(Ordering::Relaxed), 3);
         assert_eq!(
             *outcome.log.appended.lock().unwrap(),
             vec![
@@ -344,9 +378,17 @@ mod tests {
                 },
             ],
         );
-        assert_eq!(outcome.last.cursor, MsgId(1));
-        assert_eq!(outcome.last.phase, ChallengePhase::Active);
-        assert_eq!(outcome.last.stage, Stage::TobMaiden);
+        let expected = Snapshot {
+            uuid: outcome.uuid,
+            challenge_type: ChallengeType::Tob,
+            mode: ChallengeMode::TobRegular,
+            stage: Stage::TobMaiden,
+            stage_attempt: None,
+            party: vec!["a".into()],
+            phase: ChallengePhase::Active,
+            cursor: MsgId(1),
+        };
+        assert_eq!(*outcome.log.projected.lock().unwrap(), vec![expected]);
     }
 
     #[tokio::test(start_paused = true)]
@@ -359,15 +401,22 @@ mod tests {
             u64::from(STORE_ATTEMPTS),
         );
         assert!(outcome.log.appended.lock().unwrap().is_empty());
-        assert_eq!(outcome.last, outcome.initial);
+        assert!(outcome.log.projected.lock().unwrap().is_empty());
     }
 
     #[tokio::test(start_paused = true)]
     async fn fenced_append_immediately_exits_unapplied() {
-        let outcome = run_solo_create(vec![StoreError::Fenced]).await;
+        let outcome = run_solo_create(vec![Err(StoreError::Fenced)]).await;
 
         assert_eq!(outcome.log.calls.load(Ordering::Relaxed), 1);
         assert!(outcome.log.appended.lock().unwrap().is_empty());
-        assert_eq!(outcome.last, outcome.initial);
+        assert!(outcome.log.projected.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn fenced_projection_exits_after_durable_append() {
+        let outcome = run_solo_create(vec![Ok(()), Err(StoreError::Fenced)]).await;
+        assert_eq!(outcome.log.appended.lock().unwrap().len(), 2);
+        assert!(outcome.log.projected.lock().unwrap().is_empty());
     }
 }

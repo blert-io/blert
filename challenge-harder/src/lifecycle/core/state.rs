@@ -63,14 +63,16 @@ pub struct ClientState {
 }
 
 /// State published by a challenge for outside readers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Snapshot {
     pub uuid: Uuid,
+    pub challenge_type: ChallengeType,
     pub mode: ChallengeMode,
     pub stage: Stage,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stage_attempt: Option<u32>,
+    pub party: Vec<String>,
     pub phase: ChallengePhase,
     /// Last inbox message the challenge has processed, whether or not it had
     /// any effect. Lets a caller await the application of its own command.
@@ -82,9 +84,11 @@ impl Snapshot {
     pub fn of(state: &ChallengeState, cursor: MsgId) -> Self {
         Self {
             uuid: state.uuid,
+            challenge_type: state.challenge_type,
             mode: state.mode,
             stage: state.stage,
             stage_attempt: state.stage_attempt,
+            party: state.party.clone(),
             phase: state.phase,
             cursor,
         }

@@ -17,7 +17,11 @@ use std::sync::{Arc, Mutex};
 
 use tokio::time::Instant;
 
-use super::challenge::{AppendFuture, ChallengeClaim, ChallengeStore, ClaimFuture};
+use tokio::sync::mpsc;
+
+use super::challenge::{
+    ChallengeClaim, ChallengeServerUpdate, ChallengeStore, ClaimFuture, ReadFuture, WriteFuture,
+};
 use super::coordinator::Coordinator;
 use super::core::apply::apply;
 use super::core::command::{
@@ -25,10 +29,10 @@ use super::core::command::{
 };
 use super::core::deadline::LifecycleConfig;
 use super::core::event::{JournalEntry, LifecycleEvent};
-use super::core::state::{ChallengeState, Snapshot};
+use super::core::state::{ChallengePhase, ChallengeState, Snapshot};
 use super::core::types::{
-    ChallengeMode, ChallengeType, ClientId, RecordingType, ReportedTimes, SessionToken, Stage,
-    UserId, Uuid,
+    ChallengeMode, ChallengeType, ClientId, MsgId, RecordingType, ReportedTimes, SessionToken,
+    Stage, UserId, Uuid,
 };
 
 /// A scripted client action, issued at a scenario-relative time.
@@ -118,6 +122,9 @@ pub struct ScenarioResult {
     pub journals: CollectedJournals,
     pub outcomes: Vec<Outcome>,
     pub snapshots: BTreeMap<Uuid, Snapshot>,
+    pub projections: BTreeMap<Uuid, Snapshot>,
+    /// Milestones announced to external consumers, in publish order.
+    pub updates: Vec<(Uuid, ChallengeServerUpdate)>,
 }
 
 impl ScenarioResult {
@@ -222,15 +229,26 @@ pub fn perturb(scenario: &mut Scenario, rng: &mut Rng, jitter_ms: u64) {
     }
 }
 
+type SignalSink = Arc<Mutex<Option<mpsc::Sender<(Uuid, MsgId)>>>>;
+
+/// In-memory [`ChallengeStore`] collecting everything written through it.
+/// Update signals are delivered synchronously on projection, keeping runs
+/// deterministic.
 #[derive(Clone, Default)]
-struct Collector {
+pub(crate) struct Collector {
     journals: Arc<Mutex<CollectedJournals>>,
+    projections: Arc<Mutex<BTreeMap<Uuid, Snapshot>>>,
+    updates: Arc<Mutex<Vec<(Uuid, ChallengeServerUpdate)>>>,
+    signals: SignalSink,
 }
 
 /// Claim on one challenge, journaling into its collector.
 struct CollectorClaim {
     uuid: Uuid,
     journals: Arc<Mutex<CollectedJournals>>,
+    projections: Arc<Mutex<BTreeMap<Uuid, Snapshot>>>,
+    updates: Arc<Mutex<Vec<(Uuid, ChallengeServerUpdate)>>>,
+    signals: SignalSink,
 }
 
 /// Journals of every challenge in a run.
@@ -288,14 +306,37 @@ impl<'a> IntoIterator for &'a CollectedJournals {
 impl ChallengeStore for Collector {
     fn claim(&self, uuid: Uuid) -> ClaimFuture<'_> {
         let journals = self.journals.clone();
+        let projections = self.projections.clone();
+        let updates = self.updates.clone();
+        let signals = self.signals.clone();
         Box::pin(async move {
-            Ok(Box::new(CollectorClaim { uuid, journals }) as Box<dyn ChallengeClaim>)
+            Ok(Box::new(CollectorClaim {
+                uuid,
+                journals,
+                projections,
+                updates,
+                signals,
+            }) as Box<dyn ChallengeClaim>)
         })
+    }
+
+    fn read(&self, uuid: Uuid) -> ReadFuture<'_> {
+        let snapshot = self
+            .projections
+            .lock()
+            .expect("collector lock poisoned")
+            .get(&uuid)
+            .cloned();
+        Box::pin(async move { Ok(snapshot) })
+    }
+
+    fn subscribe(&self, sink: mpsc::Sender<(Uuid, MsgId)>) {
+        *self.signals.lock().expect("collector lock poisoned") = Some(sink);
     }
 }
 
 impl ChallengeClaim for CollectorClaim {
-    fn append<'a>(&'a self, batch: &'a [JournalEntry]) -> AppendFuture<'a> {
+    fn append<'a>(&'a self, batch: &'a [JournalEntry]) -> WriteFuture<'a> {
         Box::pin(async move {
             let mut collected = self.journals.lock().expect("collector lock poisoned");
             if !collected.journals.contains_key(&self.uuid) {
@@ -306,6 +347,34 @@ impl ChallengeClaim for CollectorClaim {
                 .entry(self.uuid)
                 .or_default()
                 .extend(batch.iter().cloned());
+            Ok(())
+        })
+    }
+
+    fn project<'a>(&'a self, snapshot: &'a Snapshot) -> WriteFuture<'a> {
+        Box::pin(async move {
+            self.projections
+                .lock()
+                .expect("collector lock poisoned")
+                .insert(self.uuid, snapshot.clone());
+            let sink = self
+                .signals
+                .lock()
+                .expect("collector lock poisoned")
+                .clone();
+            if let Some(sink) = sink {
+                let _ = sink.send((self.uuid, snapshot.cursor)).await;
+            }
+            Ok(())
+        })
+    }
+
+    fn announce<'a>(&'a self, update: &'a ChallengeServerUpdate) -> WriteFuture<'a> {
+        Box::pin(async move {
+            self.updates
+                .lock()
+                .expect("collector lock poisoned")
+                .push((self.uuid, *update));
             Ok(())
         })
     }
@@ -364,15 +433,33 @@ pub async fn run_with(config: LifecycleConfig, scenario: Scenario) -> ScenarioRe
         .lock()
         .expect("collector lock poisoned")
         .clone();
-    let snapshots = journals
-        .into_iter()
-        .filter_map(|(uuid, _)| coordinator.snapshot(*uuid).map(|s| (*uuid, s)))
-        .collect();
+    let projections = collector
+        .projections
+        .lock()
+        .expect("collector lock poisoned")
+        .clone();
+    let updates = collector
+        .updates
+        .lock()
+        .expect("collector lock poisoned")
+        .clone();
+
+    // Terminated challenges' snapshots outlive them.
+    let mut snapshots = BTreeMap::new();
+    for (uuid, _) in &journals {
+        if let Some(snapshot) = coordinator.snapshot(*uuid).await
+            && !matches!(snapshot.phase, ChallengePhase::Terminated { .. })
+        {
+            snapshots.insert(*uuid, snapshot);
+        }
+    }
 
     let result = ScenarioResult {
         journals,
         outcomes,
         snapshots,
+        projections,
+        updates,
     };
     check_invariants(&result);
     result
@@ -487,6 +574,18 @@ fn check_invariants(result: &ScenarioResult) {
             );
         }
 
+        // A terminated challenge announces its finish exactly once.
+        let finishes = result
+            .updates
+            .iter()
+            .filter(|(id, update)| id == uuid && *update == ChallengeServerUpdate::Finish)
+            .count();
+        assert_eq!(
+            finishes,
+            usize::from(terminated),
+            "finish announcements: {uuid}",
+        );
+
         // Compare computed state to what the journal produces.
         let mut folded = ChallengeState {
             uuid: *uuid,
@@ -505,6 +604,22 @@ fn check_invariants(result: &ScenarioResult) {
             );
             assert_eq!(snapshot.mode, folded.mode, "mode diverged: {uuid}");
         }
+
+        // Every challenge's final projected reflects its journal.
+        // The cursor is excluded as it advances on commands which journal
+        // nothing, while the fold only sees journaled entries.
+        let projection = result
+            .projections
+            .get(uuid)
+            .unwrap_or_else(|| panic!("challenge was never projected: {uuid}"));
+        assert_eq!(projection.phase, folded.phase, "projected phase: {uuid}");
+        assert_eq!(projection.stage, folded.stage, "projected stage: {uuid}");
+        assert_eq!(
+            projection.stage_attempt, folded.stage_attempt,
+            "projected attempt: {uuid}",
+        );
+        assert_eq!(projection.mode, folded.mode, "projected mode: {uuid}");
+        assert_eq!(projection.party, folded.party, "projected party: {uuid}");
 
         let mut seals = Vec::new();
         for (position, entry) in journal.iter().enumerate() {
