@@ -141,25 +141,16 @@ This creates a user in your local database.
 
 If you want to record and submit your own data using a local Blert plugin:
 
-1. Allow API key creation
+1. Generate an API key
 
-   In a `psql` shell connected to your local DB:
+   Visit [http://localhost:3000/settings/api-keys](http://localhost:3000/settings/api-keys)
+   while logged in and create a new API key.
 
-   ```sql
-   UPDATE users
-   SET can_create_api_key = true
-   WHERE username = '<your username>';
-   ```
+2. Connect your Blert plugin
 
-2. Generate an API key
-
-   Visit [http://localhost:3000/settings](http://localhost:3000/settings) while
-   logged in and create a new API key.
-
-3. Connect your Blert plugin
-
-   Paste the API key into your local Blert plugin and start recording. Your
-   data will stream into your local instance.
+   Point your local Blert plugin to `ws://localhost:3003`, then paste your API
+   key into its settings and start recording. Your data will stream into your
+   local instance.
 
 ---
 

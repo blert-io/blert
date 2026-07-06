@@ -14,7 +14,7 @@ export default function OnboardingCard({ username }: OnboardingCardProps) {
       <div className={styles.header}>
         <h1>Welcome to Blert, {username}</h1>
         <p className={styles.subtitle}>
-          Link your account to start tracking your raids
+          Get the plugin and generate an API key to start tracking your raids
         </p>
       </div>
 
@@ -22,38 +22,25 @@ export default function OnboardingCard({ username }: OnboardingCardProps) {
         <div className={styles.step}>
           <div className={styles.stepNumber}>1</div>
           <div className={styles.stepContent}>
-            <h3>Join the Discord</h3>
+            <h3>Get the Plugin</h3>
             <p>
-              Join our Discord server and run{' '}
-              <code className={styles.command}>/link-discord</code> to connect
-              your account.
+              Install the Blert plugin from the RuneLite Plugin Hub if you
+              haven&apos;t already.
             </p>
             <a
-              href={DISCORD_INVITE_URL}
+              href="https://runelite.net/plugin-hub/show/blert"
               target="_blank"
               rel="noopener noreferrer"
-              className={styles.discordLink}
+              className={styles.settingsLink}
             >
-              <i className="fab fa-discord" />
-              Join Discord
+              <i className="fas fa-external-link-alt" />
+              Get Plugin
             </a>
           </div>
         </div>
 
         <div className={styles.step}>
           <div className={styles.stepNumber}>2</div>
-          <div className={styles.stepContent}>
-            <h3>Get Plugin Access</h3>
-            <p>
-              Once verified, ask a{' '}
-              <strong style={{ color: '#e91e63' }}>@Support</strong> member in
-              Discord to grant API key access.
-            </p>
-          </div>
-        </div>
-
-        <div className={styles.step}>
-          <div className={styles.stepNumber}>3</div>
           <div className={styles.stepContent}>
             <h3>Create an API Key</h3>
             <p>
@@ -64,6 +51,29 @@ export default function OnboardingCard({ username }: OnboardingCardProps) {
               <i className="fas fa-key" />
               Go to Settings
             </Link>
+          </div>
+        </div>
+
+        <div className={styles.step}>
+          <div className={styles.stepNumber}>3</div>
+          <div className={styles.stepContent}>
+            <h3>
+              Link Discord{' '}
+              <span className={styles.optionalBadge}>Optional</span>
+            </h3>
+            <p>
+              Join our Discord server and link your account for support,
+              announcements, and our Discord bot.
+            </p>
+            <a
+              href={DISCORD_INVITE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles.discordLink}
+            >
+              <i className="fab fa-discord" />
+              Join Discord
+            </a>
           </div>
         </div>
       </div>
