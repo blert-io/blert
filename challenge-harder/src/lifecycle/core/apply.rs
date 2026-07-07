@@ -5,7 +5,7 @@
 
 use super::command::StageProgress;
 use super::event::{Cause, JournalEntry, LifecycleEvent};
-use super::state::{ChallengePhase, ChallengeState, ClientState, StageState};
+use super::state::{ChallengeState, ClientState, PhaseState, StageState};
 use super::types::{ClientId, StageExt, StageStatus, Timestamp};
 
 // it's an exhaustive enum folks
@@ -73,7 +73,7 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
             state.stage_state = StageState::Complete { since: entry.at };
         }
         LifecycleEvent::ChallengeFinishing { status } => {
-            state.phase = ChallengePhase::Finishing {
+            state.phase = PhaseState::Finishing {
                 since: entry.at,
                 status,
             };
@@ -98,7 +98,7 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
             state.clients.remove(&client_id);
         }
         LifecycleEvent::ChallengeTerminated { status, empty: _ } => {
-            state.phase = ChallengePhase::Terminated { status };
+            state.phase = PhaseState::Terminated { status };
             state.reported_times = None;
         }
         LifecycleEvent::ModeChanged { mode } => {
@@ -179,7 +179,7 @@ mod tests {
         JournalEntry {
             seq: JournalSeq(0),
             at: Timestamp::from_millis(at_ms),
-            caused_by: Cause::Command(MsgId(msg)),
+            caused_by: Cause::Command(MsgId::sequence(msg)),
             event,
         }
     }
@@ -251,7 +251,7 @@ mod tests {
         assert_eq!(state.stage_attempt, None);
         assert_eq!(state.stage_status, StageStatus::Entered);
         assert_eq!(state.stage_state, StageState::InProgress);
-        assert_eq!(state.cursor, MsgId(1));
+        assert_eq!(state.cursor, MsgId::sequence(1));
 
         let client = &state.clients[&CLIENT];
         assert!(client.active);
@@ -272,7 +272,7 @@ mod tests {
         // A client report alone does not start a stage.
         assert_eq!(state.stage_status, StageStatus::Entered);
         assert_eq!(state.stage_state, StageState::InProgress);
-        assert_eq!(state.cursor, MsgId(2));
+        assert_eq!(state.cursor, MsgId::sequence(2));
     }
 
     #[test]
@@ -359,7 +359,7 @@ mod tests {
                 since: Timestamp::from_millis(7_000)
             }
         );
-        assert_eq!(state.cursor, MsgId(2));
+        assert_eq!(state.cursor, MsgId::sequence(2));
     }
 
     #[test]
@@ -538,7 +538,7 @@ mod tests {
         );
         assert_eq!(
             state.phase,
-            ChallengePhase::Finishing {
+            PhaseState::Finishing {
                 since: Timestamp::from_millis(9_000),
                 status: ChallengeStatus::Wiped,
             }
@@ -614,7 +614,7 @@ mod tests {
         );
         assert_eq!(
             state.phase,
-            ChallengePhase::Terminated {
+            PhaseState::Terminated {
                 status: ChallengeStatus::Reset
             }
         );

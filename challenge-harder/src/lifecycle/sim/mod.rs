@@ -10,29 +10,31 @@
 mod scenarios;
 
 use core::time::Duration;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Index;
 use std::slice;
 use std::sync::{Arc, Mutex};
 
+use async_trait::async_trait;
 use tokio::time::Instant;
 
 use tokio::sync::mpsc;
 
 use super::challenge::{
-    ChallengeClaim, ChallengeServerUpdate, ChallengeStore, ClaimFuture, ReadFuture, WriteFuture,
+    ChallengeClaim, ChallengeServerUpdate, ChallengeStore, Claim, Start, StoreError,
 };
 use super::coordinator::Coordinator;
 use super::core::apply::apply;
 use super::core::command::{
-    ClientStatus, ClientStatusChange, Create, Finish, StageProgress, Update,
+    ClientStatus, ClientStatusChange, Command, Create, Envelope, Finish, Join, StageProgress,
+    Update,
 };
 use super::core::deadline::LifecycleConfig;
-use super::core::event::{JournalEntry, LifecycleEvent};
+use super::core::event::{Cause, JournalEntry, LifecycleEvent};
 use super::core::state::{ChallengePhase, ChallengeState, Snapshot};
 use super::core::types::{
     ChallengeMode, ChallengeType, ClientId, MsgId, RecordingType, ReportedTimes, SessionToken,
-    Stage, UserId, Uuid,
+    Stage, StageExt, UserId, Uuid,
 };
 
 /// A scripted client action, issued at a scenario-relative time.
@@ -125,6 +127,8 @@ pub struct ScenarioResult {
     pub projections: BTreeMap<Uuid, Snapshot>,
     /// Milestones announced to external consumers, in publish order.
     pub updates: Vec<(Uuid, ChallengeServerUpdate)>,
+    /// IDs of every command sent to each challenge's inbox, in send order.
+    pub inboxes: BTreeMap<Uuid, Vec<MsgId>>,
 }
 
 impl ScenarioResult {
@@ -231,20 +235,71 @@ pub fn perturb(scenario: &mut Scenario, rng: &mut Rng, jitter_ms: u64) {
 
 type SignalSink = Arc<Mutex<Option<mpsc::Sender<(Uuid, MsgId)>>>>;
 
+/// A record of commands sent to each challenge.
+#[derive(Default)]
+struct CollectorInboxes {
+    entries: BTreeMap<Uuid, Vec<Envelope>>,
+    sinks: BTreeMap<Uuid, mpsc::Sender<Envelope>>,
+}
+
+/// Party routing state written by challenge starts.
+#[derive(Default)]
+struct CollectorRouting {
+    directory: BTreeMap<String, Uuid>,
+    clients: BTreeMap<ClientId, Uuid>,
+    existing: BTreeSet<Uuid>,
+}
+
 /// In-memory [`ChallengeStore`] collecting everything written through it.
 /// Update signals are delivered synchronously on projection, keeping runs
 /// deterministic.
 #[derive(Clone, Default)]
 pub(crate) struct Collector {
+    inboxes: Arc<Mutex<CollectorInboxes>>,
+    routing: Arc<Mutex<CollectorRouting>>,
     journals: Arc<Mutex<CollectedJournals>>,
     projections: Arc<Mutex<BTreeMap<Uuid, Snapshot>>>,
     updates: Arc<Mutex<Vec<(Uuid, ChallengeServerUpdate)>>>,
     signals: SignalSink,
 }
 
+impl Collector {
+    fn collector_claim(&self, uuid: Uuid) -> CollectorClaim {
+        CollectorClaim {
+            uuid,
+            inboxes: self.inboxes.clone(),
+            journals: self.journals.clone(),
+            projections: self.projections.clone(),
+            updates: self.updates.clone(),
+            signals: self.signals.clone(),
+        }
+    }
+
+    /// Appends a command to a challenge's inbox record, delivering it
+    /// synchronously to the inbox's follower if one is registered.
+    async fn enqueue(&self, uuid: Uuid, cmd: Command) -> MsgId {
+        let (envelope, sink) = {
+            let mut inboxes = self.inboxes.lock().expect("collector lock poisoned");
+            let entries = inboxes.entries.entry(uuid).or_default();
+            // Ids are 1-based positions within the challenge's own inbox,
+            // as each inbox is an independent stream.
+            let id = MsgId::sequence(u64::try_from(entries.len()).expect("inbox fits") + 1);
+            let envelope = Envelope { id, cmd };
+            entries.push(envelope.clone());
+            (envelope, inboxes.sinks.get(&uuid).cloned())
+        };
+        let id = envelope.id;
+        if let Some(sink) = sink {
+            let _ = sink.send(envelope).await;
+        }
+        id
+    }
+}
+
 /// Claim on one challenge, journaling into its collector.
 struct CollectorClaim {
     uuid: Uuid,
+    inboxes: Arc<Mutex<CollectorInboxes>>,
     journals: Arc<Mutex<CollectedJournals>>,
     projections: Arc<Mutex<BTreeMap<Uuid, Snapshot>>>,
     updates: Arc<Mutex<Vec<(Uuid, ChallengeServerUpdate)>>>,
@@ -303,31 +358,98 @@ impl<'a> IntoIterator for &'a CollectedJournals {
     }
 }
 
+#[async_trait]
 impl ChallengeStore for Collector {
-    fn claim(&self, uuid: Uuid) -> ClaimFuture<'_> {
-        let journals = self.journals.clone();
-        let projections = self.projections.clone();
-        let updates = self.updates.clone();
-        let signals = self.signals.clone();
-        Box::pin(async move {
-            Ok(Box::new(CollectorClaim {
-                uuid,
-                journals,
-                projections,
-                updates,
-                signals,
-            }) as Box<dyn ChallengeClaim>)
-        })
+    async fn claim(&self, uuid: Uuid) -> Result<Box<dyn ChallengeClaim>, StoreError> {
+        Ok(Box::new(self.collector_claim(uuid)) as Box<dyn ChallengeClaim>)
     }
 
-    fn read(&self, uuid: Uuid) -> ReadFuture<'_> {
-        let snapshot = self
+    async fn start(&self, party: &str, create: Create) -> Result<Start, StoreError> {
+        let client_id = create.client_id;
+        let (joined, uuid) = {
+            let mut routing = self.routing.lock().expect("collector lock poisoned");
+            let incumbent = routing.directory.get(party).copied().filter(|incumbent| {
+                self.projections
+                    .lock()
+                    .expect("collector lock poisoned")
+                    .get(incumbent)
+                    .is_some_and(|snapshot| {
+                        snapshot.phase == ChallengePhase::Active
+                            && !create.stage.later_stages().contains(&snapshot.stage)
+                    })
+            });
+            if let Some(incumbent) = incumbent {
+                routing.clients.insert(client_id, incumbent);
+                (true, incumbent)
+            } else {
+                let uuid = Uuid::new_v4();
+                routing.directory.insert(party.to_string(), uuid);
+                routing.existing.insert(uuid);
+                routing.clients.insert(client_id, uuid);
+                (false, uuid)
+            }
+        };
+
+        if joined {
+            let id = self.enqueue(uuid, Command::Join(Join::from(&create))).await;
+            Ok(Start::Joined { uuid, id })
+        } else {
+            let id = self.enqueue(uuid, Command::Create(create)).await;
+            Ok(Start::Created {
+                claim: Claim::new(uuid, Box::new(self.collector_claim(uuid))),
+                id,
+            })
+        }
+    }
+
+    async fn send(&self, uuid: Uuid, cmd: &Command) -> Result<Option<MsgId>, StoreError> {
+        let exists = self
+            .routing
+            .lock()
+            .expect("collector lock poisoned")
+            .existing
+            .contains(&uuid);
+        if !exists {
+            return Ok(None);
+        }
+        Ok(Some(self.enqueue(uuid, cmd.clone()).await))
+    }
+
+    async fn send_to_current_challenge(
+        &self,
+        client: ClientId,
+        cmd: &Command,
+    ) -> Result<Option<(Uuid, MsgId)>, StoreError> {
+        let uuid = self
+            .routing
+            .lock()
+            .expect("collector lock poisoned")
+            .clients
+            .get(&client)
+            .copied();
+        let Some(uuid) = uuid else {
+            return Ok(None);
+        };
+
+        let terminated = self
             .projections
             .lock()
             .expect("collector lock poisoned")
             .get(&uuid)
-            .cloned();
-        Box::pin(async move { Ok(snapshot) })
+            .is_some_and(|snapshot| snapshot.phase == ChallengePhase::Terminated);
+        if terminated {
+            return Ok(None);
+        }
+        Ok(Some((uuid, self.enqueue(uuid, cmd.clone()).await)))
+    }
+
+    async fn read(&self, uuid: Uuid) -> Result<Option<Snapshot>, StoreError> {
+        Ok(self
+            .projections
+            .lock()
+            .expect("collector lock poisoned")
+            .get(&uuid)
+            .cloned())
     }
 
     fn subscribe(&self, sink: mpsc::Sender<(Uuid, MsgId)>) {
@@ -335,48 +457,54 @@ impl ChallengeStore for Collector {
     }
 }
 
+#[async_trait]
 impl ChallengeClaim for CollectorClaim {
-    fn append<'a>(&'a self, batch: &'a [JournalEntry]) -> WriteFuture<'a> {
-        Box::pin(async move {
-            let mut collected = self.journals.lock().expect("collector lock poisoned");
-            if !collected.journals.contains_key(&self.uuid) {
-                collected.creation_order.push(self.uuid);
+    fn follow(&self, from: MsgId, sink: mpsc::Sender<Envelope>) {
+        let mut inboxes = self.inboxes.lock().expect("collector lock poisoned");
+        if let Some(entries) = inboxes.entries.get(&self.uuid) {
+            for envelope in entries.iter().filter(|e| e.id > from) {
+                sink.try_send(envelope.clone())
+                    .expect("sim inbox backlog exceeds channel capacity");
             }
-            collected
-                .journals
-                .entry(self.uuid)
-                .or_default()
-                .extend(batch.iter().cloned());
-            Ok(())
-        })
+        }
+        inboxes.sinks.insert(self.uuid, sink);
     }
 
-    fn project<'a>(&'a self, snapshot: &'a Snapshot) -> WriteFuture<'a> {
-        Box::pin(async move {
-            self.projections
-                .lock()
-                .expect("collector lock poisoned")
-                .insert(self.uuid, snapshot.clone());
-            let sink = self
-                .signals
-                .lock()
-                .expect("collector lock poisoned")
-                .clone();
-            if let Some(sink) = sink {
-                let _ = sink.send((self.uuid, snapshot.cursor)).await;
-            }
-            Ok(())
-        })
+    async fn append(&self, batch: &[JournalEntry]) -> Result<(), StoreError> {
+        let mut collected = self.journals.lock().expect("collector lock poisoned");
+        if !collected.journals.contains_key(&self.uuid) {
+            collected.creation_order.push(self.uuid);
+        }
+        collected
+            .journals
+            .entry(self.uuid)
+            .or_default()
+            .extend(batch.iter().cloned());
+        Ok(())
     }
 
-    fn announce<'a>(&'a self, update: &'a ChallengeServerUpdate) -> WriteFuture<'a> {
-        Box::pin(async move {
-            self.updates
-                .lock()
-                .expect("collector lock poisoned")
-                .push((self.uuid, *update));
-            Ok(())
-        })
+    async fn project(&self, snapshot: &Snapshot) -> Result<(), StoreError> {
+        self.projections
+            .lock()
+            .expect("collector lock poisoned")
+            .insert(self.uuid, snapshot.clone());
+        let sink = self
+            .signals
+            .lock()
+            .expect("collector lock poisoned")
+            .clone();
+        if let Some(sink) = sink {
+            let _ = sink.send((self.uuid, snapshot.cursor)).await;
+        }
+        Ok(())
+    }
+
+    async fn announce(&self, update: &ChallengeServerUpdate) -> Result<(), StoreError> {
+        self.updates
+            .lock()
+            .expect("collector lock poisoned")
+            .push((self.uuid, *update));
+        Ok(())
     }
 }
 
@@ -443,12 +571,20 @@ pub async fn run_with(config: LifecycleConfig, scenario: Scenario) -> ScenarioRe
         .lock()
         .expect("collector lock poisoned")
         .clone();
+    let inboxes = collector
+        .inboxes
+        .lock()
+        .expect("collector lock poisoned")
+        .entries
+        .iter()
+        .map(|(uuid, entries)| (*uuid, entries.iter().map(|e| e.id).collect()))
+        .collect();
 
     // Terminated challenges' snapshots outlive them.
     let mut snapshots = BTreeMap::new();
     for (uuid, _) in &journals {
         if let Some(snapshot) = coordinator.snapshot(*uuid).await
-            && !matches!(snapshot.phase, ChallengePhase::Terminated { .. })
+            && snapshot.phase != ChallengePhase::Terminated
         {
             snapshots.insert(*uuid, snapshot);
         }
@@ -460,6 +596,7 @@ pub async fn run_with(config: LifecycleConfig, scenario: Scenario) -> ScenarioRe
         snapshots,
         projections,
         updates,
+        inboxes,
     };
     check_invariants(&result);
     result
@@ -531,16 +668,17 @@ async fn issue(
                 .await
                 .ok()
         }
-        Action::Status(status) => coordinator
-            .update_client_status(ClientStatusChange {
-                user_id: identity.user_id,
-                client_id: identity.client_id,
-                session_token: identity.session_token.clone(),
-                status,
-            })
-            .await
-            .ok()
-            .flatten(),
+        Action::Status(status) => {
+            let _ = coordinator
+                .update_client_status(ClientStatusChange {
+                    user_id: identity.user_id,
+                    client_id: identity.client_id,
+                    session_token: identity.session_token.clone(),
+                    status,
+                })
+                .await;
+            None
+        }
     };
 
     Outcome {
@@ -596,7 +734,11 @@ fn check_invariants(result: &ScenarioResult) {
         }
 
         if let Some(snapshot) = result.snapshots.get(uuid) {
-            assert_eq!(snapshot.phase, folded.phase, "phase diverged: {uuid}");
+            assert_eq!(
+                snapshot.phase,
+                folded.phase.phase(),
+                "phase diverged: {uuid}"
+            );
             assert_eq!(snapshot.stage, folded.stage, "stage diverged: {uuid}");
             assert_eq!(
                 snapshot.stage_attempt, folded.stage_attempt,
@@ -612,7 +754,16 @@ fn check_invariants(result: &ScenarioResult) {
             .projections
             .get(uuid)
             .unwrap_or_else(|| panic!("challenge was never projected: {uuid}"));
-        assert_eq!(projection.phase, folded.phase, "projected phase: {uuid}");
+        assert_eq!(
+            projection.phase,
+            folded.phase.phase(),
+            "projected phase: {uuid}"
+        );
+        assert_eq!(
+            projection.status,
+            folded.phase.status(),
+            "projected status: {uuid}",
+        );
         assert_eq!(projection.stage, folded.stage, "projected stage: {uuid}");
         assert_eq!(
             projection.stage_attempt, folded.stage_attempt,
@@ -620,6 +771,18 @@ fn check_invariants(result: &ScenarioResult) {
         );
         assert_eq!(projection.mode, folded.mode, "projected mode: {uuid}");
         assert_eq!(projection.party, folded.party, "projected party: {uuid}");
+
+        // Every journaled command decision traces back to a command that was
+        // actually sent to this challenge's inbox.
+        for entry in journal {
+            if let Cause::Command(id) = entry.caused_by {
+                let sent = result
+                    .inboxes
+                    .get(uuid)
+                    .is_some_and(|inbox| inbox.contains(&id));
+                assert!(sent, "journaled command {id} was never sent: {uuid}");
+            }
+        }
 
         let mut seals = Vec::new();
         for (position, entry) in journal.iter().enumerate() {

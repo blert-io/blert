@@ -56,12 +56,55 @@ impl std::fmt::Display for Epoch {
 }
 
 /// Position of a message in a challenge's inbox, assigned in send order.
+///
+/// Shaped like a Redis stream entry ID, containing a millisecond timestamp and
+/// a sequence number within it, ordered by timestamp first.
+/// Serializes as the canonical `ms-seq` string.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct MsgId(pub u64);
+#[serde(into = "String", try_from = "String")]
+pub struct MsgId {
+    ms: u64,
+    seq: u64,
+}
+
+impl MsgId {
+    /// An id with no timestamp component for in-memory use.
+    #[must_use]
+    pub const fn sequence(seq: u64) -> Self {
+        Self { ms: 0, seq }
+    }
+}
 
 impl std::fmt::Display for MsgId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}-{}", self.ms, self.seq)
+    }
+}
+
+impl std::str::FromStr for MsgId {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let invalid = || format!("invalid message id: {s}");
+        let (ms, seq) = s.split_once('-').ok_or_else(invalid)?;
+        Ok(Self {
+            ms: ms.parse().map_err(|_| invalid())?,
+            seq: seq.parse().map_err(|_| invalid())?,
+        })
+    }
+}
+
+impl From<MsgId> for String {
+    fn from(id: MsgId) -> Self {
+        id.to_string()
+    }
+}
+
+impl TryFrom<String> for MsgId {
+    type Error = String;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        s.parse()
     }
 }
 
@@ -166,7 +209,10 @@ pub struct StageProcessingError {
 
 pub trait StageExt {
     fn challenge_type(self) -> Option<ChallengeType>;
-    fn is_retriable(&self) -> bool;
+    // Implemented for the Copy enum Stage, which is always passed by value.
+    #[allow(clippy::wrong_self_convention)]
+    fn is_retriable(self) -> bool;
+    fn later_stages(self) -> Vec<Stage>;
 }
 
 impl StageExt for Stage {
@@ -183,9 +229,24 @@ impl StageExt for Stage {
     }
 
     /// Whether a stage can be re-attempted by sending a new `STARTING` update.
-    fn is_retriable(&self) -> bool {
+    fn is_retriable(self) -> bool {
         // TODO(frolv): Handle toa
-        *self == Stage::MokhaiotlDelve8plus
+        self == Stage::MokhaiotlDelve8plus
+    }
+
+    /// Returns stages that are later than this one in its challenge.
+    fn later_stages(self) -> Vec<Stage> {
+        match self.challenge_type() {
+            // TODO(frolv): Handle toa.
+            None | Some(ChallengeType::Toa) => Vec::new(),
+            Some(ty) => ((self as i32 + 1)..)
+                .map_while(|value| {
+                    Stage::try_from(value)
+                        .ok()
+                        .filter(|stage| stage.challenge_type() == Some(ty))
+                })
+                .collect(),
+        }
     }
 }
 
@@ -274,6 +335,21 @@ mod tests {
         }
         assert_eq!(Stage::UnknownStage.challenge_type(), None);
         assert_eq!(ChallengeType::UnknownChallenge.first_stage(), None);
+    }
+
+    #[test]
+    fn later_stages_follow_the_linear_stage_order() {
+        assert_eq!(
+            Stage::TobSotetseg.later_stages(),
+            vec![Stage::TobXarpus, Stage::TobVerzik]
+        );
+        assert_eq!(Stage::TobVerzik.later_stages(), vec![]);
+        assert_eq!(
+            Stage::MokhaiotlDelve8.later_stages(),
+            vec![Stage::MokhaiotlDelve8plus]
+        );
+        assert_eq!(Stage::CoxMuttadile.later_stages(), vec![Stage::CoxOlm]);
+        assert_eq!(Stage::ColosseumWave12.later_stages(), vec![]);
     }
 
     #[test]

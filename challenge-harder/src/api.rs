@@ -178,7 +178,7 @@ async fn client_status(
     };
 
     match coordinator.update_client_status(change).await {
-        Ok(_) => StatusCode::OK.into_response(),
+        Ok(()) => StatusCode::OK.into_response(),
         Err(e) => command_error(e),
     }
 }

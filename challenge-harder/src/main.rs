@@ -8,6 +8,7 @@
 
 mod api;
 mod lifecycle;
+mod players;
 mod proto;
 mod store;
 

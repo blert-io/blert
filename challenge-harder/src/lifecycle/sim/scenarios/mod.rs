@@ -53,7 +53,7 @@ pub fn entry(seq: u64, at_ms: u64, caused_by: Cause, event: LifecycleEvent) -> J
 }
 
 pub fn cmd(n: u64) -> Cause {
-    Cause::Command(MsgId(n))
+    Cause::Command(MsgId::sequence(n))
 }
 
 pub fn client_id(client: i64) -> ClientId {

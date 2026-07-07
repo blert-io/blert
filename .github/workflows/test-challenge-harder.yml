@@ -55,4 +55,5 @@ jobs:
       - name: Run tests
         run: cargo test -p challenge-harder
         env:
-          BLERT_TEST_REDIS_URI: redis://localhost:6379
+          # Set a dedicated database for tests.
+          BLERT_TEST_REDIS_URI: redis://localhost:6379/15

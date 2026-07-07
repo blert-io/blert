@@ -53,6 +53,19 @@ pub struct Join {
     pub recording_type: RecordingType,
 }
 
+impl From<&Create> for Join {
+    fn from(create: &Create) -> Self {
+        Join {
+            user_id: create.user_id,
+            client_id: create.client_id,
+            session_token: create.session_token.clone(),
+            plugin_version: create.plugin_version.clone(),
+            runelite_version: create.runelite_version.clone(),
+            recording_type: create.recording_type,
+        }
+    }
+}
+
 /// Request to update the state of an active challenge.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

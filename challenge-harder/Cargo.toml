@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+async-trait = "0.1.89"
 axum = { version = "0.8.9", features = ["macros"] }
 futures-util = { version = "0.3.32", default-features = false, features = ["std", "async-await"] }
 prost = "0.14.4"

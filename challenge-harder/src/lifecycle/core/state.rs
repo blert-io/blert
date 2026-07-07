@@ -23,7 +23,7 @@ pub enum StageState {
 
 /// Overall lifecycle phase of a challenge.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ChallengePhase {
+pub enum PhaseState {
     /// Clients are recording the challenge.
     #[default]
     Active,
@@ -38,16 +38,53 @@ pub enum ChallengePhase {
     Terminated { status: ChallengeStatus },
 }
 
-impl ChallengePhase {
+impl PhaseState {
     /// The phase's user-facing status.
     #[must_use]
     pub fn status(self) -> ChallengeStatus {
         match self {
-            ChallengePhase::Active | ChallengePhase::Finishing { .. } => {
-                ChallengeStatus::InProgress
-            }
-            ChallengePhase::Terminated { status } => status,
+            PhaseState::Active | PhaseState::Finishing { .. } => ChallengeStatus::InProgress,
+            PhaseState::Terminated { status } => status,
         }
+    }
+
+    /// Returns the published form of the phase.
+    #[must_use]
+    pub fn phase(self) -> ChallengePhase {
+        match self {
+            PhaseState::Active => ChallengePhase::Active,
+            PhaseState::Finishing { .. } => ChallengePhase::Finishing,
+            PhaseState::Terminated { .. } => ChallengePhase::Terminated,
+        }
+    }
+}
+
+/// A challenge's lifecycle phase as published for external readers.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ChallengePhase {
+    #[default]
+    Active,
+    Finishing,
+    Terminated,
+}
+
+impl ChallengePhase {
+    /// External representation of the phase.
+    #[must_use]
+    pub fn tag(self) -> &'static str {
+        match self {
+            ChallengePhase::Active => "ACTIVE",
+            ChallengePhase::Finishing => "FINISHING",
+            ChallengePhase::Terminated => "TERMINATED",
+        }
+    }
+
+    /// Parses a phase from its representation.
+    #[must_use]
+    pub fn from_tag(tag: &str) -> Option<Self> {
+        [Self::Active, Self::Finishing, Self::Terminated]
+            .into_iter()
+            .find(|phase| phase.tag() == tag)
     }
 }
 
@@ -74,6 +111,7 @@ pub struct Snapshot {
     pub stage_attempt: Option<u32>,
     pub party: Vec<String>,
     pub phase: ChallengePhase,
+    pub status: ChallengeStatus,
     /// Last inbox message the challenge has processed, whether or not it had
     /// any effect. Lets a caller await the application of its own command.
     pub cursor: MsgId,
@@ -89,14 +127,10 @@ impl Snapshot {
             stage: state.stage,
             stage_attempt: state.stage_attempt,
             party: state.party.clone(),
-            phase: state.phase,
+            phase: state.phase.phase(),
+            status: state.phase.status(),
             cursor,
         }
-    }
-
-    #[must_use]
-    pub fn status(&self) -> ChallengeStatus {
-        self.phase.status()
     }
 }
 
@@ -106,7 +140,7 @@ pub struct ChallengeState {
     pub challenge_type: ChallengeType,
     pub mode: ChallengeMode,
     pub party: Vec<String>,
-    pub phase: ChallengePhase,
+    pub phase: PhaseState,
     /// Completion times reported by a finishing client.
     pub reported_times: Option<ReportedTimes>,
     pub stage: Stage,
