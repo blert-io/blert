@@ -73,7 +73,7 @@ async fn simultaneous_starts_reversed_order() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn late_start_joins_at_current_stage() {
+async fn earlier_stage_start_supersedes_a_live_challenge() {
     let result = run(Scenario {
         clients: vec![
             Client::participant("a", 1)
@@ -81,37 +81,50 @@ async fn late_start_joins_at_current_stage() {
                 .at(100, report(Stage::TobMaiden, StageStatus::Started))
                 .at(500, report(Stage::TobMaiden, StageStatus::Completed))
                 .at(600, report(Stage::TobBloat, StageStatus::Started)),
-            Client::participant("b", 2)
-                .at(700, tob_start())
-                .at(800, report(Stage::TobBloat, StageStatus::Started)),
+            Client::participant("b", 2).at(700, tob_start()),
         ],
         run_until: 1_000,
     })
     .await;
 
-    // The joiner's reported stage may be stale by the time it's processed;
-    // it should inherit the challenge's one.
-    let join_response = result
+    assert_eq!(result.journals.len(), 2);
+    let first = result.outcomes[0].response.as_ref().unwrap().uuid;
+    let start_response = result
         .outcomes
         .iter()
         .find(|o| o.client == "b" && o.at == 700)
         .and_then(|o| o.response.as_ref())
         .expect("b's start should succeed");
-    assert_eq!(join_response.stage, Stage::TobBloat);
+    let second = start_response.uuid;
+    assert_ne!(second, first);
+    assert_eq!(start_response.stage, Stage::TobMaiden);
 
-    let (_, journal) = result.only_challenge();
     assert_eq!(
-        journal[8..],
+        result.journals[&second],
         vec![
-            entry(8, 700, cmd(5), joined(2, RecordingType::Participant)),
             entry(
-                9,
-                800,
-                cmd(6),
-                reported(2, Stage::TobBloat, StageStatus::Started),
+                0,
+                0,
+                cmd(1),
+                LifecycleEvent::ChallengeCreated {
+                    uuid: second,
+                    challenge_type: ChallengeType::Tob,
+                    mode: ChallengeMode::TobRegular,
+                    party: duo(),
+                    stage: Stage::TobMaiden,
+                },
             ),
+            entry(1, 0, cmd(1), joined(2, RecordingType::Participant)),
         ],
     );
+
+    // The live challenge never saw b.
+    assert!(result.journals[&first].iter().all(|e| {
+        !matches!(
+            e.event,
+            LifecycleEvent::ClientJoined { client_id: joiner, .. } if joiner == client_id(2)
+        )
+    }));
 }
 
 #[tokio::test(start_paused = true)]

@@ -129,7 +129,7 @@ mod tests {
         let entry = JournalEntry {
             seq: JournalSeq(4),
             at: Timestamp::from_millis(1_500),
-            caused_by: Cause::Command(MsgId(9)),
+            caused_by: Cause::Command(MsgId::sequence(9)),
             event: LifecycleEvent::StageSealed {
                 stage: Stage::TobBloat,
                 attempt: None,
@@ -139,7 +139,7 @@ mod tests {
         let json = serde_json::to_string(&entry).unwrap();
         assert_eq!(
             json,
-            r#"{"seq":4,"at":1500,"caused_by":9,"event":{"StageSealed":{"stage":11,"attempt":null,"forced":true}}}"#
+            r#"{"seq":4,"at":1500,"caused_by":"0-9","event":{"StageSealed":{"stage":11,"attempt":null,"forced":true}}}"#
         );
         assert_eq!(serde_json::from_str::<JournalEntry>(&json).unwrap(), entry);
 

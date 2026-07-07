@@ -7,11 +7,15 @@ use crate::lifecycle::core::types::ChallengeStatus;
 use crate::lifecycle::sim::{Scenario, run};
 
 fn solo_tob_start() -> Action {
+    solo_tob_start_at(Stage::TobMaiden)
+}
+
+fn solo_tob_start_at(stage: Stage) -> Action {
     Action::Start {
         challenge_type: ChallengeType::Tob,
         mode: ChallengeMode::TobRegular,
         party: vec!["WWWWWWWWWWQQ".into()],
-        stage: Stage::TobMaiden,
+        stage,
     }
 }
 
@@ -168,7 +172,8 @@ async fn rejoin_within_window_resumes_challenge() {
                 .at(900, disconnect()),
             Client::participant("a2", 2)
                 .with_user(1)
-                .at(60_900, solo_tob_start())
+                // The reconnecting client announces the current stage.
+                .at(60_900, solo_tob_start_at(Stage::TobBloat))
                 .at(61_000, report(Stage::TobBloat, StageStatus::Started))
                 .at(61_500, report(Stage::TobBloat, StageStatus::Completed))
                 .at(61_600, report(Stage::TobNylocas, StageStatus::Started))

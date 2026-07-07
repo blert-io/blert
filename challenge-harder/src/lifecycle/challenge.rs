@@ -1,20 +1,18 @@
 //! Live challenge state processing.
 
 use core::future::Future;
-use core::pin::Pin;
 use core::time::Duration;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
 
-use tokio::sync::{mpsc, watch};
+use async_trait::async_trait;
+use tokio::sync::mpsc;
 
 use super::core::apply::apply;
-use super::core::command::{Command, Envelope};
+use super::core::command::{Command, Create, Envelope};
 use super::core::deadline::{LifecycleConfig, next_deadline};
 use super::core::decide::decide;
 use super::core::event::{Cause, JournalEntry, LifecycleEvent};
-use super::core::state::{ChallengePhase, ChallengeState, Snapshot};
-use super::core::types::{JournalSeq, MsgId, Timestamp, Uuid};
+use super::core::state::{ChallengeState, PhaseState, Snapshot};
+use super::core::types::{ClientId, JournalSeq, MsgId, Timestamp, Uuid};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum StoreError {
@@ -26,22 +24,42 @@ pub enum StoreError {
     Unavailable(String),
 }
 
-pub type ClaimFuture<'a> =
-    Pin<Box<dyn Future<Output = Result<Box<dyn ChallengeClaim>, StoreError>> + Send + 'a>>;
-pub type WriteFuture<'a> = Pin<Box<dyn Future<Output = Result<(), StoreError>> + Send + 'a>>;
-pub type ReadFuture<'a> =
-    Pin<Box<dyn Future<Output = Result<Option<Snapshot>, StoreError>> + Send + 'a>>;
+/// A claim on a challenge, pairing the challenge's identity with exclusive
+/// write access to its durable state.
+pub struct Claim {
+    uuid: Uuid,
+    inner: Box<dyn ChallengeClaim>,
+}
 
-/// Durable storage for challenge state, granting exclusive access through claims.
-pub trait ChallengeStore: Send + Sync + 'static {
-    /// Opens a new epoch claim on challenge `uuid`.
-    fn claim(&self, uuid: Uuid) -> ClaimFuture<'_>;
+impl Claim {
+    #[must_use]
+    pub fn new(uuid: Uuid, inner: Box<dyn ChallengeClaim>) -> Self {
+        Claim { uuid, inner }
+    }
 
-    /// Reads the last projected state of challenge `uuid`.
-    fn read(&self, uuid: Uuid) -> ReadFuture<'_>;
+    /// Identifier of the challenge this claim owns.
+    #[must_use]
+    pub fn uuid(&self) -> Uuid {
+        self.uuid
+    }
+}
 
-    /// Delivers notifications of all challenge state updates to `sink`.
-    fn subscribe(&self, sink: mpsc::Sender<(Uuid, MsgId)>);
+impl std::ops::Deref for Claim {
+    type Target = dyn ChallengeClaim;
+
+    fn deref(&self) -> &Self::Target {
+        self.inner.as_ref()
+    }
+}
+
+/// Resolution of a request to start a challenge for a party.
+pub enum Start {
+    /// This instance created and owns the challenge; its create is queued at
+    /// the returned position.
+    Created { claim: Claim, id: MsgId },
+    /// Joined an active challenge for the party; the join is queued at the
+    /// returned position.
+    Joined { uuid: Uuid, id: MsgId },
 }
 
 /// A lifecycle milestone broadcast to external consumers.
@@ -53,25 +71,67 @@ pub enum ChallengeServerUpdate {
     Finish,
 }
 
-/// An exclusive handle to a challenge's durable state. Gives access to writes
-/// to the state, as long as the epoch is still valid.
-pub trait ChallengeClaim: Send + Sync + 'static {
-    /// Appends a decision's entries to the challenge's journal as a single atomic batch.
-    fn append<'a>(&'a self, batch: &'a [JournalEntry]) -> WriteFuture<'a>;
+/// Durable storage for challenge state, granting exclusive access through claims.
+#[async_trait]
+pub trait ChallengeStore: Send + Sync + 'static {
+    /// Opens a new epoch claim on challenge `uuid`.
+    async fn claim(&self, uuid: Uuid) -> Result<Box<dyn ChallengeClaim>, StoreError>;
 
-    /// Publishes a snapshot of the challenge's state, signaling its update.
-    fn project<'a>(&'a self, snapshot: &'a Snapshot) -> WriteFuture<'a>;
+    /// Starts a challenge for `party`, either creating and claiming a new one
+    /// with `create` queued as its first command, or joining the party's
+    /// running challenge with a join queued. Atomic with respect to other
+    /// starts.
+    async fn start(&self, party: &str, create: Create) -> Result<Start, StoreError>;
 
-    /// Broadcasts a lifecycle milestone to consumers.
-    fn announce<'a>(&'a self, update: &'a ChallengeServerUpdate) -> WriteFuture<'a>;
+    /// Queues a command into the inbox for challenge `uuid`, returning its
+    /// assigned ID, or `None` if no such challenge exists.
+    ///
+    /// The inbox is durable, ordered, and independent of any processing task;
+    /// commands may be queued before one exists.
+    async fn send(&self, uuid: Uuid, cmd: &Command) -> Result<Option<MsgId>, StoreError>;
+
+    /// Queues a command into the inbox of the challenge that `client` is
+    /// currently recording. Returns the challenge and the command's assigned
+    /// ID, or `None` if the client is not in a live challenge.
+    async fn send_to_current_challenge(
+        &self,
+        client: ClientId,
+        cmd: &Command,
+    ) -> Result<Option<(Uuid, MsgId)>, StoreError>;
+
+    /// Reads the last projected state of challenge `uuid`.
+    async fn read(&self, uuid: Uuid) -> Result<Option<Snapshot>, StoreError>;
+
+    /// Delivers notifications of all challenge state updates to `sink`.
+    fn subscribe(&self, sink: mpsc::Sender<(Uuid, MsgId)>);
 }
 
-/// Claims challenge `uuid`, retrying transient failures.
-pub async fn claim_challenge(
-    store: &dyn ChallengeStore,
-    uuid: Uuid,
-) -> Result<Box<dyn ChallengeClaim>, StoreError> {
-    with_retries(uuid, || store.claim(uuid)).await
+/// An exclusive handle to a challenge's durable state. Gives access to writes
+/// to the state, as long as the epoch is still valid.
+#[async_trait]
+pub trait ChallengeClaim: Send + Sync + 'static {
+    /// Delivers the challenge's inbox entries positioned after `from` into
+    /// `sink`, in order, until `sink` closes.
+    fn follow(&self, from: MsgId, sink: mpsc::Sender<Envelope>);
+
+    /// Appends a decision's entries to the challenge's journal as a single atomic batch.
+    async fn append(&self, batch: &[JournalEntry]) -> Result<(), StoreError>;
+
+    /// Publishes a snapshot of the challenge's state, signaling its update.
+    async fn project(&self, snapshot: &Snapshot) -> Result<(), StoreError>;
+
+    /// Broadcasts a lifecycle milestone to consumers.
+    async fn announce(&self, update: &ChallengeServerUpdate) -> Result<(), StoreError>;
+}
+
+/// Capacity of the channel between a challenge's inbox feed and its actor task.
+const INBOX_BUFFER_LEN: usize = 32;
+
+/// Processes a claimed challenge's inbox until it terminates.
+pub async fn run_challenge(config: LifecycleConfig, claim: Claim) {
+    let (tx, rx) = mpsc::channel(INBOX_BUFFER_LEN);
+    claim.follow(MsgId::default(), tx);
+    ActiveChallenge::new(config, claim).run(rx).await;
 }
 
 // Transient store failures are retried inline before the caller gives up.
@@ -97,50 +157,20 @@ where
     }
 }
 
-// TODO(frolv): This is temporary for initial testing.
-#[derive(Clone)]
-pub struct CommandSender {
-    tx: mpsc::UnboundedSender<Envelope>,
-    next_id: Arc<AtomicU64>,
-}
-
-impl CommandSender {
-    /// Queues a command, returning its inbox position. A caller can await its
-    /// application by watching for a snapshot whose cursor reaches it.
-    pub fn send(&self, cmd: Command) -> MsgId {
-        let id = MsgId(self.next_id.fetch_add(1, Ordering::Relaxed) + 1);
-        // Failure means the challenge is gone.
-        let _ = self.tx.send(Envelope { id, cmd });
-        id
-    }
-}
-
-#[must_use]
-pub fn inbox() -> (CommandSender, mpsc::UnboundedReceiver<Envelope>) {
-    let (tx, rx) = mpsc::unbounded_channel();
-    (
-        CommandSender {
-            tx,
-            next_id: Arc::new(AtomicU64::new(0)),
-        },
-        rx,
-    )
-}
-
 /// Processing task for an ongoing challenge.
 pub struct ActiveChallenge {
     pub state: ChallengeState,
     config: LifecycleConfig,
-    claim: Box<dyn ChallengeClaim>,
+    claim: Claim,
     next_seq: u64,
 }
 
 impl ActiveChallenge {
     #[must_use]
-    pub fn new(uuid: Uuid, config: LifecycleConfig, claim: Box<dyn ChallengeClaim>) -> Self {
+    pub fn new(config: LifecycleConfig, claim: Claim) -> Self {
         ActiveChallenge {
             state: ChallengeState {
-                uuid,
+                uuid: claim.uuid,
                 ..ChallengeState::default()
             },
             config,
@@ -151,7 +181,7 @@ impl ActiveChallenge {
 
     /// Serially applies inbox commands and their implied deadline timers until
     /// the challenge terminates, publishing a fresh state snapshot after each.
-    pub async fn run(&mut self, mut inbox: mpsc::UnboundedReceiver<Envelope>) {
+    pub async fn run(&mut self, mut inbox: mpsc::Receiver<Envelope>) {
         let started = tokio::time::Instant::now();
         let mut cursor = self.state.cursor;
 
@@ -224,7 +254,7 @@ impl ActiveChallenge {
                 }
             }
 
-            if let ChallengePhase::Terminated { .. } = self.state.phase {
+            if let PhaseState::Terminated { .. } = self.state.phase {
                 let finish = ChallengeServerUpdate::Finish;
                 if let Err(error) =
                     with_retries(self.state.uuid, || self.claim.announce(&finish)).await
@@ -244,12 +274,14 @@ impl ActiveChallenge {
 #[cfg(test)]
 mod tests {
     use std::collections::VecDeque;
-    use std::sync::Mutex;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::{Arc, Mutex};
 
     use super::*;
     use crate::lifecycle::core::command::Create;
+    use crate::lifecycle::core::state::ChallengePhase;
     use crate::lifecycle::core::types::{
-        ChallengeMode, ChallengeType, ClientId, RecordingType, Stage, UserId,
+        ChallengeMode, ChallengeStatus, ChallengeType, ClientId, RecordingType, Stage, UserId,
     };
 
     #[derive(Default)]
@@ -272,33 +304,32 @@ mod tests {
 
     struct ScriptedClaim(Arc<ClaimLog>);
 
+    #[async_trait]
     impl ChallengeClaim for ScriptedClaim {
-        fn append<'a>(&'a self, batch: &'a [JournalEntry]) -> WriteFuture<'a> {
-            Box::pin(async move {
-                self.0.next_result()?;
-                self.0
-                    .appended
-                    .lock()
-                    .unwrap()
-                    .extend(batch.iter().cloned());
-                Ok(())
-            })
+        fn follow(&self, _from: MsgId, _sink: mpsc::Sender<Envelope>) {
+            unimplemented!("scripted runs feed the actor's inbox directly");
         }
 
-        fn project<'a>(&'a self, snapshot: &'a Snapshot) -> WriteFuture<'a> {
-            Box::pin(async move {
-                self.0.next_result()?;
-                self.0.projected.lock().unwrap().push(snapshot.clone());
-                Ok(())
-            })
+        async fn append(&self, batch: &[JournalEntry]) -> Result<(), StoreError> {
+            self.0.next_result()?;
+            self.0
+                .appended
+                .lock()
+                .unwrap()
+                .extend(batch.iter().cloned());
+            Ok(())
         }
 
-        fn announce<'a>(&'a self, update: &'a ChallengeServerUpdate) -> WriteFuture<'a> {
-            Box::pin(async move {
-                self.0.next_result()?;
-                self.0.announced.lock().unwrap().push(*update);
-                Ok(())
-            })
+        async fn project(&self, snapshot: &Snapshot) -> Result<(), StoreError> {
+            self.0.next_result()?;
+            self.0.projected.lock().unwrap().push(snapshot.clone());
+            Ok(())
+        }
+
+        async fn announce(&self, update: &ChallengeServerUpdate) -> Result<(), StoreError> {
+            self.0.next_result()?;
+            self.0.announced.lock().unwrap().push(*update);
+            Ok(())
         }
     }
 
@@ -316,25 +347,29 @@ mod tests {
             ..ClaimLog::default()
         });
         let mut challenge = ActiveChallenge::new(
-            uuid,
             LifecycleConfig::default(),
-            Box::new(ScriptedClaim(log.clone())),
+            Claim::new(uuid, Box::new(ScriptedClaim(log.clone()))),
         );
 
-        let (sender, rx) = inbox();
-        sender.send(Command::Create(Create {
-            user_id: UserId(1),
-            client_id: ClientId(10),
-            session_token: "tok1".into(),
-            plugin_version: "0.9.14".into(),
-            runelite_version: "1.12.31.1".into(),
-            challenge_type: ChallengeType::Tob,
-            mode: ChallengeMode::TobRegular,
-            party: vec!["a".into()],
-            stage: Stage::TobMaiden,
-            recording_type: RecordingType::Participant,
-        }));
-        drop(sender);
+        let (tx, rx) = mpsc::channel(1);
+        tx.send(Envelope {
+            id: MsgId::sequence(1),
+            cmd: Command::Create(Create {
+                user_id: UserId(1),
+                client_id: ClientId(10),
+                session_token: "tok1".into(),
+                plugin_version: "0.9.14".into(),
+                runelite_version: "1.12.31.1".into(),
+                challenge_type: ChallengeType::Tob,
+                mode: ChallengeMode::TobRegular,
+                party: vec!["a".into()],
+                stage: Stage::TobMaiden,
+                recording_type: RecordingType::Participant,
+            }),
+        })
+        .await
+        .expect("inbox should accept the create");
+        drop(tx);
         challenge.run(rx).await;
 
         RunOutcome { log, uuid }
@@ -356,7 +391,7 @@ mod tests {
                 JournalEntry {
                     seq: JournalSeq(0),
                     at: Timestamp::ZERO,
-                    caused_by: Cause::Command(MsgId(1)),
+                    caused_by: Cause::Command(MsgId::sequence(1)),
                     event: LifecycleEvent::ChallengeCreated {
                         uuid: outcome.uuid,
                         challenge_type: ChallengeType::Tob,
@@ -368,7 +403,7 @@ mod tests {
                 JournalEntry {
                     seq: JournalSeq(1),
                     at: Timestamp::ZERO,
-                    caused_by: Cause::Command(MsgId(1)),
+                    caused_by: Cause::Command(MsgId::sequence(1)),
                     event: LifecycleEvent::ClientJoined {
                         client_id: ClientId(10),
                         user_id: UserId(1),
@@ -386,7 +421,8 @@ mod tests {
             stage_attempt: None,
             party: vec!["a".into()],
             phase: ChallengePhase::Active,
-            cursor: MsgId(1),
+            status: ChallengeStatus::InProgress,
+            cursor: MsgId::sequence(1),
         };
         assert_eq!(*outcome.log.projected.lock().unwrap(), vec![expected]);
     }

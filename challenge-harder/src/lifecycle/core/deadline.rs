@@ -7,7 +7,7 @@ use core::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
-use super::state::{ChallengePhase, ChallengeState, StageState};
+use super::state::{ChallengeState, PhaseState, StageState};
 use super::types::Timestamp;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -58,7 +58,7 @@ impl Default for LifecycleConfig {
 /// Returns the next deadline implied by `state`, if any.
 #[must_use]
 pub fn next_deadline(state: &ChallengeState, config: &LifecycleConfig) -> Option<Deadline> {
-    if let ChallengePhase::Terminated { .. } = state.phase {
+    if let PhaseState::Terminated { .. } = state.phase {
         return None;
     }
 
@@ -70,7 +70,7 @@ pub fn next_deadline(state: &ChallengeState, config: &LifecycleConfig) -> Option
         });
     }
 
-    if let ChallengePhase::Finishing { since, .. } = state.phase {
+    if let PhaseState::Finishing { since, .. } = state.phase {
         // Start the completion grace period from when the stage was finalized.
         let anchor = match state.stage_state {
             StageState::Complete { since: sealed_at } => since.max(sealed_at),
@@ -159,7 +159,7 @@ mod tests {
             stage_state: StageState::Ending {
                 since: Timestamp::from_millis(5_000),
             },
-            phase: ChallengePhase::Finishing {
+            phase: PhaseState::Finishing {
                 since: Timestamp::from_millis(5_100),
                 status: ChallengeStatus::Wiped,
             },
@@ -181,7 +181,7 @@ mod tests {
             stage_state: StageState::Complete {
                 since: Timestamp::from_millis(7_000),
             },
-            phase: ChallengePhase::Finishing {
+            phase: PhaseState::Finishing {
                 since: Timestamp::from_millis(5_100),
                 status: ChallengeStatus::Wiped,
             },
@@ -196,7 +196,7 @@ mod tests {
         );
 
         // A definitive finish arriving after the seal anchors the grace.
-        state.phase = ChallengePhase::Finishing {
+        state.phase = PhaseState::Finishing {
             since: Timestamp::from_millis(8_000),
             status: ChallengeStatus::Wiped,
         };
@@ -212,7 +212,7 @@ mod tests {
     #[test]
     fn finish_without_stage_report_runs_grace_from_finish() {
         let state = ChallengeState {
-            phase: ChallengePhase::Finishing {
+            phase: PhaseState::Finishing {
                 since: Timestamp::from_millis(5_000),
                 status: ChallengeStatus::Abandoned,
             },
@@ -275,7 +275,7 @@ mod tests {
         state.stage_state = StageState::Complete {
             since: Timestamp::from_millis(7_000),
         };
-        state.phase = ChallengePhase::Finishing {
+        state.phase = PhaseState::Finishing {
             since: Timestamp::from_millis(7_100),
             status: ChallengeStatus::Wiped,
         };
@@ -302,7 +302,7 @@ mod tests {
     #[test]
     fn terminated_challenge_has_no_deadlines() {
         let state = ChallengeState {
-            phase: ChallengePhase::Terminated {
+            phase: PhaseState::Terminated {
                 status: ChallengeStatus::Wiped,
             },
             stage_state: StageState::Complete {

@@ -1,0 +1,192 @@
+//! Lua scripts executed against the Redis storage layer.
+
+use std::sync::LazyLock;
+
+use redis::Script;
+
+use super::{CHALLENGE_KEY_PREFIX, CHALLENGE_UPDATES_CHANNEL, INBOX_KEY_PREFIX, SIGNAL_CHANNEL};
+use crate::lifecycle::core::{state::ChallengePhase, types::Epoch};
+
+/// Claims a challenge's fence for an epoch. The fence may be newly
+/// established or already held at the same epoch.
+///
+/// `KEYS[1]` = Challenge's lease hash
+/// `ARGV[1]` = Lease epoch
+// TODO(frolv): Extend to full lease claims (owner, deadline, epoch bumps)
+// when reclamation lands.
+pub(super) static CLAIM_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
+    Script::new(
+        r"
+        redis.call('HSETNX', KEYS[1], 'fence', ARGV[1])
+        if redis.call('HGET', KEYS[1], 'fence') == ARGV[1] then
+            return 1
+        end
+        return 0
+        ",
+    )
+});
+
+/// Appends a batch of journal entries as a single stream entry, provided the
+/// appender's epoch still holds the challenge's fence.
+///
+/// `KEYS[1]` = Challenge's lease hash
+/// `KEYS[2]` = Challenge's journal stream
+///
+/// `ARGV[1]` = Lease epoch
+/// `ARGV[2]` = Serialized journal entries.
+pub(super) static APPEND_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
+    Script::new(
+        r"
+        if redis.call('HGET', KEYS[1], 'fence') ~= ARGV[1] then
+            return 0
+        end
+        redis.call('XADD', KEYS[2], '*', 'epoch', ARGV[1], 'batch', ARGV[2])
+        return 1
+        ",
+    )
+});
+
+/// Writes the challenge's state hash and signals the update, provided
+/// the writer's epoch still holds the challenge's fence.
+///
+/// `KEYS[1]` = Challenge's state hash
+/// `KEYS[2]` = Challenge's lease hash
+///
+/// `ARGV[1]` = Lease epoch
+/// `ARGV[2]` = Serialized update signal
+///
+/// `ARGV[N, N+1]...` = Key-value pairs to set in the state hash.
+pub(super) static PROJECT_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
+    Script::new(&format!(
+        r"
+        if redis.call('HGET', KEYS[2], 'fence') ~= ARGV[1] then
+            return 0
+        end
+        redis.call('HSET', KEYS[1], unpack(ARGV, 3))
+        redis.call('PUBLISH', '{SIGNAL_CHANNEL}', ARGV[2])
+        return 1
+        ",
+    ))
+});
+
+/// Broadcasts a challenge lifecycle update to the updates pubsub channel,
+/// provided the writer's epoch still holds the challenge's fence.
+///
+/// `KEYS[1]` = Challenge's lease hash
+///
+/// `ARGV[1]` = Lease epoch
+/// `ARGV[2]` = Serialized challenge update
+pub(super) static ANNOUNCE_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
+    Script::new(&format!(
+        r"
+        if redis.call('HGET', KEYS[1], 'fence') ~= ARGV[1] then
+            return 0
+        end
+        redis.call('PUBLISH', '{CHALLENGE_UPDATES_CHANNEL}', ARGV[2])
+        return 1
+        ",
+    ))
+});
+
+/// Starts a challenge for a client, either creating a new challenge for the
+/// party, or joining the party's existing one if it is live. A live challenge
+/// is either active or does not yet have any state because it is initializing.
+/// If the incoming stage is earlier than the active challenge's stage, it is
+/// counted as the start of a new challenge.
+///
+/// If creating a challenge, adds its UUID to the index owned until the given
+/// lease deadline, establishes its fence at the initial epoch, points each
+/// party member's player key at it, and pushes an initial creation command to
+/// its inbox.
+/// If joining, pushes the join command to the incumbent's inbox instead,
+/// leaving the player keys alone as the party is unchanged.
+///
+/// `KEYS[1]` = Party directory key
+/// `KEYS[2]` = Challenge index
+/// `KEYS[3]` = New challenge's lease hash
+/// `KEYS[4]` = The client's active challenge key
+/// `KEYS[5]` = New challenge's inbox stream
+/// `KEYS[6..]` = Party members' player keys
+///
+/// `ARGV[1]` = Fresh challenge uuid
+/// `ARGV[2]` = Lease deadline for the created challenge
+/// `ARGV[3]` = Serialized create command
+/// `ARGV[4]` = Serialized join command
+/// `ARGV[5]` = List of stages for the challenge beyond the incoming one
+pub(super) static START_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
+    Script::new(&format!(
+        r"
+        local incumbent = redis.call('GET', KEYS[1])
+        if incumbent then
+            local challenge = '{CHALLENGE_KEY_PREFIX}' .. incumbent
+            local phase = redis.call('HGET', challenge, 'phase')
+            local joinable = phase == false
+            if phase == '{active}' then
+                local stage = redis.call('HGET', challenge, 'stage')
+                joinable = not (stage and string.find(ARGV[5], ',' .. stage .. ',', 1, true))
+            end
+            if joinable then
+                redis.call('SET', KEYS[4], incumbent)
+                local id = redis.call('XADD', '{INBOX_KEY_PREFIX}' .. incumbent, '*', 'cmd', ARGV[4])
+                return {{'JOIN', incumbent, id}}
+            end
+        end
+        redis.call('SET', KEYS[1], ARGV[1])
+        redis.call('ZADD', KEYS[2], ARGV[2], ARGV[1])
+        redis.call('HSETNX', KEYS[3], 'fence', {initial_epoch})
+        redis.call('SET', KEYS[4], ARGV[1])
+        for i = 6, #KEYS do
+            redis.call('SET', KEYS[i], ARGV[1])
+        end
+        local id = redis.call('XADD', KEYS[5], '*', 'cmd', ARGV[3])
+        return {{'CREATE', id}}
+        ",
+        active = ChallengePhase::Active.tag(),
+        initial_epoch = Epoch::INITIAL,
+    ))
+});
+
+/// Queues a command into a challenge's inbox, provided the challenge exists.
+///
+/// `KEYS[1]` = Existence index
+/// `KEYS[2]` = Challenge's inbox stream
+///
+/// `ARGV[1]` = Challenge uuid
+/// `ARGV[2]` = Serialized command
+pub(super) static SEND_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
+    Script::new(
+        r"
+        if redis.call('ZSCORE', KEYS[1], ARGV[1]) == false then
+            return false
+        end
+        return redis.call('XADD', KEYS[2], '*', 'cmd', ARGV[2])
+        ",
+    )
+});
+
+/// Queues a command into the inbox of the challenge a client is currently
+/// recording, ruled from the client's routing key: no key or a terminated
+/// challenge means none. A challenge with no state yet is still applying its
+/// create, and accepts. The challenge's state hash and inbox are addressed
+/// dynamically from the routing key's value.
+///
+/// `KEYS[1]` = Client routing key
+///
+/// `ARGV[1]` = Serialized command
+pub(super) static CLIENT_SEND_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
+    Script::new(&format!(
+        r"
+        local uuid = redis.call('GET', KEYS[1])
+        if not uuid then
+            return false
+        end
+        local phase = redis.call('HGET', '{CHALLENGE_KEY_PREFIX}' .. uuid, 'phase')
+        if phase == '{terminated}' then
+            return false
+        end
+        local id = redis.call('XADD', '{INBOX_KEY_PREFIX}' .. uuid, '*', 'cmd', ARGV[1])
+        return {{uuid, id}}
+        ",
+        terminated = ChallengePhase::Terminated.tag(),
+    ))
+});

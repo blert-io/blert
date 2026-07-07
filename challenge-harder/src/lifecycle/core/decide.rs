@@ -7,7 +7,7 @@
 use super::command::{ClientStatus, ClientStatusChange, Command, Create, Finish, Join, Update};
 use super::deadline::{Deadline, DeadlineKind, LifecycleConfig, next_deadline};
 use super::event::LifecycleEvent;
-use super::state::{ChallengePhase, ChallengeState, ClientState, StageState};
+use super::state::{ChallengeState, ClientState, PhaseState, StageState};
 use super::types::{
     ChallengeMode, ChallengeStatus, ChallengeType, ChallengeTypeExt, RecordingType, Stage,
     StageExt, StageStatus,
@@ -20,7 +20,7 @@ pub fn decide(
     config: &LifecycleConfig,
     cmd: &Command,
 ) -> Vec<LifecycleEvent> {
-    if let ChallengePhase::Terminated { .. } = state.phase {
+    if let PhaseState::Terminated { .. } = state.phase {
         todo!("commands after termination");
     }
 
@@ -235,7 +235,7 @@ fn deadline_fired(
             forced: true,
         }],
         DeadlineKind::ChallengeEnd => {
-            let ChallengePhase::Finishing { status, .. } = state.phase else {
+            let PhaseState::Finishing { status, .. } = state.phase else {
                 unreachable!("ChallengeEnd is only derivable when finishing");
             };
 
@@ -293,7 +293,7 @@ fn finish(state: &ChallengeState, finish: &Finish) -> Vec<LifecycleEvent> {
     if state.clients.len() > 1 {
         // Wait for other clients to report their finishes.
         let mut events = Vec::new();
-        if definitive && matches!(state.phase, ChallengePhase::Active) {
+        if definitive && matches!(state.phase, PhaseState::Active) {
             events.push(LifecycleEvent::ChallengeFinishing {
                 status: terminal_status(state.challenge_type, client.stage, client.stage_status),
             });
@@ -313,7 +313,7 @@ fn finish(state: &ChallengeState, finish: &Finish) -> Vec<LifecycleEvent> {
         });
     }
 
-    let status = if let ChallengePhase::Finishing { status, .. } = state.phase {
+    let status = if let PhaseState::Finishing { status, .. } = state.phase {
         status
     } else {
         terminal_status(state.challenge_type, client.stage, client.stage_status)
@@ -1441,7 +1441,7 @@ mod tests {
             (CLIENT_A, client(Stage::TobMaiden, StageStatus::Wiped, None)),
             (CLIENT_B, client(Stage::TobMaiden, StageStatus::Wiped, None)),
         ]);
-        state.phase = ChallengePhase::Finishing {
+        state.phase = PhaseState::Finishing {
             since: Timestamp::from_millis(5_000),
             status: ChallengeStatus::Wiped,
         };
@@ -1501,7 +1501,7 @@ mod tests {
             CLIENT_B,
             client(Stage::TobMaiden, StageStatus::Started, None),
         )]);
-        state.phase = ChallengePhase::Finishing {
+        state.phase = PhaseState::Finishing {
             since: Timestamp::from_millis(5_000),
             status: ChallengeStatus::Wiped,
         };
@@ -1539,7 +1539,7 @@ mod tests {
                 client(Stage::TobMaiden, StageStatus::Started, None),
             ),
         ]);
-        state.phase = ChallengePhase::Finishing {
+        state.phase = PhaseState::Finishing {
             since: Timestamp::from_millis(5_100),
             status: ChallengeStatus::Wiped,
         };

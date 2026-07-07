@@ -2,17 +2,18 @@
 //! ruling on creation.
 
 use core::time::Duration;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
 
-use super::challenge::{ActiveChallenge, ChallengeStore, CommandSender, claim_challenge, inbox};
+use super::challenge::{ChallengeStore, Start, run_challenge};
 use super::core::command::{ClientStatusChange, Command, Create, Finish, Join, Update};
 use super::core::deadline::LifecycleConfig;
 use super::core::state::{ChallengePhase, Snapshot};
 use super::core::types::{ChallengeType, ClientId, MsgId, Uuid};
+use crate::players::normalize_rsn;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum CommandError {
@@ -32,6 +33,9 @@ struct SnapshotCache {
 impl SnapshotCache {
     /// How long a response waiter sleeps before rechecking the store directly.
     const REREAD_INTERVAL: Duration = Duration::from_secs(1);
+
+    /// Longest a caller waits for its command to be applied before giving up.
+    const APPLIED_TIMEOUT: Duration = Duration::from_secs(5);
 
     /// Update signals queued from the store subscription.
     const SIGNAL_BUFFER_LEN: usize = 128;
@@ -62,6 +66,7 @@ impl SnapshotCache {
     /// returning its state. `None` indicates that the challenge shut down
     /// without processing it.
     async fn applied(&self, uuid: Uuid, id: MsgId) -> Option<Snapshot> {
+        let deadline = tokio::time::Instant::now() + Self::APPLIED_TIMEOUT;
         let mut updates = self.subscribe(uuid);
         let reached = |s: &Option<Snapshot>| s.as_ref().is_some_and(|s| s.cursor >= id);
         loop {
@@ -81,6 +86,10 @@ impl SnapshotCache {
                     };
                 }
                 Err(_) => {
+                    if tokio::time::Instant::now() >= deadline {
+                        tracing::warn!(%uuid, %id, "applied_wait_timed_out");
+                        return None;
+                    }
                     // Check the store directly if no signal was received.
                     self.refresh(uuid).await;
                 }
@@ -150,11 +159,6 @@ impl SnapshotCache {
 /// Which challenge a group of players is recording.
 type PartyKey = String;
 
-/// Standard RSN normalization, as in `//common/player.ts`.
-fn normalize_rsn(name: &str) -> String {
-    name.to_lowercase().replace(['-', ' '], "_")
-}
-
 fn party_key(challenge_type: ChallengeType, party: &[String]) -> PartyKey {
     // Matches `challengePartyKey` in `//common/db/redis.ts`.
     let mut sorted: Vec<&String> = party.iter().collect();
@@ -163,12 +167,10 @@ fn party_key(challenge_type: ChallengeType, party: &[String]) -> PartyKey {
     format!("{}-{}", challenge_type as i32, names.join("-"))
 }
 
+/// Record of the challenges whose processing tasks are running locally.
 #[derive(Default)]
 struct Registry {
-    challenges: HashMap<Uuid, CommandSender>,
-    directory: HashMap<PartyKey, Uuid>,
-    /// Which challenge a client is recording, if any.
-    clients: HashMap<ClientId, Uuid>,
+    challenges: HashSet<Uuid>,
 }
 
 pub struct Coordinator {
@@ -205,82 +207,64 @@ impl Coordinator {
     /// the challenge's state once the request has been applied.
     /// `None` means the challenge shut down before the request could be processed.
     pub async fn create_or_join_challenge(&self, create: Create) -> Option<Snapshot> {
-        let (id, uuid, joined) = {
-            let key = party_key(create.challenge_type, &create.party);
-            let mut registry = self.registry.lock().expect("coordinator lock poisoned");
+        let key = party_key(create.challenge_type, &create.party);
+        let challenge_type = create.challenge_type;
+        let stage = create.stage;
+        let user_id = create.user_id;
+        let client_id = create.client_id;
+        let party = create.party.clone();
 
-            // TODO(frolv): Move this to a lua script
-            let incumbent = registry
-                .directory
-                .get(&key)
-                .and_then(|uuid| Some((*uuid, registry.challenges.get(uuid)?.clone())))
-                // A challenge which has not yet published any state is still
-                // applying its create, and is joinable.
-                .filter(|(uuid, _)| {
-                    self.cache
-                        .phase(*uuid)
-                        .is_none_or(|phase| phase == ChallengePhase::Active)
-                });
-
-            if let Some((uuid, sender)) = incumbent {
-                tracing::debug!(
-                    %uuid,
-                    user_id = %create.user_id,
-                    client_id = %create.client_id,
-                    "challenge_joined",
+        let start = match self.store.start(&key, create).await {
+            Ok(start) => start,
+            Err(error) => {
+                tracing::error!(
+                    ?challenge_type,
+                    ?party,
+                    %user_id,
+                    %client_id,
+                    %error,
+                    "challenge_start_failed",
                 );
-                registry.clients.insert(create.client_id, uuid);
-                let id = sender.send(Command::Join(Join {
-                    user_id: create.user_id,
-                    client_id: create.client_id,
-                    session_token: create.session_token,
-                    plugin_version: create.plugin_version,
-                    runelite_version: create.runelite_version,
-                    recording_type: create.recording_type,
-                }));
-                (id, uuid, true)
-            } else {
-                let uuid = Uuid::new_v4();
+                return None;
+            }
+        };
+
+        let (id, uuid, joined) = match start {
+            Start::Created { claim, id } => {
+                let uuid = claim.uuid();
                 tracing::debug!(
                     %uuid,
-                    challenge_type = ?create.challenge_type,
-                    party = ?create.party,
-                    stage = ?create.stage,
-                    user_id = %create.user_id,
-                    client_id = %create.client_id,
+                    ?challenge_type,
+                    ?party,
+                    ?stage,
+                    %user_id,
+                    %client_id,
                     "challenge_created",
                 );
-                let (sender, rx) = inbox();
+                self.registry
+                    .lock()
+                    .expect("coordinator lock poisoned")
+                    .challenges
+                    .insert(uuid);
 
-                let store = Arc::clone(&self.store);
                 let config = self.config.clone();
-                let task = tokio::spawn(async move {
-                    match claim_challenge(store.as_ref(), uuid).await {
-                        Ok(claim) => {
-                            let mut challenge = ActiveChallenge::new(uuid, config, claim);
-                            challenge.run(rx).await;
-                        }
-                        Err(error) => {
-                            // Reaper will immediately clean up the challenge.
-                            tracing::error!(%uuid, %error, "challenge_claim_failed");
-                        }
-                    }
+                let registry = Arc::clone(&self.registry);
+                let cache = Arc::clone(&self.cache);
+                tokio::spawn(async move {
+                    run_challenge(config, claim).await;
+                    registry
+                        .lock()
+                        .expect("coordinator lock poisoned")
+                        .challenges
+                        .remove(&uuid);
+                    cache.close(uuid);
                 });
 
-                registry.challenges.insert(uuid, sender.clone());
-                registry.directory.insert(key.clone(), uuid);
-                registry.clients.insert(create.client_id, uuid);
-
-                tokio::spawn(reap(
-                    Arc::clone(&self.registry),
-                    Arc::clone(&self.cache),
-                    key,
-                    uuid,
-                    task,
-                ));
-
-                let id = sender.send(Command::Create(create));
                 (id, uuid, false)
+            }
+            Start::Joined { uuid, id } => {
+                tracing::debug!(%uuid, %user_id, %client_id, "challenge_joined");
+                (id, uuid, true)
             }
         };
 
@@ -308,33 +292,41 @@ impl Coordinator {
         self.send_command(uuid, Command::Update(update)).await
     }
 
-    /// Reports a change in a client's connection state.
-    /// Returns a snapshot of the client's active challenge if they are in one.
+    /// Reports a change in a client's connection state to the challenge the
+    /// client is currently in, if any.
     pub async fn update_client_status(
         &self,
         change: ClientStatusChange,
-    ) -> Result<Option<Snapshot>, CommandError> {
-        let Some(uuid) = self
-            .registry
-            .lock()
-            .expect("coordinator lock poisoned")
-            .clients
-            .get(&change.client_id)
-            .copied()
+    ) -> Result<(), CommandError> {
+        let user_id = change.user_id;
+        let client_id = change.client_id;
+        let status = change.status;
+
+        let cmd = Command::ClientStatus(change);
+        let Some((uuid, id)) = self
+            .store
+            .send_to_current_challenge(client_id, &cmd)
+            .await
+            .map_err(|error| {
+                tracing::warn!(client_id = %client_id, %error, "command_enqueue_failed");
+                CommandError::Unavailable
+            })?
         else {
-            return Ok(None);
+            return Ok(());
         };
 
         tracing::debug!(
-            uuid = %uuid,
-            user_id = %change.user_id,
-            client_id = %change.client_id,
-            status = ?change.status,
+            %uuid,
+            user_id = %user_id,
+            client_id = %client_id,
+            status = ?status,
             "client_status_update",
         );
-        self.send_command(uuid, Command::ClientStatus(change))
+        self.cache
+            .applied(uuid, id)
             .await
-            .map(Some)
+            .map(|_| ())
+            .ok_or(CommandError::Unavailable)
     }
 
     /// Marks a challenge as having been completed by a client.
@@ -349,25 +341,23 @@ impl Coordinator {
         );
         let result = self.send_command(uuid, Command::Finish(finish)).await;
         if let Ok(p) = &result
-            && let ChallengePhase::Terminated { status } = p.phase
+            && p.phase == ChallengePhase::Terminated
         {
-            tracing::debug!(%uuid, ?status, "challenge_terminated");
+            tracing::debug!(%uuid, status = ?p.status, "challenge_terminated");
         }
         result
     }
 
     /// Sends a command to an active challenge, waiting for it to be applied.
     async fn send_command(&self, uuid: Uuid, cmd: Command) -> Result<Snapshot, CommandError> {
-        let sender = self
-            .registry
-            .lock()
-            .expect("coordinator lock poisoned")
-            .challenges
-            .get(&uuid)
-            .cloned()
-            .ok_or(CommandError::UnknownChallenge)?;
-
-        let id = sender.send(cmd);
+        let id = match self.store.send(uuid, &cmd).await {
+            Ok(Some(id)) => id,
+            Ok(None) => return Err(CommandError::UnknownChallenge),
+            Err(error) => {
+                tracing::warn!(%uuid, %error, "command_enqueue_failed");
+                return Err(CommandError::Unavailable);
+            }
+        };
         self.cache
             .applied(uuid, id)
             .await
@@ -375,33 +365,10 @@ impl Coordinator {
     }
 }
 
-/// Removes a terminated challenge's registry and cache entries once its
-/// actor task exits.
-async fn reap(
-    registry: Arc<Mutex<Registry>>,
-    cache: Arc<SnapshotCache>,
-    key: PartyKey,
-    uuid: Uuid,
-    task: JoinHandle<()>,
-) {
-    let _ = task.await;
-
-    {
-        let mut registry = registry.lock().expect("coordinator lock poisoned");
-        registry.challenges.remove(&uuid);
-        if registry.directory.get(&key) == Some(&uuid) {
-            // A newer challenge for the same party may have taken over the entry.
-            registry.directory.remove(&key);
-        }
-        registry.clients.retain(|_, challenge| *challenge != uuid);
-    }
-    cache.close(uuid);
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lifecycle::core::command::StageProgress;
+    use crate::lifecycle::core::command::{ClientStatus, StageProgress};
     use crate::lifecycle::core::types::{
         ChallengeMode, ClientId, RecordingType, Stage, StageStatus, UserId,
     };
@@ -458,62 +425,24 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn terminated_challenge_is_reaped() {
-        let coordinator = test_coordinator();
-        let created = coordinator
-            .create_or_join_challenge(create_request())
-            .await
-            .expect("challenge should start");
-        coordinator
-            .finish(created.uuid, finish_request(1))
-            .await
-            .expect("finish should apply");
-        wait_for_reap().await;
+    #[tokio::test(start_paused = true)]
+    async fn commands_to_an_unprocessed_challenge_time_out() {
+        let collector = Collector::default();
+        let coordinator = Coordinator::with_store(Arc::new(collector.clone()));
 
-        // The challenge's state outlives it, but commands no longer route.
-        assert!(matches!(
-            coordinator.update(created.uuid, update_request(1)).await,
-            Err(CommandError::UnknownChallenge),
-        ));
-
-        let next = coordinator
-            .create_or_join_challenge(create_request())
+        // The challenge exists durably, but no actor was ever spawned for it.
+        let Start::Created { claim, .. } = collector
+            .start("party", create_request())
             .await
-            .expect("challenge should start");
-        assert_ne!(next.uuid, created.uuid);
-    }
-
-    #[tokio::test]
-    async fn reap_leaves_replacement_directory_entry() {
-        let coordinator = test_coordinator();
-        let first = coordinator
-            .create_or_join_challenge(create_request())
-            .await
-            .expect("challenge should start");
-        coordinator
-            .finish(first.uuid, finish_request(1))
-            .await
-            .expect("finish should apply");
-
-        // The party starts a new challenge before the first one's reaper has
-        // run, taking over its directory entry.
-        let second = coordinator
-            .create_or_join_challenge(create_request())
-            .await
-            .expect("challenge should start");
-        assert_ne!(second.uuid, first.uuid);
-        wait_for_reap().await;
+            .expect("start should succeed")
+        else {
+            panic!("expected a creation");
+        };
 
         assert!(matches!(
-            coordinator.update(first.uuid, update_request(1)).await,
-            Err(CommandError::UnknownChallenge),
+            coordinator.update(claim.uuid(), update_request(1)).await,
+            Err(CommandError::Unavailable),
         ));
-        let joined = coordinator
-            .create_or_join_challenge(create_request_for(2))
-            .await
-            .expect("challenge should start");
-        assert_eq!(joined.uuid, second.uuid);
     }
 
     #[test]
