@@ -13,8 +13,11 @@ mod proto;
 mod store;
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use lifecycle::coordinator::Coordinator;
+
+const CLAIM_SCAN_INTERVAL: Duration = Duration::from_secs(5);
 
 #[tokio::main]
 async fn main() {
@@ -30,12 +33,16 @@ async fn main() {
         .unwrap_or(3003);
 
     let redis_uri = std::env::var("BLERT_REDIS_URI").expect("BLERT_REDIS_URI must be set");
-    let store = store::Store::connect(&redis_uri)
+    let identity = std::env::var("HOSTNAME").expect("HOSTNAME must be set");
+    let store = store::Store::connect(&redis_uri, identity.clone())
         .await
         .expect("failed to connect to Redis");
-    tracing::info!("redis_connected");
+    tracing::info!(identity, "redis_connected");
 
-    let coordinator = Arc::new(Coordinator::with_store(Arc::new(store)));
+    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+
+    let coordinator = Arc::new(Coordinator::with_store(Arc::new(store), shutdown_rx));
+    coordinator.start_scan(CLAIM_SCAN_INTERVAL);
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port))
         .await
@@ -46,7 +53,23 @@ async fn main() {
         "challenge_server_listening"
     );
 
-    axum::serve(listener, api::router(coordinator))
+    axum::serve(listener, api::router(Arc::clone(&coordinator)))
+        .with_graceful_shutdown(shut_down_on_sigterm(shutdown_tx, coordinator))
         .await
         .expect("server exited with an error");
+}
+
+async fn shut_down_on_sigterm(
+    shutdown: tokio::sync::watch::Sender<bool>,
+    coordinator: Arc<Coordinator>,
+) {
+    tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        .expect("SIGTERM handler installs")
+        .recv()
+        .await;
+
+    tracing::info!("shutdown_started");
+    let _ = shutdown.send(true);
+    coordinator.drained().await;
+    tracing::info!("shutdown_complete");
 }

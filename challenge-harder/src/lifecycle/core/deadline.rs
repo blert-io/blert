@@ -42,6 +42,8 @@ pub struct LifecycleConfig {
     /// Time to wait for a client to become active while every connected
     /// client is idle.
     pub inactivity_timeout: Duration,
+    /// Interval at which a running challenge renews its lease.
+    pub lease_renewal_interval: Duration,
 }
 
 impl Default for LifecycleConfig {
@@ -51,6 +53,7 @@ impl Default for LifecycleConfig {
             stage_end_timeout: Duration::from_secs(2),
             reconnection_window: Duration::from_mins(5),
             inactivity_timeout: Duration::from_mins(15),
+            lease_renewal_interval: Duration::from_secs(10),
         }
     }
 }
@@ -133,6 +136,7 @@ mod tests {
             challenge_end_grace: Duration::from_millis(4_500),
             reconnection_window: Duration::from_mins(5),
             inactivity_timeout: Duration::from_mins(15),
+            lease_renewal_interval: Duration::from_secs(10),
         }
     }
 

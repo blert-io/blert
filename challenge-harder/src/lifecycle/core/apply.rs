@@ -40,6 +40,7 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
             session_token,
             recording_type,
         } => {
+            state.recorded_by.insert(client_id);
             state.clients.insert(
                 client_id,
                 ClientState {

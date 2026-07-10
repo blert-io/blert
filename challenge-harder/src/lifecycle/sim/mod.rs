@@ -18,10 +18,11 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use tokio::time::Instant;
 
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 
 use super::challenge::{
-    ChallengeClaim, ChallengeServerUpdate, ChallengeStore, Claim, Start, StoreError,
+    ChallengeClaim, ChallengeServerUpdate, ChallengeSignal, ChallengeStore, Claim, Start,
+    StoreError,
 };
 use super::coordinator::Coordinator;
 use super::core::apply::apply;
@@ -129,6 +130,8 @@ pub struct ScenarioResult {
     pub updates: Vec<(Uuid, ChallengeServerUpdate)>,
     /// IDs of every command sent to each challenge's inbox, in send order.
     pub inboxes: BTreeMap<Uuid, Vec<MsgId>>,
+    /// Challenges whose state was deleted from the store.
+    pub deleted: BTreeSet<Uuid>,
 }
 
 impl ScenarioResult {
@@ -233,7 +236,14 @@ pub fn perturb(scenario: &mut Scenario, rng: &mut Rng, jitter_ms: u64) {
     }
 }
 
-type SignalSink = Arc<Mutex<Option<mpsc::Sender<(Uuid, MsgId)>>>>;
+type SignalSink = Arc<Mutex<Option<mpsc::Sender<ChallengeSignal>>>>;
+
+/// Identity of a party for routing, built from its raw names.
+fn party_identity(challenge_type: ChallengeType, party: &[String]) -> String {
+    let mut sorted: Vec<&str> = party.iter().map(String::as_str).collect();
+    sorted.sort_unstable();
+    format!("{challenge_type:?}-{}", sorted.join("-"))
+}
 
 /// A record of commands sent to each challenge.
 #[derive(Default)]
@@ -248,6 +258,8 @@ struct CollectorRouting {
     directory: BTreeMap<String, Uuid>,
     clients: BTreeMap<ClientId, Uuid>,
     existing: BTreeSet<Uuid>,
+    /// Challenges whose state has been deleted from the store.
+    deleted: BTreeSet<Uuid>,
 }
 
 /// In-memory [`ChallengeStore`] collecting everything written through it.
@@ -268,6 +280,7 @@ impl Collector {
         CollectorClaim {
             uuid,
             inboxes: self.inboxes.clone(),
+            routing: self.routing.clone(),
             journals: self.journals.clone(),
             projections: self.projections.clone(),
             updates: self.updates.clone(),
@@ -300,6 +313,7 @@ impl Collector {
 struct CollectorClaim {
     uuid: Uuid,
     inboxes: Arc<Mutex<CollectorInboxes>>,
+    routing: Arc<Mutex<CollectorRouting>>,
     journals: Arc<Mutex<CollectedJournals>>,
     projections: Arc<Mutex<BTreeMap<Uuid, Snapshot>>>,
     updates: Arc<Mutex<Vec<(Uuid, ChallengeServerUpdate)>>>,
@@ -360,15 +374,35 @@ impl<'a> IntoIterator for &'a CollectedJournals {
 
 #[async_trait]
 impl ChallengeStore for Collector {
-    async fn claim(&self, uuid: Uuid) -> Result<Box<dyn ChallengeClaim>, StoreError> {
-        Ok(Box::new(self.collector_claim(uuid)) as Box<dyn ChallengeClaim>)
+    // Claims any existing challenge not excluded. The sim does not model
+    // lease deadlines.
+    async fn claim_unowned(
+        &self,
+        batch_size: usize,
+        exclude: &[Uuid],
+    ) -> Result<Vec<Claim>, StoreError> {
+        let claimable: Vec<Uuid> = {
+            let routing = self.routing.lock().expect("collector lock poisoned");
+            routing
+                .existing
+                .iter()
+                .filter(|uuid| !exclude.contains(uuid))
+                .take(batch_size)
+                .copied()
+                .collect()
+        };
+        Ok(claimable
+            .into_iter()
+            .map(|uuid| Claim::new(uuid, Box::new(self.collector_claim(uuid))))
+            .collect())
     }
 
-    async fn start(&self, party: &str, create: Create) -> Result<Start, StoreError> {
+    async fn start(&self, create: Create) -> Result<Start, StoreError> {
         let client_id = create.client_id;
+        let party = party_identity(create.challenge_type, &create.party);
         let (joined, uuid) = {
             let mut routing = self.routing.lock().expect("collector lock poisoned");
-            let incumbent = routing.directory.get(party).copied().filter(|incumbent| {
+            let incumbent = routing.directory.get(&party).copied().filter(|incumbent| {
                 self.projections
                     .lock()
                     .expect("collector lock poisoned")
@@ -383,7 +417,7 @@ impl ChallengeStore for Collector {
                 (true, incumbent)
             } else {
                 let uuid = Uuid::new_v4();
-                routing.directory.insert(party.to_string(), uuid);
+                routing.directory.insert(party, uuid);
                 routing.existing.insert(uuid);
                 routing.clients.insert(client_id, uuid);
                 (false, uuid)
@@ -452,13 +486,24 @@ impl ChallengeStore for Collector {
             .cloned())
     }
 
-    fn subscribe(&self, sink: mpsc::Sender<(Uuid, MsgId)>) {
+    fn subscribe(&self, sink: mpsc::Sender<ChallengeSignal>) {
         *self.signals.lock().expect("collector lock poisoned") = Some(sink);
     }
 }
 
 #[async_trait]
 impl ChallengeClaim for CollectorClaim {
+    async fn load(&self) -> Result<Vec<JournalEntry>, StoreError> {
+        Ok(self
+            .journals
+            .lock()
+            .expect("collector lock poisoned")
+            .journals
+            .get(&self.uuid)
+            .cloned()
+            .unwrap_or_default())
+    }
+
     fn follow(&self, from: MsgId, sink: mpsc::Sender<Envelope>) {
         let mut inboxes = self.inboxes.lock().expect("collector lock poisoned");
         if let Some(entries) = inboxes.entries.get(&self.uuid) {
@@ -494,7 +539,12 @@ impl ChallengeClaim for CollectorClaim {
             .expect("collector lock poisoned")
             .clone();
         if let Some(sink) = sink {
-            let _ = sink.send((self.uuid, snapshot.cursor)).await;
+            let _ = sink
+                .send(ChallengeSignal::Updated {
+                    uuid: self.uuid,
+                    cursor: snapshot.cursor,
+                })
+                .await;
         }
         Ok(())
     }
@@ -504,6 +554,42 @@ impl ChallengeClaim for CollectorClaim {
             .lock()
             .expect("collector lock poisoned")
             .push((self.uuid, *update));
+        Ok(())
+    }
+
+    async fn renew(&self) -> Result<(), StoreError> {
+        Ok(())
+    }
+
+    async fn release(&self) -> Result<(), StoreError> {
+        Ok(())
+    }
+
+    async fn delete(&self, state: &ChallengeState) -> Result<(), StoreError> {
+        {
+            let mut routing = self.routing.lock().expect("collector lock poisoned");
+            routing.existing.remove(&self.uuid);
+            let party = party_identity(state.challenge_type, &state.party);
+            if routing.directory.get(&party) == Some(&self.uuid) {
+                routing.directory.remove(&party);
+            }
+            for client in &state.recorded_by {
+                if routing.clients.get(client) == Some(&self.uuid) {
+                    routing.clients.remove(client);
+                }
+            }
+            routing.deleted.insert(self.uuid);
+        }
+        let sink = self
+            .signals
+            .lock()
+            .expect("collector lock poisoned")
+            .clone();
+        if let Some(sink) = sink {
+            let _ = sink
+                .send(ChallengeSignal::Deleted { uuid: self.uuid })
+                .await;
+        }
         Ok(())
     }
 }
@@ -518,8 +604,9 @@ pub async fn run(scenario: Scenario) -> ScenarioResult {
 /// structural invariants.
 pub async fn run_with(config: LifecycleConfig, scenario: Scenario) -> ScenarioResult {
     let collector = Collector::default();
+    let (_tx, rx) = watch::channel(false);
     let coordinator =
-        Arc::new(Coordinator::with_store(Arc::new(collector.clone())).with_config(config));
+        Arc::new(Coordinator::with_store(Arc::new(collector.clone()), rx).with_config(config));
     let started = Instant::now();
 
     let mut identities = Vec::new();
@@ -579,6 +666,12 @@ pub async fn run_with(config: LifecycleConfig, scenario: Scenario) -> ScenarioRe
         .iter()
         .map(|(uuid, entries)| (*uuid, entries.iter().map(|e| e.id).collect()))
         .collect();
+    let deleted = collector
+        .routing
+        .lock()
+        .expect("collector lock poisoned")
+        .deleted
+        .clone();
 
     // Terminated challenges' snapshots outlive them.
     let mut snapshots = BTreeMap::new();
@@ -597,6 +690,7 @@ pub async fn run_with(config: LifecycleConfig, scenario: Scenario) -> ScenarioRe
         projections,
         updates,
         inboxes,
+        deleted,
     };
     check_invariants(&result);
     result
@@ -653,10 +747,9 @@ async fn issue(
                 .ok()
         }
         Action::Finish { times, soft } => {
-            let uuid = current_challenge(identity, current_uuid);
-            coordinator
+            let _ = coordinator
                 .finish(
-                    uuid,
+                    current_challenge(identity, current_uuid),
                     Finish {
                         user_id: identity.user_id,
                         client_id: identity.client_id,
@@ -665,8 +758,8 @@ async fn issue(
                         soft,
                     },
                 )
-                .await
-                .ok()
+                .await;
+            None
         }
         Action::Status(status) => {
             let _ = coordinator
@@ -695,6 +788,7 @@ fn current_challenge(identity: &Identity, current_uuid: &Mutex<Option<Uuid>>) ->
         .unwrap_or_else(|| panic!("client {} is not in a challenge", identity.name))
 }
 
+#[allow(clippy::too_many_lines)]
 fn check_invariants(result: &ScenarioResult) {
     for (uuid, journal) in &result.journals {
         let terminated = journal
@@ -712,7 +806,12 @@ fn check_invariants(result: &ScenarioResult) {
             );
         }
 
-        // A terminated challenge announces its finish exactly once.
+        // A terminated challenge is deleted and announces its finish exactly once.
+        assert_eq!(
+            result.deleted.contains(uuid),
+            terminated,
+            "deletion mismatch: {uuid}",
+        );
         let finishes = result
             .updates
             .iter()

@@ -197,7 +197,7 @@ async fn finish_challenge(
     };
 
     match coordinator.finish(challenge_id, finish).await {
-        Ok(_) => StatusCode::OK.into_response(),
+        Ok(()) => StatusCode::OK.into_response(),
         Err(e) => command_error(e),
     }
 }
@@ -214,9 +214,12 @@ mod tests {
     use crate::lifecycle::sim::Collector;
 
     fn test_router() -> Router {
-        router(Arc::new(Coordinator::with_store(Arc::new(
-            Collector::default(),
-        ))))
+        let (tx, rx) = tokio::sync::watch::channel(false);
+        std::mem::forget(tx);
+        router(Arc::new(Coordinator::with_store(
+            Arc::new(Collector::default()),
+            rx,
+        )))
     }
 
     async fn post(router: &Router, path: &str, body: &Value) -> (StatusCode, Value) {

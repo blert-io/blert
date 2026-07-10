@@ -23,6 +23,7 @@ const SWEEP_CONFIG: LifecycleConfig = LifecycleConfig {
     challenge_end_grace: Duration::from_secs(5),
     reconnection_window: Duration::from_secs(30),
     inactivity_timeout: Duration::from_mins(1),
+    lease_renewal_interval: Duration::from_secs(10),
 };
 
 fn ms(duration: Duration) -> u64 {
