@@ -1,6 +1,6 @@
 //! Derived state of an active challenge.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -151,6 +151,8 @@ pub struct ChallengeState {
     pub stage_status: StageStatus,
     pub stage_state: StageState,
     pub clients: BTreeMap<ClientId, ClientState>,
+    /// Every client that has recorded any part of the challenge.
+    pub recorded_by: BTreeSet<ClientId>,
     /// When the challenge lost its last active client.
     pub dormant_since: Option<Timestamp>,
     /// Last applied inbox message.

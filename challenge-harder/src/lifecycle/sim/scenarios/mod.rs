@@ -7,6 +7,7 @@ mod client_status;
 mod creation;
 mod determinism;
 mod progression;
+mod recovery;
 mod retries;
 mod stage_end;
 mod sweep;

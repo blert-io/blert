@@ -12,7 +12,7 @@ use redis::AsyncCommands;
 use super::*;
 use crate::lifecycle::core::command::{Finish, Update};
 use crate::lifecycle::core::event::{Cause, LifecycleEvent};
-use crate::lifecycle::core::state::ChallengePhase;
+use crate::lifecycle::core::state::{ChallengePhase, PhaseState};
 use crate::lifecycle::core::types::{
     ChallengeMode, ChallengeStatus, ChallengeType, ClientId, JournalSeq, MsgId, RecordingType,
     Stage, Timestamp, UserId,
@@ -25,14 +25,31 @@ fn test_client() -> ClientId {
     ClientId(NEXT_CLIENT.fetch_add(1, Ordering::Relaxed))
 }
 
-/// Returns a party name unique to the calling test, for the same reason.
-fn test_party() -> String {
-    format!("test-{}", Uuid::new_v4())
-}
-
 /// Unique party names for commands sent by `client` to avoid Redis collisions.
 fn test_party_members(client: ClientId) -> Vec<String> {
     vec![format!("1Ogp {client}"), format!("WQ {client}")]
+}
+
+/// The directory identity of a create request's party.
+fn party_of(create: &Create) -> String {
+    party_key(create.challenge_type, &create.party)
+}
+
+#[test]
+fn party_key_normalizes_then_sorts_names() {
+    let key = party_key(
+        ChallengeType::Tob,
+        &[
+            "WWWWWWWWWWQQ".into(),
+            "715".into(),
+            "1Ogp".into(),
+            "Caps lock13".into(),
+        ],
+    );
+    assert_eq!(key, "1-1ogp-715-caps_lock13-wwwwwwwwwwqq");
+
+    let key = party_key(ChallengeType::Tob, &["AB".into(), "Aa".into()]);
+    assert_eq!(key, "1-aa-ab");
 }
 
 fn create_request(client: ClientId) -> Create {
@@ -57,6 +74,8 @@ fn create_request_at(client: ClientId, stage: Stage) -> Create {
     }
 }
 
+const TEST_IDENTITY: &str = "test-server";
+
 static TEST_DB_FLUSHED: tokio::sync::OnceCell<()> = tokio::sync::OnceCell::const_new();
 
 async fn test_store() -> Option<Store> {
@@ -64,7 +83,9 @@ async fn test_store() -> Option<Store> {
         eprintln!("BLERT_TEST_REDIS_URI is not set; skipping Redis tests");
         return None;
     };
-    let store = Store::connect(&uri).await.expect("test redis unreachable");
+    let store = Store::connect(&uri, TEST_IDENTITY.into())
+        .await
+        .expect("test redis unreachable");
 
     // The default database may hold dev data, so don't flush it.
     assert_ne!(
@@ -106,6 +127,39 @@ fn entry(seq: u64, event: LifecycleEvent) -> JournalEntry {
         event,
     }
 }
+
+/// The same store, claiming under a different identity.
+fn as_identity(store: &Store, identity: &str) -> Store {
+    Store {
+        identity: identity.into(),
+        ..store.clone()
+    }
+}
+
+/// Establishes a fresh challenge's lease as a start would, returning its
+/// claim at the initial epoch.
+async fn stub_claim(store: &Store, uuid: Uuid) -> RedisClaim {
+    let mut connection = store.connection.clone();
+    let _: () = connection
+        .hset_multiple(
+            lease_key(uuid),
+            &[
+                ("fence", Epoch::INITIAL.to_string()),
+                ("owner", TEST_IDENTITY.to_string()),
+            ],
+        )
+        .await
+        .unwrap();
+    let _: () = connection
+        .zadd(LEASES_KEY, uuid.to_string(), lease_deadline())
+        .await
+        .unwrap();
+    store.redis_claim(uuid, Epoch::INITIAL)
+}
+
+/// Serializes tests that hold lapsed or foreign-identity leases in the shared
+/// index, as a concurrent claim sweep would take them over mid-test.
+static SWEEP_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 async fn clean_up(store: &Store, uuid: Uuid) {
     let mut connection = store.connection.clone();
@@ -197,12 +251,12 @@ fn snapshot(uuid: Uuid, cursor: u64) -> Snapshot {
 }
 
 #[tokio::test]
-async fn claim_establishes_fence_and_appends_land() {
+async fn appends_land_under_a_held_fence() {
     let Some(store) = test_store().await else {
         return;
     };
     let uuid = Uuid::new_v4();
-    let claim = store.claim(uuid).await.expect("claim should succeed");
+    let claim = stub_claim(&store, uuid).await;
 
     let first = vec![
         entry(
@@ -227,13 +281,12 @@ async fn claim_establishes_fence_and_appends_land() {
     claim.append(&first).await.expect("append should succeed");
     claim.append(&second).await.expect("append should succeed");
 
-    let mut connection = store.connection.clone();
-    let fence: String = connection.hget(lease_key(uuid), "fence").await.unwrap();
-    assert_eq!(fence, "1");
     assert_eq!(
         read_journal(&store, uuid).await,
-        vec![("1".into(), first), ("1".into(), second)],
+        vec![("1".into(), first.clone()), ("1".into(), second.clone())],
     );
+    // The claim reads the same entries back, batches flattened.
+    assert_eq!(claim.load().await, Ok([first, second].concat()));
 
     clean_up(&store, uuid).await;
 }
@@ -244,7 +297,7 @@ async fn bumped_fence_rejects_stale_epoch() {
         return;
     };
     let uuid = Uuid::new_v4();
-    let claim = store.claim(uuid).await.expect("claim should succeed");
+    let claim = stub_claim(&store, uuid).await;
 
     let first = vec![entry(
         0,
@@ -266,8 +319,263 @@ async fn bumped_fence_rejects_stale_epoch() {
     assert_eq!(claim.append(&second).await, Err(StoreError::Fenced));
     assert_eq!(read_journal(&store, uuid).await, vec![("1".into(), first)]);
 
-    let reclaim = store.claim(uuid).await;
-    assert!(matches!(reclaim, Err(StoreError::Fenced)));
+    clean_up(&store, uuid).await;
+}
+
+#[tokio::test]
+async fn expired_leases_are_claimed_and_fenced() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let _guard = SWEEP_LOCK.lock().await;
+    let client = test_client();
+    let create = create_request(client);
+    let party = party_of(&create);
+
+    let Ok(Start::Created { claim, .. }) = store.start(create.clone()).await else {
+        panic!("expected a creation");
+    };
+    let uuid = claim.uuid();
+    let journal = vec![entry(
+        0,
+        LifecycleEvent::StageStarted {
+            stage: Stage::TobMaiden,
+        },
+    )];
+    claim.append(&journal).await.expect("append should succeed");
+
+    // The owning server dies.
+    let mut connection = store.connection.clone();
+    let _: () = connection
+        .zadd(LEASES_KEY, uuid.to_string(), 500)
+        .await
+        .unwrap();
+
+    // A new server claims the challenge and gets exclusive ownership.
+    let claims = as_identity(&store, "reclaimer")
+        .claim_unowned(10, &[])
+        .await
+        .expect("sweep should succeed");
+    let [reclaimed] = claims.as_slice() else {
+        panic!("expected exactly one claim, got {}", claims.len());
+    };
+    assert_eq!(reclaimed.uuid(), uuid);
+
+    assert_eq!(reclaimed.load().await, Ok(journal));
+    let second = vec![entry(
+        1,
+        LifecycleEvent::StageStarted {
+            stage: Stage::TobBloat,
+        },
+    )];
+    reclaimed
+        .append(&second)
+        .await
+        .expect("append should succeed");
+    assert_eq!(claim.append(&second).await, Err(StoreError::Fenced));
+
+    let lease: BTreeMap<String, String> = connection.hgetall(lease_key(uuid)).await.unwrap();
+    assert_eq!(lease["fence"], "2");
+    assert_eq!(lease["owner"], "reclaimer");
+    let deadline: Option<u64> = connection
+        .zscore(LEASES_KEY, uuid.to_string())
+        .await
+        .unwrap();
+    assert!(deadline.expect("challenge should stay indexed") > unix_millis());
+
+    clean_up_start(&store, &party, &[client], &[uuid]).await;
+}
+
+#[tokio::test]
+async fn held_leases_are_reclaimable_only_by_their_owner() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let _guard = SWEEP_LOCK.lock().await;
+    let owner = as_identity(&store, "crashed-server");
+    let client = test_client();
+    let create = create_request(client);
+    let party = party_of(&create);
+
+    let Ok(Start::Created { claim, .. }) = owner.start(create.clone()).await else {
+        panic!("expected a creation");
+    };
+    let uuid = claim.uuid();
+
+    // The lease is still live, so only its recorded owner may take it over.
+    let strangers = as_identity(&store, "other-server")
+        .claim_unowned(10, &[])
+        .await
+        .expect("sweep should succeed");
+    assert!(strangers.is_empty(), "a held lease was claimed away");
+
+    let claims = owner
+        .claim_unowned(10, &[])
+        .await
+        .expect("sweep should succeed");
+    let [reclaimed] = claims.as_slice() else {
+        panic!("expected exactly one claim, got {}", claims.len());
+    };
+    assert_eq!(reclaimed.uuid(), uuid);
+
+    let mut connection = store.connection.clone();
+    let fence: String = connection.hget(lease_key(uuid), "fence").await.unwrap();
+    assert_eq!(fence, "2");
+
+    clean_up_start(&store, &party, &[client], &[uuid]).await;
+}
+
+#[tokio::test]
+async fn running_challenges_are_not_swept() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let _guard = SWEEP_LOCK.lock().await;
+    let owner = as_identity(&store, "restarted-server");
+    let client = test_client();
+    let create = create_request(client);
+    let party = party_of(&create);
+
+    let Ok(Start::Created { claim, .. }) = owner.start(create.clone()).await else {
+        panic!("expected a creation");
+    };
+    let uuid = claim.uuid();
+
+    let running = [uuid];
+    let claims = owner
+        .claim_unowned(10, &running)
+        .await
+        .expect("sweep should succeed");
+    assert!(claims.is_empty(), "a running challenge was swept");
+
+    let mut connection = store.connection.clone();
+    let _: () = connection
+        .zadd(LEASES_KEY, uuid.to_string(), 500)
+        .await
+        .unwrap();
+    let claims = owner
+        .claim_unowned(10, &running)
+        .await
+        .expect("sweep should succeed");
+    assert!(claims.is_empty(), "a running challenge was swept");
+
+    let fence: String = connection.hget(lease_key(uuid), "fence").await.unwrap();
+    assert_eq!(fence, "1");
+
+    clean_up_start(&store, &party, &[client], &[uuid]).await;
+}
+
+#[tokio::test]
+async fn claim_sweeps_respect_the_batch_size() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let _guard = SWEEP_LOCK.lock().await;
+    let mut connection = store.connection.clone();
+
+    // Three lapsed challenges, oldest lease first.
+    let mut challenges = Vec::new();
+    for deadline in [100, 200, 300] {
+        let client = test_client();
+        let create = create_request(client);
+        let party = party_of(&create);
+        let Ok(Start::Created { claim, .. }) = store.start(create).await else {
+            panic!("expected a creation");
+        };
+        let _: () = connection
+            .zadd(LEASES_KEY, claim.uuid().to_string(), deadline)
+            .await
+            .unwrap();
+        challenges.push((party, client, claim.uuid()));
+    }
+
+    let claims = as_identity(&store, "batcher")
+        .claim_unowned(2, &[])
+        .await
+        .expect("sweep should succeed");
+    let claimed: Vec<Uuid> = claims.iter().map(Claim::uuid).collect();
+    assert_eq!(claimed, vec![challenges[0].2, challenges[1].2]);
+
+    let fence: String = connection
+        .hget(lease_key(challenges[2].2), "fence")
+        .await
+        .unwrap();
+    assert_eq!(fence, "1");
+
+    for (party, client, uuid) in &challenges {
+        clean_up_start(&store, party, &[*client], &[*uuid]).await;
+    }
+}
+
+#[tokio::test]
+async fn renewal_extends_a_held_lease() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let _guard = SWEEP_LOCK.lock().await;
+    let uuid = Uuid::new_v4();
+    let claim = stub_claim(&store, uuid).await;
+
+    let mut connection = store.connection.clone();
+    let _: () = connection
+        .zadd(LEASES_KEY, uuid.to_string(), 500)
+        .await
+        .unwrap();
+
+    claim.renew().await.expect("renew should succeed");
+    let renewed: Option<u64> = connection
+        .zscore(LEASES_KEY, uuid.to_string())
+        .await
+        .unwrap();
+    let renewed = renewed.expect("challenge should stay indexed");
+    assert!(renewed > unix_millis());
+
+    // If claimed away, the extension fails.
+    let _: () = connection.hset(lease_key(uuid), "fence", 2).await.unwrap();
+    assert_eq!(claim.renew().await, Err(StoreError::Fenced));
+    let unchanged: Option<u64> = connection
+        .zscore(LEASES_KEY, uuid.to_string())
+        .await
+        .unwrap();
+    assert_eq!(unchanged, Some(renewed));
+
+    clean_up(&store, uuid).await;
+}
+
+#[tokio::test]
+async fn release_makes_a_lease_immediately_claimable() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let _guard = SWEEP_LOCK.lock().await;
+    let uuid = Uuid::new_v4();
+    let claim = stub_claim(&store, uuid).await;
+
+    claim.release().await.expect("release should succeed");
+    let mut connection = store.connection.clone();
+    let released: Option<u64> = connection
+        .zscore(LEASES_KEY, uuid.to_string())
+        .await
+        .unwrap();
+    assert_eq!(released, Some(0));
+
+    // Any instance may pick the challenge up without waiting.
+    let claims = as_identity(&store, "successor")
+        .claim_unowned(10, &[])
+        .await
+        .expect("sweep should succeed");
+    let [succeeded] = claims.as_slice() else {
+        panic!("expected exactly one claim, got {}", claims.len());
+    };
+    assert_eq!(succeeded.uuid(), uuid);
+
+    // The releaser can no longer reclaim.
+    assert_eq!(claim.release().await, Err(StoreError::Fenced));
+    let deadline: Option<u64> = connection
+        .zscore(LEASES_KEY, uuid.to_string())
+        .await
+        .unwrap();
+    assert!(deadline.expect("challenge should stay indexed") > unix_millis());
 
     clean_up(&store, uuid).await;
 }
@@ -279,7 +587,7 @@ async fn projection_writes_hash_and_signals() {
     };
     let uuid = Uuid::new_v4();
     assert_eq!(store.read(uuid).await, Ok(None));
-    let claim = store.claim(uuid).await.expect("claim should succeed");
+    let claim = stub_claim(&store, uuid).await;
 
     let mut pubsub = test_pubsub(SIGNAL_CHANNEL).await;
     let mut messages = pubsub.on_message();
@@ -308,18 +616,20 @@ async fn projection_writes_hash_and_signals() {
     assert_eq!(hash, expected);
 
     let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
-    let signal = loop {
+    let cursor = loop {
         let message = tokio::time::timeout_at(deadline, messages.next())
             .await
             .expect("signal should arrive within the timeout")
             .expect("pubsub stream should stay open");
         let payload: String = message.get_payload().unwrap();
-        let signal: Signal = serde_json::from_str(&payload).unwrap();
-        if signal.uuid == uuid {
-            break signal;
+        let signal: ChallengeSignal = serde_json::from_str(&payload).unwrap();
+        if let ChallengeSignal::Updated { uuid: id, cursor } = signal
+            && id == uuid
+        {
+            break cursor;
         }
     };
-    assert_eq!(signal.cursor, MsgId::sequence(4));
+    assert_eq!(cursor, MsgId::sequence(4));
 
     // A later projection overwrites the previous snapshot.
     let updated = Snapshot {
@@ -344,7 +654,7 @@ async fn subscriber_delivers_update_signals() {
         return;
     };
     let uuid = Uuid::new_v4();
-    let claim = store.claim(uuid).await.expect("claim should succeed");
+    let claim = stub_claim(&store, uuid).await;
 
     let (tx, mut rx) = mpsc::channel(16);
 
@@ -363,7 +673,9 @@ async fn subscriber_delivers_update_signals() {
         let deadline = tokio::time::Instant::now() + Duration::from_millis(250);
         loop {
             match tokio::time::timeout_at(deadline, rx.recv()).await {
-                Ok(Some((id, cursor))) if id == uuid => break 'projecting cursor,
+                Ok(Some(ChallengeSignal::Updated { uuid: id, cursor })) if id == uuid => {
+                    break 'projecting cursor;
+                }
                 Ok(Some(_)) => {}
                 Ok(None) => panic!("signal channel closed"),
                 Err(_) => break,
@@ -381,7 +693,7 @@ async fn bumped_fence_rejects_projection() {
         return;
     };
     let uuid = Uuid::new_v4();
-    let claim = store.claim(uuid).await.expect("claim should succeed");
+    let claim = stub_claim(&store, uuid).await;
 
     let mut connection = store.connection.clone();
     let _: () = connection.hset(lease_key(uuid), "fence", 2).await.unwrap();
@@ -402,7 +714,7 @@ async fn announce_publishes_finish() {
         return;
     };
     let uuid = Uuid::new_v4();
-    let claim = store.claim(uuid).await.expect("claim should succeed");
+    let claim = stub_claim(&store, uuid).await;
 
     let mut pubsub = test_pubsub(CHALLENGE_UPDATES_CHANNEL).await;
     let mut messages = pubsub.on_message();
@@ -428,7 +740,7 @@ async fn bumped_fence_rejects_announcements() {
         return;
     };
     let uuid = Uuid::new_v4();
-    let claim = store.claim(uuid).await.expect("claim should succeed");
+    let claim = stub_claim(&store, uuid).await;
 
     let mut connection = store.connection.clone();
     let _: () = connection.hset(lease_key(uuid), "fence", 2).await.unwrap();
@@ -447,7 +759,7 @@ async fn missing_fence_rejects_appends() {
         return;
     };
     let uuid = Uuid::new_v4();
-    let claim = store.claim(uuid).await.expect("claim should succeed");
+    let claim = stub_claim(&store, uuid).await;
 
     let mut connection = store.connection.clone();
     let _: () = connection.del(lease_key(uuid)).await.unwrap();
@@ -493,11 +805,13 @@ async fn next_envelope(rx: &mut mpsc::Receiver<Envelope>) -> Envelope {
         .expect("inbox feed should stay open")
 }
 
-/// Registers `uuid` in the existence index so that sends to it land.
+/// Registers `uuid` in the existence index so that sends to it land. The
+/// lease deadline is set in the future so that concurrent claim sweeps from
+/// other tests leave the challenge alone.
 async fn register(store: &Store, uuid: Uuid) {
     let mut connection = store.connection.clone();
     let _: () = connection
-        .zadd(LEASES_KEY, uuid.to_string(), 0)
+        .zadd(LEASES_KEY, uuid.to_string(), lease_deadline())
         .await
         .unwrap();
 }
@@ -542,7 +856,7 @@ async fn follow_delivers_backlog_then_live_entries() {
         return;
     };
     let uuid = Uuid::new_v4();
-    let claim = store.claim(uuid).await.expect("claim should succeed");
+    let claim = stub_claim(&store, uuid).await;
     register(&store, uuid).await;
 
     let update = update_command();
@@ -577,7 +891,7 @@ async fn follow_skips_entries_at_or_before_its_position() {
         return;
     };
     let uuid = Uuid::new_v4();
-    let claim = store.claim(uuid).await.expect("claim should succeed");
+    let claim = stub_claim(&store, uuid).await;
     register(&store, uuid).await;
 
     let update = update_command();
@@ -603,12 +917,12 @@ async fn start_creates_and_claims_a_challenge_for_a_free_party() {
     let Some(store) = test_store().await else {
         return;
     };
-    let party = test_party();
     let client = test_client();
     let create = create_request(client);
+    let party = party_of(&create);
 
     let start = store
-        .start(&party, create.clone())
+        .start(create.clone())
         .await
         .expect("start should succeed");
     let Start::Created { claim, id } = start else {
@@ -631,7 +945,8 @@ async fn start_creates_and_claims_a_challenge_for_a_free_party() {
         assert_eq!(active, uuid.to_string());
     }
 
-    // The challenge should have a lease deadline in the future.
+    // The challenge should have a lease deadline in the future, held by
+    // this instance.
     let deadline: Option<u64> = connection
         .zscore(LEASES_KEY, uuid.to_string())
         .await
@@ -644,6 +959,8 @@ async fn start_creates_and_claims_a_challenge_for_a_free_party() {
     )
     .expect("time fits in u64");
     assert!(deadline.expect("challenge should be indexed") > now);
+    let owner: String = connection.hget(lease_key(uuid), "owner").await.unwrap();
+    assert_eq!(owner, TEST_IDENTITY);
 
     assert_eq!(
         read_inbox(&store, uuid).await,
@@ -665,14 +982,14 @@ async fn start_joins_a_live_incumbent() {
     let Some(store) = test_store().await else {
         return;
     };
-    let party = test_party();
     let creator_client = test_client();
     let creator = create_request(creator_client);
+    let party = party_of(&creator);
 
     let Ok(Start::Created {
         claim,
         id: create_id,
-    }) = store.start(&party, creator.clone()).await
+    }) = store.start(creator.clone()).await
     else {
         panic!("expected a creation");
     };
@@ -683,9 +1000,12 @@ async fn start_joins_a_live_incumbent() {
         .expect("project should succeed");
 
     let joiner_client = test_client();
-    let joiner = create_request(joiner_client);
+    let joiner = Create {
+        party: creator.party.clone(),
+        ..create_request(joiner_client)
+    };
     let start = store
-        .start(&party, joiner.clone())
+        .start(joiner.clone())
         .await
         .expect("start should succeed");
     let Start::Joined {
@@ -703,11 +1023,7 @@ async fn start_joins_a_live_incumbent() {
     let routed: String = connection.get(client_key(joiner_client)).await.unwrap();
     assert_eq!(routed, uuid.to_string());
 
-    // The join leaves player keys alone.
-    for name in &joiner.party {
-        let active: Option<String> = connection.get(player_key(name)).await.unwrap();
-        assert_eq!(active, None);
-    }
+    // The join leaves player keys alone; they still reference the first challenge.
     for name in &creator.party {
         let active: String = connection.get(player_key(name)).await.unwrap();
         assert_eq!(active, uuid.to_string());
@@ -744,21 +1060,20 @@ async fn start_joins_an_incumbent_before_its_first_projection() {
     let Some(store) = test_store().await else {
         return;
     };
-    let party = test_party();
     let creator_client = test_client();
+    let creator = create_request_at(creator_client, Stage::TobBloat);
+    let party = party_of(&creator);
 
-    let Ok(Start::Created { claim, .. }) = store
-        .start(&party, create_request_at(creator_client, Stage::TobBloat))
-        .await
-    else {
+    let Ok(Start::Created { claim, .. }) = store.start(creator.clone()).await else {
         panic!("expected a creation");
     };
 
     let joiner_client = test_client();
-    let start = store
-        .start(&party, create_request_at(joiner_client, Stage::TobBloat))
-        .await
-        .expect("start should succeed");
+    let joiner = Create {
+        party: creator.party.clone(),
+        ..create_request_at(joiner_client, Stage::TobBloat)
+    };
+    let start = store.start(joiner).await.expect("start should succeed");
     let Start::Joined { uuid, .. } = start else {
         panic!("expected a join");
     };
@@ -772,14 +1087,14 @@ async fn start_at_an_earlier_stage_creates_a_new_challenge() {
     let Some(store) = test_store().await else {
         return;
     };
-    let party = test_party();
     let first_client = test_client();
     let creator = create_request(first_client);
+    let party = party_of(&creator);
 
     let Ok(Start::Created {
         claim,
         id: create_id,
-    }) = store.start(&party, creator.clone()).await
+    }) = store.start(creator.clone()).await
     else {
         panic!("expected a creation");
     };
@@ -799,10 +1114,7 @@ async fn start_at_an_earlier_stage_creates_a_new_challenge() {
         party: creator.party.clone(),
         ..create_request_at(second_client, Stage::TobMaiden)
     };
-    let start = store
-        .start(&party, restart)
-        .await
-        .expect("start should succeed");
+    let start = store.start(restart).await.expect("start should succeed");
     let Start::Created {
         claim: successor, ..
     } = start
@@ -845,11 +1157,11 @@ async fn start_joins_a_challenge_at_the_same_stage() {
     let Some(store) = test_store().await else {
         return;
     };
-    let party = test_party();
     let first_client = test_client();
+    let creator = create_request(first_client);
+    let party = party_of(&creator);
 
-    let Ok(Start::Created { claim, .. }) = store.start(&party, create_request(first_client)).await
-    else {
+    let Ok(Start::Created { claim, .. }) = store.start(creator.clone()).await else {
         panic!("expected a creation");
     };
     let first = claim.uuid();
@@ -863,10 +1175,11 @@ async fn start_joins_a_challenge_at_the_same_stage() {
         .expect("project should succeed");
 
     let joiner_client = test_client();
-    let start = store
-        .start(&party, create_request_at(joiner_client, Stage::TobVerzik))
-        .await
-        .expect("start should succeed");
+    let joiner = Create {
+        party: creator.party.clone(),
+        ..create_request_at(joiner_client, Stage::TobVerzik)
+    };
+    let start = store.start(joiner).await.expect("start should succeed");
     let Start::Joined { uuid, .. } = start else {
         panic!("expected a join");
     };
@@ -880,11 +1193,11 @@ async fn start_joins_a_challenge_from_a_later_stage() {
     let Some(store) = test_store().await else {
         return;
     };
-    let party = test_party();
     let first_client = test_client();
+    let creator = create_request(first_client);
+    let party = party_of(&creator);
 
-    let Ok(Start::Created { claim, .. }) = store.start(&party, create_request(first_client)).await
-    else {
+    let Ok(Start::Created { claim, .. }) = store.start(creator.clone()).await else {
         panic!("expected a creation");
     };
     let first = claim.uuid();
@@ -894,10 +1207,11 @@ async fn start_joins_a_challenge_from_a_later_stage() {
         .expect("project should succeed");
 
     let joiner_client = test_client();
-    let start = store
-        .start(&party, create_request_at(joiner_client, Stage::TobVerzik))
-        .await
-        .expect("start should succeed");
+    let joiner = Create {
+        party: creator.party.clone(),
+        ..create_request_at(joiner_client, Stage::TobVerzik)
+    };
+    let start = store.start(joiner).await.expect("start should succeed");
     let Start::Joined { uuid, .. } = start else {
         panic!("expected a join");
     };
@@ -911,11 +1225,11 @@ async fn start_supersedes_a_finished_incumbent() {
     let Some(store) = test_store().await else {
         return;
     };
-    let party = test_party();
     let first_client = test_client();
+    let creator = create_request(first_client);
+    let party = party_of(&creator);
 
-    let Ok(Start::Created { claim, .. }) = store.start(&party, create_request(first_client)).await
-    else {
+    let Ok(Start::Created { claim, .. }) = store.start(creator.clone()).await else {
         panic!("expected a creation");
     };
     let first = claim.uuid();
@@ -930,10 +1244,11 @@ async fn start_supersedes_a_finished_incumbent() {
         .expect("project should succeed");
 
     let second_client = test_client();
-    let start = store
-        .start(&party, create_request(second_client))
-        .await
-        .expect("start should succeed");
+    let restart = Create {
+        party: creator.party.clone(),
+        ..create_request(second_client)
+    };
+    let start = store.start(restart).await.expect("start should succeed");
     let Start::Created {
         claim: successor, ..
     } = start
@@ -946,7 +1261,7 @@ async fn start_supersedes_a_finished_incumbent() {
     let mut connection = store.connection.clone();
     let directory: String = connection.get(directory_key(&party)).await.unwrap();
     assert_eq!(directory, second.to_string());
-    // The finished challenge remains indexed until finalization.
+    // The finished challenge remains indexed until deletion.
     let remaining: Option<f64> = connection
         .zscore(LEASES_KEY, first.to_string())
         .await
@@ -967,11 +1282,11 @@ async fn start_supersedes_a_finishing_incumbent() {
     let Some(store) = test_store().await else {
         return;
     };
-    let party = test_party();
     let first_client = test_client();
+    let creator = create_request(first_client);
+    let party = party_of(&creator);
 
-    let Ok(Start::Created { claim, .. }) = store.start(&party, create_request(first_client)).await
-    else {
+    let Ok(Start::Created { claim, .. }) = store.start(creator.clone()).await else {
         panic!("expected a creation");
     };
     let first = claim.uuid();
@@ -985,10 +1300,11 @@ async fn start_supersedes_a_finishing_incumbent() {
         .expect("project should succeed");
 
     let second_client = test_client();
-    let start = store
-        .start(&party, create_request(second_client))
-        .await
-        .expect("start should succeed");
+    let restart = Create {
+        party: creator.party.clone(),
+        ..create_request(second_client)
+    };
+    let start = store.start(restart).await.expect("start should succeed");
     let Start::Created {
         claim: successor, ..
     } = start
@@ -1025,14 +1341,14 @@ async fn client_send_routes_to_the_current_challenge() {
     let Some(store) = test_store().await else {
         return;
     };
-    let party = test_party();
     let client = test_client();
     let create = create_request(client);
+    let party = party_of(&create);
 
     let Ok(Start::Created {
         claim,
         id: create_id,
-    }) = store.start(&party, create.clone()).await
+    }) = store.start(create.clone()).await
     else {
         panic!("expected a creation");
     };
@@ -1078,14 +1394,14 @@ async fn client_send_to_a_terminated_challenge_is_rejected() {
     let Some(store) = test_store().await else {
         return;
     };
-    let party = test_party();
     let client = test_client();
     let create = create_request(client);
+    let party = party_of(&create);
 
     let Ok(Start::Created {
         claim,
         id: create_id,
-    }) = store.start(&party, create.clone()).await
+    }) = store.start(create.clone()).await
     else {
         panic!("expected a creation");
     };
@@ -1114,6 +1430,228 @@ async fn client_send_to_a_terminated_challenge_is_rejected() {
             vec![("cmd".to_string(), Command::Create(create))]
         )],
     );
+
+    clean_up_start(&store, &party, &[client], &[uuid]).await;
+}
+
+fn terminated_state(uuid: Uuid, create: &Create) -> ChallengeState {
+    ChallengeState {
+        uuid,
+        challenge_type: create.challenge_type,
+        mode: create.mode,
+        party: create.party.clone(),
+        phase: PhaseState::Terminated {
+            status: ChallengeStatus::Wiped,
+        },
+        recorded_by: [create.client_id].into(),
+        ..ChallengeState::default()
+    }
+}
+
+#[tokio::test]
+#[allow(clippy::too_many_lines)]
+async fn delete_removes_a_terminated_challenges_state() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let client = test_client();
+    let create = create_request(client);
+    let party = party_of(&create);
+
+    let Ok(Start::Created { claim, .. }) = store.start(create.clone()).await else {
+        panic!("expected a creation");
+    };
+    let uuid = claim.uuid();
+    claim
+        .append(&[entry(
+            0,
+            LifecycleEvent::StageStarted {
+                stage: Stage::TobMaiden,
+            },
+        )])
+        .await
+        .expect("append should succeed");
+    claim
+        .project(&snapshot(uuid, 1))
+        .await
+        .expect("project should succeed");
+
+    // Fake stage stream keys.
+    let mut connection = store.connection.clone();
+    let streams = [
+        format!("test-events:{uuid}:410"),
+        format!("test-events:{uuid}:420"),
+    ];
+    for stream in &streams {
+        let _: () = connection.set(stream, "events").await.unwrap();
+        let _: () = connection
+            .sadd(streams_set_key(uuid), stream)
+            .await
+            .unwrap();
+    }
+
+    let mut pubsub = test_pubsub(SIGNAL_CHANNEL).await;
+    let mut messages = pubsub.on_message();
+
+    claim
+        .delete(&terminated_state(uuid, &create))
+        .await
+        .expect("delete should succeed");
+
+    // Routing, stage streams, index entry, and lease are gone.
+    for key in [
+        directory_key(&party),
+        client_key(client),
+        player_key(&create.party[0]),
+        player_key(&create.party[1]),
+        streams[0].clone(),
+        streams[1].clone(),
+        streams_set_key(uuid),
+        lease_key(uuid),
+    ] {
+        let exists: bool = connection.exists(&key).await.unwrap();
+        assert!(!exists, "key should be deleted: {key}");
+    }
+    let indexed: Option<f64> = connection
+        .zscore(LEASES_KEY, uuid.to_string())
+        .await
+        .unwrap();
+    assert_eq!(indexed, None);
+
+    // The journal, inbox, and state hash survive with their contents, but
+    // expire, the state hash sooner.
+    let stream_retention = i64::try_from(DELETED_STREAM_RETENTION.as_millis()).unwrap();
+    let state_retention = i64::try_from(DELETED_STATE_RETENTION.as_millis()).unwrap();
+    for (key, retention) in [
+        (journal_key(uuid), stream_retention),
+        (inbox_key(uuid), stream_retention),
+        (challenge_key(uuid), state_retention),
+    ] {
+        let ttl: i64 = redis::cmd("PTTL")
+            .arg(&key)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        assert!(
+            ttl > 0 && ttl <= retention,
+            "{key} should expire, has ttl {ttl}",
+        );
+    }
+    assert_eq!(read_journal(&store, uuid).await.len(), 1);
+    assert_eq!(read_inbox(&store, uuid).await.len(), 1);
+
+    // The deletion is signaled.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        let message = tokio::time::timeout_at(deadline, messages.next())
+            .await
+            .expect("signal should arrive within the timeout")
+            .expect("pubsub stream should stay open");
+        let payload: String = message.get_payload().unwrap();
+        let signal: ChallengeSignal = serde_json::from_str(&payload).unwrap();
+        if signal == (ChallengeSignal::Deleted { uuid }) {
+            break;
+        }
+    }
+
+    clean_up_start(&store, &party, &[client], &[uuid]).await;
+}
+
+#[tokio::test]
+async fn delete_leaves_repointed_routing_keys_alone() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let client = test_client();
+    let create = create_request(client);
+    let party = party_of(&create);
+
+    let Ok(Start::Created { claim, .. }) = store.start(create.clone()).await else {
+        panic!("expected a creation");
+    };
+    let uuid = claim.uuid();
+
+    // A new challenge overwrote every routing key, which should be kept.
+    let successor = Uuid::new_v4();
+    let mut connection = store.connection.clone();
+    let routing = [
+        directory_key(&party),
+        client_key(client),
+        player_key(&create.party[0]),
+        player_key(&create.party[1]),
+    ];
+    for key in &routing {
+        let _: () = connection.set(key, successor.to_string()).await.unwrap();
+    }
+
+    claim
+        .delete(&terminated_state(uuid, &create))
+        .await
+        .expect("delete should succeed");
+
+    for key in &routing {
+        let value: String = connection.get(key).await.unwrap();
+        assert_eq!(value, successor.to_string(), "routing key: {key}");
+    }
+    let indexed: Option<f64> = connection
+        .zscore(LEASES_KEY, uuid.to_string())
+        .await
+        .unwrap();
+    assert_eq!(indexed, None);
+    let lease: bool = connection.exists(lease_key(uuid)).await.unwrap();
+    assert!(!lease);
+
+    clean_up_start(&store, &party, &[client], &[uuid]).await;
+}
+
+#[tokio::test]
+async fn bumped_fence_rejects_deletion() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let client = test_client();
+    let create = create_request(client);
+    let party = party_of(&create);
+
+    let Ok(Start::Created { claim, .. }) = store.start(create.clone()).await else {
+        panic!("expected a creation");
+    };
+    let uuid = claim.uuid();
+    claim
+        .project(&snapshot(uuid, 1))
+        .await
+        .expect("project should succeed");
+
+    let mut connection = store.connection.clone();
+    let _: () = connection.hset(lease_key(uuid), "fence", 2).await.unwrap();
+
+    assert_eq!(
+        claim.delete(&terminated_state(uuid, &create)).await,
+        Err(StoreError::Fenced),
+    );
+
+    // Everything survives, and nothing was scheduled to expire.
+    for key in [
+        challenge_key(uuid),
+        directory_key(&party),
+        client_key(client),
+        player_key(&create.party[0]),
+        player_key(&create.party[1]),
+    ] {
+        let exists: bool = connection.exists(&key).await.unwrap();
+        assert!(exists, "key should survive: {key}");
+    }
+    let indexed: Option<f64> = connection
+        .zscore(LEASES_KEY, uuid.to_string())
+        .await
+        .unwrap();
+    assert!(indexed.is_some());
+    let inbox_ttl: i64 = redis::cmd("PTTL")
+        .arg(inbox_key(uuid))
+        .query_async(&mut connection)
+        .await
+        .unwrap();
+    assert_eq!(inbox_ttl, -1);
 
     clean_up_start(&store, &party, &[client], &[uuid]).await;
 }
