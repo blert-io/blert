@@ -14,7 +14,7 @@ use tower_http::trace::TraceLayer;
 
 use crate::lifecycle::coordinator::{CommandError, Coordinator};
 use crate::lifecycle::core::command::{
-    ClientStatus, ClientStatusChange, Create, Finish, StageProgress, Update,
+    ClientStatus, ClientStatusChange, Create, Finish, Join, StageProgress, Update,
 };
 use crate::lifecycle::core::state::Snapshot;
 use crate::lifecycle::core::types::{
@@ -27,6 +27,7 @@ pub fn router(coordinator: Arc<Coordinator>) -> Router {
         .route("/challenges/new", post(new_challenge))
         .route("/challenges/{challenge_id}", post(update_challenge))
         .route("/challenges/{challenge_id}/finish", post(finish_challenge))
+        .route("/challenges/{challenge_id}/join", post(join_challenge))
         .route("/client-status", post(client_status))
         .layer(TraceLayer::new_for_http())
         .with_state(coordinator)
@@ -77,6 +78,17 @@ struct FinishChallengeRequest {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct JoinChallengeRequest {
+    user_id: UserId,
+    client_id: ClientId,
+    session_token: SessionToken,
+    plugin_version: String,
+    rune_lite_version: String,
+    recording_type: RecordingType,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ClientStatusRequest {
     user_id: UserId,
     client_id: ClientId,
@@ -113,6 +125,9 @@ fn command_error(e: CommandError) -> Response {
     match e {
         CommandError::UnknownChallenge => {
             error_response(StatusCode::BAD_REQUEST, "challenge does not exist")
+        }
+        CommandError::AlreadyInChallenge => {
+            error_response(StatusCode::BAD_REQUEST, "client is already in a challenge")
         }
         CommandError::Unavailable => {
             error_response(StatusCode::INTERNAL_SERVER_ERROR, "challenge is gone")
@@ -179,6 +194,26 @@ async fn client_status(
 
     match coordinator.update_client_status(change).await {
         Ok(()) => StatusCode::OK.into_response(),
+        Err(e) => command_error(e),
+    }
+}
+
+async fn join_challenge(
+    State(coordinator): State<Arc<Coordinator>>,
+    Path(challenge_id): Path<Uuid>,
+    Json(req): Json<JoinChallengeRequest>,
+) -> Response {
+    let join = Join {
+        user_id: req.user_id,
+        client_id: req.client_id,
+        session_token: req.session_token,
+        plugin_version: req.plugin_version,
+        runelite_version: req.rune_lite_version,
+        recording_type: req.recording_type,
+    };
+
+    match coordinator.rejoin(challenge_id, join).await {
+        Ok(p) => Json(ChallengeResponse::from(p)).into_response(),
         Err(e) => command_error(e),
     }
 }
@@ -340,5 +375,104 @@ mod tests {
         .await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(body["error"]["message"], "challenge does not exist");
+    }
+
+    fn join_body(user: i64, client: i64, token: &str) -> Value {
+        json!({
+            "userId": user, "clientId": client, "sessionToken": token,
+            "pluginVersion": "0.9.14", "runeLiteVersion": "1.12.31.1",
+            "recordingType": 1,
+        })
+    }
+
+    #[tokio::test]
+    async fn rejoin_resyncs_a_client() {
+        let router = test_router();
+        let (_, body) = post(
+            &router,
+            "/challenges/new",
+            &json!({
+                "userId": 1, "clientId": 10, "sessionToken": "tok",
+                "pluginVersion": "0.9.14", "runeLiteVersion": "1.12.31.1",
+                "type": 1, "mode": 11, "party": ["WWWWWWWWWWQQ"], "stage": 10,
+                "recordingType": 1,
+            }),
+        )
+        .await;
+        let uuid = body["uuid"].as_str().expect("uuid in response").to_owned();
+
+        let (status, _) = post(
+            &router,
+            &format!("/challenges/{uuid}"),
+            &stage_update(10, 1),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+
+        // The client reconnects with a fresh session token.
+        let (status, body) = post(
+            &router,
+            &format!("/challenges/{uuid}/join"),
+            &join_body(1, 10, "tok2"),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["uuid"], uuid.as_str());
+        assert_eq!(body["mode"], 11);
+        assert_eq!(body["stage"], 10);
+        assert_eq!(body["stageAttempt"], Value::Null);
+    }
+
+    #[tokio::test]
+    async fn rejoin_of_unknown_challenge_is_rejected() {
+        let router = test_router();
+        let (status, body) = post(
+            &router,
+            &format!("/challenges/{}/join", Uuid::from_u128(7)),
+            &join_body(1, 10, "tok"),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(body["error"]["message"], "challenge does not exist");
+    }
+
+    #[tokio::test]
+    async fn rejoin_from_another_challenge_is_rejected() {
+        let router = test_router();
+        let (_, body) = post(
+            &router,
+            "/challenges/new",
+            &json!({
+                "userId": 1, "clientId": 10, "sessionToken": "tok",
+                "pluginVersion": "0.9.14", "runeLiteVersion": "1.12.31.1",
+                "type": 1, "mode": 11, "party": ["WWWWWWWWWWQQ"], "stage": 10,
+                "recordingType": 1,
+            }),
+        )
+        .await;
+        let first = body["uuid"].as_str().expect("uuid in response").to_owned();
+
+        let (_, body) = post(
+            &router,
+            "/challenges/new",
+            &json!({
+                "userId": 2, "clientId": 20, "sessionToken": "tok2",
+                "pluginVersion": "0.9.14", "runeLiteVersion": "1.12.31.1",
+                "type": 1, "mode": 11, "party": ["715"], "stage": 10,
+                "recordingType": 1,
+            }),
+        )
+        .await;
+        let second = body["uuid"].as_str().expect("uuid in response").to_owned();
+        assert_ne!(first, second);
+
+        let (status, body) = post(
+            &router,
+            &format!("/challenges/{first}/join"),
+            &join_body(2, 20, "tok2b"),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(body["error"]["message"], "client is already in a challenge");
     }
 }

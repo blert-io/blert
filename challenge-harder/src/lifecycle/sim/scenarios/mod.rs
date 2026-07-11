@@ -8,6 +8,7 @@ mod creation;
 mod determinism;
 mod progression;
 mod recovery;
+mod rejoin;
 mod retries;
 mod stage_end;
 mod sweep;

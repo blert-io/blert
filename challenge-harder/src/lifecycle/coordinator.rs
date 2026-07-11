@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::{RwLock, mpsc, watch};
 use tokio::task::JoinHandle;
 
-use super::challenge::{ChallengeSignal, ChallengeStore, Claim, Start, run_challenge};
+use super::challenge::{ChallengeSignal, ChallengeStore, Claim, Rejoin, Start, run_challenge};
 use super::core::command::{ClientStatusChange, Command, Create, Finish, Join, Update};
 use super::core::deadline::LifecycleConfig;
 use super::core::state::{ChallengePhase, Snapshot};
@@ -18,6 +18,8 @@ use super::core::types::{ClientId, MsgId, Uuid};
 pub enum CommandError {
     #[error("no active challenge with the given ID")]
     UnknownChallenge,
+    #[error("the client is already in a different challenge")]
+    AlreadyInChallenge,
     #[error("the challenge shut down before applying the command")]
     Unavailable,
 }
@@ -329,6 +331,29 @@ impl Coordinator {
             tracing::error!(msg_id = %id, "challenge_join_incumbent_terminated");
         }
         snapshot
+    }
+
+    /// Reconnects a client to an active challenge, returning its current state.
+    pub async fn rejoin(&self, uuid: Uuid, join: Join) -> Result<Snapshot, CommandError> {
+        tracing::debug!(
+            %uuid,
+            user_id = %join.user_id,
+            client_id = %join.client_id,
+            "challenge_rejoin",
+        );
+        let id = match self.store.rejoin(uuid, &join).await {
+            Ok(Rejoin::Queued(id)) => id,
+            Ok(Rejoin::UnknownChallenge) => return Err(CommandError::UnknownChallenge),
+            Ok(Rejoin::AlreadyInChallenge) => return Err(CommandError::AlreadyInChallenge),
+            Err(error) => {
+                tracing::warn!(%uuid, %error, "command_enqueue_failed");
+                return Err(CommandError::Unavailable);
+            }
+        };
+        self.cache
+            .applied(uuid, id)
+            .await
+            .ok_or(CommandError::Unavailable)
     }
 
     /// Updates the state of an active challenge, returning its new state.

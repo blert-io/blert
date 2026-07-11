@@ -63,10 +63,12 @@ fn create(state: &ChallengeState, c: &Create) -> Vec<LifecycleEvent> {
 
 fn join(state: &ChallengeState, join: &Join) -> Vec<LifecycleEvent> {
     if state.clients.contains_key(&join.client_id) {
-        // Happens when a client's dying socket has not yet been detected before
-        // its replacement connection joins. Client record should be refreshed.
-        // challenge-manager.ts:184
-        todo!("overlapping-socket rejoin");
+        // A replacement connection can join before its predecessor's death is
+        // detected. Refresh the existing session token.
+        return vec![LifecycleEvent::ClientRejoined {
+            client_id: join.client_id,
+            session_token: join.session_token.clone(),
+        }];
     }
 
     vec![LifecycleEvent::ClientJoined {
@@ -1296,6 +1298,62 @@ mod tests {
                 user_id: UserId(2),
                 session_token: "tok2".into(),
                 recording_type: RecordingType::Spectator,
+            }],
+        );
+    }
+
+    #[test]
+    fn join_of_present_client_refreshes_it() {
+        let state = tob_state(vec![(
+            CLIENT_A,
+            client(Stage::TobMaiden, StageStatus::Started, None),
+        )]);
+        let join = Command::Join(super::Join {
+            user_id: UserId(1),
+            client_id: CLIENT_A,
+            session_token: "tok2".into(),
+            plugin_version: "0.9.14".into(),
+            runelite_version: "1.12.31.1".into(),
+            recording_type: RecordingType::Participant,
+        });
+        assert_eq!(
+            decide(&state, &LifecycleConfig::default(), &join),
+            vec![LifecycleEvent::ClientRejoined {
+                client_id: CLIENT_A,
+                session_token: "tok2".into(),
+            }],
+        );
+    }
+
+    #[test]
+    fn rejoin_during_finishing_is_accepted() {
+        let mut state = tob_state(vec![
+            (
+                CLIENT_A,
+                client(Stage::TobVerzik, StageStatus::Completed, None),
+            ),
+            (
+                CLIENT_B,
+                client(Stage::TobVerzik, StageStatus::Completed, None),
+            ),
+        ]);
+        state.phase = PhaseState::Finishing {
+            since: Timestamp::from_millis(1_000),
+            status: ChallengeStatus::Completed,
+        };
+        let join = Command::Join(super::Join {
+            user_id: UserId(1),
+            client_id: CLIENT_A,
+            session_token: "tok2".into(),
+            plugin_version: "0.9.14".into(),
+            runelite_version: "1.12.31.1".into(),
+            recording_type: RecordingType::Participant,
+        });
+        assert_eq!(
+            decide(&state, &LifecycleConfig::default(), &join),
+            vec![LifecycleEvent::ClientRejoined {
+                client_id: CLIENT_A,
+                session_token: "tok2".into(),
             }],
         );
     }
