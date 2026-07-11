@@ -11,7 +11,7 @@ use serde::Serialize;
 use tokio::sync::mpsc;
 
 use crate::lifecycle::challenge::{
-    ChallengeClaim, ChallengeServerUpdate, ChallengeSignal, ChallengeStore, Claim, Start,
+    ChallengeClaim, ChallengeServerUpdate, ChallengeSignal, ChallengeStore, Claim, Rejoin, Start,
     StoreError,
 };
 use crate::lifecycle::core::command::{Command, Create, Envelope, Join};
@@ -25,7 +25,7 @@ use crate::players::normalize_rsn;
 mod scripts;
 use scripts::{
     ANNOUNCE_SCRIPT, APPEND_SCRIPT, CLAIM_SCRIPT, CLIENT_SEND_SCRIPT, DELETE_SCRIPT,
-    PROJECT_SCRIPT, RELEASE_SCRIPT, RENEW_SCRIPT, SEND_SCRIPT, START_SCRIPT,
+    PROJECT_SCRIPT, REJOIN_SCRIPT, RELEASE_SCRIPT, RENEW_SCRIPT, SEND_SCRIPT, START_SCRIPT,
 };
 
 #[cfg(test)]
@@ -327,6 +327,33 @@ impl ChallengeStore for Store {
                 uuid: incumbent.parse().map_err(|_| invalid())?,
                 id: id.parse().map_err(|_| invalid())?,
             }),
+            _ => Err(invalid()),
+        }
+    }
+
+    async fn rejoin(&self, uuid: Uuid, join: &Join) -> Result<Rejoin, StoreError> {
+        let payload =
+            serde_json::to_string(&Command::Join(join.clone())).expect("command serializes");
+        let mut connection = self.connection.clone();
+
+        let mut invocation = REJOIN_SCRIPT.prepare_invoke();
+        invocation
+            .key(LEASES_KEY)
+            .key(challenge_key(uuid))
+            .key(client_key(join.client_id))
+            .key(inbox_key(uuid))
+            .arg(uuid.to_string())
+            .arg(payload);
+        let outcome: Vec<String> = invocation
+            .invoke_async(&mut connection)
+            .await
+            .map_err(|e| StoreError::Unavailable(e.to_string()))?;
+
+        let invalid = || StoreError::Unavailable(format!("invalid rejoin outcome: {outcome:?}"));
+        match outcome.as_slice() {
+            [tag, id] if tag == "OK" => Ok(Rejoin::Queued(id.parse().map_err(|_| invalid())?)),
+            [tag] if tag == "UNKNOWN" => Ok(Rejoin::UnknownChallenge),
+            [tag] if tag == "ELSEWHERE" => Ok(Rejoin::AlreadyInChallenge),
             _ => Err(invalid()),
         }
     }

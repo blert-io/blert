@@ -21,7 +21,7 @@ use tokio::time::Instant;
 use tokio::sync::{mpsc, watch};
 
 use super::challenge::{
-    ChallengeClaim, ChallengeServerUpdate, ChallengeSignal, ChallengeStore, Claim, Start,
+    ChallengeClaim, ChallengeServerUpdate, ChallengeSignal, ChallengeStore, Claim, Rejoin, Start,
     StoreError,
 };
 use super::coordinator::Coordinator;
@@ -55,6 +55,12 @@ pub enum Action {
         soft: bool,
     },
     Status(ClientStatus),
+    /// Reconnects to the client's current challenge from a new connection.
+    Reconnect {
+        token: &'static str,
+    },
+    /// A status claim from a connection holding a specific session token.
+    StatusAs(ClientStatus, &'static str),
 }
 
 #[derive(Clone)]
@@ -436,6 +442,38 @@ impl ChallengeStore for Collector {
         }
     }
 
+    async fn rejoin(&self, uuid: Uuid, join: &Join) -> Result<Rejoin, StoreError> {
+        {
+            let routing = self.routing.lock().expect("collector lock poisoned");
+            if !routing.existing.contains(&uuid) {
+                return Ok(Rejoin::UnknownChallenge);
+            }
+        }
+        let terminated = self
+            .projections
+            .lock()
+            .expect("collector lock poisoned")
+            .get(&uuid)
+            .is_some_and(|snapshot| snapshot.phase == ChallengePhase::Terminated);
+        if terminated {
+            return Ok(Rejoin::UnknownChallenge);
+        }
+        {
+            let mut routing = self.routing.lock().expect("collector lock poisoned");
+            let elsewhere = routing
+                .clients
+                .get(&join.client_id)
+                .is_some_and(|current| *current != uuid);
+            if elsewhere {
+                return Ok(Rejoin::AlreadyInChallenge);
+            }
+            routing.clients.insert(join.client_id, uuid);
+        }
+        Ok(Rejoin::Queued(
+            self.enqueue(uuid, Command::Join(join.clone())).await,
+        ))
+    }
+
     async fn send(&self, uuid: Uuid, cmd: &Command) -> Result<Option<MsgId>, StoreError> {
         let exists = self
             .routing
@@ -629,7 +667,7 @@ pub async fn run_with(config: LifecycleConfig, scenario: Scenario) -> ScenarioRe
         for (index, action) in group {
             let outcome = issue(
                 &coordinator,
-                &identities[index],
+                &mut identities[index],
                 &uuid_slots[index],
                 at,
                 action,
@@ -696,9 +734,10 @@ pub async fn run_with(config: LifecycleConfig, scenario: Scenario) -> ScenarioRe
     result
 }
 
+#[allow(clippy::too_many_lines)]
 async fn issue(
     coordinator: &Coordinator,
-    identity: &Identity,
+    identity: &mut Identity,
     current_uuid: &Mutex<Option<Uuid>>,
     at: u64,
     action: Action,
@@ -767,6 +806,35 @@ async fn issue(
                     user_id: identity.user_id,
                     client_id: identity.client_id,
                     session_token: identity.session_token.clone(),
+                    status,
+                })
+                .await;
+            None
+        }
+        Action::Reconnect { token } => {
+            identity.session_token = token.into();
+            let uuid = current_challenge(identity, current_uuid);
+            coordinator
+                .rejoin(
+                    uuid,
+                    Join {
+                        user_id: identity.user_id,
+                        client_id: identity.client_id,
+                        session_token: identity.session_token.clone(),
+                        plugin_version: "0.9.14".into(),
+                        runelite_version: "1.12.31.1".into(),
+                        recording_type: identity.recording_type,
+                    },
+                )
+                .await
+                .ok()
+        }
+        Action::StatusAs(status, token) => {
+            let _ = coordinator
+                .update_client_status(ClientStatusChange {
+                    user_id: identity.user_id,
+                    client_id: identity.client_id,
+                    session_token: token.into(),
                     status,
                 })
                 .await;

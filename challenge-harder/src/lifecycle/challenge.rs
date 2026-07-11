@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
 
 use super::core::apply::apply;
-use super::core::command::{Command, Create, Envelope};
+use super::core::command::{Command, Create, Envelope, Join};
 use super::core::deadline::{LifecycleConfig, next_deadline};
 use super::core::decide::decide;
 use super::core::event::{Cause, JournalEntry, LifecycleEvent};
@@ -66,6 +66,17 @@ pub enum Start {
     Joined { uuid: Uuid, id: MsgId },
 }
 
+/// Resolution of a client's request to rejoin a challenge.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Rejoin {
+    /// The rejoin routed and is queued at the returned position.
+    Queued(MsgId),
+    /// No live challenge with the requested ID exists.
+    UnknownChallenge,
+    /// The client is routed to a different challenge.
+    AlreadyInChallenge,
+}
+
 /// A lifecycle milestone broadcast to external consumers.
 /// Mirrors `ChallengeServerUpdate` in `//common/db/redis.ts`.
 // TODO(frolv): STAGE_END should be added alongside the stage processor.
@@ -85,6 +96,18 @@ pub enum ChallengeSignal {
 }
 
 /// Durable storage for challenge state, granting exclusive access through claims.
+///
+/// A store is expected to maintain several bits of state:
+///
+/// - An index of all known challenges, alongside their owner and lease epoch.
+/// - The inbox and journal of each challenge.
+/// - A snapshot of each challenge's public state.
+/// - A mapping of parties to their active challenge.
+/// - A mapping of clients to their active challenge.
+/// - A mapping of players to their active challenge.
+///
+/// In addition to this, stores should have a mechanism for signalling state
+/// updates and challenge lifecycle updates to subscribers.
 #[async_trait]
 pub trait ChallengeStore: Send + Sync + 'static {
     /// Finds up to `batch_size` claimable challenges not listed in `exclude`
@@ -100,6 +123,10 @@ pub trait ChallengeStore: Send + Sync + 'static {
     /// party's running challenge with a join queued. Atomic with respect to
     /// other starts.
     async fn start(&self, create: Create) -> Result<Start, StoreError>;
+
+    /// Queues a join into the inbox for challenge `uuid` unless the client is
+    /// already in a different challenge.
+    async fn rejoin(&self, uuid: Uuid, join: &Join) -> Result<Rejoin, StoreError>;
 
     /// Queues a command into the inbox for challenge `uuid`, returning its
     /// assigned ID, or `None` if no such challenge exists.

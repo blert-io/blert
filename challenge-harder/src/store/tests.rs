@@ -1434,6 +1434,218 @@ async fn client_send_to_a_terminated_challenge_is_rejected() {
     clean_up_start(&store, &party, &[client], &[uuid]).await;
 }
 
+fn join_request(client: ClientId) -> Join {
+    Join {
+        user_id: UserId(client.0),
+        client_id: client,
+        session_token: format!("tok{client}b").into(),
+        plugin_version: "0.9.14".into(),
+        runelite_version: "1.12.31.1".into(),
+        recording_type: RecordingType::Participant,
+    }
+}
+
+#[tokio::test]
+async fn rejoin_routes_and_enqueues_for_a_live_challenge() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let client = test_client();
+    let create = create_request(client);
+    let party = party_of(&create);
+
+    let Ok(Start::Created {
+        claim,
+        id: create_id,
+    }) = store.start(create.clone()).await
+    else {
+        panic!("expected a creation");
+    };
+    let uuid = claim.uuid();
+    claim
+        .project(&snapshot(uuid, 1))
+        .await
+        .expect("project should succeed");
+
+    let rejoin = join_request(client);
+    let Ok(Rejoin::Queued(rejoin_id)) = store.rejoin(uuid, &rejoin).await else {
+        panic!("expected a queued rejoin");
+    };
+
+    let late_client = test_client();
+    let late = join_request(late_client);
+    let Ok(Rejoin::Queued(late_id)) = store.rejoin(uuid, &late).await else {
+        panic!("expected a queued rejoin");
+    };
+
+    let mut connection = store.connection.clone();
+    let routed: String = connection.get(client_key(client)).await.unwrap();
+    assert_eq!(routed, uuid.to_string());
+    let routed: String = connection.get(client_key(late_client)).await.unwrap();
+    assert_eq!(routed, uuid.to_string());
+
+    assert_eq!(
+        read_inbox(&store, uuid).await,
+        vec![
+            (
+                create_id,
+                vec![("cmd".to_string(), Command::Create(create))]
+            ),
+            (rejoin_id, vec![("cmd".to_string(), Command::Join(rejoin))]),
+            (late_id, vec![("cmd".to_string(), Command::Join(late))]),
+        ],
+    );
+
+    clean_up_start(&store, &party, &[client, late_client], &[uuid]).await;
+}
+
+#[tokio::test]
+async fn rejoin_of_an_unknown_challenge_is_rejected() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let client = test_client();
+    let uuid = Uuid::new_v4();
+
+    assert_eq!(
+        store.rejoin(uuid, &join_request(client)).await,
+        Ok(Rejoin::UnknownChallenge),
+    );
+
+    // Nothing was routed or queued.
+    let mut connection = store.connection.clone();
+    let routed: Option<String> = connection.get(client_key(client)).await.unwrap();
+    assert_eq!(routed, None);
+    assert_eq!(read_inbox(&store, uuid).await, vec![]);
+}
+
+#[tokio::test]
+async fn rejoin_of_a_terminated_challenge_is_rejected() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let client = test_client();
+    let create = create_request(client);
+    let party = party_of(&create);
+
+    let Ok(Start::Created {
+        claim,
+        id: create_id,
+    }) = store.start(create.clone()).await
+    else {
+        panic!("expected a creation");
+    };
+    let uuid = claim.uuid();
+    let terminated = Snapshot {
+        phase: ChallengePhase::Terminated,
+        status: ChallengeStatus::Wiped,
+        ..snapshot(uuid, 2)
+    };
+    claim
+        .project(&terminated)
+        .await
+        .expect("project should succeed");
+
+    assert_eq!(
+        store.rejoin(uuid, &join_request(client)).await,
+        Ok(Rejoin::UnknownChallenge),
+    );
+    assert_eq!(
+        read_inbox(&store, uuid).await,
+        vec![(
+            create_id,
+            vec![("cmd".to_string(), Command::Create(create))]
+        )],
+    );
+
+    clean_up_start(&store, &party, &[client], &[uuid]).await;
+}
+
+#[tokio::test]
+async fn rejoin_while_routed_elsewhere_is_rejected() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let client = test_client();
+    let create = create_request(client);
+    let party = party_of(&create);
+
+    let Ok(Start::Created { claim, .. }) = store.start(create).await else {
+        panic!("expected a creation");
+    };
+    let current_uuid = claim.uuid();
+
+    let other_client = test_client();
+    let other_create = create_request(other_client);
+    let other_party = party_of(&other_create);
+    let Ok(Start::Created {
+        claim: other_claim,
+        id: other_create_id,
+    }) = store.start(other_create.clone()).await
+    else {
+        panic!("expected a creation");
+    };
+    let other_uuid = other_claim.uuid();
+
+    assert_eq!(
+        store.rejoin(other_uuid, &join_request(client)).await,
+        Ok(Rejoin::AlreadyInChallenge),
+    );
+
+    // The client's routing is untouched and nothing reached the other inbox.
+    let mut connection = store.connection.clone();
+    let routed: String = connection.get(client_key(client)).await.unwrap();
+    assert_eq!(routed, current_uuid.to_string());
+    assert_eq!(
+        read_inbox(&store, other_uuid).await,
+        vec![(
+            other_create_id,
+            vec![("cmd".to_string(), Command::Create(other_create))]
+        )],
+    );
+
+    clean_up_start(&store, &party, &[client], &[current_uuid]).await;
+    clean_up_start(&store, &other_party, &[other_client], &[other_uuid]).await;
+}
+
+#[tokio::test]
+async fn rejoin_before_first_projection_accepts() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let client = test_client();
+    let create = create_request(client);
+    let party = party_of(&create);
+
+    let Ok(Start::Created {
+        claim,
+        id: create_id,
+    }) = store.start(create.clone()).await
+    else {
+        panic!("expected a creation");
+    };
+    let uuid = claim.uuid();
+
+    let late_client = test_client();
+    let late = join_request(late_client);
+    let Ok(Rejoin::Queued(late_id)) = store.rejoin(uuid, &late).await else {
+        panic!("expected a queued rejoin");
+    };
+
+    assert_eq!(
+        read_inbox(&store, uuid).await,
+        vec![
+            (
+                create_id,
+                vec![("cmd".to_string(), Command::Create(create))]
+            ),
+            (late_id, vec![("cmd".to_string(), Command::Join(late))]),
+        ],
+    );
+
+    clean_up_start(&store, &party, &[client, late_client], &[uuid]).await;
+}
+
 fn terminated_state(uuid: Uuid, create: &Create) -> ChallengeState {
     ChallengeState {
         uuid,

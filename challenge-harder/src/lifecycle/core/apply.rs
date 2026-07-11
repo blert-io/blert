@@ -54,6 +54,18 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
                 },
             );
         }
+        LifecycleEvent::ClientRejoined {
+            client_id,
+            session_token,
+        } => {
+            if let Some(client) = state.clients.get_mut(&client_id) {
+                client.session_token = session_token;
+                client.active = true;
+                client.stage = state.stage;
+                client.stage_status = StageStatus::Entered;
+                client.stage_attempt = state.stage_attempt;
+            }
+        }
         LifecycleEvent::ClientStageReported {
             client_id,
             attempt,
@@ -446,6 +458,51 @@ mod tests {
         assert_eq!(client.stage, Stage::TobBloat);
         assert_eq!(client.stage_status, StageStatus::Entered);
         assert_eq!(client.stage_attempt, None);
+    }
+
+    #[test]
+    fn client_rejoined_refreshes_the_client() {
+        let mut state = created_tob_state();
+        apply(
+            &mut state,
+            entry(
+                9_000,
+                2,
+                LifecycleEvent::StageStarted {
+                    stage: Stage::TobBloat,
+                },
+            ),
+        );
+        apply(
+            &mut state,
+            entry(10_000, 3, LifecycleEvent::ClientIdled { client_id: CLIENT }),
+        );
+        assert_eq!(state.dormant_since, Some(Timestamp::from_millis(10_000)));
+
+        apply(
+            &mut state,
+            entry(
+                11_000,
+                4,
+                LifecycleEvent::ClientRejoined {
+                    client_id: CLIENT,
+                    session_token: "tok2".into(),
+                },
+            ),
+        );
+        assert_eq!(
+            state.clients[&CLIENT],
+            ClientState {
+                user_id: UserId(1),
+                session_token: "tok2".into(),
+                recording_type: RecordingType::Participant,
+                active: true,
+                stage: Stage::TobBloat,
+                stage_status: StageStatus::Entered,
+                stage_attempt: None,
+            },
+        );
+        assert_eq!(state.dormant_since, None);
     }
 
     #[test]

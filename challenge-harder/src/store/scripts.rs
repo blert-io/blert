@@ -13,16 +13,22 @@ use crate::lifecycle::core::{state::ChallengePhase, types::Epoch};
 /// Claims up to a batch of claimable challenges for the claimant, bumping
 /// each one's fence to a fresh epoch so any stalled previous owner's writes
 /// are rejected. A challenge is claimable if its lease deadline has lapsed,
-/// or if it is already recorded as owned by this claimant. Returns the
-/// claimed challenges as a flat list of alternating uuid, epoch pairs.
+/// or if it is already recorded as owned by this claimant.
 ///
-/// `KEYS[1]` = Challenge index
+/// ## Arguments
 ///
-/// `ARGV[1]` = Claimant identity
-/// `ARGV[2]` = Current time, as a unix millisecond timestamp
-/// `ARGV[3]` = New lease deadline, as a unix millisecond timestamp
-/// `ARGV[4]` = Batch size
-/// `ARGV[5..]` = Uuids of challenges to skip
+/// - `KEYS[1]` = Challenge index
+///
+/// - `ARGV[1]` = Claimant identity
+/// - `ARGV[2]` = Current time, as a unix millisecond timestamp
+/// - `ARGV[3]` = New lease deadline, as a unix millisecond timestamp
+/// - `ARGV[4]` = Batch size
+/// - `ARGV[5..]` = Uuids of challenges to skip
+///
+/// ## Return value
+///
+/// A flat list of alternating uuid, epoch pairs for each claimed challenge.
+/// Empty when nothing was claimable.
 pub(super) static CLAIM_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
     Script::new(&format!(
         r"
@@ -56,12 +62,19 @@ pub(super) static CLAIM_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
 /// Extends a challenge's lease deadline, provided the renewer's epoch still
 /// holds the challenge's fence.
 ///
-/// `KEYS[1]` = Challenge's lease hash
-/// `KEYS[2]` = Challenge index
+/// ## Arguments
 ///
-/// `ARGV[1]` = Lease epoch
-/// `ARGV[2]` = Challenge uuid
-/// `ARGV[3]` = New lease deadline, as a unix millisecond timestamp
+/// - `KEYS[1]` = Challenge's lease hash
+/// - `KEYS[2]` = Challenge index
+///
+/// - `ARGV[1]` = Lease epoch
+/// - `ARGV[2]` = Challenge uuid
+/// - `ARGV[3]` = New lease deadline, as a unix millisecond timestamp
+///
+/// ## Return value
+///
+/// - `1`: The lease was renewed.
+/// - `0`: The epoch no longer holds the fence.
 pub(super) static RENEW_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
     Script::new(
         r"
@@ -78,11 +91,18 @@ pub(super) static RENEW_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
 /// releaser's epoch still holds the challenge's fence, leaving the challenge
 /// immediately claimable by any instance.
 ///
-/// `KEYS[1]` = Challenge's lease hash
-/// `KEYS[2]` = Challenge index
+/// ## Arguments
 ///
-/// `ARGV[1]` = Lease epoch
-/// `ARGV[2]` = Challenge uuid
+/// - `KEYS[1]` = Challenge's lease hash
+/// - `KEYS[2]` = Challenge index
+///
+/// - `ARGV[1]` = Lease epoch
+/// - `ARGV[2]` = Challenge uuid
+///
+/// ## Return value
+///
+/// - `1`: The lease was released.
+/// - `0`: The epoch no longer holds the fence.
 pub(super) static RELEASE_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
     Script::new(
         r"
@@ -98,11 +118,18 @@ pub(super) static RELEASE_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
 /// Appends a batch of journal entries as a single stream entry, provided the
 /// appender's epoch still holds the challenge's fence.
 ///
-/// `KEYS[1]` = Challenge's lease hash
-/// `KEYS[2]` = Challenge's journal stream
+/// ## Arguments
 ///
-/// `ARGV[1]` = Lease epoch
-/// `ARGV[2]` = Serialized journal entries.
+/// - `KEYS[1]` = Challenge's lease hash
+/// - `KEYS[2]` = Challenge's journal stream
+///
+/// - `ARGV[1]` = Lease epoch
+/// - `ARGV[2]` = Serialized journal entries
+///
+/// ## Return value
+///
+/// - `1`: The batch was appended.
+/// - `0`: The epoch no longer holds the fence.
 pub(super) static APPEND_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
     Script::new(
         r"
@@ -118,13 +145,19 @@ pub(super) static APPEND_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
 /// Writes the challenge's state hash and signals the update, provided
 /// the writer's epoch still holds the challenge's fence.
 ///
-/// `KEYS[1]` = Challenge's state hash
-/// `KEYS[2]` = Challenge's lease hash
+/// ## Arguments
 ///
-/// `ARGV[1]` = Lease epoch
-/// `ARGV[2]` = Serialized update signal
+/// - `KEYS[1]` = Challenge's state hash
+/// - `KEYS[2]` = Challenge's lease hash
 ///
-/// `ARGV[N, N+1]...` = Key-value pairs to set in the state hash.
+/// - `ARGV[1]` = Lease epoch
+/// - `ARGV[2]` = Serialized update signal
+/// - `ARGV[3..]` = Key-value pairs to set in the state hash
+///
+/// ## Return value
+///
+/// - `1`: The state was projected.
+/// - `0`: The epoch no longer holds the fence.
 pub(super) static PROJECT_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
     Script::new(&format!(
         r"
@@ -141,10 +174,17 @@ pub(super) static PROJECT_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
 /// Broadcasts a challenge lifecycle update to the updates pubsub channel,
 /// provided the writer's epoch still holds the challenge's fence.
 ///
-/// `KEYS[1]` = Challenge's lease hash
+/// ## Arguments
 ///
-/// `ARGV[1]` = Lease epoch
-/// `ARGV[2]` = Serialized challenge update
+/// - `KEYS[1]` = Challenge's lease hash
+///
+/// - `ARGV[1]` = Lease epoch
+/// - `ARGV[2]` = Serialized challenge update
+///
+/// ## Return value
+///
+/// - `1`: The update was announced.
+/// - `0`: The epoch no longer holds the fence.
 pub(super) static ANNOUNCE_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
     Script::new(&format!(
         r"
@@ -170,19 +210,28 @@ pub(super) static ANNOUNCE_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
 /// If joining, pushes the join command to the incumbent's inbox instead,
 /// leaving the player keys alone as the party is unchanged.
 ///
-/// `KEYS[1]` = Party directory key
-/// `KEYS[2]` = Challenge index
-/// `KEYS[3]` = New challenge's lease hash
-/// `KEYS[4]` = The client's active challenge key
-/// `KEYS[5]` = New challenge's inbox stream
-/// `KEYS[6..]` = Party members' player keys
+/// ## Arguments
 ///
-/// `ARGV[1]` = Fresh challenge uuid
-/// `ARGV[2]` = Creating instance's identity
-/// `ARGV[3]` = Lease deadline for the created challenge
-/// `ARGV[4]` = Serialized create command
-/// `ARGV[5]` = Serialized join command
-/// `ARGV[6]` = List of stages for the challenge beyond the incoming one
+/// - `KEYS[1]` = Party directory key
+/// - `KEYS[2]` = Challenge index
+/// - `KEYS[3]` = New challenge's lease hash
+/// - `KEYS[4]` = The client's active challenge key
+/// - `KEYS[5]` = New challenge's inbox stream
+/// - `KEYS[6..]` = Party members' player keys
+///
+/// - `ARGV[1]` = Fresh challenge uuid
+/// - `ARGV[2]` = Creating instance's identity
+/// - `ARGV[3]` = Lease deadline for the created challenge
+/// - `ARGV[4]` = Serialized create command
+/// - `ARGV[5]` = Serialized join command
+/// - `ARGV[6]` = List of stages for the challenge beyond the incoming one
+///
+/// ## Return value
+///
+/// - `["CREATE", id]`: A new challenge was created and its create command
+///   was queued at `id`.
+/// - `["JOIN", uuid, id]`: The client joined existing challenge `uuid` and its
+///   join command was queued at `id`.
 pub(super) static START_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
     Script::new(&format!(
         r"
@@ -227,19 +276,26 @@ pub(super) static START_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
 /// hash is also left to expire, briefly, so that response waiters racing the
 /// deletion can still read the state their commands produced.
 ///
-/// `KEYS[1]` = Challenge's lease hash
-/// `KEYS[2]` = Challenge index
-/// `KEYS[3]` = Challenge's state hash
-/// `KEYS[4]` = Challenge's journal stream
-/// `KEYS[5]` = Challenge's inbox stream
-/// `KEYS[6]` = Challenge's stage streams set
-/// `KEYS[7..]` = The challenge's routing keys (directory, client, and player)
+/// ## Arguments
 ///
-/// `ARGV[1]` = Lease epoch
-/// `ARGV[2]` = Challenge uuid
-/// `ARGV[3]` = Serialized deletion signal
-/// `ARGV[4]` = Journal and inbox retention, in seconds
-/// `ARGV[5]` = State hash retention, in seconds
+/// - `KEYS[1]` = Challenge's lease hash
+/// - `KEYS[2]` = Challenge index
+/// - `KEYS[3]` = Challenge's state hash
+/// - `KEYS[4]` = Challenge's journal stream
+/// - `KEYS[5]` = Challenge's inbox stream
+/// - `KEYS[6]` = Challenge's stage streams set
+/// - `KEYS[7..]` = The challenge's routing keys (directory, client, and player)
+///
+/// - `ARGV[1]` = Lease epoch
+/// - `ARGV[2]` = Challenge uuid
+/// - `ARGV[3]` = Serialized deletion signal
+/// - `ARGV[4]` = Journal and inbox retention, in seconds
+/// - `ARGV[5]` = State hash retention, in seconds
+///
+/// ## Return value
+///
+/// - `1`: The challenge was deleted.
+/// - `0`: The epoch no longer holds the fence.
 pub(super) static DELETE_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
     Script::new(&format!(
         r"
@@ -267,13 +323,61 @@ pub(super) static DELETE_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
     ))
 });
 
+/// Queues a join command into a challenge's inbox and links the client to
+/// it, provided the challenge exists and has not terminated. Fails if the
+/// client is already in another challenge.
+/// A challenge with no state hash is still applying its create, and accepts.
+///
+/// ## Arguments
+///
+/// - `KEYS[1]` = Existence index
+/// - `KEYS[2]` = Challenge's state hash
+/// - `KEYS[3]` = Client routing key
+/// - `KEYS[4]` = Challenge's inbox stream
+///
+/// - `ARGV[1]` = Challenge uuid
+/// - `ARGV[2]` = Serialized join command
+///
+/// ## Return value
+///
+/// - `["OK", id]`: The join was queued with sequence `id`.
+/// - `["UNKNOWN"]`: The challenge does not exist or has terminated.
+/// - `["ELSEWHERE"]`: The client is already in another challenge.
+pub(super) static REJOIN_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
+    Script::new(&format!(
+        r"
+        if redis.call('ZSCORE', KEYS[1], ARGV[1]) == false then
+            return {{'UNKNOWN'}}
+        end
+        if redis.call('HGET', KEYS[2], 'phase') == '{terminated}' then
+            return {{'UNKNOWN'}}
+        end
+        local current = redis.call('GET', KEYS[3])
+        if current and current ~= ARGV[1] then
+            return {{'ELSEWHERE'}}
+        end
+        redis.call('SET', KEYS[3], ARGV[1])
+        local id = redis.call('XADD', KEYS[4], '*', 'cmd', ARGV[2])
+        return {{'OK', id}}
+        ",
+        terminated = ChallengePhase::Terminated.tag(),
+    ))
+});
+
 /// Queues a command into a challenge's inbox, provided the challenge exists.
 ///
-/// `KEYS[1]` = Existence index
-/// `KEYS[2]` = Challenge's inbox stream
+/// ## Arguments
 ///
-/// `ARGV[1]` = Challenge uuid
-/// `ARGV[2]` = Serialized command
+/// - `KEYS[1]` = Existence index
+/// - `KEYS[2]` = Challenge's inbox stream
+///
+/// - `ARGV[1]` = Challenge uuid
+/// - `ARGV[2]` = Serialized command
+///
+/// ## Return value
+///
+/// - Stream entry id: The command was queued.
+/// - `false`: The challenge does not exist.
 pub(super) static SEND_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
     Script::new(
         r"
@@ -291,9 +395,16 @@ pub(super) static SEND_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
 /// create, and accepts. The challenge's state hash and inbox are addressed
 /// dynamically from the routing key's value.
 ///
-/// `KEYS[1]` = Client routing key
+/// ## Arguments
 ///
-/// `ARGV[1]` = Serialized command
+/// - `KEYS[1]` = Client routing key
+///
+/// - `ARGV[1]` = Serialized command
+///
+/// ## Return value
+///
+/// - `[uuid, id]`: The command was queued to the client's current challenge.
+/// - `false`: The client has no current challenge, or it has terminated.
 pub(super) static CLIENT_SEND_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
     Script::new(&format!(
         r"

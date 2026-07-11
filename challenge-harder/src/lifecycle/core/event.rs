@@ -44,6 +44,11 @@ pub enum LifecycleEvent {
         session_token: SessionToken,
         recording_type: RecordingType,
     },
+    /// A new connection took over an existing client.
+    ClientRejoined {
+        client_id: ClientId,
+        session_token: SessionToken,
+    },
     ModeChanged {
         mode: ChallengeMode,
     },
