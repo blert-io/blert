@@ -31,6 +31,7 @@
   },
   "dependencies": {
     "@types/google-protobuf": "^3.15.12",
+    "@wise-old-man/utils": "^4.0.19",
     "google-protobuf": "^3.21.2",
     "grpc-tools": "^1.12.4",
     "node-addon-api": "^8.0.0",
