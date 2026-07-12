@@ -8,7 +8,7 @@ use axum::Router;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Json, Response};
-use axum::routing::post;
+use axum::routing::{get, post};
 use serde::{Deserialize, Serialize};
 use tower_http::trace::TraceLayer;
 
@@ -29,8 +29,13 @@ pub fn router(coordinator: Arc<Coordinator>) -> Router {
         .route("/challenges/{challenge_id}/finish", post(finish_challenge))
         .route("/challenges/{challenge_id}/join", post(join_challenge))
         .route("/client-status", post(client_status))
+        .route("/health", get(health))
         .layer(TraceLayer::new_for_http())
         .with_state(coordinator)
+}
+
+async fn health() -> StatusCode {
+    StatusCode::OK
 }
 
 #[derive(Deserialize)]

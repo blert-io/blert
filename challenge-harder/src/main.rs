@@ -10,21 +10,51 @@ mod api;
 mod lifecycle;
 mod players;
 mod proto;
+mod shadow;
 mod store;
 
+use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::Duration;
 
+use clap::{Parser, Subcommand};
 use lifecycle::coordinator::Coordinator;
+use lifecycle::core::deadline::LifecycleConfig;
 
 const CLAIM_SCAN_INTERVAL: Duration = Duration::from_secs(5);
 
+#[derive(Parser)]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    /// Runs the challenge server.
+    Serve,
+    /// Shadow harness tooling.
+    #[command(subcommand)]
+    Shadow(shadow::Command),
+}
+
 #[tokio::main]
-async fn main() {
+async fn main() -> ExitCode {
+    match Cli::parse().command {
+        None | Some(Command::Serve) => {
+            serve(LifecycleConfig::default()).await;
+            ExitCode::SUCCESS
+        }
+        Some(Command::Shadow(command)) => shadow::run(command).await,
+    }
+}
+
+async fn serve(config: LifecycleConfig) {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
+        .with_ansi(std::io::IsTerminal::is_terminal(&std::io::stdout()))
         .init();
 
     let port: u16 = std::env::var("PORT")
@@ -41,7 +71,8 @@ async fn main() {
 
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
 
-    let coordinator = Arc::new(Coordinator::with_store(Arc::new(store), shutdown_rx));
+    let coordinator =
+        Arc::new(Coordinator::with_store(Arc::new(store), shutdown_rx).with_config(config));
     coordinator.start_scan(CLAIM_SCAN_INTERVAL);
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port))
