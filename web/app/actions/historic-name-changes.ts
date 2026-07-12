@@ -43,6 +43,7 @@ export async function submitHistoricNameChange(
     effective_to: i + 1 < chain.length ? chain[i + 1].effectiveFrom : null,
     kind: NameChangeKind.HISTORIC,
     sequence_id: sequenceId,
+    hidden_from_feed: true,
   }));
 
   await sql`INSERT INTO name_changes ${sql(rows)}`;
