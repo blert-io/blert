@@ -2569,6 +2569,38 @@ describe('historic name changes', () => {
     `;
   }
 
+  async function makeLiveNameChange(args: {
+    playerId: number;
+    oldName: string;
+    newName: string;
+    effectiveFrom: string;
+    hidden?: boolean;
+  }): Promise<number> {
+    const [{ id }] = await sql<[{ id: number }]>`
+      INSERT INTO name_changes (
+        player_id, old_name, new_name, status, submitted_at, processed_at,
+        effective_from, kind, hidden_from_profile
+      ) VALUES (
+        ${args.playerId}, ${args.oldName}, ${args.newName},
+        ${NameChangeStatus.ACCEPTED}, ${args.effectiveFrom}, ${args.effectiveFrom},
+        ${args.effectiveFrom}, ${NameChangeKind.STANDARD}, ${args.hidden ?? false}
+      )
+      RETURNING id
+    `;
+    return id;
+  }
+
+  async function loadLiveNameChange(
+    id: number,
+  ): Promise<{ playerId: number; hidden: boolean }> {
+    const [row] = await sql<
+      [{ player_id: number; hidden_from_profile: boolean }]
+    >`
+      SELECT player_id, hidden_from_profile FROM name_changes WHERE id = ${id}
+    `;
+    return { playerId: row.player_id, hidden: row.hidden_from_profile };
+  }
+
   describe('name change chains', () => {
     describe('nameInWindowsAt', () => {
       const windows = deriveNameWindows([
@@ -2913,6 +2945,51 @@ describe('historic name changes', () => {
       expect(plan.target).toEqual({ action: 'create', currentName: 'qux' });
       expect(plan.evictedTargetChallengeIds).toEqual([]);
     });
+
+    it('identifies duplicate live name changes across player records', async () => {
+      const bazId = await makePlayer('baz');
+      const strayId = await makePlayer('bar');
+
+      // Duplicates of chain transitions, on the target and on a stray record.
+      const onTarget = await makeLiveNameChange({
+        playerId: bazId,
+        oldName: 'bar',
+        newName: 'baz',
+        effectiveFrom: JUN,
+      });
+      const offTarget = await makeLiveNameChange({
+        playerId: strayId,
+        oldName: 'foo',
+        newName: 'bar',
+        effectiveFrom: '2026-02-15',
+      });
+
+      // A live capture a few hours before the submitted date still matches.
+      const beforeSubmitted = await makeLiveNameChange({
+        playerId: bazId,
+        oldName: 'foo',
+        newName: 'bar',
+        effectiveFrom: '2026-01-31T20:00:00Z',
+      });
+      // A rename to a name outside the chain is left alone.
+      const unrelated = await makeLiveNameChange({
+        playerId: bazId,
+        oldName: 'baz',
+        newName: 'qux',
+        effectiveFrom: JUN,
+      });
+
+      const plan = await decide([
+        transition('foo', 'bar', FEB),
+        transition('bar', 'baz', APR),
+      ]);
+      const ids = plan.supersededLiveRows.map((r) => r.id);
+
+      expect(ids.sort((a, b) => a - b)).toEqual(
+        [onTarget, offTarget, beforeSubmitted].sort((a, b) => a - b),
+      );
+      expect(ids).not.toContain(unrelated);
+    });
   });
 
   describe('formatPlan', () => {
@@ -3042,6 +3119,50 @@ describe('historic name changes', () => {
       expect(display.unownedApiKeys).toBe(1);
       expect(display.target.pbRecomputedFrom).toEqual(new Date('2026-01-15'));
       expect(plan.evictedTargetChallengeIds).toEqual([foreign]);
+    });
+
+    it('enumerates duplicate live name changes', async () => {
+      const bazId = await makePlayer('baz');
+      const strayId = await makePlayer('bar');
+      await makeLiveNameChange({
+        playerId: bazId,
+        oldName: 'bar',
+        newName: 'baz',
+        effectiveFrom: JUN,
+      });
+      await makeLiveNameChange({
+        playerId: strayId,
+        oldName: 'foo',
+        newName: 'bar',
+        effectiveFrom: '2026-02-15',
+      });
+
+      const display = await formatPlan(
+        await decide([
+          transition('foo', 'bar', FEB),
+          transition('bar', 'baz', APR),
+        ]),
+      );
+
+      expect(display.supersededLiveRows).toEqual(
+        expect.arrayContaining([
+          {
+            oldName: 'bar',
+            newName: 'baz',
+            date: new Date(JUN),
+            currentOwner: 'baz',
+            reclaimed: false,
+          },
+          {
+            oldName: 'foo',
+            newName: 'bar',
+            date: new Date('2026-02-15'),
+            currentOwner: 'bar',
+            reclaimed: true,
+          },
+        ]),
+      );
+      expect(display.supersededLiveRows).toHaveLength(2);
     });
   });
 
@@ -3313,6 +3434,74 @@ describe('historic name changes', () => {
       `;
       expect(zombies).toHaveLength(2);
       zombies.forEach((z) => createdPlayerIds.push(z.id));
+    });
+
+    it('hides duplicate live name changes and reclaims off-target ones', async () => {
+      const bazId = await makePlayer('baz');
+      const strayId = await makePlayer('bar');
+      const onTarget = await makeLiveNameChange({
+        playerId: bazId,
+        oldName: 'bar',
+        newName: 'baz',
+        effectiveFrom: JUN,
+      });
+      const offTarget = await makeLiveNameChange({
+        playerId: strayId,
+        oldName: 'foo',
+        newName: 'bar',
+        effectiveFrom: '2026-02-15',
+      });
+      const unrelated = await makeLiveNameChange({
+        playerId: bazId,
+        oldName: 'baz',
+        newName: 'qux',
+        effectiveFrom: JUN,
+      });
+
+      await apply(
+        await decide([
+          transition('foo', 'bar', FEB),
+          transition('bar', 'baz', APR),
+        ]),
+      );
+
+      expect(await loadLiveNameChange(onTarget)).toEqual({
+        playerId: bazId,
+        hidden: true,
+      });
+      // The off-target duplicate is reassigned to the target and hidden.
+      expect(await loadLiveNameChange(offTarget)).toEqual({
+        playerId: bazId,
+        hidden: true,
+      });
+      expect(await loadLiveNameChange(unrelated)).toEqual({
+        playerId: bazId,
+        hidden: false,
+      });
+    });
+
+    it('corrects attribution of an already-hidden duplicate live change', async () => {
+      const bazId = await makePlayer('baz');
+      const strayId = await makePlayer('bar');
+      const hiddenOffTarget = await makeLiveNameChange({
+        playerId: strayId,
+        oldName: 'foo',
+        newName: 'bar',
+        effectiveFrom: '2026-02-15',
+        hidden: true,
+      });
+
+      await apply(
+        await decide([
+          transition('foo', 'bar', FEB),
+          transition('bar', 'baz', APR),
+        ]),
+      );
+
+      expect(await loadLiveNameChange(hiddenOffTarget)).toEqual({
+        playerId: bazId,
+        hidden: true,
+      });
     });
   });
 

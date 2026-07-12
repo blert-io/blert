@@ -530,6 +530,12 @@ export type MigrationPlan = {
   evictedTargetChallengeIds: number[];
   /** Number of API keys on the target belonging to a prior holder. */
   unownedApiKeyCount: number;
+  /**
+   * Accepted live name change rows this sequence duplicates, wherever they are
+   * attributed. Should be reassigned to the target and hidden from the profile
+   * in favor of the more accurate historic rows.
+   */
+  supersededLiveRows: SupersededLiveRow[];
 };
 
 /**
@@ -671,6 +677,84 @@ async function countTargetUnownedKeys(
   ).length;
 }
 
+/**
+ * Slack applied to a live rename's timestamp when matching it against a chain
+ * transition, absorbing skew between different change detection methods.
+ */
+const LIVE_RENAME_MATCH_SLACK_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Checks if a name change chain contains an entry corresponding to a previously
+ * recorded live name change.
+ */
+function chainIncludesLiveRename(
+  chain: ChainTransition[],
+  liveRename: Pick<
+    NameChangeQueryResult,
+    'old_name' | 'new_name' | 'effective_from'
+  >,
+): boolean {
+  const oldN = normalizeRsn(liveRename.old_name);
+  const newN = normalizeRsn(liveRename.new_name);
+  for (let i = 0; i < chain.length; i++) {
+    if (
+      normalizeRsn(chain[i].oldName) !== oldN ||
+      normalizeRsn(chain[i].newName) !== newN
+    ) {
+      continue;
+    }
+    const from = new Date(
+      chain[i].effectiveFrom.getTime() - LIVE_RENAME_MATCH_SLACK_MS,
+    );
+    const to = i + 1 < chain.length ? chain[i + 1].effectiveFrom : null;
+
+    const effectiveFrom = liveRename.effective_from;
+    if (effectiveFrom > from && (to === null || effectiveFrom <= to)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** A live name change row that a historic sequence duplicates. */
+type SupersededLiveRow = { id: number; playerId: number };
+
+/**
+ * Finds accepted live name change rows that record a rename in the provided
+ * historic name change chain, wherever they are attributed.
+ */
+async function findSupersededLiveRows(
+  chain: ChainTransition[],
+  db: Db = sql,
+): Promise<SupersededLiveRow[]> {
+  const chainNames = [
+    ...new Set(
+      chain.flatMap((t) => [normalizeRsn(t.oldName), normalizeRsn(t.newName)]),
+    ),
+  ];
+
+  const rows = await db<
+    {
+      id: number;
+      player_id: number;
+      old_name: string;
+      new_name: string;
+      effective_from: Date;
+    }[]
+  >`
+    SELECT id, player_id, old_name, new_name, effective_from
+    FROM name_changes
+    WHERE kind = ${NameChangeKind.STANDARD}
+      AND status = ${NameChangeStatus.ACCEPTED}
+      AND translate(lower(old_name), ' -', '__') = ANY(${chainNames})
+      AND translate(lower(new_name), ' -', '__') = ANY(${chainNames})
+  `;
+
+  return rows
+    .filter((r) => chainIncludesLiveRename(chain, r))
+    .map((r) => ({ id: r.id, playerId: r.player_id }));
+}
+
 /** Computes the migration plan for a historic name change chain. Read-only. */
 export async function decide(
   chain: ChainTransition[],
@@ -680,12 +764,17 @@ export async function decide(
   const target = await resolveTarget(chain, db);
   const sourcePlayers = await gatherSourcePlayers(windows, target, db);
 
-  const [emptiedSourceIds, evictedTargetChallengeIds, unownedApiKeyCount] =
-    await Promise.all([
-      findEmptiedSources(sourcePlayers, db),
-      findTargetUnownedChallenges(windows, target, db),
-      countTargetUnownedKeys(windows, target, db),
-    ]);
+  const [
+    emptiedSourceIds,
+    evictedTargetChallengeIds,
+    unownedApiKeyCount,
+    supersededLiveRows,
+  ] = await Promise.all([
+    findEmptiedSources(sourcePlayers, db),
+    findTargetUnownedChallenges(windows, target, db),
+    countTargetUnownedKeys(windows, target, db),
+    findSupersededLiveRows(chain, db),
+  ]);
 
   return {
     target,
@@ -694,6 +783,7 @@ export async function decide(
     emptiedSourceIds,
     evictedTargetChallengeIds,
     unownedApiKeyCount,
+    supersededLiveRows,
   };
 }
 
@@ -811,6 +901,34 @@ async function evictTargetHistory(
 }
 
 /**
+ * Reassigns the live name change rows a sequence duplicates onto the target and
+ * hides them from the profile, leaving the more accurate historic rows visible.
+ */
+async function reassignSupersededLiveRows(
+  plan: MigrationPlan,
+  targetId: number,
+  db: Db,
+): Promise<void> {
+  const rows = plan.supersededLiveRows;
+  if (rows.length === 0) {
+    return;
+  }
+
+  const ids = rows.map((r) => r.id);
+  await db`
+    UPDATE name_changes
+    SET player_id = ${targetId}, hidden_from_profile = TRUE
+    WHERE id = ANY(${ids})
+  `;
+
+  logger.info('historic_live_rows_hidden', {
+    targetId,
+    hidden: ids.length,
+    reclaimed: rows.filter((r) => r.playerId !== targetId).length,
+  });
+}
+
+/**
  * Executes a migration plan against a database, consolidating the chain
  * player's scattered data onto the target record.
  * Does not delete emptied players from the plan.
@@ -828,6 +946,8 @@ export async function apply(
   // Split off any of the target's challenges that belong to a prior name
   // holder before consolidating scattered data onto it.
   migratedDocuments += await evictTargetHistory(plan, targetId, db);
+
+  await reassignSupersededLiveRows(plan, targetId, db);
 
   const movedChallengeIds = plan.sourcePlayers.flatMap((s) => s.challengeIds);
   if (movedChallengeIds.length === 0) {
@@ -958,6 +1078,19 @@ export type DisplayPlan = {
   evictedChallenges: number;
   /** Prior-holder API keys on the target. */
   unownedApiKeys: number;
+  /** Live name change rows this sequence duplicates and hides. */
+  supersededLiveRows: DisplaySupersededLive[];
+};
+
+type DisplaySupersededLive = {
+  oldName: string;
+  newName: string;
+  /** Date the live rename was recorded. */
+  date: Date;
+  /** Record currently holding the row. */
+  currentOwner: string;
+  /** Whether the row is attributed to a record other than the target. */
+  reclaimed: boolean;
 };
 
 /** The data a single source record contributes under a single name window. */
@@ -1064,6 +1197,48 @@ function describeSources(
   return sources;
 }
 
+/** Builds display rows for the live name changes a sequence duplicates. */
+async function describeSupersededLiveRows(
+  plan: MigrationPlan,
+  db: Db,
+): Promise<DisplaySupersededLive[]> {
+  const ids = plan.supersededLiveRows.map((r) => r.id);
+  if (ids.length === 0) {
+    return [];
+  }
+
+  const rows = await db<
+    {
+      old_name: string;
+      new_name: string;
+      effective_from: Date;
+      player_id: number;
+      owner: string;
+    }[]
+  >`
+    SELECT
+      nc.old_name,
+      nc.new_name,
+      nc.effective_from,
+      nc.player_id,
+      p.username AS owner
+    FROM name_changes nc
+    JOIN players p ON p.id = nc.player_id
+    WHERE nc.id = ANY(${ids})
+  `;
+
+  const targetPlayerId =
+    plan.target.action === 'use' ? plan.target.playerId : null;
+
+  return rows.map((r) => ({
+    oldName: r.old_name,
+    newName: r.new_name,
+    date: r.effective_from,
+    currentOwner: r.owner,
+    reclaimed: r.player_id !== targetPlayerId,
+  }));
+}
+
 /** Resolves a migration plan into a human-readable preview. Read-only. */
 export async function formatPlan(
   plan: MigrationPlan,
@@ -1114,6 +1289,7 @@ export async function formatPlan(
     db,
   );
   const sources = describeSources(plan, usernames, challengeDates);
+  const supersededLiveRows = await describeSupersededLiveRows(plan, db);
 
   return {
     target: {
@@ -1130,6 +1306,7 @@ export async function formatPlan(
     sources,
     evictedChallenges: plan.evictedTargetChallengeIds.length,
     unownedApiKeys: plan.unownedApiKeyCount,
+    supersededLiveRows,
   };
 }
 
