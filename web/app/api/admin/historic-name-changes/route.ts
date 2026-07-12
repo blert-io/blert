@@ -3,7 +3,8 @@ import { NextRequest } from 'next/server';
 import {
   ChainTransition,
   dryRunHistoricNameChange,
-} from '@/actions/name-change-processor';
+  submitHistoricNameChange,
+} from '@/actions/historic-name-changes';
 import { withApiRoute } from '@/api/handler';
 
 import { validateAdminAuth } from '../auth';
@@ -69,7 +70,11 @@ export const POST = withApiRoute(
     }
 
     if (body.dryRun === false) {
-      return Response.json({ error: 'not_implemented' }, { status: 501 });
+      const submission = await submitHistoricNameChange(chain);
+      if (!submission.ok) {
+        return Response.json({ error: submission.error }, { status: 400 });
+      }
+      return Response.json({ sequenceId: submission.sequenceId });
     }
 
     const result = await dryRunHistoricNameChange(chain);

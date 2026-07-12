@@ -1,6 +1,7 @@
 import {
   ChallengeType,
   NameChange,
+  NameChangeKind,
   NameChangeStatus,
   NameChangeUpdateType,
   PlayerExperience,
@@ -12,8 +13,10 @@ import { sql } from '@/actions/db';
 import {
   ChainTransition,
   NameChangeProcessor,
+  apply,
   belongsToChainTarget,
   decide,
+  deleteEmptiedSources,
   deriveNameWindows,
   dryRunHistoricNameChange,
   formatPlan,
@@ -1401,6 +1404,35 @@ describe('updatePlayerStats', () => {
     expect(oldRows[2].deaths_total).toBe(6);
   });
 
+  it('moves all rows up to toDate when fromDate is null', async () => {
+    await seedStats(newPlayerId, [
+      { date: '2026-01-01', tobCompletions: 3, deathsTotal: 1 },
+      { date: '2026-02-01', tobCompletions: 7, deathsTotal: 2 },
+      { date: '2026-05-01', tobCompletions: 15, deathsTotal: 5 }, // post-window
+    ]);
+
+    const moved = await updatePlayerStats(
+      oldPlayerId,
+      newPlayerId,
+      null,
+      new Date('2026-04-01'),
+      sql,
+    );
+    expect(moved).toBe(2);
+
+    // With no fromDate there is no prior baseline, so the in-window rows move
+    // unchanged onto the (empty) target.
+    const oldRows = await loadStats(oldPlayerId);
+    expect(oldRows.map((r) => r.tob_completions)).toEqual([3, 7]);
+    expect(oldRows.map((r) => r.deaths_total)).toEqual([1, 2]);
+
+    // The post-window row stays on the source, decremented by the window delta
+    // (7 tob, 2 deaths).
+    const newRows = await loadStats(newPlayerId);
+    expect(newRows.map((r) => r.tob_completions)).toEqual([8]);
+    expect(newRows.map((r) => r.deaths_total)).toEqual([3]);
+  });
+
   it('migrates only in-window stats when toDate is set', async () => {
     await seedStats(newPlayerId, [
       { date: '2026-01-01', tobCompletions: 4 }, // pre-window
@@ -1603,6 +1635,32 @@ describe('updateApiKeys', () => {
       }),
       expect.objectContaining({ key: 'unused', player_id: sourcePlayerId }),
     ]);
+  });
+
+  it('reassigns all keys up to toDate when fromDate is null', async () => {
+    await seedKeys(sourcePlayerId, [
+      { key: 'early', lastUsed: '2026-01-01' },
+      { key: 'in-window', lastUsed: '2026-02-15' },
+      { key: 'post', lastUsed: '2026-05-15' },
+      { key: 'unused', lastUsed: null },
+    ]);
+
+    const moved = await updateApiKeys(
+      targetPlayerId,
+      sourcePlayerId,
+      null,
+      new Date('2026-04-01'),
+      sql,
+    );
+    expect(moved).toBe(2);
+
+    const rows = await loadKeys();
+    const byKey = (k: string) => rows.find((r) => r.key === k);
+    expect(byKey('early')?.player_id).toBe(targetPlayerId);
+    expect(byKey('in-window')?.player_id).toBe(targetPlayerId);
+    expect(byKey('post')?.player_id).toBe(sourcePlayerId);
+    // A null last_used never satisfies the upper bound.
+    expect(byKey('unused')?.player_id).toBe(sourcePlayerId);
   });
 
   it('reassigns only in-window keys when toDate is set', async () => {
@@ -2429,6 +2487,7 @@ describe('historic name changes', () => {
 
   // Renames are spaced > 30 days apart, mirroring the OSRS username hold so
   // each name's challenges fall unambiguously in one window.
+  const JAN = '2026-01-01';
   const FEB = '2026-02-01';
   const APR = '2026-04-01';
   const JUN = '2026-06-01';
@@ -2443,6 +2502,71 @@ describe('historic name changes', () => {
       newName,
       effectiveFrom: new Date(effectiveFrom),
     };
+  }
+
+  async function challengesOf(playerId: number): Promise<number[]> {
+    const rows = await sql<{ challenge_id: number }[]>`
+      SELECT challenge_id FROM challenge_players
+      WHERE player_id = ${playerId}
+      ORDER BY challenge_id
+    `;
+    return rows.map((r) => r.challenge_id);
+  }
+
+  // The challenges underlying a player's personal best history.
+  async function pbChallengesOf(playerId: number): Promise<number[]> {
+    const rows = await sql<{ challenge_id: number }[]>`
+      SELECT cs.challenge_id
+      FROM personal_best_history pbh
+      JOIN challenge_splits cs ON cs.id = pbh.challenge_split_id
+      WHERE pbh.player_id = ${playerId}
+      ORDER BY cs.challenge_id
+    `;
+    return rows.map((r) => r.challenge_id);
+  }
+
+  async function recordingsOf(playerId: number): Promise<number> {
+    const [{ total_recordings }] = await sql<[{ total_recordings: number }]>`
+      SELECT total_recordings FROM players WHERE id = ${playerId}
+    `;
+    return total_recordings;
+  }
+
+  async function statCountOf(playerId: number): Promise<number> {
+    const [{ count }] = await sql<[{ count: string }]>`
+      SELECT COUNT(*) FROM player_stats WHERE player_id = ${playerId}
+    `;
+    return parseInt(count);
+  }
+
+  async function keyCountOf(playerId: number): Promise<number> {
+    const [{ count }] = await sql<[{ count: string }]>`
+      SELECT COUNT(*) FROM api_keys WHERE player_id = ${playerId}
+    `;
+    return parseInt(count);
+  }
+
+  async function playerExists(playerId: number): Promise<boolean> {
+    const [row] = await sql<[{ id: number }?]>`
+      SELECT id FROM players WHERE id = ${playerId}
+    `;
+    return row !== undefined;
+  }
+
+  async function addSplit(challengeId: number, ticks: number): Promise<number> {
+    const [{ id }] = await sql<[{ id: number }]>`
+      INSERT INTO challenge_splits (challenge_id, type, scale, ticks, accurate)
+      VALUES (${challengeId}, 1, 1, ${ticks}, true)
+      RETURNING id
+    `;
+    return id;
+  }
+
+  async function setPb(playerId: number, splitId: number): Promise<void> {
+    await sql`
+      INSERT INTO personal_best_history (player_id, challenge_split_id, created_at)
+      VALUES (${playerId}, ${splitId}, NOW())
+    `;
   }
 
   describe('name change chains', () => {
@@ -2761,6 +2885,34 @@ describe('historic name changes', () => {
 
       expect(plan.emptiedSourceIds).toEqual([]);
     });
+
+    it('flags target challenges not belonging to the player for eviction', async () => {
+      // Chain bar -> baz -> foo -> baz. During the periods where the player
+      // did not hold baz, some other player recorded challenges on it.
+      const bazId = await makePlayer('baz');
+      const before = await makeChallenge(bazId, 'baz', '2025-12-24');
+      const earlyBaz = await makeChallenge(bazId, 'baz', '2026-01-15');
+      const between = await makeChallenge(bazId, 'baz', '2026-03-15');
+      const currentBaz = await makeChallenge(bazId, 'baz', '2026-05-15');
+
+      const plan = await decide([
+        transition('bar', 'baz', JAN),
+        transition('baz', 'foo', FEB),
+        transition('foo', 'baz', APR),
+      ]);
+
+      expect(plan.evictedTargetChallengeIds).toEqual([before, between]);
+      expect(plan.evictedTargetChallengeIds).not.toContain(earlyBaz);
+      expect(plan.evictedTargetChallengeIds).not.toContain(currentBaz);
+    });
+
+    it('evicts nothing from a target that is newly created', async () => {
+      const fooRecordId = await makePlayer('foo');
+      await makeChallenge(fooRecordId, 'foo', '2026-01-15');
+      const plan = await decide([transition('foo', 'qux', FEB)]);
+      expect(plan.target).toEqual({ action: 'create', currentName: 'qux' });
+      expect(plan.evictedTargetChallengeIds).toEqual([]);
+    });
   });
 
   describe('formatPlan', () => {
@@ -2871,6 +3023,26 @@ describe('historic name changes', () => {
         },
       ]);
     });
+
+    it('reflects a target eviction and surfaces an API key blocker', async () => {
+      // Target baz has both a previous challenge and existing API key.
+      const bazId = await makePlayer('baz');
+      await makeChallenge(bazId, 'baz', '2026-05-15');
+      const foreign = await makeChallenge(bazId, 'baz', '2026-01-15');
+      const fooId = await makePlayer('foo');
+      await makeChallenge(fooId, 'foo', '2026-01-20');
+      await makeKeys(bazId, '2026-01-10');
+
+      const plan = await decide([transition('foo', 'baz', FEB)]);
+      const display = await formatPlan(plan);
+
+      expect(display.target.challengesBefore).toBe(2);
+      expect(display.target.challengesAfter).toBe(2);
+      expect(display.evictedChallenges).toBe(1);
+      expect(display.unownedApiKeys).toBe(1);
+      expect(display.target.pbRecomputedFrom).toEqual(new Date('2026-01-15'));
+      expect(plan.evictedTargetChallengeIds).toEqual([foreign]);
+    });
   });
 
   describe('dryRunHistoricNameChange', () => {
@@ -2900,6 +3072,440 @@ describe('historic name changes', () => {
           { name: 'foo', outcome: 'deleted' },
         ]);
       }
+    });
+  });
+
+  describe('apply', () => {
+    it('consolidates scattered records onto the current record', async () => {
+      // foo -> bar -> baz, current record baz. Each record holds one of the
+      // player's challenges, with its stats, key, and a split.
+      const bazId = await makePlayer('baz');
+      const fooId = await makePlayer('foo');
+      const barId = await makePlayer('bar');
+      const fooChallenge = await makeChallenge(fooId, 'foo', '2026-01-15');
+      const barChallenge = await makeChallenge(barId, 'bar', '2026-03-15');
+      const bazChallenge = await makeChallenge(bazId, 'baz', '2026-05-15');
+      await addSplit(fooChallenge, 100);
+      await addSplit(barChallenge, 90);
+      await addSplit(bazChallenge, 110);
+      await makeStats(fooId, '2026-01-10');
+      await makeStats(barId, '2026-03-10');
+      await makeStats(bazId, '2026-05-10');
+      await makeKeys(fooId, '2026-01-10');
+      await makeKeys(barId, '2026-03-10');
+      await makeKeys(bazId, '2026-05-10');
+      await sql`UPDATE players SET total_recordings = 1 WHERE id = ANY(${[
+        bazId,
+        fooId,
+        barId,
+      ]})`;
+
+      const plan = await decide([
+        transition('foo', 'bar', FEB),
+        transition('bar', 'baz', APR),
+      ]);
+      await apply(plan);
+
+      // Everything is now on baz. foo and bar are left as empty husks.
+      expect(await challengesOf(bazId)).toEqual(
+        [bazChallenge, fooChallenge, barChallenge].sort((a, b) => a - b),
+      );
+      expect(await challengesOf(fooId)).toEqual([]);
+      expect(await challengesOf(barId)).toEqual([]);
+      expect(await recordingsOf(bazId)).toBe(3);
+      // The moved stats and keys land on baz alongside its own.
+      expect(await statCountOf(bazId)).toBe(3);
+      expect(await keyCountOf(bazId)).toBe(3);
+      // baz's PB ladder is rebuilt over all challenges in time order: 100 is the
+      // first best, 90 improves it, 110 does not.
+      expect(await pbChallengesOf(bazId)).toEqual(
+        [fooChallenge, barChallenge].sort((a, b) => a - b),
+      );
+    });
+
+    it('creates the current player when none exists and moves data onto it', async () => {
+      // foo -> bar, current name bar has no record yet.
+      const fooId = await makePlayer('foo');
+      const fooChallenge = await makeChallenge(fooId, 'foo', '2026-01-15');
+      await addSplit(fooChallenge, 100);
+      await makeStats(fooId, '2026-01-10');
+      await makeKeys(fooId, '2026-01-10');
+      await sql`UPDATE players SET total_recordings = 1 WHERE id = ${fooId}`;
+
+      const plan = await decide([transition('foo', 'bar', FEB)]);
+      await apply(plan);
+
+      const [bar] = await sql<[{ id: number }?]>`
+        SELECT id FROM players WHERE normalized_username = ${normalizeRsn('bar')}
+      `;
+      expect(bar).toBeDefined();
+      createdPlayerIds.push(bar!.id);
+
+      expect(await challengesOf(bar!.id)).toEqual([fooChallenge]);
+      expect(await recordingsOf(bar!.id)).toBe(1);
+      expect(await statCountOf(bar!.id)).toBe(1);
+      expect(await keyCountOf(bar!.id)).toBe(1);
+      expect(await pbChallengesOf(bar!.id)).toEqual([fooChallenge]);
+      expect(await challengesOf(fooId)).toEqual([]);
+    });
+
+    it('recomputes PBs on both sides when a shared record is split', async () => {
+      // Chain someone -> foo (Jan 1) -> baz (Feb 1), target baz. Every challenge
+      // is recorded as "foo", but only those in the window (Jan 1..Feb 1) are
+      // the target player's; the others belong to the unrelated players.
+      const bazId = await makePlayer('baz');
+      const fooId = await makePlayer('foo');
+      const a = await makeChallenge(fooId, 'foo', '2025-12-01'); // stays, 105
+      const b = await makeChallenge(fooId, 'foo', '2026-01-05'); // moves, 80
+      const c = await makeChallenge(fooId, 'foo', '2026-01-20'); // moves, 90
+      const d = await makeChallenge(fooId, 'foo', '2026-05-10'); // stays, 100
+      const e = await makeChallenge(fooId, 'foo', '2026-06-10'); // stays, 70
+      const aSplit = await addSplit(a, 105);
+      const bSplit = await addSplit(b, 80);
+      await addSplit(c, 90);
+      await addSplit(d, 100);
+      const eSplit = await addSplit(e, 70);
+      // foo's PB history as it stands before the migration: chronologically
+      // a (105), b (80), and e (70) each set a new best.
+      await setPb(fooId, aSplit);
+      await setPb(fooId, bSplit);
+      await setPb(fooId, eSplit);
+      await sql`UPDATE players SET total_recordings = 5 WHERE id = ${fooId}`;
+      await sql`UPDATE players SET total_recordings = 0 WHERE id = ${bazId}`;
+
+      const plan = await decide([
+        transition('someone', 'foo', '2026-01-01'),
+        transition('foo', 'baz', FEB),
+      ]);
+      await apply(plan);
+
+      // The in-window pair (b, c) moves to baz. b (80) is baz's PB; c (90) is
+      // later and worse, so a moved challenge is not blindly a PB.
+      expect(await challengesOf(bazId)).toEqual([b, c].sort((x, y) => x - y));
+      expect(await pbChallengesOf(bazId)).toEqual([b]);
+
+      // foo keeps the out-of-window challenges (a, d, e). With b gone, its ladder
+      // is a (105) then d (100) then e (70), all PBs — d is promoted, having
+      // been shadowed by the departed b (80).
+      expect(await challengesOf(fooId)).toEqual(
+        [a, d, e].sort((x, y) => x - y),
+      );
+      expect(await pbChallengesOf(fooId)).toEqual(
+        [a, d, e].sort((x, y) => x - y),
+      );
+
+      expect(await recordingsOf(bazId)).toBe(2);
+      expect(await recordingsOf(fooId)).toBe(3);
+    });
+
+    it('splits prior history off the target onto a zombie', async () => {
+      // foo -> baz, target baz. The baz record holds a past challenge recorded
+      // before the player held the name and one from the player. The foreign
+      // challenge has a faster split, shadowing the players's actual PB.
+      const bazId = await makePlayer('baz');
+      const foreign = await makeChallenge(bazId, 'baz', '2026-01-15');
+      const genuine = await makeChallenge(bazId, 'baz', '2026-05-15');
+      const foreignSplit = await addSplit(foreign, 80);
+      await addSplit(genuine, 100);
+      await setPb(bazId, foreignSplit);
+      // The later snapshot's counters include the prior holder's earlier ones.
+      await sql`
+        INSERT INTO player_stats (player_id, date, tob_completions, deaths_total)
+        VALUES
+          (${bazId}, ${new Date('2026-01-10')}, 5, 3),
+          (${bazId}, ${new Date('2026-05-10')}, 12, 8)
+      `;
+      await sql`UPDATE players SET total_recordings = 2 WHERE id = ${bazId}`;
+
+      const plan = await decide([transition('foo', 'baz', FEB)]);
+      await apply(plan);
+
+      const [zombie] = await sql<[{ id: number }?]>`
+        SELECT id FROM players WHERE normalized_username = ${normalizeRsn('*baz')}
+      `;
+      expect(zombie).toBeDefined();
+      createdPlayerIds.push(zombie!.id);
+
+      // The foreign challenge, its PB, and the prior holder's snapshot move to
+      // the zombie unchanged.
+      expect(await challengesOf(zombie!.id)).toEqual([foreign]);
+      expect(await pbChallengesOf(zombie!.id)).toEqual([foreign]);
+      expect(
+        await sql`
+          SELECT date, tob_completions, deaths_total FROM player_stats
+          WHERE player_id = ${zombie!.id}
+        `,
+      ).toEqual([
+        { date: new Date('2026-01-10'), tob_completions: 5, deaths_total: 3 },
+      ]);
+      expect(await recordingsOf(zombie!.id)).toBe(1);
+
+      // The target keeps its own data with a recomputed PB and stats.
+      expect(await challengesOf(bazId)).toEqual([genuine]);
+      expect(await pbChallengesOf(bazId)).toEqual([genuine]);
+      expect(
+        await sql`
+          SELECT date, tob_completions, deaths_total FROM player_stats
+          WHERE player_id = ${bazId}
+        `,
+      ).toEqual([
+        { date: new Date('2026-05-10'), tob_completions: 7, deaths_total: 5 },
+      ]);
+      expect(await recordingsOf(bazId)).toBe(1);
+    });
+
+    it('refuses to consolidate when a prior holder left API keys', async () => {
+      const bazId = await makePlayer('baz');
+      const foreign = await makeChallenge(bazId, 'baz', '2026-01-15');
+      await makeKeys(bazId, '2026-01-10');
+
+      const plan = await decide([transition('foo', 'baz', FEB)]);
+      expect(plan.unownedApiKeyCount).toBe(1);
+      await expect(apply(plan)).rejects.toThrow(/API key/);
+
+      expect(await challengesOf(bazId)).toEqual([foreign]);
+      const [zombie] = await sql`
+        SELECT id FROM players WHERE normalized_username = ${normalizeRsn('*baz')}
+      `;
+      expect(zombie).toBeUndefined();
+    });
+
+    it('refuses to consolidate on a prior holder key with no challenges to evict', async () => {
+      const bazId = await makePlayer('baz');
+      const genuine = await makeChallenge(bazId, 'baz', '2026-05-15');
+      await makeKeys(bazId, '2026-01-10');
+
+      const plan = await decide([transition('foo', 'baz', FEB)]);
+      expect(plan.evictedTargetChallengeIds).toEqual([]);
+      expect(plan.unownedApiKeyCount).toBe(1);
+      await expect(apply(plan)).rejects.toThrow(/API key/);
+
+      expect(await challengesOf(bazId)).toEqual([genuine]);
+    });
+
+    it('counts an unused key on the target as unowned', async () => {
+      const bazId = await makePlayer('baz');
+      const genuine = await makeChallenge(bazId, 'baz', '2026-05-15');
+      await sql`
+        INSERT INTO api_keys (user_id, player_id, key, last_used)
+        VALUES (${userId}, ${bazId}, 'never-used-key', NULL)
+      `;
+
+      const plan = await decide([transition('foo', 'baz', FEB)]);
+      expect(plan.unownedApiKeyCount).toBe(1);
+      await expect(apply(plan)).rejects.toThrow(/API key/);
+
+      expect(await challengesOf(bazId)).toEqual([genuine]);
+    });
+
+    it('creates a new zombie even when one already exists for the name', async () => {
+      await makePlayer('*baz');
+      const bazId = await makePlayer('baz');
+      await makeChallenge(bazId, 'baz', '2026-01-15');
+
+      const plan = await decide([transition('foo', 'baz', FEB)]);
+      await apply(plan);
+
+      const zombies = await sql<{ id: number }[]>`
+        SELECT id FROM players
+        WHERE normalized_username = ${normalizeRsn('*baz')}
+        ORDER BY id
+      `;
+      expect(zombies).toHaveLength(2);
+      zombies.forEach((z) => createdPlayerIds.push(z.id));
+    });
+  });
+
+  describe('deleteEmptiedSources', () => {
+    it('deletes records with no challenge_players rows', async () => {
+      const emptyId = await makePlayer('emptyhusk');
+      const deleted = await deleteEmptiedSources([emptyId]);
+      expect(deleted).toBe(1);
+      expect(await playerExists(emptyId)).toBe(false);
+    });
+
+    it('skips records with challenge_players rows', async () => {
+      const contestedId = await makePlayer('contested');
+      const safeId = await makePlayer('safehusk');
+      await makeChallenge(contestedId, 'contested', '2026-05-15');
+
+      const deleted = await deleteEmptiedSources([contestedId, safeId]);
+      expect(deleted).toBe(1);
+      expect(await playerExists(contestedId)).toBe(true);
+      expect(await playerExists(safeId)).toBe(false);
+    });
+
+    it('does nothing when empty', async () => {
+      const deleted = await deleteEmptiedSources([]);
+      expect(deleted).toBe(0);
+    });
+  });
+
+  describe('processNextHistoricSequence', () => {
+    const processor = new NameChangeProcessor({ autoStart: false });
+
+    // Inserts a pending historic sequence.
+    async function insertHistoricSequence(
+      sequenceId: string,
+      chain: ChainTransition[],
+    ): Promise<void> {
+      const rows = chain.map((t, i) => ({
+        player_id: null,
+        old_name: t.oldName,
+        new_name: t.newName,
+        status: NameChangeStatus.PENDING,
+        submitted_at: new Date(),
+        effective_from: t.effectiveFrom,
+        effective_to: i + 1 < chain.length ? chain[i + 1].effectiveFrom : null,
+        kind: NameChangeKind.HISTORIC,
+        sequence_id: sequenceId,
+      }));
+      await sql`INSERT INTO name_changes ${sql(rows)}`;
+    }
+
+    afterEach(async () => {
+      await sql`DELETE FROM name_changes`;
+    });
+
+    it('fully applies a pending historic sequence', async () => {
+      // foo -> bar -> baz, current record baz. foo's only challenge moves and
+      // empties it; bar keeps a later, out-of-window challenge and survives.
+      const bazId = await makePlayer('baz');
+      const fooId = await makePlayer('foo');
+      const barId = await makePlayer('bar');
+      const fooChallenge = await makeChallenge(fooId, 'foo', '2026-01-15');
+      const barChallenge = await makeChallenge(barId, 'bar', '2026-03-15');
+      const barLater = await makeChallenge(barId, 'bar', '2026-05-15');
+      const bazChallenge = await makeChallenge(bazId, 'baz', '2026-06-15');
+      await addSplit(fooChallenge, 100);
+      await addSplit(barChallenge, 90);
+      await makeStats(fooId, '2026-01-10');
+      await makeKeys(fooId, '2026-01-10');
+      await sql`UPDATE players SET total_recordings = 1 WHERE id = ${fooId}`;
+      await sql`UPDATE players SET total_recordings = 2 WHERE id = ${barId}`;
+      await sql`UPDATE players SET total_recordings = 1 WHERE id = ${bazId}`;
+
+      const sequenceId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+      await insertHistoricSequence(sequenceId, [
+        transition('foo', 'bar', FEB),
+        transition('bar', 'baz', APR),
+      ]);
+
+      const result = await processor.processNextHistoricSequence();
+      expect(result).toBe('processed');
+
+      // Everything the player recorded now lives on baz.
+      expect(await challengesOf(bazId)).toEqual(
+        [fooChallenge, barChallenge, bazChallenge].sort((a, b) => a - b),
+      );
+      expect(await pbChallengesOf(bazId)).toEqual(
+        [fooChallenge, barChallenge].sort((a, b) => a - b),
+      );
+      expect(await statCountOf(bazId)).toBe(1);
+      expect(await keyCountOf(bazId)).toBe(1);
+      expect(await recordingsOf(bazId)).toBe(3);
+
+      // foo is emptied and deleted; bar keeps its out-of-window challenge.
+      expect(await playerExists(fooId)).toBe(false);
+      expect(await playerExists(barId)).toBe(true);
+      expect(await recordingsOf(barId)).toBe(1);
+      expect(await challengesOf(barId)).toEqual([barLater]);
+
+      // The sequence is accepted and now belongs to the target, so it surfaces
+      // as baz's name history.
+      const rows = await sql<
+        {
+          status: number;
+          player_id: number;
+          processed_at: Date | null;
+          migrated_documents: number;
+        }[]
+      >`
+        SELECT status, player_id, processed_at, migrated_documents
+        FROM name_changes
+        WHERE sequence_id = ${sequenceId}
+        ORDER BY effective_from
+      `;
+      expect(rows).toHaveLength(2);
+      for (const row of rows) {
+        expect(row.status).toBe(NameChangeStatus.ACCEPTED);
+        expect(row.player_id).toBe(bazId);
+        expect(row.processed_at).not.toBeNull();
+        // 2 challenge_players + 1 stat + 1 key + 2 recomputed PBs.
+        expect(row.migrated_documents).toBe(6);
+      }
+    });
+
+    it('ignores standard name changes and reports nothing to do', async () => {
+      const playerId = await makePlayer('standalone');
+      await sql`
+        INSERT INTO name_changes (
+          player_id, old_name, new_name, status, submitted_at, effective_from
+        ) VALUES (
+          ${playerId}, 'standalone', 'renamed',
+          ${NameChangeStatus.PENDING}, NOW(), NOW()
+        )
+      `;
+
+      const result = await processor.processNextHistoricSequence();
+      expect(result).toBe('not_found');
+
+      const [row] = await sql<[{ status: number; kind: number }]>`
+        SELECT status, kind FROM name_changes WHERE player_id = ${playerId}
+      `;
+      expect(row.status).toBe(NameChangeStatus.PENDING);
+      expect(row.kind).toBe(NameChangeKind.STANDARD);
+    });
+
+    it('does not reprocess a previously accepted sequence', async () => {
+      const bazId = await makePlayer('baz');
+      const fooId = await makePlayer('foo');
+      const fooChallenge = await makeChallenge(fooId, 'foo', '2026-01-15');
+      await insertHistoricSequence('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', [
+        transition('foo', 'baz', FEB),
+      ]);
+
+      expect(await processor.processNextHistoricSequence()).toBe('processed');
+      const consolidated = await challengesOf(bazId);
+      expect(consolidated).toEqual([fooChallenge]);
+
+      // A second pass finds no pending sequence and changes nothing.
+      expect(await processor.processNextHistoricSequence()).toBe('not_found');
+      expect(await challengesOf(bazId)).toEqual(consolidated);
+    });
+
+    it('marks a terminally failing sequence FAILED and moves on to the next', async () => {
+      // Failing sequence where the target has a preexsting API key.
+      const bazId = await makePlayer('baz');
+      await makeChallenge(bazId, 'baz', '2026-01-15');
+      await makeKeys(bazId, '2026-01-10');
+      await insertHistoricSequence('cccccccc-cccc-cccc-cccc-cccccccccccc', [
+        transition('foo', 'baz', FEB),
+      ]);
+
+      // Newer, clean sequence.
+      const srcId = await makePlayer('srcname');
+      const srcChallenge = await makeChallenge(srcId, 'srcname', '2026-05-15');
+      await insertHistoricSequence('dddddddd-dddd-dddd-dddd-dddddddddddd', [
+        transition('srcname', 'dstname', JUN),
+      ]);
+
+      expect(await processor.processNextHistoricSequence()).toBe('failed');
+      const failed = await sql<{ status: NameChangeStatus }[]>`
+        SELECT status FROM name_changes
+        WHERE sequence_id = 'cccccccc-cccc-cccc-cccc-cccccccccccc'
+      `;
+      expect(failed.every((r) => r.status === NameChangeStatus.FAILED)).toBe(
+        true,
+      );
+
+      expect(await processor.processNextHistoricSequence()).toBe('processed');
+      const [dst] = await sql<[{ id: number }?]>`
+        SELECT id FROM players WHERE normalized_username = ${normalizeRsn('dstname')}
+      `;
+      expect(dst).toBeDefined();
+      createdPlayerIds.push(dst!.id);
+      expect(await challengesOf(dst!.id)).toEqual([srcChallenge]);
     });
   });
 });

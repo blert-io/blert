@@ -52,36 +52,50 @@ type PlayerStatsRow = CamelToSnakeCase<PlayerStats> & {
   id: number;
 };
 
+async function lastStatsAtOrBefore(
+  playerId: number,
+  date: Date | null,
+  db: Db,
+): Promise<PlayerStatsRow | undefined> {
+  // A null date means the window starts at the beginning of time, so there is
+  // no prior row to use as a baseline.
+  if (date === null) {
+    return undefined;
+  }
+  const [row] = await db<[PlayerStatsRow?]>`
+    SELECT *
+    FROM player_stats
+    WHERE player_id = ${playerId}
+    AND date <= ${date}
+    ORDER BY date DESC
+    LIMIT 1
+  `;
+  return row;
+}
+
 export async function updatePlayerStats(
   targetPlayerId: number,
   sourcePlayerId: number,
-  fromDate: Date,
+  fromDate: Date | null,
   toDate: Date | null = null,
   db: Db = sql,
 ): Promise<number> {
-  const [targetPlayerLastStats] = await db<[PlayerStatsRow?]>`
-    SELECT *
-    FROM player_stats
-    WHERE player_id = ${targetPlayerId}
-    AND date <= ${fromDate}
-    ORDER BY date DESC
-    LIMIT 1
-  `;
-
-  const [sourcePlayerLastStats] = await db<[PlayerStatsRow?]>`
-    SELECT *
-    FROM player_stats
-    WHERE player_id = ${sourcePlayerId}
-    AND date <= ${fromDate}
-    ORDER BY date DESC
-    LIMIT 1
-  `;
+  const targetPlayerLastStats = await lastStatsAtOrBefore(
+    targetPlayerId,
+    fromDate,
+    db,
+  );
+  const sourcePlayerLastStats = await lastStatsAtOrBefore(
+    sourcePlayerId,
+    fromDate,
+    db,
+  );
 
   const statsToMigrate = await db<PlayerStatsRow[]>`
     SELECT *
     FROM player_stats
     WHERE player_id = ${sourcePlayerId}
-    AND date > ${fromDate}
+    ${fromDate !== null ? sql`AND date > ${fromDate}` : sql``}
     ${toDate !== null ? sql`AND date <= ${toDate}` : sql``}
     ORDER BY date ASC
   `;
@@ -159,7 +173,7 @@ export async function updatePlayerStats(
  *
  * @param targetPlayerId ID of the target player.
  * @param sourcePlayerId ID of the source player.
- * @param fromDate Start date of the migration window.
+ * @param fromDate Start date of the migration window, or null for unbounded.
  * @param toDate Optional end date of the migration window.
  * @param db The database connection.
  * @returns The number of API keys reassigned.
@@ -167,7 +181,7 @@ export async function updatePlayerStats(
 export async function updateApiKeys(
   targetPlayerId: number,
   sourcePlayerId: number,
-  fromDate: Date,
+  fromDate: Date | null,
   toDate: Date | null = null,
   db: Db = sql,
 ): Promise<number> {
@@ -175,7 +189,7 @@ export async function updateApiKeys(
     UPDATE api_keys
     SET player_id = ${targetPlayerId}
     WHERE player_id = ${sourcePlayerId}
-      AND last_used > ${fromDate}
+      ${fromDate !== null ? sql`AND last_used > ${fromDate}` : sql``}
       ${toDate !== null ? sql`AND last_used <= ${toDate}` : sql``}
   `;
   return updated.count;
@@ -188,6 +202,22 @@ type SplitRow = {
   ticks: number;
   finish_time: Date;
 };
+
+/** Returns the distinct accurate splits recorded in a set of challenges. */
+async function distinctAccurateSplitTypes(
+  challengeIds: number[],
+  db: Db,
+): Promise<[number, number][]> {
+  if (challengeIds.length === 0) {
+    return [];
+  }
+  const rows = await db<{ type: number; scale: number }[]>`
+    SELECT DISTINCT type, scale
+    FROM challenge_splits
+    WHERE challenge_id = ANY(${challengeIds}) AND accurate
+  `;
+  return rows.map((r) => [r.type, r.scale]);
+}
 
 export async function updatePersonalBestHistory(
   targetPlayerId: number,
@@ -452,8 +482,11 @@ export function belongsToChainTarget(
   return nameInWindowsAt(windows, startTime) === normalizedRsn;
 }
 
-function _chainFromHistoricSequence(
-  rows: NameChangeQueryResult[],
+function chainFromHistoricSequence(
+  rows: Pick<
+    NameChangeQueryResult,
+    'old_name' | 'new_name' | 'effective_from'
+  >[],
 ): ChainTransition[] {
   return rows
     .toSorted((a, b) => a.effective_from.getTime() - b.effective_from.getTime())
@@ -490,6 +523,13 @@ export type MigrationPlan = {
    * Source records who are entirely absorbed by the target and can be deleted.
    */
   emptiedSourceIds: number[];
+  /**
+   * Challenges already on the target that predate the player's tenure under the
+   * current name and so belong to a prior holder. Split off to a zombie record.
+   */
+  evictedTargetChallengeIds: number[];
+  /** Number of API keys on the target belonging to a prior holder. */
+  unownedApiKeyCount: number;
 };
 
 /**
@@ -580,6 +620,57 @@ async function findEmptiedSources(
   return emptied;
 }
 
+/**
+ * Finds challenges already on the target record that do not belong to the
+ * chain's player.
+ */
+async function findTargetUnownedChallenges(
+  windows: NameWindow[],
+  target: TargetPlayer,
+  db: Db = sql,
+): Promise<number[]> {
+  if (target.action !== 'use') {
+    return [];
+  }
+
+  const rows = await db<
+    { challenge_id: number; username: string; start_time: Date }[]
+  >`
+    SELECT cp.challenge_id, cp.username, c.start_time
+    FROM challenge_players cp
+    JOIN challenges c ON c.id = cp.challenge_id
+    WHERE cp.player_id = ${target.playerId}
+    ORDER BY cp.challenge_id
+  `;
+
+  return rows
+    .filter(
+      (r) =>
+        !belongsToChainTarget(windows, normalizeRsn(r.username), r.start_time),
+    )
+    .map((r) => r.challenge_id);
+}
+
+/** Counts API keys on the target outside of the current player window. */
+async function countTargetUnownedKeys(
+  windows: NameWindow[],
+  target: TargetPlayer,
+  db: Db = sql,
+): Promise<number> {
+  if (target.action !== 'use') {
+    return 0;
+  }
+
+  const currentWindow = windows[windows.length - 1];
+  const rows = await db<{ last_used: Date | null }[]>`
+    SELECT last_used FROM api_keys WHERE player_id = ${target.playerId}
+  `;
+
+  return rows.filter(
+    (r) => r.last_used === null || !inWindow(r.last_used, currentWindow),
+  ).length;
+}
+
 /** Computes the migration plan for a historic name change chain. Read-only. */
 export async function decide(
   chain: ChainTransition[],
@@ -588,9 +679,256 @@ export async function decide(
   const windows = deriveNameWindows(chain);
   const target = await resolveTarget(chain, db);
   const sourcePlayers = await gatherSourcePlayers(windows, target, db);
-  const emptiedSourceIds = await findEmptiedSources(sourcePlayers, db);
 
-  return { target, windows, sourcePlayers, emptiedSourceIds };
+  const [emptiedSourceIds, evictedTargetChallengeIds, unownedApiKeyCount] =
+    await Promise.all([
+      findEmptiedSources(sourcePlayers, db),
+      findTargetUnownedChallenges(windows, target, db),
+      countTargetUnownedKeys(windows, target, db),
+    ]);
+
+  return {
+    target,
+    windows,
+    sourcePlayers,
+    emptiedSourceIds,
+    evictedTargetChallengeIds,
+    unownedApiKeyCount,
+  };
+}
+
+async function resolveOrCreateTargetId(
+  target: TargetPlayer,
+  db: Db,
+): Promise<number> {
+  if (target.action === 'use') {
+    return target.playerId;
+  }
+  const [created]: [{ id: number }] = await db`
+    INSERT INTO players (username, normalized_username)
+    VALUES (${target.currentName}, ${normalizeRsn(target.currentName)})
+    RETURNING id
+  `;
+  logger.info('historic_target_created', {
+    playerId: created.id,
+    name: target.currentName,
+  });
+  return created.id;
+}
+
+/**
+ * Returns the username for a "zombie" record storing data belonging to player
+ * `name` with unknown provenance.
+ */
+function zombieName(name: string): string {
+  const ZOMBIE_PREFIX = '*'; // Invalid OSRS character.
+  return `${ZOMBIE_PREFIX}${name}`;
+}
+
+class UnownedApiKeysError extends Error {
+  public readonly count: number;
+
+  constructor(count: number) {
+    super(`Target holds ${count} API key(s) belonging to a prior holder`);
+    this.count = count;
+  }
+}
+
+/**
+ * Splits the target's own challenges that belong to a prior holder of the
+ * current name onto a zombie record, removing their stats and personal bests
+ * from the consolidated player.
+ * @returns The number of documents moved onto the zombie.
+ * @throws UnownedApiKeyError if the target has a previous holder's API keys.
+ */
+async function evictTargetHistory(
+  plan: MigrationPlan,
+  targetId: number,
+  db: Db,
+): Promise<number> {
+  if (plan.unownedApiKeyCount > 0) {
+    throw new UnownedApiKeysError(plan.unownedApiKeyCount);
+  }
+
+  const evicted = plan.evictedTargetChallengeIds;
+  if (evicted.length === 0) {
+    return 0;
+  }
+
+  const currentName = plan.windows[plan.windows.length - 1].normalizedRsn;
+
+  const [{ username }] = await db<[{ username: string }]>`
+    SELECT username FROM players WHERE id = ${targetId}
+  `;
+  const zn = zombieName(username);
+
+  // Move data onto the zombie record for this username.
+  const [zombie] = await db<[{ id: number }]>`
+    INSERT INTO players (username, normalized_username, total_recordings)
+    VALUES (${zn}, ${normalizeRsn(zn)}, ${evicted.length})
+    RETURNING id
+  `;
+
+  let moved = 0;
+
+  const cp = await db`
+    UPDATE challenge_players SET player_id = ${zombie.id}
+    WHERE player_id = ${targetId} AND challenge_id = ANY(${evicted})
+  `;
+  moved += cp.count;
+
+  for (const window of plan.windows) {
+    if (window.normalizedRsn === currentName) {
+      continue;
+    }
+    moved += await updatePlayerStats(
+      zombie.id,
+      targetId,
+      window.from,
+      window.to,
+      db,
+    );
+  }
+
+  // Rebuild personal bests for the evicted splits on both records.
+  const splits = await distinctAccurateSplitTypes(evicted, db);
+  const cutoff = Math.min(...evicted);
+  moved += await recomputePbHistoryFrom(targetId, splits, cutoff, db);
+  moved += await recomputePbHistoryFrom(zombie.id, splits, cutoff, db);
+
+  await db`
+    UPDATE players SET total_recordings = total_recordings - ${evicted.length}
+    WHERE id = ${targetId}
+  `;
+
+  logger.info('historic_target_eviction', {
+    targetId,
+    zombieId: zombie.id,
+    evicted: evicted.length,
+  });
+
+  return moved;
+}
+
+/**
+ * Executes a migration plan against a database, consolidating the chain
+ * player's scattered data onto the target record.
+ * Does not delete emptied players from the plan.
+ *
+ * @returns The resolved target ID and the number of documents moved onto it.
+ */
+export async function apply(
+  plan: MigrationPlan,
+  db: Db = sql,
+): Promise<{ targetId: number; migratedDocuments: number }> {
+  const targetId = await resolveOrCreateTargetId(plan.target, db);
+
+  let migratedDocuments = 0;
+
+  // Split off any of the target's challenges that belong to a prior name
+  // holder before consolidating scattered data onto it.
+  migratedDocuments += await evictTargetHistory(plan, targetId, db);
+
+  const movedChallengeIds = plan.sourcePlayers.flatMap((s) => s.challengeIds);
+  if (movedChallengeIds.length === 0) {
+    return { targetId, migratedDocuments };
+  }
+
+  // Move all data onto the target in window order.
+  for (const source of plan.sourcePlayers) {
+    const window = plan.windows[source.windowIndex];
+    const moved = await db`
+      UPDATE challenge_players
+      SET player_id = ${targetId}
+      WHERE player_id = ${source.playerId}
+        AND challenge_id = ANY(${source.challengeIds})
+    `;
+    migratedDocuments += moved.count;
+    migratedDocuments += await updatePlayerStats(
+      targetId,
+      source.playerId,
+      window.from,
+      window.to,
+      db,
+    );
+    migratedDocuments += await updateApiKeys(
+      targetId,
+      source.playerId,
+      window.from,
+      window.to,
+      db,
+    );
+  }
+
+  // Recompute PBs for each surviving source record and the target over each
+  // of their affected windows.
+  const recompute = async (playerId: number, challengeIds: number[]) => {
+    const splits = await distinctAccurateSplitTypes(challengeIds, db);
+    migratedDocuments += await recomputePbHistoryFrom(
+      playerId,
+      splits,
+      Math.min(...challengeIds),
+      db,
+    );
+  };
+
+  await recompute(targetId, movedChallengeIds);
+
+  const idsBySource = new Map<number, number[]>();
+  for (const source of plan.sourcePlayers) {
+    const ids = idsBySource.get(source.playerId) ?? [];
+    ids.push(...source.challengeIds);
+    idsBySource.set(source.playerId, ids);
+  }
+  for (const [sourceId, challengeIds] of idsBySource) {
+    if (!plan.emptiedSourceIds.includes(sourceId)) {
+      await recompute(sourceId, challengeIds);
+    }
+  }
+
+  // Adjust each affected player's recording counts.
+  await db`
+    UPDATE players
+    SET total_recordings = total_recordings + ${movedChallengeIds.length}
+    WHERE id = ${targetId}
+  `;
+  for (const [sourceId, challengeIds] of idsBySource) {
+    await db`
+      UPDATE players
+      SET total_recordings = total_recordings - ${challengeIds.length}
+      WHERE id = ${sourceId}
+    `;
+  }
+
+  logger.info('historic_migration_applied', {
+    targetId,
+    migratedDocuments,
+    challengesMoved: movedChallengeIds.length,
+    sourceCount: idsBySource.size,
+  });
+
+  return { targetId, migratedDocuments };
+}
+
+/**
+ * Deletes player records that were emptied by a migration.
+ * @returns The number of records deleted.
+ */
+export async function deleteEmptiedSources(
+  emptiedSourceIds: number[],
+  db: Db = sql,
+): Promise<number> {
+  if (emptiedSourceIds.length === 0) {
+    return 0;
+  }
+  const deleted = await db`
+    DELETE FROM players
+    WHERE id = ANY(${emptiedSourceIds})
+      AND NOT EXISTS (
+        SELECT 1 FROM challenge_players WHERE player_id = players.id
+      )
+  `;
+  return deleted.count;
 }
 
 /**
@@ -605,8 +943,8 @@ export type DisplayPlan = {
     challengesBefore: number;
     challengesAfter: number;
     /**
-     * Date of the earliest challenge ID moving onto the target, from which its
-     * personal bests are recomputed, or `null` if none move.
+     * Date of the earliest challenge whose personal bests are recomputed on the
+     * target, whether moved on or evicted off, or `null` if none.
      */
     pbRecomputedFrom: Date | null;
   };
@@ -614,6 +952,12 @@ export type DisplayPlan = {
   contributions: DisplayContribution[];
   /** One entry per source record, describing its overall fate. */
   sources: DisplaySource[];
+  /**
+   * Challenges on the target outside of player windows, which would be evicted.
+   */
+  evictedChallenges: number;
+  /** Prior-holder API keys on the target. */
+  unownedApiKeys: number;
 };
 
 /** The data a single source record contributes under a single name window. */
@@ -736,9 +1080,10 @@ export async function formatPlan(
     : [];
   const usernames = new Map(nameRows.map((r) => [r.id, r.username]));
 
-  const dateRows = movedIds.length
+  const affectedIds = [...movedIds, ...plan.evictedTargetChallengeIds];
+  const dateRows = affectedIds.length
     ? await db<{ id: number; start_time: Date }[]>`
-        SELECT id, start_time FROM challenges WHERE id = ANY(${movedIds})
+        SELECT id, start_time FROM challenges WHERE id = ANY(${affectedIds})
       `
     : [];
   const challengeDates = new Map(dateRows.map((r) => [r.id, r.start_time]));
@@ -756,8 +1101,9 @@ export async function formatPlan(
     challengesBefore = 0;
   }
 
-  // The target's PBs recompute from the first moved challenge.
-  const targetCutoffId = movedIds.length > 0 ? Math.min(...movedIds) : null;
+  // The target's PBs recompute from the earliest moved or evicted challenge.
+  const targetCutoffId =
+    affectedIds.length > 0 ? Math.min(...affectedIds) : null;
   const targetPbRecomputedFrom =
     targetCutoffId !== null ? challengeDates.get(targetCutoffId)! : null;
 
@@ -774,11 +1120,16 @@ export async function formatPlan(
       name,
       isNew: plan.target.action === 'create',
       challengesBefore,
-      challengesAfter: challengesBefore + movedIds.length,
+      challengesAfter:
+        challengesBefore +
+        movedIds.length -
+        plan.evictedTargetChallengeIds.length,
       pbRecomputedFrom: targetPbRecomputedFrom,
     },
     contributions,
     sources,
+    evictedChallenges: plan.evictedTargetChallengeIds.length,
+    unownedApiKeys: plan.unownedApiKeyCount,
   };
 }
 
@@ -1093,12 +1444,12 @@ async function processStandardNameChange(
       // current values reflect the experience of the player who has taken over
       // the username.
       logger.info('name_change_zombie_player', { changeId, newName });
-      const zombieName = `*${newName}`;
+      const zombie = zombieName(newName);
       await db`
         UPDATE players
         SET
-          username = ${zombieName},
-          normalized_username = ${normalizeRsn(zombieName)},
+          username = ${zombie},
+          normalized_username = ${normalizeRsn(zombie)},
           total_recordings = total_recordings - ${challengesUpdated},
           overall_experience = 0,
           attack_experience = 0,
@@ -1177,6 +1528,74 @@ class PlayerInActiveChallengeError extends Error {
   }
 }
 
+export type HistoricSequenceResult =
+  | 'processed'
+  | 'unavailable'
+  | 'not_found'
+  | 'failed';
+
+/**
+ * Processes a pending historic name change sequence, consolidating the player's
+ * scattered data onto their current record.
+ */
+async function processHistoricSequence(
+  sequenceId: string,
+): Promise<HistoricSequenceResult> {
+  const applied = await sql.begin(async (tx) => {
+    const [{ locked }] = await tx<[{ locked: boolean }]>`
+      SELECT pg_try_advisory_xact_lock(17, hashtext(${sequenceId})) AS locked
+    `;
+    if (!locked) {
+      return 'unavailable' as const;
+    }
+
+    const rows = await tx<
+      Pick<NameChangeQueryResult, 'old_name' | 'new_name' | 'effective_from'>[]
+    >`
+      SELECT old_name, new_name, effective_from
+      FROM name_changes
+      WHERE sequence_id = ${sequenceId}
+        AND status = ${NameChangeStatus.PENDING}
+      ORDER BY effective_from
+      FOR UPDATE
+    `;
+    if (rows.length === 0) {
+      return 'not_found' as const;
+    }
+
+    const chain = chainFromHistoricSequence(rows);
+    const plan = await decide(chain, tx);
+    const { targetId, migratedDocuments } = await apply(plan, tx);
+
+    // Mark accepted. `effective_from` already holds the rename date.
+    await tx`
+      UPDATE name_changes
+      SET
+        status = ${NameChangeStatus.ACCEPTED},
+        player_id = ${targetId},
+        processed_at = ${new Date()},
+        migrated_documents = ${migratedDocuments}
+      WHERE sequence_id = ${sequenceId}
+    `;
+
+    return { emptiedSourceIds: plan.emptiedSourceIds, migratedDocuments };
+  });
+
+  if (applied === 'unavailable' || applied === 'not_found') {
+    return applied;
+  }
+
+  // Delete empty players as a separate pass after the migration to avoid
+  // deciding emptiness from an early transaction snapshot.
+  const deleted = await deleteEmptiedSources(applied.emptiedSourceIds);
+  logger.info('historic_sequence_accepted', {
+    sequenceId,
+    migratedDocuments: applied.migratedDocuments,
+    recordsDeleted: deleted,
+  });
+  return 'processed';
+}
+
 export type BatchProcessingResult = {
   /** Number of name changes successfully processed. */
   processed: number;
@@ -1247,6 +1666,7 @@ export class NameChangeProcessor {
             SELECT id
             FROM name_changes
             WHERE status = ${NameChangeStatus.PENDING}
+              AND kind = ${NameChangeKind.STANDARD}
             ORDER BY id
             FOR UPDATE SKIP LOCKED
             LIMIT 1
@@ -1320,6 +1740,47 @@ export class NameChangeProcessor {
     return result;
   }
 
+  /**
+   * Processes the oldest pending historic name change sequence, if any.
+   */
+  public async processNextHistoricSequence(): Promise<HistoricSequenceResult> {
+    const [row] = await sql<[{ sequence_id: string }?]>`
+      SELECT sequence_id
+      FROM name_changes
+      WHERE status = ${NameChangeStatus.PENDING}
+        AND kind = ${NameChangeKind.HISTORIC}
+      ORDER BY effective_from
+      LIMIT 1
+    `;
+    if (!row) {
+      return 'not_found';
+    }
+    try {
+      return await processHistoricSequence(row.sequence_id);
+    } catch (e) {
+      if (e instanceof UnownedApiKeysError) {
+        await sql`
+          UPDATE name_changes
+          SET status = ${NameChangeStatus.FAILED}, processed_at = ${new Date()}
+          WHERE sequence_id = ${row.sequence_id}
+            AND status = ${NameChangeStatus.PENDING}
+        `;
+        logger.warn('historic_sequence_failed', {
+          sequenceId: row.sequence_id,
+          reason: 'unowned_api_keys',
+          keyCount: e.count,
+        });
+        return 'failed';
+      }
+      logger.error('historic_sequence_error', {
+        sequenceId: row.sequence_id,
+        error: e instanceof Error ? e.message : String(e),
+        stack: e instanceof Error ? e.stack : undefined,
+      });
+      throw e;
+    }
+  }
+
   private async runBatchLoop(): Promise<void> {
     try {
       const result = await this.processBatch();
@@ -1332,6 +1793,12 @@ export class NameChangeProcessor {
       logger.error('name_change_batch_error', {
         error: e instanceof Error ? e.message : String(e),
       });
+    }
+
+    try {
+      await this.processNextHistoricSequence();
+    } catch {
+      // Errors are logged with their sequence id inside the method.
     }
 
     NameChangeProcessor.timeout = setTimeout(
