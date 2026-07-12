@@ -1,5 +1,3 @@
-import type { NameChange } from '@blert/common';
-
 import { getNameChangesForPlayer } from '@/actions/change-name';
 import Card, { CardLink } from '@/components/card';
 import SessionHistory from '@/components/session-history';
@@ -11,7 +9,7 @@ import styles from '../style.module.scss';
 type DisplayNameChange = {
   oldName: string;
   newName: string;
-  processedAt: Date;
+  effectiveFrom: Date;
 };
 
 function NameChangeHistory({
@@ -34,14 +32,17 @@ function NameChangeHistory({
     >
       <div className={styles.nameChangeList}>
         {nameChanges.map((change) => (
-          <div key={change.processedAt.getTime()} className={styles.nameChange}>
+          <div
+            key={change.effectiveFrom.getTime()}
+            className={styles.nameChange}
+          >
             <div className={styles.names}>
               <span className={styles.oldName}>{change.oldName}</span>
               <i className="fas fa-arrow-right" />
               <span className={styles.newName}>{change.newName}</span>
             </div>
             <div className={styles.date}>
-              {change.processedAt.toLocaleDateString()}
+              {change.effectiveFrom.toLocaleDateString()}
             </div>
           </div>
         ))}
@@ -62,16 +63,11 @@ export default async function PlayerHistory({
   const username = await params.then((u) => decodeURIComponent(u.username));
   const rawNameChanges = await getNameChangesForPlayer(username);
 
-  const nameChanges: DisplayNameChange[] = rawNameChanges
-    .filter(
-      (change): change is NameChange & { processedAt: Date } =>
-        change.processedAt !== null,
-    )
-    .map((change) => ({
-      oldName: change.oldName,
-      newName: change.newName,
-      processedAt: change.processedAt,
-    }));
+  const nameChanges: DisplayNameChange[] = rawNameChanges.map((change) => ({
+    oldName: change.oldName,
+    newName: change.newName,
+    effectiveFrom: change.effectiveFrom,
+  }));
 
   return (
     <div className={styles.history}>
