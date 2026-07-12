@@ -21,6 +21,8 @@ export enum CaptureOp {
 
 /** A single entry in the capture stream. */
 export type CaptureRecord = {
+  /** Instance hostname. */
+  host: string;
   /** Event timestamp. */
   ts: number;
   op: CaptureOp;

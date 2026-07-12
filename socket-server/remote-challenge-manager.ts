@@ -638,9 +638,8 @@ export class RemoteChallengeManager extends ChallengeManager {
 
   private async refreshCaptureFlag(): Promise<void> {
     try {
-      this.captureEnabled =
-        (await this.redisClient.get(CAPTURE_ENABLED_KEY)) ===
-        process.env.HOSTNAME;
+      const value = await this.redisClient.get(CAPTURE_ENABLED_KEY);
+      this.captureEnabled = value === process.env.HOSTNAME || value === '*';
     } catch {
       // Best-effort; keep the previous value.
     }
@@ -665,6 +664,7 @@ export class RemoteChallengeManager extends ChallengeManager {
     }
 
     const record: CaptureRecord = {
+      host: process.env.HOSTNAME ?? 'unknown',
       ts,
       op,
       challengeUuid,
