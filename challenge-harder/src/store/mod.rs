@@ -45,9 +45,9 @@ const INBOX_BLOCK_TIMEOUT: Duration = Duration::from_secs(5);
 const INBOX_RESPONSE_TIMEOUT: Duration = INBOX_BLOCK_TIMEOUT.saturating_mul(2);
 
 /// Channel for public challenge lifecycle broadcasts.
-const CHALLENGE_UPDATES_CHANNEL: &str = "challenge-updates";
+pub(crate) const CHALLENGE_UPDATES_CHANNEL: &str = "challenge-updates";
 
-fn journal_key(uuid: Uuid) -> String {
+pub(crate) fn journal_key(uuid: Uuid) -> String {
     format!("2c2s:journal:{uuid}")
 }
 
@@ -117,7 +117,7 @@ const DELETED_STATE_RETENTION: Duration = Duration::from_mins(1);
 /// Existence index of every challenge between creation and finalization,
 /// as a sorted set scored by lease deadline as a Unix millisecond timestamp.
 /// A future score is owned, a past score is claimable.
-const LEASES_KEY: &str = "2c2s:leases";
+pub(crate) const LEASES_KEY: &str = "2c2s:leases";
 
 /// How long a lease grant lasts before the challenge becomes claimable.
 const LEASE_TTL: Duration = Duration::from_secs(30);

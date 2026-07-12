@@ -58,6 +58,21 @@ impl Default for LifecycleConfig {
     }
 }
 
+impl LifecycleConfig {
+    /// Divides every window by `factor`, preserving boundary relationships
+    /// under accelerated replay. `factor` must be nonzero.
+    #[must_use]
+    pub fn scaled(self, factor: u32) -> LifecycleConfig {
+        LifecycleConfig {
+            stage_end_timeout: self.stage_end_timeout / factor,
+            challenge_end_grace: self.challenge_end_grace / factor,
+            reconnection_window: self.reconnection_window / factor,
+            inactivity_timeout: self.inactivity_timeout / factor,
+            lease_renewal_interval: self.lease_renewal_interval / factor,
+        }
+    }
+}
+
 /// Returns the next deadline implied by `state`, if any.
 #[must_use]
 pub fn next_deadline(state: &ChallengeState, config: &LifecycleConfig) -> Option<Deadline> {
@@ -138,6 +153,16 @@ mod tests {
             inactivity_timeout: Duration::from_mins(15),
             lease_renewal_interval: Duration::from_secs(10),
         }
+    }
+
+    #[test]
+    fn scaled_divides_every_window() {
+        let config = test_config().scaled(10);
+        assert_eq!(config.stage_end_timeout, Duration::from_millis(200));
+        assert_eq!(config.challenge_end_grace, Duration::from_millis(450));
+        assert_eq!(config.reconnection_window, Duration::from_secs(30));
+        assert_eq!(config.inactivity_timeout, Duration::from_secs(90));
+        assert_eq!(config.lease_renewal_interval, Duration::from_secs(1));
     }
 
     #[test]
