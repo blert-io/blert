@@ -20,8 +20,8 @@ import {
 } from '../attack-metadata';
 import { CustomState } from '../types';
 
-import { BLERT_PURPLE, TEXT_PRIMARY } from './colors';
 import { ImageCache } from './image-cache';
+import { TimelinePalette } from './palette';
 import { BoundingBox, Point } from './types';
 
 const BARRAGES = new Set<PlayerAttack>([
@@ -139,7 +139,7 @@ function drawLabel(
   text: string,
   pos: Point,
   fontSize: number,
-  color: string = TEXT_PRIMARY,
+  color: string,
 ): void {
   ctx.font = `bold ${fontSize}px 'Plus Jakarta Sans', sans-serif`;
   ctx.fillStyle = color;
@@ -319,13 +319,14 @@ function drawLetterMode(
   pos: Point,
   cellSize: number,
   attackType: PlayerAttack,
+  textPrimary: string,
 ): void {
   const meta =
     ATTACK_METADATA[attackType] ?? ATTACK_METADATA[PlayerAttack.UNKNOWN];
   const fontSize = Math.floor(cellSize / 2);
 
   ctx.font = `bold ${fontSize}px 'Plus Jakarta Sans', sans-serif`;
-  ctx.fillStyle = meta.tagColor ?? TEXT_PRIMARY;
+  ctx.fillStyle = meta.tagColor ?? textPrimary;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(meta.letter, pos.x + cellSize / 2, pos.y + cellSize / 2);
@@ -358,6 +359,7 @@ export type PlayerCellOptions = {
   externalStates: CustomState[];
   letterMode: boolean;
   showInventoryTags: boolean;
+  palette: TimelinePalette;
 };
 
 /**
@@ -377,7 +379,8 @@ export function drawPlayerCell(
   imageCache: ImageCache,
   options: PlayerCellOptions,
 ): boolean {
-  const { actions, diedThisTick, externalStates, letterMode } = options;
+  const { actions, diedThisTick, externalStates, letterMode, palette } =
+    options;
 
   let pending = false;
 
@@ -394,7 +397,7 @@ export function drawPlayerCell(
 
   if (attack !== undefined && attackType !== undefined) {
     if (letterMode) {
-      drawLetterMode(ctx, pos, cellSize, attackType);
+      drawLetterMode(ctx, pos, cellSize, attackType, palette.textPrimary);
       hasBaseImage = true;
     } else {
       hasBaseImage = drawWeapon(
@@ -452,7 +455,14 @@ export function drawPlayerCell(
 
   customStates.push(...externalStates);
   if (customStates.length > 0) {
-    pending ||= !drawCustomStates(ctx, pos, cellSize, customStates, imageCache);
+    pending ||= !drawCustomStates(
+      ctx,
+      pos,
+      cellSize,
+      customStates,
+      imageCache,
+      palette,
+    );
   }
 
   return pending;
@@ -462,6 +472,7 @@ export type NpcCellOptions = {
   cell: BCFCell | undefined;
   npcLabel: string | undefined;
   externalStates: CustomState[];
+  palette: TimelinePalette;
 };
 
 /**
@@ -481,7 +492,7 @@ export function drawNpcCell(
   imageCache: ImageCache,
   options: NpcCellOptions,
 ): boolean {
-  const { cell, npcLabel, externalStates } = options;
+  const { cell, npcLabel, externalStates, palette } = options;
   let pending = false;
 
   const attack = cell?.actions?.find(
@@ -508,6 +519,7 @@ export function drawNpcCell(
       npcLabel,
       { x: pos.x + cellSize - 2, y: pos.y + cellSize },
       fontSize,
+      palette.textPrimary,
     );
   }
 
@@ -518,6 +530,7 @@ export function drawNpcCell(
       cellSize,
       externalStates,
       imageCache,
+      palette,
     );
   }
 
@@ -537,6 +550,7 @@ function drawCustomStates(
   cellSize: number,
   states: CustomState[],
   imageCache: ImageCache,
+  palette: TimelinePalette,
 ): boolean {
   let allDrawn = true;
 
@@ -552,7 +566,7 @@ function drawCustomStates(
     });
   } else if (first.label !== undefined) {
     ctx.font = `bold 8px 'Plus Jakarta Sans', sans-serif`;
-    ctx.fillStyle = TEXT_PRIMARY;
+    ctx.fillStyle = palette.textPrimary;
     ctx.textAlign = 'right';
     ctx.textBaseline = 'top';
     ctx.fillText(first.label, cellPos.x + cellSize, cellPos.y);
@@ -560,7 +574,7 @@ function drawCustomStates(
 
   if (states.length > 1) {
     ctx.font = `bold 8px 'Plus Jakarta Sans', sans-serif`;
-    ctx.fillStyle = BLERT_PURPLE;
+    ctx.fillStyle = palette.blertAccent;
     ctx.textAlign = 'right';
     ctx.textBaseline = 'top';
     ctx.fillText('+', cellPos.x + cellSize, cellPos.y + iconSize);

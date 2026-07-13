@@ -12,8 +12,9 @@ import {
 
 import { drawPlayerCell, drawNpcCell } from './cell-content';
 import { CellCategory, drawCell, resolveCellStyle } from './cell';
-import { BLERT_PURPLE, getChartColor, TEXT_TICK_HEADER } from './colors';
+import { getChartColor } from './colors';
 import { ImageCache } from './image-cache';
+import { TimelinePalette } from './palette';
 import { Point, TimelineHover } from './types';
 
 export type TimelineDrawData = {
@@ -22,6 +23,7 @@ export type TimelineDrawData = {
   actionEvaluator?: ActionEvaluator;
   stateProvider?: StateProvider;
   imageCache: ImageCache;
+  palette: TimelinePalette;
   hover: TimelineHover | null;
   letterMode: boolean;
   showInventoryTags: boolean;
@@ -50,7 +52,7 @@ export function drawTimeline(
   data: TimelineDrawData,
   layout: TileLayout,
 ): boolean {
-  const { resolver, display, imageCache, hover } = data;
+  const { resolver, display, imageCache, hover, palette } = data;
   const { cellSize, startTick, tickCount, rowOrder } = layout;
 
   const columnWidth = cellSize + CELL_GAP;
@@ -98,6 +100,7 @@ export function drawTimeline(
               : undefined;
 
           const style = resolveCellStyle(
+            palette,
             category,
             undefined,
             isHovered,
@@ -112,6 +115,7 @@ export function drawTimeline(
             cell,
             npcLabel,
             externalStates,
+            palette,
           });
         } else {
           // Player cell.
@@ -150,6 +154,7 @@ export function drawTimeline(
               : undefined;
 
           const style = resolveCellStyle(
+            palette,
             category,
             evaluation.outline,
             isHovered,
@@ -166,6 +171,7 @@ export function drawTimeline(
             externalStates,
             letterMode: data.letterMode,
             showInventoryTags: data.showInventoryTags,
+            palette,
           });
         }
       } else {
@@ -178,7 +184,13 @@ export function drawTimeline(
             ? getChartColor(bgColor.color, bgColor.intensity)
             : undefined;
 
-        const style = resolveCellStyle(category, undefined, isHovered, chartBg);
+        const style = resolveCellStyle(
+          palette,
+          category,
+          undefined,
+          isHovered,
+          chartBg,
+        );
         drawCell(ctx, cellPos, cellSize, style);
       }
     }
@@ -187,7 +199,9 @@ export function drawTimeline(
     const isTickHovered =
       hover !== null && hover.type === 'tick-header' && hover.tick === tick;
     ctx.font = `${Math.floor(cellSize / 2) - 1}px 'Plus Jakarta Sans', sans-serif`;
-    ctx.fillStyle = isTickHovered ? BLERT_PURPLE : TEXT_TICK_HEADER;
+    ctx.fillStyle = isTickHovered
+      ? palette.blertAccent
+      : palette.textTickHeader;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(String(tick), colX + cellSize / 2, TICK_HEIGHT / 2);

@@ -29,7 +29,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 20px 24px;
+      padding: 12px 14px 12px 22px;
       border-bottom: 1px solid rgba(var(--blert-purple-base), 0.15);
       background: linear-gradient(
         135deg,
@@ -39,22 +39,33 @@
 
       h2 {
         margin: 0;
-        font-size: 1.25rem;
+        font-size: 1rem;
         font-weight: 600;
         color: var(--blert-font-color-primary);
       }
 
       button {
-        background: none;
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         border: none;
-        padding: 8px;
+        background: none;
         cursor: pointer;
         transition: all 0.2s ease;
         font-size: 16px;
         color: var(--blert-font-color-secondary);
 
+        i {
+          position: relative;
+          top: 1px;
+        }
+
         &:hover {
-          color: var(--blert-font-color-primary);
+          color: var(--blert-purple);
+          background: var(--blert-surface-light);
         }
       }
     }

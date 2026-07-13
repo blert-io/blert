@@ -2,10 +2,8 @@
 
 import { useCallback, useRef } from 'react';
 
-import {
-  SETTINGS_KEY_PREFIX,
-  useSettingsContext,
-} from '@/components/settings-provider';
+import { useSettingsContext } from '@/components/settings-provider';
+import { SETTINGS_KEY_PREFIX } from '@/utils/settings';
 
 type UseSettingOptions<T> = {
   key: string;

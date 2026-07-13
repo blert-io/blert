@@ -1,9 +1,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;700;800&display=swap');
 
-// NOTE: Theme color values are duplicated as hardcoded constants in
-// components/attack-timeline/canvas/colors.ts for the canvas renderer.
-// If you change base color values here, update that file to match.
-:root {
+// Base (Blert) theme tokens, declared on every `[data-theme]` scope, so a
+// nested element can set its own theme and derive its `rgb(var(--*-base))`
+// tokens from that instead of inheriting the active theme's.
+//
+// Other themes should override any tokens that differ.
+:root,
+[data-theme] {
   --topbar-height: 60px;
 
   --blert-red-base: 239, 68, 68;
@@ -17,6 +20,7 @@
 
   --blert-font-color-primary-base: 195, 199, 201;
   --blert-font-color-secondary-base: 94, 98, 136;
+  --blert-divider-color-base: 75, 78, 109;
 
   --blert-surface-dark-base: 23, 24, 33;
   --blert-surface-darker-base: 17, 18, 33;
@@ -36,7 +40,7 @@
   --blert-font-color-primary: rgb(var(--blert-font-color-primary-base));
   --blert-font-color-secondary: rgb(var(--blert-font-color-secondary-base));
   --blert-font-color-secondary-active: #acafc6;
-  --blert-divider-color: #4b4e6d;
+  --blert-divider-color: rgb(var(--blert-divider-color-base));
 
   --blert-surface-dark: rgb(var(--blert-surface-dark-base));
   --blert-surface-darker: rgb(var(--blert-surface-darker-base));
@@ -50,6 +54,19 @@
   --blert-silver-text-shadow:
     0 0 6px rgba(192, 192, 192, 0.5), 0 0 12px rgba(192, 192, 192, 0.25);
   --blert-bronze-text-shadow: 0 0 6px rgba(205, 127, 50, 0.4);
+
+  // Attack timeline decorative colors, read by its renderer.
+  // See components/attack-timeline/canvas/palette.ts.
+  --blert-timeline-cell-bg-default: rgba(33, 35, 48, 0.5);
+  --blert-timeline-cell-bg-default-hover: rgba(33, 35, 48, 0.6);
+  --blert-timeline-cell-bg-highlighted: rgba(48, 51, 73, 0.5);
+  --blert-timeline-cell-bg-highlighted-hover: rgba(88, 101, 242, 0.3);
+  --blert-timeline-outline-neutral: rgba(195, 199, 201, 0.2);
+  --blert-timeline-outline-neutral-hover: rgba(88, 101, 242, 0.8);
+  --blert-timeline-outline-hover: rgba(88, 101, 242, 0.7);
+  --blert-timeline-text-tick-header: rgba(195, 199, 201, 0.9);
+  --blert-timeline-text-primary: rgb(195, 199, 201);
+  --blert-timeline-accent: rgb(88, 101, 242);
 }
 
 * {

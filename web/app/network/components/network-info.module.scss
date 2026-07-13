@@ -242,7 +242,7 @@
   gap: 8px;
   padding: 8px;
   background: rgba(var(--blert-surface-dark-base), 0.6);
-  border: 1px solid rgba(var(--blert-divider-color), 0.3);
+  border: 1px solid rgba(var(--blert-divider-color-base), 0.3);
   border-radius: 6px;
   transition: all 0.2s ease;
 
@@ -321,7 +321,7 @@
   gap: 8px;
   padding: 8px 12px;
   background: rgba(var(--blert-surface-dark-base), 0.4);
-  border: 1px dashed rgba(var(--blert-divider-color), 0.5);
+  border: 1px dashed rgba(var(--blert-divider-color-base), 0.5);
   border-radius: 6px;
   color: var(--blert-font-color-secondary);
   font-size: 0.8rem;

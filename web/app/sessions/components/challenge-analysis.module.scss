@@ -372,7 +372,7 @@
   padding: 10px 16px;
   display: flex;
   align-items: center;
-  border-bottom: 1px solid rgba(var(--blert-divider-color), 0.3);
+  border-bottom: 1px solid rgba(var(--blert-divider-color-base), 0.3);
 
   &:last-child {
     justify-content: center;
