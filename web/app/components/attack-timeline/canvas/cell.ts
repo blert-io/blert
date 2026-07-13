@@ -1,27 +1,21 @@
 import { ActionOutline } from '../types';
 
 import {
-  CELL_BG_DEFAULT,
-  CELL_BG_DEFAULT_HOVER,
   CELL_BG_DEAD,
   CELL_BG_DEAD_HOVER,
-  CELL_BG_HIGHLIGHTED,
-  CELL_BG_HIGHLIGHTED_HOVER,
   CELL_BG_NPC_ATTACK,
   CELL_BG_NPC_ATTACK_HOVER,
   CELL_DEAD_HOVER_OPACITY,
   CELL_DEAD_OPACITY,
   OUTLINE_DANGER,
   OUTLINE_DANGER_HOVER,
-  OUTLINE_HOVER,
-  OUTLINE_NEUTRAL,
-  OUTLINE_NEUTRAL_HOVER,
   OUTLINE_NPC_ATTACK_HOVER,
   OUTLINE_SUCCESS,
   OUTLINE_SUCCESS_HOVER,
   OUTLINE_WARNING,
   OUTLINE_WARNING_HOVER,
 } from './colors';
+import { TimelinePalette } from './palette';
 import { Point } from './types';
 
 export type CellCategory = 'default' | 'highlighted' | 'npcAttack' | 'dead';
@@ -35,38 +29,49 @@ export type CellStyle = {
   opacity?: number;
 };
 
-const BG_NORMAL: Record<CellCategory, string> = {
-  default: CELL_BG_DEFAULT,
-  highlighted: CELL_BG_HIGHLIGHTED,
-  npcAttack: CELL_BG_NPC_ATTACK,
-  dead: CELL_BG_DEAD,
-};
+/** Background for a non-dead cell category, honoring hover state. */
+function categoryBackground(
+  palette: TimelinePalette,
+  category: CellCategory,
+  isHovered: boolean,
+): string {
+  switch (category) {
+    case 'default':
+      return isHovered ? palette.cellBgDefaultHover : palette.cellBgDefault;
+    case 'highlighted':
+      return isHovered
+        ? palette.cellBgHighlightedHover
+        : palette.cellBgHighlighted;
+    case 'npcAttack':
+      return isHovered ? CELL_BG_NPC_ATTACK_HOVER : CELL_BG_NPC_ATTACK;
+    case 'dead':
+      return isHovered ? CELL_BG_DEAD_HOVER : CELL_BG_DEAD;
+  }
+}
 
-const BG_HOVER: Record<CellCategory, string> = {
-  default: CELL_BG_DEFAULT_HOVER,
-  highlighted: CELL_BG_HIGHLIGHTED_HOVER,
-  npcAttack: CELL_BG_NPC_ATTACK_HOVER,
-  dead: CELL_BG_DEAD_HOVER,
-};
-
-const OUTLINE_NORMAL: Record<ActionOutline, string> = {
-  success: OUTLINE_SUCCESS,
-  warning: OUTLINE_WARNING,
-  danger: OUTLINE_DANGER,
-  neutral: OUTLINE_NEUTRAL,
-};
-
-const OUTLINE_HOVER_MAP: Record<ActionOutline, string> = {
-  success: OUTLINE_SUCCESS_HOVER,
-  warning: OUTLINE_WARNING_HOVER,
-  danger: OUTLINE_DANGER_HOVER,
-  neutral: OUTLINE_NEUTRAL_HOVER,
-};
+/** Outline color for an evaluation outline, honoring hover state. */
+function outlineColor(
+  palette: TimelinePalette,
+  outline: ActionOutline,
+  isHovered: boolean,
+): string {
+  switch (outline) {
+    case 'success':
+      return isHovered ? OUTLINE_SUCCESS_HOVER : OUTLINE_SUCCESS;
+    case 'warning':
+      return isHovered ? OUTLINE_WARNING_HOVER : OUTLINE_WARNING;
+    case 'danger':
+      return isHovered ? OUTLINE_DANGER_HOVER : OUTLINE_DANGER;
+    case 'neutral':
+      return isHovered ? palette.outlineNeutralHover : palette.outlineNeutral;
+  }
+}
 
 /**
  * Resolves the visual style for a cell based on its category, action evaluation
  * outline, and hover state.
  *
+ * @param palette The active decorative palette.
  * @param category The type of cell.
  * @param outline Optional evaluation outline.
  * @param isHovered Whether the cell is hovered.
@@ -75,6 +80,7 @@ const OUTLINE_HOVER_MAP: Record<ActionOutline, string> = {
  * @returns The styling for the cell, to be used in `drawCell`.
  */
 export function resolveCellStyle(
+  palette: TimelinePalette,
   category: CellCategory,
   outline: ActionOutline | undefined,
   isHovered: boolean,
@@ -85,24 +91,24 @@ export function resolveCellStyle(
   let background: string;
   if (isDead) {
     // Dead cells override chart background colors.
-    background = isHovered ? BG_HOVER.dead : BG_NORMAL.dead;
+    background = isHovered ? CELL_BG_DEAD_HOVER : CELL_BG_DEAD;
   } else if (chartBackground !== undefined) {
     background = chartBackground;
   } else {
-    background = isHovered ? BG_HOVER[category] : BG_NORMAL[category];
+    background = categoryBackground(palette, category, isHovered);
   }
 
   let resolvedOutline: string | undefined;
   if (isHovered) {
     if (outline !== undefined) {
-      resolvedOutline = OUTLINE_HOVER_MAP[outline];
+      resolvedOutline = outlineColor(palette, outline, true);
     } else if (category === 'npcAttack') {
       resolvedOutline = OUTLINE_NPC_ATTACK_HOVER;
     } else {
-      resolvedOutline = OUTLINE_HOVER;
+      resolvedOutline = palette.outlineHover;
     }
   } else if (outline !== undefined) {
-    resolvedOutline = OUTLINE_NORMAL[outline];
+    resolvedOutline = outlineColor(palette, outline, false);
   }
 
   return {

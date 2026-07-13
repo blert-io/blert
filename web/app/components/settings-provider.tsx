@@ -11,11 +11,9 @@ import {
 } from 'react';
 
 import { setUserSetting, syncSettings, UserSettings } from '@/actions/settings';
-
-import { useToast } from './toast';
 import { authClient } from '@/auth-client';
-
-export const SETTINGS_KEY_PREFIX = 'blert-setting:';
+import { useToast } from '@/components/toast';
+import { SETTINGS_KEY_PREFIX } from '@/utils/settings';
 
 type SettingsContextValue = {
   settings: UserSettings;

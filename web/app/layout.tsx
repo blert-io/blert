@@ -13,6 +13,7 @@ import Topbar from './components/topbar';
 import { MAIN_LOGO } from './logo';
 import Providers from './providers';
 import Styler from './styler';
+import { THEME_INIT_SCRIPT } from './theme/theme-script';
 
 import './globals.scss';
 import styles from './styles.module.scss';
@@ -87,8 +88,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}

@@ -10,6 +10,7 @@ import {
 
 import { hitTest, HitTestResult } from './hit-test';
 import { ImageCache } from './image-cache';
+import { buildTimelinePalette, TimelinePalette } from './palette';
 import { drawTimeline, TimelineDrawData, TileLayout } from './renderer';
 import { TimelineHover, TimelineLayout } from './types';
 
@@ -47,10 +48,12 @@ export class TimelineController {
   private canvases: HTMLCanvasElement[] = [];
   private data: ControllerData | null = null;
   private layout: ControllerLayout | null = null;
+  private palette: TimelinePalette = buildTimelinePalette();
 
   private imageCache: ImageCache;
   private dpr = 1;
   private dprMql: MediaQueryList | null = null;
+  private themeObserver: MutationObserver | null = null;
 
   private hover: [TimelineHover, number] | null = null;
   private lastMouseEvent: MouseEvent | null = null;
@@ -89,6 +92,7 @@ export class TimelineController {
       canvas.addEventListener('click', this.onClick);
     }
 
+    this.observeTheme();
     this.syncDpr();
     this.resizeCanvases();
     this.drawAllSync();
@@ -152,6 +156,11 @@ export class TimelineController {
       this.dprMql = null;
     }
 
+    if (this.themeObserver !== null) {
+      this.themeObserver.disconnect();
+      this.themeObserver = null;
+    }
+
     this.lastMouseEvent = null;
   }
 
@@ -207,6 +216,27 @@ export class TimelineController {
     }
   }
 
+  /**
+   * Rebuilds the palette and redraws when the document's `data-theme` changes,
+   * so the timeline updates immediately on a theme switch.
+   */
+  private observeTheme(): void {
+    if (
+      this.themeObserver !== null ||
+      typeof MutationObserver === 'undefined'
+    ) {
+      return;
+    }
+    this.themeObserver = new MutationObserver(() => {
+      this.palette = buildTimelinePalette();
+      this.drawAllSync();
+    });
+    this.themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
+  }
+
   private drawAllSync(): void {
     if (this.layout === null) {
       return;
@@ -240,6 +270,7 @@ export class TimelineController {
       actionEvaluator: this.data.actionEvaluator,
       stateProvider: this.data.stateProvider,
       imageCache: this.imageCache,
+      palette: this.palette,
       letterMode: this.data.letterMode,
       showInventoryTags: this.data.showInventoryTags,
       customRowContent: this.data.customRowContent,
