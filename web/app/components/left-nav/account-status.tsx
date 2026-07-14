@@ -7,6 +7,8 @@ import { authClient } from '@/auth-client';
 import { useToast } from '@/components/toast';
 import { useClientOnly } from '@/hooks/client-only';
 
+import styles from './styles.module.scss';
+
 const PROTECTED_ROUTES = ['/settings'];
 
 /** Routes to which users should not be redirected to after logging in. */
@@ -20,31 +22,35 @@ const AVOID_REDIRECT_ROUTES = [
   '/email-verified',
 ];
 
-import styles from './styles.module.scss';
+type AccountStatusProps = {
+  /** Glyph-only rendering for the collapsed sidebar. Defaults to `full`. */
+  variant?: 'full' | 'mini';
+};
 
-export function AccountStatusSkeleton() {
+export function AccountStatusSkeleton({
+  variant = 'full',
+}: AccountStatusProps) {
+  if (variant === 'mini') {
+    return (
+      <div
+        className={`${styles.collapsedAvatar} ${styles.collapsedSkeleton}`}
+      />
+    );
+  }
+
   return (
     <div className={styles.account}>
-      <div className={styles.userWrapper}>
-        <div className={styles.userInfo}>
-          <div className={`${styles.avatar} ${styles.skeleton}`} />
-          <div className={styles.details}>
-            <div className={`${styles.skeletonText} ${styles.skeletonLabel}`} />
-            <div
-              className={`${styles.skeletonText} ${styles.skeletonUsername}`}
-            />
-          </div>
-        </div>
-        <div className={styles.actions}>
-          <div className={`${styles.skeletonAction}`} />
-          <div className={`${styles.skeletonAction}`} />
-        </div>
+      <div className={styles.card}>
+        <div className={`${styles.avatar} ${styles.skeleton}`} />
+        <div className={`${styles.skeletonText} ${styles.skeletonUsername}`} />
       </div>
     </div>
   );
 }
 
-export default function AccountStatus({}) {
+export default function AccountStatus({
+  variant = 'full',
+}: AccountStatusProps) {
   const currentPath = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -53,7 +59,7 @@ export default function AccountStatus({}) {
   const showToast = useToast();
 
   if (session.isPending || !isMounted) {
-    return <AccountStatusSkeleton />;
+    return <AccountStatusSkeleton variant={variant} />;
   }
 
   const currentUrl =
@@ -66,67 +72,108 @@ export default function AccountStatus({}) {
     ? `?next=${encodeURIComponent(currentUrl)}`
     : '';
 
+  if (session.data) {
+    if (variant === 'mini') {
+      return (
+        <Link
+          className={styles.collapsedAvatar}
+          href="/settings"
+          title="Account"
+          aria-label="Account"
+        >
+          <i className="fa-solid fa-user" />
+        </Link>
+      );
+    }
+
+    const username =
+      session.data.user.displayUsername ??
+      session.data.user.username ??
+      'Unknown';
+
+    return (
+      <div className={styles.account}>
+        <div className={styles.card}>
+          <div className={styles.avatar}>
+            <i className="fa-solid fa-user" />
+          </div>
+          <div className={styles.username} title={username}>
+            {username}
+          </div>
+          <Link
+            className={styles.iconAction}
+            href="/settings"
+            title="Settings"
+            aria-label="Settings"
+          >
+            <i className="fa-solid fa-gear" />
+          </Link>
+          <button
+            className={styles.iconAction}
+            title="Log out"
+            aria-label="Log out"
+            onClick={() =>
+              void authClient.signOut({
+                fetchOptions: {
+                  onSuccess: () => {
+                    const isProtected = PROTECTED_ROUTES.some((route) =>
+                      currentPath.startsWith(route),
+                    );
+                    router.replace(isProtected ? '/' : currentUrl);
+                    showToast('Logged out of Blert');
+                  },
+                },
+              })
+            }
+          >
+            <i className="fa-solid fa-right-from-bracket" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === 'mini') {
+    return (
+      <>
+        <Link
+          className={styles.collapsedAvatar}
+          href={`/login${redirectParams}`}
+          title="Log in"
+          aria-label="Log in"
+        >
+          <i className="fa-solid fa-right-to-bracket" />
+        </Link>
+        <Link
+          className={styles.collapsedAvatar}
+          href={`/register${redirectParams}`}
+          title="Sign up"
+          aria-label="Sign up"
+        >
+          <i className="fa-solid fa-user-plus" />
+        </Link>
+      </>
+    );
+  }
+
   return (
     <div className={styles.account}>
-      {session.data ? (
-        <div className={styles.userWrapper}>
-          <div className={styles.userInfo}>
-            <div className={styles.avatar}>
-              <i className="fa-solid fa-user" />
-            </div>
-            <div className={styles.details}>
-              <div className={styles.label}>Signed in as</div>
-              <div className={styles.username}>
-                {session.data.user.displayUsername ??
-                  session.data.user.username ??
-                  'Unknown'}
-              </div>
-            </div>
-          </div>
-          <div className={styles.actions}>
-            <Link className={styles.action} href="/settings">
-              <i className="fa-solid fa-gear" />
-              <span>Settings</span>
-            </Link>
-            <button
-              className={styles.action}
-              onClick={() =>
-                void authClient.signOut({
-                  fetchOptions: {
-                    onSuccess: () => {
-                      const isProtected = PROTECTED_ROUTES.some((route) =>
-                        currentPath.startsWith(route),
-                      );
-                      router.replace(isProtected ? '/' : currentUrl);
-                      showToast('Logged out of Blert');
-                    },
-                  },
-                })
-              }
-            >
-              <i className="fa-solid fa-right-from-bracket" />
-              <span>Log Out</span>
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className={styles.authActions}>
-          <Link
-            className={`${styles.authAction} ${styles.login}`}
-            href={`/login${redirectParams}`}
-          >
-            <i className="fa-solid fa-right-to-bracket" />
-            <span>Log In</span>
-          </Link>
-          <Link
-            className={`${styles.authAction} ${styles.signup}`}
-            href={`/register${redirectParams}`}
-          >
-            <i className="fa-solid fa-user-plus" />
-            <span>Sign Up</span>
-          </Link>
-        </div>
-      )}
+      <div className={styles.authButtons}>
+        <Link
+          className={`${styles.authButton} ${styles.login}`}
+          href={`/login${redirectParams}`}
+        >
+          <i className="fa-solid fa-right-to-bracket" />
+          <span>Log In</span>
+        </Link>
+        <Link
+          className={`${styles.authButton} ${styles.signup}`}
+          href={`/register${redirectParams}`}
+        >
+          <i className="fa-solid fa-user-plus" />
+          <span>Sign Up</span>
+        </Link>
+      </div>
     </div>
   );
 }
