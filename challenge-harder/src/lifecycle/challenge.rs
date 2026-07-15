@@ -12,7 +12,7 @@ use super::core::command::{Command, Create, Envelope, Join};
 use super::core::deadline::{LifecycleConfig, next_deadline};
 use super::core::decide::decide;
 use super::core::event::{Cause, JournalEntry, LifecycleEvent};
-use super::core::state::{ChallengeState, PhaseState, Snapshot};
+use super::core::state::{ChallengeState, LastCompleted, PhaseState, PublishedClient, Snapshot};
 use super::core::types::{ClientId, JournalSeq, MsgId, Timestamp, Uuid};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -165,8 +165,13 @@ pub trait ChallengeClaim: Send + Sync + 'static {
     /// Appends a decision's entries to the challenge's journal as a single atomic batch.
     async fn append(&self, batch: &[JournalEntry]) -> Result<(), StoreError>;
 
-    /// Publishes a snapshot of the challenge's state, signaling its update.
-    async fn project(&self, snapshot: &Snapshot) -> Result<(), StoreError>;
+    /// Publishes a snapshot of the challenge's state and its clients,
+    /// signaling the update.
+    async fn project(
+        &self,
+        snapshot: &Snapshot,
+        clients: &[PublishedClient],
+    ) -> Result<(), StoreError>;
 
     /// Broadcasts a lifecycle milestone to consumers.
     async fn announce(&self, update: &ChallengeServerUpdate) -> Result<(), StoreError>;
@@ -392,11 +397,19 @@ impl ActiveChallenge {
         }
     }
 
-    /// Publishes a snapshot of the current state, returning false if the
-    /// projection could not be written.
+    /// Publishes a snapshot of the current state and its clients, returning
+    /// false if the projection could not be written.
     async fn project(&self, cursor: MsgId) -> bool {
         let current = Snapshot::of(&self.state, cursor);
-        if let Err(error) = with_retries(self.state.uuid, || self.claim.project(&current)).await {
+        let clients: Vec<PublishedClient> = self
+            .state
+            .clients
+            .iter()
+            .map(|(&client_id, client)| PublishedClient::of(client_id, client))
+            .collect();
+        if let Err(error) =
+            with_retries(self.state.uuid, || self.claim.project(&current, &clients)).await
+        {
             tracing::error!(uuid = %self.state.uuid, %error, "projection_failed");
             return false;
         }
@@ -488,7 +501,7 @@ mod tests {
         renewals: AtomicU64,
         releases: AtomicU64,
         appended: Mutex<Vec<JournalEntry>>,
-        projected: Mutex<Vec<Snapshot>>,
+        projected: Mutex<Vec<(Snapshot, Vec<PublishedClient>)>>,
         announced: Mutex<Vec<ChallengeServerUpdate>>,
         deleted: Mutex<Vec<ChallengeState>>,
         // Holds the inbox feed's sender when the run is deadline-driven,
@@ -542,9 +555,17 @@ mod tests {
             Ok(())
         }
 
-        async fn project(&self, snapshot: &Snapshot) -> Result<(), StoreError> {
+        async fn project(
+            &self,
+            snapshot: &Snapshot,
+            clients: &[PublishedClient],
+        ) -> Result<(), StoreError> {
             self.log.next_result()?;
-            self.log.projected.lock().unwrap().push(snapshot.clone());
+            self.log
+                .projected
+                .lock()
+                .unwrap()
+                .push((snapshot.clone(), clients.to_vec()));
             Ok(())
         }
 
@@ -707,7 +728,27 @@ mod tests {
             status: ChallengeStatus::InProgress,
             cursor: MsgId::sequence(1),
         };
-        assert_eq!(*outcome.log.projected.lock().unwrap(), vec![expected]);
+        assert_eq!(
+            *outcome.log.projected.lock().unwrap(),
+            vec![(expected, vec![published_client()])],
+        );
+    }
+
+    /// The published form of the only client in `created_journal`.
+    fn published_client() -> PublishedClient {
+        PublishedClient {
+            user_id: UserId(1),
+            client_id: ClientId(10),
+            recording_type: RecordingType::Participant,
+            active: true,
+            stage: Stage::TobMaiden,
+            stage_attempt: None,
+            stage_status: StageStatus::Entered,
+            last_completed: LastCompleted {
+                stage: Stage::UnknownStage,
+                attempt: None,
+            },
+        }
     }
 
     #[tokio::test(start_paused = true)]
@@ -947,17 +988,20 @@ mod tests {
         assert!(outcome.log.appended.lock().unwrap().is_empty());
         assert_eq!(
             *outcome.log.projected.lock().unwrap(),
-            vec![Snapshot {
-                uuid,
-                challenge_type: ChallengeType::Tob,
-                mode: ChallengeMode::TobRegular,
-                stage: Stage::TobMaiden,
-                stage_attempt: None,
-                party: vec!["a".into()],
-                phase: ChallengePhase::Active,
-                status: ChallengeStatus::InProgress,
-                cursor: MsgId::sequence(1),
-            }],
+            vec![(
+                Snapshot {
+                    uuid,
+                    challenge_type: ChallengeType::Tob,
+                    mode: ChallengeMode::TobRegular,
+                    stage: Stage::TobMaiden,
+                    stage_attempt: None,
+                    party: vec!["a".into()],
+                    phase: ChallengePhase::Active,
+                    status: ChallengeStatus::InProgress,
+                    cursor: MsgId::sequence(1),
+                },
+                vec![published_client()],
+            )],
         );
     }
 

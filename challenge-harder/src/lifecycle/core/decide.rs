@@ -10,7 +10,7 @@ use super::event::LifecycleEvent;
 use super::state::{ChallengeState, ClientState, PhaseState, StageState};
 use super::types::{
     ChallengeMode, ChallengeStatus, ChallengeType, ChallengeTypeExt, RecordingType, Stage,
-    StageExt, StageStatus,
+    StageExt, StageStatus, StageStatusExt,
 };
 
 /// Produces a series of journal events from a received command, detailing the
@@ -34,10 +34,6 @@ pub fn decide(
         Command::DeadlineFired(d) => deadline_fired(state, config, *d),
         Command::StageProcessed(_) => todo!(),
     }
-}
-
-fn is_finished(status: StageStatus) -> bool {
-    status == StageStatus::Completed || status == StageStatus::Wiped
 }
 
 fn create(state: &ChallengeState, c: &Create) -> Vec<LifecycleEvent> {
@@ -125,7 +121,7 @@ fn update(state: &ChallengeState, update: &Update) -> Vec<LifecycleEvent> {
             // Seal the stage when every client has finished it.
             let finished = |stage: Stage, status: StageStatus, attempt: Option<u32>| {
                 stage > state.stage // TODO(frolv): handle toa
-                    || (is_finished(status) && attempt.max(state.stage_attempt) == attempt)
+                    || (status.is_finished() && attempt.max(state.stage_attempt) == attempt)
             };
             let all_finished = state.clients.iter().all(|(id, c)| {
                 if *id == update.client_id {
@@ -145,6 +141,18 @@ fn update(state: &ChallengeState, update: &Update) -> Vec<LifecycleEvent> {
         }
         StageStatus::Started => {
             if progress.stage != state.stage || state.stage_status == StageStatus::Entered {
+                if progress.stage != state.stage
+                    && state.stage_status != StageStatus::Entered
+                    && !matches!(state.stage_state, StageState::Complete { .. })
+                {
+                    // If a start for new stage arrives before the previous
+                    // stage is sealed, seal it immediately.
+                    events.push(LifecycleEvent::StageSealed {
+                        stage: state.stage,
+                        attempt: state.stage_attempt,
+                        forced: true,
+                    });
+                }
                 events.push(LifecycleEvent::StageStarted {
                     stage: progress.stage,
                 });
@@ -395,6 +403,7 @@ mod tests {
             stage,
             stage_status: status,
             stage_attempt: attempt,
+            last_completed: None,
         }
     }
 
@@ -509,11 +518,62 @@ mod tests {
     }
 
     #[test]
-    fn new_stage_start_advances_challenge() {
+    fn new_stage_start_seals_the_outgoing_stage_and_advances() {
         let state = tob_state(vec![(
             CLIENT_A,
             client(Stage::TobMaiden, StageStatus::Completed, None),
         )]);
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &stage_update(CLIENT_A, Stage::TobBloat, StageStatus::Started),
+            ),
+            vec![
+                LifecycleEvent::StageSealed {
+                    stage: Stage::TobMaiden,
+                    attempt: None,
+                    forced: true,
+                },
+                LifecycleEvent::StageStarted {
+                    stage: Stage::TobBloat,
+                },
+                report(CLIENT_A, Stage::TobBloat, StageStatus::Started),
+            ],
+        );
+    }
+
+    #[test]
+    fn new_stage_start_leaves_a_sealed_stage_alone() {
+        let mut state = tob_state(vec![(
+            CLIENT_A,
+            client(Stage::TobMaiden, StageStatus::Completed, None),
+        )]);
+        state.stage_state = StageState::Complete {
+            since: Timestamp::from_millis(1_000),
+        };
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &stage_update(CLIENT_A, Stage::TobBloat, StageStatus::Started),
+            ),
+            vec![
+                LifecycleEvent::StageStarted {
+                    stage: Stage::TobBloat,
+                },
+                report(CLIENT_A, Stage::TobBloat, StageStatus::Started),
+            ],
+        );
+    }
+
+    #[test]
+    fn advance_from_an_unstarted_stage_does_not_seal() {
+        let mut state = tob_state(vec![(
+            CLIENT_A,
+            client(Stage::TobMaiden, StageStatus::Entered, None),
+        )]);
+        state.stage_status = StageStatus::Entered;
         assert_eq!(
             decide(
                 &state,

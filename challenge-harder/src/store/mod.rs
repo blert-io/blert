@@ -16,7 +16,7 @@ use crate::lifecycle::challenge::{
 };
 use crate::lifecycle::core::command::{Command, Create, Envelope, Join};
 use crate::lifecycle::core::event::JournalEntry;
-use crate::lifecycle::core::state::{ChallengePhase, ChallengeState, Snapshot};
+use crate::lifecycle::core::state::{ChallengePhase, ChallengeState, PublishedClient, Snapshot};
 use crate::lifecycle::core::types::{
     ChallengeMode, ChallengeStatus, ChallengeType, ClientId, Epoch, MsgId, Stage, StageExt, Uuid,
 };
@@ -74,6 +74,12 @@ const CHALLENGE_KEY_PREFIX: &str = "challenge:";
 /// The challenge's projected state.
 fn challenge_key(uuid: Uuid) -> String {
     format!("{CHALLENGE_KEY_PREFIX}{uuid}")
+}
+
+/// The challenge's published clients.
+/// Matches `challengeClientsKey` in `//common/db/redis.ts`.
+fn clients_key(uuid: Uuid) -> String {
+    format!("{CHALLENGE_KEY_PREFIX}{uuid}:clients")
 }
 
 /// Which challenge a party is recording.
@@ -186,6 +192,7 @@ impl Store {
             journal_key: journal_key(uuid),
             lease_key: lease_key(uuid),
             challenge_key: challenge_key(uuid),
+            clients_key: clients_key(uuid),
             epoch,
             client: self.client.clone(),
             connection: self.connection.clone(),
@@ -207,7 +214,7 @@ fn parse_snapshot(uuid: Uuid, hash: &HashMap<String, String>) -> Result<Snapshot
             .map_err(|e| format!("invalid {name}: {e}"))
     }
 
-    let attempt = field(hash, "stageAttempt")?;
+    let attempt = hash.get("stageAttempt").map_or("", String::as_str);
     let party = field(hash, "party")?;
     let tag = field(hash, "phase")?;
     let phase = ChallengePhase::from_tag(tag).ok_or_else(|| format!("invalid phase: {tag}"))?;
@@ -471,6 +478,7 @@ struct RedisClaim {
     journal_key: String,
     lease_key: String,
     challenge_key: String,
+    clients_key: String,
     epoch: Epoch,
     client: redis::Client,
     connection: ConnectionManager,
@@ -529,40 +537,47 @@ impl ChallengeClaim for RedisClaim {
         }
     }
 
-    async fn project(&self, snapshot: &Snapshot) -> Result<(), StoreError> {
+    async fn project(
+        &self,
+        snapshot: &Snapshot,
+        clients: &[PublishedClient],
+    ) -> Result<(), StoreError> {
         let signal = serde_json::to_string(&ChallengeSignal::Updated {
             uuid: snapshot.uuid,
             cursor: snapshot.cursor,
         })
         .expect("signal serializes");
-        // The hash contract encodes a null stageAttempt as an empty string.
-        let attempt = snapshot
-            .stage_attempt
-            .map_or_else(String::new, |attempt| attempt.to_string());
-        let mut connection = self.connection.clone();
 
+        let mut state_pairs: Vec<(&str, String)> = vec![
+            ("type", (snapshot.challenge_type as i32).to_string()),
+            ("mode", (snapshot.mode as i32).to_string()),
+            ("status", (snapshot.status as u8).to_string()),
+            ("stage", (snapshot.stage as i32).to_string()),
+            ("party", snapshot.party.join(",")),
+            ("phase", snapshot.phase.tag().to_string()),
+            ("cursor", snapshot.cursor.to_string()),
+        ];
+        if let Some(attempt) = snapshot.stage_attempt {
+            state_pairs.push(("stageAttempt", attempt.to_string()));
+        }
+
+        let mut connection = self.connection.clone();
         let mut invocation = PROJECT_SCRIPT.prepare_invoke();
         invocation
             .key(&self.challenge_key)
             .key(&self.lease_key)
+            .key(&self.clients_key)
             .arg(self.epoch.0)
             .arg(signal)
-            .arg("type")
-            .arg(snapshot.challenge_type as i32)
-            .arg("mode")
-            .arg(snapshot.mode as i32)
-            .arg("status")
-            .arg(snapshot.status as u8)
-            .arg("stage")
-            .arg(snapshot.stage as i32)
-            .arg("stageAttempt")
-            .arg(attempt)
-            .arg("party")
-            .arg(snapshot.party.join(","))
-            .arg("phase")
-            .arg(snapshot.phase.tag())
-            .arg("cursor")
-            .arg(snapshot.cursor.to_string());
+            .arg(state_pairs.len() * 2);
+        for (field, value) in &state_pairs {
+            invocation.arg(*field).arg(value);
+        }
+        for client in clients {
+            invocation
+                .arg(client.client_id.0)
+                .arg(serde_json::to_string(client).expect("client serializes"));
+        }
 
         let accepted: i64 = invocation
             .invoke_async(&mut connection)
@@ -655,6 +670,7 @@ impl ChallengeClaim for RedisClaim {
             .key(&self.journal_key)
             .key(inbox_key(self.uuid))
             .key(streams_set_key(self.uuid))
+            .key(&self.clients_key)
             .key(directory_key(&party_key(
                 state.challenge_type,
                 &state.party,

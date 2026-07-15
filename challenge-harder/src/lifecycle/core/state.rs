@@ -97,6 +97,50 @@ pub struct ClientState {
     pub stage: Stage,
     pub stage_status: StageStatus,
     pub stage_attempt: Option<u32>,
+    pub last_completed: Option<LastCompleted>,
+}
+
+/// A client's latest completed stage and attempt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LastCompleted {
+    pub stage: Stage,
+    pub attempt: Option<u32>,
+}
+
+/// A client's state as published for external readers.
+/// Mirrors `ChallengeClient` in `//challenge-server/redis-client.ts`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PublishedClient {
+    pub user_id: UserId,
+    pub client_id: ClientId,
+    #[serde(rename = "type")]
+    pub recording_type: RecordingType,
+    pub active: bool,
+    pub stage: Stage,
+    pub stage_attempt: Option<u32>,
+    pub stage_status: StageStatus,
+    pub last_completed: LastCompleted,
+}
+
+impl PublishedClient {
+    #[must_use]
+    pub fn of(client_id: ClientId, client: &ClientState) -> Self {
+        Self {
+            user_id: client.user_id,
+            client_id,
+            recording_type: client.recording_type,
+            active: client.active,
+            stage: client.stage,
+            stage_attempt: client.stage_attempt,
+            stage_status: client.stage_status,
+            last_completed: client.last_completed.unwrap_or(LastCompleted {
+                stage: Stage::UnknownStage,
+                attempt: None,
+            }),
+        }
+    }
 }
 
 /// State published by a challenge for outside readers.

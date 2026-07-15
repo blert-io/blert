@@ -135,6 +135,7 @@ mod tests {
             stage: Stage::TobMaiden,
             stage_status: StageStatus::Started,
             stage_attempt: None,
+            last_completed: None,
         };
 
         ChallengeState {
