@@ -2,24 +2,24 @@
 //! build of the server and diffs its decisions against the old server's
 //! recorded ones.
 
+mod artifact;
 mod capture;
+mod diff;
 mod remap;
 mod replay;
 mod schedule;
 mod server;
 
-use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::Subcommand;
-use serde_json::{Value, json};
 
 use crate::lifecycle::core::deadline::LifecycleConfig;
+use artifact::{AnnouncementLine, CommandLine, RunDir, RunSummary};
 use capture::{Capture, Census};
-use remap::Mapping;
-use replay::{Event, ReplayResult};
+use replay::ReplayResult;
 
 /// Shadow harness tools.
 #[derive(Subcommand)]
@@ -56,6 +56,13 @@ pub enum Command {
         #[arg(required = true)]
         captures: Vec<PathBuf>,
     },
+    /// Diff a replay run against the capture that produced it.
+    Diff {
+        /// Path to the capture file.
+        capture: PathBuf,
+        /// Replay run directory.
+        run: PathBuf,
+    },
 }
 
 pub async fn run(command: Command) -> ExitCode {
@@ -71,7 +78,109 @@ pub async fn run(command: Command) -> ExitCode {
             out,
         } => replay_command(&capture, &redis, time_scale, &out).await,
         Command::Census { check, captures } => census(check, &captures),
+        Command::Diff { capture, run } => diff_command(&capture, &run),
     }
+}
+
+fn diff_command(capture_path: &Path, run_path: &Path) -> ExitCode {
+    let capture = match Capture::load(capture_path) {
+        Ok(capture) => capture,
+        Err(e) => {
+            eprintln!("{}", error_chain(&e));
+            return ExitCode::FAILURE;
+        }
+    };
+    let run = match RunDir::load(run_path) {
+        Ok(run) => run,
+        Err(e) => {
+            eprintln!("{}", error_chain(&e));
+            return ExitCode::FAILURE;
+        }
+    };
+    let report = match diff::diff(&capture, &run) {
+        Ok(report) => report,
+        Err(e) => {
+            eprintln!("{e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let mut lines = String::new();
+    for divergence in &report.divergences {
+        lines.push_str(&serde_json::to_string(divergence).expect("divergence serializes"));
+        lines.push('\n');
+    }
+    if let Err(e) = write_file(run_path, "divergences.jsonl", lines.as_bytes()) {
+        eprintln!("failed to write {e}");
+        return ExitCode::FAILURE;
+    }
+
+    print_diff(&report);
+    if report.divergences.is_empty() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    }
+}
+
+fn print_diff(report: &diff::Report) {
+    println!("CHALLENGES");
+    println!("  total {}", report.challenges);
+    println!(
+        "  mapped {} ({}%)",
+        report.mapped,
+        percent(report.mapped, report.challenges),
+    );
+    println!();
+    println!("COMMANDS");
+    println!("  total {}", report.commands);
+    println!(
+        "  compared {} ({}%)",
+        report.compared,
+        percent(report.compared, report.commands),
+    );
+    println!(
+        "  skipped {} ({}%)",
+        report.skipped,
+        percent(report.skipped, report.commands),
+    );
+    println!();
+    println!("PUBSUB");
+    println!("  announcements {}", report.announcements);
+    println!(
+        "  finished {} ({}%)",
+        report.finished,
+        percent(report.finished, report.challenges),
+    );
+    println!();
+    println!("DIVERGENCES");
+
+    if report.divergences.is_empty() {
+        println!("  (none)");
+        return;
+    }
+
+    let mut kinds: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
+    let mut challenges = std::collections::BTreeSet::new();
+    for divergence in &report.divergences {
+        *kinds.entry(divergence.kind.slug()).or_insert(0) += 1;
+        if let Some(challenge) = divergence.challenge {
+            challenges.insert(challenge);
+        }
+    }
+    println!(
+        "  total {} ({}%)",
+        report.divergences.len(),
+        percent(report.divergences.len(), report.challenges),
+    );
+    println!();
+    for (kind, count) in kinds {
+        println!("  {kind} {count}");
+    }
+}
+
+fn percent(part: usize, total: usize) -> usize {
+    (part * 100).checked_div(total).unwrap_or(100)
 }
 
 async fn replay_command(
@@ -141,33 +250,24 @@ fn write_artifacts(
 ) -> Result<(), String> {
     let mut commands = String::new();
     for event in &result.events {
-        commands.push_str(&event_line(event).to_string());
+        let line = CommandLine::from(event);
+        commands.push_str(&serde_json::to_string(&line).expect("command line serializes"));
         commands.push('\n');
     }
     write_file(run_dir, "commands.jsonl", commands.as_bytes())?;
 
     let mut announcements = String::new();
     for announcement in &result.announcements {
-        announcements.push_str(
-            &json!({
-                "offsetMs": announcement.offset.as_secs_f64() * 1000.0,
-                "payload": &announcement.payload,
-            })
-            .to_string(),
-        );
+        let line = AnnouncementLine::from(announcement);
+        announcements.push_str(&serde_json::to_string(&line).expect("pubsub line serializes"));
         announcements.push('\n');
     }
     write_file(run_dir, "pubsub.jsonl", announcements.as_bytes())?;
 
-    let remapped: BTreeMap<String, String> = result
-        .remapped
-        .iter()
-        .map(|(captured, replayed)| (captured.to_string(), replayed.to_string()))
-        .collect();
     write_file(
         run_dir,
         "remap.json",
-        &serde_json::to_vec_pretty(&remapped).expect("remapped serializes"),
+        &serde_json::to_vec_pretty(&result.remapped).expect("remapped serializes"),
     )?;
 
     let journals = run_dir.join("journals");
@@ -182,16 +282,16 @@ fn write_artifacts(
             .map_err(|e| format!("journals/{uuid}.jsonl: {e}"))?;
     }
 
-    let summary = json!({
-        "captureFile": capture.name(),
-        "records": census.records,
-        "challenges": census.challenges,
-        "commands": result.events.len(),
-        "incomplete": result.incomplete,
-        "timeScale": time_scale,
-        "serverExit": result.exit.to_string(),
-        "gracefulShutdown": result.graceful,
-    });
+    let summary = RunSummary {
+        capture_file: capture.name(),
+        records: census.records,
+        challenges: census.challenges,
+        commands: result.events.len(),
+        incomplete: result.incomplete.clone(),
+        time_scale,
+        server_exit: result.exit.to_string(),
+        graceful_shutdown: result.graceful,
+    };
     write_file(
         run_dir,
         "summary.json",
@@ -201,54 +301,6 @@ fn write_artifacts(
 
 fn write_file(run_dir: &Path, name: &str, contents: &[u8]) -> Result<(), String> {
     std::fs::write(run_dir.join(name), contents).map_err(|e| format!("{name}: {e}"))
-}
-
-fn event_line(event: &Event) -> Value {
-    match event {
-        Event::CommandSent {
-            index,
-            op,
-            client,
-            captured,
-            scheduled,
-            sent,
-            latency,
-            status,
-            response,
-            mapping,
-        } => json!({
-            "index": index,
-            "op": op.to_string(),
-            "client": client.0,
-            "challenge": captured.map(|uuid| uuid.to_string()),
-            "scheduledMs": scheduled.as_secs_f64() * 1000.0,
-            "sentMs": sent.as_secs_f64() * 1000.0,
-            "latencyMs": latency.as_secs_f64() * 1000.0,
-            "status": status,
-            "response": response,
-            "mapping": mapping.map(mapping_line),
-        }),
-        Event::CommandUnmapped {
-            index,
-            op,
-            client,
-            captured,
-        } => json!({
-            "index": index,
-            "op": op.to_string(),
-            "client": client.0,
-            "challenge": captured.to_string(),
-            "unmapped": true,
-        }),
-    }
-}
-
-fn mapping_line(mapping: Mapping) -> Value {
-    match mapping {
-        Mapping::New => json!("new"),
-        Mapping::Match => json!("match"),
-        Mapping::Mismatch { existing } => json!({ "mismatch": existing.to_string() }),
-    }
 }
 
 fn census(check: bool, paths: &[PathBuf]) -> ExitCode {
