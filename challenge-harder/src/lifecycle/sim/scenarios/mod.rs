@@ -38,6 +38,7 @@ pub fn report(stage: Stage, status: StageStatus) -> Action {
     Action::Update {
         mode: None,
         stage: Some(StageProgress { stage, status }),
+        party: None,
     }
 }
 

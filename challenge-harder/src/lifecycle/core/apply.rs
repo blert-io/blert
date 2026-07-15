@@ -96,6 +96,10 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
         } => {
             state.clients.remove(&client_id);
             state.reported_times = state.reported_times.or(times);
+            // Each finish extends the grace period for remaining clients.
+            if let PhaseState::Finishing { since, .. } = &mut state.phase {
+                *since = entry.at;
+            }
         }
         LifecycleEvent::ClientActivated { client_id } => {
             if let Some(client) = state.clients.get_mut(&client_id) {
@@ -117,8 +121,10 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
         LifecycleEvent::ModeChanged { mode } => {
             state.mode = mode;
         }
-        LifecycleEvent::PartyChanged { .. }
-        | LifecycleEvent::StageProcessingStarted { .. }
+        LifecycleEvent::PartyChanged { .. } => {
+            state.party_changed = true;
+        }
+        LifecycleEvent::StageProcessingStarted { .. }
         | LifecycleEvent::StageProcessingFinished { .. }
         | LifecycleEvent::StageProcessingFailed { .. }
         | LifecycleEvent::StageProcessingTimedOut { .. } => todo!(),
@@ -604,6 +610,41 @@ mod tests {
     }
 
     #[test]
+    fn client_finish_slides_the_finishing_anchor() {
+        let mut state = created_tob_state();
+        apply(
+            &mut state,
+            entry(
+                9_000,
+                2,
+                LifecycleEvent::ChallengeFinishing {
+                    status: ChallengeStatus::Wiped,
+                },
+            ),
+        );
+        apply(
+            &mut state,
+            entry(
+                12_500,
+                3,
+                LifecycleEvent::ClientFinished {
+                    client_id: ClientId(10),
+                    definitive: true,
+                    soft: false,
+                    times: None,
+                },
+            ),
+        );
+        assert_eq!(
+            state.phase,
+            PhaseState::Finishing {
+                since: Timestamp::from_millis(12_500),
+                status: ChallengeStatus::Wiped,
+            }
+        );
+    }
+
+    #[test]
     fn client_removed_drops_client() {
         let mut state = created_tob_state();
         apply(
@@ -634,6 +675,42 @@ mod tests {
 
         assert_eq!(state.clients.len(), 1);
         assert_eq!(state.clients.get(&ClientId(20)), None);
+    }
+
+    #[test]
+    fn party_changed_flags_without_changing_party() {
+        let mut state = ChallengeState::default();
+        apply(
+            &mut state,
+            entry(
+                0,
+                1,
+                LifecycleEvent::ChallengeCreated {
+                    uuid: Uuid::from_u128(1),
+                    challenge_type: ChallengeType::Tob,
+                    mode: ChallengeMode::TobRegular,
+                    party: vec!["1Ogp".into(), "WWWWWWWWWWQQ".into()],
+                    stage: Stage::TobMaiden,
+                },
+            ),
+        );
+
+        apply(
+            &mut state,
+            entry(
+                5_000,
+                2,
+                LifecycleEvent::PartyChanged {
+                    party: vec!["WWWWWWWWWWQQ".into()],
+                },
+            ),
+        );
+
+        assert!(state.party_changed);
+        assert_eq!(
+            state.party,
+            vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()]
+        );
     }
 
     #[test]

@@ -862,7 +862,7 @@ mod tests {
                     },
                 },
                 Divergence {
-                    id: "dirty-shutdown".to_owned(),
+                    id: "forced-shutdown".to_owned(),
                     challenge: None,
                     index: None,
                     kind: Kind::ForcedShutdown {

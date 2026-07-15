@@ -142,5 +142,5 @@ export default abstract class ChallengeManager {
   public abstract updateClientStatus(
     client: Client,
     status: ClientStatus,
-  ): void;
+  ): Promise<void>;
 }
