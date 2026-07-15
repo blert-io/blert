@@ -215,6 +215,19 @@ pub trait StageExt {
     fn later_stages(self) -> Vec<Stage>;
 }
 
+pub trait StageStatusExt {
+    // Implemented for the Copy enum StageStatus, which is always passed by value.
+    #[allow(clippy::wrong_self_convention)]
+    fn is_finished(self) -> bool;
+}
+
+impl StageStatusExt for StageStatus {
+    /// Whether the status indicates the stage is over.
+    fn is_finished(self) -> bool {
+        self == StageStatus::Completed || self == StageStatus::Wiped
+    }
+}
+
 impl StageExt for Stage {
     fn challenge_type(self) -> Option<ChallengeType> {
         match self as i32 {

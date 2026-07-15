@@ -12,10 +12,10 @@ use redis::AsyncCommands;
 use super::*;
 use crate::lifecycle::core::command::{Finish, Update};
 use crate::lifecycle::core::event::{Cause, LifecycleEvent};
-use crate::lifecycle::core::state::{ChallengePhase, PhaseState};
+use crate::lifecycle::core::state::{ChallengePhase, LastCompleted, PhaseState};
 use crate::lifecycle::core::types::{
     ChallengeMode, ChallengeStatus, ChallengeType, ClientId, JournalSeq, MsgId, RecordingType,
-    Stage, Timestamp, UserId,
+    Stage, StageStatus, Timestamp, UserId,
 };
 
 /// Returns a unique client ID on every call. Tests share a Redis instance and
@@ -593,7 +593,7 @@ async fn projection_writes_hash_and_signals() {
     let mut messages = pubsub.on_message();
 
     claim
-        .project(&snapshot(uuid, 4))
+        .project(&snapshot(uuid, 4), &[])
         .await
         .expect("project should succeed");
     assert_eq!(store.read(uuid).await, Ok(Some(snapshot(uuid, 4))));
@@ -605,7 +605,6 @@ async fn projection_writes_hash_and_signals() {
         ("mode", "11"),
         ("status", "0"),
         ("stage", "10"),
-        ("stageAttempt", ""),
         ("party", "1Ogp,WWWWWWWWWWQQ"),
         ("phase", "ACTIVE"),
         ("cursor", "0-4"),
@@ -631,19 +630,62 @@ async fn projection_writes_hash_and_signals() {
     };
     assert_eq!(cursor, MsgId::sequence(4));
 
-    // A later projection overwrites the previous snapshot.
+    // A later projection overwrites the previous snapshot and publishes
+    // the challenge's clients.
     let updated = Snapshot {
         stage_attempt: Some(3),
         ..snapshot(uuid, 5)
     };
+    let client = PublishedClient {
+        user_id: UserId(435),
+        client_id: ClientId(286),
+        recording_type: RecordingType::Participant,
+        active: true,
+        stage: Stage::TobMaiden,
+        stage_attempt: Some(3),
+        stage_status: StageStatus::Completed,
+        last_completed: LastCompleted {
+            stage: Stage::TobMaiden,
+            attempt: Some(2),
+        },
+    };
     claim
-        .project(&updated)
+        .project(&updated, std::slice::from_ref(&client))
         .await
         .expect("project should succeed");
     let hash: BTreeMap<String, String> = connection.hgetall(challenge_key(uuid)).await.unwrap();
     assert_eq!(hash["stageAttempt"], "3");
     assert_eq!(hash["cursor"], "0-5");
     assert_eq!(store.read(uuid).await, Ok(Some(updated)));
+
+    // The clients hash holds the wire form the old contract's readers parse.
+    let clients: BTreeMap<String, String> = connection.hgetall(clients_key(uuid)).await.unwrap();
+    assert_eq!(
+        clients,
+        [(
+            "286".to_string(),
+            concat!(
+                r#"{"userId":435,"clientId":286,"type":1,"active":true,"#,
+                r#""stage":10,"stageAttempt":3,"stageStatus":2,"#,
+                r#""lastCompleted":{"stage":10,"attempt":2}}"#,
+            )
+            .to_string(),
+        )]
+        .into_iter()
+        .collect(),
+    );
+
+    // Moving to a stage without attempt tracking removes the field, and a
+    // projection without clients removes the clients hash.
+    claim
+        .project(&snapshot(uuid, 6), &[])
+        .await
+        .expect("project should succeed");
+    let hash: BTreeMap<String, String> = connection.hgetall(challenge_key(uuid)).await.unwrap();
+    assert!(!hash.contains_key("stageAttempt"), "{hash:?}");
+    assert_eq!(store.read(uuid).await, Ok(Some(snapshot(uuid, 6))));
+    let clients: bool = connection.exists(clients_key(uuid)).await.unwrap();
+    assert!(!clients);
 
     clean_up(&store, uuid).await;
 }
@@ -667,7 +709,7 @@ async fn subscriber_delivers_update_signals() {
         cursor += 1;
         assert!(cursor < 10, "no signal after {cursor} projections");
         claim
-            .project(&snapshot(uuid, cursor))
+            .project(&snapshot(uuid, cursor), &[])
             .await
             .expect("project should succeed");
         let deadline = tokio::time::Instant::now() + Duration::from_millis(250);
@@ -699,7 +741,7 @@ async fn bumped_fence_rejects_projection() {
     let _: () = connection.hset(lease_key(uuid), "fence", 2).await.unwrap();
 
     assert_eq!(
-        claim.project(&snapshot(uuid, 1)).await,
+        claim.project(&snapshot(uuid, 1), &[]).await,
         Err(StoreError::Fenced),
     );
     let exists: bool = connection.exists(challenge_key(uuid)).await.unwrap();
@@ -969,7 +1011,7 @@ async fn start_creates_and_claims_a_challenge_for_a_free_party() {
 
     // The returned claim holds the fence, so its writes land immediately.
     claim
-        .project(&snapshot(uuid, 1))
+        .project(&snapshot(uuid, 1), &[])
         .await
         .expect("claim should hold the fence");
     assert_eq!(store.read(uuid).await, Ok(Some(snapshot(uuid, 1))));
@@ -995,7 +1037,7 @@ async fn start_joins_a_live_incumbent() {
     };
     let uuid = claim.uuid();
     claim
-        .project(&snapshot(uuid, 1))
+        .project(&snapshot(uuid, 1), &[])
         .await
         .expect("project should succeed");
 
@@ -1104,7 +1146,7 @@ async fn start_at_an_earlier_stage_creates_a_new_challenge() {
         ..snapshot(first, 1)
     };
     claim
-        .project(&progressed)
+        .project(&progressed, &[])
         .await
         .expect("project should succeed");
 
@@ -1170,7 +1212,7 @@ async fn start_joins_a_challenge_at_the_same_stage() {
         ..snapshot(first, 1)
     };
     claim
-        .project(&progressed)
+        .project(&progressed, &[])
         .await
         .expect("project should succeed");
 
@@ -1202,7 +1244,7 @@ async fn start_joins_a_challenge_from_a_later_stage() {
     };
     let first = claim.uuid();
     claim
-        .project(&snapshot(first, 1))
+        .project(&snapshot(first, 1), &[])
         .await
         .expect("project should succeed");
 
@@ -1239,7 +1281,7 @@ async fn start_supersedes_a_finished_incumbent() {
         ..snapshot(first, 2)
     };
     claim
-        .project(&terminated)
+        .project(&terminated, &[])
         .await
         .expect("project should succeed");
 
@@ -1295,7 +1337,7 @@ async fn start_supersedes_a_finishing_incumbent() {
         ..snapshot(first, 2)
     };
     claim
-        .project(&finishing)
+        .project(&finishing, &[])
         .await
         .expect("project should succeed");
 
@@ -1412,7 +1454,7 @@ async fn client_send_to_a_terminated_challenge_is_rejected() {
         ..snapshot(uuid, 2)
     };
     claim
-        .project(&terminated)
+        .project(&terminated, &[])
         .await
         .expect("project should succeed");
 
@@ -1463,7 +1505,7 @@ async fn rejoin_routes_and_enqueues_for_a_live_challenge() {
     };
     let uuid = claim.uuid();
     claim
-        .project(&snapshot(uuid, 1))
+        .project(&snapshot(uuid, 1), &[])
         .await
         .expect("project should succeed");
 
@@ -1542,7 +1584,7 @@ async fn rejoin_of_a_terminated_challenge_is_rejected() {
         ..snapshot(uuid, 2)
     };
     claim
-        .project(&terminated)
+        .project(&terminated, &[])
         .await
         .expect("project should succeed");
 
@@ -1684,7 +1726,7 @@ async fn delete_removes_a_terminated_challenges_state() {
         .await
         .expect("append should succeed");
     claim
-        .project(&snapshot(uuid, 1))
+        .project(&snapshot(uuid, 1), &[])
         .await
         .expect("project should succeed");
 
@@ -1830,7 +1872,7 @@ async fn bumped_fence_rejects_deletion() {
     };
     let uuid = claim.uuid();
     claim
-        .project(&snapshot(uuid, 1))
+        .project(&snapshot(uuid, 1), &[])
         .await
         .expect("project should succeed");
 

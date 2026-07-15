@@ -11,7 +11,7 @@ use tokio::task::JoinHandle;
 use super::challenge::{ChallengeSignal, ChallengeStore, Claim, Rejoin, Start, run_challenge};
 use super::core::command::{ClientStatusChange, Command, Create, Finish, Join, Update};
 use super::core::deadline::LifecycleConfig;
-use super::core::state::{ChallengePhase, Snapshot};
+use super::core::state::{ChallengePhase, PublishedClient, Snapshot};
 use super::core::types::{ClientId, MsgId, Uuid};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -679,7 +679,7 @@ mod tests {
             unreachable!();
         }
 
-        async fn project(&self, _: &Snapshot) -> Result<(), StoreError> {
+        async fn project(&self, _: &Snapshot, _: &[PublishedClient]) -> Result<(), StoreError> {
             unreachable!();
         }
 

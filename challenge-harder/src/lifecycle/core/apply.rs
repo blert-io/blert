@@ -5,8 +5,8 @@
 
 use super::command::StageProgress;
 use super::event::{Cause, JournalEntry, LifecycleEvent};
-use super::state::{ChallengeState, ClientState, PhaseState, StageState};
-use super::types::{ClientId, StageExt, StageStatus, Timestamp};
+use super::state::{ChallengeState, ClientState, LastCompleted, PhaseState, StageState};
+use super::types::{ClientId, StageExt, StageStatus, StageStatusExt, Timestamp};
 
 // it's an exhaustive enum folks
 #[allow(clippy::too_many_lines)]
@@ -51,6 +51,7 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
                     stage: state.stage,
                     stage_status: StageStatus::Entered,
                     stage_attempt: state.stage_attempt,
+                    last_completed: None,
                 },
             );
         }
@@ -168,14 +169,21 @@ fn stage_reported(
     attempt: Option<u32>,
     update: StageProgress,
 ) {
+    let finished = update.status.is_finished();
+
     if let Some(client) = state.clients.get_mut(&client_id) {
         client.stage = update.stage;
         client.stage_status = update.status;
         client.stage_attempt = attempt;
         client.active = true;
+        if finished {
+            client.last_completed = Some(LastCompleted {
+                stage: update.stage,
+                attempt,
+            });
+        }
     }
 
-    let finished = update.status == StageStatus::Completed || update.status == StageStatus::Wiped;
     if finished && attempt == state.stage_attempt && state.stage_state == StageState::InProgress {
         state.stage_status = update.status;
         state.stage_state = StageState::Ending { since: at };
@@ -288,6 +296,8 @@ mod tests {
         );
         let client = &state.clients[&CLIENT];
         assert_eq!(client.stage_status, StageStatus::Started);
+        // Only a finished report records a completion.
+        assert_eq!(client.last_completed, None);
         // A client report alone does not start a stage.
         assert_eq!(state.stage_status, StageStatus::Entered);
         assert_eq!(state.stage_state, StageState::InProgress);
@@ -308,6 +318,13 @@ mod tests {
             }
         );
         assert_eq!(state.stage_status, StageStatus::Completed);
+        assert_eq!(
+            state.clients[&CLIENT].last_completed,
+            Some(LastCompleted {
+                stage: Stage::TobMaiden,
+                attempt: None,
+            }),
+        );
 
         // The window opens at the first finisher and stays put.
         apply(
@@ -506,6 +523,7 @@ mod tests {
                 stage: Stage::TobBloat,
                 stage_status: StageStatus::Entered,
                 stage_attempt: None,
+                last_completed: None,
             },
         );
         assert_eq!(state.dormant_since, None);

@@ -142,17 +142,24 @@ pub(super) static APPEND_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
     )
 });
 
-/// Writes the challenge's state hash and signals the update, provided
-/// the writer's epoch still holds the challenge's fence.
+/// Writes the challenge's state and clients hashes and signals the update,
+/// provided the writer's epoch still holds the challenge's fence.
+///
+/// `stageAttempt` is cleared before the pairs apply, as it is present in the
+/// state hash only while the challenge's stage tracks attempts. The clients
+/// hash is rewritten whole so departed clients disappear.
 ///
 /// ## Arguments
 ///
 /// - `KEYS[1]` = Challenge's state hash
 /// - `KEYS[2]` = Challenge's lease hash
+/// - `KEYS[3]` = Challenge's clients hash
 ///
 /// - `ARGV[1]` = Lease epoch
 /// - `ARGV[2]` = Serialized update signal
-/// - `ARGV[3..]` = Key-value pairs to set in the state hash
+/// - `ARGV[3]` = Number of state hash key-value arguments `n`
+/// - `ARGV[4..3+n]` = Key-value pairs to set in the state hash
+/// - `ARGV[4+n..]` = Key-value pairs to set in the clients hash
 ///
 /// ## Return value
 ///
@@ -164,7 +171,13 @@ pub(super) static PROJECT_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
         if redis.call('HGET', KEYS[2], 'fence') ~= ARGV[1] then
             return 0
         end
-        redis.call('HSET', KEYS[1], unpack(ARGV, 3))
+        local n = tonumber(ARGV[3])
+        redis.call('HDEL', KEYS[1], 'stageAttempt')
+        redis.call('HSET', KEYS[1], unpack(ARGV, 4, 3 + n))
+        redis.call('DEL', KEYS[3])
+        if #ARGV > 3 + n then
+            redis.call('HSET', KEYS[3], unpack(ARGV, 4 + n))
+        end
         redis.call('PUBLISH', '{SIGNAL_CHANNEL}', ARGV[2])
         return 1
         ",
@@ -273,8 +286,9 @@ pub(super) static START_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
 /// successor may have overwritten them. Stage event streams are swept through
 /// the challenge's stream set. The journal and inbox are not deleted but left
 /// to expire, so that recently ended challenges can be inspected. The state
-/// hash is also left to expire, briefly, so that response waiters racing the
-/// deletion can still read the state their commands produced.
+/// and clients hashes are also left to expire, briefly, so that response
+/// waiters racing the deletion can still read the state their commands
+/// produced.
 ///
 /// ## Arguments
 ///
@@ -284,7 +298,8 @@ pub(super) static START_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
 /// - `KEYS[4]` = Challenge's journal stream
 /// - `KEYS[5]` = Challenge's inbox stream
 /// - `KEYS[6]` = Challenge's stage streams set
-/// - `KEYS[7..]` = The challenge's routing keys (directory, client, and player)
+/// - `KEYS[7]` = Challenge's clients hash
+/// - `KEYS[8..]` = The challenge's routing keys (directory, client, and player)
 ///
 /// - `ARGV[1]` = Lease epoch
 /// - `ARGV[2]` = Challenge uuid
@@ -303,7 +318,8 @@ pub(super) static DELETE_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
             return 0
         end
         redis.call('EXPIRE', KEYS[3], ARGV[5])
-        for i = 7, #KEYS do
+        redis.call('EXPIRE', KEYS[7], ARGV[5])
+        for i = 8, #KEYS do
             if redis.call('GET', KEYS[i]) == ARGV[2] then
                 redis.call('DEL', KEYS[i])
             end

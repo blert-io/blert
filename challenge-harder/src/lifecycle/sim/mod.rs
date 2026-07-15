@@ -32,7 +32,7 @@ use super::core::command::{
 };
 use super::core::deadline::LifecycleConfig;
 use super::core::event::{Cause, JournalEntry, LifecycleEvent};
-use super::core::state::{ChallengePhase, ChallengeState, Snapshot};
+use super::core::state::{ChallengePhase, ChallengeState, PublishedClient, Snapshot};
 use super::core::types::{
     ChallengeMode, ChallengeType, ClientId, MsgId, RecordingType, ReportedTimes, SessionToken,
     Stage, StageExt, UserId, Uuid,
@@ -567,7 +567,11 @@ impl ChallengeClaim for CollectorClaim {
         Ok(())
     }
 
-    async fn project(&self, snapshot: &Snapshot) -> Result<(), StoreError> {
+    async fn project(
+        &self,
+        snapshot: &Snapshot,
+        _clients: &[PublishedClient],
+    ) -> Result<(), StoreError> {
         self.projections
             .lock()
             .expect("collector lock poisoned")
