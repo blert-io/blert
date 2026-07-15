@@ -293,6 +293,12 @@ impl ActiveChallenge {
             return;
         }
 
+        // A previous task may have exited after appending journal entries it
+        // never projected, so republish the latest state on resume.
+        if self.next_seq > 0 && !self.project(self.state.cursor).await {
+            return;
+        }
+
         let (tx, mut inbox) = mpsc::channel(INBOX_BUFFER_LEN);
         self.claim.follow(self.state.cursor, tx);
 
@@ -375,14 +381,8 @@ impl ActiveChallenge {
 
             // Only publish if the state changed.
             let changed = decided || matches!(cause, Cause::Command(_));
-            if changed {
-                let current = Snapshot::of(&self.state, cursor);
-                if let Err(error) =
-                    with_retries(self.state.uuid, || self.claim.project(&current)).await
-                {
-                    tracing::error!(uuid = %self.state.uuid, %error, "projection_failed");
-                    return;
-                }
+            if changed && !self.project(cursor).await {
+                return;
             }
 
             if let PhaseState::Terminated { .. } = self.state.phase {
@@ -390,6 +390,17 @@ impl ActiveChallenge {
                 break;
             }
         }
+    }
+
+    /// Publishes a snapshot of the current state, returning false if the
+    /// projection could not be written.
+    async fn project(&self, cursor: MsgId) -> bool {
+        let current = Snapshot::of(&self.state, cursor);
+        if let Err(error) = with_retries(self.state.uuid, || self.claim.project(&current)).await {
+            tracing::error!(uuid = %self.state.uuid, %error, "projection_failed");
+            return false;
+        }
+        true
     }
 
     /// Repeatedly renews the lease of the challenge without processing it.
@@ -775,6 +786,7 @@ mod tests {
             challenge_type: ChallengeType::Tob,
             mode: ChallengeMode::TobRegular,
             party: vec!["a".into()],
+            party_changed: false,
             phase: PhaseState::Terminated {
                 status: ChallengeStatus::Reset,
             },
@@ -910,6 +922,7 @@ mod tests {
             challenge_type: ChallengeType::Tob,
             mode: ChallengeMode::TobRegular,
             party: vec!["a".into()],
+            party_changed: false,
             phase: PhaseState::Terminated {
                 status: ChallengeStatus::Reset,
             },
@@ -924,6 +937,28 @@ mod tests {
             cursor: MsgId::sequence(2),
         };
         assert_eq!(*outcome.log.deleted.lock().unwrap(), vec![expected]);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn resume_projects_the_folded_state_once() {
+        let uuid = Uuid::new_v4();
+        let outcome = run_scripted(vec![], created_journal(uuid), vec![], false).await;
+
+        assert!(outcome.log.appended.lock().unwrap().is_empty());
+        assert_eq!(
+            *outcome.log.projected.lock().unwrap(),
+            vec![Snapshot {
+                uuid,
+                challenge_type: ChallengeType::Tob,
+                mode: ChallengeMode::TobRegular,
+                stage: Stage::TobMaiden,
+                stage_attempt: None,
+                party: vec!["a".into()],
+                phase: ChallengePhase::Active,
+                status: ChallengeStatus::InProgress,
+                cursor: MsgId::sequence(1),
+            }],
+        );
     }
 
     #[tokio::test(start_paused = true)]

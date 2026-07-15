@@ -487,7 +487,10 @@ export class RemoteChallengeManager extends ChallengeManager {
     }
   }
 
-  public updateClientStatus(client: Client, status: ClientStatus): void {
+  public async updateClientStatus(
+    client: Client,
+    status: ClientStatus,
+  ): Promise<void> {
     const event: ClientStatusEvent = {
       type: ClientEventType.STATUS,
       userId: client.getUserId(),
@@ -495,12 +498,6 @@ export class RemoteChallengeManager extends ChallengeManager {
       sessionToken: client.getSessionToken(),
       status,
     };
-
-    if (process.env.BLERT_CLIENT_STATUS_HTTP) {
-      void this.postClientStatus(event);
-    } else {
-      void this.redisClient.lPush(CLIENT_EVENTS_KEY, JSON.stringify(event));
-    }
 
     this.capture(
       Date.now(),
@@ -512,6 +509,20 @@ export class RemoteChallengeManager extends ChallengeManager {
 
     if (status === ClientStatus.DISCONNECTED) {
       this.removeClientFromChallenge(client);
+    }
+
+    if (process.env.BLERT_CLIENT_STATUS_HTTP) {
+      await this.postClientStatus(event);
+    } else {
+      void this.redisClient
+        .lPush(CLIENT_EVENTS_KEY, JSON.stringify(event))
+        .catch((e) => {
+          logger.error('remote_client_status_redis_error', {
+            clientId: event.clientId,
+            status: event.status,
+            error: e instanceof Error ? e.message : String(e),
+          });
+        });
     }
   }
 

@@ -57,7 +57,8 @@ export default class MessageHandler {
 
   public closeClient(client: Client): void {
     if (client.isValidated() || client.getActiveChallengeId() !== null) {
-      this.challengeManager.updateClientStatus(
+      // A disconnect is terminal so fire-and-forget the status update.
+      void this.challengeManager.updateClientStatus(
         client,
         ClientStatus.DISCONNECTED,
       );
@@ -583,13 +584,19 @@ export default class MessageHandler {
     switch (gameState.getState()) {
       case ServerMessage.GameState.State.LOGGED_IN:
         if (client.isValidated()) {
-          this.challengeManager.updateClientStatus(client, ClientStatus.ACTIVE);
+          await this.challengeManager.updateClientStatus(
+            client,
+            ClientStatus.ACTIVE,
+          );
         }
         break;
 
       case ServerMessage.GameState.State.LOGGED_OUT:
         if (client.isValidated()) {
-          this.challengeManager.updateClientStatus(client, ClientStatus.IDLE);
+          await this.challengeManager.updateClientStatus(
+            client,
+            ClientStatus.IDLE,
+          );
         }
         client.setValidated(false);
         break;

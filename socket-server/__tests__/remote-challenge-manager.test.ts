@@ -155,8 +155,7 @@ describe('RemoteChallengeManager', () => {
       process.env.BLERT_CLIENT_STATUS_HTTP = '1';
       fetchMock.mockResolvedValueOnce(makeResponse(200));
 
-      manager.updateClientStatus(makeClient(), ClientStatus.IDLE);
-      await jest.advanceTimersByTimeAsync(0);
+      await manager.updateClientStatus(makeClient(), ClientStatus.IDLE);
 
       expect(lPush).not.toHaveBeenCalled();
       expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -170,9 +169,33 @@ describe('RemoteChallengeManager', () => {
       });
     });
 
+    test('resolves when the server rejects the status', async () => {
+      process.env.BLERT_CLIENT_STATUS_HTTP = '1';
+      fetchMock.mockResolvedValueOnce(
+        makeResponse(400, { error: { message: 'unknown client' } }),
+      );
+
+      await manager.updateClientStatus(makeClient(), ClientStatus.IDLE);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    test('resolves when every attempt fails to reach the server', async () => {
+      process.env.BLERT_CLIENT_STATUS_HTTP = '1';
+      fetchMock.mockRejectedValue(new Error('connection refused'));
+
+      const status = manager.updateClientStatus(
+        makeClient(),
+        ClientStatus.IDLE,
+      );
+      await jest.advanceTimersByTimeAsync(10_000);
+      await status;
+
+      expect(fetchMock).toHaveBeenCalledTimes(8);
+    });
+
     test('pushes the event to the queue by default', async () => {
-      manager.updateClientStatus(makeClient(), ClientStatus.DISCONNECTED);
-      await jest.advanceTimersByTimeAsync(0);
+      await manager.updateClientStatus(makeClient(), ClientStatus.DISCONNECTED);
 
       expect(fetchMock).not.toHaveBeenCalled();
       expect(lPush).toHaveBeenCalledTimes(1);

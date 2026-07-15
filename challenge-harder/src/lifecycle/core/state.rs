@@ -29,7 +29,7 @@ pub enum PhaseState {
     Active,
     /// At least one client has definitively finished.
     Finishing {
-        /// Time of the first client finish.
+        /// Time of the most recent client finish.
         since: Timestamp,
         // TODO(frolv): Remove once stage processing is added.
         status: ChallengeStatus,
@@ -140,6 +140,8 @@ pub struct ChallengeState {
     pub challenge_type: ChallengeType,
     pub mode: ChallengeMode,
     pub party: Vec<String>,
+    /// A player left partway through.
+    pub party_changed: bool,
     pub phase: PhaseState,
     /// Completion times reported by a finishing client.
     pub reported_times: Option<ReportedTimes>,

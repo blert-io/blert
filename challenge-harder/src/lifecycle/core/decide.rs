@@ -21,7 +21,8 @@ pub fn decide(
     cmd: &Command,
 ) -> Vec<LifecycleEvent> {
     if let PhaseState::Terminated { .. } = state.phase {
-        todo!("commands after termination");
+        // Nothing to do after termination.
+        return Vec::new();
     }
 
     match cmd {
@@ -41,7 +42,7 @@ fn is_finished(status: StageStatus) -> bool {
 
 fn create(state: &ChallengeState, c: &Create) -> Vec<LifecycleEvent> {
     if state.challenge_type != ChallengeType::UnknownChallenge {
-        todo!("duplicate create");
+        return Vec::new();
     }
 
     vec![
@@ -79,6 +80,7 @@ fn join(state: &ChallengeState, join: &Join) -> Vec<LifecycleEvent> {
     }]
 }
 
+#[allow(clippy::too_many_lines)]
 fn update(state: &ChallengeState, update: &Update) -> Vec<LifecycleEvent> {
     let mut events = Vec::new();
 
@@ -88,21 +90,29 @@ fn update(state: &ChallengeState, update: &Update) -> Vec<LifecycleEvent> {
     {
         events.push(LifecycleEvent::ModeChanged { mode });
     }
-    if update.party.as_ref().is_some_and(|p| *p != state.party) {
-        todo!("party changes");
+    if let Some(party) = &update.party
+        && !party.is_empty()
+        && !state.party_changed
+        && members_changed(party, &state.party)
+    {
+        events.push(LifecycleEvent::PartyChanged {
+            party: party.clone(),
+        });
     }
 
     let Some(progress) = &update.stage else {
         return events;
     };
 
-    if progress.stage < state.stage {
-        todo!("late reports for earlier stages");
-    }
-
     let Some(client) = state.clients.get(&update.client_id) else {
-        todo!("reports from unknown clients");
+        return Vec::new();
     };
+
+    if progress.stage < state.stage {
+        // Ignore reports arriving after the stage has already ended.
+        // TODO(frolv): handle toa
+        return Vec::new();
+    }
 
     match progress.status {
         StageStatus::Completed | StageStatus::Wiped => {
@@ -219,6 +229,10 @@ fn client_status(state: &ChallengeState, change: &ClientStatusChange) -> Vec<Lif
     }
 }
 
+fn members_changed(new: &[String], old: &[String]) -> bool {
+    new.len() != old.len() || new.iter().any(|member| !old.contains(member))
+}
+
 fn deadline_fired(
     state: &ChallengeState,
     config: &LifecycleConfig,
@@ -277,7 +291,10 @@ fn deadline_fired(
 
 fn finish(state: &ChallengeState, finish: &Finish) -> Vec<LifecycleEvent> {
     let Some(client) = state.clients.get(&finish.client_id) else {
-        todo!("finishes from unknown clients");
+        // Ignore finishes from unknown or previously existing clients.
+        // TODO(frolv): This is how the old server works but could be worth
+        // investigating other options, like tracking DC'd clients, further.
+        return Vec::new();
     };
 
     // Spectators may leave a challenge early before it has actually finished,
@@ -805,6 +822,22 @@ mod tests {
     }
 
     #[test]
+    fn finish_from_an_unknown_client_is_ignored() {
+        let state = tob_state(vec![(
+            CLIENT_A,
+            client(Stage::TobMaiden, StageStatus::Started, None),
+        )]);
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &finish_cmd(CLIENT_B, true, None)
+            ),
+            vec![],
+        );
+    }
+
+    #[test]
     fn spectator_leaving_mid_stage_abandons() {
         let mut spectator = client(Stage::TobMaiden, StageStatus::Started, None);
         spectator.recording_type = RecordingType::Spectator;
@@ -1256,6 +1289,64 @@ mod tests {
             decide(&state, &LifecycleConfig::default(), &cmd),
             vec![report(CLIENT_A, Stage::TobMaiden, StageStatus::Started)],
         );
+    }
+
+    #[test]
+    fn party_change_only_fires_once() {
+        let state = ChallengeState {
+            party: vec!["1Ogp".into(), "WWWWWWWWWWQQ".into()],
+            ..tob_state(vec![(
+                CLIENT_A,
+                client(Stage::TobMaiden, StageStatus::Started, None),
+            )])
+        };
+
+        let cmd = Command::Update(super::Update {
+            user_id: UserId(1),
+            client_id: CLIENT_A,
+            session_token: "tok".into(),
+            mode: None,
+            stage: None,
+            party: Some(vec!["1Ogp".into()]),
+        });
+        assert_eq!(
+            decide(&state, &LifecycleConfig::default(), &cmd),
+            vec![LifecycleEvent::PartyChanged {
+                party: vec!["1Ogp".into()],
+            }],
+        );
+
+        let changed = ChallengeState {
+            party_changed: true,
+            ..state.clone()
+        };
+        assert_eq!(decide(&changed, &LifecycleConfig::default(), &cmd), vec![]);
+    }
+
+    #[test]
+    fn party_reorder_is_not_a_change() {
+        let state = ChallengeState {
+            party: vec!["caps lock13".into(), "vShawneh".into()],
+            ..tob_state(vec![(
+                CLIENT_A,
+                client(Stage::TobMaiden, StageStatus::Started, None),
+            )])
+        };
+        let mut cmd = Command::Update(super::Update {
+            user_id: UserId(1),
+            client_id: CLIENT_A,
+            session_token: "tok".into(),
+            mode: None,
+            stage: None,
+            party: Some(vec!["vShawneh".into(), "caps lock13".into()]),
+        });
+        assert_eq!(decide(&state, &LifecycleConfig::default(), &cmd), vec![]);
+
+        // An empty party is not a change.
+        if let Command::Update(u) = &mut cmd {
+            u.party = Some(Vec::new());
+        }
+        assert_eq!(decide(&state, &LifecycleConfig::default(), &cmd), vec![]);
     }
 
     #[test]

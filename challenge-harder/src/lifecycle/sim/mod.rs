@@ -49,6 +49,7 @@ pub enum Action {
     Update {
         mode: Option<ChallengeMode>,
         stage: Option<StageProgress>,
+        party: Option<Vec<String>>,
     },
     Finish {
         times: Option<ReportedTimes>,
@@ -768,7 +769,7 @@ async fn issue(
             }
             response
         }
-        Action::Update { mode, stage } => {
+        Action::Update { mode, stage, party } => {
             let uuid = current_challenge(identity, current_uuid);
             coordinator
                 .update(
@@ -779,7 +780,7 @@ async fn issue(
                         session_token: identity.session_token.clone(),
                         mode,
                         stage,
-                        party: None,
+                        party,
                     },
                 )
                 .await
