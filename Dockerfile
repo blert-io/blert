@@ -211,12 +211,15 @@ RUN apt-get update && \
     apt-get install -y protobuf-compiler && \
     rm -rf /var/lib/apt/lists/*
 
-# Cache dependencies by building with a dummy main first.
+# Cache dependencies by building with a dummy main first. The workspace
+# manifest lists every member, so unbuilt members are stubbed out too.
 COPY live-server/Cargo.toml live-server/Cargo.lock* live-server/build.rs live-server/
+COPY challenge-harder/Cargo.toml challenge-harder/
 COPY Cargo.toml Cargo.lock ./
 COPY proto/ proto/
-RUN mkdir -p live-server/src && \
+RUN mkdir -p live-server/src challenge-harder/src && \
     echo 'fn main() {}' > live-server/src/main.rs && \
+    echo 'fn main() {}' > challenge-harder/src/main.rs && \
     cargo build --release -p live-server && \
     rm -rf live-server/src
 
