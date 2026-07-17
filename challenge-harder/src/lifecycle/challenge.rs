@@ -2,18 +2,24 @@
 
 use core::future::Future;
 use core::time::Duration;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
+use tokio::task::JoinHandle;
 
 use super::core::apply::apply;
-use super::core::command::{Command, Create, Envelope, Join};
+use super::core::command::{Command, Create, Envelope, Join, Processed};
 use super::core::deadline::{LifecycleConfig, next_deadline};
 use super::core::decide::decide;
 use super::core::event::{Cause, JournalEntry, LifecycleEvent};
-use super::core::state::{ChallengeState, LastCompleted, PhaseState, PublishedClient, Snapshot};
+use super::core::state::{
+    ChallengeState, LastCompleted, PhaseState, Processing, ProcessingState, PublishedClient,
+    Snapshot,
+};
 use super::core::types::{ClientId, JournalSeq, MsgId, Timestamp, Uuid};
+use crate::processing::{ProcessingRequest, StageProcessor};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum StoreError {
@@ -192,14 +198,23 @@ pub trait ChallengeClaim: Send + Sync + 'static {
 /// Capacity of the channel between a challenge's inbox feed and its actor task.
 const INBOX_BUFFER_LEN: usize = 32;
 
+/// Capacity of the Chanel, carrying processing run reports back to the actor.
+const CHANEL_BUFFER_LEN: usize = 4;
+
 /// Runs a claimed challenge until it terminates, then deletes its state.
 /// Challenges are initialized from their existing journal state, if it exists,
 /// continuing from where they left off.
 /// When `shutdown` flips true, the challenge releases its lease and exits.
-pub async fn run_challenge(config: LifecycleConfig, claim: Claim, shutdown: watch::Receiver<bool>) {
+pub async fn run_challenge(
+    config: LifecycleConfig,
+    claim: Claim,
+    processor: Option<Arc<dyn StageProcessor>>,
+    shutdown: watch::Receiver<bool>,
+) {
     let uuid = claim.uuid();
     let mut state = ChallengeState {
         uuid,
+        processing: Processing::new(config.processing.clone()),
         ..ChallengeState::default()
     };
     let mut next_seq = 0;
@@ -219,7 +234,7 @@ pub async fn run_challenge(config: LifecycleConfig, claim: Claim, shutdown: watc
             // The data issue must be resolved manually by either deleting the
             // bad journal or updating the server to understand it.
             tracing::error!(%uuid, reason, "journal_corrupt");
-            ActiveChallenge::new(config, claim, state, next_seq)
+            ActiveChallenge::new(config, claim, state, next_seq, processor)
                 .quarantine(shutdown)
                 .await;
             return;
@@ -230,7 +245,7 @@ pub async fn run_challenge(config: LifecycleConfig, claim: Claim, shutdown: watc
         }
     }
 
-    let mut challenge = ActiveChallenge::new(config, claim, state, next_seq);
+    let mut challenge = ActiveChallenge::new(config, claim, state, next_seq, processor);
     challenge.run(resumed_at, shutdown).await;
 }
 
@@ -263,6 +278,19 @@ pub struct ActiveChallenge {
     config: LifecycleConfig,
     claim: Claim,
     next_seq: u64,
+    processor: Option<Arc<dyn StageProcessor>>,
+}
+
+/// A challenge data processing task which is aborted when dropped.
+struct ProcessingTask {
+    trigger: JournalSeq,
+    handle: JoinHandle<()>,
+}
+
+impl Drop for ProcessingTask {
+    fn drop(&mut self) {
+        self.handle.abort();
+    }
 }
 
 impl ActiveChallenge {
@@ -272,22 +300,26 @@ impl ActiveChallenge {
         claim: Claim,
         state: ChallengeState,
         next_seq: u64,
+        processor: Option<Arc<dyn StageProcessor>>,
     ) -> Self {
         ActiveChallenge {
             state,
             config,
             claim,
             next_seq,
+            processor,
         }
     }
 
     /// Serially applies inbox commands and their implied deadline timers until
-    /// the challenge terminates, publishing a fresh state snapshot after each.
-    /// Deletes the challenge's state at the end if it terminates.
+    /// the challenge terminates and finishing processing data, publishing a new
+    /// state snapshot after each. Deletes the challenge's state at the end if
+    /// it terminates.
     /// `resumed_at` is the time of the last journal entry in the challenge's
     /// clock, to continue timestamps from it.
+    #[allow(clippy::too_many_lines)]
     pub async fn run(&mut self, resumed_at: Timestamp, mut shutdown: watch::Receiver<bool>) {
-        if let PhaseState::Terminated { .. } = self.state.phase {
+        if self.state.terminated() && self.state.processing.settled() {
             // A previous task stopped between its terminal entry and deletion.
             self.conclude().await;
             return;
@@ -306,6 +338,17 @@ impl ActiveChallenge {
 
         let (tx, mut inbox) = mpsc::channel(INBOX_BUFFER_LEN);
         self.claim.follow(self.state.cursor, tx);
+
+        let (chanel_tx, mut chanel) = mpsc::channel(CHANEL_BUFFER_LEN);
+
+        // Respawn any run the journal shows started but never finished.
+        // The task is held purely for drop semantics.
+        let mut _run_task = match self.state.processing.active() {
+            Some(run) if matches!(run.state, ProcessingState::Running { .. }) => {
+                self.spawn_processing_run(chanel_tx.clone())
+            }
+            _ => None,
+        };
 
         let started = tokio::time::Instant::now();
         let base = resumed_at.as_millis();
@@ -328,7 +371,16 @@ impl ActiveChallenge {
                     self.release_lease().await;
                     return;
                 }
-                envelope = inbox.recv() => envelope.map(|e| (Cause::Command(e.id), e.cmd)),
+                envelope = inbox.recv() => {
+                    match envelope {
+                        Some(e) => Some((Cause::Command(e.id), e.cmd)),
+                        None => break,
+                    }
+                }
+                report = chanel.recv() => {
+                    let report = report.expect("the Chanel never closes");
+                    Some((Cause::Processing(report.trigger), Command::Processed(report)))
+                }
                 () = tokio::time::sleep_until(wake_at), if deadline.is_some() => {
                     deadline.map(|d| (Cause::Deadline(d.kind), Command::DeadlineFired(d)))
                 }
@@ -376,7 +428,35 @@ impl ActiveChallenge {
                         event = ?entry.event,
                         "journal_entry",
                     );
+                    let starts_run =
+                        matches!(entry.event, LifecycleEvent::ProcessingStarted { .. });
+                    let ends_run = match entry.event {
+                        LifecycleEvent::ProcessingFinished { .. } => true,
+                        LifecycleEvent::ProcessingFailed { trigger, ref error } => {
+                            tracing::error!(
+                                uuid = %self.state.uuid,
+                                trigger = trigger.0,
+                                error = %error.message,
+                                "processing_failed",
+                            );
+                            true
+                        }
+                        LifecycleEvent::ProcessingTimedOut { trigger } => {
+                            tracing::warn!(
+                                uuid = %self.state.uuid,
+                                trigger = trigger.0,
+                                "processing_timed_out",
+                            );
+                            true
+                        }
+                        _ => false,
+                    };
                     apply(&mut self.state, entry);
+                    if starts_run {
+                        _run_task = self.spawn_processing_run(chanel_tx.clone());
+                    } else if ends_run {
+                        _run_task = None;
+                    }
                 }
             }
 
@@ -390,7 +470,7 @@ impl ActiveChallenge {
                 return;
             }
 
-            if let PhaseState::Terminated { .. } = self.state.phase {
+            if self.state.terminated() && self.state.processing.settled() {
                 self.conclude().await;
                 break;
             }
@@ -473,6 +553,29 @@ impl ActiveChallenge {
 
     async fn append(&self, batch: &[JournalEntry]) -> Result<(), StoreError> {
         with_retries(self.state.uuid, || self.claim.append(batch)).await
+    }
+
+    fn spawn_processing_run(&self, chanel: mpsc::Sender<Processed>) -> Option<ProcessingTask> {
+        let processor = Arc::clone(self.processor.as_ref()?);
+        let run = self.state.processing.active()?;
+        let attempt = run.attempts;
+        let request = ProcessingRequest {
+            uuid: self.state.uuid,
+            trigger: run.trigger,
+        };
+        Some(ProcessingTask {
+            trigger: request.trigger.seq(),
+            handle: tokio::spawn(async move {
+                let result = processor.process(request).await;
+                let _ = chanel
+                    .send(Processed {
+                        trigger: request.trigger.seq(),
+                        attempt,
+                        result,
+                    })
+                    .await;
+            }),
+        })
     }
 }
 
@@ -659,7 +762,7 @@ mod tests {
             }),
         );
         let (_tx, rx) = watch::channel(false);
-        run_challenge(LifecycleConfig::default(), claim, rx).await;
+        run_challenge(LifecycleConfig::default(), claim, None, rx).await;
 
         RunOutcome { log, uuid }
     }
@@ -814,10 +917,7 @@ mod tests {
                     seq: JournalSeq(3),
                     at: Timestamp::ZERO,
                     caused_by: Cause::Command(MsgId::sequence(2)),
-                    event: LifecycleEvent::ChallengeTerminated {
-                        status: ChallengeStatus::Reset,
-                        empty: false,
-                    },
+                    event: LifecycleEvent::ChallengeTerminated { empty: false },
                 },
             ],
         );
@@ -828,9 +928,7 @@ mod tests {
             mode: ChallengeMode::TobRegular,
             party: vec!["a".into()],
             party_changed: false,
-            phase: PhaseState::Terminated {
-                status: ChallengeStatus::Reset,
-            },
+            phase: PhaseState::Terminated,
             reported_times: None,
             stage: Stage::TobMaiden,
             stage_attempt: None,
@@ -839,6 +937,7 @@ mod tests {
             clients: BTreeMap::new(),
             recorded_by: [ClientId(10)].into(),
             dormant_since: Some(Timestamp::ZERO),
+            processing: Processing::default(),
             cursor: MsgId::sequence(2),
         };
         assert_eq!(*outcome.log.deleted.lock().unwrap(), vec![expected]);
@@ -941,10 +1040,7 @@ mod tests {
             3,
             500,
             2,
-            LifecycleEvent::ChallengeTerminated {
-                status: ChallengeStatus::Reset,
-                empty: false,
-            },
+            LifecycleEvent::ChallengeTerminated { empty: false },
         ));
 
         // The queued command is never processed.
@@ -964,9 +1060,7 @@ mod tests {
             mode: ChallengeMode::TobRegular,
             party: vec!["a".into()],
             party_changed: false,
-            phase: PhaseState::Terminated {
-                status: ChallengeStatus::Reset,
-            },
+            phase: PhaseState::Terminated,
             reported_times: None,
             stage: Stage::TobMaiden,
             stage_attempt: None,
@@ -975,6 +1069,7 @@ mod tests {
             clients: BTreeMap::new(),
             recorded_by: [ClientId(10)].into(),
             dormant_since: Some(Timestamp::from_millis(500)),
+            processing: Processing::default(),
             cursor: MsgId::sequence(2),
         };
         assert_eq!(*outcome.log.deleted.lock().unwrap(), vec![expected]);
@@ -1036,10 +1131,7 @@ mod tests {
                     3,
                     0,
                     2,
-                    LifecycleEvent::ChallengeTerminated {
-                        status: ChallengeStatus::Reset,
-                        empty: false,
-                    },
+                    LifecycleEvent::ChallengeTerminated { empty: false },
                 ),
             ],
         );
@@ -1078,10 +1170,7 @@ mod tests {
                 seq: JournalSeq(3),
                 at: Timestamp::from_millis(1_000 + window),
                 caused_by: Cause::Deadline(DeadlineKind::CleanupDisconnect),
-                event: LifecycleEvent::ChallengeTerminated {
-                    status: ChallengeStatus::Reset,
-                    empty: false,
-                },
+                event: LifecycleEvent::ChallengeTerminated { empty: false },
             }],
         );
         assert_eq!(outcome.log.deleted.lock().unwrap().len(), 1);
@@ -1113,10 +1202,7 @@ mod tests {
                 seq: JournalSeq(4),
                 at: Timestamp::from_millis(window * 3),
                 caused_by: Cause::Deadline(DeadlineKind::CleanupDisconnect),
-                event: LifecycleEvent::ChallengeTerminated {
-                    status: ChallengeStatus::Reset,
-                    empty: false,
-                },
+                event: LifecycleEvent::ChallengeTerminated { empty: false },
             }],
         );
         assert_eq!(outcome.log.deleted.lock().unwrap().len(), 1);
@@ -1155,7 +1241,7 @@ mod tests {
             }),
         );
         let (_tx, rx) = watch::channel(false);
-        run_challenge(LifecycleConfig::default(), claim, rx).await;
+        run_challenge(LifecycleConfig::default(), claim, None, rx).await;
 
         assert_eq!(log.renewals.load(Ordering::Relaxed), 1);
         assert!(log.appended.lock().unwrap().is_empty());
@@ -1177,7 +1263,7 @@ mod tests {
             }),
         );
         let (shutdown, rx) = watch::channel(false);
-        let actor = tokio::spawn(run_challenge(LifecycleConfig::default(), claim, rx));
+        let actor = tokio::spawn(run_challenge(LifecycleConfig::default(), claim, None, rx));
 
         tokio::time::sleep(Duration::from_secs(1)).await;
         shutdown.send(true).expect("actor should be listening");

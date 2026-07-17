@@ -33,14 +33,7 @@ async fn each_finish_extends_the_grace_period() {
     assert_eq!(
         journal[9..],
         vec![
-            entry(
-                9,
-                1_100,
-                cmd(8),
-                LifecycleEvent::ChallengeFinishing {
-                    status: ChallengeStatus::Wiped,
-                },
-            ),
+            entry(9, 1_100, cmd(8), LifecycleEvent::ChallengeFinishing,),
             entry(
                 10,
                 1_100,
@@ -88,10 +81,7 @@ async fn each_finish_extends_the_grace_period() {
                 14,
                 8_500,
                 cmd(10),
-                LifecycleEvent::ChallengeTerminated {
-                    status: ChallengeStatus::Wiped,
-                    empty: false,
-                },
+                LifecycleEvent::ChallengeTerminated { empty: false },
             ),
         ],
     );
@@ -118,14 +108,7 @@ async fn unfinished_client_cut_off_after_grace_period() {
     assert_eq!(
         journal[7..],
         vec![
-            entry(
-                7,
-                1_100,
-                cmd(6),
-                LifecycleEvent::ChallengeFinishing {
-                    status: ChallengeStatus::Wiped,
-                },
-            ),
+            entry(7, 1_100, cmd(6), LifecycleEvent::ChallengeFinishing,),
             entry(
                 8,
                 1_100,
@@ -159,10 +142,7 @@ async fn unfinished_client_cut_off_after_grace_period() {
                 11,
                 8_000,
                 Cause::Deadline(DeadlineKind::ChallengeEnd),
-                LifecycleEvent::ChallengeTerminated {
-                    status: ChallengeStatus::Wiped,
-                    empty: false,
-                },
+                LifecycleEvent::ChallengeTerminated { empty: false },
             ),
         ],
     );

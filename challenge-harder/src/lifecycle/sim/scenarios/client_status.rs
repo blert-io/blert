@@ -101,11 +101,8 @@ fn client_finished(client: i64) -> LifecycleEvent {
     }
 }
 
-fn terminated(status: ChallengeStatus) -> LifecycleEvent {
-    LifecycleEvent::ChallengeTerminated {
-        status,
-        empty: false,
-    }
+fn terminated() -> LifecycleEvent {
+    LifecycleEvent::ChallengeTerminated { empty: false }
 }
 
 #[tokio::test(start_paused = true)]
@@ -154,10 +151,11 @@ async fn disconnect_without_finish_cleans_up_after_reconnection_window() {
                 9,
                 300_900,
                 fired(DeadlineKind::CleanupDisconnect),
-                terminated(ChallengeStatus::Abandoned)
+                terminated()
             ),
         ],
     );
+    assert_eq!(result.only_status(), ChallengeStatus::Abandoned);
 }
 
 #[tokio::test(start_paused = true)]
@@ -240,9 +238,10 @@ async fn rejoin_within_window_resumes_challenge() {
             ),
             entry(16, 62_000, cmd(10), sealed(Stage::TobNylocas, None, false)),
             entry(17, 62_100, cmd(11), client_finished(2)),
-            entry(18, 62_100, cmd(11), terminated(ChallengeStatus::Wiped)),
+            entry(18, 62_100, cmd(11), terminated()),
         ],
     );
+    assert_eq!(result.only_status(), ChallengeStatus::Wiped);
 }
 
 #[tokio::test(start_paused = true)]
@@ -292,10 +291,11 @@ async fn logout_without_return_cleans_up_after_inactivity_window() {
                 10,
                 905_000,
                 fired(DeadlineKind::CleanupAllIdle),
-                terminated(ChallengeStatus::Abandoned)
+                terminated()
             ),
         ],
     );
+    assert_eq!(result.only_status(), ChallengeStatus::Abandoned);
 }
 
 #[tokio::test(start_paused = true)]
@@ -352,9 +352,10 @@ async fn logout_and_return_resumes_challenge() {
             ),
             entry(11, 10_400, cmd(7), sealed(Stage::InfernoWave2, None, false)),
             entry(12, 10_500, cmd(8), client_finished(1)),
-            entry(13, 10_500, cmd(8), terminated(ChallengeStatus::Wiped)),
+            entry(13, 10_500, cmd(8), terminated()),
         ],
     );
+    assert_eq!(result.only_status(), ChallengeStatus::Wiped);
 }
 
 #[tokio::test(start_paused = true)]
@@ -395,10 +396,11 @@ async fn wipe_then_crash_before_finish_is_wiped() {
                 7,
                 300_700,
                 fired(DeadlineKind::CleanupDisconnect),
-                terminated(ChallengeStatus::Wiped)
+                terminated()
             ),
         ],
     );
+    assert_eq!(result.only_status(), ChallengeStatus::Wiped);
 }
 
 #[tokio::test(start_paused = true)]
@@ -485,10 +487,11 @@ async fn deep_delve_disconnect_completes() {
                 13,
                 301_200,
                 fired(DeadlineKind::CleanupDisconnect),
-                terminated(ChallengeStatus::Completed)
+                terminated()
             ),
         ],
     );
+    assert_eq!(result.only_status(), ChallengeStatus::Completed);
 }
 
 #[tokio::test(start_paused = true)]
@@ -545,20 +548,14 @@ async fn partner_finish_between_idle_and_return() {
             ),
             entry(8, 520, cmd(6), sealed(Stage::TobMaiden, None, false)),
             entry(9, 1_000, cmd(7), idled(1)),
-            entry(
-                10,
-                8_000,
-                cmd(8),
-                LifecycleEvent::ChallengeFinishing {
-                    status: ChallengeStatus::Wiped,
-                }
-            ),
+            entry(10, 8_000, cmd(8), LifecycleEvent::ChallengeFinishing),
             entry(11, 8_000, cmd(8), client_finished(2)),
             entry(12, 8_100, cmd(9), activated(1)),
             entry(13, 8_200, cmd(10), client_finished(1)),
-            entry(14, 8_200, cmd(10), terminated(ChallengeStatus::Wiped)),
+            entry(14, 8_200, cmd(10), terminated()),
         ],
     );
+    assert_eq!(result.only_status(), ChallengeStatus::Wiped);
 }
 
 #[tokio::test(start_paused = true)]
@@ -623,9 +620,10 @@ async fn partial_disconnect_does_not_arm_cleanup() {
             ),
             entry(12, 345_000, cmd(8), sealed(Stage::TobBloat, None, false)),
             entry(13, 345_500, cmd(9), client_finished(2)),
-            entry(14, 345_500, cmd(9), terminated(ChallengeStatus::Wiped)),
+            entry(14, 345_500, cmd(9), terminated()),
         ],
     );
+    assert_eq!(result.only_status(), ChallengeStatus::Wiped);
 }
 
 #[tokio::test(start_paused = true)]
@@ -677,7 +675,7 @@ async fn rejoin_after_window_starts_fresh() {
                 5,
                 300_700,
                 fired(DeadlineKind::CleanupDisconnect),
-                terminated(ChallengeStatus::Abandoned)
+                terminated()
             ),
         ],
     );
@@ -702,7 +700,13 @@ async fn rejoin_after_window_starts_fresh() {
             ),
             entry(5, 500, cmd(3), sealed(Stage::TobMaiden, None, false)),
             entry(6, 600, cmd(4), client_finished(2)),
-            entry(7, 600, cmd(4), terminated(ChallengeStatus::Wiped)),
+            entry(7, 600, cmd(4), terminated()),
         ],
     );
+
+    assert_eq!(
+        result.projections[&first].status,
+        ChallengeStatus::Abandoned
+    );
+    assert_eq!(result.projections[&second].status, ChallengeStatus::Wiped);
 }

@@ -5,8 +5,8 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use super::deadline::Deadline;
 use super::types::{
-    ChallengeMode, ChallengeType, ClientId, JournalSeq, MsgId, RecordingType, ReportedTimes,
-    SessionToken, Stage, StageProcessingError, StageProcessingOutcome, StageStatus, UserId,
+    ChallengeMode, ChallengeType, ClientId, JournalSeq, MsgId, ProcessingError, ProcessingOutcome,
+    RecordingType, ReportedTimes, SessionToken, Stage, StageStatus, UserId,
 };
 
 /// A client's stage progress report.
@@ -102,16 +102,15 @@ pub struct ClientStatusChange {
     pub status: ClientStatus,
 }
 
-/// Completion message from the stage processing pipeline.
+/// Terminal report from a processing run.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StageProcessed {
-    pub stage: Stage,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub attempt: Option<u32>,
-    /// Journal position of the `StageSealed` that spawned the processing run.
-    pub seal_seq: JournalSeq,
-    pub result: Result<StageProcessingOutcome, StageProcessingError>,
+pub struct Processed {
+    /// Journal position of the entry that triggered the run.
+    pub trigger: JournalSeq,
+    /// The run attempt which produced the result.
+    pub attempt: u32,
+    pub result: Result<ProcessingOutcome, ProcessingError>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -121,7 +120,7 @@ pub enum Command {
     Update(Update),
     Finish(Finish),
     ClientStatus(ClientStatusChange),
-    StageProcessed(StageProcessed),
+    Processed(Processed),
     DeadlineFired(Deadline),
 }
 

@@ -7,7 +7,7 @@ use core::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
-use super::state::{ChallengeState, PhaseState, StageState};
+use super::state::{ChallengeState, PhaseState, ProcessingConfig, ProcessingState, StageState};
 use super::types::Timestamp;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -20,6 +20,10 @@ pub enum DeadlineKind {
     CleanupDisconnect,
     /// Inactivity window while every client is idle.
     CleanupAllIdle,
+    /// Delay before the next attempt of a failed processing run.
+    ProcessingRetry,
+    /// Cap on the duration of a processing run attempt.
+    ProcessingTimeout,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -44,6 +48,8 @@ pub struct LifecycleConfig {
     pub inactivity_timeout: Duration,
     /// Interval at which a running challenge renews its lease.
     pub lease_renewal_interval: Duration,
+    /// Options for challenge data processing runs.
+    pub processing: ProcessingConfig,
 }
 
 impl Default for LifecycleConfig {
@@ -54,6 +60,7 @@ impl Default for LifecycleConfig {
             reconnection_window: Duration::from_mins(5),
             inactivity_timeout: Duration::from_mins(15),
             lease_renewal_interval: Duration::from_secs(10),
+            processing: ProcessingConfig::default(),
         }
     }
 }
@@ -69,6 +76,11 @@ impl LifecycleConfig {
             reconnection_window: self.reconnection_window / factor,
             inactivity_timeout: self.inactivity_timeout / factor,
             lease_renewal_interval: self.lease_renewal_interval / factor,
+            processing: ProcessingConfig {
+                max_attempts: self.processing.max_attempts,
+                run_timeout: self.processing.run_timeout / factor,
+                retry_backoff: self.processing.retry_backoff / factor,
+            },
         }
     }
 }
@@ -76,7 +88,20 @@ impl LifecycleConfig {
 /// Returns the next deadline implied by `state`, if any.
 #[must_use]
 pub fn next_deadline(state: &ChallengeState, config: &LifecycleConfig) -> Option<Deadline> {
-    if let PhaseState::Terminated { .. } = state.phase {
+    let lifecycle = lifecycle_deadline(state, config);
+    let processing = processing_deadline(state);
+    match (lifecycle, processing) {
+        (Some(lifecycle), Some(processing)) => Some(if processing.at < lifecycle.at {
+            processing
+        } else {
+            lifecycle
+        }),
+        (lifecycle, processing) => lifecycle.or(processing),
+    }
+}
+
+fn lifecycle_deadline(state: &ChallengeState, config: &LifecycleConfig) -> Option<Deadline> {
+    if let PhaseState::Terminated = state.phase {
         return None;
     }
 
@@ -88,7 +113,7 @@ pub fn next_deadline(state: &ChallengeState, config: &LifecycleConfig) -> Option
         });
     }
 
-    if let PhaseState::Finishing { since, .. } = state.phase {
+    if let PhaseState::Finishing { since } = state.phase {
         // Start the completion grace period from when the stage was finalized.
         let anchor = match state.stage_state {
             StageState::Complete { since: sealed_at } => since.max(sealed_at),
@@ -118,12 +143,35 @@ pub fn next_deadline(state: &ChallengeState, config: &LifecycleConfig) -> Option
     None
 }
 
+fn processing_deadline(state: &ChallengeState) -> Option<Deadline> {
+    let run = state.processing.active()?;
+    let config = state.processing.config();
+    match run.state {
+        ProcessingState::Running { since } => Some(Deadline {
+            kind: DeadlineKind::ProcessingTimeout,
+            at: since + config.run_timeout,
+        }),
+        ProcessingState::Idle { since } => {
+            let backoff = if run.attempts == 0 {
+                Duration::ZERO
+            } else {
+                config.retry_backoff
+            };
+            Some(Deadline {
+                kind: DeadlineKind::ProcessingRetry,
+                at: since + backoff,
+            })
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lifecycle::core::state::ClientState;
+    use crate::lifecycle::core::state::{ClientState, Processing, Trigger};
     use crate::lifecycle::core::types::{
-        ChallengeStatus, ChallengeType, ClientId, RecordingType, Stage, StageStatus, UserId,
+        ChallengeStatus, ChallengeType, ClientId, JournalSeq, ProcessingError, RecordingType,
+        Stage, StageStatus, UserId,
     };
 
     fn mid_stage_state() -> ChallengeState {
@@ -153,7 +201,47 @@ mod tests {
             reconnection_window: Duration::from_mins(5),
             inactivity_timeout: Duration::from_mins(15),
             lease_renewal_interval: Duration::from_secs(10),
+            processing: ProcessingConfig::default(),
         }
+    }
+
+    /// A processing run with one trigger queued at `since`.
+    fn queued_processing(since: Timestamp) -> Processing {
+        let mut processing = Processing::new(ProcessingConfig {
+            max_attempts: 3,
+            run_timeout: Duration::from_secs(10),
+            retry_backoff: Duration::from_secs(3),
+        });
+        processing.push(
+            Trigger::Stage {
+                seq: JournalSeq(5),
+                stage: Stage::TobMaiden,
+                attempt: None,
+            },
+            since,
+        );
+        processing
+    }
+
+    /// A processing run which has been running since `since`.
+    fn running_processing(since: Timestamp) -> Processing {
+        let mut processing = queued_processing(since);
+        processing.start(JournalSeq(5), since);
+        processing
+    }
+
+    /// A processing run which failed its first attempt at `since`.
+    fn failed_processing(since: Timestamp) -> Processing {
+        let mut processing = running_processing(since);
+        processing.finish(
+            ChallengeType::Tob,
+            since,
+            Err(ProcessingError {
+                message: "scripted".into(),
+                retriable: true,
+            }),
+        );
+        processing
     }
 
     #[test]
@@ -164,6 +252,9 @@ mod tests {
         assert_eq!(config.reconnection_window, Duration::from_secs(30));
         assert_eq!(config.inactivity_timeout, Duration::from_secs(90));
         assert_eq!(config.lease_renewal_interval, Duration::from_secs(1));
+        assert_eq!(config.processing.run_timeout, Duration::from_secs(3));
+        assert_eq!(config.processing.retry_backoff, Duration::from_millis(500));
+        assert_eq!(config.processing.max_attempts, 0);
     }
 
     #[test]
@@ -191,7 +282,6 @@ mod tests {
             },
             phase: PhaseState::Finishing {
                 since: Timestamp::from_millis(5_100),
-                status: ChallengeStatus::Wiped,
             },
             ..mid_stage_state()
         };
@@ -213,7 +303,6 @@ mod tests {
             },
             phase: PhaseState::Finishing {
                 since: Timestamp::from_millis(5_100),
-                status: ChallengeStatus::Wiped,
             },
             ..mid_stage_state()
         };
@@ -228,7 +317,6 @@ mod tests {
         // A definitive finish arriving after the seal anchors the grace.
         state.phase = PhaseState::Finishing {
             since: Timestamp::from_millis(8_000),
-            status: ChallengeStatus::Wiped,
         };
         assert_eq!(
             next_deadline(&state, &test_config()),
@@ -244,7 +332,6 @@ mod tests {
         let state = ChallengeState {
             phase: PhaseState::Finishing {
                 since: Timestamp::from_millis(5_000),
-                status: ChallengeStatus::Abandoned,
             },
             ..mid_stage_state()
         };
@@ -307,7 +394,6 @@ mod tests {
         };
         state.phase = PhaseState::Finishing {
             since: Timestamp::from_millis(7_100),
-            status: ChallengeStatus::Wiped,
         };
         assert_eq!(
             next_deadline(&state, &test_config()),
@@ -330,16 +416,104 @@ mod tests {
     }
 
     #[test]
-    fn terminated_challenge_has_no_deadlines() {
+    fn terminated_challenge_without_processing_has_no_deadlines() {
         let state = ChallengeState {
-            phase: PhaseState::Terminated {
-                status: ChallengeStatus::Wiped,
-            },
+            phase: PhaseState::Terminated,
             stage_state: StageState::Complete {
                 since: Timestamp::from_millis(7_000),
             },
             ..mid_stage_state()
         };
         assert_eq!(next_deadline(&state, &LifecycleConfig::default()), None);
+    }
+
+    #[test]
+    fn queued_processing_run_is_due_immediately() {
+        let state = ChallengeState {
+            processing: queued_processing(Timestamp::from_millis(5_000)),
+            ..mid_stage_state()
+        };
+        assert_eq!(
+            next_deadline(&state, &test_config()),
+            Some(Deadline {
+                kind: DeadlineKind::ProcessingRetry,
+                at: Timestamp::from_millis(5_000),
+            }),
+        );
+    }
+
+    #[test]
+    fn failed_processing_run_waits_for_retry() {
+        let state = ChallengeState {
+            processing: failed_processing(Timestamp::from_millis(5_000)),
+            ..mid_stage_state()
+        };
+        assert_eq!(
+            next_deadline(&state, &test_config()),
+            Some(Deadline {
+                kind: DeadlineKind::ProcessingRetry,
+                at: Timestamp::from_millis(8_000),
+            }),
+        );
+    }
+
+    #[test]
+    fn active_processing_run_has_a_timeout() {
+        let state = ChallengeState {
+            processing: running_processing(Timestamp::from_millis(5_000)),
+            ..mid_stage_state()
+        };
+        assert_eq!(
+            next_deadline(&state, &test_config()),
+            Some(Deadline {
+                kind: DeadlineKind::ProcessingTimeout,
+                at: Timestamp::from_millis(15_000),
+            }),
+        );
+    }
+
+    #[test]
+    fn terminated_challenge_with_active_processing_has_a_timeout() {
+        let state = ChallengeState {
+            phase: PhaseState::Terminated,
+            processing: running_processing(Timestamp::from_millis(5_000)),
+            ..mid_stage_state()
+        };
+        assert_eq!(
+            next_deadline(&state, &test_config()),
+            Some(Deadline {
+                kind: DeadlineKind::ProcessingTimeout,
+                at: Timestamp::from_millis(15_000),
+            }),
+        );
+    }
+
+    #[test]
+    fn earliest_deadline_wins() {
+        // The stage end grace period at 7s beats the processing timeout at 15s.
+        let mut state = ChallengeState {
+            stage_state: StageState::Ending {
+                since: Timestamp::from_millis(5_000),
+            },
+            processing: running_processing(Timestamp::from_millis(5_000)),
+            ..mid_stage_state()
+        };
+        assert_eq!(
+            next_deadline(&state, &test_config()),
+            Some(Deadline {
+                kind: DeadlineKind::StageEnd,
+                at: Timestamp::from_millis(7_000),
+            }),
+        );
+
+        // A queued run beats the stage end.
+        state.processing = queued_processing(Timestamp::from_millis(5_500));
+        assert_eq!(
+            next_deadline(&state, &test_config()),
+            Some(Deadline {
+                kind: DeadlineKind::ProcessingRetry,
+                at: Timestamp::from_millis(5_500),
+            }),
+        );
     }
 }

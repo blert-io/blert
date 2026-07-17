@@ -10,7 +10,7 @@
 mod scenarios;
 
 use core::time::Duration;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
 use std::ops::Index;
 use std::slice;
 use std::sync::{Arc, Mutex};
@@ -32,11 +32,15 @@ use super::core::command::{
 };
 use super::core::deadline::LifecycleConfig;
 use super::core::event::{Cause, JournalEntry, LifecycleEvent};
-use super::core::state::{ChallengePhase, ChallengeState, PublishedClient, Snapshot};
-use super::core::types::{
-    ChallengeMode, ChallengeType, ClientId, MsgId, RecordingType, ReportedTimes, SessionToken,
-    Stage, StageExt, UserId, Uuid,
+use super::core::state::{
+    ChallengePhase, ChallengeState, Processing, PublishedClient, Snapshot, Trigger,
 };
+use super::core::types::{
+    ChallengeMode, ChallengeStatus, ChallengeType, ClientId, MsgId, ProcessingError,
+    ProcessingOutcome, RecordingType, ReportedTimes, SessionToken, Stage, StageExt, StageStatus,
+    UserId, Uuid,
+};
+use crate::processing::{ProcessingRequest, StageProcessor};
 
 /// A scripted client action, issued at a scenario-relative time.
 pub enum Action {
@@ -152,6 +156,12 @@ impl ScenarioResult {
         );
         let (uuid, journal) = self.journals.into_iter().next().unwrap();
         (*uuid, journal)
+    }
+
+    /// Final projected status of the scenario's only challenge.
+    pub fn only_status(&self) -> ChallengeStatus {
+        let (uuid, _) = self.only_challenge();
+        self.projections[&uuid].status
     }
 
     /// A canonical serialization of every challenge's journal.
@@ -283,6 +293,36 @@ pub(crate) struct Collector {
 }
 
 impl Collector {
+    /// The journal of challenge `uuid`, in order.
+    pub fn journal(&self, uuid: Uuid) -> Vec<JournalEntry> {
+        self.journals
+            .lock()
+            .expect("collector lock poisoned")
+            .journals
+            .get(&uuid)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Whether the state of challenge `uuid` has been deleted.
+    pub fn is_deleted(&self, uuid: Uuid) -> bool {
+        self.routing
+            .lock()
+            .expect("collector lock poisoned")
+            .deleted
+            .contains(&uuid)
+    }
+
+    /// How many times the finish of challenge `uuid` has been announced.
+    pub fn finish_announcements(&self, uuid: Uuid) -> usize {
+        self.updates
+            .lock()
+            .expect("collector lock poisoned")
+            .iter()
+            .filter(|(id, update)| *id == uuid && *update == ChallengeServerUpdate::Finish)
+            .count()
+    }
+
     fn collector_claim(&self, uuid: Uuid) -> CollectorClaim {
         CollectorClaim {
             uuid,
@@ -637,19 +677,107 @@ impl ChallengeClaim for CollectorClaim {
     }
 }
 
+/// A scripted resolution of a processing run.
+pub(crate) enum ProcessingAttempt {
+    /// Resolve with `result` after a delay in virtual milliseconds.
+    Resolve(u64, Result<ProcessingOutcome, ProcessingError>),
+    /// Hang until aborted.
+    Hang,
+}
+
+/// A scripted [`StageProcessor`], resolving each attempt with the next
+/// scripted result in order. Attempts past the script's end complete
+/// instantly.
+#[derive(Default)]
+pub(crate) struct ScriptedProcessor {
+    script: Mutex<VecDeque<ProcessingAttempt>>,
+    requests: Mutex<Vec<ProcessingRequest>>,
+}
+
+impl ScriptedProcessor {
+    pub fn new(script: Vec<ProcessingAttempt>) -> Arc<Self> {
+        Arc::new(ScriptedProcessor {
+            script: Mutex::new(script.into()),
+            requests: Mutex::default(),
+        })
+    }
+
+    /// Every processing request received, in arrival order.
+    pub fn requests(&self) -> Vec<ProcessingRequest> {
+        self.requests
+            .lock()
+            .expect("processor lock poisoned")
+            .clone()
+    }
+}
+
+#[async_trait]
+impl StageProcessor for ScriptedProcessor {
+    async fn process(
+        &self,
+        request: ProcessingRequest,
+    ) -> Result<ProcessingOutcome, ProcessingError> {
+        self.requests
+            .lock()
+            .expect("processor lock poisoned")
+            .push(request);
+        let attempt = self
+            .script
+            .lock()
+            .expect("processor lock poisoned")
+            .pop_front();
+        match attempt {
+            Some(ProcessingAttempt::Resolve(delay_ms, result)) => {
+                tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+                result
+            }
+            Some(ProcessingAttempt::Hang) => std::future::pending().await,
+            None => Ok(match request.trigger {
+                Trigger::Stage { .. } => ProcessingOutcome::Stage {
+                    status: StageStatus::Completed,
+                    ticks: 0,
+                },
+                Trigger::Create { .. } | Trigger::Finish { .. } => ProcessingOutcome::Boundary,
+            }),
+        }
+    }
+}
+
 /// Runs a scenario to completion under default lifecycle timings and checks
 /// structural invariants.
 pub async fn run(scenario: Scenario) -> ScenarioResult {
-    run_with(LifecycleConfig::default(), scenario).await
+    run_with(RunOptions::default(), scenario).await
 }
 
-/// Runs a scenario to completion under specific lifecycle timings and checks
+#[derive(Default)]
+pub struct RunOptions {
+    /// Lifecycle timings for every challenge in the scenario.
+    pub config: LifecycleConfig,
+    /// Serves the challenges' stage processing runs.
+    pub processor: Option<Arc<dyn StageProcessor>>,
+}
+
+impl From<LifecycleConfig> for RunOptions {
+    fn from(config: LifecycleConfig) -> Self {
+        RunOptions {
+            config,
+            processor: None,
+        }
+    }
+}
+
+/// Runs a scenario to completion under specific options and checks
 /// structural invariants.
-pub async fn run_with(config: LifecycleConfig, scenario: Scenario) -> ScenarioResult {
+pub async fn run_with(options: impl Into<RunOptions>, scenario: Scenario) -> ScenarioResult {
+    let RunOptions { config, processor } = options.into();
     let collector = Collector::default();
     let (_tx, rx) = watch::channel(false);
-    let coordinator =
-        Arc::new(Coordinator::with_store(Arc::new(collector.clone()), rx).with_config(config));
+    let mut coordinator =
+        Coordinator::with_store(Arc::new(collector.clone()), rx).with_config(config.clone());
+    if let Some(processor) = processor {
+        coordinator = coordinator.with_processor(processor);
+    }
+    let coordinator = Arc::new(coordinator);
     let started = Instant::now();
 
     let mut identities = Vec::new();
@@ -735,7 +863,7 @@ pub async fn run_with(config: LifecycleConfig, scenario: Scenario) -> ScenarioRe
         inboxes,
         deleted,
     };
-    check_invariants(&result);
+    check_invariants(&result, &config);
     result
 }
 
@@ -862,11 +990,11 @@ fn current_challenge(identity: &Identity, current_uuid: &Mutex<Option<Uuid>>) ->
 }
 
 #[allow(clippy::too_many_lines)]
-fn check_invariants(result: &ScenarioResult) {
+fn check_invariants(result: &ScenarioResult, config: &LifecycleConfig) {
     for (uuid, journal) in &result.journals {
         let terminated = journal
-            .last()
-            .is_some_and(|entry| matches!(entry.event, LifecycleEvent::ChallengeTerminated { .. }));
+            .iter()
+            .any(|entry| matches!(entry.event, LifecycleEvent::ChallengeTerminated { .. }));
         if terminated {
             assert!(
                 !result.snapshots.contains_key(uuid),
@@ -879,10 +1007,22 @@ fn check_invariants(result: &ScenarioResult) {
             );
         }
 
-        // A terminated challenge is deleted and announces its finish exactly once.
+        // Compare computed state to what the journal produces.
+        let mut folded = ChallengeState {
+            uuid: *uuid,
+            processing: Processing::new(config.processing.clone()),
+            ..ChallengeState::default()
+        };
+        for entry in journal {
+            apply(&mut folded, entry.clone());
+        }
+
+        // A challenge whose processing completed after termination is deleted
+        // and announces its finish exactly once.
+        let concluded = terminated && folded.processing.settled();
         assert_eq!(
             result.deleted.contains(uuid),
-            terminated,
+            concluded,
             "deletion mismatch: {uuid}",
         );
         let finishes = result
@@ -892,18 +1032,9 @@ fn check_invariants(result: &ScenarioResult) {
             .count();
         assert_eq!(
             finishes,
-            usize::from(terminated),
+            usize::from(concluded),
             "finish announcements: {uuid}",
         );
-
-        // Compare computed state to what the journal produces.
-        let mut folded = ChallengeState {
-            uuid: *uuid,
-            ..ChallengeState::default()
-        };
-        for entry in journal {
-            apply(&mut folded, entry.clone());
-        }
 
         if let Some(snapshot) = result.snapshots.get(uuid) {
             assert_eq!(
@@ -933,7 +1064,7 @@ fn check_invariants(result: &ScenarioResult) {
         );
         assert_eq!(
             projection.status,
-            folded.phase.status(),
+            folded.status(),
             "projected status: {uuid}",
         );
         assert_eq!(projection.stage, folded.stage, "projected stage: {uuid}");
@@ -957,20 +1088,43 @@ fn check_invariants(result: &ScenarioResult) {
         }
 
         let mut seals = Vec::new();
-        for (position, entry) in journal.iter().enumerate() {
+        let mut trigger_seqs = HashSet::new();
+        let mut terminated = false;
+
+        for entry in journal {
+            let processing_event = matches!(
+                entry.event,
+                LifecycleEvent::ProcessingStarted { .. }
+                    | LifecycleEvent::ProcessingFinished { .. }
+                    | LifecycleEvent::ProcessingFailed { .. }
+                    | LifecycleEvent::ProcessingTimedOut { .. }
+            );
+            assert!(
+                !terminated || processing_event,
+                "non-processing entry recorded after termination: {uuid}",
+            );
+            terminated |= matches!(entry.event, LifecycleEvent::ChallengeTerminated { .. });
+
             match &entry.event {
+                LifecycleEvent::ChallengeCreated { .. }
+                | LifecycleEvent::ChallengeTerminated { .. } => {
+                    trigger_seqs.insert(entry.seq);
+                }
                 LifecycleEvent::StageSealed { stage, attempt, .. } => {
                     assert!(
                         !seals.contains(&(*stage, *attempt)),
                         "stage {stage:?} attempt {attempt:?} sealed twice: {uuid}",
                     );
                     seals.push((*stage, *attempt));
+                    trigger_seqs.insert(entry.seq);
                 }
-                LifecycleEvent::ChallengeTerminated { .. } => {
-                    assert_eq!(
-                        position,
-                        journal.len() - 1,
-                        "entries recorded after termination: {uuid}",
+                LifecycleEvent::ProcessingStarted { trigger }
+                | LifecycleEvent::ProcessingFinished { trigger, .. }
+                | LifecycleEvent::ProcessingFailed { trigger, .. }
+                | LifecycleEvent::ProcessingTimedOut { trigger } => {
+                    assert!(
+                        trigger_seqs.contains(trigger),
+                        "processing entry references no trigger: {uuid}",
                     );
                 }
                 _ => {}

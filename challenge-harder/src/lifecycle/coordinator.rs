@@ -13,6 +13,7 @@ use super::core::command::{ClientStatusChange, Command, Create, Finish, Join, Up
 use super::core::deadline::LifecycleConfig;
 use super::core::state::{ChallengePhase, PublishedClient, Snapshot};
 use super::core::types::{ClientId, MsgId, Uuid};
+use crate::processing::StageProcessor;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum CommandError {
@@ -194,6 +195,7 @@ fn spawn_challenge(
     registry: &Arc<Mutex<Registry>>,
     cache: &Arc<SnapshotCache>,
     claim: Claim,
+    processor: Option<Arc<dyn StageProcessor>>,
     shutdown: watch::Receiver<bool>,
 ) {
     let uuid = claim.uuid();
@@ -206,7 +208,7 @@ fn spawn_challenge(
     let cache = Arc::clone(cache);
     tokio::spawn(async move {
         // Run as a child to catch panics.
-        let outcome = tokio::spawn(run_challenge(config, claim, shutdown)).await;
+        let outcome = tokio::spawn(run_challenge(config, claim, processor, shutdown)).await;
         registry
             .lock()
             .expect("coordinator lock poisoned")
@@ -229,6 +231,7 @@ pub struct Coordinator {
     config: LifecycleConfig,
     store: Arc<dyn ChallengeStore>,
     cache: Arc<SnapshotCache>,
+    processor: Option<Arc<dyn StageProcessor>>,
     shutdown: watch::Receiver<bool>,
 }
 
@@ -250,6 +253,7 @@ impl Coordinator {
             config: LifecycleConfig::default(),
             cache: SnapshotCache::spawn(Arc::clone(&store)),
             store,
+            processor: None,
             shutdown,
         }
     }
@@ -257,6 +261,13 @@ impl Coordinator {
     #[must_use]
     pub fn with_config(mut self, config: LifecycleConfig) -> Self {
         self.config = config;
+        self
+    }
+
+    /// Sets the processor for running challenges' data processing pipelines.
+    #[must_use]
+    pub fn with_processor(mut self, processor: Arc<dyn StageProcessor>) -> Self {
+        self.processor = Some(processor);
         self
     }
 
@@ -311,6 +322,7 @@ impl Coordinator {
                         &self.registry,
                         &self.cache,
                         claim,
+                        self.processor.clone(),
                         self.shutdown.clone(),
                     );
                     (id, uuid, false)
@@ -434,6 +446,7 @@ impl Coordinator {
         let starts = Arc::clone(&self.starts);
         let cache = Arc::clone(&self.cache);
         let config = self.config.clone();
+        let processor = self.processor.clone();
         let mut shutdown = self.shutdown.clone();
 
         tokio::spawn(async move {
@@ -458,6 +471,7 @@ impl Coordinator {
                                 &registry,
                                 &cache,
                                 claim,
+                                processor.clone(),
                                 shutdown.clone(),
                             );
                         }
@@ -712,6 +726,7 @@ mod tests {
             &coordinator.registry,
             &coordinator.cache,
             Claim::new(uuid, Box::new(PanickingClaim)),
+            None,
             coordinator.shutdown.clone(),
         );
         let registered = |coordinator: &Coordinator| {

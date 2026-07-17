@@ -100,10 +100,7 @@ async fn solo_colosseum_wipe_full_trace() {
                 11,
                 1_000,
                 cmd(6),
-                LifecycleEvent::ChallengeTerminated {
-                    status: ChallengeStatus::Wiped,
-                    empty: false,
-                },
+                LifecycleEvent::ChallengeTerminated { empty: false },
             ),
         ],
     );

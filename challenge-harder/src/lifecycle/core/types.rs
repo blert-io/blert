@@ -109,7 +109,9 @@ impl TryFrom<String> for MsgId {
 }
 
 /// Position of an entry in a challenge journal.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, Default, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
+)]
 pub struct JournalSeq(pub u64);
 
 /// Unique identifier for a Blert client.
@@ -194,17 +196,21 @@ pub struct ReportedTimes {
     pub overall: u32,
 }
 
-/// Result from the stage processing pipeline.
+/// Result of a completed processing run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct StageProcessingOutcome {
-    pub status: StageStatus,
-    pub ticks: u32,
+pub enum ProcessingOutcome {
+    /// A stage's events were processed.
+    Stage { status: StageStatus, ticks: u32 },
+    /// A challenge creation or termination boundary ran its effects.
+    Boundary,
 }
 
 /// Serializable error from the stage processing pipeline.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct StageProcessingError {
+pub struct ProcessingError {
     pub message: String,
+    /// Whether the failure is transient and could succeed on retry.
+    pub retriable: bool,
 }
 
 pub trait StageExt {

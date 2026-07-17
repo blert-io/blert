@@ -156,6 +156,7 @@ fn killed_server_resumes_windows_with_time_to_run() {
         tokio::spawn(run_challenge(
             config(),
             expect_claimable(&store, uuid).await,
+            None,
             r2,
         ));
 
@@ -173,10 +174,7 @@ fn killed_server_resumes_windows_with_time_to_run() {
         seq: JournalSeq(3),
         at: Timestamp::from_millis(61_000),
         caused_by: Cause::Deadline(DeadlineKind::CleanupDisconnect),
-        event: LifecycleEvent::ChallengeTerminated {
-            status: ChallengeStatus::Reset,
-            empty: false,
-        },
+        event: LifecycleEvent::ChallengeTerminated { empty: false },
     });
     assert_eq!(journal(&collector, uuid), expected);
     assert!(deleted(&collector, uuid));
@@ -211,10 +209,7 @@ fn finished_entries(uuid: Uuid, finish_id: MsgId) -> Vec<JournalEntry> {
         seq: JournalSeq(3),
         at: Timestamp::ZERO,
         caused_by: Cause::Command(finish_id),
-        event: LifecycleEvent::ChallengeTerminated {
-            status: ChallengeStatus::Reset,
-            empty: false,
-        },
+        event: LifecycleEvent::ChallengeTerminated { empty: false },
     });
     entries
 }
@@ -252,7 +247,7 @@ fn killed_server_drains_backlogged_commands_on_resume() {
     let store = collector.clone();
     let r2 = rx.clone();
     runtime().block_on(async {
-        run_challenge(config(), expect_claimable(&store, uuid).await, r2).await;
+        run_challenge(config(), expect_claimable(&store, uuid).await, None, r2).await;
     });
 
     assert_eq!(journal(&collector, uuid), finished_entries(uuid, finish_id));
@@ -313,10 +308,7 @@ fn shutdown_server_hands_over_resumable_state() {
         seq: JournalSeq(3),
         at: Timestamp::from_millis(61_000),
         caused_by: Cause::Deadline(DeadlineKind::CleanupDisconnect),
-        event: LifecycleEvent::ChallengeTerminated {
-            status: ChallengeStatus::Reset,
-            empty: false,
-        },
+        event: LifecycleEvent::ChallengeTerminated { empty: false },
     });
     assert_eq!(journal(&collector, uuid), expected);
     assert!(deleted(&collector, uuid));

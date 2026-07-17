@@ -13,6 +13,7 @@ use core::time::Duration;
 use super::*;
 use crate::lifecycle::core::command::ClientStatus;
 use crate::lifecycle::core::deadline::LifecycleConfig;
+use crate::lifecycle::core::state::ProcessingConfig;
 use crate::lifecycle::sim::{Rng, Scenario, ScenarioResult, hash, perturb, run_with};
 
 const BASE_SEED: u64 = 0xb1e47;
@@ -24,6 +25,11 @@ const SWEEP_CONFIG: LifecycleConfig = LifecycleConfig {
     reconnection_window: Duration::from_secs(30),
     inactivity_timeout: Duration::from_mins(1),
     lease_renewal_interval: Duration::from_secs(10),
+    processing: ProcessingConfig {
+        max_attempts: 0,
+        run_timeout: Duration::from_secs(30),
+        retry_backoff: Duration::from_secs(5),
+    },
 };
 
 fn ms(duration: Duration) -> u64 {
