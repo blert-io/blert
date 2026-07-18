@@ -1364,6 +1364,166 @@ async fn start_supersedes_a_finishing_incumbent() {
     .await;
 }
 
+/// The removal command a start queues to a challenge its client left.
+fn removal_command(create: &Create) -> Command {
+    Command::ClientStatus(ClientStatusChange {
+        user_id: create.user_id,
+        client_id: create.client_id,
+        session_token: create.session_token.clone(),
+        status: ClientStatus::Disconnected,
+    })
+}
+
+#[tokio::test]
+async fn start_sends_a_removal_to_an_existing_challenge() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let client = test_client();
+    let first_create = create_request(client);
+    let first_party = party_of(&first_create);
+
+    let Ok(Start::Created { claim, id }) = store.start(first_create.clone()).await else {
+        panic!("expected a creation");
+    };
+    let first = claim.uuid();
+
+    // The same client starts a challenge for a different party.
+    let second_create = Create {
+        party: vec![format!("Second {client}")],
+        ..create_request(client)
+    };
+    let second_party = party_of(&second_create);
+    let Ok(Start::Created {
+        claim: second_claim,
+        ..
+    }) = store.start(second_create.clone()).await
+    else {
+        panic!("expected a creation");
+    };
+    let second = second_claim.uuid();
+
+    let mut connection = store.connection.clone();
+    let routed: String = connection.get(client_key(client)).await.unwrap();
+    assert_eq!(routed, second.to_string());
+
+    // The left challenge received the client's removal after its create.
+    let inbox = read_inbox(&store, first).await;
+    assert_eq!(inbox.len(), 2);
+    assert_eq!(
+        inbox[0],
+        (id, vec![("cmd".to_string(), Command::Create(first_create))]),
+    );
+    assert_eq!(
+        inbox[1].1,
+        vec![("cmd".to_string(), removal_command(&second_create))],
+    );
+
+    clean_up_start(&store, &first_party, &[client], &[first]).await;
+    clean_up_start(&store, &second_party, &[], &[second]).await;
+}
+
+#[tokio::test]
+async fn start_sends_a_removal_to_an_existing_challenge_when_joining() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let creator_client = test_client();
+    let creator = create_request(creator_client);
+    let incumbent_party = party_of(&creator);
+
+    let Ok(Start::Created { claim, .. }) = store.start(creator.clone()).await else {
+        panic!("expected a creation");
+    };
+    let incumbent = claim.uuid();
+    claim
+        .project(&snapshot(incumbent, 1), &[])
+        .await
+        .expect("project should succeed");
+
+    let leaver_client = test_client();
+    let leaver_create = create_request(leaver_client);
+    let left_party = party_of(&leaver_create);
+    let Ok(Start::Created {
+        claim: left_claim,
+        id: left_create_id,
+    }) = store.start(leaver_create.clone()).await
+    else {
+        panic!("expected a creation");
+    };
+    let left = left_claim.uuid();
+
+    let attach = Create {
+        party: creator.party.clone(),
+        ..create_request(leaver_client)
+    };
+    let start = store.start(attach.clone()).await.expect("start succeeds");
+    let Start::Joined { uuid: target, .. } = start else {
+        panic!("expected a join");
+    };
+    assert_eq!(target, incumbent);
+
+    let inbox = read_inbox(&store, left).await;
+    assert_eq!(inbox.len(), 2);
+    assert_eq!(
+        inbox[0],
+        (
+            left_create_id,
+            vec![("cmd".to_string(), Command::Create(leaver_create))]
+        ),
+    );
+    assert_eq!(
+        inbox[1].1,
+        vec![("cmd".to_string(), removal_command(&attach))],
+    );
+
+    clean_up_start(
+        &store,
+        &incumbent_party,
+        &[creator_client, leaver_client],
+        &[incumbent],
+    )
+    .await;
+    clean_up_start(&store, &left_party, &[], &[left]).await;
+}
+
+#[tokio::test]
+async fn start_rejoining_the_same_challenge_sends_no_removal() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let client = test_client();
+    let create = create_request(client);
+    let party = party_of(&create);
+
+    let Ok(Start::Created { claim, .. }) = store.start(create.clone()).await else {
+        panic!("expected a creation");
+    };
+    let uuid = claim.uuid();
+    claim
+        .project(&snapshot(uuid, 1), &[])
+        .await
+        .expect("project should succeed");
+
+    // The same client starts the same party again and joins the same challenge.
+    let restart = create_request(client);
+    let start = store.start(restart).await.expect("start succeeds");
+    let Start::Joined { uuid: target, .. } = start else {
+        panic!("expected a join");
+    };
+    assert_eq!(target, uuid);
+
+    let inbox = read_inbox(&store, uuid).await;
+    assert_eq!(inbox.len(), 2);
+    for (_, entries) in &inbox {
+        for (_, command) in entries {
+            assert!(!matches!(command, Command::ClientStatus(_)));
+        }
+    }
+
+    clean_up_start(&store, &party, &[client], &[uuid]).await;
+}
+
 #[tokio::test]
 async fn send_to_an_unknown_challenge_is_rejected() {
     let Some(store) = test_store().await else {

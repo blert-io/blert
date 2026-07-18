@@ -223,6 +223,8 @@ pub(super) static ANNOUNCE_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
 /// If joining, pushes the join command to the incumbent's inbox instead,
 /// leaving the player keys alone as the party is unchanged.
 ///
+/// If the client is listed in another challenge, sends a removal command to it.
+///
 /// ## Arguments
 ///
 /// - `KEYS[1]` = Party directory key
@@ -235,9 +237,10 @@ pub(super) static ANNOUNCE_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
 /// - `ARGV[1]` = Fresh challenge uuid
 /// - `ARGV[2]` = Creating instance's identity
 /// - `ARGV[3]` = Lease deadline for the created challenge
-/// - `ARGV[4]` = Serialized create command
-/// - `ARGV[5]` = Serialized join command
-/// - `ARGV[6]` = List of stages for the challenge beyond the incoming one
+/// - `ARGV[4]` = List of stages for the challenge beyond the incoming one
+/// - `ARGV[5]` = Serialized create command
+/// - `ARGV[6]` = Serialized join command
+/// - `ARGV[7]` = Serialized removal command for an existing challenge
 ///
 /// ## Return value
 ///
@@ -248,6 +251,14 @@ pub(super) static ANNOUNCE_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
 pub(super) static START_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
     Script::new(&format!(
         r"
+        local function leave_previous(target)
+            local previous = redis.call('GET', KEYS[4])
+            if previous and previous ~= target
+                and redis.call('ZSCORE', KEYS[2], previous) then
+                redis.call('XADD', '{INBOX_KEY_PREFIX}' .. previous, '*', 'cmd', ARGV[7])
+            end
+        end
+
         local incumbent = redis.call('GET', KEYS[1])
         if incumbent then
             local challenge = '{CHALLENGE_KEY_PREFIX}' .. incumbent
@@ -255,14 +266,16 @@ pub(super) static START_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
             local joinable = phase == false
             if phase == '{active}' then
                 local stage = redis.call('HGET', challenge, 'stage')
-                joinable = not (stage and string.find(ARGV[6], ',' .. stage .. ',', 1, true))
+                joinable = not (stage and string.find(ARGV[4], ',' .. stage .. ',', 1, true))
             end
             if joinable then
+                leave_previous(incumbent)
                 redis.call('SET', KEYS[4], incumbent)
-                local id = redis.call('XADD', '{INBOX_KEY_PREFIX}' .. incumbent, '*', 'cmd', ARGV[5])
+                local id = redis.call('XADD', '{INBOX_KEY_PREFIX}' .. incumbent, '*', 'cmd', ARGV[6])
                 return {{'JOIN', incumbent, id}}
             end
         end
+        leave_previous(ARGV[1])
         redis.call('SET', KEYS[1], ARGV[1])
         redis.call('HSET', KEYS[3], 'fence', {initial_epoch}, 'owner', ARGV[2])
         redis.call('ZADD', KEYS[2], ARGV[3], ARGV[1])
@@ -270,7 +283,7 @@ pub(super) static START_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
         for i = 6, #KEYS do
             redis.call('SET', KEYS[i], ARGV[1])
         end
-        local id = redis.call('XADD', KEYS[5], '*', 'cmd', ARGV[4])
+        local id = redis.call('XADD', KEYS[5], '*', 'cmd', ARGV[5])
         return {{'CREATE', id}}
         ",
         active = ChallengePhase::Active.tag(),
