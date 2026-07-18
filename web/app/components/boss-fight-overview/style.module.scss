@@ -118,3 +118,35 @@
   font-size: 0.95em;
   line-height: 1.4;
 }
+
+.idleTicks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--font-roboto-mono), monospace;
+
+  .total {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+
+    .count {
+      font-size: 1.5em;
+      font-weight: 600;
+    }
+
+    .eligible {
+      color: var(--blert-font-color-secondary);
+    }
+
+    .percentage {
+      color: var(--blert-font-color-secondary);
+      font-size: 0.9em;
+    }
+  }
+
+  .runs {
+    color: var(--blert-font-color-secondary);
+    font-size: 0.9em;
+  }
+}
