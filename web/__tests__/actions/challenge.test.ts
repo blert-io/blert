@@ -2,6 +2,7 @@ import {
   ChallengeMode,
   ChallengeStatus,
   ChallengeType,
+  Handicap,
   SplitType,
   Stage,
   SessionStatus,
@@ -965,6 +966,106 @@ describe('challenges', () => {
           'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
           'cccccccc-cccc-cccc-cccc-cccccccccccc',
         ]);
+      });
+    });
+
+    describe('colosseum handicap filters', () => {
+      // dddd: bees III, quartet
+      // ffff: quartet, doom I
+      // gggg: solarflare I
+      // hhhh: no stats row
+      const DDDD = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
+      const FFFF = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+      const NEIN = '99999999-9999-9999-9999-999999999999';
+      const NO_STATS = '88888888-8888-8888-8888-888888888888';
+
+      beforeEach(async () => {
+        const extra = [FFFF, NEIN, NO_STATS].map((uuid, i) => ({
+          session_id: sessionId,
+          uuid,
+          type: ChallengeType.COLOSSEUM,
+          status: ChallengeStatus.COMPLETED,
+          start_time: new Date(`2024-01-01T${14 + i}:00:00Z`),
+          scale: 1,
+        }));
+        const rows = await sql`
+          INSERT INTO challenges ${sql(extra, ['session_id', 'uuid', 'type', 'status', 'start_time', 'scale'])} RETURNING id
+        `;
+        const [ffffId, ggggId, hhhhId] = rows.map((r) => r.id);
+
+        await sql`
+          INSERT INTO challenge_players ${sql(
+            [challengeIds[2], ffffId, ggggId, hhhhId].map((id) => ({
+              challenge_id: id,
+              player_id: playerIds[0],
+              username: 'PlayerA',
+              orb: 0,
+              primary_gear: 0,
+            })),
+            ['challenge_id', 'player_id', 'username', 'orb', 'primary_gear'],
+          )}
+        `;
+
+        await sql`
+          INSERT INTO colosseum_challenge_stats ${sql([
+            {
+              challenge_id: challengeIds[2],
+              handicaps: [
+                Handicap.BEES,
+                Handicap.BEES,
+                Handicap.BEES,
+                Handicap.QUARTET,
+              ],
+            },
+            {
+              challenge_id: ffffId,
+              handicaps: [Handicap.QUARTET, Handicap.DOOM],
+            },
+            { challenge_id: ggggId, handicaps: [Handicap.SOLARFLARE] },
+          ])}
+        `;
+      });
+
+      it('matches runs that have a handicap', async () => {
+        const [challenges] = await findChallenges(10, {
+          colosseum: { has: ['==', Handicap.BEES] },
+        });
+        expect(challenges.map((c) => c.uuid)).toEqual([DDDD]);
+      });
+
+      it('excludes runs and rows without states', async () => {
+        const [challenges] = await findChallenges(10, {
+          colosseum: { has: ['!=', Handicap.BEES] },
+        });
+        expect(challenges.map((c) => c.uuid).sort()).toEqual([NEIN, FFFF]);
+      });
+
+      it('matches any of a set', async () => {
+        const [challenges] = await findChallenges(10, {
+          colosseum: { has: ['in', [Handicap.BEES, Handicap.DOOM]] },
+        });
+        expect(challenges.map((c) => c.uuid).sort()).toEqual([DDDD, FFFF]);
+      });
+
+      it('excludes all of a set', async () => {
+        const [challenges] = await findChallenges(10, {
+          colosseum: { has: ['nin', [Handicap.BEES, Handicap.DOOM]] },
+        });
+        expect(challenges.map((c) => c.uuid)).toEqual([NEIN]);
+      });
+
+      it('filters by exact level', async () => {
+        const [challenges] = await findChallenges(10, {
+          colosseum: { levels: new Map([[Handicap.BEES, ['==', 3]]]) },
+        });
+        expect(challenges.map((c) => c.uuid)).toEqual([DDDD]);
+      });
+
+      it('treats level 0 as absent', async () => {
+        const [challenges] = await findChallenges(10, {
+          colosseum: { levels: new Map([[Handicap.BEES, ['==', 0]]]) },
+        });
+        expect(challenges.map((c) => c.uuid).sort()).toEqual([NEIN, FFFF]);
       });
     });
 

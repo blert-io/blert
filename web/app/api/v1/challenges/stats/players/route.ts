@@ -65,6 +65,11 @@ function normalizeComparatorParam(
     return normalizeNumericList(value[1], allowedValues);
   }
 
+  if (value[0] === 'nin') {
+    const list = normalizeNumericList(value[1], allowedValues);
+    return list === null ? null : `!${list}`;
+  }
+
   if (value[0] === 'range') {
     const [start, end] = value[1];
     if (allowedValues.has(start) && allowedValues.has(end)) {

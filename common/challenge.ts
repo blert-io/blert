@@ -54,7 +54,12 @@ export interface TobRaid extends Challenge {
 export interface ColosseumChallenge extends Challenge {
   type: ChallengeType.COLOSSEUM;
   colosseum: ColosseumData;
+  colosseumStats: ColosseumChallengeStats;
 }
+
+export type ColosseumChallengeStats = {
+  handicaps: Partial<Record<Handicap, number>>;
+};
 
 export interface InfernoChallenge extends Challenge {
   type: ChallengeType.INFERNO;
@@ -191,6 +196,16 @@ export enum Handicap {
   SOLARFLARE_3 = SOLARFLARE_2 + HANDICAP_LEVEL_VALUE_INCREMENT,
   MYOPIA_3 = MYOPIA_2 + HANDICAP_LEVEL_VALUE_INCREMENT,
   FRAILTY_3 = FRAILTY_2 + HANDICAP_LEVEL_VALUE_INCREMENT,
+}
+
+/** Strips the level from a handicap, returning its base value. */
+export function handicapBase(handicap: Handicap): Handicap {
+  return (handicap % HANDICAP_LEVEL_VALUE_INCREMENT) as Handicap;
+}
+
+/** Returns the numeric level of a handicap. */
+export function handicapLevel(handicap: Handicap): number {
+  return Math.floor(handicap / HANDICAP_LEVEL_VALUE_INCREMENT) + 1;
 }
 
 export type InfernoData = {

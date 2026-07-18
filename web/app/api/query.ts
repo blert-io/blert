@@ -148,6 +148,23 @@ function comparatorValue<T>(
   value: string,
   constructor: (value: string) => T,
 ): Comparator<T> {
+  // A leading '!', '!=', or 'ne' negates the value or list of values.
+  let negatedRest: string | undefined;
+  if (value.startsWith('!=') || value.startsWith('ne')) {
+    negatedRest = value.slice(2);
+  } else if (value.startsWith('!')) {
+    negatedRest = value.slice(1);
+  }
+  if (negatedRest !== undefined) {
+    const negated = negatedRest.split(',');
+    if (!negated.every((v) => VALUE_REGEX.test(v))) {
+      throw new Error(`Invalid comparator value: ${value}`);
+    }
+    return negated.length > 1
+      ? ['nin', negated.map(constructor)]
+      : ['!=', constructor(negated[0])];
+  }
+
   const values = value.split(',');
   if (values.length > 1) {
     if (!values.every((v) => VALUE_REGEX.test(v))) {
@@ -184,7 +201,7 @@ function comparatorValue<T>(
   return [op(match[1]), constructor(match[2])];
 }
 
-function comparatorParam<T>(
+export function comparatorParam<T>(
   searchParams: NextSearchParams,
   param: string,
   constructor: (value: string) => T,

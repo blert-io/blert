@@ -39,6 +39,7 @@ export function operator(op: Operator): postgres.Fragment {
 }
 
 export type InComparator<T> = ['in', T[]];
+export type NinComparator<T> = ['nin', T[]];
 export type RangeComparator<T> = ['range', [T, T]];
 
 /**
@@ -47,6 +48,7 @@ export type RangeComparator<T> = ['range', [T, T]];
 export type Comparator<T> =
   | [Operator, T]
   | InComparator<T>
+  | NinComparator<T>
   | RangeComparator<T>;
 
 export function where(
@@ -119,6 +121,10 @@ export function comparatorToSql(
     return sql`${lhs} = ANY(${comparator[1]})`;
   }
 
+  if (comparator[0] === 'nin') {
+    return sql`${lhs} <> ALL(${comparator[1]})`;
+  }
+
   if (comparator[0] === 'range') {
     const [start, end] = comparator[1];
     return sql`${lhs} >= ${start} AND ${lhs} < ${end}`;
@@ -126,6 +132,60 @@ export function comparatorToSql(
 
   const op = operator(comparator[0]);
   return sql`${lhs} ${op} ${comparator[1]}`;
+}
+
+/**
+ * Like {@link comparatorToSql}, but for an array column, interpreting the
+ * comparator as set membership.
+ */
+export function arrayComparatorToSql(
+  table: postgres.Helper<string>,
+  column: string,
+  comparator: Comparator<ComparableValue>,
+): postgres.Fragment;
+
+export function arrayComparatorToSql(
+  expression: postgres.Fragment,
+  comparator: Comparator<ComparableValue>,
+): postgres.Fragment;
+
+export function arrayComparatorToSql(
+  ...args:
+    | [postgres.Helper<string>, string, Comparator<ComparableValue>]
+    | [postgres.Fragment, Comparator<ComparableValue>]
+): postgres.Fragment {
+  let lhs: postgres.Fragment;
+  let comparator: Comparator<ComparableValue>;
+
+  if (args.length === 3) {
+    const [table, column] = args;
+    lhs = sql`${table}.${sql(column)}`;
+    comparator = args[2];
+  } else {
+    [lhs, comparator] = args;
+  }
+
+  let values: ComparableValue[];
+  let negated: boolean;
+  switch (comparator[0]) {
+    case '==':
+    case '!=':
+      values = [comparator[1]];
+      negated = comparator[0] === '!=';
+      break;
+    case 'in':
+    case 'nin':
+      values = comparator[1];
+      negated = comparator[0] === 'nin';
+      break;
+    default:
+      throw new InvalidQueryError(
+        `Unsupported array operator: ${comparator[0]}`,
+      );
+  }
+
+  const overlap = sql`${lhs} && ${values}`;
+  return negated ? sql`NOT (${overlap})` : overlap;
 }
 
 /**

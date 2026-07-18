@@ -6,6 +6,8 @@ import {
   DataRepository,
   HANDICAP_LEVEL_VALUE_INCREMENT,
   Handicap,
+  handicapBase,
+  handicapLevel,
   PriceTracker,
   SplitType,
   Stage,
@@ -14,6 +16,7 @@ import {
 import { Event } from '@blert/common/generated/event_pb';
 
 import ChallengeProcessor, { InitializedFields } from './challenge-processor';
+import sql from '../db';
 import { MergedEvents } from '../merging';
 
 function waveIndex(stage: Stage): number {
@@ -72,11 +75,17 @@ export default class ColosseumProcessor extends ChallengeProcessor {
     }
   }
 
-  protected override onCreate(): Promise<void> {
-    return this.getDataRepository().saveColosseumChallengeData(
-      this.getUuid(),
-      this.colosseumData,
-    );
+  protected override async onCreate(): Promise<void> {
+    await Promise.all([
+      sql`
+        INSERT INTO colosseum_challenge_stats (challenge_id)
+        VALUES (${this.getDatabaseId()})
+      `,
+      this.getDataRepository().saveColosseumChallengeData(
+        this.getUuid(),
+        this.colosseumData,
+      ),
+    ]);
   }
 
   protected override onFinish(finalChallengeTicks: number): Promise<void> {
@@ -134,10 +143,22 @@ export default class ColosseumProcessor extends ChallengeProcessor {
       );
     }
 
-    await this.getDataRepository().saveColosseumChallengeData(
-      this.getUuid(),
-      this.colosseumData,
+    // Store all handicaps selected, once per level.
+    const handicaps = this.colosseumData.handicaps.flatMap((handicap) =>
+      Array<number>(handicapLevel(handicap)).fill(handicapBase(handicap)),
     );
+
+    await Promise.all([
+      sql`
+        UPDATE colosseum_challenge_stats
+        SET handicaps = ${handicaps}
+        WHERE challenge_id = ${this.getDatabaseId()}
+      `,
+      this.getDataRepository().saveColosseumChallengeData(
+        this.getUuid(),
+        this.colosseumData,
+      ),
+    ]);
   }
 
   protected override processChallengeEvent(
