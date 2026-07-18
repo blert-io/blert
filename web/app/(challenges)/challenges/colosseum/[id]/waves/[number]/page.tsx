@@ -14,7 +14,9 @@ import { notFound, useRouter } from 'next/navigation';
 import { use, useCallback, useContext, useEffect, useMemo } from 'react';
 
 import { CustomState } from '@/components/attack-timeline';
-import BossFightOverview from '@/components/boss-fight-overview';
+import BossFightOverview, {
+  IdleTicksContent,
+} from '@/components/boss-fight-overview';
 import BossPageAttackTimeline, {
   CustomStateEntry,
 } from '@/components/boss-page-attack-timeline';
@@ -30,6 +32,7 @@ import {
 } from '@/components/map-renderer';
 import { useDisplay } from '@/display';
 import {
+  computeIdleTickCounts,
   useMapEntities,
   usePreloads,
   usePlayingState,
@@ -279,6 +282,11 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
     return items;
   }, [playerName, solCustomStates, eventsByType]);
 
+  const idleTickCounts = useMemo(
+    () => computeIdleTickCounts(playerState),
+    [playerState],
+  );
+
   if (challenge === null || loading) {
     return <Loading />;
   }
@@ -361,6 +369,14 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
           ))}
         </div>
       ),
+    });
+  }
+
+  const idleTickCount = idleTickCounts.get(username);
+  if (idleTickCount !== undefined) {
+    sections.push({
+      title: 'Idle Ticks',
+      content: <IdleTicksContent count={idleTickCount} />,
     });
   }
 

@@ -13,7 +13,10 @@ import {
 import Image from 'next/image';
 import { use, useCallback, useContext, useMemo } from 'react';
 
-import BossFightOverview from '@/components/boss-fight-overview';
+import BossFightOverview, {
+  BossFightOverviewSection,
+  IdleTicksContent,
+} from '@/components/boss-fight-overview';
 import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
 import BossPageControls from '@/components/boss-page-controls';
 import BossPageParty from '@/components/boss-page-party';
@@ -27,6 +30,7 @@ import {
 } from '@/components/map-renderer';
 import { useDisplay } from '@/display';
 import {
+  computeIdleTickCounts,
   useMapEntities,
   usePreloads,
   usePlayingState,
@@ -369,6 +373,11 @@ export default function DelvePage({ params }: DelvePageProps) {
   );
   const preloads = usePreloads(npcState, isLive);
 
+  const idleTickCounts = useMemo(
+    () => computeIdleTickCounts(playerState),
+    [playerState],
+  );
+
   if (challenge === null || loading) {
     return <Loading />;
   }
@@ -381,6 +390,15 @@ export default function DelvePage({ params }: DelvePageProps) {
     {},
   );
 
+  const sections: BossFightOverviewSection[] = [];
+  const idleTickCount = idleTickCounts.get(challenge.party[0].username);
+  if (idleTickCount !== undefined) {
+    sections.push({
+      title: 'Idle Ticks',
+      content: <IdleTicksContent count={idleTickCount} />,
+    });
+  }
+
   return (
     <div className={styles.delvePage}>
       <div className={styles.overview}>
@@ -389,7 +407,7 @@ export default function DelvePage({ params }: DelvePageProps) {
           className={styles.overview}
           image="/images/mokhaiotl.webp"
           time={totalTicks}
-          sections={[]}
+          sections={sections}
         />
       </div>
 

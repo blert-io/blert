@@ -15,6 +15,7 @@ import { use, useCallback, useContext, useEffect, useMemo } from 'react';
 import { TimelineSplit } from '@/components/attack-timeline';
 import BossFightOverview, {
   BossFightOverviewSection,
+  IdleTicksContent,
 } from '@/components/boss-fight-overview';
 import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
 import BossPageControls from '@/components/boss-page-controls';
@@ -29,6 +30,7 @@ import {
 } from '@/components/map-renderer';
 import { useDisplay } from '@/display';
 import {
+  computeIdleTickCounts,
   useMapEntities,
   usePreloads,
   usePlayingState,
@@ -213,6 +215,11 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
     return { sections, splits: zukSplits };
   }, [stage, eventsByType, setTick]);
 
+  const idleTickCounts = useMemo(
+    () => computeIdleTickCounts(playerState),
+    [playerState],
+  );
+
   if (challenge === null || loading) {
     return <Loading />;
   }
@@ -227,6 +234,15 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
     [username]: playerState.get(username)?.at(currentTick) ?? null,
   };
 
+  const overviewSections = [...sections];
+  const idleTickCount = idleTickCounts.get(username);
+  if (idleTickCount !== undefined) {
+    overviewSections.push({
+      title: 'Idle Ticks',
+      content: <IdleTicksContent count={idleTickCount} />,
+    });
+  }
+
   return (
     <div className={styles.wavePage}>
       <div className={styles.overview}>
@@ -234,7 +250,7 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
           name={stageName(stage)}
           image="/images/inferno.png"
           time={totalTicks}
-          sections={sections}
+          sections={overviewSections}
         />
       </div>
 

@@ -1,5 +1,6 @@
 export * from './types';
 export * from './event-maps';
+export * from './idle-ticks';
 export * from './npc-map';
 export * from './player-state';
 export * from './npc-state';
