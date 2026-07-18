@@ -2,7 +2,13 @@ import { S3Client } from '@aws-sdk/client-s3';
 import { Sql } from 'postgres';
 
 import { DataRepository } from '../data-repository/data-repository';
-import { ChallengeType, ColosseumData, TobRooms } from '../challenge';
+import {
+  ChallengeType,
+  ColosseumData,
+  InfernoData,
+  MokhaiotlData,
+  TobRooms,
+} from '../challenge';
 import { ChallengeRow } from '../db/challenge';
 
 /**
@@ -54,6 +60,8 @@ type ForEachChallengeOptions = {
   startId?: number;
   /** Last challenge ID to process. */
   endId?: number;
+  /** Restrict iteration to these challenge types. Defaults to all types. */
+  types?: ChallengeType[];
   /** Whether to log progress. Defaults to true. */
   log?: boolean;
 };
@@ -79,11 +87,11 @@ export async function forEachChallengeWithData(
   dataRepository: DataRepository,
   callback: (
     challenge: ChallengeRow,
-    data: TobRooms | ColosseumData,
+    data: TobRooms | ColosseumData | InfernoData | MokhaiotlData,
   ) => Promise<void>,
   options: ForEachChallengeOptions = {},
 ) {
-  const { batchSize = 100, startId, endId, log = true } = options;
+  const { batchSize = 100, startId, endId, types, log = true } = options;
 
   // Initialize to -1 so make it inclusive of startId.
   let lastId = startId !== undefined ? startId - 1 : 0;
@@ -97,11 +105,16 @@ export async function forEachChallengeWithData(
     }
   };
 
+  const endIdFilter = endId !== undefined ? sql`AND id <= ${endId}` : sql``;
+  const typeFilter =
+    types !== undefined ? sql`AND type = ANY(${types})` : sql``;
+
   const totalChallenges = await sql`
     SELECT COUNT(*)
     FROM challenges
     WHERE id > ${lastId}
-    ${endId !== undefined ? sql`AND id <= ${endId}` : sql``}
+    ${endIdFilter}
+    ${typeFilter}
   `.then(([row]) => Number(row.count));
 
   while (true) {
@@ -109,7 +122,8 @@ export async function forEachChallengeWithData(
       SELECT *
       FROM challenges
       WHERE id > ${lastId}
-      ${endId !== undefined ? sql`AND id <= ${endId}` : sql``}
+      ${endIdFilter}
+      ${typeFilter}
       ORDER BY id ASC
       LIMIT ${batchSize}
     `;
@@ -119,13 +133,21 @@ export async function forEachChallengeWithData(
     }
 
     const promises = challenges.map(async (challenge) => {
-      let data: TobRooms | ColosseumData;
+      let data: TobRooms | ColosseumData | InfernoData | MokhaiotlData;
       switch (challenge.type) {
         case ChallengeType.TOB:
           data = await dataRepository.loadTobChallengeData(challenge.uuid);
           break;
         case ChallengeType.COLOSSEUM:
           data = await dataRepository.loadColosseumChallengeData(
+            challenge.uuid,
+          );
+          break;
+        case ChallengeType.INFERNO:
+          data = await dataRepository.loadInfernoChallengeData(challenge.uuid);
+          break;
+        case ChallengeType.MOKHAIOTL:
+          data = await dataRepository.loadMokhaiotlChallengeData(
             challenge.uuid,
           );
           break;

@@ -1,6 +1,7 @@
-import { ChallengeMode, SplitType } from '@blert/common';
+import { ChallengeMode, Handicap, SplitType } from '@blert/common';
 
 import { ChallengeQuery, SortableFields } from '@/actions/challenge';
+import { InvalidQueryError } from '@/actions/errors';
 import {
   Comparator,
   Condition,
@@ -9,14 +10,18 @@ import {
   SortQuery,
 } from '@/actions/query';
 import {
+  comparatorParam,
   dateComparatorParam,
   expectSingle,
   numericComparatorParam,
   numericComparatorValue,
 } from '@/api/query';
+import { handicapFromToken } from '@/utils/colosseum';
 import { NextSearchParams } from '@/utils/url';
 
 type NamespacedParamHandler = {
+  /** Parses the key segment to an id, or null if invalid. Defaults to numeric. */
+  parseKey?: (key: string) => number | null;
   validateKey?: (id: number) => boolean;
   apply: (
     query: ChallengeQuery,
@@ -37,7 +42,37 @@ const namespacedParams: Record<string, NamespacedParamHandler> = {
       ((query.tob ??= {}).bloatDowns ??= new Map()).set(id, comparator);
     },
   },
+  'colo.handicap': {
+    parseKey: handicapFromToken,
+    apply: (query, id, comparator) => {
+      if (!valuesInRange(comparator, 0, 3)) {
+        throw new InvalidQueryError(
+          `Invalid handicap level: ${comparator[1].toString()}`,
+        );
+      }
+      ((query.colosseum ??= {}).levels ??= new Map()).set(
+        id as Handicap,
+        comparator,
+      );
+    },
+  },
 };
+
+function valuesInRange(
+  comparator: Comparator<number>,
+  min: number,
+  max: number,
+): boolean {
+  const inRange = (value: number) => value >= min && value <= max;
+  switch (comparator[0]) {
+    case 'in':
+    case 'nin':
+    case 'range':
+      return comparator[1].every(inRange);
+    default:
+      return inRange(comparator[1]);
+  }
+}
 
 export function parseChallengeQueryParams(
   searchParams: URLSearchParams,
@@ -129,8 +164,19 @@ export function parseChallengeQuery(
       return null;
     }
 
-    const id = parseInt(key.slice(colonIndex + 1));
-    if (Number.isNaN(id)) {
+    const rawKey = key.slice(colonIndex + 1);
+    if (rawKey === '') {
+      return null;
+    }
+
+    let id: number | null;
+    if (handler.parseKey !== undefined) {
+      id = handler.parseKey(rawKey);
+    } else {
+      const parsed = Number(rawKey);
+      id = Number.isFinite(parsed) ? parsed : null;
+    }
+    if (id === null) {
       return null;
     }
 
@@ -176,6 +222,21 @@ export function parseChallengeQuery(
       if (value !== undefined) {
         (query.mokhaiotl ??= {})[field] = value;
       }
+    }
+
+    const handicap = comparatorParam(searchParams, 'colo.handicap', (token) => {
+      const h = handicapFromToken(token);
+      if (h === null) {
+        throw new InvalidQueryError(`Invalid handicap: ${token}`);
+      }
+      return h;
+    });
+    if (handicap !== undefined) {
+      const op = handicap[0];
+      if (op !== '==' && op !== '!=' && op !== 'in' && op !== 'nin') {
+        throw new InvalidQueryError(`Invalid handicap operator: ${op}`);
+      }
+      (query.colosseum ??= {}).has = handicap;
     }
   } catch {
     return null;

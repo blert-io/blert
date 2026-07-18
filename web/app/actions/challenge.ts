@@ -9,10 +9,11 @@ import {
   ChallengeStatus,
   ChallengeType,
   ColosseumChallenge,
+  ColosseumChallengeStats,
   DataRepository,
   Event,
   EventType,
-  protoToJsonEvent,
+  Handicap,
   InfernoChallenge,
   InfernoChallengeStats,
   MokhaiotlChallenge,
@@ -30,9 +31,12 @@ import {
   allSplitModes,
   camelToSnake,
   generalizeSplit,
+  handicapBase,
+  handicapLevel,
   isPostgresInvalidTextRepresentation,
   isPostgresUndefinedColumn,
   normalizeRsn,
+  protoToJsonEvent,
   snakeToCamel,
   snakeToCamelObject,
 } from '@blert/common';
@@ -53,6 +57,7 @@ import {
   Aggregation,
   AggregationKey,
   aggregationKey,
+  arrayComparatorToSql,
   assertValidAggregations,
   BaseOperand,
   Comparator,
@@ -173,10 +178,16 @@ export async function loadChallenge(
       break;
     }
 
-    case ChallengeType.COLOSSEUM:
-      (challenge as ColosseumChallenge).colosseum =
-        await dataRepository.loadColosseumChallengeData(id);
+    case ChallengeType.COLOSSEUM: {
+      const colosseum = challenge as ColosseumChallenge;
+      colosseum.colosseum = await dataRepository.loadColosseumChallengeData(id);
+      const handicaps: Partial<Record<Handicap, number>> = {};
+      for (const handicap of colosseum.colosseum.handicaps) {
+        handicaps[handicapBase(handicap)] = handicapLevel(handicap);
+      }
+      colosseum.colosseumStats = { handicaps };
       break;
+    }
 
     case ChallengeType.INFERNO:
       await Promise.all([
@@ -229,6 +240,7 @@ type StatsTarget = {
   tobStats?: TobChallengeStats;
   mokhaiotlStats?: MokhaiotlChallengeStats;
   infernoStats?: InfernoChallengeStats;
+  colosseumStats?: ColosseumChallengeStats;
 };
 
 type StatsLoadEntry<T extends StatsTarget> = {
@@ -351,6 +363,29 @@ async function attachChallengeStats<T extends StatsTarget>(
     );
   }
 
+  const colosseumIds = idsByType.get(ChallengeType.COLOSSEUM);
+  if (colosseumIds !== undefined && colosseumIds.length > 0) {
+    promises.push(
+      sql<{ challenge_id: number; handicaps: number[] }[]>`
+        SELECT challenge_id, handicaps FROM colosseum_challenge_stats
+        WHERE challenge_id = ANY(${colosseumIds})
+      `.then((rows) => {
+        for (const row of rows) {
+          const target = targetsById.get(Number(row.challenge_id));
+          if (target === undefined) {
+            continue;
+          }
+          const handicaps: Partial<Record<Handicap, number>> = {};
+          for (const handicap of row.handicaps) {
+            handicaps[handicap as Handicap] =
+              (handicaps[handicap as Handicap] ?? 0) + 1;
+          }
+          target.colosseumStats = { handicaps };
+        }
+      }),
+    );
+  }
+
   await Promise.all(promises);
 }
 
@@ -379,7 +414,8 @@ export type ChallengeOverview = Pick<
 } & Partial<
     Pick<TobRaid, 'tobStats'> &
       Pick<MokhaiotlChallenge, 'mokhaiotlStats'> &
-      Pick<InfernoChallenge, 'infernoStats'>
+      Pick<InfernoChallenge, 'infernoStats'> &
+      Pick<ColosseumChallenge, 'colosseumStats'>
   >;
 
 export type BasicSortableFields = keyof Omit<
@@ -424,6 +460,12 @@ export type TobQuery = {
   verzikRedsCount?: Comparator<number>;
 };
 
+export type ColosseumQuery = {
+  has?: Comparator<Handicap>;
+  /** Leveled handicap filters. */
+  levels?: Map<Handicap, Comparator<number>>;
+};
+
 export type MokhaiotlQuery = {
   maxCompletedDelve?: Comparator<number>;
 };
@@ -440,6 +482,7 @@ export type ChallengeQuery = {
   partyMatch?: 'all' | 'any';
   splits?: Map<SplitType, Comparator<number>>;
   tob?: TobQuery;
+  colosseum?: ColosseumQuery;
   mokhaiotl?: MokhaiotlQuery;
   sort?: SingleOrArray<SortQuery<SortableFields>>;
   startTime?: Comparator<Date>;
@@ -684,6 +727,39 @@ function applyMokhaiotlFilters(
   }
 }
 
+function applyColosseumFilters(
+  colosseum: ColosseumQuery,
+  baseTable: postgres.Helper<string>,
+  joins: Join[],
+  conditions: postgres.Fragment[],
+) {
+  const { has, levels } = colosseum;
+  if (has === undefined && (levels === undefined || levels.size === 0)) {
+    return;
+  }
+
+  joins.push({
+    table: sql`colosseum_challenge_stats`,
+    on: sql`${baseTable}.id = colosseum_challenge_stats.challenge_id`,
+    tableName: 'colosseum_challenge_stats',
+  });
+
+  if (has !== undefined) {
+    conditions.push(
+      arrayComparatorToSql(sql('colosseum_challenge_stats'), 'handicaps', has),
+    );
+  }
+
+  for (const [handicap, comparator] of levels ?? []) {
+    conditions.push(
+      comparatorToSql(
+        sql`cardinality(array_positions(colosseum_challenge_stats.handicaps, ${handicap}))`,
+        comparator,
+      ),
+    );
+  }
+}
+
 function addSplitsTable(
   split: SplitType,
   baseTable: postgres.Helper<string, string[]>,
@@ -798,6 +874,10 @@ function applyFilters(
 
   if (query.tob !== undefined) {
     applyTobFilters(query.tob, sqlChallenges, joins, conditions);
+  }
+
+  if (query.colosseum !== undefined) {
+    applyColosseumFilters(query.colosseum, sqlChallenges, joins, conditions);
   }
 
   if (query.mokhaiotl !== undefined) {

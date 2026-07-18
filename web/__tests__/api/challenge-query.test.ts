@@ -1,4 +1,10 @@
-import { ChallengeMode, ChallengeType, SplitType, Stage } from '@blert/common';
+import {
+  ChallengeMode,
+  ChallengeType,
+  Handicap,
+  SplitType,
+  Stage,
+} from '@blert/common';
 
 import { parseChallengeQueryParams } from '@/api/v1/challenges/query';
 
@@ -143,6 +149,18 @@ describe('parseChallengeQuery', () => {
     it('should reject invalid comparator values', () => {
       expect(parse({ type: 'invalid' })).toBeNull();
     });
+
+    it('should parse a negated single value', () => {
+      const query = parse({ status: '!2' });
+      expect(query!.status).toEqual(['!=', 2]);
+    });
+
+    it('should parse a negated set', () => {
+      let query = parse({ status: '!1,2' });
+      expect(query!.status).toEqual(['nin', [1, 2]]);
+      query = parse({ status: 'ne3,4,5' });
+      expect(query!.status).toEqual(['nin', [3, 4, 5]]);
+    });
   });
 
   describe('split params', () => {
@@ -270,6 +288,91 @@ describe('parseChallengeQuery', () => {
 
     it('should reject invalid max completed delve value', () => {
       expect(parse({ 'mok.maxCompletedDelve': 'invalid' })).toBeNull();
+    });
+  });
+
+  describe('colosseum handicap params', () => {
+    it('parses membership by slug or ID', () => {
+      let query = parse({ 'colo.handicap': 'bees' });
+      expect(query!.colosseum!.has).toEqual(['==', Handicap.BEES]);
+      query = parse({ 'colo.handicap': String(Handicap.DOOM) });
+      expect(query!.colosseum!.has).toEqual(['==', Handicap.DOOM]);
+    });
+
+    it('parses exclusions', () => {
+      let query = parse({ 'colo.handicap': '!bees' });
+      expect(query!.colosseum!.has).toEqual(['!=', Handicap.BEES]);
+      query = parse({ 'colo.handicap': `!${Handicap.DOOM}` });
+      expect(query!.colosseum!.has).toEqual(['!=', Handicap.DOOM]);
+    });
+
+    it('parses an any-of set', () => {
+      const query = parse({ 'colo.handicap': 'bees,quartet' });
+      expect(query!.colosseum!.has).toEqual([
+        'in',
+        [Handicap.BEES, Handicap.QUARTET],
+      ]);
+    });
+
+    it('parses a none-of set', () => {
+      const query = parse({ 'colo.handicap': '!bees,quartet' });
+      expect(query!.colosseum!.has).toEqual([
+        'nin',
+        [Handicap.BEES, Handicap.QUARTET],
+      ]);
+    });
+
+    it('parses a level comparator', () => {
+      let query = parse({ [`colo.handicap:${Handicap.BEES}`]: '0' });
+      expect(query!.colosseum!.levels!.get(Handicap.BEES)).toEqual(['==', 0]);
+
+      query = parse({ [`colo.handicap:mantimayhem`]: '<=2' });
+      expect(query!.colosseum!.levels!.get(Handicap.MANTIMAYHEM)).toEqual([
+        '<=',
+        2,
+      ]);
+
+      query = parse({ [`colo.handicap:${Handicap.DYNAMIC_DUO}`]: '1..3' });
+      expect(query!.colosseum!.levels!.get(Handicap.DYNAMIC_DUO)).toEqual([
+        'range',
+        [1, 3],
+      ]);
+    });
+
+    it('combines membership and level filters', () => {
+      const query = parse({
+        'colo.handicap': 'bees',
+        [`colo.handicap:${Handicap.QUARTET}`]: 'ge2',
+      });
+      expect(query!.colosseum!.has).toEqual(['==', Handicap.BEES]);
+      expect(query!.colosseum!.levels!.get(Handicap.QUARTET)).toEqual([
+        '>=',
+        2,
+      ]);
+    });
+
+    it('rejects an unknown handicap slug', () => {
+      expect(parse({ 'colo.handicap': 'mindTheGap' })).toBeNull();
+    });
+
+    it('rejects a leveled id in a membership list', () => {
+      expect(parse({ 'colo.handicap': `bees,${Handicap.BEES_2}` })).toBeNull();
+    });
+
+    it('rejects an ordinal membership operator', () => {
+      expect(parse({ 'colo.handicap': '1..3' })).toBeNull();
+      expect(parse({ 'colo.handicap': 'gt2' })).toBeNull();
+    });
+
+    it('rejects invalid handicap tokens', () => {
+      expect(parse({ 'colo.handicap:99': '2' })).toBeNull();
+      expect(parse({ 'colo.handicap:upsetStomach': '1' })).toBeNull();
+    });
+
+    it('rejects invalid levels', () => {
+      expect(parse({ [`colo.handicap:${Handicap.DOOM}`]: '4' })).toBeNull();
+      expect(parse({ [`colo.handicap:${Handicap.DOOM}`]: '-1' })).toBeNull();
+      expect(parse({ [`colo.handicap:${Handicap.DOOM}`]: 'three' })).toBeNull();
     });
   });
 
