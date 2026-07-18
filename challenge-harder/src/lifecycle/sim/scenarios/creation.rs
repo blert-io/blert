@@ -146,13 +146,12 @@ async fn terminated_incumbent_is_superseded() {
     assert_ne!(first, second);
 
     // First challenge ended before any stage began.
-    assert!(result.journals[&first].iter().any(|e| matches!(
-        e.event,
-        LifecycleEvent::ChallengeTerminated {
-            status: ChallengeStatus::Reset,
-            ..
-        },
-    )));
+    assert!(
+        result.journals[&first]
+            .iter()
+            .any(|e| matches!(e.event, LifecycleEvent::ChallengeTerminated { .. },))
+    );
+    assert_eq!(result.projections[&first].status, ChallengeStatus::Reset);
 }
 
 #[tokio::test(start_paused = true)]
@@ -197,10 +196,7 @@ async fn finishing_challenge_is_not_joined() {
                 6,
                 5_100,
                 Cause::Deadline(DeadlineKind::ChallengeEnd),
-                LifecycleEvent::ChallengeTerminated {
-                    status: ChallengeStatus::Reset,
-                    empty: false,
-                },
+                LifecycleEvent::ChallengeTerminated { empty: false },
             ),
         ],
     );

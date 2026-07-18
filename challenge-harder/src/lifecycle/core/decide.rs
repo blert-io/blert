@@ -4,13 +4,14 @@
 //! converting incoming commands to a set of intended actions that are later
 //! applied.
 
-use super::command::{ClientStatus, ClientStatusChange, Command, Create, Finish, Join, Update};
+use super::command::{
+    ClientStatus, ClientStatusChange, Command, Create, Finish, Join, Processed, Update,
+};
 use super::deadline::{Deadline, DeadlineKind, LifecycleConfig, next_deadline};
 use super::event::LifecycleEvent;
-use super::state::{ChallengeState, ClientState, PhaseState, StageState};
+use super::state::{ChallengeState, ClientState, PhaseState, ProcessingState, StageState};
 use super::types::{
-    ChallengeMode, ChallengeStatus, ChallengeType, ChallengeTypeExt, RecordingType, Stage,
-    StageExt, StageStatus, StageStatusExt,
+    ChallengeMode, ChallengeType, RecordingType, Stage, StageExt, StageStatus, StageStatusExt,
 };
 
 /// Produces a series of journal events from a received command, detailing the
@@ -20,9 +21,13 @@ pub fn decide(
     config: &LifecycleConfig,
     cmd: &Command,
 ) -> Vec<LifecycleEvent> {
-    if let PhaseState::Terminated { .. } = state.phase {
-        // Nothing to do after termination.
-        return Vec::new();
+    if state.terminated() {
+        // Only processing continues after termination.
+        return match cmd {
+            Command::Processed(report) => processed(state, report),
+            Command::DeadlineFired(d) => deadline_fired(state, config, *d),
+            _ => Vec::new(),
+        };
     }
 
     match cmd {
@@ -32,7 +37,7 @@ pub fn decide(
         Command::Finish(f) => finish(state, f),
         Command::ClientStatus(c) => client_status(state, c),
         Command::DeadlineFired(d) => deadline_fired(state, config, *d),
-        Command::StageProcessed(_) => todo!(),
+        Command::Processed(p) => processed(state, p),
     }
 }
 
@@ -259,9 +264,9 @@ fn deadline_fired(
             forced: true,
         }],
         DeadlineKind::ChallengeEnd => {
-            let PhaseState::Finishing { status, .. } = state.phase else {
+            if !matches!(state.phase, PhaseState::Finishing { .. }) {
                 unreachable!("ChallengeEnd is only derivable when finishing");
-            };
+            }
 
             // Clients which never sent their finish requests are cut off.
             let mut events: Vec<LifecycleEvent> = state
@@ -270,14 +275,12 @@ fn deadline_fired(
                 .map(|&client_id| LifecycleEvent::ClientRemoved { client_id })
                 .collect();
             events.push(LifecycleEvent::ChallengeTerminated {
-                status,
                 // TODO(frolv): Set based on recorded data once stage processing exists.
                 empty: false,
             });
             events
         }
         DeadlineKind::CleanupDisconnect => vec![LifecycleEvent::ChallengeTerminated {
-            status: terminal_status(state.challenge_type, state.stage, state.stage_status),
             // TODO(frolv): Set based on recorded data once stage processing exists.
             empty: false,
         }],
@@ -288,11 +291,26 @@ fn deadline_fired(
                 .map(|&client_id| LifecycleEvent::ClientRemoved { client_id })
                 .collect();
             events.push(LifecycleEvent::ChallengeTerminated {
-                status: terminal_status(state.challenge_type, state.stage, state.stage_status),
                 // TODO(frolv): Set based on recorded data once stage processing exists.
                 empty: false,
             });
             events
+        }
+        DeadlineKind::ProcessingRetry => {
+            let Some(run) = state.processing.active() else {
+                unreachable!("processing deadlines imply an active run");
+            };
+            vec![LifecycleEvent::ProcessingStarted {
+                trigger: run.trigger.seq(),
+            }]
+        }
+        DeadlineKind::ProcessingTimeout => {
+            let Some(run) = state.processing.active() else {
+                unreachable!("processing deadlines imply an active run");
+            };
+            vec![LifecycleEvent::ProcessingTimedOut {
+                trigger: run.trigger.seq(),
+            }]
         }
     }
 }
@@ -321,9 +339,7 @@ fn finish(state: &ChallengeState, finish: &Finish) -> Vec<LifecycleEvent> {
         // Wait for other clients to report their finishes.
         let mut events = Vec::new();
         if definitive && matches!(state.phase, PhaseState::Active) {
-            events.push(LifecycleEvent::ChallengeFinishing {
-                status: terminal_status(state.challenge_type, client.stage, client.stage_status),
-            });
+            events.push(LifecycleEvent::ChallengeFinishing);
         }
         events.push(finished);
         return events;
@@ -340,55 +356,47 @@ fn finish(state: &ChallengeState, finish: &Finish) -> Vec<LifecycleEvent> {
         });
     }
 
-    let status = if let PhaseState::Finishing { status, .. } = state.phase {
-        status
-    } else {
-        terminal_status(state.challenge_type, client.stage, client.stage_status)
-    };
     events.push(LifecycleEvent::ChallengeTerminated {
-        status,
         // TODO(frolv): Set based on recorded data once stage processing exists.
         empty: false,
     });
     events
 }
 
-// TODO(frolv): Temporary until stage processing exists. Callers pass either a
-// client's view of the challenge or the challenge's own last known progress.
-fn terminal_status(
-    challenge_type: ChallengeType,
-    stage: Stage,
-    stage_status: StageStatus,
-) -> ChallengeStatus {
-    let last_stage = challenge_type.last_stage();
-
-    // Some challenges can continue past their last stage. They should always
-    // count as completed as long as the last stage is completed.
-    if last_stage.is_some_and(|last| stage > last) {
-        return ChallengeStatus::Completed;
+fn processed(state: &ChallengeState, report: &Processed) -> Vec<LifecycleEvent> {
+    let Some(run) = state.processing.active() else {
+        return Vec::new();
+    };
+    // A report is only valid while its own attempt is still running.
+    if run.trigger.seq() != report.trigger
+        || run.attempts != report.attempt
+        || !matches!(run.state, ProcessingState::Running { .. })
+    {
+        return Vec::new();
     }
 
-    match stage_status {
-        StageStatus::Started => ChallengeStatus::Abandoned,
-        StageStatus::Entered => ChallengeStatus::Reset,
-        StageStatus::Wiped => ChallengeStatus::Wiped,
-        StageStatus::Completed => {
-            if last_stage.is_some_and(|last| stage == last) {
-                ChallengeStatus::Completed
-            } else {
-                ChallengeStatus::Reset
-            }
-        }
+    match &report.result {
+        Ok(outcome) => vec![LifecycleEvent::ProcessingFinished {
+            trigger: report.trigger,
+            outcome: *outcome,
+        }],
+        Err(error) => vec![LifecycleEvent::ProcessingFailed {
+            trigger: report.trigger,
+            error: error.clone(),
+        }],
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use core::time::Duration;
+
     use super::*;
-    use crate::lifecycle::core::command::StageProgress;
-    use crate::lifecycle::core::state::ClientState;
+    use crate::lifecycle::core::command::{Processed, StageProgress};
+    use crate::lifecycle::core::state::{ClientState, Processing, ProcessingConfig, Trigger};
     use crate::lifecycle::core::types::{
-        ClientId, RecordingType, ReportedTimes, Timestamp, UserId, Uuid,
+        ClientId, JournalSeq, ProcessingError, ProcessingOutcome, RecordingType, ReportedTimes,
+        Timestamp, UserId, Uuid,
     };
 
     const CLIENT_A: ClientId = ClientId(10);
@@ -915,10 +923,7 @@ mod tests {
                     soft: true,
                     times: None,
                 },
-                LifecycleEvent::ChallengeTerminated {
-                    status: ChallengeStatus::Abandoned,
-                    empty: false,
-                },
+                LifecycleEvent::ChallengeTerminated { empty: false },
             ],
         );
     }
@@ -942,10 +947,7 @@ mod tests {
                     soft: false,
                     times: None,
                 },
-                LifecycleEvent::ChallengeTerminated {
-                    status: ChallengeStatus::Wiped,
-                    empty: false,
-                },
+                LifecycleEvent::ChallengeTerminated { empty: false },
             ],
         );
     }
@@ -969,10 +971,7 @@ mod tests {
                     soft: false,
                     times: None,
                 },
-                LifecycleEvent::ChallengeTerminated {
-                    status: ChallengeStatus::Reset,
-                    empty: false,
-                },
+                LifecycleEvent::ChallengeTerminated { empty: false },
             ],
         );
     }
@@ -1000,10 +999,7 @@ mod tests {
                     soft: false,
                     times: Some(times),
                 },
-                LifecycleEvent::ChallengeTerminated {
-                    status: ChallengeStatus::Completed,
-                    empty: false,
-                },
+                LifecycleEvent::ChallengeTerminated { empty: false },
             ],
         );
     }
@@ -1038,73 +1034,9 @@ mod tests {
                     soft: false,
                     times: None,
                 },
-                LifecycleEvent::ChallengeTerminated {
-                    status: ChallengeStatus::Completed,
-                    empty: false,
-                },
+                LifecycleEvent::ChallengeTerminated { empty: false },
             ],
         );
-    }
-
-    #[test]
-    fn terminal_status_reflects_stage_position_and_outcome() {
-        let cases = [
-            (
-                ChallengeType::Tob,
-                Stage::TobMaiden,
-                StageStatus::Started,
-                ChallengeStatus::Abandoned,
-            ),
-            (
-                ChallengeType::Tob,
-                Stage::TobMaiden,
-                StageStatus::Wiped,
-                ChallengeStatus::Wiped,
-            ),
-            (
-                ChallengeType::Tob,
-                Stage::TobBloat,
-                StageStatus::Completed,
-                ChallengeStatus::Reset,
-            ),
-            (
-                ChallengeType::Tob,
-                Stage::TobNylocas,
-                StageStatus::Entered,
-                ChallengeStatus::Reset,
-            ),
-            (
-                ChallengeType::Tob,
-                Stage::TobVerzik,
-                StageStatus::Completed,
-                ChallengeStatus::Completed,
-            ),
-            (
-                ChallengeType::Mokhaiotl,
-                Stage::MokhaiotlDelve8,
-                StageStatus::Started,
-                ChallengeStatus::Abandoned,
-            ),
-            (
-                ChallengeType::Mokhaiotl,
-                Stage::MokhaiotlDelve8plus,
-                StageStatus::Started,
-                ChallengeStatus::Completed,
-            ),
-            (
-                ChallengeType::Mokhaiotl,
-                Stage::MokhaiotlDelve8plus,
-                StageStatus::Wiped,
-                ChallengeStatus::Completed,
-            ),
-        ];
-        for (challenge_type, stage, stage_status, expected) in cases {
-            assert_eq!(
-                terminal_status(challenge_type, stage, stage_status),
-                expected,
-                "{challenge_type:?} at {stage:?} with {stage_status:?}",
-            );
-        }
     }
 
     fn status_change(client_id: ClientId, status: ClientStatus) -> Command {
@@ -1257,10 +1189,7 @@ mod tests {
                 &LifecycleConfig::default(),
                 &Command::DeadlineFired(fired),
             ),
-            vec![LifecycleEvent::ChallengeTerminated {
-                status: ChallengeStatus::Abandoned,
-                empty: false,
-            }],
+            vec![LifecycleEvent::ChallengeTerminated { empty: false }],
         );
     }
 
@@ -1296,10 +1225,7 @@ mod tests {
                 LifecycleEvent::ClientRemoved {
                     client_id: CLIENT_B
                 },
-                LifecycleEvent::ChallengeTerminated {
-                    status: ChallengeStatus::Abandoned,
-                    empty: false,
-                },
+                LifecycleEvent::ChallengeTerminated { empty: false },
             ],
         );
     }
@@ -1490,7 +1416,6 @@ mod tests {
         ]);
         state.phase = PhaseState::Finishing {
             since: Timestamp::from_millis(1_000),
-            status: ChallengeStatus::Completed,
         };
         let join = Command::Join(super::Join {
             user_id: UserId(1),
@@ -1605,9 +1530,7 @@ mod tests {
                 &finish_cmd(CLIENT_A, false, None),
             ),
             vec![
-                LifecycleEvent::ChallengeFinishing {
-                    status: ChallengeStatus::Wiped,
-                },
+                LifecycleEvent::ChallengeFinishing,
                 LifecycleEvent::ClientFinished {
                     client_id: CLIENT_A,
                     definitive: true,
@@ -1652,7 +1575,6 @@ mod tests {
         ]);
         state.phase = PhaseState::Finishing {
             since: Timestamp::from_millis(5_000),
-            status: ChallengeStatus::Wiped,
         };
         assert_eq!(
             decide(
@@ -1696,10 +1618,7 @@ mod tests {
                     attempt: None,
                     forced: true,
                 },
-                LifecycleEvent::ChallengeTerminated {
-                    status: ChallengeStatus::Wiped,
-                    empty: false,
-                },
+                LifecycleEvent::ChallengeTerminated { empty: false },
             ],
         );
     }
@@ -1712,7 +1631,6 @@ mod tests {
         )]);
         state.phase = PhaseState::Finishing {
             since: Timestamp::from_millis(5_000),
-            status: ChallengeStatus::Wiped,
         };
         state.stage_state = StageState::Complete {
             since: Timestamp::from_millis(5_500),
@@ -1731,10 +1649,7 @@ mod tests {
                 LifecycleEvent::ClientRemoved {
                     client_id: CLIENT_B,
                 },
-                LifecycleEvent::ChallengeTerminated {
-                    status: ChallengeStatus::Wiped,
-                    empty: false,
-                },
+                LifecycleEvent::ChallengeTerminated { empty: false },
             ],
         );
     }
@@ -1750,7 +1665,6 @@ mod tests {
         ]);
         state.phase = PhaseState::Finishing {
             since: Timestamp::from_millis(5_100),
-            status: ChallengeStatus::Wiped,
         };
         state.stage_state = StageState::Ending {
             since: Timestamp::from_millis(5_000),
@@ -1767,6 +1681,299 @@ mod tests {
                 &Command::DeadlineFired(premature),
             ),
             vec![],
+        );
+    }
+
+    fn sealed_tob_state() -> ChallengeState {
+        let mut state = tob_state(vec![(
+            CLIENT_A,
+            client(Stage::TobMaiden, StageStatus::Wiped, None),
+        )]);
+        state.processing = Processing::new(ProcessingConfig {
+            max_attempts: 2,
+            run_timeout: Duration::from_secs(10),
+            retry_backoff: Duration::from_secs(3),
+        });
+        state.processing.push(
+            Trigger::Stage {
+                seq: JournalSeq(5),
+                stage: Stage::TobMaiden,
+                attempt: None,
+            },
+            Timestamp::from_millis(1_000),
+        );
+        state
+    }
+
+    fn processing_tob_state() -> ChallengeState {
+        let mut state = sealed_tob_state();
+        state
+            .processing
+            .start(JournalSeq(5), Timestamp::from_millis(1_000));
+        state
+    }
+
+    fn processing_result(
+        trigger: u64,
+        attempt: u32,
+        result: Result<ProcessingOutcome, ProcessingError>,
+    ) -> Command {
+        Command::Processed(Processed {
+            trigger: JournalSeq(trigger),
+            attempt,
+            result,
+        })
+    }
+
+    #[test]
+    fn processed_report_resolves_the_active_run() {
+        let state = processing_tob_state();
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &processing_result(
+                    5,
+                    1,
+                    Ok(ProcessingOutcome::Stage {
+                        status: StageStatus::Completed,
+                        ticks: 237,
+                    })
+                ),
+            ),
+            vec![LifecycleEvent::ProcessingFinished {
+                trigger: JournalSeq(5),
+                outcome: ProcessingOutcome::Stage {
+                    status: StageStatus::Completed,
+                    ticks: 237,
+                },
+            }],
+        );
+
+        let error = ProcessingError {
+            message: "stream unavailable".into(),
+            retriable: true,
+        };
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &processing_result(5, 1, Err(error.clone())),
+            ),
+            vec![LifecycleEvent::ProcessingFailed {
+                trigger: JournalSeq(5),
+                error,
+            }],
+        );
+    }
+
+    #[test]
+    fn processed_report_for_a_stale_run_is_dropped() {
+        let state = processing_tob_state();
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &processing_result(
+                    4,
+                    1,
+                    Ok(ProcessingOutcome::Stage {
+                        status: StageStatus::Completed,
+                        ticks: 237,
+                    })
+                ),
+            ),
+            vec![],
+        );
+
+        let state = tob_state(vec![(
+            CLIENT_A,
+            client(Stage::TobMaiden, StageStatus::Wiped, None),
+        )]);
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &processing_result(
+                    5,
+                    1,
+                    Ok(ProcessingOutcome::Stage {
+                        status: StageStatus::Completed,
+                        ticks: 237,
+                    })
+                ),
+            ),
+            vec![],
+        );
+    }
+
+    #[test]
+    fn processed_report_for_a_timed_out_attempt_is_dropped() {
+        let mut state = processing_tob_state();
+        state.processing.finish(
+            ChallengeType::Tob,
+            Timestamp::from_millis(11_000),
+            Err(ProcessingError {
+                message: "timed out".into(),
+                retriable: true,
+            }),
+        );
+
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &processing_result(
+                    5,
+                    1,
+                    Ok(ProcessingOutcome::Stage {
+                        status: StageStatus::Completed,
+                        ticks: 237,
+                    })
+                ),
+            ),
+            vec![],
+        );
+    }
+
+    #[test]
+    fn processed_report_from_a_superseded_attempt_is_dropped() {
+        let mut state = processing_tob_state();
+        // The first attempt timed out and its retry is running.
+        state.processing.finish(
+            ChallengeType::Tob,
+            Timestamp::from_millis(11_000),
+            Err(ProcessingError {
+                message: "timed out".into(),
+                retriable: true,
+            }),
+        );
+        state
+            .processing
+            .start(JournalSeq(5), Timestamp::from_millis(14_000));
+
+        // The dead first attempt's late report is dropped.
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &processing_result(
+                    5,
+                    1,
+                    Ok(ProcessingOutcome::Stage {
+                        status: StageStatus::Completed,
+                        ticks: 237,
+                    })
+                ),
+            ),
+            vec![],
+        );
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &processing_result(
+                    5,
+                    2,
+                    Ok(ProcessingOutcome::Stage {
+                        status: StageStatus::Wiped,
+                        ticks: 180,
+                    })
+                ),
+            ),
+            vec![LifecycleEvent::ProcessingFinished {
+                trigger: JournalSeq(5),
+                outcome: ProcessingOutcome::Stage {
+                    status: StageStatus::Wiped,
+                    ticks: 180,
+                },
+            }],
+        );
+    }
+
+    #[test]
+    fn processing_retry_starts_a_new_run() {
+        let state = sealed_tob_state();
+        let fired = next_deadline(&state, &LifecycleConfig::default())
+            .expect("a fresh run implies a deadline");
+        assert_eq!(fired.kind, DeadlineKind::ProcessingRetry);
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &Command::DeadlineFired(fired),
+            ),
+            vec![LifecycleEvent::ProcessingStarted {
+                trigger: JournalSeq(5),
+            }],
+        );
+    }
+
+    #[test]
+    fn processing_timeout_times_out_the_run() {
+        let state = processing_tob_state();
+        let fired = next_deadline(&state, &LifecycleConfig::default())
+            .expect("a running run implies a deadline");
+        assert_eq!(fired.kind, DeadlineKind::ProcessingTimeout);
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &Command::DeadlineFired(fired),
+            ),
+            vec![LifecycleEvent::ProcessingTimedOut {
+                trigger: JournalSeq(5),
+            }],
+        );
+    }
+
+    #[test]
+    fn terminated_challenge_only_accepts_processing_reports() {
+        let mut state = processing_tob_state();
+        state.phase = PhaseState::Terminated;
+        state.clients.clear();
+
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &stage_update(CLIENT_A, Stage::TobBloat, StageStatus::Started),
+            ),
+            vec![],
+        );
+
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &processing_result(
+                    5,
+                    1,
+                    Ok(ProcessingOutcome::Stage {
+                        status: StageStatus::Completed,
+                        ticks: 237,
+                    })
+                ),
+            ),
+            vec![LifecycleEvent::ProcessingFinished {
+                trigger: JournalSeq(5),
+                outcome: ProcessingOutcome::Stage {
+                    status: StageStatus::Completed,
+                    ticks: 237,
+                },
+            }],
+        );
+        let fired = next_deadline(&state, &LifecycleConfig::default())
+            .expect("a processing run implies a deadline");
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &Command::DeadlineFired(fired),
+            ),
+            vec![LifecycleEvent::ProcessingTimedOut {
+                trigger: JournalSeq(5),
+            }],
         );
     }
 }

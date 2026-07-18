@@ -6,6 +6,7 @@ mod challenge_end;
 mod client_status;
 mod creation;
 mod determinism;
+mod processing;
 mod progression;
 mod recovery;
 mod rejoin;

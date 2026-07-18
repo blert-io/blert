@@ -5,8 +5,8 @@
 
 use super::command::StageProgress;
 use super::event::{Cause, JournalEntry, LifecycleEvent};
-use super::state::{ChallengeState, ClientState, LastCompleted, PhaseState, StageState};
-use super::types::{ClientId, StageExt, StageStatus, StageStatusExt, Timestamp};
+use super::state::{ChallengeState, ClientState, LastCompleted, PhaseState, StageState, Trigger};
+use super::types::{ClientId, ProcessingError, StageExt, StageStatus, StageStatusExt, Timestamp};
 
 // it's an exhaustive enum folks
 #[allow(clippy::too_many_lines)]
@@ -33,6 +33,9 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
             state.stage_attempt = None;
             state.stage_status = StageStatus::Entered;
             state.stage_state = StageState::InProgress;
+            state
+                .processing
+                .push(Trigger::Create { seq: entry.seq }, entry.at);
         }
         LifecycleEvent::ClientJoined {
             client_id,
@@ -83,14 +86,19 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
             state.stage_status = StageStatus::Started;
             state.stage_state = StageState::InProgress;
         }
-        LifecycleEvent::StageSealed { .. } => {
+        LifecycleEvent::StageSealed { stage, attempt, .. } => {
             state.stage_state = StageState::Complete { since: entry.at };
+            state.processing.push(
+                Trigger::Stage {
+                    seq: entry.seq,
+                    stage,
+                    attempt,
+                },
+                entry.at,
+            );
         }
-        LifecycleEvent::ChallengeFinishing { status } => {
-            state.phase = PhaseState::Finishing {
-                since: entry.at,
-                status,
-            };
+        LifecycleEvent::ChallengeFinishing => {
+            state.phase = PhaseState::Finishing { since: entry.at };
         }
         LifecycleEvent::ClientFinished {
             client_id, times, ..
@@ -98,7 +106,7 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
             state.clients.remove(&client_id);
             state.reported_times = state.reported_times.or(times);
             // Each finish extends the grace period for remaining clients.
-            if let PhaseState::Finishing { since, .. } = &mut state.phase {
+            if let PhaseState::Finishing { since } = &mut state.phase {
                 *since = entry.at;
             }
         }
@@ -115,9 +123,11 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
         LifecycleEvent::ClientRemoved { client_id } => {
             state.clients.remove(&client_id);
         }
-        LifecycleEvent::ChallengeTerminated { status, empty: _ } => {
-            state.phase = PhaseState::Terminated { status };
-            state.reported_times = None;
+        LifecycleEvent::ChallengeTerminated { empty: _ } => {
+            state.phase = PhaseState::Terminated;
+            state
+                .processing
+                .push(Trigger::Finish { seq: entry.seq }, entry.at);
         }
         LifecycleEvent::ModeChanged { mode } => {
             state.mode = mode;
@@ -125,10 +135,34 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
         LifecycleEvent::PartyChanged { .. } => {
             state.party_changed = true;
         }
-        LifecycleEvent::StageProcessingStarted { .. }
-        | LifecycleEvent::StageProcessingFinished { .. }
-        | LifecycleEvent::StageProcessingFailed { .. }
-        | LifecycleEvent::StageProcessingTimedOut { .. } => todo!(),
+        LifecycleEvent::ProcessingStarted { trigger } => {
+            state.processing.start(trigger, entry.at);
+        }
+        LifecycleEvent::ProcessingFinished {
+            trigger: _,
+            outcome,
+        } => {
+            let challenge_type = state.challenge_type;
+            state
+                .processing
+                .finish(challenge_type, entry.at, Ok(outcome));
+        }
+        LifecycleEvent::ProcessingFailed { trigger: _, error } => {
+            let challenge_type = state.challenge_type;
+            state
+                .processing
+                .finish(challenge_type, entry.at, Err(error));
+        }
+        LifecycleEvent::ProcessingTimedOut { trigger: _ } => {
+            let challenge_type = state.challenge_type;
+            let timed_out = ProcessingError {
+                message: "timed out".into(),
+                retriable: true,
+            };
+            state
+                .processing
+                .finish(challenge_type, entry.at, Err(timed_out));
+        }
     }
 
     // Check whether the challenge's clients have gone inactive.
@@ -192,12 +226,15 @@ fn stage_reported(
 
 #[cfg(test)]
 mod tests {
+    use core::time::Duration;
+
     use super::*;
     use crate::lifecycle::core::command::StageProgress;
     use crate::lifecycle::core::deadline::DeadlineKind;
+    use crate::lifecycle::core::state::{Processing, ProcessingConfig, ProcessingState, Trigger};
     use crate::lifecycle::core::types::{
-        ChallengeMode, ChallengeStatus, ChallengeType, ClientId, JournalSeq, MsgId, RecordingType,
-        ReportedTimes, Stage, Timestamp, UserId, Uuid,
+        ChallengeMode, ChallengeStatus, ChallengeType, ClientId, JournalSeq, MsgId,
+        ProcessingOutcome, RecordingType, ReportedTimes, Stage, Timestamp, UserId, Uuid,
     };
 
     const CLIENT: ClientId = ClientId(10);
@@ -610,19 +647,12 @@ mod tests {
         let mut state = created_tob_state();
         apply(
             &mut state,
-            entry(
-                9_000,
-                2,
-                LifecycleEvent::ChallengeFinishing {
-                    status: ChallengeStatus::Wiped,
-                },
-            ),
+            entry(9_000, 2, LifecycleEvent::ChallengeFinishing),
         );
         assert_eq!(
             state.phase,
             PhaseState::Finishing {
-                since: Timestamp::from_millis(9_000),
-                status: ChallengeStatus::Wiped,
+                since: Timestamp::from_millis(9_000)
             }
         );
     }
@@ -632,13 +662,7 @@ mod tests {
         let mut state = created_tob_state();
         apply(
             &mut state,
-            entry(
-                9_000,
-                2,
-                LifecycleEvent::ChallengeFinishing {
-                    status: ChallengeStatus::Wiped,
-                },
-            ),
+            entry(9_000, 2, LifecycleEvent::ChallengeFinishing),
         );
         apply(
             &mut state,
@@ -656,8 +680,7 @@ mod tests {
         assert_eq!(
             state.phase,
             PhaseState::Finishing {
-                since: Timestamp::from_millis(12_500),
-                status: ChallengeStatus::Wiped,
+                since: Timestamp::from_millis(12_500)
             }
         );
     }
@@ -759,18 +782,10 @@ mod tests {
             entry(
                 9_000,
                 2,
-                LifecycleEvent::ChallengeTerminated {
-                    status: ChallengeStatus::Reset,
-                    empty: false,
-                },
+                LifecycleEvent::ChallengeTerminated { empty: false },
             ),
         );
-        assert_eq!(
-            state.phase,
-            PhaseState::Terminated {
-                status: ChallengeStatus::Reset
-            }
-        );
+        assert_eq!(state.phase, PhaseState::Terminated);
     }
 
     #[test]
@@ -849,5 +864,240 @@ mod tests {
             }
         );
         assert_eq!(state.stage_status, StageStatus::Wiped);
+    }
+
+    fn processing_tob_state() -> ChallengeState {
+        let mut state = created_tob_state();
+        state.processing = Processing::new(ProcessingConfig {
+            max_attempts: 2,
+            run_timeout: Duration::from_secs(10),
+            retry_backoff: Duration::from_secs(3),
+        });
+        state
+    }
+
+    fn processing_entry(at_ms: u64, event: LifecycleEvent) -> JournalEntry {
+        JournalEntry {
+            seq: JournalSeq(9),
+            at: Timestamp::from_millis(at_ms),
+            caused_by: Cause::Processing(JournalSeq(5)),
+            event,
+        }
+    }
+
+    fn maiden_seal(at_ms: u64) -> JournalEntry {
+        JournalEntry {
+            seq: JournalSeq(5),
+            at: Timestamp::from_millis(at_ms),
+            caused_by: Cause::Command(MsgId::sequence(3)),
+            event: LifecycleEvent::StageSealed {
+                stage: Stage::TobMaiden,
+                attempt: None,
+                forced: false,
+            },
+        }
+    }
+
+    #[test]
+    fn seal_queues_a_processing_run_at_its_journal_position() {
+        let mut state = processing_tob_state();
+        apply(&mut state, maiden_seal(5_000));
+
+        let run = state.processing.active().expect("exists");
+        assert_eq!(
+            run.trigger,
+            Trigger::Stage {
+                seq: JournalSeq(5),
+                stage: Stage::TobMaiden,
+                attempt: None,
+            },
+        );
+        assert_eq!(
+            run.state,
+            ProcessingState::Idle {
+                since: Timestamp::from_millis(5_000)
+            },
+        );
+    }
+
+    #[test]
+    fn creation_and_termination_queue_boundary_runs() {
+        let mut state = ChallengeState {
+            processing: Processing::new(ProcessingConfig {
+                max_attempts: 2,
+                run_timeout: Duration::from_secs(10),
+                retry_backoff: Duration::from_secs(3),
+            }),
+            ..ChallengeState::default()
+        };
+
+        let create = JournalEntry {
+            seq: JournalSeq(0),
+            at: Timestamp::from_millis(100),
+            caused_by: Cause::Command(MsgId::sequence(0)),
+            event: LifecycleEvent::ChallengeCreated {
+                uuid: Uuid::nil(),
+                challenge_type: ChallengeType::Tob,
+                mode: ChallengeMode::TobRegular,
+                party: vec!["a".into()],
+                stage: Stage::TobMaiden,
+            },
+        };
+        apply(&mut state, create);
+        assert_eq!(
+            state.processing.active().expect("exists").trigger,
+            Trigger::Create { seq: JournalSeq(0) },
+        );
+
+        apply(
+            &mut state,
+            JournalEntry {
+                seq: JournalSeq(1),
+                at: Timestamp::from_millis(200),
+                caused_by: Cause::Command(MsgId::sequence(1)),
+                event: LifecycleEvent::ChallengeTerminated { empty: false },
+            },
+        );
+
+        // Finish runs is queued after the create run.
+        assert_eq!(
+            state.processing.active().expect("exists").trigger,
+            Trigger::Create { seq: JournalSeq(0) },
+        );
+        apply(
+            &mut state,
+            processing_entry(
+                300,
+                LifecycleEvent::ProcessingStarted {
+                    trigger: JournalSeq(0),
+                },
+            ),
+        );
+        apply(
+            &mut state,
+            processing_entry(
+                400,
+                LifecycleEvent::ProcessingFinished {
+                    trigger: JournalSeq(0),
+                    outcome: ProcessingOutcome::Boundary,
+                },
+            ),
+        );
+        assert_eq!(
+            state.processing.active().expect("exists").trigger,
+            Trigger::Finish { seq: JournalSeq(1) },
+        );
+        assert!(!state.processing.settled());
+    }
+
+    #[test]
+    fn processing_events_drive_the_run_without_moving_the_cursor() {
+        let mut state = processing_tob_state();
+        apply(&mut state, maiden_seal(5_000));
+        let cursor = state.cursor;
+
+        apply(
+            &mut state,
+            processing_entry(
+                5_000,
+                LifecycleEvent::ProcessingStarted {
+                    trigger: JournalSeq(5),
+                },
+            ),
+        );
+        let run = state.processing.active().unwrap();
+        assert_eq!(run.attempts, 1);
+        assert_eq!(
+            run.state,
+            ProcessingState::Running {
+                since: Timestamp::from_millis(5_000)
+            },
+        );
+
+        // A timeout is a retriable failure with attempts remaining.
+        apply(
+            &mut state,
+            processing_entry(
+                15_000,
+                LifecycleEvent::ProcessingTimedOut {
+                    trigger: JournalSeq(5),
+                },
+            ),
+        );
+        let run = state.processing.active().unwrap();
+        assert_eq!(run.attempts, 1);
+        assert!(run.retriable);
+        assert_eq!(
+            run.state,
+            ProcessingState::Idle {
+                since: Timestamp::from_millis(15_000)
+            },
+        );
+
+        // The final attempt's failure abandons the run.
+        apply(
+            &mut state,
+            processing_entry(
+                18_000,
+                LifecycleEvent::ProcessingStarted {
+                    trigger: JournalSeq(5),
+                },
+            ),
+        );
+        apply(
+            &mut state,
+            processing_entry(
+                19_000,
+                LifecycleEvent::ProcessingFailed {
+                    trigger: JournalSeq(5),
+                    error: ProcessingError {
+                        message: "scripted".into(),
+                        retriable: true,
+                    },
+                },
+            ),
+        );
+        assert!(state.processing.settled());
+
+        assert_eq!(state.cursor, cursor);
+    }
+
+    #[test]
+    fn final_status_is_set_by_the_last_processing_outcome() {
+        let mut state = processing_tob_state();
+        apply(&mut state, maiden_seal(5_000));
+        apply(
+            &mut state,
+            processing_entry(
+                5_000,
+                LifecycleEvent::ProcessingStarted {
+                    trigger: JournalSeq(5),
+                },
+            ),
+        );
+        apply(
+            &mut state,
+            processing_entry(
+                6_000,
+                LifecycleEvent::ProcessingFinished {
+                    trigger: JournalSeq(5),
+                    outcome: ProcessingOutcome::Stage {
+                        status: StageStatus::Completed,
+                        ticks: 237,
+                    },
+                },
+            ),
+        );
+        assert!(state.processing.settled());
+
+        apply(
+            &mut state,
+            entry(
+                9_000,
+                4,
+                LifecycleEvent::ChallengeTerminated { empty: false },
+            ),
+        );
+        assert_eq!(state.status(), ChallengeStatus::Reset);
     }
 }

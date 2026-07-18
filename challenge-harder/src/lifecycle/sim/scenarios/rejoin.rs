@@ -61,11 +61,8 @@ fn client_finished(client: i64) -> LifecycleEvent {
     }
 }
 
-fn terminated(status: ChallengeStatus) -> LifecycleEvent {
-    LifecycleEvent::ChallengeTerminated {
-        status,
-        empty: false,
-    }
+fn terminated() -> LifecycleEvent {
+    LifecycleEvent::ChallengeTerminated { empty: false }
 }
 
 #[tokio::test(start_paused = true)]
@@ -115,9 +112,10 @@ async fn overlapping_socket_rejoin_fences_the_old_socket() {
             ),
             entry(6, 8_000, cmd(5), sealed(Stage::TobMaiden, None, false)),
             entry(7, 9_000, cmd(6), client_finished(1)),
-            entry(8, 9_000, cmd(6), terminated(ChallengeStatus::Reset)),
+            entry(8, 9_000, cmd(6), terminated()),
         ],
     );
+    assert_eq!(result.only_status(), ChallengeStatus::Reset);
 }
 
 #[tokio::test(start_paused = true)]
@@ -165,9 +163,10 @@ async fn removed_client_rejoins_inside_the_window() {
             ),
             entry(8, 60_500, cmd(6), sealed(Stage::TobMaiden, None, false)),
             entry(9, 60_600, cmd(7), client_finished(1)),
-            entry(10, 60_600, cmd(7), terminated(ChallengeStatus::Wiped)),
+            entry(10, 60_600, cmd(7), terminated()),
         ],
     );
+    assert_eq!(result.only_status(), ChallengeStatus::Wiped);
 }
 
 #[tokio::test(start_paused = true)]
@@ -197,7 +196,8 @@ async fn rejoin_after_termination_is_refused() {
         vec![
             entry(1, 0, cmd(1), joined(1, RecordingType::Participant)),
             entry(2, 500, cmd(2), client_finished(1)),
-            entry(3, 500, cmd(2), terminated(ChallengeStatus::Reset)),
+            entry(3, 500, cmd(2), terminated()),
         ],
     );
+    assert_eq!(result.only_status(), ChallengeStatus::Reset);
 }

@@ -51,10 +51,7 @@ fn completed(seq: u64, at_ms: u64, caused_by: Cause) -> JournalEntry {
         seq,
         at_ms,
         caused_by,
-        LifecycleEvent::ChallengeTerminated {
-            status: ChallengeStatus::Completed,
-            empty: false,
-        },
+        LifecycleEvent::ChallengeTerminated { empty: false },
     )
 }
 

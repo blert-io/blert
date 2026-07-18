@@ -1694,9 +1694,7 @@ fn terminated_state(uuid: Uuid, create: &Create) -> ChallengeState {
         challenge_type: create.challenge_type,
         mode: create.mode,
         party: create.party.clone(),
-        phase: PhaseState::Terminated {
-            status: ChallengeStatus::Wiped,
-        },
+        phase: PhaseState::Terminated,
         recorded_by: [create.client_id].into(),
         ..ChallengeState::default()
     }

@@ -5,9 +5,8 @@ use serde::{Deserialize, Serialize};
 use super::command::StageProgress;
 use super::deadline::DeadlineKind;
 use super::types::{
-    ChallengeMode, ChallengeStatus, ChallengeType, ClientId, JournalSeq, MsgId, RecordingType,
-    ReportedTimes, SessionToken, Stage, StageProcessingError, StageProcessingOutcome, Timestamp,
-    UserId, Uuid,
+    ChallengeMode, ChallengeType, ClientId, JournalSeq, MsgId, ProcessingError, ProcessingOutcome,
+    RecordingType, ReportedTimes, SessionToken, Stage, Timestamp, UserId, Uuid,
 };
 
 /// What triggered a lifecycle event.
@@ -18,6 +17,8 @@ pub enum Cause {
     Command(MsgId),
     /// A deadline coming due.
     Deadline(DeadlineKind),
+    /// A report from a processing run triggered by the journal entry at `seq`.
+    Processing(JournalSeq),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -78,29 +79,23 @@ pub enum LifecycleEvent {
         attempt: Option<u32>,
         forced: bool,
     },
-    StageProcessingStarted {
-        stage: Stage,
-        attempt: Option<u32>,
+    /// A processing run for the entry at journal position `trigger` began.
+    ProcessingStarted {
+        trigger: JournalSeq,
     },
-    StageProcessingFinished {
-        stage: Stage,
-        attempt: Option<u32>,
-        outcome: StageProcessingOutcome,
+    ProcessingFinished {
+        trigger: JournalSeq,
+        outcome: ProcessingOutcome,
     },
-    StageProcessingFailed {
-        stage: Stage,
-        attempt: Option<u32>,
-        error: StageProcessingError,
+    ProcessingFailed {
+        trigger: JournalSeq,
+        error: ProcessingError,
     },
-    StageProcessingTimedOut {
-        stage: Stage,
-        attempt: Option<u32>,
+    ProcessingTimedOut {
+        trigger: JournalSeq,
     },
     /// A client definitively finished the challenge, entering its finishing phase.
-    ChallengeFinishing {
-        // TODO(frolv): Temporary until stage processing is implemented.
-        status: ChallengeStatus,
-    },
+    ChallengeFinishing,
     ClientFinished {
         client_id: ClientId,
         definitive: bool,
@@ -119,7 +114,6 @@ pub enum LifecycleEvent {
     /// Terminal challenge event.
     /// `empty` marks a challenge with no recorded data which should be deleted.
     ChallengeTerminated {
-        status: ChallengeStatus,
         empty: bool,
     },
 }
@@ -127,7 +121,7 @@ pub enum LifecycleEvent {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lifecycle::core::types::Timestamp;
+    use crate::lifecycle::core::types::{StageStatus, Timestamp};
 
     #[test]
     fn journal_entry_format_is_stable() {
@@ -164,5 +158,65 @@ mod tests {
             r#"{"seq":5,"at":3500,"caused_by":"StageEnd","event":{"StageSealed":{"stage":11,"attempt":null,"forced":true}}}"#
         );
         assert_eq!(serde_json::from_str::<JournalEntry>(&json).unwrap(), forced);
+
+        let processed = JournalEntry {
+            seq: JournalSeq(6),
+            at: Timestamp::from_millis(4_000),
+            caused_by: Cause::Processing(JournalSeq(5)),
+            event: LifecycleEvent::ProcessingFinished {
+                trigger: JournalSeq(5),
+                outcome: ProcessingOutcome::Stage {
+                    status: StageStatus::Completed,
+                    ticks: 237,
+                },
+            },
+        };
+        let json = serde_json::to_string(&processed).unwrap();
+        assert_eq!(
+            json,
+            r#"{"seq":6,"at":4000,"caused_by":5,"event":{"ProcessingFinished":{"trigger":5,"outcome":{"Stage":{"status":2,"ticks":237}}}}}"#
+        );
+        assert_eq!(
+            serde_json::from_str::<JournalEntry>(&json).unwrap(),
+            processed
+        );
+
+        let boundary = JournalEntry {
+            seq: JournalSeq(8),
+            at: Timestamp::from_millis(4_200),
+            caused_by: Cause::Processing(JournalSeq(0)),
+            event: LifecycleEvent::ProcessingFinished {
+                trigger: JournalSeq(0),
+                outcome: ProcessingOutcome::Boundary,
+            },
+        };
+        let json = serde_json::to_string(&boundary).unwrap();
+        assert_eq!(
+            json,
+            r#"{"seq":8,"at":4200,"caused_by":0,"event":{"ProcessingFinished":{"trigger":0,"outcome":"Boundary"}}}"#
+        );
+        assert_eq!(
+            serde_json::from_str::<JournalEntry>(&json).unwrap(),
+            boundary
+        );
+
+        let failed = JournalEntry {
+            seq: JournalSeq(7),
+            at: Timestamp::from_millis(4_100),
+            caused_by: Cause::Processing(JournalSeq(5)),
+            event: LifecycleEvent::ProcessingFailed {
+                trigger: JournalSeq(5),
+                error: ProcessingError {
+                    message: "stream unavailable".into(),
+                    retriable: true,
+                },
+            },
+        };
+        let json = serde_json::to_string(&failed).unwrap();
+        assert_eq!(
+            json,
+            r#"{"seq":7,"at":4100,"caused_by":5,"event":{"ProcessingFailed":{"trigger":5,"error":{"message":"stream unavailable","retriable":true}}}}"#
+        );
+        assert_eq!(serde_json::from_str::<JournalEntry>(&json).unwrap(), failed);
     }
 }

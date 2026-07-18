@@ -9,6 +9,7 @@
 mod api;
 mod lifecycle;
 mod players;
+mod processing;
 mod proto;
 mod shadow;
 mod store;
@@ -20,8 +21,12 @@ use std::time::Duration;
 use clap::{Parser, Subcommand};
 use lifecycle::coordinator::Coordinator;
 use lifecycle::core::deadline::LifecycleConfig;
+use lifecycle::core::state::ProcessingConfig;
 
 const CLAIM_SCAN_INTERVAL: Duration = Duration::from_secs(5);
+
+/// Run attempts allowed per processing trigger.
+const PROCESSING_MAX_ATTEMPTS: u32 = 3;
 
 #[derive(Parser)]
 struct Cli {
@@ -42,7 +47,14 @@ enum Command {
 async fn main() -> ExitCode {
     match Cli::parse().command {
         None | Some(Command::Serve) => {
-            serve(LifecycleConfig::default()).await;
+            serve(LifecycleConfig {
+                processing: ProcessingConfig {
+                    max_attempts: PROCESSING_MAX_ATTEMPTS,
+                    ..ProcessingConfig::default()
+                },
+                ..LifecycleConfig::default()
+            })
+            .await;
             ExitCode::SUCCESS
         }
         Some(Command::Shadow(command)) => shadow::run(command).await,
@@ -71,8 +83,11 @@ async fn serve(config: LifecycleConfig) {
 
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
 
-    let coordinator =
-        Arc::new(Coordinator::with_store(Arc::new(store), shutdown_rx).with_config(config));
+    let coordinator = Arc::new(
+        Coordinator::with_store(Arc::new(store), shutdown_rx)
+            .with_config(config)
+            .with_processor(Arc::new(processing::Pipeline)),
+    );
     coordinator.start_scan(CLAIM_SCAN_INTERVAL);
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port))
