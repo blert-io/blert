@@ -296,7 +296,7 @@ fn deadline_fired(
             });
             events
         }
-        DeadlineKind::ProcessingRetry => {
+        DeadlineKind::ProcessingDue => {
             let Some(run) = state.processing.active() else {
                 unreachable!("processing deadlines imply an active run");
             };
@@ -376,9 +376,9 @@ fn processed(state: &ChallengeState, report: &Processed) -> Vec<LifecycleEvent> 
     }
 
     match &report.result {
-        Ok(outcome) => vec![LifecycleEvent::ProcessingFinished {
+        Ok(payload) => vec![LifecycleEvent::ProcessingFinished {
             trigger: report.trigger,
-            outcome: *outcome,
+            payload: *payload,
         }],
         Err(error) => vec![LifecycleEvent::ProcessingFailed {
             trigger: report.trigger,
@@ -395,7 +395,7 @@ mod tests {
     use crate::lifecycle::core::command::{Processed, StageProgress};
     use crate::lifecycle::core::state::{ClientState, Processing, ProcessingConfig, Trigger};
     use crate::lifecycle::core::types::{
-        ClientId, JournalSeq, ProcessingError, ProcessingOutcome, RecordingType, ReportedTimes,
+        ClientId, JournalSeq, ProcessingError, ProcessingPayload, RecordingType, ReportedTimes,
         Timestamp, UserId, Uuid,
     };
 
@@ -1716,7 +1716,7 @@ mod tests {
     fn processing_result(
         trigger: u64,
         attempt: u32,
-        result: Result<ProcessingOutcome, ProcessingError>,
+        result: Result<ProcessingPayload, ProcessingError>,
     ) -> Command {
         Command::Processed(Processed {
             trigger: JournalSeq(trigger),
@@ -1735,7 +1735,7 @@ mod tests {
                 &processing_result(
                     5,
                     1,
-                    Ok(ProcessingOutcome::Stage {
+                    Ok(ProcessingPayload::Stage {
                         status: StageStatus::Completed,
                         ticks: 237,
                     })
@@ -1743,7 +1743,7 @@ mod tests {
             ),
             vec![LifecycleEvent::ProcessingFinished {
                 trigger: JournalSeq(5),
-                outcome: ProcessingOutcome::Stage {
+                payload: ProcessingPayload::Stage {
                     status: StageStatus::Completed,
                     ticks: 237,
                 },
@@ -1777,7 +1777,7 @@ mod tests {
                 &processing_result(
                     4,
                     1,
-                    Ok(ProcessingOutcome::Stage {
+                    Ok(ProcessingPayload::Stage {
                         status: StageStatus::Completed,
                         ticks: 237,
                     })
@@ -1797,7 +1797,7 @@ mod tests {
                 &processing_result(
                     5,
                     1,
-                    Ok(ProcessingOutcome::Stage {
+                    Ok(ProcessingPayload::Stage {
                         status: StageStatus::Completed,
                         ticks: 237,
                     })
@@ -1826,7 +1826,7 @@ mod tests {
                 &processing_result(
                     5,
                     1,
-                    Ok(ProcessingOutcome::Stage {
+                    Ok(ProcessingPayload::Stage {
                         status: StageStatus::Completed,
                         ticks: 237,
                     })
@@ -1860,7 +1860,7 @@ mod tests {
                 &processing_result(
                     5,
                     1,
-                    Ok(ProcessingOutcome::Stage {
+                    Ok(ProcessingPayload::Stage {
                         status: StageStatus::Completed,
                         ticks: 237,
                     })
@@ -1875,7 +1875,7 @@ mod tests {
                 &processing_result(
                     5,
                     2,
-                    Ok(ProcessingOutcome::Stage {
+                    Ok(ProcessingPayload::Stage {
                         status: StageStatus::Wiped,
                         ticks: 180,
                     })
@@ -1883,7 +1883,7 @@ mod tests {
             ),
             vec![LifecycleEvent::ProcessingFinished {
                 trigger: JournalSeq(5),
-                outcome: ProcessingOutcome::Stage {
+                payload: ProcessingPayload::Stage {
                     status: StageStatus::Wiped,
                     ticks: 180,
                 },
@@ -1896,7 +1896,7 @@ mod tests {
         let state = sealed_tob_state();
         let fired = next_deadline(&state, &LifecycleConfig::default())
             .expect("a fresh run implies a deadline");
-        assert_eq!(fired.kind, DeadlineKind::ProcessingRetry);
+        assert_eq!(fired.kind, DeadlineKind::ProcessingDue);
         assert_eq!(
             decide(
                 &state,
@@ -1949,7 +1949,7 @@ mod tests {
                 &processing_result(
                     5,
                     1,
-                    Ok(ProcessingOutcome::Stage {
+                    Ok(ProcessingPayload::Stage {
                         status: StageStatus::Completed,
                         ticks: 237,
                     })
@@ -1957,7 +1957,7 @@ mod tests {
             ),
             vec![LifecycleEvent::ProcessingFinished {
                 trigger: JournalSeq(5),
-                outcome: ProcessingOutcome::Stage {
+                payload: ProcessingPayload::Stage {
                     status: StageStatus::Completed,
                     ticks: 237,
                 },

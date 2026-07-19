@@ -73,6 +73,12 @@ impl MsgId {
     pub const fn sequence(seq: u64) -> Self {
         Self { ms: 0, seq }
     }
+
+    /// The id's timestamp component.
+    #[must_use]
+    pub const fn unix_millis(self) -> u64 {
+        self.ms
+    }
 }
 
 impl std::fmt::Display for MsgId {
@@ -177,6 +183,20 @@ pub enum RecordingType {
     Participant = 1,
 }
 
+/// The gear a player wears in a challenge.
+/// Matches `PrimaryMeleeGear` in `//common/challenge.ts`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize_repr, Deserialize_repr)]
+#[repr(u8)]
+pub enum PrimaryMeleeGear {
+    #[default]
+    Unknown = 0,
+    EliteVoid = 1,
+    Bandos = 2,
+    Torva = 3,
+    Blorva = 4,
+    Oathplate = 5,
+}
+
 // Compile-time parity checks against the upstream TS values.
 const _: () = {
     assert!(ChallengeStatus::InProgress as u8 == 0);
@@ -187,6 +207,13 @@ const _: () = {
 
     assert!(RecordingType::Spectator as u8 == 0);
     assert!(RecordingType::Participant as u8 == 1);
+
+    assert!(PrimaryMeleeGear::Unknown as u8 == 0);
+    assert!(PrimaryMeleeGear::EliteVoid as u8 == 1);
+    assert!(PrimaryMeleeGear::Bandos as u8 == 2);
+    assert!(PrimaryMeleeGear::Torva as u8 == 3);
+    assert!(PrimaryMeleeGear::Blorva as u8 == 4);
+    assert!(PrimaryMeleeGear::Oathplate as u8 == 5);
 };
 
 /// Client-reported completion times, in ticks.
@@ -196,13 +223,13 @@ pub struct ReportedTimes {
     pub overall: u32,
 }
 
-/// Result of a completed processing run.
+/// Result that a completed processing run feeds back into the challenge.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ProcessingOutcome {
-    /// A stage's events were processed.
+pub enum ProcessingPayload {
+    /// A processed stage's summary.
     Stage { status: StageStatus, ticks: u32 },
-    /// A challenge creation or termination boundary ran its effects.
-    Boundary,
+    /// No additional data.
+    None,
 }
 
 /// Serializable error from the stage processing pipeline.

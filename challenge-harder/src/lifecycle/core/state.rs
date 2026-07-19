@@ -8,7 +8,7 @@ use core::time::Duration;
 
 use super::types::{
     ChallengeMode, ChallengeStatus, ChallengeType, ChallengeTypeExt, ClientId, JournalSeq, MsgId,
-    ProcessingError, ProcessingOutcome, RecordingType, ReportedTimes, SessionToken, Stage,
+    ProcessingError, ProcessingPayload, RecordingType, ReportedTimes, SessionToken, Stage,
     StageStatus, Timestamp, UserId, Uuid,
 };
 
@@ -77,6 +77,12 @@ impl Default for ProcessingConfig {
 pub enum Trigger {
     /// A new challenge was created.
     Create { seq: JournalSeq },
+    /// A new client joined the challenge.
+    Recorder {
+        seq: JournalSeq,
+        user_id: UserId,
+        recording_type: RecordingType,
+    },
     /// A stage completed.
     Stage {
         seq: JournalSeq,
@@ -92,7 +98,10 @@ impl Trigger {
     #[must_use]
     pub fn seq(self) -> JournalSeq {
         match self {
-            Trigger::Create { seq } | Trigger::Stage { seq, .. } | Trigger::Finish { seq } => seq,
+            Trigger::Create { seq }
+            | Trigger::Recorder { seq, .. }
+            | Trigger::Stage { seq, .. }
+            | Trigger::Finish { seq } => seq,
         }
     }
 }
@@ -182,18 +191,18 @@ impl Processing {
         &mut self,
         challenge_type: ChallengeType,
         at: Timestamp,
-        result: Result<ProcessingOutcome, ProcessingError>,
+        result: Result<ProcessingPayload, ProcessingError>,
     ) {
         let Some(run) = &mut self.active else {
             return;
         };
         match result {
-            Ok(ProcessingOutcome::Stage { status, .. }) => {
+            Ok(ProcessingPayload::Stage { status, .. }) => {
                 if let Trigger::Stage { stage, .. } = run.trigger {
                     self.status = Some(status_if_finished_now(challenge_type, stage, status));
                 }
             }
-            Ok(ProcessingOutcome::Boundary) => {}
+            Ok(ProcessingPayload::None) => {}
             Err(error) => {
                 run.retriable &= error.retriable;
                 if !run.exhausted(&self.config) {
@@ -357,6 +366,8 @@ impl Snapshot {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChallengeState {
     pub uuid: Uuid,
+    /// Time at which the challenge's create command was queued.
+    pub created_unix_ms: u64,
     pub challenge_type: ChallengeType,
     pub mode: ChallengeMode,
     pub party: Vec<String>,
@@ -449,8 +460,8 @@ mod tests {
         }
     }
 
-    fn outcome(status: StageStatus) -> ProcessingOutcome {
-        ProcessingOutcome::Stage { status, ticks: 100 }
+    fn outcome(status: StageStatus) -> ProcessingPayload {
+        ProcessingPayload::Stage { status, ticks: 100 }
     }
 
     fn error(retriable: bool) -> ProcessingError {

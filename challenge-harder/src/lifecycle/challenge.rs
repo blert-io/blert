@@ -19,7 +19,7 @@ use super::core::state::{
     Snapshot,
 };
 use super::core::types::{ClientId, JournalSeq, MsgId, Timestamp, Uuid};
-use crate::processing::{ProcessingRequest, StageProcessor};
+use crate::processing::{ChallengeInfo, ProcessingRequest, StageProcessor};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum StoreError {
@@ -562,14 +562,23 @@ impl ActiveChallenge {
         let request = ProcessingRequest {
             uuid: self.state.uuid,
             trigger: run.trigger,
+            challenge: ChallengeInfo {
+                challenge_type: self.state.challenge_type,
+                mode: self.state.mode,
+                party: self.state.party.clone(),
+                stage: self.state.stage,
+                status: self.state.status(),
+                created_unix_ms: self.state.created_unix_ms,
+            },
         };
+        let trigger = request.trigger.seq();
         Some(ProcessingTask {
-            trigger: request.trigger.seq(),
+            trigger,
             handle: tokio::spawn(async move {
                 let result = processor.process(request).await;
                 let _ = chanel
                     .send(Processed {
-                        trigger: request.trigger.seq(),
+                        trigger,
                         attempt,
                         result,
                     })
@@ -924,6 +933,7 @@ mod tests {
 
         let expected = ChallengeState {
             uuid: outcome.uuid,
+            created_unix_ms: 0,
             challenge_type: ChallengeType::Tob,
             mode: ChallengeMode::TobRegular,
             party: vec!["a".into()],
@@ -1056,6 +1066,7 @@ mod tests {
         );
         let expected = ChallengeState {
             uuid,
+            created_unix_ms: 0,
             challenge_type: ChallengeType::Tob,
             mode: ChallengeMode::TobRegular,
             party: vec!["a".into()],

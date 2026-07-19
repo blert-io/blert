@@ -10,7 +10,7 @@ use crate::lifecycle::coordinator::Coordinator;
 use crate::lifecycle::core::command::{Create, Finish, Update};
 use crate::lifecycle::core::deadline::{DeadlineKind, LifecycleConfig};
 use crate::lifecycle::core::state::{ProcessingConfig, Trigger};
-use crate::lifecycle::core::types::{ChallengeStatus, ProcessingError, ProcessingOutcome, Uuid};
+use crate::lifecycle::core::types::{ChallengeStatus, ProcessingError, ProcessingPayload, Uuid};
 use crate::lifecycle::sim::{
     Collector, ProcessingAttempt, RunOptions, Scenario, ScriptedProcessor, run_with,
 };
@@ -45,12 +45,13 @@ fn solo_hmt_start() -> Action {
     }
 }
 
-fn outcome(status: StageStatus, ticks: u32) -> ProcessingOutcome {
-    ProcessingOutcome::Stage { status, ticks }
+fn outcome(status: StageStatus, ticks: u32) -> ProcessingPayload {
+    ProcessingPayload::Stage { status, ticks }
 }
 
-fn boundary() -> ProcessingAttempt {
-    ProcessingAttempt::Resolve(0, Ok(ProcessingOutcome::Boundary))
+/// An instantly resolving attempt with nothing for the fold.
+fn no_payload() -> ProcessingAttempt {
+    ProcessingAttempt::Resolve(0, Ok(ProcessingPayload::None))
 }
 
 fn retriable_failure() -> ProcessingError {
@@ -66,10 +67,10 @@ fn started(trigger: u64) -> LifecycleEvent {
     }
 }
 
-fn finished(trigger: u64, outcome: ProcessingOutcome) -> LifecycleEvent {
+fn finished(trigger: u64, payload: ProcessingPayload) -> LifecycleEvent {
     LifecycleEvent::ProcessingFinished {
         trigger: JournalSeq(trigger),
-        outcome,
+        payload,
     }
 }
 
@@ -94,40 +95,43 @@ fn solo_maiden_wipe(finish_at: u64) -> Scenario {
 #[tokio::test(start_paused = true)]
 async fn sealed_stage_processes_and_journals_its_run() {
     let processor = ScriptedProcessor::new(vec![
-        boundary(),
+        no_payload(),
+        no_payload(),
         ProcessingAttempt::Resolve(500, Ok(outcome(StageStatus::Completed, 237))),
     ]);
     let result = run_with(options(&processor), solo_maiden_wipe(2_000)).await;
 
     let (_, journal) = result.only_challenge();
     assert_eq!(
-        journal[2..4],
+        journal[2..6],
         vec![
             entry(
                 2,
                 0,
-                Cause::Deadline(DeadlineKind::ProcessingRetry),
+                Cause::Deadline(DeadlineKind::ProcessingDue),
                 started(0)
             ),
+            entry(3, 0, processing(0), finished(0, ProcessingPayload::None)),
             entry(
-                3,
+                4,
                 0,
-                processing(0),
-                finished(0, ProcessingOutcome::Boundary)
+                Cause::Deadline(DeadlineKind::ProcessingDue),
+                started(1)
             ),
+            entry(5, 0, processing(1), finished(1, ProcessingPayload::None)),
         ],
     );
     assert_eq!(
-        journal[6..],
+        journal[8..],
         vec![
             entry(
-                6,
+                8,
                 1_000,
                 cmd(3),
                 reported(1, Stage::TobMaiden, StageStatus::Wiped)
             ),
             entry(
-                7,
+                9,
                 1_000,
                 cmd(3),
                 LifecycleEvent::StageSealed {
@@ -137,19 +141,19 @@ async fn sealed_stage_processes_and_journals_its_run() {
                 },
             ),
             entry(
-                8,
-                1_000,
-                Cause::Deadline(DeadlineKind::ProcessingRetry),
-                started(7)
-            ),
-            entry(
-                9,
-                1_500,
-                processing(7),
-                finished(7, outcome(StageStatus::Completed, 237)),
-            ),
-            entry(
                 10,
+                1_000,
+                Cause::Deadline(DeadlineKind::ProcessingDue),
+                started(9)
+            ),
+            entry(
+                11,
+                1_500,
+                processing(9),
+                finished(9, outcome(StageStatus::Completed, 237)),
+            ),
+            entry(
+                12,
                 2_000,
                 cmd(4),
                 LifecycleEvent::ClientFinished {
@@ -160,22 +164,22 @@ async fn sealed_stage_processes_and_journals_its_run() {
                 },
             ),
             entry(
-                11,
+                13,
                 2_000,
                 cmd(4),
                 LifecycleEvent::ChallengeTerminated { empty: false },
             ),
             entry(
-                12,
+                14,
                 2_000,
-                Cause::Deadline(DeadlineKind::ProcessingRetry),
-                started(11)
+                Cause::Deadline(DeadlineKind::ProcessingDue),
+                started(13)
             ),
             entry(
-                13,
+                15,
                 2_000,
-                processing(11),
-                finished(11, ProcessingOutcome::Boundary),
+                processing(13),
+                finished(13, ProcessingPayload::None),
             ),
         ],
     );
@@ -187,13 +191,18 @@ async fn sealed_stage_processes_and_journals_its_run() {
         triggers,
         vec![
             Trigger::Create { seq: JournalSeq(0) },
+            Trigger::Recorder {
+                seq: JournalSeq(1),
+                user_id: UserId(1),
+                recording_type: RecordingType::Participant,
+            },
             Trigger::Stage {
-                seq: JournalSeq(7),
+                seq: JournalSeq(9),
                 stage: Stage::TobMaiden,
                 attempt: None,
             },
             Trigger::Finish {
-                seq: JournalSeq(11)
+                seq: JournalSeq(13)
             },
         ],
     );
@@ -202,7 +211,8 @@ async fn sealed_stage_processes_and_journals_its_run() {
 #[tokio::test(start_paused = true)]
 async fn timed_out_run_retries_after_backoff() {
     let processor = ScriptedProcessor::new(vec![
-        boundary(),
+        no_payload(),
+        no_payload(),
         ProcessingAttempt::Hang,
         ProcessingAttempt::Resolve(0, Ok(outcome(StageStatus::Wiped, 180))),
     ]);
@@ -210,42 +220,43 @@ async fn timed_out_run_retries_after_backoff() {
 
     let (_, journal) = result.only_challenge();
     assert_eq!(
-        journal[8..11],
+        journal[10..13],
         vec![
             entry(
-                8,
+                10,
                 1_000,
-                Cause::Deadline(DeadlineKind::ProcessingRetry),
-                started(7)
+                Cause::Deadline(DeadlineKind::ProcessingDue),
+                started(9)
             ),
             entry(
-                9,
+                11,
                 11_000,
                 Cause::Deadline(DeadlineKind::ProcessingTimeout),
                 LifecycleEvent::ProcessingTimedOut {
-                    trigger: JournalSeq(7),
+                    trigger: JournalSeq(9),
                 },
             ),
             entry(
-                10,
+                12,
                 14_000,
-                Cause::Deadline(DeadlineKind::ProcessingRetry),
-                started(7)
+                Cause::Deadline(DeadlineKind::ProcessingDue),
+                started(9)
             ),
         ],
     );
     assert_eq!(
-        journal[11].event,
-        finished(7, outcome(StageStatus::Wiped, 180))
+        journal[13].event,
+        finished(9, outcome(StageStatus::Wiped, 180))
     );
     assert_eq!(result.only_status(), ChallengeStatus::Wiped);
-    assert_eq!(processor.requests().len(), 4);
+    assert_eq!(processor.requests().len(), 5);
 }
 
 #[tokio::test(start_paused = true)]
 async fn run_gives_up_after_max_retries_and_the_challenge_concludes() {
     let processor = ScriptedProcessor::new(vec![
-        boundary(),
+        no_payload(),
+        no_payload(),
         ProcessingAttempt::Resolve(0, Err(retriable_failure())),
         ProcessingAttempt::Resolve(0, Err(retriable_failure())),
     ]);
@@ -253,35 +264,35 @@ async fn run_gives_up_after_max_retries_and_the_challenge_concludes() {
 
     let (uuid, journal) = result.only_challenge();
     assert_eq!(
-        journal[8..12],
+        journal[10..14],
         vec![
             entry(
-                8,
+                10,
                 1_000,
-                Cause::Deadline(DeadlineKind::ProcessingRetry),
-                started(7)
+                Cause::Deadline(DeadlineKind::ProcessingDue),
+                started(9)
             ),
             entry(
-                9,
+                11,
                 1_000,
-                processing(7),
+                processing(9),
                 LifecycleEvent::ProcessingFailed {
-                    trigger: JournalSeq(7),
+                    trigger: JournalSeq(9),
                     error: retriable_failure(),
                 },
             ),
             entry(
-                10,
+                12,
                 4_000,
-                Cause::Deadline(DeadlineKind::ProcessingRetry),
-                started(7)
+                Cause::Deadline(DeadlineKind::ProcessingDue),
+                started(9)
             ),
             entry(
-                11,
+                13,
                 4_000,
-                processing(7),
+                processing(9),
                 LifecycleEvent::ProcessingFailed {
-                    trigger: JournalSeq(7),
+                    trigger: JournalSeq(9),
                     error: retriable_failure(),
                 },
             ),
@@ -292,13 +303,14 @@ async fn run_gives_up_after_max_retries_and_the_challenge_concludes() {
     // own reported progress, and the challenge still concludes.
     assert_eq!(result.only_status(), ChallengeStatus::Wiped);
     assert!(result.deleted.contains(&uuid));
-    assert_eq!(processor.requests().len(), 4);
+    assert_eq!(processor.requests().len(), 5);
 }
 
 #[tokio::test(start_paused = true)]
 async fn non_retriable_failure_gives_up_immediately() {
     let processor = ScriptedProcessor::new(vec![
-        boundary(),
+        no_payload(),
+        no_payload(),
         ProcessingAttempt::Resolve(
             0,
             Err(ProcessingError {
@@ -311,44 +323,45 @@ async fn non_retriable_failure_gives_up_immediately() {
 
     let (uuid, _) = result.only_challenge();
     assert!(result.deleted.contains(&uuid));
-    assert_eq!(processor.requests().len(), 3);
+    assert_eq!(processor.requests().len(), 4);
 }
 
 #[tokio::test(start_paused = true)]
 async fn finalization_waits_for_processing_to_finish_after_termination() {
     let processor = ScriptedProcessor::new(vec![
-        boundary(),
+        no_payload(),
+        no_payload(),
         ProcessingAttempt::Resolve(5_000, Ok(outcome(StageStatus::Completed, 237))),
     ]);
     let result = run_with(options(&processor), solo_maiden_wipe(2_000)).await;
 
     let (uuid, journal) = result.only_challenge();
     assert_eq!(
-        journal[10..],
+        journal[12..],
         vec![
             entry(
-                10,
+                12,
                 2_000,
                 cmd(4),
                 LifecycleEvent::ChallengeTerminated { empty: false },
             ),
             entry(
-                11,
-                6_000,
-                processing(7),
-                finished(7, outcome(StageStatus::Completed, 237)),
-            ),
-            entry(
-                12,
-                6_000,
-                Cause::Deadline(DeadlineKind::ProcessingRetry),
-                started(10)
-            ),
-            entry(
                 13,
                 6_000,
-                processing(10),
-                finished(10, ProcessingOutcome::Boundary),
+                processing(9),
+                finished(9, outcome(StageStatus::Completed, 237)),
+            ),
+            entry(
+                14,
+                6_000,
+                Cause::Deadline(DeadlineKind::ProcessingDue),
+                started(12)
+            ),
+            entry(
+                15,
+                6_000,
+                processing(12),
+                finished(12, ProcessingPayload::None),
             ),
         ],
     );
@@ -361,7 +374,8 @@ async fn finalization_waits_for_processing_to_finish_after_termination() {
 #[tokio::test(start_paused = true)]
 async fn queued_trigger_processes_after_the_active_run() {
     let processor = ScriptedProcessor::new(vec![
-        boundary(),
+        no_payload(),
+        no_payload(),
         ProcessingAttempt::Resolve(2_000, Ok(outcome(StageStatus::Completed, 100))),
         ProcessingAttempt::Resolve(0, Ok(outcome(StageStatus::Wiped, 50))),
     ]);
@@ -390,35 +404,38 @@ async fn queued_trigger_processes_after_the_active_run() {
             matches!(entry.caused_by, Cause::Processing(_))
                 || matches!(
                     entry.caused_by,
-                    Cause::Deadline(
-                        DeadlineKind::ProcessingRetry | DeadlineKind::ProcessingTimeout
-                    )
+                    Cause::Deadline(DeadlineKind::ProcessingDue | DeadlineKind::ProcessingTimeout)
                 )
         })
         .collect();
-    assert_eq!(processing_events.len(), 8);
+    assert_eq!(processing_events.len(), 10);
     assert_eq!(processing_events[0].event, started(0));
     assert_eq!(processing_events[0].at, Timestamp::ZERO);
     assert_eq!(
         processing_events[1].event,
-        finished(0, ProcessingOutcome::Boundary)
+        finished(0, ProcessingPayload::None)
     );
-    assert_eq!(processing_events[2].event, started(7));
-    assert_eq!(processing_events[2].at, Timestamp::from_millis(1_000));
+    assert_eq!(processing_events[2].event, started(1));
     assert_eq!(
         processing_events[3].event,
-        finished(7, outcome(StageStatus::Completed, 100)),
+        finished(1, ProcessingPayload::None)
     );
-    assert_eq!(processing_events[3].at, Timestamp::from_millis(3_000));
-    assert_eq!(processing_events[4].at, Timestamp::from_millis(3_000));
+    assert_eq!(processing_events[4].event, started(9));
+    assert_eq!(processing_events[4].at, Timestamp::from_millis(1_000));
     assert_eq!(
         processing_events[5].event,
-        finished(12, outcome(StageStatus::Wiped, 50)),
+        finished(9, outcome(StageStatus::Completed, 100)),
     );
-    assert_eq!(processing_events[6].event, started(17));
+    assert_eq!(processing_events[5].at, Timestamp::from_millis(3_000));
+    assert_eq!(processing_events[6].at, Timestamp::from_millis(3_000));
     assert_eq!(
         processing_events[7].event,
-        finished(17, ProcessingOutcome::Boundary)
+        finished(14, outcome(StageStatus::Wiped, 50)),
+    );
+    assert_eq!(processing_events[8].event, started(19));
+    assert_eq!(
+        processing_events[9].event,
+        finished(19, ProcessingPayload::None)
     );
 
     let triggers: Vec<Trigger> = processor.requests().iter().map(|r| r.trigger).collect();
@@ -426,18 +443,23 @@ async fn queued_trigger_processes_after_the_active_run() {
         triggers,
         vec![
             Trigger::Create { seq: JournalSeq(0) },
+            Trigger::Recorder {
+                seq: JournalSeq(1),
+                user_id: UserId(1),
+                recording_type: RecordingType::Participant,
+            },
             Trigger::Stage {
-                seq: JournalSeq(7),
+                seq: JournalSeq(9),
                 stage: Stage::TobMaiden,
                 attempt: None,
             },
             Trigger::Stage {
-                seq: JournalSeq(12),
+                seq: JournalSeq(14),
                 stage: Stage::TobBloat,
                 attempt: None,
             },
             Trigger::Finish {
-                seq: JournalSeq(17)
+                seq: JournalSeq(19)
             },
         ],
     );
@@ -448,7 +470,8 @@ async fn queued_trigger_processes_after_the_active_run() {
 #[tokio::test(start_paused = true)]
 async fn late_commands_post_termination_while_processing() {
     let processor = ScriptedProcessor::new(vec![
-        boundary(),
+        no_payload(),
+        no_payload(),
         ProcessingAttempt::Resolve(5_000, Ok(outcome(StageStatus::Completed, 237))),
     ]);
     let result = run_with(
@@ -472,31 +495,31 @@ async fn late_commands_post_termination_while_processing() {
     // published cursor so its sender's applied wait resolves.
     let (uuid, journal) = result.only_challenge();
     assert_eq!(
-        journal[10..],
+        journal[12..],
         vec![
             entry(
-                10,
+                12,
                 2_000,
                 cmd(4),
                 LifecycleEvent::ChallengeTerminated { empty: false },
             ),
             entry(
-                11,
-                6_000,
-                processing(7),
-                finished(7, outcome(StageStatus::Completed, 237)),
-            ),
-            entry(
-                12,
-                6_000,
-                Cause::Deadline(DeadlineKind::ProcessingRetry),
-                started(10)
-            ),
-            entry(
                 13,
                 6_000,
-                processing(10),
-                finished(10, ProcessingOutcome::Boundary),
+                processing(9),
+                finished(9, outcome(StageStatus::Completed, 237)),
+            ),
+            entry(
+                14,
+                6_000,
+                Cause::Deadline(DeadlineKind::ProcessingDue),
+                started(12)
+            ),
+            entry(
+                15,
+                6_000,
+                processing(12),
+                finished(12, ProcessingPayload::None),
             ),
         ],
     );
@@ -508,7 +531,8 @@ async fn late_commands_post_termination_while_processing() {
 #[tokio::test(start_paused = true)]
 async fn failed_finish_run_concludes_afterwards() {
     let processor = ScriptedProcessor::new(vec![
-        boundary(),
+        no_payload(),
+        no_payload(),
         ProcessingAttempt::Resolve(0, Ok(outcome(StageStatus::Wiped, 60))),
         ProcessingAttempt::Resolve(0, Err(retriable_failure())),
         ProcessingAttempt::Resolve(0, Err(retriable_failure())),
@@ -517,35 +541,35 @@ async fn failed_finish_run_concludes_afterwards() {
 
     let (uuid, journal) = result.only_challenge();
     assert_eq!(
-        journal[12..],
+        journal[14..],
         vec![
             entry(
-                12,
+                14,
                 2_000,
-                Cause::Deadline(DeadlineKind::ProcessingRetry),
-                started(11)
+                Cause::Deadline(DeadlineKind::ProcessingDue),
+                started(13)
             ),
             entry(
-                13,
+                15,
                 2_000,
-                processing(11),
+                processing(13),
                 LifecycleEvent::ProcessingFailed {
-                    trigger: JournalSeq(11),
+                    trigger: JournalSeq(13),
                     error: retriable_failure(),
                 },
             ),
             entry(
-                14,
+                16,
                 5_000,
-                Cause::Deadline(DeadlineKind::ProcessingRetry),
-                started(11)
+                Cause::Deadline(DeadlineKind::ProcessingDue),
+                started(13)
             ),
             entry(
-                15,
+                17,
                 5_000,
-                processing(11),
+                processing(13),
                 LifecycleEvent::ProcessingFailed {
-                    trigger: JournalSeq(11),
+                    trigger: JournalSeq(13),
                     error: retriable_failure(),
                 },
             ),
@@ -637,7 +661,7 @@ fn killed_run_respawns_on_resume() {
     // The first server's stage run hangs, and the server dies mid-attempt.
     let store = collector.clone();
     let r1 = rx.clone();
-    let first = ScriptedProcessor::new(vec![boundary(), ProcessingAttempt::Hang]);
+    let first = ScriptedProcessor::new(vec![no_payload(), no_payload(), ProcessingAttempt::Hang]);
     let processor = Arc::clone(&first) as Arc<dyn StageProcessor>;
     let uuid = runtime().block_on(async move {
         let coordinator = Coordinator::with_store(Arc::new(store), r1)
@@ -649,8 +673,8 @@ fn killed_run_respawns_on_resume() {
     });
 
     let journal = collector.journal(uuid);
-    assert_eq!(journal.last().unwrap().event, started(5));
-    assert_eq!(first.requests().len(), 2);
+    assert_eq!(journal.last().unwrap().event, started(7));
+    assert_eq!(first.requests().len(), 3);
 
     // A new server resumes and the journal's unfinished run respawns without
     // repeating its `Started` entry.
@@ -668,11 +692,11 @@ fn killed_run_respawns_on_resume() {
     });
 
     let journal = collector.journal(uuid);
-    let starts = journal.iter().filter(|e| e.event == started(5)).count();
+    let starts = journal.iter().filter(|e| e.event == started(7)).count();
     assert_eq!(starts, 1);
     assert_eq!(
         journal.last().unwrap().event,
-        finished(5, outcome(StageStatus::Wiped, 60)),
+        finished(7, outcome(StageStatus::Wiped, 60)),
     );
     assert_eq!(second.requests().len(), 1);
 }
@@ -686,7 +710,7 @@ fn final_processing_concludes_exactly_once_on_resume() {
     // dies before the run settles.
     let store = collector.clone();
     let r1 = rx.clone();
-    let first = ScriptedProcessor::new(vec![boundary(), ProcessingAttempt::Hang]);
+    let first = ScriptedProcessor::new(vec![no_payload(), no_payload(), ProcessingAttempt::Hang]);
     let processor = Arc::clone(&first) as Arc<dyn StageProcessor>;
     let uuid = runtime().block_on(async move {
         let coordinator = Coordinator::with_store(Arc::new(store), r1)
@@ -732,7 +756,7 @@ fn final_processing_concludes_exactly_once_on_resume() {
     assert!(collector.is_deleted(uuid));
     assert_eq!(
         collector.journal(uuid).last().unwrap().event,
-        finished(8, ProcessingOutcome::Boundary),
+        finished(10, ProcessingPayload::None),
     );
     assert_eq!(second.requests().len(), 2);
 }

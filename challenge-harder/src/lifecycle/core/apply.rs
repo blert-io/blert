@@ -26,6 +26,9 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
             stage,
         } => {
             state.uuid = uuid;
+            if let Cause::Command(id) = entry.caused_by {
+                state.created_unix_ms = id.unix_millis();
+            }
             state.challenge_type = challenge_type;
             state.mode = mode;
             state.party = party;
@@ -43,7 +46,17 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
             session_token,
             recording_type,
         } => {
-            state.recorded_by.insert(client_id);
+            // Process each client the first time it joins.
+            if state.recorded_by.insert(client_id) {
+                state.processing.push(
+                    Trigger::Recorder {
+                        seq: entry.seq,
+                        user_id,
+                        recording_type,
+                    },
+                    entry.at,
+                );
+            }
             state.clients.insert(
                 client_id,
                 ClientState {
@@ -140,12 +153,12 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
         }
         LifecycleEvent::ProcessingFinished {
             trigger: _,
-            outcome,
+            payload,
         } => {
             let challenge_type = state.challenge_type;
             state
                 .processing
-                .finish(challenge_type, entry.at, Ok(outcome));
+                .finish(challenge_type, entry.at, Ok(payload));
         }
         LifecycleEvent::ProcessingFailed { trigger: _, error } => {
             let challenge_type = state.challenge_type;
@@ -234,7 +247,7 @@ mod tests {
     use crate::lifecycle::core::state::{Processing, ProcessingConfig, ProcessingState, Trigger};
     use crate::lifecycle::core::types::{
         ChallengeMode, ChallengeStatus, ChallengeType, ClientId, JournalSeq, MsgId,
-        ProcessingOutcome, RecordingType, ReportedTimes, Stage, Timestamp, UserId, Uuid,
+        ProcessingPayload, RecordingType, ReportedTimes, Stage, Timestamp, UserId, Uuid,
     };
 
     const CLIENT: ClientId = ClientId(10);
@@ -979,7 +992,7 @@ mod tests {
                 400,
                 LifecycleEvent::ProcessingFinished {
                     trigger: JournalSeq(0),
-                    outcome: ProcessingOutcome::Boundary,
+                    payload: ProcessingPayload::None,
                 },
             ),
         );
@@ -1081,7 +1094,7 @@ mod tests {
                 6_000,
                 LifecycleEvent::ProcessingFinished {
                     trigger: JournalSeq(5),
-                    outcome: ProcessingOutcome::Stage {
+                    payload: ProcessingPayload::Stage {
                         status: StageStatus::Completed,
                         ticks: 237,
                     },

@@ -21,7 +21,7 @@ pub enum DeadlineKind {
     /// Inactivity window while every client is idle.
     CleanupAllIdle,
     /// Delay before the next attempt of a failed processing run.
-    ProcessingRetry,
+    ProcessingDue,
     /// Cap on the duration of a processing run attempt.
     ProcessingTimeout,
 }
@@ -158,7 +158,7 @@ fn processing_deadline(state: &ChallengeState) -> Option<Deadline> {
                 config.retry_backoff
             };
             Some(Deadline {
-                kind: DeadlineKind::ProcessingRetry,
+                kind: DeadlineKind::ProcessingDue,
                 at: since + backoff,
             })
         }
@@ -436,7 +436,7 @@ mod tests {
         assert_eq!(
             next_deadline(&state, &test_config()),
             Some(Deadline {
-                kind: DeadlineKind::ProcessingRetry,
+                kind: DeadlineKind::ProcessingDue,
                 at: Timestamp::from_millis(5_000),
             }),
         );
@@ -451,7 +451,7 @@ mod tests {
         assert_eq!(
             next_deadline(&state, &test_config()),
             Some(Deadline {
-                kind: DeadlineKind::ProcessingRetry,
+                kind: DeadlineKind::ProcessingDue,
                 at: Timestamp::from_millis(8_000),
             }),
         );
@@ -511,7 +511,7 @@ mod tests {
         assert_eq!(
             next_deadline(&state, &test_config()),
             Some(Deadline {
-                kind: DeadlineKind::ProcessingRetry,
+                kind: DeadlineKind::ProcessingDue,
                 at: Timestamp::from_millis(5_500),
             }),
         );
