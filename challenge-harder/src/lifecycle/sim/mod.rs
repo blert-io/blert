@@ -447,7 +447,7 @@ impl ChallengeStore for Collector {
     async fn start(&self, create: Create) -> Result<Start, StoreError> {
         let client_id = create.client_id;
         let party = party_identity(create.challenge_type, &create.party);
-        let (joined, uuid) = {
+        let (joined, uuid, left) = {
             let mut routing = self.routing.lock().expect("collector lock poisoned");
             let incumbent = routing.directory.get(&party).copied().filter(|incumbent| {
                 self.projections
@@ -460,16 +460,32 @@ impl ChallengeStore for Collector {
                     })
             });
             if let Some(incumbent) = incumbent {
-                routing.clients.insert(client_id, incumbent);
-                (true, incumbent)
+                let previous = routing.clients.insert(client_id, incumbent);
+                let left = previous.filter(|p| *p != incumbent && routing.existing.contains(p));
+                (true, incumbent, left)
             } else {
                 let uuid = Uuid::new_v4();
                 routing.directory.insert(party, uuid);
                 routing.existing.insert(uuid);
-                routing.clients.insert(client_id, uuid);
-                (false, uuid)
+                let previous = routing.clients.insert(client_id, uuid);
+                let left = previous.filter(|p| routing.existing.contains(p));
+                (false, uuid, left)
             }
         };
+
+        // The client leaves any challenge it was still recorded in.
+        if let Some(previous) = left {
+            self.enqueue(
+                previous,
+                Command::ClientStatus(ClientStatusChange {
+                    user_id: create.user_id,
+                    client_id,
+                    session_token: create.session_token.clone(),
+                    status: ClientStatus::Disconnected,
+                }),
+            )
+            .await;
+        }
 
         if joined {
             let id = self.enqueue(uuid, Command::Join(Join::from(&create))).await;

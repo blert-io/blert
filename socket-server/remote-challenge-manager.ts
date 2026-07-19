@@ -124,6 +124,9 @@ export class RemoteChallengeManager extends ChallengeManager {
     }
 
     const status = (await res.json()) as ChallengeStatusResponse;
+
+    // Move the client from any previous challenge into the new one.
+    this.removeClientFromChallenge(client);
     this.addClientToChallenge(client, status.uuid);
 
     this.markForCapture(status.uuid);
@@ -586,9 +589,14 @@ export class RemoteChallengeManager extends ChallengeManager {
       case ChallengeUpdateAction.FINISH: {
         const clients = this.clientsByChallenge.get(update.id);
         if (clients) {
+          // Only remove clients that are still tracking this challenge.
+          const activeClients = clients.filter(
+            (c) => c.getActiveChallengeId() === update.id,
+          );
+
           logger.info('remote_challenge_finished_notification', {
             challengeUuid: update.id,
-            clientCount: clients.length,
+            clientCount: activeClients.length,
           });
 
           const endMessage = new ServerMessage();
@@ -598,7 +606,7 @@ export class RemoteChallengeManager extends ChallengeManager {
           error.setType(ServerMessage.Error.Type.CHALLENGE_RECORDING_ENDED);
           endMessage.setError(error);
 
-          for (const client of clients) {
+          for (const client of activeClients) {
             client.sendMessage(endMessage);
             client.clearActiveChallenge();
           }
