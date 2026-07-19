@@ -5,7 +5,7 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use super::deadline::Deadline;
 use super::types::{
-    ChallengeMode, ChallengeType, ClientId, JournalSeq, MsgId, ProcessingError, ProcessingOutcome,
+    ChallengeMode, ChallengeType, ClientId, JournalSeq, MsgId, ProcessingError, ProcessingPayload,
     RecordingType, ReportedTimes, SessionToken, Stage, StageStatus, UserId,
 };
 
@@ -110,7 +110,7 @@ pub struct Processed {
     pub trigger: JournalSeq,
     /// The run attempt which produced the result.
     pub attempt: u32,
-    pub result: Result<ProcessingOutcome, ProcessingError>,
+    pub result: Result<ProcessingPayload, ProcessingError>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

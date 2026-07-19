@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use super::command::StageProgress;
 use super::deadline::DeadlineKind;
 use super::types::{
-    ChallengeMode, ChallengeType, ClientId, JournalSeq, MsgId, ProcessingError, ProcessingOutcome,
+    ChallengeMode, ChallengeType, ClientId, JournalSeq, MsgId, ProcessingError, ProcessingPayload,
     RecordingType, ReportedTimes, SessionToken, Stage, Timestamp, UserId, Uuid,
 };
 
@@ -85,7 +85,7 @@ pub enum LifecycleEvent {
     },
     ProcessingFinished {
         trigger: JournalSeq,
-        outcome: ProcessingOutcome,
+        payload: ProcessingPayload,
     },
     ProcessingFailed {
         trigger: JournalSeq,
@@ -165,7 +165,7 @@ mod tests {
             caused_by: Cause::Processing(JournalSeq(5)),
             event: LifecycleEvent::ProcessingFinished {
                 trigger: JournalSeq(5),
-                outcome: ProcessingOutcome::Stage {
+                payload: ProcessingPayload::Stage {
                     status: StageStatus::Completed,
                     ticks: 237,
                 },
@@ -174,30 +174,30 @@ mod tests {
         let json = serde_json::to_string(&processed).unwrap();
         assert_eq!(
             json,
-            r#"{"seq":6,"at":4000,"caused_by":5,"event":{"ProcessingFinished":{"trigger":5,"outcome":{"Stage":{"status":2,"ticks":237}}}}}"#
+            r#"{"seq":6,"at":4000,"caused_by":5,"event":{"ProcessingFinished":{"trigger":5,"payload":{"Stage":{"status":2,"ticks":237}}}}}"#
         );
         assert_eq!(
             serde_json::from_str::<JournalEntry>(&json).unwrap(),
             processed
         );
 
-        let boundary = JournalEntry {
+        let payloadless = JournalEntry {
             seq: JournalSeq(8),
             at: Timestamp::from_millis(4_200),
             caused_by: Cause::Processing(JournalSeq(0)),
             event: LifecycleEvent::ProcessingFinished {
                 trigger: JournalSeq(0),
-                outcome: ProcessingOutcome::Boundary,
+                payload: ProcessingPayload::None,
             },
         };
-        let json = serde_json::to_string(&boundary).unwrap();
+        let json = serde_json::to_string(&payloadless).unwrap();
         assert_eq!(
             json,
-            r#"{"seq":8,"at":4200,"caused_by":0,"event":{"ProcessingFinished":{"trigger":0,"outcome":"Boundary"}}}"#
+            r#"{"seq":8,"at":4200,"caused_by":0,"event":{"ProcessingFinished":{"trigger":0,"payload":"None"}}}"#
         );
         assert_eq!(
             serde_json::from_str::<JournalEntry>(&json).unwrap(),
-            boundary
+            payloadless
         );
 
         let failed = JournalEntry {

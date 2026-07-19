@@ -28,6 +28,9 @@ const CLAIM_SCAN_INTERVAL: Duration = Duration::from_secs(5);
 /// Run attempts allowed per processing trigger.
 const PROCESSING_MAX_ATTEMPTS: u32 = 3;
 
+/// Connections held to the challenge database.
+const DEFAULT_DB_POOL_SIZE: usize = 8;
+
 #[derive(Parser)]
 struct Cli {
     #[command(subcommand)]
@@ -83,11 +86,22 @@ async fn serve(config: LifecycleConfig) {
 
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
 
-    let coordinator = Arc::new(
-        Coordinator::with_store(Arc::new(store), shutdown_rx)
-            .with_config(config)
-            .with_processor(Arc::new(processing::Pipeline)),
-    );
+    let processing_enabled = config.processing.max_attempts > 0;
+    let mut coordinator = Coordinator::with_store(Arc::new(store), shutdown_rx).with_config(config);
+    if processing_enabled {
+        let database_uri =
+            std::env::var("BLERT_DATABASE_URI").expect("BLERT_DATABASE_URI must be set");
+        let pool_size = std::env::var("BLERT_DB_POOL_SIZE")
+            .ok()
+            .and_then(|p| p.parse().ok())
+            .unwrap_or(DEFAULT_DB_POOL_SIZE);
+        let db = processing::db::Postgres::connect(&database_uri, pool_size)
+            .await
+            .expect("failed to connect to Postgres");
+        tracing::info!("postgres_connected");
+        coordinator = coordinator.with_processor(Arc::new(processing::Pipeline::new(db)));
+    }
+    let coordinator = Arc::new(coordinator);
     coordinator.start_scan(CLAIM_SCAN_INTERVAL);
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port))

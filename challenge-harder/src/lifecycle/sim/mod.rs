@@ -37,7 +37,7 @@ use super::core::state::{
 };
 use super::core::types::{
     ChallengeMode, ChallengeStatus, ChallengeType, ClientId, MsgId, ProcessingError,
-    ProcessingOutcome, RecordingType, ReportedTimes, SessionToken, Stage, StageExt, StageStatus,
+    ProcessingPayload, RecordingType, ReportedTimes, SessionToken, Stage, StageExt, StageStatus,
     UserId, Uuid,
 };
 use crate::processing::{ProcessingRequest, StageProcessor};
@@ -696,7 +696,7 @@ impl ChallengeClaim for CollectorClaim {
 /// A scripted resolution of a processing run.
 pub(crate) enum ProcessingAttempt {
     /// Resolve with `result` after a delay in virtual milliseconds.
-    Resolve(u64, Result<ProcessingOutcome, ProcessingError>),
+    Resolve(u64, Result<ProcessingPayload, ProcessingError>),
     /// Hang until aborted.
     Hang,
 }
@@ -732,7 +732,8 @@ impl StageProcessor for ScriptedProcessor {
     async fn process(
         &self,
         request: ProcessingRequest,
-    ) -> Result<ProcessingOutcome, ProcessingError> {
+    ) -> Result<ProcessingPayload, ProcessingError> {
+        let trigger = request.trigger;
         self.requests
             .lock()
             .expect("processor lock poisoned")
@@ -748,12 +749,14 @@ impl StageProcessor for ScriptedProcessor {
                 result
             }
             Some(ProcessingAttempt::Hang) => std::future::pending().await,
-            None => Ok(match request.trigger {
-                Trigger::Stage { .. } => ProcessingOutcome::Stage {
+            None => Ok(match trigger {
+                Trigger::Stage { .. } => ProcessingPayload::Stage {
                     status: StageStatus::Completed,
                     ticks: 0,
                 },
-                Trigger::Create { .. } | Trigger::Finish { .. } => ProcessingOutcome::Boundary,
+                Trigger::Create { .. } | Trigger::Recorder { .. } | Trigger::Finish { .. } => {
+                    ProcessingPayload::None
+                }
             }),
         }
     }
@@ -1105,6 +1108,7 @@ fn check_invariants(result: &ScenarioResult, config: &LifecycleConfig) {
 
         let mut seals = Vec::new();
         let mut trigger_seqs = HashSet::new();
+        let mut joined = HashSet::new();
         let mut terminated = false;
 
         for entry in journal {
@@ -1125,6 +1129,12 @@ fn check_invariants(result: &ScenarioResult, config: &LifecycleConfig) {
                 LifecycleEvent::ChallengeCreated { .. }
                 | LifecycleEvent::ChallengeTerminated { .. } => {
                     trigger_seqs.insert(entry.seq);
+                }
+                // Only a client's first join triggers processing.
+                LifecycleEvent::ClientJoined { client_id, .. } => {
+                    if joined.insert(*client_id) {
+                        trigger_seqs.insert(entry.seq);
+                    }
                 }
                 LifecycleEvent::StageSealed { stage, attempt, .. } => {
                     assert!(
