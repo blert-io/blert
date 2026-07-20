@@ -202,7 +202,13 @@ impl Processing {
                     self.status = Some(status_if_finished_now(challenge_type, stage, status));
                 }
             }
-            Ok(ProcessingPayload::None) => {}
+            Ok(ProcessingPayload::None) => {
+                // Stage processing always invalidates a previous status. If the
+                // run completed with no data, the status is just cleared.
+                if matches!(run.trigger, Trigger::Stage { .. }) {
+                    self.status = None;
+                }
+            }
             Err(error) => {
                 run.retriable &= error.retriable;
                 if !run.exhausted(&self.config) {
@@ -223,6 +229,14 @@ impl Processing {
     #[must_use]
     pub fn active(&self) -> Option<&ProcessingRun> {
         self.active.as_ref()
+    }
+
+    /// Triggers whose runs are in progress or queued.
+    pub fn outstanding(&self) -> impl Iterator<Item = Trigger> + '_ {
+        self.active
+            .iter()
+            .map(|run| run.trigger)
+            .chain(self.pending.iter().copied())
     }
 
     /// Triggers whose runs were abandoned after exhausting their attempts.
@@ -378,12 +392,13 @@ pub struct ChallengeState {
     pub reported_times: Option<ReportedTimes>,
     pub stage: Stage,
     pub stage_attempt: Option<u32>,
-    /// Status of the challenge's current stage.
-    // TODO(frolv): Derived from client reports until stage processing
-    // provides merged outcomes.
+    /// Status of the challenge's current stage. Client reports provide an
+    /// interim value mid-stage until processing runs.
     pub stage_status: StageStatus,
     pub stage_state: StageState,
     pub clients: BTreeMap<ClientId, ClientState>,
+    /// Total ticks across the challenge's processed stages.
+    pub challenge_ticks: u32,
     /// Every client that has recorded any part of the challenge.
     pub recorded_by: BTreeSet<ClientId>,
     /// When the challenge lost its last active client.

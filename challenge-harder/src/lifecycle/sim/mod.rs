@@ -141,6 +141,8 @@ pub struct ScenarioResult {
     pub updates: Vec<(Uuid, ChallengeServerUpdate)>,
     /// IDs of every command sent to each challenge's inbox, in send order.
     pub inboxes: BTreeMap<Uuid, Vec<MsgId>>,
+    /// Stage attempts whose streams were marked processed, per challenge.
+    pub marked: MarkedStages,
     /// Challenges whose state was deleted from the store.
     pub deleted: BTreeSet<Uuid>,
 }
@@ -255,6 +257,9 @@ pub fn perturb(scenario: &mut Scenario, rng: &mut Rng, jitter_ms: u64) {
 
 type SignalSink = Arc<Mutex<Option<mpsc::Sender<ChallengeSignal>>>>;
 
+/// Stage attempts whose streams were marked processed, per challenge.
+type MarkedStages = BTreeMap<Uuid, BTreeSet<(Stage, Option<u32>)>>;
+
 /// Identity of a party for routing, built from its raw names.
 fn party_identity(challenge_type: ChallengeType, party: &[String]) -> String {
     let mut sorted: Vec<&str> = party.iter().map(String::as_str).collect();
@@ -289,6 +294,7 @@ pub(crate) struct Collector {
     journals: Arc<Mutex<CollectedJournals>>,
     projections: Arc<Mutex<BTreeMap<Uuid, Snapshot>>>,
     updates: Arc<Mutex<Vec<(Uuid, ChallengeServerUpdate)>>>,
+    marked: Arc<Mutex<MarkedStages>>,
     signals: SignalSink,
 }
 
@@ -331,6 +337,7 @@ impl Collector {
             journals: self.journals.clone(),
             projections: self.projections.clone(),
             updates: self.updates.clone(),
+            marked: self.marked.clone(),
             signals: self.signals.clone(),
         }
     }
@@ -364,6 +371,7 @@ struct CollectorClaim {
     journals: Arc<Mutex<CollectedJournals>>,
     projections: Arc<Mutex<BTreeMap<Uuid, Snapshot>>>,
     updates: Arc<Mutex<Vec<(Uuid, ChallengeServerUpdate)>>>,
+    marked: Arc<Mutex<MarkedStages>>,
     signals: SignalSink,
 }
 
@@ -656,6 +664,16 @@ impl ChallengeClaim for CollectorClaim {
         Ok(())
     }
 
+    async fn mark_processed(&self, stages: &[(Stage, Option<u32>)]) -> Result<(), StoreError> {
+        self.marked
+            .lock()
+            .expect("collector lock poisoned")
+            .entry(self.uuid)
+            .or_default()
+            .extend(stages.iter().copied());
+        Ok(())
+    }
+
     async fn renew(&self) -> Result<(), StoreError> {
         Ok(())
     }
@@ -856,6 +874,11 @@ pub async fn run_with(options: impl Into<RunOptions>, scenario: Scenario) -> Sce
         .iter()
         .map(|(uuid, entries)| (*uuid, entries.iter().map(|e| e.id).collect()))
         .collect();
+    let marked = collector
+        .marked
+        .lock()
+        .expect("collector lock poisoned")
+        .clone();
     let deleted = collector
         .routing
         .lock()
@@ -880,6 +903,7 @@ pub async fn run_with(options: impl Into<RunOptions>, scenario: Scenario) -> Sce
         projections,
         updates,
         inboxes,
+        marked,
         deleted,
     };
     check_invariants(&result, &config);
@@ -1035,6 +1059,17 @@ fn check_invariants(result: &ScenarioResult, config: &LifecycleConfig) {
         for entry in journal {
             apply(&mut folded, entry.clone());
         }
+
+        // Every journaled seal closes its stage's stream.
+        let sealed: BTreeSet<(Stage, Option<u32>)> = journal
+            .iter()
+            .filter_map(|entry| match entry.event {
+                LifecycleEvent::StageSealed { stage, attempt, .. } => Some((stage, attempt)),
+                _ => None,
+            })
+            .collect();
+        let marked = result.marked.get(uuid).cloned().unwrap_or_default();
+        assert_eq!(marked, sealed, "seal markers mismatch: {uuid}");
 
         // A challenge whose processing completed after termination is deleted
         // and announces its finish exactly once.

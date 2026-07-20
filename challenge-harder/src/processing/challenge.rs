@@ -35,59 +35,41 @@ pub async fn create(
         .await?;
     txn.set_challenge_id(row.get(0));
 
-    let player_ids = start_player_challenges(txn, &info.party).await?;
-    let orbs: Vec<i16> = (0..info.party.len())
-        .map(|orb| i16::try_from(orb).expect("orb fits in a smallint"))
-        .collect();
-    txn.execute(
-        "INSERT INTO challenge_players (challenge_id, player_id, username, orb, primary_gear)
-         SELECT $1, player_id, username, orb, $2
-         FROM UNNEST($3::INT[], $4::TEXT[], $5::SMALLINT[]) AS input (player_id, username, orb)",
-        &[
-            &txn.challenge_id(),
-            &(PrimaryMeleeGear::Unknown as i16),
-            &player_ids,
-            &info.party,
-            &orbs,
-        ],
-    )
-    .await?;
+    for (orb, username) in info.party.iter().enumerate() {
+        let player_id = start_player_challenge(txn, username).await?;
+        txn.execute(
+            "INSERT INTO challenge_players (challenge_id, player_id, username, orb, primary_gear)
+             VALUES ($1, $2, $3, $4, $5)",
+            &[
+                &txn.challenge_id(),
+                &player_id,
+                &username,
+                &i16::try_from(orb).expect("orb fits in a smallint"),
+                &(PrimaryMeleeGear::Unknown as i16),
+            ],
+        )
+        .await?;
+    }
 
     Ok(())
 }
 
-/// Records that each player in `party` has started a challenge, creating
-/// their rows if they do not exist. Returns the players' database IDs, in
-/// party order.
-async fn start_player_challenges(
-    txn: &db::Transaction,
-    party: &[String],
-) -> Result<Vec<i32>, db::Error> {
-    let normalized: Vec<String> = party.iter().map(|name| normalize_rsn(name)).collect();
+/// Records that a player has started a challenge, creating their row if it
+/// does not exist. Returns the player's database ID.
+async fn start_player_challenge(txn: &db::Transaction, username: &str) -> Result<i32, db::Error> {
     // The unique index on normalized_username is partial, so the conflict
     // target must spell its predicate for Postgres.
-    let rows = txn
-        .query(
+    let row = txn
+        .query_one(
             "INSERT INTO players (username, normalized_username, total_recordings)
-             SELECT username, normalized, 1
-             FROM UNNEST($1::TEXT[], $2::TEXT[]) AS input (username, normalized)
+             VALUES ($1, $2, 1)
              ON CONFLICT (normalized_username) WHERE NOT starts_with(normalized_username, '*')
              DO UPDATE SET total_recordings = players.total_recordings + 1
-             RETURNING id, normalized_username",
-            &[&party, &normalized],
+             RETURNING id",
+            &[&username, &normalize_rsn(username)],
         )
         .await?;
-
-    let ids: std::collections::HashMap<String, i32> =
-        rows.iter().map(|row| (row.get(1), row.get(0))).collect();
-    normalized
-        .iter()
-        .map(|name| {
-            ids.get(name)
-                .copied()
-                .ok_or_else(|| db::Error::InvalidData(format!("no player row returned for {name}")))
-        })
-        .collect()
+    Ok(row.get(0))
 }
 
 /// Records a user as a recorder of the challenge.
