@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useToast } from '@/components/toast';
 
@@ -12,6 +12,7 @@ export default function EmailVerificationBanner() {
   const [isResending, setIsResending] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const showToast = useToast();
+  const bannerRef = useRef<HTMLDivElement>(null);
 
   const email = session?.user.email ?? '';
 
@@ -32,17 +33,42 @@ export default function EmailVerificationBanner() {
     }
   }, [showToast, email]);
 
-  if (
+  const visible = !(
     isPending ||
     session === null ||
     session?.user.emailVerified ||
     dismissed
-  ) {
+  );
+
+  // Publish the banner's height as a CSS variable so fixed top-of-page elements
+  // can offset themselves below it.
+  useEffect(() => {
+    const root = document.documentElement;
+    const el = bannerRef.current;
+    if (!visible || el === null) {
+      root.style.setProperty('--email-banner-height', '0px');
+      return;
+    }
+
+    const publishHeight = () => {
+      root.style.setProperty('--email-banner-height', `${el.offsetHeight}px`);
+    };
+    publishHeight();
+
+    const observer = new ResizeObserver(publishHeight);
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      root.style.setProperty('--email-banner-height', '0px');
+    };
+  }, [visible]);
+
+  if (!visible) {
     return null;
   }
 
   return (
-    <div className={styles.banner}>
+    <div className={styles.banner} ref={bannerRef}>
       <div className={styles.content}>
         <i className="fas fa-envelope" aria-hidden="true" />
         <span>

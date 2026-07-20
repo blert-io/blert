@@ -13,7 +13,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useContext, useEffect, useState } from 'react';
 
 import { PersonalBest } from '@/actions/challenge';
-import { Card } from '@/components/card/card';
 import RadioInput from '@/components/radio-input';
 import { DisplayContext } from '@/display';
 import { challengeLogo } from '@/logo';
@@ -615,144 +614,150 @@ export default function PlayerPersonalBests() {
 
   return (
     <div className={styles.personalBests}>
-      <Card className={styles.selection}>
-        <RadioInput.Group
-          name="personal-bests-challenge"
-          className={styles.pbOptions}
-          simple
-          onChange={(value) => {
-            let newSelection: [ChallengeType, ChallengeMode];
-            switch (value) {
-              case 'tob':
-                newSelection = [ChallengeType.TOB, ChallengeMode.TOB_REGULAR];
-                break;
-              case 'hmt':
-                newSelection = [ChallengeType.TOB, ChallengeMode.TOB_HARD];
-                break;
-              case 'inf':
-                newSelection = [ChallengeType.INFERNO, ChallengeMode.NO_MODE];
-                break;
-              case 'colo':
-                newSelection = [ChallengeType.COLOSSEUM, ChallengeMode.NO_MODE];
-                break;
-              case 'mok':
-                newSelection = [ChallengeType.MOKHAIOTL, ChallengeMode.NO_MODE];
-                break;
-              default:
-                return;
-            }
-
-            setSelection(newSelection);
-
-            const newParams = new URLSearchParams(searchParams.toString());
-            newParams.set('type', value);
-            router.replace(
-              `${window.location.pathname}?${newParams.toString()}`,
-            );
-          }}
-        >
-          <RadioInput.Option
-            checked={
-              type === ChallengeType.TOB && mode === ChallengeMode.TOB_REGULAR
-            }
-            id="personal-bests-challenge-tob"
-            value="tob"
-            label={
-              <span className={styles.pbOption}>
-                {!display.isCompact() && (
-                  <Image
-                    src={challengeLogo(ChallengeType.TOB)}
-                    alt={challengeName(ChallengeType.TOB)}
-                    width={24}
-                    height={24}
-                    style={{ objectFit: 'contain' }}
-                  />
-                )}
-                {display.isCompact() ? 'ToB' : 'ToB Regular Mode'}
-              </span>
-            }
-          />
-          <RadioInput.Option
-            checked={
-              type === ChallengeType.TOB && mode === ChallengeMode.TOB_HARD
-            }
-            id="personal-bests-challenge-hmt"
-            value="hmt"
-            label={
-              <span className={styles.pbOption}>
-                {!display.isCompact() && (
-                  <Image
-                    src={challengeLogo(ChallengeType.TOB)}
-                    alt={challengeName(ChallengeType.TOB)}
-                    width={24}
-                    height={24}
-                    style={{ objectFit: 'contain' }}
-                  />
-                )}
-                {display.isCompact() ? 'HMT' : 'ToB Hard Mode'}
-              </span>
-            }
-          />
-          <RadioInput.Option
-            checked={type === ChallengeType.INFERNO}
-            id="personal-bests-challenge-inf"
-            value="inf"
-            label={
-              <span className={styles.pbOption}>
-                {!display.isCompact() && (
-                  <Image
-                    src={challengeLogo(ChallengeType.INFERNO)}
-                    alt={challengeName(ChallengeType.INFERNO)}
-                    width={24}
-                    height={24}
-                    style={{ objectFit: 'contain' }}
-                  />
-                )}
-                Inferno
-              </span>
-            }
-          />
-          <RadioInput.Option
-            checked={type === ChallengeType.COLOSSEUM}
-            id="personal-bests-challenge-colo"
-            value="colo"
-            label={
-              <span className={styles.pbOption}>
-                {!display.isCompact() && (
-                  <Image
-                    src={challengeLogo(ChallengeType.COLOSSEUM)}
-                    alt={challengeName(ChallengeType.COLOSSEUM)}
-                    width={24}
-                    height={24}
-                    style={{ objectFit: 'contain' }}
-                  />
-                )}
-                {display.isCompact() ? 'Colo' : 'Fortis Colosseum'}
-              </span>
-            }
-          />
-          <RadioInput.Option
-            checked={type === ChallengeType.MOKHAIOTL}
-            id="personal-bests-challenge-mok"
-            value="mok"
-            label={
-              <span className={styles.pbOption}>
-                {!display.isCompact() && (
-                  <Image
-                    src={challengeLogo(ChallengeType.MOKHAIOTL)}
-                    alt={challengeName(ChallengeType.MOKHAIOTL)}
-                    width={24}
-                    height={24}
-                    style={{ objectFit: 'contain' }}
-                  />
-                )}
-                {display.isCompact() ? 'Doom' : 'Mokhaiotl'}
-              </span>
-            }
-          />
-        </RadioInput.Group>
-      </Card>
       <div className={`${styles.pbContent} ${isSolo ? styles.soloLayout : ''}`}>
+        <div className={styles.selection}>
+          <RadioInput.Group
+            name="personal-bests-challenge"
+            className={styles.pbOptions}
+            simple
+            onChange={(value) => {
+              let newSelection: [ChallengeType, ChallengeMode];
+              switch (value) {
+                case 'tob':
+                  newSelection = [ChallengeType.TOB, ChallengeMode.TOB_REGULAR];
+                  break;
+                case 'hmt':
+                  newSelection = [ChallengeType.TOB, ChallengeMode.TOB_HARD];
+                  break;
+                case 'inf':
+                  newSelection = [ChallengeType.INFERNO, ChallengeMode.NO_MODE];
+                  break;
+                case 'colo':
+                  newSelection = [
+                    ChallengeType.COLOSSEUM,
+                    ChallengeMode.NO_MODE,
+                  ];
+                  break;
+                case 'mok':
+                  newSelection = [
+                    ChallengeType.MOKHAIOTL,
+                    ChallengeMode.NO_MODE,
+                  ];
+                  break;
+                default:
+                  return;
+              }
+
+              setSelection(newSelection);
+
+              const newParams = new URLSearchParams(searchParams.toString());
+              newParams.set('type', value);
+              router.replace(
+                `${window.location.pathname}?${newParams.toString()}`,
+              );
+            }}
+          >
+            <RadioInput.Option
+              checked={
+                type === ChallengeType.TOB && mode === ChallengeMode.TOB_REGULAR
+              }
+              id="personal-bests-challenge-tob"
+              value="tob"
+              label={
+                <span className={styles.pbOption}>
+                  {!display.isCompact() && (
+                    <Image
+                      src={challengeLogo(ChallengeType.TOB)}
+                      alt={challengeName(ChallengeType.TOB)}
+                      width={24}
+                      height={24}
+                      style={{ objectFit: 'contain' }}
+                    />
+                  )}
+                  {display.isCompact() ? 'ToB' : 'ToB Regular Mode'}
+                </span>
+              }
+            />
+            <RadioInput.Option
+              checked={
+                type === ChallengeType.TOB && mode === ChallengeMode.TOB_HARD
+              }
+              id="personal-bests-challenge-hmt"
+              value="hmt"
+              label={
+                <span className={styles.pbOption}>
+                  {!display.isCompact() && (
+                    <Image
+                      src={challengeLogo(ChallengeType.TOB)}
+                      alt={challengeName(ChallengeType.TOB)}
+                      width={24}
+                      height={24}
+                      style={{ objectFit: 'contain' }}
+                    />
+                  )}
+                  {display.isCompact() ? 'HMT' : 'ToB Hard Mode'}
+                </span>
+              }
+            />
+            <RadioInput.Option
+              checked={type === ChallengeType.INFERNO}
+              id="personal-bests-challenge-inf"
+              value="inf"
+              label={
+                <span className={styles.pbOption}>
+                  {!display.isCompact() && (
+                    <Image
+                      src={challengeLogo(ChallengeType.INFERNO)}
+                      alt={challengeName(ChallengeType.INFERNO)}
+                      width={24}
+                      height={24}
+                      style={{ objectFit: 'contain' }}
+                    />
+                  )}
+                  Inferno
+                </span>
+              }
+            />
+            <RadioInput.Option
+              checked={type === ChallengeType.COLOSSEUM}
+              id="personal-bests-challenge-colo"
+              value="colo"
+              label={
+                <span className={styles.pbOption}>
+                  {!display.isCompact() && (
+                    <Image
+                      src={challengeLogo(ChallengeType.COLOSSEUM)}
+                      alt={challengeName(ChallengeType.COLOSSEUM)}
+                      width={24}
+                      height={24}
+                      style={{ objectFit: 'contain' }}
+                    />
+                  )}
+                  {display.isCompact() ? 'Colo' : 'Fortis Colosseum'}
+                </span>
+              }
+            />
+            <RadioInput.Option
+              checked={type === ChallengeType.MOKHAIOTL}
+              id="personal-bests-challenge-mok"
+              value="mok"
+              label={
+                <span className={styles.pbOption}>
+                  {!display.isCompact() && (
+                    <Image
+                      src={challengeLogo(ChallengeType.MOKHAIOTL)}
+                      alt={challengeName(ChallengeType.MOKHAIOTL)}
+                      width={24}
+                      height={24}
+                      style={{ objectFit: 'contain' }}
+                    />
+                  )}
+                  {display.isCompact() ? 'Doom' : 'Mokhaiotl'}
+                </span>
+              }
+            />
+          </RadioInput.Group>
+        </div>
         {achievements.length > 0 && (
           <AchievementSection
             title="Achievements"

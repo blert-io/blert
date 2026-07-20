@@ -13,7 +13,7 @@ export function LayoutContent({
   const { sidebarCollapsed } = useContext(NavbarContext);
 
   useEffect(() => {
-    const width = sidebarCollapsed ? '60px' : '240px';
+    const width = sidebarCollapsed ? '72px' : '240px';
     document.documentElement.style.setProperty('--left-nav-width', width);
   }, [sidebarCollapsed]);
 

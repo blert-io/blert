@@ -61,10 +61,10 @@ const DEFAULT_SELECTED_STATS: ViewableStatistic[] = [
 ];
 
 const STAT_COLORS = [
-  '#4aba91',
-  '#e85d6f',
-  '#d4b95e',
-  '#5b9bd5',
+  'var(--blert-green)',
+  'var(--blert-red)',
+  'var(--blert-accent-complement)',
+  'var(--blert-purple)',
   '#8c7bb0',
   '#45a5a1',
 ];
@@ -154,33 +154,35 @@ export default function PlayerStatistics() {
           }}
         >
           {isClient ? (
-            <PieChart width={360} height={360}>
-              <Pie
-                data={deathsByRoom}
-                dataKey="count"
-                cx="50%"
-                cy="50%"
-                outerRadius="80%"
-                innerRadius="50%"
-                stroke="#1b1c25"
-              >
-                {deathsByRoom.map((v, i) => (
-                  <Cell key={`cell-${i}`} fill={v.color} />
-                ))}
-              </Pie>
-              <Legend
-                verticalAlign="bottom"
-                height={36}
-                formatter={(value) => {
-                  const item = deathsByRoom.find((s) => s.name === value);
-                  return (
-                    <span className={styles.legendItem}>
-                      {value} ({item?.count})
-                    </span>
-                  );
-                }}
-              />
-            </PieChart>
+            <div className={styles.chartArea}>
+              <PieChart width={360} height={360}>
+                <Pie
+                  data={deathsByRoom}
+                  dataKey="count"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius="80%"
+                  innerRadius="50%"
+                  stroke="var(--blert-surface-dark)"
+                >
+                  {deathsByRoom.map((v, i) => (
+                    <Cell key={`cell-${i}`} fill={v.color} />
+                  ))}
+                </Pie>
+                <Legend
+                  verticalAlign="bottom"
+                  height={36}
+                  formatter={(value) => {
+                    const item = deathsByRoom.find((s) => s.name === value);
+                    return (
+                      <span className={styles.legendItem}>
+                        {value} ({item?.count})
+                      </span>
+                    );
+                  }}
+                />
+              </PieChart>
+            </div>
           ) : (
             <div style={{ width: 360, height: 360 }} />
           )}
@@ -217,7 +219,10 @@ export default function PlayerStatistics() {
           }}
         >
           {isClient && historicalData.length > 0 ? (
-            <div style={{ width: '100%', height: 300 }}>
+            <div
+              className={styles.chartArea}
+              style={{ width: '100%', height: 300 }}
+            >
               <ResponsiveContainer>
                 <LineChart data={historicalData} margin={{ right: 40 }}>
                   <XAxis

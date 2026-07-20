@@ -4,12 +4,19 @@ import { ChallengeType } from '@blert/common';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Suspense, useContext } from 'react';
+import { ReactNode, Suspense, useContext } from 'react';
 
 import { authClient } from '@/auth-client';
 import { NavbarContext, useDisplay } from '@/display';
 import { useClientOnly } from '@/hooks/client-only';
 import { challengeLogo, MAIN_LOGO } from '@/logo';
+
+import DashboardIcon from '@/svg/aero-dashboard.svg';
+import GearSetupsIcon from '@/svg/aero-gear-setups.svg';
+import GuidesIcon from '@/svg/aero-guides.svg';
+import LeaderboardsIcon from '@/svg/aero-leaderboards.svg';
+import NameChangesIcon from '@/svg/aero-name-changes.svg';
+import TrendsIcon from '@/svg/aero-trends.svg';
 import ThemePicker from '@/theme/theme-picker';
 
 import AccountStatus, { AccountStatusSkeleton } from './account-status';
@@ -66,6 +73,8 @@ const CHALLENGES: ChallengeLink[] = [
 
 type UtilLink = {
   icon: string;
+  /** Icon shown on the Aero theme. */
+  aeroIcon?: ReactNode;
   label: string;
   href: string;
   /** Path prefix that counts as active; defaults to `href`. */
@@ -75,14 +84,35 @@ type UtilLink = {
 const UTIL_LINKS: UtilLink[] = [
   {
     icon: 'fa-solid fa-trophy',
+    aeroIcon: <LeaderboardsIcon />,
     label: 'Leaderboards',
     href: '/leaderboards/tob',
     match: '/leaderboards',
   },
-  { icon: 'fa-solid fa-arrow-trend-up', label: 'Trends', href: '/trends' },
-  { icon: 'fa-solid fa-shield-halved', label: 'Gear Setups', href: '/setups' },
-  { icon: 'fa-solid fa-book', label: 'Guides', href: '/guides' },
-  { icon: 'fa-solid fa-pencil', label: 'Name Changes', href: '/name-changes' },
+  {
+    icon: 'fa-solid fa-arrow-trend-up',
+    aeroIcon: <TrendsIcon />,
+    label: 'Trends',
+    href: '/trends',
+  },
+  {
+    icon: 'fa-solid fa-shield-halved',
+    aeroIcon: <GearSetupsIcon />,
+    label: 'Gear Setups',
+    href: '/setups',
+  },
+  {
+    icon: 'fa-solid fa-book',
+    aeroIcon: <GuidesIcon />,
+    label: 'Guides',
+    href: '/guides',
+  },
+  {
+    icon: 'fa-solid fa-pencil',
+    aeroIcon: <NameChangesIcon />,
+    label: 'Name Changes',
+    href: '/name-changes',
+  },
 ];
 
 function isUnder(pathname: string, base: string): boolean {
@@ -155,7 +185,10 @@ export function LeftNav() {
             href="/"
           >
             <span className={styles.itemIcon}>
-              <i className="fa-solid fa-newspaper" />
+              <i className={`fa-solid fa-newspaper ${styles.faIcon}`} />
+              <span className={styles.aeroIcon}>
+                <DashboardIcon />
+              </span>
             </span>
             <span className={styles.itemLabel}>Dashboard</span>
           </Link>
@@ -202,7 +235,10 @@ export function LeftNav() {
               href={link.href}
             >
               <span className={styles.itemIcon}>
-                <i className={link.icon} />
+                <i className={`${link.icon} ${styles.faIcon}`} />
+                {link.aeroIcon && (
+                  <span className={styles.aeroIcon}>{link.aeroIcon}</span>
+                )}
               </span>
               <span className={styles.itemLabel}>{link.label}</span>
             </Link>

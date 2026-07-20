@@ -18,7 +18,12 @@ import {
 import { TimelinePalette } from './palette';
 import { Point } from './types';
 
-export type CellCategory = 'default' | 'highlighted' | 'npcAttack' | 'dead';
+export type CellCategory =
+  | 'default'
+  | 'offCooldown'
+  | 'action'
+  | 'npcAttack'
+  | 'dead';
 
 export type CellStyle = {
   /** Fill color for the cell background. */
@@ -38,10 +43,12 @@ function categoryBackground(
   switch (category) {
     case 'default':
       return isHovered ? palette.cellBgDefaultHover : palette.cellBgDefault;
-    case 'highlighted':
+    case 'action':
+      return isHovered ? palette.cellBgActionHover : palette.cellBgAction;
+    case 'offCooldown':
       return isHovered
-        ? palette.cellBgHighlightedHover
-        : palette.cellBgHighlighted;
+        ? palette.cellBgOffCooldownHover
+        : palette.cellBgOffCooldown;
     case 'npcAttack':
       return isHovered ? CELL_BG_NPC_ATTACK_HOVER : CELL_BG_NPC_ATTACK;
     case 'dead':

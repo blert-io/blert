@@ -1,6 +1,6 @@
 import { ResolvingMetadata } from 'next';
-import Link from 'next/link';
 
+import { ButtonLink } from '@/components/button';
 import { getRecentNameChanges } from '@/actions/change-name';
 import Tooltip from '@/components/tooltip';
 import { basicMetadata } from '@/utils/metadata';
@@ -19,9 +19,9 @@ export default async function NameChanges() {
           <h1>
             <i className="fas fa-history" /> Recent Name Changes
           </h1>
-          <Link href="/change-name" className={styles.submitButton}>
+          <ButtonLink href="/change-name" className={styles.submitButton}>
             Submit a name change
-          </Link>
+          </ButtonLink>
         </div>
 
         <div className={styles.nameChangeList}>

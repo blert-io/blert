@@ -97,62 +97,64 @@ export function BossPageDPSTimeline(props: BossPageDPSTimelineProps) {
       style={{ width, height }}
       data-blert-disable-sidebar="true"
     >
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={CHART_MARGIN}>
-          <defs>
-            <linearGradient id="healthGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop
-                offset="0%"
-                stopColor="var(--blert-red)"
-                stopOpacity={0.3}
-              />
-              <stop
-                offset="100%"
-                stopColor="var(--blert-red)"
-                stopOpacity={0.05}
-              />
-            </linearGradient>
-          </defs>
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke="var(--blert-surface-light)"
-            opacity={0.9}
-          />
-          <XAxis
-            dataKey="tick"
-            stroke="var(--blert-font-color-secondary)"
-            tickLine={false}
-            axisLine={AXIS_LINE}
-            ticks={xTicks}
-          />
-          <YAxis
-            unit="%"
-            stroke="var(--blert-font-color-secondary)"
-            tickLine={false}
-            axisLine={AXIS_LINE}
-          />
-          <Area
-            type="monotone"
-            dataKey="bossHealthPercentage"
-            stroke="rgba(var(--blert-red-base), 0.7)"
-            strokeWidth={2}
-            fill="url(#healthGradient)"
-            isAnimationActive={animate}
-          />
-          <Tooltip
-            contentStyle={TOOLTIP_STYLE}
-            formatter={formatHealth}
-            labelFormatter={formatTick}
-            cursor={TOOLTIP_CURSOR}
-          />
-          <ReferenceLine
-            x={props.currentTick}
-            stroke="var(--blert-red)"
-            strokeWidth={2}
-            strokeDasharray="3 3"
-          />
-        </AreaChart>
-      </ResponsiveContainer>
+      <div className={styles.chartWrapper}>
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={data} margin={CHART_MARGIN}>
+            <defs>
+              <linearGradient id="healthGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop
+                  offset="0%"
+                  stopColor="var(--blert-red)"
+                  stopOpacity={0.3}
+                />
+                <stop
+                  offset="100%"
+                  stopColor="var(--blert-red)"
+                  stopOpacity={0.05}
+                />
+              </linearGradient>
+            </defs>
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="var(--blert-surface-light)"
+              opacity={0.9}
+            />
+            <XAxis
+              dataKey="tick"
+              stroke="var(--blert-font-color-secondary)"
+              tickLine={false}
+              axisLine={AXIS_LINE}
+              ticks={xTicks}
+            />
+            <YAxis
+              unit="%"
+              stroke="var(--blert-font-color-secondary)"
+              tickLine={false}
+              axisLine={AXIS_LINE}
+            />
+            <Area
+              type="monotone"
+              dataKey="bossHealthPercentage"
+              stroke="rgba(var(--blert-red-base), 0.7)"
+              strokeWidth={2}
+              fill="url(#healthGradient)"
+              isAnimationActive={animate}
+            />
+            <Tooltip
+              contentStyle={TOOLTIP_STYLE}
+              formatter={formatHealth}
+              labelFormatter={formatTick}
+              cursor={TOOLTIP_CURSOR}
+            />
+            <ReferenceLine
+              x={props.currentTick}
+              stroke="var(--blert-red)"
+              strokeWidth={2}
+              strokeDasharray="3 3"
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }

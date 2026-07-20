@@ -84,7 +84,7 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: var(--blert-yellow);
+  background: var(--blert-accent-complement);
   border: 2px solid var(--blert-panel-background-color);
 }
 
@@ -146,5 +146,9 @@
 .tooltipStanding {
   margin-top: 2px;
   font-size: 0.8rem;
-  color: var(--blert-yellow);
+  color: var(--blert-accent-complement);
+
+  :global([data-theme='aero']) & {
+    color: color-mix(in srgb, var(--blert-accent-complement) 70%, black);
+  }
 }

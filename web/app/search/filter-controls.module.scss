@@ -72,6 +72,14 @@
     background: rgba(var(--blert-red-base), 0.15);
     color: var(--blert-red);
   }
+
+  :global([data-theme='aero']) & {
+    @include aeroButton;
+
+    &:hover {
+      @include aeroDangerButtonHover;
+    }
+  }
 }
 
 .fieldBody {

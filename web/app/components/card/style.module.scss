@@ -4,7 +4,9 @@
   @include panel;
   flex-direction: column;
   padding: 20px;
-  border: 1px solid rgba(var(--blert-purple-base), 0.15);
+  // Set through a variable so hover only changes the default border.
+  --card-border-color: rgba(var(--blert-purple-base), 0.15);
+  border: 1px solid var(--card-border-color);
   border-radius: 12px;
   transition: all 0.3s ease;
 
@@ -13,12 +15,20 @@
   }
 
   &:hover {
-    border-color: rgba(var(--blert-purple-base), 0.3);
+    --card-border-color: rgba(var(--blert-purple-base), 0.3);
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
   }
 
   &:not(.fixed):hover {
     transform: translateY(-2px);
+  }
+
+  :global([data-theme='aero']) &:hover {
+    --card-border-color: rgba(255, 255, 255, 0.85);
+    box-shadow:
+      0 10px 30px rgba(60, 120, 165, 0.38),
+      inset 0 1px 0 rgba(255, 255, 255, 1),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.5);
   }
 
   &.primary {
@@ -27,6 +37,14 @@
       var(--blert-panel-background-color),
       var(--blert-surface-light)
     );
+
+    :global([data-theme='aero']) & {
+      background: linear-gradient(
+        to bottom right,
+        rgba(255, 255, 255, 0.8),
+        rgba(200, 232, 250, 0.52)
+      );
+    }
   }
 
   .cardHeader {
@@ -45,26 +63,19 @@
   }
 
   .cardLink {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--blert-purple);
-    text-decoration: none;
     margin-top: auto;
-    padding: 8px;
-    border-radius: 4px;
-    transition: all 0.2s ease;
 
-    &:hover {
-      background: var(--blert-surface-dark);
-
-      i {
-        transform: translateX(4px);
-      }
+    // Aero: stop the link from stretching to full width.
+    :global([data-theme='aero']) & {
+      align-self: center;
     }
 
     i {
       transition: transform 0.2s ease;
+    }
+
+    &:hover i {
+      transform: translateX(4px);
     }
   }
 }

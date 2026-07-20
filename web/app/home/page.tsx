@@ -2,6 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 
 import { getSignedInUserId } from '@/actions/users';
+import { ButtonLink } from '@/components/button';
 import Card from '@/components/card';
 import { ActivityFeed, GuidesCard, HomeCards } from './home-cards';
 
@@ -23,22 +24,22 @@ export default async function Home() {
           </div>
           <div className={styles.ctaButtons}>
             {isLoggedIn ? (
-              <Link href="/" className={styles.primaryButton}>
+              <ButtonLink href="/" className={styles.primaryButton}>
                 See Your Dashboard <i className="fas fa-arrow-right" />
-              </Link>
+              </ButtonLink>
             ) : (
-              <Link href="/register" className={styles.primaryButton}>
+              <ButtonLink href="/register" className={styles.primaryButton}>
                 Create Account <i className="fas fa-arrow-right" />
-              </Link>
+              </ButtonLink>
             )}
-            <Link
+            <ButtonLink
               href="https://runelite.net/plugin-hub/show/blert"
               className={styles.secondaryButton}
               target="_blank"
               rel="noreferrer noopener"
             >
               Get Plugin <i className="fas fa-external-link-alt" />
-            </Link>
+            </ButtonLink>
           </div>
         </div>
 

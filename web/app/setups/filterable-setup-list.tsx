@@ -263,7 +263,7 @@ export function FilterableSetupList({
             </div>
           )}
 
-          <div className={`${styles.filter} ${styles.scaleFilter}`}>
+          <div className={styles.filter}>
             <label htmlFor="scale-filter">
               <i className="fas fa-users" />
               Scale
@@ -286,7 +286,7 @@ export function FilterableSetupList({
             </select>
           </div>
 
-          <div className={`${styles.filter} ${styles.challengeFilter}`}>
+          <div className={styles.filter}>
             <label htmlFor="challenge-filter">
               <i className="fas fa-shield" />
               Challenge
@@ -309,7 +309,7 @@ export function FilterableSetupList({
             </select>
           </div>
 
-          <div className={`${styles.filter} ${styles.sortFilter}`}>
+          <div className={styles.filter}>
             <label htmlFor="sort-filter">
               <i className="fas fa-sort" />
               Sort by

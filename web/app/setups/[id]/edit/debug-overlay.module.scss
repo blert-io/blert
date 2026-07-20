@@ -1,6 +1,6 @@
 .overlay {
   position: fixed;
-  top: 80px;
+  top: calc(var(--email-banner-height, 0px) + 80px);
   right: 20px;
   background: rgba(var(--blert-surface-dark-base), 0.95);
   border: 1px solid rgba(var(--blert-purple-base), 0.3);

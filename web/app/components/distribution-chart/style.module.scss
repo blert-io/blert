@@ -1,6 +1,11 @@
 .chartContainer {
   width: 100%;
   height: 360px;
+  --dist-cdf: color-mix(
+    in srgb,
+    var(--blert-purple) 50%,
+    var(--blert-font-color-primary)
+  );
 }
 
 .noData {

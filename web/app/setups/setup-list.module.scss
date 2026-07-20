@@ -135,6 +135,10 @@
             color: var(--blert-font-color-secondary);
             font-style: italic;
           }
+
+          :global([data-theme='aero']) & {
+            @include aeroField(8px);
+          }
         }
 
         .clearSearch {
@@ -190,6 +194,14 @@
           background: var(--blert-surface-dark);
           color: var(--blert-font-color-primary);
           padding: 4px 8px;
+        }
+
+        :global([data-theme='aero']) & {
+          @include aeroField(8px);
+
+          &:hover {
+            border-color: rgba(120, 165, 200, 0.8);
+          }
         }
       }
     }
@@ -312,6 +324,24 @@
     }
   }
 
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+
+    &::before {
+      display: none;
+    }
+
+    &:hover {
+      background: var(--blert-aero-well, rgba(255, 255, 255, 0.9));
+      border-color: rgba(var(--blert-purple-base), 0.6);
+      transform: none;
+      box-shadow:
+        inset 0 1px 3px rgba(40, 90, 130, 0.16),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.6),
+        0 3px 10px rgba(60, 120, 165, 0.35);
+    }
+  }
+
   .setupHeader {
     display: flex;
     justify-content: space-between;
@@ -413,6 +443,29 @@
           &.archived {
             background: rgba(var(--blert-red-base), 0.5);
           }
+
+          :global([data-theme='aero']) & {
+            i {
+              color: inherit;
+            }
+
+            &.published {
+              color: color-mix(in srgb, var(--blert-green) 65%, black);
+            }
+
+            &.unlisted {
+              background: rgba(var(--blert-accent-complement-base), 0.45);
+              color: color-mix(
+                in srgb,
+                var(--blert-accent-complement) 65%,
+                black
+              );
+            }
+
+            &.archived {
+              color: color-mix(in srgb, var(--blert-red) 65%, black);
+            }
+          }
         }
       }
     }
@@ -484,6 +537,10 @@
   );
   border-radius: 12px;
   border: 1px solid rgba(var(--blert-divider-color-base), 0.5);
+
+  :global([data-theme='aero']) & {
+    @include aeroRecess;
+  }
 
   i {
     font-size: 2.5rem;
@@ -560,6 +617,18 @@
       transition: transform 0.2s ease;
     }
 
+    :global([data-theme='aero']) & {
+      @include aeroButton;
+
+      &:hover:not(:disabled) {
+        @include aeroButtonHover;
+      }
+
+      &:disabled:hover {
+        @include aeroButton;
+      }
+    }
+
     @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
       flex: 1;
       justify-content: center;
@@ -593,7 +662,7 @@
 
   .filtersSection {
     position: sticky;
-    top: 60px;
+    top: calc(60px + var(--email-banner-height, 0px));
     z-index: 5;
     padding: 12px;
     margin: -12px -12px 12px;

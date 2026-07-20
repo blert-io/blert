@@ -16,6 +16,15 @@
   overflow: hidden;
   position: relative;
 
+  :global([data-theme='aero']) & {
+    @include aeroNotice;
+    border-radius: 8px;
+
+    &::before {
+      display: none;
+    }
+  }
+
   &::before {
     content: '';
     position: absolute;
@@ -93,6 +102,10 @@
   }
 
   .iconPulse {
+    :global([data-theme='aero']) & {
+      display: none;
+    }
+
     position: absolute;
     top: 50%;
     left: 50%;
@@ -201,13 +214,20 @@
       font-size: 0.85rem;
       transition: transform 0.2s ease;
     }
+
+    :global([data-theme='aero']) & {
+      @include aeroButton;
+
+      &:hover {
+        @include aeroButtonHover;
+      }
+    }
   }
 
   .setupsList {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    background: rgba(var(--blert-panel-background-color), 0.5);
     max-height: 300px;
     overflow-y: auto;
     animation: slideDown 0.3s ease-out;
@@ -245,6 +265,10 @@
     border-radius: 6px;
     transition: all 0.2s ease;
     animation: fadeIn 0.2s ease-out;
+
+    :global([data-theme='aero']) & {
+      @include aeroWell;
+    }
 
     @for $i from 1 through 10 {
       &:nth-child(#{$i}) {
@@ -368,6 +392,14 @@
           color: var(--blert-red);
           border-color: var(--blert-red);
         }
+
+        :global([data-theme='aero']) & {
+          @include aeroDangerButton;
+
+          &:hover:not(:disabled) {
+            @include aeroDangerButtonHover;
+          }
+        }
       }
     }
   }
@@ -387,9 +419,6 @@
     }
 
     .button {
-      display: flex;
-      align-items: center;
-      justify-content: center;
       gap: 0.5rem;
       border-radius: 8px;
       transition: all 0.2s ease;
@@ -397,15 +426,14 @@
     }
 
     .migrateButton {
-      color: #fff;
-      border: none;
-      font-weight: 600;
       position: relative;
       overflow: hidden;
 
-      &:hover {
-        background: rgba(var(--blert-purple-base), 0.9);
-        box-shadow: 0 4px 12px rgba(var(--blert-purple-base), 0.3);
+      :global(:root:not([data-theme='aero'])) & {
+        &:hover {
+          background: rgba(var(--blert-purple-base), 0.9);
+          box-shadow: 0 4px 12px rgba(var(--blert-purple-base), 0.3);
+        }
       }
 
       &:active {
@@ -444,38 +472,9 @@
     }
 
     .dismissButton {
-      border: 1px solid var(--blert-divider-color);
-      color: var(--blert-font-color-secondary);
-      font-size: 0.95rem;
-      font-weight: 500;
-      white-space: nowrap;
-
-      &:hover {
-        border-color: var(--blert-red);
-        color: var(--blert-red);
-        background: rgba(var(--blert-red-base), 0.05);
-      }
-
-      &:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-
-        &:hover {
-          border-color: var(--blert-divider-color);
-          color: var(--blert-font-color-secondary);
-          background: none;
-        }
-      }
-
       i {
         position: relative;
         top: 1px;
-        font-size: 0.9rem;
-      }
-
-      @media (max-width: 940px) {
-        width: 100%;
-        padding: 0.75rem 1rem;
       }
     }
   }

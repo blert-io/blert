@@ -10,17 +10,53 @@
 }
 
 .selectedSlot {
-  background: rgba(var(--blert-purple-base), 0.08);
+  background: rgba(var(--blert-purple-base), 0.18);
+  border: 0 solid rgba(var(--blert-purple-base), 0.65);
+  border-radius: 3px;
   pointer-events: none;
+
+  // The accent tint and border sink into aero's dark glass cells; select with
+  // a stronger fill and a white edge instead.
+  :global([data-theme='aero']) & {
+    background: rgba(var(--blert-accent-complement-base), 0.4);
+    border-color: rgba(255, 255, 255, 0.85);
+    border-radius: 5px;
+  }
+
+  &.edgeTop {
+    border-top-width: 1px;
+  }
+
+  &.edgeRight {
+    border-right-width: 1px;
+  }
+
+  &.edgeBottom {
+    border-bottom-width: 1px;
+  }
+
+  &.edgeLeft {
+    border-left-width: 1px;
+  }
 
   &.cut {
     background: rgba(var(--blert-yellow-base), 0.1);
     border: 1px dashed rgba(var(--blert-yellow-base), 0.5);
     opacity: 0.7;
+
+    :global([data-theme='aero']) & {
+      background: rgba(var(--blert-accent-complement-base), 0.15);
+      border-color: rgba(255, 255, 255, 0.7);
+    }
   }
 
   &.copy {
     background: rgba(var(--blert-blue-base), 0.1);
     border: 1px solid rgba(var(--blert-blue-base), 0.4);
+
+    :global([data-theme='aero']) & {
+      background: rgba(var(--blert-blue-base), 0.3);
+      border-color: rgba(255, 255, 255, 0.7);
+    }
   }
 }

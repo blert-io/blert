@@ -149,6 +149,12 @@
   border-radius: 8px;
   transition: all 0.2s ease;
 
+  // Aero: lift the metallic logo off the light chip with a shadow halo.
+  :global([data-theme='aero']) & img {
+    filter: drop-shadow(0 0 1px rgba(58, 22, 42, 0.95))
+      drop-shadow(0 0 8px rgba(150, 28, 40, 0.4));
+  }
+
   &:hover {
     background: rgba(var(--blert-surface-light-base), 0.7);
     border-color: rgba(var(--blert-purple-base), 0.3);
@@ -296,11 +302,26 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   }
 
+  :global([data-theme='aero']) &:hover {
+    background: rgba(var(--blert-surface-dark-base), 0.6);
+    transform: none;
+    box-shadow: none;
+  }
+
   i {
     width: 14px;
     text-align: center;
     font-size: 0.8rem;
     color: var(--blert-purple);
+  }
+
+  &[data-challenge],
+  &[data-scale] {
+    border-color: var(--challenge-color-text);
+
+    i {
+      color: var(--challenge-color-text);
+    }
   }
 
   span {
@@ -384,6 +405,16 @@
     font-size: 0.85rem;
     position: relative;
     top: 1px;
+  }
+
+  :global([data-theme='aero']) & {
+    @include aeroButton;
+    color: var(--blert-purple);
+
+    &:hover:not(:disabled) {
+      @include aeroButtonHover;
+      color: var(--blert-purple);
+    }
   }
 }
 

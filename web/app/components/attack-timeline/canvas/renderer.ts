@@ -128,8 +128,10 @@ export function drawTimeline(
           let category: CellCategory;
           if (state?.isDead && !diedThisTick) {
             category = 'dead';
-          } else if (offCooldown || hasActions) {
-            category = 'highlighted';
+          } else if (hasActions) {
+            category = 'action';
+          } else if (offCooldown) {
+            category = 'offCooldown';
           } else {
             category = 'default';
           }
@@ -178,7 +180,7 @@ export function drawTimeline(
         // For custom rows, only draw the background, highlighting cells if they
         // have custom content. The content is drawn using a DOM overlay.
         const hasContent = data.customRowContent.get(rowId)?.has(tick) ?? false;
-        const category: CellCategory = hasContent ? 'highlighted' : 'default';
+        const category: CellCategory = hasContent ? 'action' : 'default';
         const chartBg =
           bgColor !== undefined
             ? getChartColor(bgColor.color, bgColor.intensity)

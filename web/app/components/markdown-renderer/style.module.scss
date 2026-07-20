@@ -1,3 +1,5 @@
+@use '@/mixins.scss' as *;
+
 .markdown {
   color: var(--blert-font-color-primary);
   line-height: 1.6;
@@ -124,13 +126,18 @@
     padding-left: 0;
   }
 
-  .inlineCode {
+  // Inline code; `pre code` below resets the chip for code blocks.
+  code {
     background-color: rgba(var(--blert-surface-dark-base), 0.8);
     border-radius: 3px;
     padding: 0.2em 0.4em;
     font-family: var(--font-roboto-mono), monospace;
     font-size: 0.9em;
     color: var(--blert-font-color-primary);
+
+    :global([data-theme='aero']) & {
+      background-color: rgba(var(--blert-surface-light-base), 0.55);
+    }
   }
 
   pre {
@@ -141,6 +148,10 @@
     overflow-x: auto;
     margin-bottom: 1em;
 
+    :global([data-theme='aero']) & {
+      @include aeroWell;
+    }
+
     code {
       background-color: transparent;
       padding: 0;
@@ -148,6 +159,10 @@
       font-size: 0.9em;
       line-height: 1.45;
       color: var(--blert-font-color-primary);
+
+      :global([data-theme='aero']) & {
+        background-color: transparent;
+      }
     }
   }
 
@@ -158,6 +173,11 @@
     color: var(--blert-font-color-secondary);
     background: rgba(var(--blert-surface-dark-base), 0.3);
     border-radius: 0 4px 4px 0;
+
+    :global([data-theme='aero']) & {
+      background: rgba(255, 255, 255, 0.65);
+      border-left-color: rgba(var(--blert-purple-base), 0.5);
+    }
 
     > :first-child {
       margin-top: 0;
@@ -173,6 +193,11 @@
     margin-bottom: 1em;
     border-radius: 6px;
     border: 1px solid var(--blert-divider-color);
+
+    :global([data-theme='aero']) & {
+      background: rgba(255, 255, 255, 0.94);
+      border-color: rgba(96, 132, 160, 0.55);
+    }
   }
 
   table {
@@ -198,6 +223,21 @@
 
     tr:nth-child(even) {
       background-color: rgba(var(--blert-surface-dark-base), 0.3);
+    }
+
+    :global([data-theme='aero']) & {
+      th,
+      td {
+        border-color: rgba(96, 132, 160, 0.4);
+      }
+
+      th {
+        background-color: #dbe6f0;
+      }
+
+      tr:nth-child(even) {
+        background-color: rgba(228, 239, 250, 0.9);
+      }
     }
   }
 
@@ -228,6 +268,10 @@
       outline-offset: 2px;
       border-radius: 6px;
     }
+
+    :global([data-theme='aero']) &:hover {
+      transform: none;
+    }
   }
 
   .image {
@@ -251,6 +295,7 @@
   }
 
   .videoWrapper {
+    display: block;
     margin: 1em 0;
     border-radius: 6px;
     overflow: hidden;

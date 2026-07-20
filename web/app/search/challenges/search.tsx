@@ -9,6 +9,7 @@ import {
   ChallengeOverview,
   SortableFields,
 } from '@/actions/challenge';
+import Button from '@/components/button';
 import { getLocalSetting } from '@/utils/user-settings';
 import { UrlParams, queryString } from '@/utils/url';
 
@@ -369,20 +370,24 @@ export default function Search({
         />
         <div className={styles.pagination}>
           <div className={styles.controls}>
-            <button
+            <Button
+              simple
+              className={styles.pageButton}
               disabled={loading || loadError !== null || !hasPrevious}
               onClick={() => void loadChallenges(FetchAction.BACK)}
             >
               <i className="fas fa-chevron-left" />
               <span>Back</span>
-            </button>
-            <button
+            </Button>
+            <Button
+              simple
+              className={styles.pageButton}
               disabled={loading || loadError !== null || !hasMore}
               onClick={() => void loadChallenges(FetchAction.FORWARD)}
             >
               <span>Next</span>
               <i className="fas fa-chevron-right" />
-            </button>
+            </Button>
           </div>
         </div>
       </div>

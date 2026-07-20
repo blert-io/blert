@@ -263,7 +263,7 @@ export function BossPageControls(props: BossControlsProps) {
           {display.isCompact() && roomTime}
           <div className={styles.controls__main}>
             <button
-              className={styles.playbackButton}
+              className={`${styles.playbackButton} ${styles.playbackButtonPlay}`}
               onClick={() => {
                 if (following) {
                   updateTick(currentTick);

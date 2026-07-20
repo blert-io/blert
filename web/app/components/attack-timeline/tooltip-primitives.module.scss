@@ -197,6 +197,10 @@
   i {
     color: var(--blert-yellow);
     font-size: 0.75rem;
+
+    :global([data-theme='aero']) & {
+      color: color-mix(in srgb, var(--blert-accent-complement) 70%, black);
+    }
   }
 
   img {

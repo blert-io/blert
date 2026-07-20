@@ -39,6 +39,16 @@
         transform: scale(1.1);
       }
     }
+
+    :global([data-theme='aero']) & {
+      @include aeroWell;
+
+      &:hover {
+        transform: none;
+        background: rgba(255, 255, 255, 0.9);
+        border-color: rgba(112, 156, 196, 0.65);
+      }
+    }
   }
 
   .value {

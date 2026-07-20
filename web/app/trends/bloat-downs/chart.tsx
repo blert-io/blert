@@ -184,7 +184,7 @@ export default function BloatDownsChart({ series }: BloatDownsChartProps) {
         <CartesianGrid
           horizontal
           vertical={false}
-          stroke="rgba(75, 78, 109, 0.3)"
+          stroke="rgba(var(--blert-divider-color-base), 0.5)"
         />
         <XAxis
           dataKey="ticks"
@@ -192,8 +192,8 @@ export default function BloatDownsChart({ series }: BloatDownsChartProps) {
           domain={domain}
           ticks={xTicks}
           tickFormatter={(t: number) => `${t}t`}
-          tick={{ fontSize: 11, fill: '#5e6288' }}
-          axisLine={{ stroke: '#4b4e6d' }}
+          tick={{ fontSize: 11, fill: 'var(--blert-font-color-secondary)' }}
+          axisLine={{ stroke: 'var(--blert-divider-color)' }}
           tickLine={false}
         />
         <YAxis
@@ -202,7 +202,7 @@ export default function BloatDownsChart({ series }: BloatDownsChartProps) {
           domain={probDomain}
           ticks={probTicks}
           tickFormatter={(v: number) => `${(v * 100).toFixed(1)}%`}
-          tick={{ fontSize: 10, fill: '#5e6288' }}
+          tick={{ fontSize: 10, fill: 'var(--blert-font-color-secondary)' }}
           axisLine={false}
           tickLine={false}
           width={50}
@@ -213,13 +213,13 @@ export default function BloatDownsChart({ series }: BloatDownsChartProps) {
           domain={[0, 100]}
           ticks={[0, 25, 50, 75, 100]}
           tickFormatter={(v: number) => `${v}%`}
-          tick={{ fontSize: 10, fill: '#5e6288' }}
+          tick={{ fontSize: 10, fill: 'var(--blert-font-color-secondary)' }}
           axisLine={false}
           tickLine={false}
           width={40}
         />
         <Tooltip
-          cursor={{ fill: 'rgba(88, 101, 242, 0.1)' }}
+          cursor={{ fill: 'rgba(var(--blert-purple-base), 0.1)' }}
           content={({ active, payload, label }) => {
             if (
               active !== true ||
@@ -232,8 +232,8 @@ export default function BloatDownsChart({ series }: BloatDownsChartProps) {
             return (
               <div
                 style={{
-                  background: 'rgb(27, 28, 37)',
-                  border: '1px solid #4b4e6d',
+                  background: 'var(--blert-surface-dark)',
+                  border: '1px solid var(--blert-divider-color)',
                   borderRadius: 6,
                   fontSize: '0.85rem',
                   padding: '8px 10px',

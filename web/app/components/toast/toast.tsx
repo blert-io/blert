@@ -32,6 +32,12 @@ const TOAST_ICONS: Record<ToastType, string> = {
   error: 'fas fa-exclamation-circle',
 };
 
+const TOAST_TITLES: Record<ToastType, string> = {
+  info: 'Notice',
+  success: 'Success',
+  error: 'Error',
+};
+
 export default function ToastProvider({
   children,
 }: {
@@ -76,7 +82,12 @@ export default function ToastProvider({
               className={`${TOAST_ICONS[toast.type]} ${styles.toastIcon}`}
               aria-hidden="true"
             />
-            <span className={styles.toastMessage}>{toast.message}</span>
+            <div className={styles.toastBody}>
+              <span className={styles.toastTitle} aria-hidden="true">
+                {TOAST_TITLES[toast.type]}
+              </span>
+              <span className={styles.toastMessage}>{toast.message}</span>
+            </div>
             <button
               className={styles.close}
               onClick={() => removeToast(toast.id)}

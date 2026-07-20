@@ -34,6 +34,10 @@
         font-size: 0.9em;
         top: 2px;
       }
+
+      :global([data-theme='aero']) & {
+        background: rgba(var(--blert-surface-light-base), 0.6);
+      }
     }
   }
 

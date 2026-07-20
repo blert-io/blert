@@ -19,11 +19,24 @@
 
 .pageParentContent {
   min-height: 100%;
-  background-color: var(--blert-page-background-color);
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 0 10px;
+  padding: var(--email-banner-height, 0px) 10px 0;
+  position: relative;
+  isolation: isolate;
+
+  // Render a backdrop as a real layer to allow for more theming flexibility.
+  &::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background: var(--blert-page-surface);
+    background-size: cover;
+    background-position: center;
+    pointer-events: none;
+  }
 }
 
 .body {

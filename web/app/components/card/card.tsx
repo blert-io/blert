@@ -1,5 +1,6 @@
-import Link from 'next/link';
 import { ReactNode } from 'react';
+
+import { ButtonLink } from '@/components/button';
 
 import styles from './style.module.scss';
 
@@ -46,8 +47,13 @@ export function Card({
 
 export function CardLink({ href, text }: { href: string; text: string }) {
   return (
-    <Link href={href} className={styles.cardLink}>
+    <ButtonLink
+      href={href}
+      simple
+      fontSize="0.9rem"
+      className={styles.cardLink}
+    >
       {text} <i className="fas fa-arrow-right" />
-    </Link>
+    </ButtonLink>
   );
 }

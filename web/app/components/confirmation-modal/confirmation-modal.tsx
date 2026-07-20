@@ -33,14 +33,12 @@ export function ConfirmationModal({
   };
 
   return (
-    <Modal className={styles.confirmationModal} open={open} onClose={onClose}>
-      <div className={styles.modalHeader}>
-        <h2>{title}</h2>
-        <button onClick={onClose}>
-          <i className="fas fa-times" />
-          <span className="sr-only">Close</span>
-        </button>
-      </div>
+    <Modal
+      className={styles.confirmationModal}
+      open={open}
+      onClose={onClose}
+      header={title}
+    >
       <div className={styles.modalContent}>
         {typeof message === 'string' ? <p>{message}</p> : message}
       </div>
@@ -48,11 +46,7 @@ export function ConfirmationModal({
         <Button onClick={onClose} simple disabled={loading}>
           {cancelText}
         </Button>
-        <Button
-          onClick={handleConfirm}
-          className={variant === 'danger' ? styles.dangerButton : undefined}
-          loading={loading}
-        >
+        <Button onClick={handleConfirm} variant={variant} loading={loading}>
           {confirmText}
         </Button>
       </div>

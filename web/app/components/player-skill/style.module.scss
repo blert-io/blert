@@ -16,6 +16,10 @@
 
   &.medium {
     color: rgba(var(--blert-yellow-base), 0.9);
+
+    :global([data-theme='aero']) & {
+      color: color-mix(in srgb, var(--blert-accent-complement) 70%, black);
+    }
   }
 
   &.low {

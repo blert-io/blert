@@ -1,13 +1,10 @@
 import { useCallback, useState } from 'react';
 
 import { deleteSetup } from '@/actions/setup';
-import Button from '@/components/button';
-import Modal from '@/components/modal';
+import ConfirmationModal from '@/components/confirmation-modal';
 import { useToast } from '@/components/toast';
 
 import { setupLocalStorage } from './local-storage';
-
-import styles from './delete-modal.module.scss';
 
 export default function DeleteModal({
   open,
@@ -52,32 +49,15 @@ export default function DeleteModal({
   }, [onClose, onDelete, showToast, setupId, isLocal, title]);
 
   return (
-    <Modal open={open} onClose={onClose}>
-      <div className={styles.deleteModal}>
-        <h2>Delete Setup</h2>
-        <p>
-          Are you sure you want to delete {title ? `"${title}"` : 'this setup'}?
-          This action cannot be undone.
-        </p>
-        <div className={styles.actions}>
-          <Button
-            className={styles.cancel}
-            disabled={loading}
-            onClick={onClose}
-            simple
-          >
-            Cancel
-          </Button>
-          <Button
-            className={styles.delete}
-            disabled={loading}
-            loading={loading}
-            onClick={() => void handleDelete()}
-          >
-            Delete
-          </Button>
-        </div>
-      </div>
-    </Modal>
+    <ConfirmationModal
+      open={open}
+      onClose={onClose}
+      onConfirm={() => void handleDelete()}
+      title="Delete Setup"
+      message={`Are you sure you want to delete ${title ? `"${title}"` : 'this setup'}? This action cannot be undone.`}
+      confirmText="Delete"
+      variant="danger"
+      loading={loading}
+    />
   );
 }

@@ -74,6 +74,15 @@
         background: var(--blert-surface-dark);
         color: var(--blert-font-color-primary);
       }
+
+      :global([data-theme='aero']) & {
+        @include aeroField;
+        height: 42px;
+
+        &:hover {
+          border-color: rgba(74, 154, 216, 0.9);
+        }
+      }
     }
   }
 

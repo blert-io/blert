@@ -11,6 +11,11 @@
   z-index: 15;
   box-sizing: border-box;
   animation: marquee-pulse 1s ease-in-out infinite;
+
+  :global([data-theme='aero']) & {
+    background: rgba(var(--blert-accent-complement-base), 0.2);
+    border-color: color-mix(in srgb, var(--blert-accent-complement) 70%, white);
+  }
 }
 
 @keyframes marquee-pulse {

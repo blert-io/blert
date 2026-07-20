@@ -230,6 +230,12 @@ export default function Filters({
         </FilterField>
       </FilterRow>
 
+      <PartyFilter
+        party={context.filters.party}
+        onChange={(party) => updateFilters({ party })}
+        disabled={loading}
+      />
+
       <FilterField label="Stage">
         <div className={styles.stageFilter}>
           <button
@@ -291,12 +297,6 @@ export default function Filters({
         startDate={context.filters.startDate}
         endDate={context.filters.endDate}
         onChange={(startDate, endDate) => updateFilters({ startDate, endDate })}
-        disabled={loading}
-      />
-
-      <PartyFilter
-        party={context.filters.party}
-        onChange={(party) => updateFilters({ party })}
         disabled={loading}
       />
 

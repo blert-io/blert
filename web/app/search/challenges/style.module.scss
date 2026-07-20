@@ -51,6 +51,11 @@
         color: var(--blert-purple);
       }
     }
+
+    :global([data-theme='aero']) & {
+      @include panel;
+      padding: 10px 14px;
+    }
   }
 
   .wrapper {
@@ -58,9 +63,17 @@
     max-width: 100%;
     overflow-x: auto;
     border-radius: 8px;
+    // Matches the table surface so rubber-band overscroll doesn't go empty.
+    background: var(--blert-panel-background-color);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
 
     @include styledScrollbar;
+
+    :global([data-theme='aero']) & {
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid rgba(96, 132, 160, 0.55);
+      box-shadow: 0 4px 18px rgba(60, 120, 165, 0.28);
+    }
   }
 
   .emptyState {
@@ -98,32 +111,10 @@
       display: flex;
       gap: 8px;
       margin-top: 8px;
+    }
 
-      button {
-        padding: 8px 12px;
-        border-radius: 6px;
-        background: rgba(var(--blert-purple-base), 0.1);
-        border: 1px solid rgba(var(--blert-purple-base), 0.2);
-        color: var(--blert-purple);
-        transition: all 0.2s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 4px;
-
-        &:hover {
-          cursor: pointer;
-          background: rgba(var(--blert-purple-base), 0.2);
-          transform: translateY(-1px);
-        }
-
-        i {
-          font-size: 0.95em;
-          margin: 0;
-          position: relative;
-          top: 1px;
-        }
-      }
+    :global([data-theme='aero']) & {
+      @include aeroWell;
     }
   }
 
@@ -208,6 +199,17 @@
             background: rgba(var(--blert-purple-base), 0.2);
             transform: translateY(-1px);
           }
+
+          :global([data-theme='aero']) & {
+            @include aeroButton;
+            color: var(--blert-purple);
+
+            &:hover {
+              @include aeroButtonHover;
+              color: var(--blert-purple);
+              transform: translateY(-1px);
+            }
+          }
         }
       }
     }
@@ -219,7 +221,6 @@
         &:not(.selectedChallenge):hover {
           background: rgba(var(--blert-purple-base), 0.08);
           color: var(--blert-font-color-primary);
-          transform: translateY(-1px);
         }
 
         &:nth-child(even) {
@@ -291,6 +292,45 @@
         opacity: 0.85;
       }
     }
+
+    :global([data-theme='aero']) & {
+      background: rgba(255, 255, 255, 0.94);
+
+      th,
+      td {
+        border-bottom-color: rgba(96, 132, 160, 0.4);
+      }
+
+      thead tr {
+        background: #dbe6f0;
+        border-bottom: 2px solid rgba(96, 132, 160, 0.55);
+      }
+
+      tbody tr {
+        &:nth-child(even) {
+          background-color: rgba(228, 239, 250, 0.9);
+        }
+
+        &:not(.selectedChallenge):hover {
+          background: rgba(var(--blert-purple-base), 0.1);
+        }
+
+        &.selectedChallenge {
+          background: rgba(var(--blert-purple-base), 0.16);
+        }
+      }
+
+      tfoot.summary {
+        td {
+          background: #dbe6f0;
+        }
+
+        tr:first-child td {
+          border-top: 2px solid rgba(96, 132, 160, 0.55);
+          box-shadow: none;
+        }
+      }
+    }
   }
 
   .id {
@@ -307,6 +347,14 @@
       background: rgba(var(--blert-purple-base), 0.2);
       transform: translateY(-1px);
     }
+
+    :global([data-theme='aero']) & {
+      background: rgba(var(--blert-surface-light-base), 0.6);
+
+      &:hover {
+        background: rgba(var(--blert-surface-light-base), 0.9);
+      }
+    }
   }
 
   .pagination {
@@ -322,30 +370,14 @@
       border-radius: 8px;
       gap: 16px;
 
-      button {
+      :global([data-theme='aero']) & {
+        @include panel;
+      }
+
+      .pageButton {
         width: 70px;
-        display: flex;
-        gap: 8px;
         height: 36px;
-        border-radius: 6px;
-        background: rgba(var(--blert-purple-base), 0.1);
-        border: 1px solid rgba(var(--blert-purple-base), 0.2);
-        color: var(--blert-purple);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.2s ease;
-        cursor: pointer;
-
-        &:disabled {
-          opacity: 0.3;
-          cursor: not-allowed;
-        }
-
-        &:not(:disabled):hover {
-          background: rgba(var(--blert-purple-base), 0.2);
-          transform: translateY(-1px);
-        }
+        padding: 0;
 
         i {
           position: relative;
@@ -391,6 +423,16 @@
     opacity: 0.5;
     cursor: not-allowed;
   }
+
+  :global([data-theme='aero']) & {
+    @include aeroButton;
+    color: var(--blert-purple);
+
+    &:hover:not(:disabled) {
+      @include aeroButtonHover;
+      color: var(--blert-purple);
+    }
+  }
 }
 
 .filters {
@@ -430,6 +472,15 @@
         background: rgba(var(--blert-purple-base), 0.1);
         border-color: rgba(var(--blert-purple-base), 0.2);
       }
+
+      :global([data-theme='aero']) & {
+        @include aeroField;
+
+        &:not(:disabled):hover {
+          background: rgba(255, 255, 255, 0.8);
+          border-color: rgba(74, 154, 216, 0.7);
+        }
+      }
     }
   }
 }
@@ -443,50 +494,13 @@
   border-radius: 12px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 
+  :global([data-theme='aero']) & {
+    box-shadow: 0 20px 60px rgba(60, 120, 165, 0.35);
+  }
+
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     width: 90vw;
     max-height: 95vh;
-  }
-
-  .modalHeader {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 20px 24px;
-    border-bottom: 1px solid rgba(var(--blert-purple-base), 0.1);
-    background: linear-gradient(
-      135deg,
-      rgba(var(--blert-purple-base), 0.08) 0%,
-      rgba(var(--blert-purple-base), 0.03) 100%
-    );
-
-    h2 {
-      margin: 0;
-      color: var(--blert-font-color-primary);
-      font-weight: 600;
-      font-size: 1.3em;
-    }
-
-    .closeButton {
-      width: 32px;
-      height: 32px;
-      border-radius: 6px;
-      background: rgba(var(--blert-purple-base), 0.1);
-      border: 1px solid rgba(var(--blert-purple-base), 0.2);
-      color: var(--blert-font-color-secondary);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s ease;
-      cursor: pointer;
-
-      &:hover {
-        background: rgba(var(--blert-red-base), 0.2);
-        border-color: rgba(var(--blert-red-base), 0.4);
-        color: var(--blert-font-color-primary);
-        transform: scale(1.05);
-      }
-    }
   }
 
   .selection {
@@ -495,6 +509,10 @@
     padding: 24px;
     flex: 1;
     overflow: hidden;
+
+    :global([data-theme='aero']) & {
+      @include aeroWell;
+    }
 
     @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
       flex-direction: column;
@@ -523,20 +541,20 @@
 
     &:nth-child(1) {
       // Selected
-      border-left: 4px solid rgba(76, 175, 80, 0.6);
-      background: rgba(76, 175, 80, 0.05);
+      border-left: 4px solid rgba(var(--blert-green-base), 0.6);
+      background: rgba(var(--blert-green-base), 0.05);
     }
 
     &:nth-child(2) {
       // Available
-      border-left: 4px solid rgba(33, 150, 243, 0.6);
-      background: rgba(33, 150, 243, 0.05);
+      border-left: 4px solid rgba(var(--blert-purple-base), 0.6);
+      background: rgba(var(--blert-purple-base), 0.05);
     }
 
     &:nth-child(3) {
       // Presets
-      border-left: 4px solid rgba(255, 152, 0, 0.6);
-      background: rgba(255, 152, 0, 0.05);
+      border-left: 4px solid rgba(var(--blert-accent-complement-base), 0.6);
+      background: rgba(var(--blert-accent-complement-base), 0.05);
     }
 
     &.hint {
@@ -579,6 +597,10 @@
       &:focus {
         outline: none;
         border-color: var(--blert-purple);
+      }
+
+      :global([data-theme='aero']) & {
+        @include aeroField(4px);
       }
     }
 
@@ -663,7 +685,7 @@
           font-family: 'Font Awesome 6 Free';
           font-weight: 900;
           margin-right: 8px;
-          color: rgba(255, 152, 0, 0.7);
+          color: rgba(var(--blert-accent-complement-base), 0.7);
           font-size: 0.8em;
         }
       }
@@ -699,6 +721,10 @@
           cursor: pointer;
           color: var(--blert-purple);
         }
+      }
+
+      i:global(.fa-trash):hover {
+        color: var(--blert-red);
       }
     }
 
@@ -737,36 +763,7 @@
     background: rgba(var(--blert-surface-dark-base), 0.2);
 
     button {
-      padding: 10px 20px;
-      border-radius: 6px;
-      font-weight: 500;
-      transition: all 0.2s ease;
-
-      &:not(.simple) {
-        background: var(--blert-purple);
-        color: var(--blert-panel-background-color);
-
-        &:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(var(--blert-purple-base), 0.3);
-        }
-      }
-
-      &.simple {
-        background: rgba(var(--blert-purple-base), 0.1);
-        color: var(--blert-purple);
-        border: 1px solid rgba(var(--blert-purple-base), 0.2);
-
-        &:hover {
-          background: rgba(var(--blert-purple-base), 0.2);
-        }
-      }
-
-      &:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-        transform: none !important;
-      }
+      min-width: 80px;
     }
   }
 
@@ -777,6 +774,10 @@
     background: rgba(0, 0, 0, 0.7);
     border-radius: inherit;
     backdrop-filter: blur(4px);
+
+    :global([data-theme='aero']) & {
+      background: rgba(40, 90, 120, 0.35);
+    }
   }
 
   .confirm {
@@ -819,6 +820,16 @@
       animation: borderShimmer 3s ease-in-out infinite;
     }
 
+    :global([data-theme='aero']) & {
+      background: var(--blert-panel-surface);
+      border: 1px solid rgba(120, 165, 200, 0.5);
+      box-shadow: 0 8px 28px rgba(60, 120, 165, 0.35);
+
+      &::before {
+        display: none;
+      }
+    }
+
     .message {
       width: 100%;
       margin: 0 0 8px 0;
@@ -842,6 +853,10 @@
           border-color: var(--blert-purple);
           outline: none;
         }
+
+        :global([data-theme='aero']) & {
+          @include aeroField(6px);
+        }
       }
     }
 
@@ -853,30 +868,7 @@
       gap: 12px;
 
       button {
-        padding: 10px 20px;
-        border-radius: 6px;
-        font-weight: 500;
-        transition: all 0.2s ease;
-
-        &[type='submit'] {
-          background: var(--blert-purple);
-          color: var(--blert-panel-background-color);
-
-          &:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(var(--blert-purple-base), 0.3);
-          }
-        }
-
-        &.simple {
-          background: rgba(var(--blert-purple-base), 0.1);
-          color: var(--blert-purple);
-          border: 1px solid rgba(var(--blert-purple-base), 0.2);
-
-          &:hover {
-            background: rgba(var(--blert-purple-base), 0.2);
-          }
-        }
+        min-width: 80px;
       }
     }
   }
@@ -890,4 +882,8 @@
       opacity: 1;
     }
   }
+}
+
+.modeText {
+  color: var(--challenge-color-text);
 }

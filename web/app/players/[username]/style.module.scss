@@ -35,6 +35,10 @@ $NAV_MARGIN: 10px;
     var(--blert-surface-light)
   );
 
+  :global([data-theme='aero']) & {
+    background: none;
+  }
+
   .playerImgWrapper {
     position: relative;
     width: $IMAGE_SIZE;
@@ -43,6 +47,16 @@ $NAV_MARGIN: 10px;
     border-radius: 8px;
     overflow: hidden;
     background: var(--blert-surface-dark);
+
+    :global([data-theme='aero']) & {
+      @include aeroWell(
+        linear-gradient(
+          to bottom,
+          rgba(226, 243, 252, 0.95),
+          rgba(180, 216, 238, 0.9)
+        )
+      );
+    }
   }
 
   .playerInfoText {
@@ -177,6 +191,30 @@ $NAV_MARGIN: 10px;
   i {
     font-size: 0.95em;
   }
+
+  :global([data-theme='aero']) & {
+    @include aeroActionButton;
+
+    &:hover:not(:disabled) {
+      @include aeroActionButtonHover;
+    }
+
+    &.following {
+      @include aeroButton;
+
+      i {
+        color: inherit;
+      }
+
+      &:hover:not(:disabled) {
+        @include aeroDangerButtonHover;
+
+        i {
+          color: #fff;
+        }
+      }
+    }
+  }
 }
 
 .recentChallenge {
@@ -214,6 +252,28 @@ $NAV_MARGIN: 10px;
 
       .recentArrow {
         color: var(--blert-green);
+      }
+    }
+  }
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+
+    &:hover {
+      border-color: rgba(var(--blert-purple-base), 0.6);
+      box-shadow:
+        inset 0 1px 3px rgba(40, 90, 130, 0.16),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.6),
+        0 3px 10px rgba(60, 120, 165, 0.35);
+    }
+
+    &.live {
+      @include aeroWell(color-mix(in srgb, var(--blert-green) 10%, white));
+      border-color: rgba(var(--blert-green-base), 0.5);
+      color: var(--blert-font-color-primary);
+
+      &:hover {
+        border-color: rgba(var(--blert-green-base), 0.7);
       }
     }
   }
@@ -365,6 +425,48 @@ $NAV_MARGIN: 10px;
       opacity 0.2s ease;
     z-index: 2;
   }
+
+  :global([data-theme='aero']) & {
+    overflow: hidden;
+    background: rgba(158, 205, 228, 0.55);
+    border-top: 1px solid rgba(120, 165, 200, 0.4);
+
+    .indicator {
+      display: none;
+    }
+
+    .tab {
+      background: linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0.92),
+        rgba(255, 255, 255, 0.6) 47%,
+        rgba(216, 236, 249, 0.55) 48%,
+        rgba(202, 228, 245, 0.65)
+      );
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.95),
+        inset 0 -2px 3px rgba(60, 120, 165, 0.16);
+      transition:
+        box-shadow 0.2s ease,
+        color 0.2s ease;
+
+      &:not(:first-child) {
+        border-left: 1px solid rgba(112, 156, 196, 0.35);
+      }
+
+      &:hover:not(.active) {
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 1),
+          inset 0 -2px 3px rgba(60, 120, 165, 0.12),
+          inset 0 0 0 999px rgba(255, 255, 255, 0.4);
+      }
+
+      &.active {
+        background: rgba(130, 185, 215, 0.5);
+        box-shadow: inset 0 2px 5px rgba(40, 90, 130, 0.28);
+      }
+    }
+  }
 }
 
 .content {
@@ -491,6 +593,12 @@ $NAV_MARGIN: 10px;
     margin: 4px 0;
     gap: 12px;
 
+    :global([data-theme='aero']) & {
+      @include aeroWell;
+      border-radius: 8px;
+      padding: 12px 8px;
+    }
+
     .pbTable {
       margin: 0;
       padding: 8px 0;
@@ -566,6 +674,12 @@ $NAV_MARGIN: 10px;
       gap: 1rem;
       margin: 0.25rem;
 
+      :global([data-theme='aero']) & {
+        @include aeroWell;
+        border-radius: 8px;
+        padding: 12px;
+      }
+
       @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
         flex-direction: column;
       }
@@ -610,8 +724,20 @@ $NAV_MARGIN: 10px;
             font-size: 1.4em;
             opacity: 0.7;
           }
+
+          :global([data-theme='aero']) & {
+            @include aeroRecess;
+          }
         }
       }
+    }
+  }
+
+  .hoursChart {
+    :global([data-theme='aero']) & {
+      @include aeroWell;
+      border-radius: 8px;
+      padding: 4px 12px 12px;
     }
   }
 
@@ -640,6 +766,20 @@ $NAV_MARGIN: 10px;
           background: var(--blert-surface-light);
           border-color: rgba(var(--blert-purple-base), 0.3);
           transform: translateY(-1px);
+        }
+
+        :global([data-theme='aero']) & {
+          @include aeroWell;
+
+          &:hover {
+            background: var(--blert-aero-well);
+            border-color: rgba(var(--blert-purple-base), 0.6);
+            box-shadow:
+              inset 0 1px 3px rgba(40, 90, 130, 0.16),
+              inset 0 -1px 0 rgba(255, 255, 255, 0.6),
+              0 3px 10px rgba(60, 120, 165, 0.35);
+            transform: none;
+          }
         }
 
         .partnerInfo {
@@ -702,6 +842,10 @@ $NAV_MARGIN: 10px;
       text-align: center;
       gap: 8px;
       border: 1px dashed var(--blert-divider-color);
+
+      :global([data-theme='aero']) & {
+        @include aeroRecess;
+      }
 
       i {
         font-size: 1.4em;
@@ -770,6 +914,12 @@ $NAV_MARGIN: 10px;
       -webkit-overflow-scrolling: touch;
       @include styledScrollbar;
       padding: 0 16px;
+
+      :global([data-theme='aero']) & {
+        @include aeroWell;
+        border-radius: 8px;
+        padding: 12px 16px;
+      }
     }
   }
 }
@@ -788,7 +938,7 @@ $NAV_MARGIN: 10px;
     display: flex;
     margin-bottom: 8px;
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--blert-font-color-secondary);
     margin-left: 30px;
     padding-right: 8px;
     width: 950px;
@@ -807,7 +957,7 @@ $NAV_MARGIN: 10px;
       flex-direction: column;
       gap: 4px;
       font-size: 12px;
-      color: rgba(255, 255, 255, 0.6);
+      color: var(--blert-font-color-secondary);
       width: 22px;
 
       div {
@@ -850,7 +1000,7 @@ $NAV_MARGIN: 10px;
     gap: 4px;
     margin-top: 16px;
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--blert-font-color-secondary);
     width: 950px;
     margin-left: 30px;
 
@@ -862,47 +1012,6 @@ $NAV_MARGIN: 10px;
 
     .label {
       margin: 0 8px;
-    }
-  }
-
-  .calendarTooltip {
-    position: fixed;
-    background: var(--blert-surface-dark);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 6px;
-    padding: 8px 12px;
-    pointer-events: none;
-    z-index: 1000;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    white-space: nowrap;
-    transition:
-      transform 0.1s ease-out,
-      opacity 0.1s ease-out;
-    transform-origin: center bottom;
-
-    &::after {
-      content: '';
-      position: absolute;
-      bottom: -5px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 0;
-      height: 0;
-      border-left: 5px solid transparent;
-      border-right: 5px solid transparent;
-      border-top: 5px solid var(--blert-surface-dark);
-    }
-
-    .date {
-      font-size: 13px;
-      font-weight: 500;
-      color: #fff;
-      margin-bottom: 2px;
-    }
-
-    .count {
-      font-size: 12px;
-      color: rgba(255, 255, 255, 0.8);
     }
   }
 }
@@ -1098,6 +1207,14 @@ $NAV_MARGIN: 10px;
   }
 }
 
+.chartArea {
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+    border-radius: 8px;
+    padding: 12px;
+  }
+}
+
 .statsCard {
   display: flex;
   flex-direction: column;
@@ -1147,6 +1264,17 @@ $NAV_MARGIN: 10px;
 
       i {
         font-size: 0.9em;
+      }
+
+      :global([data-theme='aero']) & {
+        @include aeroButton;
+        color: var(--blert-purple);
+        padding: 4px 8px;
+
+        &:hover:not(.disabled) {
+          @include aeroButtonHover;
+          color: var(--blert-purple);
+        }
       }
     }
   }

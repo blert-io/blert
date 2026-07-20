@@ -49,6 +49,17 @@ $PANEL_WIDTH: 320px;
     font-weight: 600;
     color: var(--blert-font-color-primary);
   }
+
+  // Aero: it's a title bar
+  :global([data-theme='aero']) & {
+    background: linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.55),
+      rgba(214, 236, 250, 0.18)
+    );
+    border-bottom: 1px solid rgba(120, 165, 200, 0.35);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  }
 }
 
 .headerActions {
@@ -74,6 +85,14 @@ $PANEL_WIDTH: 320px;
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  :global([data-theme='aero']) & {
+    @include aeroButton;
+
+    &:hover:not(:disabled) {
+      @include aeroButtonHover;
+    }
   }
 }
 

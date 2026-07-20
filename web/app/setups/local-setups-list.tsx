@@ -1,10 +1,12 @@
 'use client';
 
+import { challengeName } from '@blert/common';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import TimeAgo from 'react-timeago';
 
 import { SetupListItem } from '@/actions/setup';
+import Button, { ButtonLink } from '@/components/button';
 import Card from '@/components/card';
 
 import DeleteModal from './delete-modal';
@@ -12,7 +14,6 @@ import { setupLocalStorage } from './local-storage';
 import { MAX_LOCAL_SETUPS } from './setup';
 
 import styles from './local-setups-list.module.scss';
-import { challengeName } from '@blert/common';
 
 export default function LocalSetupsList() {
   const [localSetups, setLocalSetups] = useState<SetupListItem[]>([]);
@@ -83,10 +84,10 @@ export default function LocalSetupsList() {
           <i className="fas fa-folder-open" />
           <h3>No local setups yet</h3>
           <p>Create your first gear setup to get started!</p>
-          <Link href="/setups/new" className={styles.emptyStateButton}>
+          <ButtonLink href="/setups/new" className={styles.emptyStateButton}>
             <i className="fas fa-plus" />
             Create Your First Setup
-          </Link>
+          </ButtonLink>
         </div>
       )}
     </Card>
@@ -134,20 +135,22 @@ function LocalSetupCard({
           </div>
         </Link>
         <div className={styles.setupActions}>
-          <Link
+          <ButtonLink
             href={`/setups/${setup.publicId}/edit`}
             className={styles.editButton}
           >
             <i className="fas fa-edit" />
             <span>Edit</span>
-          </Link>
-          <button
+          </ButtonLink>
+          <Button
             onClick={() => setShowDeleteModal(true)}
             className={styles.deleteButton}
+            simple
+            variant="danger"
           >
             <i className="fas fa-trash" />
             <span>Delete</span>
-          </button>
+          </Button>
         </div>
       </div>
       <DeleteModal

@@ -359,12 +359,14 @@ export function ItemSelector() {
         {context.selectedItem ? (
           <>
             <div className={styles.item}>
-              <Item
-                id={context.selectedItem.id}
-                name={context.selectedItem.name}
-                quantity={1}
-                size={ITEM_SIZE}
-              />
+              <div className={styles.sprite}>
+                <Item
+                  id={context.selectedItem.id}
+                  name={context.selectedItem.name}
+                  quantity={1}
+                  size={ITEM_SIZE}
+                />
+              </div>
               <span className={styles.name}>{context.selectedItem.name}</span>
             </div>
             <button
@@ -378,10 +380,12 @@ export function ItemSelector() {
           </>
         ) : (
           <div className={styles.placeholder}>
-            <div
-              className={styles.placeholderIcon}
-              style={{ width: ITEM_SIZE, height: ITEM_SIZE }}
-            />
+            <div className={styles.sprite}>
+              <div
+                className={styles.placeholderIcon}
+                style={{ width: ITEM_SIZE, height: ITEM_SIZE }}
+              />
+            </div>
             <span className={styles.name}>No item selected</span>
           </div>
         )}

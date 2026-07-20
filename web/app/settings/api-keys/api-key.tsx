@@ -3,8 +3,7 @@
 import { useState } from 'react';
 
 import { ApiKeyWithUsername, deleteApiKey } from '@/actions/users';
-import Button from '@/components/button';
-import { Modal } from '@/components/modal/modal';
+import ConfirmationModal from '@/components/confirmation-modal';
 import { useToast } from '@/components/toast';
 
 import styles from '../style.module.scss';
@@ -63,7 +62,7 @@ export default function ApiKey({ apiKey, onDelete }: ApiKeyProps) {
             </button>
             <button
               title="Delete key"
-              className={styles.action}
+              className={`${styles.action} ${styles.deleteAction}`}
               onClick={() => setShowDeleteModal(true)}
               disabled={isDeleting}
             >
@@ -82,31 +81,21 @@ export default function ApiKey({ apiKey, onDelete }: ApiKeyProps) {
         </div>
       </div>
 
-      <Modal
+      <ConfirmationModal
         open={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
-        width={400}
-      >
-        <div className={styles.deleteModal}>
-          <h3>Delete API Key</h3>
+        onConfirm={() => void handleDelete()}
+        title="Delete API Key"
+        message={
           <p>
             Are you sure you want to delete the API key for{' '}
             <strong>{apiKey.rsn}</strong>? This action cannot be undone.
           </p>
-          <div className={styles.modalActions}>
-            <Button
-              simple
-              onClick={() => setShowDeleteModal(false)}
-              disabled={isDeleting}
-            >
-              Cancel
-            </Button>
-            <Button onClick={() => void handleDelete()} loading={isDeleting}>
-              Delete
-            </Button>
-          </div>
-        </div>
-      </Modal>
+        }
+        confirmText="Delete"
+        variant="danger"
+        loading={isDeleting}
+      />
     </>
   );
 }

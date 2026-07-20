@@ -15,6 +15,22 @@
     left 0.3s ease,
     width 0.3s ease;
 
+  // Aero: WMP-style control bar.
+  :global([data-theme='aero']) & {
+    background: linear-gradient(
+      to bottom,
+      rgba(212, 234, 250, 0.9),
+      rgba(174, 210, 240, 0.86) 48%,
+      rgba(152, 194, 230, 0.88) 52%,
+      rgba(184, 216, 242, 0.9)
+    );
+    backdrop-filter: blur(10px) saturate(1.3);
+    border-top: 1px solid rgba(255, 255, 255, 0.75);
+    box-shadow:
+      0 -2px 8px rgba(60, 120, 165, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  }
+
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     left: 0;
     width: 100vw;
@@ -269,6 +285,65 @@
       transform: scale(1.2);
     }
   }
+
+  // Aero: WMP-style seek slider.
+  :global([data-theme='aero']) & {
+    input[type='range']::-webkit-slider-runnable-track {
+      height: 5px;
+      border-radius: 3px;
+      background: linear-gradient(
+        to right,
+        #2a8ae8 0%,
+        #2a8ae8 var(--progress, 0%),
+        rgba(40, 80, 120, 0.22) var(--progress, 0%),
+        rgba(40, 80, 120, 0.22) 100%
+      );
+      box-shadow: inset 0 1px 2px rgba(20, 50, 90, 0.35);
+    }
+
+    input[type='range']::-moz-range-track {
+      height: 5px;
+      border-radius: 3px;
+      background: rgba(40, 80, 120, 0.22);
+      box-shadow: inset 0 1px 2px rgba(20, 50, 90, 0.35);
+    }
+
+    input[type='range']::-moz-range-progress {
+      height: 5px;
+      border-radius: 3px;
+      background: #2a8ae8;
+    }
+
+    input[type='range']::-webkit-slider-thumb {
+      height: 16px;
+      width: 16px;
+      border: none;
+      background: radial-gradient(
+        circle at 50% 35%,
+        #bfe3fb 0%,
+        #4a92d6 45%,
+        #1f6fc0 100%
+      );
+      box-shadow:
+        inset 0 1px 1px rgba(255, 255, 255, 0.7),
+        0 1px 2px rgba(0, 0, 0, 0.35);
+    }
+
+    input[type='range']::-moz-range-thumb {
+      height: 16px;
+      width: 16px;
+      border: none;
+      background: radial-gradient(
+        circle at 50% 35%,
+        #bfe3fb 0%,
+        #4a92d6 45%,
+        #1f6fc0 100%
+      );
+      box-shadow:
+        inset 0 1px 1px rgba(255, 255, 255, 0.7),
+        0 1px 2px rgba(0, 0, 0, 0.35);
+    }
+  }
 }
 
 .controls__scrubber__splits {
@@ -420,6 +495,26 @@
     }
   }
 
+  // Aero: WMP transport controls are bare glyphs on the bar.
+  :global([data-theme='aero']) & {
+    background: none;
+    border: none;
+    box-shadow: none;
+
+    .icon {
+      color: rgba(var(--blert-purple-base), 0.8);
+    }
+
+    &:hover:not(:disabled) {
+      transform: none;
+      background: none;
+
+      .icon {
+        color: var(--blert-purple);
+      }
+    }
+  }
+
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     height: 44px;
     width: 44px;
@@ -429,5 +524,57 @@
     color: var(--blert-purple);
     position: relative;
     top: 1px;
+  }
+}
+
+.playbackButtonPlay {
+  // Aero: big blue glossy WMP-style play orb.
+  :global([data-theme='aero']) & {
+    border-radius: 50%;
+    width: 52px;
+    height: 52px;
+    font-size: 1.5em;
+    border-color: rgba(0, 40, 90, 0.6);
+    background: linear-gradient(
+      to bottom,
+      #8fd2f8 0%,
+      #2a8ae8 46%,
+      #0d5abf 47%,
+      #2f86e8 100%
+    );
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      inset 0 -2px 4px rgba(0, 30, 70, 0.4),
+      0 2px 6px rgba(0, 0, 0, 0.4);
+
+    .icon {
+      color: #fff;
+      font-weight: 900;
+      top: 0px;
+
+      // WMP uses a plain play/pause glyph, not a circled one.
+      &:global(.fa-circle-play) {
+        left: 1px;
+        &::before {
+          content: '\f04b';
+        }
+      }
+
+      &:global(.fa-circle-pause)::before {
+        content: '\f04c';
+      }
+    }
+
+    &:hover:not(:disabled) {
+      transform: none;
+      filter: brightness(1.08);
+      background: linear-gradient(
+        to bottom,
+        #9fd8fa 0%,
+        #3595ef 46%,
+        #1163c6 47%,
+        #3a90ec 100%
+      );
+    }
   }
 }

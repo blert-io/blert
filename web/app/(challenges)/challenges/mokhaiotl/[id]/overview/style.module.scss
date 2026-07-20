@@ -15,6 +15,13 @@
   margin: 0 auto;
   padding: 2rem 0;
 
+  // Aero: wrap the delves in a card so they don't float independently.
+  :global([data-theme='aero']) & {
+    @include panel;
+    flex-direction: column;
+    padding: 20px;
+  }
+
   h2 {
     font-size: 1.3em;
     margin: 0 0 20px 0;
@@ -35,11 +42,24 @@
       transition: all 0.2s ease;
       gap: 16px;
       z-index: 1;
+      outline: 1px solid transparent;
 
       &:hover {
         transform: translateY(-2px);
         background: var(--blert-surface-light);
         outline: 1px solid var(--blert-purple);
+      }
+
+      :global([data-theme='aero']) & {
+        backdrop-filter: none;
+        @include aeroWell;
+
+        &:hover {
+          transform: none;
+          background: rgba(255, 255, 255, 0.58);
+          outline-color: transparent;
+          border-color: rgba(112, 156, 196, 0.6);
+        }
       }
 
       .delveImg {
@@ -50,6 +70,16 @@
         border-radius: 6px;
         overflow: hidden;
         background: var(--blert-surface-dark);
+
+        :global([data-theme='aero']) & {
+          @include aeroWell(
+            linear-gradient(
+              to bottom,
+              rgba(226, 243, 252, 0.95),
+              rgba(180, 216, 238, 0.9)
+            )
+          );
+        }
       }
 
       .delveDetails {

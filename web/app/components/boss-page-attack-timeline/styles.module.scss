@@ -2,7 +2,7 @@
 
 .attackTimelineCard {
   width: 100%;
-  background-color: rgba(var(--blert-surface-dark-base), 1);
+  background-color: var(--blert-timeline-surface);
 
   .actionButtons {
     display: flex;
@@ -33,6 +33,15 @@
         }
       }
     }
+
+    :global([data-theme='aero']) & button {
+      padding: 6px 14px;
+      border-radius: 6px;
+      @include aeroActionButton;
+      &:hover {
+        @include aeroActionButtonHover;
+      }
+    }
   }
 }
 
@@ -54,6 +63,10 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
+
+  :global([data-theme='aero']) & {
+    background: var(--blert-timeline-surface);
+  }
 }
 
 .tooltip {

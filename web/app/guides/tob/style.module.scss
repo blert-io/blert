@@ -49,6 +49,16 @@
   padding: 1em;
   background: var(--blert-surface-dark);
   border-radius: 6px;
+
+  :global([data-theme='aero']) & {
+    @include aeroWell(
+      linear-gradient(
+        to bottom,
+        rgba(226, 243, 252, 0.95),
+        rgba(180, 216, 238, 0.9)
+      )
+    );
+  }
 }
 
 .guideGroup {
@@ -56,6 +66,16 @@
     margin: 1em 0;
     color: var(--blert-font-color-primary);
     font-size: 1.25rem;
+  }
+
+  :global([data-theme='aero']) & > ul {
+    @include aeroWell;
+    padding: 4px 20px 16px;
+    border-radius: 8px;
+
+    h3:first-child {
+      margin-top: 12px;
+    }
   }
 
   ul {

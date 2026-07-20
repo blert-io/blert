@@ -14,12 +14,14 @@
   --blert-green-base: 45, 199, 112;
   --blert-yellow-base: 222, 200, 88;
   --blert-purple-base: 88, 101, 242;
+  // A color complementing the accent.
+  --blert-accent-complement-base: var(--blert-yellow-base);
   --blert-gold-base: 255, 215, 0;
   --blert-silver-base: 192, 192, 192;
   --blert-bronze-base: 205, 127, 50;
 
   --blert-font-color-primary-base: 195, 199, 201;
-  --blert-font-color-secondary-base: 94, 98, 136;
+  --blert-font-color-secondary-base: 130, 134, 176;
   --blert-divider-color-base: 75, 78, 109;
 
   --blert-surface-dark-base: 23, 24, 33;
@@ -33,6 +35,9 @@
   --blert-green: rgb(var(--blert-green-base));
   --blert-yellow: rgb(var(--blert-yellow-base));
   --blert-purple: rgb(var(--blert-purple-base));
+  --blert-accent-complement: rgb(var(--blert-accent-complement-base));
+  // Readable foreground for text/icons sitting on a solid accent fill.
+  --blert-accent-text: #fff;
   --blert-gold: rgb(var(--blert-gold-base));
   --blert-silver: rgb(var(--blert-silver-base));
   --blert-bronze: rgb(var(--blert-bronze-base));
@@ -48,6 +53,32 @@
   --blert-page-background-color: rgb(var(--blert-page-background-color-base));
   --blert-panel-background-color: rgb(var(--blert-panel-background-color-base));
 
+  // Challenge status colors. Completions and wipes use green/red directly.
+  --blert-status-in-progress: #ffffff;
+  --blert-status-abandoned: #b9bbb6;
+  --blert-status-reset: var(--blert-font-color-primary);
+
+  // Challenge scale colors.
+  --blert-scale-1-base: 0, 136, 254;
+  --blert-scale-2-base: 0, 196, 159;
+  --blert-scale-3-base: 255, 187, 40;
+  --blert-scale-4-base: 255, 128, 66;
+  --blert-scale-5-base: 136, 132, 216;
+  --blert-scale-1: rgb(var(--blert-scale-1-base));
+  --blert-scale-2: rgb(var(--blert-scale-2-base));
+  --blert-scale-3: rgb(var(--blert-scale-3-base));
+  --blert-scale-4: rgb(var(--blert-scale-4-base));
+  --blert-scale-5: rgb(var(--blert-scale-5-base));
+
+  // Material overrides.
+  --blert-radius: 5px;
+  --blert-page-surface: var(--blert-page-background-color);
+  --blert-panel-surface: var(--blert-panel-background-color);
+  // Left nav background.
+  --blert-nav-surface: var(--blert-surface-dark);
+  --blert-panel-blur: none;
+  --blert-elevation-1: 0 0 5px 0 rgba(0, 0, 0, 0.5);
+
   --blert-gold-text-shadow:
     0 0 8px rgba(255, 215, 0, 0.6), 0 0 16px rgba(255, 215, 0, 0.3),
     0 0 24px rgba(255, 215, 0, 0.25);
@@ -55,18 +86,317 @@
     0 0 6px rgba(192, 192, 192, 0.5), 0 0 12px rgba(192, 192, 192, 0.25);
   --blert-bronze-text-shadow: 0 0 6px rgba(205, 127, 50, 0.4);
 
+  // Backing surface for the attack timeline's panel.
+  --blert-timeline-surface: var(--blert-surface-dark);
   // Attack timeline decorative colors, read by its renderer.
   // See components/attack-timeline/canvas/palette.ts.
   --blert-timeline-cell-bg-default: rgba(33, 35, 48, 0.5);
   --blert-timeline-cell-bg-default-hover: rgba(33, 35, 48, 0.6);
-  --blert-timeline-cell-bg-highlighted: rgba(48, 51, 73, 0.5);
-  --blert-timeline-cell-bg-highlighted-hover: rgba(88, 101, 242, 0.3);
+  --blert-timeline-cell-bg-action: rgba(48, 51, 73, 0.5);
+  --blert-timeline-cell-bg-action-hover: rgba(88, 101, 242, 0.3);
+  --blert-timeline-cell-bg-off-cooldown: var(--blert-timeline-cell-bg-action);
+  --blert-timeline-cell-bg-off-cooldown-hover: var(
+    --blert-timeline-cell-bg-action-hover
+  );
   --blert-timeline-outline-neutral: rgba(195, 199, 201, 0.2);
   --blert-timeline-outline-neutral-hover: rgba(88, 101, 242, 0.8);
   --blert-timeline-outline-hover: rgba(88, 101, 242, 0.7);
   --blert-timeline-text-tick-header: rgba(195, 199, 201, 0.9);
   --blert-timeline-text-primary: rgb(195, 199, 201);
   --blert-timeline-accent: rgb(88, 101, 242);
+}
+
+// Morytania: vampiric purple base, ectoplasm green accent.
+[data-theme='morytania'] {
+  --blert-font-color-primary-base: 221, 203, 244;
+  --blert-font-color-secondary-base: 138, 134, 150;
+
+  --blert-surface-darker-base: 11, 8, 14;
+  --blert-page-background-color-base: 18, 13, 22;
+  --blert-panel-background-color-base: 28, 20, 31;
+  --blert-surface-dark-base: 22, 15, 27;
+  --blert-surface-light-base: 44, 32, 50;
+  --blert-nav-surface: rgb(29, 21, 35);
+
+  --blert-purple-base: 110, 174, 94;
+  --blert-accent-complement-base: 200, 132, 224;
+  --blert-divider-color-base: 58, 43, 61;
+  --blert-font-color-secondary-active: #b1abbe;
+
+  --blert-green-base: 108, 228, 76;
+  --blert-red-base: 190, 38, 50;
+  --blert-yellow-base: 224, 194, 108;
+  --blert-blue-base: 98, 148, 236;
+
+  // Blood moon near the top right of the page background.
+  --blert-page-surface:
+    radial-gradient(
+      circle 130px at 88% 8%,
+      rgba(168, 48, 56, 0.24) 0%,
+      rgba(168, 48, 56, 0.2) 52%,
+      rgba(130, 30, 44, 0.1) 67%,
+      transparent 84%
+    ),
+    radial-gradient(
+      ellipse 45% 40% at 88% 2%,
+      rgba(120, 26, 42, 0.05),
+      transparent 72%
+    ),
+    linear-gradient(to bottom, rgb(18, 13, 22), rgb(22, 15, 26));
+
+  --blert-timeline-surface: rgb(24, 15, 30);
+  --blert-timeline-cell-bg-default: rgba(44, 32, 50, 0.5);
+  --blert-timeline-cell-bg-default-hover: rgba(44, 32, 50, 0.65);
+  --blert-timeline-cell-bg-action: rgba(104, 80, 140, 0.6);
+  --blert-timeline-cell-bg-action-hover: rgba(128, 100, 168, 0.65);
+  --blert-timeline-cell-bg-off-cooldown: rgba(68, 52, 88, 0.5);
+  --blert-timeline-cell-bg-off-cooldown-hover: rgba(90, 70, 116, 0.55);
+  --blert-timeline-outline-neutral: rgba(221, 203, 244, 0.2);
+  --blert-timeline-outline-neutral-hover: rgba(110, 174, 94, 0.8);
+  --blert-timeline-outline-hover: rgba(110, 174, 94, 0.7);
+  --blert-timeline-text-tick-header: rgba(221, 203, 244, 0.9);
+  --blert-timeline-text-primary: rgb(221, 203, 244);
+  --blert-timeline-accent: rgb(110, 174, 94);
+
+  --blert-timeline-indicator-opacity: 0.68;
+  --blert-timeline-indicator-glow:
+    inset 0 0 10px rgba(var(--blert-purple-base), 0.4),
+    0 0 5px rgba(var(--blert-purple-base), 0.5);
+}
+
+// Necropolis: gold on navy.
+[data-theme='necropolis'] {
+  --blert-font-color-primary-base: 230, 220, 196;
+  --blert-font-color-secondary-base: 134, 146, 168;
+
+  --blert-surface-darker-base: 9, 13, 22;
+  --blert-page-background-color-base: 14, 20, 32;
+  --blert-panel-background-color-base: 21, 29, 46;
+  --blert-surface-dark-base: 15, 22, 38;
+  --blert-surface-light-base: 34, 46, 68;
+
+  --blert-purple-base: 201, 162, 39;
+  --blert-accent-complement-base: 96, 165, 235;
+  // Dark text on gold accent.
+  --blert-accent-text: rgb(30, 22, 6);
+  --blert-divider-color-base: 43, 58, 82;
+  --blert-font-color-secondary-active: #a4acc0;
+
+  --blert-green-base: 102, 170, 84;
+  --blert-red-base: 190, 50, 50;
+  --blert-yellow-base: 248, 146, 52;
+  --blert-blue-base: 92, 160, 240;
+
+  // Distinguish trio from the theme accent.
+  --blert-scale-3-base: 220, 201, 143;
+
+  --blert-elevation-1:
+    0 2px 10px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(201, 162, 39, 0.12);
+
+  --blert-timeline-cell-bg-default: rgba(34, 46, 68, 0.5);
+  --blert-timeline-cell-bg-default-hover: rgba(34, 46, 68, 0.65);
+  --blert-timeline-cell-bg-action: rgba(92, 126, 186, 0.65);
+  --blert-timeline-cell-bg-action-hover: rgba(112, 148, 210, 0.7);
+  --blert-timeline-cell-bg-off-cooldown: rgba(63, 84, 128, 0.5);
+  --blert-timeline-cell-bg-off-cooldown-hover: rgba(82, 106, 152, 0.55);
+  --blert-timeline-outline-neutral: rgba(230, 220, 196, 0.2);
+  --blert-timeline-outline-neutral-hover: rgba(201, 162, 39, 0.8);
+  --blert-timeline-outline-hover: rgba(201, 162, 39, 0.7);
+  --blert-timeline-text-tick-header: rgba(230, 220, 196, 0.9);
+  --blert-timeline-text-primary: rgb(249, 246, 236);
+  --blert-timeline-accent: rgb(201, 162, 39);
+
+  --blert-timeline-indicator-opacity: 0.66;
+  --blert-timeline-indicator-glow:
+    inset 0 0 9px rgba(var(--blert-purple-base), 0.38),
+    0 0 5px rgba(var(--blert-purple-base), 0.45);
+}
+
+// Ashfall: warm gray base with an ember accent.
+[data-theme='ashfall'] {
+  --blert-font-color-primary-base: 230, 223, 209;
+  --blert-font-color-secondary-base: 150, 139, 124;
+
+  --blert-surface-darker-base: 18, 17, 16;
+  --blert-page-background-color-base: 27, 26, 24;
+  --blert-panel-background-color-base: 36, 34, 31;
+  --blert-surface-dark-base: 30, 28, 25;
+  --blert-surface-light-base: 52, 48, 42;
+  --blert-nav-surface: rgb(38, 36, 32);
+
+  --blert-purple-base: 220, 119, 33;
+  --blert-accent-complement-base: 64, 176, 220;
+  --blert-accent-text: rgb(42, 20, 4);
+  --blert-divider-color-base: 66, 60, 52;
+  --blert-font-color-secondary-active: #b4aa9a;
+
+  --blert-green-base: 120, 168, 80;
+  --blert-red-base: 194, 50, 44;
+  --blert-yellow-base: 228, 208, 90;
+  --blert-blue-base: 110, 152, 198;
+
+  --blert-scale-4-base: 224, 96, 128;
+
+  // Faint warm glow rising from the bottom of the page.
+  --blert-page-surface:
+    radial-gradient(
+      ellipse 70% 45% at 50% 100%,
+      rgba(220, 119, 33, 0.13),
+      transparent 72%
+    ),
+    linear-gradient(to bottom, rgb(27, 26, 24), rgb(31, 29, 26));
+  --blert-elevation-1:
+    0 2px 10px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 180, 120, 0.06);
+
+  --blert-timeline-cell-bg-default: rgba(52, 48, 42, 0.5);
+  --blert-timeline-cell-bg-default-hover: rgba(52, 48, 42, 0.65);
+  --blert-timeline-cell-bg-action: rgba(118, 107, 92, 0.68);
+  --blert-timeline-cell-bg-action-hover: rgba(134, 122, 105, 0.68);
+  --blert-timeline-cell-bg-off-cooldown: rgba(88, 80, 68, 0.55);
+  --blert-timeline-cell-bg-off-cooldown-hover: rgba(102, 92, 78, 0.6);
+  --blert-timeline-outline-neutral: rgba(230, 223, 209, 0.2);
+  --blert-timeline-outline-neutral-hover: rgba(220, 119, 33, 0.8);
+  --blert-timeline-outline-hover: rgba(220, 119, 33, 0.7);
+  --blert-timeline-text-tick-header: rgba(230, 223, 209, 0.9);
+  --blert-timeline-text-primary: rgb(230, 223, 209);
+  --blert-timeline-accent: rgb(220, 119, 33);
+
+  --blert-timeline-indicator-opacity: 0.7;
+  --blert-timeline-indicator-glow:
+    inset 0 0 11px rgba(var(--blert-purple-base), 0.45),
+    0 0 6px rgba(var(--blert-purple-base), 0.5);
+}
+
+// Outrun: synthwave neon with a hot pink accent.
+[data-theme='outrun'] {
+  --blert-font-color-primary-base: 240, 225, 255;
+  --blert-font-color-secondary-base: 150, 120, 190;
+
+  --blert-surface-darker-base: 14, 8, 26;
+  --blert-page-background-color-base: 26, 16, 44;
+  --blert-panel-background-color-base: 35, 20, 58;
+  --blert-surface-dark-base: 20, 12, 34;
+  --blert-surface-light-base: 48, 28, 78;
+
+  --blert-purple-base: 255, 56, 140;
+  --blert-accent-complement-base: 80, 200, 224;
+  --blert-divider-color-base: 74, 45, 116;
+  --blert-font-color-secondary-active: #c9b0e0;
+
+  --blert-green-base: 56, 234, 162;
+  --blert-red-base: 214, 54, 48;
+  --blert-yellow-base: 240, 208, 96;
+  --blert-blue-base: 96, 190, 245;
+
+  --blert-page-surface:
+    url('/images/themes/outrun-grid.svg') bottom center / 100% 40% no-repeat,
+    radial-gradient(
+      ellipse 45% 22% at 50% 62%,
+      rgba(255, 90, 160, 0.08),
+      transparent 70%
+    ),
+    linear-gradient(to bottom, rgb(26, 16, 44), rgb(32, 19, 52));
+
+  // Neon glow around panels.
+  --blert-elevation-1:
+    0 0 10px rgba(255, 56, 140, 0.1), 0 2px 8px rgba(0, 0, 0, 0.45);
+
+  --blert-timeline-cell-bg-default: rgba(48, 28, 78, 0.5);
+  --blert-timeline-cell-bg-default-hover: rgba(48, 28, 78, 0.65);
+  --blert-timeline-cell-bg-action: rgba(132, 66, 196, 0.6);
+  --blert-timeline-cell-bg-action-hover: rgba(152, 84, 216, 0.62);
+  --blert-timeline-cell-bg-off-cooldown: rgba(90, 56, 138, 0.52);
+  --blert-timeline-cell-bg-off-cooldown-hover: rgba(110, 70, 160, 0.57);
+  --blert-timeline-outline-neutral: rgba(210, 165, 255, 0.4);
+  --blert-timeline-outline-neutral-hover: rgba(255, 56, 140, 0.8);
+  --blert-timeline-outline-hover: rgba(255, 56, 140, 0.7);
+  --blert-timeline-text-tick-header: rgba(240, 225, 255, 0.9);
+  --blert-timeline-text-primary: rgb(240, 225, 255);
+  --blert-timeline-accent: rgb(255, 56, 140);
+
+  // Obnoxious, in-your-face active column.
+  --blert-timeline-indicator-opacity: 0.9;
+  --blert-timeline-indicator-glow:
+    inset 0 0 12px rgba(255, 56, 140, 0.6), 0 0 6px 1px rgba(255, 56, 140, 0.75);
+}
+
+// frutiger aero.
+// This is a special theme because it fundamentally changes the material of the
+// site's elements beyond the colors. Therefore, much of it is defined within
+// individual component files. Grep for `data-theme='aero'` across the codebase.
+// See also `./mixins.scss` for common aero chrome.
+[data-theme='aero'] {
+  --blert-font-color-primary-base: 20, 60, 90;
+  --blert-font-color-secondary-base: 60, 102, 132;
+
+  --blert-surface-darker-base: 160, 205, 230;
+  --blert-page-background-color-base: 183, 220, 242;
+  --blert-panel-background-color-base: 224, 242, 252;
+  --blert-surface-dark-base: 244, 251, 255;
+  --blert-surface-light-base: 205, 235, 250;
+
+  --blert-purple-base: 42, 104, 186;
+  --blert-accent-complement-base: 199, 138, 20;
+  --blert-divider-color-base: 156, 201, 227;
+  --blert-font-color-secondary-active: #2d5a78;
+
+  --blert-green-base: 34, 150, 74;
+  --blert-aero-action-base: 94, 182, 62;
+  --blert-aero-action: rgb(var(--blert-aero-action-base));
+
+  --blert-status-in-progress: var(--blert-font-color-primary);
+  --blert-status-abandoned: #6e7a82;
+  --blert-status-reset: var(--blert-font-color-secondary);
+
+  --blert-gold-base: var(--blert-accent-complement-base);
+  --blert-gold: var(--blert-accent-complement);
+
+  --blert-radius: 12px;
+  // Vista "Aurora"-like background.
+  --blert-page-surface:
+    radial-gradient(
+      ellipse 85% 65% at 6% 96%,
+      rgba(224, 224, 72, 0.85) 0%,
+      rgba(170, 214, 92, 0.35) 40%,
+      transparent 66%
+    ),
+    radial-gradient(
+      ellipse 60% 85% at 102% 72%,
+      rgba(96, 202, 236, 0.5) 0%,
+      transparent 60%
+    ),
+    linear-gradient(160deg, #7fd0ea 0%, #4fbcc8 38%, #58c0a0 70%, #8ed070 100%);
+  --blert-panel-surface: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.72),
+    rgba(232, 246, 254, 0.56)
+  );
+  --blert-panel-blur: blur(16px) saturate(1.5);
+  --blert-elevation-1:
+    0 4px 18px rgba(60, 120, 165, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+
+  // Default fill for a recessed white well.
+  --blert-aero-well: rgba(255, 255, 255, 0.9);
+
+  --blert-timeline-surface: rgb(216, 221, 226);
+  --blert-timeline-cell-bg-default: rgba(185, 192, 201, 0.68);
+  --blert-timeline-cell-bg-default-hover: rgba(178, 185, 195, 0.75);
+  --blert-timeline-cell-bg-off-cooldown: rgba(171, 168, 163, 0.64);
+  --blert-timeline-cell-bg-off-cooldown-hover: rgba(171, 168, 163, 0.72);
+  --blert-timeline-cell-bg-action: rgba(146, 128, 100, 0.8);
+  --blert-timeline-cell-bg-action-hover: rgba(158, 138, 108, 0.85);
+  --blert-timeline-outline-neutral: rgba(70, 82, 96, 0.35);
+  --blert-timeline-outline-neutral-hover: rgba(42, 104, 186, 0.8);
+  --blert-timeline-outline-hover: rgba(42, 104, 186, 0.7);
+  --blert-timeline-text-tick-header: rgba(20, 60, 90, 0.9);
+  --blert-timeline-text-primary: rgb(20, 60, 90);
+  --blert-timeline-accent: rgb(54, 149, 186);
+
+  --blert-timeline-indicator-opacity: 0.9;
+  --blert-timeline-indicator-glow:
+    inset 0 0 8px rgba(var(--blert-purple-base), 0.25),
+    0 0 6px rgba(var(--blert-purple-base), 0.45);
 }
 
 * {
@@ -114,4 +444,90 @@ button {
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
   border: 0;
+}
+
+// Challenge identity colors.
+//
+// An element tagged `data-challenge="<slug>"` (see `challengeSlug` in
+// `utils/challenge.ts`) receives the challenge's identity color as
+// `--challenge-color`. Its stylesheet chooses how to apply it:
+//
+//   - `--challenge-color-text` for text, icons, and borders.
+//   - `--challenge-color` / `--challenge-color-end` for fills and gradients.
+//
+[data-challenge],
+[data-scale] {
+  --challenge-color-text: var(--challenge-color);
+}
+
+[data-challenge='tob'] {
+  --challenge-color: #d4ba2b;
+  --challenge-color-end: #e8a020;
+}
+
+[data-challenge='hmt'] {
+  --challenge-color: #b713b4;
+}
+
+[data-challenge='col'] {
+  --challenge-color: #33a4af;
+  --challenge-color-end: #58c8b8;
+}
+
+[data-challenge='inf'] {
+  --challenge-color: #a14f1a;
+  --challenge-color-end: #d4783a;
+}
+
+[data-challenge='mok'] {
+  --challenge-color: #c16056;
+  --challenge-color-end: #d98a7a;
+}
+
+[data-challenge='unk'] {
+  --challenge-color: #c3c7c9;
+}
+
+[data-scale='1'] {
+  --challenge-color: var(--blert-scale-1);
+}
+
+[data-scale='2'] {
+  --challenge-color: var(--blert-scale-2);
+}
+
+[data-scale='3'] {
+  --challenge-color: var(--blert-scale-3);
+}
+
+[data-scale='4'] {
+  --challenge-color: var(--blert-scale-4);
+}
+
+[data-scale='5'] {
+  --challenge-color: var(--blert-scale-5);
+}
+
+[data-theme='aero'] [data-challenge],
+[data-theme='aero'] [data-scale] {
+  --challenge-color-text: color-mix(in srgb, var(--challenge-color) 72%, black);
+}
+
+[data-theme='necropolis'] [data-challenge='tob'] {
+  --challenge-color: #a87a20;
+  --challenge-color-end: #c88a28;
+}
+
+[data-theme='ashfall'] [data-challenge='col'] {
+  --challenge-color: #2e7d6e;
+  --challenge-color-end: #4aa38e;
+}
+
+[data-theme='ashfall'] [data-challenge='mok'] {
+  --challenge-color: #a2627e;
+  --challenge-color-end: #c08398;
+}
+
+[data-theme='outrun'] [data-challenge='hmt'] {
+  --challenge-color: #8a2be2;
 }

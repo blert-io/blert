@@ -150,7 +150,7 @@ function PlayerDot(props: { cx?: number; cy?: number }) {
       cx={cx}
       cy={cy}
       r={5}
-      fill="var(--blert-yellow)"
+      fill="var(--blert-accent-complement)"
       stroke="var(--blert-panel-background-color)"
       strokeWidth={2}
     />

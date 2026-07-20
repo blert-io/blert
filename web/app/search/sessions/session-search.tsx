@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 import { SessionWithChallenges } from '@/actions/challenge';
+import Button from '@/components/button';
 import Card from '@/components/card';
 import { SessionList } from '@/components/session-history';
 import { queryString } from '@/utils/url';
@@ -305,24 +306,28 @@ export default function SessionSearch({
         {stats.count > 0 && (
           <div className={styles.pagination}>
             <div className={styles.controls}>
-              <button
+              <Button
+                simple
+                className={styles.pageButton}
                 disabled={loading || loadError !== null || page <= 1}
                 onClick={() => void loadSessions(FetchAction.BACK)}
               >
                 <i className="fas fa-chevron-left" />
                 <span className="sr-only">Previous</span>
-              </button>
+              </Button>
               <p>
                 Page {page}
                 {totalPages > 0 && ` of ${totalPages}`}
               </p>
-              <button
+              <Button
+                simple
+                className={styles.pageButton}
                 disabled={loading || loadError !== null || page >= totalPages}
                 onClick={() => void loadSessions(FetchAction.FORWARD)}
               >
                 <i className="fas fa-chevron-right" />
                 <span className="sr-only">Next</span>
-              </button>
+              </Button>
             </div>
           </div>
         )}

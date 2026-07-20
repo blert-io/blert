@@ -1,11 +1,13 @@
+import styles from './nylos.module.scss';
+
 export function Mage({ children }: { children: React.ReactNode }) {
-  return <span style={{ color: '#42c6d7' }}>{children}</span>;
+  return <span className={styles.mage}>{children}</span>;
 }
 
 export function Range({ children }: { children: React.ReactNode }) {
-  return <span style={{ color: '#408d43' }}>{children}</span>;
+  return <span className={styles.range}>{children}</span>;
 }
 
 export function Melee({ children }: { children: React.ReactNode }) {
-  return <span style={{ color: '#fff' }}>{children}</span>;
+  return <span className={styles.melee}>{children}</span>;
 }

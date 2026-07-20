@@ -76,6 +76,12 @@ export interface SelectionRegion {
 export type EditableGearSetup = {
   history: GearSetup[];
   position: number;
+  /**
+   * Marks the head history entry as combinable with consecutive updates
+   * sharing the same key, so they undo as a single step.
+   * Only valid while `position` still points at the entry it was recorded for.
+   */
+  coalesce: { key: string; position: number; at: number } | null;
   modified: boolean;
   selectedItem: number | null;
   activeSearchSlot: SlotIdString | null;
@@ -88,6 +94,20 @@ export type EditableGearSetup = {
   } | null;
   placementHoverTarget: PlacementTarget | null;
   placementOffset: [number, number] | null;
+};
+
+// A pause longer than this ends a coalescing run, so a long editing session
+// undoes in bursts rather than as one giant step.
+const COALESCE_WINDOW_MS = 2500;
+
+export type UpdateOptions = {
+  /**
+   * When set, consecutive updates with the same key collapse into a single
+   * history entry, so e.g. a burst of keystrokes in a text field undoes as
+   * one step. Any other update, undo/redo, grid operation, or a period without
+   * updates ends the run.
+   */
+  coalesce?: string;
 };
 
 export const SetupEditingContext = createContext<EditingContext | null>(null);
@@ -115,6 +135,7 @@ export class EditingContext {
     return {
       history: [setup],
       position: 0,
+      coalesce: null,
       modified: false,
       selectedItem: null,
       activeSearchSlot: null,
@@ -621,16 +642,41 @@ export class EditingContext {
 
   /**
    * Updates the current gear setup state.
+   *
    * @param updater Function that modifies the gear setup.
+   * @param options Config options.
    */
-  public update(updater: (prev: GearSetup) => GearSetup) {
+  public update(
+    updater: (prev: GearSetup) => GearSetup,
+    options?: UpdateOptions,
+  ) {
     this.setState((prev) => {
       const cloned = structuredClone(prev.history[prev.position]);
       const updated = updater(cloned);
+
+      const key = options?.coalesce ?? null;
+      const now = Date.now();
+      if (
+        key !== null &&
+        prev.position === prev.history.length - 1 &&
+        prev.coalesce?.key === key &&
+        prev.coalesce?.position === prev.position &&
+        now - prev.coalesce.at <= COALESCE_WINDOW_MS
+      ) {
+        return {
+          ...prev,
+          history: [...prev.history.slice(0, prev.position), updated],
+          coalesce: { ...prev.coalesce, at: now },
+          modified: true,
+        };
+      }
+
       return {
         ...prev,
         history: [...prev.history.slice(0, prev.position + 1), updated],
         position: prev.position + 1,
+        coalesce:
+          key !== null ? { key, position: prev.position + 1, at: now } : null,
         modified: true,
       };
     });
@@ -718,6 +764,7 @@ export class EditingContext {
       return {
         ...prev,
         position: prev.position - 1,
+        coalesce: null,
         modified: true,
         // TODO(frolv): Preserve selection/clipboard state.
         // Temporarily switch to placement to not end up with a weird selection.
@@ -738,6 +785,7 @@ export class EditingContext {
       return {
         ...prev,
         position: prev.position + 1,
+        coalesce: null,
         modified: true,
         // TODO(frolv): Preserve selection/clipboard state.
         // Temporarily switch to placement to not end up with a weird selection.
@@ -751,7 +799,8 @@ export class EditingContext {
 
   /** Clears the modified flag. */
   public clearModified() {
-    this.setState((prev) => ({ ...prev, modified: false }));
+    // Any save state should be reachable through undo, so reset coalescing.
+    this.setState((prev) => ({ ...prev, coalesce: null, modified: false }));
   }
 
   /**

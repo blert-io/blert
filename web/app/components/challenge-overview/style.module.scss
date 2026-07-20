@@ -12,6 +12,11 @@
   padding: 20px;
   width: 100%;
 
+  // Aero: fall back to the frosted panel.
+  :global([data-theme='aero']) & {
+    background: var(--blert-panel-surface);
+  }
+
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     flex-direction: column;
     padding: 12px;
@@ -36,6 +41,13 @@
 
   .logo {
     margin: 0;
+    object-fit: contain;
+  }
+
+  // Aero: lift the metallic logo off the light card with a shadow halo.
+  :global([data-theme='aero']) & img {
+    filter: drop-shadow(0 0 1px rgba(58, 22, 42, 0.95))
+      drop-shadow(0 0 8px rgba(150, 28, 40, 0.4));
   }
 
   .modeBadge {
@@ -54,6 +66,10 @@
     i {
       font-size: 0.9em;
       color: var(--blert-purple);
+    }
+
+    :global([data-theme='aero']) & {
+      @include aeroWell;
     }
   }
 
@@ -86,6 +102,18 @@
       border-color: rgba(var(--blert-purple-base), 0.5);
       color: var(--blert-purple);
     }
+
+    :global([data-theme='aero']) & {
+      @include aeroActionButton;
+
+      i {
+        color: #fff;
+      }
+
+      &:hover {
+        @include aeroActionButtonHover;
+      }
+    }
   }
 }
 
@@ -116,6 +144,10 @@
     padding: 12px 8px;
     background: var(--blert-surface-dark);
     border-radius: 6px;
+
+    :global([data-theme='aero']) & {
+      @include aeroWell;
+    }
   }
 
   .statLabel {
@@ -212,6 +244,15 @@
     &:hover {
       background: var(--blert-surface-light);
       border-color: rgba(var(--blert-purple-base), 0.8);
+    }
+
+    :global([data-theme='aero']) & {
+      @include aeroWell;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.9);
+        border-color: rgba(var(--blert-purple-base), 0.5);
+      }
     }
   }
 

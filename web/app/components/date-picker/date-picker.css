@@ -9,7 +9,7 @@
 }
 
 .blert-datepicker .react-datepicker__current-month {
-  color: #888dbb;
+  color: var(--blert-font-color-secondary);
 }
 
 .blert-datepicker .react-datepicker__day-name {
@@ -61,4 +61,28 @@
 
 .blert-datepicker-wrapper .react-datepicker__view-calendar-icon input {
   padding: 6px 10px 5px 30px;
+}
+
+[data-theme='aero'] .blert-datepicker .react-datepicker {
+  background: var(--blert-panel-surface);
+  backdrop-filter: var(--blert-panel-blur);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 10px;
+  box-shadow: var(--blert-elevation-1);
+}
+
+[data-theme='aero'] .blert-datepicker .react-datepicker__header {
+  background: rgba(255, 255, 255, 0.45);
+  border-bottom-color: rgba(112, 156, 196, 0.4);
+}
+
+[data-theme='aero'] .blert-datepicker .react-datepicker__triangle {
+  display: none;
+}
+
+[data-theme='aero']
+  .blert-datepicker
+  .react-datepicker__day:not([aria-disabled='true']):hover {
+  background: rgba(var(--blert-purple-base), 0.15);
+  color: var(--blert-font-color-primary);
 }

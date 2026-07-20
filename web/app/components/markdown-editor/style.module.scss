@@ -7,6 +7,11 @@
   border-radius: 6px;
   overflow: hidden;
   background-color: var(--blert-panel-background-color);
+
+  :global([data-theme='aero']) & {
+    border-color: rgba(120, 165, 200, 0.55);
+    background-color: #fff;
+  }
 }
 
 .toolbar {
@@ -18,6 +23,11 @@
   background-color: var(--blert-surface-dark);
   border-bottom: 1px solid var(--blert-divider-color);
   flex-wrap: wrap;
+
+  :global([data-theme='aero']) & {
+    @include aeroChromeStrip;
+    border-bottom-color: rgba(120, 165, 200, 0.5);
+  }
 }
 
 .formatButtons {
@@ -33,6 +43,12 @@
   background-color: var(--blert-divider-color);
   opacity: 0.5;
   margin: 0 0.5rem;
+
+  :global([data-theme='aero']) & {
+    background-color: rgba(96, 146, 186, 0.45);
+    box-shadow: 1px 0 0 rgba(255, 255, 255, 0.8);
+    opacity: 1;
+  }
 }
 
 .formatButton {
@@ -79,6 +95,16 @@
     }
   }
 
+  :global([data-theme='aero']) & {
+    &:not(:disabled):hover {
+      @include aeroToolbarHover;
+    }
+
+    &.active {
+      @include aeroToolbarActive;
+    }
+  }
+
   i {
     pointer-events: none;
   }
@@ -99,6 +125,12 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   z-index: 100;
   min-width: 200px;
+
+  :global([data-theme='aero']) & {
+    background-color: #fff;
+    border-color: rgba(120, 165, 200, 0.6);
+    box-shadow: 0 10px 28px rgba(60, 120, 165, 0.3);
+  }
 }
 
 .tableGrid {
@@ -140,6 +172,21 @@
     background-color: rgba(var(--blert-purple-base), 0.4);
     border-color: var(--blert-purple);
     z-index: 2;
+  }
+
+  :global([data-theme='aero']) & {
+    background-color: #fff;
+    border-color: rgba(96, 146, 186, 0.45);
+
+    &.headerRow {
+      background-color: rgba(158, 205, 228, 0.4);
+    }
+
+    &:hover,
+    &.selected {
+      background-color: #ffe8a6;
+      border-color: #c2923c;
+    }
   }
 }
 
@@ -188,6 +235,19 @@
     border-color: var(--blert-purple);
   }
 
+  :global([data-theme='aero']) & {
+    background-color: rgba(255, 255, 255, 0.55);
+    border-color: rgba(120, 165, 200, 0.5);
+
+    &:hover {
+      @include aeroToolbarHover;
+    }
+
+    &.active {
+      @include aeroToolbarActive;
+    }
+  }
+
   i {
     font-size: 0.9rem;
   }
@@ -197,6 +257,12 @@
   padding: 1rem;
   background-color: rgba(var(--blert-surface-dark-base), 0.5);
   border-bottom: 1px solid var(--blert-divider-color);
+
+  :global([data-theme='aero']) & {
+    @include aeroNotice;
+    border-radius: 0;
+    border-width: 0 0 1px 0;
+  }
 }
 
 .helpContent {
@@ -276,6 +342,14 @@
   overflow-y: auto;
   @include styledScrollbar;
 
+  :global([data-theme='aero']) & {
+    background-color: #fff;
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba(148, 180, 205, 0.8);
+    }
+  }
+
   // Modern CSS auto-sizing (with fallback)
   field-sizing: content;
 
@@ -291,6 +365,14 @@
   min-height: 200px;
   overflow-y: auto;
   @include styledScrollbar;
+
+  :global([data-theme='aero']) & {
+    background-color: #fff;
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba(148, 180, 205, 0.8);
+    }
+  }
 }
 
 .emptyPreview {
@@ -302,10 +384,57 @@
 
 .footer {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   padding: 0.5rem 1rem;
   background-color: var(--blert-surface-dark);
   border-top: 1px solid var(--blert-divider-color);
+
+  :global([data-theme='aero']) & {
+    background: linear-gradient(
+      to bottom,
+      #e4eefb,
+      #d3e3f8 47%,
+      #bfd6f2 48%,
+      #cfe0f6
+    );
+    border-top-color: rgba(120, 165, 200, 0.6);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  }
+}
+
+.wordCount {
+  font-size: 0.8rem;
+  color: var(--blert-font-color-secondary);
+  display: none;
+
+  :global([data-theme='aero']) & {
+    display: block;
+  }
+}
+
+.ruler {
+  display: none;
+
+  :global([data-theme='aero']) & {
+    display: block;
+    height: 13px;
+    border-bottom: 1px solid rgba(120, 165, 200, 0.5);
+    background:
+      repeating-linear-gradient(
+          to right,
+          transparent 0 7px,
+          rgba(60, 102, 132, 0.5) 7px 8px
+        )
+        0 center / 100% 4px no-repeat,
+      repeating-linear-gradient(
+          to right,
+          transparent 0 39px,
+          rgba(60, 102, 132, 0.7) 39px 40px
+        )
+        0 center / 100% 9px no-repeat,
+      #eef6fb;
+  }
 }
 
 .characterCount {
@@ -315,6 +444,10 @@
 
   &.warning {
     color: var(--blert-yellow);
+
+    :global([data-theme='aero']) & {
+      color: #d68a1a;
+    }
   }
 
   &.error {

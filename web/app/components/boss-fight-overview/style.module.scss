@@ -14,6 +14,11 @@
     var(--blert-surface-light)
   );
 
+  // Aero: revert the solid gradient override to the panel frost.
+  :global([data-theme='aero']) & {
+    background: var(--blert-panel-surface);
+  }
+
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     width: 100%;
     flex-direction: column;
@@ -52,6 +57,16 @@
   border-radius: 8px;
   overflow: hidden;
   background: var(--blert-surface-dark);
+
+  :global([data-theme='aero']) & {
+    @include aeroWell(
+      linear-gradient(
+        to bottom,
+        rgba(226, 243, 252, 0.95),
+        rgba(180, 216, 238, 0.9)
+      )
+    );
+  }
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     width: 80px;
@@ -104,6 +119,10 @@
   background: var(--blert-surface-dark);
   border-radius: 8px;
   padding: 16px;
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+  }
 
   h3 {
     font-size: 1em;

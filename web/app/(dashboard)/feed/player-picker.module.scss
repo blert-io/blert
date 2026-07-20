@@ -73,6 +73,32 @@
       border-color: var(--blert-purple);
     }
   }
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+
+    &:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.98);
+      border-color: rgba(var(--blert-purple-base), 0.5);
+    }
+
+    &.selected {
+      @include aeroWell(color-mix(in srgb, var(--blert-purple) 10%, white));
+      border-color: rgba(var(--blert-purple-base), 0.6);
+
+      .checkbox {
+        @include aeroCheckboxChecked;
+
+        i {
+          color: inherit;
+        }
+      }
+    }
+
+    .checkbox {
+      @include aeroCheckbox;
+    }
+  }
 }
 
 .checkbox {
@@ -138,28 +164,8 @@
 }
 
 .followButton {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
   padding: 12px 24px;
-  background: var(--blert-purple);
-  border: none;
-  border-radius: 8px;
   font-size: 0.95rem;
-  font-weight: 500;
-  color: #fff;
-  cursor: pointer;
-  transition: all 0.2s ease;
-
-  &:hover:not(:disabled) {
-    background: rgba(var(--blert-purple-base), 0.8);
-  }
-
-  &:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
 
   i {
     font-size: 0.9rem;

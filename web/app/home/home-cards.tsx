@@ -24,7 +24,7 @@ import Carousel from '@/components/carousel';
 import RadioInput from '@/components/radio-input';
 import { challengeLogo } from '@/logo';
 import { useClientOnly } from '@/hooks/client-only';
-import { challengeTerm } from '@/utils/challenge';
+import { challengeSlug, challengeTerm } from '@/utils/challenge';
 import { challengePartyNames } from '@/utils/challenge-description';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 import { challengeUrl, queryString } from '@/utils/url';
@@ -58,8 +58,6 @@ type ChallengeInfo = {
   leaderboardSplit: SplitType;
   leaderboardScales: number[];
   leaderboardUrl: string;
-  color: string;
-  colorEnd: string;
   image?: string;
 };
 
@@ -75,8 +73,6 @@ const CHALLENGE_INFO: Record<SupportedChallenge, ChallengeInfo> = {
     leaderboardSplit: SplitType.TOB_REG_CHALLENGE,
     leaderboardScales: [5, 4, 3, 2],
     leaderboardUrl: '/leaderboards/tob',
-    color: '#d4ba2b',
-    colorEnd: '#e8a020',
   },
   [ChallengeType.COLOSSEUM]: {
     flavorBefore: 'Conquer the',
@@ -89,8 +85,6 @@ const CHALLENGE_INFO: Record<SupportedChallenge, ChallengeInfo> = {
     leaderboardSplit: SplitType.COLOSSEUM_CHALLENGE,
     leaderboardScales: [1],
     leaderboardUrl: '/leaderboards/colosseum',
-    color: '#33a4af',
-    colorEnd: '#58c8b8',
   },
   [ChallengeType.INFERNO]: {
     flavorBefore: 'Survive the',
@@ -103,8 +97,6 @@ const CHALLENGE_INFO: Record<SupportedChallenge, ChallengeInfo> = {
     leaderboardSplit: SplitType.INFERNO_CHALLENGE,
     leaderboardScales: [1],
     leaderboardUrl: '/leaderboards/inferno',
-    color: '#a14f1a',
-    colorEnd: '#d4783a',
   },
   [ChallengeType.MOKHAIOTL]: {
     flavorBefore: 'Face the',
@@ -117,8 +109,6 @@ const CHALLENGE_INFO: Record<SupportedChallenge, ChallengeInfo> = {
     leaderboardSplit: SplitType.MOKHAIOTL_CHALLENGE,
     leaderboardScales: [1],
     leaderboardUrl: '/leaderboards/mokhaiotl',
-    color: '#c16056',
-    colorEnd: '#d98a7a',
   },
 };
 
@@ -231,12 +221,7 @@ function ChallengeSelector({ selected, onSelect }: ChallengeSelectorProps) {
   return (
     <div
       className={styles.challengeSelectorWrap}
-      style={
-        {
-          '--challenge-color': info.color,
-          '--challenge-color-end': info.colorEnd,
-        } as React.CSSProperties
-      }
+      data-challenge={challengeSlug(selected)}
     >
       <Card primary className={styles.challengeSelector}>
         <div className={styles.selectorHeader}>
@@ -264,7 +249,7 @@ function ChallengeSelector({ selected, onSelect }: ChallengeSelectorProps) {
                   >
                     <span
                       className={styles.dropdownDot}
-                      style={{ background: CHALLENGE_INFO[type].color }}
+                      data-challenge={challengeSlug(type)}
                     />
                     {CHALLENGE_INFO[type].name}
                   </button>

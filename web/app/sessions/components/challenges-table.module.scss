@@ -6,6 +6,10 @@
   background: var(--blert-surface-dark);
   border-radius: 8px;
   border: 1px solid var(--blert-surface-light);
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+  }
 }
 
 .filterGroup {
@@ -40,6 +44,10 @@
   border: 1px solid var(--blert-surface-light);
 
   @include styledScrollbar;
+
+  :global([data-theme='aero']) & {
+    border-color: rgba(96, 132, 160, 0.55);
+  }
 }
 
 .table {
@@ -160,6 +168,33 @@
       font-size: 0.8rem;
     }
   }
+
+  :global([data-theme='aero']) & {
+    background: rgba(255, 255, 255, 0.94);
+
+    thead {
+      box-shadow: 0 2px 4px rgba(60, 120, 165, 0.12);
+    }
+
+    thead,
+    th {
+      background: #dbe6f0;
+    }
+
+    th {
+      border-bottom-color: rgba(96, 132, 160, 0.55);
+    }
+
+    .tableRow {
+      &:hover {
+        background: rgba(var(--blert-purple-base), 0.08);
+      }
+
+      &.expandedRow {
+        background: rgba(var(--blert-purple-base), 0.1);
+      }
+    }
+  }
 }
 
 .indexCell {
@@ -174,6 +209,11 @@
     color: var(--blert-gold);
     text-shadow: var(--blert-gold-text-shadow);
     font-size: 0.9rem;
+
+    :global([data-theme='aero']) & {
+      color: var(--blert-accent-complement);
+      text-shadow: none;
+    }
   }
 }
 
@@ -255,6 +295,17 @@
         font-size: 0.7rem;
       }
     }
+
+    :global([data-theme='aero']) & {
+      @include aeroButton;
+      color: var(--blert-purple);
+
+      &:hover {
+        @include aeroButtonHover;
+        color: var(--blert-purple);
+        transform: translateY(-1px);
+      }
+    }
   }
 }
 
@@ -295,6 +346,10 @@
     padding: 0;
     background: var(--blert-panel-background-color);
   }
+
+  :global([data-theme='aero']) & td {
+    background: transparent;
+  }
 }
 
 .expandedDetails {
@@ -305,6 +360,11 @@
     var(--blert-panel-background-color) 0%,
     rgba(var(--blert-surface-dark-base), 0.3) 100%
   );
+
+  :global([data-theme='aero']) & {
+    background: rgba(228, 239, 250, 0.6);
+    border-top-color: rgba(96, 132, 160, 0.4);
+  }
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     padding: 1rem;
@@ -410,6 +470,17 @@
     border-color: rgba(var(--blert-purple-base), 0.3);
   }
 
+  :global([data-theme='aero']) & {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(112, 156, 196, 0.45);
+    box-shadow: 0 1px 2px rgba(60, 120, 165, 0.15);
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.98);
+      border-color: rgba(var(--blert-purple-base), 0.5);
+    }
+  }
+
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     padding: 0.4rem 0.6rem;
   }
@@ -441,6 +512,13 @@
   color: var(--blert-yellow);
   margin-top: 0.5rem;
   font-style: italic;
+}
+
+:global([data-theme='aero']) {
+  .inaccurate,
+  .inaccurateNote {
+    color: var(--blert-accent-complement);
+  }
 }
 
 .pbSection {
@@ -699,6 +777,10 @@
     font-size: 0.75rem;
     opacity: 0.8;
     color: var(--blert-gold);
+
+    :global([data-theme='aero']) & {
+      color: var(--blert-accent-complement);
+    }
   }
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {

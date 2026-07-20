@@ -1,0 +1,23 @@
+.mage {
+  color: #42c6d7;
+
+  :global([data-theme='aero']) & {
+    color: #118197;
+  }
+}
+
+.range {
+  color: #408d43;
+
+  :global([data-theme='aero']) & {
+    color: #2f7d38;
+  }
+}
+
+.melee {
+  color: #fff;
+
+  :global([data-theme='aero']) & {
+    color: #454d57;
+  }
+}

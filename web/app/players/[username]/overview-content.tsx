@@ -25,11 +25,24 @@ import {
 
 import styles from './style.module.scss';
 
+// The heatmap ramp climbs from an empty surface to the theme's accent.
 const ACTIVITY_THRESHOLDS = [
-  { threshold: 0, color: '#1e1f2e' },
-  { threshold: 0.25, color: '#2c2f5a' },
-  { threshold: 0.5, color: '#3b4286' },
-  { threshold: 0.75, color: '#4a55b2' },
+  { threshold: 0, color: 'var(--blert-surface-light)' },
+  {
+    threshold: 0.25,
+    color:
+      'color-mix(in srgb, var(--blert-purple) 25%, var(--blert-surface-light))',
+  },
+  {
+    threshold: 0.5,
+    color:
+      'color-mix(in srgb, var(--blert-purple) 50%, var(--blert-surface-light))',
+  },
+  {
+    threshold: 0.75,
+    color:
+      'color-mix(in srgb, var(--blert-purple) 75%, var(--blert-surface-light))',
+  },
   { threshold: 1, color: 'var(--blert-purple)' },
 ] as const;
 
@@ -715,23 +728,25 @@ export default function PlayerOverviewContent({
                   )}
                 </div>
               </div>
-              <ActivityChart
-                data={activityData}
-                title="Active Hours"
-                timeRange={
-                  timePeriod === TimePeriod.ALL
-                    ? 'All time'
-                    : `Last ${
-                        timePeriod === TimePeriod.DAY
-                          ? '24h'
-                          : timePeriod === TimePeriod.WEEK
-                            ? '7d'
-                            : '30d'
-                      }`
-                }
-                height={120}
-                startHour={startHour}
-              />
+              <div className={styles.hoursChart}>
+                <ActivityChart
+                  data={activityData}
+                  title="Active Hours"
+                  timeRange={
+                    timePeriod === TimePeriod.ALL
+                      ? 'All time'
+                      : `Last ${
+                          timePeriod === TimePeriod.DAY
+                            ? '24h'
+                            : timePeriod === TimePeriod.WEEK
+                              ? '7d'
+                              : '30d'
+                        }`
+                  }
+                  height={120}
+                  startHour={startHour}
+                />
+              </div>
             </>
           )}
         </div>

@@ -26,5 +26,12 @@
     font-size: 12px;
     color: var(--blert-font-color-secondary);
     padding: 4px;
+
+    :global([data-theme='aero']) & {
+      background: rgba(74, 80, 90, 0.9);
+      border-color: rgba(40, 46, 54, 0.6);
+      color: rgba(230, 235, 240, 0.72);
+      box-shadow: inset 1px 1px 2px rgba(20, 26, 34, 0.4);
+    }
   }
 }

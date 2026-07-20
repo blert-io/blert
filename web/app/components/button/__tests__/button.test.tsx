@@ -51,6 +51,29 @@ describe('Button', () => {
       expect(button?.className).not.toContain('simple');
     });
 
+    it('applies danger styling when variant is danger', () => {
+      const { container } = render(<Button variant="danger">Delete</Button>);
+      const button = container.querySelector('button');
+      expect(button?.className).toContain('danger');
+    });
+
+    it('does not apply danger styling by default', () => {
+      const { container } = render(<Button>Default</Button>);
+      const button = container.querySelector('button');
+      expect(button?.className).not.toContain('danger');
+    });
+
+    it('composes simple and variant', () => {
+      const { container } = render(
+        <Button simple variant="danger">
+          Outlined danger
+        </Button>,
+      );
+      const button = container.querySelector('button');
+      expect(button?.className).toContain('simple');
+      expect(button?.className).toContain('danger');
+    });
+
     it('applies fluid width when fluid prop is true', () => {
       render(<Button fluid={true}>Fluid</Button>);
       expect(screen.getByRole('button')).toHaveStyle({ width: '100%' });

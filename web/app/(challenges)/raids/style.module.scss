@@ -16,6 +16,11 @@
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     display: none;
   }
+
+  // Aero swaps the rat out.
+  :global([data-theme='aero']) & {
+    display: none;
+  }
 }
 
 .ratTrack {
@@ -136,5 +141,91 @@
 
   img {
     border-radius: 10px;
+  }
+}
+
+.activateNag {
+  display: none;
+
+  :global([data-theme='aero']) & {
+    display: block;
+    position: fixed;
+    right: 18px;
+    bottom: 44px;
+    z-index: 10000;
+    pointer-events: none;
+    animation: nagIn 0.35s ease-out;
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      display: none;
+    }
+  }
+}
+
+.nagBalloon {
+  position: relative;
+  width: 340px;
+  padding: 14px 16px 16px;
+  display: flex;
+  gap: 12px;
+  background: linear-gradient(to bottom, #ffffff 0%, #f2f6fb 100%);
+  border: 1px solid #97b0c8;
+  border-radius: 8px;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.nagKey {
+  flex-shrink: 0;
+  margin-top: 4px;
+  font-size: 30px;
+  color: #e8b52a;
+  text-shadow: 0 1px 1px rgba(120, 80, 0, 0.4);
+}
+
+.nagBody {
+  flex: 1;
+  min-width: 0;
+  color: #2a2a2a;
+  font-size: 13px;
+  line-height: 1.4;
+
+  p {
+    margin: 0;
+  }
+}
+
+.nagTitle {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-size: 18px;
+  font-weight: 400;
+  color: #205090;
+}
+
+.nagControls {
+  flex-shrink: 0;
+  display: flex;
+  gap: 10px;
+  margin-top: 3px;
+  margin-left: 8px;
+
+  i {
+    font-size: 13px;
+    color: #8a8a8a;
+  }
+}
+
+@keyframes nagIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

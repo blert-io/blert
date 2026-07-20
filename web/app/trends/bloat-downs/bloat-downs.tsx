@@ -11,6 +11,7 @@ import {
 } from 'react';
 
 import { BloatDownsResponse } from '@/actions/theatre';
+import Button from '@/components/button';
 import { Comparator } from '@/components/comparable-input';
 import { useDebounced } from '@/hooks/debounce';
 import { scaleNameAndColor } from '@/utils/challenge';
@@ -26,7 +27,7 @@ import BloatDownsTable from './table';
 import styles from './style.module.scss';
 
 const SERIES_A_COLOR = 'var(--blert-purple)';
-const SERIES_B_COLOR = 'var(--blert-yellow)';
+const SERIES_B_COLOR = 'var(--blert-accent-complement)';
 
 const FILTER_DEBOUNCE_MS = 350;
 
@@ -289,13 +290,13 @@ export default function BloatDowns() {
               />
               {seriesName(filtersB)}
             </div>
-            <button
-              type="button"
-              className={styles.removeButton}
+            <Button
+              variant="danger"
+              fontSize="0.8rem"
               onClick={removeComparison}
             >
               <i className="fas fa-times" /> Remove comparison
-            </button>
+            </Button>
           </div>
           <BloatDownsControls
             idPrefix="series-b"

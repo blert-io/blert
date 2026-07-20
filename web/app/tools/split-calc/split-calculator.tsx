@@ -796,79 +796,81 @@ export function SplitCalculator({ connectedPlayers }: SplitCalculatorProps) {
               ))}
             </RadioInput.Group>
           </div>
-          {distributionsLoading ? (
-            <div className={styles.loading}>
-              <i className="fas fa-spinner" />
-              Loading distributions&hellip;
-            </div>
-          ) : selectedDist === null || selectedDist.bins.length === 0 ? (
-            <div className={styles.noData}>
-              {isPlayerSource && dataSource.username.length > 0
-                ? `No data found for ${dataSource.username} at this mode and scale`
-                : 'No recorded data for this mode/scale combination'}
-            </div>
-          ) : (
-            <>
-              <DistributionChart
-                bins={selectedDist.bins}
-                referenceTicks={selectedRoomState.ticks}
-                tickCycle={
-                  TOB_ROOMS.find((r) => r.key === selectedRoom)?.tickCycle
-                }
-              />
-              {distStats !== null && (
-                <>
-                  <div className={styles.statsRow}>
-                    <div className={styles.statItem}>
-                      <span className={styles.statLabel}>Min</span>
-                      <span className={styles.statValue}>
-                        {ticksToFormattedSeconds(distStats.min)}
-                      </span>
-                    </div>
-                    <div className={styles.statItem}>
-                      <span className={styles.statLabel}>Median</span>
-                      <span className={styles.statValue}>
-                        {ticksToFormattedSeconds(distStats.median)}
-                      </span>
-                    </div>
-                    <div className={styles.statItem}>
-                      <span className={styles.statLabel}>Mean</span>
-                      <span className={styles.statValue}>
-                        {ticksToFormattedSeconds(Math.round(distStats.mean))}
-                      </span>
-                    </div>
-                    <div className={styles.statItem}>
-                      <span className={styles.statLabel}>Max</span>
-                      <span className={styles.statValue}>
-                        {ticksToFormattedSeconds(distStats.max)}
-                      </span>
-                    </div>
-                    <div className={styles.statItem}>
-                      <span className={styles.statLabel}>Samples</span>
-                      <span className={styles.statValue}>
-                        {distStats.total.toLocaleString()}
-                      </span>
-                    </div>
-                    {selectedPct !== null && (
+          <div className={styles.distributionResults}>
+            {distributionsLoading ? (
+              <div className={styles.loading}>
+                <i className="fas fa-spinner" />
+                Loading distributions&hellip;
+              </div>
+            ) : selectedDist === null || selectedDist.bins.length === 0 ? (
+              <div className={styles.noData}>
+                {isPlayerSource && dataSource.username.length > 0
+                  ? `No data found for ${dataSource.username} at this mode and scale`
+                  : 'No recorded data for this mode/scale combination'}
+              </div>
+            ) : (
+              <>
+                <DistributionChart
+                  bins={selectedDist.bins}
+                  referenceTicks={selectedRoomState.ticks}
+                  tickCycle={
+                    TOB_ROOMS.find((r) => r.key === selectedRoom)?.tickCycle
+                  }
+                />
+                {distStats !== null && (
+                  <>
+                    <div className={styles.statsRow}>
                       <div className={styles.statItem}>
-                        <span className={styles.statLabel}>Percentile</span>
+                        <span className={styles.statLabel}>Min</span>
                         <span className={styles.statValue}>
-                          {formatPercentile(selectedPct)}
+                          {ticksToFormattedSeconds(distStats.min)}
                         </span>
                       </div>
-                    )}
-                  </div>
-                  {lowSampleSize && (
-                    <div className={styles.lowSampleWarning}>
-                      <i className="fas fa-triangle-exclamation" />
-                      Low sample size ({distStats.total} raids) &mdash; results
-                      may be unreliable
+                      <div className={styles.statItem}>
+                        <span className={styles.statLabel}>Median</span>
+                        <span className={styles.statValue}>
+                          {ticksToFormattedSeconds(distStats.median)}
+                        </span>
+                      </div>
+                      <div className={styles.statItem}>
+                        <span className={styles.statLabel}>Mean</span>
+                        <span className={styles.statValue}>
+                          {ticksToFormattedSeconds(Math.round(distStats.mean))}
+                        </span>
+                      </div>
+                      <div className={styles.statItem}>
+                        <span className={styles.statLabel}>Max</span>
+                        <span className={styles.statValue}>
+                          {ticksToFormattedSeconds(distStats.max)}
+                        </span>
+                      </div>
+                      <div className={styles.statItem}>
+                        <span className={styles.statLabel}>Samples</span>
+                        <span className={styles.statValue}>
+                          {distStats.total.toLocaleString()}
+                        </span>
+                      </div>
+                      {selectedPct !== null && (
+                        <div className={styles.statItem}>
+                          <span className={styles.statLabel}>Percentile</span>
+                          <span className={styles.statValue}>
+                            {formatPercentile(selectedPct)}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </>
-              )}
-            </>
-          )}
+                    {lowSampleSize && (
+                      <div className={styles.lowSampleWarning}>
+                        <i className="fas fa-triangle-exclamation" />
+                        Low sample size ({distStats.total} raids) &mdash;
+                        results may be unreliable
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </Card>
     </>

@@ -48,21 +48,46 @@
     }
   }
 
+  // A skeleton of a player card; the outline fills in on hover.
   .addPlayer {
-    width: 60px;
+    width: 200px;
     display: inline-flex;
     justify-content: center;
-    border: 1px dashed var(--blert-font-color-secondary);
-    border-radius: 5px;
-    min-height: 300px;
+    align-self: stretch;
+    position: relative;
+    background: rgba(var(--blert-surface-dark-base), 0.4);
+    border: 1px dashed rgba(var(--blert-font-color-secondary-base), 0.6);
+    border-radius: 10px;
+    transition: all 0.2s ease;
+
+    &:hover:has(> button:not(:disabled)) {
+      border-color: rgba(var(--blert-purple-base), 0.6);
+
+      .addPlayerSkeleton {
+        opacity: 0.85;
+      }
+    }
+
+    :global([data-theme='aero']) & {
+      background: rgba(255, 255, 255, 0.3);
+      border-color: rgba(96, 146, 186, 0.6);
+
+      > button:not(:disabled):hover .addPlayerLabel {
+        @include aeroButtonHover;
+        border-radius: 999px;
+      }
+    }
 
     & > button {
+      position: relative;
+      width: 100%;
       display: flex;
       flex-direction: column;
-      justify-content: center;
+      justify-content: flex-start;
       align-items: center;
       font-size: 16px;
       gap: 4px;
+      color: var(--blert-font-color-secondary);
       transition: all 0.2s ease;
 
       i {
@@ -76,8 +101,92 @@
 
       &:not(:disabled):hover {
         color: var(--blert-purple);
+        border-color: rgba(var(--blert-purple-base), 0.6);
         cursor: pointer;
       }
+    }
+  }
+
+  .addPlayerSkeleton {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    opacity: 0.55;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+
+    > * {
+      flex-shrink: 0;
+      margin: 0.5em 0;
+      border-radius: 8px;
+      background-color: rgba(var(--blert-surface-light-base), 0.3);
+    }
+
+    .skeletonName {
+      width: 90px;
+      height: 24px;
+      margin: 12px 0 14px;
+      border-radius: 7px;
+
+      :global([data-theme='aero']) & {
+        height: 30px;
+        margin-bottom: 20px;
+      }
+    }
+
+    .skeletonEquipment {
+      width: 132px;
+      height: 222px;
+
+      :global([data-theme='aero']) & {
+        height: 226px;
+      }
+    }
+
+    .skeletonInventory {
+      width: 172px;
+      height: 304px;
+
+      :global([data-theme='aero']) & {
+        height: 306px;
+      }
+    }
+
+    .skeletonPouch {
+      margin-top: 10px;
+      width: 172px;
+      height: 52px;
+    }
+
+    .skeletonSpellbook {
+      margin-top: 10px;
+      width: 52px;
+      height: 52px;
+    }
+
+    :global([data-theme='aero']) & > * {
+      background-color: rgba(18, 42, 62, 0.16);
+    }
+  }
+
+  .addPlayerLabel {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: var(--blert-panel-background-color);
+    border: 1px solid var(--blert-divider-color);
+    white-space: nowrap;
+    z-index: 1;
+
+    :global([data-theme='aero']) & {
+      @include aeroButton;
+      border-radius: 999px;
     }
   }
 
@@ -126,11 +235,12 @@
   position: relative;
 
   .header {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
+    width: 100%;
     margin-bottom: 0.5em;
-    max-width: 100%;
   }
 
   .optionalIndicator {
@@ -154,17 +264,24 @@
   }
 
   .name {
+    display: flex;
+    align-items: center;
     justify-content: center;
     text-align: center;
     font-weight: 500;
-    font-size: 18px;
+    font-size: 16px;
     margin: 0;
-    position: relative;
     min-width: 0;
     max-width: 100%;
 
+    // Keep the centered name clear of the actions button.
+    &:has(.playerActions) {
+      max-width: calc(100% - 64px);
+    }
+
     .nameText {
       display: block;
+      min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -172,31 +289,51 @@
 
     .playerActions {
       position: absolute;
-      right: -50px;
-      top: -2px;
-      opacity: 0;
-      transition: all 0.2s ease;
+      right: 4px;
+      top: 50%;
+      transform: translateY(-50%);
 
       button {
-        font-size: 14px;
-        padding: 4px;
-        color: var(--blert-font-color-primary);
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border-radius: 6px;
+        font-size: 12px;
+        color: var(--blert-font-color-secondary);
+        opacity: 0.7;
+        transition: all 0.2s ease;
 
         &:hover {
           color: var(--blert-purple);
+          opacity: 1;
           cursor: pointer;
+        }
+
+        :global([data-theme='aero']) &:hover {
+          background: rgba(214, 236, 250, 0.9);
         }
       }
     }
   }
 
-  &:hover .playerActions {
-    opacity: 1;
+  .slotTray {
+    width: fit-content;
+    padding: 6px;
+    border-radius: 8px;
+    margin: 0.5em 0;
+    background: var(--blert-surface-dark);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+
+    :global([data-theme='aero']) & {
+      @include aeroTray;
+    }
   }
 
   .slotContainer {
     display: grid;
-    margin: 0.5em 0;
   }
 
   .inventory {
@@ -227,53 +364,13 @@
 
   .editActions {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 4px;
+    justify-content: center;
+    gap: 8px;
 
-    button {
-      font-size: 14px;
-      padding: 4px 12px;
-      transition: all 0.2s ease;
-
-      i {
-        margin-right: 8px;
-      }
-
-      &:not(:disabled):hover {
-        cursor: pointer;
-        filter: brightness(1.4);
-
-        i {
-          transform: scale(1.1);
-        }
-      }
-
-      &:disabled {
-        color: var(--blert-font-color-secondary);
-        opacity: 0.6;
-        cursor: not-allowed;
-      }
-    }
-
-    .import {
-      color: var(--blert-purple);
-    }
-
-    .remove {
-      color: var(--blert-red);
-    }
-
-    .optionalToggle {
-      display: inline-flex;
-      align-items: center;
-      color: var(--blert-purple);
-      border-radius: 4px;
-
-      &.active {
-        color: var(--blert-blue);
-        background: rgba(var(--blert-blue-base), 0.12);
-      }
+    button.active {
+      color: var(--blert-blue);
+      background: rgba(var(--blert-blue-base), 0.12);
     }
   }
 
@@ -310,24 +407,52 @@
       background 0.2s ease,
       box-shadow 0.2s ease;
   }
+
+  :global([data-theme='aero']) & {
+    background: rgba(255, 255, 255, 0.66);
+    border: 1px solid rgba(120, 165, 200, 0.45);
+    box-shadow:
+      0 2px 8px rgba(20, 60, 90, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    border-radius: 10px;
+    padding: 12px 0;
+
+    &.optional {
+      background: rgba(226, 240, 250, 0.66);
+    }
+
+    &.highlighted {
+      background: rgba(224, 242, 252, 0.88);
+      border-color: rgba(var(--blert-purple-base), 0.55);
+      box-shadow:
+        inset 0 0 0 1px rgba(var(--blert-purple-base), 0.35),
+        0 0 18px rgba(var(--blert-purple-base), 0.35),
+        0 2px 8px rgba(20, 60, 90, 0.12);
+    }
+  }
 }
 
 .slot {
   width: calc(var(--slot-size) - 2px);
   height: calc(var(--slot-size) - 2px);
   margin: 1px;
-  background: var(--blert-surface-dark);
+  background: var(--blert-surface-light);
+  border-radius: 3px;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
 
+  &:not(.empty) {
+    border: 1px solid rgba(var(--blert-divider-color-base), 0.2);
+  }
+
   &:hover {
-    background: var(--blert-surface-light);
+    background: color-mix(in srgb, var(--blert-surface-light) 88%, white);
   }
 
   &.highlighted {
-    background: var(--blert-surface-light);
+    background: color-mix(in srgb, var(--blert-surface-light) 88%, white);
     outline: 1px solid var(--blert-font-color-primary);
   }
 
@@ -379,6 +504,53 @@
     }
   }
 
+  :global([data-theme='aero']) & {
+    @include aeroSpriteCell;
+
+    &:hover {
+      @include aeroSpriteCellHover;
+    }
+
+    &.highlighted {
+      background: rgba(var(--blert-purple-base), 0.55);
+      outline-color: rgba(255, 255, 255, 0.85);
+    }
+
+    &.empty,
+    &.empty:hover {
+      background: none;
+      box-shadow: none;
+    }
+
+    // Hand-tuned dark companions of the state tints.
+    &:not(.empty).invalid:hover {
+      background: rgba(132, 44, 42, 0.7);
+      border-color: rgba(242, 144, 140, 0.8);
+    }
+
+    &:not(.empty).valid:hover {
+      background: rgba(38, 110, 58, 0.7);
+      border-color: rgba(122, 200, 90, 0.85);
+    }
+
+    &.deletable {
+      background: rgba(120, 42, 38, 0.68);
+      border-color: rgba(242, 144, 140, 0.75);
+
+      &:hover {
+        background: rgba(140, 50, 46, 0.74);
+      }
+    }
+
+    &.eyedropperHover {
+      background: rgba(48, 98, 160, 0.72);
+
+      &:hover {
+        background: rgba(58, 114, 180, 0.78);
+      }
+    }
+  }
+
   .itemWrapper {
     width: 100%;
     height: 100%;
@@ -396,6 +568,10 @@
     pointer-events: none;
     transition: transform 0.2s ease;
     filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+
+    :global([data-theme='aero']) & {
+      color: rgba(255, 255, 255, 0.92);
+    }
   }
 
   &:hover .commentBadge {
@@ -443,7 +619,7 @@
   top: var(--slot-size);
   left: 0;
   z-index: 100;
-  width: 200px;
+  width: fit-content;
   background: var(--blert-panel-background-color);
   border: 1px solid var(--border-color);
   border-radius: 4px;
@@ -497,6 +673,23 @@
     &.highlighted {
       background: var(--blert-surface-light);
       outline: 1px solid var(--blert-font-color-primary);
+    }
+
+    :global([data-theme='aero']) & {
+      background: rgba(255, 255, 255, 0.66);
+      border: 1px solid rgba(96, 146, 186, 0.45);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.9),
+        0 1px 2px rgba(20, 60, 90, 0.1);
+
+      &:hover {
+        color: var(--blert-font-color-primary);
+        border-color: rgba(var(--blert-purple-base), 0.6);
+      }
+
+      &.highlighted {
+        background: var(--blert-surface-light);
+      }
     }
 
     .quantity {

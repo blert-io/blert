@@ -8,12 +8,17 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.7);
   opacity: 1;
   transition: opacity 0.2s ease;
 
   &.closing {
     opacity: 0;
+  }
+
+  :global([data-theme='aero']) & {
+    background: rgba(40, 90, 120, 0.4);
+    backdrop-filter: blur(4px);
   }
 
   .modal {
@@ -24,6 +29,19 @@
     transition:
       transform 0.2s ease,
       opacity 0.2s ease;
+
+    // Aero: a frosted-glass window, more opaque than the panel surface,
+    // as modals float over arbitrary content.
+    :global([data-theme='aero']) & {
+      background: linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0.92),
+        rgba(232, 246, 254, 0.82)
+      );
+      backdrop-filter: var(--blert-panel-blur);
+      border: 1px solid rgba(255, 255, 255, 0.55);
+      border-radius: 8px;
+    }
 
     .header {
       display: flex;
@@ -66,6 +84,47 @@
         &:hover {
           color: var(--blert-purple);
           background: var(--blert-surface-light);
+        }
+      }
+
+      // Aero: window title bar chrome with a classic close button.
+      :global([data-theme='aero']) & {
+        position: relative;
+        padding: 7px 44px 8px 18px;
+        border-radius: 8px 8px 0 0;
+        background: linear-gradient(
+          to bottom,
+          rgba(255, 255, 255, 0.55),
+          rgba(214, 236, 250, 0.18)
+        );
+        border-bottom: 1px solid rgba(120, 165, 200, 0.35);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+
+        button {
+          position: absolute;
+          top: -2px;
+          right: 6px;
+          width: 44px;
+          height: 20px;
+          background: linear-gradient(to bottom, #f2908c, #d9534f);
+          color: #fff;
+          text-shadow:
+            -1px 0 0 rgba(100, 22, 22, 0.7),
+            1px 0 0 rgba(100, 22, 22, 0.7),
+            0 -1px 0 rgba(100, 22, 22, 0.7),
+            0 1px 0 rgba(100, 22, 22, 0.7);
+          border: 1px solid rgba(150, 40, 36, 0.55);
+          border-radius: 0 0 4px 4px;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+
+          i {
+            top: 0;
+          }
+
+          &:hover {
+            background: linear-gradient(to bottom, #f6a4a0, #e2605c);
+            color: #fff;
+          }
         }
       }
     }

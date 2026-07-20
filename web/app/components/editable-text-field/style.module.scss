@@ -8,10 +8,6 @@
   border-radius: 6px;
   transition: all 0.2s ease;
 
-  &:hover {
-    background: rgba(var(--blert-surface-dark-base), 0.4);
-  }
-
   .text {
     max-width: calc(100% - 44px);
     height: 35px;
@@ -26,7 +22,7 @@
 
     &:hover {
       background: rgba(var(--blert-surface-light-base), 0.4);
-      border-color: rgba(var(--blert-purple-base), 0.15);
+      border-color: rgba(var(--blert-purple-base), 0.35);
     }
   }
 
@@ -73,13 +69,28 @@
     @include styledScrollbar;
   }
 
+  :global([data-theme='aero']) & {
+    .text:hover {
+      background: rgba(255, 255, 255, 0.55);
+      border-color: rgba(120, 165, 200, 0.5);
+    }
+
+    .input {
+      @include aeroField(8px);
+    }
+
+    .button:hover {
+      background-color: rgba(255, 255, 255, 0.6);
+      border-color: rgba(120, 165, 200, 0.5);
+    }
+  }
+
   .button {
     width: 32px;
     height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-left: auto;
     font-size: 14px;
     background-color: transparent;
     border: 1px solid transparent;

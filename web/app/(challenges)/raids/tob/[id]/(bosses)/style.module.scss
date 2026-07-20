@@ -45,6 +45,13 @@
   width: 100%;
   align-items: flex-start;
 
+  // Aero: the cards' backdrop-filter creates stacking contexts, so lift the row
+  // above other content for popovers.
+  :global([data-theme='aero']) & {
+    position: relative;
+    z-index: 2;
+  }
+
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     gap: 12px;
   }

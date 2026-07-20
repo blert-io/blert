@@ -82,14 +82,14 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
             className={linkClass(mode === ChallengeMode.TOB_REGULAR)}
             href={`/leaderboards/tob/regular/${scale}`}
           >
-            <i className="fas fa-circle" style={{ color: '#ffd700' }} />
+            <i className="fas fa-circle" data-challenge="tob" />
             Regular
           </Link>
           <Link
             className={linkClass(mode === ChallengeMode.TOB_HARD)}
             href={`/leaderboards/tob/hard/${scale}`}
           >
-            <i className="fas fa-circle" style={{ color: '#d100cc' }} />
+            <i className="fas fa-circle" data-challenge="hmt" />
             Hard
           </Link>
         </div>
