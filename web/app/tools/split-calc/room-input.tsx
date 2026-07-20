@@ -5,6 +5,7 @@ import { useRef, useState } from 'react';
 
 import TickInput from '@/components/tick-input';
 import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
+import { formatPercentile, percentile } from '@/utils/probability';
 
 import {
   RoomDefinition,
@@ -12,7 +13,6 @@ import {
   RoomSource,
   RoomState,
 } from './types';
-import { formatPercentile, percentile } from './probability';
 
 import styles from './style.module.scss';
 

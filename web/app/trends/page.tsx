@@ -1,7 +1,9 @@
 import { ChallengeType } from '@blert/common';
 import { ResolvingMetadata } from 'next';
+import Image from 'next/image';
 
 import Card from '@/components/card';
+import { challengeLogo } from '@/logo';
 import BloatIcon from '@/svg/bloat.svg';
 import { basicMetadata } from '@/utils/metadata';
 
@@ -28,7 +30,20 @@ const TOB_ANALYSIS_LINKS: AnalysisLink[] = [
 ];
 
 const COLOSSEUM_ANALYSIS_LINKS: AnalysisLink[] = [
-  // Add Colosseum-specific analysis links here when they become available
+  {
+    href: '/trends/colosseum',
+    title: 'Wave Times',
+    description: 'Wave time percentiles across Fortis Colosseum runs',
+    icon: (
+      <Image
+        src={challengeLogo(ChallengeType.COLOSSEUM)}
+        alt="Fortis Colosseum"
+        width={32}
+        height={32}
+        style={{ objectFit: 'contain' }}
+      />
+    ),
+  },
 ];
 
 const INFERNO_ANALYSIS_LINKS: AnalysisLink[] = [

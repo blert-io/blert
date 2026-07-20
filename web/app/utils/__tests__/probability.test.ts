@@ -1,12 +1,13 @@
+import { DistributionBin } from '@/actions/split-distributions';
 import {
   cdf,
   convolveDistributions,
   convolvedPercentile,
+  distributionStats,
   formatPercentile,
   percentile,
   targetProbability,
-} from '../probability';
-import { DistributionBin } from '../types';
+} from '@/utils/probability';
 
 describe('cdf', () => {
   const bins: DistributionBin[] = [
@@ -143,6 +144,55 @@ describe('convolvedPercentile', () => {
     const convolved = new Float64Array(3);
     convolved[0] = 1.0;
     expect(convolvedPercentile(convolved, 0.5)).toBe(0);
+  });
+});
+
+describe('distributionStats', () => {
+  it('computes summary statistics of a distribution', () => {
+    const bins: DistributionBin[] = [
+      { ticks: 30, count: 1 },
+      { ticks: 34, count: 2 },
+      { ticks: 40, count: 1 },
+    ];
+
+    expect(distributionStats(bins, 4)).toEqual({
+      min: 30,
+      max: 40,
+      mean: 34.5,
+      median: 34,
+      total: 4,
+    });
+  });
+
+  it('takes the lower tick when half the count falls on a bin boundary', () => {
+    const bins: DistributionBin[] = [
+      { ticks: 10, count: 1 },
+      { ticks: 20, count: 1 },
+    ];
+
+    expect(distributionStats(bins, 2)).toEqual({
+      min: 10,
+      max: 20,
+      mean: 15,
+      median: 10,
+      total: 2,
+    });
+  });
+
+  it('collapses to the single value of a one-bin distribution', () => {
+    const bins: DistributionBin[] = [{ ticks: 100, count: 5 }];
+
+    expect(distributionStats(bins, 5)).toEqual({
+      min: 100,
+      max: 100,
+      mean: 100,
+      median: 100,
+      total: 5,
+    });
+  });
+
+  it('returns null for an empty distribution', () => {
+    expect(distributionStats([], 0)).toBeNull();
   });
 });
 
