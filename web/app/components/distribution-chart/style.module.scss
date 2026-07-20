@@ -1,0 +1,13 @@
+.chartContainer {
+  width: 100%;
+  height: 360px;
+}
+
+.noData {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--blert-font-color-secondary);
+  font-size: 0.9rem;
+}

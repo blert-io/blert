@@ -8,22 +8,23 @@ import { ChallengeOverview } from '@/actions/challenge';
 import { ConnectedPlayer } from '@/actions/users';
 import Card from '@/components/card';
 import Checkbox from '@/components/checkbox';
+import DistributionChart from '@/components/distribution-chart';
 import PlayerSearch from '@/components/player-search';
 import RadioInput from '@/components/radio-input';
 import TickInput from '@/components/tick-input';
 import { useToast } from '@/components/toast';
-import { ticksToFormattedSeconds } from '@/utils/tick';
-
-import { optimizeAllocation } from './allocation';
-import { DistributionChart } from './distribution-chart';
-import { ImportRaids } from './import-raids';
 import {
   convolveDistributions,
   convolvedPercentile,
+  distributionStats,
   formatPercentile,
   percentile,
   targetProbability,
-} from './probability';
+} from '@/utils/probability';
+import { ticksToFormattedSeconds } from '@/utils/tick';
+
+import { optimizeAllocation } from './allocation';
+import { ImportRaids } from './import-raids';
 import { ProbabilityHero } from './probability-hero';
 import { RoomInput } from './room-input';
 import {
@@ -426,32 +427,10 @@ export function SplitCalculator({ connectedPlayers }: SplitCalculatorProps) {
   }, [selectedRoom, getDistribution]);
 
   const distStats = useMemo(() => {
-    if (selectedDist === null || selectedDist.bins.length === 0) {
+    if (selectedDist === null) {
       return null;
     }
-    const { bins, total } = selectedDist;
-    const min = bins[0].ticks;
-    const max = bins[bins.length - 1].ticks;
-
-    let sum = 0;
-    for (const bin of bins) {
-      sum += bin.ticks * bin.count;
-    }
-    const mean = sum / total;
-
-    // Median: find the tick where cumulative count >= total / 2.
-    let cumulative = 0;
-    let median = min;
-    const half = total / 2;
-    for (const bin of bins) {
-      cumulative += bin.count;
-      if (cumulative >= half) {
-        median = bin.ticks;
-        break;
-      }
-    }
-
-    return { min, max, mean, median, total };
+    return distributionStats(selectedDist.bins, selectedDist.total);
   }, [selectedDist]);
 
   function handleRoomTicksChange(key: string, ticks: number | null) {

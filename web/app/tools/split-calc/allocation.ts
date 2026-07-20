@@ -1,5 +1,6 @@
+import { cdf } from '@/utils/probability';
+
 import { DistributionBin } from './types';
-import { cdf } from './probability';
 
 export type RoomAllocation = {
   key: string;

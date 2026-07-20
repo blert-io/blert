@@ -1,4 +1,4 @@
-import { DistributionBin } from './types';
+import { DistributionBin } from '@/actions/split-distributions';
 
 /**
  * Computes the CDF value at tick count `ticks` within a distribution.
@@ -35,6 +35,50 @@ export function percentile(
   ticks: number,
 ): number {
   return cdf(bins, total, ticks) * 100;
+}
+
+export type DistributionStats = {
+  min: number;
+  max: number;
+  mean: number;
+  median: number;
+  total: number;
+};
+
+/**
+ * Computes summary statistics of a binned distribution, or `null` if it is
+ * empty. The median is discrete, taking the tick at which the cumulative
+ * count reaches half the total.
+ */
+export function distributionStats(
+  bins: DistributionBin[],
+  total: number,
+): DistributionStats | null {
+  if (bins.length === 0 || total === 0) {
+    return null;
+  }
+
+  const min = bins[0].ticks;
+  const max = bins[bins.length - 1].ticks;
+
+  let sum = 0;
+  for (const bin of bins) {
+    sum += bin.ticks * bin.count;
+  }
+  const mean = sum / total;
+
+  let cumulative = 0;
+  let median = min;
+  const half = total / 2;
+  for (const bin of bins) {
+    cumulative += bin.count;
+    if (cumulative >= half) {
+      median = bin.ticks;
+      break;
+    }
+  }
+
+  return { min, max, mean, median, total };
 }
 
 /**

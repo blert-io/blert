@@ -15,7 +15,7 @@ import {
 
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
-import { DistributionBin } from './types';
+import { DistributionBin } from '@/actions/split-distributions';
 
 import styles from './style.module.scss';
 
@@ -106,7 +106,7 @@ function generateProbTicks(maxProb: number): number[] {
 
 const CDF_TICKS = [0, 25, 50, 75, 100];
 
-export function DistributionChart({
+export default function DistributionChart({
   bins,
   referenceTicks,
   tickCycle = 1,

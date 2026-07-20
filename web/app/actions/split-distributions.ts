@@ -3,6 +3,7 @@
 import { ChallengeType, SplitType, normalizeRsn } from '@blert/common';
 
 import { sql } from './db';
+import { Join, join, where } from './query';
 
 type DistributionRow = {
   type: number;
@@ -22,6 +23,13 @@ export type SplitDistribution = {
 };
 
 export type SplitTier = 'standard' | 'speedrun';
+
+export type SplitPercentiles = {
+  splitType: number;
+  count: number;
+  /** Map of requested percentile to its computed value. */
+  percentiles: Record<number, number>;
+};
 
 // 1-down bloat threshold in ticks (matches the MV definition).
 const SPEEDRUN_BLOAT_THRESHOLD = 100;
@@ -171,4 +179,76 @@ export async function getFilteredSplitDistributions(
   }
 
   return rowsToDistributions(rows, types);
+}
+
+type PercentileRow = {
+  type: number;
+  count: number;
+  percentiles: number[];
+};
+
+/**
+ * Computes percentile tick values for accurate splits of the requested types.
+ *
+ * @param types The mode-specific split types to fetch.
+ * @param scale The challenge scale.
+ * @param percentiles Percentiles to compute, each in [0, 100].
+ * @param after Optional lower bound on challenge start time.
+ * @param before Optional upper bound on challenge start time.
+ * @returns Percentile data for each requested type that has data.
+ */
+export async function getSplitPercentiles(
+  types: SplitType[],
+  scale: number,
+  percentiles: number[],
+  after?: Date,
+  before?: Date,
+): Promise<SplitPercentiles[]> {
+  const fractions = percentiles.map((p) => p / 100);
+
+  const conditions = [
+    sql`challenge_splits.type = ANY(${types})`,
+    sql`challenge_splits.scale = ${scale}`,
+    sql`challenge_splits.accurate`,
+  ];
+  const joins: Join[] = [];
+
+  if (after !== undefined || before !== undefined) {
+    joins.push({
+      table: sql('challenges'),
+      on: sql`challenges.id = challenge_splits.challenge_id`,
+      tableName: 'challenges',
+    });
+    if (after !== undefined) {
+      conditions.push(sql`challenges.start_time >= ${after}`);
+    }
+    if (before !== undefined) {
+      conditions.push(sql`challenges.start_time < ${before}`);
+    }
+  }
+
+  const rows = await sql<PercentileRow[]>`
+    SELECT
+      challenge_splits.type,
+      COUNT(*)::int AS count,
+      PERCENTILE_CONT(${fractions}::float8[])
+        WITHIN GROUP (ORDER BY challenge_splits.ticks) AS percentiles
+    FROM challenge_splits
+    ${join(joins)}
+    ${where(conditions)}
+    GROUP BY challenge_splits.type
+  `;
+
+  const byType = new Map(rows.map((row) => [row.type, row]));
+
+  return types
+    .filter((t) => byType.has(t))
+    .map((t) => {
+      const row = byType.get(t)!;
+      const result: Record<number, number> = {};
+      percentiles.forEach((p, i) => {
+        result[p] = row.percentiles[i];
+      });
+      return { splitType: t, count: row.count, percentiles: result };
+    });
 }

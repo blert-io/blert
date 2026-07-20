@@ -1,0 +1,150 @@
+.percentileChart {
+  width: 100%;
+}
+
+.clickable {
+  cursor: pointer;
+}
+
+.axisTick {
+  font-size: 14px;
+  fill: var(--blert-font-color-secondary);
+
+  &.clickable {
+    cursor: pointer;
+    transition: fill 0.15s ease;
+
+    &:hover {
+      fill: var(--blert-font-color-primary);
+    }
+  }
+
+  &.active {
+    fill: var(--blert-purple);
+    font-weight: 600;
+  }
+}
+
+.chartHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--blert-font-color-primary);
+}
+
+.legend {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: var(--blert-font-color-secondary);
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.globalSwatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: rgba(var(--blert-purple-base), 0.45);
+  border: 1px solid var(--blert-purple);
+}
+
+.whiskerSwatch {
+  width: 2px;
+  height: 14px;
+  border-radius: 1px;
+  background: rgba(var(--blert-purple-base), 0.8);
+}
+
+.medianSwatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--blert-font-color-primary);
+  border: 2px solid var(--blert-panel-background-color);
+}
+
+.playerSwatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--blert-yellow);
+  border: 2px solid var(--blert-panel-background-color);
+}
+
+.tooltip {
+  background: var(--blert-panel-background-color);
+  border: 1px solid var(--blert-divider-color);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  min-width: 180px;
+}
+
+.tooltipHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-weight: 600;
+  color: var(--blert-font-color-primary);
+  margin-bottom: 6px;
+}
+
+.tooltipCount {
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: var(--blert-font-color-secondary);
+}
+
+.tooltipBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tooltipRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--blert-font-color-secondary);
+
+  span:first-child {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+}
+
+.tooltipValue {
+  font-family: var(--font-roboto-mono), monospace;
+  color: var(--blert-font-color-primary);
+}
+
+.tooltipPlayer {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(var(--blert-divider-color-base), 0.5);
+}
+
+.tooltipStanding {
+  margin-top: 2px;
+  font-size: 0.8rem;
+  color: var(--blert-yellow);
+}
