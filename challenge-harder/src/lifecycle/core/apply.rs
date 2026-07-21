@@ -6,7 +6,9 @@
 use super::command::StageProgress;
 use super::event::{Cause, JournalEntry, LifecycleEvent};
 use super::state::{ChallengeState, ClientState, LastCompleted, PhaseState, StageState, Trigger};
-use super::types::{ClientId, ProcessingError, StageExt, StageStatus, StageStatusExt, Timestamp};
+use super::types::{
+    ClientId, ProcessingError, ProcessingPayload, StageExt, StageStatus, StageStatusExt, Timestamp,
+};
 
 // it's an exhaustive enum folks
 #[allow(clippy::too_many_lines)]
@@ -155,6 +157,18 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
             trigger: _,
             payload,
         } => {
+            if let ProcessingPayload::Stage { status, ticks } = payload {
+                state.challenge_ticks += ticks;
+
+                // Update status unless the challenge has moved on.
+                if let Some(run) = state.processing.active()
+                    && let Trigger::Stage { stage, attempt, .. } = run.trigger
+                    && stage == state.stage
+                    && attempt == state.stage_attempt
+                {
+                    state.stage_status = status;
+                }
+            }
             let challenge_type = state.challenge_type;
             state
                 .processing
@@ -1102,6 +1116,8 @@ mod tests {
             ),
         );
         assert!(state.processing.settled());
+        assert_eq!(state.challenge_ticks, 237);
+        assert_eq!(state.stage_status, StageStatus::Completed);
 
         apply(
             &mut state,
@@ -1112,5 +1128,185 @@ mod tests {
             ),
         );
         assert_eq!(state.status(), ChallengeStatus::Reset);
+    }
+
+    #[test]
+    fn stage_outcomes_accumulate_ticks() {
+        let mut state = processing_tob_state();
+        apply(&mut state, maiden_seal(5_000));
+        apply(
+            &mut state,
+            processing_entry(
+                5_000,
+                LifecycleEvent::ProcessingStarted {
+                    trigger: JournalSeq(5),
+                },
+            ),
+        );
+
+        // The challenge moves on while the run is still processing; the
+        // outcome adds its ticks without touching the status.
+        apply(
+            &mut state,
+            entry(
+                6_000,
+                4,
+                LifecycleEvent::StageStarted {
+                    stage: Stage::TobBloat,
+                },
+            ),
+        );
+        apply(
+            &mut state,
+            processing_entry(
+                7_000,
+                LifecycleEvent::ProcessingFinished {
+                    trigger: JournalSeq(5),
+                    payload: ProcessingPayload::Stage {
+                        status: StageStatus::Wiped,
+                        ticks: 190,
+                    },
+                },
+            ),
+        );
+        assert_eq!(state.challenge_ticks, 190);
+        assert_eq!(state.stage_status, StageStatus::Started);
+
+        // The current stage's processing returns the definitive status.
+        apply(
+            &mut state,
+            JournalEntry {
+                seq: JournalSeq(12),
+                at: Timestamp::from_millis(8_000),
+                caused_by: Cause::Command(MsgId::sequence(5)),
+                event: LifecycleEvent::StageSealed {
+                    stage: Stage::TobBloat,
+                    attempt: None,
+                    forced: false,
+                },
+            },
+        );
+        apply(
+            &mut state,
+            processing_entry(
+                8_000,
+                LifecycleEvent::ProcessingStarted {
+                    trigger: JournalSeq(12),
+                },
+            ),
+        );
+        apply(
+            &mut state,
+            processing_entry(
+                9_000,
+                LifecycleEvent::ProcessingFinished {
+                    trigger: JournalSeq(12),
+                    payload: ProcessingPayload::Stage {
+                        status: StageStatus::Completed,
+                        ticks: 150,
+                    },
+                },
+            ),
+        );
+        assert_eq!(state.challenge_ticks, 340);
+        assert_eq!(state.stage_status, StageStatus::Completed);
+    }
+
+    #[test]
+    fn empty_stage_outcome_invalidates_the_previous_status() {
+        let mut state = processing_tob_state();
+        apply(&mut state, maiden_seal(5_000));
+        apply(
+            &mut state,
+            processing_entry(
+                5_000,
+                LifecycleEvent::ProcessingStarted {
+                    trigger: JournalSeq(5),
+                },
+            ),
+        );
+        apply(
+            &mut state,
+            processing_entry(
+                6_000,
+                LifecycleEvent::ProcessingFinished {
+                    trigger: JournalSeq(5),
+                    payload: ProcessingPayload::Stage {
+                        status: StageStatus::Completed,
+                        ticks: 190,
+                    },
+                },
+            ),
+        );
+
+        apply(
+            &mut state,
+            entry(
+                7_000,
+                4,
+                LifecycleEvent::StageStarted {
+                    stage: Stage::TobBloat,
+                },
+            ),
+        );
+        apply(
+            &mut state,
+            entry(
+                8_000,
+                5,
+                LifecycleEvent::ClientStageReported {
+                    client_id: CLIENT,
+                    attempt: None,
+                    update: StageProgress {
+                        stage: Stage::TobBloat,
+                        status: StageStatus::Wiped,
+                    },
+                },
+            ),
+        );
+        apply(
+            &mut state,
+            JournalEntry {
+                seq: JournalSeq(12),
+                at: Timestamp::from_millis(8_000),
+                caused_by: Cause::Command(MsgId::sequence(6)),
+                event: LifecycleEvent::StageSealed {
+                    stage: Stage::TobBloat,
+                    attempt: None,
+                    forced: false,
+                },
+            },
+        );
+        apply(
+            &mut state,
+            processing_entry(
+                9_000,
+                LifecycleEvent::ProcessingStarted {
+                    trigger: JournalSeq(12),
+                },
+            ),
+        );
+        apply(
+            &mut state,
+            processing_entry(
+                10_000,
+                LifecycleEvent::ProcessingFinished {
+                    trigger: JournalSeq(12),
+                    payload: ProcessingPayload::None,
+                },
+            ),
+        );
+        apply(
+            &mut state,
+            entry(
+                11_000,
+                7,
+                LifecycleEvent::ChallengeTerminated { empty: false },
+            ),
+        );
+
+        // The final status falls back to the challenge's reported progress
+        // rather than the first stage's stale outcome.
+        assert_eq!(state.status(), ChallengeStatus::Wiped);
     }
 }

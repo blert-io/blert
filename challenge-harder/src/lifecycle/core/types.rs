@@ -3,6 +3,7 @@
 use core::ops::Add;
 use core::time::Duration;
 
+use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
@@ -221,6 +222,63 @@ const _: () = {
 pub struct ReportedTimes {
     pub challenge: u32,
     pub overall: u32,
+}
+
+/// A client's reported completion state for a stage.
+/// Matches `StageUpdate` in `//common/db/redis.ts`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StageUpdate {
+    pub stage: Stage,
+    pub status: StageStatus,
+    pub accurate: bool,
+    pub recorded_ticks: u32,
+    pub server_ticks: Option<ServerTicks>,
+}
+
+/// A client's report of the server's tick count for a stage.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ServerTicks {
+    pub count: u32,
+    pub precise: bool,
+}
+
+/// A single record in a stage's recorded event stream.
+/// Matches `ClientStageStream` in `//common/db/redis.ts`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ClientStageStream {
+    /// Identifies the plugin build behind a client's records.
+    Metadata {
+        client_id: ClientId,
+        user_id: UserId,
+        plugin_version: String,
+        runelite_version: String,
+    },
+    /// A batch of events recorded by a client, as a serialized
+    /// `ChallengeEvents` proto.
+    Events { client_id: ClientId, events: Bytes },
+    /// A client's end-of-stage report.
+    End {
+        client_id: ClientId,
+        update: StageUpdate,
+    },
+}
+
+impl ClientStageStream {
+    // Matches `StageStreamType` in `//common/db/redis.ts`.
+    pub const EVENTS_TAG: u8 = 0;
+    pub const STAGE_END_TAG: u8 = 1;
+    pub const METADATA_TAG: u8 = 2;
+
+    /// The client that produced this record.
+    #[must_use]
+    pub fn client_id(&self) -> ClientId {
+        match self {
+            ClientStageStream::Metadata { client_id, .. }
+            | ClientStageStream::Events { client_id, .. }
+            | ClientStageStream::End { client_id, .. } => *client_id,
+        }
+    }
 }
 
 /// Result that a completed processing run feeds back into the challenge.

@@ -4,8 +4,9 @@ use std::collections::HashMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
+use bytes::Bytes;
+use deadpool_redis::{Manager, Pool};
 use futures_util::StreamExt;
-use redis::aio::ConnectionManager;
 use redis::streams::{StreamReadOptions, StreamReadReply};
 use serde::Serialize;
 use tokio::sync::mpsc;
@@ -20,14 +21,16 @@ use crate::lifecycle::core::command::{
 use crate::lifecycle::core::event::JournalEntry;
 use crate::lifecycle::core::state::{ChallengePhase, ChallengeState, PublishedClient, Snapshot};
 use crate::lifecycle::core::types::{
-    ChallengeMode, ChallengeStatus, ChallengeType, ClientId, Epoch, MsgId, Stage, StageExt, Uuid,
+    ChallengeMode, ChallengeStatus, ChallengeType, ClientId, ClientStageStream, Epoch, MsgId,
+    Stage, StageExt, UserId, Uuid,
 };
 use crate::players::normalize_rsn;
 
 mod scripts;
 use scripts::{
     ANNOUNCE_SCRIPT, APPEND_SCRIPT, CLAIM_SCRIPT, CLIENT_SEND_SCRIPT, DELETE_SCRIPT,
-    PROJECT_SCRIPT, REJOIN_SCRIPT, RELEASE_SCRIPT, RENEW_SCRIPT, SEND_SCRIPT, START_SCRIPT,
+    PROJECT_SCRIPT, REJOIN_SCRIPT, RELEASE_SCRIPT, RENEW_SCRIPT, SEAL_SCRIPT, SEND_SCRIPT,
+    START_SCRIPT,
 };
 
 #[cfg(test)]
@@ -114,6 +117,30 @@ fn streams_set_key(uuid: Uuid) -> String {
     format!("challenge-streams:{uuid}")
 }
 
+/// Stream storing a stage's recorded events.
+/// Matches `challengeStageStreamKey` in `//common/db/redis.ts`.
+fn stage_stream_key(uuid: Uuid, stage: Stage, attempt: Option<u32>) -> String {
+    match attempt {
+        Some(attempt) => format!("challenge-events:{uuid}:{}:{attempt}", stage as i32),
+        None => format!("challenge-events:{uuid}:{}", stage as i32),
+    }
+}
+
+/// Set of a challenge's stage attempts whose streams are closed to writes.
+/// Matches `challengeProcessedStagesKey` in `//common/db/redis.ts`.
+fn processed_stages_key(uuid: Uuid) -> String {
+    format!("{CHALLENGE_KEY_PREFIX}{uuid}:processed-stages")
+}
+
+/// A stage attempt's identity within the processed stages set.
+/// Matches `stageAttemptKey` in `//common/db/redis.ts`.
+fn stage_attempt_member(stage: Stage, attempt: Option<u32>) -> String {
+    match attempt {
+        Some(attempt) => format!("{}:{attempt}", stage as i32),
+        None => (stage as i32).to_string(),
+    }
+}
+
 /// How long a deleted challenge's journal and inbox are retained for
 /// inspection before expiring.
 const DELETED_STREAM_RETENTION: Duration = Duration::from_hours(24);
@@ -170,21 +197,68 @@ enum UpdateMessage {
 pub struct Store {
     /// Name under which this instance claims challenges.
     identity: String,
+    /// Source of the dedicated connections held by blocking consumers.
     client: redis::Client,
-    connection: ConnectionManager,
+    pool: Pool,
+}
+
+/// Checks a connection out of `pool`.
+async fn checkout(pool: &Pool) -> Result<deadpool_redis::Connection, StoreError> {
+    pool.get()
+        .await
+        .map_err(|e| StoreError::Unavailable(e.to_string()))
 }
 
 impl Store {
     /// Connects to the Redis instance at `uri`. `identity` uniquely represents
     /// this instance and must be stable across restarts.
-    pub async fn connect(uri: &str, identity: String) -> redis::RedisResult<Self> {
-        let client = redis::Client::open(uri)?;
-        let connection = client.get_connection_manager().await?;
+    pub async fn connect(
+        uri: &str,
+        identity: String,
+        pool_size: usize,
+    ) -> Result<Self, StoreError> {
+        let client =
+            redis::Client::open(uri).map_err(|e| StoreError::Unavailable(e.to_string()))?;
+        let manager = Manager::new(uri).map_err(|e| StoreError::Unavailable(e.to_string()))?;
+        let pool = Pool::builder(manager)
+            .max_size(pool_size)
+            .build()
+            .map_err(|e| StoreError::Unavailable(e.to_string()))?;
+        drop(checkout(&pool).await?);
         Ok(Store {
             identity,
             client,
-            connection,
+            pool,
         })
+    }
+
+    /// Reads and parses the full recorded event stream for a challenge stage,
+    /// in insertion order. Records which fail to parse are skipped.
+    pub async fn read_stage_stream(
+        &self,
+        uuid: Uuid,
+        stage: Stage,
+        attempt: Option<u32>,
+    ) -> Result<Vec<ClientStageStream>, StoreError> {
+        let mut connection = checkout(&self.pool).await?;
+        let entries: Vec<(String, HashMap<String, Vec<u8>>)> = redis::cmd("XRANGE")
+            .arg(stage_stream_key(uuid, stage, attempt))
+            .arg("-")
+            .arg("+")
+            .query_async(&mut connection)
+            .await
+            .map_err(|e| StoreError::Unavailable(e.to_string()))?;
+
+        Ok(entries
+            .iter()
+            .filter_map(|(id, fields)| match parse_stream_record(fields) {
+                Ok(record) => Some(record),
+                Err(error) => {
+                    tracing::warn!(%uuid, id, error, "invalid_stage_stream_record");
+                    None
+                }
+            })
+            .collect())
     }
 
     /// A write handle to challenge `uuid`'s state under `epoch`.
@@ -197,39 +271,55 @@ impl Store {
             clients_key: clients_key(uuid),
             epoch,
             client: self.client.clone(),
-            connection: self.connection.clone(),
+            pool: self.pool.clone(),
         }
     }
 }
 
+/// Returns the raw value of `name` in a Redis hash.
+fn field<'a, V: AsRef<[u8]>>(hash: &'a HashMap<String, V>, name: &str) -> Result<&'a [u8], String> {
+    hash.get(name)
+        .map(AsRef::as_ref)
+        .ok_or_else(|| format!("missing field {name}"))
+}
+
+/// Returns the value of `name` in a Redis hash as a string.
+fn string_field<'a, V: AsRef<[u8]>>(
+    hash: &'a HashMap<String, V>,
+    name: &str,
+) -> Result<&'a str, String> {
+    std::str::from_utf8(field(hash, name)?).map_err(|_| format!("field {name} is not UTF-8"))
+}
+
+/// Parses the value of `name` in a Redis hash from its decimal form.
+fn int_field<T, V>(hash: &HashMap<String, V>, name: &str) -> Result<T, String>
+where
+    T: std::str::FromStr,
+    T::Err: std::fmt::Display,
+    V: AsRef<[u8]>,
+{
+    string_field(hash, name)?
+        .parse()
+        .map_err(|e| format!("invalid {name}: {e}"))
+}
+
 /// Parses a challenge's projected state hash back into a snapshot.
 fn parse_snapshot(uuid: Uuid, hash: &HashMap<String, String>) -> Result<Snapshot, String> {
-    fn field<'a>(hash: &'a HashMap<String, String>, name: &str) -> Result<&'a str, String> {
-        hash.get(name)
-            .map(String::as_str)
-            .ok_or_else(|| format!("missing field {name}"))
-    }
-
-    fn int(hash: &HashMap<String, String>, name: &str) -> Result<i32, String> {
-        field(hash, name)?
-            .parse()
-            .map_err(|e| format!("invalid {name}: {e}"))
-    }
-
     let attempt = hash.get("stageAttempt").map_or("", String::as_str);
-    let party = field(hash, "party")?;
-    let tag = field(hash, "phase")?;
+    let party = string_field(hash, "party")?;
+    let tag = string_field(hash, "phase")?;
     let phase = ChallengePhase::from_tag(tag).ok_or_else(|| format!("invalid phase: {tag}"))?;
-    let status: ChallengeStatus =
-        serde_json::from_str(field(hash, "status")?).map_err(|e| format!("invalid status: {e}"))?;
+    let status: ChallengeStatus = serde_json::from_str(string_field(hash, "status")?)
+        .map_err(|e| format!("invalid status: {e}"))?;
 
     Ok(Snapshot {
         uuid,
-        challenge_type: ChallengeType::try_from(int(hash, "type")?)
+        challenge_type: ChallengeType::try_from(int_field::<i32, _>(hash, "type")?)
             .map_err(|e| format!("invalid type: {e}"))?,
-        mode: ChallengeMode::try_from(int(hash, "mode")?)
+        mode: ChallengeMode::try_from(int_field::<i32, _>(hash, "mode")?)
             .map_err(|e| format!("invalid mode: {e}"))?,
-        stage: Stage::try_from(int(hash, "stage")?).map_err(|e| format!("invalid stage: {e}"))?,
+        stage: Stage::try_from(int_field::<i32, _>(hash, "stage")?)
+            .map_err(|e| format!("invalid stage: {e}"))?,
         stage_attempt: if attempt.is_empty() {
             None
         } else {
@@ -246,10 +336,32 @@ fn parse_snapshot(uuid: Uuid, hash: &HashMap<String, String>) -> Result<Snapshot
         },
         phase,
         status,
-        cursor: field(hash, "cursor")?
-            .parse()
-            .map_err(|e| format!("invalid cursor: {e}"))?,
+        cursor: int_field(hash, "cursor")?,
     })
+}
+
+/// Parses a stage stream entry's fields into a record.
+/// Inverts `stageStreamToRecord` in `//common/db/redis.ts`.
+fn parse_stream_record(fields: &HashMap<String, Vec<u8>>) -> Result<ClientStageStream, String> {
+    let client_id = ClientId(int_field(fields, "clientId")?);
+    match int_field::<u8, _>(fields, "type")? {
+        ClientStageStream::EVENTS_TAG => Ok(ClientStageStream::Events {
+            client_id,
+            events: Bytes::copy_from_slice(field(fields, "events")?),
+        }),
+        ClientStageStream::STAGE_END_TAG => Ok(ClientStageStream::End {
+            client_id,
+            update: serde_json::from_slice(field(fields, "update")?)
+                .map_err(|e| format!("invalid stage update: {e}"))?,
+        }),
+        ClientStageStream::METADATA_TAG => Ok(ClientStageStream::Metadata {
+            client_id,
+            user_id: UserId(int_field(fields, "userId")?),
+            plugin_version: string_field(fields, "pluginVersion")?.into(),
+            runelite_version: string_field(fields, "runeLiteVersion")?.into(),
+        }),
+        other => Err(format!("unknown record type {other}")),
+    }
 }
 
 #[async_trait]
@@ -259,7 +371,7 @@ impl ChallengeStore for Store {
         batch_size: usize,
         exclude: &[Uuid],
     ) -> Result<Vec<Claim>, StoreError> {
-        let mut connection = self.connection.clone();
+        let mut connection = checkout(&self.pool).await?;
 
         let mut invocation = CLAIM_SCRIPT.prepare_invoke();
         invocation
@@ -294,7 +406,7 @@ impl ChallengeStore for Store {
     async fn start(&self, create: Create) -> Result<Start, StoreError> {
         let uuid = Uuid::new_v4();
         let party = party_key(create.challenge_type, &create.party);
-        let mut connection = self.connection.clone();
+        let mut connection = checkout(&self.pool).await?;
 
         let mut invocation = START_SCRIPT.prepare_invoke();
         invocation
@@ -351,7 +463,7 @@ impl ChallengeStore for Store {
     async fn rejoin(&self, uuid: Uuid, join: &Join) -> Result<Rejoin, StoreError> {
         let payload =
             serde_json::to_string(&Command::Join(join.clone())).expect("command serializes");
-        let mut connection = self.connection.clone();
+        let mut connection = checkout(&self.pool).await?;
 
         let mut invocation = REJOIN_SCRIPT.prepare_invoke();
         invocation
@@ -377,7 +489,7 @@ impl ChallengeStore for Store {
 
     async fn send(&self, uuid: Uuid, cmd: &Command) -> Result<Option<MsgId>, StoreError> {
         let payload = serde_json::to_string(cmd).expect("command serializes");
-        let mut connection = self.connection.clone();
+        let mut connection = checkout(&self.pool).await?;
 
         let mut invocation = SEND_SCRIPT.prepare_invoke();
         invocation
@@ -402,7 +514,7 @@ impl ChallengeStore for Store {
         cmd: &Command,
     ) -> Result<Option<(Uuid, MsgId)>, StoreError> {
         let payload = serde_json::to_string(cmd).expect("command serializes");
-        let mut connection = self.connection.clone();
+        let mut connection = checkout(&self.pool).await?;
 
         let mut invocation = CLIENT_SEND_SCRIPT.prepare_invoke();
         invocation.key(client_key(client)).arg(payload);
@@ -425,7 +537,7 @@ impl ChallengeStore for Store {
     }
 
     async fn read(&self, uuid: Uuid) -> Result<Option<Snapshot>, StoreError> {
-        let mut connection = self.connection.clone();
+        let mut connection = checkout(&self.pool).await?;
         let hash: HashMap<String, String> =
             redis::AsyncCommands::hgetall(&mut connection, challenge_key(uuid))
                 .await
@@ -491,13 +603,13 @@ struct RedisClaim {
     clients_key: String,
     epoch: Epoch,
     client: redis::Client,
-    connection: ConnectionManager,
+    pool: Pool,
 }
 
 #[async_trait]
 impl ChallengeClaim for RedisClaim {
     async fn load(&self) -> Result<Vec<JournalEntry>, StoreError> {
-        let mut connection = self.connection.clone();
+        let mut connection = checkout(&self.pool).await?;
         let batches: Vec<(String, Vec<(String, String)>)> = redis::cmd("XRANGE")
             .arg(&self.journal_key)
             .arg("-")
@@ -527,7 +639,7 @@ impl ChallengeClaim for RedisClaim {
 
     async fn append(&self, batch: &[JournalEntry]) -> Result<(), StoreError> {
         let payload = serde_json::to_string(batch).expect("journal entries serialize");
-        let mut connection = self.connection.clone();
+        let mut connection = checkout(&self.pool).await?;
 
         let mut invocation = APPEND_SCRIPT.prepare_invoke();
         invocation
@@ -571,7 +683,7 @@ impl ChallengeClaim for RedisClaim {
             state_pairs.push(("stageAttempt", attempt.to_string()));
         }
 
-        let mut connection = self.connection.clone();
+        let mut connection = checkout(&self.pool).await?;
         let mut invocation = PROJECT_SCRIPT.prepare_invoke();
         invocation
             .key(&self.challenge_key)
@@ -605,7 +717,7 @@ impl ChallengeClaim for RedisClaim {
             ChallengeServerUpdate::Finish => UpdateMessage::Finish { id: self.uuid },
         };
         let payload = serde_json::to_string(&message).expect("update serializes");
-        let mut connection = self.connection.clone();
+        let mut connection = checkout(&self.pool).await?;
 
         let mut invocation = ANNOUNCE_SCRIPT.prepare_invoke();
         invocation
@@ -624,8 +736,34 @@ impl ChallengeClaim for RedisClaim {
         }
     }
 
+    async fn mark_processed(&self, stages: &[(Stage, Option<u32>)]) -> Result<(), StoreError> {
+        if stages.is_empty() {
+            return Ok(());
+        }
+        let mut connection = checkout(&self.pool).await?;
+
+        let mut invocation = SEAL_SCRIPT.prepare_invoke();
+        invocation
+            .key(&self.lease_key)
+            .key(processed_stages_key(self.uuid))
+            .arg(self.epoch.0);
+        for (stage, attempt) in stages {
+            invocation.arg(stage_attempt_member(*stage, *attempt));
+        }
+
+        let marked: i64 = invocation
+            .invoke_async(&mut connection)
+            .await
+            .map_err(|e| StoreError::Unavailable(e.to_string()))?;
+        if marked == 1 {
+            Ok(())
+        } else {
+            Err(StoreError::Fenced)
+        }
+    }
+
     async fn renew(&self) -> Result<(), StoreError> {
-        let mut connection = self.connection.clone();
+        let mut connection = checkout(&self.pool).await?;
 
         let mut invocation = RENEW_SCRIPT.prepare_invoke();
         invocation
@@ -647,7 +785,7 @@ impl ChallengeClaim for RedisClaim {
     }
 
     async fn release(&self) -> Result<(), StoreError> {
-        let mut connection = self.connection.clone();
+        let mut connection = checkout(&self.pool).await?;
 
         let mut invocation = RELEASE_SCRIPT.prepare_invoke();
         invocation
@@ -670,7 +808,7 @@ impl ChallengeClaim for RedisClaim {
     async fn delete(&self, state: &ChallengeState) -> Result<(), StoreError> {
         let signal = serde_json::to_string(&ChallengeSignal::Deleted { uuid: self.uuid })
             .expect("signal serializes");
-        let mut connection = self.connection.clone();
+        let mut connection = checkout(&self.pool).await?;
 
         let mut invocation = DELETE_SCRIPT.prepare_invoke();
         invocation
@@ -681,6 +819,7 @@ impl ChallengeClaim for RedisClaim {
             .key(inbox_key(self.uuid))
             .key(streams_set_key(self.uuid))
             .key(&self.clients_key)
+            .key(processed_stages_key(self.uuid))
             .key(directory_key(&party_key(
                 state.challenge_type,
                 &state.party,

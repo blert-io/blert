@@ -31,6 +31,9 @@ const PROCESSING_MAX_ATTEMPTS: u32 = 3;
 /// Connections held to the challenge database.
 const DEFAULT_DB_POOL_SIZE: usize = 8;
 
+/// Connections held in the shared Redis pool.
+const DEFAULT_REDIS_POOL_SIZE: usize = 16;
+
 #[derive(Parser)]
 struct Cli {
     #[command(subcommand)]
@@ -79,15 +82,22 @@ async fn serve(config: LifecycleConfig) {
 
     let redis_uri = std::env::var("BLERT_REDIS_URI").expect("BLERT_REDIS_URI must be set");
     let identity = std::env::var("HOSTNAME").expect("HOSTNAME must be set");
-    let store = store::Store::connect(&redis_uri, identity.clone())
-        .await
-        .expect("failed to connect to Redis");
+    let redis_pool_size = std::env::var("BLERT_REDIS_POOL_SIZE")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(DEFAULT_REDIS_POOL_SIZE);
+    let store = Arc::new(
+        store::Store::connect(&redis_uri, identity.clone(), redis_pool_size)
+            .await
+            .expect("failed to connect to Redis"),
+    );
     tracing::info!(identity, "redis_connected");
 
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
 
     let processing_enabled = config.processing.max_attempts > 0;
-    let mut coordinator = Coordinator::with_store(Arc::new(store), shutdown_rx).with_config(config);
+    let mut coordinator =
+        Coordinator::with_store(Arc::clone(&store) as _, shutdown_rx).with_config(config);
     if processing_enabled {
         let database_uri =
             std::env::var("BLERT_DATABASE_URI").expect("BLERT_DATABASE_URI must be set");
@@ -99,7 +109,7 @@ async fn serve(config: LifecycleConfig) {
             .await
             .expect("failed to connect to Postgres");
         tracing::info!("postgres_connected");
-        coordinator = coordinator.with_processor(Arc::new(processing::Pipeline::new(db)));
+        coordinator = coordinator.with_processor(Arc::new(processing::Pipeline::new(db, store)));
     }
     let coordinator = Arc::new(coordinator);
     coordinator.start_scan(CLAIM_SCAN_INTERVAL);

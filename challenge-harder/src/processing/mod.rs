@@ -1,16 +1,19 @@
 //! Challenge processing pipeline.
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 
 use crate::lifecycle::core::state::Trigger;
 use crate::lifecycle::core::types::{
-    ChallengeMode, ChallengeStatus, ChallengeType, ProcessingError, ProcessingPayload, Stage,
-    StageStatus, Uuid,
+    ChallengeMode, ChallengeStatus, ChallengeType, ProcessingError, ProcessingPayload, Stage, Uuid,
 };
+use crate::store::Store;
 
 pub mod db;
 
 mod challenge;
+mod stage;
 
 /// Challenge state at the time a run is triggered.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -20,6 +23,7 @@ pub struct ChallengeInfo {
     pub party: Vec<String>,
     pub stage: Stage,
     pub status: ChallengeStatus,
+    pub challenge_ticks: u32,
     pub created_unix_ms: u64,
 }
 
@@ -43,11 +47,12 @@ pub trait StageProcessor: Send + Sync + 'static {
 /// Complete event processing pipeline.
 pub struct Pipeline {
     db: db::Postgres,
+    store: Arc<Store>,
 }
 
 impl Pipeline {
-    pub fn new(db: db::Postgres) -> Pipeline {
-        Pipeline { db }
+    pub fn new(db: db::Postgres, store: Arc<Store>) -> Pipeline {
+        Pipeline { db, store }
     }
 }
 
@@ -93,10 +98,17 @@ impl StageProcessor for Pipeline {
                 challenge::finish(&txn, &request.challenge).await?;
                 ProcessingPayload::None
             }
-            Trigger::Stage { .. } => ProcessingPayload::Stage {
-                status: StageStatus::Completed,
-                ticks: 0,
-            },
+            Trigger::Stage { stage, attempt, .. } => {
+                stage::process(
+                    &self.store,
+                    &txn,
+                    &request.challenge,
+                    request.uuid,
+                    stage,
+                    attempt,
+                )
+                .await?
+            }
         };
         txn.commit(&payload).await?;
 

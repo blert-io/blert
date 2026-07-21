@@ -210,6 +210,26 @@ pub(super) static ANNOUNCE_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
     ))
 });
 
+/// Seals stages' event streams, refusing them further writes.
+///
+/// Returns 1 if the markers were written, or 0 if the claim was fenced off.
+///
+/// - `KEYS[1]` = Challenge's lease hash
+/// - `KEYS[2]` = Challenge's processed stages set
+/// - `ARGV[1]` = Claim's fence epoch
+/// - `ARGV[2..]` = Stage attempt identifiers
+pub(super) static SEAL_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
+    Script::new(
+        r"
+        if redis.call('HGET', KEYS[1], 'fence') ~= ARGV[1] then
+            return 0
+        end
+        redis.call('SADD', KEYS[2], unpack(ARGV, 2))
+        return 1
+        ",
+    )
+});
+
 /// Starts a challenge for a client, either creating a new challenge for the
 /// party, or joining the party's existing one if it is live. A live challenge
 /// is either active or does not yet have any state because it is initializing.
@@ -312,7 +332,8 @@ pub(super) static START_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
 /// - `KEYS[5]` = Challenge's inbox stream
 /// - `KEYS[6]` = Challenge's stage streams set
 /// - `KEYS[7]` = Challenge's clients hash
-/// - `KEYS[8..]` = The challenge's routing keys (directory, client, and player)
+/// - `KEYS[8]` = Challenge's processed stages set
+/// - `KEYS[9..]` = The challenge's routing keys (directory, client, and player)
 ///
 /// - `ARGV[1]` = Lease epoch
 /// - `ARGV[2]` = Challenge uuid
@@ -332,7 +353,8 @@ pub(super) static DELETE_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
         end
         redis.call('EXPIRE', KEYS[3], ARGV[5])
         redis.call('EXPIRE', KEYS[7], ARGV[5])
-        for i = 8, #KEYS do
+        redis.call('EXPIRE', KEYS[8], ARGV[4])
+        for i = 9, #KEYS do
             if redis.call('GET', KEYS[i]) == ARGV[2] then
                 redis.call('DEL', KEYS[i])
             end

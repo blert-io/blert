@@ -2,7 +2,7 @@
 //! skipped when it is unset. The database it names must be dedicated to
 //! tests, as it is flushed once per run.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Duration;
 
@@ -15,7 +15,7 @@ use crate::lifecycle::core::event::{Cause, LifecycleEvent};
 use crate::lifecycle::core::state::{ChallengePhase, LastCompleted, PhaseState};
 use crate::lifecycle::core::types::{
     ChallengeMode, ChallengeStatus, ChallengeType, ClientId, JournalSeq, MsgId, RecordingType,
-    Stage, StageStatus, Timestamp, UserId,
+    ServerTicks, Stage, StageStatus, StageUpdate, Timestamp, UserId,
 };
 
 /// Returns a unique client ID on every call. Tests share a Redis instance and
@@ -83,7 +83,7 @@ async fn test_store() -> Option<Store> {
         eprintln!("BLERT_TEST_REDIS_URI is not set; skipping Redis tests");
         return None;
     };
-    let store = Store::connect(&uri, TEST_IDENTITY.into())
+    let store = Store::connect(&uri, TEST_IDENTITY.into(), 16)
         .await
         .expect("test redis unreachable");
 
@@ -96,7 +96,7 @@ async fn test_store() -> Option<Store> {
 
     TEST_DB_FLUSHED
         .get_or_init(|| async {
-            let mut connection = store.connection.clone();
+            let mut connection = store.pool.get().await.unwrap();
             let _: () = redis::cmd("FLUSHDB")
                 .query_async(&mut connection)
                 .await
@@ -139,7 +139,7 @@ fn as_identity(store: &Store, identity: &str) -> Store {
 /// Establishes a fresh challenge's lease as a start would, returning its
 /// claim at the initial epoch.
 async fn stub_claim(store: &Store, uuid: Uuid) -> RedisClaim {
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let _: () = connection
         .hset_multiple(
             lease_key(uuid),
@@ -162,7 +162,7 @@ async fn stub_claim(store: &Store, uuid: Uuid) -> RedisClaim {
 static SWEEP_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 async fn clean_up(store: &Store, uuid: Uuid) {
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let _: () = connection.zrem(LEASES_KEY, uuid.to_string()).await.unwrap();
     let _: () = connection
         .del(
@@ -180,7 +180,7 @@ async fn clean_up(store: &Store, uuid: Uuid) {
 /// Cleans up keys related to a challenge start. Best effort as anything missed
 /// is isolated by key uniqueness and dies at the next test run's flush.
 async fn clean_up_start(store: &Store, party: &str, clients: &[ClientId], uuids: &[Uuid]) {
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let mut keys = vec![directory_key(party)];
     keys.extend(clients.iter().map(|client| client_key(*client)));
     let _: () = connection.del(keys).await.unwrap();
@@ -192,7 +192,7 @@ async fn clean_up_start(store: &Store, party: &str, clients: &[ClientId], uuids:
 /// Reads a challenge's full journal stream as `(epoch, batch)` pairs, with each
 /// batch parsed back into its entries.
 async fn read_journal(store: &Store, uuid: Uuid) -> Vec<(String, Vec<JournalEntry>)> {
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let entries: Vec<(String, Vec<(String, String)>)> = redis::cmd("XRANGE")
         .arg(journal_key(uuid))
         .arg("-")
@@ -216,7 +216,7 @@ async fn read_journal(store: &Store, uuid: Uuid) -> Vec<(String, Vec<JournalEntr
 /// Reads a challenge's full inbox as `(id, fields)` pairs, with command
 /// payloads parsed.
 async fn read_inbox(store: &Store, uuid: Uuid) -> Vec<(MsgId, Vec<(String, Command)>)> {
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let entries: Vec<(String, Vec<(String, String)>)> = redis::cmd("XRANGE")
         .arg(inbox_key(uuid))
         .arg("-")
@@ -307,7 +307,7 @@ async fn bumped_fence_rejects_stale_epoch() {
     )];
     claim.append(&first).await.expect("append should succeed");
 
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let _: () = connection.hset(lease_key(uuid), "fence", 2).await.unwrap();
 
     let second = vec![entry(
@@ -345,7 +345,7 @@ async fn expired_leases_are_claimed_and_fenced() {
     claim.append(&journal).await.expect("append should succeed");
 
     // The owning server dies.
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let _: () = connection
         .zadd(LEASES_KEY, uuid.to_string(), 500)
         .await
@@ -418,7 +418,7 @@ async fn held_leases_are_reclaimable_only_by_their_owner() {
     };
     assert_eq!(reclaimed.uuid(), uuid);
 
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let fence: String = connection.hget(lease_key(uuid), "fence").await.unwrap();
     assert_eq!(fence, "2");
 
@@ -448,7 +448,7 @@ async fn running_challenges_are_not_swept() {
         .expect("sweep should succeed");
     assert!(claims.is_empty(), "a running challenge was swept");
 
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let _: () = connection
         .zadd(LEASES_KEY, uuid.to_string(), 500)
         .await
@@ -471,7 +471,7 @@ async fn claim_sweeps_respect_the_batch_size() {
         return;
     };
     let _guard = SWEEP_LOCK.lock().await;
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
 
     // Three lapsed challenges, oldest lease first.
     let mut challenges = Vec::new();
@@ -516,7 +516,7 @@ async fn renewal_extends_a_held_lease() {
     let uuid = Uuid::new_v4();
     let claim = stub_claim(&store, uuid).await;
 
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let _: () = connection
         .zadd(LEASES_KEY, uuid.to_string(), 500)
         .await
@@ -552,7 +552,7 @@ async fn release_makes_a_lease_immediately_claimable() {
     let claim = stub_claim(&store, uuid).await;
 
     claim.release().await.expect("release should succeed");
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let released: Option<u64> = connection
         .zscore(LEASES_KEY, uuid.to_string())
         .await
@@ -598,7 +598,7 @@ async fn projection_writes_hash_and_signals() {
         .expect("project should succeed");
     assert_eq!(store.read(uuid).await, Ok(Some(snapshot(uuid, 4))));
 
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let hash: BTreeMap<String, String> = connection.hgetall(challenge_key(uuid)).await.unwrap();
     let expected: BTreeMap<String, String> = [
         ("type", "1"),
@@ -737,7 +737,7 @@ async fn bumped_fence_rejects_projection() {
     let uuid = Uuid::new_v4();
     let claim = stub_claim(&store, uuid).await;
 
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let _: () = connection.hset(lease_key(uuid), "fence", 2).await.unwrap();
 
     assert_eq!(
@@ -784,7 +784,7 @@ async fn bumped_fence_rejects_announcements() {
     let uuid = Uuid::new_v4();
     let claim = stub_claim(&store, uuid).await;
 
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let _: () = connection.hset(lease_key(uuid), "fence", 2).await.unwrap();
 
     assert_eq!(
@@ -803,7 +803,7 @@ async fn missing_fence_rejects_appends() {
     let uuid = Uuid::new_v4();
     let claim = stub_claim(&store, uuid).await;
 
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let _: () = connection.del(lease_key(uuid)).await.unwrap();
 
     let batch = vec![entry(
@@ -851,7 +851,7 @@ async fn next_envelope(rx: &mut mpsc::Receiver<Envelope>) -> Envelope {
 /// lease deadline is set in the future so that concurrent claim sweeps from
 /// other tests leave the challenge alone.
 async fn register(store: &Store, uuid: Uuid) {
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let _: () = connection
         .zadd(LEASES_KEY, uuid.to_string(), lease_deadline())
         .await
@@ -972,7 +972,7 @@ async fn start_creates_and_claims_a_challenge_for_a_free_party() {
     };
     let uuid = claim.uuid();
 
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let directory: String = connection.get(directory_key(&party)).await.unwrap();
     assert_eq!(directory, uuid.to_string());
     let routed: String = connection.get(client_key(client)).await.unwrap();
@@ -1059,7 +1059,7 @@ async fn start_joins_a_live_incumbent() {
     };
     assert_eq!(target, uuid);
 
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let directory: String = connection.get(directory_key(&party)).await.unwrap();
     assert_eq!(directory, uuid.to_string());
     let routed: String = connection.get(client_key(joiner_client)).await.unwrap();
@@ -1166,7 +1166,7 @@ async fn start_at_an_earlier_stage_creates_a_new_challenge() {
     let second = successor.uuid();
     assert_ne!(second, first);
 
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let directory: String = connection.get(directory_key(&party)).await.unwrap();
     assert_eq!(directory, second.to_string());
 
@@ -1300,7 +1300,7 @@ async fn start_supersedes_a_finished_incumbent() {
     let second = successor.uuid();
     assert_ne!(second, first);
 
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let directory: String = connection.get(directory_key(&party)).await.unwrap();
     assert_eq!(directory, second.to_string());
     // The finished challenge remains indexed until deletion.
@@ -1403,7 +1403,7 @@ async fn start_sends_a_removal_to_an_existing_challenge() {
     };
     let second = second_claim.uuid();
 
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let routed: String = connection.get(client_key(client)).await.unwrap();
     assert_eq!(routed, second.to_string());
 
@@ -1533,7 +1533,7 @@ async fn send_to_an_unknown_challenge_is_rejected() {
 
     assert_eq!(store.send(uuid, &update_command()).await, Ok(None));
 
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let exists: bool = connection.exists(inbox_key(uuid)).await.unwrap();
     assert!(!exists);
 }
@@ -1680,7 +1680,7 @@ async fn rejoin_routes_and_enqueues_for_a_live_challenge() {
         panic!("expected a queued rejoin");
     };
 
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let routed: String = connection.get(client_key(client)).await.unwrap();
     assert_eq!(routed, uuid.to_string());
     let routed: String = connection.get(client_key(late_client)).await.unwrap();
@@ -1715,7 +1715,7 @@ async fn rejoin_of_an_unknown_challenge_is_rejected() {
     );
 
     // Nothing was routed or queued.
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let routed: Option<String> = connection.get(client_key(client)).await.unwrap();
     assert_eq!(routed, None);
     assert_eq!(read_inbox(&store, uuid).await, vec![]);
@@ -1795,7 +1795,7 @@ async fn rejoin_while_routed_elsewhere_is_rejected() {
     );
 
     // The client's routing is untouched and nothing reached the other inbox.
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let routed: String = connection.get(client_key(client)).await.unwrap();
     assert_eq!(routed, current_uuid.to_string());
     assert_eq!(
@@ -1889,7 +1889,7 @@ async fn delete_removes_a_terminated_challenges_state() {
         .expect("project should succeed");
 
     // Fake stage stream keys.
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let streams = [
         format!("test-events:{uuid}:410"),
         format!("test-events:{uuid}:420"),
@@ -1901,6 +1901,10 @@ async fn delete_removes_a_terminated_challenges_state() {
             .await
             .unwrap();
     }
+    claim
+        .mark_processed(&[(Stage::TobMaiden, None)])
+        .await
+        .expect("mark should succeed");
 
     let mut pubsub = test_pubsub(SIGNAL_CHANNEL).await;
     let mut messages = pubsub.on_message();
@@ -1937,6 +1941,7 @@ async fn delete_removes_a_terminated_challenges_state() {
     for (key, retention) in [
         (journal_key(uuid), stream_retention),
         (inbox_key(uuid), stream_retention),
+        (processed_stages_key(uuid), stream_retention),
         (challenge_key(uuid), state_retention),
     ] {
         let ttl: i64 = redis::cmd("PTTL")
@@ -1970,6 +1975,51 @@ async fn delete_removes_a_terminated_challenges_state() {
 }
 
 #[tokio::test]
+async fn mark_processed_closes_stage_streams_under_the_fence() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let uuid = Uuid::new_v4();
+    let claim = stub_claim(&store, uuid).await;
+
+    claim
+        .mark_processed(&[
+            (Stage::MokhaiotlDelve8, None),
+            (Stage::MokhaiotlDelve8plus, Some(9)),
+        ])
+        .await
+        .expect("mark should succeed");
+    claim
+        .mark_processed(&[])
+        .await
+        .expect("marking nothing should succeed");
+
+    let mut connection = store.pool.get().await.unwrap();
+    let members: BTreeSet<String> = connection
+        .smembers(processed_stages_key(uuid))
+        .await
+        .unwrap();
+    assert_eq!(members, BTreeSet::from(["57".to_string(), "58:9".into()]));
+
+    // A fenced-off claim marks nothing.
+    let _: () = connection.hset(lease_key(uuid), "fence", 99).await.unwrap();
+    assert_eq!(
+        claim
+            .mark_processed(&[(Stage::MokhaiotlDelve8plus, Some(10))])
+            .await,
+        Err(StoreError::Fenced),
+    );
+    let count: usize = connection.scard(processed_stages_key(uuid)).await.unwrap();
+    assert_eq!(count, 2);
+
+    let _: () = connection
+        .del(&[processed_stages_key(uuid)][..])
+        .await
+        .unwrap();
+    clean_up(&store, uuid).await;
+}
+
+#[tokio::test]
 async fn delete_leaves_repointed_routing_keys_alone() {
     let Some(store) = test_store().await else {
         return;
@@ -1985,7 +2035,7 @@ async fn delete_leaves_repointed_routing_keys_alone() {
 
     // A new challenge overwrote every routing key, which should be kept.
     let successor = Uuid::new_v4();
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let routing = [
         directory_key(&party),
         client_key(client),
@@ -2034,7 +2084,7 @@ async fn bumped_fence_rejects_deletion() {
         .await
         .expect("project should succeed");
 
-    let mut connection = store.connection.clone();
+    let mut connection = store.pool.get().await.unwrap();
     let _: () = connection.hset(lease_key(uuid), "fence", 2).await.unwrap();
 
     assert_eq!(
@@ -2066,4 +2116,204 @@ async fn bumped_fence_rejects_deletion() {
     assert_eq!(inbox_ttl, -1);
 
     clean_up_start(&store, &party, &[client], &[uuid]).await;
+}
+
+/// Builds a stage stream entry's field map as `stageStreamToRecord` writes it.
+fn stream_fields(pairs: &[(&str, &[u8])]) -> HashMap<String, Vec<u8>> {
+    pairs
+        .iter()
+        .map(|(name, value)| ((*name).to_string(), value.to_vec()))
+        .collect()
+}
+
+#[test]
+fn stage_stream_keys_match_typescript() {
+    let uuid: Uuid = "a8cb035f-410a-45de-a4d3-2b0a5d8b464d".parse().unwrap();
+    assert_eq!(
+        stage_stream_key(uuid, Stage::TobMaiden, None),
+        "challenge-events:a8cb035f-410a-45de-a4d3-2b0a5d8b464d:10",
+    );
+    assert_eq!(
+        stage_stream_key(uuid, Stage::MokhaiotlDelve8plus, Some(142)),
+        "challenge-events:a8cb035f-410a-45de-a4d3-2b0a5d8b464d:58:142",
+    );
+}
+
+#[test]
+fn stream_records_parse_from_typescript_encoding() {
+    let metadata = parse_stream_record(&stream_fields(&[
+        ("type", b"2"),
+        ("clientId", b"380"),
+        ("userId", b"527"),
+        ("pluginVersion", b"0.9.14-RUNELITE"),
+        ("runeLiteVersion", b"runelite-1.12.33"),
+    ]))
+    .unwrap();
+    assert_eq!(
+        metadata,
+        ClientStageStream::Metadata {
+            client_id: ClientId(380),
+            user_id: UserId(527),
+            plugin_version: "0.9.14-RUNELITE".into(),
+            runelite_version: "runelite-1.12.33".into(),
+        },
+    );
+
+    let events = parse_stream_record(&stream_fields(&[
+        ("type", b"0"),
+        ("clientId", b"380"),
+        ("events", b"\x0a\x04\x08\x07\x20\x2e"),
+    ]))
+    .unwrap();
+    assert_eq!(
+        events,
+        ClientStageStream::Events {
+            client_id: ClientId(380),
+            events: Bytes::from_static(b"\x0a\x04\x08\x07\x20\x2e"),
+        },
+    );
+
+    let end = parse_stream_record(&stream_fields(&[
+        ("type", b"1"),
+        ("clientId", b"380"),
+        (
+            "update",
+            br#"{"stage":52,"status":2,"accurate":true,"recordedTicks":105,"serverTicks":{"count":105,"precise":true}}"#,
+        ),
+    ]))
+    .unwrap();
+    assert_eq!(
+        end,
+        ClientStageStream::End {
+            client_id: ClientId(380),
+            update: StageUpdate {
+                stage: Stage::MokhaiotlDelve3,
+                status: StageStatus::Completed,
+                accurate: true,
+                recorded_ticks: 105,
+                server_ticks: Some(ServerTicks {
+                    count: 105,
+                    precise: true,
+                }),
+            },
+        },
+    );
+
+    let no_server_ticks = parse_stream_record(&stream_fields(&[
+        ("type", b"1"),
+        ("clientId", b"7"),
+        (
+            "update",
+            br#"{"stage":50,"status":1,"accurate":false,"recordedTicks":0,"serverTicks":null}"#,
+        ),
+    ]))
+    .unwrap();
+    assert_eq!(
+        no_server_ticks,
+        ClientStageStream::End {
+            client_id: ClientId(7),
+            update: StageUpdate {
+                stage: Stage::MokhaiotlDelve1,
+                status: StageStatus::Started,
+                accurate: false,
+                recorded_ticks: 0,
+                server_ticks: None,
+            },
+        },
+    );
+}
+
+#[test]
+fn malformed_stream_records_are_rejected() {
+    let unknown_type = parse_stream_record(&stream_fields(&[("type", b"9"), ("clientId", b"1")]));
+    assert_eq!(unknown_type, Err("unknown record type 9".into()));
+
+    let missing_field = parse_stream_record(&stream_fields(&[("type", b"0"), ("clientId", b"1")]));
+    assert_eq!(missing_field, Err("missing field events".into()));
+
+    let bad_update = parse_stream_record(&stream_fields(&[
+        ("type", b"1"),
+        ("clientId", b"1"),
+        ("update", b"not json"),
+    ]));
+    assert!(bad_update.is_err());
+}
+
+#[tokio::test]
+async fn stage_streams_read_in_order_skipping_invalid_records() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let uuid = Uuid::new_v4();
+    let key = stage_stream_key(uuid, Stage::TobMaiden, None);
+    let update = br#"{"stage":10,"status":2,"accurate":true,"recordedTicks":46,"serverTicks":{"count":46,"precise":true}}"#;
+
+    let records: [&[(&str, &[u8])]; 4] = [
+        &[
+            ("type", b"2"),
+            ("clientId", b"380"),
+            ("userId", b"527"),
+            ("pluginVersion", b"0.9.14"),
+            ("runeLiteVersion", b"1.12.33"),
+        ],
+        &[
+            ("type", b"0"),
+            ("clientId", b"380"),
+            ("events", b"\x0a\x02\x08\x07"),
+        ],
+        &[("type", b"9"), ("clientId", b"380")],
+        &[("type", b"1"), ("clientId", b"380"), ("update", update)],
+    ];
+    let mut connection = store.pool.get().await.unwrap();
+    for record in records {
+        let mut cmd = redis::cmd("XADD");
+        cmd.arg(&key).arg("*");
+        for (name, value) in record {
+            cmd.arg(*name).arg(*value);
+        }
+        let _: String = cmd.query_async(&mut connection).await.unwrap();
+    }
+    drop(connection);
+
+    let stream = store
+        .read_stage_stream(uuid, Stage::TobMaiden, None)
+        .await
+        .expect("stream should read");
+    assert_eq!(
+        stream,
+        vec![
+            ClientStageStream::Metadata {
+                client_id: ClientId(380),
+                user_id: UserId(527),
+                plugin_version: "0.9.14".into(),
+                runelite_version: "1.12.33".into(),
+            },
+            ClientStageStream::Events {
+                client_id: ClientId(380),
+                events: Bytes::from_static(b"\x0a\x02\x08\x07"),
+            },
+            ClientStageStream::End {
+                client_id: ClientId(380),
+                update: StageUpdate {
+                    stage: Stage::TobMaiden,
+                    status: StageStatus::Completed,
+                    accurate: true,
+                    recorded_ticks: 46,
+                    server_ticks: Some(ServerTicks {
+                        count: 46,
+                        precise: true,
+                    }),
+                },
+            },
+        ],
+    );
+
+    let missing = store
+        .read_stage_stream(Uuid::new_v4(), Stage::TobMaiden, None)
+        .await
+        .expect("missing stream should read");
+    assert!(missing.is_empty());
+
+    let mut connection = store.pool.get().await.unwrap();
+    let _: () = connection.del(&key).await.unwrap();
 }

@@ -9,13 +9,14 @@ axum = { version = "0.8.9", features = ["macros"] }
 bytes = "1.12.1"
 clap = { version = "4.6", features = ["derive"] }
 deadpool-postgres = "0.14.1"
+deadpool-redis = "0.23.0"
 futures-util = { version = "0.3.32", default-features = false, features = ["std", "async-await"] }
 http-body-util = "0.1.3"
 hyper-util = { version = "0.1.20", features = ["client-legacy", "http1", "tokio"] }
 nix = { version = "0.31.3", features = ["process", "signal"] }
 prost = "0.14.4"
 prost-types = "0.14.4"
-redis = { version = "1.3.0", features = ["tokio-comp", "connection-manager"] }
+redis = { version = "1.3.0", features = ["tokio-comp"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
 serde_repr = "0.1.20"

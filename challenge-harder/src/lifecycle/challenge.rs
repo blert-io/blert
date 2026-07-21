@@ -16,9 +16,9 @@ use super::core::decide::decide;
 use super::core::event::{Cause, JournalEntry, LifecycleEvent};
 use super::core::state::{
     ChallengeState, LastCompleted, PhaseState, Processing, ProcessingState, PublishedClient,
-    Snapshot,
+    Snapshot, Trigger,
 };
-use super::core::types::{ClientId, JournalSeq, MsgId, Timestamp, Uuid};
+use super::core::types::{ClientId, JournalSeq, MsgId, Stage, Timestamp, Uuid};
 use crate::processing::{ChallengeInfo, ProcessingRequest, StageProcessor};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -182,6 +182,9 @@ pub trait ChallengeClaim: Send + Sync + 'static {
     /// Broadcasts a lifecycle milestone to consumers.
     async fn announce(&self, update: &ChallengeServerUpdate) -> Result<(), StoreError>;
 
+    /// Marks stages' event streams as sealed, blocking further writes.
+    async fn mark_processed(&self, stages: &[(Stage, Option<u32>)]) -> Result<(), StoreError>;
+
     /// Extends this claim's hold on the challenge.
     async fn renew(&self) -> Result<(), StoreError>;
 
@@ -336,6 +339,20 @@ impl ActiveChallenge {
             return;
         }
 
+        // Re-seal every stream whose processing run is still outstanding.
+        let outstanding: Vec<(Stage, Option<u32>)> = self
+            .state
+            .processing
+            .outstanding()
+            .filter_map(|trigger| match trigger {
+                Trigger::Stage { stage, attempt, .. } => Some((stage, attempt)),
+                _ => None,
+            })
+            .collect();
+        if !self.mark_processed(&outstanding).await {
+            return;
+        }
+
         let (tx, mut inbox) = mpsc::channel(INBOX_BUFFER_LEN);
         self.claim.follow(self.state.cursor, tx);
 
@@ -420,6 +437,7 @@ impl ActiveChallenge {
                     tracing::error!(uuid = %self.state.uuid, %error, "journal_append_failed");
                     return;
                 }
+                let mut sealed = Vec::new();
                 for entry in batch {
                     tracing::info!(
                         uuid = %self.state.uuid,
@@ -451,12 +469,19 @@ impl ActiveChallenge {
                         }
                         _ => false,
                     };
+                    if let LifecycleEvent::StageSealed { stage, attempt, .. } = entry.event {
+                        sealed.push((stage, attempt));
+                    }
                     apply(&mut self.state, entry);
                     if starts_run {
                         _run_task = self.spawn_processing_run(chanel_tx.clone());
                     } else if ends_run {
                         _run_task = None;
                     }
+                }
+                // Close stage streams immediately after they're sealed.
+                if !self.mark_processed(&sealed).await {
+                    return;
                 }
             }
 
@@ -475,6 +500,21 @@ impl ActiveChallenge {
                 break;
             }
         }
+    }
+
+    /// Closes sealed stages' streams to further writes, returning false if
+    /// the markers could not be written. Marking nothing trivially succeeds.
+    async fn mark_processed(&self, stages: &[(Stage, Option<u32>)]) -> bool {
+        if stages.is_empty() {
+            return true;
+        }
+        if let Err(error) =
+            with_retries(self.state.uuid, || self.claim.mark_processed(stages)).await
+        {
+            tracing::error!(uuid = %self.state.uuid, %error, "mark_processed_failed");
+            return false;
+        }
+        true
     }
 
     /// Publishes a snapshot of the current state and its clients, returning
@@ -568,6 +608,7 @@ impl ActiveChallenge {
                 party: self.state.party.clone(),
                 stage: self.state.stage,
                 status: self.state.status(),
+                challenge_ticks: self.state.challenge_ticks,
                 created_unix_ms: self.state.created_unix_ms,
             },
         };
@@ -615,6 +656,7 @@ mod tests {
         appended: Mutex<Vec<JournalEntry>>,
         projected: Mutex<Vec<(Snapshot, Vec<PublishedClient>)>>,
         announced: Mutex<Vec<ChallengeServerUpdate>>,
+        marked: Mutex<Vec<(Stage, Option<u32>)>>,
         deleted: Mutex<Vec<ChallengeState>>,
         // Holds the inbox feed's sender when the run is deadline-driven,
         // as dropping it would close the actor's inbox and end the run.
@@ -684,6 +726,12 @@ mod tests {
         async fn announce(&self, update: &ChallengeServerUpdate) -> Result<(), StoreError> {
             self.log.next_result()?;
             self.log.announced.lock().unwrap().push(*update);
+            Ok(())
+        }
+
+        async fn mark_processed(&self, stages: &[(Stage, Option<u32>)]) -> Result<(), StoreError> {
+            self.log.next_result()?;
+            self.log.marked.lock().unwrap().extend_from_slice(stages);
             Ok(())
         }
 
@@ -945,6 +993,7 @@ mod tests {
             stage_status: StageStatus::Entered,
             stage_state: StageState::InProgress,
             clients: BTreeMap::new(),
+            challenge_ticks: 0,
             recorded_by: [ClientId(10)].into(),
             dormant_since: Some(Timestamp::ZERO),
             processing: Processing::default(),
@@ -1078,6 +1127,7 @@ mod tests {
             stage_status: StageStatus::Entered,
             stage_state: StageState::InProgress,
             clients: BTreeMap::new(),
+            challenge_ticks: 0,
             recorded_by: [ClientId(10)].into(),
             dormant_since: Some(Timestamp::from_millis(500)),
             processing: Processing::default(),

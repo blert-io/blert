@@ -701,6 +701,10 @@ mod tests {
             unreachable!();
         }
 
+        async fn mark_processed(&self, _: &[(Stage, Option<u32>)]) -> Result<(), StoreError> {
+            unreachable!();
+        }
+
         async fn renew(&self) -> Result<(), StoreError> {
             unreachable!();
         }
