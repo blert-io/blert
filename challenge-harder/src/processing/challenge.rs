@@ -3,7 +3,7 @@
 use std::time::{Duration, UNIX_EPOCH};
 
 use crate::lifecycle::core::types::{
-    ChallengeStatus, PrimaryMeleeGear, RecordingType, UserId, Uuid,
+    ChallengeMode, ChallengeStatus, PrimaryMeleeGear, RecordingType, Stage, UserId, Uuid,
 };
 use crate::players::normalize_rsn;
 
@@ -91,6 +91,26 @@ pub async fn add_recorder(
             &i32::try_from(user_id.0).expect("user id fits in an integer"),
             &(recording_type as i16),
         ],
+    )
+    .await?;
+    Ok(())
+}
+
+/// Records the challenge starting a new stage.
+pub async fn update_stage(txn: &db::Transaction, stage: Stage) -> Result<(), db::Error> {
+    txn.execute(
+        "UPDATE challenges SET stage = $1 WHERE id = $2",
+        &[&(stage as i16), &txn.challenge_id()],
+    )
+    .await?;
+    Ok(())
+}
+
+/// Records a change to the challenge's mode.
+pub async fn update_mode(txn: &db::Transaction, mode: ChallengeMode) -> Result<(), db::Error> {
+    txn.execute(
+        "UPDATE challenges SET mode = $1 WHERE id = $2",
+        &[&(mode as i16), &txn.challenge_id()],
     )
     .await?;
     Ok(())

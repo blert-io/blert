@@ -772,9 +772,11 @@ impl StageProcessor for ScriptedProcessor {
                     status: StageStatus::Completed,
                     ticks: 0,
                 },
-                Trigger::Create { .. } | Trigger::Recorder { .. } | Trigger::Finish { .. } => {
-                    ProcessingPayload::None
-                }
+                Trigger::Create { .. }
+                | Trigger::Recorder { .. }
+                | Trigger::StageStart { .. }
+                | Trigger::Mode { .. }
+                | Trigger::Finish { .. } => ProcessingPayload::None,
             }),
         }
     }
@@ -1144,6 +1146,7 @@ fn check_invariants(result: &ScenarioResult, config: &LifecycleConfig) {
         let mut seals = Vec::new();
         let mut trigger_seqs = HashSet::new();
         let mut joined = HashSet::new();
+        let mut stage = None;
         let mut terminated = false;
 
         for entry in journal {
@@ -1161,9 +1164,22 @@ fn check_invariants(result: &ScenarioResult, config: &LifecycleConfig) {
             terminated |= matches!(entry.event, LifecycleEvent::ChallengeTerminated { .. });
 
             match &entry.event {
-                LifecycleEvent::ChallengeCreated { .. }
-                | LifecycleEvent::ChallengeTerminated { .. } => {
+                LifecycleEvent::ChallengeCreated {
+                    stage: initial_stage,
+                    ..
+                } => {
+                    stage = Some(*initial_stage);
                     trigger_seqs.insert(entry.seq);
+                }
+                LifecycleEvent::ChallengeTerminated { .. } | LifecycleEvent::ModeChanged { .. } => {
+                    trigger_seqs.insert(entry.seq);
+                }
+                // Only a real stage change triggers processing.
+                LifecycleEvent::StageStarted { stage: started } => {
+                    if stage != Some(*started) {
+                        trigger_seqs.insert(entry.seq);
+                    }
+                    stage = Some(*started);
                 }
                 // Only a client's first join triggers processing.
                 LifecycleEvent::ClientJoined { client_id, .. } => {

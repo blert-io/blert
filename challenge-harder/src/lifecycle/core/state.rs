@@ -83,6 +83,13 @@ pub enum Trigger {
         user_id: UserId,
         recording_type: RecordingType,
     },
+    /// The challenge began a new stage.
+    StageStart { seq: JournalSeq, stage: Stage },
+    /// The challenge's mode changed.
+    Mode {
+        seq: JournalSeq,
+        mode: ChallengeMode,
+    },
     /// A stage completed.
     Stage {
         seq: JournalSeq,
@@ -100,6 +107,8 @@ impl Trigger {
         match self {
             Trigger::Create { seq }
             | Trigger::Recorder { seq, .. }
+            | Trigger::StageStart { seq, .. }
+            | Trigger::Mode { seq, .. }
             | Trigger::Stage { seq, .. }
             | Trigger::Finish { seq } => seq,
         }
