@@ -94,6 +94,14 @@ impl StageProcessor for Pipeline {
                 challenge::add_recorder(&txn, user_id, recording_type).await?;
                 ProcessingPayload::None
             }
+            Trigger::StageStart { stage, .. } => {
+                challenge::update_stage(&txn, stage).await?;
+                ProcessingPayload::None
+            }
+            Trigger::Mode { mode, .. } => {
+                challenge::update_mode(&txn, mode).await?;
+                ProcessingPayload::None
+            }
             Trigger::Finish { .. } => {
                 challenge::finish(&txn, &request.challenge).await?;
                 ProcessingPayload::None

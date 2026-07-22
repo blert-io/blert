@@ -377,6 +377,7 @@ async fn queued_trigger_processes_after_the_active_run() {
         no_payload(),
         no_payload(),
         ProcessingAttempt::Resolve(2_000, Ok(outcome(StageStatus::Completed, 100))),
+        no_payload(),
         ProcessingAttempt::Resolve(0, Ok(outcome(StageStatus::Wiped, 50))),
     ]);
     let result = run_with(
@@ -396,7 +397,7 @@ async fn queued_trigger_processes_after_the_active_run() {
     )
     .await;
 
-    // The second stage waits for the first's run to finish before starting.
+    // The second stage's runs wait for the first's to finish before starting.
     let (_, journal) = result.only_challenge();
     let processing_events: Vec<&JournalEntry> = journal
         .iter()
@@ -408,7 +409,7 @@ async fn queued_trigger_processes_after_the_active_run() {
                 )
         })
         .collect();
-    assert_eq!(processing_events.len(), 10);
+    assert_eq!(processing_events.len(), 12);
     assert_eq!(processing_events[0].event, started(0));
     assert_eq!(processing_events[0].at, Timestamp::ZERO);
     assert_eq!(
@@ -427,15 +428,22 @@ async fn queued_trigger_processes_after_the_active_run() {
         finished(9, outcome(StageStatus::Completed, 100)),
     );
     assert_eq!(processing_events[5].at, Timestamp::from_millis(3_000));
+    assert_eq!(processing_events[6].event, started(11));
     assert_eq!(processing_events[6].at, Timestamp::from_millis(3_000));
     assert_eq!(
         processing_events[7].event,
-        finished(14, outcome(StageStatus::Wiped, 50)),
+        finished(11, ProcessingPayload::None)
     );
-    assert_eq!(processing_events[8].event, started(19));
+    assert_eq!(processing_events[8].event, started(14));
+    assert_eq!(processing_events[8].at, Timestamp::from_millis(3_000));
     assert_eq!(
         processing_events[9].event,
-        finished(19, ProcessingPayload::None)
+        finished(14, outcome(StageStatus::Wiped, 50)),
+    );
+    assert_eq!(processing_events[10].event, started(21));
+    assert_eq!(
+        processing_events[11].event,
+        finished(21, ProcessingPayload::None)
     );
 
     let triggers: Vec<Trigger> = processor.requests().iter().map(|r| r.trigger).collect();
@@ -453,13 +461,17 @@ async fn queued_trigger_processes_after_the_active_run() {
                 stage: Stage::TobMaiden,
                 attempt: None,
             },
+            Trigger::StageStart {
+                seq: JournalSeq(11),
+                stage: Stage::TobBloat,
+            },
             Trigger::Stage {
                 seq: JournalSeq(14),
                 stage: Stage::TobBloat,
                 attempt: None,
             },
             Trigger::Finish {
-                seq: JournalSeq(19)
+                seq: JournalSeq(21)
             },
         ],
     );

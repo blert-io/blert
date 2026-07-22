@@ -91,6 +91,16 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
             update,
         } => stage_reported(state, entry.at, client_id, attempt, update),
         LifecycleEvent::StageStarted { stage } => {
+            // Only fire on actual stage changes, not ENTERED -> STARTED.
+            if stage != state.stage {
+                state.processing.push(
+                    Trigger::StageStart {
+                        seq: entry.seq,
+                        stage,
+                    },
+                    entry.at,
+                );
+            }
             state.stage = stage;
             state.stage_attempt = stage.is_retriable().then_some(1);
             state.stage_status = StageStatus::Started;
@@ -146,6 +156,13 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
         }
         LifecycleEvent::ModeChanged { mode } => {
             state.mode = mode;
+            state.processing.push(
+                Trigger::Mode {
+                    seq: entry.seq,
+                    mode,
+                },
+                entry.at,
+            );
         }
         LifecycleEvent::PartyChanged { .. } => {
             state.party_changed = true;
@@ -252,6 +269,7 @@ fn stage_reported(
 }
 
 #[cfg(test)]
+#[expect(clippy::too_many_lines)]
 mod tests {
     use core::time::Duration;
 
@@ -948,6 +966,29 @@ mod tests {
     }
 
     #[test]
+    fn mode_change_queues_a_processing_run() {
+        let mut state = processing_tob_state();
+        apply(
+            &mut state,
+            entry(
+                2_000,
+                2,
+                LifecycleEvent::ModeChanged {
+                    mode: ChallengeMode::TobHard,
+                },
+            ),
+        );
+        assert_eq!(state.mode, ChallengeMode::TobHard);
+        assert_eq!(
+            state.processing.active().expect("exists").trigger,
+            Trigger::Mode {
+                seq: JournalSeq(0),
+                mode: ChallengeMode::TobHard,
+            },
+        );
+    }
+
+    #[test]
     fn creation_and_termination_queue_boundary_runs() {
         let mut state = ChallengeState {
             processing: Processing::new(ProcessingConfig {
@@ -1133,6 +1174,21 @@ mod tests {
     #[test]
     fn stage_outcomes_accumulate_ticks() {
         let mut state = processing_tob_state();
+
+        // The first stage's STARTED report updated its status without
+        // triggering a stage update.
+        apply(
+            &mut state,
+            entry(
+                1_000,
+                2,
+                LifecycleEvent::StageStarted {
+                    stage: Stage::TobMaiden,
+                },
+            ),
+        );
+        assert_eq!(state.processing.outstanding().count(), 0);
+
         apply(&mut state, maiden_seal(5_000));
         apply(
             &mut state,
@@ -1156,6 +1212,21 @@ mod tests {
                 },
             ),
         );
+        let outstanding: Vec<Trigger> = state.processing.outstanding().collect();
+        assert_eq!(
+            outstanding,
+            vec![
+                Trigger::Stage {
+                    seq: JournalSeq(5),
+                    stage: Stage::TobMaiden,
+                    attempt: None,
+                },
+                Trigger::StageStart {
+                    seq: JournalSeq(0),
+                    stage: Stage::TobBloat,
+                },
+            ],
+        );
         apply(
             &mut state,
             processing_entry(
@@ -1171,6 +1242,27 @@ mod tests {
         );
         assert_eq!(state.challenge_ticks, 190);
         assert_eq!(state.stage_status, StageStatus::Started);
+
+        // Complete the stage update's processing run.
+        apply(
+            &mut state,
+            processing_entry(
+                7_500,
+                LifecycleEvent::ProcessingStarted {
+                    trigger: JournalSeq(0),
+                },
+            ),
+        );
+        apply(
+            &mut state,
+            processing_entry(
+                7_500,
+                LifecycleEvent::ProcessingFinished {
+                    trigger: JournalSeq(0),
+                    payload: ProcessingPayload::None,
+                },
+            ),
+        );
 
         // The current stage's processing returns the definitive status.
         apply(
@@ -1246,6 +1338,26 @@ mod tests {
                 4,
                 LifecycleEvent::StageStarted {
                     stage: Stage::TobBloat,
+                },
+            ),
+        );
+        // Complete the stage update's processing run.
+        apply(
+            &mut state,
+            processing_entry(
+                7_500,
+                LifecycleEvent::ProcessingStarted {
+                    trigger: JournalSeq(0),
+                },
+            ),
+        );
+        apply(
+            &mut state,
+            processing_entry(
+                7_500,
+                LifecycleEvent::ProcessingFinished {
+                    trigger: JournalSeq(0),
+                    payload: ProcessingPayload::None,
                 },
             ),
         );
