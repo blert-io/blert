@@ -141,6 +141,19 @@ services:
     working_dir: /app
     command: cargo watch -w live-server/src -w proto -x 'run -p live-server'
 
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-latest
+    profiles:
+      - analytics
+    depends_on:
+      - postgres
+    ports:
+      - '3011:3000'
+    environment:
+      DATABASE_URL: postgres://umami:umami@postgres:5432/umami
+      DATABASE_TYPE: postgresql
+      APP_SECRET: blert
+
   prometheus:
     image: prom/prometheus:v3.8.0
     profiles:

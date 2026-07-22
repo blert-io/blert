@@ -1,4 +1,3 @@
-import { sendGAEvent } from '@next/third-parties/google';
 import { useSearchParams } from 'next/navigation';
 import {
   Dispatch,
@@ -8,6 +7,8 @@ import {
   useRef,
   useState,
 } from 'react';
+
+import { trackEvent } from '@/utils/analytics';
 
 export type BlertMemes = {
   inventoryTags: boolean;
@@ -92,22 +93,22 @@ export function MemeContextUpdater({ setMemes }: MemeContextUpdaterProps) {
     // Track meme activations.
     if (memes.capsLock && !analyticsRef.current.capsLock) {
       analyticsRef.current.capsLock = true;
-      sendGAEvent('event', 'meme_activated', { meme: 'capslock13' });
+      trackEvent('meme_activated', { meme: 'capslock13' });
     }
     if (memes.tenWTwoQ && !analyticsRef.current.tenWTwoQ) {
       analyticsRef.current.tenWTwoQ = true;
-      sendGAEvent('event', 'meme_activated', { meme: 'wwwwwwwwwwqq' });
+      trackEvent('meme_activated', { meme: 'wwwwwwwwwwqq' });
     }
     if (memes.cursed && !analyticsRef.current.cursed) {
       analyticsRef.current.cursed = true;
-      sendGAEvent('event', 'meme_activated', {
+      trackEvent('meme_activated', {
         meme: 'rat',
         trigger: memesToApply.includes('cursed') ? 'url' : 'random',
       });
     }
     if (memes.inventoryTags && !analyticsRef.current.inventoryTags) {
       analyticsRef.current.inventoryTags = true;
-      sendGAEvent('event', 'meme_activated', { meme: 'inventory_tags' });
+      trackEvent('meme_activated', { meme: 'inventory_tags' });
     }
 
     setMemes(memes);

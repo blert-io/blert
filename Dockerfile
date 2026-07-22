@@ -83,6 +83,10 @@ ARG NEXT_PUBLIC_BASE_URL=http://localhost:3000
 ARG NEXT_PUBLIC_LIVE_SERVER_URL=http://localhost:3010
 ARG NEXT_PUBLIC_BLERTCOIN_ENABLED=false
 
+# Umami analytics, inlined into client bundles. Disabled if left unset.
+ARG NEXT_PUBLIC_UMAMI_WEBSITE_ID=
+ARG NEXT_PUBLIC_UMAMI_SCRIPT_URL=
+
 # Dummy values so server modules can be evaluated during page data collection.
 # These are never used at runtime.
 ENV BLERT_DATABASE_URI=postgres://build:build@localhost/build

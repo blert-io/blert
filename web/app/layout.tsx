@@ -1,7 +1,7 @@
-import { GoogleAnalytics } from '@next/third-parties/google';
 import { Metadata } from 'next';
 import { Cinzel, Plus_Jakarta_Sans, Roboto_Mono } from 'next/font/google';
 import localFont from 'next/font/local';
+import Script from 'next/script';
 import { WebSite, WithContext } from 'schema-dts';
 
 import EmailVerificationBanner from './components/email-verification-banner';
@@ -114,10 +114,17 @@ export default function RootLayout({
           <div />
         </Tooltip>
         <PlayerLinkTooltip />
+        {process.env.NODE_ENV === 'production' &&
+          process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID &&
+          process.env.NEXT_PUBLIC_UMAMI_SCRIPT_URL && (
+            // The tracker posts events to /api/send on the script's origin.
+            <Script
+              src={process.env.NEXT_PUBLIC_UMAMI_SCRIPT_URL}
+              data-website-id={process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID}
+              strategy="afterInteractive"
+            />
+          )}
       </body>
-      {process.env.NODE_ENV === 'production' && (
-        <GoogleAnalytics gaId="G-5W75H2B3LF" />
-      )}
     </html>
   );
 }
