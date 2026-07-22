@@ -8,6 +8,7 @@ on:
       - 'blertbank-client/**'
       - 'package.json'
       - 'package-lock.json'
+      - '.npmrc'
       - '.github/workflows/test-web.yml'
   push:
     branches:
@@ -18,6 +19,7 @@ on:
       - 'blertbank-client/**'
       - 'package.json'
       - 'package-lock.json'
+      - '.npmrc'
       - '.github/workflows/test-web.yml'
 
 concurrency:
