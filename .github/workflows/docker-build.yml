@@ -5,6 +5,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Serialize image builds per ref. Deploys are not cancelled mid-push so a
+# partially published set of tags cannot result from a superseding run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ghcr.io/${{ github.repository }}
@@ -22,7 +28,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           submodules: true
 

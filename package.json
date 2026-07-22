@@ -1,6 +1,9 @@
 {
   "name": "blert",
   "version": "0.1.0",
+  "engines": {
+    "node": ">=24.8.0"
+  },
   "workspaces": [
     "bcf/",
     "blertbank/",
