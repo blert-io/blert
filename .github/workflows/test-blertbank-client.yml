@@ -5,6 +5,8 @@ on:
     paths:
       - 'blertbank-client/**'
       - 'package.json'
+      - 'package-lock.json'
+      - '.npmrc'
       - '.github/workflows/test-blertbank-client.yml'
   push:
     branches:
@@ -12,7 +14,13 @@ on:
     paths:
       - 'blertbank-client/**'
       - 'package.json'
+      - 'package-lock.json'
+      - '.npmrc'
       - '.github/workflows/test-blertbank-client.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:

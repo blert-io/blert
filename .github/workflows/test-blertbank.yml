@@ -6,6 +6,8 @@ on:
       - 'blertbank/**'
       - 'common/**'
       - 'package.json'
+      - 'package-lock.json'
+      - '.npmrc'
       - '.github/workflows/test-blertbank.yml'
   push:
     branches:
@@ -14,7 +16,13 @@ on:
       - 'blertbank/**'
       - 'common/**'
       - 'package.json'
+      - 'package-lock.json'
+      - '.npmrc'
       - '.github/workflows/test-blertbank.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:

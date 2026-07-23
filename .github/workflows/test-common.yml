@@ -5,6 +5,8 @@ on:
     paths:
       - 'common/**'
       - 'package.json'
+      - 'package-lock.json'
+      - '.npmrc'
       - '.github/workflows/test-common.yml'
   push:
     branches:
@@ -12,7 +14,13 @@ on:
     paths:
       - 'common/**'
       - 'package.json'
+      - 'package-lock.json'
+      - '.npmrc'
       - '.github/workflows/test-common.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:

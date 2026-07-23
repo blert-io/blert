@@ -5,6 +5,8 @@ on:
     paths:
       - 'bcf/**'
       - 'package.json'
+      - 'package-lock.json'
+      - '.npmrc'
       - '.github/workflows/test-bcf.yml'
   push:
     branches:
@@ -12,7 +14,13 @@ on:
     paths:
       - 'bcf/**'
       - 'package.json'
+      - 'package-lock.json'
+      - '.npmrc'
       - '.github/workflows/test-bcf.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:

@@ -6,6 +6,8 @@ on:
       - 'socket-server/**'
       - 'common/**'
       - 'package.json'
+      - 'package-lock.json'
+      - '.npmrc'
       - '.github/workflows/test-socket-server.yml'
   push:
     branches:
@@ -14,7 +16,13 @@ on:
       - 'socket-server/**'
       - 'common/**'
       - 'package.json'
+      - 'package-lock.json'
+      - '.npmrc'
       - '.github/workflows/test-socket-server.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
