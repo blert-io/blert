@@ -24,7 +24,7 @@
     "@react-email/components": "^1.0.4",
     "@react-three/drei": "^10.4.2",
     "@react-three/fiber": "^9.1.4",
-    "@types/bcrypt": "^5.0.2",
+    "@types/bcrypt": "^6.0.0",
     "@types/jest": "^29.5.12",
     "@types/node": "^24",
     "@types/react": "^19.1.8",
