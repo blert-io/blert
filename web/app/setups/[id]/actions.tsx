@@ -1,10 +1,10 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useContext, useState } from 'react';
 
 import { SetupMetadata, cloneGearSetup } from '@/actions/setup';
+import Button, { ButtonLink } from '@/components/button';
 import ConfirmationModal from '@/components/confirmation-modal';
 import Input from '@/components/input';
 import Menu from '@/components/menu';
@@ -122,28 +122,30 @@ export default function SetupActions({
       {hasPrimaryRow && (
         <div className={`${styles.actionRow} ${styles.primaryRow}`}>
           {showEdit && (
-            <Link
+            <ButtonLink
               href={`/setups/${setup.publicId}/edit`}
-              className={styles.editButton}
+              className={styles.actionButton}
             >
               <i className="fas fa-pencil-alt" />
               <span>Edit</span>
-            </Link>
+            </ButtonLink>
           )}
           {showDelete && (
-            <button
-              className={`${styles.actionButton} ${styles.deleteButton}`}
+            <Button
+              variant="danger"
+              className={styles.actionButton}
               onClick={() => setShowDeleteModal(true)}
             >
               <i className="fas fa-trash" />
               <span>Delete</span>
-            </button>
+            </Button>
           )}
         </div>
       )}
       <div className={styles.actionRow}>
         {showClone && (
-          <button
+          <Button
+            simple
             className={styles.actionButton}
             onClick={() => {
               setCloneTitle('');
@@ -152,23 +154,25 @@ export default function SetupActions({
           >
             <i className="fas fa-clone" />
             <span>Clone</span>
-          </button>
+          </Button>
         )}
-        <button
+        <Button
+          simple
           className={styles.actionButton}
           onClick={() => void copyShareLink()}
         >
           <i className="fas fa-link" />
           <span>Share</span>
-        </button>
-        <button
+        </Button>
+        <Button
+          simple
           id="setup-export-button"
           className={styles.actionButton}
           onClick={() => setShowExportMenu(true)}
         >
           <i className="fas fa-download" />
           <span>Export…</span>
-        </button>
+        </Button>
       </div>
       <DeleteModal
         open={showDeleteModal}

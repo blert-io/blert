@@ -254,41 +254,43 @@ export function TableOfContents(_props: TableOfContentsProps) {
 
   return (
     <nav className={styles.tableOfContents} style={{ right: tocRight }}>
-      <div className={styles.title}>On this page</div>
-      {headings.map((heading, index) => {
-        const level = parseInt(heading.tagName[1]);
-        const baseIndent = 12;
-        const levelIndent = (level - 2) * 20;
-        const paddingLeft = `${baseIndent + levelIndent}px`;
-        const isActive = heading === activeHeading;
+      <div className={styles.tocScroll}>
+        <div className={styles.title}>On this page</div>
+        {headings.map((heading, index) => {
+          const level = parseInt(heading.tagName[1]);
+          const baseIndent = 12;
+          const levelIndent = (level - 2) * 20;
+          const paddingLeft = `${baseIndent + levelIndent}px`;
+          const isActive = heading === activeHeading;
 
-        let className = styles.heading;
-        if (isActive) {
-          className += ` ${styles.active}`;
-        }
+          let className = styles.heading;
+          if (isActive) {
+            className += ` ${styles.active}`;
+          }
 
-        return (
-          <button
-            key={index}
-            type="button"
-            className={className}
-            onClick={() => handleHeadingClick(heading)}
-            style={{
-              paddingLeft,
-              height: HEADING_HEIGHT,
-              textAlign: 'left',
-              background: 'none',
-              border: 'none',
-              width: '100%',
-              fontSize: 'inherit',
-              fontFamily: 'inherit',
-            }}
-            title={heading.textContent ?? ''}
-          >
-            {heading.textContent}
-          </button>
-        );
-      })}
+          return (
+            <button
+              key={index}
+              type="button"
+              className={className}
+              onClick={() => handleHeadingClick(heading)}
+              style={{
+                paddingLeft,
+                height: HEADING_HEIGHT,
+                textAlign: 'left',
+                background: 'none',
+                border: 'none',
+                width: '100%',
+                fontSize: 'inherit',
+                fontFamily: 'inherit',
+              }}
+              title={heading.textContent ?? ''}
+            >
+              {heading.textContent}
+            </button>
+          );
+        })}
+      </div>
     </nav>
   );
 }

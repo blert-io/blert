@@ -188,8 +188,9 @@ export function LocalSetupMigrator() {
                   <Button
                     onClick={() => void handleDelete(setup.publicId)}
                     className={`${styles.button} ${styles.deleteButton}`}
-                    simple
                     disabled={migrating}
+                    simple
+                    variant="danger"
                     data-tooltip-id={GLOBAL_TOOLTIP_ID}
                     data-tooltip-content="Delete setup"
                   >

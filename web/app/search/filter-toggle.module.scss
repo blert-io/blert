@@ -33,6 +33,21 @@
     }
   }
 
+  :global([data-theme='aero']) & {
+    &:hover:not(.active) {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    &.active {
+      @include aeroGlassPressed;
+      border-color: rgba(0, 0, 0, 0.4);
+
+      i {
+        color: inherit;
+      }
+    }
+  }
+
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     padding: 6px 10px;
     gap: 6px;
@@ -53,4 +68,14 @@
   color: #fff;
   background: var(--blert-purple);
   line-height: 1;
+
+  :global([data-theme='aero']) & {
+    @include aeroGlossButton(
+      var(--blert-purple),
+      rgb(24, 62, 112),
+      rgb(20, 50, 90),
+      rgb(15, 40, 70)
+    );
+    border-radius: 10px;
+  }
 }

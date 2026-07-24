@@ -15,7 +15,7 @@ import { SessionFeedItem } from '@/actions/feed';
 import PlayerLink from '@/components/player-link';
 import { useClientOnly } from '@/hooks/client-only';
 import { challengeLogo } from '@/logo';
-import { modeNameAndColor, scaleNameAndColor } from '@/utils/challenge';
+import { modeName, scaleNameAndColor } from '@/utils/challenge';
 import { formatDuration } from '@/utils/time';
 
 import styles from './feed.module.scss';
@@ -60,7 +60,7 @@ export default function SessionFeedCard({ item }: SessionFeedCardProps) {
     endTime.getTime() - session.startTime.getTime(),
   );
 
-  const [modeString] = modeNameAndColor(
+  const modeString = modeName(
     session.challengeType,
     session.challengeMode,
     false,

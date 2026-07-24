@@ -24,6 +24,10 @@
     @media (min-width: $COMPACT_WIDTH_THRESHOLD) {
       min-width: 680px;
     }
+
+    :global([data-theme='aero']) & {
+      @include aeroWell;
+    }
   }
 }
 
@@ -41,6 +45,15 @@
     transform: translateY(-2px);
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
   }
+
+  :global([data-theme='aero']) & {
+    @include aeroTray(rgba(158, 205, 228, 0.55));
+
+    &:hover {
+      @include aeroTrayHover;
+      transform: none;
+    }
+  }
 }
 
 .activeSession {
@@ -56,6 +69,22 @@
     box-shadow:
       0 6px 24px rgba(0, 0, 0, 0.3),
       0 0 30px rgba(var(--blert-green-base), 0.2);
+  }
+
+  :global([data-theme='aero']) & {
+    @include aeroTray(
+      rgba(158, 205, 228, 0.55),
+      rgba(var(--blert-green-base), 0.6),
+      0 0 18px rgba(var(--blert-green-base), 0.3)
+    );
+
+    &:hover {
+      @include aeroTrayHover(
+        rgba(var(--blert-green-base), 0.75),
+        0 0 24px rgba(var(--blert-green-base), 0.4)
+      );
+      transform: none;
+    }
   }
 }
 
@@ -218,8 +247,8 @@
 }
 
 .expandButton {
-  background: rgba(var(--blert-purple-base), 0.1);
-  border: 1px solid rgba(var(--blert-purple-base), 0.3);
+  background: rgba(var(--blert-purple-base), 0.15);
+  border: 1px solid rgba(var(--blert-purple-base), 0.4);
   border-radius: 8px;
   padding: 8px 12px;
   color: var(--blert-purple);
@@ -241,10 +270,60 @@
   }
 }
 
+:global([data-theme='aero']) {
+  .expandButton {
+    color: var(--blert-aero-action);
+    border: 1px solid rgba(120, 165, 200, 0.5);
+    background: linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.9),
+      rgba(232, 246, 254, 0.75) 48%,
+      rgba(214, 236, 250, 0.7) 49%,
+      rgba(230, 244, 252, 0.78)
+    );
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.95),
+      0 1px 2px rgba(60, 120, 165, 0.22);
+
+    &:hover {
+      transform: none;
+      color: var(--blert-aero-action);
+      border-color: rgba(var(--blert-aero-action-base), 0.6);
+      background: linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 1),
+        rgba(240, 250, 255, 0.85) 48%,
+        rgba(224, 242, 252, 0.8) 49%,
+        rgba(240, 250, 255, 0.88)
+      );
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 1),
+        0 2px 5px rgba(60, 120, 165, 0.28);
+    }
+  }
+
+  .viewSessionButton {
+    @include aeroActionButton;
+
+    &:hover {
+      transform: none;
+      @include aeroActionButtonHover;
+    }
+  }
+}
+
 .sessionStats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 16px;
+
+  :global([data-theme='aero']) & {
+    gap: 0;
+    margin: 0 -20px -20px;
+    padding: 4px 12px;
+    background: rgba(255, 255, 255, 0.76);
+    border-top: 1px solid rgba(96, 146, 186, 0.3);
+  }
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     grid-template-columns: repeat(2, 1fr);
@@ -263,6 +342,21 @@
   font-size: 0.9rem;
   color: var(--blert-font-color-primary);
   transition: all 0.2s ease;
+
+  :global([data-theme='aero']) & {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+
+    &:not(:last-child) {
+      border-right: 1px solid rgba(96, 146, 186, 0.18);
+    }
+
+    i {
+      color: var(--blert-font-color-secondary);
+    }
+  }
 
   i {
     color: var(--blert-purple);
@@ -289,6 +383,11 @@
 .sessionChallenges {
   border-top: 1px solid rgba(var(--blert-divider-color-base), 0.3);
   background: rgba(var(--blert-surface-darker-base), 0.4);
+
+  :global([data-theme='aero']) & {
+    background: rgba(255, 255, 255, 0.76);
+    border-top-color: rgba(96, 146, 186, 0.3);
+  }
 }
 
 .challengesList {
@@ -296,6 +395,10 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+
+  :global([data-theme='aero']) & {
+    gap: 0;
+  }
 }
 
 .challengeItem {
@@ -338,6 +441,27 @@
     }
   }
 
+  :global([data-theme='aero']) & {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+
+    &::before {
+      display: none;
+    }
+
+    &:not(:last-child) {
+      border-bottom: 1px solid rgba(96, 146, 186, 0.18);
+    }
+
+    &:hover {
+      transform: none;
+      background: rgba(var(--blert-purple-base), 0.09);
+      box-shadow: none;
+    }
+  }
+
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     padding: 8px;
   }
@@ -364,6 +488,11 @@
   color: var(--blert-gold);
   text-shadow: var(--blert-gold-text-shadow);
   font-size: 0.8rem;
+
+  :global([data-theme='aero']) & {
+    color: var(--blert-accent-complement);
+    text-shadow: none;
+  }
 }
 
 .challengeDetails {
@@ -390,6 +519,18 @@
     text-align: center;
     font-size: 12px;
     color: var(--blert-purple);
+  }
+
+  :global([data-theme='aero']) & i {
+    color: var(--blert-font-color-secondary);
+  }
+
+  &[data-challenge] {
+    color: var(--challenge-color-text);
+
+    i {
+      color: var(--challenge-color-text);
+    }
   }
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {

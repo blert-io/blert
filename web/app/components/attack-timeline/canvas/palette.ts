@@ -7,9 +7,16 @@ export type TimelinePalette = {
   /** Background for an empty cell. */
   cellBgDefault: string;
   cellBgDefaultHover: string;
-  /** Background for a cell with actions. */
-  cellBgHighlighted: string;
-  cellBgHighlightedHover: string;
+  /** Background for a cell whose player performed an action this tick. */
+  cellBgAction: string;
+  /**
+   * Hover border for a cell with an action.
+   * Overriden by an evaluator's styling.
+   */
+  cellBgActionHover: string;
+  /** Background for a cell where the player was off cooldown but idle. */
+  cellBgOffCooldown: string;
+  cellBgOffCooldownHover: string;
   /** Neutral (non-evaluated) cell outline. */
   outlineNeutral: string;
   outlineNeutralHover: string;
@@ -56,8 +63,12 @@ export function buildTimelinePalette(read?: ColorReader): TimelinePalette {
   return {
     cellBgDefault: color('--blert-timeline-cell-bg-default'),
     cellBgDefaultHover: color('--blert-timeline-cell-bg-default-hover'),
-    cellBgHighlighted: color('--blert-timeline-cell-bg-highlighted'),
-    cellBgHighlightedHover: color('--blert-timeline-cell-bg-highlighted-hover'),
+    cellBgAction: color('--blert-timeline-cell-bg-action'),
+    cellBgActionHover: color('--blert-timeline-cell-bg-action-hover'),
+    cellBgOffCooldown: color('--blert-timeline-cell-bg-off-cooldown'),
+    cellBgOffCooldownHover: color(
+      '--blert-timeline-cell-bg-off-cooldown-hover',
+    ),
     outlineNeutral: color('--blert-timeline-outline-neutral'),
     outlineNeutralHover: color('--blert-timeline-outline-neutral-hover'),
     outlineHover: color('--blert-timeline-outline-hover'),

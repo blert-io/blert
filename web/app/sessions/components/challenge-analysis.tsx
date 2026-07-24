@@ -549,25 +549,25 @@ function DistributionChart({
             >
               <stop
                 offset="0%"
-                stopColor="rgb(88, 101, 242)"
+                stopColor="var(--blert-purple)"
                 stopOpacity={0.95}
               />
               <stop
                 offset="100%"
-                stopColor="rgb(68, 79, 191)"
+                stopColor="var(--analysis-bar-deep)"
                 stopOpacity={0.8}
               />
             </linearGradient>
           </defs>
           <CartesianGrid
             strokeDasharray="3 3"
-            stroke="rgba(94, 98, 136, 0.3)"
+            stroke="rgba(var(--blert-divider-color-base), 0.5)"
           />
           <XAxis
             dataKey="value"
             tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 12 }}
-            axisLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
-            tickLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
+            axisLine={{ stroke: 'var(--blert-divider-color)' }}
+            tickLine={{ stroke: 'var(--blert-divider-color)' }}
             angle={selectedStat.type === StatType.SPLIT ? -45 : undefined}
             textAnchor="end"
             height={60}
@@ -575,8 +575,8 @@ function DistributionChart({
           />
           <YAxis
             tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 12 }}
-            axisLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
-            tickLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
+            axisLine={{ stroke: 'var(--blert-divider-color)' }}
+            tickLine={{ stroke: 'var(--blert-divider-color)' }}
             label={{
               value: 'Frequency',
               angle: -90,
@@ -589,13 +589,13 @@ function DistributionChart({
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: 'var(--blert-panel-background-color)',
-              border: '1px solid rgba(88, 101, 242, 0.15)',
+              backgroundColor: 'var(--blert-surface-dark)',
+              border: '1px solid var(--blert-divider-color)',
               borderRadius: '6px',
               color: 'var(--blert-font-color-primary)',
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
             }}
-            cursor={{ fill: 'rgba(88, 101, 242, 0.1)' }}
+            cursor={{ fill: 'rgba(var(--blert-purple-base), 0.1)' }}
             formatter={(
               value: number,
               _name: string,
@@ -657,13 +657,13 @@ function ChartDisplay({
   const tooltip = (
     <Tooltip
       contentStyle={{
-        backgroundColor: 'var(--blert-panel-background-color)',
-        border: '1px solid rgba(88, 101, 242, 0.15)',
+        backgroundColor: 'var(--blert-surface-dark)',
+        border: '1px solid var(--blert-divider-color)',
         borderRadius: '6px',
         color: 'var(--blert-font-color-primary)',
         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
       }}
-      cursor={{ fill: 'rgba(88, 101, 242, 0.1)' }}
+      cursor={{ fill: 'rgba(var(--blert-purple-base), 0.1)' }}
       formatter={(value: number, _name: string, _props: any) => [
         <span key={value} style={{ color: 'var(--blert-font-color-primary)' }}>
           {selectedStat.formatter ? selectedStat.formatter(value) : value}
@@ -700,31 +700,31 @@ function ChartDisplay({
               >
                 <stop
                   offset="0%"
-                  stopColor="rgb(88, 101, 242)"
+                  stopColor="var(--blert-purple)"
                   stopOpacity={0.95}
                 />
                 <stop
                   offset="100%"
-                  stopColor="rgb(68, 79, 191)"
+                  stopColor="var(--analysis-bar-deep)"
                   stopOpacity={0.8}
                 />
               </linearGradient>
             </defs>
             <CartesianGrid
               strokeDasharray="3 3"
-              stroke="rgba(94, 98, 136, 0.3)"
+              stroke="rgba(var(--blert-divider-color-base), 0.5)"
             />
             <XAxis
               dataKey="challengeIndex"
               tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 12 }}
-              axisLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
-              tickLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
+              axisLine={{ stroke: 'var(--blert-divider-color)' }}
+              tickLine={{ stroke: 'var(--blert-divider-color)' }}
               tickFormatter={(value: number) => `#${value}`}
             />
             <YAxis
               tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 12 }}
-              axisLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
-              tickLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
+              axisLine={{ stroke: 'var(--blert-divider-color)' }}
+              tickLine={{ stroke: 'var(--blert-divider-color)' }}
               tickFormatter={selectedStat.formatter}
             />
             {tooltip}
@@ -741,33 +741,33 @@ function ChartDisplay({
           >
             <CartesianGrid
               strokeDasharray="3 3"
-              stroke="rgba(94, 98, 136, 0.3)"
+              stroke="rgba(var(--blert-divider-color-base), 0.5)"
             />
             <XAxis
               dataKey="challengeIndex"
               tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 12 }}
-              axisLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
-              tickLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
+              axisLine={{ stroke: 'var(--blert-divider-color)' }}
+              tickLine={{ stroke: 'var(--blert-divider-color)' }}
               tickFormatter={(value: number) => `#${value}`}
             />
             <YAxis
               tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 12 }}
-              axisLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
-              tickLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
+              axisLine={{ stroke: 'var(--blert-divider-color)' }}
+              tickLine={{ stroke: 'var(--blert-divider-color)' }}
               tickFormatter={selectedStat.formatter}
             />
             {tooltip}
             <Line
               type="monotone"
               dataKey="value"
-              stroke="rgb(88, 101, 242)"
+              stroke="var(--blert-purple)"
               strokeWidth={3}
-              dot={{ fill: 'rgb(88, 101, 242)', strokeWidth: 2, r: 4 }}
+              dot={{ fill: 'var(--blert-purple)', strokeWidth: 2, r: 4 }}
               activeDot={{
                 r: 6,
-                stroke: 'rgb(88, 101, 242)',
+                stroke: 'var(--blert-purple)',
                 strokeWidth: 2,
-                fill: 'rgb(118, 131, 255)',
+                fill: 'var(--analysis-line-bright)',
               }}
             />
           </LineChart>

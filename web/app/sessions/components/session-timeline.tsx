@@ -552,7 +552,7 @@ export default function SessionTimeline() {
         >
           <CartesianGrid
             strokeDasharray="3 3"
-            stroke="rgba(255, 255, 255, 0.1)"
+            stroke="rgba(var(--blert-divider-color-base), 0.5)"
             horizontal={false}
           />
           <XAxis
@@ -561,8 +561,8 @@ export default function SessionTimeline() {
             tickFormatter={formatTimeAxis}
             tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 12 }}
             tickCount={8}
-            axisLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
-            tickLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
+            axisLine={{ stroke: 'var(--blert-divider-color)' }}
+            tickLine={{ stroke: 'var(--blert-divider-color)' }}
             hide={session.challenges.length === 1}
           />
           <YAxis
@@ -570,8 +570,8 @@ export default function SessionTimeline() {
             dataKey="index"
             width={50}
             tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 11 }}
-            axisLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
-            tickLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
+            axisLine={{ stroke: 'var(--blert-divider-color)' }}
+            tickLine={{ stroke: 'var(--blert-divider-color)' }}
             tickFormatter={(value: number) => {
               const data = timelineData.find((d) => d.index === value);
               return data?.challenge === null ? '—' : `#${Math.floor(value)}`;

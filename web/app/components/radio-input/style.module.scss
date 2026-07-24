@@ -52,7 +52,7 @@
       }
 
       input:checked + label {
-        color: #fff;
+        color: var(--blert-accent-text);
       }
     }
   }
@@ -154,7 +154,7 @@
         rgba(var(--blert-purple-base), 0.9) 0%,
         rgba(var(--blert-purple-base), 0.8) 100%
       );
-      color: var(--blert-font-color-primary);
+      color: var(--blert-accent-text);
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
       box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.1),
@@ -166,7 +166,7 @@
           rgba(var(--blert-purple-base), 1) 0%,
           rgba(var(--blert-purple-base), 0.9) 100%
         );
-        color: white;
+        color: var(--blert-accent-text);
         cursor: default;
       }
     }
@@ -174,6 +174,53 @@
     &:focus-within {
       border-color: rgba(var(--blert-purple-base), 0.5);
       box-shadow: 0 0 0 2px rgba(var(--blert-purple-base), 0.2);
+    }
+  }
+
+  // Aero: frosted glass control with a glossy selected option.
+  :global([data-theme='aero']) & {
+    &.simple .radioOption input:checked + label {
+      text-shadow: none;
+    }
+
+    &.joined {
+      background: linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0.55),
+        rgba(255, 255, 255, 0.28)
+      );
+      border-color: rgba(255, 255, 255, 0.7);
+    }
+
+    &:not(.simple) .radioOption {
+      backdrop-filter: blur(6px);
+
+      input:checked + label {
+        background:
+          linear-gradient(
+            to bottom,
+            rgba(255, 255, 255, 0.5),
+            rgba(255, 255, 255, 0.08) 48%,
+            rgba(0, 0, 0, 0) 49%,
+            rgba(0, 0, 0, 0.12)
+          ),
+          var(--blert-aero-action);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.55),
+          0 2px 8px rgba(60, 120, 165, 0.25);
+
+        &:hover {
+          background:
+            linear-gradient(
+              to bottom,
+              rgba(255, 255, 255, 0.68),
+              rgba(255, 255, 255, 0.2) 48%,
+              rgba(255, 255, 255, 0.04) 49%,
+              rgba(0, 0, 0, 0.05)
+            ),
+            var(--blert-aero-action);
+        }
+      }
     }
   }
 

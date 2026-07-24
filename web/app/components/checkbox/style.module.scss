@@ -1,3 +1,5 @@
+@use '@/mixins.scss' as *;
+
 .checkbox {
   &:has(input[type='checkbox']:disabled) {
     opacity: 0.6;
@@ -49,6 +51,49 @@
         content: '\f14a';
       }
     }
+  }
+
+  :global([data-theme='aero']) &:not(.button) {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.95rem;
+  }
+
+  :global([data-theme='aero']) & input[type='checkbox'] {
+    @include aeroCheckbox;
+    width: 18px;
+    height: 18px;
+    box-sizing: border-box;
+    flex-shrink: 0;
+    margin-right: 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+
+    &::before {
+      content: '';
+      position: static;
+      bottom: 0;
+      margin: 0;
+      line-height: 1;
+    }
+
+    &:checked {
+      @include aeroCheckboxChecked;
+
+      &::before {
+        content: '\f00c';
+        font-weight: 900;
+      }
+    }
+  }
+
+  :global([data-theme='aero'])
+    &:not(.button):not(:has(input[type='checkbox']:disabled)):hover {
+    color: var(--blert-font-color-primary);
   }
 
   &:hover {

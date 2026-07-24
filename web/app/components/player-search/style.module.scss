@@ -1,3 +1,5 @@
+@use '@/mixins.scss' as *;
+
 .wrapper {
   position: relative;
   width: fit-content;
@@ -10,6 +12,12 @@
       border-bottom: none;
       border-color: rgba(var(--blert-purple-base), 0.9);
       box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    // Aero: don't blend into the menu, which floats separately.
+    :global([data-theme='aero']) &.open {
+      border-radius: 10px;
+      @include aeroFieldFocus;
     }
   }
 }
@@ -24,6 +32,11 @@
   box-shadow:
     0 8px 24px rgba(0, 0, 0, 0.3),
     0 2px 8px rgba(0, 0, 0, 0.15) !important;
+
+  :global([data-theme='aero']) & {
+    border-color: rgba(120, 165, 200, 0.5) !important;
+    box-shadow: 0 10px 28px rgba(60, 120, 165, 0.3) !important;
+  }
 
   .suggestion {
     padding: 8px 12px;

@@ -13,6 +13,10 @@
     text-align: center;
     margin: 2rem 0;
 
+    :global([data-theme='aero']) & {
+      @include aeroSkyWindow;
+    }
+
     h1 {
       margin: 0 0 0.5rem 0;
       font-size: 1.6rem;
@@ -47,6 +51,12 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 1.5rem;
+
+  :global([data-theme='aero']) & {
+    padding: 0.75rem 1.25rem 1rem;
+    border-radius: 10px;
+    @include aeroTray;
+  }
 }
 
 .section {
@@ -94,6 +104,12 @@
   width: 100%;
   transition: opacity 0.2s ease;
 
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+    border-radius: 8px;
+    padding: 1rem;
+  }
+
   &.refreshing {
     opacity: 0.6;
   }
@@ -110,6 +126,10 @@
   color: var(--blert-font-color-secondary);
   font-size: 0.9rem;
 
+  :global([data-theme='aero']) & {
+    @include aeroRecess;
+  }
+
   i {
     font-size: 1.1em;
   }
@@ -120,6 +140,11 @@
   border-top: 1px solid rgba(var(--blert-divider-color-base), 0.5);
   transform-origin: top;
   animation: expandDown 0.25s ease-out;
+
+  :global([data-theme='aero']) & {
+    border-top-color: rgba(112, 156, 196, 0.55);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  }
 
   &.closing {
     animation: shrinkUp 0.2s ease-in forwards;
@@ -183,10 +208,24 @@
   &:hover {
     background: rgba(var(--blert-red-base), 0.1);
   }
+
+  :global([data-theme='aero']) & {
+    @include aeroDangerButton;
+
+    &:hover {
+      @include aeroDangerButtonHover;
+    }
+  }
 }
 
 .drillDownChart {
   width: 100%;
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+    border-radius: 8px;
+    padding: 1rem;
+  }
 }
 
 .statsRow {
@@ -195,6 +234,16 @@
   justify-content: space-around;
   gap: 0.75rem;
   margin-top: 0.75rem;
+
+  :global([data-theme='aero']) & {
+    @include aeroChromeStrip;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid rgba(112, 156, 196, 0.5);
+    border-radius: 8px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      0 1px 2px rgba(60, 120, 165, 0.15);
+  }
 }
 
 .drillDownNote {
@@ -209,6 +258,10 @@
   background: var(--blert-surface-dark);
   border-radius: 6px;
   animation: pulse 1.5s ease-in-out infinite;
+
+  :global([data-theme='aero']) & {
+    @include aeroRecess;
+  }
 }
 
 .errorState {
@@ -220,6 +273,14 @@
   background: var(--blert-surface-dark);
   border-radius: 6px;
   gap: 1rem;
+
+  :global([data-theme='aero']) & {
+    @include aeroNotice(
+      rgba(253, 233, 231, 0.96),
+      rgba(250, 216, 213, 0.93),
+      rgba(208, 118, 108, 0.64)
+    );
+  }
 
   .errorIcon {
     font-size: 2em;
@@ -239,21 +300,29 @@
       font-size: 0.9em;
     }
   }
+}
 
-  .retryButton {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 20px;
-    border-radius: 4px;
-    background: var(--blert-panel-background-color);
-    color: var(--blert-font-color-primary);
-    font-size: 0.9em;
-    border: none;
-    cursor: pointer;
+.retryButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 4px;
+  background: var(--blert-panel-background-color);
+  color: var(--blert-font-color-primary);
+  font-size: 0.9em;
+  border: none;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--blert-surface-light);
+  }
+
+  :global([data-theme='aero']) & {
+    @include aeroActionButton;
 
     &:hover {
-      background: var(--blert-surface-light);
+      @include aeroActionButtonHover;
     }
   }
 }
@@ -268,6 +337,10 @@
   font-size: 0.95rem;
   background: var(--blert-surface-dark);
   border-radius: 6px;
+
+  :global([data-theme='aero']) & {
+    @include aeroRecess;
+  }
 }
 
 @keyframes pulse {

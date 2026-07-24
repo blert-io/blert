@@ -2,11 +2,7 @@ import { ResolvingMetadata } from 'next';
 import { notFound } from 'next/navigation';
 
 import { loadSessionWithStats } from '@/actions/challenge';
-import {
-  challengeTerm,
-  modeNameAndColor,
-  scaleNameAndColor,
-} from '@/utils/challenge';
+import { challengeTerm, modeName, scaleNameAndColor } from '@/utils/challenge';
 import { oxford } from '@/utils/copy';
 import { basicMetadata } from '@/utils/metadata';
 import { ticksToFormattedSeconds } from '@/utils/tick';
@@ -91,10 +87,7 @@ export async function generateMetadata(
   const stats = session.stats;
 
   const party = oxford(session.party);
-  const mode = modeNameAndColor(
-    session.challengeType,
-    session.challengeMode,
-  )[0];
+  const mode = modeName(session.challengeType, session.challengeMode);
   const scale = scaleNameAndColor(session.scale)[0];
 
   const ticksOrNotApplicable = (ticks: number) =>

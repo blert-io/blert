@@ -94,6 +94,10 @@
   &:not(.dragging) {
     scroll-behavior: smooth;
   }
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+  }
 }
 
 .dragging {
@@ -130,6 +134,13 @@
 
   &::-webkit-scrollbar-corner {
     background: rgba(var(--blert-surface-dark-base), 0.3);
+  }
+
+  :global([data-theme='aero']) & {
+    &::-webkit-scrollbar-track,
+    &::-webkit-scrollbar-corner {
+      background: rgba(var(--blert-surface-light-base), 0.45);
+    }
   }
 }
 
@@ -171,6 +182,13 @@
   font-size: 0.85rem;
   max-width: 320px;
   z-index: 1000;
+
+  :global([data-theme='aero']) & {
+    background: var(--blert-panel-surface);
+    backdrop-filter: var(--blert-panel-blur);
+    border: 1px solid rgba(120, 165, 200, 0.5);
+    box-shadow: 0 8px 24px rgba(60, 120, 165, 0.3);
+  }
 
   .monospace {
     font-family: var(--font-roboto-mono), monospace;

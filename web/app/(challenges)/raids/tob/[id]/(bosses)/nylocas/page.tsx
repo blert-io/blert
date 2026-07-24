@@ -831,161 +831,163 @@ const NyloWaveChart = memo(function NyloWaveChart({
       className={bossStyles.chart}
       header={{ title: 'Nylos Alive By Tick' }}
     >
-      <HorizontalScrollable className={bossStyles.scrollable}>
-        <ResponsiveContainer width={width} height="100%">
-          <AreaChart data={nylosAliveByTick} margin={NYLO_CHART_MARGIN}>
-            <defs>
-              <linearGradient
-                id="backgroundGradient"
-                x1="0"
-                y1="0"
-                x2="0"
-                y2="1"
-              >
-                <stop
-                  offset="0%"
-                  stopColor="var(--blert-purple)"
-                  stopOpacity={0.3}
-                />
-                <stop
-                  offset="100%"
-                  stopColor="var(--blert-purple)"
-                  stopOpacity={0.05}
-                />
-              </linearGradient>
-            </defs>
-            <CartesianGrid
-              strokeDasharray="3 3"
-              stroke="var(--blert-surface-light)"
-              opacity={0.9}
-            />
-            <XAxis
-              dataKey="tick"
-              stroke="var(--blert-font-color-secondary)"
-              tickLine={false}
-              axisLine={NYLO_AXIS_LINE}
-              hide
-            />
-            <YAxis
-              stroke="var(--blert-font-color-secondary)"
-              tickLine={false}
-              axisLine={NYLO_AXIS_LINE}
-              tickCount={8}
-            />
-            <Area
-              type="monotone"
-              dataKey="nylosAlive"
-              stroke="rgba(var(--blert-purple-base), 0.7)"
-              strokeWidth={2}
-              fill="url(#backgroundGradient)"
-              isAnimationActive={animate}
-            />
-            <Tooltip
-              contentStyle={NYLO_TOOLTIP_STYLE}
-              formatter={formatNylosAlive}
-              labelFormatter={(tick: number) => {
-                if (spawns.length === 0) {
-                  return `Tick: ${tick} (No wave)`;
-                }
-
-                let waveSpawn;
-                for (let i = 1; i < spawns.length; i++) {
-                  if (tick < spawns[i].tick) {
-                    waveSpawn = spawns[i - 1];
-                    break;
-                  }
-                }
-                waveSpawn ??= spawns[spawns.length - 1];
-
-                return `Tick: ${tick} (Wave ${waveSpawn.nyloWave.wave})`;
-              }}
-              cursor={NYLO_TOOLTIP_CURSOR}
-            />
-            <ReferenceLine
-              stroke="rgba(var(--blert-red-base), 0.7)"
-              strokeWidth={2}
-              strokeDasharray="2 2"
-              segment={[
-                { x: 0, y: startingRoomCap },
-                {
-                  x: challenge.splits[SplitType.TOB_NYLO_CAP],
-                  y: startingRoomCap,
-                },
-              ]}
-            >
-              <Label
-                position="top"
-                stroke="rgba(var(--blert-font-color-primary-base), 0.7)"
-                style={{ fontWeight: 200 }}
-              >
-                Room cap
-              </Label>
-            </ReferenceLine>
-            <ReferenceLine
-              stroke="rgba(var(--blert-red-base), 0.7)"
-              strokeWidth={2}
-              strokeDasharray="2 2"
-              segment={[
-                { x: challenge.splits[SplitType.TOB_NYLO_CAP], y: 24 },
-                { x: challenge.splits[SplitType.TOB_NYLO_CLEANUP], y: 24 },
-              ]}
-            >
-              <Label
-                position="top"
-                stroke="rgba(var(--blert-font-color-primary-base), 0.7)"
-                style={{ fontWeight: 200 }}
-              >
-                Room cap
-              </Label>
-            </ReferenceLine>
-            {spawns.map((evt) => {
-              return (
-                <ReferenceLine
-                  key={evt.tick}
-                  x={evt.tick}
-                  stroke={
-                    evt.nyloWave.wave === CAP_INCREASE_WAVE
-                      ? 'rgba(var(--blert-font-color-primary-base), 0.75)'
-                      : 'rgba(var(--blert-font-color-primary-base), 0.15)'
-                  }
-                  strokeWidth={1}
+      <div className={styles.chartWrapper}>
+        <HorizontalScrollable className={bossStyles.scrollable}>
+          <ResponsiveContainer width={width} height="100%">
+            <AreaChart data={nylosAliveByTick} margin={NYLO_CHART_MARGIN}>
+              <defs>
+                <linearGradient
+                  id="backgroundGradient"
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
                 >
-                  <Label
+                  <stop
+                    offset="0%"
+                    stopColor="var(--blert-purple)"
+                    stopOpacity={0.3}
+                  />
+                  <stop
+                    offset="100%"
+                    stopColor="var(--blert-purple)"
+                    stopOpacity={0.05}
+                  />
+                </linearGradient>
+              </defs>
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="var(--blert-surface-light)"
+                opacity={0.9}
+              />
+              <XAxis
+                dataKey="tick"
+                stroke="var(--blert-font-color-secondary)"
+                tickLine={false}
+                axisLine={NYLO_AXIS_LINE}
+                hide
+              />
+              <YAxis
+                stroke="var(--blert-font-color-secondary)"
+                tickLine={false}
+                axisLine={NYLO_AXIS_LINE}
+                tickCount={8}
+              />
+              <Area
+                type="monotone"
+                dataKey="nylosAlive"
+                stroke="rgba(var(--blert-purple-base), 0.7)"
+                strokeWidth={2}
+                fill="url(#backgroundGradient)"
+                isAnimationActive={animate}
+              />
+              <Tooltip
+                contentStyle={NYLO_TOOLTIP_STYLE}
+                formatter={formatNylosAlive}
+                labelFormatter={(tick: number) => {
+                  if (spawns.length === 0) {
+                    return `Tick: ${tick} (No wave)`;
+                  }
+
+                  let waveSpawn;
+                  for (let i = 1; i < spawns.length; i++) {
+                    if (tick < spawns[i].tick) {
+                      waveSpawn = spawns[i - 1];
+                      break;
+                    }
+                  }
+                  waveSpawn ??= spawns[spawns.length - 1];
+
+                  return `Tick: ${tick} (Wave ${waveSpawn.nyloWave.wave})`;
+                }}
+                cursor={NYLO_TOOLTIP_CURSOR}
+              />
+              <ReferenceLine
+                stroke="rgba(var(--blert-red-base), 0.7)"
+                strokeWidth={2}
+                strokeDasharray="2 2"
+                segment={[
+                  { x: 0, y: startingRoomCap },
+                  {
+                    x: challenge.splits[SplitType.TOB_NYLO_CAP],
+                    y: startingRoomCap,
+                  },
+                ]}
+              >
+                <Label
+                  position="top"
+                  stroke="rgba(var(--blert-font-color-primary-base), 0.7)"
+                  style={{ fontWeight: 200 }}
+                >
+                  Room cap
+                </Label>
+              </ReferenceLine>
+              <ReferenceLine
+                stroke="rgba(var(--blert-red-base), 0.7)"
+                strokeWidth={2}
+                strokeDasharray="2 2"
+                segment={[
+                  { x: challenge.splits[SplitType.TOB_NYLO_CAP], y: 24 },
+                  { x: challenge.splits[SplitType.TOB_NYLO_CLEANUP], y: 24 },
+                ]}
+              >
+                <Label
+                  position="top"
+                  stroke="rgba(var(--blert-font-color-primary-base), 0.7)"
+                  style={{ fontWeight: 200 }}
+                >
+                  Room cap
+                </Label>
+              </ReferenceLine>
+              {spawns.map((evt) => {
+                return (
+                  <ReferenceLine
+                    key={evt.tick}
+                    x={evt.tick}
                     stroke={
                       evt.nyloWave.wave === CAP_INCREASE_WAVE
-                        ? 'rgba(var(--blert-font-color-primary-base), 0.8)'
-                        : 'var(--blert-font-color-secondary)'
+                        ? 'rgba(var(--blert-font-color-primary-base), 0.75)'
+                        : 'rgba(var(--blert-font-color-primary-base), 0.15)'
                     }
-                    position="bottom"
-                    style={{ fontSize: 13, fontWeight: 100 }}
+                    strokeWidth={1}
                   >
-                    {evt.nyloWave.wave}
-                  </Label>
-                </ReferenceLine>
-              );
-            })}
-            {stalls.map((evt) => {
-              return (
-                <ReferenceLine
-                  key={evt.tick}
-                  x={evt.tick}
-                  stroke="rgba(var(--blert-font-color-primary-base), 0.5)"
-                  strokeWidth={2}
-                  strokeDasharray="3 3"
-                >
-                  <Label
-                    stroke="rgba(var(--blert-red-base), 0.7)"
-                    position="bottom"
-                    style={{ fontSize: 13, fontWeight: 100 }}
+                    <Label
+                      stroke={
+                        evt.nyloWave.wave === CAP_INCREASE_WAVE
+                          ? 'rgba(var(--blert-font-color-primary-base), 0.8)'
+                          : 'var(--blert-font-color-secondary)'
+                      }
+                      position="bottom"
+                      style={{ fontSize: 13, fontWeight: 100 }}
+                    >
+                      {evt.nyloWave.wave}
+                    </Label>
+                  </ReferenceLine>
+                );
+              })}
+              {stalls.map((evt) => {
+                return (
+                  <ReferenceLine
+                    key={evt.tick}
+                    x={evt.tick}
+                    stroke="rgba(var(--blert-font-color-primary-base), 0.5)"
+                    strokeWidth={2}
+                    strokeDasharray="3 3"
                   >
-                    {evt.nyloWave.wave}
-                  </Label>
-                </ReferenceLine>
-              );
-            })}
-          </AreaChart>
-        </ResponsiveContainer>
-      </HorizontalScrollable>
+                    <Label
+                      stroke="rgba(var(--blert-red-base), 0.7)"
+                      position="bottom"
+                      style={{ fontSize: 13, fontWeight: 100 }}
+                    >
+                      {evt.nyloWave.wave}
+                    </Label>
+                  </ReferenceLine>
+                );
+              })}
+            </AreaChart>
+          </ResponsiveContainer>
+        </HorizontalScrollable>
+      </div>
     </Card>
   );
 });

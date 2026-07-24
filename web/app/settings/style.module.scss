@@ -84,6 +84,26 @@
       }
     }
   }
+
+  :global([data-theme='aero']) & {
+    @include aeroDarkGlass;
+    --blert-font-color-primary: #fff;
+    --blert-font-color-secondary: rgba(255, 255, 255, 0.72);
+
+    .tab:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-bottom-color: transparent;
+    }
+
+    .tab[aria-current='page'] {
+      @include aeroGlassPressed;
+      border-bottom-color: transparent;
+
+      i {
+        color: inherit;
+      }
+    }
+  }
 }
 
 .header {
@@ -218,6 +238,10 @@
       line-height: 1.5;
       max-width: 400px;
     }
+
+    :global([data-theme='aero']) & {
+      @include aeroWell;
+    }
   }
 }
 
@@ -228,6 +252,10 @@
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     padding: 12px;
+  }
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
   }
 
   .keyInfo {
@@ -296,6 +324,23 @@
         opacity: 0.5;
         cursor: not-allowed;
       }
+
+      :global([data-theme='aero']) & {
+        @include aeroButton;
+
+        &:hover {
+          @include aeroButtonHover;
+          color: var(--blert-purple);
+        }
+      }
+
+      :global([data-theme='aero']) &.deleteAction {
+        @include aeroDangerButton;
+
+        &:hover {
+          @include aeroDangerButtonHover;
+        }
+      }
     }
   }
 
@@ -331,6 +376,10 @@
     padding: 16px;
   }
 
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+  }
+
   form {
     display: flex;
     flex-direction: column;
@@ -357,6 +406,10 @@
     padding: 16px;
   }
 
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+  }
+
   form {
     display: flex;
     flex-direction: column;
@@ -370,42 +423,6 @@
       padding: 8px 12px;
       background: rgba(var(--blert-red-base), 0.1);
       border-radius: 6px;
-    }
-  }
-}
-
-.deleteModal {
-  padding: 24px;
-  background: var(--blert-panel-background-color);
-  border-radius: 8px;
-
-  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    padding: 20px;
-  }
-
-  h3 {
-    margin: 0 0 16px 0;
-    color: var(--blert-font-color-primary);
-    font-size: 1.3em;
-  }
-
-  p {
-    margin: 0 0 24px 0;
-    color: var(--blert-font-color-secondary);
-    line-height: 1.5;
-
-    strong {
-      color: var(--blert-font-color-primary);
-    }
-  }
-
-  .modalActions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-
-    button {
-      min-width: 80px;
     }
   }
 }
@@ -430,6 +447,14 @@
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     flex-direction: column;
     text-align: center;
+  }
+
+  :global([data-theme='aero']) & {
+    @include aeroNotice(
+      rgba(236, 250, 240, 0.96),
+      rgba(216, 242, 224, 0.93),
+      rgba(88, 150, 58, 0.5)
+    );
   }
 
   .successIcon {
@@ -489,6 +514,10 @@
     align-items: stretch;
   }
 
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+  }
+
   .accountInfo {
     display: flex;
     align-items: center;
@@ -539,6 +568,14 @@
       opacity: 0.5;
       cursor: not-allowed;
     }
+
+    :global([data-theme='aero']) & {
+      @include aeroDangerButton;
+
+      &:hover:not(:disabled) {
+        @include aeroDangerButtonHover;
+      }
+    }
   }
 }
 
@@ -562,6 +599,10 @@
 
     @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
       padding: 16px;
+    }
+
+    :global([data-theme='aero']) & {
+      @include aeroWell;
     }
 
     .step {
@@ -625,6 +666,10 @@
     &::selection {
       background: rgba(var(--blert-purple-base), 0.3);
     }
+
+    :global([data-theme='aero']) & {
+      background: rgba(var(--blert-surface-light-base), 0.6);
+    }
   }
 
   .codeDisplay {
@@ -648,6 +693,11 @@
 
       @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
         padding: 24px;
+      }
+
+      :global([data-theme='aero']) & {
+        @include aeroWell;
+        border: 2px dashed rgba(var(--blert-purple-base), 0.5);
       }
 
       .codeLabel {
@@ -720,6 +770,21 @@
         i {
           font-size: 1em;
         }
+
+        :global([data-theme='aero']) & {
+          @include aeroButton;
+          color: var(--blert-purple);
+
+          &:hover:not(:disabled) {
+            @include aeroButtonHover;
+            color: var(--blert-purple);
+          }
+
+          &:disabled {
+            color: var(--blert-green);
+            border-color: rgba(var(--blert-green-base), 0.5);
+          }
+        }
       }
 
       .codeExpiry {
@@ -735,6 +800,10 @@
         .time {
           font-family: var(--font-roboto-mono), monospace;
           font-size: 0.95em;
+        }
+
+        :global([data-theme='aero']) & {
+          background: rgba(var(--blert-surface-light-base), 0.6);
         }
       }
     }
@@ -753,28 +822,7 @@
     align-items: center;
     justify-content: center;
     gap: 10px;
-    padding: 12px 24px;
-    background: rgba(var(--blert-purple-base), 0.9);
-    border: none;
-    border-radius: 8px;
-    color: #fff;
-    font-size: 1em;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
     align-self: center;
-
-    &:hover:not(:disabled) {
-      background: rgba(var(--blert-purple-base), 0.8);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(var(--blert-purple-base), 0.4);
-    }
-
-    &:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-      transform: none;
-    }
 
     i {
       font-size: 1.1em;

@@ -42,6 +42,12 @@
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     gap: 20px;
   }
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+    border-radius: 8px;
+    padding: 10px 20px;
+  }
 }
 
 .stat {
@@ -113,6 +119,15 @@
 
     .viewChallenge i {
       transform: translateX(3px);
+    }
+  }
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.98);
+      border-color: rgba(var(--blert-purple-base), 0.5);
     }
   }
 }
@@ -197,6 +212,10 @@
     flex: 1;
     min-width: 120px;
   }
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+  }
 }
 
 .activityIcon {
@@ -238,5 +257,9 @@
   i {
     color: var(--blert-purple);
     font-size: 1rem;
+  }
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
   }
 }

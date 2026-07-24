@@ -152,28 +152,10 @@
     align-items: center;
     gap: 0.5rem;
 
-    button {
+    .pageButton {
       width: 36px;
       height: 36px;
-      border-radius: 6px;
-      background: rgba(var(--blert-purple-base), 0.1);
-      border: 1px solid rgba(var(--blert-purple-base), 0.2);
-      color: var(--blert-purple);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: all 0.2s ease;
-
-      &:disabled {
-        opacity: 0.3;
-        cursor: not-allowed;
-      }
-
-      &:not(:disabled):hover {
-        background: rgba(var(--blert-purple-base), 0.2);
-        transform: translateY(-1px);
-      }
+      padding: 0;
     }
 
     p {

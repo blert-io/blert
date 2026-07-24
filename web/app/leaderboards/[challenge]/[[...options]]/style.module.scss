@@ -1,5 +1,46 @@
 @use '../../../mixins.scss' as *;
 
+// Aero: style the selectors similar to radio buttons.
+@mixin aeroFilterOption {
+  :global([data-theme='aero']) & {
+    background: linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.9),
+      rgba(255, 255, 255, 0.5)
+    );
+    border-color: rgba(255, 255, 255, 0.85);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      0 1px 3px rgba(60, 120, 165, 0.18);
+
+    &:hover {
+      background: linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 1),
+        rgba(255, 255, 255, 0.68)
+      );
+      border-color: rgba(var(--blert-purple-base), 0.45);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.95),
+        0 2px 6px rgba(60, 120, 165, 0.26);
+      color: var(--blert-font-color-primary);
+    }
+
+    &.active {
+      @include aeroActionButton;
+      color: #fff;
+
+      i {
+        color: #fff;
+      }
+
+      &:hover {
+        @include aeroActionButtonHover;
+      }
+    }
+  }
+}
+
 .leaderboards {
   width: 100%;
   padding: 20px;
@@ -85,12 +126,18 @@
         color: var(--blert-font-color-secondary);
         transition: color 0.2s ease;
       }
+
+      @include aeroFilterOption;
     }
   }
 
   .modes {
     display: flex;
     gap: 8px;
+
+    i[data-challenge] {
+      color: var(--challenge-color-text);
+    }
 
     @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
       width: 100%;
@@ -129,6 +176,8 @@
       i {
         font-size: 0.6em;
       }
+
+      @include aeroFilterOption;
     }
   }
 }
@@ -170,6 +219,8 @@
       color: var(--blert-font-color-primary);
       border-color: var(--blert-purple);
     }
+
+    @include aeroFilterOption;
   }
 }
 
@@ -205,6 +256,13 @@
   flex: 1;
   display: flex;
   flex-direction: column;
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+    overflow: hidden;
+    border-radius: 8px;
+    padding: 4px 0;
+  }
 
   .entry {
     display: flex;
@@ -318,6 +376,17 @@
     i {
       font-size: 0.7rem;
     }
+
+    :global([data-theme='aero']) & {
+      background: rgba(224, 238, 250, 0.9);
+      border-color: rgba(120, 165, 200, 0.45);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+
+      &:hover {
+        background: rgba(236, 246, 254, 0.95);
+        border-color: rgba(var(--blert-purple-base), 0.55);
+      }
+    }
   }
 }
 
@@ -333,6 +402,14 @@
     0 8px 24px rgba(0, 0, 0, 0.4),
     0 2px 8px rgba(0, 0, 0, 0.2);
   z-index: 10000;
+
+  :global([data-theme='aero']) & {
+    background: #f2f9ff;
+    border-color: rgba(150, 190, 220, 0.6);
+    box-shadow:
+      0 8px 22px rgba(60, 120, 165, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  }
 }
 
 .popoverHeader {

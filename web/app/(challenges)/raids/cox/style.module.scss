@@ -20,6 +20,33 @@
   align-items: center;
   padding: 24px 48px;
   margin: 0 auto;
+
+  :global([data-theme='aero']) & {
+    background:
+      linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0.5),
+        rgba(232, 246, 254, 0.34)
+      ),
+      radial-gradient(
+        circle 90px at 20% 26%,
+        rgba(255, 255, 255, 0.38),
+        transparent 68%
+      ),
+      radial-gradient(
+        circle 60px at 84% 74%,
+        rgba(255, 255, 255, 0.32),
+        transparent 68%
+      );
+    box-shadow:
+      var(--blert-elevation-1),
+      inset 0 -2px 4px rgba(120, 160, 200, 0.15);
+
+    img {
+      filter: drop-shadow(0 0 1px rgba(58, 22, 42, 0.95))
+        drop-shadow(0 0 8px rgba(150, 28, 40, 0.4));
+    }
+  }
 }
 
 .coxCard {
@@ -102,6 +129,10 @@
       &:not(:last-child) {
         margin-bottom: 12px;
       }
+    }
+
+    :global([data-theme='aero']) & {
+      @include aeroWell;
     }
   }
 }

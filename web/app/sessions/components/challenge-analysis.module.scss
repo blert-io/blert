@@ -70,6 +70,10 @@
   border-radius: 8px;
   border: 1px solid var(--blert-divider-color);
 
+  :global([data-theme='aero']) & {
+    @include aeroRecess;
+  }
+
   i {
     font-size: 2rem;
     opacity: 0.6;
@@ -96,6 +100,10 @@
   padding: 1.5rem;
   background: var(--blert-surface-dark);
   border-radius: 8px;
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+  }
 
   @media (min-width: $COMPACT_WIDTH_THRESHOLD) {
     flex-direction: row;
@@ -203,6 +211,15 @@
   &:hover i {
     color: var(--blert-purple);
   }
+
+  :global([data-theme='aero']) & {
+    @include aeroField(6px);
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.8);
+      border-color: rgba(74, 154, 216, 0.7);
+    }
+  }
 }
 
 .analyticsSection {
@@ -268,6 +285,12 @@
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 1rem;
 
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+    border-radius: 8px;
+    padding: 12px;
+  }
+
   & > * {
     margin: 0 auto;
   }
@@ -283,170 +306,13 @@
   border-radius: 8px;
   padding: 1rem;
   border: 1px solid var(--blert-divider-color);
-}
+  // Derived chart paints; SVG attributes can't use color-mix directly.
+  --analysis-bar-deep: color-mix(in srgb, var(--blert-purple) 78%, black);
+  --analysis-line-bright: color-mix(in srgb, var(--blert-purple) 70%, white);
 
-.tooltipContent {
-  background: var(--blert-panel-background-color);
-  border: 1px solid rgba(var(--blert-purple-base), 0.3);
-  border-radius: 6px;
-  padding: 8px 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.tooltipLabel {
-  font-size: 0.8rem;
-  color: var(--blert-font-color-secondary);
-  margin: 0 0 4px 0;
-}
-
-.tooltipValue {
-  font-family: var(--font-roboto-mono), monospace;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--blert-font-color-primary);
-  margin: 0;
-}
-
-// Distribution table styles
-.distributionTable {
-  background: var(--blert-panel-background-color);
-  border-radius: 8px;
-  border: 1px solid var(--blert-divider-color);
-  overflow: hidden;
-}
-
-.tableHeader {
-  display: grid;
-  grid-template-columns: 1fr 80px 100px 1fr;
-  background: var(--blert-surface-dark);
-  border-bottom: 1px solid var(--blert-divider-color);
-
-  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    grid-template-columns: 1fr 60px 80px 100px;
+  :global([data-theme='aero']) & {
+    @include aeroWell;
   }
-}
-
-.headerCell {
-  padding: 12px 16px;
-  font-weight: 600;
-  font-size: 0.85rem;
-  color: var(--blert-font-color-primary);
-  text-align: left;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-
-  &:last-child {
-    text-align: center;
-  }
-
-  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    padding: 10px 8px;
-    font-size: 0.75rem;
-  }
-}
-
-.tableBody {
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.tableRow {
-  display: grid;
-  grid-template-columns: 1fr 80px 100px 1fr;
-  transition: background-color 0.2s ease;
-
-  &:hover {
-    background: rgba(var(--blert-purple-base), 0.05);
-  }
-
-  &:nth-child(even) {
-    background: rgba(var(--blert-surface-dark-base), 0.3);
-  }
-
-  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    grid-template-columns: 1fr 60px 80px 100px;
-  }
-}
-
-.tableCell {
-  padding: 10px 16px;
-  display: flex;
-  align-items: center;
-  border-bottom: 1px solid rgba(var(--blert-divider-color-base), 0.3);
-
-  &:last-child {
-    justify-content: center;
-    padding: 8px 16px;
-  }
-
-  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    padding: 8px;
-
-    &:last-child {
-      padding: 6px 8px;
-    }
-  }
-}
-
-.valueText {
-  font-family: var(--font-roboto-mono), monospace;
-  font-weight: 600;
-  color: var(--blert-font-color-primary);
-  font-size: 0.9rem;
-
-  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    font-size: 0.8rem;
-  }
-}
-
-.countText {
-  font-family: var(--font-roboto-mono), monospace;
-  font-weight: 500;
-  color: var(--blert-purple);
-  text-align: center;
-  width: 100%;
-
-  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    font-size: 0.8rem;
-  }
-}
-
-.percentageText {
-  font-family: var(--font-roboto-mono), monospace;
-  font-weight: 500;
-  color: var(--blert-font-color-secondary);
-  text-align: right;
-  width: 100%;
-
-  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    font-size: 0.8rem;
-  }
-}
-
-.distributionBar {
-  width: 100%;
-  height: 16px;
-  background: rgba(var(--blert-surface-dark-base), 0.5);
-  border-radius: 8px;
-  overflow: hidden;
-  position: relative;
-
-  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    height: 12px;
-    border-radius: 6px;
-  }
-}
-
-.distributionFill {
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    var(--blert-purple),
-    rgba(var(--blert-purple-base), 0.7)
-  );
-  border-radius: inherit;
-  transition: width 0.3s ease;
-  min-width: 2px;
 }
 
 @keyframes pulse {

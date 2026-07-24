@@ -10,79 +10,92 @@ import {
 
 export function statusNameAndColor(status: ChallengeStatus, stage?: Stage) {
   if (status === ChallengeStatus.IN_PROGRESS) {
-    return ['In Progress', '#FFFFFF'];
+    return ['In Progress', 'var(--blert-status-in-progress)'];
   }
   if (status === ChallengeStatus.COMPLETED) {
     return ['Completion', 'rgba(var(--blert-green-base), 0.9)'];
   }
   if (status === ChallengeStatus.ABANDONED) {
-    return ['Abandoned', '#b9bbb6'];
+    return ['Abandoned', 'var(--blert-status-abandoned)'];
   }
 
   const prefix = stage ? `${stageName(stage)} ` : '';
 
   if (status === ChallengeStatus.RESET) {
-    return [`${prefix}Reset`, 'var(--blert-font-color-primary)'];
+    return [`${prefix}Reset`, 'var(--blert-status-reset)'];
   }
   return [`${prefix}Wipe`, 'rgba(var(--blert-red-base), 0.9)'];
 }
 
-export function modeNameAndColor(
+export function modeName(
   type: ChallengeType,
   difficulty: ChallengeMode,
   prefix: boolean = true,
   short: boolean = false,
-) {
+): string {
   if (type === ChallengeType.COLOSSEUM) {
-    return [short ? 'COL' : 'Colosseum', '#33a4af'];
+    return short ? 'COL' : 'Colosseum';
   }
   if (type === ChallengeType.INFERNO) {
-    return [short ? 'INF' : 'Inferno', '#a14f1a'];
+    return short ? 'INF' : 'Inferno';
   }
   if (type === ChallengeType.MOKHAIOTL) {
-    return [short ? 'MOK' : 'Mokhaiotl', '#c16056'];
+    return short ? 'MOK' : 'Mokhaiotl';
   }
 
   switch (difficulty) {
-    case ChallengeMode.TOB_REGULAR: {
-      let name;
+    case ChallengeMode.TOB_REGULAR:
       if (short) {
-        name = 'TOB';
-      } else {
-        name = prefix ? 'ToB Regular' : 'Regular';
+        return 'TOB';
       }
-      return [name, '#d4ba2b'];
-    }
-    case ChallengeMode.TOB_HARD: {
-      let name;
+      return prefix ? 'ToB Regular' : 'Regular';
+    case ChallengeMode.TOB_HARD:
       if (short) {
-        name = 'HMT';
-      } else {
-        name = prefix ? 'ToB Hard' : 'Hard';
+        return 'HMT';
       }
-      return [name, '#b713b4'];
-    }
-    case ChallengeMode.TOB_ENTRY: {
-      let name;
+      return prefix ? 'ToB Hard' : 'Hard';
+    case ChallengeMode.TOB_ENTRY:
       if (short) {
-        name = 'ENT';
-      } else {
-        name = prefix ? 'ToB Entry' : 'Entry';
+        return 'ENT';
       }
-      return [name, '#b9bbb6'];
-    }
-
+      return prefix ? 'ToB Entry' : 'Entry';
     default:
-      return [short ? 'UNK' : 'Unknown', '#c3c7c9'];
+      return short ? 'UNK' : 'Unknown';
+  }
+}
+
+/** Returns the identity slug for a challenge. */
+export function challengeSlug(
+  type: ChallengeType,
+  mode: ChallengeMode = ChallengeMode.NO_MODE,
+): string {
+  if (type === ChallengeType.COLOSSEUM) {
+    return 'col';
+  }
+  if (type === ChallengeType.INFERNO) {
+    return 'inf';
+  }
+  if (type === ChallengeType.MOKHAIOTL) {
+    return 'mok';
+  }
+
+  switch (mode) {
+    case ChallengeMode.TOB_HARD:
+      return 'hmt';
+    case ChallengeMode.TOB_REGULAR:
+    case ChallengeMode.NO_MODE:
+      return type === ChallengeType.TOB ? 'tob' : 'unk';
+    default:
+      return 'unk';
   }
 }
 
 const SCALE_NAME_AND_COLOR: [string, string][] = [
-  ['Solo', '#0088fe'],
-  ['Duo', '#00c49f'],
-  ['Trio', '#ffbb28'],
-  ['4s', '#ff8042'],
-  ['5s', '#8884d8'],
+  ['Solo', 'var(--blert-scale-1)'],
+  ['Duo', 'var(--blert-scale-2)'],
+  ['Trio', 'var(--blert-scale-3)'],
+  ['4s', 'var(--blert-scale-4)'],
+  ['5s', 'var(--blert-scale-5)'],
 ];
 
 export function scaleNameAndColor(scale: number): [string, string] {

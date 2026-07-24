@@ -53,6 +53,16 @@
       color: var(--blert-purple);
       font-size: 1.2em;
     }
+
+    :global([data-theme='aero']) & {
+      @include aeroNotice;
+      border-radius: 5px;
+      color: var(--blert-font-color-primary);
+
+      i {
+        color: #1f7fd6;
+      }
+    }
   }
 
   .sectionTitle {
@@ -121,6 +131,10 @@
         }
       }
     }
+
+    :global([data-theme='aero']) & {
+      @include aeroWell;
+    }
   }
 
   .links {
@@ -136,6 +150,8 @@
       text-decoration: none;
       cursor: pointer;
       background: var(--blert-panel-background-color);
+      border: 1px solid rgba(var(--blert-purple-base), 0.15);
+      border-radius: 12px;
 
       &:hover {
         transform: translateY(-4px);
@@ -147,8 +163,17 @@
         margin: -10px -30px 10px;
         padding: 20px;
         background: var(--blert-surface-dark);
-        border-radius: 6px 6px 0 0;
+        border-radius: 12px 12px 0 0;
         text-align: center;
+
+        :global([data-theme='aero']) & {
+          background: transparent;
+
+          img {
+            filter: drop-shadow(0 0 1px rgba(58, 22, 42, 0.95))
+              drop-shadow(0 0 8px rgba(150, 28, 40, 0.4));
+          }
+        }
       }
 
       .guideInfo {
@@ -256,6 +281,10 @@
   border-radius: 5px;
   background: var(--blert-surface-dark);
   width: fit-content;
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+  }
 
   .tag {
     user-select: none;

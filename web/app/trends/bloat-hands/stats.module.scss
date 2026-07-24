@@ -10,6 +10,10 @@
     border-radius: 6px;
     padding: 1rem;
 
+    :global([data-theme='aero']) & {
+      @include aeroWell;
+    }
+
     .sectionTitle {
       margin: 0 0 1rem 0;
       font-size: 0.9rem;

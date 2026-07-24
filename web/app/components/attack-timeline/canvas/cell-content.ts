@@ -133,6 +133,12 @@ function drawCachedImage(
   return true;
 }
 
+/** Soft dark halo that keeps text legible on brighter cells. */
+function applyLabelShadow(ctx: CanvasRenderingContext2D): void {
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+  ctx.shadowBlur = 3;
+}
+
 /** Draws a small text label at the given position. */
 function drawLabel(
   ctx: CanvasRenderingContext2D,
@@ -141,11 +147,14 @@ function drawLabel(
   fontSize: number,
   color: string,
 ): void {
+  ctx.save();
   ctx.font = `bold ${fontSize}px 'Plus Jakarta Sans', sans-serif`;
   ctx.fillStyle = color;
   ctx.textAlign = 'right';
   ctx.textBaseline = 'bottom';
+  applyLabelShadow(ctx);
   ctx.fillText(text, pos.x, pos.y);
+  ctx.restore();
 }
 
 // Blunder transform constants.
@@ -565,19 +574,25 @@ function drawCustomStates(
       height: iconSize,
     });
   } else if (first.label !== undefined) {
+    ctx.save();
     ctx.font = `bold 8px 'Plus Jakarta Sans', sans-serif`;
     ctx.fillStyle = palette.textPrimary;
     ctx.textAlign = 'right';
     ctx.textBaseline = 'top';
+    applyLabelShadow(ctx);
     ctx.fillText(first.label, cellPos.x + cellSize, cellPos.y);
+    ctx.restore();
   }
 
   if (states.length > 1) {
+    ctx.save();
     ctx.font = `bold 8px 'Plus Jakarta Sans', sans-serif`;
     ctx.fillStyle = palette.blertAccent;
     ctx.textAlign = 'right';
     ctx.textBaseline = 'top';
+    applyLabelShadow(ctx);
     ctx.fillText('+', cellPos.x + cellSize, cellPos.y + iconSize);
+    ctx.restore();
   }
 
   return allDrawn;

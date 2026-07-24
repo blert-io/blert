@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { authClient } from '@/auth-client';
+import { ButtonLink } from '@/components/button';
 import { useToast } from '@/components/toast';
 import { useClientOnly } from '@/hooks/client-only';
 
@@ -100,34 +101,36 @@ export default function AccountStatus({
           <div className={styles.username} title={username}>
             {username}
           </div>
-          <Link
-            className={styles.iconAction}
-            href="/settings"
-            title="Settings"
-            aria-label="Settings"
-          >
-            <i className="fa-solid fa-gear" />
-          </Link>
-          <button
-            className={styles.iconAction}
-            title="Log out"
-            aria-label="Log out"
-            onClick={() =>
-              void authClient.signOut({
-                fetchOptions: {
-                  onSuccess: () => {
-                    const isProtected = PROTECTED_ROUTES.some((route) =>
-                      currentPath.startsWith(route),
-                    );
-                    router.replace(isProtected ? '/' : currentUrl);
-                    showToast('Logged out of Blert');
+          <div className={styles.actions}>
+            <Link
+              className={styles.iconAction}
+              href="/settings"
+              title="Settings"
+              aria-label="Settings"
+            >
+              <i className="fa-solid fa-gear" />
+            </Link>
+            <button
+              className={styles.iconAction}
+              title="Log out"
+              aria-label="Log out"
+              onClick={() =>
+                void authClient.signOut({
+                  fetchOptions: {
+                    onSuccess: () => {
+                      const isProtected = PROTECTED_ROUTES.some((route) =>
+                        currentPath.startsWith(route),
+                      );
+                      router.replace(isProtected ? '/' : currentUrl);
+                      showToast('Logged out of Blert');
+                    },
                   },
-                },
-              })
-            }
-          >
-            <i className="fa-solid fa-right-from-bracket" />
-          </button>
+                })
+              }
+            >
+              <i className="fa-solid fa-right-from-bracket" />
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -159,20 +162,21 @@ export default function AccountStatus({
   return (
     <div className={styles.account}>
       <div className={styles.authButtons}>
-        <Link
-          className={`${styles.authButton} ${styles.login}`}
+        <ButtonLink
+          className={styles.authButton}
+          simple
           href={`/login${redirectParams}`}
         >
           <i className="fa-solid fa-right-to-bracket" />
           <span>Log In</span>
-        </Link>
-        <Link
-          className={`${styles.authButton} ${styles.signup}`}
+        </ButtonLink>
+        <ButtonLink
+          className={styles.authButton}
           href={`/register${redirectParams}`}
         >
           <i className="fa-solid fa-user-plus" />
           <span>Sign Up</span>
-        </Link>
+        </ButtonLink>
       </div>
     </div>
   );

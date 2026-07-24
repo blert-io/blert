@@ -65,5 +65,16 @@
       color: var(--blert-purple);
       background: rgba(var(--blert-purple-base), 0.1);
     }
+
+    // Aero: match the input's border radius.
+    :global([data-theme='aero']) & button {
+      &:first-child {
+        border-radius: 0 0 0 10px;
+      }
+
+      &:last-child {
+        border-radius: 0 0 10px 0;
+      }
+    }
   }
 }

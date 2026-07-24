@@ -9,8 +9,9 @@ import { useToast } from '@/components/toast/toast';
 import { useClientOnly } from '@/hooks/client-only';
 import { challengeLogo } from '@/logo';
 import {
+  challengeSlug,
   challengeTerm,
-  modeNameAndColor,
+  modeName,
   scaleNameAndColor,
 } from '@/utils/challenge';
 
@@ -33,11 +34,8 @@ export default function SessionHeader() {
   const isLive = session.status === SessionStatus.ACTIVE;
   const timeReference = isLive ? session.startTime : session.endTime!;
 
-  const [modeName, modeColor] = modeNameAndColor(
-    session.challengeType,
-    session.challengeMode,
-  );
-  const [scaleName, scaleColor] = scaleNameAndColor(session.scale);
+  const mode = modeName(session.challengeType, session.challengeMode);
+  const [scaleName] = scaleNameAndColor(session.scale);
 
   const handleShare = async () => {
     if (navigator.share) {
@@ -130,13 +128,19 @@ export default function SessionHeader() {
           </div>
 
           <div className={styles.sessionBadges}>
-            <div className={styles.badge} style={{ borderColor: modeColor }}>
-              <i className="fas fa-trophy" style={{ color: modeColor }} />
-              <span>{modeName}</span>
+            <div
+              className={styles.badge}
+              data-challenge={challengeSlug(
+                session.challengeType,
+                session.challengeMode,
+              )}
+            >
+              <i className="fas fa-trophy" />
+              <span>{mode}</span>
             </div>
 
-            <div className={styles.badge} style={{ borderColor: scaleColor }}>
-              <i className="fas fa-users" style={{ color: scaleColor }} />
+            <div className={styles.badge} data-scale={session.scale}>
+              <i className="fas fa-users" />
               <span>{scaleName}</span>
             </div>
 

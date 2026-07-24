@@ -15,7 +15,8 @@ import PlayerLink from '@/components/player-link';
 import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 import { useClientOnly } from '@/hooks/client-only';
 import {
-  modeNameAndColor,
+  challengeSlug,
+  modeName,
   statusNameAndColor,
   scaleNameAndColor,
 } from '@/utils/challenge';
@@ -53,10 +54,7 @@ function ChallengeItem({
     challenge.status,
     challenge.stage,
   );
-  const [modeString, modeColor] = modeNameAndColor(
-    challenge.type,
-    challenge.mode,
-  );
+  const modeString = modeName(challenge.type, challenge.mode);
 
   const getStatusIcon = (status: ChallengeStatus) => {
     switch (status) {
@@ -86,8 +84,11 @@ function ChallengeItem({
       </div>
 
       <div className={styles.challengeDetails}>
-        <div className={styles.challengeDetail} style={{ color: modeColor }}>
-          <i className="fas fa-trophy" style={{ color: modeColor }} />
+        <div
+          className={styles.challengeDetail}
+          data-challenge={challengeSlug(challenge.type, challenge.mode)}
+        >
+          <i className="fas fa-trophy" />
           <span>{modeString}</span>
         </div>
 
@@ -230,12 +231,7 @@ function SessionCard({
               </span>
               <span className={styles.separator}>•</span>
               <span>
-                {
-                  modeNameAndColor(
-                    session.challengeType,
-                    session.challengeMode,
-                  )[0]
-                }
+                {modeName(session.challengeType, session.challengeMode)}
               </span>
               <span className={styles.separator}>•</span>
               <span>{scaleNameAndColor(session.scale)[0]}</span>

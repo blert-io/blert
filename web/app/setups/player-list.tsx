@@ -50,8 +50,26 @@ export default function PlayerList({
   const addPlayerButton = (
     <div className={styles.addPlayer}>
       <button onClick={onAddPlayer}>
-        <i className="fas fa-plus" />
-        <span>{renderCarousel ? 'Add player' : 'Add'}</span>
+        {renderCarousel ? (
+          <>
+            <i className="fas fa-plus" />
+            <span>Add player</span>
+          </>
+        ) : (
+          <>
+            <div className={styles.addPlayerSkeleton} aria-hidden>
+              <div className={styles.skeletonName} />
+              <div className={styles.skeletonEquipment} />
+              <div className={styles.skeletonInventory} />
+              <div className={styles.skeletonPouch} />
+              <div className={styles.skeletonSpellbook} />
+            </div>
+            <span className={styles.addPlayerLabel}>
+              <i className="fas fa-plus" />
+              <span>Add player</span>
+            </span>
+          </>
+        )}
       </button>
     </div>
   );
@@ -85,7 +103,7 @@ export default function PlayerList({
   const minContainerWidth = playersPerRow * playerWidth + totalGap;
 
   return (
-    <Card className={classes.join(' ')}>
+    <Card className={classes.join(' ')} fixed>
       <div className={styles.wrapper} style={{ width: '100%' }}>
         <div
           className={styles.list}

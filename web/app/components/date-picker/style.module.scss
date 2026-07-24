@@ -1,3 +1,5 @@
+@use '../../mixins.scss' as *;
+
 .dateInput {
   background: none;
   font-size: 16px;
@@ -20,5 +22,13 @@
 
   &::placeholder {
     color: var(--blert-font-color-secondary);
+  }
+
+  :global([data-theme='aero']) & {
+    @include aeroField;
+
+    &:hover {
+      border-color: rgba(74, 154, 216, 0.9);
+    }
   }
 }

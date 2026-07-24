@@ -1,8 +1,9 @@
 @mixin panel {
   display: flex;
-  background-color: var(--blert-panel-background-color);
-  box-shadow: 0 0 5px 0 rgba(0, 0, 0, 0.5);
-  border-radius: 5px;
+  background: var(--blert-panel-surface);
+  backdrop-filter: var(--blert-panel-blur);
+  box-shadow: var(--blert-elevation-1);
+  border-radius: var(--blert-radius);
 }
 
 @mixin hideTheFuckingScrollbarsJesusChrist {
@@ -20,7 +21,7 @@
   }
 
   &::-webkit-scrollbar-track {
-    background: #23242f;
+    background: var(--blert-surface-light);
     border-radius: 2px;
   }
 
@@ -38,3 +39,351 @@ $LEFT_NAV_WIDTH: 240px;
 
 // Keep this in sync with `components/topbar/topbar.tsx`.
 $TOPBAR_HEIGHT: 60px;
+
+// =============================================================================
+// AERO
+// =============================================================================
+
+// Frosted input field.
+@mixin aeroField($radius: 10px) {
+  background: var(--aero-field-bg, rgba(255, 255, 255, 0.55));
+  border: 1px solid var(--aero-field-border, rgba(120, 165, 200, 0.5));
+  border-radius: $radius;
+  box-shadow: inset 0 1px 3px rgba(60, 120, 165, 0.12);
+
+  &:focus {
+    @include aeroFieldFocus;
+  }
+}
+
+@mixin aeroFieldFocus {
+  border: 1px solid rgba(74, 154, 216, 0.9);
+  background: var(--aero-field-focus-bg, rgba(255, 255, 255, 0.8));
+  box-shadow:
+    inset 0 1px 2px rgba(60, 120, 165, 0.1),
+    0 0 5px 1px rgba(104, 178, 236, 0.65);
+}
+
+// Recessed content well for surfaces on glass.
+@mixin aeroWell($bg: var(--blert-aero-well, rgba(255, 255, 255, 0.9))) {
+  background: $bg;
+  border: 1px solid rgba(112, 156, 196, 0.5);
+  box-shadow:
+    inset 0 1px 3px rgba(40, 90, 130, 0.16),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.6);
+}
+
+// Shallow tinted recess for surfaces with no content of their own: empty
+// states, placeholders, and skeletons.
+@mixin aeroRecess {
+  background: rgba(var(--blert-surface-light-base), 0.4);
+  border: 1px solid rgba(112, 156, 196, 0.55);
+  box-shadow: inset 0 1px 3px rgba(40, 90, 130, 0.12);
+}
+
+// Recessed tray. An optional framing tier between a glass panel and the wells
+// or cells it holds. `$shadow` adds one outer shadow beside the recess insets.
+@mixin aeroTray(
+  $fill: rgba(158, 205, 228, 0.5),
+  $border: rgba(96, 146, 186, 0.5),
+  $shadow: null
+) {
+  $insets: (
+    inset 0 2px 7px rgba(30, 78, 118, 0.2),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.5)
+  );
+
+  background: $fill;
+  border: 1px solid $border;
+  box-shadow: if($shadow == null, $insets, append($insets, $shadow, comma));
+}
+
+@mixin aeroTrayHover($border: rgba(96, 146, 186, 0.7), $shadow: null) {
+  $insets: (
+    inset 0 2px 8px rgba(30, 78, 118, 0.24),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.5)
+  );
+
+  border-color: $border;
+  box-shadow: if($shadow == null, $insets, append($insets, $shadow, comma));
+}
+
+// System notice styling for status messages.
+@mixin aeroNotice(
+  $top: rgba(232, 243, 253, 0.96),
+  $bottom: rgba(212, 233, 249, 0.93),
+  $border: rgba(120, 165, 200, 0.6)
+) {
+  background: linear-gradient(to bottom, $top, $bottom);
+  border: 1px solid $border;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    0 1px 2px rgba(60, 120, 165, 0.15);
+}
+
+// Non-primary button.
+@mixin aeroGlossButton($fill, $border, $shadow, $emboss) {
+  color: #fff;
+  border: 1px solid rgba($border, 0.7);
+  border-radius: 8px;
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.5),
+      rgba(255, 255, 255, 0.12) 48%,
+      rgba(0, 0, 0, 0) 49%,
+      rgba(0, 0, 0, 0.1)
+    ),
+    $fill;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 1px 2px rgba($shadow, 0.3);
+  text-shadow: 0 1px 1px rgba($emboss, 0.4);
+  transition: all 0.2s ease;
+}
+
+@mixin aeroGlossButtonHover($fill, $border, $shadow) {
+  color: #fff;
+  border-color: rgba($border, 0.8);
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.65),
+      rgba(255, 255, 255, 0.2) 48%,
+      rgba(255, 255, 255, 0.04) 49%,
+      rgba(0, 0, 0, 0.05)
+    ),
+    $fill;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 2px 5px rgba($shadow, 0.35);
+  cursor: pointer;
+}
+
+// Primary button.
+@mixin aeroActionButton {
+  @include aeroGlossButton(
+    var(--blert-aero-action),
+    rgb(58, 118, 34),
+    rgb(40, 90, 40),
+    rgb(30, 70, 20)
+  );
+}
+
+@mixin aeroActionButtonHover {
+  @include aeroGlossButtonHover(
+    var(--blert-aero-action),
+    rgb(58, 118, 34),
+    rgb(40, 90, 40)
+  );
+}
+
+// Destructive button.
+@mixin aeroDangerButton {
+  @include aeroGlossButton(
+    var(--blert-red),
+    rgb(150, 42, 38),
+    rgb(110, 35, 30),
+    rgb(85, 25, 20)
+  );
+}
+
+@mixin aeroDangerButtonHover {
+  @include aeroGlossButtonHover(
+    var(--blert-red),
+    rgb(150, 42, 38),
+    rgb(110, 35, 30)
+  );
+}
+
+@mixin aeroButton {
+  color: var(--blert-font-color-primary);
+  border: 1px solid var(--aero-simple-border, rgba(112, 156, 196, 0.5));
+  border-radius: 8px;
+  background: var(
+    --aero-simple-bg,
+    linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.97) 0%,
+      rgba(255, 255, 255, 0.72) 47%,
+      rgba(238, 248, 255, 0.42) 48%,
+      rgba(255, 255, 255, 0.58) 100%
+    )
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -2px 3px rgba(60, 120, 165, 0.14),
+    0 2px 5px rgba(60, 120, 165, 0.22);
+  text-shadow: none;
+  transition: all 0.2s ease;
+}
+
+@mixin aeroButtonHover {
+  color: var(--blert-font-color-primary);
+  border-color: var(
+    --aero-simple-border-hover,
+    rgba(var(--blert-purple-base), 0.5)
+  );
+  background: var(
+    --aero-simple-bg-hover,
+    linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 1) 0%,
+      rgba(255, 255, 255, 0.86) 47%,
+      rgba(238, 248, 255, 0.58) 48%,
+      rgba(255, 255, 255, 0.72) 100%
+    )
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -2px 3px rgba(60, 120, 165, 0.1),
+    0 3px 8px rgba(60, 120, 165, 0.3);
+  cursor: pointer;
+}
+
+// Glossy gel tile behind a heading/icon glyph.
+@mixin aeroIconPlate {
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.55),
+      rgba(255, 255, 255, 0.15) 48%,
+      rgba(255, 255, 255, 0) 49%,
+      rgba(0, 0, 0, 0.04)
+    ),
+    rgba(var(--blert-surface-light-base), 0.9);
+  border: 1px solid rgba(112, 156, 196, 0.45);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 1px 2px rgba(60, 120, 165, 0.2);
+}
+
+// It's a checkbox.
+@mixin aeroCheckbox {
+  border: 1px solid rgba(110, 160, 200, 0.75);
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.92),
+    rgba(224, 240, 250, 0.75)
+  );
+  box-shadow: inset 0 1px 2px rgba(40, 100, 150, 0.22);
+}
+
+@mixin aeroCheckboxChecked {
+  color: #14430c;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+  background: linear-gradient(
+    to bottom,
+    rgba(196, 232, 150, 0.95),
+    rgba(120, 190, 80, 0.92)
+  );
+  border-color: rgba(88, 150, 58, 0.85);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 -1px 2px rgba(40, 90, 20, 0.25);
+}
+
+// Thinner frosted panel for hero elements at the top of a page.
+@mixin aeroSkyWindow {
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.5),
+      rgba(232, 246, 254, 0.34)
+    ),
+    radial-gradient(
+      circle 80px at 50% 30%,
+      rgba(255, 255, 255, 0.55),
+      transparent 66%
+    ),
+    radial-gradient(
+      circle 50px at 68% 74%,
+      rgba(255, 255, 255, 0.42),
+      transparent 66%
+    ),
+    radial-gradient(
+      circle 110px at 82% 42%,
+      rgba(255, 255, 255, 0.4),
+      transparent 68%
+    ),
+    radial-gradient(
+      circle 44px at 60% 88%,
+      rgba(255, 255, 255, 0.45),
+      transparent 66%
+    );
+  box-shadow:
+    var(--blert-elevation-1),
+    inset 0 -2px 4px rgba(120, 160, 200, 0.15);
+}
+
+// Pressed state for a flat control sitting on dark glass.
+@mixin aeroGlassPressed {
+  background: linear-gradient(
+    to bottom,
+    rgba(14, 38, 46, 0.72),
+    rgba(26, 52, 60, 0.64)
+  );
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.4),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.1);
+}
+
+// Dark glass surface.
+@mixin aeroDarkGlass {
+  background: linear-gradient(
+    to bottom,
+    rgba(24, 54, 60, 0.72),
+    rgba(14, 38, 48, 0.82)
+  );
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 4px 18px rgba(16, 44, 54, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+// A key for shortcut hints.
+@mixin aeroKeycap {
+  background: linear-gradient(to bottom, #fff, #e8f2fa);
+  border-color: rgba(120, 165, 200, 0.6);
+  color: var(--blert-font-color-primary);
+  box-shadow:
+    0 1px 0 rgba(96, 146, 186, 0.5),
+    inset 0 1px 0 #fff;
+}
+
+// Cell for holding game item sprites.
+@mixin aeroSpriteCell {
+  background: rgba(18, 42, 62, 0.55);
+  border-radius: 5px;
+  box-shadow: inset 0 1px 3px rgba(0, 18, 36, 0.5);
+}
+
+@mixin aeroSpriteCellHover {
+  background: rgba(52, 92, 124, 0.66);
+}
+
+// Pale blue chrome strip for toolbars and status bars.
+@mixin aeroChromeStrip {
+  background: linear-gradient(
+    to bottom,
+    rgba(250, 253, 255, 0.97),
+    rgba(226, 239, 249, 0.95) 48%,
+    rgba(211, 230, 244, 0.95) 49%,
+    rgba(223, 237, 249, 0.97)
+  );
+}
+
+// Hover state for buttons on the above strip.
+@mixin aeroToolbarHover {
+  background: linear-gradient(to bottom, #fff5cc, #ffe8a6);
+  border-color: #e5c365;
+  color: var(--blert-font-color-primary);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+@mixin aeroToolbarActive {
+  background: linear-gradient(to bottom, #ffe8a6, #ffd767);
+  border-color: #c2923c;
+  color: color-mix(in srgb, var(--blert-accent-complement) 55%, black);
+  box-shadow: inset 0 1px 2px rgba(140, 100, 20, 0.35);
+}

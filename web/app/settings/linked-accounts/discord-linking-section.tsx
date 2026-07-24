@@ -8,6 +8,7 @@ import {
   getDiscordLinkStatus,
   unlinkDiscord,
 } from '@/actions/users';
+import Button from '@/components/button';
 import ConfirmationModal from '@/components/confirmation-modal';
 import { useToast } from '@/components/toast';
 import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
@@ -326,7 +327,7 @@ export default function DiscordLinkingSection({
                 </p>
               </div>
             ) : (
-              <button
+              <Button
                 className={styles.generateButton}
                 onClick={() => void handleGenerateCode()}
                 disabled={isGenerating}
@@ -342,7 +343,7 @@ export default function DiscordLinkingSection({
                     Generate Linking Code
                   </>
                 )}
-              </button>
+              </Button>
             )}
           </div>
         )}

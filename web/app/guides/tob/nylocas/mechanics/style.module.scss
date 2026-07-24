@@ -33,6 +33,12 @@
     background: rgba(255, 255, 255, 0.06);
     vertical-align: middle;
 
+    // Make nylo colors legible on white.
+    :global([data-theme='aero']) & {
+      background: #262b33;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+    }
+
     .seg {
       width: 10px;
       height: 10px;
@@ -82,6 +88,10 @@
     background: rgba(var(--blert-purple-base), 0.2);
     color: white;
     font-weight: 700;
+
+    :global([data-theme='aero']) & {
+      color: var(--blert-font-color-primary);
+    }
   }
 }
 

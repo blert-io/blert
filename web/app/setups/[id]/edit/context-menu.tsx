@@ -285,17 +285,12 @@ function CommentModal({
       : null;
 
   return (
-    <Modal className={styles.commentModal} open={open} onClose={onClose}>
-      <div className={styles.modalHeader}>
-        <h2>
-          <i className="fas fa-comment" />
-          {existingComment ? 'Edit' : 'Add'} Comment
-        </h2>
-        <button onClick={onClose}>
-          <i className="fas fa-times" />
-          <span className="sr-only">Close</span>
-        </button>
-      </div>
+    <Modal
+      className={styles.commentModal}
+      header={`${existingComment ? 'Edit' : 'Add'} Comment`}
+      open={open}
+      onClose={onClose}
+    >
       <div className={styles.commentDialog}>
         <textarea
           value={comment}

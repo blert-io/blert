@@ -4,6 +4,7 @@ import { ChallengeMode } from '@blert/common';
 import { useState, useEffect, useCallback } from 'react';
 
 import { BloatHandsResponse } from '@/actions/theatre';
+import Button from '@/components/button';
 
 import BloatHandsControls, { BloatHandsFilters, DisplayMode } from './controls';
 import BloatHandsStats from './stats';
@@ -21,9 +22,9 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
         <h3>Failed to load bloat hand data</h3>
         <p>There was a problem fetching the spawn pattern analysis.</p>
       </div>
-      <button onClick={onRetry} className={styles.retryButton}>
+      <Button onClick={onRetry} className={styles.retryButton}>
         <i className="fas fa-sync-alt" /> Try Again
-      </button>
+      </Button>
     </div>
   );
 }

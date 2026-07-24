@@ -45,38 +45,6 @@
   }
 }
 
-.emptyState {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 24px 16px;
-  background: var(--blert-surface-dark);
-  border-radius: 6px;
-  color: var(--blert-font-color-secondary);
-  text-align: center;
-
-  i {
-    font-size: 1.25em;
-    opacity: 0.6;
-  }
-
-  p {
-    margin: 0;
-    font-size: 0.9rem;
-  }
-}
-
-.playerList {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
 .viewAllLink {
   display: flex;
   align-items: center;
@@ -100,6 +68,16 @@
 
     i {
       transform: translateX(3px);
+    }
+  }
+
+  :global([data-theme='aero']) & {
+    @include aeroButton;
+    color: var(--blert-purple);
+
+    &:hover {
+      @include aeroButtonHover;
+      color: var(--blert-purple);
     }
   }
 }

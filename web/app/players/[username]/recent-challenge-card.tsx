@@ -16,7 +16,7 @@ import { useClientOnly } from '@/hooks/client-only';
 import { useVisibleInterval } from '@/hooks/visible-interval';
 import { challengeLogo } from '@/logo';
 import {
-  modeNameAndColor,
+  modeName,
   scaleNameAndColor,
   statusNameAndColor,
 } from '@/utils/challenge';
@@ -83,7 +83,7 @@ export default function RecentChallengeCard({
 
   const isLive = challenge.status === ChallengeStatus.IN_PROGRESS;
   const [scaleString] = scaleNameAndColor(challenge.scale);
-  const [modeString] = modeNameAndColor(challenge.type, challenge.mode, false);
+  const modeString = modeName(challenge.type, challenge.mode, false);
   const [statusLabel, statusColor] = statusNameAndColor(
     challenge.status,
     challenge.stage,

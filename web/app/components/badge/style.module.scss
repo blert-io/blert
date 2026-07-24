@@ -1,3 +1,5 @@
+@use '../../mixins.scss' as *;
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -10,11 +12,27 @@
   transition: all 0.2s ease;
   text-decoration: none;
 
+  // Aero: light blue chip so it reads on a white background.
+  :global([data-theme='aero']) & {
+    background: rgba(224, 238, 250, 0.9);
+    border: 1px solid rgba(120, 165, 200, 0.45);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  }
+
   &.link {
+    outline: 1px solid transparent;
+
     &:hover {
       transform: translateY(-1px);
       background: var(--blert-surface-light);
       outline: 1px solid var(--blert-purple);
+    }
+
+    :global([data-theme='aero']) &:hover {
+      transform: none;
+      background: rgba(236, 246, 254, 0.95);
+      outline-color: transparent;
+      border-color: rgba(var(--blert-purple-base), 0.55);
     }
   }
 

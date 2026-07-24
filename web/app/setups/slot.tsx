@@ -366,7 +366,7 @@ export function SlotTooltipRenderer({
   );
 }
 
-const SEARCH_WIDTH = 320;
+const SEARCH_WIDTH = 328;
 
 function SlotSearch(props: {
   id: string;
@@ -401,7 +401,7 @@ function SlotSearch(props: {
     return null;
   }
 
-  const position = { left: 0, top: 0, width: SEARCH_WIDTH };
+  const position = { left: 0, top: 0 };
   const slotRect = props.slotRef.current?.getBoundingClientRect();
   if (slotRect !== undefined) {
     position.top = slotRect.top + slotRect.height;

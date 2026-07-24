@@ -36,6 +36,10 @@
     );
   }
 
+  :global([data-theme='aero']) &::before {
+    display: none;
+  }
+
   h1 {
     font-size: 2.4rem;
     margin: 0 0 0.6rem 0;
@@ -48,6 +52,11 @@
     -webkit-text-fill-color: transparent;
     background-clip: text;
     font-weight: 700;
+
+    :global([data-theme='aero']) & {
+      background: none;
+      -webkit-text-fill-color: var(--blert-font-color-primary);
+    }
   }
 }
 
@@ -110,6 +119,14 @@
   i {
     margin-right: 4px;
   }
+
+  :global([data-theme='aero']) & {
+    @include aeroButton;
+
+    &:hover {
+      @include aeroButtonHover;
+    }
+  }
 }
 
 .myRaidsButton {
@@ -125,6 +142,14 @@
     cursor: pointer;
     background: rgba(var(--blert-purple-base), 0.2);
     border-color: rgba(var(--blert-purple-base), 0.6);
+  }
+
+  :global([data-theme='aero']) & {
+    @include aeroButton;
+
+    &:hover {
+      @include aeroButtonHover;
+    }
   }
 }
 
@@ -233,6 +258,26 @@
     border-color: rgba(var(--blert-red-base), 0.4);
     background: rgba(var(--blert-red-base), 0.04);
   }
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+
+    &.computed {
+      @include aeroWell(color-mix(in srgb, var(--blert-purple) 10%, white));
+      border-style: dashed;
+      border-color: rgba(var(--blert-purple-base), 0.6);
+    }
+
+    &.imported {
+      @include aeroWell(color-mix(in srgb, var(--blert-green) 12%, white));
+      border-color: rgba(var(--blert-green-base), 0.6);
+    }
+
+    &.infeasible {
+      @include aeroWell(color-mix(in srgb, var(--blert-red) 10%, white));
+      border-color: rgba(var(--blert-red-base), 0.6);
+    }
+  }
 }
 
 .roomImageContainer {
@@ -262,6 +307,11 @@
   flex-shrink: 0;
   border-radius: 4px;
   object-fit: contain;
+
+  :global([data-theme='aero']) & {
+    background: rgba(var(--blert-surface-light-base), 0.7);
+    border: 1px solid rgba(112, 156, 196, 0.35);
+  }
 }
 
 .roomInput {
@@ -403,6 +453,12 @@
   justify-content: center;
   gap: 0.25rem;
   text-align: center;
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+    border-radius: 8px;
+    padding: 16px;
+  }
 }
 
 .heroValue {
@@ -459,6 +515,14 @@
   overflow-x: auto;
 }
 
+.distributionResults {
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+    border-radius: 8px;
+    padding: 12px;
+  }
+}
+
 .roomTabs {
   margin-bottom: 1rem;
   overflow-x: auto;
@@ -481,6 +545,11 @@
   background: rgba(var(--blert-surface-dark-base), 0.4);
   border: 1px solid rgba(var(--blert-surface-light-base), 0.3);
   min-width: 80px;
+
+  :global([data-theme='aero']) & {
+    background: rgba(var(--blert-surface-light-base), 0.55);
+    border-color: rgba(112, 156, 196, 0.35);
+  }
 }
 
 .statLabel {
@@ -508,6 +577,19 @@
   color: var(--blert-yellow);
   background: rgba(var(--blert-yellow-base), 0.08);
   border: 1px solid rgba(var(--blert-yellow-base), 0.2);
+
+  :global([data-theme='aero']) & {
+    @include aeroNotice(
+      rgba(255, 247, 230, 0.96),
+      rgba(252, 238, 210, 0.93),
+      rgba(220, 165, 90, 0.6)
+    );
+    color: var(--blert-font-color-primary);
+
+    i {
+      color: #d68a1a;
+    }
+  }
 }
 
 .heroWarning {

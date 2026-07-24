@@ -1,10 +1,89 @@
 @use '../../mixins.scss' as *;
 
+// The glossy Vista taskbar button material shared by the nav items.
+@mixin aeroTaskbarButton {
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.18),
+      rgba(255, 255, 255, 0.06) 45%,
+      rgba(255, 255, 255, 0) 46%,
+      rgba(255, 255, 255, 0.04)
+    ),
+    linear-gradient(to bottom, rgba(46, 78, 86, 0.55), rgba(22, 46, 54, 0.65));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+@mixin aeroTaskbarButtonHover {
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.3),
+      rgba(255, 255, 255, 0.1) 45%,
+      rgba(255, 255, 255, 0.02) 46%,
+      rgba(255, 255, 255, 0.08)
+    ),
+    linear-gradient(to bottom, rgba(62, 98, 106, 0.62), rgba(30, 56, 64, 0.7));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    0 1px 3px rgba(0, 0, 0, 0.32);
+}
+
+@mixin aeroTaskbarButtonActive {
+  background: linear-gradient(
+    to bottom,
+    rgba(14, 38, 46, 0.72),
+    rgba(26, 52, 60, 0.64)
+  );
+  border-color: rgba(0, 0, 0, 0.42);
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.4),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.1);
+}
+
+// Dark graphite glossy Vista start menu button.
+@mixin aeroStartButton {
+  border: 1px solid rgba(0, 0, 0, 0.4);
+  background: linear-gradient(
+    to bottom,
+    rgba(74, 96, 102, 0.85) 0%,
+    rgba(50, 70, 76, 0.85) 49%,
+    rgba(20, 36, 42, 0.9) 50%,
+    rgba(34, 52, 58, 0.9) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.35),
+    0 1px 1px rgba(0, 0, 0, 0.3);
+  color: rgba(255, 255, 255, 0.82);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+@mixin aeroStartButtonHover {
+  border-color: rgba(92, 54, 10, 0.7);
+  background: linear-gradient(
+    to bottom,
+    rgba(226, 176, 96, 0.95) 0%,
+    rgba(206, 146, 64, 0.95) 49%,
+    rgba(150, 92, 26, 0.96) 50%,
+    rgba(184, 124, 48, 0.96) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 244, 214, 0.55),
+    inset 0 0 8px rgba(255, 202, 120, 0.5),
+    0 0 9px rgba(240, 172, 72, 0.6);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(90, 45, 0, 0.6);
+}
+
 .leftNavWrapper {
-  height: 100%;
+  height: calc(100% + 1px);
   z-index: 50;
   position: fixed;
-  top: 0;
+  top: -1px;
 }
 
 .leftNavWrapperUnmounted {
@@ -20,11 +99,46 @@
   flex-direction: column;
   height: 100%;
   width: var(--left-nav-width, $LEFT_NAV_WIDTH);
-  background: var(--blert-surface-dark);
+  background: var(--blert-nav-surface);
   overflow-y: scroll;
   transition: width 0.3s ease;
   border-radius: 0;
   position: relative;
+
+  // Aero: a dark glass "start menu"-style sidebar.
+  :global([data-theme='aero']) & {
+    --blert-nav-surface: linear-gradient(
+      to bottom,
+      rgba(24, 54, 60, 0.7),
+      rgba(14, 38, 48, 0.82)
+    );
+    --blert-font-color-primary: #fff;
+    --blert-font-color-secondary: rgba(255, 255, 255, 0.72);
+    --blert-font-color-primary-base: 255, 255, 255;
+    --blert-font-color-secondary-base: 200, 220, 226;
+    --blert-font-color-secondary-active: #fff;
+    --blert-surface-light: rgba(255, 255, 255, 0.14);
+    --blert-surface-dark: rgba(255, 255, 255, 0.08);
+    --blert-divider-color: rgba(255, 255, 255, 0.16);
+
+    // Re-tint the simple button to dark glass, keeping the specular break.
+    --aero-simple-border: rgba(255, 255, 255, 0.35);
+    --aero-simple-bg: linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.28) 0%,
+      rgba(255, 255, 255, 0.12) 47%,
+      rgba(255, 255, 255, 0.02) 48%,
+      rgba(255, 255, 255, 0.08) 100%
+    );
+    --aero-simple-border-hover: rgba(255, 255, 255, 0.55);
+    --aero-simple-bg-hover: linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.38) 0%,
+      rgba(255, 255, 255, 0.18) 47%,
+      rgba(255, 255, 255, 0.06) 48%,
+      rgba(255, 255, 255, 0.13) 100%
+    );
+  }
 }
 
 .header {
@@ -68,9 +182,31 @@
     color: var(--blert-purple);
   }
 
+  :global([data-theme='aero']) & {
+    @include aeroStartButton;
+    &:hover {
+      @include aeroStartButtonHover;
+    }
+  }
+
   i {
     font-size: 13px;
   }
+}
+
+// Aero: search is a light frosted field.
+:global([data-theme='aero']) .search,
+:global([data-theme='aero']) .shortcut {
+  --blert-font-color-primary: rgb(20, 60, 90);
+  --blert-font-color-secondary: rgb(60, 102, 132);
+  --blert-font-color-primary-base: 20, 60, 90;
+  --blert-font-color-secondary-base: 60, 102, 132;
+  --blert-panel-background-color: rgb(224, 242, 252);
+  --blert-surface-light: rgb(205, 235, 250);
+  --blert-surface-dark: rgb(244, 251, 255);
+  --blert-divider-color: rgb(156, 201, 227);
+  --aero-field-bg: rgba(255, 255, 255, 0.85);
+  --aero-field-focus-bg: rgba(255, 255, 255, 0.92);
 }
 
 .search {
@@ -100,6 +236,10 @@
       0 2px 0 rgba(0, 0, 0, 0.3),
       inset 0 1px 0 rgba(255, 255, 255, 0.05);
     text-align: center;
+
+    :global([data-theme='aero']) & {
+      @include aeroKeycap;
+    }
   }
 
   span {
@@ -152,10 +292,47 @@
       color: var(--blert-font-color-primary);
     }
   }
+
+  :global([data-theme='aero']) & {
+    margin: 5px 12px;
+    @include aeroTaskbarButton;
+
+    &:hover {
+      @include aeroTaskbarButtonHover;
+    }
+
+    &.active {
+      @include aeroTaskbarButtonActive;
+    }
+  }
 }
 
 button.item {
   cursor: pointer;
+}
+
+.aeroIcon {
+  display: none;
+}
+
+:global([data-theme='aero']) {
+  .item .itemIcon {
+    width: 38px;
+  }
+
+  .itemIcon:has(.aeroIcon) .faIcon {
+    display: none;
+  }
+
+  .aeroIcon {
+    display: inline-flex;
+    align-items: center;
+
+    svg {
+      height: 25px;
+      width: auto;
+    }
+  }
 }
 
 .divider {
@@ -205,6 +382,18 @@ button.item {
       color: var(--blert-font-color-primary);
     }
   }
+
+  :global([data-theme='aero']) & {
+    @include aeroTaskbarButton;
+
+    &:hover {
+      @include aeroTaskbarButtonHover;
+    }
+
+    &.active {
+      @include aeroTaskbarButtonActive;
+    }
+  }
 }
 
 .browse {
@@ -241,6 +430,22 @@ button.item {
       color: var(--blert-purple);
     }
   }
+
+  :global([data-theme='aero']) & {
+    @include aeroTaskbarButton;
+
+    &:hover {
+      @include aeroTaskbarButtonHover;
+
+      i {
+        color: #fff;
+      }
+    }
+
+    &.active {
+      @include aeroTaskbarButtonActive;
+    }
+  }
 }
 
 .account {
@@ -256,6 +461,20 @@ button.item {
     border: 1px solid var(--blert-divider-color);
     border-radius: 8px;
 
+    // Aero: raise the account chip into a sub-panel.
+    :global([data-theme='aero']) & {
+      border-radius: 10px;
+      border-color: rgba(255, 255, 255, 0.28);
+      background: linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0.17),
+        rgba(255, 255, 255, 0.06)
+      );
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.4),
+        0 2px 7px rgba(8, 26, 34, 0.32);
+    }
+
     .avatar {
       width: 30px;
       height: 30px;
@@ -267,6 +486,51 @@ button.item {
       color: var(--blert-purple);
       font-size: 13px;
       flex-shrink: 0;
+
+      // Aero: glossy photo frame with a recognizable avatar :)
+      :global([data-theme='aero']) &:not(.skeleton) {
+        position: relative;
+        overflow: hidden;
+        border-radius: 7px;
+        border: 1px solid rgba(255, 255, 255, 0.85);
+        background: linear-gradient(to bottom, #dff1fb, #a6d6ee);
+        box-shadow:
+          0 1px 3px rgba(20, 60, 90, 0.4),
+          inset 0 1px 0 rgba(255, 255, 255, 0.95);
+        color: #fff;
+
+        &::before {
+          content: '';
+          position: absolute;
+          inset: 2px;
+          z-index: 0;
+          border-radius: 4px;
+          background-image: url('/images/themes/aero-avatar.webp');
+          background-size: cover;
+          background-position: center;
+          box-shadow: inset 0 0 0 1px rgba(18, 66, 104, 0.55);
+        }
+
+        // Gloss sheen across the top half of the frame.
+        &::after {
+          content: '';
+          position: absolute;
+          inset: 1px 1px 52% 1px;
+          z-index: 1;
+          border-radius: 6px 6px 8px 8px;
+          background: linear-gradient(
+            to bottom,
+            rgba(255, 255, 255, 0.6),
+            rgba(255, 255, 255, 0.1)
+          );
+          pointer-events: none;
+        }
+
+        // The framed photo stands in for an avatar; hide the person glyph.
+        i {
+          display: none;
+        }
+      }
     }
 
     .username {
@@ -301,6 +565,48 @@ button.item {
       &:hover {
         background: var(--blert-surface-light);
         color: var(--blert-font-color-primary);
+      }
+
+      :global([data-theme='aero']) & {
+        @include aeroStartButton;
+
+        &:hover {
+          @include aeroStartButtonHover;
+        }
+      }
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+
+      // Aero: join the gear/logout into a single segmented control.
+      :global([data-theme='aero']) & {
+        gap: 0;
+
+        .iconAction {
+          position: relative;
+          border-radius: 0;
+
+          &:first-child {
+            border-radius: 6px 0 0 6px;
+          }
+
+          &:last-child {
+            border-radius: 0 6px 6px 0;
+          }
+
+          &:not(:first-child) {
+            margin-left: -1px;
+          }
+
+          // Lift the hovered button so its amber glow isn't clipped by its
+          // neighbor at the shared edge.
+          &:hover {
+            z-index: 1;
+          }
+        }
       }
     }
   }
@@ -348,36 +654,14 @@ button.item {
   }
 
   .authButton {
-    display: flex;
-    align-items: center;
-    justify-content: center;
     gap: 8px;
     padding: 8px;
-    border-radius: 6px;
     font-size: 0.9em;
     font-weight: 500;
     transition: all 0.2s ease;
 
     i {
       font-size: 14px;
-    }
-
-    &.login {
-      background: var(--blert-surface-light);
-      color: var(--blert-font-color-secondary);
-
-      &:hover {
-        color: var(--blert-font-color-primary);
-      }
-    }
-
-    &.signup {
-      background: var(--blert-purple);
-      color: var(--blert-font-color-primary);
-
-      &:hover {
-        opacity: 0.9;
-      }
     }
   }
 }

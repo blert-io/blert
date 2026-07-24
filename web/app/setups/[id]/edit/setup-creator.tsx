@@ -11,7 +11,7 @@ import {
   type SetupMetadata,
 } from '@/actions/setup';
 import Button from '@/components/button';
-import EditableTextField from '@/components/editable-text-field';
+import Input from '@/components/input';
 import Item from '@/components/item';
 import MarkdownEditor from '@/components/markdown-editor';
 import { Modal } from '@/components/modal/modal';
@@ -157,7 +157,9 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
 
   const onDescriptionChange = useCallback(
     (description: string) => {
-      context.update((prev) => ({ ...prev, description }));
+      context.update((prev) => ({ ...prev, description }), {
+        coalesce: 'description',
+      });
     },
     [context],
   );
@@ -331,13 +333,21 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
 
         case 'y':
           if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
             context.redo();
           }
           break;
 
+        // With Shift held, the key reports as uppercase.
         case 'z':
+        case 'Z':
           if (e.ctrlKey || e.metaKey) {
-            context.undo();
+            e.preventDefault();
+            if (e.shiftKey) {
+              context.redo();
+            } else {
+              context.undo();
+            }
           }
           break;
       }
@@ -446,7 +456,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
                 }
                 onClick={() => context.redo()}
                 data-tooltip-id={GLOBAL_TOOLTIP_ID}
-                data-tooltip-content={`Redo (${modifier}Y)`}
+                data-tooltip-content={`Redo (${isApple ? '⇧⌘Z' : 'Ctrl+Y'})`}
               >
                 <i className="fas fa-redo" />
                 <span className="sr-only">Redo</span>
@@ -469,7 +479,8 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
             </div>
             <div className={styles.publishing}>
               <Button
-                className={`${styles.button} ${styles.delete}`}
+                className={styles.button}
+                variant="danger"
                 disabled={publishing || publishLoading}
                 onClick={() => setShowDeleteModal(true)}
                 data-tooltip-id={GLOBAL_TOOLTIP_ID}
@@ -508,14 +519,19 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
           )}
           <div className={styles.main}>
             <div className={`${setupStyles.panel} ${styles.overview}`}>
-              <EditableTextField
+              <Input
+                id="setup-title"
                 className={styles.title}
+                fluid
+                label="Title"
+                maxLength={128}
                 value={context.setup.title}
-                onChange={(title) =>
-                  context.update((prev) => ({ ...prev, title }))
+                onChange={(e) =>
+                  context.update(
+                    (prev) => ({ ...prev, title: e.target.value }),
+                    { coalesce: 'title' },
+                  )
                 }
-                tag="h1"
-                width="95%"
               />
               <div className={styles.group}>
                 <div className={styles.challengeType}>
@@ -801,7 +817,6 @@ function PublishModal({
             onClick={() =>
               router.push(`/register?next=${encodeURIComponent(migrationUrl)}`)
             }
-            className={styles.signupButton}
           >
             <i className="fas fa-user-plus" />
             Create Free Account
@@ -974,7 +989,6 @@ function PublishModal({
             disabled={publishIssues.some((w) => w.type === 'error')}
             loading={publishLoading}
             onClick={() => void onPublish(publishMessage, visibility)}
-            className={styles.publishButton}
           >
             <i className="fas fa-upload" />
             {setup.latestRevision === null
@@ -1020,7 +1034,7 @@ function KeyboardShortcutsModal({
       category: 'Editing',
       items: [
         { keys: [`${ctrl}Z`], description: 'Undo' },
-        { keys: [`${ctrl}Y`], description: 'Redo' },
+        { keys: [isApple ? '⇧⌘Z' : `${ctrl}Y`], description: 'Redo' },
         { keys: [`${ctrl}S`], description: 'Save setup draft' },
         { keys: ['?'], description: 'Show keyboard shortcuts' },
       ],

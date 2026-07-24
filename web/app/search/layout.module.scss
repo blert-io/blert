@@ -29,6 +29,12 @@
     gap: 8px;
     padding: 4px 8px;
   }
+
+  :global([data-theme='aero']) & {
+    @include aeroDarkGlass;
+    --blert-font-color-primary: #fff;
+    --blert-font-color-secondary: rgba(255, 255, 255, 0.72);
+  }
 }
 
 .topbarActions {

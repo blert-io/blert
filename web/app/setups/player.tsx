@@ -4,8 +4,9 @@ import { EquipmentSlot } from '@blert/common';
 import Image from 'next/image';
 import { useCallback, useContext, useRef, useState } from 'react';
 
+import Button from '@/components/button';
 import EditableTextField from '@/components/editable-text-field';
-import Menu, { MenuItem } from '@/components/menu';
+import Menu, { MENU_DIVIDER, MenuItem } from '@/components/menu';
 import { useToast } from '@/components/toast';
 import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 
@@ -70,7 +71,7 @@ const EXPORT_MENU: MenuItem[] = [
 export function Player({ index, player }: PlayerProps) {
   const editingContext = useContext(SetupEditingContext);
   const { highlightedPlayerIndex } = useContext(SetupViewingContext);
-  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
 
   const sendToast = useToast();
 
@@ -109,10 +110,26 @@ export function Player({ index, player }: PlayerProps) {
         }
       }
 
-      setExportMenuOpen(false);
+      setActionsMenuOpen(false);
     },
-    [player, sendToast, setExportMenuOpen],
+    [player, sendToast, setActionsMenuOpen],
   );
+
+  const actionsMenuItems: MenuItem[] = [
+    {
+      label: 'Copy link to player',
+      icon: 'fas fa-link',
+      customAction: () => {
+        const url = new URL(window.location.href);
+        url.searchParams.set('player', (index + 1).toString());
+        void navigator.clipboard.writeText(url.toString());
+        sendToast(`Link to ${player.name} copied to clipboard`);
+        setActionsMenuOpen(false);
+      },
+    },
+    MENU_DIVIDER,
+    ...EXPORT_MENU,
+  ];
 
   const handleImport = useCallback(async () => {
     const clipboard = navigator.clipboard;
@@ -163,132 +180,134 @@ export function Player({ index, player }: PlayerProps) {
             <span className={styles.nameText}>{player.name}</span>
             <div className={styles.playerActions}>
               <button
-                className={styles.shareButton}
-                onClick={() => {
-                  const url = new URL(window.location.href);
-                  url.searchParams.set('player', (index + 1).toString());
-                  void navigator.clipboard.writeText(url.toString());
-                  sendToast(`Link to ${player.name} copied to clipboard`);
-                }}
-                title="Copy link to this player"
+                id={`player-${index}-actions`}
+                onClick={() => setActionsMenuOpen(true)}
+                title="Player actions"
               >
-                <i className="fas fa-link" />
-                <span className="sr-only">Copy link to this player</span>
-              </button>
-              <button
-                id={`player-${index}-export`}
-                className={styles.shareButton}
-                onClick={() => setExportMenuOpen(true)}
-              >
-                <i className="fas fa-download" />
-                <span className="sr-only">Export player</span>
+                <i className="fas fa-ellipsis-vertical" />
+                <span className="sr-only">Player actions</span>
               </button>
             </div>
             <Menu
-              items={EXPORT_MENU}
+              items={actionsMenuItems}
               onSelection={(value) => handleExport(value as ExportFormat)}
-              open={exportMenuOpen}
-              onClose={() => setExportMenuOpen(false)}
-              targetId={`player-${index}-export`}
-              width={160}
+              open={actionsMenuOpen}
+              onClose={() => setActionsMenuOpen(false)}
+              targetId={`player-${index}-actions`}
+              width={180}
             />
           </h2>
         )}
       </div>
-      <SelectableContainer
-        container={Container.EQUIPMENT}
-        playerIndex={index}
-        className={`${styles.slotContainer} ${styles.equipment}`}
-      >
-        {EQUIPMENT_LAYOUT.map((slotIndex, i) => {
-          if (slotIndex === null) {
+      <div className={styles.slotTray}>
+        <SelectableContainer
+          container={Container.EQUIPMENT}
+          playerIndex={index}
+          className={`${styles.slotContainer} ${styles.equipment}`}
+        >
+          {EQUIPMENT_LAYOUT.map((slotIndex, i) => {
+            if (slotIndex === null) {
+              return (
+                <Slot
+                  container={Container.EQUIPMENT}
+                  playerIndex={index}
+                  index={-1}
+                  key={i}
+                />
+              );
+            }
+
+            const slotMetadata = getSlotMetadata(
+              Container.EQUIPMENT,
+              slotIndex,
+            );
+
+            if (slotMetadata?.condition && !slotMetadata.condition(player)) {
+              return (
+                <Slot
+                  container={Container.EQUIPMENT}
+                  playerIndex={index}
+                  index={-1}
+                  key={i}
+                />
+              );
+            }
+
             return (
               <Slot
                 container={Container.EQUIPMENT}
                 playerIndex={index}
-                index={-1}
-                key={i}
-              />
-            );
-          }
-
-          const slotMetadata = getSlotMetadata(Container.EQUIPMENT, slotIndex);
-
-          if (slotMetadata?.condition && !slotMetadata.condition(player)) {
-            return (
-              <Slot
-                container={Container.EQUIPMENT}
-                playerIndex={index}
-                index={-1}
-                key={i}
-              />
-            );
-          }
-
-          return (
-            <Slot
-              container={Container.EQUIPMENT}
-              playerIndex={index}
-              item={slotsByContainer[Container.EQUIPMENT][slotIndex]?.item?.id}
-              comment={
-                slotsByContainer[Container.EQUIPMENT][slotIndex]?.comment
-              }
-              index={slotIndex}
-              filter={slotMetadata?.typeFilter}
-              key={i}
-            />
-          );
-        })}
-      </SelectableContainer>
-      <SelectableContainer
-        container={Container.INVENTORY}
-        playerIndex={index}
-        className={`${styles.slotContainer} ${styles.inventory}`}
-      >
-        {Array.from({ length: NUM_INVENTORY_SLOTS }, (_, i) => (
-          <Slot
-            container={Container.INVENTORY}
-            playerIndex={index}
-            item={slotsByContainer[Container.INVENTORY][i]?.item?.id}
-            comment={slotsByContainer[Container.INVENTORY][i]?.comment}
-            index={i}
-            key={i}
-          />
-        ))}
-      </SelectableContainer>
-      <SelectableContainer
-        container={Container.POUCH}
-        playerIndex={index}
-        className={`${styles.slotContainer} ${styles.pouch}`}
-      >
-        {Array.from({ length: NUM_POUCH_SLOTS }, (_, i) => i).map(
-          (slotIndex) => {
-            const slotMetadata = getSlotMetadata(Container.POUCH, slotIndex);
-            return (
-              <Slot
-                key={slotIndex}
-                container={Container.POUCH}
-                playerIndex={index}
-                item={slotsByContainer[Container.POUCH][slotIndex]?.item?.id}
-                comment={slotsByContainer[Container.POUCH][slotIndex]?.comment}
+                item={
+                  slotsByContainer[Container.EQUIPMENT][slotIndex]?.item?.id
+                }
+                comment={
+                  slotsByContainer[Container.EQUIPMENT][slotIndex]?.comment
+                }
                 index={slotIndex}
                 filter={slotMetadata?.typeFilter}
+                key={i}
               />
             );
-          },
-        )}
-      </SelectableContainer>
-      <div
-        className={`${styles.slotContainer} ${styles.spellbook}`}
-        data-tooltip-id="slot-tooltip"
-        data-tooltip-content={`${spellbookName(player.spellbook)} spellbook`}
-      >
-        <SpellbookIcon
-          context={editingContext}
-          index={index}
-          player={player}
-          readonly={editingContext === null}
-        />
+          })}
+        </SelectableContainer>
+      </div>
+      <div className={styles.slotTray}>
+        <SelectableContainer
+          container={Container.INVENTORY}
+          playerIndex={index}
+          className={`${styles.slotContainer} ${styles.inventory}`}
+        >
+          {Array.from({ length: NUM_INVENTORY_SLOTS }, (_, i) => (
+            <Slot
+              container={Container.INVENTORY}
+              playerIndex={index}
+              item={slotsByContainer[Container.INVENTORY][i]?.item?.id}
+              comment={slotsByContainer[Container.INVENTORY][i]?.comment}
+              index={i}
+              key={i}
+            />
+          ))}
+        </SelectableContainer>
+      </div>
+      <div className={styles.slotTray}>
+        <SelectableContainer
+          container={Container.POUCH}
+          playerIndex={index}
+          className={`${styles.slotContainer} ${styles.pouch}`}
+        >
+          {Array.from({ length: NUM_POUCH_SLOTS }, (_, i) => i).map(
+            (slotIndex) => {
+              const slotMetadata = getSlotMetadata(Container.POUCH, slotIndex);
+              return (
+                <Slot
+                  key={slotIndex}
+                  container={Container.POUCH}
+                  playerIndex={index}
+                  item={slotsByContainer[Container.POUCH][slotIndex]?.item?.id}
+                  comment={
+                    slotsByContainer[Container.POUCH][slotIndex]?.comment
+                  }
+                  index={slotIndex}
+                  filter={slotMetadata?.typeFilter}
+                />
+              );
+            },
+          )}
+        </SelectableContainer>
+      </div>
+      <div className={styles.slotTray}>
+        <div
+          className={`${styles.slotContainer} ${styles.spellbook}`}
+          data-tooltip-id="slot-tooltip"
+          data-tooltip-content={`${spellbookName(player.spellbook)} spellbook`}
+        >
+          <SpellbookIcon
+            context={editingContext}
+            index={index}
+            player={player}
+            readonly={editingContext === null}
+          />
+        </div>
       </div>
       {isOptional && editingContext === null && (
         <span
@@ -302,13 +321,17 @@ export function Player({ index, player }: PlayerProps) {
       )}
       {editingContext !== null && (
         <div className={styles.editActions}>
-          <button className={styles.import} onClick={() => void handleImport()}>
+          <Button
+            icon
+            onClick={() => void handleImport()}
+            tooltip="Import setup from clipboard"
+          >
             <i className="fas fa-upload" />
-            Import from clipboard
-          </button>
-          <button
-            type="button"
-            className={`${styles.optionalToggle} ${isOptional ? styles.active : ''}`}
+            <span className="sr-only">Import setup from clipboard</span>
+          </Button>
+          <Button
+            icon
+            className={isOptional ? styles.active : undefined}
             disabled={isLastRequired}
             onClick={() =>
               editingContext.updatePlayer(index, (prev) => ({
@@ -317,8 +340,7 @@ export function Player({ index, player }: PlayerProps) {
               }))
             }
             aria-pressed={isOptional}
-            data-tooltip-id={GLOBAL_TOOLTIP_ID}
-            data-tooltip-content={
+            tooltip={
               isLastRequired
                 ? 'Add another player before marking this one as optional'
                 : isOptional
@@ -327,16 +349,18 @@ export function Player({ index, player }: PlayerProps) {
             }
           >
             <i className="fas fa-user-slash" />
-            <span>{isOptional ? 'Mark required' : 'Mark optional'}</span>
-          </button>
-          <button
-            className={styles.remove}
+            <span className="sr-only">
+              {isOptional ? 'Mark required' : 'Mark optional'}
+            </span>
+          </Button>
+          <Button
+            icon
+            variant="danger"
             disabled={isLastRequired}
-            data-tooltip-id={isLastRequired ? GLOBAL_TOOLTIP_ID : undefined}
-            data-tooltip-content={
+            tooltip={
               isLastRequired
                 ? 'Add another player before removing the last required one'
-                : undefined
+                : 'Remove player'
             }
             onClick={() =>
               editingContext.update((prev) => {
@@ -351,8 +375,8 @@ export function Player({ index, player }: PlayerProps) {
             }
           >
             <i className="fas fa-trash" />
-            <span>Remove</span>
-          </button>
+            <span className="sr-only">Remove player</span>
+          </Button>
         </div>
       )}
     </div>

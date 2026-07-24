@@ -1,7 +1,14 @@
+@use '@/mixins.scss' as *;
+
 .followingList {
   display: flex;
   flex-direction: column;
   gap: 4px;
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+    border-radius: 6px;
+  }
 }
 
 .playerList {
@@ -83,6 +90,14 @@
     background: rgba(var(--blert-red-base), 0.25);
     color: var(--blert-red);
   }
+
+  :global([data-theme='aero']) & {
+    @include aeroDangerButton;
+
+    &:hover:not(:disabled) {
+      @include aeroDangerButtonHover;
+    }
+  }
 }
 
 .followButton {
@@ -91,6 +106,14 @@
 
   &:hover:not(:disabled) {
     background: rgba(var(--blert-purple-base), 0.25);
+  }
+
+  :global([data-theme='aero']) & {
+    @include aeroActionButton;
+
+    &:hover:not(:disabled) {
+      @include aeroActionButtonHover;
+    }
   }
 }
 
@@ -114,6 +137,11 @@
   p {
     margin: 0;
     font-size: 0.9rem;
+  }
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+    border-radius: 6px;
   }
 }
 

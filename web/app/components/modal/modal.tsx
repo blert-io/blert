@@ -56,7 +56,7 @@ export function Modal(props: ModalProps) {
     };
 
     const onClick = (event: MouseEvent) => {
-      if (!modalRef.current?.contains(event.target as Node)) {
+      if (event.target === modalPortal.current) {
         onCloseRef.current();
       }
     };

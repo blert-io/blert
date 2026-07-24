@@ -1,5 +1,4 @@
 import { ResolvingMetadata } from 'next';
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import {
@@ -9,6 +8,7 @@ import {
   type SetupState,
 } from '@/actions/setup';
 import { getSignedInUser } from '@/actions/users';
+import { ButtonLink } from '@/components/button';
 import Card from '@/components/card';
 
 import { FilterableSetupList } from '../filterable-setup-list';
@@ -80,10 +80,10 @@ export default async function MySetupsPage({
               Manage and organize your personal gear setups collection
             </p>
           </div>
-          <Link href="/setups/new" className={styles.createButton}>
+          <ButtonLink href="/setups/new" className={styles.createButton}>
             <i className="fas fa-plus" />
             <span>Create Setup</span>
-          </Link>
+          </ButtonLink>
         </div>
       </Card>
 

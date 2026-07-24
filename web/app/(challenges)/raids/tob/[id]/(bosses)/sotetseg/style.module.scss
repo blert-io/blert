@@ -90,4 +90,19 @@ $activeMazeTileColor: var(--blert-red);
       }
     }
   }
+
+  // Aero: define the grid more against its white background.
+  :global([data-theme='aero']) & {
+    .mazeTile {
+      border-color: rgba(20, 60, 90, 0.6);
+
+      &.active {
+        background-color: rgba(var(--blert-red-base), 0.3);
+
+        .circle {
+          background-color: rgba(var(--blert-red-base), 0.5);
+        }
+      }
+    }
+  }
 }

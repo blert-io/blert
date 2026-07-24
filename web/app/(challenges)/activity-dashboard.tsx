@@ -237,12 +237,15 @@ function PlayerActivityChart({
   return (
     <ResponsiveContainer width="100%" height={400}>
       <BarChart data={playerData} layout="vertical">
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(94, 98, 136, 0.3)" />
+        <CartesianGrid
+          strokeDasharray="3 3"
+          stroke="rgba(var(--blert-divider-color-base), 0.4)"
+        />
         <XAxis
           type="number"
           tick={{ fill: 'var(--blert-font-color-primary)', fontSize: 12 }}
-          axisLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
-          tickLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
+          axisLine={{ stroke: 'rgba(var(--blert-divider-color-base), 0.6)' }}
+          tickLine={{ stroke: 'rgba(var(--blert-divider-color-base), 0.6)' }}
           allowDecimals={false}
           domain={[0, axisMax]}
           ticks={axisTicks}
@@ -252,18 +255,18 @@ function PlayerActivityChart({
           type="category"
           width={110}
           tick={PlayerAxisTick}
-          axisLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
-          tickLine={{ stroke: 'rgba(94, 98, 136, 0.5)' }}
+          axisLine={{ stroke: 'rgba(var(--blert-divider-color-base), 0.6)' }}
+          tickLine={{ stroke: 'rgba(var(--blert-divider-color-base), 0.6)' }}
         />
         <Tooltip
           contentStyle={{
             backgroundColor: 'var(--blert-panel-background-color)',
-            border: '1px solid rgba(88, 101, 242, 0.15)',
+            border: '1px solid var(--blert-divider-color)',
             borderRadius: '6px',
             color: 'var(--blert-font-color-primary)',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+            boxShadow: 'var(--blert-elevation-1)',
           }}
-          cursor={{ fill: 'rgba(88, 101, 242, 0.1)' }}
+          cursor={{ fill: 'rgba(var(--blert-purple-base), 0.1)' }}
           labelFormatter={(label: string) => {
             return (
               <span
@@ -293,12 +296,12 @@ function PlayerActivityChart({
           <linearGradient id="barGradient" x1="1" y1="0" x2="0" y2="0">
             <stop
               offset="0%"
-              stopColor="rgb(88, 101, 242)"
+              stopColor="rgb(var(--blert-purple-base))"
               stopOpacity={0.95}
             />
             <stop
               offset="100%"
-              stopColor="rgb(68, 79, 191)"
+              stopColor="rgb(var(--blert-purple-base))"
               stopOpacity={0.8}
             />
           </linearGradient>
@@ -668,7 +671,7 @@ export default function ActivityDashboard({
 
   return (
     <div className={styles.dashboard}>
-      <Card className={styles.logoCard} primary>
+      <Card className={styles.logoCard}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <Image
             src={challengeLogo(challengeType)}
@@ -770,12 +773,14 @@ export default function ActivityDashboard({
 
       <Card className={styles.playersCard}>
         <SectionTitle icon="fa-crown">Most Active Players</SectionTitle>
-        <PlayerActivityChart
-          challengeType={challengeType}
-          playerData={playerData}
-          isSolo={isSolo}
-          isLoading={isLoading || !isClient}
-        />
+        <div className={styles.chartWrapper}>
+          <PlayerActivityChart
+            challengeType={challengeType}
+            playerData={playerData}
+            isSolo={isSolo}
+            isLoading={isLoading || !isClient}
+          />
+        </div>
       </Card>
 
       <Card>

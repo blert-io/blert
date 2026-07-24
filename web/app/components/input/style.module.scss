@@ -1,3 +1,5 @@
+@use '@/mixins.scss' as *;
+
 .input {
   padding: 10px 0;
   display: flex;
@@ -7,6 +9,7 @@
     position: absolute;
     top: 20px;
     padding: 0 5px;
+    background: var(--input-label-bg, var(--blert-panel-background-color));
     transition:
       top 0.3s,
       font-size 0.3s;
@@ -74,6 +77,34 @@
     color: var(--blert-font-color-primary);
     font-size: 16px;
     pointer-events: none;
+  }
+
+  :global([data-theme='aero']) & {
+    input {
+      @include aeroField;
+    }
+
+    // Label stays in placeholder position.
+    label,
+    input:focus + label {
+      top: 20px;
+      font-size: 16px;
+      color: var(--blert-font-color-secondary);
+      background: transparent;
+      transition: opacity 0.15s ease;
+    }
+
+    // Label fades out once there's text.
+    input:not(:placeholder-shown) + label {
+      top: 20px;
+      opacity: 0;
+    }
+
+    // ...or when a real placeholder takes over on focus. Without one there is
+    // nothing to replace the label, so it stays.
+    &.hasPlaceholder input:focus:placeholder-shown + label {
+      opacity: 0;
+    }
   }
 
   &.invalid {

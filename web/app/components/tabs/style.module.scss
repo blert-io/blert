@@ -71,6 +71,20 @@
         transform 0.2s ease,
         width 0.2s ease;
     }
+
+    :global([data-theme='aero']) & {
+      @include aeroChromeStrip;
+
+      .tab {
+        border-bottom-color: rgba(120, 165, 200, 0.5);
+        color: var(--blert-font-color-secondary);
+
+        &.active,
+        &:hover {
+          color: var(--blert-font-color-primary);
+        }
+      }
+    }
   }
 
   .content {

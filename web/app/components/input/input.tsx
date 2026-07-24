@@ -34,9 +34,6 @@ export type InputProps = {
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
   function Input(props, ref) {
-    const labelBackground =
-      props.labelBg ??
-      'var(--input-label-bg, var(--blert-panel-background-color))';
     const style: React.CSSProperties = {
       width: props.fluid ? '100%' : (props.width ?? 240),
     };
@@ -50,6 +47,12 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     }
     if (props.invalid) {
       className += ` ${styles.invalid}`;
+    }
+    // The input always sets a placeholder so that `:placeholder-shown`
+    // detects emptiness, so styling can't tell a real one from the blank
+    // default without this.
+    if (props.placeholder !== undefined) {
+      className += ` ${styles.hasPlaceholder}`;
     }
 
     let icon = undefined;
@@ -86,7 +89,12 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         />
         <label
           htmlFor={props.id}
-          style={{ background: labelBackground, left: paddingX - 5 }}
+          style={
+            {
+              ['--input-label-bg']: props.labelBg,
+              left: paddingX - 5,
+            } as React.CSSProperties
+          }
         >
           {props.invalid && props.errorMessage
             ? props.errorMessage

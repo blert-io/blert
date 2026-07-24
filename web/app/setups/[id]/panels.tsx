@@ -101,17 +101,18 @@ export default function GearSetupPanels({
             {visibleRevisions.map((revision) => (
               <div key={revision.version} className={styles.revision}>
                 <div className={styles.revisionMeta}>
-                  <div className={styles.revisionVersion}>
-                    {revision.version === currentRevision ? (
-                      <span>v{revision.version}</span>
-                    ) : (
-                      <Link
-                        href={`/setups/${setupMetadata.publicId}?revision=${revision.version}`}
-                      >
-                        v{revision.version}
-                      </Link>
-                    )}
-                  </div>
+                  {revision.version === currentRevision ? (
+                    <span className={styles.revisionVersion}>
+                      v{revision.version}
+                    </span>
+                  ) : (
+                    <Link
+                      className={styles.revisionVersion}
+                      href={`/setups/${setupMetadata.publicId}?revision=${revision.version}`}
+                    >
+                      v{revision.version}
+                    </Link>
+                  )}
                   <div className={styles.revisionInfo}>
                     <div className={styles.revisionAuthor}>
                       by {revision.createdByUsername}

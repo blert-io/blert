@@ -72,6 +72,10 @@
   gap: 1rem;
   width: 100%;
 
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+  }
+
   .errorIcon {
     font-size: 2em;
     color: var(--blert-red);
@@ -91,31 +95,15 @@
       font-size: 0.9em;
     }
   }
+}
 
-  .retryButton {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 24px;
-    border-radius: 4px;
-    background: var(--blert-panel-background-color);
-    color: var(--blert-font-color-primary);
-    font-size: 0.9em;
-    border: none;
-    cursor: pointer;
-    transition: all 0.2s ease;
+.retryButton {
+  i {
+    transition: transform 0.3s ease;
+  }
 
-    &:hover {
-      background: var(--blert-surface-light);
-
-      i {
-        transform: rotate(180deg);
-      }
-    }
-
-    i {
-      transition: transform 0.3s ease;
-    }
+  &:hover i {
+    transform: rotate(180deg);
   }
 }
 
@@ -214,6 +202,11 @@
     background: var(--blert-surface-dark);
     border-radius: 6px;
     border-left: 3px solid var(--blert-purple);
+
+    :global([data-theme='aero']) & {
+      @include aeroWell;
+      border-left: 3px solid var(--blert-purple);
+    }
 
     h3 {
       margin: 0 0 1rem 0;

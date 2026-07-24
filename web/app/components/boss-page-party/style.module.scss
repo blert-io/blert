@@ -92,4 +92,47 @@
       border-color: rgba(var(--blert-purple-base), 0.5);
     }
   }
+
+  :global([data-theme='aero']) & {
+    .actor {
+      background: #c4c8cd;
+      border-color: rgba(120, 130, 142, 0.6);
+      box-shadow:
+        inset 2px 2px 3px rgba(50, 62, 78, 0.32),
+        inset -1px -1px 2px rgba(255, 255, 255, 0.5);
+
+      h2 {
+        background: rgba(255, 255, 255, 0.22);
+        border-bottom-color: rgba(120, 130, 142, 0.5);
+      }
+
+      .prayers {
+        background: transparent;
+        border-bottom-color: rgba(120, 130, 142, 0.45);
+      }
+
+      .equipment {
+        background: transparent;
+      }
+
+      .skills {
+        background: transparent;
+        border-top-color: rgba(120, 130, 142, 0.45);
+      }
+
+      &:hover {
+        transform: none;
+        background: #ced1d6;
+        border-color: rgba(120, 130, 142, 0.85);
+      }
+
+      &.selected {
+        background: #ccd6e4;
+        border-color: var(--blert-purple);
+        box-shadow:
+          inset 0 0 0 1px rgba(var(--blert-purple-base), 0.55),
+          0 0 9px 1px rgba(var(--blert-purple-base), 0.5);
+      }
+    }
+  }
 }

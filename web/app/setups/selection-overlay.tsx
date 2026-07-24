@@ -42,6 +42,8 @@ export default function SelectionOverlay({
 
   const { cols, rows } = getContainerDimensions(container);
 
+  const isSelected = (x: number, y: number) => selection.slots.has(`${x},${y}`);
+
   const selectedSlots: React.ReactElement[] = [];
   for (const [key, slotData] of selection.slots) {
     const gridX = selection.bounds.minX + slotData.localX;
@@ -53,6 +55,21 @@ export default function SelectionOverlay({
     }
 
     let className = styles.selectedSlot;
+
+    // Border the outer edges of the selected region.
+    const { localX, localY } = slotData;
+    if (!isSelected(localX, localY - 1)) {
+      className += ` ${styles.edgeTop}`;
+    }
+    if (!isSelected(localX + 1, localY)) {
+      className += ` ${styles.edgeRight}`;
+    }
+    if (!isSelected(localX, localY + 1)) {
+      className += ` ${styles.edgeBottom}`;
+    }
+    if (!isSelected(localX - 1, localY)) {
+      className += ` ${styles.edgeLeft}`;
+    }
 
     if (operationMode === OperationMode.CLIPBOARD_CUT) {
       className += ` ${styles.cut}`;

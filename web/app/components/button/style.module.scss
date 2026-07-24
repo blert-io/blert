@@ -1,23 +1,153 @@
+@use '@/mixins.scss' as *;
+
 .button {
-  font-size: 16px;
-  border-radius: 5px;
+  // `variant` sets the color trio; `simple` reuses it for an outlined look.
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  border-radius: var(--button-radius, 5px);
   padding: 8px 10px;
-  background-color: var(--blert-purple);
-  color: white;
+  text-decoration: none;
   font-weight: 600;
-  border: 1px solid var(--blert-purple);
+  transition: all 0.2s ease;
+
+  // `--button-surface` lets a theme swap the flat fill for a material.
+  background: var(--button-surface, var(--button-color));
+  color: var(--button-fill-text);
+  text-shadow: var(--button-text-shadow, none);
+  border: 1px solid var(--button-color);
+
+  &.primary {
+    --button-color: var(--blert-purple);
+    --button-color-base: var(--blert-purple-base);
+    --button-fill-text: var(--blert-accent-text);
+  }
+
+  &.danger {
+    --button-color: var(--blert-red);
+    --button-color-base: var(--blert-red-base);
+    --button-fill-text: #fff;
+  }
 
   &.simple {
     background: none;
-    color: var(--blert-purple);
+    color: var(--button-color);
+  }
+
+  &.iconButton {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    gap: 0;
+    border-radius: 6px;
+    background: none;
+    border-color: transparent;
+    box-shadow: none;
+    text-shadow: none;
+    color: var(--button-color);
   }
 
   &:disabled {
     opacity: 0.5;
+    cursor: not-allowed;
   }
 
   &:not(:disabled):hover {
     cursor: pointer;
-    opacity: 0.9;
+  }
+
+  &:not(.simple):not(.iconButton):not(:disabled):hover {
+    box-shadow: 0 4px 12px rgba(var(--button-color-base), 0.4);
+  }
+
+  &.simple:not(:disabled):hover {
+    background: rgba(var(--button-color-base), 0.1);
+  }
+
+  &.iconButton:not(:disabled):hover {
+    background: rgba(var(--button-color-base), 0.12);
+  }
+
+  // Aero: glossy pill material.
+  :global([data-theme='aero']) & {
+    --button-radius: 8px;
+    --button-text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
+    --button-surface:
+      linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0.52) 0%,
+        rgba(255, 255, 255, 0.1) 47%,
+        rgba(255, 255, 255, 0) 48%
+      ),
+      linear-gradient(
+        to bottom,
+        color-mix(in srgb, rgb(var(--button-color-base)) 90%, white),
+        rgb(var(--button-color-base)) 52%,
+        color-mix(in srgb, rgb(var(--button-color-base)) 84%, black)
+      );
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      inset 0 -2px 3px rgba(0, 0, 0, 0.18),
+      0 2px 6px rgba(30, 80, 120, 0.28);
+
+    &.primary {
+      --button-color: var(--blert-aero-action);
+      --button-color-base: var(--blert-aero-action-base);
+    }
+
+    &:not(.simple):not(:disabled):hover {
+      --button-surface:
+        linear-gradient(
+          to bottom,
+          rgba(255, 255, 255, 0.7) 0%,
+          rgba(255, 255, 255, 0.16) 47%,
+          rgba(255, 255, 255, 0.02) 48%
+        ),
+        linear-gradient(
+          to bottom,
+          color-mix(in srgb, rgb(var(--button-color-base)) 82%, white),
+          rgb(var(--button-color-base)) 52%,
+          color-mix(in srgb, rgb(var(--button-color-base)) 86%, black)
+        );
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.75),
+        inset 0 -2px 3px rgba(0, 0, 0, 0.15),
+        0 5px 14px rgba(30, 80, 120, 0.36);
+    }
+
+    &.simple {
+      @include aeroButton;
+
+      &.danger {
+        color: var(--blert-red);
+
+        // Outranks the neutral text color set by `aeroButtonHover` below.
+        &:not(:disabled):hover {
+          color: var(--blert-red);
+        }
+      }
+
+      &:not(:disabled):hover {
+        @include aeroButtonHover;
+      }
+    }
+
+    &.iconButton {
+      background: none;
+      border-color: transparent;
+      box-shadow: none;
+      text-shadow: none;
+
+      &.primary {
+        --button-color: var(--blert-purple);
+        --button-color-base: var(--blert-purple-base);
+      }
+
+      &:not(:disabled):hover {
+        background: rgba(214, 236, 250, 0.9);
+        box-shadow: none;
+      }
+    }
   }
 }

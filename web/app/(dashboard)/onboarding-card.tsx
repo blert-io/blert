@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { ButtonLink } from '@/components/button';
 
 import styles from './onboarding-card.module.scss';
 
@@ -27,15 +27,17 @@ export default function OnboardingCard({ username }: OnboardingCardProps) {
               Install the Blert plugin from the RuneLite Plugin Hub if you
               haven&apos;t already.
             </p>
-            <a
+            <ButtonLink
               href="https://runelite.net/plugin-hub/show/blert"
               target="_blank"
               rel="noopener noreferrer"
               className={styles.settingsLink}
+              fontSize="0.85rem"
+              simple
             >
               <i className="fas fa-external-link-alt" />
               Get Plugin
-            </a>
+            </ButtonLink>
           </div>
         </div>
 
@@ -47,10 +49,15 @@ export default function OnboardingCard({ username }: OnboardingCardProps) {
               Generate an API key in settings and paste it into the Blert
               RuneLite plugin.
             </p>
-            <Link href="/settings/api-keys" className={styles.settingsLink}>
+            <ButtonLink
+              href="/settings/api-keys"
+              className={styles.settingsLink}
+              fontSize="0.85rem"
+              simple
+            >
               <i className="fas fa-key" />
               Go to Settings
-            </Link>
+            </ButtonLink>
           </div>
         </div>
 
@@ -65,15 +72,16 @@ export default function OnboardingCard({ username }: OnboardingCardProps) {
               Join our Discord server and link your account for support,
               announcements, and our Discord bot.
             </p>
-            <a
+            <ButtonLink
               href={DISCORD_INVITE_URL}
               target="_blank"
               rel="noopener noreferrer"
               className={styles.discordLink}
+              fontSize="0.85rem"
             >
               <i className="fab fa-discord" />
               Join Discord
-            </a>
+            </ButtonLink>
           </div>
         </div>
       </div>

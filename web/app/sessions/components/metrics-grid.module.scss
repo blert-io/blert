@@ -8,6 +8,11 @@
     transform: translateY(-2px);
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
   }
+
+  :global([data-theme='aero']) &:hover {
+    transform: none;
+    box-shadow: none;
+  }
 }
 
 .statisticsGrid {
@@ -17,6 +22,12 @@
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+    border-radius: 8px;
+    padding: 12px;
   }
 
   .statistic {
@@ -114,10 +125,23 @@
   text-shadow: 0 0 3px rgba(var(--blert-red-base), 0.4);
 }
 
+:global([data-theme='aero']) {
+  .successRateHigh,
+  .successRateModerate,
+  .successRateLow {
+    text-shadow: none;
+  }
+}
+
 .liveIndicator {
-  color: #4ade80 !important;
-  text-shadow: 0 0 3px rgba(74, 222, 128, 0.4);
+  color: var(--blert-green) !important;
+  text-shadow: 0 0 3px rgba(var(--blert-green-base), 0.4);
   animation: pulseGlow 2s ease-in-out infinite;
+
+  :global([data-theme='aero']) & {
+    text-shadow: none;
+    animation: none;
+  }
 }
 
 @keyframes pulseGlow {

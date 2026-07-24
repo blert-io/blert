@@ -22,26 +22,48 @@
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
+  background: linear-gradient(
+    to bottom right,
+    var(--blert-panel-background-color),
+    var(--blert-surface-light)
+  );
 
   @media (min-width: $LARGE_SCREEN_WIDTH) {
     grid-column: 1 / -1;
   }
 
-  &:hover {
-    border-color: rgba(var(--blert-purple-base), 0.3);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
+  // Aero: bokeh with a drop shadow to make the challenge logo read against the
+  // light background.
+  :global([data-theme='aero']) & {
+    background:
+      linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0.5),
+        rgba(232, 246, 254, 0.34)
+      ),
+      radial-gradient(
+        circle 90px at 20% 26%,
+        rgba(255, 255, 255, 0.38),
+        transparent 68%
+      ),
+      radial-gradient(
+        circle 60px at 84% 74%,
+        rgba(255, 255, 255, 0.32),
+        transparent 68%
+      );
+    box-shadow:
+      var(--blert-elevation-1),
+      inset 0 -2px 4px rgba(120, 160, 200, 0.15);
+
+    img {
+      filter: drop-shadow(0 0 1px rgba(58, 22, 42, 0.95))
+        drop-shadow(0 0 8px rgba(150, 28, 40, 0.4));
+    }
   }
 }
 
 .statisticCard {
   overflow: hidden;
-
-  &:hover {
-    border-color: rgba(var(--blert-purple-base), 0.3);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
-  }
 }
 
 .cardContent {
@@ -62,6 +84,14 @@
 .playersCard {
   @media (min-width: 2000px) {
     grid-column: 1 / -1;
+  }
+}
+
+.chartWrapper {
+  :global([data-theme='aero']) & {
+    padding: 8px 8px 4px;
+    border-radius: 8px;
+    @include aeroWell;
   }
 }
 
@@ -113,6 +143,10 @@
   background: rgba(var(--blert-surface-dark-base), 0.3);
   border: 1px solid rgba(var(--blert-surface-light-base), 0.3);
   border-radius: 8px;
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+  }
 }
 
 .donutWrapper {
@@ -437,6 +471,10 @@
   border-radius: 12px;
   color: var(--blert-font-color-secondary);
 
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+  }
+
   .placeholderIcon {
     width: 60px;
     height: 60px;
@@ -488,6 +526,15 @@
       rgba(var(--blert-purple-base), 0.03) 100%
     );
   }
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.85);
+      border-color: rgba(112, 156, 196, 0.65);
+    }
+  }
 }
 
 .teamInfo {
@@ -536,6 +583,10 @@
   font-size: 1.5rem;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   box-shadow: 0 4px 8px rgba(255, 215, 0, 0.3);
+
+  :global([data-theme='aero']) & {
+    box-shadow: 0 2px 6px rgba(60, 120, 165, 0.3);
+  }
 }
 
 .analysisLinks {
@@ -593,6 +644,21 @@
 
     .linkArrow {
       transform: translateX(4px);
+    }
+  }
+
+  // Aero: remove the shimmer.
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+
+    &::before {
+      display: none;
+    }
+
+    &:hover {
+      transform: none;
+      background: rgba(255, 255, 255, 0.8);
+      border-color: rgba(112, 156, 196, 0.65);
     }
   }
 

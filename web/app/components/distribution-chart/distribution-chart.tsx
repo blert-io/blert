@@ -272,7 +272,7 @@ export default function DistributionChart({
           <CartesianGrid
             horizontal
             vertical={false}
-            stroke="rgba(75, 78, 109, 0.3)"
+            stroke="rgba(var(--blert-divider-color-base), 0.5)"
           />
           <XAxis
             dataKey="ticks"
@@ -280,8 +280,8 @@ export default function DistributionChart({
             domain={domain}
             ticks={xTicks}
             tickFormatter={(t: number) => ticksToFormattedSeconds(t)}
-            tick={{ fontSize: 11, fill: '#5e6288' }}
-            axisLine={{ stroke: '#4b4e6d' }}
+            tick={{ fontSize: 11, fill: 'var(--blert-font-color-secondary)' }}
+            axisLine={{ stroke: 'var(--blert-divider-color)' }}
             tickLine={false}
           />
           <YAxis
@@ -290,7 +290,7 @@ export default function DistributionChart({
             domain={probDomain}
             ticks={probTicks}
             tickFormatter={(v: number) => `${(v * 100).toFixed(1)}%`}
-            tick={{ fontSize: 10, fill: '#5e6288' }}
+            tick={{ fontSize: 10, fill: 'var(--blert-font-color-secondary)' }}
             axisLine={false}
             tickLine={false}
             width={45}
@@ -301,15 +301,15 @@ export default function DistributionChart({
             domain={[0, 100]}
             ticks={cdfTicks}
             tickFormatter={(v: number) => `${v}%`}
-            tick={{ fontSize: 10, fill: '#5e6288' }}
+            tick={{ fontSize: 10, fill: 'var(--blert-font-color-secondary)' }}
             axisLine={false}
             tickLine={false}
             width={35}
           />
           <Tooltip
             contentStyle={{
-              background: 'rgb(27, 28, 37)',
-              border: '1px solid #4b4e6d',
+              background: 'var(--blert-surface-dark)',
+              border: '1px solid var(--blert-divider-color)',
               borderRadius: 6,
               fontSize: '0.85rem',
             }}
@@ -321,12 +321,12 @@ export default function DistributionChart({
               }
               return [`${value.toFixed(1)}%`, 'CDF'];
             }}
-            cursor={{ fill: 'rgba(88, 101, 242, 0.1)' }}
+            cursor={{ fill: 'rgba(var(--blert-purple-base), 0.1)' }}
           />
           <Bar
             yAxisId="prob"
             dataKey="probability"
-            fill="rgba(88, 101, 242, 0.5)"
+            fill="rgba(var(--blert-purple-base), 0.5)"
             radius={[1, 1, 0, 0]}
             isAnimationActive={false}
           />
@@ -334,9 +334,9 @@ export default function DistributionChart({
             yAxisId="cdf"
             dataKey="cdf"
             type="stepAfter"
-            stroke="rgba(196, 181, 253, 0.7)"
+            stroke="var(--dist-cdf)"
             strokeWidth={2}
-            fill="rgba(196, 181, 253, 0.06)"
+            fill="rgba(var(--blert-purple-base), 0.06)"
             dot={false}
             isAnimationActive={false}
           />
@@ -346,13 +346,13 @@ export default function DistributionChart({
               <ReferenceLine
                 yAxisId="prob"
                 x={referenceTicks}
-                stroke="var(--blert-yellow)"
+                stroke="var(--blert-accent-complement)"
                 strokeDasharray="4 4"
                 strokeWidth={1.5}
                 label={{
                   value: `${ticksToFormattedSeconds(referenceTicks)}`,
                   position: 'bottom',
-                  fill: 'var(--blert-yellow)',
+                  fill: 'var(--blert-accent-complement)',
                   fontSize: 11,
                   fontWeight: 600,
                 }}
@@ -362,13 +362,13 @@ export default function DistributionChart({
             <ReferenceLine
               yAxisId="cdf"
               y={refCdf}
-              stroke="var(--blert-yellow)"
+              stroke="var(--blert-accent-complement)"
               strokeDasharray="4 4"
               strokeWidth={0.5}
               label={{
                 value: `${refCdf.toFixed(1)}%`,
                 position: 'right',
-                fill: 'var(--blert-yellow)',
+                fill: 'var(--blert-accent-complement)',
                 fontSize: 11,
                 fontWeight: 600,
               }}

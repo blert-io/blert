@@ -19,7 +19,7 @@ import PlayerLink from '@/components/player-link';
 import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 import { useClientOnly } from '@/hooks/client-only';
 import { challengeLogo } from '@/logo';
-import { modeNameAndColor, statusNameAndColor } from '@/utils/challenge';
+import { modeName, statusNameAndColor } from '@/utils/challenge';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import styles from './style.module.scss';
@@ -120,7 +120,7 @@ export function ChallengeOverview(props: ChallengeOverviewProps) {
   const isClient = useClientOnly();
   const live = useLiveChallenge();
   const [statusString, statusColor] = statusNameAndColor(status, stage);
-  const [modeString] = modeNameAndColor(type, mode);
+  const modeString = modeName(type, mode);
   const iconForStatus = getIconForStatus(status, statusColor);
   const ticks = ticksToFormattedSeconds(challengeTicks);
 

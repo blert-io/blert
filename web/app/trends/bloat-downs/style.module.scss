@@ -68,25 +68,6 @@
       flex-shrink: 0;
     }
   }
-
-  .removeButton {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    border-radius: 4px;
-    background: transparent;
-    border: 1px solid rgba(var(--blert-red-base), 0.4);
-    color: var(--blert-red);
-    font-size: 0.8rem;
-    cursor: pointer;
-    transition: all 0.15s ease;
-
-    &:hover {
-      background: rgba(var(--blert-red-base), 0.1);
-      border-color: var(--blert-red);
-    }
-  }
 }
 
 .compareButton {
@@ -121,6 +102,12 @@
 .chartWrapper {
   width: 100%;
   min-height: 360px;
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+    border-radius: 8px;
+    padding: 1rem 1rem 0.5rem;
+  }
 }
 
 .errorState {

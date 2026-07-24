@@ -1,4 +1,10 @@
-export type ThemeId = 'blert';
+export type ThemeId =
+  | 'blert'
+  | 'aero'
+  | 'outrun'
+  | 'morytania'
+  | 'necropolis'
+  | 'ashfall';
 
 export type ThemeDefinition = {
   id: ThemeId;
@@ -14,6 +20,23 @@ export type ThemeDefinition = {
  */
 export const THEMES: ThemeDefinition[] = [
   { id: 'blert', label: 'Blert', description: 'The classic Blert look.' },
+  {
+    id: 'morytania',
+    label: 'Morytania',
+    description: 'Home turf.',
+  },
+  {
+    id: 'necropolis',
+    label: 'Necropolis',
+    description: 'Cold tombs, warm gold.',
+  },
+  {
+    id: 'ashfall',
+    label: 'Ashfall',
+    description: 'Burnt, but cozy.',
+  },
+  { id: 'outrun', label: 'Outrun', description: 'Wrong game. Right vibe.' },
+  { id: 'aero', label: 'Frutiger Aero', description: 'Bubbles not included.' },
 ];
 
 export const DEFAULT_THEME: ThemeId = 'blert';

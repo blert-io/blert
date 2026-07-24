@@ -39,6 +39,28 @@
       color: var(--blert-purple);
     }
   }
+
+  :global([data-theme='aero']) & {
+    background: linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.96),
+      rgba(255, 255, 255, 0.84)
+    );
+    border: 1px solid rgba(112, 156, 196, 0.5);
+    border-left: 3px solid transparent;
+    backdrop-filter: none;
+
+    &:hover {
+      border-top-color: rgba(var(--blert-purple-base), 0.55);
+      border-right-color: rgba(var(--blert-purple-base), 0.55);
+      border-bottom-color: rgba(var(--blert-purple-base), 0.55);
+      box-shadow:
+        0 8px 26px rgba(60, 120, 165, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.35),
+        inset 0 0 0 999px rgba(255, 255, 255, 0.45);
+    }
+  }
 }
 
 .cardHeader {
@@ -80,6 +102,19 @@
         rgba(var(--blert-surface-light-base), 0.5) 50%
       );
     }
+  }
+
+  :global([data-theme='aero']) & {
+    border-left-color: var(--blert-purple);
+  }
+
+  :global([data-theme='aero']) &.active {
+    border-left-color: var(--blert-green);
+    background: linear-gradient(
+      to right,
+      color-mix(in srgb, var(--blert-green) 26%, white) 0%,
+      rgba(255, 255, 255, 0.9) 45%
+    );
   }
 }
 
@@ -251,6 +286,15 @@
   &:hover {
     border-left-color: var(--blert-yellow);
   }
+
+  :global([data-theme='aero']) & {
+    border-left-color: var(--blert-accent-complement);
+    background: linear-gradient(
+      to right,
+      color-mix(in srgb, var(--blert-accent-complement) 24%, white) 0%,
+      rgba(255, 255, 255, 0.9) 38%
+    );
+  }
 }
 
 .pbHeadline {
@@ -263,6 +307,10 @@
     font-size: 1rem;
     color: var(--blert-yellow);
     flex-shrink: 0;
+  }
+
+  :global([data-theme='aero']) & i {
+    color: var(--blert-accent-complement);
   }
 }
 
@@ -329,6 +377,10 @@
 
 .nameChangeCard {
   border-left-color: var(--blert-font-color-secondary);
+
+  :global([data-theme='aero']) & {
+    border-left-color: var(--blert-font-color-secondary);
+  }
 }
 
 .nameChangeBadge {

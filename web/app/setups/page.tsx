@@ -1,5 +1,4 @@
 import { ResolvingMetadata } from 'next';
-import Link from 'next/link';
 
 import {
   getSetups,
@@ -7,7 +6,8 @@ import {
   type SetupCursor,
   type SetupSort,
 } from '@/actions/setup';
-import Card from '@/components/card';
+import { ButtonLink } from '@/components/button';
+import Card, { CardLink } from '@/components/card';
 
 import { FilterableSetupList } from './filterable-setup-list';
 import LocalSetupsList from './local-setups-list';
@@ -69,10 +69,10 @@ export default async function SetupsPage({ searchParams }: SetupsPageProps) {
               Browse and create community gear setups for various PvM challenges
             </p>
           </div>
-          <Link href="/setups/new" className={styles.createButton}>
+          <ButtonLink href="/setups/new" className={styles.createButton}>
             <i className="fas fa-plus" />
             <span>Create Setup</span>
-          </Link>
+          </ButtonLink>
         </div>
       </Card>
 
@@ -88,10 +88,10 @@ export default async function SetupsPage({ searchParams }: SetupsPageProps) {
                   </div>
                 ),
                 action: (
-                  <Link href="/setups/my" className={styles.viewAllLink}>
-                    View All ({userSetups.total})
-                    <i className="fas fa-arrow-right" />
-                  </Link>
+                  <CardLink
+                    href="/setups/my"
+                    text={`View All (${userSetups.total})`}
+                  />
                 ),
               }}
               className={styles.userSetupsCard}
@@ -110,10 +110,13 @@ export default async function SetupsPage({ searchParams }: SetupsPageProps) {
                     You haven’t created any gear setups. Start by creating your
                     first setup!
                   </p>
-                  <Link href="/setups/new" className={styles.emptyStateButton}>
+                  <ButtonLink
+                    href="/setups/new"
+                    className={styles.emptyStateButton}
+                  >
                     <i className="fas fa-plus" />
                     Create Your First Setup
-                  </Link>
+                  </ButtonLink>
                 </div>
               )}
             </Card>

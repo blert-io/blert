@@ -146,23 +146,17 @@ function MenuImpl(props: MenuImplProps) {
     const rect = props.parent.getBoundingClientRect();
     style.top = rect.top - 1 + (positionAdjustment?.y ?? 0);
     style.left = rect.right + (positionAdjustment?.x ?? 0);
-    style.borderRadius = '5px';
     style.zIndex = 1000 + props.depth;
-  } else {
-    if (props.attach === 'top') {
-      style.borderRadius = '5px 5px 0 0';
-      style.borderBottom = 'none';
-    } else if (props.attach === 'bottom') {
-      style.borderRadius = '0 0 5px 5px';
-      style.borderTop = 'none';
-    } else {
-      style.borderRadius = '5px';
-    }
   }
 
   let className = styles.menu;
   if (!props.parent) {
     className += ` ${styles.rootMenu}`;
+    if (props.attach === 'top') {
+      className += ` ${styles.attachTop}`;
+    } else if (props.attach === 'bottom') {
+      className += ` ${styles.attachBottom}`;
+    }
   }
   if (props.menuClass) {
     className += ` ${props.menuClass}`;

@@ -480,6 +480,12 @@ export default function MarkdownEditor({
   const isNearLimit = characterCount > maxLength * 0.9;
   const isOverLimit = characterCount > maxLength;
 
+  // Approximate prose word count, dropping some markdown tokens.
+  const wordCount = value
+    .replace(/^\s*(?:[-*+]|\d+\.)\s+/gm, '')
+    .split(/\s+/)
+    .filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
+
   return (
     <div className={`${styles.editor} ${className ?? ''}`}>
       <div className={styles.toolbar}>
@@ -648,6 +654,8 @@ export default function MarkdownEditor({
         </div>
       )}
 
+      <div className={styles.ruler} aria-hidden />
+
       <div className={styles.editorContent}>
         {showPreview ? (
           <div className={styles.preview}>
@@ -673,6 +681,7 @@ export default function MarkdownEditor({
       </div>
 
       <div className={styles.footer}>
+        <span className={styles.wordCount}>Words: {wordCount}</span>
         <span
           className={`${styles.characterCount} ${
             isOverLimit ? styles.error : isNearLimit ? styles.warning : ''

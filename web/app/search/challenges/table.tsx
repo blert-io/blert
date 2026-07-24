@@ -26,7 +26,7 @@ import Input from '@/components/input';
 import Modal from '@/components/modal';
 import Menu, { MENU_DIVIDER, MenuItem } from '@/components/menu';
 import { DisplayContext } from '@/display';
-import { modeNameAndColor, statusNameAndColor } from '@/utils/challenge';
+import { challengeSlug, modeName, statusNameAndColor } from '@/utils/challenge';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 import { challengeUrl } from '@/utils/url';
 
@@ -301,13 +301,15 @@ const COLUMNS: Record<Column, ColumnInfo> = {
   [Column.TYPE]: {
     name: 'Type',
     renderer: (challenge) => {
-      const [type, color] = modeNameAndColor(
-        challenge.type,
-        challenge.mode,
-        false,
-        true,
+      const type = modeName(challenge.type, challenge.mode, false, true);
+      return (
+        <span
+          className={styles.modeText}
+          data-challenge={challengeSlug(challenge.type, challenge.mode)}
+        >
+          {type}
+        </span>
       );
-      return <span style={{ color }}>{type}</span>;
     },
   },
   [Column.STATUS]: {
@@ -1116,13 +1118,14 @@ export default function Table(props: TableProps) {
                     ) : null}
                     {props.onRetry ? (
                       <div className={styles.actions}>
-                        <button
+                        <Button
+                          simple
                           onClick={props.onRetry}
                           disabled={props.loading}
                         >
                           <i className="fas fa-rotate-right" />
                           Retry
-                        </button>
+                        </Button>
                       </div>
                     ) : null}
                   </div>
@@ -1213,7 +1216,8 @@ export default function Table(props: TableProps) {
                         Try adjusting filters or clearing them.
                       </p>
                       <div className={styles.actions}>
-                        <button
+                        <Button
+                          simple
                           onClick={() =>
                             props.setContext((prev) => ({
                               ...prev,
@@ -1223,7 +1227,7 @@ export default function Table(props: TableProps) {
                           }
                         >
                           Clear filters
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   </td>
@@ -1428,6 +1432,7 @@ type ConfirmAction = {
   customContent?: React.ReactNode;
   yesButton?: string;
   noButton?: string;
+  variant?: 'primary' | 'danger';
 };
 
 const DEFAULT_PRESET: PresetColumns = {
@@ -1642,13 +1647,12 @@ function ColumnsModal({
   };
 
   return (
-    <Modal className={styles.columnsModal} open={open} onClose={tryClose}>
-      <div className={styles.modalHeader}>
-        <h2>Manage columns</h2>
-        <button className={styles.closeButton} onClick={tryClose}>
-          <i className="fas fa-times" />
-        </button>
-      </div>
+    <Modal
+      className={styles.columnsModal}
+      open={open}
+      onClose={tryClose}
+      header="Manage columns"
+    >
       <div
         className={styles.selection}
         onMouseMove={onMouseMove}
@@ -1751,6 +1755,8 @@ function ColumnsModal({
                         action: () => {
                           setPresets(presets.filter((p) => p.id !== preset.id));
                         },
+                        yesButton: 'Delete',
+                        variant: 'danger',
                       });
                     }}
                   />
@@ -1836,7 +1842,9 @@ function ColumnsModal({
             <p className={styles.message}>{confirmAction.message}</p>
             {confirmAction.customContent}
             <div className={styles.confirmActions}>
-              <Button type="submit">{confirmAction.yesButton ?? 'Yes'}</Button>
+              <Button type="submit" variant={confirmAction.variant}>
+                {confirmAction.yesButton ?? 'Yes'}
+              </Button>
               <Button simple onClick={() => setConfirmAction(null)}>
                 {confirmAction.noButton ?? 'No'}
               </Button>

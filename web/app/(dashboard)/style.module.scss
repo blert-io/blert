@@ -13,6 +13,10 @@
 
 .welcomeSection {
   margin-bottom: 24px;
+
+  :global([data-theme='aero']) & {
+    @include aeroSkyWindow;
+  }
 }
 
 .feedPage {

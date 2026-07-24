@@ -3,6 +3,7 @@
 import { MouseEvent, useState } from 'react';
 
 import { FollowedPlayer, SuggestedPlayer } from '@/actions/feed';
+import Button from '@/components/button';
 import PlayerAvatar from '@/components/player-avatar';
 import PlayerLink from '@/components/player-link';
 import { useToast } from '@/components/toast';
@@ -129,7 +130,7 @@ export default function PlayerPicker({
       </div>
 
       <div className={styles.actions}>
-        <button
+        <Button
           className={styles.followButton}
           onClick={() => void handleFollowSelected()}
           disabled={isSubmitting || selected.size === 0}
@@ -146,7 +147,7 @@ export default function PlayerPicker({
               Continue
             </>
           )}
-        </button>
+        </Button>
         <button
           className={styles.skipButton}
           onClick={handleSkip}

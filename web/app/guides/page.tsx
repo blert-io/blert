@@ -16,15 +16,10 @@ export default function GuidesPage() {
         </h1>
         <div className={styles.description}>
           <p>
-            Welcome to Blert&apos;s comprehensive guide collection for Old
-            School RuneScape PvM content. Our guides are meticulously crafted to
-            help you master challenging end-game PvM encounters, with detailed
-            strategies, mechanics explanations, and role-specific advice.
-          </p>
-          <p>
-            Each guide is regularly updated to reflect the latest meta
-            strategies and game changes, ensuring you always have access to
-            current, reliable information.
+            Welcome to Blert&apos;s collection of guides for Old School
+            RuneScape PvM content. Our guides are designed to help you master
+            challenging end-game PvM encounters, with detailed strategies,
+            mechanics explanations, and role-specific advice.
           </p>
           <div className={styles.notice}>
             <i className="fas fa-exclamation-circle" />
@@ -37,7 +32,7 @@ export default function GuidesPage() {
         </div>
       </Card>
 
-      <Card className={`${styles.guidePanel} ${styles.section}`}>
+      <Card className={styles.guidePanel}>
         <h2>Blert Usage</h2>
         <div className={styles.description}>
           <p>

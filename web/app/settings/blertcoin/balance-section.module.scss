@@ -71,6 +71,29 @@
     position: relative;
     z-index: 1;
   }
+
+  :global([data-theme='aero']) & {
+    @include aeroWell(
+      linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--blert-accent-complement) 7%, white),
+        color-mix(in srgb, var(--blert-accent-complement) 12%, white)
+      )
+    );
+    border-color: rgba(var(--blert-accent-complement-base), 0.45);
+
+    &::before {
+      background: radial-gradient(
+        circle,
+        rgba(var(--blert-accent-complement-base), 0.18) 0%,
+        transparent 70%
+      );
+    }
+
+    .balanceLabel i {
+      color: var(--blert-accent-complement);
+    }
+  }
 }
 
 .disclaimer {
@@ -115,5 +138,13 @@
       color: var(--blert-font-color-secondary);
       font-size: 0.9em;
     }
+  }
+
+  :global([data-theme='aero']) & {
+    @include aeroNotice(
+      rgba(253, 235, 235, 0.96),
+      rgba(250, 219, 219, 0.93),
+      rgba(200, 80, 80, 0.55)
+    );
   }
 }

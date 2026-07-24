@@ -1,3 +1,5 @@
+@use '../mixins.scss' as *;
+
 .preview {
   position: absolute;
   display: grid;
@@ -24,6 +26,10 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   white-space: nowrap;
 
+  :global([data-theme='aero']) & {
+    box-shadow: 0 2px 8px rgba(60, 120, 165, 0.35);
+  }
+
   &.swap {
     background: rgba(var(--blert-surface-dark-base), 0.95);
     border-color: rgba(var(--blert-font-color-primary-base), 0.3);
@@ -34,12 +40,23 @@
     background: rgba(var(--blert-yellow-base), 0.15);
     border-color: rgba(var(--blert-yellow-base), 0.5);
     color: var(--blert-yellow);
+
+    :global([data-theme='aero']) & {
+      background: color-mix(in srgb, var(--blert-accent-complement) 15%, white);
+      border-color: rgba(var(--blert-accent-complement-base), 0.6);
+      color: color-mix(in srgb, var(--blert-accent-complement) 65%, black);
+    }
   }
 
   &.replace {
     background: rgba(var(--blert-blue-base), 0.15);
     border-color: rgba(var(--blert-blue-base), 0.5);
     color: var(--blert-blue);
+
+    :global([data-theme='aero']) & {
+      background: color-mix(in srgb, var(--blert-blue) 12%, white);
+      color: color-mix(in srgb, var(--blert-blue) 70%, black);
+    }
   }
 
   .key {
@@ -58,6 +75,10 @@
       0 2px 0 rgba(0, 0, 0, 0.3),
       inset 0 1px 0 rgba(255, 255, 255, 0.05);
     text-align: center;
+
+    :global([data-theme='aero']) & {
+      @include aeroKeycap;
+    }
   }
 }
 
@@ -73,12 +94,24 @@
     background: rgba(var(--blert-green-base), 0.2);
     border: 2px solid rgba(var(--blert-green-base), 0.6);
     box-shadow: 0 0 8px rgba(var(--blert-green-base), 0.4);
+
+    :global([data-theme='aero']) & {
+      background: rgba(var(--blert-aero-action-base), 0.35);
+      border-color: rgba(var(--blert-aero-action-base), 0.95);
+      box-shadow: 0 0 8px rgba(var(--blert-aero-action-base), 0.5);
+    }
   }
 
   &.invalid {
     background: rgba(var(--blert-red-base), 0.2);
     border: 2px solid rgba(var(--blert-red-base), 0.6);
     box-shadow: 0 0 8px rgba(var(--blert-red-base), 0.4);
+
+    :global([data-theme='aero']) & {
+      background: rgba(217, 83, 79, 0.4);
+      border-color: rgba(242, 144, 140, 0.95);
+      box-shadow: 0 0 8px rgba(217, 83, 79, 0.5);
+    }
   }
 
   .previewItem {

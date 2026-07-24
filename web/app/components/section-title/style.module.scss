@@ -24,4 +24,12 @@
     color: var(--blert-purple);
     font-size: 1.2rem;
   }
+
+  :global([data-theme='aero']) & {
+    border-bottom-color: rgba(120, 165, 200, 0.35);
+
+    &::after {
+      display: none;
+    }
+  }
 }
