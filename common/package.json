@@ -35,7 +35,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.587.0",
     "postgres": "^3.4.9",
-    "zod": "^3.25.76"
+    "zod": "^4.4.3"
   },
   "overrides": {
     "@smithy/core": "3.20.0"
