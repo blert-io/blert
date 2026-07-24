@@ -78,16 +78,7 @@ describe('AccountStatus', () => {
       const skeletonTexts = container.querySelectorAll(
         '[class*="skeletonText"]',
       );
-      expect(skeletonTexts).toHaveLength(2);
-    });
-
-    it('renders skeleton action buttons', () => {
-      const { container } = render(<AccountStatus />);
-
-      const skeletonActions = container.querySelectorAll(
-        '[class*="skeletonAction"]',
-      );
-      expect(skeletonActions).toHaveLength(2);
+      expect(skeletonTexts).toHaveLength(1);
     });
 
     it('does not render login or signup buttons', () => {
@@ -126,16 +117,7 @@ describe('AccountStatus', () => {
       const skeletonTexts = container.querySelectorAll(
         '[class*="skeletonText"]',
       );
-      expect(skeletonTexts).toHaveLength(2);
-    });
-
-    it('renders skeleton action buttons', () => {
-      const { container } = render(<AccountStatusSkeleton />);
-
-      const skeletonActions = container.querySelectorAll(
-        '[class*="skeletonAction"]',
-      );
-      expect(skeletonActions).toHaveLength(2);
+      expect(skeletonTexts).toHaveLength(1);
     });
   });
 
@@ -145,12 +127,6 @@ describe('AccountStatus', () => {
         isPending: false,
         data: { user: { displayUsername: 'TestUser', username: 'testuser' } },
       });
-    });
-
-    it('displays "Signed in as" label', () => {
-      render(<AccountStatus />);
-
-      expect(screen.getByText('Signed in as')).toBeInTheDocument();
     });
 
     it('displays the display username', () => {
@@ -184,7 +160,7 @@ describe('AccountStatus', () => {
     it('renders settings link', () => {
       render(<AccountStatus />);
 
-      const settingsLink = screen.getByText('Settings').closest('a');
+      const settingsLink = screen.getByRole('link', { name: 'Settings' });
       expect(settingsLink).toBeInTheDocument();
       expect(settingsLink).toHaveAttribute('href', '/settings');
     });
@@ -192,7 +168,9 @@ describe('AccountStatus', () => {
     it('renders logout button', () => {
       render(<AccountStatus />);
 
-      expect(screen.getByText('Log Out')).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Log out' }),
+      ).toBeInTheDocument();
     });
 
     it('renders user avatar icon', () => {
@@ -340,6 +318,72 @@ describe('AccountStatus', () => {
     });
   });
 
+  describe('mini variant', () => {
+    it('renders a single collapsed skeleton while loading', () => {
+      mockUseSession.mockReturnValue({ isPending: true, data: null });
+
+      const { container } = render(<AccountStatus variant="mini" />);
+
+      expect(
+        container.querySelectorAll('[class*="collapsedSkeleton"]'),
+      ).toHaveLength(1);
+      expect(
+        container.querySelector('[class*="card"]'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('renders only an account link when authenticated', () => {
+      mockUseSession.mockReturnValue({
+        isPending: false,
+        data: { user: { displayUsername: 'TestUser', username: 'testuser' } },
+      });
+
+      render(<AccountStatus variant="mini" />);
+
+      expect(screen.getByRole('link', { name: 'Account' })).toHaveAttribute(
+        'href',
+        '/settings',
+      );
+      expect(screen.queryByText('TestUser')).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Log out' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('renders login and signup links carrying the next parameter', () => {
+      mockUseSession.mockReturnValue({ isPending: false, data: null });
+      mockUsePathname.mockReturnValue('/raids/tob');
+      mockUseSearchParams.mockReturnValue(new URLSearchParams('scale=5'));
+
+      render(<AccountStatus variant="mini" />);
+
+      expect(screen.getByRole('link', { name: 'Log in' })).toHaveAttribute(
+        'href',
+        '/login?next=%2Fraids%2Ftob%3Fscale%3D5',
+      );
+      expect(screen.getByRole('link', { name: 'Sign up' })).toHaveAttribute(
+        'href',
+        '/register?next=%2Fraids%2Ftob%3Fscale%3D5',
+      );
+    });
+
+    it('omits the next parameter on avoided routes', () => {
+      mockUseSession.mockReturnValue({ isPending: false, data: null });
+      mockUsePathname.mockReturnValue('/login');
+
+      render(<AccountStatus variant="mini" />);
+
+      expect(screen.getByRole('link', { name: 'Log in' })).toHaveAttribute(
+        'href',
+        '/login',
+      );
+      expect(screen.getByRole('link', { name: 'Sign up' })).toHaveAttribute(
+        'href',
+        '/register',
+      );
+    });
+  });
+
   describe('logout functionality', () => {
     beforeEach(() => {
       mockUseSession.mockReturnValue({
@@ -351,7 +395,7 @@ describe('AccountStatus', () => {
     it('calls signOut when logout button is clicked', async () => {
       render(<AccountStatus />);
 
-      fireEvent.click(screen.getByText('Log Out'));
+      fireEvent.click(screen.getByRole('button', { name: 'Log out' }));
 
       await waitFor(() => {
         expect(mockSignOut).toHaveBeenCalled();
@@ -363,7 +407,7 @@ describe('AccountStatus', () => {
 
       render(<AccountStatus />);
 
-      fireEvent.click(screen.getByText('Log Out'));
+      fireEvent.click(screen.getByRole('button', { name: 'Log out' }));
 
       await waitFor(() => {
         expect(mockReplace).toHaveBeenCalledWith('/raids/123');
@@ -375,7 +419,7 @@ describe('AccountStatus', () => {
 
       render(<AccountStatus />);
 
-      fireEvent.click(screen.getByText('Log Out'));
+      fireEvent.click(screen.getByRole('button', { name: 'Log out' }));
 
       await waitFor(() => {
         expect(mockReplace).toHaveBeenCalledWith('/');
@@ -387,7 +431,7 @@ describe('AccountStatus', () => {
 
       render(<AccountStatus />);
 
-      fireEvent.click(screen.getByText('Log Out'));
+      fireEvent.click(screen.getByRole('button', { name: 'Log out' }));
 
       await waitFor(() => {
         expect(mockReplace).toHaveBeenCalledWith('/');
@@ -402,7 +446,7 @@ describe('AccountStatus', () => {
 
       render(<AccountStatus />);
 
-      fireEvent.click(screen.getByText('Log Out'));
+      fireEvent.click(screen.getByRole('button', { name: 'Log out' }));
 
       await waitFor(() => {
         expect(mockReplace).toHaveBeenCalledWith('/raids/tob?scale=5&status=1');
