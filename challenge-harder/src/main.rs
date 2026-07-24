@@ -11,6 +11,7 @@ mod lifecycle;
 mod players;
 mod processing;
 mod proto;
+mod repository;
 mod shadow;
 mod store;
 
