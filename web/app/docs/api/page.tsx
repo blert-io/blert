@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import type { SwaggerUIProps } from 'swagger-ui-react';
+import type { SwaggerUIProps } from 'swagger-ui-react/swagger-ui-react';
 import 'swagger-ui-react/swagger-ui.css';
 
 const SwaggerUI = dynamic<SwaggerUIProps>(() => import('swagger-ui-react'), {
