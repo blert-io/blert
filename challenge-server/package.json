@@ -16,13 +16,13 @@
     "test:coverage": "jest --coverage"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.587.0",
+    "@aws-sdk/client-s3": "^3.1095.0",
     "@blert/common": "file:../common",
     "@types/redis": "^4.0.10",
     "dotenv": "^16.4.5",
     "express": "^4.18.2",
     "google-protobuf": "^3.21.2",
-    "piscina": "^5.1.4",
+    "piscina": "^5.3.0",
     "postgres": "^3.4.9",
     "prom-client": "^15.1.3",
     "redis": "^4.7.0",
@@ -33,7 +33,7 @@
     "@types/jest": "^29.5.12",
     "@types/node": "^20.11.5",
     "jest": "^29.7.0",
-    "ts-jest": "^29.2.5",
+    "ts-jest": "^29.4.12",
     "tsc-watch": "^6.0.4"
   }
 }
