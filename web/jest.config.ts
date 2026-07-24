@@ -155,7 +155,13 @@ const config = {
   testEnvironment: 'node',
 
   // Options that will be passed to the testEnvironment
-  // testEnvironmentOptions: {},
+  testEnvironmentOptions: {
+    // jsdom resolves the "browser" export condition by default, which points
+    // packages such as @aws-sdk/core at untranspiled ESM builds that Jest
+    // cannot parse. Resolve the Node builds instead, matching the "node"
+    // environment used by the rest of the suite.
+    customExportConditions: ['node'],
+  },
 
   // Adds a location field to test results
   // testLocationInResults: false,
