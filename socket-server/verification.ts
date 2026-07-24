@@ -13,18 +13,14 @@ export class PluginVersions {
     headers: IncomingHttpHeaders,
   ): PluginVersions | null {
     const version = headers[PluginVersions.VERSION_HEADER] as
-      | string
-      | undefined;
+      string | undefined;
     let revision = headers[PluginVersions.REVISION_HEADER] as
-      | string
-      | undefined;
+      string | undefined;
     revision = revision?.split(':')[0];
     const jarHash = headers[PluginVersions.JAR_HASH_HEADER] as
-      | string
-      | undefined;
+      string | undefined;
     const runeLiteVersion = headers[PluginVersions.RUNELITE_VERSION_HEADER] as
-      | string
-      | undefined;
+      string | undefined;
 
     if (!revision || !version || !jarHash || !runeLiteVersion) {
       return null;

@@ -154,10 +154,7 @@ export const recordWatchConflict = (action: string): void => {
 
 export type ChallengeRequestAction = 'create' | 'join';
 export type ChallengeRequestDecision =
-  | 'accepted'
-  | 'rejected'
-  | 'deferred'
-  | 'error';
+  'accepted' | 'rejected' | 'deferred' | 'error';
 
 const challengeRequests = new Counter({
   name: 'challenge_server_challenge_requests_total',
@@ -504,10 +501,7 @@ export const recordReportedTimeMismatch = (
 };
 
 export type TimeoutStateLabel =
-  | 'none'
-  | 'cleanup'
-  | 'challenge_end'
-  | 'stage_end';
+  'none' | 'cleanup' | 'challenge_end' | 'stage_end';
 
 const timeoutEvents = new Counter({
   name: 'challenge_server_timeout_events_total',
@@ -546,9 +540,7 @@ const sessionWatchdogRuns = new Counter({
 });
 
 export type SessionWatchdogResult =
-  | 'expired_sessions'
-  | 'no_expired_sessions'
-  | 'error';
+  'expired_sessions' | 'no_expired_sessions' | 'error';
 
 export const recordSessionWatchdogRun = (
   result: SessionWatchdogResult,
@@ -578,11 +570,7 @@ export const recordStreamCapture = (reason: string): void => {
 };
 
 export type MergeOutcome =
-  | 'merged'
-  | 'bad_data'
-  | 'exception'
-  | 'runner_failed'
-  | 'deserialize_failed';
+  'merged' | 'bad_data' | 'exception' | 'runner_failed' | 'deserialize_failed';
 
 const mergeRequests = new Counter({
   name: 'challenge_server_merge_requests_total',

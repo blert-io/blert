@@ -138,8 +138,7 @@ export type GrantApiAccessResult =
 const API_KEY_USER_LIMIT_KEY = 'blert:api_key_user_limit';
 
 type LimitResult =
-  | { success: true; limit: number }
-  | { success: false; error: 'unavailable' };
+  { success: true; limit: number } | { success: false; error: 'unavailable' };
 
 async function getApiKeyUserLimit(): Promise<LimitResult> {
   let redisAvailable = false;

@@ -46,10 +46,7 @@ export type RangeComparator<T> = ['range', [T, T]];
  * Represents a comparison of the form "operator field", e.g. ">40"
  */
 export type Comparator<T> =
-  | [Operator, T]
-  | InComparator<T>
-  | NinComparator<T>
-  | RangeComparator<T>;
+  [Operator, T] | InComparator<T> | NinComparator<T> | RangeComparator<T>;
 
 export function where(
   conditions: postgres.Fragment[],

@@ -114,10 +114,7 @@ export interface PlayerDeathEvent extends BasePlayerEvent {
 }
 
 export type PlayerEvent =
-  | PlayerUpdateEvent
-  | PlayerAttackEvent
-  | PlayerSpellEvent
-  | PlayerDeathEvent;
+  PlayerUpdateEvent | PlayerAttackEvent | PlayerSpellEvent | PlayerDeathEvent;
 
 export interface BaseNpcEvent extends BaseEvent {
   npc: EventNpc;

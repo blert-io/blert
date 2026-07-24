@@ -49,9 +49,7 @@ export type AccountParticipant = {
  * A participant in a transaction.
  */
 export type TransactionParticipant =
-  | UserParticipant
-  | SystemParticipant
-  | AccountParticipant;
+  UserParticipant | SystemParticipant | AccountParticipant;
 
 /**
  * A raw entry in a transaction, specifying account ID and amount directly.
@@ -161,8 +159,7 @@ export type TransactionResultWithParticipants = TransactionResultBase & {
  * Result of creating a transaction.
  */
 export type TransactionResult =
-  | TransactionResultWithEntries
-  | TransactionResultWithParticipants;
+  TransactionResultWithEntries | TransactionResultWithParticipants;
 
 type TransactionResultBaseRaw = WithDateString<TransactionResultBase>;
 
@@ -175,8 +172,7 @@ export type TransactionResultWithParticipantsRaw = TransactionResultBaseRaw & {
 };
 
 export type TransactionResultRaw =
-  | TransactionResultWithEntriesRaw
-  | TransactionResultWithParticipantsRaw;
+  TransactionResultWithEntriesRaw | TransactionResultWithParticipantsRaw;
 
 export type BlertbankApiErrorCode =
   | 'ACCOUNT_NOT_FOUND'

@@ -68,8 +68,7 @@ export enum SplitTier {
 }
 
 export type DataSource =
-  | { kind: 'global' }
-  | { kind: 'player'; username: string };
+  { kind: 'global' } | { kind: 'player'; username: string };
 
 export const LOW_SAMPLE_THRESHOLD = 50;
 

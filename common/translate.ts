@@ -6,17 +6,15 @@ export type CamelToSnakeCaseString<S extends string> =
     : S;
 
 export type CamelToSnakeCase<T> = T extends
-  | Primitive
-  | Date
-  | ((...args: unknown[]) => unknown)
+  Primitive | Date | ((...args: unknown[]) => unknown)
   ? T
   : T extends readonly (infer U)[]
     ? readonly CamelToSnakeCase<U>[]
     : T extends object
       ? {
-          [K in keyof T as CamelToSnakeCaseString<
-            K & string
-          >]: CamelToSnakeCase<T[K]>;
+          [
+            K in keyof T as CamelToSnakeCaseString<K & string>
+          ]: CamelToSnakeCase<T[K]>;
         }
       : T;
 
@@ -41,17 +39,15 @@ export type SnakeToCamelCaseString<S extends string> =
     : S;
 
 export type SnakeToCamelCase<T> = T extends
-  | Primitive
-  | Date
-  | ((...args: unknown[]) => unknown)
+  Primitive | Date | ((...args: unknown[]) => unknown)
   ? T
   : T extends readonly (infer U)[]
     ? readonly SnakeToCamelCase<U>[]
     : T extends object
       ? {
-          [K in keyof T as SnakeToCamelCaseString<
-            K & string
-          >]: SnakeToCamelCase<T[K]>;
+          [
+            K in keyof T as SnakeToCamelCaseString<K & string>
+          ]: SnakeToCamelCase<T[K]>;
         }
       : T;
 

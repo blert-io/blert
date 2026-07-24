@@ -4,14 +4,7 @@ import React, { createContext } from 'react';
 import { TimelineDisplay } from './display-utils';
 
 export type ChartColor =
-  | 'red'
-  | 'orange'
-  | 'yellow'
-  | 'green'
-  | 'cyan'
-  | 'blue'
-  | 'purple'
-  | 'gray';
+  'red' | 'orange' | 'yellow' | 'green' | 'cyan' | 'blue' | 'purple' | 'gray';
 
 export type ColorIntensity = 'low' | 'medium' | 'high';
 

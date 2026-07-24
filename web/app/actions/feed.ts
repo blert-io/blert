@@ -59,9 +59,7 @@ export type NameChangeFeedItem = {
 };
 
 export type FeedItem =
-  | SessionFeedItem
-  | PersonalBestFeedItem
-  | NameChangeFeedItem;
+  SessionFeedItem | PersonalBestFeedItem | NameChangeFeedItem;
 
 const FEED_ITEM_TYPE_PRIORITY: Record<FeedItem['type'], number> = {
   session: 0,

@@ -40,5 +40,4 @@ globalThis._sql ??= initPostgres();
 export const sql = globalThis._sql;
 
 export type Db =
-  | Sql<NonNullable<unknown>>
-  | TransactionSql<NonNullable<unknown>>;
+  Sql<NonNullable<unknown>> | TransactionSql<NonNullable<unknown>>;

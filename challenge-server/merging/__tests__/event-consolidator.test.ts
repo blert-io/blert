@@ -86,8 +86,8 @@ function testCtx(
   if (clients !== undefined) {
     ctx.challenge = {
       ...ctx.challenge,
-      party: Array.from(clients.values()).map(
-        (c) => c.client.getPrimaryPlayer()!,
+      party: Array.from(clients.values()).map((c) =>
+        c.client.getPrimaryPlayer()!,
       ),
     };
   }
