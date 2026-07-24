@@ -1,6 +1,6 @@
 process.env.BLERTBANK_SERVICE_TOKEN = 'test-token';
 
-import type { Request, Response, NextFunction } from 'express';
+import type { Request, Response } from 'express';
 
 import { requireServiceAuth } from '@/api/auth';
 import { ApiError, ApiErrorCode } from '@/api/error';
@@ -23,7 +23,7 @@ describe('requireServiceAuth', () => {
     const next = jest.fn();
 
     requestContext.run({}, () => {
-      requireServiceAuth(req, res, next as unknown as NextFunction);
+      requireServiceAuth(req, res, next);
 
       expect(next).toHaveBeenCalledWith();
       expect(getRequestContext().requestService).toBe('unknown');
@@ -39,7 +39,7 @@ describe('requireServiceAuth', () => {
     const next = jest.fn();
 
     requestContext.run({}, () => {
-      requireServiceAuth(req, res, next as unknown as NextFunction);
+      requireServiceAuth(req, res, next);
 
       expect(getRequestContext().requestService).toBe('test-service');
     });
@@ -50,7 +50,7 @@ describe('requireServiceAuth', () => {
     const res = makeMockRes();
     const next = jest.fn();
 
-    requireServiceAuth(req, res, next as unknown as NextFunction);
+    requireServiceAuth(req, res, next);
 
     expect(next).toHaveBeenCalledTimes(1);
     const err = next.mock.calls[0][0] as ApiError;
