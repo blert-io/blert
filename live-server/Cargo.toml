@@ -8,7 +8,7 @@ pedantic = "warn"
 
 [dependencies]
 axum = { version = "0.8.8", features = ["macros"] }
-base64 = "0.22.1"
+base64 = "0.23.0"
 prometheus = "0.14.0"
 pin-project-lite = "0.2"
 prost = "0.14.3"
