@@ -7,6 +7,16 @@ updates:
     open-pull-requests-limit: 10
     groups:
       npm-minor-patch:
+        # Formatting and lint tooling is excluded from the group because a
+        # bump usually requires a matching reformat or relint, which does not
+        # belong in a PR carrying dozens of unrelated packages. Excluded
+        # packages still receive their own individual update PRs.
+        exclude-patterns:
+          - prettier
+          - eslint
+          - '@eslint/*'
+          - typescript-eslint
+          - '@typescript-eslint/*'
         update-types:
           - minor
           - patch
