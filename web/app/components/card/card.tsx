@@ -45,13 +45,21 @@ export function Card({
   );
 }
 
-export function CardLink({ href, text }: { href: string; text: string }) {
+export function CardLink({
+  href,
+  text,
+  className,
+}: {
+  href: string;
+  text: string;
+  className?: string;
+}) {
   return (
     <ButtonLink
       href={href}
       simple
       fontSize="0.9rem"
-      className={styles.cardLink}
+      className={`${styles.cardLink} ${className ?? ''}`}
     >
       {text} <i className="fas fa-arrow-right" />
     </ButtonLink>

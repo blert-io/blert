@@ -1,0 +1,136 @@
+@use '../../../mixins.scss' as *;
+
+.card {
+  width: 100%;
+  height: fit-content;
+
+  i {
+    color: var(--blert-purple);
+    margin-right: 5px;
+
+    :global([data-theme='aero']) & {
+      display: none;
+    }
+  }
+
+  .submitLink {
+    margin-top: 1em;
+    width: fit-content;
+    align-self: center;
+  }
+}
+
+.count {
+  color: var(--blert-font-color-secondary);
+  font-size: 0.8em;
+  white-space: nowrap;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+    border-radius: 8px;
+    padding: 16px 18px;
+  }
+}
+
+.node {
+  display: flex;
+  gap: 14px;
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 14px;
+  flex-shrink: 0;
+}
+
+.dot {
+  margin-top: 5px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.dotCurrent {
+  width: 11px;
+  height: 11px;
+  background: var(--blert-purple);
+  box-shadow: 0 0 0 3px rgba(var(--blert-purple-base), 0.2);
+}
+
+.dotPast {
+  width: 9px;
+  height: 9px;
+  background: transparent;
+  border: 2px solid rgba(var(--blert-font-color-secondary-base), 0.55);
+}
+
+.line {
+  width: 2px;
+  flex: 1;
+  margin-top: 5px;
+  background: rgba(var(--blert-font-color-secondary-base), 0.3);
+}
+
+.content {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 18px;
+}
+
+.contentLast {
+  padding-bottom: 0;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--blert-font-color-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.nameCurrent {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.currentTag {
+  align-self: center;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: rgba(var(--blert-purple-base), 0.14);
+  border: 1px solid rgba(var(--blert-purple-base), 0.3);
+  color: var(--blert-purple);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.duration {
+  color: var(--blert-font-color-secondary);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.date {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--blert-font-color-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

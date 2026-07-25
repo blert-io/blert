@@ -10,6 +10,8 @@ import {
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
+import { clamp } from '@/utils/math';
+
 import { sql } from './db';
 import processor from './name-change-processor';
 import { getSignedInUserId } from './users';
@@ -92,33 +94,118 @@ function rowToNameChange(nc: NameChangeRow): NameChange {
   };
 }
 
-export async function getRecentNameChanges(
-  limit: number = 10,
-): Promise<NameChange[]> {
-  const nameChanges = await sql<NameChangeRow[]>`
-    SELECT
-      id,
-      old_name,
-      new_name,
-      status,
-      submitted_at,
-      processed_at,
-      kind,
-      effective_from,
-      effective_to,
-      sequence_id
-    FROM name_changes
-    WHERE hidden_from_feed = FALSE
-    ORDER BY effective_from DESC
-    LIMIT ${limit}
-  `;
+const DEFAULT_PAGE_SIZE = 25;
+const MAX_PAGE_SIZE = 100;
 
-  return nameChanges.map(rowToNameChange);
+export type NameChangeFeedPage = {
+  changes: NameChange[];
+  /** Opaque keyset cursor for the next page, or null when exhausted. */
+  nextCursor: string | null;
+  /**
+   * Total rows matching the filter, computed only for the first page; 0 on
+   * subsequent ones.
+   */
+  total: number;
+};
+
+/**
+ * Fetches a page of feed name changes, newest first, ordered by processing time
+ * (falling back to submission time for unprocessed changes).
+ *
+ * If `query` is nonempty, results are filtered to a case-insensitive substring
+ * match on either the old or new name.
+ *
+ * @param cursor Cursor from a previous page, or null to start from the newest.
+ * @param pageSize Rows to return, clamped to [1, 100].
+ * @param query Optional search string.
+ */
+export async function getNameChanges(
+  cursor: string | null,
+  pageSize: number = DEFAULT_PAGE_SIZE,
+  query: string = '',
+): Promise<NameChangeFeedPage> {
+  const trimmed = query.trim().slice(0, 24);
+  const hasQuery = trimmed.length > 0;
+  const escaped = trimmed.replace(/[\\%_]/g, (c) => `\\${c}`);
+  const searchClause = hasQuery
+    ? sql`AND (old_name ILIKE ${`%${escaped}%`} OR new_name ILIKE ${`%${escaped}%`})`
+    : sql``;
+
+  pageSize = Number.isFinite(pageSize)
+    ? clamp(Math.trunc(pageSize), 1, MAX_PAGE_SIZE)
+    : DEFAULT_PAGE_SIZE;
+
+  let cursorAt: Date | null = null;
+  let cursorId = 0;
+  if (cursor !== null) {
+    const separator = cursor.indexOf('_');
+    const ts = Number(cursor.slice(0, separator));
+    const id = Number(cursor.slice(separator + 1));
+    if (separator !== -1 && Number.isFinite(ts) && Number.isFinite(id)) {
+      cursorAt = new Date(ts);
+      cursorId = id;
+    }
+  }
+
+  const [rows, total] = await Promise.all([
+    sql<(NameChangeRow & { sort_at: Date })[]>`
+      SELECT
+        id,
+        old_name,
+        new_name,
+        status,
+        submitted_at,
+        processed_at,
+        kind,
+        effective_from,
+        effective_to,
+        sequence_id,
+        COALESCE(processed_at, submitted_at) AS sort_at
+      FROM name_changes
+      WHERE hidden_from_feed = FALSE
+        ${searchClause}
+        ${
+          cursorAt !== null
+            ? sql`AND (
+                COALESCE(processed_at, submitted_at) < ${cursorAt}
+                OR (COALESCE(processed_at, submitted_at) = ${cursorAt} AND id < ${cursorId})
+              )`
+            : sql``
+        }
+      ORDER BY COALESCE(processed_at, submitted_at) DESC, id DESC
+      LIMIT ${pageSize + 1}
+    `,
+    cursor === null
+      ? sql<[{ total: number }]>`
+          SELECT COUNT(*)::int AS total
+          FROM name_changes
+          WHERE hidden_from_feed = FALSE
+            ${searchClause}
+        `.then(([row]) => row.total)
+      : Promise.resolve(0),
+  ]);
+
+  const hasMore = rows.length > pageSize;
+  const page = hasMore ? rows.slice(0, pageSize) : rows;
+
+  let nextCursor: string | null = null;
+  if (hasMore && page.length > 0) {
+    const last = page[page.length - 1];
+    nextCursor = `${last.sort_at.getTime()}_${last.id}`;
+  }
+
+  return { changes: page.map(rowToNameChange), nextCursor, total };
 }
 
+/**
+ * Fetches a player's accepted name changes, newest first.
+ *
+ * @param username The player to look up.
+ * @param limit Maximum rows to return, or null for the full history.
+ */
 export async function getNameChangesForPlayer(
   username: string,
-  limit: number = 10,
+  limit: number | null = 10,
 ): Promise<NameChange[]> {
   const nameChanges = await sql<NameChangeRow[]>`
     SELECT
@@ -138,7 +225,7 @@ export async function getNameChangesForPlayer(
       AND nc.status = ${NameChangeStatus.ACCEPTED}
       AND nc.hidden_from_profile = FALSE
     ORDER BY nc.effective_from DESC
-    LIMIT ${limit}
+    ${limit !== null ? sql`LIMIT ${limit}` : sql``}
   `;
 
   return nameChanges.map(rowToNameChange);
