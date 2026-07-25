@@ -1,7 +1,23 @@
 import nextPlugin from '@next/eslint-plugin-next';
-import reactPlugin from 'eslint-plugin-react';
+import nextConfig from 'eslint-config-next';
 import hooksPlugin from 'eslint-plugin-react-hooks';
+import { createRequire } from 'node:module';
 import rootConfig from '../eslint.config.mjs';
+
+// eslint-plugin-react's `version: 'detect'` calls `context.getFilename()`,
+// which ESLint 10 removed, so the React version must be supplied explicitly.
+// TODO(frolv): Remove these two workarounds once eslint-plugin-react updates.
+// https://github.com/jsx-eslint/eslint-plugin-react/issues/3977
+const reactVersion = createRequire(import.meta.url)(
+  'react/package.json',
+).version;
+
+// eslint-plugin-react does not yet support ESLint 10, so npm nests it under
+// eslint-config-next instead of hoisting it, leaving it unresolvable from here.
+// Read the plugin off eslint-config-next, which owns the dependency.
+const reactPlugin = nextConfig.find(
+  (entry) => entry.plugins?.react !== undefined,
+).plugins.react;
 
 const config = [
   {
@@ -34,7 +50,7 @@ const config = [
     },
     settings: {
       react: {
-        version: 'detect',
+        version: reactVersion,
       },
     },
   },
