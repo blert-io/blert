@@ -9,7 +9,6 @@ export type ThemeId =
 export type ThemeDefinition = {
   id: ThemeId;
   label: string;
-  description: string;
 };
 
 /**
@@ -19,24 +18,21 @@ export type ThemeDefinition = {
  * `[data-theme='<id>']` token block in `globals.scss`.
  */
 export const THEMES: ThemeDefinition[] = [
-  { id: 'blert', label: 'Blert', description: 'The classic Blert look.' },
+  { id: 'blert', label: 'Blert' },
   {
     id: 'morytania',
     label: 'Morytania',
-    description: 'Home turf.',
   },
   {
     id: 'necropolis',
     label: 'Necropolis',
-    description: 'Cold tombs, warm gold.',
   },
   {
     id: 'ashfall',
     label: 'Ashfall',
-    description: 'Burnt, but cozy.',
   },
-  { id: 'outrun', label: 'Outrun', description: 'Wrong game. Right vibe.' },
-  { id: 'aero', label: 'Frutiger Aero', description: 'Bubbles not included.' },
+  { id: 'outrun', label: 'Outrun' },
+  { id: 'aero', label: 'Frutiger Aero' },
 ];
 
 export const DEFAULT_THEME: ThemeId = 'blert';
