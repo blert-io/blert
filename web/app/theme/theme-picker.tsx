@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import Modal from '@/components/modal';
+import { trackEvent } from '@/utils/analytics';
 import { useSetting } from '@/utils/user-settings';
 
 import {
@@ -27,11 +28,31 @@ export default function ThemePicker({
   const [open, setOpen] = useState(false);
   const current = resolveThemeId(theme);
 
+  // Selecting a card applies its theme immediately, so clicks are previews as
+  // much as they are choices. Only the theme in effect when the picker closes
+  // is reported as a change.
+  const themeAtOpen = useRef<ThemeId>(current);
+
+  const handleOpen = () => {
+    themeAtOpen.current = current;
+    trackEvent('theme_picker_opened', { theme: current, variant });
+    setOpen(true);
+  };
+
+  const handleClose = () => {
+    if (current !== themeAtOpen.current) {
+      trackEvent('theme_changed', { from: themeAtOpen.current, to: current });
+      // Immediately update to avoid double reporting if close fires again.
+      themeAtOpen.current = current;
+    }
+    setOpen(false);
+  };
+
   return (
     <>
       <button
         className={variant === 'mini' ? styles.mini : styles.chip}
-        onClick={() => setOpen(true)}
+        onClick={handleOpen}
         aria-label="Change theme"
       >
         <span className={`${styles.chipSwatch} ${styles.chipSwatchBg}`} />
@@ -42,7 +63,7 @@ export default function ThemePicker({
 
       <Modal
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={handleClose}
         header="Theme"
         width="min(600px, 92vw)"
       >
@@ -88,9 +109,6 @@ export default function ThemePicker({
                 <div className={styles.cardFooter}>
                   <div className={styles.cardText}>
                     <span className={styles.cardName}>{definition.label}</span>
-                    <span className={styles.cardDesc}>
-                      {definition.description}
-                    </span>
                   </div>
                   <div className={styles.cardMeta}>
                     <div className={styles.swatches} data-theme={definition.id}>
