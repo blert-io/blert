@@ -71,11 +71,7 @@ export function AdaptiveZoomController({
     containerRef.current = container;
 
     const updateZoom = () => {
-      if (
-        !containerRef.current ||
-        !camera ||
-        camera.type !== 'OrthographicCamera'
-      ) {
+      if (!containerRef.current || camera?.type !== 'OrthographicCamera') {
         return;
       }
 
