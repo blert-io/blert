@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'common/**'
+      - 'proto'
       - 'package.json'
       - 'package-lock.json'
       - '.npmrc'
@@ -13,6 +14,7 @@ on:
       - main
     paths:
       - 'common/**'
+      - 'proto'
       - 'package.json'
       - 'package-lock.json'
       - '.npmrc'
