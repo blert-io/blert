@@ -13,6 +13,9 @@ use crate::store::Store;
 pub mod db;
 
 mod challenge;
+mod challenge_processor;
+mod interpret;
+mod mokhaiotl;
 mod stage;
 
 /// Challenge state at the time a run is triggered.
@@ -21,6 +24,7 @@ pub struct ChallengeInfo {
     pub challenge_type: ChallengeType,
     pub mode: ChallengeMode,
     pub party: Vec<String>,
+    pub party_changed: bool,
     pub stage: Stage,
     pub status: ChallengeStatus,
     pub challenge_ticks: u32,
@@ -81,10 +85,10 @@ impl StageProcessor for Pipeline {
             Err(error) => return Err(error.into()),
         };
 
-        let payload = match request.trigger {
+        let (payload, custom_data) = match request.trigger {
             Trigger::Create { .. } => {
                 challenge::create(&mut txn, request.uuid, &request.challenge).await?;
-                ProcessingPayload::None
+                (ProcessingPayload::None, None)
             }
             Trigger::Recorder {
                 user_id,
@@ -92,19 +96,19 @@ impl StageProcessor for Pipeline {
                 ..
             } => {
                 challenge::add_recorder(&txn, user_id, recording_type).await?;
-                ProcessingPayload::None
+                (ProcessingPayload::None, None)
             }
             Trigger::StageStart { stage, .. } => {
                 challenge::update_stage(&txn, stage).await?;
-                ProcessingPayload::None
+                (ProcessingPayload::None, None)
             }
             Trigger::Mode { mode, .. } => {
                 challenge::update_mode(&txn, mode).await?;
-                ProcessingPayload::None
+                (ProcessingPayload::None, None)
             }
             Trigger::Finish { .. } => {
                 challenge::finish(&txn, &request.challenge).await?;
-                ProcessingPayload::None
+                (ProcessingPayload::None, None)
             }
             Trigger::Stage { stage, attempt, .. } => {
                 stage::process(
@@ -118,7 +122,7 @@ impl StageProcessor for Pipeline {
                 .await?
             }
         };
-        txn.commit(&payload).await?;
+        txn.commit(&payload, custom_data.as_ref()).await?;
 
         Ok(payload)
     }

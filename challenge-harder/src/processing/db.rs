@@ -90,11 +90,12 @@ impl Postgres {
             client: Some(client),
             seq,
             challenge_id: 0,
+            custom_data: None,
         };
 
         let guard = txn
             .query_opt(
-                "SELECT c.id, s.processed_seq, s.outcome_status, s.outcome_ticks
+                "SELECT c.id, s.processed_seq, s.outcome_status, s.outcome_ticks, s.custom_data
                  FROM challenges c
                  LEFT JOIN challenge_processing_state s ON s.challenge_id = c.id
                  WHERE c.uuid = $1",
@@ -108,6 +109,7 @@ impl Postgres {
                 return Err(Error::AlreadyApplied(stored_payload(&row)?));
             }
             txn.challenge_id = row.get(0);
+            txn.custom_data = row.get(4);
         }
 
         Ok(txn)
@@ -137,6 +139,8 @@ pub struct Transaction {
     seq: JournalSeq,
     /// Database ID of the challenge row.
     challenge_id: i32,
+    /// The processor continuation state stored by the last committed run.
+    custom_data: Option<serde_json::Value>,
 }
 
 impl Transaction {
@@ -151,9 +155,22 @@ impl Transaction {
         self.challenge_id = id;
     }
 
+    /// Returns the processor state stored by the last committed run.
+    /// Absent for a fresh challenge.
+    #[cfg_attr(not(test), expect(dead_code))]
+    pub fn custom_data(&self) -> Option<&serde_json::Value> {
+        self.custom_data.as_ref()
+    }
+
     /// Commits the transaction, advancing the challenge's cursor and storing
     /// the processed payload.
-    pub async fn commit(mut self, payload: &ProcessingPayload) -> Result<(), Error> {
+    /// `custom_data` replaces the challenge's custom state when present;
+    /// `None` preserves it.
+    pub async fn commit(
+        mut self,
+        payload: &ProcessingPayload,
+        custom_data: Option<&serde_json::Value>,
+    ) -> Result<(), Error> {
         let (status, ticks) = match payload {
             ProcessingPayload::Stage { status, ticks } => {
                 (Some(*status as i16), Some(ticks.cast_signed()))
@@ -164,17 +181,22 @@ impl Transaction {
         client
             .execute(
                 "INSERT INTO challenge_processing_state
-                   (challenge_id, processed_seq, outcome_status, outcome_ticks)
-                 VALUES ($1, $2, $3, $4)
+                   (challenge_id, processed_seq, outcome_status, outcome_ticks, custom_data)
+                 VALUES ($1, $2, $3, $4, $5)
                  ON CONFLICT (challenge_id)
                  DO UPDATE SET processed_seq = EXCLUDED.processed_seq,
                                outcome_status = EXCLUDED.outcome_status,
-                               outcome_ticks = EXCLUDED.outcome_ticks",
+                               outcome_ticks = EXCLUDED.outcome_ticks,
+                               custom_data = COALESCE(
+                                   EXCLUDED.custom_data,
+                                   challenge_processing_state.custom_data
+                               )",
                 &[
                     &self.challenge_id,
                     &self.seq.0.cast_signed(),
                     &status,
                     &ticks,
+                    &custom_data,
                 ],
             )
             .await?;
@@ -264,22 +286,28 @@ mod tests {
         let uuid = Uuid::new_v4();
         let id = insert_challenge(&db, uuid).await;
 
+        let custom = serde_json::json!({ "delve": 3, "larvae": [1, 2] });
+
         let txn = db
             .start_transaction(uuid, JournalSeq(3))
             .await
             .expect("guard should pass");
         assert_eq!(txn.challenge_id(), id);
-        txn.commit(&ProcessingPayload::Stage {
-            status: StageStatus::Wiped,
-            ticks: 180,
-        })
+        assert_eq!(txn.custom_data(), None);
+        txn.commit(
+            &ProcessingPayload::Stage {
+                status: StageStatus::Wiped,
+                ticks: 180,
+            },
+            Some(&custom),
+        )
         .await
         .expect("commit failed");
 
         let client = db.pool.get().await.expect("client");
         let row = client
             .query_one(
-                "SELECT processed_seq, outcome_status, outcome_ticks
+                "SELECT processed_seq, outcome_status, outcome_ticks, custom_data
                  FROM challenge_processing_state WHERE challenge_id = $1",
                 &[&id],
             )
@@ -291,6 +319,11 @@ mod tests {
             Some(StageStatus::Wiped as i16)
         );
         assert_eq!(row.get::<_, Option<i32>>(2), Some(180));
+        assert_eq!(
+            row.get::<_, Option<serde_json::Value>>(3),
+            Some(custom.clone())
+        );
+        drop(client);
 
         // Reopening the committed step returns its stored payload.
         let replay = db.start_transaction(uuid, JournalSeq(3)).await;
@@ -301,12 +334,24 @@ mod tests {
                 ticks: 180,
             }))
         ));
-        let next = db.start_transaction(uuid, JournalSeq(4)).await;
-        assert!(next.is_ok());
 
-        // Free both held connections; the pool has two and cleanup needs one.
-        drop(next);
-        drop(client);
+        // Custom state is read back, and committing without new state preserves it.
+        let next = db
+            .start_transaction(uuid, JournalSeq(4))
+            .await
+            .expect("guard should pass");
+        assert_eq!(next.custom_data(), Some(&custom));
+        next.commit(&ProcessingPayload::None, None)
+            .await
+            .expect("commit failed");
+
+        let after = db
+            .start_transaction(uuid, JournalSeq(5))
+            .await
+            .expect("guard should pass");
+        assert_eq!(after.custom_data(), Some(&custom));
+
+        drop(after);
         delete_challenge(&db, uuid).await;
     }
 
@@ -322,7 +367,7 @@ mod tests {
             .start_transaction(uuid, JournalSeq(1))
             .await
             .expect("guard should pass");
-        txn.commit(&ProcessingPayload::None)
+        txn.commit(&ProcessingPayload::None, None)
             .await
             .expect("commit failed");
 
