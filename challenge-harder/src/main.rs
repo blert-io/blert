@@ -7,7 +7,9 @@
 #![deny(clippy::pedantic)]
 
 mod api;
+mod item;
 mod lifecycle;
+mod merging;
 mod players;
 mod processing;
 mod proto;
@@ -69,12 +71,14 @@ async fn main() -> ExitCode {
 }
 
 async fn serve(config: LifecycleConfig) {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
-        )
-        .with_ansi(std::io::IsTerminal::is_terminal(&std::io::stdout()))
-        .init();
+    let subscriber = tracing_subscriber::fmt().with_env_filter(
+        tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
+    );
+    if std::io::IsTerminal::is_terminal(&std::io::stdout()) {
+        subscriber.init();
+    } else {
+        subscriber.json().init();
+    }
 
     let port: u16 = std::env::var("PORT")
         .ok()

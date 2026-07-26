@@ -606,6 +606,7 @@ impl ActiveChallenge {
                 challenge_type: self.state.challenge_type,
                 mode: self.state.mode,
                 party: self.state.party.clone(),
+                party_changed: self.state.party_changed,
                 stage: self.state.stage,
                 status: self.state.status(),
                 challenge_ticks: self.state.challenge_ticks,

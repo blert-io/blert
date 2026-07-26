@@ -196,6 +196,7 @@ pub enum PrimaryMeleeGear {
     Torva = 3,
     Blorva = 4,
     Oathplate = 5,
+    RadiantOathplate = 6,
 }
 
 // Compile-time parity checks against the upstream TS values.
@@ -215,6 +216,7 @@ const _: () = {
     assert!(PrimaryMeleeGear::Torva as u8 == 3);
     assert!(PrimaryMeleeGear::Blorva as u8 == 4);
     assert!(PrimaryMeleeGear::Oathplate as u8 == 5);
+    assert!(PrimaryMeleeGear::RadiantOathplate as u8 == 6);
 };
 
 /// Client-reported completion times, in ticks.
