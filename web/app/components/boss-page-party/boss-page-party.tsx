@@ -236,7 +236,9 @@ export default function BossPageParty({
   return (
     <Card className={styles.bossPageParty} header={{ title: 'Party' }}>
       {display.isCompact() && party.length > 1 ? (
-        <Carousel itemWidth={236}>{party}</Carousel>
+        <Carousel maxItemWidth={236} label="Party members">
+          {party}
+        </Carousel>
       ) : (
         <div className={styles.actors}>{party}</div>
       )}
