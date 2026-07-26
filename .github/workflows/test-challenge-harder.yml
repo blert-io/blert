@@ -5,7 +5,7 @@ on:
     paths:
       - 'challenge-harder/**'
       - 'common/migrations/**'
-      - 'proto/**'
+      - 'proto'
       - 'web/resources/extended_items.json'
       - 'Cargo.toml'
       - 'Cargo.lock'
@@ -16,7 +16,7 @@ on:
     paths:
       - 'challenge-harder/**'
       - 'common/migrations/**'
-      - 'proto/**'
+      - 'proto'
       - 'web/resources/extended_items.json'
       - 'Cargo.toml'
       - 'Cargo.lock'
