@@ -8,6 +8,12 @@ on:
       - 'Dockerfile'
       - '.dockerignore'
       - '.github/workflows/docker-build.yml'
+      # Dependency changes alter how npm lays out node_modules, which affects
+      # what the runtime stages include (see the smoke test below).
+      - 'package.json'
+      - 'package-lock.json'
+      - '*/package.json'
+      - 'patches/**'
   workflow_dispatch:
 
 # Serialize builds per ref. Superseded pull-request validation runs are
@@ -58,16 +64,45 @@ jobs:
             type=raw,value=main
             type=sha,prefix=sha-,format=short
 
-      - name: Build and push
+      - name: Build
         uses: docker/build-push-action@v7
         with:
           context: .
           target: ${{ matrix.service }}
-          push: ${{ github.event_name != 'pull_request' }}
+          load: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          build-args: |
+            BLERT_COMMIT_SHA=${{ github.sha }}
+            NEXT_PUBLIC_BASE_URL=${{ vars.NEXT_PUBLIC_BASE_URL }}
+            NEXT_PUBLIC_LIVE_SERVER_URL=${{ vars.NEXT_PUBLIC_LIVE_SERVER_URL }}
+            NEXT_PUBLIC_BLERTCOIN_ENABLED=${{ vars.NEXT_PUBLIC_BLERTCOIN_ENABLED }}
+            NEXT_PUBLIC_UMAMI_WEBSITE_ID=${{ vars.NEXT_PUBLIC_UMAMI_WEBSITE_ID }}
+            NEXT_PUBLIC_UMAMI_SCRIPT_URL=${{ vars.NEXT_PUBLIC_UMAMI_SCRIPT_URL }}
+
+      # These images run from the pruned root node_modules assembled in the
+      # deps-prod stage, and a green build says nothing about whether that
+      # tree can actually resolve its modules at runtime.
+      # Resolving `@blert/common` tests the import chain, failing if any deps
+      # are unresolvable.
+      - name: Smoke test image
+        if: contains(fromJSON('["socket-server", "challenge-server", "blertbank"]'), matrix.service)
+        run: |
+          tag="$(printf '%s\n' "${{ steps.meta.outputs.tags }}" | head -n 1)"
+          docker run --rm "$tag" node -e "require('/app/common/dist')"
+
+      - name: Push
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: ${{ matrix.service }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
           build-args: |
             BLERT_COMMIT_SHA=${{ github.sha }}
             NEXT_PUBLIC_BASE_URL=${{ vars.NEXT_PUBLIC_BASE_URL }}
