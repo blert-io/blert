@@ -26,7 +26,7 @@ export const QueryableEventField = {
   PLAYER_ATTACK_WEAPON: 'custom_int_1',
   PLAYER_ATTACK_DISTANCE: 'custom_short_1',
 
-  PLAYER_SPELL_TARGET_PLAYER: 'custom_short_1',
+  PLAYER_SPELL_TARGET_PLAYER: 'custom_int_1',
 
   NPC_MAIDEN_CRAB_SPAWN: 'custom_short_1',
   NPC_MAIDEN_CRAB_POSITION: 'custom_short_2',
