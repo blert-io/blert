@@ -83,7 +83,7 @@ export default function PlayerList({
     return (
       <div className={classes.join(' ')}>
         <Carousel
-          itemWidth={PLAYER_WIDTH}
+          maxItemWidth={PLAYER_WIDTH}
           currentIndex={currentIndex}
           onIndexChange={setCurrentIndex}
           footer={showAddButton ? addPlayerButton : undefined}

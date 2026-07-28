@@ -589,7 +589,7 @@ function Leaderboard({
   const hasMultipleScales = info.leaderboardScales.length > 1;
 
   return (
-    <div className={styles.leaderboardList} style={{ width: CAROUSEL_WIDTH }}>
+    <div className={styles.leaderboardList}>
       {hasMultipleScales && (
         <h3 className={styles.carouselTitle}>{scaleName(leaderboard.scale)}</h3>
       )}
@@ -764,18 +764,19 @@ function LeaderboardCard({ challengeType }: LeaderboardCardProps) {
         {hasMultipleScales ? (
           leaderboards.length > 0 ? (
             <Carousel
-              itemWidth={CAROUSEL_WIDTH}
+              maxItemWidth={CAROUSEL_WIDTH}
               autoCycle
               cycleDuration={11300}
               showArrows={false}
+              loop
+              label="Leaderboards by scale"
             >
               {leaderboards.map((leaderboard) => (
-                <div key={leaderboard.scale}>
-                  <Leaderboard
-                    leaderboard={leaderboard}
-                    challengeType={challengeType}
-                  />
-                </div>
+                <Leaderboard
+                  key={`${timePeriod}-${leaderboard.scale}`}
+                  leaderboard={leaderboard}
+                  challengeType={challengeType}
+                />
               ))}
             </Carousel>
           ) : (

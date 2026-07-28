@@ -80,7 +80,7 @@ export default function ActivityChart({
           </defs>
           <XAxis
             dataKey="hour"
-            interval={3}
+            interval="preserveStartEnd"
             tickFormatter={(hour) =>
               formatHour(utcToLocal((startHour + hour) % 24))
             }

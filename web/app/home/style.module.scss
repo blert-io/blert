@@ -246,6 +246,7 @@
   justify-content: space-between;
   margin-bottom: 20px;
   gap: 12px;
+  container-type: inline-size;
 }
 
 .stat {
@@ -261,7 +262,7 @@
   }
 
   .value {
-    font-size: 2em;
+    font-size: clamp(1.25rem, 10cqi, 2em);
     font-weight: 700;
     color: var(--blert-font-color-primary);
     line-height: 1.2;
@@ -273,6 +274,9 @@
     font-size: 0.75em;
     color: var(--blert-font-color-secondary);
     margin-top: 6px;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
     text-transform: uppercase;
     letter-spacing: 0.03em;

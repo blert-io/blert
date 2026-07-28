@@ -1,16 +1,41 @@
+@use '@/mixins.scss' as *;
+
+@mixin aeroGelSlot {
+  border: 1px solid rgba(96, 146, 186, 0.5);
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.85),
+    rgba(214, 232, 245, 0.6)
+  );
+  box-shadow: inset 0 1px 2px rgba(30, 78, 118, 0.18);
+}
+
+@mixin focusRing($offset: 2px) {
+  &:focus-visible {
+    outline: 2px solid var(--blert-purple);
+    outline-offset: $offset;
+    border-radius: 4px;
+  }
+}
+
 .carousel {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 12px;
   width: 100%;
 
-  &.dragging {
-    cursor: grabbing;
+  .stage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
   }
 
   .arrow {
     position: relative;
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -27,12 +52,22 @@
       top: 1px;
     }
 
+    :global([data-theme='aero']) & {
+      @include aeroButton;
+      border-radius: 50%;
+    }
+
     &:not(:disabled) {
       color: var(--blert-purple);
     }
 
     &:hover:not(:disabled) {
       background: var(--blert-surface-light);
+
+      :global([data-theme='aero']) & {
+        @include aeroButtonHover;
+        border-radius: 50%;
+      }
     }
 
     &:disabled {
@@ -41,18 +76,52 @@
     }
   }
 
-  .wrapper {
+  .viewport {
     position: relative;
-    overflow: hidden;
+    flex: 1;
+    min-width: 0;
+
+    &[data-peek='true'] {
+      // Fades peeking slides out at the edges.
+      mask-image: linear-gradient(
+        to right,
+        transparent 0,
+        #000 var(--carousel-peek),
+        #000 calc(100% - var(--carousel-peek)),
+        transparent 100%
+      );
+    }
   }
 
   .list {
+    position: relative;
     display: flex;
-    transition: transform 0.3s ease;
+    width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    cursor: grab;
 
-    &.dragging {
-      transition: none;
+    @include hideTheFuckingScrollbarsJesusChrist;
+    @include focusRing;
+
+    // Don't snap when manually dragging.
+    &[data-phase='dragging'],
+    &[data-phase='settling'] {
+      scroll-snap-type: none;
     }
+
+    &[data-phase='dragging'] {
+      cursor: grabbing;
+      user-select: none;
+    }
+  }
+
+  .item {
+    flex: 0 0 calc(100% - 2 * var(--carousel-peek, 0px));
+    min-width: 0;
+    scroll-snap-align: center;
+    scroll-snap-stop: always;
   }
 
   .footer {
@@ -60,31 +129,163 @@
     flex-direction: column;
     align-items: center;
     gap: 12px;
-    margin-top: 12px;
+    width: 100%;
+  }
+
+  .indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
   .dots {
     display: flex;
-    gap: 8px;
-    padding: 2px 0;
+    align-items: center;
+  }
 
-    .dot {
-      padding: 0;
+  .dot {
+    display: flex;
+    align-items: center;
+    padding: 7px 4px;
+    cursor: pointer;
+
+    @include focusRing(-2px);
+
+    .pill {
+      display: block;
+      overflow: hidden;
       width: 10px;
       height: 10px;
-      border-radius: 50%;
+      border-radius: 5px;
       background: rgba(var(--blert-purple-base), 0.3);
-      transition: all 0.2s ease;
-      cursor: pointer;
+      transition:
+        width 0.2s ease,
+        background 0.2s ease;
 
-      &:hover {
-        background: rgba(var(--blert-purple-base), 0.6);
+      :global([data-theme='aero']) & {
+        @include aeroGelSlot;
+        border-radius: 5px;
       }
+    }
 
-      &.active {
-        transform: scale(1.1);
-        background: var(--blert-purple);
+    &:hover .pill {
+      background: rgba(var(--blert-purple-base), 0.6);
+
+      :global([data-theme='aero']) & {
+        border-color: rgba(var(--blert-purple-base), 0.55);
       }
+    }
+
+    &.active .pill {
+      width: 28px;
+      background: rgba(var(--blert-purple-base), 0.25);
+    }
+  }
+
+  .counter {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.85em;
+    color: var(--blert-font-color-secondary);
+    font-variant-numeric: tabular-nums;
+
+    .track {
+      overflow: hidden;
+      width: 120px;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(var(--blert-purple-base), 0.25);
+
+      :global([data-theme='aero']) & {
+        @include aeroGelSlot;
+        // Gel needs room to read.
+        height: 10px;
+        border-radius: 999px;
+      }
+    }
+  }
+
+  .progress {
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--blert-purple);
+    transform-origin: left center;
+
+    :global([data-theme='aero']) & {
+      @include aeroGlossButton(
+        var(--blert-purple),
+        rgb(24, 62, 112),
+        rgb(20, 50, 90),
+        rgb(15, 40, 70)
+      );
+      border: none;
+      border-radius: inherit;
+      transition: none;
+    }
+
+    &[data-running='true'] {
+      animation-name: carousel-progress;
+      animation-timing-function: linear;
+      animation-fill-mode: forwards;
+    }
+
+    &[data-paused='true'] {
+      animation-play-state: paused;
+    }
+  }
+
+  .pause {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    color: var(--blert-font-color-secondary);
+    font-size: 0.7em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    :global([data-theme='aero']) & {
+      @include aeroButton;
+      border-radius: 50%;
+    }
+
+    &:hover {
+      color: var(--blert-purple);
+      background: var(--blert-surface-dark);
+
+      :global([data-theme='aero']) & {
+        @include aeroButtonHover;
+        border-radius: 50%;
+      }
+    }
+
+    @include focusRing(1px);
+  }
+}
+
+@keyframes carousel-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .carousel {
+    .progress[data-running='true'] {
+      animation: none;
+    }
+
+    .dot .pill,
+    .arrow,
+    .pause {
+      transition: none;
     }
   }
 }
