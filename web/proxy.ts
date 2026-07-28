@@ -53,6 +53,16 @@ const RATE_LIMITS: RouteMatcher[] = [
     },
   },
   {
+    // Allow enough for a filter slider to be dragged across its range
+    // without throttling a real user.
+    test: (path) => path.startsWith('/api/v1/network'),
+    config: {
+      limit: 30,
+      windowSec: 60,
+      keyPrefix: 'ratelimit:v1:network',
+    },
+  },
+  {
     test: (path) => /^\/api\/(activity|setups|suggest)(\/|$)/.test(path),
     config: {
       limit: 100,

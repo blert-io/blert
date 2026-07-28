@@ -22,6 +22,8 @@ import NetworkInfo from './components/network-info';
 
 import styles from './network-content.module.scss';
 
+const FILTER_DEBOUNCE_MS = 300;
+
 export type NetworkData = {
   nodes: string[];
   edges: {
@@ -123,7 +125,15 @@ export default function NetworkContent() {
   }, [filters, showToast]);
 
   useEffect(() => {
-    void fetchNetworkData();
+    if (isInitialLoadRef.current) {
+      void fetchNetworkData();
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      void fetchNetworkData();
+    }, FILTER_DEBOUNCE_MS);
+    return () => clearTimeout(timeout);
   }, [fetchNetworkData]);
 
   const handleFiltersChange = useCallback((newFilters: NetworkFilters) => {
