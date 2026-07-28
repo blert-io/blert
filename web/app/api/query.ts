@@ -339,3 +339,28 @@ export function numericParam<T extends number = number>(
 
   return num as T;
 }
+
+/**
+ * Parses a date from a search parameter.
+ *
+ * @param obj The search params object.
+ * @param key The parameter key.
+ * @returns The date, or `undefined` if the parameter is absent or empty.
+ * @throws InvalidQueryError If the value is not a parseable date.
+ */
+export function dateParam(
+  obj: NextSearchParams,
+  key: string,
+): Date | undefined {
+  const value = expectSingle(obj, key);
+  if (value === undefined || value === '') {
+    return undefined;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new InvalidQueryError(`${key}: Invalid date ${value}`);
+  }
+
+  return date;
+}
