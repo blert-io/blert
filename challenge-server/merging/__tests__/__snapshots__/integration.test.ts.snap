@@ -1,4 +1,4 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
 
 exports[`merge integration aligns a laggy mismatched client across gaps 1`] = `"2a36d63d5b3b73c0b5e490f14cff8288b191ab21b2536b1da4e7909c3348d8bd"`;
 
