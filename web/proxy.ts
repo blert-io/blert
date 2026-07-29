@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { getRateLimitKey, rateLimit } from '@/utils/rate-limit';
-import { getTrustedRequestIp } from '@/utils/headers';
+import { getRateLimitKey, rateLimitAll } from '@/utils/rate-limit';
+import { getTrustedRequestIp, ipSubnetBucket } from '@/utils/headers';
 
 import logger from '@/utils/log';
 import { RateLimitConfig } from '@/utils/rate-limit';
@@ -12,6 +12,16 @@ type RouteMatcher = {
 };
 
 const RATE_LIMITS: RouteMatcher[] = [
+  {
+    // Session checks fire on every page load, so keep this permissive.
+    // Sensitive auth flows have stricter limits within better-auth itself.
+    test: (path) => path.startsWith('/api/auth/'),
+    config: {
+      limit: 150,
+      windowSec: 60,
+      keyPrefix: 'ratelimit:auth',
+    },
+  },
   {
     test: (path) => path.startsWith('/api/v1/bcf'),
     config: {
@@ -94,6 +104,8 @@ const DISABLED_RATE_LIMIT: RateLimitConfig = {
   keyPrefix: 'ratelimit:disabled',
 };
 
+const SUBNET_LIMIT_MULTIPLIER = 4;
+
 function rateLimitForPath(pathname: string): RateLimitConfig {
   const matcher = RATE_LIMITS.find(({ test }) => test(pathname));
   return matcher?.config ?? DISABLED_RATE_LIMIT;
@@ -103,10 +115,6 @@ export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   if (!pathname.startsWith('/api/')) {
-    return NextResponse.next();
-  }
-
-  if (pathname.startsWith('/api/auth/')) {
     return NextResponse.next();
   }
 
@@ -125,16 +133,21 @@ export async function proxy(request: NextRequest) {
       url: pathname,
       method: request.method,
     });
-    return NextResponse.json(
-      {
-        error: 'internal_server_error',
-      },
-      { status: 500 },
-    );
+    return NextResponse.next();
   }
 
-  const key = getRateLimitKey(config, ip);
-  const result = await rateLimit(key, config.limit, config.windowSec);
+  const subnetLimit =
+    config.subnetLimit ?? config.limit * SUBNET_LIMIT_MULTIPLIER;
+  const result = await rateLimitAll(
+    [
+      { key: getRateLimitKey(config, ip), limit: config.limit },
+      {
+        key: `${config.keyPrefix}:subnet:${ipSubnetBucket(ip)}`,
+        limit: subnetLimit,
+      },
+    ],
+    config.windowSec,
+  );
 
   const response = result.success
     ? NextResponse.next()
@@ -165,6 +178,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    '/api/auth/:path*',
     '/api/v1/:path*',
     '/api/admin/:path*',
     '/api/activity/:path*',
