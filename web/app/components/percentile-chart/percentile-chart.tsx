@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import {
   Bar,
+  BarRectangleItem,
   CartesianGrid,
   Cell,
   ComposedChart,
@@ -262,9 +263,9 @@ export default function PercentileChart({
     return { yMax, yTicks };
   }, [data, yTickInterval]);
 
-  const handleClick = (row: unknown) => {
+  const handleClick = (bar: BarRectangleItem) => {
     if (onCategoryClick !== undefined) {
-      onCategoryClick((row as ChartRow).key);
+      onCategoryClick((bar.payload as ChartRow).key);
     }
   };
 

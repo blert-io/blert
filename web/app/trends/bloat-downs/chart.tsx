@@ -57,6 +57,38 @@ function generateTicks(min: number, max: number, maxTicks: number): number[] {
   return ticks;
 }
 
+// Rendered as custom legend content because the chart's series use synthetic
+// data keys (`<id>_prob` and `<id>_cdf`) which don't map onto readable labels.
+function SeriesLegend({ stats }: { stats: SeriesStats[] }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'center',
+        gap: 16,
+        fontSize: '0.85rem',
+      }}
+    >
+      {stats.map((s) => (
+        <span
+          key={s.id}
+          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+        >
+          <span
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: 2,
+              background: s.color,
+            }}
+          />
+          {s.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 type BloatDownsChartProps = {
   series: Series[];
 };
@@ -182,6 +214,7 @@ export default function BloatDownsChart({ series }: BloatDownsChartProps) {
         margin={{ top: 10, right: 45, bottom: 10, left: 5 }}
       >
         <CartesianGrid
+          yAxisId="prob"
           horizontal
           vertical={false}
           stroke="rgba(var(--blert-divider-color-base), 0.5)"
@@ -273,14 +306,7 @@ export default function BloatDownsChart({ series }: BloatDownsChartProps) {
         <Legend
           verticalAlign="top"
           height={32}
-          iconType="rect"
-          wrapperStyle={{ fontSize: '0.85rem' }}
-          payload={stats.map((s) => ({
-            id: s.id,
-            value: s.label,
-            type: 'rect',
-            color: s.color,
-          }))}
+          content={<SeriesLegend stats={stats} />}
         />
         {stats.map((s) => (
           <Bar

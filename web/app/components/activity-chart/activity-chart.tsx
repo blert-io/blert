@@ -7,6 +7,8 @@ import {
   YAxis,
 } from 'recharts';
 
+import { numberLabel } from '@/utils/recharts';
+
 import styles from './style.module.scss';
 
 type ActivityData = {
@@ -98,10 +100,10 @@ export default function ActivityChart({
               fontSize: '12px',
             }}
             formatter={(value) => [`${String(value)} ${valueLabel}`, 'Active']}
-            labelFormatter={(hour) => {
+            labelFormatter={numberLabel((hour) => {
               const localHour = utcToLocal((startHour + hour) % 24);
               return formatHour(localHour);
-            }}
+            })}
           />
           <Area
             type="monotone"

@@ -13,6 +13,7 @@ import {
   YAxis,
 } from 'recharts';
 
+import { numberFormatter, numberLabel } from '@/utils/recharts';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import { DistributionBin } from '@/actions/split-distributions';
@@ -270,6 +271,7 @@ export default function DistributionChart({
           margin={{ top: 5, right: 45, bottom: 5, left: 5 }}
         >
           <CartesianGrid
+            yAxisId="prob"
             horizontal
             vertical={false}
             stroke="rgba(var(--blert-divider-color-base), 0.5)"
@@ -313,14 +315,14 @@ export default function DistributionChart({
               borderRadius: 6,
               fontSize: '0.85rem',
             }}
-            labelFormatter={(t) => ticksToFormattedSeconds(t as number)}
-            formatter={(value: number, name: string) => {
+            labelFormatter={numberLabel((t) => ticksToFormattedSeconds(t))}
+            formatter={numberFormatter((value, name) => {
               if (name === 'probability') {
                 const display = value <= stub ? 0 : value;
                 return [`${(display * 100).toFixed(2)}%`, 'Probability'];
               }
               return [`${value.toFixed(1)}%`, 'CDF'];
-            }}
+            })}
             cursor={{ fill: 'rgba(var(--blert-purple-base), 0.1)' }}
           />
           <Bar

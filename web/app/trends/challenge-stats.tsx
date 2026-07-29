@@ -29,6 +29,7 @@ import Card from '@/components/card';
 import Statistic from '@/components/statistic';
 import { DisplayContext } from '@/display';
 import { stageTerm } from '@/utils/challenge';
+import { numberFormatter, stringLabel } from '@/utils/recharts';
 
 import styles from './style.module.scss';
 
@@ -267,6 +268,7 @@ export default function ChallengeStats({
                   margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                 >
                   <CartesianGrid
+                    yAxisId="deaths"
                     strokeDasharray="3 3"
                     stroke="var(--blert-divider-color)"
                   />
@@ -341,37 +343,30 @@ export default function ChallengeStats({
                       fontSize: '12px',
                     }}
                     cursor={{ fill: 'var(--blert-divider-color)' }}
-                    labelFormatter={(
-                      label: string,
-                      payload: { payload?: { stage?: number } }[],
-                    ) => {
-                      // Try to use the stage's full name, but fall back to the
-                      // short name if it's not available.
-                      const stage = payload[0]?.payload?.stage;
-                      if (stage !== undefined) {
-                        label = stageName(stage);
-                      }
-                      return (
-                        <span
-                          style={{
-                            fontWeight: 600,
-                            color: 'var(--blert-font-color-secondary)',
-                          }}
-                        >
-                          {label}
-                        </span>
-                      );
-                    }}
-                    formatter={(
-                      value: number | string | (number | string)[],
-                      _name: string,
-                      item: {
-                        dataKey?: string | number;
-                        payload?: { wipes?: number; reached?: number };
+                    labelFormatter={stringLabel<{ stage?: number }>(
+                      (label, payload) => {
+                        // Try to use the stage's full name, but fall back to the
+                        // short name if it's not available.
+                        const stage = payload[0]?.payload?.stage;
+                        if (stage !== undefined) {
+                          label = stageName(stage);
+                        }
+                        return (
+                          <span
+                            style={{
+                              fontWeight: 600,
+                              color: 'var(--blert-font-color-secondary)',
+                            }}
+                          >
+                            {label}
+                          </span>
+                        );
                       },
-                    ) => {
-                      const numeric =
-                        typeof value === 'number' ? value : Number(value);
+                    )}
+                    formatter={numberFormatter<{
+                      wipes?: number;
+                      reached?: number;
+                    }>((numeric, _name, item) => {
                       if (item.dataKey === 'wipeRate') {
                         if (!Number.isFinite(numeric)) {
                           return [null, null];
@@ -400,7 +395,7 @@ export default function ChallengeStats({
                         </span>,
                         null,
                       ];
-                    }}
+                    })}
                   />
                   <Bar
                     yAxisId="deaths"
