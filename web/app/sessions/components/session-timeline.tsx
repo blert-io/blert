@@ -599,7 +599,8 @@ export default function SessionTimeline() {
             strokeWidth={1}
             cursor="pointer"
             stackId="timeline"
-            onClick={(data: TimelineDataPoint) => {
+            onClick={(bar) => {
+              const data = bar.payload as TimelineDataPoint;
               if (!isDragging && data.challenge !== null) {
                 router.push(
                   challengeUrl(session.challengeType, data.challenge.uuid),

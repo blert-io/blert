@@ -8,14 +8,15 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
+  LabelList,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
-  Pie,
-  PieChart,
-  Cell,
-  LabelList,
+  YAxisTickContentProps,
 } from 'recharts';
 
 import type { GroupedAggregationResult } from '@/actions/challenge';
@@ -29,6 +30,7 @@ import {
   scaleNameAndColor,
   statusNameAndColor,
 } from '@/utils/challenge';
+import { numberFormatter, stringLabel } from '@/utils/recharts';
 import { ticksToFormattedDuration } from '@/utils/tick';
 import { formatDuration } from '@/utils/time';
 import { queryString } from '@/utils/url';
@@ -141,34 +143,26 @@ function BarChartSkeleton() {
           <div
             className={styles.skeletonBar}
             style={{ width: `${85 - i * 5}%` }}
-          ></div>
+          />
         </div>
       ))}
     </div>
   );
 }
 
-function PlayerAxisTick({
-  x,
-  y,
-  payload,
-}: {
-  x: number;
-  y: number;
-  payload: { value: string };
-}) {
+function PlayerAxisTick({ x, y, payload }: YAxisTickContentProps) {
   const width = 105;
   const height = 20;
 
   return (
     <foreignObject
-      x={x - width}
-      y={y - height / 2}
+      x={Number(x) - width}
+      y={Number(y) - height / 2}
       width={width}
       height={height}
     >
       <div className={styles.playerAxisTick}>
-        <PlayerLink username={payload.value} />
+        <PlayerLink username={String(payload.value)} />
       </div>
     </foreignObject>
   );
@@ -267,7 +261,7 @@ function PlayerActivityChart({
             boxShadow: 'var(--blert-elevation-1)',
           }}
           cursor={{ fill: 'rgba(var(--blert-purple-base), 0.1)' }}
-          labelFormatter={(label: string) => {
+          labelFormatter={stringLabel((label) => {
             return (
               <span
                 style={{
@@ -278,8 +272,8 @@ function PlayerActivityChart({
                 {label}
               </span>
             );
-          }}
-          formatter={(value: number) => [
+          })}
+          formatter={numberFormatter((value) => [
             <span
               key="challenges"
               style={{ color: 'var(--blert-font-color-primary)' }}
@@ -287,7 +281,7 @@ function PlayerActivityChart({
               {value.toLocaleString()} {isSolo ? 'run' : 'raid'}
               {value === 1 ? '' : 's'}
             </span>,
-          ]}
+          ])}
         />
         <Bar dataKey="value" fill="url(#barGradient)" radius={[0, 4, 4, 0]}>
           <LabelList dataKey="value" position="insideRight" fill="#fff" />

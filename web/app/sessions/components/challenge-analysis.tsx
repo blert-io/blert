@@ -30,6 +30,7 @@ import SectionTitle from '@/components/section-title';
 import Statistic from '@/components/statistic';
 import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 import { challengeTerm, relevantSplitsForStage } from '@/utils/challenge';
+import { numberFormatter, stringLabel } from '@/utils/recharts';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import { useSessionContext } from './session-context-provider';
@@ -596,21 +597,18 @@ function DistributionChart({
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
             }}
             cursor={{ fill: 'rgba(var(--blert-purple-base), 0.1)' }}
-            formatter={(
-              value: number,
-              _name: string,
-              props: { payload?: { percentage: number } },
-            ) => [
-              <span
-                key={value}
-                style={{ color: 'var(--blert-font-color-primary)' }}
-              >
-                {value} occurrence{value === 1 ? '' : 's'}
-                {/* eslint-disable-next-line react/prop-types */}
-                {props.payload && ` (${props.payload.percentage.toFixed(1)}%)`}
-              </span>,
-            ]}
-            labelFormatter={(label: string) => (
+            formatter={numberFormatter<{ percentage: number }>(
+              (value, _name, item) => [
+                <span
+                  key={value}
+                  style={{ color: 'var(--blert-font-color-primary)' }}
+                >
+                  {value} occurrence{value === 1 ? '' : 's'}
+                  {item.payload && ` (${item.payload.percentage.toFixed(1)}%)`}
+                </span>,
+              ],
+            )}
+            labelFormatter={stringLabel((label) => (
               <span
                 style={{
                   fontWeight: 600,
@@ -619,7 +617,7 @@ function DistributionChart({
               >
                 Value: {label}
               </span>
-            )}
+            ))}
           />
           <Bar
             dataKey="count"
@@ -664,12 +662,12 @@ function ChartDisplay({
         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
       }}
       cursor={{ fill: 'rgba(var(--blert-purple-base), 0.1)' }}
-      formatter={(value: number, _name: string, _props: any) => [
+      formatter={numberFormatter((value) => [
         <span key={value} style={{ color: 'var(--blert-font-color-primary)' }}>
           {selectedStat.formatter ? selectedStat.formatter(value) : value}
         </span>,
-      ]}
-      labelFormatter={(label: string) => (
+      ])}
+      labelFormatter={stringLabel((label) => (
         <span
           style={{
             fontWeight: 600,
@@ -678,7 +676,7 @@ function ChartDisplay({
         >
           {challengeTerm(challengeType)} #{label}
         </span>
-      )}
+      ))}
     />
   );
 

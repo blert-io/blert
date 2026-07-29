@@ -12,6 +12,8 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
+import { numberFormatter, numberLabel } from '@/utils/recharts';
+
 import styles from './styles.module.scss';
 
 const CHART_MARGIN = { left: -10 };
@@ -65,13 +67,12 @@ function generateTicks(maxValue: number, maxTicks: number): number[] {
   return ticks;
 }
 
-function formatHealth(value: number) {
-  return [`${value.toFixed(2)}%`, 'Health'];
-}
+const formatHealth = numberFormatter((value) => [
+  `${value.toFixed(2)}%`,
+  'Health',
+]);
 
-function formatTick(value: number) {
-  return `Tick: ${value}`;
-}
+const formatTick = numberLabel((value) => `Tick: ${value}`);
 
 type BossPageDPSTimelineProps = {
   currentTick: number;

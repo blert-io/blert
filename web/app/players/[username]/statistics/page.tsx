@@ -19,6 +19,7 @@ import Card from '@/components/card';
 import Menu, { MenuItem } from '@/components/menu';
 import Statistic from '@/components/statistic';
 import { useClientOnly } from '@/hooks/client-only';
+import { numberFormatter, stringLabel } from '@/utils/recharts';
 
 import BgsIcon from '@/svg/bandos-godsword.svg';
 import ChallyIcon from '@/svg/chally.svg';
@@ -250,7 +251,7 @@ export default function PlayerStatistics() {
                       borderColor: 'var(--blert-divider-color)',
                       borderRadius: '4px',
                     }}
-                    labelFormatter={(date: string) => (
+                    labelFormatter={stringLabel((date) => (
                       <span
                         style={{
                           display: 'block',
@@ -261,13 +262,13 @@ export default function PlayerStatistics() {
                       >
                         {new Date(date).toLocaleDateString()}
                       </span>
-                    )}
-                    formatter={(value: number, name: string) => {
+                    ))}
+                    formatter={numberFormatter((value, name) => {
                       const fullName = selectedStats.find(
                         (s) => s.key === name,
                       )?.name;
                       return [value, fullName ?? name];
-                    }}
+                    })}
                   />
                 </LineChart>
               </ResponsiveContainer>

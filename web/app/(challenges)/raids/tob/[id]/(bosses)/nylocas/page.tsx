@@ -68,6 +68,7 @@ import {
   useStageEvents,
 } from '@/utils/boss-room-state';
 import { inRect } from '@/utils/coords';
+import { numberFormatter, numberLabel } from '@/utils/recharts';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import NyloDimSettings, { DimThreshold } from './dim-settings';
@@ -805,9 +806,7 @@ const NYLO_TOOLTIP_CURSOR = {
   strokeWidth: 1,
 };
 
-function formatNylosAlive(value: number) {
-  return [value, 'Nylos Alive'];
-}
+const formatNylosAlive = numberFormatter((value) => [value, 'Nylos Alive']);
 
 const NyloWaveChart = memo(function NyloWaveChart({
   challenge,
@@ -821,7 +820,7 @@ const NyloWaveChart = memo(function NyloWaveChart({
   nylosAliveByTick: { tick: number; nylosAlive: number }[];
   spawns: NyloWaveSpawnEvent[];
   stalls: NyloWaveStallEvent[];
-  width: number | string;
+  width: number | `${number}%`;
   animate?: boolean;
 }) {
   const startingRoomCap = challenge.mode === ChallengeMode.TOB_HARD ? 15 : 12;
@@ -884,7 +883,7 @@ const NyloWaveChart = memo(function NyloWaveChart({
               <Tooltip
                 contentStyle={NYLO_TOOLTIP_STYLE}
                 formatter={formatNylosAlive}
-                labelFormatter={(tick: number) => {
+                labelFormatter={numberLabel((tick) => {
                   if (spawns.length === 0) {
                     return `Tick: ${tick} (No wave)`;
                   }
@@ -899,7 +898,7 @@ const NyloWaveChart = memo(function NyloWaveChart({
                   waveSpawn ??= spawns[spawns.length - 1];
 
                   return `Tick: ${tick} (Wave ${waveSpawn.nyloWave.wave})`;
-                }}
+                })}
                 cursor={NYLO_TOOLTIP_CURSOR}
               />
               <ReferenceLine
