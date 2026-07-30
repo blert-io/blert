@@ -3,7 +3,6 @@ import {
   Player,
   camelToSnakeObject,
   CamelToSnakeCase,
-  camelToSnake,
   isValidRsn,
   normalizeRsn,
 } from '@blert/common';
@@ -111,6 +110,16 @@ export class Players {
     statsIncrements: Partial<ModifiablePlayerStats>,
   ): Promise<void> {
     const startOfDay = startOfDateUtc();
+    const increments = camelToSnakeObject(statsIncrements);
+
+    const comma = sql`,`;
+    const addIncrements = sql`${Object.entries(increments).flatMap(
+      ([column, value], i) => {
+        const setter = sql`${sql(column)} = player_stats.${sql(column)} + ${value}`;
+        return i > 0 ? [comma, setter] : [setter];
+      },
+    )}`;
+
     const [lastStats] = await sql<
       ({ id?: number } & CamelToSnakeCase<PlayerStats>)[]
     >`
@@ -123,7 +132,7 @@ export class Players {
     let insert = null;
     if (lastStats === undefined) {
       insert = {
-        ...camelToSnakeObject(statsIncrements),
+        ...increments,
         date: startOfDay,
         player_id: playerId,
       };
@@ -134,26 +143,22 @@ export class Players {
         date: startOfDay,
       };
 
-      for (const key in statsIncrements) {
-        const k = camelToSnake(
-          key,
-        ) as keyof CamelToSnakeCase<ModifiablePlayerStats>;
-        insert[k] += statsIncrements[key as keyof ModifiablePlayerStats]!;
+      for (const key in increments) {
+        const k = key as keyof CamelToSnakeCase<ModifiablePlayerStats>;
+        insert[k] += increments[k]!;
       }
     } else {
-      const updates = camelToSnakeObject(statsIncrements);
-      for (const key in updates) {
-        const k = key as keyof CamelToSnakeCase<ModifiablePlayerStats>;
-        updates[k]! += lastStats[k];
-      }
       await sql`
-        UPDATE player_stats SET ${sql(updates)} WHERE id = ${lastStats.id!}
+        UPDATE player_stats SET ${addIncrements} WHERE id = ${lastStats.id!}
       `;
       return;
     }
 
     if (insert !== null) {
-      await sql`INSERT INTO player_stats ${sql(insert)}`;
+      await sql`
+        INSERT INTO player_stats ${sql(insert)}
+        ON CONFLICT (player_id, date) DO UPDATE SET ${addIncrements}
+      `;
     }
   }
 }
