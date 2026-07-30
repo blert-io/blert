@@ -1,0 +1,53 @@
+name: Update item cache
+
+# Regenerates web/resources/{extended,simple}_items.json from the latest live
+# OSRS cache using the item-cache dumper image, opening a PR when on changes.
+#
+# The dumper exists at https://github.com/blert-io/item-cache.
+
+on:
+  schedule:
+    # Daily at 13:30 UTC. GitHub may delay scheduled runs by a few minutes.
+    - cron: '30 13 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: update-item-cache
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/blert-io/item-cache:latest
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Regenerate item data
+        run: |
+          mkdir -p "${RUNNER_TEMP}/osrs-cache"
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -v "${GITHUB_WORKSPACE}/web/resources:/resources" \
+            -v "${RUNNER_TEMP}/osrs-cache:/work/cache" \
+            "${IMAGE}"
+
+      - name: Create or update pull request
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          add-paths: web/resources/*.json
+          base: main
+          branch: automation/item-cache
+          delete-branch: true
+          commit-message: 'web: Refresh item cache data'
+          title: 'web: Refresh item cache data'
+          body: |
+            Automated regeneration of `web/resources/{extended,simple}_items.json`
+            from the latest live OSRS cache via the item-cache dumper image.
+          labels: |
+            automation
