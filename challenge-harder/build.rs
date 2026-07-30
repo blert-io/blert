@@ -10,6 +10,7 @@ fn main() -> Result<()> {
     generate_item_ids()?;
 
     let proto_dir = "../proto";
+    println!("cargo:rerun-if-changed={proto_dir}");
     let mut config = prost_build::Config::new();
 
     for ty in [

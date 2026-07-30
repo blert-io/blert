@@ -10,15 +10,17 @@
 
 use crate::lifecycle::challenge::StoreError;
 use crate::lifecycle::core::types::{
-    ChallengeType, ClientStageStream, ProcessingError, ProcessingPayload, Stage, Uuid,
+    ChallengeType, ClientStageStream, PlayerId, PrimaryMeleeGear, ProcessingError,
+    ProcessingPayload, Stage, Uuid,
 };
 use crate::store::Store;
 
-use super::ChallengeInfo;
 use super::challenge_processor::ChallengeProcessor;
 use super::db;
-use super::interpret::{InterpretError, InterpretOutput, interpret};
+use super::interpret::interpret;
 use super::mokhaiotl::MokhaiotlProcessor;
+use super::persist::persist;
+use super::{ChallengeInfo, StoredPlayerInfo, StoredState};
 
 /// Processes a stage's events from its recorded streams.
 pub async fn process(
@@ -48,7 +50,7 @@ pub async fn process(
         }
     };
 
-    let stream = gather(store, uuid, stage, attempt).await?;
+    let (stream, stored) = gather(store, txn, challenge, uuid, stage, attempt).await?;
     let info = challenge.clone();
 
     let (result, mut processor) = tokio::task::spawn_blocking(move || {
@@ -61,65 +63,80 @@ pub async fn process(
         message: format!("interpret task failed: {error}"),
     })?;
 
-    let payload = persist(txn, challenge, stage, result, &mut processor).await?;
+    let payload = persist(
+        txn,
+        challenge,
+        stage,
+        attempt,
+        &stored,
+        result,
+        &mut processor,
+    )
+    .await?;
     Ok((payload, processor.custom_data()))
 }
 
-/// Reads a stage's recorded streams from the store.
-// TODO(frolv): This should also collect other data required by the processing
-// thread.
+/// Collects the recorded streams and stored challenge state a run requires.
 async fn gather(
     store: &Store,
+    txn: &db::Transaction,
+    challenge: &ChallengeInfo,
     uuid: Uuid,
     stage: Stage,
     attempt: Option<u32>,
-) -> Result<Vec<ClientStageStream>, ProcessingError> {
-    store
-        .read_stage_stream(uuid, stage, attempt)
-        .await
-        .map_err(|error| ProcessingError {
-            retriable: matches!(error, StoreError::Unavailable(_)),
-            message: error.to_string(),
-        })
+) -> Result<(Vec<ClientStageStream>, StoredState), ProcessingError> {
+    let stream = async {
+        store
+            .read_stage_stream(uuid, stage, attempt)
+            .await
+            .map_err(|error| ProcessingError {
+                retriable: matches!(error, StoreError::Unavailable(_)),
+                message: error.to_string(),
+            })
+    };
+    let stored = async {
+        load_database_state(txn, challenge.scale())
+            .await
+            .map_err(ProcessingError::from)
+    };
+    tokio::try_join!(stream, stored)
 }
 
-/// Writes a stage's processed results to the database and blob store.
-/// Returns the payload to be sent back to the challenge.
-async fn persist(
+pub(super) async fn load_database_state(
     txn: &db::Transaction,
-    challenge: &ChallengeInfo,
-    stage: Stage,
-    result: Result<InterpretOutput, InterpretError>,
-    processor: &mut dyn ChallengeProcessor,
-) -> Result<ProcessingPayload, ProcessingError> {
-    let payload = payload_from(&result);
-
-    if let Ok(mut output) = result {
-        processor
-            .on_stage_finished(txn, &mut output.ctx, stage, &output.events)
-            .await?;
-
-        let total = (challenge.challenge_ticks + output.events.last_tick()).cast_signed();
-        txn.execute(
-            "UPDATE challenges SET challenge_ticks = $1 WHERE id = $2",
-            &[&total, &txn.challenge_id()],
+    expected_scale: i16,
+) -> Result<StoredState, db::Error> {
+    let rows = txn
+        .query(
+            "SELECT player_id, primary_gear FROM challenge_players
+             WHERE challenge_id = $1
+             ORDER BY orb",
+            &[&txn.challenge_id()],
         )
-        .await
-        .map_err(db::Error::from)?;
+        .await?;
+    if rows.len() != expected_scale.cast_unsigned() as usize {
+        return Err(db::Error::InvalidData(format!(
+            "challenge has {} players, expected {expected_scale}",
+            rows.len(),
+        )));
     }
 
-    Ok(payload)
-}
+    let players = rows
+        .iter()
+        .map(|row| {
+            let gear: i16 = row.get(1);
+            Ok(StoredPlayerInfo {
+                id: PlayerId(row.get(0)),
+                gear: PrimaryMeleeGear::try_from(gear)
+                    .map_err(|value| db::Error::InvalidData(format!("primary gear {value}")))?,
+            })
+        })
+        .collect::<Result<Vec<_>, db::Error>>()?;
 
-fn payload_from(result: &Result<InterpretOutput, InterpretError>) -> ProcessingPayload {
-    match result {
-        Ok(output) => ProcessingPayload::Stage {
-            status: output.events.status(),
-            ticks: output.events.last_tick(),
-        },
-        // TODO(frolv): Handle errors.
-        Err(InterpretError::NoData) => ProcessingPayload::None,
-    }
+    Ok(StoredState {
+        players,
+        custom_data: txn.custom_data().cloned(),
+    })
 }
 
 #[cfg(test)]
@@ -127,6 +144,7 @@ mod tests {
     use bytes::Bytes;
     use prost::Message;
 
+    use super::super::interpret::{InterpretError, InterpretOutput};
     use super::*;
     use crate::lifecycle::core::types::{
         ChallengeMode, ChallengeStatus, ClientId, ServerTicks, StageStatus, StageUpdate,
@@ -209,13 +227,5 @@ mod tests {
         let result = run_interpret(vec![events(1, &[0, 1, 4])]).unwrap();
         assert_eq!(result.events.status(), StageStatus::Started);
         assert_eq!(result.events.last_tick(), 4);
-    }
-
-    #[test]
-    fn empty_stream_yields_no_payload() {
-        assert_eq!(
-            payload_from(&run_interpret(vec![])),
-            ProcessingPayload::None,
-        );
     }
 }

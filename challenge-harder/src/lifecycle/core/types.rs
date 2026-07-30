@@ -141,6 +141,16 @@ impl std::fmt::Display for UserId {
     }
 }
 
+/// Identifier for an OSRS player.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct PlayerId(pub i32);
+
+impl std::fmt::Display for PlayerId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// Token authenticating a client's requests within a challenge.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -197,6 +207,23 @@ pub enum PrimaryMeleeGear {
     Blorva = 4,
     Oathplate = 5,
     RadiantOathplate = 6,
+}
+
+impl TryFrom<i16> for PrimaryMeleeGear {
+    type Error = i16;
+
+    fn try_from(value: i16) -> Result<PrimaryMeleeGear, i16> {
+        match value {
+            0 => Ok(PrimaryMeleeGear::Unknown),
+            1 => Ok(PrimaryMeleeGear::EliteVoid),
+            2 => Ok(PrimaryMeleeGear::Bandos),
+            3 => Ok(PrimaryMeleeGear::Torva),
+            4 => Ok(PrimaryMeleeGear::Blorva),
+            5 => Ok(PrimaryMeleeGear::Oathplate),
+            6 => Ok(PrimaryMeleeGear::RadiantOathplate),
+            _ => Err(value),
+        }
+    }
 }
 
 // Compile-time parity checks against the upstream TS values.

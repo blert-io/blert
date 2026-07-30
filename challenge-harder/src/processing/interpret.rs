@@ -12,6 +12,8 @@ use crate::proto::{Event, event};
 
 use super::ChallengeInfo;
 use super::challenge_processor::{ChallengeProcessor, EventCursor};
+use super::split::{ChallengeSplit, SplitType, StageSplit};
+use super::stats::PlayerStatsDelta;
 
 /// An NPC tracked through a stage.
 #[derive(Debug, Clone, PartialEq)]
@@ -25,6 +27,13 @@ pub struct RoomNpc {
     pub kind: Option<event::npc::Type>,
 }
 
+/// Data accumulated about a single party member during a stage.
+#[derive(Debug, Clone, Default)]
+pub struct PlayerData {
+    pub gear: Option<PrimaryMeleeGear>,
+    pub stats: PlayerStatsDelta,
+}
+
 /// Generic stage state accumulated by the event loop.
 #[derive(Debug)]
 pub struct StageContext {
@@ -32,8 +41,12 @@ pub struct StageContext {
     npcs: BTreeMap<u64, RoomNpc>,
     /// Party indices of players who died this stage, in death order.
     deaths: Vec<usize>,
-    /// Primary melee gear determined for each player this stage.
-    gear: Vec<Option<PrimaryMeleeGear>>,
+    /// Per-player data, indexed by party position.
+    players: Vec<PlayerData>,
+    /// Local splits recorded within the stage.
+    stage_splits: BTreeMap<SplitType, StageSplit>,
+    /// Challenge-wide splits recorded during the stage.
+    challenge_splits: BTreeMap<SplitType, ChallengeSplit>,
 }
 
 impl StageContext {
@@ -43,16 +56,14 @@ impl StageContext {
             party,
             npcs: BTreeMap::new(),
             deaths: Vec::new(),
-            gear: vec![None; scale],
+            players: vec![PlayerData::default(); scale],
+            stage_splits: BTreeMap::new(),
+            challenge_splits: BTreeMap::new(),
         }
     }
 
     pub fn party(&self) -> &[String] {
         &self.party
-    }
-
-    pub fn scale(&self) -> usize {
-        self.party.len()
     }
 
     /// Returns the tracked NPC with the given room ID.
@@ -70,13 +81,74 @@ impl StageContext {
         &self.deaths
     }
 
-    pub(super) fn gear(&self) -> &[Option<PrimaryMeleeGear>] {
-        &self.gear
+    /// Returns all players' collected data, indexed by party position.
+    pub(super) fn players(&self) -> &[PlayerData] {
+        &self.players
+    }
+
+    /// Returns the accumulated data of the player at `party_index`.
+    pub(super) fn player_mut(&mut self, party_index: usize) -> Option<&mut PlayerData> {
+        self.players.get_mut(party_index)
     }
 
     /// Returns the index of `username` in the party.
-    fn party_index(&self, username: &str) -> Option<usize> {
+    pub(super) fn party_index(&self, username: &str) -> Option<usize> {
         self.party.iter().position(|name| name == username)
+    }
+
+    /// Records a split whose timer is local to the current stage.
+    ///
+    /// `tick` is the tick on which the split occurred, counted as elapsed from
+    /// `start`. `requires_completion` indicates whether the split lasts until
+    /// the end of the stage. When set, accuracy is contingent on completion.
+    ///
+    /// Recording the same split again overwrites it.
+    pub fn set_stage_split(
+        &mut self,
+        split: SplitType,
+        tick: u32,
+        start: u32,
+        requires_completion: bool,
+    ) {
+        if tick > start {
+            self.stage_splits.insert(
+                split,
+                StageSplit {
+                    tick,
+                    start,
+                    requires_completion,
+                },
+            );
+        }
+    }
+
+    /// Returns the recorded stage split of the given type.
+    pub fn stage_split(&self, split: SplitType) -> Option<StageSplit> {
+        self.stage_splits.get(&split).copied()
+    }
+
+    /// Records a split whose timer spans the entire challenge.
+    pub fn set_challenge_split(&mut self, split: SplitType, ticks: u32, accurate: Option<bool>) {
+        if ticks > 0 {
+            self.challenge_splits
+                .insert(split, ChallengeSplit { ticks, accurate });
+        }
+    }
+
+    /// Iterates over recorded stage splits in split order.
+    pub(super) fn stage_splits(&self) -> impl Iterator<Item = (SplitType, StageSplit)> + '_ {
+        self.stage_splits
+            .iter()
+            .map(|(&split, &entry)| (split, entry))
+    }
+
+    /// Iterates over recorded challenge splits in split order.
+    pub(super) fn challenge_splits(
+        &self,
+    ) -> impl Iterator<Item = (SplitType, ChallengeSplit)> + '_ {
+        self.challenge_splits
+            .iter()
+            .map(|(&split, &entry)| (split, entry))
     }
 }
 
@@ -112,18 +184,18 @@ pub fn interpret(
         ..
     } = challenge;
 
+    resolve_party_indices(uuid, &party, &mut events);
+
     let mut ctx = StageContext::new(party);
     let mut kept = Vec::with_capacity(events.len());
-    let mut unknown_players: BTreeMap<String, u32> = BTreeMap::new();
 
-    // TODO(frolv): hoist party index as a preprocessing step
     for index in 0..events.len() {
         {
             let event = &events[index];
             if let Some(player) = &event.player
-                && ctx.party_index(&player.name).is_none()
+                && player.party_index == u32::MAX
             {
-                *unknown_players.entry(player.name.clone()).or_default() += 1;
+                // TODO(frolv): These events should be dropped by the merger.
                 continue;
             }
             track_event(&mut ctx, event);
@@ -135,14 +207,6 @@ pub fn interpret(
         }
     }
 
-    if !unknown_players.is_empty() {
-        tracing::error!(
-            %uuid,
-            players = ?unknown_players,
-            "challenge_event_unknown_players",
-        );
-    }
-
     if party_changed {
         events.restrict_accuracy_to(0);
     }
@@ -150,23 +214,45 @@ pub fn interpret(
     Ok(InterpretOutput { events, kept, ctx })
 }
 
+/// Resolves each player event's username to its party index.
+/// Events from players outside the party are marked with an out-of-range index.
+// TODO(frolv): This should be a postprocessing step in the merger.
+fn resolve_party_indices(uuid: Uuid, party: &[String], events: &mut MergedEvents) {
+    let mut unknown: BTreeMap<String, u32> = BTreeMap::new();
+    for event in events.iter_mut() {
+        let Some(player) = &mut event.player else {
+            continue;
+        };
+        if let Some(index) = party.iter().position(|name| name == &player.name) {
+            player.party_index = u32::try_from(index).expect("party index fits in a u32");
+        } else {
+            *unknown.entry(player.name.clone()).or_default() += 1;
+            player.party_index = u32::MAX;
+        }
+    }
+
+    if !unknown.is_empty() {
+        tracing::error!(%uuid, players = ?unknown, "challenge_event_unknown_players");
+    }
+}
+
 /// Handles a single event, updating state if necessary.
 fn track_event(ctx: &mut StageContext, event: &Event) {
     match event.r#type() {
         event::Type::PlayerUpdate => {
             if let Some(player) = &event.player
-                && let Some(index) = ctx.party_index(&player.name)
-                && ctx.gear[index].is_none()
+                && let Some(data) = ctx.players.get_mut(player.party_index as usize)
+                && data.gear.is_none()
                 && let Some(gear) = try_determine_gear(player)
             {
-                ctx.gear[index] = Some(gear);
+                data.gear = Some(gear);
             }
         }
         event::Type::PlayerDeath => {
             if let Some(player) = &event.player
-                && let Some(index) = ctx.party_index(&player.name)
+                && (player.party_index as usize) < ctx.party.len()
             {
-                ctx.deaths.push(index);
+                ctx.deaths.push(player.party_index as usize);
             }
         }
         event::Type::NpcSpawn => {
@@ -237,7 +323,7 @@ mod tests {
         StageContext::new(vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()])
     }
 
-    fn event_with_player(kind: event::Type, tick: u32, name: &str) -> Event {
+    fn event_with_player(kind: event::Type, tick: u32, name: &str, index: u32) -> Event {
         let mut event = Event {
             tick,
             ..Default::default()
@@ -245,13 +331,14 @@ mod tests {
         event.set_type(kind);
         event.player = Some(event::Player {
             name: name.to_string(),
+            party_index: index,
             ..Default::default()
         });
         event
     }
 
-    fn update_with_deltas(name: &str, deltas: Vec<u64>) -> Event {
-        let mut event = event_with_player(event::Type::PlayerUpdate, 1, name);
+    fn update_with_deltas(name: &str, index: u32, deltas: Vec<u64>) -> Event {
+        let mut event = event_with_player(event::Type::PlayerUpdate, 1, name, index);
         event.player.as_mut().unwrap().equipment_deltas = deltas;
         event
     }
@@ -334,11 +421,11 @@ mod tests {
         let mut ctx = context();
         track_event(
             &mut ctx,
-            &event_with_player(event::Type::PlayerDeath, 10, "WWWWWWWWWWQQ"),
+            &event_with_player(event::Type::PlayerDeath, 10, "WWWWWWWWWWQQ", 1),
         );
         track_event(
             &mut ctx,
-            &event_with_player(event::Type::PlayerDeath, 25, "1Ogp"),
+            &event_with_player(event::Type::PlayerDeath, 25, "1Ogp", 0),
         );
         assert_eq!(ctx.deaths(), &[1, 0]);
     }
@@ -348,9 +435,85 @@ mod tests {
         let mut ctx = context();
         track_event(
             &mut ctx,
-            &event_with_player(event::Type::PlayerDeath, 5, "TobDataEgirl"),
+            &event_with_player(event::Type::PlayerDeath, 5, "TobDataEgirl", u32::MAX),
         );
         assert!(ctx.deaths().is_empty());
+    }
+
+    #[test]
+    fn stage_splits_must_progress_past_their_start() {
+        let mut ctx = context();
+        ctx.set_stage_split(SplitType::TobEntryMaiden70s50s, 0, 0, false);
+        ctx.set_stage_split(SplitType::TobEntryMaiden70s50s, 32, 52, false);
+        assert_eq!(ctx.stage_split(SplitType::TobEntryMaiden70s50s), None);
+
+        ctx.set_stage_split(SplitType::TobEntryMaiden70s50s, 52, 32, false);
+        assert_eq!(
+            ctx.stage_split(SplitType::TobEntryMaiden70s50s),
+            Some(StageSplit {
+                tick: 52,
+                start: 32,
+                requires_completion: false,
+            }),
+        );
+    }
+
+    #[test]
+    fn stage_splits_overwrite_and_iterate_in_split_order() {
+        let mut ctx = context();
+        ctx.set_stage_split(SplitType::TobEntryMaiden70s, 32, 0, false);
+        ctx.set_stage_split(SplitType::TobEntryMaiden, 150, 0, true);
+        ctx.set_stage_split(SplitType::TobEntryMaiden, 155, 0, true);
+        assert_eq!(
+            ctx.stage_splits().collect::<Vec<_>>(),
+            vec![
+                (
+                    SplitType::TobEntryMaiden,
+                    StageSplit {
+                        tick: 155,
+                        start: 0,
+                        requires_completion: true,
+                    },
+                ),
+                (
+                    SplitType::TobEntryMaiden70s,
+                    StageSplit {
+                        tick: 32,
+                        start: 0,
+                        requires_completion: false,
+                    },
+                ),
+            ],
+        );
+    }
+
+    #[test]
+    fn challenge_splits_need_nonzero_ticks_and_iterate_in_split_order() {
+        let mut ctx = context();
+        ctx.set_challenge_split(SplitType::TobEntryChallenge, 0, None);
+        assert_eq!(ctx.challenge_splits().count(), 0);
+
+        ctx.set_challenge_split(SplitType::TobEntryNyloStart, 280, Some(true));
+        ctx.set_challenge_split(SplitType::TobEntryChallenge, 1534, None);
+        assert_eq!(
+            ctx.challenge_splits().collect::<Vec<_>>(),
+            vec![
+                (
+                    SplitType::TobEntryChallenge,
+                    ChallengeSplit {
+                        ticks: 1534,
+                        accurate: None,
+                    },
+                ),
+                (
+                    SplitType::TobEntryNyloStart,
+                    ChallengeSplit {
+                        ticks: 280,
+                        accurate: Some(true),
+                    },
+                ),
+            ],
+        );
     }
 
     #[test]
@@ -360,6 +523,7 @@ mod tests {
             &mut ctx,
             &update_with_deltas(
                 "1Ogp",
+                0,
                 vec![ItemDelta::Add(EquipmentSlot::Torso, item::id::TORVA_PLATEBODY, 1).to_raw()],
             ),
         );
@@ -367,10 +531,12 @@ mod tests {
             &mut ctx,
             &update_with_deltas(
                 "1Ogp",
+                0,
                 vec![ItemDelta::Add(EquipmentSlot::Torso, item::id::BANDOS_CHESTPLATE, 1).to_raw()],
             ),
         );
-        assert_eq!(ctx.gear(), &[Some(PrimaryMeleeGear::Torva), None]);
+        let gear: Vec<_> = ctx.players().iter().map(|p| p.gear).collect();
+        assert_eq!(gear, [Some(PrimaryMeleeGear::Torva), None]);
     }
 
     #[test]
@@ -380,11 +546,13 @@ mod tests {
             &mut ctx,
             &update_with_deltas(
                 "1Ogp",
+                0,
                 vec![
                     ItemDelta::Remove(EquipmentSlot::Torso, item::id::TORVA_PLATEBODY, 1).to_raw(),
                 ],
             ),
         );
-        assert_eq!(ctx.gear(), &[None, None]);
+        let gear: Vec<_> = ctx.players().iter().map(|p| p.gear).collect();
+        assert_eq!(gear, [None, None]);
     }
 }

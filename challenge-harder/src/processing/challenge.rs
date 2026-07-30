@@ -3,7 +3,7 @@
 use std::time::{Duration, UNIX_EPOCH};
 
 use crate::lifecycle::core::types::{
-    ChallengeMode, ChallengeStatus, PrimaryMeleeGear, RecordingType, Stage, UserId, Uuid,
+    ChallengeMode, ChallengeStatus, PlayerId, PrimaryMeleeGear, RecordingType, Stage, UserId, Uuid,
 };
 use crate::players::normalize_rsn;
 
@@ -16,7 +16,6 @@ pub async fn create(
     info: &ChallengeInfo,
 ) -> Result<(), db::Error> {
     let start_time = UNIX_EPOCH + Duration::from_millis(info.created_unix_ms);
-    let scale = i16::try_from(info.party.len()).expect("party fits in a smallint");
     let row = txn
         .query_one(
             "INSERT INTO challenges (uuid, type, mode, scale, stage, status, start_time)
@@ -26,7 +25,7 @@ pub async fn create(
                 &uuid,
                 &(info.challenge_type as i16),
                 &(info.mode as i16),
-                &scale,
+                &info.scale(),
                 &(info.stage as i16),
                 &(ChallengeStatus::InProgress as i16),
                 &start_time,
@@ -42,7 +41,7 @@ pub async fn create(
              VALUES ($1, $2, $3, $4, $5)",
             &[
                 &txn.challenge_id(),
-                &player_id,
+                &player_id.0,
                 &username,
                 &i16::try_from(orb).expect("orb fits in a smallint"),
                 &(PrimaryMeleeGear::Unknown as i16),
@@ -56,7 +55,10 @@ pub async fn create(
 
 /// Records that a player has started a challenge, creating their row if it
 /// does not exist. Returns the player's database ID.
-async fn start_player_challenge(txn: &db::Transaction, username: &str) -> Result<i32, db::Error> {
+async fn start_player_challenge(
+    txn: &db::Transaction,
+    username: &str,
+) -> Result<PlayerId, db::Error> {
     // The unique index on normalized_username is partial, so the conflict
     // target must spell its predicate for Postgres.
     let row = txn
@@ -69,7 +71,7 @@ async fn start_player_challenge(txn: &db::Transaction, username: &str) -> Result
             &[&username, &normalize_rsn(username)],
         )
         .await?;
-    Ok(row.get(0))
+    Ok(PlayerId(row.get(0)))
 }
 
 /// Records a user as a recorder of the challenge.

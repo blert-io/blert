@@ -15,6 +15,7 @@ mod processing;
 mod proto;
 mod repository;
 mod shadow;
+mod skill;
 mod store;
 
 use std::process::ExitCode;
