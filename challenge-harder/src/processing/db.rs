@@ -157,7 +157,6 @@ impl Transaction {
 
     /// Returns the processor state stored by the last committed run.
     /// Absent for a fresh challenge.
-    #[cfg_attr(not(test), expect(dead_code))]
     pub fn custom_data(&self) -> Option<&serde_json::Value> {
         self.custom_data.as_ref()
     }

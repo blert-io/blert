@@ -95,6 +95,11 @@ impl MergedEvents {
         self.events.iter()
     }
 
+    /// Mutably iterates over every event in tick order.
+    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, Event> {
+        self.events.iter_mut()
+    }
+
     /// The number of events in the timeline.
     pub fn len(&self) -> usize {
         self.events.len()

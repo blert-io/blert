@@ -6,7 +6,8 @@ use async_trait::async_trait;
 
 use crate::lifecycle::core::state::Trigger;
 use crate::lifecycle::core::types::{
-    ChallengeMode, ChallengeStatus, ChallengeType, ProcessingError, ProcessingPayload, Stage, Uuid,
+    ChallengeMode, ChallengeStatus, ChallengeType, PlayerId, PrimaryMeleeGear, ProcessingError,
+    ProcessingPayload, Stage, Uuid,
 };
 use crate::store::Store;
 
@@ -16,7 +17,10 @@ mod challenge;
 mod challenge_processor;
 mod interpret;
 mod mokhaiotl;
+mod persist;
+mod split;
 mod stage;
+mod stats;
 
 /// Challenge state at the time a run is triggered.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,6 +33,29 @@ pub struct ChallengeInfo {
     pub status: ChallengeStatus,
     pub challenge_ticks: u32,
     pub created_unix_ms: u64,
+}
+
+impl ChallengeInfo {
+    pub fn scale(&self) -> i16 {
+        i16::try_from(self.party.len()).expect("scale fits in a smallint")
+    }
+}
+
+/// A challenge party member.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StoredPlayerInfo {
+    pub id: PlayerId,
+    /// The gear recorded for the player.
+    pub gear: PrimaryMeleeGear,
+}
+
+/// Challenge state a processing run retrieves from the database.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StoredState {
+    /// Party members in order.
+    pub players: Vec<StoredPlayerInfo>,
+    /// Type-specific processor state persisted across runs.
+    pub custom_data: Option<serde_json::Value>,
 }
 
 /// A request to process the data demanded by a run trigger.
