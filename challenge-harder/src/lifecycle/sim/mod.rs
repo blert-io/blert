@@ -27,8 +27,8 @@ use super::challenge::{
 use super::coordinator::Coordinator;
 use super::core::apply::apply;
 use super::core::command::{
-    ClientStatus, ClientStatusChange, Command, Create, Envelope, Finish, Join, StageProgress,
-    Update,
+    ClientMovedOn, ClientStatus, ClientStatusChange, Command, Create, Envelope, Finish, Join,
+    StageProgress, Update,
 };
 use super::core::deadline::LifecycleConfig;
 use super::core::event::{Cause, JournalEntry, LifecycleEvent};
@@ -485,12 +485,7 @@ impl ChallengeStore for Collector {
         if let Some(previous) = left {
             self.enqueue(
                 previous,
-                Command::ClientStatus(ClientStatusChange {
-                    user_id: create.user_id,
-                    client_id,
-                    session_token: create.session_token.clone(),
-                    status: ClientStatus::Disconnected,
-                }),
+                Command::ClientMovedOn(ClientMovedOn { client_id }),
             )
             .await;
         }

@@ -1366,11 +1366,8 @@ async fn start_supersedes_a_finishing_incumbent() {
 
 /// The removal command a start queues to a challenge its client left.
 fn removal_command(create: &Create) -> Command {
-    Command::ClientStatus(ClientStatusChange {
-        user_id: create.user_id,
+    Command::ClientMovedOn(ClientMovedOn {
         client_id: create.client_id,
-        session_token: create.session_token.clone(),
-        status: ClientStatus::Disconnected,
     })
 }
 
