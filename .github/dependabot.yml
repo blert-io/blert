@@ -6,11 +6,18 @@ updates:
       interval: weekly
     open-pull-requests-limit: 10
     groups:
+      # The typescript-eslint meta-package pins the plugin and the parser at
+      # exact versions, so all three can only move together, on any update.
+      typescript-eslint:
+        patterns:
+          - typescript-eslint
+          - '@typescript-eslint/*'
+
       npm-minor-patch:
         # Formatting and lint tooling is excluded from the group because a
         # bump usually requires a matching reformat or relint, which does not
         # belong in a PR carrying dozens of unrelated packages. Excluded
-        # packages still receive their own individual update PRs.
+        # packages still receive their own update PRs.
         exclude-patterns:
           - prettier
           - eslint
